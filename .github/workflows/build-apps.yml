@@ -30,15 +30,13 @@ jobs:
         run: |
           set -e
           EXE_PATH=$(ls dist/*.exe | head -n 1)
-          git clone --depth 1 "https://${{ secrets.DOWNLOADS_REPO_TOKEN }}@github.com/RiqueBitt/ProjectClub-Downloads.git" ../downloads-repo
-          mkdir -p ../downloads-repo/download
-          cp "$EXE_PATH" ../downloads-repo/download/ProjectClub-Setup-Windows.exe
-          cd ../downloads-repo
-          git config user.name "Project Club CI"
-          git config user.email "noreply@projectclub.local"
-          git add download/ProjectClub-Setup-Windows.exe
-          git diff --cached --quiet && echo "Nada mudou, pulando commit." || git commit -m "Windows: atualiza instalador (build automático)"
-          git push
+          cp "$EXE_PATH" "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe"
+          bash "$GITHUB_WORKSPACE/.github/scripts/publish-download.sh" \
+            "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe" \
+            "download/ProjectClub-Setup-Windows.exe" \
+            "Windows: atualiza instalador (build automático)"
+        env:
+          DOWNLOADS_REPO_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
 
   build-linux:
     runs-on: ubuntu-latest
@@ -58,15 +56,13 @@ jobs:
         run: |
           set -e
           APPIMAGE_PATH=$(ls dist/*.AppImage | head -n 1)
-          git clone --depth 1 "https://${{ secrets.DOWNLOADS_REPO_TOKEN }}@github.com/RiqueBitt/ProjectClub-Downloads.git" ../downloads-repo
-          mkdir -p ../downloads-repo/download
-          cp "$APPIMAGE_PATH" ../downloads-repo/download/ProjectClub-Linux.AppImage
-          cd ../downloads-repo
-          git config user.name "Project Club CI"
-          git config user.email "noreply@projectclub.local"
-          git add download/ProjectClub-Linux.AppImage
-          git diff --cached --quiet && echo "Nada mudou, pulando commit." || git commit -m "Linux: atualiza AppImage (build automático)"
-          git push
+          cp "$APPIMAGE_PATH" "$RUNNER_TEMP/ProjectClub-Linux.AppImage"
+          bash "$GITHUB_WORKSPACE/.github/scripts/publish-download.sh" \
+            "$RUNNER_TEMP/ProjectClub-Linux.AppImage" \
+            "download/ProjectClub-Linux.AppImage" \
+            "Linux: atualiza AppImage (build automático)"
+        env:
+          DOWNLOADS_REPO_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
 
   build-android:
     runs-on: ubuntu-latest
@@ -79,6 +75,13 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      # BUG CORRIGIDO: faltava o SDK do Android em si (só o Java estava
+      # instalado) — tanto o `cap sync` quanto o Gradle mais adiante
+      # precisam dele. Essa action instala as ferramentas de linha de
+      # comando + a platform-tools na mesma versão que o projeto usa
+      # (ver variables.gradle).
+      - name: Instalar o Android SDK
+        uses: android-actions/setup-android@v3
       - name: Instalar dependências do client
         working-directory: client
         run: npm install
@@ -88,6 +91,8 @@ jobs:
       - name: Sincronizar com o projeto Android
         working-directory: client
         run: npx cap sync android
+      - name: Garantir que o gradlew é executável
+        run: chmod +x client/android/gradlew
       - name: Decodificar a chave de assinatura
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > client/android/app/release.keystore
       - name: Gerar o .apk assinado
@@ -96,17 +101,15 @@ jobs:
           ANDROID_KEYSTORE_PATH: app/release.keystore
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease --stacktrace
       - name: Publicar no repositório de downloads
         run: |
           set -e
           APK_PATH=$(find client/android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
-          git clone --depth 1 "https://${{ secrets.DOWNLOADS_REPO_TOKEN }}@github.com/RiqueBitt/ProjectClub-Downloads.git" ../downloads-repo
-          mkdir -p ../downloads-repo/download
-          cp "$APK_PATH" ../downloads-repo/download/ProjectClub.apk
-          cd ../downloads-repo
-          git config user.name "Project Club CI"
-          git config user.email "noreply@projectclub.local"
-          git add download/ProjectClub.apk
-          git diff --cached --quiet && echo "Nada mudou, pulando commit." || git commit -m "Android: atualiza APK (build automático)"
-          git push
+          cp "$APK_PATH" "$RUNNER_TEMP/ProjectClub.apk"
+          bash "$GITHUB_WORKSPACE/.github/scripts/publish-download.sh" \
+            "$RUNNER_TEMP/ProjectClub.apk" \
+            "download/ProjectClub.apk" \
+            "Android: atualiza APK (build automático)"
+        env:
+          DOWNLOADS_REPO_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
