@@ -25,18 +25,24 @@ jobs:
         run: npm install
       - name: Gerar o instalador .exe
         run: npm run build:win
-      - name: Publicar no repositório de downloads
+      # Publica como asset de uma GitHub Release (não mais como arquivo
+      # dentro de uma pasta comum do repositório) — sem limite de 100MB
+      # (releases aceitam até 2GB por arquivo), e sem risco de corrida
+      # com os outros dois jobs rodando ao mesmo tempo: cada um só sobe
+      # o SEU PRÓPRIO arquivo pra dentro da mesma release "latest", sem
+      # precisar dar git push (que é o que causava a disputa antes).
+      - name: Publicar na Release "latest"
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
         run: |
           set -e
           EXE_PATH=$(ls dist/*.exe | head -n 1)
-          cp "$EXE_PATH" "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe"
-          bash "$GITHUB_WORKSPACE/.github/scripts/publish-download.sh" \
-            "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe" \
-            "download/ProjectClub-Setup-Windows.exe" \
-            "Windows: atualiza instalador (build automático)"
-        env:
-          DOWNLOADS_REPO_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
+          REPO="RiqueBitt/ProjectClub-Downloads"
+          gh release view latest --repo "$REPO" >/dev/null 2>&1 || \
+            gh release create latest --repo "$REPO" --title "Versão mais recente" \
+              --notes "Gerado automaticamente pelo GitHub Actions a cada atualização." --latest || true
+          gh release upload latest "$EXE_PATH#ProjectClub-Setup-Windows.exe" --repo "$REPO" --clobber
 
   build-linux:
     runs-on: ubuntu-latest
@@ -52,17 +58,17 @@ jobs:
         run: npm install
       - name: Gerar o AppImage
         run: npm run build:linux
-      - name: Publicar no repositório de downloads
+      - name: Publicar na Release "latest"
+        env:
+          GH_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
         run: |
           set -e
           APPIMAGE_PATH=$(ls dist/*.AppImage | head -n 1)
-          cp "$APPIMAGE_PATH" "$RUNNER_TEMP/ProjectClub-Linux.AppImage"
-          bash "$GITHUB_WORKSPACE/.github/scripts/publish-download.sh" \
-            "$RUNNER_TEMP/ProjectClub-Linux.AppImage" \
-            "download/ProjectClub-Linux.AppImage" \
-            "Linux: atualiza AppImage (build automático)"
-        env:
-          DOWNLOADS_REPO_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
+          REPO="RiqueBitt/ProjectClub-Downloads"
+          gh release view latest --repo "$REPO" >/dev/null 2>&1 || \
+            gh release create latest --repo "$REPO" --title "Versão mais recente" \
+              --notes "Gerado automaticamente pelo GitHub Actions a cada atualização." --latest || true
+          gh release upload latest "$APPIMAGE_PATH#ProjectClub-Linux.AppImage" --repo "$REPO" --clobber
 
   build-android:
     runs-on: ubuntu-latest
@@ -70,21 +76,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          # BUG CORRIGIDO ("The Capacitor CLI requires NodeJS >=22.0.0"):
-          # os outros dois jobs (Windows/Linux) usam Node 20 sem problema
-          # (Electron não exige mais que isso), mas o Capacitor CLI 8.x
-          # exige Node 22+ de verdade — a versão 20 aqui derrubava o
-          # `cap sync` antes mesmo de chegar no Gradle.
+          # O Capacitor CLI 8.x exige Node 22+ de verdade (os outros dois
+          # jobs usam Node 20 sem problema — só o Capacitor é mais exigente).
           node-version: 22
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
-      # BUG CORRIGIDO: faltava o SDK do Android em si (só o Java estava
-      # instalado) — tanto o `cap sync` quanto o Gradle mais adiante
-      # precisam dele. Essa action instala as ferramentas de linha de
-      # comando + a platform-tools na mesma versão que o projeto usa
-      # (ver variables.gradle).
       - name: Instalar o Android SDK
         uses: android-actions/setup-android@v3
       - name: Instalar dependências do client
@@ -103,18 +101,18 @@ jobs:
       - name: Gerar o .apk assinado
         working-directory: client/android
         env:
-          ANDROID_KEYSTORE_PATH: app/release.keystore
+          ANDROID_KEYSTORE_PATH: release.keystore
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew assembleRelease --stacktrace
-      - name: Publicar no repositório de downloads
+      - name: Publicar na Release "latest"
+        env:
+          GH_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
         run: |
           set -e
           APK_PATH=$(find client/android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
-          cp "$APK_PATH" "$RUNNER_TEMP/ProjectClub.apk"
-          bash "$GITHUB_WORKSPACE/.github/scripts/publish-download.sh" \
-            "$RUNNER_TEMP/ProjectClub.apk" \
-            "download/ProjectClub.apk" \
-            "Android: atualiza APK (build automático)"
-        env:
-          DOWNLOADS_REPO_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
+          REPO="RiqueBitt/ProjectClub-Downloads"
+          gh release view latest --repo "$REPO" >/dev/null 2>&1 || \
+            gh release create latest --repo "$REPO" --title "Versão mais recente" \
+              --notes "Gerado automaticamente pelo GitHub Actions a cada atualização." --latest || true
+          gh release upload latest "$APK_PATH#ProjectClub.apk" --repo "$REPO" --clobber

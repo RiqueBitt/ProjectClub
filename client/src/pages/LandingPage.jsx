@@ -19,20 +19,17 @@ function useReveal() {
   }, []);
 }
 
-// Publicados no repositório PÚBLICO separado ProjectClub-Downloads (sem
-// nenhum código-fonte dentro, só os instaladores) — o repositório
-// principal continua privado. O GitHub Actions do repositório principal
-// (.github/workflows/build-desktop.yml) publica ali automaticamente
-// sempre que a pasta desktop/ muda, mas é um repositório normal — dá
-// pra arrastar um arquivo novo lá manualmente a qualquer momento também.
-const DOWNLOADS_BASE = 'https://raw.githubusercontent.com/RiqueBitt/ProjectClub-Downloads/main/download';
+// Publicados como assets de uma GitHub Release no repositório PÚBLICO
+// separado ProjectClub-Downloads (sem nenhum código-fonte dentro, só os
+// instaladores) — o repositório principal continua privado. O GitHub
+// Actions do repositório principal (.github/workflows/build-apps.yml)
+// publica ali automaticamente sempre que desktop/ ou client/android/
+// mudam. "releases/latest/download/<nome>" é um link ESTÁVEL do próprio
+// GitHub — sempre baixa o arquivo daquele nome da versão mais recente
+// publicada, sem precisar saber o número da versão.
+const DOWNLOADS_BASE = 'https://github.com/RiqueBitt/ProjectClub-Downloads/releases/latest/download';
 const WINDOWS_DOWNLOAD_URL = `${DOWNLOADS_BASE}/ProjectClub-Setup-Windows.exe`;
-// O AppImage do Linux passa dos 100MB, então é guardado via Git LFS (ver
-// .gitattributes no repositório de downloads) — arquivo rastreado por
-// LFS precisa desse domínio específico (media.githubusercontent.com)
-// pra servir o conteúdo de verdade; raw.githubusercontent.com serviria
-// só o "ponteiro" de texto do LFS, um arquivo de poucos KB inútil.
-const LINUX_DOWNLOAD_URL = 'https://media.githubusercontent.com/media/RiqueBitt/ProjectClub-Downloads/main/download/ProjectClub-Linux.AppImage';
+const LINUX_DOWNLOAD_URL = `${DOWNLOADS_BASE}/ProjectClub-Linux.AppImage`;
 const ANDROID_DOWNLOAD_URL = `${DOWNLOADS_BASE}/ProjectClub.apk`;
 
 export default function LandingPage() {
