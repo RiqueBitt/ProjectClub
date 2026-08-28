@@ -129,10 +129,27 @@ function ProtectedApp() {
 // inicial pública (LandingPage.jsx, estilo Discord) pra quem ainda não
 // está logado, e só entra direto no app de verdade pra quem já tem
 // sessão ativa (mesmo comportamento de antes, preservado).
+// Item pedido: a página inicial (com os botões de baixar .exe/.apk/
+// .AppImage) só faz sentido pra quem está no NAVEGADOR — dentro do
+// próprio app instalado (Windows/Linux/Android) não faz sentido nenhum
+// mostrar "baixar para Windows" pra quem já está rodando o app do
+// Windows. isNativeApp() detecta os dois tipos de app nativo que esse
+// projeto tem: Electron (desktop, expõe window.electronAPI via
+// preload.js) e Capacitor (Android, expõe window.Capacitor).
+function isNativeApp() {
+  if (typeof window === 'undefined') return false;
+  if (window.electronAPI) return true;
+  return !!window.Capacitor?.isNativePlatform?.();
+}
+
 function RootGate() {
   const { user, loading } = useAuth();
   if (loading) return null;
-  return user ? <ProtectedApp /> : <LandingPage />;
+  if (user) return <ProtectedApp />;
+  // App nativo sem sessão ativa vai direto pro login — sem passar pela
+  // página de marketing/download no meio do caminho.
+  if (isNativeApp()) return <Navigate to="/login" replace />;
+  return <LandingPage />;
 }
 
 // BUG CORRIGIDO ("tela de carregamento boba"): a antiga SplashScreen era
