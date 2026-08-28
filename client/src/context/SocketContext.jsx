@@ -1,22 +1,46 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
-import { useStore, roomKeyFor, messageMentionsUser } from '../store/useStore';
+import { useStore, roomKeyFor, messageMentionsUser, isChannelUnread, isConversationUnread } from '../store/useStore';
 import { listFriends, getCommunity, listUsableEmojis } from '../api/endpoints';
 import { playSound } from '../utils/sounds';
+import { updateUnreadBadge } from '../utils/unreadBadge';
 
 const SocketContext = createContext(null);
 
-function notifyUser(title, body) {
+// BUG CORRIGIDO: o ícone da notificação apontava pra '/icon.svg', um
+// arquivo que nunca existiu neste projeto (só existe /icon.png) — toda
+// notificação nativa sempre saía sem ícone nenhum (ou com um genérico do
+// sistema), silenciosamente, sem erro nenhum visível.
+// BUG CORRIGIDO ("notificação só funcionava com a janela minimizada"):
+// document.visibilityState só vira 'hidden' quando a aba/janela é
+// MINIMIZADA ou trocada de aba — se a pessoa só está com o app aberto
+// mas trabalhando em OUTRA janela por cima (o caso mais comum de
+// verdade), a janela continua "visível" tecnicamente, então nenhuma
+// notificação disparava. document.hasFocus() cobre esse caso também.
+function notifyUser(title, body, onClick) {
   useStore.getState().pushNotice(body ? `${title}: ${body}` : title);
-  if (typeof document !== 'undefined' && document.visibilityState === 'hidden'
-    && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-    try { new Notification(title, { body, icon: '/icon.svg' }); } catch { /* not fatal */ }
+  const isHiddenOrUnfocused = typeof document !== 'undefined'
+    && (document.visibilityState === 'hidden' || !document.hasFocus());
+  if (isHiddenOrUnfocused && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    try {
+      const n = new Notification(title, { body, icon: '/icon.png' });
+      // Clicar na notificação traz a janela pra frente — funciona tanto
+      // no app de desktop (Electron, via a ponte exposta em preload.js)
+      // quanto num navegador comum (window.focus() já resolve sozinho).
+      n.onclick = () => {
+        window.electronAPI?.focusWindow?.();
+        window.focus();
+        onClick?.();
+      };
+    } catch { /* not fatal */ }
   }
 }
 
 export function SocketProvider({ children }) {
   const { token, user, logout } = useAuth();
+  const navigate = useNavigate();
   const userId = user?.id;
   const [connected, setConnected] = useState(false);
   const socketRef = useRef(null);
@@ -110,9 +134,21 @@ export function SocketProvider({ children }) {
           const authorName = message.author?.displayName || 'Alguém';
           const verb = isReplyToMe && !wasMentioned ? 'respondeu sua mensagem' : 'mencionou você';
           const preview = (message.content || '').slice(0, 120);
-          notifyUser(`${authorName} ${verb}`, preview);
+          notifyUser(`${authorName} ${verb}`, preview, () => navigate(`/`));
+        } else if (message.conversationId && !isOpenConversation) {
+          // Item pedido: notificação nativa pra mensagem direta (DM), não
+          // só pra menção — igual Discord notifica qualquer DM nova,
+          // mesmo sem @ nenhum, já que é sempre "pessoal" por definição.
+          const authorName = message.author?.displayName || 'Alguém';
+          const preview = (message.content || '').slice(0, 120) || '📎 Anexo';
+          notifyUser(authorName, preview, () => navigate(`/conversations/${message.conversationId}`));
         }
       }
+      // Item pedido: bolinha de não lidas no ícone da bandeja/dock — só
+      // atualiza quando a mensagem é de outra pessoa e realmente conta
+      // como não lida (mesma condição de cima), refletindo direto no
+      // ícone do app via Electron (ver App.jsx/desktop main.js).
+      updateUnreadBadge(userId);
     });
     socket.on('message:update', (message) => {
       updateMessage(roomKeyFor(message), message);

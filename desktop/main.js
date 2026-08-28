@@ -4,7 +4,7 @@
 // ícone na bandeja do sistema, iniciar sozinho com o Windows, e continuar
 // rodando em segundo plano mesmo com a janela fechada — exatamente como
 // Discord/Slack fazem.
-const { app, BrowserWindow, Tray, Menu, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage } = require('electron');
 const path = require('path');
 
 // URL do site hospedado — trocar aqui se o domínio mudar um dia. Fica só
@@ -106,6 +106,33 @@ if (!gotLock) {
   // do package.json empacotado (o CI grava a versão certa ali antes de
   // gerar o instalador, ver .github/workflows/build-apps.yml).
   ipcMain.handle('get-app-version', () => app.getVersion());
+  // Item pedido: botão "Baixar agora" no aviso de atualização precisa
+  // abrir a página de download no NAVEGADOR de verdade — o app nativo
+  // nunca mostra a página de marketing/download dentro dele mesmo (ver
+  // RootGate em App.jsx), então "navegar pra lá" dentro da própria janela
+  // não funcionaria. shell.openExternal manda pro navegador padrão do
+  // sistema, de verdade.
+  ipcMain.handle('open-external', (_event, url) => shell.openExternal(url));
+  // Item pedido: clicar numa notificação nativa traz a janela de volta
+  // pra frente (mesmo vindo da bandeja) — ver o onclick da notificação
+  // em SocketContext.jsx.
+  ipcMain.handle('focus-window', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  });
+  // Item pedido: bolinha vermelha de não lidas sobreposta no ícone da
+  // barra de tarefas do Windows (setOverlayIcon é a API certa pra isso
+  // — diferente de macOS/Linux, o Windows não tem "badge count" nativo
+  // com número, só ícones sobrepostos; por isso é uma bolinha simples,
+  // igual pedido, não um número). Fica só ligado/desligado — não some
+  // sozinho, alguém precisa realmente ler as mensagens novas.
+  const badgeIcon = nativeImage.createFromPath(path.join(__dirname, 'build', 'badge-dot.png'));
+  ipcMain.handle('set-unread-count', (_event, count) => {
+    if (!mainWindow) return;
+    mainWindow.setOverlayIcon(count > 0 ? badgeIcon : null, count > 0 ? `${count} não lida(s)` : '');
+  });
 
   app.whenReady().then(() => {
     // "openAsHidden" é o que faz a inicialização automática cumprir o
@@ -120,6 +147,21 @@ if (!gotLock) {
     if (!app.getLoginItemSettings().openAtLogin) {
       app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true });
     }
+
+    // Item pedido: atalho de teclado global (funciona mesmo com o app em
+    // segundo plano/sem foco, diferente de um atalho comum) pra abrir o
+    // app rapidamente. Ctrl+Shift+P — escolhido por ser raro de colidir
+    // com outros programas comuns (P de "Project Club").
+    globalShortcut.register('CommandOrControl+Shift+P', () => {
+      if (!mainWindow) return;
+      if (mainWindow.isVisible() && mainWindow.isFocused()) {
+        mainWindow.hide(); // aperta de novo pra esconder — alterna, como o Discord faz
+      } else {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
   });
 
   app.on('window-all-closed', () => {
@@ -130,4 +172,5 @@ if (!gotLock) {
   });
 
   app.on('before-quit', () => { isQuitting = true; });
+  app.on('will-quit', () => { globalShortcut.unregisterAll(); });
 }

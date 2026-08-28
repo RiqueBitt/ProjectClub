@@ -11,4 +11,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  focusWindow: () => ipcRenderer.invoke('focus-window'),
+  setUnreadCount: (count) => ipcRenderer.invoke('set-unread-count', count),
 });

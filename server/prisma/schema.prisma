@@ -103,6 +103,7 @@ model User {
   updatedAt           DateTime  @updatedAt
 
   refreshTokens        RefreshToken[]
+  pushTokens           PushToken[]
   verificationCodes    EmailVerificationCode[]
   passwordResetTokens  PasswordResetToken[]
 
@@ -313,6 +314,26 @@ model RefreshToken {
   expiresAt DateTime
   revoked   Boolean  @default(false)
   revokedAt DateTime?
+}
+
+// Token de push (Firebase Cloud Messaging) — item pedido: "push
+// notification de verdade no Android, mesmo com o app fechado". Sem
+// isso, o app só consegue notificar enquanto o próprio processo JS está
+// vivo (que o Android mata depois de um tempo em segundo plano); com um
+// token de FCM registrado, o Google entrega a notificação por fora,
+// mesmo com o app inteiro fechado. Uma pessoa pode ter mais de um
+// dispositivo (celular pessoal + outro), por isso não é um campo simples
+// em User — é uma tabela própria, uma linha por aparelho/instalação.
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  platform  String   @default("android")
+  createdAt DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model EmailVerificationCode {

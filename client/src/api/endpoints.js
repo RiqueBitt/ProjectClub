@@ -338,3 +338,7 @@ export const adminDeleteAchievement = (id) => api.delete(`/achievements/admin/${
 export const listUpdates = () => api.get('/updates').then((r) => r.data);
 export const createUpdate = (payload) => api.post('/updates', payload).then((r) => r.data);
 export const deleteUpdateEntry = (id) => api.delete(`/updates/${id}`).then((r) => r.data);
+
+// --- Push notifications (Android) ---
+export const registerPushToken = (token, platform) => api.post('/push/register', { token, platform }).then((r) => r.data);
+export const unregisterPushToken = (token) => api.post('/push/unregister', { token }).then((r) => r.data);

@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { useStore } from '../store/useStore';
+import { openExternal } from './openExternal';
 
 // Verificação de versão nova (item pedido) — só faz sentido pro app
 // NATIVO (Windows/Linux/Android): a versão WEB é sempre a mais recente
@@ -50,8 +51,8 @@ export async function checkForNativeUpdate() {
 
     if (isNewer(manifest.version, localVersion)) {
       useStore.getState().pushNotice(
-        `🔄 Uma nova versão do app está disponível (${manifest.version}). `
-        + `Baixe em ${DOWNLOAD_PAGE_URL} pra atualizar.`,
+        `🔄 Uma nova versão do app está disponível (${manifest.version}).`,
+        { label: 'Baixar agora', onClick: () => openExternal(DOWNLOAD_PAGE_URL) },
       );
     }
 

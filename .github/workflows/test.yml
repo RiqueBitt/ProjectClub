@@ -1,0 +1,36 @@
+name: Testes
+
+# Item pedido: "testes automatizados rodando no CI antes de cada
+# deploy". Como esse projeto publica manualmente (você sobe o .zip na
+# Square Cloud, não é a CI que publica o servidor), isso funciona como
+# um sinal de "pode publicar com confiança" — roda em TODO push na main
+# e em cada Pull Request, então antes de publicar dá pra checar a aba
+# Actions e ver se está tudo verde.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - '.github/workflows/test.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Instalar dependências
+        run: npm install
+      - name: Gerar o Prisma Client
+        run: npx prisma generate
+      - name: Rodar os testes
+        run: npm test

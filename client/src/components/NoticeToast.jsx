@@ -22,6 +22,14 @@ export default function NoticeToast() {
       {notices.map((n) => (
         <div key={n.id} className="notice-toast">
           <span className="notice-toast-text">{n.message}</span>
+          {n.action && (
+            <button
+              className="notice-toast-action"
+              onClick={() => { n.action.onClick(); dismissNotice(n.id); }}
+            >
+              {n.action.label}
+            </button>
+          )}
           <button className="icon-btn-small" onClick={() => dismissNotice(n.id)}><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button>
         </div>
       ))}

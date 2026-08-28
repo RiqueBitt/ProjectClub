@@ -21,6 +21,9 @@ import AnnouncementOverlay from '../components/AnnouncementOverlay.jsx';
 import QuickSwitcher from '../components/QuickSwitcher.jsx';
 import { listUsableEmojis, listFavoriteGifs, getUiLayout, listCommunities } from '../api/endpoints';
 import { checkForNativeUpdate } from '../utils/nativeUpdateCheck';
+import { setupPushNotifications } from '../utils/pushNotifications';
+import { updateUnreadBadge } from '../utils/unreadBadge';
+import { useAuth } from '../context/AuthContext.jsx';
 
 // BUG CORRIGIDO ("web mais rápido e otimizado"): todas essas páginas de
 // seção (Amigos, Perfil, Notificações, Busca, Painel da staff, Economia,
@@ -60,6 +63,7 @@ const UpdatesPage = lazy(() => import('./UpdatesPage.jsx'));
 // apagado do projeto) — só não fazem mais parte da barra principal,
 // que deve ter somente os 7 itens pedidos.
 export default function MainApp() {
+  const { user } = useAuth();
   const {
     setCommunityStructure, setConversations, setFriends, setUsableEmojis, setFavoriteGifs, setClubs,
   } = useStore();
@@ -84,8 +88,24 @@ export default function MainApp() {
     listFavoriteGifs().then((d) => setFavoriteGifs(d.gifs)).catch(() => {});
     listCommunities().then((d) => setClubs(d.communities)).catch(() => {});
     checkForNativeUpdate();
+    setupPushNotifications();
     getUiLayout().then((d) => setUiLayoutAll(d)).catch(() => {});
   }, []);
+
+  // Item pedido: bolinha de não lidas no ícone do app — em vez de
+  // espalhar chamadas manuais em cada lugar que marca algo como lido/
+  // não lido (muitos lugares diferentes), observa as fatias do estado
+  // que decidem "tem algo não lido" e recalcula sozinho sempre que
+  // qualquer uma delas muda — sempre correto, sem depender de lembrar de
+  // chamar isso em todo canto novo que mexer nisso no futuro.
+  const channels = useStore((s) => s.channels);
+  const categories = useStore((s) => s.categories);
+  const channelReadAt = useStore((s) => s.channelReadAt);
+  const conversationsForBadge = useStore((s) => s.conversations);
+  const friendsForBadge = useStore((s) => s.friends);
+  useEffect(() => {
+    updateUnreadBadge(user.id);
+  }, [channels, categories, channelReadAt, conversationsForBadge, friendsForBadge, user.id]);
 
   // Aplica a largura de sidebar/lista de membros configurada no Editor de
   // Interface (staff) — via CSS custom properties na raiz, com fallback

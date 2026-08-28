@@ -22,7 +22,12 @@ export const useStore = create((set, get) => ({
   typing: {}, // roomKey -> Set(userId) (mantido como array simples)
   messagesByRoom: {}, // roomKey -> Message[]
   channelReadAt: {}, // channelId -> ISO date string (override local, feedback instantâneo ao abrir)
-  notices: [], // { id, message } — fila de toasts dispensáveis (avisos de moderação, alerta de anti-raid etc.)
+  // Fila de toasts dispensáveis (avisos de moderação, alerta de
+  // anti-raid, atualização de app disponível, etc). `action` é opcional
+  // — { label, onClick } — e some sozinho quando o toast é dispensado ou
+  // clicado, sem precisar mudar nenhum dos outros ~15 lugares que já
+  // chamam pushNotice(message) só com texto.
+  notices: [],
   viewingProfileUserId: null, // define pra abrir <UserProfileModal> daquele usuário, de qualquer lugar do app
   // ID de usuário pra mostrar o miniperfil (popup compacto, aberto ao
   // clicar num avatar em mensagens/lista de membros) — tem um botão que
@@ -222,7 +227,7 @@ export const useStore = create((set, get) => ({
   closeMobileMembers: () => set({ mobileMembersOpen: false }),
   toggleMobileMembers: () => set((s) => ({ mobileMembersOpen: !s.mobileMembersOpen, mobileSidebarOpen: false })),
 
-  pushNotice: (message) => set((s) => ({ notices: [...s.notices, { id: `${Date.now()}-${Math.random()}`, message }] })),
+  pushNotice: (message, action) => set((s) => ({ notices: [...s.notices, { id: `${Date.now()}-${Math.random()}`, message, action }] })),
   dismissNotice: (id) => set((s) => ({ notices: s.notices.filter((n) => n.id !== id) })),
 
   openProfile: (userId) => set({ viewingProfileUserId: userId, profileAutoOpenRoleMenu: false }),

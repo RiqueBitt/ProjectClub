@@ -11,18 +11,64 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  # Calcula UMA versão (data + hash curto do commit) usada pelos 3 apps —
-  # assim os três builds de uma mesma execução sempre compartilham a
-  # mesma versão, e o app consegue detectar "tem uma atualização nova"
-  # comparando com o que está no version.json (ver o job "finalize" e
-  # client/src/utils/nativeUpdateCheck.js).
+  # Item pedido: "versionamento semântico de verdade (v1.2.0), com
+  # changelog automático a partir dos commits" — em vez de uma versão só
+  # data+hash (que nunca dizia "o que mudou" nem se era uma mudança
+  # grande ou pequena), agora calcula vMAJOR.MINOR.PATCH de verdade a
+  # partir das mensagens de commit desde a última tag (convenção
+  # "Conventional Commits" — feat:, fix:, BREAKING CHANGE: — bem
+  # conhecida e usada por muitos projetos open source), e monta um
+  # changelog de verdade com a lista do que mudou. Esse changelog vira
+  # tanto as notas da GitHub Release quanto o texto da "Atualização" que
+  # o app mostra pra quem tem uma versão mais antiga.
   compute-version:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.v.outputs.version }}
+      changelog_b64: ${{ steps.v.outputs.changelog_b64 }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # precisa do histórico completo pra achar a última tag e os commits desde ela
       - id: v
-        run: echo "version=$(date +%Y.%m.%d)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+        shell: bash
+        run: |
+          set -e
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            LAST_TAG="v0.0.0"
+            COMMITS=$(git log --pretty=format:"%s")
+          else
+            COMMITS=$(git log "$LAST_TAG"..HEAD --pretty=format:"%s")
+          fi
+
+          MAJOR=$(echo "$LAST_TAG" | sed 's/^v//' | cut -d. -f1)
+          MINOR=$(echo "$LAST_TAG" | sed 's/^v//' | cut -d. -f2)
+          PATCH=$(echo "$LAST_TAG" | sed 's/^v//' | cut -d. -f3)
+
+          # Convenção: "feat!:" ou "BREAKING CHANGE" no corpo = versão
+          # maior (quebra compatibilidade); "feat:" sozinho = versão
+          # média (recurso novo); qualquer outra coisa (fix:, chore:,
+          # docs:, ou sem prefixo nenhum) = versão de correção — sempre
+          # sobe PELO MENOS o patch, nunca gera a mesma versão duas vezes.
+          if echo "$COMMITS" | grep -qiE "^feat!|BREAKING CHANGE"; then
+            MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
+          elif echo "$COMMITS" | grep -qiE "^feat(\(|:)"; then
+            MINOR=$((MINOR + 1)); PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+          VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "Última versão: $LAST_TAG -> Nova versão: $VERSION"
+
+          # Changelog = lista dos commits desde a última tag, sem os hashes
+          # de merge automáticos do GitHub e sem linhas vazias — em
+          # base64 pra atravessar os outputs do GitHub Actions sem quebrar
+          # por causa de aspas/quebra de linha nas mensagens de commit.
+          CHANGELOG=$(echo "$COMMITS" | grep -v "^Merge " | sed 's/^/- /')
+          if [ -z "$CHANGELOG" ]; then CHANGELOG="- Ajustes internos."; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "changelog_b64=$(echo "$CHANGELOG" | base64 -w 0)" >> "$GITHUB_OUTPUT"
 
   build-windows:
     needs: compute-version
@@ -128,6 +174,20 @@ jobs:
       - name: Sincronizar com o projeto Android
         working-directory: client
         run: npx cap sync android
+      # Push notification real (item pedido) só funciona com um projeto
+      # Firebase de verdade — enquanto o secret GOOGLE_SERVICES_JSON_BASE64
+      # não existir, esse passo não faz nada (condicional), e o Gradle já
+      # sabe pular o plugin do Google sozinho sem esse arquivo (ver o
+      # try/catch em client/android/app/build.gradle) — o build continua
+      # funcionando normal, só sem push, até isso ser configurado.
+      - name: Configurar Firebase (se já estiver disponível)
+        run: |
+          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" ]; then
+            echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > client/android/app/google-services.json
+            echo "google-services.json configurado — push notification ativo nesse build."
+          else
+            echo "GOOGLE_SERVICES_JSON_BASE64 não configurado ainda — build seguirá sem push notification."
+          fi
       - name: Gravar a versão no app
         run: |
           sed -i 's/versionName "[^"]*"/versionName "${{ needs.compute-version.outputs.version }}"/' client/android/app/build.gradle
@@ -164,31 +224,75 @@ jobs:
   finalize:
     needs: [compute-version, build-windows, build-linux, build-android]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Decodificar o changelog
+        id: changelog
+        run: |
+          echo "${{ needs.compute-version.outputs.changelog_b64 }}" | base64 -d > /tmp/changelog.txt
+          echo "text<<CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
+          cat /tmp/changelog.txt >> "$GITHUB_OUTPUT"
+          echo "CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
+
+      # Cria a tag oficial (vMAJOR.MINOR.PATCH) no repositório principal —
+      # só depois que os 3 apps já publicaram com sucesso (needs acima),
+      # pra nunca marcar uma versão que não terminou de ser gerada.
+      # GITHUB_TOKEN (automático, sem precisar de secret próprio) já tem
+      # permissão de escrita neste MESMO repositório.
+      - name: Criar a tag de versão
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "Project Club CI"
+          git config user.email "noreply@projectclub.local"
+          git tag -a "${{ needs.compute-version.outputs.version }}" -m "$(cat /tmp/changelog.txt)"
+          git push origin "${{ needs.compute-version.outputs.version }}"
+
       - name: Publicar version.json no repositório de downloads
         env:
           GH_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
         run: |
           set -e
           VERSION="${{ needs.compute-version.outputs.version }}"
-          NOTES="Correções e melhorias no aplicativo (Windows, Linux e Android)."
           git clone --depth 1 "https://${GH_TOKEN}@github.com/RiqueBitt/ProjectClub-Downloads.git" /tmp/downloads-repo
           cd /tmp/downloads-repo
           git config user.name "Project Club CI"
           git config user.email "noreply@projectclub.local"
           python3 -c "
           import json
-          json.dump({'version': '$VERSION', 'notes': '$NOTES'}, open('version.json', 'w'), ensure_ascii=False)
+          notes = open('/tmp/changelog.txt', encoding='utf-8').read().strip()
+          json.dump({'version': '$VERSION', 'notes': notes}, open('version.json', 'w'), ensure_ascii=False)
           "
           git add version.json
           git diff --cached --quiet && echo "Nada mudou." || (git commit -q -m "Atualiza version.json ($VERSION)" && git push)
+
+      - name: Atualizar as notas da GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
+        run: |
+          gh release edit latest --repo RiqueBitt/ProjectClub-Downloads \
+            --title "${{ needs.compute-version.outputs.version }}" \
+            --notes-file /tmp/changelog.txt || true
 
       - name: Avisar o site (Atualizações + verificação de versão nova)
         env:
           CI_UPDATE_SECRET: ${{ secrets.CI_UPDATE_SECRET }}
         run: |
-          curl -sf -X POST "https://projectclub.squareweb.app/api/system/publish-release" \
-            -H "Content-Type: application/json" \
-            -H "X-CI-Secret: $CI_UPDATE_SECRET" \
-            -d "{\"version\":\"${{ needs.compute-version.outputs.version }}\",\"notes\":\"Correções e melhorias no aplicativo (Windows, Linux e Android).\"}" \
-            || echo "Aviso: não foi possível notificar o site (site fora do ar?) — os apps continuam publicados normalmente."
+          python3 -c "
+          import json, urllib.request
+          notes = open('/tmp/changelog.txt', encoding='utf-8').read().strip()
+          body = json.dumps({'version': '${{ needs.compute-version.outputs.version }}', 'notes': notes}).encode()
+          req = urllib.request.Request(
+              'https://projectclub.squareweb.app/api/system/publish-release',
+              data=body, method='POST',
+              headers={'Content-Type': 'application/json', 'X-CI-Secret': '$CI_UPDATE_SECRET'},
+          )
+          try:
+              urllib.request.urlopen(req, timeout=15)
+              print('Site avisado com sucesso.')
+          except Exception as e:
+              print('Aviso: não foi possível notificar o site (site fora do ar?):', e)
+          "

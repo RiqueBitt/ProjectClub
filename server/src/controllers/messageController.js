@@ -321,6 +321,38 @@ async function createMessage(req, res, next) {
     io?.to(roomFor({ conversationId, channelId })).emit('message:new', message);
     res.status(201).json({ message });
 
+    // Item pedido: "push notification de verdade no Android, mesmo com o
+    // app fechado" — manda pra quem foi diretamente @mencionado (nunca
+    // pra menção de cargo/@todos — poderia virar spam pra dezenas de
+    // pessoas de uma vez) ou pra quem está numa DM com o autor. Roda
+    // depois do res.status já ter respondido (não atrasa o envio da
+    // mensagem em si esperando o Firebase) e nunca derruba nada se o
+    // Firebase não estiver configurado (ver services/pushNotifications.js
+    // — vira no-op silencioso sem isso).
+    (async () => {
+      try {
+        const { sendPushToUser } = require('../services/pushNotifications');
+        const preview = (content || '').slice(0, 120) || (req.files?.length ? '📎 Anexo' : stickerUrl ? '🏷️ Figurinha' : 'Nova mensagem');
+        const authorName = req.user.displayName || 'Alguém';
+
+        const recipientIds = new Set();
+        if (conversationId) {
+          const otherMembers = await prisma.conversationMember.findMany({
+            where: { conversationId, userId: { not: req.user.id } }, select: { userId: true },
+          });
+          otherMembers.forEach((m) => recipientIds.add(m.userId));
+        }
+        mentionRows.filter((m) => m.targetType === 'USER').forEach((m) => recipientIds.add(m.targetId));
+        recipientIds.delete(req.user.id);
+
+        await Promise.all([...recipientIds].map((uid) => sendPushToUser(uid, {
+          title: authorName, body: preview, data: { conversationId: conversationId || '', channelId: channelId || '' },
+        })));
+      } catch (err) {
+        console.error('[push] erro ao processar notificações da mensagem:', err.message);
+      }
+    })();
+
     // Sinalização de palavrão em DM — a mensagem já foi enviada normal
     // (quem manda e quem recebe não veem nada diferente), isso só cria um
     // registro pendente pra staff revisar depois. Nunca atrasa nem quebra

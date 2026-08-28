@@ -5,5 +5,11 @@ project(':capacitor-android').projectDir = new File('../../node_modules/@capacit
 include ':capacitor-app'
 project(':capacitor-app').projectDir = new File('../../node_modules/@capacitor/app/android')
 
+include ':capacitor-push-notifications'
+project(':capacitor-push-notifications').projectDir = new File('../../node_modules/@capacitor/push-notifications/android')
+
 include ':capawesome-team-capacitor-android-foreground-service'
 project(':capawesome-team-capacitor-android-foreground-service').projectDir = new File('../../node_modules/@capawesome-team/capacitor-android-foreground-service/android')
+
+include ':capawesome-capacitor-badge'
+project(':capawesome-capacitor-badge').projectDir = new File('../../node_modules/@capawesome/capacitor-badge/android')
