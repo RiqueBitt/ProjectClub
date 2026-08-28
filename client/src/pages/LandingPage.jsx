@@ -27,7 +27,12 @@ function useReveal() {
 // pra arrastar um arquivo novo lá manualmente a qualquer momento também.
 const DOWNLOADS_BASE = 'https://raw.githubusercontent.com/RiqueBitt/ProjectClub-Downloads/main/download';
 const WINDOWS_DOWNLOAD_URL = `${DOWNLOADS_BASE}/ProjectClub-Setup-Windows.exe`;
-const LINUX_DOWNLOAD_URL = `${DOWNLOADS_BASE}/ProjectClub-Linux.AppImage`;
+// O AppImage do Linux passa dos 100MB, então é guardado via Git LFS (ver
+// .gitattributes no repositório de downloads) — arquivo rastreado por
+// LFS precisa desse domínio específico (media.githubusercontent.com)
+// pra servir o conteúdo de verdade; raw.githubusercontent.com serviria
+// só o "ponteiro" de texto do LFS, um arquivo de poucos KB inútil.
+const LINUX_DOWNLOAD_URL = 'https://media.githubusercontent.com/media/RiqueBitt/ProjectClub-Downloads/main/download/ProjectClub-Linux.AppImage';
 const ANDROID_DOWNLOAD_URL = `${DOWNLOADS_BASE}/ProjectClub.apk`;
 
 export default function LandingPage() {
