@@ -1,0 +1,538 @@
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
+import { useStore } from '../../store/useStore';
+import { useAuth } from '../../context/AuthContext.jsx';
+import { getUserProfile, createConversation, sendFriendRequest, assignRole, unassignRole, voteProfile, listPosts } from '../../api/endpoints';
+import { STATUS_LABEL, STATUS_COLOR } from '../../utils/status';
+import { renderRichContent } from '../../utils/richTextRender.jsx';
+import { getMyCommunityPermissions, hasPermission } from '../../utils/permissions';
+import { roleChipStyle, gradientStops } from '../../utils/roleColor';
+import { profileAccentVars } from '../../utils/profileAccent';
+import TagBadge from '../TagBadge.jsx';
+import UserAvatar from '../UserAvatar.jsx';
+import StatusEmoji from '../StatusEmoji.jsx';
+import BadgeListModal from './BadgeListModal.jsx';
+import defaultAchievementIcon from '../../assets/icons/nav-achievements.png';
+import { badgeHasImage } from '../../utils/badgeRarity';
+import { nameStyleProps } from '../../utils/nameStyle';
+import UserSettingsModal from './UserSettingsModal.jsx';
+import cancelIcon from '../../assets/icons/cancel.png';
+import settingsIcon from '../../assets/icons/settings.png';
+import likeIcon from '../../assets/icons/like.png';
+import dislikeIcon from '../../assets/icons/dislike.png';
+import youtubeIcon from '../../assets/icons/social-youtube.png';
+import steamIcon from '../../assets/icons/social-steam.png';
+import robloxIcon from '../../assets/icons/social-roblox.png';
+import xIcon from '../../assets/icons/social-x.png';
+import levelStarIcon from '../../assets/icons/level-star.png';
+
+// Rendered once at the app root (see MainApp.jsx) and driven entirely by
+// `viewingProfileUserId` in the zustand store — call `openProfile(userId)`
+// from anywhere (message author avatar, member list, your own user panel)
+// to pop it open, no prop drilling needed.
+export default function UserProfileModal() {
+  const userId = useStore((s) => s.viewingProfileUserId);
+  const profileAutoOpenRoleMenu = useStore((s) => s.profileAutoOpenRoleMenu);
+  const clearProfileAutoOpenRoleMenu = useStore((s) => s.clearProfileAutoOpenRoleMenu);
+  const closeProfile = useStore((s) => s.closeProfile);
+  const presence = useStore((s) => (userId ? s.presence[userId] : null));
+  // Ups em tempo real (item pedido) — usa o valor que já veio no fetch
+  // inicial (data.totalUps) até chegar uma atualização por socket
+  // (ver SocketContext.jsx → user:ups-update), que sobrescreve na hora.
+  const liveUpsOverride = useStore((s) => (userId ? s.upsByUserId[userId] : undefined));
+  const usableEmojis = useStore((s) => s.usableEmojis);
+  // Bio isn't scoped to any one server (unlike chat messages), so it just
+  // gets this user's own accessible custom emoji set — no @mentions here,
+  // there's no channel/member list for a profile bio to mention against.
+  const bioEmojiMap = Object.fromEntries(usableEmojis.map((e) => [e.name, e.url]));
+  const { user: me, setUser: setMe } = useAuth();
+  const navigate = useNavigate();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [friendSent, setFriendSent] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [badgeListOpen, setBadgeListOpen] = useState(false);
+  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const [roleSearch, setRoleSearch] = useState('');
+  const [rolesExpanded, setRolesExpanded] = useState(false);
+  const [roleMenuStyle, setRoleMenuStyle] = useState(null);
+  const roleAddBtnRef = useRef(null);
+  const roleMenuRef = useRef(null);
+  const rolesSectionRef = useRef(null);
+
+  // Cargos são mostrados sempre agora — pulled straight from the live
+  // `members`/`roles` stores (não do fetch avulso de getUserProfile), pra
+  // reagir na hora a mudanças de cargo pelo socket, igual à lista de membros.
+  const roles = useStore((s) => s.roles);
+  const members = useStore((s) => s.members);
+  const member = members.find((m) => m.user.id === userId);
+  const myCommunityPerms = getMyCommunityPermissions(roles, members, me.id, me.platformRole);
+  const canManageRoles = hasPermission(myCommunityPerms, 'MANAGE_ROLES');
+  const memberRoles = member ? roles.filter((r) => !r.isDefault && member.roleIds?.includes(r.id)) : [];
+  const assignableRoles = member ? roles.filter((r) => !r.isDefault && !member.roleIds?.includes(r.id)) : [];
+  const roleSearchResults = roleSearch.trim()
+    ? assignableRoles.filter((r) => r.name.toLowerCase().includes(roleSearch.trim().toLowerCase()))
+    : assignableRoles;
+
+  // Discord-style truncation: past this many chips, collapse the rest
+  // behind a "..." pill instead of letting a heavily-decorated member's
+  // profile balloon into an endless wall of role chips.
+  const ROLES_PREVIEW_COUNT = 6;
+  const visibleRoles = rolesExpanded ? memberRoles : memberRoles.slice(0, ROLES_PREVIEW_COUNT);
+  const hiddenRolesCount = memberRoles.length - visibleRoles.length;
+
+  const addRole = (roleId) => {
+    assignRole(userId, roleId).catch(() => {});
+    setRoleMenuOpen(false);
+    setRoleSearch('');
+  };
+  const removeRole = (roleId) => { unassignRole(userId, roleId).catch(() => {}); };
+
+  useEffect(() => {
+    if (!userId) { setData(null); return; }
+    setLoading(true);
+    getUserProfile(userId).then(setData).catch(() => setData(null)).finally(() => setLoading(false));
+  }, [userId]);
+
+  // NOVO (fusão com o Reddit clone — item 5): atividade em Comunidades —
+  // posts recentes da pessoa + karma (soma dos scores) num cantinho do
+  // próprio perfil, igual ao Reddit mostra na página de qualquer usuário.
+  const [redditActivity, setRedditActivity] = useState(null);
+  useEffect(() => {
+    if (!userId) { setRedditActivity(null); return; }
+    listPosts({ authorId: userId, sort: 'new' }).then((d) => setRedditActivity(d.posts)).catch(() => setRedditActivity([]));
+  }, [userId]);
+
+  // Opened via openProfileAddRole (MembersList.jsx's "Adicionar cargo") —
+  // jump straight to the role section instead of making the admin scroll
+  // down and click "+" themselves: expand the full role list (in case the
+  // member already has several) and pop the add-role dropdown open. Only
+  // fires once member/canManageRoles are actually resolved, then clears the
+  // flag so it doesn't reopen every time this component re-renders.
+  useEffect(() => {
+    if (!profileAutoOpenRoleMenu || !member) return;
+    if (canManageRoles) {
+      setRolesExpanded(true);
+      setRoleMenuOpen(true);
+      rolesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    clearProfileAutoOpenRoleMenu();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileAutoOpenRoleMenu, member, canManageRoles]);
+
+  // Bug fix: this dropdown used to be `position: absolute` inside the
+  // profile card, which itself scrolls inside `.modal-box` on mobile (see
+  // global.css's mobile `.modal-box { overflow-y: auto }`) — the "+" button
+  // sits fairly low in that scrolling card, so the dropdown opening
+  // downward from it routinely ran past the bottom of the modal and got
+  // clipped by that overflow, making it unusable. Now it's measured off
+  // the button's real on-screen position and rendered `position: fixed`
+  // through a portal straight into <body> (see the createPortal below) —
+  // flipping to open upward when there isn't room below, same fix already
+  // applied to the message reaction/emoji pickers.
+  const ROLE_MENU_WIDTH = 220;
+  const ROLE_MENU_MAX_HEIGHT = 260;
+  useEffect(() => {
+    if (!roleMenuOpen) { setRoleMenuStyle(null); return; }
+    const btn = roleAddBtnRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    let left = rect.left;
+    left = Math.max(8, Math.min(left, window.innerWidth - ROLE_MENU_WIDTH - 8));
+    let top = rect.bottom + 4;
+    if (top + ROLE_MENU_MAX_HEIGHT > window.innerHeight - 8) {
+      top = Math.max(8, rect.top - ROLE_MENU_MAX_HEIGHT - 4);
+    }
+    setRoleMenuStyle({ position: 'fixed', top: `${top}px`, left: `${left}px` });
+  }, [roleMenuOpen]);
+
+  useEffect(() => {
+    if (!roleMenuOpen) return;
+    const onDocDown = (e) => {
+      if (roleMenuRef.current?.contains(e.target) || roleAddBtnRef.current?.contains(e.target)) return;
+      setRoleMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDocDown);
+    document.addEventListener('touchstart', onDocDown);
+    return () => {
+      document.removeEventListener('mousedown', onDocDown);
+      document.removeEventListener('touchstart', onDocDown);
+    };
+  }, [roleMenuOpen]);
+
+  if (!userId) return null;
+
+  const isMe = userId === me.id;
+  const user = data?.user;
+  const liveUps = liveUpsOverride ?? data?.totalUps ?? 0;
+  const status = presence?.status || user?.status || 'ONLINE';
+
+  const openDM = async () => {
+    const { conversation } = await createConversation([userId]);
+    closeProfile();
+    navigate(`/conversations/${conversation.id}`);
+  };
+
+  const addFriend = async () => {
+    if (!user) return;
+    try { await sendFriendRequest(user.username); setFriendSent(true); } catch { /* already friends / pending — non-fatal */ }
+  };
+
+  // Optimistic: flip the counts/myVote locally right away, then reconcile
+  // with the server's real numbers — voting feels instant instead of
+  // waiting on a round-trip, same pattern the message-reaction UI uses.
+  const vote = async (value) => {
+    if (!data || isMe) return;
+    const prev = { likeCount: data.likeCount, dislikeCount: data.dislikeCount, myVote: data.myVote, totalUps: data.totalUps };
+    const wasSame = data.myVote === value;
+    const next = { ...prev };
+    if (prev.myVote === 1) next.likeCount -= 1;
+    if (prev.myVote === -1) next.dislikeCount -= 1;
+    if (!wasSame) {
+      if (value === 1) next.likeCount += 1;
+      else next.dislikeCount += 1;
+      next.myVote = value;
+    } else {
+      next.myVote = 0;
+    }
+    // Ups totais reagem junto (feedback instantâneo pra quem votou,
+    // além do tempo real que o dono do perfil recebe via socket).
+    next.totalUps = (data.totalUps ?? 0) + (next.likeCount - prev.likeCount);
+    setData((d) => ({ ...d, ...next }));
+    try {
+      const result = await voteProfile(userId, value);
+      setData((d) => (d ? { ...d, ...result } : d));
+    } catch (err) {
+      // Revert the optimistic update AND actually tell the user it failed —
+      // silently swallowing this made the button look like it "does
+      // nothing" when the request errored (e.g. server/database out of
+      // sync), instead of surfacing a reason.
+      console.error('[voteProfile] falhou:', err);
+      setData((d) => (d ? { ...d, ...prev } : d));
+      useStore.getState().pushNotice(err.response?.data?.error || 'Não foi possível registrar seu voto. Tente novamente.');
+    }
+  };
+
+  return (
+    <div className="modal-overlay profile-fullscreen-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) closeProfile(); }}>
+      <div
+        className={`modal-box profile-modal-box profile-modal-fullscreen ${user ? 'profile-modal-accented' : ''}`}
+        style={user ? profileAccentVars(user.profileColor) : undefined}
+      >
+        <button className="icon-btn profile-modal-close" onClick={closeProfile}><img className="ui-icon" src={cancelIcon} alt="x" /></button>
+        {isMe && (
+          <button className="icon-btn profile-modal-edit" onClick={() => setSettingsOpen(true)} title="Editar perfil">
+            <img className="ui-icon" src={settingsIcon} alt="" />
+          </button>
+        )}
+        {loading && <div className="profile-modal-loading">Carregando...</div>}
+        {!loading && user && (
+          <>
+            <div className="profile-top-row">
+              <div className="profile-banner" style={{ background: user.bannerUrl ? undefined : 'transparent' }}>
+                {user.bannerUrl && <img src={user.bannerUrl} alt="" />}
+              </div>
+              <div className="profile-ig-header">
+                <div className="avatar-wrap large">
+                  <div className="avatar xlarge">
+                    <UserAvatar user={user} size={112} />
+                  </div>
+                  <span className="status-dot large" style={{ background: STATUS_COLOR[status] }} title={STATUS_LABEL[status]} />
+                </div>
+                <div className="profile-ig-header-info">
+                  <h2 className="profile-display-name"><span style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} /></h2>
+                  <div className="profile-username">@{user.username}{user.pronouns && <span className="profile-pronouns-inline"> · {user.pronouns}</span>}</div>
+                  {(user.customStatus || user.customStatusEmoji) && (
+                    <div className="profile-custom-status-balloon">
+                      {user.customStatusEmoji && <StatusEmoji emoji={user.customStatusEmoji} />} {user.customStatus}
+                    </div>
+                  )}
+                  <div className="profile-ig-stats">
+                    <div className="profile-ig-stat">
+                      <b>{liveUps}</b>
+                      <span>Ups</span>
+                    </div>
+                    {data.badges?.length > 0 && (
+                      <button type="button" className="profile-ig-stat" onClick={() => setBadgeListOpen(true)}>
+                        <b>{data.badges.length}</b>
+                        <span>Insígnias</span>
+                      </button>
+                    )}
+                    {!isMe && data.mutualFriends?.length > 0 && (
+                      <div className="profile-ig-stat">
+                        <b>{data.mutualFriends.length}</b>
+                        <span>Em comum</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="profile-modal-body">
+              {/* Barra de nível redesenhada — mostra XP atual/necessário
+                  e o número de porcentagem, não só uma barrinha muda. */}
+              <div className="profile-level-bar-wrap">
+                <div className="profile-level-bar-labels">
+                  <span className="profile-level-bar-chip"><img className="ui-icon-sm" src={levelStarIcon} alt="" /> Nível {user.accountLevel ?? 1}</span>
+                  <span className="dim">{data.levelProgress ?? 0}% para o próximo nível</span>
+                </div>
+                <div className="profile-level-progress-track">
+                  <div className="profile-level-progress-fill" style={{ width: `${data.levelProgress ?? 0}%` }} />
+                </div>
+              </div>
+
+              {!isMe && (
+                <div className="profile-actions profile-ig-actions">
+                  <button className="btn-primary" onClick={openDM}>Enviar mensagem</button>
+                  <button className="btn-secondary" onClick={addFriend} disabled={friendSent}>
+                    {friendSent ? 'Solicitado' : 'Adicionar amigo'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`icon-btn profile-vote-icon-btn like ${data.myVote === 1 ? 'active' : ''}`}
+                    title="Dar Up"
+                    onClick={() => vote(1)}
+                  >
+                    <img className="ui-icon-sm" src={likeIcon} alt="" />
+                  </button>
+                  <button
+                    type="button"
+                    className={`icon-btn profile-vote-icon-btn dislike ${data.myVote === -1 ? 'active' : ''}`}
+                    title={`Dar Down (${data.dislikeCount ?? 0})`}
+                    onClick={() => vote(-1)}
+                  >
+                    <img className="ui-icon-sm" src={dislikeIcon} alt="" /> {data.dislikeCount ?? 0}
+                  </button>
+                </div>
+              )}
+
+
+              {badgeListOpen && (
+                <BadgeListModal userName={user.displayName} badges={data.badges} onClose={() => setBadgeListOpen(false)} />
+              )}
+
+              <div className="profile-color-divider" style={{ background: `linear-gradient(90deg, ${gradientStops(user.profileColor || '#F2894D')[0]}, ${gradientStops(user.profileColor || '#F2894D')[1] || gradientStops(user.profileColor || '#F2894D')[0]})` }} />
+
+              {/* Usa o espaço extra da tela cheia com duas colunas em vez
+                  de tudo empilhado numa coluna só — vira uma coluna
+                  automaticamente em telas estreitas (ver CSS). */}
+              <div className="profile-ig-columns">
+                <div className="profile-col">
+                  {user.bio && (
+                    <div className="profile-section profile-ig-bio">
+                      <div className="profile-section-label">SOBRE</div>
+                      <div className="profile-section-body">{renderRichContent(user.bio, { emojiMap: bioEmojiMap })}</div>
+                    </div>
+                  )}
+
+                  {data.badges?.length > 0 && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">INSÍGNIAS</div>
+                      <div className="profile-badges-grid">
+                        {data.badges.map((b) => (
+                          <div
+                            key={b.id}
+                            className="profile-badge-tile"
+                            title={b.description || b.name}
+                            onClick={() => setBadgeListOpen(true)}
+                          >
+                            <span className="profile-badge-tile-icon">
+                              {badgeHasImage(b) ? <img className="profile-badge-img" src={b.iconUrl} alt="" /> : b.icon}
+                            </span>
+                            <span className="profile-badge-tile-name truncate">{b.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {(isMe || data.displayedAchievements?.length > 0) && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">
+                        <span>CONQUISTAS EM DESTAQUE</span>
+                      </div>
+                      {data.displayedAchievements?.length > 0 ? (
+                        <div className="profile-badges-grid">
+                          {data.displayedAchievements.map((a) => (
+                            <div key={a.id} className="profile-badge-tile" title={a.description}>
+                              <span className="profile-badge-tile-icon">
+                                <img className="profile-badge-img" src={a.iconUrl || defaultAchievementIcon} alt="" />
+                              </span>
+                              <span className="profile-badge-tile-name truncate">{a.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="dim" style={{ fontSize: 13 }}>
+                          {isMe ? 'Nenhuma conquista em destaque — escolha em Configurações → Perfil.' : 'Nenhuma conquista em destaque ainda.'}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {redditActivity?.length > 0 && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">
+                        ATIVIDADE EM COMUNIDADES — karma {redditActivity.reduce((sum, p) => sum + p.score, 0)}
+                      </div>
+                      <div className="profile-reddit-activity-list">
+                        {redditActivity.slice(0, 5).map((post) => (
+                          <button
+                            key={post.id}
+                            className="profile-reddit-activity-item"
+                            onClick={() => { closeProfile(); navigate(`/posts/${post.id}`); }}
+                          >
+                            <span className="profile-reddit-activity-score">{post.score}</span>
+                            <span className="profile-reddit-activity-info truncate">
+                              <span className="truncate">{post.title}</span>
+                              <span className="dim">c/{post.community.name}</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="profile-col">
+                  {member && (memberRoles.length > 0 || canManageRoles) && (
+                    <div className="profile-section" ref={rolesSectionRef}>
+                      <div className="profile-section-label">
+                        CARGOS NA COMUNIDADE
+                      </div>
+                      <div className="profile-roles-row">
+                        {visibleRoles.map((r) => (
+                          <span key={r.id} className="role-chip profile-role-chip" style={roleChipStyle(r.color)}>
+                            {r.icon ? `${r.icon} ` : ''}{r.name}
+                            {canManageRoles && (
+                              <button
+                                type="button"
+                                className="profile-role-remove"
+                                title="Remover cargo"
+                                onClick={() => removeRole(r.id)}
+                              >×</button>
+                            )}
+                          </span>
+                        ))}
+                        {hiddenRolesCount > 0 && (
+                          <button
+                            type="button"
+                            className="role-chip profile-role-more"
+                            title={`Ver todos os ${memberRoles.length} cargos`}
+                            onClick={() => setRolesExpanded(true)}
+                          >
+                            +{hiddenRolesCount}…
+                          </button>
+                        )}
+                        {rolesExpanded && memberRoles.length > ROLES_PREVIEW_COUNT && (
+                          <button type="button" className="role-chip profile-role-more" onClick={() => setRolesExpanded(false)}>
+                            mostrar menos
+                          </button>
+                        )}
+                        {canManageRoles && (
+                          <div className="profile-role-add-wrap">
+                            <button
+                              ref={roleAddBtnRef}
+                              type="button"
+                              className="role-chip profile-role-add"
+                              title="Adicionar cargo"
+                              onClick={() => setRoleMenuOpen((v) => !v)}
+                            >+</button>
+                            {roleMenuOpen && createPortal(
+                              <div ref={roleMenuRef} className="profile-role-menu" style={roleMenuStyle || {}}>
+                                <input
+                                  className="profile-role-menu-search"
+                                  placeholder="Buscar cargo..."
+                                  value={roleSearch}
+                                  onChange={(e) => setRoleSearch(e.target.value)}
+                                  autoFocus
+                                />
+                                {roleSearchResults.length === 0 && (
+                                  <div className="empty-hint">{assignableRoles.length === 0 ? 'Nenhum outro cargo disponível.' : 'Nenhum cargo encontrado.'}</div>
+                                )}
+                                {roleSearchResults.map((r) => (
+                                  <button
+                                    type="button"
+                                    key={r.id}
+                                    className="profile-role-menu-item"
+                                    style={roleChipStyle(r.color)}
+                                    onClick={() => addRole(r.id)}
+                                  >
+                                    {r.icon ? `${r.icon} ` : ''}{r.name}
+                                  </button>
+                                ))}
+                              </div>,
+                              document.body,
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="profile-section">
+                    <div className="profile-section-label">MEMBRO DESDE</div>
+                    <div className="profile-section-body">{new Date(user.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+                  </div>
+
+                  {(user.youtubeUrl || user.steamUrl || user.robloxUrl || user.xUrl) && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">CONEXÕES</div>
+                      <div className="profile-connections-row">
+                        {user.youtubeUrl && (
+                          <a className="profile-connection" href={user.youtubeUrl} target="_blank" rel="noreferrer" title="YouTube">
+                            <span className="profile-connection-icon"><img className="ui-icon-sm" src={youtubeIcon} alt="" /></span> YouTube
+                          </a>
+                        )}
+                        {user.steamUrl && (
+                          <a className="profile-connection" href={user.steamUrl} target="_blank" rel="noreferrer" title="Steam">
+                            <span className="profile-connection-icon"><img className="ui-icon-sm" src={steamIcon} alt="" /></span> Steam
+                          </a>
+                        )}
+                        {user.robloxUrl && (
+                          <a className="profile-connection" href={user.robloxUrl} target="_blank" rel="noreferrer" title="Roblox">
+                            <span className="profile-connection-icon"><img className="ui-icon-sm" src={robloxIcon} alt="" /></span> Roblox
+                          </a>
+                        )}
+                        {user.xUrl && (
+                          <a className="profile-connection" href={user.xUrl} target="_blank" rel="noreferrer" title="X (Twitter)">
+                            <span className="profile-connection-icon"><img className="ui-icon-sm" src={xIcon} alt="" /></span> X
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {!isMe && data.mutualFriends?.length > 0 && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">AMIGOS EM COMUM — {data.mutualFriends.length}</div>
+                      <div className="profile-mutual-list">
+                        {data.mutualFriends.map((f) => (
+                          <div key={f.id} className="profile-mutual-item">
+                            <div className="avatar tiny">
+                              <UserAvatar user={f} size={24} />
+                            </div>
+                            <span className="truncate">{f.displayName}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+        {!loading && !user && (
+          <div className="profile-modal-error">
+            <div className="profile-modal-error-icon">⚠️</div>
+            <div className="profile-modal-error-title">Não foi possível carregar este perfil</div>
+            <div className="dim">Tente fechar e abrir de novo em alguns instantes.</div>
+          </div>
+        )}
+      </div>
+      {settingsOpen && <UserSettingsModal onClose={() => setSettingsOpen(false)} />}
+    </div>
+  );
+}

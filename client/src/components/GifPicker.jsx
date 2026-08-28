@@ -1,0 +1,142 @@
+import { useEffect, useRef, useState } from 'react';
+import { useStore } from '../store/useStore';
+import { addFavoriteGif, removeFavoriteGif } from '../api/endpoints';
+import { useSheetDrag } from '../utils/useSheetDrag';
+import starIcon from '../assets/icons/star.png';
+
+// Google shut down the Tenor GIF API for good on 2026-06-30 (announced
+// 2026-01-13) — every request to tenor.googleapis.com now fails, which is
+// why this picker used to show nothing at all. KLIPY is the closest drop-in
+// replacement: same request/response shape as Tenor's v2 API, just a
+// different host and your own (free) API key instead of a shared demo key.
+// Get a free key at https://partner.klipy.com/ and put it in client/.env as
+// VITE_KLIPY_KEY=... (see client/.env.example). Restart `npm run dev` (or
+// rebuild) after adding it — Vite only reads env vars at startup/build time.
+const KLIPY_KEY = import.meta.env.VITE_KLIPY_KEY || '';
+const KLIPY_CLIENT = 'embercord';
+
+export default function GifPicker({ onPick, onClose }) {
+  const { heightVh, dragHandlers } = useSheetDrag(onClose);
+  const [tab, setTab] = useState('search'); // 'search' | 'favorites'
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const debounceRef = useRef(null);
+
+  const favoriteGifs = useStore((s) => s.favoriteGifs);
+  const addFavoriteGifLocal = useStore((s) => s.addFavoriteGifLocal);
+  const removeFavoriteGifLocal = useStore((s) => s.removeFavoriteGifLocal);
+  const favoriteIds = new Set(favoriteGifs.map((g) => g.gifId));
+
+  const search = async (q) => {
+    if (!KLIPY_KEY) {
+      setLoading(false);
+      setFailed('unconfigured');
+      setResults([]);
+      return;
+    }
+    setLoading(true);
+    setFailed(false);
+    try {
+      const endpoint = q.trim()
+        ? `https://api.klipy.com/v2/search?q=${encodeURIComponent(q)}&key=${KLIPY_KEY}&client_key=${KLIPY_CLIENT}&limit=24&media_filter=gif`
+        : `https://api.klipy.com/v2/featured?key=${KLIPY_KEY}&client_key=${KLIPY_CLIENT}&limit=24&media_filter=gif`;
+      const res = await fetch(endpoint);
+      if (!res.ok) throw new Error('klipy request failed');
+      const data = await res.json();
+      setResults((data.results || []).map((r) => ({
+        id: r.id,
+        preview: r.media_formats?.tinygif?.url || r.media_formats?.gif?.url,
+        full: r.media_formats?.gif?.url,
+      })).filter((g) => g.full));
+    } catch {
+      setFailed(true);
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { if (tab === 'search') search(''); }, [tab]);
+
+  const onQueryChange = (v) => {
+    setQuery(v);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => search(v), 350);
+  };
+
+  // Shared by both tabs: a search-result gif has a stable provider `id`; a
+  // favorited gif (from the Favoritos tab or straight off a chat message,
+  // see Message.jsx) only has its URL. Either way the URL is what actually
+  // ends up as the outgoing message, so favoriting just needs *a* stable key
+  // and the full URL — see gifController.js on the backend for the same
+  // id-or-url fallback.
+  const toggleFavorite = async (e, gif) => {
+    e.stopPropagation();
+    const key = gif.id ?? gif.full;
+    if (favoriteIds.has(key)) {
+      removeFavoriteGifLocal(key);
+      await removeFavoriteGif(key).catch(() => {});
+    } else {
+      const optimistic = { gifId: key, url: gif.full, preview: gif.preview || gif.full };
+      addFavoriteGifLocal(optimistic);
+      await addFavoriteGif({ gifId: key, url: gif.full, preview: gif.preview || gif.full }).catch(() => {});
+    }
+  };
+
+  const shownGifs = tab === 'favorites'
+    ? favoriteGifs.map((g) => ({ id: g.gifId, preview: g.preview || g.url, full: g.url }))
+    : results;
+
+  return (
+    <div className="gif-picker-popover" style={{ '--sheet-height': `${heightVh}vh` }} onMouseDown={(e) => e.stopPropagation()}>
+      <div className="sheet-drag-handle" {...dragHandlers} />
+      <div className="gif-picker-tabs">
+        <button className={tab === 'search' ? 'active' : ''} onClick={() => setTab('search')}>Buscar</button>
+        <button className={tab === 'favorites' ? 'active' : ''} onClick={() => setTab('favorites')}><img className="ui-icon-sm" src={starIcon} alt="" /> Favoritos</button>
+      </div>
+      {tab === 'search' && (
+        <input
+          className="emoji-picker-search"
+          placeholder="Buscar GIFs..."
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          autoFocus
+          disabled={failed === 'unconfigured'}
+        />
+      )}
+      <div className="gif-picker-grid">
+        {tab === 'search' && loading && <div className="dim">Buscando...</div>}
+        {tab === 'search' && !loading && failed === 'unconfigured' && (
+          <div className="dim gif-picker-message">
+            Busca de GIFs ainda não configurada.<br />
+            Crie uma chave gratuita em <b>partner.klipy.com</b> e adicione como
+            <code> VITE_KLIPY_KEY </code> em <code>client/.env</code>.
+          </div>
+        )}
+        {tab === 'search' && !loading && failed === true && <div className="dim">Não foi possível carregar GIFs agora. Tente novamente mais tarde.</div>}
+        {tab === 'favorites' && shownGifs.length === 0 && (
+          <div className="dim gif-picker-message">
+            Nenhum GIF favoritado ainda.<br />
+            Clique na ⭐ em qualquer GIF (na busca ou em uma mensagem já enviada) para salvá-lo aqui.
+          </div>
+        )}
+        {tab === 'search' && !loading && !failed && shownGifs.length === 0 && <div className="dim">Nenhum resultado.</div>}
+        {shownGifs.map((g) => (
+          <button key={g.id} className="gif-picker-tile" onClick={() => { onPick(g.full); onClose?.(); }}>
+            <img src={g.preview} alt="" loading="lazy" />
+            <span
+              className={`gif-favorite-btn ${favoriteIds.has(g.id ?? g.full) ? 'active' : ''}`}
+              role="button"
+              title={favoriteIds.has(g.id ?? g.full) ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+              onClick={(e) => toggleFavorite(e, g)}
+            >
+              {favoriteIds.has(g.id ?? g.full) ? <img className="ui-icon-sm" src={starIcon} alt="" /> : '☆'}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}

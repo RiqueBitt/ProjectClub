@@ -1,0 +1,29 @@
+# Dependências (reinstaladas via npm install/CI, nunca versionadas)
+node_modules/
+**/node_modules/
+
+# Segredos — NUNCA versionar. Só os .env.example (sem valores reais) ficam.
+.env
+.env.local
+**/.env
+**/.env.local
+
+# Builds/saídas geradas
+client/dist/
+desktop/dist/
+desktop/out/
+
+# Arquivos enviados por usuários (armazenamento local, não faz sentido versionar)
+server/uploads/
+
+# Logs
+npm-debug.log*
+*.log
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/

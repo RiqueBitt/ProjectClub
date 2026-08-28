@@ -1,0 +1,12 @@
+{
+  "appId": "com.projectclub.app",
+  "appName": "Project Club",
+  "webDir": "dist",
+  "server": {
+    "url": "https://projectclub.squareweb.app",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

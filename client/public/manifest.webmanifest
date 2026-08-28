@@ -1,0 +1,16 @@
+{
+  "name": "Project Club",
+  "short_name": "Project Club",
+  "description": "Rede social de comunidade única — chat, economia, casas e figurinhas.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e1f22",
+  "theme_color": "#1877F2",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "2000x2000",
+      "type": "image/png"
+    }
+  ]
+}

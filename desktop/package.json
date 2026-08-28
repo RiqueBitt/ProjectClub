@@ -1,0 +1,36 @@
+{
+  "name": "project-club-desktop",
+  "version": "1.0.0",
+  "description": "Project Club — aplicativo de desktop (Windows) que conecta na versão hospedada do site, com ícone na bandeja e inicialização automática.",
+  "main": "main.js",
+  "author": "Project Club",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "^31.3.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.projectclub.desktop",
+    "productName": "Project Club",
+    "asar": true,
+    "files": ["main.js", "preload.js", "build/**/*"],
+    "directories": { "output": "dist" },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Project Club",
+      "runAfterFinish": true
+    }
+  }
+}

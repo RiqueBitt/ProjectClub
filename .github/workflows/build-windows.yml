@@ -1,0 +1,65 @@
+name: Build Windows .exe
+
+# Roda ao dar push na main (só quando a pasta desktop/ muda) OU manualmente
+# pela aba Actions do GitHub ("Run workflow"). Não roda em outros pushes à
+# toa — construir o instalador demora alguns minutos.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/build-windows.yml'
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    # Precisa ser windows-latest de verdade — o NSIS (instalador do
+    # Windows) não constrói de forma confiável em Linux/Mac.
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependências
+        run: npm install
+
+      - name: Gerar o instalador .exe
+        run: npm run build:win
+
+      # Sobe o .exe pro MESMO Backblaze B2 que o resto do projeto já usa
+      # (não pro GitHub) — o repositório continua privado, mas o arquivo
+      # final fica público de verdade, pra qualquer visitante do site
+      # baixar sem precisar de login nenhum no GitHub. As credenciais
+      # (B2_KEY_ID / B2_APPLICATION_KEY / etc) ficam em Settings → Secrets
+      # and variables → Actions deste repositório — nunca neste arquivo.
+      - name: Publicar no Backblaze B2
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+        run: |
+          set -e
+          EXE_PATH=$(ls dist/*.exe | head -n 1)
+          echo "Publicando: $EXE_PATH"
+          aws s3 cp "$EXE_PATH" "s3://${{ secrets.B2_BUCKET }}/downloads/ProjectClub-Setup-Windows.exe" \
+            --endpoint-url "${{ secrets.B2_ENDPOINT }}" \
+            --region "${{ secrets.B2_REGION }}" \
+            --acl public-read \
+            --content-type "application/x-msdownload"
+          echo "Publicado em ${{ secrets.B2_PUBLIC_URL }}/downloads/ProjectClub-Setup-Windows.exe"
+
+      # Também guarda o instalador como artefato do próprio workflow —
+      # útil pra baixar direto da aba Actions durante testes, sem precisar
+      # esperar/depender da publicação no B2.
+      - name: Guardar como artefato do workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProjectClub-Setup-Windows
+          path: desktop/dist/*.exe
+          retention-days: 30
