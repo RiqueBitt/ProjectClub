@@ -11,7 +11,21 @@ on:
   workflow_dispatch: {}
 
 jobs:
+  # Calcula UMA versão (data + hash curto do commit) usada pelos 3 apps —
+  # assim os três builds de uma mesma execução sempre compartilham a
+  # mesma versão, e o app consegue detectar "tem uma atualização nova"
+  # comparando com o que está no version.json (ver o job "finalize" e
+  # client/src/utils/nativeUpdateCheck.js).
+  compute-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        run: echo "version=$(date +%Y.%m.%d)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
   build-windows:
+    needs: compute-version
     runs-on: windows-latest
     defaults:
       run:
@@ -23,6 +37,9 @@ jobs:
           node-version: 20
       - name: Instalar dependências
         run: npm install
+      - name: Gravar a versão no app
+        shell: bash
+        run: npm version "${{ needs.compute-version.outputs.version }}" --no-git-tag-version --allow-same-version
       - name: Gerar o instalador .exe
         run: npm run build:win
       # Publica como asset de uma GitHub Release (não mais como arquivo
@@ -31,6 +48,17 @@ jobs:
       # com os outros dois jobs rodando ao mesmo tempo: cada um só sobe
       # o SEU PRÓPRIO arquivo pra dentro da mesma release "latest", sem
       # precisar dar git push (que é o que causava a disputa antes).
+      #
+      # BUG CORRIGIDO ("o .apk e o .AppImage não estavam baixando pelo
+      # site"): antes o nome final do arquivo publicado vinha da sintaxe
+      # "caminho#Rótulo" do `gh release upload` — só que isso troca só o
+      # RÓTULO exibido na tela do GitHub, não o nome de verdade do
+      # arquivo (que é o que forma a URL de download). O site linkava pra
+      # "ProjectClub-Setup-Windows.exe", mas o arquivo publicado
+      # continuava com o nome que o electron-builder/gradle geram sozinhos
+      # (ex: "Project.Club.Setup.1.0.0.exe") — 404 pra quem clicava no
+      # site. Agora o arquivo é copiado/renomeado de verdade ANTES de
+      # subir, então o nome publicado é exatamente o que o site espera.
       - name: Publicar na Release "latest"
         shell: bash
         env:
@@ -38,13 +66,15 @@ jobs:
         run: |
           set -e
           EXE_PATH=$(ls dist/*.exe | head -n 1)
+          cp "$EXE_PATH" "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe"
           REPO="RiqueBitt/ProjectClub-Downloads"
           gh release view latest --repo "$REPO" >/dev/null 2>&1 || \
             gh release create latest --repo "$REPO" --title "Versão mais recente" \
               --notes "Gerado automaticamente pelo GitHub Actions a cada atualização." --latest || true
-          gh release upload latest "$EXE_PATH#ProjectClub-Setup-Windows.exe" --repo "$REPO" --clobber
+          gh release upload latest "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe" --repo "$REPO" --clobber
 
   build-linux:
+    needs: compute-version
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -56,6 +86,8 @@ jobs:
           node-version: 20
       - name: Instalar dependências
         run: npm install
+      - name: Gravar a versão no app
+        run: npm version "${{ needs.compute-version.outputs.version }}" --no-git-tag-version --allow-same-version
       - name: Gerar o AppImage
         run: npm run build:linux
       - name: Publicar na Release "latest"
@@ -64,13 +96,15 @@ jobs:
         run: |
           set -e
           APPIMAGE_PATH=$(ls dist/*.AppImage | head -n 1)
+          cp "$APPIMAGE_PATH" "$RUNNER_TEMP/ProjectClub-Linux.AppImage"
           REPO="RiqueBitt/ProjectClub-Downloads"
           gh release view latest --repo "$REPO" >/dev/null 2>&1 || \
             gh release create latest --repo "$REPO" --title "Versão mais recente" \
               --notes "Gerado automaticamente pelo GitHub Actions a cada atualização." --latest || true
-          gh release upload latest "$APPIMAGE_PATH#ProjectClub-Linux.AppImage" --repo "$REPO" --clobber
+          gh release upload latest "$RUNNER_TEMP/ProjectClub-Linux.AppImage" --repo "$REPO" --clobber
 
   build-android:
+    needs: compute-version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -94,6 +128,9 @@ jobs:
       - name: Sincronizar com o projeto Android
         working-directory: client
         run: npx cap sync android
+      - name: Gravar a versão no app
+        run: |
+          sed -i 's/versionName "[^"]*"/versionName "${{ needs.compute-version.outputs.version }}"/' client/android/app/build.gradle
       - name: Garantir que o gradlew é executável
         run: chmod +x client/android/gradlew
       - name: Decodificar a chave de assinatura
@@ -111,8 +148,47 @@ jobs:
         run: |
           set -e
           APK_PATH=$(find client/android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          cp "$APK_PATH" "$RUNNER_TEMP/ProjectClub.apk"
           REPO="RiqueBitt/ProjectClub-Downloads"
           gh release view latest --repo "$REPO" >/dev/null 2>&1 || \
             gh release create latest --repo "$REPO" --title "Versão mais recente" \
               --notes "Gerado automaticamente pelo GitHub Actions a cada atualização." --latest || true
-          gh release upload latest "$APK_PATH#ProjectClub.apk" --repo "$REPO" --clobber
+          gh release upload latest "$RUNNER_TEMP/ProjectClub.apk" --repo "$REPO" --clobber
+
+  # Item pedido: "quando lançar uma nova release, quero que apareça no
+  # app pedindo pra atualizar, e quando atualizar mande uma mensagem
+  # falando o que tem de novo" — só roda DEPOIS que os 3 builds
+  # terminarem com sucesso (needs), então version.json e a "Atualização"
+  # só aparecem quando os arquivos de verdade já estão publicados — nunca
+  # antes, o que anunciaria uma versão que ainda não existe pra baixar.
+  finalize:
+    needs: [compute-version, build-windows, build-linux, build-android]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publicar version.json no repositório de downloads
+        env:
+          GH_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
+        run: |
+          set -e
+          VERSION="${{ needs.compute-version.outputs.version }}"
+          NOTES="Correções e melhorias no aplicativo (Windows, Linux e Android)."
+          git clone --depth 1 "https://${GH_TOKEN}@github.com/RiqueBitt/ProjectClub-Downloads.git" /tmp/downloads-repo
+          cd /tmp/downloads-repo
+          git config user.name "Project Club CI"
+          git config user.email "noreply@projectclub.local"
+          python3 -c "
+          import json
+          json.dump({'version': '$VERSION', 'notes': '$NOTES'}, open('version.json', 'w'), ensure_ascii=False)
+          "
+          git add version.json
+          git diff --cached --quiet && echo "Nada mudou." || (git commit -q -m "Atualiza version.json ($VERSION)" && git push)
+
+      - name: Avisar o site (Atualizações + verificação de versão nova)
+        env:
+          CI_UPDATE_SECRET: ${{ secrets.CI_UPDATE_SECRET }}
+        run: |
+          curl -sf -X POST "https://projectclub.squareweb.app/api/system/publish-release" \
+            -H "Content-Type: application/json" \
+            -H "X-CI-Secret: $CI_UPDATE_SECRET" \
+            -d "{\"version\":\"${{ needs.compute-version.outputs.version }}\",\"notes\":\"Correções e melhorias no aplicativo (Windows, Linux e Android).\"}" \
+            || echo "Aviso: não foi possível notificar o site (site fora do ar?) — os apps continuam publicados normalmente."

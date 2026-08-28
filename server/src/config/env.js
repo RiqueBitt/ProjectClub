@@ -41,6 +41,12 @@ module.exports = {
   ACCESS_TOKEN_TTL: process.env.ACCESS_TOKEN_TTL || '15m',
   REFRESH_TOKEN_TTL_DAYS: parseInt(process.env.REFRESH_TOKEN_TTL_DAYS || '30', 10),
 
+  // Segredo compartilhado só pro GitHub Actions publicar uma "Atualização"
+  // automaticamente depois de gerar o .exe/.apk/.AppImage — não é login
+  // de usuário nenhum, só uma chave fixa que só o CI conhece (guardada
+  // como Secret do GitHub, nunca em código). Ver services/systemUpdates.js.
+  CI_UPDATE_SECRET: process.env.CI_UPDATE_SECRET || '',
+
   SMTP_HOST: process.env.SMTP_HOST || '',
   SMTP_PORT: parseInt(process.env.SMTP_PORT || '587', 10),
   SMTP_USER: process.env.SMTP_USER || '',

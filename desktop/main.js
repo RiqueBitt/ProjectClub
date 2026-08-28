@@ -4,7 +4,7 @@
 // ícone na bandeja do sistema, iniciar sozinho com o Windows, e continuar
 // rodando em segundo plano mesmo com a janela fechada — exatamente como
 // Discord/Slack fazem.
-const { app, BrowserWindow, Tray, Menu, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, shell, ipcMain } = require('electron');
 const path = require('path');
 
 // URL do site hospedado — trocar aqui se o domínio mudar um dia. Fica só
@@ -98,6 +98,14 @@ if (!gotLock) {
     tray.setContextMenu(menu);
     tray.on('click', () => { mainWindow.show(); mainWindow.focus(); });
   }
+
+  // Item pedido: o site (rodando dentro da janela) precisa saber "qual
+  // versão do app nativo está instalada" pra comparar com a mais
+  // recente publicada e avisar quando tem atualização — ver preload.js
+  // e client/src/utils/nativeUpdateCheck.js. app.getVersion() lê direto
+  // do package.json empacotado (o CI grava a versão certa ali antes de
+  // gerar o instalador, ver .github/workflows/build-apps.yml).
+  ipcMain.handle('get-app-version', () => app.getVersion());
 
   app.whenReady().then(() => {
     // "openAsHidden" é o que faz a inicialização automática cumprir o

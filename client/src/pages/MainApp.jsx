@@ -20,6 +20,7 @@ import ImageLightbox from '../components/ImageLightbox.jsx';
 import AnnouncementOverlay from '../components/AnnouncementOverlay.jsx';
 import QuickSwitcher from '../components/QuickSwitcher.jsx';
 import { listUsableEmojis, listFavoriteGifs, getUiLayout, listCommunities } from '../api/endpoints';
+import { checkForNativeUpdate } from '../utils/nativeUpdateCheck';
 
 // BUG CORRIGIDO ("web mais rápido e otimizado"): todas essas páginas de
 // seção (Amigos, Perfil, Notificações, Busca, Painel da staff, Economia,
@@ -82,6 +83,7 @@ export default function MainApp() {
     listUsableEmojis().then((d) => setUsableEmojis(d.emojis)).catch(() => {});
     listFavoriteGifs().then((d) => setFavoriteGifs(d.gifs)).catch(() => {});
     listCommunities().then((d) => setClubs(d.communities)).catch(() => {});
+    checkForNativeUpdate();
     getUiLayout().then((d) => setUiLayoutAll(d)).catch(() => {});
   }, []);
 

@@ -30,6 +30,7 @@ const adminRoutes = require('./routes/admin');
 const communitiesRoutes = require('./routes/communities');
 const postsRoutes = require('./routes/posts');
 const achievementsRoutes = require('./routes/achievements');
+const systemRoutes = require('./routes/system');
 const updatesRoutes = require('./routes/updates');
 
 function createApp() {
@@ -278,6 +279,7 @@ function createApp() {
   app.use('/api/communities', communitiesRoutes);
   app.use('/api/posts', postsRoutes);
   app.use('/api/achievements', achievementsRoutes);
+  app.use('/api/system', systemRoutes);
   app.use('/api/updates', updatesRoutes);
 
   // In production, serve the built React client from a single process
