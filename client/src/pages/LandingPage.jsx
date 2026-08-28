@@ -19,19 +19,20 @@ function useReveal() {
   }, []);
 }
 
-// Publicado pelo workflow do GitHub Actions (.github/workflows/
-// build-windows.yml) — cada vez que a pasta desktop/ muda na branch
-// main, ele gera o instalador e sobe pra esse mesmo caminho no
-// Backblaze B2, então esse link sempre aponta pra versão mais recente.
-const WINDOWS_DOWNLOAD_URL = 'https://f005.backblazeb2.com/file/projectclub-teste/downloads/ProjectClub-Setup-Windows.exe';
+// Publicados no repositório PÚBLICO separado ProjectClub-Downloads (sem
+// nenhum código-fonte dentro, só os instaladores) — o repositório
+// principal continua privado. O GitHub Actions do repositório principal
+// (.github/workflows/build-desktop.yml) publica ali automaticamente
+// sempre que a pasta desktop/ muda, mas é um repositório normal — dá
+// pra arrastar um arquivo novo lá manualmente a qualquer momento também.
+const DOWNLOADS_BASE = 'https://raw.githubusercontent.com/RiqueBitt/ProjectClub-Downloads/main/download';
+const WINDOWS_DOWNLOAD_URL = `${DOWNLOADS_BASE}/ProjectClub-Setup-Windows.exe`;
+const LINUX_DOWNLOAD_URL = `${DOWNLOADS_BASE}/ProjectClub-Linux.AppImage`;
+const ANDROID_DOWNLOAD_URL = `${DOWNLOADS_BASE}/ProjectClub.apk`;
 
 export default function LandingPage() {
   const navigate = useNavigate();
   useReveal();
-
-  const downloadSoon = (platform) => {
-    alert(`O aplicativo pra ${platform} ainda está em desenvolvimento — em breve por aqui! Por enquanto, use pelo navegador.`);
-  };
 
   return (
     <div className="landing-page">
@@ -181,11 +182,16 @@ export default function LandingPage() {
               <div className="landing-platform-os">Windows</div>
               <div className="landing-platform-fmt">Baixar .exe</div>
             </a>
-            <button className="landing-platform-card landing-reveal" onClick={() => downloadSoon('Android (.apk)')}>
+            <a className="landing-platform-card landing-reveal" href={LINUX_DOWNLOAD_URL} download>
+              <div className="landing-platform-glyph">🐧</div>
+              <div className="landing-platform-os">Linux</div>
+              <div className="landing-platform-fmt">Baixar .AppImage</div>
+            </a>
+            <a className="landing-platform-card landing-reveal" href={ANDROID_DOWNLOAD_URL} download>
               <div className="landing-platform-glyph">▱</div>
               <div className="landing-platform-os">Android</div>
-              <div className="landing-platform-fmt">Em desenvolvimento</div>
-            </button>
+              <div className="landing-platform-fmt">Baixar .apk</div>
+            </a>
           </div>
         </section>
 

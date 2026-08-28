@@ -7,7 +7,8 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "build:win": "electron-builder --win --x64"
+    "build:win": "electron-builder --win --x64",
+    "build:linux": "electron-builder --linux --x64"
   },
   "devDependencies": {
     "electron": "^31.3.0",
@@ -31,6 +32,12 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Project Club",
       "runAfterFinish": true
+    },
+    "linux": {
+      "target": [{ "target": "AppImage", "arch": ["x64"] }],
+      "icon": "build/icon.png",
+      "category": "Network",
+      "synopsis": "Chat, voz e comunidade do Project Club"
     }
   }
 }

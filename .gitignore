@@ -27,3 +27,17 @@ Thumbs.db
 # Editores
 .vscode/
 .idea/
+
+# Android (Capacitor) — pastas geradas/locais, nunca versionadas
+client/android/app/build/
+client/android/build/
+client/android/.gradle/
+client/android/local.properties
+client/android/app/*.keystore
+client/android/app/*.jks
+client/android/captures/
+client/android/.cxx/
+
+# Desktop (Electron) — build gerado
+desktop/dist/
+desktop/out/

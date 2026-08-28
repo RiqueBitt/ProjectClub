@@ -11,6 +11,7 @@
   "dependencies": {
     "@capacitor/android": "^8.4.2",
     "@capacitor/core": "^8.4.2",
+    "@capawesome-team/capacitor-android-foreground-service": "^8.1.0",
     "@jitsi/rnnoise-wasm": "^0.2.1",
     "@vitejs/plugin-react": "^4.3.1",
     "axios": "^1.7.7",

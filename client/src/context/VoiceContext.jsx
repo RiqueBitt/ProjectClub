@@ -5,6 +5,58 @@ import { useStore } from '../store/useStore';
 import { playSound } from '../utils/sounds';
 import { getPreferredMicId, setPreferredMicId } from '../utils/audioDevices';
 import { watchForSilentMic, probeSignal } from '../utils/micDiagnostics';
+// Item pedido: "no .apk, se sair do app, continua na call em segundo
+// plano" — sem isso, o Android mata o áudio da chamada poucos segundos
+// depois de minimizar o app. Importado direto (não via window.Capacitor)
+// porque @capacitor/core já é dependência do projeto e funciona igual em
+// qualquer plataforma: em web/desktop, isNativePlatform() já resolve
+// pra false sozinho, então as funções abaixo viram no-op automático sem
+// precisar de nenhum "if" espalhado pelo resto do arquivo.
+import { Capacitor } from '@capacitor/core';
+
+let ForegroundServicePlugin = null;
+// Import só é resolvido de verdade dentro do bundle Android (o Vite corta
+// esse código fora do build web via tree-shaking normal de import
+// dinâmico) — carregado uma vez, sob demanda, só quando a plataforma é
+// Android de verdade.
+async function getForegroundService() {
+  if (Capacitor.getPlatform() !== 'android') return null;
+  if (!ForegroundServicePlugin) {
+    const mod = await import('@capawesome-team/capacitor-android-foreground-service');
+    ForegroundServicePlugin = mod.ForegroundService;
+    try {
+      await ForegroundServicePlugin.createNotificationChannel({
+        id: 'voice-call', name: 'Chamada de voz', importance: 3,
+      });
+    } catch { /* já existe — ok */ }
+  }
+  return ForegroundServicePlugin;
+}
+
+async function startCallForegroundService(channelName) {
+  try {
+    const fs = await getForegroundService();
+    if (!fs) return;
+    await fs.startForegroundService({
+      id: 1,
+      title: 'Project Club — Em chamada de voz',
+      body: channelName || 'Conectado',
+      smallIcon: 'ic_stat_call',
+      notificationChannelId: 'voice-call',
+      silent: true,
+    });
+  } catch (err) {
+    console.error('[voz] Não foi possível iniciar o serviço em segundo plano (Android):', err);
+  }
+}
+
+async function stopCallForegroundService() {
+  try {
+    const fs = await getForegroundService();
+    if (!fs) return;
+    await fs.stopForegroundService();
+  } catch { /* nem tinha serviço rodando — ok */ }
+}
 
 const VoiceContext = createContext(null);
 
@@ -1007,6 +1059,7 @@ export function VoiceProvider({ children }) {
       setMyRole('speaker');
       socket?.emit('voice:join', { channelId });
       playSound('callJoin');
+      startCallForegroundService(channelName);
       if (gotMic) startSpeakingDetection(channelId);
       // Joining a call this way (banner's "Atender", or just opening the DM
       // and tapping the call button yourself) always resolves any matching
@@ -1066,6 +1119,7 @@ export function VoiceProvider({ children }) {
     if (!current) return;
     socket?.emit('voice:leave', { channelId: current.channelId });
     playSound('callLeave');
+    stopCallForegroundService();
     Object.values(soundboardAudiosRef.current).forEach((el) => { el.pause(); el.src = ''; });
     soundboardAudiosRef.current = {};
     Object.keys(peersRef.current).forEach(cleanupPeer);
