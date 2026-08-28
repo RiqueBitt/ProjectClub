@@ -53,13 +53,3 @@ jobs:
             --acl public-read \
             --content-type "application/x-msdownload"
           echo "Publicado em ${{ secrets.B2_PUBLIC_URL }}/downloads/ProjectClub-Setup-Windows.exe"
-
-      # Também guarda o instalador como artefato do próprio workflow —
-      # útil pra baixar direto da aba Actions durante testes, sem precisar
-      # esperar/depender da publicação no B2.
-      - name: Guardar como artefato do workflow
-        uses: actions/upload-artifact@v4
-        with:
-          name: ProjectClub-Setup-Windows
-          path: desktop/dist/*.exe
-          retention-days: 30
