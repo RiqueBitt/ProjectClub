@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs');
-const { authenticator } = require('otplib');
+const { generateSecret, verify, generateURI } = require('otplib');
 const qrcode = require('qrcode');
 const prisma = require('../config/prisma');
 const env = require('../config/env');
@@ -267,7 +267,10 @@ async function login(req, res, next) {
       if (!twoFactorCode) {
         return res.status(206).json({ requiresTwoFactor: true });
       }
-      const isValid = authenticator.check(twoFactorCode, user.twoFactorSecret);
+      // otplib v13 (atualizado — a v12 antiga estava depreciada):
+      // authenticator.check() virou verify({secret, token}), agora
+      // assíncrono e devolvendo { valid } em vez de um boolean direto.
+      const { valid: isValid } = await verify({ secret: user.twoFactorSecret, token: twoFactorCode });
       if (!isValid) return res.status(401).json({ error: 'Código 2FA inválido.' });
     }
 
@@ -476,8 +479,11 @@ async function resetPassword(req, res, next) {
 
 async function setup2FA(req, res, next) {
   try {
-    const secret = authenticator.generateSecret();
-    const otpauth = authenticator.keyuri(req.user.email, 'Project Club', secret);
+    // otplib v13: authenticator.generateSecret()/.keyuri() viraram as
+    // funções de nível superior generateSecret()/generateURI({...}) —
+    // mesmo formato otpauth:// de sempre, só a forma de chamar mudou.
+    const secret = generateSecret();
+    const otpauth = generateURI({ issuer: 'Project Club', label: req.user.email, secret });
     const qrDataUrl = await qrcode.toDataURL(otpauth);
     await prisma.user.update({ where: { id: req.user.id }, data: { twoFactorSecret: secret } });
     res.json({ secret, qrDataUrl });
@@ -489,7 +495,7 @@ async function confirm2FA(req, res, next) {
     const { code } = req.body;
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user.twoFactorSecret) return res.status(400).json({ error: 'Configure o 2FA primeiro.' });
-    const valid = authenticator.check(code, user.twoFactorSecret);
+    const { valid } = await verify({ secret: user.twoFactorSecret, token: code });
     if (!valid) return res.status(400).json({ error: 'Código inválido.' });
     await prisma.user.update({ where: { id: user.id }, data: { twoFactorEnabled: true } });
     res.json({ ok: true });
