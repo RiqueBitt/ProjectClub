@@ -273,6 +273,25 @@ const QUALITY_PRESETS = {
 // não pra qualidade boa de verdade — isso por si só já deixa a voz com um
 // som mais "achatado"/artificial. 64kbps é uma taxa alta o bastante pro
 // Opus soar limpo e natural em voz, sem exagerar no consumo de internet.
+// Diagnóstico real — extrai a direção (a=sendrecv/sendonly/recvonly/
+// inactive) da seção de ÁUDIO especificamente dentro de um SDP inteiro.
+// Cada media section (m=audio, m=video...) tem sua própria linha de
+// direção; isso isola só a do áudio, ignorando a de vídeo/tela que pode
+// estar diferente. Usado só pra diagnóstico no console — nunca decide
+// nada sozinho, só mostra o que cada lado está propondo de verdade.
+function extractAudioDirection(sdp) {
+  if (!sdp) return '(sem SDP)';
+  const lines = sdp.split('\r\n');
+  let inAudioSection = false;
+  for (const line of lines) {
+    if (line.startsWith('m=')) inAudioSection = line.startsWith('m=audio');
+    if (inAudioSection && /^a=(sendrecv|sendonly|recvonly|inactive)$/.test(line)) {
+      return line.slice(2);
+    }
+  }
+  return '(direção não encontrada na seção de áudio)';
+}
+
 function boostAudioBitrate(sender) {
   if (!sender || sender.track?.kind !== 'audio') return;
   const params = sender.getParameters();
@@ -641,6 +660,7 @@ export function VoiceProvider({ children }) {
         entry.makingOffer = true;
         await pc.setLocalDescription();
         sendSignal(peerId, { description: pc.localDescription });
+        console.log(`[voz][SDP oferta que criamos pra ${peerId}] direção-áudio=${extractAudioDirection(pc.localDescription.sdp)}`);
       } catch (err) {
         // ignore — a subsequent negotiationneeded will retry
       } finally {
@@ -708,10 +728,16 @@ export function VoiceProvider({ children }) {
         } else {
           await pc.setRemoteDescription(data.description);
         }
+        // Diagnóstico real — mostra a direção de áudio que o OUTRO LADO
+        // propôs (recebida agora) e, se for uma oferta, a que NÓS vamos
+        // responder — deixa bem claro de qual lado da negociação um
+        // eventual "recvonly" vem, sem precisar adivinhar.
+        console.log(`[voz][SDP recebido de ${from}] tipo=${data.description.type} direção-áudio=${extractAudioDirection(data.description.sdp)}`);
 
         if (data.description.type === 'offer') {
           await pc.setLocalDescription();
           sendSignal(from, { description: pc.localDescription });
+          console.log(`[voz][SDP que enviamos pra ${from}] tipo=${pc.localDescription.type} direção-áudio=${extractAudioDirection(pc.localDescription.sdp)}`);
         }
 
         // BUG CORRIGIDO DE VEZ (achado via diagnóstico real): antes, a
