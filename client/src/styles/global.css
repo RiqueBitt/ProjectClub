@@ -4212,7 +4212,7 @@ a.embed-card-title:hover { text-decoration: underline; }
 }
 
 /* ---------- Fusão com o Reddit clone (item 5) — sidebar de comunidade
-   estilo Reddit (CommunityPage.jsx) + atividade/karma no perfil
+   estilo Reddit (CommunityPage.jsx) + atividade/Ups no perfil
    (UserProfileModal.jsx). ---------- */
 .community-page-layout {
   display: grid; grid-template-columns: 1fr 300px; gap: 20px;
@@ -4257,7 +4257,7 @@ a.embed-card-title:hover { text-decoration: underline; }
   .community-info-card { position: static; }
 }
 
-/* Atividade em Comunidades no perfil (posts + karma) */
+/* Atividade em Clubes no perfil (posts + Ups) */
 .profile-reddit-activity-list { display: flex; flex-direction: column; gap: 4px; }
 .profile-reddit-activity-item {
   display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;

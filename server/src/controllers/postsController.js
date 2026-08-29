@@ -17,11 +17,23 @@ function hotScore(score, createdAt) {
 
 async function listPosts(req, res, next) {
   try {
-    const { communitySlug, categoryId, authorId, sort = 'hot' } = req.query;
+    const { communitySlug, categoryId, authorId, sort = 'hot', q } = req.query;
     const where = {};
     if (communitySlug) where.community = { slug: communitySlug };
     if (categoryId) where.categoryId = categoryId;
     if (authorId) where.authorId = authorId;
+    // Item pedido: busca também encontrando posts dos Feeds (não só
+    // usuários/canais/conversas) — procura tanto no título quanto no
+    // corpo do post, reaproveitando esse mesmo endpoint que a listagem
+    // normal de Feeds já usa, em vez de criar um sistema de busca
+    // duplicado só pra isso.
+    if (q?.trim()) {
+      const term = q.trim();
+      where.OR = [
+        { title: { contains: term } },
+        { content: { contains: term } },
+      ];
+    }
     const posts = await prisma.post.findMany({
       where,
       include: POST_INCLUDE,

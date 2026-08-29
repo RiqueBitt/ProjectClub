@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import { SocketProvider } from './context/SocketContext.jsx';
 import { VoiceProvider } from './context/VoiceContext.jsx';
@@ -142,10 +142,28 @@ function isNativeApp() {
   return !!window.Capacitor?.isNativePlatform?.();
 }
 
+// BUG CORRIGIDO ("clicar em Comunidade recarrega a página inteira"): "/"
+// e "/*" eram DUAS entradas <Route> separadas, mesmo as duas
+// terminando em <ProtectedApp/> — só que pro React Router (e pro React
+// por baixo), rotas DIFERENTES na árvore de JSX nunca preservam a
+// identidade do componente entre uma e outra, mesmo renderizando "a
+// mesma coisa". Navegar de qualquer lugar (ex: /dms) de volta pra "/"
+// desmontava o <ProtectedApp>/<MainApp> inteiro e montava um novo do
+// zero — reexecutando TODOS os efeitos de inicialização (buscar
+// clubes, checar atualização, registrar push, recalcular o badge...) a
+// cada clique, o que "parece" um recarregamento completo mesmo sem ser
+// de verdade um F5 no navegador. RootGate agora cuida de "/" e "/*" ao
+// mesmo tempo, numa ÚNICA <Route>, usando o pathname atual (useLocation)
+// só pra decidir se mostra a página de marketing (só na raiz "/", só
+// pra quem não está logado) — sem nunca duplicar a rota que leva no
+// <ProtectedApp/>, que a partir de agora é sempre a MESMA instância,
+// nunca remontada só por causa de navegação interna.
 function RootGate() {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return null;
   if (user) return <ProtectedApp />;
+  if (location.pathname !== '/') return <ProtectedApp />; // ProtectedRoute (dentro) cuida do redirecionamento pro /login
   // App nativo sem sessão ativa vai direto pro login — sem passar pela
   // página de marketing/download no meio do caminho.
   if (isNativeApp()) return <Navigate to="/login" replace />;
@@ -285,7 +303,6 @@ export default function App() {
     <>
       <div id="custom-bg-backdrop" />
       <Routes>
-        <Route path="/" element={<RootGate />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
@@ -299,7 +316,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/*" element={<ProtectedApp />} />
+        <Route path="/*" element={<RootGate />} />
       </Routes>
     </>
   );

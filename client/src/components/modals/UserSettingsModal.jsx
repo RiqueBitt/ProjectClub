@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import IconGlyph from '../IconGlyph.jsx';
 import AchievementPickerModal from './AchievementPickerModal.jsx';
 import micIcon from '../../assets/icons/nav-mic.png';
-import tagsIcon from '../../assets/icons/nav-tags.png';
 import Modal from '../Modal.jsx';
 import EmojiPicker from '../EmojiPicker.jsx';
 import { usePopoverCoordination } from '../../utils/popoverCoordinator';
@@ -27,11 +26,18 @@ import robloxConnIcon from '../../assets/icons/social-roblox.png';
 import xConnIcon from '../../assets/icons/social-x.png';
 import {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, removeIdCard,
-  setup2FA, confirm2FA, disable2FA, setActiveTag, setPreferredTheme,
+  setup2FA, confirm2FA, disable2FA, setPreferredTheme,
   listSessions, revokeSession, revokeOtherSessions,
 } from '../../api/endpoints';
 
-const TABS = ['PROFILE', 'ACCOUNT', 'VOICE', 'SECURITY', 'APPEARANCE', 'TAGS'];
+// Item pedido: separar "Edição do Perfil" das "Configurações gerais" da
+// aplicação, em vez de uma lista única sem hierarquia nenhuma. TAGS saiu
+// completamente daqui — mora agora dentro da própria área de Perfil
+// (UserProfileModal.jsx), não em Configurações.
+const TAB_GROUPS = [
+  { label: 'Perfil', tabs: ['PROFILE'] },
+  { label: 'Geral', tabs: ['ACCOUNT', 'VOICE', 'SECURITY', 'APPEARANCE'] },
+];
 
 export default function UserSettingsModal({ onClose }) {
   const { user, setUser, logout } = useAuth();
@@ -46,7 +52,6 @@ export default function UserSettingsModal({ onClose }) {
   // guard equivalente em server/src/controllers/userController.js).
   const profileColorEditEnabled = !disabledSystems.includes('cores_perfil');
   const [tab, setTab] = useState('PROFILE');
-  const [tagSaving, setTagSaving] = useState(false);
   const [bioEmojiOpen, setBioEmojiOpen] = useState(false);
   usePopoverCoordination(bioEmojiOpen, () => setBioEmojiOpen(false));
   const [statusEmojiOpen, setStatusEmojiOpen] = useState(false);
@@ -266,11 +271,16 @@ export default function UserSettingsModal({ onClose }) {
     <Modal title="Configurações do usuário" onClose={onClose} width="820px" className="settings-modal-box">
       <div className="settings-modal-layout">
         <div className="settings-modal-sidebar">
-          {TABS.map((t) => (
-            <button key={t} className={`settings-modal-sidebar-item ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-              <span className="settings-modal-sidebar-icon">{iconFor(t)}</span>
-              {labelFor(t)}
-            </button>
+          {TAB_GROUPS.map((group) => (
+            <div key={group.label} className="settings-modal-sidebar-group">
+              <div className="settings-modal-sidebar-group-label">{group.label}</div>
+              {group.tabs.map((t) => (
+                <button key={t} className={`settings-modal-sidebar-item ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
+                  <span className="settings-modal-sidebar-icon">{iconFor(t)}</span>
+                  {labelFor(t)}
+                </button>
+              ))}
+            </div>
           ))}
           <div className="settings-modal-sidebar-divider" />
           <button className="settings-modal-sidebar-item settings-modal-logout" onClick={doLogout}>
@@ -643,45 +653,6 @@ export default function UserSettingsModal({ onClose }) {
         </div>
       )}
 
-      {tab === 'TAGS' && (
-        <div className="settings-grid">
-          <h3>Tag da comunidade</h3>
-          <p className="dim">
-            Exiba a tag da comunidade do lado do seu nome no chat, na lista de membros e no seu perfil.
-          </p>
-          {(() => {
-            const pick = async (active) => {
-              setTagSaving(true);
-              try {
-                const { user: updated } = await setActiveTag(active);
-                setUser(updated);
-              } finally {
-                setTagSaving(false);
-              }
-            };
-            return (
-              <div className="server-tag-options">
-                <button
-                  type="button"
-                  className={`server-tag-option ${!user.tagEmoji ? 'active' : ''}`}
-                  disabled={tagSaving}
-                  onClick={() => pick(false)}
-                >
-                  Nenhuma
-                </button>
-                <button
-                  type="button"
-                  className={`server-tag-option ${user.tagEmoji ? 'active' : ''}`}
-                  disabled={tagSaving}
-                  onClick={() => pick(true)}
-                >
-                  <span className="server-tag-badge">🏠 Mostrar tag</span>
-                </button>
-              </div>
-            );
-          })()}
-        </div>
-      )}
         </div>
       </div>
     </Modal>
@@ -707,15 +678,13 @@ export default function UserSettingsModal({ onClose }) {
 function labelFor(t) {
   return {
     PROFILE: 'Meu perfil', ACCOUNT: 'Minha conta', VOICE: 'Voz e Áudio', SECURITY: 'Segurança', APPEARANCE: 'Aparência',
-    TAGS: 'Tags',
   }[t];
 }
 
 function iconFor(t) {
-  // VOICE e TAGS agora usam os ícones novos (mesmo pacote da barra
-  // lateral) em vez de emoji — os outros continuam emoji por enquanto.
+  // VOICE usa o ícone novo (mesmo pacote da barra lateral) em vez de
+  // emoji — os outros continuam emoji por enquanto.
   if (t === 'VOICE') return <IconGlyph src={micIcon} size={16} />;
-  if (t === 'TAGS') return <IconGlyph src={tagsIcon} size={16} />;
   return {
     PROFILE: '👤', ACCOUNT: '⚙️', SECURITY: '🔒', APPEARANCE: '🎨',
   }[t];

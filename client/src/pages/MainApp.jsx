@@ -17,6 +17,7 @@ import UserProfileModal from '../components/modals/UserProfileModal.jsx';
 import MiniProfileCard from '../components/MiniProfileCard.jsx';
 import LinkConfirmModal from '../components/modals/LinkConfirmModal.jsx';
 import ImageLightbox from '../components/ImageLightbox.jsx';
+import UserSettingsModal from '../components/modals/UserSettingsModal.jsx';
 import AnnouncementOverlay from '../components/AnnouncementOverlay.jsx';
 import QuickSwitcher from '../components/QuickSwitcher.jsx';
 import { listUsableEmojis, listFavoriteGifs, getUiLayout, listCommunities } from '../api/endpoints';
@@ -70,6 +71,8 @@ export default function MainApp() {
   const [membersOpen, setMembersOpen] = useState(true);
   const [dmProfileOpen, setDmProfileOpen] = useState(true);
   const mobileMembersOpen = useStore((s) => s.mobileMembersOpen);
+  const settingsModalOpen = useStore((s) => s.settingsModalOpen);
+  const closeSettings = useStore((s) => s.closeSettings);
   const openMobileMembers = useStore((s) => s.openMobileMembers);
   const closeMobileMembers = useStore((s) => s.closeMobileMembers);
   const closeMobileSidebar = useStore((s) => s.closeMobileSidebar);
@@ -221,6 +224,7 @@ export default function MainApp() {
       <MiniProfileCard />
       <LinkConfirmModal />
       <ImageLightbox />
+      {settingsModalOpen && <UserSettingsModal onClose={closeSettings} />}
       <AnnouncementOverlay />
       <QuickSwitcher />
     </div>

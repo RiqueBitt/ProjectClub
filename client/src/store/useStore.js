@@ -29,6 +29,12 @@ export const useStore = create((set, get) => ({
   // chamam pushNotice(message) só com texto.
   notices: [],
   viewingProfileUserId: null, // define pra abrir <UserProfileModal> daquele usuário, de qualquer lugar do app
+  // Item pedido: engrenagem no cabeçalho abrindo Configurações direto,
+  // sem precisar passar pelo próprio perfil primeiro — estado global
+  // igual o do perfil, pra ter só UMA instância do modal (renderizada
+  // uma vez em MainApp.jsx) reagindo a quem clicar em qualquer um dos
+  // dois lugares que abrem isso (cabeçalho ou dentro do perfil).
+  settingsModalOpen: false,
   // ID de usuário pra mostrar o miniperfil (popup compacto, aberto ao
   // clicar num avatar em mensagens/lista de membros) — tem um botão que
   // abre o perfil completo (viewingProfileUserId) de dentro dele.
@@ -238,6 +244,8 @@ export const useStore = create((set, get) => ({
   openProfileAddRole: (userId) => set({ viewingProfileUserId: userId, profileAutoOpenRoleMenu: true }),
   clearProfileAutoOpenRoleMenu: () => set({ profileAutoOpenRoleMenu: false }),
   closeProfile: () => set({ viewingProfileUserId: null, profileAutoOpenRoleMenu: false }),
+  openSettings: () => set({ settingsModalOpen: true }),
+  closeSettings: () => set({ settingsModalOpen: false }),
   openLinkConfirm: (url) => set({ pendingLinkUrl: url }),
   openLightbox: (url, filename) => set({ lightboxImage: { url, filename: filename || '' } }),
   closeLightbox: () => set({ lightboxImage: null }),

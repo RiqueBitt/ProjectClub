@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { getUserProfile, createConversation, sendFriendRequest, assignRole, unassignRole, voteProfile, listPosts } from '../../api/endpoints';
+import { getUserProfile, createConversation, sendFriendRequest, assignRole, unassignRole, voteProfile, listPosts, setActiveTag } from '../../api/endpoints';
 import { STATUS_LABEL, STATUS_COLOR } from '../../utils/status';
 import { renderRichContent } from '../../utils/richTextRender.jsx';
 import { getMyCommunityPermissions, hasPermission } from '../../utils/permissions';
@@ -16,7 +16,6 @@ import BadgeListModal from './BadgeListModal.jsx';
 import defaultAchievementIcon from '../../assets/icons/nav-achievements.png';
 import { badgeHasImage } from '../../utils/badgeRarity';
 import { nameStyleProps } from '../../utils/nameStyle';
-import UserSettingsModal from './UserSettingsModal.jsx';
 import cancelIcon from '../../assets/icons/cancel.png';
 import settingsIcon from '../../assets/icons/settings.png';
 import likeIcon from '../../assets/icons/like.png';
@@ -51,8 +50,20 @@ export default function UserProfileModal() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [friendSent, setFriendSent] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [badgeListOpen, setBadgeListOpen] = useState(false);
+  // Item pedido: "tag da comunidade" saiu de Configurações e mora aqui
+  // dentro do próprio perfil agora (ver UserSettingsModal.jsx, onde essa
+  // mesma lógica existia antes).
+  const [tagSaving, setTagSaving] = useState(false);
+  const pickTag = async (active) => {
+    setTagSaving(true);
+    try {
+      const { user: updated } = await setActiveTag(active);
+      setMe(updated);
+    } finally {
+      setTagSaving(false);
+    }
+  };
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
   const [roleSearch, setRoleSearch] = useState('');
   const [rolesExpanded, setRolesExpanded] = useState(false);
@@ -96,7 +107,7 @@ export default function UserProfileModal() {
   }, [userId]);
 
   // NOVO (fusão com o Reddit clone — item 5): atividade em Comunidades —
-  // posts recentes da pessoa + karma (soma dos scores) num cantinho do
+  // posts recentes da pessoa + Ups (soma dos scores) num cantinho do
   // próprio perfil, igual ao Reddit mostra na página de qualquer usuário.
   const [redditActivity, setRedditActivity] = useState(null);
   useEffect(() => {
@@ -222,7 +233,7 @@ export default function UserProfileModal() {
       >
         <button className="icon-btn profile-modal-close" onClick={closeProfile}><img className="ui-icon" src={cancelIcon} alt="x" /></button>
         {isMe && (
-          <button className="icon-btn profile-modal-edit" onClick={() => setSettingsOpen(true)} title="Editar perfil">
+          <button className="icon-btn profile-modal-edit" onClick={() => useStore.getState().openSettings()} title="Editar perfil">
             <img className="ui-icon" src={settingsIcon} alt="" />
           </button>
         )}
@@ -371,10 +382,38 @@ export default function UserProfileModal() {
                       )}
                     </div>
                   )}
+                  {isMe && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">
+                        <span>TAG DA COMUNIDADE</span>
+                      </div>
+                      <p className="dim" style={{ fontSize: 13, marginBottom: 8 }}>
+                        Exiba a tag da comunidade do lado do seu nome no chat, na lista de membros e no seu perfil.
+                      </p>
+                      <div className="server-tag-options">
+                        <button
+                          type="button"
+                          className={`server-tag-option ${!me.tagEmoji ? 'active' : ''}`}
+                          disabled={tagSaving}
+                          onClick={() => pickTag(false)}
+                        >
+                          Nenhuma
+                        </button>
+                        <button
+                          type="button"
+                          className={`server-tag-option ${me.tagEmoji ? 'active' : ''}`}
+                          disabled={tagSaving}
+                          onClick={() => pickTag(true)}
+                        >
+                          <span className="server-tag-badge">🏠 Mostrar tag</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {redditActivity?.length > 0 && (
                     <div className="profile-section">
                       <div className="profile-section-label">
-                        ATIVIDADE EM COMUNIDADES — karma {redditActivity.reduce((sum, p) => sum + p.score, 0)}
+                        ATIVIDADE EM CLUBES — {redditActivity.reduce((sum, p) => sum + p.score, 0)} Ups
                       </div>
                       <div className="profile-reddit-activity-list">
                         {redditActivity.slice(0, 5).map((post) => (
@@ -532,7 +571,7 @@ export default function UserProfileModal() {
           </div>
         )}
       </div>
-      {settingsOpen && <UserSettingsModal onClose={() => setSettingsOpen(false)} />}
+      {/* O modal de Configurações agora é renderizado uma única vez, globalmente, em MainApp.jsx — reage ao mesmo estado (settingsModalOpen) que o botão de engrenagem acima e o do cabeçalho abrem, então não precisa mais de uma instância própria aqui dentro. */}
     </div>
   );
 }

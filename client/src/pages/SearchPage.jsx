@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
-import { searchUsers } from '../api/endpoints';
+import { searchUsers, listPosts } from '../api/endpoints';
 
 // Área de busca da plataforma: canais, conversas e usuários num só lugar.
 // Reaproveita a mesma ideia do QuickSwitcher.jsx (Ctrl+K, que continua
@@ -13,6 +13,8 @@ export default function SearchPage() {
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('q') || '');
   const [userResults, setUserResults] = useState([]);
+  const [postResults, setPostResults] = useState([]);
+  const [searchingPosts, setSearchingPosts] = useState(false);
   const [searching, setSearching] = useState(false);
   const categories = useStore((s) => s.categories);
   const channels = useStore((s) => s.channels);
@@ -41,6 +43,7 @@ export default function SearchPage() {
     const value = e.target.value;
     setQuery(value);
     runUserSearch(value);
+    runPostSearch(value);
   };
 
   const runUserSearch = async (value) => {
@@ -51,11 +54,23 @@ export default function SearchPage() {
     setSearching(false);
   };
 
+  // Item pedido: busca também encontrando posts dos Feeds — reaproveita
+  // o mesmo listPosts que a página de Feeds já usa, só passando o termo
+  // digitado como filtro (ver o parâmetro `q` novo em
+  // postsController.listPosts).
+  const runPostSearch = async (value) => {
+    if (value.trim().length < 2) { setPostResults([]); return; }
+    setSearchingPosts(true);
+    const { posts } = await listPosts({ q: value.trim(), sort: 'new' }).catch(() => ({ posts: [] }));
+    setPostResults(posts);
+    setSearchingPosts(false);
+  };
+
   // Chega já preenchida quando vem da busca do topo (TopSearchBar.jsx,
   // navega pra /search?q=...) — dispara a busca de usuários na hora, em
   // vez de só preencher o campo e esperar a pessoa digitar de novo.
   useEffect(() => {
-    if (searchParams.get('q')) runUserSearch(searchParams.get('q'));
+    if (searchParams.get('q')) { runUserSearch(searchParams.get('q')); runPostSearch(searchParams.get('q')); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -101,6 +116,20 @@ export default function SearchPage() {
                   </li>
                 );
               })}
+            </ul>
+          </section>
+
+          <section className="notifications-section">
+            <h3>Posts</h3>
+            {searchingPosts && <p className="dim">Buscando...</p>}
+            {!searchingPosts && postResults.length === 0 && <p className="dim">Nenhum post encontrado.</p>}
+            <ul className="notifications-list">
+              {postResults.map((p) => (
+                <li key={p.id} className="notifications-item" onClick={() => navigate(`/posts/${p.id}`)}>
+                  <span className="notifications-item-icon">📝</span>
+                  <span className="truncate">{p.title} <span className="dim">em {p.community?.name}</span></span>
+                </li>
+              ))}
             </ul>
           </section>
 
