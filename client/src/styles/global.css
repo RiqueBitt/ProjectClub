@@ -4545,10 +4545,10 @@ a.embed-card-title:hover { text-decoration: underline; }
   height: 100vh; height: 100dvh; overflow-x: hidden; overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   background: var(--lp-bg-0); color: var(--lp-text);
-  font-family: 'Space Grotesk', sans-serif; position: relative;
+  font-family: 'Inter', 'Space Grotesk', sans-serif; position: relative;
 }
 .landing-page a { color: inherit; }
-.landing-pixel { font-family: 'Silkscreen', monospace; }
+.landing-pixel { font-family: 'Inter', 'Space Grotesk', sans-serif; font-weight: 800; letter-spacing: -0.5px; }
 
 .landing-bg-field {
   position: fixed; inset: 0; z-index: -2;
@@ -4604,6 +4604,32 @@ a.embed-card-title:hover { text-decoration: underline; }
 }
 .landing-sub { max-width: 620px; margin: 26px auto 40px; color: var(--lp-muted); font-size: 17px; line-height: 1.7; }
 .landing-cta-row { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+
+/* ---------- Botão de download com menuzinho de plataforma (item pedido,
+   inspirado no botão "Download for Windows" do Discord) — botão
+   principal baixa Windows direto, a setinha do lado abre um menu com as
+   outras plataformas, encaixado logo abaixo do botão. ---------- */
+.landing-download-split { position: relative; display: flex; }
+.landing-download-main { border-radius: 10px 0 0 10px; }
+.landing-download-caret {
+  display: flex; align-items: center; justify-content: center; width: 40px;
+  background: var(--lp-text); color: #0a0c18; border-radius: 0 10px 10px 0;
+  border-left: 1px solid rgba(0, 0, 0, 0.15); font-size: 12px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 12px 30px -8px rgba(76, 141, 255, 0.5);
+}
+.landing-download-caret:hover { background: #e8eaf7; }
+.landing-platform-menu {
+  position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 10;
+  background: var(--lp-panel); border: 1px solid var(--lp-line); border-radius: 12px;
+  padding: 6px; box-shadow: 0 20px 45px -15px rgba(0, 0, 0, 0.6); animation: landing-menu-in .15s ease both;
+}
+@keyframes landing-menu-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+.landing-platform-menu-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px;
+  font-size: 14px; font-weight: 600; color: var(--lp-text); white-space: nowrap;
+}
+.landing-platform-menu-item:hover { background: rgba(76, 141, 255, 0.14); }
+.landing-platform-menu-glyph { font-size: 15px; width: 20px; text-align: center; }
 .landing-btn-primary {
   display: inline-flex; align-items: center; gap: 10px; background: var(--lp-text); color: #0a0c18;
   font-weight: 600; font-size: 15px; padding: 14px 26px; border-radius: 10px;

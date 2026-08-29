@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logo from '../assets/icons/logo-project-club.png';
 
@@ -35,6 +35,19 @@ const ANDROID_DOWNLOAD_URL = `${DOWNLOADS_BASE}/ProjectClub.apk`;
 export default function LandingPage() {
   const navigate = useNavigate();
   useReveal();
+  // Menuzinho de plataforma (item pedido) — igual o botão de download do
+  // Discord: o botão principal já baixa a opção mais comum (Windows)
+  // direto, e uma setinha do lado abre um menu pra escolher Linux/Mobile
+  // em vez disso.
+  const [platformMenuOpen, setPlatformMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!platformMenuOpen) return;
+    const closeOnOutsideClick = (e) => {
+      if (!e.target.closest('.landing-download-split')) setPlatformMenuOpen(false);
+    };
+    document.addEventListener('click', closeOnOutsideClick);
+    return () => document.removeEventListener('click', closeOnOutsideClick);
+  }, [platformMenuOpen]);
 
   return (
     <div className="landing-page">
@@ -65,10 +78,35 @@ export default function LandingPage() {
             tudo numa comunidade só, sem enrolação.
           </p>
           <div className="landing-cta-row">
-            <button className="landing-btn-primary" onClick={() => navigate('/login')}>⬇ Entrar agora pelo navegador</button>
-            <a className="landing-btn-secondary" href="#download">Ver opções de download</a>
+            <div className="landing-download-split">
+              <a className="landing-btn-primary landing-download-main" href={WINDOWS_DOWNLOAD_URL} download>
+                ⬇ Baixar para Windows
+              </a>
+              <button
+                type="button"
+                className="landing-download-caret"
+                aria-label="Escolher outra plataforma"
+                onClick={() => setPlatformMenuOpen((v) => !v)}
+              >
+                ▾
+              </button>
+              {platformMenuOpen && (
+                <div className="landing-platform-menu" onMouseLeave={() => setPlatformMenuOpen(false)}>
+                  <a href={WINDOWS_DOWNLOAD_URL} download className="landing-platform-menu-item">
+                    <span className="landing-platform-menu-glyph">⊞</span> Windows
+                  </a>
+                  <a href={ANDROID_DOWNLOAD_URL} download className="landing-platform-menu-item">
+                    <span className="landing-platform-menu-glyph">▱</span> Mobile (Android)
+                  </a>
+                  <a href={LINUX_DOWNLOAD_URL} download className="landing-platform-menu-item">
+                    <span className="landing-platform-menu-glyph">🐧</span> Linux
+                  </a>
+                </div>
+              )}
+            </div>
+            <button className="landing-btn-secondary" onClick={() => navigate('/login')}>Entrar pelo navegador</button>
           </div>
-          <p className="landing-platform-note">Também em desenvolvimento para Windows e Android · Grátis</p>
+          <p className="landing-platform-note">Ou baixe direto: Windows, Linux ou Android · Grátis</p>
 
           <div className="landing-window landing-reveal" aria-hidden="true">
             <div className="landing-window-bar">
