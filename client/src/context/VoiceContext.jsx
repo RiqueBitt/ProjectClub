@@ -575,7 +575,24 @@ export function VoiceProvider({ children }) {
     attachExistingVideoTracks(pc);
 
     pc.onicecandidate = (e) => {
-      if (e.candidate) sendSignal(peerId, { candidate: e.candidate });
+      if (e.candidate) {
+        sendSignal(peerId, { candidate: e.candidate });
+        // Diagnóstico real (não suposição): mostra o TIPO de cada
+        // candidato que o navegador conseguiu reunir — 'host' (rede
+        // local direta), 'srflx' (via STUN, endereço público descoberto),
+        // 'relay' (via TURN — só existe se o servidor TURN respondeu e
+        // aceitou as credenciais de verdade). Se NUNCA aparecer nenhum
+        // candidato "relay" aqui, é prova definitiva de que o TURN não
+        // está funcionando (credenciais erradas, servidor fora do ar, ou
+        // bloqueado pela rede) — não é mais suposição, é o que o próprio
+        // navegador está reportando ter conseguido reunir de verdade.
+        console.log(`[voz][ICE candidato] peer=${peerId} tipo=${e.candidate.type} protocolo=${e.candidate.protocol} endereço=${e.candidate.address || '(oculto)'}`);
+      } else {
+        console.log(`[voz][ICE] peer=${peerId} — coleta de candidatos terminou.`);
+      }
+    };
+    pc.onicegatheringstatechange = () => {
+      console.log(`[voz][ICE] peer=${peerId} — estado de coleta: ${pc.iceGatheringState}`);
     };
 
     // Camera and screen-share tracks are sent as separate MediaStreams whose
@@ -633,6 +650,7 @@ export function VoiceProvider({ children }) {
     pc.oniceconnectionstatechange = () => {
       const state = pc.iceConnectionState;
       if (state === 'failed') {
+        console.error(`[voz][ICE] peer=${peerId} — FALHOU. Tentando reiniciar a negociação automaticamente...`);
         attemptIceRestart();
       } else if (state === 'disconnected') {
         // Dá uma chance de se recuperar sozinho antes de forçar a
