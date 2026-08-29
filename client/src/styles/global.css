@@ -1712,7 +1712,11 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 
 /* ---------- Mobile-only chrome (hidden on desktop/tablet) ---------- */
 .mobile-topbar { display: none; }
-.mobile-nav-toggle { display: none; }
+.mobile-nav-toggle {
+  display: none; align-items: center; justify-content: center; width: 34px; height: 34px;
+  border-radius: 8px; font-size: 18px; color: var(--interactive-normal); flex-shrink: 0;
+}
+.mobile-nav-toggle:hover { background: var(--bg-modifier-hover); }
 .mobile-sidebar-backdrop { display: none; }
 
 /* Members-list toggle button (chat header) — only needed once the members
@@ -3246,6 +3250,37 @@ a.embed-card-title:hover { text-decoration: underline; }
   .main-sidebar-profile-main { justify-content: center; padding: 6px; }
   .main-sidebar-profile-text { display: none; }
   .main-sidebar-status-menu { left: 6px; right: auto; width: 200px; }
+}
+
+/* Item pedido: menu principal (ícones de navegação) virando gaveta de
+   verdade em telas de celular estreitas (≤600px) — antes ficava sempre
+   visível (só ícones, sem rótulo) mesmo nas telas mais estreitas,
+   ocupando uma fatia fixa considerável da largura disponível o tempo
+   todo. Reaproveita exatamente o mesmo padrão que a lista de membros já
+   usa (.mobile-sidebar-backdrop, transform: translateX, mesmo z-index) —
+   os elementos .mobile-nav-toggle/.mobile-sidebar-backdrop já existiam
+   no CSS de propósito pra isso, só nunca tinham sido ligados a nada.
+   Sobrescreve por cima do bloco de 900px acima (só ícones) com rótulos
+   de volta, já que aqui vira uma gaveta cheia, não uma faixa fina fixa. */
+@media (max-width: 600px) {
+  .app-shell { grid-template-columns: 0 1fr; }
+  .main-sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; width: min(80vw, 260px);
+    z-index: 230; box-shadow: 2px 0 16px rgba(0,0,0,.5);
+    transform: translateX(-100%); transition: transform .2s ease;
+  }
+  .main-sidebar-scroll { padding: 16px 14px 10px; }
+  .main-sidebar-brand { justify-content: flex-start; padding: 0 4px; }
+  .main-sidebar-brand-name { display: inline; }
+  .main-sidebar-item { justify-content: flex-start; padding: 10px 12px; }
+  .main-sidebar-item-label { display: inline; }
+  .main-sidebar-section-label, .main-sidebar-community-name, .main-sidebar-community-empty, .main-sidebar-community-loading { display: block; }
+  .main-sidebar-community-item { justify-content: flex-start; padding: 8px 10px; }
+  .app-shell.mobile-sidebar-open .main-sidebar { transform: translateX(0); }
+  .app-shell.mobile-sidebar-open .mobile-sidebar-backdrop {
+    display: block; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 220;
+  }
+  .mobile-nav-toggle { display: inline-flex; }
 }
 
 /* ============================================================

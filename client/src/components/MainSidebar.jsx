@@ -88,7 +88,12 @@ export default function MainSidebar() {
             const active = item.match(location.pathname);
             const badge = badgeFor(item.to);
             return (
-              <NavLink key={item.to} to={item.to} className={`main-sidebar-item ${active ? 'active' : ''}`}>
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={`main-sidebar-item ${active ? 'active' : ''}`}
+                onClick={() => useStore.getState().closeMobileSidebar()}
+              >
                 <span className="main-sidebar-item-icon">
                   {item.isImg
                     ? <span className="main-sidebar-item-icon-img" style={{ WebkitMaskImage: `url(${item.icon})`, maskImage: `url(${item.icon})` }} />
@@ -108,7 +113,7 @@ export default function MainSidebar() {
               <button
                 key={c.id}
                 className={`main-sidebar-community-item ${location.pathname === `/comunidades/${c.slug}` ? 'active' : ''}`}
-                onClick={() => navigate(`/comunidades/${c.slug}`)}
+                onClick={() => { navigate(`/comunidades/${c.slug}`); useStore.getState().closeMobileSidebar(); }}
                 title={c.name}
               >
                 <span className="main-sidebar-community-icon">{c.iconUrl ? <img src={c.iconUrl} alt="" /> : '📌'}</span>

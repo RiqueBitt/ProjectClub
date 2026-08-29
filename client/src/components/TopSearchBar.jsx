@@ -53,6 +53,14 @@ export default function TopSearchBar() {
 
   return (
     <div className="top-search-bar">
+      {/* Item pedido: menu principal virando gaveta de verdade no
+          celular — esse botão só aparece em telas estreitas (≤600px,
+          ver .mobile-nav-toggle no CSS) e abre/fecha a barra de
+          navegação como uma gaveta lateral, em vez dela ficar sempre
+          ocupando espaço fixo na tela. */}
+      <button type="button" className="mobile-nav-toggle" onClick={() => useStore.getState().toggleMobileSidebar()} aria-label="Abrir menu">
+        ☰
+      </button>
       <button type="button" className="top-search-bar-brand" onClick={() => navigate('/')}>
         <img className="top-search-bar-logo" src={logoIcon} alt="" />
         <span className="top-search-bar-brand-name">Project Club</span>

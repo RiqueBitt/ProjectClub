@@ -71,11 +71,12 @@ export default function MainApp() {
   const [membersOpen, setMembersOpen] = useState(true);
   const [dmProfileOpen, setDmProfileOpen] = useState(true);
   const mobileMembersOpen = useStore((s) => s.mobileMembersOpen);
+  const mobileSidebarOpen = useStore((s) => s.mobileSidebarOpen);
+  const closeMobileSidebar = useStore((s) => s.closeMobileSidebar);
   const settingsModalOpen = useStore((s) => s.settingsModalOpen);
   const closeSettings = useStore((s) => s.closeSettings);
   const openMobileMembers = useStore((s) => s.openMobileMembers);
   const closeMobileMembers = useStore((s) => s.closeMobileMembers);
-  const closeMobileSidebar = useStore((s) => s.closeMobileSidebar);
   const setUiLayoutAll = useStore((s) => s.setUiLayoutAll);
   const uiLayout = useStore((s) => s.uiLayout);
   const location = useLocation();
@@ -176,11 +177,11 @@ export default function MainApp() {
 
   return (
     <div
-      className={`app-shell ${mobileMembersOpen ? 'mobile-members-open' : ''}`}
+      className={`app-shell ${mobileMembersOpen ? 'mobile-members-open' : ''} ${mobileSidebarOpen ? 'mobile-sidebar-open' : ''}`}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      <div className="mobile-sidebar-backdrop" onClick={closeMobileMembers} />
+      <div className="mobile-sidebar-backdrop" onClick={() => { closeMobileMembers(); closeMobileSidebar(); }} />
       <TopSearchBar />
       <MainSidebar />
 
