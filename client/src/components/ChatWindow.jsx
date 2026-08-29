@@ -121,6 +121,39 @@ export default function ChatWindow({ kind }) {
   const [content, setContent] = useState('');
   const [files, setFiles] = useState([]);
   const [replyTo, setReplyTo] = useState(null);
+  // Item pedido ("pulinho" ao mandar mensagem): a barra de "respondendo
+  // a" e a de anexos pendentes somem instantaneamente quando a mensagem
+  // é enviada (o estado zera na hora) — sem transição nenhuma, o resto
+  // do campo de digitação e a lista de mensagens acima dela pulam de
+  // repente pro lugar novo. `replyToVisible`/`filesVisible` copiam o
+  // valor real, mas com um pequeno atraso só na hora de SUMIR — dá
+  // tempo da transição de CSS (ver .reply-bar/.pending-files no
+  // global.css) encolher suavemente antes do elemento realmente deixar
+  // de existir, em vez de piscar sumido na hora.
+  const [replyToVisible, setReplyToVisible] = useState(null);
+  const [filesVisible, setFilesVisible] = useState([]);
+  const [replyBarLeaving, setReplyBarLeaving] = useState(false);
+  const [filesBarLeaving, setFilesBarLeaving] = useState(false);
+  useEffect(() => {
+    if (replyTo) {
+      setReplyToVisible(replyTo);
+      setReplyBarLeaving(false);
+    } else if (replyToVisible) {
+      setReplyBarLeaving(true);
+      const t = setTimeout(() => { setReplyToVisible(null); setReplyBarLeaving(false); }, 150);
+      return () => clearTimeout(t);
+    }
+  }, [replyTo]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (files.length > 0) {
+      setFilesVisible(files);
+      setFilesBarLeaving(false);
+    } else if (filesVisible.length > 0) {
+      setFilesBarLeaving(true);
+      const t = setTimeout(() => { setFilesVisible([]); setFilesBarLeaving(false); }, 150);
+      return () => clearTimeout(t);
+    }
+  }, [files]); // eslint-disable-line react-hooks/exhaustive-deps
   const [searchOpen, setSearchOpen] = useState(false);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -646,15 +679,15 @@ export default function ChatWindow({ kind }) {
       )}
 
       <form className="message-input-bar" onSubmit={onSubmit}>
-        {replyTo && (
-          <div className="reply-bar">
-            Respondendo a <b>{replyTo.author.displayName}</b>
+        {replyToVisible && (
+          <div className={`reply-bar ${replyBarLeaving ? 'leaving' : ''}`}>
+            Respondendo a <b>{replyToVisible.author.displayName}</b>
             <button type="button" className="icon-btn-small" onClick={() => setReplyTo(null)}><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button>
           </div>
         )}
-        {files.length > 0 && (
-          <div className="pending-files">
-            {files.map((f, i) => (
+        {filesVisible.length > 0 && (
+          <div className={`pending-files ${filesBarLeaving ? 'leaving' : ''}`}>
+            {filesVisible.map((f, i) => (
               <span key={i} className="chip">{f.name} <button type="button" onClick={() => setFiles(files.filter((_, idx) => idx !== i))}><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button></span>
             ))}
           </div>
