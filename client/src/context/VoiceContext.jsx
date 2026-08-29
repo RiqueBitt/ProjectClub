@@ -298,14 +298,23 @@ function diagnoseOutboundAudio(pc, entry, peerId) {
       const track = sender?.track;
       const direction = entry.audioTransceiver?.currentDirection;
 
-      const statsBefore = await pc.getStats(sender);
+      // BUG CORRIGIDO: getStats(sender) estava errado — o argumento de
+      // seletor do getStats() só aceita um MediaStreamTrack (ou nada
+      // nenhum), nunca um RTCRtpSender. Passar o sender direto fazia o
+      // Firefox (e provavelmente outros navegadores mais rigorosos com a
+      // spec) rejeitar a chamada inteira com TypeError, derrubando o
+      // diagnóstico antes mesmo dele conseguir medir qualquer coisa. Sem
+      // seletor nenhum já traz TODAS as estatísticas — o filtro logo
+      // abaixo (outbound-rtp + kind audio) já pega exatamente o que
+      // interessa, então não perde nada.
+      const statsBefore = await pc.getStats();
       let bytesBefore = 0;
       statsBefore.forEach((r) => { if (r.type === 'outbound-rtp' && r.kind === 'audio') bytesBefore = r.bytesSent || 0; });
 
       await new Promise((r) => setTimeout(r, 2500));
       if (pc.connectionState !== 'connected') return;
 
-      const statsAfter = await pc.getStats(sender);
+      const statsAfter = await pc.getStats();
       let bytesAfter = 0;
       let candidateType = null;
       statsAfter.forEach((r) => { if (r.type === 'outbound-rtp' && r.kind === 'audio') bytesAfter = r.bytesSent || 0; });

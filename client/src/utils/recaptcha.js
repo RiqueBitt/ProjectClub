@@ -19,7 +19,15 @@ export function loadRecaptchaScript() {
   scriptPromise = new Promise((resolve) => {
     window.__onRecaptchaLoad = () => resolve(true);
     const script = document.createElement('script');
-    script.src = 'https://www.google.com/recaptcha/api.js?onload=__onRecaptchaLoad&render=explicit';
+    // BUG CORRIGIDO ("hash do CSP muda toda hora"): sem "hl=" fixo, o
+    // Google detecta o idioma do NAVEGADOR de cada visitante e serve um
+    // pacote de script DIFERENTE por idioma — cada um com um conteúdo
+    // inline (e portanto um hash SHA-256) diferente, então o hash que
+    // funcionava pra um visitante bloqueava outro com o navegador em
+    // outro idioma. Fixando "hl=pt-BR" (o idioma real do site), todo
+    // visitante recebe sempre o MESMO pacote — hash sempre igual, sem
+    // precisar caçar hash novo a cada relatório de bloqueio.
+    script.src = 'https://www.google.com/recaptcha/api.js?onload=__onRecaptchaLoad&render=explicit&hl=pt-BR';
     script.async = true;
     script.defer = true;
     script.onerror = () => {

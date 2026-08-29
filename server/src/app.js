@@ -98,34 +98,31 @@ function createApp() {
         // ruído do canal de voz, rodava via WebAssembly/AudioWorklet), que
         // foi removido por completo do sistema de voz. Sem nenhum outro
         // WASM no projeto, essa permissão só ficaria aberta à toa.
-        // BUG CORRIGIDO ("bloquearam a execução de um script inline —
-        // considere usar um hash 'sha256-ZHvsZ0...'"): o script do Google
-        // (recaptcha/api.js) injeta um pequeno <script> inline pra
-        // terminar de se inicializar — só que o CONTEÚDO desse script
-        // muda dependendo do IDIOMA do navegador de quem visita (a versão
-        // en/pt_br/etc de recaptcha__*.js carrega variantes ligeiramente
-        // diferentes), então cada idioma gera um hash SHA-256 diferente.
-        // O hash antigo (só de uma variante) bloqueava todo mundo com
-        // navegador em outro idioma. Mantém os hashes conhecidos lado a
-        // lado — liberar 2-3 hashes específicos continua muito mais
-        // seguro que 'unsafe-inline' (que liberaria QUALQUER script
-        // inline, inclusive um injetado por XSS), só que agora cobrindo
-        // mais de um idioma de visitante.
-        // scriptSrcElem (além de scriptSrc): alguns navegadores aplicam a
-        // política de carregamento de tags <script> especificamente por
-        // essa diretiva em vez de cair pro fallback de scriptSrc — deixar
-        // ela explícita, espelhando scriptSrc, evita qualquer
-        // inconsistência de comportamento entre navegadores diferentes.
+        // BUG CORRIGIDO DE VEZ ("hash muda toda hora, sempre um
+        // navegador diferente bloqueado"): a causa raiz era o script do
+        // Google (recaptcha/api.js) ser carregado SEM idioma fixo — o
+        // Google detecta o idioma do navegador de cada visitante e serve
+        // um pacote diferente por idioma, cada um com um hash SHA-256
+        // diferente pro <script> inline que ele injeta sozinho. Isso
+        // significa que esse hash NUNCA teria fim — sempre apareceria um
+        // idioma novo não coberto. A correção de verdade foi em
+        // utils/recaptcha.js: forçar "hl=pt-BR" no carregamento do
+        // script, fazendo TODO mundo (não importa o idioma do navegador)
+        // sempre receber o MESMO pacote — daqui pra frente só existe UM
+        // hash de verdade. Os hashes antigos ficam só como transição
+        // (cobrem quem ainda tem a versão de JS antiga em cache).
         scriptSrc: [
           "'self'",
           "'sha256-jAqbMQnElBz/iSQ8cCTZfa8xKxguIXKuhiyFWJDytDw='",
           "'sha256-ZHvsZ0yrFu4ps+iqJKRCcUdZVhxvyI7coQ2Q12nUe04='",
+          "'sha256-zpE07RWenMqP9vyL/VdTzx38ZyLrGgjd6KjHdVkPaoQ='",
           'https://www.google.com/recaptcha/', 'https://www.gstatic.com/recaptcha/',
         ],
         scriptSrcElem: [
           "'self'",
           "'sha256-jAqbMQnElBz/iSQ8cCTZfa8xKxguIXKuhiyFWJDytDw='",
           "'sha256-ZHvsZ0yrFu4ps+iqJKRCcUdZVhxvyI7coQ2Q12nUe04='",
+          "'sha256-zpE07RWenMqP9vyL/VdTzx38ZyLrGgjd6KjHdVkPaoQ='",
           'https://www.google.com/recaptcha/', 'https://www.gstatic.com/recaptcha/',
         ],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
