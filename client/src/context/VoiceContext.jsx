@@ -127,8 +127,6 @@ export function VoiceProvider({ children }) {
   const cameraTrackRef = useRef(null);
   const screenTrackRef = useRef(null);
   const screenAudioTrackRef = useRef(null);
-  const deafenedRef = useRef(false);
-  useEffect(() => { deafenedRef.current = deafened; }, [deafened]);
 
   const broadcastState = useCallback((patch) => {
     if (!socket || !callRef.current) return;
@@ -147,9 +145,19 @@ export function VoiceProvider({ children }) {
       }
       const uid = String(remoteUser.uid);
       if (mediaType === 'audio') {
+        // BUG CORRIGIDO ("eco na voz"): o áudio estava sendo tocado DUAS
+        // VEZES ao mesmo tempo — uma vez aqui (remoteUser.audioTrack.
+        // play(), que o Agora toca sozinho por baixo dos panos criando
+        // um <audio> escondido) e outra vez pelo componente AudioSink
+        // (CallBar.jsx), que já pega essa mesma faixa via
+        // remoteAudioStreams e toca de novo com seu próprio controle de
+        // volume por pessoa. Duas reproduções da MESMA faixa, com
+        // latência levemente diferente uma da outra, é exatamente o que
+        // soa como eco. O AudioSink sozinho já é suficiente (e melhor —
+        // tem volume por pessoa e escolha de dispositivo de saída), then
+        // não chama mais .play() aqui.
         const mediaStream = new MediaStream([remoteUser.audioTrack.getMediaStreamTrack()]);
         setRemoteAudioStreams((s) => ({ ...s, [uid]: mediaStream }));
-        if (!deafenedRef.current) remoteUser.audioTrack.play();
       } else if (mediaType === 'video') {
         const mediaStream = new MediaStream([remoteUser.videoTrack.getMediaStreamTrack()]);
         const isScreen = useStore.getState().voiceParticipantsSnapshot?.[uid]?.screenSharing;
@@ -205,6 +213,15 @@ export function VoiceProvider({ children }) {
       const track = await AgoraRTC.createMicrophoneAudioTrack({
         microphoneId: preferredId || undefined,
         AEC: true, ANS: true, AGC: true,
+        // Item pedido: "a voz sai muito fraca e desanimada" — o perfil
+        // padrão do Agora pra áudio (speech_standard) usa uma taxa de
+        // amostragem e de bits BEM conservadora, pensada pra chamada
+        // telefônica simples, não pra som cheio de verdade. "music_
+        // standard" (48kHz, ~40kbps) já melhora bastante a qualidade;
+        // "high_quality" ainda mais (~128kbps) — usa a mais alta, já que
+        // o Agora comprime de qualquer forma na rede, e voz mais rica
+        // soa muito menos "robótica"/apagada.
+        encoderConfig: 'high_quality',
       });
       localAudioTrackRef.current = track;
       return true;
@@ -353,9 +370,13 @@ export function VoiceProvider({ children }) {
         localAudioTrackRef.current.setEnabled(false);
         setMuted(true);
       }
-      agoraClientRef.current?.remoteUsers.forEach((ru) => {
-        if (ru.audioTrack) { if (next) ru.audioTrack.stop(); else ru.audioTrack.play(); }
-      });
+      // BUG CORRIGIDO: aqui também tentava mexer na reprodução própria
+      // do Agora (.stop()/.play()), que não é mais usada — o AudioSink
+      // (CallBar.jsx) já silencia sozinho quando ensurdecido, através da
+      // prop volume={deafened ? 0 : ...}, lendo o mesmo estado
+      // `deafened` direto do contexto. Chamar .stop() aqui também podia
+      // interferir na MESMA faixa de mídia que o AudioSink depende (os
+      // dois vêm do mesmo getMediaStreamTrack()), então foi removido.
       broadcastState({ deafened: next, muted: next ? true : muted });
       return next;
     });

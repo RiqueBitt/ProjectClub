@@ -144,28 +144,21 @@ function AudioSink({ stream, volume }) {
     const ctx = new AudioCtx();
     audioCtxRef.current = ctx;
     const source = ctx.createMediaStreamSource(stream);
-    const compressor = ctx.createDynamicsCompressor();
-    // Bug corrigido: o limitador anterior (threshold -28dB, ratio 16:1)
-    // era agressivo demais — -28dB é um patamar BAIXO, então quase toda
-    // fala normal já passava por cima dele e ficava sendo comprimida o
-    // tempo todo, deixando qualquer voz com aquele som "estranho"/meio
-    // robótico, mesmo sem eco nenhum rolando. A ideia original (evitar o
-    // eco que vai afinando até travar) continua válida, só que um
-    // limitador de verdade só precisa agir perto do fim da escala (perto
-    // de cortar/estourar) — não em qualquer fala um pouco mais alta.
-    // Com o patamar mais perto de 0dB e o joelho mais duro, a fala normal
-    // atravessa sem coloração nenhuma, e só um pico de verdade (como um
-    // loop de feedback subindo de volume) aciona a compressão.
-    compressor.threshold.setValueAtTime(-6, ctx.currentTime);
-    compressor.knee.setValueAtTime(3, ctx.currentTime);
-    compressor.ratio.setValueAtTime(12, ctx.currentTime);
-    compressor.attack.setValueAtTime(0.002, ctx.currentTime);
-    compressor.release.setValueAtTime(0.25, ctx.currentTime);
+    // BUG CORRIGIDO ("voz sai fraca/desanimada"): o limitador de dinâmica
+    // (DynamicsCompressor) que existia aqui foi criado na época da malha
+    // própria de WebRTC, pra evitar um loop de eco que ia se
+    // realimentando e ficando cada vez mais alto até travar — um risco
+    // real numa topologia peer-to-peer. Migrado pro Agora (SFU
+    // centralizado, com cancelamento de eco de verdade cuidado pela
+    // própria infraestrutura deles), esse risco específico não existe
+    // mais — mas o compressor continuava ativo, achatando a dinâmica de
+    // QUALQUER fala normal (não só picos de eco), o que é exatamente o
+    // que deixa uma voz soando "morta"/sem vida. Sem ele, a faixa de
+    // áudio vai direto da fonte pro ganho, sem coloração nenhuma no meio.
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(volume, ctx.currentTime);
     gainRef.current = gain;
-    source.connect(compressor);
-    compressor.connect(gain);
+    source.connect(gain);
     // Em vez de mandar direto pro alto-falante padrão (ctx.destination),
     // manda pra um <audio> escondido — só um elemento HTML de mídia
     // suporta escolher a saída de áudio (setSinkId), então é a única forma
