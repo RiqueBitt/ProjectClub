@@ -9,9 +9,9 @@ android {
 
 apply from: "../capacitor-cordova-android-plugins/cordova.variables.gradle"
 dependencies {
+    implementation project(':anuradev-capacitor-background-mode')
     implementation project(':capacitor-app')
     implementation project(':capacitor-push-notifications')
-    implementation project(':capawesome-team-capacitor-android-foreground-service')
     implementation project(':capawesome-capacitor-badge')
 
 }

@@ -15,32 +15,40 @@ import { getAgoraToken } from '../api/endpoints';
 // precisar de nenhum "if" espalhado pelo resto do arquivo.
 import { Capacitor } from '@capacitor/core';
 
-let ForegroundServicePlugin = null;
-async function getForegroundService() {
+let BackgroundModePlugin = null;
+async function getBackgroundMode() {
   if (Capacitor.getPlatform() !== 'android') return null;
-  if (!ForegroundServicePlugin) {
-    const mod = await import('@capawesome-team/capacitor-android-foreground-service');
-    ForegroundServicePlugin = mod.ForegroundService;
-    try {
-      await ForegroundServicePlugin.createNotificationChannel({
-        id: 'voice-call', name: 'Chamada de voz', importance: 3,
-      });
-    } catch { /* já existe — ok */ }
+  if (!BackgroundModePlugin) {
+    const mod = await import('@anuradev/capacitor-background-mode');
+    BackgroundModePlugin = mod.BackgroundMode;
   }
-  return ForegroundServicePlugin;
+  return BackgroundModePlugin;
 }
 
 async function startCallForegroundService(channelName) {
   try {
-    const fs = await getForegroundService();
-    if (!fs) return;
-    await fs.startForegroundService({
-      id: 1,
+    const bm = await getBackgroundMode();
+    if (!bm) return;
+    // BUG CORRIGIDO ("sai do app e a call para/não funciona em segundo
+    // plano"): o serviço de primeiro plano sozinho (usado antes) só
+    // impede o Android de MATAR o processo — não impede o WebView de
+    // CONGELAR o JavaScript quando a tela fica invisível, que é uma
+    // otimização de bateria separada e mais agressiva. O plugin antigo
+    // não tinha como resolver essa parte; esse aqui resolve as DUAS ao
+    // mesmo tempo: `allowMicrophoneInBackground` mantém o microfone
+    // ativo, e `disableWebViewOptimization: true` engana o Android
+    // fazendo ele achar que a tela do app CONTINUA visível mesmo
+    // minimizado — é isso que impede o JavaScript (e portanto o Agora,
+    // que roda inteiro dentro dele) de ser pausado.
+    await bm.requestNotificationsPermission().catch(() => {});
+    await bm.requestMicrophonePermission().catch(() => {});
+    await bm.enable({
       title: 'Project Club — Em chamada de voz',
-      body: channelName || 'Conectado',
-      smallIcon: 'ic_stat_call',
-      notificationChannelId: 'voice-call',
+      text: channelName || 'Conectado',
       silent: true,
+      allowMicrophoneInBackground: true,
+      disableWebViewOptimization: true,
+      channelName: 'Chamada de voz',
     });
   } catch (err) {
     console.error('[voz] Não foi possível iniciar o serviço em segundo plano (Android):', err);
@@ -49,9 +57,9 @@ async function startCallForegroundService(channelName) {
 
 async function stopCallForegroundService() {
   try {
-    const fs = await getForegroundService();
-    if (!fs) return;
-    await fs.stopForegroundService();
+    const bm = await getBackgroundMode();
+    if (!bm) return;
+    await bm.disable();
   } catch { /* nem tinha serviço rodando — ok */ }
 }
 
