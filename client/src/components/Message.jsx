@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
@@ -51,7 +51,7 @@ const PICKER_GAP = 8;
 const BARE_IMAGE_URL_RE = /^https?:\/\/\S+\.(gif|png|jpe?g|webp)(\?\S*)?$/i;
 const GIF_URL_RE = /\.gif(\?\S*)?$/i;
 
-export default function Message({ message, showAuthor, onReply, topics = [], onOpenTopic }) {
+function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTopic }) {
   const { user } = useAuth();
   const { openMenu } = useContextMenu();
   const members = useStore((s) => s.members);
@@ -585,3 +585,16 @@ function formatTime(iso) {
   const d = new Date(iso);
   return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
+
+// Item pedido: otimização/velocidade — o componente mais repetido de
+// toda a tela de chat (uma instância por mensagem visível, podem ser
+// centenas numa conversa longa). Sem memo, QUALQUER re-render do
+// ChatWindow pai (chega mensagem nova, alguém reage, digitando...)
+// forçava TODAS as mensagens a re-renderizar de novo, mesmo as que não
+// mudaram nada. Com React.memo, uma mensagem só re-renderiza de
+// verdade quando algo dela mesma muda (ou os poucos props que ela
+// recebe) — comparação rasa padrão, que já funciona aqui porque os
+// callbacks (onReply/onOpenTopic) e o array de tópicos que o ChatWindow
+// passa já são referências estáveis entre renders (ver comentário de
+// EMPTY_TOPICS em ChatWindow.jsx).
+export default memo(MessageComponent);

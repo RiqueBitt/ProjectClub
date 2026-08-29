@@ -549,6 +549,19 @@ model Message {
   stickerUrl String?
 
   automodFlags AutomodFlag[]
+
+  // Item pedido: otimização/velocidade. O MySQL já cria sozinho um
+  // índice simples em toda chave estrangeira (channelId, conversationId,
+  // authorId) — mas a consulta REAL de listar mensagens sempre filtra
+  // POR CANAL *e* ordena por data ao mesmo tempo ("as últimas 50
+  // mensagens desse canal"). Um índice simples só ajuda a achar as
+  // linhas certas; ainda sobra pro banco ORDENAR isso à parte depois,
+  // toda vez. Um índice COMPOSTO (canal + data) deixa o banco fazer as
+  // duas coisas de uma vez só, direto no índice — é a mudança de maior
+  // impacto possível nessa tabela, que é a mais consultada do app
+  // inteiro (toda troca de canal/DM dispara essa consulta).
+  @@index([channelId, createdAt])
+  @@index([conversationId, createdAt])
 }
 
 // Cada sistema (economia/rank/casas/figurinhas) é sua PRÓPRIA linha —
@@ -1171,6 +1184,13 @@ model Post {
 
   votes    PostVote[]
   comments PostComment[]
+
+  // Mesmo raciocínio do Message acima — listar Feeds sempre filtra por
+  // Clube (ou categoria) E ordena por pontuação/data ao mesmo tempo
+  // ("posts mais votados/recentes desse Clube").
+  @@index([communityId, createdAt])
+  @@index([communityId, score])
+  @@index([categoryId, createdAt])
 }
 
 model PostVote {
@@ -1209,6 +1229,8 @@ model PostComment {
   createdAt DateTime      @default(now())
 
   votes PostCommentVote[]
+
+  @@index([postId, createdAt])
 }
 
 model PostCommentVote {

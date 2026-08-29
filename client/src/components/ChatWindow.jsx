@@ -67,6 +67,17 @@ function findChannel(categories, channels, channelId) {
   return all.find((c) => c.id === channelId) || null;
 }
 
+// Item pedido: otimização/velocidade. Uma referência ESTÁVEL e
+// compartilhada pra "sem tópicos" — `topics={algumMapa.get(id) || []}`
+// parece inofensivo, mas cria um ARRAY NOVO a cada render pra qualquer
+// mensagem sem tópico, mesmo quando nada mudou de verdade. Isso sozinho
+// já quebraria o React.memo(Message) logo abaixo (a comparação rasa vê
+// uma referência diferente e re-renderiza mesmo sem necessidade) — com
+// essa constante única reaproveitada sempre que não há tópicos, a
+// referência se mantém igual entre renders, e o memo funciona de
+// verdade.
+const EMPTY_TOPICS = [];
+
 export default function ChatWindow({ kind }) {
   const params = useParams();
   const conversationId = kind === 'conversation' ? params.conversationId : null;
@@ -642,7 +653,7 @@ export default function ChatWindow({ kind }) {
               message={m}
               showAuthor={showAuthor}
               onReply={setReplyTo}
-              topics={topicsByParent.get(m.id) || []}
+              topics={topicsByParent.get(m.id) || EMPTY_TOPICS}
               onOpenTopic={setOpenTopic}
             />
           );
