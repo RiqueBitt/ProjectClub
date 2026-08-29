@@ -6,7 +6,7 @@ import dlWindowsWhite from '../assets/icons/dl-windows-white.png';
 import dlLinuxWhite from '../assets/icons/dl-linux-white.png';
 import dlAndroidWhite from '../assets/icons/dl-android-white.png';
 import dlNavegadorWhite from '../assets/icons/dl-navegador-white.png';
-import dlMenuWhite from '../assets/icons/dl-menu-white.png';
+import dlMenuBlack from '../assets/icons/dl-menu-black.png';
 
 // Página inicial pública — hero + janela de prévia + como funciona +
 // recursos + sobre + estatísticas + download + CTA final + rodapé.
@@ -68,6 +68,7 @@ export default function LandingPage() {
           <li><a href="#como-funciona">Como funciona</a></li>
           <li><a href="#recursos">Recursos</a></li>
           <li><a href="#sobre">Sobre</a></li>
+          <li><a href="#faq">FAQ</a></li>
           <li><a href="#download">Download</a></li>
         </ul>
         <button className="landing-nav-cta" onClick={() => navigate('/login')}>Entrar</button>
@@ -94,7 +95,7 @@ export default function LandingPage() {
                 aria-label="Escolher outra plataforma"
                 onClick={() => setPlatformMenuOpen((v) => !v)}
               >
-                <img className="landing-btn-icon" src={dlMenuWhite} alt="" />
+                <img className="landing-btn-icon" src={dlMenuBlack} alt="" />
               </button>
               {platformMenuOpen && (
                 <div className="landing-platform-menu" onMouseLeave={() => setPlatformMenuOpen(false)}>
@@ -115,6 +116,11 @@ export default function LandingPage() {
             </button>
           </div>
           <p className="landing-platform-note">Ou baixe direto: Windows, Linux ou Android · Grátis</p>
+          <div className="landing-trust-row">
+            <span>🔒 Sem custo nenhum</span>
+            <span>⚡ Conta pronta em 1 minuto</span>
+            <span>🌍 Comunidade ativa todo dia</span>
+          </div>
 
           <div className="landing-window landing-reveal" aria-hidden="true">
             <div className="landing-window-bar">
@@ -243,6 +249,31 @@ export default function LandingPage() {
           </div>
         </section>
 
+        <section id="faq">
+          <div className="landing-section-head">
+            <div className="landing-tag">Perguntas frequentes</div>
+            <h2 className="landing-pixel">Ainda com dúvida?</h2>
+          </div>
+          <div className="landing-faq-list">
+            <details className="landing-faq-item landing-reveal">
+              <summary>Preciso pagar alguma coisa pra usar?</summary>
+              <p>Não. Criar conta, entrar em Clubes, usar chat e canais de voz é 100% gratuito — inclusive nos apps de Windows, Linux e Android.</p>
+            </details>
+            <details className="landing-faq-item landing-reveal">
+              <summary>Funciona bem no celular?</summary>
+              <p>Sim — pelo navegador do celular ou pelo app Android, com suporte a chamada de voz continuando em segundo plano mesmo se você sair do app.</p>
+            </details>
+            <details className="landing-faq-item landing-reveal">
+              <summary>Meus dados ficam seguros?</summary>
+              <p>Sim. Suporte a autenticação em duas etapas, sessões visíveis por dispositivo, e moderação ativa contra spam e abuso.</p>
+            </details>
+            <details className="landing-faq-item landing-reveal">
+              <summary>Preciso instalar algo pra começar?</summary>
+              <p>Não — o botão "Entrar pelo navegador" já é suficiente pra usar tudo. Os apps de Windows/Linux/Android são só uma conveniência a mais, pra quem quer notificação nativa e a chamada de voz sempre à mão.</p>
+            </details>
+          </div>
+        </section>
+
         <section className="landing-final-cta landing-reveal">
           <h2 className="landing-pixel">Pronto pra entrar?</h2>
           <p>Leva menos de um minuto pra criar sua conta e já estar dentro de um Clube.</p>
@@ -260,6 +291,7 @@ export default function LandingPage() {
           <a href="#como-funciona">Como funciona</a>
           <a href="#recursos">Recursos</a>
           <a href="#sobre">Sobre</a>
+          <a href="#faq">FAQ</a>
         </div>
         <div className="landing-footer-col">
           <div className="landing-footer-heading">Comece</div>
