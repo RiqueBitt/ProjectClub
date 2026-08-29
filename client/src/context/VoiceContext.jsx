@@ -344,8 +344,16 @@ function diagnoseOutboundAudio(pc, entry, peerId) {
         console.error('[voz] DIAGNÓSTICO: a faixa de áudio existe mas está DESABILITADA (mudo) — verifique o estado de mudo.');
       } else if (track.readyState !== 'live') {
         console.error(`[voz] DIAGNÓSTICO: a faixa de áudio não está mais "live" (estado: ${track.readyState}) — o microfone caiu ou foi encerrado.`);
-      } else if (direction !== 'sendrecv' && direction !== 'sendonly') {
-        console.error(`[voz] DIAGNÓSTICO: a direção NEGOCIADA do áudio é "${direction}" — não deveria ser diferente de sendrecv/sendonly. Isso indica um problema na negociação SDP em si, não no microfone.`);
+      } else if (direction !== 'sendrecv') {
+        // BUG CORRIGIDO no próprio diagnóstico: antes tratava "sendonly"
+        // como aceitável — não é. "sendonly" quer dizer que ESSE lado
+        // nunca vai conseguir RECEBER áudio desse participante
+        // específico, mesmo enviando o próprio áudio perfeitamente bem
+        // (por isso o teste anterior mostrou bytes saindo normal, mas o
+        // problema real de "ninguém ouve ninguém" continuava escondido
+        // aqui). Ver a correção de verdade em pushAudioTrackToPeers, que
+        // agora força a direção de volta pra sendrecv sozinha.
+        console.error(`[voz] DIAGNÓSTICO: a direção NEGOCIADA do áudio é "${direction}" (deveria ser "sendrecv") — esse lado pode nunca conseguir RECEBER áudio desse participante específico, mesmo enviando o próprio áudio normalmente. Isso é um problema de negociação SDP, não do microfone.`);
       } else if (!growing) {
         console.error(`[voz] DIAGNÓSTICO: a faixa está habilitada e a direção está correta, mas NENHUM byte novo saiu em 2.5s pela rede (rota: ${candidateType || 'desconhecida'}) — o problema é na camada de rede/ICE, não no microfone nem no código de sinalização.`);
         useStore.getState().pushNotice('Detectamos que seu áudio não está chegando a alguém na chamada (problema de rede/conexão, não do microfone). Abra o Console do navegador (F12) para ver o diagnóstico detalhado.');
@@ -492,6 +500,23 @@ export function VoiceProvider({ children }) {
   const pushAudioTrackToPeers = useCallback((track) => {
     Object.values(peersRef.current).forEach((entry) => {
       entry.audioTransceiver?.sender.replaceTrack(track || null).catch(() => {});
+      // BUG CORRIGIDO (achado via diagnóstico real — ver console
+      // "[voz][diagnóstico de áudio de saída]"): em algumas negociações,
+      // a direção do transceiver de áudio ficava presa em "sendonly" em
+      // vez de "sendrecv" — provavelmente porque o outro lado ainda não
+      // tinha o próprio microfone pronto no momento da PRIMEIRA
+      // negociação (replaceTrack() sozinho nunca renegocia a direção
+      // depois, só troca a faixa). Isso significava que esse lado NUNCA
+      // ia conseguir RECEBER áudio desse participante específico, mesmo
+      // com tudo mais funcionando perfeitamente. Toda vez que uma faixa
+      // de verdade é conectada, força a direção de volta pra "sendrecv"
+      // explicitamente — setar `.direction` (diferente de só trocar a
+      // faixa) dispara `onnegotiationneeded` sozinho quando muda de
+      // valor, corrigindo a negociação automaticamente sem precisar sair
+      // e entrar de novo no canal.
+      if (track && entry.audioTransceiver && entry.audioTransceiver.direction !== 'sendrecv') {
+        entry.audioTransceiver.direction = 'sendrecv';
+      }
     });
   }, []);
 
