@@ -32,6 +32,7 @@ const postsRoutes = require('./routes/posts');
 const achievementsRoutes = require('./routes/achievements');
 const systemRoutes = require('./routes/system');
 const pushRoutes = require('./routes/push');
+const agoraRoutes = require('./routes/agora');
 const updatesRoutes = require('./routes/updates');
 
 function createApp() {
@@ -279,6 +280,7 @@ function createApp() {
   app.use('/api/achievements', achievementsRoutes);
   app.use('/api/system', systemRoutes);
   app.use('/api/push', pushRoutes);
+  app.use('/api/agora', agoraRoutes);
   app.use('/api/updates', updatesRoutes);
 
   // In production, serve the built React client from a single process
