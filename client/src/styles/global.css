@@ -4585,7 +4585,7 @@ a.embed-card-title:hover { text-decoration: underline; }
 }
 .landing-brand { display: flex; align-items: center; gap: 12px; font-size: 19px; font-weight: 700; letter-spacing: 0.3px; }
 .landing-brand-mark { width: 34px; height: 34px; border-radius: 8px; object-fit: contain; filter: drop-shadow(0 0 10px rgba(76, 141, 255, 0.55)); }
-.landing-nav-links { display: none; gap: 32px; list-style: none; font-size: 14px; color: var(--lp-muted); justify-self: center; }
+.landing-nav-links { display: none; gap: 32px; list-style: none; font-size: 14px; color: var(--lp-muted); justify-self: center; white-space: nowrap; }
 .landing-nav-links a:hover { color: var(--lp-text); }
 .landing-nav-cta { display: none; font-size: 13px; padding: 9px 18px; border-radius: 8px; border: 1px solid var(--lp-line); background: var(--lp-panel); color: var(--lp-text); justify-self: end; }
 @media (min-width: 820px) { .landing-nav-links { display: flex; } .landing-nav-cta { display: inline-block; } }
@@ -4609,15 +4609,29 @@ a.embed-card-title:hover { text-decoration: underline; }
    inspirado no botão "Download for Windows" do Discord) — botão
    principal baixa Windows direto, a setinha do lado abre um menu com as
    outras plataformas, encaixado logo abaixo do botão. ---------- */
-.landing-download-split { position: relative; display: flex; }
-.landing-download-main { border-radius: 10px 0 0 10px; }
-.landing-download-caret {
-  display: flex; align-items: center; justify-content: center; width: 40px;
-  background: var(--lp-text); color: #0a0c18; border-radius: 0 10px 10px 0;
-  border-left: 1px solid rgba(0, 0, 0, 0.15); font-size: 12px;
+/* Corrigido pra ficar de verdade "um dentro do outro", sem nenhuma
+   folga nem sombra duplicada entre as duas metades — a sombra e o
+   realce ao passar o mouse agora vivem no CONTAINER (.landing-download-
+   split), não em cada metade separada (que é o que causava a aparência
+   de "solto"/desconectado antes: cada botão tinha sua própria sombra e
+   subia sozinho no hover). */
+.landing-download-split {
+  position: relative; display: flex; border-radius: 10px;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 12px 30px -8px rgba(76, 141, 255, 0.5);
+  transition: transform 0.15s ease;
+}
+.landing-download-split:hover { transform: translateY(-2px); }
+.landing-download-main {
+  border-radius: 10px 0 0 10px !important; box-shadow: none !important;
+  transform: none !important;
+}
+.landing-download-caret {
+  display: flex; align-items: center; justify-content: center; width: 42px; flex-shrink: 0;
+  background: var(--lp-text); border-radius: 0 10px 10px 0; box-shadow: none;
 }
 .landing-download-caret:hover { background: #e8eaf7; }
+.landing-btn-icon { width: 16px; height: 16px; object-fit: contain; flex-shrink: 0; }
+.landing-download-caret .landing-btn-icon { width: 13px; height: 13px; }
 .landing-platform-menu {
   position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 10;
   background: var(--lp-panel); border: 1px solid var(--lp-line); border-radius: 12px;
@@ -4629,7 +4643,7 @@ a.embed-card-title:hover { text-decoration: underline; }
   font-size: 14px; font-weight: 600; color: var(--lp-text); white-space: nowrap;
 }
 .landing-platform-menu-item:hover { background: rgba(76, 141, 255, 0.14); }
-.landing-platform-menu-glyph { font-size: 15px; width: 20px; text-align: center; }
+.landing-platform-menu-glyph { width: 18px; height: 18px; object-fit: contain; flex-shrink: 0; }
 .landing-btn-primary {
   display: inline-flex; align-items: center; gap: 10px; background: var(--lp-text); color: #0a0c18;
   font-weight: 600; font-size: 15px; padding: 14px 26px; border-radius: 10px;
@@ -4699,6 +4713,7 @@ a.embed-card-title:hover { text-decoration: underline; }
 }
 .landing-platform-card:hover { border-color: rgba(76, 141, 255, 0.5); transform: translateY(-3px); }
 .landing-platform-glyph { font-size: 26px; margin-bottom: 10px; }
+.landing-platform-glyph-img { width: 28px; height: 28px; margin-bottom: 10px; object-fit: contain; }
 .landing-platform-os { font-weight: 600; font-size: 15px; }
 .landing-platform-fmt { font-size: 12.5px; color: var(--lp-muted); margin-top: 4px; }
 
@@ -4711,7 +4726,7 @@ a.embed-card-title:hover { text-decoration: underline; }
 .landing-footer-brand { color: var(--lp-text); font-size: 15px; }
 .landing-footer-note { max-width: 220px; line-height: 1.6; }
 .landing-footer-heading { color: var(--lp-text); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
-.landing-footer-col a, .landing-footer-link-btn { color: var(--lp-muted); text-align: left; }
+.landing-footer-col a, .landing-footer-link-btn { color: var(--lp-muted); text-align: left; white-space: nowrap; }
 .landing-footer-col a:hover, .landing-footer-link-btn:hover { color: var(--lp-text); }
 
 /* ---------- Grade de fundo ambiente (profundidade extra atrás do herói,

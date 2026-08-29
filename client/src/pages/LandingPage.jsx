@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logo from '../assets/icons/logo-project-club.png';
+import dlWindowsBlack from '../assets/icons/dl-windows-black.png';
+import dlWindowsWhite from '../assets/icons/dl-windows-white.png';
+import dlLinuxWhite from '../assets/icons/dl-linux-white.png';
+import dlAndroidWhite from '../assets/icons/dl-android-white.png';
+import dlNavegadorWhite from '../assets/icons/dl-navegador-white.png';
+import dlMenuWhite from '../assets/icons/dl-menu-white.png';
 
 // Página inicial pública — hero + janela de prévia + como funciona +
 // recursos + sobre + estatísticas + download + CTA final + rodapé.
@@ -80,7 +86,7 @@ export default function LandingPage() {
           <div className="landing-cta-row">
             <div className="landing-download-split">
               <a className="landing-btn-primary landing-download-main" href={WINDOWS_DOWNLOAD_URL} download>
-                ⬇ Baixar para Windows
+                <img className="landing-btn-icon" src={dlWindowsBlack} alt="" /> Download App
               </a>
               <button
                 type="button"
@@ -88,23 +94,25 @@ export default function LandingPage() {
                 aria-label="Escolher outra plataforma"
                 onClick={() => setPlatformMenuOpen((v) => !v)}
               >
-                ▾
+                <img className="landing-btn-icon" src={dlMenuWhite} alt="" />
               </button>
               {platformMenuOpen && (
                 <div className="landing-platform-menu" onMouseLeave={() => setPlatformMenuOpen(false)}>
                   <a href={WINDOWS_DOWNLOAD_URL} download className="landing-platform-menu-item">
-                    <span className="landing-platform-menu-glyph">⊞</span> Windows
+                    <img className="landing-platform-menu-glyph" src={dlWindowsWhite} alt="" /> Windows
                   </a>
                   <a href={ANDROID_DOWNLOAD_URL} download className="landing-platform-menu-item">
-                    <span className="landing-platform-menu-glyph">▱</span> Mobile (Android)
+                    <img className="landing-platform-menu-glyph" src={dlAndroidWhite} alt="" /> Mobile (Android)
                   </a>
                   <a href={LINUX_DOWNLOAD_URL} download className="landing-platform-menu-item">
-                    <span className="landing-platform-menu-glyph">🐧</span> Linux
+                    <img className="landing-platform-menu-glyph" src={dlLinuxWhite} alt="" /> Linux
                   </a>
                 </div>
               )}
             </div>
-            <button className="landing-btn-secondary" onClick={() => navigate('/login')}>Entrar pelo navegador</button>
+            <button className="landing-btn-secondary" onClick={() => navigate('/login')}>
+              <img className="landing-btn-icon" src={dlNavegadorWhite} alt="" /> Entrar pelo navegador
+            </button>
           </div>
           <p className="landing-platform-note">Ou baixe direto: Windows, Linux ou Android · Grátis</p>
 
@@ -213,22 +221,22 @@ export default function LandingPage() {
           </div>
           <div className="landing-platforms">
             <button className="landing-platform-card landing-reveal" onClick={() => navigate('/login')}>
-              <div className="landing-platform-glyph">🌐</div>
+              <img className="landing-platform-glyph-img" src={dlNavegadorWhite} alt="" />
               <div className="landing-platform-os">Navegador</div>
               <div className="landing-platform-fmt">Disponível agora</div>
             </button>
             <a className="landing-platform-card landing-reveal" href={WINDOWS_DOWNLOAD_URL} download>
-              <div className="landing-platform-glyph">⊞</div>
+              <img className="landing-platform-glyph-img" src={dlWindowsWhite} alt="" />
               <div className="landing-platform-os">Windows</div>
               <div className="landing-platform-fmt">Baixar .exe</div>
             </a>
             <a className="landing-platform-card landing-reveal" href={LINUX_DOWNLOAD_URL} download>
-              <div className="landing-platform-glyph">🐧</div>
+              <img className="landing-platform-glyph-img" src={dlLinuxWhite} alt="" />
               <div className="landing-platform-os">Linux</div>
               <div className="landing-platform-fmt">Baixar .AppImage</div>
             </a>
             <a className="landing-platform-card landing-reveal" href={ANDROID_DOWNLOAD_URL} download>
-              <div className="landing-platform-glyph">▱</div>
+              <img className="landing-platform-glyph-img" src={dlAndroidWhite} alt="" />
               <div className="landing-platform-os">Android</div>
               <div className="landing-platform-fmt">Baixar .apk</div>
             </a>
