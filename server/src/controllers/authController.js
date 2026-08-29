@@ -1,5 +1,21 @@
 const bcrypt = require('bcryptjs');
-const { generateSecret, verify, generateURI } = require('otplib');
+const { generateSecret, verify, generateURI, createGuardrails } = require('otplib');
+
+// BUG CORRIGIDO — CAUSA RAIZ CONFIRMADA (erro 500 no login pra quem já
+// tinha 2FA configurado): a migração pro otplib v13 passou a EXIGIR um
+// segredo de pelo menos 16 bytes — mas contas configuradas com a v12
+// antiga (o padrão de lá gerava só 10 bytes) têm segredos mais curtos
+// que isso, então TODA verificação delas passou a estourar
+// SecretTooShortError em vez de simplesmente validar o código, travando
+// o login por completo pra quem já tinha 2FA ativo. "guardrails" é a
+// forma oficial e documentada do próprio otplib de aceitar esses
+// segredos mais antigos e mais curtos sem abrir mão da validação em si
+// — só relaxa o TAMANHO mínimo aceito, não pula a checagem do código.
+// generateSecret() (usado só quando alguém ativa 2FA pela primeira vez
+// a partir de agora) continua gerando no padrão novo e mais seguro,
+// sem precisar de nenhum guardrail — só afeta a VERIFICAÇÃO de
+// segredos que já existem.
+const legacyGuardrails = createGuardrails({ MIN_SECRET_BYTES: 10 });
 const qrcode = require('qrcode');
 const prisma = require('../config/prisma');
 const env = require('../config/env');
@@ -267,7 +283,7 @@ async function login(req, res, next) {
       // otplib v13 (atualizado — a v12 antiga estava depreciada):
       // authenticator.check() virou verify({secret, token}), agora
       // assíncrono e devolvendo { valid } em vez de um boolean direto.
-      const { valid: isValid } = await verify({ secret: user.twoFactorSecret, token: twoFactorCode });
+      const { valid: isValid } = await verify({ secret: user.twoFactorSecret, token: twoFactorCode, guardrails: legacyGuardrails });
       if (!isValid) return res.status(401).json({ error: 'Código 2FA inválido.' });
     }
 
@@ -492,7 +508,7 @@ async function confirm2FA(req, res, next) {
     const { code } = req.body;
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user.twoFactorSecret) return res.status(400).json({ error: 'Configure o 2FA primeiro.' });
-    const { valid } = await verify({ secret: user.twoFactorSecret, token: code });
+    const { valid } = await verify({ secret: user.twoFactorSecret, token: code, guardrails: legacyGuardrails });
     if (!valid) return res.status(400).json({ error: 'Código inválido.' });
     await prisma.user.update({ where: { id: user.id }, data: { twoFactorEnabled: true } });
     res.json({ ok: true });
