@@ -246,10 +246,22 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -e
           git config user.name "Project Club CI"
           git config user.email "noreply@projectclub.local"
-          git tag -a "${{ needs.compute-version.outputs.version }}" -m "$(cat /tmp/changelog.txt)"
-          git push origin "${{ needs.compute-version.outputs.version }}"
+          VERSION="${{ needs.compute-version.outputs.version }}"
+          # BUG CORRIGIDO ("Criar a tag de versão" falhando): se dois
+          # builds rodarem sem nenhum commit novo entre eles (ex: disparo
+          # manual repetido), a versão calculada é EXATAMENTE a mesma —
+          # criar uma tag que já existe falha. Isso não é um erro de
+          # verdade (só significa "essa versão já foi marcada"), então
+          # detecta e pula em vez de derrubar o job inteiro.
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION já existe — pulando (nenhum commit novo desde a última vez)."
+          else
+            git tag -a "$VERSION" -m "$(cat /tmp/changelog.txt)"
+            git push origin "$VERSION"
+          fi
 
       - name: Publicar version.json no repositório de downloads
         env:
