@@ -30,6 +30,16 @@ export default defineConfig({
           if (id.includes('react-router-dom')) return 'vendor-router';
           if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('scheduler')) return 'vendor-react';
           if (id.includes('socket.io-client') || id.includes('engine.io-client')) return 'vendor-socket';
+          // Item pedido ("web demora pra carregar página"): o SDK do
+          // Agora (chamada de voz) sozinho é responsável pela maior parte
+          // do que virava um único pacote de quase 2MB antes — e ele
+          // NUNCA é necessário só pra navegar pelo chat/feeds/perfil. Ter
+          // ele num pacote PRÓPRIO (em vez de dentro do "vendor" geral)
+          // só ajuda se também for carregado sob demanda (ver import()
+          // dinâmico em VoiceContext.jsx) — os dois juntos é o que faz a
+          // pessoa parar de baixar esses ~500kB comprimidos toda vez que
+          // só quer ver uma mensagem.
+          if (id.includes('agora-rtc-sdk-ng')) return 'vendor-agora';
           return 'vendor';
         },
       },

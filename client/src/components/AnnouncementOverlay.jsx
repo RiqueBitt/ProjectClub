@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getActiveAnnouncement, dismissAnnouncement } from '../api/endpoints';
+import { proxyImage } from '../utils/imageProxy';
 
 // Checked once on app load and shown full-screen, "OK to dismiss" style —
 // see announcementController.js's getActiveAnnouncement for how the
@@ -25,7 +26,7 @@ export default function AnnouncementOverlay() {
   return (
     <div className="modal-overlay">
       <div className="modal-box announcement-overlay-box">
-        {announcement.bannerUrl && <img className="announcement-banner" src={announcement.bannerUrl} alt="" />}
+        {announcement.bannerUrl && <img className="announcement-banner" src={proxyImage(announcement.bannerUrl)} alt="" />}
         <div className="modal-body">
           <h2>{announcement.title}</h2>
           {announcement.description && <p className="announcement-description">{announcement.description}</p>}

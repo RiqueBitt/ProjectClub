@@ -15,6 +15,7 @@ import youtubeIcon from '../assets/icons/social-youtube.png';
 import steamIcon from '../assets/icons/social-steam.png';
 import robloxIcon from '../assets/icons/social-roblox.png';
 import xIcon from '../assets/icons/social-x.png';
+import { proxyImage } from '../utils/imageProxy';
 
 // The right-hand rail's DM counterpart to MembersList — reuses the exact
 // same `.members-list` grid slot/width/collapse-button styling (see
@@ -74,7 +75,7 @@ export default function DMProfilePanel({ onToggle }) {
       {!loading && user && (
         <>
           <div className="profile-banner" style={{ background: user.bannerUrl ? undefined : (user.profileColor || '#F2894D') }}>
-            {user.bannerUrl && <img src={user.bannerUrl} alt="" />}
+            {user.bannerUrl && <img src={proxyImage(user.bannerUrl)} alt="" />}
           </div>
           <div className="profile-modal-body">
             <div className="profile-avatar-row">

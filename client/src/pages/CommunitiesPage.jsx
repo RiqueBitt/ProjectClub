@@ -8,6 +8,7 @@ import linkIcon from '../assets/icons/nav-link.png';
 import {
   createCommunity, listPosts, createPost, uploadCommunityIconForSlug, uploadPostImage, votePost,
 } from '../api/endpoints';
+import { proxyImage } from '../utils/imageProxy';
 
 // Feeds — página principal, lista os posts de todos os Clubes. Um Clube é
 // uma categoria principal criada só pela staff (ver AdminPanel.jsx →
@@ -113,7 +114,7 @@ export function PostCard({ post, onVote, onOpen }) {
           <span className="post-card-community">{post.community.name}</span>
           {post.category && (
             <span className="post-card-category">
-              {post.category.iconUrl && <img className="post-card-category-icon" src={post.category.iconUrl} alt="" />}
+              {post.category.iconUrl && <img className="post-card-category-icon" src={proxyImage(post.category.iconUrl)} alt="" />}
               {post.category.name}
             </span>
           )}
@@ -121,7 +122,7 @@ export function PostCard({ post, onVote, onOpen }) {
         </div>
         <div className="post-card-title">{post.title}</div>
         {post.type === 'TEXT' && post.content && <div className="post-card-text-preview">{post.content}</div>}
-        {post.type === 'IMAGE' && post.imageUrl && <img className="post-card-image" src={post.imageUrl} alt="" />}
+        {post.type === 'IMAGE' && post.imageUrl && <img className="post-card-image" src={proxyImage(post.imageUrl)} alt="" />}
         {post.type === 'LINK' && <div className="post-card-link"><IconGlyph src={linkIcon} size={13} /> {post.linkUrl}</div>}
         <div className="post-card-footer">💬 {post.commentCount} comentário{post.commentCount === 1 ? '' : 's'}</div>
       </div>
@@ -132,7 +133,7 @@ export function PostCard({ post, onVote, onOpen }) {
 function ClubRow({ club, onOpen }) {
   return (
     <button className="community-row" onClick={onOpen}>
-      <span className="community-row-icon">{club.iconUrl ? <img src={club.iconUrl} alt="" /> : '📌'}</span>
+      <span className="community-row-icon">{club.iconUrl ? <img src={proxyImage(club.iconUrl)} alt="" /> : '📌'}</span>
       <span className="community-row-info">
         <span className="community-row-name truncate">{club.name}</span>
         <span className="dim community-row-meta">{club.postCount} post{club.postCount === 1 ? '' : 's'}</span>

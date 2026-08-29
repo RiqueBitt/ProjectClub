@@ -11,6 +11,7 @@ import dashboardIcon from '../assets/icons/nav-dashboard.png';
 import achievementsIcon from '../assets/icons/nav-achievements.png';
 import updatesIcon from '../assets/icons/nav-updates.png';
 import { STATUS_LABEL, STATUS_COLOR } from '../utils/status';
+import { proxyImage } from '../utils/imageProxy';
 
 // Barra lateral principal única do app. A marca/logo agora mora na
 // TopSearchBar.jsx (barra de topo estilo Reddit) — esta barra só tem a
@@ -116,7 +117,7 @@ export default function MainSidebar() {
                 onClick={() => { navigate(`/comunidades/${c.slug}`); useStore.getState().closeMobileSidebar(); }}
                 title={c.name}
               >
-                <span className="main-sidebar-community-icon">{c.iconUrl ? <img src={c.iconUrl} alt="" /> : '📌'}</span>
+                <span className="main-sidebar-community-icon">{c.iconUrl ? <img src={proxyImage(c.iconUrl)} alt="" /> : '📌'}</span>
                 <span className="main-sidebar-community-name truncate">{c.name}</span>
               </button>
             ))}

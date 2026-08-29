@@ -3,6 +3,7 @@ import { useSocket } from '../context/SocketContext.jsx';
 import { listAchievements } from '../api/endpoints';
 import { RARITY_LABEL, RARITY_COLOR } from '../utils/achievementRarity';
 import defaultIcon from '../assets/icons/nav-achievements.png';
+import { proxyImage } from '../utils/imageProxy';
 
 // Página "Conquistas" — grid com todas, indicando desbloqueadas vs
 // bloqueadas (com barra de progresso pras bloqueadas). O catálogo em si
@@ -43,7 +44,7 @@ export default function AchievementsPage() {
       <div className="achievements-grid">
         {achievements.map((a) => (
           <div key={a.id} className={`achievement-card ${a.unlocked ? 'unlocked' : 'locked'}`} style={{ '--rarity-color': RARITY_COLOR[a.rarity] }}>
-            <img className="achievement-card-icon" src={a.iconUrl || defaultIcon} alt="" />
+            <img className="achievement-card-icon" src={proxyImage(a.iconUrl) || defaultIcon} alt="" />
             <div className="achievement-card-body">
               <div className="achievement-card-top">
                 <span className="achievement-card-name">{a.name}</span>

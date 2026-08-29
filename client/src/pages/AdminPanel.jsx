@@ -45,6 +45,7 @@ import {
 } from '../api/endpoints';
 import HouseIcon from '../components/HouseIcon.jsx';
 import { BADGE_RARITIES, RARITY_LABEL, RARITY_COLOR, badgeHasImage } from '../utils/badgeRarity';
+import { proxyImage } from '../utils/imageProxy';
 
 const TAB_LABEL = {
   stats: '📊 Estatísticas', users: '👥 Usuários', badges: '🏅 Insígnias', inscricoes: '📝 Inscrições',
@@ -505,7 +506,7 @@ function AchievementsAdminTab() {
         {achievements.map((a) => (
           <div key={a.id}>
             <div className="admin-user-row">
-              <img src={a.iconUrl || achievementsDefaultIconUrl} alt="" style={{ width: 32, height: 32 }} />
+              <img src={proxyImage(a.iconUrl) || achievementsDefaultIconUrl} alt="" style={{ width: 32, height: 32 }} />
               <div className="admin-user-row-info">
                 <div className="admin-user-row-name">{a.name} {!a.enabled && <span className="dim">(desativada)</span>}</div>
                 <div className="admin-user-row-meta dim">{ACHIEVEMENT_RARITY_LABEL[a.rarity]} · {a.progressType} · meta {a.target}</div>
@@ -678,7 +679,7 @@ function FeedsAdminTab() {
           {communities.map((c) => (
             <div key={c.id} className="admin-user-row">
               <span className="community-row-icon" style={{ width: 32, height: 32 }}>
-                {c.iconUrl ? <img src={c.iconUrl} alt="" /> : '📌'}
+                {c.iconUrl ? <img src={proxyImage(c.iconUrl)} alt="" /> : '📌'}
               </span>
               <div className="admin-user-row-info">
                 <div className="admin-user-row-name">{c.name}</div>
@@ -966,7 +967,7 @@ function UsersTab() {
                     {userBadges.length > 0 && (
                       <span className="admin-user-badge-chips">
                         {userBadges.map((b) => (
-                          <span key={b.id} title={b.name}>{badgeHasImage(b) ? <img className="admin-badge-icon-preview" src={b.iconUrl} alt="" /> : b.icon}</span>
+                          <span key={b.id} title={b.name}>{badgeHasImage(b) ? <img className="admin-badge-icon-preview" src={proxyImage(b.iconUrl)} alt="" /> : b.icon}</span>
                         ))}
                       </span>
                     )}
@@ -1014,7 +1015,7 @@ function UsersTab() {
                         const has = (u.badgeIds || []).includes(b.id);
                         return (
                           <button key={b.id} className={has ? 'has-badge' : ''} onClick={() => toggleBadge(u, b.id, has)}>
-                            {has ? '✅' : '➕'} {badgeHasImage(b) ? <img className="admin-badge-icon-preview" src={b.iconUrl} alt="" /> : b.icon} {b.name}
+                            {has ? '✅' : '➕'} {badgeHasImage(b) ? <img className="admin-badge-icon-preview" src={proxyImage(b.iconUrl)} alt="" /> : b.icon} {b.name}
                           </button>
                         );
                       })}
@@ -1210,7 +1211,7 @@ function BadgesTab() {
               ÍCONE (imagem, opcional — tem prioridade sobre o emoji)
               <div className="admin-badge-icon-upload">
                 {badges.find((b) => b.id === editing) && badgeHasImage(badges.find((b) => b.id === editing)) && (
-                  <img className="admin-badge-icon-preview" src={badges.find((b) => b.id === editing).iconUrl} alt="" />
+                  <img className="admin-badge-icon-preview" src={proxyImage(badges.find((b) => b.id === editing).iconUrl)} alt="" />
                 )}
                 <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={uploadingIcon} onChange={onIconFile} />
                 {badges.find((b) => b.id === editing) && badgeHasImage(badges.find((b) => b.id === editing)) && (
@@ -1267,7 +1268,7 @@ function BadgesTab() {
         {badges.map((b) => (
           <div key={b.id} className="admin-badge-card">
             <div className="admin-badge-card-icon" style={{ '--rarity-color': RARITY_COLOR[b.rarity] || RARITY_COLOR.COMMON }}>
-              {badgeHasImage(b) ? <img src={b.iconUrl} alt="" /> : <span>{b.icon}</span>}
+              {badgeHasImage(b) ? <img src={proxyImage(b.iconUrl)} alt="" /> : <span>{b.icon}</span>}
             </div>
             <div className="admin-badge-card-info">
               <div className="admin-badge-card-name-row">

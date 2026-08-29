@@ -1,5 +1,4 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import AgoraRTC from 'agora-rtc-sdk-ng';
 import { useAuth } from './AuthContext.jsx';
 import { useSocket } from './SocketContext.jsx';
 import { useStore } from '../store/useStore';
@@ -64,6 +63,20 @@ async function stopCallForegroundService() {
 }
 
 const VoiceContext = createContext(null);
+
+// Item pedido ("site demora pra carregar"): o SDK do Agora só é
+// carregado de verdade na primeira vez que alguém entra numa chamada de
+// voz — não faz parte do carregamento inicial do site mais. Pra quem só
+// navega pelo chat/feeds sem nunca usar voz, esses ~500kB comprimidos
+// nunca chegam a ser baixados. As chamadas seguintes reaproveitam a
+// mesma promise (nunca baixa duas vezes).
+let agoraRtcPromise = null;
+function loadAgoraRTC() {
+  if (!agoraRtcPromise) {
+    agoraRtcPromise = import('agora-rtc-sdk-ng').then((mod) => mod.default);
+  }
+  return agoraRtcPromise;
+}
 
 // MIGRAÇÃO PRA AGORA.IO (item pedido): depois de uma investigação bem
 // longa e com prova concreta (diagnóstico de SDP real — ver histórico),
@@ -135,13 +148,24 @@ export function VoiceProvider({ children }) {
   const cameraTrackRef = useRef(null);
   const screenTrackRef = useRef(null);
   const screenAudioTrackRef = useRef(null);
+  // Item pedido: "bug de clique duplo" nos botões — mudo/câmera/tela são
+  // funções assíncronas (esperam o Agora responder); clicar rápido demais
+  // podia disparar a mesma ação duas vezes antes da primeira terminar,
+  // criando/fechando a mesma faixa em cima da outra. Uma trava simples
+  // por botão (ref, não estado — não precisa re-renderizar por causa
+  // disso) ignora cliques extras enquanto a ação anterior ainda não
+  // terminou.
+  const toggleMuteBusyRef = useRef(false);
+  const toggleCameraBusyRef = useRef(false);
+  const toggleScreenShareBusyRef = useRef(false);
 
   const broadcastState = useCallback((patch) => {
     if (!socket || !callRef.current) return;
     socket.emit('voice:state', { channelId: callRef.current.channelId, ...patch });
   }, [socket]);
 
-  const setupAgoraClient = useCallback(() => {
+  const setupAgoraClient = useCallback(async () => {
+    const AgoraRTC = await loadAgoraRTC();
     const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
 
     client.on('user-published', async (remoteUser, mediaType) => {
@@ -217,6 +241,7 @@ export function VoiceProvider({ children }) {
 
   const connectMicrophone = useCallback(async () => {
     try {
+      const AgoraRTC = await loadAgoraRTC();
       const preferredId = getPreferredMicId();
       const track = await AgoraRTC.createMicrophoneAudioTrack({
         microphoneId: preferredId || undefined,
@@ -269,7 +294,7 @@ export function VoiceProvider({ children }) {
       }
       if (joiningChannelIdRef.current !== channelId) return;
 
-      const client = setupAgoraClient();
+      const client = await setupAgoraClient();
       await client.join(appId, channelId, token, user.id);
       if (joiningChannelIdRef.current !== channelId) { await client.leave(); return; }
 
@@ -351,6 +376,9 @@ export function VoiceProvider({ children }) {
   useEffect(() => { leaveChannelRef.current = leaveChannel; }, [leaveChannel]);
 
   const toggleMute = useCallback(async () => {
+    if (toggleMuteBusyRef.current) return;
+    toggleMuteBusyRef.current = true;
+    try {
     if (callRef.current?.channelType === 'STAGE' && myRole === 'audience') return;
     if (muted && !localAudioTrackRef.current) {
       const gotMic = await connectMicrophone();
@@ -369,6 +397,9 @@ export function VoiceProvider({ children }) {
       broadcastState({ muted: next });
       return next;
     });
+    } finally {
+      toggleMuteBusyRef.current = false;
+    }
   }, [broadcastState, myRole, muted, connectMicrophone]);
 
   const toggleDeafen = useCallback(() => {
@@ -391,6 +422,9 @@ export function VoiceProvider({ children }) {
   }, [broadcastState, muted]);
 
   const toggleCamera = useCallback(async () => {
+    if (toggleCameraBusyRef.current) return;
+    toggleCameraBusyRef.current = true;
+    try {
     const client = agoraClientRef.current;
     if (!client) return;
     if (cameraOn) {
@@ -402,58 +436,77 @@ export function VoiceProvider({ children }) {
       forceLocalVideoTick((n) => n + 1);
       return;
     }
-    try {
-      const track = await AgoraRTC.createCameraVideoTrack({ encoderConfig: '360p' });
-      cameraTrackRef.current = track;
-      await client.publish([track]);
-      setCameraOn(true);
-      broadcastState({ video: true });
-      forceLocalVideoTick((n) => n + 1);
+    const AgoraRTC = await loadAgoraRTC();
+    const track = await AgoraRTC.createCameraVideoTrack({ encoderConfig: '360p' });
+    cameraTrackRef.current = track;
+    await client.publish([track]);
+    setCameraOn(true);
+    broadcastState({ video: true });
+    forceLocalVideoTick((n) => n + 1);
     } catch (err) {
       useStore.getState().pushNotice('Não foi possível acessar a câmera.');
+    } finally {
+      toggleCameraBusyRef.current = false;
     }
   }, [cameraOn, broadcastState]);
 
   const toggleScreenShare = useCallback(async (options = {}) => {
-    const client = agoraClientRef.current;
-    if (!client) return;
-    if (screenOn) {
-      const tracks = [screenTrackRef.current, screenAudioTrackRef.current].filter(Boolean);
-      await client.unpublish(tracks).catch(() => {});
-      screenTrackRef.current?.close();
-      screenAudioTrackRef.current?.close();
-      screenTrackRef.current = null;
-      screenAudioTrackRef.current = null;
-      setScreenOn(false);
-      broadcastState({ screenSharing: false });
-      forceLocalVideoTick((n) => n + 1);
-      return;
-    }
-    const isNativeApp = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
-    if (isNativeApp) {
-      useStore.getState().pushNotice('Compartilhar tela ainda não é possível pelo app Android — use pelo navegador (Chrome) por enquanto.');
-      return;
-    }
-    const { quality = '1080p', frameRate = 30 } = options;
-    const dims = QUALITY_PRESETS[quality] || QUALITY_PRESETS['1080p'];
+    if (toggleScreenShareBusyRef.current) return;
+    toggleScreenShareBusyRef.current = true;
     try {
-      const result = await AgoraRTC.createScreenVideoTrack({
-        encoderConfig: { width: dims.width, height: dims.height, frameRate },
-        optimizationMode: 'detail',
-      }, 'auto');
-      const [screenTrack, screenAudioTrack] = Array.isArray(result) ? result : [result, null];
-      screenTrackRef.current = screenTrack;
-      screenAudioTrackRef.current = screenAudioTrack || null;
-      const toPublish = [screenTrack, screenAudioTrack].filter(Boolean);
-      await client.publish(toPublish);
-      screenTrack.on('track-ended', () => toggleScreenShare());
-      setScreenOn(true);
-      broadcastState({ screenSharing: true });
-      forceLocalVideoTick((n) => n + 1);
-    } catch (err) {
-      if (!(err?.message?.toLowerCase().includes('permission') || err?.code === 'PERMISSION_DENIED')) {
-        useStore.getState().pushNotice('Não foi possível compartilhar a tela.');
+      const client = agoraClientRef.current;
+      if (!client) return;
+      if (screenOn) {
+        const tracks = [screenTrackRef.current, screenAudioTrackRef.current].filter(Boolean);
+        await client.unpublish(tracks).catch(() => {});
+        screenTrackRef.current?.close();
+        screenAudioTrackRef.current?.close();
+        screenTrackRef.current = null;
+        screenAudioTrackRef.current = null;
+        setScreenOn(false);
+        broadcastState({ screenSharing: false });
+        forceLocalVideoTick((n) => n + 1);
+        return;
       }
+      const isNativeApp = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
+      if (isNativeApp) {
+        useStore.getState().pushNotice('Compartilhar tela ainda não é possível pelo app Android — use pelo navegador (Chrome) por enquanto.');
+        return;
+      }
+      const { quality = '1080p', frameRate = 30 } = options;
+      const dims = QUALITY_PRESETS[quality] || QUALITY_PRESETS['1080p'];
+      try {
+        const AgoraRTC = await loadAgoraRTC();
+        const result = await AgoraRTC.createScreenVideoTrack({
+          encoderConfig: { width: dims.width, height: dims.height, frameRate },
+          // BUG CORRIGIDO ("compartilhar tela demora pra carregar e fica
+          // com pouco FPS"): 'detail' pede pro Agora priorizar NITIDEZ da
+          // imagem em cima de fluidez de movimento — ótimo pra
+          // compartilhar uma planilha parada, péssimo pra qualquer coisa
+          // com movimento (jogo, vídeo, cursor se mexendo), que é onde o
+          // "pouco FPS" mais aparece. 'motion' inverte a prioridade —
+          // sacrifica um pouco de nitidez em cenas muito detalhadas em
+          // troca de manter os quadros por segundo pedidos (frameRate
+          // acima) de verdade, que é o que a pessoa realmente sente como
+          // "travando" ou não.
+          optimizationMode: 'motion',
+        }, 'auto');
+        const [screenTrack, screenAudioTrack] = Array.isArray(result) ? result : [result, null];
+        screenTrackRef.current = screenTrack;
+        screenAudioTrackRef.current = screenAudioTrack || null;
+        const toPublish = [screenTrack, screenAudioTrack].filter(Boolean);
+        await client.publish(toPublish);
+        screenTrack.on('track-ended', () => toggleScreenShare());
+        setScreenOn(true);
+        broadcastState({ screenSharing: true });
+        forceLocalVideoTick((n) => n + 1);
+      } catch (err) {
+        if (!(err?.message?.toLowerCase().includes('permission') || err?.code === 'PERMISSION_DENIED')) {
+          useStore.getState().pushNotice('Não foi possível compartilhar a tela.');
+        }
+      }
+    } finally {
+      toggleScreenShareBusyRef.current = false;
     }
   }, [screenOn, broadcastState]);
 

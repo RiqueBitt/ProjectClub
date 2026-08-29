@@ -25,6 +25,7 @@ import micIcon from '../assets/icons/mic.png';
 import documentIcon from '../assets/icons/document.png';
 import selectedIcon from '../assets/icons/selected.png';
 import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from './PenguinAvatar.jsx';
+import { proxyImage } from '../utils/imageProxy';
 
 // BUG CORRIGIDO: <img src={...avatarUrl}> quebrava (bloqueado pela CSP
 // img-src) quando o autor da mensagem respondida tem avatar de pinguim
@@ -451,7 +452,7 @@ function EmbedCard({ embed }) {
     <div className="embed-card" style={{ borderColor: data.color || '#F2894D' }}>
       {data.author?.name && (
         <div className="embed-card-author">
-          {data.author.iconUrl && <img className="embed-card-author-icon" src={data.author.iconUrl} alt="" />}
+          {data.author.iconUrl && <img className="embed-card-author-icon" src={proxyImage(data.author.iconUrl)} alt="" />}
           {data.author.url ? (
             <a href={data.author.url} target="_blank" rel="noreferrer">{data.author.name}</a>
           ) : data.author.name}
@@ -480,7 +481,7 @@ function EmbedCard({ embed }) {
         </div>
         {data.thumbnailUrl && <img className="embed-card-thumbnail" src={data.thumbnailUrl} alt="" loading="lazy" />}
       </div>
-      {data.imageUrl && <img className="embed-card-image" src={data.imageUrl} alt="" loading="lazy" />}
+      {data.imageUrl && <img className="embed-card-image" src={proxyImage(data.imageUrl)} alt="" loading="lazy" />}
       {(data.footer || data.timestamp) && (
         <div className="embed-card-footer">
           {data.footer}

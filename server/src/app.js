@@ -33,6 +33,7 @@ const achievementsRoutes = require('./routes/achievements');
 const systemRoutes = require('./routes/system');
 const pushRoutes = require('./routes/push');
 const agoraRoutes = require('./routes/agora');
+const imageProxyRoutes = require('./routes/imageProxy');
 const updatesRoutes = require('./routes/updates');
 
 function createApp() {
@@ -294,6 +295,13 @@ function createApp() {
   app.use('/api/system', systemRoutes);
   app.use('/api/push', pushRoutes);
   app.use('/api/agora', agoraRoutes);
+  // Sem requireAuth de propósito — <img src="..."> do navegador nunca
+  // manda o cabeçalho Authorization (só fetch/axios conseguem fazer
+  // isso), então colocar autenticação aqui quebraria TODA imagem do
+  // site. Isso não reduz segurança nenhuma: as URLs do B2 que isso
+  // substitui já eram públicas (qualquer um com o link já conseguia ver
+  // a imagem direto), só ficou um passo a mais no meio agora.
+  app.use('/api/proxy', imageProxyRoutes);
   app.use('/api/updates', updatesRoutes);
 
   // In production, serve the built React client from a single process

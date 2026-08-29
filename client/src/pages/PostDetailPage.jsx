@@ -12,6 +12,7 @@ import {
   getPost, deletePost, votePost,
   listPostComments, addPostComment, votePostComment, deletePostComment,
 } from '../api/endpoints';
+import { proxyImage } from '../utils/imageProxy';
 
 // Reconhece se um comentário é só um link de imagem/GIF (colado a mão ou
 // escolhido no seletor de GIF abaixo) pra renderizar como imagem em vez
@@ -105,7 +106,7 @@ export default function PostDetailPage() {
             <span className="post-card-community">{post.community.name}</span>
             {post.category && (
               <span className="post-card-category">
-                {post.category.iconUrl && <img className="post-card-category-icon" src={post.category.iconUrl} alt="" />}
+                {post.category.iconUrl && <img className="post-card-category-icon" src={proxyImage(post.category.iconUrl)} alt="" />}
                 {post.category.name}
               </span>
             )}
@@ -114,7 +115,7 @@ export default function PostDetailPage() {
           </div>
           <h2 className="post-detail-title">{post.title}</h2>
           {post.type === 'TEXT' && post.content && <p className="post-detail-text">{post.content}</p>}
-          {post.type === 'IMAGE' && post.imageUrl && <img className="post-detail-image" src={post.imageUrl} alt="" />}
+          {post.type === 'IMAGE' && post.imageUrl && <img className="post-detail-image" src={proxyImage(post.imageUrl)} alt="" />}
           {post.type === 'LINK' && <a className="post-card-link" href={post.linkUrl} target="_blank" rel="noreferrer"><IconGlyph src={linkIcon} size={13} /> {post.linkUrl}</a>}
         </div>
       </div>

@@ -10,6 +10,7 @@ import {
   createClubCategory, updateClubCategory, uploadClubCategoryImage, deleteClubCategory,
 } from '../api/endpoints';
 import { PostCard, CreatePostForm } from './CommunitiesPage.jsx';
+import { proxyImage } from '../utils/imageProxy';
 
 // Página de UM Clube — lê direto do estado global (useStore.clubs), que já
 // é mantido em tempo real via socket (club:new/update/delete e
@@ -71,7 +72,7 @@ export default function CommunityPage() {
         <button className="btn-link" onClick={() => navigate('/comunidades')}>‹ Todos os Clubes</button>
 
         <div className="community-page-header">
-          <div className="community-page-icon">{club.iconUrl ? <img src={club.iconUrl} alt="" /> : '📌'}</div>
+          <div className="community-page-icon">{club.iconUrl ? <img src={proxyImage(club.iconUrl)} alt="" /> : '📌'}</div>
           <div className="community-page-info">
             <h1>{club.name}</h1>
             {club.description && <p className="dim">{club.description}</p>}
@@ -123,10 +124,10 @@ export default function CommunityPage() {
               <div className="club-category-visual-list">
                 {(club.categories || []).map((cat) => (
                   <div key={cat.id} className="club-category-visual-card">
-                    {cat.bannerUrl && <img className="club-category-visual-banner" src={cat.bannerUrl} alt="" />}
+                    {cat.bannerUrl && <img className="club-category-visual-banner" src={proxyImage(cat.bannerUrl)} alt="" />}
                     <div className="club-category-visual-body">
                       <span className="club-category-visual-icon">
-                        {cat.iconUrl ? <img src={cat.iconUrl} alt="" /> : '🏷️'}
+                        {cat.iconUrl ? <img src={proxyImage(cat.iconUrl)} alt="" /> : '🏷️'}
                       </span>
                       <div className="club-category-visual-text">
                         <span className="club-category-visual-name">{cat.name}</span>

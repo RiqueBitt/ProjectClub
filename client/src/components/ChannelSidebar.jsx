@@ -21,6 +21,7 @@ import cancelIcon from '../assets/icons/cancel.png';
 import selectedIcon from '../assets/icons/selected.png';
 import linkIcon from '../assets/icons/link.png';
 import lockIcon from '../assets/icons/lock.png';
+import { proxyImage } from '../utils/imageProxy';
 
 const VOICE_TYPES = ['VOICE', 'STAGE'];
 
@@ -159,7 +160,7 @@ export default function ChannelSidebar() {
         <div className="sidebar-banner" style={{ backgroundImage: `url(${community.bannerUrl})` }} />
       )}
       <div className="sidebar-header" onClick={() => setMenuOpen((v) => !v)}>
-        {community.iconUrl && <img className="sidebar-header-icon" src={community.iconUrl} alt="" />}
+        {community.iconUrl && <img className="sidebar-header-icon" src={proxyImage(community.iconUrl)} alt="" />}
         <span className="truncate">{community.name || 'Project Club'}</span>
         {canManage && (
           <button className="icon-btn sidebar-header-toggle" title="Configurações da comunidade" onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}><img className="ui-icon" src={settingsIcon} alt="" /></button>

@@ -9,6 +9,7 @@ import UserAvatar from './UserAvatar.jsx';
 import TagBadge from './TagBadge.jsx';
 import levelStarIcon from '../assets/icons/level-star.png';
 import achievementDefaultIcon from '../assets/icons/nav-achievements.png';
+import { proxyImage } from '../utils/imageProxy';
 
 // Quantos cargos mostrar no popup compacto (a bio é limitada por CSS a 3
 // linhas — .mini-profile-bio) — o perfil completo (UserProfileModal) mostra
@@ -232,7 +233,7 @@ export default function MiniProfileCard() {
               <div className="mini-profile-badges-row">
                 {badges.map((b) => (
                   <span key={b.id} className="mini-profile-badge" title={`${b.name}${b.description ? ' — ' + b.description : ''}`}>
-                    {badgeHasImage(b) ? <img className="mini-profile-badge-img" src={b.iconUrl} alt="" /> : b.icon}
+                    {badgeHasImage(b) ? <img className="mini-profile-badge-img" src={proxyImage(b.iconUrl)} alt="" /> : b.icon}
                   </span>
                 ))}
               </div>
@@ -242,7 +243,7 @@ export default function MiniProfileCard() {
               <div className="mini-profile-badges-row">
                 {miniAchievements.map((a) => (
                   <span key={a.id} className="mini-profile-badge" title={`${a.name} — ${a.description}`}>
-                    <img className="mini-profile-badge-img" src={a.iconUrl || achievementDefaultIcon} alt="" />
+                    <img className="mini-profile-badge-img" src={proxyImage(a.iconUrl) || achievementDefaultIcon} alt="" />
                   </span>
                 ))}
               </div>

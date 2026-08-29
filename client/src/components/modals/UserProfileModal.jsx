@@ -25,6 +25,7 @@ import steamIcon from '../../assets/icons/social-steam.png';
 import robloxIcon from '../../assets/icons/social-roblox.png';
 import xIcon from '../../assets/icons/social-x.png';
 import levelStarIcon from '../../assets/icons/level-star.png';
+import { proxyImage } from '../../utils/imageProxy';
 
 // Rendered once at the app root (see MainApp.jsx) and driven entirely by
 // `viewingProfileUserId` in the zustand store — call `openProfile(userId)`
@@ -242,7 +243,7 @@ export default function UserProfileModal() {
           <>
             <div className="profile-top-row">
               <div className="profile-banner" style={{ background: user.bannerUrl ? undefined : 'transparent' }}>
-                {user.bannerUrl && <img src={user.bannerUrl} alt="" />}
+                {user.bannerUrl && <img src={proxyImage(user.bannerUrl)} alt="" />}
               </div>
               <div className="profile-ig-header">
                 <div className="avatar-wrap large">

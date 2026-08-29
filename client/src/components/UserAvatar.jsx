@@ -1,4 +1,5 @@
 import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from './PenguinAvatar.jsx';
+import { proxyImage } from '../utils/imageProxy';
 
 // Avatar compartilhado — usado em todo lugar que hoje mostra a foto do
 // usuário (barra de navegação, lista de membros, mensagens, perfil...).
@@ -40,7 +41,7 @@ export default function UserAvatar({ user, size = 32, className = '', style = {}
   if (url) {
     return (
       <div className={`avatar ${className}`} style={wrapperStyle}>
-        <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img src={proxyImage(url)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
     );
   }
