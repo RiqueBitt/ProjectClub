@@ -131,9 +131,23 @@ export default function VoiceChannelView({ channel }) {
             <span className="voice-tile-name">🖥️ {memberFor(uid)?.displayName || uid}</span>
           </div>
         ))}
+        {/* BUG CORRIGIDO ("compartilho minha tela e ela buga, cursor
+            duplicado, fundo preto"): mostrar um VÍDEO AO VIVO da sua
+            própria tela compartilhada, na PRÓPRIA tela que está sendo
+            compartilhada, cria um "espelho infinito" — a captura
+            inclui a prévia, que inclui a captura, que inclui a
+            prévia... daí o cursor se multiplicando e a tela ficando
+            preta/corrompida. Isso não é bug de rede nem do Agora, é um
+            efeito colateral inerente de mostrar sua própria tela pra
+            você mesmo — por isso apps como Discord nunca mostram vídeo
+            ao vivo da SUA PRÓPRIA tela compartilhada, só um indicador
+            simples de "compartilhando" sem vídeo nenhum. */}
         {screenOn && voice.localScreenStream && (
-          <div className="voice-tile voice-tile-screen">
-            <VideoTile stream={voice.localScreenStream} muted allowFullscreen />
+          <div className="voice-tile voice-tile-screen voice-tile-screen-self">
+            <div className="voice-tile-screen-self-indicator">
+              <span className="voice-tile-screen-self-icon"><IconGlyph src={screenshareIcon} size={28} /></span>
+              <span>Você está compartilhando sua tela</span>
+            </div>
             <span className="voice-tile-name">🖥️ Sua tela</span>
           </div>
         )}
