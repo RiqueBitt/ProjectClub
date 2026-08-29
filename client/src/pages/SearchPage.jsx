@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -39,11 +39,25 @@ export default function SearchPage() {
     });
   }, [q, conversations, user.id]);
 
-  const onChange = async (e) => {
+  // Item pedido: otimização/velocidade — sem atraso nenhum, cada tecla
+  // digitada disparava as 2 buscas (usuários + posts) na hora, mesmo
+  // sabendo que a próxima tecla ia invalidar isso quase imediatamente.
+  // Digitar uma palavra de 10 letras chegava a mandar ~20 requisições
+  // pro servidor, quase todas jogadas fora. Um "debounce" simples
+  // (useRef guarda o temporizador, sem precisar de mais um useState só
+  // pra isso) espera a pessoa realmente PARAR de digitar por 300ms
+  // antes de buscar de verdade — tempo curto o bastante pra continuar
+  // parecendo instantâneo, mas já corta a esmagadora maioria das
+  // requisições desperdiçadas.
+  const searchDebounceRef = useRef(null);
+  const onChange = (e) => {
     const value = e.target.value;
     setQuery(value);
-    runUserSearch(value);
-    runPostSearch(value);
+    clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      runUserSearch(value);
+      runPostSearch(value);
+    }, 300);
   };
 
   const runUserSearch = async (value) => {

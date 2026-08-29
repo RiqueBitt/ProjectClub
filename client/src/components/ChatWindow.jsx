@@ -351,10 +351,24 @@ export default function ChatWindow({ kind }) {
     return () => observer.disconnect();
   }, [roomKey, isNonChatChannel]);
 
+  // Item pedido: otimização/velocidade — `typing:start` estava sendo
+  // mandado em TODA tecla digitada, sem parar — escrever uma frase de
+  // 50 caracteres mandava 50 eventos pro servidor, que aí retransmite
+  // cada um pra todo mundo no canal (e cada um deles atualiza o "Fulano
+  // está digitando..." de novo do outro lado à toa). Só precisa avisar
+  // UMA VEZ quando a pessoa COMEÇA a digitar — o temporizador de
+  // "parou de digitar" (isTypingRef) continua sendo reiniciado a cada
+  // tecla normalmente, só o EMIT de início que passa a ser só um por
+  // sessão de digitação.
+  const isTypingRef = useRef(false);
   const notifyTyping = () => {
-    socket?.emit('typing:start', { conversationId, channelId });
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      socket?.emit('typing:start', { conversationId, channelId });
+    }
     clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
+      isTypingRef.current = false;
       socket?.emit('typing:stop', { conversationId, channelId });
     }, TYPING_TIMEOUT);
   };
@@ -525,6 +539,8 @@ export default function ChatWindow({ kind }) {
     setContent('');
     setFiles([]);
     setReplyTo(null);
+    isTypingRef.current = false;
+    clearTimeout(typingTimeoutRef.current);
     socket?.emit('typing:stop', { conversationId, channelId });
 
     // Attachments still need to upload, so there's nothing real to show yet
