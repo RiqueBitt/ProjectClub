@@ -533,7 +533,16 @@ export function VoiceProvider({ children }) {
       // faixa) dispara `onnegotiationneeded` sozinho quando muda de
       // valor, corrigindo a negociação automaticamente sem precisar sair
       // e entrar de novo no canal.
-      if (track && entry.audioTransceiver && entry.audioTransceiver.direction !== 'sendrecv') {
+      // LIMITE DE SEGURANÇA (achado via diagnóstico real): se o OUTRO
+      // LADO responder "recvonly" de propósito/sempre (app dele
+      // desatualizado, em cache — ver o log de SDP recebido), essa
+      // correção tentando de novo sem parar podia ficar renegociando em
+      // loop pra sempre, e isso mesmo pode ter contribuído pro "ICE
+      // failed" visto nos testes. Só tenta corrigir algumas vezes, não
+      // pra sempre.
+      entry.directionFixAttempts = entry.directionFixAttempts || 0;
+      if (track && entry.audioTransceiver && entry.audioTransceiver.direction !== 'sendrecv' && entry.directionFixAttempts < 3) {
+        entry.directionFixAttempts += 1;
         entry.audioTransceiver.direction = 'sendrecv';
       }
     });
@@ -749,8 +758,15 @@ export function VoiceProvider({ children }) {
         // publicada. Aqui é o lugar certo de verdade: roda depois de
         // QUALQUER negociação (oferta OU resposta, dos dois lados), e
         // corrige na hora se a direção não ficou "sendrecv" — cobre 100%
-        // dos casos, não só quando o microfone é tocado depois.
-        if (localAudioTrackRef.current && entry.audioTransceiver && entry.audioTransceiver.direction !== 'sendrecv') {
+        // dos casos, não só quando o microfone é tocado depois. Usa o
+        // MESMO contador de tentativas (entry.directionFixAttempts) que
+        // pushAudioTrackToPeers — é o mesmo objeto `entry`, então as
+        // tentativas dos dois lugares somam juntas pro mesmo limite de
+        // segurança (evita loop de renegociação se o outro lado nunca
+        // cooperar — ver comentário completo em pushAudioTrackToPeers).
+        entry.directionFixAttempts = entry.directionFixAttempts || 0;
+        if (localAudioTrackRef.current && entry.audioTransceiver && entry.audioTransceiver.direction !== 'sendrecv' && entry.directionFixAttempts < 3) {
+          entry.directionFixAttempts += 1;
           entry.audioTransceiver.direction = 'sendrecv';
         }
       } else if (data.candidate) {
