@@ -713,6 +713,20 @@ export function VoiceProvider({ children }) {
           await pc.setLocalDescription();
           sendSignal(from, { description: pc.localDescription });
         }
+
+        // BUG CORRIGIDO DE VEZ (achado via diagnóstico real): antes, a
+        // correção da direção do transceiver só rodava dentro de
+        // pushAudioTrackToPeers — ou seja, só quando o MICROFONE mudava
+        // de estado. Uma conexão que já tivesse negociado errado (preso
+        // em "sendonly") e nunca mais trocasse de microfone continuava
+        // presa nesse estado pra sempre, mesmo com a correção já
+        // publicada. Aqui é o lugar certo de verdade: roda depois de
+        // QUALQUER negociação (oferta OU resposta, dos dois lados), e
+        // corrige na hora se a direção não ficou "sendrecv" — cobre 100%
+        // dos casos, não só quando o microfone é tocado depois.
+        if (localAudioTrackRef.current && entry.audioTransceiver && entry.audioTransceiver.direction !== 'sendrecv') {
+          entry.audioTransceiver.direction = 'sendrecv';
+        }
       } else if (data.candidate) {
         try {
           await pc.addIceCandidate(data.candidate);
