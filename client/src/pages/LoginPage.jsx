@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from './AuthLayout.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import RecaptchaModal from '../components/RecaptchaModal.jsx';
-import { RECAPTCHA_SITE_KEY } from '../utils/recaptcha';
 import IconGlyph from '../components/IconGlyph.jsx';
 import emailIcon from '../assets/icons/email.png';
 import lockIcon from '../assets/icons/lock.png';
@@ -16,7 +14,6 @@ export default function LoginPage() {
   const [needsTwoFactor, setNeedsTwoFactor] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [challengeOpen, setChallengeOpen] = useState(false);
   // Mostrar a senha ao passar o mouse em cima (desktop) ou segurar o
   // dedo (celular) — nunca fica "travado" visível, só enquanto a pessoa
   // mantém o cursor/dedo no botão do olho.
@@ -24,33 +21,20 @@ export default function LoginPage() {
 
   const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
-  // The form's own submit just validates the fields and, if reCAPTCHA is
-  // configured, opens the centered "prove you're not a robot" modal —
-  // logging in for real only happens from there (doLogin below), same for
-  // a follow-up 2FA-code submit (a fresh token is needed each time either
-  // way, v2 tokens are single-use).
-  const onSubmit = (e) => {
+  // Item pedido: verificação de "não sou um robô" removida do login —
+  // entra direto, sem nenhum desafio no meio do caminho.
+  const onSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (RECAPTCHA_SITE_KEY) {
-      setChallengeOpen(true);
-    } else {
-      doLogin(null);
-    }
-  };
-
-  const doLogin = async (recaptchaToken) => {
     setBusy(true);
     try {
-      const result = await login({ ...form, recaptchaToken });
-      setChallengeOpen(false);
+      const result = await login({ ...form, recaptchaToken: null });
       if (result.requiresTwoFactor) {
         setNeedsTwoFactor(true);
       } else {
         navigate('/');
       }
     } catch (err) {
-      setChallengeOpen(false);
       setError(err.response?.data?.error || 'Não foi possível entrar.');
     } finally {
       setBusy(false);
@@ -112,9 +96,6 @@ export default function LoginPage() {
           {busy ? 'Entrando...' : 'Entrar'}
         </button>
       </form>
-      {challengeOpen && (
-        <RecaptchaModal busy={busy} onClose={() => setChallengeOpen(false)} onConfirm={doLogin} />
-      )}
     </AuthLayout>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { useStore, isChannelUnread } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useVoice } from '../context/VoiceContext.jsx';
@@ -70,6 +70,12 @@ export default function ChannelSidebar() {
   const [moderationOpen, setModerationOpen] = useState(false);
   const [emojiManagerOpen, setEmojiManagerOpen] = useState(false);
   const navigate = useNavigate();
+  // Item pedido: cliques rápidos repetidos no MESMO canal disparavam som
+  // e recarregamento várias vezes seguidas — bloqueia a navegação já no
+  // clique, antes de qualquer efeito posterior, se o canal clicado já é
+  // o canal ativo (nenhuma navegação de verdade acontece, então nenhum
+  // som/carregamento é disparado de novo).
+  const { channelId: activeChannelId } = useParams();
 
   const [channelModal, setChannelModal] = useState({ open: false, categoryId: null });
   const [editChannel, setEditChannel] = useState(null);
@@ -332,6 +338,7 @@ function ChannelGroup({
             >
               <NavLink
                 to={`/channels/${ch.id}`}
+                onClick={(e) => { if (ch.id === activeChannelId) e.preventDefault(); }}
                 className={({ isActive }) => `sidebar-item channel-item ${isActive ? 'active' : ''} ${unread ? 'unread' : ''}`}
               >
                 {ch.unreadMentions > 0 && (

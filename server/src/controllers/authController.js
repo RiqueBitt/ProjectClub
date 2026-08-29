@@ -206,16 +206,13 @@ async function register(req, res, next) {
 
 async function login(req, res, next) {
   try {
-    const { emailOrUsername, password, twoFactorCode, recaptchaToken } = req.body;
+    const { emailOrUsername, password, twoFactorCode } = req.body;
     if (!emailOrUsername || !password) {
       return res.status(400).json({ error: 'Informe usuário/e-mail e senha.' });
     }
-    // Checked before even looking the account up — same "don't do
-    // anything else until this passes" spirit as the per-account lockout
-    // below, so a token-less/failing request can't be used to keep
-    // probing accounts for free.
-    const captcha = await verifyRecaptcha(recaptchaToken);
-    if (!captcha.ok) return res.status(400).json({ error: captcha.reason });
+    // Item pedido: verificação de "não sou um robô" removida do login —
+    // não roda mais nem no front nem aqui no back (o registro continua
+    // com a verificação normal, só o login que não usa mais isso).
 
     const user = await prisma.user.findFirst({
       where: {
