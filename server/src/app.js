@@ -127,6 +127,12 @@ function createApp() {
           'https://www.google.com/recaptcha/', 'https://www.gstatic.com/recaptcha/',
         ],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        // Item pedido (migração pro Agora.io): o SDK deles roda parte do
+        // processamento de áudio (cancelamento de eco etc) dentro de Web
+        // Workers, criados a partir de blob: — sem isso liberado
+        // explicitamente, o navegador bloqueia silenciosamente e a
+        // chamada nunca chega a conectar de verdade.
+        workerSrc: ["'self'", 'blob:'],
         fontSrc: ["'self'", 'https://fonts.gstatic.com'],
         imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
         mediaSrc: ["'self'", 'data:', 'blob:', 'https:'],
@@ -142,7 +148,14 @@ function createApp() {
         // então a chamada nunca tinha como conectar. Isso sozinho já
         // produzia exatamente o sintoma relatado (entra no canal, nunca
         // ouve/é ouvido por ninguém).
-        connectSrc: ["'self'", 'https://api.klipy.com', 'https://fonts.googleapis.com', 'https://www.google.com', 'wss:', 'ws:', 'stun:', 'turn:', 'turns:'],
+        connectSrc: [
+          "'self'", 'https://api.klipy.com', 'https://fonts.googleapis.com', 'https://www.google.com',
+          // Agora.io (chamadas de voz) — domínios reais deles pra
+          // sinalização/relatório de qualidade via HTTPS; a mídia em si
+          // (áudio) já passa pelos wss:/turn: genéricos logo abaixo.
+          'https://*.agora.io', 'https://*.sd-rtn.com',
+          'wss:', 'ws:', 'stun:', 'turn:', 'turns:',
+        ],
         frameSrc: ["'self'", 'https://www.google.com/recaptcha/'],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],

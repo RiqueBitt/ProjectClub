@@ -342,3 +342,6 @@ export const deleteUpdateEntry = (id) => api.delete(`/updates/${id}`).then((r) =
 // --- Push notifications (Android) ---
 export const registerPushToken = (token, platform) => api.post('/push/register', { token, platform }).then((r) => r.data);
 export const unregisterPushToken = (token) => api.post('/push/unregister', { token }).then((r) => r.data);
+
+// --- Agora.io (chamadas de voz) ---
+export const getAgoraToken = (channelName) => api.get('/agora/token', { params: { channelName } }).then((r) => r.data);
