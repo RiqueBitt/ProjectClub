@@ -4,7 +4,7 @@
 // ícone na bandeja do sistema, iniciar sozinho com o Windows, e continuar
 // rodando em segundo plano mesmo com a janela fechada — exatamente como
 // Discord/Slack fazem.
-const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage, session } = require('electron');
 const path = require('path');
 
 // URL do site hospedado — trocar aqui se o domínio mudar um dia. Fica só
@@ -44,10 +44,6 @@ if (!gotLock) {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
-        // Cada dispositivo de mídia (câmera/microfone) do canal de voz
-        // precisa dessa permissão liberada de antemão — sem isso o
-        // Electron bloqueia getUserMedia silenciosamente, diferente do
-        // navegador normal que pergunta na hora.
         sandbox: false,
       },
     });
@@ -135,6 +131,36 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
+    // BUG CORRIGIDO — CAUSA RAIZ CONFIRMADA de "no PC eu falo e não sai
+    // áudio nenhum, mas eu escuto todo mundo": faltava isto aqui. Um
+    // comentário antigo (removido) dizia que `sandbox: false` resolvia a
+    // permissão de microfone do Electron — não resolve, são coisas
+    // completamente diferentes (sandbox é sobre isolamento de processo,
+    // não sobre permissão de mídia). Sem um handler de permissão
+    // explícito, o Electron NUNCA mostra o popup nativo "permitir
+    // microfone?" que um navegador normal mostra — ele só nega o pedido
+    // de getUserMedia() por baixo dos panos, silenciosamente. O
+    // resultado bate 100% com o relatado: a chamada conecta normal (o
+    // WebRTC em si nunca teve erro nenhum), a pessoa CONTINUA ouvindo
+    // todo mundo (só o RECEBER áudio é afetado por isso), mas o próprio
+    // áudio dela nunca chega a ninguém — porque o microfone nunca foi
+    // liberado de verdade pro app, em NENHUMA rede, o que também explica
+    // por que testar com o celular no wifi ou nos dados móveis dava
+    // exatamente no mesmo resultado: o problema nunca esteve na rede.
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+      const allowed = ['media', 'microphone', 'camera', 'display-capture', 'notifications'];
+      callback(allowed.includes(permission));
+    });
+    // Mesma liberação, mas pra checagem SÍNCRONA que alguns navegadores/
+    // versões do Electron fazem antes mesmo de chegar no handler acima
+    // (checkPermission, não requestPermission) — sem isso, em algumas
+    // versões o pedido nem chega a acionar o handler de cima, e cai
+    // direto numa negação silenciosa de qualquer jeito.
+    session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
+      const allowed = ['media', 'microphone', 'camera', 'display-capture', 'notifications'];
+      return allowed.includes(permission);
+    });
+
     // "openAsHidden" é o que faz a inicialização automática cumprir o
     // pedido de "rodar em segundo plano sem precisar deixar uma janela
     // aberta" — abre direto minimizado na bandeja, não em cima de tudo.
