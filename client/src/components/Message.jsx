@@ -558,6 +558,7 @@ function Attachment({ attachment }) {
         className="attachment-image"
         src={attachment.url}
         alt={attachment.filename}
+        loading="lazy"
         style={{ cursor: 'zoom-in' }}
         onClick={() => useStore.getState().openLightbox(attachment.url, attachment.filename)}
       />

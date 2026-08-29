@@ -122,7 +122,7 @@ export function PostCard({ post, onVote, onOpen }) {
         </div>
         <div className="post-card-title">{post.title}</div>
         {post.type === 'TEXT' && post.content && <div className="post-card-text-preview">{post.content}</div>}
-        {post.type === 'IMAGE' && post.imageUrl && <img className="post-card-image" src={proxyImage(post.imageUrl)} alt="" />}
+        {post.type === 'IMAGE' && post.imageUrl && <img className="post-card-image" src={proxyImage(post.imageUrl)} alt="" loading="lazy" />}
         {post.type === 'LINK' && <div className="post-card-link"><IconGlyph src={linkIcon} size={13} /> {post.linkUrl}</div>}
         <div className="post-card-footer">💬 {post.commentCount} comentário{post.commentCount === 1 ? '' : 's'}</div>
       </div>

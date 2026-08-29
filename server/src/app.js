@@ -4,6 +4,7 @@ const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
 const path = require('path');
 const helmet = require('helmet');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const { createRateLimitStore } = require('./config/rateLimitStore');
 const env = require('./config/env');
@@ -166,6 +167,21 @@ function createApp() {
   }));
 
   app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
+  // Item pedido: otimização/velocidade — o pacote "compression" já
+  // estava instalado no projeto (server/package.json) mas nunca tinha
+  // sido de fato ligado como middleware. Sem isso, toda resposta JSON
+  // da API (lista de mensagens, posts, notificações...) saía sem
+  // nenhuma compressão — em conexões mais lentas/celular, isso é uma
+  // fatia e tanto de tempo de carregamento jogada fora à toa. `filter`
+  // customizado evita comprimir o que já é binário/comprimido (imagens
+  // já servidas via proxy, por exemplo) — comprimir de novo algo que
+  // já não comprime desperdiça CPU sem ganhar nada.
+  app.use(compression({
+    filter: (req, res) => {
+      if (req.path.startsWith('/api/proxy/image')) return false;
+      return compression.filter(req, res);
+    },
+  }));
   app.use(cookieParser());
   app.use(express.json({ limit: '5mb' }));
   app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));

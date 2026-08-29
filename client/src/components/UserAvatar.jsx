@@ -41,7 +41,7 @@ export default function UserAvatar({ user, size = 32, className = '', style = {}
   if (url) {
     return (
       <div className={`avatar ${className}`} style={wrapperStyle}>
-        <img src={proxyImage(url)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img src={proxyImage(url)} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
     );
   }
