@@ -31,11 +31,13 @@ import {
 } from '../../api/endpoints';
 
 // Item pedido: separar "Edição do Perfil" das "Configurações gerais" da
-// aplicação, em vez de uma lista única sem hierarquia nenhuma. TAGS saiu
+// aplicação, e dentro de Perfil, separar a EDIÇÃO (avatar/banner/bio/
+// conexões) das OPÇÕES DE EXIBIÇÃO (quais conquistas aparecem) — são
+// coisas diferentes, mesmo as duas sendo "sobre o perfil". TAGS saiu
 // completamente daqui — mora agora dentro da própria área de Perfil
 // (UserProfileModal.jsx), não em Configurações.
 const TAB_GROUPS = [
-  { label: 'Perfil', tabs: ['PROFILE'] },
+  { label: 'Perfil', tabs: ['PROFILE', 'PROFILE_DISPLAY'] },
   { label: 'Geral', tabs: ['ACCOUNT', 'VOICE', 'SECURITY', 'APPEARANCE'] },
 ];
 
@@ -504,6 +506,12 @@ export default function UserSettingsModal({ onClose }) {
             </div>
           </div>
 
+          <button className="btn-primary profile-edit-save" onClick={saveProfile}>Salvar alterações</button>
+        </div>
+      )}
+
+      {tab === 'PROFILE_DISPLAY' && (
+        <div className="settings-grid">
           <div className="settings-block">
             <h4>Conquistas em destaque</h4>
             <p className="dim">Escolha quais conquistas aparecem no seu perfil completo e no miniperfil.</p>
@@ -512,25 +520,6 @@ export default function UserSettingsModal({ onClose }) {
               <button type="button" className="btn-secondary" onClick={() => setAchievementPickerOpen('mini')}>Miniperfil (até 4)</button>
             </div>
           </div>
-
-          <div className="settings-block">
-            <h4>Privacidade de pedidos de amizade</h4>
-            <p className="dim">Quem pode te mandar um pedido de amizade novo.</p>
-            <div className="theme-options">
-              {[['EVERYONE', 'Qualquer pessoa'], ['FRIENDS_OF_FRIENDS', 'Amigos de amigos'], ['NOBODY', 'Ninguém']].map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`theme-swatch ${friendRequestPrivacy === value ? 'active' : ''}`}
-                  onClick={() => saveFriendRequestPrivacy(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <button className="btn-primary profile-edit-save" onClick={saveProfile}>Salvar alterações</button>
         </div>
       )}
 
@@ -552,6 +541,27 @@ export default function UserSettingsModal({ onClose }) {
 
       {tab === 'SECURITY' && (
         <div className="settings-grid">
+          {/* Item pedido: privacidade de pedidos de amizade saiu da aba
+              Perfil e mora aqui agora — faz mais sentido junto de
+              autenticação/2FA do que junto de edição de identidade
+              (avatar/banner/bio). */}
+          <div className="settings-block">
+            <h4>Privacidade de pedidos de amizade</h4>
+            <p className="dim">Quem pode te mandar um pedido de amizade novo.</p>
+            <div className="theme-options">
+              {[['EVERYONE', 'Qualquer pessoa'], ['FRIENDS_OF_FRIENDS', 'Amigos de amigos'], ['NOBODY', 'Ninguém']].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`theme-swatch ${friendRequestPrivacy === value ? 'active' : ''}`}
+                  onClick={() => saveFriendRequestPrivacy(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <h3>Autenticação de dois fatores</h3>
           {user.twoFactorEnabled ? (
             <>
@@ -677,7 +687,7 @@ export default function UserSettingsModal({ onClose }) {
 
 function labelFor(t) {
   return {
-    PROFILE: 'Meu perfil', ACCOUNT: 'Minha conta', VOICE: 'Voz e Áudio', SECURITY: 'Segurança', APPEARANCE: 'Aparência',
+    PROFILE: 'Meu perfil', PROFILE_DISPLAY: 'Exibição', ACCOUNT: 'Minha conta', VOICE: 'Voz e Áudio', SECURITY: 'Segurança', APPEARANCE: 'Aparência',
   }[t];
 }
 
@@ -686,7 +696,7 @@ function iconFor(t) {
   // emoji — os outros continuam emoji por enquanto.
   if (t === 'VOICE') return <IconGlyph src={micIcon} size={16} />;
   return {
-    PROFILE: '👤', ACCOUNT: '⚙️', SECURITY: '🔒', APPEARANCE: '🎨',
+    PROFILE: '👤', PROFILE_DISPLAY: '🏆', ACCOUNT: '⚙️', SECURITY: '🔒', APPEARANCE: '🎨',
   }[t];
 }
 

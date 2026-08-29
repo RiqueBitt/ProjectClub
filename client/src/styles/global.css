@@ -231,7 +231,21 @@ html {
      server/channel drawer — the page would start navigating back instead
      of (or as well as) the drawer sliding open. */
   overscroll-behavior-x: none;
+  /* Item pedido: animação suave no site inteiro. scroll-behavior: smooth
+     faz qualquer rolagem disparada por código (scrollIntoView, âncoras
+     #link, trocar de aba num modal) deslizar suavemente em vez de pular
+     na hora — cobre esse comportamento pra qualquer elemento rolável do
+     site de uma vez, sem precisar repetir em cada CSS de painel/modal
+     separado. Não muda a ROLAGEM MANUAL (arrastar com o dedo/rodinha do
+     mouse), só a disparada por código.
+     A LISTA DE MENSAGENS DO CHAT desliga isso de propósito (ver
+     .message-list mais abaixo) — mensagem nova "deslizando" suavemente
+     toda vez ficaria lento/cansativo numa conversa ativa; ali o pulo
+     instantâneo pro final é o comportamento certo, igual todo app de
+     chat de verdade faz. */
+  scroll-behavior: smooth;
 }
+.message-list { scroll-behavior: auto; }
 body {
   font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   background: var(--bg-deepest);
@@ -240,6 +254,16 @@ body {
   overscroll-behavior-x: none;
 }
 button, input, textarea, select { font-family: inherit; color: inherit; }
+/* Item pedido: animação suave no site inteiro — transição padrão pra
+   qualquer botão/link comum trocando de cor/fundo (hover, foco), em vez
+   de trocar na hora sem nenhuma suavização. Só as propriedades mais
+   comuns em hover (fundo, cor do texto, borda) — nunca `all`, que
+   deixaria QUALQUER mudança de layout (largura, posição) animando
+   também, incluindo coisas que precisam trocar na hora (like abrir/
+   fechar um menu). Componentes com sua própria transição mais
+   específica (definida depois no arquivo) continuam funcionando normal
+   — CSS mais específico sempre ganha desse aqui. */
+button, a { transition: background-color .12s ease, color .12s ease, border-color .12s ease, opacity .12s ease; }
 input, textarea, select {
   background: var(--bg-deepest);
   border: 1px solid var(--border);
@@ -1272,6 +1296,18 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
   .settings-modal-sidebar { width: 100%; flex-direction: row; flex-wrap: wrap; border-right: none; border-bottom: 1px solid var(--border); background: var(--bg-secondary-alt); }
   .settings-modal-sidebar-divider { display: none; }
   .settings-modal-logout { display: none; }
+  /* BUG CORRIGIDO ("editar perfil no celular, não consigo rolar pra
+     baixo"): a caixa EXTERNA do modal (.settings-modal-box) tem
+     `overflow: hidden` de propósito no desktop — lá quem rola é só o
+     conteúdo de dentro (.settings-modal-content), dentro de uma altura
+     travada (max-height: 78vh, ver .settings-modal-layout). No celular,
+     essa trava de altura é removida (regra logo acima, pra caber a
+     barra de abas indo pro topo em vez do lado) — mas ninguém tinha
+     liberado a rolagem da caixa EXTERNA de volta, então o conteúdo que
+     não cabia na tela simplesmente ficava cortado, sem jeito nenhum de
+     alcançar o resto. Libera a rolagem externa só nessa largura.
+  */
+  .settings-modal-box.modal-box { max-height: 92vh; overflow-y: auto; }
 }
 .settings-grid { display: flex; flex-direction: column; gap: 12px; }
 .settings-grid label { font-size: 12px; font-weight: 700; color: var(--header-secondary); display: flex; flex-direction: column; gap: 6px; }
