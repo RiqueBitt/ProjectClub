@@ -281,6 +281,74 @@ function boostAudioBitrate(sender) {
   sender.setParameters(params).catch(() => {});
 }
 
+// Diagnóstico real de áudio de saída — em vez de assumir que "conectou
+// = está mandando áudio" (são coisas diferentes: a conexão WebRTC pode
+// ficar 100% 'connected' com o m-line de áudio de saída silenciosamente
+// em recvonly, ou com a faixa desabilitada, ou até "sendrecv" mas sem
+// nenhum byte de verdade saindo). Usa pc.getStats() — a fonte de
+// verdade de baixo nível do próprio navegador — pra medir de verdade se
+// bytesSent está subindo, e reporta cada possível causa separadamente
+// pra dar certeza (não suposição) de qual é o problema quando alguém
+// relata "meu áudio não sai pra ninguém".
+function diagnoseOutboundAudio(pc, entry, peerId) {
+  setTimeout(async () => {
+    try {
+      if (pc.connectionState !== 'connected') return; // caiu nesse meio tempo — outra checagem cuida disso
+      const sender = entry.audioTransceiver?.sender;
+      const track = sender?.track;
+      const direction = entry.audioTransceiver?.currentDirection;
+
+      const statsBefore = await pc.getStats(sender);
+      let bytesBefore = 0;
+      statsBefore.forEach((r) => { if (r.type === 'outbound-rtp' && r.kind === 'audio') bytesBefore = r.bytesSent || 0; });
+
+      await new Promise((r) => setTimeout(r, 2500));
+      if (pc.connectionState !== 'connected') return;
+
+      const statsAfter = await pc.getStats(sender);
+      let bytesAfter = 0;
+      let candidateType = null;
+      statsAfter.forEach((r) => { if (r.type === 'outbound-rtp' && r.kind === 'audio') bytesAfter = r.bytesSent || 0; });
+      statsAfter.forEach((r) => {
+        if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.nominated) {
+          statsAfter.forEach((c) => { if (c.id === r.localCandidateId) candidateType = c.candidateType; });
+        }
+      });
+
+      const growing = bytesAfter > bytesBefore;
+      const diag = {
+        peerId,
+        temFaixaLocal: !!track,
+        faixaHabilitada: track?.enabled,
+        faixaEstado: track?.readyState,
+        direcaoNegociada: direction,
+        bytesSaindoAumentando: growing,
+        bytesAntes: bytesBefore,
+        bytesDepois: bytesAfter,
+        tipoDeRota: candidateType, // 'host' (direto), 'srflx' (via STUN), 'relay' (via TURN)
+      };
+      console.log('[voz][diagnóstico de áudio de saída]', diag);
+
+      if (!track) {
+        console.error('[voz] DIAGNÓSTICO: não existe faixa de áudio local anexada a este peer — o microfone nunca foi conectado a essa conexão específica.');
+      } else if (!track.enabled) {
+        console.error('[voz] DIAGNÓSTICO: a faixa de áudio existe mas está DESABILITADA (mudo) — verifique o estado de mudo.');
+      } else if (track.readyState !== 'live') {
+        console.error(`[voz] DIAGNÓSTICO: a faixa de áudio não está mais "live" (estado: ${track.readyState}) — o microfone caiu ou foi encerrado.`);
+      } else if (direction !== 'sendrecv' && direction !== 'sendonly') {
+        console.error(`[voz] DIAGNÓSTICO: a direção NEGOCIADA do áudio é "${direction}" — não deveria ser diferente de sendrecv/sendonly. Isso indica um problema na negociação SDP em si, não no microfone.`);
+      } else if (!growing) {
+        console.error(`[voz] DIAGNÓSTICO: a faixa está habilitada e a direção está correta, mas NENHUM byte novo saiu em 2.5s pela rede (rota: ${candidateType || 'desconhecida'}) — o problema é na camada de rede/ICE, não no microfone nem no código de sinalização.`);
+        useStore.getState().pushNotice('Detectamos que seu áudio não está chegando a alguém na chamada (problema de rede/conexão, não do microfone). Abra o Console do navegador (F12) para ver o diagnóstico detalhado.');
+      } else {
+        console.log('[voz] DIAGNÓSTICO: áudio de saída está fluindo normalmente pela rede — se ainda assim ninguém ouve, o problema está do lado de quem RECEBE, não de quem envia.');
+      }
+    } catch (err) {
+      console.error('[voz] Diagnóstico de áudio falhou ao rodar:', err);
+    }
+  }, 2000);
+}
+
 export function VoiceProvider({ children }) {
   const { user } = useAuth();
   const { socket } = useSocket();
@@ -542,6 +610,13 @@ export function VoiceProvider({ children }) {
       } else if (pc.connectionState === 'connected') {
         clearRestartTimer();
         entry.restartAttempts = 0; // volta a ficar saudável — zera o backoff
+        // Diagnóstico real (não suposição): confere depois de alguns
+        // segundos se o áudio de SAÍDA está de fato saindo pela rede —
+        // não só "a chamada conectou", que é uma coisa completamente
+        // diferente de "o áudio realmente está fluindo". Usa as
+        // estatísticas de verdade do WebRTC (bytesSent do transceiver de
+        // áudio) em vez de inferir pelo estado da conexão.
+        diagnoseOutboundAudio(pc, entry, peerId);
       }
       // 'closed' é sempre resultado de cleanupPeer (voice:user-left) —
       // nada a recuperar, a pessoa realmente saiu.
