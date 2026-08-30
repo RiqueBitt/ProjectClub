@@ -114,10 +114,17 @@ export default function TopSearchBar() {
                 <img src={ACTIVITY_ICON_BY_TYPE[myActivity.type]} alt="" className="top-search-bar-activity-icon-img" />
               </span>
             )}
+            {/* Item pedido: a bolinha verde (status online) saiu daqui —
+                agora que tem o ícone de atividade no mesmo canto, os
+                dois competiam visualmente. Continua clicável pra abrir
+                o menu de "mudar status", só sem o círculo colorido
+                sempre visível — aparece suavemente só ao passar o
+                mouse em cima do avatar (ver .top-search-bar-status-
+                trigger no CSS). */}
             <button
               type="button"
-              className="status-dot clickable top-search-bar-status-dot"
-              style={{ background: STATUS_COLOR[status] }}
+              className="top-search-bar-status-trigger"
+              style={{ '--status-trigger-color': STATUS_COLOR[status] }}
               title="Mudar status online"
               onClick={(e) => { e.stopPropagation(); setStatusMenuOpen((v) => !v); }}
             />

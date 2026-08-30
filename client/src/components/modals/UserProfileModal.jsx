@@ -13,6 +13,7 @@ import TagBadge from '../TagBadge.jsx';
 import UserAvatar from '../UserAvatar.jsx';
 import StatusEmoji from '../StatusEmoji.jsx';
 import ActivityBadge from '../ActivityBadge.jsx';
+import ActivityIcon from '../ActivityIcon.jsx';
 import BadgeListModal from './BadgeListModal.jsx';
 import defaultAchievementIcon from '../../assets/icons/nav-achievements.png';
 import { badgeHasImage } from '../../utils/badgeRarity';
@@ -268,7 +269,7 @@ export default function UserProfileModal() {
                   <div className="profile-username">@{user.username}{user.pronouns && <span className="profile-pronouns-inline"> · {user.pronouns}</span>}</div>
                   {(user.customStatus || user.customStatusEmoji) && (
                     <div className="profile-custom-status-balloon">
-                      {user.customStatusEmoji && <StatusEmoji emoji={user.customStatusEmoji} />} {user.customStatus}
+                      <ActivityIcon userId={user.id} /> {user.customStatusEmoji && <StatusEmoji emoji={user.customStatusEmoji} />} {user.customStatus}
                     </div>
                   )}
                   <ActivityBadge userId={user.id} />

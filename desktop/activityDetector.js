@@ -170,6 +170,17 @@ function activityKey(activity) {
 }
 
 function startActivityDetection(onChange) {
+  // BUG CORRIGIDO ("jogo fecho e fica preso, não atualiza"): se a
+  // janela recarregar por qualquer motivo (deploy novo, reconexão),
+  // "did-finish-load" pode disparar de novo — sem essa trava, um
+  // SEGUNDO laço de detecção começava a rodar em paralelo com o
+  // primeiro (que nunca era parado), cada um com seu próprio estado
+  // "último enviado". Os dois brigavam entre si — um mandava "fechou o
+  // jogo" enquanto o outro, um pouco atrasado, mandava de volta "ainda
+  // tá jogando", dando a impressão de travado sem nunca atualizar de
+  // verdade. Agora sempre para o laço anterior antes de começar um novo.
+  stopActivityDetection();
+
   const platform = process.platform;
   if (platform !== 'win32' && platform !== 'linux') return; // macOS não é o público deste app
 
@@ -208,7 +219,12 @@ function startActivityDetection(onChange) {
   // (que sozinho já leva ~1-2s pra rodar) sempre que nenhum jogo é
   // encontrado — um intervalo curto demais deixaria isso rodando quase
   // sem parar, comendo CPU à toa.
-  timer = setInterval(tick, 8000);
+  // Item pedido: "melhore ao máximo a atualização em tempo real" —
+  // reduzido de 8s pra 5s. Não dá pra ir muito mais rápido que isso
+  // sem desperdiçar CPU à toa (cada verificação já lista todos os
+  // processos do sistema, e no Windows ainda tenta ler o Spotify via
+  // PowerShell sempre que nenhum jogo/app é encontrado).
+  timer = setInterval(tick, 5000);
 }
 
 function stopActivityDetection() {

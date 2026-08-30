@@ -745,6 +745,14 @@ body.body-auth-scroll { overflow-y: auto !important; }
 }
 .top-search-bar-activity-icon { margin-right: 3px; display: inline-flex; vertical-align: middle; }
 .top-search-bar-activity-icon-img { width: 13px; height: 13px; object-fit: contain; vertical-align: middle; }
+.top-search-bar-status-trigger {
+  position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--status-trigger-color); border: 3px solid var(--bg-primary-solid);
+  padding: 0; font-size: 0; line-height: 0; box-sizing: border-box; flex-shrink: 0;
+  opacity: 0; transition: opacity .15s ease;
+}
+.top-search-bar-avatar:hover .top-search-bar-status-trigger,
+.top-search-bar-status-trigger:focus-visible { opacity: 1; }
 
 @media (max-width: 700px) {
   .top-search-bar { gap: 8px; padding: 0 10px; }
@@ -902,7 +910,17 @@ body.body-auth-scroll { overflow-y: auto !important; }
 .avatar.large { width: 80px; height: 80px; font-size: 28px; border: 6px solid var(--bg-primary); }
 .avatar-wrap { position: relative; flex-shrink: 0; }
 .avatar-wrap.small { width: 32px; }
-.status-dot { position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; border-radius: 50%; border: 3px solid var(--bg-secondary); }
+.status-dot {
+  position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; border-radius: 50%; border: 3px solid var(--bg-secondary);
+  /* BUG CORRIGIDO ("bolinha de status achatada, não redonda"): sendo um
+     <button>, alguns navegadores reservam uma altura mínima baseada na
+     métrica de fonte/padding padrão de formulário, mesmo com width/
+     height explícitos — isso podia deixar a altura de fato renderizada
+     diferente da largura, achatando o círculo. Zerar isso garante que
+     só o width/height explícitos acima decidem o tamanho, sem
+     interferência nenhuma do padrão do navegador pra botão. */
+  padding: 0; font-size: 0; line-height: 0; box-sizing: border-box; flex-shrink: 0;
+}
 
 /* ---------- Friends panel ---------- */
 .friends-panel { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
@@ -2151,6 +2169,7 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 }
 .activity-badge-icon img { width: 100%; height: 100%; object-fit: cover; }
 .activity-badge-icon-fallback { width: 24px; height: 24px; object-fit: contain; }
+.activity-inline-icon { width: 13px; height: 13px; object-fit: contain; vertical-align: middle; }
 .activity-badge-text { min-width: 0; flex: 1; }
 .activity-badge-title { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
 .activity-badge-name { font-size: 13px; font-weight: 600; color: var(--text-normal); }
