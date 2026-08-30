@@ -77,23 +77,32 @@ if (!gotLock) {
       });
 
       let resolved = false;
+      // BUG EVITADO (uso repetido): se a pessoa fechar a telinha sem
+      // escolher nada, o "ouvinte" de IPC (ipcMain.once) ficava
+      // registrado esperando pra sempre — na próxima vez que a telinha
+      // abrisse, um segundo ouvinte se somava ao primeiro, órfão desde
+      // sempre. Guardar a referência e removê-la explicitamente ao
+      // terminar (de qualquer jeito: escolheu, cancelou, ou fechou)
+      // evita esse acúmulo.
+      const onChoice = (_event, sourceId) => {
+        finish(rawSources.find((s) => s.id === sourceId) || null);
+      };
       const finish = (value) => {
         if (resolved) return;
         resolved = true;
+        ipcMain.removeListener('screen-picker:choice', onChoice);
         resolve(value);
         if (!picker.isDestroyed()) picker.close();
       };
 
-      ipcMain.once('screen-picker:choice', (_event, sourceId) => {
-        finish(rawSources.find((s) => s.id === sourceId) || null);
-      });
+      ipcMain.on('screen-picker:choice', onChoice);
       picker.on('closed', () => finish(null));
 
       const screens = sources.filter((s) => s.id.startsWith('screen:'));
       const windows = sources.filter((s) => !s.id.startsWith('screen:'));
 
       const cardsFor = (list) => list.map((s) => `
-        <button class="card" onclick="window.screenPickerAPI.choose(${JSON.stringify(s.id)})">
+        <button class="card" data-source-id="${s.id.replace(/"/g, '&quot;')}">
           <img src="${s.thumbnail.toDataURL()}" alt="" />
           <span>${(s.name || 'Sem nome').replace(/</g, '&lt;').slice(0, 42)}</span>
         </button>
@@ -103,40 +112,89 @@ if (!gotLock) {
       // no mesmo espírito do resto do app (fundo bem escuro, acento
       // azul/roxo, cantos arredondados, cards com hover suave) em vez
       // do visual genérico de antes.
+      //
+      // BUG CORRIGIDO ("clico e não acontece nada, nem pra
+      // compartilhar nem pra cancelar"): a versão anterior tinha
+      // `-webkit-app-region: drag` no <body> inteiro (pra dar pra
+      // arrastar a janela sem barra de título) — isso faz o PRÓPRIO
+      // SISTEMA OPERACIONAL capturar o clique pra mover a janela antes
+      // dele chegar nos botões, mesmo nas áreas marcadas como exceção
+      // (no-drag) — um comportamento conhecido e nada confiável do
+      // Electron nesse cenário. Removido de propósito — a telinha não
+      // PRECISA ser arrastável pra funcionar. Trocado também onclick=""
+      // embutido no HTML por addEventListener de verdade num <script>
+      // — mais robusto, e com aviso na tela se algo der errado (não
+      // fica mais "sem fazer nada" silenciosamente).
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
         * { box-sizing: border-box; }
         body {
           margin: 0; background: #232428; color: #f2f3f5;
           font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
-          padding: 20px; -webkit-app-region: drag; user-select: none;
+          padding: 20px; user-select: none;
         }
         .titlebar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
         h1 { font-size: 16px; font-weight: 700; margin: 0; }
-        .close-btn {
-          -webkit-app-region: no-drag; width: 28px; height: 28px; border-radius: 6px; border: none;
-          background: transparent; color: #b5bac1; cursor: pointer; font-size: 15px;
+        .cancel-btn {
+          border-radius: 6px; border: none; padding: 7px 14px;
+          background: #3a3c42; color: #f2f3f5; cursor: pointer; font-size: 13px; font-weight: 600;
         }
-        .close-btn:hover { background: #3a3c42; color: #fff; }
-        .section-label { font-size: 11px; font-weight: 700; letter-spacing: .4px; color: #949ba4; text-transform: uppercase; margin: 14px 0 8px; -webkit-app-region: no-drag; }
-        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; -webkit-app-region: no-drag; }
+        .cancel-btn:hover { background: #46484f; }
+        .section-label { font-size: 11px; font-weight: 700; letter-spacing: .4px; color: #949ba4; text-transform: uppercase; margin: 14px 0 8px; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
         .card {
           background: #2b2d31; border: 2px solid transparent; border-radius: 10px; padding: 8px; cursor: pointer;
           color: #f2f3f5; font-size: 12px; text-align: left; transition: border-color .12s ease, background .12s ease;
         }
         .card:hover { border-color: #5865F2; background: #34363c; }
-        .card img { width: 100%; height: 84px; object-fit: contain; background: #1a1b1e; border-radius: 6px; margin-bottom: 8px; }
-        .card span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .scroll { max-height: 400px; overflow-y: auto; padding-right: 4px; }
+        .card img { width: 100%; height: 84px; object-fit: contain; background: #1a1b1e; border-radius: 6px; margin-bottom: 8px; pointer-events: none; }
+        .card span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+        .scroll { max-height: 380px; overflow-y: auto; padding-right: 4px; }
         .empty { color: #949ba4; font-size: 13px; padding: 8px 0; }
+        .error-banner { display: none; background: #f23f42; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 12px; }
       </style></head><body>
         <div class="titlebar">
           <h1>Escolha o que compartilhar</h1>
-          <button class="close-btn" onclick="window.screenPickerAPI.choose(null)">✕</button>
+          <button class="cancel-btn" id="cancel-btn">Não compartilhar</button>
         </div>
+        <div class="error-banner" id="error-banner"></div>
         <div class="scroll">
           ${screens.length ? `<div class="section-label">Telas</div><div class="grid">${cardsFor(screens)}</div>` : ''}
           ${windows.length ? `<div class="section-label">Janelas abertas</div><div class="grid">${cardsFor(windows)}</div>` : `<div class="empty">Nenhuma janela disponível pra compartilhar agora.</div>`}
         </div>
+        <script>
+          function showError(msg) {
+            var el = document.getElementById('error-banner');
+            el.textContent = msg;
+            el.style.display = 'block';
+          }
+          // Item pedido: se clicar e "não acontecer nada", precisa dar
+          // pra VER o motivo — não só no carregamento inicial (try/
+          // catch de fora), mas também no exato momento do clique em
+          // si, que é quando window.screenPickerAPI de fato é usado.
+          function safeChoose(sourceId) {
+            try {
+              if (!window.screenPickerAPI) {
+                showError('Falha interna: a ponte de comunicação com o app não carregou. Feche e tente de novo.');
+                return;
+              }
+              window.screenPickerAPI.choose(sourceId);
+            } catch (err) {
+              showError('Erro ao escolher: ' + err.message);
+            }
+          }
+          try {
+            document.getElementById('cancel-btn').addEventListener('click', function () {
+              safeChoose(null);
+            });
+            document.querySelectorAll('.card').forEach(function (card) {
+              card.addEventListener('click', function () {
+                safeChoose(card.getAttribute('data-source-id'));
+              });
+            });
+          } catch (err) {
+            showError('Não foi possível carregar a lista — ' + err.message);
+          }
+        </script>
       </body></html>`;
 
       const htmlPath = path.join(app.getPath('temp'), 'project-club-screen-picker.html');
