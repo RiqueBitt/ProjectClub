@@ -2190,13 +2190,34 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
    fundo + --profile-accent-text garantem contraste sempre, qualquer que
    seja a cor escolhida. O secundário só ganha uma borda sutil na mesma
    cor, sem mexer no texto (evita qualquer risco de contraste ali). */
+/* Item pedido: o botão usava o DEGRADÊ inteiro (as duas cores) — mas
+   como o topo do perfil já é esse mesmo degradê forte, o botão ficava
+   "somado" ao fundo, difícil de distinguir onde um termina e o outro
+   começa. Agora usa só a cor de CIMA do degradê (--profile-accent-start
+   — a primeira que a pessoa escolheu), só que numa versão bem mais
+   FRACA (misturada 35% com o fundo normal do botão) — dá pra reconhecer
+   a cor escolhida sem o botão virar uma continuação do banner. */
 .profile-modal-accented .profile-ig-actions .btn-primary {
-  background: linear-gradient(90deg, var(--profile-accent-start), var(--profile-accent-end));
-  color: var(--profile-accent-text); border: none;
+  background: color-mix(in srgb, var(--profile-accent-start) 35%, var(--bg-elevated));
+  color: var(--text-normal); border: 1px solid color-mix(in srgb, var(--profile-accent-start) 55%, var(--border));
 }
-.profile-modal-accented .profile-ig-actions .btn-primary:hover { filter: brightness(1.08); }
+.profile-modal-accented .profile-ig-actions .btn-primary:hover {
+  background: color-mix(in srgb, var(--profile-accent-start) 48%, var(--bg-elevated));
+}
+/* BUG CORRIGIDO ("botão de adicionar amigo fica com uma caixinha lisa"):
+   o botão secundário só trocava a cor da BORDA, sem nenhum fundo — ao
+   lado do botão principal (que já ganha o degradê completo, ver regra
+   acima), isso destoava bastante: um com degradê rico, o outro uma
+   caixa lisa qualquer com só uma linha colorida. Um fundo bem sutil
+   (10% da cor do degradê, misturado com o fundo normal do botão) dá um
+   ar mais integrado aos dois sem competir com o botão principal — ele
+   continua claramente "secundário" visualmente, só não destoa mais. */
 .profile-modal-accented .profile-ig-actions .btn-secondary {
   border-color: color-mix(in srgb, var(--profile-accent-start) 55%, var(--border));
+  background: color-mix(in srgb, var(--profile-accent-start) 10%, var(--bg-elevated));
+}
+.profile-modal-accented .profile-ig-actions .btn-secondary:hover {
+  background: color-mix(in srgb, var(--profile-accent-start) 18%, var(--bg-elevated));
 }
 .profile-vote-icon-btn {
   background: var(--bg-elevated); border-radius: 8px; flex-shrink: 0; padding: 6px 10px;
