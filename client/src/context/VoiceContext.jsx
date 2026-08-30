@@ -623,6 +623,20 @@ export function VoiceProvider({ children }) {
       useStore.getState().pushNotice(reason || 'Não foi possível entrar no canal de voz.');
       leaveChannelRef.current?.();
     };
+    // BUG CORRIGIDO ("entro na call de outro dispositivo e o primeiro
+    // fica travado"): quando a MESMA conta entra nessa call de um
+    // dispositivo diferente, o servidor avisa esse dispositivo aqui
+    // (o mais antigo) explicitamente — sem isso, a mídia já teria sido
+    // derrubada por dentro pelo Agora (dois clientes com o mesmo
+    // usuário não são permitidos no mesmo canal), mas a TELA continuaria
+    // mostrando "você está na call" mesmo já sem áudio de verdade indo
+    // ou vindo. Sai de forma limpa e avisa com clareza o motivo, em vez
+    // de deixar a pessoa presa numa call morta sem saber por quê.
+    const onKickedByOtherDevice = ({ channelId }) => {
+      if (callRef.current?.channelId !== channelId) return;
+      useStore.getState().pushNotice('Você entrou nesta chamada em outro dispositivo — saindo daqui.');
+      leaveChannelRef.current?.();
+    };
     const onSoundboardPlay = ({ channelId, sound }) => {
       if (callRef.current?.channelId !== channelId || deafened) return;
       try {
@@ -672,6 +686,7 @@ export function VoiceProvider({ children }) {
 
     socket.on('voice:joined', onJoined);
     socket.on('voice:join-denied', onJoinDenied);
+    socket.on('voice:kicked-by-other-device', onKickedByOtherDevice);
     socket.on('voice:user-joined', onUserJoined);
     socket.on('voice:user-left', onUserLeft);
     socket.on('voice:state', onState);
@@ -690,6 +705,7 @@ export function VoiceProvider({ children }) {
     return () => {
       socket.off('voice:joined', onJoined);
       socket.off('voice:join-denied', onJoinDenied);
+      socket.off('voice:kicked-by-other-device', onKickedByOtherDevice);
       socket.off('voice:user-joined', onUserJoined);
       socket.off('voice:user-left', onUserLeft);
       socket.off('voice:state', onState);

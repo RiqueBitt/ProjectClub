@@ -312,6 +312,11 @@ function initSockets(httpServer) {
           // estado de mudo/câmera/tela dela.
           const existingDmSelf = await voiceStore.getParticipant(channelId, userId);
           if (existingDmSelf) {
+            // Mesma correção do canal normal — ver comentário completo
+            // mais abaixo.
+            if (existingDmSelf.socketId && existingDmSelf.socketId !== socket.id) {
+              io.to(existingDmSelf.socketId).emit('voice:kicked-by-other-device', { channelId });
+            }
             await voiceStore.updateParticipant(channelId, userId, { socketId: socket.id });
             socket.join(`voice:${channelId}`);
             const roomNow = await voiceStore.getRoom(channelId);
@@ -405,6 +410,23 @@ function initSockets(httpServer) {
         // estado que ela já tinha configurado.
         const existingSelf = await voiceStore.getParticipant(channelId, userId);
         if (existingSelf) {
+          // BUG CORRIGIDO ("entro na call de outro dispositivo e o
+          // primeiro fica travado/'fantasma'"): antes disso, trocar o
+          // socket "dono" da vaga era sempre feito em silêncio — pensado
+          // originalmente só pra reconexão/refresh de página (mesmo
+          // dispositivo, socket novo), mas isso também cobria sem querer
+          // "entrar de um APARELHO diferente", que precisa de um
+          // tratamento diferente: o dispositivo ANTIGO continuava achando
+          // que estava conectado (Agora publicado, UI mostrando "na
+          // call"), mesmo o Agora já tendo derrubado a mídia dele por
+          // dentro (dois clientes com o MESMO usuário no mesmo canal não
+          // é permitido). Agora, só quando é de verdade um socket
+          // DIFERENTE (não um simples refresh do mesmo), avisa
+          // explicitamente o dispositivo antigo pra ele sair sozinho, de
+          // forma limpa — em vez de ficar "preso" numa call morta.
+          if (existingSelf.socketId && existingSelf.socketId !== socket.id) {
+            io.to(existingSelf.socketId).emit('voice:kicked-by-other-device', { channelId });
+          }
           await voiceStore.updateParticipant(channelId, userId, { socketId: socket.id, lastActiveAt: Date.now() });
           socket.join(`voice:${channelId}`);
           const roomNow = await voiceStore.getRoom(channelId);
