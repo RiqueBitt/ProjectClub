@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore, isChannelUnread, isConversationUnread } from '../store/useStore';
+import gameActivityIcon from '../assets/icons/activity-game.png';
+import spotifyActivityIcon from '../assets/icons/activity-spotify.png';
+import appActivityIcon from '../assets/icons/activity-app.png';
+
+const ACTIVITY_ICON_BY_TYPE = { game: gameActivityIcon, spotify: spotifyActivityIcon, app: appActivityIcon };
 import { useAuth } from '../context/AuthContext.jsx';
 import { setStatus as setStatusApi } from '../api/endpoints';
 import { STATUS_LABEL, STATUS_COLOR } from '../utils/status';
@@ -105,8 +110,8 @@ export default function TopSearchBar() {
                 aparece quando o app de desktop detectou alguma coisa
                 (myActivity vem undefined caso contrário). */}
             {myActivity && (
-              <span className="top-search-bar-activity-dot" title={myActivity.type === 'game' ? `Jogando ${myActivity.name}` : `Ouvindo ${myActivity.name}`}>
-                {myActivity.type === 'game' ? '🎮' : '🎵'}
+              <span className="top-search-bar-activity-dot" title={{ game: 'Jogando ', spotify: 'Ouvindo ', app: 'Usando ' }[myActivity.type] + myActivity.name}>
+                <img src={ACTIVITY_ICON_BY_TYPE[myActivity.type]} alt="" className="top-search-bar-activity-icon-img" />
               </span>
             )}
             <button
@@ -130,8 +135,8 @@ export default function TopSearchBar() {
                         status em si (não é o card grande do perfil, é
                         um resuminho). */}
                     {myActivity && (
-                      <span className="top-search-bar-activity-icon" title={myActivity.type === 'game' ? `Jogando ${myActivity.name}` : `Ouvindo ${myActivity.name}`}>
-                        {myActivity.type === 'game' ? '🎮' : '🎵'}
+                      <span className="top-search-bar-activity-icon" title={{ game: 'Jogando ', spotify: 'Ouvindo ', app: 'Usando ' }[myActivity.type] + myActivity.name}>
+                        <img src={ACTIVITY_ICON_BY_TYPE[myActivity.type]} alt="" className="top-search-bar-activity-icon-img" />
                       </span>
                     )}
                     <StatusEmoji emoji={user.customStatusEmoji} /> {user.customStatus || STATUS_LABEL[status]}

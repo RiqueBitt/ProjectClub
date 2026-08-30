@@ -1,13 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
+import gameIcon from '../assets/icons/activity-game.png';
+import spotifyIcon from '../assets/icons/activity-spotify.png';
+import appIcon from '../assets/icons/activity-app.png';
 
-// Item pedido: "Rich Presence" (jogo/Spotify) — mostra o que a pessoa
-// está jogando (nome + logo + tempo jogando) ou ouvindo no Spotify
-// (nome da música + artista + progresso), igual o Discord já faz. Só
-// aparece quando o app de DESKTOP dela detectou alguma coisa (ver
-// desktop/activityDetector.js) — não existe nada disso na web/Android,
-// então pra quem só usa por ali, esse componente simplesmente nunca
-// aparece (activity vem undefined).
+// Item pedido: "Rich Presence" (jogo/Spotify/app aberto) — mostra o que
+// a pessoa está jogando (nome + logo + tempo jogando), ouvindo no
+// Spotify (nome da música + artista + progresso), ou qual programa tem
+// aberto (VS Code etc), igual o Discord já faz. Só aparece quando o
+// app de DESKTOP dela detectou alguma coisa (ver desktop/
+// activityDetector.js) — não existe nada disso na web/Android, então
+// pra quem só usa por ali, esse componente simplesmente nunca aparece
+// (activity vem undefined).
+const ICON_BY_TYPE = { game: gameIcon, spotify: spotifyIcon, app: appIcon };
+const TITLE_BY_TYPE = { game: 'Jogando', spotify: 'Ouvindo Spotify', app: 'Usando' };
+
 function formatElapsed(startedAt) {
   const mins = Math.max(0, Math.floor((Date.now() - startedAt) / 60000));
   if (mins < 1) return 'agora mesmo';
@@ -39,14 +46,14 @@ export default function ActivityBadge({ userId }) {
 
   if (!activity) return null;
 
-  if (activity.type === 'game') {
+  if (activity.type === 'game' || activity.type === 'app') {
     return (
       <div className="activity-badge">
         <div className="activity-badge-icon">
-          {activity.imageUrl ? <img src={activity.imageUrl} alt="" /> : <span className="activity-badge-emoji">🎮</span>}
+          {activity.imageUrl ? <img src={activity.imageUrl} alt="" /> : <img src={ICON_BY_TYPE[activity.type]} alt="" className="activity-badge-icon-fallback" />}
         </div>
         <div className="activity-badge-text">
-          <div className="activity-badge-title">Jogando</div>
+          <div className="activity-badge-title">{TITLE_BY_TYPE[activity.type]}</div>
           <div className="activity-badge-name truncate">{activity.name}</div>
           <div className="activity-badge-detail">{formatElapsed(activity.startedAt)}</div>
         </div>
@@ -55,7 +62,7 @@ export default function ActivityBadge({ userId }) {
   }
 
   // Spotify — mostra o progresso avançando sozinho entre um aviso e
-  // outro do app de desktop (que só reenvia a cada ~15s), calculando a
+  // outro do app de desktop (que só reenvia a cada ~8s), calculando a
   // partir de quando esse aviso chegou, não só mostrando o número
   // parado que veio.
   const elapsedSinceUpdate = Date.now() - (activity.startedAt || Date.now());
@@ -65,7 +72,7 @@ export default function ActivityBadge({ userId }) {
   return (
     <div className="activity-badge activity-badge-spotify">
       <div className="activity-badge-icon">
-        <span className="activity-badge-emoji">🎵</span>
+        <img src={spotifyIcon} alt="" className="activity-badge-icon-fallback" />
       </div>
       <div className="activity-badge-text">
         <div className="activity-badge-title">Ouvindo Spotify</div>

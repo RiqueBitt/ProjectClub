@@ -12,6 +12,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const { matchProcessName } = require('./gameDatabase');
+const { matchProcessName: matchAppProcessName } = require('./appDatabase');
 
 function run(cmd) {
   return new Promise((resolve) => {
@@ -38,14 +39,25 @@ async function listProcessNames(platform) {
   return out.split('\n').map((l) => l.trim()).filter(Boolean);
 }
 
-async function detectGame(platform) {
+// Busca as duas coisas (jogo E app) numa varredura só dos processos —
+// não faz sentido listar os processos do sistema duas vezes seguidas
+// só porque são dois bancos de dados diferentes. Jogo sempre GANHA de
+// app quando os dois aparecem rodando ao mesmo tempo (igual o Discord
+// já faz — enquanto joga, mesmo com o VS Code aberto atrás, mostra o
+// jogo).
+async function detectGameOrApp(platform) {
   const processes = await listProcessNames(platform);
   const platKey = platform === 'win32' ? 'win' : 'linux';
+  let appMatch = null;
   for (const proc of processes) {
-    const match = matchProcessName(proc, platKey);
-    if (match) return match;
+    const game = matchProcessName(proc, platKey);
+    if (game) return { kind: 'game', ...game };
+    if (!appMatch) {
+      const app = matchAppProcessName(proc, platKey);
+      if (app) appMatch = app;
+    }
   }
-  return null;
+  return appMatch ? { kind: 'app', ...appMatch } : null;
 }
 
 // ---------- Detecção de Spotify (mídia tocando agora) ----------
@@ -163,10 +175,12 @@ function startActivityDetection(onChange) {
 
   const tick = async () => {
     try {
-      const game = await detectGame(platform);
+      const found = await detectGameOrApp(platform);
       let activity = null;
-      if (game) {
-        activity = { type: 'game', name: game.name, imageUrl: game.imageUrl || undefined, startedAt: Date.now() };
+      if (found?.kind === 'game') {
+        activity = { type: 'game', name: found.name, imageUrl: found.imageUrl || undefined, startedAt: Date.now() };
+      } else if (found?.kind === 'app') {
+        activity = { type: 'app', name: found.name, startedAt: Date.now() };
       } else {
         const spotify = await detectSpotify(platform);
         if (spotify) activity = { type: 'spotify', ...spotify, startedAt: Date.now() };

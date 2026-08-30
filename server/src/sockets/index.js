@@ -589,7 +589,7 @@ function initSockets(httpServer) {
         // texto, mesmo sendo um dado de baixo risco (só aparece pro
         // próprio usuário e amigos, nunca decide permissão nenhuma).
         const clean = {
-          type: activity.type === 'spotify' ? 'spotify' : 'game',
+          type: ['spotify', 'app'].includes(activity.type) ? activity.type : 'game',
           name: String(activity.name || '').slice(0, 120),
           detail: activity.detail ? String(activity.detail).slice(0, 120) : undefined,
           imageUrl: activity.imageUrl ? String(activity.imageUrl).slice(0, 500) : undefined,
