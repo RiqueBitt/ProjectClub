@@ -3763,22 +3763,16 @@ a.embed-card-title:hover { text-decoration: underline; }
 .amigos-page-tab.active { color: var(--interactive-active); border-bottom-color: var(--brand); }
 .amigos-page-content { flex: 1; min-height: 0; overflow-y: auto; }
 
+/* Item pedido: "diminua o menu lateral, deixando igual o online da
+   página de comunidade" — o container em si continua próprio (largura
+   mais estreita que a lista de membros normal, já que é uma coluna
+   lateral menor), mas as LINHAS de dentro agora reaproveitam
+   .member-row/.member-group direto (mesmas classes da lista "ONLINE"
+   de um canal — ver MembersList.jsx/FriendsSideRail.jsx), então não
+   precisam mais de estilo próprio duplicado aqui. */
 .friends-side-rail {
-  width: 240px; flex-shrink: 0; border-left: 1px solid var(--border);
+  width: 220px; flex-shrink: 0; border-left: 1px solid var(--border);
   padding: 14px 10px; overflow-y: auto; background: var(--bg-secondary-alt, var(--bg-secondary));
-}
-.friends-side-rail-title { font-size: 12px; font-weight: 700; letter-spacing: .4px; color: var(--text-muted); text-transform: uppercase; padding: 0 8px 10px; }
-.friends-side-rail-empty { padding: 0 8px; font-size: 13px; }
-.friends-side-rail-list { display: flex; flex-direction: column; gap: 2px; }
-.friends-side-rail-item {
-  display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px;
-  font-size: 14px; color: var(--text-normal); text-align: left; width: 100%;
-}
-.friends-side-rail-item:hover { background: var(--bg-modifier-hover); }
-.friends-side-rail-avatar { position: relative; flex-shrink: 0; }
-.friends-side-rail-avatar .status-dot {
-  position: absolute; bottom: -2px; right: -2px; width: 11px; height: 11px;
-  border-radius: 50%; border: 2px solid var(--bg-secondary-alt, var(--bg-secondary));
 }
 @media (max-width: 900px) {
   .amigos-page.amigos-page-with-rail { flex-direction: column; }

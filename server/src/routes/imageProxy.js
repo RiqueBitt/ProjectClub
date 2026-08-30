@@ -1,5 +1,4 @@
 const express = require('express');
-const env = require('../config/env');
 
 // Item pedido: "com VPN as imagens (foto de perfil, banners, ícones de
 // Clube) acabam bugando e não aparecendo". Causa provável: hoje essas
@@ -12,20 +11,33 @@ const env = require('../config/env');
 // sem problema nenhum) — o navegador nunca precisa falar com o B2
 // diretamente, só o nosso servidor fala, por trás.
 //
-// Só permite proxiar URLs que já são do NOSSO bucket B2 configurado
-// (nunca uma URL arbitrária qualquer — isso abriria a porta pra alguém
-// usar esse endpoint pra mascarar/ocultar a origem de outra coisa
-// completamente diferente, um jeito clássico de abusar de proxies
-// abertos).
+// Só permite proxiar URLs de domínios reais do Backblaze B2 — nunca uma
+// URL arbitrária qualquer (isso abriria a porta pra alguém usar esse
+// endpoint pra mascarar/ocultar a origem de outra coisa completamente
+// diferente, um jeito clássico de abusar de proxies abertos).
+//
+// BUG CORRIGIDO ("insígnias sumiram do perfil, mas continuam aparecendo
+// no modal de lista completa"): a validação antes exigia que a URL
+// começasse EXATAMENTE com B2_PUBLIC_URL (o balde configurado no
+// .env) — mas nem toda imagem enviada ao longo do tempo necessariamente
+// usa sempre o mesmo domínio/balde exato (podem existir uploads
+// antigos com um endereço um pouco diferente, mesmo sendo todos B2 de
+// verdade). Isso rejeitava com erro 403 qualquer imagem que não
+// batesse LETRA POR LETRA com o que está configurado agora — mesmo
+// sendo uma imagem legítima do B2. O modal antigo (BadgeListModal)
+// continuava funcionando porque nem passa pelo proxy, vai direto no
+// B2 (só funciona sem VPN). Agora aceita qualquer domínio
+// *.backblazeb2.com — o mesmo padrão, já testado, que o PRÓPRIO
+// cliente usa pra decidir o que proxiar (ver utils/imageProxy.js) —
+// os dois lados concordam exatamente no que é "do B2", sem exigir que
+// bata com uma URL configurada específica.
 const router = express.Router();
 
 router.get('/image', async (req, res) => {
   try {
     const { url } = req.query;
     if (!url || typeof url !== 'string') return res.status(400).send('URL obrigatória.');
-
-    const allowedPrefixes = [env.B2_PUBLIC_URL, env.B2_ENDPOINT].filter(Boolean);
-    if (allowedPrefixes.length === 0 || !allowedPrefixes.some((p) => url.startsWith(p))) {
+    if (!/^https:\/\/[a-z0-9.-]*backblazeb2\.com\//i.test(url)) {
       return res.status(403).send('Origem não permitida.');
     }
 

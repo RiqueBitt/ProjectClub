@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Modal from '../Modal.jsx';
 import { RARITY_LABEL, RARITY_COLOR, badgeHasImage } from '../../utils/badgeRarity';
+import { proxyImage } from '../../utils/imageProxy';
 
 function formatAwardedAt(dateStr) {
   if (!dateStr) return null;
@@ -35,7 +36,7 @@ export default function BadgeListModal({ userName, badges, onClose }) {
                   onClick={() => setSelectedId(b.id)}
                   title={b.name}
                 >
-                  {badgeHasImage(b) ? <img src={b.iconUrl} alt="" /> : <span>{b.icon}</span>}
+                  {badgeHasImage(b) ? <img src={proxyImage(b.iconUrl)} alt="" /> : <span>{b.icon}</span>}
                 </button>
               ))}
             </div>
@@ -47,7 +48,7 @@ export default function BadgeListModal({ userName, badges, onClose }) {
         {selected && (
           <div className="badge-browser-detail">
             <div className="badge-browser-detail-icon" style={{ '--badge-rarity-color': rarityColor(selected) }}>
-              {badgeHasImage(selected) ? <img src={selected.iconUrl} alt="" /> : <span>{selected.icon}</span>}
+              {badgeHasImage(selected) ? <img src={proxyImage(selected.iconUrl)} alt="" /> : <span>{selected.icon}</span>}
             </div>
             <h3 className="badge-browser-detail-name">{selected.name}</h3>
 
