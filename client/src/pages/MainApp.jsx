@@ -9,6 +9,7 @@ import ChatWindow from '../components/ChatWindow.jsx';
 import MembersList from '../components/MembersList.jsx';
 import PanelSlot from '../components/PanelSlot.jsx';
 import DMProfilePanel from '../components/DMProfilePanel.jsx';
+import FriendsListPanel from '../components/FriendsListPanel.jsx';
 import CallBar from '../components/CallBar.jsx';
 import IncomingCallBanner from '../components/IncomingCallBanner.jsx';
 import NoticeToast from '../components/NoticeToast.jsx';
@@ -216,6 +217,7 @@ export default function MainApp() {
         <Route path="/" element={membersOpen ? <PanelSlot panelId="membersList"><MembersList onToggle={() => setMembersOpen(false)} /></PanelSlot> : null} />
         <Route path="/channels/:channelId" element={membersOpen ? <PanelSlot panelId="membersList"><MembersList onToggle={() => setMembersOpen(false)} /></PanelSlot> : null} />
         <Route path="/conversations/:conversationId" element={dmProfileOpen ? <PanelSlot panelId="membersList"><DMProfilePanel onToggle={() => setDmProfileOpen(false)} /></PanelSlot> : null} />
+        <Route path="/dms" element={membersOpen ? <PanelSlot panelId="membersList"><FriendsListPanel onToggle={() => setMembersOpen(false)} /></PanelSlot> : null} />
       </Routes>
 
       <IncomingCallBanner />
