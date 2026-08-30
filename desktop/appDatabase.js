@@ -50,6 +50,20 @@ const APPS = [
   { name: 'Insomnia', process: { win: 'Insomnia.exe' }, imageUrl: 'https://cdn.simpleicons.org/insomnia' },
   { name: 'Trello', process: { win: 'Trello.exe' }, imageUrl: 'https://cdn.simpleicons.org/trello' },
   { name: 'Notepad', process: { win: 'notepad.exe' } }, // sem logo — não é uma marca com ícone próprio
+  // Item pedido: "adicione mais apps, foque totalmente nisso" — mais
+  // nomes de marca de uma palavra só, slugs confirmados na lista
+  // oficial do Simple Icons.
+  { name: 'Epic Games Launcher', process: { win: 'EpicGamesLauncher.exe' }, imageUrl: 'https://cdn.simpleicons.org/epicgames' },
+  { name: 'Battle.net', process: { win: 'Battle.net.exe' }, imageUrl: 'https://cdn.simpleicons.org/battledotnet' },
+  { name: 'TeamViewer', process: { win: 'TeamViewer.exe' }, imageUrl: 'https://cdn.simpleicons.org/teamviewer' },
+  { name: 'AnyDesk', process: { win: 'AnyDesk.exe' }, imageUrl: 'https://cdn.simpleicons.org/anydesk' },
+  { name: 'qBittorrent', process: { win: 'qbittorrent.exe', linux: 'qbittorrent' }, imageUrl: 'https://cdn.simpleicons.org/qbittorrent' },
+  { name: 'CapCut', process: { win: 'CapCut.exe' }, imageUrl: 'https://cdn.simpleicons.org/capcut' },
+  { name: 'Streamlabs', process: { win: 'Streamlabs OBS.exe' }, imageUrl: 'https://cdn.simpleicons.org/streamlabs' },
+  { name: '7-Zip', process: { win: '7zFM.exe' }, imageUrl: 'https://cdn.simpleicons.org/7zip' },
+  { name: 'Paint.NET', process: { win: 'paintdotnet.exe' }, imageUrl: 'https://cdn.simpleicons.org/paintdotnet' },
+  { name: 'FL Studio', process: { win: 'FL64.exe' }, imageUrl: 'https://cdn.simpleicons.org/flstudio' },
+  { name: 'GitHub Desktop', process: { win: 'GitHubDesktop.exe' }, imageUrl: 'https://cdn.simpleicons.org/github' },
 ];
 
 const BY_PROCESS_WIN = new Map();

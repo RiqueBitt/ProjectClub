@@ -68,7 +68,7 @@ const GAMES = [
   { name: 'Path of Exile', steamAppId: 238960, process: { win: 'PathOfExile.exe' } },
   { name: 'Path of Exile 2', steamAppId: 2694490, process: { win: 'PathOfExile2.exe' } },
   { name: 'Destiny 2', steamAppId: 1085660, process: { win: 'destiny2.exe' } },
-  { name: 'Escape from Tarkov', steamAppId: null, process: { win: 'EscapeFromTarkov.exe' } },
+  { name: 'Escape from Tarkov', steamAppId: 3932890, process: { win: 'EscapeFromTarkov.exe' } },
   { name: 'Slay the Spire', steamAppId: 646570, process: { win: 'SlayTheSpire.exe', linux: 'SlayTheSpire' } },
   { name: 'Vampire Survivors', steamAppId: 1794680, process: { win: 'VampireSurvivors.exe' } },
   { name: 'Risk of Rain 2', steamAppId: 632360, process: { win: 'Risk of Rain 2.exe' } },
@@ -84,6 +84,57 @@ const GAMES = [
   { name: 'Human: Fall Flat', steamAppId: 477160, process: { win: 'Human.exe' } },
   { name: 'Raft', steamAppId: 648800, process: { win: 'Raft.exe' } },
   { name: 'Grounded', steamAppId: 962130, process: { win: 'Maine-Win64-Shipping.exe' } },
+  // Item pedido: "pegue os jogos daqui" — lista real, buscada agora
+  // mesmo (30/08/2026) direto da página de Top 100 mais jogados da
+  // SteamDB (App IDs confirmados na fonte, não chutados). Ferramentas/
+  // utilitários que aparecem misturados na lista de "mais jogados"
+  // (tipo Wallpaper Engine, Crosshair X, Soundpad) ficaram de fora —
+  // não são jogos de verdade. Os poucos onde não tenho confiança no
+  // nome exato do executável (jogos muito novos/de nicho) também
+  // ficaram de fora, em vez de arriscar um nome errado.
+  { name: 'Delta Force', steamAppId: 2507950, process: { win: 'DeltaForceClient-Win64-Shipping.exe' } },
+  { name: 'Project Zomboid', steamAppId: 108600, process: { win: 'ProjectZomboid64.exe', linux: 'ProjectZomboid64' } },
+  { name: 'Grand Theft Auto V Enhanced', steamAppId: 3240220, process: { win: 'GTA5_Enhanced.exe' } },
+  { name: 'The Binding of Isaac: Rebirth', steamAppId: 250900, process: { win: 'isaac-ng.exe' } },
+  { name: 'EA SPORTS FC 26', steamAppId: 3405690, process: { win: 'FC26.exe' } },
+  { name: 'Dead by Daylight', steamAppId: 381210, process: { win: 'DeadByDaylight-Win64-Shipping.exe' } },
+  { name: "Tom Clancy's Rainbow Six Siege", steamAppId: 359550, process: { win: 'RainbowSix.exe' } },
+  { name: 'VRChat', steamAppId: 438100, process: { win: 'VRChat.exe' } },
+  { name: 'NARAKA: BLADEPOINT', steamAppId: 1203220, process: { win: 'NarakaBladepoint.exe' } },
+  { name: 'PEAK', steamAppId: 3527290, process: { win: 'PEAK.exe' } },
+  { name: 'Red Dead Redemption 2', steamAppId: 1174180, process: { win: 'RDR2.exe' } },
+  { name: 'Hearts of Iron IV', steamAppId: 394360, process: { win: 'hoi4.exe' } },
+  { name: 'Battlefield 6', steamAppId: 2807960, process: { win: 'bf6.exe' } },
+  { name: 'Euro Truck Simulator 2', steamAppId: 227300, process: { win: 'eurotrucks2.exe', linux: 'eurotrucks2' } },
+  { name: 'Farming Simulator 25', steamAppId: 2300320, process: { win: 'FarmingSimulator25.exe' } },
+  { name: "Don't Starve Together", steamAppId: 322330, process: { win: 'dontstarve_steam.exe' } },
+  { name: 'Mount & Blade II: Bannerlord', steamAppId: 261550, process: { win: 'Bannerlord.exe' } },
+  { name: 'Total War: WARHAMMER III', steamAppId: 1142710, process: { win: 'Warhammer3.exe' } },
+  { name: 'Geometry Dash', steamAppId: 322170, process: { win: 'GeometryDash.exe' } },
+  { name: "Sid Meier's Civilization VI", steamAppId: 289070, process: { win: 'CivilizationVI.exe' } },
+  { name: '7 Days to Die', steamAppId: 251570, process: { win: '7DaysToDie.exe' } },
+  { name: 'Black Myth: Wukong', steamAppId: 2358720, process: { win: 'b1.exe' } },
+  { name: 'tModLoader', steamAppId: 1281930, process: { win: 'tModLoader.exe' } },
+  { name: 'S.T.A.L.K.E.R. 2: Heart of Chornobyl', steamAppId: 1643320, process: { win: 'Stalker2-Win64-Shipping.exe' } },
+  { name: 'RimWorld', steamAppId: 294100, process: { win: 'RimWorldWin64.exe', linux: 'RimWorldLinux' } },
+  { name: 'ARK: Survival Ascended', steamAppId: 2399830, process: { win: 'ArkAscended.exe' } },
+  { name: 'The Sims 4', steamAppId: 1222670, process: { win: 'TS4_x64.exe' } },
+  { name: 'The Elder Scrolls V: Skyrim Special Edition', steamAppId: 489830, process: { win: 'SkyrimSE.exe' } },
+  { name: 'ELDEN RING NIGHTREIGN', steamAppId: 2622380, process: { win: 'nightreign.exe' } },
+  { name: 'Street Fighter 6', steamAppId: 1364780, process: { win: 'StreetFighter6.exe' } },
+  { name: 'Limbus Company', steamAppId: 1973530, process: { win: 'LimbusCompany.exe' } },
+  { name: 'Crusader Kings III', steamAppId: 1158310, process: { win: 'CK3.exe' } },
+  { name: 'Hunt: Showdown', steamAppId: 594650, process: { win: 'HuntGame.exe' } },
+  { name: 'PAYDAY 2', steamAppId: 218620, process: { win: 'payday2_win32_release.exe' } },
+  { name: 'Age of Empires II: Definitive Edition', steamAppId: 813780, process: { win: 'AoE2DE_s.exe' } },
+  { name: 'BeamNG.drive', steamAppId: 284160, process: { win: 'BeamNG.drive.x64.exe' } },
+  { name: 'Valheim', steamAppId: 892970, process: { win: 'valheim.exe' } },
+  { name: 'Black Desert', steamAppId: 582660, process: { win: 'BlackDesert64.exe' } },
+  { name: 'eFootball', steamAppId: 1665460, process: { win: 'eFootball.exe' } },
+  { name: 'Monster Hunter: World', steamAppId: 582010, process: { win: 'MonsterHunterWorld.exe' } },
+  { name: 'Monster Hunter Wilds', steamAppId: 2246340, process: { win: 'MonsterHunterWilds.exe' } },
+  { name: 'NBA 2K26', steamAppId: 3472040, process: { win: 'NBA2K26.exe' } },
+  { name: 'FINAL FANTASY XIV Online', steamAppId: 39210, process: { win: 'ffxiv_dx11.exe' } },
   // Item pedido: jogos específicos. Os que confirmei App ID/processo
   // via busca (não "chutados") estão marcados; os 2 nomes ambíguos que
   // não achei confirmação exata pra qual jogo era, usei minha melhor
