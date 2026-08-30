@@ -275,6 +275,25 @@ const GAMES = [
   { name: 'DUSK', steamAppId: 519860, process: { win: 'dusk.exe' } },
   { name: 'Half-Life: Blue Shift', steamAppId: 130, process: { win: 'hl.exe' } },
   { name: 'Half-Life: Opposing Force', steamAppId: 50, process: { win: 'hl.exe' } },
+  // Item pedido: segunda lista mandada pelo usuário — boa parte já
+  // tinha sido processada antes (só mudou o símbolo ™/® no nome, é o
+  // mesmo jogo). Só os genuinamente novos que reconheço com confiança
+  // real de App ID/processo. Jogos muito recentes/de nicho que não
+  // reconheço (Zenless Zone Zero, Diablo IV via Steam, etc — muitos
+  // saíram primeiro em outras plataformas e a Steam pode ter um App ID
+  // diferente do que eu conheço de outros contextos) ficaram de fora.
+  { name: 'Hogwarts Legacy', steamAppId: 990080, process: { win: 'HogwartsLegacy.exe' } },
+  { name: 'Forza Horizon 5', steamAppId: 1551360, process: { win: 'ForzaHorizon5.exe' } },
+  { name: 'Dragon\'s Dogma 2', steamAppId: 2054970, process: { win: 'DD2.exe' } },
+  { name: 'DAVE THE DIVER', steamAppId: 1868140, process: { win: 'DaveTheDiver.exe' } },
+  { name: 'Cuphead', steamAppId: 268910, process: { win: 'Cuphead.exe' } },
+  { name: 'Rocket League', steamAppId: 252950, process: { win: 'RocketLeague.exe' } },
+  { name: 'Manor Lords', steamAppId: 1363080, process: { win: 'ManorLords.exe' } },
+  { name: 'Rise of the Tomb Raider', steamAppId: 391220, process: { win: 'ROTTR.exe' } },
+  { name: 'Shadow of the Tomb Raider: Definitive Edition', steamAppId: 750920, process: { win: 'SOTTR.exe' } },
+  { name: 'CONTROL Ultimate Edition', steamAppId: 870780, process: { win: 'Control_DX11.exe' } },
+  { name: 'Magic: The Gathering Arena', steamAppId: 1958200, process: { win: 'MTGA.exe' } },
+  { name: 'iRacing', steamAppId: 266410, process: { win: 'iRacingUI.exe' } },
   // Item pedido: jogos específicos. Os que confirmei App ID/processo
   // via busca (não "chutados") estão marcados; os 2 nomes ambíguos que
   // não achei confirmação exata pra qual jogo era, usei minha melhor
