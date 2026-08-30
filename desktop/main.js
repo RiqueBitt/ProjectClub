@@ -4,7 +4,7 @@
 // ícone na bandeja do sistema, iniciar sozinho com o Windows, e continuar
 // rodando em segundo plano mesmo com a janela fechada — exatamente como
 // Discord/Slack fazem.
-const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage, session } = require('electron');
+const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage, session, desktopCapturer } = require('electron');
 const path = require('path');
 
 // URL do site hospedado — trocar aqui se o domínio mudar um dia. Fica só
@@ -29,6 +29,58 @@ if (!gotLock) {
       mainWindow.focus();
     }
   });
+
+  // Abre uma janelinha própria de seleção de tela/janela pra compartilhar
+  // — mostra uma miniatura de cada opção disponível (telas inteiras +
+  // janelas de outros programas abertos), a pessoa clica na que quer, e
+  // essa promise resolve com a fonte escolhida (ou null se ela fechar a
+  // janela/cancelar sem escolher nada).
+  function showScreenPickerWindow(sources) {
+    return new Promise((resolve) => {
+      const picker = new BrowserWindow({
+        width: 720, height: 520, resizable: false, minimizable: false, maximizable: false,
+        title: 'Escolher tela ou janela para compartilhar',
+        parent: mainWindow, modal: true, backgroundColor: '#1a1c2e',
+        autoHideMenuBar: true,
+        webPreferences: { nodeIntegration: true, contextIsolation: false },
+      });
+
+      let resolved = false;
+      const finish = (value) => {
+        if (resolved) return;
+        resolved = true;
+        resolve(value);
+        if (!picker.isDestroyed()) picker.close();
+      };
+
+      ipcMain.once('screen-picker:choice', (_event, sourceId) => {
+        finish(sources.find((s) => s.id === sourceId) || null);
+      });
+      picker.on('closed', () => finish(null));
+
+      const cards = sources.map((s) => `
+        <button class="card" onclick="require('electron').ipcRenderer.send('screen-picker:choice', ${JSON.stringify(s.id)})">
+          <img src="${s.thumbnail.toDataURL()}" alt="" />
+          <span>${(s.name || 'Sem nome').replace(/</g, '&lt;').slice(0, 40)}</span>
+        </button>
+      `).join('');
+
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+        body { margin: 0; background: #1a1c2e; color: #fff; font-family: -apple-system, 'Segoe UI', sans-serif; padding: 16px; }
+        h1 { font-size: 15px; font-weight: 600; margin: 0 0 14px; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-height: 430px; overflow-y: auto; }
+        .card { background: #24273a; border: 2px solid transparent; border-radius: 8px; padding: 8px; cursor: pointer; color: #fff; font-size: 12px; text-align: left; }
+        .card:hover { border-color: #5865F2; background: #2c3050; }
+        .card img { width: 100%; height: 90px; object-fit: contain; background: #000; border-radius: 4px; margin-bottom: 6px; }
+        .card span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      </style></head><body>
+        <h1>Escolha o que compartilhar</h1>
+        <div class="grid">${cards}</div>
+      </body></html>`;
+
+      picker.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    });
+  }
 
   function createWindow(startHidden) {
     mainWindow = new BrowserWindow({
@@ -130,7 +182,44 @@ if (!gotLock) {
     mainWindow.setOverlayIcon(count > 0 ? badgeIcon : null, count > 0 ? `${count} não lida(s)` : '');
   });
 
+  // Item pedido: "compartilhar tela não funciona no .exe" — o Electron
+  // (diferente de um navegador comum) NÃO tem embutido o pedido nativo
+  // de "escolher uma tela/janela pra compartilhar" — sem isso configurado
+  // aqui, getDisplayMedia() do site (usado pelo Agora) simplesmente nunca
+  // teria de onde escolher nada. session.setDisplayMediaRequestHandler é
+  // o gancho oficial do Electron pra isso: sempre que o site pede
+  // getDisplayMedia(), esse handler roda aqui no processo principal,
+  // lista as telas/janelas disponíveis via desktopCapturer, abre uma
+  // telinha própria de seleção com miniaturas (o seletor NATIVO do
+  // sistema operacional só existe no macOS 15+, não ajuda no Windows/
+  // Linux, que é o público real desse app), e devolve pro site a escolha
+  // feita. 'loopback' no áudio já captura o som do sistema de brinde no
+  // Windows, sem precisar de nada a mais.
+  //
+  // Precisa ficar dentro do app.whenReady() — session.defaultSession só
+  // fica disponível de verdade depois que o Electron termina de
+  // inicializar, diferente de ipcMain.handle (que pode ser registrado a
+  // qualquer momento).
+  function setupScreenShareHandler() {
+    session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+      try {
+        const sources = await desktopCapturer.getSources({
+          types: ['screen', 'window'],
+          thumbnailSize: { width: 300, height: 200 },
+          fetchWindowIcons: true,
+        });
+        const chosen = await showScreenPickerWindow(sources);
+        if (!chosen) { callback({}); return; } // pessoa cancelou — devolve vazio, o site trata como "cancelado" normalmente
+        callback({ video: chosen, audio: 'loopback' });
+      } catch (err) {
+        console.error('[compartilhar tela] falhou:', err);
+        callback({});
+      }
+    }, { useSystemPicker: false });
+  }
+
   app.whenReady().then(() => {
+    setupScreenShareHandler();
     // BUG CORRIGIDO — CAUSA RAIZ CONFIRMADA de "no PC eu falo e não sai
     // áudio nenhum, mas eu escuto todo mundo": faltava isto aqui. Um
     // comentário antigo (removido) dizia que `sandbox: false` resolvia a
