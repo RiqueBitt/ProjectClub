@@ -1275,6 +1275,10 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .member-row.has-id-card:hover { background-color: transparent; }
 .dm-profile-panel.has-id-card { background-size: cover; background-position: center top; }
 .member-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
+/* Item pedido: nome do usuário na lista de ONLINE "está muito fino" —
+   herdava o peso padrão do navegador (400); um pouco mais forte deixa
+   o nome se destacar melhor do status/atividade logo abaixo dele. */
+.member-row-name { font-weight: 600; }
 .member-row-status { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 3px; }
 .status-emoji-img { width: 14px; height: 14px; object-fit: contain; vertical-align: -2px; }
 .owner-crown { margin-left: auto; font-size: 12px; }
@@ -3056,6 +3060,22 @@ a.embed-card-title:hover { text-decoration: underline; }
 .boost-locked-hint { display: block; margin-top: 4px; font-size: 11px; }
 .btn-secondary.disabled,
 .role-icon-upload.disabled { opacity: 0.5; cursor: not-allowed; }
+/* Item pedido: editor de cargo "meio confuso" — emoji e imagem enviada
+   são alternativas (só uma vale por vez), agora com um "ou" explícito
+   entre os dois campos em vez de ficarem soltos lado a lado. */
+.role-icon-pickers-label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; }
+.role-icon-pickers-row { display: flex; align-items: center; gap: 10px; }
+.role-icon-pickers-row input[type='text'],
+.role-icon-pickers-row input:not([type]) { width: 64px; text-align: center; }
+.role-icon-or { color: var(--text-muted); font-size: 12px; }
+.role-field-saving { display: block; margin-top: 4px; font-size: 11px; color: var(--text-muted); font-style: italic; }
+/* BUG CORRIGIDO: essas 2 classes já eram usadas (editor de cargos e,
+   agora, também do lado do nome na lista de membros), mas nenhuma
+   tinha CSS de verdade — a imagem do ícone ficava sem tamanho
+   controlado, aparecendo enorme (do tamanho original do arquivo
+   enviado) em vez de um ícone pequeno. */
+.role-icon-preview { width: 16px; height: 16px; object-fit: contain; border-radius: 3px; vertical-align: middle; }
+.role-icon-inline { width: 14px; height: 14px; object-fit: contain; border-radius: 3px; vertical-align: middle; margin-right: 3px; }
 
 /* ---------- Boosts hub (BoostsHubView.jsx) ---------- */
 .boosts-hub-view { padding: 24px; max-width: 720px; margin: 0 auto; overflow-y: auto; }

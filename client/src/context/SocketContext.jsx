@@ -260,9 +260,18 @@ export function SocketProvider({ children }) {
     socket.on('category:delete', () => refreshCommunity());
     socket.on('category:reorder', () => refreshCommunity());
     socket.on('overwrite:update', () => refreshCommunity());
-    socket.on('role:new', () => refreshCommunity());
-    socket.on('role:update', () => refreshCommunity());
-    socket.on('role:delete', () => refreshCommunity());
+    // BUG CORRIGIDO ("editar cargo tem delay"): esses 4 avisos JÁ vêm
+    // com o cargo inteiro pronto (ou o ID, no caso de exclusão) — não
+    // tinha necessidade nenhuma de rebuscar a comunidade INTEIRA
+    // (categorias+canais+membros+cargos) toda vez que UM cargo mudava.
+    // Isso rodava em cima da atualização otimista que o próprio
+    // componente que edita já fazia (ver RoleManagerModal.jsx),
+    // dobrando o trabalho de rede à toa a cada clique numa permissão.
+    // role:reorder continua recarregando tudo — o aviso só traz a nova
+    // ORDEM dos ids, não os cargos com a posição já recalculada.
+    socket.on('role:new', (role) => useStore.getState().upsertRole(role));
+    socket.on('role:update', (role) => useStore.getState().upsertRole(role));
+    socket.on('role:delete', ({ id }) => useStore.getState().removeRole(id));
     socket.on('role:reorder', () => refreshCommunity());
 
     // Clubes (fusão com o Reddit clone) — item 5: antes esses eventos

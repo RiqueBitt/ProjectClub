@@ -127,8 +127,16 @@ function MemberGroup({ label, members, roles, dim }) {
             <span className="status-dot" style={{ background: STATUS_COLOR[m.liveStatus] || STATUS_COLOR.OFFLINE }} />
           </div>
           <div className="member-row-text">
-            <span className="truncate" style={roleTextStyle(highestColoredRole(m, roles)?.color)}>
-              {m.role?.icon ? `${m.role.icon} ` : ''}{m.user.displayName}
+            <span className="truncate member-row-name" style={roleTextStyle(highestColoredRole(m, roles)?.color)}>
+              {/* BUG CORRIGIDO ("ícone de cargo do lado do nome"): se o
+                  ícone do cargo for uma IMAGEM enviada (caminho tipo
+                  "/uploads/xyz.png"), colocar ela direto dentro do texto
+                  mostrava o CAMINHO como texto literal em vez de exibir
+                  a imagem — só emoji funcionava. Agora renderiza os
+                  dois formatos certinho, igual já faz no editor de
+                  cargos. */}
+              {m.role?.icon && (m.role.icon.startsWith('/') ? <img src={m.role.icon} alt="" className="role-icon-inline" /> : <span>{m.role.icon} </span>)}
+              {m.user.displayName}
             </span>
             {(m.user.customStatus || m.user.customStatusEmoji) && (
               <span className="member-row-status truncate">
