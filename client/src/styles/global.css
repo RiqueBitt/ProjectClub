@@ -3771,7 +3771,17 @@ a.embed-card-title:hover { text-decoration: underline; }
    de um canal — ver MembersList.jsx/FriendsSideRail.jsx), então não
    precisam mais de estilo próprio duplicado aqui. */
 .friends-side-rail {
-  width: var(--members-width, 240px); flex-shrink: 0; border-left: 1px solid var(--border);
+  /* BUG CORRIGIDO ("não mudou nada"): --members-width não é um valor
+     fixo de design — é ajustável pela PRÓPRIA PESSOA arrastando a borda
+     da lista de membros num canal (ver MainApp.jsx), e esse ajuste é
+     GLOBAL (fica salvo em <html>, não só naquela tela). Se alguém já
+     tivesse deixado a lista de membros mais larga em algum canal, esse
+     valor maior "vazava" pra cá também, por estarem usando a mesma
+     variável. Um tamanho FIXO, independente desse ajuste pessoal, é o
+     certo aqui — não faz sentido esse menuzinho mudar de tamanho
+     sozinho por causa de um ajuste feito em outra tela completamente
+     diferente. */
+  width: 240px; flex-shrink: 0; border-left: 1px solid var(--border);
   padding: 14px 10px; overflow-y: auto; background: var(--bg-secondary-alt, var(--bg-secondary));
 }
 @media (max-width: 900px) {
