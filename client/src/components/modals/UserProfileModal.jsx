@@ -351,7 +351,7 @@ export default function UserProfileModal() {
                             onClick={() => setBadgeListOpen(true)}
                           >
                             <span className="profile-badge-tile-icon">
-                              {badgeHasImage(b) ? <img className="profile-badge-img" src={b.iconUrl} alt="" /> : b.icon}
+                              {badgeHasImage(b) ? <img className="profile-badge-img" src={proxyImage(b.iconUrl)} alt="" /> : b.icon}
                             </span>
                             <span className="profile-badge-tile-name truncate">{b.name}</span>
                           </div>
@@ -370,7 +370,7 @@ export default function UserProfileModal() {
                           {data.displayedAchievements.map((a) => (
                             <div key={a.id} className="profile-badge-tile" title={a.description}>
                               <span className="profile-badge-tile-icon">
-                                <img className="profile-badge-img" src={a.iconUrl || defaultAchievementIcon} alt="" />
+                                <img className="profile-badge-img" src={a.iconUrl ? proxyImage(a.iconUrl) : defaultAchievementIcon} alt="" />
                               </span>
                               <span className="profile-badge-tile-name truncate">{a.name}</span>
                             </div>

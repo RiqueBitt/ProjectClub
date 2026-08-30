@@ -1,4 +1,5 @@
 import { useStore } from '../store/useStore';
+import { proxyImage } from '../utils/imageProxy';
 
 // user.customStatusEmoji is either a plain unicode emoji character, or a
 // `:name:` shortcode referencing one of the user's usable custom emojis
@@ -19,7 +20,7 @@ export default function StatusEmoji({ emoji, className }) {
     // something always shows up next to the status, same as any other
     // "can't render this, show the raw text" fallback in the app.
     if (!found) return <span className={className}>{emoji}</span>;
-    return <img className={`status-emoji-img ${className || ''}`} src={found.url} alt="" />;
+    return <img className={`status-emoji-img ${className || ''}`} src={proxyImage(found.url)} alt="" />;
   }
   return <span className={className}>{emoji}</span>;
 }

@@ -16,6 +16,7 @@ import steamIcon from '../assets/icons/social-steam.png';
 import robloxIcon from '../assets/icons/social-roblox.png';
 import xIcon from '../assets/icons/social-x.png';
 import { proxyImage } from '../utils/imageProxy';
+import { badgeHasImage } from '../utils/badgeRarity';
 
 // The right-hand rail's DM counterpart to MembersList — reuses the exact
 // same `.members-list` grid slot/width/collapse-button styling (see
@@ -60,15 +61,12 @@ export default function DMProfilePanel({ onToggle }) {
 
   return (
     <aside
-      className={`members-list dm-profile-panel ${user?.idCardUrl ? 'has-id-card' : ''} ${user && !user.idCardUrl ? 'dm-profile-accented' : ''}`}
-      style={user?.idCardUrl
-        ? { backgroundImage: `linear-gradient(180deg, var(--bg-secondary) 25%, transparent), url(${user.idCardUrl})` }
-        // Sem "placa de identificação" própria: aplica o mesmo tratamento de
-        // cor de perfil (degradê suave no topo + texto legível) usado no
-        // perfil completo e no miniperfil, em vez de deixar essa área do
-        // painel de DM sem nenhuma personalização (ver .dm-profile-accented
-        // em global.css).
-        : (user ? profileAccentVars(user.profileColor) : undefined)}
+      className={`members-list dm-profile-panel dm-profile-accented`}
+      // Item pedido: a "placa de identificação" (idCardUrl) não usa mais
+      // imagem própria de fundo aqui — sempre a cor do perfil da pessoa
+      // (mesmo tratamento do perfil completo e do miniperfil), pra ficar
+      // consistente em todo canto que mostra um perfil.
+      style={user ? profileAccentVars(user.profileColor) : undefined}
     >
       <button className="icon-btn members-collapse" onClick={onToggle}>›</button>
       {loading && <div className="dim dm-profile-empty">Carregando...</div>}
@@ -81,7 +79,7 @@ export default function DMProfilePanel({ onToggle }) {
             <div className="profile-avatar-row">
               <div className="avatar-wrap large">
                 <div className="avatar xlarge">
-                  <UserAvatar user={user} size={96} />
+                  <UserAvatar user={user} size={72} />
                 </div>
                 <span className="status-dot large" style={{ background: STATUS_COLOR[status] }} title={STATUS_LABEL[status]} />
               </div>
@@ -102,12 +100,34 @@ export default function DMProfilePanel({ onToggle }) {
             )}
 
             {data.badges?.length > 0 && (
-              <div className="profile-badges-row">
-                {data.badges.map((b) => (
-                  <span key={b.id} className="profile-badge" title={`${b.name}${b.description ? ' — ' + b.description : ''}`}>
-                    {b.icon}
-                  </span>
-                ))}
+              <div className="profile-section">
+                <div className="profile-section-label">INSÍGNIAS</div>
+                <div className="profile-badges-grid">
+                  {data.badges.map((b) => (
+                    <div key={b.id} className="profile-badge-tile" title={`${b.name}${b.description ? ' — ' + b.description : ''}`}>
+                      <span className="profile-badge-tile-icon">
+                        {badgeHasImage(b) ? <img className="profile-badge-img" src={proxyImage(b.iconUrl)} alt="" /> : b.icon}
+                      </span>
+                      <span className="profile-badge-tile-name truncate">{b.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {data.displayedAchievements?.length > 0 && (
+              <div className="profile-section">
+                <div className="profile-section-label">CONQUISTAS EM DESTAQUE</div>
+                <div className="profile-badges-grid">
+                  {data.displayedAchievements.map((a) => (
+                    <div key={a.id} className="profile-badge-tile" title={a.description}>
+                      <span className="profile-badge-tile-icon">
+                        <img className="profile-badge-img" src={a.iconUrl ? proxyImage(a.iconUrl) : undefined} alt="" />
+                      </span>
+                      <span className="profile-badge-tile-name truncate">{a.name}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
