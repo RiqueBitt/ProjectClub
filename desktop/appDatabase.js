@@ -78,7 +78,9 @@ const APPS = [
   { name: 'HeidiSQL', process: { win: 'heidisql.exe' }, imageUrl: 'https://cdn.simpleicons.org/mysql' },
   { name: 'Wireshark', process: { win: 'Wireshark.exe', linux: 'wireshark' }, imageUrl: 'https://cdn.simpleicons.org/wireshark' },
   { name: 'Warp Terminal', process: { win: 'Warp.exe' }, imageUrl: 'https://cdn.simpleicons.org/warp' },
-  { name: 'PowerToys', process: { win: 'PowerToys.exe' } }, // sem logo confirmado, mantém detecção mesmo assim
+  // PowerToys removido de propósito (item pedido) — fica rodando em
+  // segundo plano o tempo todo pra quem usa, mesmo raciocínio do
+  // Discord/Steam/navegadores já removidos antes.
   { name: 'Rufus', process: { win: 'rufus.exe' } },
   { name: 'HandBrake', process: { win: 'HandBrake.exe', linux: 'HandBrake' }, imageUrl: 'https://cdn.simpleicons.org/handbrake' },
   { name: 'ShareX', process: { win: 'ShareX.exe' }, imageUrl: 'https://cdn.simpleicons.org/sharex' },
