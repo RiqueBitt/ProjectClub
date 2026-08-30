@@ -284,22 +284,38 @@ export function VoiceProvider({ children }) {
     try {
       if (callRef.current) await leaveChannel();
 
-      const { token, appId } = await fetchAgoraToken(channelId).catch((err) => {
-        console.error('[voz] Falha ao pedir token do Agora:', err);
-        return {};
-      });
+      // Item pedido: "tem um delay pra entrar no canal de voz, corrija
+      // aumentando a velocidade" — achei a causa real: pedir o token
+      // (chamada pro NOSSO servidor) e carregar o SDK do Agora
+      // (~1.5MB na primeira vez da sessão, ver loadAgoraRTC() acima)
+      // rodavam um DEPOIS do outro, quando são completamente
+      // independentes um do outro — nenhum precisa esperar o outro
+      // terminar pra começar. Rodando os dois AO MESMO TEMPO (Promise.
+      // all), o tempo total passa a ser só o do mais lento dos dois,
+      // não a SOMA dos dois.
+      const [{ token, appId }, client] = await Promise.all([
+        fetchAgoraToken(channelId).catch((err) => {
+          console.error('[voz] Falha ao pedir token do Agora:', err);
+          return {};
+        }),
+        setupAgoraClient(),
+      ]);
       if (!token || !appId) {
         useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
         return;
       }
       if (joiningChannelIdRef.current !== channelId) return;
 
-      const client = await setupAgoraClient();
-      await client.join(appId, channelId, token, user.id);
+      // Mesmo raciocínio de cima: entrar no canal (rede, Agora) e pedir
+      // acesso ao microfone (permissão do sistema/navegador) também são
+      // independentes — rodando junto em vez de um depois do outro,
+      // corta ainda mais o tempo total até a pessoa realmente estar na
+      // call.
+      const [, gotMic] = await Promise.all([
+        client.join(appId, channelId, token, user.id),
+        connectMicrophone(),
+      ]);
       if (joiningChannelIdRef.current !== channelId) { await client.leave(); return; }
-
-      const gotMic = await connectMicrophone();
-      if (joiningChannelIdRef.current !== channelId) return;
       if (!gotMic) {
         useStore.getState().pushNotice('Microfone não encontrado. Você entrou no canal mudo — conecte um microfone e toque no botão de mudo para ativá-lo.');
         setMicMissing(true);

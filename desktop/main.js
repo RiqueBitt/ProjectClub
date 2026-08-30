@@ -50,24 +50,21 @@ if (!gotLock) {
       // como uma opção pra compartilhar igual qualquer outra, mas sem
       // fazer sentido nenhum pra pessoa escolher. Filtra fora janelas
       // sem nome de verdade, ou cujo nome parece um caminho de arquivo
-      // (letra de unidade tipo "C:\" ou "/", típico do Explorer/
-      // gerenciador de arquivos) — telas inteiras (type 'screen') nunca
-      // são filtradas, só janelas de programas.
+      // (letra de unidade tipo "C:\\" ou "/", típico do Explorer/
+      // gerenciador de arquivos) — telas inteiras nunca são filtradas.
       const sources = rawSources.filter((s) => {
         const name = (s.name || '').trim();
         if (!name) return false;
-        if (s.id.startsWith('screen:')) return true; // tela inteira, sempre mantém
-        if (/^[a-zA-Z]:\\|^\//.test(name)) return false; // parece um caminho de pasta/arquivo
+        if (s.id.startsWith('screen:')) return true;
+        if (/^[a-zA-Z]:\\|^\//.test(name)) return false;
         return true;
       });
 
+      const screens = sources.filter((s) => s.id.startsWith('screen:'));
+      const windows = sources.filter((s) => !s.id.startsWith('screen:'));
+
       const picker = new BrowserWindow({
-        width: 760, height: 560, resizable: false, minimizable: false, maximizable: false,
-        // Item pedido: "melhore a interface, em vez de outra aba, faça
-        // um menu" — sem moldura/barra de título nativa do sistema,
-        // isso já deixa de parecer "outra janela/aba solta do
-        // Windows" e passa a parecer um menu/painel de verdade que
-        // pertence ao próprio app, flutuando por cima dele.
+        width: 820, height: 600, resizable: false, minimizable: false, maximizable: false,
         frame: false,
         parent: mainWindow, modal: true, backgroundColor: '#232428',
         webPreferences: {
@@ -77,13 +74,6 @@ if (!gotLock) {
       });
 
       let resolved = false;
-      // BUG EVITADO (uso repetido): se a pessoa fechar a telinha sem
-      // escolher nada, o "ouvinte" de IPC (ipcMain.once) ficava
-      // registrado esperando pra sempre — na próxima vez que a telinha
-      // abrisse, um segundo ouvinte se somava ao primeiro, órfão desde
-      // sempre. Guardar a referência e removê-la explicitamente ao
-      // terminar (de qualquer jeito: escolheu, cancelou, ou fechou)
-      // evita esse acúmulo.
       const onChoice = (_event, sourceId) => {
         finish(rawSources.find((s) => s.id === sourceId) || null);
       };
@@ -98,79 +88,95 @@ if (!gotLock) {
       ipcMain.on('screen-picker:choice', onChoice);
       picker.on('closed', () => finish(null));
 
-      const screens = sources.filter((s) => s.id.startsWith('screen:'));
-      const windows = sources.filter((s) => !s.id.startsWith('screen:'));
-
-      const cardsFor = (list) => list.map((s) => `
+      // Item pedido: "adicione no topo do menu opção Aplicativos,
+      // Monitor (se tiver mais de 1 monitor)" — igual o Discord/Zoom já
+      // fazem, duas abas em vez de tudo misturado numa lista só. A aba
+      // "Tela" só numera os monitores (Tela 1, Tela 2...) quando existe
+      // mais de um — com um só, o nome fica simplesmente "Tela inteira".
+      const cardsFor = (list, isScreen) => list.map((s, i) => `
         <button class="card" data-source-id="${s.id.replace(/"/g, '&quot;')}">
-          <img src="${s.thumbnail.toDataURL()}" alt="" />
-          <span>${(s.name || 'Sem nome').replace(/</g, '&lt;').slice(0, 42)}</span>
+          <div class="card-thumb"><img src="${s.thumbnail.toDataURL()}" alt="" /></div>
+          <span>${isScreen && list.length > 1 ? `Tela ${i + 1}` : isScreen ? 'Tela inteira' : (s.name || 'Sem nome').replace(/</g, '&lt;').slice(0, 46)}</span>
         </button>
       `).join('');
 
-      // Item pedido: "melhore deixando mais bonito" — cores/tipografia
-      // no mesmo espírito do resto do app (fundo bem escuro, acento
-      // azul/roxo, cantos arredondados, cards com hover suave) em vez
-      // do visual genérico de antes.
+      const screensHtml = screens.length
+        ? `<div class="grid">${cardsFor(screens, true)}</div>`
+        : `<div class="empty">Nenhuma tela detectada.</div>`;
+      const windowsHtml = windows.length
+        ? `<div class="grid">${cardsFor(windows, false)}</div>`
+        : `<div class="empty">Nenhuma janela disponível pra compartilhar agora.</div>`;
+
+      // Item pedido: "melhore deixando mais bonito" — visual bem mais
+      // trabalhado que a versão anterior: abas de verdade no topo,
+      // miniaturas maiores com moldura própria, cantos mais arredondados,
+      // transições suaves, mesma paleta escura/acento roxo-azulado do
+      // resto do app.
       //
-      // BUG CORRIGIDO ("clico e não acontece nada, nem pra
-      // compartilhar nem pra cancelar"): a versão anterior tinha
-      // `-webkit-app-region: drag` no <body> inteiro (pra dar pra
-      // arrastar a janela sem barra de título) — isso faz o PRÓPRIO
-      // SISTEMA OPERACIONAL capturar o clique pra mover a janela antes
-      // dele chegar nos botões, mesmo nas áreas marcadas como exceção
-      // (no-drag) — um comportamento conhecido e nada confiável do
-      // Electron nesse cenário. Removido de propósito — a telinha não
-      // PRECISA ser arrastável pra funcionar. Trocado também onclick=""
-      // embutido no HTML por addEventListener de verdade num <script>
-      // — mais robusto, e com aviso na tela se algo der errado (não
-      // fica mais "sem fazer nada" silenciosamente).
+      // BUG CORRIGIDO ("clico e não acontece nada"): SEM
+      // -webkit-app-region: drag em lugar nenhum — essa propriedade
+      // fazia o próprio sistema operacional capturar o clique pra mover
+      // a janela antes dele chegar nos botões, um comportamento
+      // conhecido e nada confiável do Electron nesse cenário. A telinha
+      // não precisa ser arrastável pra funcionar.
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
         * { box-sizing: border-box; }
         body {
-          margin: 0; background: #232428; color: #f2f3f5;
+          margin: 0; background: #1e1f22; color: #f2f3f5;
           font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
-          padding: 20px; user-select: none;
+          padding: 0; user-select: none; overflow: hidden;
         }
-        .titlebar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-        h1 { font-size: 16px; font-weight: 700; margin: 0; }
+        .titlebar { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px 0; }
+        h1 { font-size: 17px; font-weight: 700; margin: 0; }
         .cancel-btn {
-          border-radius: 6px; border: none; padding: 7px 14px;
+          border-radius: 8px; border: none; padding: 8px 16px;
           background: #3a3c42; color: #f2f3f5; cursor: pointer; font-size: 13px; font-weight: 600;
+          transition: background .12s ease;
         }
         .cancel-btn:hover { background: #46484f; }
-        .section-label { font-size: 11px; font-weight: 700; letter-spacing: .4px; color: #949ba4; text-transform: uppercase; margin: 14px 0 8px; }
-        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-        .card {
-          background: #2b2d31; border: 2px solid transparent; border-radius: 10px; padding: 8px; cursor: pointer;
-          color: #f2f3f5; font-size: 12px; text-align: left; transition: border-color .12s ease, background .12s ease;
+        .tabs { display: flex; gap: 6px; padding: 18px 22px 0; border-bottom: 1px solid #303136; }
+        .tab {
+          border: none; background: none; color: #949ba4; font-size: 13px; font-weight: 600;
+          padding: 10px 16px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+          transition: color .12s ease, border-color .12s ease;
         }
-        .card:hover { border-color: #5865F2; background: #34363c; }
-        .card img { width: 100%; height: 84px; object-fit: contain; background: #1a1b1e; border-radius: 6px; margin-bottom: 8px; pointer-events: none; }
+        .tab:hover { color: #dbdee1; }
+        .tab.active { color: #fff; border-bottom-color: #5865F2; }
+        .panel { display: none; padding: 20px 22px; max-height: 420px; overflow-y: auto; }
+        .panel.active { display: block; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+        .card {
+          background: #2b2d31; border: 2px solid transparent; border-radius: 12px; padding: 10px; cursor: pointer;
+          color: #f2f3f5; font-size: 12px; font-weight: 600; text-align: left;
+          transition: border-color .12s ease, background .12s ease, transform .12s ease;
+        }
+        .card:hover { border-color: #5865F2; background: #34363c; transform: translateY(-1px); }
+        .card-thumb {
+          width: 100%; aspect-ratio: 16/10; background: #101113; border-radius: 8px; margin-bottom: 10px;
+          display: flex; align-items: center; justify-content: center; overflow: hidden; pointer-events: none;
+        }
+        .card-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
         .card span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
-        .scroll { max-height: 380px; overflow-y: auto; padding-right: 4px; }
-        .empty { color: #949ba4; font-size: 13px; padding: 8px 0; }
-        .error-banner { display: none; background: #f23f42; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 12px; }
+        .empty { color: #949ba4; font-size: 13px; padding: 30px 0; text-align: center; }
+        .error-banner { display: none; background: #f23f42; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 12px; margin: 0 22px 12px; }
       </style></head><body>
         <div class="titlebar">
           <h1>Escolha o que compartilhar</h1>
           <button class="cancel-btn" id="cancel-btn">Não compartilhar</button>
         </div>
         <div class="error-banner" id="error-banner"></div>
-        <div class="scroll">
-          ${screens.length ? `<div class="section-label">Telas</div><div class="grid">${cardsFor(screens)}</div>` : ''}
-          ${windows.length ? `<div class="section-label">Janelas abertas</div><div class="grid">${cardsFor(windows)}</div>` : `<div class="empty">Nenhuma janela disponível pra compartilhar agora.</div>`}
+        <div class="tabs">
+          <button class="tab active" id="tab-screen" data-target="panel-screen">Tela${screens.length > 1 ? `s (${screens.length})` : ''}</button>
+          <button class="tab" id="tab-window" data-target="panel-window">Aplicativos${windows.length ? ` (${windows.length})` : ''}</button>
         </div>
+        <div class="panel active" id="panel-screen">${screensHtml}</div>
+        <div class="panel" id="panel-window">${windowsHtml}</div>
         <script>
           function showError(msg) {
             var el = document.getElementById('error-banner');
             el.textContent = msg;
             el.style.display = 'block';
           }
-          // Item pedido: se clicar e "não acontecer nada", precisa dar
-          // pra VER o motivo — não só no carregamento inicial (try/
-          // catch de fora), mas também no exato momento do clique em
-          // si, que é quando window.screenPickerAPI de fato é usado.
           function safeChoose(sourceId) {
             try {
               if (!window.screenPickerAPI) {
@@ -189,6 +195,14 @@ if (!gotLock) {
             document.querySelectorAll('.card').forEach(function (card) {
               card.addEventListener('click', function () {
                 safeChoose(card.getAttribute('data-source-id'));
+              });
+            });
+            document.querySelectorAll('.tab').forEach(function (tab) {
+              tab.addEventListener('click', function () {
+                document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
+                document.querySelectorAll('.panel').forEach(function (p) { p.classList.remove('active'); });
+                tab.classList.add('active');
+                document.getElementById(tab.getAttribute('data-target')).classList.add('active');
               });
             });
           } catch (err) {

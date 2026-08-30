@@ -131,23 +131,17 @@ export default function VoiceChannelView({ channel }) {
             <span className="voice-tile-name">🖥️ {memberFor(uid)?.displayName || uid}</span>
           </div>
         ))}
-        {/* BUG CORRIGIDO ("compartilho minha tela e ela buga, cursor
-            duplicado, fundo preto"): mostrar um VÍDEO AO VIVO da sua
-            própria tela compartilhada, na PRÓPRIA tela que está sendo
-            compartilhada, cria um "espelho infinito" — a captura
-            inclui a prévia, que inclui a captura, que inclui a
-            prévia... daí o cursor se multiplicando e a tela ficando
-            preta/corrompida. Isso não é bug de rede nem do Agora, é um
-            efeito colateral inerente de mostrar sua própria tela pra
-            você mesmo — por isso apps como Discord nunca mostram vídeo
-            ao vivo da SUA PRÓPRIA tela compartilhada, só um indicador
-            simples de "compartilhando" sem vídeo nenhum. */}
+        {/* Item pedido: de volta ao vídeo ao vivo da própria tela — só
+            que sem o botão de tela cheia (allowFullscreen omitido de
+            propósito). O "espelho infinito" (cursor duplicado, fundo
+            preto — ver histórico) só fica realmente ruim em tela
+            CHEIA; numa caixinha pequena como essa, o efeito é bem mais
+            discreto e a pessoa ainda consegue confirmar visualmente
+            que está compartilhando a coisa certa, sem o risco de
+            ampliar o problema clicando em "tela cheia". */}
         {screenOn && voice.localScreenStream && (
-          <div className="voice-tile voice-tile-screen voice-tile-screen-self">
-            <div className="voice-tile-screen-self-indicator">
-              <span className="voice-tile-screen-self-icon"><IconGlyph src={screenshareIcon} size={28} /></span>
-              <span>Você está compartilhando sua tela</span>
-            </div>
+          <div className="voice-tile voice-tile-screen">
+            <VideoTile stream={voice.localScreenStream} muted />
             <span className="voice-tile-name">🖥️ Sua tela</span>
           </div>
         )}
