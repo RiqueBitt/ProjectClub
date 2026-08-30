@@ -117,7 +117,7 @@ jobs:
           gh release view latest --repo "$REPO" >/dev/null 2>&1 || \
             gh release create latest --repo "$REPO" --title "Versão mais recente" \
               --notes "Gerado automaticamente pelo GitHub Actions a cada atualização." --latest || true
-          gh release upload latest "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe" --repo "$REPO" --clobber
+          for i in 1 2 3; do gh release upload latest "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
 
   build-linux:
     needs: compute-version
@@ -147,7 +147,7 @@ jobs:
           gh release view latest --repo "$REPO" >/dev/null 2>&1 || \
             gh release create latest --repo "$REPO" --title "Versão mais recente" \
               --notes "Gerado automaticamente pelo GitHub Actions a cada atualização." --latest || true
-          gh release upload latest "$RUNNER_TEMP/ProjectClub-Linux.AppImage" --repo "$REPO" --clobber
+          for i in 1 2 3; do gh release upload latest "$RUNNER_TEMP/ProjectClub-Linux.AppImage" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
 
   build-android:
     needs: compute-version
@@ -213,7 +213,7 @@ jobs:
           gh release view latest --repo "$REPO" >/dev/null 2>&1 || \
             gh release create latest --repo "$REPO" --title "Versão mais recente" \
               --notes "Gerado automaticamente pelo GitHub Actions a cada atualização." --latest || true
-          gh release upload latest "$RUNNER_TEMP/ProjectClub.apk" --repo "$REPO" --clobber
+          for i in 1 2 3; do gh release upload latest "$RUNNER_TEMP/ProjectClub.apk" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
 
   # Item pedido: "quando lançar uma nova release, quero que apareça no
   # app pedindo pra atualizar, e quando atualizar mande uma mensagem
