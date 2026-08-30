@@ -3771,7 +3771,7 @@ a.embed-card-title:hover { text-decoration: underline; }
    de um canal — ver MembersList.jsx/FriendsSideRail.jsx), então não
    precisam mais de estilo próprio duplicado aqui. */
 .friends-side-rail {
-  width: 220px; flex-shrink: 0; border-left: 1px solid var(--border);
+  width: var(--members-width, 240px); flex-shrink: 0; border-left: 1px solid var(--border);
   padding: 14px 10px; overflow-y: auto; background: var(--bg-secondary-alt, var(--bg-secondary));
 }
 @media (max-width: 900px) {
