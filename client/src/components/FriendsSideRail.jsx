@@ -8,13 +8,14 @@ import { STATUS_COLOR } from '../utils/status';
 import { proxyImage } from '../utils/imageProxy';
 
 // Item pedido: "menuzinho lateral" de amigos — clicar num amigo vai
-// DIRETO pra conversa com ele, sem passar pelo perfil no meio. Reescrito
-// pra usar exatamente as mesmas classes CSS da lista "ONLINE"/"OFFLINE"
-// que já aparece do lado de um canal (.member-row, .member-group — ver
-// MembersList.jsx) em vez de um estilo próprio — item pedido: "diminua
-// o menu lateral, deixando igual o online da página de comunidade".
-// Mostra a placa de identificação (idCardUrl) como fundo da linha e o
-// nome/tag, igual a lista de membros também mostra.
+// DIRETO pra conversa com ele, sem passar pelo perfil no meio.
+//
+// Depois de duas tentativas de recriar o estilo da lista "ONLINE" de um
+// canal por conta própria (nunca ficava 100% idêntico), a versão final
+// usa a classe de VERDADE (.members-list, a mesma que MembersList.jsx
+// usa) como contêiner em vez de uma classe própria — garante ficar
+// idêntica de verdade (mesma largura, mesmo comportamento de ajuste),
+// não uma cópia aproximada que precisa ser mantida em sincronia à mão.
 //
 // BUG EVITADO: a resposta de /friends vem ANINHADA
 // ({ id, status, user: {...} }) — o usuário de verdade mora em
@@ -32,7 +33,7 @@ export default function FriendsSideRail() {
   };
 
   return (
-    <aside className="friends-side-rail">
+    <aside className="members-list">
       <div className="member-group">
         <div className="member-group-label">Amigos — {accepted.length}</div>
         {accepted.length === 0 && <p className="dim" style={{ padding: '0 8px', fontSize: 13 }}>Você ainda não tem amigos adicionados.</p>}

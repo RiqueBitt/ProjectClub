@@ -3762,31 +3762,9 @@ a.embed-card-title:hover { text-decoration: underline; }
 .amigos-page-tab:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
 .amigos-page-tab.active { color: var(--interactive-active); border-bottom-color: var(--brand); }
 .amigos-page-content { flex: 1; min-height: 0; overflow-y: auto; }
-
-/* Item pedido: "diminua o menu lateral, deixando igual o online da
-   página de comunidade" — o container em si continua próprio (largura
-   mais estreita que a lista de membros normal, já que é uma coluna
-   lateral menor), mas as LINHAS de dentro agora reaproveitam
-   .member-row/.member-group direto (mesmas classes da lista "ONLINE"
-   de um canal — ver MembersList.jsx/FriendsSideRail.jsx), então não
-   precisam mais de estilo próprio duplicado aqui. */
-.friends-side-rail {
-  /* BUG CORRIGIDO ("não mudou nada"): --members-width não é um valor
-     fixo de design — é ajustável pela PRÓPRIA PESSOA arrastando a borda
-     da lista de membros num canal (ver MainApp.jsx), e esse ajuste é
-     GLOBAL (fica salvo em <html>, não só naquela tela). Se alguém já
-     tivesse deixado a lista de membros mais larga em algum canal, esse
-     valor maior "vazava" pra cá também, por estarem usando a mesma
-     variável. Um tamanho FIXO, independente desse ajuste pessoal, é o
-     certo aqui — não faz sentido esse menuzinho mudar de tamanho
-     sozinho por causa de um ajuste feito em outra tela completamente
-     diferente. */
-  width: 240px; flex-shrink: 0; border-left: 1px solid var(--border);
-  padding: 14px 10px; overflow-y: auto; background: var(--bg-secondary-alt, var(--bg-secondary));
-}
 @media (max-width: 900px) {
   .amigos-page.amigos-page-with-rail { flex-direction: column; }
-  .friends-side-rail { width: 100%; border-left: none; border-top: 1px solid var(--border); max-height: 160px; }
+  .amigos-page-with-rail .members-list { width: 100%; border-left: none; border-top: 1px solid var(--border); max-height: 160px; grid-column: unset; grid-row: unset; position: static; }
 }
 
 .dm-conversations-list { padding: 8px; }
