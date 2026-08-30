@@ -1630,6 +1630,15 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .voice-view { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 24px; overflow-y: auto; }
 .voice-join-panel { display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--text-muted); }
 .voice-join-panel .voice-join-icon { font-size: 48px; }
+/* Item pedido: prévia de quem já está na call, direto na tela de
+   entrada — avatares sobrepostos (estilo "empilhado"), responsivo por
+   natureza (flex-wrap, sem tamanho fixo de container). */
+.voice-join-preview-avatars { display: flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 4px; margin: 4px 0; }
+.voice-join-preview-avatar {
+  border-radius: 50%; border: 3px solid var(--bg-primary); margin-left: -12px;
+}
+.voice-join-preview-avatar:first-child { margin-left: 0; }
+.voice-join-preview-count { margin-left: 10px; font-size: 13px; white-space: nowrap; }
 .voice-tiles-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; width: 100%; max-width: 960px; }
 .voice-call-controls { display: flex; gap: 12px; margin-top: 8px; padding: 10px 16px; background: var(--bg-secondary-alt, var(--bg-elevated)); border-radius: 12px; }
 .voice-control-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 18px; border-radius: 8px; background: var(--bg-elevated); color: var(--text-normal); min-width: 84px; transition: background-color .12s, opacity .12s; }

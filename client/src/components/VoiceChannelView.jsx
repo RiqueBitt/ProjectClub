@@ -5,6 +5,7 @@ import { useStore } from '../store/useStore';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import ScreenShareModal from './modals/ScreenShareModal.jsx';
 import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from './PenguinAvatar.jsx';
+import UserAvatar from './UserAvatar.jsx';
 import IconGlyph from './IconGlyph.jsx';
 
 // BUG CORRIGIDO: as duas tiles abaixo (grade normal e Palco) desenhavam
@@ -41,14 +42,49 @@ export default function VoiceChannelView({ channel }) {
   const memberFor = (userId) => members.find((m) => m.user.id === userId)?.user;
 
   if (!inThisCall) {
+    // Item pedido: "mostre diretamente quem já está na call, com seus
+    // avatares e o botão Entrar, sem precisar abrir uma camada/modal
+    // antes" — usa o roster do canal (voice.roster, sincronizado por
+    // socket, sabe quem está na call SEM precisar você mesmo estar
+    // dentro dela) direto nessa mesma tela de prévia, em vez de só um
+    // botão isolado sem contexto nenhum de quem já está lá.
+    //
+    // BUG EVITADO ("perfis duplicados ao clicar rápido"): dedupe por
+    // userId com um Map antes de desenhar — mesmo que o roster do
+    // servidor viesse com alguma entrada repetida por qualquer motivo
+    // (ex: eventos de entrar/sair se cruzando), a tela nunca desenha o
+    // mesmo avatar duas vezes.
+    const rawRoster = voice?.roster?.[channel.id] || [];
+    const dedupedRoster = [...new Map(rawRoster.map((p) => [p.userId, p])).values()];
+    const busy = voice?.joiningChannelId === channel.id;
+
     return (
       <div className="voice-view">
         <div className="voice-join-panel">
           <span className="voice-join-icon"><IconGlyph src={isStage ? micIcon : speakerIcon} size={22} /></span>
           <div>{channel.name}</div>
           {channel.topic && <div className="dim">{channel.topic}</div>}
-          <button className="btn-primary" onClick={() => voice?.joinChannel(null, channel.id, channel.name, channel.type)}>
-            Entrar {isStage ? 'no palco' : 'na chamada'}
+          {dedupedRoster.length > 0 && (
+            <div className="voice-join-preview-avatars">
+              {dedupedRoster.slice(0, 8).map((p) => {
+                const person = memberFor(p.userId);
+                return (
+                  <div key={p.userId} className="voice-join-preview-avatar" title={person?.displayName || p.userId}>
+                    <UserAvatar user={person} size={40} />
+                  </div>
+                );
+              })}
+              <span className="dim voice-join-preview-count">
+                {dedupedRoster.length} {dedupedRoster.length === 1 ? 'pessoa' : 'pessoas'} já na call
+              </span>
+            </div>
+          )}
+          <button
+            className="btn-primary"
+            disabled={busy}
+            onClick={() => voice?.joinChannel(null, channel.id, channel.name, channel.type)}
+          >
+            {busy ? 'Entrando...' : `Entrar ${isStage ? 'no palco' : 'na chamada'}`}
           </button>
         </div>
       </div>

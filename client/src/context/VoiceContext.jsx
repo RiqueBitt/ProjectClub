@@ -140,6 +140,12 @@ export function VoiceProvider({ children }) {
 
   const callRef = useRef(null);
   const joiningChannelIdRef = useRef(null);
+  // Item pedido: mostrar "Entrando..." no botão de entrar na chamada,
+  // desabilitado, enquanto o processo ainda não terminou — diferente
+  // de joiningChannelIdRef (só uma referência, não causa nova
+  // renderização sozinha), esse ESTADO de verdade atualiza a tela na
+  // hora que muda.
+  const [joiningChannelId, setJoiningChannelId] = useState(null);
   const leaveChannelRef = useRef(null);
   const soundboardAudiosRef = useRef({});
 
@@ -281,6 +287,7 @@ export function VoiceProvider({ children }) {
     if (callRef.current?.channelId === channelId) return;
     if (joiningChannelIdRef.current === channelId) return;
     joiningChannelIdRef.current = channelId;
+    setJoiningChannelId(channelId);
     try {
       if (callRef.current) await leaveChannel();
 
@@ -334,6 +341,7 @@ export function VoiceProvider({ children }) {
       setIncomingCall((c) => (c && c.channelId === channelId ? null : c));
     } finally {
       if (joiningChannelIdRef.current === channelId) joiningChannelIdRef.current = null;
+      setJoiningChannelId((c) => (c === channelId ? null : c));
     }
   }, [socket, connectMicrophone, setupAgoraClient, user?.id]);
 
@@ -704,7 +712,7 @@ export function VoiceProvider({ children }) {
   return (
     <VoiceContext.Provider value={{
       call, muted, micMissing, deafened, cameraOn, screenOn, participants, roster, rosterStartedAt, rosterSpeaking, myRole, handsRaised,
-      localSpeaking,
+      localSpeaking, joiningChannelId,
       remoteCameraStreams, remoteScreenStreams, remoteAudioStreams, volumes,
       localCameraStream: cameraTrackRef.current ? new MediaStream([cameraTrackRef.current.getMediaStreamTrack()]) : null,
       localScreenStream: screenTrackRef.current ? new MediaStream([screenTrackRef.current.getMediaStreamTrack()]) : null,
