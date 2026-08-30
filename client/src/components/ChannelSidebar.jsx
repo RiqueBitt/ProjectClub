@@ -339,7 +339,20 @@ function ChannelGroup({
             >
               <NavLink
                 to={`/channels/${ch.id}`}
-                onClick={(e) => { if (ch.id === activeChannelId) e.preventDefault(); }}
+                onClick={(e) => {
+                  if (ch.id === activeChannelId) e.preventDefault();
+                  // Item pedido: em vez de clicar no canal e DEPOIS
+                  // precisar clicar em "Entrar na chamada" numa tela
+                  // separada, clicar no canal de voz já entra direto —
+                  // um clique só, já mostrando que está dentro da call
+                  // (com o botão de sair, não mais o de entrar). Não
+                  // faz nada se já estiver NESSE canal (joinChannel já
+                  // é idempotente pra esse caso, mas evita o esforço à
+                  // toa de tentar de novo).
+                  if (isVoiceType && voice?.call?.channelId !== ch.id) {
+                    voice?.joinChannel(null, ch.id, ch.name, ch.type);
+                  }
+                }}
                 className={({ isActive }) => `sidebar-item channel-item ${isActive ? 'active' : ''} ${unread ? 'unread' : ''}`}
               >
                 {ch.unreadMentions > 0 && (
