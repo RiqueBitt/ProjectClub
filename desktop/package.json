@@ -7,12 +7,15 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "build:win": "electron-builder --win --x64",
+    "build:win": "electron-builder --win --x64 --publish always",
     "build:linux": "electron-builder --linux --x64"
   },
   "devDependencies": {
     "electron": "^31.3.0",
     "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.4"
   },
   "build": {
     "appId": "com.projectclub.desktop",
@@ -32,6 +35,10 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Project Club",
       "runAfterFinish": true
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "https://github.com/RiqueBitt/ProjectClub-Downloads/releases/latest/download/"
     },
     "linux": {
       "target": [{ "target": "AppImage", "arch": ["x64"] }],

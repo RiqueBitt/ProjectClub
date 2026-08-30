@@ -4,7 +4,8 @@
 // ícone na bandeja do sistema, iniciar sozinho com o Windows, e continuar
 // rodando em segundo plano mesmo com a janela fechada — exatamente como
 // Discord/Slack fazem.
-const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage, session, desktopCapturer } = require('electron');
+const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage, session, desktopCapturer, dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 const { startActivityDetection } = require('./activityDetector');
@@ -368,6 +369,56 @@ if (!gotLock) {
     }, { useSystemPicker: false });
   }
 
+  // Item pedido: "cansei de ter que ir no site/GitHub baixar a versão
+  // nova toda vez, faça um sistema de atualização" — usa o
+  // electron-updater (biblioteca oficial do mesmo time do
+  // electron-builder, que este projeto já usa pra gerar o .exe — não é
+  // nada inventado do zero, é o padrão realmente usado por apps
+  // Electron de verdade, inclusive confirmei que o GoldApple Launcher
+  // usa exatamente essa mesma biblioteca, olhando o formato dos
+  // arquivos publicados nas releases dele no GitHub).
+  //
+  // Baixa a atualização sozinho, em segundo plano, sem incomodar
+  // ninguém — só avisa quando já está PRONTA pra instalar, com a opção
+  // de reiniciar na hora ou deixar pra próxima vez que fechar o app
+  // (nunca força um reinício no meio do que a pessoa estiver fazendo).
+  function setupAutoUpdater() {
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    autoUpdater.on('update-downloaded', (info) => {
+      dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Atualização pronta',
+        message: `Uma nova versão do Project Club (${info.version}) já foi baixada.`,
+        detail: 'Reinicie agora pra atualizar, ou deixe pra próxima vez que fechar o app.',
+        buttons: ['Reiniciar agora', 'Depois'],
+        defaultId: 0,
+        cancelId: 1,
+      }).then(({ response }) => {
+        if (response === 0) autoUpdater.quitAndInstall();
+      });
+    });
+
+    // Erro de rede/servidor fora do ar é normal e não deveria assustar
+    // ninguém com uma caixa de diálogo — só registra no log; a próxima
+    // tentativa automática resolve sozinha quando a conexão voltar.
+    autoUpdater.on('error', (err) => {
+      console.error('[atualização] falha ao verificar/baixar:', err?.message || err);
+    });
+
+    const check = () => autoUpdater.checkForUpdates().catch((err) => {
+      console.error('[atualização] falha ao verificar:', err?.message || err);
+    });
+
+    // Primeira checagem alguns segundos depois de abrir (não compete
+    // com o carregamento inicial do site) — depois, verifica de novo a
+    // cada 4 horas enquanto o app continuar aberto/rodando em segundo
+    // plano.
+    setTimeout(check, 10000);
+    setInterval(check, 4 * 60 * 60 * 1000);
+  }
+
   app.whenReady().then(() => {
     setupScreenShareHandler();
     // BUG CORRIGIDO — CAUSA RAIZ CONFIRMADA de "no PC eu falo e não sai
@@ -406,6 +457,7 @@ if (!gotLock) {
     const startedAtLogin = app.getLoginItemSettings().wasOpenedAtLogin;
     createWindow(startedAtLogin);
     createTray();
+    setupAutoUpdater();
 
     // Configura a inicialização automática já na primeira execução — a
     // pessoa não precisa achar isso em nenhum menu escondido.
