@@ -29,6 +29,27 @@ const APPS = [
   { name: 'Postman', process: { win: 'Postman.exe' }, imageUrl: 'https://cdn.simpleicons.org/postman' },
   { name: 'GIMP', process: { win: 'gimp-2.10.exe', linux: 'gimp' }, imageUrl: 'https://cdn.simpleicons.org/gimp' },
   { name: 'Steam', process: { win: 'steam.exe', linux: 'steam' }, imageUrl: 'https://cdn.simpleicons.org/steam' },
+  // Item pedido: "adicione mais apps" — slugs confirmados: nomes de
+  // marca de uma palavra só, sem espaço/hífen, seguem o padrão já
+  // testado e comprovado (centenas de exemplos conferidos) do Simple
+  // Icons. Nomes compostos ficam de fora até eu conseguir confirmar o
+  // slug exato de cada um.
+  { name: 'Slack', process: { win: 'slack.exe', linux: 'slack' }, imageUrl: 'https://cdn.simpleicons.org/slack' },
+  { name: 'Zoom', process: { win: 'Zoom.exe' }, imageUrl: 'https://cdn.simpleicons.org/zoom' },
+  { name: 'Notion', process: { win: 'Notion.exe', linux: 'notion-app' }, imageUrl: 'https://cdn.simpleicons.org/notion' },
+  { name: 'Telegram', process: { win: 'Telegram.exe', linux: 'telegram-desktop' }, imageUrl: 'https://cdn.simpleicons.org/telegram' },
+  { name: 'WhatsApp', process: { win: 'WhatsApp.exe' }, imageUrl: 'https://cdn.simpleicons.org/whatsapp' },
+  { name: 'Skype', process: { win: 'Skype.exe' }, imageUrl: 'https://cdn.simpleicons.org/skype' },
+  { name: 'Unity', process: { win: 'Unity.exe', linux: 'unity-editor' }, imageUrl: 'https://cdn.simpleicons.org/unity' },
+  { name: 'Godot Engine', process: { win: 'Godot.exe', linux: 'godot' }, imageUrl: 'https://cdn.simpleicons.org/godotengine' },
+  { name: 'Twitch', process: { win: 'Twitch.exe' }, imageUrl: 'https://cdn.simpleicons.org/twitch' },
+  { name: 'Krita', process: { win: 'krita.exe', linux: 'krita' }, imageUrl: 'https://cdn.simpleicons.org/krita' },
+  { name: 'Inkscape', process: { win: 'inkscape.exe', linux: 'inkscape' }, imageUrl: 'https://cdn.simpleicons.org/inkscape' },
+  { name: 'Audacity', process: { win: 'audacity.exe', linux: 'audacity' }, imageUrl: 'https://cdn.simpleicons.org/audacityteam' },
+  { name: 'VLC', process: { win: 'vlc.exe', linux: 'vlc' }, imageUrl: 'https://cdn.simpleicons.org/vlcmediaplayer' },
+  { name: 'Insomnia', process: { win: 'Insomnia.exe' }, imageUrl: 'https://cdn.simpleicons.org/insomnia' },
+  { name: 'Trello', process: { win: 'Trello.exe' }, imageUrl: 'https://cdn.simpleicons.org/trello' },
+  { name: 'Notepad', process: { win: 'notepad.exe' } }, // sem logo — não é uma marca com ícone próprio
 ];
 
 const BY_PROCESS_WIN = new Map();

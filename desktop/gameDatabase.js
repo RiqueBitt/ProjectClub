@@ -50,6 +50,40 @@ const GAMES = [
   { name: 'Satisfactory', steamAppId: 526870, process: { win: 'FactoryGame-Win64-Shipping.exe' } },
   { name: 'DayZ', steamAppId: 221100, process: { win: 'DayZ_x64.exe' } },
   { name: 'War Thunder', steamAppId: 236390, process: { win: 'aces.exe', linux: 'aces' } },
+  // Item pedido: "adicione mais jogos, procure site que dá ícones" —
+  // pra jogos, o CDN da própria Steam (usado desde o início nesse
+  // arquivo) é bem mais confiável que caçar slug por slug de um site
+  // de ícones de marca — App IDs da Steam são estáveis e não precisam
+  // de confirmação individual de URL, cobrem a capa oficial de
+  // qualquer jogo publicado lá.
+  { name: 'Hades', steamAppId: 1145360, process: { win: 'Hades.exe', linux: 'Hades' } },
+  { name: 'Hades II', steamAppId: 1145350, process: { win: 'Hades2.exe' } },
+  { name: 'Stray', steamAppId: 1332010, process: { win: 'Stray-Win64-Shipping.exe' } },
+  { name: 'It Takes Two', steamAppId: 1426210, process: { win: 'ItTakesTwo.exe' } },
+  { name: 'Deep Rock Galactic', steamAppId: 548430, process: { win: 'FSD-Win64-Shipping.exe' } },
+  { name: 'Sea of Thieves', steamAppId: 1172620, process: { win: 'SoTGame.exe' } },
+  { name: 'Phasmophobia', steamAppId: 739630, process: { win: 'Phasmophobia.exe' } },
+  { name: 'Lethal Company', steamAppId: 1966720, process: { win: 'Lethal Company.exe' } },
+  { name: 'Warframe', steamAppId: 230410, process: { win: 'Warframe.x64.exe' } },
+  { name: 'Path of Exile', steamAppId: 238960, process: { win: 'PathOfExile.exe' } },
+  { name: 'Path of Exile 2', steamAppId: 2694490, process: { win: 'PathOfExile2.exe' } },
+  { name: 'Destiny 2', steamAppId: 1085660, process: { win: 'destiny2.exe' } },
+  { name: 'Escape from Tarkov', steamAppId: null, process: { win: 'EscapeFromTarkov.exe' } },
+  { name: 'Slay the Spire', steamAppId: 646570, process: { win: 'SlayTheSpire.exe', linux: 'SlayTheSpire' } },
+  { name: 'Vampire Survivors', steamAppId: 1794680, process: { win: 'VampireSurvivors.exe' } },
+  { name: 'Risk of Rain 2', steamAppId: 632360, process: { win: 'Risk of Rain 2.exe' } },
+  { name: 'Deadlock', steamAppId: 1422450, process: { win: 'project8.exe' } },
+  { name: 'Marvel Rivals', steamAppId: 2767030, process: { win: 'Marvel-Win64-Shipping.exe' } },
+  { name: 'Helldivers 2', steamAppId: 553850, process: { win: 'helldivers2.exe' } },
+  { name: 'Content Warning', steamAppId: 2881650, process: { win: 'Content Warning.exe' } },
+  { name: 'Schedule I', steamAppId: 3164500, process: { win: 'Schedule I.exe' } },
+  { name: 'The Forest', steamAppId: 242760, process: { win: 'TheForest.exe' } },
+  { name: 'Sons Of The Forest', steamAppId: 1326470, process: { win: 'SonsOfTheForest.exe' } },
+  { name: 'Cities: Skylines II', steamAppId: 949230, process: { win: 'Cities2.exe' } },
+  { name: 'Two Point Hospital', steamAppId: 535930, process: { win: 'TwoPointHospital.exe' } },
+  { name: 'Human: Fall Flat', steamAppId: 477160, process: { win: 'Human.exe' } },
+  { name: 'Raft', steamAppId: 648800, process: { win: 'Raft.exe' } },
+  { name: 'Grounded', steamAppId: 962130, process: { win: 'Maine-Win64-Shipping.exe' } },
 ];
 
 // Índice por nome de processo, já em minúsculo, montado uma vez só —
