@@ -155,17 +155,28 @@ jobs:
           cp "dist/ProjectClub-Setup-Windows.exe.blockmap" "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe.blockmap"
           cp "dist/latest.yml" "$RUNNER_TEMP/latest.yml"
           REPO="RiqueBitt/ProjectClub-Downloads"
-          gh release view latest --repo "$REPO" >/dev/null 2>&1 || \
-            gh release create latest --repo "$REPO" --title "Versão mais recente" \
-              --notes "Gerado automaticamente pelo GitHub Actions a cada atualização." --latest || true
-          for i in 1 2 3; do gh release upload latest "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+          # Item pedido: "não quero que apague as versões antigas" — cada
+          # build agora cria a SUA PRÓPRIA release (marcada com a versão
+          # de verdade, tipo v1.2.3), em vez de sempre reescrever a
+          # mesma release fixa "latest" por cima. --latest marca essa
+          # release nova como a mais recente pro GitHub (então o link
+          # .../releases/latest/download/... — usado tanto pelo site
+          # quanto pelo electron-updater — continua funcionando sozinho,
+          # sempre apontando pra versão mais nova automaticamente) — mas
+          # as releases anteriores continuam existindo, intactas,
+          # acessíveis pra quem quiser baixar uma versão antiga.
+          VERSION="${{ needs.compute-version.outputs.version }}"
+          gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
+            gh release create "$VERSION" --repo "$REPO" --title "$VERSION" \
+              --notes "Gerado automaticamente pelo GitHub Actions." --latest || true
+          for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
           # Item pedido: sistema de atualização automática — esses 2
           # arquivos são o que o electron-updater, já instalado nos
           # apps das pessoas, vai procurar sozinho pra saber se tem
           # versão nova (latest.yml) e baixar só a diferença de bytes
           # em vez do instalador inteiro de novo (.blockmap).
-          for i in 1 2 3; do gh release upload latest "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe.blockmap" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
-          for i in 1 2 3; do gh release upload latest "$RUNNER_TEMP/latest.yml" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+          for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe.blockmap" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+          for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/latest.yml" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
 
   build-linux:
     needs: compute-version
@@ -219,17 +230,22 @@ jobs:
           cp "$APPIMAGE_PATH" "$RUNNER_TEMP/ProjectClub-Linux.AppImage"
           cp "dist/latest-linux.yml" "$RUNNER_TEMP/latest-linux.yml"
           REPO="RiqueBitt/ProjectClub-Downloads"
-          gh release view latest --repo "$REPO" >/dev/null 2>&1 || \
-            gh release create latest --repo "$REPO" --title "Versão mais recente" \
-              --notes "Gerado automaticamente pelo GitHub Actions a cada atualização." --latest || true
-          for i in 1 2 3; do gh release upload latest "$RUNNER_TEMP/ProjectClub-Linux.AppImage" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
-          for i in 1 2 3; do gh release upload latest "$RUNNER_TEMP/latest-linux.yml" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+          # Item pedido: "não quero que apague as versões antigas" —
+          # mesmo raciocínio do Windows: cada build cria a SUA PRÓPRIA
+          # release (com a versão de verdade), em vez de reescrever
+          # sempre a mesma release "latest" por cima.
+          VERSION="${{ needs.compute-version.outputs.version }}"
+          gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
+            gh release create "$VERSION" --repo "$REPO" --title "$VERSION" \
+              --notes "Gerado automaticamente pelo GitHub Actions." --latest || true
+          for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub-Linux.AppImage" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+          for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/latest-linux.yml" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
           # O .blockmap só existe se o electron-builder decidiu gerar um
           # (depende de configuração/versão) — sobe só se existir de
           # verdade, sem quebrar o passo se não tiver sido gerado.
           if [ -f "dist/ProjectClub-Linux.AppImage.blockmap" ]; then
             cp "dist/ProjectClub-Linux.AppImage.blockmap" "$RUNNER_TEMP/ProjectClub-Linux.AppImage.blockmap"
-            for i in 1 2 3; do gh release upload latest "$RUNNER_TEMP/ProjectClub-Linux.AppImage.blockmap" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+            for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub-Linux.AppImage.blockmap" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
           fi
 
   build-android:
@@ -293,10 +309,15 @@ jobs:
           APK_PATH=$(find client/android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
           cp "$APK_PATH" "$RUNNER_TEMP/ProjectClub.apk"
           REPO="RiqueBitt/ProjectClub-Downloads"
-          gh release view latest --repo "$REPO" >/dev/null 2>&1 || \
-            gh release create latest --repo "$REPO" --title "Versão mais recente" \
-              --notes "Gerado automaticamente pelo GitHub Actions a cada atualização." --latest || true
-          for i in 1 2 3; do gh release upload latest "$RUNNER_TEMP/ProjectClub.apk" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+          # Item pedido: "não quero que apague as versões antigas" —
+          # mesmo raciocínio dos outros dois: cada build cria a SUA
+          # PRÓPRIA release (com a versão de verdade), em vez de
+          # reescrever sempre a mesma release "latest" por cima.
+          VERSION="${{ needs.compute-version.outputs.version }}"
+          gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
+            gh release create "$VERSION" --repo "$REPO" --title "$VERSION" \
+              --notes "Gerado automaticamente pelo GitHub Actions." --latest || true
+          for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub.apk" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
 
   # Item pedido: "quando lançar uma nova release, quero que apareça no
   # app pedindo pra atualizar, e quando atualizar mande uma mensagem
