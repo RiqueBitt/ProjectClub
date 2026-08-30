@@ -3753,6 +3753,15 @@ a.embed-card-title:hover { text-decoration: underline; }
    AmigosPage.jsx), pra não afetar nada de quem só usa .amigos-page em
    outro lugar por acaso. */
 .amigos-page.amigos-page-with-rail { flex-direction: row; }
+/* Item pedido: tamanho FIXO aqui, sem depender do ajuste que a pessoa já
+   fez na lista de membros de algum canal (--members-width é global e
+   ajustável por ela, ver MainApp.jsx — reaproveitar essa variável direto
+   "herdava" qualquer ajuste feito em outro lugar completamente
+   diferente). Uma regra mais específica que .members-list sozinho
+   (duas classes combinadas ganha de uma só) trava o tamanho aqui sem
+   afetar em nada a lista de membros de verdade em nenhum outro lugar do
+   app — ela continua ajustável normalmente. */
+.amigos-page-with-rail .members-list { width: 240px; }
 .amigos-page-main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
 .amigos-page-tabs { display: flex; gap: 4px; padding: 14px 16px 0; flex-shrink: 0; border-bottom: 1px solid var(--border); }
 .amigos-page-tab {
