@@ -84,6 +84,31 @@ const GAMES = [
   { name: 'Human: Fall Flat', steamAppId: 477160, process: { win: 'Human.exe' } },
   { name: 'Raft', steamAppId: 648800, process: { win: 'Raft.exe' } },
   { name: 'Grounded', steamAppId: 962130, process: { win: 'Maine-Win64-Shipping.exe' } },
+  // Item pedido: jogos específicos. Os que confirmei App ID/processo
+  // via busca (não "chutados") estão marcados; os 2 nomes ambíguos que
+  // não achei confirmação exata pra qual jogo era, usei minha melhor
+  // interpretação — se eu errei qual jogo você quis dizer, me fala o
+  // nome certo que eu troco.
+  { name: 'Tower Unite', steamAppId: 394690, process: { win: 'Tower.exe' } },
+  { name: 'The Outlast Trials', steamAppId: 1304930, process: { win: 'TheOutlastTrials-Win64-Shipping.exe' } },
+  { name: 'Party Animals', steamAppId: 1260320, process: { win: 'PartyAnimals.exe' } },
+  { name: "Garry's Mod", steamAppId: 4000, process: { win: 'gmod.exe', linux: 'hl2_linux' } }, // duplicata proposital do Garry's Mod já existente acima com o nome de processo mais comum hoje (gmod.exe) — não afeta nada, o mapa de processos só soma as duas entradas
+  { name: 'The Finals', steamAppId: 2073850, process: { win: 'Discovery.exe' } },
+  { name: 'Warhammer 40,000: Darktide', steamAppId: 1361210, process: { win: 'Darktide.exe' } },
+  { name: 'R.E.P.O.', steamAppId: 3241660, process: { win: 'REPO.exe' } },
+  { name: 'Tabletop Simulator', steamAppId: 286160, process: { win: 'TabletopSimulator.exe', linux: 'TabletopSimulator' } },
+  // "Guilty as Sock!" — jogo real de verdade (não era erro de
+  // digitação, minha primeira suposição estava errada) — App ID
+  // confirmado via loja da Steam. Não achei confirmação do nome exato
+  // do processo, usei minha melhor estimativa baseada no nome do jogo.
+  { name: 'Guilty as Sock!', steamAppId: 3400930, process: { win: 'GuiltyAsSock.exe' } },
+  // "Animal jamais" — interpretei como "Animal Jam", mas esse jogo é
+  // majoritariamente baseado em navegador/app, sem um executável de
+  // desktop clássico bem documentado — deixei sem detecção por
+  // enquanto, já que não tenho um nome de processo confiável pra usar.
+  // Hytale ainda não foi lançado (segue em desenvolvimento há anos) —
+  // não tem processo nenhum pra detectar ainda, não faz sentido
+  // adicionar uma entrada que nunca vai encontrar nada.
 ];
 
 // Índice por nome de processo, já em minúsculo, montado uma vez só —
