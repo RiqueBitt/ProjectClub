@@ -13,6 +13,7 @@ import { getAgoraToken } from '../api/endpoints';
 // pra false sozinho, então as funções abaixo viram no-op automático sem
 // precisar de nenhum "if" espalhado pelo resto do arquivo.
 import { Capacitor } from '@capacitor/core';
+import { startAndroidScreenShare, stopAndroidScreenShare } from '../native/androidScreenShare';
 
 let BackgroundModePlugin = null;
 async function getBackgroundMode() {
@@ -153,6 +154,7 @@ export function VoiceProvider({ children }) {
   const localAudioTrackRef = useRef(null);
   const cameraTrackRef = useRef(null);
   const screenTrackRef = useRef(null);
+  const androidScreenTrackRef = useRef(null);
   const screenAudioTrackRef = useRef(null);
   // Item pedido: "bug de clique duplo" nos botões — mudo/câmera/tela são
   // funções assíncronas (esperam o Agora responder); clicar rápido demais
@@ -487,6 +489,16 @@ export function VoiceProvider({ children }) {
         screenAudioTrackRef.current?.close();
         screenTrackRef.current = null;
         screenAudioTrackRef.current = null;
+        // Item pedido: compartilhamento de tela no Android — se a
+        // faixa que estava no ar era a capturada pelo plugin nativo
+        // (não a padrão do navegador), também precisa avisar o lado
+        // Android pra parar a captura de verdade (serviço em primeiro
+        // plano, MediaProjection) — só despublicar do Agora não seria
+        // suficiente, a captura continuaria rodando escondida.
+        if (androidScreenTrackRef.current) {
+          stopAndroidScreenShare();
+          androidScreenTrackRef.current = null;
+        }
         setScreenOn(false);
         broadcastState({ screenSharing: false });
         forceLocalVideoTick((n) => n + 1);
@@ -494,7 +506,29 @@ export function VoiceProvider({ children }) {
       }
       const isNativeApp = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
       if (isNativeApp) {
-        useStore.getState().pushNotice('Compartilhar tela ainda não é possível pelo app Android — use pelo navegador (Chrome) por enquanto.');
+        // Item pedido: "jeito mais fácil de fazer o celular
+        // compartilhar a tela" — plugin nativo (ScreenSharePlugin.java)
+        // entrega os pixels da tela como imagens; esse caminho as
+        // transforma numa faixa de vídeo de verdade via <canvas> (ver
+        // native/androidScreenShare.js) e publica ela como uma faixa
+        // CUSTOMIZADA do Agora — o mesmo mecanismo documentado
+        // oficialmente pelo Agora pra qualquer fonte de vídeo que não
+        // seja câmera/tela padrão do navegador.
+        try {
+          const mediaStreamTrack = await startAndroidScreenShare({ fps: 6, quality: 55 });
+          if (!mediaStreamTrack) return; // pessoa negou a permissão do sistema
+          const AgoraRTC = await loadAgoraRTC();
+          const customTrack = await AgoraRTC.createCustomVideoTrack({ mediaStreamTrack, frameRate: 6 });
+          screenTrackRef.current = customTrack;
+          androidScreenTrackRef.current = mediaStreamTrack;
+          await client.publish([customTrack]);
+          setScreenOn(true);
+          broadcastState({ screenSharing: true });
+          forceLocalVideoTick((n) => n + 1);
+        } catch (err) {
+          useStore.getState().pushNotice('Não foi possível compartilhar a tela.');
+          stopAndroidScreenShare();
+        }
         return;
       }
       const { quality = '1080p', frameRate = 30 } = options;

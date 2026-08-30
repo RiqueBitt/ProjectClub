@@ -35,7 +35,14 @@ export default function CallBar() {
   // that just happens to lack the API", so this case gets its own accurate
   // message instead of both being lumped under one generic one.
   const isNativeApp = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
-  const screenShareSupported = !isNativeApp && typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia;
+  // Item pedido: compartilhamento de tela no Android — agora tem um
+  // caminho próprio (plugin nativo + canvas, ver
+  // native/androidScreenShare.js), então deixa de estar bloqueado
+  // nessa plataforma especificamente. iOS continua sem suporte (não foi
+  // implementado ali) — window.Capacitor.getPlatform() distingue as
+  // duas dentro do "app nativo" genérico.
+  const isAndroidApp = isNativeApp && window.Capacitor?.getPlatform?.() === 'android';
+  const screenShareSupported = isAndroidApp || (!isNativeApp && typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia);
   const participantCount = Object.keys(participants).length + 1;
   const micLocked = call.channelType === 'STAGE' && myRole === 'audience';
 
@@ -58,8 +65,8 @@ export default function CallBar() {
         <button className={`icon-btn ${cameraOn ? 'on' : ''}`} title="Câmera" onClick={voice.toggleCamera}><IconGlyph src={videoCallIcon} size={18} /></button>
         <button
           className={`icon-btn ${screenOn ? 'on' : ''}`}
-          title={screenShareSupported ? (screenOn ? 'Parar de compartilhar tela' : 'Compartilhar tela') : (isNativeApp ? 'Compartilhar tela ainda não é suportado no app Android — use pelo navegador' : 'Compartilhar tela não é suportado neste navegador')}
-          onClick={() => (screenOn ? voice.toggleScreenShare() : setShowScreenShareMenu(true))}
+          title={screenShareSupported ? (screenOn ? 'Parar de compartilhar tela' : 'Compartilhar tela') : (isNativeApp ? 'Compartilhar tela não é suportado no app iOS — use pelo navegador' : 'Compartilhar tela não é suportado neste navegador')}
+          onClick={() => (screenOn || isAndroidApp ? voice.toggleScreenShare() : setShowScreenShareMenu(true))}
           disabled={!screenShareSupported}
         >
           <IconGlyph src={screenshareIcon} size={18} />

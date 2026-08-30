@@ -24,6 +24,14 @@
 
         </activity>
 
+        <!-- Item pedido: compartilhamento de tela — declaração
+             obrigatória do serviço em primeiro plano que faz a captura
+             de verdade (ver ScreenCaptureService.java). -->
+        <service
+            android:name=".ScreenCaptureService"
+            android:foregroundServiceType="mediaProjection"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -71,4 +79,11 @@
          sistema bloqueia a instalação silenciosamente. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Item pedido: compartilhamento de tela — o serviço em primeiro
+         plano é obrigatório pra captura de tela funcionar (o Android
+         mata qualquer captura feita fora de um serviço assim), e desde
+         o Android 14 (API 34) precisa ser desse TIPO específico
+         (mediaProjection), com essa permissão própria. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 </manifest>
