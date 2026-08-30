@@ -7,6 +7,7 @@ import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import { roleTextStyle, highestColoredRole } from '../utils/roleColor';
 import TagBadge from './TagBadge.jsx';
 import StatusEmoji from './StatusEmoji.jsx';
+import ActivityIcon from './ActivityIcon.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import { createConversation, banMember, timeoutMember, warnMember } from '../api/endpoints';
 import personIcon from '../assets/icons/person.png';
@@ -131,7 +132,7 @@ function MemberGroup({ label, members, roles, dim }) {
             </span>
             {(m.user.customStatus || m.user.customStatusEmoji) && (
               <span className="member-row-status truncate">
-                <StatusEmoji emoji={m.user.customStatusEmoji} /> {m.user.customStatus}
+                <ActivityIcon userId={m.user.id} /> <StatusEmoji emoji={m.user.customStatusEmoji} /> {m.user.customStatus}
               </span>
             )}
           </div>

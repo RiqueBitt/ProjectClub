@@ -187,6 +187,14 @@ export function SocketProvider({ children }) {
     socket.on('activity:changed', ({ userId: uid, activity }) => {
       useStore.getState().setActivity(uid, activity);
     });
+    // Item pedido: ícone de atividade na lista de membros aparecer
+    // mesmo pra quem já estava jogando/ouvindo ANTES de eu conectar —
+    // "foto instantânea" de tudo que já existe, mandada uma vez só ao
+    // conectar (ver server/src/sockets/index.js), diferente de
+    // activity:changed (que só chega quando algo MUDA depois).
+    socket.on('activity:sync', (activitiesMap) => {
+      Object.entries(activitiesMap).forEach(([uid, activity]) => useStore.getState().setActivity(uid, activity));
+    });
     // Item pedido: "Rich Presence" — no app de desktop, começa a
     // escutar os avisos que o Electron manda (ver desktop/
     // activityDetector.js + preload.js) e repassa pro servidor. Sem

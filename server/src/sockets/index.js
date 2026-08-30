@@ -181,6 +181,19 @@ function initSockets(httpServer) {
       const allStatuses = await prisma.user.findMany({ select: { id: true, status: true, customStatus: true } });
       socket.emit('presence:sync', allStatuses.map((u) => ({ userId: u.id, status: u.status, customStatus: u.customStatus })));
 
+      // Item pedido: ícone de atividade (jogo/Spotify/app) na lista de
+      // membros — sem isso, só quem TROCASSE de atividade DEPOIS de eu
+      // já estar conectado apareceria; alguém que já estava jogando
+      // ANTES de eu abrir o site nunca apareceria, já que a atividade só
+      // é retransmitida ao vivo quando MUDA (ver activity:update acima),
+      // não quando alguém simplesmente conecta. Só busca de quem está
+      // online agora (offline nunca tem atividade de verdade) — evita
+      // buscar no Redis pra todo mundo à toa.
+      const onlineIds = allStatuses.filter((u) => u.status !== 'OFFLINE').map((u) => u.id);
+      const activityEntries = await Promise.all(onlineIds.map(async (uid) => [uid, await activityStore.getActivity(uid)]));
+      const activitiesMap = Object.fromEntries(activityEntries.filter(([, activity]) => activity));
+      socket.emit('activity:sync', activitiesMap);
+
       // Abrir o site (ou uma nova aba/dispositivo) conta como atividade —
       // começa/reinicia a contagem de 15min pra "Ausente" e, se a pessoa
       // já estava ausente sozinha (não por escolha própria), volta pra
