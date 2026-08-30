@@ -45,19 +45,24 @@ async function listProcessNames(platform) {
 // app quando os dois aparecem rodando ao mesmo tempo (igual o Discord
 // já faz — enquanto joga, mesmo com o VS Code aberto atrás, mostra o
 // jogo).
+// Item pedido: "prioridades: 1 Jogos, 2 Spotify, 3 Apps" — antes o
+// Spotify só era checado se NEM jogo NEM app fossem encontrados, então
+// um app comum (tipo Discord aberto) sempre "vencia" do Spotify tocando
+// ao fundo, o que a pessoa não queria. Pra dar certo, essa função devolve
+// os DOIS achados (jogo e app) da mesma varredura de processos — quem
+// decide a ordem final (Spotify entrando NO MEIO dos dois) é o laço
+// principal (tick()) mais abaixo, não mais essa função sozinha.
 async function detectGameOrApp(platform) {
   const processes = await listProcessNames(platform);
   const platKey = platform === 'win32' ? 'win' : 'linux';
+  let game = null;
   let appMatch = null;
   for (const proc of processes) {
-    const game = matchProcessName(proc, platKey);
-    if (game) return { kind: 'game', ...game };
-    if (!appMatch) {
-      const app = matchAppProcessName(proc, platKey);
-      if (app) appMatch = app;
-    }
+    if (!game) game = matchProcessName(proc, platKey);
+    if (!appMatch) appMatch = matchAppProcessName(proc, platKey);
+    if (game && appMatch) break; // achou os dois — não precisa continuar varrendo
   }
-  return appMatch ? { kind: 'app', ...appMatch } : null;
+  return { game, app: appMatch };
 }
 
 // ---------- Detecção de Spotify (mídia tocando agora) ----------
@@ -90,6 +95,14 @@ function Await($WinRtTask, $ResultType) {
 $manager = Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
 $session = $manager.GetSessions() | Where-Object { $_.SourceAppUserModelId -like "*Spotify*" } | Select-Object -First 1
 if ($session -eq $null) { Write-Output "null"; exit }
+# Item pedido: "quando eu pausar, some de atividade; quando tocar de
+# novo, volta" — igual o Discord já faz. Comparado pelo NOME do valor
+# do enum (não pelo número), assim não corre risco nenhum de acertar a
+# numeração errada sem poder testar num Windows de verdade.
+$playbackInfo = $session.GetPlaybackInfo()
+if ($playbackInfo.PlaybackStatus -ne [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus]::Playing) {
+  Write-Output "null"; exit
+}
 $props = Await ($session.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
 $timeline = $session.GetTimelineProperties()
 # Item pedido: capa do álbum de VERDADE (não um ícone genérico) — o
@@ -207,15 +220,18 @@ function startActivityDetection(onChange) {
 
   const tick = async () => {
     try {
-      const found = await detectGameOrApp(platform);
+      const { game, app } = await detectGameOrApp(platform);
       let activity = null;
-      if (found?.kind === 'game') {
-        activity = { type: 'game', name: found.name, imageUrl: found.imageUrl || undefined, startedAt: Date.now() };
-      } else if (found?.kind === 'app') {
-        activity = { type: 'app', name: found.name, imageUrl: found.imageUrl || undefined, startedAt: Date.now() };
+      // Item pedido: ordem de prioridade — 1) Jogo, 2) Spotify, 3) App.
+      if (game) {
+        activity = { type: 'game', name: game.name, imageUrl: game.imageUrl || undefined, startedAt: Date.now() };
       } else {
         const spotify = await detectSpotify(platform);
-        if (spotify) activity = { type: 'spotify', ...spotify, startedAt: Date.now() };
+        if (spotify) {
+          activity = { type: 'spotify', ...spotify, startedAt: Date.now() };
+        } else if (app) {
+          activity = { type: 'app', name: app.name, imageUrl: app.imageUrl || undefined, startedAt: Date.now() };
+        }
       }
       const key = activityKey(activity);
       if (key !== lastSentKey || (activity && activity.type === 'spotify')) {

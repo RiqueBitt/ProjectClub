@@ -72,7 +72,13 @@ export default function ActivityBadge({ userId }) {
   return (
     <div className="activity-badge activity-badge-spotify">
       <div className="activity-badge-icon">
-        <img src={spotifyIcon} alt="" className="activity-badge-icon-fallback" />
+        {/* BUG CORRIGIDO ("músicas não mostram os ícones delas do
+            Spotify"): sempre mostrava o ícone genérico de nota
+            musical, nunca a CAPA DO ÁLBUM de verdade que já vem em
+            activity.imageUrl (extraída direto do Windows — ver
+            activityDetector.js) — o código simplesmente esquecia de
+            checar esse campo aqui, mesmo já existindo. */}
+        {activity.imageUrl ? <img src={activity.imageUrl} alt="" className="activity-badge-icon-fallback" /> : <img src={spotifyIcon} alt="" className="activity-badge-icon-fallback" />}
       </div>
       <div className="activity-badge-text">
         <div className="activity-badge-title">Ouvindo Spotify</div>
