@@ -2083,7 +2083,19 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
    same gradient (same angle, same colors) so it reads as one continuous
    surface instead of a border that doesn't match what's behind it. */
 .profile-modal-box.profile-modal-accented {
-  border: 3px solid transparent;
+  /* BUG CORRIGIDO ("perfil fica bugado dependendo do tema" / "degradê
+     estranho quando o fundo é preto num tema claro"): o tema Claro tem
+     uma regra genérica (mais abaixo no arquivo) que dá uma borda cinza
+     fina + remove sombra de QUALQUER .modal-box, incluindo esse. Como
+     as duas regras têm a MESMA especificidade (duas classes cada), quem
+     vem DEPOIS no arquivo vence — e a do tema Claro vinha depois,
+     silenciosamente substituindo a borda com degradê (a cor de perfil
+     que a PESSOA escolheu) por essa borda genérica cinza, quebrando
+     bordas onde justamente a transição de cor devia continuar suave.
+     !important aqui garante que a borda do próprio perfil SEMPRE vence,
+     em qualquer tema — mesma ideia já usada no background dessa regra,
+     logo abaixo. */
+  border: 3px solid transparent !important;
   /* BUG CORRIGIDO ("brilho/degradê branco na parte de baixo do perfil"):
      o card do perfil rola (overflow-y: auto — o conteúdo, com bio,
      conquistas, conexões etc, costuma ser mais alto que a tela). Sem
@@ -3076,6 +3088,11 @@ a.embed-card-title:hover { text-decoration: underline; }
    enviado) em vez de um ícone pequeno. */
 .role-icon-preview { width: 16px; height: 16px; object-fit: contain; border-radius: 3px; vertical-align: middle; }
 .role-icon-inline { width: 14px; height: 14px; object-fit: contain; border-radius: 3px; vertical-align: middle; margin-right: 3px; }
+.role-icon-remove {
+  width: 24px; height: 24px; border-radius: 50%; background: var(--bg-modifier-hover); color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0;
+}
+.role-icon-remove:hover { background: var(--red); color: #fff; }
 
 /* ---------- Boosts hub (BoostsHubView.jsx) ---------- */
 .boosts-hub-view { padding: 24px; max-width: 720px; margin: 0 auto; overflow-y: auto; }

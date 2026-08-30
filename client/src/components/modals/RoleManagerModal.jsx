@@ -208,6 +208,20 @@ export default function RoleManagerModal({ onClose }) {
                     {selected.icon?.startsWith('/') ? <img src={selected.icon} alt="" className="role-icon-preview" /> : 'Enviar imagem'}
                     <input type="file" accept="image/png,image/gif,image/webp" hidden onChange={uploadIcon} key={`u-${selected.id}`} />
                   </label>
+                  {/* Item pedido: "adicione poder remover o ícone do
+                      cargo PNG" — antes só dava pra ENVIAR uma imagem
+                      nova (que substituía a anterior), sem nenhum jeito
+                      de voltar a não ter ícone nenhum. */}
+                  {selected.icon?.startsWith('/') && (
+                    <button
+                      type="button"
+                      className="role-icon-remove"
+                      title="Remover ícone"
+                      onClick={() => patchRole({ icon: '' }, 'icon')}
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
                 {savingField === 'icon' && <span className="role-field-saving">Salvando...</span>}
               </div>
