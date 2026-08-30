@@ -62,4 +62,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Item pedido: sistema de atualização automática (baixar e
+         instalar o .apk novo sozinho, sem precisar abrir o
+         navegador) — READ_EXTERNAL_STORAGE pra achar o arquivo
+         baixado, REQUEST_INSTALL_PACKAGES é a permissão específica
+         que o Android exige de qualquer app que queira instalar OUTRO
+         app (mesmo sendo uma atualização de si mesmo) — sem ela, o
+         sistema bloqueia a instalação silenciosamente. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 </manifest>

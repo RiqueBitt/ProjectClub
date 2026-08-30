@@ -8,7 +8,7 @@
   "scripts": {
     "start": "electron .",
     "build:win": "electron-builder --win --x64 --publish always",
-    "build:linux": "electron-builder --linux --x64"
+    "build:linux": "electron-builder --linux --x64 --publish always"
   },
   "devDependencies": {
     "electron": "^31.3.0",

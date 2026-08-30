@@ -2,4 +2,11 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <external-path name="my_images" path="." />
     <cache-path name="my_cache_images" path="." />
+    <!-- Item pedido: sistema de atualização automática do .apk — o
+         plugin de instalação (@m430/capacitor-app-install) precisa
+         achar o arquivo baixado através desse mesmo FileProvider já
+         existente. Adicionadas só as 2 entradas que faltavam, sem
+         mexer nas de cima (que já são usadas por outra parte do app). -->
+    <files-path name="files" path="." />
+    <external-cache-path name="external_cache" path="." />
 </paths>

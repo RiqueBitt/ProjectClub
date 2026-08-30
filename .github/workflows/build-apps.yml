@@ -184,6 +184,32 @@ jobs:
         run: npm version "${{ needs.compute-version.outputs.version }}" --no-git-tag-version --allow-same-version
       - name: Gerar o AppImage
         run: npm run build:linux
+      # Mesmo raciocínio da correção feita no job do Windows: o
+      # electron-builder gera o latest-linux.yml apontando pro nome
+      # ORIGINAL do AppImage (com a versão no nome), mas o passo
+      # seguinte renomeia o arquivo pra um nome FIXO (pra manter a URL
+      # de download sempre igual no site) — sem essa correção, o
+      # electron-updater instalado nos apps das pessoas tentaria baixar
+      # um arquivo com o nome errado.
+      - name: Corrigir latest-linux.yml pro nome fixo do AppImage
+        run: |
+          set -e
+          pip install pyyaml --quiet
+          python3 -c "
+          import yaml, glob, os
+          appimage_name = os.path.basename(glob.glob('dist/*.AppImage')[0])
+          with open('dist/latest-linux.yml') as f:
+              data = yaml.safe_load(f)
+          data['path'] = 'ProjectClub-Linux.AppImage'
+          for entry in data.get('files', []):
+              entry['url'] = 'ProjectClub-Linux.AppImage'
+          with open('dist/latest-linux.yml', 'w') as f:
+              yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
+          blockmap_src = f'dist/{appimage_name}.blockmap'
+          if os.path.exists(blockmap_src):
+              os.rename(blockmap_src, 'dist/ProjectClub-Linux.AppImage.blockmap')
+          print('AppImage original era:', appimage_name)
+          "
       - name: Publicar na Release "latest"
         env:
           GH_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
@@ -191,11 +217,20 @@ jobs:
           set -e
           APPIMAGE_PATH=$(ls dist/*.AppImage | head -n 1)
           cp "$APPIMAGE_PATH" "$RUNNER_TEMP/ProjectClub-Linux.AppImage"
+          cp "dist/latest-linux.yml" "$RUNNER_TEMP/latest-linux.yml"
           REPO="RiqueBitt/ProjectClub-Downloads"
           gh release view latest --repo "$REPO" >/dev/null 2>&1 || \
             gh release create latest --repo "$REPO" --title "Versão mais recente" \
               --notes "Gerado automaticamente pelo GitHub Actions a cada atualização." --latest || true
           for i in 1 2 3; do gh release upload latest "$RUNNER_TEMP/ProjectClub-Linux.AppImage" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+          for i in 1 2 3; do gh release upload latest "$RUNNER_TEMP/latest-linux.yml" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+          # O .blockmap só existe se o electron-builder decidiu gerar um
+          # (depende de configuração/versão) — sobe só se existir de
+          # verdade, sem quebrar o passo se não tiver sido gerado.
+          if [ -f "dist/ProjectClub-Linux.AppImage.blockmap" ]; then
+            cp "dist/ProjectClub-Linux.AppImage.blockmap" "$RUNNER_TEMP/ProjectClub-Linux.AppImage.blockmap"
+            for i in 1 2 3; do gh release upload latest "$RUNNER_TEMP/ProjectClub-Linux.AppImage.blockmap" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+          fi
 
   build-android:
     needs: compute-version
