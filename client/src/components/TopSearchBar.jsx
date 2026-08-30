@@ -30,6 +30,7 @@ export default function TopSearchBar() {
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   usePopoverCoordination(statusMenuOpen, () => setStatusMenuOpen(false));
   const [customStatusOpen, setCustomStatusOpen] = useState(false);
+  const myActivity = useStore((s) => s.activities[user?.id]);
 
   const allChannels = [...channels, ...categories.flatMap((c) => c.channels || [])];
   const unreadChannels = allChannels.filter((ch) => isChannelUnread(ch, channelReadAt, user.id)).length;
@@ -99,6 +100,15 @@ export default function TopSearchBar() {
         <div className="top-search-bar-profile">
           <button type="button" className="top-search-bar-avatar" onClick={() => useStore.getState().openProfile(user.id)} title={user.displayName}>
             <UserAvatar user={user} size={30} />
+            {/* Item pedido: ícone verde de "jogando/ouvindo" bem onde
+                fica o indicador de status — 🎮 jogo, 🎵 Spotify. Só
+                aparece quando o app de desktop detectou alguma coisa
+                (myActivity vem undefined caso contrário). */}
+            {myActivity && (
+              <span className="top-search-bar-activity-dot" title={myActivity.type === 'game' ? `Jogando ${myActivity.name}` : `Ouvindo ${myActivity.name}`}>
+                {myActivity.type === 'game' ? '🎮' : '🎵'}
+              </span>
+            )}
             <button
               type="button"
               className="status-dot clickable top-search-bar-status-dot"
@@ -113,7 +123,19 @@ export default function TopSearchBar() {
                 <UserAvatar user={user} size={28} />
                 <div className="top-search-bar-status-menu-name">
                   <span>{user.displayName}</span>
-                  <span className="dim"><StatusEmoji emoji={user.customStatusEmoji} /> {user.customStatus || STATUS_LABEL[status]}</span>
+                  <span className="dim">
+                    {/* Item pedido: ícone compacto de "jogando"/"ouvindo"
+                        bem aqui, perto do status — 🎮 pra jogo, 🎵 pra
+                        Spotify, só um ícone rápido antes do texto do
+                        status em si (não é o card grande do perfil, é
+                        um resuminho). */}
+                    {myActivity && (
+                      <span className="top-search-bar-activity-icon" title={myActivity.type === 'game' ? `Jogando ${myActivity.name}` : `Ouvindo ${myActivity.name}`}>
+                        {myActivity.type === 'game' ? '🎮' : '🎵'}
+                      </span>
+                    )}
+                    <StatusEmoji emoji={user.customStatusEmoji} /> {user.customStatus || STATUS_LABEL[status]}
+                  </span>
                 </div>
               </div>
               <div className="dropdown-divider" />

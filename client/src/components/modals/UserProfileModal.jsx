@@ -105,7 +105,17 @@ export default function UserProfileModal() {
   useEffect(() => {
     if (!userId) { setData(null); return; }
     setLoading(true);
-    getUserProfile(userId).then(setData).catch(() => setData(null)).finally(() => setLoading(false));
+    getUserProfile(userId).then((result) => {
+      setData(result);
+      // BUG CORRIGIDO ("meu perfil não mostra jogo/Spotify"): o
+      // ActivityBadge só lê do estado atualizado AO VIVO pelo socket
+      // (activities no store) — nunca era alimentado com o que o
+      // próprio pedido de perfil já trazia (result.activity). Se
+      // nenhum aviso ao vivo tivesse chegado ainda desde que a página
+      // carregou, o badge ficava vazio mesmo com a atividade
+      // existindo de verdade no servidor.
+      if (result?.activity) useStore.getState().setActivity(userId, result.activity);
+    }).catch(() => setData(null)).finally(() => setLoading(false));
   }, [userId]);
 
   // NOVO (fusão com o Reddit clone — item 5): atividade em Comunidades —

@@ -8,6 +8,9 @@
 // Spotify em si, é "o sistema operacional já sabe o que está tocando,
 // só perguntamos pra ele".
 const { exec } = require('child_process');
+const path = require('path');
+const os = require('os');
+const fs = require('fs');
 const { matchProcessName } = require('./gameDatabase');
 
 function run(cmd) {
@@ -52,16 +55,30 @@ async function detectGame(platform) {
 // tarefas do Windows 10/11 pra qualquer player. Filtra especificamente
 // pelo Spotify (AppUserModelId contém "Spotify") — outros players
 // (navegador tocando YouTube etc) não entram, só o pedido de verdade.
+//
+// BUG CORRIGIDO ("Spotify nunca detectava nada"): a primeira versão
+// deste script chamava "$op.AsTask()" direto — só que AsTask() é um
+// MÉTODO DE EXTENSÃO do C# (WindowsRuntimeSystemExtensions), e o
+// PowerShell não consegue chamar métodos de extensão como se fossem
+// método normal do objeto sem um truque específico de reflexão. Isso
+// fazia o script inteiro falhar silenciosamente toda vez, sem nunca
+// conseguir esperar a operação assíncrona terminar de verdade. A
+// correção usa o padrão comprovado (pegar o AsTask genérico via
+// reflexão, montar o tipo certo, aí sim chamar .Wait()/.Result nele).
 const SPOTIFY_PS_SCRIPT = `
-Add-Type -AssemblyName System.Runtime.WindowsRuntime | Out-Null
-$op = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()
-[System.Threading.Tasks.Task]::WaitAny([System.Threading.Tasks.Task]$op.AsTask()) | Out-Null
-$manager = $op.GetResults()
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+$asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation\`1' })[0]
+function Await($WinRtTask, $ResultType) {
+  $asTask = $asTaskGeneric.MakeGenericMethod($ResultType)
+  $netTask = $asTask.Invoke($null, @($WinRtTask))
+  $netTask.Wait(-1) | Out-Null
+  $netTask.Result
+}
+[Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager,Windows.Media.Control,ContentType=WindowsRuntime] | Out-Null
+$manager = Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
 $session = $manager.GetSessions() | Where-Object { $_.SourceAppUserModelId -like "*Spotify*" } | Select-Object -First 1
 if ($session -eq $null) { Write-Output "null"; exit }
-$propsOp = $session.TryGetMediaPropertiesAsync()
-[System.Threading.Tasks.Task]::WaitAny([System.Threading.Tasks.Task]$propsOp.AsTask()) | Out-Null
-$props = $propsOp.GetResults()
+$props = Await ($session.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
 $timeline = $session.GetTimelineProperties()
 $result = @{
   title = $props.Title
@@ -72,8 +89,18 @@ $result = @{
 $result | ConvertTo-Json -Compress
 `;
 
+// BUG CORRIGIDO: mandar o script inteiro numa linha só, escapando aspas
+// à mão, cria um encadeamento de "aspas dentro de aspas dentro de
+// aspas" (JS -> string do comando -> PowerShell -> shell do Windows)
+// arriscado demais pra confiar sem poder testar num Windows de
+// verdade. Escrever o script num ARQUIVO .ps1 temporário e rodar ele
+// com -File é muito mais robusto — o conteúdo do script nunca precisa
+// passar por nenhum escape de aspas de linha de comando, só é lido
+// direto do arquivo.
 async function detectSpotifyWindows() {
-  const out = await run(`powershell -NoProfile -NonInteractive -Command "${SPOTIFY_PS_SCRIPT.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`);
+  const scriptPath = path.join(os.tmpdir(), 'project-club-spotify-check.ps1');
+  fs.writeFileSync(scriptPath, SPOTIFY_PS_SCRIPT, 'utf-8');
+  const out = await run(`powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${scriptPath}"`);
   const trimmed = out.trim();
   if (!trimmed || trimmed === 'null') return null;
   try {
@@ -159,7 +186,15 @@ function startActivityDetection(onChange) {
   };
 
   tick();
-  timer = setInterval(tick, 15000);
+  // Item pedido: "demorou muito pra sumir quando fechei o jogo" — o
+  // intervalo era de 15s; reduzido pra 8s deixa a detecção de "fechou o
+  // jogo" bem mais rápida. Não pode ser MUITO pequeno também — cada
+  // verificação de jogo já lista todos os processos do sistema, e no
+  // Windows especificamente ainda tenta ler o Spotify via PowerShell
+  // (que sozinho já leva ~1-2s pra rodar) sempre que nenhum jogo é
+  // encontrado — um intervalo curto demais deixaria isso rodando quase
+  // sem parar, comendo CPU à toa.
+  timer = setInterval(tick, 8000);
 }
 
 function stopActivityDetection() {

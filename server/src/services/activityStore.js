@@ -12,10 +12,10 @@ const { redis } = require('../config/redis');
 
 const keyFor = (userId) => `activity:${userId}`;
 // Se o app de desktop não confirmar de novo dentro desse tempo (ele
-// reenvia a cada ~20s enquanto o jogo/música continuar tocando), a
+// reenvia a cada ~8s enquanto o jogo/música continuar tocando), a
 // atividade expira sozinha — evita ficar "jogando Valorant" pra sempre
 // se o app fechar de repente sem avisar (queda de luz, crash etc).
-const ACTIVITY_TTL_SECONDS = 45;
+const ACTIVITY_TTL_SECONDS = 25;
 
 async function setActivity(userId, activity) {
   const key = keyFor(userId);

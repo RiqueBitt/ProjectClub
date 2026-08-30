@@ -43,7 +43,10 @@ export default function DMProfilePanel({ onToggle }) {
   useEffect(() => {
     if (!other) { setData(null); return; }
     setLoading(true);
-    getUserProfile(other.id).then(setData).catch(() => setData(null)).finally(() => setLoading(false));
+    getUserProfile(other.id).then((result) => {
+      setData(result);
+      if (result?.activity) useStore.getState().setActivity(other.id, result.activity);
+    }).catch(() => setData(null)).finally(() => setLoading(false));
   }, [other?.id]);
 
   if (!conversation) return null;
