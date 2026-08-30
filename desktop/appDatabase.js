@@ -24,11 +24,15 @@ const APPS = [
   { name: 'Blender', process: { win: 'blender.exe', linux: 'blender' }, imageUrl: 'https://cdn.simpleicons.org/blender' },
   { name: 'OBS Studio', process: { win: 'obs64.exe', linux: 'obs' }, imageUrl: 'https://cdn.simpleicons.org/obsstudio' },
   { name: 'Figma', process: { win: 'Figma.exe' }, imageUrl: 'https://cdn.simpleicons.org/figma' },
-  { name: 'Discord', process: { win: 'Discord.exe' }, imageUrl: 'https://cdn.simpleicons.org/discord' },
+  // Discord e Steam removidos de propósito (item pedido) — os dois
+  // ficam abertos o tempo todo em segundo plano pra praticamente todo
+  // mundo (o próprio Discord é o app que a pessoa já está usando pra
+  // ver essa atividade, e o Steam fica sempre rodando por trás dos
+  // jogos), mostrar isso como "atividade" vira ruído sem sentido, igual
+  // já tirei os navegadores antes.
   { name: 'Docker Desktop', process: { win: 'Docker Desktop.exe' }, imageUrl: 'https://cdn.simpleicons.org/docker' },
   { name: 'Postman', process: { win: 'Postman.exe' }, imageUrl: 'https://cdn.simpleicons.org/postman' },
   { name: 'GIMP', process: { win: 'gimp-2.10.exe', linux: 'gimp' }, imageUrl: 'https://cdn.simpleicons.org/gimp' },
-  { name: 'Steam', process: { win: 'steam.exe', linux: 'steam' }, imageUrl: 'https://cdn.simpleicons.org/steam' },
   // Item pedido: "adicione mais apps" — slugs confirmados: nomes de
   // marca de uma palavra só, sem espaço/hífen, seguem o padrão já
   // testado e comprovado (centenas de exemplos conferidos) do Simple
@@ -64,6 +68,28 @@ const APPS = [
   { name: 'Paint.NET', process: { win: 'paintdotnet.exe' }, imageUrl: 'https://cdn.simpleicons.org/paintdotnet' },
   { name: 'FL Studio', process: { win: 'FL64.exe' }, imageUrl: 'https://cdn.simpleicons.org/flstudio' },
   { name: 'GitHub Desktop', process: { win: 'GitHubDesktop.exe' }, imageUrl: 'https://cdn.simpleicons.org/github' },
+  // Item pedido: "adicione mais apps" — mais marcas de nome único
+  // confirmadas no Simple Icons.
+  { name: 'Obsidian', process: { win: 'Obsidian.exe', linux: 'obsidian' }, imageUrl: 'https://cdn.simpleicons.org/obsidian' },
+  { name: 'Evernote', process: { win: 'Evernote.exe' }, imageUrl: 'https://cdn.simpleicons.org/evernote' },
+  { name: 'Todoist', process: { win: 'Todoist.exe' }, imageUrl: 'https://cdn.simpleicons.org/todoist' },
+  { name: 'DBeaver', process: { win: 'dbeaver.exe' }, imageUrl: 'https://cdn.simpleicons.org/dbeaver' },
+  { name: 'MongoDB Compass', process: { win: 'MongoDBCompass.exe' }, imageUrl: 'https://cdn.simpleicons.org/mongodb' },
+  { name: 'HeidiSQL', process: { win: 'heidisql.exe' }, imageUrl: 'https://cdn.simpleicons.org/mysql' },
+  { name: 'Wireshark', process: { win: 'Wireshark.exe', linux: 'wireshark' }, imageUrl: 'https://cdn.simpleicons.org/wireshark' },
+  { name: 'Warp Terminal', process: { win: 'Warp.exe' }, imageUrl: 'https://cdn.simpleicons.org/warp' },
+  { name: 'PowerToys', process: { win: 'PowerToys.exe' } }, // sem logo confirmado, mantém detecção mesmo assim
+  { name: 'Rufus', process: { win: 'rufus.exe' } },
+  { name: 'HandBrake', process: { win: 'HandBrake.exe', linux: 'HandBrake' }, imageUrl: 'https://cdn.simpleicons.org/handbrake' },
+  { name: 'ShareX', process: { win: 'ShareX.exe' }, imageUrl: 'https://cdn.simpleicons.org/sharex' },
+  { name: 'MSI Afterburner', process: { win: 'MSIAfterburner.exe' } },
+  { name: 'CPU-Z', process: { win: 'cpuz.exe', linux: 'cpuz' }, imageUrl: 'https://cdn.simpleicons.org/cpuz' },
+  { name: 'Bitwarden', process: { win: 'Bitwarden.exe' }, imageUrl: 'https://cdn.simpleicons.org/bitwarden' },
+  { name: 'Signal', process: { win: 'Signal.exe' }, imageUrl: 'https://cdn.simpleicons.org/signal' },
+  { name: 'Element', process: { win: 'Element.exe' }, imageUrl: 'https://cdn.simpleicons.org/element' },
+  { name: 'ClickUp', process: { win: 'ClickUp.exe' }, imageUrl: 'https://cdn.simpleicons.org/clickup' },
+  { name: 'Linear', process: { win: 'Linear.exe' }, imageUrl: 'https://cdn.simpleicons.org/linear' },
+  { name: 'Canva', process: { win: 'Canva.exe' }, imageUrl: 'https://cdn.simpleicons.org/canva' },
 ];
 
 const BY_PROCESS_WIN = new Map();

@@ -105,26 +105,9 @@ if ($playbackInfo.PlaybackStatus -ne [Windows.Media.Control.GlobalSystemMediaTra
 }
 $props = Await ($session.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
 $timeline = $session.GetTimelineProperties()
-# Item pedido: capa do álbum de VERDADE (não um ícone genérico) — o
-# Windows já guarda a capa junto com o resto da informação da música
-# tocando, só precisa ler os bytes e converter pra base64, pra poder
-# embutir direto na resposta sem precisar hospedar imagem nenhuma.
-$thumbBase64 = $null
-if ($props.Thumbnail -ne $null) {
-  try {
-    $thumbStream = Await ($props.Thumbnail.OpenReadAsync()) ([Windows.Storage.Streams.IRandomAccessStreamWithContentType])
-    $reader = [Windows.Storage.Streams.DataReader]::new($thumbStream)
-    $bytesToLoad = [uint32]$thumbStream.Size
-    Await ($reader.LoadAsync($bytesToLoad)) ([uint32]) | Out-Null
-    $bytes = New-Object byte[] $bytesToLoad
-    $reader.ReadBytes($bytes)
-    $thumbBase64 = [Convert]::ToBase64String($bytes)
-  } catch { $thumbBase64 = $null }
-}
 $result = @{
   title = $props.Title
   artist = $props.Artist
-  thumbnailBase64 = $thumbBase64
   positionMs = [math]::Round($timeline.Position.TotalMilliseconds)
   durationMs = [math]::Round($timeline.EndTime.TotalMilliseconds - $timeline.StartTime.TotalMilliseconds)
 }
@@ -139,6 +122,35 @@ $result | ConvertTo-Json -Compress
 // com -File é muito mais robusto — o conteúdo do script nunca precisa
 // passar por nenhum escape de aspas de linha de comando, só é lido
 // direto do arquivo.
+// BUG CORRIGIDO ("capa do álbum não funciona"): a versão anterior
+// tentava ler os BYTES da capa direto do Windows via manipulação manual
+// de stream (DataReader) — código que nunca consegui confirmar
+// funcionando de verdade (e continuava sem funcionar). Trocado por uma
+// abordagem bem mais simples e confiável: busca pública do iTunes (sem
+// precisar de chave de API, usada por vários projetos justamente pra
+// isso) usando artista+música, que já tenho de qualquer forma — só uma
+// chamada HTTP + JSON, sem nenhuma manipulação arriscada de bytes. Como
+// bônus, agora funciona tanto no Windows quanto no Linux (antes só
+// tentava no Windows).
+async function fetchAlbumArtFromItunes(artist, title) {
+  try {
+    const query = encodeURIComponent(`${artist} ${title}`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000); // não trava o laço principal se a rede estiver lenta
+    const res = await fetch(`https://itunes.apple.com/search?term=${query}&entity=song&limit=1`, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) return undefined;
+    const data = await res.json();
+    const artworkUrl = data?.results?.[0]?.artworkUrl100;
+    // A API sempre devolve uma miniatura pequena (100x100) — trocar o
+    // número no próprio link pede uma versão bem maior, um truque
+    // documentado e usado amplamente por quem consome essa API.
+    return artworkUrl ? artworkUrl.replace('100x100', '600x600') : undefined;
+  } catch {
+    return undefined; // sem internet, API fora do ar, música não encontrada — tudo bem, só não mostra capa
+  }
+}
+
 async function detectSpotifyWindows() {
   const scriptPath = path.join(os.tmpdir(), 'project-club-spotify-check.ps1');
   fs.writeFileSync(scriptPath, SPOTIFY_PS_SCRIPT, 'utf-8');
@@ -151,10 +163,6 @@ async function detectSpotifyWindows() {
     return {
       name: parsed.title,
       detail: parsed.artist || undefined,
-      // Capa do álbum de verdade, quando o Windows consegue ler ela —
-      // vira uma "data URL" (a imagem inteira embutida no próprio
-      // texto), sem precisar hospedar nem baixar nada à parte.
-      imageUrl: parsed.thumbnailBase64 ? `data:image/jpeg;base64,${parsed.thumbnailBase64}` : undefined,
       progressMs: parsed.positionMs,
       durationMs: parsed.durationMs > 0 ? parsed.durationMs : undefined,
     };
@@ -181,10 +189,28 @@ async function detectSpotifyLinux() {
   };
 }
 
+// Cache simples: a capa de uma música não muda enquanto ela continua
+// tocando — sem isso, cada verificação (a cada poucos segundos)
+// buscaria a MESMA capa de novo à toa, gastando chamadas de rede sem
+// necessidade nenhuma. Só busca de novo quando a música muda de
+// verdade.
+let lastArtCacheKey = null;
+let lastArtCacheUrl = undefined;
+
 async function detectSpotify(platform) {
   try {
-    if (platform === 'win32') return await detectSpotifyWindows();
-    if (platform === 'linux') return await detectSpotifyLinux();
+    let result = null;
+    if (platform === 'win32') result = await detectSpotifyWindows();
+    else if (platform === 'linux') result = await detectSpotifyLinux();
+    if (result && result.detail) {
+      const cacheKey = `${result.detail}|||${result.name}`;
+      if (cacheKey !== lastArtCacheKey) {
+        lastArtCacheKey = cacheKey;
+        lastArtCacheUrl = await fetchAlbumArtFromItunes(result.detail, result.name);
+      }
+      result.imageUrl = lastArtCacheUrl;
+    }
+    return result;
   } catch { /* não é crítico — só significa "não detectou nada agora" */ }
   return null;
 }
@@ -256,12 +282,13 @@ function startActivityDetection(onChange) {
   // (que sozinho já leva ~1-2s pra rodar) sempre que nenhum jogo é
   // encontrado — um intervalo curto demais deixaria isso rodando quase
   // sem parar, comendo CPU à toa.
-  // Item pedido: "melhore ao máximo a atualização em tempo real" —
-  // reduzido de 8s pra 5s. Não dá pra ir muito mais rápido que isso
-  // sem desperdiçar CPU à toa (cada verificação já lista todos os
-  // processos do sistema, e no Windows ainda tenta ler o Spotify via
-  // PowerShell sempre que nenhum jogo/app é encontrado).
-  timer = setInterval(tick, 5000);
+  // Item pedido: "quando pulo a música demora pra carregar, deixa mais
+  // tempo real" — reduzido de 5s pra 2s. Agora que a busca de capa do
+  // álbum só acontece UMA VEZ por música (cache, ver detectSpotify()
+  // acima) em vez de a cada verificação, dá pra verificar com mais
+  // frequência sem gastar chamada de rede à toa — o pulo de música
+  // agora é percebido em até 2s, não mais até 5s.
+  timer = setInterval(tick, 2000);
 }
 
 function stopActivityDetection() {
