@@ -19,5 +19,8 @@
   },
   "dependencies": {
     "concurrently": "^8.2.2"
+  },
+  "overrides": {
+    "uuid": "^11.1.0"
   }
 }

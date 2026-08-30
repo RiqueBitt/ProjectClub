@@ -676,6 +676,18 @@ body.body-auth-scroll { overflow-y: auto !important; }
   height: var(--top-search-bar-height, 52px); padding: 0 16px;
   background: var(--bg-primary-solid); border-bottom: 1px solid var(--border);
   z-index: 50;
+  /* BUG CORRIGIDO ("no celular, o cabeçalho fica embaixo da barra de
+     status/bateria/sinal"): o app Android roda a tela "de ponta a
+     ponta" (por trás da barra de status do sistema, pra parecer mais
+     nativo) — sem isso, o CONTEÚDO do cabeçalho (busca, notificação,
+     engrenagem, avatar) fica desenhado embaixo dessa faixa do sistema,
+     que cobre ele por cima. env(safe-area-inset-top) é exatamente
+     quanto espaço a barra de status ocupa em cada aparelho (varia por
+     modelo/notch) — soma isso como espaço extra no topo só quando
+     existe (0px em telas normais, sem efeito nenhum na web/desktop). */
+  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(var(--top-search-bar-height, 52px) + env(safe-area-inset-top, 0px));
+  box-sizing: border-box;
 }
 .top-search-bar-brand { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .top-search-bar-logo { width: 28px; height: 28px; object-fit: contain; flex-shrink: 0; }
@@ -1126,7 +1138,15 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .typing-indicator { padding: 0 16px 4px; font-size: 12px; color: var(--text-muted); font-style: italic; }
 .slow-mode-hint { padding: 4px 16px; font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
 
-.message-input-bar { padding: 0 16px 20px; position: relative; }
+.message-input-bar {
+  padding: 0 16px 20px; position: relative;
+  /* BUG CORRIGIDO ("no celular, o campo de digitar/mandar GIF fica
+     embaixo dos botões de voltar/início/apps recentes"): mesmo motivo
+     do cabeçalho acima, só que embaixo — o app roda de ponta a ponta,
+     então sem essa reserva de espaço a barra de gestos/botões do
+     sistema Android cobre por cima o campo de digitação de verdade. */
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+}
 .reply-bar {
   display: flex; align-items: center; gap: 8px; background: var(--bg-elevated); padding: 6px 12px;
   border-radius: 8px 8px 0 0; font-size: 13px; color: var(--text-muted);
