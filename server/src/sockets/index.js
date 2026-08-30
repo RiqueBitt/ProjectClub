@@ -592,7 +592,14 @@ function initSockets(httpServer) {
           type: ['spotify', 'app'].includes(activity.type) ? activity.type : 'game',
           name: String(activity.name || '').slice(0, 120),
           detail: activity.detail ? String(activity.detail).slice(0, 120) : undefined,
-          imageUrl: activity.imageUrl ? String(activity.imageUrl).slice(0, 500) : undefined,
+          // Item pedido: capa de álbum de verdade — quando é do
+          // Spotify, imageUrl vem como uma "data URL" (a imagem
+          // inteira em base64, embutida no texto), bem maior que uma
+          // URL comum — precisa de um limite bem mais generoso que os
+          // outros tipos (logo de jogo/app, que são links curtos de
+          // verdade). 300KB de string já cobre uma capa de álbum
+          // pequena com folga.
+          imageUrl: activity.imageUrl ? String(activity.imageUrl).slice(0, 300000) : undefined,
           startedAt: Number.isFinite(activity.startedAt) ? activity.startedAt : Date.now(),
           durationMs: Number.isFinite(activity.durationMs) ? activity.durationMs : undefined,
           progressMs: Number.isFinite(activity.progressMs) ? activity.progressMs : undefined,

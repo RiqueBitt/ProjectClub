@@ -92,9 +92,26 @@ $session = $manager.GetSessions() | Where-Object { $_.SourceAppUserModelId -like
 if ($session -eq $null) { Write-Output "null"; exit }
 $props = Await ($session.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
 $timeline = $session.GetTimelineProperties()
+# Item pedido: capa do álbum de VERDADE (não um ícone genérico) — o
+# Windows já guarda a capa junto com o resto da informação da música
+# tocando, só precisa ler os bytes e converter pra base64, pra poder
+# embutir direto na resposta sem precisar hospedar imagem nenhuma.
+$thumbBase64 = $null
+if ($props.Thumbnail -ne $null) {
+  try {
+    $thumbStream = Await ($props.Thumbnail.OpenReadAsync()) ([Windows.Storage.Streams.IRandomAccessStreamWithContentType])
+    $reader = [Windows.Storage.Streams.DataReader]::new($thumbStream)
+    $bytesToLoad = [uint32]$thumbStream.Size
+    Await ($reader.LoadAsync($bytesToLoad)) ([uint32]) | Out-Null
+    $bytes = New-Object byte[] $bytesToLoad
+    $reader.ReadBytes($bytes)
+    $thumbBase64 = [Convert]::ToBase64String($bytes)
+  } catch { $thumbBase64 = $null }
+}
 $result = @{
   title = $props.Title
   artist = $props.Artist
+  thumbnailBase64 = $thumbBase64
   positionMs = [math]::Round($timeline.Position.TotalMilliseconds)
   durationMs = [math]::Round($timeline.EndTime.TotalMilliseconds - $timeline.StartTime.TotalMilliseconds)
 }
@@ -121,6 +138,10 @@ async function detectSpotifyWindows() {
     return {
       name: parsed.title,
       detail: parsed.artist || undefined,
+      // Capa do álbum de verdade, quando o Windows consegue ler ela —
+      // vira uma "data URL" (a imagem inteira embutida no próprio
+      // texto), sem precisar hospedar nem baixar nada à parte.
+      imageUrl: parsed.thumbnailBase64 ? `data:image/jpeg;base64,${parsed.thumbnailBase64}` : undefined,
       progressMs: parsed.positionMs,
       durationMs: parsed.durationMs > 0 ? parsed.durationMs : undefined,
     };
@@ -191,7 +212,7 @@ function startActivityDetection(onChange) {
       if (found?.kind === 'game') {
         activity = { type: 'game', name: found.name, imageUrl: found.imageUrl || undefined, startedAt: Date.now() };
       } else if (found?.kind === 'app') {
-        activity = { type: 'app', name: found.name, startedAt: Date.now() };
+        activity = { type: 'app', name: found.name, imageUrl: found.imageUrl || undefined, startedAt: Date.now() };
       } else {
         const spotify = await detectSpotify(platform);
         if (spotify) activity = { type: 'spotify', ...spotify, startedAt: Date.now() };
