@@ -19,6 +19,14 @@ export const useStore = create((set, get) => ({
   conversations: [],
   friends: [],
   presence: {}, // userId -> { status, customStatus }
+  // Item pedido: "Rich Presence" (jogo/Spotify) — userId -> activity
+  // object (ou undefined se não estiver jogando/ouvindo nada agora).
+  activities: {},
+  setActivity: (userId, activity) => set((s) => {
+    const next = { ...s.activities };
+    if (activity) next[userId] = activity; else delete next[userId];
+    return { activities: next };
+  }),
   typing: {}, // roomKey -> Set(userId) (mantido como array simples)
   messagesByRoom: {}, // roomKey -> Message[]
   channelReadAt: {}, // channelId -> ISO date string (override local, feedback instantâneo ao abrir)

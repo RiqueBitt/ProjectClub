@@ -6,6 +6,7 @@
 // Discord/Slack fazem.
 const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage, session, desktopCapturer } = require('electron');
 const path = require('path');
+const { startActivityDetection } = require('./activityDetector');
 
 // URL do site hospedado — trocar aqui se o domínio mudar um dia. Fica só
 // nesse único lugar de propósito.
@@ -101,6 +102,21 @@ if (!gotLock) {
     });
 
     mainWindow.loadURL(APP_URL);
+
+    // Item pedido: "Rich Presence" (jogo/Spotify) — só começa a detectar
+    // depois que a janela terminar de carregar o site de verdade, senão
+    // a primeira detecção (que roda na hora, sem esperar o primeiro
+    // temporizador de 15s) tentaria mandar pro site antes dele sequer
+    // existir. mainWindow.webContents.send manda direto pro JS da
+    // página, sem precisar de handle/invoke — é só um aviso, não uma
+    // pergunta que espera resposta.
+    mainWindow.webContents.once('did-finish-load', () => {
+      startActivityDetection((activity) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('activity:detected', activity);
+        }
+      });
+    });
 
     // Permite abrir links que o próprio app tenta abrir numa aba nova
     // (ex: conexões do perfil) no navegador padrão do sistema, em vez de

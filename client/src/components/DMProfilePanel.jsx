@@ -8,6 +8,7 @@ import { renderRichContent } from '../utils/richTextRender.jsx';
 import { profileAccentVars } from '../utils/profileAccent';
 import TagBadge from './TagBadge.jsx';
 import StatusEmoji from './StatusEmoji.jsx';
+import ActivityBadge from './ActivityBadge.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import likeIcon from '../assets/icons/like.png';
 import dislikeIcon from '../assets/icons/dislike.png';
@@ -98,6 +99,7 @@ export default function DMProfilePanel({ onToggle }) {
                 <StatusEmoji emoji={user.customStatusEmoji} /> {user.customStatus}
               </div>
             )}
+            <ActivityBadge userId={user.id} />
 
             {data.badges?.length > 0 && (
               <div className="profile-section">

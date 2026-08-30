@@ -1,6 +1,7 @@
 const prisma = require('../config/prisma');
 const { PUBLIC_USER_FIELDS, SELF_USER_FIELDS, ensurePublicId } = require('./authController');
 const { clearIfExpired } = require('../services/customStatus');
+const activityStore = require('../services/activityStore');
 
 // Keep in sync with client/src/utils/nameStyle.js's own option lists.
 const NAME_FONTS = ['NORMAL', 'PIXEL', 'CARTOON', 'MEDIEVAL', 'HANDWRITING'];
@@ -361,10 +362,13 @@ async function getUser(req, res, next) {
       levelProgress = Math.max(0, Math.min(100, Math.floor((xpInLevel / xpNeeded) * 100)));
     }
 
+    const activity = await activityStore.getActivity(id);
+
     res.json({
       user: clearIfExpired(user), badges, mutualFriends,
       likeCount, dislikeCount, myVote: myVoteRow?.value || 0, levelProgress, totalUps,
       displayedAchievements, displayedAchievementsMini,
+      activity,
     });
   } catch (err) { next(err); }
 }

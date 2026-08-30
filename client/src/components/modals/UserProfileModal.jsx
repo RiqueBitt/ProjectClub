@@ -12,6 +12,7 @@ import { profileAccentVars } from '../../utils/profileAccent';
 import TagBadge from '../TagBadge.jsx';
 import UserAvatar from '../UserAvatar.jsx';
 import StatusEmoji from '../StatusEmoji.jsx';
+import ActivityBadge from '../ActivityBadge.jsx';
 import BadgeListModal from './BadgeListModal.jsx';
 import defaultAchievementIcon from '../../assets/icons/nav-achievements.png';
 import { badgeHasImage } from '../../utils/badgeRarity';
@@ -260,6 +261,7 @@ export default function UserProfileModal() {
                       {user.customStatusEmoji && <StatusEmoji emoji={user.customStatusEmoji} />} {user.customStatus}
                     </div>
                   )}
+                  <ActivityBadge userId={user.id} />
                   <div className="profile-ig-stats">
                     <div className="profile-ig-stat">
                       <b>{liveUps}</b>

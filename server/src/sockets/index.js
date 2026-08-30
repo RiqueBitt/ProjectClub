@@ -6,6 +6,7 @@ const { getEffectivePermissions } = require('../services/authz');
 const { has } = require('../services/permissions');
 const { messageInclude } = require('../controllers/messageController');
 const presenceStore = require('../services/presenceStore');
+const activityStore = require('../services/activityStore');
 const voiceStore = require('../services/voiceRoomStore');
 
 // Presença (quem está online, em quais sockets) agora vive no Redis — ver
@@ -574,6 +575,36 @@ function initSockets(httpServer) {
       target.emit('voice:speaking', { channelId, userId, speaking: !!speaking });
     });
 
+    // Item pedido: "Rich Presence" (jogo/Spotify) — só o app de desktop
+    // (Electron) manda isso de verdade, já que só ele tem acesso ao
+    // sistema operacional pra detectar isso (ver desktop/main.js). O
+    // formato é sempre { type: 'game'|'spotify', name, imageUrl,
+    // startedAt, detail? } ou null (parou de jogar/ouvir). Retransmite
+    // pra sala "community" — o mesmo canal amplo que presença/status
+    // customizado já usa, então quem já escuta um já escuta o outro.
+    socket.on('activity:update', async (activity) => {
+      if (activity && typeof activity === 'object') {
+        // Nunca confia cegamente no que o cliente manda além do formato
+        // esperado — corta qualquer campo extra e limita tamanho de
+        // texto, mesmo sendo um dado de baixo risco (só aparece pro
+        // próprio usuário e amigos, nunca decide permissão nenhuma).
+        const clean = {
+          type: activity.type === 'spotify' ? 'spotify' : 'game',
+          name: String(activity.name || '').slice(0, 120),
+          detail: activity.detail ? String(activity.detail).slice(0, 120) : undefined,
+          imageUrl: activity.imageUrl ? String(activity.imageUrl).slice(0, 500) : undefined,
+          startedAt: Number.isFinite(activity.startedAt) ? activity.startedAt : Date.now(),
+          durationMs: Number.isFinite(activity.durationMs) ? activity.durationMs : undefined,
+          progressMs: Number.isFinite(activity.progressMs) ? activity.progressMs : undefined,
+        };
+        await activityStore.setActivity(userId, clean);
+        io.to('community').emit('activity:changed', { userId, activity: clean });
+      } else {
+        await activityStore.clearActivity(userId);
+        io.to('community').emit('activity:changed', { userId, activity: null });
+      }
+    });
+
     socket.on('disconnect', async () => {
       try {
         for (const channelId of await voiceStore.getActiveRoomIds()) {
@@ -582,6 +613,11 @@ function initSockets(httpServer) {
 
         const remaining = await presenceStore.removeSocket(userId, socket.id);
         if (remaining === 0) {
+          // Sem nenhum dispositivo conectado, não faz sentido continuar
+          // mostrando "jogando X" pra ninguém — o app de desktop que
+          // mandava isso também caiu junto (é o mesmo processo).
+          await activityStore.clearActivity(userId);
+          io.to('community').emit('activity:changed', { userId, activity: null });
           // Ninguém mais conectado nessa conta — não faz sentido continuar
           // contando os 15min pra "Ausente" (vai ficar OFFLINE daqui a
           // pouco de qualquer jeito, ver timer logo abaixo).

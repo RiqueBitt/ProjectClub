@@ -18,7 +18,7 @@
     "appId": "com.projectclub.desktop",
     "productName": "Project Club",
     "asar": true,
-    "files": ["main.js", "preload.js", "build/**/*"],
+    "files": ["main.js", "preload.js", "activityDetector.js", "gameDatabase.js", "build/**/*"],
     "directories": { "output": "dist" },
     "win": {
       "target": [{ "target": "nsis", "arch": ["x64"] }],

@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext';
 import { useStore, roomKeyFor, messageMentionsUser, isChannelUnread, isConversationUnread } from '../store/useStore';
 import { listFriends, getCommunity, listUsableEmojis } from '../api/endpoints';
 import { playSound } from '../utils/sounds';
+import { setupNativeActivity } from '../utils/nativeActivity';
 import { updateUnreadBadge } from '../utils/unreadBadge';
 
 const SocketContext = createContext(null);
@@ -178,6 +179,21 @@ export function SocketProvider({ children }) {
     // continuar mostrando pontinhos verdes desatualizados até a próxima
     // atualização incremental chegar.
     socket.on('presence:reset', () => useStore.setState({ presence: {} }));
+
+    // Item pedido: "Rich Presence" (jogo/Spotify tocando agora) — chega
+    // sempre que o app de desktop de alguém detecta início/fim de um
+    // jogo/música, ou quando ela sai de vez (ver server/src/sockets/
+    // index.js). activity vem null quando parou.
+    socket.on('activity:changed', ({ userId: uid, activity }) => {
+      useStore.getState().setActivity(uid, activity);
+    });
+    // Item pedido: "Rich Presence" — no app de desktop, começa a
+    // escutar os avisos que o Electron manda (ver desktop/
+    // activityDetector.js + preload.js) e repassa pro servidor. Sem
+    // efeito nenhum na web comum/Android (setupNativeActivity já
+    // verifica isso sozinho e não faz nada se não for o app de
+    // desktop).
+    setupNativeActivity(socket);
 
     // Conta excluída pela staff (painel → Usuários → Excluir conta) — a
     // pessoa é deslogada na hora, com um aviso claro, em vez de só ficar

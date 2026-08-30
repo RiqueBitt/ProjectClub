@@ -14,4 +14,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   focusWindow: () => ipcRenderer.invoke('focus-window'),
   setUnreadCount: (count) => ipcRenderer.invoke('set-unread-count', count),
+  // Item pedido: "Rich Presence" — o app de desktop detecta jogo/Spotify
+  // sozinho (ver activityDetector.js) e AVISA o site sempre que muda,
+  // sem o site precisar perguntar. onActivityDetected registra quem vai
+  // escutar esses avisos (ver utils/nativeActivity.js) — like um
+  // addEventListener, não um pedido de resposta única.
+  onActivityDetected: (callback) => {
+    ipcRenderer.on('activity:detected', (_event, activity) => callback(activity));
+  },
 });
