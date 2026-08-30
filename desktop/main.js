@@ -6,6 +6,7 @@
 // Discord/Slack fazem.
 const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage, session, desktopCapturer } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { startActivityDetection } = require('./activityDetector');
 
 // URL do site hospedado — trocar aqui se o domínio mudar um dia. Fica só
@@ -36,14 +37,43 @@ if (!gotLock) {
   // janelas de outros programas abertos), a pessoa clica na que quer, e
   // essa promise resolve com a fonte escolhida (ou null se ela fechar a
   // janela/cancelar sem escolher nada).
-  function showScreenPickerWindow(sources) {
+  // Abre uma janelinha própria de seleção de tela/janela pra compartilhar
+  // — mostra uma miniatura de cada opção disponível (telas inteiras +
+  // janelas de outros programas abertos), a pessoa clica na que quer, e
+  // essa promise resolve com a fonte escolhida (ou null se ela fechar a
+  // janela/cancelar sem escolher nada).
+  function showScreenPickerWindow(rawSources) {
     return new Promise((resolve) => {
+      // BUG CORRIGIDO ("aparecem telas sem sentido tipo C:/Users/etc"):
+      // o Windows Explorer e alguns outros programas usam o CAMINHO DA
+      // PASTA como título da janela — sem nenhum filtro, isso aparecia
+      // como uma opção pra compartilhar igual qualquer outra, mas sem
+      // fazer sentido nenhum pra pessoa escolher. Filtra fora janelas
+      // sem nome de verdade, ou cujo nome parece um caminho de arquivo
+      // (letra de unidade tipo "C:\" ou "/", típico do Explorer/
+      // gerenciador de arquivos) — telas inteiras (type 'screen') nunca
+      // são filtradas, só janelas de programas.
+      const sources = rawSources.filter((s) => {
+        const name = (s.name || '').trim();
+        if (!name) return false;
+        if (s.id.startsWith('screen:')) return true; // tela inteira, sempre mantém
+        if (/^[a-zA-Z]:\\|^\//.test(name)) return false; // parece um caminho de pasta/arquivo
+        return true;
+      });
+
       const picker = new BrowserWindow({
-        width: 720, height: 520, resizable: false, minimizable: false, maximizable: false,
-        title: 'Escolher tela ou janela para compartilhar',
-        parent: mainWindow, modal: true, backgroundColor: '#1a1c2e',
-        autoHideMenuBar: true,
-        webPreferences: { nodeIntegration: true, contextIsolation: false },
+        width: 760, height: 560, resizable: false, minimizable: false, maximizable: false,
+        // Item pedido: "melhore a interface, em vez de outra aba, faça
+        // um menu" — sem moldura/barra de título nativa do sistema,
+        // isso já deixa de parecer "outra janela/aba solta do
+        // Windows" e passa a parecer um menu/painel de verdade que
+        // pertence ao próprio app, flutuando por cima dele.
+        frame: false,
+        parent: mainWindow, modal: true, backgroundColor: '#232428',
+        webPreferences: {
+          preload: path.join(__dirname, 'screenPickerPreload.js'),
+          contextIsolation: true, nodeIntegration: false,
+        },
       });
 
       let resolved = false;
@@ -55,31 +85,63 @@ if (!gotLock) {
       };
 
       ipcMain.once('screen-picker:choice', (_event, sourceId) => {
-        finish(sources.find((s) => s.id === sourceId) || null);
+        finish(rawSources.find((s) => s.id === sourceId) || null);
       });
       picker.on('closed', () => finish(null));
 
-      const cards = sources.map((s) => `
-        <button class="card" onclick="require('electron').ipcRenderer.send('screen-picker:choice', ${JSON.stringify(s.id)})">
+      const screens = sources.filter((s) => s.id.startsWith('screen:'));
+      const windows = sources.filter((s) => !s.id.startsWith('screen:'));
+
+      const cardsFor = (list) => list.map((s) => `
+        <button class="card" onclick="window.screenPickerAPI.choose(${JSON.stringify(s.id)})">
           <img src="${s.thumbnail.toDataURL()}" alt="" />
-          <span>${(s.name || 'Sem nome').replace(/</g, '&lt;').slice(0, 40)}</span>
+          <span>${(s.name || 'Sem nome').replace(/</g, '&lt;').slice(0, 42)}</span>
         </button>
       `).join('');
 
+      // Item pedido: "melhore deixando mais bonito" — cores/tipografia
+      // no mesmo espírito do resto do app (fundo bem escuro, acento
+      // azul/roxo, cantos arredondados, cards com hover suave) em vez
+      // do visual genérico de antes.
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-        body { margin: 0; background: #1a1c2e; color: #fff; font-family: -apple-system, 'Segoe UI', sans-serif; padding: 16px; }
-        h1 { font-size: 15px; font-weight: 600; margin: 0 0 14px; }
-        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-height: 430px; overflow-y: auto; }
-        .card { background: #24273a; border: 2px solid transparent; border-radius: 8px; padding: 8px; cursor: pointer; color: #fff; font-size: 12px; text-align: left; }
-        .card:hover { border-color: #5865F2; background: #2c3050; }
-        .card img { width: 100%; height: 90px; object-fit: contain; background: #000; border-radius: 4px; margin-bottom: 6px; }
+        * { box-sizing: border-box; }
+        body {
+          margin: 0; background: #232428; color: #f2f3f5;
+          font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+          padding: 20px; -webkit-app-region: drag; user-select: none;
+        }
+        .titlebar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+        h1 { font-size: 16px; font-weight: 700; margin: 0; }
+        .close-btn {
+          -webkit-app-region: no-drag; width: 28px; height: 28px; border-radius: 6px; border: none;
+          background: transparent; color: #b5bac1; cursor: pointer; font-size: 15px;
+        }
+        .close-btn:hover { background: #3a3c42; color: #fff; }
+        .section-label { font-size: 11px; font-weight: 700; letter-spacing: .4px; color: #949ba4; text-transform: uppercase; margin: 14px 0 8px; -webkit-app-region: no-drag; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; -webkit-app-region: no-drag; }
+        .card {
+          background: #2b2d31; border: 2px solid transparent; border-radius: 10px; padding: 8px; cursor: pointer;
+          color: #f2f3f5; font-size: 12px; text-align: left; transition: border-color .12s ease, background .12s ease;
+        }
+        .card:hover { border-color: #5865F2; background: #34363c; }
+        .card img { width: 100%; height: 84px; object-fit: contain; background: #1a1b1e; border-radius: 6px; margin-bottom: 8px; }
         .card span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .scroll { max-height: 400px; overflow-y: auto; padding-right: 4px; }
+        .empty { color: #949ba4; font-size: 13px; padding: 8px 0; }
       </style></head><body>
-        <h1>Escolha o que compartilhar</h1>
-        <div class="grid">${cards}</div>
+        <div class="titlebar">
+          <h1>Escolha o que compartilhar</h1>
+          <button class="close-btn" onclick="window.screenPickerAPI.choose(null)">✕</button>
+        </div>
+        <div class="scroll">
+          ${screens.length ? `<div class="section-label">Telas</div><div class="grid">${cardsFor(screens)}</div>` : ''}
+          ${windows.length ? `<div class="section-label">Janelas abertas</div><div class="grid">${cardsFor(windows)}</div>` : `<div class="empty">Nenhuma janela disponível pra compartilhar agora.</div>`}
+        </div>
       </body></html>`;
 
-      picker.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+      const htmlPath = path.join(app.getPath('temp'), 'project-club-screen-picker.html');
+      fs.writeFileSync(htmlPath, html, 'utf-8');
+      picker.loadFile(htmlPath);
     });
   }
 
