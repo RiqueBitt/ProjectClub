@@ -44,6 +44,14 @@ model User {
   profileNameEffect   String    @default("SOLID")
   profileNameColor    String    @default("#1877F2")
   profileNameColor2   String    @default("#FFFFFF")
+  // Item pedido: status de relacionamento (estilo Orkut) — só fica
+  // preenchido depois que os DOIS lados confirmam via
+  // RelationshipRequest (mesmo espírito de aceitar um pedido de
+  // amizade). Auto-relação (User com User), por isso os dois nomes de
+  // relação distintos pros dois lados.
+  relationshipPartnerId String?
+  relationshipPartner   User?   @relation("RelationshipPartnerLink", fields: [relationshipPartnerId], references: [id])
+  relationshipPartnerOf User[]  @relation("RelationshipPartnerLink")
   // Tema de interface escolhido (facebook/light/dark/amoled/clubpenguin) —
   // salvo na CONTA, não só no localStorage do navegador. O localStorage
   // continua sendo usado como cache rápido (evita o "flash" de tema
@@ -118,6 +126,19 @@ model User {
   scrapsReceived       Scrap[]       @relation("ScrapTarget")
   fansOf     Fan[] @relation("FanIsFanOf")
   fans       Fan[] @relation("FanTarget")
+  // Item pedido: mais sistemas estilo Orkut — rankings, visitantes de
+  // perfil, álbum de fotos, traços (confiável/legal/sexy), e status de
+  // relacionamento.
+  rankingVotesGiven    RankingVote[] @relation("RankingVoter")
+  rankingVotesReceived RankingVote[] @relation("RankingTarget")
+  profileVisitsMade     ProfileVisit[] @relation("ProfileVisitor")
+  profileVisitsReceived ProfileVisit[] @relation("ProfileVisitTarget")
+  photos         Photo[]        @relation("PhotoOwner")
+  photoComments  PhotoComment[] @relation("PhotoCommentAuthor")
+  traitVotesGiven    TraitVote[] @relation("TraitVoter")
+  traitVotesReceived TraitVote[] @relation("TraitTarget")
+  relationshipRequestsSent     RelationshipRequest[] @relation("RelationshipRequester")
+  relationshipRequestsReceived RelationshipRequest[] @relation("RelationshipPartner")
   // ^ mantido
 
   conversationMemberships ConversationMember[]
@@ -422,6 +443,99 @@ model Fan {
   createdAt DateTime @default(now())
 
   @@unique([fanId, targetId])
+}
+
+// Rankings — "top 5" por categoria entre amigos, igual o Orkut. Cada
+// pessoa escolhe UM alvo por categoria (pode trocar depois, é um voto
+// só, não acumula vários votos pro mesmo alvo na mesma categoria).
+model RankingVote {
+  id        String   @id @default(uuid())
+  voterId   String
+  voter     User     @relation("RankingVoter", fields: [voterId], references: [id], onDelete: Cascade)
+  targetId  String
+  target    User     @relation("RankingTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  category  String // FUNNY | TRUSTWORTHY | CREATIVE | COOL
+  createdAt DateTime @default(now())
+
+  @@unique([voterId, category])
+  @@index([targetId, category])
+}
+
+// "Quem visitou seu perfil" — um registro por par (visitante, dono do
+// perfil), atualizado a cada nova visita (não cria um registro novo
+// pra cada visita, só atualiza quando foi a última vez e conta
+// quantas vezes no total).
+model ProfileVisit {
+  id          String   @id @default(uuid())
+  visitorId   String
+  visitor     User     @relation("ProfileVisitor", fields: [visitorId], references: [id], onDelete: Cascade)
+  targetId    String
+  target      User     @relation("ProfileVisitTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  visitCount  Int      @default(1)
+  lastVisitAt DateTime @default(now())
+
+  @@unique([visitorId, targetId])
+  @@index([targetId, lastVisitAt])
+}
+
+// Álbum de fotos com comentários — diferente do banner/avatar (que só
+// tem uma foto de cada), aqui é uma galeria de várias fotos, cada uma
+// com seus próprios comentários.
+model Photo {
+  id        String   @id @default(uuid())
+  ownerId   String
+  owner     User     @relation("PhotoOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  url       String
+  caption   String?
+  createdAt DateTime @default(now())
+
+  comments PhotoComment[]
+
+  @@index([ownerId, createdAt])
+}
+
+model PhotoComment {
+  id        String   @id @default(uuid())
+  photoId   String
+  photo     Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation("PhotoCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([photoId, createdAt])
+}
+
+// Confiável / Legal / Sexy — três selos separados, cada um é um "sim"
+// binário (votou = sim, sem voto = não conta) — o perfil mostra a
+// porcentagem de "sim" entre quem votou.
+model TraitVote {
+  id        String   @id @default(uuid())
+  voterId   String
+  voter     User     @relation("TraitVoter", fields: [voterId], references: [id], onDelete: Cascade)
+  targetId  String
+  target    User     @relation("TraitTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  trait     String // TRUSTWORTHY | COOL | SEXY
+  createdAt DateTime @default(now())
+
+  @@unique([voterId, targetId, trait])
+  @@index([targetId, trait])
+}
+
+// Status de relacionamento com confirmação — só fica público depois
+// que os dois lados confirmam, mesmo espírito de um pedido de
+// amizade.
+model RelationshipRequest {
+  id          String   @id @default(uuid())
+  requesterId String
+  requester   User     @relation("RelationshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  partnerId   String
+  partner     User     @relation("RelationshipPartner", fields: [partnerId], references: [id], onDelete: Cascade)
+  status      String   @default("PENDING") // PENDING | ACCEPTED | DECLINED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([requesterId, partnerId])
 }
 
 model Conversation {

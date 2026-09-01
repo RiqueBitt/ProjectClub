@@ -96,6 +96,12 @@ const PUBLIC_USER_FIELDS = {
   // (MembersList.jsx), so it needs to be visible to everyone who can see
   // that member, not just the account owner.
   idCardUrl: true,
+  // Item pedido: status de relacionamento (estilo Orkut) — só o ID
+  // aqui (não um objeto aninhado, pra não pesar as centenas de lugares
+  // que já usam esse mesmo select) — o perfil completo (getUser, em
+  // userController.js) busca os dados do parceiro à parte, só quando
+  // precisa.
+  relationshipPartnerId: true,
 };
 
 // Everything PUBLIC_USER_FIELDS has, plus the account-owner-only fields

@@ -293,6 +293,17 @@ async function getUser(req, res, next) {
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
     if (!user.publicId) user.publicId = await ensurePublicId(user.id, user.publicId);
 
+    // Item pedido: status de relacionamento — busca os dados do
+    // parceiro só se existir um confirmado (evita uma query aninhada
+    // desnecessária pro caso comum de não ter parceiro nenhum).
+    let relationshipPartner = null;
+    if (user.relationshipPartnerId) {
+      relationshipPartner = await prisma.user.findUnique({
+        where: { id: user.relationshipPartnerId },
+        select: { id: true, displayName: true, username: true, avatarUrl: true, profileColor: true },
+      });
+    }
+
     const badgeRows = await prisma.userBadge.findMany({ where: { userId: id }, include: { badge: true }, orderBy: { badge: { priority: 'asc' } } });
     // awardedAt lives on the UserBadge join row (when THIS user unlocked it),
     // not on the Badge itself (which is shared across everyone who has it) —
@@ -368,7 +379,7 @@ async function getUser(req, res, next) {
       user: clearIfExpired(user), badges, mutualFriends,
       likeCount, dislikeCount, myVote: myVoteRow?.value || 0, levelProgress, totalUps,
       displayedAchievements, displayedAchievementsMini,
-      activity,
+      activity, relationshipPartner,
     });
   } catch (err) { next(err); }
 }

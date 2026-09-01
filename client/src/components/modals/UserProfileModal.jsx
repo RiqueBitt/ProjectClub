@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { getUserProfile, createConversation, sendFriendRequest, assignRole, unassignRole, voteProfile, listPosts, setActiveTag, listApprovedTestimonials, writeTestimonial, listScraps, writeScrap, deleteScrap, getFanStatus, toggleFan } from '../../api/endpoints';
+import { getUserProfile, createConversation, sendFriendRequest, assignRole, unassignRole, voteProfile, listPosts, setActiveTag, listApprovedTestimonials, writeTestimonial, listScraps, writeScrap, deleteScrap, getFanStatus, toggleFan, registerProfileVisit, listProfileVisitors, getTraitStatus, toggleTrait, sendRelationshipRequest, endRelationship as endRelationshipApi, listPhotosByOwner } from '../../api/endpoints';
 import { STATUS_LABEL, STATUS_COLOR } from '../../utils/status';
 import { renderRichContent } from '../../utils/richTextRender.jsx';
 import { getMyCommunityPermissions, hasPermission } from '../../utils/permissions';
@@ -16,6 +16,7 @@ import ActivityBadge from '../ActivityBadge.jsx';
 import ActivityIcon from '../ActivityIcon.jsx';
 import BadgeListModal from './BadgeListModal.jsx';
 import PaginatedListModal from './PaginatedListModal.jsx';
+import PhotoAlbumModal from './PhotoAlbumModal.jsx';
 import defaultAchievementIcon from '../../assets/icons/nav-achievements.png';
 import { badgeHasImage } from '../../utils/badgeRarity';
 import { nameStyleProps } from '../../utils/nameStyle';
@@ -244,6 +245,59 @@ export default function UserProfileModal() {
   if (!userId) return null;
 
   const isMe = userId === me.id;
+
+  // Item pedido: mais sistemas estilo Orkut — traços (confiável/legal/
+  // sexy), visitantes de perfil, relacionamento, e prévia do álbum de
+  // fotos, tudo carregado junto do resto do perfil.
+  const [traitStatus, setTraitStatus] = useState(null);
+  useEffect(() => {
+    if (!userId) { setTraitStatus(null); return; }
+    getTraitStatus(userId).then(setTraitStatus).catch(() => {});
+  }, [userId]);
+
+  const toggleTraitStatus = (trait) => {
+    toggleTrait(userId, trait).then(setTraitStatus).catch(() => {});
+  };
+
+  // Visitantes só carrega quando é O MEU PRÓPRIO perfil (é a única
+  // pessoa que pode ver essa lista — checado no servidor também).
+  const [visitorsData, setVisitorsData] = useState({ visits: [], totalVisits: 0 });
+  useEffect(() => {
+    if (!userId || !isMe) { setVisitorsData({ visits: [], totalVisits: 0 }); return; }
+    listProfileVisitors(userId).then(setVisitorsData).catch(() => {});
+  }, [userId, isMe]);
+
+  // Registra a visita ao abrir o perfil de OUTRA pessoa — uma vez por
+  // abertura, "dispara e esquece" (não precisa de estado nem de
+  // resposta, só avisa o servidor).
+  useEffect(() => {
+    if (userId && !isMe) registerProfileVisit(userId).catch(() => {});
+  }, [userId, isMe]);
+
+  const requestRelationship = () => {
+    sendRelationshipRequest(userId)
+      .then(() => useStore.getState().pushNotice(`Pedido de namoro enviado pra ${user.displayName}!`))
+      .catch((err) => useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível enviar o pedido.'));
+  };
+
+  const breakUpRelationship = () => {
+    if (!confirm('Terminar o relacionamento confirmado?')) return;
+    endRelationshipApi().then(() => setMe((m) => ({ ...m, relationshipPartnerId: null }))).catch(() => {});
+  };
+
+  // Item pedido: prévia de 6 fotos no perfil (3 numa linha, 3 na
+  // outra) — a galeria completa abre num modal à
+  // parte (igual "ver mais" dos recados/depoimentos).
+  const [photoPreview, setPhotoPreview] = useState([]);
+  const [photoTotal, setPhotoTotal] = useState(0);
+  const [albumOpen, setAlbumOpen] = useState(false);
+  useEffect(() => {
+    if (!userId) { setPhotoPreview([]); setPhotoTotal(0); return; }
+    // Item pedido: prévia do álbum no perfil com 6 fotos (3 numa
+    // linha, 3 na outra) — não 3.
+    listPhotosByOwner(userId).then((d) => { setPhotoPreview(d.photos.slice(0, 6)); setPhotoTotal(d.total); }).catch(() => {});
+  }, [userId]);
+
   const user = data?.user;
   const liveUps = liveUpsOverride ?? data?.totalUps ?? 0;
   const status = presence?.status || user?.status || 'ONLINE';
@@ -749,6 +803,97 @@ export default function UserProfileModal() {
                           </div>
                         </div>
                       )}
+                    />
+                  )}
+
+                  {/* Item pedido: mais sistemas estilo Orkut — traços,
+                      relacionamento, álbum de fotos, visitantes. */}
+                  {!isMe && traitStatus && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">O QUE ACHAM DE {user.displayName.split(' ')[0].toUpperCase()}</div>
+                      <div className="profile-trait-row">
+                        {[
+                          { key: 'TRUSTWORTHY', label: 'Confiável' },
+                          { key: 'COOL', label: 'Legal' },
+                          { key: 'SEXY', label: 'Sexy' },
+                        ].map(({ key, label }) => (
+                          <button
+                            key={key}
+                            className={`profile-trait-chip ${traitStatus[key]?.voted ? 'active' : ''}`}
+                            onClick={() => toggleTraitStatus(key)}
+                          >
+                            {label} <b>{traitStatus[key]?.count ?? 0}</b>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {!isMe && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">RELACIONAMENTO</div>
+                      {data.relationshipPartner ? (
+                        <div className="profile-relationship-status">
+                          💞 Namorando com <UserAvatar user={data.relationshipPartner} size={20} /> <b>{data.relationshipPartner.displayName}</b>
+                        </div>
+                      ) : (
+                        <button className="btn-secondary" onClick={requestRelationship}>💌 Pedir em namoro</button>
+                      )}
+                    </div>
+                  )}
+                  {isMe && me.relationshipPartnerId && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">RELACIONAMENTO</div>
+                      <div className="profile-relationship-status">
+                        💞 Em um relacionamento confirmado
+                        <button className="profile-relationship-end" onClick={breakUpRelationship}>Terminar</button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="profile-section">
+                    <div className="profile-section-label">ÁLBUM DE FOTOS{photoTotal > 0 ? ` — ${photoTotal}` : ''}</div>
+                    {photoPreview.length === 0 && <div className="dim profile-scrap-empty">Nenhuma foto ainda.</div>}
+                    {photoPreview.length > 0 && (
+                      <div className="profile-photo-grid">
+                        {photoPreview.map((p) => (
+                          <button key={p.id} className="profile-photo-grid-item" onClick={() => setAlbumOpen(true)}>
+                            {p.url.match(/\.(mp4|webm|mov|mkv)$/i)
+                              ? <video src={p.url} muted />
+                              : <img src={proxyImage(p.url)} alt="" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {(photoTotal > 6 || isMe) && (
+                      <button className="profile-see-more-link" onClick={() => setAlbumOpen(true)}>
+                        {isMe ? 'Ver álbum completo' : `Ver mais (${photoTotal})`}
+                      </button>
+                    )}
+                  </div>
+
+                  {isMe && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">QUEM VISITOU SEU PERFIL{visitorsData.totalVisits > 0 ? ` — ${visitorsData.totalVisits}` : ''}</div>
+                      {visitorsData.visits.length === 0 && <div className="dim profile-scrap-empty">Ninguém visitou seu perfil ainda.</div>}
+                      <div className="profile-mutual-list">
+                        {visitorsData.visits.slice(0, 8).map((v) => (
+                          <div key={v.id} className="profile-mutual-item">
+                            <div className="avatar tiny"><UserAvatar user={v.visitor} size={24} /></div>
+                            <span className="truncate">{v.visitor.displayName}</span>
+                            {v.visitCount > 1 && <span className="dim"> ({v.visitCount}x)</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {albumOpen && (
+                    <PhotoAlbumModal
+                      ownerId={userId}
+                      ownerName={user.displayName}
+                      isMe={isMe}
+                      onClose={() => setAlbumOpen(false)}
                     />
                   )}
 

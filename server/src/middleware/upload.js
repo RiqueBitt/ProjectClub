@@ -87,6 +87,11 @@ const storage = new ManagedStorage();
 // Content-Disposition: attachment on non-media uploads as a second layer.)
 const DANGEROUS_MIME_RE = /^(text\/html|application\/xhtml\+xml|image\/svg\+xml)$/i;
 const IMAGE_MIME_RE = /^image\/(png|jpe?g|gif|webp)$/i;
+// Item pedido: álbum de fotos aceita foto OU vídeo (o Orkut original só
+// tinha foto, mas isso é uma melhoria natural) — regex própria, mais
+// ampla que IMAGE_MIME_RE mas ainda restrita a formatos de mídia de
+// verdade (não abre pra qualquer arquivo arbitrário).
+const PHOTO_OR_VIDEO_MIME_RE = /^(image\/(png|jpe?g|gif|webp)|video\/(mp4|webm|quicktime|x-matroska))$/i;
 
 function attachmentFileFilter(req, file, cb) {
   if (DANGEROUS_MIME_RE.test(file.mimetype)) {
@@ -109,6 +114,19 @@ function imageFileFilter(req, file, cb) {
   // do stream nesse ponto, cedo demais pra checar a assinatura inteira
   // com segurança.
   file._requireImageMagicBytes = true;
+  cb(null, true);
+}
+
+// Item pedido: álbum de fotos aceita foto OU vídeo, até 20MB — filtro
+// próprio, sem mexer no imageFileFilter acima (compartilhado por
+// avatar/banner/ícone de cargo/emoji, que devem continuar só imagem).
+function photoOrVideoFileFilter(req, file, cb) {
+  if (!PHOTO_OR_VIDEO_MIME_RE.test(file.mimetype)) {
+    const err = new Error('Envie apenas fotos (PNG, JPG, GIF, WEBP) ou vídeos (MP4, WEBM, MOV, MKV).');
+    err.status = 400;
+    return cb(err);
+  }
+  if (file.mimetype.startsWith('image/')) file._requireImageMagicBytes = true;
   cb(null, true);
 }
 
@@ -157,4 +175,13 @@ const uploadAudio = multer({
   fileFilter: audioFileFilter,
 });
 
-module.exports = { upload, uploadImage, uploadAudio, uploadRoot };
+// Item pedido: "limite os vídeos, png etc pra 20MB o máximo" — específico
+// pro álbum de fotos (que aceita foto OU vídeo, ver photoOrVideoFileFilter
+// acima).
+const uploadPhotoOrVideo = multer({
+  storage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: photoOrVideoFileFilter,
+});
+
+module.exports = { upload, uploadImage, uploadAudio, uploadPhotoOrVideo, uploadRoot };

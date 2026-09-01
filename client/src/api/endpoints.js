@@ -359,3 +359,30 @@ export const deleteScrap = (id) => api.delete(`/scraps/${id}`).then((r) => r.dat
 
 export const getFanStatus = (targetId) => api.get(`/fans/${targetId}`).then((r) => r.data);
 export const toggleFan = (targetId) => api.post(`/fans/${targetId}/toggle`).then((r) => r.data);
+
+export const voteRanking = (targetId, category) => api.post(`/rankings/${targetId}`, { category }).then((r) => r.data);
+export const myRankingVotes = () => api.get('/rankings/mine').then((r) => r.data);
+export const topRankingsAmongFriends = () => api.get('/rankings/top-among-friends').then((r) => r.data);
+
+export const registerProfileVisit = (targetId) => api.post(`/profile-visits/${targetId}`).then((r) => r.data);
+export const listProfileVisitors = (targetId) => api.get(`/profile-visits/${targetId}`).then((r) => r.data);
+
+export const uploadPhoto = (file, caption) => {
+  const fd = new FormData();
+  fd.append('photo', file);
+  if (caption) fd.append('caption', caption);
+  return api.post('/photos', fd).then((r) => r.data);
+};
+export const listPhotosByOwner = (ownerId, page = 1) => api.get(`/photos/owner/${ownerId}`, { params: { page } }).then((r) => r.data);
+export const getPhoto = (id) => api.get(`/photos/${id}`).then((r) => r.data);
+export const deletePhoto = (id) => api.delete(`/photos/${id}`).then((r) => r.data);
+export const commentOnPhoto = (id, text) => api.post(`/photos/${id}/comments`, { text }).then((r) => r.data);
+export const deletePhotoComment = (commentId) => api.delete(`/photos/comments/${commentId}`).then((r) => r.data);
+
+export const getTraitStatus = (targetId) => api.get(`/traits/${targetId}`).then((r) => r.data);
+export const toggleTrait = (targetId, trait) => api.post(`/traits/${targetId}/toggle`, { trait }).then((r) => r.data);
+
+export const sendRelationshipRequest = (partnerId) => api.post('/relationships/request', { partnerId }).then((r) => r.data);
+export const respondRelationship = (id, action) => api.post(`/relationships/${id}/respond`, { action }).then((r) => r.data);
+export const endRelationship = () => api.post('/relationships/end').then((r) => r.data);
+export const listPendingRelationships = () => api.get('/relationships/pending/mine').then((r) => r.data);
