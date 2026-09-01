@@ -15,6 +15,7 @@ import IncomingCallBanner from '../components/IncomingCallBanner.jsx';
 import NoticeToast from '../components/NoticeToast.jsx';
 import WelcomePane from '../components/WelcomePane.jsx';
 import UserProfileModal from '../components/modals/UserProfileModal.jsx';
+import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import MiniProfileCard from '../components/MiniProfileCard.jsx';
 import LinkConfirmModal from '../components/modals/LinkConfirmModal.jsx';
 import ImageLightbox from '../components/ImageLightbox.jsx';
@@ -223,7 +224,16 @@ export default function MainApp() {
       <IncomingCallBanner />
       <PanelSlot panelId="callbar"><CallBar /></PanelSlot>
       <NoticeToast />
-      <UserProfileModal />
+      {/* BUG CORRIGIDO ("erro ao abrir o perfil quebra a tela toda"):
+          o perfil é o modal que mais mudou nas últimas respostas (o
+          refactor grande de reordenar seções) — sem essa proteção,
+          qualquer erro de renderização ali dentro derrubava a árvore
+          INTEIRA do React (o app inteiro), não só o modal. Agora fica
+          contido: só o perfil mostra um aviso de erro, o resto do app
+          continua funcionando normalmente. */}
+      <ErrorBoundary compact>
+        <UserProfileModal />
+      </ErrorBoundary>
       <MiniProfileCard />
       <LinkConfirmModal />
       <ImageLightbox />
