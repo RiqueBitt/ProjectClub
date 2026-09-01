@@ -30,6 +30,7 @@ import robloxIcon from '../../assets/icons/social-roblox.png';
 import xIcon from '../../assets/icons/social-x.png';
 import levelStarIcon from '../../assets/icons/level-star.png';
 import { proxyImage } from '../../utils/imageProxy';
+import { parseProfileSectionOrder } from '../../utils/profileSections';
 
 // Rendered once at the app root (see MainApp.jsx) and driven entirely by
 // `viewingProfileUserId` in the zustand store — call `openProfile(userId)`
@@ -392,6 +393,412 @@ export default function UserProfileModal() {
 
   if (!userId) return null;
 
+                /* Item pedido: "sistema igual da Steam" — a pessoa escolhe
+                  a ordem das seções do próprio perfil (Configurações →
+                  Colunas). SECTION_ELEMENTS é um mapa "chave da seção ->
+                  elemento JSX já pronto" (o conteúdo de cada seção é
+                  EXATAMENTE o mesmo de antes, só reorganizado nesse
+                  formato pra poder ser reordenado) — INSÍGNIAS/TAG DA
+                  COMUNIDADE/ANIVERSARIANTES continuam sempre fixas no
+                  topo (não fazem sentido como "conteúdo social"
+                  reordenável). CSS multi-column (ver global.css) deixa o
+                  navegador distribuir visualmente em 2 colunas sozinho,
+                  preservando a ordem escolhida — nenhuma lógica extra
+                  daqui precisa decidir "isso vai na coluna 1 ou 2". */
+  const SECTION_ELEMENTS = {
+    about: (
+user.bio && (
+                    <div className="profile-section profile-ig-bio">
+                      <div className="profile-section-label">SOBRE</div>
+                      <div className="profile-section-body">{renderRichContent(user.bio, { emojiMap: bioEmojiMap })}</div>
+                    </div>
+                  )
+    ),
+    achievements: (
+(isMe || data.displayedAchievements?.length > 0) && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">
+                        <span>CONQUISTAS EM DESTAQUE</span>
+                      </div>
+                      {data.displayedAchievements?.length > 0 ? (
+                        <div className="profile-badges-grid">
+                          {data.displayedAchievements.map((a) => (
+                            <div key={a.id} className="profile-badge-tile" title={a.description}>
+                              <span className="profile-badge-tile-icon">
+                                <img className="profile-badge-img" src={a.iconUrl ? proxyImage(a.iconUrl) : defaultAchievementIcon} alt="" />
+                              </span>
+                              <span className="profile-badge-tile-name truncate">{a.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="dim" style={{ fontSize: 13 }}>
+                          {isMe ? 'Nenhuma conquista em destaque — escolha em Configurações → Perfil.' : 'Nenhuma conquista em destaque ainda.'}
+                        </p>
+                      )}
+                    </div>
+                  )
+    ),
+    album: (
+<div className="profile-section">
+                    <div className="profile-section-label">ÁLBUM DE FOTOS{photoTotal > 0 ? ` — ${photoTotal}` : ''}</div>
+                    {photoPreview.length === 0 && <div className="dim profile-scrap-empty">Nenhuma foto ainda.</div>}
+                    {photoPreview.length > 0 && (
+                      <div className="profile-photo-grid">
+                        {photoPreview.map((p) => (
+                          <button key={p.id} className="profile-photo-grid-item" onClick={() => setAlbumOpen(true)}>
+                            {p.url.match(/\.(mp4|webm|mov|mkv)$/i)
+                              ? <video src={p.url} muted />
+                              : <img src={proxyImage(p.url)} alt="" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {(photoTotal > 6 || isMe) && (
+                      <button className="profile-see-more-link" onClick={() => setAlbumOpen(true)}>
+                        {isMe ? 'Ver álbum completo' : `Ver mais (${photoTotal})`}
+                      </button>
+                    )}
+                  </div>
+    ),
+    polls: (
+<div className="profile-section">
+                    <div className="profile-section-label">ENQUETES{profilePolls.length > 0 ? ` — ${profilePolls.length}` : ''}</div>
+                    {isMe && (
+                      <div className="profile-poll-composer">
+                        <input value={pollQuestion} onChange={(e) => setPollQuestion(e.target.value)} placeholder="Pergunta da enquete..." maxLength={200} />
+                        {pollOptions.map((opt, i) => (
+                          <input
+                            key={i}
+                            value={opt}
+                            onChange={(e) => setPollOptions((prev) => prev.map((o, j) => (j === i ? e.target.value : o)))}
+                            placeholder={`Opção ${i + 1}`}
+                            maxLength={100}
+                          />
+                        ))}
+                        <div className="profile-poll-composer-actions">
+                          {pollOptions.length < 10 && <button className="btn-secondary" onClick={() => setPollOptions((prev) => [...prev, ''])}>+ Opção</button>}
+                          <button className="btn-secondary" disabled={pollCreating} onClick={createPoll}>Criar enquete</button>
+                        </div>
+                      </div>
+                    )}
+                    {profilePolls.length === 0 && <div className="dim profile-scrap-empty">Nenhuma enquete ainda.</div>}
+                    {profilePolls.map((poll) => (
+                      <div key={poll.id} className="profile-poll">
+                        <div className="profile-poll-question">{poll.question}</div>
+                        {poll.options.map((opt) => (
+                          <button
+                            key={opt.id}
+                            className={`profile-poll-option ${poll.myVoteOptionId === opt.id ? 'active' : ''}`}
+                            onClick={() => submitPollVote(poll.id, opt.id)}
+                          >
+                            <span className="profile-poll-option-bar" style={{ width: `${opt.percent}%` }} />
+                            <span className="profile-poll-option-text truncate">{opt.text}</span>
+                            <span className="profile-poll-option-percent">{opt.percent}%</span>
+                          </button>
+                        ))}
+                        <div className="dim profile-poll-total">{poll.totalVotes} {poll.totalVotes === 1 ? 'voto' : 'votos'}</div>
+                        {isMe && <button className="profile-relationship-end" onClick={() => removePoll(poll.id)}>Apagar enquete</button>}
+                      </div>
+                    ))}
+                  </div>
+    ),
+    community_activity: (
+redditActivity?.length > 0 && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">
+                        ATIVIDADE EM CLUBES — {redditActivity.reduce((sum, p) => sum + p.score, 0)} Ups
+                      </div>
+                      <div className="profile-reddit-activity-list">
+                        {redditActivity.slice(0, 5).map((post) => (
+                          <button
+                            key={post.id}
+                            className="profile-reddit-activity-item"
+                            onClick={() => { closeProfile(); navigate(`/posts/${post.id}`); }}
+                          >
+                            <span className="profile-reddit-activity-score">{post.score}</span>
+                            <span className="profile-reddit-activity-info truncate">
+                              <span className="truncate">{post.title}</span>
+                              <span className="dim">c/{post.community.name}</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )
+    ),
+    roles: (
+member && (memberRoles.length > 0 || canManageRoles) && (
+                    <div className="profile-section" ref={rolesSectionRef}>
+                      <div className="profile-section-label">
+                        CARGOS NA COMUNIDADE
+                      </div>
+                      <div className="profile-roles-row">
+                        {visibleRoles.map((r) => (
+                          <span key={r.id} className="role-chip profile-role-chip" style={roleChipStyle(r.color)}>
+                            {r.icon ? `${r.icon} ` : ''}{r.name}
+                            {canManageRoles && (
+                              <button
+                                type="button"
+                                className="profile-role-remove"
+                                title="Remover cargo"
+                                onClick={() => removeRole(r.id)}
+                              >×</button>
+                            )}
+                          </span>
+                        ))}
+                        {hiddenRolesCount > 0 && (
+                          <button
+                            type="button"
+                            className="role-chip profile-role-more"
+                            title={`Ver todos os ${memberRoles.length} cargos`}
+                            onClick={() => setRolesExpanded(true)}
+                          >
+                            +{hiddenRolesCount}…
+                          </button>
+                        )}
+                        {rolesExpanded && memberRoles.length > ROLES_PREVIEW_COUNT && (
+                          <button type="button" className="role-chip profile-role-more" onClick={() => setRolesExpanded(false)}>
+                            mostrar menos
+                          </button>
+                        )}
+                        {canManageRoles && (
+                          <div className="profile-role-add-wrap">
+                            <button
+                              ref={roleAddBtnRef}
+                              type="button"
+                              className="role-chip profile-role-add"
+                              title="Adicionar cargo"
+                              onClick={() => setRoleMenuOpen((v) => !v)}
+                            >+</button>
+                            {roleMenuOpen && createPortal(
+                              <div ref={roleMenuRef} className="profile-role-menu" style={roleMenuStyle || {}}>
+                                <input
+                                  className="profile-role-menu-search"
+                                  placeholder="Buscar cargo..."
+                                  value={roleSearch}
+                                  onChange={(e) => setRoleSearch(e.target.value)}
+                                  autoFocus
+                                />
+                                {roleSearchResults.length === 0 && (
+                                  <div className="empty-hint">{assignableRoles.length === 0 ? 'Nenhum outro cargo disponível.' : 'Nenhum cargo encontrado.'}</div>
+                                )}
+                                {roleSearchResults.map((r) => (
+                                  <button
+                                    type="button"
+                                    key={r.id}
+                                    className="profile-role-menu-item"
+                                    style={roleChipStyle(r.color)}
+                                    onClick={() => addRole(r.id)}
+                                  >
+                                    {r.icon ? `${r.icon} ` : ''}{r.name}
+                                  </button>
+                                ))}
+                              </div>,
+                              document.body,
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+    ),
+    member_since: (
+<div className="profile-section">
+                    <div className="profile-section-label">MEMBRO DESDE</div>
+                    <div className="profile-section-body">{new Date(user.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+                  </div>
+    ),
+    connections: (
+(user.youtubeUrl || user.steamUrl || user.robloxUrl || user.xUrl) && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">CONEXÕES</div>
+                      <div className="profile-connections-row">
+                        {user.youtubeUrl && (
+                          <a className="profile-connection" href={user.youtubeUrl} target="_blank" rel="noreferrer" title="YouTube">
+                            <span className="profile-connection-icon"><img className="ui-icon-sm" src={youtubeIcon} alt="" /></span> YouTube
+                          </a>
+                        )}
+                        {user.steamUrl && (
+                          <a className="profile-connection" href={user.steamUrl} target="_blank" rel="noreferrer" title="Steam">
+                            <span className="profile-connection-icon"><img className="ui-icon-sm" src={steamIcon} alt="" /></span> Steam
+                          </a>
+                        )}
+                        {user.robloxUrl && (
+                          <a className="profile-connection" href={user.robloxUrl} target="_blank" rel="noreferrer" title="Roblox">
+                            <span className="profile-connection-icon"><img className="ui-icon-sm" src={robloxIcon} alt="" /></span> Roblox
+                          </a>
+                        )}
+                        {user.xUrl && (
+                          <a className="profile-connection" href={user.xUrl} target="_blank" rel="noreferrer" title="X (Twitter)">
+                            <span className="profile-connection-icon"><img className="ui-icon-sm" src={xIcon} alt="" /></span> X
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )
+    ),
+    mutual_friends: (
+!isMe && data.mutualFriends?.length > 0 && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">AMIGOS EM COMUM — {data.mutualFriends.length}</div>
+                      <div className="profile-mutual-list">
+                        {data.mutualFriends.map((f) => (
+                          <div key={f.id} className="profile-mutual-item">
+                            <div className="avatar tiny">
+                              <UserAvatar user={f} size={24} />
+                            </div>
+                            <span className="truncate">{f.displayName}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+    ),
+    relationship: (
+<>
+{!isMe && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">RELACIONAMENTO</div>
+                      {data.relationshipPartner ? (
+                        <div className="profile-relationship-status">
+                          💞 Namorando com <UserAvatar user={data.relationshipPartner} size={20} /> <b>{data.relationshipPartner.displayName}</b>
+                        </div>
+                      ) : (
+                        <button className="btn-secondary" onClick={requestRelationship}>💌 Pedir em namoro</button>
+                      )}
+                    </div>
+                  )}
+{isMe && me.relationshipPartnerId && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">RELACIONAMENTO</div>
+                      <div className="profile-relationship-status">
+                        💞 Em um relacionamento confirmado
+                        <button className="profile-relationship-end" onClick={breakUpRelationship}>Terminar</button>
+                      </div>
+                    </div>
+                  )}
+</>
+    ),
+    traits: (
+<>
+                  {/* Item pedido: mais sistemas estilo Orkut — traços,
+                      relacionamento, álbum de fotos, visitantes. */}
+{!isMe && traitStatus && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">O QUE ACHAM DE {user.displayName.split(' ')[0].toUpperCase()}</div>
+                      <div className="profile-trait-row">
+                        {[
+                          { key: 'TRUSTWORTHY', label: 'Confiável' },
+                          { key: 'COOL', label: 'Legal' },
+                          { key: 'SEXY', label: 'Sexy' },
+                        ].map(({ key, label }) => (
+                          <button
+                            key={key}
+                            className={`profile-trait-chip ${traitStatus[key]?.voted ? 'active' : ''}`}
+                            onClick={() => toggleTraitStatus(key)}
+                          >
+                            {label} <b>{traitStatus[key]?.count ?? 0}</b>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+</>
+    ),
+    scraps: (
+<>
+{/* Item pedido: "sistema igual tinha no Orkut" —
+                      recados no mural e depoimentos (o antigo botão de
+                      "sou fã" virou "Seguir", movido pra cima, perto de
+                      Ups). */}
+
+                  <div className="profile-section">
+                    <div className="profile-section-label">RECADOS{scraps.length > 0 ? ` — ${scraps.length}` : ''}</div>
+                    <div className="profile-scrap-composer">
+                      <input
+                        value={scrapDraft}
+                        onChange={(e) => setScrapDraft(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && submitScrap()}
+                        placeholder={isMe ? 'Escreva no seu próprio mural...' : `Deixe um recado pra ${user.displayName}...`}
+                        maxLength={300}
+                      />
+                      <button className="btn-secondary" disabled={!scrapDraft.trim() || scrapSending} onClick={submitScrap}>Enviar</button>
+                    </div>
+                    <div className="profile-scrap-list">
+                      {scraps.length === 0 && <div className="dim profile-scrap-empty">Nenhum recado ainda — seja o primeiro a deixar um.</div>}
+                      {scraps.slice(0, 3).map((s) => (
+                        <div key={s.id} className="profile-scrap-item">
+                          <UserAvatar user={s.author} size={28} />
+                          <div className="profile-scrap-item-body">
+                            <span className="profile-scrap-item-author">{s.author.displayName}</span>
+                            <span className="profile-scrap-item-text">{s.text}</span>
+                          </div>
+                          {(s.authorId === me.id || isMe) && (
+                            <button className="profile-scrap-item-remove" title="Apagar recado" onClick={() => removeScrap(s.id)}>✕</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {/* Item pedido: mais de 3 recados -> "ver mais" abre
+                        todos, paginados 100 por página. */}
+                    {scrapTotal > 3 && (
+                      <button className="profile-see-more-link" onClick={() => setScrapListOpen(true)}>Ver mais ({scrapTotal})</button>
+                    )}
+                  </div>
+</>
+    ),
+    testimonials: (
+<div className="profile-section">
+                    <div className="profile-section-label">DEPOIMENTOS{testimonialTotal > 0 ? ` — ${testimonialTotal}` : ''}</div>
+                    {!isMe && (
+                      <div className="profile-testimonial-composer">
+                        <textarea
+                          value={testimonialDraft}
+                          onChange={(e) => setTestimonialDraft(e.target.value)}
+                          placeholder={`Escreva um depoimento pra ${user.displayName}... (fica visível só depois que a pessoa aprovar)`}
+                          maxLength={1000}
+                          rows={2}
+                        />
+                        <button className="btn-secondary" disabled={!testimonialDraft.trim() || testimonialSending} onClick={submitTestimonial}>Enviar depoimento</button>
+                      </div>
+                    )}
+                    <div className="profile-testimonial-list">
+                      {testimonials.length === 0 && <div className="dim profile-scrap-empty">Nenhum depoimento ainda.</div>}
+                      {testimonials.slice(0, 3).map((t) => (
+                        <div key={t.id} className="profile-testimonial-item">
+                          <UserAvatar user={t.author} size={32} />
+                          <div className="profile-testimonial-item-body">
+                            <span className="profile-testimonial-item-author">{t.author.displayName}</span>
+                            <span className="profile-testimonial-item-text">{t.text}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {testimonialTotal > 3 && (
+                      <button className="profile-see-more-link" onClick={() => setTestimonialListOpen(true)}>Ver mais ({testimonialTotal})</button>
+                    )}
+                  </div>
+    ),
+    visitors: (
+isMe && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">QUEM VISITOU SEU PERFIL{visitorsData.totalVisits > 0 ? ` — ${visitorsData.totalVisits}` : ''}</div>
+                      {visitorsData.visits.length === 0 && <div className="dim profile-scrap-empty">Ninguém visitou seu perfil ainda.</div>}
+                      <div className="profile-mutual-list">
+                        {visitorsData.visits.slice(0, 8).map((v) => (
+                          <div key={v.id} className="profile-mutual-item">
+                            <div className="avatar tiny"><UserAvatar user={v.visitor} size={24} /></div>
+                            <span className="truncate">{v.visitor.displayName}</span>
+                            {v.visitCount > 1 && <span className="dim"> ({v.visitCount}x)</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+    ),
+  };
+
   return (
     <div className="modal-overlay profile-fullscreen-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) closeProfile(); }}>
       <div
@@ -508,18 +915,8 @@ export default function UserProfileModal() {
 
               <div className="profile-color-divider" style={{ background: `linear-gradient(90deg, ${gradientStops(user.profileColor || '#F2894D')[0]}, ${gradientStops(user.profileColor || '#F2894D')[1] || gradientStops(user.profileColor || '#F2894D')[0]})` }} />
 
-              {/* Usa o espaço extra da tela cheia com duas colunas em vez
-                  de tudo empilhado numa coluna só — vira uma coluna
-                  automaticamente em telas estreitas (ver CSS). */}
-              <div className="profile-ig-columns">
-                <div className="profile-col">
-                  {user.bio && (
-                    <div className="profile-section profile-ig-bio">
-                      <div className="profile-section-label">SOBRE</div>
-                      <div className="profile-section-body">{renderRichContent(user.bio, { emojiMap: bioEmojiMap })}</div>
-                    </div>
-                  )}
 
+              <div className="profile-ig-fixed-top">
                   {data.badges?.length > 0 && (
                     <div className="profile-section">
                       <div className="profile-section-label">INSÍGNIAS</div>
@@ -541,29 +938,6 @@ export default function UserProfileModal() {
                     </div>
                   )}
 
-                  {(isMe || data.displayedAchievements?.length > 0) && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">
-                        <span>CONQUISTAS EM DESTAQUE</span>
-                      </div>
-                      {data.displayedAchievements?.length > 0 ? (
-                        <div className="profile-badges-grid">
-                          {data.displayedAchievements.map((a) => (
-                            <div key={a.id} className="profile-badge-tile" title={a.description}>
-                              <span className="profile-badge-tile-icon">
-                                <img className="profile-badge-img" src={a.iconUrl ? proxyImage(a.iconUrl) : defaultAchievementIcon} alt="" />
-                              </span>
-                              <span className="profile-badge-tile-name truncate">{a.name}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="dim" style={{ fontSize: 13 }}>
-                          {isMe ? 'Nenhuma conquista em destaque — escolha em Configurações → Perfil.' : 'Nenhuma conquista em destaque ainda.'}
-                        </p>
-                      )}
-                    </div>
-                  )}
                   {isMe && (
                     <div className="profile-section">
                       <div className="profile-section-label">
@@ -592,267 +966,34 @@ export default function UserProfileModal() {
                       </div>
                     </div>
                   )}
-                  {redditActivity?.length > 0 && (
+
+                  {isMe && (birthdays.today.length > 0 || birthdays.upcoming.length > 0) && (
                     <div className="profile-section">
-                      <div className="profile-section-label">
-                        ATIVIDADE EM CLUBES — {redditActivity.reduce((sum, p) => sum + p.score, 0)} Ups
-                      </div>
-                      <div className="profile-reddit-activity-list">
-                        {redditActivity.slice(0, 5).map((post) => (
-                          <button
-                            key={post.id}
-                            className="profile-reddit-activity-item"
-                            onClick={() => { closeProfile(); navigate(`/posts/${post.id}`); }}
-                          >
-                            <span className="profile-reddit-activity-score">{post.score}</span>
-                            <span className="profile-reddit-activity-info truncate">
-                              <span className="truncate">{post.title}</span>
-                              <span className="dim">c/{post.community.name}</span>
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="profile-section">
-                    <div className="profile-section-label">ÁLBUM DE FOTOS{photoTotal > 0 ? ` — ${photoTotal}` : ''}</div>
-                    {photoPreview.length === 0 && <div className="dim profile-scrap-empty">Nenhuma foto ainda.</div>}
-                    {photoPreview.length > 0 && (
-                      <div className="profile-photo-grid">
-                        {photoPreview.map((p) => (
-                          <button key={p.id} className="profile-photo-grid-item" onClick={() => setAlbumOpen(true)}>
-                            {p.url.match(/\.(mp4|webm|mov|mkv)$/i)
-                              ? <video src={p.url} muted />
-                              : <img src={proxyImage(p.url)} alt="" />}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {(photoTotal > 6 || isMe) && (
-                      <button className="profile-see-more-link" onClick={() => setAlbumOpen(true)}>
-                        {isMe ? 'Ver álbum completo' : `Ver mais (${photoTotal})`}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="profile-col">
-                  {member && (memberRoles.length > 0 || canManageRoles) && (
-                    <div className="profile-section" ref={rolesSectionRef}>
-                      <div className="profile-section-label">
-                        CARGOS NA COMUNIDADE
-                      </div>
-                      <div className="profile-roles-row">
-                        {visibleRoles.map((r) => (
-                          <span key={r.id} className="role-chip profile-role-chip" style={roleChipStyle(r.color)}>
-                            {r.icon ? `${r.icon} ` : ''}{r.name}
-                            {canManageRoles && (
-                              <button
-                                type="button"
-                                className="profile-role-remove"
-                                title="Remover cargo"
-                                onClick={() => removeRole(r.id)}
-                              >×</button>
-                            )}
-                          </span>
-                        ))}
-                        {hiddenRolesCount > 0 && (
-                          <button
-                            type="button"
-                            className="role-chip profile-role-more"
-                            title={`Ver todos os ${memberRoles.length} cargos`}
-                            onClick={() => setRolesExpanded(true)}
-                          >
-                            +{hiddenRolesCount}…
-                          </button>
-                        )}
-                        {rolesExpanded && memberRoles.length > ROLES_PREVIEW_COUNT && (
-                          <button type="button" className="role-chip profile-role-more" onClick={() => setRolesExpanded(false)}>
-                            mostrar menos
-                          </button>
-                        )}
-                        {canManageRoles && (
-                          <div className="profile-role-add-wrap">
-                            <button
-                              ref={roleAddBtnRef}
-                              type="button"
-                              className="role-chip profile-role-add"
-                              title="Adicionar cargo"
-                              onClick={() => setRoleMenuOpen((v) => !v)}
-                            >+</button>
-                            {roleMenuOpen && createPortal(
-                              <div ref={roleMenuRef} className="profile-role-menu" style={roleMenuStyle || {}}>
-                                <input
-                                  className="profile-role-menu-search"
-                                  placeholder="Buscar cargo..."
-                                  value={roleSearch}
-                                  onChange={(e) => setRoleSearch(e.target.value)}
-                                  autoFocus
-                                />
-                                {roleSearchResults.length === 0 && (
-                                  <div className="empty-hint">{assignableRoles.length === 0 ? 'Nenhum outro cargo disponível.' : 'Nenhum cargo encontrado.'}</div>
-                                )}
-                                {roleSearchResults.map((r) => (
-                                  <button
-                                    type="button"
-                                    key={r.id}
-                                    className="profile-role-menu-item"
-                                    style={roleChipStyle(r.color)}
-                                    onClick={() => addRole(r.id)}
-                                  >
-                                    {r.icon ? `${r.icon} ` : ''}{r.name}
-                                  </button>
-                                ))}
-                              </div>,
-                              document.body,
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="profile-section">
-                    <div className="profile-section-label">MEMBRO DESDE</div>
-                    <div className="profile-section-body">{new Date(user.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
-                  </div>
-
-                  {(user.youtubeUrl || user.steamUrl || user.robloxUrl || user.xUrl) && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">CONEXÕES</div>
-                      <div className="profile-connections-row">
-                        {user.youtubeUrl && (
-                          <a className="profile-connection" href={user.youtubeUrl} target="_blank" rel="noreferrer" title="YouTube">
-                            <span className="profile-connection-icon"><img className="ui-icon-sm" src={youtubeIcon} alt="" /></span> YouTube
-                          </a>
-                        )}
-                        {user.steamUrl && (
-                          <a className="profile-connection" href={user.steamUrl} target="_blank" rel="noreferrer" title="Steam">
-                            <span className="profile-connection-icon"><img className="ui-icon-sm" src={steamIcon} alt="" /></span> Steam
-                          </a>
-                        )}
-                        {user.robloxUrl && (
-                          <a className="profile-connection" href={user.robloxUrl} target="_blank" rel="noreferrer" title="Roblox">
-                            <span className="profile-connection-icon"><img className="ui-icon-sm" src={robloxIcon} alt="" /></span> Roblox
-                          </a>
-                        )}
-                        {user.xUrl && (
-                          <a className="profile-connection" href={user.xUrl} target="_blank" rel="noreferrer" title="X (Twitter)">
-                            <span className="profile-connection-icon"><img className="ui-icon-sm" src={xIcon} alt="" /></span> X
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {!isMe && data.mutualFriends?.length > 0 && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">AMIGOS EM COMUM — {data.mutualFriends.length}</div>
-                      <div className="profile-mutual-list">
-                        {data.mutualFriends.map((f) => (
-                          <div key={f.id} className="profile-mutual-item">
-                            <div className="avatar tiny">
-                              <UserAvatar user={f} size={24} />
+                      <div className="profile-section-label">ANIVERSARIANTES</div>
+                      {birthdays.today.length > 0 && (
+                        <div className="profile-birthday-today">🎂 Hoje: {birthdays.today.map((f) => f.displayName).join(', ')}</div>
+                      )}
+                      {birthdays.upcoming.length > 0 && (
+                        <div className="profile-mutual-list">
+                          {birthdays.upcoming.map((f) => (
+                            <div key={f.id} className="profile-mutual-item">
+                              <div className="avatar tiny"><UserAvatar user={f} size={24} /></div>
+                              <span className="truncate">{f.displayName}</span>
+                              <span className="dim"> ({String(f.day).padStart(2, '0')}/{String(f.month).padStart(2, '0')})</span>
                             </div>
-                            <span className="truncate">{f.displayName}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {!isMe && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">RELACIONAMENTO</div>
-                      {data.relationshipPartner ? (
-                        <div className="profile-relationship-status">
-                          💞 Namorando com <UserAvatar user={data.relationshipPartner} size={20} /> <b>{data.relationshipPartner.displayName}</b>
+                          ))}
                         </div>
-                      ) : (
-                        <button className="btn-secondary" onClick={requestRelationship}>💌 Pedir em namoro</button>
                       )}
                     </div>
                   )}
-                  {isMe && me.relationshipPartnerId && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">RELACIONAMENTO</div>
-                      <div className="profile-relationship-status">
-                        💞 Em um relacionamento confirmado
-                        <button className="profile-relationship-end" onClick={breakUpRelationship}>Terminar</button>
-                      </div>
-                    </div>
-                  )}
 
-                  {/* Item pedido: "sistema igual tinha no Orkut" —
-                      recados no mural e depoimentos (o antigo botão de
-                      "sou fã" virou "Seguir", movido pra cima, perto de
-                      Ups). */}
+              </div>
 
-                  <div className="profile-section">
-                    <div className="profile-section-label">RECADOS{scraps.length > 0 ? ` — ${scraps.length}` : ''}</div>
-                    <div className="profile-scrap-composer">
-                      <input
-                        value={scrapDraft}
-                        onChange={(e) => setScrapDraft(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && submitScrap()}
-                        placeholder={isMe ? 'Escreva no seu próprio mural...' : `Deixe um recado pra ${user.displayName}...`}
-                        maxLength={300}
-                      />
-                      <button className="btn-secondary" disabled={!scrapDraft.trim() || scrapSending} onClick={submitScrap}>Enviar</button>
-                    </div>
-                    <div className="profile-scrap-list">
-                      {scraps.length === 0 && <div className="dim profile-scrap-empty">Nenhum recado ainda — seja o primeiro a deixar um.</div>}
-                      {scraps.slice(0, 3).map((s) => (
-                        <div key={s.id} className="profile-scrap-item">
-                          <UserAvatar user={s.author} size={28} />
-                          <div className="profile-scrap-item-body">
-                            <span className="profile-scrap-item-author">{s.author.displayName}</span>
-                            <span className="profile-scrap-item-text">{s.text}</span>
-                          </div>
-                          {(s.authorId === me.id || isMe) && (
-                            <button className="profile-scrap-item-remove" title="Apagar recado" onClick={() => removeScrap(s.id)}>✕</button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    {/* Item pedido: mais de 3 recados -> "ver mais" abre
-                        todos, paginados 100 por página. */}
-                    {scrapTotal > 3 && (
-                      <button className="profile-see-more-link" onClick={() => setScrapListOpen(true)}>Ver mais ({scrapTotal})</button>
-                    )}
-                  </div>
-
-                  <div className="profile-section">
-                    <div className="profile-section-label">DEPOIMENTOS{testimonialTotal > 0 ? ` — ${testimonialTotal}` : ''}</div>
-                    {!isMe && (
-                      <div className="profile-testimonial-composer">
-                        <textarea
-                          value={testimonialDraft}
-                          onChange={(e) => setTestimonialDraft(e.target.value)}
-                          placeholder={`Escreva um depoimento pra ${user.displayName}... (fica visível só depois que a pessoa aprovar)`}
-                          maxLength={1000}
-                          rows={2}
-                        />
-                        <button className="btn-secondary" disabled={!testimonialDraft.trim() || testimonialSending} onClick={submitTestimonial}>Enviar depoimento</button>
-                      </div>
-                    )}
-                    <div className="profile-testimonial-list">
-                      {testimonials.length === 0 && <div className="dim profile-scrap-empty">Nenhum depoimento ainda.</div>}
-                      {testimonials.slice(0, 3).map((t) => (
-                        <div key={t.id} className="profile-testimonial-item">
-                          <UserAvatar user={t.author} size={32} />
-                          <div className="profile-testimonial-item-body">
-                            <span className="profile-testimonial-item-author">{t.author.displayName}</span>
-                            <span className="profile-testimonial-item-text">{t.text}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {testimonialTotal > 3 && (
-                      <button className="profile-see-more-link" onClick={() => setTestimonialListOpen(true)}>Ver mais ({testimonialTotal})</button>
-                    )}
-                  </div>
+              <div className="profile-ig-columns">
+                {parseProfileSectionOrder(user.profileSectionOrder).map((key) => (
+                  <div key={key} className="profile-section-order-wrap">{SECTION_ELEMENTS[key]}</div>
+                ))}
+              </div>
 
                   {scrapListOpen && (
                     <PaginatedListModal
@@ -893,45 +1034,6 @@ export default function UserProfileModal() {
                     />
                   )}
 
-                  {/* Item pedido: mais sistemas estilo Orkut — traços,
-                      relacionamento, álbum de fotos, visitantes. */}
-                  {!isMe && traitStatus && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">O QUE ACHAM DE {user.displayName.split(' ')[0].toUpperCase()}</div>
-                      <div className="profile-trait-row">
-                        {[
-                          { key: 'TRUSTWORTHY', label: 'Confiável' },
-                          { key: 'COOL', label: 'Legal' },
-                          { key: 'SEXY', label: 'Sexy' },
-                        ].map(({ key, label }) => (
-                          <button
-                            key={key}
-                            className={`profile-trait-chip ${traitStatus[key]?.voted ? 'active' : ''}`}
-                            onClick={() => toggleTraitStatus(key)}
-                          >
-                            {label} <b>{traitStatus[key]?.count ?? 0}</b>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {isMe && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">QUEM VISITOU SEU PERFIL{visitorsData.totalVisits > 0 ? ` — ${visitorsData.totalVisits}` : ''}</div>
-                      {visitorsData.visits.length === 0 && <div className="dim profile-scrap-empty">Ninguém visitou seu perfil ainda.</div>}
-                      <div className="profile-mutual-list">
-                        {visitorsData.visits.slice(0, 8).map((v) => (
-                          <div key={v.id} className="profile-mutual-item">
-                            <div className="avatar tiny"><UserAvatar user={v.visitor} size={24} /></div>
-                            <span className="truncate">{v.visitor.displayName}</span>
-                            {v.visitCount > 1 && <span className="dim"> ({v.visitCount}x)</span>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
                   {albumOpen && (
                     <PhotoAlbumModal
                       ownerId={userId}
@@ -941,8 +1043,6 @@ export default function UserProfileModal() {
                     />
                   )}
 
-                </div>
-              </div>
             </div>
           </>
         )}

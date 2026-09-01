@@ -2341,7 +2341,17 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 
 /* Duas colunas em telas largas (a versão tela cheia tem espaço de sobra);
    uma coluna só em telas estreitas/celular. */
-.profile-ig-columns { display: grid; grid-template-columns: 1fr; gap: 0 28px; }
+/* BUG CORRIGIDO / item pedido ("sistema igual da Steam"): antes eram
+   duas colunas JSX FIXAS (metade das seções sempre na coluna 1, metade
+   na 2, hardcoded) — agora que a pessoa pode reordenar livremente
+   (Configurações → Colunas), não dá mais pra decidir programaticamente
+   "isso vai na coluna 1, aquilo na 2". CSS multi-column deixa o próprio
+   navegador distribuir visualmente em 2 colunas sozinho, sempre
+   preenchendo de cima pra baixo na ordem escolhida (primeiro toda a
+   coluna 1, depois a 2) — sem eu precisar calcular nada. */
+.profile-ig-columns { column-gap: 28px; }
+.profile-ig-fixed-top { display: flex; flex-direction: column; gap: 4px; }
+.profile-section-order-wrap { break-inside: avoid; }
 .profile-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 @media (min-width: 720px) {
   .profile-ig-columns { grid-template-columns: 1fr 1fr; }
@@ -2530,6 +2540,48 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 .photo-lightbox-media img, .photo-lightbox-media video { max-width: 100%; max-height: 320px; object-fit: contain; }
 .photo-lightbox-caption { font-size: 13px; color: var(--text-normal); }
 .photo-lightbox-comments-label { margin-top: 4px; }
+
+/* Item pedido: enquetes de perfil e aniversariantes — mesma paleta e
+   espírito visual do resto do perfil (fundo secundário, cantos
+   arredondados, igual scraps/testimonials). */
+.profile-poll-composer { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.profile-poll-composer input { width: 100%; }
+.profile-poll-composer-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.profile-poll { background: var(--bg-secondary); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+.profile-poll-question { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.profile-poll-option {
+  position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; padding: 8px 10px; margin-bottom: 6px; border-radius: 6px; background: var(--bg-primary);
+  overflow: hidden; font-size: 13px; text-align: left;
+}
+.profile-poll-option-bar {
+  position: absolute; inset: 0; background: color-mix(in srgb, var(--brand) 22%, transparent);
+  border-radius: 6px; transition: width .2s var(--ease-smooth); z-index: 0;
+}
+.profile-poll-option.active .profile-poll-option-bar { background: color-mix(in srgb, var(--brand) 40%, transparent); }
+.profile-poll-option-text, .profile-poll-option-percent { position: relative; z-index: 1; }
+.profile-poll-option-percent { font-weight: 700; flex-shrink: 0; }
+.profile-poll-total { font-size: 12px; margin-top: 4px; }
+
+.profile-birthday-today {
+  background: color-mix(in srgb, var(--brand) 15%, transparent); border-radius: 8px; padding: 10px;
+  font-size: 14px; font-weight: 600; margin-bottom: 8px;
+}
+
+/* Item pedido: "sistema igual da Steam" — lista de reordenar seções
+   nas Configurações → Colunas. */
+.profile-section-order-list { display: flex; flex-direction: column; gap: 4px; }
+.profile-section-order-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border-radius: 8px; background: var(--bg-secondary); font-size: 14px;
+}
+.profile-section-order-buttons { display: flex; gap: 4px; flex-shrink: 0; }
+.profile-section-order-buttons button {
+  width: 26px; height: 26px; border-radius: 6px; background: var(--bg-modifier-hover); color: var(--text-normal);
+  transition: background-color .12s var(--ease-smooth);
+}
+.profile-section-order-buttons button:hover:not(:disabled) { background: var(--brand); color: #fff; }
+.profile-section-order-buttons button:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* ---------- Custom status modal ---------- */
 .custom-status-form { display: flex; flex-direction: column; gap: 12px; }
