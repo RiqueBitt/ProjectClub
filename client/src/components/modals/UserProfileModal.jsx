@@ -242,8 +242,6 @@ export default function UserProfileModal() {
     };
   }, [roleMenuOpen]);
 
-  if (!userId) return null;
-
   const isMe = userId === me.id;
 
   // Item pedido: mais sistemas estilo Orkut — traços (confiável/legal/
@@ -347,6 +345,8 @@ export default function UserProfileModal() {
       useStore.getState().pushNotice(err.response?.data?.error || 'Não foi possível registrar seu voto. Tente novamente.');
     }
   };
+
+  if (!userId) return null;
 
   return (
     <div className="modal-overlay profile-fullscreen-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) closeProfile(); }}>
