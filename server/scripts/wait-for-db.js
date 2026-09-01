@@ -21,11 +21,19 @@ function sleep(ms) {
 async function main() {
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      // Caminho explícito pro binário (em vez de confiar que "prisma"
-      // sozinho resolve certo no PATH nesse contexto) — mais robusto,
-      // não depende de nenhuma configuração de ambiente específica.
-      const prismaBin = require('path').join(__dirname, '..', 'node_modules', '.bin', 'prisma');
-      execSync(`"${prismaBin}" db push --skip-generate`, {
+      // BUG CORRIGIDO ("continua falhando: prisma not found"): a
+      // versão anterior deste script assumia um caminho FIXO
+      // (server/node_modules/.bin/prisma) — só que este projeto é um
+      // monorepo com workspaces (server + client), então dependências
+      // como o prisma ficam instaladas na pasta RAIZ, não dentro de
+      // server/node_modules especificamente. O script antigo (antes
+      // dessa correção) usava só "prisma" via npm run, que resolve
+      // isso sozinho subindo pelas pastas — meu "caminho explícito"
+      // anterior quebrou justamente essa resolução automática. `npx`
+      // faz a mesma subida automática pelas pastas até achar o
+      // binário certo, então funciona independente de em que nível
+      // exato da árvore de workspaces ele foi instalado.
+      execSync('npx prisma db push --skip-generate', {
         stdio: 'inherit',
         env: { ...process.env, PRISMA_HIDE_UPDATE_MESSAGE: '1' },
       });
