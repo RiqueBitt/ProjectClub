@@ -405,7 +405,19 @@ export default function UserProfileModal() {
                   navegador distribuir visualmente em 2 colunas sozinho,
                   preservando a ordem escolhida — nenhuma lógica extra
                   daqui precisa decidir "isso vai na coluna 1 ou 2". */
-  const SECTION_ELEMENTS = {
+  // BUG CORRIGIDO ("TypeError: can't access property bio, user is
+  // undefined"): antes do refactor, todo esse JSX só existia DENTRO de
+  // {!loading && user && (...)} — o React só processa (avalia) JSX
+  // aninhado quando o elemento pai é de fato renderizado, então nunca
+  // rodava com `user` vazio. Agora que isso virou um OBJETO JS comum,
+  // construído incondicionalmente toda vez que o componente
+  // renderiza, `user.bio` e companhia são avaliados de VERDADE mesmo
+  // durante o carregamento inicial (antes do fetch do perfil
+  // terminar, quando `data`/`user` ainda são undefined) — daí o erro.
+  // `user &&` aqui garante que o objeto só é construído de verdade
+  // quando `user` já existe; enquanto carrega, vira um objeto vazio
+  // (nenhuma seção tenta ler nada de undefined).
+  const SECTION_ELEMENTS = user ? {
     about: (
 user.bio && (
                     <div className="profile-section profile-ig-bio">
@@ -797,7 +809,7 @@ isMe && (
                     </div>
                   )
     ),
-  };
+  } : {};
 
   return (
     <div className="modal-overlay profile-fullscreen-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) closeProfile(); }}>
