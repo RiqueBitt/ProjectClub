@@ -346,6 +346,50 @@ export default function UserProfileModal() {
     }
   };
 
+  // Item pedido: mais sistemas estilo Orkut — enquetes de perfil,
+  // aniversariantes entre amigos. Hooks aqui em cima de propósito,
+  // ANTES do guarda "if (!userId) return null" logo abaixo — colocar
+  // hooks depois dele quebra o React (número de hooks chamados muda
+  // dependendo se o modal está aberto ou fechado), foi exatamente o
+  // bug corrigido na resposta anterior.
+  const [profilePolls, setProfilePolls] = useState([]);
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOptions, setPollOptions] = useState(['', '']);
+  const [pollCreating, setPollCreating] = useState(false);
+  useEffect(() => {
+    if (!userId) { setProfilePolls([]); return; }
+    listProfilePollsByAuthor(userId).then((d) => setProfilePolls(d.polls)).catch(() => setProfilePolls([]));
+  }, [userId]);
+
+  const submitPollVote = (pollId, optionId) => {
+    voteProfilePoll(pollId, optionId).then((d) => {
+      setProfilePolls((prev) => prev.map((p) => (p.id === pollId ? d.poll : p)));
+    }).catch(() => {});
+  };
+
+  const createPoll = () => {
+    const cleanOptions = pollOptions.map((o) => o.trim()).filter(Boolean);
+    if (!pollQuestion.trim() || cleanOptions.length < 2 || pollCreating) return;
+    setPollCreating(true);
+    createProfilePoll(pollQuestion.trim(), cleanOptions)
+      .then((d) => { setProfilePolls((prev) => [d.poll, ...prev]); setPollQuestion(''); setPollOptions(['', '']); })
+      .catch((err) => useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível criar a enquete.'))
+      .finally(() => setPollCreating(false));
+  };
+
+  const removePoll = (pollId) => {
+    if (!confirm('Apagar essa enquete?')) return;
+    deleteProfilePoll(pollId).then(() => setProfilePolls((prev) => prev.filter((p) => p.id !== pollId))).catch(() => {});
+  };
+
+  // Aniversariantes — só busca quando é O MEU PRÓPRIO perfil (é uma
+  // lista sobre OS MEUS amigos, não faz sentido em perfil alheio).
+  const [birthdays, setBirthdays] = useState({ today: [], upcoming: [] });
+  useEffect(() => {
+    if (!userId || !isMe) { setBirthdays({ today: [], upcoming: [] }); return; }
+    upcomingBirthdaysAmongFriends().then(setBirthdays).catch(() => {});
+  }, [userId, isMe]);
+
   if (!userId) return null;
 
   return (
@@ -570,6 +614,27 @@ export default function UserProfileModal() {
                       </div>
                     </div>
                   )}
+
+                  <div className="profile-section">
+                    <div className="profile-section-label">ÁLBUM DE FOTOS{photoTotal > 0 ? ` — ${photoTotal}` : ''}</div>
+                    {photoPreview.length === 0 && <div className="dim profile-scrap-empty">Nenhuma foto ainda.</div>}
+                    {photoPreview.length > 0 && (
+                      <div className="profile-photo-grid">
+                        {photoPreview.map((p) => (
+                          <button key={p.id} className="profile-photo-grid-item" onClick={() => setAlbumOpen(true)}>
+                            {p.url.match(/\.(mp4|webm|mov|mkv)$/i)
+                              ? <video src={p.url} muted />
+                              : <img src={proxyImage(p.url)} alt="" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {(photoTotal > 6 || isMe) && (
+                      <button className="profile-see-more-link" onClick={() => setAlbumOpen(true)}>
+                        {isMe ? 'Ver álbum completo' : `Ver mais (${photoTotal})`}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="profile-col">
@@ -693,6 +758,28 @@ export default function UserProfileModal() {
                             <span className="truncate">{f.displayName}</span>
                           </div>
                         ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {!isMe && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">RELACIONAMENTO</div>
+                      {data.relationshipPartner ? (
+                        <div className="profile-relationship-status">
+                          💞 Namorando com <UserAvatar user={data.relationshipPartner} size={20} /> <b>{data.relationshipPartner.displayName}</b>
+                        </div>
+                      ) : (
+                        <button className="btn-secondary" onClick={requestRelationship}>💌 Pedir em namoro</button>
+                      )}
+                    </div>
+                  )}
+                  {isMe && me.relationshipPartnerId && (
+                    <div className="profile-section">
+                      <div className="profile-section-label">RELACIONAMENTO</div>
+                      <div className="profile-relationship-status">
+                        💞 Em um relacionamento confirmado
+                        <button className="profile-relationship-end" onClick={breakUpRelationship}>Terminar</button>
                       </div>
                     </div>
                   )}
@@ -828,49 +915,6 @@ export default function UserProfileModal() {
                       </div>
                     </div>
                   )}
-
-                  {!isMe && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">RELACIONAMENTO</div>
-                      {data.relationshipPartner ? (
-                        <div className="profile-relationship-status">
-                          💞 Namorando com <UserAvatar user={data.relationshipPartner} size={20} /> <b>{data.relationshipPartner.displayName}</b>
-                        </div>
-                      ) : (
-                        <button className="btn-secondary" onClick={requestRelationship}>💌 Pedir em namoro</button>
-                      )}
-                    </div>
-                  )}
-                  {isMe && me.relationshipPartnerId && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">RELACIONAMENTO</div>
-                      <div className="profile-relationship-status">
-                        💞 Em um relacionamento confirmado
-                        <button className="profile-relationship-end" onClick={breakUpRelationship}>Terminar</button>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="profile-section">
-                    <div className="profile-section-label">ÁLBUM DE FOTOS{photoTotal > 0 ? ` — ${photoTotal}` : ''}</div>
-                    {photoPreview.length === 0 && <div className="dim profile-scrap-empty">Nenhuma foto ainda.</div>}
-                    {photoPreview.length > 0 && (
-                      <div className="profile-photo-grid">
-                        {photoPreview.map((p) => (
-                          <button key={p.id} className="profile-photo-grid-item" onClick={() => setAlbumOpen(true)}>
-                            {p.url.match(/\.(mp4|webm|mov|mkv)$/i)
-                              ? <video src={p.url} muted />
-                              : <img src={proxyImage(p.url)} alt="" />}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {(photoTotal > 6 || isMe) && (
-                      <button className="profile-see-more-link" onClick={() => setAlbumOpen(true)}>
-                        {isMe ? 'Ver álbum completo' : `Ver mais (${photoTotal})`}
-                      </button>
-                    )}
-                  </div>
 
                   {isMe && (
                     <div className="profile-section">

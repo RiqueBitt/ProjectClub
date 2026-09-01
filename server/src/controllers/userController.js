@@ -7,9 +7,20 @@ const activityStore = require('../services/activityStore');
 const NAME_FONTS = ['NORMAL', 'PIXEL', 'CARTOON', 'MEDIEVAL', 'HANDWRITING'];
 const NAME_EFFECTS = ['SOLID', 'NEON', 'GRADIENT', 'POP', 'SKETCH'];
 
+// Item pedido: "sistema igual da Steam" pra reorganizar o perfil —
+// chaves de seção conhecidas, mantidas em sincronia com
+// PROFILE_SECTIONS em client/src/components/modals/UserProfileModal.jsx.
+// Validado no servidor também (não só escondido na tela) — evita
+// salvar uma chave inválida/lixo que quebraria a exibição depois.
+const PROFILE_SECTION_KEYS = [
+  'about', 'badges', 'featuredAchievements', 'tag', 'album', 'polls', 'communityActivity',
+  'roles', 'memberSince', 'connections', 'mutualFriends', 'birthdays', 'relationship',
+  'scraps', 'testimonials', 'traits', 'visitors',
+];
+
 async function updateProfile(req, res, next) {
   try {
-    const allowed = ['displayName', 'bio', 'pronouns', 'customStatus', 'profileColor'];
+    const allowed = ['displayName', 'bio', 'pronouns', 'customStatus', 'profileColor', 'profileSectionOrder'];
     // Conexões links (see UserSettingsModal.jsx's "Conexões" section under the
     // PROFILE tab / UserProfileModal.jsx's Conexões display) — plain optional
     // URLs, no OAuth verification. Sanitized to either a real http(s) link or
@@ -27,6 +38,27 @@ async function updateProfile(req, res, next) {
     // que já tinham uma cor salva continuam mostrando ela normalmente em
     // todo o app, isso só impede que ela seja alterada enquanto o sistema
     // estiver desligado.
+    // Item pedido: "sistema igual da Steam" — ordem personalizada das
+    // seções do perfil. Valida no servidor (não só confiando no que o
+    // frontend mandou) que é um array de verdade, com só chaves de
+    // seção conhecidas — evita salvar lixo no banco se algo mandar um
+    // valor malformado.
+    const VALID_SECTION_KEYS = [
+      'about', 'achievements', 'album', 'polls', 'community_activity', 'roles',
+      'member_since', 'connections', 'mutual_friends', 'relationship', 'traits',
+      'scraps', 'testimonials', 'visitors',
+    ];
+    if (data.profileSectionOrder !== undefined) {
+      try {
+        const parsed = JSON.parse(data.profileSectionOrder);
+        if (!Array.isArray(parsed) || !parsed.every((k) => typeof k === 'string' && VALID_SECTION_KEYS.includes(k))) {
+          delete data.profileSectionOrder;
+        }
+      } catch {
+        delete data.profileSectionOrder;
+      }
+    }
+
     if (data.profileColor !== undefined) {
       const settings = await prisma.platformSettings.findUnique({ where: { id: 'singleton' } });
       let disabled = [];
@@ -304,6 +336,19 @@ async function getUser(req, res, next) {
       });
     }
 
+    // Item pedido: aniversariantes — só um booleano de "é hoje", nunca
+    // a data completa (nem no PUBLIC_USER_FIELDS genérico) — evita
+    // expor a idade da pessoa em qualquer resposta de perfil.
+    let isBirthdayToday = false;
+    {
+      const rawUser = await prisma.user.findUnique({ where: { id }, select: { birthDate: true } });
+      if (rawUser?.birthDate) {
+        const today = new Date();
+        const bd = rawUser.birthDate;
+        isBirthdayToday = bd.getUTCDate() === today.getUTCDate() && bd.getUTCMonth() === today.getUTCMonth();
+      }
+    }
+
     const badgeRows = await prisma.userBadge.findMany({ where: { userId: id }, include: { badge: true }, orderBy: { badge: { priority: 'asc' } } });
     // awardedAt lives on the UserBadge join row (when THIS user unlocked it),
     // not on the Badge itself (which is shared across everyone who has it) —
@@ -379,7 +424,7 @@ async function getUser(req, res, next) {
       user: clearIfExpired(user), badges, mutualFriends,
       likeCount, dislikeCount, myVote: myVoteRow?.value || 0, levelProgress, totalUps,
       displayedAchievements, displayedAchievementsMini,
-      activity, relationshipPartner,
+      activity, relationshipPartner, isBirthdayToday,
     });
   } catch (err) { next(err); }
 }

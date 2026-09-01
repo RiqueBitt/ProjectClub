@@ -52,6 +52,18 @@ model User {
   relationshipPartnerId String?
   relationshipPartner   User?   @relation("RelationshipPartnerLink", fields: [relationshipPartnerId], references: [id])
   relationshipPartnerOf User[]  @relation("RelationshipPartnerLink")
+  // Item pedido: "sistema igual da Steam" — ordem personalizada das
+  // seções do perfil, escolhida pela própria pessoa (Configurações →
+  // Colunas). Guarda um array JSON de chaves de seção (ex:
+  // '["scraps","album","about",...]') — null/vazio usa a ordem padrão.
+  profileSectionOrder String? @db.Text
+  // Item pedido: "sistema igual da Steam, tenha uma categoria Colunas
+  // que você pode mover" — a ordem das seções do próprio perfil,
+  // escolhida pela pessoa (JSON com um array de "chaves" de seção,
+  // tipo ["scraps","about","album",...]). Null = ainda não personalizou,
+  // usa a ordem padrão (calculada no cliente, ver PROFILE_SECTIONS em
+  // UserProfileModal.jsx).
+  profileSectionOrder String? @db.Text
   // Tema de interface escolhido (facebook/light/dark/amoled/clubpenguin) —
   // salvo na CONTA, não só no localStorage do navegador. O localStorage
   // continua sendo usado como cache rápido (evita o "flash" de tema
@@ -139,6 +151,8 @@ model User {
   traitVotesReceived TraitVote[] @relation("TraitTarget")
   relationshipRequestsSent     RelationshipRequest[] @relation("RelationshipRequester")
   relationshipRequestsReceived RelationshipRequest[] @relation("RelationshipPartner")
+  profilePollsCreated ProfilePoll[]     @relation("ProfilePollAuthor")
+  profilePollVotes    ProfilePollVote[] @relation("ProfilePollVoter")
   // ^ mantido
 
   conversationMemberships ConversationMember[]
@@ -536,6 +550,48 @@ model RelationshipRequest {
   updatedAt   DateTime @updatedAt
 
   @@unique([requesterId, partnerId])
+}
+
+// Enquetes NO PERFIL (item pedido: "sistema igual tinha no Orkut") —
+// nomes com prefixo "Profile" de propósito: já existe um sistema de
+// enquete DIFERENTE no app (Poll/PollVote, anexado a mensagens de
+// chat, com duração/expiração — ver messageController.js e
+// pollController.js) — usar os mesmos nomes aqui colidiria e quebraria
+// a validação do banco (nome de modelo duplicado). Esta é uma
+// funcionalidade nova e diferente (enquete solta no perfil, sem
+// expiração, sem estar presa a nenhuma mensagem).
+model ProfilePoll {
+  id        String   @id @default(uuid())
+  authorId  String
+  author    User     @relation("ProfilePollAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  question  String
+  createdAt DateTime @default(now())
+
+  options ProfilePollOption[]
+  votes   ProfilePollVote[]
+}
+
+model ProfilePollOption {
+  id     String      @id @default(uuid())
+  pollId String
+  poll   ProfilePoll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  text   String
+  order  Int         @default(0)
+
+  votes ProfilePollVote[]
+}
+
+model ProfilePollVote {
+  id        String            @id @default(uuid())
+  pollId    String
+  poll      ProfilePoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  optionId  String
+  option    ProfilePollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  voterId   String
+  voter     User              @relation("ProfilePollVoter", fields: [voterId], references: [id], onDelete: Cascade)
+  createdAt DateTime          @default(now())
+
+  @@unique([pollId, voterId])
 }
 
 model Conversation {

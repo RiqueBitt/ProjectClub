@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import IconGlyph from '../IconGlyph.jsx';
+import ProfileSectionOrderEditor from '../ProfileSectionOrderEditor.jsx';
 import AchievementPickerModal from './AchievementPickerModal.jsx';
 import micIcon from '../../assets/icons/nav-mic.png';
 import Modal from '../Modal.jsx';
@@ -37,7 +38,7 @@ import {
 // completamente daqui — mora agora dentro da própria área de Perfil
 // (UserProfileModal.jsx), não em Configurações.
 const TAB_GROUPS = [
-  { label: 'Perfil', tabs: ['PROFILE', 'PROFILE_DISPLAY'] },
+  { label: 'Perfil', tabs: ['PROFILE', 'PROFILE_DISPLAY', 'COLUMNS'] },
   { label: 'Geral', tabs: ['ACCOUNT', 'VOICE', 'SECURITY', 'APPEARANCE'] },
 ];
 
@@ -136,6 +137,14 @@ export default function UserSettingsModal({ onClose }) {
   const saveFriendRequestPrivacy = async (value) => {
     setFriendRequestPrivacy(value);
     const { user: updated } = await updateProfile({ friendRequestPrivacy: value });
+    setUser(updated);
+  };
+
+  // Item pedido: "sistema igual da Steam" — ordem das seções do
+  // perfil (aba Colunas). Mesmo padrão de salvamento das outras
+  // preferências acima.
+  const saveProfileSectionOrder = async (orderJson) => {
+    const { user: updated } = await updateProfile({ profileSectionOrder: orderJson });
     setUser(updated);
   };
   const [achievementPickerOpen, setAchievementPickerOpen] = useState(false); // false | 'profile' | 'mini'
@@ -523,6 +532,15 @@ export default function UserSettingsModal({ onClose }) {
         </div>
       )}
 
+      {tab === 'COLUMNS' && (
+        <div className="settings-grid">
+          <div className="settings-block">
+            <h4>Ordem das seções do perfil</h4>
+            <ProfileSectionOrderEditor value={user.profileSectionOrder} onChange={saveProfileSectionOrder} />
+          </div>
+        </div>
+      )}
+
       {tab === 'ACCOUNT' && (
         <div className="settings-grid">
           <label>E-MAIL<input value={user.email} disabled /></label>
@@ -687,7 +705,7 @@ export default function UserSettingsModal({ onClose }) {
 
 function labelFor(t) {
   return {
-    PROFILE: 'Meu perfil', PROFILE_DISPLAY: 'Exibição', ACCOUNT: 'Minha conta', VOICE: 'Voz e Áudio', SECURITY: 'Segurança', APPEARANCE: 'Aparência',
+    PROFILE: 'Meu perfil', PROFILE_DISPLAY: 'Exibição', COLUMNS: 'Colunas', ACCOUNT: 'Minha conta', VOICE: 'Voz e Áudio', SECURITY: 'Segurança', APPEARANCE: 'Aparência',
   }[t];
 }
 
@@ -696,7 +714,7 @@ function iconFor(t) {
   // emoji — os outros continuam emoji por enquanto.
   if (t === 'VOICE') return <IconGlyph src={micIcon} size={16} />;
   return {
-    PROFILE: '👤', PROFILE_DISPLAY: '🏆', ACCOUNT: '⚙️', SECURITY: '🔒', APPEARANCE: '🎨',
+    PROFILE: '👤', PROFILE_DISPLAY: '🏆', COLUMNS: '📐', ACCOUNT: '⚙️', SECURITY: '🔒', APPEARANCE: '🎨',
   }[t];
 }
 

@@ -24,6 +24,8 @@ const profileVisitRoutes = require('./routes/profileVisits');
 const photoRoutes = require('./routes/photos');
 const traitRoutes = require('./routes/traits');
 const relationshipRoutes = require('./routes/relationships');
+const birthdayRoutes = require('./routes/birthdays');
+const profilePollRoutes = require('./routes/profilePolls');
 const conversationRoutes = require('./routes/conversations');
 const messageRoutes = require('./routes/messages');
 const pollRoutes = require('./routes/polls');
@@ -307,6 +309,8 @@ function createApp() {
   app.use('/api/photos', photoRoutes);
   app.use('/api/traits', traitRoutes);
   app.use('/api/relationships', relationshipRoutes);
+  app.use('/api/birthdays', birthdayRoutes);
+  app.use('/api/profile-polls', profilePollRoutes);
   app.use('/api/conversations', conversationRoutes);
   app.use('/api/messages', messageRoutes);
   app.use('/api/polls', pollRoutes);

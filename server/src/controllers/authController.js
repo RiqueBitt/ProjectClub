@@ -102,6 +102,7 @@ const PUBLIC_USER_FIELDS = {
   // userController.js) busca os dados do parceiro à parte, só quando
   // precisa.
   relationshipPartnerId: true,
+  profileSectionOrder: true,
 };
 
 // Everything PUBLIC_USER_FIELDS has, plus the account-owner-only fields

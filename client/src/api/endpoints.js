@@ -386,3 +386,10 @@ export const sendRelationshipRequest = (partnerId) => api.post('/relationships/r
 export const respondRelationship = (id, action) => api.post(`/relationships/${id}/respond`, { action }).then((r) => r.data);
 export const endRelationship = () => api.post('/relationships/end').then((r) => r.data);
 export const listPendingRelationships = () => api.get('/relationships/pending/mine').then((r) => r.data);
+
+export const upcomingBirthdaysAmongFriends = () => api.get('/birthdays/upcoming').then((r) => r.data);
+
+export const createProfilePoll = (question, options) => api.post('/profile-polls', { question, options }).then((r) => r.data);
+export const listProfilePollsByAuthor = (authorId) => api.get(`/profile-polls/author/${authorId}`).then((r) => r.data);
+export const voteProfilePoll = (id, optionId) => api.post(`/profile-polls/${id}/vote`, { optionId }).then((r) => r.data);
+export const deleteProfilePoll = (id) => api.delete(`/profile-polls/${id}`).then((r) => r.data);
