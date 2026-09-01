@@ -39,6 +39,16 @@ model User {
   idCardUrl           String?
   bio                 String? @db.Text
   pronouns            String?
+  // BUG CORRIGIDO ("Unknown field birthDate for select statement on
+  // model User"): o sistema de Aniversariantes (birthdayController.js)
+  // sempre esperou esse campo aqui — mas ele só existia em
+  // MembershipApplication (o formulário de inscrição), nunca era
+  // copiado pra cá quando a inscrição virava conta de verdade
+  // (ver applicationsController.js approveApplication, já corrigido
+  // também). Contas aprovadas ANTES desta correção continuam sem essa
+  // data (não tem como recuperar um dado que nunca foi salvo aqui) —
+  // só afeta cadastros novos daqui pra frente.
+  birthDate           DateTime?
   profileColor        String    @default("#1877F2")
   profileNameFont     String    @default("NORMAL")
   profileNameEffect   String    @default("SOLID")

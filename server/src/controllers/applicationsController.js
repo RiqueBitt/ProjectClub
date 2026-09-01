@@ -124,6 +124,11 @@ async function approveApplication(req, res, next) {
       data: {
         email: application.email, username: application.username, displayName: application.displayName,
         passwordHash: application.passwordHash, publicId: generatePublicId(), emailVerified: true,
+        // BUG CORRIGIDO: birthDate da inscrição nunca era copiado pra
+        // conta de verdade — o sistema de Aniversariantes dependia
+        // desse campo existir aqui e sempre ficava vazio pra contas
+        // novas.
+        birthDate: application.birthDate,
       },
     });
 
