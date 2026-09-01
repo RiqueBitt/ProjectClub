@@ -7,7 +7,7 @@
   "scripts": {
     "predev": "PRISMA_HIDE_UPDATE_MESSAGE=1 prisma db push --skip-generate",
     "dev": "nodemon src/index.js",
-    "start": "PRISMA_HIDE_UPDATE_MESSAGE=1 prisma db push --skip-generate && node src/index.js",
+    "start": "node scripts/wait-for-db.js && node src/index.js",
     "prisma:generate": "PRISMA_HIDE_UPDATE_MESSAGE=1 prisma generate",
     "prisma:push": "PRISMA_HIDE_UPDATE_MESSAGE=1 prisma db push --accept-data-loss --skip-generate && prisma generate && node prisma/seed.js",
     "prisma:seed": "node prisma/seed.js",
