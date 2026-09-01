@@ -29,13 +29,19 @@ async function write(req, res, next) {
 async function list(req, res, next) {
   try {
     const { targetId } = req.params;
-    const scraps = await prisma.scrap.findMany({
-      where: { targetId },
-      include: { author: { select: PUBLIC_USER_FIELDS } },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
-    res.json({ scraps });
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const PAGE_SIZE = 100;
+    const [scraps, total] = await Promise.all([
+      prisma.scrap.findMany({
+        where: { targetId },
+        include: { author: { select: PUBLIC_USER_FIELDS } },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+      }),
+      prisma.scrap.count({ where: { targetId } }),
+    ]);
+    res.json({ scraps, total, page, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) });
   } catch (err) { next(err); }
 }
 

@@ -2453,8 +2453,11 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 .profile-mutual-item .avatar.tiny { width: 20px; height: 20px; font-size: 10px; border-radius: 50%; overflow: hidden; }
 
 /* Item pedido: sistemas estilo Orkut — fã, recados, depoimentos. */
-.profile-fan-btn.active { background: var(--brand); color: #fff; }
-.profile-fan-count { font-size: 12px; margin-left: 8px; }
+/* Item pedido: botão de "Seguir" fica junto dos outros botões de ação
+   (Enviar mensagem/Adicionar amigo) — quando já está seguindo, vira
+   "Seguindo" com um leve destaque de cor, pra ficar claro que já é uma
+   ação "ativa" (mesmo padrão visual dos botões de dar Up/Down). */
+.profile-ig-actions .btn-secondary.active { background: var(--brand); color: #fff; }
 
 .profile-scrap-composer { display: flex; gap: 6px; margin-bottom: 10px; }
 .profile-scrap-composer input { flex: 1; }
@@ -2478,6 +2481,22 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 .profile-testimonial-item-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
 .profile-testimonial-item-author { font-size: 12px; font-weight: 700; color: var(--header-primary); }
 .profile-testimonial-item-text { font-size: 13px; line-height: 1.4; word-break: break-word; white-space: pre-wrap; }
+/* Item pedido: "ver mais" quando tem mais de 3 — link discreto embaixo
+   da lista curta, e o modal de todos os itens paginados. */
+.profile-see-more-link { font-size: 12px; color: var(--interactive-active); font-weight: 600; margin-top: 6px; padding: 4px 0; }
+.profile-see-more-link:hover { text-decoration: underline; }
+.paginated-list-modal { display: flex; flex-direction: column; gap: 12px; }
+.paginated-list-items { display: flex; flex-direction: column; gap: 10px; max-height: 55vh; overflow-y: auto; }
+.paginated-list-loading { text-align: center; padding: 24px 0; font-size: 13px; }
+.paginated-list-pager { display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap; }
+.paginated-list-pager-group { display: flex; align-items: center; gap: 4px; }
+.paginated-list-pager-ellipsis { padding: 0 2px; }
+.paginated-list-pager-btn {
+  min-width: 30px; height: 30px; border-radius: 6px; font-size: 13px; font-weight: 600; color: var(--text-muted);
+  transition: background-color .12s var(--ease-smooth), color .12s var(--ease-smooth);
+}
+.paginated-list-pager-btn:hover { background: var(--bg-modifier-hover); color: var(--text-normal); }
+.paginated-list-pager-btn.active { background: var(--brand); color: #fff; }
 
 /* ---------- Custom status modal ---------- */
 .custom-status-form { display: flex; flex-direction: column; gap: 12px; }

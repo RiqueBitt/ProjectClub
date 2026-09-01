@@ -33,16 +33,25 @@ async function writeTestimonial(req, res, next) {
 }
 
 // Depoimentos JÁ aprovados de alguém — o que qualquer visitante do
-// perfil vê.
+// perfil vê. Item pedido: paginado, 100 por página (usado pelo "ver
+// mais" quando tem mais de 3 no perfil principal).
 async function listApproved(req, res, next) {
   try {
     const { targetId } = req.params;
-    const testimonials = await prisma.testimonial.findMany({
-      where: { targetId, status: 'APPROVED' },
-      include: { author: { select: PUBLIC_USER_FIELDS } },
-      orderBy: { createdAt: 'desc' },
-    });
-    res.json({ testimonials });
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const PAGE_SIZE = 100;
+    const where = { targetId, status: 'APPROVED' };
+    const [testimonials, total] = await Promise.all([
+      prisma.testimonial.findMany({
+        where,
+        include: { author: { select: PUBLIC_USER_FIELDS } },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+      }),
+      prisma.testimonial.count({ where }),
+    ]);
+    res.json({ testimonials, total, page, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) });
   } catch (err) { next(err); }
 }
 

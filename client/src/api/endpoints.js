@@ -348,13 +348,13 @@ export const getAgoraToken = (channelName) => api.get('/agora/token', { params: 
 
 // --- Item pedido: sistemas estilo Orkut ---
 export const writeTestimonial = (targetId, text) => api.post(`/testimonials/${targetId}`, { text }).then((r) => r.data);
-export const listApprovedTestimonials = (targetId) => api.get(`/testimonials/${targetId}`).then((r) => r.data);
+export const listApprovedTestimonials = (targetId, page = 1) => api.get(`/testimonials/${targetId}`, { params: { page } }).then((r) => r.data);
 export const listPendingTestimonials = () => api.get('/testimonials/pending/mine').then((r) => r.data);
 export const respondTestimonial = (id, action) => api.post(`/testimonials/${id}/respond`, { action }).then((r) => r.data);
 export const deleteTestimonial = (id) => api.delete(`/testimonials/${id}`).then((r) => r.data);
 
 export const writeScrap = (targetId, text) => api.post(`/scraps/${targetId}`, { text }).then((r) => r.data);
-export const listScraps = (targetId) => api.get(`/scraps/${targetId}`).then((r) => r.data);
+export const listScraps = (targetId, page = 1) => api.get(`/scraps/${targetId}`, { params: { page } }).then((r) => r.data);
 export const deleteScrap = (id) => api.delete(`/scraps/${id}`).then((r) => r.data);
 
 export const getFanStatus = (targetId) => api.get(`/fans/${targetId}`).then((r) => r.data);

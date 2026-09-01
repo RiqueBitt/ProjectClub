@@ -15,6 +15,7 @@ import StatusEmoji from '../StatusEmoji.jsx';
 import ActivityBadge from '../ActivityBadge.jsx';
 import ActivityIcon from '../ActivityIcon.jsx';
 import BadgeListModal from './BadgeListModal.jsx';
+import PaginatedListModal from './PaginatedListModal.jsx';
 import defaultAchievementIcon from '../../assets/icons/nav-achievements.png';
 import { badgeHasImage } from '../../utils/badgeRarity';
 import { nameStyleProps } from '../../utils/nameStyle';
@@ -132,19 +133,23 @@ export default function UserProfileModal() {
   // e "sou fã", carregados junto do resto do perfil, mesmo padrão dos
   // outros useEffect acima.
   const [testimonials, setTestimonials] = useState([]);
+  const [testimonialTotal, setTestimonialTotal] = useState(0);
   const [testimonialDraft, setTestimonialDraft] = useState('');
   const [testimonialSending, setTestimonialSending] = useState(false);
+  const [testimonialListOpen, setTestimonialListOpen] = useState(false);
   useEffect(() => {
-    if (!userId) { setTestimonials([]); return; }
-    listApprovedTestimonials(userId).then((d) => setTestimonials(d.testimonials)).catch(() => setTestimonials([]));
+    if (!userId) { setTestimonials([]); setTestimonialTotal(0); return; }
+    listApprovedTestimonials(userId).then((d) => { setTestimonials(d.testimonials); setTestimonialTotal(d.total ?? d.testimonials.length); }).catch(() => setTestimonials([]));
   }, [userId]);
 
   const [scraps, setScraps] = useState([]);
+  const [scrapTotal, setScrapTotal] = useState(0);
   const [scrapDraft, setScrapDraft] = useState('');
   const [scrapSending, setScrapSending] = useState(false);
+  const [scrapListOpen, setScrapListOpen] = useState(false);
   useEffect(() => {
-    if (!userId) { setScraps([]); return; }
-    listScraps(userId).then((d) => setScraps(d.scraps)).catch(() => setScraps([]));
+    if (!userId) { setScraps([]); setScrapTotal(0); return; }
+    listScraps(userId).then((d) => { setScraps(d.scraps); setScrapTotal(d.total ?? d.scraps.length); }).catch(() => setScraps([]));
   }, [userId]);
 
   const [fanStatus, setFanStatus] = useState({ count: 0, isFan: false });
@@ -166,13 +171,13 @@ export default function UserProfileModal() {
     if (!scrapDraft.trim() || scrapSending) return;
     setScrapSending(true);
     writeScrap(userId, scrapDraft.trim())
-      .then((d) => { setScraps((prev) => [d.scrap, ...prev]); setScrapDraft(''); })
+      .then((d) => { setScraps((prev) => [d.scrap, ...prev]); setScrapTotal((t) => t + 1); setScrapDraft(''); })
       .catch((err) => useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível deixar o recado.'))
       .finally(() => setScrapSending(false));
   };
 
   const removeScrap = (id) => {
-    deleteScrap(id).then(() => setScraps((prev) => prev.filter((s) => s.id !== id))).catch(() => {});
+    deleteScrap(id).then(() => { setScraps((prev) => prev.filter((s) => s.id !== id)); setScrapTotal((t) => Math.max(0, t - 1)); }).catch(() => {});
   };
 
   const toggleFanStatus = () => {
@@ -329,6 +334,17 @@ export default function UserProfileModal() {
                       <b>{liveUps}</b>
                       <span>Ups</span>
                     </div>
+                    {/* Item pedido: "seguir" do lado de Ups, perto da
+                        foto de perfil — o número fica junto dos outros
+                        contadores; o botão de ação em si fica lá
+                        embaixo, junto dos outros botões de ação
+                        (Enviar mensagem/Adicionar amigo). */}
+                    {!isMe && (
+                      <div className="profile-ig-stat">
+                        <b>{fanStatus.count}</b>
+                        <span>{fanStatus.count === 1 ? 'Seguidor' : 'Seguidores'}</span>
+                      </div>
+                    )}
                     {data.badges?.length > 0 && (
                       <button type="button" className="profile-ig-stat" onClick={() => setBadgeListOpen(true)}>
                         <b>{data.badges.length}</b>
@@ -364,6 +380,9 @@ export default function UserProfileModal() {
                   <button className="btn-primary" onClick={openDM}>Enviar mensagem</button>
                   <button className="btn-secondary" onClick={addFriend} disabled={friendSent}>
                     {friendSent ? 'Solicitado' : 'Adicionar amigo'}
+                  </button>
+                  <button className={`btn-secondary ${fanStatus.isFan ? 'active' : ''}`} onClick={toggleFanStatus}>
+                    {fanStatus.isFan ? 'Seguindo' : 'Seguir'}
                   </button>
                   <button
                     type="button"
@@ -624,16 +643,10 @@ export default function UserProfileModal() {
                     </div>
                   )}
 
-                  {/* Item pedido: "sistema igual tinha no Orkut" — sou
-                      fã, recados no mural, e depoimentos. */}
-                  {!isMe && (
-                    <div className="profile-section">
-                      <button className={`btn-secondary profile-fan-btn ${fanStatus.isFan ? 'active' : ''}`} onClick={toggleFanStatus}>
-                        {fanStatus.isFan ? '★ Você é fã' : '☆ Sou fã'}
-                      </button>
-                      {fanStatus.count > 0 && <span className="dim profile-fan-count"> {fanStatus.count} {fanStatus.count === 1 ? 'fã' : 'fãs'}</span>}
-                    </div>
-                  )}
+                  {/* Item pedido: "sistema igual tinha no Orkut" —
+                      recados no mural e depoimentos (o antigo botão de
+                      "sou fã" virou "Seguir", movido pra cima, perto de
+                      Ups). */}
 
                   <div className="profile-section">
                     <div className="profile-section-label">RECADOS{scraps.length > 0 ? ` — ${scraps.length}` : ''}</div>
@@ -649,7 +662,7 @@ export default function UserProfileModal() {
                     </div>
                     <div className="profile-scrap-list">
                       {scraps.length === 0 && <div className="dim profile-scrap-empty">Nenhum recado ainda — seja o primeiro a deixar um.</div>}
-                      {scraps.map((s) => (
+                      {scraps.slice(0, 3).map((s) => (
                         <div key={s.id} className="profile-scrap-item">
                           <UserAvatar user={s.author} size={28} />
                           <div className="profile-scrap-item-body">
@@ -662,10 +675,15 @@ export default function UserProfileModal() {
                         </div>
                       ))}
                     </div>
+                    {/* Item pedido: mais de 3 recados -> "ver mais" abre
+                        todos, paginados 100 por página. */}
+                    {scrapTotal > 3 && (
+                      <button className="profile-see-more-link" onClick={() => setScrapListOpen(true)}>Ver mais ({scrapTotal})</button>
+                    )}
                   </div>
 
                   <div className="profile-section">
-                    <div className="profile-section-label">DEPOIMENTOS{testimonials.length > 0 ? ` — ${testimonials.length}` : ''}</div>
+                    <div className="profile-section-label">DEPOIMENTOS{testimonialTotal > 0 ? ` — ${testimonialTotal}` : ''}</div>
                     {!isMe && (
                       <div className="profile-testimonial-composer">
                         <textarea
@@ -680,7 +698,7 @@ export default function UserProfileModal() {
                     )}
                     <div className="profile-testimonial-list">
                       {testimonials.length === 0 && <div className="dim profile-scrap-empty">Nenhum depoimento ainda.</div>}
-                      {testimonials.map((t) => (
+                      {testimonials.slice(0, 3).map((t) => (
                         <div key={t.id} className="profile-testimonial-item">
                           <UserAvatar user={t.author} size={32} />
                           <div className="profile-testimonial-item-body">
@@ -690,7 +708,49 @@ export default function UserProfileModal() {
                         </div>
                       ))}
                     </div>
+                    {testimonialTotal > 3 && (
+                      <button className="profile-see-more-link" onClick={() => setTestimonialListOpen(true)}>Ver mais ({testimonialTotal})</button>
+                    )}
                   </div>
+
+                  {scrapListOpen && (
+                    <PaginatedListModal
+                      title={`Recados de ${user.displayName}`}
+                      emptyLabel="Nenhum recado ainda."
+                      onClose={() => setScrapListOpen(false)}
+                      fetchPage={(page) => listScraps(userId, page).then((d) => ({ items: d.scraps, totalPages: d.totalPages }))}
+                      renderItem={(s) => (
+                        <div key={s.id} className="profile-scrap-item">
+                          <UserAvatar user={s.author} size={28} />
+                          <div className="profile-scrap-item-body">
+                            <span className="profile-scrap-item-author">{s.author.displayName}</span>
+                            <span className="profile-scrap-item-text">{s.text}</span>
+                          </div>
+                          {(s.authorId === me.id || isMe) && (
+                            <button className="profile-scrap-item-remove" title="Apagar recado" onClick={() => { removeScrap(s.id); setScrapListOpen(false); }}>✕</button>
+                          )}
+                        </div>
+                      )}
+                    />
+                  )}
+
+                  {testimonialListOpen && (
+                    <PaginatedListModal
+                      title={`Depoimentos de ${user.displayName}`}
+                      emptyLabel="Nenhum depoimento ainda."
+                      onClose={() => setTestimonialListOpen(false)}
+                      fetchPage={(page) => listApprovedTestimonials(userId, page).then((d) => ({ items: d.testimonials, totalPages: d.totalPages }))}
+                      renderItem={(t) => (
+                        <div key={t.id} className="profile-testimonial-item">
+                          <UserAvatar user={t.author} size={32} />
+                          <div className="profile-testimonial-item-body">
+                            <span className="profile-testimonial-item-author">{t.author.displayName}</span>
+                            <span className="profile-testimonial-item-text">{t.text}</span>
+                          </div>
+                        </div>
+                      )}
+                    />
+                  )}
 
                 </div>
               </div>
