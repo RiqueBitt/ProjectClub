@@ -109,6 +109,15 @@ model User {
 
   sentFriendRequests     Friendship[] @relation("Requester")
   receivedFriendRequests Friendship[] @relation("Addressee")
+  // Item pedido: sistemas estilo Orkut — depoimentos, recados (scraps)
+  // e "sou fã". Cada um segue o mesmo padrão de duas pontas (quem
+  // criou / de quem é o perfil) já usado em Friendship acima.
+  testimonialsWritten  Testimonial[] @relation("TestimonialAuthor")
+  testimonialsReceived Testimonial[] @relation("TestimonialTarget")
+  scrapsWritten        Scrap[]       @relation("ScrapAuthor")
+  scrapsReceived       Scrap[]       @relation("ScrapTarget")
+  fansOf     Fan[] @relation("FanIsFanOf")
+  fans       Fan[] @relation("FanTarget")
   // ^ mantido
 
   conversationMemberships ConversationMember[]
@@ -366,6 +375,53 @@ model Friendship {
   updatedAt    DateTime @updatedAt
 
   @@unique([requesterId, addresseeId])
+}
+
+// Item pedido: "sistema igual tinha no Orkut" — depoimento é um texto
+// que um amigo escreve sobre você, mas só aparece publicamente no seu
+// perfil depois de VOCÊ aprovar (status PENDING -> APPROVED) — igual
+// era no Orkut de verdade, dono do perfil decide o que fica exposto.
+model Testimonial {
+  id        String   @id @default(uuid())
+  authorId  String
+  author    User     @relation("TestimonialAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  targetId  String
+  target    User     @relation("TestimonialTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  text      String   @db.Text
+  status    String   @default("PENDING") // PENDING | APPROVED
+  createdAt DateTime @default(now())
+
+  @@unique([authorId, targetId])
+  @@index([targetId, status])
+}
+
+// Recado no mural — ao contrário do depoimento, é público na hora, sem
+// aprovação nenhuma (o Orkut original também era assim: uma parede
+// cronológica de mensagens curtas e informais que qualquer amigo podia
+// deixar).
+model Scrap {
+  id        String   @id @default(uuid())
+  authorId  String
+  author    User     @relation("ScrapAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  targetId  String
+  target    User     @relation("ScrapTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([targetId, createdAt])
+}
+
+// "Sou fã" — só um contador simples, sem texto/aprovação, igual o
+// Orkut original.
+model Fan {
+  id        String   @id @default(uuid())
+  fanId     String
+  fanUser   User     @relation("FanIsFanOf", fields: [fanId], references: [id], onDelete: Cascade)
+  targetId  String
+  target    User     @relation("FanTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([fanId, targetId])
 }
 
 model Conversation {

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { getUserProfile, createConversation, sendFriendRequest, assignRole, unassignRole, voteProfile, listPosts, setActiveTag } from '../../api/endpoints';
+import { getUserProfile, createConversation, sendFriendRequest, assignRole, unassignRole, voteProfile, listPosts, setActiveTag, listApprovedTestimonials, writeTestimonial, listScraps, writeScrap, deleteScrap, getFanStatus, toggleFan } from '../../api/endpoints';
 import { STATUS_LABEL, STATUS_COLOR } from '../../utils/status';
 import { renderRichContent } from '../../utils/richTextRender.jsx';
 import { getMyCommunityPermissions, hasPermission } from '../../utils/permissions';
@@ -127,6 +127,57 @@ export default function UserProfileModal() {
     if (!userId) { setRedditActivity(null); return; }
     listPosts({ authorId: userId, sort: 'new' }).then((d) => setRedditActivity(d.posts)).catch(() => setRedditActivity([]));
   }, [userId]);
+
+  // Item pedido: sistemas estilo Orkut — depoimentos, recados (scraps)
+  // e "sou fã", carregados junto do resto do perfil, mesmo padrão dos
+  // outros useEffect acima.
+  const [testimonials, setTestimonials] = useState([]);
+  const [testimonialDraft, setTestimonialDraft] = useState('');
+  const [testimonialSending, setTestimonialSending] = useState(false);
+  useEffect(() => {
+    if (!userId) { setTestimonials([]); return; }
+    listApprovedTestimonials(userId).then((d) => setTestimonials(d.testimonials)).catch(() => setTestimonials([]));
+  }, [userId]);
+
+  const [scraps, setScraps] = useState([]);
+  const [scrapDraft, setScrapDraft] = useState('');
+  const [scrapSending, setScrapSending] = useState(false);
+  useEffect(() => {
+    if (!userId) { setScraps([]); return; }
+    listScraps(userId).then((d) => setScraps(d.scraps)).catch(() => setScraps([]));
+  }, [userId]);
+
+  const [fanStatus, setFanStatus] = useState({ count: 0, isFan: false });
+  useEffect(() => {
+    if (!userId) { setFanStatus({ count: 0, isFan: false }); return; }
+    getFanStatus(userId).then(setFanStatus).catch(() => {});
+  }, [userId]);
+
+  const submitTestimonial = () => {
+    if (!testimonialDraft.trim() || testimonialSending) return;
+    setTestimonialSending(true);
+    writeTestimonial(userId, testimonialDraft.trim())
+      .then(() => { setTestimonialDraft(''); useStore.getState().pushNotice('Depoimento enviado! Fica visível assim que a pessoa aprovar.'); })
+      .catch((err) => useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível enviar o depoimento.'))
+      .finally(() => setTestimonialSending(false));
+  };
+
+  const submitScrap = () => {
+    if (!scrapDraft.trim() || scrapSending) return;
+    setScrapSending(true);
+    writeScrap(userId, scrapDraft.trim())
+      .then((d) => { setScraps((prev) => [d.scrap, ...prev]); setScrapDraft(''); })
+      .catch((err) => useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível deixar o recado.'))
+      .finally(() => setScrapSending(false));
+  };
+
+  const removeScrap = (id) => {
+    deleteScrap(id).then(() => setScraps((prev) => prev.filter((s) => s.id !== id))).catch(() => {});
+  };
+
+  const toggleFanStatus = () => {
+    toggleFan(userId).then(setFanStatus).catch(() => {});
+  };
 
   // Opened via openProfileAddRole (MembersList.jsx's "Adicionar cargo") —
   // jump straight to the role section instead of making the admin scroll
@@ -572,6 +623,75 @@ export default function UserProfileModal() {
                       </div>
                     </div>
                   )}
+
+                  {/* Item pedido: "sistema igual tinha no Orkut" — sou
+                      fã, recados no mural, e depoimentos. */}
+                  {!isMe && (
+                    <div className="profile-section">
+                      <button className={`btn-secondary profile-fan-btn ${fanStatus.isFan ? 'active' : ''}`} onClick={toggleFanStatus}>
+                        {fanStatus.isFan ? '★ Você é fã' : '☆ Sou fã'}
+                      </button>
+                      {fanStatus.count > 0 && <span className="dim profile-fan-count"> {fanStatus.count} {fanStatus.count === 1 ? 'fã' : 'fãs'}</span>}
+                    </div>
+                  )}
+
+                  <div className="profile-section">
+                    <div className="profile-section-label">RECADOS{scraps.length > 0 ? ` — ${scraps.length}` : ''}</div>
+                    <div className="profile-scrap-composer">
+                      <input
+                        value={scrapDraft}
+                        onChange={(e) => setScrapDraft(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && submitScrap()}
+                        placeholder={isMe ? 'Escreva no seu próprio mural...' : `Deixe um recado pra ${user.displayName}...`}
+                        maxLength={300}
+                      />
+                      <button className="btn-secondary" disabled={!scrapDraft.trim() || scrapSending} onClick={submitScrap}>Enviar</button>
+                    </div>
+                    <div className="profile-scrap-list">
+                      {scraps.length === 0 && <div className="dim profile-scrap-empty">Nenhum recado ainda — seja o primeiro a deixar um.</div>}
+                      {scraps.map((s) => (
+                        <div key={s.id} className="profile-scrap-item">
+                          <UserAvatar user={s.author} size={28} />
+                          <div className="profile-scrap-item-body">
+                            <span className="profile-scrap-item-author">{s.author.displayName}</span>
+                            <span className="profile-scrap-item-text">{s.text}</span>
+                          </div>
+                          {(s.authorId === me.id || isMe) && (
+                            <button className="profile-scrap-item-remove" title="Apagar recado" onClick={() => removeScrap(s.id)}>✕</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="profile-section">
+                    <div className="profile-section-label">DEPOIMENTOS{testimonials.length > 0 ? ` — ${testimonials.length}` : ''}</div>
+                    {!isMe && (
+                      <div className="profile-testimonial-composer">
+                        <textarea
+                          value={testimonialDraft}
+                          onChange={(e) => setTestimonialDraft(e.target.value)}
+                          placeholder={`Escreva um depoimento pra ${user.displayName}... (fica visível só depois que a pessoa aprovar)`}
+                          maxLength={1000}
+                          rows={2}
+                        />
+                        <button className="btn-secondary" disabled={!testimonialDraft.trim() || testimonialSending} onClick={submitTestimonial}>Enviar depoimento</button>
+                      </div>
+                    )}
+                    <div className="profile-testimonial-list">
+                      {testimonials.length === 0 && <div className="dim profile-scrap-empty">Nenhum depoimento ainda.</div>}
+                      {testimonials.map((t) => (
+                        <div key={t.id} className="profile-testimonial-item">
+                          <UserAvatar user={t.author} size={32} />
+                          <div className="profile-testimonial-item-body">
+                            <span className="profile-testimonial-item-author">{t.author.displayName}</span>
+                            <span className="profile-testimonial-item-text">{t.text}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                 </div>
               </div>
             </div>

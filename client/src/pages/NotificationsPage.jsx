@@ -1,13 +1,16 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore, isChannelUnread, isConversationUnread } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
+import { listPendingTestimonials, respondTestimonial } from '../api/endpoints';
 
 // Área de notificações: reúne, num só lugar, tudo que já é sinalizado
 // pontualmente em outras partes do app — canais com menções não lidas,
-// conversas diretas não lidas e pedidos de amizade recebidos — para que
-// o item "Notificações" da barra lateral principal tenha, de fato, uma
-// área própria com "todas as notificações", em vez de precisar visitar
-// cada área separadamente para descobrir o que mudou.
+// conversas diretas não lidas, pedidos de amizade recebidos e (item
+// pedido: sistema estilo Orkut) depoimentos esperando sua aprovação —
+// para que o item "Notificações" da barra lateral principal tenha, de
+// fato, uma área própria com "todas as notificações", em vez de
+// precisar visitar cada área separadamente para descobrir o que mudou.
 export default function NotificationsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -22,7 +25,22 @@ export default function NotificationsPage() {
   const unreadConversations = conversations.filter((c) => isConversationUnread(c, user.id));
   const pendingIncoming = friends.filter((f) => f.status === 'PENDING' && f.isIncoming);
 
-  const isEmpty = unreadChannels.length === 0 && unreadConversations.length === 0 && pendingIncoming.length === 0;
+  // Depoimentos (item pedido) — só EU vejo os meus pendentes, por isso
+  // busca sob demanda ao abrir a página, em vez de vir do estado
+  // global (que é sincronizado ao vivo pro resto do app, mas isso aqui
+  // é uma lista privada só minha).
+  const [pendingTestimonials, setPendingTestimonials] = useState([]);
+  useEffect(() => {
+    listPendingTestimonials().then((d) => setPendingTestimonials(d.testimonials)).catch(() => {});
+  }, []);
+
+  const respondToTestimonial = (id, action) => {
+    respondTestimonial(id, action)
+      .then(() => setPendingTestimonials((prev) => prev.filter((t) => t.id !== id)))
+      .catch(() => {});
+  };
+
+  const isEmpty = unreadChannels.length === 0 && unreadConversations.length === 0 && pendingIncoming.length === 0 && pendingTestimonials.length === 0;
 
   return (
     <div className="notifications-page">
@@ -34,6 +52,29 @@ export default function NotificationsPage() {
           <h3>Tudo em dia.</h3>
           <p>Você não tem notificações novas no momento.</p>
         </div>
+      )}
+
+      {pendingTestimonials.length > 0 && (
+        <section className="notifications-section">
+          <h3>Depoimentos pra aprovar</h3>
+          <ul className="notifications-list notifications-list-testimonials">
+            {pendingTestimonials.map((t) => (
+              <li key={t.id} className="notifications-item notifications-item-testimonial">
+                <div className="notifications-testimonial-header">
+                  <span className="notifications-item-icon">📝</span>
+                  <div className="notifications-testimonial-body">
+                    <span className="truncate"><strong>{t.author.displayName}</strong> escreveu um depoimento:</span>
+                    <span className="notifications-testimonial-text">{t.text}</span>
+                  </div>
+                </div>
+                <div className="notifications-testimonial-actions">
+                  <button className="btn-secondary" onClick={() => respondToTestimonial(t.id, 'decline')}>Recusar</button>
+                  <button className="btn-primary" onClick={() => respondToTestimonial(t.id, 'approve')}>Aprovar</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {pendingIncoming.length > 0 && (

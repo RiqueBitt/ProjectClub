@@ -322,6 +322,23 @@ export function SocketProvider({ children }) {
     socket.on('friend:update', () => refreshFriends());
     socket.on('friend:removed', () => refreshFriends());
 
+    // Item pedido: sistemas estilo Orkut — avisos em tempo real, mesmo
+    // padrão dos outros acima (a lista de verdade é buscada sob
+    // demanda por quem precisa dela — perfil, notificações — esses
+    // avisos aqui são só o "toast" imediato).
+    socket.on('testimonial:new-pending', ({ testimonial }) => {
+      useStore.getState().pushNotice(`📝 ${testimonial.author.displayName} escreveu um depoimento pra você — dá uma olhada nas notificações.`);
+    });
+    socket.on('testimonial:approved', () => {
+      useStore.getState().pushNotice('✅ Seu depoimento foi aprovado e já está visível no perfil da pessoa!');
+    });
+    socket.on('scrap:new', ({ scrap }) => {
+      useStore.getState().pushNotice(`💬 ${scrap.author.displayName} deixou um recado no seu mural!`);
+    });
+    socket.on('fan:new', ({ fanName }) => {
+      useStore.getState().pushNotice(`⭐ ${fanName} agora é seu fã!`);
+    });
+
     async function refreshFriends() {
       const { friendships } = await listFriends().catch(() => ({ friendships: [] }));
       setFriends(friendships);

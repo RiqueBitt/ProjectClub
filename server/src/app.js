@@ -16,6 +16,9 @@ const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const friendRoutes = require('./routes/friends');
+const testimonialRoutes = require('./routes/testimonials');
+const scrapRoutes = require('./routes/scraps');
+const fanRoutes = require('./routes/fans');
 const conversationRoutes = require('./routes/conversations');
 const messageRoutes = require('./routes/messages');
 const pollRoutes = require('./routes/polls');
@@ -290,6 +293,10 @@ function createApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/friends', friendRoutes);
+  // Item pedido: sistemas estilo Orkut.
+  app.use('/api/testimonials', testimonialRoutes);
+  app.use('/api/scraps', scrapRoutes);
+  app.use('/api/fans', fanRoutes);
   app.use('/api/conversations', conversationRoutes);
   app.use('/api/messages', messageRoutes);
   app.use('/api/polls', pollRoutes);

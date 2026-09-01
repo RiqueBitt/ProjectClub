@@ -2452,6 +2452,33 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 .profile-mutual-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .profile-mutual-item .avatar.tiny { width: 20px; height: 20px; font-size: 10px; border-radius: 50%; overflow: hidden; }
 
+/* Item pedido: sistemas estilo Orkut — fã, recados, depoimentos. */
+.profile-fan-btn.active { background: var(--brand); color: #fff; }
+.profile-fan-count { font-size: 12px; margin-left: 8px; }
+
+.profile-scrap-composer { display: flex; gap: 6px; margin-bottom: 10px; }
+.profile-scrap-composer input { flex: 1; }
+.profile-scrap-list { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }
+.profile-scrap-item { display: flex; align-items: flex-start; gap: 8px; background: var(--bg-secondary); border-radius: 8px; padding: 8px; }
+.profile-scrap-item-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.profile-scrap-item-author { font-size: 12px; font-weight: 700; color: var(--header-primary); }
+.profile-scrap-item-text { font-size: 13px; word-break: break-word; white-space: pre-wrap; }
+.profile-scrap-item-remove {
+  color: var(--text-muted); font-size: 12px; padding: 2px 6px; border-radius: 4px; flex-shrink: 0;
+  transition: background-color .12s var(--ease-smooth), color .12s var(--ease-smooth);
+}
+.profile-scrap-item-remove:hover { background: var(--red); color: #fff; }
+.profile-scrap-empty { font-size: 13px; padding: 8px 0; }
+
+.profile-testimonial-composer { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.profile-testimonial-composer textarea { width: 100%; resize: vertical; font-family: inherit; }
+.profile-testimonial-composer button { align-self: flex-end; }
+.profile-testimonial-list { display: flex; flex-direction: column; gap: 10px; }
+.profile-testimonial-item { display: flex; align-items: flex-start; gap: 10px; background: var(--bg-secondary); border-radius: 8px; padding: 10px; }
+.profile-testimonial-item-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.profile-testimonial-item-author { font-size: 12px; font-weight: 700; color: var(--header-primary); }
+.profile-testimonial-item-text { font-size: 13px; line-height: 1.4; word-break: break-word; white-space: pre-wrap; }
+
 /* ---------- Custom status modal ---------- */
 .custom-status-form { display: flex; flex-direction: column; gap: 12px; }
 .custom-status-input-row { display: flex; flex-direction: column; gap: 8px; }
@@ -3886,6 +3913,15 @@ a.embed-card-title:hover { text-decoration: underline; }
 }
 .notifications-item:hover { background: var(--bg-modifier-hover); }
 .notifications-item-icon { font-size: 16px; flex-shrink: 0; }
+/* Item pedido: depoimentos pra aprovar — item mais alto que os outros
+   (tem o texto do depoimento + 2 botões), então não é clicável como um
+   todo igual os outros (cursor default, sem hover de fundo). */
+.notifications-item-testimonial { cursor: default; align-items: flex-start; flex-direction: column; gap: 8px; }
+.notifications-item-testimonial:hover { background: none; }
+.notifications-testimonial-header { display: flex; align-items: flex-start; gap: 10px; width: 100%; }
+.notifications-testimonial-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.notifications-testimonial-text { font-size: 13px; color: var(--text-muted); white-space: pre-wrap; word-break: break-word; }
+.notifications-testimonial-actions { display: flex; gap: 8px; align-self: flex-end; }
 
 .search-page-input {
   width: 100%; max-width: 480px; padding: 12px 16px; border-radius: 999px;
