@@ -281,9 +281,14 @@ export default function UserProfileModal() {
   const [albumOpen, setAlbumOpen] = useState(false);
   useEffect(() => {
     if (!userId) { setPhotoPreview([]); setPhotoTotal(0); return; }
-    // Item pedido: prévia do álbum no perfil com 6 fotos (3 numa
-    // linha, 3 na outra) — não 3.
-    listPhotosByOwner(userId).then((d) => { setPhotoPreview(d.photos.slice(0, 6)); setPhotoTotal(d.total); }).catch(() => {});
+    // BUG CORRIGIDO ("álbum fica feio, ocupa espaço e quebra os
+    // outros"): com o layout de colunas (multi-column), uma seção
+    // "não quebrável" (break-inside: avoid) e alta — 6 fotos, várias
+    // linhas — desequilibrava visualmente as outras colunas ao lado.
+    // 3 fotos numa fileira única é bem mais previsível e compacto —
+    // igual outras redes fazem (uma prévia rápida, não a galeria
+    // inteira).
+    listPhotosByOwner(userId).then((d) => { setPhotoPreview(d.photos.slice(0, 3)); setPhotoTotal(d.total); }).catch(() => {});
   }, [userId]);
 
   const user = data?.user;
@@ -428,19 +433,27 @@ user.bio && (
     album: (
 <div className="profile-section">
                     <div className="profile-section-label">ÁLBUM DE FOTOS{photoTotal > 0 ? ` — ${photoTotal}` : ''}</div>
-                    {photoPreview.length === 0 && <div className="dim profile-scrap-empty">Nenhuma foto ainda.</div>}
-                    {photoPreview.length > 0 && (
-                      <div className="profile-photo-grid">
-                        {photoPreview.map((p) => (
-                          <button key={p.id} className="profile-photo-grid-item" onClick={() => setAlbumOpen(true)}>
-                            {p.url.match(/\.(mp4|webm|mov|mkv)$/i)
-                              ? <video src={p.url} muted />
-                              : <img src={proxyImage(p.url)} alt="" />}
-                          </button>
-                        ))}
+                    {photoPreview.length === 0 && (
+                      <div className="profile-album-empty">
+                        <span className="profile-album-empty-icon">🖼️</span>
+                        <span className="dim">{isMe ? 'Você ainda não tem fotos no álbum.' : 'Nenhuma foto ainda.'}</span>
+                        {isMe && <button className="btn-secondary" onClick={() => setAlbumOpen(true)}>+ Adicionar foto</button>}
                       </div>
                     )}
-                    {(photoTotal > 6 || isMe) && (
+                    {photoPreview.length > 0 && (
+                      <div className="profile-photo-grid">
+                        {photoPreview.map((p) => {
+                          const isVid = p.url.match(/\.(mp4|webm|mov|mkv)$/i);
+                          return (
+                            <button key={p.id} className="profile-photo-grid-item" onClick={() => setAlbumOpen(true)}>
+                              {isVid ? <video src={p.url} muted /> : <img src={proxyImage(p.url)} alt="" />}
+                              {isVid && <span className="profile-photo-grid-play">▶</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {(photoTotal > 3 || isMe) && (
                       <button className="profile-see-more-link" onClick={() => setAlbumOpen(true)}>
                         {isMe ? 'Ver álbum completo' : `Ver mais (${photoTotal})`}
                       </button>

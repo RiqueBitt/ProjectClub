@@ -2503,7 +2503,11 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 .profile-scrap-composer { display: flex; gap: 6px; margin-bottom: 10px; }
 .profile-scrap-composer input { flex: 1; }
 .profile-scrap-list { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }
-.profile-scrap-item { display: flex; align-items: flex-start; gap: 8px; background: var(--bg-secondary); border-radius: 8px; padding: 8px; }
+.profile-scrap-item {
+  display: flex; align-items: flex-start; gap: 8px; background: var(--bg-secondary); border-radius: 8px; padding: 8px;
+  transition: background-color .15s var(--ease-smooth);
+}
+.profile-scrap-item:hover { background: var(--bg-modifier-hover); }
 .profile-scrap-item-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 .profile-scrap-item-author { font-size: 12px; font-weight: 700; color: var(--header-primary); }
 .profile-scrap-item-text { font-size: 13px; word-break: break-word; white-space: pre-wrap; }
@@ -2518,7 +2522,11 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 .profile-testimonial-composer textarea { width: 100%; resize: vertical; font-family: inherit; }
 .profile-testimonial-composer button { align-self: flex-end; }
 .profile-testimonial-list { display: flex; flex-direction: column; gap: 10px; }
-.profile-testimonial-item { display: flex; align-items: flex-start; gap: 10px; background: var(--bg-secondary); border-radius: 8px; padding: 10px; }
+.profile-testimonial-item {
+  display: flex; align-items: flex-start; gap: 10px; background: var(--bg-secondary); border-radius: 8px; padding: 10px;
+  transition: background-color .15s var(--ease-smooth);
+}
+.profile-testimonial-item:hover { background: var(--bg-modifier-hover); }
 .profile-testimonial-item-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
 .profile-testimonial-item-author { font-size: 12px; font-weight: 700; color: var(--header-primary); }
 .profile-testimonial-item-text { font-size: 13px; line-height: 1.4; word-break: break-word; white-space: pre-wrap; }
@@ -2552,19 +2560,40 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 .profile-relationship-status { display: flex; align-items: center; gap: 6px; font-size: 14px; }
 .profile-relationship-end { font-size: 12px; color: var(--red); margin-left: 8px; padding: 2px 8px; border-radius: 4px; }
 .profile-relationship-end:hover { background: rgba(242,63,67,.1); }
-/* Item pedido: fotos do álbum "ocupando espaço demais" — reduzido pra
-   ~3x menor (era 3 colunas fixas tipo 1fr, ocupando bastante espaço
-   cada uma; agora cada item tem um tamanho MÁXIMO pequeno, e o grid
-   encaixa quantas colunas couberem na largura disponível sozinho). */
-.profile-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 168px)); gap: 8px; }
+/* BUG CORRIGIDO ("álbum feio, ocupa espaço, quebra os outros"): antes
+   usava auto-fill com um item bem grande — dentro de uma coluna
+   estreita do layout multi-column do perfil, isso cabia só 1-2 fotos
+   por linha, criando um bloco alto e IMPREVISÍVEL (varia dependendo da
+   largura da coluna) que, por não poder quebrar entre colunas
+   (break-inside: avoid), desequilibrava visualmente o resto do
+   layout. Agora: SEMPRE 3 colunas fixas (a prévia também mostra só 3
+   fotos agora), altura sempre previsível — uma fileira só, compacta.
+   Hover com leve zoom + sombra, mais vida sem exagerar. */
+.profile-photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .profile-photo-grid-item {
-  aspect-ratio: 1; border-radius: 6px; overflow: hidden; background: var(--bg-secondary);
+  aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: var(--bg-secondary); position: relative;
+  transition: transform .15s var(--ease-smooth), box-shadow .15s var(--ease-smooth);
 }
+.profile-photo-grid-item:hover { transform: scale(1.04); box-shadow: 0 4px 14px -4px rgba(0,0,0,.5); z-index: 1; }
 .profile-photo-grid-item img, .profile-photo-grid-item video { width: 100%; height: 100%; object-fit: cover; }
+.profile-photo-grid-play {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 20px; color: #fff; background: rgba(0,0,0,.28); text-shadow: 0 1px 4px rgba(0,0,0,.6);
+  pointer-events: none;
+}
+.profile-album-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 12px;
+  background: var(--bg-secondary); border-radius: 8px; text-align: center;
+}
+.profile-album-empty-icon { font-size: 28px; }
 .photo-album { display: flex; flex-direction: column; gap: 12px; }
 .photo-album-empty { text-align: center; padding: 20px 0; font-size: 13px; }
 .photo-album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 220px)); gap: 10px; }
-.photo-album-grid-item { aspect-ratio: 1; border-radius: 6px; overflow: hidden; background: var(--bg-secondary); position: relative; }
+.photo-album-grid-item {
+  aspect-ratio: 1; border-radius: 6px; overflow: hidden; background: var(--bg-secondary); position: relative;
+  transition: transform .15s var(--ease-smooth);
+}
+.photo-album-grid-item:hover { transform: scale(1.03); }
 .photo-album-grid-item img, .photo-album-grid-item video { width: 100%; height: 100%; object-fit: cover; }
 .photo-album-comment-count {
   position: absolute; bottom: 4px; right: 4px; background: rgba(0,0,0,.65); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 999px;
