@@ -70,6 +70,23 @@ async function getProgressByType(userId, progressType) {
       const u = await prisma.user.findUnique({ where: { id: userId }, select: { dailyStreak: true } });
       return u?.dailyStreak || 0;
     }
+    // Item pedido: "adicione mais conquistas" — cobrindo sistemas que
+    // já existem no app e ainda não tinham conquista nenhuma (nada de
+    // casas/economia/figurinhas, como pedido antes).
+    case 'TESTIMONIALS_RECEIVED':
+      return prisma.testimonial.count({ where: { targetId: userId, status: 'APPROVED' } });
+    case 'SCRAPS_RECEIVED':
+      return prisma.scrap.count({ where: { targetId: userId } });
+    case 'FANS_COUNT':
+      return prisma.fan.count({ where: { targetId: userId } });
+    case 'PHOTOS_UPLOADED':
+      return prisma.photo.count({ where: { ownerId: userId } });
+    case 'EMOJIS_CREATED':
+      return prisma.emoji.count({ where: { createdById: userId } });
+    case 'MESSAGES_SENT':
+      return prisma.message.count({ where: { authorId: userId } });
+    case 'REACTIONS_GIVEN':
+      return prisma.reaction.count({ where: { userId } });
     default:
       return 0;
   }

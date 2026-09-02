@@ -41,6 +41,43 @@ const ACHIEVEMENTS = [
   // --- Nível de conta ---
   { key: 'veterano', name: 'Veterano', description: 'Alcance o nível 10.', rarity: 'RARE', progressType: 'ACCOUNT_LEVEL', target: 10, position: 10 },
   { key: 'lenda_viva', name: 'Lenda Viva', description: 'Alcance o nível 50.', rarity: 'LEGENDARY', progressType: 'ACCOUNT_LEVEL', target: 50, position: 11 },
+
+  // --- Item pedido: "adicione mais conquistas" (nada de casas/
+  // economia/figurinhas) — cobrindo sistemas que já existem no app e
+  // ainda não tinham conquista nenhuma.
+  // Sequência diária (o tipo DAILY_STREAK já existia no motor, mas
+  // nenhuma conquista o usava ainda).
+  { key: 'presenca_constante', name: 'Presença Constante', description: 'Mantenha uma sequência de 7 dias seguidos.', rarity: 'COMMON', progressType: 'DAILY_STREAK', target: 7, position: 12 },
+  { key: 'inabalavel_streak', name: 'Inabalável', description: 'Mantenha uma sequência de 30 dias seguidos.', rarity: 'EPIC', progressType: 'DAILY_STREAK', target: 30, position: 13 },
+
+  // Depoimentos
+  { key: 'bem_recomendado', name: 'Bem Recomendado', description: 'Receba 5 depoimentos aprovados no seu perfil.', rarity: 'COMMON', progressType: 'TESTIMONIALS_RECEIVED', target: 5, position: 14 },
+  { key: 'referencia', name: 'Referência', description: 'Receba 20 depoimentos aprovados no seu perfil.', rarity: 'EPIC', progressType: 'TESTIMONIALS_RECEIVED', target: 20, position: 15 },
+
+  // Recados no mural
+  { key: 'popular_no_mural', name: 'Popular no Mural', description: 'Receba 10 recados no seu mural.', rarity: 'COMMON', progressType: 'SCRAPS_RECEIVED', target: 10, position: 16 },
+  { key: 'muito_querido', name: 'Muito Querido', description: 'Receba 50 recados no seu mural.', rarity: 'RARE', progressType: 'SCRAPS_RECEIVED', target: 50, position: 17 },
+
+  // Fãs (seguidores)
+  { key: 'primeiro_fa', name: 'Primeiro Fã', description: 'Tenha seu primeiro fã.', rarity: 'COMMON', progressType: 'FANS_COUNT', target: 1, position: 18 },
+  { key: 'celebridade', name: 'Celebridade', description: 'Tenha 25 fãs.', rarity: 'EPIC', progressType: 'FANS_COUNT', target: 25, position: 19 },
+
+  // Álbum de fotos
+  { key: 'fotografo', name: 'Fotógrafo', description: 'Adicione 5 fotos ao seu álbum.', rarity: 'COMMON', progressType: 'PHOTOS_UPLOADED', target: 5, position: 20 },
+  { key: 'album_cheio', name: 'Álbum Cheio', description: 'Adicione 20 fotos ao seu álbum.', rarity: 'RARE', progressType: 'PHOTOS_UPLOADED', target: 20, position: 21 },
+
+  // Emojis customizados
+  { key: 'criador_de_emoji', name: 'Criador de Emoji', description: 'Crie seu primeiro emoji customizado.', rarity: 'COMMON', progressType: 'EMOJIS_CREATED', target: 1, position: 22 },
+  { key: 'artista_da_comunidade', name: 'Artista da Comunidade', description: 'Crie 10 emojis customizados.', rarity: 'EPIC', progressType: 'EMOJIS_CREATED', target: 10, position: 23 },
+
+  // Mensagens
+  { key: 'tagarela', name: 'Tagarela', description: 'Envie 100 mensagens.', rarity: 'COMMON', progressType: 'MESSAGES_SENT', target: 100, position: 24 },
+  { key: 'comunicador_nato', name: 'Comunicador Nato', description: 'Envie 1.000 mensagens.', rarity: 'RARE', progressType: 'MESSAGES_SENT', target: 1000, position: 25 },
+  { key: 'voz_incansavel', name: 'Voz Incansável', description: 'Envie 5.000 mensagens.', rarity: 'LEGENDARY', progressType: 'MESSAGES_SENT', target: 5000, position: 26 },
+
+  // Reações
+  { key: 'sempre_reagindo', name: 'Sempre Reagindo', description: 'Reaja a 50 mensagens.', rarity: 'COMMON', progressType: 'REACTIONS_GIVEN', target: 50, position: 27 },
+  { key: 'expressivo', name: 'Expressivo', description: 'Reaja a 500 mensagens.', rarity: 'RARE', progressType: 'REACTIONS_GIVEN', target: 500, position: 28 },
 ];
 
 // Chaves que EXISTIRAM no catálogo antes (casas/figurinhas/economia —

@@ -5094,6 +5094,34 @@ a.embed-card-title:hover { text-decoration: underline; }
 .achievements-page-header { margin-bottom: 18px; }
 .achievements-page-header h1 { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; font-size: 22px; }
 .achievements-page-title-icon { width: 28px; height: 28px; }
+/* Item pedido: "melhore a aba" — barra de progresso GERAL visual em
+   vez de só um texto ("X de Y desbloqueadas"). */
+.achievements-overall-progress { display: flex; align-items: center; gap: 10px; max-width: 420px; }
+.achievements-overall-progress-track { flex: 1; height: 8px; border-radius: 999px; background: var(--bg-modifier-hover); overflow: hidden; }
+.achievements-overall-progress-fill {
+  height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--brand), #b463ff);
+  transition: width .3s var(--ease-smooth);
+}
+.achievements-overall-progress span { font-size: 13px; white-space: nowrap; }
+
+/* Item pedido: "adicionando também filtrar quais você quer ver" */
+.achievements-filters { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.achievements-filter-group { display: flex; gap: 6px; flex-wrap: wrap; }
+.achievements-filter-chip {
+  padding: 6px 14px; border-radius: 999px; background: var(--bg-secondary); color: var(--text-muted);
+  font-size: 13px; font-weight: 600; transition: background-color .12s var(--ease-smooth), color .12s var(--ease-smooth);
+}
+.achievements-filter-chip:hover { background: var(--bg-modifier-hover); color: var(--text-normal); }
+.achievements-filter-chip.active { background: var(--rarity-color, var(--brand)); color: #fff; }
+.achievements-empty-filter { padding: 24px 0; text-align: center; }
+
+/* Item pedido: "deixando mais organizada" — agrupamento por categoria
+   (Feeds/Perfil/Amizades/etc), em vez de um grid único gigante. */
+.achievements-category-section { margin-bottom: 24px; }
+.achievements-category-title {
+  font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em;
+  color: var(--text-muted); margin: 0 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
 .achievements-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
 .achievement-card {
   display: flex; gap: 12px; padding: 14px; border-radius: 10px; background: var(--bg-elevated);
