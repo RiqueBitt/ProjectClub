@@ -2134,8 +2134,21 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
      pessoa escolheu, em qualquer tema, em qualquer lugar que ele seja
      aberto (perfil, categoria, busca...), porque é sempre o mesmo
      componente <UserProfileModal> com essa mesma regra de CSS. */
+  /* BUG CORRIGIDO ("cor do perfil muito forte fica feia" / "texto some
+     quando a cor é branco"): a mistura usava 55% da cor escolhida na
+     parte de baixo do card — com uma cor CLARA (branco, amarelo claro),
+     isso resultava numa cor de fundo ainda bem clara ali (ex: branco
+     puro virava um cinza claro tipo rgb(149,150,152)), e o texto do
+     corpo do perfil (Sobre, Recados, etc) é sempre CLARO por padrão —
+     terminava quase sumindo, sem contraste nenhum. Reduzido pra 22%,
+     que mantém a parte de baixo sempre escura o suficiente pro texto
+     claro continuar legível, não importa quão clara/forte seja a cor
+     escolhida. Ponto intermediário a 45% deixa a transição mais suave/
+     gradual também — cores fortes (vermelho puro, branco puro) ficam
+     menos "cruas", com uma mesclagem mais elegante em vez de uma
+     virada abrupta de 2 tons. */
   background:
-    linear-gradient(180deg, var(--profile-accent-start) 0%, color-mix(in srgb, var(--profile-accent-end) 55%, #14151a) 100%) padding-box,
+    linear-gradient(180deg, var(--profile-accent-start) 0%, color-mix(in srgb, var(--profile-accent-end) 45%, #14151a) 45%, color-mix(in srgb, var(--profile-accent-end) 22%, #14151a) 100%) padding-box,
     linear-gradient(180deg, var(--profile-accent-start), var(--profile-accent-end)) border-box !important;
   /* BUG CORRIGIDO DE VERDADE ("degradê branco continua aparecendo mesmo
      depois da correção anterior"): o `!important` na propriedade-resumo
