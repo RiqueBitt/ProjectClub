@@ -81,7 +81,7 @@ async function ensurePublicId(userId, existingPublicId) {
 // SELF_USER_FIELDS below for the account-owner-only superset.
 const PUBLIC_USER_FIELDS = {
   id: true, publicId: true, username: true, displayName: true, avatarUrl: true,
-  bannerUrl: true, bio: true, pronouns: true, profileColor: true, status: true,
+  bannerUrl: true, miniProfileBannerUrl: true, bio: true, pronouns: true, profileColor: true, status: true,
   customStatus: true, customStatusEmoji: true, customStatusExpiresAt: true,
   createdAt: true, platformRole: true,
   tagEmoji: true, tagText: true,

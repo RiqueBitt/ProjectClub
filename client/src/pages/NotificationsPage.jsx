@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore, isChannelUnread, isConversationUnread } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { listPendingTestimonials, respondTestimonial, listPendingRelationships, respondRelationship } from '../api/endpoints';
+import { DISABLED_PROFILE_SECTIONS } from '../utils/profileSections';
 
 // Área de notificações: reúne, num só lugar, tudo que já é sinalizado
 // pontualmente em outras partes do app — canais com menções não lidas,
@@ -29,8 +30,13 @@ export default function NotificationsPage() {
   // busca sob demanda ao abrir a página, em vez de vir do estado
   // global (que é sincronizado ao vivo pro resto do app, mas isso aqui
   // é uma lista privada só minha).
+  // Item pedido depois: "desativar Depoimentos, sem apagar nada" — só
+  // não busca/mostra enquanto estiver na lista de desativadas; toda a
+  // lógica continua intacta, pronta pra voltar assim que a chave sair
+  // de DISABLED_PROFILE_SECTIONS.
   const [pendingTestimonials, setPendingTestimonials] = useState([]);
   useEffect(() => {
+    if (DISABLED_PROFILE_SECTIONS.includes('testimonials')) return;
     listPendingTestimonials().then((d) => setPendingTestimonials(d.testimonials)).catch(() => {});
   }, []);
 
@@ -46,8 +52,10 @@ export default function NotificationsPage() {
   // função já existia na API (respondRelationship), só nunca tinha
   // sido conectada em lugar nenhum da interface. Mesmo padrão dos
   // depoimentos pendentes acima.
+  // Item pedido depois: "desativar Relacionamento" — mesma ideia.
   const [pendingRelationships, setPendingRelationships] = useState([]);
   useEffect(() => {
+    if (DISABLED_PROFILE_SECTIONS.includes('relationship')) return;
     listPendingRelationships().then((d) => setPendingRelationships(d.requests)).catch(() => {});
   }, []);
 

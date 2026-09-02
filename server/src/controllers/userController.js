@@ -239,6 +239,21 @@ async function uploadBanner(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Item pedido: "banner do miniperfil, independente do banner do
+// perfil completo" — mesmo padrão exato de uploadBanner acima, só
+// gravando no campo separado.
+async function uploadMiniProfileBanner(req, res, next) {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+    const miniProfileBannerUrl = req.file.url;
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { miniProfileBannerUrl }, select: SELF_USER_FIELDS,
+    });
+    await broadcastUserUpdate(req, user);
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
 // "Placa de identificação" (see schema.prisma's comment on User.idCardUrl)
 // — shown as the background behind this user's own row in the members
 // list, so it IS visible to others (unlike a purely personal setting) and
@@ -518,7 +533,7 @@ async function setDisplayedAchievements(req, res, next) {
 }
 
 module.exports = {
-  updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadIdCard, removeIdCard,
+  updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, uploadIdCard, removeIdCard,
   setStatus, setCustomStatus, searchUsers, getUser, setActiveTag, voteProfile, setPreferredTheme,
   setDisplayedAchievements,
 };

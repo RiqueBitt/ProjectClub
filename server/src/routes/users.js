@@ -12,6 +12,7 @@ router.patch('/me', ctrl.updateProfile);
 router.patch('/me/username', ctrl.updateUsername);
 router.post('/me/avatar', uploadImage.single('avatar'), ctrl.uploadAvatar);
 router.post('/me/banner', uploadImage.single('banner'), ctrl.uploadBanner);
+router.post('/me/mini-banner', uploadImage.single('banner'), ctrl.uploadMiniProfileBanner);
 router.post('/me/id-card', uploadImage.single('idCard'), ctrl.uploadIdCard);
 router.delete('/me/id-card', ctrl.removeIdCard);
 router.patch('/me/status', ctrl.setStatus);

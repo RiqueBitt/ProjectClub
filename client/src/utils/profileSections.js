@@ -32,6 +32,15 @@ export const DEFAULT_PROFILE_SECTION_ORDER = [
   'traits', 'scraps', 'testimonials', 'visitors',
 ];
 
+// Item pedido: "desativar algumas seções, sem excluir nada do sistema
+// — apenas oculte da interface, mantendo a estrutura pra reativar no
+// futuro". Ponto único de controle: qualquer chave aqui simplesmente
+// não aparece pra ninguém (nem no perfil, nem na lista de reordenar
+// de Configurações → Colunas) — mas TUDO relacionado (rotas,
+// controllers, tabelas no banco, componentes React) continua
+// intacto. Reativar de verdade é só remover a chave desta lista.
+export const DISABLED_PROFILE_SECTIONS = ['testimonials', 'traits', 'album', 'relationship'];
+
 // Item pedido: "pode desativar qualquer uma também" — cada item agora
 // é um objeto { key, hidden }, não só uma string. Lida com o formato
 // ANTIGO também (array de strings puras, de antes dessa mudança) —
@@ -52,7 +61,11 @@ export function parseProfileSectionOrder(raw) {
 }
 
 // Mesma coisa, mas só as chaves VISÍVEIS, na ordem — o que
-// UserProfileModal.jsx de fato usa pra renderizar.
+// UserProfileModal.jsx de fato usa pra renderizar. Filtra tanto as
+// que a PRÓPRIA PESSOA ocultou (item.hidden) quanto as que estão
+// desativadas globalmente (DISABLED_PROFILE_SECTIONS).
 export function visibleProfileSectionOrder(raw) {
-  return parseProfileSectionOrder(raw).filter((item) => !item.hidden).map((item) => item.key);
+  return parseProfileSectionOrder(raw)
+    .filter((item) => !item.hidden && !DISABLED_PROFILE_SECTIONS.includes(item.key))
+    .map((item) => item.key);
 }

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import IconGlyph from '../IconGlyph.jsx';
 import ProfileSectionOrderEditor from '../ProfileSectionOrderEditor.jsx';
+import { DISABLED_PROFILE_SECTIONS } from '../../utils/profileSections';
 import PhotoAlbumModal from './PhotoAlbumModal.jsx';
 import AchievementPickerModal from './AchievementPickerModal.jsx';
 import micIcon from '../../assets/icons/nav-mic.png';
@@ -27,7 +28,7 @@ import {
 import robloxConnIcon from '../../assets/icons/social-roblox.png';
 import xConnIcon from '../../assets/icons/social-x.png';
 import {
-  updateProfile, updateUsername, uploadAvatar, uploadBanner, removeIdCard,
+  updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, removeIdCard,
   setup2FA, confirm2FA, disable2FA, setPreferredTheme, setActiveTag,
   listSessions, revokeSession, revokeOtherSessions,
   createProfilePoll, listProfilePollsByAuthor, deleteProfilePoll,
@@ -264,6 +265,14 @@ export default function UserSettingsModal({ onClose }) {
     setUser(updated);
   };
 
+  // Item pedido: "dois banners independentes" — mesmo padrão de
+  // onBanner acima, só salvando no campo separado do miniperfil.
+  const onMiniProfileBanner = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const { user: updated } = await uploadMiniProfileBanner(file);
+    setUser(updated);
+  };
+
   const start2FA = async () => {
     const data = await setup2FA();
     setTwoFA({ ...data, code: '' });
@@ -396,7 +405,13 @@ export default function UserSettingsModal({ onClose }) {
             <div className="profile-edit-body">
               <div className="image-uploads">
                 <label className="btn-secondary">Alterar avatar<input type="file" accept="image/*" hidden onChange={onAvatar} /></label>
-                <label className="btn-secondary">Alterar banner<input type="file" accept="image/*" hidden onChange={onBanner} /></label>
+                {/* Item pedido: "banners independentes pro miniperfil e
+                    pro perfil completo" — antes era um botão só
+                    ("Alterar banner"), controlando os dois ao mesmo
+                    tempo (mesmo campo bannerUrl). Agora dois botões
+                    separados, cada um salvando no seu próprio campo. */}
+                <label className="btn-secondary">Alterar banner do perfil completo<input type="file" accept="image/*" hidden onChange={onBanner} /></label>
+                <label className="btn-secondary">Alterar banner do miniperfil<input type="file" accept="image/*" hidden onChange={onMiniProfileBanner} /></label>
               </div>
 
               <div className="profile-edit-subsection">
@@ -658,11 +673,17 @@ export default function UserSettingsModal({ onClose }) {
 
       {tab === 'PROFILE_CONTENT' && (
         <div className="settings-grid">
-          <div className="settings-block">
-            <h4>Álbum de fotos</h4>
-            <p className="dim">Adicione, organize ou apague fotos e vídeos do seu álbum de perfil.</p>
-            <button type="button" className="btn-secondary" onClick={() => setAlbumManagerOpen(true)}>Gerenciar álbum</button>
-          </div>
+          {/* Item pedido: "desativar Galeria de fotos, sem apagar
+              nada" — mantém o componente/rota/lógica intactos, só
+              não mostra o botão de gerenciar enquanto estiver na
+              lista de desativadas. */}
+          {!DISABLED_PROFILE_SECTIONS.includes('album') && (
+            <div className="settings-block">
+              <h4>Álbum de fotos</h4>
+              <p className="dim">Adicione, organize ou apague fotos e vídeos do seu álbum de perfil.</p>
+              <button type="button" className="btn-secondary" onClick={() => setAlbumManagerOpen(true)}>Gerenciar álbum</button>
+            </div>
+          )}
 
           <div className="settings-block">
             <h4>Enquetes {myPolls.length > 0 ? `(${myPolls.length}/2)` : ''}</h4>

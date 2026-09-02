@@ -33,6 +33,10 @@ export const uploadBanner = (file) => {
   const fd = new FormData(); fd.append('banner', file);
   return api.post('/users/me/banner', fd).then((r) => r.data);
 };
+export const uploadMiniProfileBanner = (file) => {
+  const fd = new FormData(); fd.append('banner', file);
+  return api.post('/users/me/mini-banner', fd).then((r) => r.data);
+};
 export const uploadIdCard = (file) => {
   const fd = new FormData(); fd.append('idCard', file);
   return api.post('/users/me/id-card', fd).then((r) => r.data);

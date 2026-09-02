@@ -220,7 +220,7 @@ export default function MiniProfileCard() {
       {!user && <p className="dim" style={{ padding: 16 }}>Carregando...</p>}
       {user && (
         <>
-          <div className="mini-profile-banner" style={{ background: user.bannerUrl ? `url(${user.bannerUrl}) center/cover` : 'var(--brand)' }} />
+          <div className="mini-profile-banner" style={{ background: user.miniProfileBannerUrl ? `url(${user.miniProfileBannerUrl}) center/cover` : 'var(--brand)' }} />
           <div className="mini-profile-body">
             <div className="mini-profile-avatar"><UserAvatar user={user} size={64} /></div>
             <div className="mini-profile-name">{user.displayName} <TagBadge user={user} /></div>

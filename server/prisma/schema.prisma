@@ -35,7 +35,14 @@ model User {
   displayName         String
   passwordHash        String
   avatarUrl           String?
+  // Item pedido: "dois banners independentes" — bannerUrl continua
+  // sendo o do PERFIL COMPLETO (não mudei o nome/significado dele, pra
+  // não precisar migrar dados nem tocar em nada que já dependia dele).
+  // miniProfileBannerUrl é o do MINIPERFIL (o cartão que abre ao
+  // clicar no nome/avatar de alguém) — antes os dois compartilhavam o
+  // mesmo valor (bannerUrl), agora são de verdade independentes.
   bannerUrl           String?
+  miniProfileBannerUrl String?
   idCardUrl           String?
   bio                 String? @db.Text
   pronouns            String?
