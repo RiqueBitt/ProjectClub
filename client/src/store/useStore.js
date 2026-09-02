@@ -244,7 +244,11 @@ export const useStore = create((set, get) => ({
   pushNotice: (message, action) => set((s) => ({ notices: [...s.notices, { id: `${Date.now()}-${Math.random()}`, message, action }] })),
   dismissNotice: (id) => set((s) => ({ notices: s.notices.filter((n) => n.id !== id) })),
 
-  openProfile: (userId) => set({ viewingProfileUserId: userId, profileAutoOpenRoleMenu: false }),
+  // Item pedido: "quando abrir o perfil, feche a barra lateral do
+  // usuário também" — mesmo padrão já usado em openMobileMembers
+  // acima, fecha qualquer gaveta mobile aberta (categorias e lista de
+  // membros) ao abrir o perfil, evitando as duas coisas sobrepostas.
+  openProfile: (userId) => set({ viewingProfileUserId: userId, profileAutoOpenRoleMenu: false, mobileSidebarOpen: false, mobileMembersOpen: false }),
   openMiniProfile: (userId, anchorRect, side) => set({ miniProfileUserId: userId, miniProfileAnchorRect: anchorRect || null, miniProfileSide: side || null }),
   setDisabledSystems: (disabledSystems) => set({ disabledSystems }),
   closeMiniProfile: () => set({ miniProfileUserId: null, miniProfileAnchorRect: null, miniProfileSide: null }),

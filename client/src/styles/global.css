@@ -665,7 +665,14 @@ body.body-auth-scroll { overflow-y: auto !important; }
 .app-shell {
   display: grid;
   grid-template-columns: var(--main-sidebar-width, 88px) 1fr var(--members-width, 240px);
-  grid-template-rows: var(--top-search-bar-height, 52px) 1fr auto;
+  /* BUG CORRIGIDO ("canais cortados pela barra de cima"): a barra de
+     topo ocupa, na prática, --top-search-bar-height + a área segura
+     do topo (notch/status bar do celular, ver .top-search-bar) — mas
+     o grid só reservava o valor fixo, sem essa área extra. Em
+     aparelhos com área segura (a maioria), a barra ficava mais alta
+     que o espaço reservado pra ela, sobrando por cima do início do
+     conteúdo da linha de baixo (cortando as abas de canais). */
+  grid-template-rows: calc(var(--top-search-bar-height, 52px) + env(safe-area-inset-top, 0px)) 1fr auto;
   height: 100vh;
   height: 100dvh;
   touch-action: pan-y;
@@ -1943,7 +1950,7 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
      acabaria por baixo de .call-bar na mesma coluna. A linha 1 é a
      flexível ("1fr"), a barra de chamada fica na linha seguinte, do
      tamanho do próprio conteúdo. */
-  .app-shell { grid-template-rows: var(--top-search-bar-height, 52px) 1fr auto; }
+  .app-shell { grid-template-rows: calc(var(--top-search-bar-height, 52px) + env(safe-area-inset-top, 0px)) 1fr auto; }
   .app-main { grid-column: 2; grid-row: 2; min-height: 0; }
   .call-bar { grid-column: 2; grid-row: 3; }
 
@@ -2474,7 +2481,19 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
    navegador distribuir visualmente em 2 colunas sozinho, sempre
    preenchendo de cima pra baixo na ordem escolhida (primeiro toda a
    coluna 1, depois a 2) — sem eu precisar calcular nada. */
-.profile-ig-columns { column-gap: 28px; columns: 1; }
+.profile-ig-columns {
+  column-gap: 28px; columns: 1;
+  /* Tentativa de correção pro "perfil não desce mais mesmo tendo mais
+     coisas embaixo": CSS multi-column, em certas situações, calcula a
+     própria altura de forma otimizada pro espaço VISÍVEL em vez de
+     deixar o conteúdo real "empurrar" a altura pra cima do container
+     com scroll (.profile-modal-fullscreen, que já tem overflow-y:
+     auto) — height: auto força ele a sempre crescer conforme o
+     conteúdo precisa, nunca tentando encaixar dentro do espaço
+     visível. Não tenho 100% de certeza que essa é a causa completa;
+     se persistir, preciso de mais detalhes pra investigar mais fundo. */
+  height: auto;
+}
 .profile-ig-fixed-top { display: flex; flex-direction: column; gap: 4px; }
 .profile-section-order-wrap { break-inside: avoid; }
 .profile-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
