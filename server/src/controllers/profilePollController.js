@@ -15,6 +15,12 @@ async function create(req, res, next) {
     if (cleanOptions.length < 2) return res.status(400).json({ error: 'Adicione pelo menos 2 opções.' });
     if (cleanOptions.length > 10) return res.status(400).json({ error: 'No máximo 10 opções.' });
 
+    // Item pedido: máximo de 2 enquetes por perfil.
+    const existingCount = await prisma.profilePoll.count({ where: { authorId: req.user.id } });
+    if (existingCount >= 2) {
+      return res.status(409).json({ error: 'Você já tem 2 enquetes no seu perfil — apague uma antes de criar outra.' });
+    }
+
     const poll = await prisma.profilePoll.create({
       data: {
         authorId: req.user.id,

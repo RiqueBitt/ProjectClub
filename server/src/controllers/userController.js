@@ -59,6 +59,21 @@ async function updateProfile(req, res, next) {
       }
     }
 
+    // Item pedido: aniversário editável em "Editar Perfil" — só dia e
+    // mês importam de verdade (o sistema de Aniversariantes ignora o
+    // ano), mas o campo no banco é um DateTime completo, então o
+    // cliente manda uma data com um ano fixo (ver
+    // UserSettingsModal.jsx) — só valida que é uma data de verdade
+    // antes de salvar.
+    if (req.body.birthDate !== undefined) {
+      if (req.body.birthDate === null || req.body.birthDate === '') {
+        data.birthDate = null;
+      } else {
+        const parsedDate = new Date(req.body.birthDate);
+        if (!isNaN(parsedDate.getTime())) data.birthDate = parsedDate;
+      }
+    }
+
     if (data.profileColor !== undefined) {
       const settings = await prisma.platformSettings.findUnique({ where: { id: 'singleton' } });
       let disabled = [];

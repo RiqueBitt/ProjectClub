@@ -2035,7 +2035,14 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .form-error { color: var(--red); font-size: 12px; margin: 4px 0; }
 
 /* ---------- User profile modal ---------- */
-.profile-modal-box { padding: 0; overflow: hidden; max-width: 440px; }
+/* BUG CORRIGIDO ("perfil comprido demais, não aproveita a largura"): o
+   modal ficava travado num máximo de 440px, MESMO em desktop com
+   bastante espaço horizontal sobrando — isso forçava tudo a empilhar
+   verticalmente, mesmo já existindo colunas CSS configuradas (que não
+   tinham espaço nenhum de verdade pra distribuir o conteúdo). 92vw
+   (herdado do .modal-box base) já protege telas pequenas/celular
+   automaticamente, sem precisar de media query própria aqui. */
+.profile-modal-box { padding: 0; overflow: hidden; max-width: 760px; }
 /* Perfil grande — cobre só a área de chat + lista de online, deixando o
    MainSidebar (barra lateral única de seções — Chat/Amigos/Perfil/etc,
    ver MainSidebar.jsx) visível por trás. BUG CORRIGIDO: este bloco ainda
@@ -2155,6 +2162,8 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .profile-avatar-row { display: flex; align-items: flex-end; justify-content: space-between; margin-top: -46px; margin-bottom: 8px; }
 .profile-actions { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
 .profile-display-name { margin: 4px 0 0; }
+.profile-birthday-badge { font-size: 18px; margin-left: 4px; display: inline-block; animation: profile-birthday-bounce 1.6s ease-in-out infinite; }
+@keyframes profile-birthday-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 .profile-username { color: var(--text-normal); font-size: 14px; margin-bottom: 8px; }
 .profile-pronouns-inline { color: var(--text-normal); }
 /* Cabeçalho de um perfil com cor personalizada (--profile-accent-* — ver
@@ -2349,12 +2358,18 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
    navegador distribuir visualmente em 2 colunas sozinho, sempre
    preenchendo de cima pra baixo na ordem escolhida (primeiro toda a
    coluna 1, depois a 2) — sem eu precisar calcular nada. */
-.profile-ig-columns { column-gap: 28px; }
+.profile-ig-columns { column-gap: 28px; columns: 1; }
 .profile-ig-fixed-top { display: flex; flex-direction: column; gap: 4px; }
 .profile-section-order-wrap { break-inside: avoid; }
 .profile-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-@media (min-width: 720px) {
-  .profile-ig-columns { grid-template-columns: 1fr 1fr; }
+@media (min-width: 640px) {
+  .profile-ig-columns { columns: 2; }
+}
+/* Item pedido: "aproveite melhor o espaço horizontal" — em telas bem
+   largas (desktop, agora que o modal ocupa a largura toda menos a
+   barra lateral), 3 colunas cabem confortavelmente sem apertar. */
+@media (min-width: 1100px) {
+  .profile-ig-columns { columns: 3; }
 }
 
 /* Insígnias em grade com nome visível embaixo (antes era só uma fileira
@@ -2448,7 +2463,7 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 
 .admin-badge-icon-upload { display: flex; align-items: center; gap: 8px; }
 .admin-badge-icon-preview { width: 28px; height: 28px; border-radius: 6px; object-fit: cover; }
-.profile-section { margin-bottom: 12px; }
+.profile-section { margin-bottom: 10px; }
 .profile-section-label { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.02em; margin-bottom: 4px; }
 /* Título de cada seção (SOBRE, CARGOS, CONEXÕES...) ganha um leve tom da
    cor do perfil em vez do cinza genérico igual pra todo mundo — mistura
@@ -2521,15 +2536,19 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 .profile-relationship-status { display: flex; align-items: center; gap: 6px; font-size: 14px; }
 .profile-relationship-end { font-size: 12px; color: var(--red); margin-left: 8px; padding: 2px 8px; border-radius: 4px; }
 .profile-relationship-end:hover { background: rgba(242,63,67,.1); }
-.profile-photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+/* Item pedido: fotos do álbum "ocupando espaço demais" — reduzido pra
+   ~3x menor (era 3 colunas fixas tipo 1fr, ocupando bastante espaço
+   cada uma; agora cada item tem um tamanho MÁXIMO pequeno, e o grid
+   encaixa quantas colunas couberem na largura disponível sozinho). */
+.profile-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 84px)); gap: 6px; }
 .profile-photo-grid-item {
-  aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: var(--bg-secondary);
+  aspect-ratio: 1; border-radius: 6px; overflow: hidden; background: var(--bg-secondary);
 }
 .profile-photo-grid-item img, .profile-photo-grid-item video { width: 100%; height: 100%; object-fit: cover; }
 .photo-album { display: flex; flex-direction: column; gap: 12px; }
 .photo-album-empty { text-align: center; padding: 20px 0; font-size: 13px; }
-.photo-album-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.photo-album-grid-item { aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: var(--bg-secondary); position: relative; }
+.photo-album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 110px)); gap: 8px; }
+.photo-album-grid-item { aspect-ratio: 1; border-radius: 6px; overflow: hidden; background: var(--bg-secondary); position: relative; }
 .photo-album-grid-item img, .photo-album-grid-item video { width: 100%; height: 100%; object-fit: cover; }
 .photo-album-comment-count {
   position: absolute; bottom: 4px; right: 4px; background: rgba(0,0,0,.65); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 999px;

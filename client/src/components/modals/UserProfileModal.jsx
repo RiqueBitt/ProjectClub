@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { getUserProfile, createConversation, sendFriendRequest, assignRole, unassignRole, voteProfile, listPosts, setActiveTag, listApprovedTestimonials, writeTestimonial, listScraps, writeScrap, deleteScrap, getFanStatus, toggleFan, registerProfileVisit, listProfileVisitors, getTraitStatus, toggleTrait, sendRelationshipRequest, endRelationship as endRelationshipApi, listPhotosByOwner, createProfilePoll, listProfilePollsByAuthor, voteProfilePoll, deleteProfilePoll, upcomingBirthdaysAmongFriends } from '../../api/endpoints';
+import { getUserProfile, createConversation, sendFriendRequest, assignRole, unassignRole, voteProfile, listPosts, listApprovedTestimonials, writeTestimonial, listScraps, writeScrap, deleteScrap, getFanStatus, toggleFan, registerProfileVisit, listProfileVisitors, getTraitStatus, toggleTrait, sendRelationshipRequest, endRelationship as endRelationshipApi, listPhotosByOwner, listProfilePollsByAuthor, voteProfilePoll, upcomingBirthdaysAmongFriends } from '../../api/endpoints';
 import { STATUS_LABEL, STATUS_COLOR } from '../../utils/status';
 import { renderRichContent } from '../../utils/richTextRender.jsx';
 import { getMyCommunityPermissions, hasPermission } from '../../utils/permissions';
@@ -57,19 +57,8 @@ export default function UserProfileModal() {
   const [loading, setLoading] = useState(false);
   const [friendSent, setFriendSent] = useState(false);
   const [badgeListOpen, setBadgeListOpen] = useState(false);
-  // Item pedido: "tag da comunidade" saiu de Configurações e mora aqui
-  // dentro do próprio perfil agora (ver UserSettingsModal.jsx, onde essa
-  // mesma lógica existia antes).
-  const [tagSaving, setTagSaving] = useState(false);
-  const pickTag = async (active) => {
-    setTagSaving(true);
-    try {
-      const { user: updated } = await setActiveTag(active);
-      setMe(updated);
-    } finally {
-      setTagSaving(false);
-    }
-  };
+  // Item pedido: "centralizar em Configurações" — tag da comunidade
+  // voltou pra lá (UserSettingsModal.jsx), removida daqui.
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
   const [roleSearch, setRoleSearch] = useState('');
   const [rolesExpanded, setRolesExpanded] = useState(false);
@@ -353,10 +342,10 @@ export default function UserProfileModal() {
   // hooks depois dele quebra o React (número de hooks chamados muda
   // dependendo se o modal está aberto ou fechado), foi exatamente o
   // bug corrigido na resposta anterior.
+  // Item pedido: "centralizar em Configurações" — criar/apagar
+  // enquete moveu pra lá (UserSettingsModal.jsx, aba Conteúdo). Aqui
+  // no perfil fica só a leitura + votação.
   const [profilePolls, setProfilePolls] = useState([]);
-  const [pollQuestion, setPollQuestion] = useState('');
-  const [pollOptions, setPollOptions] = useState(['', '']);
-  const [pollCreating, setPollCreating] = useState(false);
   useEffect(() => {
     if (!userId) { setProfilePolls([]); return; }
     listProfilePollsByAuthor(userId).then((d) => setProfilePolls(d.polls)).catch(() => setProfilePolls([]));
@@ -366,21 +355,6 @@ export default function UserProfileModal() {
     voteProfilePoll(pollId, optionId).then((d) => {
       setProfilePolls((prev) => prev.map((p) => (p.id === pollId ? d.poll : p)));
     }).catch(() => {});
-  };
-
-  const createPoll = () => {
-    const cleanOptions = pollOptions.map((o) => o.trim()).filter(Boolean);
-    if (!pollQuestion.trim() || cleanOptions.length < 2 || pollCreating) return;
-    setPollCreating(true);
-    createProfilePoll(pollQuestion.trim(), cleanOptions)
-      .then((d) => { setProfilePolls((prev) => [d.poll, ...prev]); setPollQuestion(''); setPollOptions(['', '']); })
-      .catch((err) => useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível criar a enquete.'))
-      .finally(() => setPollCreating(false));
-  };
-
-  const removePoll = (pollId) => {
-    if (!confirm('Apagar essa enquete?')) return;
-    deleteProfilePoll(pollId).then(() => setProfilePolls((prev) => prev.filter((p) => p.id !== pollId))).catch(() => {});
   };
 
   // Aniversariantes — só busca quando é O MEU PRÓPRIO perfil (é uma
@@ -476,24 +450,10 @@ user.bio && (
     polls: (
 <div className="profile-section">
                     <div className="profile-section-label">ENQUETES{profilePolls.length > 0 ? ` — ${profilePolls.length}` : ''}</div>
-                    {isMe && (
-                      <div className="profile-poll-composer">
-                        <input value={pollQuestion} onChange={(e) => setPollQuestion(e.target.value)} placeholder="Pergunta da enquete..." maxLength={200} />
-                        {pollOptions.map((opt, i) => (
-                          <input
-                            key={i}
-                            value={opt}
-                            onChange={(e) => setPollOptions((prev) => prev.map((o, j) => (j === i ? e.target.value : o)))}
-                            placeholder={`Opção ${i + 1}`}
-                            maxLength={100}
-                          />
-                        ))}
-                        <div className="profile-poll-composer-actions">
-                          {pollOptions.length < 10 && <button className="btn-secondary" onClick={() => setPollOptions((prev) => [...prev, ''])}>+ Opção</button>}
-                          <button className="btn-secondary" disabled={pollCreating} onClick={createPoll}>Criar enquete</button>
-                        </div>
-                      </div>
-                    )}
+                    {/* Item pedido: "centralizar em Configurações" —
+                        criar/apagar enquete agora só em Configurações
+                        → Conteúdo. Aqui no perfil fica só a exibição +
+                        votação, pra quem visita poder participar. */}
                     {profilePolls.length === 0 && <div className="dim profile-scrap-empty">Nenhuma enquete ainda.</div>}
                     {profilePolls.map((poll) => (
                       <div key={poll.id} className="profile-poll">
@@ -510,7 +470,6 @@ user.bio && (
                           </button>
                         ))}
                         <div className="dim profile-poll-total">{poll.totalVotes} {poll.totalVotes === 1 ? 'voto' : 'votos'}</div>
-                        {isMe && <button className="profile-relationship-end" onClick={() => removePoll(poll.id)}>Apagar enquete</button>}
                       </div>
                     ))}
                   </div>
@@ -838,7 +797,12 @@ isMe && (
                   <span className="status-dot large" style={{ background: STATUS_COLOR[status] }} title={STATUS_LABEL[status]} />
                 </div>
                 <div className="profile-ig-header-info">
-                  <h2 className="profile-display-name"><span style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} /></h2>
+                  <h2 className="profile-display-name">
+                    <span style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} />
+                    {/* Item pedido: "no dia do aniversário, mostrar no
+                        perfil a indicação visual" */}
+                    {data.isBirthdayToday && <span className="profile-birthday-badge" title="Aniversário hoje!">🎂</span>}
+                  </h2>
                   <div className="profile-username">@{user.username}{user.pronouns && <span className="profile-pronouns-inline"> · {user.pronouns}</span>}</div>
                   {(user.customStatus || user.customStatusEmoji) && (
                     <div className="profile-custom-status-balloon">
@@ -950,33 +914,6 @@ isMe && (
                     </div>
                   )}
 
-                  {isMe && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">
-                        <span>TAG DA COMUNIDADE</span>
-                      </div>
-                      <p className="dim" style={{ fontSize: 13, marginBottom: 8 }}>
-                        Exiba a tag da comunidade do lado do seu nome no chat, na lista de membros e no seu perfil.
-                      </p>
-                      <div className="server-tag-options">
-                        <button
-                          type="button"
-                          className={`server-tag-option ${!me.tagEmoji ? 'active' : ''}`}
-                          disabled={tagSaving}
-                          onClick={() => pickTag(false)}
-                        >
-                          Nenhuma
-                        </button>
-                        <button
-                          type="button"
-                          className={`server-tag-option ${me.tagEmoji ? 'active' : ''}`}
-                          disabled={tagSaving}
-                          onClick={() => pickTag(true)}
-                        >
-                          <span className="server-tag-badge">🏠 Mostrar tag</span>
-                        </button>
-                      </div>
-                    </div>
                   )}
 
                   {isMe && (birthdays.today.length > 0 || birthdays.upcoming.length > 0) && (

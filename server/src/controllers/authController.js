@@ -117,6 +117,14 @@ const PUBLIC_USER_FIELDS = {
 const SELF_USER_FIELDS = {
   ...PUBLIC_USER_FIELDS,
   email: true, emailVerified: true, twoFactorEnabled: true,
+  // Item pedido: aniversário editável em "Editar Perfil" — a data
+  // COMPLETA (com ano) só é exposta aqui, no seletor que a própria
+  // pessoa usa pra ver os PRÓPRIOS dados (rota /auth/me). Em qualquer
+  // lugar que mostra dados de OUTRA pessoa (recados, depoimentos,
+  // perfil de visitante), continua usando PUBLIC_USER_FIELDS — que não
+  // tem esse campo — só o booleano isBirthdayToday (ver getUser em
+  // userController.js), sem revelar a idade de ninguém.
+  birthDate: true,
   // Só a própria pessoa precisa saber o próprio tema escolhido — não faz
   // sentido expor isso no perfil público de ninguém.
   preferredTheme: true,

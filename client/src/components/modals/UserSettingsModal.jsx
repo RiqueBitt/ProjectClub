@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import IconGlyph from '../IconGlyph.jsx';
 import ProfileSectionOrderEditor from '../ProfileSectionOrderEditor.jsx';
+import PhotoAlbumModal from './PhotoAlbumModal.jsx';
 import AchievementPickerModal from './AchievementPickerModal.jsx';
 import micIcon from '../../assets/icons/nav-mic.png';
 import Modal from '../Modal.jsx';
@@ -27,18 +28,20 @@ import robloxConnIcon from '../../assets/icons/social-roblox.png';
 import xConnIcon from '../../assets/icons/social-x.png';
 import {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, removeIdCard,
-  setup2FA, confirm2FA, disable2FA, setPreferredTheme,
+  setup2FA, confirm2FA, disable2FA, setPreferredTheme, setActiveTag,
   listSessions, revokeSession, revokeOtherSessions,
+  createProfilePoll, listProfilePollsByAuthor, deleteProfilePoll,
 } from '../../api/endpoints';
 
 // Item pedido: separar "Edição do Perfil" das "Configurações gerais" da
 // aplicação, e dentro de Perfil, separar a EDIÇÃO (avatar/banner/bio/
-// conexões) das OPÇÕES DE EXIBIÇÃO (quais conquistas aparecem) — são
-// coisas diferentes, mesmo as duas sendo "sobre o perfil". TAGS saiu
-// completamente daqui — mora agora dentro da própria área de Perfil
-// (UserProfileModal.jsx), não em Configurações.
+// conexões) das OPÇÕES DE EXIBIÇÃO (quais conquistas aparecem, tag da
+// comunidade) e do CONTEÚDO (enquetes, álbum de fotos) — são coisas
+// diferentes, mesmo todas sendo "sobre o perfil". Item pedido depois:
+// centralizar em Configurações — TAG voltou pra cá (tinha ido pro
+// próprio UserProfileModal.jsx numa resposta anterior).
 const TAB_GROUPS = [
-  { label: 'Perfil', tabs: ['PROFILE', 'PROFILE_DISPLAY', 'COLUMNS'] },
+  { label: 'Perfil', tabs: ['PROFILE', 'PROFILE_DISPLAY', 'PROFILE_CONTENT', 'COLUMNS'] },
   { label: 'Geral', tabs: ['ACCOUNT', 'VOICE', 'SECURITY', 'APPEARANCE'] },
 ];
 
@@ -147,6 +150,69 @@ export default function UserSettingsModal({ onClose }) {
     const { user: updated } = await updateProfile({ profileSectionOrder: orderJson });
     setUser(updated);
   };
+
+  // Item pedido: aniversário editável em "Editar Perfil" — dia e mês
+  // separados (o ano não importa pro sistema de aniversariantes, que
+  // ignora ele de propósito por privacidade). Usa um ano fixo
+  // (bissexto, aceita 29/fev) só como "caixa" pra guardar dia+mês
+  // como um DateTime de verdade no banco.
+  const initialBirth = user.birthDate ? new Date(user.birthDate) : null;
+  const [birthDay, setBirthDay] = useState(initialBirth ? initialBirth.getUTCDate() : '');
+  const [birthMonth, setBirthMonth] = useState(initialBirth ? initialBirth.getUTCMonth() + 1 : '');
+  const saveBirthday = async (day, month) => {
+    if (!day || !month) {
+      const { user: updated } = await updateProfile({ birthDate: null });
+      setUser(updated);
+      return;
+    }
+    const iso = `2000-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const { user: updated } = await updateProfile({ birthDate: iso });
+    setUser(updated);
+  };
+  const onBirthDayChange = (e) => { const v = e.target.value; setBirthDay(v); saveBirthday(v, birthMonth); };
+  const onBirthMonthChange = (e) => { const v = e.target.value; setBirthMonth(v); saveBirthday(birthDay, v); };
+
+  // Item pedido: "centralizar em Configurações" — tag da comunidade
+  // (voltou pra cá) e enquetes de perfil (criar/apagar — a exibição +
+  // votação continua no próprio perfil, pra quem visita poder votar).
+  const [tagSaving, setTagSaving] = useState(false);
+  const pickTag = async (active) => {
+    setTagSaving(true);
+    try {
+      const { user: updated } = await setActiveTag(active);
+      setUser(updated);
+    } finally {
+      setTagSaving(false);
+    }
+  };
+
+  const [myPolls, setMyPolls] = useState([]);
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOptions, setPollOptions] = useState(['', '']);
+  const [pollCreating, setPollCreating] = useState(false);
+  const [pollError, setPollError] = useState('');
+  useEffect(() => {
+    listProfilePollsByAuthor(user.id).then((d) => setMyPolls(d.polls)).catch(() => {});
+  }, [user.id]);
+
+  const createPoll = () => {
+    const cleanOptions = pollOptions.map((o) => o.trim()).filter(Boolean);
+    if (!pollQuestion.trim() || cleanOptions.length < 2 || pollCreating) return;
+    setPollCreating(true);
+    setPollError('');
+    createProfilePoll(pollQuestion.trim(), cleanOptions)
+      .then((d) => { setMyPolls((prev) => [d.poll, ...prev]); setPollQuestion(''); setPollOptions(['', '']); })
+      .catch((err) => setPollError(err?.response?.data?.error || 'Não foi possível criar a enquete.'))
+      .finally(() => setPollCreating(false));
+  };
+
+  const removePoll = (pollId) => {
+    if (!confirm('Apagar essa enquete?')) return;
+    deleteProfilePoll(pollId).then(() => setMyPolls((prev) => prev.filter((p) => p.id !== pollId))).catch(() => {});
+  };
+
+  const [albumManagerOpen, setAlbumManagerOpen] = useState(false);
+
   const [achievementPickerOpen, setAchievementPickerOpen] = useState(false); // false | 'profile' | 'mini'
   const [myDisplayedAchievements, setMyDisplayedAchievements] = useState({ profile: [], mini: [] });
   useEffect(() => {
@@ -361,6 +427,24 @@ export default function UserSettingsModal({ onClose }) {
               </label>
             </div>
             <label>PRONOMES<input name="pronouns" value={form.pronouns} onChange={onChange} placeholder="ele/dele, ela/dela..." /></label>
+            {/* Item pedido: aniversário — dia/mês editável a qualquer
+                momento, sem ficar "preso" numa data depois de escolher
+                uma vez. */}
+            <label>
+              ANIVERSÁRIO
+              <div className="birthday-picker-row">
+                <select value={birthDay} onChange={onBirthDayChange}>
+                  <option value="">Dia</option>
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+                <select value={birthMonth} onChange={onBirthMonthChange}>
+                  <option value="">Mês</option>
+                  {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, i) => (
+                    <option key={m} value={i + 1}>{m}</option>
+                  ))}
+                </select>
+              </div>
+            </label>
             <label>
               BIOGRAFIA
               <div className="bio-input-row">
@@ -528,6 +612,75 @@ export default function UserSettingsModal({ onClose }) {
               <button type="button" className="btn-secondary" onClick={() => setAchievementPickerOpen('profile')}>Perfil (até 6)</button>
               <button type="button" className="btn-secondary" onClick={() => setAchievementPickerOpen('mini')}>Miniperfil (até 4)</button>
             </div>
+          </div>
+
+          <div className="settings-block">
+            <h4>Tag da comunidade</h4>
+            <p className="dim">Exiba a tag da comunidade do lado do seu nome no chat, na lista de membros e no seu perfil.</p>
+            <div className="server-tag-options">
+              <button
+                type="button"
+                className={`server-tag-option ${!user.tagEmoji ? 'active' : ''}`}
+                disabled={tagSaving}
+                onClick={() => pickTag(false)}
+              >
+                Nenhuma
+              </button>
+              <button
+                type="button"
+                className={`server-tag-option ${user.tagEmoji ? 'active' : ''}`}
+                disabled={tagSaving}
+                onClick={() => pickTag(true)}
+              >
+                <span className="server-tag-badge">🏠 Mostrar tag</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'PROFILE_CONTENT' && (
+        <div className="settings-grid">
+          <div className="settings-block">
+            <h4>Álbum de fotos</h4>
+            <p className="dim">Adicione, organize ou apague fotos e vídeos do seu álbum de perfil.</p>
+            <button type="button" className="btn-secondary" onClick={() => setAlbumManagerOpen(true)}>Gerenciar álbum</button>
+          </div>
+
+          <div className="settings-block">
+            <h4>Enquetes {myPolls.length > 0 ? `(${myPolls.length}/2)` : ''}</h4>
+            <p className="dim">Crie uma pergunta com opções pros seus amigos votarem, direto no seu perfil — no máximo 2 por vez.</p>
+            {myPolls.length < 2 ? (
+              <div className="profile-poll-composer">
+                <input value={pollQuestion} onChange={(e) => setPollQuestion(e.target.value)} placeholder="Pergunta da enquete..." maxLength={200} />
+                {pollOptions.map((opt, i) => (
+                  <input
+                    key={i}
+                    value={opt}
+                    onChange={(e) => setPollOptions((prev) => prev.map((o, j) => (j === i ? e.target.value : o)))}
+                    placeholder={`Opção ${i + 1}`}
+                    maxLength={100}
+                  />
+                ))}
+                {pollError && <p className="dim" style={{ color: 'var(--red)' }}>{pollError}</p>}
+                <div className="profile-poll-composer-actions">
+                  {pollOptions.length < 10 && <button type="button" className="btn-secondary" onClick={() => setPollOptions((prev) => [...prev, ''])}>+ Opção</button>}
+                  <button type="button" className="btn-secondary" disabled={pollCreating} onClick={createPoll}>Criar enquete</button>
+                </div>
+              </div>
+            ) : (
+              <p className="dim" style={{ fontStyle: 'italic' }}>Você já tem 2 enquetes — apague uma abaixo antes de criar outra.</p>
+            )}
+            {myPolls.length > 0 && (
+              <ul className="settings-poll-list">
+                {myPolls.map((p) => (
+                  <li key={p.id} className="settings-poll-list-item">
+                    <span className="truncate">{p.question}</span>
+                    <button type="button" className="profile-relationship-end" onClick={() => removePoll(p.id)}>Apagar</button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       )}
@@ -699,13 +852,21 @@ export default function UserSettingsModal({ onClose }) {
         onSaved={(field, achievements) => setUser({ ...user, [field]: JSON.stringify(achievements.map((a) => a.key)) })}
       />
     )}
+    {albumManagerOpen && (
+      <PhotoAlbumModal
+        ownerId={user.id}
+        ownerName={user.displayName}
+        isMe
+        onClose={() => setAlbumManagerOpen(false)}
+      />
+    )}
     </>
   );
 }
 
 function labelFor(t) {
   return {
-    PROFILE: 'Meu perfil', PROFILE_DISPLAY: 'Exibição', COLUMNS: 'Colunas', ACCOUNT: 'Minha conta', VOICE: 'Voz e Áudio', SECURITY: 'Segurança', APPEARANCE: 'Aparência',
+    PROFILE: 'Meu perfil', PROFILE_DISPLAY: 'Exibição', PROFILE_CONTENT: 'Conteúdo', COLUMNS: 'Colunas', ACCOUNT: 'Minha conta', VOICE: 'Voz e Áudio', SECURITY: 'Segurança', APPEARANCE: 'Aparência',
   }[t];
 }
 
@@ -714,7 +875,7 @@ function iconFor(t) {
   // emoji — os outros continuam emoji por enquanto.
   if (t === 'VOICE') return <IconGlyph src={micIcon} size={16} />;
   return {
-    PROFILE: '👤', PROFILE_DISPLAY: '🏆', COLUMNS: '📐', ACCOUNT: '⚙️', SECURITY: '🔒', APPEARANCE: '🎨',
+    PROFILE: '👤', PROFILE_DISPLAY: '🏆', PROFILE_CONTENT: '🖼️', COLUMNS: '📐', ACCOUNT: '⚙️', SECURITY: '🔒', APPEARANCE: '🎨',
   }[t];
 }
 
