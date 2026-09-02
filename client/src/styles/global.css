@@ -672,7 +672,11 @@ body.body-auth-scroll { overflow-y: auto !important; }
      aparelhos com área segura (a maioria), a barra ficava mais alta
      que o espaço reservado pra ela, sobrando por cima do início do
      conteúdo da linha de baixo (cortando as abas de canais). */
-  grid-template-rows: calc(var(--top-search-bar-height, 52px) + env(safe-area-inset-top, 0px)) 1fr auto;
+  /* Item pedido: "abaixe a barra de cima" — soma o mesmo respiro extra
+     de 10px aplicado na barra em si (.top-search-bar), senão o grid
+     reservaria menos espaço que ela realmente ocupa, cortando o
+     conteúdo de baixo de novo (mesmo bug já corrigido antes). */
+  grid-template-rows: calc(var(--top-search-bar-height, 52px) + env(safe-area-inset-top, 0px) + 10px) 1fr auto;
   height: 100vh;
   height: 100dvh;
   touch-action: pan-y;
@@ -712,8 +716,12 @@ body.body-auth-scroll { overflow-y: auto !important; }
      quanto espaço a barra de status ocupa em cada aparelho (varia por
      modelo/notch) — soma isso como espaço extra no topo só quando
      existe (0px em telas normais, sem efeito nenhum na web/desktop). */
-  padding-top: env(safe-area-inset-top, 0px);
-  height: calc(var(--top-search-bar-height, 52px) + env(safe-area-inset-top, 0px));
+  /* Item pedido: "abaixe a barra de cima um pouco mais, mesmo não
+     encostando nos ícones de bateria/hora, fica muito perto" — soma
+     mais 10px de respiro fixo, além do exato necessário pra não
+     encostar (env(safe-area-inset-top)). */
+  padding-top: calc(env(safe-area-inset-top, 0px) + 10px);
+  height: calc(var(--top-search-bar-height, 52px) + env(safe-area-inset-top, 0px) + 10px);
   box-sizing: border-box;
 }
 .top-search-bar-brand { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -1950,7 +1958,7 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
      acabaria por baixo de .call-bar na mesma coluna. A linha 1 é a
      flexível ("1fr"), a barra de chamada fica na linha seguinte, do
      tamanho do próprio conteúdo. */
-  .app-shell { grid-template-rows: calc(var(--top-search-bar-height, 52px) + env(safe-area-inset-top, 0px)) 1fr auto; }
+  .app-shell { grid-template-rows: calc(var(--top-search-bar-height, 52px) + env(safe-area-inset-top, 0px) + 10px) 1fr auto; }
   .app-main { grid-column: 2; grid-row: 2; min-height: 0; }
   .call-bar { grid-column: 2; grid-row: 3; }
 
@@ -2091,7 +2099,7 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
      nunca mais sobrepõe o header, não importa de onde for aberto
      (perfil, categoria de Feed, lista de membros, etc — é sempre o
      mesmo componente <UserProfileModal>). */
-  position: fixed; top: calc(var(--top-search-bar-height, 52px) + env(safe-area-inset-top, 0px)); left: var(--main-sidebar-width, 220px); right: 0; bottom: 0;
+  position: fixed; top: calc(var(--top-search-bar-height, 52px) + env(safe-area-inset-top, 0px) + 10px); left: var(--main-sidebar-width, 220px); right: 0; bottom: 0;
   padding: 0; background: none; z-index: 250; display: block;
 }
 /* BUG CORRIGIDO ("perfil completo não mostra na tela, botões vários
