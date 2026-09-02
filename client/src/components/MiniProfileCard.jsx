@@ -214,7 +214,11 @@ export default function MiniProfileCard() {
         // a cor de texto legível calculada (--profile-accent-text) — só
         // aplicado quando o usuário já carregou, pra não piscar com a cor
         // default enquanto ainda tá buscando os dados.
-        ...(user ? profileAccentVars(user.profileColor) : {}),
+        // Item pedido: "cor do mini perfil separada do perfil grande"
+        // — miniProfileColor sobrescreve profileColor só aqui, quando
+        // definida; senão cai no comportamento de antes (mesma cor do
+        // perfil grande).
+        ...(user ? profileAccentVars(user.miniProfileColor || user.profileColor) : {}),
       }}
     >
       {!user && <p className="dim" style={{ padding: 16 }}>Carregando...</p>}
@@ -270,7 +274,14 @@ export default function MiniProfileCard() {
             {user.bio && <div className="mini-profile-bio">{renderRichContent(user.bio, { emojiMap: bioEmojiMap })}</div>}
             <button
               className="btn-primary"
-              style={{ width: '100%', marginTop: 8 }}
+              style={{
+                width: '100%', marginTop: 8,
+                // Item pedido: "mudando a cor do botão ver perfil
+                // completo" — só sobrescreve quando a pessoa
+                // personalizou; senão fica com a cor de marca padrão
+                // do app, igual já era antes.
+                ...(user.miniProfileButtonColor ? { background: user.miniProfileButtonColor } : {}),
+              }}
               onClick={() => { openProfile(userId); closeMiniProfile(); }}
             >
               Ver perfil completo

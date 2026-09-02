@@ -42,7 +42,7 @@ import {
 // centralizar em Configurações — TAG voltou pra cá (tinha ido pro
 // próprio UserProfileModal.jsx numa resposta anterior).
 const TAB_GROUPS = [
-  { label: 'Perfil', tabs: ['PROFILE', 'PROFILE_DISPLAY', 'PROFILE_CONTENT', 'COLUMNS'] },
+  { label: 'Perfil', tabs: ['PROFILE', 'PROFILE_DISPLAY', 'PROFILE_CONTENT', 'COLUMNS', 'MINI_PROFILE'] },
   { label: 'Geral', tabs: ['ACCOUNT', 'VOICE', 'SECURITY', 'APPEARANCE'] },
 ];
 
@@ -111,6 +111,9 @@ export default function UserSettingsModal({ onClose }) {
     // Item pedido: cor da barra de nível personalizável — null usa o
     // verde padrão (ver .profile-level-progress-fill em global.css).
     levelBarColor: user.levelBarColor || '',
+    // Item pedido: "cores do mini perfil separadas do perfil grande"
+    miniProfileColor: user.miniProfileColor || '',
+    miniProfileButtonColor: user.miniProfileButtonColor || '',
     profileNameFont: user.profileNameFont || 'NORMAL',
     profileNameEffect: user.profileNameEffect || 'SOLID',
     profileNameColor: user.profileNameColor || '#F2894D',
@@ -175,6 +178,16 @@ export default function UserSettingsModal({ onClose }) {
   };
   const onBirthDayChange = (e) => { const v = e.target.value; setBirthDay(v); saveBirthday(v, birthMonth); };
   const onBirthMonthChange = (e) => { const v = e.target.value; setBirthMonth(v); saveBirthday(birthDay, v); };
+
+  // Item pedido: "opacidade das caixas das colunas" — padrão de 3.5%
+  // (o mesmo valor fixo que já existia no CSS antes dessa opção
+  // existir, ver .profile-section em global.css) quando a pessoa
+  // nunca mexeu nisso.
+  const [sectionOpacity, setSectionOpacity] = useState(user.profileSectionOpacity ?? 3);
+  const saveSectionOpacity = async (value) => {
+    const { user: updated } = await updateProfile({ profileSectionOpacity: value });
+    setUser(updated);
+  };
 
   // Item pedido: "centralizar em Configurações" — tag da comunidade
   // (voltou pra cá) e enquetes de perfil (criar/apagar — a exibição +
@@ -405,13 +418,12 @@ export default function UserSettingsModal({ onClose }) {
             <div className="profile-edit-body">
               <div className="image-uploads">
                 <label className="btn-secondary">Alterar avatar<input type="file" accept="image/*" hidden onChange={onAvatar} /></label>
-                {/* Item pedido: "banners independentes pro miniperfil e
-                    pro perfil completo" — antes era um botão só
-                    ("Alterar banner"), controlando os dois ao mesmo
-                    tempo (mesmo campo bannerUrl). Agora dois botões
-                    separados, cada um salvando no seu próprio campo. */}
+                {/* Item pedido: "adicione uma nova opção chamada mini
+                    perfil, mova tudo que é sobre mini perfil pra lá" —
+                    o botão de banner do miniperfil (que morava aqui
+                    junto do banner do perfil completo) foi pra sua
+                    própria aba (MINI_PROFILE), junto das cores dele. */}
                 <label className="btn-secondary">Alterar banner do perfil completo<input type="file" accept="image/*" hidden onChange={onBanner} /></label>
-                <label className="btn-secondary">Alterar banner do miniperfil<input type="file" accept="image/*" hidden onChange={onMiniProfileBanner} /></label>
               </div>
 
               <div className="profile-edit-subsection">
@@ -562,6 +574,22 @@ export default function UserSettingsModal({ onClose }) {
               {form.levelBarColor && (
                 <button type="button" className="btn-link" onClick={() => setForm((f) => ({ ...f, levelBarColor: '' }))}>Usar verde padrão</button>
               )}
+            </div>
+          </div>
+
+          {/* Item pedido: "poder mudar a opacidade das caixas das
+              colunas, deixando invisível ou mostrando melhor" — 0 =
+              sem fundo nenhum (invisível), 100 = fundo bem visível. */}
+          <div className="settings-block">
+            <h4>Opacidade das caixas do perfil</h4>
+            <p className="dim">Controla o quanto o fundo das seções (Sobre, Recados, etc) aparece — 0 deixa invisível, valores altos deixam bem visível.</p>
+            <div className="birthday-picker-row">
+              <input
+                type="range" min={0} max={100} step={5}
+                value={sectionOpacity}
+                onChange={(e) => { const v = Number(e.target.value); setSectionOpacity(v); saveSectionOpacity(v); }}
+              />
+              <span className="dim" style={{ minWidth: 36, textAlign: 'right' }}>{sectionOpacity}%</span>
             </div>
           </div>
 
@@ -729,6 +757,50 @@ export default function UserSettingsModal({ onClose }) {
             <h4>Ordem das seções do perfil</h4>
             <ProfileSectionOrderEditor value={user.profileSectionOrder} onChange={saveProfileSectionOrder} />
           </div>
+        </div>
+      )}
+
+      {/* Item pedido: "adicione uma nova opção chamada mini perfil,
+          mova tudo que é sobre mini perfil pra lá, e também adicione
+          poder editar as cores do mini perfil separada do perfil
+          grande, mudando a cor do perfil, mudando a cor do botão ver
+          perfil completo". */}
+      {tab === 'MINI_PROFILE' && (
+        <div className="settings-grid">
+          <div className="settings-block">
+            <h4>Banner do miniperfil</h4>
+            <p className="dim">Esse banner aparece só no cartão pequeno que abre ao clicar no seu nome/avatar — independente do banner do seu perfil completo.</p>
+            <label className="btn-secondary">Alterar banner do miniperfil<input type="file" accept="image/*" hidden onChange={onMiniProfileBanner} /></label>
+          </div>
+
+          <div className="settings-block">
+            <h4>Cor do miniperfil</h4>
+            <p className="dim">Sem escolher aqui, o miniperfil usa a mesma cor do seu perfil completo — escolha uma diferente se quiser.</p>
+            <div className="role-color-row profile-color-row">
+              <label>
+                COR DO MINIPERFIL
+                <input type="color" value={form.miniProfileColor || form.profileColor} onChange={(e) => setForm((f) => ({ ...f, miniProfileColor: e.target.value }))} />
+              </label>
+              {form.miniProfileColor && (
+                <button type="button" className="btn-link" onClick={() => setForm((f) => ({ ...f, miniProfileColor: '' }))}>Usar a mesma do perfil completo</button>
+              )}
+            </div>
+          </div>
+
+          <div className="settings-block">
+            <h4>Cor do botão "Ver perfil completo"</h4>
+            <div className="role-color-row profile-color-row">
+              <label>
+                COR DO BOTÃO
+                <input type="color" value={form.miniProfileButtonColor || '#4C9FFF'} onChange={(e) => setForm((f) => ({ ...f, miniProfileButtonColor: e.target.value }))} />
+              </label>
+              {form.miniProfileButtonColor && (
+                <button type="button" className="btn-link" onClick={() => setForm((f) => ({ ...f, miniProfileButtonColor: '' }))}>Usar cor padrão</button>
+              )}
+            </div>
+          </div>
+
+          <button type="button" className="btn-primary" onClick={saveProfile}>Salvar</button>
         </div>
       )}
 
@@ -904,7 +976,7 @@ export default function UserSettingsModal({ onClose }) {
 
 function labelFor(t) {
   return {
-    PROFILE: 'Meu perfil', PROFILE_DISPLAY: 'Exibição', PROFILE_CONTENT: 'Conteúdo', COLUMNS: 'Colunas', ACCOUNT: 'Minha conta', VOICE: 'Voz e Áudio', SECURITY: 'Segurança', APPEARANCE: 'Aparência',
+    PROFILE: 'Meu perfil', PROFILE_DISPLAY: 'Exibição', PROFILE_CONTENT: 'Conteúdo', COLUMNS: 'Colunas', MINI_PROFILE: 'Mini Perfil', ACCOUNT: 'Minha conta', VOICE: 'Voz e Áudio', SECURITY: 'Segurança', APPEARANCE: 'Aparência',
   }[t];
 }
 
@@ -913,7 +985,7 @@ function iconFor(t) {
   // emoji — os outros continuam emoji por enquanto.
   if (t === 'VOICE') return <IconGlyph src={micIcon} size={16} />;
   return {
-    PROFILE: '👤', PROFILE_DISPLAY: '🏆', PROFILE_CONTENT: '🖼️', COLUMNS: '📐', ACCOUNT: '⚙️', SECURITY: '🔒', APPEARANCE: '🎨',
+    PROFILE: '👤', PROFILE_DISPLAY: '🏆', PROFILE_CONTENT: '🖼️', COLUMNS: '📐', MINI_PROFILE: '🪪', ACCOUNT: '⚙️', SECURITY: '🔒', APPEARANCE: '🎨',
   }[t];
 }
 

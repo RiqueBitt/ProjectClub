@@ -2394,6 +2394,18 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 .profile-modal-accented .profile-ig-actions .btn-secondary:hover {
   background: color-mix(in srgb, var(--profile-accent-start) 18%, #2f3136);
 }
+/* BUG CORRIGIDO ("botão Enviar dos recados ainda usa a cor do tema"):
+   a regra acima só cobre botões DENTRO de .profile-ig-actions (Enviar
+   mensagem/Adicionar amigo/Seguir) — o botão "Enviar" do campo de
+   recado/depoimento fica FORA dali, então continuava usando o fundo
+   genérico var(--bg-elevated), dependente de tema. Regra mais ampla
+   aqui (qualquer .btn-secondary dentro do card, não só dentro de
+   .profile-ig-actions) serve de fallback fixo — a regra acima, mais
+   específica (3 classes vs 2), continua vencendo onde já existia. */
+.profile-modal-accented .btn-secondary {
+  background: rgba(255,255,255,0.08); color: var(--text-normal);
+}
+.profile-modal-accented .btn-secondary:hover { background: rgba(255,255,255,0.14); }
 .profile-vote-icon-btn {
   background: rgba(255,255,255,0.08); border-radius: 8px; flex-shrink: 0; padding: 6px 10px;
   display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600;
@@ -2558,7 +2570,15 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
    automaticamente em todas — consistência sem precisar mexer seção
    por seção. */
 .profile-section {
-  margin-bottom: 10px; background: rgba(255,255,255,0.035); border-radius: 10px; padding: 12px 14px;
+  margin-bottom: 10px;
+  /* Item pedido: "poder mudar a opacidade das caixas das colunas,
+     deixando invisível ou mostrando melhor" — a variável é definida
+     no elemento raiz do perfil, calculada a partir da preferência
+     salva (0-100 -> 0-1). --profile-section-opacity, 0.035 é o valor
+     que já existia antes dessa opção existir, usado quando a pessoa
+     nunca mexeu nisso. */
+  background: rgba(255,255,255,var(--profile-section-opacity, 0.035));
+  border-radius: 10px; padding: 12px 14px;
 }
 .profile-section-label { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.02em; margin-bottom: 4px; }
 /* Título de cada seção (SOBRE, CARGOS, CONEXÕES...) ganha um leve tom da

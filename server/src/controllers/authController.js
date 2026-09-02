@@ -107,6 +107,9 @@ const PUBLIC_USER_FIELDS = {
   // visitante do perfil vê essa barra), por isso fica aqui junto com
   // profileColor, não em SELF_USER_FIELDS.
   levelBarColor: true,
+  profileSectionOpacity: true,
+  miniProfileColor: true,
+  miniProfileButtonColor: true,
 };
 
 // Everything PUBLIC_USER_FIELDS has, plus the account-owner-only fields

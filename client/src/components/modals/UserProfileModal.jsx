@@ -789,7 +789,12 @@ isMe && (
     <div className="modal-overlay profile-fullscreen-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) closeProfile(); }}>
       <div
         className={`modal-box profile-modal-box profile-modal-fullscreen ${user ? 'profile-modal-accented' : ''}`}
-        style={user ? profileAccentVars(user.profileColor) : undefined}
+        style={user ? {
+          ...profileAccentVars(user.profileColor),
+          // Item pedido: "opacidade das caixas das colunas" — 0-100
+          // salvo no banco vira 0-1 aqui (formato que rgba() espera).
+          '--profile-section-opacity': user.profileSectionOpacity != null ? user.profileSectionOpacity / 100 : undefined,
+        } : undefined}
       >
         <button className="icon-btn profile-modal-close" onClick={closeProfile}><img className="ui-icon" src={cancelIcon} alt="x" /></button>
         {isMe && (

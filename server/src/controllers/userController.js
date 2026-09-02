@@ -82,12 +82,27 @@ async function updateProfile(req, res, next) {
       }
     }
 
-    if (data.profileColor !== undefined) {
+    // Item pedido: "opacidade das caixas das colunas, deixando
+    // invisível ou mostrando melhor" — 0 a 100, validado no servidor
+    // (não só confiando no que o slider do cliente mandou).
+    if (req.body.profileSectionOpacity !== undefined) {
+      const n = Number(req.body.profileSectionOpacity);
+      if (Number.isInteger(n) && n >= 0 && n <= 100) data.profileSectionOpacity = n;
+    }
+
+    if (data.profileColor !== undefined || req.body.miniProfileColor !== undefined || req.body.miniProfileButtonColor !== undefined) {
       const settings = await prisma.platformSettings.findUnique({ where: { id: 'singleton' } });
       let disabled = [];
       try { disabled = JSON.parse(settings?.disabledSystems || '[]'); } catch { disabled = []; }
       if (disabled.includes('cores_perfil')) {
         delete data.profileColor;
+      } else {
+        // Item pedido: "cor do mini perfil separada do perfil grande" —
+        // mesma proteção de moderação que profileColor já tinha (se a
+        // staff desativou cores de perfil, cobre as duas, não só a do
+        // perfil grande).
+        if (req.body.miniProfileColor !== undefined) data.miniProfileColor = req.body.miniProfileColor;
+        if (req.body.miniProfileButtonColor !== undefined) data.miniProfileButtonColor = req.body.miniProfileButtonColor;
       }
     }
     // Avatar de pinguim (tema Club Penguin — ver PenguinAvatar.jsx no

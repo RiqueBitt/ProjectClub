@@ -62,6 +62,16 @@ model User {
   // Público (não vai em SELF_USER_FIELDS) — é a mesma barra que
   // qualquer visitante do perfil vê, igual a cor do perfil já é.
   levelBarColor       String?
+  // Item pedido: "opacidade das caixas das colunas, deixando invisível
+  // ou mostrando melhor" — 0 a 100 (percentual). Null usa o padrão
+  // (o mesmo valor sutil que já existia antes dessa opção existir).
+  profileSectionOpacity Int?
+  // Item pedido: "adicione lá poder editar as cores do mini perfil
+  // separada do perfil grande, mudando a cor do perfil, mudando a cor
+  // do botão ver perfil completo" — null usa o mesmo profileColor do
+  // perfil grande (comportamento de antes dessa opção existir).
+  miniProfileColor       String?
+  miniProfileButtonColor String?
   profileColor        String    @default("#1877F2")
   profileNameFont     String    @default("NORMAL")
   profileNameEffect   String    @default("SOLID")
