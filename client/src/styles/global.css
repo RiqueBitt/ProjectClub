@@ -1249,6 +1249,11 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
    tema. Só entra quando a pessoa NÃO tem placa de identificação própria
    (.has-id-card já resolve seu próprio contraste do jeito dela). */
 .dm-profile-panel.dm-profile-accented {
+  /* BUG CORRIGIDO: mesma correção de --header-primary/--text-normal/
+     --text-muted já aplicada nos outros dois cards acentuados. */
+  --header-primary: #f2f3f5;
+  --text-normal: #dbdee1;
+  --text-muted: #949ba4;
   /* BUG CORRIGIDO: mesma família do bug já corrigido no perfil
      completo e no miniperfil — var(--bg-secondary) muda com o tema do
      SITE, e a parte final do degradê ficava 100% dependente disso,
@@ -2103,6 +2108,22 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
    same gradient (same angle, same colors) so it reads as one continuous
    surface instead of a border that doesn't match what's behind it. */
 .profile-modal-box.profile-modal-accented {
+  /* BUG CORRIGIDO ("texto some no tema claro, já que são cinza/escuros
+     — corrija pra funcionar em todos os temas"): --header-primary,
+     --text-normal e --text-muted mudam de valor conforme o TEMA DO
+     SITE (no tema Claro, são praticamente pretos, pensados pra
+     combinar com um fundo claro) — mas o corpo do card do perfil
+     agora tem fundo SEMPRE escuro e fixo (correção anterior), então
+     qualquer texto que ainda usasse essas variáveis "puras" ficava
+     quase invisível no tema Claro (texto escuro sobre fundo escuro).
+     Redefinindo essas 3 variáveis aqui, no elemento raiz do card, TODO
+     texto filho que usa var(--text-normal) etc herda automaticamente
+     o valor fixo — sem precisar caçar e corrigir cada elemento de
+     texto um por um. Valores do próprio tema Escuro, que já têm bom
+     contraste garantido contra fundo escuro. */
+  --header-primary: #f2f3f5;
+  --text-normal: #dbdee1;
+  --text-muted: #949ba4;
   /* BUG CORRIGIDO ("perfil fica bugado dependendo do tema" / "degradê
      estranho quando o fundo é preto num tema claro"): o tema Claro tem
      uma regra genérica (mais abaixo no arquivo) que dá uma borda cinza
@@ -2561,6 +2582,21 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 
 .profile-scrap-composer { display: flex; gap: 6px; margin-bottom: 10px; }
 .profile-scrap-composer input { flex: 1; }
+/* BUG CORRIGIDO ("barra de escrever recados, fundo dos cargos, botão +,
+   borda do avatar — continuam pegando a cor do tema"): mesma família
+   de bug já corrigida em outros elementos do card acentuado —
+   <input>/<textarea> globais usam var(--bg-deepest) (dependente de
+   tema), .role-chip usa var(--bg-elevated), e a borda do avatar usa
+   var(--bg-primary). Regras específicas aqui, só dentro do contexto
+   "acentuado" (não mexe em input/role-chip usados em QUALQUER outro
+   lugar do app, tipo Configurações ou a lista de cargos da
+   comunidade). */
+.profile-modal-accented input,
+.profile-modal-accented textarea {
+  background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.14);
+}
+.profile-modal-accented .role-chip { background: rgba(255,255,255,0.1); }
+.profile-modal-accented .avatar.xlarge { border-color: color-mix(in srgb, var(--profile-accent-end) 22%, #14151a); }
 .profile-scrap-list { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }
 .profile-scrap-item {
   display: flex; align-items: flex-start; gap: 8px; background: rgba(255,255,255,0.06); border-radius: 8px; padding: 8px;
@@ -4367,6 +4403,14 @@ a.embed-card-title:hover { text-decoration: underline; }
    de se misturar com o fundo, sem precisar de uma cor totalmente à parte. */
 .mini-profile-card.mini-profile-accented {
   border: 4px solid transparent;
+  /* BUG CORRIGIDO: mesma correção de --header-primary/--text-normal/
+     --text-muted já aplicada no perfil completo — texto que não tem
+     lógica de contraste dinâmico própria ficava quase invisível no
+     tema Claro (essas variáveis viram quase-preto nele), já que o
+     fundo do miniperfil é sempre escuro fixo agora. */
+  --header-primary: #f2f3f5;
+  --text-normal: #dbdee1;
+  --text-muted: #949ba4;
   /* BUG CORRIGIDO ("miniperfil com o mesmo problema do perfil completo
      — texto some com cor clara, vaza o tema do site"): usava 55% da
      cor escolhida misturada com var(--bg-elevated) — dependente de
