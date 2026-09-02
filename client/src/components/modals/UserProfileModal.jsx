@@ -461,6 +461,7 @@ user.bio && (
                   </div>
     ),
     polls: (
+(profilePolls.length > 0 || isMe) && (
 <div className="profile-section">
                     <div className="profile-section-label">ENQUETES{profilePolls.length > 0 ? ` — ${profilePolls.length}` : ''}</div>
                     {/* Item pedido: "centralizar em Configurações" —
@@ -486,6 +487,7 @@ user.bio && (
                       </div>
                     ))}
                   </div>
+)
     ),
     community_activity: (
 redditActivity?.length > 0 && (
@@ -870,30 +872,42 @@ isMe && (
               </div>
 
               {!isMe && (
-                <div className="profile-actions profile-ig-actions">
-                  <button className="btn-primary" onClick={openDM}>Enviar mensagem</button>
-                  <button className="btn-secondary" onClick={addFriend} disabled={friendSent}>
-                    {friendSent ? 'Solicitado' : 'Adicionar amigo'}
-                  </button>
-                  <button className={`btn-secondary ${fanStatus.isFan ? 'active' : ''}`} onClick={toggleFanStatus}>
-                    {fanStatus.isFan ? 'Seguindo' : 'Seguir'}
-                  </button>
-                  <button
-                    type="button"
-                    className={`icon-btn profile-vote-icon-btn like ${data.myVote === 1 ? 'active' : ''}`}
-                    title="Dar Up"
-                    onClick={() => vote(1)}
-                  >
-                    <img className="ui-icon-sm" src={likeIcon} alt="" />
-                  </button>
-                  <button
-                    type="button"
-                    className={`icon-btn profile-vote-icon-btn dislike ${data.myVote === -1 ? 'active' : ''}`}
-                    title={`Dar Down (${data.dislikeCount ?? 0})`}
-                    onClick={() => vote(-1)}
-                  >
-                    <img className="ui-icon-sm" src={dislikeIcon} alt="" /> {data.dislikeCount ?? 0}
-                  </button>
+                <div className="profile-ig-actions-row">
+                  <div className="profile-actions profile-ig-actions">
+                    <button className="btn-primary" onClick={openDM}>Enviar mensagem</button>
+                    <button className="btn-secondary" onClick={addFriend} disabled={friendSent}>
+                      {friendSent ? 'Solicitado' : 'Adicionar amigo'}
+                    </button>
+                    <button className={`btn-secondary ${fanStatus.isFan ? 'active' : ''}`} onClick={toggleFanStatus}>
+                      {fanStatus.isFan ? 'Seguindo' : 'Seguir'}
+                    </button>
+                  </div>
+                  {/* BUG CORRIGIDO ("botões de voto minúsculos e
+                      espremidos ao lado dos botões grandes"): antes
+                      ficavam na MESMA fileira, sem nenhuma diferença
+                      de tratamento visual — os 3 primeiros esticam
+                      (flex: 1) pra preencher o espaço, os de voto não,
+                      então sobravam pequenos no canto, sem clareza do
+                      que faziam. Grupo próprio agora, com mais
+                      destaque. */}
+                  <div className="profile-vote-group">
+                    <button
+                      type="button"
+                      className={`icon-btn profile-vote-icon-btn like ${data.myVote === 1 ? 'active' : ''}`}
+                      title="Dar Up"
+                      onClick={() => vote(1)}
+                    >
+                      <img className="ui-icon-sm" src={likeIcon} alt="" />
+                    </button>
+                    <button
+                      type="button"
+                      className={`icon-btn profile-vote-icon-btn dislike ${data.myVote === -1 ? 'active' : ''}`}
+                      title={`Dar Down (${data.dislikeCount ?? 0})`}
+                      onClick={() => vote(-1)}
+                    >
+                      <img className="ui-icon-sm" src={dislikeIcon} alt="" /> {data.dislikeCount ?? 0}
+                    </button>
+                  </div>
                 </div>
               )}
 

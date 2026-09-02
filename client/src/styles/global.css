@@ -2177,7 +2177,7 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 /* Na versão tela cheia, a mesma altura de 100px (pensada pro modal
    estreito de antes) ficava esticando muito a imagem de largura numa
    faixa bem fina — agora escala com a largura real disponível. */
-.profile-modal-fullscreen .profile-banner { height: min(340px, 40vh); position: relative; }
+.profile-modal-fullscreen .profile-banner { height: min(220px, 32vh); position: relative; }
 .profile-banner img { width: 100%; height: 100%; object-fit: cover; }
 .profile-modal-body { padding: 0 16px 16px; }
 .profile-avatar-row { display: flex; align-items: flex-end; justify-content: space-between; margin-top: -46px; margin-bottom: 8px; }
@@ -2273,11 +2273,12 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 /* row-reverse: inverte visualmente o lado (banner passa pra direita,
    cabeçalho pra esquerda) sem precisar reordenar o JSX. */
 .profile-modal-fullscreen .profile-top-row { display: flex; align-items: stretch; gap: 20px; flex-direction: row-reverse; }
+/* BUG CORRIGIDO ("banner extra grande empurra tudo pra baixo, força
+   muita rolagem"): 280px fixo era bastante em telas comuns — reduzido
+   pra algo que ainda dá um visual bonito de banner sem dominar a
+   tela. */
 .profile-modal-fullscreen .profile-banner {
-  /* Sem cantos arredondados e sem margem — encosta direto nas bordas do
-     card de perfil (topo e lateral) em vez de flutuar com espaço em volta,
-     e ocupa toda a largura que sobra na fileira ao lado do cabeçalho. */
-  flex: 1 1 auto; height: 280px; border-radius: 0; overflow: hidden; margin: 0;
+  flex: 1 1 auto; height: 220px; border-radius: 0; overflow: hidden; margin: 0;
   position: relative;
 }
 .profile-modal-fullscreen .profile-banner img {
@@ -2316,6 +2317,17 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 .profile-ig-bio { margin: 0; }
 .profile-ig-actions { display: flex; gap: 8px; margin-bottom: 4px; align-items: center; }
 .profile-ig-actions .btn-primary, .profile-ig-actions .btn-secondary { flex: 1; }
+/* Item pedido: separa visualmente os botões de ação (mensagem/amigo/
+   seguir, que esticam pra preencher o espaço) dos botões de voto
+   (like/dislike, que ficam num grupo próprio, com mais destaque em
+   vez de minúsculos no canto). */
+.profile-ig-actions-row { display: flex; gap: 8px; margin-bottom: 4px; align-items: stretch; }
+.profile-ig-actions-row .profile-ig-actions { flex: 1; margin-bottom: 0; }
+.profile-vote-group {
+  display: flex; gap: 4px; flex-shrink: 0; background: var(--bg-secondary); border-radius: 8px; padding: 4px;
+}
+.profile-vote-group .profile-vote-icon-btn { width: auto; min-width: 36px; padding: 0 10px; height: 100%; background: none; }
+.profile-vote-group .profile-vote-icon-btn:hover { background: var(--bg-modifier-hover); }
 /* Botão principal ("Enviar mensagem") do perfil acompanha a cor escolhida
    pela pessoa em vez de ficar sempre na cor de marca fixa do app — cor de
    fundo + --profile-accent-text garantem contraste sempre, qualquer que
@@ -2394,12 +2406,14 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 @media (min-width: 640px) {
   .profile-ig-columns { columns: 2; }
 }
-/* Item pedido: "aproveite melhor o espaço horizontal" — em telas bem
-   largas (desktop, agora que o modal ocupa a largura toda menos a
-   barra lateral), 3 colunas cabem confortavelmente sem apertar. */
-@media (min-width: 1100px) {
-  .profile-ig-columns { columns: 3; }
-}
+/* BUG CORRIGIDO ("colunas com alturas muito desiguais, sobra espaço
+   vazio enorme numa coluna enquanto a outra fica cheia"): 3 colunas
+   dava mais chance de desbalanceamento severo — quanto mais colunas,
+   menos "material" o navegador tem em cada uma pra distribuir de
+   forma uniforme, e seções com tamanhos bem diferentes (Sobre curto
+   vs Recados com vários itens) ficavam concentradas de forma
+   desigual. 2 colunas balanceiam bem melhor na prática, mesmo em
+   telas largas. */
 
 /* Insígnias em grade com nome visível embaixo (antes era só uma fileira
    de ícones pequenos sem nome, precisava clicar pra saber o que era). */
@@ -2492,7 +2506,19 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 
 .admin-badge-icon-upload { display: flex; align-items: center; gap: 8px; }
 .admin-badge-icon-preview { width: 28px; height: 28px; border-radius: 6px; object-fit: cover; }
-.profile-section { margin-bottom: 10px; }
+/* BUG CORRIGIDO ("perfil ainda feio, umas seções parecem prontas e
+   outras esquecidas"): antes só as seções que explicitamente
+   colocavam fundo nos ITENS internos (Recados, Depoimentos) pareciam
+   "cards" de verdade — Sobre, Membro Desde, Conexões etc eram só
+   texto solto direto no fundo escuro do perfil, sem nenhum contorno,
+   dando uma sensação de "inacabado". Fundo sutil (só um leve
+   contorno, não compete com os itens internos que já têm fundo mais
+   forte) + padding + cantos arredondados aplicados na SEÇÃO em si,
+   automaticamente em todas — consistência sem precisar mexer seção
+   por seção. */
+.profile-section {
+  margin-bottom: 10px; background: rgba(255,255,255,0.035); border-radius: 10px; padding: 12px 14px;
+}
 .profile-section-label { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.02em; margin-bottom: 4px; }
 /* Título de cada seção (SOBRE, CARGOS, CONEXÕES...) ganha um leve tom da
    cor do perfil em vez do cinza genérico igual pra todo mundo — mistura
