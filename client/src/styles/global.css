@@ -2087,6 +2087,18 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
   position: fixed; top: calc(var(--top-search-bar-height, 52px) + env(safe-area-inset-top, 0px)); left: var(--main-sidebar-width, 220px); right: 0; bottom: 0;
   padding: 0; background: none; z-index: 250; display: block;
 }
+/* BUG CORRIGIDO ("perfil completo não mostra na tela, botões vários
+   fora da tela, nem consegue contar"): em mobile a barra de categorias
+   vira uma GAVETA ESCONDIDA (transform: translateX(-100%), ver
+   .main-sidebar mais abaixo) — não ocupa espaço real na tela. Mas essa
+   regra ainda reservava --main-sidebar-width (220px) de espaço vazio à
+   esquerda incondicionalmente, MESMO em mobile, espremendo o card
+   inteiro do perfil numa fração pequena da largura real da tela — daí
+   tudo dentro dele (inclusive a fileira de botões) ficava cortado/
+   fora da tela. Zera esse espaço reservado só em telas estreitas. */
+@media (max-width: 600px) {
+  .profile-fullscreen-overlay { left: 0; }
+}
 .profile-modal-fullscreen {
   width: 100%; max-width: 100%; height: 100%; max-height: 100%;
   border-radius: 0; margin: 0; overflow-y: auto;
@@ -2348,6 +2360,16 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
    (like/dislike, que ficam num grupo próprio, com mais destaque em
    vez de minúsculos no canto). */
 .profile-ig-actions-row { display: flex; gap: 8px; margin-bottom: 4px; align-items: stretch; }
+/* BUG CORRIGIDO ("botões fora da tela, vários, nem consegue contar"):
+   3 botões de ação (Mensagem/Amigo/Seguir) + o grupo de voto tentavam
+   caber numa única linha, sem quebra — em telas estreitas isso
+   estourava a largura disponível, cortando/espremendo tudo. Quebra em
+   2 linhas quando não cabe (grupo de voto, menor e menos essencial,
+   vai pra segunda linha; os 3 botões principais continuam juntos). */
+@media (max-width: 600px) {
+  .profile-ig-actions-row { flex-wrap: wrap; }
+  .profile-ig-actions-row .profile-ig-actions { flex-basis: 100%; }
+}
 .profile-ig-actions-row .profile-ig-actions { flex: 1; margin-bottom: 0; }
 .profile-vote-group {
   display: flex; gap: 4px; flex-shrink: 0; background: rgba(255,255,255,0.06); border-radius: 8px; padding: 4px;
@@ -3797,6 +3819,12 @@ a.embed-card-title:hover { text-decoration: underline; }
     position: fixed; top: 0; left: 0; bottom: 0; width: min(80vw, 260px);
     z-index: 230; box-shadow: 2px 0 16px rgba(0,0,0,.5);
     transform: translateX(-100%); transition: transform .2s ease;
+    /* BUG CORRIGIDO ("barra lateral de categorias muito pra cima, pega
+       as informações de hora/bateria etc"): a gaveta começava em
+       top:0 fixo, sem reservar nenhum espaço pra barra de status do
+       celular (hora, bateria, sinal) — o conteúdo do topo dela ficava
+       colado ali, sobreposto. */
+    padding-top: env(safe-area-inset-top, 0px);
   }
   .main-sidebar-scroll { padding: 16px 14px 10px; }
   .main-sidebar-brand { justify-content: flex-start; padding: 0 4px; }
