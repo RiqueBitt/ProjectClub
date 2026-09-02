@@ -107,6 +107,9 @@ export default function UserSettingsModal({ onClose }) {
   const [form, setForm] = useState({
     displayName: user.displayName, bio: user.bio || '', pronouns: user.pronouns || '',
     customStatus: user.customStatus || '', customStatusEmoji: user.customStatusEmoji || '', profileColor: user.profileColor,
+    // Item pedido: cor da barra de nível personalizável — null usa o
+    // verde padrão (ver .profile-level-progress-fill em global.css).
+    levelBarColor: user.levelBarColor || '',
     profileNameFont: user.profileNameFont || 'NORMAL',
     profileNameEffect: user.profileNameEffect || 'SOLID',
     profileNameColor: user.profileNameColor || '#F2894D',
@@ -532,6 +535,20 @@ export default function UserSettingsModal({ onClose }) {
             </div>
           </div>
           )}
+
+          <div className="settings-block">
+            <h4>Cor da barra de nível</h4>
+            <p className="dim">A barra de progresso de nível no seu perfil é verde por padrão — escolha outra cor se preferir.</p>
+            <div className="role-color-row profile-color-row">
+              <label>
+                COR DA BARRA
+                <input type="color" value={form.levelBarColor || '#23a55a'} onChange={(e) => setForm((f) => ({ ...f, levelBarColor: e.target.value }))} />
+              </label>
+              {form.levelBarColor && (
+                <button type="button" className="btn-link" onClick={() => setForm((f) => ({ ...f, levelBarColor: '' }))}>Usar verde padrão</button>
+              )}
+            </div>
+          </div>
 
           <div className="settings-block">
             <h4>Estilo do nome (só no seu perfil)</h4>

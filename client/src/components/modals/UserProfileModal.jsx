@@ -30,7 +30,7 @@ import robloxIcon from '../../assets/icons/social-roblox.png';
 import xIcon from '../../assets/icons/social-x.png';
 import levelStarIcon from '../../assets/icons/level-star.png';
 import { proxyImage } from '../../utils/imageProxy';
-import { parseProfileSectionOrder } from '../../utils/profileSections';
+import { visibleProfileSectionOrder } from '../../utils/profileSections';
 
 // Rendered once at the app root (see MainApp.jsx) and driven entirely by
 // `viewingProfileUserId` in the zustand store — call `openProfile(userId)`
@@ -852,7 +852,7 @@ isMe && (
                   <span className="dim">{data.levelProgress ?? 0}% para o próximo nível</span>
                 </div>
                 <div className="profile-level-progress-track">
-                  <div className="profile-level-progress-fill" style={{ width: `${data.levelProgress ?? 0}%` }} />
+                  <div className="profile-level-progress-fill" style={{ width: `${data.levelProgress ?? 0}%`, background: user.levelBarColor || undefined }} />
                 </div>
               </div>
 
@@ -914,8 +914,6 @@ isMe && (
                     </div>
                   )}
 
-                  )}
-
                   {isMe && (birthdays.today.length > 0 || birthdays.upcoming.length > 0) && (
                     <div className="profile-section">
                       <div className="profile-section-label">ANIVERSARIANTES</div>
@@ -939,7 +937,7 @@ isMe && (
               </div>
 
               <div className="profile-ig-columns">
-                {parseProfileSectionOrder(user.profileSectionOrder).map((key) => (
+                {visibleProfileSectionOrder(user.profileSectionOrder).map((key) => (
                   <div key={key} className="profile-section-order-wrap">{SECTION_ELEMENTS[key]}</div>
                 ))}
               </div>

@@ -32,16 +32,27 @@ export const DEFAULT_PROFILE_SECTION_ORDER = [
   'traits', 'scraps', 'testimonials', 'visitors',
 ];
 
-// Lê a preferência salva (string JSON) e devolve uma ordem VÁLIDA e
-// COMPLETA — filtra chaves desconhecidas (segurança/compatibilidade
-// futura) e garante que qualquer chave que exista no padrão mas não
-// esteja na lista da pessoa entra no fim, em vez de desaparecer.
+// Item pedido: "pode desativar qualquer uma também" — cada item agora
+// é um objeto { key, hidden }, não só uma string. Lida com o formato
+// ANTIGO também (array de strings puras, de antes dessa mudança) —
+// nesse caso, nada estava oculto, então todo mundo vira hidden:false.
 export function parseProfileSectionOrder(raw) {
   let saved = [];
   try {
     const parsed = JSON.parse(raw || '[]');
-    if (Array.isArray(parsed)) saved = parsed.filter((k) => PROFILE_SECTION_LABELS[k]);
+    if (Array.isArray(parsed)) {
+      saved = parsed
+        .map((item) => (typeof item === 'string' ? { key: item, hidden: false } : item))
+        .filter((item) => item && PROFILE_SECTION_LABELS[item.key]);
+    }
   } catch { saved = []; }
-  const missing = DEFAULT_PROFILE_SECTION_ORDER.filter((k) => !saved.includes(k));
+  const savedKeys = saved.map((item) => item.key);
+  const missing = DEFAULT_PROFILE_SECTION_ORDER.filter((k) => !savedKeys.includes(k)).map((key) => ({ key, hidden: false }));
   return [...saved, ...missing];
+}
+
+// Mesma coisa, mas só as chaves VISÍVEIS, na ordem — o que
+// UserProfileModal.jsx de fato usa pra renderizar.
+export function visibleProfileSectionOrder(raw) {
+  return parseProfileSectionOrder(raw).filter((item) => !item.hidden).map((item) => item.key);
 }

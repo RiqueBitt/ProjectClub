@@ -1382,6 +1382,14 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .settings-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--header-primary); border-top: 1px solid var(--bg-modifier-hover); padding-top: 16px; margin-top: 4px; letter-spacing: .02em; }
 .display-name-row { display: flex; gap: 10px; align-items: flex-end; }
 .display-name-row label:first-child { flex: 1; }
+/* Item pedido: aniversário (dia/mês) — mesmo padrão de "campos lado a
+   lado" já usado em .display-name-row acima. BUG CORRIGIDO: esse
+   container nunca tinha ganhado CSS nenhum antes, os dois <select>
+   ficavam empilhados um embaixo do outro (comportamento padrão de
+   bloco), sem clareza nenhuma de que eram um par — provavelmente por
+   isso não foi percebido como "o campo de aniversário" de primeira. */
+.birthday-picker-row { display: flex; gap: 10px; margin-top: 4px; }
+.birthday-picker-row select { flex: 1; }
 .name-style-color-row { display: flex; gap: 10px; }
 .id-card-settings-row { display: flex; align-items: center; gap: 10px; }
 .id-card-settings-preview { width: 64px; height: 40px; object-fit: cover; border-radius: 6px; }
@@ -2211,12 +2219,20 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
   display: flex; gap: 10px; align-items: center; background: var(--bg-elevated);
   border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; max-width: 260px;
 }
+/* Item pedido: "aumente mais um pouco a foto das atividades de jogos,
+   música etc, o ícone/foto está pequena ainda". Tamanho base (usado
+   também no painel estreito de DM, DMProfilePanel.jsx — só 240px de
+   largura ali, por isso moderado aqui) — o perfil completo, que tem
+   bem mais espaço, ganha um tamanho ainda maior logo abaixo. */
 .activity-badge-icon {
-  width: 40px; height: 40px; border-radius: 6px; flex-shrink: 0; overflow: hidden;
+  width: 48px; height: 48px; border-radius: 8px; flex-shrink: 0; overflow: hidden;
   display: flex; align-items: center; justify-content: center; background: var(--bg-secondary-alt);
 }
 .activity-badge-icon img { width: 100%; height: 100%; object-fit: cover; }
-.activity-badge-icon-fallback { width: 24px; height: 24px; object-fit: contain; }
+.activity-badge-icon-fallback { width: 30px; height: 30px; object-fit: contain; }
+.profile-modal-fullscreen .activity-badge { max-width: 320px; padding: 12px 14px; }
+.profile-modal-fullscreen .activity-badge-icon { width: 64px; height: 64px; border-radius: 10px; }
+.profile-modal-fullscreen .activity-badge-icon-fallback { width: 38px; height: 38px; }
 .activity-inline-icon { width: 13px; height: 13px; object-fit: contain; vertical-align: middle; }
 .activity-badge-text { min-width: 0; flex: 1; }
 .activity-badge-title { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
@@ -2540,14 +2556,14 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
    ~3x menor (era 3 colunas fixas tipo 1fr, ocupando bastante espaço
    cada uma; agora cada item tem um tamanho MÁXIMO pequeno, e o grid
    encaixa quantas colunas couberem na largura disponível sozinho). */
-.profile-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 84px)); gap: 6px; }
+.profile-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 168px)); gap: 8px; }
 .profile-photo-grid-item {
   aspect-ratio: 1; border-radius: 6px; overflow: hidden; background: var(--bg-secondary);
 }
 .profile-photo-grid-item img, .profile-photo-grid-item video { width: 100%; height: 100%; object-fit: cover; }
 .photo-album { display: flex; flex-direction: column; gap: 12px; }
 .photo-album-empty { text-align: center; padding: 20px 0; font-size: 13px; }
-.photo-album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 110px)); gap: 8px; }
+.photo-album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 220px)); gap: 10px; }
 .photo-album-grid-item { aspect-ratio: 1; border-radius: 6px; overflow: hidden; background: var(--bg-secondary); position: relative; }
 .photo-album-grid-item img, .photo-album-grid-item video { width: 100%; height: 100%; object-fit: cover; }
 .photo-album-comment-count {
@@ -2591,9 +2607,15 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
    nas Configurações → Colunas. */
 .profile-section-order-list { display: flex; flex-direction: column; gap: 4px; }
 .profile-section-order-item {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  display: flex; align-items: center; gap: 10px;
   padding: 10px 12px; border-radius: 8px; background: var(--bg-secondary); font-size: 14px;
 }
+/* Item pedido: "pode desativar qualquer uma" — item oculto fica
+   esmaecido, pra ficar claro na hora de editar que ele não vai
+   aparecer no perfil (sem precisar remover ele da lista de ordem). */
+.profile-section-order-item.hidden { opacity: 0.5; }
+.profile-section-order-item > span.truncate { flex: 1; }
+.profile-section-order-visibility { flex-shrink: 0; }
 .profile-section-order-buttons { display: flex; gap: 4px; flex-shrink: 0; }
 .profile-section-order-buttons button {
   width: 26px; height: 26px; border-radius: 6px; background: var(--bg-modifier-hover); color: var(--text-normal);

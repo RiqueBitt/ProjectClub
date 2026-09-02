@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore, isChannelUnread, isConversationUnread } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
-import { listPendingTestimonials, respondTestimonial } from '../api/endpoints';
+import { listPendingTestimonials, respondTestimonial, listPendingRelationships, respondRelationship } from '../api/endpoints';
 
 // Área de notificações: reúne, num só lugar, tudo que já é sinalizado
 // pontualmente em outras partes do app — canais com menções não lidas,
@@ -40,7 +40,24 @@ export default function NotificationsPage() {
       .catch(() => {});
   };
 
-  const isEmpty = unreadChannels.length === 0 && unreadConversations.length === 0 && pendingIncoming.length === 0 && pendingTestimonials.length === 0;
+  // BUG CORRIGIDO ("terminar namoro não aparecia"): o pedido de namoro
+  // podia ser ENVIADO (ver requestRelationship em UserProfileModal.jsx),
+  // mas nunca existia nenhum jeito de a outra pessoa ACEITAR — a
+  // função já existia na API (respondRelationship), só nunca tinha
+  // sido conectada em lugar nenhum da interface. Mesmo padrão dos
+  // depoimentos pendentes acima.
+  const [pendingRelationships, setPendingRelationships] = useState([]);
+  useEffect(() => {
+    listPendingRelationships().then((d) => setPendingRelationships(d.requests)).catch(() => {});
+  }, []);
+
+  const respondToRelationship = (id, action) => {
+    respondRelationship(id, action)
+      .then(() => setPendingRelationships((prev) => prev.filter((r) => r.id !== id)))
+      .catch(() => {});
+  };
+
+  const isEmpty = unreadChannels.length === 0 && unreadConversations.length === 0 && pendingIncoming.length === 0 && pendingTestimonials.length === 0 && pendingRelationships.length === 0;
 
   return (
     <div className="notifications-page">
@@ -70,6 +87,26 @@ export default function NotificationsPage() {
                 <div className="notifications-testimonial-actions">
                   <button className="btn-secondary" onClick={() => respondToTestimonial(t.id, 'decline')}>Recusar</button>
                   <button className="btn-primary" onClick={() => respondToTestimonial(t.id, 'approve')}>Aprovar</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {pendingRelationships.length > 0 && (
+        <section className="notifications-section">
+          <h3>Pedidos de namoro</h3>
+          <ul className="notifications-list notifications-list-testimonials">
+            {pendingRelationships.map((r) => (
+              <li key={r.id} className="notifications-item notifications-item-testimonial">
+                <div className="notifications-testimonial-header">
+                  <span className="notifications-item-icon">💌</span>
+                  <span className="truncate"><strong>{r.requester.displayName}</strong> te pediu em namoro!</span>
+                </div>
+                <div className="notifications-testimonial-actions">
+                  <button className="btn-secondary" onClick={() => respondToRelationship(r.id, 'decline')}>Recusar</button>
+                  <button className="btn-primary" onClick={() => respondToRelationship(r.id, 'accept')}>Aceitar 💞</button>
                 </div>
               </li>
             ))}

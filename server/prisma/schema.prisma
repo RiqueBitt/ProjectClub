@@ -49,6 +49,12 @@ model User {
   // data (não tem como recuperar um dado que nunca foi salvo aqui) —
   // só afeta cadastros novos daqui pra frente.
   birthDate           DateTime?
+  // Item pedido: "personalizar a cor da barra de nível, normalmente é
+  // verde" — null usa o verde padrão (var(--green) no CSS), só quando
+  // a pessoa escolhe uma cor própria é que esse campo é preenchido.
+  // Público (não vai em SELF_USER_FIELDS) — é a mesma barra que
+  // qualquer visitante do perfil vê, igual a cor do perfil já é.
+  levelBarColor       String?
   profileColor        String    @default("#1877F2")
   profileNameFont     String    @default("NORMAL")
   profileNameEffect   String    @default("SOLID")

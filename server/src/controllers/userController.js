@@ -20,7 +20,7 @@ const PROFILE_SECTION_KEYS = [
 
 async function updateProfile(req, res, next) {
   try {
-    const allowed = ['displayName', 'bio', 'pronouns', 'customStatus', 'profileColor', 'profileSectionOrder'];
+    const allowed = ['displayName', 'bio', 'pronouns', 'customStatus', 'profileColor', 'profileSectionOrder', 'levelBarColor'];
     // Conexões links (see UserSettingsModal.jsx's "Conexões" section under the
     // PROFILE tab / UserProfileModal.jsx's Conexões display) — plain optional
     // URLs, no OAuth verification. Sanitized to either a real http(s) link or
@@ -51,7 +51,15 @@ async function updateProfile(req, res, next) {
     if (data.profileSectionOrder !== undefined) {
       try {
         const parsed = JSON.parse(data.profileSectionOrder);
-        if (!Array.isArray(parsed) || !parsed.every((k) => typeof k === 'string' && VALID_SECTION_KEYS.includes(k))) {
+        // Item pedido: "pode desativar qualquer uma também" — cada
+        // item agora é um objeto { key, hidden } (aceita string pura
+        // também, formato antigo de antes dessa mudança — tratada
+        // como "hidden: false").
+        const isValidItem = (item) => {
+          if (typeof item === 'string') return VALID_SECTION_KEYS.includes(item);
+          return item && typeof item === 'object' && VALID_SECTION_KEYS.includes(item.key) && typeof item.hidden === 'boolean';
+        };
+        if (!Array.isArray(parsed) || !parsed.every(isValidItem)) {
           delete data.profileSectionOrder;
         }
       } catch {
