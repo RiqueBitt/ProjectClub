@@ -276,7 +276,26 @@ async function uploadPostImage(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Item pedido: "posts da comunidade que estejam em destaque durante o
+// mês" (categoria "Início") — os 3 posts com mais Ups criados desde o
+// início do mês corrente. Reaproveita POST_INCLUDE (mesmo formato já
+// usado em listPosts/getPost), evitando duplicar a seleção de campos.
+async function listFeaturedPostsThisMonth(req, res, next) {
+  try {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const posts = await prisma.post.findMany({
+      where: { createdAt: { gte: monthStart } },
+      include: POST_INCLUDE,
+      orderBy: { score: 'desc' },
+      take: 3,
+    });
+    res.json({ posts });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   listPosts, createPost, uploadPostImage, getPost, deletePost, votePost,
   listComments, addComment, voteComment, deleteComment,
+  listFeaturedPostsThisMonth,
 };

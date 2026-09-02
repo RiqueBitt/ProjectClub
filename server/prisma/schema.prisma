@@ -200,6 +200,7 @@ model User {
 
   warningsReceived Warning[] @relation("WarningTarget")
   announcementsCreated PlatformAnnouncement[]
+  eventsCreated         Event[]
   updateLogEntries     UpdateLogEntry[]
   ownedFurniture       UserFurniture[]
   ownedHouses          UserHouse[]
@@ -290,6 +291,27 @@ model PlatformSettings {
   // assim que a conta é criada, sem precisar comprar nada.
   starterHouseId     String?
   starterMapId       String?
+}
+
+// Item pedido: "sistema de eventos integrado ao painel da Staff" — só
+// quem tem permissão de staff pode criar/editar/excluir (checado no
+// controller, ver ADMIN/MODERATOR em roleMiddleware). Aparecem
+// automaticamente na categoria "Início". status é editado manualmente
+// pela staff (não calculado a partir das datas) — mais simples e dá
+// controle total pra staff encerrar um evento antes da hora, por
+// exemplo, sem precisar mexer na data.
+model Event {
+  id          String    @id @default(uuid())
+  title       String
+  description String    @db.Text
+  bannerUrl   String?
+  iconUrl     String?
+  startsAt    DateTime?
+  endsAt      DateTime?
+  status      String    @default("UPCOMING") // UPCOMING | ACTIVE | ENDED
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
 }
 
 model PlatformAnnouncement {

@@ -343,6 +343,26 @@ export const listUpdates = () => api.get('/updates').then((r) => r.data);
 export const createUpdate = (payload) => api.post('/updates', payload).then((r) => r.data);
 export const deleteUpdateEntry = (id) => api.delete(`/updates/${id}`).then((r) => r.data);
 
+// Item pedido: "sistema de eventos integrado ao painel da Staff"
+export const listEvents = () => api.get('/events').then((r) => r.data);
+export const createEvent = (payload) => api.post('/events', payload).then((r) => r.data);
+export const updateEvent = (id, payload) => api.patch(`/events/${id}`, payload).then((r) => r.data);
+export const deleteEvent = (id) => api.delete(`/events/${id}`).then((r) => r.data);
+export const uploadEventBanner = (id, file) => {
+  const fd = new FormData(); fd.append('banner', file);
+  return api.post(`/events/${id}/banner`, fd).then((r) => r.data);
+};
+export const uploadEventIcon = (id, file) => {
+  const fd = new FormData(); fd.append('icon', file);
+  return api.post(`/events/${id}/icon`, fd).then((r) => r.data);
+};
+
+// Item pedido: "vídeos publicados no canal do YouTube" (categoria Início)
+export const listYoutubeVideos = () => api.get('/youtube/videos').then((r) => r.data);
+
+// Item pedido: "posts da comunidade em destaque durante o mês" (categoria Início)
+export const listFeaturedPosts = () => api.get('/posts/featured').then((r) => r.data);
+
 // --- Push notifications (Android) ---
 export const registerPushToken = (token, platform) => api.post('/push/register', { token, platform }).then((r) => r.data);
 export const unregisterPushToken = (token) => api.post('/push/unregister', { token }).then((r) => r.data);
