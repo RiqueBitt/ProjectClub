@@ -18,5 +18,10 @@
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <!-- BUG CORRIGIDO ("tela azul escuro desconhecida aparece
+             primeiro"): sem essa cor definida, o Android escolhia uma
+             cor própria pro fundo da splash — agora usa a mesma cor
+             de fundo do resto do app (ver colors.xml). -->
+        <item name="windowSplashScreenBackground">@color/splashBackground</item>
     </style>
 </resources>

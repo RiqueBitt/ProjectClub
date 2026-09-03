@@ -227,7 +227,14 @@ if (!gotLock) {
       show: !startHidden,
       icon: path.join(__dirname, 'build', 'icon.ico'),
       autoHideMenuBar: true,
-      backgroundColor: '#080a14',
+      // BUG CORRIGIDO ("tela azul escuro aparece antes até da tela de
+      // carregamento"): #080a14 nunca combinou com a cor de fundo real
+      // do app (--bg-primary do tema escuro em global.css, #313338) —
+      // essa cor aparece na janela por uma fração de segundo antes do
+      // HTML/CSS carregarem de verdade, criando um "flash" visualmente
+      // desconectado do resto do app. Mesma cor agora, consistente com
+      // a splash nativa do Android (ver colors.xml) e o app em si.
+      backgroundColor: '#313338',
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
