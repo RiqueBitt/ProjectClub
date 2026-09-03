@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 
 const MIN_VH = 32;
 const MAX_VH = 92;
-const DEFAULT_VH = 60;
+// Item pedido: "menos alto" (pro menu de GIF/emoji no PC) — 60vh
+// (bem mais da metade da tela) também batia com a queixa anterior de
+// "cobrindo demais" no mobile. 40vh é uma altura inicial mais
+// enxuta nos dois contextos — ainda dá pra arrastar a alça pra
+// aumentar se quiser, isso não muda (MIN_VH/MAX_VH continuam os
+// mesmos).
+const DEFAULT_VH = 40;
 
 // Powers the drag handle at the top of the GIF/emoji picker. On mobile it's
 // shown as a bottom sheet (see .sheet-drag-handle in global.css) — drag up

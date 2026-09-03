@@ -1171,14 +1171,17 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
        pelos componentes que abrem isso), com 78px só como reserva
        pros poucos lugares que ainda não passam essa variável. +12px
        de respiro entre o popover e a barra. */
-    position: fixed; left: 50%; right: auto; transform: translateX(-50%);
+    position: fixed; left: auto; transform: none;
     bottom: calc(var(--composer-height, 78px) + 12px); top: auto;
-    /* Item pedido: "estilo, se possível, pra pegar de ponta a ponta" —
-       ocupa a largura toda (menos 16px de respiro em cada lado) em vez
-       de uma caixa estreita — limitado a 720px em telas bem largas,
-       pra não ficar esticado de forma exagerada num monitor grande. */
-    width: calc(100% - 32px); max-width: 720px;
-    height: var(--sheet-height, 46vh); max-height: 70vh;
+    /* Item pedido: "mais largo, menos alto, e mais pra direita" —
+       ancorado perto de onde os botões de GIF/Emoji realmente ficam
+       na barra (lado direito, perto do botão de enviar), em vez de
+       centralizado na tela toda — right: 16px é a mesma margem usada
+       do outro lado. Mais largo (900px) e mais baixo (34vh) que
+       antes. */
+    right: 16px;
+    width: min(900px, calc(100% - 32px));
+    height: var(--sheet-height, 34vh); max-height: 50vh;
     border-radius: 10px;
   }
   .emoji-picker-popover.composer-centered-picker .sheet-drag-handle,
