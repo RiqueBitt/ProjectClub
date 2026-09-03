@@ -13,4 +13,18 @@ async function getStatus(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { getStatus };
+// Item pedido: "mostra informações sobre a plataforma" (categoria
+// Início) — números públicos simples, sem inventar nenhuma tabela
+// nova, só contando o que já existe no banco.
+async function getPlatformStats(req, res, next) {
+  try {
+    const [memberCount, postCount, communityCount] = await Promise.all([
+      prisma.user.count(),
+      prisma.post.count(),
+      prisma.community.count(),
+    ]);
+    res.json({ memberCount, postCount, communityCount });
+  } catch (err) { next(err); }
+}
+
+module.exports = { getStatus, getPlatformStats };

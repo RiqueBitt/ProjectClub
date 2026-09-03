@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useSocket } from '../context/SocketContext.jsx';
-import { listUpdates, listEvents, listYoutubeVideos, listFeaturedPosts, votePost } from '../api/endpoints';
+import { listUpdates, listEvents, listYoutubeVideos, listFeaturedPosts, getPlatformStats, votePost } from '../api/endpoints';
 import { PostCard } from './CommunitiesPage.jsx';
 import { proxyImage } from '../utils/imageProxy';
 import inicioIcon from '../assets/icons/nav-updates.png';
@@ -32,12 +32,14 @@ export default function InicioPage() {
   const [events, setEvents] = useState(null);
   const [videos, setVideos] = useState(null);
   const [featuredPosts, setFeaturedPosts] = useState(null);
+  const [stats, setStats] = useState(null);
 
   useEffect(() => {
     listUpdates().then((d) => setUpdates(d.updates)).catch(() => setUpdates([]));
     listEvents().then((d) => setEvents(d.events)).catch(() => setEvents([]));
     listYoutubeVideos().then((d) => setVideos(d.videos)).catch(() => setVideos([]));
     listFeaturedPosts().then((d) => setFeaturedPosts(d.posts)).catch(() => setFeaturedPosts([]));
+    getPlatformStats().then(setStats).catch(() => setStats(null));
   }, []);
 
   // Tempo real: eventos/atualizações novas publicadas pela staff
@@ -79,9 +81,18 @@ export default function InicioPage() {
         </div>
       </div>
 
+      {/* Item pedido: "mostra informações sobre a plataforma" */}
+      {stats && (
+        <div className="inicio-stats-row">
+          <div className="inicio-stat-chip"><strong>{stats.memberCount}</strong><span>membros</span></div>
+          <div className="inicio-stat-chip"><strong>{stats.postCount}</strong><span>posts</span></div>
+          <div className="inicio-stat-chip"><strong>{stats.communityCount}</strong><span>comunidades</span></div>
+        </div>
+      )}
+
       {events === null ? null : events.length > 0 && (
         <section className="inicio-section">
-          <h2>Eventos</h2>
+          <h2>🎉 Eventos</h2>
           <div className="inicio-events-grid">
             {events.map((ev) => (
               <div key={ev.id} className="inicio-event-card">
@@ -109,7 +120,7 @@ export default function InicioPage() {
 
       {featuredPosts === null ? null : featuredPosts.length > 0 && (
         <section className="inicio-section">
-          <h2>Posts em destaque do mês</h2>
+          <h2>🔥 Posts em destaque do mês</h2>
           <div className="inicio-featured-posts">
             {featuredPosts.map((post) => (
               <PostCard key={post.id} post={post} onVote={onVotePost} onOpen={() => navigate(`/posts/${post.id}`)} />
@@ -120,7 +131,7 @@ export default function InicioPage() {
 
       {videos === null ? null : videos.length > 0 && (
         <section className="inicio-section">
-          <h2>Vídeos recentes</h2>
+          <h2>▶️ Vídeos recentes</h2>
           <div className="inicio-videos-grid">
             {videos.map((v) => (
               <a key={v.videoId} className="inicio-video-card" href={v.url} target="_blank" rel="noreferrer">
@@ -134,7 +145,7 @@ export default function InicioPage() {
 
       {updates === null ? null : updates.length > 0 && (
         <section className="inicio-section">
-          <h2>Atualizações recentes</h2>
+          <h2>📰 Atualizações recentes</h2>
           <div className="updates-list">
             {updates.slice(0, 5).map((u) => (
               <div key={u.id} className="update-entry-card">

@@ -154,6 +154,7 @@ export const deleteEmoji = (id) => api.delete(`/community/emojis/${id}`).then((r
 
 export const adminGetUserSecurityInfo = (userId) => api.get(`/admin/users/${userId}/security-info`).then((r) => r.data);
 export const getPlatformStatus = () => api.get('/platform/status').then((r) => r.data);
+export const getPlatformStats = () => api.get('/platform/stats').then((r) => r.data);
 export const adminSetMaintenanceMode = (enabled, message) => api.post('/admin/maintenance', { enabled, message }).then((r) => r.data);
 export const adminCreateAnnouncement = (payload) => api.post('/admin/announcements', payload).then((r) => r.data);
 export const adminUploadAnnouncementBanner = (id, file) => {
