@@ -4179,11 +4179,46 @@ a.embed-card-title:hover { text-decoration: underline; }
    da conversa ali mesmo (ChatWindow.jsx), sem abrir nenhum menu e sem
    navegar pra outra página do app. Só aparece dentro de canais (nunca em
    DMs, ver ChatWindow.jsx). */
+/* BUG CORRIGIDO ("não tem rolagem lateral pra ver os outros canais"):
+   a rolagem em si já existia, só sem nenhum indício visual — setas
+   próprias (ver .channel-tabs-arrow) substituem a barra nativa
+   escondida, aparecendo só quando há conteúdo cortado de cada lado. */
+.channel-tabs-wrap { display: flex; align-items: center; flex-shrink: 0; }
+.channel-tabs-arrow {
+  flex-shrink: 0; width: 22px; height: 32px; display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); font-size: 18px; font-weight: 700; margin-top: 10px;
+  background: var(--bg-primary); z-index: 1;
+}
+.channel-tabs-arrow:hover { color: var(--header-primary); }
 .channel-tabs {
-  display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 4px; flex-shrink: 1; min-width: 0;
   padding: 10px 16px 0; overflow-x: auto; scrollbar-width: none;
 }
 .channel-tabs::-webkit-scrollbar { display: none; }
+
+/* BUG CORRIGIDO ("canais ficam um na frente do outro sem saber qual
+   categoria são"): categoria vira uma aba de nível superior — clicar
+   abre um menu com só os canais dela logo abaixo, em vez de tudo
+   achatado numa fileira única. */
+.channel-tab-category-wrap { position: relative; flex-shrink: 0; }
+.channel-tab-category { gap: 4px; }
+.channel-tab-category-caret { font-size: 9px; opacity: .7; margin-left: 2px; }
+.channel-tab-category.open .channel-tab-category-caret { transform: rotate(180deg); }
+.channel-tab-category-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; min-width: 180px; z-index: 60;
+  background: var(--bg-elevated); border-radius: 8px; padding: 6px;
+  box-shadow: 0 8px 24px -8px rgba(0,0,0,.5); display: flex; flex-direction: column; gap: 2px;
+  animation: channel-tab-category-menu-in .12s var(--ease-smooth);
+}
+@keyframes channel-tab-category-menu-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+.channel-tab-category-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 6px;
+  font-size: 13px; font-weight: 500; color: var(--header-secondary); text-align: left; width: 100%;
+}
+.channel-tab-category-item:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.channel-tab-category-item.active { background: var(--bg-modifier-hover); color: var(--interactive-active); }
+.channel-tab-category-item.unread:not(.active) { color: var(--header-primary); }
+.channel-tab-category-item .mention-badge { margin-left: auto; }
 .channel-tab {
   display: flex; align-items: center; gap: 6px; position: relative;
   padding: 8px 14px; border-radius: 10px 10px 0 0;
