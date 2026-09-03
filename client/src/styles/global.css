@@ -3013,7 +3013,19 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 .discover-join-btn { margin-top: 6px; width: 100%; }
 
 /* ---------- Admin panel ---------- */
-.admin-panel { padding: 24px; overflow-y: auto; flex: 1; }
+/* BUG CORRIGIDO ("meter tudo dentro da tela sem precisar uma barra de
+   rolagem lateral"): esse container externo tinha overflow-y: auto,
+   mas .admin-nav e .admin-content (os dois filhos, dentro de
+   .admin-panel-body) TAMBÉM tinham overflow-y: auto cada um — três
+   rolagens aninhadas, causando duas barras de rolagem visíveis ao
+   mesmo tempo (uma da navegação, outra do conteúdo) na prática. Esse
+   container fica com altura fixa (herda display:flex/height:100% de
+   .admin-panel-modern, sempre aplicada junto no mesmo elemento — só
+   min-height: 0 aqui, necessário pra um filho flex conseguir encolher
+   dentro do pai em vez de forçar o próprio tamanho) — só os dois
+   filhos rolam, cada um de forma independente, dentro do espaço que
+   realmente têm. */
+.admin-panel { padding: 24px; flex: 1; min-height: 0; }
 .admin-panel-header { margin-bottom: 20px; }
 .admin-panel-header h1 { font-size: 22px; margin: 0 0 4px; }
 .admin-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-top: 12px; }
@@ -4592,7 +4604,11 @@ a.embed-card-title:hover { text-decoration: underline; }
 .admin-panel-body { display: flex; gap: 24px; flex: 1; min-height: 0; }
 .admin-nav {
   width: 220px; flex-shrink: 0; display: flex; flex-direction: column; gap: 18px;
-  overflow-y: auto; padding-right: 8px;
+  overflow-y: auto; padding-right: 16px;
+  /* Item pedido: "deixe o painel o mais bonito possível" — separação
+     visual clara entre navegação e conteúdo, em vez das duas áreas
+     ficarem "soltas" lado a lado só pelo espaçamento. */
+  border-right: 1px solid var(--border);
 }
 .admin-nav-group-label {
   font-size: 11px; font-weight: 800; letter-spacing: 0.5px; color: var(--text-muted);
@@ -4619,10 +4635,37 @@ a.embed-card-title:hover { text-decoration: underline; }
 .admin-nav-item {
   display: block; width: 100%; text-align: left; padding: 9px 12px; border-radius: 8px;
   font-size: 14px; font-weight: 600; color: var(--text-normal); margin-bottom: 2px;
+  transition: background-color .12s var(--ease-smooth), color .12s var(--ease-smooth);
 }
 .admin-nav-item:hover { background: var(--bg-modifier-hover); }
-.admin-nav-item.active { background: var(--brand); color: #fff; }
+.admin-nav-item.active { background: var(--brand); color: #fff; box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--brand) 60%, transparent); }
 .admin-content { flex: 1; min-width: 0; overflow-y: auto; }
+
+/* Item pedido: "reformule completa a interface do Painel da Staff pra
+   PC e também faça bem pra mobile" — em telas estreitas, a coluna
+   fixa de 220px consumiria mais da metade da largura de um celular
+   comum. Vira uma barra horizontal ACIMA do conteúdo (mesmo padrão já
+   usado em .channel-tabs, que já resolve exatamente esse mesmo
+   problema noutro lugar do app) — os grupos continuam colapsáveis,
+   então cabe bem mesmo com ~20 ferramentas ao todo. */
+@media (max-width: 900px) {
+  /* Uma rolagem só pra tudo em mobile (nav + conteúdo empilhados,
+     rolando juntos como uma página normal) — múltiplas áreas com
+     rolagem própria e independente faz mais sentido em telas largas
+     (desktop), onde sobra espaço pra dividir em painéis lado a lado;
+     numa tela estreita, empilhado e com uma rolagem só é bem mais
+     natural de usar. */
+  .admin-panel { overflow-y: auto; }
+  .admin-panel-body { flex-direction: column; gap: 12px; }
+  .admin-nav {
+    width: 100%; flex-direction: row; flex-wrap: wrap; gap: 6px 10px;
+    overflow: visible; padding-right: 0; padding-bottom: 12px;
+    border-right: none; border-bottom: 1px solid var(--border);
+  }
+  .admin-nav-search { width: 100%; flex-basis: 100%; }
+  .admin-nav-group { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 140px; }
+  .admin-content { overflow-y: visible; }
+}
 
 @media (max-width: 900px) {
   .admin-panel-body { flex-direction: column; }

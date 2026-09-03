@@ -54,13 +54,13 @@ const TAB_LABEL = {
   economia: '💰 Economia', casas: '🧊 Casas e Móveis', sistema: '⚙️ Sistema', moderacao: '💬 Moderação de Recados',
   automodDm: '🚩 Moderação de DMs', feeds: '📰 Feeds', honeypot: '🕸️ Segurança (Honeypot)',
   roles: '🎭 Cargos', channels: '# Canais e Categorias',
-  achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', channelSetup: '🗂️ Canais', reload: '🔄 Reload',
+  achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', reload: '🔄 Reload',
 };
 
 const TAB_GROUPS = [
   { label: 'Visão geral', tabs: ['stats', 'inscricoes', 'users', 'badges'] },
   { label: 'Estrutura da comunidade', tabs: ['roles', 'channels', 'achievements'] },
-  { label: 'Conteúdo', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events', 'channelSetup'] },
+  { label: 'Conteúdo', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events'] },
   { label: 'Moderação', tabs: ['moderacao', 'automodDm', 'logs', 'honeypot'] },
   { label: 'Comunicação', tabs: ['announcements'] },
   { label: 'Sistema', tabs: ['sistema', 'maintenance', 'reload'] },
@@ -155,7 +155,6 @@ export default function AdminPanel() {
           {tab === 'achievements' && <AchievementsAdminTab />}
           {tab === 'updates' && <UpdatesAdminTab />}
           {tab === 'events' && <EventsAdminTab />}
-          {tab === 'channelSetup' && <ChannelSetupAdminTab />}
           {tab === 'honeypot' && <HoneypotAdminTab />}
           {tab === 'reload' && <ReloadAdminTab />}
         </div>
@@ -335,6 +334,12 @@ function ChannelsAdminTab() {
   const uncategorized = useStore((s) => s.channels);
   const [creatingFor, setCreatingFor] = useState(undefined); // categoryId (ou null pra "sem categoria") — undefined = fechado
   const [error, setError] = useState('');
+  // Item pedido: "agrupe por categoria, não por assunto solto" — cria a
+  // estrutura sugerida inteira de uma vez (Início/Comunidade/Suporte/
+  // Voz, com os canais certos dentro de cada uma). Confere pelo nome
+  // antes de criar — clicar de novo não duplica o que já existe.
+  const [settingUp, setSettingUp] = useState(false);
+  const [setupLog, setSetupLog] = useState([]);
 
   const sortedCategories = [...categories].sort((a, b) => a.position - b.position);
 
@@ -401,6 +406,53 @@ function ChannelsAdminTab() {
     refreshAfter(() => reorderChannels(order));
   };
 
+  const runSuggestedSetup = async () => {
+    setSettingUp(true);
+    setSetupLog([]);
+    const existingCategoryNames = new Set(categories.map((c) => c.name.toLowerCase()));
+    const existingChannelNamesByCategory = new Map(
+      categories.map((c) => [c.name.toLowerCase(), new Set((c.channels || []).map((ch) => ch.name.toLowerCase()))])
+    );
+    const newLog = [];
+    for (const group of SUGGESTED_STRUCTURE) {
+      const key = group.category.toLowerCase();
+      let categoryId;
+      let existingChannelNames = existingChannelNamesByCategory.get(key);
+      if (existingCategoryNames.has(key)) {
+        newLog.push({ text: `Categoria "${group.category}" já existia — pulada.`, kind: 'skip' });
+      } else {
+        try {
+          const { category } = await createCategory(group.category);
+          categoryId = category.id;
+          existingChannelNames = new Set();
+          newLog.push({ text: `Categoria "${group.category}" criada.`, kind: 'ok' });
+        } catch (err) {
+          newLog.push({ text: `Erro criando categoria "${group.category}": ${err.response?.data?.error || 'falhou'}`, kind: 'error' });
+          setSetupLog([...newLog]);
+          continue;
+        }
+      }
+      for (const ch of group.channels) {
+        if (existingChannelNames?.has(ch.name.toLowerCase())) {
+          newLog.push({ text: `  #${ch.name} já existia — pulado.`, kind: 'skip' });
+          continue;
+        }
+        try {
+          await createChannel({ name: ch.name, type: ch.type, categoryId });
+          newLog.push({ text: `  ${ch.type === 'VOICE' ? '🔊' : '#'}${ch.name} criado.`, kind: 'ok' });
+        } catch (err) {
+          newLog.push({ text: `  Erro criando "${ch.name}": ${err.response?.data?.error || 'falhou'}`, kind: 'error' });
+        }
+      }
+      setSetupLog([...newLog]);
+    }
+    setSettingUp(false);
+    const data = await getCommunity();
+    useStore.getState().setCommunityStructure({
+      categories: data.categories, channels: data.channels, members: data.members, roles: data.roles,
+    });
+  };
+
   const renderChannelRow = (categoryId, list, ch, i) => (
     <div key={ch.id} className="admin-user-row">
       <span className="dim" style={{ width: 18, textAlign: 'center' }}>{ch.type === 'VOICE' || ch.type === 'STAGE' ? '🔊' : '#'}</span>
@@ -422,7 +474,19 @@ function ChannelsAdminTab() {
       <div className="admin-badges-toolbar">
         <button className="btn-secondary" onClick={addCategory}>+ Nova categoria</button>
         <button className="btn-secondary" onClick={() => setCreatingFor(null)}>+ Canal sem categoria</button>
+        <button className="btn-secondary" disabled={settingUp} onClick={runSuggestedSetup}>
+          {settingUp ? 'Criando...' : '🚀 Criar estrutura sugerida'}
+        </button>
       </div>
+      {setupLog.length > 0 && (
+        <div className="admin-users-list" style={{ marginBottom: 14, fontFamily: 'monospace', fontSize: 13 }}>
+          {setupLog.map((entry, i) => (
+            <div key={i} className={`dim ${entry.kind === 'error' ? 'auth-error' : ''}`} style={{ padding: '2px 0' }}>
+              {entry.text}
+            </div>
+          ))}
+        </div>
+      )}
 
       {sortedCategories.map((cat, ci) => (
         <div key={cat.id} className="settings-block" style={{ marginTop: 14 }}>
@@ -793,166 +857,6 @@ const SUGGESTED_STRUCTURE = [
 // forçar nada) e uma lista pra renomear o que já existe. Os
 // endpoints de renomear (updateChannel/updateCategory) já existiam
 // há um tempo, só nunca tinham UI que os usasse.
-function ChannelSetupAdminTab() {
-  const [community, setCommunity] = useState(null); // resposta completa de getCommunity()
-  const [running, setRunning] = useState(false);
-  const [log, setLog] = useState([]);
-  const [newChannelName, setNewChannelName] = useState('');
-  const [newChannelType, setNewChannelType] = useState('TEXT');
-  const [newChannelCategoryId, setNewChannelCategoryId] = useState('');
-
-  const refresh = () => {
-    getCommunity().then(setCommunity).catch(() => setCommunity({ categories: [], channels: [] }));
-  };
-  useEffect(() => { refresh(); }, []);
-
-  const existingSets = () => {
-    const categoryNames = new Set((community?.categories || []).map((c) => c.name.toLowerCase()));
-    const channelNamesByCategory = new Map(
-      (community?.categories || []).map((c) => [c.name.toLowerCase(), new Set(c.channels.map((ch) => ch.name.toLowerCase()))])
-    );
-    return { categoryNames, channelNamesByCategory };
-  };
-
-  const runSetup = async () => {
-    if (!community) return;
-    setRunning(true);
-    const existing = existingSets();
-    const newLog = [];
-    for (const group of SUGGESTED_STRUCTURE) {
-      const key = group.category.toLowerCase();
-      let categoryId;
-      let existingChannelNames = existing.channelNamesByCategory.get(key);
-      if (existing.categoryNames.has(key)) {
-        newLog.push({ text: `Categoria "${group.category}" já existia — pulada.`, kind: 'skip' });
-      } else {
-        try {
-          const { category } = await createCategory(group.category);
-          categoryId = category.id;
-          existingChannelNames = new Set();
-          newLog.push({ text: `Categoria "${group.category}" criada.`, kind: 'ok' });
-        } catch (err) {
-          newLog.push({ text: `Erro criando categoria "${group.category}": ${err.response?.data?.error || 'falhou'}`, kind: 'error' });
-          setLog([...newLog]);
-          continue;
-        }
-      }
-      for (const ch of group.channels) {
-        if (existingChannelNames?.has(ch.name.toLowerCase())) {
-          newLog.push({ text: `  #${ch.name} já existia — pulado.`, kind: 'skip' });
-          continue;
-        }
-        try {
-          await createChannel({ name: ch.name, type: ch.type, categoryId });
-          newLog.push({ text: `  ${ch.type === 'VOICE' ? '🔊' : '#'}${ch.name} criado.`, kind: 'ok' });
-        } catch (err) {
-          newLog.push({ text: `  Erro criando "${ch.name}": ${err.response?.data?.error || 'falhou'}`, kind: 'error' });
-        }
-      }
-      setLog([...newLog]);
-    }
-    setRunning(false);
-    refresh();
-  };
-
-  const createFreeChannel = async (e) => {
-    e.preventDefault();
-    if (!newChannelName.trim()) return;
-    try {
-      await createChannel({ name: newChannelName.trim(), type: newChannelType, categoryId: newChannelCategoryId || undefined });
-      setNewChannelName('');
-      refresh();
-    } catch (err) {
-      alert(err.response?.data?.error || 'Não foi possível criar o canal.');
-    }
-  };
-
-  const renameCategory = async (cat) => {
-    const name = prompt('Novo nome da categoria:', cat.name);
-    if (!name?.trim() || name === cat.name) return;
-    try { await updateCategory(cat.id, name.trim()); refresh(); }
-    catch (err) { alert(err.response?.data?.error || 'Não foi possível renomear.'); }
-  };
-
-  const renameChannel = async (ch) => {
-    const name = prompt('Novo nome do canal:', ch.name);
-    if (!name?.trim() || name === ch.name) return;
-    try { await updateChannel(ch.id, { name: name.trim() }); refresh(); }
-    catch (err) { alert(err.response?.data?.error || 'Não foi possível renomear.'); }
-  };
-
-  if (!community) return <p className="dim">Carregando...</p>;
-
-  return (
-    <div>
-      <h2>🗂️ Canais</h2>
-      <p className="dim" style={{ marginBottom: 16 }}>
-        Cria uma estrutura de categorias e canais organizada de uma vez — Início, Comunidade, Suporte e Voz.
-        Clicar de novo não duplica o que já existe, só preenche o que ainda faltar.
-      </p>
-      <button type="button" className="btn-primary" disabled={running} onClick={runSetup}>
-        {running ? 'Criando...' : '🚀 Criar estrutura sugerida'}
-      </button>
-      {log.length > 0 && (
-        <div className="admin-users-list" style={{ marginTop: 16, fontFamily: 'monospace', fontSize: 13 }}>
-          {log.map((entry, i) => (
-            <div key={i} className={`dim ${entry.kind === 'error' ? 'auth-error' : ''}`} style={{ padding: '2px 0' }}>
-              {entry.text}
-            </div>
-          ))}
-        </div>
-      )}
-
-      <h3 style={{ marginTop: 28 }}>Criar canal avulso</h3>
-      <p className="dim" style={{ marginBottom: 12 }}>Nome livre — pode usar letras maiúsculas, acentos, o que preferir.</p>
-      <form onSubmit={createFreeChannel} className="settings-block communities-inline-form">
-        <div className="display-name-row">
-          <label style={{ flex: 2 }}>NOME<input value={newChannelName} onChange={(e) => setNewChannelName(e.target.value)} maxLength={100} required /></label>
-          <label style={{ flex: 1 }}>
-            TIPO
-            <select value={newChannelType} onChange={(e) => setNewChannelType(e.target.value)}>
-              <option value="TEXT">Texto</option>
-              <option value="VOICE">Voz</option>
-            </select>
-          </label>
-          <label style={{ flex: 1 }}>
-            CATEGORIA
-            <select value={newChannelCategoryId} onChange={(e) => setNewChannelCategoryId(e.target.value)}>
-              <option value="">Sem categoria</option>
-              {community.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </label>
-        </div>
-        <button type="submit" className="btn-primary">Criar canal</button>
-      </form>
-
-      <h3 style={{ marginTop: 28 }}>Categorias e canais existentes</h3>
-      <p className="dim" style={{ marginBottom: 12 }}>Renomeie qualquer categoria ou canal já criado.</p>
-      <div className="admin-users-list">
-        {community.categories.map((cat) => (
-          <div key={cat.id}>
-            <div className="admin-user-row">
-              <div className="admin-user-row-info"><div className="admin-user-row-name">📁 {cat.name}</div></div>
-              <button className="btn-secondary" onClick={() => renameCategory(cat)}>Renomear</button>
-            </div>
-            {cat.channels.map((ch) => (
-              <div key={ch.id} className="admin-user-row" style={{ paddingLeft: 24 }}>
-                <div className="admin-user-row-info"><div className="admin-user-row-name">{ch.type === 'VOICE' ? '🔊' : '#'} {ch.name}</div></div>
-                <button className="btn-secondary" onClick={() => renameChannel(ch)}>Renomear</button>
-              </div>
-            ))}
-          </div>
-        ))}
-        {community.channels.map((ch) => (
-          <div key={ch.id} className="admin-user-row">
-            <div className="admin-user-row-info"><div className="admin-user-row-name">{ch.type === 'VOICE' ? '🔊' : '#'} {ch.name}</div></div>
-            <button className="btn-secondary" onClick={() => renameChannel(ch)}>Renomear</button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // sido quem criou (poder de moderação da plataforma). Apagar remove
 // também todos os posts/comentários/votos dela em cascata (ver onDelete:
