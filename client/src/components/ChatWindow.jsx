@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { useStore, roomKeyFor } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
-import { useVoice } from '../context/VoiceContext.jsx';
+import { useVoice, preloadAgoraRTC } from '../context/VoiceContext.jsx';
 import { listMessages, sendMessage, searchMessages, markConversationRead, markChannelRead } from '../api/endpoints';
 import Message from './Message.jsx';
 import VoiceChannelView from './VoiceChannelView.jsx';
@@ -87,6 +87,14 @@ export default function ChatWindow({ kind }) {
   const { user } = useAuth();
   const { socket } = useSocket();
   const voice = useVoice();
+
+  // Item pedido: "deixando mais rápido pra entrar em canais de voz,
+  // principalmente no mobile" — adianta o download do SDK do Agora
+  // (~1.5MB) em segundo plano assim que a pessoa está numa área de
+  // canal/conversa (onde há chance real de entrar numa call), em vez
+  // de só começar a baixar no exato momento em que ela clica pra
+  // entrar. Já não baixa nada pra quem só está em Feeds/Perfil/etc.
+  useEffect(() => { preloadAgoraRTC(); }, []);
   // Kept in the store purely so SocketContext.jsx's `message:new` handler
   // can tell "is this message for the exact channel/DM I'm already looking
   // at right now?" and skip the notification sound for it — without this,

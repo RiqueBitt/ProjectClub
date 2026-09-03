@@ -79,6 +79,22 @@ function loadAgoraRTC() {
   return agoraRtcPromise;
 }
 
+// Item pedido: "deixando mais rápido pra entrar em canais de voz,
+// principalmente no mobile" — sem isso, o download de ~1.5MB do SDK
+// só começava no exato momento em que a pessoa clicava pra entrar
+// numa call, e em rede móvel esse download sozinho já podia levar
+// vários segundos, antes mesmo de qualquer outro passo da conexão
+// começar. Chamado pela ÁREA de comunidade (CommunityPage.jsx, onde
+// os canais de voz aparecem — não o app inteiro, pra continuar sem
+// baixar nada à toa pra quem só usa Feeds/Perfil/etc), adianta esse
+// download em segundo plano, sem travar nada — quando a pessoa
+// realmente clicar pra entrar, é bem provável que o SDK já esteja
+// pronto (ou pelo menos bem adiantado), reduzindo o tempo de espera
+// percebido justamente na rede mais lenta, onde mais importa.
+export function preloadAgoraRTC() {
+  loadAgoraRTC().catch(() => {}); // silencioso — se falhar aqui, tenta de novo na hora de entrar mesmo
+}
+
 // MIGRAÇÃO PRA AGORA.IO (item pedido): depois de uma investigação bem
 // longa e com prova concreta (diagnóstico de SDP real — ver histórico),
 // ficou provado que a malha própria de WebRTC (peer-to-peer, com nosso
@@ -252,15 +268,14 @@ export function VoiceProvider({ children }) {
     const preferredId = getPreferredMicId();
     const baseConfig = {
       AEC: true, ANS: true, AGC: true,
-      // Item pedido: "a voz sai muito fraca e desanimada" — o perfil
-      // padrão do Agora pra áudio (speech_standard) usa uma taxa de
-      // amostragem e de bits BEM conservadora, pensada pra chamada
-      // telefônica simples, não pra som cheio de verdade. "music_
-      // standard" (48kHz, ~40kbps) já melhora bastante a qualidade;
-      // "high_quality" ainda mais (~128kbps) — usa a mais alta, já que
-      // o Agora comprime de qualquer forma na rede, e voz mais rica
-      // soa muito menos "robótica"/apagada.
-      encoderConfig: 'high_quality',
+      // Item pedido: "voz mais viva, melhorando o áudio" — high_quality
+      // já usava a maior taxa de bits disponível (128kbps), mas em
+      // MONO só. high_quality_stereo é o preset mais alto de verdade
+      // que o Agora oferece (192kbps, DOIS canais, 48kHz) — voz em
+      // estéreo soa muito mais presente/rica que mono, mesmo pra uma
+      // única pessoa falando (o microfone capta nuances espaciais
+      // sutis que o mono simplesmente descarta).
+      encoderConfig: 'high_quality_stereo',
     };
     try {
       const track = await AgoraRTC.createMicrophoneAudioTrack({ microphoneId: preferredId || undefined, ...baseConfig });
