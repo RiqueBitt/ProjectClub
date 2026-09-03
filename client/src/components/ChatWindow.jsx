@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useElementHeight } from '../utils/useElementHeight';
 import { createPortal } from 'react-dom';
 import { useParams } from 'react-router-dom';
 import { useStore, roomKeyFor } from '../store/useStore';
@@ -87,6 +88,11 @@ export default function ChatWindow({ kind }) {
   const { user } = useAuth();
   const { socket } = useSocket();
   const voice = useVoice();
+  // Item pedido: "menu fica em cima da barra de escrever mensagens" —
+  // mede a altura real da barra pra posicionar o popover logo acima
+  // dela, se ajustando sozinho quando ela cresce (resposta ativa,
+  // arquivo anexado, etc — ver useElementHeight.js).
+  const [composerBarRef, composerBarHeight] = useElementHeight();
 
   // Item pedido: "deixando mais rápido pra entrar em canais de voz,
   // principalmente no mobile" — adianta o download do SDK do Agora
@@ -713,7 +719,7 @@ export default function ChatWindow({ kind }) {
         </div>
       )}
 
-      <form className="message-input-bar" onSubmit={onSubmit}>
+      <form className="message-input-bar" ref={composerBarRef} onSubmit={onSubmit}>
         {replyToVisible && (
           <div className={`reply-bar ${replyBarLeaving ? 'leaving' : ''}`}>
             Respondendo a <b>{replyToVisible.author.displayName}</b>
@@ -783,7 +789,7 @@ export default function ChatWindow({ kind }) {
           <div className="composer-picker-anchor">
             <button type="button" className="icon-btn" title="GIF" onClick={() => { setGifPickerOpen((v) => !v); setEmojiPickerOpen(false); }}>GIF</button>
             {gifPickerOpen && createPortal(
-              <GifPicker onPick={sendGif} onClose={() => setGifPickerOpen(false)} />,
+              <GifPicker onPick={sendGif} onClose={() => setGifPickerOpen(false)} style={{ '--composer-height': `${composerBarHeight}px` }} />,
               document.body,
             )}
           </div>
@@ -792,6 +798,7 @@ export default function ChatWindow({ kind }) {
             {emojiPickerOpen && createPortal(
               <EmojiPicker
                 variant="composer-centered"
+                style={{ '--composer-height': `${composerBarHeight}px` }}
                 onPick={insertText}
                 onPickSticker={sendSticker}
                 onClose={() => setEmojiPickerOpen(false)}

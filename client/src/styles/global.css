@@ -1163,9 +1163,21 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
      tratamento aplicado ao GifPicker (ver GifPicker.jsx + os 3
      lugares que o abrem, agora todos com createPortal também). */
   .emoji-picker-popover.composer-centered-picker, .gif-picker-popover.composer-centered-picker {
+    /* Item pedido: "fazer o menu ficar em cima da barra de escrever
+       mensagens, porque ele está ficando sobre ela" — bottom fixo
+       (78px) não dava conta de quando essa barra CRESCE (resposta
+       ativa, arquivo anexado) — usa a altura REAL medida em tempo
+       real (ver useElementHeight.js + --composer-height, passada
+       pelos componentes que abrem isso), com 78px só como reserva
+       pros poucos lugares que ainda não passam essa variável. +12px
+       de respiro entre o popover e a barra. */
     position: fixed; left: 50%; right: auto; transform: translateX(-50%);
-    bottom: 78px; top: auto;
-    width: min(340px, 92vw); max-width: 92vw;
+    bottom: calc(var(--composer-height, 78px) + 12px); top: auto;
+    /* Item pedido: "estilo, se possível, pra pegar de ponta a ponta" —
+       ocupa a largura toda (menos 16px de respiro em cada lado) em vez
+       de uma caixa estreita — limitado a 720px em telas bem largas,
+       pra não ficar esticado de forma exagerada num monitor grande. */
+    width: calc(100% - 32px); max-width: 720px;
     height: var(--sheet-height, 46vh); max-height: 70vh;
     border-radius: 10px;
   }

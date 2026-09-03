@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useElementHeight } from '../utils/useElementHeight';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
@@ -29,6 +30,10 @@ export default function PostDetailPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { socket } = useSocket() || {};
+  // Item pedido: "menu fica em cima da barra de escrever" — mede a
+  // altura real do formulário de comentário pra posicionar o popover
+  // logo acima dele (ver useElementHeight.js).
+  const [commentFormRef, commentFormHeight] = useElementHeight();
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState(null);
   const [newComment, setNewComment] = useState('');
@@ -121,12 +126,12 @@ export default function PostDetailPage() {
         </div>
       </div>
 
-      <form onSubmit={submitComment} className="post-comment-form">
+      <form onSubmit={submitComment} className="post-comment-form" ref={commentFormRef}>
         <input value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Escreva um comentário..." maxLength={5000} />
         <div className="composer-picker-anchor">
           <button type="button" className="icon-btn" title="GIF" onClick={() => { setGifPickerOpen((v) => !v); setEmojiPickerOpen(false); }}>GIF</button>
           {gifPickerOpen && createPortal(
-            <GifPicker onPick={sendCommentGif} onClose={() => setGifPickerOpen(false)} />,
+            <GifPicker onPick={sendCommentGif} onClose={() => setGifPickerOpen(false)} style={{ '--composer-height': `${commentFormHeight}px` }} />,
             document.body,
           )}
         </div>
@@ -135,6 +140,7 @@ export default function PostDetailPage() {
           {emojiPickerOpen && createPortal(
             <EmojiPicker
               variant="composer-centered"
+              style={{ '--composer-height': `${commentFormHeight}px` }}
               serverEmojis={useStore.getState().usableEmojis}
               onPick={insertCommentEmoji}
               onClose={() => setEmojiPickerOpen(false)}
@@ -163,6 +169,10 @@ function CommentNode({ comment, postId, user, isStaff, onChange, depth = 0 }) {
   const [replyGifOpen, setReplyGifOpen] = useState(false);
   const [localVote, setLocalVote] = useState(comment.myVote);
   const [localScore, setLocalScore] = useState(comment.score);
+  // Item pedido: "menu fica em cima da barra de escrever" — mede a
+  // altura real do formulário de resposta pra posicionar o popover
+  // logo acima dele (ver useElementHeight.js).
+  const [replyFormRef, replyFormHeight] = useElementHeight();
 
   const vote = async (value) => {
     const nextMyVote = localVote === value ? 0 : value;
@@ -219,12 +229,12 @@ function CommentNode({ comment, postId, user, isStaff, onChange, depth = 0 }) {
           </div>
         )}
         {replying && (
-          <form onSubmit={submitReply} className="post-comment-form nested">
+          <form onSubmit={submitReply} className="post-comment-form nested" ref={replyFormRef}>
             <input value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="Escreva uma resposta..." maxLength={5000} autoFocus />
             <div className="composer-picker-anchor">
               <button type="button" className="icon-btn" title="GIF" onClick={() => { setReplyGifOpen((v) => !v); setReplyEmojiOpen(false); }}>GIF</button>
               {replyGifOpen && createPortal(
-                <GifPicker onPick={sendReplyGif} onClose={() => setReplyGifOpen(false)} />,
+                <GifPicker onPick={sendReplyGif} onClose={() => setReplyGifOpen(false)} style={{ '--composer-height': `${replyFormHeight}px` }} />,
                 document.body,
               )}
             </div>
@@ -233,6 +243,7 @@ function CommentNode({ comment, postId, user, isStaff, onChange, depth = 0 }) {
               {replyEmojiOpen && createPortal(
                 <EmojiPicker
                   variant="composer-centered"
+                  style={{ '--composer-height': `${replyFormHeight}px` }}
                   serverEmojis={useStore.getState().usableEmojis}
                   onPick={insertReplyEmoji}
                   onClose={() => setReplyEmojiOpen(false)}
