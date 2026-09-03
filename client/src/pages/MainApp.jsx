@@ -82,7 +82,24 @@ export default function MainApp() {
   const setUiLayoutAll = useStore((s) => s.setUiLayoutAll);
   const uiLayout = useStore((s) => s.uiLayout);
   const location = useLocation();
+  const navigate = useNavigate();
   const touchStart = useRef(null);
+
+  // Item pedido: "quando abrir o app, abra na página de Início" — só
+  // quando a pessoa REABRE o app já logada (sem passar pelo formulário
+  // de login, que já foi ajustado separadamente em LoginPage.jsx) e
+  // cai direto na raiz "/". Um flag de sessão (não persiste entre
+  // aberturas reais do navegador/app, só dura a aba atual) garante que
+  // isso só acontece UMA VEZ por sessão — sem isso, qualquer navegação
+  // de VOLTA pra "/" depois (clicar no logo, no item "Comunidade" da
+  // barra lateral) seria redirecionada de novo pra Início por engano,
+  // quebrando esses links.
+  useEffect(() => {
+    if (location.pathname !== '/') return;
+    if (sessionStorage.getItem('inicio-redirect-done')) return;
+    sessionStorage.setItem('inicio-redirect-done', '1');
+    navigate('/inicio', { replace: true });
+  }, []);
 
   useEffect(() => {
     getCommunity().then((d) => setCommunityStructure({

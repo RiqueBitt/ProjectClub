@@ -5157,7 +5157,7 @@ a.embed-card-title:hover { text-decoration: underline; }
   width: 100%; display: flex; align-items: center; gap: 14px; padding: 18px 20px;
   background: linear-gradient(0deg, rgba(0,0,0,.75) 0%, rgba(0,0,0,.15) 100%);
 }
-.inicio-hero-icon { width: 56px; height: 56px; border-radius: 14px; object-fit: cover; flex-shrink: 0; border: 2px solid rgba(255,255,255,.15); }
+.inicio-hero-icon { width: 56px; height: 56px; border-radius: 14px; object-fit: cover; flex-shrink: 0; }
 .inicio-hero-overlay h1 { margin: 0; font-size: 20px; color: #fff; }
 .inicio-hero-overlay p { margin: 2px 0 0; color: rgba(255,255,255,.75); }
 

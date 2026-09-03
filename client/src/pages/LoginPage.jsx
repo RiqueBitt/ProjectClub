@@ -32,7 +32,13 @@ export default function LoginPage() {
       if (result.requiresTwoFactor) {
         setNeedsTwoFactor(true);
       } else {
-        navigate('/');
+        // Item pedido: "quando abrir o app, abra na página de Início"
+        // — mudei só o redirecionamento pós-login (cenário mais direto
+        // de "abrir o app"), sem reestruturar a rota raiz "/" em si
+        // (usada em dezenas de outros lugares esperando ir pro
+        // Chat/Comunidade — mudar o significado dela seria um risco
+        // desnecessário de quebrar navegação existente).
+        navigate('/inicio');
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Não foi possível entrar.');
