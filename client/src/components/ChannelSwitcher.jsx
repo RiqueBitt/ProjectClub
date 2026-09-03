@@ -7,19 +7,26 @@ import ChannelTypeIcon from './ChannelTypeIcon.jsx';
 // Navegação entre os chats disponíveis, fica bem onde antes aparecia o
 // dropdown com nome/descrição do canal (ver ChatWindow.jsx).
 //
-// BUG CORRIGIDO ("os canais ficam um na frente do outro sem saber qual
+// BUG CORRIGIDO ("canais ficam um na frente do outro sem saber qual
 // categoria são"): antes, TODOS os canais (soltos + de dentro de
-// categorias) eram achatados numa fileira única de abas, sem nenhuma
-// indicação de categoria. Agora as CATEGORIAS aparecem como abas de
-// nível superior — clicar numa abre um menu logo abaixo com só os
-// canais dela; canais que não têm categoria nenhuma continuam
-// aparecendo direto como aba, já que não tem o que agrupar.
+// categorias) eram achatados numa fileira única, sem nenhuma indicação
+// de categoria. Categorias agora aparecem como abas de nível superior.
+//
+// BUG CORRIGIDO ("clicar pra abrir a categoria não faz nada, mesmo
+// tendo canais dentro"): a primeira versão abria um menu suspenso
+// (position: absolute) logo abaixo da categoria — só que o container
+// da barra tem overflow-x: auto pra rolagem, e isso faz o navegador
+// recortar automaticamente qualquer coisa que ultrapasse a altura
+// visível dele, incluindo esse menu (mesmo ele "abrindo" de verdade
+// por trás dos panos — o estado mudava, só que nada aparecia na
+// tela). Item pedido: os canais aparecem do LADO da categoria, na
+// MESMA barra (elementos normais na fileira, sem position: absolute
+// nenhum) — não tem mais nada pra ser cortado.
 //
 // BUG CORRIGIDO ("não tem rolagem lateral pra ver os outros canais"):
-// a rolagem em si já existia (overflow-x: auto), só a BARRA em si
-// ficava escondida de propósito (scrollbar-width: none) — sem nenhum
-// indício visual de que dava pra rolar. Setas ◀ ▶ aparecem só quando
-// há conteúdo cortado de cada lado, e escondem sozinhas quando não.
+// a rolagem em si já existia, só sem nenhum indício visual — setas
+// próprias (ver .channel-tabs-arrow) substituem a barra nativa
+// escondida, aparecendo só quando há conteúdo cortado de cada lado.
 export default function ChannelSwitcher({ currentChannelId }) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -46,20 +53,11 @@ export default function ChannelSwitcher({ currentChannelId }) {
     const observer = new ResizeObserver(updateScrollArrows);
     observer.observe(el);
     return () => { el.removeEventListener('scroll', updateScrollArrows); observer.disconnect(); };
-  }, [categories, channels]);
-
-  // Fecha o menu de categoria aberta se clicar fora dele.
-  useEffect(() => {
-    if (!openCategoryId) return;
-    const onDocClick = () => setOpenCategoryId(null);
-    document.addEventListener('click', onDocClick);
-    return () => document.removeEventListener('click', onDocClick);
-  }, [openCategoryId]);
+  }, [categories, channels, openCategoryId]);
 
   if (!channels.length && !categories.length) return null;
 
   const go = (id) => {
-    setOpenCategoryId(null);
     if (id !== currentChannelId) navigate(`/channels/${id}`);
   };
 
@@ -100,39 +98,35 @@ export default function ChannelSwitcher({ currentChannelId }) {
           const isOpen = openCategoryId === cat.id;
           const mentions = categoryMentionCount(cat);
           return (
-            <div key={cat.id} className="channel-tab-category-wrap">
+            <div key={cat.id} className={`channel-tab-category-group ${isOpen ? 'open' : ''}`}>
               <button
                 type="button"
                 className={`channel-tab channel-tab-category ${active ? 'active' : ''} ${unread ? 'unread' : ''} ${isOpen ? 'open' : ''}`}
-                onClick={(e) => { e.stopPropagation(); setOpenCategoryId(isOpen ? null : cat.id); }}
+                onClick={() => setOpenCategoryId(isOpen ? null : cat.id)}
               >
                 <span className="truncate">{cat.name}</span>
                 {mentions > 0 && <span className="mention-badge">{mentions > 99 ? '99+' : mentions}</span>}
                 {!(mentions > 0) && unread && <span className="unread-dot" />}
                 <span className="channel-tab-category-caret">▾</span>
               </button>
-              {isOpen && (
-                <div className="channel-tab-category-menu" onClick={(e) => e.stopPropagation()}>
-                  {cat.channels.map((ch) => {
-                    const chUnread = isChannelUnread(ch, channelReadAt, user.id);
-                    const chActive = ch.id === currentChannelId;
-                    return (
-                      <button
-                        type="button" key={ch.id}
-                        className={`channel-tab-category-item ${chActive ? 'active' : ''} ${chUnread ? 'unread' : ''}`}
-                        onClick={() => go(ch.id)}
-                      >
-                        <ChannelTypeIcon type={ch.type} />
-                        <span className="truncate">{ch.name}</span>
-                        {ch.unreadMentions > 0 && (
-                          <span className="mention-badge">{ch.unreadMentions > 99 ? '99+' : ch.unreadMentions}</span>
-                        )}
-                        {!(ch.unreadMentions > 0) && chUnread && <span className="unread-dot" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              {isOpen && cat.channels.map((ch) => {
+                const chUnread = isChannelUnread(ch, channelReadAt, user.id);
+                const chActive = ch.id === currentChannelId;
+                return (
+                  <button
+                    type="button" key={ch.id}
+                    className={`channel-tab channel-tab-in-category ${chActive ? 'active' : ''} ${chUnread ? 'unread' : ''}`}
+                    onClick={() => go(ch.id)}
+                  >
+                    <ChannelTypeIcon type={ch.type} />
+                    <span className="truncate">{ch.name}</span>
+                    {ch.unreadMentions > 0 && (
+                      <span className="mention-badge">{ch.unreadMentions > 99 ? '99+' : ch.unreadMentions}</span>
+                    )}
+                    {!(ch.unreadMentions > 0) && chUnread && <span className="unread-dot" />}
+                  </button>
+                );
+              })}
             </div>
           );
         })}

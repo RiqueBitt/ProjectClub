@@ -4197,28 +4197,24 @@ a.embed-card-title:hover { text-decoration: underline; }
 .channel-tabs::-webkit-scrollbar { display: none; }
 
 /* BUG CORRIGIDO ("canais ficam um na frente do outro sem saber qual
-   categoria são"): categoria vira uma aba de nível superior — clicar
-   abre um menu com só os canais dela logo abaixo, em vez de tudo
-   achatado numa fileira única. */
-.channel-tab-category-wrap { position: relative; flex-shrink: 0; }
+   categoria são" / "clicar pra abrir não faz nada"): categoria vira
+   uma aba de nível superior — a versão anterior abria um menu
+   suspenso (position: absolute) que ficava CORTADO pelo overflow-x:
+   auto do container de rolagem (o estado mudava de verdade, só que
+   nada aparecia visualmente). Item pedido: os canais aparecem do
+   LADO da categoria, na MESMA barra — elementos normais na fileira
+   flex, sem position: absolute nenhum, nada pra ser cortado. */
+.channel-tab-category-group { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .channel-tab-category { gap: 4px; }
-.channel-tab-category-caret { font-size: 9px; opacity: .7; margin-left: 2px; }
+.channel-tab-category-caret { font-size: 9px; opacity: .7; margin-left: 2px; transition: transform .12s var(--ease-smooth); }
 .channel-tab-category.open .channel-tab-category-caret { transform: rotate(180deg); }
-.channel-tab-category-menu {
-  position: absolute; top: calc(100% + 4px); left: 0; min-width: 180px; z-index: 60;
-  background: var(--bg-elevated); border-radius: 8px; padding: 6px;
-  box-shadow: 0 8px 24px -8px rgba(0,0,0,.5); display: flex; flex-direction: column; gap: 2px;
-  animation: channel-tab-category-menu-in .12s var(--ease-smooth);
+/* Canal expandido de dentro de uma categoria — mesmo visual de aba,
+   só um pouco mais discreto (fundo sutil) pra ficar claro que ele
+   "pertence" à categoria do lado, não é uma aba independente. */
+.channel-tab-in-category {
+  background: var(--bg-modifier-hover); animation: channel-tab-in-category-in .12s var(--ease-smooth);
 }
-@keyframes channel-tab-category-menu-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
-.channel-tab-category-item {
-  display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 6px;
-  font-size: 13px; font-weight: 500; color: var(--header-secondary); text-align: left; width: 100%;
-}
-.channel-tab-category-item:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
-.channel-tab-category-item.active { background: var(--bg-modifier-hover); color: var(--interactive-active); }
-.channel-tab-category-item.unread:not(.active) { color: var(--header-primary); }
-.channel-tab-category-item .mention-badge { margin-left: auto; }
+@keyframes channel-tab-in-category-in { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: translateX(0); } }
 .channel-tab {
   display: flex; align-items: center; gap: 6px; position: relative;
   padding: 8px 14px; border-radius: 10px 10px 0 0;
