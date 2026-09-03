@@ -373,57 +373,25 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 .announcement-ok-btn { width: 100%; margin-top: 8px; }
 .splash-logo { width: 64px; height: 64px; border-radius: 16px; background: var(--brand); color: #fff; font-size: 32px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 
-/* BUG CORRIGIDO ("tela de carregamento boba"): a tela cheia antiga (spinner
-   + dica de texto solta) não tinha nenhuma relação visual com o app de
-   verdade — ver App.jsx, AppSkeletonScreen. Esse "esqueleto" usa a MESMA
-   estrutura de 3 colunas do .app-shell de verdade (barra lateral / chat /
-   membros), só que com formas cinza no lugar de cada foto/texto reais, e
-   um brilho passando por cima (efeito comum em apps como Discord/
-   Instagram enquanto os dados carregam de verdade) — a pessoa vê o
-   "esqueleto" do próprio app se formando, não uma tela solta qualquer. */
-.app-skeleton-shell {
-  display: grid; grid-template-columns: var(--main-sidebar-width, 220px) 1fr 240px;
+/* Item pedido: "crie uma tela de carregamento que só vai sair
+   quando carregar tudo... vai ter o ícone do Project Club com a logo
+   e um texto Carregamento... com uma animação de carregamento
+   redondo" — substitui o esqueleto tipo Discord/Instagram que existia
+   antes (ver components/LoadingScreen.jsx, reaproveitado em 2 pontos
+   de espera: App.jsx pra conta/comunidade, MainApp.jsx pro socket
+   conectar = "perfil online"). */
+.loading-screen {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
   height: 100vh; height: 100dvh; background: var(--bg-primary);
 }
-@media (max-width: 900px) { .app-skeleton-shell { grid-template-columns: 64px 1fr; } }
-@media (max-width: 600px) { .app-skeleton-shell { grid-template-columns: 64px 1fr; } }
-.app-skeleton-pulse {
-  background: linear-gradient(90deg, var(--bg-modifier-hover) 25%, var(--bg-elevated) 50%, var(--bg-modifier-hover) 75%);
-  background-size: 200% 100%; animation: app-skeleton-shimmer 1.4s ease-in-out infinite; border-radius: 6px;
+.loading-screen-logo { width: 72px; height: 72px; border-radius: 18px; object-fit: cover; }
+.loading-screen-spinner {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 3px solid var(--bg-modifier-hover); border-top-color: var(--brand);
+  animation: loading-screen-spin .7s linear infinite;
 }
-@keyframes app-skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-.app-skeleton-sidebar {
-  background: var(--bg-secondary); border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 8px; padding: 16px 14px;
-}
-.app-skeleton-brand { width: 60%; height: 20px; border-radius: 4px; margin-bottom: 8px; }
-.app-skeleton-nav-item { height: 42px; border-radius: 10px; }
-.app-skeleton-sidebar-spacer { flex: 1; }
-.app-skeleton-profile { height: 52px; border-radius: 10px; }
-.app-skeleton-main { display: flex; flex-direction: column; min-width: 0; }
-.app-skeleton-header { padding: 8px 16px; border-bottom: 1px solid var(--border); }
-.app-skeleton-header-bar { width: 140px; height: 16px; border-radius: 4px; }
-.app-skeleton-messages { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 20px; }
-.app-skeleton-message-row { display: flex; gap: 14px; }
-.app-skeleton-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
-.app-skeleton-message-lines { flex: 1; display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
-.app-skeleton-line { height: 12px; border-radius: 4px; }
-.app-skeleton-members { background: var(--bg-secondary); padding: 16px 8px; display: flex; flex-direction: column; gap: 14px; }
-@media (max-width: 900px) { .app-skeleton-members { display: none; } }
-.app-skeleton-member-row { display: flex; align-items: center; gap: 10px; padding: 0 8px; }
-.app-skeleton-avatar-sm { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; }
-/* Avatar/nome REAIS, assim que a lista de membros chega (ver App.jsx —
-   AppSkeletonScreen busca a comunidade em paralelo com a checagem de
-   login) — troca o círculo cinza pulsante pela foto de verdade, com um
-   fade suave de entrada em vez de aparecer "seco". */
-.app-skeleton-avatar-real {
-  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; object-fit: cover;
-  animation: app-skeleton-photo-in .25s ease-out;
-}
-.app-skeleton-member-name {
-  font-size: 13px; color: var(--text-muted); animation: app-skeleton-photo-in .25s ease-out;
-}
-@keyframes app-skeleton-photo-in { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
+@keyframes loading-screen-spin { to { transform: rotate(360deg); } }
+.loading-screen-text { font-size: 13px; color: var(--text-muted); margin: 0; letter-spacing: .02em; }
 
 /* ---------- Auth screens (login, cadastro, verificação, recuperação de
    senha) — mesma linguagem visual da página inicial (fundo azul escuro

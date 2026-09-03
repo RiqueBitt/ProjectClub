@@ -1,6 +1,8 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { useStore } from '../store/useStore';
+import { useSocket } from '../context/SocketContext.jsx';
+import LoadingScreen from '../components/LoadingScreen.jsx';
 import { playSound } from '../utils/sounds';
 import { getCommunity, listConversations, listFriends } from '../api/endpoints';
 import MainSidebar from '../components/MainSidebar.jsx';
@@ -83,7 +85,22 @@ export default function MainApp() {
   const uiLayout = useStore((s) => s.uiLayout);
   const location = useLocation();
   const navigate = useNavigate();
+  const { connected } = useSocket() || {};
   const touchStart = useRef(null);
+
+  // BUG EVITADO ("preso pra sempre na tela de carregamento se o socket
+  // nunca conectar"): sem isso, alguém atrás de um firewall/proxy que
+  // bloqueia WebSocket ficaria com o app completamente inacessível —
+  // mesmo tudo o mais (mensagens por HTTP, etc) continuando
+  // funcionando normalmente. Depois de um tempo razoável sem conectar,
+  // libera a tela mesmo assim (só perde atualizações em tempo real,
+  // que é bem menos grave que não conseguir abrir o app).
+  const [socketTimedOut, setSocketTimedOut] = useState(false);
+  useEffect(() => {
+    if (connected) return;
+    const id = setTimeout(() => setSocketTimedOut(true), 8000);
+    return () => clearTimeout(id);
+  }, [connected]);
 
   // Item pedido: "quando abrir o app, abra na página de Início" — só
   // quando a pessoa REABRE o app já logada (sem passar pelo formulário
@@ -193,6 +210,15 @@ export default function MainApp() {
     }
     if (deltaX < 0 && start.x > window.innerWidth - EDGE_ZONE) openMobileMembers();
   };
+
+  // Item pedido: "só vai sair quando... o perfil dele tiver online" —
+  // o socket já existe nesse ponto (SocketProvider é ancestral de
+  // MainApp), diferente da checagem anterior (auth + comunidade, em
+  // App.jsx), que roda ANTES do socket sequer existir. Mesma tela de
+  // carregamento reaproveitada (LoadingScreen) — sem duplicar visual.
+  // socketTimedOut (ver acima) evita ficar preso aqui pra sempre se o
+  // socket nunca conseguir conectar.
+  if (!connected && !socketTimedOut) return <LoadingScreen />;
 
   return (
     <div

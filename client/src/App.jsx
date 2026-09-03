@@ -9,6 +9,7 @@ import { getPlatformStatus, getCommunity } from './api/endpoints';
 import MaintenanceScreen from './pages/MaintenanceScreen.jsx';
 import InterfaceEditorPage from './pages/InterfaceEditorPage.jsx';
 import { playSound } from './utils/sounds';
+import LoadingScreen from './components/LoadingScreen.jsx';
 import { CUSTOM_BACKGROUND_ENABLED } from './utils/featureFlags';
 
 import LoginPage from './pages/LoginPage.jsx';
@@ -89,7 +90,7 @@ function ProtectedRoute({ children }) {
   // Sem conta (vai cair no redirect pro login logo abaixo) não precisa
   // esperar a comunidade, que nunca vai carregar mesmo.
   const appReady = !loading && minSplashDone && (!user || communityPreview !== null);
-  if (!appReady) return <AppSkeletonScreen previewMembers={communityPreview} />;
+  if (!appReady) return <AppSkeletonScreen />;
   if (!user) return <Navigate to="/login" replace />;
   if (!user.emailVerified) return <Navigate to="/verify-email" replace />;
 
@@ -170,77 +171,23 @@ function RootGate() {
   return <LandingPage />;
 }
 
-// BUG CORRIGIDO ("tela de carregamento boba"): a antiga SplashScreen era
-// uma tela genérica e vazia (só uma marca girando + uma dica de texto),
-// sem nenhuma relação com o que está de fato carregando. Esse componente
-// desenha uma versão "esqueleto" da interface REAL — a mesma barra
-// lateral, com círculos cinza no lugar dos ícones/avatar do perfil, e a
-// mesma área de chat, com barrinhas cinza no lugar de nome/mensagem —
-// tudo com um brilho suave passando por cima (efeito "shimmer", comum em
-// apps como Discord/Instagram durante o carregamento). Assim que os dados
-// de verdade chegam, o React troca isso pela interface real no lugar
-// exato onde cada peça já "estava" — a pessoa vê a própria aplicação
-// se montando, não uma tela solta sem relação com o app.
-//
-// BUG CORRIGIDO (2ª rodada — "ir carregando as fotos de perfil etc, em
-// vez de ser só uma tela de carregamento boba"): a lista de membros
-// (com as fotos de perfil reais) é buscada pelo ProtectedRoute logo
-// acima — recebida aqui como `previewMembers` — em vez desta tela
-// buscar por conta própria, já que agora a MESMA busca também decide
-// quando a tela deve desaparecer (ver appReady em ProtectedRoute).
-function AppSkeletonScreen({ previewMembers }) {
+// BUG CORRIGIDO ("fica um tempinho numa tela meio azul escura antes de
+// carregar"): tela de carregamento de verdade agora — logo do app,
+// texto "Carregando..." e um spinner redondo — em vez do esqueleto
+// tipo Discord/Instagram que existia antes (substituído por completo,
+// mesmo propósito, visual pedido diferente). Só some quando: a conta
+// já foi checada, o tempo mínimo já passou (evita um "pisca" em
+// conexões muito rápidas), e a comunidade (canais/membros) já
+// carregou — a segunda parte da espera (socket conectado = "online",
+// mensagens do canal atual) acontece um passo depois, já dentro do
+// MainApp (ver LoadingScreen ali), porque só lá o socket já existe de
+// verdade (SocketProvider só é montado depois deste ponto).
+function AppSkeletonScreen() {
   // Mantém o "toque" sonoro de abrir o app, que antes vivia na tela de
   // splash antiga — só o visual mudou, o som de abertura continua.
   useEffect(() => { playSound('appOpen'); }, []);
 
-  return (
-    <div className="app-skeleton-shell">
-      <div className="app-skeleton-sidebar">
-        <div className="app-skeleton-pulse app-skeleton-brand" />
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="app-skeleton-pulse app-skeleton-nav-item" />
-        ))}
-        <div className="app-skeleton-sidebar-spacer" />
-        <div className="app-skeleton-pulse app-skeleton-profile" />
-      </div>
-      <div className="app-skeleton-main">
-        <div className="app-skeleton-header">
-          <div className="app-skeleton-pulse app-skeleton-header-bar" />
-        </div>
-        <div className="app-skeleton-messages">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="app-skeleton-message-row">
-              <div className="app-skeleton-pulse app-skeleton-avatar" />
-              <div className="app-skeleton-message-lines">
-                <div className="app-skeleton-pulse app-skeleton-line" style={{ width: `${38 + (i * 7) % 30}%` }} />
-                <div className="app-skeleton-pulse app-skeleton-line" style={{ width: `${55 + (i * 11) % 35}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="app-skeleton-members">
-        {Array.from({ length: 7 }).map((_, i) => {
-          const member = previewMembers?.[i];
-          const hasPhoto = member?.user?.avatarUrl;
-          return (
-            <div key={i} className="app-skeleton-member-row">
-              {hasPhoto ? (
-                <img className="app-skeleton-avatar-real" src={member.user.avatarUrl} alt="" />
-              ) : (
-                <div className="app-skeleton-pulse app-skeleton-avatar-sm" />
-              )}
-              {member ? (
-                <span className="app-skeleton-member-name truncate">{member.user.displayName}</span>
-              ) : (
-                <div className="app-skeleton-pulse app-skeleton-line" style={{ width: `${45 + (i * 9) % 30}%` }} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+  return <LoadingScreen />;
 }
 
 export default function App() {
