@@ -42,7 +42,7 @@ import {
   listUpdates, createUpdate, updateUpdateEntry, deleteUpdateEntry,
   listEvents, createEvent, updateEvent, deleteEvent, uploadEventBanner, uploadEventIcon,
   createCategory, updateCategory, deleteCategory, reorderCategories,
-  deleteChannel, reorderChannels,
+  createChannel, deleteChannel, reorderChannels,
 } from '../api/endpoints';
 import HouseIcon from '../components/HouseIcon.jsx';
 import { BADGE_RARITIES, RARITY_LABEL, RARITY_COLOR, badgeHasImage } from '../utils/badgeRarity';
@@ -54,13 +54,13 @@ const TAB_LABEL = {
   economia: '💰 Economia', casas: '🧊 Casas e Móveis', sistema: '⚙️ Sistema', moderacao: '💬 Moderação de Recados',
   automodDm: '🚩 Moderação de DMs', feeds: '📰 Feeds', honeypot: '🕸️ Segurança (Honeypot)',
   roles: '🎭 Cargos', channels: '# Canais e Categorias',
-  achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', reload: '🔄 Reload',
+  achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', channelSetup: '🗂️ Canais', reload: '🔄 Reload',
 };
 
 const TAB_GROUPS = [
   { label: 'Visão geral', tabs: ['stats', 'inscricoes', 'users', 'badges'] },
   { label: 'Estrutura da comunidade', tabs: ['roles', 'channels', 'achievements'] },
-  { label: 'Conteúdo', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events'] },
+  { label: 'Conteúdo', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events', 'channelSetup'] },
   { label: 'Moderação', tabs: ['moderacao', 'automodDm', 'logs', 'honeypot'] },
   { label: 'Comunicação', tabs: ['announcements'] },
   { label: 'Sistema', tabs: ['sistema', 'maintenance', 'reload'] },
@@ -155,6 +155,7 @@ export default function AdminPanel() {
           {tab === 'achievements' && <AchievementsAdminTab />}
           {tab === 'updates' && <UpdatesAdminTab />}
           {tab === 'events' && <EventsAdminTab />}
+          {tab === 'channelSetup' && <ChannelSetupAdminTab />}
           {tab === 'honeypot' && <HoneypotAdminTab />}
           {tab === 'reload' && <ReloadAdminTab />}
         </div>
@@ -768,8 +769,103 @@ function EventsAdminTab() {
   );
 }
 
-// Gestão de Feeds (comunidades tipo subreddit — ver a fusão com o Reddit
-// clone) — a staff pode excluir qualquer comunidade daqui, mesmo sem ter
+// Item pedido: "agrupe por categoria, não por assunto solto" — em vez
+// de a staff precisar criar cada categoria/canal manualmente um por
+// um (a interface pra isso, herdada da versão antiga da navegação
+// principal, mora hoje em ChannelSidebar.jsx — pouco acessível na
+// prática desde a reorganização da barra lateral pra abas dentro do
+// Chat), esse botão cria a estrutura sugerida inteira de uma vez:
+// categorias + canais de texto/voz, na ordem certa. Confere pelo NOME
+// antes de criar (sem diferenciar maiúsculas) — clicar de novo depois
+// não duplica o que já existe, só preenche o que ainda falta.
+const SUGGESTED_STRUCTURE = [
+  { category: '📌 Início', channels: [{ name: 'anúncios', type: 'TEXT' }, { name: 'regras', type: 'TEXT' }, { name: 'boas-vindas', type: 'TEXT' }] },
+  { category: '💬 Comunidade', channels: [{ name: 'chat-geral', type: 'TEXT' }, { name: 'apresentações', type: 'TEXT' }, { name: 'memes', type: 'TEXT' }, { name: 'off-topic', type: 'TEXT' }] },
+  { category: '🔧 Suporte', channels: [{ name: 'dúvidas', type: 'TEXT' }, { name: 'bugs-e-sugestões', type: 'TEXT' }] },
+  { category: '🔊 Voz', channels: [{ name: 'Sala Geral', type: 'VOICE' }, { name: 'Sala de Jogos', type: 'VOICE' }, { name: 'AFK', type: 'VOICE' }] },
+];
+
+function ChannelSetupAdminTab() {
+  const [existing, setExisting] = useState(null); // { categoryNames: Set, channelNamesByCategory: Map }
+  const [running, setRunning] = useState(false);
+  const [log, setLog] = useState([]);
+
+  const refresh = () => {
+    getCommunity().then((d) => {
+      const categoryNames = new Set(d.categories.map((c) => c.name.toLowerCase()));
+      const channelNamesByCategory = new Map(
+        d.categories.map((c) => [c.name.toLowerCase(), new Set(c.channels.map((ch) => ch.name.toLowerCase()))])
+      );
+      setExisting({ categoryNames, channelNamesByCategory });
+    }).catch(() => setExisting({ categoryNames: new Set(), channelNamesByCategory: new Map() }));
+  };
+  useEffect(() => { refresh(); }, []);
+
+  const runSetup = async () => {
+    if (!existing) return;
+    setRunning(true);
+    const newLog = [];
+    for (const group of SUGGESTED_STRUCTURE) {
+      const key = group.category.toLowerCase();
+      let categoryId;
+      let existingChannelNames = existing.channelNamesByCategory.get(key);
+      if (existing.categoryNames.has(key)) {
+        newLog.push({ text: `Categoria "${group.category}" já existia — pulada.`, kind: 'skip' });
+      } else {
+        try {
+          const { category } = await createCategory(group.category);
+          categoryId = category.id;
+          existingChannelNames = new Set();
+          newLog.push({ text: `Categoria "${group.category}" criada.`, kind: 'ok' });
+        } catch (err) {
+          newLog.push({ text: `Erro criando categoria "${group.category}": ${err.response?.data?.error || 'falhou'}`, kind: 'error' });
+          setLog([...newLog]);
+          continue;
+        }
+      }
+      for (const ch of group.channels) {
+        if (existingChannelNames?.has(ch.name.toLowerCase())) {
+          newLog.push({ text: `  #${ch.name} já existia — pulado.`, kind: 'skip' });
+          continue;
+        }
+        try {
+          await createChannel({ name: ch.name, type: ch.type, categoryId });
+          newLog.push({ text: `  ${ch.type === 'VOICE' ? '🔊' : '#'}${ch.name} criado.`, kind: 'ok' });
+        } catch (err) {
+          newLog.push({ text: `  Erro criando "${ch.name}": ${err.response?.data?.error || 'falhou'}`, kind: 'error' });
+        }
+      }
+      setLog([...newLog]);
+    }
+    setRunning(false);
+    refresh();
+  };
+
+  if (!existing) return <p className="dim">Carregando...</p>;
+
+  return (
+    <div>
+      <h2>🗂️ Canais</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        Cria uma estrutura de categorias e canais organizada de uma vez — Início, Comunidade, Suporte e Voz.
+        Clicar de novo não duplica o que já existe, só preenche o que ainda faltar.
+      </p>
+      <button type="button" className="btn-primary" disabled={running} onClick={runSetup}>
+        {running ? 'Criando...' : '🚀 Criar estrutura sugerida'}
+      </button>
+      {log.length > 0 && (
+        <div className="admin-users-list" style={{ marginTop: 16, fontFamily: 'monospace', fontSize: 13 }}>
+          {log.map((entry, i) => (
+            <div key={i} className={`dim ${entry.kind === 'error' ? 'auth-error' : ''}`} style={{ padding: '2px 0' }}>
+              {entry.text}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // sido quem criou (poder de moderação da plataforma). Apagar remove
 // também todos os posts/comentários/votos dela em cascata (ver onDelete:
 // Cascade no schema.prisma).
