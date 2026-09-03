@@ -15,7 +15,82 @@ import screenshareIcon from '../assets/icons/nav-screenshare-jitsi.png';
 import volumeUpIcon from '../assets/icons/nav-volume-up-jitsi.png';
 import volumeOffIcon from '../assets/icons/nav-volume-off-jitsi.png';
 import raiseHandIcon from '../assets/icons/nav-raise-hand-jitsi.png';
-import { getPreferredSpeakerId, isOutputSelectionSupported, onSpeakerPreferenceChange } from '../utils/audioDevices';
+import { getPreferredSpeakerId, setPreferredSpeakerId, getPreferredMicId, isOutputSelectionSupported, onSpeakerPreferenceChange, listAudioDevices } from '../utils/audioDevices';
+
+// Item pedido: "melhorando o sistema de conectar com microfone e
+// saídas de áudio... o mais fácil possível" — antes, trocar de
+// mic/saída DURANTE uma chamada só era possível saindo do fluxo e
+// abrindo Configurações → Voz e Áudio. Esse menu rápido reaproveita a
+// MESMA lógica já validada lá (switchMicrophone, getPreferred*Id),
+// só que acessível com um clique direto na barra de chamada — sem
+// sair de onde já está.
+function AudioDeviceQuickMenu({ voice }) {
+  const [open, setOpen] = useState(false);
+  const [mics, setMics] = useState([]);
+  const [speakers, setSpeakers] = useState([]);
+  const menuRef = useRef(null);
+
+  const refreshDevices = async () => {
+    try {
+      const { mics: m, speakers: s } = await listAudioDevices();
+      setMics(m);
+      setSpeakers(s);
+    } catch { /* sem permissão de mídia ainda — lista fica vazia */ }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    refreshDevices();
+    const onDocClick = (e) => { if (!menuRef.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  const currentMicId = getPreferredMicId();
+  const currentSpeakerId = getPreferredSpeakerId();
+
+  return (
+    <div className="audio-device-quick-menu-wrap" ref={menuRef}>
+      <button
+        type="button" className="icon-btn audio-device-quick-toggle"
+        title="Escolher microfone/saída de áudio"
+        onClick={() => setOpen((v) => !v)}
+      >
+        ▾
+      </button>
+      {open && (
+        <div className="audio-device-quick-menu">
+          <div className="audio-device-quick-menu-label">Microfone</div>
+          {mics.length === 0 && <div className="dim audio-device-quick-menu-empty">Nenhum encontrado</div>}
+          {mics.map((d) => (
+            <button
+              key={d.deviceId} type="button"
+              className={`audio-device-quick-menu-item ${(d.deviceId === currentMicId || (!currentMicId && d === mics[0])) ? 'active' : ''}`}
+              onClick={() => { voice.switchMicrophone(d.deviceId); setOpen(false); }}
+            >
+              {d.label || 'Microfone'}
+            </button>
+          ))}
+          {isOutputSelectionSupported() && (
+            <>
+              <div className="audio-device-quick-menu-label">Saída de áudio</div>
+              {speakers.length === 0 && <div className="dim audio-device-quick-menu-empty">Nenhuma encontrada</div>}
+              {speakers.map((d) => (
+                <button
+                  key={d.deviceId} type="button"
+                  className={`audio-device-quick-menu-item ${(d.deviceId === currentSpeakerId || (!currentSpeakerId && d === speakers[0])) ? 'active' : ''}`}
+                  onClick={() => { setPreferredSpeakerId(d.deviceId); setOpen(false); }}
+                >
+                  {d.label || 'Saída de áudio'}
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CallBar() {
   const voice = useVoice();
@@ -59,6 +134,7 @@ export default function CallBar() {
         >
           {micLocked ? <IconGlyph src={raiseHandIcon} size={18} /> : (micMissing ? '🎙️🚫' : <IconGlyph src={muted ? micMutedIcon : micIcon} size={18} />)}
         </button>
+        {!micLocked && <AudioDeviceQuickMenu voice={voice} />}
         <button className={`icon-btn ${deafened ? 'danger-toggle' : ''}`} title={deafened ? 'Reativar áudio' : 'Ensurdecer'} onClick={voice.toggleDeafen}>
           <IconGlyph src={deafened ? volumeOffIcon : volumeUpIcon} size={18} />
         </button>

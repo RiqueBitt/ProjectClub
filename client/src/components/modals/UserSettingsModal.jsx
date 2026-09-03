@@ -1020,7 +1020,15 @@ function VoiceSettingsTab() {
       setSpeakers(s);
     } catch { /* sem permissão de mídia — deixa a lista vazia */ }
   };
-  useEffect(() => { refreshDevices(); }, []);
+  useEffect(() => {
+    refreshDevices();
+    // Item pedido: "o mais fácil possível... aproveitar [o dispositivo]
+    // ao entrar" — sem isso, conectar um fone/microfone novo enquanto
+    // essa tela já estava aberta não atualizava a lista sozinho (só
+    // reaparecia se a pessoa fechasse e abrisse de novo).
+    navigator.mediaDevices?.addEventListener?.('devicechange', refreshDevices);
+    return () => navigator.mediaDevices?.removeEventListener?.('devicechange', refreshDevices);
+  }, []);
 
   const stopTest = () => {
     testRafRef.current && cancelAnimationFrame(testRafRef.current);

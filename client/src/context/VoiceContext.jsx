@@ -248,26 +248,47 @@ export function VoiceProvider({ children }) {
   }, [participants]);
 
   const connectMicrophone = useCallback(async () => {
+    const AgoraRTC = await loadAgoraRTC();
+    const preferredId = getPreferredMicId();
+    const baseConfig = {
+      AEC: true, ANS: true, AGC: true,
+      // Item pedido: "a voz sai muito fraca e desanimada" — o perfil
+      // padrão do Agora pra áudio (speech_standard) usa uma taxa de
+      // amostragem e de bits BEM conservadora, pensada pra chamada
+      // telefônica simples, não pra som cheio de verdade. "music_
+      // standard" (48kHz, ~40kbps) já melhora bastante a qualidade;
+      // "high_quality" ainda mais (~128kbps) — usa a mais alta, já que
+      // o Agora comprime de qualquer forma na rede, e voz mais rica
+      // soa muito menos "robótica"/apagada.
+      encoderConfig: 'high_quality',
+    };
     try {
-      const AgoraRTC = await loadAgoraRTC();
-      const preferredId = getPreferredMicId();
-      const track = await AgoraRTC.createMicrophoneAudioTrack({
-        microphoneId: preferredId || undefined,
-        AEC: true, ANS: true, AGC: true,
-        // Item pedido: "a voz sai muito fraca e desanimada" — o perfil
-        // padrão do Agora pra áudio (speech_standard) usa uma taxa de
-        // amostragem e de bits BEM conservadora, pensada pra chamada
-        // telefônica simples, não pra som cheio de verdade. "music_
-        // standard" (48kHz, ~40kbps) já melhora bastante a qualidade;
-        // "high_quality" ainda mais (~128kbps) — usa a mais alta, já que
-        // o Agora comprime de qualquer forma na rede, e voz mais rica
-        // soa muito menos "robótica"/apagada.
-        encoderConfig: 'high_quality',
-      });
+      const track = await AgoraRTC.createMicrophoneAudioTrack({ microphoneId: preferredId || undefined, ...baseConfig });
       localAudioTrackRef.current = track;
       return true;
     } catch (err) {
-      console.error('[voz] Não foi possível acessar o microfone:', err);
+      // Item pedido: "deixando o mais fácil possível... aproveitar
+      // [o microfone] ao entrar num canal de voz" — se o dispositivo
+      // SALVO como preferido não existir mais (a pessoa trocou de
+      // fone, formatou o driver mudou de ID, etc), a chamada acima
+      // falhava e a pessoa simplesmente não conseguia entrar com
+      // áudio nenhum — mesmo tendo um microfone perfeitamente
+      // funcional (só que outro) disponível no aparelho. Tenta de
+      // novo sem especificar nenhum, deixando o Agora escolher o
+      // padrão do sistema sozinho, em vez de desistir na primeira
+      // falha.
+      if (preferredId) {
+        console.warn('[voz] microfone preferido indisponível, usando o padrão do sistema:', err);
+        try {
+          const track = await AgoraRTC.createMicrophoneAudioTrack(baseConfig);
+          localAudioTrackRef.current = track;
+          return true;
+        } catch (fallbackErr) {
+          console.error('[voz] Não foi possível acessar nenhum microfone:', fallbackErr);
+        }
+      } else {
+        console.error('[voz] Não foi possível acessar o microfone:', err);
+      }
       localAudioTrackRef.current = null;
       return false;
     }
