@@ -782,7 +782,10 @@ export default function ChatWindow({ kind }) {
           />
           <div className="composer-picker-anchor">
             <button type="button" className="icon-btn" title="GIF" onClick={() => { setGifPickerOpen((v) => !v); setEmojiPickerOpen(false); }}>GIF</button>
-            {gifPickerOpen && <GifPicker onPick={sendGif} onClose={() => setGifPickerOpen(false)} />}
+            {gifPickerOpen && createPortal(
+              <GifPicker onPick={sendGif} onClose={() => setGifPickerOpen(false)} />,
+              document.body,
+            )}
           </div>
           <div className="composer-picker-anchor">
             <button type="button" className="icon-btn" title="Emoji" onClick={() => { setEmojiPickerOpen((v) => !v); setGifPickerOpen(false); }}>☺</button>

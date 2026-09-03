@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
@@ -124,16 +125,21 @@ export default function PostDetailPage() {
         <input value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Escreva um comentário..." maxLength={5000} />
         <div className="composer-picker-anchor">
           <button type="button" className="icon-btn" title="GIF" onClick={() => { setGifPickerOpen((v) => !v); setEmojiPickerOpen(false); }}>GIF</button>
-          {gifPickerOpen && <GifPicker onPick={sendCommentGif} onClose={() => setGifPickerOpen(false)} />}
+          {gifPickerOpen && createPortal(
+            <GifPicker onPick={sendCommentGif} onClose={() => setGifPickerOpen(false)} />,
+            document.body,
+          )}
         </div>
         <div className="composer-picker-anchor">
           <button type="button" className="icon-btn" title="Emoji" onClick={() => { setEmojiPickerOpen((v) => !v); setGifPickerOpen(false); }}>☺</button>
-          {emojiPickerOpen && (
+          {emojiPickerOpen && createPortal(
             <EmojiPicker
+              variant="composer-centered"
               serverEmojis={useStore.getState().usableEmojis}
               onPick={insertCommentEmoji}
               onClose={() => setEmojiPickerOpen(false)}
-            />
+            />,
+            document.body,
           )}
         </div>
         <button type="submit" className="btn-primary">Comentar</button>
@@ -217,16 +223,21 @@ function CommentNode({ comment, postId, user, isStaff, onChange, depth = 0 }) {
             <input value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="Escreva uma resposta..." maxLength={5000} autoFocus />
             <div className="composer-picker-anchor">
               <button type="button" className="icon-btn" title="GIF" onClick={() => { setReplyGifOpen((v) => !v); setReplyEmojiOpen(false); }}>GIF</button>
-              {replyGifOpen && <GifPicker onPick={sendReplyGif} onClose={() => setReplyGifOpen(false)} />}
+              {replyGifOpen && createPortal(
+                <GifPicker onPick={sendReplyGif} onClose={() => setReplyGifOpen(false)} />,
+                document.body,
+              )}
             </div>
             <div className="composer-picker-anchor">
               <button type="button" className="icon-btn" title="Emoji" onClick={() => { setReplyEmojiOpen((v) => !v); setReplyGifOpen(false); }}>☺</button>
-              {replyEmojiOpen && (
+              {replyEmojiOpen && createPortal(
                 <EmojiPicker
+                  variant="composer-centered"
                   serverEmojis={useStore.getState().usableEmojis}
                   onPick={insertReplyEmoji}
                   onClose={() => setReplyEmojiOpen(false)}
-                />
+                />,
+                document.body,
               )}
             </div>
             <button type="submit" className="btn-primary">Enviar</button>

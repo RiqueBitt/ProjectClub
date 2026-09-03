@@ -90,7 +90,7 @@ export default function GifPicker({ onPick, onClose }) {
     : results;
 
   return (
-    <div className="gif-picker-popover" style={{ '--sheet-height': `${heightVh}vh` }} onMouseDown={(e) => e.stopPropagation()}>
+    <div className="gif-picker-popover composer-centered-picker" style={{ '--sheet-height': `${heightVh}vh` }} onMouseDown={(e) => e.stopPropagation()}>
       <div className="sheet-drag-handle" {...dragHandlers} />
       <div className="gif-picker-tabs">
         <button className={tab === 'search' ? 'active' : ''} onClick={() => setTab('search')}>Buscar</button>
