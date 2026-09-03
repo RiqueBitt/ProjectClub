@@ -348,9 +348,18 @@ model UpdateLogEntry {
   id          String   @id @default(uuid())
   title       String
   description String   @db.Text
+  // Item pedido: "número de atualização vai pra v1.0, estilo de
+  // versão" — string livre (não força um formato semver rígido),
+  // editável pela staff; sugerida automaticamente no cliente com base
+  // na última publicada, mas a staff pode digitar outra coisa se
+  // quiser pular uma versão, por exemplo.
+  version     String?
   createdById String
   createdBy   User     @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
+  // Item pedido: "poder editar" — precisa de updatedAt pra saber
+  // quando uma entrada já publicada foi editada depois.
+  updatedAt   DateTime @updatedAt
 }
 
 // --- Sistema de segurança "isca" (honeypot) — rotas falsas que só

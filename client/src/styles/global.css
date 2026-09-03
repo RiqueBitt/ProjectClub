@@ -5194,7 +5194,23 @@ a.embed-card-title:hover { text-decoration: underline; }
 
 .inicio-featured-posts { display: flex; flex-direction: column; gap: 10px; }
 
-.inicio-videos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+/* Item pedido: "3 colunas de 4" (12 no total por página) — 4 colunas
+   fixas em telas largas; menos em telas estreitas, mas o TOTAL
+   mostrado de cada vez continua 12 (só reorganiza visualmente em mais
+   linhas). */
+.inicio-videos-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+@media (max-width: 900px) {
+  .inicio-videos-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 640px) {
+  .inicio-videos-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.inicio-show-more {
+  display: block; margin: 14px auto 0; padding: 8px 20px; border-radius: 999px;
+  background: var(--bg-elevated); color: var(--text-normal); font-weight: 600; font-size: 13px;
+  transition: background-color .12s var(--ease-smooth);
+}
+.inicio-show-more:hover { background: var(--bg-modifier-hover); }
 .inicio-video-card { display: block; border-radius: 10px; overflow: hidden; background: var(--bg-elevated); }
 .inicio-video-thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; transition: transform .15s var(--ease-smooth); }
 .inicio-video-card:hover .inicio-video-thumb { transform: scale(1.03); }
@@ -5217,6 +5233,23 @@ a.embed-card-title:hover { text-decoration: underline; }
 .update-entry-title { font-weight: 700; font-size: 15px; color: var(--header-primary); }
 .update-entry-meta { font-size: 12px; }
 .update-entry-desc { font-size: 13.5px; color: var(--text-normal); white-space: pre-wrap; margin: 0; }
+
+/* Item pedido: "adicione os - ** __" (lista + negrito/sublinhado, ver
+   renderUpdateBody em InicioPage.jsx) e "se tiver mais de 6 linhas,
+   mostra ver mais". */
+.update-entry-body { font-size: 13.5px; color: var(--text-normal); }
+.update-entry-line { margin: 0 0 4px; white-space: pre-wrap; }
+.update-entry-list { margin: 4px 0; padding-left: 20px; }
+.update-entry-list li { margin-bottom: 2px; }
+.update-entry-see-more {
+  display: inline-block; margin-top: 4px; font-size: 12px; font-weight: 700; color: var(--brand);
+}
+.update-entry-see-more:hover { text-decoration: underline; }
+.update-entry-version {
+  display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; font-size: 11px;
+  font-weight: 700; background: color-mix(in srgb, var(--brand) 20%, transparent); color: var(--brand);
+  vertical-align: middle;
+}
 
 /* ---------- Visual completo das categorias de post (ícone/banner/
    descrição com **negrito** / __sublinhado__) ---------- */

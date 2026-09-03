@@ -39,7 +39,7 @@ import {
   getCommunity,
   adminListHoneypotHits, adminListBlockedIps, adminUnblockIp, adminReloadUserPresence, adminDeleteUserAccount,
   adminListAchievements, adminCreateAchievement, adminUpdateAchievement, adminUploadAchievementIcon, adminDeleteAchievement,
-  listUpdates, createUpdate, deleteUpdateEntry,
+  listUpdates, createUpdate, updateUpdateEntry, deleteUpdateEntry,
   listEvents, createEvent, updateEvent, deleteEvent, uploadEventBanner, uploadEventIcon,
   createCategory, updateCategory, deleteCategory, reorderCategories,
   deleteChannel, reorderChannels,
@@ -591,28 +591,55 @@ function AchievementForm({ achievement, progressTypes, rarities, onClose, onSave
 
 // Gestão de Atualizações (changelog) — publica, aparece pra todo mundo em
 // tempo real (update:new via socket), staff pode excluir depois.
+// Item pedido: "número de atualiza vai pra v1.0, estilo de versão" +
+// "poder editar elas" + "adicione os - ** __ que deixa mais bonito".
 function UpdatesAdminTab() {
   const [updates, setUpdates] = useState(null);
+  const [editingId, setEditingId] = useState(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [version, setVersion] = useState('');
   const [error, setError] = useState('');
 
   const refresh = () => listUpdates().then((d) => setUpdates(d.updates));
   useEffect(() => { refresh(); }, []);
 
-  const publish = async (e) => {
+  // Sugere a próxima versão automaticamente com base na última
+  // publicada (v1.0 -> v1.1, e assim por diante) — só quando a pessoa
+  // ainda não começou a digitar uma versão própria, e só ao entrar em
+  // modo de CRIAR (não ao editar, onde já mostramos a versão real
+  // daquela entrada).
+  useEffect(() => {
+    if (editingId || !updates || version) return;
+    const last = updates[0]?.version;
+    const match = last?.match(/^v?(\d+)\.(\d+)$/i);
+    setVersion(match ? `v${match[1]}.${Number(match[2]) + 1}` : (updates.length === 0 ? 'v1.0' : ''));
+  }, [updates, editingId]);
+
+  const resetForm = () => { setEditingId(null); setTitle(''); setDescription(''); setVersion(''); setError(''); };
+
+  const startEdit = (u) => {
+    setEditingId(u.id); setTitle(u.title); setDescription(u.description); setVersion(u.version || '');
+  };
+
+  const submit = async (e) => {
     e.preventDefault();
     setError('');
     try {
-      await createUpdate({ title, description });
-      setTitle(''); setDescription('');
+      if (editingId) {
+        await updateUpdateEntry(editingId, { title, description, version });
+      } else {
+        await createUpdate({ title, description, version });
+      }
+      resetForm();
       refresh();
-    } catch (err) { setError(err.response?.data?.error || 'Erro ao publicar.'); }
+    } catch (err) { setError(err.response?.data?.error || 'Erro ao salvar.'); }
   };
 
   const remove = async (id) => {
     if (!confirm('Excluir essa atualização?')) return;
     await deleteUpdateEntry(id);
+    if (editingId === id) resetForm();
     refresh();
   };
 
@@ -622,19 +649,30 @@ function UpdatesAdminTab() {
     <div>
       <h2>📰 Atualizações</h2>
       <p className="dim" style={{ marginBottom: 16 }}>Publique novidades e mudanças recentes — aparece pra todo mundo em tempo real.</p>
-      <form onSubmit={publish} className="settings-block communities-inline-form">
-        <label>TÍTULO<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={150} required /></label>
-        <label>DESCRIÇÃO<textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} maxLength={5000} required /></label>
+      <form onSubmit={submit} className="settings-block communities-inline-form">
+        <div className="display-name-row">
+          <label style={{ flex: 1 }}>TÍTULO<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={150} required /></label>
+          <label style={{ maxWidth: 110 }}>VERSÃO<input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="v1.0" maxLength={30} /></label>
+        </div>
+        <label>
+          DESCRIÇÃO
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} maxLength={5000} required />
+        </label>
+        <p className="dim" style={{ fontSize: 12, marginTop: -4 }}>Dá pra usar **negrito**, __sublinhado__ e linhas começando com "- " pra fazer uma lista.</p>
         {error && <div className="auth-error">{error}</div>}
-        <button type="submit" className="btn-primary">Publicar</button>
+        <div className="modal-actions" style={{ justifyContent: 'flex-start', gap: 10 }}>
+          <button type="submit" className="btn-primary">{editingId ? 'Salvar edição' : 'Publicar'}</button>
+          {editingId && <button type="button" className="btn-secondary" onClick={resetForm}>Cancelar edição</button>}
+        </div>
       </form>
       <div className="admin-users-list" style={{ marginTop: 16 }}>
         {updates.map((u) => (
           <div key={u.id} className="admin-user-row">
             <div className="admin-user-row-info">
-              <div className="admin-user-row-name">{u.title}</div>
+              <div className="admin-user-row-name">{u.title}{u.version ? ` · ${u.version}` : ''}</div>
               <div className="admin-user-row-meta dim">{new Date(u.createdAt).toLocaleString('pt-BR')} · {u.createdBy.displayName}</div>
             </div>
+            <button className="btn-secondary" onClick={() => startEdit(u)}>Editar</button>
             <button className="btn-danger" onClick={() => remove(u.id)}>Excluir</button>
           </div>
         ))}

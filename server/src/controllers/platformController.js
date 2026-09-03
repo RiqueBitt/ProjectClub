@@ -18,12 +18,13 @@ async function getStatus(req, res, next) {
 // nova, só contando o que já existe no banco.
 async function getPlatformStats(req, res, next) {
   try {
-    const [memberCount, postCount, communityCount] = await Promise.all([
+    const [memberCount, postCount, communityCount, messageCount] = await Promise.all([
       prisma.user.count(),
       prisma.post.count(),
       prisma.community.count(),
+      prisma.message.count(),
     ]);
-    res.json({ memberCount, postCount, communityCount });
+    res.json({ memberCount, postCount, communityCount, messageCount });
   } catch (err) { next(err); }
 }
 

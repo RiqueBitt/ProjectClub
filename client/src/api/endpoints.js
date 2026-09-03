@@ -342,6 +342,7 @@ export const adminDeleteAchievement = (id) => api.delete(`/achievements/admin/${
 // --- Atualizações (changelog) ---
 export const listUpdates = () => api.get('/updates').then((r) => r.data);
 export const createUpdate = (payload) => api.post('/updates', payload).then((r) => r.data);
+export const updateUpdateEntry = (id, payload) => api.patch(`/updates/${id}`, payload).then((r) => r.data);
 export const deleteUpdateEntry = (id) => api.delete(`/updates/${id}`).then((r) => r.data);
 
 // Item pedido: "sistema de eventos integrado ao painel da Staff"
