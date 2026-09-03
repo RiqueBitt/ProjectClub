@@ -67,7 +67,7 @@ public class ScreenCaptureService extends Service {
   private HandlerThread captureThread;
   private Handler captureHandler;
   private long lastFrameSentAt = 0;
-  private long minFrameIntervalMs = 166; // ~6 fps por padrão, ajustado pelo fps pedido
+  private long minFrameIntervalMs = 83; // ~12 fps por padrão, ajustado pelo fps pedido
 
   @Override
   public IBinder onBind(Intent intent) {
@@ -97,8 +97,16 @@ public class ScreenCaptureService extends Service {
       return START_NOT_STICKY;
     }
 
-    int fps = intent != null ? intent.getIntExtra("fps", 6) : 6;
-    final int quality = intent != null ? intent.getIntExtra("quality", 55) : 55;
+    // Item pedido: "faça se possível como o Stoat ou o Discord" —
+    // pesquisei os parâmetros de referência que eles (e SDKs de RTC
+    // em geral) usam: 720p como resolução padrão pra compartilhamento
+    // de tela, entre 15-30fps. 12fps/qualidade 65 aqui é um meio-termo
+    // realista pra essa arquitetura específica (captura via imagens
+    // JPEG, não um encoder de vídeo de verdade como H.264/VP8 — mais
+    // simples de implementar corretamente, mas nunca vai chegar na
+    // eficiência de um codec de vídeo nativo).
+    int fps = intent != null ? intent.getIntExtra("fps", 12) : 12;
+    final int quality = intent != null ? intent.getIntExtra("quality", 65) : 65;
     minFrameIntervalMs = 1000L / Math.max(1, fps);
 
     // PASSO 3: só agora, com o serviço já em primeiro plano, pega a
@@ -121,9 +129,30 @@ public class ScreenCaptureService extends Service {
     }, null);
 
     DisplayMetrics metrics = getResources().getDisplayMetrics();
-    int width = metrics.widthPixels;
-    int height = metrics.heightPixels;
+    // BUG CORRIGIDO / melhoria (pesquisa sobre como Discord/Stoat fazem
+    // isso): capturar na resolução NATIVA da tela (em celulares
+    // modernos, facilmente 1080x2400 ou mais) gera imagens JPEG enormes
+    // repetidamente — desperdiça CPU/bateria/banda à toa, já que quem
+    // assiste do outro lado nunca precisa de mais que ~720p pra ver
+    // uma tela compartilhada com nitidez. Reduz proporcionalmente pra
+    // no máximo 720px no maior lado, mesma referência usada pela
+    // própria Agora (720p é o padrão deles pra compartilhamento de
+    // tela) e por guias técnicos de WebRTC pra Android.
+    int rawWidth = metrics.widthPixels;
+    int rawHeight = metrics.heightPixels;
     int densityDpi = metrics.densityDpi;
+    int maxDimension = 720;
+    int width = rawWidth;
+    int height = rawHeight;
+    if (Math.max(rawWidth, rawHeight) > maxDimension) {
+      float scale = (float) maxDimension / Math.max(rawWidth, rawHeight);
+      width = Math.round(rawWidth * scale);
+      height = Math.round(rawHeight * scale);
+      // Ambas as dimensões precisam ser pares (exigência do
+      // ImageReader/codecs de vídeo em geral).
+      width -= width % 2;
+      height -= height % 2;
+    }
 
     captureThread = new HandlerThread("ScreenCaptureThread");
     captureThread.start();

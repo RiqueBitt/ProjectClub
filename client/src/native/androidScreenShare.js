@@ -32,7 +32,14 @@ function ensureCanvas(width, height) {
 // Android), e se concedida, começa a receber frames e desenhá-los no
 // canvas continuamente. Devolve a MediaStreamTrack pronta pra publicar
 // no Agora, ou null se a pessoa negou a permissão.
-export async function startAndroidScreenShare({ fps = 6, quality = 55 } = {}) {
+//
+// Item pedido depois: "faça se possível como o Stoat ou o Discord" —
+// os padrões de fps/qualidade abaixo batem com os do lado nativo
+// (ScreenCaptureService.java), pesquisados a partir de como Agora/
+// Discord/Stoat costumam configurar compartilhamento de tela mobile
+// (~720p, entre 12-15fps é um bom equilíbrio pra essa arquitetura
+// específica).
+export async function startAndroidScreenShare({ fps = 12, quality = 65 } = {}) {
   const { granted } = await ScreenShare.requestPermission();
   if (!granted) return null;
 

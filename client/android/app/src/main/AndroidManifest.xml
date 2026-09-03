@@ -83,7 +83,8 @@
          plano é obrigatório pra captura de tela funcionar (o Android
          mata qualquer captura feita fora de um serviço assim), e desde
          o Android 14 (API 34) precisa ser desse TIPO específico
-         (mediaProjection), com essa permissão própria. -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+         (mediaProjection). FOREGROUND_SERVICE em si já foi declarado
+         mais acima (a chamada de voz também precisa dela) — sem
+         repetir aqui. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 </manifest>

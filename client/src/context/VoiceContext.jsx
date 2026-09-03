@@ -515,7 +515,15 @@ export function VoiceProvider({ children }) {
         // oficialmente pelo Agora pra qualquer fonte de vídeo que não
         // seja câmera/tela padrão do navegador.
         try {
-          const mediaStreamTrack = await startAndroidScreenShare({ fps: 6, quality: 55 });
+          // Item pedido: "faça se possível como o Stoat ou o Discord"
+          // — 12fps/qualidade 65, pesquisado a partir de como esses
+          // apps configuram compartilhamento de tela mobile, e agora
+          // possível sem pesar mais que antes graças à resolução de
+          // captura reduzida (ver ScreenCaptureService.java, que
+          // manda os frames já em ~720p em vez da resolução nativa da
+          // tela — bem mais leve de comprimir, sobra margem pra mais
+          // fps sem sobrecarregar).
+          const mediaStreamTrack = await startAndroidScreenShare({ fps: 12, quality: 65 });
           if (!mediaStreamTrack) return; // pessoa negou a permissão do sistema
           const AgoraRTC = await loadAgoraRTC();
           const customTrack = await AgoraRTC.createCustomVideoTrack({ mediaStreamTrack, frameRate: 6 });
