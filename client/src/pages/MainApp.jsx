@@ -54,7 +54,7 @@ const CommunitiesPage = lazy(() => import('./CommunitiesPage.jsx'));
 const CommunityPage = lazy(() => import('./CommunityPage.jsx'));
 const PostDetailPage = lazy(() => import('./PostDetailPage.jsx'));
 const AchievementsPage = lazy(() => import('./AchievementsPage.jsx'));
-const UpdatesPage = lazy(() => import('./UpdatesPage.jsx'));
+const InicioPage = lazy(() => import('./InicioPage.jsx'));
 
 // Interface com UMA barra lateral principal só (MainSidebar.jsx —
 // Chat/Amigos/Perfil/Notificações/Ranks/Busca/Suporte). A antiga dupla
@@ -206,7 +206,7 @@ export default function MainApp() {
               <Route path="/comunidades/:slug" element={<CommunityPage />} />
               <Route path="/posts/:id" element={<PostDetailPage />} />
               <Route path="/conquistas" element={<AchievementsPage />} />
-              <Route path="/atualizacoes" element={<UpdatesPage />} />
+              <Route path="/inicio" element={<InicioPage />} />
               <Route path="/conversations/:conversationId" element={<ChatWindow kind="conversation" />} />
               <Route path="/channels/:channelId" element={<ChatWindow kind="channel" />} />
             </Routes>

@@ -5140,6 +5140,48 @@ a.embed-card-title:hover { text-decoration: underline; }
 .achievement-card-progress-fill { height: 100%; background: var(--rarity-color, var(--brand)); border-radius: 999px; }
 .achievement-card-progress-label { font-size: 11px; flex-shrink: 0; }
 
+/* Item pedido: página "Início" — banner/ícone atual do app, eventos
+   da staff, posts em destaque do mês, vídeos do YouTube, atualizações
+   recentes, tudo numa tela só. */
+.inicio-page { max-width: 900px; }
+.inicio-hero {
+  position: relative; border-radius: 14px; overflow: hidden; margin-bottom: 24px;
+  background-size: cover; background-position: center; background-color: var(--bg-secondary);
+  min-height: 140px; display: flex; align-items: flex-end;
+}
+.inicio-hero-overlay {
+  width: 100%; display: flex; align-items: center; gap: 14px; padding: 18px 20px;
+  background: linear-gradient(0deg, rgba(0,0,0,.75) 0%, rgba(0,0,0,.15) 100%);
+}
+.inicio-hero-icon { width: 56px; height: 56px; border-radius: 14px; object-fit: cover; flex-shrink: 0; border: 2px solid rgba(255,255,255,.15); }
+.inicio-hero-overlay h1 { margin: 0; font-size: 20px; color: #fff; }
+.inicio-hero-overlay p { margin: 2px 0 0; color: rgba(255,255,255,.75); }
+
+.inicio-section { margin-bottom: 28px; }
+.inicio-section h2 { font-size: 16px; margin: 0 0 12px; }
+
+.inicio-events-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.inicio-event-card { background: var(--bg-elevated); border-radius: 12px; overflow: hidden; }
+.inicio-event-banner { width: 100%; height: 110px; object-fit: cover; display: block; }
+.inicio-event-body { padding: 12px 14px; }
+.inicio-event-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.inicio-event-icon { width: 24px; height: 24px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
+.inicio-event-top > span.truncate { flex: 1; font-weight: 700; }
+.inicio-event-status { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; flex-shrink: 0; }
+.inicio-event-status.status-upcoming { background: color-mix(in srgb, var(--brand) 22%, transparent); color: var(--brand); }
+.inicio-event-status.status-active { background: color-mix(in srgb, var(--green) 22%, transparent); color: var(--green); }
+.inicio-event-status.status-ended { background: var(--bg-modifier-hover); color: var(--text-muted); }
+.inicio-event-desc { font-size: 13px; margin: 0 0 6px; white-space: pre-wrap; }
+.inicio-event-dates { font-size: 12px; margin: 0; }
+
+.inicio-featured-posts { display: flex; flex-direction: column; gap: 10px; }
+
+.inicio-videos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+.inicio-video-card { display: block; border-radius: 10px; overflow: hidden; background: var(--bg-elevated); }
+.inicio-video-thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; transition: transform .15s var(--ease-smooth); }
+.inicio-video-card:hover .inicio-video-thumb { transform: scale(1.03); }
+.inicio-video-title { display: block; padding: 8px 10px; font-size: 13px; font-weight: 600; color: var(--text-normal); }
+
 .achievement-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; max-height: 340px; overflow-y: auto; }
 .achievement-picker-item {
   display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 8px;

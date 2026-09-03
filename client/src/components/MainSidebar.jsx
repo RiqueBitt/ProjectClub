@@ -9,7 +9,7 @@ import ranksIcon from '../assets/icons/nav-ranks.png';
 import supportIcon from '../assets/icons/nav-support.png';
 import dashboardIcon from '../assets/icons/nav-dashboard.png';
 import achievementsIcon from '../assets/icons/nav-achievements.png';
-import updatesIcon from '../assets/icons/nav-updates.png';
+import inicioIcon from '../assets/icons/nav-updates.png';
 import { STATUS_LABEL, STATUS_COLOR } from '../utils/status';
 import { proxyImage } from '../utils/imageProxy';
 
@@ -22,13 +22,23 @@ import { proxyImage } from '../utils/imageProxy';
 // "User Account" do pacote) vai em Amigos, não em Perfil; Perfil fica
 // com o emoji padrão já que não veio um ícone específico pra ele.
 const ITEMS = [
+  // Item pedido: "crie uma nova categoria chamada Início, primeira
+  // categoria da lista, funcionando como página principal de
+  // novidades e destaques" — substitui "Atualizações" (removida
+  // completamente da navegação), que agora é só uma PARTE do
+  // conteúdo consolidado dentro de Início (ver InicioPage.jsx).
+  // Rota própria (/inicio), sem mexer na raiz "/" — ela já é usada em
+  // vários lugares do app (redirecionamento pós-login, etc) apontando
+  // pro Chat/Comunidade, mudar isso seria um risco desnecessário só
+  // pra Início ser "tecnicamente" a rota raiz; sendo o primeiro item
+  // da lista já atende ao pedido.
+  { to: '/inicio', icon: inicioIcon, isImg: true, label: 'Início', match: (p) => p === '/inicio' },
   { to: '/', icon: topicIcon, isImg: true, label: 'Comunidade', match: (p) => p === '/' || p.startsWith('/channels/') },
   { to: '/dms', icon: friendsIcon, isImg: true, label: 'Amigos', match: (p) => p === '/dms' || p.startsWith('/conversations/') },
   { to: '/comunidades', icon: feedIcon, isImg: true, label: 'Feeds', match: (p) => p === '/comunidades' || p.startsWith('/posts/') },
   { to: '/notifications', icon: notificationsIcon, isImg: true, label: 'Notificações', match: (p) => p.startsWith('/notifications') },
   { to: '/rank', icon: ranksIcon, isImg: true, label: 'Ranks', match: (p) => p.startsWith('/rank') },
   { to: '/conquistas', icon: achievementsIcon, isImg: true, label: 'Conquistas', match: (p) => p.startsWith('/conquistas') },
-  { to: '/atualizacoes', icon: updatesIcon, isImg: true, label: 'Atualizações', match: (p) => p.startsWith('/atualizacoes') },
   { to: '/tickets', icon: supportIcon, isImg: true, label: 'Suporte', match: (p) => p.startsWith('/tickets') },
 ];
 // BUG CORRIGIDO: o painel de staff (/admin) ficou órfão depois da troca

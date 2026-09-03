@@ -40,6 +40,7 @@ import {
   adminListHoneypotHits, adminListBlockedIps, adminUnblockIp, adminReloadUserPresence, adminDeleteUserAccount,
   adminListAchievements, adminCreateAchievement, adminUpdateAchievement, adminUploadAchievementIcon, adminDeleteAchievement,
   listUpdates, createUpdate, deleteUpdateEntry,
+  listEvents, createEvent, updateEvent, deleteEvent, uploadEventBanner, uploadEventIcon,
   createCategory, updateCategory, deleteCategory, reorderCategories,
   deleteChannel, reorderChannels,
 } from '../api/endpoints';
@@ -53,13 +54,13 @@ const TAB_LABEL = {
   economia: '💰 Economia', casas: '🧊 Casas e Móveis', sistema: '⚙️ Sistema', moderacao: '💬 Moderação de Recados',
   automodDm: '🚩 Moderação de DMs', feeds: '📰 Feeds', honeypot: '🕸️ Segurança (Honeypot)',
   roles: '🎭 Cargos', channels: '# Canais e Categorias',
-  achievements: '🏆 Conquistas', updates: '📰 Atualizações', reload: '🔄 Reload',
+  achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', reload: '🔄 Reload',
 };
 
 const TAB_GROUPS = [
   { label: 'Visão geral', tabs: ['stats', 'inscricoes', 'users', 'badges'] },
   { label: 'Estrutura da comunidade', tabs: ['roles', 'channels', 'achievements'] },
-  { label: 'Conteúdo', tabs: ['feeds', 'economia', 'casas', 'album', 'updates'] },
+  { label: 'Conteúdo', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events'] },
   { label: 'Moderação', tabs: ['moderacao', 'automodDm', 'logs', 'honeypot'] },
   { label: 'Comunicação', tabs: ['announcements'] },
   { label: 'Sistema', tabs: ['sistema', 'maintenance', 'reload'] },
@@ -153,6 +154,7 @@ export default function AdminPanel() {
           {tab === 'channels' && <ChannelsAdminTab />}
           {tab === 'achievements' && <AchievementsAdminTab />}
           {tab === 'updates' && <UpdatesAdminTab />}
+          {tab === 'events' && <EventsAdminTab />}
           {tab === 'honeypot' && <HoneypotAdminTab />}
           {tab === 'reload' && <ReloadAdminTab />}
         </div>
@@ -634,6 +636,93 @@ function UpdatesAdminTab() {
               <div className="admin-user-row-meta dim">{new Date(u.createdAt).toLocaleString('pt-BR')} · {u.createdBy.displayName}</div>
             </div>
             <button className="btn-danger" onClick={() => remove(u.id)}>Excluir</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Item pedido: "sistema de eventos integrado ao painel da Staff —
+// somente usuários autorizados... poderão criar, editar ou excluir".
+// Mesmo padrão exato de UpdatesAdminTab acima, com mais campos: banner/
+// ícone (upload separado, precisa do evento já criado — mesmo padrão de
+// createPost + uploadPostImage), datas e status editável inline.
+function EventsAdminTab() {
+  const [events, setEvents] = useState(null);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [startsAt, setStartsAt] = useState('');
+  const [endsAt, setEndsAt] = useState('');
+  const [error, setError] = useState('');
+
+  const refresh = () => listEvents().then((d) => setEvents(d.events));
+  useEffect(() => { refresh(); }, []);
+
+  const publish = async (e) => {
+    e.preventDefault();
+    setError('');
+    try {
+      await createEvent({ title, description, startsAt: startsAt || undefined, endsAt: endsAt || undefined });
+      setTitle(''); setDescription(''); setStartsAt(''); setEndsAt('');
+      refresh();
+    } catch (err) { setError(err.response?.data?.error || 'Erro ao criar evento.'); }
+  };
+
+  const changeStatus = async (id, status) => {
+    await updateEvent(id, { status });
+    refresh();
+  };
+
+  const onBanner = async (id, e) => {
+    const file = e.target.files[0]; if (!file) return;
+    await uploadEventBanner(id, file);
+    refresh();
+  };
+
+  const onIcon = async (id, e) => {
+    const file = e.target.files[0]; if (!file) return;
+    await uploadEventIcon(id, file);
+    refresh();
+  };
+
+  const remove = async (id) => {
+    if (!confirm('Excluir esse evento?')) return;
+    await deleteEvent(id);
+    refresh();
+  };
+
+  if (!events) return <p className="dim">Carregando...</p>;
+
+  return (
+    <div>
+      <h2>🎉 Eventos</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>Crie e gerencie eventos — aparecem automaticamente na categoria Início pra todo mundo.</p>
+      <form onSubmit={publish} className="settings-block communities-inline-form">
+        <label>TÍTULO<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={150} required /></label>
+        <label>DESCRIÇÃO<textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} maxLength={5000} required /></label>
+        <div className="display-name-row">
+          <label>INÍCIO (opcional)<input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></label>
+          <label>FIM (opcional)<input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} /></label>
+        </div>
+        {error && <div className="auth-error">{error}</div>}
+        <button type="submit" className="btn-primary">Criar evento</button>
+      </form>
+      <div className="admin-users-list" style={{ marginTop: 16 }}>
+        {events.map((ev) => (
+          <div key={ev.id} className="admin-user-row">
+            <div className="admin-user-row-info">
+              <div className="admin-user-row-name">{ev.title}</div>
+              <div className="admin-user-row-meta dim">Criado por {ev.createdBy.displayName}</div>
+            </div>
+            <select value={ev.status} onChange={(e) => changeStatus(ev.id, e.target.value)}>
+              <option value="UPCOMING">Em breve</option>
+              <option value="ACTIVE">Ativo</option>
+              <option value="ENDED">Encerrado</option>
+            </select>
+            <label className="btn-secondary">Banner<input type="file" accept="image/*" hidden onChange={(e) => onBanner(ev.id, e)} /></label>
+            <label className="btn-secondary">Ícone<input type="file" accept="image/*" hidden onChange={(e) => onIcon(ev.id, e)} /></label>
+            <button className="btn-danger" onClick={() => remove(ev.id)}>Excluir</button>
           </div>
         ))}
       </div>
