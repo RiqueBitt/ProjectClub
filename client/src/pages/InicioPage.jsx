@@ -9,7 +9,8 @@ import { proxyImage } from '../utils/imageProxy';
 import inicioIcon from '../assets/icons/logo-project-club.png';
 
 const EVENT_STATUS_LABEL = { UPCOMING: 'Em breve', ACTIVE: 'Ativo', ENDED: 'Encerrado' };
-const VIDEOS_PER_PAGE = 12;
+// Item pedido: mostra só os 4 vídeos mais recentes do canal.
+const VIDEOS_SHOWN = 4;
 const UPDATE_COLLAPSED_LINES = 6;
 
 function formatEventDate(iso) {
@@ -87,7 +88,6 @@ export default function InicioPage() {
   const [updates, setUpdates] = useState(null);
   const [events, setEvents] = useState(null);
   const [videos, setVideos] = useState(null);
-  const [videoPage, setVideoPage] = useState(1);
   const [featuredPosts, setFeaturedPosts] = useState(null);
   const [stats, setStats] = useState(null);
 
@@ -129,11 +129,10 @@ export default function InicioPage() {
     try { await votePost(post.id, value); } catch { listFeaturedPosts().then((d) => setFeaturedPosts(d.posts)).catch(() => {}); }
   };
 
-  // Item pedido: "máximo de vídeo que vai aparecer de uma vez vai ser
-  // 12... se tiver mais vídeo vai aparecendo mostrar mais... e assim
-  // por diante" — 12 por página, botão revela mais 12 a cada clique.
-  const visibleVideos = useMemo(() => videos?.slice(0, videoPage * VIDEOS_PER_PAGE) ?? [], [videos, videoPage]);
-  const hasMoreVideos = videos && visibleVideos.length < videos.length;
+  // Item pedido (atualizado): "mostra só 4 vídeos mais recentes" —
+  // simplificado, sem paginação/"mostrar mais" (não fazia mais
+  // sentido pra uma lista fixa de só 4).
+  const visibleVideos = useMemo(() => videos?.slice(0, VIDEOS_SHOWN) ?? [], [videos]);
 
   return (
     <div className="inicio-page">
@@ -198,7 +197,7 @@ export default function InicioPage() {
 
       {videos === null ? null : videos.length > 0 && (
         <section className="inicio-section">
-          <h2>▶️ Vídeos recentes</h2>
+          <h2>▶️ Vídeos do MrPinguim</h2>
           <div className="inicio-videos-grid">
             {visibleVideos.map((v) => (
               <a key={v.videoId} className="inicio-video-card" href={v.url} target="_blank" rel="noreferrer">
@@ -207,9 +206,6 @@ export default function InicioPage() {
               </a>
             ))}
           </div>
-          {hasMoreVideos && (
-            <button type="button" className="inicio-show-more" onClick={() => setVideoPage((p) => p + 1)}>Mostrar mais</button>
-          )}
         </section>
       )}
 

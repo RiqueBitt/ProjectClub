@@ -42,7 +42,7 @@ import {
   listUpdates, createUpdate, updateUpdateEntry, deleteUpdateEntry,
   listEvents, createEvent, updateEvent, deleteEvent, uploadEventBanner, uploadEventIcon,
   createCategory, updateCategory, deleteCategory, reorderCategories,
-  createChannel, deleteChannel, reorderChannels,
+  createChannel, updateChannel, deleteChannel, reorderChannels,
 } from '../api/endpoints';
 import HouseIcon from '../components/HouseIcon.jsx';
 import { BADGE_RARITIES, RARITY_LABEL, RARITY_COLOR, badgeHasImage } from '../utils/badgeRarity';
@@ -785,25 +785,39 @@ const SUGGESTED_STRUCTURE = [
   { category: '🔊 Voz', channels: [{ name: 'Sala Geral', type: 'VOICE' }, { name: 'Sala de Jogos', type: 'VOICE' }, { name: 'AFK', type: 'VOICE' }] },
 ];
 
+// Item pedido: "poder mudar nome de canais/categoria já criadas" +
+// "criar canais com letras maiúsculas" — a estrutura sugerida (acima)
+// cria com nomes fixos que eu escolhi (em minúsculo, por exemplo); o
+// backend em si nunca teve nenhuma restrição de maiúsculas — faltava
+// só um formulário livre (nome digitado pela própria staff, sem
+// forçar nada) e uma lista pra renomear o que já existe. Os
+// endpoints de renomear (updateChannel/updateCategory) já existiam
+// há um tempo, só nunca tinham UI que os usasse.
 function ChannelSetupAdminTab() {
-  const [existing, setExisting] = useState(null); // { categoryNames: Set, channelNamesByCategory: Map }
+  const [community, setCommunity] = useState(null); // resposta completa de getCommunity()
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState([]);
+  const [newChannelName, setNewChannelName] = useState('');
+  const [newChannelType, setNewChannelType] = useState('TEXT');
+  const [newChannelCategoryId, setNewChannelCategoryId] = useState('');
 
   const refresh = () => {
-    getCommunity().then((d) => {
-      const categoryNames = new Set(d.categories.map((c) => c.name.toLowerCase()));
-      const channelNamesByCategory = new Map(
-        d.categories.map((c) => [c.name.toLowerCase(), new Set(c.channels.map((ch) => ch.name.toLowerCase()))])
-      );
-      setExisting({ categoryNames, channelNamesByCategory });
-    }).catch(() => setExisting({ categoryNames: new Set(), channelNamesByCategory: new Map() }));
+    getCommunity().then(setCommunity).catch(() => setCommunity({ categories: [], channels: [] }));
   };
   useEffect(() => { refresh(); }, []);
 
+  const existingSets = () => {
+    const categoryNames = new Set((community?.categories || []).map((c) => c.name.toLowerCase()));
+    const channelNamesByCategory = new Map(
+      (community?.categories || []).map((c) => [c.name.toLowerCase(), new Set(c.channels.map((ch) => ch.name.toLowerCase()))])
+    );
+    return { categoryNames, channelNamesByCategory };
+  };
+
   const runSetup = async () => {
-    if (!existing) return;
+    if (!community) return;
     setRunning(true);
+    const existing = existingSets();
     const newLog = [];
     for (const group of SUGGESTED_STRUCTURE) {
       const key = group.category.toLowerCase();
@@ -841,7 +855,33 @@ function ChannelSetupAdminTab() {
     refresh();
   };
 
-  if (!existing) return <p className="dim">Carregando...</p>;
+  const createFreeChannel = async (e) => {
+    e.preventDefault();
+    if (!newChannelName.trim()) return;
+    try {
+      await createChannel({ name: newChannelName.trim(), type: newChannelType, categoryId: newChannelCategoryId || undefined });
+      setNewChannelName('');
+      refresh();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Não foi possível criar o canal.');
+    }
+  };
+
+  const renameCategory = async (cat) => {
+    const name = prompt('Novo nome da categoria:', cat.name);
+    if (!name?.trim() || name === cat.name) return;
+    try { await updateCategory(cat.id, name.trim()); refresh(); }
+    catch (err) { alert(err.response?.data?.error || 'Não foi possível renomear.'); }
+  };
+
+  const renameChannel = async (ch) => {
+    const name = prompt('Novo nome do canal:', ch.name);
+    if (!name?.trim() || name === ch.name) return;
+    try { await updateChannel(ch.id, { name: name.trim() }); refresh(); }
+    catch (err) { alert(err.response?.data?.error || 'Não foi possível renomear.'); }
+  };
+
+  if (!community) return <p className="dim">Carregando...</p>;
 
   return (
     <div>
@@ -862,6 +902,54 @@ function ChannelSetupAdminTab() {
           ))}
         </div>
       )}
+
+      <h3 style={{ marginTop: 28 }}>Criar canal avulso</h3>
+      <p className="dim" style={{ marginBottom: 12 }}>Nome livre — pode usar letras maiúsculas, acentos, o que preferir.</p>
+      <form onSubmit={createFreeChannel} className="settings-block communities-inline-form">
+        <div className="display-name-row">
+          <label style={{ flex: 2 }}>NOME<input value={newChannelName} onChange={(e) => setNewChannelName(e.target.value)} maxLength={100} required /></label>
+          <label style={{ flex: 1 }}>
+            TIPO
+            <select value={newChannelType} onChange={(e) => setNewChannelType(e.target.value)}>
+              <option value="TEXT">Texto</option>
+              <option value="VOICE">Voz</option>
+            </select>
+          </label>
+          <label style={{ flex: 1 }}>
+            CATEGORIA
+            <select value={newChannelCategoryId} onChange={(e) => setNewChannelCategoryId(e.target.value)}>
+              <option value="">Sem categoria</option>
+              {community.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+        </div>
+        <button type="submit" className="btn-primary">Criar canal</button>
+      </form>
+
+      <h3 style={{ marginTop: 28 }}>Categorias e canais existentes</h3>
+      <p className="dim" style={{ marginBottom: 12 }}>Renomeie qualquer categoria ou canal já criado.</p>
+      <div className="admin-users-list">
+        {community.categories.map((cat) => (
+          <div key={cat.id}>
+            <div className="admin-user-row">
+              <div className="admin-user-row-info"><div className="admin-user-row-name">📁 {cat.name}</div></div>
+              <button className="btn-secondary" onClick={() => renameCategory(cat)}>Renomear</button>
+            </div>
+            {cat.channels.map((ch) => (
+              <div key={ch.id} className="admin-user-row" style={{ paddingLeft: 24 }}>
+                <div className="admin-user-row-info"><div className="admin-user-row-name">{ch.type === 'VOICE' ? '🔊' : '#'} {ch.name}</div></div>
+                <button className="btn-secondary" onClick={() => renameChannel(ch)}>Renomear</button>
+              </div>
+            ))}
+          </div>
+        ))}
+        {community.channels.map((ch) => (
+          <div key={ch.id} className="admin-user-row">
+            <div className="admin-user-row-info"><div className="admin-user-row-name">{ch.type === 'VOICE' ? '🔊' : '#'} {ch.name}</div></div>
+            <button className="btn-secondary" onClick={() => renameChannel(ch)}>Renomear</button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

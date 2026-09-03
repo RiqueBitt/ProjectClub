@@ -62,21 +62,19 @@ async function listYoutubeVideos(req, res, next) {
     const xml = await resp.text();
     const all = parseFeed(xml);
 
-    // Busca a duração de cada um (em paralelo) e filtra os Shorts —
-    // olha mais que o total que vamos mostrar de uma vez, já que
-    // alguns vão ser descartados como Shorts pelo caminho. O feed RSS
-    // do YouTube, na prática, só devolve as ~15 publicações mais
-    // recentes do canal (limite do próprio YouTube, não uma escolha
-    // aqui) — por isso "mostrar mais" na página tem um teto real, seria
-    // preciso uma fonte de dados diferente (scraping da página de
-    // vídeos do canal, ou a API oficial com credenciais) pra ir além
-    // disso.
-    const candidates = all.slice(0, 40);
+    // Item pedido: "mostra só 4 vídeos mais recentes" — busca um pouco
+    // mais que 4 candidatos (o feed RSS do YouTube, na prática, só
+    // devolve as ~15 publicações mais recentes do canal de qualquer
+    // forma — limite do próprio YouTube, não uma escolha aqui), já
+    // contando que alguns podem ser descartados como Shorts pelo
+    // caminho, e corta pros 4 finais depois de filtrar.
+    const candidates = all.slice(0, 15);
     const withDuration = await Promise.all(
       candidates.map(async (v) => ({ ...v, durationSeconds: await getVideoDurationSeconds(v.videoId) }))
     );
     const videos = withDuration
       .filter((v) => v.durationSeconds === null || v.durationSeconds > SHORTS_MAX_SECONDS)
+      .slice(0, 4)
       .map(({ durationSeconds, ...v }) => v); // não precisa expor esse detalhe interno pro cliente
 
     cache = { videos, fetchedAt: now };
