@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useElementHeight } from '../utils/useElementHeight';
+import { useElementRect } from '../utils/useElementRect';
 import { createPortal } from 'react-dom';
 import { useParams } from 'react-router-dom';
 import { useStore, roomKeyFor } from '../store/useStore';
@@ -93,6 +94,12 @@ export default function ChatWindow({ kind }) {
   // dela, se ajustando sozinho quando ela cresce (resposta ativa,
   // arquivo anexado, etc — ver useElementHeight.js).
   const [composerBarRef, composerBarHeight] = useElementHeight();
+  // Item pedido: "o menu está passando da tela de usuário online" —
+  // mede a posição REAL da coluna de chat, pra manter o popover
+  // sempre dentro dela, nunca por baixo da lista de membros (ver
+  // useElementRect.js).
+  const [chatColumnRef, chatColumnRect] = useElementRect();
+  const chatRightOffset = chatColumnRect ? window.innerWidth - chatColumnRect.right : 0;
 
   // Item pedido: "deixando mais rápido pra entrar em canais de voz,
   // principalmente no mobile" — adianta o download do SDK do Agora
@@ -618,7 +625,7 @@ export default function ChatWindow({ kind }) {
   let lastTime = 0;
 
   return (
-    <section className="chat-window">
+    <section className="chat-window" ref={chatColumnRef}>
       {channelId && <ChannelSwitcher currentChannelId={channelId} />}
       <header className="chat-header">
         {dmOther && (
@@ -789,7 +796,7 @@ export default function ChatWindow({ kind }) {
           <div className="composer-picker-anchor">
             <button type="button" className="icon-btn" title="GIF" onClick={() => { setGifPickerOpen((v) => !v); setEmojiPickerOpen(false); }}>GIF</button>
             {gifPickerOpen && createPortal(
-              <GifPicker onPick={sendGif} onClose={() => setGifPickerOpen(false)} style={{ '--composer-height': `${composerBarHeight}px` }} />,
+              <GifPicker onPick={sendGif} onClose={() => setGifPickerOpen(false)} style={{ '--composer-height': `${composerBarHeight}px`, '--chat-right-offset': `${chatRightOffset}px` }} />,
               document.body,
             )}
           </div>
@@ -798,7 +805,7 @@ export default function ChatWindow({ kind }) {
             {emojiPickerOpen && createPortal(
               <EmojiPicker
                 variant="composer-centered"
-                style={{ '--composer-height': `${composerBarHeight}px` }}
+                style={{ '--composer-height': `${composerBarHeight}px`, '--chat-right-offset': `${chatRightOffset}px` }}
                 onPick={insertText}
                 onPickSticker={sendSticker}
                 onClose={() => setEmojiPickerOpen(false)}

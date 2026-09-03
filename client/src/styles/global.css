@@ -1176,11 +1176,21 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
     /* Item pedido: "mais largo, menos alto, e mais pra direita" —
        ancorado perto de onde os botões de GIF/Emoji realmente ficam
        na barra (lado direito, perto do botão de enviar), em vez de
-       centralizado na tela toda — right: 16px é a mesma margem usada
-       do outro lado. Mais largo (900px) e mais baixo (34vh) que
-       antes. */
-    right: 16px;
-    width: min(900px, calc(100% - 32px));
+       centralizado na tela toda. Mais largo (900px) e mais baixo
+       (34vh) que antes. */
+    /* BUG CORRIGIDO ("o menu está passando da tela de usuário
+       online, não pode ultrapassar"): right: 16px sozinho era
+       relativo à JANELA INTEIRA — a lista de membros ("usuários
+       online") ocupa uma faixa própria à direita da coluna de chat
+       (--members-width em .app-shell), então o popover ficava
+       literalmente atrás/dentro dessa faixa. --chat-right-offset
+       (medido de verdade via useElementRect.js — não é um número
+       fixo, já que a lista de membros pode não existir ou ter
+       largura diferente dependendo da página) é a distância real
+       entre a borda da janela e o fim da coluna de chat — somada aos
+       16px de respiro de antes. */
+    right: calc(var(--chat-right-offset, 0px) + 16px);
+    width: min(900px, calc(100% - var(--chat-right-offset, 0px) - 32px));
     height: var(--sheet-height, 34vh); max-height: 50vh;
     border-radius: 10px;
   }
