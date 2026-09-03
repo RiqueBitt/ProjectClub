@@ -2010,9 +2010,20 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
      takes over the bottom of the screen like WhatsApp/Telegram's GIF/sticker
      sheets, with a drag handle (.sheet-drag-handle, wired up by
      useSheetDrag.js) to resize it up/down instead of a fixed size. */
+  /* BUG CORRIGIDO ("o menu fica sobre a barra de escrever mensagens,
+     cobrindo tudo"): bottom: 0 ancorava esse painel na BASE da tela
+     inteira, por cima de onde a barra de composição estava — ela
+     ficava completamente escondida atrás do painel, sem ficar visível
+     em lugar nenhum acima dele. Usa a altura REAL da barra (mesma
+     --composer-height medida por useElementHeight.js, já usada na
+     versão desktop) pra abrir sempre ACIMA dela, nunca por cima. Além
+     disso, 60vh cobria bem mais da tela do que precisava — reduzido
+     pra 46vh (mesmo valor já usado no desktop), deixando mais
+     conteúdo do chat visível atrás. */
   .emoji-picker-popover, .gif-picker-popover {
-    position: fixed; left: 0; right: 0; bottom: 0; transform: none;
-    width: 100%; height: var(--sheet-height, 60vh); max-height: 92vh;
+    position: fixed; left: 0; right: 0; transform: none;
+    bottom: var(--composer-height, 0px);
+    width: 100%; height: var(--sheet-height, 46vh); max-height: 80vh;
     border-radius: 16px 16px 0 0;
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
