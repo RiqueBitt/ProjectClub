@@ -359,7 +359,14 @@ model UpdateLogEntry {
   createdAt   DateTime @default(now())
   // Item pedido: "poder editar" — precisa de updatedAt pra saber
   // quando uma entrada já publicada foi editada depois.
-  updatedAt   DateTime @updatedAt
+  // BUG CORRIGIDO (erro no deploy: "Added the required column
+  // updatedAt... without a default value"): @updatedAt sozinho não
+  // conta como um valor padrão pras linhas JÁ existentes na tabela na
+  // hora de aplicar a migração — precisa de @default(now()) explícito
+  // junto (as 25 atualizações já publicadas ganham "agora" como
+  // valor inicial, e o campo continua atualizando sozinho a cada
+  // edição normalmente, graças ao @updatedAt).
+  updatedAt   DateTime @default(now()) @updatedAt
 }
 
 // --- Sistema de segurança "isca" (honeypot) — rotas falsas que só
