@@ -215,4 +215,34 @@ function nextLevel(currentLevel) {
   return LEVELS.find((l) => l.level === currentLevel + 1) || null;
 }
 
-module.exports = { LEVELS, calculateLevel, nextLevel };
+// Item pedido: "melhore o menu de ranks deixando mais bonito" — antes
+// levelName era sempre literalmente "Lv.X" (redundante com o número já
+// mostrado no distintivo do nível, ver RankPage.jsx) — um título
+// temático por faixa deixa a página bem mais viva/gamificada sem
+// mudar a curva de XP nem nenhum outro cálculo, só o RÓTULO exibido.
+const LEVEL_TITLES = [
+  { minLevel: 1, title: 'Novato' },
+  { minLevel: 10, title: 'Iniciante' },
+  { minLevel: 20, title: 'Aprendiz' },
+  { minLevel: 30, title: 'Frequentador' },
+  { minLevel: 40, title: 'Ativista' },
+  { minLevel: 50, title: 'Experiente' },
+  { minLevel: 60, title: 'Veterano' },
+  { minLevel: 70, title: 'Especialista' },
+  { minLevel: 80, title: 'Mestre' },
+  { minLevel: 90, title: 'Grão-Mestre' },
+  { minLevel: 100, title: 'Elite' },
+  { minLevel: 120, title: 'Campeão' },
+  { minLevel: 140, title: 'Lenda' },
+  { minLevel: 160, title: 'Mítico' },
+  { minLevel: 180, title: 'Imortal' },
+  { minLevel: 200, title: 'Supremo' },
+];
+
+function titleForLevel(level) {
+  let result = LEVEL_TITLES[0].title;
+  for (const t of LEVEL_TITLES) { if (level >= t.minLevel) result = t.title; else break; }
+  return result;
+}
+
+module.exports = { LEVELS, calculateLevel, nextLevel, titleForLevel };

@@ -4014,6 +4014,9 @@ a.embed-card-title:hover { text-decoration: underline; }
   border-radius: 16px; margin-bottom: 20px;
   background: linear-gradient(150deg, color-mix(in srgb, var(--brand) 16%, transparent), var(--bg-elevated) 60%);
   border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--border));
+  /* Item pedido: "deixando mais bonito" — sombra sutil dá um pouco
+     mais de profundidade ao cartão principal da página. */
+  box-shadow: 0 8px 24px -12px color-mix(in srgb, var(--brand) 35%, transparent);
 }
 .rank-hero-avatar-wrap { position: relative; flex-shrink: 0; }
 .rank-hero-level-badge {
@@ -4024,7 +4027,14 @@ a.embed-card-title:hover { text-decoration: underline; }
 }
 .rank-hero-info { flex: 1; min-width: 0; }
 .rank-hero-name { font-weight: 800; font-size: 18px; color: var(--header-primary); }
-.rank-hero-level-name { color: var(--text-muted); font-size: 13px; margin-bottom: 10px; }
+/* Item pedido: título temático por faixa de nível (Novato/Veterano/
+   Lenda/etc — ver titleForLevel em levelsCatalog.js), em vez de só
+   "Lv.X" repetido (já mostrado no distintivo do avatar, redundante). */
+.rank-hero-level-name { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 10px; }
+.rank-hero-title-chip {
+  padding: 2px 10px; border-radius: 999px; font-weight: 700; font-size: 12px;
+  background: color-mix(in srgb, var(--brand) 20%, transparent); color: var(--brand);
+}
 .rank-hero-stats { display: flex; gap: 16px; margin-bottom: 10px; flex-wrap: wrap; }
 .rank-hero-stat { font-size: 13px; color: var(--text-normal); }
 .rank-hero-stat strong { color: var(--header-primary); }
@@ -4052,7 +4062,24 @@ a.embed-card-title:hover { text-decoration: underline; }
 .rank-leaderboard-name { flex: 1; min-width: 0; font-weight: 600; color: var(--header-primary); font-size: 14px; }
 .rank-leaderboard-level { font-size: 12px; color: var(--text-muted); flex-shrink: 0; }
 .rank-leaderboard-xp { font-size: 13px; font-weight: 700; color: var(--brand); flex-shrink: 0; min-width: 80px; text-align: right; }
+/* Item pedido: "melhore o código" — quem não está no top 50 agora se
+   vê no fim da lista mesmo assim (ver outsideTop50 em
+   economyController.js) — esse separador deixa claro que ela não é
+   "a 51ª colocada" de verdade, só está fora do topo. */
+.rank-leaderboard-separator { text-align: center; font-size: 13px; letter-spacing: 4px; padding: 2px 0; }
 
+/* Item pedido: "melhore... fazendo bem pra mobile também" — sem
+   nenhuma adaptação antes, o cartão herói (avatar + info lado a lado)
+   e as linhas do ranking (5 elementos numa fileira só) ficavam
+   apertados demais numa tela estreita. */
+@media (max-width: 520px) {
+  .rank-page { padding: 16px; }
+  .rank-hero-card { flex-direction: column; text-align: center; padding: 18px; gap: 14px; }
+  .rank-hero-stats { justify-content: center; }
+  .rank-hero-level-name { justify-content: center; }
+  .rank-leaderboard-row { flex-wrap: wrap; gap: 8px 10px; }
+  .rank-leaderboard-level { order: 3; flex-basis: 100%; padding-left: 46px; }
+}
 @media (max-width: 600px) {
   .rank-page { padding: 14px; }
   .rank-hero-card { flex-direction: column; text-align: center; gap: 12px; }

@@ -1,7 +1,7 @@
 const prisma = require('../config/prisma');
 const economy = require('../services/economy');
 const achievements = require('../services/achievements');
-const { LEVELS, nextLevel } = require('../data/levelsCatalog');
+const { LEVELS, nextLevel, titleForLevel } = require('../data/levelsCatalog');
 
 async function getMyEconomy(req, res, next) {
   try {
@@ -56,7 +56,7 @@ async function getRank(req, res, next) {
     }
 
     res.json({
-      level: user.accountLevel, levelName: currentLevelData.name, xp: user.accountXp,
+      level: user.accountLevel, levelName: currentLevelData.name, levelTitle: titleForLevel(user.accountLevel), xp: user.accountXp,
       nextLevel: next?.level || null, xpInLevel, xpNeeded, progress,
       isMaxLevel: !next, position: higherRank + 1,
     });
@@ -69,7 +69,21 @@ async function listLeaderboard(req, res, next) {
     const top = await prisma.user.findMany({
       orderBy: { accountXp: 'desc' }, take: 50, select: { ...PUBLIC_USER_FIELDS, accountXp: true },
     });
-    res.json({ leaderboard: top });
+    // Item pedido: "melhore o menu de ranks" — antes, quem não estava
+    // no top 50 simplesmente não se via em lugar nenhum da lista (só
+    // sabia a própria posição pelo número em getRank, sem ver contra
+    // quem exatamente estava competindo). Se a pessoa que pediu não
+    // estiver entre os 50, ela entra no fim da lista mesmo assim —
+    // outsideTop50 avisa o cliente pra desenhar um separador visual
+    // antes dela, deixando claro que ela não é "a 51ª colocada" de
+    // verdade, só está fora do topo.
+    const alreadyIncluded = top.some((u) => u.id === req.user.id);
+    let me = null;
+    if (!alreadyIncluded) {
+      const meRow = await prisma.user.findUnique({ where: { id: req.user.id }, select: { ...PUBLIC_USER_FIELDS, accountXp: true } });
+      if (meRow) me = { ...meRow, outsideTop50: true };
+    }
+    res.json({ leaderboard: me ? [...top, me] : top });
   } catch (err) { next(err); }
 }
 
