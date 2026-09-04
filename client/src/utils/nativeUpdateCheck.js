@@ -39,11 +39,29 @@ async function getLocalVersion() {
   return null; // web comum — nunca precisa disso
 }
 
-// Compara duas versões no formato "AAAA.MM.DD-hash" (ver o job "finalize"
-// do workflow) — comparação simples de string já basta, porque a data
-// no início garante ordem cronológica correta.
+// Compara duas versões no formato "vMAJOR.MINOR.PATCH" (ver o job
+// "finalize" do workflow) — compara os 3 números de verdade, não a
+// string inteira. BUG CORRIGIDO ("o menuzinho de atualização fica
+// aparecendo/atrapalhando"): a versão antiga só checava remote !==
+// local (SE ERAM DIFERENTES), não se a remota era de fato MAIS NOVA —
+// então qualquer divergência (formato ligeiramente diferente do que o
+// app local reporta, ou até uma versão remota mais ANTIGA por algum
+// motivo) disparava o fluxo de "baixar atualização" de novo, toda vez
+// que o app abria, mesmo já estando na versão mais recente de
+// verdade.
+function parseVersion(v) {
+  const match = String(v || '').match(/(\d+)\.(\d+)\.(\d+)/);
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+}
 function isNewer(remote, local) {
-  return !!remote && !!local && remote !== local;
+  const r = parseVersion(remote);
+  const l = parseVersion(local);
+  if (!r || !l) return false; // formato desconhecido — não arrisca disparar update à toa
+  for (let i = 0; i < 3; i++) {
+    if (r[i] > l[i]) return true;
+    if (r[i] < l[i]) return false;
+  }
+  return false; // iguais
 }
 
 // Item pedido: baixar e instalar o .apk sozinho, em vez de só abrir o

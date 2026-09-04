@@ -15,7 +15,7 @@ import starIcon from '../assets/icons/star.png';
 const KLIPY_KEY = import.meta.env.VITE_KLIPY_KEY || '';
 const KLIPY_CLIENT = 'embercord';
 
-export default function GifPicker({ onPick, onClose }) {
+export default function GifPicker({ onPick, onClose, style }) {
   const { heightVh, dragHandlers } = useSheetDrag(onClose);
   const [tab, setTab] = useState('search'); // 'search' | 'favorites'
   const [query, setQuery] = useState('');
@@ -90,7 +90,7 @@ export default function GifPicker({ onPick, onClose }) {
     : results;
 
   return (
-    <div className="gif-picker-popover composer-centered-picker" style={{ '--sheet-height': `${heightVh}vh` }} onMouseDown={(e) => e.stopPropagation()}>
+    <div className="gif-picker-popover composer-centered-picker" style={{ '--sheet-height': `${heightVh}vh`, ...style }} onMouseDown={(e) => e.stopPropagation()}>
       <div className="sheet-drag-handle" {...dragHandlers} />
       <div className="gif-picker-tabs">
         <button className={tab === 'search' ? 'active' : ''} onClick={() => setTab('search')}>Buscar</button>
