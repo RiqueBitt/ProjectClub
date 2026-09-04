@@ -651,7 +651,7 @@ export default function ChatWindow({ kind }) {
   let lastTime = 0;
 
   return (
-    <section className="chat-window" ref={chatColumnRef}>
+    <section className="chat-window">
       {channelId && <ChannelSwitcher currentChannelId={channelId} />}
       <header className="chat-header">
         {dmOther && (
