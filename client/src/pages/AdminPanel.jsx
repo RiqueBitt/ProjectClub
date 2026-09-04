@@ -400,6 +400,14 @@ function ChannelsAdminTab() {
     refreshAfter(() => updateChannel(ch.id, { name: name.trim() }));
   };
 
+  // Item pedido: "poder colocar um canal que está em outra categoria,
+  // ou não tem nenhuma, dentro de uma categoria" — o backend já
+  // aceitava mudar categoryId desde sempre (mesmo endpoint de
+  // renomear), só faltava essa interface pra escolher o destino.
+  const moveChannelToCategory = (ch, newCategoryId) => {
+    refreshAfter(() => updateChannel(ch.id, { categoryId: newCategoryId || null }));
+  };
+
   const moveCategory = (index, direction) => {
     const target = index + direction;
     if (target < 0 || target >= sortedCategories.length) return;
@@ -468,6 +476,14 @@ function ChannelsAdminTab() {
     <div key={ch.id} className="admin-user-row">
       <span className="dim" style={{ width: 18, textAlign: 'center' }}>{ch.type === 'VOICE' || ch.type === 'STAGE' ? '🔊' : '#'}</span>
       <div className="admin-user-row-info"><div className="admin-user-row-name">{ch.name}</div></div>
+      <select
+        value={ch.categoryId || ''}
+        onChange={(e) => moveChannelToCategory(ch, e.target.value)}
+        title="Mover para outra categoria"
+      >
+        <option value="">Sem categoria</option>
+        {sortedCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </select>
       <button className="btn-link" disabled={i === 0} onClick={() => moveChannel(categoryId, list, i, -1)}>▲</button>
       <button className="btn-link" disabled={i === list.length - 1} onClick={() => moveChannel(categoryId, list, i, 1)}>▼</button>
       <button className="btn-link" onClick={() => renameChannel(ch)}>Renomear</button>
