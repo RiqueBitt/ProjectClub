@@ -128,6 +128,11 @@ export default function UserSettingsModal({ onClose }) {
     robloxUrl: user.robloxUrl || '', xUrl: user.xUrl || '',
   });
   const [username, setUsernameField] = useState(user.username);
+  // Item pedido: "quero que abra um menu e mostre as fontes" — em vez
+  // do grid sempre visível, um botão compacto abre um popover só
+  // quando clicado.
+  const [fontMenuOpen, setFontMenuOpen] = useState(false);
+  const [effectMenuOpen, setEffectMenuOpen] = useState(false);
   const [twoFA, setTwoFA] = useState({ qrDataUrl: null, secret: null, code: '' });
   const [error, setError] = useState('');
   const [sessions, setSessions] = useState(null);
@@ -645,35 +650,57 @@ export default function UserSettingsModal({ onClose }) {
               <span className={nameStyleClassName(form)} style={nameStyleProps(form)}>{form.displayName || user.displayName}</span>
             </div>
 
-            <div className="name-style-picker-label">FONTE</div>
-            <div className="name-style-picker-grid">
-              {NAME_FONTS.map((f) => (
-                <button
-                  type="button" key={f.value}
-                  className={`name-style-picker-option ${form.profileNameFont === f.value ? 'active' : ''}`}
-                  onClick={() => setForm((s) => ({ ...s, profileNameFont: f.value }))}
-                >
-                  <span className={nameStyleClassName(form)} style={{ ...nameStyleProps(form), fontFamily: FONT_FAMILY[f.value] }}>Abc</span>
-                  <span className="name-style-picker-option-label">{f.label}</span>
-                </button>
-              ))}
+            <div className="name-style-picker-row">
+              <NameStylePickerButton
+                label="Fonte" open={fontMenuOpen} setOpen={setFontMenuOpen}
+                currentLabel={NAME_FONTS.find((f) => f.value === form.profileNameFont)?.label}
+              >
+                <span className={`name-style-picker-button-sample ${nameStyleClassName(form)}`} style={{ ...nameStyleProps(form), fontFamily: FONT_FAMILY[form.profileNameFont] }}>Abc</span>
+              </NameStylePickerButton>
+              {fontMenuOpen && (
+                <div className="name-style-picker-menu">
+                  <div className="name-style-picker-grid">
+                    {NAME_FONTS.map((f) => (
+                      <button
+                        type="button" key={f.value}
+                        className={`name-style-picker-option ${form.profileNameFont === f.value ? 'active' : ''}`}
+                        onClick={() => { setForm((s) => ({ ...s, profileNameFont: f.value })); setFontMenuOpen(false); }}
+                      >
+                        <span className={nameStyleClassName(form)} style={{ ...nameStyleProps(form), fontFamily: FONT_FAMILY[f.value] }}>Abc</span>
+                        <span className="name-style-picker-option-label">{f.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="name-style-picker-label">EFEITO</div>
-            <div className="name-style-picker-grid">
-              {NAME_EFFECTS.map((f) => {
-                const previewUser = { ...form, profileNameEffect: f.value };
-                return (
-                  <button
-                    type="button" key={f.value}
-                    className={`name-style-picker-option ${form.profileNameEffect === f.value ? 'active' : ''}`}
-                    onClick={() => setForm((s) => ({ ...s, profileNameEffect: f.value }))}
-                  >
-                    <span className={nameStyleClassName(previewUser)} style={nameStyleProps(previewUser)}>Abc</span>
-                    <span className="name-style-picker-option-label">{f.label}</span>
-                  </button>
-                );
-              })}
+            <div className="name-style-picker-row">
+              <NameStylePickerButton
+                label="Efeito" open={effectMenuOpen} setOpen={setEffectMenuOpen}
+                currentLabel={NAME_EFFECTS.find((f) => f.value === form.profileNameEffect)?.label}
+              >
+                <span className={`name-style-picker-button-sample ${nameStyleClassName(form)}`} style={nameStyleProps(form)}>Abc</span>
+              </NameStylePickerButton>
+              {effectMenuOpen && (
+                <div className="name-style-picker-menu">
+                  <div className="name-style-picker-grid">
+                    {NAME_EFFECTS.map((f) => {
+                      const previewUser = { ...form, profileNameEffect: f.value };
+                      return (
+                        <button
+                          type="button" key={f.value}
+                          className={`name-style-picker-option ${form.profileNameEffect === f.value ? 'active' : ''}`}
+                          onClick={() => { setForm((s) => ({ ...s, profileNameEffect: f.value })); setEffectMenuOpen(false); }}
+                        >
+                          <span className={nameStyleClassName(previewUser)} style={nameStyleProps(previewUser)}>Abc</span>
+                          <span className="name-style-picker-option-label">{f.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="name-style-color-row">
               <label>
@@ -1113,6 +1140,31 @@ function iconFor(t) {
 // processamento automático de áudio (item pedido) — o microfone vai pro
 // ar exatamente como captado.
 // ============================================================
+// Item pedido: "quero que abra um menu e mostre as fontes" — botão
+// compacto (mostra o nome da opção atual + um mini-preview) que abre
+// um popover flutuante com a grade completa, em vez do grid inteiro
+// sempre visível na tela. Fecha sozinho ao clicar fora.
+function NameStylePickerButton({ label, open, setOpen, currentLabel, children }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open, setOpen]);
+
+  return (
+    <div className="name-style-picker-button-wrap" ref={ref}>
+      <button type="button" className="name-style-picker-button" onClick={() => setOpen((v) => !v)}>
+        <span className="name-style-picker-button-label">{label}</span>
+        {children}
+        <span className="name-style-picker-button-current truncate">{currentLabel}</span>
+        <span className={`name-style-picker-button-caret ${open ? 'open' : ''}`}>▾</span>
+      </button>
+    </div>
+  );
+}
+
 function VoiceSettingsTab() {
   const voice = useVoice();
   const [mics, setMics] = useState([]);

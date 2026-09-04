@@ -18,6 +18,7 @@ import steamIcon from '../assets/icons/social-steam.png';
 import robloxIcon from '../assets/icons/social-roblox.png';
 import xIcon from '../assets/icons/social-x.png';
 import { proxyImage } from '../utils/imageProxy';
+import { nameStyleProps, nameStyleClassName } from '../utils/nameStyle';
 import { badgeHasImage } from '../utils/badgeRarity';
 
 // The right-hand rail's DM counterpart to MembersList — reuses the exact
@@ -90,7 +91,7 @@ export default function DMProfilePanel({ onToggle }) {
               </div>
             </div>
 
-            <h2 className="profile-display-name">{user.displayName} <TagBadge user={user} /></h2>
+            <h2 className="profile-display-name"><span className={nameStyleClassName(user)} style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} /></h2>
             <div className="profile-username">@{user.username}</div>
 
             <div className="profile-votes-row">

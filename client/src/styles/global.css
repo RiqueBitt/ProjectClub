@@ -1450,25 +1450,41 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .id-card-preview-wrap { display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center; }
 .id-card-preview-img { width: 100%; max-height: 220px; object-fit: contain; border-radius: 8px; background: var(--bg-secondary-alt); }
 .name-style-preview { background: var(--bg-secondary-alt); border-radius: 8px; padding: 14px; text-align: center; word-break: break-word; }
-/* Item pedido: "melhore o menu de escolher as fontes e o estilo" —
-   grade de amostras clicáveis (cada uma já mostra "Abc" na fonte/
-   efeito de verdade, com as cores que a pessoa já escolheu) em vez de
-   dois <select> simples — dá pra VER cada opção antes de escolher,
-   sem abrir/fechar um dropdown de cada vez. */
-.name-style-picker-label {
-  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em;
-  color: var(--header-secondary); margin-top: 4px;
+/* Item pedido: "corrija o menu... está muito grande, quero que abra
+   um menu e mostre as fontes" — trocado o grid sempre visível por um
+   botão compacto (mostra a opção atual + um mini-preview) que abre um
+   popover flutuante ao clicar, sobrepondo o conteúdo abaixo em vez de
+   empurrá-lo — ver NameStylePickerButton em UserSettingsModal.jsx. */
+.name-style-picker-row { position: relative; }
+.name-style-picker-button-wrap { position: relative; }
+.name-style-picker-button {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px;
+  border-radius: 8px; background: var(--bg-secondary-alt); border: 1px solid var(--border);
 }
-.name-style-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.name-style-picker-button:hover { background: var(--bg-modifier-hover); }
+.name-style-picker-button-label { font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); flex-shrink: 0; }
+.name-style-picker-button-sample { font-size: 16px; font-weight: 700; flex-shrink: 0; }
+.name-style-picker-button-current { flex: 1; min-width: 0; text-align: left; font-size: 13px; font-weight: 600; color: var(--header-primary); }
+.name-style-picker-button-caret { font-size: 10px; color: var(--text-muted); transition: transform .12s var(--ease-smooth); flex-shrink: 0; }
+.name-style-picker-button-caret.open { transform: rotate(180deg); }
+.name-style-picker-menu {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40;
+  background: var(--bg-elevated); border-radius: 10px; padding: 10px;
+  box-shadow: 0 12px 32px -8px rgba(0,0,0,.5); border: 1px solid var(--border);
+  max-height: 220px; overflow-y: auto;
+  animation: name-style-picker-menu-in .12s var(--ease-smooth);
+}
+@keyframes name-style-picker-menu-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+.name-style-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; }
 .name-style-picker-option {
-  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px;
   border-radius: 8px; background: var(--bg-secondary-alt); border: 2px solid transparent;
   transition: border-color .12s var(--ease-smooth), background-color .12s var(--ease-smooth);
 }
 .name-style-picker-option:hover { background: var(--bg-modifier-hover); }
 .name-style-picker-option.active { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, var(--bg-secondary-alt)); }
-.name-style-picker-option span:first-child { font-size: 18px; font-weight: 700; line-height: 1.2; }
-.name-style-picker-option-label { font-size: 10px; color: var(--text-muted); }
+.name-style-picker-option span:first-child { font-size: 16px; font-weight: 700; line-height: 1.2; }
+.name-style-picker-option-label { font-size: 9px; color: var(--text-muted); }
 .connection-label { font-size: 12px; }
 /* The uploaded social icons (YouTube/Steam/Roblox/X) are flat solid-black
    glyphs — rendered as-is on the app's dark theme they just look like a

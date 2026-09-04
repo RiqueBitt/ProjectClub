@@ -10,6 +10,7 @@ import TagBadge from './TagBadge.jsx';
 import levelStarIcon from '../assets/icons/level-star.png';
 import achievementDefaultIcon from '../assets/icons/nav-achievements.png';
 import { proxyImage } from '../utils/imageProxy';
+import { nameStyleProps, nameStyleClassName } from '../utils/nameStyle';
 
 // Quantos cargos mostrar no popup compacto (a bio é limitada por CSS a 3
 // linhas — .mini-profile-bio) — o perfil completo (UserProfileModal) mostra
@@ -227,7 +228,7 @@ export default function MiniProfileCard() {
           <div className="mini-profile-banner" style={{ background: user.miniProfileBannerUrl ? `url(${user.miniProfileBannerUrl}) center/cover` : 'var(--brand)' }} />
           <div className="mini-profile-body">
             <div className="mini-profile-avatar"><UserAvatar user={user} size={64} /></div>
-            <div className="mini-profile-name">{user.displayName} <TagBadge user={user} /></div>
+            <div className="mini-profile-name"><span className={nameStyleClassName(user)} style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} /></div>
             <div className="dim mini-profile-handle">
               @{user.username}
               {user.pronouns && <span> • {user.pronouns}</span>}
