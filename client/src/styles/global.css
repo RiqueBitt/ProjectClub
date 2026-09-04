@@ -1413,26 +1413,25 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
    próprio (ver .settings-block mais abaixo) com respiro consistente entre
    elas, em vez de tudo solto direto no fundo do modal. */
 /* Item pedido: "repaginação completa de Meu Perfil e Mini Perfil...
-   mais compacto" — grid de 2 colunas (em vez de tudo empilhado numa
-   coluna só, mesmo com 880px de largura sobrando) pra cards menores;
-   .profile-edit-full força um bloco a ocupar a largura toda (banner/
-   avatar, biografia, conexões — coisas que precisam de espaço) —
-   reduz bastante a altura total de rolagem sem cortar nenhum campo. */
-/* BUG CORRIGIDO ("caixas com espaço muito grande entre elas quando
-   uma categoria é maior que outra"): com display: grid, cada LINHA do
-   grid fica do tamanho da caixa MAIS ALTA daquela linha — se "Estilo
-   do nome" (prévia + várias cores) ficar do lado de "Placa de
-   identificação" (bem mais simples), a linha toda vira do tamanho da
-   mais alta, deixando um vazio visível embaixo da mais baixa. Multi-
-   coluna (column-count) resolve isso "de graça": cada coluna flui
-   independente, de cima pra baixo, sem esperar a vizinha — mesmo
-   efeito de um mural tipo Pinterest, sem precisar de nenhuma
-   biblioteca JS de masonry. */
-.profile-edit-grid { display: block; column-count: 2; column-gap: 14px; }
-.profile-edit-grid > * { break-inside: avoid; margin-bottom: 14px; }
-.profile-edit-full { column-span: all; }
+   mais compacto" — cards pequenos relacionados ficam lado a lado em
+   vez de empilhados numa coluna só, mesmo com 880px de largura
+   sobrando no modal.
+   BUG CORRIGIDO ("a caixa de Placa de identificação está encontrando
+   [sobrepondo] a de Conexões"): a primeira versão misturava blocos de
+   largura total (column-span: all) no MEIO do fluxo de colunas — bug
+   conhecido de CSS multi-coluna: quando um item com column-span vem
+   logo depois de caixas de alturas diferentes nas duas colunas,
+   vários navegadores calculam a posição errado e o conteúdo
+   sobrepõe. A correção de verdade é não misturar os dois no mesmo
+   fluxo: .profile-edit-columns (multi-coluna) fica isolado num
+   sub-container próprio, só com os cards de meia largura dentro —
+   os blocos de largura total (banner, biografia, conexões, botão de
+   salvar) ficam FORA dele, no fluxo normal do .settings-grid, sem
+   nenhum column-span envolvido. */
+.profile-edit-columns { display: block; column-count: 2; column-gap: 14px; }
+.profile-edit-columns > * { break-inside: avoid; margin-bottom: 14px; }
 @media (max-width: 640px) {
-  .profile-edit-grid { column-count: 1; }
+  .profile-edit-columns { column-count: 1; }
 }
 .settings-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--header-primary); border-top: 1px solid var(--bg-modifier-hover); padding-top: 16px; margin-top: 4px; letter-spacing: .02em; }
 .display-name-row { display: flex; gap: 10px; align-items: flex-end; }
