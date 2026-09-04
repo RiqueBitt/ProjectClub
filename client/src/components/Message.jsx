@@ -11,6 +11,7 @@ import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import { renderRichContent, isEmojiOnlyMessage } from '../utils/richTextRender.jsx';
 import { groupReactions, MAX_DISTINCT_REACTIONS } from '../utils/reactions';
 import { roleTextStyle, highestColoredRole } from '../utils/roleColor';
+import { nameStyleProps, hasCustomNameStyle } from '../utils/nameStyle';
 import EmojiPicker from './EmojiPicker.jsx';
 import CustomAudioPlayer from './CustomAudioPlayer.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
@@ -310,7 +311,7 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
       <div className="message-body">
         {showAuthor && (
           <div className="message-meta">
-            <span className="message-author" style={roleTextStyle(authorRoleColor)}>{message.author.displayName}</span>
+            <span className="message-author" style={hasCustomNameStyle(message.author) ? nameStyleProps(message.author) : roleTextStyle(authorRoleColor)}>{message.author.displayName}</span>
             <TagBadge user={message.author} />
             <span className="message-time">{formatTime(message.createdAt)}</span>
             {message.pinned && <span className="pin-badge"><img className="ui-icon-sm" src={pinIcon} alt="" /> fixada</span>}
@@ -326,7 +327,7 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
                 ? <ReplyAvatarImg url={message.replyTo.author.avatarUrl} />
                 : message.replyTo.author.displayName[0].toUpperCase()}
             </span>
-            <b className="reply-preview-name" style={roleTextStyle(replyAuthorRoleColor)}>{message.replyTo.author.displayName}</b>
+            <b className="reply-preview-name" style={hasCustomNameStyle(message.replyTo.author) ? nameStyleProps(message.replyTo.author) : roleTextStyle(replyAuthorRoleColor)}>{message.replyTo.author.displayName}</b>
             <span className="reply-preview-content">{message.replyTo.content?.slice(0, 80) || 'anexo'}</span>
           </div>
         )}

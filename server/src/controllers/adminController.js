@@ -64,7 +64,7 @@ async function uploadCommunityBanner(req, res, next) {
 // --- Toggles de sistema (adaptado do "disabled_systems" do bot Robbie —
 // liga/desliga uma seção inteira pra toda a comunidade de uma vez). ---
 
-const TOGGLEABLE_SYSTEMS = ['economia', 'rank', 'casas', 'figurinhas', 'cores_perfil'];
+const TOGGLEABLE_SYSTEMS = ['economia', 'rank', 'casas', 'figurinhas', 'cores_perfil', 'cargos'];
 
 // "economia", "casas" e "figurinhas" nascem DESLIGADOS (só "rank" fica
 // ativo por padrão) — pedido do dono da comunidade pra simplificar a

@@ -1,6 +1,8 @@
-// Cosmetic-only display-name styling shown on the profile page itself (see
-// schema.prisma's comment on User.profileNameFont) — never anywhere else
-// (messages, member lists, mentions keep using the plain name/role color).
+// Cosmetic display-name styling — font/color/effect the person picked in
+// Configurações > Meu Perfil (see schema.prisma's User.profileNameFont).
+// Applied wherever a display name shows (profile page, chat messages,
+// member list) — see hasCustomNameStyle() below for how each caller
+// decides whether to bother applying it at all.
 
 export const NAME_FONTS = [
   { value: 'NORMAL', label: 'Normal' },
@@ -32,6 +34,27 @@ const FONT_FAMILY = {
 // a gradient via background-clip, etc). `color` is the one field every
 // effect needs one way or another, so it's always read from
 // user.profileNameColor.
+// Item pedido: "atualize as cores e as fontes do nome... vão aparecer
+// nos chats, barra lateral que mostra os online, etc, em vez de
+// aparecer só no perfil" — reverte a decisão anterior (documentada
+// acima) de restringir isso só à página de perfil.
+//
+// Cuidado importante: TODO usuário sempre tem um valor nesses 4
+// campos (profileNameFont/Effect/Color/Color2 têm @default() no
+// schema.prisma, nunca ficam null) — não dá pra diferenciar "nunca
+// mexeu nisso" de "escolheu ativamente os mesmos valores padrão" só
+// olhando o banco. Sem essa checagem, TODO mundo que nunca abriu essa
+// configuração passaria a ter o nome pintado de azul (#1877F2, a cor
+// padrão) em chats/lista de membros — uma mudança visual em massa e
+// não intencional. Só aplica o estilo se pelo menos UM dos 4 campos
+// for diferente do valor padrão — ou seja, se a pessoa mexeu em algo
+// de propósito.
+const DEFAULT_NAME_STYLE = { profileNameFont: 'NORMAL', profileNameEffect: 'SOLID', profileNameColor: '#1877F2', profileNameColor2: '#FFFFFF' };
+export function hasCustomNameStyle(user) {
+  if (!user) return false;
+  return Object.entries(DEFAULT_NAME_STYLE).some(([key, def]) => user[key] && user[key] !== def);
+}
+
 export function nameStyleProps(user) {
   const font = FONT_FAMILY[user?.profileNameFont] || undefined;
   const color = user?.profileNameColor || '#F2894D';

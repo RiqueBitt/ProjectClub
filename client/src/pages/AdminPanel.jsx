@@ -2160,7 +2160,7 @@ function SystemTab() {
 
   if (!toggles) return <div className="dim">Carregando...</div>;
 
-  const LABELS = { economia: '💰 Economia', rank: '🏆 Rank', casas: '🧊 Casas e decoração', figurinhas: '🧷 Figurinhas e álbum', cores_perfil: '🎨 Cores personalizadas para perfil' };
+  const LABELS = { economia: '💰 Economia', rank: '🏆 Rank', casas: '🧊 Casas e decoração', figurinhas: '🧷 Figurinhas e álbum', cores_perfil: '🎨 Cores personalizadas para perfil', cargos: '🎖️ Cargos' };
 
   return (
     <div className="settings-grid">

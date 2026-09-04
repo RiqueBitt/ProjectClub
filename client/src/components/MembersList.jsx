@@ -5,6 +5,7 @@ import { useContextMenu } from '../context/ContextMenuContext.jsx';
 import { STATUS_COLOR } from '../utils/status';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import { roleTextStyle, highestColoredRole } from '../utils/roleColor';
+import { nameStyleProps, hasCustomNameStyle } from '../utils/nameStyle';
 import TagBadge from './TagBadge.jsx';
 import StatusEmoji from './StatusEmoji.jsx';
 import ActivityIcon from './ActivityIcon.jsx';
@@ -24,16 +25,20 @@ export default function MembersList({ onToggle }) {
   const members = useStore((s) => s.members);
   const roles = useStore((s) => s.roles);
   const presence = useStore((s) => s.presence);
+  // Item pedido: "desativar os cargos" — quando desativado, ninguém
+  // fica agrupado por cargo (todo mundo cai direto em ONLINE/OFFLINE)
+  // nem tem o nome colorido pela cor do cargo.
+  const cargosEnabled = !useStore((s) => s.disabledSystems).includes('cargos');
 
   const withStatus = members.map((m) => ({
     ...m,
     liveStatus: presence[m.user.id]?.status || m.user.status,
-    role: highestRole(m, roles),
+    role: cargosEnabled ? highestRole(m, roles) : null,
   }));
   const online = withStatus.filter((m) => m.liveStatus && m.liveStatus !== 'OFFLINE' && m.liveStatus !== 'INVISIBLE');
   const offline = withStatus.filter((m) => !online.includes(m));
 
-  const hoisted = (roles || []).filter((r) => r.hoist && !r.isDefault).sort((a, b) => b.position - a.position);
+  const hoisted = cargosEnabled ? (roles || []).filter((r) => r.hoist && !r.isDefault).sort((a, b) => b.position - a.position) : [];
   const groups = [];
   const used = new Set();
   for (const role of hoisted) {
@@ -47,15 +52,15 @@ export default function MembersList({ onToggle }) {
     <aside className="members-list">
       <button className="icon-btn members-collapse" onClick={onToggle}>›</button>
       {groups.map((g) => (
-        <MemberGroup key={g.label} label={g.label} members={g.members} roles={roles} />
+        <MemberGroup key={g.label} label={g.label} members={g.members} roles={roles} cargosEnabled={cargosEnabled} />
       ))}
-      <MemberGroup label={`ONLINE — ${restOnline.length}`} members={restOnline} roles={roles} />
-      <MemberGroup label={`OFFLINE — ${offline.length}`} members={offline} roles={roles} dim />
+      <MemberGroup label={`ONLINE — ${restOnline.length}`} members={restOnline} roles={roles} cargosEnabled={cargosEnabled} />
+      <MemberGroup label={`OFFLINE — ${offline.length}`} members={offline} roles={roles} dim cargosEnabled={cargosEnabled} />
     </aside>
   );
 }
 
-function MemberGroup({ label, members, roles, dim }) {
+function MemberGroup({ label, members, roles, dim, cargosEnabled }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { openMenu } = useContextMenu();
@@ -127,7 +132,7 @@ function MemberGroup({ label, members, roles, dim }) {
             <span className="status-dot" style={{ background: STATUS_COLOR[m.liveStatus] || STATUS_COLOR.OFFLINE }} />
           </div>
           <div className="member-row-text">
-            <span className="truncate member-row-name" style={roleTextStyle(highestColoredRole(m, roles)?.color)}>
+            <span className="truncate member-row-name" style={hasCustomNameStyle(m.user) ? nameStyleProps(m.user) : roleTextStyle(cargosEnabled ? highestColoredRole(m, roles)?.color : null)}>
               {/* BUG CORRIGIDO ("ícone de cargo do lado do nome"): se o
                   ícone do cargo for uma IMAGEM enviada (caminho tipo
                   "/uploads/xyz.png"), colocar ela direto dentro do texto

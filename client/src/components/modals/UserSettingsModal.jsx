@@ -645,8 +645,8 @@ export default function UserSettingsModal({ onClose }) {
           </div>
 
           <div className="settings-block">
-            <h4>Estilo do nome (só no seu perfil)</h4>
-            <p className="dim">A fonte, o efeito e a cor abaixo aparecem só na sua própria página de perfil — em mensagens, servidores e menções seu nome continua normal.</p>
+            <h4>Estilo do nome</h4>
+            <p className="dim">A fonte, o efeito e a cor abaixo aparecem em mensagens, na lista de membros e no seu perfil.</p>
             <div className="name-style-preview" style={{ fontSize: 22, fontWeight: 700 }}>
               <span style={nameStyleProps(form)}>{form.displayName || user.displayName}</span>
             </div>
