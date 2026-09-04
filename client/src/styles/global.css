@@ -1418,10 +1418,21 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
    .profile-edit-full força um bloco a ocupar a largura toda (banner/
    avatar, biografia, conexões — coisas que precisam de espaço) —
    reduz bastante a altura total de rolagem sem cortar nenhum campo. */
-.profile-edit-grid { gap: 14px; display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
-.profile-edit-full { grid-column: 1 / -1; }
+/* BUG CORRIGIDO ("caixas com espaço muito grande entre elas quando
+   uma categoria é maior que outra"): com display: grid, cada LINHA do
+   grid fica do tamanho da caixa MAIS ALTA daquela linha — se "Estilo
+   do nome" (prévia + várias cores) ficar do lado de "Placa de
+   identificação" (bem mais simples), a linha toda vira do tamanho da
+   mais alta, deixando um vazio visível embaixo da mais baixa. Multi-
+   coluna (column-count) resolve isso "de graça": cada coluna flui
+   independente, de cima pra baixo, sem esperar a vizinha — mesmo
+   efeito de um mural tipo Pinterest, sem precisar de nenhuma
+   biblioteca JS de masonry. */
+.profile-edit-grid { display: block; column-count: 2; column-gap: 14px; }
+.profile-edit-grid > * { break-inside: avoid; margin-bottom: 14px; }
+.profile-edit-full { column-span: all; }
 @media (max-width: 640px) {
-  .profile-edit-grid { grid-template-columns: 1fr; }
+  .profile-edit-grid { column-count: 1; }
 }
 .settings-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--header-primary); border-top: 1px solid var(--bg-modifier-hover); padding-top: 16px; margin-top: 4px; letter-spacing: .02em; }
 .display-name-row { display: flex; gap: 10px; align-items: flex-end; }
