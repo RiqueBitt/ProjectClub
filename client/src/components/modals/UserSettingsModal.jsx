@@ -11,7 +11,7 @@ import Modal from '../Modal.jsx';
 import EmojiPicker from '../EmojiPicker.jsx';
 import { usePopoverCoordination } from '../../utils/popoverCoordinator';
 import { isGradientColor, gradientStops, makeGradient } from '../../utils/roleColor';
-import { NAME_FONTS, NAME_EFFECTS, nameStyleProps, nameStyleClassName, FONT_FAMILY } from '../../utils/nameStyle';
+import { NAME_FONTS, NAME_EFFECTS, nameStyleProps, nameStyleClassName, FONT_FAMILY, DEFAULT_MULTI_COLORS } from '../../utils/nameStyle';
 import { isEyeDropperSupported, pickColorFromScreen } from '../../utils/eyeDropper';
 
 // Item pedido: "sistema... você pode escolher as cores de tudo" —
@@ -131,6 +131,11 @@ export default function UserSettingsModal({ onClose }) {
     profileNameEffect: user.profileNameEffect || 'SOLID',
     profileNameColor: user.profileNameColor || '#F2894D',
     profileNameColor2: user.profileNameColor2 || '#FFFFFF',
+    // Item pedido: "poder editar cada cor... do arco-íris/glitch" —
+    // array de cores pros efeitos com mais de 2 cores (ver
+    // DEFAULT_MULTI_COLORS em utils/nameStyle.js). String vazia = usa
+    // as cores padrão daquele efeito.
+    profileNameColors: user.profileNameColors || '',
     // Conexões — plain profile links shown as icon-buttons under the user's
     // profile card (see UserProfileModal.jsx). No OAuth/verification, just
     // an optional URL per platform.
@@ -712,19 +717,26 @@ export default function UserSettingsModal({ onClose }) {
                 <span className={`name-style-picker-button-sample ${nameStyleClassName(form)}`} style={nameStyleProps(form)}>Abc</span>
               </NameStylePickerButton>
             </div>
-            <div className="name-style-color-row">
-              <label>
-                {form.profileNameEffect === 'GRADIENT' ? 'COR DO NOME (INÍCIO)' : form.profileNameEffect === 'POP' ? 'COR DE TRÁS (CONTORNO)' : 'COR DO NOME'}
-                <input type="color" name="profileNameColor" value={form.profileNameColor} onChange={onChange} />
-              </label>
-              {(form.profileNameEffect === 'GRADIENT' || form.profileNameEffect === 'POP') && (
+            {form.profileNameEffect !== 'RAINBOW' && (
+              <div className="name-style-color-row">
                 <label>
-                  {form.profileNameEffect === 'GRADIENT' ? 'COR DO NOME (FIM)' : 'COR DA FRENTE (PREENCHIMENTO)'}
-                  <input type="color" name="profileNameColor2" value={form.profileNameColor2} onChange={onChange} />
+                  {form.profileNameEffect === 'GRADIENT' ? 'COR DO NOME (INÍCIO)' : form.profileNameEffect === 'POP' ? 'COR DE TRÁS (CONTORNO)' : 'COR DO NOME'}
+                  <input type="color" name="profileNameColor" value={form.profileNameColor} onChange={onChange} />
                 </label>
-              )}
-            </div>
-            <NameColorPresets setForm={setForm} />
+                {(form.profileNameEffect === 'GRADIENT' || form.profileNameEffect === 'POP') && (
+                  <label>
+                    {form.profileNameEffect === 'GRADIENT' ? 'COR DO NOME (FIM)' : 'COR DA FRENTE (PREENCHIMENTO)'}
+                    <input type="color" name="profileNameColor2" value={form.profileNameColor2} onChange={onChange} />
+                  </label>
+                )}
+              </div>
+            )}
+            {DEFAULT_MULTI_COLORS[form.profileNameEffect] && (
+              <MultiColorEditor effect={form.profileNameEffect} form={form} setForm={setForm} />
+            )}
+            {form.profileNameEffect !== 'RAINBOW' && form.profileNameEffect !== 'GLITCH' && (
+              <NameColorPresets setForm={setForm} />
+            )}
           </div>
 
           <div className="settings-block">
@@ -1162,6 +1174,38 @@ function iconFor(t) {
 // mobile, simplesmente não aparece, sem quebrar nada). setForm é a
 // mesma função de sempre — isso não introduz nenhum campo novo no
 // banco, só uma forma mais rápida de preencher os 2 já existentes.
+// Item pedido: "poder editar cada cor... tipo todas as cores que
+// aparecem no arco-íris... podendo deixar mais bonito do seu jeito" —
+// N seletores de cor (um por cor do efeito — 6 pro Arco-íris, 2 pro
+// Glitch), em vez de forçar um valor fixo. "Restaurar padrão" volta
+// pras cores originais (limpa profileNameColors do formulário).
+function MultiColorEditor({ effect, form, setForm }) {
+  const defaults = DEFAULT_MULTI_COLORS[effect];
+  let colors = defaults;
+  try {
+    const parsed = form.profileNameColors ? JSON.parse(form.profileNameColors) : null;
+    if (Array.isArray(parsed) && parsed.length === defaults.length) colors = parsed;
+  } catch { /* ignora — usa o padrão */ }
+
+  const setColorAt = (index, value) => {
+    const next = [...colors];
+    next[index] = value;
+    setForm((s) => ({ ...s, profileNameColors: JSON.stringify(next) }));
+  };
+  const restoreDefaults = () => setForm((s) => ({ ...s, profileNameColors: '' }));
+
+  return (
+    <div className="multi-color-editor">
+      <div className="multi-color-editor-row">
+        {colors.map((c, i) => (
+          <input key={i} type="color" value={c} onChange={(e) => setColorAt(i, e.target.value)} title={`Cor ${i + 1}`} />
+        ))}
+      </div>
+      <button type="button" className="btn-link" onClick={restoreDefaults}>Restaurar cores padrão</button>
+    </div>
+  );
+}
+
 function NameColorPresets({ setForm }) {
   const [pickerError, setPickerError] = useState('');
   const pickWithEyeDropper = async () => {

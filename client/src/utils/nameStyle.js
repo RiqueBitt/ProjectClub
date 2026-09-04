@@ -87,6 +87,28 @@ export const FONT_FAMILY = {
 // não intencional. Só aplica o estilo se pelo menos UM dos 4 campos
 // for diferente do valor padrão — ou seja, se a pessoa mexeu em algo
 // de propósito.
+// Item pedido: "poder editar cada cor... tipo todas as cores que
+// aparecem no arco-íris... deixa mais bonito do seu jeito" — RAINBOW e
+// GLITCH usavam cores FIXAS no código, sem nenhum jeito de
+// personalizar. Esses são os valores PADRÃO de cada um (usados quando
+// a pessoa nunca customizou nada — profileNameColors vazio/null) e a
+// função que resolve as cores de verdade a usar.
+export const DEFAULT_MULTI_COLORS = {
+  RAINBOW: ['#ff5757', '#ffb443', '#ffe75e', '#61e786', '#4c9fff', '#b26cff'],
+  GLITCH: ['#ff3b3b', '#3bd6ff'],
+};
+
+export function resolveMultiColors(user, effect) {
+  const defaults = DEFAULT_MULTI_COLORS[effect];
+  if (!defaults) return null; // esse efeito não tem cores múltiplas
+  if (!user?.profileNameColors) return defaults;
+  try {
+    const parsed = JSON.parse(user.profileNameColors);
+    if (Array.isArray(parsed) && parsed.length === defaults.length) return parsed;
+  } catch { /* JSON inválido/antigo — cai pro padrão */ }
+  return defaults;
+}
+
 const DEFAULT_NAME_STYLE = { profileNameFont: 'NORMAL', profileNameEffect: 'SOLID', profileNameColor: '#1877F2', profileNameColor2: '#FFFFFF' };
 export function hasCustomNameStyle(user) {
   if (!user) return false;
@@ -138,18 +160,23 @@ export function nameStyleProps(user) {
       return { ...base, color, textShadow: `1px 1px 0 ${color2}, 2px 2px 0 ${color2}, 3px 3px 0 ${color2}, 4px 4px 6px rgba(0,0,0,.4)` };
     case 'OUTLINE':
       return { ...base, color: 'transparent', WebkitTextStroke: `1.5px ${color}` };
-    case 'RAINBOW':
+    case 'RAINBOW': {
+      const cs = resolveMultiColors(user, 'RAINBOW');
       return {
-        ...base, backgroundImage: 'linear-gradient(90deg, #ff5757, #ffb443, #ffe75e, #61e786, #4c9fff, #b26cff)',
+        ...base, backgroundImage: `linear-gradient(90deg, ${cs.join(', ')})`,
         backgroundClip: 'text', WebkitBackgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent',
       };
-    case 'GLITCH':
-      // O text-shadow animado (vermelho/ciano tremendo) vive inteiro
-      // na classe .name-style-anim-glitch (ver global.css) — aqui só
-      // a cor base, pra não colidir com a animação (style inline
-      // sempre venceria a animação CSS se os dois tentassem controlar
-      // a mesma propriedade).
-      return { ...base, color };
+    }
+    case 'GLITCH': {
+      // O text-shadow animado vive na classe .name-style-anim-glitch
+      // (ver global.css) — as cores agora vêm daqui via CSS custom
+      // properties (--glitch-c1/--glitch-c2), que a animação lê com
+      // var() dentro do @keyframes. style inline sempre venceria um
+      // text-shadow fixo na classe, então a cor PRECISA chegar como
+      // variável, não como propriedade direta.
+      const [c1, c2] = resolveMultiColors(user, 'GLITCH');
+      return { ...base, color, '--glitch-c1': c1, '--glitch-c2': c2 };
+    }
     case 'ICE':
       return {
         ...base, backgroundImage: `linear-gradient(180deg, #ffffff, ${color})`,

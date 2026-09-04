@@ -1460,6 +1460,11 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
   border: 2px solid var(--border); font-size: 15px; display: flex; align-items: center; justify-content: center;
 }
 .name-color-eyedropper-btn:hover { border-color: var(--brand); background: var(--bg-modifier-hover); }
+/* Item pedido: "poder editar cada cor... do arco-íris" — N seletores
+   de cor lado a lado, ver MultiColorEditor em UserSettingsModal.jsx. */
+.multi-color-editor { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.multi-color-editor-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.multi-color-editor-row input[type="color"] { width: 30px; height: 30px; border-radius: 6px; }
 .id-card-settings-row { display: flex; align-items: center; gap: 10px; }
 .id-card-settings-preview { width: 64px; height: 40px; object-fit: cover; border-radius: 6px; }
 .id-card-preview-wrap { display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center; }
@@ -5961,11 +5966,15 @@ a.embed-card-title:hover { text-decoration: underline; }
    quando animado (só a cor base) — essa classe é a única dona dessa
    propriedade, sem conflito com o style inline. */
 .name-style-anim-glitch { animation: name-style-glitch-shift 2.4s steps(1) infinite; }
+/* Item pedido: "poder editar cada cor... do glitch" — as cores vêm de
+   --glitch-c1/--glitch-c2 (ver nameStyleProps em nameStyle.js), com
+   fallback pros valores padrão originais caso as variáveis não
+   estejam definidas por algum motivo. */
 @keyframes name-style-glitch-shift {
-  0%, 88%, 100% { text-shadow: -2px 0 #ff3b3b, 2px 0 #3bd6ff; }
-  90% { text-shadow: 3px 0 #ff3b3b, -3px 0 #3bd6ff; }
-  92% { text-shadow: -1px 0 #ff3b3b, 1px 0 #3bd6ff; }
-  94% { text-shadow: 2px 1px #ff3b3b, -2px -1px #3bd6ff; }
+  0%, 88%, 100% { text-shadow: -2px 0 var(--glitch-c1, #ff3b3b), 2px 0 var(--glitch-c2, #3bd6ff); }
+  90% { text-shadow: 3px 0 var(--glitch-c1, #ff3b3b), -3px 0 var(--glitch-c2, #3bd6ff); }
+  92% { text-shadow: -1px 0 var(--glitch-c1, #ff3b3b), 1px 0 var(--glitch-c2, #3bd6ff); }
+  94% { text-shadow: 2px 1px var(--glitch-c1, #ff3b3b), -2px -1px var(--glitch-c2, #3bd6ff); }
 }
 
 /* SHINE: pulso de opacidade (não brightness, pra ficar visualmente

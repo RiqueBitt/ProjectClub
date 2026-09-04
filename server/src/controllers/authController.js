@@ -86,7 +86,7 @@ const PUBLIC_USER_FIELDS = {
   createdAt: true, platformRole: true,
   tagEmoji: true, tagText: true,
   youtubeUrl: true, steamUrl: true, robloxUrl: true, xUrl: true,
-  profileNameFont: true, profileNameEffect: true, profileNameColor: true, profileNameColor2: true,
+  profileNameFont: true, profileNameEffect: true, profileNameColor: true, profileNameColor2: true, profileNameColors: true,
   accountLevel: true, accountXp: true,
   // Conquistas escolhidas pra mostrar — públicas de propósito (é o que
   // aparece no perfil/miniperfil de qualquer pessoa que a gente veja).

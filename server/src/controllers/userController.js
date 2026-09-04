@@ -3,9 +3,21 @@ const { PUBLIC_USER_FIELDS, SELF_USER_FIELDS, ensurePublicId } = require('./auth
 const { clearIfExpired } = require('../services/customStatus');
 const activityStore = require('../services/activityStore');
 
+// BUG CORRIGIDO ("achei um bloco de validação antigo/duplicado,
+// desatualizado, que contornava a proteção de cores_perfil"): essas
+// duas constantes ficavam aqui com só as 5 fontes/efeitos ORIGINAIS
+// (de antes de eu adicionar as 10 novas de cada) — e um SEGUNDO bloco
+// de validação, mais abaixo na função updateProfile, revalidava
+// profileNameColor/Color2 usando essas listas desatualizadas, SEM
+// nenhuma checagem de "cores_perfil desativado". Na prática esse
+// segundo bloco só reforçava um valor que o bloco novo (com a lista
+// completa E a proteção certa) já tinha definido — mas era código
+// morto/confuso e, no caso da cor, contornava a proteção real
+// (revalidava e regravava a cor sem checar se a staff tinha desligado
+// isso). Consolidado num único bloco de verdade — ver mais abaixo.
 // Keep in sync with client/src/utils/nameStyle.js's own option lists.
-const NAME_FONTS = ['NORMAL', 'PIXEL', 'CARTOON', 'MEDIEVAL', 'HANDWRITING'];
-const NAME_EFFECTS = ['SOLID', 'NEON', 'GRADIENT', 'POP', 'SKETCH'];
+const VALID_NAME_FONTS = ['NORMAL', 'PIXEL', 'CARTOON', 'MEDIEVAL', 'HANDWRITING', 'CREEPY', 'FUTURISTIC', 'SIGNATURE', 'BOLD_CONDENSED', 'ROUNDED', 'CASUAL_SCRIPT', 'RETRO_NEON', 'URBAN', 'ELEGANT_SERIF', 'PLAYFUL'];
+const VALID_NAME_EFFECTS = ['SOLID', 'NEON', 'GRADIENT', 'POP', 'SKETCH', 'SHADOW_3D', 'OUTLINE', 'RAINBOW', 'GLITCH', 'ICE', 'FIRE', 'METALLIC', 'SHINE', 'EMBOSS', 'DOUBLE_STROKE'];
 
 // Item pedido: "sistema igual da Steam" pra reorganizar o perfil —
 // chaves de seção conhecidas, mantidas em sincronia com
@@ -101,7 +113,7 @@ async function updateProfile(req, res, next) {
       if (Number.isInteger(n) && n >= 0 && n <= 100) data.profileSectionOpacity = n;
     }
 
-    if (data.profileColor !== undefined || req.body.miniProfileColor !== undefined || req.body.miniProfileButtonColor !== undefined || req.body.profileNameColor !== undefined || req.body.profileNameColor2 !== undefined) {
+    if (data.profileColor !== undefined || req.body.miniProfileColor !== undefined || req.body.miniProfileButtonColor !== undefined || req.body.profileNameColor !== undefined || req.body.profileNameColor2 !== undefined || req.body.profileNameColors !== undefined) {
       const settings = await prisma.platformSettings.findUnique({ where: { id: 'singleton' } });
       let disabled = [];
       try { disabled = JSON.parse(settings?.disabledSystems || '[]'); } catch { disabled = []; }
@@ -120,15 +132,32 @@ async function updateProfile(req, res, next) {
         // esse campo em vez do profileColor. Mesma regra agora.
         if (req.body.profileNameColor !== undefined) data.profileNameColor = req.body.profileNameColor;
         if (req.body.profileNameColor2 !== undefined) data.profileNameColor2 = req.body.profileNameColor2;
+        // Item pedido: "poder editar cada cor... tipo todas as cores
+        // que aparecem no arco-íris" — array de cores pros efeitos com
+        // mais de 2 cores (RAINBOW, GLITCH). Validado: JSON de verdade,
+        // array de strings, cada uma uma cor hex válida, no máximo 8
+        // (RAINBOW usa 6 hoje — folga pra qualquer efeito futuro sem
+        // abrir pra um array arbitrariamente grande).
+        if (req.body.profileNameColors !== undefined) {
+          if (req.body.profileNameColors === null || req.body.profileNameColors === '') {
+            data.profileNameColors = null;
+          } else {
+            try {
+              const parsed = JSON.parse(req.body.profileNameColors);
+              const isValid = Array.isArray(parsed) && parsed.length <= 8
+                && parsed.every((c) => typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c));
+              if (isValid) data.profileNameColors = JSON.stringify(parsed);
+            } catch { /* JSON malformado — ignora, campo simplesmente não é atualizado */ }
+          }
+        }
       }
     }
     // BUG CORRIGIDO (junto com o de cima) — profileNameFont/Effect
     // validados contra os valores de verdade que o frontend oferece
     // (ver NAME_FONTS/NAME_EFFECTS em utils/nameStyle.js) — evita
     // salvar lixo no banco se algo mandar um valor malformado direto
-    // pela API, mesmo passando pela UI.
-    const VALID_NAME_FONTS = ['NORMAL', 'PIXEL', 'CARTOON', 'MEDIEVAL', 'HANDWRITING', 'CREEPY', 'FUTURISTIC', 'SIGNATURE', 'BOLD_CONDENSED', 'ROUNDED', 'CASUAL_SCRIPT', 'RETRO_NEON', 'URBAN', 'ELEGANT_SERIF', 'PLAYFUL'];
-    const VALID_NAME_EFFECTS = ['SOLID', 'NEON', 'GRADIENT', 'POP', 'SKETCH', 'SHADOW_3D', 'OUTLINE', 'RAINBOW', 'GLITCH', 'ICE', 'FIRE', 'METALLIC', 'SHINE', 'EMBOSS', 'DOUBLE_STROKE'];
+    // pela API, mesmo passando pela UI. (VALID_NAME_FONTS/EFFECTS
+    // declaradas no topo do arquivo, reaproveitadas aqui.)
     if (req.body.profileNameFont !== undefined && VALID_NAME_FONTS.includes(req.body.profileNameFont)) data.profileNameFont = req.body.profileNameFont;
     if (req.body.profileNameEffect !== undefined && VALID_NAME_EFFECTS.includes(req.body.profileNameEffect)) data.profileNameEffect = req.body.profileNameEffect;
     // Avatar de pinguim (tema Club Penguin — ver PenguinAvatar.jsx no
@@ -166,22 +195,6 @@ async function updateProfile(req, res, next) {
     // dedicated "Definir status personalizado" flow).
     if (req.body.customStatusEmoji !== undefined) {
       data.customStatusEmoji = req.body.customStatusEmoji ? String(req.body.customStatusEmoji).slice(0, 32) : null;
-    }
-    // Display-name styling shown only on the profile page itself (see
-    // schema.prisma's comment on profileNameFont) — validated against a
-    // fixed whitelist so a bad/garbage value can never end up picking an
-    // undefined CSS class client-side.
-    if (req.body.profileNameFont !== undefined && NAME_FONTS.includes(req.body.profileNameFont)) {
-      data.profileNameFont = req.body.profileNameFont;
-    }
-    if (req.body.profileNameEffect !== undefined && NAME_EFFECTS.includes(req.body.profileNameEffect)) {
-      data.profileNameEffect = req.body.profileNameEffect;
-    }
-    if (req.body.profileNameColor !== undefined && /^#[0-9a-fA-F]{6}$/.test(req.body.profileNameColor)) {
-      data.profileNameColor = req.body.profileNameColor;
-    }
-    if (req.body.profileNameColor2 !== undefined && /^#[0-9a-fA-F]{6}$/.test(req.body.profileNameColor2)) {
-      data.profileNameColor2 = req.body.profileNameColor2;
     }
     const user = await prisma.user.update({ where: { id: req.user.id }, data, select: SELF_USER_FIELDS });
     await broadcastUserUpdate(req, user);

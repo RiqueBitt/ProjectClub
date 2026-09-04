@@ -77,6 +77,15 @@ model User {
   profileNameEffect   String    @default("SOLID")
   profileNameColor    String    @default("#1877F2")
   profileNameColor2   String    @default("#FFFFFF")
+  // Item pedido: "poder editar cada cor... tipo todas as cores que
+  // aparecem no arco-íris" — efeitos como RAINBOW (6 cores) e GLITCH
+  // (2 cores) usavam cores FIXAS no código, sem nenhum jeito de
+  // personalizar. Esse campo guarda um array JSON de cores hex (ex:
+  // '["#ff0000","#00ff00",...]') — null/vazio significa "usa as cores
+  // padrão daquele efeito" (ver DEFAULT_MULTI_COLORS em nameStyle.js),
+  // só é lido/gravado pelos efeitos que realmente têm mais de 2 cores
+  // (os outros continuam usando só profileNameColor/Color2 acima).
+  profileNameColors   String?   @db.Text
   // Item pedido: status de relacionamento (estilo Orkut) — só fica
   // preenchido depois que os DOIS lados confirmam via
   // RelationshipRequest (mesmo espírito de aceitar um pedido de
