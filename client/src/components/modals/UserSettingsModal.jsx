@@ -12,6 +12,16 @@ import EmojiPicker from '../EmojiPicker.jsx';
 import { usePopoverCoordination } from '../../utils/popoverCoordinator';
 import { isGradientColor, gradientStops, makeGradient } from '../../utils/roleColor';
 import { NAME_FONTS, NAME_EFFECTS, nameStyleProps, nameStyleClassName, FONT_FAMILY } from '../../utils/nameStyle';
+import { isEyeDropperSupported, pickColorFromScreen } from '../../utils/eyeDropper';
+
+// Item pedido: "sistema... você pode escolher as cores de tudo" —
+// combinações prontas de 2 cores, clicáveis (aplicam profileNameColor
+// + profileNameColor2 de uma vez), inspiradas no seletor de cor de
+// cargo do Discord.
+const NAME_COLOR_PRESETS = [
+  ['#7b5cff', '#ff8a3d'], ['#ff8a3d', '#ff5c8a'], ['#e8464b', '#e8464b'],
+  ['#7b5cff', '#4c9fff'], ['#4c9fff', '#3ddce0'], ['#3ddce0', '#61e786'],
+];
 import { useAuth } from '../../context/AuthContext.jsx';
 import { usePromptDialog } from '../../utils/usePromptDialog.jsx';
 import { useStore } from '../../store/useStore';
@@ -714,6 +724,7 @@ export default function UserSettingsModal({ onClose }) {
                 </label>
               )}
             </div>
+            <NameColorPresets setForm={setForm} />
           </div>
 
           <div className="settings-block">
@@ -1144,6 +1155,47 @@ function iconFor(t) {
 // compacto (mostra o nome da opção atual + um mini-preview) que abre
 // um popover flutuante com a grade completa, em vez do grid inteiro
 // sempre visível na tela. Fecha sozinho ao clicar fora.
+// Item pedido: "sistema... você pode escolher as cores de tudo" —
+// grade de gradientes prontos (clicar aplica as duas cores de uma
+// vez) + conta-gotas nativo (só aparece se o navegador suportar —
+// Chrome/Edge desktop; em qualquer outro lugar, incluindo o app
+// mobile, simplesmente não aparece, sem quebrar nada). setForm é a
+// mesma função de sempre — isso não introduz nenhum campo novo no
+// banco, só uma forma mais rápida de preencher os 2 já existentes.
+function NameColorPresets({ setForm }) {
+  const [pickerError, setPickerError] = useState('');
+  const pickWithEyeDropper = async () => {
+    setPickerError('');
+    try {
+      const hex = await pickColorFromScreen();
+      if (hex) setForm((s) => ({ ...s, profileNameColor: hex }));
+    } catch {
+      setPickerError('Não foi possível usar o conta-gotas agora.');
+    }
+  };
+
+  return (
+    <div className="name-color-presets">
+      <div className="name-color-presets-row">
+        {NAME_COLOR_PRESETS.map(([c1, c2], i) => (
+          <button
+            type="button" key={i} className="name-color-preset-swatch"
+            style={{ background: c1 === c2 ? c1 : `linear-gradient(135deg, ${c1}, ${c2})` }}
+            title={c1 === c2 ? c1 : `${c1} → ${c2}`}
+            onClick={() => setForm((s) => ({ ...s, profileNameColor: c1, profileNameColor2: c2 }))}
+          />
+        ))}
+        {isEyeDropperSupported() && (
+          <button type="button" className="name-color-eyedropper-btn" title="Escolher cor da tela (conta-gotas)" onClick={pickWithEyeDropper}>
+            🎨
+          </button>
+        )}
+      </div>
+      {pickerError && <p className="dim" style={{ fontSize: 11, margin: '2px 0 0' }}>{pickerError}</p>}
+    </div>
+  );
+}
+
 function NameStylePickerButton({ label, open, setOpen, currentLabel, children, menu }) {
   const ref = useRef(null);
   useEffect(() => {

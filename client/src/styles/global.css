@@ -1445,6 +1445,21 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .birthday-picker-row { display: flex; gap: 10px; margin-top: 4px; }
 .birthday-picker-row select { flex: 1; }
 .name-style-color-row { display: flex; gap: 10px; }
+/* Item pedido: "sistema... você pode escolher as cores de tudo" —
+   grade de gradientes prontos + conta-gotas nativo, ver
+   NameColorPresets em UserSettingsModal.jsx. */
+.name-color-presets { margin-top: 4px; }
+.name-color-presets-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.name-color-preset-swatch {
+  width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--border);
+  transition: transform .12s var(--ease-smooth), border-color .12s var(--ease-smooth);
+}
+.name-color-preset-swatch:hover { transform: scale(1.12); border-color: var(--header-primary); }
+.name-color-eyedropper-btn {
+  width: 32px; height: 32px; border-radius: 50%; background: var(--bg-elevated);
+  border: 2px solid var(--border); font-size: 15px; display: flex; align-items: center; justify-content: center;
+}
+.name-color-eyedropper-btn:hover { border-color: var(--brand); background: var(--bg-modifier-hover); }
 .id-card-settings-row { display: flex; align-items: center; gap: 10px; }
 .id-card-settings-preview { width: 64px; height: 40px; object-fit: cover; border-radius: 6px; }
 .id-card-preview-wrap { display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center; }
