@@ -44,7 +44,7 @@ import {
 // centralizar em Configurações — TAG voltou pra cá (tinha ido pro
 // próprio UserProfileModal.jsx numa resposta anterior).
 const TAB_GROUPS = [
-  { label: 'Perfil', tabs: ['PROFILE', 'PROFILE_DISPLAY', 'PROFILE_CONTENT', 'COLUMNS', 'MINI_PROFILE'] },
+  { label: 'Perfil', tabs: ['PROFILE', 'MINI_PROFILE', 'PROFILE_DISPLAY', 'PROFILE_CONTENT', 'COLUMNS'] },
   { label: 'Geral', tabs: ['ACCOUNT', 'VOICE', 'SECURITY', 'APPEARANCE'] },
 ];
 
@@ -444,7 +444,7 @@ export default function UserSettingsModal({ onClose }) {
 
       {tab === 'PROFILE' && (
         <div className="settings-grid profile-edit-grid">
-          <div className="settings-block profile-edit-card">
+          <div className="settings-block profile-edit-card profile-edit-full">
             <div className="profile-preview-banner profile-edit-banner" style={{ background: user.bannerUrl ? `url(${user.bannerUrl}) center/cover` : form.profileColor }} />
             <div className="profile-edit-identity">
               <div className="avatar large profile-edit-avatar" style={{ background: form.profileColor, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
@@ -495,7 +495,7 @@ export default function UserSettingsModal({ onClose }) {
             </div>
           </div>
 
-          <div className="settings-block">
+          <div className="settings-block profile-edit-full">
             <h4>Informações básicas</h4>
             <div className="display-name-row">
               <label>NOME DE EXIBIÇÃO<input name="displayName" value={form.displayName} onChange={onChange} /></label>
@@ -687,7 +687,7 @@ export default function UserSettingsModal({ onClose }) {
             </div>
           </div>
 
-          <div className="settings-block">
+          <div className="settings-block profile-edit-full">
             <h4>Conexões</h4>
             <div className="profile-edit-connections-grid">
               <label>
@@ -709,7 +709,7 @@ export default function UserSettingsModal({ onClose }) {
             </div>
           </div>
 
-          <button className="btn-primary profile-edit-save" onClick={saveProfile}>Salvar alterações</button>
+          <button className="btn-primary profile-edit-save profile-edit-full" onClick={saveProfile}>Salvar alterações</button>
         </div>
       )}
 
@@ -816,8 +816,8 @@ export default function UserSettingsModal({ onClose }) {
           grande, mudando a cor do perfil, mudando a cor do botão ver
           perfil completo". */}
       {tab === 'MINI_PROFILE' && (
-        <div className="settings-grid">
-          <div className="settings-block">
+        <div className="settings-grid profile-edit-grid">
+          <div className="settings-block profile-edit-full">
             <h4>Banner do miniperfil</h4>
             <p className="dim">Esse banner aparece só no cartão pequeno que abre ao clicar no seu nome/avatar — independente do banner do seu perfil completo.</p>
             <label className="btn-secondary">Alterar banner do miniperfil<input type="file" accept="image/*" hidden onChange={onMiniProfileBanner} /></label>
@@ -850,7 +850,7 @@ export default function UserSettingsModal({ onClose }) {
             </div>
           </div>
 
-          <button type="button" className="btn-primary" onClick={saveProfile}>Salvar</button>
+          <button type="button" className="btn-primary profile-edit-full" onClick={saveProfile}>Salvar</button>
         </div>
       )}
 

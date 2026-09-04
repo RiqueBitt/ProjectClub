@@ -1351,7 +1351,16 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
    qualquer funcionalidade já existente. ---------- */
 .settings-modal-box.modal-box { width: min(880px, 94vw); border-radius: 14px; overflow: hidden; }
 .settings-modal-box .modal-body { padding: 0; }
-.settings-modal-layout { display: flex; min-height: 560px; max-height: 78vh; }
+/* Item pedido: "faça o menu nunca mudar de tamanho... quero o tamanho
+   dele em Aparência/Segurança, usando a rolagem pra ver mais pra
+   baixo, sem precisar aumentar o menu" — min-height/max-height (sem
+   height fixa) deixava o modal ENCOLHER/CRESCER de verdade conforme o
+   conteúdo de cada aba — abas com pouco conteúdo (Aparência,
+   Segurança) ficavam pequenas, abas com muito conteúdo (Meu Perfil)
+   esticavam até o teto. Altura fixa agora — o mesmo tamanho sempre,
+   qualquer aba — .settings-modal-content (abaixo) já tinha overflow-y:
+   auto, então o conteúdo que não couber simplesmente rola por dentro. */
+.settings-modal-layout { display: flex; height: 560px; max-height: 78vh; }
 .settings-modal-sidebar {
   width: 216px; flex-shrink: 0; padding: 16px 10px; display: flex; flex-direction: column; gap: 3px;
   background: linear-gradient(180deg, var(--bg-secondary-alt), var(--bg-secondary));
@@ -1403,7 +1412,17 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 /* Aba "Editar perfil" (PROFILE) reformulada — cada seção vira um cartão
    próprio (ver .settings-block mais abaixo) com respiro consistente entre
    elas, em vez de tudo solto direto no fundo do modal. */
-.profile-edit-grid { gap: 14px; }
+/* Item pedido: "repaginação completa de Meu Perfil e Mini Perfil...
+   mais compacto" — grid de 2 colunas (em vez de tudo empilhado numa
+   coluna só, mesmo com 880px de largura sobrando) pra cards menores;
+   .profile-edit-full força um bloco a ocupar a largura toda (banner/
+   avatar, biografia, conexões — coisas que precisam de espaço) —
+   reduz bastante a altura total de rolagem sem cortar nenhum campo. */
+.profile-edit-grid { gap: 14px; display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
+.profile-edit-full { grid-column: 1 / -1; }
+@media (max-width: 640px) {
+  .profile-edit-grid { grid-template-columns: 1fr; }
+}
 .settings-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--header-primary); border-top: 1px solid var(--bg-modifier-hover); padding-top: 16px; margin-top: 4px; letter-spacing: .02em; }
 .display-name-row { display: flex; gap: 10px; align-items: flex-end; }
 .display-name-row label:first-child { flex: 1; }
