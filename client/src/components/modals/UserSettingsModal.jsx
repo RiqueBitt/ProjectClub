@@ -654,53 +654,53 @@ export default function UserSettingsModal({ onClose }) {
               <NameStylePickerButton
                 label="Fonte" open={fontMenuOpen} setOpen={setFontMenuOpen}
                 currentLabel={NAME_FONTS.find((f) => f.value === form.profileNameFont)?.label}
+                menu={(
+                  <div className="name-style-picker-menu">
+                    <div className="name-style-picker-grid">
+                      {NAME_FONTS.map((f) => (
+                        <button
+                          type="button" key={f.value}
+                          className={`name-style-picker-option ${form.profileNameFont === f.value ? 'active' : ''}`}
+                          onClick={() => { setForm((s) => ({ ...s, profileNameFont: f.value })); setFontMenuOpen(false); }}
+                        >
+                          <span className={nameStyleClassName(form)} style={{ ...nameStyleProps(form), fontFamily: FONT_FAMILY[f.value] }}>Abc</span>
+                          <span className="name-style-picker-option-label">{f.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               >
                 <span className={`name-style-picker-button-sample ${nameStyleClassName(form)}`} style={{ ...nameStyleProps(form), fontFamily: FONT_FAMILY[form.profileNameFont] }}>Abc</span>
               </NameStylePickerButton>
-              {fontMenuOpen && (
-                <div className="name-style-picker-menu">
-                  <div className="name-style-picker-grid">
-                    {NAME_FONTS.map((f) => (
-                      <button
-                        type="button" key={f.value}
-                        className={`name-style-picker-option ${form.profileNameFont === f.value ? 'active' : ''}`}
-                        onClick={() => { setForm((s) => ({ ...s, profileNameFont: f.value })); setFontMenuOpen(false); }}
-                      >
-                        <span className={nameStyleClassName(form)} style={{ ...nameStyleProps(form), fontFamily: FONT_FAMILY[f.value] }}>Abc</span>
-                        <span className="name-style-picker-option-label">{f.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="name-style-picker-row">
               <NameStylePickerButton
                 label="Efeito" open={effectMenuOpen} setOpen={setEffectMenuOpen}
                 currentLabel={NAME_EFFECTS.find((f) => f.value === form.profileNameEffect)?.label}
+                menu={(
+                  <div className="name-style-picker-menu">
+                    <div className="name-style-picker-grid">
+                      {NAME_EFFECTS.map((f) => {
+                        const previewUser = { ...form, profileNameEffect: f.value };
+                        return (
+                          <button
+                            type="button" key={f.value}
+                            className={`name-style-picker-option ${form.profileNameEffect === f.value ? 'active' : ''}`}
+                            onClick={() => { setForm((s) => ({ ...s, profileNameEffect: f.value })); setEffectMenuOpen(false); }}
+                          >
+                            <span className={nameStyleClassName(previewUser)} style={nameStyleProps(previewUser)}>Abc</span>
+                            <span className="name-style-picker-option-label">{f.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               >
                 <span className={`name-style-picker-button-sample ${nameStyleClassName(form)}`} style={nameStyleProps(form)}>Abc</span>
               </NameStylePickerButton>
-              {effectMenuOpen && (
-                <div className="name-style-picker-menu">
-                  <div className="name-style-picker-grid">
-                    {NAME_EFFECTS.map((f) => {
-                      const previewUser = { ...form, profileNameEffect: f.value };
-                      return (
-                        <button
-                          type="button" key={f.value}
-                          className={`name-style-picker-option ${form.profileNameEffect === f.value ? 'active' : ''}`}
-                          onClick={() => { setForm((s) => ({ ...s, profileNameEffect: f.value })); setEffectMenuOpen(false); }}
-                        >
-                          <span className={nameStyleClassName(previewUser)} style={nameStyleProps(previewUser)}>Abc</span>
-                          <span className="name-style-picker-option-label">{f.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
             <div className="name-style-color-row">
               <label>
@@ -1144,7 +1144,7 @@ function iconFor(t) {
 // compacto (mostra o nome da opção atual + um mini-preview) que abre
 // um popover flutuante com a grade completa, em vez do grid inteiro
 // sempre visível na tela. Fecha sozinho ao clicar fora.
-function NameStylePickerButton({ label, open, setOpen, currentLabel, children }) {
+function NameStylePickerButton({ label, open, setOpen, currentLabel, children, menu }) {
   const ref = useRef(null);
   useEffect(() => {
     if (!open) return;
@@ -1161,6 +1161,7 @@ function NameStylePickerButton({ label, open, setOpen, currentLabel, children })
         <span className="name-style-picker-button-current truncate">{currentLabel}</span>
         <span className={`name-style-picker-button-caret ${open ? 'open' : ''}`}>▾</span>
       </button>
+      {open && menu}
     </div>
   );
 }
