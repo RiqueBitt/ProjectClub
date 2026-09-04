@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { usePromptDialog } from '../utils/usePromptDialog.jsx';
 import UserSecurityInfoModal from '../components/modals/UserSecurityInfoModal.jsx';
 import UserAvatar from '../components/UserAvatar.jsx';
 import IconGlyph from '../components/IconGlyph.jsx';
@@ -334,6 +335,7 @@ function ChannelsAdminTab() {
   const uncategorized = useStore((s) => s.channels);
   const [creatingFor, setCreatingFor] = useState(undefined); // categoryId (ou null pra "sem categoria") — undefined = fechado
   const [error, setError] = useState('');
+  const { promptAsync, confirmAsync, DialogElement } = usePromptDialog();
   // Item pedido: "agrupe por categoria, não por assunto solto" — cria a
   // estrutura sugerida inteira de uma vez (Início/Comunidade/Suporte/
   // Voz, com os canais certos dentro de cada uma). Confere pelo nome
@@ -367,26 +369,35 @@ function ChannelsAdminTab() {
     }
   };
 
-  const addCategory = () => {
-    const name = prompt('Nome da nova categoria:');
+  const addCategory = async () => {
+    const name = await promptAsync('Nome da nova categoria:');
     if (!name?.trim()) return;
     refreshAfter(() => createCategory(name.trim()));
   };
 
-  const renameCategory = (cat) => {
-    const name = prompt('Novo nome da categoria:', cat.name);
+  const renameCategory = async (cat) => {
+    const name = await promptAsync('Novo nome da categoria:', cat.name);
     if (!name?.trim() || name === cat.name) return;
     refreshAfter(() => updateCategory(cat.id, name.trim()));
   };
 
-  const removeCategory = (cat) => {
-    if (!confirm(`Excluir a categoria "${cat.name}"? Os canais dela ficam sem categoria (não são apagados).`)) return;
+  const removeCategory = async (cat) => {
+    if (!(await confirmAsync(`Excluir a categoria "${cat.name}"? Os canais dela ficam sem categoria (não são apagados).`))) return;
     refreshAfter(() => deleteCategory(cat.id));
   };
 
-  const removeChannel = (ch) => {
-    if (!confirm(`Excluir o canal "${ch.name}"? Todas as mensagens dele são perdidas — isso não pode ser desfeito.`)) return;
+  const removeChannel = async (ch) => {
+    if (!(await confirmAsync(`Excluir o canal "${ch.name}"? Todas as mensagens dele são perdidas — isso não pode ser desfeito.`))) return;
     refreshAfter(() => deleteChannel(ch.id));
+  };
+
+  // Item pedido: "adicione poder editar os canais já criados que estão
+  // em uma categoria" — o backend (updateChannel) já aceitava renomear
+  // desde sempre, só faltava esse botão pra chamar.
+  const renameChannel = async (ch) => {
+    const name = await promptAsync('Novo nome do canal:', ch.name);
+    if (!name?.trim() || name === ch.name) return;
+    refreshAfter(() => updateChannel(ch.id, { name: name.trim() }));
   };
 
   const moveCategory = (index, direction) => {
@@ -459,12 +470,14 @@ function ChannelsAdminTab() {
       <div className="admin-user-row-info"><div className="admin-user-row-name">{ch.name}</div></div>
       <button className="btn-link" disabled={i === 0} onClick={() => moveChannel(categoryId, list, i, -1)}>▲</button>
       <button className="btn-link" disabled={i === list.length - 1} onClick={() => moveChannel(categoryId, list, i, 1)}>▼</button>
+      <button className="btn-link" onClick={() => renameChannel(ch)}>Renomear</button>
       <button className="btn-link danger" onClick={() => removeChannel(ch)}>Excluir</button>
     </div>
   );
 
   return (
     <div>
+      {DialogElement}
       <h2># Canais e Categorias</h2>
       <p className="dim" style={{ marginBottom: 16 }}>
         Crie, exclua e reordene os canais e categorias da comunidade. A ordem aqui é a mesma que todo mundo vê na
