@@ -100,7 +100,14 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
         placeholder="Buscar emoji..."
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        autoFocus
+        // BUG CORRIGIDO ("abrir o menu de emoji/GIF no mobile acaba
+        // abrindo o teclado do celular"): autoFocus sempre ativo faz
+        // QUALQUER navegador/WebView levantar o teclado virtual assim
+        // que o campo ganha foco — bom em desktop (já digita direto),
+        // ruim em mobile (o teclado cobre boa parte da tela sem a
+        // pessoa ter pedido). window.innerWidth > 600 é a mesma régua
+        // já usada em outros lugares do app pra "isso é mobile?".
+        autoFocus={window.innerWidth > 600}
       />
       <div className="emoji-picker-body">
         {tab === 'server' && Object.entries(customGrouped).map(([cat, list]) => {

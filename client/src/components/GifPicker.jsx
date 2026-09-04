@@ -102,7 +102,10 @@ export default function GifPicker({ onPick, onClose, style }) {
           placeholder="Buscar GIFs..."
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
-          autoFocus
+          // BUG CORRIGIDO ("abrir o menu de GIFs no mobile acaba
+          // abrindo o teclado do celular") — mesma correção do
+          // EmojiPicker.jsx: autoFocus só em telas maiores que 600px.
+          autoFocus={window.innerWidth > 600}
           disabled={failed === 'unconfigured'}
         />
       )}
