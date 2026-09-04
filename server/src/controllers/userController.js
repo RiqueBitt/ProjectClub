@@ -21,6 +21,17 @@ const PROFILE_SECTION_KEYS = [
 async function updateProfile(req, res, next) {
   try {
     const allowed = ['displayName', 'bio', 'pronouns', 'customStatus', 'profileColor', 'profileSectionOrder', 'levelBarColor'];
+    // BUG CORRIGIDO ("quando troco pra novas fontes/estilo não está
+    // trocando, fica a antiga"): profileNameFont/Effect/Color/Color2
+    // nunca eram salvos de verdade — o backend descartava esses 4
+    // campos SILENCIOSAMENTE (sem erro nenhum) mesmo quando o
+    // formulário os enviava (nenhum estava em "allowed", nem tinham
+    // validação própria como os outros campos especiais abaixo). O
+    // preview dentro do modal parecia funcionar (lê direto do estado
+    // local do formulário, não do que foi salvo de verdade), então
+    // nada avisava que o salvamento não tinha pego — validados mais
+    // abaixo, junto de profileColor (mesma proteção de "cores_perfil"
+    // desativado) e contra os valores reais de fonte/efeito.
     // Conexões links (see UserSettingsModal.jsx's "Conexões" section under the
     // PROFILE tab / UserProfileModal.jsx's Conexões display) — plain optional
     // URLs, no OAuth verification. Sanitized to either a real http(s) link or
@@ -90,7 +101,7 @@ async function updateProfile(req, res, next) {
       if (Number.isInteger(n) && n >= 0 && n <= 100) data.profileSectionOpacity = n;
     }
 
-    if (data.profileColor !== undefined || req.body.miniProfileColor !== undefined || req.body.miniProfileButtonColor !== undefined) {
+    if (data.profileColor !== undefined || req.body.miniProfileColor !== undefined || req.body.miniProfileButtonColor !== undefined || req.body.profileNameColor !== undefined || req.body.profileNameColor2 !== undefined) {
       const settings = await prisma.platformSettings.findUnique({ where: { id: 'singleton' } });
       let disabled = [];
       try { disabled = JSON.parse(settings?.disabledSystems || '[]'); } catch { disabled = []; }
@@ -103,8 +114,23 @@ async function updateProfile(req, res, next) {
         // perfil grande).
         if (req.body.miniProfileColor !== undefined) data.miniProfileColor = req.body.miniProfileColor;
         if (req.body.miniProfileButtonColor !== undefined) data.miniProfileButtonColor = req.body.miniProfileButtonColor;
+        // BUG CORRIGIDO: profileNameColor/Color2 (cor do "Estilo do
+        // nome") passavam batido dessa mesma proteção — dava pra
+        // contornar "cores de perfil desativadas" pintando o nome por
+        // esse campo em vez do profileColor. Mesma regra agora.
+        if (req.body.profileNameColor !== undefined) data.profileNameColor = req.body.profileNameColor;
+        if (req.body.profileNameColor2 !== undefined) data.profileNameColor2 = req.body.profileNameColor2;
       }
     }
+    // BUG CORRIGIDO (junto com o de cima) — profileNameFont/Effect
+    // validados contra os valores de verdade que o frontend oferece
+    // (ver NAME_FONTS/NAME_EFFECTS em utils/nameStyle.js) — evita
+    // salvar lixo no banco se algo mandar um valor malformado direto
+    // pela API, mesmo passando pela UI.
+    const VALID_NAME_FONTS = ['NORMAL', 'PIXEL', 'CARTOON', 'MEDIEVAL', 'HANDWRITING', 'CREEPY', 'FUTURISTIC', 'SIGNATURE', 'BOLD_CONDENSED', 'ROUNDED', 'CASUAL_SCRIPT', 'RETRO_NEON', 'URBAN', 'ELEGANT_SERIF', 'PLAYFUL'];
+    const VALID_NAME_EFFECTS = ['SOLID', 'NEON', 'GRADIENT', 'POP', 'SKETCH', 'SHADOW_3D', 'OUTLINE', 'RAINBOW', 'GLITCH', 'ICE', 'FIRE', 'METALLIC', 'SHINE', 'EMBOSS', 'DOUBLE_STROKE'];
+    if (req.body.profileNameFont !== undefined && VALID_NAME_FONTS.includes(req.body.profileNameFont)) data.profileNameFont = req.body.profileNameFont;
+    if (req.body.profileNameEffect !== undefined && VALID_NAME_EFFECTS.includes(req.body.profileNameEffect)) data.profileNameEffect = req.body.profileNameEffect;
     // Avatar de pinguim (tema Club Penguin — ver PenguinAvatar.jsx no
     // client): um "pseudo-URL" fixo em vez de um upload de arquivo de
     // verdade. Validado contra uma lista travada de cores pra esse campo

@@ -11,7 +11,7 @@ import Modal from '../Modal.jsx';
 import EmojiPicker from '../EmojiPicker.jsx';
 import { usePopoverCoordination } from '../../utils/popoverCoordinator';
 import { isGradientColor, gradientStops, makeGradient } from '../../utils/roleColor';
-import { NAME_FONTS, NAME_EFFECTS, nameStyleProps } from '../../utils/nameStyle';
+import { NAME_FONTS, NAME_EFFECTS, nameStyleProps, nameStyleClassName, FONT_FAMILY } from '../../utils/nameStyle';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { usePromptDialog } from '../../utils/usePromptDialog.jsx';
 import { useStore } from '../../store/useStore';
@@ -499,12 +499,6 @@ export default function UserSettingsModal({ onClose }) {
             <h4>Informações básicas</h4>
             <div className="display-name-row">
               <label>NOME DE EXIBIÇÃO<input name="displayName" value={form.displayName} onChange={onChange} /></label>
-              <label>
-                FONTE (só no seu perfil)
-                <select name="profileNameFont" value={form.profileNameFont} onChange={onChange}>
-                  {NAME_FONTS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-                </select>
-              </label>
             </div>
             <label>PRONOMES<input name="pronouns" value={form.pronouns} onChange={onChange} placeholder="ele/dele, ela/dela..." /></label>
             {/* Item pedido: aniversário — dia/mês editável a qualquer
@@ -648,14 +642,39 @@ export default function UserSettingsModal({ onClose }) {
             <h4>Estilo do nome</h4>
             <p className="dim">A fonte, o efeito e a cor abaixo aparecem em mensagens, na lista de membros e no seu perfil.</p>
             <div className="name-style-preview" style={{ fontSize: 22, fontWeight: 700 }}>
-              <span style={nameStyleProps(form)}>{form.displayName || user.displayName}</span>
+              <span className={nameStyleClassName(form)} style={nameStyleProps(form)}>{form.displayName || user.displayName}</span>
             </div>
-            <label>
-              EFEITO
-              <select name="profileNameEffect" value={form.profileNameEffect} onChange={onChange}>
-                {NAME_EFFECTS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-              </select>
-            </label>
+
+            <div className="name-style-picker-label">FONTE</div>
+            <div className="name-style-picker-grid">
+              {NAME_FONTS.map((f) => (
+                <button
+                  type="button" key={f.value}
+                  className={`name-style-picker-option ${form.profileNameFont === f.value ? 'active' : ''}`}
+                  onClick={() => setForm((s) => ({ ...s, profileNameFont: f.value }))}
+                >
+                  <span className={nameStyleClassName(form)} style={{ ...nameStyleProps(form), fontFamily: FONT_FAMILY[f.value] }}>Abc</span>
+                  <span className="name-style-picker-option-label">{f.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="name-style-picker-label">EFEITO</div>
+            <div className="name-style-picker-grid">
+              {NAME_EFFECTS.map((f) => {
+                const previewUser = { ...form, profileNameEffect: f.value };
+                return (
+                  <button
+                    type="button" key={f.value}
+                    className={`name-style-picker-option ${form.profileNameEffect === f.value ? 'active' : ''}`}
+                    onClick={() => setForm((s) => ({ ...s, profileNameEffect: f.value }))}
+                  >
+                    <span className={nameStyleClassName(previewUser)} style={nameStyleProps(previewUser)}>Abc</span>
+                    <span className="name-style-picker-option-label">{f.label}</span>
+                  </button>
+                );
+              })}
+            </div>
             <div className="name-style-color-row">
               <label>
                 {form.profileNameEffect === 'GRADIENT' ? 'COR DO NOME (INÍCIO)' : form.profileNameEffect === 'POP' ? 'COR DE TRÁS (CONTORNO)' : 'COR DO NOME'}

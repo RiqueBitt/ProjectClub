@@ -45,7 +45,10 @@ export const NAME_EFFECTS = [
   { value: 'DOUBLE_STROKE', label: 'Contorno duplo' },
 ];
 
-const FONT_FAMILY = {
+// Exportada pra quem precisa saber a fonte de verdade de cada opção
+// sem passar por nameStyleProps inteiro (ver o seletor visual de fonte
+// em UserSettingsModal.jsx, que mostra uma amostra "Abc" de cada uma).
+export const FONT_FAMILY = {
   NORMAL: undefined, // inherits the app's own default font
   PIXEL: "'Press Start 2P', monospace",
   CARTOON: "'Bangers', cursive",
@@ -90,6 +93,25 @@ export function hasCustomNameStyle(user) {
   return Object.entries(DEFAULT_NAME_STYLE).some(([key, def]) => user[key] && user[key] !== def);
 }
 
+// Item pedido: "adicione animações tipo em arco-íris... uma animação
+// de cores trocando... afina várias" — style INLINE (o que
+// nameStyleProps devolve) não pode conter @keyframes, então essa
+// segunda função separada devolve só o NOME DA CLASSE CSS que carrega
+// a animação (ver as @keyframes correspondentes em global.css) — cada
+// lugar que já usa nameStyleProps(user) como style precisa TAMBÉM
+// aplicar essa classe (className={nameStyleClassName(user)}) pra
+// animação funcionar; sem ela, o efeito ainda funciona, só fica
+// parado (a cor "final" do gradiente, sem ciclar).
+export function nameStyleClassName(user) {
+  const effect = user?.profileNameEffect;
+  if (effect === 'RAINBOW') return 'name-style-anim-rainbow';
+  if (effect === 'NEON') return 'name-style-anim-neon';
+  if (effect === 'GLITCH') return 'name-style-anim-glitch';
+  if (effect === 'SHINE') return 'name-style-anim-shine';
+  if (effect === 'FIRE') return 'name-style-anim-fire';
+  return '';
+}
+
 export function nameStyleProps(user) {
   const font = FONT_FAMILY[user?.profileNameFont] || undefined;
   const color = user?.profileNameColor || '#F2894D';
@@ -122,7 +144,12 @@ export function nameStyleProps(user) {
         backgroundClip: 'text', WebkitBackgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent',
       };
     case 'GLITCH':
-      return { ...base, color, textShadow: `-2px 0 #ff3b3b, 2px 0 #3bd6ff` };
+      // O text-shadow animado (vermelho/ciano tremendo) vive inteiro
+      // na classe .name-style-anim-glitch (ver global.css) — aqui só
+      // a cor base, pra não colidir com a animação (style inline
+      // sempre venceria a animação CSS se os dois tentassem controlar
+      // a mesma propriedade).
+      return { ...base, color };
     case 'ICE':
       return {
         ...base, backgroundImage: `linear-gradient(180deg, #ffffff, ${color})`,

@@ -5,7 +5,7 @@ import { useContextMenu } from '../context/ContextMenuContext.jsx';
 import { STATUS_COLOR } from '../utils/status';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import { roleTextStyle, highestColoredRole } from '../utils/roleColor';
-import { nameStyleProps, hasCustomNameStyle } from '../utils/nameStyle';
+import { nameStyleProps, hasCustomNameStyle, nameStyleClassName } from '../utils/nameStyle';
 import TagBadge from './TagBadge.jsx';
 import StatusEmoji from './StatusEmoji.jsx';
 import ActivityIcon from './ActivityIcon.jsx';
@@ -132,7 +132,7 @@ function MemberGroup({ label, members, roles, dim, cargosEnabled }) {
             <span className="status-dot" style={{ background: STATUS_COLOR[m.liveStatus] || STATUS_COLOR.OFFLINE }} />
           </div>
           <div className="member-row-text">
-            <span className="truncate member-row-name" style={hasCustomNameStyle(m.user) ? nameStyleProps(m.user) : roleTextStyle(cargosEnabled ? highestColoredRole(m, roles)?.color : null)}>
+            <span className={`truncate member-row-name ${hasCustomNameStyle(m.user) ? nameStyleClassName(m.user) : ''}`} style={hasCustomNameStyle(m.user) ? nameStyleProps(m.user) : roleTextStyle(cargosEnabled ? highestColoredRole(m, roles)?.color : null)}>
               {/* BUG CORRIGIDO ("ícone de cargo do lado do nome"): se o
                   ícone do cargo for uma IMAGEM enviada (caminho tipo
                   "/uploads/xyz.png"), colocar ela direto dentro do texto

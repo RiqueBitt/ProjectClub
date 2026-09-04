@@ -19,7 +19,7 @@ import PaginatedListModal from './PaginatedListModal.jsx';
 import PhotoAlbumModal from './PhotoAlbumModal.jsx';
 import defaultAchievementIcon from '../../assets/icons/nav-achievements.png';
 import { badgeHasImage } from '../../utils/badgeRarity';
-import { nameStyleProps } from '../../utils/nameStyle';
+import { nameStyleProps, nameStyleClassName } from '../../utils/nameStyle';
 import cancelIcon from '../../assets/icons/cancel.png';
 import settingsIcon from '../../assets/icons/settings.png';
 import likeIcon from '../../assets/icons/like.png';
@@ -818,7 +818,7 @@ isMe && (
                 </div>
                 <div className="profile-ig-header-info">
                   <h2 className="profile-display-name">
-                    <span style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} />
+                    <span className={nameStyleClassName(user)} style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} />
                     {/* Item pedido: "no dia do aniversário, mostrar no
                         perfil a indicação visual" */}
                     {data.isBirthdayToday && <span className="profile-birthday-badge" title="Aniversário hoje!">🎂</span>}
