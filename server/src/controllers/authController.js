@@ -558,6 +558,65 @@ async function disable2FA(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Item pedido: "repaginada completa em Configurações... melhorando,
+// adicionando" — a aba "Minha Conta" não tinha NENHUM jeito de trocar
+// a própria senha (só o fluxo de "esqueci minha senha" via e-mail
+// existia) — mesmo padrão de validação/hash de resetPassword acima,
+// só que confirmando com a senha ATUAL em vez de um token por e-mail.
+// Revoga as outras sessões depois (mesma prática de segurança de
+// resetPassword — se alguém mais tinha acesso, essa troca de senha
+// derruba esse acesso).
+async function changePassword(req, res, next) {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!isPasswordStrongEnough(newPassword)) {
+      return res.status(400).json({ error: 'A nova senha deve ter pelo menos 8 caracteres, com letras e números.' });
+    }
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!currentPassword || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      return res.status(401).json({ error: 'Senha atual incorreta.' });
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    // BUG EVITADO: cheguei a tentar excluir só a sessão ATUAL da
+    // revogação (pra pessoa continuar logada depois de trocar a
+    // senha), mas requireAuth (middleware/auth.js) só valida o access
+    // token (um JWT sem estado) — nunca associa o request a um
+    // refreshTokenId específico, então não tem como saber QUAL sessão
+    // é "essa" com segurança aqui. Revoga todas, mesmo padrão que
+    // resetPassword já usa — a pessoa precisa entrar de novo depois,
+    // o que é o comportamento correto de qualquer forma (se alguém
+    // mais tinha acesso com a senha antiga, essa troca precisa
+    // derrubar esse acesso).
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
+      prisma.refreshToken.updateMany({ where: { userId: user.id }, data: { revoked: true } }),
+    ]);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+}
+
+// Item pedido: "excluir conta" — na verdade DESATIVA (accountDisabledAt,
+// ver schema.prisma), não apaga nada de verdade — evita quebrar
+// referências em cascata (mensagens antigas, posts, etc de outras
+// pessoas que citam esse usuário continuam existindo normalmente).
+// Confirmado com senha, mesmo padrão de disable2FA acima. Revoga TODAS
+// as sessões (inclusive a atual, diferente de changePassword) — a
+// pessoa é desconectada na hora.
+async function deleteAccount(req, res, next) {
+  try {
+    const { password } = req.body || {};
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!password || !(await bcrypt.compare(password, user.passwordHash))) {
+      return res.status(401).json({ error: 'Senha incorreta.' });
+    }
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: user.id }, data: { accountDisabledAt: new Date() } }),
+      prisma.refreshToken.updateMany({ where: { userId: user.id }, data: { revoked: true } }),
+    ]);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+}
+
 async function me(req, res, next) {
   try {
     let user = await prisma.user.findUnique({ where: { id: req.user.id }, select: SELF_USER_FIELDS });
@@ -575,4 +634,5 @@ module.exports = {
   listSessions, revokeSession, revokeOtherSessions, ensurePublicId,
   PUBLIC_USER_FIELDS, SELF_USER_FIELDS,
   isPasswordStrongEnough, generatePublicId,
+  changePassword, deleteAccount,
 };

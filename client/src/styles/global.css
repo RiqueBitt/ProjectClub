@@ -3319,6 +3319,20 @@ a.embed-card-title:hover { text-decoration: underline; }
   background: var(--brand); flex-shrink: 0;
 }
 .settings-block > p.dim { margin: -4px 0 0; font-size: 12px; }
+/* Item pedido: "repaginada completa em Configurações" — separa
+   visualmente ações sérias (sair, desativar conta) do resto das
+   configurações comuns, mesmo padrão de "zona de risco" que a
+   maioria dos apps usa — borda avermelhada sutil, sem ficar
+   berrante. */
+.settings-block.danger-zone { border-color: color-mix(in srgb, var(--red) 35%, var(--border)); }
+.settings-block.danger-zone h4::before { background: var(--red); }
+.danger-zone-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 10px 0; border-top: 1px solid var(--border);
+}
+.danger-zone-row:first-of-type { border-top: none; padding-top: 0; }
+.danger-zone-row-title { font-weight: 600; font-size: 14px; color: var(--header-primary); }
+.danger-zone-row .dim { margin: 2px 0 0; font-size: 12px; max-width: 380px; }
 .sessions-list { display: flex; flex-direction: column; gap: 8px; }
 .session-row {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;

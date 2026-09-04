@@ -38,6 +38,8 @@ router.post('/reset-password', authLimiter, ctrl.resetPassword);
 router.post('/2fa/setup', requireAuth, ctrl.setup2FA);
 router.post('/2fa/confirm', requireAuth, codeLimiter, ctrl.confirm2FA);
 router.post('/2fa/disable', requireAuth, ctrl.disable2FA);
+router.post('/change-password', requireAuth, authLimiter, ctrl.changePassword);
+router.post('/delete-account', requireAuth, authLimiter, ctrl.deleteAccount);
 router.get('/me', requireAuth, ctrl.me);
 router.get('/sessions', requireAuth, ctrl.listSessions);
 router.delete('/sessions/other', requireAuth, ctrl.revokeOtherSessions);

@@ -16,6 +16,8 @@ export const resetPassword = (token, newPassword) => api.post('/auth/reset-passw
 export const setup2FA = () => api.post('/auth/2fa/setup').then((r) => r.data);
 export const confirm2FA = (code) => api.post('/auth/2fa/confirm', { code }).then((r) => r.data);
 export const disable2FA = (password) => api.post('/auth/2fa/disable', { password }).then((r) => r.data);
+export const changePassword = (currentPassword, newPassword) => api.post('/auth/change-password', { currentPassword, newPassword }).then((r) => r.data);
+export const deleteAccount = (password) => api.post('/auth/delete-account', { password }).then((r) => r.data);
 export const listSessions = () => api.get('/auth/sessions').then((r) => r.data);
 export const revokeSession = (id) => api.delete(`/auth/sessions/${id}`).then((r) => r.data);
 export const revokeOtherSessions = () => api.delete('/auth/sessions/other').then((r) => r.data);

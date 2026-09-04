@@ -13,6 +13,7 @@ import { usePopoverCoordination } from '../../utils/popoverCoordinator';
 import { isGradientColor, gradientStops, makeGradient } from '../../utils/roleColor';
 import { NAME_FONTS, NAME_EFFECTS, nameStyleProps } from '../../utils/nameStyle';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { usePromptDialog } from '../../utils/usePromptDialog.jsx';
 import { useStore } from '../../store/useStore';
 import IdCardPreviewModal from './IdCardPreviewModal.jsx';
 import { PENGUIN_COLORS, penguinAvatarUrl, isPenguinAvatarUrl } from '../PenguinAvatar.jsx';
@@ -32,6 +33,7 @@ import {
   setup2FA, confirm2FA, disable2FA, setPreferredTheme, setActiveTag,
   listSessions, revokeSession, revokeOtherSessions,
   createProfilePoll, listProfilePollsByAuthor, deleteProfilePoll,
+  changePassword, deleteAccount,
 } from '../../api/endpoints';
 
 // Item pedido: separar "Edição do Perfil" das "Configurações gerais" da
@@ -59,6 +61,7 @@ export default function UserSettingsModal({ onClose }) {
   // guard equivalente em server/src/controllers/userController.js).
   const profileColorEditEnabled = !disabledSystems.includes('cores_perfil');
   const [tab, setTab] = useState('PROFILE');
+  const { promptAsync, confirmAsync, DialogElement } = usePromptDialog();
   const [bioEmojiOpen, setBioEmojiOpen] = useState(false);
   usePopoverCoordination(bioEmojiOpen, () => setBioEmojiOpen(false));
   const [statusEmojiOpen, setStatusEmojiOpen] = useState(false);
@@ -223,8 +226,8 @@ export default function UserSettingsModal({ onClose }) {
       .finally(() => setPollCreating(false));
   };
 
-  const removePoll = (pollId) => {
-    if (!confirm('Apagar essa enquete?')) return;
+  const removePoll = async (pollId) => {
+    if (!(await confirmAsync('Apagar essa enquete?'))) return;
     deleteProfilePoll(pollId).then(() => setMyPolls((prev) => prev.filter((p) => p.id !== pollId))).catch(() => {});
   };
 
@@ -301,12 +304,13 @@ export default function UserSettingsModal({ onClose }) {
   };
 
   const turnOff2FA = async () => {
-    // Backend now requires the account password to disable 2FA (a stolen
-    // access token alone shouldn't be able to strip this protection) —
-    // this is the one settings action that still needs a plain prompt()
-    // instead of a form field, since it's a rare, deliberate, one-off
-    // confirmation rather than part of the normal settings flow.
-    const password = window.prompt('Digite sua senha para desativar o 2FA:');
+    // BUG CORRIGIDO ("não funciona no PC, no celular sim"): window.
+    // prompt() é desabilitado por completo no Electron (decisão de
+    // design oficial do próprio projeto — nunca vai ser suportado),
+    // então sempre devolvia null ali, e essa ação simplesmente
+    // desistia sem nenhum aviso. Trocado pelo modal próprio do app
+    // (usePromptDialog.jsx), que funciona em qualquer plataforma.
+    const password = await promptAsync('Digite sua senha para desativar o 2FA:');
     if (!password) return;
     try {
       await disable2FA(password);
@@ -368,6 +372,51 @@ export default function UserSettingsModal({ onClose }) {
     navigate('/login');
   };
 
+  // Item pedido: "repaginada completa em Configurações... adicionando"
+  // — a aba Minha Conta não tinha NENHUM jeito de trocar a própria
+  // senha (só o fluxo de "esqueci minha senha" por e-mail existia)
+  // nem de encerrar a conta. Backend novo: changePassword/deleteAccount
+  // (authController.js) — a "exclusão" na verdade desativa a conta
+  // (accountDisabledAt no schema), sem apagar nada de verdade, pra não
+  // quebrar mensagens/posts antigos de outras pessoas.
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
+  const [pwError, setPwError] = useState('');
+  const [pwSuccess, setPwSuccess] = useState(false);
+  const [pwSaving, setPwSaving] = useState(false);
+  const submitChangePassword = async () => {
+    setPwError(''); setPwSuccess(false);
+    if (pwForm.next !== pwForm.confirm) { setPwError('As duas senhas novas não são iguais.'); return; }
+    setPwSaving(true);
+    try {
+      await changePassword(pwForm.current, pwForm.next);
+      setPwForm({ current: '', next: '', confirm: '' });
+      setPwSuccess(true);
+    } catch (err) {
+      setPwError(err.response?.data?.error || 'Não foi possível trocar a senha.');
+    } finally {
+      setPwSaving(false);
+    }
+  };
+
+  const [deleteError, setDeleteError] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const startDeleteAccount = async () => {
+    if (!(await confirmAsync('Tem certeza que quer desativar sua conta? Você é desconectado na hora e não consegue mais entrar com ela.'))) return;
+    const password = await promptAsync('Digite sua senha pra confirmar:');
+    if (!password) return;
+    setDeleteError('');
+    setDeleting(true);
+    try {
+      await deleteAccount(password);
+      await logout();
+      onClose();
+      navigate('/login');
+    } catch (err) {
+      setDeleteError(err.response?.data?.error || 'Senha incorreta.');
+      setDeleting(false);
+    }
+  };
+
   return (
     <>
     <Modal title="Configurações do usuário" onClose={onClose} width="820px" className="settings-modal-box">
@@ -391,6 +440,7 @@ export default function UserSettingsModal({ onClose }) {
           </button>
         </div>
         <div className="settings-modal-content" key={tab}>
+      {DialogElement}
 
       {tab === 'PROFILE' && (
         <div className="settings-grid profile-edit-grid">
@@ -806,15 +856,50 @@ export default function UserSettingsModal({ onClose }) {
 
       {tab === 'ACCOUNT' && (
         <div className="settings-grid">
-          <label>E-MAIL<input value={user.email} disabled /></label>
-          <label>
-            NOME DE USUÁRIO
-            <input value={username} onChange={(e) => setUsernameField(e.target.value)} />
-          </label>
-          {error && <div className="auth-error">{error}</div>}
-          <button className="btn-primary" onClick={saveUsername}>Salvar nome de usuário</button>
-          <hr />
-          <button className="btn-danger" onClick={doLogout}>Sair da conta</button>
+          <div className="settings-block">
+            <h4>Informações básicas</h4>
+            <label>E-MAIL<input value={user.email} disabled /></label>
+            <label>
+              NOME DE USUÁRIO
+              <input value={username} onChange={(e) => setUsernameField(e.target.value)} />
+            </label>
+            {error && <div className="auth-error">{error}</div>}
+            <button className="btn-primary" onClick={saveUsername}>Salvar nome de usuário</button>
+          </div>
+
+          <div className="settings-block">
+            <h4>Trocar senha</h4>
+            <label>SENHA ATUAL<input type="password" value={pwForm.current} onChange={(e) => setPwForm((f) => ({ ...f, current: e.target.value }))} /></label>
+            <label>SENHA NOVA<input type="password" value={pwForm.next} onChange={(e) => setPwForm((f) => ({ ...f, next: e.target.value }))} /></label>
+            <label>CONFIRME A SENHA NOVA<input type="password" value={pwForm.confirm} onChange={(e) => setPwForm((f) => ({ ...f, confirm: e.target.value }))} /></label>
+            <p className="dim" style={{ fontSize: 12 }}>Pelo menos 8 caracteres, com letras e números. Você continua logado aqui, mas é desconectado dos outros dispositivos.</p>
+            {pwError && <div className="auth-error">{pwError}</div>}
+            {pwSuccess && <p className="dim" style={{ color: 'var(--green)' }}>Senha alterada com sucesso.</p>}
+            <button className="btn-primary" disabled={pwSaving || !pwForm.current || !pwForm.next} onClick={submitChangePassword}>
+              {pwSaving ? 'Salvando...' : 'Trocar senha'}
+            </button>
+          </div>
+
+          <div className="settings-block danger-zone">
+            <h4>Zona de risco</h4>
+            <div className="danger-zone-row">
+              <div>
+                <div className="danger-zone-row-title">Sair da conta</div>
+                <p className="dim">Você precisa entrar de novo com seu e-mail e senha neste dispositivo.</p>
+              </div>
+              <button className="btn-secondary" onClick={doLogout}>Sair</button>
+            </div>
+            <div className="danger-zone-row">
+              <div>
+                <div className="danger-zone-row-title">Desativar conta</div>
+                <p className="dim">Você é desconectado de tudo na hora e não consegue mais entrar com ela — nenhuma mensagem ou post antigo é apagado.</p>
+              </div>
+              <button className="btn-danger" disabled={deleting} onClick={startDeleteAccount}>
+                {deleting ? '...' : 'Desativar'}
+              </button>
+            </div>
+            {deleteError && <div className="auth-error">{deleteError}</div>}
+          </div>
         </div>
       )}
 

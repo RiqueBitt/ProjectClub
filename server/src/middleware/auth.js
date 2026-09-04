@@ -32,6 +32,14 @@ async function requireAuth(req, res, next) {
     if (user.suspendedUntil && new Date(user.suspendedUntil) > new Date()) {
       return res.status(403).json({ error: 'Sua conta está temporariamente suspensa.', suspendedUntil: user.suspendedUntil });
     }
+    // Item pedido: "excluir conta" (na prática, desativa — ver
+    // deleteAccount em authController.js) — bloqueia qualquer sessão
+    // já ativa também, não só o login, já que deleteAccount revoga os
+    // refresh tokens mas o access token (JWT) em uso continua válido
+    // por conta própria até expirar sozinho.
+    if (user.accountDisabledAt) {
+      return res.status(403).json({ error: 'Essa conta foi desativada.', accountDisabled: true });
+    }
 
     // "Em reforma" (see adminController.setMaintenanceMode / platformController.
     // getStatus): only the platform's own staff (ADMIN/MODERATOR) can still

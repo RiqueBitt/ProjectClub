@@ -128,6 +128,14 @@ model User {
   platformBanReason   String?
   suspendedUntil      DateTime?
   timeoutUntil        DateTime?
+  // Item pedido: "excluir conta" — separado de suspensão/ban (que são
+  // ações da STAFF): quando preenchido, a PRÓPRIA pessoa desativou a
+  // conta (Configurações -> Minha Conta). Login passa a ser recusado
+  // enquanto esse campo estiver preenchido, mas nenhum dado é apagado
+  // de verdade (mensagens antigas, posts, etc continuam existindo
+  // normalmente para quem via elas antes) — evita quebrar referências
+  // em cascata que uma exclusão física causaria.
+  accountDisabledAt   DateTime?
   failedLoginAttempts Int       @default(0)
   loginLockedUntil    DateTime?
   tagEmoji            String?
