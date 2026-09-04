@@ -6,7 +6,7 @@ const DEFAULTS = {
 };
 
 function parseRow(row, device) {
-  if (!row) return { device, ...DEFAULTS[device], panelPositions: {} };
+  if (!row) return { device, ...DEFAULTS[device], panelPositions: {}, gifMenuLayout: {} };
   return {
     device,
     railOrder: JSON.parse(row.railOrder || '[]'),
@@ -15,6 +15,7 @@ function parseRow(row, device) {
     membersWidth: row.membersWidth,
     membersDefaultOpen: row.membersDefaultOpen,
     panelPositions: JSON.parse(row.panelPositions || '{}'),
+    gifMenuLayout: JSON.parse(row.gifMenuLayout || '{}'),
   };
 }
 
@@ -37,7 +38,7 @@ async function updateUiLayout(req, res, next) {
   try {
     const { device } = req.params;
     if (!['PC', 'MOBILE'].includes(device)) return res.status(400).json({ error: 'Dispositivo inválido.' });
-    const { railOrder, railHidden, sidebarWidth, membersWidth, membersDefaultOpen, panelPositions } = req.body;
+    const { railOrder, railHidden, sidebarWidth, membersWidth, membersDefaultOpen, panelPositions, gifMenuLayout } = req.body;
 
     const data = {
       railOrder: JSON.stringify(railOrder || []),
@@ -46,6 +47,7 @@ async function updateUiLayout(req, res, next) {
       membersWidth: parseInt(membersWidth, 10) || 240,
       membersDefaultOpen: !!membersDefaultOpen,
       panelPositions: JSON.stringify(panelPositions || {}),
+      gifMenuLayout: JSON.stringify(gifMenuLayout || {}),
     };
     const row = await prisma.uiLayoutConfig.upsert({
       where: { device }, update: data, create: { device, ...data },
@@ -61,7 +63,7 @@ async function resetUiLayout(req, res, next) {
     const { device } = req.params;
     if (!['PC', 'MOBILE'].includes(device)) return res.status(400).json({ error: 'Dispositivo inválido.' });
     await prisma.uiLayoutConfig.deleteMany({ where: { device } });
-    const config = { device, ...DEFAULTS[device], panelPositions: {} };
+    const config = { device, ...DEFAULTS[device], panelPositions: {}, gifMenuLayout: {} };
     req.app.get('io')?.emit('ui-layout:update', { device, config });
     res.json({ config });
   } catch (err) { next(err); }

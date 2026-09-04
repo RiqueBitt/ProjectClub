@@ -5784,3 +5784,77 @@ a.embed-card-title:hover { text-decoration: underline; }
 .landing-final-cta h2 { margin-bottom: 12px; }
 .landing-final-cta p { color: var(--lp-muted); margin-bottom: 28px; font-size: 15.5px; }
 
+
+/* Item pedido: "GIFa Move" — editor visual de posição/tamanho do menu
+   de GIFs no Painel da Staff. Ver GifMoveAdminTab em AdminPanel.jsx. */
+.gif-move-steps { display: flex; gap: 8px; margin-bottom: 16px; }
+.gif-move-step {
+  padding: 8px 16px; border-radius: 999px; font-weight: 700; font-size: 13px;
+  background: var(--bg-elevated); color: var(--text-muted); border: 1px solid var(--border);
+}
+.gif-move-step.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+.gif-move-preview-wrap { display: flex; justify-content: center; padding: 20px; background: var(--bg-secondary); border-radius: 12px; overflow: auto; }
+.gif-move-actions { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
+
+/* Moldura desktop — só um retângulo com sombra, representando uma
+   janela do app. */
+.gif-move-desktop-frame {
+  position: relative; border-radius: 10px; overflow: hidden; flex-shrink: 0;
+  box-shadow: 0 12px 32px -8px rgba(0,0,0,.5); border: 1px solid var(--border);
+}
+
+/* Moldura mobile — desenha um "celular" de verdade ao redor da prévia,
+   pra deixar claro visualmente que essa é a versão mobile sendo
+   editada, não só uma janela menor. */
+.gif-move-phone-shell {
+  background: #111; border-radius: 36px; padding: 14px 8px; box-shadow: 0 16px 40px -10px rgba(0,0,0,.6);
+  flex-shrink: 0;
+}
+.gif-move-phone-frame { position: relative; border-radius: 22px; overflow: hidden; }
+
+/* Prévia "mock" da comunidade — reaproveita a MESMA linguagem visual
+   do app real (cores do tema, mesmas proporções de coluna), com
+   conteúdo fixo/fake no lugar de dados reais. */
+.gif-move-mock-shell { display: flex; width: 100%; height: 100%; background: var(--bg-primary); }
+.gif-move-mock-sidebar {
+  width: 72px; flex-shrink: 0; background: var(--bg-tertiary, var(--bg-secondary));
+  display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 16px;
+}
+.gif-move-mock-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--bg-modifier-hover); }
+.gif-move-mock-avatar-sm { width: 28px; height: 28px; border-radius: 50%; background: var(--bg-modifier-hover); flex-shrink: 0; }
+.gif-move-mock-main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg-primary); }
+.gif-move-mock-header { height: 40px; flex-shrink: 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; }
+.gif-move-mock-messages { flex: 1; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+.gif-move-mock-message { display: flex; align-items: center; gap: 10px; }
+.gif-move-mock-line { height: 10px; border-radius: 4px; background: var(--bg-modifier-hover); }
+.gif-move-mock-composer {
+  flex-shrink: 0; margin: 0 16px 16px; height: 34px; border-radius: 8px; background: var(--bg-elevated);
+  display: flex; align-items: center; gap: 8px; padding: 0 10px;
+}
+.gif-move-mock-composer-input { flex: 1; height: 8px; border-radius: 4px; background: var(--bg-modifier-hover); }
+.gif-move-mock-composer-btn { font-size: 10px; font-weight: 800; color: var(--text-muted); }
+.gif-move-mock-members { width: 130px; flex-shrink: 0; background: var(--bg-tertiary, var(--bg-secondary)); padding: 16px 10px; display: flex; flex-direction: column; gap: 10px; }
+.gif-move-mock-member { display: flex; align-items: center; gap: 8px; }
+.gif-move-mock-shell.mobile .gif-move-mock-composer-btn { font-size: 9px; }
+
+/* A caixa arrastável/redimensionável em si (ver DraggableResizableBox.jsx). */
+.gif-move-box {
+  position: absolute; z-index: 5; cursor: move; user-select: none; touch-action: none;
+  background: color-mix(in srgb, var(--brand) 22%, transparent);
+  border: 2px dashed var(--brand); border-radius: 8px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+}
+.gif-move-box-label { font-size: 12px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.6); pointer-events: none; }
+.gif-move-box-dims { font-size: 11px; color: rgba(255,255,255,.85); text-shadow: 0 1px 3px rgba(0,0,0,.6); pointer-events: none; }
+.gif-move-handle {
+  position: absolute; width: 12px; height: 12px; background: var(--brand); border: 2px solid #fff;
+  border-radius: 50%; z-index: 6;
+}
+.gif-move-handle-n  { top: -6px; left: 50%; margin-left: -6px; cursor: ns-resize; }
+.gif-move-handle-s  { bottom: -6px; left: 50%; margin-left: -6px; cursor: ns-resize; }
+.gif-move-handle-e  { right: -6px; top: 50%; margin-top: -6px; cursor: ew-resize; }
+.gif-move-handle-w  { left: -6px; top: 50%; margin-top: -6px; cursor: ew-resize; }
+.gif-move-handle-ne { top: -6px; right: -6px; cursor: nesw-resize; }
+.gif-move-handle-nw { top: -6px; left: -6px; cursor: nwse-resize; }
+.gif-move-handle-se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+.gif-move-handle-sw { bottom: -6px; left: -6px; cursor: nesw-resize; }

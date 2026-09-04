@@ -6,6 +6,7 @@ import { useStore, roomKeyFor } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import { useVoice, preloadAgoraRTC } from '../context/VoiceContext.jsx';
+import { resolveDesktopGifMenuStyle, resolveMobileGifMenuStyle } from '../utils/gifMenuLayout';
 import { listMessages, sendMessage, searchMessages, markConversationRead, markChannelRead } from '../api/endpoints';
 import Message from './Message.jsx';
 import VoiceChannelView from './VoiceChannelView.jsx';
@@ -200,12 +201,25 @@ export default function ChatWindow({ kind }) {
   // direto e confiável do que tentar inferir onde uma coluna termina.
   const gifBtnRef = useRef(null);
   const emojiBtnRef = useRef(null);
+  const uiLayout = useStore((s) => s.uiLayout);
   const [pickerStyle, setPickerStyle] = useState(null);
   const PICKER_WIDTH = 380;
   const PICKER_HEIGHT_VH = 40;
   useEffect(() => {
     if (!gifPickerOpen && !emojiPickerOpen) { setPickerStyle(null); return; }
-    if (window.matchMedia('(max-width: 600px)').matches) { setPickerStyle(null); return; } // mobile usa o bottom sheet via CSS, não isso
+    if (window.matchMedia('(max-width: 600px)').matches) {
+      // Item pedido: "GIFa Move... deve funcionar corretamente...
+      // em dispositivos mobile" — se a staff configurou uma posição
+      // customizada pro mobile, usa ela (sobrescreve o bottom sheet
+      // padrão); senão, deixa null pro CSS de sempre assumir.
+      setPickerStyle(resolveMobileGifMenuStyle(uiLayout?.gifMenuLayout));
+      return;
+    }
+    // Item pedido: "GIFa Move" — se a staff definiu uma posição/tamanho
+    // customizados (Painel da Staff -> GIFa Move), usa ela em vez do
+    // cálculo automático abaixo.
+    const custom = resolveDesktopGifMenuStyle(uiLayout?.gifMenuLayout);
+    if (custom) { setPickerStyle(custom); return; }
     const btn = gifPickerOpen ? gifBtnRef.current : emojiBtnRef.current;
     if (!btn) return;
     const rect = btn.getBoundingClientRect();
@@ -219,7 +233,7 @@ export default function ChatWindow({ kind }) {
     const width = Math.min(PICKER_WIDTH, window.innerWidth - 32);
     if (window.innerWidth - right - width < 8) right = Math.max(8, window.innerWidth - width - 8);
     setPickerStyle({ position: 'fixed', bottom: `${bottom}px`, right: `${right}px`, left: 'auto', top: 'auto', transform: 'none', width: `${width}px`, maxWidth: `${width}px` });
-  }, [gifPickerOpen, emojiPickerOpen]);
+  }, [gifPickerOpen, emojiPickerOpen, uiLayout]);
 
   usePopoverCoordination(gifPickerOpen, () => setGifPickerOpen(false));
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);

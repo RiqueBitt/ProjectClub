@@ -44,8 +44,10 @@ import {
   listEvents, createEvent, updateEvent, deleteEvent, uploadEventBanner, uploadEventIcon,
   createCategory, updateCategory, deleteCategory, reorderCategories,
   createChannel, updateChannel, deleteChannel, reorderChannels,
+  getUiLayout, updateUiLayout,
 } from '../api/endpoints';
 import HouseIcon from '../components/HouseIcon.jsx';
+import DraggableResizableBox from '../components/admin/DraggableResizableBox.jsx';
 import { BADGE_RARITIES, RARITY_LABEL, RARITY_COLOR, badgeHasImage } from '../utils/badgeRarity';
 import { proxyImage } from '../utils/imageProxy';
 
@@ -54,13 +56,13 @@ const TAB_LABEL = {
   logs: '📜 Registro de auditoria', maintenance: '🚧 Manutenção', announcements: '📢 Mensagem', album: '📖 Álbum de Figurinhas',
   economia: '💰 Economia', casas: '🧊 Casas e Móveis', sistema: '⚙️ Sistema', moderacao: '💬 Moderação de Recados',
   automodDm: '🚩 Moderação de DMs', feeds: '📰 Feeds', honeypot: '🕸️ Segurança (Honeypot)',
-  roles: '🎭 Cargos', channels: '# Canais e Categorias',
+  roles: '🎭 Cargos', channels: '# Canais e Categorias', gifMove: '🎯 GIFa Move',
   achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', reload: '🔄 Reload',
 };
 
 const TAB_GROUPS = [
   { label: 'Visão geral', tabs: ['stats', 'inscricoes', 'users', 'badges'] },
-  { label: 'Estrutura da comunidade', tabs: ['roles', 'channels', 'achievements'] },
+  { label: 'Estrutura da comunidade', tabs: ['roles', 'channels', 'gifMove', 'achievements'] },
   { label: 'Conteúdo', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events'] },
   { label: 'Moderação', tabs: ['moderacao', 'automodDm', 'logs', 'honeypot'] },
   { label: 'Comunicação', tabs: ['announcements'] },
@@ -153,6 +155,7 @@ export default function AdminPanel() {
           {tab === 'feeds' && <FeedsAdminTab />}
           {tab === 'roles' && <RolesAdminTab />}
           {tab === 'channels' && <ChannelsAdminTab />}
+          {tab === 'gifMove' && <GifMoveAdminTab />}
           {tab === 'achievements' && <AchievementsAdminTab />}
           {tab === 'updates' && <UpdatesAdminTab />}
           {tab === 'events' && <EventsAdminTab />}
@@ -325,6 +328,188 @@ function RolesAdminTab() {
 }
 
 // Gestão de Canais e Categorias — mesma história do RolesAdminTab: o
+// Item pedido: "crie um novo sistema... GIFa Move... personalize
+// visualmente a posição e o tamanho do menu de GIFs... tanto no
+// desktop quanto no mobile". Investigação prévia: já existe um editor
+// visual de interface (InterfaceEditorPage.jsx + uiLayoutConfig no
+// banco), mas ele é baseado em GRID (não posição livre por pixel) —
+// não dá pra reaproveitar direto pro "arrastar/redimensionar livre"
+// pedido aqui. Reaproveitado só o PADRÃO arquitetural dele (config
+// por dispositivo na mesma tabela uiLayoutConfig, endpoint /ui-layout
+// já existente, sincroniza em tempo real) — sem duplicar
+// infraestrutura nova à toa.
+//
+// Os valores são salvos em PORCENTAGEM da tela (0-100), não pixels
+// fixos — a prévia aqui tem um tamanho de referência fixo (pra caber
+// bem no Painel), mas quem usa o app de verdade pode ter qualquer
+// resolução; porcentagem garante que a posição/tamanho escolhidos
+// aqui ficam proporcionalmente iguais em qualquer tela real, não só
+// na exata resolução do computador da staff.
+const GIF_MOVE_PREVIEW = {
+  desktop: { width: 900, height: 540 },
+  mobile: { width: 320, height: 600 },
+};
+const GIF_MOVE_DEFAULT_BOX = {
+  desktop: { left: 620, top: 340, width: 240, height: 160 },
+  mobile: { left: 20, top: 380, width: 280, height: 180 },
+};
+
+function pctToPreviewBox(pct, ref) {
+  if (!pct || typeof pct.left !== 'number') return GIF_MOVE_DEFAULT_BOX[ref === GIF_MOVE_PREVIEW.desktop ? 'desktop' : 'mobile'];
+  return {
+    left: Math.round((pct.left / 100) * ref.width),
+    top: Math.round((pct.top / 100) * ref.height),
+    width: Math.round((pct.width / 100) * ref.width),
+    height: Math.round((pct.height / 100) * ref.height),
+  };
+}
+function previewBoxToPct(box, ref) {
+  return {
+    left: +((box.left / ref.width) * 100).toFixed(2),
+    top: +((box.top / ref.height) * 100).toFixed(2),
+    width: +((box.width / ref.width) * 100).toFixed(2),
+    height: +((box.height / ref.height) * 100).toFixed(2),
+  };
+}
+
+function GifMoveAdminTab() {
+  const [step, setStep] = useState('desktop'); // 'desktop' | 'mobile'
+  const [layout, setLayout] = useState(null); // { PC: {left,top,width,height} em %, MOBILE: {...} }
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const desktopRef = useRef(null);
+  const mobileRef = useRef(null);
+
+  useEffect(() => {
+    getUiLayout().then((d) => setLayout({ PC: d.PC?.gifMenuLayout, MOBILE: d.MOBILE?.gifMenuLayout, _full: d })).catch(() => {});
+  }, []);
+
+  if (!layout) return <p className="dim">Carregando...</p>;
+
+  const desktopBox = pctToPreviewBox(layout.PC, GIF_MOVE_PREVIEW.desktop) || GIF_MOVE_DEFAULT_BOX.desktop;
+  const mobileBox = pctToPreviewBox(layout.MOBILE, GIF_MOVE_PREVIEW.mobile) || GIF_MOVE_DEFAULT_BOX.mobile;
+
+  const setDesktopBox = (box) => setLayout((l) => ({ ...l, PC: previewBoxToPct(box, GIF_MOVE_PREVIEW.desktop) }));
+  const setMobileBox = (box) => setLayout((l) => ({ ...l, MOBILE: previewBoxToPct(box, GIF_MOVE_PREVIEW.mobile) }));
+
+  const save = async () => {
+    setSaving(true); setSaved(false);
+    try {
+      // Item pedido: "a edição do desktop e do mobile seja
+      // independente" — cada updateUiLayout SOBRESCREVE toda a
+      // config daquele dispositivo de uma vez (ordem dos menus,
+      // largura da barra lateral, etc, não só o menu de GIFs) — por
+      // isso envia a config CHEIA de cada dispositivo (buscada ao
+      // abrir esta aba), só trocando o gifMenuLayout, pra não apagar
+      // as outras configurações que a staff já tinha salvo no Editor
+      // de Interface.
+      const fullPC = layout._full?.PC || {};
+      const fullMobile = layout._full?.MOBILE || {};
+      await updateUiLayout('PC', { ...fullPC, gifMenuLayout: layout.PC });
+      await updateUiLayout('MOBILE', { ...fullMobile, gifMenuLayout: layout.MOBILE });
+      setSaved(true);
+    } catch {
+      // silencioso — botão volta ao normal, staff pode tentar de novo
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="gif-move-tab">
+      <h2>🎯 GIFa Move</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        Arraste e redimensione a caixa abaixo pra escolher onde o menu de GIFs abre na comunidade —
+        independente pra desktop e mobile.
+      </p>
+
+      <div className="gif-move-steps">
+        <button type="button" className={`gif-move-step ${step === 'desktop' ? 'active' : ''}`} onClick={() => setStep('desktop')}>1. Desktop</button>
+        <button type="button" className={`gif-move-step ${step === 'mobile' ? 'active' : ''}`} onClick={() => setStep('mobile')}>2. Mobile</button>
+      </div>
+
+      {step === 'desktop' && (
+        <>
+          <div className="gif-move-preview-wrap">
+            <div className="gif-move-desktop-frame" ref={desktopRef} style={{ width: GIF_MOVE_PREVIEW.desktop.width, height: GIF_MOVE_PREVIEW.desktop.height }}>
+              <GifMoveCommunityMock />
+              <DraggableResizableBox value={desktopBox} onChange={setDesktopBox} containerRef={desktopRef} label="Menu de GIFs" />
+            </div>
+          </div>
+          <div className="gif-move-actions">
+            <button type="button" className="btn-primary" onClick={() => setStep('mobile')}>Prosseguir →</button>
+          </div>
+        </>
+      )}
+
+      {step === 'mobile' && (
+        <>
+          <div className="gif-move-preview-wrap">
+            <div className="gif-move-phone-shell">
+              <div className="gif-move-phone-frame" ref={mobileRef} style={{ width: GIF_MOVE_PREVIEW.mobile.width, height: GIF_MOVE_PREVIEW.mobile.height }}>
+                <GifMoveCommunityMock mobile />
+                <DraggableResizableBox value={mobileBox} onChange={setMobileBox} containerRef={mobileRef} label="Menu de GIFs" />
+              </div>
+            </div>
+          </div>
+          <div className="gif-move-actions">
+            <button type="button" className="btn-secondary" onClick={() => setStep('desktop')}>← Voltar</button>
+            <button type="button" className="btn-primary" disabled={saving} onClick={save}>
+              {saving ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
+        </>
+      )}
+      {saved && <p className="dim" style={{ color: 'var(--green)', marginTop: 8 }}>Salvo — já vale pra todo mundo na comunidade.</p>}
+    </div>
+  );
+}
+
+// Prévia simplificada da tela de comunidade, reaproveitando as MESMAS
+// classes CSS do app de verdade (não reinventa estilo à parte) — só
+// com conteúdo fixo/fake no lugar de dados reais, já que essa é só
+// uma referência visual pra staff posicionar o menu, não o app
+// funcionando de verdade.
+function GifMoveCommunityMock({ mobile }) {
+  return (
+    <div className={`gif-move-mock-shell ${mobile ? 'mobile' : ''}`}>
+      {!mobile && (
+        <div className="gif-move-mock-sidebar">
+          <div className="gif-move-mock-avatar" />
+          <div className="gif-move-mock-avatar" />
+          <div className="gif-move-mock-avatar" />
+        </div>
+      )}
+      <div className="gif-move-mock-main">
+        <div className="gif-move-mock-header"><div className="gif-move-mock-line" style={{ width: '35%' }} /></div>
+        <div className="gif-move-mock-messages">
+          {[60, 40, 75, 30].map((w, i) => (
+            <div key={i} className="gif-move-mock-message">
+              <div className="gif-move-mock-avatar-sm" />
+              <div className="gif-move-mock-line" style={{ width: `${w}%` }} />
+            </div>
+          ))}
+        </div>
+        <div className="gif-move-mock-composer">
+          <div className="gif-move-mock-composer-input" />
+          <div className="gif-move-mock-composer-btn">GIF</div>
+          <div className="gif-move-mock-composer-btn">☺</div>
+        </div>
+      </div>
+      {!mobile && (
+        <div className="gif-move-mock-members">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="gif-move-mock-member">
+              <div className="gif-move-mock-avatar-sm" />
+              <div className="gif-move-mock-line" style={{ width: '60%' }} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // backend (categoryController.js/channelController.js) e o modal de criar
 // canal (CreateChannelModal.jsx) já existiam prontos, só sem nenhum ponto
 // de entrada na interface atual. Reordenar aqui troca as POSIÇÕES reais

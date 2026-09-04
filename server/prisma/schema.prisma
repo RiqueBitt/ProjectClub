@@ -1405,6 +1405,13 @@ model UiLayoutConfig {
   // vale pra TODO MUNDO assim que salva. JSON: { panelId: { gridColumn,
   // gridRow } } — painel sem entrada aqui usa a posição padrão do CSS.
   panelPositions    String  @default("{}")
+  // Item pedido: "GIFa Move" — posição/tamanho customizados do menu de
+  // GIFs, definidos visualmente pela staff no Painel (arrastar +
+  // redimensionar por alças, independente por dispositivo). JSON:
+  // { left, top, width, height } em pixels (desktop) — vazio "{}" usa
+  // o cálculo automático padrão que já existia (perto do botão que
+  // abriu o menu).
+  gifMenuLayout     String  @default("{}")
   updatedAt         DateTime @updatedAt
 }
 
