@@ -928,72 +928,81 @@ export default function UserSettingsModal({ onClose }) {
             </div>
           </div>
 
-          <h3>Autenticação de dois fatores</h3>
-          {user.twoFactorEnabled ? (
-            <>
-              <p>2FA está ativado na sua conta.</p>
-              <button className="btn-danger" onClick={turnOff2FA}>Desativar 2FA</button>
-            </>
-          ) : twoFA.qrDataUrl ? (
-            <>
-              <p>Escaneie o QR code com seu app autenticador e digite o código gerado.</p>
-              <img src={twoFA.qrDataUrl} alt="QR code 2FA" width={180} height={180} />
-              <div className="dim">Ou insira manualmente: {twoFA.secret}</div>
-              <input placeholder="Código de 6 dígitos" value={twoFA.code} onChange={(e) => setTwoFA((s) => ({ ...s, code: e.target.value }))} />
-              {error && <div className="auth-error">{error}</div>}
-              <button className="btn-primary" onClick={confirm2FASubmit}>Confirmar e ativar</button>
-            </>
-          ) : (
-            <button className="btn-primary" onClick={start2FA}>Configurar 2FA</button>
-          )}
+          <div className="settings-block">
+            <h4>Autenticação de dois fatores</h4>
+            {user.twoFactorEnabled ? (
+              <>
+                <p className="dim">2FA está ativado na sua conta.</p>
+                <button className="btn-danger" onClick={turnOff2FA}>Desativar 2FA</button>
+              </>
+            ) : twoFA.qrDataUrl ? (
+              <>
+                <p className="dim">Escaneie o QR code com seu app autenticador e digite o código gerado.</p>
+                <img src={twoFA.qrDataUrl} alt="QR code 2FA" width={180} height={180} />
+                <div className="dim">Ou insira manualmente: {twoFA.secret}</div>
+                <input placeholder="Código de 6 dígitos" value={twoFA.code} onChange={(e) => setTwoFA((s) => ({ ...s, code: e.target.value }))} />
+                {error && <div className="auth-error">{error}</div>}
+                <button className="btn-primary" onClick={confirm2FASubmit}>Confirmar e ativar</button>
+              </>
+            ) : (
+              <>
+                <p className="dim">Peça um código do seu app autenticador (Google Authenticator, Authy, etc) toda vez que entrar.</p>
+                <button className="btn-primary" onClick={start2FA}>Configurar 2FA</button>
+              </>
+            )}
+          </div>
 
-          <h3>Sessões ativas</h3>
-          <p className="dim">Dispositivos e navegadores onde sua conta está logada agora.</p>
-          {sessionsError && <div className="auth-error">{sessionsError}</div>}
-          {sessions === null && !sessionsError && <p className="dim">Carregando...</p>}
-          {sessions && (
-            <>
-              <div className="sessions-list">
-                {sessions.map((s) => (
-                  <div key={s.id} className="session-row">
-                    <div className="session-row-info">
-                      <div>{describeSession(s.userAgent)}{s.isCurrent && <span className="session-current-badge">Este dispositivo</span>}</div>
-                      <div className="dim">Desde {new Date(s.createdAt).toLocaleString('pt-BR')}</div>
+          <div className="settings-block">
+            <h4>Sessões ativas</h4>
+            <p className="dim">Dispositivos e navegadores onde sua conta está logada agora.</p>
+            {sessionsError && <div className="auth-error">{sessionsError}</div>}
+            {sessions === null && !sessionsError && <p className="dim">Carregando...</p>}
+            {sessions && (
+              <>
+                <div className="sessions-list">
+                  {sessions.map((s) => (
+                    <div key={s.id} className="session-row">
+                      <div className="session-row-info">
+                        <div>{describeSession(s.userAgent)}{s.isCurrent && <span className="session-current-badge">Este dispositivo</span>}</div>
+                        <div className="dim">Desde {new Date(s.createdAt).toLocaleString('pt-BR')}</div>
+                      </div>
+                      {!s.isCurrent && (
+                        <button className="btn-secondary" disabled={revokingId === s.id} onClick={() => doRevokeSession(s.id)}>
+                          {revokingId === s.id ? '...' : 'Encerrar'}
+                        </button>
+                      )}
                     </div>
-                    {!s.isCurrent && (
-                      <button className="btn-secondary" disabled={revokingId === s.id} onClick={() => doRevokeSession(s.id)}>
-                        {revokingId === s.id ? '...' : 'Encerrar'}
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-              {sessions.some((s) => !s.isCurrent) && (
-                <button className="btn-danger" disabled={revokingOthers} onClick={doRevokeOthers}>
-                  {revokingOthers ? '...' : 'Encerrar todas as outras sessões'}
-                </button>
-              )}
-            </>
-          )}
+                  ))}
+                </div>
+                {sessions.some((s) => !s.isCurrent) && (
+                  <button className="btn-danger" disabled={revokingOthers} onClick={doRevokeOthers}>
+                    {revokingOthers ? '...' : 'Encerrar todas as outras sessões'}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
       )}
 
       {tab === 'APPEARANCE' && (
         <div className="settings-grid">
-          <h3>Tema</h3>
-          <div className="theme-options">
-            {['facebook', 'light', 'dark', 'amoled', 'clubpenguin'].map((t) => (
-              <button key={t} className={`theme-swatch ${t} ${theme === t && !customBackground ? 'active' : ''}`} onClick={() => pickTheme(t)}>
-                {{ facebook: 'Muito Claro', clubpenguin: 'Cartoon', dark: 'Cinza', light: 'Claro', amoled: 'Preto' }[t]}
-              </button>
-            ))}
+          <div className="settings-block">
+            <h4>Tema</h4>
+            <div className="theme-options">
+              {['facebook', 'light', 'dark', 'amoled', 'clubpenguin'].map((t) => (
+                <button key={t} className={`theme-swatch ${t} ${theme === t && !customBackground ? 'active' : ''}`} onClick={() => pickTheme(t)}>
+                  {{ facebook: 'Muito Claro', clubpenguin: 'Cartoon', dark: 'Cinza', light: 'Claro', amoled: 'Preto' }[t]}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Função de fundo/tema personalizado desativada (CUSTOM_BACKGROUND_ENABLED
               em utils/featureFlags.js) — código mantido intacto, só a UI fica oculta. */}
           {CUSTOM_BACKGROUND_ENABLED && (
-            <>
-              <h3>Fundo personalizado</h3>
+            <div className="settings-block">
+              <h4>Fundo personalizado</h4>
               <label className="checkbox-row">
                 <input
                   type="checkbox"
@@ -1024,7 +1033,7 @@ export default function UserSettingsModal({ onClose }) {
                 </div>
               )}
               <span className="dim">Afeta a tela de login/cadastro, a tela de carregamento e a barra de servidores.</span>
-            </>
+            </div>
           )}
         </div>
       )}
