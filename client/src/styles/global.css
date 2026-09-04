@@ -1163,34 +1163,21 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
      tratamento aplicado ao GifPicker (ver GifPicker.jsx + os 3
      lugares que o abrem, agora todos com createPortal também). */
   .emoji-picker-popover.composer-centered-picker, .gif-picker-popover.composer-centered-picker {
-    /* Item pedido: "fazer o menu ficar em cima da barra de escrever
-       mensagens, porque ele está ficando sobre ela" — bottom fixo
-       (78px) não dava conta de quando essa barra CRESCE (resposta
-       ativa, arquivo anexado) — usa a altura REAL medida em tempo
-       real (ver useElementHeight.js + --composer-height, passada
-       pelos componentes que abrem isso), com 78px só como reserva
-       pros poucos lugares que ainda não passam essa variável. +12px
-       de respiro entre o popover e a barra. */
-    position: fixed; left: auto; transform: none;
-    bottom: calc(var(--composer-height, 78px) + 12px); top: auto;
-    /* Item pedido: "mais largo, menos alto, e mais pra direita" —
-       ancorado perto de onde os botões de GIF/Emoji realmente ficam
-       na barra (lado direito, perto do botão de enviar), em vez de
-       centralizado na tela toda. Mais largo (900px) e mais baixo
-       (34vh) que antes. */
-    /* BUG CORRIGIDO ("o menu está passando da tela de usuário
-       online, não pode ultrapassar"): right: 16px sozinho era
-       relativo à JANELA INTEIRA — a lista de membros ("usuários
-       online") ocupa uma faixa própria à direita da coluna de chat
-       (--members-width em .app-shell), então o popover ficava
-       literalmente atrás/dentro dessa faixa. --chat-right-offset
-       (medido de verdade via useElementRect.js — não é um número
-       fixo, já que a lista de membros pode não existir ou ter
-       largura diferente dependendo da página) é a distância real
-       entre a borda da janela e o fim da coluna de chat — somada aos
-       16px de respiro de antes. */
-    right: calc(var(--chat-right-offset, 0px) + 16px);
-    width: min(900px, calc(100% - var(--chat-right-offset, 0px) - 32px));
+    /* Item pedido (varias rodadas): "menu fica sobre a barra de
+       escrever" / "passa por trás da lista de membros" / "muito
+       largo, muito pra esquerda" — depois de tentar resolver isso
+       só com variáveis CSS calculadas (--composer-height,
+       --chat-right-offset) sem sucesso na prática, a posição inteira
+       agora é calculada em JS (ver o useEffect com getBoundingClientRect
+       em ChatWindow.jsx e PostDetailPage.jsx — mesmo padrão já usado
+       e validado pelo menu de reação de mensagens em Message.jsx) e
+       aplicada via style INLINE no elemento, que tem prioridade sobre
+       qualquer coisa definida aqui. As regras abaixo são só um
+       fallback razoável pro instante antes desse cálculo terminar
+       (ou caso ele falhe por algum motivo) — não a posição real que
+       a pessoa vê na prática. */
+    position: fixed; left: auto; right: 16px; bottom: 78px; top: auto; transform: none;
+    width: min(380px, calc(100% - 32px));
     height: var(--sheet-height, 34vh); max-height: 50vh;
     border-radius: 10px;
   }

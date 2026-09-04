@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useElementHeight } from '../utils/useElementHeight';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -30,15 +30,36 @@ export default function PostDetailPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { socket } = useSocket() || {};
-  // Item pedido: "menu fica em cima da barra de escrever" — mede a
-  // altura real do formulário de comentário pra posicionar o popover
-  // logo acima dele (ver useElementHeight.js).
+  // Item pedido: "menu fica em cima da barra de escrever" (mobile
+  // usa isso via CSS — --composer-height) — mede a altura real do
+  // formulário de comentário.
   const [commentFormRef, commentFormHeight] = useElementHeight();
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState(null);
   const [newComment, setNewComment] = useState('');
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [gifPickerOpen, setGifPickerOpen] = useState(false);
+  // Item pedido: "o menu está muito pra esquerda e muito largo" — mede
+  // a posição real do botão que abriu o popover (mesmo padrão já usado
+  // em ChatWindow.jsx e no reaction picker de Message.jsx), em vez de
+  // tentar inferir onde uma coluna termina.
+  const commentGifBtnRef = useRef(null);
+  const commentEmojiBtnRef = useRef(null);
+  const [commentPickerStyle, setCommentPickerStyle] = useState(null);
+  useEffect(() => {
+    if (!gifPickerOpen && !emojiPickerOpen) { setCommentPickerStyle(null); return; }
+    if (window.matchMedia('(max-width: 600px)').matches) { setCommentPickerStyle(null); return; }
+    const btn = gifPickerOpen ? commentGifBtnRef.current : commentEmojiBtnRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const estimatedHeight = Math.min(window.innerHeight * 0.4, window.innerHeight - 24);
+    let bottom = window.innerHeight - rect.top + 8;
+    if (window.innerHeight - bottom - estimatedHeight < 8) bottom = Math.max(8, window.innerHeight - estimatedHeight - 8);
+    let right = window.innerWidth - rect.right;
+    const width = Math.min(380, window.innerWidth - 32);
+    if (window.innerWidth - right - width < 8) right = Math.max(8, window.innerWidth - width - 8);
+    setCommentPickerStyle({ position: 'fixed', bottom: `${bottom}px`, right: `${right}px`, left: 'auto', top: 'auto', transform: 'none', width: `${width}px`, maxWidth: `${width}px` });
+  }, [gifPickerOpen, emojiPickerOpen]);
 
   const refreshPost = () => getPost(id).then((d) => setPost(d.post)).catch(() => setPost(false));
   const refreshComments = () => listPostComments(id).then((d) => setComments(d.comments));
@@ -129,18 +150,18 @@ export default function PostDetailPage() {
       <form onSubmit={submitComment} className="post-comment-form" ref={commentFormRef}>
         <input value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Escreva um comentário..." maxLength={5000} />
         <div className="composer-picker-anchor">
-          <button type="button" className="icon-btn" title="GIF" onClick={() => { setGifPickerOpen((v) => !v); setEmojiPickerOpen(false); }}>GIF</button>
+          <button ref={commentGifBtnRef} type="button" className="icon-btn" title="GIF" onClick={() => { setGifPickerOpen((v) => !v); setEmojiPickerOpen(false); }}>GIF</button>
           {gifPickerOpen && createPortal(
-            <GifPicker onPick={sendCommentGif} onClose={() => setGifPickerOpen(false)} style={{ '--composer-height': `${commentFormHeight}px` }} />,
+            <GifPicker onPick={sendCommentGif} onClose={() => setGifPickerOpen(false)} style={{ '--composer-height': `${commentFormHeight}px`, ...(commentPickerStyle || {}) }} />,
             document.body,
           )}
         </div>
         <div className="composer-picker-anchor">
-          <button type="button" className="icon-btn" title="Emoji" onClick={() => { setEmojiPickerOpen((v) => !v); setGifPickerOpen(false); }}>☺</button>
+          <button ref={commentEmojiBtnRef} type="button" className="icon-btn" title="Emoji" onClick={() => { setEmojiPickerOpen((v) => !v); setGifPickerOpen(false); }}>☺</button>
           {emojiPickerOpen && createPortal(
             <EmojiPicker
               variant="composer-centered"
-              style={{ '--composer-height': `${commentFormHeight}px` }}
+              style={{ '--composer-height': `${commentFormHeight}px`, ...(commentPickerStyle || {}) }}
               serverEmojis={useStore.getState().usableEmojis}
               onPick={insertCommentEmoji}
               onClose={() => setEmojiPickerOpen(false)}
@@ -169,10 +190,31 @@ function CommentNode({ comment, postId, user, isStaff, onChange, depth = 0 }) {
   const [replyGifOpen, setReplyGifOpen] = useState(false);
   const [localVote, setLocalVote] = useState(comment.myVote);
   const [localScore, setLocalScore] = useState(comment.score);
-  // Item pedido: "menu fica em cima da barra de escrever" — mede a
-  // altura real do formulário de resposta pra posicionar o popover
-  // logo acima dele (ver useElementHeight.js).
+  // Item pedido: "menu fica em cima da barra de escrever" (mobile
+  // usa isso via CSS — --composer-height) — mede a altura real do
+  // formulário de resposta.
   const [replyFormRef, replyFormHeight] = useElementHeight();
+  // Item pedido: "o menu está muito pra esquerda e muito largo" —
+  // mede a posição real do botão que abriu o popover (mesmo padrão
+  // já usado em ChatWindow.jsx), em vez de tentar inferir onde uma
+  // coluna termina.
+  const replyGifBtnRef = useRef(null);
+  const replyEmojiBtnRef = useRef(null);
+  const [replyPickerStyle, setReplyPickerStyle] = useState(null);
+  useEffect(() => {
+    if (!replyGifOpen && !replyEmojiOpen) { setReplyPickerStyle(null); return; }
+    if (window.matchMedia('(max-width: 600px)').matches) { setReplyPickerStyle(null); return; }
+    const btn = replyGifOpen ? replyGifBtnRef.current : replyEmojiBtnRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const estimatedHeight = Math.min(window.innerHeight * 0.4, window.innerHeight - 24);
+    let bottom = window.innerHeight - rect.top + 8;
+    if (window.innerHeight - bottom - estimatedHeight < 8) bottom = Math.max(8, window.innerHeight - estimatedHeight - 8);
+    let right = window.innerWidth - rect.right;
+    const width = Math.min(380, window.innerWidth - 32);
+    if (window.innerWidth - right - width < 8) right = Math.max(8, window.innerWidth - width - 8);
+    setReplyPickerStyle({ position: 'fixed', bottom: `${bottom}px`, right: `${right}px`, left: 'auto', top: 'auto', transform: 'none', width: `${width}px`, maxWidth: `${width}px` });
+  }, [replyGifOpen, replyEmojiOpen]);
 
   const vote = async (value) => {
     const nextMyVote = localVote === value ? 0 : value;
@@ -232,18 +274,18 @@ function CommentNode({ comment, postId, user, isStaff, onChange, depth = 0 }) {
           <form onSubmit={submitReply} className="post-comment-form nested" ref={replyFormRef}>
             <input value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="Escreva uma resposta..." maxLength={5000} autoFocus />
             <div className="composer-picker-anchor">
-              <button type="button" className="icon-btn" title="GIF" onClick={() => { setReplyGifOpen((v) => !v); setReplyEmojiOpen(false); }}>GIF</button>
+              <button ref={replyGifBtnRef} type="button" className="icon-btn" title="GIF" onClick={() => { setReplyGifOpen((v) => !v); setReplyEmojiOpen(false); }}>GIF</button>
               {replyGifOpen && createPortal(
-                <GifPicker onPick={sendReplyGif} onClose={() => setReplyGifOpen(false)} style={{ '--composer-height': `${replyFormHeight}px` }} />,
+                <GifPicker onPick={sendReplyGif} onClose={() => setReplyGifOpen(false)} style={{ '--composer-height': `${replyFormHeight}px`, ...(replyPickerStyle || {}) }} />,
                 document.body,
               )}
             </div>
             <div className="composer-picker-anchor">
-              <button type="button" className="icon-btn" title="Emoji" onClick={() => { setReplyEmojiOpen((v) => !v); setReplyGifOpen(false); }}>☺</button>
+              <button ref={replyEmojiBtnRef} type="button" className="icon-btn" title="Emoji" onClick={() => { setReplyEmojiOpen((v) => !v); setReplyGifOpen(false); }}>☺</button>
               {replyEmojiOpen && createPortal(
                 <EmojiPicker
                   variant="composer-centered"
-                  style={{ '--composer-height': `${replyFormHeight}px` }}
+                  style={{ '--composer-height': `${replyFormHeight}px`, ...(replyPickerStyle || {}) }}
                   serverEmojis={useStore.getState().usableEmojis}
                   onPick={insertReplyEmoji}
                   onClose={() => setReplyEmojiOpen(false)}

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useElementHeight } from '../utils/useElementHeight';
-import { useElementRect } from '../utils/useElementRect';
 import { createPortal } from 'react-dom';
 import { useParams } from 'react-router-dom';
 import { useStore, roomKeyFor } from '../store/useStore';
@@ -94,12 +93,6 @@ export default function ChatWindow({ kind }) {
   // dela, se ajustando sozinho quando ela cresce (resposta ativa,
   // arquivo anexado, etc — ver useElementHeight.js).
   const [composerBarRef, composerBarHeight] = useElementHeight();
-  // Item pedido: "o menu está passando da tela de usuário online" —
-  // mede a posição REAL da coluna de chat, pra manter o popover
-  // sempre dentro dela, nunca por baixo da lista de membros (ver
-  // useElementRect.js).
-  const [chatColumnRef, chatColumnRect] = useElementRect();
-  const chatRightOffset = chatColumnRect ? window.innerWidth - chatColumnRect.right : 0;
 
   // Item pedido: "deixando mais rápido pra entrar em canais de voz,
   // principalmente no mobile" — adianta o download do SDK do Agora
@@ -195,6 +188,39 @@ export default function ChatWindow({ kind }) {
   const [openTopic, setOpenTopic] = useState(null);
   const [pollComposerOpen, setPollComposerOpen] = useState(false);
   const [gifPickerOpen, setGifPickerOpen] = useState(false);
+
+  // BUG CORRIGIDO ("o menu está muito pra esquerda e muito largo"):
+  // a tentativa anterior media a coluna de chat inteira (via
+  // useElementRect) e tentava ancorar o popover perto da borda dela
+  // via variáveis CSS — mas isso nunca produziu a posição certa na
+  // prática. Trocado pelo MESMO padrão já usado e comprovado pelo
+  // menu de reação de mensagens (ver Message.jsx): mede a posição
+  // REAL do próprio botão que abriu o popover (getBoundingClientRect)
+  // e calcula a posição em JS, passando um style pronto — muito mais
+  // direto e confiável do que tentar inferir onde uma coluna termina.
+  const gifBtnRef = useRef(null);
+  const emojiBtnRef = useRef(null);
+  const [pickerStyle, setPickerStyle] = useState(null);
+  const PICKER_WIDTH = 380;
+  const PICKER_HEIGHT_VH = 40;
+  useEffect(() => {
+    if (!gifPickerOpen && !emojiPickerOpen) { setPickerStyle(null); return; }
+    if (window.matchMedia('(max-width: 600px)').matches) { setPickerStyle(null); return; } // mobile usa o bottom sheet via CSS, não isso
+    const btn = gifPickerOpen ? gifBtnRef.current : emojiBtnRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const estimatedHeight = Math.min(window.innerHeight * (PICKER_HEIGHT_VH / 100), window.innerHeight - 24);
+    let bottom = window.innerHeight - rect.top + 8;
+    if (window.innerHeight - bottom - estimatedHeight < 8) bottom = Math.max(8, window.innerHeight - estimatedHeight - 8);
+    // Alinha a borda DIREITA do popover com a borda direita do botão —
+    // "mais pra direita", perto de onde o botão realmente está, nunca
+    // ultrapassando a borda da tela do lado esquerdo.
+    let right = window.innerWidth - rect.right;
+    const width = Math.min(PICKER_WIDTH, window.innerWidth - 32);
+    if (window.innerWidth - right - width < 8) right = Math.max(8, window.innerWidth - width - 8);
+    setPickerStyle({ position: 'fixed', bottom: `${bottom}px`, right: `${right}px`, left: 'auto', top: 'auto', transform: 'none', width: `${width}px`, maxWidth: `${width}px` });
+  }, [gifPickerOpen, emojiPickerOpen]);
+
   usePopoverCoordination(gifPickerOpen, () => setGifPickerOpen(false));
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState(null); // null = not showing; '' or partial name otherwise
@@ -794,18 +820,18 @@ export default function ChatWindow({ kind }) {
             onChange={(e) => onContentChange(e.target.value)}
           />
           <div className="composer-picker-anchor">
-            <button type="button" className="icon-btn" title="GIF" onClick={() => { setGifPickerOpen((v) => !v); setEmojiPickerOpen(false); }}>GIF</button>
+            <button ref={gifBtnRef} type="button" className="icon-btn" title="GIF" onClick={() => { setGifPickerOpen((v) => !v); setEmojiPickerOpen(false); }}>GIF</button>
             {gifPickerOpen && createPortal(
-              <GifPicker onPick={sendGif} onClose={() => setGifPickerOpen(false)} style={{ '--composer-height': `${composerBarHeight}px`, '--chat-right-offset': `${chatRightOffset}px` }} />,
+              <GifPicker onPick={sendGif} onClose={() => setGifPickerOpen(false)} style={{ '--composer-height': `${composerBarHeight}px`, ...(pickerStyle || {}) }} />,
               document.body,
             )}
           </div>
           <div className="composer-picker-anchor">
-            <button type="button" className="icon-btn" title="Emoji" onClick={() => { setEmojiPickerOpen((v) => !v); setGifPickerOpen(false); }}>☺</button>
+            <button ref={emojiBtnRef} type="button" className="icon-btn" title="Emoji" onClick={() => { setEmojiPickerOpen((v) => !v); setGifPickerOpen(false); }}>☺</button>
             {emojiPickerOpen && createPortal(
               <EmojiPicker
                 variant="composer-centered"
-                style={{ '--composer-height': `${composerBarHeight}px`, '--chat-right-offset': `${chatRightOffset}px` }}
+                style={{ '--composer-height': `${composerBarHeight}px`, ...(pickerStyle || {}) }}
                 onPick={insertText}
                 onPickSticker={sendSticker}
                 onClose={() => setEmojiPickerOpen(false)}
