@@ -231,19 +231,19 @@ export default function MiniProfileCard() {
       {!user && <p className="dim" style={{ padding: 16 }}>Carregando...</p>}
       {user && (
         <>
-          <div className="mini-profile-banner" style={{ background: user.miniProfileBannerUrl ? `url(${user.miniProfileBannerUrl}) center/cover` : 'var(--brand)' }}>
-            {/* Item pedido: "faça parecido com a imagem" — status
-                personalizado como um balão flutuando sobre o banner,
-                em vez de não aparecer em lugar nenhum do card (não
-                tinha nenhum lugar mostrando isso antes). */}
-            {user.customStatus && (
-              <span className="mini-profile-status-bubble">{user.customStatusEmoji ? `${user.customStatusEmoji} ` : ''}{user.customStatus}</span>
-            )}
-          </div>
+          <div className="mini-profile-banner" style={{ background: user.miniProfileBannerUrl ? `url(${user.miniProfileBannerUrl}) center/cover` : 'var(--brand)' }} />
           <div className="mini-profile-body">
-            <div className="mini-profile-avatar-wrap">
-              <div className="mini-profile-avatar"><UserAvatar user={user} size={64} /></div>
-              <span className={`mini-profile-presence-dot ${(presence[userId]?.status || user.status) === 'ONLINE' ? 'online' : ''}`} />
+            <div className="mini-profile-avatar-row">
+              <div className="mini-profile-avatar-wrap">
+                <div className="mini-profile-avatar"><UserAvatar user={user} size={64} /></div>
+                <span className={`mini-profile-presence-dot ${(presence[userId]?.status || user.status) === 'ONLINE' ? 'online' : ''}`} />
+              </div>
+              {/* BUG CORRIGIDO ("o status fica do lado da foto de
+                  perfil, não no banner") — movido pra cá, ao lado do
+                  avatar, em vez de flutuando sobre o banner. */}
+              {user.customStatus && (
+                <span className="mini-profile-status-bubble">{user.customStatusEmoji ? `${user.customStatusEmoji} ` : ''}{user.customStatus}</span>
+              )}
             </div>
             <div className="mini-profile-name"><span className={nameStyleClassName(user)} style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} /></div>
             <div className="dim mini-profile-handle">
@@ -295,15 +295,9 @@ export default function MiniProfileCard() {
               </div>
             )}
 
-            {/* Item pedido: link em destaque antes da bio — a primeira
-                conexão preenchida (YouTube/Steam/Roblox/X), na ordem
-                que a pessoa preencheu no perfil. */}
-            {(() => {
-              const firstLink = user.youtubeUrl || user.steamUrl || user.robloxUrl || user.xUrl;
-              return firstLink ? (
-                <a className="mini-profile-link" href={firstLink} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>{firstLink}</a>
-              ) : null;
-            })()}
+            {/* BUG CORRIGIDO ("não é pra mostrar link de conexões,
+                só bio/amigos mútuos etc") — removido o link em
+                destaque que eu tinha adicionado. */}
 
             <div className="mini-profile-member-since dim">
               há {Math.max(1, Math.floor((Date.now() - new Date(user.createdAt).getTime()) / (365.25 * 24 * 60 * 60 * 1000)))} anos na comunidade
