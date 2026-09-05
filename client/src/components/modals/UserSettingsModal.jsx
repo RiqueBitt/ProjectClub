@@ -1284,7 +1284,7 @@ function MultiColorEditor({ effect, form, setForm }) {
           <input
             key={i} type="color" value={c} title={`Cor ${i + 1}`}
             className="multi-color-gradient-handle"
-            style={{ left: `${(i / (colors.length - 1)) * 100}%` }}
+            style={{ left: `calc(8px + (100% - 16px) * ${i / (colors.length - 1)})` }}
             onChange={(e) => setColorAt(i, e.target.value)}
           />
         ))}

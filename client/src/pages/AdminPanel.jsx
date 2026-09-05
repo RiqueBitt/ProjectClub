@@ -48,6 +48,8 @@ import {
 } from '../api/endpoints';
 import HouseIcon from '../components/HouseIcon.jsx';
 import DraggableResizableBox from '../components/admin/DraggableResizableBox.jsx';
+import EmojiManagerModal from '../components/modals/EmojiManagerModal.jsx';
+import StickerManagerModal from '../components/modals/StickerManagerModal.jsx';
 import { BADGE_RARITIES, RARITY_LABEL, RARITY_COLOR, badgeHasImage } from '../utils/badgeRarity';
 import { proxyImage } from '../utils/imageProxy';
 
@@ -57,12 +59,13 @@ const TAB_LABEL = {
   economia: '💰 Economia', casas: '🧊 Casas e Móveis', sistema: '⚙️ Sistema', moderacao: '💬 Moderação de Recados',
   automodDm: '🚩 Moderação de DMs', feeds: '📰 Feeds', honeypot: '🕸️ Segurança (Honeypot)',
   roles: '🎭 Cargos', channels: '# Canais e Categorias', gifMove: '🎯 GIFa Move',
+  emojis: '😀 Emojis', stickers: '🏷️ Figurinhas',
   achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', reload: '🔄 Reload',
 };
 
 const TAB_GROUPS = [
   { label: 'Visão geral', tabs: ['stats', 'inscricoes', 'users', 'badges'] },
-  { label: 'Estrutura da comunidade', tabs: ['roles', 'channels', 'gifMove', 'achievements'] },
+  { label: 'Estrutura da comunidade', tabs: ['roles', 'channels', 'gifMove', 'emojis', 'stickers', 'achievements'] },
   { label: 'Conteúdo', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events'] },
   { label: 'Moderação', tabs: ['moderacao', 'automodDm', 'logs', 'honeypot'] },
   { label: 'Comunicação', tabs: ['announcements'] },
@@ -156,6 +159,8 @@ export default function AdminPanel() {
           {tab === 'roles' && <RolesAdminTab />}
           {tab === 'channels' && <ChannelsAdminTab />}
           {tab === 'gifMove' && <GifMoveAdminTab />}
+          {tab === 'emojis' && <EmojisAdminTab />}
+          {tab === 'stickers' && <StickersAdminTab />}
           {tab === 'achievements' && <AchievementsAdminTab />}
           {tab === 'updates' && <UpdatesAdminTab />}
           {tab === 'events' && <EventsAdminTab />}
@@ -370,6 +375,38 @@ function previewBoxToPct(box, ref) {
     width: +((box.width / ref.width) * 100).toFixed(2),
     height: +((box.height / ref.height) * 100).toFixed(2),
   };
+}
+
+// Item pedido: "no painel da staff não aparece pra criar as figurinhas
+// e os emojis personalizados" — já existiam (EmojiManagerModal.jsx/
+// StickerManagerModal.jsx), mas só acessíveis via um menu suspenso
+// pequeno na barra lateral do servidor, que exigia especificamente
+// a permissão de gerenciar CANAIS pra sequer aparecer (não a de
+// gerenciar emoji/figurinha) — um jeito fácil de nunca encontrar.
+// Adicionado aqui, no painel principal (onde cargos/canais/conquistas
+// já vivem), reaproveitando os MESMOS modais sem duplicar nada.
+function EmojisAdminTab() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <h2>😀 Emojis personalizados</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>Crie emojis próprios da comunidade — aceita GIF animado, não só imagem parada.</p>
+      <button className="btn-primary" onClick={() => setOpen(true)}>Gerenciar emojis</button>
+      {open && <EmojiManagerModal onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+function StickersAdminTab() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <h2>🏷️ Figurinhas</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>Crie figurinhas pra usar no chat — aceita GIF animado, não só imagem parada.</p>
+      <button className="btn-primary" onClick={() => setOpen(true)}>Gerenciar figurinhas</button>
+      {open && <StickerManagerModal onClose={() => setOpen(false)} />}
+    </div>
+  );
 }
 
 function GifMoveAdminTab() {
