@@ -1,7 +1,6 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../config/prisma');
 const env = require('../config/env');
-const { verifyRecaptcha } = require('../services/recaptcha');
 const { sendApplicationApproved, sendApplicationRejected } = require('../services/email');
 const { getEveryoneRole } = require('../services/authz');
 const { grantStarterHouse } = require('../services/starterHouse');
@@ -46,7 +45,7 @@ function validateAnswers(answers) {
 
 async function submitApplication(req, res, next) {
   try {
-    const { email, username, password, displayName, birthDate, answers, recaptchaToken } = req.body;
+    const { email, username, password, displayName, birthDate, answers } = req.body;
     if (!email || !username || !password || !birthDate) {
       return res.status(400).json({ error: 'Preencha e-mail, senha, ClubTag e data de nascimento.' });
     }
@@ -56,9 +55,6 @@ async function submitApplication(req, res, next) {
 
     const answersError = validateAnswers(answers);
     if (answersError) return res.status(400).json({ error: answersError });
-
-    const captcha = await verifyRecaptcha(recaptchaToken);
-    if (!captcha.ok) return res.status(400).json({ error: captcha.reason });
 
     if (password.length < 8) return res.status(400).json({ error: 'A senha deve ter pelo menos 8 caracteres.' });
     if (!isPasswordStrongEnough(password)) return res.status(400).json({ error: 'A senha deve conter letras e números.' });

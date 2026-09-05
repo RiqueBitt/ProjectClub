@@ -78,18 +78,16 @@ function createApp() {
   // in the app (a message, a bio, a server name...) had nothing stopping
   // it from running. Calibrated to what this app actually does, not a
   // generic template:
-  //  - script-src 'self' plus Google's own recaptcha domains — the built
-  //    client itself is one same-origin bundle with no inline scripts, the
-  //    only third-party script this app loads at all is reCAPTCHA v3 (see
-  //    client/src/utils/recaptcha.js), and only when a site key is
-  //    actually configured.
+  //  - script-src 'self' only — the built client itself is one same-origin
+  //    bundle with no inline scripts and no third-party scripts loaded at
+  //    all (reCAPTCHA was removed by request — see the "remova totalmente
+  //    a verificação" item).
   //  - style-src needs 'unsafe-inline' — this app sets a lot of *inline*
   //    style attributes directly (role colors, profile gradients, etc, all
   //    computed per-render), which isn't practical to nonce.
   //  - connect-src covers the app's own API/websocket, the GIF picker
-  //    (api.klipy.com — see client/src/components/GifPicker.jsx), Google
-  //    Fonts, and reCAPTCHA's own verification calls.
-  //  - frame-src allows reCAPTCHA's own (invisible) challenge iframe.
+  //    (api.klipy.com — see client/src/components/GifPicker.jsx), and
+  //    Google Fonts.
   //  - img-src/media-src allow any https: source, since avatars, custom
   //    emoji, attachments, and GIF results can legitimately point at many
   //    different external hosts.
@@ -100,46 +98,12 @@ function createApp() {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        // BUG CORRIGIDO: "Refused to execute inline script (script-src-elem)"
-        // — o próprio script do Google (recaptcha/api.js, ver
-        // client/src/utils/recaptcha.js) injeta um pequeno <script> inline
-        // na página pra terminar de se inicializar; sem esse hash explícito
-        // (é o mesmo que o Chrome sugeriu no erro) o CSP bloqueava esse
-        // script inline. É gerado sempre igual pelo próprio Google (não
-        // depende de nada dinâmico desta página), então o hash é estável —
-        // liberar só ele é mais seguro que 'unsafe-inline' (que liberaria
-        // QUALQUER script inline, inclusive um injetado por XSS).
         // 'wasm-unsafe-eval' removido — só existia pro RNNoise (redução de
         // ruído do canal de voz, rodava via WebAssembly/AudioWorklet), que
         // foi removido por completo do sistema de voz. Sem nenhum outro
         // WASM no projeto, essa permissão só ficaria aberta à toa.
-        // BUG CORRIGIDO DE VEZ ("hash muda toda hora, sempre um
-        // navegador diferente bloqueado"): a causa raiz era o script do
-        // Google (recaptcha/api.js) ser carregado SEM idioma fixo — o
-        // Google detecta o idioma do navegador de cada visitante e serve
-        // um pacote diferente por idioma, cada um com um hash SHA-256
-        // diferente pro <script> inline que ele injeta sozinho. Isso
-        // significa que esse hash NUNCA teria fim — sempre apareceria um
-        // idioma novo não coberto. A correção de verdade foi em
-        // utils/recaptcha.js: forçar "hl=pt-BR" no carregamento do
-        // script, fazendo TODO mundo (não importa o idioma do navegador)
-        // sempre receber o MESMO pacote — daqui pra frente só existe UM
-        // hash de verdade. Os hashes antigos ficam só como transição
-        // (cobrem quem ainda tem a versão de JS antiga em cache).
-        scriptSrc: [
-          "'self'",
-          "'sha256-jAqbMQnElBz/iSQ8cCTZfa8xKxguIXKuhiyFWJDytDw='",
-          "'sha256-ZHvsZ0yrFu4ps+iqJKRCcUdZVhxvyI7coQ2Q12nUe04='",
-          "'sha256-zpE07RWenMqP9vyL/VdTzx38ZyLrGgjd6KjHdVkPaoQ='",
-          'https://www.google.com/recaptcha/', 'https://www.gstatic.com/recaptcha/',
-        ],
-        scriptSrcElem: [
-          "'self'",
-          "'sha256-jAqbMQnElBz/iSQ8cCTZfa8xKxguIXKuhiyFWJDytDw='",
-          "'sha256-ZHvsZ0yrFu4ps+iqJKRCcUdZVhxvyI7coQ2Q12nUe04='",
-          "'sha256-zpE07RWenMqP9vyL/VdTzx38ZyLrGgjd6KjHdVkPaoQ='",
-          'https://www.google.com/recaptcha/', 'https://www.gstatic.com/recaptcha/',
-        ],
+        scriptSrc: ["'self'"],
+        scriptSrcElem: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         // Item pedido (migração pro Agora.io): o SDK deles roda parte do
         // processamento de áudio (cancelamento de eco etc) dentro de Web
@@ -163,14 +127,14 @@ function createApp() {
         // produzia exatamente o sintoma relatado (entra no canal, nunca
         // ouve/é ouvido por ninguém).
         connectSrc: [
-          "'self'", 'https://api.klipy.com', 'https://fonts.googleapis.com', 'https://www.google.com',
+          "'self'", 'https://api.klipy.com', 'https://fonts.googleapis.com',
           // Agora.io (chamadas de voz) — domínios reais deles pra
           // sinalização/relatório de qualidade via HTTPS; a mídia em si
           // (áudio) já passa pelos wss:/turn: genéricos logo abaixo.
           'https://*.agora.io', 'https://*.sd-rtn.com',
           'wss:', 'ws:', 'stun:', 'turn:', 'turns:',
         ],
-        frameSrc: ["'self'", 'https://www.google.com/recaptcha/'],
+        frameSrc: ["'self'"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         frameAncestors: ["'self'"],

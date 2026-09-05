@@ -90,15 +90,4 @@ module.exports = {
   // every server start (see services/adminBootstrap.js). Leave unset to
   // manage admins entirely by hand.
   PLATFORM_ADMIN_EMAIL: process.env.PLATFORM_ADMIN_EMAIL || '',
-
-  // reCAPTCHA v3 (see services/recaptcha.js) — bot protection on login/
-  // register. Get a site key + secret key pair from
-  // https://www.google.com/recaptcha/admin (choose "v3" when creating the
-  // key, register your actual domain). Left unset, verification is simply
-  // skipped — this is opt-in, not a hard requirement to run the app.
-  RECAPTCHA_SECRET_KEY: process.env.RECAPTCHA_SECRET_KEY || '',
-  // How low a score (0.0 = certainly a bot, 1.0 = certainly human) to
-  // still allow through. Google's own docs suggest 0.5 as a reasonable
-  // starting point.
-  RECAPTCHA_MIN_SCORE: parseFloat(process.env.RECAPTCHA_MIN_SCORE || '0.5'),
 };

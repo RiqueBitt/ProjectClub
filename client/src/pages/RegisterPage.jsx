@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import AuthLayout from './AuthLayout.jsx';
-import RecaptchaModal from '../components/RecaptchaModal.jsx';
-import { RECAPTCHA_SITE_KEY } from '../utils/recaptcha';
 import { submitApplication } from '../api/endpoints';
 
 const HOW_FOUND_OPTIONS = ['Instagram', 'Facebook', 'Twitter / X', 'Whatsapp', 'Youtube', 'Discord', 'Outros'];
@@ -36,12 +34,11 @@ export default function RegisterPage() {
   const [answers, setAnswers] = useState(emptyAnswers);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [challengeOpen, setChallengeOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -59,23 +56,13 @@ export default function RegisterPage() {
     if (!answers.activeMember) { setError('Escolha se você seria um membro ativo.'); return; }
     if (answers.joinReason.trim().length < 20) { setError('Conte um pouco mais sobre por que quer se unir (mínimo 20 caracteres).'); return; }
 
-    if (RECAPTCHA_SITE_KEY) {
-      setChallengeOpen(true);
-    } else {
-      doSubmit(null);
-    }
-  };
-
-  const doSubmit = async (recaptchaToken) => {
     setBusy(true);
     try {
-      const { birthDay, birthMonth, birthYear, ...rest } = form;
-      const birthDate = `${birthYear}-${String(birthMonth).padStart(2, '0')}-${String(birthDay).padStart(2, '0')}`;
-      await submitApplication({ ...rest, birthDate, answers, recaptchaToken });
-      setChallengeOpen(false);
+      const { birthDay: bd, birthMonth: bm, birthYear: by, ...rest } = form;
+      const birthDateStr = `${by}-${String(bm).padStart(2, '0')}-${String(bd).padStart(2, '0')}`;
+      await submitApplication({ ...rest, birthDate: birthDateStr, answers });
       setSubmitted(true);
     } catch (err) {
-      setChallengeOpen(false);
       setError(err.response?.data?.error || 'Não foi possível enviar sua inscrição.');
     } finally {
       setBusy(false);
@@ -219,9 +206,6 @@ export default function RegisterPage() {
         {error && <div className="auth-error">{error}</div>}
         <button type="submit" className="btn-primary register-submit-btn" disabled={busy}>{busy ? 'Enviando...' : 'Enviar inscrição'}</button>
       </form>
-      {challengeOpen && (
-        <RecaptchaModal busy={busy} onClose={() => setChallengeOpen(false)} onConfirm={doSubmit} />
-      )}
     </AuthLayout>
   );
 }

@@ -28,7 +28,7 @@ export default function LoginPage() {
     setError('');
     setBusy(true);
     try {
-      const result = await login({ ...form, recaptchaToken: null });
+      const result = await login({ ...form });
       if (result.requiresTwoFactor) {
         setNeedsTwoFactor(true);
       } else {

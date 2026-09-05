@@ -30,7 +30,6 @@ const { sendVerificationCode, sendPasswordReset } = require('../services/email')
 const { clearIfExpired } = require('../services/customStatus');
 const { maybePromoteToPlatformAdmin } = require('../services/adminBootstrap');
 const { grantDueAgeBadges } = require('../services/ageBadges');
-const { verifyRecaptcha } = require('../services/recaptcha');
 const { getEveryoneRole } = require('../services/authz');
 const { recordJoinAndCheck } = require('../services/antiraid');
 const { grantStarterHouse } = require('../services/starterHouse');
@@ -159,12 +158,10 @@ async function issueSession(res, user, userAgent, ipAddress) {
 
 async function register(req, res, next) {
   try {
-    const { email, username, password, displayName, recaptchaToken } = req.body;
+    const { email, username, password, displayName } = req.body;
     if (!email || !username || !password) {
       return res.status(400).json({ error: 'E-mail, usuário e senha são obrigatórios.' });
     }
-    const captcha = await verifyRecaptcha(recaptchaToken);
-    if (!captcha.ok) return res.status(400).json({ error: captcha.reason });
     if (password.length < 8) {
       return res.status(400).json({ error: 'A senha deve ter pelo menos 8 caracteres.' });
     }

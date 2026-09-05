@@ -500,22 +500,6 @@ body.body-auth-scroll { overflow-y: auto !important; }
    it was instead positioning itself relative to this shrunk/offset
    container, landing far below the visible area instead of centered on
    screen. No scaling at all now — the widget renders at its real size. */
-.recaptcha-widget-wrap { display: flex; justify-content: center; }
-/* BUG CORRIGIDO ("não mostra a caixinha pra ver se você é um robô") —
-   ver Recaptcha.jsx: se o script do Google falhar ao carregar, mostra
-   isso em vez de ficar em branco pra sempre. */
-.recaptcha-failed { flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 12px; }
-.recaptcha-modal-body { display: flex; flex-direction: column; align-items: center; gap: 16px; }
-.recaptcha-modal-body .btn-primary { width: 100%; }
-/* O seletor de imagens do Google (que abre ao clicar no quadradinho) é
-   bem maior que o quadradinho em si (~580px de altura) e abre pra BAIXO
-   dele. Se o modal ficar centralizado no meio da tela (padrão de todo
-   modal), não sobra espaço suficiente embaixo pro seletor caber inteiro
-   — ele fica cortado/fora da tela, principalmente no celular. Esse modal
-   especificamente ancora mais pro TOPO da tela em vez de centralizado,
-   dando o máximo de espaço embaixo pro seletor abrir sem cortar. */
-.recaptcha-modal-overlay { align-items: flex-start; overflow-y: auto; padding: 24px 12px; }
-.recaptcha-modal-overlay .modal-box { margin: 0 auto; }
 .auth-form label {
   font-size: 11.5px; font-weight: 700; letter-spacing: 0.4px; color: #8b93bd;
   display: flex; flex-direction: column; gap: 7px;
