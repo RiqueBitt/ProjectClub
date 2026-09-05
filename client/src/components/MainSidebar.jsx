@@ -34,8 +34,10 @@ const ITEMS = [
   // da lista já atende ao pedido.
   { to: '/inicio', icon: inicioIcon, isImg: true, label: 'Início', match: (p) => p === '/inicio' },
   { to: '/', icon: topicIcon, isImg: true, label: 'Comunidade', match: (p) => p === '/' || p.startsWith('/channels/') },
-  { to: '/dms', icon: friendsIcon, isImg: true, label: 'Amigos', match: (p) => p === '/dms' || p.startsWith('/conversations/') },
+  // Item pedido: "mude o feed para cima e o amigos para baixo" — ordem
+  // invertida (Feeds vem antes de Amigos agora).
   { to: '/comunidades', icon: feedIcon, isImg: true, label: 'Feeds', match: (p) => p === '/comunidades' || p.startsWith('/posts/') },
+  { to: '/dms', icon: friendsIcon, isImg: true, label: 'Amigos', match: (p) => p === '/dms' || p.startsWith('/conversations/') },
   { to: '/notifications', icon: notificationsIcon, isImg: true, label: 'Notificações', match: (p) => p.startsWith('/notifications') },
   { to: '/rank', icon: ranksIcon, isImg: true, label: 'Ranks', match: (p) => p.startsWith('/rank') },
   { to: '/conquistas', icon: achievementsIcon, isImg: true, label: 'Conquistas', match: (p) => p.startsWith('/conquistas') },
