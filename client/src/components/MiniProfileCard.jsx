@@ -268,6 +268,12 @@ export default function MiniProfileCard() {
               {user.pronouns && <span> • {user.pronouns}</span>}
             </div>
 
+            {/* Item pedido: "coloque o estrela e o número do nível na
+                linha depois dos pronomes" — movido pra cá. */}
+            <div className="mini-profile-level-badge">
+              <img className="ui-icon-sm" src={levelStarIcon} alt="" /> {user.accountLevel ?? 1}
+            </div>
+
             {(badges.length > 0) && (
               <div className="mini-profile-badges-row">
                 {badges.map((b) => (
@@ -287,16 +293,6 @@ export default function MiniProfileCard() {
                 ))}
               </div>
             )}
-
-            {/* BUG CORRIGIDO ("o nível está muito grande, ocupando
-                espaço que não precisa — só o ícone de estrela e o
-                número pequeno no canto") — trocado o chip grande
-                (que reaproveitava .economy-balance-chip, usado em
-                vários outros lugares do app com esse tamanho maior de
-                propósito) por um selo pequeno e discreto. */}
-            <div className="mini-profile-level-badge">
-              <img className="ui-icon-sm" src={levelStarIcon} alt="" /> {user.accountLevel ?? 1}
-            </div>
 
             {visibleRoles.length > 0 && (
               <div className="mini-profile-roles-row">
