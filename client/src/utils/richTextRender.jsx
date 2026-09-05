@@ -175,7 +175,7 @@ function renderInline(text, ctx, keyPrefix) {
       break;
     }
     case 'unicodeEmoji':
-      nodes.push(<StyledEmoji key={key} emoji={match[0]} size={20} />);
+      nodes.push(<StyledEmoji key={key} emoji={match[0]} />);
       break;
     case 'mention': {
       const name = match[1];
