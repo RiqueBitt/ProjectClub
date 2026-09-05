@@ -188,6 +188,15 @@ export const useStore = create((set, get) => ({
   })),
   removeRole: (id) => set((s) => ({ roles: s.roles.filter((r) => r.id !== id) })),
   setMembers: (members) => set({ members }),
+  // Item pedido: "categorias fiquem normal, mas os canais aparecerem
+  // numa barrinha onde fica o nome do canal, troque pra aparecer os
+  // canais ali quando trocar de categoria" — compartilhado entre
+  // ChannelSwitcher.jsx (quem abre/fecha) e ChatWindow.jsx (que
+  // mostra os canais no lugar do título quando uma categoria está
+  // aberta) — dois componentes irmãos, sem um ser pai do outro, então
+  // precisa viver no store global pra os dois lerem/escreverem nele.
+  openCategoryId: null,
+  setOpenCategoryId: (id) => set({ openCategoryId: id }),
 
   setConversations: (conversations) => set({ conversations }),
   upsertConversation: (conversation) => set((s) => ({

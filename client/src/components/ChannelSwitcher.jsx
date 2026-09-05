@@ -12,16 +12,16 @@ import ChannelTypeIcon from './ChannelTypeIcon.jsx';
 // categorias) eram achatados numa fileira única, sem nenhuma indicação
 // de categoria. Categorias agora aparecem como abas de nível superior.
 //
-// BUG CORRIGIDO ("clicar pra abrir a categoria não faz nada, mesmo
-// tendo canais dentro"): a primeira versão abria um menu suspenso
-// (position: absolute) logo abaixo da categoria — só que o container
-// da barra tem overflow-x: auto pra rolagem, e isso faz o navegador
-// recortar automaticamente qualquer coisa que ultrapasse a altura
-// visível dele, incluindo esse menu (mesmo ele "abrindo" de verdade
-// por trás dos panos — o estado mudava, só que nada aparecia na
-// tela). Item pedido: os canais aparecem do LADO da categoria, na
-// MESMA barra (elementos normais na fileira, sem position: absolute
-// nenhum) — não tem mais nada pra ser cortado.
+// Item pedido: "deixe as categorias normal, mas os canais em vez de
+// aparecerem do lado dela, faça aparecer numa barrinha onde fica o
+// nome do canal que você está" — os canais de uma categoria aberta
+// não ficam mais NESTA barra (ver a versão anterior no histórico do
+// git para a expansão inline que veio antes) — aparecem no cabeçalho
+// do chat, no lugar do título (ver ChatWindow.jsx), no lugar de
+// empurrar o layout desta barra pro lado. openCategoryId agora vive
+// no store global (useStore), não mais como estado local — os dois
+// componentes (esta barra, que abre/fecha, e o cabeçalho do chat, que
+// mostra os canais) são irmãos, nenhum é pai do outro.
 //
 // BUG CORRIGIDO ("não tem rolagem lateral pra ver os outros canais"):
 // a rolagem em si já existia, só sem nenhum indício visual — setas
@@ -33,8 +33,9 @@ export default function ChannelSwitcher({ currentChannelId }) {
   const categories = useStore((s) => s.categories);
   const channels = useStore((s) => s.channels);
   const channelReadAt = useStore((s) => s.channelReadAt);
+  const openCategoryId = useStore((s) => s.openCategoryId);
+  const setOpenCategoryId = useStore((s) => s.setOpenCategoryId);
 
-  const [openCategoryId, setOpenCategoryId] = useState(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const scrollRef = useRef(null);
@@ -55,9 +56,25 @@ export default function ChannelSwitcher({ currentChannelId }) {
     return () => { el.removeEventListener('scroll', updateScrollArrows); observer.disconnect(); };
   }, [categories, channels, openCategoryId]);
 
+  // Sair do canal atual (ex: trocando pra outro fora dessa categoria,
+  // ou voltando pra tela inicial) fecha a categoria aberta sozinho —
+  // sem isso, o cabeçalho continuaria travado mostrando os canais da
+  // categoria antiga mesmo depois de já ter saído dela. Clicar num
+  // canal já fecha via go() abaixo — este efeito cobre os outros
+  // jeitos de sair (voltar pelo navegador, clicar em outro lugar do
+  // app que muda currentChannelId sem passar por go()).
+  useEffect(() => {
+    const stillInOpenCategory = categories
+      .find((c) => c.id === openCategoryId)
+      ?.channels?.some((ch) => ch.id === currentChannelId);
+    if (openCategoryId && !stillInOpenCategory) setOpenCategoryId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentChannelId]);
+
   if (!channels.length && !categories.length) return null;
 
   const go = (id) => {
+    setOpenCategoryId(null);
     if (id !== currentChannelId) navigate(`/channels/${id}`);
   };
 
@@ -98,36 +115,16 @@ export default function ChannelSwitcher({ currentChannelId }) {
           const isOpen = openCategoryId === cat.id;
           const mentions = categoryMentionCount(cat);
           return (
-            <div key={cat.id} className={`channel-tab-category-group ${isOpen ? 'open' : ''}`}>
-              <button
-                type="button"
-                className={`channel-tab channel-tab-category ${active ? 'active' : ''} ${unread ? 'unread' : ''} ${isOpen ? 'open' : ''}`}
-                onClick={() => setOpenCategoryId(isOpen ? null : cat.id)}
-              >
-                <span className="truncate">{cat.name}</span>
-                {mentions > 0 && <span className="mention-badge">{mentions > 99 ? '99+' : mentions}</span>}
-                {!(mentions > 0) && unread && <span className="unread-dot" />}
-                <span className="channel-tab-category-caret">▾</span>
-              </button>
-              {isOpen && cat.channels.map((ch) => {
-                const chUnread = isChannelUnread(ch, channelReadAt, user.id);
-                const chActive = ch.id === currentChannelId;
-                return (
-                  <button
-                    type="button" key={ch.id}
-                    className={`channel-tab channel-tab-in-category ${chActive ? 'active' : ''} ${chUnread ? 'unread' : ''}`}
-                    onClick={() => go(ch.id)}
-                  >
-                    <ChannelTypeIcon type={ch.type} />
-                    <span className="truncate">{ch.name}</span>
-                    {ch.unreadMentions > 0 && (
-                      <span className="mention-badge">{ch.unreadMentions > 99 ? '99+' : ch.unreadMentions}</span>
-                    )}
-                    {!(ch.unreadMentions > 0) && chUnread && <span className="unread-dot" />}
-                  </button>
-                );
-              })}
-            </div>
+            <button
+              type="button" key={cat.id}
+              className={`channel-tab channel-tab-category ${active ? 'active' : ''} ${unread ? 'unread' : ''} ${isOpen ? 'open' : ''}`}
+              onClick={() => setOpenCategoryId(isOpen ? null : cat.id)}
+            >
+              <span className="truncate">{cat.name}</span>
+              {mentions > 0 && <span className="mention-badge">{mentions > 99 ? '99+' : mentions}</span>}
+              {!(mentions > 0) && unread && <span className="unread-dot" />}
+              <span className="channel-tab-category-caret">▾</span>
+            </button>
           );
         })}
       </div>

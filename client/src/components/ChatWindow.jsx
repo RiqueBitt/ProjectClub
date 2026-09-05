@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useElementHeight } from '../utils/useElementHeight';
 import { createPortal } from 'react-dom';
-import { useParams } from 'react-router-dom';
-import { useStore, roomKeyFor } from '../store/useStore';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useStore, roomKeyFor, isChannelUnread } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import { useVoice, preloadAgoraRTC } from '../context/VoiceContext.jsx';
@@ -19,6 +19,7 @@ import PollComposerModal from './modals/PollComposerModal.jsx';
 import GroupSettingsModal from './modals/GroupSettingsModal.jsx';
 import ConversationIcon from './ConversationIcon.jsx';
 import ChannelSwitcher from './ChannelSwitcher.jsx';
+import ChannelTypeIcon from './ChannelTypeIcon.jsx';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import { TYPE_ICON } from '../utils/channelIcons';
 import { STATUS_COLOR } from '../utils/status';
@@ -635,7 +636,7 @@ export default function ChatWindow({ kind }) {
         {channelId && <ChannelSwitcher currentChannelId={channelId} />}
         <header className="chat-header">
           <div className="chat-title-block">
-            <span className="chat-title truncate">{title}</span>
+            <ChatTitleOrCategoryChannels title={title} currentChannelId={channelId} />
           </div>
           <MembersToggleButton />
         </header>
@@ -652,7 +653,7 @@ export default function ChatWindow({ kind }) {
         {channelId && <ChannelSwitcher currentChannelId={channelId} />}
         <header className="chat-header">
           <div className="chat-title-block">
-            <span className="chat-title truncate">{title}</span>
+            <ChatTitleOrCategoryChannels title={title} currentChannelId={channelId} />
           </div>
           <MembersToggleButton />
         </header>
@@ -682,7 +683,7 @@ export default function ChatWindow({ kind }) {
           </button>
         )}
         <div className="chat-title-block">
-          <span className="chat-title truncate">{title}</span>
+          <ChatTitleOrCategoryChannels title={title} currentChannelId={channelId} />
         </div>
         <button className="icon-btn" onClick={() => setSearchOpen((v) => !v)} title="Buscar mensagens"><img className="ui-icon" src={searchIcon} alt="" /></button>
         {conversationId && (
@@ -893,6 +894,48 @@ function TicketChannelBanner({ ticket }) {
     <div className="ticket-channel-banner">
       {ticket.bannerImageUrl && <img src={ticket.bannerImageUrl} alt="" />}
       {ticket.welcomeText && <p>{ticket.welcomeText}</p>}
+    </div>
+  );
+}
+
+// Item pedido: "deixe as categorias normal, mas os canais em vez de
+// aparecerem do lado dela, faça aparecer numa barrinha onde fica o
+// nome do canal que você está" — no lugar do título normal do canal,
+// quando uma categoria está aberta (ver ChannelSwitcher.jsx, que
+// controla openCategoryId no store global), mostra os canais dela
+// pra escolher ali mesmo, na área onde o nome do canal atual sempre
+// aparece.
+function ChatTitleOrCategoryChannels({ title, currentChannelId }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const categories = useStore((s) => s.categories);
+  const channelReadAt = useStore((s) => s.channelReadAt);
+  const openCategoryId = useStore((s) => s.openCategoryId);
+  const setOpenCategoryId = useStore((s) => s.setOpenCategoryId);
+  const openCategory = categories.find((c) => c.id === openCategoryId);
+
+  if (!openCategory) return <span className="chat-title truncate">{title}</span>;
+
+  return (
+    <div className="chat-title-category-channels">
+      {(openCategory.channels || []).map((ch) => {
+        const unread = isChannelUnread(ch, channelReadAt, user.id);
+        const active = ch.id === currentChannelId;
+        return (
+          <button
+            type="button" key={ch.id}
+            className={`chat-title-category-channel ${active ? 'active' : ''} ${unread ? 'unread' : ''}`}
+            onClick={() => { setOpenCategoryId(null); if (ch.id !== currentChannelId) navigate(`/channels/${ch.id}`); }}
+          >
+            <ChannelTypeIcon type={ch.type} />
+            <span className="truncate">{ch.name}</span>
+            {ch.unreadMentions > 0 && (
+              <span className="mention-badge">{ch.unreadMentions > 99 ? '99+' : ch.unreadMentions}</span>
+            )}
+            {!(ch.unreadMentions > 0) && unread && <span className="unread-dot" />}
+          </button>
+        );
+      })}
     </div>
   );
 }

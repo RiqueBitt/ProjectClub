@@ -961,6 +961,21 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .chat-title { font-weight: 700; color: var(--header-primary); flex: 1; }
 .chat-title-block { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 1px; }
 .chat-title-block .chat-title { flex: initial; }
+/* Item pedido: "os canais aparecem numa barrinha onde fica o nome do
+   canal, quando trocar de categoria mostra lá" — substitui .chat-title
+   quando uma categoria está aberta (ver ChatTitleOrCategoryChannels
+   em ChatWindow.jsx). Rolagem horizontal própria, já que a área do
+   título costuma ser mais estreita que a barra de abas de cima. */
+.chat-title-category-channels { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; }
+.chat-title-category-channels::-webkit-scrollbar { display: none; }
+.chat-title-category-channel {
+  display: flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 4px 10px;
+  border-radius: 6px; background: var(--bg-modifier-hover); font-size: 13px; font-weight: 600;
+  color: var(--text-muted); animation: chat-title-category-channel-in .12s var(--ease-smooth);
+}
+.chat-title-category-channel.active { background: var(--brand); color: #fff; }
+.chat-title-category-channel.unread:not(.active) { color: var(--header-primary); }
+@keyframes chat-title-category-channel-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
 .chat-topic { font-size: 12px; color: var(--text-muted); white-space: normal; word-break: break-word; }
 .char-count { align-self: flex-end; font-size: 11px; }
 .search-panel { position: absolute; right: 16px; top: 52px; width: 320px; background: var(--bg-floating); border-radius: 6px; box-shadow: 0 8px 16px rgba(0,0,0,.24); padding: 10px; z-index: 30; max-height: 400px; overflow-y: auto; animation: popup-in .14s var(--ease-smooth); }
@@ -4439,25 +4454,16 @@ a.embed-card-title:hover { text-decoration: underline; }
 }
 .channel-tabs::-webkit-scrollbar { display: none; }
 
-/* BUG CORRIGIDO ("canais ficam um na frente do outro sem saber qual
-   categoria são" / "clicar pra abrir não faz nada"): categoria vira
-   uma aba de nível superior — a versão anterior abria um menu
-   suspenso (position: absolute) que ficava CORTADO pelo overflow-x:
-   auto do container de rolagem (o estado mudava de verdade, só que
-   nada aparecia visualmente). Item pedido: os canais aparecem do
-   LADO da categoria, na MESMA barra — elementos normais na fileira
-   flex, sem position: absolute nenhum, nada pra ser cortado. */
-.channel-tab-category-group { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+/* Item pedido: "deixe as categorias normal, mas os canais em vez de
+   aparecerem do lado dela, faça aparecer numa barrinha onde fica o
+   nome do canal" — categoria continua sendo uma aba de nível
+   superior, mas seus canais não aparecem mais NESTA barra ao abrir —
+   aparecem no cabeçalho do chat, no lugar do título (ver
+   ChatTitleOrCategoryChannels em ChatWindow.jsx e .chat-title-
+   category-channels mais abaixo). */
 .channel-tab-category { gap: 4px; }
 .channel-tab-category-caret { font-size: 9px; opacity: .7; margin-left: 2px; transition: transform .12s var(--ease-smooth); }
 .channel-tab-category.open .channel-tab-category-caret { transform: rotate(180deg); }
-/* Canal expandido de dentro de uma categoria — mesmo visual de aba,
-   só um pouco mais discreto (fundo sutil) pra ficar claro que ele
-   "pertence" à categoria do lado, não é uma aba independente. */
-.channel-tab-in-category {
-  background: var(--bg-modifier-hover); animation: channel-tab-in-category-in .12s var(--ease-smooth);
-}
-@keyframes channel-tab-in-category-in { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: translateX(0); } }
 .channel-tab {
   display: flex; align-items: center; gap: 6px; position: relative;
   padding: 8px 14px; border-radius: 10px 10px 0 0;
