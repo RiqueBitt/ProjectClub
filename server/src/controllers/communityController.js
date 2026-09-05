@@ -21,7 +21,7 @@ async function getCommunity(req, res, next) {
         select: {
           id: true, publicId: true, username: true, displayName: true, avatarUrl: true,
           status: true, customStatus: true, customStatusEmoji: true, profileColor: true,
-          profileNameFont: true, profileNameEffect: true, profileNameColor: true, profileNameColor2: true,
+          profileNameFont: true, profileNameEffect: true, profileNameColor: true, profileNameColor2: true, profileNameColors: true,
           accountLevel: true, tagEmoji: true, tagText: true, timeoutUntil: true, idCardUrl: true,
           roles: { select: { roleId: true } },
         },

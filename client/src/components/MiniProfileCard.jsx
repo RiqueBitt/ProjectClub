@@ -248,7 +248,13 @@ export default function MiniProfileCard() {
       {!user && <p className="dim" style={{ padding: 16 }}>Carregando...</p>}
       {user && (
         <>
-          <div className="mini-profile-banner" style={{ background: user.miniProfileBannerUrl ? `url(${user.miniProfileBannerUrl}) center/cover` : 'var(--brand)' }} />
+          {/* Item pedido: "quando o user tiver colocado um banner no
+              perfil e não tiver colocado um banner do mini perfil, o
+              banner do perfil vai aparecer também no mini perfil até
+              o user mudar" — miniProfileBannerUrl primeiro, cai pro
+              bannerUrl do perfil completo, só cai na cor sólida se
+              nenhum dos dois estiver definido. */}
+          <div className="mini-profile-banner" style={{ background: (user.miniProfileBannerUrl || user.bannerUrl) ? `url(${user.miniProfileBannerUrl || user.bannerUrl}) center/cover` : 'var(--brand)' }} />
           <div className="mini-profile-body">
             <div className="mini-profile-avatar-row">
               <div className="mini-profile-avatar-wrap">

@@ -139,7 +139,14 @@ export function nameStyleProps(user) {
   const color = user?.profileNameColor || '#F2894D';
   const color2 = user?.profileNameColor2 || '#FFFFFF';
   const effect = user?.profileNameEffect || 'SOLID';
-  const base = { fontFamily: font };
+  // BUG CORRIGIDO ("a fonte Cartoon está ficando meio cortada no
+  // final"): problema clássico e conhecido de fontes customizadas —
+  // overflow:hidden combinado com um line-height apertado corta as
+  // "pernas" de letras como g/y/p/q/j (Bangers, a fonte Cartoon, tem
+  // essas partes bem pronunciadas). Line-height só um pouco maior dá
+  // espaço de sobra sem afetar o alinhamento vertical em nenhum lugar
+  // que já funcionava bem antes.
+  const base = { fontFamily: font, ...(font ? { lineHeight: 1.3 } : {}) };
 
   switch (effect) {
     case 'NEON':
@@ -162,8 +169,18 @@ export function nameStyleProps(user) {
       return { ...base, color: 'transparent', WebkitTextStroke: `1.5px ${color}` };
     case 'RAINBOW': {
       const cs = resolveMultiColors(user, 'RAINBOW');
+      // BUG CORRIGIDO ("a primeira cor vem sem degradê na animação,
+      // ficando uma linha sólida repetindo"): a animação move o
+      // gradiente em loop (background-position 0% -> 100%) — sem
+      // REPETIR a sequência de cores duas vezes seguidas, o "fim" do
+      // gradiente (última cor) precisa saltar abruptamente de volta
+      // pro "início" (primeira cor) toda vez que o loop reinicia, sem
+      // nenhuma transição suave entre elas. Repetindo as mesmas cores
+      // duas vezes no gradiente, a segunda metade fica idêntica à
+      // primeira — no momento em que a animação reinicia, a posição
+      // visual já é exatamente a mesma de onde começou, sem salto.
       return {
-        ...base, backgroundImage: `linear-gradient(90deg, ${cs.join(', ')})`,
+        ...base, backgroundImage: `linear-gradient(90deg, ${[...cs, ...cs].join(', ')})`,
         backgroundClip: 'text', WebkitBackgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent',
       };
     }
