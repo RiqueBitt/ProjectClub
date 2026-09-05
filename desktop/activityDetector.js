@@ -41,17 +41,12 @@ async function listProcessNames(platform) {
 
 // Busca as duas coisas (jogo E app) numa varredura só dos processos —
 // não faz sentido listar os processos do sistema duas vezes seguidas
-// só porque são dois bancos de dados diferentes. Jogo sempre GANHA de
-// app quando os dois aparecem rodando ao mesmo tempo (igual o Discord
-// já faz — enquanto joga, mesmo com o VS Code aberto atrás, mostra o
-// jogo).
-// Item pedido: "prioridades: 1 Jogos, 2 Spotify, 3 Apps" — antes o
-// Spotify só era checado se NEM jogo NEM app fossem encontrados, então
-// um app comum (tipo Discord aberto) sempre "vencia" do Spotify tocando
-// ao fundo, o que a pessoa não queria. Pra dar certo, essa função devolve
-// os DOIS achados (jogo e app) da mesma varredura de processos — quem
-// decide a ordem final (Spotify entrando NO MEIO dos dois) é o laço
-// principal (tick()) mais abaixo, não mais essa função sozinha.
+// só porque são dois bancos de dados diferentes. Quem decide a ordem
+// de prioridade final entre os dois (e o Spotify) é o laço principal
+// (tick() mais abaixo), não esta função — ela só devolve os DOIS
+// achados de uma vez.
+// Item pedido: "prioridade app -> música -> jogos" (mudou desde a
+// versão anterior, que era Jogo -> Spotify -> App).
 async function detectGameOrApp(platform) {
   const processes = await listProcessNames(platform);
   const platKey = platform === 'win32' ? 'win' : 'linux';
@@ -248,15 +243,16 @@ function startActivityDetection(onChange) {
     try {
       const { game, app } = await detectGameOrApp(platform);
       let activity = null;
-      // Item pedido: ordem de prioridade — 1) Jogo, 2) Spotify, 3) App.
-      if (game) {
-        activity = { type: 'game', name: game.name, imageUrl: game.imageUrl || undefined, startedAt: Date.now() };
+      // Item pedido: "prioridade app -> música -> jogos" (trocado da
+      // ordem anterior, que era Jogo -> Spotify -> App).
+      if (app) {
+        activity = { type: 'app', name: app.name, imageUrl: app.imageUrl || undefined, startedAt: Date.now() };
       } else {
         const spotify = await detectSpotify(platform);
         if (spotify) {
           activity = { type: 'spotify', ...spotify, startedAt: Date.now() };
-        } else if (app) {
-          activity = { type: 'app', name: app.name, imageUrl: app.imageUrl || undefined, startedAt: Date.now() };
+        } else if (game) {
+          activity = { type: 'game', name: game.name, imageUrl: game.imageUrl || undefined, startedAt: Date.now() };
         }
       }
       const key = activityKey(activity);

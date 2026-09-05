@@ -6,6 +6,7 @@ import { profileAccentVars } from '../utils/profileAccent';
 import { badgeHasImage } from '../utils/badgeRarity';
 import { renderRichContent } from '../utils/richTextRender.jsx';
 import UserAvatar from './UserAvatar.jsx';
+import ActivityBadge from './ActivityBadge.jsx';
 import TagBadge from './TagBadge.jsx';
 import levelStarIcon from '../assets/icons/level-star.png';
 import achievementDefaultIcon from '../assets/icons/nav-achievements.png';
@@ -51,7 +52,14 @@ export default function MiniProfileCard() {
   useEffect(() => {
     if (!userId) { setUser(null); setBadges([]); setMiniAchievements([]); setMutualFriends([]); return; }
     getUserProfile(userId)
-      .then((d) => { setUser(d.user); setBadges(d.badges || []); setMiniAchievements(d.displayedAchievementsMini || []); setMutualFriends(d.mutualFriends || []); })
+      .then((d) => {
+        setUser(d.user); setBadges(d.badges || []); setMiniAchievements(d.displayedAchievementsMini || []); setMutualFriends(d.mutualFriends || []);
+        // Item pedido: "ActivityBadge igual tem no perfil" — mesmo
+        // ajuste que já existia em UserProfileModal.jsx: sem isso, o
+        // badge fica vazio até chegar algum aviso ao vivo pelo socket,
+        // mesmo com a atividade já existindo de verdade no servidor.
+        if (d.activity) useStore.getState().setActivity(userId, d.activity);
+      })
       .catch(() => { setUser(null); setBadges([]); setMiniAchievements([]); setMutualFriends([]); });
   }, [userId]);
 
@@ -304,6 +312,11 @@ export default function MiniProfileCard() {
             </div>
 
             {user.bio && <div className="mini-profile-bio">{renderRichContent(user.bio, { emojiMap: bioEmojiMap })}</div>}
+            {/* Item pedido: "não só o Spotify, mas jogos e apps
+                também, usando o mesmo do perfil" — reaproveita o
+                MESMO componente já usado em UserProfileModal.jsx,
+                sem duplicar a lógica de exibição. */}
+            <ActivityBadge userId={userId} />
             {user.bio && (
               <button type="button" className="btn-link mini-profile-full-bio-link" onClick={() => { openProfile(userId); closeMiniProfile(); }}>
                 Ver biografia completa
