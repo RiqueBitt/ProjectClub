@@ -4754,7 +4754,16 @@ a.embed-card-title:hover { text-decoration: underline; }
   opacity: 0.85;
 }
 
-.mini-profile-banner { width: 100%; height: 60px; background-size: cover; background-position: center; }
+.mini-profile-banner { width: 100%; height: 60px; background-size: cover; background-position: center; position: relative; }
+/* Item pedido: "faça parecido com a imagem" — status personalizado
+   como um balão flutuando sobre o canto do banner (nenhum lugar do
+   card mostrava isso antes). */
+.mini-profile-status-bubble {
+  position: absolute; top: 8px; right: 8px; max-width: calc(100% - 16px);
+  background: rgba(0,0,0,.75); color: #fff; font-weight: 800; font-size: 12px;
+  padding: 5px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.25);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .mini-profile-body { padding: 12px 14px 14px; }
 /* Bug fix: faltava height e overflow:hidden aqui, e o box-sizing:border-box
    global fazia a borda de 3px "roubar" espaço de uma caixa que só tinha
@@ -4765,11 +4774,22 @@ a.embed-card-title:hover { text-decoration: underline; }
    cortar o espaço interno), width/height iguais garantem um círculo
    perfeito, e overflow:hidden mantém a foto sempre recortada dentro da
    moldura. */
+.mini-profile-avatar-wrap { position: relative; margin-top: -34px; margin-bottom: 6px; width: 64px; height: 64px; flex-shrink: 0; }
 .mini-profile-avatar {
-  margin-top: -34px; margin-bottom: 6px; width: 64px; height: 64px;
+  width: 64px; height: 64px;
   border: 3px solid var(--bg-elevated); border-radius: 50%; overflow: hidden;
   box-sizing: content-box; flex-shrink: 0;
 }
+/* Item pedido: "faça parecido com a imagem" — bolinha de presença no
+   canto do avatar (nenhum componente do app tinha isso ainda). Fica
+   FORA de .mini-profile-avatar (que tem overflow:hidden pra conter a
+   foto — a bolinha ficaria cortada se estivesse dentro dele), no
+   wrapper de fora, que não corta nada. */
+.mini-profile-presence-dot {
+  position: absolute; bottom: 2px; right: 2px; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--text-muted); border: 3px solid var(--bg-elevated);
+}
+.mini-profile-presence-dot.online { background: var(--green, #3ba55d); }
 /* Fixo só quando o card está "acentuado" (cor personalizada escolhida
    pela pessoa) — no modo normal (sem cor própria), a borda acompanha
    o tema do site normalmente, que já combina bem com o fundo padrão
@@ -4793,6 +4813,18 @@ a.embed-card-title:hover { text-decoration: underline; }
   font-size: 12px; color: var(--text-muted); margin-top: 6px;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
+/* Item pedido: "faça parecido com a imagem" — amigos em comum, link de
+   conexão em destaque, tempo de comunidade, e "ver biografia completa"
+   (nenhum desses aparecia no mini perfil antes, mesmo já existindo os
+   dados no backend). */
+.mini-profile-mutual-row { font-size: 12px; margin-top: 6px; }
+.mini-profile-link {
+  display: block; font-size: 12px; color: var(--brand); margin-top: 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mini-profile-link:hover { text-decoration: underline; }
+.mini-profile-member-since { font-size: 11px; margin-top: 4px; }
+.mini-profile-full-bio-link { font-size: 11px; margin-top: 2px; display: inline-block; }
 
 /* ---------- Medidor de volume do microfone (VoiceSettingsTab, em UserSettingsModal.jsx) ---------- */
 .mic-level-meter { width: 100%; height: 10px; background: var(--bg-elevated); border-radius: 6px; overflow: hidden; }

@@ -26,6 +26,11 @@ export default function MiniProfileCard() {
   const roles = useStore((s) => s.roles);
   const members = useStore((s) => s.members);
   const usableEmojis = useStore((s) => s.usableEmojis);
+  // Item pedido: "faça o mini perfil parecido com a imagem" — bolinha
+  // de presença no avatar (nenhum componente do app tinha isso ainda,
+  // nem a lista de membros — que só usa cor de texto/agrupamento pro
+  // status, sem indicador visual no próprio avatar).
+  const presence = useStore((s) => s.presence);
   // Bio não é escopada a nenhum servidor específico (igual no perfil
   // completo), então usa só o set de emojis próprios do usuário — sem
   // @menções aqui, não tem lista de canal/membros pra mencionar contra.
@@ -33,6 +38,7 @@ export default function MiniProfileCard() {
   const [user, setUser] = useState(null);
   const [badges, setBadges] = useState([]);
   const [miniAchievements, setMiniAchievements] = useState([]);
+  const [mutualFriends, setMutualFriends] = useState([]);
   const cardRef = useRef(null);
   // Posição só fica pronta depois de medir a altura real do card (abaixo),
   // então começa escondido pra não "piscar" no canto errado antes de flipar.
@@ -43,10 +49,10 @@ export default function MiniProfileCard() {
   const visibleRoles = memberRoles.slice(0, ROLES_PREVIEW_COUNT);
 
   useEffect(() => {
-    if (!userId) { setUser(null); setBadges([]); setMiniAchievements([]); return; }
+    if (!userId) { setUser(null); setBadges([]); setMiniAchievements([]); setMutualFriends([]); return; }
     getUserProfile(userId)
-      .then((d) => { setUser(d.user); setBadges(d.badges || []); setMiniAchievements(d.displayedAchievementsMini || []); })
-      .catch(() => { setUser(null); setBadges([]); setMiniAchievements([]); });
+      .then((d) => { setUser(d.user); setBadges(d.badges || []); setMiniAchievements(d.displayedAchievementsMini || []); setMutualFriends(d.mutualFriends || []); })
+      .catch(() => { setUser(null); setBadges([]); setMiniAchievements([]); setMutualFriends([]); });
   }, [userId]);
 
   useEffect(() => {
@@ -225,9 +231,20 @@ export default function MiniProfileCard() {
       {!user && <p className="dim" style={{ padding: 16 }}>Carregando...</p>}
       {user && (
         <>
-          <div className="mini-profile-banner" style={{ background: user.miniProfileBannerUrl ? `url(${user.miniProfileBannerUrl}) center/cover` : 'var(--brand)' }} />
+          <div className="mini-profile-banner" style={{ background: user.miniProfileBannerUrl ? `url(${user.miniProfileBannerUrl}) center/cover` : 'var(--brand)' }}>
+            {/* Item pedido: "faça parecido com a imagem" — status
+                personalizado como um balão flutuando sobre o banner,
+                em vez de não aparecer em lugar nenhum do card (não
+                tinha nenhum lugar mostrando isso antes). */}
+            {user.customStatus && (
+              <span className="mini-profile-status-bubble">{user.customStatusEmoji ? `${user.customStatusEmoji} ` : ''}{user.customStatus}</span>
+            )}
+          </div>
           <div className="mini-profile-body">
-            <div className="mini-profile-avatar"><UserAvatar user={user} size={64} /></div>
+            <div className="mini-profile-avatar-wrap">
+              <div className="mini-profile-avatar"><UserAvatar user={user} size={64} /></div>
+              <span className={`mini-profile-presence-dot ${(presence[userId]?.status || user.status) === 'ONLINE' ? 'online' : ''}`} />
+            </div>
             <div className="mini-profile-name"><span className={nameStyleClassName(user)} style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} /></div>
             <div className="dim mini-profile-handle">
               @{user.username}
@@ -272,7 +289,32 @@ export default function MiniProfileCard() {
               </div>
             )}
 
+            {mutualFriends.length > 0 && (
+              <div className="mini-profile-mutual-row dim">
+                🤝 {mutualFriends.length} amigo{mutualFriends.length > 1 ? 's' : ''} em comum
+              </div>
+            )}
+
+            {/* Item pedido: link em destaque antes da bio — a primeira
+                conexão preenchida (YouTube/Steam/Roblox/X), na ordem
+                que a pessoa preencheu no perfil. */}
+            {(() => {
+              const firstLink = user.youtubeUrl || user.steamUrl || user.robloxUrl || user.xUrl;
+              return firstLink ? (
+                <a className="mini-profile-link" href={firstLink} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>{firstLink}</a>
+              ) : null;
+            })()}
+
+            <div className="mini-profile-member-since dim">
+              há {Math.max(1, Math.floor((Date.now() - new Date(user.createdAt).getTime()) / (365.25 * 24 * 60 * 60 * 1000)))} anos na comunidade
+            </div>
+
             {user.bio && <div className="mini-profile-bio">{renderRichContent(user.bio, { emojiMap: bioEmojiMap })}</div>}
+            {user.bio && (
+              <button type="button" className="btn-link mini-profile-full-bio-link" onClick={() => { openProfile(userId); closeMiniProfile(); }}>
+                Ver biografia completa
+              </button>
+            )}
             <button
               className="btn-primary"
               style={{
