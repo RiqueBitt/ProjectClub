@@ -19,6 +19,7 @@ router.patch('/me/status', ctrl.setStatus);
 router.patch('/me/custom-status', ctrl.setCustomStatus);
 router.patch('/me/tag', ctrl.setActiveTag);
 router.patch('/me/theme', ctrl.setPreferredTheme);
+router.patch('/me/emoji-style', ctrl.setEmojiStyle);
 router.patch('/me/displayed-achievements', ctrl.setDisplayedAchievements);
 router.get('/me/usable-emojis', emojiCtrl.listUsableEmojis);
 router.get('/me/favorite-gifs', gifCtrl.listFavoriteGifs);

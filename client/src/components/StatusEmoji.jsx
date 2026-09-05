@@ -1,5 +1,6 @@
 import { useStore } from '../store/useStore';
 import { proxyImage } from '../utils/imageProxy';
+import StyledEmoji from './StyledEmoji.jsx';
 
 // user.customStatusEmoji is either a plain unicode emoji character, or a
 // `:name:` shortcode referencing one of the user's usable custom emojis
@@ -22,5 +23,7 @@ export default function StatusEmoji({ emoji, className }) {
     if (!found) return <span className={className}>{emoji}</span>;
     return <img className={`status-emoji-img ${className || ''}`} src={proxyImage(found.url)} alt="" />;
   }
-  return <span className={className}>{emoji}</span>;
+  // Item pedido: "adicione [estilo de emoji]... em tudo" — emoji unicode
+  // (não shortcode de servidor) respeita o estilo escolhido pela pessoa.
+  return <StyledEmoji emoji={emoji} size={18} className={className} />;
 }

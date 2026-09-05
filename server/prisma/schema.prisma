@@ -109,6 +109,12 @@ model User {
   // que antes desse campo existir podia derrubar a inicialização do tema
   // inteira sem nenhum fallback).
   preferredTheme      String?
+  // Item pedido: "5 variantes de visual dos meus emoji, uma delas o
+  // mesmo tema do Discord" — mesmo padrão de preferredTheme acima
+  // (sincronizado entre localStorage e conta, ver setEmojiStyle no
+  // controller). Valores: native | twemoji | noto | fluent | openmoji
+  // (ver EMOJI_STYLE_OPTIONS em utils/emojiStyle.js).
+  emojiStyle          String    @default("native")
   // Conquistas escolhidas pra exibir — perfil completo (até 6) e
   // miniperfil (até 4), cada uma como array JSON de achievementId. Fica
   // salvo na conta (não no navegador), então sobrevive a sair/entrar de

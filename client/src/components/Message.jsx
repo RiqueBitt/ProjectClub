@@ -13,6 +13,7 @@ import { groupReactions, MAX_DISTINCT_REACTIONS } from '../utils/reactions';
 import { roleTextStyle, highestColoredRole } from '../utils/roleColor';
 import { nameStyleProps, hasCustomNameStyle, nameStyleClassName } from '../utils/nameStyle';
 import EmojiPicker from './EmojiPicker.jsx';
+import StyledEmoji from './StyledEmoji.jsx';
 import CustomAudioPlayer from './CustomAudioPlayer.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import TagBadge from './TagBadge.jsx';
@@ -401,7 +402,7 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
                 {emoji.startsWith(':') && emojiMap[emoji.slice(1, -1)] ? (
                   <img className="inline-emoji" src={emojiMap[emoji.slice(1, -1)]} alt={emoji} />
                 ) : (
-                  emoji
+                  <StyledEmoji emoji={emoji} size={16} />
                 )} {count}
               </button>
             ))}

@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { useSheetDrag } from '../utils/useSheetDrag';
 import emojiGroups from 'unicode-emoji-json/data-by-group.json';
+import StyledEmoji from './StyledEmoji.jsx';
 
 // The FULL Unicode emoji set (~1900, all 9 official groups — see
 // node_modules/unicode-emoji-json), not a hand-picked shortlist — rendered
@@ -153,7 +154,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
                     title={cat}
                     onClick={() => scrollToCategory(cat)}
                   >
-                    {UNICODE_GROUP_ICONS[cat]}
+                    {UNICODE_GROUP_ICONS[cat] && <StyledEmoji emoji={UNICODE_GROUP_ICONS[cat]} size={20} />}
                   </button>
                 ))}
               </div>
@@ -172,7 +173,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
                     <div className="emoji-picker-grid">
                       {filtered.map((e) => (
                         <button key={e.emoji} onClick={() => { onPick(e.emoji); onClose?.(); }} title={e.name}>
-                          {e.emoji}
+                          <StyledEmoji emoji={e.emoji} size={24} />
                         </button>
                       ))}
                     </div>

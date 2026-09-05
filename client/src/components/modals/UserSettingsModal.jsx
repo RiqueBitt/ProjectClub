@@ -12,6 +12,7 @@ import EmojiPicker from '../EmojiPicker.jsx';
 import { usePopoverCoordination } from '../../utils/popoverCoordinator';
 import { isGradientColor, gradientStops, makeGradient } from '../../utils/roleColor';
 import { NAME_FONTS, NAME_EFFECTS, nameStyleProps, nameStyleClassName, FONT_FAMILY, DEFAULT_MULTI_COLORS } from '../../utils/nameStyle';
+import { EMOJI_STYLE_OPTIONS, emojiImageUrl } from '../../utils/emojiStyle';
 import { isEyeDropperSupported, pickColorFromScreen } from '../../utils/eyeDropper';
 
 // Item pedido: "sistema... você pode escolher as cores de tudo" —
@@ -43,6 +44,7 @@ import xConnIcon from '../../assets/icons/social-x.png';
 import {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, removeIdCard,
   setup2FA, confirm2FA, disable2FA, setPreferredTheme, setActiveTag,
+  setEmojiStyle as setEmojiStyleApi,
   listSessions, revokeSession, revokeOtherSessions,
   createProfilePoll, listProfilePollsByAuthor, deleteProfilePoll,
   changePassword, deleteAccount,
@@ -63,7 +65,7 @@ const TAB_GROUPS = [
 export default function UserSettingsModal({ onClose }) {
   const { user, setUser, logout } = useAuth();
   const navigate = useNavigate();
-  const { theme, setTheme, customBackground, setCustomBackground } = useStore();
+  const { theme, setTheme, customBackground, setCustomBackground, emojiStyle, setEmojiStyle: setEmojiStyleStore } = useStore();
   const disabledSystems = useStore((s) => s.disabledSystems);
   // Ver adminController.js (TOGGLEABLE_SYSTEMS) e a nova opção "Cores
   // personalizadas para perfil" em /admin → Sistema: quando a staff
@@ -276,6 +278,13 @@ export default function UserSettingsModal({ onClose }) {
   const pickTheme = (t) => {
     setTheme(t);
     setPreferredTheme(t).catch(() => {});
+  };
+
+  // Item pedido: "5 variantes de visual dos meus emoji" — mesmo padrão
+  // de pickTheme acima.
+  const pickEmojiStyleSetting = (s) => {
+    setEmojiStyleStore(s);
+    setEmojiStyleApi(s).catch(() => {});
   };
 
   const saveUsername = async () => {
@@ -1079,6 +1088,27 @@ export default function UserSettingsModal({ onClose }) {
             </div>
           </div>
 
+          {/* Item pedido: "5 variantes de visual dos meus emoji...
+              uma delas o mesmo tema do Discord" — Twemoji (o
+              conjunto que o Discord usa de verdade — eles nunca
+              desenharam o próprio emoji). */}
+          <div className="settings-block">
+            <h4>Estilo de emoji</h4>
+            <p className="dim">Muda o desenho dos emojis pra ficar igual em qualquer tela — em vez de depender da fonte de cada sistema (Windows, Mac, Android costumam desenhar diferente).</p>
+            <div className="emoji-style-options">
+              {EMOJI_STYLE_OPTIONS.map((opt) => (
+                <button
+                  type="button" key={opt.value}
+                  className={`emoji-style-option ${emojiStyle === opt.value ? 'active' : ''}`}
+                  onClick={() => pickEmojiStyleSetting(opt.value)}
+                >
+                  <EmojiStylePreview style={opt.value} />
+                  <span>{opt.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Função de fundo/tema personalizado desativada (CUSTOM_BACKGROUND_ENABLED
               em utils/featureFlags.js) — código mantido intacto, só a UI fica oculta. */}
           {CUSTOM_BACKGROUND_ENABLED && (
@@ -1242,6 +1272,19 @@ function StatusPicker() {
       ))}
     </div>
   );
+}
+
+// Item pedido: "5 variantes de visual dos meus emoji" — mostra um
+// emoji de exemplo NO ESTILO ESPECÍFICO passado por prop (diferente
+// de StyledEmoji.jsx, que sempre usa o estilo ATUAL da pessoa — aqui
+// preciso mostrar os 5 ao mesmo tempo, cada um com seu próprio
+// estilo, pra comparar antes de escolher). Mesmo fallback gracioso:
+// se a imagem falhar, cai pro texto normal.
+function EmojiStylePreview({ style, emoji = '😀' }) {
+  const [failed, setFailed] = useState(false);
+  const url = style !== 'native' && !failed ? emojiImageUrl(emoji, style) : null;
+  if (!url) return <span style={{ fontSize: 28 }}>{emoji}</span>;
+  return <img src={url} alt={emoji} width={28} height={28} onError={() => setFailed(true)} />;
 }
 
 function NameColorPresets({ setForm }) {

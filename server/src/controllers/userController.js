@@ -352,6 +352,20 @@ async function setPreferredTheme(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Item pedido: "5 variantes de visual dos meus emoji, uma delas o
+// mesmo tema do Discord" — mesmo padrão de setPreferredTheme acima.
+async function setEmojiStyle(req, res, next) {
+  try {
+    const { emojiStyle } = req.body;
+    const allowed = ['native', 'twemoji', 'noto', 'fluent', 'openmoji'];
+    if (!allowed.includes(emojiStyle)) return res.status(400).json({ error: 'Estilo de emoji inválido.' });
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { emojiStyle }, select: SELF_USER_FIELDS,
+    });
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
 async function setStatus(req, res, next) {
   try {
     const { status } = req.body;
@@ -588,6 +602,6 @@ async function setDisplayedAchievements(req, res, next) {
 
 module.exports = {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, uploadIdCard, removeIdCard,
-  setStatus, setCustomStatus, searchUsers, getUser, setActiveTag, voteProfile, setPreferredTheme,
+  setStatus, setCustomStatus, searchUsers, getUser, setActiveTag, voteProfile, setPreferredTheme, setEmojiStyle,
   setDisplayedAchievements,
 };

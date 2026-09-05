@@ -111,6 +111,12 @@ export const useStore = create((set, get) => ({
       return 'light';
     }
   })(),
+  // Item pedido: "5 variantes de visual dos meus emoji" — mesmo padrão
+  // do tema acima (localStorage como cache rápido, a conta como fonte
+  // de verdade — ver AuthContext.jsx e setEmojiStyle no backend).
+  emojiStyle: (() => {
+    try { return localStorage.getItem('emojiStyle') || 'native'; } catch { return 'native'; }
+  })(),
   // Configuração do Editor de Interface (staff pode reorganizar/
   // redimensionar os menus principais) — carregada uma vez ao abrir o
   // app, aplicada globalmente (AppRail, sidebar, lista de membros). null
@@ -228,6 +234,10 @@ export const useStore = create((set, get) => ({
       localStorage.removeItem('customBackground');
     } catch { /* localStorage indisponível — o tema ainda fica salvo na conta, ver setPreferredTheme */ }
     set({ theme, customBackground: null });
+  },
+  setEmojiStyle: (emojiStyle) => {
+    try { localStorage.setItem('emojiStyle', emojiStyle); } catch { /* localStorage indisponível — ainda fica salvo na conta, ver setEmojiStyle no backend */ }
+    set({ emojiStyle });
   },
   setUiLayout: (device, config) => set((s) => {
     const uiLayoutAll = { ...s.uiLayoutAll, [device]: config };

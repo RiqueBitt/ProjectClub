@@ -35,6 +35,9 @@ export function AuthProvider({ children }) {
     if (data.user?.preferredTheme) {
       useStore.getState().setTheme(data.user.preferredTheme);
     }
+    if (data.user?.emojiStyle) {
+      useStore.getState().setEmojiStyle(data.user.emojiStyle);
+    }
   }, []);
 
   const clearSession = useCallback(() => {

@@ -31,6 +31,7 @@ import { Fragment } from 'react';
 import { useStore } from '../store/useStore';
 import { roleTextStyle, roleWeakBackground, gradientStops } from './roleColor';
 import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from '../components/PenguinAvatar.jsx';
+import StyledEmoji from '../components/StyledEmoji.jsx';
 
 // BUG CORRIGIDO: <img src={u.avatarUrl}> quebrava (bloqueado pela CSP
 // img-src) quando a pessoa mencionada (@fulano) tem avatar de pinguim
@@ -42,6 +43,10 @@ function MentionAvatarImg({ url }) {
 }
 
 const CODE_BLOCK_RE = /```([\s\S]+?)```/g;
+// Mesma ideia de LEADING_UNICODE_EMOJI_RE mais abaixo (isEmojiOnlyMessage),
+// só sem o ^ fixo no início — aqui precisa casar em QUALQUER posição do
+// texto, não só bem no começo.
+const UNICODE_EMOJI_RE = /(?:\p{Regional_Indicator}\p{Regional_Indicator}|\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})?(?:‍\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})?)*)/u;
 
 export function renderRichContent(content, { emojiMap = {}, memberNames = [], roleNames = [], memberInfoByName = {}, roleInfoByName = {} } = {}) {
   if (!content) return null;
@@ -118,6 +123,12 @@ function renderInline(text, ctx, keyPrefix) {
     { name: 'italicStar', re: /\*([^\n*]+?)\*/ },
     { name: 'italicUnderscore', re: /(?:^|(?<=\s))_([^\n_]+?)_(?=\s|$)/ },
     { name: 'emoji', re: /:([a-zA-Z0-9_]{2,32}):/ },
+    // Item pedido: "adicione [estilo de emoji] no chat... em tudo" —
+    // emoji unicode digitado direto na mensagem (não só os shortcodes
+    // :nome: de cima, que já eram tratados) agora também vira uma
+    // imagem no estilo escolhido pela pessoa, em vez de ficar
+    // misturado no texto puro usando a fonte nativa do sistema.
+    { name: 'unicodeEmoji', re: UNICODE_EMOJI_RE },
     { name: 'mention', re: mentionRegex },
     // Plain http(s) links — deliberately not re-scanned for nested formatting
     // (same as inline code), and rendered as a click-to-confirm link (see
@@ -163,6 +174,9 @@ function renderInline(text, ctx, keyPrefix) {
       else nodes.push(<Fragment key={key}>{match[0]}</Fragment>);
       break;
     }
+    case 'unicodeEmoji':
+      nodes.push(<StyledEmoji key={key} emoji={match[0]} size={20} />);
+      break;
     case 'mention': {
       const name = match[1];
       if (name === 'everyone' || name === 'here') {

@@ -1600,6 +1600,17 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .theme-swatch.amoled { background: #000; }
 .theme-swatch.facebook { background: #F0F2F5; color: #1C1E21; }
 .theme-swatch.clubpenguin { background: linear-gradient(135deg, #BFEFFF, #3EA0E0); color: #06344F; font-weight: 700; }
+/* Item pedido: "5 variantes de visual dos meus emoji" — grid com uma
+   amostra real de cada estilo (ver EmojiStylePreview em
+   UserSettingsModal.jsx), pra comparar antes de escolher. */
+.emoji-style-options { display: flex; gap: 10px; flex-wrap: wrap; }
+.emoji-style-option {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 16px;
+  border-radius: 8px; border: 2px solid var(--border); background: var(--bg-secondary-alt);
+  min-width: 84px; font-size: 12px; font-weight: 600; color: var(--text-muted);
+}
+.emoji-style-option:hover { background: var(--bg-modifier-hover); }
+.emoji-style-option.active { border-color: var(--brand); color: var(--header-primary); }
 
 .invite-code { background: var(--bg-deepest); padding: 8px 12px; border-radius: 4px; margin-top: 8px; font-family: monospace; }
 .settings-member-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
