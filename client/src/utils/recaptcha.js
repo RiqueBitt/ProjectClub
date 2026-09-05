@@ -33,6 +33,13 @@ export function loadRecaptchaScript() {
     script.onerror = () => {
       // eslint-disable-next-line no-console
       console.warn('[recaptcha] O script do Google não carregou (bloqueado pelo navegador/rede, ou CSP). Login/registro vão seguir sem verificação.');
+      // BUG CORRIGIDO ("caixinha não aparece, sem jeito de tentar de
+      // novo"): scriptPromise ficava memorizada pra sempre com o
+      // resultado falho — uma tentativa nova (ver Recaptcha.jsx) não
+      // tentava carregar o script de novo, só recebia a mesma
+      // resposta "falhou" de antes, mesmo que a rede já tivesse
+      // voltado a funcionar nesse meio tempo.
+      scriptPromise = null;
       resolve(false);
     };
     document.head.appendChild(script);

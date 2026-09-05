@@ -501,6 +501,10 @@ body.body-auth-scroll { overflow-y: auto !important; }
    container, landing far below the visible area instead of centered on
    screen. No scaling at all now — the widget renders at its real size. */
 .recaptcha-widget-wrap { display: flex; justify-content: center; }
+/* BUG CORRIGIDO ("não mostra a caixinha pra ver se você é um robô") —
+   ver Recaptcha.jsx: se o script do Google falhar ao carregar, mostra
+   isso em vez de ficar em branco pra sempre. */
+.recaptcha-failed { flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 12px; }
 .recaptcha-modal-body { display: flex; flex-direction: column; align-items: center; gap: 16px; }
 .recaptcha-modal-body .btn-primary { width: 100%; }
 /* O seletor de imagens do Google (que abre ao clicar no quadradinho) é
