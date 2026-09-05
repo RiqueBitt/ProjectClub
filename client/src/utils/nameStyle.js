@@ -66,6 +66,24 @@ export const FONT_FAMILY = {
   PLAYFUL: "'Fredoka One', cursive",
 };
 
+// Item pedido: "diminua o tamanho de algumas fontes que acabam
+// ficando muito grandes" — fontes decorativas/display (bold, letras
+// em caixa alta, traços largos) desenham visualmente MAIORES que uma
+// fonte de texto comum no mesmo font-size nominal — é uma diferença
+// normal de design entre fontes, não um bug de medida. As mais
+// "pesadas" visualmente entre as 15 ganham uma escala reduzida,
+// aplicada como font-size relativo (ver nameStyleProps abaixo);
+// ausente do mapa = 1 (tamanho normal, sem ajuste).
+const FONT_SIZE_SCALE = {
+  PIXEL: 0.75,          // Press Start 2P — bitmap bem quadrado/largo
+  CARTOON: 0.8,          // Bangers — caixa alta, traços grossos
+  CREEPY: 0.8,           // Creepster — bem larga
+  BOLD_CONDENSED: 0.85,  // Bebas Neue — caixa alta condensada, mas alta
+  ROUNDED: 0.85,         // Righteous — bold arredondada
+  RETRO_NEON: 0.85,      // Monoton — linhas finas mas MUITO alta
+  URBAN: 0.85,           // Bungee — bold estilo urbano
+};
+
 // Returns the actual inline `style` object for a <h2>/<span> rendering
 // someone's styled display name — combines their chosen font-family with
 // whatever their chosen effect needs (a solid color, a glowing text-shadow,
@@ -146,7 +164,8 @@ export function nameStyleProps(user) {
   // essas partes bem pronunciadas). Line-height só um pouco maior dá
   // espaço de sobra sem afetar o alinhamento vertical em nenhum lugar
   // que já funcionava bem antes.
-  const base = { fontFamily: font, ...(font ? { lineHeight: 1.3 } : {}) };
+  const scale = FONT_SIZE_SCALE[user?.profileNameFont];
+  const base = { fontFamily: font, ...(font ? { lineHeight: 1.3 } : {}), ...(scale ? { fontSize: `${scale}em` } : {}) };
 
   switch (effect) {
     case 'NEON':
