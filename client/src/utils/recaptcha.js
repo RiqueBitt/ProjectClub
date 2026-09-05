@@ -4,6 +4,17 @@
 // exposes the site key itself.
 export const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '';
 
+// Item pedido: "mesmo que tenha uma key, se não carregou depois de 3
+// segundos, deixa se inscrever sem precisar da verificação" — token
+// especial (não é um token de verdade do Google, nunca poderia ser
+// confundido com um — os tokens reais são bem mais longos e não têm
+// esse formato) que Recaptcha.jsx manda pro backend quando o widget
+// não confirma carregamento a tempo. server/src/services/recaptcha.js
+// reconhece esse mesmo valor e trata como "verificação pulada por
+// indisponibilidade", sem exigir o token de verdade nesse caso
+// específico — os dois lados PRECISAM usar exatamente a mesma string.
+export const RECAPTCHA_TIMEOUT_SENTINEL = '__recaptcha_unavailable_timeout__';
+
 let scriptPromise = null;
 
 // `render=explicit` (instead of v3's `render=SITEKEY`) is what lets

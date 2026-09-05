@@ -10,8 +10,20 @@ const env = require('../config/env');
 // isn't configured, rather than blocking every login/register on a fresh
 // install that hasn't set up reCAPTCHA yet — see README for how to turn
 // this on for real.
+//
+// Item pedido: "mesmo que tenha uma key, se não carregou depois de 3
+// segundos, deixa se inscrever sem precisar da verificação" — precisa
+// bater com client/src/utils/recaptcha.js's RECAPTCHA_TIMEOUT_SENTINEL
+// EXATAMENTE (os dois lados usam a mesma string por acordo, não há
+// nenhuma outra ligação entre os dois arquivos). Escolha deliberada de
+// confiabilidade sobre rigor: perder cadastros legítimos por causa de
+// rede instável ou o script do Google sendo bloqueado é pior do que,
+// nesses casos específicos, aceitar sem verificação.
+const TIMEOUT_SENTINEL = '__recaptcha_unavailable_timeout__';
+
 async function verifyRecaptcha(token) {
   if (!env.RECAPTCHA_SECRET_KEY) return { ok: true, skipped: true };
+  if (token === TIMEOUT_SENTINEL) return { ok: true, skipped: true };
   if (!token) return { ok: false, reason: 'Confirme que você não é um robô.' };
 
   try {
