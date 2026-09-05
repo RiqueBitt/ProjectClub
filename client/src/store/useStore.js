@@ -71,6 +71,11 @@ export const useStore = create((set, get) => ({
   // <img> clicável no app chama openLightbox pra abrir.
   lightboxImage: null, // { url, filename } | null
   usableEmojis: [], // emojis customizados da comunidade que este usuário pode usar
+  // Item pedido: "sistema de figurinhas" — mesmo padrão de
+  // usableEmojis acima, populando a prop serverStickers do
+  // EmojiPicker.jsx (que já existia pronta, mas nunca tinha de onde
+  // vir os dados).
+  serverStickers: [],
   usableStickers: [], // idem, para Sticker (ver StickerPicker.jsx)
   usableSounds: [], // idem, para SoundboardSound (ver SoundboardPanel.jsx)
   favoriteGifs: [], // GIFs salvos deste usuário — ver GifPicker.jsx aba "Favoritos"
@@ -282,6 +287,7 @@ export const useStore = create((set, get) => ({
   closeLightbox: () => set({ lightboxImage: null }),
   closeLinkConfirm: () => set({ pendingLinkUrl: null }),
   setUsableEmojis: (emojis) => set({ usableEmojis: emojis }),
+  setServerStickers: (stickers) => set({ serverStickers: stickers }),
   setUsableStickers: (stickers) => set({ usableStickers: stickers }),
   setUsableSounds: (sounds) => set({ usableSounds: sounds }),
   setFavoriteGifs: (gifs) => set({ favoriteGifs: gifs }),

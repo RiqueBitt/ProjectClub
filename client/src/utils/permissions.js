@@ -32,6 +32,7 @@ export const PERMISSIONS = {
   VIEW_AUDIT_LOG: 1n << 27n,
   MANAGE_TOPICS: 1n << 28n,
   USE_SOUNDBOARD: 1n << 29n,
+  MANAGE_STICKERS: 1n << 30n,
 };
 
 export const PERMISSION_LABELS = {
@@ -62,6 +63,7 @@ export const PERMISSION_LABELS = {
   VIEW_AUDIT_LOG: 'Ver registro de auditoria',
   MANAGE_TOPICS: 'Gerenciar tópicos do fórum (fixar, excluir de outros)',
   USE_SOUNDBOARD: 'Usar efeitos sonoros',
+  MANAGE_STICKERS: 'Gerenciar figurinhas',
 };
 
 function toBits(value) {

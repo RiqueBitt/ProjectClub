@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { useStore, roomKeyFor, messageMentionsUser, isChannelUnread, isConversationUnread } from '../store/useStore';
-import { listFriends, getCommunity, listUsableEmojis } from '../api/endpoints';
+import { listFriends, getCommunity, listUsableEmojis, listServerStickers } from '../api/endpoints';
 import { playSound } from '../utils/sounds';
 import { setupNativeActivity } from '../utils/nativeActivity';
 import { updateUnreadBadge } from '../utils/unreadBadge';
@@ -49,7 +49,7 @@ export function SocketProvider({ children }) {
   const {
     addMessage, updateMessage, removeMessage, setPresence, setTypingUser,
     setConversations, setFriends, bumpRoomActivity, bumpChannelMention,
-    patchUserEverywhere, setUsableEmojis,
+    patchUserEverywhere, setUsableEmojis, setServerStickers,
   } = useStore.getState();
 
   useEffect(() => {
@@ -299,6 +299,8 @@ export function SocketProvider({ children }) {
     socket.on('emoji:new', () => refreshUsableEmojis());
     socket.on('emoji:update', () => refreshUsableEmojis());
     socket.on('emoji:delete', () => refreshUsableEmojis());
+    socket.on('sticker:new', () => refreshServerStickers());
+    socket.on('sticker:delete', () => refreshServerStickers());
 
     socket.on('moderation:timeout', ({ timeoutUntil, reason, automated }) => {
       const until = new Date(timeoutUntil).toLocaleString('pt-BR');
@@ -355,6 +357,11 @@ export function SocketProvider({ children }) {
     async function refreshUsableEmojis() {
       const { emojis } = await listUsableEmojis().catch(() => ({ emojis: [] }));
       setUsableEmojis(emojis);
+    }
+
+    async function refreshServerStickers() {
+      const { stickers } = await listServerStickers().catch(() => ({ stickers: [] }));
+      setServerStickers(stickers);
     }
 
     return () => {

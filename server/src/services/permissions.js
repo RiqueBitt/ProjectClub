@@ -31,6 +31,11 @@ const PERMISSIONS = {
   VIEW_AUDIT_LOG:    1n << 27n, // see the server's moderation history (ModerationModal's log tab)
   MANAGE_TOPICS:     1n << 28n, // pin/lock/delete forum topics started by OTHER members
   USE_SOUNDBOARD:    1n << 29n, // trigger soundboard sounds in a voice channel
+  // Item pedido: "sistema de figurinhas... podendo criar no painel da
+  // staff" — mesmo padrão de MANAGE_EMOJIS acima, próprio bit livre
+  // (30 — o modelo Sticker no schema já existia, nunca tinha sido
+  // conectado a nenhum controller/rota até agora).
+  MANAGE_STICKERS:   1n << 30n, // upload/delete figurinhas customizadas da comunidade
 };
 
 // Sensible defaults for the auto-created @everyone role.

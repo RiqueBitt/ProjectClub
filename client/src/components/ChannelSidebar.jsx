@@ -13,6 +13,7 @@ import CommunitySettingsModal from './modals/CommunitySettingsModal.jsx';
 import RoleManagerModal from './modals/RoleManagerModal.jsx';
 import ModerationModal from './modals/ModerationModal.jsx';
 import EmojiManagerModal from './modals/EmojiManagerModal.jsx';
+import StickerManagerModal from './modals/StickerManagerModal.jsx';
 import ChannelTypeIcon from './ChannelTypeIcon.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import settingsIcon from '../assets/icons/settings.png';
@@ -70,6 +71,7 @@ export default function ChannelSidebar() {
   const [roleManagerOpen, setRoleManagerOpen] = useState(false);
   const [moderationOpen, setModerationOpen] = useState(false);
   const [emojiManagerOpen, setEmojiManagerOpen] = useState(false);
+  const [stickerManagerOpen, setStickerManagerOpen] = useState(false);
   const navigate = useNavigate();
   // Item pedido: cliques rápidos repetidos no MESMO canal disparavam som
   // e recarregamento várias vezes seguidas — bloqueia a navegação já no
@@ -183,6 +185,9 @@ export default function ChannelSidebar() {
             <button className="server-header-menu-item" onClick={() => { setEmojiManagerOpen(true); setMenuOpen(false); }}>
               Emojis <span className="server-header-menu-icon">😀</span>
             </button>
+            <button className="server-header-menu-item" onClick={() => { setStickerManagerOpen(true); setMenuOpen(false); }}>
+              Figurinhas <span className="server-header-menu-icon">🏷️</span>
+            </button>
             <button className="server-header-menu-item" onClick={() => { setModerationOpen(true); setMenuOpen(false); }}>
               Moderação <span className="server-header-menu-icon">🛡️</span>
             </button>
@@ -198,6 +203,7 @@ export default function ChannelSidebar() {
       {roleManagerOpen && <RoleManagerModal onClose={() => setRoleManagerOpen(false)} />}
       {moderationOpen && <ModerationModal onClose={() => setModerationOpen(false)} />}
       {emojiManagerOpen && <EmojiManagerModal onClose={() => setEmojiManagerOpen(false)} />}
+      {stickerManagerOpen && <StickerManagerModal onClose={() => setStickerManagerOpen(false)} />}
 
       <nav className="sidebar-list" onContextMenu={onListContextMenu}>
         {channels.length > 0 && (

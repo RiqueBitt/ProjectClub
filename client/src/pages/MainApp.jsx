@@ -24,7 +24,7 @@ import ImageLightbox from '../components/ImageLightbox.jsx';
 import UserSettingsModal from '../components/modals/UserSettingsModal.jsx';
 import AnnouncementOverlay from '../components/AnnouncementOverlay.jsx';
 import QuickSwitcher from '../components/QuickSwitcher.jsx';
-import { listUsableEmojis, listFavoriteGifs, getUiLayout, listCommunities } from '../api/endpoints';
+import { listUsableEmojis, listServerStickers, listFavoriteGifs, getUiLayout, listCommunities } from '../api/endpoints';
 import { checkForNativeUpdate } from '../utils/nativeUpdateCheck';
 import { setupPushNotifications } from '../utils/pushNotifications';
 import { updateUnreadBadge } from '../utils/unreadBadge';
@@ -70,7 +70,7 @@ const InicioPage = lazy(() => import('./InicioPage.jsx'));
 export default function MainApp() {
   const { user } = useAuth();
   const {
-    setCommunityStructure, setConversations, setFriends, setUsableEmojis, setFavoriteGifs, setClubs,
+    setCommunityStructure, setConversations, setFriends, setUsableEmojis, setServerStickers, setFavoriteGifs, setClubs,
   } = useStore();
   const [membersOpen, setMembersOpen] = useState(true);
   const [dmProfileOpen, setDmProfileOpen] = useState(true);
@@ -125,6 +125,7 @@ export default function MainApp() {
     listConversations().then((d) => setConversations(d.conversations)).catch(() => {});
     listFriends().then((d) => setFriends(d.friendships)).catch(() => {});
     listUsableEmojis().then((d) => setUsableEmojis(d.emojis)).catch(() => {});
+    listServerStickers().then((d) => setServerStickers(d.stickers)).catch(() => {});
     listFavoriteGifs().then((d) => setFavoriteGifs(d.gifs)).catch(() => {});
     listCommunities().then((d) => setClubs(d.communities)).catch(() => {});
     checkForNativeUpdate();

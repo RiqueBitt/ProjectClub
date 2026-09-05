@@ -154,6 +154,16 @@ export const createEmoji = (file, payload) => {
 };
 export const updateEmoji = (id, payload) => api.patch(`/community/emojis/${id}`, payload).then((r) => r.data);
 export const deleteEmoji = (id) => api.delete(`/community/emojis/${id}`).then((r) => r.data);
+// Item pedido: "sistema de figurinhas" — mesmo padrão de
+// listEmojis/createEmoji/deleteEmoji acima.
+export const listServerStickers = () => api.get('/community/stickers').then((r) => r.data);
+export const createServerSticker = (file, name) => {
+  const fd = new FormData();
+  fd.append('sticker', file);
+  fd.append('name', name);
+  return api.post('/community/stickers', fd).then((r) => r.data);
+};
+export const deleteServerSticker = (id) => api.delete(`/community/stickers/${id}`).then((r) => r.data);
 
 export const adminGetUserSecurityInfo = (userId) => api.get(`/admin/users/${userId}/security-info`).then((r) => r.data);
 export const getPlatformStatus = () => api.get('/platform/status').then((r) => r.data);

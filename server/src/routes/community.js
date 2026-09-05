@@ -6,6 +6,7 @@ const roleCtrl = require('../controllers/roleController');
 const modCtrl = require('../controllers/moderationController');
 const automodCtrl = require('../controllers/automodController');
 const emojiCtrl = require('../controllers/emojiController');
+const stickerCtrl = require('../controllers/serverStickerController');
 const { requireAuth } = require('../middleware/auth');
 const { uploadImage } = require('../middleware/upload');
 
@@ -20,6 +21,9 @@ router.post('/emojis', uploadImage.single('emoji'), emojiCtrl.createEmoji);
 router.patch('/emojis/:id', emojiCtrl.updateEmoji);
 router.delete('/emojis/:id', emojiCtrl.deleteEmoji);
 router.get('/emojis/usable', emojiCtrl.listUsableEmojis);
+router.get('/stickers', stickerCtrl.listStickers);
+router.post('/stickers', uploadImage.single('sticker'), stickerCtrl.createSticker);
+router.delete('/stickers/:id', stickerCtrl.deleteSticker);
 
 // --- Categorias ---
 router.post('/categories', categoryCtrl.createCategory);

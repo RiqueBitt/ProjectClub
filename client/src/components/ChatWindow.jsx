@@ -203,6 +203,10 @@ export default function ChatWindow({ kind }) {
   const gifBtnRef = useRef(null);
   const emojiBtnRef = useRef(null);
   const uiLayout = useStore((s) => s.uiLayout);
+  // Item pedido: "sistema de figurinhas" — EmojiPicker já tinha essa
+  // prop pronta pra receber (com a aba "Figurinhas" toda desenhada),
+  // só nunca era alimentada de dados reais.
+  const serverStickers = useStore((s) => s.serverStickers);
   const [pickerStyle, setPickerStyle] = useState(null);
   const PICKER_WIDTH = 380;
   const PICKER_HEIGHT_VH = 40;
@@ -847,6 +851,7 @@ export default function ChatWindow({ kind }) {
               <EmojiPicker
                 variant="composer-centered"
                 style={{ '--composer-height': `${composerBarHeight}px`, ...(pickerStyle || {}) }}
+                serverStickers={serverStickers}
                 onPick={insertText}
                 onPickSticker={sendSticker}
                 onClose={() => setEmojiPickerOpen(false)}

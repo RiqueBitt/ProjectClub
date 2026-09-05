@@ -3042,6 +3042,11 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 .emoji-manage-item { display: flex; align-items: center; gap: 6px; background: var(--bg-secondary-alt); border-radius: 6px; padding: 4px 8px; font-size: 12px; max-width: 100%; }
 .emoji-manage-item img { width: 24px; height: 24px; object-fit: contain; }
 .emoji-manage-item select { font-size: 11px; max-width: 110px; }
+/* Item pedido: "sistema de figurinhas" — mesmo cartão do gerenciador
+   de emoji, mas com a imagem maior (figurinha costuma ser bem mais
+   detalhada visualmente que um emoji). */
+.sticker-manage-item img { width: 48px; height: 48px; }
+.sticker-manage-grid { gap: 10px; }
 .emoji-category-select { max-width: 100px; }
 .emoji-name-label { cursor: pointer; }
 .emoji-name-label:hover { text-decoration: underline; }
