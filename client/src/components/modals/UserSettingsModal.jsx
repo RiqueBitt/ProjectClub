@@ -29,6 +29,7 @@ import { STATUS_LABEL, STATUS_COLOR } from '../../utils/status';
 import { usePromptDialog } from '../../utils/usePromptDialog.jsx';
 import { useStore } from '../../store/useStore';
 import IdCardPreviewModal from './IdCardPreviewModal.jsx';
+import ImageCropperModal from './ImageCropperModal.jsx';
 import { PENGUIN_COLORS, penguinAvatarUrl, isPenguinAvatarUrl } from '../PenguinAvatar.jsx';
 import PenguinAvatar from '../PenguinAvatar.jsx';
 import youtubeConnIcon from '../../assets/icons/social-youtube.png';
@@ -295,10 +296,25 @@ export default function UserSettingsModal({ onClose }) {
     } catch (err) { setError(err.response?.data?.error || 'Erro.'); }
   };
 
-  const onAvatar = async (e) => {
+  // Item pedido: "abra um menu pra você selecionar a área que quer
+  // mostrar... vai mostrar um retângulo, quadrado, etc" — em vez de
+  // mandar o arquivo escolhido direto pro upload, abre o recortador
+  // com a proporção certa pra cada caso (quadrado pro avatar, bem
+  // largo pro banner) — só faz o upload de verdade quando a pessoa
+  // confirma o enquadramento.
+  const [cropperState, setCropperState] = useState(null); // { file, aspectRatio, shape, onConfirm } | null
+
+  const onAvatar = (e) => {
     const file = e.target.files[0]; if (!file) return;
-    const { user: updated } = await uploadAvatar(file);
-    setUser(updated);
+    e.target.value = ''; // permite escolher o MESMO arquivo de novo depois de cancelar
+    setCropperState({
+      file, aspectRatio: 1, shape: 'circle', title: 'Ajustar avatar',
+      onConfirm: async (cropped) => {
+        const { user: updated } = await uploadAvatar(cropped);
+        setUser(updated);
+        setCropperState(null);
+      },
+    });
   };
 
   const pickPenguinAvatar = async (colorKey) => {
@@ -306,18 +322,32 @@ export default function UserSettingsModal({ onClose }) {
     setUser(updated);
   };
 
-  const onBanner = async (e) => {
+  const onBanner = (e) => {
     const file = e.target.files[0]; if (!file) return;
-    const { user: updated } = await uploadBanner(file);
-    setUser(updated);
+    e.target.value = '';
+    setCropperState({
+      file, aspectRatio: 820 / 100, shape: 'rect', title: 'Ajustar banner do perfil',
+      onConfirm: async (cropped) => {
+        const { user: updated } = await uploadBanner(cropped);
+        setUser(updated);
+        setCropperState(null);
+      },
+    });
   };
 
   // Item pedido: "dois banners independentes" — mesmo padrão de
   // onBanner acima, só salvando no campo separado do miniperfil.
-  const onMiniProfileBanner = async (e) => {
+  const onMiniProfileBanner = (e) => {
     const file = e.target.files[0]; if (!file) return;
-    const { user: updated } = await uploadMiniProfileBanner(file);
-    setUser(updated);
+    e.target.value = '';
+    setCropperState({
+      file, aspectRatio: 320 / 60, shape: 'rect', title: 'Ajustar banner do mini perfil',
+      onConfirm: async (cropped) => {
+        const { user: updated } = await uploadMiniProfileBanner(cropped);
+        setUser(updated);
+        setCropperState(null);
+      },
+    });
   };
 
   const start2FA = async () => {
@@ -1159,6 +1189,16 @@ export default function UserSettingsModal({ onClose }) {
         onSaved={(updated) => { setUser(updated); setIdCardFile(null); }}
       />
     )}
+    {cropperState && (
+      <ImageCropperModal
+        file={cropperState.file}
+        aspectRatio={cropperState.aspectRatio}
+        shape={cropperState.shape}
+        title={cropperState.title}
+        onConfirm={cropperState.onConfirm}
+        onClose={() => setCropperState(null)}
+      />
+    )}
     {achievementPickerOpen && (
       <AchievementPickerModal
         slot={achievementPickerOpen}
@@ -1231,11 +1271,22 @@ function MultiColorEditor({ effect, form, setForm }) {
   };
   const restoreDefaults = () => setForm((s) => ({ ...s, profileNameColors: '' }));
 
+  // Item pedido: "invés de ser quadradinho fosse uma barra que mostra
+  // o degradê" — a barra em si já mostra a mistura real entre as
+  // cores (background: linear-gradient com todas elas), e cada
+  // <input type="color"> vira um marcador redondo posicionado EM CIMA
+  // da barra, na posição correspondente à cor dele — clicar continua
+  // abrindo o seletor de cor nativo de sempre, só o visual mudou.
   return (
     <div className="multi-color-editor">
-      <div className="multi-color-editor-row">
+      <div className="multi-color-gradient-bar" style={{ backgroundImage: `linear-gradient(90deg, ${colors.join(', ')})` }}>
         {colors.map((c, i) => (
-          <input key={i} type="color" value={c} onChange={(e) => setColorAt(i, e.target.value)} title={`Cor ${i + 1}`} />
+          <input
+            key={i} type="color" value={c} title={`Cor ${i + 1}`}
+            className="multi-color-gradient-handle"
+            style={{ left: `${(i / (colors.length - 1)) * 100}%` }}
+            onChange={(e) => setColorAt(i, e.target.value)}
+          />
         ))}
       </div>
       <button type="button" className="btn-link" onClick={restoreDefaults}>Restaurar cores padrão</button>

@@ -16,8 +16,8 @@ const activityStore = require('../services/activityStore');
 // (revalidava e regravava a cor sem checar se a staff tinha desligado
 // isso). Consolidado num único bloco de verdade — ver mais abaixo.
 // Keep in sync with client/src/utils/nameStyle.js's own option lists.
-const VALID_NAME_FONTS = ['NORMAL', 'PIXEL', 'CARTOON', 'MEDIEVAL', 'HANDWRITING', 'CREEPY', 'FUTURISTIC', 'SIGNATURE', 'BOLD_CONDENSED', 'ROUNDED', 'CASUAL_SCRIPT', 'RETRO_NEON', 'URBAN', 'ELEGANT_SERIF', 'PLAYFUL'];
-const VALID_NAME_EFFECTS = ['SOLID', 'NEON', 'GRADIENT', 'POP', 'SKETCH', 'SHADOW_3D', 'OUTLINE', 'RAINBOW', 'GLITCH', 'ICE', 'FIRE', 'METALLIC', 'SHINE', 'EMBOSS', 'DOUBLE_STROKE'];
+const VALID_NAME_FONTS = ['NORMAL', 'PIXEL', 'CARTOON', 'MEDIEVAL', 'HANDWRITING', 'CREEPY', 'FUTURISTIC', 'SIGNATURE', 'BOLD_CONDENSED', 'ROUNDED', 'CASUAL_SCRIPT', 'RETRO_NEON', 'URBAN', 'ELEGANT_SERIF', 'PLAYFUL', 'BOLD_SCRIPT'];
+const VALID_NAME_EFFECTS = ['SOLID', 'NEON', 'GRADIENT', 'POP', 'SKETCH', 'SHADOW_3D', 'OUTLINE', 'RAINBOW', 'GLITCH', 'ICE', 'FIRE', 'METALLIC', 'SHINE', 'EMBOSS', 'DOUBLE_STROKE', 'GOLD'];
 
 // Item pedido: "sistema igual da Steam" pra reorganizar o perfil —
 // chaves de seção conhecidas, mantidas em sincronia com

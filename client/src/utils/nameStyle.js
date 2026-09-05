@@ -24,6 +24,9 @@ export const NAME_FONTS = [
   { value: 'URBAN', label: 'Urbana' },
   { value: 'ELEGANT_SERIF', label: 'Elegante' },
   { value: 'PLAYFUL', label: 'Divertida' },
+  // Item pedido: "adicione mais 1 fonte" — conferida no catálogo real
+  // do Google Fonts antes de usar, igual as outras 15.
+  { value: 'BOLD_SCRIPT', label: 'Retrô Script' },
 ];
 
 export const NAME_EFFECTS = [
@@ -43,6 +46,8 @@ export const NAME_EFFECTS = [
   { value: 'SHINE', label: 'Brilho' },
   { value: 'EMBOSS', label: 'Relevo' },
   { value: 'DOUBLE_STROKE', label: 'Contorno duplo' },
+  // Item pedido: "adicione mais 1 efeito"
+  { value: 'GOLD', label: 'Dourado' },
 ];
 
 // Exportada pra quem precisa saber a fonte de verdade de cada opção
@@ -64,6 +69,7 @@ export const FONT_FAMILY = {
   URBAN: "'Bungee', cursive",
   ELEGANT_SERIF: "'Playfair Display', serif",
   PLAYFUL: "'Fredoka One', cursive",
+  BOLD_SCRIPT: "'Lobster', cursive",
 };
 
 // Item pedido: "diminua o tamanho de algumas fontes que acabam
@@ -229,6 +235,15 @@ export function nameStyleProps(user) {
       return {
         ...base, backgroundImage: `linear-gradient(180deg, #f5f5f5, ${color} 45%, #ffffff 55%, ${color2 || '#8a8a8a'})`,
         backgroundClip: 'text', WebkitBackgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent',
+      };
+    // Item pedido: "adicione mais 1 efeito" — dourado, mesma técnica
+    // do metálico acima (faixas claras/escuras simulando reflexo em
+    // metal), só com tons quentes de ouro em vez de cinza/prata.
+    case 'GOLD':
+      return {
+        ...base, backgroundImage: 'linear-gradient(180deg, #fff6d5, #d4af37 40%, #fff6d5 50%, #b8860b 60%, #f5d576)',
+        backgroundClip: 'text', WebkitBackgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent',
+        textShadow: '0 1px 2px rgba(0,0,0,.3)',
       };
     case 'SHINE':
       // Mais discreto que NEON — um brilho bem sutil, sem o halo grande.

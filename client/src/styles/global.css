@@ -1465,9 +1465,28 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .name-color-eyedropper-btn:hover { border-color: var(--brand); background: var(--bg-modifier-hover); }
 /* Item pedido: "poder editar cada cor... do arco-íris" — N seletores
    de cor lado a lado, ver MultiColorEditor em UserSettingsModal.jsx. */
-.multi-color-editor { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
-.multi-color-editor-row { display: flex; gap: 6px; flex-wrap: wrap; }
-.multi-color-editor-row input[type="color"] { width: 30px; height: 30px; border-radius: 6px; }
+.multi-color-editor { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+/* Item pedido: "invés de ser quadradinho fosse uma barra que mostra o
+   degradê" — a barra mostra o gradiente de verdade entre as cores; os
+   inputs de cor viram marcadores redondos posicionados em cima dela
+   (input[type=color] nativo, só escondendo a caixinha quadrada padrão
+   do navegador e desenhando um círculo por cima no lugar). */
+.multi-color-gradient-bar {
+  position: relative; height: 34px; border-radius: 999px; margin: 10px 4px 0;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.multi-color-gradient-handle {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  width: 22px; height: 22px; padding: 0; border: 3px solid #fff; border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,.4); cursor: pointer;
+  -webkit-appearance: none; appearance: none; background: none;
+}
+/* Remove o "quadradinho" padrão do navegador de dentro do círculo —
+   sem isso, o próprio preenchimento nativo do input[type=color]
+   (retangular) apareceria vazando pelas bordas do círculo. */
+.multi-color-gradient-handle::-webkit-color-swatch-wrapper { padding: 0; border-radius: 50%; overflow: hidden; }
+.multi-color-gradient-handle::-webkit-color-swatch { border: none; border-radius: 50%; }
+.multi-color-gradient-handle::-moz-color-swatch { border: none; border-radius: 50%; }
 .id-card-settings-row { display: flex; align-items: center; gap: 10px; }
 .id-card-settings-preview { width: 64px; height: 40px; object-fit: cover; border-radius: 6px; }
 .id-card-preview-wrap { display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center; }
@@ -6063,3 +6082,25 @@ a.embed-card-title:hover { text-decoration: underline; }
   0%, 100% { background-position: 0 0%; }
   50% { background-position: 0 30%; }
 }
+
+/* Item pedido: "abra um menu pra selecionar a área que quer mostrar
+   no banner/avatar" — ImageCropperModal.jsx. */
+.image-cropper { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.image-cropper-frame {
+  position: relative; overflow: hidden; background: var(--bg-deepest);
+  border-radius: 8px; cursor: move; touch-action: none; user-select: none;
+}
+.image-cropper-frame.circle { border-radius: 50%; }
+.image-cropper-img {
+  position: absolute; top: 50%; left: 50%; max-width: none; pointer-events: none;
+}
+/* Máscara sugerindo "isso vira redondo" — um anel translúcido por cima
+   da moldura quadrada, só um indicativo visual (o recorte real
+   continua sendo retangular; quem arredonda de verdade é
+   UserAvatar.jsx na exibição). */
+.image-cropper-circle-mask {
+  position: absolute; inset: 0; border-radius: 50%;
+  box-shadow: 0 0 0 999px rgba(0,0,0,.5); pointer-events: none;
+}
+.image-cropper-zoom-row { display: flex; align-items: center; gap: 10px; width: 100%; font-size: 12px; font-weight: 700; color: var(--text-muted); }
+.image-cropper-zoom-row input[type="range"] { flex: 1; }
