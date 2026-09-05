@@ -4794,7 +4794,20 @@ a.embed-card-title:hover { text-decoration: underline; }
   position: absolute; bottom: 2px; right: 2px; width: 14px; height: 14px;
   border-radius: 50%; background: var(--text-muted); border: 3px solid var(--bg-elevated);
 }
-.mini-profile-presence-dot.online { background: var(--green, #3ba55d); }
+/* Item pedido: seletor de status (Online/Ausente/Não perturbe/
+   Invisível) — ver StatusPicker em UserSettingsModal.jsx. A cor da
+   bolinha agora vem de STATUS_COLOR (utils/status.js) via style
+   inline, não mais uma classe .online fixa (só distinguia online/
+   offline, não os 4 status de verdade). */
+.status-picker-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.status-picker-option {
+  display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+  border-radius: 999px; background: var(--bg-secondary-alt); border: 2px solid transparent;
+  font-size: 12px; font-weight: 600;
+}
+.status-picker-option:hover { background: var(--bg-modifier-hover); }
+.status-picker-option.active { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, var(--bg-secondary-alt)); }
+.status-picker-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 /* Fixo só quando o card está "acentuado" (cor personalizada escolhida
    pela pessoa) — no modo normal (sem cor própria), a borda acompanha
    o tema do site normalmente, que já combina bem com o fundo padrão

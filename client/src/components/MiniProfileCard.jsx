@@ -11,6 +11,7 @@ import TagBadge from './TagBadge.jsx';
 import levelStarIcon from '../assets/icons/level-star.png';
 import achievementDefaultIcon from '../assets/icons/nav-achievements.png';
 import { proxyImage } from '../utils/imageProxy';
+import { STATUS_COLOR } from '../utils/status';
 import { nameStyleProps, nameStyleClassName } from '../utils/nameStyle';
 
 // Quantos cargos mostrar no popup compacto (a bio é limitada por CSS a 3
@@ -259,7 +260,7 @@ export default function MiniProfileCard() {
             <div className="mini-profile-avatar-row">
               <div className="mini-profile-avatar-wrap">
                 <div className="mini-profile-avatar"><UserAvatar user={user} size={64} /></div>
-                <span className={`mini-profile-presence-dot ${(presence[userId]?.status || user.status) === 'ONLINE' ? 'online' : ''}`} />
+                <span className="mini-profile-presence-dot" style={{ background: STATUS_COLOR[presence[userId]?.status || user.status] || STATUS_COLOR.OFFLINE }} />
               </div>
               {/* BUG CORRIGIDO ("o status fica do lado da foto de
                   perfil, não no banner") — movido pra cá, ao lado do

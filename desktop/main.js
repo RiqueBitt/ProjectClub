@@ -376,6 +376,29 @@ if (!gotLock) {
     }, { useSystemPicker: false });
   }
 
+  // Item pedido: "quando clicar para baixar algumas imagens, vídeo,
+  // áudio etc... vai abrir já a aba onde você quer colocar esse
+  // arquivo no PC e no Linux" — sem nenhum tratamento, o Electron
+  // salva DIRETO na pasta de downloads padrão do sistema, sem
+  // perguntar nada (diferente de um navegador comum, que costuma ter
+  // uma opção "perguntar onde salvar" — o Electron não tem essa
+  // configuração por padrão nenhuma). setSaveDialogOptions é a API
+  // oficial do Electron pra isso: abre o diálogo NATIVO "Salvar como"
+  // do sistema operacional (o mesmo que qualquer outro programa usa),
+  // deixando a pessoa escolher a pasta antes de cada download —
+  // funciona igual no Windows e no Linux, sem precisar de nenhum
+  // código diferente pra cada um. Não mexe em nada na versão web nem
+  // no app mobile — isso é específico do Electron (session.
+  // defaultSession só existe aqui).
+  function setupDownloadHandler() {
+    session.defaultSession.on('will-download', (event, item) => {
+      item.setSaveDialogOptions({
+        title: 'Salvar arquivo',
+        defaultPath: path.join(app.getPath('downloads'), item.getFilename()),
+      });
+    });
+  }
+
   // Item pedido: "cansei de ter que ir no site/GitHub baixar a versão
   // nova toda vez, faça um sistema de atualização" — usa o
   // electron-updater (biblioteca oficial do mesmo time do
@@ -522,6 +545,7 @@ if (!gotLock) {
 
   app.whenReady().then(() => {
     setupScreenShareHandler();
+    setupDownloadHandler();
     // BUG CORRIGIDO — CAUSA RAIZ CONFIRMADA de "no PC eu falo e não sai
     // áudio nenhum, mas eu escuto todo mundo": faltava isto aqui. Um
     // comentário antigo (removido) dizia que `sandbox: false` resolvia a

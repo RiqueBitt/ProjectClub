@@ -23,6 +23,8 @@ const NAME_COLOR_PRESETS = [
   ['#7b5cff', '#4c9fff'], ['#4c9fff', '#3ddce0'], ['#3ddce0', '#61e786'],
 ];
 import { useAuth } from '../../context/AuthContext.jsx';
+import { useSocket } from '../../context/SocketContext.jsx';
+import { STATUS_LABEL, STATUS_COLOR } from '../../utils/status';
 import { usePromptDialog } from '../../utils/usePromptDialog.jsx';
 import { useStore } from '../../store/useStore';
 import IdCardPreviewModal from './IdCardPreviewModal.jsx';
@@ -552,6 +554,11 @@ export default function UserSettingsModal({ onClose }) {
           </div>
 
           <div className="profile-edit-columns">
+          <div className="settings-block">
+            <h4>Status de presença</h4>
+            <p className="dim">Escolher qualquer um diferente de Online desativa o "ausente automático" — só volta a valer quando você escolher Online de novo.</p>
+            <StatusPicker />
+          </div>
           <div className="settings-block">
             <h4>Status personalizado</h4>
             <label>
@@ -1202,6 +1209,37 @@ function MultiColorEditor({ effect, form, setForm }) {
         ))}
       </div>
       <button type="button" className="btn-link" onClick={restoreDefaults}>Restaurar cores padrão</button>
+    </div>
+  );
+}
+
+// Item pedido: "adicione... pode escolher qual vai ser o seu status
+// como online, ocupado, ausência ou não perturbe" (esclarecido:
+// "ocupado" é o mesmo Não perturbe já existente, nome mantido) — o
+// backend já tinha TUDO isso pronto e testado (evento de socket
+// presence:set, incluindo a regra de "escolha manual desativa o
+// ausente automático até voltar pro Online" — onManualStatusChange
+// em server/src/sockets/index.js) — só faltava esse botão pra chamar.
+// Reaproveita STATUS_LABEL/STATUS_COLOR (utils/status.js), já usados
+// em vários outros lugares do app pra não duplicar essas listas.
+function StatusPicker() {
+  const { user } = useAuth();
+  const { socket } = useSocket();
+  const presence = useStore((s) => s.presence);
+  const current = presence[user.id]?.status || user.status || 'ONLINE';
+
+  return (
+    <div className="status-picker-row">
+      {['ONLINE', 'IDLE', 'DND', 'INVISIBLE'].map((value) => (
+        <button
+          type="button" key={value}
+          className={`status-picker-option ${current === value ? 'active' : ''}`}
+          onClick={() => socket?.emit('presence:set', value)}
+        >
+          <span className="status-picker-dot" style={{ background: STATUS_COLOR[value] }} />
+          {STATUS_LABEL[value]}
+        </button>
+      ))}
     </div>
   );
 }
