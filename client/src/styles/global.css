@@ -4798,11 +4798,11 @@ a.embed-card-title:hover { text-decoration: underline; }
 .mini-profile-name { font-weight: 800; font-size: 15px; display: flex; align-items: center; gap: 6px; }
 .mini-profile-handle { font-size: 12px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .mini-profile-badges-row { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
-/* BUG CORRIGIDO: mesma correção já aplicada nas insígnias do perfil
-   completo (.profile-badge-tile-icon) — var(--bg-secondary-alt) muda
-   com o tema do site, ficando branco/quase invisível no tema claro. */
+/* Item pedido: "não quero nenhuma caixa atrás das insígnias" —
+   removido o fundo por completo (era rgba(255,255,255,0.08), a
+   "caixa meio cinza" que a pessoa via). */
 .mini-profile-badge {
-  width: 22px; height: 22px; border-radius: 5px; background: rgba(255,255,255,0.08);
+  width: 22px; height: 22px; border-radius: 5px; background: transparent;
   display: flex; align-items: center; justify-content: center; font-size: 13px; overflow: hidden;
 }
 .mini-profile-badge-img { width: 100%; height: 100%; object-fit: cover; }
@@ -4816,8 +4816,22 @@ a.embed-card-title:hover { text-decoration: underline; }
 /* Item pedido: amigos em comum, tempo de comunidade, e "ver biografia
    completa" (nenhum desses aparecia no mini perfil antes, mesmo já
    existindo os dados no backend). */
-.mini-profile-mutual-row { font-size: 12px; margin-top: 6px; }
-.mini-profile-member-since { font-size: 11px; margin-top: 4px; }
+/* Item pedido: "troque o emoji pela foto de um amigo em comum" */
+.mini-profile-mutual-row { font-size: 12px; margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+.mini-profile-mutual-avatar { flex-shrink: 0; }
+/* Item pedido: "o nível está muito grande... mostra o ícone de
+   estrela e o número pequeno no canto" — bem mais discreto que o
+   chip grande que usava antes. */
+.mini-profile-level-badge {
+  display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 700;
+  color: var(--text-muted); margin-top: 6px;
+}
+/* Item pedido: "a caixa que fica no fundo das músicas/jogos/apps no
+   mini perfil... quero ele meio transparente invés de uma cor
+   sólida" — só aqui no mini perfil (.activity-badge sozinho, usado no
+   perfil completo e na DM, continua com o fundo sólido de sempre —
+   o pedido foi específico sobre o mini perfil). */
+.mini-profile-body .activity-badge { background: color-mix(in srgb, var(--bg-elevated) 55%, transparent); }
 .mini-profile-full-bio-link { font-size: 11px; margin-top: 2px; display: inline-block; }
 
 /* ---------- Medidor de volume do microfone (VoiceSettingsTab, em UserSettingsModal.jsx) ---------- */

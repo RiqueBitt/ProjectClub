@@ -199,11 +199,29 @@ async function detectSpotify(platform) {
     else if (platform === 'linux') result = await detectSpotifyLinux();
     if (result && result.detail) {
       const cacheKey = `${result.detail}|||${result.name}`;
-      if (cacheKey !== lastArtCacheKey) {
-        lastArtCacheKey = cacheKey;
-        lastArtCacheUrl = await fetchAlbumArtFromItunes(result.detail, result.name);
+      if (cacheKey === lastArtCacheKey) {
+        result.imageUrl = lastArtCacheUrl;
+      } else {
+        // BUG CORRIGIDO ("primeira música aparece sem foto, só na
+        // próxima que aparece"): a chave era marcada como "já
+        // tentada" ANTES de saber se a busca teve sucesso — se a
+        // primeira tentativa falhasse por qualquer motivo passageiro
+        // (rede lenta bem no início, timeout), a música ficava presa
+        // sem foto pra sempre, já que a chave nunca seria tentada de
+        // novo enquanto ela continuasse tocando. Agora só marca como
+        // "tentada" quando a busca realmente teve sucesso — se falhar,
+        // a próxima verificação (2s depois, a mesma música ainda
+        // tocando) tenta de novo, até conseguir.
+        const url = await fetchAlbumArtFromItunes(result.detail, result.name);
+        if (url) {
+          lastArtCacheKey = cacheKey;
+          lastArtCacheUrl = url;
+          result.imageUrl = url;
+        }
+        // Falhou numa música NOVA — não usa lastArtCacheUrl aqui
+        // (seria a capa da música ANTERIOR, errada); result.imageUrl
+        // fica undefined até a próxima tentativa conseguir.
       }
-      result.imageUrl = lastArtCacheUrl;
     }
     return result;
   } catch { /* não é crítico — só significa "não detectou nada agora" */ }

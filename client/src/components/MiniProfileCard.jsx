@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { getUserProfile } from '../api/endpoints';
 import { roleChipStyle } from '../utils/roleColor';
@@ -46,6 +46,15 @@ export default function MiniProfileCard() {
   const [pos, setPos] = useState(null);
 
   const member = members.find((m) => m.user.id === userId);
+  // BUG CORRIGIDO ("troque o emoji pela foto de um amigo em comum
+  // aleatório"): Math.random() direto no JSX recalcularia a CADA
+  // re-render (o card re-renderiza por vários motivos — reposição,
+  // tick do ActivityBadge — sem mutualFriends ter mudado de verdade),
+  // fazendo a foto trocar sem motivo a cada segundo. useMemo escolhe
+  // uma vez só, e só recalcula quando mutualFriends muda de verdade.
+  const randomMutualFriend = useMemo(() => (
+    mutualFriends.length > 0 ? mutualFriends[Math.floor(Math.random() * mutualFriends.length)] : null
+  ), [mutualFriends]);
   const memberRoles = member ? roles.filter((r) => !r.isDefault && member.roleIds?.includes(r.id)) : [];
   const visibleRoles = memberRoles.slice(0, ROLES_PREVIEW_COUNT);
 
@@ -279,9 +288,14 @@ export default function MiniProfileCard() {
               </div>
             )}
 
-            <div className="mini-profile-stats">
-              <span className="economy-balance-chip"><img className="ui-icon-sm" src={levelStarIcon} alt="" /> Nível {user.accountLevel ?? 1}</span>
-              <span className="dim" style={{ fontSize: 12 }}>{(user.accountXp ?? 0).toLocaleString('pt-BR')} XP</span>
+            {/* BUG CORRIGIDO ("o nível está muito grande, ocupando
+                espaço que não precisa — só o ícone de estrela e o
+                número pequeno no canto") — trocado o chip grande
+                (que reaproveitava .economy-balance-chip, usado em
+                vários outros lugares do app com esse tamanho maior de
+                propósito) por um selo pequeno e discreto. */}
+            <div className="mini-profile-level-badge">
+              <img className="ui-icon-sm" src={levelStarIcon} alt="" /> {user.accountLevel ?? 1}
             </div>
 
             {visibleRoles.length > 0 && (
@@ -299,29 +313,26 @@ export default function MiniProfileCard() {
 
             {mutualFriends.length > 0 && (
               <div className="mini-profile-mutual-row dim">
-                🤝 {mutualFriends.length} amigo{mutualFriends.length > 1 ? 's' : ''} em comum
+                {/* BUG CORRIGIDO ("troque o emoji pela foto de um
+                    amigo em comum aleatório") — antes usava 🤝 fixo. */}
+                <UserAvatar user={randomMutualFriend} size={16} className="mini-profile-mutual-avatar" />
+                {' '}{mutualFriends.length} amigo{mutualFriends.length > 1 ? 's' : ''} em comum
               </div>
             )}
 
-            {/* BUG CORRIGIDO ("não é pra mostrar link de conexões,
-                só bio/amigos mútuos etc") — removido o link em
-                destaque que eu tinha adicionado. */}
-
-            <div className="mini-profile-member-since dim">
-              há {Math.max(1, Math.floor((Date.now() - new Date(user.createdAt).getTime()) / (365.25 * 24 * 60 * 60 * 1000)))} anos na comunidade
-            </div>
+            {/* BUG CORRIGIDO ("remova o texto 'há mais de 1 ano na
+                comunidade'") — removido. */}
 
             {user.bio && <div className="mini-profile-bio">{renderRichContent(user.bio, { emojiMap: bioEmojiMap })}</div>}
-            {/* Item pedido: "não só o Spotify, mas jogos e apps
-                também, usando o mesmo do perfil" — reaproveita o
-                MESMO componente já usado em UserProfileModal.jsx,
-                sem duplicar a lógica de exibição. */}
-            <ActivityBadge userId={userId} />
             {user.bio && (
               <button type="button" className="btn-link mini-profile-full-bio-link" onClick={() => { openProfile(userId); closeMiniProfile(); }}>
                 Ver biografia completa
               </button>
             )}
+            {/* BUG CORRIGIDO ("Ver biografia completa fica embaixo da
+                atividade em vez de embaixo da biografia") — movido o
+                ActivityBadge pra DEPOIS desses dois, não antes. */}
+            <ActivityBadge userId={userId} />
             <button
               className="btn-primary"
               style={{
