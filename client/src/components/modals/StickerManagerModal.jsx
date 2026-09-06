@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '../Modal.jsx';
-import { listServerStickers, createServerSticker, deleteServerSticker } from '../../api/endpoints';
+import { listServerStickers, createServerSticker, updateServerSticker, deleteServerSticker, listAssetCollections, createAssetCollection, updateAssetCollection, deleteAssetCollection } from '../../api/endpoints';
 import { useStore } from '../../store/useStore';
 import { usePromptDialog } from '../../utils/usePromptDialog.jsx';
 import cancelIcon from '../../assets/icons/cancel.png';
@@ -9,11 +9,13 @@ const NAME_RE = /^[a-zA-Z0-9_ ]{2,32}$/;
 const MAX_MB = 5;
 
 // Item pedido: "sistema de figurinhas... podendo criar no painel da
-// staff" — mesmo padrão visual/UX de EmojiManagerModal.jsx, mas mais
-// simples (o modelo Sticker só tem nome/imagem — sem categoria nem
-// restrição por cargo, diferente de emoji).
+// staff" — mesmo padrão visual/UX de EmojiManagerModal.jsx, incluindo
+// agora o mesmo sistema de coleções dos dois lados.
 export default function StickerManagerModal({ onClose }) {
   const [stickers, setStickers] = useState([]);
+  const [collections, setCollections] = useState([]);
+  const [activeCollectionId, setActiveCollectionId] = useState('all');
+  const [collectionForm, setCollectionForm] = useState(null);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
   const [file, setFile] = useState(null);
@@ -28,8 +30,9 @@ export default function StickerManagerModal({ onClose }) {
   const refresh = async () => {
     setLoading(true);
     try {
-      const { stickers } = await listServerStickers();
+      const [{ stickers }, { collections }] = await Promise.all([listServerStickers(), listAssetCollections('STICKER')]);
       setStickers(stickers);
+      setCollections(collections);
     } finally {
       setLoading(false);
     }
@@ -66,7 +69,8 @@ export default function StickerManagerModal({ onClose }) {
     if (!NAME_RE.test(name.trim())) { setError('Nome inválido — use 2 a 32 letras, números, espaços ou "_".'); return; }
     setUploading(true);
     try {
-      await createServerSticker(file, name.trim());
+      const collectionId = typeof activeCollectionId === 'string' && activeCollectionId !== 'all' && activeCollectionId !== 'none' ? activeCollectionId : null;
+      await createServerSticker(file, name.trim(), collectionId);
       setName(''); setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       await refresh();
@@ -79,6 +83,13 @@ export default function StickerManagerModal({ onClose }) {
     }
   };
 
+  const moveToCollection = async (sticker, collectionId) => {
+    await updateServerSticker(sticker.id, { collectionId: collectionId || null });
+    await refresh();
+    const { stickers: fresh } = await listServerStickers();
+    setServerStickers(fresh);
+  };
+
   const remove = async (sticker) => {
     if (!(await confirmAsync(`Excluir a figurinha "${sticker.name}"?`))) return;
     await deleteServerSticker(sticker.id);
@@ -87,10 +98,71 @@ export default function StickerManagerModal({ onClose }) {
     setServerStickers(fresh);
   };
 
+  const saveCollection = async () => {
+    if (!collectionForm.name.trim() || !collectionForm.icon.trim()) return;
+    if (collectionForm.id) {
+      await updateAssetCollection(collectionForm.id, { name: collectionForm.name.trim(), icon: collectionForm.icon.trim() });
+    } else {
+      await createAssetCollection('STICKER', { name: collectionForm.name.trim(), icon: collectionForm.icon.trim() });
+    }
+    setCollectionForm(null);
+    await refresh();
+  };
+
+  const removeCollection = async (collection) => {
+    if (!(await confirmAsync(`Excluir a coleção "${collection.name}"? As figurinhas dentro dela não são apagadas, só deixam de pertencer a ela.`))) return;
+    await deleteAssetCollection(collection.id);
+    if (activeCollectionId === collection.id) setActiveCollectionId('all');
+    await refresh();
+  };
+
+  const visibleStickers = useMemo(() => {
+    if (activeCollectionId === 'all') return stickers;
+    if (activeCollectionId === 'none') return stickers.filter((s) => !s.collectionId);
+    return stickers.filter((s) => s.collectionId === activeCollectionId);
+  }, [stickers, activeCollectionId]);
+
   return (
-    <Modal title="Figurinhas da comunidade" onClose={onClose} width="700px">
+    <Modal title="Figurinhas da comunidade" onClose={onClose} width="760px">
       {DialogElement}
       <div className="emoji-manager">
+        {/* Item pedido: "vai ter a mesma categoria que o emoji normal,
+            aquela barra lateral" */}
+        <div className="asset-collection-rail">
+          <button type="button" className={`asset-collection-chip ${activeCollectionId === 'all' ? 'active' : ''}`} onClick={() => setActiveCollectionId('all')}>
+            Todos
+          </button>
+          <button type="button" className={`asset-collection-chip ${activeCollectionId === 'none' ? 'active' : ''}`} onClick={() => setActiveCollectionId('none')}>
+            Sem coleção
+          </button>
+          {collections.map((c) => (
+            <button
+              type="button" key={c.id}
+              className={`asset-collection-chip ${activeCollectionId === c.id ? 'active' : ''}`}
+              onClick={() => setActiveCollectionId(c.id)}
+              onDoubleClick={() => setCollectionForm({ id: c.id, name: c.name, icon: c.icon })}
+              title="Clique duplo pra editar"
+            >
+              <span>{c.icon}</span> {c.name}
+            </button>
+          ))}
+          <button type="button" className="asset-collection-chip asset-collection-add" onClick={() => setCollectionForm({ name: '', icon: '' })}>
+            + Nova coleção
+          </button>
+        </div>
+
+        {collectionForm && (
+          <div className="asset-collection-form">
+            <input placeholder="Ícone (ex: 🎉)" maxLength={4} value={collectionForm.icon} onChange={(e) => setCollectionForm({ ...collectionForm, icon: e.target.value })} className="asset-collection-icon-input" />
+            <input placeholder="Nome da coleção" maxLength={32} value={collectionForm.name} onChange={(e) => setCollectionForm({ ...collectionForm, name: e.target.value })} />
+            <button type="button" className="btn-primary" onClick={saveCollection}>{collectionForm.id ? 'Salvar' : 'Criar'}</button>
+            {collectionForm.id && (
+              <button type="button" className="btn-secondary" onClick={() => { const c = collections.find((x) => x.id === collectionForm.id); removeCollection(c); setCollectionForm(null); }}>Excluir coleção</button>
+            )}
+            <button type="button" className="btn-secondary" onClick={() => setCollectionForm(null)}>Cancelar</button>
+          </div>
+        )}
+
         <div
           className={`emoji-dropzone ${dragOver ? 'drag-over' : ''} ${previewUrl ? 'has-preview' : ''}`}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -130,6 +202,9 @@ export default function StickerManagerModal({ onClose }) {
             />
             {nameError && <span className="field-hint error">2-32 letras, números, espaços ou "_"</span>}
           </label>
+          <p className="dim" style={{ fontSize: 12 }}>
+            {activeCollectionId === 'all' || activeCollectionId === 'none' ? 'Vai entrar sem coleção — clique numa coleção acima antes de enviar pra já entrar nela.' : 'Vai entrar na coleção selecionada acima.'}
+          </p>
           <button className="btn-primary emoji-upload-btn" onClick={upload} disabled={uploading}>
             {uploading ? 'Enviando...' : 'Enviar figurinha'}
           </button>
@@ -140,14 +215,23 @@ export default function StickerManagerModal({ onClose }) {
 
         {loading ? (
           <div className="dim">Carregando figurinhas...</div>
-        ) : stickers.length === 0 ? (
-          <div className="dim">Nenhuma figurinha personalizada ainda.</div>
+        ) : visibleStickers.length === 0 ? (
+          <div className="dim">Nenhuma figurinha aqui ainda.</div>
         ) : (
           <div className="emoji-grid sticker-manage-grid">
-            {stickers.map((s) => (
+            {visibleStickers.map((s) => (
               <div key={s.id} className="emoji-manage-item sticker-manage-item">
                 <img src={s.url} alt={s.name} title={s.name} />
                 <span className="truncate emoji-name-label">{s.name}</span>
+                <select
+                  value={s.collectionId || ''}
+                  onChange={(ev) => moveToCollection(s, ev.target.value)}
+                  title="Mudar coleção"
+                  className="emoji-category-select"
+                >
+                  <option value="">Sem coleção</option>
+                  {collections.map((c) => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                </select>
                 <button className="icon-btn-small" title="Excluir" onClick={() => remove(s)}><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button>
               </div>
             ))}

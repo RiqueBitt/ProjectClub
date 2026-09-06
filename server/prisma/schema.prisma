@@ -786,24 +786,49 @@ model ChannelReadState {
   @@unique([channelId, userId])
 }
 
+// Item pedido: "sistema de coleções de emoji personalizado e
+// figurinha... vai ter a mesma categoria que o emoji normal, aquela
+// barra lateral" — nome/ícone escolhidos por quem cria, igual as
+// categorias do emoji unicode nativo já tinham (ver EmojiPicker.jsx,
+// GROUP_RAIL_ICON). Um modelo só, compartilhado entre emoji e
+// figurinha via `kind`, em vez de duplicar tudo duas vezes — as duas
+// coisas são idênticas estruturalmente (nome + ícone + pertence a um
+// dos dois tipos), só a lista de itens dentro que muda.
+model AssetCollection {
+  id        String   @id @default(uuid())
+  kind      String   // EMOJI | STICKER
+  name      String
+  icon      String   // um emoji unicode simples (ex: "🎮"), escolhido por quem cria
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  emojis    Emoji[]
+  stickers  Sticker[]
+
+  @@index([kind])
+}
+
 model Emoji {
   id            String   @id @default(uuid())
   name          String   @unique
   url           String
   category      String   @default("Geral")
   allowedRoleId String?
+  collectionId  String?
+  collection    AssetCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
   createdById   String
   createdBy     User     @relation(fields: [createdById], references: [id])
   createdAt     DateTime @default(now())
 }
 
 model Sticker {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  url         String
-  createdById String
-  createdBy   User     @relation(fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
+  id           String   @id @default(uuid())
+  name         String   @unique
+  url          String
+  collectionId String?
+  collection   AssetCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  createdById  String
+  createdBy    User     @relation(fields: [createdById], references: [id])
+  createdAt    DateTime @default(now())
 }
 
 model SoundboardSound {

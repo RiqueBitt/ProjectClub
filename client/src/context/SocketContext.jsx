@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { useStore, roomKeyFor, messageMentionsUser, isChannelUnread, isConversationUnread } from '../store/useStore';
-import { listFriends, getCommunity, listUsableEmojis, listServerStickers } from '../api/endpoints';
+import { listFriends, getCommunity, listUsableEmojis, listServerStickers, listAssetCollections } from '../api/endpoints';
 import { playSound } from '../utils/sounds';
 import { setupNativeActivity } from '../utils/nativeActivity';
 import { updateUnreadBadge } from '../utils/unreadBadge';
@@ -49,7 +49,7 @@ export function SocketProvider({ children }) {
   const {
     addMessage, updateMessage, removeMessage, setPresence, setTypingUser,
     setConversations, setFriends, bumpRoomActivity, bumpChannelMention,
-    patchUserEverywhere, setUsableEmojis, setServerStickers,
+    patchUserEverywhere, setUsableEmojis, setServerStickers, setEmojiCollections, setStickerCollections,
   } = useStore.getState();
 
   useEffect(() => {
@@ -301,6 +301,9 @@ export function SocketProvider({ children }) {
     socket.on('emoji:delete', () => refreshUsableEmojis());
     socket.on('sticker:new', () => refreshServerStickers());
     socket.on('sticker:delete', () => refreshServerStickers());
+    socket.on('assetCollection:new', ({ kind }) => refreshCollections(kind));
+    socket.on('assetCollection:update', ({ kind }) => refreshCollections(kind));
+    socket.on('assetCollection:delete', ({ kind }) => refreshCollections(kind));
 
     socket.on('moderation:timeout', ({ timeoutUntil, reason, automated }) => {
       const until = new Date(timeoutUntil).toLocaleString('pt-BR');
@@ -362,6 +365,12 @@ export function SocketProvider({ children }) {
     async function refreshServerStickers() {
       const { stickers } = await listServerStickers().catch(() => ({ stickers: [] }));
       setServerStickers(stickers);
+    }
+
+    async function refreshCollections(kind) {
+      const { collections } = await listAssetCollections(kind).catch(() => ({ collections: [] }));
+      if (kind === 'STICKER') setStickerCollections(collections);
+      else setEmojiCollections(collections);
     }
 
     return () => {

@@ -76,6 +76,12 @@ export const useStore = create((set, get) => ({
   // EmojiPicker.jsx (que já existia pronta, mas nunca tinha de onde
   // vir os dados).
   serverStickers: [],
+  // Item pedido: "sistema de coleções de emoji personalizado e
+  // figurinha" — carregadas uma vez no MainApp.jsx (mesmo padrão de
+  // usableEmojis/serverStickers acima), atualizadas em tempo real via
+  // socket quando a staff cria/edita/exclui uma (ver SocketContext.jsx).
+  emojiCollections: [],
+  stickerCollections: [],
   usableStickers: [], // idem, para Sticker (ver StickerPicker.jsx)
   usableSounds: [], // idem, para SoundboardSound (ver SoundboardPanel.jsx)
   favoriteGifs: [], // GIFs salvos deste usuário — ver GifPicker.jsx aba "Favoritos"
@@ -288,6 +294,8 @@ export const useStore = create((set, get) => ({
   closeLinkConfirm: () => set({ pendingLinkUrl: null }),
   setUsableEmojis: (emojis) => set({ usableEmojis: emojis }),
   setServerStickers: (stickers) => set({ serverStickers: stickers }),
+  setEmojiCollections: (collections) => set({ emojiCollections: collections }),
+  setStickerCollections: (collections) => set({ stickerCollections: collections }),
   setUsableStickers: (stickers) => set({ usableStickers: stickers }),
   setUsableSounds: (sounds) => set({ usableSounds: sounds }),
   setFavoriteGifs: (gifs) => set({ favoriteGifs: gifs }),

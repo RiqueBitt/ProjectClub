@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '../Modal.jsx';
-import { listEmojis, createEmoji, updateEmoji, deleteEmoji, listUsableEmojis } from '../../api/endpoints';
+import { listEmojis, createEmoji, updateEmoji, deleteEmoji, listUsableEmojis, listAssetCollections, createAssetCollection, updateAssetCollection, deleteAssetCollection } from '../../api/endpoints';
 import { useStore } from '../../store/useStore';
+import { usePromptDialog } from '../../utils/usePromptDialog.jsx';
 import cancelIcon from '../../assets/icons/cancel.png';
 
 const NAME_RE = /^[a-zA-Z0-9_]{2,32}$/;
@@ -9,9 +10,11 @@ const MAX_MB = 5;
 
 export default function EmojiManagerModal({ onClose }) {
   const [emojis, setEmojis] = useState([]);
+  const [collections, setCollections] = useState([]);
+  const [activeCollectionId, setActiveCollectionId] = useState('all'); // 'all' | null (sem coleção) | id
+  const [collectionForm, setCollectionForm] = useState(null); // { id?, name, icon } | null — null = fechado
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
-  const [category, setCategory] = useState('Geral');
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [dragOver, setDragOver] = useState(false);
@@ -22,17 +25,14 @@ export default function EmojiManagerModal({ onClose }) {
   const setUsableEmojis = useStore((s) => s.setUsableEmojis);
   const storeRoles = useStore((s) => s.roles);
   const roles = (storeRoles || []).filter((r) => !r.isDefault);
-
-  const existingCategories = useMemo(
-    () => [...new Set(emojis.map((e) => e.category).filter(Boolean))],
-    [emojis],
-  );
+  const { confirmAsync, DialogElement } = usePromptDialog();
 
   const refresh = async () => {
     setLoading(true);
     try {
-      const { emojis } = await listEmojis();
+      const [{ emojis }, { collections }] = await Promise.all([listEmojis(), listAssetCollections('EMOJI')]);
       setEmojis(emojis);
+      setCollections(collections);
     } finally {
       setLoading(false);
     }
@@ -75,7 +75,8 @@ export default function EmojiManagerModal({ onClose }) {
     if (!NAME_RE.test(name.trim())) { setError('Nome inválido — use 2 a 32 letras, números ou "_".'); return; }
     setUploading(true);
     try {
-      await createEmoji(file, { name: name.trim(), category: category.trim() || 'Geral' });
+      const collectionId = typeof activeCollectionId === 'string' && activeCollectionId !== 'all' && activeCollectionId !== 'none' ? activeCollectionId : null;
+      await createEmoji(file, { name: name.trim(), collectionId });
       setName(''); setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       await refresh();
@@ -100,8 +101,8 @@ export default function EmojiManagerModal({ onClose }) {
     await refresh(); await refreshUsable();
   };
 
-  const recategorize = async (emoji, next) => {
-    await updateEmoji(emoji.id, { category: (next || '').trim() || 'Geral' });
+  const moveToCollection = async (emoji, collectionId) => {
+    await updateEmoji(emoji.id, { collectionId: collectionId || null });
     await refresh();
   };
 
@@ -111,16 +112,83 @@ export default function EmojiManagerModal({ onClose }) {
   };
 
   const remove = async (emoji) => {
-    if (!confirm(`Excluir o emoji :${emoji.name}:?`)) return;
+    if (!(await confirmAsync(`Excluir o emoji :${emoji.name}:?`))) return;
     await deleteEmoji(emoji.id);
     await refresh(); await refreshUsable();
   };
 
-  const grouped = emojis.reduce((acc, e) => { (acc[e.category] ||= []).push(e); return acc; }, {});
+  // Item pedido: "sistema de coleções... nome e ícone pro catálogo...
+  // podendo editar nome/ícone" — um formulário pequeno reaproveitado
+  // tanto pra criar quanto pra editar (collectionForm.id presente =
+  // editando uma já existente).
+  const saveCollection = async () => {
+    if (!collectionForm.name.trim() || !collectionForm.icon.trim()) return;
+    if (collectionForm.id) {
+      await updateAssetCollection(collectionForm.id, { name: collectionForm.name.trim(), icon: collectionForm.icon.trim() });
+    } else {
+      await createAssetCollection('EMOJI', { name: collectionForm.name.trim(), icon: collectionForm.icon.trim() });
+    }
+    setCollectionForm(null);
+    await refresh();
+  };
+
+  const removeCollection = async (collection) => {
+    if (!(await confirmAsync(`Excluir a coleção "${collection.name}"? Os emojis dentro dela não são apagados, só deixam de pertencer a ela.`))) return;
+    await deleteAssetCollection(collection.id);
+    if (activeCollectionId === collection.id) setActiveCollectionId('all');
+    await refresh();
+  };
+
+  const visibleEmojis = useMemo(() => {
+    if (activeCollectionId === 'all') return emojis;
+    if (activeCollectionId === 'none') return emojis.filter((e) => !e.collectionId);
+    return emojis.filter((e) => e.collectionId === activeCollectionId);
+  }, [emojis, activeCollectionId]);
 
   return (
-    <Modal title="Emojis da comunidade" onClose={onClose} width="700px">
+    <Modal title="Emojis da comunidade" onClose={onClose} width="760px">
+      {DialogElement}
       <div className="emoji-manager">
+        {/* Item pedido: "vai ter a mesma categoria que o emoji normal,
+            aquela barra lateral" — mesma ideia do rail de categorias
+            do EmojiPicker, aqui em formato de linha de chips (o modal
+            é mais largo que alto, uma barra lateral de verdade não
+            caberia bem). */}
+        <div className="asset-collection-rail">
+          <button type="button" className={`asset-collection-chip ${activeCollectionId === 'all' ? 'active' : ''}`} onClick={() => setActiveCollectionId('all')}>
+            Todos
+          </button>
+          <button type="button" className={`asset-collection-chip ${activeCollectionId === 'none' ? 'active' : ''}`} onClick={() => setActiveCollectionId('none')}>
+            Sem coleção
+          </button>
+          {collections.map((c) => (
+            <button
+              type="button" key={c.id}
+              className={`asset-collection-chip ${activeCollectionId === c.id ? 'active' : ''}`}
+              onClick={() => setActiveCollectionId(c.id)}
+              onDoubleClick={() => setCollectionForm({ id: c.id, name: c.name, icon: c.icon })}
+              title="Clique duplo pra editar"
+            >
+              <span>{c.icon}</span> {c.name}
+            </button>
+          ))}
+          <button type="button" className="asset-collection-chip asset-collection-add" onClick={() => setCollectionForm({ name: '', icon: '' })}>
+            + Nova coleção
+          </button>
+        </div>
+
+        {collectionForm && (
+          <div className="asset-collection-form">
+            <input placeholder="Ícone (ex: 🎮)" maxLength={4} value={collectionForm.icon} onChange={(e) => setCollectionForm({ ...collectionForm, icon: e.target.value })} className="asset-collection-icon-input" />
+            <input placeholder="Nome da coleção" maxLength={32} value={collectionForm.name} onChange={(e) => setCollectionForm({ ...collectionForm, name: e.target.value })} />
+            <button type="button" className="btn-primary" onClick={saveCollection}>{collectionForm.id ? 'Salvar' : 'Criar'}</button>
+            {collectionForm.id && (
+              <button type="button" className="btn-secondary" onClick={() => { const c = collections.find((x) => x.id === collectionForm.id); removeCollection(c); setCollectionForm(null); }}>Excluir coleção</button>
+            )}
+            <button type="button" className="btn-secondary" onClick={() => setCollectionForm(null)}>Cancelar</button>
+          </div>
+        )}
+
         <div
           className={`emoji-dropzone ${dragOver ? 'drag-over' : ''} ${previewUrl ? 'has-preview' : ''}`}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -160,19 +228,9 @@ export default function EmojiManagerModal({ onClose }) {
             />
             {nameError && <span className="field-hint error">2-32 letras, números ou "_"</span>}
           </label>
-          <label>
-            CATEGORIA
-            <input
-              placeholder="Geral"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              maxLength={24}
-              list="emoji-category-suggestions"
-            />
-            <datalist id="emoji-category-suggestions">
-              {existingCategories.map((c) => <option key={c} value={c} />)}
-            </datalist>
-          </label>
+          <p className="dim" style={{ fontSize: 12 }}>
+            {activeCollectionId === 'all' || activeCollectionId === 'none' ? 'Vai entrar sem coleção — clique numa coleção acima antes de enviar pra já entrar nela.' : `Vai entrar na coleção selecionada acima.`}
+          </p>
           <button className="btn-primary emoji-upload-btn" onClick={upload} disabled={uploading}>
             {uploading ? 'Enviando...' : 'Enviar emoji'}
           </button>
@@ -183,48 +241,44 @@ export default function EmojiManagerModal({ onClose }) {
 
         {loading ? (
           <div className="dim">Carregando emojis...</div>
-        ) : Object.keys(grouped).length === 0 ? (
-          <div className="dim">Nenhum emoji personalizado ainda.</div>
+        ) : visibleEmojis.length === 0 ? (
+          <div className="dim">Nenhum emoji aqui ainda.</div>
         ) : (
-          Object.entries(grouped).map(([cat, list]) => (
-            <div key={cat} className="emoji-category-block">
-              <div className="permission-group-label">{cat.toUpperCase()} — {list.length}</div>
-              <div className="emoji-grid">
-                {list.map((e) => (
-                  <div key={e.id} className="emoji-manage-item">
-                    <img src={e.url} alt={e.name} title={`:${e.name}:`} />
-                    {editingId === e.id ? (
-                      <input
-                        className="emoji-inline-rename"
-                        defaultValue={e.name}
-                        autoFocus
-                        maxLength={32}
-                        onBlur={(ev) => rename(e, ev.target.value)}
-                        onKeyDown={(ev) => { if (ev.key === 'Enter') ev.target.blur(); if (ev.key === 'Escape') setEditingId(null); }}
-                      />
-                    ) : (
-                      <span className="truncate emoji-name-label" title="Clique para renomear" onClick={() => setEditingId(e.id)}>
-                        :{e.name}:
-                      </span>
-                    )}
-                    <select value={e.allowedRoleId || ''} onChange={(ev) => setAllowedRole(e, ev.target.value)} title="Quem pode usar">
-                      <option value="">Todos podem usar</option>
-                      {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                    </select>
-                    <select
-                      value={e.category}
-                      onChange={(ev) => recategorize(e, ev.target.value)}
-                      title="Mudar categoria"
-                      className="emoji-category-select"
-                    >
-                      {[...new Set([e.category, ...existingCategories, 'Geral'])].map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <button className="icon-btn-small" title="Excluir" onClick={() => remove(e)}><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button>
-                  </div>
-                ))}
+          <div className="emoji-grid">
+            {visibleEmojis.map((e) => (
+              <div key={e.id} className="emoji-manage-item">
+                <img src={e.url} alt={e.name} title={`:${e.name}:`} />
+                {editingId === e.id ? (
+                  <input
+                    className="emoji-inline-rename"
+                    defaultValue={e.name}
+                    autoFocus
+                    maxLength={32}
+                    onBlur={(ev) => rename(e, ev.target.value)}
+                    onKeyDown={(ev) => { if (ev.key === 'Enter') ev.target.blur(); if (ev.key === 'Escape') setEditingId(null); }}
+                  />
+                ) : (
+                  <span className="truncate emoji-name-label" title="Clique para renomear" onClick={() => setEditingId(e.id)}>
+                    :{e.name}:
+                  </span>
+                )}
+                <select value={e.allowedRoleId || ''} onChange={(ev) => setAllowedRole(e, ev.target.value)} title="Quem pode usar">
+                  <option value="">Todos podem usar</option>
+                  {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+                <select
+                  value={e.collectionId || ''}
+                  onChange={(ev) => moveToCollection(e, ev.target.value)}
+                  title="Mudar coleção"
+                  className="emoji-category-select"
+                >
+                  <option value="">Sem coleção</option>
+                  {collections.map((c) => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                </select>
+                <button className="icon-btn-small" title="Excluir" onClick={() => remove(e)}><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button>
               </div>
-            </div>
-          ))
+            ))}
+          </div>
         )}
       </div>
     </Modal>

@@ -7,6 +7,7 @@ const modCtrl = require('../controllers/moderationController');
 const automodCtrl = require('../controllers/automodController');
 const emojiCtrl = require('../controllers/emojiController');
 const stickerCtrl = require('../controllers/serverStickerController');
+const collectionCtrl = require('../controllers/assetCollectionController');
 const { requireAuth } = require('../middleware/auth');
 const { uploadImage } = require('../middleware/upload');
 
@@ -23,7 +24,12 @@ router.delete('/emojis/:id', emojiCtrl.deleteEmoji);
 router.get('/emojis/usable', emojiCtrl.listUsableEmojis);
 router.get('/stickers', stickerCtrl.listStickers);
 router.post('/stickers', uploadImage.single('sticker'), stickerCtrl.createSticker);
+router.patch('/stickers/:id', stickerCtrl.updateSticker);
 router.delete('/stickers/:id', stickerCtrl.deleteSticker);
+router.get('/collections/:kind', collectionCtrl.listCollections);
+router.post('/collections/:kind', collectionCtrl.createCollection);
+router.patch('/collections/:id', collectionCtrl.updateCollection);
+router.delete('/collections/:id', collectionCtrl.deleteCollection);
 
 // --- Categorias ---
 router.post('/categories', categoryCtrl.createCategory);

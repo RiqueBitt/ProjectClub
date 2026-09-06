@@ -25,11 +25,18 @@ async function createSticker(req, res, next) {
   try {
     await requireCommunityPermission(req.user.id, 'MANAGE_STICKERS');
 
-    const { name } = req.body;
+    const { name, collectionId } = req.body;
     if (!name || !NAME_RE.test(name)) {
       return res.status(400).json({ error: 'Nome inválido. Use 2-32 letras, números, espaços ou "_".' });
     }
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+
+    // Item pedido: "sistema de coleções" — confere que a coleção
+    // escolhida existe e é mesmo do tipo STICKER.
+    if (collectionId) {
+      const collection = await prisma.assetCollection.findUnique({ where: { id: collectionId } });
+      if (!collection || collection.kind !== 'STICKER') return res.status(400).json({ error: 'Coleção inválida.' });
+    }
 
     const existing = await prisma.sticker.findUnique({ where: { name } });
     if (existing) return res.status(409).json({ error: 'Já existe uma figurinha com esse nome.' });
@@ -40,10 +47,36 @@ async function createSticker(req, res, next) {
     }
 
     const sticker = await prisma.sticker.create({
-      data: { name, url: req.file.url, createdById: req.user.id },
+      data: { name, url: req.file.url, collectionId: collectionId || null, createdById: req.user.id },
     });
     req.app.get('io')?.to('community').emit('sticker:new', sticker);
     res.status(201).json({ sticker });
+  } catch (err) { next(err); }
+}
+
+// Item pedido: "podendo clicar [na coleção] e colocar o emoji/
+// figurinha que você deseja" — mover uma figurinha já existente pra
+// dentro (ou pra fora) de uma coleção.
+async function updateSticker(req, res, next) {
+  try {
+    const { id } = req.params;
+    await requireCommunityPermission(req.user.id, 'MANAGE_STICKERS');
+
+    const existing = await prisma.sticker.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Figurinha não encontrada.' });
+
+    const data = {};
+    if (req.body.collectionId !== undefined) {
+      if (req.body.collectionId) {
+        const collection = await prisma.assetCollection.findUnique({ where: { id: req.body.collectionId } });
+        if (!collection || collection.kind !== 'STICKER') return res.status(400).json({ error: 'Coleção inválida.' });
+      }
+      data.collectionId = req.body.collectionId || null;
+    }
+
+    const sticker = await prisma.sticker.update({ where: { id }, data });
+    req.app.get('io')?.to('community').emit('sticker:update', sticker);
+    res.json({ sticker });
   } catch (err) { next(err); }
 }
 
@@ -61,4 +94,4 @@ async function deleteSticker(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listStickers, createSticker, deleteSticker };
+module.exports = { listStickers, createSticker, updateSticker, deleteSticker };

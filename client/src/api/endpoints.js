@@ -157,13 +157,21 @@ export const deleteEmoji = (id) => api.delete(`/community/emojis/${id}`).then((r
 // Item pedido: "sistema de figurinhas" — mesmo padrão de
 // listEmojis/createEmoji/deleteEmoji acima.
 export const listServerStickers = () => api.get('/community/stickers').then((r) => r.data);
-export const createServerSticker = (file, name) => {
+export const createServerSticker = (file, name, collectionId) => {
   const fd = new FormData();
   fd.append('sticker', file);
   fd.append('name', name);
+  if (collectionId) fd.append('collectionId', collectionId);
   return api.post('/community/stickers', fd).then((r) => r.data);
 };
 export const deleteServerSticker = (id) => api.delete(`/community/stickers/${id}`).then((r) => r.data);
+export const updateServerSticker = (id, payload) => api.patch(`/community/stickers/${id}`, payload).then((r) => r.data);
+// Item pedido: "sistema de coleções de emoji personalizado e figurinha"
+// — kind é 'EMOJI' ou 'STICKER'.
+export const listAssetCollections = (kind) => api.get(`/community/collections/${kind}`).then((r) => r.data);
+export const createAssetCollection = (kind, payload) => api.post(`/community/collections/${kind}`, payload).then((r) => r.data);
+export const updateAssetCollection = (id, payload) => api.patch(`/community/collections/${id}`, payload).then((r) => r.data);
+export const deleteAssetCollection = (id) => api.delete(`/community/collections/${id}`).then((r) => r.data);
 
 export const adminGetUserSecurityInfo = (userId) => api.get(`/admin/users/${userId}/security-info`).then((r) => r.data);
 export const getPlatformStatus = () => api.get('/platform/status').then((r) => r.data);

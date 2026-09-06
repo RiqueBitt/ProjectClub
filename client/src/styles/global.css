@@ -3062,6 +3062,21 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 .sticker-manage-grid { gap: 10px; }
 .emoji-category-select { max-width: 100px; }
 .emoji-name-label { cursor: pointer; }
+/* Item pedido: "sistema de coleções de emoji personalizado e
+   figurinha... vai ter a mesma categoria que o emoji normal, aquela
+   barra lateral" — linha de chips fazendo o mesmo papel do rail de
+   categorias do EmojiPicker (ver .emoji-picker-cat-rail), só em
+   formato horizontal já que o modal de gestão é mais largo que alto. */
+.asset-collection-rail { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.asset-collection-chip {
+  display: flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 999px;
+  background: var(--bg-secondary-alt); font-size: 12px; font-weight: 700; white-space: nowrap;
+}
+.asset-collection-chip:hover { background: var(--bg-modifier-hover); }
+.asset-collection-chip.active { background: var(--brand); color: #fff; }
+.asset-collection-chip.asset-collection-add { border: 1px dashed var(--border); background: transparent; }
+.asset-collection-form { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+.asset-collection-icon-input { width: 56px; text-align: center; }
 .emoji-name-label:hover { text-decoration: underline; }
 .emoji-inline-rename { font-size: 12px; max-width: 100px; padding: 2px 6px; }
 

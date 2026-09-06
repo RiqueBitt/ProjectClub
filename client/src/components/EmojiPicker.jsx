@@ -46,20 +46,39 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
   const { heightVh, dragHandlers } = useSheetDrag(onClose, defaultHeightVh);
   const usableEmojis = useStore((s) => s.usableEmojis);
   const usableStickers = useStore((s) => s.usableStickers);
+  // Item pedido: "emoji personalizado e figurinha vai ter a mesma
+  // categoria que o emoji normal, aquela barra lateral" — as coleções
+  // já vêm carregadas centralmente (ver MainApp.jsx/SocketContext.jsx),
+  // não precisa buscar de novo toda vez que o seletor abre.
+  const emojiCollections = useStore((s) => s.emojiCollections);
+  const stickerCollections = useStore((s) => s.stickerCollections);
   const [tab, setTab] = useState(serverEmojis.length > 0 ? 'server' : 'unicode');
   const [query, setQuery] = useState('');
   const unicodeScrollRef = useRef(null);
+  const serverScrollRef = useRef(null);
+  const stickerScrollRef = useRef(null);
   const catSectionRefs = useRef({});
 
   const scrollToCategory = (cat) => {
     catSectionRefs.current[cat]?.scrollIntoView({ block: 'start' });
   };
 
-  const customGrouped = useMemo(() => {
-    const acc = {};
-    for (const e of serverEmojis) (acc[e.category || 'Geral'] ||= []).push(e);
-    return acc;
-  }, [serverEmojis]);
+  // Item pedido: mesma barra lateral do emoji nativo, agora agrupando
+  // por COLEÇÃO (nome + ícone escolhidos por quem criou) em vez do
+  // campo de categoria em texto livre de antes — "Sem coleção" reúne
+  // quem ainda não foi organizado em nenhuma.
+  const groupByCollection = (items, collections) => {
+    const byId = Object.fromEntries(collections.map((c) => [c.id, c]));
+    const groups = collections.map((c) => ({ key: c.id, label: c.name, icon: c.icon, list: [] }));
+    const uncategorized = { key: 'none', label: 'Sem coleção', icon: '📄', list: [] };
+    for (const item of items) {
+      const group = item.collectionId && byId[item.collectionId] ? groups.find((g) => g.key === item.collectionId) : uncategorized;
+      group.list.push(item);
+    }
+    return [...groups, uncategorized].filter((g) => g.list.length > 0);
+  };
+
+  const customGroups = useMemo(() => groupByCollection(serverEmojis, emojiCollections), [serverEmojis, emojiCollections]);
 
   const externalGrouped = useMemo(() => {
     const acc = {};
@@ -74,16 +93,17 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
   // Stickers work the same "this server's own + every other server's I
   // belong to" split as emojis, just rendered bigger and sent as their own
   // standalone message (see onPickSticker) instead of inserted as text.
-  const stickerGroups = useMemo(() => {
+  const stickerGroups = useMemo(() => groupByCollection(serverStickers, stickerCollections), [serverStickers, stickerCollections]);
+  const externalStickerGrouped = useMemo(() => {
     const serverStickerIds = new Set(serverStickers.map((s) => s.id));
     const others = {};
     for (const s of usableStickers) {
       if (serverStickerIds.has(s.id)) continue;
       (others[s.serverName || 'Outros servidores'] ||= []).push(s);
     }
-    return { own: serverStickers, others };
+    return others;
   }, [usableStickers, serverStickers]);
-  const hasStickers = stickerGroups.own.length > 0 || Object.keys(stickerGroups.others).length > 0;
+  const hasStickers = serverStickers.length > 0 || Object.keys(externalStickerGrouped).length > 0;
 
   const q = query.trim().toLowerCase();
 
@@ -111,22 +131,37 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
         autoFocus={window.innerWidth > 600}
       />
       <div className="emoji-picker-body">
-        {tab === 'server' && Object.entries(customGrouped).map(([cat, list]) => {
-          const filtered = q ? list.filter((e) => e.name.toLowerCase().includes(q)) : list;
-          if (filtered.length === 0) return null;
-          return (
-            <div key={cat}>
-              <div className="emoji-picker-group-label">{cat}</div>
-              <div className="emoji-picker-grid">
-                {filtered.map((e) => (
-                  <button key={e.id} title={`:${e.name}:`} onClick={() => { onPick(`:${e.name}:`); onClose?.(); }}>
-                    <img src={e.url} alt={e.name} />
+        {tab === 'server' && (
+          <div className="emoji-picker-unicode-layout">
+            {!q && customGroups.length > 1 && (
+              <div className="emoji-picker-cat-rail">
+                {customGroups.map((g) => (
+                  <button key={g.key} className="emoji-picker-cat-rail-btn" title={g.label} onClick={() => scrollToCategory(`server-${g.key}`)}>
+                    {g.icon}
                   </button>
                 ))}
               </div>
+            )}
+            <div className="emoji-picker-unicode-scroll" ref={serverScrollRef}>
+              {customGroups.map((g) => {
+                const filtered = q ? g.list.filter((e) => e.name.toLowerCase().includes(q)) : g.list;
+                if (filtered.length === 0) return null;
+                return (
+                  <div key={g.key} ref={(el) => { catSectionRefs.current[`server-${g.key}`] = el; }}>
+                    <div className="emoji-picker-group-label">{g.icon} {g.label}</div>
+                    <div className="emoji-picker-grid">
+                      {filtered.map((e) => (
+                        <button key={e.id} title={`:${e.name}:`} onClick={() => { onPick(`:${e.name}:`); onClose?.(); }}>
+                          <img src={e.url} alt={e.name} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        )}
         {tab === 'external' && Object.entries(externalGrouped).map(([serverName, list]) => {
           const filtered = q ? list.filter((e) => e.name.toLowerCase().includes(q)) : list;
           if (filtered.length === 0) return null;
@@ -184,38 +219,51 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
           </div>
         )}
         {tab === 'stickers' && (
-          <>
-            {stickerGroups.own.length > 0 && (
-              <div>
-                <div className="emoji-picker-group-label">Servidor</div>
-                <div className="sticker-picker-grid">
-                  {stickerGroups.own
-                    .filter((s) => !q || s.name.toLowerCase().includes(q))
-                    .map((s) => (
-                      <button key={s.id} title={s.name} onClick={() => { onPickSticker(s); onClose?.(); }}>
-                        <img src={s.url} alt={s.name} />
-                      </button>
-                    ))}
-                </div>
+          <div className="emoji-picker-unicode-layout">
+            {!q && stickerGroups.length > 1 && (
+              <div className="emoji-picker-cat-rail">
+                {stickerGroups.map((g) => (
+                  <button key={g.key} className="emoji-picker-cat-rail-btn" title={g.label} onClick={() => scrollToCategory(`sticker-${g.key}`)}>
+                    {g.icon}
+                  </button>
+                ))}
               </div>
             )}
-            {Object.entries(stickerGroups.others).map(([serverName, list]) => {
-              const filtered = q ? list.filter((s) => s.name.toLowerCase().includes(q)) : list;
-              if (filtered.length === 0) return null;
-              return (
-                <div key={serverName}>
-                  <div className="emoji-picker-group-label">{serverName}</div>
-                  <div className="sticker-picker-grid">
-                    {filtered.map((s) => (
-                      <button key={s.id} title={s.name} onClick={() => { onPickSticker(s); onClose?.(); }}>
-                        <img src={s.url} alt={s.name} />
-                      </button>
-                    ))}
+            <div className="emoji-picker-unicode-scroll" ref={stickerScrollRef}>
+              {stickerGroups.map((g) => {
+                const filtered = q ? g.list.filter((s) => s.name.toLowerCase().includes(q)) : g.list;
+                if (filtered.length === 0) return null;
+                return (
+                  <div key={g.key} ref={(el) => { catSectionRefs.current[`sticker-${g.key}`] = el; }}>
+                    <div className="emoji-picker-group-label">{g.icon} {g.label}</div>
+                    <div className="sticker-picker-grid">
+                      {filtered.map((s) => (
+                        <button key={s.id} title={s.name} onClick={() => { onPickSticker(s); onClose?.(); }}>
+                          <img src={s.url} alt={s.name} />
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </>
+                );
+              })}
+              {Object.entries(externalStickerGrouped).map(([serverName, list]) => {
+                const filtered = q ? list.filter((s) => s.name.toLowerCase().includes(q)) : list;
+                if (filtered.length === 0) return null;
+                return (
+                  <div key={serverName}>
+                    <div className="emoji-picker-group-label">{serverName}</div>
+                    <div className="sticker-picker-grid">
+                      {filtered.map((s) => (
+                        <button key={s.id} title={s.name} onClick={() => { onPickSticker(s); onClose?.(); }}>
+                          <img src={s.url} alt={s.name} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
     </div>
