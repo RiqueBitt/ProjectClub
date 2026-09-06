@@ -79,23 +79,36 @@ async function createClan(req, res, next) {
   try {
     // Item pedido: "Cada usuário pode estar em apenas 1 clan por vez."
     if (req.user.clanId) return res.status(400).json({ error: 'Você já está em um clã — saia dele antes de criar outro.' });
+    // Item pedido: "um user só pode criar um clã" — diferente da
+    // checagem acima (essa é sobre estar em dois AO MESMO TEMPO), essa
+    // é vitalícia: mesmo já tendo saído de um clã anterior, criar um
+    // segundo nunca mais é permitido pra essa conta.
+    if (req.user.hasCreatedClan) return res.status(400).json({ error: 'Você já criou um clã antes — cada conta só pode criar um.' });
 
     const { name, description, isPublic, iconId, iconColor } = req.body;
     if (!name?.trim() || name.trim().length > 40) return res.status(400).json({ error: 'Nome inválido (até 40 caracteres).' });
 
+    // Item pedido: "quando eu criar um icon pro clã, deixe ele ser o
+    // padrão" — se a pessoa não escolheu nenhum ícone específico, usa
+    // o marcado como padrão automaticamente, em vez de ficar sem ícone
+    // nenhum (⚔️ genérico) só porque não mexeu nesse campo.
+    let finalIconId = iconId || null;
     if (iconId) {
       const icon = await prisma.clanIcon.findUnique({ where: { id: iconId } });
       if (!icon) return res.status(400).json({ error: 'Ícone inválido.' });
+    } else {
+      const defaultIcon = await prisma.clanIcon.findFirst({ where: { isDefault: true } });
+      if (defaultIcon) finalIconId = defaultIcon.id;
     }
 
     const clan = await prisma.$transaction(async (tx) => {
       const created = await tx.clan.create({
         data: {
           name: name.trim(), description: description?.trim() || null,
-          isPublic: isPublic !== false, iconId: iconId || null, iconColor: iconColor || undefined,
+          isPublic: isPublic !== false, iconId: finalIconId, iconColor: iconColor || undefined,
         },
       });
-      await tx.user.update({ where: { id: req.user.id }, data: { clanId: created.id, clanRole: 'OWNER' } });
+      await tx.user.update({ where: { id: req.user.id }, data: { clanId: created.id, clanRole: 'OWNER', hasCreatedClan: true } });
       return created;
     });
     res.status(201).json({ clan });
@@ -296,6 +309,11 @@ async function createClanTag(req, res, next) {
     if (req.user.clanId !== id || !hasClanCapability(req.user.clanRole, 'MANAGE_TAGS')) {
       return res.status(403).json({ error: 'Você não tem permissão pra gerenciar tags deste clã.' });
     }
+    // Item pedido: "o clan só pode criar 1 tag" — antes de aceitar
+    // uma nova, confere se o clã já não tem uma.
+    const count = await prisma.clanTag.count({ where: { clanId: id } });
+    if (count >= 1) return res.status(400).json({ error: 'Este clã já tem uma tag — exclua a atual antes de criar outra.' });
+
     const { tag } = req.body;
     const clean = (tag || '').trim().toUpperCase();
     // Item pedido: "Cada tag pode ter no máximo 4 caracteres."

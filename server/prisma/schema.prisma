@@ -176,6 +176,12 @@ model User {
   // completam a relação dos dois lados.
   clanJoinRequests    ClanJoinRequest[]
   clanMessages        ClanMessage[]
+  // Item pedido: "um user só pode criar um clã" — restrição vitalícia
+  // (diferente de clanId, que só impede estar em DOIS ao mesmo
+  // tempo): mesmo saindo ou sendo o último membro a apagar o clã,
+  // marcado true pra sempre depois da primeira criação, nunca
+  // reiniciado por sair de um clã existente.
+  hasCreatedClan      Boolean   @default(false)
   youtubeUrl          String?
   steamUrl            String?
   robloxUrl           String?
@@ -1672,6 +1678,12 @@ model ClanIcon {
   name      String
   url       String
   createdAt DateTime @default(now())
+  // Item pedido: "quando eu criar um icon pro clã, deixe ele ser o
+  // padrão" — o ícone criado mais recentemente vira automaticamente
+  // o padrão (desmarcando o anterior — sempre só um por vez), usado
+  // quando o dono não escolhe nenhum ícone específico na criação/
+  // edição do clã.
+  isDefault Boolean  @default(false)
   clans     Clan[]
 }
 

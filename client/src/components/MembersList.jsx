@@ -7,6 +7,7 @@ import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import { roleTextStyle, highestColoredRole } from '../utils/roleColor';
 import { nameStyleProps, hasCustomNameStyle, nameStyleClassName } from '../utils/nameStyle';
 import TagBadge from './TagBadge.jsx';
+import ClanTagBadge from './ClanTagBadge.jsx';
 import StatusEmoji from './StatusEmoji.jsx';
 import ActivityIcon from './ActivityIcon.jsx';
 import UserAvatar from './UserAvatar.jsx';
@@ -150,6 +151,7 @@ function MemberGroup({ label, members, roles, dim, cargosEnabled }) {
             )}
           </div>
           <TagBadge user={m.user} />
+          <ClanTagBadge user={m.user} />
         </div>
       ))}
     </div>

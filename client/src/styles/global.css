@@ -6181,7 +6181,7 @@ a.embed-card-title:hover { text-decoration: underline; }
    pesado — CSS puro, sem biblioteca de animação, pra não pesar o
    carregamento) e breakpoints iguais aos já usados em outras páginas.
    ============================================================ */
-.clans-page { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
+.clans-page { max-width: 1100px; margin: 0 auto; padding: 24px 32px 60px; }
 .clans-page-header { margin-bottom: 24px; animation: clan-fade-in .25s ease; }
 .clans-page-header h1 { margin: 0 0 6px; font-size: 24px; }
 .clans-page-header .btn-primary { margin-top: 12px; }
@@ -6195,28 +6195,38 @@ a.embed-card-title:hover { text-decoration: underline; }
 }
 .clan-icon-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 14px; }
 
+/* Item pedido: "melhorias na interface de criar clã, deixando mais
+   bonita" — cartão com borda sutil + sombra (em vez de só uma cor de
+   fundo chapada), mais respiro interno, e os campos de ícone/cor
+   organizados como o "cabeçalho" do formulário, separados visualmente
+   do resto por uma linha fina. */
 .clan-create-form {
-  background: var(--bg-secondary-alt); border-radius: 10px; padding: 18px; margin-bottom: 24px;
-  display: flex; flex-direction: column; gap: 12px;
+  background: var(--bg-secondary-alt); border-radius: 14px; padding: 24px; margin-bottom: 24px;
+  display: flex; flex-direction: column; gap: 16px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.14), inset 0 0 0 1px var(--border);
   animation: clan-slide-down .2s var(--ease-smooth);
 }
-.clan-create-icon-row { display: flex; gap: 14px; align-items: flex-start; }
+.clan-create-icon-row { display: flex; gap: 18px; align-items: flex-start; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
 .clan-create-icon-fields { display: flex; flex-direction: column; gap: 10px; flex: 1; }
-.clan-color-swatches { display: flex; gap: 6px; margin-top: 4px; }
-.clan-color-swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; transition: transform .12s; }
-.clan-color-swatch:hover { transform: scale(1.15); }
-.clan-color-swatch.active { border-color: var(--text-normal); transform: scale(1.15); }
+.clan-color-swatches { display: flex; gap: 7px; margin-top: 4px; }
+.clan-color-swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; transition: transform .12s, box-shadow .12s; cursor: pointer; }
+.clan-color-swatch:hover { transform: scale(1.18); }
+.clan-color-swatch.active { border-color: var(--text-normal); box-shadow: 0 0 0 2px var(--bg-secondary-alt); transform: scale(1.18); }
 .clan-public-toggle { flex-direction: row !important; align-items: center; gap: 8px; font-size: 13px; }
 
 .clan-mine-section { margin-bottom: 28px; animation: clan-fade-in .25s ease; }
 
-.clans-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+/* Item pedido: "no PC tem espaço não sendo usado" — mais colunas e
+   cards maiores em telas largas (min-width mais alto que os 260px
+   originais), voltando ao padrão compacto em telas estreitas via a
+   media query lá embaixo. */
+.clans-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
 .clan-card {
-  display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 10px;
+  display: flex; align-items: center; gap: 14px; padding: 18px; border-radius: 12px;
   background: var(--bg-secondary-alt); transition: transform .15s var(--ease-smooth), box-shadow .15s;
-  animation: clan-fade-in .25s ease;
+  animation: clan-fade-in .25s ease; box-shadow: inset 0 0 0 1px var(--border);
 }
-.clan-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.18); }
+.clan-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,.2), inset 0 0 0 1px var(--border); }
 .clan-card:hover .clan-icon-preview { transform: scale(1.06); }
 .clan-card-mine { cursor: pointer; }
 .clan-card-body { flex: 1; min-width: 0; }
@@ -6228,7 +6238,7 @@ a.embed-card-title:hover { text-decoration: underline; }
 @keyframes clan-slide-down { from { opacity: 0; transform: scaleY(.95); transform-origin: top; } to { opacity: 1; transform: scaleY(1); } }
 
 /* --- ClanPage --- */
-.clan-page { max-width: 900px; margin: 0 auto; padding: 20px 20px 60px; display: flex; flex-direction: column; height: 100%; }
+.clan-page { max-width: 1100px; margin: 0 auto; padding: 20px 32px 60px; display: flex; flex-direction: column; height: 100%; }
 .clan-page-header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; animation: clan-fade-in .2s ease; }
 .clan-page-header h1 { margin: 0; font-size: 20px; }
 .clan-back-btn { flex-shrink: 0; }
@@ -6250,7 +6260,7 @@ a.embed-card-title:hover { text-decoration: underline; }
 }
 
 .clan-chat { display: flex; flex-direction: column; flex: 1; min-height: 300px; animation: clan-fade-in .2s ease; }
-.clan-chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; }
+.clan-chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; min-height: 340px; }
 .clan-chat-message { display: flex; gap: 10px; align-items: flex-start; animation: clan-fade-in .15s ease; }
 .clan-chat-avatar { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
 .clan-chat-message-body { flex: 1; min-width: 0; }
@@ -6287,6 +6297,24 @@ a.embed-card-title:hover { text-decoration: underline; }
 .clan-tag-chip.active { background: var(--brand); color: #fff; }
 .clan-create-tag-row { display: flex; gap: 8px; margin-top: 8px; }
 .clan-create-tag-row input { width: 140px; text-transform: uppercase; }
+
+/* Item pedido: "quando eu criar um icon pro clã, deixe ele ser o
+   padrão" — destaque visual no gerenciador da staff mostrando qual é
+   o padrão atual. */
+.clan-icon-default { position: relative; box-shadow: 0 0 0 2px var(--brand); }
+.clan-icon-default-badge {
+  position: absolute; font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 999px;
+  background: var(--brand); color: #fff; transform: translate(-6px, -6px);
+}
+
+/* Item pedido: "no PC tem espaço não sendo usado" — telas bem largas
+   ganham ainda mais respiro e um grid mais denso, aproveitando o
+   espaço real disponível numa tela de desktop grande. */
+@media (min-width: 1100px) {
+  .clans-page, .clan-page { padding-left: 40px; padding-right: 40px; }
+  .clans-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
+  .clan-chat-messages { min-height: 420px; }
+}
 
 /* Item pedido: "responsiva... Tablet, Mobile" */
 @media (max-width: 700px) {

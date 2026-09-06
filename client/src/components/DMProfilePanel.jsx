@@ -7,6 +7,7 @@ import { STATUS_LABEL, STATUS_COLOR } from '../utils/status';
 import { renderRichContent } from '../utils/richTextRender.jsx';
 import { profileAccentVars } from '../utils/profileAccent';
 import TagBadge from './TagBadge.jsx';
+import ClanTagBadge from './ClanTagBadge.jsx';
 import StatusEmoji from './StatusEmoji.jsx';
 import ActivityBadge from './ActivityBadge.jsx';
 import ActivityIcon from './ActivityIcon.jsx';
@@ -91,7 +92,7 @@ export default function DMProfilePanel({ onToggle }) {
               </div>
             </div>
 
-            <h2 className="profile-display-name"><span className={nameStyleClassName(user)} style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} /></h2>
+            <h2 className="profile-display-name"><span className={nameStyleClassName(user)} style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} /> <ClanTagBadge user={user} /></h2>
             <div className="profile-username">@{user.username}</div>
 
             <div className="profile-votes-row">

@@ -115,9 +115,13 @@ export default function ClanIconManagerModal({ onClose }) {
         ) : (
           <div className="emoji-grid">
             {icons.map((icon) => (
-              <div key={icon.id} className="emoji-manage-item">
+              <div key={icon.id} className={`emoji-manage-item ${icon.isDefault ? 'clan-icon-default' : ''}`}>
                 <img src={proxyImage(icon.url)} alt={icon.name} title={icon.name} />
                 <span className="truncate emoji-name-label">{icon.name}</span>
+                {/* Item pedido: "quando eu criar um icon pro clã,
+                    deixe ele ser o padrão" — mostra qual é o padrão
+                    atual (sempre o criado mais recentemente). */}
+                {icon.isDefault && <span className="clan-icon-default-badge" title="Ícone padrão — usado quando ninguém escolhe outro">Padrão</span>}
                 <button className="icon-btn-small" title="Excluir" onClick={() => remove(icon)}><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button>
               </div>
             ))}

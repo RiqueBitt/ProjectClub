@@ -17,6 +17,7 @@ import StyledEmoji from './StyledEmoji.jsx';
 import CustomAudioPlayer from './CustomAudioPlayer.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import TagBadge from './TagBadge.jsx';
+import ClanTagBadge from './ClanTagBadge.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import personIcon from '../assets/icons/person.png';
 import starIcon from '../assets/icons/star.png';
@@ -314,6 +315,7 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
           <div className="message-meta">
             <span className={`message-author ${hasCustomNameStyle(message.author) ? nameStyleClassName(message.author) : ''}`} style={hasCustomNameStyle(message.author) ? nameStyleProps(message.author) : roleTextStyle(authorRoleColor)}>{message.author.displayName}</span>
             <TagBadge user={message.author} />
+            <ClanTagBadge user={message.author} />
             <span className="message-time">{formatTime(message.createdAt)}</span>
             {message.pinned && <span className="pin-badge"><img className="ui-icon-sm" src={pinIcon} alt="" /> fixada</span>}
             {message.pending && <span className="pending-badge">enviando…</span>}

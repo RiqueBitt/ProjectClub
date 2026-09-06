@@ -8,6 +8,7 @@ import { renderRichContent } from '../utils/richTextRender.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import ActivityBadge from './ActivityBadge.jsx';
 import TagBadge from './TagBadge.jsx';
+import ClanTagBadge from './ClanTagBadge.jsx';
 import levelStarIcon from '../assets/icons/level-star.png';
 import achievementDefaultIcon from '../assets/icons/nav-achievements.png';
 import { proxyImage } from '../utils/imageProxy';
@@ -269,7 +270,7 @@ export default function MiniProfileCard() {
                 <span className="mini-profile-status-bubble">{user.customStatusEmoji ? `${user.customStatusEmoji} ` : ''}{user.customStatus}</span>
               )}
             </div>
-            <div className="mini-profile-name"><span className={nameStyleClassName(user)} style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} /></div>
+            <div className="mini-profile-name"><span className={nameStyleClassName(user)} style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} /> <ClanTagBadge user={user} /></div>
             <div className="dim mini-profile-handle">
               @{user.username}
               {user.pronouns && <span> • {user.pronouns}</span>}

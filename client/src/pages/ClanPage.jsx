@@ -276,7 +276,11 @@ export default function ClanPage() {
 
       {tab === 'tags' && (
         <div className="clan-tags-tab">
-          <p className="dim">Escolha qual tag do clã aparece no seu perfil.</p>
+          {/* Item pedido: "o clan só pode criar 1 tag" — o formulário
+              de criar só aparece se o clã ainda não tiver nenhuma;
+              com uma já existente, o jeito de trocar é excluir a
+              atual primeiro (ver botão × abaixo). */}
+          <p className="dim">{myClan.tags.length > 0 ? 'Escolha se quer mostrar a tag do clã no seu perfil.' : 'Este clã ainda não tem uma tag.'}</p>
           <div className="clan-tags-list">
             <button className={`clan-tag-chip ${!user.clanTagId ? 'active' : ''}`} onClick={() => onPickMyTag(null)}>Nenhuma</button>
             {myClan.tags.map((t) => (
@@ -286,9 +290,9 @@ export default function ClanPage() {
               </div>
             ))}
           </div>
-          {myClanCapabilities.MANAGE_TAGS && (
+          {myClanCapabilities.MANAGE_TAGS && myClan.tags.length === 0 && (
             <div className="clan-create-tag-row">
-              <input value={newTag} onChange={(e) => setNewTag(e.target.value.toUpperCase())} maxLength={4} placeholder="Nova tag (até 4 letras)" />
+              <input value={newTag} onChange={(e) => setNewTag(e.target.value.toUpperCase())} maxLength={4} placeholder="Tag do clã (até 4 letras)" />
               <button className="btn-primary" onClick={onCreateTag}>Criar</button>
             </div>
           )}

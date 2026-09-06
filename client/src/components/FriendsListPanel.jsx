@@ -4,6 +4,7 @@ import { createConversation } from '../api/endpoints';
 import UserAvatar from './UserAvatar.jsx';
 import StatusEmoji from './StatusEmoji.jsx';
 import TagBadge from './TagBadge.jsx';
+import ClanTagBadge from './ClanTagBadge.jsx';
 import { STATUS_COLOR } from '../utils/status';
 import { proxyImage } from '../utils/imageProxy';
 
@@ -56,6 +57,7 @@ export default function FriendsListPanel({ onToggle }) {
                 )}
               </div>
               <TagBadge user={u} />
+              <ClanTagBadge user={u} />
             </div>
           );
         })}

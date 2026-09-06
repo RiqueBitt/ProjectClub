@@ -10,6 +10,7 @@ import { getMyCommunityPermissions, hasPermission } from '../../utils/permission
 import { roleChipStyle, gradientStops } from '../../utils/roleColor';
 import { profileAccentVars } from '../../utils/profileAccent';
 import TagBadge from '../TagBadge.jsx';
+import ClanTagBadge from '../ClanTagBadge.jsx';
 import UserAvatar from '../UserAvatar.jsx';
 import StatusEmoji from '../StatusEmoji.jsx';
 import ActivityBadge from '../ActivityBadge.jsx';
@@ -818,7 +819,7 @@ isMe && (
                 </div>
                 <div className="profile-ig-header-info">
                   <h2 className="profile-display-name">
-                    <span className={nameStyleClassName(user)} style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} />
+                    <span className={nameStyleClassName(user)} style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} /> <ClanTagBadge user={user} />
                     {/* Item pedido: "no dia do aniversário, mostrar no
                         perfil a indicação visual" */}
                     {data.isBirthdayToday && <span className="profile-birthday-badge" title="Aniversário hoje!">🎂</span>}

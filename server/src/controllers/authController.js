@@ -109,6 +109,11 @@ const PUBLIC_USER_FIELDS = {
   profileSectionOpacity: true,
   miniProfileColor: true,
   miniProfileButtonColor: true,
+  // Item pedido: "quando crio a tag não aparece em tag da comunidade"
+  // — a tag de clã que a pessoa escolheu usar (ver TagBadge.jsx e o
+  // novo ClanTagBadge, mostrado nos mesmos lugares que a tag de
+  // comunidade já era).
+  clanTag: { select: { tag: true } },
 };
 
 // Everything PUBLIC_USER_FIELDS has, plus the account-owner-only fields
