@@ -304,9 +304,21 @@ export default function UserSettingsModal({ onClose }) {
   // confirma o enquadramento.
   const [cropperState, setCropperState] = useState(null); // { file, aspectRatio, shape, onConfirm } | null
 
+  // BUG CORRIGIDO ("banner/avatar em GIF parou de animar"): o
+  // recortador desenha a imagem num <canvas> e exporta como JPEG —
+  // isso sempre "achata" a animação num único frame estático, já que
+  // <canvas>/JPEG não têm como preservar quadros de GIF (recortar um
+  // GIF de verdade, quadro a quadro, preservando a animação, exigiria
+  // decodificar/recompor cada frame manualmente — fora do escopo
+  // razoável aqui). GIF pula o recortador e vai direto pro upload,
+  // exatamente como funcionava antes dele existir.
   const onAvatar = (e) => {
     const file = e.target.files[0]; if (!file) return;
     e.target.value = ''; // permite escolher o MESMO arquivo de novo depois de cancelar
+    if (file.type === 'image/gif') {
+      uploadAvatar(file).then(({ user: updated }) => setUser(updated));
+      return;
+    }
     setCropperState({
       file, aspectRatio: 1, shape: 'circle', title: 'Ajustar avatar',
       onConfirm: async (cropped) => {
@@ -325,6 +337,10 @@ export default function UserSettingsModal({ onClose }) {
   const onBanner = (e) => {
     const file = e.target.files[0]; if (!file) return;
     e.target.value = '';
+    if (file.type === 'image/gif') {
+      uploadBanner(file).then(({ user: updated }) => setUser(updated));
+      return;
+    }
     setCropperState({
       file, aspectRatio: 820 / 100, shape: 'rect', title: 'Ajustar banner do perfil',
       onConfirm: async (cropped) => {
@@ -340,6 +356,10 @@ export default function UserSettingsModal({ onClose }) {
   const onMiniProfileBanner = (e) => {
     const file = e.target.files[0]; if (!file) return;
     e.target.value = '';
+    if (file.type === 'image/gif') {
+      uploadMiniProfileBanner(file).then(({ user: updated }) => setUser(updated));
+      return;
+    }
     setCropperState({
       file, aspectRatio: 320 / 60, shape: 'rect', title: 'Ajustar banner do mini perfil',
       onConfirm: async (cropped) => {

@@ -16,7 +16,13 @@ import Modal from '../Modal.jsx';
 // visual durante a edição (um círculo por cima, sugerindo "isso vira
 // redondo") — o recorte em si é sempre um retângulo, a máscara
 // redonda de verdade já é aplicada depois, na exibição (UserAvatar.jsx).
-const PREVIEW_SIZE = 320; // largura de referência da moldura na tela, independente do tamanho final do arquivo
+// Item pedido: "deixe ele maior pegando mais imagem e mostra a imagem
+// completa de um tamanho reduzido" — moldura de edição maior na tela,
+// e o ponto de partida agora é a imagem INTEIRA visível (reduzida pra
+// caber toda dentro da moldura), não mais já "cobrindo"/cortando
+// igual object-fit: cover fazia — a pessoa parte vendo a foto
+// completa e decide o quanto quer aproximar a partir daí.
+const PREVIEW_SIZE = 460; // largura de referência da moldura na tela, independente do tamanho final do arquivo
 const OUTPUT_WIDTH = 800; // tamanho final do arquivo gerado — grande o suficiente pra não ficar borrado em nenhum lugar que a imagem aparece
 
 export default function ImageCropperModal({ file, aspectRatio = 1, shape = 'rect', title = 'Ajustar imagem', onConfirm, onClose }) {
@@ -27,21 +33,25 @@ export default function ImageCropperModal({ file, aspectRatio = 1, shape = 'rect
   const dragRef = useRef(null); // { startX, startY, startOffset }
   const containerRef = useRef(null);
 
-  const frameWidth = PREVIEW_SIZE;
-  const frameHeight = PREVIEW_SIZE / aspectRatio;
+  // Responsivo: em telas pequenas (celular), PREVIEW_SIZE fixo vazaria
+  // pra fora do modal (que encolhe pra caber na tela — ver Modal.jsx)
+  // — nunca passa de 80px a menos que a largura real da janela.
+  const frameWidth = Math.min(PREVIEW_SIZE, window.innerWidth - 80);
+  const frameHeight = frameWidth / aspectRatio;
 
-  // Carrega a imagem escolhida uma vez, calcula a escala mínima pra
-  // ela cobrir a moldura inteira (equivalente a object-fit: cover),
-  // que é o ponto de partida — a pessoa só aumenta o zoom a partir
-  // daqui, nunca diminui a ponto de sobrar área vazia na moldura.
+  // Carrega a imagem escolhida uma vez, calcula a escala pra ela
+  // caber INTEIRA dentro da moldura (equivalente a object-fit:
+  // contain — Math.min, não Math.max), que agora é o ponto de
+  // partida: a pessoa começa vendo a foto completa e só depois decide
+  // se quer aumentar o zoom pra focar numa parte específica.
   useEffect(() => {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      const scaleToFillWidth = frameWidth / img.naturalWidth;
-      const scaleToFillHeight = frameHeight / img.naturalHeight;
-      const minScale = Math.max(scaleToFillWidth, scaleToFillHeight);
-      setBaseScale(minScale);
+      const scaleToFitWidth = frameWidth / img.naturalWidth;
+      const scaleToFitHeight = frameHeight / img.naturalHeight;
+      const fitScale = Math.min(scaleToFitWidth, scaleToFitHeight);
+      setBaseScale(fitScale);
       setZoom(1);
       setOffset({ x: 0, y: 0 });
       setImgEl(img);
@@ -147,7 +157,7 @@ export default function ImageCropperModal({ file, aspectRatio = 1, shape = 'rect
         </div>
         <label className="image-cropper-zoom-row">
           Zoom
-          <input type="range" min="1" max="3" step="0.01" value={zoom} onChange={(e) => onZoomChange(e.target.value)} />
+          <input type="range" min="1" max="5" step="0.01" value={zoom} onChange={(e) => onZoomChange(e.target.value)} />
         </label>
         <p className="dim" style={{ fontSize: 12, textAlign: 'center' }}>Arraste a imagem pra posicionar</p>
         <div className="modal-actions">
