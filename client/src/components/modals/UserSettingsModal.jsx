@@ -919,7 +919,7 @@ export default function UserSettingsModal({ onClose }) {
                 disabled={tagSaving}
                 onClick={() => pickTag(true)}
               >
-                <span className="server-tag-badge">🏠 Tag da comunidade</span>
+                <span className="server-tag-badge">🏠 Mostrar tag</span>
               </button>
               {/* Item pedido: "quero que a tag do clã apareça no
                   Exibição -> Tag da comunidade" — só aparece pra quem
