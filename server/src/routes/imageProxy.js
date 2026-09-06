@@ -31,6 +31,45 @@ const express = require('express');
 // cliente usa pra decidir o que proxiar (ver utils/imageProxy.js) —
 // os dois lados concordam exatamente no que é "do B2", sem exigir que
 // bata com uma URL configurada específica.
+//
+// Item pedido: "sistema de otimização... carregar banner, placa de
+// identificação etc mais rápido": antes, CADA requisição que passava
+// por aqui buscava a imagem no B2 de novo, mesmo sendo a mesmíssima
+// imagem que outra pessoa qualquer já tinha pedido segundos antes —
+// o Cache-Control abaixo só evita que o MESMO navegador peça nossa
+// URL de novo, não evita esse servidor ter que buscar tudo de novo no
+// B2 pra cada pessoa diferente que vê aquele avatar/banner/ícone.
+// Cache em memória, com limite de tamanho total (pra nunca crescer
+// sem controle) e um tempo de vida curto (uploads trocam de nome a
+// cada troca de arquivo, então uma imagem já em cache nunca fica
+// desatualizada de verdade — o TTL aqui é só uma rede de segurança
+// pra liberar memória de imagens que pararam de ser vistas).
+const CACHE_MAX_BYTES = 80 * 1024 * 1024; // 80MB de imagens guardadas ao mesmo tempo, no máximo
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutos
+const cache = new Map(); // url -> { buffer, contentType, size, expiresAt }
+let cacheBytes = 0;
+
+function evictExpired() {
+  const now = Date.now();
+  for (const [key, entry] of cache) {
+    if (entry.expiresAt < now) {
+      cache.delete(key);
+      cacheBytes -= entry.size;
+    }
+  }
+}
+
+function evictOldestUntilFits(incomingSize) {
+  // Map preserva a ordem de inserção — a primeira chave é sempre a
+  // mais antiga ainda guardada, então dá pra ir liberando por ali
+  // sem precisar rastrear "quem foi visto por último" separadamente.
+  for (const [key, entry] of cache) {
+    if (cacheBytes + incomingSize <= CACHE_MAX_BYTES) break;
+    cache.delete(key);
+    cacheBytes -= entry.size;
+  }
+}
+
 const router = express.Router();
 
 router.get('/image', async (req, res) => {
@@ -41,23 +80,38 @@ router.get('/image', async (req, res) => {
       return res.status(403).send('Origem não permitida.');
     }
 
+    evictExpired();
+    const cached = cache.get(url);
+    if (cached) {
+      res.setHeader('Content-Type', cached.contentType);
+      res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+      res.setHeader('X-Cache', 'HIT');
+      return res.end(cached.buffer);
+    }
+
     const upstream = await fetch(url);
     if (!upstream.ok || !upstream.body) return res.status(upstream.status || 502).send('Não foi possível buscar a imagem.');
 
-    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/octet-stream');
+    const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+
+    // Imagens gigantes (raro, mas possível) não entram no cache — não
+    // vale a pena gastar uma fatia grande do limite total numa imagem
+    // só; ela ainda é servida normalmente, só não fica guardada.
+    if (buffer.length <= CACHE_MAX_BYTES / 4) {
+      evictOldestUntilFits(buffer.length);
+      cache.set(url, { buffer, contentType, size: buffer.length, expiresAt: Date.now() + CACHE_TTL_MS });
+      cacheBytes += buffer.length;
+    }
+
+    res.setHeader('Content-Type', contentType);
     // Cache generoso do lado do navegador/CDN — a imagem em si não muda
     // de conteúdo pra uma mesma URL (uploads geram um nome novo a cada
     // troca), só o CAMINHO pra buscar ela mudou de "direto no B2" pra
     // "através de nós".
     res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
-    const reader = upstream.body.getReader();
-    const pump = async () => {
-      const { done, value } = await reader.read();
-      if (done) { res.end(); return; }
-      res.write(Buffer.from(value));
-      pump();
-    };
-    pump();
+    res.setHeader('X-Cache', 'MISS');
+    res.end(buffer);
   } catch (err) {
     res.status(502).send('Falha ao buscar a imagem.');
   }
