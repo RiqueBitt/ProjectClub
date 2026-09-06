@@ -243,9 +243,18 @@ async function setActiveTag(req, res, next) {
     const settings = await prisma.platformSettings.findUnique({ where: { id: 'singleton' } });
     if (!settings) return res.status(400).json({ error: 'A comunidade ainda não tem uma tag configurada.' });
 
+    // BUG CORRIGIDO ("a tag PROJ continua no sistema"): antes, essa
+    // tag era calculada sozinha a partir do NOME da comunidade —
+    // "Project Club" sempre virava "PROJ", sem jeito de evitar isso
+    // enquanto o nome continuasse o mesmo (mesmo limpando as contas
+    // já com ela ativa, qualquer pessoa clicando em "mostrar tag" de
+    // novo já recriava "PROJ" na hora, instantaneamente). Agora usa um
+    // texto configurável à parte (communityTagText/Emoji em
+    // PlatformSettings), com um valor fixo seguro como reserva —
+    // nunca mais "PROJ" de novo, mesmo sem a staff configurar nada.
     const user = await prisma.user.update({
       where: { id: req.user.id },
-      data: { tagEmoji: '🏠', tagText: (settings.communityName || 'HUB').slice(0, 4).toUpperCase() },
+      data: { tagEmoji: settings.communityTagEmoji || '🏠', tagText: settings.communityTagText || 'CLUBE' },
       select: SELF_USER_FIELDS,
     });
     await broadcastUserUpdate(req, user);

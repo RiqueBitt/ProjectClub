@@ -331,6 +331,18 @@ model PlatformSettings {
   communityBannerUrl String?
   maintenanceMode    Boolean @default(false)
   maintenanceMessage String?
+  // Item pedido: "refaça esse sistema [de tag da comunidade] bloqueando
+  // essa tag [PROJ] de aparecer ou removendo ele" — a causa real do
+  // problema era a tag ser calculada sozinha a partir do NOME da
+  // comunidade (communityName.slice(0,4).toUpperCase() — "Project
+  // Club" sempre virava "PROJ", pra sempre, sem jeito de mudar isso
+  // enquanto o nome da comunidade continuasse o mesmo). Agora é um
+  // texto configurável à parte, independente do nome — nulo por
+  // padrão (nesse caso o sistema usa um valor fixo seguro que nunca
+  // é "PROJ", ver setActiveTag em userController.js), e a staff pode
+  // trocar por outro texto quando quiser, sem depender do nome mudar.
+  communityTagEmoji  String?
+  communityTagText   String?
   // Liga/desliga sistemas inteiros pra toda a comunidade — adaptado do
   // "disabled_systems" do bot Robbie (lista de chaves: "economia", "casas",
   // "figurinhas"). Quando uma chave está aqui, a página correspondente

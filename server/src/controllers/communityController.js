@@ -24,7 +24,7 @@ async function getCommunity(req, res, next) {
           profileNameFont: true, profileNameEffect: true, profileNameColor: true, profileNameColor2: true, profileNameColors: true,
           accountLevel: true, tagEmoji: true, tagText: true, timeoutUntil: true, idCardUrl: true,
           roles: { select: { roleId: true } },
-          clanTag: { select: { tag: true } },
+          clanTag: { select: { tag: true, clan: { select: { icon: true, iconColor: true } } } },
         },
       }),
       prisma.platformSettings.findUnique({ where: { id: 'singleton' } }),

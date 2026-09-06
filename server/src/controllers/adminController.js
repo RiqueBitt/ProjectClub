@@ -25,7 +25,11 @@ async function getCommunitySettings(req, res, next) {
 
 async function updateCommunitySettings(req, res, next) {
   try {
-    const allowed = ['communityName', 'communityIconUrl', 'communityBannerUrl'];
+    // Item pedido: "refaça esse sistema [de tag da comunidade]" —
+    // communityTagText/Emoji adicionados à lista de campos editáveis,
+    // pra staff poder configurar a tag de verdade em vez dela ficar
+    // presa a derivar do nome da comunidade pra sempre.
+    const allowed = ['communityName', 'communityIconUrl', 'communityBannerUrl', 'communityTagText', 'communityTagEmoji'];
     const data = {};
     for (const key of allowed) if (req.body[key] !== undefined) data[key] = req.body[key];
     const settings = await prisma.platformSettings.upsert({

@@ -113,7 +113,7 @@ const PUBLIC_USER_FIELDS = {
   // — a tag de clã que a pessoa escolheu usar (ver TagBadge.jsx e o
   // novo ClanTagBadge, mostrado nos mesmos lugares que a tag de
   // comunidade já era).
-  clanTag: { select: { tag: true } },
+  clanTag: { select: { tag: true, clan: { select: { icon: true, iconColor: true } } } },
 };
 
 // Everything PUBLIC_USER_FIELDS has, plus the account-owner-only fields

@@ -9,6 +9,7 @@ import AchievementPickerModal from './AchievementPickerModal.jsx';
 import micIcon from '../../assets/icons/nav-mic.png';
 import Modal from '../Modal.jsx';
 import EmojiPicker from '../EmojiPicker.jsx';
+import ClanIcon from '../ClanIcon.jsx';
 import { usePopoverCoordination } from '../../utils/popoverCoordinator';
 import { isGradientColor, gradientStops, makeGradient } from '../../utils/roleColor';
 import { NAME_FONTS, NAME_EFFECTS, nameStyleProps, nameStyleClassName, FONT_FAMILY, DEFAULT_MULTI_COLORS } from '../../utils/nameStyle';
@@ -930,7 +931,7 @@ export default function UserSettingsModal({ onClose }) {
                   disabled={tagSaving}
                   onClick={() => pickClanTag(true)}
                 >
-                  <span className="server-tag-badge clan-tag-badge">⚔️ {myClan.tags[0].tag}</span>
+                  <span className="server-tag-badge clan-tag-badge"><ClanIcon icon={myClan.icon} color={myClan.iconColor} size={14} /> {myClan.tags[0].tag}</span>
                 </button>
               )}
             </div>
