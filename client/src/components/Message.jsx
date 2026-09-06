@@ -432,6 +432,7 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
             variant="reaction"
             defaultHeightVh={REACTION_PICKER_DEFAULT_VH}
             style={pickerStyle || {}}
+            serverEmojis={usableEmojis}
             onPick={reactWithLimitCheck}
             onClose={() => setShowEmojiPicker(false)}
           />

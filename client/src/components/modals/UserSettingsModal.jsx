@@ -606,7 +606,7 @@ export default function UserSettingsModal({ onClose }) {
                 <textarea name="bio" value={form.bio} onChange={onChange} maxLength={190} />
                 <div className="composer-picker-anchor">
                   <button type="button" className="icon-btn" title="Emoji" onClick={() => setBioEmojiOpen((v) => !v)}>☺</button>
-                  {bioEmojiOpen && <EmojiPicker onPick={insertBioEmoji} onClose={() => setBioEmojiOpen(false)} />}
+                  {bioEmojiOpen && <EmojiPicker serverEmojis={useStore.getState().usableEmojis} onPick={insertBioEmoji} onClose={() => setBioEmojiOpen(false)} />}
                 </div>
               </div>
             </label>

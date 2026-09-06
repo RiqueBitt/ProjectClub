@@ -207,6 +207,14 @@ export default function ChatWindow({ kind }) {
   // prop pronta pra receber (com a aba "Figurinhas" toda desenhada),
   // só nunca era alimentada de dados reais.
   const serverStickers = useStore((s) => s.serverStickers);
+  // BUG CORRIGIDO ("emoji não tem categoria, fica tudo junto"): a
+  // prop serverEmojis do EmojiPicker nunca era passada aqui — o
+  // emoji personalizado nunca aparecia na aba "Servidor" (que
+  // mostra as coleções direitinho), sempre caía na aba "Outros"
+  // (sem agrupamento nenhum por coleção, tudo misturado num monte
+  // só). PostDetailPage.jsx já fazia isso certo — mesma fonte
+  // (usableEmojis), só faltava aqui.
+  const usableEmojis = useStore((s) => s.usableEmojis);
   const [pickerStyle, setPickerStyle] = useState(null);
   const PICKER_WIDTH = 380;
   const PICKER_HEIGHT_VH = 40;
@@ -852,6 +860,7 @@ export default function ChatWindow({ kind }) {
                 variant="composer-centered"
                 style={{ '--composer-height': `${composerBarHeight}px`, ...(pickerStyle || {}) }}
                 serverStickers={serverStickers}
+                serverEmojis={usableEmojis}
                 onPick={insertText}
                 onPickSticker={sendSticker}
                 onClose={() => setEmojiPickerOpen(false)}
