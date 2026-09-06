@@ -294,6 +294,10 @@ function ChannelGroup({
   const voice = useVoice();
   const { openMenu } = useContextMenu();
   const markChannelReadLocal = useStore((s) => s.markChannelReadLocal);
+  // Item pedido: "só notifica se marcar/responder uma pessoa" —
+  // isChannelUnread precisa saber meus cargos pra reconhecer uma
+  // menção de CARGO (não só @meu-nome direto) como "isso é pra mim".
+  const myRoleIds = members.find((m) => m.user.id === myUserId)?.roleIds || [];
 
   const onContextMenu = (e, ch) => {
     const items = [
@@ -326,7 +330,7 @@ function ChannelGroup({
   return (
     <>
       {channels.map((ch) => {
-        const unread = isChannelUnread(ch, channelReadAt, myUserId);
+        const unread = isChannelUnread(ch, channelReadAt, myUserId, myRoleIds);
         const isVoiceType = VOICE_TYPES.includes(ch.type);
         const rosterEntries = isVoiceType ? (voice?.roster?.[ch.id] || []) : [];
         const isDragging = dragChannelId === ch.id;

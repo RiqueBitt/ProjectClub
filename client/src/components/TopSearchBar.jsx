@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useStore, isChannelUnread, isConversationUnread } from '../store/useStore';
+import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '../store/useStore';
 import gameActivityIcon from '../assets/icons/activity-game.png';
 import spotifyActivityIcon from '../assets/icons/activity-spotify.png';
 import appActivityIcon from '../assets/icons/activity-app.png';
@@ -26,6 +26,7 @@ import chatIcon from '../assets/icons/chat.png';
 export default function TopSearchBar() {
   const navigate = useNavigate();
   const { user, setUser } = useAuth();
+  const myRoleIds = useMyRoleIds(user?.id);
   const [q, setQ] = useState('');
   const categories = useStore((s) => s.categories);
   const channels = useStore((s) => s.channels);
@@ -38,7 +39,7 @@ export default function TopSearchBar() {
   const myActivity = useStore((s) => s.activities[user?.id]);
 
   const allChannels = [...channels, ...categories.flatMap((c) => c.channels || [])];
-  const unreadChannels = allChannels.filter((ch) => isChannelUnread(ch, channelReadAt, user.id)).length;
+  const unreadChannels = allChannels.filter((ch) => isChannelUnread(ch, channelReadAt, user.id, myRoleIds)).length;
   const unreadConversations = conversations.filter((c) => isConversationUnread(c, user.id)).length;
   const pendingIncoming = friends.filter((f) => f.status === 'PENDING' && f.isIncoming).length;
   const notifBadge = unreadChannels + unreadConversations + pendingIncoming;

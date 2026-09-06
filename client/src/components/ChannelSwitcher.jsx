@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useStore, isChannelUnread } from '../store/useStore';
+import { useStore, isChannelUnread, useMyRoleIds } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import ChannelTypeIcon from './ChannelTypeIcon.jsx';
 
@@ -29,6 +29,7 @@ import ChannelTypeIcon from './ChannelTypeIcon.jsx';
 // escondida, aparecendo só quando há conteúdo cortado de cada lado.
 export default function ChannelSwitcher({ currentChannelId }) {
   const { user } = useAuth();
+  const myRoleIds = useMyRoleIds(user.id);
   const navigate = useNavigate();
   const categories = useStore((s) => s.categories);
   const channels = useStore((s) => s.channels);
@@ -80,7 +81,7 @@ export default function ChannelSwitcher({ currentChannelId }) {
 
   const scrollBy = (delta) => scrollRef.current?.scrollBy({ left: delta, behavior: 'smooth' });
 
-  const categoryHasUnread = (cat) => (cat.channels || []).some((ch) => isChannelUnread(ch, channelReadAt, user.id));
+  const categoryHasUnread = (cat) => (cat.channels || []).some((ch) => isChannelUnread(ch, channelReadAt, user.id, myRoleIds));
   const categoryContainsCurrent = (cat) => (cat.channels || []).some((ch) => ch.id === currentChannelId);
   const categoryMentionCount = (cat) => (cat.channels || []).reduce((sum, ch) => sum + (ch.unreadMentions || 0), 0);
 
@@ -91,7 +92,7 @@ export default function ChannelSwitcher({ currentChannelId }) {
       )}
       <div className="channel-tabs" ref={scrollRef}>
         {channels.map((ch) => {
-          const unread = isChannelUnread(ch, channelReadAt, user.id);
+          const unread = isChannelUnread(ch, channelReadAt, user.id, myRoleIds);
           const active = ch.id === currentChannelId;
           return (
             <button

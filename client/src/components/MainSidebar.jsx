@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { useStore, isChannelUnread, isConversationUnread } from '../store/useStore';
+import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import topicIcon from '../assets/icons/nav-topic.png';
 import feedIcon from '../assets/icons/nav-feed.png';
@@ -57,6 +57,7 @@ export default function MainSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const myRoleIds = useMyRoleIds(user.id);
   const categories = useStore((s) => s.categories);
   const channels = useStore((s) => s.channels);
   const channelReadAt = useStore((s) => s.channelReadAt);
@@ -79,7 +80,7 @@ export default function MainSidebar() {
   // rápido em cada ícone, igual o sininho de "Notificações" já mostra
   // em detalhe.
   const allChannels = [...channels, ...categories.flatMap((c) => c.channels || [])];
-  const unreadChannels = allChannels.filter((ch) => isChannelUnread(ch, channelReadAt, user.id)).length;
+  const unreadChannels = allChannels.filter((ch) => isChannelUnread(ch, channelReadAt, user.id, myRoleIds)).length;
   const unreadConversations = conversations.filter((c) => isConversationUnread(c, user.id)).length;
   const pendingIncoming = friends.filter((f) => f.status === 'PENDING' && f.isIncoming).length;
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useStore, isChannelUnread, isConversationUnread } from '../store/useStore';
+import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { listPendingTestimonials, respondTestimonial, listPendingRelationships, respondRelationship } from '../api/endpoints';
 import { DISABLED_PROFILE_SECTIONS } from '../utils/profileSections';
@@ -14,6 +14,7 @@ import { DISABLED_PROFILE_SECTIONS } from '../utils/profileSections';
 // precisar visitar cada área separadamente para descobrir o que mudou.
 export default function NotificationsPage() {
   const { user } = useAuth();
+  const myRoleIds = useMyRoleIds(user.id);
   const navigate = useNavigate();
   const categories = useStore((s) => s.categories);
   const channels = useStore((s) => s.channels);
@@ -22,7 +23,7 @@ export default function NotificationsPage() {
   const friends = useStore((s) => s.friends);
 
   const allChannels = [...channels, ...categories.flatMap((c) => c.channels || [])];
-  const unreadChannels = allChannels.filter((ch) => isChannelUnread(ch, channelReadAt, user.id));
+  const unreadChannels = allChannels.filter((ch) => isChannelUnread(ch, channelReadAt, user.id, myRoleIds));
   const unreadConversations = conversations.filter((c) => isConversationUnread(c, user.id));
   const pendingIncoming = friends.filter((f) => f.status === 'PENDING' && f.isIncoming);
 

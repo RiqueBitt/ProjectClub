@@ -430,6 +430,19 @@ export function roomKeyFor({ conversationId, channelId }) {
   return conversationId ? `conversation:${conversationId}` : `channel:${channelId}`;
 }
 
+// Item pedido: "só notifica se marcar/responder uma pessoa" — helper
+// reaproveitável pra pegar os cargos do usuário atual (usado por
+// isChannelUnread abaixo pra saber se uma menção de CARGO conta pra
+// mim), em vez de repetir a mesma busca em cada um dos vários lugares
+// que precisam disso. Recebe myUserId de fora (do AuthContext) — o
+// próprio store não tem acesso a isso, só à lista de membros.
+export function useMyRoleIds(myUserId) {
+  return useStore((s) => {
+    const me = s.members.find((m) => m.user.id === myUserId);
+    return me?.roleIds || [];
+  });
+}
+
 export function isConversationUnread(conversation, myUserId) {
   const last = conversation.lastMessage;
   if (!last || last.authorId === myUserId) return false;
@@ -437,9 +450,22 @@ export function isConversationUnread(conversation, myUserId) {
   return new Date(last.createdAt) > new Date(conversation.lastReadAt);
 }
 
-export function isChannelUnread(channel, channelReadAtMap, myUserId) {
+// Item pedido: "toda vez que uma pessoa manda uma mensagem em algum
+// canal ele notifica todo mundo, está errado — se mandar uma mensagem
+// normal não vai notificar ninguém, só vai notificar se ele marcar
+// [mencionar]/responder uma pessoa, e só aquela pessoa" — antes,
+// QUALQUER mensagem nova marcava o canal como "não lido" pra todo
+// mundo que estivesse nele, sem checar menção nenhuma (só comparava a
+// data da última mensagem com a data da última leitura). Agora só
+// conta como "não lido" quando a última mensagem menciona diretamente
+// esta pessoa (@nome, @cargo dela, @todos ou @aqui) ou é uma resposta
+// direta a uma mensagem dela — mensagem normal, sem nenhum desses,
+// não acende nada pra mais ninguém.
+export function isChannelUnread(channel, channelReadAtMap, myUserId, myRoleIds = []) {
   const last = channel.lastMessage;
   if (!last || last.authorId === myUserId) return false;
+  const repliedToMe = last.replyTo?.authorId === myUserId || last.replyTo?.author?.id === myUserId;
+  if (!messageMentionsUser(last, myUserId, myRoleIds) && !repliedToMe) return false;
   const readAt = channelReadAtMap[channel.id] ?? channel.myReadAt;
   if (!readAt) return true;
   return new Date(last.createdAt) > new Date(readAt);

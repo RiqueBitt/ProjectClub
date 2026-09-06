@@ -917,14 +917,16 @@ function ChatTitleOrCategoryChannels({ title, currentChannelId }) {
   const channelReadAt = useStore((s) => s.channelReadAt);
   const openCategoryId = useStore((s) => s.openCategoryId);
   const setOpenCategoryId = useStore((s) => s.setOpenCategoryId);
+  const members = useStore((s) => s.members);
   const openCategory = categories.find((c) => c.id === openCategoryId);
+  const myRoleIds = members.find((m) => m.user.id === user.id)?.roleIds || [];
 
   if (!openCategory) return <span className="chat-title truncate">{title}</span>;
 
   return (
     <div className="chat-title-category-channels">
       {(openCategory.channels || []).map((ch) => {
-        const unread = isChannelUnread(ch, channelReadAt, user.id);
+        const unread = isChannelUnread(ch, channelReadAt, user.id, myRoleIds);
         const active = ch.id === currentChannelId;
         return (
           <button
