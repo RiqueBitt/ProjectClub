@@ -312,10 +312,19 @@ export default function UserSettingsModal({ onClose }) {
   // decodificar/recompor cada frame manualmente — fora do escopo
   // razoável aqui). GIF pula o recortador e vai direto pro upload,
   // exatamente como funcionava antes dele existir.
+  //
+  // isGifFile checa também a extensão do arquivo, não só file.type —
+  // esse campo vem do próprio navegador/sistema operacional
+  // detectando o tipo sozinho, e raramente (mas às vezes) vem vazio
+  // ou errado pra um GIF de verdade, dependendo de como o arquivo foi
+  // salvo originalmente; isso faria o arquivo passar batido pelo
+  // recortador mesmo sendo GIF, achatando a animação de qualquer jeito.
+  const isGifFile = (f) => f.type === 'image/gif' || /\.gif$/i.test(f.name || '');
+
   const onAvatar = (e) => {
     const file = e.target.files[0]; if (!file) return;
     e.target.value = ''; // permite escolher o MESMO arquivo de novo depois de cancelar
-    if (file.type === 'image/gif') {
+    if (isGifFile(file)) {
       uploadAvatar(file).then(({ user: updated }) => setUser(updated));
       return;
     }
@@ -337,7 +346,7 @@ export default function UserSettingsModal({ onClose }) {
   const onBanner = (e) => {
     const file = e.target.files[0]; if (!file) return;
     e.target.value = '';
-    if (file.type === 'image/gif') {
+    if (isGifFile(file)) {
       uploadBanner(file).then(({ user: updated }) => setUser(updated));
       return;
     }
@@ -356,7 +365,7 @@ export default function UserSettingsModal({ onClose }) {
   const onMiniProfileBanner = (e) => {
     const file = e.target.files[0]; if (!file) return;
     e.target.value = '';
-    if (file.type === 'image/gif') {
+    if (isGifFile(file)) {
       uploadMiniProfileBanner(file).then(({ user: updated }) => setUser(updated));
       return;
     }

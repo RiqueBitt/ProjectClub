@@ -360,7 +360,7 @@ async function setMyClanTag(req, res, next) {
     const { tagId } = req.body;
     if (!tagId) {
       await prisma.user.update({ where: { id: req.user.id }, data: { clanTagId: null } });
-      return res.json({ ok: true });
+      return res.json({ clanTagId: null });
     }
     if (!req.user.clanId) return res.status(400).json({ error: 'Você não está em nenhum clã.' });
     const tag = await prisma.clanTag.findUnique({ where: { id: tagId } });
@@ -368,7 +368,12 @@ async function setMyClanTag(req, res, next) {
     // quais não participa."
     if (!tag || tag.clanId !== req.user.clanId) return res.status(403).json({ error: 'Essa tag não pertence ao seu clã.' });
     await prisma.user.update({ where: { id: req.user.id }, data: { clanTagId: tagId } });
-    res.json({ ok: true });
+    // BUG CORRIGIDO ("quando clico em mostrar tag no perfil não
+    // acontece nada"): antes só respondia { ok: true } — o frontend
+    // não tinha como saber que a mudança realmente aconteceu sem
+    // recarregar a página inteira (o checkbox lê user.clanTagId do
+    // estado já carregado na tela, que nunca era atualizado).
+    res.json({ clanTagId: tagId });
   } catch (err) { next(err); }
 }
 
