@@ -157,15 +157,15 @@ export default function StickerManagerModal({ onClose }) {
             Sem coleção
           </button>
           {collections.map((c) => (
-            <button
-              type="button" key={c.id}
-              className={`asset-collection-chip ${activeCollectionId === c.id ? 'active' : ''}`}
-              onClick={() => setActiveCollectionId(c.id)}
-              onDoubleClick={() => { setCollectionError(''); setCollectionForm({ id: c.id, name: c.name, iconUrl: c.iconUrl, iconFile: null }); }}
-              title="Clique duplo pra editar"
-            >
-              <img src={c.iconUrl} alt="" className="asset-collection-chip-icon" /> {c.name}
-            </button>
+            <div key={c.id} className={`asset-collection-chip-wrap ${activeCollectionId === c.id ? 'active' : ''}`}>
+              <button type="button" className="asset-collection-chip" onClick={() => setActiveCollectionId(c.id)}>
+                <img src={c.iconUrl} alt="" className="asset-collection-chip-icon" /> {c.name}
+              </button>
+              {/* Item pedido: "poder apagar categorias e mudar o ícone
+                  delas" — botão de editar explícito, em vez de só o
+                  clique duplo escondido de antes. */}
+              <button type="button" className="asset-collection-edit-btn" title="Editar coleção" onClick={() => { setCollectionError(''); setCollectionForm({ id: c.id, name: c.name, iconUrl: c.iconUrl, iconFile: null }); }}>✎</button>
+            </div>
           ))}
           <button type="button" className="asset-collection-chip asset-collection-add" onClick={() => { setCollectionError(''); setCollectionForm({ name: '', iconFile: null, iconUrl: null }); }}>
             + Nova coleção
@@ -174,23 +174,30 @@ export default function StickerManagerModal({ onClose }) {
 
         {collectionForm && (
           <div className="asset-collection-form">
-            <label className="asset-collection-icon-picker">
-              {(collectionIconPreview || collectionForm.iconUrl) ? (
-                <img src={collectionIconPreview || collectionForm.iconUrl} alt="" />
-              ) : (
-                <span className="dim">Ícone</span>
+            <h4>{collectionForm.id ? 'Editar coleção' : 'Nova coleção'}</h4>
+            <div className="asset-collection-form-row">
+              <label className="asset-collection-icon-picker">
+                {(collectionIconPreview || collectionForm.iconUrl) ? (
+                  <img src={collectionIconPreview || collectionForm.iconUrl} alt="" />
+                ) : (
+                  <span className="dim">Ícone</span>
+                )}
+                <input type="file" accept="image/png,image/gif,image/webp,image/jpeg" hidden onChange={(e) => setCollectionForm({ ...collectionForm, iconFile: e.target.files?.[0] || null })} />
+              </label>
+              <input placeholder="Nome da coleção" maxLength={32} value={collectionForm.name} onChange={(e) => setCollectionForm({ ...collectionForm, name: e.target.value })} />
+            </div>
+            {collectionError && <div className="form-error">{collectionError}</div>}
+            <div className="asset-collection-form-actions">
+              <div className="asset-collection-form-actions-main">
+                <button type="button" className="btn-primary" onClick={saveCollection}>{collectionForm.id ? 'Salvar' : 'Criar'}</button>
+                <button type="button" className="btn-secondary" onClick={() => setCollectionForm(null)}>Cancelar</button>
+              </div>
+              {collectionForm.id && (
+                <button type="button" className="btn-danger-text" onClick={() => { const c = collections.find((x) => x.id === collectionForm.id); removeCollection(c); setCollectionForm(null); }}>Excluir esta coleção</button>
               )}
-              <input type="file" accept="image/png,image/gif,image/webp,image/jpeg" hidden onChange={(e) => setCollectionForm({ ...collectionForm, iconFile: e.target.files?.[0] || null })} />
-            </label>
-            <input placeholder="Nome da coleção" maxLength={32} value={collectionForm.name} onChange={(e) => setCollectionForm({ ...collectionForm, name: e.target.value })} />
-            <button type="button" className="btn-primary" onClick={saveCollection}>{collectionForm.id ? 'Salvar' : 'Criar'}</button>
-            {collectionForm.id && (
-              <button type="button" className="btn-secondary" onClick={() => { const c = collections.find((x) => x.id === collectionForm.id); removeCollection(c); setCollectionForm(null); }}>Excluir coleção</button>
-            )}
-            <button type="button" className="btn-secondary" onClick={() => setCollectionForm(null)}>Cancelar</button>
+            </div>
           </div>
         )}
-        {collectionForm && collectionError && <div className="form-error">{collectionError}</div>}
 
         <div
           className={`emoji-dropzone ${dragOver ? 'drag-over' : ''} ${previewUrl ? 'has-preview' : ''}`}
