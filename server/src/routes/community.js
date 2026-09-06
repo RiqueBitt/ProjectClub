@@ -27,8 +27,8 @@ router.post('/stickers', uploadImage.single('sticker'), stickerCtrl.createSticke
 router.patch('/stickers/:id', stickerCtrl.updateSticker);
 router.delete('/stickers/:id', stickerCtrl.deleteSticker);
 router.get('/collections/:kind', collectionCtrl.listCollections);
-router.post('/collections/:kind', collectionCtrl.createCollection);
-router.patch('/collections/:id', collectionCtrl.updateCollection);
+router.post('/collections/:kind', uploadImage.single('icon'), collectionCtrl.createCollection);
+router.patch('/collections/:id', uploadImage.single('icon'), collectionCtrl.updateCollection);
 router.delete('/collections/:id', collectionCtrl.deleteCollection);
 
 // --- Categorias ---

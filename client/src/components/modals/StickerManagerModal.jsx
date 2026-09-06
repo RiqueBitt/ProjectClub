@@ -10,12 +10,15 @@ const MAX_MB = 5;
 
 // Item pedido: "sistema de figurinhas... podendo criar no painel da
 // staff" — mesmo padrão visual/UX de EmojiManagerModal.jsx, incluindo
-// agora o mesmo sistema de coleções dos dois lados.
+// agora o mesmo sistema de coleções dos dois lados (com ícone de
+// imagem de verdade, não mais um emoji digitado).
 export default function StickerManagerModal({ onClose }) {
   const [stickers, setStickers] = useState([]);
   const [collections, setCollections] = useState([]);
   const [activeCollectionId, setActiveCollectionId] = useState('all');
   const [collectionForm, setCollectionForm] = useState(null);
+  const [collectionIconPreview, setCollectionIconPreview] = useState(null);
+  const [collectionError, setCollectionError] = useState('');
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
   const [file, setFile] = useState(null);
@@ -48,6 +51,14 @@ export default function StickerManagerModal({ onClose }) {
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [file]);
+
+  // Mesma ideia acima, pro ícone de imagem do formulário de coleção.
+  useEffect(() => {
+    if (!collectionForm?.iconFile) { setCollectionIconPreview(null); return; }
+    const url = URL.createObjectURL(collectionForm.iconFile);
+    setCollectionIconPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [collectionForm?.iconFile]);
 
   const pickFile = (f) => {
     if (!f) return;
@@ -98,15 +109,25 @@ export default function StickerManagerModal({ onClose }) {
     setServerStickers(fresh);
   };
 
+  // BUG CORRIGIDO ("não está dando de criar as coleção"): a validação
+  // antes retornava sem avisar nada quando faltava nome ou ícone —
+  // agora mostra uma mensagem visível, e qualquer erro do servidor
+  // (nome duplicado, etc) também aparece em vez de falhar em silêncio.
   const saveCollection = async () => {
-    if (!collectionForm.name.trim() || !collectionForm.icon.trim()) return;
-    if (collectionForm.id) {
-      await updateAssetCollection(collectionForm.id, { name: collectionForm.name.trim(), icon: collectionForm.icon.trim() });
-    } else {
-      await createAssetCollection('STICKER', { name: collectionForm.name.trim(), icon: collectionForm.icon.trim() });
+    setCollectionError('');
+    if (!collectionForm.name.trim()) { setCollectionError('Dê um nome à coleção.'); return; }
+    if (!collectionForm.id && !collectionForm.iconFile) { setCollectionError('Escolha uma imagem pra ser o ícone da coleção.'); return; }
+    try {
+      if (collectionForm.id) {
+        await updateAssetCollection(collectionForm.id, { name: collectionForm.name.trim(), iconFile: collectionForm.iconFile });
+      } else {
+        await createAssetCollection('STICKER', collectionForm.name.trim(), collectionForm.iconFile);
+      }
+      setCollectionForm(null);
+      await refresh();
+    } catch (err) {
+      setCollectionError(err?.response?.data?.error || 'Não foi possível salvar a coleção.');
     }
-    setCollectionForm(null);
-    await refresh();
   };
 
   const removeCollection = async (collection) => {
@@ -140,20 +161,27 @@ export default function StickerManagerModal({ onClose }) {
               type="button" key={c.id}
               className={`asset-collection-chip ${activeCollectionId === c.id ? 'active' : ''}`}
               onClick={() => setActiveCollectionId(c.id)}
-              onDoubleClick={() => setCollectionForm({ id: c.id, name: c.name, icon: c.icon })}
+              onDoubleClick={() => { setCollectionError(''); setCollectionForm({ id: c.id, name: c.name, iconUrl: c.iconUrl, iconFile: null }); }}
               title="Clique duplo pra editar"
             >
-              <span>{c.icon}</span> {c.name}
+              <img src={c.iconUrl} alt="" className="asset-collection-chip-icon" /> {c.name}
             </button>
           ))}
-          <button type="button" className="asset-collection-chip asset-collection-add" onClick={() => setCollectionForm({ name: '', icon: '' })}>
+          <button type="button" className="asset-collection-chip asset-collection-add" onClick={() => { setCollectionError(''); setCollectionForm({ name: '', iconFile: null, iconUrl: null }); }}>
             + Nova coleção
           </button>
         </div>
 
         {collectionForm && (
           <div className="asset-collection-form">
-            <input placeholder="Ícone (ex: 🎉)" maxLength={4} value={collectionForm.icon} onChange={(e) => setCollectionForm({ ...collectionForm, icon: e.target.value })} className="asset-collection-icon-input" />
+            <label className="asset-collection-icon-picker">
+              {(collectionIconPreview || collectionForm.iconUrl) ? (
+                <img src={collectionIconPreview || collectionForm.iconUrl} alt="" />
+              ) : (
+                <span className="dim">Ícone</span>
+              )}
+              <input type="file" accept="image/png,image/gif,image/webp,image/jpeg" hidden onChange={(e) => setCollectionForm({ ...collectionForm, iconFile: e.target.files?.[0] || null })} />
+            </label>
             <input placeholder="Nome da coleção" maxLength={32} value={collectionForm.name} onChange={(e) => setCollectionForm({ ...collectionForm, name: e.target.value })} />
             <button type="button" className="btn-primary" onClick={saveCollection}>{collectionForm.id ? 'Salvar' : 'Criar'}</button>
             {collectionForm.id && (
@@ -162,6 +190,7 @@ export default function StickerManagerModal({ onClose }) {
             <button type="button" className="btn-secondary" onClick={() => setCollectionForm(null)}>Cancelar</button>
           </div>
         )}
+        {collectionForm && collectionError && <div className="form-error">{collectionError}</div>}
 
         <div
           className={`emoji-dropzone ${dragOver ? 'drag-over' : ''} ${previewUrl ? 'has-preview' : ''}`}
@@ -230,7 +259,7 @@ export default function StickerManagerModal({ onClose }) {
                   className="emoji-category-select"
                 >
                   <option value="">Sem coleção</option>
-                  {collections.map((c) => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                  {collections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
                 <button className="icon-btn-small" title="Excluir" onClick={() => remove(s)}><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button>
               </div>

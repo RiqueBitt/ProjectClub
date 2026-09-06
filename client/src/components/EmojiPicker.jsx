@@ -69,8 +69,8 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
   // quem ainda não foi organizado em nenhuma.
   const groupByCollection = (items, collections) => {
     const byId = Object.fromEntries(collections.map((c) => [c.id, c]));
-    const groups = collections.map((c) => ({ key: c.id, label: c.name, icon: c.icon, list: [] }));
-    const uncategorized = { key: 'none', label: 'Sem coleção', icon: '📄', list: [] };
+    const groups = collections.map((c) => ({ key: c.id, label: c.name, iconUrl: c.iconUrl, list: [] }));
+    const uncategorized = { key: 'none', label: 'Sem coleção', iconUrl: null, list: [] };
     for (const item of items) {
       const group = item.collectionId && byId[item.collectionId] ? groups.find((g) => g.key === item.collectionId) : uncategorized;
       group.list.push(item);
@@ -137,7 +137,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
               <div className="emoji-picker-cat-rail">
                 {customGroups.map((g) => (
                   <button key={g.key} className="emoji-picker-cat-rail-btn" title={g.label} onClick={() => scrollToCategory(`server-${g.key}`)}>
-                    {g.icon}
+                    {g.iconUrl ? <img src={g.iconUrl} alt="" className="asset-collection-rail-icon" /> : '📄'}
                   </button>
                 ))}
               </div>
@@ -148,7 +148,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
                 if (filtered.length === 0) return null;
                 return (
                   <div key={g.key} ref={(el) => { catSectionRefs.current[`server-${g.key}`] = el; }}>
-                    <div className="emoji-picker-group-label">{g.icon} {g.label}</div>
+                    <div className="emoji-picker-group-label">{g.iconUrl && <img src={g.iconUrl} alt="" className="asset-collection-label-icon" />} {g.label}</div>
                     <div className="emoji-picker-grid">
                       {filtered.map((e) => (
                         <button key={e.id} title={`:${e.name}:`} onClick={() => { onPick(`:${e.name}:`); onClose?.(); }}>
@@ -224,7 +224,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
               <div className="emoji-picker-cat-rail">
                 {stickerGroups.map((g) => (
                   <button key={g.key} className="emoji-picker-cat-rail-btn" title={g.label} onClick={() => scrollToCategory(`sticker-${g.key}`)}>
-                    {g.icon}
+                    {g.iconUrl ? <img src={g.iconUrl} alt="" className="asset-collection-rail-icon" /> : '📄'}
                   </button>
                 ))}
               </div>
@@ -235,7 +235,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
                 if (filtered.length === 0) return null;
                 return (
                   <div key={g.key} ref={(el) => { catSectionRefs.current[`sticker-${g.key}`] = el; }}>
-                    <div className="emoji-picker-group-label">{g.icon} {g.label}</div>
+                    <div className="emoji-picker-group-label">{g.iconUrl && <img src={g.iconUrl} alt="" className="asset-collection-label-icon" />} {g.label}</div>
                     <div className="sticker-picker-grid">
                       {filtered.map((s) => (
                         <button key={s.id} title={s.name} onClick={() => { onPickSticker(s); onClose?.(); }}>

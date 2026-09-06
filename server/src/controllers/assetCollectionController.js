@@ -25,13 +25,13 @@ async function createCollection(req, res, next) {
     if (!VALID_KINDS.includes(kind)) return res.status(400).json({ error: 'Tipo inválido.' });
     await requireCommunityPermission(req.user.id, permissionFor(kind));
 
-    const { name, icon } = req.body;
+    const { name } = req.body;
     if (!name?.trim() || name.trim().length > 32) return res.status(400).json({ error: 'Nome inválido (até 32 caracteres).' });
-    if (!icon?.trim()) return res.status(400).json({ error: 'Escolha um ícone pra coleção.' });
+    if (!req.file) return res.status(400).json({ error: 'Escolha uma imagem pra ser o ícone da coleção.' });
 
     const count = await prisma.assetCollection.count({ where: { kind } });
     const collection = await prisma.assetCollection.create({
-      data: { kind, name: name.trim(), icon: icon.trim(), order: count },
+      data: { kind, name: name.trim(), iconUrl: req.file.url, order: count },
     });
     req.app.get('io')?.to('community').emit('assetCollection:new', collection);
     res.status(201).json({ collection });
@@ -45,16 +45,16 @@ async function updateCollection(req, res, next) {
     if (!existing) return res.status(404).json({ error: 'Coleção não encontrada.' });
     await requireCommunityPermission(req.user.id, permissionFor(existing.kind));
 
-    const { name, icon } = req.body;
+    const { name } = req.body;
     const data = {};
     if (name !== undefined) {
       if (!name.trim() || name.trim().length > 32) return res.status(400).json({ error: 'Nome inválido (até 32 caracteres).' });
       data.name = name.trim();
     }
-    if (icon !== undefined) {
-      if (!icon.trim()) return res.status(400).json({ error: 'Escolha um ícone pra coleção.' });
-      data.icon = icon.trim();
-    }
+    // Trocar o ícone é opcional na edição — só manda um arquivo novo
+    // quem realmente quer trocá-lo, mudar só o nome não deveria exigir
+    // escolher a imagem de novo.
+    if (req.file) data.iconUrl = req.file.url;
 
     const collection = await prisma.assetCollection.update({ where: { id }, data });
     req.app.get('io')?.to('community').emit('assetCollection:update', collection);
