@@ -200,13 +200,23 @@ async function createMessage(req, res, next) {
     // A sent sticker (see StickerManagerModal.jsx / EmojiPicker.jsx) — kept
     // out of the embed system on purpose (see Message.stickerUrl's schema
     // comment: it renders small and chrome-free, not inside an embed card).
-    // Restricted to our own /uploads/ path (not an arbitrary URL) since,
+    // Restricted to our own hosted paths (not an arbitrary URL) since,
     // unlike a GIF, a sticker is always something this server actually
     // hosts — see stickerController.createSticker.
+    //
+    // BUG CORRIGIDO ("a figurinha tá dando erro" — 400 "Mensagem vazia"
+    // ao mandar uma): a regex só aceitava /uploads/ (o storage antigo,
+    // em disco local — ver fileStorage.js). A migração pro Backblaze B2
+    // trocou o caminho pra /media/<chave> nesse meio tempo, e essa
+    // validação nunca foi atualizada — toda figurinha de verdade (as
+    // hospedadas no B2, que é o modo real de produção) vinha com
+    // stickerUrl começando em /media/, sempre rejeitada silenciosamente
+    // (virava null, e como não tem mais nada na mensagem, caía direto
+    // na checagem de "mensagem vazia" logo abaixo).
     let stickerUrl = null;
     if (req.body.stickerUrl) {
       const raw = String(req.body.stickerUrl);
-      if (/^\/uploads\//.test(raw)) stickerUrl = raw.slice(0, 500);
+      if (/^\/(uploads|media)\//.test(raw)) stickerUrl = raw.slice(0, 500);
     }
 
     if (!content && !title && !embed && !stickerUrl && (!req.files || req.files.length === 0)) {
