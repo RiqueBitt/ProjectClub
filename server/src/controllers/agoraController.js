@@ -14,7 +14,22 @@ async function getToken(req, res, next) {
     const { channelName } = req.query;
     if (!channelName?.trim()) return res.status(400).json({ error: 'Informe o canal.' });
 
-    const token = generateToken(channelName.trim(), req.user.id);
+    // Item pedido: "Somente usuários que fazem parte daquele clan
+    // poderão acessar e utilizar esses canais" — a voz do clã
+    // reaproveita esse mesmo endpoint (ver VoiceContext.jsx,
+    // channelName = "clan:<id>"), então a checagem de acesso pra essa
+    // sala específica precisa acontecer aqui — sem isso, qualquer
+    // pessoa logada poderia pedir um token pra entrar na voz de um
+    // clã do qual não é membro nenhum.
+    const clean = channelName.trim();
+    if (clean.startsWith('clan:')) {
+      const clanId = clean.slice('clan:'.length);
+      if (req.user.clanId !== clanId) {
+        return res.status(403).json({ error: 'Você não é membro deste clã.' });
+      }
+    }
+
+    const token = generateToken(clean, req.user.id);
     res.json({ token, appId: process.env.AGORA_APP_ID, uid: req.user.id });
   } catch (err) { next(err); }
 }

@@ -450,3 +450,31 @@ export const createProfilePoll = (question, options) => api.post('/profile-polls
 export const listProfilePollsByAuthor = (authorId) => api.get(`/profile-polls/author/${authorId}`).then((r) => r.data);
 export const voteProfilePoll = (id, optionId) => api.post(`/profile-polls/${id}/vote`, { optionId }).then((r) => r.data);
 export const deleteProfilePoll = (id) => api.delete(`/profile-polls/${id}`).then((r) => r.data);
+
+// Item pedido: "sistema completo chamado Clans" — API do front pro
+// backend de server/src/routes/clans.js.
+export const listPublicClans = () => api.get('/clans').then((r) => r.data);
+export const getMyClan = () => api.get('/clans/mine').then((r) => r.data);
+export const getClan = (id) => api.get(`/clans/${id}`).then((r) => r.data);
+export const createClan = (payload) => api.post('/clans', payload).then((r) => r.data);
+export const updateClan = (id, payload) => api.patch(`/clans/${id}`, payload).then((r) => r.data);
+export const joinClan = (id) => api.post(`/clans/${id}/join`).then((r) => r.data);
+export const leaveClan = () => api.post('/clans/leave').then((r) => r.data);
+export const transferClanOwnership = (id, targetUserId) => api.post(`/clans/${id}/transfer`, { targetUserId }).then((r) => r.data);
+export const setClanMemberRole = (id, userId, role) => api.patch(`/clans/${id}/members/${userId}/role`, { role }).then((r) => r.data);
+export const kickClanMember = (id, userId) => api.delete(`/clans/${id}/members/${userId}`).then((r) => r.data);
+export const respondClanJoinRequest = (id, requestId, approve) => api.patch(`/clans/${id}/requests/${requestId}`, { approve }).then((r) => r.data);
+export const createClanTag = (id, tag) => api.post(`/clans/${id}/tags`, { tag }).then((r) => r.data);
+export const deleteClanTag = (id, tagId) => api.delete(`/clans/${id}/tags/${tagId}`).then((r) => r.data);
+export const setMyClanTag = (tagId) => api.patch('/clans/me/tag', { tagId }).then((r) => r.data);
+export const listClanMessages = (id) => api.get(`/clans/${id}/messages`).then((r) => r.data);
+export const sendClanMessage = (id, content) => api.post(`/clans/${id}/messages`, { content }).then((r) => r.data);
+export const deleteClanMessage = (id, messageId) => api.delete(`/clans/${id}/messages/${messageId}`).then((r) => r.data);
+export const listClanIcons = () => api.get('/clans/icons').then((r) => r.data);
+export const createClanIcon = (file, name) => {
+  const fd = new FormData();
+  fd.append('icon', file);
+  fd.append('name', name);
+  return api.post('/clans/icons', fd).then((r) => r.data);
+};
+export const deleteClanIcon = (id) => api.delete(`/clans/icons/${id}`).then((r) => r.data);

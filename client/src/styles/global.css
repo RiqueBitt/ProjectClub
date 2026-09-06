@@ -6172,3 +6172,127 @@ a.embed-card-title:hover { text-decoration: underline; }
 }
 .image-cropper-zoom-row { display: flex; align-items: center; gap: 10px; width: 100%; font-size: 12px; font-weight: 700; color: var(--text-muted); }
 .image-cropper-zoom-row input[type="range"] { flex: 1; }
+
+/* ============================================================
+   Item pedido: "sistema completo chamado Clans... deixe tudo bonito
+   e bem animado e otimizado... funcionar em Desktop/Web, Tablet,
+   Mobile, app .exe" — segue o mesmo padrão visual (cores, cards,
+   espaçamento) já usado no resto do app, com transições suaves (nada
+   pesado — CSS puro, sem biblioteca de animação, pra não pesar o
+   carregamento) e breakpoints iguais aos já usados em outras páginas.
+   ============================================================ */
+.clans-page { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
+.clans-page-header { margin-bottom: 24px; animation: clan-fade-in .25s ease; }
+.clans-page-header h1 { margin: 0 0 6px; font-size: 24px; }
+.clans-page-header .btn-primary { margin-top: 12px; }
+
+.clan-icon-preview {
+  width: 56px; height: 56px; border-radius: 14px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 26px;
+  background: color-mix(in srgb, var(--clan-icon-color, var(--brand)) 20%, var(--bg-secondary-alt));
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--clan-icon-color, var(--brand)) 45%, transparent);
+  transition: transform .15s var(--ease-smooth);
+}
+.clan-icon-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 14px; }
+
+.clan-create-form {
+  background: var(--bg-secondary-alt); border-radius: 10px; padding: 18px; margin-bottom: 24px;
+  display: flex; flex-direction: column; gap: 12px;
+  animation: clan-slide-down .2s var(--ease-smooth);
+}
+.clan-create-icon-row { display: flex; gap: 14px; align-items: flex-start; }
+.clan-create-icon-fields { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.clan-color-swatches { display: flex; gap: 6px; margin-top: 4px; }
+.clan-color-swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; transition: transform .12s; }
+.clan-color-swatch:hover { transform: scale(1.15); }
+.clan-color-swatch.active { border-color: var(--text-normal); transform: scale(1.15); }
+.clan-public-toggle { flex-direction: row !important; align-items: center; gap: 8px; font-size: 13px; }
+
+.clan-mine-section { margin-bottom: 28px; animation: clan-fade-in .25s ease; }
+
+.clans-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.clan-card {
+  display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 10px;
+  background: var(--bg-secondary-alt); transition: transform .15s var(--ease-smooth), box-shadow .15s;
+  animation: clan-fade-in .25s ease;
+}
+.clan-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.18); }
+.clan-card:hover .clan-icon-preview { transform: scale(1.06); }
+.clan-card-mine { cursor: pointer; }
+.clan-card-body { flex: 1; min-width: 0; }
+.clan-card-name { font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.clan-card-desc { margin: 2px 0; }
+.clan-private-badge { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+
+@keyframes clan-fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes clan-slide-down { from { opacity: 0; transform: scaleY(.95); transform-origin: top; } to { opacity: 1; transform: scaleY(1); } }
+
+/* --- ClanPage --- */
+.clan-page { max-width: 900px; margin: 0 auto; padding: 20px 20px 60px; display: flex; flex-direction: column; height: 100%; }
+.clan-page-header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; animation: clan-fade-in .2s ease; }
+.clan-page-header h1 { margin: 0; font-size: 20px; }
+.clan-back-btn { flex-shrink: 0; }
+.clan-page-icon { margin-right: 2px; }
+.clan-voice-btn { margin-left: auto; transition: background-color .15s, color .15s; }
+.clan-voice-btn.active { background: var(--green, #23a55a); color: #fff; }
+
+.clan-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; overflow-x: auto; }
+.clan-tab {
+  padding: 10px 14px; font-size: 13px; font-weight: 700; color: var(--text-muted);
+  border-bottom: 2px solid transparent; white-space: nowrap; position: relative;
+  transition: color .12s, border-color .12s;
+}
+.clan-tab:hover { color: var(--text-normal); }
+.clan-tab.active { color: var(--header-primary); border-bottom-color: var(--brand); }
+.clan-tab-badge {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px;
+  padding: 0 4px; border-radius: 999px; background: var(--red); color: #fff; font-size: 10px; margin-left: 4px;
+}
+
+.clan-chat { display: flex; flex-direction: column; flex: 1; min-height: 300px; animation: clan-fade-in .2s ease; }
+.clan-chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; }
+.clan-chat-message { display: flex; gap: 10px; align-items: flex-start; animation: clan-fade-in .15s ease; }
+.clan-chat-avatar { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.clan-chat-message-body { flex: 1; min-width: 0; }
+.clan-chat-message-head { display: flex; align-items: baseline; gap: 8px; }
+.clan-chat-author { font-weight: 700; font-size: 13px; }
+.clan-chat-time { font-size: 11px; }
+.clan-chat-delete-btn { color: var(--text-muted); font-size: 18px; line-height: 1; padding: 2px 6px; transition: color .12s; }
+.clan-chat-delete-btn:hover { color: var(--red); }
+.clan-chat-form { display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
+.clan-chat-form input { flex: 1; background: var(--bg-elevated); border-radius: 8px; padding: 10px 12px; border: none; }
+
+.clan-members-tab, .clan-tags-tab, .clan-settings-tab { animation: clan-fade-in .2s ease; display: flex; flex-direction: column; gap: 10px; }
+.clan-requests-section { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.clan-member-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px;
+  transition: background-color .12s;
+}
+.clan-member-row:hover { background: var(--bg-modifier-hover); }
+.clan-member-name { font-weight: 600; flex: 1; }
+.clan-member-actions { display: flex; align-items: center; gap: 6px; }
+.clan-role-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--bg-secondary-alt); }
+.clan-role-owner { background: color-mix(in srgb, #FEE75C 30%, var(--bg-secondary-alt)); color: #FEE75C; }
+.clan-role-sub_owner { background: color-mix(in srgb, #EB459E 25%, var(--bg-secondary-alt)); color: #EB459E; }
+.clan-role-admin { background: color-mix(in srgb, var(--brand) 25%, var(--bg-secondary-alt)); color: var(--brand); }
+.clan-role-moderator { background: color-mix(in srgb, #57F287 25%, var(--bg-secondary-alt)); color: #57F287; }
+
+.clan-tags-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.clan-tag-row { display: flex; align-items: center; gap: 2px; }
+.clan-tag-chip {
+  padding: 6px 14px; border-radius: 999px; background: var(--bg-secondary-alt); font-weight: 700;
+  font-size: 12px; transition: background-color .12s, transform .1s;
+}
+.clan-tag-chip:hover { background: var(--bg-modifier-hover); transform: translateY(-1px); }
+.clan-tag-chip.active { background: var(--brand); color: #fff; }
+.clan-create-tag-row { display: flex; gap: 8px; margin-top: 8px; }
+.clan-create-tag-row input { width: 140px; text-transform: uppercase; }
+
+/* Item pedido: "responsiva... Tablet, Mobile" */
+@media (max-width: 700px) {
+  .clans-page, .clan-page { padding: 16px 12px 80px; }
+  .clans-grid { grid-template-columns: 1fr; }
+  .clan-page-header { flex-wrap: wrap; }
+  .clan-voice-btn { margin-left: 0; order: 1; width: 100%; }
+  .clan-create-icon-row { flex-direction: column; align-items: center; text-align: center; }
+}

@@ -82,6 +82,14 @@ export const useStore = create((set, get) => ({
   // socket quando a staff cria/edita/exclui uma (ver SocketContext.jsx).
   emojiCollections: [],
   stickerCollections: [],
+  // Item pedido: "sistema completo chamado Clans" — o clã do usuário
+  // atual (null se não estiver em nenhum), carregado no MainApp.jsx e
+  // atualizado sempre que algo relevante muda (entrar, sair, cargo
+  // alterado etc — ver ClansPage.jsx/ClanPage.jsx).
+  myClan: null,
+  myClanRole: null,
+  myClanCapabilities: {},
+  myClanPendingRequests: null,
   usableStickers: [], // idem, para Sticker (ver StickerPicker.jsx)
   usableSounds: [], // idem, para SoundboardSound (ver SoundboardPanel.jsx)
   favoriteGifs: [], // GIFs salvos deste usuário — ver GifPicker.jsx aba "Favoritos"
@@ -296,6 +304,10 @@ export const useStore = create((set, get) => ({
   setServerStickers: (stickers) => set({ serverStickers: stickers }),
   setEmojiCollections: (collections) => set({ emojiCollections: collections }),
   setStickerCollections: (collections) => set({ stickerCollections: collections }),
+  setMyClan: ({ clan, myRole, myCapabilities, pendingRequests }) => set({
+    myClan: clan, myClanRole: myRole || null, myClanCapabilities: myCapabilities || {},
+    myClanPendingRequests: pendingRequests !== undefined ? pendingRequests : null,
+  }),
   setUsableStickers: (stickers) => set({ usableStickers: stickers }),
   setUsableSounds: (sounds) => set({ usableSounds: sounds }),
   setFavoriteGifs: (gifs) => set({ favoriteGifs: gifs }),

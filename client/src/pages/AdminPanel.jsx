@@ -50,6 +50,7 @@ import HouseIcon from '../components/HouseIcon.jsx';
 import DraggableResizableBox from '../components/admin/DraggableResizableBox.jsx';
 import EmojiManagerModal from '../components/modals/EmojiManagerModal.jsx';
 import StickerManagerModal from '../components/modals/StickerManagerModal.jsx';
+import ClanIconManagerModal from '../components/modals/ClanIconManagerModal.jsx';
 import { BADGE_RARITIES, RARITY_LABEL, RARITY_COLOR, badgeHasImage } from '../utils/badgeRarity';
 import { proxyImage } from '../utils/imageProxy';
 
@@ -59,13 +60,13 @@ const TAB_LABEL = {
   economia: '💰 Economia', casas: '🧊 Casas e Móveis', sistema: '⚙️ Sistema', moderacao: '💬 Moderação de Recados',
   automodDm: '🚩 Moderação de DMs', feeds: '📰 Feeds', honeypot: '🕸️ Segurança (Honeypot)',
   roles: '🎭 Cargos', channels: '# Canais e Categorias', gifMove: '🎯 GIFa Move',
-  emojis: '😀 Emojis', stickers: '🏷️ Figurinhas',
+  emojis: '😀 Emojis', stickers: '🏷️ Figurinhas', clanIcons: '⚔️ Ícones de Clã',
   achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', reload: '🔄 Reload',
 };
 
 const TAB_GROUPS = [
   { label: 'Visão geral', tabs: ['stats', 'inscricoes', 'users', 'badges'] },
-  { label: 'Estrutura da comunidade', tabs: ['roles', 'channels', 'gifMove', 'emojis', 'stickers', 'achievements'] },
+  { label: 'Estrutura da comunidade', tabs: ['roles', 'channels', 'gifMove', 'emojis', 'stickers', 'clanIcons', 'achievements'] },
   { label: 'Conteúdo', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events'] },
   { label: 'Moderação', tabs: ['moderacao', 'automodDm', 'logs', 'honeypot'] },
   { label: 'Comunicação', tabs: ['announcements'] },
@@ -161,6 +162,7 @@ export default function AdminPanel() {
           {tab === 'gifMove' && <GifMoveAdminTab />}
           {tab === 'emojis' && <EmojisAdminTab />}
           {tab === 'stickers' && <StickersAdminTab />}
+          {tab === 'clanIcons' && <ClanIconsAdminTab />}
           {tab === 'achievements' && <AchievementsAdminTab />}
           {tab === 'updates' && <UpdatesAdminTab />}
           {tab === 'events' && <EventsAdminTab />}
@@ -405,6 +407,20 @@ function StickersAdminTab() {
       <p className="dim" style={{ marginBottom: 16 }}>Crie figurinhas pra usar no chat — aceita GIF animado, não só imagem parada.</p>
       <button className="btn-primary" onClick={() => setOpen(true)}>Gerenciar figurinhas</button>
       {open && <StickerManagerModal onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+// Item pedido: "ícones personalizados [de clã]... criados através do
+// Painel da Staff" — mesmo padrão das duas abas acima.
+function ClanIconsAdminTab() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <h2>⚔️ Ícones de Clã</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>Crie ícones pra donos de clã escolherem ao criar ou editar o clã deles.</p>
+      <button className="btn-primary" onClick={() => setOpen(true)}>Gerenciar ícones de clã</button>
+      {open && <ClanIconManagerModal onClose={() => setOpen(false)} />}
     </div>
   );
 }

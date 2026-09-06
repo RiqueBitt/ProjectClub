@@ -42,6 +42,11 @@ const ITEMS = [
   { to: '/rank', icon: ranksIcon, isImg: true, label: 'Ranks', match: (p) => p.startsWith('/rank') },
   { to: '/conquistas', icon: achievementsIcon, isImg: true, label: 'Conquistas', match: (p) => p.startsWith('/conquistas') },
   { to: '/tickets', icon: supportIcon, isImg: true, label: 'Suporte', match: (p) => p.startsWith('/tickets') },
+  // Item pedido: "nova opção chamada Clans na barra lateral" — sem
+  // ícone dedicado no pacote de ícones do app (isImg: true exigiria
+  // um arquivo próprio), emoji como os outros lugares do app já usam
+  // quando não há um ícone customizado disponível.
+  { to: '/clans', icon: '⚔️', label: 'Clãs', match: (p) => p.startsWith('/clans') },
 ];
 // BUG CORRIGIDO: o painel de staff (/admin) ficou órfão depois da troca
 // pra essa barra lateral única — os componentes antigos que linkavam pra

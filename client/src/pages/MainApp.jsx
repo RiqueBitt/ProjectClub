@@ -24,7 +24,7 @@ import ImageLightbox from '../components/ImageLightbox.jsx';
 import UserSettingsModal from '../components/modals/UserSettingsModal.jsx';
 import AnnouncementOverlay from '../components/AnnouncementOverlay.jsx';
 import QuickSwitcher from '../components/QuickSwitcher.jsx';
-import { listUsableEmojis, listServerStickers, listAssetCollections, listFavoriteGifs, getUiLayout, listCommunities } from '../api/endpoints';
+import { listUsableEmojis, listServerStickers, listAssetCollections, listFavoriteGifs, getUiLayout, listCommunities, getMyClan } from '../api/endpoints';
 import { checkForNativeUpdate } from '../utils/nativeUpdateCheck';
 import { setupPushNotifications } from '../utils/pushNotifications';
 import { updateUnreadBadge } from '../utils/unreadBadge';
@@ -51,6 +51,8 @@ const EconomyPage = lazy(() => import('./EconomyPage.jsx'));
 const RankPage = lazy(() => import('./RankPage.jsx'));
 const HousesPage = lazy(() => import('./HousesPage.jsx'));
 const StickersPage = lazy(() => import('./StickersPage.jsx'));
+const ClansPage = lazy(() => import('./ClansPage.jsx'));
+const ClanPage = lazy(() => import('./ClanPage.jsx'));
 const TicketsPage = lazy(() => import('./TicketsPage.jsx'));
 const CommunitiesPage = lazy(() => import('./CommunitiesPage.jsx'));
 const CommunityPage = lazy(() => import('./CommunityPage.jsx'));
@@ -70,7 +72,7 @@ const InicioPage = lazy(() => import('./InicioPage.jsx'));
 export default function MainApp() {
   const { user } = useAuth();
   const {
-    setCommunityStructure, setConversations, setFriends, setUsableEmojis, setServerStickers, setEmojiCollections, setStickerCollections, setFavoriteGifs, setClubs,
+    setCommunityStructure, setConversations, setFriends, setUsableEmojis, setServerStickers, setEmojiCollections, setStickerCollections, setFavoriteGifs, setClubs, setMyClan,
   } = useStore();
   const [membersOpen, setMembersOpen] = useState(true);
   const [dmProfileOpen, setDmProfileOpen] = useState(true);
@@ -128,6 +130,7 @@ export default function MainApp() {
     listServerStickers().then((d) => setServerStickers(d.stickers)).catch(() => {});
     listAssetCollections('EMOJI').then((d) => setEmojiCollections(d.collections)).catch(() => {});
     listAssetCollections('STICKER').then((d) => setStickerCollections(d.collections)).catch(() => {});
+    getMyClan().then((d) => setMyClan(d)).catch(() => {});
     listFavoriteGifs().then((d) => setFavoriteGifs(d.gifs)).catch(() => {});
     listCommunities().then((d) => setClubs(d.communities)).catch(() => {});
     checkForNativeUpdate();
@@ -248,6 +251,8 @@ export default function MainApp() {
               <Route path="/casas" element={<HousesPage />} />
               <Route path="/figurinhas" element={<StickersPage />} />
               <Route path="/tickets" element={<TicketsPage />} />
+              <Route path="/clans" element={<ClansPage />} />
+              <Route path="/clans/mine" element={<ClanPage />} />
               <Route path="/comunidades" element={<CommunitiesPage />} />
               <Route path="/comunidades/:slug" element={<CommunityPage />} />
               <Route path="/posts/:id" element={<PostDetailPage />} />
