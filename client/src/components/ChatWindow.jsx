@@ -13,6 +13,7 @@ import VoiceChannelView from './VoiceChannelView.jsx';
 import ErrorBoundary from './ErrorBoundary.jsx';
 import RulesChannelView from './RulesChannelView.jsx';
 import EmojiPicker from './EmojiPicker.jsx';
+import RichMessageInput from './RichMessageInput.jsx';
 import GifPicker from './GifPicker.jsx';
 import TopicThreadModal from './modals/TopicThreadModal.jsx';
 import PollComposerModal from './modals/PollComposerModal.jsx';
@@ -215,6 +216,12 @@ export default function ChatWindow({ kind }) {
   // só). PostDetailPage.jsx já fazia isso certo — mesma fonte
   // (usableEmojis), só faltava aqui.
   const usableEmojis = useStore((s) => s.usableEmojis);
+  // Item pedido: "quando colocar um emoji no seu texto... vai aparecer
+  // o emoji igual na barra de digitação" — mapa nome->url usado pelo
+  // RichMessageInput pra saber quais shortcodes têm imagem pra
+  // mostrar (os outros, tipo emoji de OUTRO servidor que a pessoa não
+  // pode usar aqui, continuam aparecendo como texto puro mesmo).
+  const composerEmojiMap = useMemo(() => Object.fromEntries(usableEmojis.map((e) => [e.name, e.url])), [usableEmojis]);
   const [pickerStyle, setPickerStyle] = useState(null);
   const PICKER_WIDTH = 380;
   const PICKER_HEIGHT_VH = 40;
@@ -839,12 +846,14 @@ export default function ChatWindow({ kind }) {
           >
             <img className="ui-icon" src={micIcon} alt="" />
           </button>
-          <input
-            ref={inputRef}
+          <RichMessageInput
+            inputRef={inputRef}
             className="message-input"
             placeholder={`Conversar em ${title || ''}`}
             value={content}
-            onChange={(e) => onContentChange(e.target.value)}
+            onChange={onContentChange}
+            emojiMap={composerEmojiMap}
+            onSubmit={() => onSubmit({ preventDefault: () => {} })}
           />
           <div className="composer-picker-anchor">
             <button ref={gifBtnRef} type="button" className="icon-btn" title="GIF" onClick={() => { setGifPickerOpen((v) => !v); setEmojiPickerOpen(false); }}>GIF</button>

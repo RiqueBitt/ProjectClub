@@ -1224,6 +1224,21 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .message-input-row { display: flex; align-items: center; gap: 8px; background: var(--bg-elevated); border-radius: 8px; padding: 4px 8px; }
 .message-input { flex: 1; background: transparent; border: none; padding: 10px 4px; }
 .message-input:focus { border: none; }
+/* Item pedido: "quando colocar um emoji no seu texto... vai aparecer o
+   emoji igual na barra de digitação" — ver RichMessageInput.jsx. Uma
+   div contentEditable, não um <input> comum (que nunca conseguiria
+   mostrar uma imagem misturada no meio do texto) — precisa reproduzir
+   manualmente algumas coisas que um <input> já dá de graça: quebra de
+   linha nunca (campo de uma linha só), placeholder (:empty::before,
+   já que contentEditable não tem isso nativo), rolagem horizontal em
+   vez de quebrar a linha quando o texto é mais largo que o campo. */
+.rich-message-input {
+  flex: 1; background: transparent; border: none; padding: 10px 4px; outline: none;
+  white-space: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+}
+.rich-message-input::-webkit-scrollbar { display: none; }
+.rich-message-input:empty::before { content: attr(data-placeholder); color: var(--text-muted); pointer-events: none; }
+.composer-inline-emoji { width: 20px; height: 20px; vertical-align: middle; object-fit: contain; }
 .send-btn { color: var(--brand); font-size: 18px; }
 
 /* ---------- Members list ---------- */
