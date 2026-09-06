@@ -33,6 +33,7 @@ export const PERMISSIONS = {
   MANAGE_TOPICS: 1n << 28n,
   USE_SOUNDBOARD: 1n << 29n,
   MANAGE_STICKERS: 1n << 30n,
+  MANAGE_CLAN_ICONS: 1n << 31n,
 };
 
 export const PERMISSION_LABELS = {
@@ -64,6 +65,7 @@ export const PERMISSION_LABELS = {
   MANAGE_TOPICS: 'Gerenciar tópicos do fórum (fixar, excluir de outros)',
   USE_SOUNDBOARD: 'Usar efeitos sonoros',
   MANAGE_STICKERS: 'Gerenciar figurinhas',
+  MANAGE_CLAN_ICONS: 'Gerenciar ícones de clã',
 };
 
 function toBits(value) {

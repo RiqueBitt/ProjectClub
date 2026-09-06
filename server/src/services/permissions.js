@@ -36,6 +36,10 @@ const PERMISSIONS = {
   // (30 — o modelo Sticker no schema já existia, nunca tinha sido
   // conectado a nenhum controller/rota até agora).
   MANAGE_STICKERS:   1n << 30n, // upload/delete figurinhas customizadas da comunidade
+  // Item pedido: "ícones personalizados [de clã]... criados através
+  // do Painel da Staff" — mesmo padrão de MANAGE_EMOJIS/MANAGE_STICKERS
+  // acima, próprio bit livre (31 — o próximo depois de 30).
+  MANAGE_CLAN_ICONS: 1n << 31n,
 };
 
 // Sensible defaults for the auto-created @everyone role.

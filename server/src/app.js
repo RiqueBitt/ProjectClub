@@ -48,6 +48,7 @@ const imageProxyRoutes = require('./routes/imageProxy');
 const updatesRoutes = require('./routes/updates');
 const eventsRoutes = require('./routes/events');
 const youtubeRoutes = require('./routes/youtube');
+const clansRoutes = require('./routes/clans');
 
 function createApp() {
   const app = express();
@@ -308,6 +309,7 @@ function createApp() {
   app.use('/api/updates', updatesRoutes);
   app.use('/api/events', eventsRoutes);
   app.use('/api/youtube', youtubeRoutes);
+  app.use('/api/clans', clansRoutes);
 
   // In production, serve the built React client from a single process
   // (this is what SquareCloud runs — one MAIN process, one port).

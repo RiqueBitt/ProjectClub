@@ -155,6 +155,27 @@ model User {
   loginLockedUntil    DateTime?
   tagEmoji            String?
   tagText             String?
+  // Item pedido: "Cada usuário pode estar em apenas 1 clan por vez" —
+  // colocado direto no User (em vez de uma tabela de membros à parte)
+  // já garante essa regra pela própria estrutura do banco, sem
+  // precisar de nenhuma validação extra: um campo só pode apontar pra
+  // um clã só, nunca dois ao mesmo tempo.
+  clanId              String?
+  clan                Clan?     @relation("ClanMembers", fields: [clanId], references: [id], onDelete: SetNull)
+  // OWNER | SUB_OWNER | ADMIN | MODERATOR | MEMBER — só faz sentido
+  // quando clanId não é nulo.
+  clanRole            String?
+  // A tag de clã que este usuário escolheu mostrar no perfil, dentre
+  // as disponíveis no clã dele (ver ClanTag abaixo) — nula até
+  // escolher uma, mesmo já sendo membro do clã.
+  clanTagId           String?
+  clanTag             ClanTag?  @relation(fields: [clanTagId], references: [id], onDelete: SetNull)
+  // Campos inversos exigidos pelo Prisma pro outro lado de cada
+  // relação declarada em ClanJoinRequest/ClanMessage (ver mais abaixo
+  // no arquivo) — nunca lidos diretamente por nenhum código, só
+  // completam a relação dos dois lados.
+  clanJoinRequests    ClanJoinRequest[]
+  clanMessages        ClanMessage[]
   youtubeUrl          String?
   steamUrl            String?
   robloxUrl           String?
@@ -1604,4 +1625,101 @@ model FileAsset {
   createdAt    DateTime @default(now())
 
   @@index([ownerId])
+}
+
+// ============================================================
+// Item pedido: "sistema completo chamado Clans" — comunidades
+// pequenas dentro da plataforma, cada usuário em no máximo um clã
+// por vez (ver User.clanId acima). Modelos próprios, dedicados, em
+// vez de tentar encaixar no sistema de Category/Channel/Role da
+// comunidade principal — aquele sistema é fortemente acoplado ao
+// conceito de "existe só uma comunidade" e ao esquema de permissões
+// bitfield customizável por cargo (server/src/services/permissions.js);
+// um clã precisa de isolamento total (só membros daquele clã veem/usam
+// o chat e a voz dele) e de cargos FIXOS (não criados/customizados
+// pela staff), então reaproveitar aquele sistema complicaria mais do
+// que ajudaria. Onde faz sentido, o padrão de outros sistemas já
+// existentes foi seguido de qualquer forma (AssetCollection pros
+// ícones — mesma ideia de "criado pela staff, name + url"; upload de
+// imagem pelo mesmo middleware/validação que emoji/figurinha/etc já
+// usam).
+model Clan {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  isPublic    Boolean  @default(true)
+  iconId      String?
+  icon        ClanIcon? @relation(fields: [iconId], references: [id], onDelete: SetNull)
+  // Item pedido: "menu de cores, permitindo escolher a cor que será
+  // aplicada ao ícone" — cor hex aplicada por cima do ícone (ver
+  // ClanIcon.url — pensado pra ser uma imagem que aceita ser tingida,
+  // tipo um SVG de silhueta/contorno).
+  iconColor   String   @default("#5865F2")
+  createdAt   DateTime @default(now())
+
+  members       User[]            @relation("ClanMembers")
+  tags          ClanTag[]
+  joinRequests  ClanJoinRequest[]
+  messages      ClanMessage[]
+}
+
+// Item pedido: "ícones personalizados... criados através do Painel da
+// Staff... nome do ícone... disponibilizar pros usuários" — mesmo
+// padrão de AssetCollection (acima): criado pela staff, global,
+// qualquer clã pode escolher usar.
+model ClanIcon {
+  id        String   @id @default(uuid())
+  name      String
+  url       String
+  createdAt DateTime @default(now())
+  clans     Clan[]
+}
+
+// Item pedido: "cada tag pode ter no máximo 4 caracteres... não pode
+// existir uma tag igual à de outro clã... a tag pertence ao clã, não
+// a um usuário" — @@unique global no texto da tag garante a segunda
+// regra pela própria estrutura do banco.
+model ClanTag {
+  id        String   @id @default(uuid())
+  clanId    String
+  clan      Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  tag       String   @unique
+  createdAt DateTime @default(now())
+  users     User[]
+}
+
+// Item pedido: "clan privado... o usuário precisa enviar uma
+// solicitação... o dono do clan poderá aceitar ou recusar" — mesmo
+// padrão de Application (candidatura pra entrar na plataforma):
+// status PENDING/APPROVED/REJECTED, uma linha por tentativa.
+model ClanJoinRequest {
+  id        String   @id @default(uuid())
+  clanId    String
+  clan      Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  createdAt DateTime @default(now())
+
+  @@unique([clanId, userId])
+}
+
+// Item pedido: "Canal de Chat: usado para mensagens de texto entre os
+// membros" — modelo dedicado e propositalmente simples (só texto),
+// em vez de reaproveitar o Message da comunidade principal (que
+// carrega bem mais coisa junto — anexos, reações, respostas, enquetes,
+// menções — peso desnecessário pro escopo pedido aqui). O canal de voz
+// não precisa de um modelo próprio: reaproveita o Agora.io já
+// integrado (ver services/agora.js), usando o próprio id do clã como
+// nome da sala.
+model ClanMessage {
+  id        String   @id @default(uuid())
+  clanId    String
+  clan      Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([clanId, createdAt])
 }

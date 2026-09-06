@@ -146,8 +146,13 @@ function initSockets(httpServer) {
       // comunidade e em toda conversa de que o usuário participa.
       socket.join(`user:${userId}`);
       socket.join('community');
-      const me = await prisma.user.findUnique({ where: { id: userId }, select: { platformRole: true } });
+      const me = await prisma.user.findUnique({ where: { id: userId }, select: { platformRole: true, clanId: true } });
       if (['ADMIN', 'MODERATOR'].includes(me?.platformRole)) socket.join('staff');
+      // Item pedido: "Somente usuários que fazem parte daquele clan
+      // poderão acessar e utilizar esses canais" — sala própria por
+      // clã, só quem é membro dele entra aqui (mesma ideia de
+      // 'community' acima, mas isolada por clã em vez de global).
+      if (me?.clanId) socket.join(`clan:${me.clanId}`);
       const conversations = await prisma.conversationMember.findMany({ where: { userId } });
       conversations.forEach((c) => socket.join(`conversation:${c.conversationId}`));
 
