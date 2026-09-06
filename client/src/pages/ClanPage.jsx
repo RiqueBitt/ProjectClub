@@ -9,6 +9,7 @@ import {
   listClanMessages, sendClanMessage, deleteClanMessage, listClanIcons,
 } from '../api/endpoints';
 import { proxyImage } from '../utils/imageProxy';
+import ClanIcon from '../components/ClanIcon.jsx';
 import { usePromptDialog } from '../utils/usePromptDialog.jsx';
 
 const ROLE_LABEL = { OWNER: 'Dono', SUB_OWNER: 'Sub-Dono', ADMIN: 'Admin', MODERATOR: 'Moderador', MEMBER: 'Membro' };
@@ -183,8 +184,8 @@ export default function ClanPage() {
       {DialogElement}
       <div className="clan-page-header">
         <button className="btn-secondary clan-back-btn" onClick={() => navigate('/clans')}>← Clãs</button>
-        <div className="clan-icon-preview clan-page-icon" style={{ '--clan-icon-color': myClan.iconColor }}>
-          {myClan.icon ? <img src={proxyImage(myClan.icon.url)} alt="" /> : '⚔️'}
+        <div className="clan-icon-preview clan-page-icon">
+          <ClanIcon icon={myClan.icon} color={myClan.iconColor} />
         </div>
         <div>
           <h1>{myClan.name}</h1>
@@ -196,7 +197,12 @@ export default function ClanPage() {
       </div>
 
       <div className="clan-tabs">
-        {TABS.map((t) => (
+        {/* Item pedido: "não mostre as tags pros usuários ainda" —
+            a aba inteira só aparece pra quem já tem permissão de
+            gerenciar tags (dono/sub-dono/admin), escondida de
+            membros comuns enquanto a funcionalidade não é ativada
+            de vez pra todo mundo (ver CLAN_TAGS_ENABLED). */}
+        {TABS.filter((t) => t.key !== 'tags' || myClanCapabilities.MANAGE_TAGS).map((t) => (
           <button key={t.key} className={`clan-tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
             {t.label}
             {t.key === 'members' && myClanPendingRequests?.length > 0 && <span className="clan-tab-badge">{myClanPendingRequests.length}</span>}
@@ -305,8 +311,8 @@ export default function ClanPage() {
           {myClanCapabilities.EDIT_CLAN ? (
             <>
               <div className="clan-create-icon-row">
-                <div className="clan-icon-preview" style={{ '--clan-icon-color': settingsForm.iconColor }}>
-                  {icons.find((i) => i.id === settingsForm.iconId) ? <img src={proxyImage(icons.find((i) => i.id === settingsForm.iconId).url)} alt="" /> : '⚔️'}
+                <div className="clan-icon-preview">
+                  <ClanIcon icon={icons.find((i) => i.id === settingsForm.iconId)} color={settingsForm.iconColor} />
                 </div>
                 <label>
                   ÍCONE

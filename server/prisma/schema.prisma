@@ -1660,7 +1660,10 @@ model Clan {
   // aplicada ao ícone" — cor hex aplicada por cima do ícone (ver
   // ClanIcon.url — pensado pra ser uma imagem que aceita ser tingida,
   // tipo um SVG de silhueta/contorno).
-  iconColor   String   @default("#5865F2")
+  // Item pedido: "a cor inicial/padrão de todos os ícones deve ser um
+  // cinza neutro" — mesmo tom já usado no app pra "neutro/offline"
+  // (ver STATUS_COLOR.OFFLINE em client/src/utils/status.js).
+  iconColor   String   @default("#80848E")
   createdAt   DateTime @default(now())
 
   members       User[]            @relation("ClanMembers")

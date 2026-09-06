@@ -2,9 +2,12 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { listPublicClans, createClan, joinClan, leaveClan, getMyClan, listClanIcons } from '../api/endpoints';
-import { proxyImage } from '../utils/imageProxy';
+import ClanIcon from '../components/ClanIcon.jsx';
 
-const ICON_COLORS = ['#5865F2', '#EB459E', '#ED4245', '#FEE75C', '#57F287', '#00B0F4', '#9147FF', '#F0883E'];
+// Item pedido: "a cor inicial/padrão de todos os ícones deve ser um
+// cinza neutro" — mesmo tom usado no backend (User.clanIcon default),
+// primeira opção da lista (ICON_COLORS[0], usado como valor inicial).
+const ICON_COLORS = ['#80848E', '#5865F2', '#EB459E', '#ED4245', '#FEE75C', '#57F287', '#00B0F4', '#9147FF', '#F0883E'];
 
 // Item pedido: "nova aba Clans na barra lateral... lista de clans
 // públicos disponíveis... seção mostrando o clan atual do usuário,
@@ -91,10 +94,8 @@ export default function ClansPage() {
       {showCreate && (
         <div className="clan-create-form">
           <div className="clan-create-icon-row">
-            <div className="clan-icon-preview" style={{ '--clan-icon-color': form.iconColor }}>
-              {icons.find((i) => i.id === form.iconId) ? (
-                <img src={proxyImage(icons.find((i) => i.id === form.iconId).url)} alt="" />
-              ) : '⚔️'}
+            <div className="clan-icon-preview">
+              <ClanIcon icon={icons.find((i) => i.id === form.iconId)} color={form.iconColor} />
             </div>
             <div className="clan-create-icon-fields">
               <label>
@@ -140,8 +141,8 @@ export default function ClansPage() {
         <div className="clan-mine-section">
           <div className="permission-group-label">SEU CLÃ</div>
           <div className="clan-card clan-card-mine" onClick={() => navigate('/clans/mine')}>
-            <div className="clan-icon-preview" style={{ '--clan-icon-color': myClan.iconColor }}>
-              {myClan.icon ? <img src={proxyImage(myClan.icon.url)} alt="" /> : '⚔️'}
+            <div className="clan-icon-preview">
+              <ClanIcon icon={myClan.icon} color={myClan.iconColor} />
             </div>
             <div className="clan-card-body">
               <div className="clan-card-name">{myClan.name} {!myClan.isPublic && <span className="clan-private-badge">🔒 Privado</span>}</div>
@@ -161,8 +162,8 @@ export default function ClansPage() {
         <div className="clans-grid">
           {clans.filter((c) => c.id !== myClan?.id).map((clan) => (
             <div key={clan.id} className="clan-card">
-              <div className="clan-icon-preview" style={{ '--clan-icon-color': clan.iconColor }}>
-                {clan.icon ? <img src={proxyImage(clan.icon.url)} alt="" /> : '⚔️'}
+              <div className="clan-icon-preview">
+                <ClanIcon icon={clan.icon} color={clan.iconColor} />
               </div>
               <div className="clan-card-body">
                 <div className="clan-card-name">{clan.name}</div>

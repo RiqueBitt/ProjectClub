@@ -6186,14 +6186,18 @@ a.embed-card-title:hover { text-decoration: underline; }
 .clans-page-header h1 { margin: 0 0 6px; font-size: 24px; }
 .clans-page-header .btn-primary { margin-top: 12px; }
 
+/* Item pedido: "a cor não deve alterar a borda, fundo ou outros
+   elementos da interface — deve alterar somente a cor do ícone" —
+   fundo/borda agora são sempre neutros (mesma cor pra qualquer clã,
+   independente da cor escolhida) — só o ícone em si (ver ClanIcon.jsx,
+   que aplica a cor via mask-image) muda de cor. */
 .clan-icon-preview {
-  width: 56px; height: 56px; border-radius: 14px; flex-shrink: 0;
+  width: 56px; height: 56px; border-radius: 14px; flex-shrink: 0; padding: 12px;
   display: flex; align-items: center; justify-content: center; font-size: 26px;
-  background: color-mix(in srgb, var(--clan-icon-color, var(--brand)) 20%, var(--bg-secondary-alt));
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--clan-icon-color, var(--brand)) 45%, transparent);
+  background: var(--bg-modifier-hover);
+  box-shadow: inset 0 0 0 2px var(--border);
   transition: transform .15s var(--ease-smooth);
 }
-.clan-icon-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 14px; }
 
 /* Item pedido: "melhorias na interface de criar clã, deixando mais
    bonita" — cartão com borda sutil + sombra (em vez de só uma cor de

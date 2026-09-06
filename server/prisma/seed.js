@@ -136,6 +136,15 @@ async function main() {
     }).catch(() => {});
   }
   console.log('Layout do álbum inicial criado (2 páginas, 5 espaços cada).');
+
+  // Item pedido: "apague completamente a tag PROJ que já existe no
+  // sistema... remova também qualquer registro dela no banco de
+  // dados" — deleteMany já é seguro de rodar de novo em todo deploy
+  // (se não existir mais, simplesmente não encontra nada e não faz
+  // nada, sem erro). onDelete: SetNull no schema (User.clanTag) já
+  // limpa sozinho qualquer clanTagId que estivesse apontando pra ela.
+  const removedProjTag = await prisma.clanTag.deleteMany({ where: { tag: 'PROJ' } });
+  if (removedProjTag.count > 0) console.log(`Removida a tag de clã "PROJ" (${removedProjTag.count} registro(s)).`);
 }
 
 main()

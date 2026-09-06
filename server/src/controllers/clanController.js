@@ -186,8 +186,11 @@ async function leaveClan(req, res, next) {
       }
       // Dono é o último membro — sair apaga o clã inteiro (tags e
       // solicitações somem junto, ver onDelete: Cascade no schema).
+      // Item pedido: "se o usuário apagar o próprio clan, também
+      // poderá criar outro clan posteriormente" — hasCreatedClan
+      // reseta aqui também, mesmo caso de cima (transferOwnership).
       await prisma.$transaction([
-        prisma.user.update({ where: { id: req.user.id }, data: { clanId: null, clanRole: null, clanTagId: null } }),
+        prisma.user.update({ where: { id: req.user.id }, data: { clanId: null, clanRole: null, clanTagId: null, hasCreatedClan: false } }),
         prisma.clan.delete({ where: { id: clanId } }),
       ]);
       return res.json({ left: true, clanDeleted: true });
@@ -217,7 +220,12 @@ async function transferOwnership(req, res, next) {
 
     await prisma.$transaction([
       prisma.user.update({ where: { id: targetUserId }, data: { clanRole: 'OWNER' } }),
-      prisma.user.update({ where: { id: req.user.id }, data: { clanRole: 'SUB_OWNER' } }),
+      // Item pedido: "se o usuário transferir o próprio clan pra
+      // outro membro, ele poderá criar um novo clan posteriormente"
+      // — hasCreatedClan reseta assim que a pessoa deixa de ser dona
+      // por transferência (continua no clã como sub-dono por ora,
+      // mas já pode criar outro assim que sair deste).
+      prisma.user.update({ where: { id: req.user.id }, data: { clanRole: 'SUB_OWNER', hasCreatedClan: false } }),
     ]);
     res.json({ ok: true });
   } catch (err) { next(err); }
