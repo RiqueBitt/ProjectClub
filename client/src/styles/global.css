@@ -6291,12 +6291,16 @@ a.embed-card-title:hover { text-decoration: underline; }
 .clan-role-admin { background: color-mix(in srgb, var(--brand) 25%, var(--bg-secondary-alt)); color: var(--brand); }
 .clan-role-moderator { background: color-mix(in srgb, #57F287 25%, var(--bg-secondary-alt)); color: #57F287; }
 
-.clan-tags-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.clan-tag-row { display: flex; align-items: center; gap: 2px; }
+/* Item pedido: "não mostra uma lista, mostra se quer mostrar a tag,
+   deixe desativada" — um interruptor simples em vez da lista de
+   chips clicáveis de antes (só existe uma tag por clã mesmo, uma
+   lista pra "escolher entre várias" nunca fez sentido de verdade). */
+.clan-tag-toggle-row { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
 .clan-tag-chip {
   padding: 6px 14px; border-radius: 999px; background: var(--bg-secondary-alt); font-weight: 700;
   font-size: 12px; transition: background-color .12s, transform .1s;
 }
+.clan-tag-chip-inline { display: inline-block; pointer-events: none; }
 .clan-tag-chip:hover { background: var(--bg-modifier-hover); transform: translateY(-1px); }
 .clan-tag-chip.active { background: var(--brand); color: #fff; }
 .clan-create-tag-row { display: flex; gap: 8px; margin-top: 8px; }

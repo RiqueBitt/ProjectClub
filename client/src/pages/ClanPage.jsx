@@ -282,20 +282,21 @@ export default function ClanPage() {
 
       {tab === 'tags' && (
         <div className="clan-tags-tab">
-          {/* Item pedido: "o clan só pode criar 1 tag" — o formulário
-              de criar só aparece se o clã ainda não tiver nenhuma;
-              com uma já existente, o jeito de trocar é excluir a
-              atual primeiro (ver botão × abaixo). */}
-          <p className="dim">{myClan.tags.length > 0 ? 'Escolha se quer mostrar a tag do clã no seu perfil.' : 'Este clã ainda não tem uma tag.'}</p>
-          <div className="clan-tags-list">
-            <button className={`clan-tag-chip ${!user.clanTagId ? 'active' : ''}`} onClick={() => onPickMyTag(null)}>Nenhuma</button>
-            {myClan.tags.map((t) => (
-              <div key={t.id} className="clan-tag-row">
-                <button className={`clan-tag-chip ${user.clanTagId === t.id ? 'active' : ''}`} onClick={() => onPickMyTag(t.id)}>{t.tag}</button>
-                {myClanCapabilities.MANAGE_TAGS && <button className="clan-chat-delete-btn" title="Excluir tag" onClick={() => onDeleteTag(t)}>×</button>}
-              </div>
-            ))}
-          </div>
+          {/* Item pedido: "não mostra uma lista, mostra se [quer]
+              mostrar a tag, deixe desativada [por padrão]" — como só
+              existe uma tag por clã agora, não faz mais sentido uma
+              lista pra "escolher entre várias" — vira um interruptor
+              simples de ligar/desligar essa única tag, começando
+              sempre desligado até a pessoa ativar por conta própria. */}
+          {myClan.tags.length === 0 ? (
+            <p className="dim">Este clã ainda não tem uma tag.</p>
+          ) : (
+            <label className="clan-tag-toggle-row">
+              <input type="checkbox" checked={!!user.clanTagId} onChange={(e) => onPickMyTag(e.target.checked ? myClan.tags[0].id : null)} />
+              Mostrar a tag <span className="clan-tag-chip clan-tag-chip-inline">{myClan.tags[0].tag}</span> no meu perfil
+              {myClanCapabilities.MANAGE_TAGS && <button type="button" className="clan-chat-delete-btn" title="Excluir tag" onClick={(e) => { e.preventDefault(); onDeleteTag(myClan.tags[0]); }}>×</button>}
+            </label>
+          )}
           {myClanCapabilities.MANAGE_TAGS && myClan.tags.length === 0 && (
             <div className="clan-create-tag-row">
               <input value={newTag} onChange={(e) => setNewTag(e.target.value.toUpperCase())} maxLength={4} placeholder="Tag do clã (até 4 letras)" />
