@@ -44,7 +44,7 @@ import robloxConnIcon from '../../assets/icons/social-roblox.png';
 import xConnIcon from '../../assets/icons/social-x.png';
 import {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, removeIdCard,
-  setup2FA, confirm2FA, disable2FA, setPreferredTheme, setActiveTag,
+  setup2FA, confirm2FA, disable2FA, setPreferredTheme, setActiveTag, setMyClanTag,
   setEmojiStyle as setEmojiStyleApi,
   listSessions, revokeSession, revokeOtherSessions,
   createProfilePoll, listProfilePollsByAuthor, deleteProfilePoll,
@@ -66,7 +66,7 @@ const TAB_GROUPS = [
 export default function UserSettingsModal({ onClose }) {
   const { user, setUser, logout } = useAuth();
   const navigate = useNavigate();
-  const { theme, setTheme, customBackground, setCustomBackground, emojiStyle, setEmojiStyle: setEmojiStyleStore } = useStore();
+  const { theme, setTheme, customBackground, setCustomBackground, emojiStyle, setEmojiStyle: setEmojiStyleStore, myClan } = useStore();
   const disabledSystems = useStore((s) => s.disabledSystems);
   // Ver adminController.js (TOGGLEABLE_SYSTEMS) e a nova opção "Cores
   // personalizadas para perfil" em /admin → Sistema: quando a staff
@@ -225,7 +225,36 @@ export default function UserSettingsModal({ onClose }) {
     setTagSaving(true);
     try {
       const { user: updated } = await setActiveTag(active);
-      setUser(updated);
+      // Item pedido: "quero que a tag do clã apareça no Exibição ->
+      // Tag da comunidade" — as duas (comunidade e clã) são
+      // mutuamente exclusivas, só uma aparece por vez do lado do
+      // nome; ativar a de comunidade desliga a do clã, se estivesse
+      // ligada.
+      if (active && user.clanTagId) {
+        await setMyClanTag(null).catch(() => {});
+        setUser({ ...updated, clanTagId: null });
+      } else {
+        setUser(updated);
+      }
+    } finally {
+      setTagSaving(false);
+    }
+  };
+
+  // Item pedido: "quero que a tag do clã apareça no Exibição -> Tag
+  // da comunidade" — mesma ideia de pickTag acima, só que pra tag do
+  // clã (ver ClanPage.jsx — aba Tags, mesma ação, reaproveitada aqui
+  // pra oferecer o mesmo controle direto de dentro de Configurações).
+  const pickClanTag = async (active) => {
+    setTagSaving(true);
+    try {
+      const { clanTagId } = await setMyClanTag(active ? myClan.tags[0].id : null);
+      if (active && user.tagEmoji) {
+        const { user: updatedCommunity } = await setActiveTag(false).catch(() => ({ user: null }));
+        setUser({ ...(updatedCommunity || user), clanTagId });
+      } else {
+        setUser({ ...user, clanTagId });
+      }
     } finally {
       setTagSaving(false);
     }
@@ -873,13 +902,13 @@ export default function UserSettingsModal({ onClose }) {
 
           <div className="settings-block">
             <h4>Tag da comunidade</h4>
-            <p className="dim">Exiba a tag da comunidade do lado do seu nome no chat, na lista de membros e no seu perfil.</p>
+            <p className="dim">Exiba uma tag do lado do seu nome no chat, na lista de membros e no seu perfil.</p>
             <div className="server-tag-options">
               <button
                 type="button"
-                className={`server-tag-option ${!user.tagEmoji ? 'active' : ''}`}
+                className={`server-tag-option ${!user.tagEmoji && !user.clanTagId ? 'active' : ''}`}
                 disabled={tagSaving}
-                onClick={() => pickTag(false)}
+                onClick={async () => { setTagSaving(true); try { const { user: updated } = await setActiveTag(false); if (user.clanTagId) { await setMyClanTag(null).catch(() => {}); } setUser({ ...updated, clanTagId: null }); } finally { setTagSaving(false); } }}
               >
                 Nenhuma
               </button>
@@ -889,8 +918,21 @@ export default function UserSettingsModal({ onClose }) {
                 disabled={tagSaving}
                 onClick={() => pickTag(true)}
               >
-                <span className="server-tag-badge">🏠 Mostrar tag</span>
+                <span className="server-tag-badge">🏠 Tag da comunidade</span>
               </button>
+              {/* Item pedido: "quero que a tag do clã apareça no
+                  Exibição -> Tag da comunidade" — só aparece pra quem
+                  já é membro de um clã que já tem uma tag criada. */}
+              {myClan?.tags?.length > 0 && (
+                <button
+                  type="button"
+                  className={`server-tag-option ${user.clanTagId ? 'active' : ''}`}
+                  disabled={tagSaving}
+                  onClick={() => pickClanTag(true)}
+                >
+                  <span className="server-tag-badge clan-tag-badge">⚔️ {myClan.tags[0].tag}</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

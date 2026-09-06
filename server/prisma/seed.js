@@ -143,8 +143,24 @@ async function main() {
   // (se não existir mais, simplesmente não encontra nada e não faz
   // nada, sem erro). onDelete: SetNull no schema (User.clanTag) já
   // limpa sozinho qualquer clanTagId que estivesse apontando pra ela.
-  const removedProjTag = await prisma.clanTag.deleteMany({ where: { tag: 'PROJ' } });
-  if (removedProjTag.count > 0) console.log(`Removida a tag de clã "PROJ" (${removedProjTag.count} registro(s)).`);
+  // BUG CORRIGIDO ("a tag PROJ continua ativa mesmo depois de
+  // removida"): investigação anterior mirou errado — não existe (e
+  // nunca existiu) nenhuma ClanTag chamada "PROJ", então aquele
+  // deleteMany nunca encontrava nada pra apagar de verdade. A causa
+  // real é outra completamente: "PROJ" é a tag DE COMUNIDADE (sistema
+  // separado, bem mais antigo — ver TagBadge.jsx/UserSettingsModal.jsx
+  // "Tag da comunidade" em Configurações > Exibição), gerada
+  // automaticamente a partir do nome da comunidade
+  // (settings.communityName.slice(0, 4).toUpperCase() — "Project
+  // Club" vira "PROJ" sozinho, ver setActiveTag em
+  // userController.js) — nunca foi uma tag de clã, então limpar
+  // User.tagText/tagEmoji é o que precisa acontecer aqui, em
+  // qualquer conta que já tenha ativado essa tag antes (idempotente,
+  // igual antes — não afeta quem já não tem PROJ ativo).
+  const removedCommunityTag = await prisma.user.updateMany({
+    where: { tagText: 'PROJ' }, data: { tagEmoji: null, tagText: null },
+  });
+  if (removedCommunityTag.count > 0) console.log(`Removida a tag de comunidade "PROJ" de ${removedCommunityTag.count} conta(s).`);
 }
 
 main()

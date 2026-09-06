@@ -17,4 +17,7 @@ export const CUSTOM_BACKGROUND_ENABLED = false;
 // quem já tem permissão de gerenciar — criar/apagar tag continua
 // funcionando normalmente por trás, só a visibilidade pra usuários
 // comuns fica desligada.
-export const CLAN_TAGS_ENABLED = false;
+// Reativado — item pedido: "quero que a tag do clã apareça no
+// Exibição -> Tag da comunidade" (integrado na mesma seção da tag de
+// comunidade já existente, ver UserSettingsModal.jsx).
+export const CLAN_TAGS_ENABLED = true;
