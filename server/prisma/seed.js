@@ -137,30 +137,19 @@ async function main() {
   }
   console.log('Layout do álbum inicial criado (2 páginas, 5 espaços cada).');
 
-  // Item pedido: "apague completamente a tag PROJ que já existe no
-  // sistema... remova também qualquer registro dela no banco de
-  // dados" — deleteMany já é seguro de rodar de novo em todo deploy
-  // (se não existir mais, simplesmente não encontra nada e não faz
-  // nada, sem erro). onDelete: SetNull no schema (User.clanTag) já
-  // limpa sozinho qualquer clanTagId que estivesse apontando pra ela.
-  // BUG CORRIGIDO ("a tag PROJ continua ativa mesmo depois de
-  // removida"): investigação anterior mirou errado — não existe (e
-  // nunca existiu) nenhuma ClanTag chamada "PROJ", então aquele
-  // deleteMany nunca encontrava nada pra apagar de verdade. A causa
-  // real é outra completamente: "PROJ" é a tag DE COMUNIDADE (sistema
-  // separado, bem mais antigo — ver TagBadge.jsx/UserSettingsModal.jsx
-  // "Tag da comunidade" em Configurações > Exibição), gerada
-  // automaticamente a partir do nome da comunidade
-  // (settings.communityName.slice(0, 4).toUpperCase() — "Project
-  // Club" vira "PROJ" sozinho, ver setActiveTag em
-  // userController.js) — nunca foi uma tag de clã, então limpar
-  // User.tagText/tagEmoji é o que precisa acontecer aqui, em
-  // qualquer conta que já tenha ativado essa tag antes (idempotente,
-  // igual antes — não afeta quem já não tem PROJ ativo).
+  // Item pedido: "não quero a tag Clube, se não tiver tag de clã não
+  // apareça nada" — a funcionalidade genérica de "tag da comunidade"
+  // (o botão que ficava em Configurações > Exibição, que já mostrou
+  // "PROJ" e depois "Clube" como valor de reserva em tentativas
+  // anteriores) foi removida de vez da tela — não há mais como
+  // desativar isso por lá, então limpa aqui qualquer conta que ainda
+  // tenha um valor preso nesses dois campos, de quando a
+  // funcionalidade ainda existia. Idempotente: contas que já não têm
+  // nada aí simplesmente não são afetadas.
   const removedCommunityTag = await prisma.user.updateMany({
-    where: { tagText: 'PROJ' }, data: { tagEmoji: null, tagText: null },
+    where: { tagText: { not: null } }, data: { tagEmoji: null, tagText: null },
   });
-  if (removedCommunityTag.count > 0) console.log(`Removida a tag de comunidade "PROJ" de ${removedCommunityTag.count} conta(s).`);
+  if (removedCommunityTag.count > 0) console.log(`Removida a tag de comunidade de ${removedCommunityTag.count} conta(s).`);
 }
 
 main()
