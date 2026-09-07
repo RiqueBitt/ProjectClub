@@ -1295,10 +1295,20 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 }
 .pending-file-thumb:hover .pending-file-thumb-actions { opacity: 1; }
 .pending-file-spoiler-btn, .pending-file-remove-btn {
-  width: 22px; height: 22px; border-radius: 5px; background: rgba(0,0,0,.6); color: #fff;
+  width: 22px; height: 22px; min-width: 22px; min-height: 22px; max-width: 22px; max-height: 22px;
+  border-radius: 5px; background: rgba(0,0,0,.6); color: #fff; overflow: hidden; flex-shrink: 0;
   font-size: 12px; display: flex; align-items: center; justify-content: center;
   backdrop-filter: blur(3px); transition: background-color .12s;
 }
+/* BUG CORRIGIDO ("botão de excluir imagem bugado, muito grande"): um
+   item dentro de um container flex tem, por padrão, min-width/
+   min-height "auto" — mesmo com width/height fixos aqui no botão,
+   isso permite o navegador esticar o botão pra caber o conteúdo de
+   dentro (a imagem "x" de cancelar) se ela não tiver um tamanho
+   travado com a mesma força. max-width/max-height acima já travam o
+   próprio botão em qualquer situação; isso aqui trava a imagem em si
+   também, não deixando ela "empurrar" o botão pra ficar maior. */
+.pending-file-spoiler-btn img, .pending-file-remove-btn img { width: 13px; height: 13px; flex-shrink: 0; }
 .pending-file-spoiler-btn:hover, .pending-file-remove-btn:hover { background: rgba(0,0,0,.8); }
 .pending-file-spoiler-btn.active { background: var(--brand); }
 .pending-file-spoiler-tag {
