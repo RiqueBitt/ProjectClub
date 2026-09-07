@@ -2168,7 +2168,7 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
      entra em telas de desktop de verdade (a mesma régua já usada
      acima pro zoom geral do app inteiro) — mobile continua exatamente
      do tamanho de sempre. */
-  .message-list, .message-input-bar { zoom: 1.5; }
+  .message-list, .message-input-bar { zoom: 1.2; }
 }
 
 @media (max-width: 600px) {
