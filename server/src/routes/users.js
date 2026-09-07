@@ -1,5 +1,6 @@
 const express = require('express');
 const ctrl = require('../controllers/userController');
+const settingsCtrl = require('../controllers/settingsController');
 const emojiCtrl = require('../controllers/emojiController');
 const gifCtrl = require('../controllers/gifController');
 const { requireAuth } = require('../middleware/auth');
@@ -20,6 +21,12 @@ router.patch('/me/custom-status', ctrl.setCustomStatus);
 router.patch('/me/tag', ctrl.setActiveTag);
 router.patch('/me/theme', ctrl.setPreferredTheme);
 router.patch('/me/chat-zoom', ctrl.setChatZoom);
+// Item pedido: "GET /api/users/me/settings, PATCH /api/users/me/settings,
+// POST /api/users/me/settings/reset" — mesmo padrão já usado acima
+// pras outras preferências pessoais (tema, zoom do chat).
+router.get('/me/settings', settingsCtrl.getSettings);
+router.patch('/me/settings', settingsCtrl.updateSettings);
+router.post('/me/settings/reset', settingsCtrl.resetSettings);
 router.patch('/me/emoji-style', ctrl.setEmojiStyle);
 router.patch('/me/displayed-achievements', ctrl.setDisplayedAchievements);
 router.get('/me/usable-emojis', emojiCtrl.listUsableEmojis);

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { updateUserSettings } from '../api/endpoints';
 
 // Detecta PC vs Mobile pra saber qual configuração do Editor de Interface
 // aplicar — mesmo ponto de corte (900px) usado pelo resto do CSS pra virar
@@ -144,6 +145,15 @@ export const useStore = create((set, get) => ({
   chatZoom: (() => {
     try { return Number(localStorage.getItem('chatZoom')) || 1; } catch { return 1; }
   })(),
+  // Item pedido: "sistema completo de configurações... salvamento
+  // automático... interface muda imediatamente → frontend envia
+  // PATCH → backend valida → banco atualiza → servidor retorna
+  // sucesso. Se ocorrer erro: mostrar aviso → reverter alteração
+  // local, se necessário" — null até carregar de verdade (ver
+  // getUserSettings, chamado uma vez ao abrir o app em MainApp.jsx),
+  // os componentes tratam null como "ainda carregando" (mostram um
+  // esqueleto/skeleton em vez de um valor errado piscando na tela).
+  userSettings: null,
   // Configuração do Editor de Interface (staff pode reorganizar/
   // redimensionar os menus principais) — carregada uma vez ao abrir o
   // app, aplicada globalmente (AppRail, sidebar, lista de membros). null
@@ -270,6 +280,31 @@ export const useStore = create((set, get) => ({
     try { localStorage.setItem('chatZoom', chatZoom); } catch { /* localStorage indisponível — ainda fica salvo na conta, ver setChatZoom no backend */ }
     document.documentElement.style.setProperty('--chat-zoom', chatZoom);
     set({ chatZoom });
+  },
+  setUserSettings: (settings) => set({ userSettings: settings }),
+  // Item pedido: "salvamento automático... interface muda
+  // imediatamente → frontend envia PATCH → backend valida → banco
+  // atualiza → servidor retorna sucesso. Se ocorrer erro: mostrar
+  // aviso → reverter alteração local, se necessário. Nunca informar
+  // 'salvo' se o servidor rejeitou a alteração." — aplica a mudança
+  // na tela na hora (sem esperar o servidor responder — é isso que
+  // faz parecer instantâneo), mas se o servidor rejeitar, desfaz
+  // sozinho e avisa; nunca finge que salvou algo que na verdade não
+  // foi salvo.
+  updateUserSetting: async (key, value) => {
+    const prevSettings = get().userSettings;
+    set((s) => ({ userSettings: { ...s.userSettings, [key]: value } }));
+    try {
+      const { settings, rejected } = await updateUserSettings({ [key]: value });
+      set({ userSettings: settings });
+      if (rejected?.length) {
+        set({ userSettings: prevSettings ? { ...prevSettings, ...settings } : settings });
+        get().pushNotice('Não foi possível salvar essa configuração.');
+      }
+    } catch {
+      set({ userSettings: prevSettings });
+      get().pushNotice('Não foi possível salvar esta configuração. Verifique sua conexão e tente novamente.');
+    }
   },
   setUiLayout: (device, config) => set((s) => {
     const uiLayoutAll = { ...s.uiLayoutAll, [device]: config };

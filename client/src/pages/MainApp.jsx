@@ -24,7 +24,7 @@ import ImageLightbox from '../components/ImageLightbox.jsx';
 import UserSettingsModal from '../components/modals/UserSettingsModal.jsx';
 import AnnouncementOverlay from '../components/AnnouncementOverlay.jsx';
 import QuickSwitcher from '../components/QuickSwitcher.jsx';
-import { listUsableEmojis, listServerStickers, listAssetCollections, listFavoriteGifs, getUiLayout, listCommunities, getMyClan } from '../api/endpoints';
+import { listUsableEmojis, listServerStickers, listAssetCollections, listFavoriteGifs, getUiLayout, listCommunities, getMyClan, getUserSettings } from '../api/endpoints';
 import { checkForNativeUpdate } from '../utils/nativeUpdateCheck';
 import { setupPushNotifications } from '../utils/pushNotifications';
 import { updateUnreadBadge } from '../utils/unreadBadge';
@@ -72,7 +72,7 @@ const InicioPage = lazy(() => import('./InicioPage.jsx'));
 export default function MainApp() {
   const { user } = useAuth();
   const {
-    setCommunityStructure, setConversations, setFriends, setUsableEmojis, setServerStickers, setEmojiCollections, setStickerCollections, setFavoriteGifs, setClubs, setMyClan,
+    setCommunityStructure, setConversations, setFriends, setUsableEmojis, setServerStickers, setEmojiCollections, setStickerCollections, setFavoriteGifs, setClubs, setMyClan, setUserSettings,
   } = useStore();
   const [membersOpen, setMembersOpen] = useState(true);
   const [dmProfileOpen, setDmProfileOpen] = useState(true);
@@ -133,6 +133,9 @@ export default function MainApp() {
     getMyClan().then((d) => setMyClan(d)).catch(() => {});
     listFavoriteGifs().then((d) => setFavoriteGifs(d.gifs)).catch(() => {});
     listCommunities().then((d) => setClubs(d.communities)).catch(() => {});
+    // Item pedido: "Login → GET /api/users/me/settings → carregar
+    // configurações → aplicar configurações → renderizar aplicativo"
+    getUserSettings().then((d) => setUserSettings(d.settings)).catch(() => {});
     checkForNativeUpdate();
     setupPushNotifications();
     getUiLayout().then((d) => setUiLayoutAll(d)).catch(() => {});

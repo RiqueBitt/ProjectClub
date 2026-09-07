@@ -183,6 +183,18 @@ model User {
   // completam a relação dos dois lados.
   clanJoinRequests    ClanJoinRequest[]
   clanMessages        ClanMessage[]
+  // Item pedido: "sistema completo de configurações" — campos
+  // inversos exigidos pelo Prisma pro outro lado de cada relação
+  // declarada nos novos modelos (ver mais abaixo no arquivo); nunca
+  // lidos diretamente por nenhum código, só completam a relação dos
+  // dois lados. settings é opcional (User?) porque a linha só é
+  // criada na primeira vez que a pessoa muda alguma configuração
+  // nova (ver getOrCreateSettings em settingsController.js).
+  settings            UserSettings?
+  shortcuts           UserShortcut[]
+  connectedAccounts   ConnectedAccount[]
+  registeredGames     RegisteredGame[]
+  securityLogs        SecurityLog[]
   // Item pedido: "um user só pode criar um clã" — restrição vitalícia
   // (diferente de clanId, que só impede estar em DOIS ao mesmo
   // tempo): mesmo saindo ou sendo o último membro a apagar o clã,
@@ -1761,4 +1773,168 @@ model ClanMessage {
   createdAt DateTime @default(now())
 
   @@index([clanId, createdAt])
+}
+
+// ============================================================
+// Item pedido: "sistema completo de configurações... UserSettings...
+// UNIQUE(userId)... cada usuário possui apenas um conjunto principal
+// de configurações" — tabela dedicada e separada do User (que já
+// guarda algumas preferências mais antigas — tema, zoom do chat,
+// estilo de emoji — mantidas exatamente onde estão, sem mover nada
+// que já funciona, pra não arriscar quebrar algo testado). Tudo que
+// é NOVO a partir deste sistema de Configurações reformulado mora
+// aqui daqui pra frente.
+//
+// Implementado em fases (o próprio pedido pede pra não desenvolver
+// tudo de uma vez) — a estrutura do banco já vem completa (é barato
+// criar os campos de uma vez, evita repetir migração toda hora), mas
+// a API e a tela só ficam de verdade prontas e testadas fase a fase,
+// seguindo a ordem que o próprio pedido definiu. Campo sem uso ainda
+// simplesmente fica parado com seu valor padrão até a fase dele
+// chegar — não altera nada no comportamento atual do app até lá.
+model UserSettings {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // --- Idioma e horário ---
+  language   String  @default("pt-BR")
+  timezone   String? // ex: "America/Sao_Paulo" — null = detecta pelo navegador
+  timeFormat String  @default("24h") // "12h" | "24h" | "auto"
+
+  // --- Aparência (além de preferredTheme, que já existe no User) ---
+  messageDensity String  @default("standard") // "compact" | "standard" | "comfortable"
+  messageDisplay String  @default("cozy")     // reservado — modo de exibição de mensagem
+  showTimestamps Boolean @default(true)
+  showAvatars    Boolean @default(true)
+  groupMessages  Boolean @default(true)
+  showLinkPreviews Boolean @default(true)
+  autoPlayMedia    Boolean @default(true)
+
+  // --- Caixa de chat ---
+  enterSends Boolean @default(true) // false = Ctrl+Enter envia, Enter quebra linha
+
+  // --- Privacidade ---
+  profilePrivacy       String  @default("everyone")  // "everyone" | "friends_groups" | "friends"
+  dmPrivacy             String  @default("everyone")  // "everyone" | "friends" | "friends_groups" | "none"
+  friendRequestPrivacy String  @default("everyone")  // "everyone" | "friends_of_friends" | "none"
+  contentFilterLevel    String  @default("moderate")  // "off" | "moderate" | "high"
+  spamFilterEnabled     Boolean @default(true)
+
+  // --- Notificações ---
+  desktopNotifications Boolean @default(true)
+  emailNotifications   Boolean @default(true)
+  notificationSounds   Boolean @default(true)
+
+  // --- Acessibilidade ---
+  reducedMotion Boolean @default(false)
+  highContrast  Boolean @default(false)
+  textScale     Float   @default(1.0) // 0.8 a 1.5
+  saturation    Int     @default(100) // 0, 50, 75, 100
+
+  // --- Voz e vídeo ---
+  inputDeviceId     String? // deviceId salvo do enumerateDevices(), null = padrão do sistema
+  outputDeviceId    String?
+  inputMode         String  @default("voice_activity") // "voice_activity" | "push_to_talk"
+  pushToTalkKey     String? // combinação de tecla configurável (ver seção 31)
+  inputVolume       Int     @default(100)
+  outputVolume      Int     @default(100)
+  noiseSuppression  Boolean @default(true)
+  echoCancellation  Boolean @default(true)
+  automaticGain     Boolean @default(true)
+  streamQuality     String  @default("1080p") // "720p" | "1080p"
+  streamFPS         Int     @default(30)       // 30 | 60
+  streamAudioEnabled Boolean @default(true)
+
+  // --- Atividades / jogos ---
+  activitySharing  Boolean @default(true)
+  activityVisibility String @default("everyone") // "everyone" | "friends" | "friends_groups" | "none"
+  gameJoinPrivacy   String  @default("friends")   // "none" | "friends" | "friends_groups" | "everyone"
+  gameDetectionEnabled Boolean @default(true)
+
+  // --- Overlay (só ".exe") ---
+  overlayEnabled       Boolean @default(false)
+  overlayNotifications Boolean @default(true)
+
+  // --- Sistema (".exe") ---
+  startWithSystem   Boolean @default(false)
+  minimizeToTray    Boolean @default(true)
+  openLinksInApp    Boolean @default(true)
+  confirmOnExit     Boolean @default(false)
+
+  developerMode Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Item pedido: "atalhos personalizados... verificar se já existe
+// outro comando usando a combinação" — @@unique([userId, keyCombination])
+// garante essa checagem no próprio banco, não só numa validação que
+// alguém poderia esquecer de checar em algum lugar.
+model UserShortcut {
+  id              String @id @default(uuid())
+  userId          String
+  user            User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action          String // ex: "abrir_configuracoes"
+  keyCombination  String // ex: "Ctrl+,"
+  createdAt       DateTime @default(now())
+
+  @@unique([userId, keyCombination])
+  @@unique([userId, action])
+}
+
+// Item pedido: "ConnectedAccount... provider... accessToken...
+// refreshToken... Tokens devem ser armazenados com segurança e nunca
+// enviados desnecessariamente ao frontend" — os tokens nunca entram
+// no SELECT usado pra responder o frontend (ver connectionController.js,
+// quando implementado nessa fase), só são lidos internamente pelo
+// próprio backend quando precisa renovar ou usar a conexão.
+model ConnectedAccount {
+  id             String    @id @default(uuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       String    // ex: "spotify", "steam", "youtube"
+  providerUserId String
+  displayName    String?
+  accessToken    String
+  refreshToken   String?
+  expiresAt      DateTime?
+  showOnProfile  Boolean   @default(true)
+  shareActivity  Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+
+  @@unique([userId, provider])
+}
+
+// Item pedido: "RegisteredGames... Jogos adicionados... Cada jogo
+// deve possuir um identificador interno. Não depender apenas do nome
+// exibido."
+model RegisteredGame {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameKey     String   // identificador interno estável, ex: "minecraft" — nunca muda mesmo se displayName mudar
+  displayName String
+  iconUrl     String?
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, gameKey])
+}
+
+// Item pedido: "SecurityLog... Senha alterada, Sessão encerrada,
+// E-mail alterado, Conexão adicionada, Conexão removida... Não
+// armazenar informações sensíveis desnecessárias no log" — ipHash
+// (nunca o IP em si), sem nenhum dado sensível além do necessário
+// pra pessoa reconhecer o próprio histórico de segurança.
+model SecurityLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String   // "PASSWORD_CHANGED" | "SESSION_REVOKED" | "EMAIL_CHANGED" | "CONNECTION_ADDED" | "CONNECTION_REMOVED" | ...
+  device    String?
+  ipHash    String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
