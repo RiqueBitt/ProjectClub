@@ -26,6 +26,7 @@ export const revokeOtherSessions = () => api.delete('/auth/sessions/other').then
 export const updateProfile = (payload) => api.patch('/users/me', payload).then((r) => r.data);
 export const setActiveTag = (active) => api.patch('/users/me/tag', { active }).then((r) => r.data);
 export const setPreferredTheme = (theme) => api.patch('/users/me/theme', { theme }).then((r) => r.data);
+export const setChatZoom = (zoom) => api.patch('/users/me/chat-zoom', { zoom }).then((r) => r.data);
 export const setEmojiStyle = (emojiStyle) => api.patch('/users/me/emoji-style', { emojiStyle }).then((r) => r.data);
 export const updateUsername = (username) => api.patch('/users/me/username', { username }).then((r) => r.data);
 export const uploadAvatar = (file) => {

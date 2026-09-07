@@ -47,7 +47,7 @@ import robloxConnIcon from '../../assets/icons/social-roblox.png';
 import xConnIcon from '../../assets/icons/social-x.png';
 import {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, removeIdCard,
-  setup2FA, confirm2FA, disable2FA, setPreferredTheme, setMyClanTag,
+  setup2FA, confirm2FA, disable2FA, setPreferredTheme, setMyClanTag, setChatZoom,
   setEmojiStyle as setEmojiStyleApi,
   listSessions, revokeSession, revokeOtherSessions,
   createProfilePoll, listProfilePollsByAuthor, deleteProfilePoll,
@@ -69,7 +69,7 @@ const TAB_GROUPS = [
 export default function UserSettingsModal({ onClose }) {
   const { user, setUser, logout } = useAuth();
   const navigate = useNavigate();
-  const { theme, setTheme, customBackground, setCustomBackground, emojiStyle, setEmojiStyle: setEmojiStyleStore, myClan } = useStore();
+  const { theme, setTheme, customBackground, setCustomBackground, emojiStyle, setEmojiStyle: setEmojiStyleStore, myClan, chatZoom, setChatZoom: setChatZoomStore } = useStore();
   const disabledSystems = useStore((s) => s.disabledSystems);
   // Ver adminController.js (TOGGLEABLE_SYSTEMS) e a nova opção "Cores
   // personalizadas para perfil" em /admin → Sistema: quando a staff
@@ -287,6 +287,14 @@ export default function UserSettingsModal({ onClose }) {
   const pickTheme = (t) => {
     setTheme(t);
     setPreferredTheme(t).catch(() => {});
+  };
+
+  // Item pedido: "sistema podendo mudar o zoom de 1,0 até 2,0... pra
+  // melhor personalização" — mesmo padrão de pickTheme acima (aplica
+  // na hora, salva na conta em segundo plano).
+  const pickChatZoom = (z) => {
+    setChatZoomStore(z);
+    setChatZoom(z).catch(() => {});
   };
 
   // Item pedido: "5 variantes de visual dos meus emoji" — mesmo padrão
@@ -1159,6 +1167,24 @@ export default function UserSettingsModal({ onClose }) {
                   {{ facebook: 'Muito Claro', clubpenguin: 'Cartoon', dark: 'Cinza', light: 'Claro', amoled: 'Preto' }[t]}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Item pedido: "sistema podendo mudar o zoom de 1,0 até
+              2,0... pra melhor personalização" — só afeta o chat e a
+              barra de digitar (não o app inteiro), e só faz efeito em
+              telas de PC — no celular o app já se ajusta ao tamanho
+              da tela de outro jeito. */}
+          <div className="settings-block">
+            <h4>Zoom do chat</h4>
+            <p className="dim">Deixa o texto das mensagens e a barra de digitar maiores ou menores — só no PC, o celular não muda.</p>
+            <div className="chat-zoom-row">
+              <input
+                type="range" min="1" max="2" step="0.1"
+                value={chatZoom}
+                onChange={(e) => pickChatZoom(Number(e.target.value))}
+              />
+              <span className="chat-zoom-value">{chatZoom.toFixed(1)}x</span>
             </div>
           </div>
 

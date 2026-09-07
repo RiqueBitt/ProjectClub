@@ -51,6 +51,16 @@ function ProtectedRoute({ children }) {
     return () => clearTimeout(id);
   }, []);
 
+  // Item pedido: "sistema podendo mudar o zoom... pra melhor
+  // personalização" — aplica o valor já salvo (localStorage, lido na
+  // inicialização do store) assim que o app monta, antes até da
+  // sessão/conta terminar de carregar — sem isso, a variável CSS só
+  // ganharia um valor depois que a pessoa mexesse no controle pela
+  // primeira vez nesse dispositivo.
+  useEffect(() => {
+    document.documentElement.style.setProperty('--chat-zoom', useStore.getState().chatZoom);
+  }, []);
+
   useEffect(() => {
     const check = () => getPlatformStatus().then((d) => {
       setMaintenance(d);

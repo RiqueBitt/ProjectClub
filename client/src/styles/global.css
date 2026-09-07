@@ -2158,13 +2158,15 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
      the shell fills the real viewport exactly and every row, including the
      bottom-pinned ones, stays fully on screen. */
   .app-shell { height: calc(100dvh / 1.2); }
-  /* Item pedido originalmente: "aumente o zoom no chat de texto...
-     em 2x" — depois de ajustes sucessivos (2 → 1.5 → 1.2 → 1, "menos
-     zoom" a cada pedido), o zoom extra específico do chat voltou a 1
-     (ou seja, sem nenhum zoom além do zoom geral do app já existente
-     acima, de 1.2x) — removida a regra em si, já que zoom: 1 não faz
-     nada mesmo, pra não deixar uma linha de CSS sem efeito nenhum
-     perdida no meio do arquivo. */
+  /* Item pedido: "sistema podendo mudar o zoom de 1,0 até 2,0... pra
+     melhor personalização" — histórico: começou fixo em 2x, foi
+     reduzido em pedidos sucessivos (2 → 1.5 → 1.2 → 1, removido por
+     completo), e agora virou um controle de verdade que a pessoa
+     escolhe sozinha (Configurações → Aparência), lido da variável
+     --chat-zoom (aplicada em App.jsx/useStore.js sempre que muda ou
+     quando o app abre) — 1 aqui é só o valor de segurança caso a
+     variável ainda não tenha sido definida por nenhum dos dois. */
+  .message-list, .message-input-bar { zoom: var(--chat-zoom, 1); }
 }
 
 @media (max-width: 600px) {
@@ -6270,6 +6272,11 @@ a.embed-card-title:hover { text-decoration: underline; }
 }
 .image-cropper-zoom-row { display: flex; align-items: center; gap: 10px; width: 100%; font-size: 12px; font-weight: 700; color: var(--text-muted); }
 .image-cropper-zoom-row input[type="range"] { flex: 1; }
+/* Item pedido: "sistema podendo mudar o zoom de 1,0 até 2,0" — mesmo
+   padrão visual do zoom já usado no recorte de imagem, acima. */
+.chat-zoom-row { display: flex; align-items: center; gap: 10px; }
+.chat-zoom-row input[type="range"] { flex: 1; }
+.chat-zoom-value { font-size: 12px; font-weight: 700; color: var(--text-muted); min-width: 32px; text-align: right; }
 
 /* ============================================================
    Item pedido: "sistema completo chamado Clans... deixe tudo bonito

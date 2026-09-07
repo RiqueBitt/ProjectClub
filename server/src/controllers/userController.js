@@ -361,6 +361,26 @@ async function setPreferredTheme(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Item pedido: "sistema podendo mudar o zoom de 1,0 até 2,0... pra
+// melhor personalização" — mesmo padrão de setPreferredTheme acima.
+async function setChatZoom(req, res, next) {
+  try {
+    const { zoom } = req.body;
+    const value = Number(zoom);
+    if (!Number.isFinite(value) || value < 1 || value > 2) {
+      return res.status(400).json({ error: 'O zoom precisa estar entre 1.0 e 2.0.' });
+    }
+    // Arredonda pra 1 casa decimal — o controle na tela já só deixa
+    // escolher passos de 0.1, isso é só uma rede de segurança contra
+    // um valor mandado direto pra API por fora da tela normal.
+    const rounded = Math.round(value * 10) / 10;
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { chatZoom: rounded }, select: SELF_USER_FIELDS,
+    });
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
 // Item pedido: "5 variantes de visual dos meus emoji, uma delas o
 // mesmo tema do Discord" — mesmo padrão de setPreferredTheme acima.
 async function setEmojiStyle(req, res, next) {
@@ -611,6 +631,6 @@ async function setDisplayedAchievements(req, res, next) {
 
 module.exports = {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, uploadIdCard, removeIdCard,
-  setStatus, setCustomStatus, searchUsers, getUser, setActiveTag, voteProfile, setPreferredTheme, setEmojiStyle,
+  setStatus, setCustomStatus, searchUsers, getUser, setActiveTag, voteProfile, setPreferredTheme, setEmojiStyle, setChatZoom,
   setDisplayedAchievements,
 };

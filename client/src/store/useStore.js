@@ -136,6 +136,14 @@ export const useStore = create((set, get) => ({
   emojiStyle: (() => {
     try { return localStorage.getItem('emojiStyle') || 'native'; } catch { return 'native'; }
   })(),
+  // Item pedido: "sistema podendo mudar o zoom de 1,0 até 2,0... pra
+  // melhor personalização" — mesmo padrão de emojiStyle acima (guarda
+  // local pra aplicar na hora antes da conta terminar de carregar,
+  // ver AuthContext.jsx pra onde o valor salvo na CONTA sincroniza
+  // pra cá depois do login).
+  chatZoom: (() => {
+    try { return Number(localStorage.getItem('chatZoom')) || 1; } catch { return 1; }
+  })(),
   // Configuração do Editor de Interface (staff pode reorganizar/
   // redimensionar os menus principais) — carregada uma vez ao abrir o
   // app, aplicada globalmente (AppRail, sidebar, lista de membros). null
@@ -257,6 +265,11 @@ export const useStore = create((set, get) => ({
   setEmojiStyle: (emojiStyle) => {
     try { localStorage.setItem('emojiStyle', emojiStyle); } catch { /* localStorage indisponível — ainda fica salvo na conta, ver setEmojiStyle no backend */ }
     set({ emojiStyle });
+  },
+  setChatZoom: (chatZoom) => {
+    try { localStorage.setItem('chatZoom', chatZoom); } catch { /* localStorage indisponível — ainda fica salvo na conta, ver setChatZoom no backend */ }
+    document.documentElement.style.setProperty('--chat-zoom', chatZoom);
+    set({ chatZoom });
   },
   setUiLayout: (device, config) => set((s) => {
     const uiLayoutAll = { ...s.uiLayoutAll, [device]: config };

@@ -38,6 +38,15 @@ export function AuthProvider({ children }) {
     if (data.user?.emojiStyle) {
       useStore.getState().setEmojiStyle(data.user.emojiStyle);
     }
+    // Item pedido: "sistema podendo mudar o zoom... pra melhor
+    // personalização" — mesmo padrão de tema/emoji acima: o valor
+    // salvo na CONTA sincroniza pro estado local sempre que a sessão
+    // é aplicada, então o zoom escolhido também sobrevive a trocar de
+    // navegador/dispositivo. Só sincroniza se vier um valor de
+    // verdade (nunca sobrescreve com 0/undefined por engano).
+    if (data.user?.chatZoom) {
+      useStore.getState().setChatZoom(data.user.chatZoom);
+    }
   }, []);
 
   const clearSession = useCallback(() => {

@@ -109,6 +109,13 @@ model User {
   // que antes desse campo existir podia derrubar a inicialização do tema
   // inteira sem nenhum fallback).
   preferredTheme      String?
+  // Item pedido: "sistema no aparência podendo mudar o zoom de 1,0
+  // até 2,0... para melhor personalização" — quanto maior, maior o
+  // texto/espaçamento do chat e da barra de digitar no PC (nunca no
+  // celular — zoom sempre foi só uma opção de desktop nesse app).
+  // 1.0 = tamanho normal, sem nenhum zoom extra além do zoom geral
+  // do app que já existia antes disso tudo.
+  chatZoom            Float     @default(1.0)
   // Item pedido: "5 variantes de visual dos meus emoji, uma delas o
   // mesmo tema do Discord" — mesmo padrão de preferredTheme acima
   // (sincronizado entre localStorage e conta, ver setEmojiStyle no
