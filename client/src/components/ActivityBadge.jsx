@@ -78,7 +78,18 @@ export default function ActivityBadge({ userId }) {
             activity.imageUrl (extraída direto do Windows — ver
             activityDetector.js) — o código simplesmente esquecia de
             checar esse campo aqui, mesmo já existindo. */}
-        {activity.imageUrl ? <img src={activity.imageUrl} alt="" className="activity-badge-icon-fallback" /> : <img src={spotifyIcon} alt="" className="activity-badge-icon-fallback" />}
+        {/* BUG CORRIGIDO ("foto da música fica minúscula, a caixa
+            fica grande"): activity-badge-icon-fallback tem um tamanho
+            fixo pequeno (30px), pensado só pro ícone genérico do
+            Spotify quando não há capa nenhuma — a capa de verdade
+            (activity.imageUrl) usava essa MESMA classe sem querer,
+            então ficava presa nesse tamanho pequeno mesmo dentro do
+            quadrado bem maior (72px) reservado pra ela, sobrando
+            muito espaço vazio ao redor. Sem nenhuma classe, a capa
+            real usa o mesmo estilo já certo de .activity-badge-icon
+            img (100% do quadrado) — só o fallback genérico continua
+            pequeno e centralizado. */}
+        {activity.imageUrl ? <img src={activity.imageUrl} alt="" /> : <img src={spotifyIcon} alt="" className="activity-badge-icon-fallback" />}
       </div>
       <div className="activity-badge-text">
         <div className="activity-badge-title">Ouvindo Spotify</div>

@@ -78,6 +78,18 @@ async function detectGameOrApp(platform) {
 // correção usa o padrão comprovado (pegar o AsTask genérico via
 // reflexão, montar o tipo certo, aí sim chamar .Wait()/.Result nele).
 const SPOTIFY_PS_SCRIPT = `
+# BUG CORRIGIDO ("nome de música/artista com acento vira ?"): por
+# padrão, o PowerShell escreve a saída do console usando a "code page"
+# local do Windows (ex: CP1252/CP850 em sistemas em português), nunca
+# UTF-8 de verdade — mas o Node.js do outro lado sempre interpreta a
+# saída como UTF-8. Título/artista com acento (ç, ã, é...) vindo direto
+# da central de mídia do Windows atravessavam essa troca de codificação
+# errada e viravam "?" ou caracteres estranhos. Forçar as duas pontas
+# (console E o próprio stdout) pra UTF-8 aqui garante que o que sai do
+# PowerShell já está na mesma codificação que o Node espera do outro
+# lado, sem precisar de nenhuma conversão manual depois.
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
 $asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation\`1' })[0]
 function Await($WinRtTask, $ResultType) {
