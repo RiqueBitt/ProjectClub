@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext.jsx';
 import topicIcon from '../assets/icons/nav-topic.png';
 import feedIcon from '../assets/icons/nav-feed.png';
 import friendsIcon from '../assets/icons/nav-profile.png';
-import notificationsIcon from '../assets/icons/nav-notifications.png';
 import ranksIcon from '../assets/icons/nav-ranks.png';
 import supportIcon from '../assets/icons/nav-support.png';
 import dashboardIcon from '../assets/icons/nav-dashboard.png';
@@ -38,7 +37,12 @@ const ITEMS = [
   // invertida (Feeds vem antes de Amigos agora).
   { to: '/comunidades', icon: feedIcon, isImg: true, label: 'Feeds', match: (p) => p === '/comunidades' || p.startsWith('/posts/') },
   { to: '/dms', icon: friendsIcon, isImg: true, label: 'Amigos', match: (p) => p === '/dms' || p.startsWith('/conversations/') },
-  { to: '/notifications', icon: notificationsIcon, isImg: true, label: 'Notificações', match: (p) => p.startsWith('/notifications') },
+  // Item pedido: "remover a aba Notificações do menu lateral esquerdo
+  // e deixar as notificações disponíveis somente pelo ícone de sino
+  // localizado na parte superior da interface" — o sino já existe e
+  // já leva pra essa mesma rota (ver TopSearchBar.jsx), então o
+  // acesso continua funcionando normalmente, só sem essa entrada
+  // duplicada aqui na barra lateral.
   { to: '/rank', icon: ranksIcon, isImg: true, label: 'Ranks', match: (p) => p.startsWith('/rank') },
   { to: '/conquistas', icon: achievementsIcon, isImg: true, label: 'Conquistas', match: (p) => p.startsWith('/conquistas') },
   { to: '/tickets', icon: supportIcon, isImg: true, label: 'Suporte', match: (p) => p.startsWith('/tickets') },

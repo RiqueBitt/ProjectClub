@@ -14,7 +14,6 @@ import ErrorBoundary from './ErrorBoundary.jsx';
 import RulesChannelView from './RulesChannelView.jsx';
 import EmojiPicker from './EmojiPicker.jsx';
 import RichMessageInput from './RichMessageInput.jsx';
-import GifPicker from './GifPicker.jsx';
 import TopicThreadModal from './modals/TopicThreadModal.jsx';
 import PollComposerModal from './modals/PollComposerModal.jsx';
 import GroupSettingsModal from './modals/GroupSettingsModal.jsx';
@@ -190,7 +189,6 @@ export default function ChatWindow({ kind }) {
   usePopoverCoordination(emojiPickerOpen, () => setEmojiPickerOpen(false));
   const [openTopic, setOpenTopic] = useState(null);
   const [pollComposerOpen, setPollComposerOpen] = useState(false);
-  const [gifPickerOpen, setGifPickerOpen] = useState(false);
 
   // BUG CORRIGIDO ("o menu está muito pra esquerda e muito largo"):
   // a tentativa anterior media a coluna de chat inteira (via
@@ -201,7 +199,6 @@ export default function ChatWindow({ kind }) {
   // REAL do próprio botão que abriu o popover (getBoundingClientRect)
   // e calcula a posição em JS, passando um style pronto — muito mais
   // direto e confiável do que tentar inferir onde uma coluna termina.
-  const gifBtnRef = useRef(null);
   const emojiBtnRef = useRef(null);
   const uiLayout = useStore((s) => s.uiLayout);
   // Item pedido: "sistema de figurinhas" — EmojiPicker já tinha essa
@@ -226,12 +223,14 @@ export default function ChatWindow({ kind }) {
   const PICKER_WIDTH = 380;
   const PICKER_HEIGHT_VH = 40;
   useEffect(() => {
-    if (!gifPickerOpen && !emojiPickerOpen) { setPickerStyle(null); return; }
+    if (!emojiPickerOpen) { setPickerStyle(null); return; }
     if (window.matchMedia('(max-width: 600px)').matches) {
       // Item pedido: "GIFa Move... deve funcionar corretamente...
       // em dispositivos mobile" — se a staff configurou uma posição
       // customizada pro mobile, usa ela (sobrescreve o bottom sheet
-      // padrão); senão, deixa null pro CSS de sempre assumir.
+      // padrão); senão, deixa null pro CSS de sempre assumir. Agora
+      // vale pro menu inteiro (emoji/figurinha/GIF juntos no mesmo
+      // popover), não só pro GIF sozinho como antes.
       setPickerStyle(resolveMobileGifMenuStyle(uiLayout?.gifMenuLayout));
       return;
     }
@@ -240,7 +239,7 @@ export default function ChatWindow({ kind }) {
     // cálculo automático abaixo.
     const custom = resolveDesktopGifMenuStyle(uiLayout?.gifMenuLayout);
     if (custom) { setPickerStyle(custom); return; }
-    const btn = gifPickerOpen ? gifBtnRef.current : emojiBtnRef.current;
+    const btn = emojiBtnRef.current;
     if (!btn) return;
     const rect = btn.getBoundingClientRect();
     const estimatedHeight = Math.min(window.innerHeight * (PICKER_HEIGHT_VH / 100), window.innerHeight - 24);
@@ -253,9 +252,7 @@ export default function ChatWindow({ kind }) {
     const width = Math.min(PICKER_WIDTH, window.innerWidth - 32);
     if (window.innerWidth - right - width < 8) right = Math.max(8, window.innerWidth - width - 8);
     setPickerStyle({ position: 'fixed', bottom: `${bottom}px`, right: `${right}px`, left: 'auto', top: 'auto', transform: 'none', width: `${width}px`, maxWidth: `${width}px` });
-  }, [gifPickerOpen, emojiPickerOpen, uiLayout]);
-
-  usePopoverCoordination(gifPickerOpen, () => setGifPickerOpen(false));
+  }, [emojiPickerOpen, uiLayout]);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState(null); // null = not showing; '' or partial name otherwise
   const [recording, setRecording] = useState(false);
@@ -565,7 +562,6 @@ export default function ChatWindow({ kind }) {
   });
 
   const sendGif = async (url) => {
-    setGifPickerOpen(false);
     const fd = new FormData();
     if (conversationId) fd.append('conversationId', conversationId);
     if (channelId) fd.append('channelId', channelId);
@@ -856,14 +852,7 @@ export default function ChatWindow({ kind }) {
             onSubmit={() => onSubmit({ preventDefault: () => {} })}
           />
           <div className="composer-picker-anchor">
-            <button ref={gifBtnRef} type="button" className="icon-btn" title="GIF" onClick={() => { setGifPickerOpen((v) => !v); setEmojiPickerOpen(false); }}>GIF</button>
-            {gifPickerOpen && createPortal(
-              <GifPicker onPick={sendGif} onClose={() => setGifPickerOpen(false)} style={{ '--composer-height': `${composerBarHeight}px`, ...(pickerStyle || {}) }} />,
-              document.body,
-            )}
-          </div>
-          <div className="composer-picker-anchor">
-            <button ref={emojiBtnRef} type="button" className="icon-btn" title="Emoji" onClick={() => { setEmojiPickerOpen((v) => !v); setGifPickerOpen(false); }}>☺</button>
+            <button ref={emojiBtnRef} type="button" className="icon-btn" title="Emoji" onClick={() => { setEmojiPickerOpen((v) => !v); }}>☺</button>
             {emojiPickerOpen && createPortal(
               <EmojiPicker
                 variant="composer-centered"
@@ -872,6 +861,7 @@ export default function ChatWindow({ kind }) {
                 serverEmojis={usableEmojis}
                 onPick={insertText}
                 onPickSticker={sendSticker}
+                onPickGif={sendGif}
                 onClose={() => setEmojiPickerOpen(false)}
               />,
               document.body,

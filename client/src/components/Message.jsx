@@ -161,7 +161,10 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
   // Works the same whether the GIF is one someone else sent or one we sent
   // ourselves — a sent GIF is just a bare-URL message (see BARE_IMAGE_URL_RE
   // below), so the URL itself doubles as the favorite's dedupe key. Mirrors
-  // the star toggle in GifPicker.jsx's own Favoritos tab.
+  // the star toggle in EmojiPicker.jsx's own GIFs > Favoritos tab (GIFs
+  // used to live in a separate GifPicker.jsx, now merged in there — see
+  // "coloque os emojis personalizados dentro do menu de emojis...
+  // deixando emojis, GIFs e figurinhas centralizados em um único menu").
   const toggleFavoriteGif = async (url) => {
     const isFav = favoriteGifs.some((g) => g.gifId === url);
     if (isFav) {

@@ -1,48 +1,35 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { useSheetDrag } from '../utils/useSheetDrag';
 import emojiGroups from 'unicode-emoji-json/data-by-group.json';
 import StyledEmoji from './StyledEmoji.jsx';
+import { addFavoriteGif, removeFavoriteGif } from '../api/endpoints';
+import starIcon from '../assets/icons/star.png';
 
-// The FULL Unicode emoji set (~1900, all 9 official groups — see
-// node_modules/unicode-emoji-json), not a hand-picked shortlist — rendered
-// as the browser/OS's own native emoji glyphs (plain text), same as
-// everywhere else in the app.
-const GROUP_LABEL_PT = {
-  smileys_emotion: 'Carinhas e emoções',
-  people_body: 'Pessoas e corpo',
-  animals_nature: 'Animais e natureza',
-  food_drink: 'Comidas e bebidas',
-  travel_places: 'Viagens e lugares',
-  activities: 'Atividades',
-  objects: 'Objetos',
-  symbols: 'Símbolos',
-  flags: 'Bandeiras',
-};
-// One representative emoji per group, used as that category's own icon in
-// the side rail (see .emoji-picker-cat-rail below) — same idea as a
-// Discord-clone reference project the user shared, which uses a vertical
-// icon rail down the side of its emoji picker to jump straight to a
-// category instead of only scrolling through one long list.
-const GROUP_RAIL_ICON = {
-  smileys_emotion: '😀',
-  people_body: '🖐️',
-  animals_nature: '🐶',
-  food_drink: '🍔',
-  travel_places: '✈️',
-  activities: '⚽',
-  objects: '💡',
-  symbols: '❤️',
-  flags: '🏳️',
-};
-const UNICODE_GROUPS = Object.fromEntries(
-  emojiGroups.map((g) => [GROUP_LABEL_PT[g.slug] || g.name, g.emojis.map((e) => ({ emoji: e.emoji, name: e.name }))]),
-);
-const UNICODE_GROUP_ICONS = Object.fromEntries(
-  emojiGroups.map((g) => [GROUP_LABEL_PT[g.slug] || g.name, GROUP_RAIL_ICON[g.slug] || '🙂']),
-);
+// Item pedido: "coloque os emojis personalizados dentro do menu de
+// emojis... mantenha todos os emojis normais/padrão dentro de uma
+// única coleção" — antes, o emoji padrão (unicode) tinha 9 categorias
+// próprias (Carinhas, Animais, Comida...) numa aba separada da de
+// emoji personalizado; agora tudo isso vira UMA seção só, mostrada
+// junto com as coleções de emoji personalizado no mesmo rail lateral
+// — o padrão sempre por último, depois de qualquer coleção que a
+// comunidade tenha criado.
+const UNICODE_ALL = emojiGroups.flatMap((g) => g.emojis.map((e) => ({ emoji: e.emoji, name: e.name })));
+const UNICODE_COLLECTION_KEY = 'unicode-default';
 
-export default function EmojiPicker({ serverEmojis = [], serverStickers = [], onPick, onPickSticker, onClose, style, variant = 'composer', defaultHeightVh }) {
+// Google shut down the Tenor GIF API for good on 2026-06-30 (announced
+// 2026-01-13) — every request to tenor.googleapis.com now fails, which is
+// why the old picker used to show nothing at all. KLIPY is the closest
+// drop-in replacement: same request/response shape as Tenor's v2 API, just
+// a different host and your own (free) API key instead of a shared demo
+// key. Get a free key at https://partner.klipy.com/ and put it in
+// client/.env as VITE_KLIPY_KEY=... (see client/.env.example). Restart
+// `npm run dev` (or rebuild) after adding it — Vite only reads env vars at
+// startup/build time.
+const KLIPY_KEY = import.meta.env.VITE_KLIPY_KEY || '';
+const KLIPY_CLIENT = 'embercord';
+
+export default function EmojiPicker({ serverEmojis = [], serverStickers = [], onPick, onPickSticker, onPickGif, onClose, style, variant = 'composer', defaultHeightVh }) {
   const { heightVh, dragHandlers } = useSheetDrag(onClose, defaultHeightVh);
   const usableEmojis = useStore((s) => s.usableEmojis);
   const usableStickers = useStore((s) => s.usableStickers);
@@ -52,10 +39,14 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
   // não precisa buscar de novo toda vez que o seletor abre.
   const emojiCollections = useStore((s) => s.emojiCollections);
   const stickerCollections = useStore((s) => s.stickerCollections);
-  const [tab, setTab] = useState(serverEmojis.length > 0 ? 'server' : 'unicode');
+  // Item pedido: "deixando emojis, GIFs e figurinhas centralizados em
+  // um único menu compacto" — de 4 abas (Servidor/Outros/Emojis/
+  // Figurinhas) mais um seletor de GIF totalmente à parte, pra só 3:
+  // Emojis (personalizado + padrão + de outros servidores juntos no
+  // mesmo rail), Figurinhas, GIFs.
+  const [tab, setTab] = useState('emojis');
   const [query, setQuery] = useState('');
-  const unicodeScrollRef = useRef(null);
-  const serverScrollRef = useRef(null);
+  const emojiScrollRef = useRef(null);
   const stickerScrollRef = useRef(null);
   const catSectionRefs = useRef({});
 
@@ -107,42 +98,135 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
 
   const q = query.trim().toLowerCase();
 
+  // --- GIFs (movido de GifPicker.jsx pra virar uma aba aqui dentro) ---
+  const [gifSubTab, setGifSubTab] = useState('search'); // 'search' | 'favorites'
+  const [gifResults, setGifResults] = useState([]);
+  const [gifLoading, setGifLoading] = useState(false);
+  const [gifFailed, setGifFailed] = useState(false);
+  const gifDebounceRef = useRef(null);
+  const [gifCategories, setGifCategories] = useState(null); // null = carregando, [] = API não devolveu nada
+  const [activeGifCategory, setActiveGifCategory] = useState(null); // { name, searchterm } | null = mural
+
+  const favoriteGifs = useStore((s) => s.favoriteGifs);
+  const addFavoriteGifLocal = useStore((s) => s.addFavoriteGifLocal);
+  const removeFavoriteGifLocal = useStore((s) => s.removeFavoriteGifLocal);
+  const favoriteGifIds = new Set(favoriteGifs.map((g) => g.gifId));
+
+  const searchGifs = async (term) => {
+    if (!KLIPY_KEY) { setGifLoading(false); setGifFailed('unconfigured'); setGifResults([]); return; }
+    setGifLoading(true);
+    setGifFailed(false);
+    try {
+      const endpoint = term.trim()
+        ? `https://api.klipy.com/v2/search?q=${encodeURIComponent(term)}&key=${KLIPY_KEY}&client_key=${KLIPY_CLIENT}&limit=24&media_filter=gif`
+        : `https://api.klipy.com/v2/featured?key=${KLIPY_KEY}&client_key=${KLIPY_CLIENT}&limit=24&media_filter=gif`;
+      const res = await fetch(endpoint);
+      if (!res.ok) throw new Error('klipy request failed');
+      const data = await res.json();
+      setGifResults((data.results || []).map((r) => ({
+        id: r.id,
+        preview: r.media_formats?.tinygif?.url || r.media_formats?.gif?.url,
+        full: r.media_formats?.gif?.url,
+      })).filter((g) => g.full));
+    } catch {
+      setGifFailed(true);
+      setGifResults([]);
+    } finally {
+      setGifLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!KLIPY_KEY) { setGifCategories([]); return; }
+    fetch(`https://api.klipy.com/v2/categories?key=${KLIPY_KEY}&client_key=${KLIPY_CLIENT}&media_filter=gif`)
+      .then((r) => (r.ok ? r.json() : { tags: [] }))
+      .then((data) => setGifCategories((data.tags || []).slice(0, 12)))
+      .catch(() => setGifCategories([]));
+  }, []);
+
+  useEffect(() => { if (tab === 'gifs' && gifSubTab === 'search' && !activeGifCategory) searchGifs(''); }, [tab, gifSubTab]);
+
+  const openGifCategory = (cat) => { setActiveGifCategory(cat); searchGifs(cat.searchterm); };
+  const backToGifMural = () => { setActiveGifCategory(null); setQuery(''); searchGifs(''); };
+
+  const toggleFavoriteGif = async (e, gif) => {
+    e.stopPropagation();
+    const key = gif.id ?? gif.full;
+    if (favoriteGifIds.has(key)) {
+      removeFavoriteGifLocal(key);
+      await removeFavoriteGif(key).catch(() => {});
+    } else {
+      const optimistic = { gifId: key, url: gif.full, preview: gif.preview || gif.full };
+      addFavoriteGifLocal(optimistic);
+      await addFavoriteGif({ gifId: key, url: gif.full, preview: gif.preview || gif.full }).catch(() => {});
+    }
+  };
+
+  const shownGifs = gifSubTab === 'favorites'
+    ? favoriteGifs.map((g) => ({ id: g.gifId, preview: g.preview || g.url, full: g.url }))
+    : gifResults;
+  const showGifMural = tab === 'gifs' && gifSubTab === 'search' && !activeGifCategory && !query.trim();
+
+  // Item pedido: "abrir o menu de emoji/GIF no mobile acaba abrindo o
+  // teclado do celular" — autoFocus só em telas grandes (mesma régua
+  // já usada em outros lugares do app pra "isso é mobile?").
+  const searchPlaceholder = tab === 'gifs' ? 'Buscar GIFs...' : tab === 'stickers' ? 'Buscar figurinha...' : 'Buscar emoji...';
+  const onSearchChange = (v) => {
+    setQuery(v);
+    if (tab === 'gifs') {
+      setActiveGifCategory(null);
+      clearTimeout(gifDebounceRef.current);
+      gifDebounceRef.current = setTimeout(() => searchGifs(v), 350);
+    }
+  };
+
   return (
     <div className={`emoji-picker-popover ${variant === 'reaction' ? 'reaction-picker' : ''} ${variant === 'composer-centered' ? 'composer-centered-picker' : ''}`} style={{ '--sheet-height': `${heightVh}vh`, ...style }} onMouseDown={(e) => e.stopPropagation()}>
       <div className="sheet-drag-handle" {...dragHandlers} />
       <div className="emoji-picker-tabs">
-        {serverEmojis.length > 0 && <button className={tab === 'server' ? 'active' : ''} onClick={() => setTab('server')}>Servidor</button>}
-        {usableEmojis.length > 0 && <button className={tab === 'external' ? 'active' : ''} onClick={() => setTab('external')}>Outros</button>}
-        <button className={tab === 'unicode' ? 'active' : ''} onClick={() => setTab('unicode')}>Emojis</button>
-        {hasStickers && onPickSticker && <button className={tab === 'stickers' ? 'active' : ''} onClick={() => setTab('stickers')}>Figurinhas</button>}
+        <button className={tab === 'emojis' ? 'active' : ''} onClick={() => { setTab('emojis'); setQuery(''); }}>Emojis</button>
+        {hasStickers && onPickSticker && <button className={tab === 'stickers' ? 'active' : ''} onClick={() => { setTab('stickers'); setQuery(''); }}>Figurinhas</button>}
+        {onPickGif && <button className={tab === 'gifs' ? 'active' : ''} onClick={() => { setTab('gifs'); setQuery(''); setActiveGifCategory(null); }}>GIFs</button>}
       </div>
+      {tab === 'gifs' && !showGifMural && (
+        <div className="gif-picker-header">
+          <button type="button" className="gif-picker-back" onClick={backToGifMural} title="Voltar">←</button>
+          <span className="gif-picker-header-title truncate">{activeGifCategory ? activeGifCategory.name : (query.trim() ? `Resultados para "${query}"` : '')}</span>
+        </div>
+      )}
+      {tab === 'gifs' && (
+        <div className="emoji-picker-tabs emoji-picker-subtabs">
+          <button className={gifSubTab === 'search' ? 'active' : ''} onClick={() => setGifSubTab('search')}>Buscar</button>
+          <button className={gifSubTab === 'favorites' ? 'active' : ''} onClick={() => setGifSubTab('favorites')}><img className="ui-icon-sm" src={starIcon} alt="" /> Favoritos</button>
+        </div>
+      )}
       <input
         className="emoji-picker-search"
-        placeholder="Buscar emoji..."
+        placeholder={searchPlaceholder}
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        // BUG CORRIGIDO ("abrir o menu de emoji/GIF no mobile acaba
-        // abrindo o teclado do celular"): autoFocus sempre ativo faz
-        // QUALQUER navegador/WebView levantar o teclado virtual assim
-        // que o campo ganha foco — bom em desktop (já digita direto),
-        // ruim em mobile (o teclado cobre boa parte da tela sem a
-        // pessoa ter pedido). window.innerWidth > 600 é a mesma régua
-        // já usada em outros lugares do app pra "isso é mobile?".
+        onChange={(e) => onSearchChange(e.target.value)}
         autoFocus={window.innerWidth > 600}
+        disabled={tab === 'gifs' && gifFailed === 'unconfigured'}
       />
       <div className="emoji-picker-body">
-        {tab === 'server' && (
+        {tab === 'emojis' && (
           <div className="emoji-picker-unicode-layout">
-            {!q && customGroups.length > 1 && (
+            {!q && (
               <div className="emoji-picker-cat-rail">
                 {customGroups.map((g) => (
                   <button key={g.key} className="emoji-picker-cat-rail-btn" title={g.label} onClick={() => scrollToCategory(`server-${g.key}`)}>
                     {g.iconUrl ? <img src={g.iconUrl} alt="" className="asset-collection-rail-icon" /> : '📄'}
                   </button>
                 ))}
+                {Object.keys(externalGrouped).map((serverName) => (
+                  <button key={serverName} className="emoji-picker-cat-rail-btn" title={serverName} onClick={() => scrollToCategory(`ext-${serverName}`)}>🌐</button>
+                ))}
+                <button className="emoji-picker-cat-rail-btn" title="Emojis padrão" onClick={() => scrollToCategory(UNICODE_COLLECTION_KEY)}>
+                  <StyledEmoji emoji="😀" size={20} />
+                </button>
               </div>
             )}
-            <div className="emoji-picker-unicode-scroll" ref={serverScrollRef}>
+            <div className="emoji-picker-unicode-scroll" ref={emojiScrollRef}>
               {customGroups.map((g) => {
                 const filtered = q ? g.list.filter((e) => e.name.toLowerCase().includes(q)) : g.list;
                 if (filtered.length === 0) return null;
@@ -159,52 +243,32 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
                   </div>
                 );
               })}
-            </div>
-          </div>
-        )}
-        {tab === 'external' && Object.entries(externalGrouped).map(([serverName, list]) => {
-          const filtered = q ? list.filter((e) => e.name.toLowerCase().includes(q)) : list;
-          if (filtered.length === 0) return null;
-          return (
-            <div key={serverName}>
-              <div className="emoji-picker-group-label">{serverName}</div>
-              <div className="emoji-picker-grid">
-                {filtered.map((e) => (
-                  <button key={e.id} title={`:${e.name}:`} onClick={() => { onPick(`:${e.name}:`); onClose?.(); }}>
-                    <img src={e.url} alt={e.name} />
-                  </button>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-        {tab === 'unicode' && (
-          <div className="emoji-picker-unicode-layout">
-            {!q && (
-              <div className="emoji-picker-cat-rail">
-                {Object.keys(UNICODE_GROUPS).map((cat) => (
-                  <button
-                    key={cat}
-                    className="emoji-picker-cat-rail-btn"
-                    title={cat}
-                    onClick={() => scrollToCategory(cat)}
-                  >
-                    {UNICODE_GROUP_ICONS[cat] && <StyledEmoji emoji={UNICODE_GROUP_ICONS[cat]} size={20} />}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="emoji-picker-unicode-scroll" ref={unicodeScrollRef}>
-              {Object.entries(UNICODE_GROUPS).map(([cat, list]) => {
+              {Object.entries(externalGrouped).map(([serverName, list]) => {
+                const filtered = q ? list.filter((e) => e.name.toLowerCase().includes(q)) : list;
+                if (filtered.length === 0) return null;
+                return (
+                  <div key={serverName} ref={(el) => { catSectionRefs.current[`ext-${serverName}`] = el; }}>
+                    <div className="emoji-picker-group-label">🌐 {serverName}</div>
+                    <div className="emoji-picker-grid">
+                      {filtered.map((e) => (
+                        <button key={e.id} title={`:${e.name}:`} onClick={() => { onPick(`:${e.name}:`); onClose?.(); }}>
+                          <img src={e.url} alt={e.name} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              {(() => {
                 // Emoji names in this dataset are English-only (no localized
                 // names shipped upstream) — search still works fine for the
                 // common case (typing "fire", "heart", etc), just doesn't match
                 // a Portuguese word typed in.
-                const filtered = q ? list.filter((e) => e.name.toLowerCase().includes(q)) : list;
+                const filtered = q ? UNICODE_ALL.filter((e) => e.name.toLowerCase().includes(q)) : UNICODE_ALL;
                 if (filtered.length === 0) return null;
                 return (
-                  <div key={cat} ref={(el) => { catSectionRefs.current[cat] = el; }}>
-                    <div className="emoji-picker-group-label">{cat}</div>
+                  <div ref={(el) => { catSectionRefs.current[UNICODE_COLLECTION_KEY] = el; }}>
+                    <div className="emoji-picker-group-label">Emojis padrão</div>
                     <div className="emoji-picker-grid">
                       {filtered.map((e) => (
                         <button key={e.emoji} onClick={() => { onPick(e.emoji); onClose?.(); }} title={e.name}>
@@ -214,7 +278,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
                     </div>
                   </div>
                 );
-              })}
+              })()}
             </div>
           </div>
         )}
@@ -264,6 +328,63 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
               })}
             </div>
           </div>
+        )}
+        {tab === 'gifs' && (
+          showGifMural ? (
+            <div className="gif-picker-mural">
+              <button type="button" className="gif-picker-mural-tile gif-picker-mural-tile-solid" onClick={() => setGifSubTab('favorites')}>
+                <span>Favoritos</span>
+              </button>
+              <button
+                type="button" className="gif-picker-mural-tile"
+                style={gifResults[0]?.preview ? { backgroundImage: `url(${gifResults[0].preview})` } : undefined}
+                onClick={() => openGifCategory({ name: 'GIFs em alta', searchterm: '' })}
+              >
+                <span>📈 GIFs em alta</span>
+              </button>
+              {(gifCategories || []).map((cat) => (
+                <button
+                  type="button" key={cat.searchterm} className="gif-picker-mural-tile"
+                  style={cat.image ? { backgroundImage: `url(${cat.image})` } : undefined}
+                  onClick={() => openGifCategory(cat)}
+                >
+                  <span>{cat.name}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="gif-picker-grid">
+              {gifSubTab === 'search' && gifLoading && <div className="dim">Buscando...</div>}
+              {gifSubTab === 'search' && !gifLoading && gifFailed === 'unconfigured' && (
+                <div className="dim gif-picker-message">
+                  Busca de GIFs ainda não configurada.<br />
+                  Crie uma chave gratuita em <b>partner.klipy.com</b> e adicione como
+                  <code> VITE_KLIPY_KEY </code> em <code>client/.env</code>.
+                </div>
+              )}
+              {gifSubTab === 'search' && !gifLoading && gifFailed === true && <div className="dim">Não foi possível carregar GIFs agora. Tente novamente mais tarde.</div>}
+              {gifSubTab === 'favorites' && shownGifs.length === 0 && (
+                <div className="dim gif-picker-message">
+                  Nenhum GIF favoritado ainda.<br />
+                  Clique na ⭐ em qualquer GIF (na busca ou em uma mensagem já enviada) para salvá-lo aqui.
+                </div>
+              )}
+              {gifSubTab === 'search' && !gifLoading && !gifFailed && shownGifs.length === 0 && <div className="dim">Nenhum resultado.</div>}
+              {shownGifs.map((g) => (
+                <button key={g.id} className="gif-picker-tile" onClick={() => { onPickGif(g.full); onClose?.(); }}>
+                  <img src={g.preview} alt="" loading="lazy" />
+                  <span
+                    className={`gif-favorite-btn ${favoriteGifIds.has(g.id ?? g.full) ? 'active' : ''}`}
+                    role="button"
+                    title={favoriteGifIds.has(g.id ?? g.full) ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                    onClick={(e) => toggleFavoriteGif(e, g)}
+                  >
+                    {favoriteGifIds.has(g.id ?? g.full) ? <img className="ui-icon-sm" src={starIcon} alt="" /> : '☆'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )
         )}
       </div>
     </div>
