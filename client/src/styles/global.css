@@ -917,24 +917,36 @@ body.body-auth-scroll { overflow-y: auto !important; }
   background: var(--presence-color);
 }
 /* Item pedido: "a bolinha amarela do ausente transforme numa bolinha
-   parecida com a lua... mas não é emoji" — um segundo círculo, na cor
-   do fundo por trás da bolinha, sobreposto no canto superior direito
-   do círculo amarelo, "mordendo" ele — a mesma técnica clássica de
-   desenhar uma lua crescente só com CSS, sem depender de nenhuma
-   imagem ou emoji. */
-.status-dot-idle { position: relative; overflow: visible; }
-.status-dot-idle::after {
-  content: ''; position: absolute; top: -18%; right: -28%; width: 78%; height: 78%;
-  border-radius: 50%; background: var(--bg-secondary);
+   parecida com a lua... mas não é emoji" / "no não perturbe...
+   dentro dele tenha uma linha reta... cinza escuro" — os dois
+   formatos são desenhados 100% com "background" (gradientes com
+   paradas de cor bem definidas), nunca com um pseudo-elemento
+   separado por cima.
+   BUG CORRIGIDO (duas causas, achadas com as imagens enviadas):
+   1) a versão anterior usava um ::after com position: absolute — só
+      funciona certo se o próprio elemento em volta tiver um
+      posicionamento de referência próprio; em pelo menos um lugar
+      (o seletor de status dentro de Configurações) isso não
+      acontecia, e o recorte, pensado pra ter poucos pixels, "vazava"
+      pra fora e virava um retângulo enorme, do tamanho de boa parte
+      da tela.
+   2) mesmo corrigindo isso, a "mordida" da lua tentava imitar a cor
+      do fundo atrás da bolinha com uma cor sólida fixa — isso só
+      funciona em fundos de cor sólida simples; em qualquer lugar com
+      foto, gradiente ou cor diferente atrás (como o card da imagem
+      mais recente enviada), a mordida aparecia como uma mancha da
+      cor errada, ainda visivelmente "bugada".
+   A técnica agora nunca depende de posicionamento externo nem de
+   adivinhar a cor de trás — os dois formatos são pintados só com as
+   cores do próprio status e um cinza fixo pro traço, sempre dentro
+   dos limites exatos do círculo (border-radius já corta tudo que
+   sobra), então funcionam do mesmo jeito em qualquer fundo, sem
+   nenhum elemento extra. */
+.status-dot-idle {
+  background: radial-gradient(circle at 65% 35%, transparent 0 38%, var(--presence-color) 40% 100%);
 }
-/* Item pedido: "no não perturbe... dentro dele tenha uma linha reta...
-   mais cinza escuro" — um traço horizontal por cima do círculo
-   vermelho, no meio, feito com um pseudo-elemento (não precisa de
-   nenhuma imagem/emoji também). */
-.status-dot-dnd { position: relative; }
-.status-dot-dnd::after {
-  content: ''; position: absolute; top: 50%; left: 18%; right: 18%; height: 22%;
-  transform: translateY(-50%); background: #43444b; border-radius: 2px;
+.status-dot-dnd {
+  background: linear-gradient(var(--presence-color) 0 39%, #43444b 39% 61%, var(--presence-color) 61% 100%);
 }
 
 /* ---------- Friends panel ---------- */
