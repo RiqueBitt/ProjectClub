@@ -1260,7 +1260,17 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
   transition: max-height .15s ease, opacity .15s ease, padding .15s ease;
 }
 .pending-files.leaving { max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; }
-.message-input-row { display: flex; align-items: center; gap: 8px; background: var(--bg-elevated); border-radius: 8px; padding: 4px 8px; }
+/* Item pedido: "melhore a barra de digitar deixando ela mais bonita,
+   mais suave" — sombra sutil dando profundidade (em vez de ficar
+   totalmente "chapada" no fundo), borda mais arredondada, e um
+   contorno que se destaca suavemente quando a pessoa clica pra
+   digitar (antes não tinha nenhum feedback visual de foco). */
+.message-input-row {
+  display: flex; align-items: center; gap: 8px; background: var(--bg-elevated); border-radius: 14px; padding: 4px 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.12), inset 0 0 0 1px var(--border);
+  transition: box-shadow .15s var(--ease-smooth);
+}
+.message-input-row:focus-within { box-shadow: 0 2px 10px rgba(0,0,0,.16), inset 0 0 0 1.5px var(--brand); }
 .message-input { flex: 1; background: transparent; border: none; padding: 10px 4px; }
 .message-input:focus { border: none; }
 /* Item pedido: "quando colocar um emoji no seu texto... vai aparecer o
@@ -2148,6 +2158,16 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
      the shell fills the real viewport exactly and every row, including the
      bottom-pinned ones, stays fully on screen. */
   .app-shell { height: calc(100dvh / 1.2); }
+  /* Item pedido: "aumente o zoom no chat de texto, a mensagem etc está
+     muito pequeno ainda no PC, somente no PC, aumente em 2x" — um
+     zoom PRÓPRIO só na área de mensagens e na barra de digitar, em
+     cima do zoom geral do app que já existia (1.2x) — como zoom recalcula
+     o layout de verdade (não só estica pixels já prontos como
+     transform: scale faria), a rolagem e o texto continuam nítidos e
+     corretos, só maiores. Só entra em telas de desktop de verdade
+     (a mesma régua já usada acima pro zoom geral do app inteiro) —
+     mobile continua exatamente do tamanho de sempre. */
+  .message-list, .message-input-bar { zoom: 2; }
 }
 
 @media (max-width: 600px) {
