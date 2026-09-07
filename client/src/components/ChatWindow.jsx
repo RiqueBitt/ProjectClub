@@ -14,6 +14,7 @@ import ErrorBoundary from './ErrorBoundary.jsx';
 import RulesChannelView from './RulesChannelView.jsx';
 import EmojiPicker from './EmojiPicker.jsx';
 import RichMessageInput from './RichMessageInput.jsx';
+import { proxyImage } from '../utils/imageProxy';
 import TopicThreadModal from './modals/TopicThreadModal.jsx';
 import PollComposerModal from './modals/PollComposerModal.jsx';
 import GroupSettingsModal from './modals/GroupSettingsModal.jsx';
@@ -298,6 +299,18 @@ export default function ChatWindow({ kind }) {
           .map((m) => ({ id: m.user.id, label: m.user.displayName, hint: `@${m.user.username}` })),
       ].filter((c) => !mentionQuery || c.label.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 8)
     : [];
+
+  // Item pedido: "quando marcar algum cargo ou membro... quero que
+  // apareça a foto de perfil do user" — todo nome que pode ser
+  // mencionado, com a foto de quem é pessoa (cargo/@everyone/@here
+  // não têm foto nenhuma pra mostrar, só o fundo destacado mesmo).
+  const composerMentionMap = useMemo(() => {
+    const map = {};
+    if (canMentionEveryone) { map.everyone = {}; map.here = {}; }
+    roles.filter((r) => !r.isDefault && r.mentionable).forEach((r) => { map[r.name] = {}; });
+    members.forEach((m) => { map[m.user.displayName] = { avatarUrl: proxyImage(m.user.avatarUrl) }; });
+    return map;
+  }, [members, roles, canMentionEveryone]);
 
   const title = useMemo(() => {
     if (conversationId) {
@@ -859,6 +872,7 @@ export default function ChatWindow({ kind }) {
             value={content}
             onChange={onContentChange}
             emojiMap={composerEmojiMap}
+            mentionMap={composerMentionMap}
             onSubmit={() => onSubmit({ preventDefault: () => {} })}
           />
           <div className="composer-picker-anchor">

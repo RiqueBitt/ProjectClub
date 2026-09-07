@@ -1299,6 +1299,12 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .rich-message-input::-webkit-scrollbar { display: none; }
 .rich-message-input:empty::before { content: attr(data-placeholder); color: var(--text-muted); pointer-events: none; }
 .composer-inline-emoji { width: 20px; height: 20px; vertical-align: middle; object-fit: contain; }
+/* Item pedido: "quando marcar algum membro/cargo... a foto de perfil
+   do user" — o chip em si já usa .mention-chip (mesmo visual de uma
+   menção já enviada, ver acima) — só user-select: none aqui, já que
+   ele não é editável por dentro (é um bloco só, apagado de uma vez
+   com um Backspace, não letra por letra). */
+.composer-inline-mention { user-select: none; }
 .send-btn { color: var(--brand); font-size: 18px; }
 
 /* ---------- Members list ---------- */
@@ -1325,7 +1331,7 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .dm-profile-panel .profile-modal-body { padding: 0 12px 16px; }
 .dm-profile-panel .avatar-wrap.large { width: 72px; }
 .dm-profile-panel .avatar.xlarge { width: 72px; height: 72px; font-size: 24px; border-width: 4px; }
-.dm-profile-panel .status-dot.large { width: 23px; height: 23px; border-width: 3px; }
+.dm-profile-panel .status-dot.large { width: 28px; height: 28px; border-width: 3px; }
 .dm-profile-panel .profile-avatar-row { margin-top: -36px; margin-bottom: 10px; }
 .dm-profile-panel .profile-display-name { font-size: 16px; }
 .dm-profile-panel .profile-votes-row { flex-wrap: wrap; }
@@ -2305,7 +2311,7 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .avatar.clickable:hover { opacity: 0.85; }
 .avatar.xlarge { width: 92px; height: 92px; font-size: 32px; border: 6px solid var(--bg-primary); }
 .avatar-wrap.large { width: 92px; }
-.status-dot.large { width: 23px; height: 23px; border-width: 4px; }
+.status-dot.large { width: 28px; height: 28px; border-width: 4px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 /* Item pedido: "renomear e criar categoria não funciona no PC" — modal
    próprio que substitui window.prompt()/confirm() (ver
@@ -4979,7 +4985,7 @@ a.embed-card-title:hover { text-decoration: underline; }
    foto — a bolinha ficaria cortada se estivesse dentro dele), no
    wrapper de fora, que não corta nada. */
 .mini-profile-presence-dot {
-  position: absolute; bottom: 2px; right: 2px; width: 15px; height: 15px;
+  position: absolute; bottom: 2px; right: 2px; width: 20px; height: 20px;
   border-radius: 50%; border: 3px solid var(--bg-elevated);
 }
 /* Item pedido: seletor de status (Online/Ausente/Não perturbe/
