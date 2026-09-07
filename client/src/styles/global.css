@@ -3336,8 +3336,8 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
    role's own (possibly gradient) color instead — see richTextRender.jsx. */
 .mention-chip {
   display: inline-flex; align-items: center; gap: 3px; vertical-align: -2px;
-  background: rgba(240,178,50,.2); border: 1px solid rgba(240,178,50,.7);
-  color: var(--yellow); border-radius: 4px; padding: 0 4px; font-weight: 600;
+  background: color-mix(in srgb, var(--brand) 20%, transparent); border: 1px solid color-mix(in srgb, var(--brand) 70%, transparent);
+  color: var(--brand); border-radius: 4px; padding: 0 4px; font-weight: 600;
 }
 .mention-chip-role { color: inherit; }
 /* A user mention's tiny avatar — same idea as the real message author
