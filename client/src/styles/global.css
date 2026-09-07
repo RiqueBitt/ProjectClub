@@ -2159,15 +2159,16 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
      bottom-pinned ones, stays fully on screen. */
   .app-shell { height: calc(100dvh / 1.2); }
   /* Item pedido: "aumente o zoom no chat de texto, a mensagem etc está
-     muito pequeno ainda no PC, somente no PC, aumente em 2x" — um
-     zoom PRÓPRIO só na área de mensagens e na barra de digitar, em
-     cima do zoom geral do app que já existia (1.2x) — como zoom recalcula
-     o layout de verdade (não só estica pixels já prontos como
-     transform: scale faria), a rolagem e o texto continuam nítidos e
-     corretos, só maiores. Só entra em telas de desktop de verdade
-     (a mesma régua já usada acima pro zoom geral do app inteiro) —
-     mobile continua exatamente do tamanho de sempre. */
-  .message-list, .message-input-bar { zoom: 2; }
+     muito pequeno ainda no PC, somente no PC, aumente em 2x" (depois
+     ajustado pra "0,5x menor" — 2 → 1.5) — um zoom PRÓPRIO só na área
+     de mensagens e na barra de digitar, em cima do zoom geral do app
+     que já existia (1.2x) — como zoom recalcula o layout de verdade
+     (não só estica pixels já prontos como transform: scale faria), a
+     rolagem e o texto continuam nítidos e corretos, só maiores. Só
+     entra em telas de desktop de verdade (a mesma régua já usada
+     acima pro zoom geral do app inteiro) — mobile continua exatamente
+     do tamanho de sempre. */
+  .message-list, .message-input-bar { zoom: 1.5; }
 }
 
 @media (max-width: 600px) {
