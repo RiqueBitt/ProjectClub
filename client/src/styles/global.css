@@ -899,7 +899,7 @@ body.body-auth-scroll { overflow-y: auto !important; }
 .avatar-wrap { position: relative; flex-shrink: 0; }
 .avatar-wrap.small { width: 32px; }
 .status-dot {
-  position: absolute; bottom: -2px; right: -2px; width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--bg-secondary);
+  position: absolute; bottom: -2px; right: -2px; width: 13px; height: 13px; border-radius: 50%; border: 3px solid var(--bg-secondary);
   /* BUG CORRIGIDO ("bolinha de status achatada, não redonda"): sendo um
      <button>, alguns navegadores reservam uma altura mínima baseada na
      métrica de fonte/padding padrão de formulário, mesmo com width/
@@ -1292,7 +1292,7 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .dm-profile-panel .profile-modal-body { padding: 0 12px 16px; }
 .dm-profile-panel .avatar-wrap.large { width: 72px; }
 .dm-profile-panel .avatar.xlarge { width: 72px; height: 72px; font-size: 24px; border-width: 4px; }
-.dm-profile-panel .status-dot.large { width: 18px; height: 18px; border-width: 3px; }
+.dm-profile-panel .status-dot.large { width: 23px; height: 23px; border-width: 3px; }
 .dm-profile-panel .profile-avatar-row { margin-top: -36px; margin-bottom: 10px; }
 .dm-profile-panel .profile-display-name { font-size: 16px; }
 .dm-profile-panel .profile-votes-row { flex-wrap: wrap; }
@@ -2263,7 +2263,7 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .avatar.clickable:hover { opacity: 0.85; }
 .avatar.xlarge { width: 92px; height: 92px; font-size: 32px; border: 6px solid var(--bg-primary); }
 .avatar-wrap.large { width: 92px; }
-.status-dot.large { width: 33px; height: 33px; border-width: 4px; }
+.status-dot.large { width: 23px; height: 23px; border-width: 4px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 /* Item pedido: "renomear e criar categoria não funciona no PC" — modal
    próprio que substitui window.prompt()/confirm() (ver
@@ -4923,7 +4923,7 @@ a.embed-card-title:hover { text-decoration: underline; }
    foto — a bolinha ficaria cortada se estivesse dentro dele), no
    wrapper de fora, que não corta nada. */
 .mini-profile-presence-dot {
-  position: absolute; bottom: 2px; right: 2px; width: 21px; height: 21px;
+  position: absolute; bottom: 2px; right: 2px; width: 15px; height: 15px;
   border-radius: 50%; border: 3px solid var(--bg-elevated);
 }
 /* Item pedido: seletor de status (Online/Ausente/Não perturbe/
@@ -4944,7 +4944,22 @@ a.embed-card-title:hover { text-decoration: underline; }
    num avatar) — nesse seletor a bolinha fica inline ao lado do texto
    do status, então position precisa ser explicitamente anulado, ou
    herdaria o absolute e sairia do fluxo normal, quebrando o layout. */
-.status-picker-dot { position: static; width: 15px; height: 15px; border-radius: 50%; flex-shrink: 0; }
+/* BUG CORRIGIDO ("abre o menu de editar perfil e aparece um círculo
+   preto e um retângulo cinza por cima de tudo, todo bugado"): os
+   pseudo-elementos ::after de .status-dot-idle/.status-dot-dnd (a
+   "mordida" da lua e o traço do não perturbe) são position: absolute
+   com medidas em porcentagem — isso só funciona corretamente se o
+   próprio elemento pai tiver position: relative/absolute, servindo de
+   referência pro cálculo. Aqui esse pai tinha position: static (sem
+   nenhum contexto de posicionamento próprio), então o navegador
+   procurava o ANCESTRAL POSICIONADO mais próximo na árvore pra usar
+   como referência — o modal inteiro — e um pseudo-elemento pensado
+   pra ser uma mordidinha de poucos pixels virava um retângulo/círculo
+   enorme, do tamanho de boa parte do modal. Isso acontecia sempre que
+   a tela abria, já que os 4 botões de status (incluindo Ausente e Não
+   perturbe) sempre aparecem juntos ali, não só quando esse status
+   específico está ativo. */
+.status-picker-dot { position: relative; width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
 /* Fixo só quando o card está "acentuado" (cor personalizada escolhida
    pela pessoa) — no modo normal (sem cor própria), a borda acompanha
    o tema do site normalmente, que já combina bem com o fundo padrão
