@@ -31,6 +31,8 @@ import selectedIcon from '../assets/icons/selected.png';
 import plusIcon from '../assets/icons/plus.png';
 import documentIcon from '../assets/icons/document.png';
 import micIcon from '../assets/icons/mic.png';
+import emojiPickerIcon from '../assets/icons/emoji-picker.png';
+import stickerPickerIcon from '../assets/icons/sticker-picker.png';
 import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from './PenguinAvatar.jsx';
 
 // BUG CORRIGIDO: <img src={dmOther.avatarUrl}> quebrava (bloqueado pela
@@ -185,8 +187,13 @@ export default function ChatWindow({ kind }) {
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
-  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
-  usePopoverCoordination(emojiPickerOpen, () => setEmojiPickerOpen(false));
+  // Item pedido: "adicione novamente o botão de GIF, e adicione mais
+  // um para abrir as figurinhas" — 3 botões, mas ainda o mesmo
+  // popover único por trás (com abas) — cada botão só diz qual aba
+  // abrir primeiro. null = fechado.
+  const [pickerTab, setPickerTab] = useState(null);
+  const emojiPickerOpen = pickerTab !== null;
+  usePopoverCoordination(emojiPickerOpen, () => setPickerTab(null));
   const [openTopic, setOpenTopic] = useState(null);
   const [pollComposerOpen, setPollComposerOpen] = useState(false);
 
@@ -200,6 +207,9 @@ export default function ChatWindow({ kind }) {
   // e calcula a posição em JS, passando um style pronto — muito mais
   // direto e confiável do que tentar inferir onde uma coluna termina.
   const emojiBtnRef = useRef(null);
+  const gifBtnRef = useRef(null);
+  const stickerBtnRef = useRef(null);
+  const pickerBtnRefs = { emojis: emojiBtnRef, gifs: gifBtnRef, stickers: stickerBtnRef };
   const uiLayout = useStore((s) => s.uiLayout);
   // Item pedido: "sistema de figurinhas" — EmojiPicker já tinha essa
   // prop pronta pra receber (com a aba "Figurinhas" toda desenhada),
@@ -239,7 +249,7 @@ export default function ChatWindow({ kind }) {
     // cálculo automático abaixo.
     const custom = resolveDesktopGifMenuStyle(uiLayout?.gifMenuLayout);
     if (custom) { setPickerStyle(custom); return; }
-    const btn = emojiBtnRef.current;
+    const btn = pickerBtnRefs[pickerTab]?.current;
     if (!btn) return;
     const rect = btn.getBoundingClientRect();
     const estimatedHeight = Math.min(window.innerHeight * (PICKER_HEIGHT_VH / 100), window.innerHeight - 24);
@@ -852,17 +862,25 @@ export default function ChatWindow({ kind }) {
             onSubmit={() => onSubmit({ preventDefault: () => {} })}
           />
           <div className="composer-picker-anchor">
-            <button ref={emojiBtnRef} type="button" className="icon-btn" title="Emoji" onClick={() => { setEmojiPickerOpen((v) => !v); }}>☺</button>
+            <button ref={gifBtnRef} type="button" className="icon-btn" title="GIF" onClick={() => setPickerTab((t) => (t === 'gifs' ? null : 'gifs'))}>GIF</button>
+            <button ref={stickerBtnRef} type="button" className="icon-btn" title="Figurinhas" onClick={() => setPickerTab((t) => (t === 'stickers' ? null : 'stickers'))}>
+              <img className="ui-icon" src={stickerPickerIcon} alt="" />
+            </button>
+            <button ref={emojiBtnRef} type="button" className="icon-btn" title="Emoji" onClick={() => setPickerTab((t) => (t === 'emojis' ? null : 'emojis'))}>
+              <img className="ui-icon" src={emojiPickerIcon} alt="" />
+            </button>
             {emojiPickerOpen && createPortal(
               <EmojiPicker
+                key={pickerTab}
                 variant="composer-centered"
                 style={{ '--composer-height': `${composerBarHeight}px`, ...(pickerStyle || {}) }}
                 serverStickers={serverStickers}
                 serverEmojis={usableEmojis}
+                initialTab={pickerTab}
                 onPick={insertText}
                 onPickSticker={sendSticker}
                 onPickGif={sendGif}
-                onClose={() => setEmojiPickerOpen(false)}
+                onClose={() => setPickerTab(null)}
               />,
               document.body,
             )}

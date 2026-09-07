@@ -7,6 +7,7 @@ import { DISABLED_PROFILE_SECTIONS } from '../../utils/profileSections';
 import PhotoAlbumModal from './PhotoAlbumModal.jsx';
 import AchievementPickerModal from './AchievementPickerModal.jsx';
 import micIcon from '../../assets/icons/nav-mic.png';
+import emojiPickerIcon from '../../assets/icons/emoji-picker.png';
 import Modal from '../Modal.jsx';
 import EmojiPicker from '../EmojiPicker.jsx';
 import ClanIcon from '../ClanIcon.jsx';
@@ -621,7 +622,7 @@ export default function UserSettingsModal({ onClose }) {
               <div className="bio-input-row">
                 <textarea name="bio" value={form.bio} onChange={onChange} maxLength={190} />
                 <div className="composer-picker-anchor">
-                  <button type="button" className="icon-btn" title="Emoji" onClick={() => setBioEmojiOpen((v) => !v)}>☺</button>
+                  <button type="button" className="icon-btn" title="Emoji" onClick={() => setBioEmojiOpen((v) => !v)}><img className="ui-icon" src={emojiPickerIcon} alt="" /></button>
                   {bioEmojiOpen && <EmojiPicker serverEmojis={useStore.getState().usableEmojis} onPick={insertBioEmoji} onClose={() => setBioEmojiOpen(false)} />}
                 </div>
               </div>

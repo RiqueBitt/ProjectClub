@@ -29,7 +29,7 @@ const UNICODE_COLLECTION_KEY = 'unicode-default';
 const KLIPY_KEY = import.meta.env.VITE_KLIPY_KEY || '';
 const KLIPY_CLIENT = 'embercord';
 
-export default function EmojiPicker({ serverEmojis = [], serverStickers = [], onPick, onPickSticker, onPickGif, onClose, style, variant = 'composer', defaultHeightVh }) {
+export default function EmojiPicker({ serverEmojis = [], serverStickers = [], onPick, onPickSticker, onPickGif, onClose, style, variant = 'composer', defaultHeightVh, initialTab = 'emojis' }) {
   const { heightVh, dragHandlers } = useSheetDrag(onClose, defaultHeightVh);
   const usableEmojis = useStore((s) => s.usableEmojis);
   const usableStickers = useStore((s) => s.usableStickers);
@@ -44,7 +44,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
   // Figurinhas) mais um seletor de GIF totalmente à parte, pra só 3:
   // Emojis (personalizado + padrão + de outros servidores juntos no
   // mesmo rail), Figurinhas, GIFs.
-  const [tab, setTab] = useState('emojis');
+  const [tab, setTab] = useState(initialTab);
   const [query, setQuery] = useState('');
   const emojiScrollRef = useRef(null);
   const stickerScrollRef = useRef(null);

@@ -20,6 +20,7 @@ import TagBadge from './TagBadge.jsx';
 import ClanTagBadge from './ClanTagBadge.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import personIcon from '../assets/icons/person.png';
+import emojiPickerIcon from '../assets/icons/emoji-picker.png';
 import starIcon from '../assets/icons/star.png';
 import pinIcon from '../assets/icons/pin.png';
 import trashIcon from '../assets/icons/trash.png';
@@ -220,7 +221,7 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
     const items = [
       { label: 'Ver perfil', icon: <img className="ui-icon-sm" src={personIcon} alt="" />, onClick: () => useStore.getState().openProfile(message.authorId) },
       { label: 'Copiar ID do usuário', icon: '🆔', onClick: () => navigator.clipboard?.writeText(message.author?.publicId || message.authorId) },
-      { label: 'Reagir', icon: '☺', onClick: () => setShowEmojiPicker((v) => !v) },
+      { label: 'Reagir', icon: <img className="ui-icon-sm" src={emojiPickerIcon} alt="" />, onClick: () => setShowEmojiPicker((v) => !v) },
     ];
     if (isGifMessage) {
       items.push({

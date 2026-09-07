@@ -9,6 +9,7 @@ import UserAvatar from '../components/UserAvatar.jsx';
 import EmojiPicker from '../components/EmojiPicker.jsx';
 import IconGlyph from '../components/IconGlyph.jsx';
 import linkIcon from '../assets/icons/nav-link.png';
+import emojiPickerIcon from '../assets/icons/emoji-picker.png';
 import {
   getPost, deletePost, votePost,
   listPostComments, addPostComment, votePostComment, deletePostComment,
@@ -146,7 +147,7 @@ export default function PostDetailPage() {
       <form onSubmit={submitComment} className="post-comment-form" ref={commentFormRef}>
         <input value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Escreva um comentário..." maxLength={5000} />
         <div className="composer-picker-anchor">
-          <button ref={commentEmojiBtnRef} type="button" className="icon-btn" title="Emoji" onClick={() => { setEmojiPickerOpen((v) => !v); }}>☺</button>
+          <button ref={commentEmojiBtnRef} type="button" className="icon-btn" title="Emoji" onClick={() => { setEmojiPickerOpen((v) => !v); }}><img className="ui-icon" src={emojiPickerIcon} alt="" /></button>
           {emojiPickerOpen && createPortal(
             <EmojiPicker
               variant="composer-centered"
@@ -261,7 +262,7 @@ function CommentNode({ comment, postId, user, isStaff, onChange, depth = 0 }) {
           <form onSubmit={submitReply} className="post-comment-form nested" ref={replyFormRef}>
             <input value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="Escreva uma resposta..." maxLength={5000} autoFocus />
             <div className="composer-picker-anchor">
-              <button ref={replyEmojiBtnRef} type="button" className="icon-btn" title="Emoji" onClick={() => { setReplyEmojiOpen((v) => !v); }}>☺</button>
+              <button ref={replyEmojiBtnRef} type="button" className="icon-btn" title="Emoji" onClick={() => { setReplyEmojiOpen((v) => !v); }}><img className="ui-icon" src={emojiPickerIcon} alt="" /></button>
               {replyEmojiOpen && createPortal(
                 <EmojiPicker
                   variant="composer-centered"
