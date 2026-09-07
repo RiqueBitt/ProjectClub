@@ -569,12 +569,25 @@ function Attachment({ attachment }) {
         alt={attachment.filename}
         loading="lazy"
         style={{ cursor: 'zoom-in' }}
-        onClick={() => useStore.getState().openLightbox(attachment.url, attachment.filename)}
+        onClick={() => useStore.getState().openLightbox(attachment.url, attachment.filename, attachment.mimeType)}
       />
     );
   }
   if (attachment.mimeType.startsWith('video/')) {
-    return <video className="attachment-video" src={attachment.url} controls />;
+    // Item pedido: "quando mandarem... vídeo... clicar em baixar,
+    // faça baixar já de vez" — botão de expandir num cantinho, em
+    // vez de um onClick direto no próprio vídeo (que atrapalharia os
+    // controles nativos de play/pause/volume — qualquer clique no
+    // vídeo abriria o lightbox por engano, mesmo só querendo pausar).
+    return (
+      <div className="attachment-video-wrap">
+        <video className="attachment-video" src={attachment.url} controls />
+        <button
+          type="button" className="attachment-video-expand" title="Ver em tela cheia"
+          onClick={() => useStore.getState().openLightbox(attachment.url, attachment.filename, attachment.mimeType)}
+        >⤢</button>
+      </div>
+    );
   }
   if (attachment.mimeType.startsWith('audio/')) {
     return (

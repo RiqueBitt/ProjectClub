@@ -1119,6 +1119,17 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .attachments { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .attachment-image { max-width: 320px; max-height: 320px; border-radius: 8px; }
 .attachment-video { max-width: 360px; border-radius: 8px; }
+/* Item pedido: "quando mandarem... vídeo, quando abrir ele e clicar
+   em baixar..." — botão pequeno de "ver em tela cheia" sobreposto no
+   canto do vídeo, sem cobrir os controles nativos (play/pause/volume
+   ficam na parte de baixo do vídeo, esse botão fica no topo). */
+.attachment-video-wrap { position: relative; display: inline-block; max-width: 360px; }
+.attachment-video-expand {
+  position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 6px;
+  background: rgba(0,0,0,.55); color: #fff; font-size: 15px; backdrop-filter: blur(4px);
+  transition: background-color .12s;
+}
+.attachment-video-expand:hover { background: rgba(0,0,0,.75); }
 .attachment-file { display: inline-block; background: var(--bg-elevated); padding: 8px 12px; border-radius: 6px; font-size: 13px; }
 .attachment-audio { display: flex; align-items: center; gap: 8px; background: var(--bg-elevated); padding: 8px 12px; border-radius: 8px; }
 .attachment-audio audio { height: 32px; max-width: 280px; }
@@ -5812,11 +5823,17 @@ a.embed-card-title:hover { text-decoration: underline; }
   backdrop-filter: blur(6px);
 }
 .lightbox-btn:hover { background: rgba(255,255,255,0.28); }
+.lightbox-btn:disabled { opacity: .6; cursor: default; }
 .lightbox-image {
   max-width: 100%; max-height: 100%; object-fit: contain; cursor: zoom-in;
   transition: transform .2s ease; border-radius: 4px;
 }
 .lightbox-image.zoomed { transform: scale(2.5); cursor: zoom-out; }
+/* Item pedido: "quando mandarem... vídeo, quando abrir ele..." — o
+   lightbox nunca soube mostrar vídeo antes (só imagem/GIF); vídeo usa
+   os próprios controles nativos (play/pause/volume) em vez do zoom
+   por clique que imagem/GIF usam. */
+.lightbox-video { cursor: default; }
 @media (max-width: 600px) {
   .lightbox-toolbar { top: env(safe-area-inset-top, 8px); right: 8px; }
   .lightbox-btn { padding: 6px 10px; font-size: 12px; }

@@ -69,7 +69,7 @@ export const useStore = create((set, get) => ({
   // Visualização ampliada de imagem (item pedido) — global igual o
   // miniperfil/perfil, guarda só a URL+nome do arquivo atual; qualquer
   // <img> clicável no app chama openLightbox pra abrir.
-  lightboxImage: null, // { url, filename } | null
+  lightboxImage: null, // { url, filename, mimeType } | null
   usableEmojis: [], // emojis customizados da comunidade que este usuário pode usar
   // Item pedido: "sistema de figurinhas" — mesmo padrão de
   // usableEmojis acima, populando a prop serverStickers do
@@ -310,7 +310,12 @@ export const useStore = create((set, get) => ({
   openSettings: () => set({ settingsModalOpen: true }),
   closeSettings: () => set({ settingsModalOpen: false }),
   openLinkConfirm: (url) => set({ pendingLinkUrl: url }),
-  openLightbox: (url, filename) => set({ lightboxImage: { url, filename: filename || '' } }),
+  // Item pedido: "quando mandarem gif, imagem/vídeo, quando abrir ele
+  // e clicar em baixar, faça baixar já de vez" — mimeType adicionado
+  // (opcional — as chamadas de GIF colado continuam funcionando sem
+  // passar nada, já que nunca é vídeo) pra ImageLightbox.jsx saber se
+  // deve mostrar um <video> em vez de <img>, coisa que ele nunca fazia.
+  openLightbox: (url, filename, mimeType) => set({ lightboxImage: { url, filename: filename || '', mimeType: mimeType || '' } }),
   closeLightbox: () => set({ lightboxImage: null }),
   closeLinkConfirm: () => set({ pendingLinkUrl: null }),
   setUsableEmojis: (emojis) => set({ usableEmojis: emojis }),
