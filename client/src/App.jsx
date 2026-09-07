@@ -61,6 +61,24 @@ function ProtectedRoute({ children }) {
     document.documentElement.style.setProperty('--chat-zoom', useStore.getState().chatZoom);
   }, []);
 
+  // Item pedido: "Movimento reduzido... desativar/reduzir animações,
+  // transições, efeitos... Utilizar @media (prefers-reduced-motion:
+  // reduce) e também uma preferência própria do Project Club" +
+  // "Contraste alto" + "Saturação" + "Tamanho do texto... aplicar
+  // através de variáveis CSS" — reage direto ao userSettings do
+  // store (não só uma vez na montagem, já que ele só chega depois de
+  // uma chamada assíncrona ao servidor — ver MainApp.jsx) e aplica
+  // tudo de verdade na interface toda, não só na tela de
+  // Configurações onde a pessoa mexeu.
+  const userSettings = useStore((s) => s.userSettings);
+  useEffect(() => {
+    const html = document.documentElement;
+    html.classList.toggle('reduced-motion-pref', !!userSettings?.reducedMotion);
+    html.classList.toggle('high-contrast-pref', !!userSettings?.highContrast);
+    html.style.setProperty('--font-scale', userSettings?.textScale ?? 1);
+    html.style.setProperty('--saturation', `${userSettings?.saturation ?? 100}%`);
+  }, [userSettings]);
+
   useEffect(() => {
     const check = () => getPlatformStatus().then((d) => {
       setMaintenance(d);

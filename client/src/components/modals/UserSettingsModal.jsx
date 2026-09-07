@@ -61,15 +61,30 @@ import {
 // diferentes, mesmo todas sendo "sobre o perfil". Item pedido depois:
 // centralizar em Configurações — TAG voltou pra cá (tinha ido pro
 // próprio UserProfileModal.jsx numa resposta anterior).
+// Item pedido: "estrutura de configurações semelhante ao Discord...
+// Conta / Dados e privacidade / Notificações / EXPERIÊNCIA (Voz e
+// vídeo, Aparência, Acessibilidade, Sistema, Idioma e horário) /
+// JOGOS E APPS (...) — EXPERIÊNCIA e JOGOS E APPS funcionam como
+// separadores visuais, não são páginas clicáveis, só organizam o
+// resto" — reaproveita o mesmo sistema de grupos que já existia
+// (group.label vira o separador, group.tabs vira os itens clicáveis
+// logo abaixo dele), só reorganizado com a hierarquia pedida.
+// "Meu perfil" é uma categoria própria do Project Club sem
+// equivalente direto no documento (edição de bio/conquistas
+// exibidas/colunas do perfil) — mantida como já estava, sem mexer.
 const TAB_GROUPS = [
   { label: 'Perfil', tabs: ['PROFILE', 'MINI_PROFILE', 'PROFILE_CONTENT', 'COLUMNS'] },
-  { label: 'Geral', tabs: ['ACCOUNT', 'VOICE', 'SECURITY', 'APPEARANCE'] },
+  { label: 'Conta', tabs: ['ACCOUNT', 'SECURITY', 'ACCOUNT_STATUS'] },
+  { label: 'Dados e privacidade', tabs: ['PRIVACY'] },
+  { label: 'Notificações', tabs: ['NOTIFICATIONS'] },
+  { label: 'EXPERIÊNCIA', tabs: ['VOICE', 'APPEARANCE', 'ACCESSIBILITY', 'SYSTEM', 'LANGUAGE'] },
+  { label: 'JOGOS E APPS', tabs: ['GAMES'] },
 ];
 
 export default function UserSettingsModal({ onClose }) {
   const { user, setUser, logout } = useAuth();
   const navigate = useNavigate();
-  const { theme, setTheme, customBackground, setCustomBackground, emojiStyle, setEmojiStyle: setEmojiStyleStore, myClan, chatZoom, setChatZoom: setChatZoomStore } = useStore();
+  const { theme, setTheme, customBackground, setCustomBackground, emojiStyle, setEmojiStyle: setEmojiStyleStore, myClan, chatZoom, setChatZoom: setChatZoomStore, userSettings, updateUserSetting } = useStore();
   const disabledSystems = useStore((s) => s.disabledSystems);
   // Ver adminController.js (TOGGLEABLE_SYSTEMS) e a nova opção "Cores
   // personalizadas para perfil" em /admin → Sistema: quando a staff
@@ -1249,6 +1264,103 @@ export default function UserSettingsModal({ onClose }) {
         </div>
       )}
 
+      {/* Item pedido: "sistema completo de configurações... Idioma e
+          horário" — primeira tela ligada de verdade ao backend novo
+          (UserSettings, ver settingsController.js) — mostra "..."
+          enquanto ainda não carregou (nunca undefined/false piscando
+          na tela, como pedido) e salva sozinho a cada escolha. */}
+      {tab === 'LANGUAGE' && (
+        <div className="settings-grid">
+          {!userSettings ? <div className="dim">Carregando...</div> : (
+            <>
+              <div className="settings-block">
+                <h4>Idioma</h4>
+                <p className="dim">Muda o idioma usado na interface do Project Club.</p>
+                <select value={userSettings.language} onChange={(e) => updateUserSetting('language', e.target.value)}>
+                  <option value="pt-BR">Português (Brasil)</option>
+                  <option value="en-US">English</option>
+                  <option value="es-ES">Español</option>
+                </select>
+              </div>
+              <div className="settings-block">
+                <h4>Formato de horário</h4>
+                <p className="dim">Como os horários aparecem nas mensagens e em toda a interface.</p>
+                <select value={userSettings.timeFormat} onChange={(e) => updateUserSetting('timeFormat', e.target.value)}>
+                  <option value="auto">Automático (baseado no idioma)</option>
+                  <option value="12h">12 horas</option>
+                  <option value="24h">24 horas</option>
+                </select>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Item pedido: "Movimento reduzido... Contraste alto...
+          Saturação... Tamanho do texto" — reducedMotion e
+          highContrast aplicam uma classe no <html> (mesmo padrão já
+          usado pro tema); textScale e saturation viram variáveis CSS
+          (--font-scale, --saturation) que o CSS global usa em toda a
+          interface, não só nesta tela. */}
+      {tab === 'ACCESSIBILITY' && (
+        <div className="settings-grid">
+          {!userSettings ? <div className="dim">Carregando...</div> : (
+            <>
+              <div className="settings-block settings-toggle-row">
+                <div>
+                  <h4>Movimento reduzido</h4>
+                  <p className="dim">Reduz animações e efeitos visuais para tornar a interface mais confortável.</p>
+                </div>
+                <button
+                  type="button" className={`toggle-switch ${userSettings.reducedMotion ? 'on' : ''}`}
+                  onClick={() => updateUserSetting('reducedMotion', !userSettings.reducedMotion)}
+                />
+              </div>
+              <div className="settings-block settings-toggle-row">
+                <div>
+                  <h4>Contraste alto</h4>
+                  <p className="dim">Aumenta o contraste de cores da interface.</p>
+                </div>
+                <button
+                  type="button" className={`toggle-switch ${userSettings.highContrast ? 'on' : ''}`}
+                  onClick={() => updateUserSetting('highContrast', !userSettings.highContrast)}
+                />
+              </div>
+              <div className="settings-block">
+                <h4>Tamanho do texto</h4>
+                <input
+                  type="range" min="0.8" max="1.5" step="0.1"
+                  value={userSettings.textScale}
+                  onChange={(e) => updateUserSetting('textScale', Number(e.target.value))}
+                />
+              </div>
+              <div className="settings-block">
+                <h4>Saturação</h4>
+                <div className="chip-choice-row">
+                  {[100, 75, 50, 0].map((v) => (
+                    <button key={v} type="button" className={`chip-choice ${userSettings.saturation === v ? 'active' : ''}`} onClick={() => updateUserSetting('saturation', v)}>{v}%</button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Item pedido: "não desenvolver todas as telas simultaneamente"
+          — Status da conta, Dados e privacidade, Notificações,
+          Sistema e Jogos e apps ainda não foram implementados de
+          verdade nesta fase (só a navegação até eles já existe) —
+          ficam pras próximas fases, na mesma ordem que o próprio
+          pedido definiu. */}
+      {(tab === 'ACCOUNT_STATUS' || tab === 'PRIVACY' || tab === 'NOTIFICATIONS' || tab === 'SYSTEM' || tab === 'GAMES') && (
+        <div className="settings-grid">
+          <div className="settings-block">
+            <p className="dim">Essa parte das Configurações ainda está sendo construída — chega numa próxima atualização.</p>
+          </div>
+        </div>
+      )}
+
         </div>
       </div>
     </Modal>
@@ -1291,7 +1403,8 @@ export default function UserSettingsModal({ onClose }) {
 
 function labelFor(t) {
   return {
-    PROFILE: 'Meu perfil', PROFILE_CONTENT: 'Conteúdo', COLUMNS: 'Colunas', MINI_PROFILE: 'Mini Perfil', ACCOUNT: 'Minha conta', VOICE: 'Voz e Áudio', SECURITY: 'Segurança', APPEARANCE: 'Aparência',
+    PROFILE: 'Meu perfil', PROFILE_CONTENT: 'Conteúdo', COLUMNS: 'Colunas', MINI_PROFILE: 'Mini Perfil', ACCOUNT: 'Informação de conta', VOICE: 'Voz e vídeo', SECURITY: 'Senha e segurança', APPEARANCE: 'Aparência',
+    ACCOUNT_STATUS: 'Status da conta', PRIVACY: 'Dados e privacidade', NOTIFICATIONS: 'Notificações', ACCESSIBILITY: 'Acessibilidade', SYSTEM: 'Sistema', LANGUAGE: 'Idioma e horário', GAMES: 'Jogos e apps',
   }[t];
 }
 
@@ -1301,6 +1414,7 @@ function iconFor(t) {
   if (t === 'VOICE') return <IconGlyph src={micIcon} size={16} />;
   return {
     PROFILE: '👤', PROFILE_CONTENT: '🖼️', COLUMNS: '📐', MINI_PROFILE: '🪪', ACCOUNT: '⚙️', SECURITY: '🔒', APPEARANCE: '🎨',
+    ACCOUNT_STATUS: '📋', PRIVACY: '🛡️', NOTIFICATIONS: '🔔', ACCESSIBILITY: '♿', SYSTEM: '🖥️', LANGUAGE: '🌐', GAMES: '🎮',
   }[t];
 }
 

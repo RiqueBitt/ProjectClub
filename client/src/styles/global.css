@@ -176,6 +176,32 @@
 }
 
 * { box-sizing: border-box; }
+/* Item pedido: "Movimento reduzido... desativar/reduzir animações,
+   transições, efeitos, movimentos decorativos" + "Contraste alto" +
+   "Tamanho do texto... aplicar através de variáveis CSS" — aplicado
+   em App.jsx sempre que a configuração muda (ver useEffect com
+   userSettings). !important no movimento reduzido é proposital: é
+   uma preferência de acessibilidade, precisa vencer qualquer
+   transition/animation específica declarada em outro lugar do CSS,
+   sem exceção. */
+html.reduced-motion-pref *, html.reduced-motion-pref *::before, html.reduced-motion-pref *::after {
+  animation-duration: 0.001ms !important; animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important; scroll-behavior: auto !important;
+}
+/* Contraste alto (userSettings.highContrast) e Saturação
+   (userSettings.saturation) ainda NÃO aplicados visualmente aqui de
+   propósito: um filter no <html>/<body> cria um novo "containing
+   block" em CSS, fazendo todo position:fixed do app (popover, modal,
+   lightbox — muita coisa depende disso pra se posicionar relativo à
+   tela inteira, não a esse elemento) se comportar como
+   position:absolute em vez disso — um risco grande demais de quebrar
+   coisa já funcionando pra aplicar sem testar com calma numa fase
+   própria. Os valores escolhidos já são salvos e sincronizam
+   normalmente entre dispositivos; só falta a aplicação visual em si,
+   de forma segura, numa próxima fase (provavelmente um filtro
+   aplicado só em cima de elementos específicos, não do <html>/<body>
+   inteiro). */
+html { font-size: calc(16px * var(--font-scale, 1)); }
 /* Deterrent-only, matches the right-click/inspect-shortcut blocking in
    App.jsx — text across the UI (labels, buttons, sidebar names...) isn't
    selectable/copyable by default, but message content specifically stays
@@ -2122,6 +2148,9 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .toggle-switch.on { background: var(--green); }
 .toggle-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
 .toggle-switch.on::after { left: 18px; }
+/* Item pedido: "Exemplo, para booleanos: Movimento reduzido... [ ●──── ]"
+   — título+descrição de um lado, o controle do outro, sempre alinhado. */
+.settings-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 
 .mod-action-menu { display: flex; flex-direction: column; gap: 2px; max-height: 320px; overflow-y: auto; }
 .mod-action-menu button { text-align: left; padding: 6px 10px; border-radius: 4px; font-size: 13px; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
