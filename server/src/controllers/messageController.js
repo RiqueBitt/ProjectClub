@@ -246,6 +246,17 @@ async function createMessage(req, res, next) {
     // else so a stray field on a normal message/topic reply is a no-op
     // instead of an error.
     let quickReactions = '[]';
+    // Item pedido: "o ícone de olho vai marcar imagem com spoiler" —
+    // array de true/false na mesma ordem dos arquivos anexados; se
+    // não vier nada, ou vier algo que não dá pra entender, todo
+    // arquivo entra como "não é spoiler" — nunca trava o envio.
+    let spoilerFlags = [];
+    if (req.body.spoilerFlags) {
+      try {
+        const raw = JSON.parse(req.body.spoilerFlags);
+        if (Array.isArray(raw)) spoilerFlags = raw;
+      } catch { /* formato inesperado — segue com nenhum marcado como spoiler */ }
+    }
     const isForumPost = !!(access?.channel && access.channel.type === 'FORUM' && title && !replyToId);
     if (isForumPost && req.body.quickReactionEmojis) {
       try {
@@ -314,11 +325,18 @@ async function createMessage(req, res, next) {
         stickerUrl,
         quickReactions,
         attachments: {
-          create: (req.files || []).map((f) => ({
+          // Item pedido: "o ícone de olho... vai marcar imagem com
+          // spoiler" — o cliente manda um array JSON na mesma ordem
+          // dos arquivos anexados (spoilerFlags), já que req.files
+          // preserva a ordem de anexação; sem isso (mensagem antiga,
+          // ou algo dando errado no parse), todo mundo entra como
+          // "não é spoiler" — nunca trava o envio por causa disso.
+          create: (req.files || []).map((f, i) => ({
             url: f.url,
             filename: f.originalname,
             mimeType: f.mimetype,
             size: f.size,
+            isSpoiler: !!spoilerFlags[i],
           })),
         },
         mentions: mentionRows.length

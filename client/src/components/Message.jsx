@@ -360,7 +360,7 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
                   alt="GIF"
                   loading="lazy"
                   style={{ cursor: 'zoom-in' }}
-                  onClick={() => useStore.getState().openLightbox(message.content.trim())}
+                  onClick={() => useStore.getState().openLightbox([{ url: message.content.trim(), filename: 'GIF' }], 0)}
                 />
               </div>
             ) : (
@@ -385,9 +385,26 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
 
         {message.attachments?.length > 0 && (
           <div className="attachments">
-            {message.attachments.map((a) => (
-              <Attachment key={a.id} attachment={a} />
-            ))}
+            {/* Item pedido: "se alguém enviar vários arquivo de
+                imagem, ao clicar em uma das imagens vai abrir com as
+                opções de baixar etc, e vai ter uma setinha de ir e
+                voltar" — todas as imagens da mensagem (não vídeo, que
+                já tem seu próprio jeito de ver com controles) formam
+                uma "galeria" só, pra dar pra navegar entre elas
+                dentro do visualizador ampliado sem precisar fechar e
+                abrir de novo em cada uma. */}
+            {(() => {
+              const galleryImages = message.attachments
+                .filter((a) => a.mimeType.startsWith('image/'))
+                .map((a) => ({ url: a.url, filename: a.filename, mimeType: a.mimeType }));
+              return message.attachments.map((a) => (
+                <Attachment
+                  key={a.id} attachment={a}
+                  allImages={galleryImages}
+                  imageIndex={galleryImages.findIndex((g) => g.url === a.url)}
+                />
+              ));
+            })()}
           </div>
         )}
 
@@ -560,17 +577,31 @@ function PollCard({ poll, myUserId }) {
   );
 }
 
-function Attachment({ attachment }) {
+function Attachment({ attachment, allImages, imageIndex }) {
+  // Item pedido: "o ícone de olho vai representar... marcar imagem
+  // com spoiler... vai ficar toda borrada, um botão escrito Spoiler,
+  // e ao clicar vai tirar a censura" — começa escondida (borrada) se
+  // isSpoiler; uma vez revelada nesta sessão de visualização, fica
+  // revelada (não borra de novo sozinha).
+  const [revealed, setRevealed] = useState(!attachment.isSpoiler);
+
   if (attachment.mimeType.startsWith('image/')) {
     return (
-      <img
-        className="attachment-image"
-        src={attachment.url}
-        alt={attachment.filename}
-        loading="lazy"
-        style={{ cursor: 'zoom-in' }}
-        onClick={() => useStore.getState().openLightbox(attachment.url, attachment.filename, attachment.mimeType)}
-      />
+      <div className={`attachment-image-wrap ${!revealed ? 'is-spoiler' : ''}`}>
+        <img
+          className="attachment-image"
+          src={attachment.url}
+          alt={attachment.filename}
+          loading="lazy"
+          style={{ cursor: revealed ? 'zoom-in' : 'default' }}
+          onClick={() => { if (revealed) useStore.getState().openLightbox(allImages, imageIndex); }}
+        />
+        {!revealed && (
+          <button type="button" className="attachment-spoiler-reveal" onClick={() => setRevealed(true)}>
+            👁 Spoiler
+          </button>
+        )}
+      </div>
     );
   }
   if (attachment.mimeType.startsWith('video/')) {
@@ -584,7 +615,7 @@ function Attachment({ attachment }) {
         <video className="attachment-video" src={attachment.url} controls />
         <button
           type="button" className="attachment-video-expand" title="Ver em tela cheia"
-          onClick={() => useStore.getState().openLightbox(attachment.url, attachment.filename, attachment.mimeType)}
+          onClick={() => useStore.getState().openLightbox([{ url: attachment.url, filename: attachment.filename, mimeType: attachment.mimeType }], 0)}
         >⤢</button>
       </div>
     );

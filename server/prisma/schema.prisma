@@ -1041,6 +1041,11 @@ model Attachment {
   filename  String
   mimeType  String
   size      Int
+  // Item pedido: "o ícone de olho vai representar... marcar imagem
+  // com spoiler... vai ficar toda borrada, um botão escrito Spoiler,
+  // e ao clicar vai tirar a censura" — marcado por quem envia, na
+  // hora de anexar (ver ChatWindow.jsx).
+  isSpoiler Boolean @default(false)
 }
 
 model Reaction {

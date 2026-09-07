@@ -162,6 +162,18 @@ export default function ChatWindow({ kind }) {
   // de existir, em vez de piscar sumido na hora.
   const [replyToVisible, setReplyToVisible] = useState(null);
   const [filesVisible, setFilesVisible] = useState([]);
+  // Item pedido: "se enviar vários arquivos de imagem junto vai ficar
+  // um quadradinho de cada" — pré-visualização de verdade de cada
+  // imagem antes de mandar (não só o nome do arquivo em texto). Uma
+  // Object URL por arquivo, liberada quando o arquivo em questão sai
+  // da lista (evita vazar memória segurando imagem que ninguém vê
+  // mais).
+  const [filePreviews, setFilePreviews] = useState([]);
+  useEffect(() => {
+    const urls = filesVisible.map((f) => (f.file.type.startsWith('image/') ? URL.createObjectURL(f.file) : null));
+    setFilePreviews(urls);
+    return () => { urls.forEach((u) => u && URL.revokeObjectURL(u)); };
+  }, [filesVisible]);
   const [replyBarLeaving, setReplyBarLeaving] = useState(false);
   const [filesBarLeaving, setFilesBarLeaving] = useState(false);
   useEffect(() => {
@@ -506,7 +518,10 @@ export default function ChatWindow({ kind }) {
           : `${tooBig.length} arquivos maiores que ${MAX_UPLOAD_MB}MB não foram anexados.`,
       );
     }
-    if (ok.length > 0) setFiles((f) => [...f, ...ok]);
+    // Item pedido: "o ícone de olho vai marcar imagem com spoiler" —
+    // cada arquivo já entra com spoiler: false por padrão; o botão de
+    // olho na miniatura (ver JSX abaixo) alterna isso depois.
+    if (ok.length > 0) setFiles((f) => [...f, ...ok.map((file) => ({ file, spoiler: false }))]);
   };
 
   // --- Voice message recording ---
@@ -641,7 +656,8 @@ export default function ChatWindow({ kind }) {
     if (channelId) fd.append('channelId', channelId);
     if (trimmedContent) fd.append('content', trimmedContent);
     if (pendingReplyTo) fd.append('replyToId', pendingReplyTo.id);
-    pendingFiles.forEach((f) => fd.append('attachments', f));
+    pendingFiles.forEach((f) => fd.append('attachments', f.file));
+    if (pendingFiles.some((f) => f.spoiler)) fd.append('spoilerFlags', JSON.stringify(pendingFiles.map((f) => f.spoiler)));
 
     setContent('');
     setFiles([]);
@@ -821,8 +837,36 @@ export default function ChatWindow({ kind }) {
         )}
         {filesVisible.length > 0 && (
           <div className={`pending-files ${filesBarLeaving ? 'leaving' : ''}`}>
+            {/* Item pedido: "se enviar vários arquivo de imagem junto
+                vai ficar um quadradinho de cada... o ícone de olho...
+                marcar imagem com spoiler" — imagem vira uma
+                miniatura de verdade, com o botão de olho pra marcar
+                spoiler (fica destacado quando ativo) e o de lixeira
+                pra remover; arquivo que não é imagem (vídeo, áudio,
+                documento) continua como antes — um chip de texto
+                simples, já que não faz sentido mostrar miniatura de
+                algo que não é imagem. */}
             {filesVisible.map((f, i) => (
-              <span key={i} className="chip">{f.name} <button type="button" onClick={() => setFiles(files.filter((_, idx) => idx !== i))}><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button></span>
+              f.file.type.startsWith('image/') ? (
+                <div key={i} className="pending-file-thumb">
+                  {filePreviews[i] && <img src={filePreviews[i]} alt="" />}
+                  <div className="pending-file-thumb-actions">
+                    <button
+                      type="button" className={`pending-file-spoiler-btn ${f.spoiler ? 'active' : ''}`}
+                      title={f.spoiler ? 'Remover spoiler' : 'Marcar como spoiler'}
+                      onClick={() => setFiles(files.map((x, idx) => (idx === i ? { ...x, spoiler: !x.spoiler } : x)))}
+                    >👁</button>
+                    <button
+                      type="button" className="pending-file-remove-btn" title="Remover"
+                      onClick={() => setFiles(files.filter((_, idx) => idx !== i))}
+                    ><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button>
+                  </div>
+                  {f.spoiler && <span className="pending-file-spoiler-tag">Spoiler</span>}
+                  <span className="pending-file-thumb-name truncate">{f.file.name}</span>
+                </div>
+              ) : (
+                <span key={i} className="chip">{f.file.name} <button type="button" onClick={() => setFiles(files.filter((_, idx) => idx !== i))}><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button></span>
+              )
             ))}
           </div>
         )}

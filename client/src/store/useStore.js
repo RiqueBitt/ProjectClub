@@ -69,7 +69,7 @@ export const useStore = create((set, get) => ({
   // Visualização ampliada de imagem (item pedido) — global igual o
   // miniperfil/perfil, guarda só a URL+nome do arquivo atual; qualquer
   // <img> clicável no app chama openLightbox pra abrir.
-  lightboxImage: null, // { url, filename, mimeType } | null
+  lightboxImage: null, // { images: [{ url, filename, mimeType }], index } | null
   usableEmojis: [], // emojis customizados da comunidade que este usuário pode usar
   // Item pedido: "sistema de figurinhas" — mesmo padrão de
   // usableEmojis acima, populando a prop serverStickers do
@@ -315,8 +315,14 @@ export const useStore = create((set, get) => ({
   // (opcional — as chamadas de GIF colado continuam funcionando sem
   // passar nada, já que nunca é vídeo) pra ImageLightbox.jsx saber se
   // deve mostrar um <video> em vez de <img>, coisa que ele nunca fazia.
-  openLightbox: (url, filename, mimeType) => set({ lightboxImage: { url, filename: filename || '', mimeType: mimeType || '' } }),
+  // Item pedido: "se alguém enviar vários arquivo de imagem, ao
+  // clicar em uma das imagens vai abrir com as opções de baixar
+  // etc, e vai ter uma setinha de ir e voltar" — images é a lista
+  // completa de imagens da mesma mensagem (pra navegar entre elas),
+  // index é qual delas foi clicada primeiro.
+  openLightbox: (images, index = 0) => set({ lightboxImage: { images, index } }),
   closeLightbox: () => set({ lightboxImage: null }),
+  setLightboxIndex: (index) => set((s) => (s.lightboxImage ? { lightboxImage: { ...s.lightboxImage, index } } : {})),
   closeLinkConfirm: () => set({ pendingLinkUrl: null }),
   setUsableEmojis: (emojis) => set({ usableEmojis: emojis }),
   setServerStickers: (stickers) => set({ serverStickers: stickers }),
