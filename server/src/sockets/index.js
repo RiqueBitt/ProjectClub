@@ -159,7 +159,18 @@ function initSockets(httpServer) {
       // First connection for this user -> mark online and tell friends.
       if (socketCount === 1) {
         const user = await prisma.user.findUnique({ where: { id: userId } });
-        if (user && user.status !== 'INVISIBLE') {
+        // BUG CORRIGIDO ("fico em não perturbe, saio do app ou
+        // atualizo, e ele volta pro online"): a checagem só protegia
+        // "Invisível" de ser sobrescrita aqui — "Ausente" e "Não
+        // perturbe" (os outros dois status escolhidos manualmente
+        // pela própria pessoa) não estavam na lista, então toda
+        // reconexão (fechar/abrir o app, recarregar a página) forçava
+        // de volta pro Online, mesmo a pessoa tendo escolhido outra
+        // coisa antes de fechar. Agora só sobrescreve quando o status
+        // salvo já era "Offline" (ou nunca foi definido) — qualquer
+        // status escolhido manualmente pela pessoa nunca é mexido
+        // aqui, só quando ela mesma trocar de novo.
+        if (user && (!user.status || user.status === 'OFFLINE')) {
           await prisma.user.update({ where: { id: userId }, data: { status: 'ONLINE' } });
         }
         broadcastPresence(io, userId);

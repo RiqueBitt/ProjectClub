@@ -360,10 +360,10 @@ async function setMyClanTag(req, res, next) {
     const { tagId } = req.body;
     if (!tagId) {
       await prisma.user.update({ where: { id: req.user.id }, data: { clanTagId: null } });
-      return res.json({ clanTagId: null });
+      return res.json({ clanTagId: null, clanTag: null });
     }
     if (!req.user.clanId) return res.status(400).json({ error: 'Você não está em nenhum clã.' });
-    const tag = await prisma.clanTag.findUnique({ where: { id: tagId } });
+    const tag = await prisma.clanTag.findUnique({ where: { id: tagId }, select: { clanId: true, tag: true, clan: { select: { icon: true, iconColor: true } } } });
     // Item pedido: "Um usuário não consiga utilizar tags de clans dos
     // quais não participa."
     if (!tag || tag.clanId !== req.user.clanId) return res.status(403).json({ error: 'Essa tag não pertence ao seu clã.' });
@@ -373,7 +373,15 @@ async function setMyClanTag(req, res, next) {
     // não tinha como saber que a mudança realmente aconteceu sem
     // recarregar a página inteira (o checkbox lê user.clanTagId do
     // estado já carregado na tela, que nunca era atualizado).
-    res.json({ clanTagId: tagId });
+    //
+    // BUG CORRIGIDO ("mudo pra Nenhuma e não remove a tag"): devolver
+    // só o id não bastava — o que decide se o selo aparece em algum
+    // canto do app (ClanTagBadge.jsx) é o objeto clanTag aninhado
+    // (com o texto da tag em si), não o id sozinho; sem o objeto
+    // completo devolvido aqui, o frontend não tinha como saber o que
+    // colocar ali além do id, e a tag antiga continuava "grudada" na
+    // tela mesmo depois de trocada/removida.
+    res.json({ clanTagId: tagId, clanTag: { tag: tag.tag, clan: tag.clan } });
   } catch (err) { next(err); }
 }
 

@@ -10,7 +10,7 @@ import supportIcon from '../assets/icons/nav-support.png';
 import dashboardIcon from '../assets/icons/nav-dashboard.png';
 import achievementsIcon from '../assets/icons/nav-achievements.png';
 import inicioIcon from '../assets/icons/nav-updates.png';
-import { STATUS_LABEL, STATUS_COLOR } from '../utils/status';
+import clansIcon from '../assets/icons/nav-clans.png';
 import { proxyImage } from '../utils/imageProxy';
 
 // Barra lateral principal única do app. A marca/logo agora mora na
@@ -46,7 +46,12 @@ const ITEMS = [
   // ícone dedicado no pacote de ícones do app (isImg: true exigiria
   // um arquivo próprio), emoji como os outros lugares do app já usam
   // quando não há um ícone customizado disponível.
-  { to: '/clans', icon: '⚔️', label: 'Clãs', match: (p) => p.startsWith('/clans') },
+  // Item pedido: "trocar o emoji por esse icon" (ícone enviado pelo
+  // usuário) — mesmo padrão isImg:true dos outros itens da barra.
+  // Item pedido: "caixinha azul com BETA... bordas onduladas, pra
+  // mostrar que é uma funcionalidade beta" — badge: true ativa esse
+  // selo ao lado do texto (ver renderização abaixo).
+  { to: '/clans', icon: clansIcon, isImg: true, label: 'Clãs', beta: true, match: (p) => p.startsWith('/clans') },
 ];
 // BUG CORRIGIDO: o painel de staff (/admin) ficou órfão depois da troca
 // pra essa barra lateral única — os componentes antigos que linkavam pra
@@ -119,7 +124,7 @@ export default function MainSidebar() {
                     : item.icon}
                   {badge > 0 && <span className="main-sidebar-item-badge">{badge > 99 ? '99+' : badge}</span>}
                 </span>
-                <span className="main-sidebar-item-label">{item.label}</span>
+                <span className="main-sidebar-item-label">{item.label}{item.beta && <span className="beta-badge">BETA</span>}</span>
               </NavLink>
             );
           })}

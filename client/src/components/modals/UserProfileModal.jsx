@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { getUserProfile, createConversation, sendFriendRequest, assignRole, unassignRole, voteProfile, listPosts, listApprovedTestimonials, writeTestimonial, listScraps, writeScrap, deleteScrap, getFanStatus, toggleFan, registerProfileVisit, listProfileVisitors, getTraitStatus, toggleTrait, sendRelationshipRequest, endRelationship as endRelationshipApi, listPhotosByOwner, listProfilePollsByAuthor, voteProfilePoll, upcomingBirthdaysAmongFriends } from '../../api/endpoints';
-import { STATUS_LABEL, STATUS_COLOR } from '../../utils/status';
+import { STATUS_LABEL } from '../../utils/status';
+import PresenceDot from '../PresenceDot.jsx';
 import { renderRichContent } from '../../utils/richTextRender.jsx';
 import { getMyCommunityPermissions, hasPermission } from '../../utils/permissions';
 import { roleChipStyle, gradientStops } from '../../utils/roleColor';
@@ -815,7 +816,7 @@ isMe && (
                   <div className="avatar xlarge">
                     <UserAvatar user={user} size={112} />
                   </div>
-                  <span className="status-dot large" style={{ background: STATUS_COLOR[status] }} title={STATUS_LABEL[status]} />
+                  <PresenceDot status={status} large title={STATUS_LABEL[status]} />
                 </div>
                 <div className="profile-ig-header-info">
                   <h2 className="profile-display-name">

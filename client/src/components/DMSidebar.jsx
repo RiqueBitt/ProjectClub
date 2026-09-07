@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useStore, isConversationUnread } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { leaveConversation } from '../api/endpoints';
-import { STATUS_COLOR } from '../utils/status';
+import PresenceDot from './PresenceDot.jsx';
 import NewDMModal from './modals/NewDMModal.jsx';
 import ConversationIcon from './ConversationIcon.jsx';
 import UserAvatar from './UserAvatar.jsx';
@@ -66,7 +66,7 @@ export default function DMSidebar() {
                     <UserAvatar user={other || { displayName: name }} size={32} />
                   </div>
                 )}
-                {status && <span className="status-dot" style={{ background: STATUS_COLOR[status] }} />}
+                {status && <PresenceDot status={status} />}
               </div>
               <span className="truncate">{name}</span>
               {unread && <span className="unread-dot" />}

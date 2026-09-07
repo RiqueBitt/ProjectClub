@@ -5,7 +5,7 @@ import UserAvatar from './UserAvatar.jsx';
 import StatusEmoji from './StatusEmoji.jsx';
 import TagBadge from './TagBadge.jsx';
 import ClanTagBadge from './ClanTagBadge.jsx';
-import { STATUS_COLOR } from '../utils/status';
+import PresenceDot from './PresenceDot.jsx';
 import { proxyImage } from '../utils/imageProxy';
 
 // Item pedido: preenche a coluna da direita (terceira coluna do layout —
@@ -46,7 +46,7 @@ export default function FriendsListPanel({ onToggle }) {
             >
               <div className="avatar-wrap small">
                 <UserAvatar user={u} size={32} />
-                <span className="status-dot" style={{ background: STATUS_COLOR[status] || STATUS_COLOR.OFFLINE }} />
+                <PresenceDot status={status || 'OFFLINE'} />
               </div>
               <div className="member-row-text">
                 <span className="truncate">{u.displayName}</span>

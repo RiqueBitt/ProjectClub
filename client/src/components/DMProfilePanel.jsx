@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getUserProfile } from '../api/endpoints';
-import { STATUS_LABEL, STATUS_COLOR } from '../utils/status';
+import { STATUS_LABEL } from '../utils/status';
+import PresenceDot from './PresenceDot.jsx';
 import { renderRichContent } from '../utils/richTextRender.jsx';
 import { profileAccentVars } from '../utils/profileAccent';
 import TagBadge from './TagBadge.jsx';
@@ -88,7 +89,7 @@ export default function DMProfilePanel({ onToggle }) {
                 <div className="avatar xlarge">
                   <UserAvatar user={user} size={72} />
                 </div>
-                <span className="status-dot large" style={{ background: STATUS_COLOR[status] }} title={STATUS_LABEL[status]} />
+                <PresenceDot status={status} large title={STATUS_LABEL[status]} />
               </div>
             </div>
 

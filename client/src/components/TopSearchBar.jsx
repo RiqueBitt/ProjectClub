@@ -9,6 +9,7 @@ const ACTIVITY_ICON_BY_TYPE = { game: gameActivityIcon, spotify: spotifyActivity
 import { useAuth } from '../context/AuthContext.jsx';
 import { setStatus as setStatusApi } from '../api/endpoints';
 import { STATUS_LABEL, STATUS_COLOR } from '../utils/status';
+import PresenceDot from './PresenceDot.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import UserAvatar from './UserAvatar.jsx';
 import StatusEmoji from './StatusEmoji.jsx';
@@ -158,7 +159,7 @@ export default function TopSearchBar() {
               <div className="dropdown-divider" />
               {Object.keys(STATUS_LABEL).map((s) => (
                 <button key={s} onClick={() => changeStatus(s)}>
-                  <span className="status-dot" style={{ background: STATUS_COLOR[s] }} /> {STATUS_LABEL[s]}
+                  <PresenceDot status={s} /> {STATUS_LABEL[s]}
                 </button>
               ))}
             </div>

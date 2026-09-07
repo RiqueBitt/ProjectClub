@@ -13,7 +13,8 @@ function SmallAvatarImg({ url }) {
   if (isPenguinAvatarUrl(url)) return <PenguinAvatar color={penguinColorFromUrl(url)} size={28} />;
   return <img src={url} alt="" />;
 }
-import { STATUS_COLOR, STATUS_LABEL } from '../utils/status';
+import { STATUS_LABEL } from '../utils/status';
+import PresenceDot from './PresenceDot.jsx';
 import selectedIcon from '../assets/icons/selected.png';
 import cancelIcon from '../assets/icons/cancel.png';
 
@@ -145,7 +146,7 @@ export default function FriendsPanel() {
                 <div className="avatar" style={{ background: f.user.profileColor }}>
                   {f.user.avatarUrl ? <SmallAvatarImg url={f.user.avatarUrl} /> : f.user.displayName[0].toUpperCase()}
                 </div>
-                {f.liveStatus && <span className="status-dot" style={{ background: STATUS_COLOR[f.liveStatus] }} />}
+                {f.liveStatus && <PresenceDot status={f.liveStatus} />}
               </div>
               <div className="friend-row-info">
                 <div>{f.user.displayName}</div>

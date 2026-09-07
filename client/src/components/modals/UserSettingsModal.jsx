@@ -26,7 +26,8 @@ const NAME_COLOR_PRESETS = [
 ];
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useSocket } from '../../context/SocketContext.jsx';
-import { STATUS_LABEL, STATUS_COLOR } from '../../utils/status';
+import { STATUS_LABEL } from '../../utils/status';
+import PresenceDot from '../PresenceDot.jsx';
 import { usePromptDialog } from '../../utils/usePromptDialog.jsx';
 import { useStore } from '../../store/useStore';
 import IdCardPreviewModal from './IdCardPreviewModal.jsx';
@@ -60,7 +61,7 @@ import {
 // centralizar em Configurações — TAG voltou pra cá (tinha ido pro
 // próprio UserProfileModal.jsx numa resposta anterior).
 const TAB_GROUPS = [
-  { label: 'Perfil', tabs: ['PROFILE', 'MINI_PROFILE', 'PROFILE_DISPLAY', 'PROFILE_CONTENT', 'COLUMNS'] },
+  { label: 'Perfil', tabs: ['PROFILE', 'MINI_PROFILE', 'PROFILE_CONTENT', 'COLUMNS'] },
   { label: 'Geral', tabs: ['ACCOUNT', 'VOICE', 'SECURITY', 'APPEARANCE'] },
 ];
 
@@ -230,8 +231,8 @@ export default function UserSettingsModal({ onClose }) {
   const pickClanTag = async (active) => {
     setTagSaving(true);
     try {
-      const { clanTagId } = await setMyClanTag(active ? myClan.tags[0].id : null);
-      setUser({ ...user, clanTagId });
+      const { clanTagId, clanTag } = await setMyClanTag(active ? myClan.tags[0].id : null);
+      setUser({ ...user, clanTagId, clanTag });
     } finally {
       setTagSaving(false);
     }
@@ -862,26 +863,15 @@ export default function UserSettingsModal({ onClose }) {
             </div>
           </div>
 
-          <button className="btn-primary profile-edit-save" onClick={saveProfile}>Salvar alterações</button>
-        </div>
-      )}
-
-      {tab === 'PROFILE_DISPLAY' && (
-        <div className="settings-grid">
+          {/* Item pedido: "acabei com a categoria exibição e passa a
+              tag pro perfil e as conquistas pro perfil e o mini
+              perfil" — movido de dentro da extinta aba "Exibição". */}
           <div className="settings-block">
-            <h4>Conquistas em destaque</h4>
-            <p className="dim">Escolha quais conquistas aparecem no seu perfil completo e no miniperfil.</p>
-            <div className="modal-actions" style={{ justifyContent: 'flex-start', gap: 10 }}>
-              <button type="button" className="btn-secondary" onClick={() => setAchievementPickerOpen('profile')}>Perfil (até 6)</button>
-              <button type="button" className="btn-secondary" onClick={() => setAchievementPickerOpen('mini')}>Miniperfil (até 4)</button>
-            </div>
+            <h4>Conquistas em destaque no perfil</h4>
+            <p className="dim">Escolha até 6 conquistas pra aparecerem no seu perfil completo.</p>
+            <button type="button" className="btn-secondary" onClick={() => setAchievementPickerOpen('profile')}>Escolher conquistas (até 6)</button>
           </div>
 
-          {/* Item pedido: "não quero a tag Clube, se não tiver tag de
-              clã não apareça nada" — removida de vez a opção genérica
-              de tag da comunidade; a seção inteira some se a pessoa
-              não estiver num clã com uma tag disponível, em vez de
-              mostrar uma opção sem função nenhuma. */}
           {myClan?.tags?.length > 0 && (
             <div className="settings-block">
               <h4>Tag do clã</h4>
@@ -891,7 +881,7 @@ export default function UserSettingsModal({ onClose }) {
                   type="button"
                   className={`server-tag-option ${!user.clanTagId ? 'active' : ''}`}
                   disabled={tagSaving}
-                  onClick={async () => { setTagSaving(true); try { const { clanTagId } = await setMyClanTag(null); setUser({ ...user, clanTagId }); } finally { setTagSaving(false); } }}
+                  onClick={async () => { setTagSaving(true); try { const { clanTagId, clanTag } = await setMyClanTag(null); setUser({ ...user, clanTagId, clanTag }); } finally { setTagSaving(false); } }}
                 >
                   Nenhuma
                 </button>
@@ -906,6 +896,8 @@ export default function UserSettingsModal({ onClose }) {
               </div>
             </div>
           )}
+
+          <button className="btn-primary profile-edit-save" onClick={saveProfile}>Salvar alterações</button>
         </div>
       )}
 
@@ -977,6 +969,15 @@ export default function UserSettingsModal({ onClose }) {
           perfil completo". */}
       {tab === 'MINI_PROFILE' && (
         <div className="settings-grid">
+          {/* Item pedido: "acabei com a categoria exibição e passa...
+              as conquistas pro perfil e o mini perfil" — a parte do
+              miniperfil, movida de dentro da extinta aba "Exibição". */}
+          <div className="settings-block">
+            <h4>Conquistas em destaque no miniperfil</h4>
+            <p className="dim">Escolha até 4 conquistas pra aparecerem no cartão pequeno do miniperfil.</p>
+            <button type="button" className="btn-secondary" onClick={() => setAchievementPickerOpen('mini')}>Escolher conquistas (até 4)</button>
+          </div>
+
           <div className="settings-block">
             <h4>Banner do miniperfil</h4>
             <p className="dim">Esse banner aparece só no cartão pequeno que abre ao clicar no seu nome/avatar — independente do banner do seu perfil completo.</p>
@@ -1263,7 +1264,7 @@ export default function UserSettingsModal({ onClose }) {
 
 function labelFor(t) {
   return {
-    PROFILE: 'Meu perfil', PROFILE_DISPLAY: 'Exibição', PROFILE_CONTENT: 'Conteúdo', COLUMNS: 'Colunas', MINI_PROFILE: 'Mini Perfil', ACCOUNT: 'Minha conta', VOICE: 'Voz e Áudio', SECURITY: 'Segurança', APPEARANCE: 'Aparência',
+    PROFILE: 'Meu perfil', PROFILE_CONTENT: 'Conteúdo', COLUMNS: 'Colunas', MINI_PROFILE: 'Mini Perfil', ACCOUNT: 'Minha conta', VOICE: 'Voz e Áudio', SECURITY: 'Segurança', APPEARANCE: 'Aparência',
   }[t];
 }
 
@@ -1272,7 +1273,7 @@ function iconFor(t) {
   // emoji — os outros continuam emoji por enquanto.
   if (t === 'VOICE') return <IconGlyph src={micIcon} size={16} />;
   return {
-    PROFILE: '👤', PROFILE_DISPLAY: '🏆', PROFILE_CONTENT: '🖼️', COLUMNS: '📐', MINI_PROFILE: '🪪', ACCOUNT: '⚙️', SECURITY: '🔒', APPEARANCE: '🎨',
+    PROFILE: '👤', PROFILE_CONTENT: '🖼️', COLUMNS: '📐', MINI_PROFILE: '🪪', ACCOUNT: '⚙️', SECURITY: '🔒', APPEARANCE: '🎨',
   }[t];
 }
 
@@ -1359,7 +1360,7 @@ function StatusPicker() {
           className={`status-picker-option ${current === value ? 'active' : ''}`}
           onClick={() => socket?.emit('presence:set', value)}
         >
-          <span className="status-picker-dot" style={{ background: STATUS_COLOR[value] }} />
+          <PresenceDot status={value} className="status-picker-dot" />
           {STATUS_LABEL[value]}
         </button>
       ))}

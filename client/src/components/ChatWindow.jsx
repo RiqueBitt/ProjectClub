@@ -23,7 +23,7 @@ import ChannelSwitcher from './ChannelSwitcher.jsx';
 import ChannelTypeIcon from './ChannelTypeIcon.jsx';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import { TYPE_ICON } from '../utils/channelIcons';
-import { STATUS_COLOR } from '../utils/status';
+import PresenceDot from './PresenceDot.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import searchIcon from '../assets/icons/search.png';
 import phoneIcon from '../assets/icons/phone.png';
@@ -693,7 +693,7 @@ export default function ChatWindow({ kind }) {
             <div className="avatar small" style={{ background: dmOther.profileColor || '#F2894D' }}>
               {dmOther.avatarUrl ? <HeaderAvatarImg url={dmOther.avatarUrl} /> : title[0]?.toUpperCase()}
             </div>
-            <span className="status-dot" style={{ background: STATUS_COLOR[dmOtherPresence?.status || dmOther.status || 'OFFLINE'] }} />
+            <PresenceDot status={dmOtherPresence?.status || dmOther.status || 'OFFLINE'} />
           </div>
         )}
         {dmConvo?.isGroup && (

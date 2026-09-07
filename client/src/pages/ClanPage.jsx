@@ -158,14 +158,14 @@ export default function ClanPage() {
 
   const onPickMyTag = async (tagId) => {
     try {
-      const { clanTagId } = await setMyClanTag(tagId || null);
+      const { clanTagId, clanTag } = await setMyClanTag(tagId || null);
       // BUG CORRIGIDO ("clico em mostrar tag, não acontece nada"): a
       // chamada em si já funcionava, mas nada na tela refletia isso
       // depois — o checkbox lê user.clanTagId direto do estado da
       // sessão (AuthContext), que precisa ser atualizado manualmente
       // aqui; ele não se atualiza sozinho só porque uma chamada de
       // API qualquer teve sucesso em algum lugar da tela.
-      setUser({ ...user, clanTagId });
+      setUser({ ...user, clanTagId, clanTag });
     } catch (err) {
       useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível atualizar sua tag.');
     }

@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
-import { STATUS_COLOR } from '../utils/status';
+import PresenceDot from './PresenceDot.jsx';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import { roleTextStyle, highestColoredRole } from '../utils/roleColor';
 import { nameStyleProps, hasCustomNameStyle, nameStyleClassName } from '../utils/nameStyle';
@@ -130,7 +130,7 @@ function MemberGroup({ label, members, roles, dim, cargosEnabled }) {
         >
           <div className="avatar-wrap small">
             <UserAvatar user={m.user} size={32} />
-            <span className="status-dot" style={{ background: STATUS_COLOR[m.liveStatus] || STATUS_COLOR.OFFLINE }} />
+            <PresenceDot status={m.liveStatus || 'OFFLINE'} />
           </div>
           <div className="member-row-text">
             <span className={`truncate member-row-name ${hasCustomNameStyle(m.user) ? nameStyleClassName(m.user) : ''}`} style={hasCustomNameStyle(m.user) ? nameStyleProps(m.user) : roleTextStyle(cargosEnabled ? highestColoredRole(m, roles)?.color : null)}>
