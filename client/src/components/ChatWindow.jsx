@@ -65,6 +65,8 @@ const TYPING_TIMEOUT = 3000;
 // If MAX_UPLOAD_MB is changed on the server, update this to match.
 const MAX_UPLOAD_MB = 25;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+// Item pedido: "só pode enviar 10 imagem, arquivo etc de uma vez"
+const MAX_FILES_COUNT = 10;
 
 const MENTION_RE = /@([a-zA-Z0-9_ ]{0,24})$/;
 
@@ -510,13 +512,22 @@ export default function ChatWindow({ kind }) {
   // and fail on the server after the fact.
   const addFiles = (incoming) => {
     const tooBig = incoming.filter((f) => f.size > MAX_UPLOAD_BYTES);
-    const ok = incoming.filter((f) => f.size <= MAX_UPLOAD_BYTES);
+    let ok = incoming.filter((f) => f.size <= MAX_UPLOAD_BYTES);
     if (tooBig.length > 0) {
       useStore.getState().pushNotice(
         tooBig.length === 1
           ? `"${tooBig[0].name}" é maior que ${MAX_UPLOAD_MB}MB e não foi anexado.`
           : `${tooBig.length} arquivos maiores que ${MAX_UPLOAD_MB}MB não foram anexados.`,
       );
+    }
+    // Item pedido: "só pode enviar 10 imagem, arquivo etc de uma vez"
+    // — considera o que já está anexado (não só o que acabou de ser
+    // escolhido agora), já que dá pra anexar em várias vezes seguidas
+    // antes de mandar a mensagem.
+    const spaceLeft = MAX_FILES_COUNT - files.length;
+    if (ok.length > spaceLeft) {
+      useStore.getState().pushNotice(`Só dá pra anexar até ${MAX_FILES_COUNT} arquivos de uma vez — ${ok.length - Math.max(0, spaceLeft)} não foram adicionados.`);
+      ok = ok.slice(0, Math.max(0, spaceLeft));
     }
     // Item pedido: "o ícone de olho vai marcar imagem com spoiler" —
     // cada arquivo já entra com spoiler: false por padrão; o botão de
