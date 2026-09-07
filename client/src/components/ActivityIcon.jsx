@@ -21,8 +21,14 @@ export default function ActivityIcon({ userId, customStatusEmoji, customStatus }
   return (
     <span className="activity-inline-line">
       {activity && (
+        // Item pedido: "não os ícones da mídia/jogo em si, sim o ícone
+        // que a plataforma já tem pro app, jogo e música" — sempre o
+        // ícone genérico fixo (ICON_BY_TYPE), nunca a imagem
+        // específica daquela atividade (capa do álbum, ícone do jogo
+        // em si — que existe em activity.imageUrl, usada só no card
+        // grande e detalhado de ActivityBadge.jsx, não aqui).
         <img
-          src={activity.imageUrl || ICON_BY_TYPE[activity.type]}
+          src={ICON_BY_TYPE[activity.type]}
           alt=""
           className="activity-inline-icon"
           title={`${TITLE_BY_TYPE[activity.type]} ${activity.name}`}
