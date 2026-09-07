@@ -13,7 +13,6 @@ import { profileAccentVars } from '../../utils/profileAccent';
 import TagBadge from '../TagBadge.jsx';
 import ClanTagBadge from '../ClanTagBadge.jsx';
 import UserAvatar from '../UserAvatar.jsx';
-import StatusEmoji from '../StatusEmoji.jsx';
 import ActivityBadge from '../ActivityBadge.jsx';
 import ActivityIcon from '../ActivityIcon.jsx';
 import BadgeListModal from './BadgeListModal.jsx';
@@ -826,11 +825,9 @@ isMe && (
                     {data.isBirthdayToday && <span className="profile-birthday-badge" title="Aniversário hoje!">🎂</span>}
                   </h2>
                   <div className="profile-username">@{user.username}{user.pronouns && <span className="profile-pronouns-inline"> · {user.pronouns}</span>}</div>
-                  {(user.customStatus || user.customStatusEmoji) && (
-                    <div className="profile-custom-status-balloon">
-                      <ActivityIcon userId={user.id} /> {user.customStatusEmoji && <StatusEmoji emoji={user.customStatusEmoji} />} {user.customStatus}
-                    </div>
-                  )}
+                  <div className="profile-custom-status-balloon">
+                    <ActivityIcon userId={user.id} customStatusEmoji={user.customStatusEmoji} customStatus={user.customStatus} />
+                  </div>
                   <ActivityBadge userId={user.id} />
                   <div className="profile-ig-stats">
                     <div className="profile-ig-stat">

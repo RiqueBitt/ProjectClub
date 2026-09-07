@@ -8,7 +8,6 @@ import { roleTextStyle, highestColoredRole } from '../utils/roleColor';
 import { nameStyleProps, hasCustomNameStyle, nameStyleClassName } from '../utils/nameStyle';
 import TagBadge from './TagBadge.jsx';
 import ClanTagBadge from './ClanTagBadge.jsx';
-import StatusEmoji from './StatusEmoji.jsx';
 import ActivityIcon from './ActivityIcon.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import { createConversation, banMember, timeoutMember, warnMember } from '../api/endpoints';
@@ -144,11 +143,9 @@ function MemberGroup({ label, members, roles, dim, cargosEnabled }) {
               {m.role?.icon && (m.role.icon.startsWith('/') ? <img src={m.role.icon} alt="" className="role-icon-inline" /> : <span>{m.role.icon} </span>)}
               {m.user.displayName}
             </span>
-            {(m.user.customStatus || m.user.customStatusEmoji) && (
-              <span className="member-row-status truncate">
-                <ActivityIcon userId={m.user.id} /> <StatusEmoji emoji={m.user.customStatusEmoji} /> {m.user.customStatus}
-              </span>
-            )}
+            <span className="member-row-status truncate">
+              <ActivityIcon userId={m.user.id} customStatusEmoji={m.user.customStatusEmoji} customStatus={m.user.customStatus} />
+            </span>
           </div>
           <TagBadge user={m.user} />
           <ClanTagBadge user={m.user} />

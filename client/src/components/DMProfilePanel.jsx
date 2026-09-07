@@ -9,7 +9,6 @@ import { renderRichContent } from '../utils/richTextRender.jsx';
 import { profileAccentVars } from '../utils/profileAccent';
 import TagBadge from './TagBadge.jsx';
 import ClanTagBadge from './ClanTagBadge.jsx';
-import StatusEmoji from './StatusEmoji.jsx';
 import ActivityBadge from './ActivityBadge.jsx';
 import ActivityIcon from './ActivityIcon.jsx';
 import UserAvatar from './UserAvatar.jsx';
@@ -101,11 +100,9 @@ export default function DMProfilePanel({ onToggle }) {
               <span className="profile-vote-btn dislike" title={`Dar Down (${data.dislikeCount ?? 0})`}><img className="ui-icon-sm" src={dislikeIcon} alt="" /> {data.dislikeCount}</span>
             </div>
 
-            {(user.customStatus || user.customStatusEmoji) && (
-              <div className="profile-custom-status-balloon">
-                <ActivityIcon userId={user.id} /> <StatusEmoji emoji={user.customStatusEmoji} /> {user.customStatus}
-              </div>
-            )}
+            <div className="profile-custom-status-balloon">
+              <ActivityIcon userId={user.id} customStatusEmoji={user.customStatusEmoji} customStatus={user.customStatus} />
+            </div>
             <ActivityBadge userId={user.id} />
 
             {data.badges?.length > 0 && (

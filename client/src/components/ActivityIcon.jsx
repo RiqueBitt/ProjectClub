@@ -1,4 +1,5 @@
 import { useStore } from '../store/useStore';
+import StatusEmoji from './StatusEmoji.jsx';
 import gameIcon from '../assets/icons/activity-game.png';
 import spotifyIcon from '../assets/icons/activity-spotify.png';
 import appIcon from '../assets/icons/activity-app.png';
@@ -6,20 +7,33 @@ import appIcon from '../assets/icons/activity-app.png';
 const ICON_BY_TYPE = { game: gameIcon, spotify: spotifyIcon, app: appIcon };
 const TITLE_BY_TYPE = { game: 'Jogando', spotify: 'Ouvindo Spotify', app: 'Usando' };
 
-// Item pedido: ícone pequeno de jogo/app/Spotify NA FRENTE do status
-// personalizado (emoji + texto) de qualquer pessoa — não é o card
-// grande (ActivityBadge.jsx), é só um ícone rápido que se encaixa
-// junto da linha de status existente, em qualquer lugar que já mostra
-// status personalizado de alguém.
-export default function ActivityIcon({ userId }) {
+// Item pedido: "não é pra mostrar assim {icon de jogo/música/app} •
+// {status personalizado}" (correção) — só o ÍCONE da atividade antes
+// da bolinha, sem o nome dela por extenso. Formato final: [ícone] •
+// [status], com a bolinha só aparecendo quando os dois existem ao
+// mesmo tempo — se não tiver status personalizado nenhum, o ícone
+// aparece sozinho (sem bolinha sobrando); se não tiver atividade
+// nenhuma, só o status aparece (sem ícone nem bolinha).
+export default function ActivityIcon({ userId, customStatusEmoji, customStatus }) {
   const activity = useStore((s) => s.activities[userId]);
-  if (!activity) return null;
+  const hasStatus = !!(customStatusEmoji || customStatus);
+  if (!activity && !hasStatus) return null;
   return (
-    <img
-      src={ICON_BY_TYPE[activity.type]}
-      alt=""
-      className="activity-inline-icon"
-      title={`${TITLE_BY_TYPE[activity.type]} ${activity.name}`}
-    />
+    <span className="activity-inline-line">
+      {activity && (
+        <img
+          src={activity.imageUrl || ICON_BY_TYPE[activity.type]}
+          alt=""
+          className="activity-inline-icon"
+          title={`${TITLE_BY_TYPE[activity.type]} ${activity.name}`}
+        />
+      )}
+      {activity && hasStatus && <span className="activity-inline-sep">•</span>}
+      {hasStatus && (
+        <span className="activity-inline-status">
+          {customStatusEmoji && <StatusEmoji emoji={customStatusEmoji} />} {customStatus}
+        </span>
+      )}
+    </span>
   );
 }
