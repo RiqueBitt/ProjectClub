@@ -14,7 +14,6 @@ import ErrorBoundary from './ErrorBoundary.jsx';
 import RulesChannelView from './RulesChannelView.jsx';
 import EmojiPicker from './EmojiPicker.jsx';
 import RichMessageInput from './RichMessageInput.jsx';
-import { proxyImage } from '../utils/imageProxy';
 import TopicThreadModal from './modals/TopicThreadModal.jsx';
 import PollComposerModal from './modals/PollComposerModal.jsx';
 import GroupSettingsModal from './modals/GroupSettingsModal.jsx';
@@ -306,11 +305,16 @@ export default function ChatWindow({ kind }) {
   // apareça a foto de perfil do user" — todo nome que pode ser
   // mencionado, com a foto de quem é pessoa (cargo/@everyone/@here
   // não têm foto nenhuma pra mostrar, só o fundo destacado mesmo).
+  // Item pedido: "no chat e no menu de digitação é pra aparecer a
+  // caixinha com o @ sem foto de perfil" — só precisa saber QUAIS
+  // nomes são válidos pra virar um selo de menção (a foto foi
+  // removida do selo em si, ver RichMessageInput.jsx), então o valor
+  // de cada entrada não importa mais, só a chave (o nome).
   const composerMentionMap = useMemo(() => {
     const map = {};
-    if (canMentionEveryone) { map.everyone = {}; map.here = {}; }
-    roles.filter((r) => !r.isDefault && r.mentionable).forEach((r) => { map[r.name] = {}; });
-    members.forEach((m) => { map[m.user.displayName] = { avatarUrl: proxyImage(m.user.avatarUrl) }; });
+    if (canMentionEveryone) { map.everyone = true; map.here = true; }
+    roles.filter((r) => !r.isDefault && r.mentionable).forEach((r) => { map[r.name] = true; });
+    members.forEach((m) => { map[m.user.displayName] = true; });
     return map;
   }, [members, roles, canMentionEveryone]);
 

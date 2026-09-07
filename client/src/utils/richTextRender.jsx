@@ -179,9 +179,17 @@ function renderInline(text, ctx, keyPrefix) {
       break;
     case 'mention': {
       const name = match[1];
-      if (name === 'everyone' || name === 'here') {
-        nodes.push(<span key={key} className="mention-chip">@{name}</span>);
-      } else if (ctx.roleInfoByName[name]) {
+      // BUG CORRIGIDO/CORREÇÃO DE ESCOPO ("no chat... é pra aparecer
+      // a caixinha com o @ sem foto de perfil"): a foto de perfil
+      // dentro do selo de menção era só pra aparecer na lista
+      // suspensa que sugere quem marcar (ver mentionCandidates em
+      // ChatWindow.jsx) — não dentro da própria mensagem já enviada
+      // nem enquanto ainda está sendo escrita (ver
+      // RichMessageInput.jsx). Todos os tipos de menção (usuário,
+      // cargo, @todos/@aqui) agora usam o mesmo selo simples — só a
+      // cor muda por tipo (cargo usa a cor do cargo, o resto usa a
+      // cor padrão de menção).
+      if (ctx.roleInfoByName[name]) {
         const role = ctx.roleInfoByName[name];
         nodes.push(
           <span
@@ -190,16 +198,6 @@ function renderInline(text, ctx, keyPrefix) {
             style={{ background: roleWeakBackground(role.color), borderColor: gradientStops(role.color)[0] }}
           >
             <span style={roleTextStyle(role.color)}>@{name}</span>
-          </span>,
-        );
-      } else if (ctx.memberInfoByName[name]) {
-        const u = ctx.memberInfoByName[name];
-        nodes.push(
-          <span key={key} className="mention-chip mention-chip-user">
-            <span className="mention-chip-avatar" style={{ background: u.profileColor }}>
-              {u.avatarUrl ? <MentionAvatarImg url={u.avatarUrl} /> : name[0]?.toUpperCase()}
-            </span>
-            @{name}
           </span>,
         );
       } else {

@@ -39,25 +39,19 @@ function makeEmojiImg(shortcode, url) {
 // um "chip" com fundo destacado (igual a imagem enviada), com a foto
 // de perfil dentro quando é uma pessoa (cargo/@everyone/@here não têm
 // foto, só o fundo destacado mesmo).
-function makeMentionChip(mentionText, info) {
+// Item pedido: "no chat e no menu [de digitação] é pra aparecer a
+// caixinha com o @ sem foto de perfil" — a foto de perfil é só pra
+// aparecer na lista suspensa que sugere quem marcar (o menu que
+// abre ao digitar @), nunca dentro do próprio selo da menção — nem
+// aqui (ainda escrevendo) nem na mensagem já enviada (ver
+// richTextRender.jsx). Mesmas classes já usadas numa mensagem já
+// enviada (.mention-chip), pra ficar visualmente idêntico nos dois
+// estados.
+function makeMentionChip(mentionText) {
   const span = document.createElement('span');
   span.contentEditable = 'false';
-  // Mesmas classes já usadas pra mostrar uma menção numa mensagem já
-  // enviada (ver richTextRender.jsx) — a menção aparece na caixa de
-  // digitação exatamente como ela vai aparecer depois de mandada, em
-  // vez de um visual diferente só enquanto ainda está sendo escrita.
   span.className = 'composer-inline-mention mention-chip';
   span.dataset.mention = mentionText;
-  if (info?.avatarUrl) {
-    const avatarWrap = document.createElement('span');
-    avatarWrap.className = 'mention-chip-avatar';
-    const img = document.createElement('img');
-    img.src = info.avatarUrl;
-    img.alt = '';
-    img.draggable = false;
-    avatarWrap.appendChild(img);
-    span.appendChild(avatarWrap);
-  }
   span.appendChild(document.createTextNode(mentionText));
   return span;
 }
@@ -91,7 +85,7 @@ function renderInto(el, text, emojiMap, mentionMap) {
     while ((mm = mentionRe.exec(chunk))) {
       any = true;
       if (mm.index > last) frag.appendChild(document.createTextNode(chunk.slice(last, mm.index)));
-      frag.appendChild(makeMentionChip(mm[0], mentionMap[mm[1]]));
+      frag.appendChild(makeMentionChip(mm[0]));
       last = mentionRe.lastIndex;
     }
     if (last < chunk.length || !any) frag.appendChild(document.createTextNode(chunk.slice(last)));
@@ -162,7 +156,7 @@ function maybeConvertTyped(emojiMap, mentionMap) {
       const mentionMatch = withoutTrailingSpace.match(anchored);
       if (mentionMatch) {
         const full = mentionMatch[0] + ' ';
-        return replaceTypedMatch(node, range, full, makeMentionChip(mentionMatch[0], mentionMap[mentionMatch[1]]), sel, true);
+        return replaceTypedMatch(node, range, full, makeMentionChip(mentionMatch[0]), sel, true);
       }
     }
   }
@@ -261,7 +255,34 @@ export default function RichMessageInput({ value, onChange, emojiMap, mentionMap
     }
   }, [value, emojiMap, mentionMap]);
 
+  // BUG CORRIGIDO ("escolho a menção pela lista, ela cria a caixinha
+  // certinho, mas continuo digitando e do nada o nome dela volta
+  // como texto solto colado na frente — só no celular"): teclados
+  // virtuais de celular (o "IME" do sistema) não digitam letra por
+  // letra direto — enquanto você ainda está no meio de uma palavra,
+  // o texto fica "em composição" por baixo dos panos, só virando
+  // texto de verdade quando termina (evento compositionend). Mexer
+  // no próprio DOM (que é o que maybeConvertTyped faz, trocando texto
+  // por um selo) bem no meio dessa composição confunde o teclado
+  // sobre o que já foi digitado, e ele reinsere um pedaço que já
+  // tinha processado — exatamente o "nome duplicado" relatado. A
+  // correção: nunca mexer no DOM enquanto uma composição está rolando,
+  // só depois que ela termina de verdade (compositionend).
+  const composingRef = useRef(false);
+
   const onInput = () => {
+    if (!composingRef.current) maybeConvertTyped(emojiMap, mentionMap);
+    const text = extractText(elRef.current);
+    lastEmittedRef.current = text;
+    onChange(text);
+  };
+
+  const onCompositionStart = () => { composingRef.current = true; };
+  const onCompositionEnd = () => {
+    composingRef.current = false;
+    // A composição terminou (ex: apertou espaço) — só agora é seguro
+    // conferir se o que acabou de ser digitado forma um :emoji: ou
+    // @menção completos.
     maybeConvertTyped(emojiMap, mentionMap);
     const text = extractText(elRef.current);
     lastEmittedRef.current = text;
@@ -300,6 +321,8 @@ export default function RichMessageInput({ value, onChange, emojiMap, mentionMap
       aria-multiline="false"
       data-placeholder={placeholder}
       onInput={onInput}
+      onCompositionStart={onCompositionStart}
+      onCompositionEnd={onCompositionEnd}
       onKeyDown={onKeyDown}
       onPaste={onPaste}
       onFocus={onFocus}
