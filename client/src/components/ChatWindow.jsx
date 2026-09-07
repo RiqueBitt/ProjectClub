@@ -289,12 +289,14 @@ export default function ChatWindow({ kind }) {
   const dmOtherPresence = useStore((s) => (dmOther ? s.presence[dmOther.id] : null));
   const myPerms = getMyCommunityPermissions(roles, members, user.id, user.platformRole);
   const canMentionEveryone = channel && hasPermission(myPerms, 'MENTION_EVERYONE');
+  // Item pedido: "remova os cargos do menu que mostra as fotos" —
+  // só pessoas (e @everyone/@here) aparecem na lista de sugestões
+  // agora; mencionar um cargo digitando o nome dele à mão ainda
+  // funciona normal como menção de verdade, só não sugere mais como
+  // opção clicável aqui.
   const mentionCandidates = channel
     ? [
         ...(canMentionEveryone ? [{ id: '@everyone', label: 'everyone', hint: 'Notificar todos no canal' }, { id: '@here', label: 'here', hint: 'Notificar quem está online' }] : []),
-        ...roles
-          .filter((r) => !r.isDefault && r.mentionable)
-          .map((r) => ({ id: `role:${r.id}`, label: r.name, hint: 'Cargo' })),
         ...members
           .map((m) => ({ id: m.user.id, label: m.user.displayName, hint: `@${m.user.username}` })),
       ].filter((c) => !mentionQuery || c.label.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 8)

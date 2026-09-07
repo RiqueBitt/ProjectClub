@@ -229,10 +229,32 @@ export default function RichMessageInput({ value, onChange, emojiMap, mentionMap
     // seguro aqui porque toda mudança externa (limpar após enviar,
     // inserir emoji do seletor, completar uma menção) sempre mexe no
     // FINAL do texto, nunca no meio dele.
+    //
+    // BUG CORRIGIDO ("marco alguém e o espaço some — vira
+    // '@nomebomdia' em vez de '@nome bom dia'"): "ir pro fim do
+    // container inteiro" (selectNodeContents + collapse) é ambíguo
+    // bem na borda entre um bloco não-editável (o chip da menção,
+    // contentEditable="false") e o texto de verdade logo depois dele
+    // (o espaço) — alguns navegadores resolvem essa borda de um jeito
+    // que a próxima letra digitada entra ANTES do espaço em vez de
+    // depois, comendo ele. Em vez de deixar o navegador decidir isso
+    // sozinho, aponta explicitamente pro nó de verdade: se o último
+    // pedaço do texto é texto puro (o caso comum — sempre sobra pelo
+    // menos o espaço depois de uma menção, ou o próprio texto que já
+    // tinha antes), o cursor vai pro fim DESSE nó de texto vazio; só
+    // cai no "depois do elemento" se o próprio conteúdo terminar
+    // direto numa imagem/chip, sem nenhum texto depois (mais raro).
     if (document.activeElement === el) {
       const range = document.createRange();
-      range.selectNodeContents(el);
-      range.collapse(false);
+      const last = el.lastChild;
+      if (last && last.nodeType === Node.TEXT_NODE) {
+        range.setStart(last, last.textContent.length);
+      } else if (last) {
+        range.setStartAfter(last);
+      } else {
+        range.selectNodeContents(el);
+      }
+      range.collapse(true);
       const sel = window.getSelection();
       sel.removeAllRanges();
       sel.addRange(range);
