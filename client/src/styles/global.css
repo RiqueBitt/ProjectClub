@@ -3371,7 +3371,6 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
    redonda na frente do nome, dentro da lista suspensa que sugere
    quem marcar. */
 .mention-autocomplete-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.mention-autocomplete-avatar { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
 
 /* ---------- Discover Servers ---------- */
 .discover-page { padding: 24px; overflow-y: auto; flex: 1; }
