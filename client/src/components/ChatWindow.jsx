@@ -14,6 +14,7 @@ import ErrorBoundary from './ErrorBoundary.jsx';
 import RulesChannelView from './RulesChannelView.jsx';
 import EmojiPicker from './EmojiPicker.jsx';
 import RichMessageInput from './RichMessageInput.jsx';
+import { proxyImage } from '../utils/imageProxy';
 import TopicThreadModal from './modals/TopicThreadModal.jsx';
 import PollComposerModal from './modals/PollComposerModal.jsx';
 import GroupSettingsModal from './modals/GroupSettingsModal.jsx';
@@ -297,7 +298,7 @@ export default function ChatWindow({ kind }) {
     ? [
         ...(canMentionEveryone ? [{ id: '@everyone', label: 'everyone', hint: 'Notificar todos no canal' }, { id: '@here', label: 'here', hint: 'Notificar quem está online' }] : []),
         ...members
-          .map((m) => ({ id: m.user.id, label: m.user.displayName, hint: `@${m.user.username}` })),
+          .map((m) => ({ id: m.user.id, label: m.user.displayName, hint: `@${m.user.username}`, avatarUrl: m.user.avatarUrl })),
       ].filter((c) => !mentionQuery || c.label.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 8)
     : [];
 
@@ -829,7 +830,14 @@ export default function ChatWindow({ kind }) {
           <div className="mention-autocomplete">
             {mentionCandidates.map((c) => (
               <button key={c.id} type="button" onClick={() => pickMention(c)}>
-                <span className="mention-autocomplete-name">@{c.label}</span>
+                <span className="mention-autocomplete-left">
+                  {/* Item pedido: "quero igual a imagem" — foto de
+                      perfil na frente do nome, só pra quem tem uma
+                      (@everyone/@here não têm avatarUrl, então esse
+                      espaço fica vazio pra elas, sem imagem quebrada). */}
+                  {c.avatarUrl && <img className="mention-autocomplete-avatar" src={proxyImage(c.avatarUrl)} alt="" />}
+                  <span className="mention-autocomplete-name">@{c.label}</span>
+                </span>
                 <span className="dim">{c.hint}</span>
               </button>
             ))}
