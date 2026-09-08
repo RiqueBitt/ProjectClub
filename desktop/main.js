@@ -9,6 +9,7 @@ const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 const { startActivityDetection, stopActivityDetection } = require('./activityDetector');
+const projectMcManager = require('./projectMcManager');
 
 // URL do site hospedado — trocar aqui se o domínio mudar um dia. Fica só
 // nesse único lugar de propósito.
@@ -514,6 +515,51 @@ if (!gotLock) {
   ipcMain.handle('set-unread-count', (_event, count) => {
     if (!mainWindow) return;
     mainWindow.setOverlayIcon(count > 0 ? badgeIcon : null, count > 0 ? `${count} não lida(s)` : '');
+  });
+
+  // Item pedido: "criar uma nova integração... ProjectMC... o usuário
+  // poderá visualizar e baixar o launcher... o Project Club deve
+  // conseguir detectar a atualização... o launcher também deve poder
+  // ser iniciado separadamente através do próprio Project Club" — toda
+  // a lógica de verdade mora em desktop/projectMcManager.js; aqui é só
+  // a ponte de IPC pro site (ver client/src/utils/projectMc.js). O 'id'
+  // do módulo vem do próprio site (hoje só 'projectmc' existe) — não
+  // precisa de nenhum handler NOVO quando um segundo jogo/app futuro
+  // for adicionado ao catálogo MODULES, só uma nova entrada lá.
+  ipcMain.handle('projectmc:get-status', (_event, id) => projectMcManager.getStatus(id || 'projectmc'));
+  ipcMain.handle('projectmc:check-update', async (_event, id) => {
+    try {
+      return await projectMcManager.checkForUpdate(id || 'projectmc');
+    } catch (err) {
+      return { error: err.message };
+    }
+  });
+  ipcMain.handle('projectmc:install', async (event, id) => {
+    const moduleId = id || 'projectmc';
+    try {
+      const result = await projectMcManager.installOrUpdate(moduleId, (progress) => {
+        event.sender.send('projectmc:progress', { id: moduleId, ...progress });
+      });
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+  ipcMain.handle('projectmc:launch', (_event, id) => {
+    try {
+      projectMcManager.launch(id || 'projectmc');
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+  ipcMain.handle('projectmc:uninstall', (_event, id) => {
+    try {
+      projectMcManager.uninstall(id || 'projectmc');
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   });
 
   // Item pedido: "Sistema... Iniciar com o sistema... Minimizar para
