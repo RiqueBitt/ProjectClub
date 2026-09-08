@@ -8,7 +8,7 @@ const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeIm
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
-const { startActivityDetection } = require('./activityDetector');
+const { startActivityDetection, stopActivityDetection } = require('./activityDetector');
 
 // URL do site hospedado — trocar aqui se o domínio mudar um dia. Fica só
 // nesse único lugar de propósito.
@@ -17,21 +17,28 @@ const APP_URL = process.env.PROJECT_CLUB_URL || 'https://projectclub.squareweb.a
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
+// Guarda a função de callback usada da última vez, pra poder LIGAR a
+// detecção de novo se a pessoa reativar gameDetectionEnabled no meio da
+// sessão (ver ipcMain.on('settings:update') abaixo) sem precisar
+// reiniciar o app inteiro pra isso valer.
+let activityCallback = null;
+let activityDetectionRunning = false;
 
 // Item pedido: "Sistema... Geral... Iniciar com o sistema... Minimizar
-// para bandeja... Abrir links no aplicativo... Confirmar saída" — os
-// valores de verdade vêm do UserSettings da conta (ver
-// settingsController.js no backend + UserSettingsModal.jsx no site),
-// enviados aqui via IPC (ver preload.js: window.electronAPI.updateSettings)
-// toda vez que a tela de Configurações carrega ou muda algo. Os padrões
-// abaixo só valem ANTES do primeiro aviso chegar (login ainda
-// carregando) — depois disso, sempre reflete o que a pessoa escolheu
-// de verdade na conta.
+// para bandeja... Abrir links no aplicativo... Confirmar saída" e
+// "Jogos e apps... Detecção automática de jogos" — os valores de
+// verdade vêm do UserSettings da conta (ver settingsController.js no
+// backend + UserSettingsModal.jsx no site), enviados aqui via IPC (ver
+// preload.js: window.electronAPI.updateSettings) toda vez que a tela
+// de Configurações carrega ou muda algo. Os padrões abaixo só valem
+// ANTES do primeiro aviso chegar (login ainda carregando) — depois
+// disso, sempre reflete o que a pessoa escolheu de verdade na conta.
 let desktopSettings = {
   startWithSystem: true,
   minimizeToTray: true,
   openLinksInApp: false,
   confirmOnExit: false,
+  gameDetectionEnabled: true,
 };
 
 // Só uma cópia do app rodando por vez — clicar duas vezes no atalho (ou o
@@ -68,6 +75,27 @@ if (!gotLock) {
     }
     isQuitting = true;
     app.quit();
+  }
+
+  // Item pedido: "Detecção automática de jogos... Só tem efeito no
+  // aplicativo '.exe'" — liga/desliga o laço de verdade
+  // (activityDetector.js já tinha start/stop prontos, só nunca eram
+  // chamados condicionalmente). Chamada tanto no carregamento inicial
+  // quanto sempre que a pessoa muda o toggle no meio da sessão.
+  function applyGameDetectionSetting() {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const shouldRun = desktopSettings.gameDetectionEnabled !== false;
+    if (shouldRun && !activityDetectionRunning && activityCallback) {
+      activityDetectionRunning = true;
+      startActivityDetection(activityCallback);
+    } else if (!shouldRun && activityDetectionRunning) {
+      activityDetectionRunning = false;
+      stopActivityDetection();
+      // Avisa o site que a atividade parou (senão o "jogando X" antigo
+      // continuaria aparecendo pro resto da comunidade até expirar
+      // sozinho no servidor).
+      mainWindow.webContents.send('activity:detected', null);
+    }
   }
 
   // Abre uma janelinha própria de seleção de tela/janela pra compartilhar
@@ -289,12 +317,18 @@ if (!gotLock) {
     // existir. mainWindow.webContents.send manda direto pro JS da
     // página, sem precisar de handle/invoke — é só um aviso, não uma
     // pergunta que espera resposta.
+    //
+    // Item pedido: "Detecção automática de jogos... Só tem efeito no
+    // aplicativo '.exe'" — só liga de verdade se a preferência (vinda
+    // da conta, ver applyGameDetectionSetting acima) permitir; guarda o
+    // callback pra poder ligar/desligar depois sem reiniciar o app.
     mainWindow.webContents.once('did-finish-load', () => {
-      startActivityDetection((activity) => {
+      activityCallback = (activity) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('activity:detected', activity);
         }
-      });
+      };
+      applyGameDetectionSetting();
     });
 
     // Item pedido: "Abrir links no aplicativo... Links clicados dentro
@@ -390,18 +424,23 @@ if (!gotLock) {
   });
 
   // Item pedido: "Sistema... Iniciar com o sistema... Minimizar para
-  // bandeja... Abrir links no aplicativo... Confirmar saída" — recebe
-  // o UserSettings de verdade da conta (ver preload.js/useStore.js) e
-  // aplica na hora. startWithSystem já mexe no login item do Windows
-  // assim que chega (não precisa esperar reiniciar o app pra valer);
-  // os outros três só mudam o COMPORTAMENTO de coisas que só acontecem
-  // depois (fechar a janela, abrir um link, sair) — não têm "efeito
-  // imediato" nenhum pra aplicar na hora que chegam.
+  // bandeja... Abrir links no aplicativo... Confirmar saída" e "Jogos e
+  // apps... Detecção automática de jogos" — recebe o UserSettings de
+  // verdade da conta (ver preload.js/useStore.js) e aplica na hora.
+  // startWithSystem já mexe no login item do Windows assim que chega
+  // (não precisa esperar reiniciar o app pra valer); minimizeToTray/
+  // openLinksInApp/confirmOnExit só mudam o COMPORTAMENTO de coisas que
+  // só acontecem depois (fechar a janela, abrir um link, sair);
+  // gameDetectionEnabled já liga/desliga o laço de detecção na hora,
+  // via applyGameDetectionSetting.
   ipcMain.on('settings:update', (_event, settings) => {
     if (!settings || typeof settings !== 'object') return;
     desktopSettings = { ...desktopSettings, ...settings };
     if (typeof settings.startWithSystem === 'boolean') {
       app.setLoginItemSettings({ openAtLogin: settings.startWithSystem, openAsHidden: true });
+    }
+    if (typeof settings.gameDetectionEnabled === 'boolean') {
+      applyGameDetectionSetting();
     }
   });
 
@@ -683,5 +722,5 @@ if (!gotLock) {
   });
 
   app.on('before-quit', () => { isQuitting = true; });
-  app.on('will-quit', () => { globalShortcut.unregisterAll(); });
+  app.on('will-quit', () => { globalShortcut.unregisterAll(); stopActivityDetection(); });
 }
