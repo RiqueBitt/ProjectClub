@@ -1,5 +1,6 @@
 const prisma = require('../config/prisma');
 const { PUBLIC_USER_FIELDS } = require('./authController');
+const { canSendDirectMessage } = require('../services/dmPermissions');
 
 async function listConversations(req, res, next) {
   try {
@@ -41,33 +42,16 @@ async function createConversation(req, res, next) {
       if (otherId) {
         // Item pedido: "Permissão de mensagem... Quem pode me enviar
         // mensagens? Todos / Amigos / Pessoas que compartilham grupos
-        // comigo / Ninguém... Backend: verificar bloqueio, verificar
-        // amizade, verificar configurações, verificar permissões. Só
-        // depois criar a conversa." — antes disso, essa checagem era
-        // sempre "precisa ser amigo", sem ler a preferência de
-        // ninguém; agora lê o dmPrivacy de quem vai RECEBER a DM
-        // (default 'friends', igual o comportamento antigo, pra quem
-        // nunca abriu essa configuração).
-        const otherSettings = await prisma.userSettings.findUnique({ where: { userId: otherId }, select: { dmPrivacy: true } });
-        const dmPrivacy = otherSettings?.dmPrivacy || 'friends';
-
-        if (dmPrivacy === 'none') {
-          return res.status(403).json({ error: 'Esta pessoa não está aceitando novas mensagens diretas.' });
-        }
-        if (dmPrivacy !== 'everyone') {
-          // "friends_groups" tratado como "friends" por enquanto —
-          // checar grupo compartilhado exigiria integrar com o
-          // sistema de clãs; fica para uma próxima parte.
-          const friendship = await prisma.friendship.findFirst({
-            where: {
-              status: 'ACCEPTED',
-              OR: [
-                { requesterId: req.user.id, addresseeId: otherId },
-                { requesterId: otherId, addresseeId: req.user.id },
-              ],
-            },
+        // comigo / Ninguém... verificar configurações... Só depois
+        // criar a conversa." — checagem única em services/dmPermissions.js
+        // (compartilhada com messageController.js).
+        const allowed = await canSendDirectMessage(req.user.id, otherId);
+        if (!allowed) {
+          const settings = await prisma.userSettings.findUnique({ where: { userId: otherId }, select: { dmPrivacy: true } });
+          const dmPrivacy = settings?.dmPrivacy || 'friends';
+          return res.status(403).json({
+            error: dmPrivacy === 'none' ? 'Esta pessoa não está aceitando novas mensagens diretas.' : 'Vocês precisam ser amigos para iniciar uma conversa direta.',
           });
-          if (!friendship) return res.status(403).json({ error: 'Vocês precisam ser amigos para iniciar uma conversa direta.' });
         }
       }
 
