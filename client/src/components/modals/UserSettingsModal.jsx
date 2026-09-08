@@ -1347,13 +1347,71 @@ export default function UserSettingsModal({ onClose }) {
         </div>
       )}
 
+      {/* Item pedido: "Dados e privacidade... Privacidade do perfil...
+          Permissão de mensagem... Filtrar conteúdo... Filtrar spam" —
+          mesmo padrão de Idioma/Acessibilidade acima: lido/salvo via
+          userSettings/updateUserSetting (UserSettings no banco, já
+          validado em settingsController.js). A privacidade de PEDIDO
+          DE AMIZADE já mora na aba Senha e segurança (campo separado,
+          do User, não do UserSettings) — não duplicada aqui.
+          IMPORTANTE: esta tela salva a PREFERÊNCIA. A aplicação real
+          dela (o backend recusar de fato uma DM/visualização de
+          perfil com base nesses valores) é um trabalho à parte, ainda
+          não implementado nos controllers de perfil/conversa — ver
+          próxima fase. */}
+      {tab === 'PRIVACY' && (
+        <div className="settings-grid">
+          {!userSettings ? <div className="dim">Carregando...</div> : (
+            <>
+              <div className="settings-block">
+                <h4>Privacidade do perfil</h4>
+                <p className="dim">Quem pode ver os detalhes completos do seu perfil.</p>
+                <select value={userSettings.profilePrivacy} onChange={(e) => updateUserSetting('profilePrivacy', e.target.value)}>
+                  <option value="everyone">Qualquer pessoa</option>
+                  <option value="friends_groups">Amigos e pessoas dos meus grupos</option>
+                  <option value="friends">Apenas amigos</option>
+                </select>
+              </div>
+              <div className="settings-block">
+                <h4>Quem pode me enviar mensagens</h4>
+                <p className="dim">Controla quem pode iniciar uma conversa direta com você.</p>
+                <select value={userSettings.dmPrivacy} onChange={(e) => updateUserSetting('dmPrivacy', e.target.value)}>
+                  <option value="everyone">Todos</option>
+                  <option value="friends">Amigos</option>
+                  <option value="friends_groups">Pessoas que compartilham grupos comigo</option>
+                  <option value="none">Ninguém</option>
+                </select>
+              </div>
+              <div className="settings-block">
+                <h4>Filtrar conteúdo</h4>
+                <p className="dim">Nível de filtragem aplicado às mensagens que você recebe.</p>
+                <div className="chip-choice-row">
+                  {[['off', 'Desativado'], ['moderate', 'Moderado'], ['high', 'Alto']].map(([value, label]) => (
+                    <button key={value} type="button" className={`chip-choice ${userSettings.contentFilterLevel === value ? 'active' : ''}`} onClick={() => updateUserSetting('contentFilterLevel', value)}>{label}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="settings-block settings-toggle-row">
+                <div>
+                  <h4>Filtro de spam</h4>
+                  <p className="dim">Limita mensagens repetidas e envios em massa suspeitos.</p>
+                </div>
+                <button
+                  type="button" className={`toggle-switch ${userSettings.spamFilterEnabled ? 'on' : ''}`}
+                  onClick={() => updateUserSetting('spamFilterEnabled', !userSettings.spamFilterEnabled)}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Item pedido: "não desenvolver todas as telas simultaneamente"
-          — Status da conta, Dados e privacidade, Notificações,
-          Sistema e Jogos e apps ainda não foram implementados de
-          verdade nesta fase (só a navegação até eles já existe) —
-          ficam pras próximas fases, na mesma ordem que o próprio
-          pedido definiu. */}
-      {(tab === 'ACCOUNT_STATUS' || tab === 'PRIVACY' || tab === 'NOTIFICATIONS' || tab === 'SYSTEM' || tab === 'GAMES') && (
+          — Status da conta, Notificações, Sistema e Jogos e apps
+          ainda não foram implementados de verdade nesta fase (só a
+          navegação até eles já existe) — ficam pras próximas fases,
+          na mesma ordem que o próprio pedido definiu. */}
+      {(tab === 'ACCOUNT_STATUS' || tab === 'NOTIFICATIONS' || tab === 'SYSTEM' || tab === 'GAMES') && (
         <div className="settings-grid">
           <div className="settings-block">
             <p className="dim">Essa parte das Configurações ainda está sendo construída — chega numa próxima atualização.</p>
