@@ -31,4 +31,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // comportar. Envio "fire and forget" (ipcRenderer.send, não invoke)
   // — não precisa de resposta, só avisar.
   updateSettings: (settings) => ipcRenderer.send('settings:update', settings),
+  // Item pedido: "Sobreposição no jogo (overlay)... A overlay deve
+  // receber eventos do Project Club: Nova mensagem, Menção, Convite,
+  // Pedido de amizade, Entrada em chamada" — chamado pelo mesmo
+  // notifyUser() de SocketContext.jsx que já dispara a notificação
+  // nativa comum, pra cada um desses eventos. main.js decide sozinho
+  // se deve mostrar de verdade (overlayEnabled/overlayNotifications
+  // ligados + um jogo detectado rodando agora).
+  showOverlayNotification: (payload) => ipcRenderer.send('overlay:notify', payload),
 });
