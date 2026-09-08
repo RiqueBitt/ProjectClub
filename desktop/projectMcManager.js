@@ -179,21 +179,43 @@ function httpsGet(url, { asJson = false, onProgress } = {}, redirectsLeft = 5) {
 // Item pedido: "Fassa funcionar no Linux" — cada plataforma publica seu
 // próprio pacote .zip dentro da mesma release (ex:
 // "projectmc-1.2.0-win.zip" e "projectmc-1.2.0-linux.zip") — escolhe o
-// asset certo pelo sufixo do nome do arquivo, senão cai pro primeiro
-// .zip que achar (compatibilidade com uma release que ainda só publica
-// um pacote só, sem distinguir plataforma).
+// asset certo pelo sufixo do nome do arquivo. Só cai pro primeiro .zip
+// da lista quando existir exatamente UM .zip na release inteira
+// (compatibilidade com uma release "de transição" que ainda não
+// distingue plataforma nenhuma) — nunca quando já existem VÁRIOS .zips
+// e nenhum bate com a plataforma atual.
+//
+// BUG CORRIGIDO: antes, "match || zips[0]" caía pro primeiro .zip da
+// lista mesmo com vários presentes — numa release como a
+// "goldapple-launcher-1.0.27-win32-ia32.zip" +
+// "goldapple-launcher-1.0.27-win32-x64.zip" (dois pacotes, nenhum com
+// "linux" no nome), rodando no LINUX isso baixava silenciosamente um
+// .zip de WINDOWS (~130MB por engano) em vez de avisar que não tem
+// pacote pra essa plataforma — a extração terminava "com sucesso"
+// (nenhum erro), só que sem o ProjectMC.AppImage esperado lá dentro,
+// deixando isInstalled()/launch() reportando "não instalado" depois
+// de um download inteiro desperdiçado, sem explicar o motivo real.
 function pickAssetForPlatform(assets) {
   const zips = assets.filter((a) => a.name.toLowerCase().endsWith('.zip'));
   const platformSuffix = process.platform === 'win32' ? 'win' : process.platform === 'linux' ? 'linux' : null;
   const match = platformSuffix && zips.find((a) => a.name.toLowerCase().includes(platformSuffix));
-  return match || zips[0] || null;
+  if (match) return match;
+  if (zips.length === 1) return zips[0];
+  return null;
 }
 
 async function fetchLatestRelease(id) {
   const mod = getModule(id);
   const release = await httpsGet(mod.manifestUrl, { asJson: true });
   const asset = pickAssetForPlatform(release.assets || []);
-  if (!asset) throw new Error(`Nenhum pacote .zip encontrado na versão mais recente de ${mod.displayName}.`);
+  if (!asset) {
+    const hasAnyZip = (release.assets || []).some((a) => a.name.toLowerCase().endsWith('.zip'));
+    throw new Error(
+      hasAnyZip
+        ? `A versão mais recente de ${mod.displayName} não tem um pacote publicado para esta plataforma (${process.platform}).`
+        : `Nenhum pacote .zip encontrado na versão mais recente de ${mod.displayName}.`
+    );
+  }
   return { version: (release.tag_name || '').replace(/^v/i, ''), downloadUrl: asset.browser_download_url };
 }
 
@@ -241,6 +263,25 @@ async function installOrUpdate(id, onProgress) {
   if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
   await extractZip(tmpZip, { dir });
+  fs.unlink(tmpZip, () => {});
+
+  // BUG CORRIGIDO ("instalação que termina 'com sucesso' mas não
+  // instala nada de verdade"): antes daqui, o código seguia direto pra
+  // gravar o .version e reportar done/100% mesmo que o .zip baixado
+  // não tivesse o executável esperado lá dentro (ex: um pacote
+  // publicado com o nome original "GoldApple Launcher.exe" em vez de
+  // "ProjectMC.exe", ou um .zip da plataforma errada) — a barra de
+  // progresso completava normalmente, sem erro nenhum, e só depois,
+  // silenciosamente, isInstalled()/launch() passavam a reportar "não
+  // instalado" sem explicar por quê. Falha alto e claro aqui, no
+  // momento exato em que dá pra saber com certeza o que faltou —
+  // apaga a pasta extraída incompleta também, pra não deixar restos
+  // pela metade.
+  const exePath = path.join(dir, getExeName(mod));
+  if (!fs.existsSync(exePath)) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    throw new Error(`O pacote baixado de ${mod.displayName} não contém "${getExeName(mod)}" — o release publicado pode não estar empacotado no formato esperado.`);
+  }
 
   // Item pedido: "Fassa funcionar no Linux" — sem isso, o AppImage
   // extraído fica sem permissão de execução na maioria dos casos (o
@@ -249,12 +290,10 @@ async function installOrUpdate(id, onProgress) {
   // falharia com "Permission denied", mesmo com o arquivo certo no
   // lugar certo.
   if (process.platform !== 'win32') {
-    const exePath = path.join(dir, getExeName(mod));
     try { fs.chmodSync(exePath, 0o755); } catch { /* segue — launch() vai reportar o erro de verdade se isso importar */ }
   }
 
   fs.writeFileSync(versionFilePath(id), version, 'utf-8');
-  fs.unlink(tmpZip, () => {});
 
   onProgress?.({ phase: 'done', percent: 100 });
   return { version };
