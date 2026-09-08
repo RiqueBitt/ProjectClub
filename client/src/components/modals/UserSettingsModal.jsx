@@ -1406,12 +1406,112 @@ export default function UserSettingsModal({ onClose }) {
         </div>
       )}
 
+      {/* Item pedido: "Notificações... Visão geral... Sons" — mesmo
+          padrão de Idioma/Acessibilidade/Privacidade acima
+          (userSettings/updateUserSetting, já validado em
+          settingsController.js). Os subitens "Insígnias", "E-mail"
+          detalhado e "Avançado" (silenciar por servidor/canal, ver
+          seção 18 do documento) não entraram nesta parte — aqui só
+          os três controles globais que já existem prontos no
+          UserSettings (desktopNotifications, emailNotifications,
+          notificationSounds). Silenciar por servidor/canal individual
+          precisa de uma tabela própria (algo como
+          ChannelNotificationOverride) que ainda não existe — fica
+          para uma próxima parte. */}
+      {tab === 'NOTIFICATIONS' && (
+        <div className="settings-grid">
+          {!userSettings ? <div className="dim">Carregando...</div> : (
+            <>
+              <div className="settings-block settings-toggle-row">
+                <div>
+                  <h4>Notificações de desktop</h4>
+                  <p className="dim">Mostra um alerta na tela quando chega uma mensagem nova, mesmo com o Project Club em segundo plano.</p>
+                </div>
+                <button
+                  type="button" className={`toggle-switch ${userSettings.desktopNotifications ? 'on' : ''}`}
+                  onClick={() => updateUserSetting('desktopNotifications', !userSettings.desktopNotifications)}
+                />
+              </div>
+              <div className="settings-block settings-toggle-row">
+                <div>
+                  <h4>Notificações por e-mail</h4>
+                  <p className="dim">Recebe um e-mail para eventos importantes, como pedidos de amizade e menções, quando você está offline.</p>
+                </div>
+                <button
+                  type="button" className={`toggle-switch ${userSettings.emailNotifications ? 'on' : ''}`}
+                  onClick={() => updateUserSetting('emailNotifications', !userSettings.emailNotifications)}
+                />
+              </div>
+              <div className="settings-block settings-toggle-row">
+                <div>
+                  <h4>Sons de notificação</h4>
+                  <p className="dim">Toca um som quando você recebe uma mensagem, menção ou chamada.</p>
+                </div>
+                <button
+                  type="button" className={`toggle-switch ${userSettings.notificationSounds ? 'on' : ''}`}
+                  onClick={() => updateUserSetting('notificationSounds', !userSettings.notificationSounds)}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Item pedido: "Status da conta... Status: Ativa... Conta
+          criada em... Verificação... Restrições: Nenhuma... Caso
+          exista punição: motivo, data de término... Não mostrar
+          informações administrativas internas que não devam ser
+          expostas ao usuário" — tela só de leitura, sem nenhum
+          endpoint novo: todo campo aqui já existe no próprio User
+          (accountDisabledAt/isPlatformBanned/platformBanReason/
+          suspendedUntil/timeoutUntil/emailVerified/createdAt), sem
+          expor nada que a staff não deva mostrar (motivo interno de
+          moderação continua só no painel admin). */}
+      {tab === 'ACCOUNT_STATUS' && (
+        <div className="settings-grid">
+          <div className="settings-block">
+            <h4>Status</h4>
+            <p className="dim">
+              {user.accountDisabledAt
+                ? 'Desativada'
+                : user.isPlatformBanned
+                  ? 'Banida'
+                  : user.suspendedUntil && new Date(user.suspendedUntil) > new Date()
+                    ? 'Parcialmente limitada'
+                    : user.timeoutUntil && new Date(user.timeoutUntil) > new Date()
+                      ? 'Em silenciamento temporário'
+                      : 'Ativa'}
+            </p>
+          </div>
+          <div className="settings-block">
+            <h4>Conta criada em</h4>
+            <p className="dim">{new Date(user.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+          </div>
+          <div className="settings-block">
+            <h4>Verificação de e-mail</h4>
+            <p className="dim">{user.emailVerified ? 'E-mail verificado' : 'E-mail ainda não verificado'}</p>
+          </div>
+          <div className="settings-block">
+            <h4>Restrições</h4>
+            {user.isPlatformBanned ? (
+              <p className="dim">Banida{user.platformBanReason ? ` — motivo: ${user.platformBanReason}` : ''}</p>
+            ) : user.suspendedUntil && new Date(user.suspendedUntil) > new Date() ? (
+              <p className="dim">Suspensa até {new Date(user.suspendedUntil).toLocaleString('pt-BR')}</p>
+            ) : user.timeoutUntil && new Date(user.timeoutUntil) > new Date() ? (
+              <p className="dim">Silenciada até {new Date(user.timeoutUntil).toLocaleString('pt-BR')}</p>
+            ) : (
+              <p className="dim">Nenhuma</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Item pedido: "não desenvolver todas as telas simultaneamente"
-          — Status da conta, Notificações, Sistema e Jogos e apps
-          ainda não foram implementados de verdade nesta fase (só a
-          navegação até eles já existe) — ficam pras próximas fases,
-          na mesma ordem que o próprio pedido definiu. */}
-      {(tab === 'ACCOUNT_STATUS' || tab === 'NOTIFICATIONS' || tab === 'SYSTEM' || tab === 'GAMES') && (
+          — Sistema e Jogos e apps ainda não foram implementados de
+          verdade nesta fase (só a navegação até eles já existe) —
+          ficam pras próximas fases, na mesma ordem que o próprio
+          pedido definiu. */}
+      {(tab === 'SYSTEM' || tab === 'GAMES') && (
         <div className="settings-grid">
           <div className="settings-block">
             <p className="dim">Essa parte das Configurações ainda está sendo construída — chega numa próxima atualização.</p>
