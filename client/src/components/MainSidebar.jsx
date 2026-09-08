@@ -37,6 +37,17 @@ const ITEMS = [
   // invertida (Feeds vem antes de Amigos agora).
   { to: '/comunidades', icon: feedIcon, isImg: true, label: 'Feeds', match: (p) => p === '/comunidades' || p.startsWith('/posts/') },
   { to: '/dms', icon: friendsIcon, isImg: true, label: 'Amigos', match: (p) => p === '/dms' || p.startsWith('/conversations/') },
+  // Item pedido: "crie uma nova categoria chamada Jogos, posicionada
+  // logo abaixo da categoria Amigos... dentro de Jogos, crie duas
+  // opções: Jogos e Aplicativos" — sem ícone dedicado no pacote de
+  // ícones do app (mesma situação de Clãs antes de ganhar um próprio),
+  // emoji como os outros itens já usam quando não há um ícone
+  // customizado disponível. As duas "opções" (Jogos/Aplicativos)
+  // viram abas DENTRO da própria página — ver JogosPage.jsx — mesmo
+  // padrão que o resto desta barra já usa (item único levando pra uma
+  // página com navegação interna própria), em vez de inventar um
+  // segundo nível de menu que não existe em nenhum outro lugar dela.
+  { to: '/jogos', icon: '🎮', label: 'Jogos', match: (p) => p.startsWith('/jogos') },
   // Item pedido: "remover a aba Notificações do menu lateral esquerdo
   // e deixar as notificações disponíveis somente pelo ícone de sino
   // localizado na parte superior da interface" — o sino já existe e
