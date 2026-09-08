@@ -59,6 +59,9 @@ const CommunityPage = lazy(() => import('./CommunityPage.jsx'));
 const PostDetailPage = lazy(() => import('./PostDetailPage.jsx'));
 const AchievementsPage = lazy(() => import('./AchievementsPage.jsx'));
 const InicioPage = lazy(() => import('./InicioPage.jsx'));
+// Item pedido: "crie uma nova categoria chamada Jogos" — mesmo padrão
+// lazy() de todas as outras seções acima.
+const JogosPage = lazy(() => import('./JogosPage.jsx'));
 
 // Interface com UMA barra lateral principal só (MainSidebar.jsx —
 // Chat/Amigos/Perfil/Notificações/Ranks/Busca/Suporte). A antiga dupla
@@ -261,6 +264,8 @@ export default function MainApp() {
               <Route path="/posts/:id" element={<PostDetailPage />} />
               <Route path="/conquistas" element={<AchievementsPage />} />
               <Route path="/inicio" element={<InicioPage />} />
+              {/* Item pedido: "crie uma nova categoria chamada Jogos" */}
+              <Route path="/jogos" element={<JogosPage />} />
               <Route path="/conversations/:conversationId" element={<ChatWindow kind="conversation" />} />
               <Route path="/channels/:channelId" element={<ChatWindow kind="channel" />} />
             </Routes>
