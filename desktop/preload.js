@@ -39,4 +39,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // se deve mostrar de verdade (overlayEnabled/overlayNotifications
   // ligados + um jogo detectado rodando agora).
   showOverlayNotification: (payload) => ipcRenderer.send('overlay:notify', payload),
+  // Item pedido: "criar uma nova integração... ProjectMC... o usuário
+  // poderá visualizar e baixar o launcher... O usuário poderá escolher
+  // se deseja ou não instalar... o Project Club deve conseguir
+  // detectar a atualização e atualizar somente os arquivos
+  // necessários... o launcher também deve poder ser iniciado
+  // separadamente" — ponte pra desktop/projectMcManager.js (via
+  // main.js). `id` é opcional em todas (default 'projectmc' do lado do
+  // main.js) — pensado pra outros módulos de jogo/app reaproveitarem a
+  // mesma ponte no futuro, só passando um id diferente.
+  projectMc: {
+    getStatus: (id) => ipcRenderer.invoke('projectmc:get-status', id),
+    checkUpdate: (id) => ipcRenderer.invoke('projectmc:check-update', id),
+    install: (id) => ipcRenderer.invoke('projectmc:install', id),
+    launch: (id) => ipcRenderer.invoke('projectmc:launch', id),
+    uninstall: (id) => ipcRenderer.invoke('projectmc:uninstall', id),
+    onProgress: (callback) => {
+      ipcRenderer.on('projectmc:progress', (_event, data) => callback(data));
+    },
+  },
 });
