@@ -5,6 +5,7 @@ const { getEffectivePermissions } = require('../services/authz');
 const { has } = require('../services/permissions');
 const automod = require('../services/automod');
 const dmAutomod = require('../services/dmAutomod');
+const { canSendDirectMessage } = require('../services/dmPermissions');
 const xpService = require('../services/xp');
 const { parseMentions } = require('../services/mentions');
 
@@ -103,6 +104,9 @@ async function assertAccess(req, { conversationId, channelId }, requireSend = fa
     // conversa, repetida aqui porque enviar uma mensagem numa conversa
     // já existente é outro ponto de entrada separado (ex: a pessoa
     // muda de 'everyone' pra 'none' DEPOIS que a conversa já existia).
+    // Checagem em services/dmPermissions.js — compartilhada com
+    // conversationController.js, pra nunca mais os dois ficarem
+    // desalinhados entre si (já aconteceu uma vez).
     if (requireSend) {
       const conversation = await prisma.conversation.findUnique({
         where: { id: conversationId },
@@ -111,24 +115,13 @@ async function assertAccess(req, { conversationId, channelId }, requireSend = fa
       if (conversation && !conversation.isGroup) {
         const other = conversation.members.find((m) => m.userId !== req.user.id);
         if (other) {
-          const otherSettings = await prisma.userSettings.findUnique({ where: { userId: other.userId }, select: { dmPrivacy: true } });
-          const dmPrivacy = otherSettings?.dmPrivacy || 'friends';
-          if (dmPrivacy === 'none') {
-            const e = new Error('Esta pessoa não está aceitando mensagens diretas.'); e.status = 403; throw e;
-          }
-          if (dmPrivacy !== 'everyone') {
-            // "friends_groups" tratado como "friends" por enquanto —
-            // mesma simplificação de conversationController.js.
-            const friendship = await prisma.friendship.findFirst({
-              where: {
-                status: 'ACCEPTED',
-                OR: [
-                  { requesterId: req.user.id, addresseeId: other.userId },
-                  { requesterId: other.userId, addresseeId: req.user.id },
-                ],
-              },
-            });
-            if (!friendship) { const e = new Error('Vocês precisam ser amigos para trocar mensagens diretas.'); e.status = 403; throw e; }
+          const allowed = await canSendDirectMessage(req.user.id, other.userId);
+          if (!allowed) {
+            const otherSettings = await prisma.userSettings.findUnique({ where: { userId: other.userId }, select: { dmPrivacy: true } });
+            const dmPrivacy = otherSettings?.dmPrivacy || 'friends';
+            const e = new Error(dmPrivacy === 'none' ? 'Esta pessoa não está aceitando mensagens diretas.' : 'Vocês precisam ser amigos para trocar mensagens diretas.');
+            e.status = 403;
+            throw e;
           }
         }
       }
