@@ -5,6 +5,11 @@ import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import './styles/global.css';
+// Correção de responsividade mobile da barra lateral de Configurações —
+// mantida em arquivo próprio (ver o comentário completo no topo do
+// arquivo) em vez de dentro de global.css, que já está com ~400KB.
+// Precisa vir DEPOIS do import acima para vencer no cascata do CSS.
+import './styles/settings-mobile-fix.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
