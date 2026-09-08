@@ -65,6 +65,12 @@ export const removeFavoriteGif = (gifId) => api.delete(`/users/me/favorite-gifs/
 export const listRegisteredGames = () => api.get('/users/me/games').then((r) => r.data);
 export const addRegisteredGame = (payload) => api.post('/users/me/games', payload).then((r) => r.data);
 export const removeRegisteredGame = (id) => api.delete(`/users/me/games/${id}`).then((r) => r.data);
+// Item pedido: "Atalhos personalizados... verificar se já existe
+// outro comando usando a combinação" — setShortcut é um upsert por
+// action (reatribui a tecla de uma ação já existente).
+export const listMyShortcuts = () => api.get('/users/me/shortcuts').then((r) => r.data);
+export const setShortcut = (action, keyCombination) => api.put('/users/me/shortcuts', { action, keyCombination }).then((r) => r.data);
+export const deleteShortcut = (id) => api.delete(`/users/me/shortcuts/${id}`).then((r) => r.data);
 
 // --- Friends ---
 export const listFriends = () => api.get('/friends').then((r) => r.data);
