@@ -8,6 +8,19 @@ function getDeviceKey() {
   return typeof window !== 'undefined' && window.innerWidth <= 900 ? 'MOBILE' : 'PC';
 }
 
+// Item pedido: "Sistema... Iniciar com o sistema... Minimizar para
+// bandeja... Abrir links no aplicativo... Confirmar saída... Essas
+// funções podem existir no '.exe' sem necessariamente existirem na
+// versão web" — avisa o app desktop (Electron, ver desktop/main.js)
+// toda vez que o UserSettings da conta carrega ou muda, pra ele
+// aplicar de verdade essas 4 opções. window.electronAPI só existe
+// quando o site está rodando DENTRO do app nativo (ver
+// desktop/preload.js) — no navegador comum/celular, isso é undefined
+// e a chamada simplesmente não acontece, sem quebrar nada.
+function syncDesktopSettings(settings) {
+  try { window.electronAPI?.updateSettings?.(settings); } catch { /* não é o app desktop — ignora */ }
+}
+
 // Estado central em tempo real: categorias/canais da comunidade única,
 // membros, conversas DM, mensagens por sala, amigos, presença, digitação e
 // pedaços de estado de UI (canal ativo, tema etc).
@@ -281,7 +294,10 @@ export const useStore = create((set, get) => ({
     document.documentElement.style.setProperty('--chat-zoom', chatZoom);
     set({ chatZoom });
   },
-  setUserSettings: (settings) => set({ userSettings: settings }),
+  setUserSettings: (settings) => {
+    syncDesktopSettings(settings);
+    set({ userSettings: settings });
+  },
   // Item pedido: "salvamento automático... interface muda
   // imediatamente → frontend envia PATCH → backend valida → banco
   // atualiza → servidor retorna sucesso. Se ocorrer erro: mostrar
@@ -297,6 +313,7 @@ export const useStore = create((set, get) => ({
     try {
       const { settings, rejected } = await updateUserSettings({ [key]: value });
       set({ userSettings: settings });
+      syncDesktopSettings(settings);
       if (rejected?.length) {
         set({ userSettings: prevSettings ? { ...prevSettings, ...settings } : settings });
         get().pushNotice('Não foi possível salvar essa configuração.');
