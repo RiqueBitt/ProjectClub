@@ -53,6 +53,7 @@ import {
   createProfilePoll, listProfilePollsByAuthor, deleteProfilePoll,
   changePassword, deleteAccount,
   listRegisteredGames, addRegisteredGame, removeRegisteredGame,
+  listMyShortcuts, setShortcut, deleteShortcut,
 } from '../../api/endpoints';
 
 // Item pedido: separar "Edição do Perfil" das "Configurações gerais" da
@@ -490,6 +491,47 @@ export default function UserSettingsModal({ onClose }) {
       setGames((prev) => prev.filter((g) => g.id !== id));
     } catch {
       setGamesError('Não foi possível remover esse jogo.');
+    }
+  };
+
+  // Item pedido: "Atalhos personalizados... verificar se já existe
+  // outro comando usando a combinação" — mesmo padrão de "Jogos
+  // adicionados" acima: carrega só quando a aba SYSTEM é aberta.
+  const [shortcuts, setShortcuts] = useState(null);
+  const [shortcutsError, setShortcutsError] = useState('');
+  const [newShortcutAction, setNewShortcutAction] = useState('');
+  const [newShortcutCombo, setNewShortcutCombo] = useState('');
+  const [savingShortcut, setSavingShortcut] = useState(false);
+  useEffect(() => {
+    if (tab !== 'SYSTEM' || shortcuts !== null) return;
+    listMyShortcuts().then((d) => setShortcuts(d.shortcuts)).catch(() => setShortcutsError('Não foi possível carregar seus atalhos.'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  const submitShortcut = async () => {
+    const action = newShortcutAction.trim();
+    const combo = newShortcutCombo.trim();
+    if (!action || !combo || savingShortcut) return;
+    setShortcutsError('');
+    setSavingShortcut(true);
+    try {
+      const { shortcut } = await setShortcut(action, combo);
+      setShortcuts((prev) => [...(prev || []).filter((s) => s.action !== shortcut.action), shortcut]);
+      setNewShortcutAction('');
+      setNewShortcutCombo('');
+    } catch (err) {
+      setShortcutsError(err.response?.data?.error || 'Não foi possível salvar esse atalho.');
+    } finally {
+      setSavingShortcut(false);
+    }
+  };
+
+  const removeShortcutFromList = async (id) => {
+    try {
+      await deleteShortcut(id);
+      setShortcuts((prev) => prev.filter((s) => s.id !== id));
+    } catch {
+      setShortcutsError('Não foi possível remover esse atalho.');
     }
   };
 
@@ -1561,10 +1603,8 @@ export default function UserSettingsModal({ onClose }) {
           esses valores (bandeja do sistema, abrir link externo
           dentro do próprio app, etc) — no navegador eles ficam
           salvos sem efeito nenhum, o que é esperado. Atalhos
-          personalizados (UserShortcut) não entraram aqui: o modelo já
-          existe no banco, mas ainda falta a API própria (GET/POST/
-          DELETE com checagem de conflito de combinação) — fica para
-          uma próxima parte. */}
+          personalizados (UserShortcut) já entram aqui embaixo, com
+          seu próprio backend (shortcutsController.js). */}
       {tab === 'SYSTEM' && (
         <div className="settings-grid">
           {!userSettings ? <div className="dim">Carregando...</div> : (
@@ -1618,6 +1658,47 @@ export default function UserSettingsModal({ onClose }) {
                   type="button" className={`toggle-switch ${userSettings.developerMode ? 'on' : ''}`}
                   onClick={() => updateUserSetting('developerMode', !userSettings.developerMode)}
                 />
+              </div>
+
+              {/* Item pedido: "Atalhos personalizados... UserShortcut...
+                  Antes de salvar: verificar se já existe outro comando
+                  usando a combinação. Se houver conflito: 'Este atalho
+                  já está sendo utilizado.'" — backend novo (ver
+                  shortcutsController.js), a mensagem de conflito vem
+                  direto da resposta de erro da API. */}
+              <div className="settings-block">
+                <h4>Atalhos personalizados</h4>
+                <p className="dim">Defina uma combinação de teclas pra uma ação (ex: "abrir_configuracoes" → "Ctrl+,").</p>
+                {shortcutsError && <div className="auth-error">{shortcutsError}</div>}
+                {shortcuts === null && !shortcutsError && <p className="dim">Carregando...</p>}
+                {shortcuts && (
+                  <ul className="settings-poll-list">
+                    {shortcuts.map((s) => (
+                      <li key={s.id} className="settings-poll-list-item">
+                        <span className="truncate">{s.action} — {s.keyCombination}</span>
+                        <button type="button" className="profile-relationship-end" onClick={() => removeShortcutFromList(s.id)}>Remover</button>
+                      </li>
+                    ))}
+                    {shortcuts.length === 0 && <li className="dim" style={{ fontStyle: 'italic' }}>Nenhum atalho personalizado ainda.</li>}
+                  </ul>
+                )}
+                <div className="birthday-picker-row" style={{ marginTop: 10 }}>
+                  <input
+                    value={newShortcutAction}
+                    onChange={(e) => setNewShortcutAction(e.target.value)}
+                    placeholder="Ação (ex: abrir_configuracoes)"
+                    maxLength={64}
+                  />
+                  <input
+                    value={newShortcutCombo}
+                    onChange={(e) => setNewShortcutCombo(e.target.value)}
+                    placeholder="Combinação (ex: Ctrl+,)"
+                    maxLength={32}
+                  />
+                  <button type="button" className="btn-secondary" disabled={savingShortcut || !newShortcutAction.trim() || !newShortcutCombo.trim()} onClick={submitShortcut}>
+                    {savingShortcut ? '...' : 'Salvar'}
+                  </button>
+                </div>
               </div>
             </>
           )}
