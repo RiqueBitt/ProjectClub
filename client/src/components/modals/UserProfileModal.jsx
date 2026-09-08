@@ -863,6 +863,18 @@ isMe && (
             </div>
 
             <div className="profile-modal-body">
+              {/* Item pedido: "Privacidade do perfil... O servidor deve
+                  verificar essa configuração antes de devolver
+                  informações" — profileRestricted vem PRONTO do backend
+                  (getUser em userController.js), calculado a partir da
+                  configuração de QUEM É O DONO do perfil; aqui só avisa
+                  visualmente, sem revelar qual privacidade exata a
+                  pessoa escolheu nem tentar "adivinhar" o que falta. */}
+              {!isMe && data.profileRestricted && (
+                <div className="profile-section profile-restricted-notice dim" style={{ fontStyle: 'italic' }}>
+                  🔒 Esta pessoa limitou quem pode ver os detalhes completos do perfil — você está vendo só as informações públicas.
+                </div>
+              )}
               {/* Barra de nível redesenhada — mostra XP atual/necessário
                   e o número de porcentagem, não só uma barrinha muda. */}
               <div className="profile-level-bar-wrap">
