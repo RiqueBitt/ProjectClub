@@ -52,6 +52,7 @@ import {
   listSessions, revokeSession, revokeOtherSessions,
   createProfilePoll, listProfilePollsByAuthor, deleteProfilePoll,
   changePassword, deleteAccount,
+  listRegisteredGames, addRegisteredGame, removeRegisteredGame,
 } from '../../api/endpoints';
 
 // Item pedido: separar "Edição do Perfil" das "Configurações gerais" da
@@ -449,6 +450,48 @@ export default function UserSettingsModal({ onClose }) {
     listSessions().then((d) => setSessions(d.sessions)).catch(() => setSessionsError('Não foi possível carregar suas sessões.'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  // Item pedido: "Jogos adicionados... Minecraft [Remover], Palworld
+  // [Remover]" — mesmo padrão de "Sessões ativas" acima: só carrega
+  // na primeira vez que a aba GAMES é aberta de verdade.
+  const [games, setGames] = useState(null);
+  const [gamesError, setGamesError] = useState('');
+  const [newGameName, setNewGameName] = useState('');
+  const [addingGame, setAddingGame] = useState(false);
+  useEffect(() => {
+    if (tab !== 'GAMES' || games !== null) return;
+    listRegisteredGames().then((d) => setGames(d.games)).catch(() => setGamesError('Não foi possível carregar seus jogos.'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  const submitAddGame = async () => {
+    const displayName = newGameName.trim();
+    if (!displayName || addingGame) return;
+    setGamesError('');
+    setAddingGame(true);
+    try {
+      // gameKey é gerado a partir do nome digitado — simples e
+      // suficiente pra esta fase (sem catálogo de jogos conhecidos
+      // ainda), já que o backend normaliza/valida de qualquer jeito.
+      const gameKey = displayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 64);
+      const { game } = await addRegisteredGame({ gameKey, displayName });
+      setGames((prev) => [...(prev || []), game]);
+      setNewGameName('');
+    } catch (err) {
+      setGamesError(err.response?.data?.error || 'Não foi possível adicionar esse jogo.');
+    } finally {
+      setAddingGame(false);
+    }
+  };
+
+  const removeGameFromList = async (id) => {
+    try {
+      await removeRegisteredGame(id);
+      setGames((prev) => prev.filter((g) => g.id !== id));
+    } catch {
+      setGamesError('Não foi possível remover esse jogo.');
+    }
+  };
 
   const doRevokeSession = async (id) => {
     setSessionsError('');
@@ -1581,15 +1624,115 @@ export default function UserSettingsModal({ onClose }) {
         </div>
       )}
 
-      {/* Item pedido: "não desenvolver todas as telas simultaneamente"
-          — Jogos e apps ainda não foi implementado de verdade nesta
-          fase (só a navegação até ele já existe) — fica pra próxima
-          fase, na mesma ordem que o próprio pedido definiu. */}
+      {/* Item pedido: "Jogos registrados... Jogos adicionados...
+          Privacidade nas atividades... Sobreposições de jogo" —
+          "Jogos adicionados" usa o backend novo (RegisteredGame, ver
+          gamesController.js). "Detecção de jogos" (Game Detection
+          Manager lendo processos ativos) e a "Sobreposição" de
+          verdade (Overlay Manager desenhando por cima de outros
+          apps) só são possíveis dentro do aplicativo ".exe" — aqui
+          só a PREFERÊNCIA de cada uma é salva (mesmo padrão de
+          Sistema, acima), sincronizada entre dispositivos; quem
+          efetivamente lê e aplica esses valores é o app desktop,
+          quando esse lado for trabalhado. Atividade atual (Rich
+          Presence — o que a pessoa está jogando agora) depende da
+          mesma detecção de processos e também fica para quando o
+          ".exe" existir. */}
       {tab === 'GAMES' && (
         <div className="settings-grid">
           <div className="settings-block">
-            <p className="dim">Essa parte das Configurações ainda está sendo construída — chega numa próxima atualização.</p>
+            <h4>Jogos adicionados</h4>
+            <p className="dim">Jogos que aparecem como sua atividade quando detectados (detecção automática só funciona no aplicativo ".exe").</p>
+            {gamesError && <div className="auth-error">{gamesError}</div>}
+            {games === null && !gamesError && <p className="dim">Carregando...</p>}
+            {games && (
+              <ul className="settings-poll-list">
+                {games.map((g) => (
+                  <li key={g.id} className="settings-poll-list-item">
+                    <span className="truncate">{g.displayName}</span>
+                    <button type="button" className="profile-relationship-end" onClick={() => removeGameFromList(g.id)}>Remover</button>
+                  </li>
+                ))}
+                {games.length === 0 && <li className="dim" style={{ fontStyle: 'italic' }}>Nenhum jogo adicionado ainda.</li>}
+              </ul>
+            )}
+            <div className="birthday-picker-row" style={{ marginTop: 10 }}>
+              <input
+                value={newGameName}
+                onChange={(e) => setNewGameName(e.target.value)}
+                placeholder="Nome do jogo (ex: Minecraft)"
+                maxLength={100}
+              />
+              <button type="button" className="btn-secondary" disabled={addingGame || !newGameName.trim()} onClick={submitAddGame}>
+                {addingGame ? '...' : 'Adicionar'}
+              </button>
+            </div>
           </div>
+
+          {!userSettings ? <div className="dim">Carregando...</div> : (
+            <>
+              <div className="settings-block settings-toggle-row">
+                <div>
+                  <h4>Detecção automática de jogos</h4>
+                  <p className="dim">Detecta sozinho quando você abre um jogo instalado. Só tem efeito no aplicativo ".exe".</p>
+                </div>
+                <button
+                  type="button" className={`toggle-switch ${userSettings.gameDetectionEnabled ? 'on' : ''}`}
+                  onClick={() => updateUserSetting('gameDetectionEnabled', !userSettings.gameDetectionEnabled)}
+                />
+              </div>
+              <div className="settings-block settings-toggle-row">
+                <div>
+                  <h4>Compartilhar atividade</h4>
+                  <p className="dim">Mostra pros outros o que você está jogando agora, quando detectado.</p>
+                </div>
+                <button
+                  type="button" className={`toggle-switch ${userSettings.activitySharing ? 'on' : ''}`}
+                  onClick={() => updateUserSetting('activitySharing', !userSettings.activitySharing)}
+                />
+              </div>
+              <div className="settings-block">
+                <h4>Quem pode ver minha atividade</h4>
+                <select value={userSettings.activityVisibility} onChange={(e) => updateUserSetting('activityVisibility', e.target.value)}>
+                  <option value="everyone">Todos permitidos</option>
+                  <option value="friends">Somente amigos</option>
+                  <option value="friends_groups">Pessoas dos mesmos grupos</option>
+                  <option value="none">Ninguém</option>
+                </select>
+              </div>
+              <div className="settings-block">
+                <h4>Quem pode se juntar ao meu jogo</h4>
+                <select value={userSettings.gameJoinPrivacy} onChange={(e) => updateUserSetting('gameJoinPrivacy', e.target.value)}>
+                  <option value="none">Ninguém</option>
+                  <option value="friends">Amigos</option>
+                  <option value="friends_groups">Amigos + membros do grupo</option>
+                  <option value="everyone">Todos permitidos</option>
+                </select>
+              </div>
+              <div className="settings-block settings-toggle-row">
+                <div>
+                  <h4>Sobreposição no jogo (overlay)</h4>
+                  <p className="dim">Mostra mensagens e notificações por cima do jogo enquanto você joga. Só tem efeito no ".exe".</p>
+                </div>
+                <button
+                  type="button" className={`toggle-switch ${userSettings.overlayEnabled ? 'on' : ''}`}
+                  onClick={() => updateUserSetting('overlayEnabled', !userSettings.overlayEnabled)}
+                />
+              </div>
+              {userSettings.overlayEnabled && (
+                <div className="settings-block settings-toggle-row">
+                  <div>
+                    <h4>Notificações na sobreposição</h4>
+                    <p className="dim">Nova mensagem, menção, convite, pedido de amizade e entrada em chamada aparecem na overlay.</p>
+                  </div>
+                  <button
+                    type="button" className={`toggle-switch ${userSettings.overlayNotifications ? 'on' : ''}`}
+                    onClick={() => updateUserSetting('overlayNotifications', !userSettings.overlayNotifications)}
+                  />
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
