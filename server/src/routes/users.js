@@ -4,6 +4,7 @@ const settingsCtrl = require('../controllers/settingsController');
 const emojiCtrl = require('../controllers/emojiController');
 const gifCtrl = require('../controllers/gifController');
 const gamesCtrl = require('../controllers/gamesController');
+const shortcutsCtrl = require('../controllers/shortcutsController');
 const { requireAuth } = require('../middleware/auth');
 const { uploadImage } = require('../middleware/upload');
 
@@ -40,6 +41,11 @@ router.delete('/me/favorite-gifs/:gifId', gifCtrl.removeFavoriteGif);
 router.get('/me/games', gamesCtrl.listMyGames);
 router.post('/me/games', gamesCtrl.addGame);
 router.delete('/me/games/:id', gamesCtrl.removeGame);
+// Item pedido: "Atalhos personalizados... verificar se já existe
+// outro comando usando a combinação"
+router.get('/me/shortcuts', shortcutsCtrl.listMyShortcuts);
+router.put('/me/shortcuts', shortcutsCtrl.setShortcut);
+router.delete('/me/shortcuts/:id', shortcutsCtrl.deleteShortcut);
 router.get('/search', ctrl.searchUsers);
 router.get('/:id', ctrl.getUser);
 router.post('/:id/vote', ctrl.voteProfile);
