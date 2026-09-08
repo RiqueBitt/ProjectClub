@@ -638,8 +638,17 @@ export default function ChatWindow({ kind }) {
   // field (small, chrome-free — deliberately NOT the embed system GIFs/rich
   // links use, see Message.jsx), no new upload needed since the sticker's
   // image already lives on the server (see StickerManagerModal.jsx).
+  //
+  // BUG CORRIGIDO ("abro o menu de figurinha, clico e não acontece
+  // nada"): chamava setEmojiPickerOpen(false) — uma função que nunca
+  // existiu neste componente (emojiPickerOpen é só um valor calculado
+  // a partir de pickerTab, sem "setter" próprio; quem fecha o popover
+  // de verdade é setPickerTab(null), igual o resto do arquivo já faz
+  // em onClose/onPick). Isso estourava um erro ANTES até de montar o
+  // FormData ou chamar sendMessage — a figurinha nunca chegava a ser
+  // enviada, e o clique parecia simplesmente não fazer nada.
   const sendSticker = async (sticker) => {
-    setEmojiPickerOpen(false);
+    setPickerTab(null);
     const fd = new FormData();
     if (conversationId) fd.append('conversationId', conversationId);
     if (channelId) fd.append('channelId', channelId);
