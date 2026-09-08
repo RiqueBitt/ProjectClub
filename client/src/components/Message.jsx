@@ -339,6 +339,15 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
           </div>
         )}
 
+        {/* Item pedido: "Filtro de conteúdo... mostrar aviso / ser
+            ocultada... dependendo da configuração" — contentFiltered/
+            contentFlagged vêm calculados pelo BACKEND (ver
+            applyContentFilter em messageController.js), com base no
+            nível que O PRÓPRIO LEITOR escolheu — nunca decidido aqui
+            no cliente. 'Alto' (contentFiltered) já chega SEM o texto
+            de verdade (o servidor nem manda), então não tem "revelar"
+            possível aqui — só o aviso fixo. 'Moderado' (contentFlagged)
+            mantém o texto normal, só com um aviso em cima dele. */}
         {editing ? (
           <div className="edit-box">
             <input
@@ -350,26 +359,37 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
             <button className="btn-link" onClick={saveEdit}>salvar</button>
             <button className="btn-link" onClick={() => setEditing(false)}>cancelar</button>
           </div>
+        ) : message.contentFiltered ? (
+          <div className="message-content content-filtered-notice dim" style={{ fontStyle: 'italic' }}>
+            🚫 Mensagem oculta pelo seu filtro de conteúdo (nível Alto, ver Configurações → Dados e privacidade)
+          </div>
         ) : (
-          message.content && (
-            BARE_IMAGE_URL_RE.test(message.content.trim()) ? (
-              <div className="attachments">
-                <img
-                  className="attachment-image"
-                  src={message.content.trim()}
-                  alt="GIF"
-                  loading="lazy"
-                  style={{ cursor: 'zoom-in' }}
-                  onClick={() => useStore.getState().openLightbox([{ url: message.content.trim(), filename: 'GIF' }], 0)}
-                />
+          <>
+            {message.contentFlagged && (
+              <div className="content-flagged-notice dim" style={{ fontSize: 12, marginBottom: 2 }}>
+                ⚠️ Esta mensagem pode conter conteúdo sensível (filtro de conteúdo: Moderado)
               </div>
-            ) : (
-              <div className={`message-content ${isEmojiOnlyMessage(message.content, emojiMap) ? 'emoji-only' : ''}`}>
-                {renderRichContent(message.content, { emojiMap, memberNames, roleNames, memberInfoByName, roleInfoByName })}
-                {message.edited && <span className="edited-tag"> (editado)</span>}
-              </div>
-            )
-          )
+            )}
+            {message.content && (
+              BARE_IMAGE_URL_RE.test(message.content.trim()) ? (
+                <div className="attachments">
+                  <img
+                    className="attachment-image"
+                    src={message.content.trim()}
+                    alt="GIF"
+                    loading="lazy"
+                    style={{ cursor: 'zoom-in' }}
+                    onClick={() => useStore.getState().openLightbox([{ url: message.content.trim(), filename: 'GIF' }], 0)}
+                  />
+                </div>
+              ) : (
+                <div className={`message-content ${isEmojiOnlyMessage(message.content, emojiMap) ? 'emoji-only' : ''}`}>
+                  {renderRichContent(message.content, { emojiMap, memberNames, roleNames, memberInfoByName, roleInfoByName })}
+                  {message.edited && <span className="edited-tag"> (editado)</span>}
+                </div>
+              )
+            )}
+          </>
         )}
 
 
