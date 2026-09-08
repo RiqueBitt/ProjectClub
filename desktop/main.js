@@ -4,7 +4,7 @@
 // ícone na bandeja do sistema, iniciar sozinho com o Windows, e continuar
 // rodando em segundo plano mesmo com a janela fechada — exatamente como
 // Discord/Slack fazem.
-const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage, session, desktopCapturer, screen } = require('electron');
+const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage, session, desktopCapturer, screen, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
@@ -17,6 +17,22 @@ const APP_URL = process.env.PROJECT_CLUB_URL || 'https://projectclub.squareweb.a
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
+
+// Item pedido: "Sistema... Geral... Iniciar com o sistema... Minimizar
+// para bandeja... Abrir links no aplicativo... Confirmar saída" — os
+// valores de verdade vêm do UserSettings da conta (ver
+// settingsController.js no backend + UserSettingsModal.jsx no site),
+// enviados aqui via IPC (ver preload.js: window.electronAPI.updateSettings)
+// toda vez que a tela de Configurações carrega ou muda algo. Os padrões
+// abaixo só valem ANTES do primeiro aviso chegar (login ainda
+// carregando) — depois disso, sempre reflete o que a pessoa escolheu
+// de verdade na conta.
+let desktopSettings = {
+  startWithSystem: true,
+  minimizeToTray: true,
+  openLinksInApp: false,
+  confirmOnExit: false,
+};
 
 // Só uma cópia do app rodando por vez — clicar duas vezes no atalho (ou o
 // Windows tentando abrir de novo no login enquanto já tá aberto) só traz
@@ -32,6 +48,27 @@ if (!gotLock) {
       mainWindow.focus();
     }
   });
+
+  // Item pedido: "Confirmar antes de sair... Pede confirmação ao
+  // tentar fechar o aplicativo" — ponto único de saída de verdade,
+  // usado tanto pelo botão "Sair" da bandeja quanto pelo "X" da janela
+  // quando "Minimizar para a bandeja" está desligado. Só pergunta se
+  // confirmOnExit estiver ligado — senão sai direto, como sempre foi.
+  async function confirmAndQuit() {
+    if (desktopSettings.confirmOnExit) {
+      const result = await dialog.showMessageBox(mainWindow || undefined, {
+        type: 'question',
+        buttons: ['Cancelar', 'Sair'],
+        defaultId: 1,
+        cancelId: 0,
+        title: 'Sair do Project Club',
+        message: 'Tem certeza que quer sair do Project Club?',
+      });
+      if (result.response !== 1) return;
+    }
+    isQuitting = true;
+    app.quit();
+  }
 
   // Abre uma janelinha própria de seleção de tela/janela pra compartilhar
   // — mostra uma miniatura de cada opção disponível (telas inteiras +
@@ -260,27 +297,38 @@ if (!gotLock) {
       });
     });
 
-    // Permite abrir links que o próprio app tenta abrir numa aba nova
-    // (ex: conexões do perfil) no navegador padrão do sistema, em vez de
-    // abrir uma segunda janela do Electron sem toolbar nem barra de
-    // endereço — bem mais seguro pra sites externos.
+    // Item pedido: "Abrir links no aplicativo... Links clicados dentro
+    // do Project Club abrem numa janela do próprio app em vez do
+    // navegador padrão" — quando openLinksInApp está ligado, deixa o
+    // Electron abrir a própria janela nova dele (comportamento padrão,
+    // 'allow') em vez de mandar pro navegador do sistema. Links que já
+    // apontam pro próprio site sempre abrem dentro, independente dessa
+    // configuração — só é sobre links EXTERNOS.
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
       if (!url.startsWith(APP_URL)) {
+        if (desktopSettings.openLinksInApp) {
+          return { action: 'allow' };
+        }
         shell.openExternal(url);
         return { action: 'deny' };
       }
       return { action: 'allow' };
     });
 
-    // Fechar a janela (o "X" do canto) só ESCONDE ela — o app continua
-    // rodando de verdade na bandeja (é isso que permite "ficar em segundo
-    // plano sem precisar deixar uma janela aberta"). Só encerra de
-    // verdade pelo menu da bandeja ("Sair") ou fechando o Windows.
+    // Item pedido: "Minimizar para bandeja... Ao fechar a janela, o
+    // app continua rodando na bandeja do sistema em vez de encerrar" —
+    // com a configuração LIGADA (padrão), fechar só esconde. Desligada,
+    // o "X" da janela passa a encerrar o app de verdade (respeitando
+    // "Confirmar antes de sair", se também estiver ligado).
     mainWindow.on('close', (e) => {
-      if (!isQuitting) {
+      if (isQuitting) return;
+      if (desktopSettings.minimizeToTray === false) {
         e.preventDefault();
-        mainWindow.hide();
+        confirmAndQuit();
+        return;
       }
+      e.preventDefault();
+      mainWindow.hide();
     });
   }
 
@@ -296,10 +344,11 @@ if (!gotLock) {
         checked: app.getLoginItemSettings().openAtLogin,
         click: (item) => {
           app.setLoginItemSettings({ openAtLogin: item.checked, openAsHidden: true });
+          desktopSettings.startWithSystem = item.checked;
         },
       },
       { type: 'separator' },
-      { label: 'Sair', click: () => { isQuitting = true; app.quit(); } },
+      { label: 'Sair', click: () => { confirmAndQuit(); } },
     ]);
     tray.setContextMenu(menu);
     tray.on('click', () => { mainWindow.show(); mainWindow.focus(); });
@@ -338,6 +387,22 @@ if (!gotLock) {
   ipcMain.handle('set-unread-count', (_event, count) => {
     if (!mainWindow) return;
     mainWindow.setOverlayIcon(count > 0 ? badgeIcon : null, count > 0 ? `${count} não lida(s)` : '');
+  });
+
+  // Item pedido: "Sistema... Iniciar com o sistema... Minimizar para
+  // bandeja... Abrir links no aplicativo... Confirmar saída" — recebe
+  // o UserSettings de verdade da conta (ver preload.js/useStore.js) e
+  // aplica na hora. startWithSystem já mexe no login item do Windows
+  // assim que chega (não precisa esperar reiniciar o app pra valer);
+  // os outros três só mudam o COMPORTAMENTO de coisas que só acontecem
+  // depois (fechar a janela, abrir um link, sair) — não têm "efeito
+  // imediato" nenhum pra aplicar na hora que chegam.
+  ipcMain.on('settings:update', (_event, settings) => {
+    if (!settings || typeof settings !== 'object') return;
+    desktopSettings = { ...desktopSettings, ...settings };
+    if (typeof settings.startWithSystem === 'boolean') {
+      app.setLoginItemSettings({ openAtLogin: settings.startWithSystem, openAsHidden: true });
+    }
   });
 
   // Item pedido: "compartilhar tela não funciona no .exe" — o Electron
@@ -585,7 +650,10 @@ if (!gotLock) {
     setupAutoUpdater();
 
     // Configura a inicialização automática já na primeira execução — a
-    // pessoa não precisa achar isso em nenhum menu escondido.
+    // pessoa não precisa achar isso em nenhum menu escondido. Isso é só
+    // o valor PADRÃO até o primeiro settings:update chegar de verdade
+    // da conta (ver ipcMain.on('settings:update') acima) — uma vez que
+    // a pessoa mexer na configuração de verdade, aquele valor manda.
     if (!app.getLoginItemSettings().openAtLogin) {
       app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true });
     }
@@ -610,7 +678,8 @@ if (!gotLock) {
     // Não faz nada — no Windows/Linux isso normalmente encerraria o app,
     // mas aqui a janela só se ESCONDE (ver mainWindow.on('close') acima),
     // então esse evento só dispara de verdade quando a pessoa realmente
-    // pediu pra sair pelo menu da bandeja.
+    // pediu pra sair (confirmAndQuit já definiu isQuitting/chamou
+    // app.quit() antes disso rodar).
   });
 
   app.on('before-quit', () => { isQuitting = true; });
