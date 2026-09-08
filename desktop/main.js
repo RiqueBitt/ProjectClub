@@ -23,12 +23,19 @@ let isQuitting = false;
 // reiniciar o app inteiro pra isso valer.
 let activityCallback = null;
 let activityDetectionRunning = false;
+// Item pedido: "Sobreposição no jogo (overlay)... Mostra mensagens e
+// notificações por cima do jogo enquanto você joga" — a notificação da
+// overlay só deve aparecer enquanto a pessoa está DE VERDADE dentro de
+// um jogo (não em qualquer app comum, nem sem nada aberto) — guardado
+// aqui pra showOverlayNotification poder checar isso na hora.
+let currentActivity = null;
 
 // Item pedido: "Sistema... Geral... Iniciar com o sistema... Minimizar
 // para bandeja... Abrir links no aplicativo... Confirmar saída" e
-// "Jogos e apps... Detecção automática de jogos" — os valores de
-// verdade vêm do UserSettings da conta (ver settingsController.js no
-// backend + UserSettingsModal.jsx no site), enviados aqui via IPC (ver
+// "Jogos e apps... Detecção automática de jogos... Sobreposição no
+// jogo... Notificações na sobreposição" — os valores de verdade vêm do
+// UserSettings da conta (ver settingsController.js no backend +
+// UserSettingsModal.jsx no site), enviados aqui via IPC (ver
 // preload.js: window.electronAPI.updateSettings) toda vez que a tela
 // de Configurações carrega ou muda algo. Os padrões abaixo só valem
 // ANTES do primeiro aviso chegar (login ainda carregando) — depois
@@ -39,6 +46,8 @@ let desktopSettings = {
   openLinksInApp: false,
   confirmOnExit: false,
   gameDetectionEnabled: true,
+  overlayEnabled: false,
+  overlayNotifications: false,
 };
 
 // Só uma cópia do app rodando por vez — clicar duas vezes no atalho (ou o
@@ -91,11 +100,81 @@ if (!gotLock) {
     } else if (!shouldRun && activityDetectionRunning) {
       activityDetectionRunning = false;
       stopActivityDetection();
+      currentActivity = null;
       // Avisa o site que a atividade parou (senão o "jogando X" antigo
       // continuaria aparecendo pro resto da comunidade até expirar
       // sozinho no servidor).
       mainWindow.webContents.send('activity:detected', null);
     }
+  }
+
+  // Item pedido: "Sobreposição no jogo (overlay)... Mostra mensagens e
+  // notificações por cima do jogo enquanto você joga... Nova mensagem,
+  // menção, convite, pedido de amizade e entrada em chamada aparecem
+  // na overlay." — janelinha própria, transparente, sempre no topo, que
+  // NÃO rouba o foco (showInactive) nem intercepta clique nenhum
+  // (setIgnoreMouseEvents), pra nunca atrapalhar o jogo por baixo dela.
+  // Só aparece quando: 1) a pessoa ligou overlayEnabled E
+  // overlayNotifications, e 2) a detecção de atividade confirma que um
+  // JOGO de verdade está rodando agora (não qualquer app, nem nada) —
+  // fora disso, a notificação comum da bandeja/nativa já dá conta
+  // (ver SocketContext.jsx).
+  function showOverlayNotification(payload) {
+    if (!desktopSettings.overlayEnabled || !desktopSettings.overlayNotifications) return;
+    if (!currentActivity || currentActivity.type !== 'game') return;
+
+    const display = screen.getPrimaryDisplay();
+    const width = 320;
+    const height = 76;
+    const overlayWindow = new BrowserWindow({
+      width, height, resizable: false, minimizable: false, maximizable: false,
+      focusable: false, frame: false, transparent: true, alwaysOnTop: true,
+      skipTaskbar: true, hasShadow: false,
+      x: display.workArea.x + display.workArea.width - width - 24,
+      y: display.workArea.y + 24,
+      webPreferences: { contextIsolation: true, nodeIntegration: false },
+    });
+    // 'screen-saver' é o nível mais alto do Electron pra always-on-top —
+    // sem isso, muitos jogos em tela cheia exclusiva (não "sem bordas")
+    // continuam desenhando por cima de QUALQUER janela comum do Windows,
+    // overlay incluído.
+    overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+    overlayWindow.setIgnoreMouseEvents(true);
+
+    const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').slice(0, 200);
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: transparent; font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+        display: flex; align-items: flex-start; justify-content: flex-end;
+      }
+      .toast {
+        background: rgba(30, 31, 34, 0.94); color: #f2f3f5; border-radius: 10px; padding: 12px 14px;
+        border: 1px solid rgba(255,255,255,0.08); width: 100%; box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+        animation: fadeIn .15s ease;
+      }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+      .title { font-size: 13px; font-weight: 700; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .body { font-size: 12px; color: #b5bac1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    </style></head><body>
+      <div class="toast">
+        <div class="title">${esc(payload.title)}</div>
+        ${payload.body ? `<div class="body">${esc(payload.body)}</div>` : ''}
+      </div>
+    </body></html>`;
+
+    const htmlPath = path.join(app.getPath('temp'), `project-club-overlay-${Date.now()}.html`);
+    fs.writeFileSync(htmlPath, html, 'utf-8');
+    overlayWindow.loadFile(htmlPath).then(() => {
+      overlayWindow.showInactive();
+    });
+
+    // Some sozinha depois de alguns segundos — não é uma central de
+    // notificações persistente, só um aviso rápido, igual o overlay do
+    // Discord/Steam fazem.
+    setTimeout(() => {
+      if (!overlayWindow.isDestroyed()) overlayWindow.close();
+    }, 5000);
   }
 
   // Abre uma janelinha própria de seleção de tela/janela pra compartilhar
@@ -322,8 +401,12 @@ if (!gotLock) {
     // aplicativo '.exe'" — só liga de verdade se a preferência (vinda
     // da conta, ver applyGameDetectionSetting acima) permitir; guarda o
     // callback pra poder ligar/desligar depois sem reiniciar o app.
+    // Também guarda a atividade atual (currentActivity) — é isso que
+    // showOverlayNotification usa pra saber se um JOGO de verdade está
+    // rodando agora, antes de decidir mostrar a overlay.
     mainWindow.webContents.once('did-finish-load', () => {
       activityCallback = (activity) => {
+        currentActivity = activity;
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('activity:detected', activity);
         }
@@ -432,7 +515,9 @@ if (!gotLock) {
   // openLinksInApp/confirmOnExit só mudam o COMPORTAMENTO de coisas que
   // só acontecem depois (fechar a janela, abrir um link, sair);
   // gameDetectionEnabled já liga/desliga o laço de detecção na hora,
-  // via applyGameDetectionSetting.
+  // via applyGameDetectionSetting. overlayEnabled/overlayNotifications
+  // não precisam de nenhuma ação imediata aqui — só são lidos na hora
+  // que showOverlayNotification é chamada.
   ipcMain.on('settings:update', (_event, settings) => {
     if (!settings || typeof settings !== 'object') return;
     desktopSettings = { ...desktopSettings, ...settings };
@@ -442,6 +527,19 @@ if (!gotLock) {
     if (typeof settings.gameDetectionEnabled === 'boolean') {
       applyGameDetectionSetting();
     }
+  });
+
+  // Item pedido: "Sobreposição no jogo (overlay)... Nova mensagem,
+  // menção, convite, pedido de amizade e entrada em chamada aparecem
+  // na overlay" — o site chama isso (ver window.electronAPI.
+  // showOverlayNotification em preload.js, disparado pelo mesmo
+  // notifyUser() de SocketContext.jsx que já mostra a notificação
+  // nativa comum) toda vez que uma dessas notificações acontece;
+  // showOverlayNotification decide sozinha se deve aparecer de
+  // verdade (overlayEnabled + overlayNotifications ligados, E um jogo
+  // de verdade detectado agora).
+  ipcMain.on('overlay:notify', (_event, payload) => {
+    if (payload && typeof payload === 'object') showOverlayNotification(payload);
   });
 
   // Item pedido: "compartilhar tela não funciona no .exe" — o Electron
