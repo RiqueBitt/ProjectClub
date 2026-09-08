@@ -1506,12 +1506,86 @@ export default function UserSettingsModal({ onClose }) {
         </div>
       )}
 
+      {/* Item pedido: "Sistema... Geral... Iniciar com o sistema...
+          Minimizar para bandeja... Abrir links no aplicativo...
+          Confirmar saída... Essas funções podem existir no '.exe'
+          sem necessariamente existirem na versão web" — mesmo padrão
+          de Idioma/Acessibilidade/Privacidade/Notificações acima
+          (userSettings/updateUserSetting, já validado em
+          settingsController.js). A preferência é salva igual em
+          qualquer plataforma (sincroniza entre dispositivos, como
+          pedido na seção 7), mas só o app ".exe" de fato lê e aplica
+          esses valores (bandeja do sistema, abrir link externo
+          dentro do próprio app, etc) — no navegador eles ficam
+          salvos sem efeito nenhum, o que é esperado. Atalhos
+          personalizados (UserShortcut) não entraram aqui: o modelo já
+          existe no banco, mas ainda falta a API própria (GET/POST/
+          DELETE com checagem de conflito de combinação) — fica para
+          uma próxima parte. */}
+      {tab === 'SYSTEM' && (
+        <div className="settings-grid">
+          {!userSettings ? <div className="dim">Carregando...</div> : (
+            <>
+              <div className="settings-block settings-toggle-row">
+                <div>
+                  <h4>Iniciar com o sistema</h4>
+                  <p className="dim">Abre o Project Club automaticamente quando o computador liga. Só tem efeito no aplicativo ".exe".</p>
+                </div>
+                <button
+                  type="button" className={`toggle-switch ${userSettings.startWithSystem ? 'on' : ''}`}
+                  onClick={() => updateUserSetting('startWithSystem', !userSettings.startWithSystem)}
+                />
+              </div>
+              <div className="settings-block settings-toggle-row">
+                <div>
+                  <h4>Minimizar para a bandeja</h4>
+                  <p className="dim">Ao fechar a janela, o app continua rodando na bandeja do sistema em vez de encerrar. Só tem efeito no ".exe".</p>
+                </div>
+                <button
+                  type="button" className={`toggle-switch ${userSettings.minimizeToTray ? 'on' : ''}`}
+                  onClick={() => updateUserSetting('minimizeToTray', !userSettings.minimizeToTray)}
+                />
+              </div>
+              <div className="settings-block settings-toggle-row">
+                <div>
+                  <h4>Abrir links no aplicativo</h4>
+                  <p className="dim">Links clicados dentro do Project Club abrem numa janela do próprio app em vez do navegador padrão. Só tem efeito no ".exe".</p>
+                </div>
+                <button
+                  type="button" className={`toggle-switch ${userSettings.openLinksInApp ? 'on' : ''}`}
+                  onClick={() => updateUserSetting('openLinksInApp', !userSettings.openLinksInApp)}
+                />
+              </div>
+              <div className="settings-block settings-toggle-row">
+                <div>
+                  <h4>Confirmar antes de sair</h4>
+                  <p className="dim">Pede confirmação ao tentar fechar o aplicativo. Só tem efeito no ".exe".</p>
+                </div>
+                <button
+                  type="button" className={`toggle-switch ${userSettings.confirmOnExit ? 'on' : ''}`}
+                  onClick={() => updateUserSetting('confirmOnExit', !userSettings.confirmOnExit)}
+                />
+              </div>
+              <div className="settings-block settings-toggle-row">
+                <div>
+                  <h4>Modo desenvolvedor</h4>
+                  <p className="dim">Mostra IDs e informações técnicas extras em menus de contexto (canais, mensagens, usuários).</p>
+                </div>
+                <button
+                  type="button" className={`toggle-switch ${userSettings.developerMode ? 'on' : ''}`}
+                  onClick={() => updateUserSetting('developerMode', !userSettings.developerMode)}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Item pedido: "não desenvolver todas as telas simultaneamente"
-          — Sistema e Jogos e apps ainda não foram implementados de
-          verdade nesta fase (só a navegação até eles já existe) —
-          ficam pras próximas fases, na mesma ordem que o próprio
-          pedido definiu. */}
-      {(tab === 'SYSTEM' || tab === 'GAMES') && (
+          — Jogos e apps ainda não foi implementado de verdade nesta
+          fase (só a navegação até ele já existe) — fica pra próxima
+          fase, na mesma ordem que o próprio pedido definiu. */}
+      {tab === 'GAMES' && (
         <div className="settings-grid">
           <div className="settings-block">
             <p className="dim">Essa parte das Configurações ainda está sendo construída — chega numa próxima atualização.</p>
