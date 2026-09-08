@@ -473,10 +473,20 @@ async function hasFullProfileAccess(viewerId, targetId) {
   });
   if (friendship) return true;
 
-  // "friends_groups" tratado como equivalente a "friends" por
-  // enquanto — checar grupo (clã) compartilhado de verdade fica para
-  // uma próxima parte, quando essa integração com o sistema de clãs
-  // for feita com cuidado.
+  // Item pedido: "Pessoas dos meus grupos" — no Project Club, o único
+  // conceito de "grupo" que já existe de verdade (fora de amizade) é
+  // o clã (User.clanId, ver clanController.js). Duas pessoas
+  // "compartilham grupo" quando estão no mesmo clã, e um clã sempre
+  // tem no máximo um dono/membros — nunca null pra dois lados
+  // diferentes contarem como "compartilhado" por engano.
+  if (profilePrivacy === 'friends_groups') {
+    const [viewer, target] = await Promise.all([
+      prisma.user.findUnique({ where: { id: viewerId }, select: { clanId: true } }),
+      prisma.user.findUnique({ where: { id: targetId }, select: { clanId: true } }),
+    ]);
+    if (viewer?.clanId && target?.clanId && viewer.clanId === target.clanId) return true;
+  }
+
   return false;
 }
 
@@ -699,5 +709,5 @@ async function setDisplayedAchievements(req, res, next) {
 module.exports = {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, uploadIdCard, removeIdCard,
   setStatus, setCustomStatus, searchUsers, getUser, setActiveTag, voteProfile, setPreferredTheme, setEmojiStyle, setChatZoom,
-  setDisplayedAchievements,
+  setDisplayedAchievements, hasFullProfileAccess,
 };
