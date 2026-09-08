@@ -3,6 +3,7 @@ const ctrl = require('../controllers/userController');
 const settingsCtrl = require('../controllers/settingsController');
 const emojiCtrl = require('../controllers/emojiController');
 const gifCtrl = require('../controllers/gifController');
+const gamesCtrl = require('../controllers/gamesController');
 const { requireAuth } = require('../middleware/auth');
 const { uploadImage } = require('../middleware/upload');
 
@@ -33,6 +34,12 @@ router.get('/me/usable-emojis', emojiCtrl.listUsableEmojis);
 router.get('/me/favorite-gifs', gifCtrl.listFavoriteGifs);
 router.post('/me/favorite-gifs', gifCtrl.addFavoriteGif);
 router.delete('/me/favorite-gifs/:gifId', gifCtrl.removeFavoriteGif);
+// Item pedido: "Jogos adicionados... Minecraft [Remover], Palworld
+// [Remover]" — mesmo padrão de favorite-gifs acima (lista/adiciona/
+// remove, escopado ao próprio usuário).
+router.get('/me/games', gamesCtrl.listMyGames);
+router.post('/me/games', gamesCtrl.addGame);
+router.delete('/me/games/:id', gamesCtrl.removeGame);
 router.get('/search', ctrl.searchUsers);
 router.get('/:id', ctrl.getUser);
 router.post('/:id/vote', ctrl.voteProfile);
