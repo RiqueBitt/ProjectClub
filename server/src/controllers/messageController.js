@@ -21,6 +21,62 @@ const MAX_FORUM_POST_REACTIONS = 5;
 // shortlist, not a general reaction picker.
 const MAX_FORUM_QUICK_REACTIONS = 3;
 
+// Item pedido: "Filtro de spam... verificar frequência, verificar
+// repetição... Esses limites são proteção do sistema, não apenas uma
+// configuração visual." — por isso NÃO fica atrás do toggle
+// spamFilterEnabled das Configurações (esse toggle é uma preferência
+// pessoal de outra coisa — ver settingsController.js — enquanto isto
+// aqui é proteção de todo mundo contra flood, sempre ativa). Limites
+// simples e fixos por enquanto: N mensagens numa janela curta, e
+// mensagem idêntica repetida rápido demais no mesmo lugar.
+const SPAM_WINDOW_MS = 4000;
+const SPAM_MAX_IN_WINDOW = 5;
+const SPAM_REPEAT_WINDOW_MS = 10000;
+
+async function checkSpamLimits(req, { conversationId, channelId }, content) {
+  const where = { authorId: req.user.id, conversationId: conversationId || undefined, channelId: channelId || undefined };
+  const since = new Date(Date.now() - SPAM_WINDOW_MS);
+  const recentCount = await prisma.message.count({ where: { ...where, createdAt: { gt: since } } });
+  if (recentCount >= SPAM_MAX_IN_WINDOW) {
+    const e = new Error('Você está enviando mensagens rápido demais. Espere um instante.');
+    e.status = 429;
+    throw e;
+  }
+  if (content) {
+    const last = await prisma.message.findFirst({ where, orderBy: { createdAt: 'desc' }, select: { content: true, createdAt: true } });
+    if (last && last.content === content && (Date.now() - new Date(last.createdAt).getTime()) < SPAM_REPEAT_WINDOW_MS) {
+      const e = new Error('Você acabou de mandar essa mesma mensagem.');
+      e.status = 429;
+      throw e;
+    }
+  }
+}
+
+// Item pedido: "Filtro de conteúdo... Desativado / Moderado / Alto...
+// O sistema deve determinar se a mensagem deve: ser exibida / ser
+// ocultada / mostrar aviso... dependendo da configuração." — aplicado
+// na LEITURA (quem está vendo é quem escolheu o próprio nível), não
+// no envio: a mesma mensagem pode aparecer normal pra uma pessoa e
+// oculta pra outra. Reaproveita a mesma lista de palavras sinalizadas
+// que o automod de DM já usa (dmAutomod.checkFlaggedWord) — não existe
+// ainda uma lista/serviço de moderação de conteúdo dedicado; expandir
+// isso é trabalho à parte.
+function applyContentFilter(messages, level) {
+  if (!level || level === 'off') return messages;
+  return messages.map((m) => {
+    if (!m.content) return m;
+    const flag = dmAutomod.checkFlaggedWord(m.content);
+    if (!flag) return m;
+    if (level === 'high') {
+      return { ...m, content: null, contentFiltered: true };
+    }
+    // 'moderate' — mantém o conteúdo, só sinaliza pro cliente mostrar
+    // um aviso (a decisão de exibir borrado/com clique-pra-revelar
+    // fica pro frontend, quando essa parte for feita).
+    return { ...m, contentFlagged: true };
+  });
+}
+
 const messageInclude = {
   author: { select: PUBLIC_USER_FIELDS },
   attachments: true,
@@ -47,12 +103,6 @@ async function assertAccess(req, { conversationId, channelId }, requireSend = fa
     // conversa, repetida aqui porque enviar uma mensagem numa conversa
     // já existente é outro ponto de entrada separado (ex: a pessoa
     // muda de 'everyone' pra 'none' DEPOIS que a conversa já existia).
-    // BUG EVITADO: antes essa checagem aqui era sempre "precisa ser
-    // amigo", travado no código — mesmo com dmPrivacy = 'everyone' a
-    // conversa era criada normalmente (createConversation já lia a
-    // configuração), mas enviar a primeira mensagem nela estourava
-    // 403 de qualquer jeito, porque este segundo gate nunca tinha
-    // sido atualizado junto.
     if (requireSend) {
       const conversation = await prisma.conversation.findUnique({
         where: { id: conversationId },
@@ -134,6 +184,8 @@ async function listMessages(req, res, next) {
   try {
     const { conversationId, channelId, topLevelOnly, threadId } = req.query;
     await assertAccess(req, { conversationId, channelId });
+    const myFilter = await prisma.userSettings.findUnique({ where: { userId: req.user.id }, select: { contentFilterLevel: true } });
+    const filterLevel = myFilter?.contentFilterLevel || 'off';
 
     if (threadId) {
       // Whole thread: the root post + every reply to it (forum channels).
@@ -142,7 +194,7 @@ async function listMessages(req, res, next) {
         include: messageInclude,
         orderBy: { createdAt: 'asc' },
       });
-      return res.json({ messages });
+      return res.json({ messages: applyContentFilter(messages, filterLevel) });
     }
 
     const before = req.query.before ? new Date(req.query.before) : undefined;
@@ -158,7 +210,7 @@ async function listMessages(req, res, next) {
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
-    res.json({ messages: messages.reverse() });
+    res.json({ messages: applyContentFilter(messages.reverse(), filterLevel) });
   } catch (err) { next(err); }
 }
 
@@ -176,6 +228,15 @@ async function createMessage(req, res, next) {
     const { conversationId, channelId, replyToId, title } = req.body;
     let { content } = req.body;
     const access = await assertAccess(req, { conversationId, channelId }, true);
+
+    // Item pedido: "Filtro de spam... proteção do sistema" — checado
+    // logo após confirmar que a pessoa TEM acesso pra enviar, e antes
+    // de qualquer processamento mais pesado (upload, automod, etc).
+    // Moderadores de canal (MANAGE_MESSAGES) ficam de fora do limite,
+    // mesmo raciocínio do Modo Lento acima.
+    if (!(access?.perms && has(access.perms, 'MANAGE_MESSAGES'))) {
+      await checkSpamLimits(req, { conversationId, channelId }, content || null);
+    }
 
     // Embed builder (see EmbedBuilderModal.jsx) — arrives as a JSON string
     // because this whole endpoint is always multipart/form-data (it also
@@ -632,6 +693,8 @@ async function searchMessages(req, res, next) {
     await assertAccess(req, { conversationId, channelId });
     if (!q || q.trim().length < 2) return res.json({ messages: [] });
 
+    const myFilter = await prisma.userSettings.findUnique({ where: { userId: req.user.id }, select: { contentFilterLevel: true } });
+
     const messages = await prisma.message.findMany({
       where: {
         conversationId: conversationId || undefined,
@@ -643,7 +706,7 @@ async function searchMessages(req, res, next) {
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
-    res.json({ messages });
+    res.json({ messages: applyContentFilter(messages, myFilter?.contentFilterLevel || 'off') });
   } catch (err) { next(err); }
 }
 
