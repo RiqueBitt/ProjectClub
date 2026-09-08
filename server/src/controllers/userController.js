@@ -449,6 +449,37 @@ async function searchUsers(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Item pedido: "Privacidade do perfil... Quem pode visualizar meu
+// perfil completo?... O servidor deve verificar essa configuração
+// antes de devolver informações." — decide se QUEM ESTÁ PEDINDO tem
+// direito de ver o perfil completo de `targetId`, sem nunca confiar
+// em nada vindo do frontend (nem no id do próprio front, que já vem
+// de req.params — mas a DECISÃO em si é sempre recalculada aqui, no
+// servidor).
+async function hasFullProfileAccess(viewerId, targetId) {
+  if (viewerId === targetId) return true;
+  const settings = await prisma.userSettings.findUnique({ where: { userId: targetId }, select: { profilePrivacy: true } });
+  const profilePrivacy = settings?.profilePrivacy || 'everyone';
+  if (profilePrivacy === 'everyone') return true;
+
+  const friendship = await prisma.friendship.findFirst({
+    where: {
+      status: 'ACCEPTED',
+      OR: [
+        { requesterId: viewerId, addresseeId: targetId },
+        { requesterId: targetId, addresseeId: viewerId },
+      ],
+    },
+  });
+  if (friendship) return true;
+
+  // "friends_groups" tratado como equivalente a "friends" por
+  // enquanto — checar grupo (clã) compartilhado de verdade fica para
+  // uma próxima parte, quando essa integração com o sistema de clãs
+  // for feita com cuidado.
+  return false;
+}
+
 // Full profile view (used by the "click an avatar" modal) — public fields
 // plus badges, account age, and — when viewing someone other than yourself —
 // servers and friends you have in common. Kept as one endpoint instead of
@@ -460,11 +491,37 @@ async function getUser(req, res, next) {
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
     if (!user.publicId) user.publicId = await ensurePublicId(user.id, user.publicId);
 
+    const fullAccess = await hasFullProfileAccess(req.user.id, id);
+    // Item pedido: "O Discord atualmente diferencia informações que
+    // podem continuar públicas, como avatar, banner, nome e idade da
+    // conta, das informações ocultadas pela privacidade do perfil...
+    // definir explicitamente quais campos entram em cada nível." —
+    // avatar/banner/nome/idCard/tags/nível continuam vindo de
+    // PUBLIC_USER_FIELDS normalmente (são mostrados em listas de
+    // membros/mensagens pra qualquer um de qualquer forma); só o que é
+    // exclusivo da TELA de perfil completo (bio, conexões, status
+    // personalizado, ordem de seções) é apagado aqui quando a pessoa
+    // não tem acesso.
+    if (!fullAccess) {
+      user.bio = null;
+      user.pronouns = null;
+      user.customStatus = null;
+      user.customStatusEmoji = null;
+      user.customStatusExpiresAt = null;
+      user.youtubeUrl = null;
+      user.steamUrl = null;
+      user.robloxUrl = null;
+      user.xUrl = null;
+      user.profileSectionOrder = null;
+      user.displayedAchievements = '[]';
+      user.displayedAchievementsMini = '[]';
+    }
+
     // Item pedido: status de relacionamento — busca os dados do
     // parceiro só se existir um confirmado (evita uma query aninhada
     // desnecessária pro caso comum de não ter parceiro nenhum).
     let relationshipPartner = null;
-    if (user.relationshipPartnerId) {
+    if (fullAccess && user.relationshipPartnerId) {
       relationshipPartner = await prisma.user.findUnique({
         where: { id: user.relationshipPartnerId },
         select: { id: true, displayName: true, username: true, avatarUrl: true, profileColor: true },
@@ -475,7 +532,7 @@ async function getUser(req, res, next) {
     // a data completa (nem no PUBLIC_USER_FIELDS genérico) — evita
     // expor a idade da pessoa em qualquer resposta de perfil.
     let isBirthdayToday = false;
-    {
+    if (fullAccess) {
       const rawUser = await prisma.user.findUnique({ where: { id }, select: { birthDate: true } });
       if (rawUser?.birthDate) {
         const today = new Date();
@@ -484,7 +541,9 @@ async function getUser(req, res, next) {
       }
     }
 
-    const badgeRows = await prisma.userBadge.findMany({ where: { userId: id }, include: { badge: true }, orderBy: { badge: { priority: 'asc' } } });
+    const badgeRows = fullAccess
+      ? await prisma.userBadge.findMany({ where: { userId: id }, include: { badge: true }, orderBy: { badge: { priority: 'asc' } } })
+      : [];
     // awardedAt lives on the UserBadge join row (when THIS user unlocked it),
     // not on the Badge itself (which is shared across everyone who has it) —
     // has to be merged in by hand or the "Data desbloqueada" on the badge
@@ -492,7 +551,7 @@ async function getUser(req, res, next) {
     const badges = badgeRows.map((b) => ({ ...b.badge, awardedAt: b.awardedAt }));
 
     let mutualFriends = [];
-    if (id !== req.user.id) {
+    if (fullAccess && id !== req.user.id) {
       const [myFriendships, theirFriendships] = await Promise.all([
         prisma.friendship.findMany({
           where: { status: 'ACCEPTED', OR: [{ requesterId: req.user.id }, { addresseeId: req.user.id }] },
@@ -530,17 +589,19 @@ async function getUser(req, res, next) {
     // precisa de uma segunda chamada só pra isso.
     let displayedAchievements = [];
     let displayedAchievementsMini = [];
-    try {
-      const profileKeys = JSON.parse(user.displayedAchievements || '[]');
-      const miniKeys = JSON.parse(user.displayedAchievementsMini || '[]');
-      const allKeys = [...new Set([...profileKeys, ...miniKeys])];
-      if (allKeys.length > 0) {
-        const defs = await prisma.achievement.findMany({ where: { key: { in: allKeys } } });
-        const byKey = Object.fromEntries(defs.map((d) => [d.key, d]));
-        displayedAchievements = profileKeys.map((k) => byKey[k]).filter(Boolean);
-        displayedAchievementsMini = miniKeys.map((k) => byKey[k]).filter(Boolean);
-      }
-    } catch { /* JSON inválido — trata como vazio */ }
+    if (fullAccess) {
+      try {
+        const profileKeys = JSON.parse(user.displayedAchievements || '[]');
+        const miniKeys = JSON.parse(user.displayedAchievementsMini || '[]');
+        const allKeys = [...new Set([...profileKeys, ...miniKeys])];
+        if (allKeys.length > 0) {
+          const defs = await prisma.achievement.findMany({ where: { key: { in: allKeys } } });
+          const byKey = Object.fromEntries(defs.map((d) => [d.key, d]));
+          displayedAchievements = profileKeys.map((k) => byKey[k]).filter(Boolean);
+          displayedAchievementsMini = miniKeys.map((k) => byKey[k]).filter(Boolean);
+        }
+      } catch { /* JSON inválido — trata como vazio */ }
+    }
 
     // Progresso até o próximo nível (pra barra de progresso no perfil).
     const { LEVELS, nextLevel } = require('../data/levelsCatalog');
@@ -553,13 +614,19 @@ async function getUser(req, res, next) {
       levelProgress = Math.max(0, Math.min(100, Math.floor((xpInLevel / xpNeeded) * 100)));
     }
 
-    const activity = await activityStore.getActivity(id);
+    const activity = fullAccess ? await activityStore.getActivity(id) : null;
 
     res.json({
       user: clearIfExpired(user), badges, mutualFriends,
       likeCount, dislikeCount, myVote: myVoteRow?.value || 0, levelProgress, totalUps,
       displayedAchievements, displayedAchievementsMini,
       activity, relationshipPartner, isBirthdayToday,
+      // Item pedido: "Não mostrar informações administrativas
+      // internas que não devam ser expostas ao usuário" (mesmo
+      // espírito aqui) — sinaliza pro frontend que esse perfil está
+      // limitado, sem dizer POR QUE nem revelar a configuração exata
+      // de privacidade de quem está sendo visto.
+      profileRestricted: !fullAccess,
     });
   } catch (err) { next(err); }
 }
