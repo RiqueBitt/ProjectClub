@@ -1,0 +1,49 @@
+/* Estilos de JogosPage.jsx — item pedido: "crie uma nova categoria
+   chamada Jogos... dentro de Jogos, crie duas opções: Jogos e
+   Aplicativos". Arquivo próprio (não em global.css) — importado
+   direto pelo componente, mesmo padrão já usado pra outras telas
+   isoladas deste projeto. */
+.jogos-page { padding: 24px; overflow-y: auto; height: 100%; max-width: 900px; margin: 0 auto; width: 100%; }
+.jogos-page-header { margin-bottom: 18px; }
+.jogos-page-header h1 { margin: 0 0 4px; font-size: 22px; color: var(--header-primary); }
+
+.jogos-page-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
+.jogos-page-tab {
+  padding: 10px 16px; font-size: 14px; font-weight: 600; color: var(--text-muted);
+  border-bottom: 2px solid transparent; transition: color .12s ease, border-color .12s ease;
+}
+.jogos-page-tab:hover { color: var(--text-normal); }
+.jogos-page-tab.active { color: var(--header-primary); border-bottom-color: var(--brand); }
+
+.jogos-page-grid { display: flex; flex-direction: column; gap: 14px; }
+
+.jogos-page-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 60px 20px; text-align: center; color: var(--text-muted);
+}
+.jogos-page-empty-icon { font-size: 32px; }
+
+.module-card {
+  display: flex; gap: 16px; background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 20px;
+}
+.module-card-icon {
+  width: 56px; height: 56px; flex-shrink: 0; border-radius: 12px; background: var(--bg-secondary-alt, var(--bg-secondary));
+  display: flex; align-items: center; justify-content: center; font-size: 28px;
+}
+.module-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.module-card-body h3 { margin: 0; font-size: 16px; color: var(--header-primary); }
+.module-card-hint { font-style: italic; }
+.module-card-version { margin: 2px 0 0; }
+.module-card-update { color: var(--yellow); margin: 0; }
+.module-card-error { color: var(--red); font-size: 13px; margin: 2px 0 0; }
+.module-card-actions { display: flex; gap: 8px; margin-top: 8px; }
+.module-card-progress { margin-top: 6px; }
+.module-card-progress-label { margin-bottom: 4px; }
+.module-card-progress-bar { height: 6px; border-radius: 3px; background: var(--bg-secondary-alt, var(--bg-secondary)); overflow: hidden; }
+.module-card-progress-bar div { height: 100%; background: var(--brand); border-radius: 3px; transition: width .2s ease; }
+
+@media (max-width: 600px) {
+  .jogos-page { padding: 14px; }
+  .module-card { flex-direction: column; }
+}
