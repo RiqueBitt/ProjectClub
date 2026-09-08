@@ -20,8 +20,18 @@ const SocketContext = createContext(null);
 // mas trabalhando em OUTRA janela por cima (o caso mais comum de
 // verdade), a janela continua "visível" tecnicamente, então nenhuma
 // notificação disparava. document.hasFocus() cobre esse caso também.
+//
+// Item pedido: "Sobreposição no jogo (overlay)... Nova mensagem,
+// menção, convite, pedido de amizade e entrada em chamada aparecem na
+// overlay" — toda notificação que já passa por AQUI (mensagem/menção/
+// chamada/pedido de amizade, ver os pontos que chamam notifyUser mais
+// abaixo) também é repassada pro app de desktop, que decide sozinho
+// (ver desktop/main.js) se deve aparecer de verdade por cima do jogo.
+// Sem efeito nenhum fora do app desktop (window.electronAPI não existe
+// no navegador comum/celular).
 function notifyUser(title, body, onClick) {
   useStore.getState().pushNotice(body ? `${title}: ${body}` : title);
+  window.electronAPI?.showOverlayNotification?.({ title, body });
   const isHiddenOrUnfocused = typeof document !== 'undefined'
     && (document.visibilityState === 'hidden' || !document.hasFocus());
   if (isHiddenOrUnfocused && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
@@ -323,7 +333,16 @@ export function SocketProvider({ children }) {
       useStore.getState().pushNotice(msg);
     });
 
-    socket.on('friend:request', () => { playSound('friendRequest'); refreshFriends(); });
+    // Item pedido: "Sobreposição no jogo (overlay)... Pedido de
+    // amizade... aparece na overlay" — antes esse evento só tocava um
+    // som e recarregava a lista, sem nenhuma notificação de verdade
+    // (nativa ou na overlay). Agora usa o mesmo notifyUser() de tudo
+    // mais acima — cobre as duas coisas de uma vez.
+    socket.on('friend:request', ({ from }) => {
+      playSound('friendRequest');
+      refreshFriends();
+      notifyUser('Novo pedido de amizade', from?.displayName ? `${from.displayName} quer ser seu amigo` : undefined, () => navigate('/friends'));
+    });
     socket.on('friend:update', () => refreshFriends());
     socket.on('friend:removed', () => refreshFriends());
 
