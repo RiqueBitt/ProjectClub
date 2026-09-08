@@ -118,7 +118,10 @@ async function assertAccess(req, { conversationId, channelId }, requireSend = fa
           const allowed = await canSendDirectMessage(req.user.id, other.userId);
           if (!allowed) {
             const otherSettings = await prisma.userSettings.findUnique({ where: { userId: other.userId }, select: { dmPrivacy: true } });
-            const dmPrivacy = otherSettings?.dmPrivacy || 'friends';
+            // BUG CORRIGIDO: mesmo desalinhamento já visto em
+            // dmPermissions.js/conversationController.js — o padrão
+            // de verdade no schema é 'everyone', não 'friends'.
+            const dmPrivacy = otherSettings?.dmPrivacy || 'everyone';
             const e = new Error(dmPrivacy === 'none' ? 'Esta pessoa não está aceitando mensagens diretas.' : 'Vocês precisam ser amigos para trocar mensagens diretas.');
             e.status = 403;
             throw e;
@@ -178,7 +181,12 @@ async function listMessages(req, res, next) {
     const { conversationId, channelId, topLevelOnly, threadId } = req.query;
     await assertAccess(req, { conversationId, channelId });
     const myFilter = await prisma.userSettings.findUnique({ where: { userId: req.user.id }, select: { contentFilterLevel: true } });
-    const filterLevel = myFilter?.contentFilterLevel || 'off';
+    // BUG CORRIGIDO: o valor de reserva dizia 'off' (filtro
+    // desativado), mas o padrão de verdade do schema é 'moderate'
+    // (contentFilterLevel @default("moderate")) — pra quem nunca
+    // abriu a tela de Configurações, o filtro ficava desligado por
+    // engano em vez de vir ativado no nível padrão.
+    const filterLevel = myFilter?.contentFilterLevel || 'moderate';
 
     if (threadId) {
       // Whole thread: the root post + every reply to it (forum channels).
@@ -699,7 +707,7 @@ async function searchMessages(req, res, next) {
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
-    res.json({ messages: applyContentFilter(messages, myFilter?.contentFilterLevel || 'off') });
+    res.json({ messages: applyContentFilter(messages, myFilter?.contentFilterLevel || 'moderate') });
   } catch (err) { next(err); }
 }
 

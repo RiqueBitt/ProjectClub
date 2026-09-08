@@ -16,7 +16,13 @@ const prisma = require('../config/prisma');
 async function canSendDirectMessage(senderId, recipientId) {
   if (senderId === recipientId) return true;
   const settings = await prisma.userSettings.findUnique({ where: { userId: recipientId }, select: { dmPrivacy: true } });
-  const dmPrivacy = settings?.dmPrivacy || 'friends';
+  // BUG CORRIGIDO: o valor de reserva aqui (pra quando a pessoa nunca
+  // abriu a tela de Configurações — settings vem null nesse caso)
+  // dizia 'friends', mas o valor padrão de verdade definido no schema
+  // (dmPrivacy @default("everyone")) é 'everyone'. Isso restringia
+  // silenciosamente as DMs de toda conta que nunca mexeu nas
+  // Configurações a só amigos, sem ninguém ter escolhido isso.
+  const dmPrivacy = settings?.dmPrivacy || 'everyone';
   if (dmPrivacy === 'everyone') return true;
   if (dmPrivacy === 'none') return false;
 

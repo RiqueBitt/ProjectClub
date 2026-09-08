@@ -1476,16 +1476,23 @@ export default function UserSettingsModal({ onClose }) {
                   ))}
                 </div>
               </div>
-              <div className="settings-block settings-toggle-row">
-                <div>
-                  <h4>Filtro de spam</h4>
-                  <p className="dim">Limita mensagens repetidas e envios em massa suspeitos.</p>
-                </div>
-                <button
-                  type="button" className={`toggle-switch ${userSettings.spamFilterEnabled ? 'on' : ''}`}
-                  onClick={() => updateUserSetting('spamFilterEnabled', !userSettings.spamFilterEnabled)}
-                />
-              </div>
+              {/* BUG CORRIGIDO ("botão que não muda nada de verdade"):
+                  havia um controle "Filtro de spam" aqui, ligado a
+                  spamFilterEnabled — mas em nenhum lugar do backend
+                  esse campo é lido pra mudar algum comportamento. A
+                  proteção contra flood/repetição de mensagens (ver
+                  checkSpamLimits em messageController.js) é, por
+                  decisão de segurança já registrada em comentário lá,
+                  SEMPRE ativa pra todo mundo, sem depender de
+                  nenhuma preferência pessoal — não é opcional. Mexer
+                  nesse toggle salvava um valor no banco que nunca
+                  mudava nada de verdade, exatamente o tipo de "botão
+                  falso" que o pedido original de Configurações pediu
+                  pra nunca acontecer. Removido daqui até existir uma
+                  camada de verdade pra ele controlar; o campo
+                  continua existindo no banco (spamFilterEnabled), só
+                  não é mostrado como controle até ter um efeito real
+                  ligado a ele. */}
             </>
           )}
         </div>

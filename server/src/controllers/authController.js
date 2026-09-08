@@ -128,6 +128,15 @@ const PUBLIC_USER_FIELDS = {
 const SELF_USER_FIELDS = {
   ...PUBLIC_USER_FIELDS,
   email: true, emailVerified: true, twoFactorEnabled: true,
+  // Item pedido: "Status da conta... Status: Ativa... Restrições:
+  // Nenhuma" — BUG CORRIGIDO: nenhum destes 4 campos estava aqui, só
+  // em queries internas separadas (ex: login) — a tela nova de
+  // Status da conta (UserSettingsModal.jsx) lê esses valores direto
+  // de `user` (que vem daqui, de /auth/me), então sempre mostrava
+  // "Ativa"/"Nenhuma" pra QUALQUER conta, mesmo uma banida, suspensa,
+  // silenciada ou desativada — os campos reais nunca chegavam no
+  // frontend pra essa tela específica ler.
+  isPlatformBanned: true, platformBanReason: true, suspendedUntil: true, timeoutUntil: true, accountDisabledAt: true,
   // Item pedido: aniversário editável em "Editar Perfil" — a data
   // COMPLETA (com ano) só é exposta aqui, no seletor que a própria
   // pessoa usa pra ver os PRÓPRIOS dados (rota /auth/me). Em qualquer

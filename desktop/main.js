@@ -41,13 +41,22 @@ let currentActivity = null;
 // ANTES do primeiro aviso chegar (login ainda carregando) — depois
 // disso, sempre reflete o que a pessoa escolheu de verdade na conta.
 let desktopSettings = {
-  startWithSystem: true,
+  // BUG CORRIGIDO: estes 3 valores estavam diferentes do padrão de
+  // verdade definido no schema (UserSettings, server/prisma/schema.prisma)
+  // — startWithSystem e openLinksInApp/overlayNotifications não
+  // batiam com o @default de cada campo lá. Nunca ficam muito tempo
+  // "errados" na prática (a sincronização real chega logo após o
+  // login), mas ficar consistente com o schema evita qualquer
+  // comportamento estranho na primeira fração de segundo antes dela
+  // chegar, e evita esse tipo de desalinhamento se algo novo passar a
+  // ler esses valores mais cedo no futuro.
+  startWithSystem: false,
   minimizeToTray: true,
-  openLinksInApp: false,
+  openLinksInApp: true,
   confirmOnExit: false,
   gameDetectionEnabled: true,
   overlayEnabled: false,
-  overlayNotifications: false,
+  overlayNotifications: true,
 };
 
 // Só uma cópia do app rodando por vez — clicar duas vezes no atalho (ou o
@@ -169,19 +178,20 @@ if (!gotLock) {
       overlayWindow.showInactive();
     });
 
-    // Some sozinha depois de alguns segundos — não é uma central de
-    // notificações persistente, só um aviso rápido, igual o overlay do
-    // Discord/Steam fazem.
+    // BUG CORRIGIDO (vazamento de arquivos): o .html temporário criado
+    // acima nunca era apagado — só a JANELA fechava depois de alguns
+    // segundos, o arquivo em si ficava esquecido na pasta temp pra
+    // sempre. Com o app recebendo notificação após notificação ao
+    // longo de uma sessão longa, isso ia acumulando um arquivo novo
+    // por notificação, sem limite, na pasta temp do sistema. Apagado
+    // aqui, no mesmo lugar que já fecha a janela — o arquivo só
+    // precisava existir o tempo de loadFile() ler ele uma vez.
     setTimeout(() => {
       if (!overlayWindow.isDestroyed()) overlayWindow.close();
+      fs.unlink(htmlPath, () => {});
     }, 5000);
   }
 
-  // Abre uma janelinha própria de seleção de tela/janela pra compartilhar
-  // — mostra uma miniatura de cada opção disponível (telas inteiras +
-  // janelas de outros programas abertos), a pessoa clica na que quer, e
-  // essa promise resolve com a fonte escolhida (ou null se ela fechar a
-  // janela/cancelar sem escolher nada).
   // Abre uma janelinha própria de seleção de tela/janela pra compartilhar
   // — mostra uma miniatura de cada opção disponível (telas inteiras +
   // janelas de outros programas abertos), a pessoa clica na que quer, e

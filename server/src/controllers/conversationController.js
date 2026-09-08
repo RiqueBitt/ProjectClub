@@ -48,7 +48,11 @@ async function createConversation(req, res, next) {
         const allowed = await canSendDirectMessage(req.user.id, otherId);
         if (!allowed) {
           const settings = await prisma.userSettings.findUnique({ where: { userId: otherId }, select: { dmPrivacy: true } });
-          const dmPrivacy = settings?.dmPrivacy || 'friends';
+          // BUG CORRIGIDO: mesmo desalinhamento já visto em
+          // dmPermissions.js — o valor de reserva aqui dizia
+          // 'friends', mas o padrão de verdade do schema é
+          // 'everyone' (dmPrivacy @default("everyone")).
+          const dmPrivacy = settings?.dmPrivacy || 'everyone';
           return res.status(403).json({
             error: dmPrivacy === 'none' ? 'Esta pessoa não está aceitando novas mensagens diretas.' : 'Vocês precisam ser amigos para iniciar uma conversa direta.',
           });
