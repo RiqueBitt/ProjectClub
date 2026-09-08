@@ -27,6 +27,7 @@ const path = require('path');
 const fs = require('fs');
 const https = require('https');
 const { spawn } = require('child_process');
+const extractZip = require('extract-zip');
 
 // Item pedido: "os arquivos necessários devem ser adicionados dentro da
 // própria pasta de instalação do Project Club... Project Club → arquivos
@@ -35,9 +36,11 @@ const { spawn } = require('child_process');
 // grava em %LOCALAPPDATA%\Programs\..., que é gravável sem elevar
 // permissão nenhuma, então dá pra criar uma subpasta "modules" ali
 // dentro de verdade. Se por algum motivo a pasta de instalação NÃO for
-// gravável (ex: alguém trocou pra instalação "por máquina", feita como
-// administrador), cai pros dados do próprio usuário (userData) em vez
-// de falhar silenciosamente — só muda ONDE fica, nunca quebra.
+// gravável (ex: instalação "por máquina", feita como administrador no
+// Windows, ou um AppImage no Linux — que roda a partir de um ponto de
+// montagem squashfs SOMENTE LEITURA, nunca gravável), cai pros dados do
+// próprio usuário (userData) em vez de falhar silenciosamente — só muda
+// ONDE fica, nunca quebra.
 function resolveModulesRoot() {
   const installDir = path.dirname(app.getPath('exe'));
   try {
@@ -57,13 +60,23 @@ function resolveModulesRoot() {
 // MOSTRA ou GRAVA esse módulo (nome exibido, nome da pasta, nome do
 // executável esperado), ele já é tratado como "ProjectMC" de ponta a
 // ponta, como pedido.
+//
+// Item pedido: "Fassa funcionar no Linux" — exeName agora depende da
+// plataforma: no Windows é um .exe comum; no Linux, o formato de
+// distribuição de app único mais simples pra um app Electron é um
+// AppImage (mesmo formato que o próprio Project Club já usa pra si, ver
+// "linux" em desktop/package.json) — um arquivo binário só, que só
+// precisa de permissão de execução (chmod +x) pra rodar, sem precisar
+// "instalar" nada no sistema. Quem publica os pacotes do ProjectMC
+// precisa nomear os arquivos exatamente assim dentro do .zip de cada
+// plataforma.
 const MODULES = {
   projectmc: {
     displayName: 'ProjectMC',
     description: 'Launcher de Minecraft do Project Club',
     folder: 'ProjectMC',
     manifestUrl: 'https://api.github.com/repos/RiqueBitt/goldapple-launcher-releases/releases/latest',
-    exeName: 'ProjectMC.exe',
+    exeName: { win32: 'ProjectMC.exe', linux: 'ProjectMC.AppImage' },
   },
 };
 
@@ -71,6 +84,16 @@ function getModule(id) {
   const mod = MODULES[id];
   if (!mod) throw new Error(`Módulo desconhecido: ${id}`);
   return mod;
+}
+
+// Item pedido: "Fassa funcionar no Linux" — resolve o nome de arquivo
+// certo pra plataforma atual. Sem entrada pra plataforma atual
+// (ex: macOS, que este projeto não distribui) — erro claro em vez de
+// tentar rodar um binário que não existe.
+function getExeName(mod) {
+  const name = mod.exeName[process.platform];
+  if (!name) throw new Error(`${mod.displayName} não tem um pacote disponível para esta plataforma (${process.platform}).`);
+  return name;
 }
 
 function moduleDir(id) {
@@ -90,7 +113,12 @@ function getInstalledVersion(id) {
 }
 
 function isInstalled(id) {
-  return fs.existsSync(path.join(moduleDir(id), getModule(id).exeName));
+  const mod = getModule(id);
+  try {
+    return fs.existsSync(path.join(moduleDir(id), getExeName(mod)));
+  } catch {
+    return false;
+  }
 }
 
 function getStatus(id) {
@@ -147,10 +175,24 @@ function httpsGet(url, { asJson = false, onProgress } = {}, redirectsLeft = 5) {
 // neutro (version/downloadUrl). Se o manifest de origem mudar de lugar
 // no futuro (um domínio próprio, por exemplo), só esta função precisa
 // mudar — o resto do módulo não sabe nem se importa de onde isso veio.
+//
+// Item pedido: "Fassa funcionar no Linux" — cada plataforma publica seu
+// próprio pacote .zip dentro da mesma release (ex:
+// "projectmc-1.2.0-win.zip" e "projectmc-1.2.0-linux.zip") — escolhe o
+// asset certo pelo sufixo do nome do arquivo, senão cai pro primeiro
+// .zip que achar (compatibilidade com uma release que ainda só publica
+// um pacote só, sem distinguir plataforma).
+function pickAssetForPlatform(assets) {
+  const zips = assets.filter((a) => a.name.toLowerCase().endsWith('.zip'));
+  const platformSuffix = process.platform === 'win32' ? 'win' : process.platform === 'linux' ? 'linux' : null;
+  const match = platformSuffix && zips.find((a) => a.name.toLowerCase().includes(platformSuffix));
+  return match || zips[0] || null;
+}
+
 async function fetchLatestRelease(id) {
   const mod = getModule(id);
   const release = await httpsGet(mod.manifestUrl, { asJson: true });
-  const asset = (release.assets || []).find((a) => a.name.toLowerCase().endsWith('.zip'));
+  const asset = pickAssetForPlatform(release.assets || []);
   if (!asset) throw new Error(`Nenhum pacote .zip encontrado na versão mais recente de ${mod.displayName}.`);
   return { version: (release.tag_name || '').replace(/^v/i, ''), downloadUrl: asset.browser_download_url };
 }
@@ -166,27 +208,6 @@ async function checkForUpdate(id) {
   };
 }
 
-// Extrai um .zip usando o "Expand-Archive" do próprio PowerShell — sem
-// adicionar nenhuma biblioteca de descompactação nova ao projeto
-// (Windows é a plataforma alvo deste app, ver desktop/README.md).
-function extractZip(zipPath, destDir) {
-  return new Promise((resolve, reject) => {
-    if (process.platform !== 'win32') {
-      reject(new Error('A instalação de módulos como o ProjectMC só é suportada no Windows por enquanto.'));
-      return;
-    }
-    fs.mkdirSync(destDir, { recursive: true });
-    const ps = spawn('powershell.exe', [
-      '-NoProfile', '-NonInteractive', '-Command',
-      `Expand-Archive -LiteralPath "${zipPath}" -DestinationPath "${destDir}" -Force`,
-    ]);
-    let stderr = '';
-    ps.stderr.on('data', (d) => { stderr += d.toString(); });
-    ps.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`Falha ao extrair (código ${code}): ${stderr}`))));
-    ps.on('error', reject);
-  });
-}
-
 // Item pedido: "quando o usuário escolher instalar o ProjectMC, os
 // arquivos necessários devem ser adicionados dentro da própria pasta de
 // instalação do Project Club" + "atualizar somente os arquivos
@@ -197,6 +218,13 @@ function extractZip(zipPath, destDir) {
 // daquela versão, então "atualizar" e "instalar pela primeira vez" são
 // literalmente a mesma operação aqui). onProgress recebe { phase,
 // percent } pra alimentar uma barra de progresso na tela.
+//
+// Item pedido: "Fassa funcionar no Linux" — a extração em si (extractZip,
+// via a biblioteca extract-zip) já é 100% multiplataforma sozinha; a
+// única coisa extra que o Linux precisa é marcar o arquivo final como
+// executável depois de extrair (chmod +x) — o Windows não tem esse
+// conceito de permissão, e o próprio .zip nem sempre preserva esse bit
+// corretamente dependendo de como foi empacotado.
 async function installOrUpdate(id, onProgress) {
   const mod = getModule(id);
   const { version, downloadUrl } = await fetchLatestRelease(id);
@@ -205,13 +233,26 @@ async function installOrUpdate(id, onProgress) {
   const data = await httpsGet(downloadUrl, {
     onProgress: (percent) => onProgress?.({ phase: 'downloading', percent }),
   });
-  const tmpZip = path.join(app.getPath('temp'), `${mod.folder}-${version}.zip`);
+  const tmpZip = path.join(app.getPath('temp'), `${mod.folder}-${version}-${process.platform}.zip`);
   fs.writeFileSync(tmpZip, data);
 
   const dir = moduleDir(id);
   onProgress?.({ phase: 'extracting', percent: 0 });
   if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
-  await extractZip(tmpZip, dir);
+  fs.mkdirSync(dir, { recursive: true });
+  await extractZip(tmpZip, { dir });
+
+  // Item pedido: "Fassa funcionar no Linux" — sem isso, o AppImage
+  // extraído fica sem permissão de execução na maioria dos casos (o
+  // Linux não tem um equivalente confiável ao "clicar duas vezes pra
+  // rodar" do Windows quando falta esse bit) e o próximo launch()
+  // falharia com "Permission denied", mesmo com o arquivo certo no
+  // lugar certo.
+  if (process.platform !== 'win32') {
+    const exePath = path.join(dir, getExeName(mod));
+    try { fs.chmodSync(exePath, 0o755); } catch { /* segue — launch() vai reportar o erro de verdade se isso importar */ }
+  }
+
   fs.writeFileSync(versionFilePath(id), version, 'utf-8');
   fs.unlink(tmpZip, () => {});
 
@@ -229,10 +270,11 @@ async function installOrUpdate(id, onProgress) {
 // exatamente como abrir qualquer outro programa instalado no PC.
 // Fechar o Project Club depois não derruba o ProjectMC junto (nem
 // vice-versa) — são dois processos de verdade, só que morando dentro
-// da MESMA pasta de instalação.
+// da MESMA pasta de instalação. Funciona igual no Windows (.exe) e no
+// Linux (AppImage com permissão de execução, ver installOrUpdate acima).
 function launch(id) {
   const mod = getModule(id);
-  const exe = path.join(moduleDir(id), mod.exeName);
+  const exe = path.join(moduleDir(id), getExeName(mod));
   if (!fs.existsSync(exe)) throw new Error(`${mod.displayName} não está instalado.`);
   const child = spawn(exe, [], { detached: true, stdio: 'ignore', cwd: path.dirname(exe) });
   child.unref();
