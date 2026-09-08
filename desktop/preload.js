@@ -22,4 +22,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onActivityDetected: (callback) => {
     ipcRenderer.on('activity:detected', (_event, activity) => callback(activity));
   },
+  // Item pedido: "Sistema... Iniciar com o sistema... Minimizar para
+  // bandeja... Abrir links no aplicativo... Confirmar saída... Essas
+  // funções podem existir no '.exe' sem necessariamente existirem na
+  // versão web" — o site chama isso toda vez que o UserSettings da
+  // pessoa carrega ou muda (ver useStore.js), e o processo principal
+  // (main.js) usa esses valores de verdade pra decidir como se
+  // comportar. Envio "fire and forget" (ipcRenderer.send, não invoke)
+  // — não precisa de resposta, só avisar.
+  updateSettings: (settings) => ipcRenderer.send('settings:update', settings),
 });
