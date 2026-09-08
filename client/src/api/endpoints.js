@@ -60,6 +60,11 @@ export const listUsableEmojis = () => api.get('/users/me/usable-emojis').then((r
 export const listFavoriteGifs = () => api.get('/users/me/favorite-gifs').then((r) => r.data);
 export const addFavoriteGif = (gif) => api.post('/users/me/favorite-gifs', gif).then((r) => r.data);
 export const removeFavoriteGif = (gifId) => api.delete(`/users/me/favorite-gifs/${encodeURIComponent(gifId)}`).then((r) => r.data);
+// Item pedido: "Jogos adicionados... Cada jogo deve possuir um
+// identificador interno" — mesmo padrão de favorite-gifs acima.
+export const listRegisteredGames = () => api.get('/users/me/games').then((r) => r.data);
+export const addRegisteredGame = (payload) => api.post('/users/me/games', payload).then((r) => r.data);
+export const removeRegisteredGame = (id) => api.delete(`/users/me/games/${id}`).then((r) => r.data);
 
 // --- Friends ---
 export const listFriends = () => api.get('/friends').then((r) => r.data);
