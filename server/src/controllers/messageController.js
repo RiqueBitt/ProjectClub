@@ -42,9 +42,17 @@ async function assertAccess(req, { conversationId, channelId }, requireSend = fa
     });
     if (!member) { const e = new Error('Sem acesso a esta conversa.'); e.status = 403; throw e; }
 
-    // Mensagem direta (1:1, não grupo) só entre amigos — evita spam/assédio
-    // de gente que não tem relação nenhuma com você. Grupos ficam de fora
-    // dessa regra (pode ter gente que não é seu amigo direto num grupo).
+    // Item pedido: "Permissão de mensagem... verificar configurações"
+    // — mesma checagem que createConversation já faz ao CRIAR a
+    // conversa, repetida aqui porque enviar uma mensagem numa conversa
+    // já existente é outro ponto de entrada separado (ex: a pessoa
+    // muda de 'everyone' pra 'none' DEPOIS que a conversa já existia).
+    // BUG EVITADO: antes essa checagem aqui era sempre "precisa ser
+    // amigo", travado no código — mesmo com dmPrivacy = 'everyone' a
+    // conversa era criada normalmente (createConversation já lia a
+    // configuração), mas enviar a primeira mensagem nela estourava
+    // 403 de qualquer jeito, porque este segundo gate nunca tinha
+    // sido atualizado junto.
     if (requireSend) {
       const conversation = await prisma.conversation.findUnique({
         where: { id: conversationId },
@@ -53,16 +61,25 @@ async function assertAccess(req, { conversationId, channelId }, requireSend = fa
       if (conversation && !conversation.isGroup) {
         const other = conversation.members.find((m) => m.userId !== req.user.id);
         if (other) {
-          const friendship = await prisma.friendship.findFirst({
-            where: {
-              status: 'ACCEPTED',
-              OR: [
-                { requesterId: req.user.id, addresseeId: other.userId },
-                { requesterId: other.userId, addresseeId: req.user.id },
-              ],
-            },
-          });
-          if (!friendship) { const e = new Error('Vocês precisam ser amigos para trocar mensagens diretas.'); e.status = 403; throw e; }
+          const otherSettings = await prisma.userSettings.findUnique({ where: { userId: other.userId }, select: { dmPrivacy: true } });
+          const dmPrivacy = otherSettings?.dmPrivacy || 'friends';
+          if (dmPrivacy === 'none') {
+            const e = new Error('Esta pessoa não está aceitando mensagens diretas.'); e.status = 403; throw e;
+          }
+          if (dmPrivacy !== 'everyone') {
+            // "friends_groups" tratado como "friends" por enquanto —
+            // mesma simplificação de conversationController.js.
+            const friendship = await prisma.friendship.findFirst({
+              where: {
+                status: 'ACCEPTED',
+                OR: [
+                  { requesterId: req.user.id, addresseeId: other.userId },
+                  { requesterId: other.userId, addresseeId: req.user.id },
+                ],
+              },
+            });
+            if (!friendship) { const e = new Error('Vocês precisam ser amigos para trocar mensagens diretas.'); e.status = 403; throw e; }
+          }
         }
       }
     }
