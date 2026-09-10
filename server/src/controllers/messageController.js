@@ -8,6 +8,7 @@ const dmAutomod = require('../services/dmAutomod');
 const { canSendDirectMessage } = require('../services/dmPermissions');
 const xpService = require('../services/xp');
 const { parseMentions } = require('../services/mentions');
+const { maybeSendOfflineEmail } = require('../services/offlineEmailNotifier');
 
 // Discord-style cap: once a message already has this many *distinct* emoji
 // reacted to it, nobody can pile on a brand new one — you can still toggle
@@ -455,6 +456,14 @@ async function createMessage(req, res, next) {
         await Promise.all([...recipientIds].map((uid) => sendPushToUser(uid, {
           title: authorName, body: preview, data: { conversationId: conversationId || '', channelId: channelId || '' },
         })));
+
+        // Item pedido: verificar se todos os toggles de Configurações têm
+        // efeito real. "Notificações por e-mail" descreve especificamente
+        // menções (não toda mensagem de DM) — só as pessoas @mencionadas de
+        // verdade, não todo membro da conversa, senão viraria um e-mail por
+        // mensagem de DM recebida.
+        const mentionedUserIds = mentionRows.filter((m) => m.targetType === 'USER' && m.targetId !== req.user.id).map((m) => m.targetId);
+        mentionedUserIds.forEach((uid) => maybeSendOfflineEmail(uid, { type: 'mention', actorName: authorName }));
       } catch (err) {
         console.error('[push] erro ao processar notificações da mensagem:', err.message);
       }

@@ -177,4 +177,31 @@ async function sendApplicationRejected(to, reason) {
   });
 }
 
-module.exports = { sendMail, sendVerificationCode, sendPasswordReset, sendApplicationApproved, sendApplicationRejected };
+module.exports = { sendMail, sendVerificationCode, sendPasswordReset, sendApplicationApproved, sendApplicationRejected, sendOfflineNotification };
+
+// Item pedido: verificar se todos os toggles de Configurações têm efeito
+// real. "Notificações por e-mail" já existia na tela, descrevendo
+// exatamente este cenário ("pedidos de amizade e menções, quando você
+// está offline"), mas nenhum código de verdade mandava esse e-mail —
+// era um toggle sem nada pra controlar. Usado em friendController.js
+// (pedido de amizade recebido) e messageController.js (menção), só
+// quando o destinatário está offline (presenceStore.isOnline) e com
+// esse toggle ligado — ver os dois pontos de chamada pra essa função.
+async function sendOfflineNotification(to, { type, actorName, appUrl }) {
+  const isMention = type === 'mention';
+  const heading = isMention ? `${actorName} mencionou você` : `${actorName} te enviou um pedido de amizade`;
+  const bodyHtml = `
+    <p style="margin:0 0 8px; font-size:15px; color:#2e3338;">${heading}</p>
+    <p style="margin:0 0 24px; font-size:14px; color:#8a8f98; line-height:1.5;">Você estava offline quando isso aconteceu — abra o Project Club pra ver.</p>
+    <div style="text-align:center; margin:0 0 8px;">
+      <a href="${appUrl}" style="display:inline-block; background:linear-gradient(135deg,#1877F2,#145DBF); color:#ffffff; text-decoration:none; font-weight:700; font-size:15px; padding:14px 36px; border-radius:8px;">Abrir Project Club</a>
+    </div>
+    <p style="margin:16px 0 0; font-size:12px; color:#8a8f98; line-height:1.5;">Pra parar de receber estes e-mails, desligue "Notificações por e-mail" nas Configurações da sua conta.</p>
+  `;
+  return sendMail({
+    to,
+    subject: heading,
+    text: `${heading}. Você estava offline quando isso aconteceu — abra o Project Club pra ver: ${appUrl}`,
+    html: emailLayout(bodyHtml),
+  });
+}

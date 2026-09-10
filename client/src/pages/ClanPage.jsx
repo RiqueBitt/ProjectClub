@@ -11,6 +11,7 @@ import {
 import { proxyImage } from '../utils/imageProxy';
 import ClanIcon from '../components/ClanIcon.jsx';
 import { usePromptDialog } from '../utils/usePromptDialog.jsx';
+import { formatTimeOnly } from '../utils/formatTime';
 
 const ROLE_LABEL = { OWNER: 'Dono', SUB_OWNER: 'Sub-Dono', ADMIN: 'Admin', MODERATOR: 'Moderador', MEMBER: 'Membro' };
 const ROLE_ORDER = ['OWNER', 'SUB_OWNER', 'ADMIN', 'MODERATOR', 'MEMBER'];
@@ -230,7 +231,7 @@ export default function ClanPage() {
                 <div className="clan-chat-message-body">
                   <div className="clan-chat-message-head">
                     <span className="clan-chat-author">{m.author.displayName}</span>
-                    <span className="dim clan-chat-time">{new Date(m.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="dim clan-chat-time">{formatTimeOnly(m.createdAt)}</span>
                   </div>
                   <div>{m.content}</div>
                 </div>

@@ -8,6 +8,7 @@ import {
   listMyTickets, createTicket, getTicket, addTicketMessage,
   adminListTickets, claimTicket, closeTicket,
 } from '../api/endpoints';
+import { formatTimeOnly } from '../utils/formatTime';
 
 // REPAGINADO: "Tickets de Suporte" virou "Suporte da Plataforma" — visual
 // próprio de central de atendimento (cabeçalho com identidade, cartão de
@@ -231,7 +232,7 @@ function TicketDetail({ id, onBack, isStaff }) {
           <div key={m.id} className={`support-message ${m.authorId === user.id ? 'mine' : ''}`}>
             <UserAvatar user={m.author} size={28} />
             <div className="support-message-bubble">
-              <div className="support-message-meta">{m.author.displayName} · {new Date(m.createdAt).toLocaleTimeString('pt-BR')}</div>
+              <div className="support-message-meta">{m.author.displayName} · {formatTimeOnly(m.createdAt)}</div>
               <div>{m.content}</div>
             </div>
           </div>

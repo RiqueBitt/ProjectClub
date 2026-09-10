@@ -34,7 +34,12 @@ function notifyUser(title, body, onClick) {
   window.electronAPI?.showOverlayNotification?.({ title, body });
   const isHiddenOrUnfocused = typeof document !== 'undefined'
     && (document.visibilityState === 'hidden' || !document.hasFocus());
-  if (isHiddenOrUnfocused && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+  // Item pedido: verificar se todos os toggles de Configurações têm
+  // efeito real. "Notificações de desktop" já existia na tela mas nunca
+  // era checado aqui — a notificação nativa do sistema disparava sempre
+  // (quando a janela estava sem foco), mesmo com o toggle desligado.
+  const desktopNotificationsOn = useStore.getState().userSettings?.desktopNotifications !== false;
+  if (desktopNotificationsOn && isHiddenOrUnfocused && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try {
       const n = new Notification(title, { body, icon: '/icon.png' });
       // Clicar na notificação traz a janela pra frente — funciona tanto

@@ -6,6 +6,7 @@ import { listUpdates, listEvents, listYoutubeVideos, listFeaturedPosts, getPlatf
 import { PostCard } from './CommunitiesPage.jsx';
 import { renderRichContent } from '../utils/richTextRender.jsx';
 import { proxyImage } from '../utils/imageProxy';
+import { hour12Option } from '../utils/formatTime';
 import inicioIcon from '../assets/icons/logo-project-club.png';
 
 const EVENT_STATUS_LABEL = { UPCOMING: 'Em breve', ACTIVE: 'Ativo', ENDED: 'Encerrado' };
@@ -15,7 +16,7 @@ const UPDATE_COLLAPSED_LINES = 6;
 
 function formatEventDate(iso) {
   if (!iso) return null;
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: hour12Option() });
 }
 
 // Item pedido: "adicione os - ** __ que deixa mais bonito" — o app já

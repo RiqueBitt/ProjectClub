@@ -12,6 +12,7 @@ import { renderRichContent, isEmojiOnlyMessage } from '../utils/richTextRender.j
 import { groupReactions, MAX_DISTINCT_REACTIONS } from '../utils/reactions';
 import { roleTextStyle, highestColoredRole } from '../utils/roleColor';
 import { nameStyleProps, hasCustomNameStyle, nameStyleClassName } from '../utils/nameStyle';
+import { formatMessageTime, formatEmbedTime } from '../utils/formatTime';
 import EmojiPicker from './EmojiPicker.jsx';
 import StyledEmoji from './StyledEmoji.jsx';
 import CustomAudioPlayer from './CustomAudioPlayer.jsx';
@@ -551,7 +552,7 @@ function EmbedCard({ embed }) {
         <div className="embed-card-footer">
           {data.footer}
           {data.footer && data.timestamp && ' • '}
-          {data.timestamp && new Date(data.timestamp).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          {data.timestamp && formatEmbedTime(data.timestamp)}
         </div>
       )}
     </div>
@@ -675,8 +676,7 @@ function Attachment({ attachment, allImages, imageIndex }) {
 }
 
 function formatTime(iso) {
-  const d = new Date(iso);
-  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return formatMessageTime(iso);
 }
 
 // Item pedido: otimização/velocidade — o componente mais repetido de
