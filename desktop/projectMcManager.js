@@ -41,14 +41,38 @@ const extractZip = require('extract-zip');
 // montagem squashfs SOMENTE LEITURA, nunca gravável), cai pros dados do
 // próprio usuário (userData) em vez de falhar silenciosamente — só muda
 // ONDE fica, nunca quebra.
+//
+// BUG CORRIGIDO: usava fs.accessSync(dir, W_OK) pra checar se dava pra
+// escrever ali — isso é conhecido por não ser confiável no Windows.
+// Diferente do Linux/macOS (permissões unix reais), o Windows usa ACLs, e
+// fs.accessSync(W_OK) no Windows só confere o atributo "somente leitura"
+// do item (quase nunca marcado em PASTAS) — não a permissão de escrita de
+// verdade dada por UAC/administrador. Resultado real visto: instalação
+// "para todos os usuários" do NSIS (padrão) vai pra C:\Program Files\...,
+// accessSync(W_OK) "passava" (dizia que era gravável), o código achava
+// que podia usar essa pasta — e só na hora de tentar criar a pasta de
+// verdade (fs.mkdirSync, dentro de installOrUpdate) é que vinha o erro
+// real do Windows: "EPERM: operation not permitted, mkdir 'C:\Program
+// Files\Project Club\modules\ProjectMC'". Corrigido testando com uma
+// escrita de verdade (cria e apaga um arquivo de teste) em vez de
+// perguntar ao sistema de permissões, que pode mentir dependendo da
+// plataforma — é a única forma confiável de saber se vai funcionar,
+// igual em qualquer sistema operacional.
+function canWriteTo(dir) {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const probe = path.join(dir, `.write-test-${process.pid}`);
+    fs.writeFileSync(probe, '');
+    fs.unlinkSync(probe);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function resolveModulesRoot() {
   const installDir = path.dirname(app.getPath('exe'));
-  try {
-    fs.accessSync(installDir, fs.constants.W_OK);
-    return path.join(installDir, 'modules');
-  } catch {
-    return path.join(app.getPath('userData'), 'modules');
-  }
+  return canWriteTo(installDir) ? path.join(installDir, 'modules') : path.join(app.getPath('userData'), 'modules');
 }
 
 // Catálogo dos módulos "jogo/app" que o Project Club sabe gerenciar.
