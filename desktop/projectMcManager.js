@@ -100,7 +100,7 @@ const MODULES = {
     displayName: 'ProjectMC',
     description: 'Launcher de Minecraft do Project Club',
     folder: 'ProjectMC',
-    manifestUrl: 'https://api.github.com/repos/RiqueBitt/goldapple-launcher-releases/releases/latest',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/goldapple-launcher-releases/releases',
     exeName: { win32: 'ProjectMC.exe', linux: 'ProjectMC.AppImage' },
   },
 };
@@ -253,7 +253,36 @@ function pickAssetForPlatform(assets) {
 
 async function fetchLatestRelease(id) {
   const mod = getModule(id);
-  const release = await httpsGet(mod.manifestUrl, { asJson: true });
+  // BUG CRÍTICO CORRIGIDO ("Invalid package ... app.asar" persistente,
+  // mesmo depois de reinstalar do zero várias vezes, com download e
+  // extração já comprovadamente íntegros): o manifest usava
+  // "/releases/latest" — a release mais recente do repositório, ponto,
+  // sem distinguir QUEM a publicou. O repositório goldapple-launcher-
+  // releases recebe releases de DOIS processos diferentes: este projeto
+  // (build-projectmc-release.yml, tags "v1.1.0" — formato semântico,
+  // com pontos) E o workflow de release pública do launcher em si
+  // (build-windows-exe.yml, no repositório goldapple-launcher, tags
+  // "v37" — só um número, sem pontos), que roda automaticamente e
+  // PUBLICA NO MESMO REPOSITÓRIO. Quando esse segundo workflow roda
+  // depois do primeiro, "latest" passa a apontar pro pacote ERRADO —
+  // que passa pela verificação de integridade estrutural (é um .asar
+  // genuinamente válido, só que de um build diferente/incompatível, não
+  // truncado) e só falha na hora real de carregar no Electron. Isso
+  // explica o padrão exato relatado: reinstalar do zero "resolvia" só
+  // até o outro workflow publicar de novo, daí voltava a quebrar, sem
+  // nenhuma corrupção de verdade envolvida.
+  //
+  // Corrigido buscando a LISTA de releases (não só "/latest") e
+  // filtrando só tags no formato semântico "vX.Y.Z" (com pontos) — o
+  // formato que só este projeto usa — pegando a mais recente dentre
+  // essas, ignorando releases "v37"-like publicadas por qualquer outro
+  // processo.
+  const releases = await httpsGet(mod.manifestUrl, { asJson: true });
+  const isSemverTag = (tagName) => /^v?\d+\.\d+\.\d+$/i.test(tagName || '');
+  const release = (Array.isArray(releases) ? releases : [])
+    .filter((r) => isSemverTag(r.tag_name))
+    .sort((a, b) => new Date(b.published_at) - new Date(a.published_at))[0];
+  if (!release) throw new Error(`Nenhuma versão de ${mod.displayName} publicada no formato esperado (vX.Y.Z) foi encontrada.`);
   const asset = pickAssetForPlatform(release.assets || []);
   if (!asset) {
     const hasAnyZip = (release.assets || []).some((a) => a.name.toLowerCase().endsWith('.zip'));
