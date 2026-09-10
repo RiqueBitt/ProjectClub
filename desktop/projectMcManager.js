@@ -26,7 +26,7 @@ const { app } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const extractZip = require('extract-zip');
 const asar = require('@electron/asar');
 
@@ -71,9 +71,51 @@ function canWriteTo(dir) {
   }
 }
 
+// BUG CORRIGIDO (v2, achado real do relatado "Invalid package ...
+// app.asar" persistindo mesmo com download/extração comprovadamente
+// íntegros, package certo escolhido, e uma única instalação confirmada
+// no caminho certo): mesmo depois de canWriteTo() testar com uma
+// escrita real (em vez de confiar em accessSync), o teste ainda podia
+// "passar" em Program Files por um motivo diferente e mais sutil —
+// UAC File Virtualization do Windows. Quando um processo NÃO está
+// elevado de verdade (mesmo tendo sido INSTALADO como administrador
+// uma vez — isso não faz o app RODAR elevado depois, só a instalação
+// em si precisou disso) e tenta escrever numa pasta protegida como
+// Program Files, o Windows finge que funcionou: silenciosamente
+// redireciona a escrita pra %LocalAppData%\VirtualStore\... de forma
+// transparente PRO MESMO PROCESSO — então canWriteTo()/
+// verifyAsarIntegrity() liam de volta através desse mesmo redirecionamento
+// e sempre viam tudo certo. Só que esse redirecionamento não é garantido
+// se comportar do mesmo jeito quando o Electron carrega o .asar de
+// verdade pra abrir o processo do ProjectMC (ou quando outra ferramenta/
+// contexto olha pro caminho real, sem o filtro de virtualização) —
+// resultando em "Invalid package" mesmo com tudo parecendo correto do
+// lado de dentro do próprio processo que instalou.
+//
+// Corrigido: no Windows, só considera installDir (Program Files ou
+// similar) gravável se o processo estiver REALMENTE elevado agora — não
+// só "consegue enganar um teste de escrita", que a virtualização
+// engana facilmente. "net session" é um comando clássico do Windows que
+// só têm sucesso rodando elevado de verdade (falha com "access is
+// denied" caso contrário) — sem precisar de nenhum módulo nativo extra.
+// Nunca tentando escrever em Program Files sem elevação real, a
+// virtualização nunca entra em ação pra começo de conversa — os dados
+// vão sempre pra AppData (sempre gravável, nunca virtualizado) de forma
+// consistente entre quem escreve e quem lê depois.
+function isElevatedOnWindows() {
+  if (process.platform !== 'win32') return true; // n/a fora do Windows
+  try {
+    execSync('net session', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function resolveModulesRoot() {
   const installDir = path.dirname(app.getPath('exe'));
-  return canWriteTo(installDir) ? path.join(installDir, 'modules') : path.join(app.getPath('userData'), 'modules');
+  const canUseInstallDir = isElevatedOnWindows() && canWriteTo(installDir);
+  return canUseInstallDir ? path.join(installDir, 'modules') : path.join(app.getPath('userData'), 'modules');
 }
 
 // Catálogo dos módulos "jogo/app" que o Project Club sabe gerenciar.
