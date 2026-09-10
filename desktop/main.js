@@ -489,6 +489,15 @@ if (!gotLock) {
   // do package.json empacotado (o CI grava a versão certa ali antes de
   // gerar o instalador, ver .github/workflows/build-apps.yml).
   ipcMain.handle('get-app-version', () => app.getVersion());
+  // Item pedido: verificar todos os sistemas de Configurações e afins —
+  // diagnóstico de "instalações duplicadas confundindo qual versão está
+  // rodando de verdade". Mostra o caminho exato do executável em uso
+  // (app.getPath('exe')) na tela de Configurações, pra alguém conseguir
+  // confirmar se está rodando a instalação "para todos os usuários"
+  // (Program Files) ou "só para mim" (AppData\Local\Programs) quando
+  // tiver as duas ao mesmo tempo — sem isso, não tinha como saber qual
+  // das duas o atalho clicado realmente abre.
+  ipcMain.handle('get-app-install-path', () => app.getPath('exe'));
   // Item pedido: botão "Baixar agora" no aviso de atualização precisa
   // abrir a página de download no NAVEGADOR de verdade — o app nativo
   // nunca mostra a página de marketing/download dentro dele mesmo (ver

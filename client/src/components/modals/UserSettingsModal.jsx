@@ -96,6 +96,17 @@ export default function UserSettingsModal({ onClose }) {
   // guard equivalente em server/src/controllers/userController.js).
   const profileColorEditEnabled = !disabledSystems.includes('cores_perfil');
   const [tab, setTab] = useState('PROFILE');
+  // Item pedido: verificar todos os sistemas de Configurações e afins —
+  // diagnóstico de instalações duplicadas do app desktop. Só busca de
+  // verdade quando existe (window.electronAPI), então continua vazio
+  // sem efeito nenhum no navegador/mobile.
+  const [appDiag, setAppDiag] = useState(null); // { version, path }
+  useEffect(() => {
+    if (!window.electronAPI?.getAppVersion) return;
+    Promise.all([window.electronAPI.getAppVersion(), window.electronAPI.getAppInstallPath?.()])
+      .then(([version, path]) => setAppDiag({ version, path }))
+      .catch(() => {});
+  }, []);
   const { promptAsync, confirmAsync, DialogElement } = usePromptDialog();
   const [bioEmojiOpen, setBioEmojiOpen] = useState(false);
   usePopoverCoordination(bioEmojiOpen, () => setBioEmojiOpen(false));
@@ -1616,6 +1627,20 @@ export default function UserSettingsModal({ onClose }) {
         <div className="settings-grid">
           {!userSettings ? <div className="dim">Carregando...</div> : (
             <>
+              {appDiag && (
+                <div className="settings-block">
+                  <h4>Sobre este aplicativo</h4>
+                  <p className="dim" style={{ fontSize: 13, wordBreak: 'break-all' }}>
+                    Versão {appDiag.version} — instalado em: {appDiag.path || 'desconhecido'}
+                  </p>
+                  {appDiag.path && /program files/i.test(appDiag.path) && (
+                    <p className="dim" style={{ fontSize: 12 }}>Instalação "para todos os usuários" (Program Files).</p>
+                  )}
+                  {appDiag.path && /appdata/i.test(appDiag.path) && (
+                    <p className="dim" style={{ fontSize: 12 }}>Instalação "só para este usuário" (AppData).</p>
+                  )}
+                </div>
+              )}
               <div className="settings-block settings-toggle-row">
                 <div>
                   <h4>Iniciar com o sistema</h4>
