@@ -1,0 +1,42 @@
+name: Diagnostico DOWNLOADS_REPO_TOKEN (temporario)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Testar DOWNLOADS_REPO_TOKEN e gravar resultado
+        env:
+          GH_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
+        run: |
+          set +e
+          {
+            echo "=== token tem algum valor? (tamanho, sem revelar) ==="
+            echo -n "$GH_TOKEN" | wc -c
+            echo "=== primeiros 8 caracteres ==="
+            echo -n "$GH_TOKEN" | cut -c1-8
+            echo "=== quem eh esse token? ==="
+            gh api user --jq '.login' 2>&1
+            echo "=== acesso de leitura ao repo de downloads + permissions ==="
+            gh api repos/RiqueBitt/ProjectClub-Downloads --jq '{full_name, permissions}' 2>&1
+            echo "=== teste real: git clone ==="
+            git clone --depth 1 "https://${GH_TOKEN}@github.com/RiqueBitt/ProjectClub-Downloads.git" /tmp/test-clone 2>&1
+            echo "CODIGO CLONE: $?"
+          } > /tmp/diag-result.txt 2>&1
+          cat /tmp/diag-result.txt
+      - name: Gravar resultado no repositorio
+        if: always()
+        run: |
+          mkdir -p .diag
+          cp /tmp/diag-result.txt .diag/result.txt || echo "sem resultado" > .diag/result.txt
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add .diag/result.txt
+          git commit -m "Resultado do diagnostico" || echo "nada para commitar"
+          git push
