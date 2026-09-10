@@ -239,6 +239,17 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
       { label: 'Copiar ID do usuário', icon: '🆔', onClick: () => navigator.clipboard?.writeText(message.author?.publicId || message.authorId) },
       { label: 'Reagir', icon: <img className="ui-icon-sm" src={emojiPickerIcon} alt="" />, onClick: () => setShowEmojiPicker((v) => !v) },
     ];
+    // Item pedido: verificar se todos os toggles de Configurações têm
+    // efeito real. "Modo desenvolvedor" já existia na tela ("Mostra IDs e
+    // informações técnicas extras em menus de contexto") mas nenhum menu
+    // de contexto checava esse valor — mexer nele nunca mudava nada.
+    // Mesmo padrão do Discord: "Copiar ID" (aqui, da mensagem em si —
+    // diferente do ID do usuário acima, que já é sempre visível por ser
+    // algo que qualquer um pode querer compartilhar) só aparece com o
+    // modo ligado.
+    if (useStore.getState().userSettings?.developerMode) {
+      items.push({ label: 'Copiar ID da mensagem', icon: '🆔', onClick: () => navigator.clipboard?.writeText(message.id) });
+    }
     if (isGifMessage) {
       items.push({
         label: isFavoriteGif ? 'Remover dos favoritos' : 'Adicionar aos favoritos',

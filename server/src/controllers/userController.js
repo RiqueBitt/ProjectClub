@@ -456,11 +456,15 @@ async function searchUsers(req, res, next) {
 // em nada vindo do frontend (nem no id do próprio front, que já vem
 // de req.params — mas a DECISÃO em si é sempre recalculada aqui, no
 // servidor).
-async function hasFullProfileAccess(viewerId, targetId) {
+//
+// Extraído em checkPrivacyLevel pra ser reusado por qualquer campo com
+// o mesmo conjunto de valores 'everyone'/'friends'/'friends_groups'/
+// 'none' — usado abaixo tanto pra perfil (profilePrivacy) quanto pra
+// atividade/Rich Presence (activityVisibility, ver hasActivityAccess).
+async function checkPrivacyLevel(viewerId, targetId, level) {
   if (viewerId === targetId) return true;
-  const settings = await prisma.userSettings.findUnique({ where: { userId: targetId }, select: { profilePrivacy: true } });
-  const profilePrivacy = settings?.profilePrivacy || 'everyone';
-  if (profilePrivacy === 'everyone') return true;
+  if (level === 'everyone') return true;
+  if (level === 'none') return false;
 
   const friendship = await prisma.friendship.findFirst({
     where: {
@@ -472,6 +476,7 @@ async function hasFullProfileAccess(viewerId, targetId) {
     },
   });
   if (friendship) return true;
+  if (level !== 'friends_groups') return false;
 
   // Item pedido: "Pessoas dos meus grupos" — no Project Club, o único
   // conceito de "grupo" que já existe de verdade (fora de amizade) é
@@ -479,15 +484,29 @@ async function hasFullProfileAccess(viewerId, targetId) {
   // "compartilham grupo" quando estão no mesmo clã, e um clã sempre
   // tem no máximo um dono/membros — nunca null pra dois lados
   // diferentes contarem como "compartilhado" por engano.
-  if (profilePrivacy === 'friends_groups') {
-    const [viewer, target] = await Promise.all([
-      prisma.user.findUnique({ where: { id: viewerId }, select: { clanId: true } }),
-      prisma.user.findUnique({ where: { id: targetId }, select: { clanId: true } }),
-    ]);
-    if (viewer?.clanId && target?.clanId && viewer.clanId === target.clanId) return true;
-  }
+  const [viewer, target] = await Promise.all([
+    prisma.user.findUnique({ where: { id: viewerId }, select: { clanId: true } }),
+    prisma.user.findUnique({ where: { id: targetId }, select: { clanId: true } }),
+  ]);
+  return !!(viewer?.clanId && target?.clanId && viewer.clanId === target.clanId);
+}
 
-  return false;
+async function hasFullProfileAccess(viewerId, targetId) {
+  if (viewerId === targetId) return true;
+  const settings = await prisma.userSettings.findUnique({ where: { userId: targetId }, select: { profilePrivacy: true } });
+  return checkPrivacyLevel(viewerId, targetId, settings?.profilePrivacy || 'everyone');
+}
+
+// Item pedido: verificar se todos os toggles de Configurações têm efeito
+// real. "Compartilhar atividade" e "Quem pode ver sua atividade" já
+// existiam na tela, salvavam no banco, mas getUser() nunca lia nenhum
+// dos dois — todo mundo via a atividade de todo mundo sempre, mexer nos
+// dois toggles não mudava nada de verdade.
+async function hasActivityAccess(viewerId, targetId) {
+  if (viewerId === targetId) return true;
+  const settings = await prisma.userSettings.findUnique({ where: { userId: targetId }, select: { activitySharing: true, activityVisibility: true } });
+  if (settings?.activitySharing === false) return false;
+  return checkPrivacyLevel(viewerId, targetId, settings?.activityVisibility || 'everyone');
 }
 
 // Full profile view (used by the "click an avatar" modal) — public fields
@@ -624,7 +643,7 @@ async function getUser(req, res, next) {
       levelProgress = Math.max(0, Math.min(100, Math.floor((xpInLevel / xpNeeded) * 100)));
     }
 
-    const activity = fullAccess ? await activityStore.getActivity(id) : null;
+    const activity = (await hasActivityAccess(req.user.id, id)) ? await activityStore.getActivity(id) : null;
 
     res.json({
       user: clearIfExpired(user), badges, mutualFriends,

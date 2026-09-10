@@ -1788,15 +1788,19 @@ export default function UserSettingsModal({ onClose }) {
                   <option value="none">Ninguém</option>
                 </select>
               </div>
-              <div className="settings-block">
-                <h4>Quem pode se juntar ao meu jogo</h4>
-                <select value={userSettings.gameJoinPrivacy} onChange={(e) => updateUserSetting('gameJoinPrivacy', e.target.value)}>
-                  <option value="none">Ninguém</option>
-                  <option value="friends">Amigos</option>
-                  <option value="friends_groups">Amigos + membros do grupo</option>
-                  <option value="everyone">Todos permitidos</option>
-                </select>
-              </div>
+              {/* BUG CORRIGIDO ("botão que não muda nada de verdade"):
+                  havia um controle "Quem pode se juntar ao meu jogo"
+                  aqui, ligado a gameJoinPrivacy — mas isso descreve um
+                  recurso de "convite/entrar no jogo de um amigo" (tipo
+                  Discord "Ask to Join") que não existe no Project Club.
+                  O sistema de atividade atual (ver socket
+                  activity:update) só guarda type+name+detail — sem
+                  servidor/porta/mundo específico, não tem dado
+                  suficiente pra alguém "entrar" em lugar nenhum. Mexer
+                  nesse controle salvava um valor no banco que nunca
+                  mudava nada de verdade. Removido daqui até esse recurso
+                  existir; o campo continua no banco (gameJoinPrivacy)
+                  pra quando isso for construído de verdade. */}
               <div className="settings-block settings-toggle-row">
                 <div>
                   <h4>Sobreposição no jogo (overlay)</h4>

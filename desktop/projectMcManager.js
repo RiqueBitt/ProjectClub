@@ -329,6 +329,29 @@ async function installOrUpdate(id, onProgress) {
     throw new Error(`O pacote baixado de ${mod.displayName} não contém "${getExeName(mod)}" — o release publicado pode não estar empacotado no formato esperado.`);
   }
 
+  // Item pedido: verificar todos os sistemas de Configurações e afins —
+  // achado ao investigar "Invalid package ... app.asar" relatado ao abrir
+  // depois de instalar. A checagem acima só confere se o .exe em si
+  // existe — mas um download truncado (ver correção em httpsGet acima,
+  // que resolve a causa raiz) podia deixar o .exe intacto (perto do
+  // início do zip) enquanto resources/app.asar (mais pro fim) saía
+  // cortado, e essa checagem sozinha não pegava isso: a instalação
+  // "terminava" normalmente, isInstalled() reportava true dali pra
+  // frente, e o problema só aparecia depois, ao tentar abrir de
+  // verdade. No Windows, confere também que app.asar existe e tem um
+  // tamanho minimamente plausível pra um app Electron de verdade (o
+  // real tem ~30MB — 1MB é um piso bem conservador só pra pegar
+  // truncamento severo, sem ficar frágil a variações normais de
+  // tamanho entre versões).
+  if (process.platform === 'win32') {
+    const asarPath = path.join(dir, 'resources', 'app.asar');
+    const asarSize = fs.existsSync(asarPath) ? fs.statSync(asarPath).size : 0;
+    if (asarSize < 1_000_000) {
+      fs.rmSync(dir, { recursive: true, force: true });
+      throw new Error(`O pacote baixado de ${mod.displayName} parece incompleto (resources/app.asar ausente ou cortado) — o download pode ter sido interrompido. Tente instalar de novo.`);
+    }
+  }
+
   // Item pedido: "Fassa funcionar no Linux" — sem isso, o AppImage
   // extraído fica sem permissão de execução na maioria dos casos (o
   // Linux não tem um equivalente confiável ao "clicar duas vezes pra

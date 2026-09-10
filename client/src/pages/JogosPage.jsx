@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   isProjectMcAvailable, getProjectMcStatus, checkProjectMcUpdate,
-  installProjectMc, launchProjectMc, onProjectMcProgress,
+  installProjectMc, launchProjectMc, uninstallProjectMc, onProjectMcProgress,
 } from '../utils/projectMc';
 import '../styles/jogos-page.css';
 
@@ -114,6 +114,30 @@ function ModuleCard({ moduleId, name, description }) {
     }
   };
 
+  // Item pedido: verificar todos os sistemas de Configurações e afins —
+  // achado ao investigar "Invalid package ... app.asar" ao tentar abrir.
+  // Não existia NENHUMA forma, pela tela, de se recuperar de uma
+  // instalação já corrompida (isInstalled só confere se o .exe existe,
+  // não a integridade interna — então, com a versão já batendo, só o
+  // botão "Jogar" aparecia, sem "Atualizar" nem qualquer outra opção).
+  // Reinstala do zero: desinstala (apaga a pasta inteira) e instala de
+  // novo em seguida, mesmo que a versão já esteja "atualizada".
+  const reinstall = async () => {
+    if (!confirm(`Isso vai apagar e baixar ${name} de novo do zero. Continuar?`)) return;
+    setError('');
+    setBusy(true);
+    setProgress({ phase: 'downloading', percent: 0 });
+    try {
+      await uninstallProjectMc(moduleId);
+      const result = await installProjectMc(moduleId);
+      if (!result.success) throw new Error(result.error || 'Falha desconhecida.');
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+      setProgress(null);
+    }
+  };
+
   const installed = status?.installed;
   const updateAvailable = updateInfo?.updateAvailable;
 
@@ -158,6 +182,11 @@ function ModuleCard({ moduleId, name, description }) {
               )}
               {installed && (
                 <button type="button" className="btn-play" onClick={open}>▶ Jogar</button>
+              )}
+              {installed && !busy && (
+                <button type="button" className="btn-link" onClick={reinstall} title="Apaga e baixa de novo do zero — use se o jogo não abrir ou der erro ao abrir.">
+                  🔧 Reinstalar
+                </button>
               )}
             </div>
           </>

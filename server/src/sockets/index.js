@@ -9,6 +9,43 @@ const presenceStore = require('../services/presenceStore');
 const activityStore = require('../services/activityStore');
 const voiceStore = require('../services/voiceRoomStore');
 
+// Item pedido: verificar se todos os toggles de Configurações têm efeito
+// real. "Compartilhar atividade" e "Quem pode ver sua atividade" já
+// existiam na tela, mas todo emit de atividade ia direto pra sala
+// "community" inteira — literalmente todo mundo conectado via socket,
+// sem checar os dois toggles nenhuma vez. Mesmo já corrigido em
+// userController.js/getUser() (quando alguém abre o perfil manualmente de
+// propósito), a atualização AO VIVO — que é como a maioria realmente vê
+// "fulano está jogando X", sem precisar abrir o perfil — continuava
+// ignorando o controle de privacidade por completo. Centralizado aqui
+// (chamado nos 3 pontos que emitiam 'activity:changed' direto pra
+// 'community') em vez de cada um reimplementar a checagem.
+async function broadcastActivityChange(io, userId, activity) {
+  const payload = { userId, activity };
+  const settings = await prisma.userSettings.findUnique({ where: { userId }, select: { activitySharing: true, activityVisibility: true } });
+  const sharingOn = settings?.activitySharing !== false;
+  const visibility = settings?.activityVisibility || 'everyone';
+  if (!sharingOn || visibility === 'none') return;
+  if (visibility === 'everyone') { io.to('community').emit('activity:changed', payload); return; }
+
+  // 'friends' ou 'friends_groups' — nunca broadcast amplo; manda só pra
+  // quem de fato tem o direito de ver, via as rooms individuais
+  // (user:<id>) que cada socket já entra ao conectar.
+  const friendships = await prisma.friendship.findMany({
+    where: { status: 'ACCEPTED', OR: [{ requesterId: userId }, { addresseeId: userId }] },
+    select: { requesterId: true, addresseeId: true },
+  });
+  const friendIds = friendships.map((f) => (f.requesterId === userId ? f.addresseeId : f.requesterId));
+  friendIds.forEach((fid) => io.to(`user:${fid}`).emit('activity:changed', payload));
+  if (visibility === 'friends_groups') {
+    const me = await prisma.user.findUnique({ where: { id: userId }, select: { clanId: true } });
+    if (me?.clanId) io.to(`clan:${me.clanId}`).emit('activity:changed', payload);
+  }
+  // O próprio usuário sempre recebe também — sem isso, outras abas/
+  // dispositivos dele mesmo não veriam a própria atividade atualizar.
+  io.to(`user:${userId}`).emit('activity:changed', payload);
+}
+
 // Presença (quem está online, em quais sockets) agora vive no Redis — ver
 // services/presenceStore.js — não em memória do processo, pra funcionar
 // certo se a plataforma rodar em mais de uma instância no futuro.
@@ -656,10 +693,10 @@ function initSockets(httpServer) {
           progressMs: Number.isFinite(activity.progressMs) ? activity.progressMs : undefined,
         };
         await activityStore.setActivity(userId, clean);
-        io.to('community').emit('activity:changed', { userId, activity: clean });
+        await broadcastActivityChange(io, userId, clean);
       } else {
         await activityStore.clearActivity(userId);
-        io.to('community').emit('activity:changed', { userId, activity: null });
+        await broadcastActivityChange(io, userId, null);
       }
     });
 
@@ -675,7 +712,7 @@ function initSockets(httpServer) {
           // mostrando "jogando X" pra ninguém — o app de desktop que
           // mandava isso também caiu junto (é o mesmo processo).
           await activityStore.clearActivity(userId);
-          io.to('community').emit('activity:changed', { userId, activity: null });
+          await broadcastActivityChange(io, userId, null);
           // Ninguém mais conectado nessa conta — não faz sentido continuar
           // contando os 15min pra "Ausente" (vai ficar OFFLINE daqui a
           // pouco de qualquer jeito, ver timer logo abaixo).

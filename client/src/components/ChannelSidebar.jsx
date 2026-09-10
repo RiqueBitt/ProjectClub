@@ -314,6 +314,13 @@ function ChannelGroup({
       items.push({ divider: true });
       items.push({ label: 'Editar canal', icon: <img className="ui-icon-sm" src={settingsIcon} alt="" />, onClick: () => onEdit(ch) });
     }
+    // Item pedido: verificar se todos os toggles de Configurações têm
+    // efeito real — "Modo desenvolvedor" (ver Message.jsx pro mesmo
+    // padrão aplicado em mensagens).
+    if (useStore.getState().userSettings?.developerMode) {
+      items.push({ divider: true });
+      items.push({ label: 'Copiar ID do canal', icon: '🆔', onClick: () => navigator.clipboard?.writeText(ch.id) });
+    }
     openMenu(e, items);
   };
 
