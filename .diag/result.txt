@@ -1,0 +1,19 @@
+=== token tem algum valor? (tamanho, sem revelar) ===
+40
+=== primeiros 8 caracteres ===
+ghp_MJoO
+=== quem eh esse token? ===
+{
+  "message": "Bad credentials",
+  "documentation_url": "https://docs.github.com/rest",
+  "status": "401"
+}gh: Bad credentials (HTTP 401)
+=== acesso de leitura ao repo de downloads + permissions ===
+{
+  "message": "Bad credentials",
+  "documentation_url": "https://docs.github.com/rest",
+  "status": "401"
+}gh: Bad credentials (HTTP 401)
+=== teste real: git clone ===
+Cloning into '/tmp/test-clone'...
+CODIGO CLONE: 0
