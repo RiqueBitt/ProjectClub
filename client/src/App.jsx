@@ -19,6 +19,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
 import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
 import MainApp from './pages/MainApp.jsx';
 import LandingPage from './pages/LandingPage.jsx';
+import PrivacyPage from './pages/PrivacyPage.jsx';
 
 // "Em reforma" (see adminController.setMaintenanceMode) only gates the
 // actual protected app — /login, /register etc stay reachable regardless,
@@ -283,6 +284,7 @@ export default function App() {
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/privacidade" element={<PrivacyPage />} />
         <Route
           path="/admin/interface-editor"
           element={

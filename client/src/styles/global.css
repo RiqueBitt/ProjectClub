@@ -6135,6 +6135,19 @@ a.embed-card-title:hover { text-decoration: underline; }
 @media (max-width: 720px) { .landing-window-body { grid-template-columns: 1fr; } .landing-window-side { display: none; } .landing-window-grid { grid-template-columns: repeat(2, 1fr); } }
 
 .landing-page section { padding: 100px 6vw; max-width: 1180px; margin: 0 auto; }
+
+/* Página de Proteção e Privacidade (PrivacyPage.jsx) — layout de artigo,
+   mais estreito que as seções de marketing acima, pensado pra leitura de
+   texto corrido em vez de blocos/cards. */
+.legal-doc { max-width: 720px; margin: 0 auto; padding: 70px 6vw 120px; color: var(--lp-text); line-height: 1.75; }
+.legal-doc h1 { font-size: clamp(26px, 4vw, 38px); margin-bottom: 6px; }
+.legal-doc-updated { color: var(--lp-muted); margin-bottom: 44px; font-size: 15px; }
+.legal-doc h2 { font-size: 21px; margin: 42px 0 12px; }
+.legal-doc h3 { font-size: 17px; margin: 28px 0 10px; color: var(--lp-muted); }
+.legal-doc p { margin: 10px 0; font-size: 15.5px; }
+.legal-doc ul, .legal-doc ol { margin: 10px 0 10px 22px; font-size: 15.5px; }
+.legal-doc li { margin: 6px 0; }
+.legal-doc em { color: var(--lp-muted); }
 .landing-section-head { text-align: center; max-width: 600px; margin: 0 auto 56px; }
 .landing-tag { font-size: 12px; color: var(--lp-blue-b); letter-spacing: 1.5px; text-transform: uppercase; }
 .landing-section-head h2 { font-size: clamp(22px, 3.4vw, 32px); margin-top: 14px; line-height: 1.5; }

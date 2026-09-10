@@ -298,6 +298,10 @@ export default function LandingPage() {
           <a href="#download">Download</a>
           <button className="landing-footer-link-btn" onClick={() => navigate('/login')}>Entrar</button>
         </div>
+        <div className="landing-footer-col">
+          <div className="landing-footer-heading">Legal</div>
+          <button className="landing-footer-link-btn" onClick={() => navigate('/privacidade')}>Proteção e Privacidade</button>
+        </div>
       </footer>
     </div>
   );
