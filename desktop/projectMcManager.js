@@ -28,6 +28,7 @@ const fs = require('fs');
 const https = require('https');
 const { spawn } = require('child_process');
 const extractZip = require('extract-zip');
+const asar = require('@electron/asar');
 
 // Item pedido: "os arquivos necessários devem ser adicionados dentro da
 // própria pasta de instalação do Project Club... Project Club → arquivos
@@ -293,6 +294,50 @@ async function checkForUpdate(id) {
 // executável depois de extrair (chmod +x) — o Windows não tem esse
 // conceito de permissão, e o próprio .zip nem sempre preserva esse bit
 // corretamente dependendo de como foi empacotado.
+function verifyAsarIntegrity(asarPath) {
+  // Item pedido: verificar todos os sistemas de Configurações e afins —
+  // achado ao investigar "Invalid package ... app.asar" relatado ao
+  // abrir depois de instalar/reinstalar, mesmo já com a validação de
+  // bytes do download (httpsGet acima) e o release publicado confirmado
+  // íntegro.
+  //
+  // BUG CORRIGIDO: a primeira tentativa de detectar isso só conferia se
+  // resources/app.asar tinha pelo menos 1MB — mas o formato .asar guarda
+  // o CABEÇALHO (com a lista de todos os arquivos, cada um com seu
+  // próprio offset/tamanho) logo no INÍCIO do arquivo, e o conteúdo
+  // real dos arquivos vem concatenado DEPOIS. Um arquivo truncado no
+  // meio/fim (o cenário real de um download interrompido) mantém o
+  // cabeçalho inteiro intacto — só falta pedaço do conteúdo real, que
+  // fica bem depois dos primeiros ~30KB — então a checagem de "passou
+  // de 1MB" nunca pegava isso de verdade.
+  //
+  // Corrigido lendo o cabeçalho de verdade (mesma lib que o próprio
+  // Electron usa, @electron/asar) e calculando o tamanho FÍSICO que o
+  // arquivo deveria ter — o maior (offset + tamanho) entre toda a
+  // árvore de arquivos do pacote, mais o cabeçalho em si — comparando
+  // contra o tamanho real do arquivo no disco. Qualquer divergência
+  // (truncamento em qualquer ponto, não só no fim) é pega direto, sem
+  // depender de um limiar arbitrário.
+  const { header, headerSize } = asar.getRawHeader(asarPath);
+  let maxEnd = 0;
+  (function walk(node) {
+    if (!node.files) return;
+    for (const child of Object.values(node.files)) {
+      if (child.offset !== undefined) {
+        const end = Number(child.offset) + Number(child.size);
+        if (end > maxEnd) maxEnd = end;
+      } else {
+        walk(child);
+      }
+    }
+  })(header);
+  // Formato .asar: 8 bytes de wrapper (2x uint32 do Pickle) + headerSize
+  // (tamanho do JSON do cabeçalho) + os dados concatenados dos arquivos.
+  const expectedSize = 8 + headerSize + maxEnd;
+  const realSize = fs.statSync(asarPath).size;
+  return expectedSize === realSize;
+}
+
 async function installOrUpdate(id, onProgress) {
   const mod = getModule(id);
   const { version, downloadUrl } = await fetchLatestRelease(id);
@@ -333,22 +378,20 @@ async function installOrUpdate(id, onProgress) {
   // achado ao investigar "Invalid package ... app.asar" relatado ao abrir
   // depois de instalar. A checagem acima só confere se o .exe em si
   // existe — mas um download truncado (ver correção em httpsGet acima,
-  // que resolve a causa raiz) podia deixar o .exe intacto (perto do
-  // início do zip) enquanto resources/app.asar (mais pro fim) saía
-  // cortado, e essa checagem sozinha não pegava isso: a instalação
+  // que resolve a causa raiz mais comum) podia deixar o .exe intacto
+  // (perto do início do zip) enquanto resources/app.asar (mais pro fim)
+  // saía cortado, e essa checagem sozinha não pegava isso: a instalação
   // "terminava" normalmente, isInstalled() reportava true dali pra
   // frente, e o problema só aparecia depois, ao tentar abrir de
-  // verdade. No Windows, confere também que app.asar existe e tem um
-  // tamanho minimamente plausível pra um app Electron de verdade (o
-  // real tem ~30MB — 1MB é um piso bem conservador só pra pegar
-  // truncamento severo, sem ficar frágil a variações normais de
-  // tamanho entre versões).
+  // verdade. No Windows, verifyAsarIntegrity confere a estrutura real
+  // do pacote (ver função acima) — não só um piso arbitrário de
+  // tamanho, que não detectava truncamento em todos os casos.
   if (process.platform === 'win32') {
     const asarPath = path.join(dir, 'resources', 'app.asar');
-    const asarSize = fs.existsSync(asarPath) ? fs.statSync(asarPath).size : 0;
-    if (asarSize < 1_000_000) {
+    const asarOk = fs.existsSync(asarPath) && (() => { try { return verifyAsarIntegrity(asarPath); } catch { return false; } })();
+    if (!asarOk) {
       fs.rmSync(dir, { recursive: true, force: true });
-      throw new Error(`O pacote baixado de ${mod.displayName} parece incompleto (resources/app.asar ausente ou cortado) — o download pode ter sido interrompido. Tente instalar de novo.`);
+      throw new Error(`O pacote baixado de ${mod.displayName} está corrompido (resources/app.asar incompleto ou inválido) — o download pode ter sido interrompido ou alterado no meio. Tente instalar de novo.`);
     }
   }
 
@@ -384,6 +427,20 @@ function launch(id) {
   const mod = getModule(id);
   const exe = path.join(moduleDir(id), getExeName(mod));
   if (!fs.existsSync(exe)) throw new Error(`${mod.displayName} não está instalado.`);
+  // Item pedido: verificar todos os sistemas de Configurações e afins —
+  // checa a integridade de verdade (mesma função usada logo após
+  // instalar, ver verifyAsarIntegrity acima) também aqui, na hora de
+  // abrir — cobre o caso de uma instalação que já estava corrompida
+  // antes desta correção existir (feita com uma versão anterior do
+  // Project Club, sem essa checagem no momento da instalação). Sem
+  // isso, a pessoa só veria o erro genérico "Invalid package..." vindo
+  // de dentro do próprio Electron do ProjectMC — uma mensagem clara
+  // daqui, apontando pro botão Reinstalar, é bem mais acionável.
+  if (process.platform === 'win32') {
+    const asarPath = path.join(path.dirname(exe), 'resources', 'app.asar');
+    const asarOk = fs.existsSync(asarPath) && (() => { try { return verifyAsarIntegrity(asarPath); } catch { return false; } })();
+    if (!asarOk) throw new Error(`${mod.displayName} está com os arquivos corrompidos. Use o botão "Reinstalar" pra baixar de novo do zero.`);
+  }
   const child = spawn(exe, [], { detached: true, stdio: 'ignore', cwd: path.dirname(exe) });
   child.unref();
 }
