@@ -597,6 +597,76 @@ async function resolveAutomodFlag(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// --- Denúncias manuais (ver controllers/reportController.js pra criação)
+// — mesmo padrão de 3 funções acima (listar/ver caso/resolver), só que
+// pra denúncia feita por usuário em vez de detecção automática.
+
+async function listReports(req, res, next) {
+  try {
+    const { status } = req.query;
+    const reports = await prisma.report.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { createdAt: 'desc' },
+    });
+    const userIds = Array.from(new Set(reports.flatMap((r) => [r.reporterId, r.reportedUserId])));
+    const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, username: true, displayName: true } });
+    const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+    res.json({
+      reports: reports.map((r) => ({ ...r, reporter: userMap[r.reporterId], reportedUser: userMap[r.reportedUserId] })),
+    });
+  } catch (err) { next(err); }
+}
+
+// Mesmo cuidado de privacidade do getFlaggedConversation acima quando a
+// denúncia é de uma DM (a staff normalmente não tem acesso a mensagens
+// privadas — só passa a ter aqui, e só porque foi denunciada). Quando a
+// denúncia é de canal público, a staff já teria acesso de qualquer forma
+// (ver documento de privacidade), então não precisa do mesmo cuidado —
+// mas ainda mostra o contexto ao redor pra facilitar a análise.
+async function getReportedContext(req, res, next) {
+  try {
+    const { id } = req.params;
+    const report = await prisma.report.findUnique({ where: { id } });
+    if (!report) return res.status(404).json({ error: 'Denúncia não encontrada.' });
+
+    const { messageInclude } = require('./messageController');
+    const where = report.conversationId
+      ? { conversationId: report.conversationId, deleted: false }
+      : { channelId: report.channelId, deleted: false };
+    const messages = await prisma.message.findMany({
+      where, include: messageInclude, orderBy: { createdAt: 'desc' }, take: 50,
+    });
+    messages.reverse();
+
+    if (report.conversationId) {
+      // Só registra no log de auditoria (visível só pra outra staff, nunca
+      // pros usuários) quando é acesso a uma DM — mesma salvaguarda contra
+      // abuso já usada em getFlaggedConversation.
+      await logPlatformAction(req, {
+        action: 'REPORT_REVIEW', targetType: 'REPORT', targetId: id,
+        metadata: { conversationId: report.conversationId },
+      });
+    }
+
+    res.json({ report, messages });
+  } catch (err) { next(err); }
+}
+
+async function resolveReport(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { status } = req.body; // 'ACTIONED' | 'DISMISSED'
+    if (!['ACTIONED', 'DISMISSED'].includes(status)) return res.status(400).json({ error: 'Status inválido.' });
+
+    const report = await prisma.report.update({
+      where: { id },
+      data: { status, reviewedById: req.user.id, reviewedAt: new Date() },
+    });
+    await logPlatformAction(req, { action: 'REPORT_RESOLVE', targetType: 'REPORT', targetId: id, metadata: { status } });
+    res.json({ report });
+  } catch (err) { next(err); }
+}
+
 // --- Sistema de segurança "isca" (honeypot) — ver middleware/honeypot.js
 // pra como as rotas-isca funcionam. Aqui é só a visualização/gestão pela
 // staff: quem tentou o quê, e desbloquear um IP manualmente se algum
@@ -692,6 +762,7 @@ module.exports = {
   setUserLevel, addUserXp, addUserCurrency,
   getSystemToggles, adminUpdateSystemToggles,
   listAutomodFlags, getFlaggedConversation, resolveAutomodFlag,
+  listReports, getReportedContext, resolveReport,
   listHoneypotHits, listBlockedIps, unblockIp,
   reloadUserPresence, deleteUserAccount,
 };

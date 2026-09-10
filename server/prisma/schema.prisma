@@ -749,6 +749,7 @@ model Conversation {
   members  ConversationMember[]
   messages Message[]
   automodFlags AutomodFlag[]
+  reports Report[]
 }
 
 model ConversationMember {
@@ -949,6 +950,7 @@ model Message {
   stickerUrl String?
 
   automodFlags AutomodFlag[]
+  reports Report[]
 
   // Item pedido: otimização/velocidade. O MySQL já cria sozinho um
   // índice simples em toda chave estrangeira (channelId, conversationId,
@@ -990,6 +992,32 @@ model AutomodFlag {
   // na lista da staff sem precisar abrir a conversa pra dar uma primeira
   // olhada. A conversa inteira só é revelada se a staff clicar em
   // "analisar" (ver adminGetFlaggedConversation).
+  snippet        String    @db.Text
+  status         String    @default("PENDING") // PENDING | ACTIONED | DISMISSED
+  reviewedById   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime  @default(now())
+}
+
+// Item pedido: "Formulário e aprovação manual" — denúncia MANUAL feita por
+// um usuário (diferente de AutomodFlag acima, que é detecção automática
+// de palavra em DM). Cobre tanto mensagem de canal público quanto DM —
+// channelId/conversationId são só referência (a Message já carrega a
+// relação de verdade com um dos dois), sem @relation nomeada própria pra
+// não duplicar o que a Message já resolve.
+model Report {
+  id             String    @id @default(uuid())
+  messageId      String
+  message        Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  reporterId     String
+  reportedUserId String
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  channelId      String?
+  reason         String    @db.Text
+  // Mesmo espírito do "snippet" de AutomodFlag — conteúdo da mensagem no
+  // momento da denúncia, preservado aqui pra staff sempre ter o que foi
+  // denunciado mesmo se o autor editar ou apagar a mensagem depois.
   snippet        String    @db.Text
   status         String    @default("PENDING") // PENDING | ACTIONED | DISMISSED
   reviewedById   String?

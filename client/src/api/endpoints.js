@@ -333,6 +333,10 @@ export const resetUiLayout = (device) => api.delete(`/ui-layout/${device}`).then
 export const adminListAutomodFlags = (status) => api.get('/admin/automod-flags', { params: status ? { status } : {} }).then((r) => r.data);
 export const adminGetFlaggedConversation = (id) => api.get(`/admin/automod-flags/${id}/conversation`).then((r) => r.data);
 export const adminResolveAutomodFlag = (id, status) => api.post(`/admin/automod-flags/${id}/resolve`, { status }).then((r) => r.data);
+export const reportMessage = (messageId, reason) => api.post('/messages/report', { messageId, reason }).then((r) => r.data);
+export const adminListReports = (status) => api.get('/admin/reports', { params: status ? { status } : {} }).then((r) => r.data);
+export const adminGetReportedContext = (id) => api.get(`/admin/reports/${id}/context`).then((r) => r.data);
+export const adminResolveReport = (id, status) => api.post(`/admin/reports/${id}/resolve`, { status }).then((r) => r.data);
 
 // --- Sistema de segurança "isca" (honeypot) ---
 export const adminListHoneypotHits = () => api.get('/admin/honeypot/hits').then((r) => r.data);

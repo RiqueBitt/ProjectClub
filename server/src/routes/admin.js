@@ -49,6 +49,13 @@ router.get('/automod-flags', ctrl.listAutomodFlags);
 router.get('/automod-flags/:id/conversation', ctrl.getFlaggedConversation);
 router.post('/automod-flags/:id/resolve', ctrl.resolveAutomodFlag);
 
+// Denúncias manuais (feitas por usuário, ver controllers/reportController.js
+// pra criação) — mesmo padrão de 3 rotas acima, pra "Formulário e aprovação
+// manual".
+router.get('/reports', ctrl.listReports);
+router.get('/reports/:id/context', ctrl.getReportedContext);
+router.post('/reports/:id/resolve', ctrl.resolveReport);
+
 // Sistema de segurança "isca" (honeypot) — ver middleware/honeypot.js.
 router.get('/honeypot/hits', ctrl.listHoneypotHits);
 router.get('/honeypot/blocked', ctrl.listBlockedIps);

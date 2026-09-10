@@ -36,6 +36,7 @@ import {
   adminListHouseComments, adminDeleteHouseCommentMod,
   adminListApplications, approveApplication, rejectApplication,
   adminListAutomodFlags, adminGetFlaggedConversation, adminResolveAutomodFlag,
+  adminListReports, adminGetReportedContext, adminResolveReport,
   getCommunitySettings, deleteCommunity,
   getCommunity,
   adminListHoneypotHits, adminListBlockedIps, adminUnblockIp, adminReloadUserPresence, adminDeleteUserAccount,
@@ -58,7 +59,7 @@ const TAB_LABEL = {
   stats: '📊 Estatísticas', users: '👥 Usuários', badges: '🏅 Insígnias', inscricoes: '📝 Inscrições',
   logs: '📜 Registro de auditoria', maintenance: '🚧 Manutenção', announcements: '📢 Mensagem', album: '📖 Álbum de Figurinhas',
   economia: '💰 Economia', casas: '🧊 Casas e Móveis', sistema: '⚙️ Sistema', moderacao: '💬 Moderação de Recados',
-  automodDm: '🚩 Moderação de DMs', feeds: '📰 Feeds', honeypot: '🕸️ Segurança (Honeypot)',
+  automodDm: '🚩 Moderação de DMs', reports: '🚩 Denúncias', feeds: '📰 Feeds', honeypot: '🕸️ Segurança (Honeypot)',
   roles: '🎭 Cargos', channels: '# Canais e Categorias', gifMove: '🎯 GIFa Move',
   emojis: '😀 Emojis', stickers: '🏷️ Figurinhas', clanIcons: '⚔️ Ícones de Clã',
   achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', reload: '🔄 Reload',
@@ -68,7 +69,7 @@ const TAB_GROUPS = [
   { label: 'Visão geral', tabs: ['stats', 'inscricoes', 'users', 'badges'] },
   { label: 'Estrutura da comunidade', tabs: ['roles', 'channels', 'gifMove', 'emojis', 'stickers', 'clanIcons', 'achievements'] },
   { label: 'Conteúdo', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events'] },
-  { label: 'Moderação', tabs: ['moderacao', 'automodDm', 'logs', 'honeypot'] },
+  { label: 'Moderação', tabs: ['moderacao', 'automodDm', 'reports', 'logs', 'honeypot'] },
   { label: 'Comunicação', tabs: ['announcements'] },
   { label: 'Sistema', tabs: ['sistema', 'maintenance', 'reload'] },
 ];
@@ -156,6 +157,7 @@ export default function AdminPanel() {
           {tab === 'sistema' && <SystemTab />}
           {tab === 'moderacao' && <ModerationTab />}
           {tab === 'automodDm' && <AutomodDmTab />}
+          {tab === 'reports' && <ReportsTab />}
           {tab === 'feeds' && <FeedsAdminTab />}
           {tab === 'roles' && <RolesAdminTab />}
           {tab === 'channels' && <ChannelsAdminTab />}
@@ -2540,6 +2542,110 @@ function ApplicationsTab() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// Denúncias manuais — item pedido: "Formulário e aprovação manual". Mesmo
+// padrão de tela do AutomodDmTab abaixo, mas pra denúncia feita por um
+// usuário (qualquer motivo, não só palavra sinalizada) e cobrindo tanto
+// DM quanto canal público.
+function ReportsTab() {
+  const [reports, setReports] = useState([]);
+  const [filter, setFilter] = useState('PENDING');
+  const [loading, setLoading] = useState(true);
+  const [viewing, setViewing] = useState(null); // { report, messages } quando analisando um caso
+  const [busyId, setBusyId] = useState(null);
+
+  const refresh = () => {
+    setLoading(true);
+    adminListReports(filter === 'ALL' ? undefined : filter).then((d) => setReports(d.reports)).finally(() => setLoading(false));
+  };
+  useEffect(refresh, [filter]);
+
+  const openCase = async (report) => {
+    const data = await adminGetReportedContext(report.id);
+    setViewing(data);
+  };
+
+  const resolve = async (id, status) => {
+    setBusyId(id);
+    try {
+      await adminResolveReport(id, status);
+      setViewing(null);
+      refresh();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div>
+      <p className="dim" style={{ marginBottom: 12 }}>
+        Mensagens denunciadas manualmente por usuários. Denúncia de DM tem o mesmo cuidado de
+        privacidade do automod (nenhum dos dois envolvidos sabe que você está analisando);
+        denúncia de canal público mostra o contexto ao redor normalmente.
+      </p>
+      <div className="theme-options" style={{ marginBottom: 12 }}>
+        {['PENDING', 'ACTIONED', 'DISMISSED', 'ALL'].map((f) => (
+          <button key={f} className={`theme-swatch ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>
+            {f === 'PENDING' ? 'Pendentes' : f === 'ACTIONED' ? 'Com ação' : f === 'DISMISSED' ? 'Ignoradas' : 'Todas'}
+          </button>
+        ))}
+      </div>
+      {!loading && reports.length === 0 && <p className="dim">Nenhuma denúncia aqui.</p>}
+      <div className="ticket-list">
+        {reports.map((r) => (
+          <div key={r.id} className="settings-block">
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontWeight: 700 }}>
+                  {r.reporter?.displayName} <span className="dim">@{r.reporter?.username}</span>
+                  {' denunciou '}
+                  {r.reportedUser?.displayName} <span className="dim">@{r.reportedUser?.username}</span>
+                </div>
+                <div className="dim" style={{ fontSize: 12 }}>
+                  {r.conversationId ? 'Mensagem privada' : 'Mensagem de canal'} · {new Date(r.createdAt).toLocaleString('pt-BR')}
+                </div>
+              </div>
+              <span className={`ticket-status-chip ${r.status === 'PENDING' ? 'open' : 'closed'}`}>
+                {r.status === 'PENDING' ? 'Pendente' : r.status === 'ACTIONED' ? 'Com ação' : 'Ignorada'}
+              </span>
+            </div>
+            <div className="dim" style={{ marginTop: 8, fontSize: 13 }}>Motivo: {r.reason}</div>
+            <p style={{ marginTop: 4, fontStyle: 'italic' }}>"{r.snippet}"</p>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button className="btn-link" onClick={() => openCase(r)}>🔍 Analisar contexto</button>
+              {r.status === 'PENDING' && (
+                <button className="btn-link" disabled={busyId === r.id} onClick={() => resolve(r.id, 'DISMISSED')}>Ignorar</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {viewing && (
+        <Modal onClose={() => setViewing(null)} title={viewing.report.conversationId ? 'Conversa completa (visualização de staff)' : 'Contexto do canal'}>
+          {viewing.report.conversationId && (
+            <div className="dim" style={{ fontSize: 12, marginBottom: 8 }}>
+              Nenhum dos dois usuários é notificado sobre essa visualização.
+            </div>
+          )}
+          <div className="automod-conversation-view">
+            {viewing.messages.map((m) => (
+              <div key={m.id} className="automod-conversation-msg">
+                <b>{m.author?.displayName}:</b> {m.content}
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button className="btn-danger" disabled={busyId === viewing.report.id} onClick={() => resolve(viewing.report.id, 'ACTIONED')}>
+              Marcar como "ação tomada" (banir/silenciar pelo menu de Usuários)
+            </button>
+            <button className="btn-link" disabled={busyId === viewing.report.id} onClick={() => resolve(viewing.report.id, 'DISMISSED')}>Ignorar</button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

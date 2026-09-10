@@ -1,5 +1,6 @@
 const express = require('express');
 const ctrl = require('../controllers/messageController');
+const reportCtrl = require('../controllers/reportController');
 const { requireAuth } = require('../middleware/auth');
 const { upload, uploadImage } = require('../middleware/upload');
 
@@ -15,5 +16,6 @@ router.delete('/:id', ctrl.deleteMessage);
 router.post('/:id/pin', ctrl.togglePin);
 router.post('/:id/react', ctrl.react);
 router.post('/:id/archive', ctrl.toggleArchiveTopic);
+router.post('/report', reportCtrl.createReport);
 
 module.exports = router;

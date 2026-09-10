@@ -5,7 +5,7 @@ import { useContextMenu } from '../context/ContextMenuContext.jsx';
 import { useStore, messageMentionsUser } from '../store/useStore';
 import {
   editMessage, deleteMessage, togglePinMessage, reactToMessage,
-  warnMember, timeoutMember, addFavoriteGif, removeFavoriteGif, sendMessage, votePoll,
+  warnMember, timeoutMember, addFavoriteGif, removeFavoriteGif, sendMessage, votePoll, reportMessage,
 } from '../api/endpoints';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import { renderRichContent, isEmojiOnlyMessage } from '../utils/richTextRender.jsx';
@@ -182,6 +182,21 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
     await deleteMessage(message.id, reason);
   };
 
+  // Item pedido: "Formulário e aprovação manual" — denúncia manual de uma
+  // mensagem, direto do menu de ações dela. Motivo em prompt() simples,
+  // mesmo padrão já usado aqui pra "Advertir autor"/"Silenciar autor" —
+  // sem modal novo pra manter consistência com o resto do menu.
+  const reportThisMessage = async () => {
+    const reason = prompt('Por que você está denunciando esta mensagem?');
+    if (!reason || !reason.trim()) return;
+    try {
+      const result = await reportMessage(message.id, reason.trim());
+      useStore.getState().pushNotice(result.alreadyReported ? 'Você já denunciou esta mensagem — nossa equipe ainda vai revisar.' : 'Denúncia enviada. Nossa equipe vai revisar.');
+    } catch (err) {
+      useStore.getState().pushNotice(err.response?.data?.error || 'Não foi possível enviar a denúncia.');
+    }
+  };
+
   // Topics/threads reuse the same replyTo + title mechanism forum posts use
   // (see ForumChannelView.jsx) — a "topic" is just a titled reply to this
   // message. Once created it shows up automatically as a pill below this
@@ -237,6 +252,10 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
     );
     if (message.channelId && hasPermission(myPerms, 'CREATE_TOPICS')) items.push({ label: 'Criar tópico', icon: '🧵', onClick: createTopic });
     if (isOwn) items.push({ label: 'Editar', icon: '✎', onClick: () => setEditing(true) });
+    if (!isOwn) {
+      items.push({ divider: true });
+      items.push({ label: 'Denunciar', icon: '🚩', onClick: reportThisMessage });
+    }
     if (isOwn || canManageMessages) {
       items.push({ divider: true });
       items.push({ label: 'Apagar mensagem', icon: <img className="ui-icon-sm" src={trashIcon} alt="" />, danger: true, onClick: removeMessage });
