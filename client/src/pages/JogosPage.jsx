@@ -157,7 +157,7 @@ function ModuleCard({ moduleId, name, description }) {
                 </button>
               )}
               {installed && (
-                <button type="button" className="btn-secondary" onClick={open}>Abrir {name}</button>
+                <button type="button" className="btn-play" onClick={open}>▶ Jogar</button>
               )}
             </div>
           </>
