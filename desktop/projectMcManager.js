@@ -26,6 +26,7 @@ const { app } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
+const crypto = require('crypto');
 const { spawn, execSync } = require('child_process');
 const extractZip = require('extract-zip');
 const asar = require('@electron/asar');
@@ -369,44 +370,58 @@ function verifyAsarIntegrity(asarPath) {
   // Item pedido: verificar todos os sistemas de Configurações e afins —
   // achado ao investigar "Invalid package ... app.asar" relatado ao
   // abrir depois de instalar/reinstalar, mesmo já com a validação de
-  // bytes do download (httpsGet acima) e o release publicado confirmado
-  // íntegro.
+  // bytes do download (httpsGet acima), release certa sendo escolhida,
+  // e o release publicado confirmado íntegro — reproduzido mesmo numa
+  // instalação única em AppData (nunca sujeita a UAC Virtualization).
   //
-  // BUG CORRIGIDO: a primeira tentativa de detectar isso só conferia se
-  // resources/app.asar tinha pelo menos 1MB — mas o formato .asar guarda
-  // o CABEÇALHO (com a lista de todos os arquivos, cada um com seu
-  // próprio offset/tamanho) logo no INÍCIO do arquivo, e o conteúdo
-  // real dos arquivos vem concatenado DEPOIS. Um arquivo truncado no
-  // meio/fim (o cenário real de um download interrompido) mantém o
-  // cabeçalho inteiro intacto — só falta pedaço do conteúdo real, que
-  // fica bem depois dos primeiros ~30KB — então a checagem de "passou
-  // de 1MB" nunca pegava isso de verdade.
+  // BUG CORRIGIDO (v3 — as duas tentativas anteriores só verificavam
+  // TAMANHO, nunca CONTEÚDO): a v1 conferia só "app.asar tem pelo menos
+  // 1MB" (fraco demais). A v2 melhorou pra comparar o tamanho FÍSICO
+  // real do arquivo contra o que o próprio cabeçalho do .asar diz que
+  // deveria ser (pega qualquer truncamento) — mas ainda não prova que
+  // o CONTEÚDO de cada arquivo lá dentro é o que deveria ser. Uma
+  // alteração que preserva o tamanho total (ex: um trecho de bytes
+  // fica diferente do original sem cortar nem alongar o arquivo — pode
+  // acontecer por vários motivos fora do meu controle: falha de disco,
+  // problema de memória, algo interferindo na escrita) passava batido
+  // por essa checagem, mesmo com o arquivo genuinamente inválido.
   //
-  // Corrigido lendo o cabeçalho de verdade (mesma lib que o próprio
-  // Electron usa, @electron/asar) e calculando o tamanho FÍSICO que o
-  // arquivo deveria ter — o maior (offset + tamanho) entre toda a
-  // árvore de arquivos do pacote, mais o cabeçalho em si — comparando
-  // contra o tamanho real do arquivo no disco. Qualquer divergência
-  // (truncamento em qualquer ponto, não só no fim) é pega direto, sem
-  // depender de um limiar arbitrário.
+  // Corrigido usando os hashes SHA256 que o PRÓPRIO formato .asar já
+  // guarda pra cada arquivo dentro do pacote (campo "integrity" no
+  // cabeçalho, dividido em blocos de 4MB quando o arquivo é maior que
+  // isso) — a mesma informação que o Electron usaria pra validar de
+  // verdade. Lê os bytes reais de cada arquivo no offset certo, calcula
+  // o hash, e compara com o que o cabeçalho diz que deveria ser. Rápido
+  // (testado: ~60ms pra um pacote de ~30MB com 115 arquivos) — sem
+  // impacto perceptível na instalação.
   const { header, headerSize } = asar.getRawHeader(asarPath);
-  let maxEnd = 0;
-  (function walk(node) {
-    if (!node.files) return;
-    for (const child of Object.values(node.files)) {
-      if (child.offset !== undefined) {
-        const end = Number(child.offset) + Number(child.size);
-        if (end > maxEnd) maxEnd = end;
-      } else {
-        walk(child);
+  const dataStart = 8 + headerSize;
+  const fd = fs.openSync(asarPath, 'r');
+  try {
+    let ok = true;
+    (function walk(node) {
+      if (!ok || !node.files) return;
+      for (const child of Object.values(node.files)) {
+        if (!ok) return;
+        if (child.offset === undefined) { walk(child); continue; }
+        if (!child.size || !child.integrity?.blocks) continue; // vazio/link — nada de conteúdo real pra checar
+        const offset = dataStart + Number(child.offset);
+        const blockSize = child.integrity.blockSize || child.size;
+        const blocks = child.integrity.blocks;
+        let pos = 0;
+        for (let i = 0; i < blocks.length; i++) {
+          const len = Math.min(blockSize, child.size - pos);
+          const buf = Buffer.alloc(len);
+          fs.readSync(fd, buf, 0, len, offset + pos);
+          if (crypto.createHash('sha256').update(buf).digest('hex') !== blocks[i]) { ok = false; return; }
+          pos += len;
+        }
       }
-    }
-  })(header);
-  // Formato .asar: 8 bytes de wrapper (2x uint32 do Pickle) + headerSize
-  // (tamanho do JSON do cabeçalho) + os dados concatenados dos arquivos.
-  const expectedSize = 8 + headerSize + maxEnd;
-  const realSize = fs.statSync(asarPath).size;
-  return expectedSize === realSize;
+    })(header);
+    return ok;
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 async function installOrUpdate(id, onProgress) {
