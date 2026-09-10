@@ -160,6 +160,21 @@ function getStatus(id) {
 // o manifest (JSON pequeno, a resposta da API de releases do GitHub)
 // quanto pra baixar o pacote em si (arquivo grande) — sem precisar de
 // nenhuma biblioteca nova além do "https" nativo do Node.
+//
+// BUG CORRIGIDO ("Invalid package ... app.asar" ao tentar abrir depois de
+// instalar): o download de arquivo grande nunca conferia se realmente
+// baixou tudo — o evento 'end' de um stream HTTP dispara quando a
+// CONEXÃO termina, não necessariamente quando TODOS os bytes chegaram
+// (rede instável, timeout, proxy cortando no meio, etc. podem encerrar a
+// conexão cedo). O código resolvia a promise como sucesso de qualquer
+// jeito, gravava um .zip truncado no disco (fs.writeFileSync em
+// installOrUpdate) e extraía ele — o executável (perto do início do
+// arquivo) podia sair inteiro, enquanto resources/app.asar (mais pro
+// fim) saía cortado/corrompido, exatamente o sintoma relatado. Também
+// não havia handler de erro no stream de resposta em si (só na
+// requisição) — uma queda de conexão no meio podia nem cair no reject.
+// Corrigido conferindo bytes recebidos contra Content-Length antes de
+// resolver, e capturando erro do stream de resposta também.
 function httpsGet(url, { asJson = false, onProgress } = {}, redirectsLeft = 5) {
   return new Promise((resolve, reject) => {
     https.get(url, { headers: { 'User-Agent': 'ProjectClub-App' } }, (res) => {
@@ -173,6 +188,7 @@ function httpsGet(url, { asJson = false, onProgress } = {}, redirectsLeft = 5) {
         res.resume();
         return;
       }
+      res.on('error', (err) => reject(new Error(`Conexão interrompida durante o download: ${err.message}`)));
       if (asJson) {
         let body = '';
         res.on('data', (c) => { body += c; });
@@ -189,7 +205,13 @@ function httpsGet(url, { asJson = false, onProgress } = {}, redirectsLeft = 5) {
         chunks.push(c);
         if (onProgress && total) onProgress(Math.round((received / total) * 100));
       });
-      res.on('end', () => resolve(Buffer.concat(chunks)));
+      res.on('end', () => {
+        if (total && received !== total) {
+          reject(new Error(`Download incompleto: recebidos ${received} de ${total} bytes esperados — a conexão pode ter caído no meio. Tente instalar de novo.`));
+          return;
+        }
+        resolve(Buffer.concat(chunks));
+      });
     }).on('error', reject);
   });
 }
