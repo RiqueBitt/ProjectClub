@@ -39,7 +39,8 @@ const { app } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
-const { spawn, execSync } = require('child_process');
+const { spawn, execSync, execFileSync } = require('child_process');
+const extractZip = require('extract-zip');
 
 // Item pedido: "os arquivos necessários devem ser adicionados dentro da
 // própria pasta de instalação do Project Club... Project Club → arquivos
@@ -105,7 +106,28 @@ const MODULES = {
     description: 'Launcher de Minecraft do Project Club',
     folder: 'ProjectMC',
     manifestUrl: 'https://api.github.com/repos/RiqueBitt/goldapple-launcher-releases/releases',
+    packageType: 'single-file',
     exeName: { win32: 'ProjectMC.exe', linux: 'ProjectMC.AppImage' },
+  },
+  // Item pedido: "adicione esse projeto aqui, ele é um tipo de editor
+  // de imagem chamado PhotoProject... adicione ele na aba aplicativo
+  // Windows e Linux" — diferente do ProjectMC (Electron, empacotado
+  // como um único .exe/.AppImage portátil), o PhotoProject é um app
+  // Qt/C++ nativo — o pacote publicado é um .zip (Windows, gerado com
+  // windeployqt: o binário + as DLLs do Qt do lado) ou .tar.gz (Linux:
+  // o binário + as bibliotecas do Qt + um script "photoproject.sh" que
+  // ajusta LD_LIBRARY_PATH/QT_PLUGIN_PATH antes de rodar o binário
+  // real) — precisa extrair pra uma pasta, não dá pra rodar um único
+  // arquivo solto. packageType 'archive' abaixo é o que diferencia
+  // esse fluxo do 'single-file' do ProjectMC.
+  photoproject: {
+    displayName: 'PhotoProject',
+    description: 'Editor de imagem do Project Club',
+    folder: 'PhotoProject',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/PhotoProject_releases-/releases',
+    packageType: 'archive',
+    assetExt: { win32: '.zip', linux: '.tar.gz' },
+    exeName: { win32: 'patchy.exe', linux: 'photoproject.sh' },
   },
 };
 
@@ -230,9 +252,14 @@ function isSemverTag(tagName) {
 // Escolhe o asset certo pra plataforma atual — agora um arquivo único
 // (.exe no Windows, .AppImage no Linux), não mais um .zip pra extrair.
 function pickAssetForPlatform(assets, mod) {
-  const exeName = getExeName(mod).toLowerCase();
-  const ext = path.extname(exeName); // '.exe' ou '.appimage'
-  return assets.find((a) => a.name.toLowerCase().endsWith(ext)) || null;
+  // Item pedido: PhotoProject usa packageType 'archive' — o asset
+  // publicado é um .zip/.tar.gz (assetExt), não o mesmo arquivo do
+  // executável final (exeName), que só existe DEPOIS de extrair.
+  const ext = mod.packageType === 'archive'
+    ? mod.assetExt[process.platform]
+    : path.extname(getExeName(mod).toLowerCase()); // '.exe' ou '.appimage'
+  if (!ext) throw new Error(`${mod.displayName} não tem um pacote disponível para esta plataforma (${process.platform}).`);
+  return assets.find((a) => a.name.toLowerCase().endsWith(ext.toLowerCase())) || null;
 }
 
 async function fetchLatestRelease(id) {
@@ -292,10 +319,23 @@ async function installOrUpdate(id, onProgress) {
 
   const dir = moduleDir(id);
   fs.mkdirSync(dir, { recursive: true });
+
+  if (mod.packageType === 'archive') {
+    await installArchivePackage(mod, id, dir, data, version, onProgress);
+  } else {
+    await installSingleFilePackage(mod, dir, data, version);
+  }
+
+  onProgress?.({ phase: 'done', percent: 100 });
+  return { version };
+}
+
+// Fluxo original do ProjectMC — um único arquivo (.exe/.AppImage) já
+// pronto pra rodar, sem nenhuma extração.
+async function installSingleFilePackage(mod, dir, data, version) {
   const finalExePath = path.join(dir, getExeName(mod));
   const tmpExePath = `${finalExePath}.downloading-${Date.now()}`;
 
-  onProgress?.({ phase: 'finishing', percent: 100 });
   fs.writeFileSync(tmpExePath, data);
   if (process.platform !== 'win32') {
     // Item pedido: "Fassa funcionar no Linux" — sem isso, o AppImage
@@ -315,10 +355,58 @@ async function installOrUpdate(id, onProgress) {
     await new Promise((r) => setTimeout(r, 500));
     fs.renameSync(tmpExePath, finalExePath);
   }
-  fs.writeFileSync(versionFilePath(id), version, 'utf-8');
+  fs.writeFileSync(path.join(dir, '.version'), version, 'utf-8');
+}
 
-  onProgress?.({ phase: 'done', percent: 100 });
-  return { version };
+// Item pedido: "adicione esse projeto... editor de imagem chamado
+// PhotoProject" — pacote publicado como .zip (Windows) ou .tar.gz
+// (Linux), precisa extrair pra pasta em vez de rodar direto. Mesmo
+// padrão "instalar do lado, trocar depois" já comprovado com o
+// ProjectMC (ver histórico do arquivo) — nunca mexe na instalação em
+// uso até tudo já ter sido baixado e extraído com sucesso numa pasta
+// separada.
+async function installArchivePackage(mod, id, finalDir, data, version, onProgress) {
+  const tmpArchivePath = path.join(app.getPath('temp'), `${mod.folder}-${version}-${process.platform}-${Date.now()}${mod.assetExt[process.platform]}`);
+  fs.writeFileSync(tmpArchivePath, data);
+
+  const stagingDir = `${finalDir}.installing-${Date.now()}`;
+  fs.mkdirSync(stagingDir, { recursive: true });
+  onProgress?.({ phase: 'extracting', percent: 0 });
+  try {
+    if (process.platform === 'win32') {
+      await extractZip(tmpArchivePath, { dir: stagingDir });
+    } else {
+      // tar já vem instalado em qualquer distribuição Linux normal —
+      // sem precisar de nenhuma biblioteca npm extra só pra isso.
+      execFileSync('tar', ['-xzf', tmpArchivePath, '-C', stagingDir]);
+    }
+  } finally {
+    fs.unlink(tmpArchivePath, () => {});
+  }
+
+  const exePath = path.join(stagingDir, getExeName(mod));
+  if (!fs.existsSync(exePath)) {
+    fs.rmSync(stagingDir, { recursive: true, force: true });
+    throw new Error(`O pacote baixado de ${mod.displayName} não contém "${getExeName(mod)}" — o release publicado pode não estar empacotado no formato esperado.`);
+  }
+  if (process.platform !== 'win32') {
+    try { fs.chmodSync(exePath, 0o755); } catch { /* segue */ }
+  }
+  fs.writeFileSync(path.join(stagingDir, '.version'), version, 'utf-8');
+
+  onProgress?.({ phase: 'finishing', percent: 100 });
+  killRunningProcess(getExeName(mod));
+  const oldDir = `${finalDir}.old-${Date.now()}`;
+  if (fs.existsSync(finalDir)) {
+    try {
+      fs.renameSync(finalDir, oldDir);
+    } catch {
+      await new Promise((r) => setTimeout(r, 500));
+      fs.renameSync(finalDir, oldDir);
+    }
+  }
+  fs.renameSync(stagingDir, finalDir);
+  fs.rmSync(oldDir, { recursive: true, force: true });
 }
 
 // Item pedido: "o launcher também deve poder ser iniciado separadamente

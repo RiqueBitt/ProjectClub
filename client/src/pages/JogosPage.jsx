@@ -240,7 +240,7 @@ function AppDetailView({ item, onBack }) {
         {desktopReady && busy && progress && (
           <div className="app-detail-progress">
             <div className="app-detail-progress-label dim">
-              {progress.phase === 'downloading' ? `Baixando... ${progress.percent}%` : 'Concluindo instalação...'}
+              {progress.phase === 'downloading' ? `Baixando... ${progress.percent}%` : progress.phase === 'extracting' ? 'Extraindo arquivos...' : 'Concluindo instalação...'}
             </div>
             <div className="app-detail-progress-bar"><div style={{ width: `${progress.percent}%` }} /></div>
           </div>
