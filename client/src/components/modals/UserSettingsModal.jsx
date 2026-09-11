@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import IconGlyph from '../IconGlyph.jsx';
@@ -84,6 +85,7 @@ const TAB_GROUPS = [
 ];
 
 export default function UserSettingsModal({ onClose }) {
+  const { t: translate } = useTranslation();
   const { user, setUser, logout } = useAuth();
   const navigate = useNavigate();
   const { theme, setTheme, customBackground, setCustomBackground, emojiStyle, setEmojiStyle: setEmojiStyleStore, myClan, chatZoom, setChatZoom: setChatZoomStore, userSettings, updateUserSetting } = useStore();
@@ -645,7 +647,7 @@ export default function UserSettingsModal({ onClose }) {
               {group.tabs.map((t) => (
                 <button key={t} className={`settings-modal-sidebar-item ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
                   <span className="settings-modal-sidebar-icon">{iconFor(t)}</span>
-                  {labelFor(t)}
+                  {labelFor(t, translate)}
                 </button>
               ))}
             </div>
@@ -1893,11 +1895,11 @@ export default function UserSettingsModal({ onClose }) {
   );
 }
 
-function labelFor(t) {
+function labelFor(tabKey, translate) {
   return {
-    PROFILE: 'Meu perfil', PROFILE_CONTENT: 'Conteúdo', COLUMNS: 'Colunas', MINI_PROFILE: 'Mini Perfil', ACCOUNT: 'Informação de conta', VOICE: 'Voz e vídeo', SECURITY: 'Senha e segurança', APPEARANCE: 'Aparência',
-    ACCOUNT_STATUS: 'Status da conta', PRIVACY: 'Dados e privacidade', NOTIFICATIONS: 'Notificações', ACCESSIBILITY: 'Acessibilidade', SYSTEM: 'Sistema', LANGUAGE: 'Idioma e horário', GAMES: 'Jogos e apps',
-  }[t];
+    PROFILE: translate('settings.tabs.PROFILE'), PROFILE_CONTENT: translate('settings.tabs.PROFILE_CONTENT'), COLUMNS: translate('settings.tabs.COLUMNS'), MINI_PROFILE: translate('settings.tabs.MINI_PROFILE'), ACCOUNT: translate('settings.tabs.ACCOUNT'), VOICE: translate('settings.tabs.VOICE'), SECURITY: translate('settings.tabs.SECURITY'), APPEARANCE: translate('settings.tabs.APPEARANCE'),
+    ACCOUNT_STATUS: translate('settings.tabs.ACCOUNT_STATUS'), PRIVACY: translate('settings.tabs.PRIVACY'), NOTIFICATIONS: translate('settings.tabs.NOTIFICATIONS'), ACCESSIBILITY: translate('settings.tabs.ACCESSIBILITY'), SYSTEM: translate('settings.tabs.SYSTEM'), LANGUAGE: translate('settings.tabs.LANGUAGE'), GAMES: translate('settings.tabs.GAMES'),
+  }[tabKey];
 }
 
 function iconFor(t) {

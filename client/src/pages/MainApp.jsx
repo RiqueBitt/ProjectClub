@@ -4,6 +4,7 @@ import { useStore } from '../store/useStore';
 import { useSocket } from '../context/SocketContext.jsx';
 import LoadingScreen from '../components/LoadingScreen.jsx';
 import { playSound } from '../utils/sounds';
+import { applyLanguage } from '../i18n/index.js';
 import { getCommunity, listConversations, listFriends } from '../api/endpoints';
 import MainSidebar from '../components/MainSidebar.jsx';
 import TopSearchBar from '../components/TopSearchBar.jsx';
@@ -88,6 +89,14 @@ export default function MainApp() {
   const closeMobileMembers = useStore((s) => s.closeMobileMembers);
   const setUiLayoutAll = useStore((s) => s.setUiLayoutAll);
   const uiLayout = useStore((s) => s.uiLayout);
+  // Item pedido: "melhore os idiomas e deixe só 3 idiomas mesmo" — o
+  // seletor de idioma já salvava a escolha no banco, mas nada de
+  // verdade mudava de idioma. Aplica sempre que o valor muda — tanto
+  // no carregamento inicial (getUserSettings acima) quanto quando a
+  // pessoa troca na tela de Configurações (updateUserSetting já
+  // atualiza esse mesmo valor no store).
+  const userSettingsLanguage = useStore((s) => s.userSettings?.language);
+  useEffect(() => { applyLanguage(userSettingsLanguage); }, [userSettingsLanguage]);
   const location = useLocation();
   const navigate = useNavigate();
   const { connected } = useSocket() || {};

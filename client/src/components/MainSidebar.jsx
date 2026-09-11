@@ -1,4 +1,5 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import topicIcon from '../assets/icons/nav-topic.png';
@@ -31,12 +32,12 @@ const ITEMS = [
   // pro Chat/Comunidade, mudar isso seria um risco desnecessário só
   // pra Início ser "tecnicamente" a rota raiz; sendo o primeiro item
   // da lista já atende ao pedido.
-  { to: '/inicio', icon: inicioIcon, isImg: true, label: 'Início', match: (p) => p === '/inicio' },
-  { to: '/', icon: topicIcon, isImg: true, label: 'Comunidade', match: (p) => p === '/' || p.startsWith('/channels/') },
+  { to: '/inicio', icon: inicioIcon, isImg: true, labelKey: 'nav.inicio', match: (p) => p === '/inicio' },
+  { to: '/', icon: topicIcon, isImg: true, labelKey: 'nav.comunidade', match: (p) => p === '/' || p.startsWith('/channels/') },
   // Item pedido: "mude o feed para cima e o amigos para baixo" — ordem
   // invertida (Feeds vem antes de Amigos agora).
-  { to: '/comunidades', icon: feedIcon, isImg: true, label: 'Feeds', match: (p) => p === '/comunidades' || p.startsWith('/posts/') },
-  { to: '/dms', icon: friendsIcon, isImg: true, label: 'Amigos', match: (p) => p === '/dms' || p.startsWith('/conversations/') },
+  { to: '/comunidades', icon: feedIcon, isImg: true, labelKey: 'nav.feeds', match: (p) => p === '/comunidades' || p.startsWith('/posts/') },
+  { to: '/dms', icon: friendsIcon, isImg: true, labelKey: 'nav.amigos', match: (p) => p === '/dms' || p.startsWith('/conversations/') },
   // Item pedido: "crie uma nova categoria chamada Jogos, posicionada
   // logo abaixo da categoria Amigos... dentro de Jogos, crie duas
   // opções: Jogos e Aplicativos" — sem ícone dedicado no pacote de
@@ -47,16 +48,16 @@ const ITEMS = [
   // padrão que o resto desta barra já usa (item único levando pra uma
   // página com navegação interna própria), em vez de inventar um
   // segundo nível de menu que não existe em nenhum outro lugar dela.
-  { to: '/jogos', icon: '🎮', label: 'Jogos', match: (p) => p.startsWith('/jogos') },
+  { to: '/jogos', icon: '🎮', labelKey: 'nav.jogos', match: (p) => p.startsWith('/jogos') },
   // Item pedido: "remover a aba Notificações do menu lateral esquerdo
   // e deixar as notificações disponíveis somente pelo ícone de sino
   // localizado na parte superior da interface" — o sino já existe e
   // já leva pra essa mesma rota (ver TopSearchBar.jsx), então o
   // acesso continua funcionando normalmente, só sem essa entrada
   // duplicada aqui na barra lateral.
-  { to: '/rank', icon: ranksIcon, isImg: true, label: 'Ranks', match: (p) => p.startsWith('/rank') },
-  { to: '/conquistas', icon: achievementsIcon, isImg: true, label: 'Conquistas', match: (p) => p.startsWith('/conquistas') },
-  { to: '/tickets', icon: supportIcon, isImg: true, label: 'Suporte', match: (p) => p.startsWith('/tickets') },
+  { to: '/rank', icon: ranksIcon, isImg: true, labelKey: 'nav.ranks', match: (p) => p.startsWith('/rank') },
+  { to: '/conquistas', icon: achievementsIcon, isImg: true, labelKey: 'nav.conquistas', match: (p) => p.startsWith('/conquistas') },
+  { to: '/tickets', icon: supportIcon, isImg: true, labelKey: 'nav.suporte', match: (p) => p.startsWith('/tickets') },
   // Item pedido: "nova opção chamada Clans na barra lateral" — sem
   // ícone dedicado no pacote de ícones do app (isImg: true exigiria
   // um arquivo próprio), emoji como os outros lugares do app já usam
@@ -66,7 +67,7 @@ const ITEMS = [
   // Item pedido: "caixinha azul com BETA... bordas onduladas, pra
   // mostrar que é uma funcionalidade beta" — badge: true ativa esse
   // selo ao lado do texto (ver renderização abaixo).
-  { to: '/clans', icon: clansIcon, isImg: true, label: 'Clãs', beta: true, match: (p) => p.startsWith('/clans') },
+  { to: '/clans', icon: clansIcon, isImg: true, labelKey: 'nav.clas', beta: true, match: (p) => p.startsWith('/clans') },
 ];
 // BUG CORRIGIDO: o painel de staff (/admin) ficou órfão depois da troca
 // pra essa barra lateral única — os componentes antigos que linkavam pra
@@ -75,10 +76,11 @@ const ITEMS = [
 // no painel a não ser digitando a URL /admin na mão. Item separado (não
 // dentro de ITEMS) porque só aparece pra ADMIN/MODERATOR — ver o filtro
 // no componente abaixo.
-const STAFF_ITEM = { to: '/admin', icon: dashboardIcon, isImg: true, label: 'Painel', match: (p) => p.startsWith('/admin') };
+const STAFF_ITEM = { to: '/admin', icon: dashboardIcon, isImg: true, labelKey: 'nav.painel', match: (p) => p.startsWith('/admin') };
 
 
 export default function MainSidebar() {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -139,7 +141,7 @@ export default function MainSidebar() {
                     : item.icon}
                   {badge > 0 && <span className="main-sidebar-item-badge">{badge > 99 ? '99+' : badge}</span>}
                 </span>
-                <span className="main-sidebar-item-label">{item.label}{item.beta && <span className="beta-badge">BETA</span>}</span>
+                <span className="main-sidebar-item-label">{t(item.labelKey)}{item.beta && <span className="beta-badge">BETA</span>}</span>
               </NavLink>
             );
           })}

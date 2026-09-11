@@ -1,0 +1,55 @@
+{
+  "nav": {
+    "inicio": "Início",
+    "comunidade": "Comunidade",
+    "feeds": "Feeds",
+    "amigos": "Amigos",
+    "jogos": "Jogos",
+    "ranks": "Ranks",
+    "conquistas": "Conquistas",
+    "suporte": "Suporte",
+    "clas": "Clãs",
+    "painel": "Painel"
+  },
+  "common": {
+    "salvar": "Salvar",
+    "cancelar": "Cancelar",
+    "fechar": "Fechar",
+    "excluir": "Excluir",
+    "editar": "Editar",
+    "voltar": "Voltar",
+    "entrar": "Entrar",
+    "sair": "Sair",
+    "carregando": "Carregando...",
+    "confirmar": "Confirmar",
+    "buscar": "Buscar",
+    "enviar": "Enviar"
+  },
+  "settings": {
+    "title": "Configurações",
+    "tabs": {
+      "PROFILE": "Meu perfil",
+      "PROFILE_CONTENT": "Conteúdo",
+      "COLUMNS": "Colunas",
+      "MINI_PROFILE": "Mini Perfil",
+      "ACCOUNT": "Informação de conta",
+      "VOICE": "Voz e vídeo",
+      "SECURITY": "Senha e segurança",
+      "APPEARANCE": "Aparência",
+      "ACCOUNT_STATUS": "Status da conta",
+      "PRIVACY": "Dados e privacidade",
+      "NOTIFICATIONS": "Notificações",
+      "ACCESSIBILITY": "Acessibilidade",
+      "SYSTEM": "Sistema",
+      "LANGUAGE": "Idioma e horário",
+      "GAMES": "Jogos e apps"
+    },
+    "language": {
+      "label": "Idioma",
+      "hint": "Muda o idioma de toda a interface do Project Club."
+    },
+    "timeFormat": {
+      "label": "Formato de horário"
+    }
+  }
+}
