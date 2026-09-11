@@ -15,9 +15,7 @@
     "electron-builder": "^24.13.3"
   },
   "dependencies": {
-    "@electron/asar": "^3.2.18",
-    "electron-updater": "^6.3.4",
-    "extract-zip": "^2.0.1"
+    "electron-updater": "^6.3.4"
   },
   "build": {
     "appId": "com.projectclub.desktop",

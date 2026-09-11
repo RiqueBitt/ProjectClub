@@ -16,6 +16,19 @@
 // atualizar, abrir e remover — como se fosse "só mais uma pasta" dentro
 // da instalação, nunca um instalador/atalho separado.
 //
+// Item pedido (depois de uma sequência longa de bugs "Invalid package
+// app.asar", todos causados direta ou indiretamente pela complexidade de
+// baixar+extrair+verificar um zip com centenas de arquivos do lado de
+// fora): "criar uma pasta com o .exe do launcher... em vez de baixar
+// vários arquivos, baixar o .exe... quando clicar em jogar ele abre o
+// .exe". O pacote publicado agora é um ÚNICO arquivo por plataforma —
+// um .exe portátil no Windows (target 'portable' do electron-builder, se
+// auto-extrai sozinho usando o próprio mecanismo do NSIS toda vez que
+// roda) e um .AppImage no Linux (já era um arquivo único por natureza).
+// Este módulo não extrai, não verifica estrutura de pacote nenhuma — só
+// baixa o arquivo e roda ele, exatamente como abrir qualquer outro
+// programa instalado no PC.
+//
 // Item pedido: "a arquitetura deve ser preparada para que futuramente
 // outros jogos ou aplicativos também possam ser adicionados da mesma
 // forma" — por isso quase tudo aqui recebe um `id` de módulo (MODULES
@@ -24,40 +37,9 @@
 // catálogo, com seu próprio manifestUrl/exeName.
 const { app } = require('electron');
 const path = require('path');
-// Item pedido: "refaz completamente, de outro jeito mais fácil e sem
-// erros" — achado real ao reconsiderar de onde "Invalid package
-// C:\...\app.asar" vem de verdade: esse texto exato é o formato
-// clássico do runtime NATIVO do próprio Electron (C++) ao tentar
-// carregar um .asar — não é nada que a biblioteca @electron/asar (puro
-// JS, só lê bytes) ou meu próprio código geram (conferido: a mensagem
-// não existe em nenhum lugar dessa biblioteca).
-//
-// O Electron substitui GLOBALMENTE o módulo 'fs' padrão do Node pra
-// interceptar qualquer caminho contendo "app.asar" e tratá-lo como um
-// pacote especial, de forma transparente — é assim que o próprio
-// Electron consegue rodar código de dentro de um .asar como se fosse
-// uma pasta comum. Só que o PROCESSO PRINCIPAL do Project Club
-// TAMBÉM é Electron — então minhas próprias leituras
-// (fs.openSync/fs.readSync dentro de verifyAsarIntegrity, chamadas
-// pra CONFERIR o app.asar do ProjectMC) passavam por esse mesmo
-// interceptador, em vez de ler os bytes brutos do arquivo direto. Se o
-// arquivo ainda não tivesse 100% terminado de ser escrito naquele
-// instante exato (extractZip roda de forma assíncrona por dentro), o
-// próprio Electron podia rejeitar como "Invalid package" antes da
-// minha verificação sequer rodar de verdade — o oposto do que eu
-// queria (verificar SE está corrompido, não CAUSAR uma falha por
-// tentar olhar cedo demais através do mecanismo errado).
-//
-// Corrigido usando 'original-fs' — o módulo que o próprio Electron
-// expõe especificamente pra isso: fs sem nenhuma interceptação de
-// .asar, leitura de bytes crus garantida, exatamente o que uma
-// verificação de integridade precisa.
-const fs = require('original-fs');
+const fs = require('fs');
 const https = require('https');
-const crypto = require('crypto');
 const { spawn, execSync } = require('child_process');
-const extractZip = require('extract-zip');
-const asar = require('@electron/asar');
 
 // Item pedido: "os arquivos necessários devem ser adicionados dentro da
 // própria pasta de instalação do Project Club... Project Club → arquivos
@@ -71,23 +53,6 @@ const asar = require('@electron/asar');
 // montagem squashfs SOMENTE LEITURA, nunca gravável), cai pros dados do
 // próprio usuário (userData) em vez de falhar silenciosamente — só muda
 // ONDE fica, nunca quebra.
-//
-// BUG CORRIGIDO: usava fs.accessSync(dir, W_OK) pra checar se dava pra
-// escrever ali — isso é conhecido por não ser confiável no Windows.
-// Diferente do Linux/macOS (permissões unix reais), o Windows usa ACLs, e
-// fs.accessSync(W_OK) no Windows só confere o atributo "somente leitura"
-// do item (quase nunca marcado em PASTAS) — não a permissão de escrita de
-// verdade dada por UAC/administrador. Resultado real visto: instalação
-// "para todos os usuários" do NSIS (padrão) vai pra C:\Program Files\...,
-// accessSync(W_OK) "passava" (dizia que era gravável), o código achava
-// que podia usar essa pasta — e só na hora de tentar criar a pasta de
-// verdade (fs.mkdirSync, dentro de installOrUpdate) é que vinha o erro
-// real do Windows: "EPERM: operation not permitted, mkdir 'C:\Program
-// Files\Project Club\modules\ProjectMC'". Corrigido testando com uma
-// escrita de verdade (cria e apaga um arquivo de teste) em vez de
-// perguntar ao sistema de permissões, que pode mentir dependendo da
-// plataforma — é a única forma confiável de saber se vai funcionar,
-// igual em qualquer sistema operacional.
 function canWriteTo(dir) {
   try {
     fs.mkdirSync(dir, { recursive: true });
@@ -100,37 +65,15 @@ function canWriteTo(dir) {
   }
 }
 
-// BUG CORRIGIDO (v2, achado real do relatado "Invalid package ...
-// app.asar" persistindo mesmo com download/extração comprovadamente
-// íntegros, package certo escolhido, e uma única instalação confirmada
-// no caminho certo): mesmo depois de canWriteTo() testar com uma
-// escrita real (em vez de confiar em accessSync), o teste ainda podia
-// "passar" em Program Files por um motivo diferente e mais sutil —
-// UAC File Virtualization do Windows. Quando um processo NÃO está
-// elevado de verdade (mesmo tendo sido INSTALADO como administrador
-// uma vez — isso não faz o app RODAR elevado depois, só a instalação
-// em si precisou disso) e tenta escrever numa pasta protegida como
-// Program Files, o Windows finge que funcionou: silenciosamente
-// redireciona a escrita pra %LocalAppData%\VirtualStore\... de forma
-// transparente PRO MESMO PROCESSO — então canWriteTo()/
-// verifyAsarIntegrity() liam de volta através desse mesmo redirecionamento
-// e sempre viam tudo certo. Só que esse redirecionamento não é garantido
-// se comportar do mesmo jeito quando o Electron carrega o .asar de
-// verdade pra abrir o processo do ProjectMC (ou quando outra ferramenta/
-// contexto olha pro caminho real, sem o filtro de virtualização) —
-// resultando em "Invalid package" mesmo com tudo parecendo correto do
-// lado de dentro do próprio processo que instalou.
-//
-// Corrigido: no Windows, só considera installDir (Program Files ou
+// No Windows, só considera a pasta de instalação (Program Files ou
 // similar) gravável se o processo estiver REALMENTE elevado agora — não
-// só "consegue enganar um teste de escrita", que a virtualização
-// engana facilmente. "net session" é um comando clássico do Windows que
-// só têm sucesso rodando elevado de verdade (falha com "access is
-// denied" caso contrário) — sem precisar de nenhum módulo nativo extra.
-// Nunca tentando escrever em Program Files sem elevação real, a
-// virtualização nunca entra em ação pra começo de conversa — os dados
-// vão sempre pra AppData (sempre gravável, nunca virtualizado) de forma
-// consistente entre quem escreve e quem lê depois.
+// basta "conseguir escrever um arquivo de teste ali", já que o Windows
+// pode silenciosamente redirecionar essa escrita pra
+// %LocalAppData%\VirtualStore\... (UAC Virtualization) sem avisar nada,
+// de um jeito que só o PRÓPRIO processo que escreveu enxerga de volta —
+// outros processos (como o próprio .exe do ProjectMC rodando depois)
+// podem não ver a mesma coisa. "net session" só tem sucesso rodando
+// elevado de verdade (falha com "access is denied" caso contrário).
 function isElevatedOnWindows() {
   if (process.platform !== 'win32') return true; // n/a fora do Windows
   try {
@@ -148,7 +91,7 @@ function resolveModulesRoot() {
 }
 
 // Catálogo dos módulos "jogo/app" que o Project Club sabe gerenciar.
-// IMPORTANTE SOBRE O NOME: o repositório de onde os pacotes .zip publicados
+// IMPORTANTE SOBRE O NOME: o repositório de onde os pacotes publicados
 // são baixados ainda se chama "goldapple-launcher-releases" no GitHub —
 // renomear esse repositório em si está fora do que esta integração
 // consegue fazer (é uma ação de administração da conta do GitHub, não
@@ -156,16 +99,6 @@ function resolveModulesRoot() {
 // MOSTRA ou GRAVA esse módulo (nome exibido, nome da pasta, nome do
 // executável esperado), ele já é tratado como "ProjectMC" de ponta a
 // ponta, como pedido.
-//
-// Item pedido: "Fassa funcionar no Linux" — exeName agora depende da
-// plataforma: no Windows é um .exe comum; no Linux, o formato de
-// distribuição de app único mais simples pra um app Electron é um
-// AppImage (mesmo formato que o próprio Project Club já usa pra si, ver
-// "linux" em desktop/package.json) — um arquivo binário só, que só
-// precisa de permissão de execução (chmod +x) pra rodar, sem precisar
-// "instalar" nada no sistema. Quem publica os pacotes do ProjectMC
-// precisa nomear os arquivos exatamente assim dentro do .zip de cada
-// plataforma.
 const MODULES = {
   projectmc: {
     displayName: 'ProjectMC',
@@ -182,10 +115,9 @@ function getModule(id) {
   return mod;
 }
 
-// Item pedido: "Fassa funcionar no Linux" — resolve o nome de arquivo
-// certo pra plataforma atual. Sem entrada pra plataforma atual
-// (ex: macOS, que este projeto não distribui) — erro claro em vez de
-// tentar rodar um binário que não existe.
+// Resolve o nome de arquivo certo pra plataforma atual. Sem entrada pra
+// plataforma atual (ex: macOS, que este projeto não distribui) — erro
+// claro em vez de tentar rodar um binário que não existe.
 function getExeName(mod) {
   const name = mod.exeName[process.platform];
   if (!name) throw new Error(`${mod.displayName} não tem um pacote disponível para esta plataforma (${process.platform}).`);
@@ -230,23 +162,13 @@ function getStatus(id) {
 
 // GET https simples com suporte a redirecionamento — usado tanto pra ler
 // o manifest (JSON pequeno, a resposta da API de releases do GitHub)
-// quanto pra baixar o pacote em si (arquivo grande) — sem precisar de
-// nenhuma biblioteca nova além do "https" nativo do Node.
+// quanto pra baixar o pacote em si — sem precisar de nenhuma biblioteca
+// nova além do "https" nativo do Node.
 //
-// BUG CORRIGIDO ("Invalid package ... app.asar" ao tentar abrir depois de
-// instalar): o download de arquivo grande nunca conferia se realmente
-// baixou tudo — o evento 'end' de um stream HTTP dispara quando a
-// CONEXÃO termina, não necessariamente quando TODOS os bytes chegaram
-// (rede instável, timeout, proxy cortando no meio, etc. podem encerrar a
-// conexão cedo). O código resolvia a promise como sucesso de qualquer
-// jeito, gravava um .zip truncado no disco (fs.writeFileSync em
-// installOrUpdate) e extraía ele — o executável (perto do início do
-// arquivo) podia sair inteiro, enquanto resources/app.asar (mais pro
-// fim) saía cortado/corrompido, exatamente o sintoma relatado. Também
-// não havia handler de erro no stream de resposta em si (só na
-// requisição) — uma queda de conexão no meio podia nem cair no reject.
-// Corrigido conferindo bytes recebidos contra Content-Length antes de
-// resolver, e capturando erro do stream de resposta também.
+// Confere bytes recebidos contra Content-Length antes de resolver — se a
+// conexão cair no meio (rede instável, timeout, proxy cortando cedo), o
+// evento 'end' de um stream HTTP ainda assim dispara, e sem essa
+// checagem o download "truncado" passaria como sucesso silenciosamente.
 function httpsGet(url, { asJson = false, onProgress } = {}, redirectsLeft = 5) {
   return new Promise((resolve, reject) => {
     https.get(url, { headers: { 'User-Agent': 'ProjectClub-App' } }, (res) => {
@@ -288,81 +210,40 @@ function httpsGet(url, { asJson = false, onProgress } = {}, redirectsLeft = 5) {
   });
 }
 
-// Item pedido: "Project Club deve conseguir detectar a atualização" —
-// traduz a resposta da API de releases do GitHub num formato simples e
+// Traduz a resposta da API de releases do GitHub num formato simples e
 // neutro (version/downloadUrl). Se o manifest de origem mudar de lugar
 // no futuro (um domínio próprio, por exemplo), só esta função precisa
 // mudar — o resto do módulo não sabe nem se importa de onde isso veio.
 //
-// Item pedido: "Fassa funcionar no Linux" — cada plataforma publica seu
-// próprio pacote .zip dentro da mesma release (ex:
-// "projectmc-1.2.0-win.zip" e "projectmc-1.2.0-linux.zip") — escolhe o
-// asset certo pelo sufixo do nome do arquivo. Só cai pro primeiro .zip
-// da lista quando existir exatamente UM .zip na release inteira
-// (compatibilidade com uma release "de transição" que ainda não
-// distingue plataforma nenhuma) — nunca quando já existem VÁRIOS .zips
-// e nenhum bate com a plataforma atual.
-//
-// BUG CORRIGIDO: antes, "match || zips[0]" caía pro primeiro .zip da
-// lista mesmo com vários presentes — numa release como a
-// "goldapple-launcher-1.0.27-win32-ia32.zip" +
-// "goldapple-launcher-1.0.27-win32-x64.zip" (dois pacotes, nenhum com
-// "linux" no nome), rodando no LINUX isso baixava silenciosamente um
-// .zip de WINDOWS (~130MB por engano) em vez de avisar que não tem
-// pacote pra essa plataforma — a extração terminava "com sucesso"
-// (nenhum erro), só que sem o ProjectMC.AppImage esperado lá dentro,
-// deixando isInstalled()/launch() reportando "não instalado" depois
-// de um download inteiro desperdiçado, sem explicar o motivo real.
-function pickAssetForPlatform(assets) {
-  const zips = assets.filter((a) => a.name.toLowerCase().endsWith('.zip'));
-  const platformSuffix = process.platform === 'win32' ? 'win' : process.platform === 'linux' ? 'linux' : null;
-  const match = platformSuffix && zips.find((a) => a.name.toLowerCase().includes(platformSuffix));
-  if (match) return match;
-  if (zips.length === 1) return zips[0];
-  return null;
+// O repositório goldapple-launcher-releases recebe releases de DOIS
+// processos diferentes: este projeto (build-projectmc-release.yml, tags
+// "v1.1.0" — formato semântico, com pontos) e o workflow de release
+// pública do launcher em si (outro repositório, tags "v37" — só um
+// número, sem pontos). Filtra só tags no formato semântico (com pontos)
+// — o formato que só este projeto usa — pegando a mais recente dentre
+// essas, ignorando qualquer release "v37"-like publicada por outro
+// processo.
+function isSemverTag(tagName) {
+  return /^v?\d+\.\d+\.\d+$/i.test(tagName || '');
+}
+
+// Escolhe o asset certo pra plataforma atual — agora um arquivo único
+// (.exe no Windows, .AppImage no Linux), não mais um .zip pra extrair.
+function pickAssetForPlatform(assets, mod) {
+  const exeName = getExeName(mod).toLowerCase();
+  const ext = path.extname(exeName); // '.exe' ou '.appimage'
+  return assets.find((a) => a.name.toLowerCase().endsWith(ext)) || null;
 }
 
 async function fetchLatestRelease(id) {
   const mod = getModule(id);
-  // BUG CRÍTICO CORRIGIDO ("Invalid package ... app.asar" persistente,
-  // mesmo depois de reinstalar do zero várias vezes, com download e
-  // extração já comprovadamente íntegros): o manifest usava
-  // "/releases/latest" — a release mais recente do repositório, ponto,
-  // sem distinguir QUEM a publicou. O repositório goldapple-launcher-
-  // releases recebe releases de DOIS processos diferentes: este projeto
-  // (build-projectmc-release.yml, tags "v1.1.0" — formato semântico,
-  // com pontos) E o workflow de release pública do launcher em si
-  // (build-windows-exe.yml, no repositório goldapple-launcher, tags
-  // "v37" — só um número, sem pontos), que roda automaticamente e
-  // PUBLICA NO MESMO REPOSITÓRIO. Quando esse segundo workflow roda
-  // depois do primeiro, "latest" passa a apontar pro pacote ERRADO —
-  // que passa pela verificação de integridade estrutural (é um .asar
-  // genuinamente válido, só que de um build diferente/incompatível, não
-  // truncado) e só falha na hora real de carregar no Electron. Isso
-  // explica o padrão exato relatado: reinstalar do zero "resolvia" só
-  // até o outro workflow publicar de novo, daí voltava a quebrar, sem
-  // nenhuma corrupção de verdade envolvida.
-  //
-  // Corrigido buscando a LISTA de releases (não só "/latest") e
-  // filtrando só tags no formato semântico "vX.Y.Z" (com pontos) — o
-  // formato que só este projeto usa — pegando a mais recente dentre
-  // essas, ignorando releases "v37"-like publicadas por qualquer outro
-  // processo.
   const releases = await httpsGet(mod.manifestUrl, { asJson: true });
-  const isSemverTag = (tagName) => /^v?\d+\.\d+\.\d+$/i.test(tagName || '');
   const release = (Array.isArray(releases) ? releases : [])
     .filter((r) => isSemverTag(r.tag_name))
     .sort((a, b) => new Date(b.published_at) - new Date(a.published_at))[0];
   if (!release) throw new Error(`Nenhuma versão de ${mod.displayName} publicada no formato esperado (vX.Y.Z) foi encontrada.`);
-  const asset = pickAssetForPlatform(release.assets || []);
-  if (!asset) {
-    const hasAnyZip = (release.assets || []).some((a) => a.name.toLowerCase().endsWith('.zip'));
-    throw new Error(
-      hasAnyZip
-        ? `A versão mais recente de ${mod.displayName} não tem um pacote publicado para esta plataforma (${process.platform}).`
-        : `Nenhum pacote .zip encontrado na versão mais recente de ${mod.displayName}.`
-    );
-  }
+  const asset = pickAssetForPlatform(release.assets || [], mod);
+  if (!asset) throw new Error(`A versão mais recente de ${mod.displayName} não tem um pacote publicado para esta plataforma (${process.platform}).`);
   return { version: (release.tag_name || '').replace(/^v/i, ''), downloadUrl: asset.browser_download_url };
 }
 
@@ -370,113 +251,17 @@ async function checkForUpdate(id) {
   const installed = getInstalledVersion(id);
   const latest = await fetchLatestRelease(id);
   return {
-    id,
     installed,
     latest: latest.version,
     updateAvailable: !installed || installed !== latest.version,
   };
 }
 
-// Item pedido: "quando o usuário escolher instalar o ProjectMC, os
-// arquivos necessários devem ser adicionados dentro da própria pasta de
-// instalação do Project Club" + "atualizar somente os arquivos
-// necessários do launcher" — baixa o pacote mais recente e substitui a
-// pasta do módulo por completo (apagar-e-extrair de novo é bem mais
-// simples e confiável do que tentar mesclar arquivo por arquivo entre
-// versões — o mesmo pacote sempre contém TODOS os arquivos necessários
-// daquela versão, então "atualizar" e "instalar pela primeira vez" são
-// literalmente a mesma operação aqui). onProgress recebe { phase,
-// percent } pra alimentar uma barra de progresso na tela.
-//
-// Item pedido: "Fassa funcionar no Linux" — a extração em si (extractZip,
-// via a biblioteca extract-zip) já é 100% multiplataforma sozinha; a
-// única coisa extra que o Linux precisa é marcar o arquivo final como
-// executável depois de extrair (chmod +x) — o Windows não tem esse
-// conceito de permissão, e o próprio .zip nem sempre preserva esse bit
-// corretamente dependendo de como foi empacotado.
-function verifyAsarIntegrity(asarPath) {
-  // Item pedido: verificar todos os sistemas de Configurações e afins —
-  // achado ao investigar "Invalid package ... app.asar" relatado ao
-  // abrir depois de instalar/reinstalar, mesmo já com a validação de
-  // bytes do download (httpsGet acima), release certa sendo escolhida,
-  // e o release publicado confirmado íntegro — reproduzido mesmo numa
-  // instalação única em AppData (nunca sujeita a UAC Virtualization).
-  //
-  // BUG CORRIGIDO (v3 — as duas tentativas anteriores só verificavam
-  // TAMANHO, nunca CONTEÚDO): a v1 conferia só "app.asar tem pelo menos
-  // 1MB" (fraco demais). A v2 melhorou pra comparar o tamanho FÍSICO
-  // real do arquivo contra o que o próprio cabeçalho do .asar diz que
-  // deveria ser (pega qualquer truncamento) — mas ainda não prova que
-  // o CONTEÚDO de cada arquivo lá dentro é o que deveria ser. Uma
-  // alteração que preserva o tamanho total (ex: um trecho de bytes
-  // fica diferente do original sem cortar nem alongar o arquivo — pode
-  // acontecer por vários motivos fora do meu controle: falha de disco,
-  // problema de memória, algo interferindo na escrita) passava batido
-  // por essa checagem, mesmo com o arquivo genuinamente inválido.
-  //
-  // Corrigido usando os hashes SHA256 que o PRÓPRIO formato .asar já
-  // guarda pra cada arquivo dentro do pacote (campo "integrity" no
-  // cabeçalho, dividido em blocos de 4MB quando o arquivo é maior que
-  // isso) — a mesma informação que o Electron usaria pra validar de
-  // verdade. Lê os bytes reais de cada arquivo no offset certo, calcula
-  // o hash, e compara com o que o cabeçalho diz que deveria ser. Rápido
-  // (testado: ~60ms pra um pacote de ~30MB com 115 arquivos) — sem
-  // impacto perceptível na instalação.
-  const { header, headerSize } = asar.getRawHeader(asarPath);
-  const dataStart = 8 + headerSize;
-  const fd = fs.openSync(asarPath, 'r');
-  try {
-    let ok = true;
-    (function walk(node) {
-      if (!ok || !node.files) return;
-      for (const child of Object.values(node.files)) {
-        if (!ok) return;
-        if (child.offset === undefined) { walk(child); continue; }
-        if (!child.size || !child.integrity?.blocks) continue; // vazio/link — nada de conteúdo real pra checar
-        const offset = dataStart + Number(child.offset);
-        const blockSize = child.integrity.blockSize || child.size;
-        const blocks = child.integrity.blocks;
-        let pos = 0;
-        for (let i = 0; i < blocks.length; i++) {
-          const len = Math.min(blockSize, child.size - pos);
-          const buf = Buffer.alloc(len);
-          fs.readSync(fd, buf, 0, len, offset + pos);
-          if (crypto.createHash('sha256').update(buf).digest('hex') !== blocks[i]) { ok = false; return; }
-          pos += len;
-        }
-      }
-    })(header);
-    return ok;
-  } finally {
-    fs.closeSync(fd);
-  }
-}
-
-// Item pedido: "quero um jeito mais fácil e sem erros, não quero ficar
-// vendo esse erro pra sempre" — depois de já ter corrigido, em ordem,
-// download truncado, release errada sendo escolhida, tamanho do
-// pacote, estrutura do .asar e até o CONTEÚDO de cada arquivo por
-// hash — e o erro ainda voltando, só sobrava uma explicação: alguma
-// dessas instalações estava ficando com arquivo VELHO e NOVO
-// misturados. A forma antiga de instalar (apagar a pasta no lugar,
-// depois extrair por cima no MESMO lugar) tem uma falha estrutural:
-// se o ProjectMC.exe de uma instalação anterior ainda estiver rodando
-// em segundo plano (comum — fechar a janela dele não avisa o Project
-// Club, e a pessoa não necessariamente percebe que ainda está aberto),
-// o Windows trava a exclusão desse arquivo específico. fs.rmSync com
-// force:true não lança erro nesse caso — ele segue em frente e ignora
-// silenciosamente o que não conseguiu apagar — deixando um .exe VELHO
-// ao lado de um resources/app.asar NOVO (ou vice-versa, dependendo de
-// qual travou), uma combinação que o Electron corretamente recusa
-// como "Invalid package".
-//
-// Reescrito do zero com o padrão "instalar do lado, trocar depois":
-// nunca mais mexe na pasta final até tudo já estar baixado, extraído
-// e validado com sucesso NUMA PASTA SEPARADA — aí sim, depois de
-// garantir que nenhum processo antigo está rodando (killRunningProcess
-// abaixo), troca a pasta antiga pela nova de uma vez só. Ou a
-// instalação inteira dá certo, ou a pasta em uso nunca chega a ser
-// tocada — nunca mais um estado "pela metade" visível.
+// Mata qualquer processo do módulo que ainda esteja rodando — usado
+// antes de reinstalar/desinstalar, pra nunca tentar mexer num arquivo
+// que o próprio ProjectMC ainda está usando (o Windows trava exclusão/
+// substituição de um .exe em uso; fechar a janela dele não necessariamente
+// mata o processo por completo, então isso não é incomum de acontecer).
 function killRunningProcess(exeName) {
   try {
     if (process.platform === 'win32') {
@@ -490,6 +275,12 @@ function killRunningProcess(exeName) {
   }
 }
 
+// Instalar ou atualizar agora é: baixar o arquivo único (.exe/.AppImage)
+// pra um nome temporário do lado, confirmar que baixou por completo
+// (httpsGet acima já garante isso), matar qualquer processo antigo que
+// ainda esteja rodando, e só então trocar pelo nome final — nunca
+// escreve direto em cima do arquivo em uso, então nunca fica um estado
+// "pela metade" visível mesmo se algo falhar no meio do caminho.
 async function installOrUpdate(id, onProgress) {
   const mod = getModule(id);
   const { version, downloadUrl } = await fetchLatestRelease(id);
@@ -498,93 +289,50 @@ async function installOrUpdate(id, onProgress) {
   const data = await httpsGet(downloadUrl, {
     onProgress: (percent) => onProgress?.({ phase: 'downloading', percent }),
   });
-  const tmpZip = path.join(app.getPath('temp'), `${mod.folder}-${version}-${process.platform}-${Date.now()}.zip`);
-  fs.writeFileSync(tmpZip, data);
 
-  const finalDir = moduleDir(id);
-  const stagingDir = `${finalDir}.installing-${Date.now()}`;
-  onProgress?.({ phase: 'extracting', percent: 0 });
-  fs.mkdirSync(stagingDir, { recursive: true });
-  try {
-    await extractZip(tmpZip, { dir: stagingDir });
-  } finally {
-    fs.unlink(tmpZip, () => {});
-  }
+  const dir = moduleDir(id);
+  fs.mkdirSync(dir, { recursive: true });
+  const finalExePath = path.join(dir, getExeName(mod));
+  const tmpExePath = `${finalExePath}.downloading-${Date.now()}`;
 
-  // Confere TUDO ainda na pasta separada (staging) — nada disso já
-  // afetou a instalação em uso, então um erro aqui é só "a instalação
-  // nova não deu certo", nunca "quebrei a que já funcionava".
-  const exePath = path.join(stagingDir, getExeName(mod));
-  if (!fs.existsSync(exePath)) {
-    fs.rmSync(stagingDir, { recursive: true, force: true });
-    throw new Error(`O pacote baixado de ${mod.displayName} não contém "${getExeName(mod)}" — o release publicado pode não estar empacotado no formato esperado.`);
-  }
-  if (process.platform === 'win32') {
-    const asarPath = path.join(stagingDir, 'resources', 'app.asar');
-    const asarOk = fs.existsSync(asarPath) && (() => { try { return verifyAsarIntegrity(asarPath); } catch { return false; } })();
-    if (!asarOk) {
-      fs.rmSync(stagingDir, { recursive: true, force: true });
-      throw new Error(`O pacote baixado de ${mod.displayName} está corrompido (resources/app.asar incompleto ou inválido) — o download pode ter sido interrompido ou alterado no meio. Tente instalar de novo.`);
-    }
-  }
-  if (process.platform !== 'win32') {
-    try { fs.chmodSync(exePath, 0o755); } catch { /* segue — launch() vai reportar o erro de verdade se isso importar */ }
-  }
-  fs.writeFileSync(path.join(stagingDir, '.version'), version, 'utf-8');
-
-  // Só a partir daqui a pasta em uso é tocada — e só depois de garantir
-  // que nenhum processo antigo ainda está com arquivos dela abertos.
   onProgress?.({ phase: 'finishing', percent: 100 });
-  killRunningProcess(getExeName(mod));
-  const oldDir = `${finalDir}.old-${Date.now()}`;
-  if (fs.existsSync(finalDir)) {
-    try {
-      fs.renameSync(finalDir, oldDir);
-    } catch {
-      // Alguma coisa ainda travada mesmo depois de matar o processo —
-      // raro, mas possível (antivírus escaneando, por exemplo). Espera
-      // só um instante e tenta mais uma vez antes de desistir.
-      await new Promise((r) => setTimeout(r, 500));
-      fs.renameSync(finalDir, oldDir);
-    }
+  fs.writeFileSync(tmpExePath, data);
+  if (process.platform !== 'win32') {
+    // Item pedido: "Fassa funcionar no Linux" — sem isso, o AppImage
+    // baixado fica sem permissão de execução na maioria dos casos (o
+    // Linux não tem um equivalente confiável ao "clicar duas vezes pra
+    // rodar" do Windows quando falta esse bit).
+    try { fs.chmodSync(tmpExePath, 0o755); } catch { /* segue — launch() reporta o erro de verdade se isso importar */ }
   }
-  fs.renameSync(stagingDir, finalDir);
-  fs.rmSync(oldDir, { recursive: true, force: true });
+
+  killRunningProcess(getExeName(mod));
+  try {
+    fs.renameSync(tmpExePath, finalExePath);
+  } catch {
+    // O .exe antigo ainda travado mesmo depois de matar o processo —
+    // raro, mas possível (antivírus escaneando, por exemplo). Espera só
+    // um instante e tenta mais uma vez antes de desistir.
+    await new Promise((r) => setTimeout(r, 500));
+    fs.renameSync(tmpExePath, finalExePath);
+  }
+  fs.writeFileSync(versionFilePath(id), version, 'utf-8');
 
   onProgress?.({ phase: 'done', percent: 100 });
   return { version };
 }
 
 // Item pedido: "o launcher também deve poder ser iniciado separadamente
-// através do próprio Project Club... deve iniciar o módulo/janela
-// própria do launcher, sem precisar abrir uma segunda instalação
-// completa do Project Club" — processo do sistema operacional
-// desanexado (detached + unref), não uma segunda janela do MESMO
-// Electron: o ProjectMC é, por si só, outro app Electron com seu
-// próprio processo principal — é assim que ele roda de qualquer jeito,
-// exatamente como abrir qualquer outro programa instalado no PC.
-// Fechar o Project Club depois não derruba o ProjectMC junto (nem
-// vice-versa) — são dois processos de verdade, só que morando dentro
-// da MESMA pasta de instalação. Funciona igual no Windows (.exe) e no
-// Linux (AppImage com permissão de execução, ver installOrUpdate acima).
+// através do próprio Project Club... quando clicar em jogar ele abre o
+// .exe" — processo do sistema operacional desanexado (detached +
+// unref), não uma segunda janela do MESMO Electron: o ProjectMC é, por
+// si só, outro app Electron com seu próprio processo principal — é
+// assim que ele roda de qualquer jeito, exatamente como abrir qualquer
+// outro programa instalado no PC. Fechar o Project Club depois não
+// derruba o ProjectMC junto (nem vice-versa).
 function launch(id) {
   const mod = getModule(id);
   const exe = path.join(moduleDir(id), getExeName(mod));
   if (!fs.existsSync(exe)) throw new Error(`${mod.displayName} não está instalado.`);
-  // Item pedido: verificar todos os sistemas de Configurações e afins —
-  // checa a integridade de verdade (mesma função usada logo após
-  // instalar, ver verifyAsarIntegrity acima) também aqui, na hora de
-  // abrir — cobre o caso de uma instalação que já estava corrompida
-  // antes desta correção existir (feita com uma versão anterior do
-  // Project Club, sem essa checagem no momento da instalação). Sem
-  // isso, a pessoa só veria o erro genérico "Invalid package..." vindo
-  // de dentro do próprio Electron do ProjectMC — uma mensagem clara
-  // daqui, apontando pro botão Reinstalar, é bem mais acionável.
-  if (process.platform === 'win32') {
-    const asarPath = path.join(path.dirname(exe), 'resources', 'app.asar');
-    const asarOk = fs.existsSync(asarPath) && (() => { try { return verifyAsarIntegrity(asarPath); } catch { return false; } })();
-    if (!asarOk) throw new Error(`${mod.displayName} está com os arquivos corrompidos. Use o botão "Reinstalar" pra baixar de novo do zero.`);
-  }
   const child = spawn(exe, [], { detached: true, stdio: 'ignore', cwd: path.dirname(exe) });
   child.unref();
 }

@@ -163,7 +163,7 @@ function ModuleCard({ moduleId, name, description }) {
             {busy && progress && (
               <div className="module-card-progress">
                 <div className="module-card-progress-label dim">
-                  {progress.phase === 'downloading' ? 'Baixando...' : progress.phase === 'extracting' ? 'Instalando...' : 'Concluindo...'}
+                  {progress.phase === 'downloading' ? 'Baixando...' : 'Concluindo...'}
                 </div>
                 <div className="module-card-progress-bar"><div style={{ width: `${progress.percent}%` }} /></div>
               </div>
