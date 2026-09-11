@@ -406,20 +406,6 @@ if (!gotLock) {
     });
 
     mainWindow.loadURL(APP_URL);
-    // BUG CORRIGIDO ("zoom deixa uma sobra preta enorme, conteúdo não
-    // preenche a janela"): o zoom geral do app (90%, ver o pedido "deixe
-    // a zoom do web/Linux e Windows em 90%") era feito só via CSS ("zoom:
-    // 0.9" no <html>) — mas essa propriedade não é padrão, e no app
-    // desktop, onde a janela pode ser redimensionada/maximizada livremente,
-    // ela causa um descompasso real entre o "tamanho visual" pós-zoom e o
-    // tamanho físico da janela (que window.innerWidth/100vh continuam
-    // refletindo sem o ajuste), deixando uma sobra vazia visível. O zoom
-    // NATIVO do Chromium (setZoomFactor) não tem esse problema — reajusta a
-    // viewport inteira de um jeito consistente. O CSS zoom já foi desligado
-    // especificamente pra esse caso (ver a classe is-electron-app em
-    // client/src/main.jsx e global.css) — só um dos dois deve valer de cada
-    // vez, nunca os dois empilhados juntos.
-    mainWindow.webContents.setZoomFactor(0.9);
 
     // Item pedido: "Rich Presence" (jogo/Spotify) — só começa a detectar
     // depois que a janela terminar de carregar o site de verdade, senão
