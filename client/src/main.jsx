@@ -12,26 +12,6 @@ import './styles/global.css';
 import './styles/settings-mobile-fix.css';
 import './i18n/index.js';
 
-// BUG CORRIGIDO ("zoom deixa uma sobra preta enorme, conteúdo não
-// preenche a janela"): o CSS "zoom: 0.9" aplicado no <html> (ver
-// global.css) reescala visualmente o conteúdo, mas isso não é uma
-// propriedade CSS padrão — window.innerWidth/innerHeight e unidades
-// como 100vh continuam refletindo o tamanho FÍSICO real da janela, não
-// o "tamanho aparente" depois do zoom. No navegador normal isso quase
-// sempre passa despercebido, mas no app desktop (Electron), onde a
-// janela pode ser redimensionada/maximizada livremente, esse
-// descompasso vira uma sobra vazia visível — exatamente o bug
-// relatado. A correção certa pra um app desktop é usar o zoom NATIVO
-// do Chromium (webFrame.setZoomFactor, aplicado do lado do processo
-// principal — ver desktop/main.js) em vez de CSS: ele reajusta a
-// viewport inteira de um jeito consistente, sem esse problema. Essa
-// classe desliga o zoom CSS só quando é o app Electron (onde o zoom
-// nativo já assume — o navegador/Android continuam usando o CSS
-// normalmente, sem mudança nenhuma pra eles).
-if (window.electronAPI) {
-  document.documentElement.classList.add('is-electron-app');
-}
-
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     {/* BUG CORRIGIDO ("mudar zoom/configuração desloga o usuário"): o

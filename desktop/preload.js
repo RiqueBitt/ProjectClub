@@ -7,23 +7,7 @@
 // avisar quando tem atualização — sem esse preload, o JS da página não
 // teria nenhum jeito de descobrir isso (window.navigator.userAgent não
 // diz a versão do NOSSO app, só do Chromium/Electron em si).
-const { contextBridge, ipcRenderer, webFrame } = require('electron');
-
-// BUG CORRIGIDO ("zoom continua bugado no Windows/Linux/web, deixando
-// uma sobra e ficando pior ainda"): já tinham sido tentadas duas
-// formas de aplicar o zoom geral (90%) — CSS puro ("zoom: 0.9" no
-// <html>, que causa um descompasso entre o tamanho visual pós-zoom e
-// o tamanho físico real da janela, deixando sobra) e
-// webContents.setZoomFactor chamado do processo PRINCIPAL logo após
-// loadURL() (que não é confiável — chamado cedo demais, antes da
-// página/frame realmente existir de verdade, o zoom simplesmente não
-// pegava). Aplicado aqui, no preload — roda no mesmo processo/contexto
-// do RENDERER (só com privilégios extras antes do contextIsolation
-// separar os dois "mundos"), então webFrame.setZoomFactor tem uma
-// referência de verdade pra frame que está prestes a carregar,
-// aplicando o zoom de forma confiável antes mesmo do primeiro render
-// da página — sem depender de nenhum timing de IPC entre processos.
-webFrame.setZoomFactor(0.9);
+const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),

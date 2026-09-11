@@ -2315,36 +2315,6 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
    fixed-width menus/dropdowns/popovers are allowed to wrap or grow taller
    instead of getting clipped or overlapping — that's expected here, not a bug. */
 @media (min-width: 901px) {
-  /* Item pedido: "deixe a zoom do web/Linux e Windows em 90% invés de
-     100%" — trocado de 1.2 pra 0.9 (o único lugar de zoom geral do
-     app pra telas desktop reais — chatZoom em --chat-zoom é um ajuste
-     à parte, só do chat).
-     BUG CORRIGIDO ("zoom deixa uma sobra preta enorme no app
-     desktop"): esse CSS zoom não é aplicado mais quando é o app
-     Electron (classe is-electron-app, ligada em main.jsx) — nesse
-     caso o mesmo 90% já é aplicado do lado nativo (webFrame.
-     setZoomFactor em desktop/main.js), que não tem o problema de
-     descompasso entre o "tamanho visual" e o tamanho físico real da
-     janela que o CSS zoom tem. Continua normalmente pro navegador e
-     pro Android, sem mudança nenhuma pra esses dois. */
-  html:not(.is-electron-app) { zoom: 0.9; }
-  /* Login/inscrição não usam esse zoom — ver AuthLayout.jsx (classe
-     `auth-no-zoom` no <html>, ligada só enquanto essas telas estão
-     montadas). Evita interferir com o widget de captcha do Google. */
-  html.auth-no-zoom { zoom: 1; }
-  /* Bug fix: `zoom` scales the rendered size of everything, including
-     .app-shell's own `height: 100dvh` — but `dvh` is still measured against
-     the browser's real, unzoomed viewport. So a shell that's "100dvh tall"
-     renders at 120% of the actual visible window height once zoomed.
-     Combined with `overflow: hidden` on <body>, that extra 20% doesn't
-     scroll into view — it's silently clipped past the bottom edge, taking
-     the call bar (grid-row 2) and the message composer (the last item in
-     .chat-window's flex column) with it, with no way to reach either.
-     Dividing the shell's target height by the same zoom factor cancels it
-     out — the browser renders (100dvh / 1.2) * 1.2 zoom = 100dvh again, so
-     the shell fills the real viewport exactly and every row, including the
-     bottom-pinned ones, stays fully on screen. */
-  .app-shell { height: calc(100dvh / 1.2); }
   /* Item pedido: "sistema podendo mudar o zoom de 1,0 até 2,0... pra
      melhor personalização" — histórico: começou fixo em 2x, foi
      reduzido em pedidos sucessivos (2 → 1.5 → 1.2 → 1, removido por
