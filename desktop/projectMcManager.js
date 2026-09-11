@@ -424,6 +424,44 @@ function verifyAsarIntegrity(asarPath) {
   }
 }
 
+// Item pedido: "quero um jeito mais fácil e sem erros, não quero ficar
+// vendo esse erro pra sempre" — depois de já ter corrigido, em ordem,
+// download truncado, release errada sendo escolhida, tamanho do
+// pacote, estrutura do .asar e até o CONTEÚDO de cada arquivo por
+// hash — e o erro ainda voltando, só sobrava uma explicação: alguma
+// dessas instalações estava ficando com arquivo VELHO e NOVO
+// misturados. A forma antiga de instalar (apagar a pasta no lugar,
+// depois extrair por cima no MESMO lugar) tem uma falha estrutural:
+// se o ProjectMC.exe de uma instalação anterior ainda estiver rodando
+// em segundo plano (comum — fechar a janela dele não avisa o Project
+// Club, e a pessoa não necessariamente percebe que ainda está aberto),
+// o Windows trava a exclusão desse arquivo específico. fs.rmSync com
+// force:true não lança erro nesse caso — ele segue em frente e ignora
+// silenciosamente o que não conseguiu apagar — deixando um .exe VELHO
+// ao lado de um resources/app.asar NOVO (ou vice-versa, dependendo de
+// qual travou), uma combinação que o Electron corretamente recusa
+// como "Invalid package".
+//
+// Reescrito do zero com o padrão "instalar do lado, trocar depois":
+// nunca mais mexe na pasta final até tudo já estar baixado, extraído
+// e validado com sucesso NUMA PASTA SEPARADA — aí sim, depois de
+// garantir que nenhum processo antigo está rodando (killRunningProcess
+// abaixo), troca a pasta antiga pela nova de uma vez só. Ou a
+// instalação inteira dá certo, ou a pasta em uso nunca chega a ser
+// tocada — nunca mais um estado "pela metade" visível.
+function killRunningProcess(exeName) {
+  try {
+    if (process.platform === 'win32') {
+      execSync(`taskkill /IM "${exeName}" /F`, { stdio: 'ignore' });
+    } else {
+      execSync(`pkill -f "${exeName}"`, { stdio: 'ignore' });
+    }
+  } catch {
+    // Não achou nenhum processo rodando com esse nome — situação normal
+    // (mais comum até), não um erro de verdade.
+  }
+}
+
 async function installOrUpdate(id, onProgress) {
   const mod = getModule(id);
   const { version, downloadUrl } = await fetchLatestRelease(id);
@@ -432,66 +470,58 @@ async function installOrUpdate(id, onProgress) {
   const data = await httpsGet(downloadUrl, {
     onProgress: (percent) => onProgress?.({ phase: 'downloading', percent }),
   });
-  const tmpZip = path.join(app.getPath('temp'), `${mod.folder}-${version}-${process.platform}.zip`);
+  const tmpZip = path.join(app.getPath('temp'), `${mod.folder}-${version}-${process.platform}-${Date.now()}.zip`);
   fs.writeFileSync(tmpZip, data);
 
-  const dir = moduleDir(id);
+  const finalDir = moduleDir(id);
+  const stagingDir = `${finalDir}.installing-${Date.now()}`;
   onProgress?.({ phase: 'extracting', percent: 0 });
-  if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
-  fs.mkdirSync(dir, { recursive: true });
-  await extractZip(tmpZip, { dir });
-  fs.unlink(tmpZip, () => {});
-
-  // BUG CORRIGIDO ("instalação que termina 'com sucesso' mas não
-  // instala nada de verdade"): antes daqui, o código seguia direto pra
-  // gravar o .version e reportar done/100% mesmo que o .zip baixado
-  // não tivesse o executável esperado lá dentro (ex: um pacote
-  // publicado com o nome original "GoldApple Launcher.exe" em vez de
-  // "ProjectMC.exe", ou um .zip da plataforma errada) — a barra de
-  // progresso completava normalmente, sem erro nenhum, e só depois,
-  // silenciosamente, isInstalled()/launch() passavam a reportar "não
-  // instalado" sem explicar por quê. Falha alto e claro aqui, no
-  // momento exato em que dá pra saber com certeza o que faltou —
-  // apaga a pasta extraída incompleta também, pra não deixar restos
-  // pela metade.
-  const exePath = path.join(dir, getExeName(mod));
-  if (!fs.existsSync(exePath)) {
-    fs.rmSync(dir, { recursive: true, force: true });
-    throw new Error(`O pacote baixado de ${mod.displayName} não contém "${getExeName(mod)}" — o release publicado pode não estar empacotado no formato esperado.`);
+  fs.mkdirSync(stagingDir, { recursive: true });
+  try {
+    await extractZip(tmpZip, { dir: stagingDir });
+  } finally {
+    fs.unlink(tmpZip, () => {});
   }
 
-  // Item pedido: verificar todos os sistemas de Configurações e afins —
-  // achado ao investigar "Invalid package ... app.asar" relatado ao abrir
-  // depois de instalar. A checagem acima só confere se o .exe em si
-  // existe — mas um download truncado (ver correção em httpsGet acima,
-  // que resolve a causa raiz mais comum) podia deixar o .exe intacto
-  // (perto do início do zip) enquanto resources/app.asar (mais pro fim)
-  // saía cortado, e essa checagem sozinha não pegava isso: a instalação
-  // "terminava" normalmente, isInstalled() reportava true dali pra
-  // frente, e o problema só aparecia depois, ao tentar abrir de
-  // verdade. No Windows, verifyAsarIntegrity confere a estrutura real
-  // do pacote (ver função acima) — não só um piso arbitrário de
-  // tamanho, que não detectava truncamento em todos os casos.
+  // Confere TUDO ainda na pasta separada (staging) — nada disso já
+  // afetou a instalação em uso, então um erro aqui é só "a instalação
+  // nova não deu certo", nunca "quebrei a que já funcionava".
+  const exePath = path.join(stagingDir, getExeName(mod));
+  if (!fs.existsSync(exePath)) {
+    fs.rmSync(stagingDir, { recursive: true, force: true });
+    throw new Error(`O pacote baixado de ${mod.displayName} não contém "${getExeName(mod)}" — o release publicado pode não estar empacotado no formato esperado.`);
+  }
   if (process.platform === 'win32') {
-    const asarPath = path.join(dir, 'resources', 'app.asar');
+    const asarPath = path.join(stagingDir, 'resources', 'app.asar');
     const asarOk = fs.existsSync(asarPath) && (() => { try { return verifyAsarIntegrity(asarPath); } catch { return false; } })();
     if (!asarOk) {
-      fs.rmSync(dir, { recursive: true, force: true });
+      fs.rmSync(stagingDir, { recursive: true, force: true });
       throw new Error(`O pacote baixado de ${mod.displayName} está corrompido (resources/app.asar incompleto ou inválido) — o download pode ter sido interrompido ou alterado no meio. Tente instalar de novo.`);
     }
   }
-
-  // Item pedido: "Fassa funcionar no Linux" — sem isso, o AppImage
-  // extraído fica sem permissão de execução na maioria dos casos (o
-  // Linux não tem um equivalente confiável ao "clicar duas vezes pra
-  // rodar" do Windows quando falta esse bit) e o próximo launch()
-  // falharia com "Permission denied", mesmo com o arquivo certo no
-  // lugar certo.
   if (process.platform !== 'win32') {
     try { fs.chmodSync(exePath, 0o755); } catch { /* segue — launch() vai reportar o erro de verdade se isso importar */ }
   }
+  fs.writeFileSync(path.join(stagingDir, '.version'), version, 'utf-8');
 
-  fs.writeFileSync(versionFilePath(id), version, 'utf-8');
+  // Só a partir daqui a pasta em uso é tocada — e só depois de garantir
+  // que nenhum processo antigo ainda está com arquivos dela abertos.
+  onProgress?.({ phase: 'finishing', percent: 100 });
+  killRunningProcess(getExeName(mod));
+  const oldDir = `${finalDir}.old-${Date.now()}`;
+  if (fs.existsSync(finalDir)) {
+    try {
+      fs.renameSync(finalDir, oldDir);
+    } catch {
+      // Alguma coisa ainda travada mesmo depois de matar o processo —
+      // raro, mas possível (antivírus escaneando, por exemplo). Espera
+      // só um instante e tenta mais uma vez antes de desistir.
+      await new Promise((r) => setTimeout(r, 500));
+      fs.renameSync(finalDir, oldDir);
+    }
+  }
+  fs.renameSync(stagingDir, finalDir);
+  fs.rmSync(oldDir, { recursive: true, force: true });
 
   onProgress?.({ phase: 'done', percent: 100 });
   return { version };
@@ -532,6 +562,8 @@ function launch(id) {
 }
 
 function uninstall(id) {
+  const mod = getModule(id);
+  killRunningProcess(getExeName(mod));
   const dir = moduleDir(id);
   if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
 }
