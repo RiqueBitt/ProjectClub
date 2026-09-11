@@ -149,6 +149,7 @@ const SELF_USER_FIELDS = {
   // sentido expor isso no perfil público de ninguém.
   preferredTheme: true,
   chatZoom: true,
+  interfaceZoom: true,
   emojiStyle: true,
   // Idem pra privacidade de pedidos de amizade — cada um só vê/edita a
   // própria configuração.

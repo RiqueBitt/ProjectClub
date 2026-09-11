@@ -12,6 +12,16 @@ import './styles/global.css';
 import './styles/settings-mobile-fix.css';
 import './i18n/index.js';
 
+// Item pedido: "adicione nas configurações do usuário ele poder
+// aumentar ou diminuir o zoom quanto quiser" — desliga o CSS zoom só
+// no app desktop (Electron), onde o zoom é feito de forma NATIVA em
+// vez disso (ver setInterfaceZoom em useStore.js e setZoomFactor no
+// preload.js) — sem essa classe, os dois (CSS + nativo) ficariam
+// empilhados ao mesmo tempo, dobrando o efeito.
+if (window.electronAPI) {
+  document.documentElement.classList.add('is-electron-app');
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     {/* BUG CORRIGIDO ("mudar zoom/configuração desloga o usuário"): o

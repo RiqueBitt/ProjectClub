@@ -674,14 +674,7 @@ body.body-auth-scroll { overflow-y: auto !important; }
      conteúdo de baixo de novo (mesmo bug já corrigido antes). */
   grid-template-rows: calc(var(--top-search-bar-height, 52px) + env(safe-area-inset-top, 0px) + 10px) 1fr auto;
   height: 100vh;
-  /* Item pedido (zoom geral 120%): compensa exatamente o zoom aplicado
-     no <html> em telas >= 901px (mesma variável --global-zoom, ver o
-     bloco @media acima) — sem isso, o zoom faria essa altura
-     "transbordar" pra fora da tela de verdade (100dvh * 1.2 = 120% do
-     espaço real), cortando o rodapé. Em telas menores, sem essa
-     variável definida, o fallback (1) mantém o comportamento de sempre
-     (100dvh puro, sem nenhum ajuste). */
-  height: calc(100dvh / var(--global-zoom, 1));
+  height: 100dvh;
   touch-action: pan-y;
   /* BUG CORRIGIDO ("campo de digitar ainda fica embaixo dos botões do
      sistema, mesmo depois da correção anterior"): a correção anterior só
@@ -2322,17 +2315,36 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
    fixed-width menus/dropdowns/popovers are allowed to wrap or grow taller
    instead of getting clipped or overlapping — that's expected here, not a bug. */
 @media (min-width: 901px) {
-  /* Item pedido: "afora está com um zoom deixando tudo pequeno demais,
-     mude isso deixando mais com zoom" — 120%, o padrão histórico do
-     app antes de várias mudanças sucessivas (120% → 90% → 100% →
-     de volta a 120%).
-     Corrigido pra nunca mais repetir o bug de antes ("sobra vazia na
-     tela"): aquele bug era o valor do zoom e a compensação de altura
-     do .app-shell (mais abaixo) ficarem HARDCODED em dois lugares
-     separados, e um mudar sem o outro acompanhar. Agora os dois usam a
-     MESMA variável (--global-zoom) — só existe um número pra mudar,
-     nos dois lugares ao mesmo tempo, sempre. */
-  html { --global-zoom: 1.2; zoom: var(--global-zoom); }
+  /* Item pedido: "adicione nas configurações do usuário ele poder
+     aumentar ou diminuir o zoom quanto quiser" — --global-zoom agora é
+     DINÂMICA, controlada por JS (setInterfaceZoom em useStore.js),
+     salva na conta (interfaceZoom, ver o backend) e sincronizada entre
+     dispositivos. 1.2 é só o valor inicial (o padrão histórico do
+     app), até o JS aplicar o valor de verdade da conta/localStorage.
+     Definida aqui, dentro do MESMO media query onde o zoom de fato se
+     aplica — importante pra .app-shell (mais abaixo, fora desse media
+     query) nunca "compensar" um zoom que não existe de verdade em
+     telas menores que 901px: a variável só existe aqui dentro, então
+     o fallback dela (1, sem compensação nenhuma) entra sozinho pra
+     qualquer tela fora desse alcance. */
+  html { --global-zoom: 1.2; }
+  /* App desktop (Electron) usa o zoom NATIVO do Chromium em vez desse
+     CSS — ver window.electronAPI.setZoomFactor, chamado do lado do
+     JS sempre que o valor muda ou quando o app abre. Sem isso, os
+     dois (CSS + nativo) ficariam empilhados ao mesmo tempo, dobrando
+     o efeito — foi exatamente esse o motivo do bug relatado antes
+     ("ainda mais bugado"). */
+  html:not(.is-electron-app) { zoom: var(--global-zoom); }
+  /* Compensa a altura de .app-shell (a estrutura principal da tela)
+     na MESMA condição em que o zoom CSS acima está ativo — sem isso,
+     o zoom faria "100dvh" (definido no seletor base, fora deste media
+     query) transbordar pra fora da tela de verdade, cortando o
+     rodapé (barra de chamada, campo de digitar). No app desktop
+     (Electron, zoom nativo em vez deste CSS) essa regra nunca chega a
+     valer, então .app-shell segue com o 100dvh puro do seletor base —
+     nenhuma compensação precisa entrar, já que ali não existe esse
+     descompasso pra corrigir. */
+  html:not(.is-electron-app) .app-shell { height: calc(100dvh / var(--global-zoom)); }
   /* Item pedido: "sistema podendo mudar o zoom de 1,0 até 2,0... pra
      melhor personalização" — histórico: começou fixo em 2x, foi
      reduzido em pedidos sucessivos (2 → 1.5 → 1.2 → 1, removido por

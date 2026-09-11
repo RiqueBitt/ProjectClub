@@ -47,6 +47,13 @@ export function AuthProvider({ children }) {
     if (data.user?.chatZoom) {
       useStore.getState().setChatZoom(data.user.chatZoom);
     }
+    // Item pedido: "adicione nas configurações do usuário ele poder
+    // aumentar ou diminuir o zoom quanto quiser" — mesmo padrão do
+    // chat-zoom acima: o valor salvo na CONTA sincroniza pro estado
+    // local sempre que a sessão é aplicada.
+    if (data.user?.interfaceZoom) {
+      useStore.getState().setInterfaceZoom(data.user.interfaceZoom);
+    }
   }, []);
 
   const clearSession = useCallback(() => {

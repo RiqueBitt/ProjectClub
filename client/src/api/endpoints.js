@@ -27,6 +27,7 @@ export const updateProfile = (payload) => api.patch('/users/me', payload).then((
 export const setActiveTag = (active) => api.patch('/users/me/tag', { active }).then((r) => r.data);
 export const setPreferredTheme = (theme) => api.patch('/users/me/theme', { theme }).then((r) => r.data);
 export const setChatZoom = (zoom) => api.patch('/users/me/chat-zoom', { zoom }).then((r) => r.data);
+export const setInterfaceZoom = (zoom) => api.patch('/users/me/interface-zoom', { zoom }).then((r) => r.data);
 // Item pedido: "sistema completo de configurações... GET/PATCH/POST
 // settings/reset"
 export const getUserSettings = () => api.get('/users/me/settings').then((r) => r.data);

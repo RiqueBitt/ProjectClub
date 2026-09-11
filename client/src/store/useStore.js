@@ -158,6 +158,14 @@ export const useStore = create((set, get) => ({
   chatZoom: (() => {
     try { return Number(localStorage.getItem('chatZoom')) || 1; } catch { return 1; }
   })(),
+  // Item pedido: "adicione nas configurações do usuário ele poder
+  // aumentar ou diminuir o zoom quanto quiser" — zoom GERAL de toda a
+  // interface, mesmo padrão do chatZoom acima (valor local primeiro,
+  // pra aplicar na hora antes da conta terminar de carregar). 1.2 é o
+  // padrão histórico do app (120%).
+  interfaceZoom: (() => {
+    try { return Number(localStorage.getItem('interfaceZoom')) || 1.2; } catch { return 1.2; }
+  })(),
   // Item pedido: "sistema completo de configurações... salvamento
   // automático... interface muda imediatamente → frontend envia
   // PATCH → backend valida → banco atualiza → servidor retorna
@@ -293,6 +301,26 @@ export const useStore = create((set, get) => ({
     try { localStorage.setItem('chatZoom', chatZoom); } catch { /* localStorage indisponível — ainda fica salvo na conta, ver setChatZoom no backend */ }
     document.documentElement.style.setProperty('--chat-zoom', chatZoom);
     set({ chatZoom });
+  },
+  // Item pedido: "adicione nas configurações do usuário ele poder
+  // aumentar ou diminuir o zoom quanto quiser" — dois caminhos bem
+  // diferentes dependendo de onde está rodando:
+  // - App desktop (Electron): usa o zoom NATIVO do Chromium
+  //   (window.electronAPI.setZoomFactor, exposto via preload.js — ver
+  //   ali o motivo de ser nativo e não CSS: não tem o problema de
+  //   "sobra"/corte que o CSS zoom causava nesse contexto específico,
+  //   já relatado e corrigido antes).
+  // - Navegador normal e Android: só CSS mesmo (--global-zoom, ver
+  //   global.css) — não existe outro jeito de controlar o zoom de um
+  //   site comum por fora do Electron.
+  setInterfaceZoom: (interfaceZoom) => {
+    try { localStorage.setItem('interfaceZoom', interfaceZoom); } catch { /* localStorage indisponível — ainda fica salvo na conta, ver setInterfaceZoom no backend */ }
+    if (window.electronAPI?.setZoomFactor) {
+      window.electronAPI.setZoomFactor(interfaceZoom);
+    } else {
+      document.documentElement.style.setProperty('--global-zoom', interfaceZoom);
+    }
+    set({ interfaceZoom });
   },
   setUserSettings: (settings) => {
     syncDesktopSettings(settings);

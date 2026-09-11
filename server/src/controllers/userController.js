@@ -381,6 +381,27 @@ async function setChatZoom(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Item pedido: "adicione nas configurações do usuário ele poder
+// aumentar ou diminuir o zoom quanto quiser" — zoom GERAL de toda a
+// interface, mesmo padrão de setChatZoom acima, só com um intervalo
+// mais amplo (0.5 a 2.5) já que é pra toda a tela, não só o chat —
+// abaixo de 0.5 ou acima de 2.5 deixaria o app praticamente
+// inutilizável de tão pequeno ou tão grande.
+async function setInterfaceZoom(req, res, next) {
+  try {
+    const { zoom } = req.body;
+    const value = Number(zoom);
+    if (!Number.isFinite(value) || value < 0.5 || value > 2.5) {
+      return res.status(400).json({ error: 'O zoom precisa estar entre 0.5 e 2.5.' });
+    }
+    const rounded = Math.round(value * 10) / 10;
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { interfaceZoom: rounded }, select: SELF_USER_FIELDS,
+    });
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
 // Item pedido: "5 variantes de visual dos meus emoji, uma delas o
 // mesmo tema do Discord" — mesmo padrão de setPreferredTheme acima.
 async function setEmojiStyle(req, res, next) {
@@ -727,6 +748,6 @@ async function setDisplayedAchievements(req, res, next) {
 
 module.exports = {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, uploadIdCard, removeIdCard,
-  setStatus, setCustomStatus, searchUsers, getUser, setActiveTag, voteProfile, setPreferredTheme, setEmojiStyle, setChatZoom,
+  setStatus, setCustomStatus, searchUsers, getUser, setActiveTag, voteProfile, setPreferredTheme, setEmojiStyle, setChatZoom, setInterfaceZoom,
   setDisplayedAchievements, hasFullProfileAccess,
 };

@@ -7,10 +7,19 @@
 // avisar quando tem atualização — sem esse preload, o JS da página não
 // teria nenhum jeito de descobrir isso (window.navigator.userAgent não
 // diz a versão do NOSSO app, só do Chromium/Electron em si).
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webFrame } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  // Item pedido: "adicione nas configurações do usuário ele poder
+  // aumentar ou diminuir o zoom quanto quiser" — zoom NATIVO do
+  // Chromium (não CSS), chamado direto aqui no preload (mesmo
+  // processo/contexto do renderer, só com privilégios extras antes do
+  // contextIsolation separar os dois "mundos") — sem precisar de
+  // nenhuma volta de IPC até o processo principal e de volta, e sem o
+  // problema de "sobra"/corte de conteúdo que o CSS "zoom" property
+  // causava nesse app especificamente (já relatado e corrigido antes).
+  setZoomFactor: (factor) => webFrame.setZoomFactor(factor),
   getAppInstallPath: () => ipcRenderer.invoke('get-app-install-path'),
   // Item pedido: "crie uma barra que não seja do Windows, de fechar
   // aba, minimizar, aumentar etc" — API exposta pro TitleBar.jsx.

@@ -61,6 +61,14 @@ function ProtectedRoute({ children }) {
   // primeira vez nesse dispositivo.
   useEffect(() => {
     document.documentElement.style.setProperty('--chat-zoom', useStore.getState().chatZoom);
+    // Item pedido: "adicione nas configurações do usuário ele poder
+    // aumentar ou diminuir o zoom quanto quiser" — mesmo raciocínio do
+    // chat-zoom acima (aplica o valor local assim que o app monta, sem
+    // esperar a conta carregar), mas passando pela ACTION do store (não
+    // só setProperty direto) — é ela que decide entre zoom nativo
+    // (Electron) ou CSS (navegador/Android), ver setInterfaceZoom em
+    // useStore.js.
+    useStore.getState().setInterfaceZoom(useStore.getState().interfaceZoom);
   }, []);
 
   // Item pedido: "Movimento reduzido... desativar/reduzir animações,

@@ -48,7 +48,7 @@ import robloxConnIcon from '../../assets/icons/social-roblox.png';
 import xConnIcon from '../../assets/icons/social-x.png';
 import {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, removeIdCard,
-  setup2FA, confirm2FA, disable2FA, setPreferredTheme, setMyClanTag, setChatZoom,
+  setup2FA, confirm2FA, disable2FA, setPreferredTheme, setMyClanTag, setChatZoom, setInterfaceZoom,
   setEmojiStyle as setEmojiStyleApi,
   listSessions, revokeSession, revokeOtherSessions,
   createProfilePoll, listProfilePollsByAuthor, deleteProfilePoll,
@@ -88,7 +88,7 @@ export default function UserSettingsModal({ onClose }) {
   const { t: translate } = useTranslation();
   const { user, setUser, logout } = useAuth();
   const navigate = useNavigate();
-  const { theme, setTheme, customBackground, setCustomBackground, emojiStyle, setEmojiStyle: setEmojiStyleStore, myClan, chatZoom, setChatZoom: setChatZoomStore, userSettings, updateUserSetting } = useStore();
+  const { theme, setTheme, customBackground, setCustomBackground, emojiStyle, setEmojiStyle: setEmojiStyleStore, myClan, chatZoom, setChatZoom: setChatZoomStore, interfaceZoom, setInterfaceZoom: setInterfaceZoomStore, userSettings, updateUserSetting } = useStore();
   const disabledSystems = useStore((s) => s.disabledSystems);
   // Ver adminController.js (TOGGLEABLE_SYSTEMS) e a nova opção "Cores
   // personalizadas para perfil" em /admin → Sistema: quando a staff
@@ -325,6 +325,14 @@ export default function UserSettingsModal({ onClose }) {
   const pickChatZoom = (z) => {
     setChatZoomStore(z);
     setChatZoom(z).catch(() => {});
+  };
+
+  // Item pedido: "adicione nas configurações do usuário ele poder
+  // aumentar ou diminuir o zoom quanto quiser" — zoom GERAL de toda a
+  // interface, mesmo padrão de pickChatZoom acima.
+  const pickInterfaceZoom = (z) => {
+    setInterfaceZoomStore(z);
+    setInterfaceZoom(z).catch(() => {});
   };
 
   // Item pedido: "5 variantes de visual dos meus emoji" — mesmo padrão
@@ -1298,6 +1306,25 @@ export default function UserSettingsModal({ onClose }) {
                 onChange={(e) => pickChatZoom(Number(e.target.value))}
               />
               <span className="chat-zoom-value">{chatZoom.toFixed(1)}x</span>
+            </div>
+          </div>
+
+          {/* Item pedido: "adicione nas configurações do usuário ele
+              poder aumentar ou diminuir o zoom quanto quiser" — zoom
+              GERAL de toda a interface (diferente do zoom do chat
+              acima, que só afeta as mensagens) — mesmo padrão de
+              controle, intervalo maior (0.5x a 2.5x) já que afeta a
+              tela inteira. */}
+          <div className="settings-block">
+            <h4>Zoom da interface</h4>
+            <p className="dim">Deixa o app inteiro maior ou menor — só no PC, o celular não muda.</p>
+            <div className="chat-zoom-row">
+              <input
+                type="range" min="0.5" max="2.5" step="0.1"
+                value={interfaceZoom}
+                onChange={(e) => pickInterfaceZoom(Number(e.target.value))}
+              />
+              <span className="chat-zoom-value">{interfaceZoom.toFixed(1)}x</span>
             </div>
           </div>
 

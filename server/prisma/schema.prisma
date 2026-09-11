@@ -116,6 +116,14 @@ model User {
   // 1.0 = tamanho normal, sem nenhum zoom extra além do zoom geral
   // do app que já existia antes disso tudo.
   chatZoom            Float     @default(1.0)
+  // Item pedido: "adicione nas configurações do usuário ele poder
+  // aumentar ou diminuir o zoom quanto quiser" — zoom GERAL de toda a
+  // interface (diferente de chatZoom acima, que só afeta o chat).
+  // 1.2 = padrão histórico do app (120%), presente desde antes desse
+  // controle existir de verdade — mantido como valor inicial pra
+  // ninguém ter uma mudança de tamanho abrupta e inesperada na
+  // primeira vez que abrir o app depois dessa atualização.
+  interfaceZoom       Float     @default(1.2)
   // Item pedido: "5 variantes de visual dos meus emoji, uma delas o
   // mesmo tema do Discord" — mesmo padrão de preferredTheme acima
   // (sincronizado entre localStorage e conta, ver setEmojiStyle no
