@@ -5548,7 +5548,7 @@ a.embed-card-title:hover { text-decoration: underline; }
 .btn-secondary.joined { color: var(--text-muted); }
 
 .post-detail-page { padding: 24px; overflow-y: auto; height: 100%; max-width: 760px; margin: 0 auto; width: 100%; }
-.post-detail-card { display: flex; gap: 10px; background: var(--bg-elevated); border-radius: 10px; margin: 14px 0 18px; }
+.post-detail-card { display: flex; gap: 10px; background: var(--bg-elevated); border-radius: 14px; margin: 14px 0 18px; border: 1px solid var(--border); box-shadow: 0 6px 20px rgba(0,0,0,.14); animation: voice-panel-in .3s ease; }
 .post-detail-body { flex: 1; min-width: 0; padding: 14px 16px 14px 4px; }
 .post-detail-delete { margin-left: auto; }
 .post-detail-title { margin: 4px 0 10px; font-size: 20px; color: var(--header-primary); }
