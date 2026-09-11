@@ -24,7 +24,35 @@
 // catálogo, com seu próprio manifestUrl/exeName.
 const { app } = require('electron');
 const path = require('path');
-const fs = require('fs');
+// Item pedido: "refaz completamente, de outro jeito mais fácil e sem
+// erros" — achado real ao reconsiderar de onde "Invalid package
+// C:\...\app.asar" vem de verdade: esse texto exato é o formato
+// clássico do runtime NATIVO do próprio Electron (C++) ao tentar
+// carregar um .asar — não é nada que a biblioteca @electron/asar (puro
+// JS, só lê bytes) ou meu próprio código geram (conferido: a mensagem
+// não existe em nenhum lugar dessa biblioteca).
+//
+// O Electron substitui GLOBALMENTE o módulo 'fs' padrão do Node pra
+// interceptar qualquer caminho contendo "app.asar" e tratá-lo como um
+// pacote especial, de forma transparente — é assim que o próprio
+// Electron consegue rodar código de dentro de um .asar como se fosse
+// uma pasta comum. Só que o PROCESSO PRINCIPAL do Project Club
+// TAMBÉM é Electron — então minhas próprias leituras
+// (fs.openSync/fs.readSync dentro de verifyAsarIntegrity, chamadas
+// pra CONFERIR o app.asar do ProjectMC) passavam por esse mesmo
+// interceptador, em vez de ler os bytes brutos do arquivo direto. Se o
+// arquivo ainda não tivesse 100% terminado de ser escrito naquele
+// instante exato (extractZip roda de forma assíncrona por dentro), o
+// próprio Electron podia rejeitar como "Invalid package" antes da
+// minha verificação sequer rodar de verdade — o oposto do que eu
+// queria (verificar SE está corrompido, não CAUSAR uma falha por
+// tentar olhar cedo demais através do mecanismo errado).
+//
+// Corrigido usando 'original-fs' — o módulo que o próprio Electron
+// expõe especificamente pra isso: fs sem nenhuma interceptação de
+// .asar, leitura de bytes crus garantida, exatamente o que uma
+// verificação de integridade precisa.
+const fs = require('original-fs');
 const https = require('https');
 const crypto = require('crypto');
 const { spawn, execSync } = require('child_process');
