@@ -129,6 +129,17 @@ const MODULES = {
     assetExt: { win32: '.zip', linux: '.tar.gz' },
     exeName: { win32: 'patchy.exe', linux: 'photoproject.sh' },
   },
+  // Item pedido: "crie o HyProject para o novo app, um launcher do
+  // jogo Hytale" — igual ao ProjectMC (.exe/.AppImage portátil de um
+  // arquivo só, sem extração), diferente do PhotoProject.
+  hyproject: {
+    displayName: 'HyProject',
+    description: 'Launcher de Hytale do Project Club',
+    folder: 'HyProject',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/HyProject-releases/releases',
+    packageType: 'single-file',
+    exeName: { win32: 'HyProject.exe', linux: 'HyProject.AppImage' },
+  },
 };
 
 function getModule(id) {
