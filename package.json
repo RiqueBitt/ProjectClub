@@ -11,7 +11,7 @@
     "dev": "concurrently -n SERVER,CLIENT -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
     "build": "npm run build -w client",
     "prisma:push": "npm run prisma:push -w server",
-    "deploy:start": "npm run build -w client && npm run prisma:push -w server && npm start -w server",
+    "deploy:start": "npm install && npm run build -w client && npm run prisma:push -w server && npm start -w server",
     "start": "npm start -w server"
   },
   "engines": {
