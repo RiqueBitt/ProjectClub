@@ -432,7 +432,16 @@ export const useStore = create((set, get) => ({
   addMessage: (roomKey, message) => set((s) => {
     const existing = s.messagesByRoom[roomKey] || [];
     if (existing.some((m) => m.id === message.id)) return {};
-    return { messagesByRoom: { ...s.messagesByRoom, [roomKey]: [...existing, message] } };
+    // Item pedido: "melhore a fluidez do chat, deixando mais suave e
+    // com detalhes de animação" — só mensagens que chegam por aqui
+    // (envio próprio otimista ou 'message:new' via socket) são
+    // "novas" de verdade e devem animar de entrada; as ~50 carregadas
+    // de uma vez ao abrir um canal (setRoomMessages/prependRoomMessages,
+    // histórico) não passam por addMessage, então nunca ganham essa
+    // marca — sem isso, TODAS as mensagens (histórico inteiro incluído)
+    // animavam juntas toda vez que um chat abria, em vez de só a
+    // mensagem que realmente acabou de chegar.
+    return { messagesByRoom: { ...s.messagesByRoom, [roomKey]: [...existing, { ...message, _animateIn: true }] } };
   }),
   // Aplica dados públicos atualizados de um usuário (tag, avatar, nome...)
   // em todo lugar que já tem uma cópia em cache: lista de membros da

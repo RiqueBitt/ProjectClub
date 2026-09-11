@@ -1043,7 +1043,17 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 
 .message-list { flex: 1; width: 100%; overflow-y: auto; overflow-x: hidden; min-width: 0; padding: 12px 16px; display: flex; flex-direction: column; }
 .message-list-loading-older { text-align: center; font-size: 12px; padding: 8px 0; }
-.message { display: flex; width: 100%; gap: 14px; padding: 2px 0; position: relative; transition: background-color .1s; animation: message-in .15s ease-out; min-width: 0; }
+.message { display: flex; width: 100%; gap: 14px; padding: 2px 0; position: relative; transition: background-color .15s ease; min-width: 0; }
+/* Item pedido: "melhore a fluidez do chat, deixando mais suave e com
+   detalhes de animação" — só mensagens de verdade novas (marcadas com
+   _animateIn no store, ver addMessage em useStore.js) recebem essa
+   entrada; o histórico carregado ao abrir um canal não tem essa
+   classe, então aparece direto, sem um "flash" de 50 mensagens
+   animando juntas de uma vez. Duração maior e easing com uma leve
+   "quicada" no fim (cubic-bezier com overshoot) pra parecer mais viva
+   do que um fade linear simples, sem exagerar a ponto de atrapalhar
+   quem está lendo rápido. */
+.message-animate-in { animation: message-in .32s cubic-bezier(.2, .9, .25, 1.1); }
 /* Scoped to real mouse-hover-capable devices only. Plain `.message:hover`
    would also fire on touch — mobile browsers simulate a ":hover" state on
    tap that then stays "stuck" until something else is tapped, since there's
@@ -1054,7 +1064,7 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 @media (hover: hover) and (pointer: fine) {
   .message:hover { background: var(--bg-modifier-hover); }
 }
-@keyframes message-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes message-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .message.with-author { margin-top: 14px; }
 .message.pinned { border-left: 3px solid var(--yellow); padding-left: 8px; }
 .message:not(.with-author) { padding-left: 54px; }
@@ -1177,7 +1187,9 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .attachment-audio { display: flex; align-items: center; gap: 8px; background: var(--bg-elevated); padding: 8px 12px; border-radius: 8px; }
 .attachment-audio audio { height: 32px; max-width: 280px; }
 .reactions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
-.reaction-chip { background: var(--bg-elevated); border: 1px solid transparent; border-radius: 10px; padding: 2px 8px; font-size: 13px; }
+.reaction-chip { background: var(--bg-elevated); border: 1px solid transparent; border-radius: 10px; padding: 2px 8px; font-size: 13px; transition: transform .12s ease, background-color .15s ease, border-color .15s ease; animation: reaction-pop .25s cubic-bezier(.34, 1.56, .64, 1); }
+.reaction-chip:hover { transform: translateY(-1px) scale(1.06); }
+@keyframes reaction-pop { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: scale(1); } }
 .reaction-chip.mine { border-color: var(--brand); background: rgba(24,119,242,.15); }
 .edit-box { display: flex; gap: 8px; align-items: center; }
 .edit-box input { flex: 1; }
@@ -1206,12 +1218,13 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
   position: absolute; top: -14px; right: 12px;
   display: flex; gap: 2px; background: var(--bg-floating); border: 1px solid var(--border);
   border-radius: 8px; padding: 3px; box-shadow: 0 2px 8px rgba(0,0,0,.28);
-  opacity: 0; pointer-events: none; transition: opacity .1s; z-index: 5;
+  opacity: 0; transform: translateY(4px) scale(.94); pointer-events: none;
+  transition: opacity .14s ease, transform .14s ease; z-index: 5;
 }
 /* Real mouse only — see the .message:hover media-query comment above for
    why touch can't use plain :hover here. */
 @media (hover: hover) and (pointer: fine) {
-  .message:hover .message-hover-actions { opacity: 1; pointer-events: auto; }
+  .message:hover .message-hover-actions { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
 }
 .message-hover-action { padding: 5px 7px; font-size: 15px; line-height: 1; border-radius: 5px; color: var(--text-muted); }
 .message-hover-action:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }

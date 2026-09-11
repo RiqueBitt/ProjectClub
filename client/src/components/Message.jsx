@@ -318,7 +318,7 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
 
   return (
     <div
-      className={`message ${showAuthor ? 'with-author' : ''} ${message.pinned ? 'pinned' : ''} ${message.pending ? 'pending' : ''} ${message.failed ? 'failed' : ''} ${highlighted ? 'mentioned' : ''}`}
+      className={`message ${showAuthor ? 'with-author' : ''} ${message.pinned ? 'pinned' : ''} ${message.pending ? 'pending' : ''} ${message.failed ? 'failed' : ''} ${highlighted ? 'mentioned' : ''} ${message._animateIn ? 'message-animate-in' : ''}`}
       onContextMenu={onContextMenu}
     >
       {!isPending && (
