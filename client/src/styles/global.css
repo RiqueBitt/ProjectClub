@@ -2027,7 +2027,12 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 @keyframes voice-panel-in { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .voice-join-panel .voice-join-icon {
   width: 76px; height: 76px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 60%, #7B5CFF));
+  /* Item pedido: "só deixar o icon do canal de voz... com a cor do
+     tema, não a bolinha" — a bolinha em si fica neutra (não muda mais
+     de cor com o tema); só o ícone (o glifo dentro dela, via
+     IconGlyph/currentColor) usa a cor do tema agora, através do
+     `color: var(--brand)` abaixo. */
+  background: var(--bg-elevated); color: var(--brand);
   box-shadow: 0 0 0 6px color-mix(in srgb, var(--brand) 14%, transparent); position: relative;
 }
 .voice-join-panel .voice-join-icon::after {
