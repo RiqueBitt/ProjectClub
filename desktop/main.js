@@ -382,6 +382,13 @@ if (!gotLock) {
       show: !startHidden,
       icon: path.join(__dirname, 'build', 'icon.ico'),
       autoHideMenuBar: true,
+      // Item pedido: "crie uma barra que não seja do Windows, de fechar
+      // aba, minimizar, aumentar etc" — mesmo padrão do launcher de
+      // Minecraft (ProjectMC/goldapple-launcher, já usa frame: false
+      // com uma AppSystemBar.vue própria). Sem moldura nativa do
+      // Windows — a barra de título fica inteiramente por conta do
+      // componente TitleBar.jsx no React, com os 3 botões de janela.
+      frame: false,
       // BUG CORRIGIDO ("tela azul escuro aparece antes até da tela de
       // carregamento"): #080a14 nunca combinou com a cor de fundo real
       // do app (--bg-primary do tema escuro em global.css, #313338) —
@@ -498,6 +505,26 @@ if (!gotLock) {
   // tiver as duas ao mesmo tempo — sem isso, não tinha como saber qual
   // das duas o atalho clicado realmente abre.
   ipcMain.handle('get-app-install-path', () => app.getPath('exe'));
+  // Item pedido: "crie uma barra que não seja do Windows, de fechar
+  // aba, minimizar, aumentar etc" — controles de janela pro TitleBar.jsx
+  // customizado no React, já que sem frame nativo (frame: false acima)
+  // não existe mais nenhum jeito padrão do sistema operacional de
+  // minimizar/maximizar/fechar a janela.
+  ipcMain.handle('window-minimize', () => mainWindow?.minimize());
+  ipcMain.handle('window-maximize-toggle', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    else mainWindow.maximize();
+  });
+  ipcMain.handle('window-close', () => mainWindow?.close());
+  ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);
+  // O React precisa saber quando o estado maximizado muda por OUTRO
+  // caminho além do próprio botão (ex: duplo-clique na barra, atalho de
+  // teclado do Windows tipo Win+Up, ou arrastar a janela pro topo da
+  // tela) — sem isso, o ícone do botão maximizar/restaurar ficaria
+  // dessincronizado do estado real da janela nesses casos.
+  mainWindow?.on('maximize', () => mainWindow?.webContents.send('window-maximized-changed', true));
+  mainWindow?.on('unmaximize', () => mainWindow?.webContents.send('window-maximized-changed', false));
   // Item pedido: botão "Baixar agora" no aviso de atualização precisa
   // abrir a página de download no NAVEGADOR de verdade — o app nativo
   // nunca mostra a página de marketing/download dentro dele mesmo (ver

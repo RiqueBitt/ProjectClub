@@ -12,6 +12,17 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getAppInstallPath: () => ipcRenderer.invoke('get-app-install-path'),
+  // Item pedido: "crie uma barra que não seja do Windows, de fechar
+  // aba, minimizar, aumentar etc" — API exposta pro TitleBar.jsx.
+  windowMinimize: () => ipcRenderer.invoke('window-minimize'),
+  windowMaximizeToggle: () => ipcRenderer.invoke('window-maximize-toggle'),
+  windowClose: () => ipcRenderer.invoke('window-close'),
+  windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  onWindowMaximizedChanged: (callback) => {
+    const listener = (_event, isMaximized) => callback(isMaximized);
+    ipcRenderer.on('window-maximized-changed', listener);
+    return () => ipcRenderer.removeListener('window-maximized-changed', listener);
+  },
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   focusWindow: () => ipcRenderer.invoke('focus-window'),
   setUnreadCount: (count) => ipcRenderer.invoke('set-unread-count', count),

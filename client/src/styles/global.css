@@ -6655,3 +6655,28 @@ a.embed-card-title:hover { text-decoration: underline; }
   .clan-voice-btn { margin-left: 0; order: 1; width: 100%; }
   .clan-create-icon-row { flex-direction: column; align-items: center; text-align: center; }
 }
+
+/* Item pedido: "no app do Project Club, faça igual ao launcher, e crie
+   uma barra que não seja do Windows, de fechar aba, minimizar, aumentar
+   etc" — mesmo padrão do ProjectMC (AppSystemBar.vue: botões simples,
+   hover semi-transparente, fechar com hover vermelho). Só existe de
+   verdade dentro do app desktop (TitleBar.jsx retorna null em qualquer
+   outro contexto) — no navegador/mobile isso tudo fica sem efeito
+   nenhum, então .app-root-with-titlebar funciona igual a antes (sem
+   flex nem altura fixa forçada) pra esses casos. */
+.app-root-with-titlebar { display: flex; flex-direction: column; height: 100%; }
+.app-routes-container { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.app-title-bar {
+  display: flex; align-items: stretch; height: 32px; flex-shrink: 0;
+  background: var(--bg-tertiary, #1e1f22); color: var(--text-normal, #dbdee1);
+  -webkit-app-region: drag; user-select: none;
+}
+.app-title-bar-drag { flex: 1; -webkit-app-region: drag; }
+.app-title-bar-controls { display: flex; -webkit-app-region: no-drag; }
+.app-title-bar-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 46px; height: 32px; color: inherit; background: transparent; border: 0;
+  transition: background-color .12s ease;
+}
+.app-title-bar-btn:hover { background: rgba(255, 255, 255, 0.12); }
+.app-title-bar-btn--close:hover { background: #e81123; color: #fff; }

@@ -10,6 +10,7 @@ import MaintenanceScreen from './pages/MaintenanceScreen.jsx';
 import InterfaceEditorPage from './pages/InterfaceEditorPage.jsx';
 import { playSound } from './utils/sounds';
 import LoadingScreen from './components/LoadingScreen.jsx';
+import TitleBar from './components/TitleBar.jsx';
 import { CUSTOM_BACKGROUND_ENABLED } from './utils/featureFlags';
 
 import LoginPage from './pages/LoginPage.jsx';
@@ -276,25 +277,28 @@ export default function App() {
   }, [customBackground]);
 
   return (
-    <>
+    <div className="app-root-with-titlebar">
+      <TitleBar />
       <div id="custom-bg-backdrop" />
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/verify-email" element={<VerifyEmailPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/privacidade" element={<PrivacyPage />} />
-        <Route
-          path="/admin/interface-editor"
-          element={
-            <ProtectedRoute>
-              <InterfaceEditorPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="/*" element={<RootGate />} />
-      </Routes>
-    </>
+      <div className="app-routes-container">
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/privacidade" element={<PrivacyPage />} />
+          <Route
+            path="/admin/interface-editor"
+            element={
+              <ProtectedRoute>
+                <InterfaceEditorPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/*" element={<RootGate />} />
+        </Routes>
+      </div>
+    </div>
   );
 }
