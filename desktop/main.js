@@ -702,120 +702,38 @@ if (!gotLock) {
   // usa exatamente essa mesma biblioteca, olhando o formato dos
   // arquivos publicados nas releases dele no GitHub).
   //
-  // Baixa a atualização sozinho, em segundo plano, sem incomodar
-  // ninguém — só avisa quando já está PRONTA pra instalar, com a opção
-  // de reiniciar na hora ou deixar pra próxima vez que fechar o app
-  // (nunca força um reinício no meio do que a pessoa estiver fazendo).
-  // Item pedido: "o sistema de atualização tá legal, mas ainda tá muito
-  // feio usando o instalador do próprio Windows/Linux, faça um menu de
-  // baixar atualização personalizado" — antes usava dialog.
-  // showMessageBox (a caixa NATIVA do sistema operacional, cinza/
-  // genérica, sem nada a ver com a cara do app). Agora é uma janelinha
-  // própria, sem moldura, no canto da tela — mesmo padrão visual já
-  // usado no seletor de tela (screenPickerPreload.js) — mostrando o
-  // progresso do download em tempo real, não só um aviso quando já
-  // terminou.
-  let updateWindowRef = null;
-
-  function showUpdateWindow() {
-    if (updateWindowRef && !updateWindowRef.isDestroyed()) return updateWindowRef;
-
-    const display = screen.getPrimaryDisplay();
-    const width = 360;
-    const height = 130;
-
-    updateWindowRef = new BrowserWindow({
-      width, height, resizable: false, minimizable: false, maximizable: false,
-      frame: false, alwaysOnTop: true, skipTaskbar: true,
-      x: display.workArea.x + display.workArea.width - width - 20,
-      y: display.workArea.y + display.workArea.height - height - 20,
-      backgroundColor: '#232428',
-      webPreferences: {
-        preload: path.join(__dirname, 'updateWindowPreload.js'),
-        contextIsolation: true, nodeIntegration: false,
-      },
-    });
-
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-      * { box-sizing: border-box; }
-      body {
-        margin: 0; background: #232428; color: #f2f3f5; overflow: hidden;
-        font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
-        padding: 16px; border-radius: 10px; border: 1px solid #35373c; user-select: none;
-      }
-      .row { display: flex; align-items: center; gap: 10px; }
-      .icon { font-size: 22px; flex-shrink: 0; }
-      .title { font-size: 13px; font-weight: 700; margin: 0 0 3px; }
-      .subtitle { font-size: 12px; color: #b5bac1; }
-      .progress-bar { height: 4px; background: #3a3c42; border-radius: 999px; margin-top: 12px; overflow: hidden; }
-      .progress-bar div { height: 100%; background: #5865F2; border-radius: 999px; width: 0%; transition: width .2s ease; }
-      .buttons { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
-      button.action {
-        border: none; border-radius: 6px; padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
-        transition: filter .12s ease;
-      }
-      button.action:hover { filter: brightness(1.1); }
-      .btn-primary { background: #5865F2; color: #fff; }
-      .btn-secondary { background: #3a3c42; color: #f2f3f5; }
-    </style></head><body>
-      <div class="row">
-        <span class="icon">🔄</span>
-        <div>
-          <div class="title" id="title">Baixando atualização...</div>
-          <div class="subtitle" id="subtitle">Isso roda em segundo plano, pode continuar usando o app.</div>
-        </div>
-      </div>
-      <div class="progress-bar" id="progress-wrap"><div id="progress-fill"></div></div>
-      <div class="buttons" id="buttons" style="display: none;">
-        <button class="action btn-secondary" id="later-btn">Depois</button>
-        <button class="action btn-primary" id="restart-btn">Reiniciar agora</button>
-      </div>
-      <script>
-        window.updateWindowAPI.onProgress((data) => {
-          document.getElementById('progress-fill').style.width = data.percent + '%';
-        });
-        window.updateWindowAPI.onReady((data) => {
-          document.getElementById('title').textContent = 'Atualização pronta — v' + data.version;
-          document.getElementById('subtitle').textContent = 'Reinicie pra aplicar, ou deixe pra próxima vez que fechar o app.';
-          document.getElementById('progress-wrap').style.display = 'none';
-          document.getElementById('buttons').style.display = 'flex';
-        });
-        document.getElementById('restart-btn').addEventListener('click', () => window.updateWindowAPI.restartNow());
-        document.getElementById('later-btn').addEventListener('click', () => window.updateWindowAPI.dismiss());
-      </script>
-    </body></html>`;
-
-    const htmlPath = path.join(app.getPath('temp'), 'project-club-update-window.html');
-    fs.writeFileSync(htmlPath, html, 'utf-8');
-    updateWindowRef.loadFile(htmlPath);
-    return updateWindowRef;
-  }
+  // Item pedido (revisão posterior): "faça atualizações em segundo
+  // plano do Project Club... deixe ele atualizando em segundo plano
+  // que o usuário não fica vendo pra não atrapalhar ele" — a janelinha
+  // própria de progresso/aviso (que existiu aqui antes desta revisão)
+  // já era pequena e discreta comparada à caixa nativa do sistema
+  // operacional que existia antes dela, mas ainda era uma interrupção
+  // visual — removida por completo agora: baixa e aplica tudo sozinho,
+  // sem mostrar nada nunca, ver setupAutoUpdater abaixo.
 
   function setupAutoUpdater() {
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
 
-    // Registrado UMA vez só aqui (não dentro de showUpdateWindow, que
-    // pode ser chamada de novo em atualizações futuras, dias/semanas
-    // depois — registrar toda vez ali acumularia escutadores duplicados
-    // com o tempo, um vazamento sutil de memória).
-    ipcMain.on('update-window:restart-now', () => autoUpdater.quitAndInstall());
-    ipcMain.on('update-window:dismiss', () => {
-      if (updateWindowRef && !updateWindowRef.isDestroyed()) updateWindowRef.close();
-    });
-
-    autoUpdater.on('update-available', () => {
-      showUpdateWindow();
-    });
-
-    autoUpdater.on('download-progress', (progress) => {
-      const win = updateWindowRef && !updateWindowRef.isDestroyed() ? updateWindowRef : showUpdateWindow();
-      win.webContents.send('update-window:progress', { percent: Math.round(progress.percent) });
+    // Item pedido: "faça atualizações em segundo plano do Project Club
+    // e/ou outros apps que tiver baixados junto... deixe ele
+    // atualizando em segundo plano que o usuário não fica vendo pra
+    // não atrapalhar ele" — antes disso, mesmo com o download já sendo
+    // automático (autoDownload=true), uma janelinha aparecia no canto
+    // da tela pra avisar que tinha atualização disponível e depois
+    // pronta pra reiniciar — pequena e discreta (360x130, sem barra de
+    // tarefas), mas ainda assim uma interrupção visual que o pedido
+    // quer eliminar por completo. Agora só registra no log — o app
+    // continua baixando sozinho em segundo plano (autoDownload) e
+    // aplicando a atualização sozinho na próxima vez que for fechado
+    // normalmente (autoInstallOnAppQuit), sem nunca precisar mostrar
+    // nada nem interromper quem está usando.
+    autoUpdater.on('update-available', (info) => {
+      console.log('[atualização] nova versão disponível, baixando em segundo plano:', info?.version);
     });
 
     autoUpdater.on('update-downloaded', (info) => {
-      const win = updateWindowRef && !updateWindowRef.isDestroyed() ? updateWindowRef : showUpdateWindow();
-      win.webContents.send('update-window:ready', { version: info.version });
+      console.log('[atualização] baixada e pronta — será aplicada sozinha da próxima vez que o app fechar:', info?.version);
     });
 
     // Erro de rede/servidor fora do ar é normal e não deveria assustar
@@ -835,6 +753,19 @@ if (!gotLock) {
     // plano.
     setTimeout(check, 10000);
     setInterval(check, 4 * 60 * 60 * 1000);
+
+    // Item pedido: "outros apps que tiver baixados junto com o Project
+    // Club" — checa e atualiza sozinho, em segundo plano, qualquer
+    // módulo (ProjectMC, PhotoProject, futuros...) que já esteja
+    // instalado — sem nenhum indicador visual, sem interromper quem
+    // está usando. Só módulos JÁ instalados são considerados (não faz
+    // sentido "atualizar" algo que a pessoa nunca baixou); ver
+    // checkAndUpdateInstalledModules em projectMcManager.js.
+    const checkModules = () => projectMcManager.checkAndUpdateInstalledModules().catch((err) => {
+      console.error('[atualização de apps] falha ao verificar/atualizar:', err?.message || err);
+    });
+    setTimeout(checkModules, 20000);
+    setInterval(checkModules, 4 * 60 * 60 * 1000);
   }
 
   app.whenReady().then(() => {

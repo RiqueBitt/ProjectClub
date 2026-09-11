@@ -432,4 +432,29 @@ function uninstall(id) {
   if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
 }
 
-module.exports = { getStatus, checkForUpdate, installOrUpdate, launch, uninstall };
+// Item pedido: "faça atualizações em segundo plano do Project Club e/ou
+// outros apps que tiver baixados junto com o Project Club, deixe ele
+// atualizando em segundo plano que o usuário não fica vendo para não
+// atrapalhar ele" — checa e atualiza sozinho, sem nenhum indicador
+// visual (sem barra de progresso na tela, sem notificação), TODOS os
+// módulos do catálogo (MODULES acima) que a pessoa JÁ tem instalado —
+// nunca instala algo do zero sozinho (só quem clica em "Instalar" faz
+// isso de propósito), só mantém o que já existe atualizado. Chamado
+// periodicamente pelo main.js, do mesmo jeito que o autoUpdater do
+// próprio Project Club já roda em segundo plano.
+async function checkAndUpdateInstalledModules() {
+  for (const id of Object.keys(MODULES)) {
+    try {
+      if (!isInstalled(id)) continue; // nunca instala algo que a pessoa nunca baixou
+      const { updateAvailable } = await checkForUpdate(id);
+      if (!updateAvailable) continue;
+      await installOrUpdate(id);
+    } catch (err) {
+      // Rede instável, release fora do ar, etc. — normal, sem alarde
+      // nenhum; a próxima checagem periódica tenta de novo sozinha.
+      console.error(`[atualização de apps] falha ao atualizar ${id} em segundo plano:`, err?.message || err);
+    }
+  }
+}
+
+module.exports = { getStatus, checkForUpdate, installOrUpdate, launch, uninstall, checkAndUpdateInstalledModules };
