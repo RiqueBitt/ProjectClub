@@ -454,7 +454,18 @@ export default function ChatWindow({ kind }) {
     }
     // A new message arrived while this room is open — count it as read too.
     markRead();
-  }, [messages.length, isNonChatChannel]);
+    // BUG CORRIGIDO ("quando abro o chat não vai mais para a última
+    // mensagem"): a dependência era só messages.length — mas trocar
+    // entre dois canais/conversas que por acaso têm a MESMA quantidade
+    // de mensagens (comum, já que 50 é o tamanho padrão de página pra
+    // qualquer canal com histórico suficiente) faz messages.length
+    // nunca mudar de um pro outro, então este efeito nunca rodava de
+    // novo e o scroll ficava preso na posição do canal anterior. O id
+    // da última mensagem muda sempre que a sala muda de verdade (ou
+    // quando uma mensagem nova chega), independente da contagem total
+    // ser igual ou não — é a dependência certa pro que o efeito
+    // realmente quer saber ("a mensagem mais recente mudou?").
+  }, [messages[messages.length - 1]?.id, isNonChatChannel]);
 
   // Attachments, images, embeds and link previews inside messages finish
   // loading after this initial paint and can grow the list's height —
