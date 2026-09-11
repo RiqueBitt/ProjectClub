@@ -499,3 +499,20 @@ export const createClanIcon = (file, name) => {
   return api.post('/clans/icons', fd).then((r) => r.data);
 };
 export const deleteClanIcon = (id) => api.delete(`/clans/icons/${id}`).then((r) => r.data);
+
+// Item pedido: "melhore também essa aba de apps, adicione ícone,
+// banner... tudo sendo configurado do painel da staff" — catálogo de
+// apps/jogos (banner, ícone, descrição, espaço necessário).
+export const listAppCatalog = () => api.get('/app-catalog').then((r) => r.data);
+export const adminListAppCatalog = () => api.get('/admin/app-catalog').then((r) => r.data);
+export const adminCreateAppCatalogItem = (payload) => api.post('/admin/app-catalog', payload).then((r) => r.data);
+export const adminUpdateAppCatalogItem = (id, payload) => api.patch(`/admin/app-catalog/${id}`, payload).then((r) => r.data);
+export const adminDeleteAppCatalogItem = (id) => api.delete(`/admin/app-catalog/${id}`).then((r) => r.data);
+export const adminUploadAppCatalogBanner = (id, file) => {
+  const fd = new FormData(); fd.append('banner', file);
+  return api.post(`/admin/app-catalog/${id}/banner`, fd).then((r) => r.data);
+};
+export const adminUploadAppCatalogIcon = (id, file) => {
+  const fd = new FormData(); fd.append('icon', file);
+  return api.post(`/admin/app-catalog/${id}/icon`, fd).then((r) => r.data);
+};

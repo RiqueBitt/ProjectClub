@@ -38,6 +38,7 @@ const applicationsRoutes = require('./routes/applications');
 const uiEditorRoutes = require('./routes/uiEditor');
 const platformRoutes = require('./routes/platform');
 const adminRoutes = require('./routes/admin');
+const appCatalogRoutes = require('./routes/appCatalog');
 const communitiesRoutes = require('./routes/communities');
 const postsRoutes = require('./routes/posts');
 const achievementsRoutes = require('./routes/achievements');
@@ -290,6 +291,7 @@ function createApp() {
   app.use('/api/ui-layout', uiEditorRoutes);
   app.use('/api/platform', platformRoutes);
   app.use('/api/admin', adminRoutes);
+  app.use('/api/app-catalog', appCatalogRoutes);
   // Fusão com o Reddit clone (fase 1) — "/api/community" (singular) já é a
   // comunidade única existente da plataforma, por isso essas novas rotas
   // (comunidades tipo subreddit, dentro delas) usam nomes no plural.

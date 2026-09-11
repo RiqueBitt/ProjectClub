@@ -3,27 +3,37 @@ import {
   isProjectMcAvailable, getProjectMcStatus, checkProjectMcUpdate,
   installProjectMc, launchProjectMc, uninstallProjectMc, onProjectMcProgress,
 } from '../utils/projectMc';
+import { listAppCatalog } from '../api/endpoints';
+import { proxyImage } from '../utils/imageProxy';
 import '../styles/jogos-page.css';
 
-// Item pedido: "crie uma nova categoria chamada Jogos... dentro de
-// Jogos, crie duas opções: Jogos e Aplicativos... Na seção Jogos, crie
-// uma área específica para o ProjectMC, onde o usuário poderá
-// visualizar e baixar o launcher de Minecraft." — as duas "opções"
-// viram abas dentro desta página (ver MainSidebar.jsx), e o ProjectMC
-// é, por enquanto, o único item de verdade dentro da aba Jogos.
-//
-// Item pedido: "a arquitetura deve ser preparada para que futuramente
-// outros jogos ou aplicativos também possam ser adicionados da mesma
-// forma" — por isso a aba Jogos já é uma LISTA (GAME_MODULES), não um
-// card fixo — adicionar um segundo jogo no futuro é só uma entrada
-// nova aqui (e no catálogo MODULES do lado do Electron), sem mexer em
-// mais nada desta tela.
-const GAME_MODULES = [
-  { id: 'projectmc', name: 'ProjectMC', description: 'Launcher de Minecraft do Project Club — instala e mantém suas modpacks, versões e mods organizados.' },
-];
-
+// Item pedido: "melhore também essa aba de apps, adicione ícone,
+// banner melhorando a interface tudo sendo configurado do painel da
+// staff" — o catálogo (nome, descrição, banner, ícone, espaço
+// necessário) agora vem do backend (ver server/src/controllers/
+// appCatalogController.js), editável na aba "Apps" do painel da
+// staff, em vez de uma lista fixa no código. moduleId em cada item
+// ainda precisa bater com MODULES no desktop/projectMcManager.js —
+// é o que liga "o card bonito que a staff configurou" com "o módulo
+// que o Electron sabe instalar/abrir de verdade".
 export default function JogosPage() {
   const [tab, setTab] = useState('games'); // 'games' | 'apps'
+  const [catalog, setCatalog] = useState([]);
+  // Item pedido: "clique no banner... abre outra aba... parecida com
+  // a aba de downloads da Steam" — detailModuleId controla se estamos
+  // vendo a grade principal (null) ou a tela de detalhe de um item
+  // específico (o moduleId dele).
+  const [detailModuleId, setDetailModuleId] = useState(null);
+
+  useEffect(() => {
+    listAppCatalog().then((d) => setCatalog(d.items)).catch(() => {});
+  }, []);
+
+  const detailItem = catalog.find((c) => c.moduleId === detailModuleId);
+
+  if (detailItem) {
+    return <AppDetailView item={detailItem} onBack={() => setDetailModuleId(null)} />;
+  }
 
   return (
     <div className="jogos-page">
@@ -38,11 +48,18 @@ export default function JogosPage() {
       </div>
 
       {tab === 'games' && (
-        <div className="jogos-page-grid">
-          {GAME_MODULES.map((mod) => (
-            <ModuleCard key={mod.id} moduleId={mod.id} name={mod.name} description={mod.description} />
-          ))}
-        </div>
+        catalog.length === 0 ? (
+          <div className="jogos-page-empty">
+            <span className="jogos-page-empty-icon">🧩</span>
+            <p>Nenhum módulo disponível ainda — a staff pode adicionar um no painel administrativo.</p>
+          </div>
+        ) : (
+          <div className="jogos-page-grid">
+            {catalog.map((item) => (
+              <ModuleCard key={item.moduleId} item={item} onOpenDetail={() => setDetailModuleId(item.moduleId)} />
+            ))}
+          </div>
+        )
       )}
 
       {tab === 'apps' && (
@@ -55,19 +72,16 @@ export default function JogosPage() {
   );
 }
 
-// Item pedido: "o usuário poderá visualizar e baixar o launcher...
-// escolher se deseja ou não instalar... Ao clicar em Abrir ProjectMC,
-// o sistema deve iniciar o módulo/janela própria do launcher" —
-// card com 3 estados possíveis: não instalado (botão Instalar),
-// instalado e atualizado (botão Abrir), instalado mas desatualizado
-// (aviso + botão Atualizar). Só existe funcionalidade de verdade
-// dentro do app desktop — na web/Android mostra por que não dá.
-function ModuleCard({ moduleId, name, description }) {
+// Hook compartilhado entre o card da grade e a tela de detalhe — status
+// de instalação, progresso, e as 3 ações (instalar, abrir, desinstalar)
+// vivem aqui pra não duplicar essa lógica nos dois lugares que precisam
+// dela.
+function useModuleState(moduleId) {
   const desktopReady = isProjectMcAvailable();
-  const [status, setStatus] = useState(null); // { installed, version }
-  const [updateInfo, setUpdateInfo] = useState(null); // { updateAvailable, latest }
+  const [status, setStatus] = useState(null);
+  const [updateInfo, setUpdateInfo] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState(null); // { phase, percent }
+  const [progress, setProgress] = useState(null);
   const [error, setError] = useState('');
 
   const refreshStatus = () => {
@@ -88,7 +102,7 @@ function ModuleCard({ moduleId, name, description }) {
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [moduleId]);
 
   const install = async () => {
     setError('');
@@ -114,84 +128,138 @@ function ModuleCard({ moduleId, name, description }) {
     }
   };
 
-  // Item pedido: verificar todos os sistemas de Configurações e afins —
-  // achado ao investigar "Invalid package ... app.asar" ao tentar abrir.
-  // Não existia NENHUMA forma, pela tela, de se recuperar de uma
-  // instalação já corrompida (isInstalled só confere se o .exe existe,
-  // não a integridade interna — então, com a versão já batendo, só o
-  // botão "Jogar" aparecia, sem "Atualizar" nem qualquer outra opção).
-  // Reinstala do zero: desinstala (apaga a pasta inteira) e instala de
-  // novo em seguida, mesmo que a versão já esteja "atualizada".
-  const reinstall = async () => {
-    if (!confirm(`Isso vai apagar e baixar ${name} de novo do zero. Continuar?`)) return;
+  // Item pedido: "mude o botão de reinstalar para Desinstalar aí apaga
+  // o arquivo, não quero isso de reinstalar" — antes desinstalava E
+  // reinstalava em seguida (recuperação de instalação corrompida);
+  // agora só apaga mesmo, sem nenhum download de volta. Quem quiser
+  // instalar de novo usa o botão "Instalar" normal, que já aparece
+  // sozinho depois que installed vira false.
+  const uninstall = async () => {
+    if (!confirm(`Isso vai desinstalar ${status?.displayName || 'este app'} e apagar os arquivos dele. Continuar?`)) return;
     setError('');
     setBusy(true);
-    setProgress({ phase: 'downloading', percent: 0 });
     try {
       await uninstallProjectMc(moduleId);
-      const result = await installProjectMc(moduleId);
-      if (!result.success) throw new Error(result.error || 'Falha desconhecida.');
+      refreshStatus();
     } catch (err) {
       setError(err.message);
+    } finally {
       setBusy(false);
-      setProgress(null);
     }
   };
 
-  const installed = status?.installed;
-  const updateAvailable = updateInfo?.updateAvailable;
+  return {
+    desktopReady, status, updateInfo, busy, progress, error,
+    installed: status?.installed, updateAvailable: updateInfo?.updateAvailable,
+    install, open, uninstall,
+  };
+}
+
+// Item pedido: "a imagem quando abrir a aba apps vai mostrar o banner
+// com o botão de download, se tiver baixado vai mostrar um botão
+// verde com a icon de play... clique no banner e em outro lugar não
+// sendo a caixinha de play aí abre a outra aba" — card inteiro é
+// clicável e sempre abre o detalhe (estilo Steam); só a caixinha no
+// canto tem ação PRÓPRIA e direta: baixar (não instalado, entra no
+// detalhe pra acompanhar o progresso) ou jogar (instalado, abre na
+// hora, sem precisar entrar em mais nada).
+function ModuleCard({ item, onOpenDetail }) {
+  const { desktopReady, installed, busy, progress, open } = useModuleState(item.moduleId);
+
+  const onQuickAction = (e) => {
+    e.stopPropagation();
+    if (installed && !busy) open();
+    else onOpenDetail();
+  };
 
   return (
-    <div className="module-card">
-      <div className="module-card-icon">🧱</div>
-      <div className="module-card-body">
-        <h3>{name}</h3>
-        <p className="dim">{description}</p>
-
-        {!desktopReady && (
-          <p className="module-card-hint dim">Disponível apenas no aplicativo de desktop do Project Club (Windows).</p>
-        )}
-
+    <div className="app-card" onClick={onOpenDetail} role="button" tabIndex={0}>
+      <div className="app-card-banner" style={item.bannerUrl ? { backgroundImage: `url(${proxyImage(item.bannerUrl)})` } : undefined}>
+        {!item.bannerUrl && <span className="app-card-banner-fallback">🧩</span>}
+        <div className="app-card-banner-gradient" />
+        <div className="app-card-title-row">
+          {item.iconUrl && <img className="app-card-icon" src={proxyImage(item.iconUrl)} alt="" />}
+          <span className="app-card-name">{item.name}</span>
+        </div>
         {desktopReady && (
-          <>
-            {installed && <p className="module-card-version dim">Instalado — versão {status.version}</p>}
-            {installed && updateAvailable && (
-              <p className="module-card-update dim">Nova versão disponível: {updateInfo.latest}</p>
-            )}
-            {error && <p className="module-card-error">{error}</p>}
-
-            {busy && progress && (
-              <div className="module-card-progress">
-                <div className="module-card-progress-label dim">
-                  {progress.phase === 'downloading' ? 'Baixando...' : 'Concluindo...'}
-                </div>
-                <div className="module-card-progress-bar"><div style={{ width: `${progress.percent}%` }} /></div>
-              </div>
-            )}
-
-            <div className="module-card-actions">
-              {!installed && (
-                <button type="button" className="btn-primary" disabled={busy} onClick={install}>
-                  {busy ? 'Instalando...' : 'Instalar'}
-                </button>
-              )}
-              {installed && updateAvailable && (
-                <button type="button" className="btn-primary" disabled={busy} onClick={install}>
-                  {busy ? 'Atualizando...' : 'Atualizar'}
-                </button>
-              )}
-              {installed && (
-                <button type="button" className="btn-play" onClick={open}>▶ Jogar</button>
-              )}
-              {installed && !busy && (
-                <button type="button" className="btn-link" onClick={reinstall} title="Apaga e baixa de novo do zero — use se o jogo não abrir ou der erro ao abrir.">
-                  🔧 Reinstalar
-                </button>
-              )}
-            </div>
-          </>
+          <button
+            type="button"
+            className={`app-card-quick-btn ${installed ? 'is-play' : 'is-download'}`}
+            onClick={onQuickAction}
+            title={installed ? 'Jogar' : 'Baixar'}
+            aria-label={installed ? 'Jogar' : 'Baixar'}
+          >
+            {installed ? '▶' : '⬇'}
+          </button>
         )}
       </div>
+      {!desktopReady && <p className="app-card-hint dim">Disponível apenas no app de desktop (Windows).</p>}
+      {desktopReady && busy && progress && (
+        <div className="app-card-progress"><div style={{ width: `${progress.percent}%` }} /></div>
+      )}
+    </div>
+  );
+}
+
+// Item pedido: "clique no botão download vai abrir outra aba que é
+// parecida com a outra foto que te mandei (a página do jogo na Steam)
+// mostra do download etc, aí quando baixar vai mostrar um botão
+// Jogar" — banner grande, "espaço necessário" configurado pela staff,
+// progresso durante o download, Jogar + Desinstalar depois de pronto.
+function AppDetailView({ item, onBack }) {
+  const { desktopReady, installed, updateAvailable, updateInfo, busy, progress, error, install, open, uninstall } = useModuleState(item.moduleId);
+
+  return (
+    <div className="app-detail-view">
+      <button type="button" className="app-detail-back" onClick={onBack}>‹ Voltar para Apps</button>
+
+      <div className="app-detail-banner" style={item.bannerUrl ? { backgroundImage: `url(${proxyImage(item.bannerUrl)})` } : undefined}>
+        {!item.bannerUrl && <span className="app-detail-banner-fallback">🧩</span>}
+        <div className="app-detail-banner-gradient" />
+        <div className="app-detail-title-row">
+          {item.iconUrl && <img className="app-detail-icon" src={proxyImage(item.iconUrl)} alt="" />}
+          <h1>{item.name}</h1>
+        </div>
+      </div>
+
+      <div className="app-detail-action-bar">
+        {!desktopReady && <p className="dim">Disponível apenas no app de desktop do Project Club (Windows).</p>}
+
+        {desktopReady && !busy && !installed && (
+          <>
+            <button type="button" className="btn-primary app-detail-install-btn" onClick={install}>⬇ Instalar</button>
+            {item.sizeLabel && (
+              <div className="app-detail-space">
+                <span className="dim">Espaço necessário</span>
+                <strong>{item.sizeLabel}</strong>
+              </div>
+            )}
+          </>
+        )}
+
+        {desktopReady && busy && progress && (
+          <div className="app-detail-progress">
+            <div className="app-detail-progress-label dim">
+              {progress.phase === 'downloading' ? `Baixando... ${progress.percent}%` : 'Concluindo instalação...'}
+            </div>
+            <div className="app-detail-progress-bar"><div style={{ width: `${progress.percent}%` }} /></div>
+          </div>
+        )}
+
+        {desktopReady && !busy && installed && (
+          <div className="app-detail-installed-row">
+            <button type="button" className="btn-play app-detail-play-btn" onClick={open}>▶ Jogar</button>
+            {updateAvailable && (
+              <button type="button" className="btn-primary" onClick={install}>Atualizar para {updateInfo.latest}</button>
+            )}
+            <button type="button" className="btn-danger-outline" onClick={uninstall}>Desinstalar</button>
+          </div>
+        )}
+
+        {error && <p className="app-detail-error">{error}</p>}
+      </div>
+
+      {item.description && <p className="app-detail-description">{item.description}</p>}
     </div>
   );
 }

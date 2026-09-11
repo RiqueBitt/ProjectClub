@@ -6668,7 +6668,15 @@ a.embed-card-title:hover { text-decoration: underline; }
 .app-routes-container { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .app-title-bar {
   display: flex; align-items: stretch; height: 32px; flex-shrink: 0;
-  background: var(--bg-tertiary, #1e1f22); color: var(--text-normal, #dbdee1);
+  /* Item pedido: "quero que ele use a cor do tema que o usuário está
+     usando, só que em um tom diferente pra dar de distinguir" — mistura
+     a cor de marca do tema atual (--brand, já muda sozinha por tema —
+     ver as várias definições de --brand nas seções de tema no topo
+     deste arquivo) com um preto, escurecendo — dá pra reconhecer que é
+     "a cor do tema", mas escura o bastante pra não competir com botões
+     e links de verdade que usam --brand no tom normal. */
+  background: color-mix(in srgb, var(--brand) 28%, #0b0b0d);
+  color: var(--text-normal, #dbdee1);
   -webkit-app-region: drag; user-select: none;
 }
 .app-title-bar-drag { flex: 1; -webkit-app-region: drag; }

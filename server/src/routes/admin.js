@@ -1,6 +1,7 @@
 const express = require('express');
 const ctrl = require('../controllers/adminController');
 const announcementCtrl = require('../controllers/announcementController');
+const appCatalogCtrl = require('../controllers/appCatalogController');
 const { requireAuth } = require('../middleware/auth');
 const { requirePlatformAdmin } = require('../middleware/platformAdmin');
 const { uploadImage } = require('../middleware/upload');
@@ -42,6 +43,15 @@ router.post('/badges', ctrl.createBadgeType);
 router.patch('/badges/:id', ctrl.updateBadgeType);
 router.post('/badges/:id/icon', uploadImage.single('icon'), ctrl.uploadBadgeIcon);
 router.delete('/badges/:id', ctrl.deleteBadgeType);
+
+// Catálogo de apps/jogos (aba "Apps") — banner, ícone, descrição e
+// espaço necessário, tudo editável pela staff sem precisar de deploy.
+router.get('/app-catalog', appCatalogCtrl.listAdminAppCatalog);
+router.post('/app-catalog', appCatalogCtrl.createAppCatalogItem);
+router.patch('/app-catalog/:id', appCatalogCtrl.updateAppCatalogItem);
+router.post('/app-catalog/:id/banner', uploadImage.single('banner'), appCatalogCtrl.uploadAppCatalogBanner);
+router.post('/app-catalog/:id/icon', uploadImage.single('icon'), appCatalogCtrl.uploadAppCatalogIcon);
+router.delete('/app-catalog/:id', appCatalogCtrl.deleteAppCatalogItem);
 
 // Automod de DM — lista de sinalizações pendentes + visualização secreta
 // da conversa inteira quando a staff decide analisar um caso.

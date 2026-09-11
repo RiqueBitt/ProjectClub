@@ -1,9 +1,8 @@
-/* Estilos de JogosPage.jsx — item pedido: "crie uma nova categoria
-   chamada Jogos... dentro de Jogos, crie duas opções: Jogos e
-   Aplicativos". Arquivo próprio (não em global.css) — importado
-   direto pelo componente, mesmo padrão já usado pra outras telas
-   isoladas deste projeto. */
-.jogos-page { padding: 24px; overflow-y: auto; height: 100%; max-width: 900px; margin: 0 auto; width: 100%; }
+/* Estilos de JogosPage.jsx — item pedido: "melhore também essa aba de
+   apps, adicione ícone, banner melhorando a interface... deixando
+   parecido com a aba de downloads da Steam". Arquivo próprio (não em
+   global.css) — importado direto pelo componente. */
+.jogos-page { padding: 24px; overflow-y: auto; height: 100%; max-width: 1000px; margin: 0 auto; width: 100%; }
 .jogos-page-header { margin-bottom: 18px; }
 .jogos-page-header h1 { margin: 0 0 4px; font-size: 22px; color: var(--header-primary); }
 
@@ -15,7 +14,7 @@
 .jogos-page-tab:hover { color: var(--text-normal); }
 .jogos-page-tab.active { color: var(--header-primary); border-bottom-color: var(--brand); }
 
-.jogos-page-grid { display: flex; flex-direction: column; gap: 14px; }
+.jogos-page-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
 
 .jogos-page-empty {
   display: flex; flex-direction: column; align-items: center; gap: 10px;
@@ -23,26 +22,76 @@
 }
 .jogos-page-empty-icon { font-size: 32px; }
 
-.module-card {
-  display: flex; gap: 16px; background: var(--bg-elevated); border: 1px solid var(--border);
-  border-radius: 12px; padding: 18px 20px;
+/* Item pedido: "quando abrir a aba apps vai mostrar o banner com o
+   botão de download, se tiver baixado vai mostrar um botão verde com
+   a icon de play" — card inteiro clicável (abre o detalhe), com um
+   banner grande de fundo (igual o thumbnail de jogo da Steam) e uma
+   caixinha de ação rápida sobreposta no canto. */
+.app-card {
+  border-radius: 12px; overflow: hidden; background: var(--bg-elevated); cursor: pointer;
+  border: 1px solid var(--border); transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
 }
-.module-card-icon {
-  width: 56px; height: 56px; flex-shrink: 0; border-radius: 12px; background: var(--bg-secondary-alt, var(--bg-secondary));
-  display: flex; align-items: center; justify-content: center; font-size: 28px;
+.app-card:hover { transform: translateY(-3px); box-shadow: 0 10px 26px rgba(0,0,0,.28); border-color: color-mix(in srgb, var(--brand) 35%, transparent); }
+.app-card-banner {
+  position: relative; aspect-ratio: 16 / 9; background: var(--bg-secondary-alt, var(--bg-secondary)) center/cover no-repeat;
+  display: flex; align-items: center; justify-content: center;
 }
-.module-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.module-card-body h3 { margin: 0; font-size: 16px; color: var(--header-primary); }
-.module-card-hint { font-style: italic; }
-.module-card-version { margin: 2px 0 0; }
-.module-card-update { color: var(--yellow); margin: 0; }
-.module-card-error { color: var(--red); font-size: 13px; margin: 2px 0 0; }
-.module-card-actions { display: flex; gap: 8px; margin-top: 8px; }
+.app-card-banner-fallback { font-size: 40px; opacity: .4; }
+.app-card-banner-gradient { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(0,0,0,.82) 100%); }
+.app-card-title-row { position: absolute; left: 12px; bottom: 10px; right: 56px; display: flex; align-items: center; gap: 8px; z-index: 1; }
+.app-card-icon { width: 26px; height: 26px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
+.app-card-name { color: #fff; font-weight: 700; font-size: 15px; text-shadow: 0 1px 4px rgba(0,0,0,.6); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-card-quick-btn {
+  position: absolute; right: 10px; bottom: 8px; z-index: 2;
+  width: 36px; height: 36px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center;
+  font-size: 15px; box-shadow: 0 3px 10px rgba(0,0,0,.35); transition: transform .12s ease, filter .12s ease;
+}
+.app-card-quick-btn:hover { transform: scale(1.08); filter: brightness(1.08); }
+.app-card-quick-btn.is-download { background: var(--brand); color: #fff; }
+.app-card-quick-btn.is-play { background: var(--green); color: #fff; }
+.app-card-hint { padding: 8px 12px; font-style: italic; font-size: 12.5px; }
+.app-card-progress { height: 4px; background: var(--bg-secondary-alt, var(--bg-secondary)); }
+.app-card-progress div { height: 100%; background: var(--brand); transition: width .2s ease; }
+
+/* Item pedido: "abre outra aba que é parecida com a outra foto que te
+   mandei" (referência: banner de página de jogo da Steam — nome
+   grande sobre a arte, botão de instalar + espaço necessário logo
+   abaixo). */
+.app-detail-view { padding: 0; overflow-y: auto; height: 100%; }
+.app-detail-back {
+  margin: 18px 0 0 24px; color: var(--text-muted); font-size: 13px; font-weight: 600;
+  transition: color .12s ease;
+}
+.app-detail-back:hover { color: var(--header-primary); }
+.app-detail-banner {
+  position: relative; margin-top: 12px; min-height: 260px; background: var(--bg-secondary-alt, var(--bg-secondary)) center/cover no-repeat;
+  display: flex; align-items: flex-end;
+}
+.app-detail-banner-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 64px; opacity: .35; }
+.app-detail-banner-gradient { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.88) 100%); }
+.app-detail-title-row { position: relative; z-index: 1; display: flex; align-items: center; gap: 14px; padding: 24px; width: 100%; }
+.app-detail-icon { width: 56px; height: 56px; border-radius: 12px; object-fit: cover; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
+.app-detail-title-row h1 { margin: 0; font-size: 30px; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.7); }
+
+.app-detail-action-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 20px; padding: 18px 24px;
+  background: var(--bg-elevated); border-bottom: 1px solid var(--border);
+}
+.app-detail-install-btn { padding: 12px 28px; font-size: 15px; }
+.app-detail-space { display: flex; flex-direction: column; font-size: 13px; }
+.app-detail-space strong { color: var(--header-primary); font-size: 14px; }
+.app-detail-progress { flex: 1; min-width: 240px; }
+.app-detail-progress-label { margin-bottom: 6px; font-size: 13px; }
+.app-detail-progress-bar { height: 8px; border-radius: 4px; background: var(--bg-secondary-alt, var(--bg-secondary)); overflow: hidden; }
+.app-detail-progress-bar div { height: 100%; background: var(--brand); border-radius: 4px; transition: width .2s ease; }
+.app-detail-installed-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.app-detail-play-btn { padding: 12px 28px; font-size: 15px; }
+.app-detail-error { color: var(--red); font-size: 13px; margin: 0; width: 100%; }
+.app-detail-description { padding: 20px 24px; max-width: 700px; color: var(--text-normal); line-height: 1.5; }
+
 /* Item pedido: "adicione um botão Jogar em verde quando baixar" —
-   mesmo formato/tamanho do btn-secondary (definido em global.css),
-   só a cor muda pra reforçar visualmente que o launcher já está
-   pronto pra abrir, sem precisar ler o texto do card inteiro pra
-   saber o estado. */
+   mesmo formato/tamanho do btn-secondary, só a cor muda pra reforçar
+   visualmente que o launcher já está pronto pra abrir. */
 .btn-play {
   background: var(--green); color: #fff; border: none; border-radius: 6px;
   padding: 9px 16px; font-size: 14px; font-weight: 600; cursor: pointer;
@@ -50,12 +99,15 @@
 }
 .btn-play:hover { filter: brightness(1.08); }
 .btn-play:active { filter: brightness(0.94); }
-.module-card-progress { margin-top: 6px; }
-.module-card-progress-label { margin-bottom: 4px; }
-.module-card-progress-bar { height: 6px; border-radius: 3px; background: var(--bg-secondary-alt, var(--bg-secondary)); overflow: hidden; }
-.module-card-progress-bar div { height: 100%; background: var(--brand); border-radius: 3px; transition: width .2s ease; }
+
+.btn-danger-outline {
+  background: transparent; color: var(--red); border: 1px solid var(--red); border-radius: 6px;
+  padding: 8px 15px; font-size: 14px; font-weight: 600; transition: background-color .12s ease, color .12s ease;
+}
+.btn-danger-outline:hover { background: var(--red); color: #fff; }
 
 @media (max-width: 600px) {
   .jogos-page { padding: 14px; }
-  .module-card { flex-direction: column; }
+  .jogos-page-grid { grid-template-columns: 1fr 1fr; }
+  .app-detail-title-row h1 { font-size: 22px; }
 }

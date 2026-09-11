@@ -46,6 +46,8 @@ import {
   createCategory, updateCategory, deleteCategory, reorderCategories,
   createChannel, updateChannel, deleteChannel, reorderChannels,
   getUiLayout, updateUiLayout,
+  adminListAppCatalog, adminCreateAppCatalogItem, adminUpdateAppCatalogItem, adminDeleteAppCatalogItem,
+  adminUploadAppCatalogBanner, adminUploadAppCatalogIcon,
 } from '../api/endpoints';
 import HouseIcon from '../components/HouseIcon.jsx';
 import DraggableResizableBox from '../components/admin/DraggableResizableBox.jsx';
@@ -62,13 +64,13 @@ const TAB_LABEL = {
   automodDm: '🚩 Moderação de DMs', reports: '🚩 Denúncias', feeds: '📰 Feeds', honeypot: '🕸️ Segurança (Honeypot)',
   roles: '🎭 Cargos', channels: '# Canais e Categorias', gifMove: '🎯 GIFa Move',
   emojis: '😀 Emojis', stickers: '🏷️ Figurinhas', clanIcons: '⚔️ Ícones de Clã',
-  achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', reload: '🔄 Reload',
+  achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', reload: '🔄 Reload', appCatalog: '🧩 Apps',
 };
 
 const TAB_GROUPS = [
   { label: 'Visão geral', tabs: ['stats', 'inscricoes', 'users', 'badges'] },
   { label: 'Estrutura da comunidade', tabs: ['roles', 'channels', 'gifMove', 'emojis', 'stickers', 'clanIcons', 'achievements'] },
-  { label: 'Conteúdo', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events'] },
+  { label: 'Conteúdo', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events', 'appCatalog'] },
   { label: 'Moderação', tabs: ['moderacao', 'automodDm', 'reports', 'logs', 'honeypot'] },
   { label: 'Comunicação', tabs: ['announcements'] },
   { label: 'Sistema', tabs: ['sistema', 'maintenance', 'reload'] },
@@ -159,6 +161,7 @@ export default function AdminPanel() {
           {tab === 'automodDm' && <AutomodDmTab />}
           {tab === 'reports' && <ReportsTab />}
           {tab === 'feeds' && <FeedsAdminTab />}
+          {tab === 'appCatalog' && <AppCatalogTab />}
           {tab === 'roles' && <RolesAdminTab />}
           {tab === 'channels' && <ChannelsAdminTab />}
           {tab === 'gifMove' && <GifMoveAdminTab />}
@@ -1302,6 +1305,96 @@ function AnnouncementsTab() {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function AppCatalogTab() {
+  const [items, setItems] = useState([]);
+  const [form, setForm] = useState({ moduleId: '', name: '', description: '', sizeLabel: '' });
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState('');
+
+  const reload = () => adminListAppCatalog().then((d) => setItems(d.items));
+  useEffect(() => { reload(); }, []);
+
+  const create = async () => {
+    setError('');
+    if (!form.moduleId.trim() || !form.name.trim()) return setError('moduleId e nome são obrigatórios.');
+    setCreating(true);
+    try {
+      await adminCreateAppCatalogItem(form);
+      setForm({ moduleId: '', name: '', description: '', sizeLabel: '' });
+      reload();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Não foi possível criar o item.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const updateField = async (id, field, value) => {
+    await adminUpdateAppCatalogItem(id, { [field]: value });
+    reload();
+  };
+
+  return (
+    <div className="settings-grid" style={{ maxWidth: 640 }}>
+      <div className="settings-block">
+        <h4>Novo item do catálogo</h4>
+        <p className="dim">
+          moduleId precisa bater exatamente com o id usado do lado do app desktop (MODULES em desktop/projectMcManager.js) —
+          ex: "projectmc". Depois de criado, edite banner/ícone/descrição/espaço direto na lista abaixo.
+        </p>
+        <label>moduleId<input value={form.moduleId} onChange={(e) => setForm((f) => ({ ...f, moduleId: e.target.value }))} placeholder="projectmc" /></label>
+        <label>Nome<input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} maxLength={80} /></label>
+        <label>Descrição<textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} maxLength={500} /></label>
+        <label>Espaço necessário (texto livre)<input value={form.sizeLabel} onChange={(e) => setForm((f) => ({ ...f, sizeLabel: e.target.value }))} placeholder="~100 MB" maxLength={40} /></label>
+        {error && <div className="auth-error">{error}</div>}
+        <button className="btn-primary" disabled={creating} onClick={create}>{creating ? 'Criando...' : 'Criar item'}</button>
+      </div>
+
+      {items.map((item) => (
+        <AppCatalogItemEditor key={item.id} item={item} onChange={updateField} onReload={reload} />
+      ))}
+    </div>
+  );
+}
+
+function AppCatalogItemEditor({ item, onChange, onReload }) {
+  const [name, setName] = useState(item.name);
+  const [description, setDescription] = useState(item.description || '');
+  const [sizeLabel, setSizeLabel] = useState(item.sizeLabel || '');
+
+  const del = async () => {
+    if (!confirm(`Remover "${item.name}" do catálogo? A staff pode criar de novo depois.`)) return;
+    await adminDeleteAppCatalogItem(item.id);
+    onReload();
+  };
+
+  return (
+    <div className="settings-block">
+      <h4>{item.name} <span className="dim">({item.moduleId})</span></h4>
+      <div className="display-name-row">
+        <label>
+          Banner (tela de detalhe, estilo Steam)
+          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => e.target.files[0] && adminUploadAppCatalogBanner(item.id, e.target.files[0]).then(onReload)} />
+          {item.bannerUrl && <img src={proxyImage(item.bannerUrl)} alt="" style={{ width: '100%', maxWidth: 280, borderRadius: 8, marginTop: 6 }} />}
+        </label>
+        <label>
+          Ícone (card da lista)
+          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => e.target.files[0] && adminUploadAppCatalogIcon(item.id, e.target.files[0]).then(onReload)} />
+          {item.iconUrl && <img src={proxyImage(item.iconUrl)} alt="" style={{ width: 64, height: 64, borderRadius: 8, marginTop: 6, objectFit: 'cover' }} />}
+        </label>
+      </div>
+      <label>Nome<input value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name !== item.name && onChange(item.id, 'name', name)} maxLength={80} /></label>
+      <label>Descrição<textarea value={description} onChange={(e) => setDescription(e.target.value)} onBlur={() => description !== (item.description || '') && onChange(item.id, 'description', description)} rows={2} maxLength={500} /></label>
+      <label>Espaço necessário<input value={sizeLabel} onChange={(e) => setSizeLabel(e.target.value)} onBlur={() => sizeLabel !== (item.sizeLabel || '') && onChange(item.id, 'sizeLabel', sizeLabel)} maxLength={40} /></label>
+      <label className="settings-toggle-row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <input type="checkbox" checked={item.enabled} onChange={(e) => onChange(item.id, 'enabled', e.target.checked)} />
+        Visível na aba Apps
+      </label>
+      <button className="btn-danger" onClick={del}>Remover</button>
     </div>
   );
 }

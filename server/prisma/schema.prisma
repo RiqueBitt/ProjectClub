@@ -1938,6 +1938,30 @@ model ConnectedAccount {
 // Item pedido: "RegisteredGames... Jogos adicionados... Cada jogo
 // deve possuir um identificador interno. Não depender apenas do nome
 // exibido."
+// Item pedido: "melhore também essa aba de apps, adicione ícone,
+// banner melhorando a interface tudo sendo configurado do painel da
+// staff" — catálogo de apps/jogos (o ProjectMC hoje, outros no
+// futuro) editável pela staff: banner grande (tela de detalhe, estilo
+// Steam), ícone pequeno (card da lista) e o texto de espaço necessário
+// exibido ali — tudo isso é conteúdo/apresentação, então fica no
+// banco, editável sem precisar de deploy novo. moduleId é o
+// identificador ESTÁVEL que liga esse registro de apresentação ao
+// módulo real gerenciado pelo lado Electron (projectMcManager.js,
+// MODULES[id]) — nunca muda mesmo que o nome de exibição mude.
+model AppCatalogItem {
+  id          String   @id @default(uuid())
+  moduleId    String   @unique // ex: "projectmc" — bate com MODULES no desktop/projectMcManager.js
+  name        String
+  description String?
+  bannerUrl   String?
+  iconUrl     String?
+  sizeLabel   String? // ex: "~100 MB" — texto livre, exibido como "espaço necessário"
+  order       Int      @default(0)
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model RegisteredGame {
   id          String   @id @default(uuid())
   userId      String
