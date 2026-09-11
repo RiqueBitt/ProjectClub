@@ -254,30 +254,44 @@ export default function MainApp() {
       <PanelSlot panelId="main">
         <div className="app-main">
           <Suspense fallback={<RouteLoadingFallback />}>
-            <Routes>
-              <Route path="/" element={<CommunityDefaultChannel />} />
-              <Route path="/dms" element={<AmigosPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/notifications" element={<NotificationsPage />} />
-              <Route path="/search" element={<SearchPage />} />
-              <Route path="/admin" element={<AdminPanel />} />
-              <Route path="/economia" element={<EconomyPage />} />
-              <Route path="/rank" element={<RankPage />} />
-              <Route path="/casas" element={<HousesPage />} />
-              <Route path="/figurinhas" element={<StickersPage />} />
-              <Route path="/tickets" element={<TicketsPage />} />
-              <Route path="/clans" element={<ClansPage />} />
-              <Route path="/clans/mine" element={<ClanPage />} />
-              <Route path="/comunidades" element={<CommunitiesPage />} />
-              <Route path="/comunidades/:slug" element={<CommunityPage />} />
-              <Route path="/posts/:id" element={<PostDetailPage />} />
-              <Route path="/conquistas" element={<AchievementsPage />} />
-              <Route path="/inicio" element={<InicioPage />} />
-              {/* Item pedido: "crie uma nova categoria chamada Jogos" */}
-              <Route path="/jogos" element={<JogosPage />} />
-              <Route path="/conversations/:conversationId" element={<ChatWindow kind="conversation" />} />
-              <Route path="/channels/:channelId" element={<ChatWindow kind="channel" />} />
-            </Routes>
+            {/* BUG CORRIGIDO ("trocar de tela às vezes dá um erro que
+                obriga a recarregar a página"): um erro de renderização
+                em QUALQUER uma dessas páginas só era pego pelo
+                ErrorBoundary GLOBAL (ver main.jsx) — o único que existia
+                pra área principal de navegação — que substitui a
+                aplicação INTEIRA por uma tela de erro com um botão
+                "Recarregar" (F5 de verdade). Um ErrorBoundary aqui,
+                envolvendo só a área de rotas, contém o problema na
+                página específica que quebrou — o resto do app (barra
+                lateral, chamada de voz em andamento, etc.) continua
+                funcionando, e "Tentar de novo" só remonta essa área,
+                sem precisar recarregar nada. */}
+            <ErrorBoundary compact>
+              <Routes>
+                <Route path="/" element={<CommunityDefaultChannel />} />
+                <Route path="/dms" element={<AmigosPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
+                <Route path="/search" element={<SearchPage />} />
+                <Route path="/admin" element={<AdminPanel />} />
+                <Route path="/economia" element={<EconomyPage />} />
+                <Route path="/rank" element={<RankPage />} />
+                <Route path="/casas" element={<HousesPage />} />
+                <Route path="/figurinhas" element={<StickersPage />} />
+                <Route path="/tickets" element={<TicketsPage />} />
+                <Route path="/clans" element={<ClansPage />} />
+                <Route path="/clans/mine" element={<ClanPage />} />
+                <Route path="/comunidades" element={<CommunitiesPage />} />
+                <Route path="/comunidades/:slug" element={<CommunityPage />} />
+                <Route path="/posts/:id" element={<PostDetailPage />} />
+                <Route path="/conquistas" element={<AchievementsPage />} />
+                <Route path="/inicio" element={<InicioPage />} />
+                {/* Item pedido: "crie uma nova categoria chamada Jogos" */}
+                <Route path="/jogos" element={<JogosPage />} />
+                <Route path="/conversations/:conversationId" element={<ChatWindow kind="conversation" />} />
+                <Route path="/channels/:channelId" element={<ChatWindow kind="channel" />} />
+              </Routes>
+            </ErrorBoundary>
           </Suspense>
         </div>
       </PanelSlot>

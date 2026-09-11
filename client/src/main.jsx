@@ -14,13 +14,25 @@ import './i18n/index.js';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <ErrorBoundary>
-      <BrowserRouter>
-        <AuthProvider>
+    {/* BUG CORRIGIDO ("mudar zoom/configuração desloga o usuário"): o
+        ErrorBoundary global ficava ACIMA do AuthProvider — qualquer
+        erro de render capturado em QUALQUER lugar dentro de <App/>
+        (uma tela específica travando por qualquer motivo) desmontava
+        a árvore inteira, incluindo o AuthProvider junto, perdendo
+        user/token da memória mesmo sem nenhum logout de verdade ter
+        acontecido — e o próprio botão "Recarregar" do boundary
+        (window.location.reload()) reforçava a sensação de sessão
+        perdida. Trocada a ordem: o AuthProvider agora fica FORA do
+        boundary — um erro de render em qualquer tela ainda é
+        capturado e mostra a tela de recuperação normalmente, mas
+        nunca mais desmonta a sessão em memória enquanto isso. */}
+    <BrowserRouter>
+      <AuthProvider>
+        <ErrorBoundary>
           <App />
-        </AuthProvider>
-      </BrowserRouter>
-    </ErrorBoundary>
+        </ErrorBoundary>
+      </AuthProvider>
+    </BrowserRouter>
   </React.StrictMode>
 );
 

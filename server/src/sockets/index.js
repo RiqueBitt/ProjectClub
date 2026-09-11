@@ -403,13 +403,30 @@ function initSockets(httpServer) {
             }
           }
 
-          const roomBefore = await voiceStore.getRoom(channelId);
-          const existingParticipants = Object.entries(roomBefore).map(([uid, p]) => ({
-            userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role,
-          }));
-
+          // BUG CORRIGIDO ("quando alguém entra ou sai de uma call,
+          // algumas pessoas desaparecem da lista de participantes"):
+          // antes, o snapshot pra mandar pro próprio usuário (via
+          // 'voice:joined') era lido ANTES de gravar a própria entrada
+          // no Redis. Se duas pessoas entrassem quase ao mesmo tempo, a
+          // segunda podia ler o snapshot ANTES da primeira ter sido
+          // gravada — ficando com uma lista sem ela — e nunca mais
+          // recebia atualização nenhuma que a incluísse depois, já que
+          // 'voice:user-joined' só é emitido NO MOMENTO exato da
+          // entrada de alguém, não retroativamente. Corrigido lendo o
+          // snapshot DEPOIS de já ter gravado a própria entrada — o
+          // Redis grava de forma atômica (HSET), então isso garante que
+          // pelo menos a ordem "quem entrou primeiro aparece pra quem
+          // entrou depois" sempre se mantém, eliminando a janela de
+          // corrida real que existia entre ler e escrever.
           await voiceStore.setParticipant(channelId, userId, { socketId: socket.id, conversationId, muted: false, deafened: false, video: false, screenSharing: false, role: 'speaker' });
           socket.join(`voice:${channelId}`);
+
+          const roomAfter = await voiceStore.getRoom(channelId);
+          const existingParticipants = Object.entries(roomAfter)
+            .filter(([uid]) => uid !== userId)
+            .map(([uid, p]) => ({
+              userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role,
+            }));
 
           socket.emit('voice:joined', { channelId, participants: existingParticipants, myRole: 'speaker' });
           socket.to(`voice:${channelId}`).emit('voice:user-joined', { channelId, userId, role: 'speaker' });
@@ -522,11 +539,6 @@ function initSockets(httpServer) {
           }
         }
 
-        const roomBefore = await voiceStore.getRoom(channelId);
-        const existingParticipants = Object.entries(roomBefore).map(([uid, p]) => ({
-          userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role,
-        }));
-
         // Stage channels start everyone as audience (muted, can't transmit)
         // except moderators (anyone who could mute/move members), who join
         // as speakers automatically — mirrors Discord's Stage behavior.
@@ -540,12 +552,25 @@ function initSockets(httpServer) {
           startMuted = role === 'audience';
         }
 
+        // BUG CORRIGIDO ("quando alguém entra ou sai de uma call, algumas
+        // pessoas desaparecem da lista de participantes") — mesma causa e
+        // mesma correção do fluxo de chamada de DM acima: lê o snapshot
+        // DEPOIS de já ter gravado a própria entrada no Redis, não antes,
+        // eliminando a janela de corrida entre duas pessoas entrando quase
+        // ao mesmo tempo (ver o comentário completo lá).
         await voiceStore.setParticipant(channelId, userId, {
           socketId: socket.id,
           muted: startMuted, deafened: false, video: false, screenSharing: false, role,
           lastActiveAt: Date.now(),
         });
         socket.join(`voice:${channelId}`);
+
+        const roomAfter = await voiceStore.getRoom(channelId);
+        const existingParticipants = Object.entries(roomAfter)
+          .filter(([uid]) => uid !== userId)
+          .map(([uid, p]) => ({
+            userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role,
+          }));
 
         socket.emit('voice:joined', { channelId, participants: existingParticipants, myRole: role });
         socket.to(`voice:${channelId}`).emit('voice:user-joined', { channelId, userId, role });
