@@ -28,7 +28,7 @@ export default function JogosPage() {
   return (
     <div className="jogos-page">
       <div className="jogos-page-header">
-        <h1>Jogos</h1>
+        <h1>Apps</h1>
         <p className="dim">Módulos opcionais que rodam dentro da instalação do Project Club — instale só o que você usa.</p>
       </div>
 
