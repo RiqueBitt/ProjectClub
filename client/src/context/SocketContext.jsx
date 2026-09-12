@@ -75,7 +75,16 @@ export function SocketProvider({ children }) {
       return;
     }
 
-    const socket = io('/', { auth: { token }, transports: ['websocket', 'polling'] });
+    // Item pedido: "prevenindo erros de demora de conectar" — sem
+    // essas opções, o Socket.IO usa os padrões da biblioteca (timeout
+    // de 20s pra considerar a conexão inicial como falha, e até 1-5s
+    // de espera entre tentativas de reconexão) — conservadores demais
+    // pra um chat em tempo real, onde detectar e se recuperar de uma
+    // queda rápido importa mais do que economizar tentativas.
+    const socket = io('/', {
+      auth: { token }, transports: ['websocket', 'polling'],
+      timeout: 10000, reconnectionDelay: 400, reconnectionDelayMax: 2500,
+    });
     socketRef.current = socket;
 
     socket.on('connect', () => {

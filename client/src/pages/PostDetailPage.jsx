@@ -59,7 +59,30 @@ export default function PostDetailPage() {
     setCommentPickerStyle({ position: 'fixed', bottom: `${bottom}px`, right: `${right}px`, left: 'auto', top: 'auto', transform: 'none', width: `${width}px`, maxWidth: `${width}px` });
   }, [emojiPickerOpen]);
 
-  const refreshPost = () => getPost(id).then((d) => setPost(d.post)).catch(() => setPost(false));
+  // BUG CORRIGIDO ("erro tipo post não encontrado" aparecendo à toa):
+  // qualquer falha na requisição (timeout, instabilidade de rede, erro
+  // 500 passageiro do servidor) caía no mesmo catch genérico que
+  // 404 de verdade — mostrando "Post não encontrado" mesmo quando o
+  // post existe normalmente, só um problema transitório impediu de
+  // carregar dessa vez. Agora só marca como "não encontrado" quando o
+  // servidor confirma 404 de verdade; qualquer outro erro tenta de
+  // novo sozinho (até 2 vezes, com um pequeno intervalo crescente) antes
+  // de desistir — a grande maioria das instabilidades passageiras nem
+  // chega a aparecer pra quem está usando.
+  const [postLoadError, setPostLoadError] = useState(null); // null | 'not-found' | 'network'
+  const refreshPost = (attempt = 0) => getPost(id).then((d) => { setPost(d.post); setPostLoadError(null); }).catch((err) => {
+    if (err.response?.status === 404) {
+      setPost(false);
+      setPostLoadError('not-found');
+      return;
+    }
+    if (attempt < 2) {
+      setTimeout(() => refreshPost(attempt + 1), 800 * (attempt + 1));
+      return;
+    }
+    setPost(false);
+    setPostLoadError('network');
+  });
   const refreshComments = () => listPostComments(id).then((d) => setComments(d.comments));
 
   useEffect(() => { refreshPost(); refreshComments(); }, [id]);
@@ -109,7 +132,20 @@ export default function PostDetailPage() {
     refreshComments();
   };
 
-  if (post === false) return <div className="post-detail-page"><p className="dim">Post não encontrado.</p></div>;
+  if (post === false) {
+    return (
+      <div className="post-detail-page">
+        <p className="dim">
+          {postLoadError === 'not-found'
+            ? 'Post não encontrado.'
+            : 'Não deu pra carregar esse post agora — pode ser uma instabilidade passageira na conexão.'}
+        </p>
+        {postLoadError === 'network' && (
+          <button type="button" className="btn-secondary" onClick={() => { setPost(null); refreshPost(); }}>Tentar de novo</button>
+        )}
+      </div>
+    );
+  }
   if (!post) return <div className="post-detail-page"><p className="dim">Carregando...</p></div>;
 
   const isStaff = ['ADMIN', 'MODERATOR'].includes(user.platformRole);

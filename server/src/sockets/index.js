@@ -270,7 +270,7 @@ function initSockets(httpServer) {
         if (!channelId) return;
         const channel = await prisma.channel.findUnique({ where: { id: channelId } });
         if (!channel) return;
-        const perms = await getEffectivePermissions(userId, channelId);
+        const perms = await getEffectivePermissions(userId, channelId, channel);
         if (has(perms, 'VIEW_CHANNEL')) socket.join(`channel:${channelId}`);
       } catch (err) { console.error('[socket] channel:join falhou:', err); }
     });
@@ -467,7 +467,7 @@ function initSockets(httpServer) {
 
         const channel = await prisma.channel.findUnique({ where: { id: channelId } });
         if (!channel) return;
-        const perms = await getEffectivePermissions(userId, channelId);
+        const perms = await getEffectivePermissions(userId, channelId, channel);
         if (!has(perms, 'CONNECT')) {
           socket.emit('voice:join-denied', { channelId, reason: 'Você não tem permissão para entrar neste canal.' });
           return;
@@ -601,7 +601,7 @@ function initSockets(httpServer) {
         if (!isSelfDemote) {
           const channel = await prisma.channel.findUnique({ where: { id: channelId } });
           if (!channel) return;
-          const perms = await getEffectivePermissions(userId, channelId);
+          const perms = await getEffectivePermissions(userId, channelId, channel);
           const isModerator = has(perms, 'MUTE_MEMBERS') || has(perms, 'MOVE_MEMBERS') || has(perms, 'MANAGE_CHANNELS');
           if (!isModerator) return;
         }

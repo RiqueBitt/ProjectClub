@@ -135,7 +135,7 @@ async function assertAccess(req, { conversationId, channelId }, requireSend = fa
   if (channelId) {
     const channel = await prisma.channel.findUnique({ where: { id: channelId } });
     if (!channel) { const e = new Error('Canal não encontrado.'); e.status = 404; throw e; }
-    const perms = await getEffectivePermissions(req.user.id, channelId);
+    const perms = await getEffectivePermissions(req.user.id, channelId, channel);
     if (!has(perms, 'VIEW_CHANNEL')) { const e = new Error('Sem acesso a este canal.'); e.status = 403; throw e; }
     if (requireSend) {
       if (!has(perms, 'SEND_MESSAGES')) { const e = new Error('Você não tem permissão para enviar mensagens neste canal.'); e.status = 403; throw e; }
@@ -559,7 +559,7 @@ async function deleteMessage(req, res, next) {
     if (existing.authorId !== req.user.id) {
       if (existing.channelId) {
         const channel = await prisma.channel.findUnique({ where: { id: existing.channelId } });
-        const perms = channel && await getEffectivePermissions(req.user.id, channel.id);
+        const perms = channel && await getEffectivePermissions(req.user.id, channel.id, channel);
         const allowed = perms && (has(perms, 'MANAGE_MESSAGES') || (channel.type === 'FORUM' && has(perms, 'MANAGE_TOPICS')));
         if (!allowed) return res.status(403).json({ error: 'Sem permissão.' });
         moderated = true;
@@ -597,7 +597,7 @@ async function togglePin(req, res, next) {
 
     if (existing.channelId) {
       const channel = await prisma.channel.findUnique({ where: { id: existing.channelId } });
-      const perms = channel && await getEffectivePermissions(req.user.id, channel.id);
+      const perms = channel && await getEffectivePermissions(req.user.id, channel.id, channel);
       if (!perms || !has(perms, 'MANAGE_MESSAGES')) return res.status(403).json({ error: 'Sem permissão.' });
     } else if (existing.conversationId) {
       const member = await prisma.conversationMember.findUnique({
@@ -632,7 +632,7 @@ async function toggleArchiveTopic(req, res, next) {
     if (!existing.channelId) return res.status(400).json({ error: 'Tópicos de conversas diretas não podem ser arquivados.' });
 
     const channel = await prisma.channel.findUnique({ where: { id: existing.channelId } });
-    const perms = channel && await getEffectivePermissions(req.user.id, channel.id);
+    const perms = channel && await getEffectivePermissions(req.user.id, channel.id, channel);
     if (!perms || !has(perms, 'MANAGE_MESSAGES')) return res.status(403).json({ error: 'Sem permissão.' });
 
     const message = await prisma.message.update({
