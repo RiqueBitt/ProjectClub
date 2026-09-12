@@ -727,6 +727,17 @@ html.is-electron-app .app-shell { height: calc(100dvh - 32px); }
   grid-template-columns: var(--main-sidebar-width, 88px) 240px 1fr var(--members-width, 240px);
 }
 .app-shell.discord-layout-active .app-main { grid-column: 3; }
+/* BUG CORRIGIDO ("a barra de usuários online também foi para o lado"):
+   a coluna extra do ChannelSidebar (regra acima) empurra .app-main de
+   2 pra 3, mas .members-list (mais abaixo, "grid-column: 3" fixo)
+   nunca foi atualizada junto — as duas ficavam disputando a MESMA
+   coluna quando o layout Discord estava ativo, o chat "engolindo" o
+   espaço que devia ser da lista de membros. Move ela pra coluna 4
+   nesse caso — a única coluna que sobrou. */
+.app-shell.discord-layout-active .members-list { grid-column: 4; }
+/* Mesmo motivo do .members-list acima — a barra de chamada de voz
+   (aparece embaixo do chat) também ficava na coluna errada. */
+.app-shell.discord-layout-active .call-bar { grid-column: 3; }
 .discord-layout-fixed-sidebar {
   grid-column: 2; grid-row: 2; min-height: 0; overflow: hidden;
   border-right: 1px solid var(--border);
