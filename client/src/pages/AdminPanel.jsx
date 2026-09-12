@@ -1333,6 +1333,14 @@ function AppCatalogTab() {
     }
   };
 
+  // BUG CORRIGIDO ("descrições dos apps não estão salvando"): essa
+  // função não tinha nenhum tratamento de erro — se a chamada PATCH
+  // falhasse por qualquer motivo (rede instável, sessão expirada,
+  // erro do servidor), a falha ficava completamente silenciosa: sem
+  // mensagem nenhuma, sem reload(), o campo simplesmente parecia "não
+  // ter salvo" (e realmente não tinha) na próxima vez que a pessoa
+  // olhasse a tela. Agora propaga o erro pra quem chamou mostrar de
+  // verdade (ver AppCatalogItemEditor abaixo).
   const updateField = async (id, field, value) => {
     await adminUpdateAppCatalogItem(id, { [field]: value });
     reload();
@@ -1365,11 +1373,43 @@ function AppCatalogItemEditor({ item, onChange, onReload }) {
   const [name, setName] = useState(item.name);
   const [description, setDescription] = useState(item.description || '');
   const [sizeLabel, setSizeLabel] = useState(item.sizeLabel || '');
+  // Item pedido: "as descrições dos apps não estão salvando" — causa
+  // real era updateField (acima) engolindo qualquer erro em silêncio,
+  // então um PATCH que falhasse (rede instável, sessão expirada, erro
+  // do servidor) nunca avisava ninguém — parecia só "não salvou".
+  // saveStatus dá feedback de verdade (Salvando.../Salvo!/deu erro),
+  // e um botão "Salvar" explícito por campo garante que dá pra tentar
+  // de novo sem depender só do campo perder o foco (onBlur) — que
+  // nunca dispara se a pessoa fechar a aba ou navegar pra outro lugar
+  // direto depois de digitar.
+  const [saveStatus, setSaveStatus] = useState({}); // { [field]: 'saving' | 'saved' | 'error' }
+
+  const saveField = async (field, value) => {
+    setSaveStatus((s) => ({ ...s, [field]: 'saving' }));
+    try {
+      await onChange(item.id, field, value);
+      setSaveStatus((s) => ({ ...s, [field]: 'saved' }));
+      setTimeout(() => setSaveStatus((s) => (s[field] === 'saved' ? { ...s, [field]: null } : s)), 2000);
+    } catch {
+      setSaveStatus((s) => ({ ...s, [field]: 'error' }));
+    }
+  };
+
+  const statusLabel = (field) => {
+    if (saveStatus[field] === 'saving') return <span className="dim"> salvando...</span>;
+    if (saveStatus[field] === 'saved') return <span style={{ color: 'var(--green)' }}> ✓ salvo</span>;
+    if (saveStatus[field] === 'error') return <span style={{ color: 'var(--red)' }}> não foi possível salvar — tente de novo</span>;
+    return null;
+  };
 
   const del = async () => {
     if (!confirm(`Remover "${item.name}" do catálogo? A staff pode criar de novo depois.`)) return;
-    await adminDeleteAppCatalogItem(item.id);
-    onReload();
+    try {
+      await adminDeleteAppCatalogItem(item.id);
+      onReload();
+    } catch {
+      alert('Não foi possível remover — tente de novo.');
+    }
   };
 
   return (
@@ -1378,20 +1418,41 @@ function AppCatalogItemEditor({ item, onChange, onReload }) {
       <div className="display-name-row">
         <label>
           Banner (tela de detalhe, estilo Steam)
-          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => e.target.files[0] && adminUploadAppCatalogBanner(item.id, e.target.files[0]).then(onReload)} />
+          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => e.target.files[0] && adminUploadAppCatalogBanner(item.id, e.target.files[0]).then(onReload).catch(() => alert('Não foi possível subir o banner — tente de novo.'))} />
           {item.bannerUrl && <img src={proxyImage(item.bannerUrl)} alt="" style={{ width: '100%', maxWidth: 280, borderRadius: 8, marginTop: 6 }} />}
         </label>
         <label>
           Ícone (card da lista)
-          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => e.target.files[0] && adminUploadAppCatalogIcon(item.id, e.target.files[0]).then(onReload)} />
+          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => e.target.files[0] && adminUploadAppCatalogIcon(item.id, e.target.files[0]).then(onReload).catch(() => alert('Não foi possível subir o ícone — tente de novo.'))} />
           {item.iconUrl && <img src={proxyImage(item.iconUrl)} alt="" style={{ width: 64, height: 64, borderRadius: 8, marginTop: 6, objectFit: 'cover' }} />}
         </label>
       </div>
-      <label>Nome<input value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name !== item.name && onChange(item.id, 'name', name)} maxLength={80} /></label>
-      <label>Descrição<textarea value={description} onChange={(e) => setDescription(e.target.value)} onBlur={() => description !== (item.description || '') && onChange(item.id, 'description', description)} rows={2} maxLength={500} /></label>
-      <label>Espaço necessário<input value={sizeLabel} onChange={(e) => setSizeLabel(e.target.value)} onBlur={() => sizeLabel !== (item.sizeLabel || '') && onChange(item.id, 'sizeLabel', sizeLabel)} maxLength={40} /></label>
+      <label>
+        Nome
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} style={{ flex: 1 }} />
+          <button type="button" className="btn-secondary" disabled={name === item.name || saveStatus.name === 'saving'} onClick={() => saveField('name', name)}>Salvar</button>
+        </div>
+        {statusLabel('name')}
+      </label>
+      <label>
+        Descrição
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} maxLength={500} />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
+          <button type="button" className="btn-secondary" disabled={description === (item.description || '') || saveStatus.description === 'saving'} onClick={() => saveField('description', description)}>Salvar descrição</button>
+          {statusLabel('description')}
+        </div>
+      </label>
+      <label>
+        Espaço necessário
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input value={sizeLabel} onChange={(e) => setSizeLabel(e.target.value)} maxLength={40} style={{ flex: 1 }} />
+          <button type="button" className="btn-secondary" disabled={sizeLabel === (item.sizeLabel || '') || saveStatus.sizeLabel === 'saving'} onClick={() => saveField('sizeLabel', sizeLabel)}>Salvar</button>
+        </div>
+        {statusLabel('sizeLabel')}
+      </label>
       <label className="settings-toggle-row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <input type="checkbox" checked={item.enabled} onChange={(e) => onChange(item.id, 'enabled', e.target.checked)} />
+        <input type="checkbox" checked={item.enabled} onChange={(e) => onChange(item.id, 'enabled', e.target.checked).catch(() => alert('Não foi possível salvar — tente de novo.'))} />
         Visível na aba Apps
       </label>
       <button className="btn-danger" onClick={del}>Remover</button>
