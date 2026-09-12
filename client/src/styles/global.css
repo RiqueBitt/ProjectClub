@@ -689,6 +689,21 @@ body.body-auth-scroll { overflow-y: auto !important; }
   padding-bottom: env(safe-area-inset-bottom, 0px);
   box-sizing: border-box;
 }
+/* BUG CORRIGIDO ("está cortando a parte debaixo nos apps"): a barra de
+   título customizada (.app-title-bar, 32px, ver mais abaixo) foi
+   adicionada depois que .app-shell já usava height: 100vh/100dvh fixo
+   acima — .app-shell continuava tentando ocupar 100% da altura TOTAL
+   da janela, mas só sobra (100% - 32px) de espaço de verdade dentro
+   do layout flex que envolve tudo (.app-root-with-titlebar/
+   .app-routes-container). Sem esse desconto, .app-shell sempre
+   transbordava exatos 32px pra fora da área visível — cortando a
+   barra de chamada e o campo de digitar, SEMPRE, em qualquer zoom (por
+   isso nenhuma das correções de zoom sozinha resolvia isso: a causa
+   nunca foi o zoom em si, era esse desconto que nunca existiu). Só se
+   aplica no app desktop (única tela com essa barra) — navegador e
+   Android continuam com o 100dvh puro da regra acima, sem mudança
+   nenhuma pra eles. */
+html.is-electron-app .app-shell { height: calc(100dvh - 32px); }
 .app-main { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg-primary); position: relative; }
 
 /* ---------- Barra de topo estilo Reddit (TopSearchBar.jsx) — logo +
@@ -6512,6 +6527,11 @@ a.embed-card-title:hover { text-decoration: underline; }
 .chat-zoom-row { display: flex; align-items: center; gap: 10px; }
 .chat-zoom-row input[type="range"] { flex: 1; }
 .chat-zoom-value { font-size: 12px; font-weight: 700; color: var(--text-muted); min-width: 32px; text-align: right; }
+.chat-zoom-input {
+  width: 56px; text-align: center; font-size: 13px; font-weight: 700;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px;
+  padding: 4px 2px; color: var(--header-primary);
+}
 
 /* ============================================================
    Item pedido: "sistema completo chamado Clans... deixe tudo bonito

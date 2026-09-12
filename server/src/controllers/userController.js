@@ -383,18 +383,20 @@ async function setChatZoom(req, res, next) {
 
 // Item pedido: "adicione nas configurações do usuário ele poder
 // aumentar ou diminuir o zoom quanto quiser" — zoom GERAL de toda a
-// interface, mesmo padrão de setChatZoom acima, só com um intervalo
-// mais amplo (0.5 a 2.5) já que é pra toda a tela, não só o chat —
-// abaixo de 0.5 ou acima de 2.5 deixaria o app praticamente
-// inutilizável de tão pequeno ou tão grande.
+// interface, mesmo padrão de setChatZoom acima. Item pedido (revisão
+// posterior): "escolher o zoom de 50% a 200%, 1% por 1%" — intervalo e
+// precisão exatos pedidos.
 async function setInterfaceZoom(req, res, next) {
   try {
     const { zoom } = req.body;
     const value = Number(zoom);
-    if (!Number.isFinite(value) || value < 0.5 || value > 2.5) {
-      return res.status(400).json({ error: 'O zoom precisa estar entre 0.5 e 2.5.' });
+    if (!Number.isFinite(value) || value < 0.5 || value > 2) {
+      return res.status(400).json({ error: 'O zoom precisa estar entre 50% e 200%.' });
     }
-    const rounded = Math.round(value * 10) / 10;
+    // Arredonda pra 2 casas decimais (passos de 1%) — o controle na
+    // tela já só deixa escolher assim, isso é só uma rede de
+    // segurança contra um valor mandado direto pra API por fora dela.
+    const rounded = Math.round(value * 100) / 100;
     const user = await prisma.user.update({
       where: { id: req.user.id }, data: { interfaceZoom: rounded }, select: SELF_USER_FIELDS,
     });

@@ -1309,22 +1309,33 @@ export default function UserSettingsModal({ onClose }) {
             </div>
           </div>
 
-          {/* Item pedido: "adicione nas configurações do usuário ele
-              poder aumentar ou diminuir o zoom quanto quiser" — zoom
-              GERAL de toda a interface (diferente do zoom do chat
-              acima, que só afeta as mensagens) — mesmo padrão de
-              controle, intervalo maior (0.5x a 2.5x) já que afeta a
-              tela inteira. */}
+          {/* Item pedido: "criar um sistema em personalização pra
+              poder escolher o zoom de 50% a 200%, 1% por 1%, com uma
+              parte pra escolher [digitar]" — slider fino (1% por
+              passo) + campo numérico pro valor exato, sincronizados
+              entre si; zoom GERAL de toda a interface (diferente do
+              zoom do chat acima, que só afeta as mensagens). */}
           <div className="settings-block">
             <h4>Zoom da interface</h4>
-            <p className="dim">Deixa o app inteiro maior ou menor — só no PC, o celular não muda.</p>
+            <p className="dim">Deixa o app inteiro maior ou menor, de 50% a 200% — só no PC, o celular não muda.</p>
             <div className="chat-zoom-row">
               <input
-                type="range" min="0.5" max="2.5" step="0.1"
+                type="range" min="0.5" max="2" step="0.01"
                 value={interfaceZoom}
                 onChange={(e) => pickInterfaceZoom(Number(e.target.value))}
               />
-              <span className="chat-zoom-value">{interfaceZoom.toFixed(1)}x</span>
+              <input
+                type="number" min="50" max="200" step="1"
+                className="chat-zoom-input"
+                value={Math.round(interfaceZoom * 100)}
+                onChange={(e) => {
+                  const percent = Number(e.target.value);
+                  if (!Number.isFinite(percent)) return;
+                  const clamped = Math.min(200, Math.max(50, percent));
+                  pickInterfaceZoom(clamped / 100);
+                }}
+              />
+              <span className="chat-zoom-value">%</span>
             </div>
           </div>
 
