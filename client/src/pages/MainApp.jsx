@@ -7,6 +7,7 @@ import { playSound } from '../utils/sounds';
 import { applyLanguage } from '../i18n/index.js';
 import { getCommunity, listConversations, listFriends } from '../api/endpoints';
 import MainSidebar from '../components/MainSidebar.jsx';
+import ChannelSidebar from '../components/ChannelSidebar.jsx';
 import TopSearchBar from '../components/TopSearchBar.jsx';
 import ChatWindow from '../components/ChatWindow.jsx';
 import MembersList from '../components/MembersList.jsx';
@@ -101,6 +102,24 @@ export default function MainApp() {
   const navigate = useNavigate();
   const { connected } = useSocket() || {};
   const touchStart = useRef(null);
+  // Item pedido: "a barra que mostra os canais e categorias tem que
+  // ficar do lado da barra de comunidade sempre, e quando clicar em
+  // comunidade abre essa barra lateral de canais... se trocar de
+  // categoria/seção aí ele fecha" — layout 'discord' (Configurações →
+  // Aparência): coluna fixa com o ChannelSidebar clássico, visível só
+  // dentro da área de Comunidade (mesma condição usada pelo próprio
+  // item "Comunidade" da barra principal pra saber se está ativo —
+  // ver MainSidebar.jsx) — fecha sozinha ao navegar pra qualquer outra
+  // seção, sem precisar de nenhum estado extra pra controlar isso.
+  const layoutStyle = useStore((s) => s.layoutStyle);
+  const isInComunidade = location.pathname === '/' || location.pathname.startsWith('/channels/');
+  const showDiscordChannelSidebar = layoutStyle === 'discord' && isInComunidade;
+  // No mobile não cabe coluna fixa + chat lado a lado — a lista de
+  // canais e o chat se revezam em tela cheia (ver CSS): mostra a lista
+  // só quando ainda não escolheu um canal ("/"), esconde assim que
+  // um canal está aberto (o próprio ChannelSidebar já navega pra
+  // "/channels/:id" ao clicar, então isso já acontece sozinho).
+  const hasChannelOpen = location.pathname.startsWith('/channels/');
 
   // BUG EVITADO ("preso pra sempre na tela de carregamento se o socket
   // nunca conectar"): sem isso, alguém atrás de um firewall/proxy que
@@ -243,13 +262,18 @@ export default function MainApp() {
 
   return (
     <div
-      className={`app-shell ${mobileMembersOpen ? 'mobile-members-open' : ''} ${mobileSidebarOpen ? 'mobile-sidebar-open' : ''}`}
+      className={`app-shell ${mobileMembersOpen ? 'mobile-members-open' : ''} ${mobileSidebarOpen ? 'mobile-sidebar-open' : ''} ${showDiscordChannelSidebar ? 'discord-layout-active' : ''} ${hasChannelOpen ? 'discord-layout-has-channel' : ''}`}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
       <div className="mobile-sidebar-backdrop" onClick={() => { closeMobileMembers(); closeMobileSidebar(); }} />
       <TopSearchBar />
       <MainSidebar />
+      {showDiscordChannelSidebar && (
+        <div className="discord-layout-fixed-sidebar">
+          <ChannelSidebar />
+        </div>
+      )}
 
       <PanelSlot panelId="main">
         <div className="app-main">
