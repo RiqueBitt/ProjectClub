@@ -735,6 +735,32 @@ html.is-electron-app .app-shell { height: calc(100dvh - 32px); }
    espaço que devia ser da lista de membros. Move ela pra coluna 4
    nesse caso — a única coluna que sobrou. */
 .app-shell.discord-layout-active .members-list { grid-column: 4; }
+/* Item pedido: "quando abrir a categoria comunidade, faça a barra de
+   categorias inicial/comunidade etc remover o nome e deixar só os
+   ícones e deixar a barra mais fina... ao clicar em outra categoria
+   volta ao normal" — mesmo estilo "só ícones" que a MainSidebar já usa
+   em telas ≤900px (ver a regra @media mais abaixo), só que aqui
+   aplicado sempre que o layout Discord está com a coluna de canais
+   aberta (independente do tamanho da tela) — com 4 colunas (barra +
+   canais + chat + membros), a barra principal com rótulos ficava
+   larga demais e a tela "suja". showDiscordChannelSidebar já é falso
+   fora da área de Comunidade (ver MainApp.jsx), então isso desfaz
+   sozinho ao trocar de seção. */
+.app-shell.discord-layout-active { --main-sidebar-width: 64px; }
+.app-shell.discord-layout-active .main-sidebar-scroll { padding: 10px 6px; gap: 4px; }
+.app-shell.discord-layout-active .main-sidebar-brand { justify-content: center; padding: 0; }
+.app-shell.discord-layout-active .main-sidebar-brand-name { display: none; }
+.app-shell.discord-layout-active .main-sidebar-item { justify-content: center; padding: 10px; }
+.app-shell.discord-layout-active .main-sidebar-item-label { display: none; }
+.app-shell.discord-layout-active .main-sidebar-section-label,
+.app-shell.discord-layout-active .main-sidebar-community-name,
+.app-shell.discord-layout-active .main-sidebar-community-empty,
+.app-shell.discord-layout-active .main-sidebar-community-loading { display: none; }
+.app-shell.discord-layout-active .main-sidebar-community-item { justify-content: center; padding: 8px; }
+.app-shell.discord-layout-active .main-sidebar-footer { padding: 8px 6px; }
+.app-shell.discord-layout-active .main-sidebar-profile-banner { display: none; }
+.app-shell.discord-layout-active .main-sidebar-profile-main { justify-content: center; padding: 6px; }
+.app-shell.discord-layout-active .main-sidebar-profile-text { display: none; }
 /* Mesmo motivo do .members-list acima — a barra de chamada de voz
    (aparece embaixo do chat) também ficava na coluna errada. */
 .app-shell.discord-layout-active .call-bar { grid-column: 3; }
