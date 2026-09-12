@@ -440,8 +440,18 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
    essas telas, então melhorar essas classes já melhora todas de uma vez. */
 body.body-auth-scroll { overflow-y: auto !important; }
 .auth-screen {
-  --auth-bg-0: #080a14; --auth-bg-1: #0d1024; --auth-panel: #11162e;
-  --auth-line: rgba(88, 130, 255, 0.22); --auth-blue-a: #6fb3ff; --auth-blue-b: #4c8dff; --auth-blue-c: #5865f2;
+  /* Item pedido: "melhore o estilo da página web e o estilo do
+     registro e login deixando do estilo do Project Club... as cores
+     estão tudo fora do estilo" — antes essas 6 variáveis eram cores
+     hardcoded próprias (#080a14, #5865f2, um azul "estilo Discord"
+     sem relação nenhuma com o resto do app) — agora todas mapeiam
+     pras variáveis reais do tema (--bg-deepest/--brand/etc, as MESMAS
+     que o app inteiro usa depois do login), então a tela de entrada
+     já chega com a identidade visual certa, e muda sozinha se o tema
+     padrão mudar no futuro, sem precisar editar essas telas de novo. */
+  --auth-bg-0: var(--bg-deepest); --auth-bg-1: var(--bg-primary); --auth-panel: var(--bg-elevated);
+  --auth-line: color-mix(in srgb, var(--brand) 30%, transparent);
+  --auth-blue-a: color-mix(in srgb, var(--brand) 70%, #fff); --auth-blue-b: var(--brand); --auth-blue-c: var(--brand-hover);
   min-height: 100vh; min-height: 100dvh; padding: 40px 20px;
   display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;
   background: var(--auth-bg-0);
@@ -507,9 +517,9 @@ body.body-auth-scroll { overflow-y: auto !important; }
   border: 1px solid var(--auth-line); box-shadow: 0 0 30px -8px rgba(76, 141, 255, 0.5);
 }
 .auth-logo-wrap .auth-logo, .auth-logo-wrap img { margin-bottom: 0; }
-.auth-card { color: #d7dbf5; }
+.auth-card { color: var(--text-normal); }
 .auth-card h1 { color: #fff; margin: 0 0 8px; font-size: 24px; font-weight: 700; }
-.auth-subtitle { color: #97a0c7; margin: 0 0 24px; font-size: 14.5px; }
+.auth-subtitle { color: var(--text-muted); margin: 0 0 24px; font-size: 14.5px; }
 .auth-form { display: flex; flex-direction: column; gap: 18px; text-align: left; margin-top: 8px; }
 
 /* ---------- Formulário de inscrição (8 perguntas) ---------- */
@@ -548,7 +558,7 @@ body.body-auth-scroll { overflow-y: auto !important; }
   background: rgba(255, 255, 255, 0.04) !important; border: 1px solid var(--auth-line);
   border-radius: 10px; padding: 12px 14px; color: #fff !important; font-size: 14.5px;
 }
-.auth-card input::placeholder, .auth-card textarea::placeholder { color: #565f8a; }
+.auth-card input::placeholder, .auth-card textarea::placeholder { color: color-mix(in srgb, var(--text-muted) 65%, transparent); }
 .auth-card input:focus, .auth-card textarea:focus, .auth-card select:focus {
   border-color: var(--auth-blue-b); box-shadow: 0 0 0 3px rgba(76, 141, 255, 0.16);
 }
@@ -562,11 +572,11 @@ body.body-auth-scroll { overflow-y: auto !important; }
    também — ilegível em cima do fundo escuro. Essas regras sobrescrevem
    só DENTRO do .auth-card, sem mexer no seletor de tema de verdade em
    Configurações. */
-.auth-card .theme-swatch { color: #d7dbf5 !important; border-color: var(--auth-line) !important; background: rgba(255, 255, 255, 0.03); }
-.auth-card .theme-swatch.active { background: rgba(76, 141, 255, 0.16) !important; border-color: var(--auth-blue-b) !important; color: #fff !important; }
+.auth-card .theme-swatch { color: var(--text-normal) !important; border-color: var(--auth-line) !important; background: rgba(255, 255, 255, 0.03); }
+.auth-card .theme-swatch.active { background: color-mix(in srgb, var(--brand) 16%, transparent) !important; border-color: var(--auth-blue-b) !important; color: #fff !important; }
 .auth-card .theme-swatch:hover { background: rgba(255, 255, 255, 0.07); }
-.auth-card .dim { color: #8b93bd !important; }
-.auth-card .char-count { color: #6b74a0 !important; }
+.auth-card .dim { color: var(--text-muted) !important; }
+.auth-card .char-count { color: var(--text-muted) !important; }
 /* BUG CORRIGIDO ("a caixinha fica totalmente branca quando eu digito
    algo"): isso é o preenchimento automático do NAVEGADOR (autofill do
    Chrome/Edge pra e-mail e senha salvos) — ele ignora completamente
@@ -602,14 +612,14 @@ body.body-auth-scroll { overflow-y: auto !important; }
   border-color: var(--auth-blue-b); background: rgba(255, 255, 255, 0.05);
   box-shadow: 0 0 0 3px rgba(76, 141, 255, 0.16);
 }
-.auth-input-icon { color: #6b74a0; flex-shrink: 0; transition: color .15s ease; }
+.auth-input-icon { color: var(--text-muted); flex-shrink: 0; transition: color .15s ease; }
 .auth-input-wrap:focus-within .auth-input-icon { color: var(--auth-blue-a); }
 .auth-input-wrap input {
   flex: 1; min-width: 0; background: none; border: none; border-radius: 0; padding: 12px 0; font-size: 14.5px;
   color: #fff;
 }
 .auth-input-wrap input:focus { outline: none; box-shadow: none; }
-.auth-input-wrap input::placeholder { color: #565f8a; }
+.auth-input-wrap input::placeholder { color: color-mix(in srgb, var(--text-muted) 65%, transparent); }
 /* Botão de mostrar senha (item pedido) — só revela enquanto o mouse
    está em cima ou o dedo está segurando, nunca fica ligado sozinho. */
 .auth-password-toggle {
@@ -626,10 +636,10 @@ body.body-auth-scroll { overflow-y: auto !important; }
   flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: rgba(242, 63, 67, 0.25);
   display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #ff8a8d;
 }
-.auth-hint { color: #97a0c7; font-size: 13px; }
+.auth-hint { color: var(--text-muted); font-size: 13px; }
 .auth-link-small { font-size: 13px; align-self: flex-start; color: var(--auth-blue-a); }
 .auth-link-small:hover { color: #fff; }
-.auth-footer { margin-top: 22px; font-size: 13.5px; color: #8b93bd; }
+.auth-footer { margin-top: 22px; font-size: 13.5px; color: var(--text-muted); }
 .auth-footer a { color: var(--auth-blue-a); font-weight: 600; }
 .auth-footer a:hover { color: #fff; }
 
@@ -639,7 +649,7 @@ body.body-auth-scroll { overflow-y: auto !important; }
   border-radius: 10px; padding: 13px; font-size: 15px; font-weight: 700; color: #fff; margin-top: 4px;
   box-shadow: 0 10px 28px -10px rgba(76, 141, 255, 0.55); transition: transform .15s ease, box-shadow .15s ease;
 }
-.auth-submit-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 14px 32px -10px rgba(76, 141, 255, 0.7); }
+.auth-submit-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 14px 32px -10px color-mix(in srgb, var(--brand) 70%, transparent); }
 .auth-submit-btn:disabled { opacity: 0.75; cursor: default; }
 .auth-btn-spinner {
   width: 15px; height: 15px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.35);
@@ -6068,10 +6078,15 @@ a.embed-card-title:hover { text-decoration: underline; }
    original era dourado) usando a identidade do Project Club. Fontes
    Silkscreen/Space Grotesk já carregadas no index.html. */
 .landing-page {
-  --lp-bg-0: #080a14; --lp-bg-1: #0d1024; --lp-panel: #11142b;
-  --lp-line: rgba(88, 130, 255, 0.18);
-  --lp-text: #e9ebfb; --lp-muted: #8891b8;
-  --lp-blue-a: #6fb3ff; --lp-blue-b: #4c8dff; --lp-blue-c: #5865f2;
+  /* Item pedido: "melhore o estilo da página web... deixando do
+     estilo do Project Club... as cores estão tudo fora do estilo" —
+     mesma correção do .auth-screen acima: todas essas variáveis agora
+     mapeiam pras cores reais do tema em vez de valores hardcoded
+     próprios sem relação com o resto do app. */
+  --lp-bg-0: var(--bg-deepest); --lp-bg-1: var(--bg-primary); --lp-panel: var(--bg-elevated);
+  --lp-line: color-mix(in srgb, var(--brand) 26%, transparent);
+  --lp-text: var(--header-primary); --lp-muted: var(--text-muted);
+  --lp-blue-a: color-mix(in srgb, var(--brand) 70%, #fff); --lp-blue-b: var(--brand); --lp-blue-c: var(--brand-hover);
   /* BUG CORRIGIDO ("não rola pra baixo"): min-height só define um PISO —
      o elemento cresce livremente pra caber o conteúdo, então nunca
      "estoura" a própria altura e o overflow-y:auto nunca chega a ativar.
@@ -6124,7 +6139,7 @@ a.embed-card-title:hover { text-decoration: underline; }
   background: rgba(8, 10, 20, 0.65); backdrop-filter: blur(12px); border-bottom: 1px solid var(--lp-line);
 }
 .landing-brand { display: flex; align-items: center; gap: 12px; font-size: 19px; font-weight: 700; letter-spacing: 0.3px; }
-.landing-brand-mark { width: 34px; height: 34px; border-radius: 8px; object-fit: contain; filter: drop-shadow(0 0 10px rgba(76, 141, 255, 0.55)); }
+.landing-brand-mark { width: 34px; height: 34px; border-radius: 8px; object-fit: contain; filter: drop-shadow(0 0 10px color-mix(in srgb, var(--brand) 55%, transparent)); }
 .landing-nav-links { display: none; gap: 32px; list-style: none; font-size: 14px; color: var(--lp-muted); justify-self: center; white-space: nowrap; }
 .landing-nav-links a:hover { color: var(--lp-text); }
 .landing-nav-cta { display: none; font-size: 13px; padding: 9px 18px; border-radius: 8px; border: 1px solid var(--lp-line); background: var(--lp-panel); color: var(--lp-text); justify-self: end; }
@@ -6169,7 +6184,7 @@ a.embed-card-title:hover { text-decoration: underline; }
   display: flex; align-items: center; justify-content: center; width: 42px; flex-shrink: 0;
   background: var(--lp-text); border-radius: 0 10px 10px 0; box-shadow: none;
 }
-.landing-download-caret:hover { background: #e8eaf7; }
+.landing-download-caret:hover { background: var(--header-primary); }
 .landing-btn-icon { width: 16px; height: 16px; object-fit: contain; flex-shrink: 0; }
 .landing-download-caret .landing-btn-icon { width: 13px; height: 13px; }
 .landing-platform-menu {
@@ -6190,7 +6205,7 @@ a.embed-card-title:hover { text-decoration: underline; }
   display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px;
   font-size: 14px; font-weight: 600; color: var(--lp-text); white-space: nowrap;
 }
-.landing-platform-menu-item:hover { background: rgba(76, 141, 255, 0.14); }
+.landing-platform-menu-item:hover { background: color-mix(in srgb, var(--brand) 14%, transparent); }
 .landing-platform-menu-glyph { width: 18px; height: 18px; object-fit: contain; flex-shrink: 0; }
 .landing-btn-primary {
   display: inline-flex; align-items: center; gap: 10px; background: var(--lp-text); color: #0a0c18;
@@ -6234,8 +6249,8 @@ a.embed-card-title:hover { text-decoration: underline; }
 .landing-window-body { display: grid; grid-template-columns: 200px 1fr; min-height: 320px; text-align: left; }
 .landing-window-side { border-right: 1px solid var(--lp-line); padding: 18px 14px; }
 .landing-window-grp { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--lp-muted); margin: 14px 0 8px; }
-.landing-window-item { font-size: 13.5px; padding: 9px 10px; border-radius: 7px; margin-bottom: 4px; color: #c7cbf0; }
-.landing-window-item.active { background: rgba(76, 141, 255, 0.18); color: #fff; }
+.landing-window-item { font-size: 13.5px; padding: 9px 10px; border-radius: 7px; margin-bottom: 4px; color: var(--text-normal); }
+.landing-window-item.active { background: color-mix(in srgb, var(--brand) 18%, transparent); color: #fff; }
 .landing-window-grid { padding: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .landing-window-card { border: 1px solid var(--lp-line); border-radius: 10px; padding: 14px; background: linear-gradient(160deg, rgba(255, 255, 255, 0.03), transparent); }
 .landing-window-thumb { height: 70px; border-radius: 6px; margin-bottom: 10px; background: linear-gradient(135deg, var(--lp-blue-a), var(--lp-blue-b)); opacity: 0.85; }
@@ -6266,7 +6281,7 @@ a.embed-card-title:hover { text-decoration: underline; }
 @media (max-width: 900px) { .landing-feat-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 600px) { .landing-feat-grid { grid-template-columns: 1fr; } }
 .landing-feat { border: 1px solid var(--lp-line); border-radius: 14px; padding: 26px; background: var(--lp-panel); transition: border-color .18s ease, transform .18s ease; }
-.landing-feat:hover { border-color: rgba(76, 141, 255, 0.45); transform: translateY(-3px); }
+.landing-feat:hover { border-color: color-mix(in srgb, var(--brand) 45%, transparent); transform: translateY(-3px); }
 .landing-feat-icon {
   width: 38px; height: 38px; border-radius: 9px; margin-bottom: 16px;
   display: flex; align-items: center; justify-content: center;
@@ -6290,7 +6305,7 @@ a.embed-card-title:hover { text-decoration: underline; }
   background: var(--lp-panel); color: var(--lp-text); transition: border-color 0.15s ease, transform 0.15s ease;
   display: block; text-align: center; text-decoration: none;
 }
-.landing-platform-card:hover { border-color: rgba(76, 141, 255, 0.5); transform: translateY(-3px); }
+.landing-platform-card:hover { border-color: color-mix(in srgb, var(--brand) 50%, transparent); transform: translateY(-3px); }
 .landing-platform-glyph { font-size: 26px; margin-bottom: 10px; }
 .landing-platform-glyph-img { width: 28px; height: 28px; margin-bottom: 10px; object-fit: contain; }
 .landing-platform-os { font-weight: 600; font-size: 15px; }
@@ -6336,7 +6351,7 @@ a.embed-card-title:hover { text-decoration: underline; }
   display: flex; align-items: center; gap: 8px; padding: 12px 20px; margin-top: -4px;
   font-size: 12.5px; color: var(--lp-muted); border-top: 1px solid var(--lp-line);
 }
-.landing-online-dot { width: 7px; height: 7px; border-radius: 50%; background: #3ba55d; box-shadow: 0 0 6px #3ba55d; }
+.landing-online-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
 .landing-online-avatars { display: flex; margin-left: 4px; }
 .landing-online-avatars i {
   width: 20px; height: 20px; border-radius: 50%; display: inline-block; margin-left: -6px;
