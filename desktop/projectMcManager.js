@@ -140,6 +140,19 @@ const MODULES = {
     packageType: 'single-file',
     exeName: { win32: 'HyProject.exe', linux: 'HyProject.AppImage' },
   },
+  // Item pedido: "faça um novo app o DaVinci Project" — editor de
+  // vídeo, empacotado como .zip/.tar.gz com o executável dentro (igual
+  // ao PhotoProject, precisa extrair — diferente do ProjectMC/
+  // HyProject, que são um arquivo único portátil só).
+  davinciproject: {
+    displayName: 'DaVinci Project',
+    description: 'Editor de vídeo do Project Club',
+    folder: 'DaVinciProject',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/DaVinci-Project-releases/releases',
+    packageType: 'archive',
+    assetExt: { win32: '.zip', linux: '.tar.gz' },
+    exeName: { win32: 'DaVinciProject.exe', linux: 'DaVinciProject' },
+  },
 };
 
 function getModule(id) {
