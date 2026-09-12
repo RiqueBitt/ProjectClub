@@ -1960,7 +1960,18 @@ model AppCatalogItem {
   id          String   @id @default(uuid())
   moduleId    String   @unique // ex: "projectmc" — bate com MODULES no desktop/projectMcManager.js
   name        String
-  description String?
+  // BUG CORRIGIDO ("só a descrição do DaVinci Project dá erro ao
+  // salvar"): String sem @db.Text vira VARCHAR(191) no MySQL (o limite
+  // padrão do Prisma pra manter o campo indexável em UTF8MB4) — mas o
+  // backend já validava até 500 caracteres (appCatalogController.js).
+  // Uma descrição entre 192 e 500 caracteres passava na validação do
+  // Node só pra ser rejeitada pelo MySQL na hora de gravar de verdade
+  // ("Data too long for column"), voltando como erro 500 — a
+  // descrição sugerida pro DaVinci Project tinha 212 caracteres,
+  // batendo exatamente nesse limite. @db.Text não tem esse teto (até
+  // 65KB), então a validação de 500 caracteres do backend passa a ser
+  // a única que importa de verdade.
+  description String? @db.Text
   bannerUrl   String?
   iconUrl     String?
   sizeLabel   String? // ex: "~100 MB" — texto livre, exibido como "espaço necessário"

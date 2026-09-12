@@ -88,7 +88,16 @@ async function updateAppCatalogItem(req, res, next) {
     const item = await prisma.appCatalogItem.update({ where: { id }, data });
     await logPlatformAction(req, { action: 'APP_CATALOG_UPDATE', targetType: 'APP_CATALOG', targetId: id, metadata: data });
     res.json({ item });
-  } catch (err) { next(err); }
+  } catch (err) {
+    // Item pedido: "só a descrição do DaVinci Project dá erro ao
+    // salvar" — causa real já corrigida (schema.prisma, campo
+    // description sem @db.Text), mas isso fica como rede de segurança
+    // geral: se algum campo de texto livre um dia passar do limite
+    // real da coluna no banco, a pessoa vê uma mensagem clara em vez
+    // de um erro 500 genérico e sem explicação nenhuma.
+    if (err.code === 'P2000') return res.status(400).json({ error: 'Um dos campos está grande demais pro banco aceitar — encurte o texto e tente de novo.' });
+    next(err);
+  }
 }
 
 async function uploadAppCatalogBanner(req, res, next) {

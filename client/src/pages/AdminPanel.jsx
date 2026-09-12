@@ -1385,20 +1385,29 @@ function AppCatalogItemEditor({ item, onChange, onReload }) {
   const [saveStatus, setSaveStatus] = useState({}); // { [field]: 'saving' | 'saved' | 'error' }
 
   const saveField = async (field, value) => {
-    setSaveStatus((s) => ({ ...s, [field]: 'saving' }));
+    setSaveStatus((s) => ({ ...s, [field]: { kind: 'saving' } }));
     try {
       await onChange(item.id, field, value);
-      setSaveStatus((s) => ({ ...s, [field]: 'saved' }));
-      setTimeout(() => setSaveStatus((s) => (s[field] === 'saved' ? { ...s, [field]: null } : s)), 2000);
-    } catch {
-      setSaveStatus((s) => ({ ...s, [field]: 'error' }));
+      setSaveStatus((s) => ({ ...s, [field]: { kind: 'saved' } }));
+      setTimeout(() => setSaveStatus((s) => (s[field]?.kind === 'saved' ? { ...s, [field]: null } : s)), 2000);
+    } catch (err) {
+      // Item pedido: "só a descrição do DaVinci Project dá erro ao
+      // salvar" — a mensagem genérica escondia a causa real (era um
+      // limite de tamanho no banco, já corrigido — ver schema.prisma).
+      // Mostrar o erro de verdade que o servidor manda agora ajuda a
+      // diagnosticar qualquer problema parecido no futuro na hora,
+      // sem precisar adivinhar.
+      const message = err.response?.data?.error || 'não foi possível salvar — tente de novo';
+      setSaveStatus((s) => ({ ...s, [field]: { kind: 'error', message } }));
     }
   };
 
   const statusLabel = (field) => {
-    if (saveStatus[field] === 'saving') return <span className="dim"> salvando...</span>;
-    if (saveStatus[field] === 'saved') return <span style={{ color: 'var(--green)' }}> ✓ salvo</span>;
-    if (saveStatus[field] === 'error') return <span style={{ color: 'var(--red)' }}> não foi possível salvar — tente de novo</span>;
+    const status = saveStatus[field];
+    if (!status) return null;
+    if (status.kind === 'saving') return <span className="dim"> salvando...</span>;
+    if (status.kind === 'saved') return <span style={{ color: 'var(--green)' }}> ✓ salvo</span>;
+    if (status.kind === 'error') return <span style={{ color: 'var(--red)' }}> {status.message}</span>;
     return null;
   };
 
@@ -1431,7 +1440,7 @@ function AppCatalogItemEditor({ item, onChange, onReload }) {
         Nome
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} style={{ flex: 1 }} />
-          <button type="button" className="btn-secondary" disabled={name === item.name || saveStatus.name === 'saving'} onClick={() => saveField('name', name)}>Salvar</button>
+          <button type="button" className="btn-secondary" disabled={name === item.name || saveStatus.name?.kind === 'saving'} onClick={() => saveField('name', name)}>Salvar</button>
         </div>
         {statusLabel('name')}
       </label>
@@ -1439,7 +1448,7 @@ function AppCatalogItemEditor({ item, onChange, onReload }) {
         Descrição
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} maxLength={500} />
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
-          <button type="button" className="btn-secondary" disabled={description === (item.description || '') || saveStatus.description === 'saving'} onClick={() => saveField('description', description)}>Salvar descrição</button>
+          <button type="button" className="btn-secondary" disabled={description === (item.description || '') || saveStatus.description?.kind === 'saving'} onClick={() => saveField('description', description)}>Salvar descrição</button>
           {statusLabel('description')}
         </div>
       </label>
@@ -1447,7 +1456,7 @@ function AppCatalogItemEditor({ item, onChange, onReload }) {
         Espaço necessário
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input value={sizeLabel} onChange={(e) => setSizeLabel(e.target.value)} maxLength={40} style={{ flex: 1 }} />
-          <button type="button" className="btn-secondary" disabled={sizeLabel === (item.sizeLabel || '') || saveStatus.sizeLabel === 'saving'} onClick={() => saveField('sizeLabel', sizeLabel)}>Salvar</button>
+          <button type="button" className="btn-secondary" disabled={sizeLabel === (item.sizeLabel || '') || saveStatus.sizeLabel?.kind === 'saving'} onClick={() => saveField('sizeLabel', sizeLabel)}>Salvar</button>
         </div>
         {statusLabel('sizeLabel')}
       </label>
