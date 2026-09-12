@@ -48,7 +48,7 @@ import robloxConnIcon from '../../assets/icons/social-roblox.png';
 import xConnIcon from '../../assets/icons/social-x.png';
 import {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, removeIdCard,
-  setup2FA, confirm2FA, disable2FA, setPreferredTheme, setMyClanTag, setChatZoom, setInterfaceZoom,
+  setup2FA, confirm2FA, disable2FA, setPreferredTheme, setLayoutStyle, setMyClanTag, setChatZoom, setInterfaceZoom,
   setEmojiStyle as setEmojiStyleApi,
   listSessions, revokeSession, revokeOtherSessions,
   createProfilePoll, listProfilePollsByAuthor, deleteProfilePoll,
@@ -88,7 +88,7 @@ export default function UserSettingsModal({ onClose }) {
   const { t: translate } = useTranslation();
   const { user, setUser, logout } = useAuth();
   const navigate = useNavigate();
-  const { theme, setTheme, customBackground, setCustomBackground, emojiStyle, setEmojiStyle: setEmojiStyleStore, myClan, chatZoom, setChatZoom: setChatZoomStore, interfaceZoom, setInterfaceZoom: setInterfaceZoomStore, userSettings, updateUserSetting } = useStore();
+  const { theme, setTheme, layoutStyle, setLayoutStyle: setLayoutStyleStore, customBackground, setCustomBackground, emojiStyle, setEmojiStyle: setEmojiStyleStore, myClan, chatZoom, setChatZoom: setChatZoomStore, interfaceZoom, setInterfaceZoom: setInterfaceZoomStore, userSettings, updateUserSetting } = useStore();
   const disabledSystems = useStore((s) => s.disabledSystems);
   // Ver adminController.js (TOGGLEABLE_SYSTEMS) e a nova opção "Cores
   // personalizadas para perfil" em /admin → Sistema: quando a staff
@@ -317,6 +317,14 @@ export default function UserSettingsModal({ onClose }) {
   const pickTheme = (t) => {
     setTheme(t);
     setPreferredTheme(t).catch(() => {});
+  };
+
+  // Item pedido: "em aparência adicione uma nova opção de layout, a
+  // opção normal e a opção de layout discord" — mesmo padrão de
+  // pickTheme acima.
+  const pickLayoutStyle = (l) => {
+    setLayoutStyleStore(l);
+    setLayoutStyle(l).catch(() => {});
   };
 
   // Item pedido: "sistema podendo mudar o zoom de 1,0 até 2,0... pra
@@ -1286,6 +1294,23 @@ export default function UserSettingsModal({ onClose }) {
               {['facebook', 'light', 'dark', 'amoled', 'clubpenguin'].map((t) => (
                 <button key={t} className={`theme-swatch ${t} ${theme === t && !customBackground ? 'active' : ''}`} onClick={() => pickTheme(t)}>
                   {{ facebook: 'Muito Claro', clubpenguin: 'Cartoon', dark: 'Cinza', light: 'Claro', amoled: 'Preto' }[t]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Item pedido: "em aparência adicione uma nova opção de
+              layout, a opção normal (a atual) e a opção de layout
+              discord — o layout discord faz os canais/categorias
+              ficarem num popover no canto da tela, aberto por um
+              ícone" — mesmo padrão visual do seletor de tema acima. */}
+          <div className="settings-block">
+            <h4>Layout</h4>
+            <p className="dim">Como os canais aparecem: em abas no topo do chat (Normal), ou num menu que abre por cima da tela (Discord).</p>
+            <div className="theme-options">
+              {['normal', 'discord'].map((l) => (
+                <button key={l} className={`theme-swatch ${layoutStyle === l ? 'active' : ''}`} onClick={() => pickLayoutStyle(l)}>
+                  {{ normal: 'Normal', discord: 'Discord' }[l]}
                 </button>
               ))}
             </div>

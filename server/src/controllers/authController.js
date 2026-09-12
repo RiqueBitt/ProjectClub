@@ -148,6 +148,7 @@ const SELF_USER_FIELDS = {
   // Só a própria pessoa precisa saber o próprio tema escolhido — não faz
   // sentido expor isso no perfil público de ninguém.
   preferredTheme: true,
+  layoutStyle: true,
   chatZoom: true,
   interfaceZoom: true,
   emojiStyle: true,

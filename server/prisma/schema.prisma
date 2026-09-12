@@ -109,6 +109,12 @@ model User {
   // que antes desse campo existir podia derrubar a inicialização do tema
   // inteira sem nenhum fallback).
   preferredTheme      String?
+  // Item pedido: "em aparência adicione uma nova opção de layout, a
+  // opção normal (a atual) e a opção de layout discord — o layout
+  // discord faz os canais/categorias ficarem num popover no canto da
+  // tela, aberto por um ícone, em vez das abas horizontais fixas no
+  // topo do chat (ver ChannelSwitcher.jsx)." 'normal' = padrão atual.
+  layoutStyle         String   @default("normal")
   // Item pedido: "sistema no aparência podendo mudar o zoom de 1,0
   // até 2,0... para melhor personalização" — quanto maior, maior o
   // texto/espaçamento do chat e da barra de digitar no PC (nunca no

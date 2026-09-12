@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore, isChannelUnread, useMyRoleIds } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import ChannelTypeIcon from './ChannelTypeIcon.jsx';
+import ChannelSidebar from './ChannelSidebar.jsx';
 
 // Navegação entre os chats disponíveis, fica bem onde antes aparecia o
 // dropdown com nome/descrição do canal (ver ChatWindow.jsx).
@@ -36,6 +37,31 @@ export default function ChannelSwitcher({ currentChannelId }) {
   const channelReadAt = useStore((s) => s.channelReadAt);
   const openCategoryId = useStore((s) => s.openCategoryId);
   const setOpenCategoryId = useStore((s) => s.setOpenCategoryId);
+  // Item pedido: "em aparência adicione uma nova opção de layout, a
+  // opção normal e a opção de layout discord — o layout discord faz
+  // os canais/categorias ficarem num popover no canto da tela, aberto
+  // por um ícone" — layoutStyle 'discord' troca as abas horizontais
+  // (o comportamento de sempre, abaixo) por um botão único que abre
+  // o ChannelSidebar clássico (a lista vertical completa de canais/
+  // categorias, ver o arquivo) flutuando por cima do resto da tela,
+  // em vez de empurrar o layout como uma coluna fixa faria.
+  const layoutStyle = useStore((s) => s.layoutStyle);
+  const [discordPopoverOpen, setDiscordPopoverOpen] = useState(false);
+  const discordPopoverRef = useRef(null);
+  useEffect(() => {
+    if (!discordPopoverOpen) return;
+    const onClickOutside = (e) => {
+      if (discordPopoverRef.current && !discordPopoverRef.current.contains(e.target)) setDiscordPopoverOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [discordPopoverOpen]);
+  // Fecha sozinho ao trocar de canal (clicar num canal dentro do
+  // popover já navega — sem isso, ficaria aberto por cima da tela
+  // nova sem motivo).
+  useEffect(() => { setDiscordPopoverOpen(false); }, [currentChannelId]);
+
+  const currentChannel = [...channels, ...categories.flatMap((c) => c.channels || [])].find((ch) => ch.id === currentChannelId);
 
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -84,6 +110,28 @@ export default function ChannelSwitcher({ currentChannelId }) {
   const categoryHasUnread = (cat) => (cat.channels || []).some((ch) => isChannelUnread(ch, channelReadAt, user.id, myRoleIds));
   const categoryContainsCurrent = (cat) => (cat.channels || []).some((ch) => ch.id === currentChannelId);
   const categoryMentionCount = (cat) => (cat.channels || []).reduce((sum, ch) => sum + (ch.unreadMentions || 0), 0);
+
+  if (layoutStyle === 'discord') {
+    const anyUnread = channels.some((ch) => isChannelUnread(ch, channelReadAt, user.id, myRoleIds)) || categories.some(categoryHasUnread);
+    return (
+      <div className="channel-tabs-wrap discord-layout-switcher" ref={discordPopoverRef}>
+        <button
+          type="button"
+          className={`discord-layout-trigger ${anyUnread ? 'unread' : ''}`}
+          onClick={() => setDiscordPopoverOpen((v) => !v)}
+        >
+          {currentChannel && <ChannelTypeIcon type={currentChannel.type} />}
+          <span className="truncate">{currentChannel?.name || 'Canais'}</span>
+          <span className="discord-layout-trigger-caret">{discordPopoverOpen ? '▴' : '▾'}</span>
+        </button>
+        {discordPopoverOpen && (
+          <div className="discord-layout-popover">
+            <ChannelSidebar />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="channel-tabs-wrap">

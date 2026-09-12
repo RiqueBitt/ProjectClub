@@ -4830,6 +4830,54 @@ a.embed-card-title:hover { text-decoration: underline; }
    próprias (ver .channel-tabs-arrow) substituem a barra nativa
    escondida, aparecendo só quando há conteúdo cortado de cada lado. */
 .channel-tabs-wrap { display: flex; align-items: center; flex-shrink: 0; }
+/* Item pedido: "layout discord... os canais/categorias ficarem num
+   popover no canto da tela, aberto por um ícone" — ver
+   ChannelSwitcher.jsx (layoutStyle === 'discord'). O botão usa o
+   mesmo visual de .channel-tab (definido mais abaixo), só com um
+   container relativo pra ancorar o popover embaixo dele. */
+.discord-layout-switcher { position: relative; }
+.discord-layout-trigger {
+  display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
+  border-radius: 8px; background: var(--bg-elevated); color: var(--header-primary);
+  font-size: 13px; font-weight: 600; max-width: 220px;
+}
+.discord-layout-trigger:hover { background: var(--bg-modifier-hover); }
+.discord-layout-trigger.unread::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--brand); flex-shrink: 0; }
+.discord-layout-trigger-caret { font-size: 10px; color: var(--text-muted); margin-left: 2px; }
+/* Flutua por cima do resto da tela (não empurra layout como uma coluna
+   fixa faria) — largura/altura fixas no desktop, tela cheia no mobile
+   (onde um popover pequeno ficaria apertado demais pra navegar). */
+.discord-layout-popover {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 120;
+  width: 280px; max-height: min(70vh, 560px);
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.45); overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.discord-layout-popover .sidebar { height: 100%; }
+/* Item pedido: "faça esse layout funcionando perfeitamente no mobile
+   também... pegue só o layout de canais como funciona no mobile" —
+   mesmo espírito da gaveta mobile que a barra principal já usa
+   (.main-sidebar, mesmo arquivo): desliza a partir da esquerda com uma
+   transição suave, em vez de só aparecer/sumir sem nenhuma animação —
+   como esse popover é montado/desmontado (não só escondido via CSS),
+   a animação de entrada acontece direto, sem precisar de uma classe
+   externa "aberto"/"fechado" pra alternar. Reserva também a área
+   segura do topo/base (notch, barra de gestos), do mesmo jeito que
+   .sidebar e .main-sidebar já fazem. */
+@media (max-width: 600px) {
+  .discord-layout-popover {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100%; max-height: none;
+    border-radius: 0; border: none;
+    animation: discord-layout-slide-in .2s ease;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+@keyframes discord-layout-slide-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
 .channel-tabs-arrow {
   flex-shrink: 0; width: 22px; height: 32px; display: flex; align-items: center; justify-content: center;
   color: var(--text-muted); font-size: 18px; font-weight: 700; margin-top: 10px;

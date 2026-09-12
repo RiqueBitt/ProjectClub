@@ -144,6 +144,13 @@ export const useStore = create((set, get) => ({
       return 'light';
     }
   })(),
+  // Item pedido: "em aparência adicione uma nova opção de layout, a
+  // opção normal e a opção de layout discord" — mesmo padrão do tema
+  // acima (localStorage como cache rápido, a conta como fonte de
+  // verdade — ver AuthContext.jsx e setLayoutStyle no backend).
+  layoutStyle: (() => {
+    try { return localStorage.getItem('layoutStyle') || 'normal'; } catch { return 'normal'; }
+  })(),
   // Item pedido: "5 variantes de visual dos meus emoji" — mesmo padrão
   // do tema acima (localStorage como cache rápido, a conta como fonte
   // de verdade — ver AuthContext.jsx e setEmojiStyle no backend).
@@ -296,6 +303,13 @@ export const useStore = create((set, get) => ({
   setEmojiStyle: (emojiStyle) => {
     try { localStorage.setItem('emojiStyle', emojiStyle); } catch { /* localStorage indisponível — ainda fica salvo na conta, ver setEmojiStyle no backend */ }
     set({ emojiStyle });
+  },
+  // Item pedido: "em aparência adicione uma nova opção de layout, a
+  // opção normal e a opção de layout discord" — mesmo padrão de
+  // setEmojiStyle acima.
+  setLayoutStyle: (layoutStyle) => {
+    try { localStorage.setItem('layoutStyle', layoutStyle); } catch { /* localStorage indisponível — ainda fica salvo na conta, ver setLayoutStyle no backend */ }
+    set({ layoutStyle });
   },
   setChatZoom: (chatZoom) => {
     try { localStorage.setItem('chatZoom', chatZoom); } catch { /* localStorage indisponível — ainda fica salvo na conta, ver setChatZoom no backend */ }

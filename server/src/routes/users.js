@@ -22,6 +22,7 @@ router.patch('/me/status', ctrl.setStatus);
 router.patch('/me/custom-status', ctrl.setCustomStatus);
 router.patch('/me/tag', ctrl.setActiveTag);
 router.patch('/me/theme', ctrl.setPreferredTheme);
+router.patch('/me/layout-style', ctrl.setLayoutStyle);
 router.patch('/me/chat-zoom', ctrl.setChatZoom);
 router.patch('/me/interface-zoom', ctrl.setInterfaceZoom);
 // Item pedido: "GET /api/users/me/settings, PATCH /api/users/me/settings,

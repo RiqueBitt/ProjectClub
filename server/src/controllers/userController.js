@@ -361,6 +361,21 @@ async function setPreferredTheme(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Item pedido: "em aparência adicione uma nova opção de layout... a
+// opção normal e a opção de layout discord" — mesmo padrão de
+// setPreferredTheme acima.
+async function setLayoutStyle(req, res, next) {
+  try {
+    const { layoutStyle } = req.body;
+    const allowed = ['normal', 'discord'];
+    if (!allowed.includes(layoutStyle)) return res.status(400).json({ error: 'Layout inválido.' });
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { layoutStyle }, select: SELF_USER_FIELDS,
+    });
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
 // Item pedido: "sistema podendo mudar o zoom de 1,0 até 2,0... pra
 // melhor personalização" — mesmo padrão de setPreferredTheme acima.
 async function setChatZoom(req, res, next) {
@@ -750,6 +765,6 @@ async function setDisplayedAchievements(req, res, next) {
 
 module.exports = {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, uploadIdCard, removeIdCard,
-  setStatus, setCustomStatus, searchUsers, getUser, setActiveTag, voteProfile, setPreferredTheme, setEmojiStyle, setChatZoom, setInterfaceZoom,
+  setStatus, setCustomStatus, searchUsers, getUser, setActiveTag, voteProfile, setPreferredTheme, setLayoutStyle, setEmojiStyle, setChatZoom, setInterfaceZoom,
   setDisplayedAchievements, hasFullProfileAccess,
 };

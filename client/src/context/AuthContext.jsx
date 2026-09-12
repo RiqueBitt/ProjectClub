@@ -35,6 +35,11 @@ export function AuthProvider({ children }) {
     if (data.user?.preferredTheme) {
       useStore.getState().setTheme(data.user.preferredTheme);
     }
+    // Item pedido: "em aparência adicione uma nova opção de layout" —
+    // mesmo padrão de sincronização do tema acima.
+    if (data.user?.layoutStyle) {
+      useStore.getState().setLayoutStyle(data.user.layoutStyle);
+    }
     if (data.user?.emojiStyle) {
       useStore.getState().setEmojiStyle(data.user.emojiStyle);
     }
