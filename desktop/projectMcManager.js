@@ -127,7 +127,7 @@ const MODULES = {
     manifestUrl: 'https://api.github.com/repos/RiqueBitt/PhotoProject_releases-/releases',
     packageType: 'archive',
     assetExt: { win32: '.zip', linux: '.tar.gz' },
-    exeName: { win32: 'patchy.exe', linux: 'photoproject.sh' },
+    exeName: { win32: 'PhotoProject.exe', linux: 'photoproject.sh' },
   },
   // Item pedido: "crie o HyProject para o novo app, um launcher do
   // jogo Hytale" — igual ao ProjectMC (.exe/.AppImage portátil de um
