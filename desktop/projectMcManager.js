@@ -151,7 +151,24 @@ function getModule(id) {
 // Resolve o nome de arquivo certo pra plataforma atual. Sem entrada pra
 // plataforma atual (ex: macOS, que este projeto não distribui) — erro
 // claro em vez de tentar rodar um binário que não existe.
-function getExeName(mod) {
+//
+// Item pedido: "o pacote baixado de PhotoProject não contém patchy.exe"
+// — acontecia quando o app do Project Club instalado (com o nome
+// configurado antigo) tentava instalar um release novo (empacotado com
+// outro nome de arquivo) sem ter atualizado o próprio código ainda —
+// uma corrida natural entre "o pacote publicado mudou de nome" e "o
+// app que instala ainda não sabe disso". Se `id` for passado e o
+// módulo já estiver instalado com um nome real diferente do
+// configurado (gravado em .exe-name na hora da instalação — ver
+// installArchivePackage), usa esse nome real em vez do configurado,
+// sem precisar reinstalar nada.
+function getExeName(mod, id) {
+  if (id) {
+    try {
+      const override = fs.readFileSync(path.join(moduleDir(id), '.exe-name'), 'utf-8').trim();
+      if (override) return override;
+    } catch { /* sem override — segue com o nome configurado normalmente */ }
+  }
   const name = mod.exeName[process.platform];
   if (!name) throw new Error(`${mod.displayName} não tem um pacote disponível para esta plataforma (${process.platform}).`);
   return name;
@@ -176,7 +193,7 @@ function getInstalledVersion(id) {
 function isInstalled(id) {
   const mod = getModule(id);
   try {
-    return fs.existsSync(path.join(moduleDir(id), getExeName(mod)));
+    return fs.existsSync(path.join(moduleDir(id), getExeName(mod, id)));
   } catch {
     return false;
   }
@@ -396,17 +413,41 @@ async function installArchivePackage(mod, id, finalDir, data, version, onProgres
   }
 
   const exePath = path.join(stagingDir, getExeName(mod));
+  let finalExeName = getExeName(mod);
   if (!fs.existsSync(exePath)) {
-    fs.rmSync(stagingDir, { recursive: true, force: true });
-    throw new Error(`O pacote baixado de ${mod.displayName} não contém "${getExeName(mod)}" — o release publicado pode não estar empacotado no formato esperado.`);
+    // Item pedido: "corrija para aceitar mesmo assim" — em vez de
+    // falhar direto quando o nome configurado não bate com o que veio
+    // no pacote (normalmente porque o app do Project Club instalado
+    // ainda não atualizou pro nome novo publicado), procura por um
+    // candidato razoável dentro do pacote antes de desistir: no
+    // Windows, o único .exe na raiz; no Linux, o único script/binário
+    // executável na raiz. Só aceita quando há exatamente UM candidato
+    // (ambíguo com mais de um é melhor falhar com um erro claro do
+    // que adivinhar errado e abrir o app errado depois).
+    const candidates = fs.readdirSync(stagingDir).filter((name) => {
+      const full = path.join(stagingDir, name);
+      if (!fs.statSync(full).isFile()) return false;
+      return process.platform === 'win32' ? name.toLowerCase().endsWith('.exe') : name.toLowerCase().endsWith('.sh');
+    });
+    if (candidates.length !== 1) {
+      fs.rmSync(stagingDir, { recursive: true, force: true });
+      throw new Error(`O pacote baixado de ${mod.displayName} não contém "${getExeName(mod)}" — o release publicado pode não estar empacotado no formato esperado.`);
+    }
+    finalExeName = candidates[0];
   }
+  const resolvedExePath = path.join(stagingDir, finalExeName);
   if (process.platform !== 'win32') {
-    try { fs.chmodSync(exePath, 0o755); } catch { /* segue */ }
+    try { fs.chmodSync(resolvedExePath, 0o755); } catch { /* segue */ }
   }
   fs.writeFileSync(path.join(stagingDir, '.version'), version, 'utf-8');
+  // Só grava o override quando o nome real difere do configurado —
+  // deixa o caso normal (sem override) mais simples de auditar depois.
+  if (finalExeName !== getExeName(mod)) {
+    fs.writeFileSync(path.join(stagingDir, '.exe-name'), finalExeName, 'utf-8');
+  }
 
   onProgress?.({ phase: 'finishing', percent: 100 });
-  killRunningProcess(getExeName(mod));
+  killRunningProcess(finalExeName);
   const oldDir = `${finalDir}.old-${Date.now()}`;
   if (fs.existsSync(finalDir)) {
     try {
@@ -430,7 +471,7 @@ async function installArchivePackage(mod, id, finalDir, data, version, onProgres
 // derruba o ProjectMC junto (nem vice-versa).
 function launch(id) {
   const mod = getModule(id);
-  const exe = path.join(moduleDir(id), getExeName(mod));
+  const exe = path.join(moduleDir(id), getExeName(mod, id));
   if (!fs.existsSync(exe)) throw new Error(`${mod.displayName} não está instalado.`);
   const child = spawn(exe, [], { detached: true, stdio: 'ignore', cwd: path.dirname(exe) });
   child.unref();
@@ -438,7 +479,7 @@ function launch(id) {
 
 function uninstall(id) {
   const mod = getModule(id);
-  killRunningProcess(getExeName(mod));
+  killRunningProcess(getExeName(mod, id));
   const dir = moduleDir(id);
   if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
 }
