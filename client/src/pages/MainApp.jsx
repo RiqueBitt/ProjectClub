@@ -112,6 +112,12 @@ export default function MainApp() {
   // ver MainSidebar.jsx) — fecha sozinha ao navegar pra qualquer outra
   // seção, sem precisar de nenhum estado extra pra controlar isso.
   const layoutStyle = useStore((s) => s.layoutStyle);
+  // Item pedido: "a setinha usada para mostrar os nomes completos dos
+  // canais/categorias não está funcionando" — única fonte de verdade
+  // agora (ver useStore.js): antes havia uma segunda classe sempre
+  // ativa no layout Discord que nunca deixava a seta expandir de
+  // volta.
+  const mainSidebarCollapsed = useStore((s) => s.mainSidebarCollapsed);
   const isInComunidade = location.pathname === '/' || location.pathname.startsWith('/channels/');
   const showDiscordChannelSidebar = layoutStyle === 'discord' && isInComunidade;
   // No mobile não cabe coluna fixa + chat lado a lado — a lista de
@@ -125,8 +131,8 @@ export default function MainApp() {
   // drawer auto-closes on navigation"). Fecha sozinho ao trocar de
   // canal (clicar num canal dentro da lista já navega).
   const hasChannelOpen = location.pathname.startsWith('/channels/');
+  const currentChannelIdFromUrl = hasChannelOpen ? location.pathname.slice('/channels/'.length) : null;
   const mobileChannelListOpen = useStore((s) => s.mobileChannelListOpen);
-  const toggleMobileChannelList = useStore((s) => s.toggleMobileChannelList);
   const closeMobileChannelList = useStore((s) => s.closeMobileChannelList);
   useEffect(() => { closeMobileChannelList(); }, [location.pathname]);
 
@@ -271,7 +277,7 @@ export default function MainApp() {
 
   return (
     <div
-      className={`app-shell ${mobileMembersOpen ? 'mobile-members-open' : ''} ${mobileSidebarOpen ? 'mobile-sidebar-open' : ''} ${showDiscordChannelSidebar ? 'discord-layout-active' : ''} ${layoutStyle === 'discord' ? 'discord-icons-mode' : ''} ${hasChannelOpen ? 'discord-layout-has-channel' : ''} ${mobileChannelListOpen ? 'discord-mobile-channel-list-open' : ''}`}
+      className={`app-shell ${mobileMembersOpen ? 'mobile-members-open' : ''} ${mobileSidebarOpen ? 'mobile-sidebar-open' : ''} ${showDiscordChannelSidebar ? 'discord-layout-active' : ''} ${mainSidebarCollapsed ? 'main-sidebar-manually-collapsed' : ''} ${hasChannelOpen ? 'discord-layout-has-channel' : ''} ${mobileChannelListOpen ? 'discord-mobile-channel-list-open' : ''}`}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
@@ -280,20 +286,18 @@ export default function MainApp() {
       <MainSidebar />
       {showDiscordChannelSidebar && (
         <div className="discord-layout-fixed-sidebar">
-          <ChannelSidebar />
+          <ChannelSidebar activeChannelId={currentChannelIdFromUrl} />
         </div>
       )}
 
       <PanelSlot panelId="main">
         <div className="app-main">
-          {/* Item pedido: "corrija no mobile, deixe igual o EmberCord"
-              — botão de menu sempre visível no mobile (layout Discord),
-              reabre a lista de canais mesmo já com um canal escolhido
-              (mesmo espírito do "the hamburger is how you get back to
-              the channel list" do EmberCord). */}
-          {showDiscordChannelSidebar && hasChannelOpen && (
-            <button type="button" className="discord-mobile-channel-toggle" onClick={toggleMobileChannelList} title="Canais">☰</button>
-          )}
+          {/* Item pedido (correção): "no mobile existem 2 botões de
+              varinha, remova um deles e deixe apenas 1" — esse botão
+              extra foi removido; o botão único que já existia sempre
+              no topo (TopSearchBar.jsx, .mobile-nav-toggle) agora
+              cuida sozinho de abrir tanto a barra principal quanto a
+              lista de canais juntas (ver toggleMobileChannelList). */}
           <Suspense fallback={<RouteLoadingFallback />}>
             {/* BUG CORRIGIDO ("trocar de tela às vezes dá um erro que
                 obriga a recarregar a página"): um erro de renderização

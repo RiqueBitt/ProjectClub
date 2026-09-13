@@ -65,8 +65,13 @@ export default function TopSearchBar() {
           celular — esse botão só aparece em telas estreitas (≤600px,
           ver .mobile-nav-toggle no CSS) e abre/fecha a barra de
           navegação como uma gaveta lateral, em vez dela ficar sempre
-          ocupando espaço fixo na tela. */}
-      <button type="button" className="mobile-nav-toggle" onClick={() => useStore.getState().toggleMobileSidebar()} aria-label="Abrir menu">
+          ocupando espaço fixo na tela.
+          BUG CORRIGIDO ("no mobile existem 2 botões"): havia um
+          segundo botão só pra abrir a lista de canais (dentro de
+          MainApp.jsx), redundante com este — removido, e este botão
+          único agora abre os dois juntos (barra principal + lista de
+          canais/categorias, ver toggleMobileChannelList). */}
+      <button type="button" className="mobile-nav-toggle" onClick={() => useStore.getState().toggleMobileChannelList()} aria-label="Abrir menu">
         ☰
       </button>
       <button type="button" className="top-search-bar-brand" onClick={() => navigate('/')}>

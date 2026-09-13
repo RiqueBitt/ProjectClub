@@ -207,8 +207,23 @@ export const useStore = create((set, get) => ({
   // comunidade" — toggle manual (independente de estar ou não na área
   // de Comunidade/layout Discord), persistido, pra funcionar em
   // qualquer seção do app.
+  //
+  // BUG CORRIGIDO ("a setinha não está funcionando"): existia uma
+  // segunda classe (discord-icons-mode, aplicada sempre que o layout é
+  // 'discord', independente disso aqui) forçando ícone-só por cima —
+  // como o layout Discord é o padrão de todo mundo agora, essa segunda
+  // classe SEMPRE vencia e o toggle nunca conseguia expandir de volta.
+  // Unificado: este é agora o ÚNICO controle (discord-icons-mode foi
+  // removido) — o valor inicial já nasce recolhido quando o layout é
+  // 'discord' (mesmo comportamento de sempre, só que agora reversível
+  // pela seta), e expandido no layout 'normal', a menos que a pessoa
+  // já tenha escolhido o oposto antes (localStorage tem prioridade).
   mainSidebarCollapsed: (() => {
-    try { return localStorage.getItem('mainSidebarCollapsed') === 'true'; } catch { return false; }
+    try {
+      const saved = localStorage.getItem('mainSidebarCollapsed');
+      if (saved !== null) return saved === 'true';
+    } catch { /* localStorage indisponível — segue pro default abaixo */ }
+    try { return (localStorage.getItem('layoutStyle') || 'discord') === 'discord'; } catch { return true; }
   })(),
   // Controla a gaveta deslizante de canais/DMs em telas de celular.
   mobileSidebarOpen: false,

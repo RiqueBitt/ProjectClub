@@ -55,7 +55,17 @@ function buildSections(categories, channels) {
   ];
 }
 
-export default function ChannelSidebar() {
+// BUG CORRIGIDO (contribuiu pro reload de página ao trocar de canal):
+// este componente agora é renderizado como coluna fixa em MainApp.jsx,
+// FORA da árvore de <Route> (não é mais só usado dentro de rotas
+// específicas) — useParams() só enxerga os parâmetros da rota ativa
+// quando o componente está DENTRO da <Route> correspondente; fora
+// dela, sempre retorna {} (vazio), então activeChannelId nunca batia
+// com o canal de verdade. propActiveChannelId (passado por quem
+// renderiza) tem prioridade quando existir; o useParams() interno
+// continua como respaldo pros outros lugares que ainda usam este
+// componente dentro de uma <Route> de verdade (ver TopMenu.jsx).
+export default function ChannelSidebar({ activeChannelId: propActiveChannelId } = {}) {
   const { user } = useAuth();
   const { openMenu } = useContextMenu();
   const categories = useStore((s) => s.categories);
@@ -78,7 +88,8 @@ export default function ChannelSidebar() {
   // clique, antes de qualquer efeito posterior, se o canal clicado já é
   // o canal ativo (nenhuma navegação de verdade acontece, então nenhum
   // som/carregamento é disparado de novo).
-  const { channelId: activeChannelId } = useParams();
+  const { channelId: paramsChannelId } = useParams();
+  const activeChannelId = propActiveChannelId ?? paramsChannelId;
 
   const [channelModal, setChannelModal] = useState({ open: false, categoryId: null });
   const [editChannel, setEditChannel] = useState(null);
@@ -361,25 +372,21 @@ function ChannelGroup({
                 // tem draggable={canManage} pra reordenação de canais
                 // — mas <a> (o que NavLink renderiza) já é arrastável
                 // NATIVAMENTE por padrão no navegador, independente
-                // desse atributo. Isso criava um conflito entre o
-                // drag nativo do link e o drag customizado do React:
-                // ao soltar o link (mesmo num simples clique com um
-                // micro-movimento do mouse, comum na prática), o
-                // navegador podia tratar isso como "largar um link
-                // arrastado" e navegar pra ele de verdade — carregando
-                // a página inteira do zero, sem passar pelo React
-                // Router. draggable={false} desliga só o drag nativo
-                // do link em si; a reordenação (que usa o container
-                // pai, não este elemento) continua funcionando igual.
+                // desse atributo, o que já foi motivo suficiente pra
+                // desligar aqui (draggable={false}). Como reforço
+                // definitivo (o navegador nunca decide sozinho o que
+                // fazer com o clique): o onClick abaixo sempre chama
+                // preventDefault e navega pelo React Router de forma
+                // 100% programática — o <a> nativo nunca chega a ser
+                // seguido de verdade, então nenhum comportamento nativo
+                // do navegador (drag, clique do meio, o que for) pode
+                // fazer a página recarregar do zero em vez de trocar
+                // de canal por dentro do app.
                 draggable={false}
-                // Item pedido (ajuste do pedido anterior): voltou a só
-                // NAVEGAR pro canal, sem entrar na chamada
-                // automaticamente — em vez disso, a própria tela do
-                // canal (VoiceChannelView.jsx) agora já mostra quem
-                // está na call e um botão claro de "Entrar", tudo numa
-                // prévia direto ali, sem precisar de outro clique cego
-                // de propósito.
-                onClick={(e) => { if (ch.id === activeChannelId) e.preventDefault(); }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (ch.id !== activeChannelId) navigate(`/channels/${ch.id}`);
+                }}
                 className={({ isActive }) => `sidebar-item channel-item ${isActive ? 'active' : ''} ${unread ? 'unread' : ''}`}
               >
                 {ch.unreadMentions > 0 && (
