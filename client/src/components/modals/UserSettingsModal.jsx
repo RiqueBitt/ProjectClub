@@ -8,6 +8,30 @@ import { DISABLED_PROFILE_SECTIONS } from '../../utils/profileSections';
 import PhotoAlbumModal from './PhotoAlbumModal.jsx';
 import AchievementPickerModal from './AchievementPickerModal.jsx';
 import micIcon from '../../assets/icons/nav-mic.png';
+// Item pedido: "substitua os emojis pelos ícones fornecidos no .zip,
+// mantendo o mesmo tamanho, alinhamento, espaçamento e estilo visual"
+// — mesmo padrão de micIcon acima (IconGlyph, mask-image, herda a cor
+// do texto ao redor automaticamente).
+import settingsProfileIcon from '../../assets/icons/settings-profile.png';
+import settingsMiniProfileIcon from '../../assets/icons/settings-mini-profile.png';
+import settingsColumnsIcon from '../../assets/icons/settings-columns.png';
+import settingsAccountIcon from '../../assets/icons/settings-account.png';
+import settingsSecurityIcon from '../../assets/icons/settings-security.png';
+import settingsAppearanceIcon from '../../assets/icons/settings-appearance.png';
+import settingsAccessibilityIcon from '../../assets/icons/settings-accessibility.png';
+import settingsSystemIcon from '../../assets/icons/settings-system.png';
+import settingsLanguageIcon from '../../assets/icons/settings-language.png';
+// Item pedido: "Notificações, Jogos e Apps não possuem um ícone
+// específico no arquivo... utilize ícones que já existam no sistema" —
+// os mesmos já usados noutros lugares do app pra representar essas
+// categorias (o sino já usado no topo pra notificações, o mesmo ícone
+// de grade já usado no item "Apps" da barra principal, e o escudo já
+// usado como símbolo de privacidade/proteção).
+import settingsNotificationsIcon from '../../assets/icons/nav-notifications.png';
+import settingsGamesIcon from '../../assets/icons/nav-apps.png';
+import settingsPrivacyIcon from '../../assets/icons/shield.png';
+import settingsProfileContentIcon from '../../assets/icons/nav-image.png';
+import settingsAccountStatusIcon from '../../assets/icons/document.png';
 import emojiPickerIcon from '../../assets/icons/emoji-picker.png';
 import Modal from '../Modal.jsx';
 import EmojiPicker from '../EmojiPicker.jsx';
@@ -1986,13 +2010,18 @@ function labelFor(tabKey, translate) {
 }
 
 function iconFor(t) {
-  // VOICE usa o ícone novo (mesmo pacote da barra lateral) em vez de
-  // emoji — os outros continuam emoji por enquanto.
-  if (t === 'VOICE') return <IconGlyph src={micIcon} size={16} />;
-  return {
-    PROFILE: '👤', PROFILE_CONTENT: '🖼️', COLUMNS: '📐', MINI_PROFILE: '🪪', ACCOUNT: '⚙️', SECURITY: '🔒', APPEARANCE: '🎨',
-    ACCOUNT_STATUS: '📋', PRIVACY: '🛡️', NOTIFICATIONS: '🔔', ACCESSIBILITY: '♿', SYSTEM: '🖥️', LANGUAGE: '🌐', GAMES: '🎮',
-  }[t];
+  // Item pedido: "substitua os emojis pelos ícones fornecidos...
+  // mantendo o mesmo tamanho, alinhamento, espaçamento e estilo
+  // visual" — mesmo padrão já usado pro VOICE (abaixo), agora pra
+  // todas as abas.
+  const ICONS = {
+    PROFILE: settingsProfileIcon, PROFILE_CONTENT: settingsProfileContentIcon, COLUMNS: settingsColumnsIcon,
+    MINI_PROFILE: settingsMiniProfileIcon, ACCOUNT: settingsAccountIcon, SECURITY: settingsSecurityIcon,
+    APPEARANCE: settingsAppearanceIcon, ACCOUNT_STATUS: settingsAccountStatusIcon, PRIVACY: settingsPrivacyIcon,
+    NOTIFICATIONS: settingsNotificationsIcon, ACCESSIBILITY: settingsAccessibilityIcon, SYSTEM: settingsSystemIcon,
+    LANGUAGE: settingsLanguageIcon, GAMES: settingsGamesIcon, VOICE: micIcon,
+  };
+  return <IconGlyph src={ICONS[t]} size={16} />;
 }
 
 // ============================================================
