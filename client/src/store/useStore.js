@@ -408,8 +408,18 @@ export const useStore = create((set, get) => ({
   }),
   openMobileSidebar: () => set({ mobileSidebarOpen: true, mobileMembersOpen: false }),
   closeMobileSidebar: () => set({ mobileSidebarOpen: false }),
-  toggleMobileChannelList: () => set((s) => ({ mobileChannelListOpen: !s.mobileChannelListOpen })),
-  closeMobileChannelList: () => set({ mobileChannelListOpen: false }),
+  // Item pedido: "no mobile quero que só tenha um botão com 3
+  // barrinha que mostra o canal com as categorias e as categorias
+  // como início, apps etc juntos em um só" — um botão só, controlando
+  // os dois de uma vez (mobileSidebarOpen já existe pra MainSidebar,
+  // mobileChannelListOpen é o da lista de canais) — mantidos como
+  // estados separados (cada um já tem seu próprio CSS/gaveta), só a
+  // ação de abrir/fechar é uma coisa só agora.
+  toggleMobileChannelList: () => set((s) => {
+    const next = !s.mobileChannelListOpen;
+    return { mobileChannelListOpen: next, mobileSidebarOpen: next };
+  }),
+  closeMobileChannelList: () => set({ mobileChannelListOpen: false, mobileSidebarOpen: false }),
   toggleMobileSidebar: () => set((s) => ({ mobileSidebarOpen: !s.mobileSidebarOpen, mobileMembersOpen: false })),
   openMobileMembers: () => set({ mobileMembersOpen: true, mobileSidebarOpen: false }),
   closeMobileMembers: () => set({ mobileMembersOpen: false }),

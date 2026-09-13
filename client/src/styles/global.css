@@ -4553,6 +4553,31 @@ a.embed-card-title:hover { text-decoration: underline; }
      sem isso, uma vez dentro de um canal não haveria como voltar pra
      trocar de canal/categoria de novo. */
   .app-shell.discord-layout-has-channel.discord-mobile-channel-list-open .discord-layout-fixed-sidebar { display: flex; }
+  /* Item pedido: "no mobile quero que só tenha um botão... a barra
+     menos larga igual como fica em categoria comunidade" — a gaveta
+     da MainSidebar no mobile normalmente é larga (260px, com rótulos,
+     regra acima) pra funcionar como navegação sozinha; mas quando o
+     modo ícones do layout Discord está ativo, ela fica estreita (64px)
+     igual no desktop — o botão único abaixo (.discord-mobile-channel-toggle)
+     abre as duas gavetas juntas, lado a lado, então a MainSidebar
+     precisa ficar fina pra sobrar espaço de verdade pro ChannelSidebar
+     ao lado dela (ver a regra de "left" mais abaixo). */
+  .app-shell.discord-icons-mode .main-sidebar { width: 64px; }
+  /* Item pedido: "no mobile quero que só tenha um botão... que mostra
+     o canal com as categorias e as categorias como início, apps etc
+     juntos em um só" — a MainSidebar aparece exatamente na mesma
+     condição que o ChannelSidebar (mesma classe discord-layout-
+     has-channel/discord-mobile-channel-list-open, ver acima) em vez
+     de depender de um estado próprio — as duas abrem e fecham sempre
+     juntas, como uma coisa só, controladas pelo mesmo botão. */
+  .app-shell.discord-icons-mode:not(.discord-layout-has-channel) .main-sidebar,
+  .app-shell.discord-icons-mode.discord-mobile-channel-list-open .main-sidebar {
+    transform: translateX(0);
+  }
+  .app-shell.discord-icons-mode.discord-mobile-channel-list-open .discord-layout-fixed-sidebar,
+  .app-shell.discord-icons-mode:not(.discord-layout-has-channel) .discord-layout-fixed-sidebar {
+    left: 64px; width: calc(100% - 64px);
+  }
   .discord-mobile-channel-toggle {
     position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); left: 10px; z-index: 60;
     width: 34px; height: 34px; border-radius: 50%;
