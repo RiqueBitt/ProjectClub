@@ -233,6 +233,8 @@ export default function ChannelSidebar({ activeChannelId: propActiveChannelId } 
             dragOverPosition={dragOverPosition}
             setDragOverPosition={setDragOverPosition}
             onChannelDrop={onChannelDrop}
+            activeChannelId={activeChannelId}
+            navigate={navigate}
           />
         )}
         {categories.map((cat) => (
@@ -280,6 +282,8 @@ export default function ChannelSidebar({ activeChannelId: propActiveChannelId } 
               dragOverPosition={dragOverPosition}
               setDragOverPosition={setDragOverPosition}
               onChannelDrop={onChannelDrop}
+              activeChannelId={activeChannelId}
+              navigate={navigate}
             />
           </div>
         ))}
@@ -301,6 +305,14 @@ function ChannelGroup({
   channels, categoryId, members, canManage, onEdit, channelReadAt, myUserId,
   dragChannelId, setDragChannelId, dragOverChannelId, setDragOverChannelId,
   dragOverPosition, setDragOverPosition, onChannelDrop,
+  // BUG CORRIGIDO ("algo deu errado" / tela em branco ao abrir a
+  // Comunidade): ChannelGroup é um componente PRÓPRIO, separado de
+  // ChannelSidebar (onde activeChannelId e navigate são declarados) —
+  // usá-los aqui dentro sem passar como prop dava
+  // "activeChannelId/navigate is not defined" (ReferenceError) assim
+  // que a lista de canais tentava renderizar, travando a tela inteira
+  // (capturado pelo ErrorBoundary como "Algo deu errado").
+  activeChannelId, navigate,
 }) {
   const voice = useVoice();
   const { openMenu } = useContextMenu();
