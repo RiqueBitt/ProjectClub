@@ -32,6 +32,7 @@ import settingsGamesIcon from '../../assets/icons/nav-apps.png';
 import settingsPrivacyIcon from '../../assets/icons/shield.png';
 import settingsProfileContentIcon from '../../assets/icons/nav-image.png';
 import settingsAccountStatusIcon from '../../assets/icons/document.png';
+import logoutIcon from '../../assets/icons/settings-logout.png';
 import emojiPickerIcon from '../../assets/icons/emoji-picker.png';
 import Modal from '../Modal.jsx';
 import EmojiPicker from '../EmojiPicker.jsx';
@@ -708,7 +709,15 @@ export default function UserSettingsModal({ onClose }) {
           ))}
           <div className="settings-modal-sidebar-divider" />
           <button className="settings-modal-sidebar-item settings-modal-logout" onClick={doLogout}>
-            <span className="settings-modal-sidebar-icon">🚪</span>
+            {/* Item pedido: "troque o emoji/ícone de porta... mantenha
+                o ícone na cor vermelha, exatamente igual à cor do
+                texto" — mesmo padrão IconGlyph (mask-image +
+                currentColor) das outras abas: como este botão já
+                herda color: var(--red) (.settings-modal-logout, ver
+                CSS), o ícone já sai na mesma cor automaticamente, sem
+                precisar fixar um valor de cor separado que poderia
+                sair dessincronizado do texto no futuro. */}
+            <span className="settings-modal-sidebar-icon"><IconGlyph src={logoutIcon} size={16} /></span>
             Sair da conta
           </button>
         </div>
