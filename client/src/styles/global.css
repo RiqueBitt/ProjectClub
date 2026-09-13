@@ -6884,6 +6884,21 @@ a.embed-card-title:hover { text-decoration: underline; }
      marca por cima. */
   background: var(--bg-secondary);
   color: var(--text-normal, #dbdee1);
+  /* Item pedido: "adicione uma barra de separação visual entre essa
+     aba e o restante do aplicativo, seguindo o mesmo padrão de
+     separação já utilizado entre as seções de Online, Categorias,
+     Canais" — mesma variável que a lista de membros ("Online") já usa
+     pra se separar do chat (--divider-strong, mais visível que o
+     --border padrão, bem sutil, usado no resto do app) — já se adapta
+     certinho por tema.
+     "Faça com que essa aba possa ser arrastada livremente pela janela
+     do computador" — já funciona nativamente: -webkit-app-region:
+     drag logo abaixo cobre toda a barra (com "no-drag" só nos botões
+     de fechar/minimizar/maximizar, que precisam continuar clicáveis),
+     então arrastar qualquer parte vazia dela já move a janela de
+     verdade pela tela, como qualquer barra de título nativa do
+     sistema operacional. */
+  border-bottom: 1px solid var(--divider-strong);
   -webkit-app-region: drag; user-select: none;
 }
 .app-title-bar-drag { flex: 1; -webkit-app-region: drag; }
