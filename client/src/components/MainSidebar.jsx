@@ -153,6 +153,17 @@ export default function MainSidebar() {
                   {badge > 0 && <span className="main-sidebar-item-badge">{badge > 99 ? '99+' : badge}</span>}
                 </span>
                 <span className="main-sidebar-item-label">{t(item.labelKey)}{item.beta && <span className="beta-badge">BETA</span>}</span>
+                {/* Item pedido: "adicione um sistema de tooltip...
+                    quando a barra estiver minimizada... ao passar o
+                    mouse sobre um ícone no PC ou tocar/pressionar
+                    sobre ele no mobile" — sempre no DOM (barato,
+                    é só texto), a visibilidade real é 100% CSS: só
+                    aparece quando o nome ao lado já está escondido
+                    (mesmas condições que escondem
+                    .main-sidebar-item-label — colapso manual ou tela
+                    estreita) E o item está em :hover/:active — nunca
+                    as duas coisas fora desse contexto ao mesmo tempo. */}
+                <span className="main-sidebar-item-tooltip">{t(item.labelKey)}</span>
               </NavLink>
             );
           })}

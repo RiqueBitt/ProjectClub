@@ -758,6 +758,10 @@ html.is-electron-app .app-shell { height: calc(100dvh - 32px); }
 .main-sidebar-manually-collapsed .main-sidebar-item { justify-content: center; padding: 10px; }
 .app-shell.main-sidebar-manually-collapsed .main-sidebar-item-label,
 .main-sidebar-manually-collapsed .main-sidebar-item-label { display: none; }
+.main-sidebar-manually-collapsed .main-sidebar-item:hover .main-sidebar-item-tooltip,
+.main-sidebar-manually-collapsed .main-sidebar-item:active .main-sidebar-item-tooltip {
+  opacity: 1; transform: translateY(-50%) translateX(0);
+}
 .app-shell.main-sidebar-manually-collapsed .main-sidebar-section-label,
 .app-shell.main-sidebar-manually-collapsed .main-sidebar-community-name,
 .app-shell.main-sidebar-manually-collapsed .main-sidebar-community-empty,
@@ -4433,11 +4437,34 @@ a.embed-card-title:hover { text-decoration: underline; }
   font-weight: 600; font-size: 13.5px;
   transition: background-color .15s ease, transform .1s ease, color .15s ease;
   white-space: nowrap;
+  position: relative;
 }
 .main-sidebar-item:hover { background: var(--bg-elevated); color: var(--header-primary); }
 .main-sidebar-item.active {
   background: var(--brand); color: #fff;
   box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+}
+/* Item pedido: "adicione um sistema de tooltip nas categorias
+   principais... quando a barra estiver minimizada... ao passar o
+   mouse... ou tocar/pressionar no mobile... deve aparecer apenas
+   quando a barra estiver minimizada e desaparecer ao tirar o mouse ou
+   finalizar a interação" — escondido por padrão sempre (opacity:0 +
+   pointer-events:none, nunca atrapalha cliques em nada por baixo);
+   as regras que TORNAM ele visível ficam coladas nas mesmas condições
+   que já escondem o rótulo ao lado (mais abaixo, dentro de
+   .main-sidebar-manually-collapsed e do @media 900px), garantindo que
+   as duas coisas (rótulo escondido / tooltip disponível) sempre
+   acontecem juntas, nunca uma sem a outra. :active cobre o toque no
+   mobile "de graça" (sem JS): pressiona e mantém pressionado -> mesmo
+   estado do :hover no PC; solta o dedo -> desaparece sozinho, exatamente
+   o comportamento pedido, sem precisar de touchstart/touchend manual. */
+.main-sidebar-item-tooltip {
+  position: absolute; left: calc(100% + 12px); top: 50%; transform: translateY(-50%) translateX(-4px);
+  background: var(--bg-elevated); color: var(--header-primary); border: 1px solid var(--border);
+  padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0,0,0,.35);
+  opacity: 0; pointer-events: none; z-index: 60;
+  transition: opacity .12s ease, transform .12s ease;
 }
 .main-sidebar-item-icon { position: relative; font-size: 19px; line-height: 1; flex-shrink: 0; width: 24px; text-align: center; display: inline-flex; align-items: center; justify-content: center; }
 /* Ícones de imagem da barra lateral (Ranks/Feeds/Notificações/etc, pasta
@@ -4537,6 +4564,10 @@ a.embed-card-title:hover { text-decoration: underline; }
   .main-sidebar-brand-name { display: none; }
   .main-sidebar-item { justify-content: center; padding: 10px; }
   .main-sidebar-item-label { display: none; }
+  .main-sidebar-item:hover .main-sidebar-item-tooltip,
+  .main-sidebar-item:active .main-sidebar-item-tooltip {
+    opacity: 1; transform: translateY(-50%) translateX(0);
+  }
   .main-sidebar-section-label, .main-sidebar-community-name, .main-sidebar-community-empty, .main-sidebar-community-loading { display: none; }
   .main-sidebar-community-item { justify-content: center; padding: 8px; }
   .main-sidebar-footer { padding: 8px 6px; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
@@ -4630,6 +4661,14 @@ a.embed-card-title:hover { text-decoration: underline; }
   .main-sidebar-brand-name { display: inline; }
   .main-sidebar-item { justify-content: flex-start; padding: 10px 12px; }
   .main-sidebar-item-label { display: inline; }
+  /* Item pedido: "o tooltip deve aparecer apenas quando a barra
+     estiver minimizada" — nesse breakpoint a barra vira uma gaveta
+     cheia com os nomes de volta (regra acima), então o tooltip nunca
+     deveria aparecer aqui, mesmo tocando num item — desliga
+     explicitamente, já que a regra de visibilidade do bloco 900px
+     (acima no arquivo) continuaria valendo sozinha sem isso. */
+  .main-sidebar-item:hover .main-sidebar-item-tooltip,
+  .main-sidebar-item:active .main-sidebar-item-tooltip { opacity: 0; }
   .main-sidebar-section-label, .main-sidebar-community-name, .main-sidebar-community-empty, .main-sidebar-community-loading { display: block; }
   .main-sidebar-community-item { justify-content: flex-start; padding: 8px 10px; }
   .app-shell.mobile-sidebar-open .main-sidebar { transform: translateX(0); }
