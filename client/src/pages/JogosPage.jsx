@@ -17,40 +17,44 @@ function currentPlatform() {
   return p === 'linux' ? 'linux' : 'win32'; // Electron nesse projeto só roda Windows ou Linux
 }
 
-// Item pedido: "melhore também essa aba de apps, adicione ícone,
-// banner melhorando a interface tudo sendo configurado do painel da
-// staff" — o catálogo (nome, descrição, banner, ícone, espaço
-// necessário) agora vem do backend (ver server/src/controllers/
-// appCatalogController.js), editável na aba "Apps" do painel da
-// staff, em vez de uma lista fixa no código. moduleId em cada item
-// ainda precisa bater com MODULES no desktop/projectMcManager.js —
-// é o que liga "o card bonito que a staff configurou" com "o módulo
-// que o Electron sabe instalar/abrir de verdade".
+// Item pedido: "remova as categorias Jogos, Aplicativos e deixe todos
+// os apps em um só menu" — antes esta página tinha duas abas internas
+// (Jogos / Aplicativos); a aba "Aplicativos" nunca mostrava nada de
+// verdade (ficava sempre com a mensagem de "nenhum aplicativo
+// disponível", já que o catálogo inteiro sempre ia pra aba "Jogos",
+// sem nenhum jeito real de categorizar um item pra lá) — virou uma
+// aba morta. Removidas as duas: agora é uma grade única com tudo que
+// a staff cadastrar no catálogo, sem divisão nenhuma.
 export default function JogosPage() {
-  const [tab, setTab] = useState('games'); // 'games' | 'apps'
-  const [catalog, setCatalog] = useState([]);
+  const [catalog, setCatalog] = useState(null); // null = carregando ainda
   // Item pedido: "clique no banner... abre outra aba... parecida com
   // a aba de downloads da Steam" — detailModuleId controla se estamos
   // vendo a grade principal (null) ou a tela de detalhe de um item
   // específico (o moduleId dele).
   const [detailModuleId, setDetailModuleId] = useState(null);
   // Item pedido: "ao clicar em uma screenshot, abra a imagem em
-  // tamanho grande" — estado global da página (não da tela de
-  // detalhe), pra sobrepor tudo, inclusive a barra de ação, sem outro
-  // z-index pra gerenciar.
-  const [lightboxUrl, setLightboxUrl] = useState(null);
+  // tamanho grande" — guarda o ÍNDICE (não só a url) pra dar pra
+  // navegar entre as screenshots com as setas dentro do lightbox.
+  const [lightboxIndex, setLightboxIndex] = useState(null);
 
   useEffect(() => {
-    listAppCatalog().then((d) => setCatalog(d.items)).catch(() => {});
+    listAppCatalog().then((d) => setCatalog(d.items)).catch(() => setCatalog([]));
   }, []);
 
-  const detailItem = catalog.find((c) => c.moduleId === detailModuleId);
+  const detailItem = catalog?.find((c) => c.moduleId === detailModuleId);
 
   if (detailItem) {
     return (
       <>
-        <AppDetailView item={detailItem} onBack={() => setDetailModuleId(null)} onOpenScreenshot={setLightboxUrl} />
-        {lightboxUrl && <ScreenshotLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
+        <AppDetailView item={detailItem} onBack={() => setDetailModuleId(null)} onOpenScreenshot={setLightboxIndex} />
+        {lightboxIndex !== null && (
+          <ScreenshotLightbox
+            screenshots={detailItem.screenshots}
+            index={lightboxIndex}
+            onIndexChange={setLightboxIndex}
+            onClose={() => setLightboxIndex(null)}
+          />
+        )}
       </>
     );
   }
@@ -58,34 +62,33 @@ export default function JogosPage() {
   return (
     <div className="jogos-page">
       <div className="jogos-page-header">
-        <h1>Apps</h1>
-        <p className="dim">Módulos opcionais que rodam dentro da instalação do Project Club — instale só o que você usa.</p>
+        <span className="jogos-page-header-icon">🧩</span>
+        <div className="jogos-page-header-text">
+          <h1>Apps</h1>
+          <p className="dim">Módulos opcionais que rodam dentro da instalação do Project Club — instale só o que você usa.</p>
+        </div>
+        {catalog && catalog.length > 0 && (
+          <span className="jogos-page-header-count">{catalog.length} {catalog.length === 1 ? 'app disponível' : 'apps disponíveis'}</span>
+        )}
       </div>
 
-      <div className="jogos-page-tabs">
-        <button type="button" className={`jogos-page-tab ${tab === 'games' ? 'active' : ''}`} onClick={() => setTab('games')}>Jogos</button>
-        <button type="button" className={`jogos-page-tab ${tab === 'apps' ? 'active' : ''}`} onClick={() => setTab('apps')}>Aplicativos</button>
-      </div>
-
-      {tab === 'games' && (
-        catalog.length === 0 ? (
-          <div className="jogos-page-empty">
-            <span className="jogos-page-empty-icon">🧩</span>
-            <p>Nenhum módulo disponível ainda — a staff pode adicionar um no painel administrativo.</p>
-          </div>
-        ) : (
-          <div className="jogos-page-grid">
-            {catalog.map((item) => (
-              <ModuleCard key={item.moduleId} item={item} onOpenDetail={() => setDetailModuleId(item.moduleId)} />
-            ))}
-          </div>
-        )
-      )}
-
-      {tab === 'apps' && (
+      {catalog === null ? (
+        // Item pedido: "melhore as partes vazias da tela" — enquanto
+        // carrega, cards-esqueleto no lugar de uma tela em branco.
+        <div className="jogos-page-grid">
+          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="app-card-skeleton" />)}
+        </div>
+      ) : catalog.length === 0 ? (
         <div className="jogos-page-empty">
           <span className="jogos-page-empty-icon">🧩</span>
-          <p>Nenhum aplicativo disponível ainda — esta aba já está pronta para receber os próximos módulos.</p>
+          <h3>Nenhum app disponível ainda</h3>
+          <p>A staff pode adicionar novos módulos a qualquer momento pelo painel administrativo.</p>
+        </div>
+      ) : (
+        <div className="jogos-page-grid">
+          {catalog.map((item) => (
+            <ModuleCard key={item.moduleId} item={item} onOpenDetail={() => setDetailModuleId(item.moduleId)} />
+          ))}
         </div>
       )}
     </div>
@@ -182,14 +185,16 @@ function useModuleState(moduleId) {
 // clicável e sempre abre o detalhe (estilo Steam); só a caixinha no
 // canto tem ação PRÓPRIA e direta: baixar (não instalado, entra no
 // detalhe pra acompanhar o progresso) ou jogar (instalado, abre na
-// hora, sem precisar entrar em mais nada).
+// hora). Item pedido: "melhore quando tiver fazendo o download" — o
+// botão de ação vira o próprio indicador de porcentagem enquanto
+// baixa, em vez de só a barrinha fina embaixo.
 function ModuleCard({ item, onOpenDetail }) {
-  const { desktopReady, installed, busy, progress, open } = useModuleState(item.moduleId);
+  const { desktopReady, installed, updateAvailable, busy, progress, open } = useModuleState(item.moduleId);
 
   const onQuickAction = (e) => {
     e.stopPropagation();
     if (installed && !busy) open();
-    else onOpenDetail();
+    else if (!busy) onOpenDetail();
   };
 
   return (
@@ -197,7 +202,10 @@ function ModuleCard({ item, onOpenDetail }) {
       <div className="app-card-banner" style={item.bannerUrl ? { backgroundImage: `url(${proxyImage(item.bannerUrl)})` } : undefined}>
         {!item.bannerUrl && <span className="app-card-banner-fallback">🧩</span>}
         <div className="app-card-banner-gradient" />
-        {item.version && <span className="app-card-version-badge">v{item.version}</span>}
+        <div className="app-card-badges">
+          {item.version && <span className="app-card-version-badge">v{item.version}</span>}
+          {installed && !busy && updateAvailable && <span className="app-card-update-badge">Atualização</span>}
+        </div>
         <div className="app-card-title-row">
           {item.iconUrl && <img className="app-card-icon" src={proxyImage(item.iconUrl)} alt="" />}
           <span className="app-card-name">{item.name}</span>
@@ -205,37 +213,43 @@ function ModuleCard({ item, onOpenDetail }) {
         {desktopReady && (
           <button
             type="button"
-            className={`app-card-quick-btn ${installed ? 'is-play' : 'is-download'}`}
+            className={`app-card-quick-btn ${installed ? 'is-play' : 'is-download'} ${busy ? 'is-busy' : ''}`}
             onClick={onQuickAction}
-            title={installed ? 'Jogar' : 'Baixar'}
-            aria-label={installed ? 'Jogar' : 'Baixar'}
+            title={busy ? 'Baixando...' : installed ? 'Jogar' : 'Baixar'}
+            aria-label={busy ? 'Baixando' : installed ? 'Jogar' : 'Baixar'}
           >
-            {installed ? '▶' : '⬇'}
+            {busy && progress ? <span className="app-card-quick-btn-percent">{progress.percent}%</span> : installed ? '▶' : '⬇'}
           </button>
         )}
       </div>
       {item.description && <p className="app-card-description">{item.description}</p>}
       {!desktopReady && <p className="app-card-hint dim">Disponível apenas no app de desktop do Project Club.</p>}
+      {desktopReady && installed && !busy && (
+        <div className="app-card-installed-tag">✓ Instalado</div>
+      )}
       {desktopReady && busy && progress && (
-        <div className="app-card-progress"><div style={{ width: `${progress.percent}%` }} /></div>
+        <div className="app-card-progress">
+          <div className="app-card-progress-fill" style={{ width: `${progress.percent}%` }} />
+        </div>
       )}
     </div>
   );
 }
 
-// Item pedido: "adicione uma seção de screenshots... ao clicar em uma
-// screenshot, abra a imagem em tamanho grande" — carrossel simples de
-// miniaturas; cada uma abre o lightbox (ver ScreenshotLightbox) por
-// cima de tudo.
+// Item pedido: "melhore o menu das screenshots do app, deixa mais no
+// pc e mais bonito e organizado" — grade responsiva (mais colunas em
+// telas largas de PC) em vez da fileira que precisava arrastar de
+// lado pra ver tudo; sem rolagem horizontal em lugar nenhum.
 function ScreenshotGallery({ screenshots, onOpen }) {
   if (!screenshots?.length) return null;
   return (
     <div className="app-detail-screenshots">
-      <h3>Screenshots</h3>
-      <div className="app-detail-screenshots-row">
-        {screenshots.map((s) => (
-          <button key={s.id} type="button" className="app-detail-screenshot-thumb" onClick={() => onOpen(proxyImage(s.imageUrl))}>
-            <img src={proxyImage(s.imageUrl)} alt="" />
+      <h3>Screenshots <span className="app-detail-screenshots-count dim">{screenshots.length}</span></h3>
+      <div className="app-detail-screenshots-grid">
+        {screenshots.map((s, i) => (
+          <button key={s.id} type="button" className="app-detail-screenshot-thumb" onClick={() => onOpen(i)}>
+            <img src={proxyImage(s.imageUrl)} alt="" loading="lazy" />
+            <span className="app-detail-screenshot-thumb-zoom">🔍</span>
           </button>
         ))}
       </div>
@@ -245,18 +259,37 @@ function ScreenshotGallery({ screenshots, onOpen }) {
 
 // Item pedido: "ao clicar fora da imagem, feche a visualização" —
 // fundo escuro clicável fecha; a própria imagem tem stopPropagation
-// pra não fechar clicando nela sem querer.
-function ScreenshotLightbox({ url, onClose }) {
+// pra não fechar clicando nela sem querer. Agora com setas pra
+// navegar entre as screenshots sem precisar fechar e abrir de novo.
+function ScreenshotLightbox({ screenshots, index, onIndexChange, onClose }) {
+  const total = screenshots.length;
+  const go = (delta) => onIndexChange((i) => (i + delta + total) % total);
+
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowRight' && total > 1) go(1);
+      if (e.key === 'ArrowLeft' && total > 1) go(-1);
+    };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onClose, total]);
+
+  const current = screenshots[index];
+  if (!current) return null;
 
   return (
     <div className="screenshot-lightbox" onClick={onClose}>
-      <img src={url} alt="" onClick={(e) => e.stopPropagation()} />
       <button type="button" className="screenshot-lightbox-close" onClick={onClose} aria-label="Fechar">×</button>
+      {total > 1 && (
+        <button type="button" className="screenshot-lightbox-nav screenshot-lightbox-prev" onClick={(e) => { e.stopPropagation(); go(-1); }} aria-label="Anterior">‹</button>
+      )}
+      <img src={proxyImage(current.imageUrl)} alt="" onClick={(e) => e.stopPropagation()} />
+      {total > 1 && (
+        <button type="button" className="screenshot-lightbox-nav screenshot-lightbox-next" onClick={(e) => { e.stopPropagation(); go(1); }} aria-label="Próxima">›</button>
+      )}
+      {total > 1 && <div className="screenshot-lightbox-counter">{index + 1} / {total}</div>}
     </div>
   );
 }
@@ -301,6 +334,9 @@ function PlatformSection({ platformKey, label, sizeLabel, requirements, isCurren
 // mostra do download etc, aí quando baixar vai mostrar um botão
 // Jogar" — banner grande, "espaço necessário" configurado pela staff,
 // progresso durante o download, Jogar + Desinstalar depois de pronto.
+// Item pedido: "melhore quando tiver fazendo o download de algum
+// app" — barra de progresso com fase nomeada + porcentagem grande em
+// destaque, em vez de só um texto pequeno acima da barra.
 function AppDetailView({ item, onBack, onOpenScreenshot }) {
   const { desktopReady, installed, updateAvailable, updateInfo, busy, progress, error, install, open, uninstall } = useModuleState(item.moduleId);
   const platform = currentPlatform();
@@ -313,12 +349,14 @@ function AppDetailView({ item, onBack, onOpenScreenshot }) {
       return <p className="dim app-detail-platform-hint">Abra o Project Club nesse sistema pra instalar por aqui.</p>;
     }
     if (busy && progress) {
+      const phaseLabel = progress.phase === 'downloading' ? 'Baixando' : progress.phase === 'extracting' ? 'Extraindo arquivos' : 'Concluindo instalação';
       return (
         <div className="app-detail-progress">
-          <div className="app-detail-progress-label dim">
-            {progress.phase === 'downloading' ? `Baixando... ${progress.percent}%` : progress.phase === 'extracting' ? 'Extraindo arquivos...' : 'Concluindo instalação...'}
+          <div className="app-detail-progress-top">
+            <span className="app-detail-progress-label">{phaseLabel}...</span>
+            <span className="app-detail-progress-percent">{progress.percent}%</span>
           </div>
-          <div className="app-detail-progress-bar"><div style={{ width: `${progress.percent}%` }} /></div>
+          <div className="app-detail-progress-bar"><div className="app-detail-progress-bar-fill" style={{ width: `${progress.percent}%` }} /></div>
         </div>
       );
     }
