@@ -12,6 +12,7 @@ import emojiPickerIcon from '../../assets/icons/emoji-picker.png';
 import Modal from '../Modal.jsx';
 import EmojiPicker from '../EmojiPicker.jsx';
 import ClanIcon from '../ClanIcon.jsx';
+import UserAvatar from '../UserAvatar.jsx';
 import { usePopoverCoordination } from '../../utils/popoverCoordinator';
 import { isGradientColor, gradientStops, makeGradient } from '../../utils/roleColor';
 import { NAME_FONTS, NAME_EFFECTS, nameStyleProps, nameStyleClassName, FONT_FAMILY, DEFAULT_MULTI_COLORS } from '../../utils/nameStyle';
@@ -657,6 +658,19 @@ export default function UserSettingsModal({ onClose }) {
     <Modal title="Configurações do usuário" onClose={onClose} width="820px" className="settings-modal-box">
       <div className="settings-modal-layout">
         <div className="settings-modal-sidebar">
+          {/* Item pedido: "reformule a interface das Configurações...
+              use a imagem como referência visual... padrão de fonte,
+              cores, espaçamentos, organização" — cabeçalho com
+              avatar + nome no topo da barra lateral, igual a
+              referência enviada, clicável pra ir direto no Perfil
+              (a aba que já tem essa edição). */}
+          <button type="button" className="settings-modal-sidebar-header" onClick={() => setTab('PROFILE')}>
+            <UserAvatar user={user} size={40} />
+            <div className="settings-modal-sidebar-header-text">
+              <div className="settings-modal-sidebar-header-name">{user.displayName}</div>
+              <div className="settings-modal-sidebar-header-edit">Editar perfil</div>
+            </div>
+          </button>
           {TAB_GROUPS.map((group) => (
             <div key={group.label} className="settings-modal-sidebar-group">
               <div className="settings-modal-sidebar-group-label">{group.label}</div>

@@ -1647,7 +1647,7 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
    e a animação só tocava uma vez, na primeira abertura). Tudo aqui é só
    CSS — nenhuma mudança de lógica, então zero risco de quebrar
    qualquer funcionalidade já existente. ---------- */
-.settings-modal-box.modal-box { width: min(880px, 94vw); border-radius: 14px; overflow: hidden; }
+.settings-modal-box.modal-box { width: min(960px, 94vw); border-radius: 14px; overflow: hidden; }
 .settings-modal-box .modal-body { padding: 0; }
 /* Item pedido: "faça o menu nunca mudar de tamanho... quero o tamanho
    dele em Aparência/Segurança, usando a rolagem pra ver mais pra
@@ -1660,30 +1660,54 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
    auto, então o conteúdo que não couber simplesmente rola por dentro. */
 .settings-modal-layout { display: flex; height: 560px; max-height: 78vh; }
 .settings-modal-sidebar {
-  width: 216px; flex-shrink: 0; padding: 16px 10px; display: flex; flex-direction: column; gap: 3px;
-  background: linear-gradient(180deg, var(--bg-secondary-alt), var(--bg-secondary));
+  /* Item pedido: "use a imagem como referência visual... mesmo padrão
+     de espaçamentos, organização" — barra mais larga (a referência
+     tem uma barra generosa, com espaço pro cabeçalho do usuário). */
+  width: 264px; flex-shrink: 0; padding: 16px 10px; display: flex; flex-direction: column; gap: 3px;
+  background: var(--bg-secondary);
   border-right: 1px solid var(--border); overflow-y: auto;
 }
-.settings-modal-sidebar-item {
-  display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px;
-  font-size: 14px; font-weight: 600; color: var(--text-muted); text-align: left; background: none; border: none;
-  transition: background .15s ease, color .15s ease, transform .1s ease;
+/* Cabeçalho com avatar + nome, igual a referência — link direto pra
+   aba de Perfil. */
+.settings-modal-sidebar-header {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 10px;
+  border-radius: 8px; text-align: left; background: none; border: none; width: 100%;
+  transition: background .15s ease;
 }
-.settings-modal-sidebar-item:hover { background: var(--bg-modifier-hover); color: var(--text-normal); transform: translateX(1px); }
+.settings-modal-sidebar-header:hover { background: var(--bg-modifier-hover); }
+.settings-modal-sidebar-header-name { font-weight: 700; font-size: 15px; color: var(--header-primary); line-height: 1.25; }
+.settings-modal-sidebar-header-edit { font-size: 12.5px; color: var(--text-muted); }
+/* Item pedido: referência mostra os títulos de grupo ("Cobrança" etc.)
+   em maiúsculas pequenas e cinza — mesmo padrão usado noutros lugares
+   do app pra rótulos de seção (.permission-group-label). */
+.settings-modal-sidebar-group { margin-top: 6px; }
+.settings-modal-sidebar-group-label {
+  font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: .3px; padding: 6px 10px 4px;
+}
+.settings-modal-sidebar-item {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 4px;
+  font-size: 14.5px; font-weight: 500; color: var(--text-muted); text-align: left; background: none; border: none;
+  transition: background .12s ease, color .12s ease;
+}
+.settings-modal-sidebar-item:hover { background: var(--bg-modifier-hover); color: var(--text-normal); }
+/* Item pedido: "use a imagem como referência visual" — a referência
+   usa um item ativo discreto (fundo neutro sutil, mesmo texto branco/
+   claro do resto), não um gradiente colorido de marca chamando
+   atenção como antes — mais alinhado com o estilo mais "quieto" do
+   painel de configurações de referência. */
 .settings-modal-sidebar-item.active {
-  background: linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 70%, #fff 12%));
-  color: #fff; box-shadow: 0 2px 10px -2px color-mix(in srgb, var(--brand) 60%, transparent);
+  background: var(--bg-modifier-hover); color: var(--header-primary); font-weight: 600;
 }
 .settings-modal-sidebar-icon {
-  font-size: 15px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
-  border-radius: 7px; background: var(--bg-modifier-hover); flex-shrink: 0; transition: background .15s ease;
+  font-size: 15px; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; opacity: .85;
 }
-.settings-modal-sidebar-item.active .settings-modal-sidebar-icon { background: rgba(255,255,255,.2); }
 .settings-modal-sidebar-divider { height: 1px; background: var(--border); margin: 10px 6px; }
 .settings-modal-logout { color: var(--red); }
 .settings-modal-logout:hover { background: rgba(237, 66, 69, 0.12); color: var(--red); }
 .settings-modal-content {
-  flex: 1; min-width: 0; padding: 22px 26px; overflow-y: auto;
+  flex: 1; min-width: 0; padding: 26px 32px; overflow-y: auto;
   animation: settings-content-in .18s var(--ease-smooth);
 }
 @keyframes settings-content-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
