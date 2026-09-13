@@ -10,6 +10,11 @@ const path = require('path');
 const fs = require('fs');
 const { startActivityDetection, stopActivityDetection } = require('./activityDetector');
 const projectMcManager = require('./projectMcManager');
+// Sistema de Mods (Apps → Mods) — detecção de Steam e instalação local de
+// mods (ver steamDetector.js/modsManager.js). Só o processo principal
+// mexe com disco/registro; o site fala com esses módulos só via IPC.
+const steamDetector = require('./steamDetector');
+const modsManager = require('./modsManager');
 
 // URL do site hospedado — trocar aqui se o domínio mudar um dia. Fica só
 // nesse único lugar de propósito.
@@ -595,6 +600,61 @@ if (!gotLock) {
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
+    }
+  });
+
+  // ---------- Sistema de Mods (Apps → Mods) ----------
+  // Item pedido 2/3/4: detecção automática dos jogos instalados via
+  // Steam — roda 100% localmente (steamDetector.js), o site só recebe o
+  // resultado já pronto (AppID/nome/pasta), nunca lê registro/disco
+  // diretamente.
+  ipcMain.handle('mods:detect-steam-games', () => {
+    try {
+      return { success: true, ...steamDetector.detectInstalledSteamGames() };
+    } catch (err) {
+      return { success: false, error: err.message, steamFound: false, games: [] };
+    }
+  });
+
+  // Item pedido 29: jogo não encontrado automaticamente — deixa a pessoa
+  // escolher a pasta manualmente pelo diálogo nativo do Windows/Linux.
+  ipcMain.handle('mods:select-game-folder', async () => {
+    const result = await dialog.showOpenDialog(mainWindow || undefined, {
+      title: 'Selecione a pasta do jogo',
+      properties: ['openDirectory'],
+    });
+    if (result.canceled || !result.filePaths[0]) return { success: false, canceled: true };
+    if (!steamDetector.looksLikeGameFolder(result.filePaths[0])) return { success: false, error: 'Pasta inválida.' };
+    return { success: true, path: result.filePaths[0] };
+  });
+
+  // Item pedido 12: instalação automática — baixa da URL assinada que o
+  // backend devolveu (ver server: POST /api/mods/.../download), instala
+  // na pasta certa e nunca envia o arquivo de volta pro servidor.
+  ipcMain.handle('mods:install', async (event, payload) => {
+    try {
+      const result = await modsManager.installMod(payload, (progress) => {
+        event.sender.send('mods:progress', { modioModId: payload.modioModId, ...progress });
+      });
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('mods:uninstall', (_event, payload) => {
+    try {
+      return { success: true, ...modsManager.uninstallMod(payload) };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('mods:list-installed', (_event, gameInstallPath) => {
+    try {
+      return { success: true, mods: modsManager.listInstalledMods(gameInstallPath) };
+    } catch (err) {
+      return { success: false, error: err.message, mods: [] };
     }
   });
 

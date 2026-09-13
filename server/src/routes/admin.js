@@ -3,6 +3,7 @@ const ctrl = require('../controllers/adminController');
 const announcementCtrl = require('../controllers/announcementController');
 const appCatalogCtrl = require('../controllers/appCatalogController');
 const adminClanCtrl = require('../controllers/adminClanController');
+const modCtrl = require('../controllers/modController');
 const { requireAuth } = require('../middleware/auth');
 const { requirePlatformAdmin } = require('../middleware/platformAdmin');
 const { uploadImage } = require('../middleware/upload');
@@ -48,6 +49,16 @@ router.delete('/badges/:id', ctrl.deleteBadgeType);
 // Catálogo de apps/jogos (aba "Apps") — banner, ícone, descrição e
 // espaço necessário, tudo editável pela staff sem precisar de deploy.
 router.get('/app-catalog', appCatalogCtrl.listAdminAppCatalog);
+
+// Sistema de Mods — mapeamento Steam AppID → jogo no mod.io, e fila de
+// denúncias (item pedido 5/24).
+router.get('/mods/game-mappings', modCtrl.adminListGameMappings);
+router.post('/mods/game-mappings', modCtrl.adminCreateGameMapping);
+router.patch('/mods/game-mappings/:id', modCtrl.adminUpdateGameMapping);
+router.delete('/mods/game-mappings/:id', modCtrl.adminDeleteGameMapping);
+router.get('/mods/reports', modCtrl.adminListReports);
+router.patch('/mods/reports/:id', modCtrl.adminResolveReport);
+
 router.post('/app-catalog', appCatalogCtrl.createAppCatalogItem);
 router.patch('/app-catalog/:id', appCatalogCtrl.updateAppCatalogItem);
 router.post('/app-catalog/:id/banner', uploadImage.single('banner'), appCatalogCtrl.uploadAppCatalogBanner);

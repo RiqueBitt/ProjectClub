@@ -1,0 +1,161 @@
+/* Estilos de ModsPage.jsx — sistema de Mods (Apps → Mods). Arquivo
+   próprio (mesmo padrão de jogos-page.css), importado direto pelo
+   componente. Sem rolagem lateral em lugar nenhum (mesmo padrão já
+   adotado no resto do app). */
+
+.mods-page { padding: 24px; overflow-y: auto; overflow-x: hidden; height: 100%; max-width: 1100px; margin: 0 auto; width: 100%; }
+.mods-back { margin-bottom: 14px; color: var(--text-muted); font-size: 13px; font-weight: 600; transition: color .12s ease; }
+.mods-back:hover { color: var(--header-primary); }
+
+.mods-page-header { margin-bottom: 18px; }
+.mods-page-header h1 { margin: 0 0 4px; font-size: 22px; color: var(--header-primary); }
+
+.mods-search-bar {
+  width: 100%; padding: 11px 16px; border-radius: 10px; font-size: 14px; margin-bottom: 18px;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+}
+.mods-search-bar:focus { border-color: var(--brand); outline: none; }
+
+.mods-loading { padding: 40px 0; text-align: center; color: var(--text-muted); }
+
+.mods-empty-state {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
+  padding: 60px 20px; background: var(--bg-elevated); border: 1px dashed var(--border); border-radius: 14px; color: var(--text-muted);
+}
+.mods-empty-icon { font-size: 34px; margin-bottom: 4px; }
+.mods-empty-state h3 { margin: 0; color: var(--header-primary); font-size: 15px; }
+.mods-empty-state p { margin: 0; max-width: 380px; font-size: 13.5px; }
+
+.mods-section-title { font-size: 15px; color: var(--header-primary); margin: 20px 0 12px; }
+
+/* ---------- Meus jogos ---------- */
+.mods-games-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
+.mods-game-card {
+  display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px 10px;
+  border-radius: 12px; background: var(--bg-elevated); border: 1px solid var(--border);
+  transition: transform .12s ease, border-color .12s ease;
+}
+.mods-game-card:hover { transform: translateY(-2px); border-color: var(--brand); }
+.mods-game-card-icon {
+  width: 56px; height: 56px; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center;
+  background: var(--bg-secondary-alt, var(--bg-secondary)); font-size: 26px;
+}
+.mods-game-card-icon img { width: 100%; height: 100%; object-fit: cover; }
+.mods-game-card-name { font-size: 13px; font-weight: 700; text-align: center; color: var(--header-primary); }
+
+/* ---------- Cabeçalho do jogo ---------- */
+.mods-game-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.mods-game-header-icon {
+  width: 52px; height: 52px; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center;
+  background: var(--bg-elevated); border: 1px solid var(--border); font-size: 24px; flex-shrink: 0;
+}
+.mods-game-header-icon img { width: 100%; height: 100%; object-fit: cover; }
+.mods-game-header h1 { margin: 0 0 2px; font-size: 20px; color: var(--header-primary); }
+
+.mods-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border); margin-bottom: 18px; flex-wrap: wrap; }
+.mods-tab { padding: 9px 14px; font-size: 13.5px; font-weight: 600; color: var(--text-muted); border-bottom: 2px solid transparent; }
+.mods-tab:hover { color: var(--text-normal); }
+.mods-tab.active { color: var(--header-primary); border-bottom-color: var(--brand); }
+
+.mods-filters { margin-bottom: 18px; display: flex; flex-direction: column; gap: 10px; }
+.mods-filter-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mods-chip {
+  padding: 6px 13px; border-radius: 20px; font-size: 12.5px; font-weight: 600;
+  background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-normal);
+  transition: border-color .12s ease, background-color .12s ease;
+}
+.mods-chip:hover { border-color: var(--brand); }
+.mods-chip.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+
+/* ---------- Grade de mods ---------- */
+.mods-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.mods-mod-card {
+  display: flex; flex-direction: column; text-align: left; border-radius: 12px; overflow: hidden;
+  background: var(--bg-elevated); border: 1px solid var(--border); transition: transform .12s ease, border-color .12s ease;
+}
+.mods-mod-card:hover { transform: translateY(-2px); border-color: var(--brand); }
+.mods-mod-card-thumb {
+  aspect-ratio: 16 / 9; background: var(--bg-secondary-alt, var(--bg-secondary)) center/cover no-repeat;
+  display: flex; align-items: center; justify-content: center; font-size: 30px; opacity: .9;
+}
+.mods-mod-card-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px; }
+.mods-mod-card-name { font-weight: 700; font-size: 14px; color: var(--header-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mods-mod-card-author { font-size: 12px; }
+.mods-mod-card-stats { display: flex; gap: 10px; font-size: 12px; margin-top: 2px; }
+
+/* ---------- Meus mods (instalados) ---------- */
+.mods-installed-list { display: flex; flex-direction: column; gap: 8px; }
+.mods-installed-item {
+  display: flex; justify-content: space-between; align-items: center; padding: 12px 16px;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; font-size: 13.5px;
+}
+.mods-installed-tag { color: var(--green); font-weight: 700; font-size: 12px; }
+
+/* ---------- Página do mod ---------- */
+.mods-detail-banner {
+  position: relative; min-height: 220px; border-radius: 14px; overflow: hidden; margin-bottom: 16px;
+  background: var(--bg-secondary-alt, var(--bg-secondary)) center/cover no-repeat; display: flex; align-items: flex-end;
+}
+.mods-detail-banner-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 56px; opacity: .35; }
+.mods-detail-banner-gradient { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.85) 100%); }
+.mods-detail-title-row { position: relative; z-index: 1; padding: 20px; width: 100%; }
+.mods-detail-title-row h1 { margin: 0; font-size: 26px; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.7); }
+.mods-detail-subtitle { margin: 4px 0 0; color: rgba(255,255,255,.85); font-size: 13px; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+
+.mods-detail-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 16px; margin-bottom: 20px;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px;
+}
+.mods-action-btn {
+  padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  background: var(--bg-secondary-alt, var(--bg-secondary)); border: 1px solid var(--border); color: var(--text-normal);
+  transition: border-color .12s ease, background-color .12s ease;
+}
+.mods-action-btn:hover { border-color: var(--brand); }
+.mods-action-btn.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+.mods-action-btn-danger { color: var(--red); }
+.mods-action-btn-danger:hover { border-color: var(--red); }
+.mods-detail-stats { display: flex; gap: 14px; font-size: 12.5px; flex-wrap: wrap; margin-left: auto; }
+.mods-detail-install { width: 100%; margin-top: 4px; }
+.mods-install-error { color: var(--red); font-size: 12.5px; margin: 8px 0 0; }
+
+.mods-install-progress { max-width: 360px; }
+.mods-install-progress-label { font-size: 13px; margin-bottom: 6px; color: var(--text-normal); }
+.mods-install-progress-bar { height: 8px; border-radius: 4px; background: var(--bg-secondary-alt, var(--bg-secondary)); overflow: hidden; }
+.mods-install-progress-bar div { height: 100%; background: var(--brand); border-radius: 4px; transition: width .2s ease; }
+
+.mods-report-box { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.mods-report-box textarea { min-height: 70px; padding: 10px; border-radius: 8px; background: var(--bg-elevated); border: 1px solid var(--border); resize: vertical; }
+
+.mods-dependencies {
+  padding: 14px 16px; margin-bottom: 20px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px;
+}
+.mods-dependencies h3 { margin: 0 0 8px; font-size: 14px; color: var(--header-primary); }
+.mods-dependencies ul { margin: 0; padding-left: 20px; font-size: 13px; color: var(--text-normal); }
+
+.mods-detail-body { margin-bottom: 24px; }
+.mods-detail-description { color: var(--text-normal); line-height: 1.6; white-space: pre-wrap; }
+.mods-detail-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.mods-tag-chip { font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 20px; background: var(--bg-elevated); border: 1px solid var(--border); }
+
+.mods-detail-screenshots { margin-bottom: 24px; }
+.mods-detail-screenshots h3 { margin: 0 0 12px; font-size: 16px; color: var(--header-primary); }
+.mods-detail-screenshots-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.mods-detail-screenshot-thumb { display: block; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+.mods-detail-screenshot-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .12s ease; }
+.mods-detail-screenshot-thumb:hover img { transform: scale(1.04); }
+
+.mods-comments h3 { margin: 0 0 12px; font-size: 16px; color: var(--header-primary); }
+.mods-comment-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.mods-comment-form textarea { min-height: 60px; padding: 10px; border-radius: 8px; background: var(--bg-elevated); border: 1px solid var(--border); resize: vertical; align-self: flex-start; width: 100%; }
+.mods-comment-form .btn-primary { align-self: flex-end; }
+.mods-comment-list { display: flex; flex-direction: column; gap: 10px; }
+.mods-comment-item { padding: 12px 14px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; font-size: 13.5px; }
+.mods-comment-item p { margin: 4px 0 0; color: var(--text-normal); }
+
+@media (max-width: 700px) {
+  .mods-page { padding: 14px; }
+  .mods-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .mods-detail-title-row h1 { font-size: 20px; }
+  .mods-detail-stats { margin-left: 0; }
+}

@@ -311,6 +311,15 @@ model User {
   postCommentsAuthored    PostComment[]      @relation("PostCommentsAuthored")
   postCommentVotesGiven   PostCommentVote[]  @relation("PostCommentVotesGiven")
   // (bansIssued/warningsIssued removidos: moderatorId não é @relation — ver comentário nos modelos Ban/Warning)
+
+  // Sistema de Mods (Apps → Mods) — ver bloco de modelos ModX no final
+  // deste arquivo para o contexto completo de cada um.
+  modFavorites   ModFavorite[]
+  modUps         ModUp[]
+  modComments    ModComment[]
+  modReports     ModReport[]
+  modProfiles    ModProfile[]
+  modCollections ModCollection[]
 }
 
 model Badge {
@@ -2074,4 +2083,145 @@ model SecurityLog {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+// ========== Sistema de Mods (Apps → Mods) ==========
+// Item pedido: "Quero que você implemente um sistema completo de Mods
+// dentro do Project Club... Project Club → Apps → Mods." — usa o
+// mod.io (https://docs.mod.io/restapiref/) como fonte dos mods em si;
+// as tabelas abaixo armazenam SÓ o que é do Project Club (favoritos,
+// ups, comentários, denúncias, perfis, coleções) mais REFERÊNCIAS pro
+// mod.io (modioModId, modioGameId — sempre Int, o tipo de ID que a API
+// do mod.io usa) — NUNCA o arquivo físico do mod (.zip/.dll/.pak/...),
+// que continua vivendo só no mod.io e é baixado sob demanda pelo app
+// desktop (ver desktop/modsManager.js) pra uma pasta temporária,
+// instalado na pasta do jogo, e descartado depois — nunca sobe pro
+// banco nem fica hospedado nos nossos servidores.
+
+// Mapa de qual AppID da Steam corresponde a qual jogo no mod.io — o
+// mod.io não expõe um jeito de buscar "qual é o jogo com este AppID
+// da Steam" diretamente pela API pública, então mantemos esse mapa
+// nós mesmos (editável pela staff, sem precisar de deploy pra
+// cadastrar um jogo novo). Um AppID da Steam SEM entrada aqui (ou com
+// enabled=false) é tratado como "sem suporte a mods" — nunca inventa
+// suporte que não foi configurado (item pedido 5: "não mostrar
+// qualquer jogo como compatível automaticamente").
+model ModGameMapping {
+  id          String   @id @default(uuid())
+  steamAppId  Int      @unique
+  modioGameId Int      @unique
+  modioNameId String   // slug do jogo no mod.io (ex: "lethalcompany") — usado nos links pro site do mod.io
+  displayName String
+  iconUrl     String?
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ModFavorite {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  modioModId  Int
+  modioGameId Int
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, modioModId])
+  @@index([modioModId])
+}
+
+model ModUp {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  modioModId  Int
+  modioGameId Int
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, modioModId])
+  @@index([modioModId])
+}
+
+model ModComment {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  modioModId  Int
+  modioGameId Int
+  content     String    @db.Text
+  createdAt   DateTime  @default(now())
+  editedAt    DateTime?
+
+  @@index([modioModId, createdAt])
+}
+
+model ModReport {
+  id         String   @id @default(uuid())
+  reporterId String
+  reporter   User     @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  modioModId Int
+  reason     String   @db.Text
+  // PENDING | ACTIONED | DISMISSED — mesmo vocabulário de status já usado
+  // em Report/AutomodFlag, pro painel da staff reaproveitar o mesmo padrão
+  // de fila de moderação (ver adminController.js).
+  status     String   @default("PENDING")
+  createdAt  DateTime @default(now())
+
+  @@index([modioModId])
+  @@index([status])
+}
+
+// Perfis de mods (item pedido 15, inspirado no r2modmanPlus mas
+// implementação própria) — um perfil é um conjunto nomeado de mods
+// ativos/inativos pra um jogo específico. A ATIVAÇÃO de verdade (que
+// arquivo fica onde) acontece só localmente no app desktop; aqui só
+// fica o registro de QUAIS mods/versões pertencem a cada perfil, pra
+// sincronizar entre computadores da mesma conta.
+model ModProfile {
+  id          String           @id @default(uuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  modioGameId Int
+  name        String
+  items       ModProfileItem[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([userId, modioGameId, name])
+}
+
+model ModProfileItem {
+  id             String     @id @default(uuid())
+  profileId      String
+  profile        ModProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  modioModId     Int
+  modioModfileId Int? // qual "Modfile" (versão específica) do mod.io está instalada nesse perfil
+  version        String?
+  enabled        Boolean    @default(true)
+  installedAt    DateTime   @default(now())
+
+  @@unique([profileId, modioModId])
+}
+
+model ModCollection {
+  id          String              @id @default(uuid())
+  authorId    String
+  author      User                @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  modioGameId Int
+  name        String
+  description String?             @db.Text
+  imageUrl    String?
+  items       ModCollectionItem[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model ModCollectionItem {
+  id           String        @id @default(uuid())
+  collectionId String
+  collection   ModCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  modioModId   Int
+  order        Int           @default(0)
+
+  @@unique([collectionId, modioModId])
 }

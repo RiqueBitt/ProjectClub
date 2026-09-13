@@ -86,4 +86,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('projectmc:progress', (_event, data) => callback(data));
     },
   },
+  // Sistema de Mods (Apps → Mods) — ponte pra desktop/steamDetector.js
+  // (detecção 100% local da Steam, item pedido 30: "o servidor deve
+  // receber somente os dados necessários") e desktop/modsManager.js
+  // (download + instalação, item pedido 13: só o app desktop tem acesso
+  // de verdade às pastas do jogo, nunca o navegador).
+  mods: {
+    detectSteamGames: () => ipcRenderer.invoke('mods:detect-steam-games'),
+    selectGameFolder: () => ipcRenderer.invoke('mods:select-game-folder'),
+    install: (payload) => ipcRenderer.invoke('mods:install', payload),
+    uninstall: (payload) => ipcRenderer.invoke('mods:uninstall', payload),
+    listInstalled: (gameInstallPath) => ipcRenderer.invoke('mods:list-installed', gameInstallPath),
+    onProgress: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on('mods:progress', listener);
+      return () => ipcRenderer.removeListener('mods:progress', listener);
+    },
+  },
 });

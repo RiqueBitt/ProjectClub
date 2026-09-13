@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   isProjectMcAvailable, getProjectMcStatus, checkProjectMcUpdate,
   installProjectMc, launchProjectMc, uninstallProjectMc, onProjectMcProgress,
@@ -26,6 +27,7 @@ function currentPlatform() {
 // aba morta. Removidas as duas: agora é uma grade única com tudo que
 // a staff cadastrar no catálogo, sem divisão nenhuma.
 export default function JogosPage() {
+  const navigate = useNavigate();
   const [catalog, setCatalog] = useState(null); // null = carregando ainda
   // Item pedido: "clique no banner... abre outra aba... parecida com
   // a aba de downloads da Steam" — detailModuleId controla se estamos
@@ -71,6 +73,20 @@ export default function JogosPage() {
           <span className="jogos-page-header-count">{catalog.length} {catalog.length === 1 ? 'app disponível' : 'apps disponíveis'}</span>
         )}
       </div>
+
+      {/* Item pedido: "Project Club → Apps → Mods... não crie uma nova
+          categoria principal Jogos" — Mods é uma FERRAMENTA dentro de
+          Apps (não um item da barra lateral, não uma aba de catálogo
+          baixável como os cards abaixo), por isso vira um cartão
+          destacado próprio, separado da grade de apps/módulos. */}
+      <button type="button" className="jogos-page-mods-entry" onClick={() => navigate('/jogos/mods')}>
+        <span className="jogos-page-mods-entry-icon">🧰</span>
+        <span className="jogos-page-mods-entry-text">
+          <strong>Mods</strong>
+          <span className="dim">Descubra e gerencie mods dos seus jogos da Steam</span>
+        </span>
+        <span className="jogos-page-mods-entry-arrow">›</span>
+      </button>
 
       {catalog === null ? (
         // Item pedido: "melhore as partes vazias da tela" — enquanto

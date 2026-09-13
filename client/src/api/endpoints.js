@@ -538,3 +538,30 @@ export const adminAddAppScreenshot = (id, file) => {
 };
 export const adminDeleteAppScreenshot = (screenshotId) => api.delete(`/admin/app-catalog/screenshots/${screenshotId}`).then((r) => r.data);
 export const adminReorderAppScreenshots = (id, screenshotIds) => api.patch(`/admin/app-catalog/${id}/screenshots/reorder`, { screenshotIds }).then((r) => r.data);
+
+// ---------- Sistema de Mods (Apps → Mods) ----------
+// steamAppIds detectados localmente pelo app desktop (ver utils/mods.js) —
+// o servidor só recebe a lista de AppIDs, nunca lê disco/registro
+// diretamente (item pedido 30).
+export const matchSteamGames = (steamAppIds) => api.post('/mods/steam-match', { steamAppIds }).then((r) => r.data);
+export const getModioGame = (modioGameId) => api.get(`/mods/games/${modioGameId}`).then((r) => r.data);
+export const getModioGameTags = (modioGameId) => api.get(`/mods/games/${modioGameId}/tags`).then((r) => r.data);
+export const listMods = (modioGameId, params) => api.get(`/mods/games/${modioGameId}/mods`, { params }).then((r) => r.data);
+export const getMod = (modioGameId, modioModId) => api.get(`/mods/games/${modioGameId}/mods/${modioModId}`).then((r) => r.data);
+export const getModDownload = (modioGameId, modioModId) => api.post(`/mods/games/${modioGameId}/mods/${modioModId}/download`).then((r) => r.data);
+export const toggleModFavorite = (modioGameId, modioModId) => api.post(`/mods/games/${modioGameId}/mods/${modioModId}/favorite`).then((r) => r.data);
+export const toggleModUp = (modioGameId, modioModId) => api.post(`/mods/games/${modioGameId}/mods/${modioModId}/up`).then((r) => r.data);
+export const listModComments = (modioModId) => api.get(`/mods/mods/${modioModId}/comments`).then((r) => r.data);
+export const addModComment = (modioGameId, modioModId, content) => api.post(`/mods/games/${modioGameId}/mods/${modioModId}/comments`, { content }).then((r) => r.data);
+export const deleteModComment = (commentId) => api.delete(`/mods/comments/${commentId}`).then((r) => r.data);
+export const reportMod = (modioModId, reason) => api.post(`/mods/mods/${modioModId}/report`, { reason }).then((r) => r.data);
+
+// Admin — mapeamento de jogos (Steam AppID → jogo no mod.io) e moderação
+// de denúncias.
+export const adminListModGameMappings = () => api.get('/admin/mods/game-mappings').then((r) => r.data);
+export const adminCreateModGameMapping = (payload) => api.post('/admin/mods/game-mappings', payload).then((r) => r.data);
+export const adminUpdateModGameMapping = (id, payload) => api.patch(`/admin/mods/game-mappings/${id}`, payload).then((r) => r.data);
+export const adminDeleteModGameMapping = (id) => api.delete(`/admin/mods/game-mappings/${id}`).then((r) => r.data);
+export const adminListModReports = (status) => api.get('/admin/mods/reports', { params: { status } }).then((r) => r.data);
+export const adminResolveModReport = (id, status) => api.patch(`/admin/mods/reports/${id}`, { status }).then((r) => r.data);
+

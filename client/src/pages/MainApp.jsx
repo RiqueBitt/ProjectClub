@@ -63,6 +63,12 @@ const InicioPage = lazy(() => import('./InicioPage.jsx'));
 // Item pedido: "crie uma nova categoria chamada Jogos" — mesmo padrão
 // lazy() de todas as outras seções acima.
 const JogosPage = lazy(() => import('./JogosPage.jsx'));
+// Sistema de Mods (Apps → Mods) — rota própria em vez de mais uma aba
+// dentro de JogosPage: tem navegação interna própria (jogo → mods →
+// detalhe do mod), então vira uma página cheia só sua, só alcançável a
+// partir de um cartão dentro de Apps (nunca pela barra lateral — item
+// pedido 1: "não crie uma nova categoria principal Jogos").
+const ModsPage = lazy(() => import('./ModsPage.jsx'));
 
 // Interface com UMA barra lateral principal só (MainSidebar.jsx —
 // Chat/Amigos/Perfil/Notificações/Ranks/Busca/Suporte). A antiga dupla
@@ -340,6 +346,7 @@ export default function MainApp() {
                 <Route path="/inicio" element={<InicioPage />} />
                 {/* Item pedido: "crie uma nova categoria chamada Jogos" */}
                 <Route path="/jogos" element={<JogosPage />} />
+                <Route path="/jogos/mods" element={<ModsPage />} />
                 <Route path="/conversations/:conversationId" element={<ChatWindow kind="conversation" />} />
                 <Route path="/channels/:channelId" element={<ChatWindow kind="channel" />} />
               </Routes>

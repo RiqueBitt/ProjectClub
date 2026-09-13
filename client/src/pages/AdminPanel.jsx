@@ -50,6 +50,8 @@ import {
   adminUploadAppCatalogBanner, adminUploadAppCatalogIcon,
   adminAddAppScreenshot, adminDeleteAppScreenshot,
   adminListClans, adminGetClan, adminListClanMessages, adminUpdateClan, adminDeleteClan,
+  adminListModGameMappings, adminCreateModGameMapping, adminUpdateModGameMapping, adminDeleteModGameMapping,
+  adminListModReports, adminResolveModReport,
 } from '../api/endpoints';
 import HouseIcon from '../components/HouseIcon.jsx';
 import DraggableResizableBox from '../components/admin/DraggableResizableBox.jsx';
@@ -68,13 +70,14 @@ const TAB_LABEL = {
   roles: '🎭 Cargos', channels: '# Canais e Categorias', gifMove: '🎯 GIFa Move',
   emojis: '😀 Emojis', stickers: '🏷️ Figurinhas', clanIcons: '⚔️ Ícones de Clube', clubs: '🏛️ Clubes',
   achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', reload: '🔄 Reload', appCatalog: '🧩 Apps',
+  modGames: '🧰 Mods — Jogos', modReports: '🧰 Mods — Denúncias',
 };
 
 const TAB_GROUPS = [
   { label: 'Visão geral', icon: '📊', tabs: ['stats', 'inscricoes', 'users', 'badges'] },
   { label: 'Estrutura da comunidade', icon: '🏗️', tabs: ['roles', 'channels', 'gifMove', 'emojis', 'stickers', 'clanIcons', 'clubs', 'achievements'] },
-  { label: 'Conteúdo', icon: '🎨', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events', 'appCatalog'] },
-  { label: 'Moderação', icon: '🛡️', tabs: ['moderacao', 'automodDm', 'reports', 'logs', 'honeypot'] },
+  { label: 'Conteúdo', icon: '🎨', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events', 'appCatalog', 'modGames'] },
+  { label: 'Moderação', icon: '🛡️', tabs: ['moderacao', 'automodDm', 'reports', 'modReports', 'logs', 'honeypot'] },
   { label: 'Comunicação', icon: '📣', tabs: ['announcements'] },
   { label: 'Sistema', icon: '⚙️', tabs: ['sistema', 'maintenance', 'reload'] },
 ];
@@ -187,6 +190,8 @@ export default function AdminPanel() {
           {tab === 'reports' && <ReportsTab />}
           {tab === 'feeds' && <FeedsAdminTab />}
           {tab === 'appCatalog' && <AppCatalogTab />}
+          {tab === 'modGames' && <ModGamesAdminTab />}
+          {tab === 'modReports' && <ModReportsAdminTab />}
           {tab === 'roles' && <RolesAdminTab />}
           {tab === 'channels' && <ChannelsAdminTab />}
           {tab === 'gifMove' && <GifMoveAdminTab />}
@@ -3159,6 +3164,166 @@ function AutomodDmTab() {
             <button className="btn-link" disabled={busyId === viewing.flag.id} onClick={() => resolve(viewing.flag.id, 'DISMISSED')}>Ignorar</button>
           </div>
         </Modal>
+      )}
+    </div>
+  );
+}
+
+// Item pedido 5/6: mapeamento de qual AppID da Steam corresponde a qual
+// jogo no mod.io — sem uma entrada aqui, um jogo detectado localmente
+// nunca mostra suporte a mods pra ninguém (regra "não mostrar qualquer
+// jogo como compatível automaticamente"). Formulário simples de
+// cadastro (mesmo padrão de "criar, depois habilitar/desabilitar" já
+// usado em Badges/AppCatalog).
+function ModGamesAdminTab() {
+  const [mappings, setMappings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ steamAppId: '', modioGameId: '', modioNameId: '', displayName: '', iconUrl: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const refresh = () => {
+    setLoading(true);
+    adminListModGameMappings().then((d) => setMappings(d.mappings)).finally(() => setLoading(false));
+  };
+  useEffect(refresh, []);
+
+  const create = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!form.steamAppId || !form.modioGameId || !form.modioNameId.trim() || !form.displayName.trim()) {
+      setError('Preencha todos os campos obrigatórios.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await adminCreateModGameMapping(form);
+      setForm({ steamAppId: '', modioGameId: '', modioNameId: '', displayName: '', iconUrl: '' });
+      refresh();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erro ao criar mapeamento.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleEnabled = async (m) => {
+    await adminUpdateModGameMapping(m.id, { enabled: !m.enabled });
+    refresh();
+  };
+
+  const remove = async (m) => {
+    if (!confirm(`Remover o mapeamento de "${m.displayName}"? Ele deixa de aparecer em Mods pra todo mundo.`)) return;
+    await adminDeleteModGameMapping(m.id);
+    refresh();
+  };
+
+  return (
+    <div>
+      <h2>🧰 Mods — Jogos com suporte</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        Cada linha aqui diz "este AppID da Steam corresponde a este jogo no mod.io". Um jogo detectado na Steam de
+        alguém que NÃO estiver cadastrado aqui simplesmente não mostra suporte a mods pra essa pessoa — nunca inventa.
+        O ID do jogo no mod.io e o "name_id" (o slug usado nas URLs, tipo <code>lethalcompany</code>) ficam na página
+        do jogo no seu painel de desenvolvedor em mod.io.
+      </p>
+
+      <form className="admin-badge-form" onSubmit={create}>
+        <label>AppID da Steam<input type="number" value={form.steamAppId} onChange={(e) => setForm((f) => ({ ...f, steamAppId: e.target.value }))} placeholder="1966720" /></label>
+        <label>ID do jogo no mod.io<input type="number" value={form.modioGameId} onChange={(e) => setForm((f) => ({ ...f, modioGameId: e.target.value }))} placeholder="ex: 3213" /></label>
+        <label>Slug do jogo no mod.io (name_id)<input value={form.modioNameId} onChange={(e) => setForm((f) => ({ ...f, modioNameId: e.target.value }))} placeholder="lethalcompany" /></label>
+        <label>Nome exibido<input value={form.displayName} onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))} placeholder="Lethal Company" /></label>
+        <label>URL do ícone (opcional)<input value={form.iconUrl} onChange={(e) => setForm((f) => ({ ...f, iconUrl: e.target.value }))} placeholder="https://..." /></label>
+        {error && <p style={{ color: 'var(--red)', fontSize: 13 }}>{error}</p>}
+        <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Salvando...' : 'Cadastrar jogo'}</button>
+      </form>
+
+      {loading ? <p className="dim">Carregando...</p> : mappings.length === 0 ? (
+        <p className="dim">Nenhum jogo cadastrado ainda.</p>
+      ) : (
+        <table className="admin-table" style={{ marginTop: 20 }}>
+          <thead><tr><th>Jogo</th><th>AppID Steam</th><th>ID mod.io</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {mappings.map((m) => (
+              <tr key={m.id}>
+                <td>{m.displayName}</td>
+                <td>{m.steamAppId}</td>
+                <td>{m.modioGameId} ({m.modioNameId})</td>
+                <td>{m.enabled ? '✅ Ativo' : '⛔ Desativado'}</td>
+                <td className="admin-table-actions">
+                  <button className="btn-link" onClick={() => toggleEnabled(m)}>{m.enabled ? 'Desativar' : 'Ativar'}</button>
+                  <button className="btn-link" style={{ color: 'var(--red)' }} onClick={() => remove(m)}>Remover</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// Item pedido 24: fila de denúncias de mods — mesmo padrão visual já
+// usado em ReportsTab/AutomodDmTab (filtro por status, resolver com
+// ação tomada ou ignorar).
+function ModReportsAdminTab() {
+  const [reports, setReports] = useState([]);
+  const [filter, setFilter] = useState('PENDING');
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+
+  const refresh = () => {
+    setLoading(true);
+    adminListModReports(filter === 'ALL' ? undefined : filter).then((d) => setReports(d.reports)).finally(() => setLoading(false));
+  };
+  useEffect(refresh, [filter]);
+
+  const resolve = async (id, status) => {
+    setBusyId(id);
+    try { await adminResolveModReport(id, status); refresh(); } finally { setBusyId(null); }
+  };
+
+  return (
+    <div>
+      <h2>🧰 Mods — Denúncias</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        Denúncias enviadas pelos usuários sobre mods específicos (conteúdo impróprio, malware suspeito, etc). Isso não
+        remove o mod do mod.io — só ajuda a equipe a acompanhar problemas relatados.
+      </p>
+      <div className="theme-options" style={{ marginBottom: 12 }}>
+        {['PENDING', 'ACTIONED', 'DISMISSED', 'ALL'].map((f) => (
+          <button key={f} className={`theme-swatch ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>
+            {f === 'PENDING' ? 'Pendentes' : f === 'ACTIONED' ? 'Com ação' : f === 'DISMISSED' ? 'Ignoradas' : 'Todas'}
+          </button>
+        ))}
+      </div>
+      {loading ? <p className="dim">Carregando...</p> : reports.length === 0 ? (
+        <p className="dim">Nenhuma denúncia aqui.</p>
+      ) : (
+        <div className="ticket-list">
+          {reports.map((r) => (
+            <div key={r.id} className="settings-block">
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontWeight: 700 }}>Mod #{r.modioModId}</div>
+                  <div className="dim" style={{ fontSize: 12 }}>
+                    Denunciado por {r.reporter?.displayName} <span className="dim">@{r.reporter?.username}</span> · {new Date(r.createdAt).toLocaleString('pt-BR')}
+                  </div>
+                </div>
+                <span className={`ticket-status-chip ${r.status === 'PENDING' ? 'open' : 'closed'}`}>
+                  {r.status === 'PENDING' ? 'Pendente' : r.status === 'ACTIONED' ? 'Com ação' : 'Ignorada'}
+                </span>
+              </div>
+              <p style={{ marginTop: 8, fontSize: 13 }}>{r.reason}</p>
+              {r.status === 'PENDING' && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <button className="btn-danger" disabled={busyId === r.id} onClick={() => resolve(r.id, 'ACTIONED')}>Marcar como "ação tomada"</button>
+                  <button className="btn-link" disabled={busyId === r.id} onClick={() => resolve(r.id, 'DISMISSED')}>Ignorar</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

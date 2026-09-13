@@ -90,4 +90,17 @@ module.exports = {
   // every server start (see services/adminBootstrap.js). Leave unset to
   // manage admins entirely by hand.
   PLATFORM_ADMIN_EMAIL: process.env.PLATFORM_ADMIN_EMAIL || '',
+
+  // Sistema de Mods (Apps → Mods, ver services/modioService.js) — chave de
+  // API "read-only" do mod.io (docs.mod.io/restapiref/#authentication,
+  // seção "Use an API key for Read-only access"). Sem essa variável, as
+  // rotas /api/mods/* respondem 503 (o resto da plataforma continua
+  // funcionando normalmente — nada mais depende disso). Gerada no painel
+  // de desenvolvedor do seu jogo em https://mod.io/ (crie um "game
+  // profile" — não precisa ser um jogo de verdade seu, é só o container
+  // que a mod.io usa pra organizar quais outros jogos/mods você consulta).
+  MODIO_API_KEY: process.env.MODIO_API_KEY || '',
+  // Path base da API — só precisa mudar se a mod.io te atribuir uma URL
+  // dedicada diferente da pública (ver "API path" na doc oficial).
+  MODIO_API_BASE: process.env.MODIO_API_BASE || 'https://api.mod.io/v1',
 };
