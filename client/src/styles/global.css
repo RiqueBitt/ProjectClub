@@ -2637,6 +2637,22 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
   position: fixed; top: calc(var(--top-search-bar-height, 52px) + env(safe-area-inset-top, 0px) + 10px); left: var(--main-sidebar-width, 220px); right: 0; bottom: 0;
   padding: 0; background: none; z-index: 250; display: block;
 }
+/* BUG CORRIGIDO ("o perfil grande está ultrapassando e ficando por
+   cima da barra superior"): position: fixed é sempre relativo à
+   JANELA inteira, não ao .app-shell — mas no app desktop (Electron)
+   existe uma segunda barra ACIMA de .app-shell (.app-title-bar, 32px,
+   a barra customizada de fechar/minimizar/maximizar — ver
+   TitleBar.jsx), que empurra .app-shell (e a .top-search-bar dentro
+   dele) 32px pra baixo através do fluxo normal do documento — algo
+   que position: fixed simplesmente não enxerga. O cálculo de "top"
+   acima já reservava a altura da barra de busca, mas nunca contava
+   com esses 32px extras só no Electron, então o perfil sempre
+   começava 32px mais cedo do que devia, cobrindo a parte de baixo da
+   barra de busca (que já estava deslocada pra baixo por causa da
+   barra de título). */
+html.is-electron-app .profile-fullscreen-overlay {
+  top: calc(32px + var(--top-search-bar-height, 52px) + env(safe-area-inset-top, 0px) + 10px);
+}
 /* BUG CORRIGIDO ("perfil completo não mostra na tela, botões vários
    fora da tela, nem consegue contar"): em mobile a barra de categorias
    vira uma GAVETA ESCONDIDA (transform: translateX(-100%), ver
@@ -6857,14 +6873,17 @@ a.embed-card-title:hover { text-decoration: underline; }
 .app-routes-container { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .app-title-bar {
   display: flex; align-items: stretch; height: 32px; flex-shrink: 0;
-  /* Item pedido: "quero que ele use a cor do tema que o usuário está
-     usando, só que em um tom diferente pra dar de distinguir" — mistura
-     a cor de marca do tema atual (--brand, já muda sozinha por tema —
-     ver as várias definições de --brand nas seções de tema no topo
-     deste arquivo) com um preto, escurecendo — dá pra reconhecer que é
-     "a cor do tema", mas escura o bastante pra não competir com botões
-     e links de verdade que usam --brand no tom normal. */
-  background: color-mix(in srgb, var(--brand) 28%, #0b0b0d);
+  /* BUG CORRIGIDO ("tom/coloração inadequada — deve seguir
+     automaticamente o tema"): a mistura sempre usava preto fixo
+     (#0b0b0d) como base — em qualquer um dos 3 temas claros (Muito
+     Claro, Cartoon, Claro — --bg-primary branco neles), a barra
+     continuava escura, destoando do resto da interface, que é clara.
+     Trocado o preto fixo por --bg-secondary, que já se adapta
+     corretamente em TODOS os temas (escuro nos temas escuros, claro
+     nos temas claros) — a mistura com --brand continua garantindo que
+     dá pra reconhecer "a cor do tema", só que agora com o tom de base
+     certo pra cada tema, em vez de sempre escuro. */
+  background: color-mix(in srgb, var(--brand) 28%, var(--bg-secondary));
   color: var(--text-normal, #dbdee1);
   -webkit-app-region: drag; user-select: none;
 }
@@ -6875,5 +6894,9 @@ a.embed-card-title:hover { text-decoration: underline; }
   width: 46px; height: 32px; color: inherit; background: transparent; border: 0;
   transition: background-color .12s ease;
 }
-.app-title-bar-btn:hover { background: rgba(255, 255, 255, 0.12); }
+/* Mesmo motivo acima: rgba(255,255,255,...) fixo mal aparecia (quase
+   invisível) num fundo já claro — --bg-modifier-hover já é a variável
+   certa pra isso em qualquer tema (escuro translúcido nos temas
+   claros, claro translúcido nos temas escuros). */
+.app-title-bar-btn:hover { background: var(--bg-modifier-hover); }
 .app-title-bar-btn--close:hover { background: #e81123; color: #fff; }
