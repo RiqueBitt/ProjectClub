@@ -71,27 +71,36 @@ const TAB_LABEL = {
 };
 
 const TAB_GROUPS = [
-  { label: 'Visão geral', tabs: ['stats', 'inscricoes', 'users', 'badges'] },
-  { label: 'Estrutura da comunidade', tabs: ['roles', 'channels', 'gifMove', 'emojis', 'stickers', 'clanIcons', 'clubs', 'achievements'] },
-  { label: 'Conteúdo', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events', 'appCatalog'] },
-  { label: 'Moderação', tabs: ['moderacao', 'automodDm', 'reports', 'logs', 'honeypot'] },
-  { label: 'Comunicação', tabs: ['announcements'] },
-  { label: 'Sistema', tabs: ['sistema', 'maintenance', 'reload'] },
+  { label: 'Visão geral', icon: '📊', tabs: ['stats', 'inscricoes', 'users', 'badges'] },
+  { label: 'Estrutura da comunidade', icon: '🏗️', tabs: ['roles', 'channels', 'gifMove', 'emojis', 'stickers', 'clanIcons', 'clubs', 'achievements'] },
+  { label: 'Conteúdo', icon: '🎨', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events', 'appCatalog'] },
+  { label: 'Moderação', icon: '🛡️', tabs: ['moderacao', 'automodDm', 'reports', 'logs', 'honeypot'] },
+  { label: 'Comunicação', icon: '📣', tabs: ['announcements'] },
+  { label: 'Sistema', icon: '⚙️', tabs: ['sistema', 'maintenance', 'reload'] },
 ];
 
+// Painel da staff — layout do zero (item pedido: "apague o layout antigo
+// e faça um novo muito melhor e mais organizado", sem rolagem lateral em
+// lugar nenhum, só pra baixo). Categorias agora têm ícone próprio e
+// ficam em cartões separados; no mobile a navegação vira um painel que
+// abre/fecha empilhado ACIMA do conteúdo (nunca lado a lado), e fecha
+// sozinho assim que uma ferramenta é escolhida.
 export default function AdminPanel() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState('stats');
-  // Reformulação do painel (item pedido: "melhorando organização, menus,
-  // navegação... facilidade de gerenciamento") — com quase 20 ferramentas
-  // diferentes, achar a certa rolando uma lista comprida era o principal
-  // ponto de atrito. Busca filtra por nome na hora; grupos recolhem
-  // sozinhos (exceto o que tem a aba ativa) pra sobrar mais espaço de
-  // tela pra quem já sabe onde quer ir.
   const [navQuery, setNavQuery] = useState('');
-  const [collapsedGroups, setCollapsedGroups] = useState({});
+  // Só o grupo da aba ativa começa aberto — com ~20 ferramentas ao todo,
+  // uma lista inteira expandida de cara vira poluição visual; assim a
+  // pessoa vê as categorias primeiro e abre só a que interessa.
+  const [collapsedGroups, setCollapsedGroups] = useState(() => {
+    const initial = {};
+    TAB_GROUPS.forEach((g) => { if (!g.tabs.includes('stats')) initial[g.label] = true; });
+    return initial;
+  });
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const toggleGroup = (label) => setCollapsedGroups((s) => ({ ...s, [label]: !s[label] }));
+  const selectTab = (t) => { setTab(t); setMobileNavOpen(false); };
 
   const normalizedQuery = navQuery.trim().toLowerCase();
   const visibleGroups = TAB_GROUPS
@@ -101,7 +110,7 @@ export default function AdminPanel() {
     }))
     .filter((group) => group.tabs.length > 0);
 
-  const currentGroupLabel = TAB_GROUPS.find((g) => g.tabs.includes(tab))?.label;
+  const currentGroup = TAB_GROUPS.find((g) => g.tabs.includes(tab));
 
   if (user.platformRole !== 'ADMIN') {
     return <div className="admin-panel"><div className="dim" style={{ padding: 24 }}>Acesso restrito a administradores da plataforma.</div></div>;
@@ -113,41 +122,54 @@ export default function AdminPanel() {
         <h1><IconGlyph src={staffIcon} size={22} /> Painel da Equipe</h1>
         <p className="dim">Ferramentas administrativas da plataforma — visíveis só para a equipe.</p>
       </div>
+
+      <button type="button" className="admin-mobile-nav-toggle" onClick={() => setMobileNavOpen((v) => !v)}>
+        <span>{currentGroup?.icon || '🧭'} {TAB_LABEL[tab]}</span>
+        <span className="admin-mobile-nav-toggle-chevron">{mobileNavOpen ? '▴ fechar' : '▾ trocar ferramenta'}</span>
+      </button>
+
       <div className="admin-panel-body">
-        <nav className="admin-nav">
+        <nav className={`admin-nav ${mobileNavOpen ? 'admin-nav-open' : ''}`}>
           <input
             className="admin-nav-search"
-            placeholder="Buscar ferramenta..."
+            placeholder="🔎 Buscar ferramenta..."
             value={navQuery}
             onChange={(e) => setNavQuery(e.target.value)}
           />
-          <div className="admin-nav-group">
-            <div className="admin-nav-group-label">Ferramentas</div>
-            <button className="admin-nav-item" onClick={() => navigate('/admin/interface-editor')}>🎨 Editor de Interface</button>
-          </div>
+          <button type="button" className="admin-nav-pinned" onClick={() => { setMobileNavOpen(false); navigate('/admin/interface-editor'); }}>
+            <span className="admin-nav-pinned-icon">🎨</span>
+            <span>Editor de Interface</span>
+          </button>
           {visibleGroups.map((group) => {
-            const isCollapsed = !normalizedQuery && collapsedGroups[group.label] && group.label !== currentGroupLabel;
+            const isCollapsed = !normalizedQuery && collapsedGroups[group.label] && group.label !== currentGroup?.label;
             return (
               <div key={group.label} className="admin-nav-group">
-                <button type="button" className="admin-nav-group-label admin-nav-group-toggle" onClick={() => toggleGroup(group.label)}>
-                  <span>{group.label}</span>
+                <button type="button" className="admin-nav-group-toggle" onClick={() => toggleGroup(group.label)}>
+                  <span className="admin-nav-group-title">
+                    <span className="admin-nav-group-icon">{group.icon}</span>
+                    {group.label}
+                  </span>
                   <span className="admin-nav-group-chevron">{isCollapsed ? '▸' : '▾'}</span>
                 </button>
-                {!isCollapsed && group.tabs.map((t) => (
-                  <button key={t} className={`admin-nav-item ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-                    {TAB_LABEL[t]}
-                  </button>
-                ))}
+                {!isCollapsed && (
+                  <div className="admin-nav-group-items">
+                    {group.tabs.map((t) => (
+                      <button key={t} className={`admin-nav-item ${tab === t ? 'active' : ''}`} onClick={() => selectTab(t)}>
+                        {TAB_LABEL[t]}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
           {normalizedQuery && visibleGroups.length === 0 && (
-            <p className="dim admin-nav-empty">Nenhuma ferramenta encontrada.</p>
+            <p className="dim admin-nav-empty">Nenhuma ferramenta encontrada para "{navQuery}".</p>
           )}
         </nav>
         <div className="admin-content">
-          {currentGroupLabel && (
-            <div className="admin-content-breadcrumb dim">{currentGroupLabel} <span>›</span> {TAB_LABEL[tab]}</div>
+          {currentGroup && (
+            <div className="admin-content-breadcrumb dim">{currentGroup.icon} {currentGroup.label} <span>›</span> {TAB_LABEL[tab]}</div>
           )}
           {tab === 'stats' && <StatsTab />}
           {tab === 'inscricoes' && <ApplicationsTab />}
