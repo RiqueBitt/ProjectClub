@@ -57,6 +57,44 @@ httpServer.listen(env.PORT, () => {
   console.log(dim(bottom));
 });
 
+// Item pedido: "encontre uma solução para manter a sessão do usuário
+// ativa mesmo após atualizações... toda vez que o sistema é
+// atualizado, todos acabam sendo desconectados" — causa raiz real:
+// sem nenhum tratamento de SIGTERM, o processo Node morria na hora
+// exata em que o deploy mata a versão antiga pra subir a nova
+// (comportamento padrão do Node pra SIGTERM sem handler nenhum) — se
+// alguém tivesse uma requisição em andamento nesse instante (o caso
+// mais grave: POST /api/auth/refresh, que já roda a atualização no
+// banco ANTES de mandar a resposta — ver authController.refresh),
+// essa requisição era cortada NO MEIO: o token antigo já tinha sido
+// marcado como revogado no banco, mas a resposta com o cookie novo
+// nunca chegava a sair — a pessoa ficava com um cookie "morto" sem
+// nunca ter recebido o substituto, e o próximo carregamento da
+// página caía direto na tela de login.
+//
+// httpServer.close() já faz exatamente o que precisa nativamente:
+// para de aceitar conexões NOVAS, mas deixa as que já estão em
+// andamento terminarem normalmente — só espera até 15s (tempo de
+// sobra pra qualquer requisição real terminar) antes de forçar a
+// saída, pra nunca travar o deploy indefinidamente se alguma conexão
+// ficar presa por outro motivo.
+function gracefulShutdown(signal) {
+  console.log(dim(`\n[${signal}] recebido — fechando conexões em andamento antes de sair...`));
+  const forceExitTimer = setTimeout(() => {
+    console.error('\x1b[31m[shutdown]\x1b[0m tempo limite atingido — saindo à força.');
+    process.exit(1);
+  }, 15000);
+  forceExitTimer.unref();
+  io.close(); // fecha os sockets também, senão eles podem segurar o servidor aberto indefinidamente
+  httpServer.close(() => {
+    clearTimeout(forceExitTimer);
+    console.log(dim('[shutdown] todas as conexões em andamento terminaram — saindo.'));
+    process.exit(0);
+  });
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
 // Fire-and-forget: doesn't block the server from accepting connections, and
 // PLATFORM_ADMIN_EMAIL is unset by default so this is a no-op for most deploys.
 bootstrapPlatformAdmin().catch((err) => {

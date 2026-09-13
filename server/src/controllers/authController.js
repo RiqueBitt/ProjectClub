@@ -348,10 +348,26 @@ async function refresh(req, res, next) {
     // ou o efeito de montagem duplicado do React em desenvolvimento) —
     // ambas chegam ao servidor antes do navegador processar o novo cookie
     // da primeira resposta. Por isso, um reuso dentro de uma margem curta
-    // (10s) apenas emite uma sessão nova pro mesmo usuário, sem derrubar
+    // apenas emite uma sessão nova pro mesmo usuário, sem derrubar
     // nada; só um reuso REALMENTE tardio (token replay de verdade) aciona
     // a resposta nuclear de derrubar todas as sessões da conta.
-    const GRACE_MS = 10 * 1000;
+    //
+    // Item pedido: "manter a sessão do usuário ativa mesmo após
+    // atualizações... toda vez que o sistema é atualizado, todos
+    // acabam sendo desconectados" — aumentado de 10s pra 5 minutos
+    // como rede de segurança complementar ao graceful shutdown (ver
+    // index.js): o shutdown gracioso já evita cortar essa requisição
+    // no meio na maioria dos casos, mas se mesmo assim a resposta com
+    // o cookie novo não chegar até o cliente por qualquer outro motivo
+    // (rede instável no momento exato, aba fechada no meio, etc.), essa
+    // janela maior ainda deixa o token antigo (já revogado) funcionar
+    // como se fosse válido, restaurando a sessão automaticamente em
+    // vez de forçar login manual. 5 minutos é bem mais que suficiente
+    // pra cobrir isso sem abrir uma janela real de risco de segurança
+    // — ela só vale pra um token que JÁ foi emitido e usado uma vez
+    // por essa mesma conta, nunca pra um token desconhecido/roubado do
+    // zero.
+    const GRACE_MS = 5 * 60 * 1000;
     if (stored?.revoked) {
       const withinGrace = stored.revokedAt && (Date.now() - stored.revokedAt.getTime()) < GRACE_MS;
       if (withinGrace) {
