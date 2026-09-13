@@ -746,35 +746,35 @@ html.is-electron-app .app-shell { height: calc(100dvh - 32px); }
    larga demais e a tela "suja". showDiscordChannelSidebar já é falso
    fora da área de Comunidade (ver MainApp.jsx), então isso desfaz
    sozinho ao trocar de seção. */
-.app-shell.discord-layout-active,
+.app-shell.discord-icons-mode,
 .main-sidebar-manually-collapsed { --main-sidebar-width: 64px; }
-.app-shell.discord-layout-active .main-sidebar-scroll,
+.app-shell.discord-icons-mode .main-sidebar-scroll,
 .main-sidebar-manually-collapsed .main-sidebar-scroll { padding: 10px 6px; gap: 4px; }
-.app-shell.discord-layout-active .main-sidebar-brand,
+.app-shell.discord-icons-mode .main-sidebar-brand,
 .main-sidebar-manually-collapsed .main-sidebar-brand { justify-content: center; padding: 0; }
-.app-shell.discord-layout-active .main-sidebar-brand-name,
+.app-shell.discord-icons-mode .main-sidebar-brand-name,
 .main-sidebar-manually-collapsed .main-sidebar-brand-name { display: none; }
-.app-shell.discord-layout-active .main-sidebar-item,
+.app-shell.discord-icons-mode .main-sidebar-item,
 .main-sidebar-manually-collapsed .main-sidebar-item { justify-content: center; padding: 10px; }
-.app-shell.discord-layout-active .main-sidebar-item-label,
+.app-shell.discord-icons-mode .main-sidebar-item-label,
 .main-sidebar-manually-collapsed .main-sidebar-item-label { display: none; }
-.app-shell.discord-layout-active .main-sidebar-section-label,
-.app-shell.discord-layout-active .main-sidebar-community-name,
-.app-shell.discord-layout-active .main-sidebar-community-empty,
-.app-shell.discord-layout-active .main-sidebar-community-loading,
+.app-shell.discord-icons-mode .main-sidebar-section-label,
+.app-shell.discord-icons-mode .main-sidebar-community-name,
+.app-shell.discord-icons-mode .main-sidebar-community-empty,
+.app-shell.discord-icons-mode .main-sidebar-community-loading,
 .main-sidebar-manually-collapsed .main-sidebar-section-label,
 .main-sidebar-manually-collapsed .main-sidebar-community-name,
 .main-sidebar-manually-collapsed .main-sidebar-community-empty,
 .main-sidebar-manually-collapsed .main-sidebar-community-loading { display: none; }
-.app-shell.discord-layout-active .main-sidebar-community-item,
+.app-shell.discord-icons-mode .main-sidebar-community-item,
 .main-sidebar-manually-collapsed .main-sidebar-community-item { justify-content: center; padding: 8px; }
-.app-shell.discord-layout-active .main-sidebar-footer,
+.app-shell.discord-icons-mode .main-sidebar-footer,
 .main-sidebar-manually-collapsed .main-sidebar-footer { padding: 8px 6px; }
-.app-shell.discord-layout-active .main-sidebar-profile-banner,
+.app-shell.discord-icons-mode .main-sidebar-profile-banner,
 .main-sidebar-manually-collapsed .main-sidebar-profile-banner { display: none; }
-.app-shell.discord-layout-active .main-sidebar-profile-main,
+.app-shell.discord-icons-mode .main-sidebar-profile-main,
 .main-sidebar-manually-collapsed .main-sidebar-profile-main { justify-content: center; padding: 6px; }
-.app-shell.discord-layout-active .main-sidebar-profile-text,
+.app-shell.discord-icons-mode .main-sidebar-profile-text,
 .main-sidebar-manually-collapsed .main-sidebar-profile-text { display: none; }
 /* Item pedido: "deixa a pessoa abrir e fechar o menu" — botão fixo no
    topo da barra, sempre visível (ícone-só ou expandida), que alterna o

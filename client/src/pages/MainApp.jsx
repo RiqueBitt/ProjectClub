@@ -271,7 +271,7 @@ export default function MainApp() {
 
   return (
     <div
-      className={`app-shell ${mobileMembersOpen ? 'mobile-members-open' : ''} ${mobileSidebarOpen ? 'mobile-sidebar-open' : ''} ${showDiscordChannelSidebar ? 'discord-layout-active' : ''} ${hasChannelOpen ? 'discord-layout-has-channel' : ''} ${mobileChannelListOpen ? 'discord-mobile-channel-list-open' : ''}`}
+      className={`app-shell ${mobileMembersOpen ? 'mobile-members-open' : ''} ${mobileSidebarOpen ? 'mobile-sidebar-open' : ''} ${showDiscordChannelSidebar ? 'discord-layout-active' : ''} ${layoutStyle === 'discord' ? 'discord-icons-mode' : ''} ${hasChannelOpen ? 'discord-layout-has-channel' : ''} ${mobileChannelListOpen ? 'discord-mobile-channel-list-open' : ''}`}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >

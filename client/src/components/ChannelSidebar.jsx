@@ -356,6 +356,22 @@ function ChannelGroup({
             >
               <NavLink
                 to={`/channels/${ch.id}`}
+                // BUG CORRIGIDO ("quando troco de canal a página
+                // atualiza inteira"): o container pai (linha acima)
+                // tem draggable={canManage} pra reordenação de canais
+                // — mas <a> (o que NavLink renderiza) já é arrastável
+                // NATIVAMENTE por padrão no navegador, independente
+                // desse atributo. Isso criava um conflito entre o
+                // drag nativo do link e o drag customizado do React:
+                // ao soltar o link (mesmo num simples clique com um
+                // micro-movimento do mouse, comum na prática), o
+                // navegador podia tratar isso como "largar um link
+                // arrastado" e navegar pra ele de verdade — carregando
+                // a página inteira do zero, sem passar pelo React
+                // Router. draggable={false} desliga só o drag nativo
+                // do link em si; a reordenação (que usa o container
+                // pai, não este elemento) continua funcionando igual.
+                draggable={false}
                 // Item pedido (ajuste do pedido anterior): voltou a só
                 // NAVEGAR pro canal, sem entrar na chamada
                 // automaticamente — em vez disso, a própria tela do
