@@ -125,9 +125,15 @@ const MODULES = {
     description: 'Editor de imagem do Project Club',
     folder: 'PhotoProject',
     manifestUrl: 'https://api.github.com/repos/RiqueBitt/PhotoProject_releases-/releases',
-    packageType: 'archive',
-    assetExt: { win32: '.zip', linux: '.tar.gz' },
-    exeName: { win32: 'PhotoProject.exe', linux: 'photoproject.sh' },
+    // Item pedido: "adicione suporte para gerar uma versão .AppImage
+    // de cada projeto... mantenha as versões atuais para Windows
+    // funcionando normalmente" — Windows continua 'archive' (o .exe
+    // vem dentro de um .zip com DLLs); Linux passa de 'archive'
+    // (.tar.gz + script launcher) pra 'single-file' (.AppImage,
+    // autocontido, sem nada pra extrair nem script auxiliar).
+    packageType: { win32: 'archive', linux: 'single-file' },
+    assetExt: { win32: '.zip' },
+    exeName: { win32: 'PhotoProject.exe', linux: 'PhotoProject.AppImage' },
   },
   // Item pedido: "crie o HyProject para o novo app, um launcher do
   // jogo Hytale" — igual ao ProjectMC (.exe/.AppImage portátil de um
@@ -149,9 +155,10 @@ const MODULES = {
     description: 'Editor de vídeo do Project Club',
     folder: 'DaVinciProject',
     manifestUrl: 'https://api.github.com/repos/RiqueBitt/DaVinci-Project-releases/releases',
-    packageType: 'archive',
-    assetExt: { win32: '.zip', linux: '.tar.gz' },
-    exeName: { win32: 'DaVinciProject.exe', linux: 'DaVinciProject' },
+    // Mesmo motivo do PhotoProject acima.
+    packageType: { win32: 'archive', linux: 'single-file' },
+    assetExt: { win32: '.zip' },
+    exeName: { win32: 'DaVinciProject.exe', linux: 'DaVinciProject.AppImage' },
   },
 };
 
@@ -290,13 +297,25 @@ function isSemverTag(tagName) {
   return /^v?\d+\.\d+\.\d+$/i.test(tagName || '');
 }
 
+// Item pedido: "adicione suporte para gerar uma versão .AppImage...
+// mantenha as versões atuais para Windows funcionando normalmente" —
+// packageType agora pode ser diferente por plataforma (Windows
+// continua precisando de 'archive', já que o .exe vem dentro de um
+// .zip junto com DLLs; Linux passa a ser 'single-file', já que um
+// .AppImage já é autocontido, sem nada pra extrair) — mantém
+// compatibilidade com módulos que só usam uma string simples
+// (ProjectMC/HyProject, iguais nas duas plataformas).
+function getPackageType(mod) {
+  return typeof mod.packageType === 'string' ? mod.packageType : mod.packageType[process.platform];
+}
+
 // Escolhe o asset certo pra plataforma atual — agora um arquivo único
 // (.exe no Windows, .AppImage no Linux), não mais um .zip pra extrair.
 function pickAssetForPlatform(assets, mod) {
   // Item pedido: PhotoProject usa packageType 'archive' — o asset
   // publicado é um .zip/.tar.gz (assetExt), não o mesmo arquivo do
   // executável final (exeName), que só existe DEPOIS de extrair.
-  const ext = mod.packageType === 'archive'
+  const ext = getPackageType(mod) === 'archive'
     ? mod.assetExt[process.platform]
     : path.extname(getExeName(mod).toLowerCase()); // '.exe' ou '.appimage'
   if (!ext) throw new Error(`${mod.displayName} não tem um pacote disponível para esta plataforma (${process.platform}).`);
@@ -361,7 +380,7 @@ async function installOrUpdate(id, onProgress) {
   const dir = moduleDir(id);
   fs.mkdirSync(dir, { recursive: true });
 
-  if (mod.packageType === 'archive') {
+  if (getPackageType(mod) === 'archive') {
     await installArchivePackage(mod, id, dir, data, version, onProgress);
   } else {
     await installSingleFilePackage(mod, dir, data, version);
