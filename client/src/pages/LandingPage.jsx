@@ -81,7 +81,7 @@ export default function LandingPage() {
             Um jeito mais <span className="landing-grad">conectado</span><br />de fazer parte de algo
           </h1>
           <p className="landing-sub">
-            Chat em tempo real, canais de voz, Feeds com Clubes e categorias, conquistas, economia e muito mais —
+            Chat em tempo real, canais de voz, Feeds com Temas e categorias, conquistas, economia e muito mais —
             tudo numa comunidade só, sem enrolação.
           </p>
           <div className="landing-cta-row">
@@ -145,7 +145,7 @@ export default function LandingPage() {
                   <div className="landing-window-card"><div className="landing-window-thumb" /><div className="landing-window-card-name">Discussão</div><div className="landing-window-card-meta">Categoria de Feed</div></div>
                   <div className="landing-window-card"><div className="landing-window-thumb" /><div className="landing-window-card-name">Veterano</div><div className="landing-window-card-meta">Conquista · Rara</div></div>
                   <div className="landing-window-card"><div className="landing-window-thumb" /><div className="landing-window-card-name">Ranks</div><div className="landing-window-card-meta">Nível de conta</div></div>
-                  <div className="landing-window-card"><div className="landing-window-thumb" /><div className="landing-window-card-name">Clubes</div><div className="landing-window-card-meta">Organização de posts</div></div>
+                  <div className="landing-window-card"><div className="landing-window-thumb" /><div className="landing-window-card-name">Temas</div><div className="landing-window-card-meta">Organização de posts</div></div>
                 </div>
                 <div className="landing-window-online">
                   <span className="landing-online-dot" /> 3 pessoas online agora
@@ -178,8 +178,8 @@ export default function LandingPage() {
             <div className="landing-step-line" aria-hidden="true" />
             <div className="landing-step landing-reveal">
               <div className="landing-step-num landing-pixel">02</div>
-              <h3>Explore os Clubes</h3>
-              <p>Entre nos canais de chat e voz, e navegue pelos Clubes e categorias do Feed.</p>
+              <h3>Explore os Temas</h3>
+              <p>Entre nos canais de chat e voz, e navegue pelos Temas e categorias do Feed.</p>
             </div>
             <div className="landing-step-line" aria-hidden="true" />
             <div className="landing-step landing-reveal">
@@ -198,7 +198,7 @@ export default function LandingPage() {
           </div>
           <div className="landing-feat-grid">
             <div className="landing-feat landing-reveal"><div className="landing-feat-icon">◆</div><h3>Chat e canais de voz</h3><p>Conversa em tempo real por texto ou voz, com canais organizados por categoria.</p></div>
-            <div className="landing-feat landing-reveal"><div className="landing-feat-icon">▣</div><h3>Feeds e Clubes</h3><p>Publique posts organizados por Clube e categoria — discussão, dúvida, notícia e mais.</p></div>
+            <div className="landing-feat landing-reveal"><div className="landing-feat-icon">▣</div><h3>Feeds e Temas</h3><p>Publique posts organizados por Tema e categoria — discussão, dúvida, notícia e mais.</p></div>
             <div className="landing-feat landing-reveal"><div className="landing-feat-icon">✦</div><h3>Conquistas</h3><p>Desbloqueie conquistas conforme participa da comunidade, com raridades diferentes.</p></div>
             <div className="landing-feat landing-reveal"><div className="landing-feat-icon">▲</div><h3>Perfil personalizado</h3><p>Cor de perfil, banner, conexões e conquistas em destaque — do seu jeito.</p></div>
             <div className="landing-feat landing-reveal"><div className="landing-feat-icon">☍</div><h3>Amigos e privacidade</h3><p>Adicione amigos com controle total sobre quem pode te mandar pedido.</p></div>
@@ -257,7 +257,7 @@ export default function LandingPage() {
           <div className="landing-faq-list">
             <details className="landing-faq-item landing-reveal">
               <summary>Preciso pagar alguma coisa pra usar?</summary>
-              <p>Não. Criar conta, entrar em Clubes, usar chat e canais de voz é 100% gratuito — inclusive nos apps de Windows, Linux e Android.</p>
+              <p>Não. Criar conta, entrar em Temas, usar chat e canais de voz é 100% gratuito — inclusive nos apps de Windows, Linux e Android.</p>
             </details>
             <details className="landing-faq-item landing-reveal">
               <summary>Funciona bem no celular?</summary>
@@ -276,7 +276,7 @@ export default function LandingPage() {
 
         <section className="landing-final-cta landing-reveal">
           <h2 className="landing-pixel">Pronto pra entrar?</h2>
-          <p>Leva menos de um minuto pra criar sua conta e já estar dentro de um Clube.</p>
+          <p>Leva menos de um minuto pra criar sua conta e já estar dentro de um Tema.</p>
           <button className="landing-btn-primary" onClick={() => navigate('/login')}>⬇ Entrar agora pelo navegador</button>
         </section>
       </main>

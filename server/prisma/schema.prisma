@@ -203,6 +203,8 @@ model User {
   // completam a relação dos dois lados.
   clanJoinRequests    ClanJoinRequest[]
   clanMessages        ClanMessage[]
+  clanInvitesReceived ClanInvite[] @relation("ClanInvitesReceived")
+  clanInvitesSent     ClanInvite[] @relation("ClanInvitesSent")
   // Item pedido: "sistema completo de configurações" — campos
   // inversos exigidos pelo Prisma pro outro lado de cada relação
   // declarada nos novos modelos (ver mais abaixo no arquivo); nunca
@@ -1738,6 +1740,13 @@ model Clan {
   name        String
   description String?
   isPublic    Boolean  @default(true)
+  // Item pedido: "Clubes poderão ser Públicos ou Privados. Clubes
+  // privados terão duas opções: Exclusivo para amigos... Somente por
+  // convite" — privacyType é a fonte de verdade real agora (3
+  // valores); isPublic (acima) é mantido só por compatibilidade com
+  // código antigo que ainda lê esse campo direto, sempre sincronizado
+  // com privacyType (true quando PUBLIC, false nos outros dois).
+  privacyType String  @default("PUBLIC") // PUBLIC | FRIENDS_ONLY | INVITE_ONLY
   iconId      String?
   icon        ClanIcon? @relation(fields: [iconId], references: [id], onDelete: SetNull)
   // Item pedido: "menu de cores, permitindo escolher a cor que será
@@ -1754,6 +1763,7 @@ model Clan {
   tags          ClanTag[]
   joinRequests  ClanJoinRequest[]
   messages      ClanMessage[]
+  invites       ClanInvite[]
 }
 
 // Item pedido: "ícones personalizados... criados através do Painel da
@@ -1801,6 +1811,24 @@ model ClanJoinRequest {
   createdAt DateTime @default(now())
 
   @@unique([clanId, userId])
+}
+
+// Item pedido: "Somente por convite — entrada apenas através de
+// convite" — diferente de ClanJoinRequest (a pessoa de fora pede pra
+// entrar, o dono decide): aqui é o inverso, alguém de DENTRO do clube
+// convida uma pessoa específica, que decide aceitar ou recusar.
+model ClanInvite {
+  id            String   @id @default(uuid())
+  clanId        String
+  clan          Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  invitedUserId String
+  invitedUser   User     @relation("ClanInvitesReceived", fields: [invitedUserId], references: [id], onDelete: Cascade)
+  invitedById   String
+  invitedBy     User     @relation("ClanInvitesSent", fields: [invitedById], references: [id], onDelete: Cascade)
+  status        String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
+  createdAt     DateTime @default(now())
+
+  @@unique([clanId, invitedUserId])
 }
 
 // Item pedido: "Canal de Chat: usado para mensagens de texto entre os

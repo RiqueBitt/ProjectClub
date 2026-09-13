@@ -6,7 +6,7 @@ const CLAN_LIST_INCLUDE = { icon: true, members: { select: MEMBER_FIELDS } };
 
 function shapeClan(clan) {
   return {
-    id: clan.id, name: clan.name, description: clan.description, isPublic: clan.isPublic,
+    id: clan.id, name: clan.name, description: clan.description, isPublic: clan.isPublic, privacyType: clan.privacyType,
     icon: clan.icon, iconColor: clan.iconColor, createdAt: clan.createdAt,
     memberCount: clan.members?.length ?? clan._count?.members ?? 0,
     members: clan.members,
@@ -18,14 +18,38 @@ function shapeClan(clan) {
 // — não mostra os privados aqui (eles só aparecem pra quem já é
 // membro, ou via link direto/busca por nome, mais na frente se
 // necessário — por ora, o pedido só fala de listar os públicos).
+// Item pedido: "Uma lista de clans públicos disponíveis para entrar" —
+// clubes públicos de verdade, mais os "exclusivo para amigos" onde
+// algum amigo do usuário já é membro (mostrando uma tag de qual
+// amigo é esse) — nunca mostra clubes "somente por convite" aqui, já
+// que não tem como entrar por essa lista de qualquer forma.
 async function listPublicClans(req, res, next) {
   try {
-    const clans = await prisma.clan.findMany({
-      where: { isPublic: true },
+    const publicClans = await prisma.clan.findMany({
+      where: { privacyType: 'PUBLIC' },
       include: { icon: true, _count: { select: { members: true } } },
       orderBy: { createdAt: 'desc' },
     });
-    res.json({ clans: clans.map(shapeClan) });
+
+    // Item pedido: "Clubes configurados como Exclusivo para amigos
+    // também aparecerão em Encontrar Clubes, mostrando uma tag
+    // indicando qual amigo do usuário pertence àquele Clube."
+    const myFriends = await prisma.friendship.findMany({
+      where: { status: 'ACCEPTED', OR: [{ requesterId: req.user.id }, { addresseeId: req.user.id }] },
+    });
+    const friendIds = myFriends.map((f) => (f.requesterId === req.user.id ? f.addresseeId : f.requesterId));
+
+    let friendsOnlyClans = [];
+    if (friendIds.length > 0) {
+      const candidates = await prisma.clan.findMany({
+        where: { privacyType: 'FRIENDS_ONLY', members: { some: { id: { in: friendIds } } } },
+        include: { icon: true, _count: { select: { members: true } }, members: { where: { id: { in: friendIds } }, select: MEMBER_FIELDS } },
+        orderBy: { createdAt: 'desc' },
+      });
+      friendsOnlyClans = candidates.map((c) => ({ ...shapeClan(c), friendMember: c.members[0] || null, members: undefined }));
+    }
+
+    res.json({ clans: [...publicClans.map(shapeClan), ...friendsOnlyClans] });
   } catch (err) { next(err); }
 }
 
@@ -84,9 +108,22 @@ async function createClan(req, res, next) {
     // é vitalícia: mesmo já tendo saído de um clã anterior, criar um
     // segundo nunca mais é permitido pra essa conta.
     if (req.user.hasCreatedClan) return res.status(400).json({ error: 'Você já criou um clã antes — cada conta só pode criar um.' });
+    // Item pedido: "usuários poderão criar um Clube somente após
+    // atingir o nível 10".
+    if ((req.user.accountLevel || 0) < 10) return res.status(400).json({ error: 'Você precisa estar no nível 10 ou mais pra criar um clube.' });
 
-    const { name, description, isPublic, iconId, iconColor } = req.body;
+    const { name, description, iconId, iconColor } = req.body;
     if (!name?.trim() || name.trim().length > 40) return res.status(400).json({ error: 'Nome inválido (até 40 caracteres).' });
+
+    // Item pedido: "Clubes poderão ser Públicos ou Privados. Clubes
+    // privados terão duas opções: Exclusivo para amigos... Somente por
+    // convite" — aceita privacyType direto; isPublic continua aceito
+    // por compatibilidade (mapeado pra PUBLIC/FRIENDS_ONLY), mas
+    // privacyType tem prioridade quando os dois vierem juntos.
+    const ALLOWED_PRIVACY = ['PUBLIC', 'FRIENDS_ONLY', 'INVITE_ONLY'];
+    let privacyType = req.body.privacyType;
+    if (!privacyType) privacyType = req.body.isPublic === false ? 'INVITE_ONLY' : 'PUBLIC';
+    if (!ALLOWED_PRIVACY.includes(privacyType)) return res.status(400).json({ error: 'Tipo de privacidade inválido.' });
 
     // Item pedido: "quando eu criar um icon pro clã, deixe ele ser o
     // padrão" — se a pessoa não escolheu nenhum ícone específico, usa
@@ -105,7 +142,7 @@ async function createClan(req, res, next) {
       const created = await tx.clan.create({
         data: {
           name: name.trim(), description: description?.trim() || null,
-          isPublic: isPublic !== false, iconId: finalIconId, iconColor: iconColor || undefined,
+          privacyType, isPublic: privacyType === 'PUBLIC', iconId: finalIconId, iconColor: iconColor || undefined,
         },
       });
       await tx.user.update({ where: { id: req.user.id }, data: { clanId: created.id, clanRole: 'OWNER', hasCreatedClan: true } });
@@ -123,14 +160,27 @@ async function updateClan(req, res, next) {
     if (req.user.clanId !== id || !hasClanCapability(req.user.clanRole, 'EDIT_CLAN')) {
       return res.status(403).json({ error: 'Você não tem permissão pra editar este clã.' });
     }
-    const { name, description, isPublic, iconId, iconColor } = req.body;
+    const { name, description, isPublic, privacyType, iconId, iconColor } = req.body;
     const data = {};
     if (name !== undefined) {
       if (!name.trim() || name.trim().length > 40) return res.status(400).json({ error: 'Nome inválido (até 40 caracteres).' });
       data.name = name.trim();
     }
     if (description !== undefined) data.description = description?.trim() || null;
-    if (isPublic !== undefined) data.isPublic = !!isPublic;
+    // Item pedido: "Clubes poderão ser Públicos ou Privados... Exclusivo
+    // para amigos... Somente por convite" — privacyType tem prioridade;
+    // isPublic sozinho (compatibilidade antiga) só alterna entre
+    // PUBLIC e INVITE_ONLY, sem opção de escolher FRIENDS_ONLY por
+    // esse campo legado.
+    if (privacyType !== undefined) {
+      const ALLOWED_PRIVACY = ['PUBLIC', 'FRIENDS_ONLY', 'INVITE_ONLY'];
+      if (!ALLOWED_PRIVACY.includes(privacyType)) return res.status(400).json({ error: 'Tipo de privacidade inválido.' });
+      data.privacyType = privacyType;
+      data.isPublic = privacyType === 'PUBLIC';
+    } else if (isPublic !== undefined) {
+      data.isPublic = !!isPublic;
+      data.privacyType = isPublic ? 'PUBLIC' : 'INVITE_ONLY';
+    }
     if (iconColor !== undefined) data.iconColor = iconColor;
     if (iconId !== undefined) {
       if (iconId) {
@@ -154,12 +204,32 @@ async function joinClan(req, res, next) {
     const clan = await prisma.clan.findUnique({ where: { id } });
     if (!clan) return res.status(404).json({ error: 'Clã não encontrado.' });
 
-    if (clan.isPublic) {
+    if (clan.privacyType === 'PUBLIC') {
       await prisma.user.update({ where: { id: req.user.id }, data: { clanId: clan.id, clanRole: 'MEMBER' } });
       return res.json({ joined: true });
     }
 
-    // Clã privado — vira uma solicitação, não entra direto.
+    // Item pedido: "Exclusivo para amigos — somente amigos do criador
+    // poderão entrar" — entra igual um clube público (sem precisar de
+    // aprovação manual), mas só se já for amigo de algum membro
+    // fundador/dono. Verifica contra o DONO atual (clanRole OWNER),
+    // não contra quem originalmente criou — se a posse for transferida,
+    // a regra segue o dono de agora.
+    if (clan.privacyType === 'FRIENDS_ONLY') {
+      const owner = await prisma.user.findFirst({ where: { clanId: clan.id, clanRole: 'OWNER' } });
+      const isFriend = owner && await prisma.friendship.findFirst({
+        where: { status: 'ACCEPTED', OR: [{ requesterId: req.user.id, addresseeId: owner.id }, { requesterId: owner.id, addresseeId: req.user.id }] },
+      });
+      if (!isFriend) return res.status(403).json({ error: 'Esse clube é exclusivo para amigos do dono — vocês precisam ser amigos pra entrar.' });
+      await prisma.user.update({ where: { id: req.user.id }, data: { clanId: clan.id, clanRole: 'MEMBER' } });
+      return res.json({ joined: true });
+    }
+
+    // INVITE_ONLY — precisa ter um convite pendente aceito antes (ver
+    // respondClanInvite); tentar entrar direto vira uma solicitação
+    // normal só como registro, mas não dá acesso — mantém o
+    // comportamento antigo de "pedir pra entrar" como sinalização pro
+    // dono de que alguém quer um convite, sem contradizer a regra.
     const existing = await prisma.clanJoinRequest.findUnique({ where: { clanId_userId: { clanId: id, userId: req.user.id } } });
     if (existing && existing.status === 'PENDING') return res.status(409).json({ error: 'Você já pediu pra entrar nesse clã — aguarde a resposta.' });
 
@@ -385,8 +455,73 @@ async function setMyClanTag(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Item pedido: "Somente por convite — entrada apenas através de
+// convite" — convidar é uma ação de quem já está DENTRO do clube
+// (precisa de permissão de gerenciar membros), diferente de pedir
+// pra entrar (ação de quem está de fora).
+async function createClanInvite(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+    if (req.user.clanId !== id || !hasClanCapability(req.user.clanRole, 'MANAGE_MEMBERS')) {
+      return res.status(403).json({ error: 'Você não tem permissão pra convidar pessoas pra este clube.' });
+    }
+    if (!userId) return res.status(400).json({ error: 'Escolha uma pessoa pra convidar.' });
+    const target = await prisma.user.findUnique({ where: { id: userId } });
+    if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
+    if (target.clanId) return res.status(400).json({ error: 'Essa pessoa já está em um clube.' });
+
+    const invite = await prisma.clanInvite.upsert({
+      where: { clanId_invitedUserId: { clanId: id, invitedUserId: userId } },
+      update: { status: 'PENDING', createdAt: new Date(), invitedById: req.user.id },
+      create: { clanId: id, invitedUserId: userId, invitedById: req.user.id },
+    });
+    res.status(201).json({ invite });
+  } catch (err) { next(err); }
+}
+
+// Convites que EU recebi — pra mostrar na aba Social/Clubes, já que
+// "somente por convite" não aparece em Encontrar Clubes de jeito
+// nenhum (só chega por aqui).
+async function listMyClanInvites(req, res, next) {
+  try {
+    const invites = await prisma.clanInvite.findMany({
+      where: { invitedUserId: req.user.id, status: 'PENDING' },
+      include: { clan: { include: { icon: true, _count: { select: { members: true } } } }, invitedBy: { select: MEMBER_FIELDS } },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ invites: invites.map((inv) => ({ id: inv.id, clan: shapeClan(inv.clan), invitedBy: inv.invitedBy, createdAt: inv.createdAt })) });
+  } catch (err) { next(err); }
+}
+
+async function respondClanInvite(req, res, next) {
+  try {
+    const { inviteId } = req.params;
+    const { accept } = req.body;
+    const invite = await prisma.clanInvite.findUnique({ where: { id: inviteId } });
+    if (!invite || invite.invitedUserId !== req.user.id) return res.status(404).json({ error: 'Convite não encontrado.' });
+    if (invite.status !== 'PENDING') return res.status(400).json({ error: 'Esse convite já foi respondido.' });
+
+    if (!accept) {
+      await prisma.clanInvite.update({ where: { id: inviteId }, data: { status: 'REJECTED' } });
+      return res.json({ accepted: false });
+    }
+    // Item pedido: "Cada usuário poderá participar de apenas um Clube
+    // por vez" — mesma regra de sempre, checada de novo aqui (o
+    // convite pode ter sido enviado antes da pessoa entrar em outro
+    // clube nesse meio tempo).
+    if (req.user.clanId) return res.status(400).json({ error: 'Você já está em um clube — saia dele antes de aceitar este convite.' });
+    await prisma.$transaction([
+      prisma.clanInvite.update({ where: { id: inviteId }, data: { status: 'ACCEPTED' } }),
+      prisma.user.update({ where: { id: req.user.id }, data: { clanId: invite.clanId, clanRole: 'MEMBER' } }),
+    ]);
+    res.json({ accepted: true });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   listPublicClans, getMyClan, getClan, createClan, updateClan,
   joinClan, leaveClan, transferOwnership, setMemberRole, kickMember,
   respondJoinRequest, createClanTag, deleteClanTag, setMyClanTag,
+  createClanInvite, listMyClanInvites, respondClanInvite,
 };

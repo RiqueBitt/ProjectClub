@@ -10,12 +10,12 @@ import {
 } from '../api/endpoints';
 import { proxyImage } from '../utils/imageProxy';
 
-// Feeds — página principal, lista os posts de todos os Clubes. Um Clube é
+// Feeds — página principal, lista os posts de todos os Temas. Um Tema é
 // uma categoria principal criada só pela staff (ver AdminPanel.jsx →
 // "Estrutura da comunidade" → Cargos/Canais, e agora também a criação
-// inline aqui embaixo pra quem já é staff); dentro de cada Clube existem
+// inline aqui embaixo pra quem já é staff); dentro de cada Tema existem
 // categorias de post (Discussão, Meme, Dúvida...) também geridas só pela
-// staff. Todo post precisa de um Clube + uma categoria escolhidos.
+// staff. Todo post precisa de um Tema + uma categoria escolhidos.
 const SORTS = [
   { key: 'hot', label: '🔥 Relevantes' },
   { key: 'new', label: '🆕 Novos' },
@@ -69,7 +69,7 @@ export default function CommunitiesPage() {
           <div className="support-empty-state">
             <div className="support-empty-state-icon"><IconGlyph src={emptyIcon} size={40} /></div>
             <h3>Nenhum post ainda</h3>
-            <p className="dim">Seja o primeiro a postar em algum Clube.</p>
+            <p className="dim">Seja o primeiro a postar em algum Tema.</p>
           </div>
         ) : (
           <div className="post-card-list">
@@ -82,9 +82,9 @@ export default function CommunitiesPage() {
 
       <div className="communities-sidebar-col">
         <div className="communities-sidebar-card">
-          <h4>Clubes</h4>
+          <h4>Temas</h4>
           {isStaff && (
-            <button className="btn-secondary communities-create-btn" onClick={() => setShowCreateClub(true)}>+ Criar Clube</button>
+            <button className="btn-secondary communities-create-btn" onClick={() => setShowCreateClub(true)}>+ Criar Tema</button>
           )}
           {showCreateClub && (
             <CreateClubForm onClose={() => setShowCreateClub(false)} />
@@ -93,7 +93,7 @@ export default function CommunitiesPage() {
             {clubs.map((c) => (
               <ClubRow key={c.id} club={c} onOpen={() => navigate(`/comunidades/${c.slug}`)} />
             ))}
-            {clubs.length === 0 && <p className="dim" style={{ padding: '8px 4px' }}>Nenhum Clube criado ainda.</p>}
+            {clubs.length === 0 && <p className="dim" style={{ padding: '8px 4px' }}>Nenhum Tema criado ainda.</p>}
           </div>
         </div>
       </div>
@@ -163,14 +163,14 @@ function CreateClubForm({ onClose }) {
     try {
       const { community } = await createCommunity({ slug, name, description });
       if (iconFile) {
-        try { await uploadCommunityIconForSlug(community.slug, iconFile); } catch { /* logo é opcional — Clube já foi criado */ }
+        try { await uploadCommunityIconForSlug(community.slug, iconFile); } catch { /* logo é opcional — Tema já foi criado */ }
       }
       // Não precisa atualizar o estado local aqui — o evento de socket
       // "club:new" (ver SocketContext.jsx) já escreve no store global
       // assim que o servidor confirma, então a lista atualiza sozinha
       // tanto aqui quanto na barra lateral, em tempo real.
       onClose();
-    } catch (err) { setError(err.response?.data?.error || 'Não foi possível criar o Clube.'); }
+    } catch (err) { setError(err.response?.data?.error || 'Não foi possível criar o Tema.'); }
   };
 
   return (
@@ -241,7 +241,7 @@ export function CreatePostForm({ clubs, defaultClubSlug, onClose, onCreated }) {
   const submit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!categoryId) { setError('Escolha uma categoria dentro do Clube.'); return; }
+    if (!categoryId) { setError('Escolha uma categoria dentro do Tema.'); return; }
     if (type === 'IMAGE' && (!imageFile?.url || uploadingImage)) { setError('Espere a imagem terminar de enviar.'); return; }
     try {
       const { post } = await createPost({
@@ -256,7 +256,7 @@ export function CreatePostForm({ clubs, defaultClubSlug, onClose, onCreated }) {
   if (clubs.length === 0) {
     return (
       <div className="settings-block communities-inline-form">
-        <p className="dim">Ainda não existe nenhum Clube — peça pra staff criar um antes de postar.</p>
+        <p className="dim">Ainda não existe nenhum Tema — peça pra staff criar um antes de postar.</p>
         <div className="modal-actions"><button type="button" className="btn-link" onClick={onClose}>Fechar</button></div>
       </div>
     );

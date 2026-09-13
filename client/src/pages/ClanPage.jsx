@@ -92,13 +92,13 @@ export default function ClanPage() {
   };
 
   const onLeaveClan = async () => {
-    if (!(await confirmAsync(myClanRole === 'OWNER' ? 'Sair do clã? Se houver outros membros, você precisa transferir a propriedade primeiro.' : 'Sair do clã?'))) return;
+    if (!(await confirmAsync(myClanRole === 'OWNER' ? 'Sair do clube? Se houver outros membros, você precisa transferir a propriedade primeiro.' : 'Sair do clube?'))) return;
     try {
       await leaveClan();
       setMyClan({ clan: null });
       navigate('/clans');
     } catch (err) {
-      useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível sair do clã.');
+      useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível sair do clube.');
     }
   };
 
@@ -112,7 +112,7 @@ export default function ClanPage() {
   };
 
   const onKick = async (member) => {
-    if (!(await confirmAsync(`Expulsar ${member.displayName} do clã?`))) return;
+    if (!(await confirmAsync(`Expulsar ${member.displayName} do clube?`))) return;
     try {
       await kickClanMember(myClan.id, member.id);
       await refreshMyClan();
@@ -122,7 +122,7 @@ export default function ClanPage() {
   };
 
   const onTransfer = async (member) => {
-    if (!(await confirmAsync(`Transferir a propriedade do clã pra ${member.displayName}? Você vira Sub-Dono.`))) return;
+    if (!(await confirmAsync(`Transferir a propriedade do clube pra ${member.displayName}? Você vira Sub-Dono.`))) return;
     try {
       await transferClanOwnership(myClan.id, member.id);
       await refreshMyClan();
@@ -179,7 +179,7 @@ export default function ClanPage() {
         isPublic: settingsForm.isPublic, iconId: settingsForm.iconId || null, iconColor: settingsForm.iconColor,
       });
       await refreshMyClan();
-      useStore.getState().pushNotice('Clã atualizado.');
+      useStore.getState().pushNotice('Clube atualizado.');
     } catch (err) {
       useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível salvar.');
     }
@@ -195,7 +195,7 @@ export default function ClanPage() {
     <div className="clan-page">
       {DialogElement}
       <div className="clan-page-header">
-        <button className="btn-secondary clan-back-btn" onClick={() => navigate('/clans')}>← Clãs</button>
+        <button className="btn-secondary clan-back-btn" onClick={() => navigate('/dms')}>← Clubes</button>
         <div className="clan-icon-preview clan-page-icon">
           <ClanIcon icon={myClan.icon} color={myClan.iconColor} />
         </div>
@@ -301,7 +301,7 @@ export default function ClanPage() {
               simples de ligar/desligar essa única tag, começando
               sempre desligado até a pessoa ativar por conta própria. */}
           {myClan.tags.length === 0 ? (
-            <p className="dim">Este clã ainda não tem uma tag.</p>
+            <p className="dim">Este clube ainda não tem uma tag.</p>
           ) : (
             <label className="clan-tag-toggle-row">
               <input type="checkbox" checked={!!user.clanTagId} onChange={(e) => onPickMyTag(e.target.checked ? myClan.tags[0].id : null)} />
@@ -311,7 +311,7 @@ export default function ClanPage() {
           )}
           {myClanCapabilities.MANAGE_TAGS && myClan.tags.length === 0 && (
             <div className="clan-create-tag-row">
-              <input value={newTag} onChange={(e) => setNewTag(e.target.value.toUpperCase())} maxLength={4} placeholder="Tag do clã (até 4 letras)" />
+              <input value={newTag} onChange={(e) => setNewTag(e.target.value.toUpperCase())} maxLength={4} placeholder="Tag do clube (até 4 letras)" />
               <button className="btn-primary" onClick={onCreateTag}>Criar</button>
             </div>
           )}
@@ -345,9 +345,9 @@ export default function ClanPage() {
               <hr />
             </>
           ) : (
-            <p className="dim">Só o dono e o sub-dono podem editar as configurações do clã.</p>
+            <p className="dim">Só o dono e o sub-dono podem editar as configurações do clube.</p>
           )}
-          <button className="btn-danger-text" onClick={onLeaveClan}>Sair do clã</button>
+          <button className="btn-danger-text" onClick={onLeaveClan}>Sair do clube</button>
         </div>
       )}
     </div>

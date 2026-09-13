@@ -14,7 +14,6 @@ import dashboardIcon from '../assets/icons/nav-dashboard.png';
 import appsIcon from '../assets/icons/nav-apps.png';
 import achievementsIcon from '../assets/icons/nav-achievements.png';
 import inicioIcon from '../assets/icons/nav-updates.png';
-import clansIcon from '../assets/icons/nav-clans.png';
 import { proxyImage } from '../utils/imageProxy';
 
 // Barra lateral principal única do app. A marca/logo agora mora na
@@ -41,7 +40,7 @@ const ITEMS = [
   // Item pedido: "mude o feed para cima e o amigos para baixo" — ordem
   // invertida (Feeds vem antes de Amigos agora).
   { to: '/comunidades', icon: feedIcon, isImg: true, labelKey: 'nav.feeds', match: (p) => p === '/comunidades' || p.startsWith('/posts/') },
-  { to: '/dms', icon: friendsIcon, isImg: true, labelKey: 'nav.amigos', match: (p) => p === '/dms' || p.startsWith('/conversations/') },
+  { to: '/dms', icon: friendsIcon, isImg: true, labelKey: 'nav.amigos', match: (p) => p === '/dms' || p.startsWith('/conversations/') || p.startsWith('/clans') },
   // Item pedido: "crie uma nova categoria chamada Jogos, posicionada
   // logo abaixo da categoria Amigos... dentro de Jogos, crie duas
   // opções: Jogos e Aplicativos" — sem ícone dedicado no pacote de
@@ -62,16 +61,11 @@ const ITEMS = [
   { to: '/rank', icon: ranksIcon, isImg: true, labelKey: 'nav.ranks', match: (p) => p.startsWith('/rank') },
   { to: '/conquistas', icon: achievementsIcon, isImg: true, labelKey: 'nav.conquistas', match: (p) => p.startsWith('/conquistas') },
   { to: '/tickets', icon: supportIcon, isImg: true, labelKey: 'nav.suporte', match: (p) => p.startsWith('/tickets') },
-  // Item pedido: "nova opção chamada Clans na barra lateral" — sem
-  // ícone dedicado no pacote de ícones do app (isImg: true exigiria
-  // um arquivo próprio), emoji como os outros lugares do app já usam
-  // quando não há um ícone customizado disponível.
-  // Item pedido: "trocar o emoji por esse icon" (ícone enviado pelo
-  // usuário) — mesmo padrão isImg:true dos outros itens da barra.
-  // Item pedido: "caixinha azul com BETA... bordas onduladas, pra
-  // mostrar que é uma funcionalidade beta" — badge: true ativa esse
-  // selo ao lado do texto (ver renderização abaixo).
-  { to: '/clans', icon: clansIcon, isImg: true, labelKey: 'nav.clas', beta: true, match: (p) => p.startsWith('/clans') },
+  // Item pedido: "renomear o sistema atual de Clãs para Clubes...
+  // remover completamente a categoria Clãs da interface" — item
+  // próprio na barra removido; o sistema (renomeado pra "Clube")
+  // agora vive como uma aba dentro de Social (/dms), junto com
+  // Amigos/Mensagens — ver AmigosPage.jsx.
 ];
 // BUG CORRIGIDO: o painel de staff (/admin) ficou órfão depois da troca
 // pra essa barra lateral única — os componentes antigos que linkavam pra
@@ -100,12 +94,12 @@ export default function MainSidebar() {
   const mainSidebarCollapsed = useStore((s) => s.mainSidebarCollapsed);
   const toggleMainSidebar = useStore((s) => s.toggleMainSidebar);
 
-  // Lista de Clubes — igual a seção "COMUNIDADES" da HomeSideBar do
+  // Lista de Temas — igual a seção "COMUNIDADES" da HomeSideBar do
   // clone do Reddit (subredditList: cada uma com ícone + nome), só que
   // agora vem do estado global (useStore) em vez de um fetch próprio —
   // é a mesma lista que a página de Feeds usa, e as duas atualizam
   // sozinhas em tempo real via socket quando a staff cria/edita/exclui
-  // um Clube (ver SocketContext.jsx). Clubes não têm mais conceito de
+  // um Tema (ver SocketContext.jsx). Temas não têm mais conceito de
   // "entrar" — são categorias oficiais, mostradas pra todo mundo.
   const clubs = useStore((s) => s.clubs);
   const sortedClubs = [...clubs].sort((a, b) => a.name.localeCompare(b.name));
@@ -165,7 +159,7 @@ export default function MainSidebar() {
         </nav>
 
         <div className="main-sidebar-section">
-          <div className="main-sidebar-section-label">Clubes</div>
+          <div className="main-sidebar-section-label">Temas</div>
           <div className="main-sidebar-community-list">
             {sortedClubs.map((c) => (
               <button
@@ -179,12 +173,12 @@ export default function MainSidebar() {
               </button>
             ))}
             {sortedClubs.length === 0 && (
-              <div className="dim main-sidebar-community-empty">Nenhum Clube criado ainda.</div>
+              <div className="dim main-sidebar-community-empty">Nenhum Tema criado ainda.</div>
             )}
             {isStaff && (
               <button className="main-sidebar-community-item main-sidebar-community-create" onClick={() => navigate('/comunidades')}>
                 <span className="main-sidebar-community-icon">➕</span>
-                <span className="main-sidebar-community-name">Criar Clube</span>
+                <span className="main-sidebar-community-name">Criar Tema</span>
               </button>
             )}          </div>
         </div>

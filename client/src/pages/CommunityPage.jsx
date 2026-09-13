@@ -12,7 +12,7 @@ import {
 import { PostCard, CreatePostForm } from './CommunitiesPage.jsx';
 import { proxyImage } from '../utils/imageProxy';
 
-// Página de UM Clube — lê direto do estado global (useStore.clubs), que já
+// Página de UM Tema — lê direto do estado global (useStore.clubs), que já
 // é mantido em tempo real via socket (club:new/update/delete e
 // club:category:*, ver SocketContext.jsx) — não precisa de fetch próprio
 // nem de recarregar a página pra ver uma edição da staff aparecer.
@@ -38,7 +38,7 @@ export default function CommunityPage() {
   };
 
   const onDeleteClub = async () => {
-    if (!confirm(`Excluir o Clube "${club.name}"? Isso apaga todos os posts e comentários dele e não pode ser desfeito.`)) return;
+    if (!confirm(`Excluir o Tema "${club.name}"? Isso apaga todos os posts e comentários dele e não pode ser desfeito.`)) return;
     try {
       await deleteCommunity(slug);
       navigate('/comunidades');
@@ -62,14 +62,14 @@ export default function CommunityPage() {
   };
 
   if (club === undefined) return <div className="community-page"><p className="dim">Carregando...</p></div>;
-  if (!club) return <div className="community-page"><p className="dim">Clube não encontrado.</p></div>;
+  if (!club) return <div className="community-page"><p className="dim">Tema não encontrado.</p></div>;
 
   const editingCategory = (club.categories || []).find((c) => c.id === editingCategoryId);
 
   return (
     <div className="community-page-layout">
       <div className="community-page-feed-col">
-        <button className="btn-link" onClick={() => navigate('/comunidades')}>‹ Todos os Clubes</button>
+        <button className="btn-link" onClick={() => navigate('/comunidades')}>‹ Todos os Temas</button>
 
         <div className="community-page-header">
           <div className="community-page-icon">{club.iconUrl ? <img src={proxyImage(club.iconUrl)} alt="" /> : '📌'}</div>
@@ -147,8 +147,8 @@ export default function CommunityPage() {
             </div>
             {isStaff && (
               <div className="community-info-manage-actions">
-                <button className="btn-secondary community-info-edit-btn" onClick={() => setEditing(true)}>Editar Clube</button>
-                <button className="btn-danger community-info-delete-btn" onClick={onDeleteClub}>Excluir Clube</button>
+                <button className="btn-secondary community-info-edit-btn" onClick={() => setEditing(true)}>Editar Tema</button>
+                <button className="btn-danger community-info-delete-btn" onClick={onDeleteClub}>Excluir Tema</button>
               </div>
             )}
           </div>
@@ -190,7 +190,7 @@ function ClubEditForm({ club, onClose }) {
 
   return (
     <form onSubmit={submit} className="settings-block communities-inline-form">
-      <h4>Editar Clube</h4>
+      <h4>Editar Tema</h4>
       <label>
         LOGO
         <div className="community-icon-picker-row">

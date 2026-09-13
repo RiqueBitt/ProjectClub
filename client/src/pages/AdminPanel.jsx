@@ -1139,7 +1139,7 @@ function FeedsAdminTab() {
   const [deletingSlug, setDeletingSlug] = useState(null);
 
   const remove = async (community) => {
-    if (!confirm(`Excluir o Clube "${community.name}"? Isso apaga todos os posts e comentários dele e não pode ser desfeito.`)) return;
+    if (!confirm(`Excluir o Tema "${community.name}"? Isso apaga todos os posts e comentários dele e não pode ser desfeito.`)) return;
     setDeletingSlug(community.slug);
     try {
       await deleteCommunity(community.slug);
@@ -1155,13 +1155,13 @@ function FeedsAdminTab() {
 
   return (
     <div>
-      <h2>Feeds (Clubes)</h2>
+      <h2>Feeds (Temas)</h2>
       <p className="dim" style={{ marginBottom: 16 }}>
-        Gerencie os Clubes do Feed — só a staff pode criar/editar/excluir (crie novos direto na página de Feeds,
-        no botão "+ Criar Clube"). Excluir remove os posts e comentários junto.
+        Gerencie os Temas do Feed — só a staff pode criar/editar/excluir (crie novos direto na página de Feeds,
+        no botão "+ Criar Tema"). Excluir remove os posts e comentários junto.
       </p>
       {communities.length === 0 ? (
-        <p className="dim">Nenhum Clube criado ainda.</p>
+        <p className="dim">Nenhum Tema criado ainda.</p>
       ) : (
         <div className="admin-users-list">
           {communities.map((c) => (

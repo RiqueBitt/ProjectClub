@@ -490,6 +490,10 @@ export const respondClanJoinRequest = (id, requestId, approve) => api.patch(`/cl
 export const createClanTag = (id, tag) => api.post(`/clans/${id}/tags`, { tag }).then((r) => r.data);
 export const deleteClanTag = (id, tagId) => api.delete(`/clans/${id}/tags/${tagId}`).then((r) => r.data);
 export const setMyClanTag = (tagId) => api.patch('/clans/me/tag', { tagId }).then((r) => r.data);
+// Item pedido: "Somente por convite — entrada apenas através de convite".
+export const createClanInvite = (id, userId) => api.post(`/clans/${id}/invites`, { userId }).then((r) => r.data);
+export const listMyClanInvites = () => api.get('/clans/invites/mine').then((r) => r.data);
+export const respondClanInvite = (inviteId, accept) => api.patch(`/clans/invites/${inviteId}`, { accept }).then((r) => r.data);
 export const listClanMessages = (id) => api.get(`/clans/${id}/messages`).then((r) => r.data);
 export const sendClanMessage = (id, content) => api.post(`/clans/${id}/messages`, { content }).then((r) => r.data);
 export const deleteClanMessage = (id, messageId) => api.delete(`/clans/${id}/messages/${messageId}`).then((r) => r.data);

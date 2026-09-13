@@ -17,6 +17,11 @@ router.delete('/icons/:id', iconCtrl.deleteClanIcon);
 
 router.get('/', clanCtrl.listPublicClans);
 router.get('/mine', clanCtrl.getMyClan);
+// Item pedido: "Somente por convite — entrada apenas através de
+// convite" — antes de "/:id" de propósito, senão "/invites" seria
+// interpretado como um id de clã.
+router.get('/invites/mine', clanCtrl.listMyClanInvites);
+router.patch('/invites/:inviteId', clanCtrl.respondClanInvite);
 router.post('/', clanCtrl.createClan);
 router.get('/:id', clanCtrl.getClan);
 router.patch('/:id', clanCtrl.updateClan);
@@ -29,6 +34,7 @@ router.patch('/:id/requests/:requestId', clanCtrl.respondJoinRequest);
 router.post('/:id/tags', clanCtrl.createClanTag);
 router.delete('/:id/tags/:tagId', clanCtrl.deleteClanTag);
 router.patch('/me/tag', clanCtrl.setMyClanTag);
+router.post('/:id/invites', clanCtrl.createClanInvite);
 
 router.get('/:id/messages', msgCtrl.listClanMessages);
 router.post('/:id/messages', msgCtrl.sendClanMessage);
