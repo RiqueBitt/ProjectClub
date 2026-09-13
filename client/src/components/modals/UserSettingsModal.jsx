@@ -1568,11 +1568,15 @@ export default function UserSettingsModal({ onClose }) {
           validado em settingsController.js). A privacidade de PEDIDO
           DE AMIZADE já mora na aba Senha e segurança (campo separado,
           do User, não do UserSettings) — não duplicada aqui.
-          IMPORTANTE: esta tela salva a PREFERÊNCIA. A aplicação real
-          dela (o backend recusar de fato uma DM/visualização de
-          perfil com base nesses valores) é um trabalho à parte, ainda
-          não implementado nos controllers de perfil/conversa — ver
-          próxima fase. */}
+          COMENTÁRIO DESATUALIZADO CORRIGIDO: isso aqui dizia que a
+          aplicação real (o servidor recusar de fato) ainda não
+          existia — não é mais verdade. profilePrivacy é aplicado em
+          hasFullProfileAccess, dmPrivacy em canSendDirectMessage
+          (services/dmPermissions.js, usado por conversationController
+          e messageController) e contentFilterLevel em
+          applyContentFilter (messageController.js) — os três já
+          recusam/filtram de verdade no servidor, não só salvam a
+          preferência. */}
       {tab === 'PRIVACY' && (
         <div className="settings-grid">
           {!userSettings ? <div className="dim">Carregando...</div> : (
