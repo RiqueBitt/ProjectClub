@@ -2,6 +2,7 @@ const express = require('express');
 const ctrl = require('../controllers/adminController');
 const announcementCtrl = require('../controllers/announcementController');
 const appCatalogCtrl = require('../controllers/appCatalogController');
+const adminClanCtrl = require('../controllers/adminClanController');
 const { requireAuth } = require('../middleware/auth');
 const { requirePlatformAdmin } = require('../middleware/platformAdmin');
 const { uploadImage } = require('../middleware/upload');
@@ -57,6 +58,17 @@ router.delete('/app-catalog/:id', appCatalogCtrl.deleteAppCatalogItem);
 router.post('/app-catalog/:id/screenshots', uploadImage.single('screenshot'), appCatalogCtrl.addAppScreenshot);
 router.patch('/app-catalog/:id/screenshots/reorder', appCatalogCtrl.reorderAppScreenshots);
 router.delete('/app-catalog/screenshots/:screenshotId', appCatalogCtrl.deleteAppScreenshot);
+
+// Item pedido: "adicione uma nova categoria chamada Clubes... lista
+// com todos os clubes criados pelos usuários... ver mensagens...
+// editar... excluir, inclusive de outros usuários" — nenhuma rota de
+// ENVIAR mensagem como staff foi criada de propósito ("Não poderá
+// enviar mensagens").
+router.get('/clans', adminClanCtrl.listAdminClans);
+router.get('/clans/:id', adminClanCtrl.getAdminClan);
+router.get('/clans/:id/messages', adminClanCtrl.listAdminClanMessages);
+router.patch('/clans/:id', adminClanCtrl.updateAdminClan);
+router.delete('/clans/:id', adminClanCtrl.deleteAdminClan);
 
 // Automod de DM — lista de sinalizações pendentes + visualização secreta
 // da conversa inteira quando a staff decide analisar um caso.

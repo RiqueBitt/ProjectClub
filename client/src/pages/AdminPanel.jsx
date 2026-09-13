@@ -49,12 +49,14 @@ import {
   adminListAppCatalog, adminCreateAppCatalogItem, adminUpdateAppCatalogItem, adminDeleteAppCatalogItem,
   adminUploadAppCatalogBanner, adminUploadAppCatalogIcon,
   adminAddAppScreenshot, adminDeleteAppScreenshot,
+  adminListClans, adminGetClan, adminListClanMessages, adminUpdateClan, adminDeleteClan,
 } from '../api/endpoints';
 import HouseIcon from '../components/HouseIcon.jsx';
 import DraggableResizableBox from '../components/admin/DraggableResizableBox.jsx';
 import EmojiManagerModal from '../components/modals/EmojiManagerModal.jsx';
 import StickerManagerModal from '../components/modals/StickerManagerModal.jsx';
 import ClanIconManagerModal from '../components/modals/ClanIconManagerModal.jsx';
+import ClanIcon from '../components/ClanIcon.jsx';
 import { BADGE_RARITIES, RARITY_LABEL, RARITY_COLOR, badgeHasImage } from '../utils/badgeRarity';
 import { proxyImage } from '../utils/imageProxy';
 
@@ -64,13 +66,13 @@ const TAB_LABEL = {
   economia: '💰 Economia', casas: '🧊 Casas e Móveis', sistema: '⚙️ Sistema', moderacao: '💬 Moderação de Recados',
   automodDm: '🚩 Moderação de DMs', reports: '🚩 Denúncias', feeds: '📰 Feeds', honeypot: '🕸️ Segurança (Honeypot)',
   roles: '🎭 Cargos', channels: '# Canais e Categorias', gifMove: '🎯 GIFa Move',
-  emojis: '😀 Emojis', stickers: '🏷️ Figurinhas', clanIcons: '⚔️ Ícones de Clube',
+  emojis: '😀 Emojis', stickers: '🏷️ Figurinhas', clanIcons: '⚔️ Ícones de Clube', clubs: '🏛️ Clubes',
   achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', reload: '🔄 Reload', appCatalog: '🧩 Apps',
 };
 
 const TAB_GROUPS = [
   { label: 'Visão geral', tabs: ['stats', 'inscricoes', 'users', 'badges'] },
-  { label: 'Estrutura da comunidade', tabs: ['roles', 'channels', 'gifMove', 'emojis', 'stickers', 'clanIcons', 'achievements'] },
+  { label: 'Estrutura da comunidade', tabs: ['roles', 'channels', 'gifMove', 'emojis', 'stickers', 'clanIcons', 'clubs', 'achievements'] },
   { label: 'Conteúdo', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events', 'appCatalog'] },
   { label: 'Moderação', tabs: ['moderacao', 'automodDm', 'reports', 'logs', 'honeypot'] },
   { label: 'Comunicação', tabs: ['announcements'] },
@@ -169,6 +171,7 @@ export default function AdminPanel() {
           {tab === 'emojis' && <EmojisAdminTab />}
           {tab === 'stickers' && <StickersAdminTab />}
           {tab === 'clanIcons' && <ClanIconsAdminTab />}
+          {tab === 'clubs' && <ClubsAdminTab />}
           {tab === 'achievements' && <AchievementsAdminTab />}
           {tab === 'updates' && <UpdatesAdminTab />}
           {tab === 'events' && <EventsAdminTab />}
@@ -427,6 +430,164 @@ function ClanIconsAdminTab() {
       <p className="dim" style={{ marginBottom: 16 }}>Crie ícones pra donos de clã escolherem ao criar ou editar o clã deles.</p>
       <button className="btn-primary" onClick={() => setOpen(true)}>Gerenciar ícones de clã</button>
       {open && <ClanIconManagerModal onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+const CLUB_PRIVACY_LABEL = { PUBLIC: 'Público', FRIENDS_ONLY: 'Exclusivo para amigos', INVITE_ONLY: 'Somente por convite' };
+
+// Item pedido: "adicione uma nova categoria chamada Clubes, onde será
+// exibida uma lista com todos os clubes criados pelos usuários... ao
+// clicar em um clube, a Staff poderá abrir uma visualização dele
+// dentro do próprio painel".
+function ClubsAdminTab() {
+  const [clans, setClans] = useState(null);
+  const [viewingId, setViewingId] = useState(null);
+
+  const refresh = () => adminListClans().then((d) => setClans(d.clans)).catch(() => {});
+  useEffect(() => { refresh(); }, []);
+
+  if (viewingId) return <AdminClanView id={viewingId} onBack={() => { setViewingId(null); refresh(); }} />;
+
+  return (
+    <div>
+      <h2>🏛️ Clubes</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>Todos os clubes criados pelos usuários — clique em um pra abrir a visualização administrativa.</p>
+      {!clans ? (
+        <p className="dim">Carregando...</p>
+      ) : clans.length === 0 ? (
+        <p className="dim">Nenhum clube criado ainda.</p>
+      ) : (
+        <div className="clans-grid">
+          {clans.map((clan) => (
+            <div key={clan.id} className="clan-card" style={{ cursor: 'pointer' }} onClick={() => setViewingId(clan.id)}>
+              <div className="clan-icon-preview"><ClanIcon icon={clan.icon} color={clan.iconColor} /></div>
+              <div className="clan-card-body">
+                <div className="clan-card-name">{clan.name} <span className="dim">({CLUB_PRIVACY_LABEL[clan.privacyType] || clan.privacyType})</span></div>
+                <div className="dim">{clan.memberCount} membro{clan.memberCount === 1 ? '' : 's'} — dono: {clan.owner?.displayName || '—'}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Item pedido: "abrir uma visualização dele dentro do próprio painel,
+// como se estivesse visualizando o clube por dentro. Porém, isso não
+// significa que o staff entrou no clube: será apenas um modo de
+// visualização administrativa... deixar claro visualmente que o
+// staff está apenas visualizando." Faz e não faz, ponto por ponto do
+// pedido:
+//   - Ver mensagens e conteúdo: sim (adminListClanMessages) — SEM
+//     campo de digitar (nenhuma rota de enviar como staff existe).
+//   - Ver canais/informações: sim (nome, descrição, membros, tags).
+//   - Entrar/participar de chamadas: nunca oferecido aqui — nenhum
+//     botão de entrar em canal de voz nessa tela, de propósito.
+//   - Editar configurações: sim (adminUpdateClan).
+//   - Excluir, mesmo de outro dono: sim (adminDeleteClan).
+function AdminClanView({ id, onBack }) {
+  const [clan, setClan] = useState(null);
+  const [messages, setMessages] = useState(null);
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState('');
+
+  useEffect(() => {
+    adminGetClan(id).then((d) => { setClan(d.clan); setForm({ name: d.clan.name, description: d.clan.description || '', privacyType: d.clan.privacyType }); }).catch(() => {});
+    adminListClanMessages(id).then((d) => setMessages(d.messages)).catch(() => {});
+  }, [id]);
+
+  const save = async () => {
+    setSaving(true); setSaveMsg('');
+    try {
+      const { clan: updated } = await adminUpdateClan(id, form);
+      setClan((c) => ({ ...c, ...updated }));
+      setSaveMsg('✓ Salvo');
+      setTimeout(() => setSaveMsg(''), 2000);
+    } catch (err) {
+      setSaveMsg(err.response?.data?.error || 'Não foi possível salvar.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const del = async () => {
+    const reason = prompt(`Excluir o clube "${clan?.name}"? Isso apaga todos os membros, mensagens e tags dele — não pode ser desfeito. Motivo (opcional, fica registrado no log):`);
+    if (reason === null) return; // cancelou o prompt
+    try {
+      await adminDeleteClan(id, reason || undefined);
+      onBack();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Não foi possível excluir o clube.');
+    }
+  };
+
+  if (!clan || !form) return <p className="dim">Carregando...</p>;
+
+  return (
+    <div>
+      <button className="btn-link" onClick={onBack} style={{ marginBottom: 12 }}>‹ Todos os clubes</button>
+
+      {/* Item pedido: "deixar claro visualmente que o staff está
+          apenas visualizando o clube como administrador, sem
+          realmente fazer parte dele ou aparecer como membro." */}
+      <div style={{ background: 'var(--yellow, #FEE75C)', color: '#111', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontWeight: 600, fontSize: 13 }}>
+        👁️ Modo visualização administrativa — você está vendo este clube como staff, não como membro. Você não pode enviar mensagens nem entrar em chamadas.
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        <ClanIcon icon={clan.icon} color={clan.iconColor} />
+        <div>
+          <h2 style={{ margin: 0 }}>{clan.name}</h2>
+          <p className="dim" style={{ margin: 0 }}>{clan.memberCount} membro{clan.memberCount === 1 ? '' : 's'} — {CLUB_PRIVACY_LABEL[clan.privacyType]}</p>
+        </div>
+      </div>
+
+      <div className="settings-block">
+        <h4>Editar configurações</h4>
+        <label>Nome<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} maxLength={40} /></label>
+        <label>Descrição<textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} maxLength={200} /></label>
+        <label>
+          Privacidade
+          <select value={form.privacyType} onChange={(e) => setForm({ ...form, privacyType: e.target.value })}>
+            <option value="PUBLIC">Público</option>
+            <option value="FRIENDS_ONLY">Exclusivo para amigos</option>
+            <option value="INVITE_ONLY">Somente por convite</option>
+          </select>
+        </label>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button className="btn-primary" onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Salvar alterações'}</button>
+          {saveMsg && <span className="dim">{saveMsg}</span>}
+        </div>
+        <button className="btn-danger" style={{ marginTop: 12 }} onClick={del}>Excluir clube</button>
+      </div>
+
+      <div className="permission-group-label" style={{ marginTop: 20 }}>MEMBROS</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+        {clan.members.map((m) => (
+          <span key={m.id} className="dim" style={{ background: 'var(--bg-elevated)', padding: '4px 10px', borderRadius: 20, fontSize: 12.5 }}>
+            {m.displayName} {m.clanRole === 'OWNER' && '👑'}
+          </span>
+        ))}
+      </div>
+
+      <div className="permission-group-label">MENSAGENS (somente leitura)</div>
+      <div style={{ maxHeight: 400, overflowY: 'auto', background: 'var(--bg-elevated)', borderRadius: 8, padding: 12 }}>
+        {!messages ? (
+          <p className="dim">Carregando...</p>
+        ) : messages.length === 0 ? (
+          <p className="dim">Nenhuma mensagem ainda.</p>
+        ) : (
+          messages.map((msg) => (
+            <div key={msg.id} style={{ marginBottom: 10, fontSize: 13.5 }}>
+              <strong>{msg.author.displayName}</strong> <span className="dim" style={{ fontSize: 11 }}>{new Date(msg.createdAt).toLocaleString('pt-BR')}</span>
+              <div>{msg.content}</div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }

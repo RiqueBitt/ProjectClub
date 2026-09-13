@@ -505,6 +505,14 @@ export const createClanIcon = (file, name) => {
   return api.post('/clans/icons', fd).then((r) => r.data);
 };
 export const deleteClanIcon = (id) => api.delete(`/clans/icons/${id}`).then((r) => r.data);
+// Item pedido: "adicione uma nova categoria chamada Clubes [no painel
+// da Staff]... lista com todos os clubes... ver mensagens... editar...
+// excluir, inclusive de outros usuários".
+export const adminListClans = () => api.get('/admin/clans').then((r) => r.data);
+export const adminGetClan = (id) => api.get(`/admin/clans/${id}`).then((r) => r.data);
+export const adminListClanMessages = (id) => api.get(`/admin/clans/${id}/messages`).then((r) => r.data);
+export const adminUpdateClan = (id, payload) => api.patch(`/admin/clans/${id}`, payload).then((r) => r.data);
+export const adminDeleteClan = (id, reason) => api.delete(`/admin/clans/${id}`, { data: { reason } }).then((r) => r.data);
 
 // Item pedido: "melhore também essa aba de apps, adicione ícone,
 // banner... tudo sendo configurado do painel da staff" — catálogo de
