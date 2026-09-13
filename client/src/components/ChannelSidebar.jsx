@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useStore, isChannelUnread } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useVoice } from '../context/VoiceContext.jsx';
@@ -365,29 +365,24 @@ function ChannelGroup({
               onDragEnd={() => { setDragChannelId(null); setDragOverChannelId(null); }}
               onContextMenu={(e) => onContextMenu(e, ch)}
             >
-              <NavLink
-                to={`/channels/${ch.id}`}
-                // BUG CORRIGIDO ("quando troco de canal a página
-                // atualiza inteira"): o container pai (linha acima)
-                // tem draggable={canManage} pra reordenação de canais
-                // — mas <a> (o que NavLink renderiza) já é arrastável
-                // NATIVAMENTE por padrão no navegador, independente
-                // desse atributo, o que já foi motivo suficiente pra
-                // desligar aqui (draggable={false}). Como reforço
-                // definitivo (o navegador nunca decide sozinho o que
-                // fazer com o clique): o onClick abaixo sempre chama
-                // preventDefault e navega pelo React Router de forma
-                // 100% programática — o <a> nativo nunca chega a ser
-                // seguido de verdade, então nenhum comportamento nativo
-                // do navegador (drag, clique do meio, o que for) pode
-                // fazer a página recarregar do zero em vez de trocar
-                // de canal por dentro do app.
-                draggable={false}
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (ch.id !== activeChannelId) navigate(`/channels/${ch.id}`);
-                }}
-                className={({ isActive }) => `sidebar-item channel-item ${isActive ? 'active' : ''} ${unread ? 'unread' : ''}`}
+              <button
+                type="button"
+                // BUG CORRIGIDO ("os canais agora não estão abrindo
+                // quando clico neles"): a tentativa anterior usava
+                // <NavLink> com onClick chamando e.preventDefault()
+                // sempre — o React Router verifica defaultPrevented
+                // depois do onClick que a gente passa e, se estiver
+                // marcado, DESISTE de navegar por dentro também
+                // (não só do <a> nativo) — então cliques paravam de
+                // funcionar de verdade. Trocado por um <button> puro,
+                // exatamente como o layout Normal antigo já fazia com
+                // sucesso (ver ChannelSwitcher.jsx, função "go") — sem
+                // href, sem NavLink, sem nada que o navegador possa
+                // tentar tratar como link nativo (que foi a causa
+                // original do reload de página inteira): só um clique
+                // simples chamando navigate() por dentro do app.
+                onClick={() => { if (ch.id !== activeChannelId) navigate(`/channels/${ch.id}`); }}
+                className={`sidebar-item channel-item ${ch.id === activeChannelId ? 'active' : ''} ${unread ? 'unread' : ''}`}
               >
                 {ch.unreadMentions > 0 && (
                   <span className="mention-badge" title={`${ch.unreadMentions} menção${ch.unreadMentions === 1 ? '' : 'ões'} não lida${ch.unreadMentions === 1 ? '' : 's'}`}>
@@ -408,10 +403,10 @@ function ChannelGroup({
                 {!(ch.unreadMentions > 0) && unread && <span className="unread-dot" />}
                 {canManage && (
                   <span className="channel-item-actions">
-                    <button className="icon-btn-small" onClick={(e) => { e.preventDefault(); onEdit(ch); }}><img className="ui-icon-sm" src={settingsIcon} alt="" /></button>
+                    <button className="icon-btn-small" onClick={(e) => { e.stopPropagation(); onEdit(ch); }}><img className="ui-icon-sm" src={settingsIcon} alt="" /></button>
                   </span>
                 )}
-              </NavLink>
+              </button>
             </div>
             {rosterEntries.length > 0 && (
               <div className="voice-roster">

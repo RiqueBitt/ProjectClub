@@ -204,27 +204,23 @@ export const useStore = create((set, get) => ({
   channelSidebarCollapsed: false,
   // Item pedido: "deixa a pessoa abrir e fechar o menu de categorias
   // (início, comunidade, apps etc)... e todas as categorias, não só em
-  // comunidade" — toggle manual (independente de estar ou não na área
-  // de Comunidade/layout Discord), persistido, pra funcionar em
-  // qualquer seção do app.
+  // comunidade" — toggle manual, pra funcionar em qualquer seção do
+  // app.
   //
   // BUG CORRIGIDO ("a setinha não está funcionando"): existia uma
   // segunda classe (discord-icons-mode, aplicada sempre que o layout é
   // 'discord', independente disso aqui) forçando ícone-só por cima —
   // como o layout Discord é o padrão de todo mundo agora, essa segunda
   // classe SEMPRE vencia e o toggle nunca conseguia expandir de volta.
-  // Unificado: este é agora o ÚNICO controle (discord-icons-mode foi
-  // removido) — o valor inicial já nasce recolhido quando o layout é
-  // 'discord' (mesmo comportamento de sempre, só que agora reversível
-  // pela seta), e expandido no layout 'normal', a menos que a pessoa
-  // já tenha escolhido o oposto antes (localStorage tem prioridade).
-  mainSidebarCollapsed: (() => {
-    try {
-      const saved = localStorage.getItem('mainSidebarCollapsed');
-      if (saved !== null) return saved === 'true';
-    } catch { /* localStorage indisponível — segue pro default abaixo */ }
-    try { return (localStorage.getItem('layoutStyle') || 'discord') === 'discord'; } catch { return true; }
-  })(),
+  // Unificado: este é agora o ÚNICO controle.
+  //
+  // Item pedido (ajuste): "a setinha deve iniciar sempre desativada/
+  // fechada quando o app for abrir" — não persiste mais entre sessões
+  // de propósito: toda vez que o app abre, começa recolhido (ícone-só)
+  // sempre, mesmo que a pessoa tenha expandido na sessão anterior — a
+  // seta continua funcionando normalmente ENQUANTO o app está aberto,
+  // só o estado inicial de cada abertura é fixo.
+  mainSidebarCollapsed: true,
   // Controla a gaveta deslizante de canais/DMs em telas de celular.
   mobileSidebarOpen: false,
   // Item pedido: "corrija no mobile, deixe igual o EmberCord, quando
@@ -416,11 +412,12 @@ export const useStore = create((set, get) => ({
   },
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   toggleChannelSidebar: () => set((s) => ({ channelSidebarCollapsed: !s.channelSidebarCollapsed })),
-  toggleMainSidebar: () => set((s) => {
-    const next = !s.mainSidebarCollapsed;
-    try { localStorage.setItem('mainSidebarCollapsed', String(next)); } catch { /* localStorage indisponível — só não persiste entre sessões */ }
-    return { mainSidebarCollapsed: next };
-  }),
+  // Item pedido: "a setinha deve iniciar sempre desativada/fechada
+  // quando o app for abrir" — não grava mais em localStorage de
+  // propósito, pra sempre recomeçar recolhido na próxima abertura (ver
+  // o valor inicial fixo em mainSidebarCollapsed acima); continua
+  // alternando normalmente enquanto o app está aberto.
+  toggleMainSidebar: () => set((s) => ({ mainSidebarCollapsed: !s.mainSidebarCollapsed })),
   openMobileSidebar: () => set({ mobileSidebarOpen: true, mobileMembersOpen: false }),
   closeMobileSidebar: () => set({ mobileSidebarOpen: false }),
   // Item pedido: "no mobile quero que só tenha um botão com 3

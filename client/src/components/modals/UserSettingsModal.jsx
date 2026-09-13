@@ -1310,7 +1310,13 @@ export default function UserSettingsModal({ onClose }) {
             <div className="theme-options">
               {['normal', 'discord'].map((l) => (
                 <button key={l} className={`theme-swatch ${layoutStyle === l ? 'active' : ''}`} onClick={() => pickLayoutStyle(l)}>
-                  {{ normal: 'Normal', discord: 'Discord' }[l]}
+                  {/* Item pedido: renomear os rótulos exibidos —
+                      "Normal" vira "Beta", "Discord" vira "Normal".
+                      Os valores internos (normal/discord) continuam
+                      os mesmos por baixo, só o texto que a pessoa vê
+                      muda — evita mexer em schema/backend/lógica por
+                      uma troca que é só de nome na tela. */}
+                  {{ normal: 'Beta', discord: 'Normal' }[l]}
                 </button>
               ))}
             </div>
