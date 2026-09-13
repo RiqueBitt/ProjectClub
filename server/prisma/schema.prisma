@@ -114,7 +114,13 @@ model User {
   // discord faz os canais/categorias ficarem num popover no canto da
   // tela, aberto por um ícone, em vez das abas horizontais fixas no
   // topo do chat (ver ChannelSwitcher.jsx)." 'normal' = padrão atual.
-  layoutStyle         String   @default("normal")
+  // Item pedido: "deixe o layout do discord como o principal pra
+  // todo mundo, atualiza pra deixar ele como principal pra qualquer
+  // user que for usar no futuro" — default trocado de 'normal' pra
+  // 'discord'; usuários já existentes são atualizados uma vez via
+  // script (ver server/scripts/set-default-layout-discord.js), não
+  // só o default de quem se cadastra dali pra frente.
+  layoutStyle         String   @default("discord")
   // Item pedido: "sistema no aparência podendo mudar o zoom de 1,0
   // até 2,0... para melhor personalização" — quanto maior, maior o
   // texto/espaçamento do chat e da barra de digitar no PC (nunca no

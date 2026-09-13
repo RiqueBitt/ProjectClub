@@ -115,11 +115,20 @@ export default function MainApp() {
   const isInComunidade = location.pathname === '/' || location.pathname.startsWith('/channels/');
   const showDiscordChannelSidebar = layoutStyle === 'discord' && isInComunidade;
   // No mobile não cabe coluna fixa + chat lado a lado — a lista de
-  // canais e o chat se revezam em tela cheia (ver CSS): mostra a lista
-  // só quando ainda não escolheu um canal ("/"), esconde assim que
-  // um canal está aberto (o próprio ChannelSidebar já navega pra
-  // "/channels/:id" ao clicar, então isso já acontece sozinho).
+  // canais e o chat se revezam em tela cheia (ver CSS). BUG CORRIGIDO
+  // ("no mobile não está dando de mudar de canal/categoria"): antes,
+  // a lista só reaparecia se você navegasse de volta pra "/" — uma vez
+  // dentro de um canal, não tinha como reabri-la pra trocar de canal.
+  // mobileChannelListOpen (useStore) reabre por cima de tudo mesmo já
+  // com um canal escolhido — igual o botão de menu do EmberCord
+  // ("the hamburger is how you get back to the channel list once the
+  // drawer auto-closes on navigation"). Fecha sozinho ao trocar de
+  // canal (clicar num canal dentro da lista já navega).
   const hasChannelOpen = location.pathname.startsWith('/channels/');
+  const mobileChannelListOpen = useStore((s) => s.mobileChannelListOpen);
+  const toggleMobileChannelList = useStore((s) => s.toggleMobileChannelList);
+  const closeMobileChannelList = useStore((s) => s.closeMobileChannelList);
+  useEffect(() => { closeMobileChannelList(); }, [location.pathname]);
 
   // BUG EVITADO ("preso pra sempre na tela de carregamento se o socket
   // nunca conectar"): sem isso, alguém atrás de um firewall/proxy que
@@ -262,7 +271,7 @@ export default function MainApp() {
 
   return (
     <div
-      className={`app-shell ${mobileMembersOpen ? 'mobile-members-open' : ''} ${mobileSidebarOpen ? 'mobile-sidebar-open' : ''} ${showDiscordChannelSidebar ? 'discord-layout-active' : ''} ${hasChannelOpen ? 'discord-layout-has-channel' : ''}`}
+      className={`app-shell ${mobileMembersOpen ? 'mobile-members-open' : ''} ${mobileSidebarOpen ? 'mobile-sidebar-open' : ''} ${showDiscordChannelSidebar ? 'discord-layout-active' : ''} ${hasChannelOpen ? 'discord-layout-has-channel' : ''} ${mobileChannelListOpen ? 'discord-mobile-channel-list-open' : ''}`}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
@@ -277,6 +286,14 @@ export default function MainApp() {
 
       <PanelSlot panelId="main">
         <div className="app-main">
+          {/* Item pedido: "corrija no mobile, deixe igual o EmberCord"
+              — botão de menu sempre visível no mobile (layout Discord),
+              reabre a lista de canais mesmo já com um canal escolhido
+              (mesmo espírito do "the hamburger is how you get back to
+              the channel list" do EmberCord). */}
+          {showDiscordChannelSidebar && hasChannelOpen && (
+            <button type="button" className="discord-mobile-channel-toggle" onClick={toggleMobileChannelList} title="Canais">☰</button>
+          )}
           <Suspense fallback={<RouteLoadingFallback />}>
             {/* BUG CORRIGIDO ("trocar de tela às vezes dá um erro que
                 obriga a recarregar a página"): um erro de renderização

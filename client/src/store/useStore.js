@@ -148,8 +148,13 @@ export const useStore = create((set, get) => ({
   // opção normal e a opção de layout discord" — mesmo padrão do tema
   // acima (localStorage como cache rápido, a conta como fonte de
   // verdade — ver AuthContext.jsx e setLayoutStyle no backend).
+  // Item pedido: "deixe o layout do discord como o principal pra todo
+  // mundo" — fallback trocado de 'normal' pra 'discord' (só entra em
+  // jogo antes da conta carregar/sem localStorage ainda — a conta
+  // (User.layoutStyle) já vem com o novo default também, ver
+  // schema.prisma).
   layoutStyle: (() => {
-    try { return localStorage.getItem('layoutStyle') || 'normal'; } catch { return 'normal'; }
+    try { return localStorage.getItem('layoutStyle') || 'discord'; } catch { return 'discord'; }
   })(),
   // Item pedido: "5 variantes de visual dos meus emoji" — mesmo padrão
   // do tema acima (localStorage como cache rápido, a conta como fonte
@@ -197,8 +202,25 @@ export const useStore = create((set, get) => ({
   })(),
   sidebarCollapsed: false,
   channelSidebarCollapsed: false,
+  // Item pedido: "deixa a pessoa abrir e fechar o menu de categorias
+  // (início, comunidade, apps etc)... e todas as categorias, não só em
+  // comunidade" — toggle manual (independente de estar ou não na área
+  // de Comunidade/layout Discord), persistido, pra funcionar em
+  // qualquer seção do app.
+  mainSidebarCollapsed: (() => {
+    try { return localStorage.getItem('mainSidebarCollapsed') === 'true'; } catch { return false; }
+  })(),
   // Controla a gaveta deslizante de canais/DMs em telas de celular.
   mobileSidebarOpen: false,
+  // Item pedido: "corrija no mobile, deixe igual o EmberCord, quando
+  // abrir o menu lateral vai mostrar os canais e os ícones das
+  // categorias, pois no mobile não está dando de mudar de canal/
+  // categoria" — separado de mobileSidebarOpen (que é da barra
+  // principal, Início/Comunidade/etc): esse controla a lista de
+  // canais/categorias (ChannelSidebar), que no layout Discord mobile
+  // precisa reabrir mesmo já com um canal escolhido (senão, uma vez
+  // dentro de um canal, não haveria como trocar de canal de novo).
+  mobileChannelListOpen: false,
   // Mesma ideia, mas pra lista de membros do lado direito.
   mobileMembersOpen: false,
 
@@ -379,8 +401,15 @@ export const useStore = create((set, get) => ({
   },
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   toggleChannelSidebar: () => set((s) => ({ channelSidebarCollapsed: !s.channelSidebarCollapsed })),
+  toggleMainSidebar: () => set((s) => {
+    const next = !s.mainSidebarCollapsed;
+    try { localStorage.setItem('mainSidebarCollapsed', String(next)); } catch { /* localStorage indisponível — só não persiste entre sessões */ }
+    return { mainSidebarCollapsed: next };
+  }),
   openMobileSidebar: () => set({ mobileSidebarOpen: true, mobileMembersOpen: false }),
   closeMobileSidebar: () => set({ mobileSidebarOpen: false }),
+  toggleMobileChannelList: () => set((s) => ({ mobileChannelListOpen: !s.mobileChannelListOpen })),
+  closeMobileChannelList: () => set({ mobileChannelListOpen: false }),
   toggleMobileSidebar: () => set((s) => ({ mobileSidebarOpen: !s.mobileSidebarOpen, mobileMembersOpen: false })),
   openMobileMembers: () => set({ mobileMembersOpen: true, mobileSidebarOpen: false }),
   closeMobileMembers: () => set({ mobileMembersOpen: false }),

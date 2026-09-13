@@ -1,6 +1,28 @@
 const prisma = require('../config/prisma');
 const env = require('../config/env');
 
+// Item pedido: "deixe o layout do discord como o principal pra todo
+// mundo, atualiza pra deixar ele como principal pra qualquer user que
+// for usar no futuro" — endpoint de uso único (mesmo padrão de
+// autenticação de publishRelease abaixo: segredo compartilhado, nunca
+// token de usuário) pra rodar a migração das contas já existentes
+// direto no ambiente de produção, já que não há acesso de rede direto
+// ao banco daqui de fora — só entra em jogo enquanto essa migração não
+// roda; seguro deixar depois, já que não faz nada da segunda vez em
+// diante (todo mundo que era 'normal' já virou 'discord' na primeira).
+async function migrateLayoutStyleToDiscord(req, res, next) {
+  try {
+    if (!env.CI_UPDATE_SECRET || req.headers['x-ci-secret'] !== env.CI_UPDATE_SECRET) {
+      return res.status(403).json({ error: 'Segredo inválido.' });
+    }
+    const result = await prisma.user.updateMany({
+      where: { layoutStyle: 'normal' },
+      data: { layoutStyle: 'discord' },
+    });
+    res.json({ ok: true, updated: result.count });
+  } catch (err) { next(err); }
+}
+
 // Chamado pelo GitHub Actions (não por login de usuário nenhum) toda vez
 // que uma nova versão do app (Windows/Linux/Android) termina de ser
 // publicada — cria automaticamente uma "Atualização" (mesmo sistema que
@@ -41,4 +63,4 @@ async function publishRelease(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { publishRelease };
+module.exports = { publishRelease, migrateLayoutStyleToDiscord };

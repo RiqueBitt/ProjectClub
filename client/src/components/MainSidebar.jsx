@@ -90,6 +90,11 @@ export default function MainSidebar() {
   const channelReadAt = useStore((s) => s.channelReadAt);
   const conversations = useStore((s) => s.conversations);
   const friends = useStore((s) => s.friends);
+  // Item pedido: "deixa a pessoa abrir e fechar o menu de categorias...
+  // e todas as categorias, não só em comunidade" — toggle manual pra
+  // qualquer seção do app (ver useStore.js).
+  const mainSidebarCollapsed = useStore((s) => s.mainSidebarCollapsed);
+  const toggleMainSidebar = useStore((s) => s.toggleMainSidebar);
 
   // Lista de Clubes — igual a seção "COMUNIDADES" da HomeSideBar do
   // clone do Reddit (subredditList: cada uma com ícone + nome), só que
@@ -122,7 +127,15 @@ export default function MainSidebar() {
   const navItems = isStaff ? [...ITEMS, STAFF_ITEM] : ITEMS;
 
   return (
-    <aside className="main-sidebar">
+    <aside className={`main-sidebar ${mainSidebarCollapsed ? 'main-sidebar-manually-collapsed' : ''}`}>
+      <button
+        type="button"
+        className="main-sidebar-toggle"
+        title={mainSidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}
+        onClick={toggleMainSidebar}
+      >
+        {mainSidebarCollapsed ? '›' : '‹'}
+      </button>
       <div className="main-sidebar-scroll">
         <nav className="main-sidebar-nav">
           {navItems.map((item) => {

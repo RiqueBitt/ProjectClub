@@ -746,21 +746,48 @@ html.is-electron-app .app-shell { height: calc(100dvh - 32px); }
    larga demais e a tela "suja". showDiscordChannelSidebar já é falso
    fora da área de Comunidade (ver MainApp.jsx), então isso desfaz
    sozinho ao trocar de seção. */
-.app-shell.discord-layout-active { --main-sidebar-width: 64px; }
-.app-shell.discord-layout-active .main-sidebar-scroll { padding: 10px 6px; gap: 4px; }
-.app-shell.discord-layout-active .main-sidebar-brand { justify-content: center; padding: 0; }
-.app-shell.discord-layout-active .main-sidebar-brand-name { display: none; }
-.app-shell.discord-layout-active .main-sidebar-item { justify-content: center; padding: 10px; }
-.app-shell.discord-layout-active .main-sidebar-item-label { display: none; }
+.app-shell.discord-layout-active,
+.main-sidebar-manually-collapsed { --main-sidebar-width: 64px; }
+.app-shell.discord-layout-active .main-sidebar-scroll,
+.main-sidebar-manually-collapsed .main-sidebar-scroll { padding: 10px 6px; gap: 4px; }
+.app-shell.discord-layout-active .main-sidebar-brand,
+.main-sidebar-manually-collapsed .main-sidebar-brand { justify-content: center; padding: 0; }
+.app-shell.discord-layout-active .main-sidebar-brand-name,
+.main-sidebar-manually-collapsed .main-sidebar-brand-name { display: none; }
+.app-shell.discord-layout-active .main-sidebar-item,
+.main-sidebar-manually-collapsed .main-sidebar-item { justify-content: center; padding: 10px; }
+.app-shell.discord-layout-active .main-sidebar-item-label,
+.main-sidebar-manually-collapsed .main-sidebar-item-label { display: none; }
 .app-shell.discord-layout-active .main-sidebar-section-label,
 .app-shell.discord-layout-active .main-sidebar-community-name,
 .app-shell.discord-layout-active .main-sidebar-community-empty,
-.app-shell.discord-layout-active .main-sidebar-community-loading { display: none; }
-.app-shell.discord-layout-active .main-sidebar-community-item { justify-content: center; padding: 8px; }
-.app-shell.discord-layout-active .main-sidebar-footer { padding: 8px 6px; }
-.app-shell.discord-layout-active .main-sidebar-profile-banner { display: none; }
-.app-shell.discord-layout-active .main-sidebar-profile-main { justify-content: center; padding: 6px; }
-.app-shell.discord-layout-active .main-sidebar-profile-text { display: none; }
+.app-shell.discord-layout-active .main-sidebar-community-loading,
+.main-sidebar-manually-collapsed .main-sidebar-section-label,
+.main-sidebar-manually-collapsed .main-sidebar-community-name,
+.main-sidebar-manually-collapsed .main-sidebar-community-empty,
+.main-sidebar-manually-collapsed .main-sidebar-community-loading { display: none; }
+.app-shell.discord-layout-active .main-sidebar-community-item,
+.main-sidebar-manually-collapsed .main-sidebar-community-item { justify-content: center; padding: 8px; }
+.app-shell.discord-layout-active .main-sidebar-footer,
+.main-sidebar-manually-collapsed .main-sidebar-footer { padding: 8px 6px; }
+.app-shell.discord-layout-active .main-sidebar-profile-banner,
+.main-sidebar-manually-collapsed .main-sidebar-profile-banner { display: none; }
+.app-shell.discord-layout-active .main-sidebar-profile-main,
+.main-sidebar-manually-collapsed .main-sidebar-profile-main { justify-content: center; padding: 6px; }
+.app-shell.discord-layout-active .main-sidebar-profile-text,
+.main-sidebar-manually-collapsed .main-sidebar-profile-text { display: none; }
+/* Item pedido: "deixa a pessoa abrir e fechar o menu" — botão fixo no
+   topo da barra, sempre visível (ícone-só ou expandida), que alterna o
+   toggle manual acima. */
+.main-sidebar { position: relative; }
+.main-sidebar-toggle {
+  position: absolute; top: 6px; right: 6px; z-index: 5;
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-muted);
+  font-size: 13px; line-height: 1;
+}
+.main-sidebar-toggle:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
 /* Mesmo motivo do .members-list acima — a barra de chamada de voz
    (aparece embaixo do chat) também ficava na coluna errada. */
 .app-shell.discord-layout-active .call-bar { grid-column: 3; }
@@ -768,6 +795,7 @@ html.is-electron-app .app-shell { height: calc(100dvh - 32px); }
   grid-column: 2; grid-row: 2; min-height: 0; overflow: hidden;
   border-right: 1px solid var(--border);
 }
+.discord-mobile-channel-toggle { display: none; }
 
 /* ---------- Barra de topo estilo Reddit (TopSearchBar.jsx) — logo +
    busca + notificações + criar post, sempre visível em cima de tudo,
@@ -4517,6 +4545,21 @@ a.embed-card-title:hover { text-decoration: underline; }
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .app-shell.discord-layout-has-channel .discord-layout-fixed-sidebar { display: none; }
+  /* Item pedido: "corrija no mobile, deixe igual o EmberCord, quando
+     abrir o menu lateral vai mostrar os canais... pois no mobile não
+     está dando de mudar de canal/categoria" — sobrescreve a regra
+     acima quando a lista foi reaberta manualmente (botão ☰, ver
+     .discord-mobile-channel-toggle) mesmo já com um canal escolhido —
+     sem isso, uma vez dentro de um canal não haveria como voltar pra
+     trocar de canal/categoria de novo. */
+  .app-shell.discord-layout-has-channel.discord-mobile-channel-list-open .discord-layout-fixed-sidebar { display: flex; }
+  .discord-mobile-channel-toggle {
+    position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); left: 10px; z-index: 60;
+    width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg-elevated); border: 1px solid var(--border); color: var(--header-primary);
+    font-size: 16px;
+  }
   .main-sidebar-scroll { padding: 16px 14px 10px; }
   .main-sidebar-brand { justify-content: flex-start; padding: 0 4px; }
   .main-sidebar-brand-name { display: inline; }
