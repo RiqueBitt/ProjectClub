@@ -1,4 +1,6 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -94,6 +96,31 @@ export default function MainSidebar() {
   const mainSidebarCollapsed = useStore((s) => s.mainSidebarCollapsed);
   const toggleMainSidebar = useStore((s) => s.toggleMainSidebar);
 
+  // BUG CORRIGIDO ("tô com o mouse em cima e não aparece nada"): o
+  // tooltip (position: absolute, saindo pra direita do item) ficava
+  // dentro de .main-sidebar-scroll — que tem overflow-x: hidden pra
+  // não deixar a lista rolar de lado à toa — então qualquer coisa que
+  // "vazasse" pra fora dele na horizontal, incluindo o tooltip inteiro,
+  // ficava cortada/invisível, mesmo com opacity:1 (o navegador nunca
+  // desenhava aquele pedaço). Reescrito pra usar um portal (mesma
+  // técnica que outros popovers do app, tipo CustomStatusModal.jsx, já
+  // usam): calcula a posição de verdade do ícone na tela
+  // (getBoundingClientRect) e desenha o tooltip direto no <body>, fora
+  // de qualquer container com overflow escondido — assim nunca mais
+  // corre o risco de ser cortado por nenhum ancestral, agora ou no
+  // futuro. getComputedStyle no momento do hover, em vez de duplicar a
+  // condição "a barra está minimizada" aqui em JS, garante que o
+  // tooltip só aparece exatamente quando o CSS de verdade já escondeu
+  // o nome do item — nunca dessincronizado um do outro.
+  const [tooltip, setTooltip] = useState(null); // { label, top, left } | null
+  const showTooltip = (e, label) => {
+    const labelEl = e.currentTarget.querySelector('.main-sidebar-item-label');
+    if (!labelEl || getComputedStyle(labelEl).display !== 'none') return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setTooltip({ label, top: rect.top + rect.height / 2, left: rect.right + 12 });
+  };
+  const hideTooltip = () => setTooltip(null);
+
   // Lista de Temas — igual a seção "COMUNIDADES" da HomeSideBar do
   // clone do Reddit (subredditList: cada uma com ícone + nome), só que
   // agora vem do estado global (useStore) em vez de um fetch próprio —
@@ -139,12 +166,17 @@ export default function MainSidebar() {
           {navItems.map((item) => {
             const active = item.match(location.pathname);
             const badge = badgeFor(item.to);
+            const label = t(item.labelKey);
             return (
               <NavLink
                 key={item.to}
                 to={item.to}
                 className={`main-sidebar-item ${active ? 'active' : ''}`}
                 onClick={() => useStore.getState().closeMobileSidebar()}
+                onMouseEnter={(e) => showTooltip(e, label)}
+                onMouseLeave={hideTooltip}
+                onTouchStart={(e) => showTooltip(e, label)}
+                onTouchEnd={hideTooltip}
               >
                 <span className="main-sidebar-item-icon">
                   {item.isImg
@@ -152,18 +184,7 @@ export default function MainSidebar() {
                     : item.icon}
                   {badge > 0 && <span className="main-sidebar-item-badge">{badge > 99 ? '99+' : badge}</span>}
                 </span>
-                <span className="main-sidebar-item-label">{t(item.labelKey)}{item.beta && <span className="beta-badge">BETA</span>}</span>
-                {/* Item pedido: "adicione um sistema de tooltip...
-                    quando a barra estiver minimizada... ao passar o
-                    mouse sobre um ícone no PC ou tocar/pressionar
-                    sobre ele no mobile" — sempre no DOM (barato,
-                    é só texto), a visibilidade real é 100% CSS: só
-                    aparece quando o nome ao lado já está escondido
-                    (mesmas condições que escondem
-                    .main-sidebar-item-label — colapso manual ou tela
-                    estreita) E o item está em :hover/:active — nunca
-                    as duas coisas fora desse contexto ao mesmo tempo. */}
-                <span className="main-sidebar-item-tooltip">{t(item.labelKey)}</span>
+                <span className="main-sidebar-item-label">{label}{item.beta && <span className="beta-badge">BETA</span>}</span>
               </NavLink>
             );
           })}
@@ -194,6 +215,12 @@ export default function MainSidebar() {
             )}          </div>
         </div>
       </div>
+      {tooltip && createPortal(
+        <div className="main-sidebar-item-tooltip-portal" style={{ top: tooltip.top, left: tooltip.left }}>
+          {tooltip.label}
+        </div>,
+        document.body,
+      )}
     </aside>
   );
 }
