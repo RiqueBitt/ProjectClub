@@ -55,7 +55,7 @@ function notifyUser(title, body, onClick) {
 }
 
 export function SocketProvider({ children }) {
-  const { token, user, logout } = useAuth();
+  const { token, user, setUser, logout } = useAuth();
   const navigate = useNavigate();
   const userId = user?.id;
   const [connected, setConnected] = useState(false);
@@ -246,7 +246,24 @@ export function SocketProvider({ children }) {
       // recarregar a página nem esperar o próximo check de status.
       useStore.getState().setUiLayout(device, config);
     });
-    socket.on('user:update', (user) => patchUserEverywhere(user));
+    // BUG CORRIGIDO ("estou no nível 10, mas o botão de criar Clube
+    // não aparece"): esse evento já chegava certinho pro navegador
+    // (o servidor já emite 'user:update' pra sala inteira, incluindo
+    // quem acabou de subir de nível — ver messageController.js), mas
+    // patchUserEverywhere só atualiza OUTRAS pessoas (a lista de
+    // membros, os autores de mensagens) — nunca o próprio usuário
+    // logado, que vive num lugar separado (AuthContext, não esse
+    // store) e só era atualizado no login/refresh de token (a cada
+    // 15min). Até isso acontecer, accountLevel continuava com o valor
+    // antigo em memória mesmo já tendo mudado de verdade no banco —
+    // o botão de criar clube (que checa accountLevel >= 10 direto do
+    // usuário logado) ficava escondido até a próxima renovação de
+    // sessão. Agora, quando o id bate com quem está logado agora,
+    // atualiza os dois lugares de uma vez.
+    socket.on('user:update', (updatedUser) => {
+      patchUserEverywhere(updatedUser);
+      if (updatedUser.id === user.id) setUser((prev) => (prev ? { ...prev, ...updatedUser } : prev));
+    });
     // Reflete na hora quando a staff liga/desliga um sistema em /admin →
     // Sistema (ver adminController.adminUpdateSystemToggles) — antes esse
     // evento era emitido mas ninguém no cliente escutava ele, então a UI
