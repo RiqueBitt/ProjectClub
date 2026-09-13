@@ -3776,7 +3776,11 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 .admin-badge-card-desc { font-size: 12px; margin: 2px 0 0; }
 
 @media (max-width: 900px) {
-  .admin-table { display: block; overflow-x: auto; white-space: nowrap; }
+  /* Item pedido: sem rolagem lateral em lugar nenhum do painel — em vez
+     de deixar a tabela vazar pra o lado e precisar "arrastar", o texto
+     quebra linha e a fonte encolhe um pouco pra caber na largura da tela. */
+  .admin-table { font-size: 12px; table-layout: fixed; }
+  .admin-table th, .admin-table td { white-space: normal; word-break: break-word; padding: 8px 6px; }
   .admin-stats-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 }
 
@@ -4943,11 +4947,11 @@ a.embed-card-title:hover { text-decoration: underline; }
   .admin-badge-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
   .mod-tabs { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
   .mod-tab { flex-shrink: 0; }
+  /* Dentro do painel da staff especificamente, nada de rolagem lateral —
+     as sub-abas (ex: Honeypot) quebram linha em vez de arrastar pro lado. */
+  .admin-content .mod-tabs { overflow-x: hidden; flex-wrap: wrap; }
+  .admin-content .mod-tab { flex-shrink: initial; }
   .admin-panel { padding: 14px; }
-  /* Tabela de usuários/servidores do painel admin não cabe numa tela de
-     celular — em vez de cortar colunas, deixa rolar de lado (o conteúdo
-     continua todo acessível, só precisa arrastar). */
-  .admin-table { display: block; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
   .settings-block { padding: 12px; }
 }
 
@@ -5500,81 +5504,95 @@ a.embed-card-title:hover { text-decoration: underline; }
 .group-slot:hover:not(.taken) { background: var(--brand); color: #fff; }
 .group-slot.taken { cursor: default; opacity: 0.85; }
 
-/* ---------- Painel de staff reimaginado (AdminPanel.jsx) — barra lateral
-   organizada por seções em vez de uma fileira só de botões, estilo mais
-   moderno e fácil de navegar com muitas abas (12 no total). ---------- */
+/* ---------- Painel de staff — layout refeito do zero (item pedido:
+   "apague o layout antigo e faça um novo muito melhor e mais
+   organizado", sem NENHUMA rolagem lateral em lugar nenhum — só
+   vertical, tanto no desktop quanto no mobile). Categorias agora têm
+   ícone próprio, ficam em cartões separados, e no celular a navegação
+   vira um painel que abre/fecha empilhado (nunca uma fileira de lado a
+   lado) — ver .admin-mobile-nav-toggle logo abaixo. ---------- */
 .admin-panel-modern { display: flex; flex-direction: column; height: 100%; }
-.admin-panel-body { display: flex; gap: 24px; flex: 1; min-height: 0; }
+.admin-panel-body { display: flex; gap: 22px; flex: 1; min-height: 0; }
+
 .admin-nav {
-  width: 220px; flex-shrink: 0; display: flex; flex-direction: column; gap: 18px;
-  overflow-y: auto; padding-right: 16px;
-  /* Item pedido: "deixe o painel o mais bonito possível" — separação
-     visual clara entre navegação e conteúdo, em vez das duas áreas
-     ficarem "soltas" lado a lado só pelo espaçamento. */
-  border-right: 1px solid var(--border);
+  width: 250px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px;
+  overflow-y: auto; overflow-x: hidden; padding-right: 6px;
 }
-.admin-nav-group-label {
-  font-size: 11px; font-weight: 800; letter-spacing: 0.5px; color: var(--text-muted);
-  text-transform: uppercase; margin-bottom: 6px; padding-left: 10px;
-}
-/* Busca de ferramentas + grupos recolhíveis (item pedido: "facilidade de
-   gerenciamento", ~20 ferramentas no total agora — achar a certa rolando
-   uma lista comprida virou o principal ponto de atrito). */
 .admin-nav-search {
-  border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 4px;
+  border-radius: 10px; padding: 10px 14px; font-size: 13px;
   background: var(--bg-elevated); border: 1px solid var(--border);
+  transition: border-color .12s;
+}
+.admin-nav-search:focus { border-color: var(--brand); outline: none; }
+
+/* Editor de Interface fica fixo no topo, destacado — é a ferramenta mais
+   usada pra mexer no visual do resto do site, então não fica misturada
+   junto com as outras categorias. */
+.admin-nav-pinned {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 10px 14px; border-radius: 10px; font-size: 14px; font-weight: 700;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 20%, var(--bg-elevated)), var(--bg-elevated));
+  border: 1px solid color-mix(in srgb, var(--brand) 45%, var(--border)); color: var(--header-primary);
+  transition: border-color .12s, transform .12s;
+}
+.admin-nav-pinned:hover { border-color: var(--brand); transform: translateY(-1px); }
+.admin-nav-pinned-icon { font-size: 16px; }
+
+.admin-nav-group {
+  background: var(--bg-secondary-alt); border: 1px solid var(--border); border-radius: 12px; padding: 6px;
 }
 .admin-nav-group-toggle {
   display: flex; align-items: center; justify-content: space-between; width: 100%;
-  padding-right: 10px; cursor: pointer;
+  padding: 7px 8px; cursor: pointer; border-radius: 8px;
 }
-.admin-nav-group-toggle:hover { color: var(--header-primary); }
-.admin-nav-group-chevron { font-size: 10px; opacity: 0.7; }
+.admin-nav-group-toggle:hover { background: var(--bg-modifier-hover); }
+.admin-nav-group-title {
+  display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 800;
+  letter-spacing: .5px; color: var(--text-muted); text-transform: uppercase;
+}
+.admin-nav-group-icon { font-size: 14px; }
+.admin-nav-group-chevron { font-size: 10px; opacity: .6; }
+.admin-nav-group-items { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
 .admin-nav-empty { padding: 8px 10px; font-size: 13px; }
+
 .admin-content-breadcrumb {
   font-size: 12px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
 }
 .admin-content-breadcrumb span { opacity: 0.5; margin: 0 4px; }
+
 .admin-nav-item {
   display: block; width: 100%; text-align: left; padding: 9px 12px; border-radius: 8px;
-  font-size: 14px; font-weight: 600; color: var(--text-normal); margin-bottom: 2px;
+  font-size: 13.5px; font-weight: 600; color: var(--text-normal);
   transition: background-color .12s var(--ease-smooth), color .12s var(--ease-smooth);
 }
 .admin-nav-item:hover { background: var(--bg-modifier-hover); }
 .admin-nav-item.active { background: var(--brand); color: #fff; box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--brand) 60%, transparent); }
-.admin-content { flex: 1; min-width: 0; overflow-y: auto; }
+.admin-content { flex: 1; min-width: 0; overflow-y: auto; overflow-x: hidden; }
 
-/* Item pedido: "reformule completa a interface do Painel da Staff pra
-   PC e também faça bem pra mobile" — em telas estreitas, a coluna
-   fixa de 220px consumiria mais da metade da largura de um celular
-   comum. Vira uma barra horizontal ACIMA do conteúdo (mesmo padrão já
-   usado em .channel-tabs, que já resolve exatamente esse mesmo
-   problema noutro lugar do app) — os grupos continuam colapsáveis,
-   então cabe bem mesmo com ~20 ferramentas ao todo. */
+/* Botão que abre/fecha a navegação no mobile — some no desktop. */
+.admin-mobile-nav-toggle { display: none; }
+
 @media (max-width: 900px) {
-  /* Uma rolagem só pra tudo em mobile (nav + conteúdo empilhados,
-     rolando juntos como uma página normal) — múltiplas áreas com
-     rolagem própria e independente faz mais sentido em telas largas
-     (desktop), onde sobra espaço pra dividir em painéis lado a lado;
-     numa tela estreita, empilhado e com uma rolagem só é bem mais
-     natural de usar. */
-  .admin-panel { overflow-y: auto; }
-  .admin-panel-body { flex-direction: column; gap: 12px; }
-  .admin-nav {
-    width: 100%; flex-direction: row; flex-wrap: wrap; gap: 6px 10px;
-    overflow: visible; padding-right: 0; padding-bottom: 12px;
-    border-right: none; border-bottom: 1px solid var(--border);
+  /* Uma rolagem só pra tudo em mobile (nav + conteúdo empilhados) e
+     SEMPRE vertical — nada de fileira de categorias de lado a lado
+     nem tabela "arrastável", que era o que causava a barra lateral. */
+  .admin-panel { overflow-y: auto; overflow-x: hidden; }
+  .admin-panel-body { flex-direction: column; gap: 0; }
+
+  .admin-mobile-nav-toggle {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+    padding: 12px 14px; margin-bottom: 12px; border-radius: 10px; font-size: 14px; font-weight: 700;
+    background: var(--bg-secondary-alt); border: 1px solid var(--border); color: var(--header-primary);
   }
-  .admin-nav-search { width: 100%; flex-basis: 100%; }
-  .admin-nav-group { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 140px; }
-  .admin-content { overflow-y: visible; }
-}
+  .admin-mobile-nav-toggle-chevron { font-size: 11px; opacity: .7; }
 
-@media (max-width: 900px) {
-  .admin-panel-body { flex-direction: column; }
-  .admin-nav { width: 100%; flex-direction: row; flex-wrap: wrap; gap: 4px 14px; overflow-y: visible; }
-  .admin-nav-group { display: flex; flex-direction: column; }
-  .admin-nav-search { width: 100%; }
+  .admin-nav {
+    display: none; width: 100%; max-height: 62vh; overflow-y: auto; overflow-x: hidden;
+    margin-bottom: 16px; padding: 12px; border-radius: 12px;
+    background: var(--bg-secondary-alt); border: 1px solid var(--border);
+  }
+  .admin-nav.admin-nav-open { display: flex; }
+  .admin-content { overflow: visible; }
 }
 
 /* ---------- Casa/mapa inicial marcados no painel admin ---------- */
