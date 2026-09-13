@@ -189,19 +189,26 @@ html.reduced-motion-pref *, html.reduced-motion-pref *::before, html.reduced-mot
   transition-duration: 0.001ms !important; scroll-behavior: auto !important;
 }
 /* Contraste alto (userSettings.highContrast) e Saturação
-   (userSettings.saturation) ainda NÃO aplicados visualmente aqui de
-   propósito: um filter no <html>/<body> cria um novo "containing
-   block" em CSS, fazendo todo position:fixed do app (popover, modal,
-   lightbox — muita coisa depende disso pra se posicionar relativo à
-   tela inteira, não a esse elemento) se comportar como
-   position:absolute em vez disso — um risco grande demais de quebrar
-   coisa já funcionando pra aplicar sem testar com calma numa fase
-   própria. Os valores escolhidos já são salvos e sincronizam
-   normalmente entre dispositivos; só falta a aplicação visual em si,
-   de forma segura, numa próxima fase (provavelmente um filtro
-   aplicado só em cima de elementos específicos, não do <html>/<body>
-   inteiro). */
+   (userSettings.saturation) — BUG CORRIGIDO: estavam sendo salvos e
+   sincronizados, mas nunca tinham uma regra de CSS que de fato os
+   aplicasse visualmente (a classe html.high-contrast-pref e a variável
+   --saturation eram setadas em App.jsx e não usadas em lugar nenhum).
+   Um filter direto no <html>/<body> foi evitado de propósito porque cria
+   um novo "containing block", fazendo todo position:fixed (popovers,
+   modais, seletor de emoji...) se comportar como position:absolute —
+   mas a maioria desses elementos usa createPortal direto pra
+   document.body (fora de #root), então aplicar o filter em #root em vez
+   de html/body resolve os dois toggles sem quebrar nada: #root ocupa
+   100% da viewport (ver "html, body, #root { height: 100% }" acima) e
+   não tem scroll/transform próprios, então um position:fixed que ainda
+   more dentro de #root continua caindo exatamente no mesmo lugar de
+   sempre. Só o pouco que é portado pra fora de #root (emoji picker,
+   menus de perfil) fica de fora do efeito — troca aceitável por não
+   arriscar quebrar o posicionamento de nada. */
 html { font-size: calc(16px * var(--font-scale, 1)); }
+#root { filter: saturate(var(--saturation, 100%)); transition: filter .15s ease; }
+html.reduced-motion-pref #root { transition: none; }
+html.high-contrast-pref #root { filter: saturate(var(--saturation, 100%)) contrast(1.35) brightness(1.03); }
 /* Deterrent-only, matches the right-click/inspect-shortcut blocking in
    App.jsx — text across the UI (labels, buttons, sidebar names...) isn't
    selectable/copyable by default, but message content specifically stays
