@@ -52,6 +52,11 @@ router.patch('/app-catalog/:id', appCatalogCtrl.updateAppCatalogItem);
 router.post('/app-catalog/:id/banner', uploadImage.single('banner'), appCatalogCtrl.uploadAppCatalogBanner);
 router.post('/app-catalog/:id/icon', uploadImage.single('icon'), appCatalogCtrl.uploadAppCatalogIcon);
 router.delete('/app-catalog/:id', appCatalogCtrl.deleteAppCatalogItem);
+// Item pedido: "as screenshots... adicionadas, removidas e editadas
+// pelo painel da staff, sem precisar alterar o código".
+router.post('/app-catalog/:id/screenshots', uploadImage.single('screenshot'), appCatalogCtrl.addAppScreenshot);
+router.patch('/app-catalog/:id/screenshots/reorder', appCatalogCtrl.reorderAppScreenshots);
+router.delete('/app-catalog/screenshots/:screenshotId', appCatalogCtrl.deleteAppScreenshot);
 
 // Automod de DM — lista de sinalizações pendentes + visualização secreta
 // da conversa inteira quando a staff decide analisar um caso.

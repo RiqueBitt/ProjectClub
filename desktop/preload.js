@@ -11,6 +11,13 @@ const { contextBridge, ipcRenderer, webFrame } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  // Item pedido: "separe claramente os downloads para Windows e
+  // Linux" — a aba Apps precisa saber em qual SO o app desktop está
+  // rodando, pra destacar a seção certa (o botão de instalar só
+  // funciona pra plataforma atual de qualquer forma). process.platform
+  // já existe nativamente no processo do preload, só nunca tinha sido
+  // exposto pro lado do site.
+  platform: process.platform,
   // Item pedido: "adicione nas configurações do usuário ele poder
   // aumentar ou diminuir o zoom quanto quiser" — zoom NATIVO do
   // Chromium (não CSS), chamado direto aqui no preload (mesmo

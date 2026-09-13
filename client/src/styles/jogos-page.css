@@ -111,3 +111,101 @@
   .jogos-page-grid { grid-template-columns: 1fr 1fr; }
   .app-detail-title-row h1 { font-size: 22px; }
 }
+
+/* ===== Melhorias do redesign completo da aba Apps ===== */
+
+/* Item pedido: "melhore bastante a interface... cards mais bonitos,
+   modernos e organizados" — badge de versão no canto do banner, e a
+   descrição resumida aparece direto no card (sem precisar entrar no
+   detalhe pra saber do que se trata). */
+.app-card-version-badge {
+  position: absolute; top: 10px; right: 10px; z-index: 1;
+  background: rgba(0,0,0,.55); backdrop-filter: blur(4px); color: #fff;
+  font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 20px;
+}
+.app-card-description {
+  margin: 0; padding: 10px 12px 12px; font-size: 12.5px; color: var(--text-muted);
+  line-height: 1.4; overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+
+/* Item pedido: "adicione mais informações... versão" no cabeçalho da
+   tela de detalhe. */
+.app-detail-title-row h1 { margin: 0 0 2px; }
+.app-detail-version {
+  display: inline-block; color: rgba(255,255,255,.85); font-size: 13px; font-weight: 600;
+  text-shadow: 0 1px 4px rgba(0,0,0,.6);
+}
+
+.app-detail-error-top { padding: 10px 24px 0; }
+.app-detail-web-hint { padding: 12px 24px 0; font-size: 13px; }
+
+/* Item pedido: "separe claramente os downloads para Windows e Linux
+   ... deixe as opções de download bem organizadas e fáceis de
+   entender" — duas seções lado a lado, a "sua" (detectada via
+   window.electronAPI.platform) com destaque de cor/borda; a outra
+   fica visualmente mais discreta (só informativa). */
+.app-detail-platforms {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 20px 24px 0;
+}
+.app-detail-platform {
+  border: 1px solid var(--border); border-radius: 12px; padding: 16px;
+  background: var(--bg-elevated);
+}
+.app-detail-platform.is-current {
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--border));
+  background: color-mix(in srgb, var(--brand) 6%, var(--bg-elevated));
+}
+.app-detail-platform-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.app-detail-platform-name { font-weight: 700; font-size: 15px; color: var(--header-primary); }
+.app-detail-platform-tag {
+  background: var(--brand); color: #fff; font-size: 10.5px; font-weight: 700;
+  padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: .3px;
+}
+.app-detail-platform-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; margin-bottom: 6px; gap: 10px; }
+.app-detail-platform-row strong { color: var(--header-primary); }
+.app-detail-platform-requirements { flex-direction: column; align-items: flex-start; gap: 2px; }
+.app-detail-platform-requirements span:last-child { color: var(--text-normal); font-size: 12.5px; line-height: 1.4; }
+.app-detail-platform-actions { margin-top: 12px; }
+.app-detail-platform-hint { margin: 0; font-size: 12.5px; }
+
+.app-detail-body { padding: 4px 24px 32px; max-width: 760px; }
+.app-detail-description { margin: 8px 0 0; }
+
+/* Item pedido: "recursos principais". */
+.app-detail-features { margin-top: 24px; }
+.app-detail-features h3 { margin: 0 0 10px; font-size: 16px; color: var(--header-primary); }
+.app-detail-features ul { margin: 0; padding-left: 20px; color: var(--text-normal); line-height: 1.7; }
+
+/* Item pedido: "adicione uma seção de screenshots na parte inferior
+   mostrando imagens do aplicativo". */
+.app-detail-screenshots { margin-top: 24px; }
+.app-detail-screenshots h3 { margin: 0 0 10px; font-size: 16px; color: var(--header-primary); }
+.app-detail-screenshots-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+.app-detail-screenshot-thumb {
+  flex-shrink: 0; width: 200px; height: 112px; border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--border); cursor: pointer; transition: transform .12s ease, border-color .12s ease;
+}
+.app-detail-screenshot-thumb:hover { transform: scale(1.03); border-color: var(--brand); }
+.app-detail-screenshot-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Item pedido: "ao clicar em uma screenshot, abra a imagem em tamanho
+   grande. Ao clicar fora da imagem, feche a visualização." */
+.screenshot-lightbox {
+  position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,.88);
+  display: flex; align-items: center; justify-content: center; padding: 40px;
+  animation: screenshot-lightbox-fade .15s ease;
+}
+@keyframes screenshot-lightbox-fade { from { opacity: 0; } to { opacity: 1; } }
+.screenshot-lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+.screenshot-lightbox-close {
+  position: absolute; top: 20px; right: 24px; width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255,255,255,.12); color: #fff; font-size: 22px; display: flex; align-items: center; justify-content: center;
+}
+.screenshot-lightbox-close:hover { background: rgba(255,255,255,.22); }
+
+@media (max-width: 700px) {
+  .app-detail-platforms { grid-template-columns: 1fr; padding: 16px 16px 0; }
+  .app-detail-body { padding: 4px 16px 24px; }
+  .app-detail-screenshot-thumb { width: 160px; height: 90px; }
+}

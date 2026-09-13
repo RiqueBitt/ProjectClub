@@ -48,6 +48,7 @@ import {
   getUiLayout, updateUiLayout,
   adminListAppCatalog, adminCreateAppCatalogItem, adminUpdateAppCatalogItem, adminDeleteAppCatalogItem,
   adminUploadAppCatalogBanner, adminUploadAppCatalogIcon,
+  adminAddAppScreenshot, adminDeleteAppScreenshot,
 } from '../api/endpoints';
 import HouseIcon from '../components/HouseIcon.jsx';
 import DraggableResizableBox from '../components/admin/DraggableResizableBox.jsx';
@@ -1373,6 +1374,15 @@ function AppCatalogItemEditor({ item, onChange, onReload }) {
   const [name, setName] = useState(item.name);
   const [description, setDescription] = useState(item.description || '');
   const [sizeLabel, setSizeLabel] = useState(item.sizeLabel || '');
+  // Item pedido: "adicione mais informações sobre cada app... versão,
+  // tamanho, requisitos... separe claramente os downloads para
+  // Windows e Linux" — mesmo padrão dos campos já existentes acima.
+  const [version, setVersion] = useState(item.version || '');
+  const [sizeLabelWin, setSizeLabelWin] = useState(item.sizeLabelWin || '');
+  const [sizeLabelLinux, setSizeLabelLinux] = useState(item.sizeLabelLinux || '');
+  const [requirementsWin, setRequirementsWin] = useState(item.requirementsWin || '');
+  const [requirementsLinux, setRequirementsLinux] = useState(item.requirementsLinux || '');
+  const [featuresText, setFeaturesText] = useState(item.featuresText || '');
   // Item pedido: "as descrições dos apps não estão salvando" — causa
   // real era updateField (acima) engolindo qualquer erro em silêncio,
   // então um PATCH que falhasse (rede instável, sessão expirada, erro
@@ -1383,6 +1393,7 @@ function AppCatalogItemEditor({ item, onChange, onReload }) {
   // nunca dispara se a pessoa fechar a aba ou navegar pra outro lugar
   // direto depois de digitar.
   const [saveStatus, setSaveStatus] = useState({}); // { [field]: 'saving' | 'saved' | 'error' }
+  const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
 
   const saveField = async (field, value) => {
     setSaveStatus((s) => ({ ...s, [field]: { kind: 'saving' } }));
@@ -1411,6 +1422,24 @@ function AppCatalogItemEditor({ item, onChange, onReload }) {
     return null;
   };
 
+  // Campo de texto simples com botão Salvar — o mesmo padrão se
+  // repete pra vários campos novos, então virou uma função em vez de
+  // copiar o bloco JSX inteiro toda vez.
+  const TextField = ({ label, field, value, setValue, textarea, maxLength }) => (
+    <label>
+      {label}
+      {textarea
+        ? <textarea value={value} onChange={(e) => setValue(e.target.value)} rows={3} maxLength={maxLength} />
+        : <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input value={value} onChange={(e) => setValue(e.target.value)} maxLength={maxLength} style={{ flex: 1 }} />
+          </div>}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
+        <button type="button" className="btn-secondary" disabled={value === (item[field] || '') || saveStatus[field]?.kind === 'saving'} onClick={() => saveField(field, value)}>Salvar</button>
+        {statusLabel(field)}
+      </div>
+    </label>
+  );
+
   const del = async () => {
     if (!confirm(`Remover "${item.name}" do catálogo? A staff pode criar de novo depois.`)) return;
     try {
@@ -1418,6 +1447,27 @@ function AppCatalogItemEditor({ item, onChange, onReload }) {
       onReload();
     } catch {
       alert('Não foi possível remover — tente de novo.');
+    }
+  };
+
+  const addScreenshot = async (file) => {
+    setUploadingScreenshot(true);
+    try {
+      await adminAddAppScreenshot(item.id, file);
+      onReload();
+    } catch {
+      alert('Não foi possível subir a screenshot — tente de novo.');
+    } finally {
+      setUploadingScreenshot(false);
+    }
+  };
+
+  const removeScreenshot = async (screenshotId) => {
+    try {
+      await adminDeleteAppScreenshot(screenshotId);
+      onReload();
+    } catch {
+      alert('Não foi possível remover a screenshot — tente de novo.');
     }
   };
 
@@ -1436,31 +1486,51 @@ function AppCatalogItemEditor({ item, onChange, onReload }) {
           {item.iconUrl && <img src={proxyImage(item.iconUrl)} alt="" style={{ width: 64, height: 64, borderRadius: 8, marginTop: 6, objectFit: 'cover' }} />}
         </label>
       </div>
+
+      {/* Item pedido: "screenshots... adicionadas, removidas e
+          editadas pelo painel da staff, sem precisar alterar o
+          código" */}
       <label>
-        Nome
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} style={{ flex: 1 }} />
-          <button type="button" className="btn-secondary" disabled={name === item.name || saveStatus.name?.kind === 'saving'} onClick={() => saveField('name', name)}>Salvar</button>
-        </div>
-        {statusLabel('name')}
+        Screenshots (galeria mostrada na tela de detalhe do app)
+        <input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploadingScreenshot} onChange={(e) => e.target.files[0] && addScreenshot(e.target.files[0])} />
+        {uploadingScreenshot && <span className="dim"> enviando...</span>}
       </label>
-      <label>
-        Descrição
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} maxLength={500} />
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
-          <button type="button" className="btn-secondary" disabled={description === (item.description || '') || saveStatus.description?.kind === 'saving'} onClick={() => saveField('description', description)}>Salvar descrição</button>
-          {statusLabel('description')}
+      {item.screenshots?.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          {item.screenshots.map((s) => (
+            <div key={s.id} style={{ position: 'relative' }}>
+              <img src={proxyImage(s.imageUrl)} alt="" style={{ width: 120, height: 68, objectFit: 'cover', borderRadius: 6 }} />
+              <button
+                type="button"
+                className="icon-btn-small"
+                title="Remover screenshot"
+                onClick={() => removeScreenshot(s.id)}
+                style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,.7)' }}
+              >×</button>
+            </div>
+          ))}
         </div>
+      )}
+
+      <TextField label="Nome" field="name" value={name} setValue={setName} maxLength={80} />
+      <TextField label="Descrição" field="description" value={description} setValue={setDescription} textarea maxLength={500} />
+      <TextField label="Versão (ex: 1.4.0)" field="version" value={version} setValue={setVersion} maxLength={40} />
+      <TextField label="Recursos principais (um por linha)" field="featuresText" value={featuresText} setValue={setFeaturesText} textarea maxLength={2000} />
+
+      <h5 style={{ marginTop: 16, marginBottom: 4 }}>Windows</h5>
+      <TextField label="Espaço necessário (Windows)" field="sizeLabelWin" value={sizeLabelWin} setValue={setSizeLabelWin} maxLength={40} />
+      <TextField label="Requisitos (Windows)" field="requirementsWin" value={requirementsWin} setValue={setRequirementsWin} textarea maxLength={1000} />
+
+      <h5 style={{ marginTop: 16, marginBottom: 4 }}>Linux</h5>
+      <TextField label="Espaço necessário (Linux)" field="sizeLabelLinux" value={sizeLabelLinux} setValue={setSizeLabelLinux} maxLength={40} />
+      <TextField label="Requisitos (Linux)" field="requirementsLinux" value={requirementsLinux} setValue={setRequirementsLinux} textarea maxLength={1000} />
+
+      <label style={{ marginTop: 8, display: 'block' }}>
+        Espaço necessário (legado — usado só se Windows/Linux acima estiverem vazios)
+        <TextField label="" field="sizeLabel" value={sizeLabel} setValue={setSizeLabel} maxLength={40} />
       </label>
-      <label>
-        Espaço necessário
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input value={sizeLabel} onChange={(e) => setSizeLabel(e.target.value)} maxLength={40} style={{ flex: 1 }} />
-          <button type="button" className="btn-secondary" disabled={sizeLabel === (item.sizeLabel || '') || saveStatus.sizeLabel?.kind === 'saving'} onClick={() => saveField('sizeLabel', sizeLabel)}>Salvar</button>
-        </div>
-        {statusLabel('sizeLabel')}
-      </label>
-      <label className="settings-toggle-row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+      <label className="settings-toggle-row" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
         <input type="checkbox" checked={item.enabled} onChange={(e) => onChange(item.id, 'enabled', e.target.checked).catch(() => alert('Não foi possível salvar — tente de novo.'))} />
         Visível na aba Apps
       </label>

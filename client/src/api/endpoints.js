@@ -518,3 +518,11 @@ export const adminUploadAppCatalogIcon = (id, file) => {
   const fd = new FormData(); fd.append('icon', file);
   return api.post(`/admin/app-catalog/${id}/icon`, fd).then((r) => r.data);
 };
+// Item pedido: "as screenshots... adicionadas, removidas e editadas
+// pelo painel da staff" — mesmo padrão de upload de banner/ícone acima.
+export const adminAddAppScreenshot = (id, file) => {
+  const fd = new FormData(); fd.append('screenshot', file);
+  return api.post(`/admin/app-catalog/${id}/screenshots`, fd).then((r) => r.data);
+};
+export const adminDeleteAppScreenshot = (screenshotId) => api.delete(`/admin/app-catalog/screenshots/${screenshotId}`).then((r) => r.data);
+export const adminReorderAppScreenshots = (id, screenshotIds) => api.patch(`/admin/app-catalog/${id}/screenshots/reorder`, { screenshotIds }).then((r) => r.data);

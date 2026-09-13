@@ -8,6 +8,10 @@ import friendsIcon from '../assets/icons/nav-profile.png';
 import ranksIcon from '../assets/icons/nav-ranks.png';
 import supportIcon from '../assets/icons/nav-support.png';
 import dashboardIcon from '../assets/icons/nav-dashboard.png';
+// Item pedido: "troque a logo... mantenha a cor dos ícones consistente
+// com o resto da interface" — mesmo padrão isImg:true dos outros
+// (mask-image via CSS, a cor de verdade vem de lá, não do PNG).
+import appsIcon from '../assets/icons/nav-apps.png';
 import achievementsIcon from '../assets/icons/nav-achievements.png';
 import inicioIcon from '../assets/icons/nav-updates.png';
 import clansIcon from '../assets/icons/nav-clans.png';
@@ -48,7 +52,7 @@ const ITEMS = [
   // padrão que o resto desta barra já usa (item único levando pra uma
   // página com navegação interna própria), em vez de inventar um
   // segundo nível de menu que não existe em nenhum outro lugar dela.
-  { to: '/jogos', icon: '🎮', labelKey: 'nav.jogos', match: (p) => p.startsWith('/jogos') },
+  { to: '/jogos', icon: appsIcon, isImg: true, labelKey: 'nav.jogos', match: (p) => p.startsWith('/jogos') },
   // Item pedido: "remover a aba Notificações do menu lateral esquerdo
   // e deixar as notificações disponíveis somente pelo ícone de sino
   // localizado na parte superior da interface" — o sino já existe e

@@ -1986,11 +1986,37 @@ model AppCatalogItem {
   description String? @db.Text
   bannerUrl   String?
   iconUrl     String?
-  sizeLabel   String? // ex: "~100 MB" — texto livre, exibido como "espaço necessário"
+  sizeLabel   String? // ex: "~100 MB" — texto livre, exibido como "espaço necessário" (legado, mantido por compatibilidade — a UI nova usa sizeLabelWin/sizeLabelLinux abaixo)
+  // Item pedido: "adicione mais informações... versão, tamanho,
+  // requisitos... separe claramente os downloads para Windows e
+  // Linux" — campos novos, todos opcionais (nenhum quebra os apps já
+  // cadastrados, que ainda não os preencheram).
+  version         String?
+  sizeLabelWin    String? // ex: "~140 MB" — específico do pacote Windows
+  sizeLabelLinux  String? // ex: "~300 MB" — específico do pacote Linux (.AppImage)
+  requirementsWin String? @db.Text
+  requirementsLinux String? @db.Text
+  // Lista de recursos principais — um por linha (texto simples, sem
+  // precisar de outra tabela pra algo tão simples de editar).
+  featuresText    String? @db.Text
+  screenshots AppScreenshot[]
   order       Int      @default(0)
   enabled     Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// Item pedido: "as screenshots de todos os aplicativos devem poder
+// ser adicionadas, removidas e editadas pelo painel da staff, sem
+// precisar alterar o código" — uma linha por imagem, staff controla
+// tudo (upload, ordem, remoção) via o mesmo painel Admin → Apps.
+model AppScreenshot {
+  id              String        @id @default(uuid())
+  appCatalogItemId String
+  appCatalogItem  AppCatalogItem @relation(fields: [appCatalogItemId], references: [id], onDelete: Cascade)
+  imageUrl        String
+  order           Int           @default(0)
+  createdAt       DateTime      @default(now())
 }
 
 model RegisteredGame {
