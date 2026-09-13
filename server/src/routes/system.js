@@ -7,6 +7,5 @@ const ctrl = require('../controllers/systemController');
 const router = express.Router();
 
 router.post('/publish-release', ctrl.publishRelease);
-router.post('/migrate-layout-style-to-discord', ctrl.migrateLayoutStyleToDiscord);
 
 module.exports = router;

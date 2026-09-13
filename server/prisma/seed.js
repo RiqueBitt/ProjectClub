@@ -150,6 +150,19 @@ async function main() {
     where: { tagText: { not: null } }, data: { tagEmoji: null, tagText: null },
   });
   if (removedCommunityTag.count > 0) console.log(`Removida a tag de comunidade de ${removedCommunityTag.count} conta(s).`);
+
+  // Item pedido: "deixe o layout do discord como o principal pra todo
+  // mundo, atualiza pra deixar ele como principal pra qualquer user
+  // que for usar no futuro" — o default de conta nova já mudou
+  // (schema.prisma), esta é a parte que falta: contas já existentes
+  // que ainda estavam no valor antigo. Mesmo padrão do bloco acima —
+  // idempotente (não sobrescreve quem já escolheu 'discord' ou
+  // qualquer outro valor de propósito), então fica seguro aqui pra
+  // sempre, sem precisar remover depois.
+  const migratedToDiscordLayout = await prisma.user.updateMany({
+    where: { layoutStyle: 'normal' }, data: { layoutStyle: 'discord' },
+  });
+  if (migratedToDiscordLayout.count > 0) console.log(`Layout padrão trocado pra 'discord' em ${migratedToDiscordLayout.count} conta(s).`);
 }
 
 main()
