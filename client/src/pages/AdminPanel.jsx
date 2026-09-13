@@ -64,7 +64,7 @@ const TAB_LABEL = {
   economia: '💰 Economia', casas: '🧊 Casas e Móveis', sistema: '⚙️ Sistema', moderacao: '💬 Moderação de Recados',
   automodDm: '🚩 Moderação de DMs', reports: '🚩 Denúncias', feeds: '📰 Feeds', honeypot: '🕸️ Segurança (Honeypot)',
   roles: '🎭 Cargos', channels: '# Canais e Categorias', gifMove: '🎯 GIFa Move',
-  emojis: '😀 Emojis', stickers: '🏷️ Figurinhas', clanIcons: '⚔️ Ícones de Clã',
+  emojis: '😀 Emojis', stickers: '🏷️ Figurinhas', clanIcons: '⚔️ Ícones de Clube',
   achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', reload: '🔄 Reload', appCatalog: '🧩 Apps',
 };
 
@@ -423,7 +423,7 @@ function ClanIconsAdminTab() {
   const [open, setOpen] = useState(false);
   return (
     <div>
-      <h2>⚔️ Ícones de Clã</h2>
+      <h2>⚔️ Ícones de Clube</h2>
       <p className="dim" style={{ marginBottom: 16 }}>Crie ícones pra donos de clã escolherem ao criar ou editar o clã deles.</p>
       <button className="btn-primary" onClick={() => setOpen(true)}>Gerenciar ícones de clã</button>
       {open && <ClanIconManagerModal onClose={() => setOpen(false)} />}

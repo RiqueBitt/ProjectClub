@@ -51,7 +51,7 @@ export default function ClanPage() {
   const refreshMyClan = () => getMyClan().then((d) => setMyClan(d));
 
   useEffect(() => {
-    if (!myClan) { navigate('/clans'); return; }
+    if (!myClan) { navigate('/dms'); return; }
     listClanMessages(myClan.id).then((d) => setMessages(d.messages));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myClan?.id]);
@@ -96,7 +96,7 @@ export default function ClanPage() {
     try {
       await leaveClan();
       setMyClan({ clan: null });
-      navigate('/clans');
+      navigate('/dms');
     } catch (err) {
       useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível sair do clube.');
     }

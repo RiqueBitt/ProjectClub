@@ -1012,8 +1012,8 @@ export default function UserSettingsModal({ onClose }) {
 
           {myClan?.tags?.length > 0 && (
             <div className="settings-block">
-              <h4>Tag do clã</h4>
-              <p className="dim">Exiba a tag do seu clã do lado do seu nome no chat, na lista de membros e no seu perfil.</p>
+              <h4>Tag do clube</h4>
+              <p className="dim">Exiba a tag do seu clube do lado do seu nome no chat, na lista de membros e no seu perfil.</p>
               <div className="server-tag-options">
                 <button
                   type="button"

@@ -16,7 +16,7 @@ export default function ClanTagBadge({ user }) {
   if (!user?.clanTag?.tag) return null;
   const clan = user.clanTag.clan;
   return (
-    <span className="server-tag-badge inline clan-tag-badge" title={`Tag de clã: ${user.clanTag.tag}`}>
+    <span className="server-tag-badge inline clan-tag-badge" title={`Tag de clube: ${user.clanTag.tag}`}>
       <ClanIcon icon={clan?.icon} color={clan?.iconColor} size={14} /> {user.clanTag.tag}
     </span>
   );

@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react';
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useSocket } from '../context/SocketContext.jsx';
 import LoadingScreen from '../components/LoadingScreen.jsx';
@@ -53,7 +53,6 @@ const EconomyPage = lazy(() => import('./EconomyPage.jsx'));
 const RankPage = lazy(() => import('./RankPage.jsx'));
 const HousesPage = lazy(() => import('./HousesPage.jsx'));
 const StickersPage = lazy(() => import('./StickersPage.jsx'));
-const ClansPage = lazy(() => import('./ClansPage.jsx'));
 const ClanPage = lazy(() => import('./ClanPage.jsx'));
 const TicketsPage = lazy(() => import('./TicketsPage.jsx'));
 const CommunitiesPage = lazy(() => import('./CommunitiesPage.jsx'));
@@ -324,7 +323,15 @@ export default function MainApp() {
                 <Route path="/casas" element={<HousesPage />} />
                 <Route path="/figurinhas" element={<StickersPage />} />
                 <Route path="/tickets" element={<TicketsPage />} />
-                <Route path="/clans" element={<ClansPage />} />
+                {/* Item pedido: "remover completamente a categoria
+                    Clãs da interface... dentro de Social, criar as
+                    abas... Clubes" — /clans (a listagem "Encontrar
+                    Clubes") não é mais uma página própria, virou a
+                    aba "Clubes" dentro de /dms (Social, ver
+                    AmigosPage.jsx) — redireciona em vez de sumir
+                    de vez, pra não quebrar quem ainda tem esse link
+                    salvo/aberto. */}
+                <Route path="/clans" element={<Navigate to="/dms" replace />} />
                 <Route path="/clans/mine" element={<ClanPage />} />
                 <Route path="/comunidades" element={<CommunitiesPage />} />
                 <Route path="/comunidades/:slug" element={<CommunityPage />} />

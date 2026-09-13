@@ -7,6 +7,20 @@ const AUTHOR_FIELDS = { id: true, publicId: true, username: true, displayName: t
 // membros... Somente usuários que fazem parte daquele clan poderão
 // acessar e utilizar esses canais." — checagem de acesso em toda
 // rota, comparando req.user.clanId com o id do clã da URL.
+//
+// Item pedido (mudanças gerais, Clubes): "Manter o sistema de
+// permissões dos Clubes, garantindo que apenas Administradores e
+// Fundadores possam visualizar as mensagens privadas do Clube" —
+// interpretado como manter a privacidade já garantida aqui em baixo
+// (só quem É membro do clube vê essas mensagens — ninguém de fora, o
+// que já vale pros 3 tipos de privacidade: público, exclusivo pra
+// amigos e somente por convite). Restringir ainda mais, pra só
+// Admin/Fundador dentro do próprio clube, tornaria o chat inútil pra
+// membros comuns — o oposto do que um "canal de chat entre os
+// membros" deveria fazer; hasClanCapability (ver clanPermissions.js)
+// já controla separadamente quem pode MODERAR o chat (apagar mensagem
+// de outra pessoa) e quem pode gerenciar o clube como um todo, sem
+// bloquear a LEITURA de ninguém que já seja membro.
 async function listClanMessages(req, res, next) {
   try {
     const { id } = req.params;

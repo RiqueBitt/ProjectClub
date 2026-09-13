@@ -75,10 +75,10 @@ export default function ClanIconManagerModal({ onClose }) {
   };
 
   return (
-    <Modal title="Ícones de clã" onClose={onClose} width="700px">
+    <Modal title="Ícones de clube" onClose={onClose} width="700px">
       {DialogElement}
       <div className="emoji-manager">
-        <p className="dim">Ícones criados aqui ficam disponíveis pra qualquer dono escolher ao criar ou editar um clã.</p>
+        <p className="dim">Ícones criados aqui ficam disponíveis pra qualquer dono escolher ao criar ou editar um clube.</p>
         <div
           className={`emoji-dropzone ${dragOver ? 'drag-over' : ''} ${previewUrl ? 'has-preview' : ''}`}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -111,7 +111,7 @@ export default function ClanIconManagerModal({ onClose }) {
         {loading ? (
           <div className="dim">Carregando ícones...</div>
         ) : icons.length === 0 ? (
-          <div className="dim">Nenhum ícone de clã ainda.</div>
+          <div className="dim">Nenhum ícone de clube ainda.</div>
         ) : (
           <div className="emoji-grid">
             {icons.map((icon) => (

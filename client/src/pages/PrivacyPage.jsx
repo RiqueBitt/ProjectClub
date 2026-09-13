@@ -54,10 +54,10 @@ export default function PrivacyPage() {
           <p className="legal-doc-updated">Como o Project Club lida com os dados e mensagens da comunidade.</p>
 
           <h2>🟢 Dados que temos acesso</h2>
-          <p><em>Clãs e grupos não são privados — temos acesso a eles como qualquer outro canal público.</em></p>
+          <p><em>Clubes e grupos não são privados — temos acesso a eles como qualquer outro canal público.</em></p>
           <ul>
             <li>E-mail</li>
-            <li>Mensagens de canais públicos (Comunidade, Clãs, Feeds e Grupos)</li>
+            <li>Mensagens de canais públicos (Comunidade, Clubes, Feeds e Grupos)</li>
             <li>Imagens e GIFs enviados em canais públicos</li>
           </ul>
 
