@@ -6873,17 +6873,16 @@ a.embed-card-title:hover { text-decoration: underline; }
 .app-routes-container { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .app-title-bar {
   display: flex; align-items: stretch; height: 32px; flex-shrink: 0;
-  /* BUG CORRIGIDO ("tom/coloração inadequada — deve seguir
-     automaticamente o tema"): a mistura sempre usava preto fixo
-     (#0b0b0d) como base — em qualquer um dos 3 temas claros (Muito
-     Claro, Cartoon, Claro — --bg-primary branco neles), a barra
-     continuava escura, destoando do resto da interface, que é clara.
-     Trocado o preto fixo por --bg-secondary, que já se adapta
-     corretamente em TODOS os temas (escuro nos temas escuros, claro
-     nos temas claros) — a mistura com --brand continua garantindo que
-     dá pra reconhecer "a cor do tema", só que agora com o tom de base
-     certo pra cada tema, em vez de sempre escuro. */
-  background: color-mix(in srgb, var(--brand) 28%, var(--bg-secondary));
+  /* BUG CORRIGIDO ("ainda está com um tom azul, troque completamente
+     para o tom do tema"): a correção anterior trocou a base do
+     color-mix (de preto fixo pra --bg-secondary, que já se adapta por
+     tema), mas ainda misturava 28% de --brand por cima — e --brand é
+     azulado/arroxeado na maioria dos temas, então mesmo com a base
+     certa o resultado final continuava puxando pro azul, visível na
+     prática. Removida a mistura por completo: agora é só
+     --bg-secondary puro, o tom real do tema, sem nenhum tingimento de
+     marca por cima. */
+  background: var(--bg-secondary);
   color: var(--text-normal, #dbdee1);
   -webkit-app-region: drag; user-select: none;
 }
