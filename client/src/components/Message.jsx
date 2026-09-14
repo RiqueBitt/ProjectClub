@@ -18,6 +18,7 @@ import StyledEmoji from './StyledEmoji.jsx';
 import CustomAudioPlayer from './CustomAudioPlayer.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import TagBadge from './TagBadge.jsx';
+import PendantIcon from './PendantIcon.jsx';
 import ClanTagBadge from './ClanTagBadge.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import personIcon from '../assets/icons/person.png';
@@ -349,6 +350,7 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
         {showAuthor && (
           <div className="message-meta">
             <span className={`message-author ${hasCustomNameStyle(message.author) ? nameStyleClassName(message.author) : ''}`} style={hasCustomNameStyle(message.author) ? nameStyleProps(message.author) : roleTextStyle(authorRoleColor)}>{message.author.displayName}</span>
+            <PendantIcon user={message.author} size={14} />
             <TagBadge user={message.author} />
             <ClanTagBadge user={message.author} />
             <span className="message-time">{formatTime(message.createdAt)}</span>

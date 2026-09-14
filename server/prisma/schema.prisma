@@ -44,6 +44,13 @@ model User {
   bannerUrl           String?
   miniProfileBannerUrl String?
   idCardUrl           String?
+  // Item pedido: pingente escolhido da lista curada pela staff (ver
+  // model Pendant acima) — null = nenhum escolhido. onDelete: SetNull
+  // pra não travar a staff de remover um pingente do catálogo só
+  // porque alguém ainda está usando ele; a pessoa simplesmente fica
+  // sem pingente se isso acontecer.
+  selectedPendantId   String?
+  selectedPendant     Pendant? @relation(fields: [selectedPendantId], references: [id], onDelete: SetNull)
   bio                 String? @db.Text
   pronouns            String?
   // BUG CORRIGIDO ("Unknown field birthDate for select statement on
@@ -320,6 +327,24 @@ model User {
   modReports     ModReport[]
   modProfiles    ModProfile[]
   modCollections ModCollection[]
+}
+
+// Item pedido: "pingentes... mini imagens que podem ser colocadas pelo
+// usuário (lista de seleção que nós fazemos) ao lado do seu nome...
+// como no Discord quando cargos possuem imagem atrelada" — catálogo
+// curado pela staff (não upload livre da pessoa, diferente da placa de
+// identificação/idCardUrl); cada usuário escolhe UM da lista, ou
+// nenhum. Aparece só no mini perfil, perfil completo e no chat — nunca
+// na lista de membros (ver comentário em User.selectedPendantId
+// abaixo e o componente PendantIcon.jsx no client).
+model Pendant {
+  id        String   @id @default(uuid())
+  name      String
+  iconUrl   String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  users User[]
 }
 
 model Badge {

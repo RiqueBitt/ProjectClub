@@ -5505,6 +5505,21 @@ a.embed-card-title:hover { text-decoration: underline; }
    do card ali. */
 .mini-profile-accented .mini-profile-avatar { border-color: rgba(255,255,255,0.1); }
 .mini-profile-name { font-weight: 800; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+/* Item pedido: pingentes — imagem pequena ao lado do nome, mesmo
+   espírito de ícone de cargo do Discord. Aparece no mini perfil,
+   perfil completo e chat (ver os 3 arquivos que importam
+   PendantIcon.jsx) — nunca na lista de membros, de propósito. */
+.pendant-icon { border-radius: 4px; object-fit: cover; vertical-align: middle; flex-shrink: 0; }
+.pendant-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; margin-top: 8px; }
+.pendant-picker-option {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border-radius: 10px;
+  background: var(--bg-elevated); border: 1px solid var(--border); transition: border-color .12s ease;
+}
+.pendant-picker-option:hover { border-color: var(--brand); }
+.pendant-picker-option.active { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 12%, var(--bg-elevated)); }
+.pendant-picker-option-img { width: 28px; height: 28px; border-radius: 6px; object-fit: cover; }
+.pendant-picker-option-none { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 14px; }
+.pendant-picker-option-label { font-size: 10.5px; color: var(--text-muted); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .mini-profile-handle { font-size: 12px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .mini-profile-badges-row { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
 /* Item pedido: "não quero nenhuma caixa atrás das insígnias" —

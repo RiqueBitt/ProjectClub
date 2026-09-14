@@ -12,6 +12,7 @@ import ClanTagBadge from './ClanTagBadge.jsx';
 import levelStarIcon from '../assets/icons/level-star.png';
 import { proxyImage } from '../utils/imageProxy';
 import PresenceDot from './PresenceDot.jsx';
+import PendantIcon from './PendantIcon.jsx';
 import { nameStyleProps, nameStyleClassName } from '../utils/nameStyle';
 
 // Quantos cargos mostrar no popup compacto (a bio é limitada por CSS a 3
@@ -307,7 +308,7 @@ export default function MiniProfileCard() {
                 <span className="mini-profile-status-bubble">{user.customStatusEmoji ? `${user.customStatusEmoji} ` : ''}{user.customStatus}</span>
               )}
             </div>
-            <div className="mini-profile-name"><span className={nameStyleClassName(user, { fullEffect: true })} style={nameStyleProps(user, { fullEffect: true })}>{user.displayName}</span> <TagBadge user={user} /> <ClanTagBadge user={user} /></div>
+            <div className="mini-profile-name"><span className={nameStyleClassName(user, { fullEffect: true })} style={nameStyleProps(user, { fullEffect: true })}>{user.displayName}</span> <PendantIcon user={user} /> <TagBadge user={user} /> <ClanTagBadge user={user} /></div>
             <div className="dim mini-profile-handle">
               @{user.username}
               {user.pronouns && <span> • {user.pronouns}</span>}

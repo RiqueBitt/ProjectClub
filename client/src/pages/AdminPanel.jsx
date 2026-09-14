@@ -51,6 +51,7 @@ import {
   adminAddAppScreenshot, adminDeleteAppScreenshot,
   adminListClans, adminGetClan, adminListClanMessages, adminUpdateClan, adminDeleteClan,
   adminListModGameMappings, adminCreateModGameMapping, adminUpdateModGameMapping, adminDeleteModGameMapping,
+  adminListPendants, adminCreatePendant, adminUpdatePendant, adminUploadPendantIcon, adminDeletePendant,
   adminListModReports, adminResolveModReport,
   adminListWorkshopGameMappings, adminCreateWorkshopGameMapping, adminUpdateWorkshopGameMapping, adminDeleteWorkshopGameMapping,
   adminListGameBananaMappings, adminCreateGameBananaMapping, adminUpdateGameBananaMapping, adminDeleteGameBananaMapping,
@@ -73,12 +74,13 @@ const TAB_LABEL = {
   emojis: '😀 Emojis', stickers: '🏷️ Figurinhas', clanIcons: '⚔️ Ícones de Clube', clubs: '🏛️ Clubes',
   achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', reload: '🔄 Reload', appCatalog: '🧩 Apps',
   modGames: '🧰 Mods — Jogos', modReports: '🧰 Mods — Denúncias', workshopGames: '🧰 Mods — Steam Workshop', gamebananaGames: '🧰 Mods — GameBanana',
+  pendants: '📎 Pingentes',
 };
 
 const TAB_GROUPS = [
   { label: 'Visão geral', icon: '📊', tabs: ['stats', 'inscricoes', 'users', 'badges'] },
   { label: 'Estrutura da comunidade', icon: '🏗️', tabs: ['roles', 'channels', 'gifMove', 'emojis', 'stickers', 'clanIcons', 'clubs', 'achievements'] },
-  { label: 'Conteúdo', icon: '🎨', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events', 'appCatalog', 'modGames', 'workshopGames', 'gamebananaGames'] },
+  { label: 'Conteúdo', icon: '🎨', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events', 'appCatalog', 'modGames', 'workshopGames', 'gamebananaGames', 'pendants'] },
   { label: 'Moderação', icon: '🛡️', tabs: ['moderacao', 'automodDm', 'reports', 'modReports', 'logs', 'honeypot'] },
   { label: 'Comunicação', icon: '📣', tabs: ['announcements'] },
   { label: 'Sistema', icon: '⚙️', tabs: ['sistema', 'maintenance', 'reload'] },
@@ -193,6 +195,7 @@ export default function AdminPanel() {
           {tab === 'feeds' && <FeedsAdminTab />}
           {tab === 'appCatalog' && <AppCatalogTab />}
           {tab === 'modGames' && <ModGamesAdminTab />}
+          {tab === 'pendants' && <PendantsAdminTab />}
           {tab === 'workshopGames' && <WorkshopGamesAdminTab />}
           {tab === 'gamebananaGames' && <GameBananaGamesAdminTab />}
           {tab === 'modReports' && <ModReportsAdminTab />}
@@ -3503,6 +3506,98 @@ function GameBananaGamesAdminTab() {
                 <td className="admin-table-actions">
                   <button className="btn-link" onClick={() => toggleEnabled(m)}>{m.enabled ? 'Desativar' : 'Ativar'}</button>
                   <button className="btn-link" style={{ color: 'var(--red)' }} onClick={() => remove(m)}>Remover</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// Item pedido: "pingentes... lista de seleção que nós fazemos" — o
+// catálogo em si é gerenciado aqui (criar/editar ícone/habilitar-
+// desabilitar/apagar), mesmo padrão visual das outras abas simples de
+// catálogo já existentes (ex: ModGamesAdminTab).
+function PendantsAdminTab() {
+  const [pendants, setPendants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ name: '', iconUrl: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const refresh = () => {
+    setLoading(true);
+    adminListPendants().then((d) => setPendants(d.pendants)).finally(() => setLoading(false));
+  };
+  useEffect(refresh, []);
+
+  const create = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!form.name.trim() || !form.iconUrl.trim()) { setError('Nome e URL do ícone são obrigatórios.'); return; }
+    setSaving(true);
+    try {
+      await adminCreatePendant(form);
+      setForm({ name: '', iconUrl: '' });
+      refresh();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erro ao criar pingente.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const uploadIcon = async (pendant, file) => {
+    await adminUploadPendantIcon(pendant.id, file);
+    refresh();
+  };
+
+  const toggleEnabled = async (p) => {
+    await adminUpdatePendant(p.id, { enabled: !p.enabled });
+    refresh();
+  };
+
+  const remove = async (p) => {
+    if (!confirm(`Remover o pingente "${p.name}"? Quem estiver usando ele fica sem pingente.`)) return;
+    await adminDeletePendant(p.id);
+    refresh();
+  };
+
+  return (
+    <div>
+      <h2>📎 Pingentes</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        Catálogo de pingentes disponíveis — cada usuário escolhe um (ou nenhum) nas próprias configurações de perfil.
+        Aparece ao lado do nome no chat, mini perfil e perfil completo; nunca na lista de membros.
+      </p>
+
+      <form className="admin-badge-form" onSubmit={create}>
+        <label>Nome<input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="ex: Coroa dourada" /></label>
+        <label>URL do ícone<input value={form.iconUrl} onChange={(e) => setForm((f) => ({ ...f, iconUrl: e.target.value }))} placeholder="https://..." /></label>
+        {error && <p style={{ color: 'var(--red)', fontSize: 13 }}>{error}</p>}
+        <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Salvando...' : 'Criar pingente'}</button>
+      </form>
+
+      {loading ? <p className="dim">Carregando...</p> : pendants.length === 0 ? (
+        <p className="dim">Nenhum pingente cadastrado ainda.</p>
+      ) : (
+        <table className="admin-table" style={{ marginTop: 20 }}>
+          <thead><tr><th>Ícone</th><th>Nome</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {pendants.map((p) => (
+              <tr key={p.id}>
+                <td><img src={p.iconUrl} alt="" style={{ width: 24, height: 24, borderRadius: 4, objectFit: 'cover' }} /></td>
+                <td>{p.name}</td>
+                <td>{p.enabled ? '✅ Ativo' : '⛔ Desativado'}</td>
+                <td className="admin-table-actions">
+                  <label className="btn-link" style={{ cursor: 'pointer' }}>
+                    Trocar ícone
+                    <input type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files[0]; if (f) uploadIcon(p, f); e.target.value = ''; }} />
+                  </label>
+                  <button className="btn-link" onClick={() => toggleEnabled(p)}>{p.enabled ? 'Desativar' : 'Ativar'}</button>
+                  <button className="btn-link" style={{ color: 'var(--red)' }} onClick={() => remove(p)}>Remover</button>
                 </td>
               </tr>
             ))}

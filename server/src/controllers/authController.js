@@ -114,6 +114,10 @@ const PUBLIC_USER_FIELDS = {
   // novo ClanTagBadge, mostrado nos mesmos lugares que a tag de
   // comunidade já era).
   clanTag: { select: { tag: true, clan: { select: { icon: true, iconColor: true } } } },
+  // Item pedido: "pingentes... mini imagens ao lado do seu nome" —
+  // aparece pra qualquer visitante do perfil (mini/completo/chat),
+  // então precisa estar público aqui, não só em SELF_USER_FIELDS.
+  selectedPendant: { select: { id: true, name: true, iconUrl: true } },
 };
 
 // Everything PUBLIC_USER_FIELDS has, plus the account-owner-only fields

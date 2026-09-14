@@ -46,6 +46,11 @@ router.delete('/me/games/:id', gamesCtrl.removeGame);
 // Item pedido: "Atalhos personalizados... verificar se já existe
 // outro comando usando a combinação"
 router.get('/me/shortcuts', shortcutsCtrl.listMyShortcuts);
+
+// Item pedido: pingentes — catálogo público + escolha da própria conta.
+const pendantCtrl = require('../controllers/pendantController');
+router.get('/me/pendants', pendantCtrl.listAvailablePendants);
+router.patch('/me/pendant', pendantCtrl.selectMyPendant);
 router.put('/me/shortcuts', shortcutsCtrl.setShortcut);
 router.delete('/me/shortcuts/:id', shortcutsCtrl.deleteShortcut);
 router.get('/search', ctrl.searchUsers);

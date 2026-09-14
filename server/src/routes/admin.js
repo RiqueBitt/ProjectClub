@@ -46,6 +46,14 @@ router.get('/badges', ctrl.listBadges);
 router.post('/badges', ctrl.createBadgeType);
 router.patch('/badges/:id', ctrl.updateBadgeType);
 router.post('/badges/:id/icon', uploadImage.single('icon'), ctrl.uploadBadgeIcon);
+
+// Item pedido: catálogo de Pingentes (curado pela staff).
+const pendantCtrl = require('../controllers/pendantController');
+router.get('/pendants', pendantCtrl.adminListPendants);
+router.post('/pendants', pendantCtrl.adminCreatePendant);
+router.patch('/pendants/:id', pendantCtrl.adminUpdatePendant);
+router.post('/pendants/:id/icon', uploadImage.single('icon'), pendantCtrl.adminUploadPendantIcon);
+router.delete('/pendants/:id', pendantCtrl.adminDeletePendant);
 router.delete('/badges/:id', ctrl.deleteBadgeType);
 
 // Catálogo de apps/jogos (aba "Apps") — banner, ícone, descrição e

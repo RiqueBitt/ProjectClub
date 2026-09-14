@@ -765,4 +765,5 @@ module.exports = {
   listReports, getReportedContext, resolveReport,
   listHoneypotHits, listBlockedIps, unblockIp,
   reloadUserPresence, deleteUserAccount,
+  logPlatformAction,
 };

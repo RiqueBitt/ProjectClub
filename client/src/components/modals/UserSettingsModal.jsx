@@ -81,6 +81,7 @@ import {
   changePassword, deleteAccount,
   listRegisteredGames, addRegisteredGame, removeRegisteredGame,
   listMyShortcuts, setShortcut, deleteShortcut,
+  listAvailablePendants, selectMyPendant,
 } from '../../api/endpoints';
 
 // Item pedido: separar "Edição do Perfil" das "Configurações gerais" da
@@ -280,6 +281,21 @@ export default function UserSettingsModal({ onClose }) {
   // (voltou pra cá) e enquetes de perfil (criar/apagar — a exibição +
   // votação continua no próprio perfil, pra quem visita poder votar).
   const [tagSaving, setTagSaving] = useState(false);
+  // Item pedido: pingentes — catálogo carregado uma vez, o valor
+  // escolhido já vem de user.selectedPendant (não precisa de outro
+  // GET só pra isso).
+  const [availablePendants, setAvailablePendants] = useState([]);
+  const [pendantSaving, setPendantSaving] = useState(false);
+  useEffect(() => { listAvailablePendants().then((d) => setAvailablePendants(d.pendants)).catch(() => setAvailablePendants([])); }, []);
+  const choosePendant = async (pendantId) => {
+    setPendantSaving(true);
+    try {
+      const { user: updated } = await selectMyPendant(pendantId);
+      setUser(updated);
+    } finally {
+      setPendantSaving(false);
+    }
+  };
   // Item pedido: "quero que a tag do clã apareça... se não tiver tag
   // de um clã não apareça nada" — a tag genérica de comunidade foi
   // removida de vez (não existe mais como opção na tela), então essa
@@ -843,6 +859,34 @@ export default function UserSettingsModal({ onClose }) {
                 </div>
               </div>
             </label>
+          </div>
+
+          <div className="settings-block">
+            <h4>Pingente</h4>
+            <p className="dim">Uma imagem pequena que aparece do lado do seu nome no chat, no seu mini perfil e no seu perfil completo — escolha um da lista, ou nenhum.</p>
+            <div className="pendant-picker-grid">
+              <button
+                type="button"
+                className={`pendant-picker-option ${!user.selectedPendant ? 'active' : ''}`}
+                disabled={pendantSaving}
+                onClick={() => choosePendant(null)}
+              >
+                <span className="pendant-picker-option-none">✕</span>
+                <span className="pendant-picker-option-label">Nenhum</span>
+              </button>
+              {availablePendants.map((p) => (
+                <button
+                  type="button" key={p.id}
+                  className={`pendant-picker-option ${user.selectedPendant?.id === p.id ? 'active' : ''}`}
+                  disabled={pendantSaving}
+                  onClick={() => choosePendant(p.id)}
+                >
+                  <img src={p.iconUrl} alt="" className="pendant-picker-option-img" />
+                  <span className="pendant-picker-option-label">{p.name}</span>
+                </button>
+              ))}
+              {availablePendants.length === 0 && <p className="dim" style={{ fontSize: 12.5 }}>Nenhum pingente disponível ainda.</p>}
+            </div>
           </div>
 
           {profileColorEditEnabled && (

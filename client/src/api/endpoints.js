@@ -598,3 +598,12 @@ export const adminDeleteModGameMapping = (id) => api.delete(`/admin/mods/game-ma
 export const adminListModReports = (status) => api.get('/admin/mods/reports', { params: { status } }).then((r) => r.data);
 export const adminResolveModReport = (id, status) => api.patch(`/admin/mods/reports/${id}`, { status }).then((r) => r.data);
 
+// ---------- Pingentes ----------
+export const listAvailablePendants = () => api.get('/users/me/pendants').then((r) => r.data);
+export const selectMyPendant = (pendantId) => api.patch('/users/me/pendant', { pendantId }).then((r) => r.data);
+export const adminListPendants = () => api.get('/admin/pendants').then((r) => r.data);
+export const adminCreatePendant = (payload) => api.post('/admin/pendants', payload).then((r) => r.data);
+export const adminUpdatePendant = (id, payload) => api.patch(`/admin/pendants/${id}`, payload).then((r) => r.data);
+export const adminUploadPendantIcon = (id, file) => { const fd = new FormData(); fd.append('icon', file); return api.post(`/admin/pendants/${id}/icon`, fd).then((r) => r.data); };
+export const adminDeletePendant = (id) => api.delete(`/admin/pendants/${id}`).then((r) => r.data);
+
