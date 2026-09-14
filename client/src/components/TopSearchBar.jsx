@@ -31,6 +31,19 @@ export default function TopSearchBar() {
   const [q, setQ] = useState('');
   const categories = useStore((s) => s.categories);
   const mobileChannelListOpen = useStore((s) => s.mobileChannelListOpen);
+  // BUG CORRIGIDO ("abro o menu de gif/emoji/figurinhas e clico pra
+  // abrir a barra lateral de categorias e fica sobrepondo"): essa
+  // gaveta mobile de canais/categorias (mobileChannelListOpen, aberta
+  // pelo ☰ abaixo) também vivia fora do coordenador global de
+  // popovers (o mesmo já usado pelo seletor de emoji/GIF/figurinha do
+  // composer em ChatWindow.jsx, pela barrinha de categorias do
+  // cabeçalho em ChannelSwitcher.jsx, pelo menu de status logo
+  // abaixo, etc — ver popoverCoordinator.js), por ser um valor solto
+  // no store global em vez de um useState local. Registrando aqui do
+  // mesmo jeito: abrir esta gaveta agora fecha qualquer popover
+  // coordenado que estivesse aberto (o seletor de emoji/GIF/figurinha
+  // inclusive), e abrir QUALQUER um deles fecha esta gaveta.
+  usePopoverCoordination(mobileChannelListOpen, () => useStore.getState().closeMobileChannelList());
   const channels = useStore((s) => s.channels);
   const channelReadAt = useStore((s) => s.channelReadAt);
   const conversations = useStore((s) => s.conversations);
