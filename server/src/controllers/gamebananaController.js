@@ -17,15 +17,30 @@ async function matchGameBananaGames(req, res, next) {
 // estável, independente de qual dos dois formatos exatos veio (ver
 // aviso no topo de gamebananaService.js sobre nomes de campo não-100%-
 // documentados) — tenta várias chaves possíveis pra cada campo.
+//
+// BUG CORRIGIDO ("o banner/thumbnail dos mods do GameBanana bugando"):
+// o nome exato do campo de tamanho da imagem (ex: "_sFile220") era um
+// chute só — a API não documenta isso num lugar oficial único.
+// Agora tenta vários tamanhos possíveis em cadeia e, por último, cai
+// pro nome de arquivo original (_sFile) — sempre existe algum. O
+// frontend também ganhou um fallback visual (ver ModsPage.jsx) pra
+// nunca mostrar uma imagem quebrada mesmo se algum desses nomes mudar
+// de novo no futuro.
+function pickImageFile(image) {
+  if (!image) return null;
+  const filename = image._sFile220 || image._sFile530 || image._sFile100 || image._sFile800 || image._sFile;
+  if (!filename || !image._sBaseUrl) return null;
+  return `${image._sBaseUrl}/${filename}`;
+}
+
 function normalizeListItem(raw) {
   const image = raw._aPreviewMedia?._aImages?.[0];
-  const thumbUrl = image ? `${image._sBaseUrl}/${image._sFile220 || image._sFile}` : null;
   return {
     id: raw._idRow,
     modelName: raw._sModelName || 'Mod',
     name: raw._sName || raw._sModelName || 'Sem nome',
     profileUrl: raw._sProfileUrl,
-    thumbUrl,
+    thumbUrl: pickImageFile(image),
     submitter: raw._aSubmitter?._sName || raw._aOwner?._sName || null,
     dateModified: raw._tsDateModified,
     viewCount: raw._nViewCount,
@@ -58,7 +73,7 @@ async function getMod(req, res, next) {
   try {
     const raw = await gamebanana.getMod(req.params.modId);
     const image = raw._aPreviewMedia?._aImages?.[0];
-    const images = (raw._aPreviewMedia?._aImages || []).map((img) => `${img._sBaseUrl}/${img._sFile}`);
+    const images = (raw._aPreviewMedia?._aImages || []).map(pickImageFile).filter(Boolean);
     const files = (raw._aFiles || []).map((f) => ({
       id: f._idRow, filename: f._sFile, filesize: f._nFilesize,
       downloadUrl: f._sDownloadUrl || `https://gamebanana.com/dl/${f._idRow}`,
@@ -75,7 +90,7 @@ async function getMod(req, res, next) {
         viewCount: raw._nViewCount,
         likeCount: raw._nLikeCount,
         categories: (raw._aCategory ? [raw._aCategory._sName] : []).filter(Boolean),
-        thumbUrl: image ? `${image._sBaseUrl}/${image._sFile}` : null,
+        thumbUrl: pickImageFile(image),
         images,
         files,
       },

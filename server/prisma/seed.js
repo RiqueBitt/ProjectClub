@@ -217,9 +217,23 @@ async function seed() {
     { steamAppId: 281990, workshopAppId: 281990, displayName: 'Stellaris' },
     { steamAppId: 233860, workshopAppId: 233860, displayName: 'Kenshi' },
     { steamAppId: 1142710, workshopAppId: 1142710, displayName: 'Total War: WARHAMMER III' },
+    { steamAppId: 322330, workshopAppId: 322330, displayName: "Don't Starve Together" },
+    { steamAppId: 251570, workshopAppId: 251570, displayName: '7 Days to Die' },
+    { steamAppId: 602960, workshopAppId: 602960, displayName: 'Barotrauma' },
+    { steamAppId: 581320, workshopAppId: 581320, displayName: 'Insurgency: Sandstorm' },
+    { steamAppId: 108600, workshopAppId: 108600, displayName: 'Project Zomboid' },
     {
-      steamAppId: 1281930, workshopAppId: 1281930, displayName: 'Terraria (tModLoader)',
-      note: 'Isso lê os mods através do tModLoader, um app separado da Steam — instale-o também pela sua biblioteca Steam (é diferente do Terraria clássico).',
+      // Item pedido: "adicione o Workshop do Terraria" — o steamAppId
+      // aqui é o do Terraria CLÁSSICO (105600, o jogo que a pessoa
+      // realmente tem instalado e que o steamDetector encontra
+      // sozinho), não o do tModLoader — é assim que esse jogo consegue
+      // se FUNDIR com a entrada dele no GameBanana logo abaixo (mesmo
+      // steamAppId nos dois) em vez de aparecer como um cartão
+      // separado repetido. workshopAppId continua sendo o do
+      // tModLoader (1281930), que é quem lê os mods de verdade — pra
+      // isso funcionar, precisa instalá-lo também pela Steam.
+      steamAppId: 105600, workshopAppId: 1281930, displayName: 'Terraria',
+      note: 'Isso lê os mods através do tModLoader, um app separado da Steam — instale-o também pela sua biblioteca Steam.',
     },
   ];
   for (const g of workshopGames) {

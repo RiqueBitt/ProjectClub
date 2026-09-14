@@ -38,28 +38,93 @@ import '../styles/mods-page.css';
 // automática de dependências/conflitos, "▶ Jogar".
 export default function ModsPage() {
   const navigate = useNavigate();
-  const [view, setView] = useState('home'); // 'home' | 'game' | 'mod'
-  const [selectedGame, setSelectedGame] = useState(null); // { modioGameId, steamAppId, displayName, iconUrl, installPath? }
+  const [view, setView] = useState('home'); // 'home' | 'hub' | 'game' | 'mod'
+  const [mergedGame, setMergedGame] = useState(null); // { steamAppId, displayName, iconUrl, installPath, sources: { modio?, workshop?, gamebanana? } }
+  const [selectedGame, setSelectedGame] = useState(null); // objeto já resolvido pra UMA fonte específica
   const [selectedModId, setSelectedModId] = useState(null);
 
-  const openGame = (game) => { setSelectedGame(game); setView('game'); };
+  // Item pedido: "funda o Workshop e o GameBanana na mesma aba de
+  // download de mods de jogo pra não ter esse tipo de game repetido"
+  // — quando um jogo tem só UMA fonte (o caso mais comum), abre direto
+  // nela; quando tem mais de uma (ex: Terraria no Workshop via
+  // tModLoader E no GameBanana), abre um seletor pequeno primeiro (ver
+  // GameHubView) em vez de mostrar dois cartões pro mesmo jogo em
+  // "Meus jogos".
+  const openGame = (merged) => {
+    const sourceKeys = Object.keys(merged.sources);
+    if (sourceKeys.length === 1) {
+      openSource(merged, sourceKeys[0]);
+    } else {
+      setMergedGame(merged);
+      setView('hub');
+    }
+  };
+  const openSource = (merged, sourceKey) => {
+    setMergedGame(merged);
+    setSelectedGame({ ...merged.sources[sourceKey], source: sourceKey, installPath: merged.installPath, displayName: merged.displayName, iconUrl: merged.iconUrl, steamAppId: merged.steamAppId });
+    setView('game');
+  };
   const openMod = (modId) => { setSelectedModId(modId); setView('mod'); };
   const backToGame = () => setView('game');
-  const backToHome = () => { setView('home'); setSelectedGame(null); };
+  // Volta pro seletor de fontes se o jogo tiver mais de uma; senão,
+  // direto pra "Meus jogos".
+  const backToHubOrHome = () => {
+    if (mergedGame && Object.keys(mergedGame.sources).length > 1) { setView('hub'); return; }
+    setView('home'); setSelectedGame(null); setMergedGame(null);
+  };
+  const backToHome = () => { setView('home'); setSelectedGame(null); setMergedGame(null); };
 
   if (view === 'mod' && selectedGame) {
     return <ModDetailView game={selectedGame} modioModId={selectedModId} onBack={backToGame} />;
   }
   if (view === 'game' && selectedGame?.source === 'workshop') {
-    return <WorkshopGameView game={selectedGame} onBack={backToHome} />;
+    return <WorkshopGameView game={selectedGame} onBack={backToHubOrHome} />;
   }
   if (view === 'game' && selectedGame?.source === 'gamebanana') {
-    return <GameBananaGameView game={selectedGame} onBack={backToHome} />;
+    return <GameBananaGameView game={selectedGame} onBack={backToHubOrHome} />;
   }
   if (view === 'game' && selectedGame) {
-    return <GameModsView game={selectedGame} onBack={backToHome} onOpenMod={openMod} />;
+    return <GameModsView game={selectedGame} onBack={backToHubOrHome} onOpenMod={openMod} />;
+  }
+  if (view === 'hub' && mergedGame) {
+    return <GameHubView merged={mergedGame} onBack={backToHome} onOpenSource={(key) => openSource(mergedGame, key)} />;
   }
   return <ModsHome onBack={() => navigate('/jogos')} onOpenGame={openGame} />;
+}
+
+// Item pedido: "funda o Workshop e o GameBanana na mesma aba... pra
+// não ter esse tipo de game repetido" — tela pequena com um botão por
+// fonte disponível, só aparece quando o jogo tem mais de uma.
+function GameHubView({ merged, onBack, onOpenSource }) {
+  const coverUrl = merged.iconUrl ? proxyImage(merged.iconUrl) : steamCoverUrl(merged.steamAppId);
+  const SOURCE_META = {
+    modio: { icon: '🧩', label: 'mod.io' },
+    workshop: { icon: '🚂', label: 'Steam Workshop' },
+    gamebanana: { icon: '🍌', label: 'GameBanana' },
+  };
+  return (
+    <div className="mods-page">
+      <button type="button" className="mods-back" onClick={onBack}>‹ Voltar para Meus jogos</button>
+      <div className="mods-game-header">
+        <div className="mods-game-header-icon">
+          <img src={coverUrl} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+        </div>
+        <div>
+          <h1>{merged.displayName}</h1>
+          <p className="dim">Esse jogo tem mods em mais de um lugar — escolha onde ver.</p>
+        </div>
+      </div>
+      <div className="mods-hub-sources">
+        {Object.keys(merged.sources).map((key) => (
+          <button key={key} type="button" className="mods-hub-source-btn" onClick={() => onOpenSource(key)}>
+            <span className="mods-hub-source-icon">{SOURCE_META[key]?.icon}</span>
+            <span>{SOURCE_META[key]?.label}</span>
+            <span className="mods-hub-source-arrow">›</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // ---------- Tela inicial: Meus jogos ----------
@@ -88,10 +153,29 @@ function ModsHome({ onBack, onOpenGame }) {
             matchGameBananaGames(appIds).catch(() => ({ games: [] })),
           ]);
           const byInstall = new Map(detection.games.map((g) => [g.steamAppId, g.installPath]));
-          const modioGames = modioSupported.map((s) => ({ ...s, source: 'modio', installPath: byInstall.get(s.steamAppId) }));
-          const workshopGames = workshopSupported.map((s) => ({ ...s, source: 'workshop', displayName: s.displayName, installPath: byInstall.get(s.steamAppId) }));
-          const gamebananaGames = gamebananaSupported.map((s) => ({ ...s, source: 'gamebanana', displayName: s.displayName, installPath: byInstall.get(s.steamAppId) }));
-          setGames([...modioGames, ...workshopGames, ...gamebananaGames]);
+
+          // Item pedido: "funda o Workshop e o GameBanana na mesma
+          // aba de download de mods de jogo pra não ter esse tipo de
+          // game repetido" — junta tudo num Map por steamAppId em vez
+          // de três listas separadas, então um jogo com suporte em
+          // mais de uma fonte (ex: Terraria no Workshop via tModLoader
+          // E no GameBanana, mesmo steamAppId 105600 nos dois) vira UM
+          // cartão só em "Meus jogos", não repetido.
+          const merged = new Map();
+          const addSource = (list, sourceKey) => {
+            for (const s of list) {
+              if (!merged.has(s.steamAppId)) {
+                merged.set(s.steamAppId, { steamAppId: s.steamAppId, displayName: s.displayName, iconUrl: s.iconUrl, installPath: byInstall.get(s.steamAppId), sources: {} });
+              }
+              const entry = merged.get(s.steamAppId);
+              if (!entry.iconUrl && s.iconUrl) entry.iconUrl = s.iconUrl;
+              entry.sources[sourceKey] = s;
+            }
+          };
+          addSource(modioSupported, 'modio');
+          addSource(workshopSupported, 'workshop');
+          addSource(gamebananaSupported, 'gamebanana');
+          setGames(Array.from(merged.values()));
         }
       } catch {
         setSteamFound(false);
@@ -151,7 +235,7 @@ function ModsHome({ onBack, onOpenGame }) {
             </div>
           ) : (
             <div className="mods-games-grid">
-              {filtered.map((g) => <GameCard key={`${g.source}-${g.steamAppId}`} game={g} onClick={() => onOpenGame(g)} />)}
+              {filtered.map((g) => <GameCard key={g.steamAppId} game={g} onClick={() => onOpenGame(g)} />)}
             </div>
           )}
         </>
@@ -162,6 +246,10 @@ function ModsHome({ onBack, onOpenGame }) {
 
 function GameCard({ game, onClick }) {
   const coverUrl = game.iconUrl ? proxyImage(game.iconUrl) : steamCoverUrl(game.steamAppId);
+  const sourceCount = Object.keys(game.sources).length;
+  const sourceLabel = sourceCount > 1
+    ? `${sourceCount} fontes`
+    : { modio: 'mod.io', workshop: 'Steam Workshop', gamebanana: 'GameBanana' }[Object.keys(game.sources)[0]];
   return (
     <button type="button" className="mods-game-card" onClick={onClick}>
       <div className="mods-game-card-icon">
@@ -169,7 +257,7 @@ function GameCard({ game, onClick }) {
         <span className="mods-game-card-icon-fallback">🎮</span>
       </div>
       <span className="mods-game-card-name">{game.displayName}</span>
-      <span className="mods-game-card-source dim">{game.source === 'workshop' ? 'Steam Workshop' : game.source === 'gamebanana' ? 'GameBanana' : 'mod.io'}</span>
+      <span className="mods-game-card-source dim">{sourceLabel}</span>
     </button>
   );
 }
@@ -812,6 +900,22 @@ const GAMEBANANA_SORT_OPTIONS = [
   { value: 'new', label: 'Novos' },
 ];
 
+// BUG CORRIGIDO ("o banner/thumbnail dos mods do GameBanana bugando"):
+// era feito com CSS background-image, que não tem como detectar uma
+// URL quebrada — se o nome do campo de imagem viesse errado (API
+// semi-oficial, ver aviso no backend), a pessoa via uma caixa cinza
+// vazia sem explicação. Agora é uma <img> de verdade com onError, que
+// esconde a imagem e mostra o 🧩 de reserva assim que ela falha.
+function GameBananaThumb({ url }) {
+  const [failed, setFailed] = useState(!url);
+  return (
+    <div className="mods-mod-card-thumb">
+      {!failed && <img src={proxyImage(url)} alt="" onError={() => setFailed(true)} />}
+      {failed && <span>🧩</span>}
+    </div>
+  );
+}
+
 function GameBananaGameView({ game, onBack }) {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('default');
@@ -885,9 +989,7 @@ function GameBananaGameView({ game, onBack }) {
           <div className="mods-grid">
             {items.map((item) => (
               <button key={item.id} type="button" className="mods-mod-card" onClick={() => setSelectedModId(item.id)}>
-                <div className="mods-mod-card-thumb" style={item.thumbUrl ? { backgroundImage: `url(${proxyImage(item.thumbUrl)})` } : undefined}>
-                  {!item.thumbUrl && <span>🧩</span>}
-                </div>
+                <GameBananaThumb url={item.thumbUrl} />
                 <div className="mods-mod-card-body">
                   <span className="mods-mod-card-name">{item.name}</span>
                   {item.submitter && <span className="mods-mod-card-author dim">por {item.submitter}</span>}
@@ -929,8 +1031,9 @@ function GameBananaDetailView({ modId, onBack }) {
     <div className="mods-page">
       <button type="button" className="mods-back" onClick={onBack}>‹ Voltar</button>
 
-      <div className="mods-detail-banner" style={data.thumbUrl ? { backgroundImage: `url(${proxyImage(data.thumbUrl)})` } : undefined}>
-        {!data.thumbUrl && <span className="mods-detail-banner-fallback">🧩</span>}
+      <div className="mods-detail-banner">
+        {data.thumbUrl ? <img className="mods-detail-banner-img" src={proxyImage(data.thumbUrl)} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }} /> : null}
+        <span className="mods-detail-banner-fallback" style={data.thumbUrl ? { display: 'none' } : undefined}>🧩</span>
         <div className="mods-detail-banner-gradient" />
         <div className="mods-detail-title-row">
           <div>
