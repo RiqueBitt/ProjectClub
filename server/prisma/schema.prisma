@@ -51,6 +51,14 @@ model User {
   // sem pingente se isso acontecer.
   selectedPendantId   String?
   selectedPendant     Pendant? @relation(fields: [selectedPendantId], references: [id], onDelete: SetNull)
+  // Item pedido: "sobre o pingente é uma imagem à escolha do usuário,
+  // que ele pega dos seus arquivos, qualquer imagem do usuário" —
+  // além de escolher do catálogo (selectedPendant acima), a pessoa
+  // também pode enviar uma imagem própria. Os dois convivem no schema,
+  // mas na prática só um vale de cada vez (escolher um dos dois limpa
+  // o outro — ver pendantController.js): evita ambiguidade de "qual
+  // aparece" se os dois estivessem preenchidos ao mesmo tempo.
+  customPendantUrl    String?
   bio                 String? @db.Text
   pronouns            String?
   // BUG CORRIGIDO ("Unknown field birthDate for select statement on

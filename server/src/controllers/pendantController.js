@@ -19,7 +19,9 @@ async function listAvailablePendants(req, res, next) {
 }
 
 // PATCH /pendants/select — escolhe (ou tira, com pendantId: null) o
-// pingente da própria conta.
+// pingente do catálogo pra própria conta. Escolher um daqui limpa a
+// imagem própria enviada (customPendantUrl), já que só um vale de
+// cada vez.
 async function selectMyPendant(req, res, next) {
   try {
     const { pendantId } = req.body;
@@ -29,7 +31,36 @@ async function selectMyPendant(req, res, next) {
     }
     const user = await prisma.user.update({
       where: { id: req.user.id },
-      data: { selectedPendantId: pendantId || null },
+      data: { selectedPendantId: pendantId || null, customPendantUrl: null },
+      select: SELF_USER_FIELDS,
+    });
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+// POST /users/me/pendant/upload — item pedido: "o pingente é uma
+// imagem à escolha do usuário, que ele pega dos seus arquivos,
+// qualquer imagem" — mesmo padrão de uploadIdCard (userController.js):
+// qualquer imagem do computador da pessoa, sem passar pelo catálogo.
+// Enviar uma imagem própria limpa o pingente do catálogo escolhido
+// antes (selectedPendantId), pelo mesmo motivo inverso.
+async function uploadMyCustomPendant(req, res, next) {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { customPendantUrl: req.file.url, selectedPendantId: null },
+      select: SELF_USER_FIELDS,
+    });
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+async function removeMyCustomPendant(req, res, next) {
+  try {
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { customPendantUrl: null },
       select: SELF_USER_FIELDS,
     });
     res.json({ user });
@@ -97,6 +128,6 @@ async function adminDeletePendant(req, res, next) {
 }
 
 module.exports = {
-  listAvailablePendants, selectMyPendant,
+  listAvailablePendants, selectMyPendant, uploadMyCustomPendant, removeMyCustomPendant,
   adminListPendants, adminCreatePendant, adminUpdatePendant, adminUploadPendantIcon, adminDeletePendant,
 };

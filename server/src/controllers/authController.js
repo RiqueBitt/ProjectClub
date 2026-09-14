@@ -118,6 +118,7 @@ const PUBLIC_USER_FIELDS = {
   // aparece pra qualquer visitante do perfil (mini/completo/chat),
   // então precisa estar público aqui, não só em SELF_USER_FIELDS.
   selectedPendant: { select: { id: true, name: true, iconUrl: true } },
+  customPendantUrl: true,
 };
 
 // Everything PUBLIC_USER_FIELDS has, plus the account-owner-only fields

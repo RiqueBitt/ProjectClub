@@ -601,6 +601,8 @@ export const adminResolveModReport = (id, status) => api.patch(`/admin/mods/repo
 // ---------- Pingentes ----------
 export const listAvailablePendants = () => api.get('/users/me/pendants').then((r) => r.data);
 export const selectMyPendant = (pendantId) => api.patch('/users/me/pendant', { pendantId }).then((r) => r.data);
+export const uploadMyCustomPendant = (file) => { const fd = new FormData(); fd.append('pendant', file); return api.post('/users/me/pendant/upload', fd).then((r) => r.data); };
+export const removeMyCustomPendant = () => api.delete('/users/me/pendant/upload').then((r) => r.data);
 export const adminListPendants = () => api.get('/admin/pendants').then((r) => r.data);
 export const adminCreatePendant = (payload) => api.post('/admin/pendants', payload).then((r) => r.data);
 export const adminUpdatePendant = (id, payload) => api.patch(`/admin/pendants/${id}`, payload).then((r) => r.data);

@@ -1,6 +1,6 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -121,6 +121,21 @@ export default function MainSidebar() {
     setTooltip({ label, top: rect.top + rect.height / 2, left: rect.right + 12 });
   };
   const hideTooltip = () => setTooltip(null);
+  // Rede de segurança extra: qualquer troca de página (não só clique
+  // num item desta sidebar — também vale pra navegação disparada por
+  // outro lugar do app) fecha um tooltip que porventura tenha ficado
+  // preso, mesmo que o onClick acima não tenha disparado por algum
+  // motivo.
+  useEffect(() => { hideTooltip(); }, [location.pathname]);
+  // BUG CORRIGIDO ("a barra [tooltip] fica em cima do conteúdo do
+  // Início e do Feeds, cortando a barra de abas"): no toque, o
+  // onTouchStart mostrava o tooltip, mas quem escondia ele de novo era
+  // só o onTouchEnd — só que o toque também navega (troca de página),
+  // e às vezes o React já trocou/re-renderizou esse link antes do
+  // touchend disparar nele, deixando o tooltip preso visível por cima
+  // da página nova. Agora o próprio clique/navegação (onClick, que já
+  // fecha a gaveta da sidebar) também esconde o tooltip — não depende
+  // mais só do touchend acontecer a tempo.
 
   // Lista de Temas — igual a seção "COMUNIDADES" da HomeSideBar do
   // clone do Reddit (subredditList: cada uma com ícone + nome), só que
@@ -173,7 +188,7 @@ export default function MainSidebar() {
                 key={item.to}
                 to={item.to}
                 className={`main-sidebar-item ${active ? 'active' : ''}`}
-                onClick={() => useStore.getState().closeMobileSidebar()}
+                onClick={() => { useStore.getState().closeMobileSidebar(); hideTooltip(); }}
                 onMouseEnter={(e) => showTooltip(e, label)}
                 onMouseLeave={hideTooltip}
                 onTouchStart={(e) => showTooltip(e, label)}

@@ -17,6 +17,12 @@ router.post('/me/avatar', uploadImage.single('avatar'), ctrl.uploadAvatar);
 router.post('/me/banner', uploadImage.single('banner'), ctrl.uploadBanner);
 router.post('/me/mini-banner', uploadImage.single('banner'), ctrl.uploadMiniProfileBanner);
 router.post('/me/id-card', uploadImage.single('idCard'), ctrl.uploadIdCard);
+
+// Item pedido: pingentes — imagem própria enviada pelo usuário (além
+// do catálogo curado pela staff, ver pendantController.js).
+const pendantCtrl = require('../controllers/pendantController');
+router.post('/me/pendant/upload', uploadImage.single('pendant'), pendantCtrl.uploadMyCustomPendant);
+router.delete('/me/pendant/upload', pendantCtrl.removeMyCustomPendant);
 router.delete('/me/id-card', ctrl.removeIdCard);
 router.patch('/me/status', ctrl.setStatus);
 router.patch('/me/custom-status', ctrl.setCustomStatus);
@@ -48,7 +54,6 @@ router.delete('/me/games/:id', gamesCtrl.removeGame);
 router.get('/me/shortcuts', shortcutsCtrl.listMyShortcuts);
 
 // Item pedido: pingentes — catálogo público + escolha da própria conta.
-const pendantCtrl = require('../controllers/pendantController');
 router.get('/me/pendants', pendantCtrl.listAvailablePendants);
 router.patch('/me/pendant', pendantCtrl.selectMyPendant);
 router.put('/me/shortcuts', shortcutsCtrl.setShortcut);

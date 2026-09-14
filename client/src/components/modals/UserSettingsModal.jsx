@@ -81,7 +81,7 @@ import {
   changePassword, deleteAccount,
   listRegisteredGames, addRegisteredGame, removeRegisteredGame,
   listMyShortcuts, setShortcut, deleteShortcut,
-  listAvailablePendants, selectMyPendant,
+  listAvailablePendants, selectMyPendant, uploadMyCustomPendant, removeMyCustomPendant,
 } from '../../api/endpoints';
 
 // Item pedido: separar "Edição do Perfil" das "Configurações gerais" da
@@ -291,6 +291,27 @@ export default function UserSettingsModal({ onClose }) {
     setPendantSaving(true);
     try {
       const { user: updated } = await selectMyPendant(pendantId);
+      setUser(updated);
+    } finally {
+      setPendantSaving(false);
+    }
+  };
+  // Item pedido: "sobre o pingente é uma imagem à escolha do usuário,
+  // que ele pega dos seus arquivos, qualquer imagem" — além do
+  // catálogo acima, a pessoa também pode mandar uma imagem própria.
+  const uploadCustomPendant = async (file) => {
+    setPendantSaving(true);
+    try {
+      const { user: updated } = await uploadMyCustomPendant(file);
+      setUser(updated);
+    } finally {
+      setPendantSaving(false);
+    }
+  };
+  const clearCustomPendant = async () => {
+    setPendantSaving(true);
+    try {
+      const { user: updated } = await removeMyCustomPendant();
       setUser(updated);
     } finally {
       setPendantSaving(false);
@@ -886,6 +907,22 @@ export default function UserSettingsModal({ onClose }) {
                 </button>
               ))}
               {availablePendants.length === 0 && <p className="dim" style={{ fontSize: 12.5 }}>Nenhum pingente disponível ainda.</p>}
+            </div>
+            {/* Item pedido: "o pingente é uma imagem à escolha do
+                usuário, que ele pega dos seus arquivos, qualquer
+                imagem" — além do catálogo acima, envio livre de
+                qualquer imagem do próprio dispositivo. */}
+            <div className="pendant-custom-upload">
+              <label className="btn-secondary" style={{ cursor: pendantSaving ? 'default' : 'pointer' }}>
+                {pendantSaving ? 'Enviando...' : '📁 Enviar minha imagem'}
+                <input type="file" accept="image/*" hidden disabled={pendantSaving} onChange={(e) => { const f = e.target.files[0]; if (f) uploadCustomPendant(f); e.target.value = ''; }} />
+              </label>
+              {user.customPendantUrl && (
+                <>
+                  <img src={user.customPendantUrl} alt="" className="pendant-custom-upload-preview" />
+                  <button type="button" className="btn-link" disabled={pendantSaving} onClick={clearCustomPendant}>Remover</button>
+                </>
+              )}
             </div>
           </div>
 
