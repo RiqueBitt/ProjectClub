@@ -5355,6 +5355,22 @@ a.embed-card-title:hover { text-decoration: underline; }
      baixo, modo paisagem — o card passa a rolar por dentro em vez de
      ficar cortado/inacessível por cima ou por baixo da viewport. */
   max-height: calc(100vh - 16px); overflow-y: auto; overflow-x: hidden;
+  /* Item pedido: "colocar animações simples e dinâmicas para ao abrir
+     e fechar mini perfis como no discord" — cresce/aparece suave em
+     vez de aparecer seco; a origem da transformação (o cantinho mais
+     perto do avatar que foi clicado) já vem calculada em JS, ver
+     --mini-profile-transform-origin em MiniProfileCard.jsx. */
+  transform-origin: var(--mini-profile-transform-origin, top center);
+  animation: mini-profile-pop-in .14s cubic-bezier(.2,.9,.3,1.2);
+}
+.mini-profile-card.mini-profile-closing { animation: mini-profile-pop-out .12s ease forwards; }
+@keyframes mini-profile-pop-in {
+  from { opacity: 0; transform: scale(.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes mini-profile-pop-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(.94); }
 }
 /* Mesmo tratamento do card de perfil completo (ver
    .profile-modal-box.profile-modal-accented mais acima): um único degradê
@@ -5404,10 +5420,25 @@ a.embed-card-title:hover { text-decoration: underline; }
    banner") — trocado de balão flutuante absoluto sobre o banner pra
    um chip em linha, ao lado do avatar (.mini-profile-avatar-row). */
 .mini-profile-avatar-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Item pedido: "colocar o status em uma bolha de pensamento, design
+   similar ao discord" — ganhou uma "pontinha" apontando pro avatar
+   (triângulo CSS via ::before), como um balão de fala de verdade, em
+   vez de só um chip retangular solto do lado. */
 .mini-profile-status-bubble {
+  position: relative;
   background: var(--bg-secondary-alt); color: var(--header-primary); font-weight: 700; font-size: 12px;
-  padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border);
+  padding: 4px 10px; border-radius: 10px; border: 1px solid var(--border);
   max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mini-profile-status-bubble::before {
+  content: ''; position: absolute; left: -6px; top: 50%; transform: translateY(-50%);
+  width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+  border-right: 6px solid var(--border);
+}
+.mini-profile-status-bubble::after {
+  content: ''; position: absolute; left: -5px; top: 50%; transform: translateY(-50%);
+  width: 0; height: 0; border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+  border-right: 5px solid var(--bg-secondary-alt);
 }
 .mini-profile-body { padding: 12px 14px 14px; }
 /* Bug fix: faltava height e overflow:hidden aqui, e o box-sizing:border-box

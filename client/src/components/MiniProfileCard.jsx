@@ -45,7 +45,28 @@ export default function MiniProfileCard() {
   // então começa escondido pra não "piscar" no canto errado antes de flipar.
   const [pos, setPos] = useState(null);
 
-  const member = members.find((m) => m.user.id === userId);
+  // Item pedido: "colocar animações simples e dinâmicas para ao abrir
+  // e fechar mini perfis como no discord" — userId (da store) vira
+  // null IMEDIATAMENTE quando fecha, mas o card ainda precisa ficar
+  // montado mais um instante pra tocar a animação de saída antes de
+  // sumir de vez. renderedUserId "atrasa" esse desmonte; closing
+  // controla qual animação CSS toca (ver .mini-profile-closing).
+  const [renderedUserId, setRenderedUserId] = useState(userId);
+  const [closing, setClosing] = useState(false);
+  useEffect(() => {
+    if (userId) {
+      setRenderedUserId(userId);
+      setClosing(false);
+      return undefined;
+    }
+    if (!renderedUserId) return undefined;
+    setClosing(true);
+    const t = setTimeout(() => setRenderedUserId(null), 140);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  const member = members.find((m) => m.user.id === renderedUserId);
   // BUG CORRIGIDO ("troque o emoji pela foto de um amigo em comum
   // aleatório"): Math.random() direto no JSX recalcularia a CADA
   // re-render (o card re-renderiza por vários motivos — reposição,
@@ -59,7 +80,14 @@ export default function MiniProfileCard() {
   const visibleRoles = memberRoles.slice(0, ROLES_PREVIEW_COUNT);
 
   useEffect(() => {
-    if (!userId) { setUser(null); setBadges([]); setMutualFriends([]); return; }
+    // Item pedido: animação de fechar — não limpa mais os dados aqui
+    // quando fecha (userId vira null); assim o card continua
+    // mostrando o último perfil carregado enquanto toca a animação de
+    // saída, em vez de piscar pra "Carregando..." bem na hora de
+    // sumir. Só limpa (e refaz a busca) quando um usuário NOVO é
+    // aberto de verdade.
+    if (!userId) return;
+    setUser(null); setBadges([]); setMutualFriends([]);
     getUserProfile(userId)
       .then((d) => {
         setUser(d.user); setBadges(d.badges || []); setMutualFriends(d.mutualFriends || []);
@@ -128,7 +156,12 @@ export default function MiniProfileCard() {
 
   const reposition = () => {
     const el = cardRef.current;
-    if (!userId || !el) { setPos(null); return; }
+    // Item pedido: animação de fechar — enquanto fechando, NÃO
+    // recalcula a posição (ela ficaria "grudada" no centro da tela por
+    // causa do fallback do anchorRect, que já é limpo nesse momento —
+    // ver closeMiniProfile na store). Mantém a última posição válida
+    // parada, só a animação CSS (.mini-profile-closing) cuida do resto.
+    if (!renderedUserId || closing || !el) return;
     const { height: vh, width: vw, offsetTop: vTop, offsetLeft: vLeft } = getViewport();
     const rect = anchorRectRef.current || { top: vh / 2, left: vw / 2, bottom: vh / 2 };
     // offsetWidth/offsetHeight ficam em outra escala que
@@ -195,17 +228,23 @@ export default function MiniProfileCard() {
     }
     left = Math.min(Math.max(vLeft + margin, left), vLeft + vw - cardWidth - margin);
     setPos({ top, left, maxHeight });
+    // Item pedido: animação de abrir "como no Discord" — a origem do
+    // scale/fade fica no canto mais perto de onde a pessoa clicou (se
+    // abriu pra baixo do avatar, cresce a partir do topo; se virou pra
+    // cima, cresce a partir de baixo), em vez de sempre crescer do
+    // centro — fica com a sensação de "sair" do clique.
+    el.style.setProperty('--mini-profile-transform-origin', `${sideRef.current === 'left' ? 'right' : 'left'} ${top === rect.bottom + margin ? 'top' : 'bottom'}`);
   };
 
   useLayoutEffect(() => {
     reposition();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, anchorRect, side, user, badges, member]);
+  }, [renderedUserId, closing, anchorRect, side, user, badges, member]);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!renderedUserId || closing) return undefined;
     const el = cardRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
     const ro = new ResizeObserver(() => reposition());
     ro.observe(el);
     window.addEventListener('resize', reposition);
@@ -221,14 +260,14 @@ export default function MiniProfileCard() {
       window.visualViewport?.removeEventListener('scroll', reposition);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [renderedUserId, closing]);
 
-  if (!userId) return null;
+  if (!renderedUserId) return null;
 
   return (
     <div
       ref={cardRef}
-      className={`mini-profile-card ${user ? 'mini-profile-accented' : ''}`}
+      className={`mini-profile-card ${user ? 'mini-profile-accented' : ''} ${closing ? 'mini-profile-closing' : ''}`}
       style={{
         position: 'fixed', top: pos?.top ?? -9999, left: pos?.left ?? -9999,
         visibility: pos ? 'visible' : 'hidden',
@@ -259,7 +298,7 @@ export default function MiniProfileCard() {
             <div className="mini-profile-avatar-row">
               <div className="mini-profile-avatar-wrap">
                 <div className="mini-profile-avatar"><UserAvatar user={user} size={64} /></div>
-                <PresenceDot status={presence[userId]?.status || user.status || 'OFFLINE'} className="mini-profile-presence-dot" />
+                <PresenceDot status={presence[renderedUserId]?.status || user.status || 'OFFLINE'} className="mini-profile-presence-dot" />
               </div>
               {/* BUG CORRIGIDO ("o status fica do lado da foto de
                   perfil, não no banner") — movido pra cá, ao lado do
@@ -323,7 +362,7 @@ export default function MiniProfileCard() {
             {/* BUG CORRIGIDO ("Ver biografia completa fica embaixo da
                 atividade em vez de embaixo da biografia") — movido o
                 ActivityBadge pra DEPOIS desses dois, não antes. */}
-            <ActivityBadge userId={userId} />
+            <ActivityBadge userId={renderedUserId} />
             <button
               className="btn-primary"
               style={{
@@ -334,7 +373,7 @@ export default function MiniProfileCard() {
                 // do app, igual já era antes.
                 ...(user.miniProfileButtonColor ? { background: user.miniProfileButtonColor } : {}),
               }}
-              onClick={() => { openProfile(userId); closeMiniProfile(); }}
+              onClick={() => { openProfile(renderedUserId); closeMiniProfile(); }}
             >
               Ver perfil completo
             </button>
