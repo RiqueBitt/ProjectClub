@@ -22,7 +22,31 @@ const BADGES = [
   { key: 'HELPER', name: 'Ajudante', description: 'Sempre disposto a ajudar outros usuários.', icon: '🤗', rarity: 'COMMON' },
 ];
 
+// BUG CORRIGIDO ("seed falhou no deploy com PrismaClientInitializationError
+// / Can't reach database server", logo depois de um `prisma db push` que
+// funcionou normal): instabilidade passageira de rede entre o container
+// do deploy e o banco, bem no instante em que o processo do `db push`
+// fecha a conexão dele e este processo (`seed.js`) abre uma nova — o
+// banco em si está de pé (o push, segundos antes, prova isso). Tenta de
+// novo algumas vezes com uma pequena espera crescente antes de desistir,
+// em vez de derrubar o deploy inteiro por causa de uma falha de conexão
+// de meio segundo.
 async function main() {
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      await prisma.$connect();
+      break;
+    } catch (err) {
+      if (attempt === 5) throw err;
+      const waitMs = attempt * 1000;
+      console.warn(`Seed: não conectou ao banco na tentativa ${attempt}/5 (${err.message.split('\n')[0]}) — tentando de novo em ${waitMs}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+  }
+  await seed();
+}
+
+async function seed() {
   for (const badge of BADGES) {
     await prisma.badge.upsert({ where: { key: badge.key }, update: badge, create: badge });
   }
