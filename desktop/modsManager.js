@@ -117,16 +117,41 @@ function modPaths(gameInstallPath, modName) {
 // pasta, baixar, extrair, instalar, limpar temporário). Dependências e
 // conflitos (passos 5 e verificação de #16/#17) ainda não são resolvidos
 // automaticamente aqui — ver roadmap no final do arquivo.
+// Item pedido: "faça o GameBanana e o Workshop... já baixa o mod na
+// pasta do jogo com o que precisa pra funcionar" — os mods do
+// GameBanana nem sempre vêm num .zip (às vezes é só um arquivo solto,
+// tipo um .pak ou .dll) — o mesmo instalador que já servia o mod.io
+// agora aceita os dois casos: extrai se for .zip, só copia se não for.
 async function installMod({ downloadUrl, filename, gameInstallPath, modName }, onProgress) {
   if (!fs.existsSync(gameInstallPath)) throw new Error('A pasta do jogo não foi encontrada. Talvez ele tenha sido desinstalado ou movido.');
 
   const folderName = sanitizeModFolderName(modName);
   const strategy = detectInstallStrategy(gameInstallPath);
-  const archivePath = path.join(tempDir(), `${folderName}-${Date.now()}${path.extname(filename || '') || '.zip'}`);
+  const ext = path.extname(filename || '').toLowerCase();
+  const archivePath = path.join(tempDir(), `${folderName}-${Date.now()}${ext || '.zip'}`);
 
   onProgress?.({ phase: 'downloading', percent: 0 });
   try {
     await downloadToFile(downloadUrl, archivePath, (percent) => onProgress?.({ phase: 'downloading', percent }));
+
+    if (ext !== '.zip') {
+      // Arquivo solto (não .zip): dá pra instalar direto — se for algo
+      // que a gente não sabe abrir (.rar/.7z, por exemplo), avisa em
+      // vez de fingir que instalou.
+      if (['.rar', '.7z'].includes(ext)) {
+        throw new Error(`Este mod veio num formato (${ext}) que ainda não sabemos extrair automaticamente — baixe e extraia manualmente.`);
+      }
+      onProgress?.({ phase: 'installing', percent: 0 });
+      fs.mkdirSync(strategy.targetRoot, { recursive: true });
+      const finalDir = path.join(strategy.targetRoot, folderName);
+      if (fs.existsSync(finalDir)) fs.rmSync(finalDir, { recursive: true, force: true });
+      const oldDisabledDir = path.join(disabledRoot(strategy), folderName);
+      if (fs.existsSync(oldDisabledDir)) fs.rmSync(oldDisabledDir, { recursive: true, force: true });
+      fs.mkdirSync(finalDir, { recursive: true });
+      fs.copyFileSync(archivePath, path.join(finalDir, filename || `${folderName}${ext}`));
+      onProgress?.({ phase: 'done', percent: 100 });
+      return { installedPath: finalDir, strategy: strategy.kind };
+    }
 
     onProgress?.({ phase: 'extracting', percent: 0 });
     const stagingDir = `${archivePath}.staging`;

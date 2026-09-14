@@ -101,7 +101,15 @@
 .mods-mod-card-thumb {
   aspect-ratio: 16 / 9; background: var(--bg-secondary-alt, var(--bg-secondary)) center/cover no-repeat;
   display: flex; align-items: center; justify-content: center; font-size: 30px; opacity: .9;
+  position: relative; overflow: hidden;
 }
+/* BUG CORRIGIDO ("o banner do GameBanana não segue o tamanho certo,
+   fica esticado"): faltava essa regra — o <img> renderizava no
+   tamanho ORIGINAL de cada imagem (que varia muito de mod pra mod no
+   GameBanana), em vez de se ajustar à caixa do card. object-fit:cover
+   preenche a proporção 16:9 (bem perto do banner da própria Steam)
+   SEM esticar — ele corta a sobra em vez de deformar a imagem. */
+.mods-mod-card-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .mods-mod-card-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px; }
 .mods-mod-card-name { font-weight: 700; font-size: 14px; color: var(--header-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mods-mod-card-author { font-size: 12px; }
@@ -116,11 +124,11 @@
 /* ---------- GameBanana ---------- */
 .mods-gamebanana-files { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; width: 100%; }
 .mods-gamebanana-file-row {
-  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 10px 14px; border-radius: 8px; background: var(--bg-elevated); border: 1px solid var(--border);
-  font-size: 13px; text-decoration: none; color: var(--text-normal); transition: border-color .12s ease;
+  font-size: 13px; color: var(--text-normal);
 }
-.mods-gamebanana-file-row:hover { border-color: var(--brand); }
+.mods-gamebanana-file-actions { display: flex; align-items: center; gap: 12px; }
 
 /* ---------- Meus mods (instalados) ---------- */
 .mods-installed-list { display: flex; flex-direction: column; gap: 8px; }

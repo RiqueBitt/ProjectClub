@@ -917,6 +917,7 @@ function GameBananaThumb({ url }) {
 }
 
 function GameBananaGameView({ game, onBack }) {
+  const desktopReady = isDesktopModsAvailable();
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('default');
   const [items, setItems] = useState(null);
@@ -925,6 +926,12 @@ function GameBananaGameView({ game, onBack }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [selectedModId, setSelectedModId] = useState(null);
+  const [installedFolders, setInstalledFolders] = useState([]);
+
+  useEffect(() => {
+    if (!desktopReady || !game.installPath) return;
+    listInstalledModsLocally(game.installPath).then((d) => setInstalledFolders([...(d.enabled || []), ...(d.disabled || [])]));
+  }, [desktopReady, game.installPath]);
 
   useEffect(() => {
     setItems(null);
@@ -955,7 +962,7 @@ function GameBananaGameView({ game, onBack }) {
   };
 
   if (selectedModId) {
-    return <GameBananaDetailView modId={selectedModId} onBack={() => setSelectedModId(null)} />;
+    return <GameBananaDetailView game={game} modId={selectedModId} onBack={() => setSelectedModId(null)} />;
   }
 
   return (
@@ -987,19 +994,24 @@ function GameBananaGameView({ game, onBack }) {
       ) : (
         <>
           <div className="mods-grid">
-            {items.map((item) => (
-              <button key={item.id} type="button" className="mods-mod-card" onClick={() => setSelectedModId(item.id)}>
-                <GameBananaThumb url={item.thumbUrl} />
-                <div className="mods-mod-card-body">
-                  <span className="mods-mod-card-name">{item.name}</span>
-                  {item.submitter && <span className="mods-mod-card-author dim">por {item.submitter}</span>}
-                  <div className="mods-mod-card-stats dim">
-                    {!!item.viewCount && <span>👁 {formatCount(item.viewCount)}</span>}
-                    {!!item.likeCount && <span>❤ {formatCount(item.likeCount)}</span>}
+            {items.map((item) => {
+              const folder = item.name.trim().replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 120);
+              const installed = desktopReady && installedFolders.includes(folder);
+              return (
+                <button key={item.id} type="button" className="mods-mod-card" onClick={() => setSelectedModId(item.id)}>
+                  <GameBananaThumb url={item.thumbUrl} />
+                  <div className="mods-mod-card-body">
+                    <span className="mods-mod-card-name">{item.name}</span>
+                    {item.submitter && <span className="mods-mod-card-author dim">por {item.submitter}</span>}
+                    <div className="mods-mod-card-stats dim">
+                      {!!item.viewCount && <span>👁 {formatCount(item.viewCount)}</span>}
+                      {!!item.likeCount && <span>❤ {formatCount(item.likeCount)}</span>}
+                    </div>
+                    {installed && <span className="mods-installed-tag">✓ Instalado</span>}
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
           {hasMore && (
             <button type="button" className="mods-load-more" disabled={loadingMore} onClick={loadMoreItems}>
@@ -1012,12 +1024,35 @@ function GameBananaGameView({ game, onBack }) {
   );
 }
 
-function GameBananaDetailView({ modId, onBack }) {
+function GameBananaDetailView({ game, modId, onBack }) {
+  const desktopReady = isDesktopModsAvailable();
   const [data, setData] = useState(null);
+  const [installedFolder, setInstalledFolder] = useState(null);
+  const [installingFileId, setInstallingFileId] = useState(null);
+  const [progress, setProgress] = useState(null);
+  const [installError, setInstallError] = useState('');
 
   useEffect(() => {
     getGameBananaMod(modId).then((d) => setData(d.mod)).catch(() => setData({ error: true }));
   }, [modId]);
+
+  useEffect(() => {
+    if (!desktopReady || !game?.installPath || !data?.name) return;
+    const folder = String(data.name).trim().replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 120);
+    listInstalledModsLocally(game.installPath).then((d) => {
+      const present = (d.enabled || []).includes(folder) || (d.disabled || []).includes(folder);
+      setInstalledFolder(present ? folder : null);
+    });
+  }, [desktopReady, game?.installPath, data?.name]);
+
+  useEffect(() => {
+    if (!desktopReady) return undefined;
+    return onModsProgress((p) => {
+      if (p.modioModId !== modId) return;
+      setProgress(p);
+      if (p.phase === 'done') { setInstallingFileId(null); setProgress(null); }
+    });
+  }, [desktopReady, modId]);
 
   if (!data) return <div className="mods-page"><div className="mods-loading">Carregando mod...</div></div>;
   if (data.error) return (
@@ -1026,6 +1061,33 @@ function GameBananaDetailView({ modId, onBack }) {
       <div className="mods-empty-state"><span className="mods-empty-icon">⚠️</span><h3>Não foi possível carregar este mod</h3></div>
     </div>
   );
+
+  // Item pedido: "faça o GameBanana... já baixa o mod na pasta do
+  // jogo com o que precisa pra funcionar" — reaproveita o MESMO
+  // instalador que já baixa/instala mods do mod.io (installModLocally
+  // → desktop/modsManager.js), que agora também sabe lidar com
+  // arquivo solto além de .zip (ver comentário lá). Continua
+  // oferecendo "Baixar" como alternativa pra quem preferir extrair na
+  // mão (alguns mods do GameBanana vêm em .rar/.7z, que ainda não
+  // sabemos abrir sozinhos).
+  const doInstallFile = async (file) => {
+    if (!game?.installPath) { setInstallError('Não sabemos onde este jogo está instalado.'); return; }
+    setInstallError('');
+    setInstallingFileId(file.id);
+    setProgress({ phase: 'downloading', percent: 0 });
+    try {
+      const result = await installModLocally({
+        downloadUrl: file.downloadUrl, filename: file.filename,
+        gameInstallPath: game.installPath, modName: data.name, modioModId: modId,
+      });
+      if (!result.success) throw new Error(result.error || 'Falha desconhecida.');
+      setInstalledFolder(String(data.name).trim().replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 120));
+    } catch (err) {
+      setInstallError(err.message);
+      setInstallingFileId(null);
+      setProgress(null);
+    }
+  };
 
   return (
     <div className="mods-page">
@@ -1050,17 +1112,33 @@ function GameBananaDetailView({ modId, onBack }) {
         </div>
         <div className="mods-detail-install">
           {data.profileUrl && (
-            <a href={data.profileUrl} target="_blank" rel="noreferrer" className="btn-primary" style={{ display: 'inline-block', textDecoration: 'none' }}>
-              Ver no GameBanana
+            <a href={data.profileUrl} target="_blank" rel="noreferrer" className="btn-link" style={{ display: 'inline-block' }}>
+              Ver página completa no GameBanana ↗
             </a>
           )}
+          {!desktopReady && <p className="dim">Instalar direto na pasta do jogo só funciona pelo app de desktop — o link "Baixar" abaixo funciona em qualquer lugar.</p>}
+          {installedFolder && !installingFileId && <p className="mods-installed-tag" style={{ margin: '8px 0 0' }}>✓ Instalado</p>}
+          {installError && <p className="mods-install-error">Não foi possível instalar: {installError}</p>}
           {data.files?.length > 0 && (
             <div className="mods-gamebanana-files">
               {data.files.map((f) => (
-                <a key={f.id} href={f.downloadUrl} target="_blank" rel="noreferrer" className="mods-gamebanana-file-row">
-                  <span>📦 {f.filename}</span>
-                  <span className="dim">{f.filesize ? `${(f.filesize / 1024 / 1024).toFixed(1)} MB` : ''} · Baixar ↓</span>
-                </a>
+                <div key={f.id} className="mods-gamebanana-file-row">
+                  <span>📦 {f.filename} {f.filesize ? <span className="dim">· {(f.filesize / 1024 / 1024).toFixed(1)} MB</span> : null}</span>
+                  <div className="mods-gamebanana-file-actions">
+                    {desktopReady && installingFileId === f.id && progress ? (
+                      <span className="dim">{progress.phase === 'downloading' ? `Baixando ${progress.percent}%` : progress.phase === 'installing' ? 'Instalando...' : 'Extraindo...'}</span>
+                    ) : (
+                      <>
+                        {desktopReady && (
+                          <button type="button" className="btn-primary" disabled={!!installingFileId} onClick={() => doInstallFile(f)}>
+                            ⬇ Instalar
+                          </button>
+                        )}
+                        <a href={f.downloadUrl} target="_blank" rel="noreferrer" className="btn-link">Baixar</a>
+                      </>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
           )}
