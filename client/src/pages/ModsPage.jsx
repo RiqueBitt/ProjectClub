@@ -8,12 +8,13 @@ import {
   listModCollections, createModCollection, deleteModCollection, addModCollectionItem,
   matchWorkshopGames, listWorkshopItems,
   matchGameBananaGames, browseGameBanana, getGameBananaMod,
+  matchThunderstoreGames, listThunderstoreCategories, listThunderstorePackages, getThunderstorePackage,
 } from '../api/endpoints';
 import {
   isDesktopModsAvailable, detectSteamGames, installModLocally, uninstallModLocally, listInstalledModsLocally, onModsProgress,
   setModEnabledLocally, applyProfileLocally, listInstalledWorkshopItemsLocally, openWorkshopItemInSteam,
   openModsFolder, pickLocalModFile, installLocalModFile, listModConfigFiles, readModConfigFile, writeModConfigFile, steamCoverUrl,
-  saveModpackLocal, listLocalModpacks,
+  saveModpackLocal, listLocalModpacks, installThunderstorePackageLocally,
 } from '../utils/mods';
 import { proxyImage } from '../utils/imageProxy';
 import '../styles/mods-page.css';
@@ -37,10 +38,17 @@ import '../styles/mods-page.css';
 // O que ainda NÃO está nesta fase (ver comentários mais abaixo, nos
 // pontos exatos): perfis com ativar/desativar, coleções, resolução
 // automática de dependências/conflitos, "▶ Jogar".
+//
+// Item pedido: "pegue a interface e tudo do Gale [Thunderstore Mod
+// Manager] e funda com o que eu já tenho" — Thunderstore entrou como
+// uma QUARTA fonte, no mesmo padrão de mod.io/Workshop/GameBanana
+// acima (ver ThunderstoreGameView/ThunderstoreModDetailView mais
+// abaixo) — implementação própria, direto contra a API pública do
+// Thunderstore, nenhum código do Gale (GPL-3.0) foi copiado.
 export default function ModsPage() {
   const navigate = useNavigate();
   const [view, setView] = useState('home'); // 'home' | 'hub' | 'game' | 'mod'
-  const [mergedGame, setMergedGame] = useState(null); // { steamAppId, displayName, iconUrl, installPath, sources: { modio?, workshop?, gamebanana? } }
+  const [mergedGame, setMergedGame] = useState(null); // { steamAppId, displayName, iconUrl, installPath, sources: { modio?, workshop?, gamebanana?, thunderstore? } }
   const [selectedGame, setSelectedGame] = useState(null); // objeto já resolvido pra UMA fonte específica
   const [selectedModId, setSelectedModId] = useState(null);
 
@@ -75,6 +83,9 @@ export default function ModsPage() {
   };
   const backToHome = () => { setView('home'); setSelectedGame(null); setMergedGame(null); };
 
+  if (view === 'mod' && selectedGame?.source === 'thunderstore') {
+    return <ThunderstoreModDetailView game={selectedGame} fullName={selectedModId} onBack={backToGame} />;
+  }
   if (view === 'mod' && selectedGame) {
     return <ModDetailView game={selectedGame} modioModId={selectedModId} onBack={backToGame} />;
   }
@@ -83,6 +94,9 @@ export default function ModsPage() {
   }
   if (view === 'game' && selectedGame?.source === 'gamebanana') {
     return <GameBananaGameView game={selectedGame} onBack={backToHubOrHome} />;
+  }
+  if (view === 'game' && selectedGame?.source === 'thunderstore') {
+    return <ThunderstoreGameView game={selectedGame} onBack={backToHubOrHome} onOpenMod={openMod} />;
   }
   if (view === 'game' && selectedGame) {
     return <GameModsView game={selectedGame} onBack={backToHubOrHome} onOpenMod={openMod} />;
@@ -102,6 +116,7 @@ function GameHubView({ merged, onBack, onOpenSource }) {
     modio: { icon: '🧩', label: 'mod.io' },
     workshop: { icon: '🚂', label: 'Steam Workshop' },
     gamebanana: { icon: '🍌', label: 'GameBanana' },
+    thunderstore: { icon: '⚡', label: 'Thunderstore' },
   };
   return (
     <div className="mods-page">
@@ -143,25 +158,25 @@ function ModsHome({ onBack, onOpenGame }) {
         // Item pedido 30: a detecção roda LOCALMENTE (steamDetector.js,
         // dentro do app desktop) — só a lista de AppIDs encontrados
         // sobe pro servidor, pra cruzar com os catálogos de suporte
-        // (mod.io e Steam Workshop, os dois staff-editáveis).
+        // (mod.io, Workshop, GameBanana e Thunderstore, todos
+        // staff-editáveis).
         const detection = await detectSteamGames();
         setSteamFound(detection.steamFound);
         if (detection.steamFound && detection.games.length > 0) {
           const appIds = detection.games.map((g) => g.steamAppId);
-          const [{ games: modioSupported }, { games: workshopSupported }, { games: gamebananaSupported }] = await Promise.all([
+          const [{ games: modioSupported }, { games: workshopSupported }, { games: gamebananaSupported }, { games: thunderstoreSupported }] = await Promise.all([
             matchSteamGames(appIds),
             matchWorkshopGames(appIds).catch(() => ({ games: [] })),
             matchGameBananaGames(appIds).catch(() => ({ games: [] })),
+            matchThunderstoreGames(appIds).catch(() => ({ games: [] })),
           ]);
           const byInstall = new Map(detection.games.map((g) => [g.steamAppId, g.installPath]));
 
           // Item pedido: "funda o Workshop e o GameBanana na mesma
           // aba de download de mods de jogo pra não ter esse tipo de
           // game repetido" — junta tudo num Map por steamAppId em vez
-          // de três listas separadas, então um jogo com suporte em
-          // mais de uma fonte (ex: Terraria no Workshop via tModLoader
-          // E no GameBanana, mesmo steamAppId 105600 nos dois) vira UM
-          // cartão só em "Meus jogos", não repetido.
+          // de listas separadas, então um jogo com suporte em mais de
+          // uma fonte vira UM cartão só em "Meus jogos", não repetido.
           const merged = new Map();
           const addSource = (list, sourceKey) => {
             for (const s of list) {
@@ -176,6 +191,7 @@ function ModsHome({ onBack, onOpenGame }) {
           addSource(modioSupported, 'modio');
           addSource(workshopSupported, 'workshop');
           addSource(gamebananaSupported, 'gamebanana');
+          addSource(thunderstoreSupported, 'thunderstore');
           setGames(Array.from(merged.values()));
         }
       } catch {
@@ -250,7 +266,7 @@ function GameCard({ game, onClick }) {
   const sourceCount = Object.keys(game.sources).length;
   const sourceLabel = sourceCount > 1
     ? `${sourceCount} fontes`
-    : { modio: 'mod.io', workshop: 'Steam Workshop', gamebanana: 'GameBanana' }[Object.keys(game.sources)[0]];
+    : { modio: 'mod.io', workshop: 'Steam Workshop', gamebanana: 'GameBanana', thunderstore: 'Thunderstore' }[Object.keys(game.sources)[0]];
   return (
     <button type="button" className="mods-game-card" onClick={onClick}>
       <div className="mods-game-card-icon">
@@ -1234,6 +1250,412 @@ function GameBananaDetailView({ game, modId, onBack }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------- Tela do jogo (Thunderstore) ----------
+// Item pedido: "pegue a interface e tudo do Gale [Thunderstore Mod
+// Manager] e funda com o que eu já tenho" — Thunderstore é o
+// repositório de mods usado por jogos com BepInEx (Lethal Company,
+// Risk of Rain 2, Content Warning...), exatamente os mesmos jogos que
+// o Gale gerencia. Igual GameBanana/Workshop, sem login/chave nenhuma.
+//
+// Diferente das outras três fontes, aqui o backend já devolve a
+// dependência RESOLVIDA em árvore inteira (não só direta — ver
+// resolveDependencyTree em thunderstoreService.js), então "Instalar"
+// já pode instalar TUDO que o mod precisa de uma vez, na ordem certa —
+// a peça central que faz a instalação em UM clique do Gale funcionar,
+// sem copiar nenhuma linha do código dele.
+const THUNDERSTORE_SORT_OPTIONS = [
+  { value: 'popular', label: 'Populares' },
+  { value: 'downloads', label: 'Mais baixados' },
+  { value: 'new', label: 'Novos' },
+  { value: 'updated', label: 'Atualizados' },
+];
+
+function isThunderstoreLoaderPackage(name) {
+  return /bepinexpack/i.test(name || '');
+}
+
+function ThunderstoreGameView({ game, onBack, onOpenMod }) {
+  const desktopReady = isDesktopModsAvailable();
+  const [tab, setTab] = useState('mods'); // 'mods' | 'mine'
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState('popular');
+  const [category, setCategory] = useState('');
+  const [categories, setCategories] = useState([]);
+  const [packages, setPackages] = useState(null);
+  const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [installedState, setInstalledState] = useState({ enabled: [], disabled: [] });
+  const [uninstallError, setUninstallError] = useState('');
+  const [configFiles, setConfigFiles] = useState([]);
+  const [selectedConfigFile, setSelectedConfigFile] = useState(null);
+  const [configContent, setConfigContent] = useState('');
+  const [configSaving, setConfigSaving] = useState(false);
+  const [configMessage, setConfigMessage] = useState('');
+
+  const community = game.thunderstoreCommunity;
+
+  useEffect(() => {
+    listThunderstoreCategories(community).then((d) => setCategories(d.categories || [])).catch(() => setCategories([]));
+  }, [community]);
+
+  useEffect(() => {
+    setPackages(null);
+    setLoadError('');
+    const timeout = setTimeout(() => {
+      listThunderstorePackages(community, { q: query || undefined, sort, category: category || undefined, offset: 0 })
+        .then((d) => { setPackages(d.packages); setTotal(d.total); })
+        .catch((err) => { setPackages([]); setLoadError(err.response?.data?.error || 'Não foi possível buscar mods agora.'); });
+    }, 250);
+    return () => clearTimeout(timeout);
+  }, [community, query, sort, category]);
+
+  const loadMorePackages = async () => {
+    setLoadingMore(true);
+    try {
+      const d = await listThunderstorePackages(community, { q: query || undefined, sort, category: category || undefined, offset: packages.length });
+      setPackages((prev) => [...prev, ...d.packages]);
+      setTotal(d.total);
+    } catch {
+      setLoadError('Não foi possível carregar mais mods agora.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const refreshInstalled = () => {
+    if (!desktopReady || !game.installPath) return;
+    // Reaproveita listInstalledModsLocally sem nenhuma mudança — os
+    // mods do Thunderstore acabam nas mesmas pastas (BepInEx/plugins)
+    // que qualquer outra fonte, então o mesmo código que já lista/
+    // ativa/desativa/apaga mod.io/GameBanana já funciona aqui também.
+    listInstalledModsLocally(game.installPath).then((d) => setInstalledState({ enabled: d.enabled || [], disabled: d.disabled || [] }));
+  };
+  const refreshConfigFiles = () => listModConfigFiles(game.installPath).then((d) => setConfigFiles(d.files || []));
+
+  useEffect(() => {
+    if (tab !== 'mine') return;
+    refreshInstalled();
+    refreshConfigFiles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, game.installPath]);
+
+  const toggleInstalledMod = async (name, currentlyEnabled) => {
+    await setModEnabledLocally({ gameInstallPath: game.installPath, modName: name, enabled: !currentlyEnabled });
+    refreshInstalled();
+  };
+  const doUninstallMod = async (name) => {
+    if (!confirm(`Apagar "${name}"? Isso remove os arquivos dele do disco — não dá pra desfazer.`)) return;
+    setUninstallError('');
+    try {
+      const result = await uninstallModLocally({ gameInstallPath: game.installPath, modName: name });
+      if (!result.success) throw new Error(result.error || 'Falha desconhecida.');
+      refreshInstalled();
+    } catch (err) {
+      setUninstallError(`Não foi possível apagar "${name}": ${err.message}`);
+    }
+  };
+  const openConfigFile = async (filename) => {
+    setSelectedConfigFile(filename);
+    setConfigMessage('');
+    const d = await readModConfigFile(game.installPath, filename);
+    setConfigContent(d.success ? d.content : '');
+    if (!d.success) setConfigMessage(`Não foi possível abrir: ${d.error}`);
+  };
+  const saveConfigFile = async () => {
+    setConfigSaving(true);
+    try {
+      const d = await writeModConfigFile(game.installPath, selectedConfigFile, configContent);
+      setConfigMessage(d.success ? 'Salvo!' : `Erro ao salvar: ${d.error}`);
+    } finally {
+      setConfigSaving(false);
+    }
+  };
+
+  return (
+    <div className="mods-page">
+      <button type="button" className="mods-back" onClick={onBack}>‹ Voltar para Meus jogos</button>
+
+      <div className="mods-game-header">
+        <div className="mods-game-header-icon">{game.iconUrl ? <img src={proxyImage(game.iconUrl)} alt="" /> : '🎮'}</div>
+        <div>
+          <h1>{game.displayName}</h1>
+          <p className="dim">{total} {total === 1 ? 'mod disponível' : 'mods disponíveis'} · Thunderstore</p>
+        </div>
+        {desktopReady && game.steamAppId && (
+          <button type="button" className="btn-play mods-play-btn" onClick={() => window.electronAPI?.openExternal?.(`steam://run/${game.steamAppId}`)}>▶ Jogar</button>
+        )}
+      </div>
+
+      <div className="mods-tabs">
+        <button type="button" className={`mods-tab ${tab === 'mods' ? 'active' : ''}`} onClick={() => setTab('mods')}>Mods</button>
+        <button type="button" className={`mods-tab ${tab === 'mine' ? 'active' : ''}`} onClick={() => setTab('mine')}>Meus mods</button>
+      </div>
+
+      {tab === 'mods' && (
+        <>
+          <div className="mods-filters">
+            <input className="mods-search-bar" placeholder="Pesquisar mods ou autores..." value={query} onChange={(e) => setQuery(e.target.value)} />
+            <div className="mods-filter-chips">
+              {THUNDERSTORE_SORT_OPTIONS.map((o) => (
+                <button key={o.value} type="button" className={`mods-chip ${sort === o.value ? 'active' : ''}`} onClick={() => setSort(o.value)}>{o.label}</button>
+              ))}
+            </div>
+            {categories.length > 0 && (
+              <div className="mods-filter-chips">
+                <button type="button" className={`mods-chip ${!category ? 'active' : ''}`} onClick={() => setCategory('')}>Todas categorias</button>
+                {categories.map((c) => (
+                  <button key={c.slug} type="button" className={`mods-chip ${category === c.name ? 'active' : ''}`} onClick={() => setCategory(c.name)}>{c.name}</button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {packages === null ? (
+            <div className="mods-loading">Buscando mods no Thunderstore...</div>
+          ) : packages.length === 0 ? (
+            <div className="mods-empty-state">
+              <span className="mods-empty-icon">{loadError ? '⚠️' : '🔍'}</span>
+              <h3>{loadError ? 'Não foi possível buscar' : 'Nenhum mod encontrado'}</h3>
+              <p>{loadError || 'Tente outra busca ou outro filtro.'}</p>
+            </div>
+          ) : (
+            <>
+              <div className="mods-grid">
+                {packages.map((p) => <ThunderstorePackageCard key={p.fullName} pkg={p} onClick={() => onOpenMod(p.fullName)} />)}
+              </div>
+              {packages.length < total && (
+                <button type="button" className="mods-load-more" disabled={loadingMore} onClick={loadMorePackages}>
+                  {loadingMore ? 'Carregando...' : `Ver mais (${packages.length} de ${total})`}
+                </button>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {tab === 'mine' && (
+        !desktopReady ? (
+          <div className="mods-empty-state">
+            <span className="mods-empty-icon">🖥️</span>
+            <h3>Isso precisa do app de desktop</h3>
+            <p>Gerenciar mods instalados só funciona pelo app de desktop do Project Club.</p>
+          </div>
+        ) : !game.installPath ? (
+          <div className="mods-empty-state">
+            <span className="mods-empty-icon">📁</span>
+            <h3>Pasta do jogo não detectada</h3>
+            <p>Não conseguimos confirmar a pasta de instalação — abra o jogo pela Steam pra ela ser detectada de novo.</p>
+          </div>
+        ) : (
+          <>
+            <div className="mods-section-header-row">
+              <h2 className="mods-section-title" style={{ margin: 0 }}>Mods instalados agora</h2>
+              <button type="button" className="btn-link" onClick={() => openModsFolder(game.installPath)}>📂 Abrir pasta</button>
+            </div>
+            {uninstallError && <p className="mods-install-error">{uninstallError}</p>}
+            {installedState.enabled.length === 0 && installedState.disabled.length === 0 ? (
+              <p className="dim">Nenhum mod instalado ainda. Instale um mod na aba "Mods" acima.</p>
+            ) : (
+              <div className="mods-installed-list">
+                {installedState.enabled.map((name) => (
+                  <InstalledModRow key={name} name={name} enabled profiles={[]} onToggle={() => toggleInstalledMod(name, true)} onUninstall={() => doUninstallMod(name)} onAddToProfile={() => {}} />
+                ))}
+                {installedState.disabled.map((name) => (
+                  <InstalledModRow key={name} name={name} enabled={false} profiles={[]} onToggle={() => toggleInstalledMod(name, false)} onUninstall={() => doUninstallMod(name)} onAddToProfile={() => {}} />
+                ))}
+              </div>
+            )}
+
+            {configFiles.length > 0 && (
+              <>
+                <h2 className="mods-section-title">Configurar mods</h2>
+                <div className="mods-config-layout">
+                  <div className="mods-config-file-list">
+                    {configFiles.map((f) => (
+                      <button key={f} type="button" className={`mods-config-file-item ${selectedConfigFile === f ? 'active' : ''}`} onClick={() => openConfigFile(f)}>
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedConfigFile && (
+                    <div className="mods-config-editor">
+                      <textarea value={configContent} onChange={(e) => setConfigContent(e.target.value)} spellCheck={false} />
+                      <div className="mods-config-editor-actions">
+                        <button type="button" className="btn-primary" disabled={configSaving} onClick={saveConfigFile}>
+                          {configSaving ? 'Salvando...' : 'Salvar'}
+                        </button>
+                        {configMessage && <span className="dim">{configMessage}</span>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </>
+        )
+      )}
+    </div>
+  );
+}
+
+function ThunderstorePackageCard({ pkg, onClick }) {
+  return (
+    <button type="button" className="mods-mod-card" onClick={onClick}>
+      <div className="mods-mod-card-thumb" style={pkg.version?.icon ? { backgroundImage: `url(${proxyImage(pkg.version.icon)})` } : undefined}>
+        {!pkg.version?.icon && <span>⚡</span>}
+      </div>
+      <div className="mods-mod-card-body">
+        <span className="mods-mod-card-name">{pkg.isPinned ? '📌 ' : ''}{pkg.name}</span>
+        <span className="mods-mod-card-author dim">por {pkg.owner}</span>
+        <div className="mods-mod-card-stats dim">
+          <span>⬇ {formatCount(pkg.downloadCount)}</span>
+          {pkg.rating > 0 && <span>👍 {formatCount(pkg.rating)}</span>}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ---------- Página individual do mod (Thunderstore) ----------
+function ThunderstoreModDetailView({ game, fullName, onBack }) {
+  const desktopReady = isDesktopModsAvailable();
+  const [data, setData] = useState(null);
+  const [installBusy, setInstallBusy] = useState(false);
+  const [installStep, setInstallStep] = useState('');
+  const [installProgress, setInstallProgress] = useState(null);
+  const [installError, setInstallError] = useState('');
+  const [installed, setInstalled] = useState(false);
+
+  const community = game.thunderstoreCommunity;
+
+  const refresh = () => {
+    getThunderstorePackage(community, fullName).then(setData).catch(() => setData({ error: true }));
+  };
+  useEffect(refresh, [community, fullName]);
+
+  useEffect(() => {
+    if (!desktopReady || !game.installPath || !data?.package) return;
+    listInstalledModsLocally(game.installPath).then((d) => {
+      const folder = String(fullName).trim().replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 120);
+      setInstalled((d.enabled || []).includes(folder) || (d.disabled || []).includes(folder));
+    });
+  }, [desktopReady, game.installPath, data?.package, fullName]);
+
+  if (!data) return <div className="mods-page"><div className="mods-loading">Carregando mod...</div></div>;
+  if (data.error) return (
+    <div className="mods-page">
+      <button type="button" className="mods-back" onClick={onBack}>‹ Voltar</button>
+      <div className="mods-empty-state"><span className="mods-empty-icon">⚠️</span><h3>Não foi possível carregar este mod</h3></div>
+    </div>
+  );
+
+  const { package: pkg, dependencies } = data;
+
+  // Item pedido: "pegue a interface e tudo do Gale... funda com o que
+  // eu já tenho" — este é o botão que faz a instalação "de um clique
+  // só" do Gale funcionar aqui: instala TODA a árvore de dependências
+  // (já resolvida pelo backend, ver thunderstoreService.js) uma de
+  // cada vez, na ordem certa, ANTES do mod pedido em si — inclusive o
+  // BepInExPack (o framework em si), se ele estiver entre as
+  // dependências e o jogo ainda não tiver BepInEx instalado. Cada
+  // pacote é marcado como "isLoader" (ver isThunderstoreLoaderPackage)
+  // pra desktop/modsManager.js saber se deve instalar na RAIZ do jogo
+  // (o próprio framework) ou dentro de BepInEx/plugins (um mod comum).
+  const doInstall = async () => {
+    if (!game.installPath) { setInstallError('Não sabemos onde este jogo está instalado — abra-o pela Steam pra detectarmos de novo.'); return; }
+    setInstallError('');
+    setInstallBusy(true);
+    try {
+      const toInstall = [...dependencies, { fullName: pkg.fullName, name: pkg.name, downloadUrl: pkg.version.downloadUrl }];
+      for (const item of toInstall) {
+        setInstallStep(item.name);
+        setInstallProgress({ phase: 'downloading', percent: 0 });
+        const result = await installThunderstorePackageLocally({
+          downloadUrl: item.downloadUrl,
+          filename: `${item.fullName}.zip`,
+          gameInstallPath: game.installPath,
+          fullName: item.fullName,
+          isLoader: isThunderstoreLoaderPackage(item.name),
+        });
+        if (!result.success) throw new Error(`${item.name}: ${result.error || 'falha desconhecida'}`);
+      }
+      setInstalled(true);
+    } catch (err) {
+      setInstallError(err.message);
+    } finally {
+      setInstallBusy(false);
+      setInstallProgress(null);
+      setInstallStep('');
+    }
+  };
+
+  return (
+    <div className="mods-page">
+      <button type="button" className="mods-back" onClick={onBack}>‹ Voltar para {game.displayName}</button>
+
+      <div className="mods-detail-banner" style={pkg.version?.icon ? { backgroundImage: `url(${proxyImage(pkg.version.icon)})` } : undefined}>
+        {!pkg.version?.icon && <span className="mods-detail-banner-fallback">⚡</span>}
+        <div className="mods-detail-banner-gradient" />
+        <div className="mods-detail-title-row">
+          <div>
+            <h1>{pkg.name}</h1>
+            <p className="mods-detail-subtitle">por {pkg.owner} · v{pkg.version?.versionNumber || '?'}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mods-detail-actions">
+        <div className="mods-detail-stats dim">
+          <span>⬇ {formatCount(pkg.downloadCount)} downloads</span>
+          {pkg.rating > 0 && <span>👍 {formatCount(pkg.rating)}</span>}
+          <span>Atualizado em {pkg.dateUpdated ? new Date(pkg.dateUpdated).toLocaleDateString('pt-BR') : '—'}</span>
+        </div>
+
+        <div className="mods-detail-install">
+          {!desktopReady ? (
+            <p className="dim">Instalar mods só funciona pelo app de desktop do Project Club.</p>
+          ) : installBusy ? (
+            <div className="mods-install-progress">
+              <div className="mods-install-progress-label">
+                Instalando {installStep}... {installProgress?.phase === 'downloading' ? `${installProgress.percent}%` : installProgress?.phase === 'extracting' ? '(extraindo)' : installProgress?.phase === 'installing' ? '(instalando)' : ''}
+              </div>
+              <div className="mods-install-progress-bar"><div style={{ width: `${installProgress?.percent || 0}%` }} /></div>
+            </div>
+          ) : installed ? (
+            <button type="button" className="btn-danger-outline" onClick={doInstall}>🔄 Reinstalar / atualizar</button>
+          ) : (
+            <button type="button" className="btn-primary" onClick={doInstall}>
+              ⬇ Instalar{dependencies?.length > 0 ? ` (com ${dependencies.length} ${dependencies.length === 1 ? 'dependência' : 'dependências'})` : ''}
+            </button>
+          )}
+          {installError && <p className="mods-install-error">Não foi possível instalar este mod: {installError}</p>}
+        </div>
+
+        {pkg.packageUrl && (
+          <a href={pkg.packageUrl} target="_blank" rel="noreferrer" className="btn-link" style={{ display: 'inline-block' }}>
+            Ver página completa no Thunderstore ↗
+          </a>
+        )}
+      </div>
+
+      {dependencies?.length > 0 && (
+        <div className="mods-dependencies">
+          <h3>Este mod depende de {dependencies.length} {dependencies.length === 1 ? 'outro pacote' : 'outros pacotes'} (instalados automaticamente junto)</h3>
+          <ul>{dependencies.map((d) => <li key={d.fullName}>{d.name}{isThunderstoreLoaderPackage(d.name) ? ' (framework BepInEx)' : ''}</li>)}</ul>
+        </div>
+      )}
+
+      <div className="mods-detail-body">
+        {pkg.version?.description && <p className="mods-detail-description">{pkg.version.description}</p>}
+        {pkg.categories?.length > 0 && (
+          <div className="mods-detail-tags">{pkg.categories.map((c) => <span key={c} className="mods-tag-chip">{c}</span>)}</div>
+        )}
+      </div>
     </div>
   );
 }
