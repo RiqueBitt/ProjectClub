@@ -91,6 +91,15 @@
 .mods-workshop-card-actions { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
 .mods-workshop-card-actions .btn-primary { padding: 6px 12px; font-size: 12.5px; }
 
+/* ---------- GameBanana ---------- */
+.mods-gamebanana-files { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; width: 100%; }
+.mods-gamebanana-file-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: 8px; background: var(--bg-elevated); border: 1px solid var(--border);
+  font-size: 13px; text-decoration: none; color: var(--text-normal); transition: border-color .12s ease;
+}
+.mods-gamebanana-file-row:hover { border-color: var(--brand); }
+
 /* ---------- Meus mods (instalados) ---------- */
 .mods-installed-list { display: flex; flex-direction: column; gap: 8px; }
 .mods-installed-item {

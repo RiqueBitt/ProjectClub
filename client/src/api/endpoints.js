@@ -580,6 +580,15 @@ export const adminCreateWorkshopGameMapping = (payload) => api.post('/admin/work
 export const adminUpdateWorkshopGameMapping = (id, payload) => api.patch(`/admin/workshop/game-mappings/${id}`, payload).then((r) => r.data);
 export const adminDeleteWorkshopGameMapping = (id) => api.delete(`/admin/workshop/game-mappings/${id}`).then((r) => r.data);
 
+// ---------- GameBanana (sem login/chave nenhuma) ----------
+export const matchGameBananaGames = (steamAppIds) => api.post('/gamebanana/steam-match', { steamAppIds }).then((r) => r.data);
+export const browseGameBanana = (gameBananaGameId, params) => api.get(`/gamebanana/games/${gameBananaGameId}/browse`, { params }).then((r) => r.data);
+export const getGameBananaMod = (modId) => api.get(`/gamebanana/mods/${modId}`).then((r) => r.data);
+export const adminListGameBananaMappings = () => api.get('/admin/gamebanana/game-mappings').then((r) => r.data);
+export const adminCreateGameBananaMapping = (payload) => api.post('/admin/gamebanana/game-mappings', payload).then((r) => r.data);
+export const adminUpdateGameBananaMapping = (id, payload) => api.patch(`/admin/gamebanana/game-mappings/${id}`, payload).then((r) => r.data);
+export const adminDeleteGameBananaMapping = (id) => api.delete(`/admin/gamebanana/game-mappings/${id}`).then((r) => r.data);
+
 // Admin — mapeamento de jogos (Steam AppID → jogo no mod.io) e moderação
 // de denúncias.
 export const adminListModGameMappings = () => api.get('/admin/mods/game-mappings').then((r) => r.data);

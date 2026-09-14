@@ -2140,6 +2140,22 @@ model WorkshopGameMapping {
   updatedAt     DateTime @updatedAt
 }
 
+// Item pedido: "integrar com GameBanana... uma API de mods de jogos da
+// Steam, sem precisar de login." Mesma ideia do WorkshopGameMapping —
+// gameBananaGameId é o ID numérico que o PRÓPRIO GameBanana usa pra
+// identificar o jogo (visível na URL da página do jogo lá, tipo
+// gamebanana.com/games/6 → id 6).
+model GameBananaGameMapping {
+  id                String   @id @default(uuid())
+  steamAppId        Int      @unique
+  gameBananaGameId  Int
+  displayName       String
+  iconUrl           String?
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
 model ModFavorite {
   id          String   @id @default(uuid())
   userId      String

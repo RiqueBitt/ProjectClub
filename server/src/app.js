@@ -47,6 +47,10 @@ const modsRoutes = require('./routes/mods');
 // ideia do modsRoutes, mas falando com a Steamworks Web API em vez do
 // mod.io. Ver services/steamWorkshopService.js.
 const workshopRoutes = require('./routes/workshop');
+// GameBanana (gamebanana.com) — API semi-oficial, sem login/chave
+// nenhuma, cobre vários jogos da Steam (Garry's Mod, GTA San Andreas,
+// Half-Life, Left 4 Dead, etc). Ver services/gamebananaService.js.
+const gamebananaRoutes = require('./routes/gamebanana');
 const communitiesRoutes = require('./routes/communities');
 const postsRoutes = require('./routes/posts');
 const achievementsRoutes = require('./routes/achievements');
@@ -302,6 +306,7 @@ function createApp() {
   app.use('/api/app-catalog', appCatalogRoutes);
   app.use('/api/mods', modsRoutes);
   app.use('/api/workshop', workshopRoutes);
+  app.use('/api/gamebanana', gamebananaRoutes);
   // Fusão com o Reddit clone (fase 1) — "/api/community" (singular) já é a
   // comunidade única existente da plataforma, por isso essas novas rotas
   // (comunidades tipo subreddit, dentro delas) usam nomes no plural.

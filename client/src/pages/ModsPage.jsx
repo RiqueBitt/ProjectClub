@@ -7,6 +7,7 @@ import {
   listModProfiles, createModProfile, deleteModProfile, upsertModProfileItem, removeModProfileItem,
   listModCollections, createModCollection, deleteModCollection, addModCollectionItem,
   matchWorkshopGames, listWorkshopItems,
+  matchGameBananaGames, browseGameBanana, getGameBananaMod,
 } from '../api/endpoints';
 import {
   isDesktopModsAvailable, detectSteamGames, installModLocally, listInstalledModsLocally, onModsProgress,
@@ -51,6 +52,9 @@ export default function ModsPage() {
   if (view === 'game' && selectedGame?.source === 'workshop') {
     return <WorkshopGameView game={selectedGame} onBack={backToHome} />;
   }
+  if (view === 'game' && selectedGame?.source === 'gamebanana') {
+    return <GameBananaGameView game={selectedGame} onBack={backToHome} />;
+  }
   if (view === 'game' && selectedGame) {
     return <GameModsView game={selectedGame} onBack={backToHome} onOpenMod={openMod} />;
   }
@@ -77,14 +81,16 @@ function ModsHome({ onBack, onOpenGame }) {
         setSteamFound(detection.steamFound);
         if (detection.steamFound && detection.games.length > 0) {
           const appIds = detection.games.map((g) => g.steamAppId);
-          const [{ games: modioSupported }, { games: workshopSupported }] = await Promise.all([
+          const [{ games: modioSupported }, { games: workshopSupported }, { games: gamebananaSupported }] = await Promise.all([
             matchSteamGames(appIds),
             matchWorkshopGames(appIds).catch(() => ({ games: [] })),
+            matchGameBananaGames(appIds).catch(() => ({ games: [] })),
           ]);
           const byInstall = new Map(detection.games.map((g) => [g.steamAppId, g.installPath]));
           const modioGames = modioSupported.map((s) => ({ ...s, source: 'modio', installPath: byInstall.get(s.steamAppId) }));
           const workshopGames = workshopSupported.map((s) => ({ ...s, source: 'workshop', displayName: s.displayName, installPath: byInstall.get(s.steamAppId) }));
-          setGames([...modioGames, ...workshopGames]);
+          const gamebananaGames = gamebananaSupported.map((s) => ({ ...s, source: 'gamebanana', displayName: s.displayName, installPath: byInstall.get(s.steamAppId) }));
+          setGames([...modioGames, ...workshopGames, ...gamebananaGames]);
         }
       } catch {
         setSteamFound(false);
@@ -160,7 +166,7 @@ function GameCard({ game, onClick }) {
         {game.iconUrl ? <img src={proxyImage(game.iconUrl)} alt="" /> : <span>🎮</span>}
       </div>
       <span className="mods-game-card-name">{game.displayName}</span>
-      <span className="mods-game-card-source dim">{game.source === 'workshop' ? 'Steam Workshop' : 'mod.io'}</span>
+      <span className="mods-game-card-source dim">{game.source === 'workshop' ? 'Steam Workshop' : game.source === 'gamebanana' ? 'GameBanana' : 'mod.io'}</span>
     </button>
   );
 }
@@ -638,6 +644,166 @@ function WorkshopItemCard({ item, installed }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ---------- Tela do jogo (GameBanana) ----------
+// Item pedido: "GameBanana... sem precisar de login". API semi-oficial,
+// sem chave nenhuma. Diferente do mod.io/Workshop, mods do GameBanana
+// não têm uma convenção única de instalação (varia MUITO de jogo pra
+// jogo — item pedido 26: "não criar uma regra universal") — em vez de
+// arriscar colocar arquivo no lugar errado, o botão de baixar abre o
+// link direto do arquivo (a própria GameBanana serve o download), a
+// pessoa extrai/instala seguindo as instruções da própria página do
+// mod — que a gente já linka.
+const GAMEBANANA_SORT_OPTIONS = [
+  { value: 'default', label: 'Em destaque' },
+  { value: 'new', label: 'Novos' },
+];
+
+function GameBananaGameView({ game, onBack }) {
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState('default');
+  const [items, setItems] = useState(null);
+  const [selectedModId, setSelectedModId] = useState(null);
+
+  useEffect(() => {
+    setItems(null);
+    const timeout = setTimeout(() => {
+      browseGameBanana(game.gameBananaGameId, { q: query || undefined, sort })
+        .then((d) => setItems(d.items))
+        .catch(() => setItems([]));
+    }, 250);
+    return () => clearTimeout(timeout);
+  }, [game.gameBananaGameId, query, sort]);
+
+  if (selectedModId) {
+    return <GameBananaDetailView modId={selectedModId} onBack={() => setSelectedModId(null)} />;
+  }
+
+  return (
+    <div className="mods-page">
+      <button type="button" className="mods-back" onClick={onBack}>‹ Voltar para Meus jogos</button>
+
+      <div className="mods-game-header">
+        <div className="mods-game-header-icon">{game.iconUrl ? <img src={proxyImage(game.iconUrl)} alt="" /> : '🎮'}</div>
+        <div><h1>{game.displayName}</h1><p className="dim">GameBanana</p></div>
+      </div>
+
+      <div className="mods-filters">
+        <input className="mods-search-bar" placeholder="Pesquisar no GameBanana..." value={query} onChange={(e) => setQuery(e.target.value)} />
+        <div className="mods-filter-chips">
+          {GAMEBANANA_SORT_OPTIONS.map((o) => (
+            <button key={o.value} type="button" className={`mods-chip ${sort === o.value ? 'active' : ''}`} onClick={() => setSort(o.value)}>{o.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {items === null ? (
+        <div className="mods-loading">Buscando no GameBanana...</div>
+      ) : items.length === 0 ? (
+        <div className="mods-empty-state">
+          <span className="mods-empty-icon">🔍</span>
+          <h3>Nenhum item encontrado</h3>
+          <p>Tente outra busca.</p>
+        </div>
+      ) : (
+        <div className="mods-grid">
+          {items.map((item) => (
+            <button key={item.id} type="button" className="mods-mod-card" onClick={() => setSelectedModId(item.id)}>
+              <div className="mods-mod-card-thumb" style={item.thumbUrl ? { backgroundImage: `url(${proxyImage(item.thumbUrl)})` } : undefined}>
+                {!item.thumbUrl && <span>🧩</span>}
+              </div>
+              <div className="mods-mod-card-body">
+                <span className="mods-mod-card-name">{item.name}</span>
+                {item.submitter && <span className="mods-mod-card-author dim">por {item.submitter}</span>}
+                <div className="mods-mod-card-stats dim">
+                  {!!item.viewCount && <span>👁 {formatCount(item.viewCount)}</span>}
+                  {!!item.likeCount && <span>❤ {formatCount(item.likeCount)}</span>}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GameBananaDetailView({ modId, onBack }) {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    getGameBananaMod(modId).then((d) => setData(d.mod)).catch(() => setData({ error: true }));
+  }, [modId]);
+
+  if (!data) return <div className="mods-page"><div className="mods-loading">Carregando mod...</div></div>;
+  if (data.error) return (
+    <div className="mods-page">
+      <button type="button" className="mods-back" onClick={onBack}>‹ Voltar</button>
+      <div className="mods-empty-state"><span className="mods-empty-icon">⚠️</span><h3>Não foi possível carregar este mod</h3></div>
+    </div>
+  );
+
+  return (
+    <div className="mods-page">
+      <button type="button" className="mods-back" onClick={onBack}>‹ Voltar</button>
+
+      <div className="mods-detail-banner" style={data.thumbUrl ? { backgroundImage: `url(${proxyImage(data.thumbUrl)})` } : undefined}>
+        {!data.thumbUrl && <span className="mods-detail-banner-fallback">🧩</span>}
+        <div className="mods-detail-banner-gradient" />
+        <div className="mods-detail-title-row">
+          <div>
+            <h1>{data.name}</h1>
+            {data.submitter && <p className="mods-detail-subtitle">por {data.submitter}</p>}
+          </div>
+        </div>
+      </div>
+
+      <div className="mods-detail-actions">
+        <div className="mods-detail-stats dim">
+          {!!data.viewCount && <span>👁 {formatCount(data.viewCount)} visualizações</span>}
+          {!!data.likeCount && <span>❤ {formatCount(data.likeCount)}</span>}
+        </div>
+        <div className="mods-detail-install">
+          {data.profileUrl && (
+            <a href={data.profileUrl} target="_blank" rel="noreferrer" className="btn-primary" style={{ display: 'inline-block', textDecoration: 'none' }}>
+              Ver no GameBanana
+            </a>
+          )}
+          {data.files?.length > 0 && (
+            <div className="mods-gamebanana-files">
+              {data.files.map((f) => (
+                <a key={f.id} href={f.downloadUrl} target="_blank" rel="noreferrer" className="mods-gamebanana-file-row">
+                  <span>📦 {f.filename}</span>
+                  <span className="dim">{f.filesize ? `${(f.filesize / 1024 / 1024).toFixed(1)} MB` : ''} · Baixar ↓</span>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="mods-detail-body">
+        {data.description && <p className="mods-detail-description">{data.description}</p>}
+        {data.categories?.length > 0 && (
+          <div className="mods-detail-tags">{data.categories.map((c) => <span key={c} className="mods-tag-chip">{c}</span>)}</div>
+        )}
+      </div>
+
+      {data.images?.length > 0 && (
+        <div className="mods-detail-screenshots">
+          <h3>Screenshots</h3>
+          <div className="mods-detail-screenshots-grid">
+            {data.images.map((img) => (
+              <a key={img} href={proxyImage(img)} target="_blank" rel="noreferrer" className="mods-detail-screenshot-thumb">
+                <img src={proxyImage(img)} alt="" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

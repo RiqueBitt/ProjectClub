@@ -53,6 +53,7 @@ import {
   adminListModGameMappings, adminCreateModGameMapping, adminUpdateModGameMapping, adminDeleteModGameMapping,
   adminListModReports, adminResolveModReport,
   adminListWorkshopGameMappings, adminCreateWorkshopGameMapping, adminUpdateWorkshopGameMapping, adminDeleteWorkshopGameMapping,
+  adminListGameBananaMappings, adminCreateGameBananaMapping, adminUpdateGameBananaMapping, adminDeleteGameBananaMapping,
 } from '../api/endpoints';
 import HouseIcon from '../components/HouseIcon.jsx';
 import DraggableResizableBox from '../components/admin/DraggableResizableBox.jsx';
@@ -71,13 +72,13 @@ const TAB_LABEL = {
   roles: '🎭 Cargos', channels: '# Canais e Categorias', gifMove: '🎯 GIFa Move',
   emojis: '😀 Emojis', stickers: '🏷️ Figurinhas', clanIcons: '⚔️ Ícones de Clube', clubs: '🏛️ Clubes',
   achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', reload: '🔄 Reload', appCatalog: '🧩 Apps',
-  modGames: '🧰 Mods — Jogos', modReports: '🧰 Mods — Denúncias', workshopGames: '🧰 Mods — Steam Workshop',
+  modGames: '🧰 Mods — Jogos', modReports: '🧰 Mods — Denúncias', workshopGames: '🧰 Mods — Steam Workshop', gamebananaGames: '🧰 Mods — GameBanana',
 };
 
 const TAB_GROUPS = [
   { label: 'Visão geral', icon: '📊', tabs: ['stats', 'inscricoes', 'users', 'badges'] },
   { label: 'Estrutura da comunidade', icon: '🏗️', tabs: ['roles', 'channels', 'gifMove', 'emojis', 'stickers', 'clanIcons', 'clubs', 'achievements'] },
-  { label: 'Conteúdo', icon: '🎨', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events', 'appCatalog', 'modGames', 'workshopGames'] },
+  { label: 'Conteúdo', icon: '🎨', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events', 'appCatalog', 'modGames', 'workshopGames', 'gamebananaGames'] },
   { label: 'Moderação', icon: '🛡️', tabs: ['moderacao', 'automodDm', 'reports', 'modReports', 'logs', 'honeypot'] },
   { label: 'Comunicação', icon: '📣', tabs: ['announcements'] },
   { label: 'Sistema', icon: '⚙️', tabs: ['sistema', 'maintenance', 'reload'] },
@@ -193,6 +194,7 @@ export default function AdminPanel() {
           {tab === 'appCatalog' && <AppCatalogTab />}
           {tab === 'modGames' && <ModGamesAdminTab />}
           {tab === 'workshopGames' && <WorkshopGamesAdminTab />}
+          {tab === 'gamebananaGames' && <GameBananaGamesAdminTab />}
           {tab === 'modReports' && <ModReportsAdminTab />}
           {tab === 'roles' && <RolesAdminTab />}
           {tab === 'channels' && <ChannelsAdminTab />}
@@ -3408,6 +3410,95 @@ function WorkshopGamesAdminTab() {
                 <td>{m.displayName}</td>
                 <td>{m.steamAppId}</td>
                 <td>{m.workshopAppId}</td>
+                <td>{m.enabled ? '✅ Ativo' : '⛔ Desativado'}</td>
+                <td className="admin-table-actions">
+                  <button className="btn-link" onClick={() => toggleEnabled(m)}>{m.enabled ? 'Desativar' : 'Ativar'}</button>
+                  <button className="btn-link" style={{ color: 'var(--red)' }} onClick={() => remove(m)}>Remover</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// Mesma ideia do ModGamesAdminTab/WorkshopGamesAdminTab, pro GameBanana.
+// gameBananaGameId é o ID numérico da URL do jogo lá (ex:
+// gamebanana.com/games/6 → id 6).
+function GameBananaGamesAdminTab() {
+  const [mappings, setMappings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ steamAppId: '', gameBananaGameId: '', displayName: '', iconUrl: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const refresh = () => {
+    setLoading(true);
+    adminListGameBananaMappings().then((d) => setMappings(d.mappings)).finally(() => setLoading(false));
+  };
+  useEffect(refresh, []);
+
+  const create = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!form.steamAppId || !form.gameBananaGameId || !form.displayName.trim()) {
+      setError('Preencha steamAppId, gameBananaGameId e o nome.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await adminCreateGameBananaMapping(form);
+      setForm({ steamAppId: '', gameBananaGameId: '', displayName: '', iconUrl: '' });
+      refresh();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erro ao criar mapeamento.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleEnabled = async (m) => {
+    await adminUpdateGameBananaMapping(m.id, { enabled: !m.enabled });
+    refresh();
+  };
+
+  const remove = async (m) => {
+    if (!confirm(`Remover o mapeamento de "${m.displayName}"?`)) return;
+    await adminDeleteGameBananaMapping(m.id);
+    refresh();
+  };
+
+  return (
+    <div>
+      <h2>🧰 Mods — GameBanana</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        gameBananaGameId é o número que aparece na URL do jogo no GameBanana (ex: gamebanana.com/games/6 → 6). API
+        semi-oficial deles, sem login/chave nenhuma — cobre vários jogos da Steam além de Minecraft/mod.io/Workshop
+        (Garry's Mod, GTA San Andreas, Half-Life, Left 4 Dead, etc).
+      </p>
+
+      <form className="admin-badge-form" onSubmit={create}>
+        <label>AppID da Steam<input type="number" value={form.steamAppId} onChange={(e) => setForm((f) => ({ ...f, steamAppId: e.target.value }))} placeholder="ex: 4000 (Garry's Mod)" /></label>
+        <label>ID do jogo no GameBanana<input type="number" value={form.gameBananaGameId} onChange={(e) => setForm((f) => ({ ...f, gameBananaGameId: e.target.value }))} placeholder="ex: 6" /></label>
+        <label>Nome exibido<input value={form.displayName} onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))} placeholder="Garry's Mod" /></label>
+        <label>URL do ícone (opcional)<input value={form.iconUrl} onChange={(e) => setForm((f) => ({ ...f, iconUrl: e.target.value }))} placeholder="https://..." /></label>
+        {error && <p style={{ color: 'var(--red)', fontSize: 13 }}>{error}</p>}
+        <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Salvando...' : 'Cadastrar jogo'}</button>
+      </form>
+
+      {loading ? <p className="dim">Carregando...</p> : mappings.length === 0 ? (
+        <p className="dim">Nenhum jogo cadastrado ainda.</p>
+      ) : (
+        <table className="admin-table" style={{ marginTop: 20 }}>
+          <thead><tr><th>Jogo</th><th>AppID Steam</th><th>ID GameBanana</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {mappings.map((m) => (
+              <tr key={m.id}>
+                <td>{m.displayName}</td>
+                <td>{m.steamAppId}</td>
+                <td>{m.gameBananaGameId}</td>
                 <td>{m.enabled ? '✅ Ativo' : '⛔ Desativado'}</td>
                 <td className="admin-table-actions">
                   <button className="btn-link" onClick={() => toggleEnabled(m)}>{m.enabled ? 'Desativar' : 'Ativar'}</button>

@@ -5,6 +5,7 @@ const appCatalogCtrl = require('../controllers/appCatalogController');
 const adminClanCtrl = require('../controllers/adminClanController');
 const modCtrl = require('../controllers/modController');
 const workshopCtrl = require('../controllers/steamWorkshopController');
+const gamebananaCtrl = require('../controllers/gamebananaController');
 const { requireAuth } = require('../middleware/auth');
 const { requirePlatformAdmin } = require('../middleware/platformAdmin');
 const { uploadImage } = require('../middleware/upload');
@@ -65,6 +66,12 @@ router.get('/workshop/game-mappings', workshopCtrl.adminListGameMappings);
 router.post('/workshop/game-mappings', workshopCtrl.adminCreateGameMapping);
 router.patch('/workshop/game-mappings/:id', workshopCtrl.adminUpdateGameMapping);
 router.delete('/workshop/game-mappings/:id', workshopCtrl.adminDeleteGameMapping);
+
+// GameBanana — mapeamento Steam AppID → ID do jogo no GameBanana
+router.get('/gamebanana/game-mappings', gamebananaCtrl.adminListGameMappings);
+router.post('/gamebanana/game-mappings', gamebananaCtrl.adminCreateGameMapping);
+router.patch('/gamebanana/game-mappings/:id', gamebananaCtrl.adminUpdateGameMapping);
+router.delete('/gamebanana/game-mappings/:id', gamebananaCtrl.adminDeleteGameMapping);
 
 router.post('/app-catalog', appCatalogCtrl.createAppCatalogItem);
 router.patch('/app-catalog/:id', appCatalogCtrl.updateAppCatalogItem);
