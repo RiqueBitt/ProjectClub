@@ -14,7 +14,7 @@ import dashboardIcon from '../assets/icons/nav-dashboard.png';
 // com o resto da interface" — mesmo padrão isImg:true dos outros
 // (mask-image via CSS, a cor de verdade vem de lá, não do PNG).
 import appsIcon from '../assets/icons/nav-apps.png';
-import achievementsIcon from '../assets/icons/nav-achievements.png';
+import achievementsIcon from '../assets/icons/nav-achievements.png'; // eslint-disable-line no-unused-vars -- mantido: pode ser reaproveitado se algum dia a categoria Progresso ganhar submenu na própria sidebar
 import inicioIcon from '../assets/icons/nav-updates.png';
 import { proxyImage } from '../utils/imageProxy';
 
@@ -58,8 +58,11 @@ const ITEMS = [
   // já leva pra essa mesma rota (ver TopSearchBar.jsx), então o
   // acesso continua funcionando normalmente, só sem essa entrada
   // duplicada aqui na barra lateral.
-  { to: '/rank', icon: ranksIcon, isImg: true, labelKey: 'nav.ranks', match: (p) => p.startsWith('/rank') },
-  { to: '/conquistas', icon: achievementsIcon, isImg: true, labelKey: 'nav.conquistas', match: (p) => p.startsWith('/conquistas') },
+  // Item pedido: "Ranks e Conquistas ficam dentro da mesma categoria
+  // (Progresso)" — antes eram duas entradas separadas na sidebar; uma
+  // só agora, levando pra ProgressPage.jsx (que tem as duas dentro,
+  // como abas, mais a nova aba de Recompensas).
+  { to: '/progresso', icon: ranksIcon, isImg: true, labelKey: 'nav.progresso', match: (p) => p.startsWith('/progresso') || p.startsWith('/rank') || p.startsWith('/conquistas') },
   { to: '/tickets', icon: supportIcon, isImg: true, labelKey: 'nav.suporte', match: (p) => p.startsWith('/tickets') },
   // Item pedido: "renomear o sistema atual de Clãs para Clubes...
   // remover completamente a categoria Clãs da interface" — item

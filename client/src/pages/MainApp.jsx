@@ -50,7 +50,11 @@ const NotificationsPage = lazy(() => import('./NotificationsPage.jsx'));
 const SearchPage = lazy(() => import('./SearchPage.jsx'));
 const AdminPanel = lazy(() => import('./AdminPanel.jsx'));
 const EconomyPage = lazy(() => import('./EconomyPage.jsx'));
-const RankPage = lazy(() => import('./RankPage.jsx'));
+// Item pedido: "Ranks e Conquistas ficam dentro da mesma categoria
+// (Progresso)" — RankPage.jsx/AchievementsPage.jsx continuam
+// existindo (importados dentro de ProgressPage.jsx), só não têm mais
+// rota própria aqui — a rota é só /progresso agora.
+const ProgressPage = lazy(() => import('./ProgressPage.jsx'));
 const HousesPage = lazy(() => import('./HousesPage.jsx'));
 const StickersPage = lazy(() => import('./StickersPage.jsx'));
 const ClanPage = lazy(() => import('./ClanPage.jsx'));
@@ -58,7 +62,6 @@ const TicketsPage = lazy(() => import('./TicketsPage.jsx'));
 const CommunitiesPage = lazy(() => import('./CommunitiesPage.jsx'));
 const CommunityPage = lazy(() => import('./CommunityPage.jsx'));
 const PostDetailPage = lazy(() => import('./PostDetailPage.jsx'));
-const AchievementsPage = lazy(() => import('./AchievementsPage.jsx'));
 const InicioPage = lazy(() => import('./InicioPage.jsx'));
 // Item pedido: "crie uma nova categoria chamada Jogos" — mesmo padrão
 // lazy() de todas as outras seções acima.
@@ -333,7 +336,18 @@ export default function MainApp() {
                 <Route path="/search" element={<SearchPage />} />
                 <Route path="/admin" element={<AdminPanel />} />
                 <Route path="/economia" element={<EconomyPage />} />
-                <Route path="/rank" element={<RankPage />} />
+                {/* Item pedido: "Ranks e Conquistas ficam dentro da
+                    mesma categoria (Progresso)... aba extra chamada
+                    de recompensas" — /rank e /conquistas eram duas
+                    entradas próprias na sidebar; agora as duas (mais
+                    a aba nova de Recompensas) vivem dentro de
+                    /progresso, como abas de uma casca só (ver
+                    ProgressPage.jsx). Os links antigos continuam
+                    funcionando, só redirecionam, pra não quebrar
+                    quem tinha um deles salvo/aberto. */}
+                <Route path="/progresso" element={<ProgressPage />} />
+                <Route path="/rank" element={<Navigate to="/progresso" replace />} />
+                <Route path="/conquistas" element={<Navigate to="/progresso" replace />} />
                 <Route path="/casas" element={<HousesPage />} />
                 <Route path="/figurinhas" element={<StickersPage />} />
                 <Route path="/tickets" element={<TicketsPage />} />
@@ -350,7 +364,6 @@ export default function MainApp() {
                 <Route path="/comunidades" element={<CommunitiesPage />} />
                 <Route path="/comunidades/:slug" element={<CommunityPage />} />
                 <Route path="/posts/:id" element={<PostDetailPage />} />
-                <Route path="/conquistas" element={<AchievementsPage />} />
                 <Route path="/inicio" element={<InicioPage />} />
                 {/* Item pedido: "crie uma nova categoria chamada Jogos" */}
                 <Route path="/jogos" element={<JogosPage />} />
