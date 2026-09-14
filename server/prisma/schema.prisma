@@ -2227,6 +2227,11 @@ model ModCollectionItem {
   collectionId String
   collection   ModCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   modioModId   Int
+  // Mesmo motivo do ModProfileItem.modName: instalar uma coleção
+  // inteira precisa do NOME de cada mod pra saber o nome da pasta no
+  // disco (ver desktop/modsManager.js) — guardar aqui evita consultar a
+  // API do mod.io de novo só pra montar a lista antes de instalar.
+  modName      String?
   order        Int           @default(0)
 
   @@unique([collectionId, modioModId])

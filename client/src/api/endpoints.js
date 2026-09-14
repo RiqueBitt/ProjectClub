@@ -563,6 +563,14 @@ export const deleteModProfile = (profileId) => api.delete(`/mods/profiles/${prof
 export const upsertModProfileItem = (profileId, payload) => api.post(`/mods/profiles/${profileId}/items`, payload).then((r) => r.data);
 export const removeModProfileItem = (profileId, modioModId) => api.delete(`/mods/profiles/${profileId}/items/${modioModId}`).then((r) => r.data);
 
+// Coleções (item pedido 19) — públicas pra qualquer pessoa logada ver e
+// instalar; só o autor edita/apaga.
+export const listModCollections = (modioGameId) => api.get(`/mods/games/${modioGameId}/collections`).then((r) => r.data);
+export const createModCollection = (modioGameId, payload) => api.post(`/mods/games/${modioGameId}/collections`, payload).then((r) => r.data);
+export const deleteModCollection = (collectionId) => api.delete(`/mods/collections/${collectionId}`).then((r) => r.data);
+export const addModCollectionItem = (collectionId, payload) => api.post(`/mods/collections/${collectionId}/items`, payload).then((r) => r.data);
+export const removeModCollectionItem = (collectionId, modioModId) => api.delete(`/mods/collections/${collectionId}/items/${modioModId}`).then((r) => r.data);
+
 // Admin — mapeamento de jogos (Steam AppID → jogo no mod.io) e moderação
 // de denúncias.
 export const adminListModGameMappings = () => api.get('/admin/mods/game-mappings').then((r) => r.data);

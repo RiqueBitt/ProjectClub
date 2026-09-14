@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext.jsx';
 import {
   matchSteamGames, getModioGameTags, listMods, getMod, getModDownload,
   toggleModFavorite, toggleModUp, listModComments, addModComment, reportMod,
   listModProfiles, createModProfile, deleteModProfile, upsertModProfileItem, removeModProfileItem,
+  listModCollections, createModCollection, deleteModCollection, addModCollectionItem,
 } from '../api/endpoints';
 import {
   isDesktopModsAvailable, detectSteamGames, installModLocally, listInstalledModsLocally, onModsProgress,
@@ -167,8 +169,9 @@ const SORT_OPTIONS = [
 ];
 
 function GameModsView({ game, onBack, onOpenMod }) {
+  const { user } = useAuth();
   const desktopReady = isDesktopModsAvailable();
-  const [tab, setTab] = useState('mods'); // 'mods' | 'mine' | 'soon'
+  const [tab, setTab] = useState('mods'); // 'mods' | 'mine' | 'collections'
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('popular');
   const [category, setCategory] = useState('');
@@ -180,6 +183,63 @@ function GameModsView({ game, onBack, onOpenMod }) {
   const [newProfileName, setNewProfileName] = useState('');
   const [activatingProfileId, setActivatingProfileId] = useState(null);
   const [activateMessage, setActivateMessage] = useState('');
+  const [collections, setCollections] = useState(null);
+  const [newCollectionName, setNewCollectionName] = useState('');
+  const [installingCollectionId, setInstallingCollectionId] = useState(null);
+  const [collectionMessage, setCollectionMessage] = useState('');
+
+  useEffect(() => {
+    if (tab === 'collections') listModCollections(game.modioGameId).then((d) => setCollections(d.collections));
+  }, [tab, game.modioGameId]);
+
+  const doCreateCollection = async () => {
+    const name = newCollectionName.trim();
+    if (!name) return;
+    await createModCollection(game.modioGameId, { name });
+    setNewCollectionName('');
+    listModCollections(game.modioGameId).then((d) => setCollections(d.collections));
+  };
+
+  const doDeleteCollection = async (collection) => {
+    if (!confirm(`Apagar a coleção "${collection.name}"? Isso não desinstala mods de ninguém, só remove o compartilhamento.`)) return;
+    await deleteModCollection(collection.id);
+    listModCollections(game.modioGameId).then((d) => setCollections(d.collections));
+  };
+
+  // Item pedido 19: "outro usuário poderá clicar Instalar coleção... o
+  // Project Club deve verificar dependências e conflitos antes de
+  // instalar." MVP: instala cada mod da coleção em sequência (mesmo
+  // download+instalação de sempre). Verificação automática de
+  // DEPENDÊNCIA e CONFLITO entre os mods da coleção ainda não roda
+  // sozinha aqui — se um mod precisar de outro, a pessoa ainda instala
+  // a dependência manualmente na página dele (ver roadmap no topo do
+  // arquivo).
+  const doInstallCollection = async (collection) => {
+    if (!game.installPath) { setCollectionMessage('Não sabemos onde este jogo está instalado.'); return; }
+    setInstallingCollectionId(collection.id);
+    setCollectionMessage('');
+    try {
+      for (const item of collection.items) {
+        setCollectionMessage(`Instalando ${item.modName || `mod #${item.modioModId}`}...`);
+        const modDetail = await getMod(game.modioGameId, item.modioModId);
+        const download = await getModDownload(game.modioGameId, item.modioModId);
+        const result = await installModLocally({
+          downloadUrl: download.downloadUrl,
+          filename: download.filename,
+          gameInstallPath: game.installPath,
+          modName: modDetail.mod.name,
+          modioModId: item.modioModId,
+        });
+        if (!result.success) throw new Error(`${modDetail.mod.name}: ${result.error || 'falha desconhecida'}`);
+      }
+      setCollectionMessage(`Coleção "${collection.name}" instalada.`);
+      refreshInstalled();
+    } catch (err) {
+      setCollectionMessage(`Erro ao instalar a coleção: ${err.message}`);
+    } finally {
+      setInstallingCollectionId(null);
+    }
+  };
 
   useEffect(() => {
     getModioGameTags(game.modioGameId).then((d) => {
@@ -279,10 +339,7 @@ function GameModsView({ game, onBack, onOpenMod }) {
       <div className="mods-tabs">
         <button type="button" className={`mods-tab ${tab === 'mods' ? 'active' : ''}`} onClick={() => setTab('mods')}>Mods</button>
         <button type="button" className={`mods-tab ${tab === 'mine' ? 'active' : ''}`} onClick={() => setTab('mine')}>Meus mods · Perfis</button>
-        {/* Item pedido 19: Coleções ainda não tem fluxo próprio nesta
-            fase — placeholder honesto em vez de fingir que já funciona
-            (ver roadmap no topo do arquivo). */}
-        <button type="button" className={`mods-tab ${tab === 'soon' ? 'active' : ''}`} onClick={() => setTab('soon')}>Coleções</button>
+        <button type="button" className={`mods-tab ${tab === 'collections' ? 'active' : ''}`} onClick={() => setTab('collections')}>Coleções</button>
       </div>
 
       {tab === 'mods' && (
@@ -400,12 +457,45 @@ function GameModsView({ game, onBack, onOpenMod }) {
         )
       )}
 
-      {tab === 'soon' && (
-        <div className="mods-empty-state">
-          <span className="mods-empty-icon">🚧</span>
-          <h3>Coleções</h3>
-          <p>Montar e instalar modpacks inteiros de uma vez ainda está a caminho numa próxima fase — por enquanto, monte seu conjunto de mods usando Perfis (aba "Meus mods · Perfis").</p>
-        </div>
+      {tab === 'collections' && (
+        <>
+          <p className="dim" style={{ marginBottom: 12 }}>
+            Coleções são públicas — qualquer pessoa com este jogo pode ver e instalar a sua. Monte uma coleção
+            adicionando mods pela página de cada mod ("Adicionar a uma coleção").
+          </p>
+          <div className="mods-profile-create">
+            <input placeholder="Nome da nova coleção (ex: Modpack de Terror...)" value={newCollectionName} onChange={(e) => setNewCollectionName(e.target.value)} />
+            <button type="button" className="btn-primary" onClick={doCreateCollection}>Criar coleção</button>
+          </div>
+          {collectionMessage && <p className="dim" style={{ marginBottom: 12 }}>{collectionMessage}</p>}
+          {collections === null ? <p className="dim">Carregando coleções...</p> : collections.length === 0 ? (
+            <p className="dim">Nenhuma coleção criada ainda pra este jogo.</p>
+          ) : (
+            <div className="mods-profile-list">
+              {collections.map((c) => (
+                <div key={c.id} className="mods-profile-card">
+                  <div className="mods-profile-card-header">
+                    <strong>{c.name}</strong>
+                    <span className="dim">{c.items.length} mods · por {c.author?.displayName}</span>
+                  </div>
+                  {c.items.length > 0 && (
+                    <div className="mods-profile-card-items dim">{c.items.map((i) => i.modName || `Mod #${i.modioModId}`).join(', ')}</div>
+                  )}
+                  <div className="mods-profile-card-actions">
+                    {desktopReady && (
+                      <button type="button" className="btn-primary" disabled={installingCollectionId === c.id || c.items.length === 0} onClick={() => doInstallCollection(c)}>
+                        {installingCollectionId === c.id ? 'Instalando...' : '⬇ Instalar coleção'}
+                      </button>
+                    )}
+                    {c.author?.id === user.id && (
+                      <button type="button" className="btn-link" style={{ color: 'var(--red)' }} onClick={() => doDeleteCollection(c)}>Apagar</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -438,6 +528,7 @@ function formatCount(n) {
 
 // ---------- Página individual do mod ----------
 function ModDetailView({ game, modioModId, onBack }) {
+  const { user } = useAuth();
   const desktopReady = isDesktopModsAvailable();
   const [data, setData] = useState(null);
   const [comments, setComments] = useState(null);
@@ -455,6 +546,9 @@ function ModDetailView({ game, modioModId, onBack }) {
   const [profiles, setProfiles] = useState(null);
   const [selectedProfileId, setSelectedProfileId] = useState('');
   const [addToProfileMsg, setAddToProfileMsg] = useState('');
+  const [collections, setCollections] = useState(null);
+  const [selectedCollectionId, setSelectedCollectionId] = useState('');
+  const [addToCollectionMsg, setAddToCollectionMsg] = useState('');
 
   const refresh = () => {
     getMod(game.modioGameId, modioModId).then(setData).catch(() => setData({ error: true }));
@@ -478,6 +572,15 @@ function ModDetailView({ game, modioModId, onBack }) {
     if (!desktopReady) return;
     listModProfiles(game.modioGameId).then((d) => setProfiles(d.profiles)).catch(() => setProfiles([]));
   }, [desktopReady, game.modioGameId]);
+
+  // Item pedido 19: "Adicionar a uma coleção" — só mostra as coleções
+  // que a PRÓPRIA pessoa criou (só o autor pode adicionar item, ver
+  // addCollectionItem no backend); funciona mesmo sem app desktop
+  // (montar uma coleção é só metadado, instalar é que precisa do
+  // desktop).
+  useEffect(() => {
+    listModCollections(game.modioGameId).then((d) => setCollections(d.collections.filter((c) => c.authorId === user.id))).catch(() => setCollections([]));
+  }, [game.modioGameId, user.id]);
 
   useEffect(() => {
     if (!desktopReady) return undefined;
@@ -584,6 +687,13 @@ function ModDetailView({ game, modioModId, onBack }) {
     setTimeout(() => setAddToProfileMsg(''), 2500);
   };
 
+  const doAddToCollection = async () => {
+    if (!selectedCollectionId) return;
+    await addModCollectionItem(selectedCollectionId, { modioModId, modName: mod.name });
+    setAddToCollectionMsg('Adicionado à coleção!');
+    setTimeout(() => setAddToCollectionMsg(''), 2500);
+  };
+
   return (
     <div className="mods-page">
       <button type="button" className="mods-back" onClick={onBack}>‹ Voltar para {game.displayName}</button>
@@ -639,6 +749,16 @@ function ModDetailView({ game, modioModId, onBack }) {
             </select>
             <button type="button" className="btn-link" disabled={!selectedProfileId} onClick={doAddToProfile}>Adicionar</button>
             {addToProfileMsg && <span className="dim">{addToProfileMsg}</span>}
+          </div>
+        )}
+        {collections && collections.length > 0 && (
+          <div className="mods-add-to-profile">
+            <select value={selectedCollectionId} onChange={(e) => setSelectedCollectionId(e.target.value)}>
+              <option value="">Adicionar a uma coleção sua...</option>
+              {collections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <button type="button" className="btn-link" disabled={!selectedCollectionId} onClick={doAddToCollection}>Adicionar</button>
+            {addToCollectionMsg && <span className="dim">{addToCollectionMsg}</span>}
           </div>
         )}
       </div>

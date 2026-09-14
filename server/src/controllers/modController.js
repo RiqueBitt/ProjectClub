@@ -361,10 +361,95 @@ async function removeProfileItem(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// ---------- Coleções (item pedido 19) ----------
+// "Permitir criar coleções de mods... outro usuário poderá clicar
+// Instalar coleção" — diferente de perfil (que é privado, só seu),
+// coleção é PÚBLICA pra quem tiver o jogo: qualquer pessoa logada pode
+// ver e instalar a coleção de qualquer outra, só quem criou pode editar/
+// apagar.
+async function listCollections(req, res, next) {
+  try {
+    const modioGameId = Number(req.params.modioGameId);
+    const collections = await prisma.modCollection.findMany({
+      where: { modioGameId },
+      include: { items: true, author: { select: { id: true, displayName: true, username: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ collections });
+  } catch (err) { next(err); }
+}
+
+async function createCollection(req, res, next) {
+  try {
+    const modioGameId = Number(req.params.modioGameId);
+    const { name, description, imageUrl } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: 'Dê um nome pra coleção.' });
+    const collection = await prisma.modCollection.create({
+      data: { authorId: req.user.id, modioGameId, name: name.trim(), description: description || null, imageUrl: imageUrl || null },
+      include: { items: true, author: { select: { id: true, displayName: true, username: true } } },
+    });
+    res.status(201).json({ collection });
+  } catch (err) { next(err); }
+}
+
+async function updateCollection(req, res, next) {
+  try {
+    const collection = await prisma.modCollection.findUnique({ where: { id: req.params.collectionId } });
+    if (!collection) return res.status(404).json({ error: 'Coleção não encontrada.' });
+    if (collection.authorId !== req.user.id && req.user.platformRole !== 'ADMIN') return res.status(403).json({ error: 'Sem permissão.' });
+    const { name, description, imageUrl } = req.body;
+    const updated = await prisma.modCollection.update({
+      where: { id: collection.id },
+      data: {
+        ...(name !== undefined ? { name: name.trim() } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(imageUrl !== undefined ? { imageUrl } : {}),
+      },
+    });
+    res.json({ collection: updated });
+  } catch (err) { next(err); }
+}
+
+async function deleteCollection(req, res, next) {
+  try {
+    const collection = await prisma.modCollection.findUnique({ where: { id: req.params.collectionId } });
+    if (!collection) return res.status(404).json({ error: 'Coleção não encontrada.' });
+    if (collection.authorId !== req.user.id && req.user.platformRole !== 'ADMIN') return res.status(403).json({ error: 'Sem permissão.' });
+    await prisma.modCollection.delete({ where: { id: collection.id } });
+    res.json({ success: true });
+  } catch (err) { next(err); }
+}
+
+async function addCollectionItem(req, res, next) {
+  try {
+    const collection = await prisma.modCollection.findUnique({ where: { id: req.params.collectionId } });
+    if (!collection) return res.status(404).json({ error: 'Coleção não encontrada.' });
+    if (collection.authorId !== req.user.id) return res.status(403).json({ error: 'Sem permissão.' });
+    const { modioModId, modName } = req.body;
+    const item = await prisma.modCollectionItem.upsert({
+      where: { collectionId_modioModId: { collectionId: collection.id, modioModId: Number(modioModId) } },
+      update: { ...(modName !== undefined ? { modName } : {}) },
+      create: { collectionId: collection.id, modioModId: Number(modioModId), modName: modName || null },
+    });
+    res.status(201).json({ item });
+  } catch (err) { next(err); }
+}
+
+async function removeCollectionItem(req, res, next) {
+  try {
+    const collection = await prisma.modCollection.findUnique({ where: { id: req.params.collectionId } });
+    if (!collection) return res.status(404).json({ error: 'Coleção não encontrada.' });
+    if (collection.authorId !== req.user.id) return res.status(403).json({ error: 'Sem permissão.' });
+    await prisma.modCollectionItem.deleteMany({ where: { collectionId: collection.id, modioModId: Number(req.params.modioModId) } });
+    res.json({ success: true });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   matchSteamGames, getGame, listMods, getGameTags, getMod, getModDownload,
   toggleFavorite, toggleUp, listComments, addComment, deleteComment, reportMod,
   listProfiles, createProfile, deleteProfile, upsertProfileItem, removeProfileItem,
+  listCollections, createCollection, updateCollection, deleteCollection, addCollectionItem, removeCollectionItem,
   adminListGameMappings, adminCreateGameMapping, adminUpdateGameMapping, adminDeleteGameMapping,
   adminListReports, adminResolveReport,
 };
