@@ -78,13 +78,19 @@ export default function TopSearchBar() {
           muda (☰ fechado → ✕ aberto), servindo de seta visual de
           abrir/fechar, igual o botão de colapsar da sidebar no
           desktop já faz. */}
+      {/* Item pedido: "ícones melhores no mobile que representem...
+          os canais na aba comunidade" — troquei o ☰ genérico por "#",
+          o mesmo símbolo que já identifica canal de texto em qualquer
+          lugar do app (ver ChannelSwitcher.jsx) — fica óbvio que esse
+          botão abre a lista de canais/categorias, não só "um menu"
+          qualquer. */}
       <button
         type="button"
         className="mobile-nav-toggle"
         onClick={() => useStore.getState().toggleMobileChannelList()}
-        aria-label={mobileChannelListOpen ? 'Fechar menu' : 'Abrir menu'}
+        aria-label={mobileChannelListOpen ? 'Fechar menu' : 'Abrir canais'}
       >
-        {mobileChannelListOpen ? '✕' : '☰'}
+        {mobileChannelListOpen ? '✕' : '#'}
       </button>
       <button type="button" className="top-search-bar-brand" onClick={() => navigate('/')}>
         <img className="top-search-bar-logo" src={logoIcon} alt="" />
