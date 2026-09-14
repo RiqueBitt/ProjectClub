@@ -103,4 +103,13 @@ module.exports = {
   // Path base da API — só precisa mudar se a mod.io te atribuir uma URL
   // dedicada diferente da pública (ver "API path" na doc oficial).
   MODIO_API_BASE: process.env.MODIO_API_BASE || 'https://api.mod.io/v1',
+
+  // Integração com o Steam Workshop (Terraria/tModLoader, Payday 2,
+  // Payday 3, e qualquer outro jogo com suporte a Workshop) — chave
+  // pública da Steamworks Web API, gerada de graça em
+  // https://steamcommunity.com/dev/apikey (não precisa ser dona de um
+  // jogo na Steam pra ter uma). Sem essa variável, as rotas
+  // /api/workshop/* respondem 503; o resto da plataforma continua
+  // funcionando normalmente.
+  STEAM_WEB_API_KEY: process.env.STEAM_WEB_API_KEY || '',
 };

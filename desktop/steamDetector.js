@@ -209,4 +209,36 @@ function looksLikeGameFolder(candidatePath) {
   return fs.existsSync(candidatePath) && fs.statSync(candidatePath).isDirectory();
 }
 
-module.exports = { detectInstalledSteamGames, looksLikeGameFolder, findSteamInstall };
+// ---------- Steam Workshop (item pedido: "integração com Steam
+// Workshop" — Terraria/tModLoader, Payday 2, Payday 3) ----------
+// Diferente do mod.io, aqui NÃO baixamos/instalamos nada nós mesmos —
+// quem baixa é a própria Steam, quando a pessoa clica "Inscrever-se" no
+// item (ver ModsPage.jsx: abre steam://url/CommunityFilePage/<id>). O
+// que este módulo faz é só CONFERIR o que já foi baixado, olhando a
+// pasta oficial onde a Steam guarda conteúdo de Workshop.
+//
+// installPath de um jogo detectado é sempre
+// "<biblioteca>/steamapps/common/<pasta-do-jogo>" (ver
+// listInstalledGamesInLibrary acima) — a pasta de Workshop de QUALQUER
+// jogo dessa mesma biblioteca vive em
+// "<biblioteca>/steamapps/workshop/content/<workshopAppId>/", então dá
+// pra chegar lá a partir do installPath sem precisar re-descobrir a
+// biblioteca do zero.
+function workshopContentDir(gameInstallPath, workshopAppId) {
+  // gameInstallPath = <biblioteca>/steamapps/common/<pasta-do-jogo>
+  const steamappsDir = path.dirname(path.dirname(gameInstallPath));
+  return path.join(steamappsDir, 'workshop', 'content', String(workshopAppId));
+}
+
+// Devolve os IDs (publishedfileid, como string — não cabem inteiros de
+// 32 bits com segurança) de tudo que já foi inscrito/baixado nessa
+// biblioteca pra esse AppID de Workshop.
+function listInstalledWorkshopItems(gameInstallPath, workshopAppId) {
+  const dir = workshopContentDir(gameInstallPath, workshopAppId);
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && /^\d+$/.test(entry.name))
+    .map((entry) => entry.name);
+}
+
+module.exports = { detectInstalledSteamGames, looksLikeGameFolder, findSteamInstall, listInstalledWorkshopItems };

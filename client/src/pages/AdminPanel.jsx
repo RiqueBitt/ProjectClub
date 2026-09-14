@@ -52,6 +52,7 @@ import {
   adminListClans, adminGetClan, adminListClanMessages, adminUpdateClan, adminDeleteClan,
   adminListModGameMappings, adminCreateModGameMapping, adminUpdateModGameMapping, adminDeleteModGameMapping,
   adminListModReports, adminResolveModReport,
+  adminListWorkshopGameMappings, adminCreateWorkshopGameMapping, adminUpdateWorkshopGameMapping, adminDeleteWorkshopGameMapping,
 } from '../api/endpoints';
 import HouseIcon from '../components/HouseIcon.jsx';
 import DraggableResizableBox from '../components/admin/DraggableResizableBox.jsx';
@@ -70,13 +71,13 @@ const TAB_LABEL = {
   roles: '🎭 Cargos', channels: '# Canais e Categorias', gifMove: '🎯 GIFa Move',
   emojis: '😀 Emojis', stickers: '🏷️ Figurinhas', clanIcons: '⚔️ Ícones de Clube', clubs: '🏛️ Clubes',
   achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', reload: '🔄 Reload', appCatalog: '🧩 Apps',
-  modGames: '🧰 Mods — Jogos', modReports: '🧰 Mods — Denúncias',
+  modGames: '🧰 Mods — Jogos', modReports: '🧰 Mods — Denúncias', workshopGames: '🧰 Mods — Steam Workshop',
 };
 
 const TAB_GROUPS = [
   { label: 'Visão geral', icon: '📊', tabs: ['stats', 'inscricoes', 'users', 'badges'] },
   { label: 'Estrutura da comunidade', icon: '🏗️', tabs: ['roles', 'channels', 'gifMove', 'emojis', 'stickers', 'clanIcons', 'clubs', 'achievements'] },
-  { label: 'Conteúdo', icon: '🎨', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events', 'appCatalog', 'modGames'] },
+  { label: 'Conteúdo', icon: '🎨', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events', 'appCatalog', 'modGames', 'workshopGames'] },
   { label: 'Moderação', icon: '🛡️', tabs: ['moderacao', 'automodDm', 'reports', 'modReports', 'logs', 'honeypot'] },
   { label: 'Comunicação', icon: '📣', tabs: ['announcements'] },
   { label: 'Sistema', icon: '⚙️', tabs: ['sistema', 'maintenance', 'reload'] },
@@ -191,6 +192,7 @@ export default function AdminPanel() {
           {tab === 'feeds' && <FeedsAdminTab />}
           {tab === 'appCatalog' && <AppCatalogTab />}
           {tab === 'modGames' && <ModGamesAdminTab />}
+          {tab === 'workshopGames' && <WorkshopGamesAdminTab />}
           {tab === 'modReports' && <ModReportsAdminTab />}
           {tab === 'roles' && <RolesAdminTab />}
           {tab === 'channels' && <ChannelsAdminTab />}
@@ -3324,6 +3326,97 @@ function ModReportsAdminTab() {
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+// Mesma ideia do ModGamesAdminTab, pro Steam Workshop (Terraria/
+// tModLoader, Payday 2, Payday 3, etc).
+function WorkshopGamesAdminTab() {
+  const [mappings, setMappings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ steamAppId: '', workshopAppId: '', displayName: '', iconUrl: '', note: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const refresh = () => {
+    setLoading(true);
+    adminListWorkshopGameMappings().then((d) => setMappings(d.mappings)).finally(() => setLoading(false));
+  };
+  useEffect(refresh, []);
+
+  const create = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!form.steamAppId || !form.workshopAppId || !form.displayName.trim()) {
+      setError('Preencha steamAppId, workshopAppId e o nome.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await adminCreateWorkshopGameMapping(form);
+      setForm({ steamAppId: '', workshopAppId: '', displayName: '', iconUrl: '', note: '' });
+      refresh();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erro ao criar mapeamento.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleEnabled = async (m) => {
+    await adminUpdateWorkshopGameMapping(m.id, { enabled: !m.enabled });
+    refresh();
+  };
+
+  const remove = async (m) => {
+    if (!confirm(`Remover o mapeamento de "${m.displayName}"?`)) return;
+    await adminDeleteWorkshopGameMapping(m.id);
+    refresh();
+  };
+
+  return (
+    <div>
+      <h2>🧰 Mods — Steam Workshop</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        steamAppId é o jogo detectado localmente na Steam da pessoa. workshopAppId é o AppID que de fato guarda os
+        itens do Workshop — na maioria dos jogos os dois são o mesmo número, mas em alguns casos são diferentes
+        (ex: Terraria clássico não lê Workshop nenhum sozinho — quem lê é o tModLoader, um app separado na Steam com
+        AppID 1281930; nesse caso cadastre steamAppId = AppID do tModLoader também, já que é ELE que a pessoa
+        precisa ter instalado e aberto pra usar mods).
+      </p>
+
+      <form className="admin-badge-form" onSubmit={create}>
+        <label>AppID da Steam (jogo detectado)<input type="number" value={form.steamAppId} onChange={(e) => setForm((f) => ({ ...f, steamAppId: e.target.value }))} placeholder="ex: 1281930 (tModLoader)" /></label>
+        <label>AppID do Workshop<input type="number" value={form.workshopAppId} onChange={(e) => setForm((f) => ({ ...f, workshopAppId: e.target.value }))} placeholder="normalmente igual ao de cima" /></label>
+        <label>Nome exibido<input value={form.displayName} onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))} placeholder="Terraria (tModLoader)" /></label>
+        <label>URL do ícone (opcional)<input value={form.iconUrl} onChange={(e) => setForm((f) => ({ ...f, iconUrl: e.target.value }))} placeholder="https://..." /></label>
+        <label>Aviso (opcional, aparece na tela do jogo)<input value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="ex: Instale o tModLoader pela Steam também." /></label>
+        {error && <p style={{ color: 'var(--red)', fontSize: 13 }}>{error}</p>}
+        <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Salvando...' : 'Cadastrar jogo'}</button>
+      </form>
+
+      {loading ? <p className="dim">Carregando...</p> : mappings.length === 0 ? (
+        <p className="dim">Nenhum jogo cadastrado ainda.</p>
+      ) : (
+        <table className="admin-table" style={{ marginTop: 20 }}>
+          <thead><tr><th>Jogo</th><th>AppID Steam</th><th>AppID Workshop</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {mappings.map((m) => (
+              <tr key={m.id}>
+                <td>{m.displayName}</td>
+                <td>{m.steamAppId}</td>
+                <td>{m.workshopAppId}</td>
+                <td>{m.enabled ? '✅ Ativo' : '⛔ Desativado'}</td>
+                <td className="admin-table-actions">
+                  <button className="btn-link" onClick={() => toggleEnabled(m)}>{m.enabled ? 'Desativar' : 'Ativar'}</button>
+                  <button className="btn-link" style={{ color: 'var(--red)' }} onClick={() => remove(m)}>Remover</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );

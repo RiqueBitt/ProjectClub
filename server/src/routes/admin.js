@@ -4,6 +4,7 @@ const announcementCtrl = require('../controllers/announcementController');
 const appCatalogCtrl = require('../controllers/appCatalogController');
 const adminClanCtrl = require('../controllers/adminClanController');
 const modCtrl = require('../controllers/modController');
+const workshopCtrl = require('../controllers/steamWorkshopController');
 const { requireAuth } = require('../middleware/auth');
 const { requirePlatformAdmin } = require('../middleware/platformAdmin');
 const { uploadImage } = require('../middleware/upload');
@@ -58,6 +59,12 @@ router.patch('/mods/game-mappings/:id', modCtrl.adminUpdateGameMapping);
 router.delete('/mods/game-mappings/:id', modCtrl.adminDeleteGameMapping);
 router.get('/mods/reports', modCtrl.adminListReports);
 router.patch('/mods/reports/:id', modCtrl.adminResolveReport);
+
+// Steam Workshop — mapeamento Steam AppID → AppID do Workshop
+router.get('/workshop/game-mappings', workshopCtrl.adminListGameMappings);
+router.post('/workshop/game-mappings', workshopCtrl.adminCreateGameMapping);
+router.patch('/workshop/game-mappings/:id', workshopCtrl.adminUpdateGameMapping);
+router.delete('/workshop/game-mappings/:id', workshopCtrl.adminDeleteGameMapping);
 
 router.post('/app-catalog', appCatalogCtrl.createAppCatalogItem);
 router.patch('/app-catalog/:id', appCatalogCtrl.updateAppCatalogItem);

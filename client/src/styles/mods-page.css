@@ -42,6 +42,7 @@
 }
 .mods-game-card-icon img { width: 100%; height: 100%; object-fit: cover; }
 .mods-game-card-name { font-size: 13px; font-weight: 700; text-align: center; color: var(--header-primary); }
+.mods-game-card-source { font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; }
 
 /* ---------- Cabeçalho do jogo ---------- */
 .mods-game-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
@@ -83,6 +84,12 @@
 .mods-mod-card-name { font-weight: 700; font-size: 14px; color: var(--header-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mods-mod-card-author { font-size: 12px; }
 .mods-mod-card-stats { display: flex; gap: 10px; font-size: 12px; margin-top: 2px; }
+
+/* ---------- Steam Workshop ---------- */
+.mods-workshop-note { margin-bottom: 14px; }
+.mods-workshop-card .mods-mod-card-body { gap: 6px; }
+.mods-workshop-card-actions { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.mods-workshop-card-actions .btn-primary { padding: 6px 12px; font-size: 12.5px; }
 
 /* ---------- Meus mods (instalados) ---------- */
 .mods-installed-list { display: flex; flex-direction: column; gap: 8px; }

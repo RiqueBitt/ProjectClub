@@ -2118,6 +2118,28 @@ model ModGameMapping {
   updatedAt   DateTime @updatedAt
 }
 
+// Item pedido: "faça a integração com Steam Workshop" — mesma ideia do
+// ModGameMapping, mas pro Workshop da própria Steam em vez do mod.io.
+// workshopAppId existe separado de steamAppId porque nem todo jogo usa o
+// PRÓPRIO AppID pra guardar os itens de Workshop: Terraria clássico
+// (steamAppId 105600) não lê Workshop nenhum sozinho — quem lê é o
+// tModLoader, um app SEPARADO da Steam (AppID 1281930). Pra a maioria
+// dos jogos (Payday 2, Payday 3) os dois valores são iguais.
+model WorkshopGameMapping {
+  id            String   @id @default(uuid())
+  steamAppId    Int      @unique // AppID detectado localmente (o jogo que a pessoa tem instalado)
+  workshopAppId Int      // AppID usado pra consultar/baixar itens do Workshop (pode ser diferente do de cima)
+  displayName   String
+  iconUrl       String?
+  // Aviso mostrado quando steamAppId ≠ workshopAppId (ex: "Isso lê os
+  // mods através do tModLoader — instale-o também pela Steam.") — fica
+  // em branco pra jogos onde os dois AppIDs já são o mesmo.
+  note          String?
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
 model ModFavorite {
   id          String   @id @default(uuid())
   userId      String

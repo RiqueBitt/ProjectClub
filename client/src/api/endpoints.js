@@ -571,6 +571,15 @@ export const deleteModCollection = (collectionId) => api.delete(`/mods/collectio
 export const addModCollectionItem = (collectionId, payload) => api.post(`/mods/collections/${collectionId}/items`, payload).then((r) => r.data);
 export const removeModCollectionItem = (collectionId, modioModId) => api.delete(`/mods/collections/${collectionId}/items/${modioModId}`).then((r) => r.data);
 
+// ---------- Steam Workshop (Terraria/tModLoader, Payday 2, Payday 3) ----------
+export const matchWorkshopGames = (steamAppIds) => api.post('/workshop/steam-match', { steamAppIds }).then((r) => r.data);
+export const listWorkshopItems = (workshopAppId, params) => api.get(`/workshop/games/${workshopAppId}/items`, { params }).then((r) => r.data);
+export const getWorkshopItem = (publishedFileId) => api.get(`/workshop/items/${publishedFileId}`).then((r) => r.data);
+export const adminListWorkshopGameMappings = () => api.get('/admin/workshop/game-mappings').then((r) => r.data);
+export const adminCreateWorkshopGameMapping = (payload) => api.post('/admin/workshop/game-mappings', payload).then((r) => r.data);
+export const adminUpdateWorkshopGameMapping = (id, payload) => api.patch(`/admin/workshop/game-mappings/${id}`, payload).then((r) => r.data);
+export const adminDeleteWorkshopGameMapping = (id) => api.delete(`/admin/workshop/game-mappings/${id}`).then((r) => r.data);
+
 // Admin — mapeamento de jogos (Steam AppID → jogo no mod.io) e moderação
 // de denúncias.
 export const adminListModGameMappings = () => api.get('/admin/mods/game-mappings').then((r) => r.data);

@@ -677,6 +677,19 @@ if (!gotLock) {
     }
   });
 
+  // Item pedido: integração com Steam Workshop — só lê o que já foi
+  // inscrito/baixado (ver steamDetector.listInstalledWorkshopItems); a
+  // inscrição em si é feita pela própria Steam quando a pessoa clica
+  // "Inscrever-se" (abre steam://url/CommunityFilePage/<id> via
+  // openExternal, já existente — não precisa de handler novo pra isso).
+  ipcMain.handle('mods:list-workshop-items', (_event, { gameInstallPath, workshopAppId }) => {
+    try {
+      return { success: true, items: steamDetector.listInstalledWorkshopItems(gameInstallPath, workshopAppId) };
+    } catch (err) {
+      return { success: false, error: err.message, items: [] };
+    }
+  });
+
   // Item pedido: "Sistema... Iniciar com o sistema... Minimizar para
   // bandeja... Abrir links no aplicativo... Confirmar saída" e "Jogos e
   // apps... Detecção automática de jogos" — recebe o UserSettings de

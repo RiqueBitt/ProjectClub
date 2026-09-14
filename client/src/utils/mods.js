@@ -34,6 +34,20 @@ export function applyProfileLocally(payload) {
   return window.electronAPI.mods.applyProfile(payload);
 }
 
+// Steam Workshop — só lê o que já foi inscrito/baixado (a inscrição em
+// si acontece dentro da própria Steam, ver openWorkshopItemInSteam).
+export function listInstalledWorkshopItemsLocally(gameInstallPath, workshopAppId) {
+  return window.electronAPI.mods.listWorkshopItems(gameInstallPath, workshopAppId);
+}
+
+// Abre a página do item no cliente da Steam (protocolo steam://) — é lá
+// que a pessoa clica "Inscrever-se" de verdade; nunca inscrevemos por
+// ela sem clique (item pedido 28: não mexer em nada da Steam sem ação
+// explícita da pessoa).
+export function openWorkshopItemInSteam(publishedFileId) {
+  window.electronAPI?.openExternal?.(`steam://url/CommunityFilePage/${publishedFileId}`);
+}
+
 export function listInstalledModsLocally(gameInstallPath) {
   return window.electronAPI.mods.listInstalled(gameInstallPath);
 }

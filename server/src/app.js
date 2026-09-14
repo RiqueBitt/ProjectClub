@@ -43,6 +43,10 @@ const appCatalogRoutes = require('./routes/appCatalog');
 // sociais próprios (favoritos, ups, comentários, denúncias). Ver
 // services/modioService.js e controllers/modController.js.
 const modsRoutes = require('./routes/mods');
+// Steam Workshop (Terraria/tModLoader, Payday 2, Payday 3 etc) — mesma
+// ideia do modsRoutes, mas falando com a Steamworks Web API em vez do
+// mod.io. Ver services/steamWorkshopService.js.
+const workshopRoutes = require('./routes/workshop');
 const communitiesRoutes = require('./routes/communities');
 const postsRoutes = require('./routes/posts');
 const achievementsRoutes = require('./routes/achievements');
@@ -297,6 +301,7 @@ function createApp() {
   app.use('/api/admin', adminRoutes);
   app.use('/api/app-catalog', appCatalogRoutes);
   app.use('/api/mods', modsRoutes);
+  app.use('/api/workshop', workshopRoutes);
   // Fusão com o Reddit clone (fase 1) — "/api/community" (singular) já é a
   // comunidade única existente da plataforma, por isso essas novas rotas
   // (comunidades tipo subreddit, dentro delas) usam nomes no plural.

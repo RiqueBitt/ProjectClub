@@ -6,10 +6,11 @@ import {
   toggleModFavorite, toggleModUp, listModComments, addModComment, reportMod,
   listModProfiles, createModProfile, deleteModProfile, upsertModProfileItem, removeModProfileItem,
   listModCollections, createModCollection, deleteModCollection, addModCollectionItem,
+  matchWorkshopGames, listWorkshopItems,
 } from '../api/endpoints';
 import {
   isDesktopModsAvailable, detectSteamGames, installModLocally, listInstalledModsLocally, onModsProgress,
-  setModEnabledLocally, applyProfileLocally,
+  setModEnabledLocally, applyProfileLocally, listInstalledWorkshopItemsLocally, openWorkshopItemInSteam,
 } from '../utils/mods';
 import { proxyImage } from '../utils/imageProxy';
 import '../styles/mods-page.css';
@@ -47,6 +48,9 @@ export default function ModsPage() {
   if (view === 'mod' && selectedGame) {
     return <ModDetailView game={selectedGame} modioModId={selectedModId} onBack={backToGame} />;
   }
+  if (view === 'game' && selectedGame?.source === 'workshop') {
+    return <WorkshopGameView game={selectedGame} onBack={backToHome} />;
+  }
   if (view === 'game' && selectedGame) {
     return <GameModsView game={selectedGame} onBack={backToHome} onOpenMod={openMod} />;
   }
@@ -67,19 +71,20 @@ function ModsHome({ onBack, onOpenGame }) {
       try {
         // Item pedido 30: a detecção roda LOCALMENTE (steamDetector.js,
         // dentro do app desktop) — só a lista de AppIDs encontrados
-        // sobe pro servidor, pra cruzar com o catálogo de suporte.
+        // sobe pro servidor, pra cruzar com os catálogos de suporte
+        // (mod.io e Steam Workshop, os dois staff-editáveis).
         const detection = await detectSteamGames();
         setSteamFound(detection.steamFound);
         if (detection.steamFound && detection.games.length > 0) {
-          const { games: supported } = await matchSteamGames(detection.games.map((g) => g.steamAppId));
-          const bySteamId = new Map(supported.map((s) => [s.steamAppId, s]));
-          const merged = detection.games
-            .map((g) => {
-              const support = bySteamId.get(g.steamAppId);
-              return support ? { ...support, installPath: g.installPath } : null;
-            })
-            .filter(Boolean);
-          setGames(merged);
+          const appIds = detection.games.map((g) => g.steamAppId);
+          const [{ games: modioSupported }, { games: workshopSupported }] = await Promise.all([
+            matchSteamGames(appIds),
+            matchWorkshopGames(appIds).catch(() => ({ games: [] })),
+          ]);
+          const byInstall = new Map(detection.games.map((g) => [g.steamAppId, g.installPath]));
+          const modioGames = modioSupported.map((s) => ({ ...s, source: 'modio', installPath: byInstall.get(s.steamAppId) }));
+          const workshopGames = workshopSupported.map((s) => ({ ...s, source: 'workshop', displayName: s.displayName, installPath: byInstall.get(s.steamAppId) }));
+          setGames([...modioGames, ...workshopGames]);
         }
       } catch {
         setSteamFound(false);
@@ -139,7 +144,7 @@ function ModsHome({ onBack, onOpenGame }) {
             </div>
           ) : (
             <div className="mods-games-grid">
-              {filtered.map((g) => <GameCard key={g.steamAppId} game={g} onClick={() => onOpenGame(g)} />)}
+              {filtered.map((g) => <GameCard key={`${g.source}-${g.steamAppId}`} game={g} onClick={() => onOpenGame(g)} />)}
             </div>
           )}
         </>
@@ -155,6 +160,7 @@ function GameCard({ game, onClick }) {
         {game.iconUrl ? <img src={proxyImage(game.iconUrl)} alt="" /> : <span>🎮</span>}
       </div>
       <span className="mods-game-card-name">{game.displayName}</span>
+      <span className="mods-game-card-source dim">{game.source === 'workshop' ? 'Steam Workshop' : 'mod.io'}</span>
     </button>
   );
 }
@@ -524,6 +530,116 @@ function formatCount(n) {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return String(n);
+}
+
+// ---------- Tela do jogo (Steam Workshop) ----------
+// Bem mais simples que GameModsView (mod.io): não existe download/
+// instalação nossa aqui — a própria Steam cuida disso quando a pessoa
+// clica "Inscrever-se" (abre o item dentro do cliente da Steam via
+// steam://). Por isso também não tem perfis, coleções, favoritos ou
+// comentários pro Workshop nesta fase — a página do item já tem tudo
+// isso nativo da própria Steam; só linkamos pra lá.
+const WORKSHOP_SORT_OPTIONS = [
+  { value: 'popular', label: 'Populares' },
+  { value: 'downloads', label: 'Mais inscrições' },
+  { value: 'new', label: 'Novos' },
+  { value: 'updated', label: 'Atualizados' },
+];
+
+function WorkshopGameView({ game, onBack }) {
+  const desktopReady = isDesktopModsAvailable();
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState('popular');
+  const [items, setItems] = useState(null);
+  const [total, setTotal] = useState(0);
+  const [installedIds, setInstalledIds] = useState([]);
+
+  useEffect(() => {
+    setItems(null);
+    const timeout = setTimeout(() => {
+      listWorkshopItems(game.workshopAppId, { q: query || undefined, sort })
+        .then((d) => { setItems(d.items); setTotal(d.total); })
+        .catch(() => setItems([]));
+    }, 250);
+    return () => clearTimeout(timeout);
+  }, [game.workshopAppId, query, sort]);
+
+  useEffect(() => {
+    if (!desktopReady || !game.installPath) return;
+    listInstalledWorkshopItemsLocally(game.installPath, game.workshopAppId).then((d) => setInstalledIds(d.items || []));
+  }, [desktopReady, game.installPath, game.workshopAppId]);
+
+  return (
+    <div className="mods-page">
+      <button type="button" className="mods-back" onClick={onBack}>‹ Voltar para Meus jogos</button>
+
+      <div className="mods-game-header">
+        <div className="mods-game-header-icon">{game.iconUrl ? <img src={proxyImage(game.iconUrl)} alt="" /> : '🎮'}</div>
+        <div>
+          <h1>{game.displayName}</h1>
+          <p className="dim">{total} {total === 1 ? 'item no Steam Workshop' : 'itens no Steam Workshop'}</p>
+        </div>
+        {desktopReady && game.steamAppId && (
+          <button type="button" className="btn-play mods-play-btn" onClick={() => window.electronAPI?.openExternal?.(`steam://run/${game.steamAppId}`)}>▶ Jogar</button>
+        )}
+      </div>
+
+      {game.note && <p className="dim mods-workshop-note">ℹ️ {game.note}</p>}
+      {!desktopReady && (
+        <p className="dim mods-workshop-note">Ver o que já está inscrito precisa do app de desktop — buscar e abrir itens no Steam funciona por aqui mesmo assim.</p>
+      )}
+
+      <div className="mods-filters">
+        <input className="mods-search-bar" placeholder="Pesquisar no Workshop..." value={query} onChange={(e) => setQuery(e.target.value)} />
+        <div className="mods-filter-chips">
+          {WORKSHOP_SORT_OPTIONS.map((o) => (
+            <button key={o.value} type="button" className={`mods-chip ${sort === o.value ? 'active' : ''}`} onClick={() => setSort(o.value)}>{o.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {items === null ? (
+        <div className="mods-loading">Buscando no Workshop...</div>
+      ) : items.length === 0 ? (
+        <div className="mods-empty-state">
+          <span className="mods-empty-icon">🔍</span>
+          <h3>Nenhum item encontrado</h3>
+          <p>Tente outra busca ou outro filtro.</p>
+        </div>
+      ) : (
+        <div className="mods-grid">
+          {items.map((item) => (
+            <WorkshopItemCard key={item.publishedfileid} item={item} installed={installedIds.includes(item.publishedfileid)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WorkshopItemCard({ item, installed }) {
+  const preview = item.preview_url;
+  return (
+    <div className="mods-mod-card mods-workshop-card">
+      <div className="mods-mod-card-thumb" style={preview ? { backgroundImage: `url(${proxyImage(preview)})` } : undefined}>
+        {!preview && <span>🧩</span>}
+      </div>
+      <div className="mods-mod-card-body">
+        <span className="mods-mod-card-name">{item.title}</span>
+        <span className="mods-mod-card-author dim">{item.short_description}</span>
+        <div className="mods-mod-card-stats dim">
+          <span>👥 {formatCount(item.subscriptions)}</span>
+          {item.vote_data?.votes_up > 0 && <span>👍 {formatCount(item.vote_data.votes_up)}</span>}
+        </div>
+        <div className="mods-workshop-card-actions">
+          {installed && <span className="mods-installed-tag">✓ Inscrito</span>}
+          <button type="button" className="btn-primary" onClick={() => openWorkshopItemInSteam(item.publishedfileid)}>
+            {installed ? 'Ver na Steam' : 'Inscrever-se'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ---------- Página individual do mod ----------
