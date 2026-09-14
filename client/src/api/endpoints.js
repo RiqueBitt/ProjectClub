@@ -589,6 +589,16 @@ export const adminCreateGameBananaMapping = (payload) => api.post('/admin/gameba
 export const adminUpdateGameBananaMapping = (id, payload) => api.patch(`/admin/gamebanana/game-mappings/${id}`, payload).then((r) => r.data);
 export const adminDeleteGameBananaMapping = (id) => api.delete(`/admin/gamebanana/game-mappings/${id}`).then((r) => r.data);
 
+// ---------- Thunderstore (sem login/chave nenhuma — jogos com BepInEx) ----------
+export const matchThunderstoreGames = (steamAppIds) => api.post('/thunderstore/steam-match', { steamAppIds }).then((r) => r.data);
+export const listThunderstoreCategories = (community) => api.get(`/thunderstore/${community}/categories`).then((r) => r.data);
+export const listThunderstorePackages = (community, params) => api.get(`/thunderstore/${community}/packages`, { params }).then((r) => r.data);
+export const getThunderstorePackage = (community, fullName) => api.get(`/thunderstore/${community}/packages/${encodeURIComponent(fullName)}`).then((r) => r.data);
+export const adminListThunderstoreMappings = () => api.get('/admin/thunderstore/game-mappings').then((r) => r.data);
+export const adminCreateThunderstoreMapping = (payload) => api.post('/admin/thunderstore/game-mappings', payload).then((r) => r.data);
+export const adminUpdateThunderstoreMapping = (id, payload) => api.patch(`/admin/thunderstore/game-mappings/${id}`, payload).then((r) => r.data);
+export const adminDeleteThunderstoreMapping = (id) => api.delete(`/admin/thunderstore/game-mappings/${id}`).then((r) => r.data);
+
 // Admin — mapeamento de jogos (Steam AppID → jogo no mod.io) e moderação
 // de denúncias.
 export const adminListModGameMappings = () => api.get('/admin/mods/game-mappings').then((r) => r.data);
@@ -608,4 +618,3 @@ export const adminCreatePendant = (payload) => api.post('/admin/pendants', paylo
 export const adminUpdatePendant = (id, payload) => api.patch(`/admin/pendants/${id}`, payload).then((r) => r.data);
 export const adminUploadPendantIcon = (id, file) => { const fd = new FormData(); fd.append('icon', file); return api.post(`/admin/pendants/${id}/icon`, fd).then((r) => r.data); };
 export const adminDeletePendant = (id) => api.delete(`/admin/pendants/${id}`).then((r) => r.data);
-
