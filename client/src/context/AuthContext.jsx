@@ -71,11 +71,48 @@ export function AuthProvider({ children }) {
     setUnauthorizedHandler(clearSession);
     if (restoreStartedRef.current) return;
     restoreStartedRef.current = true;
-    // Try to restore a persistent session using the httpOnly refresh cookie.
-    api.post('/auth/refresh')
-      .then((res) => applySession(res.data))
-      .catch(() => clearSession())
-      .finally(() => setLoading(false));
+    // BUG CORRIGIDO ("cookies sendo apagados após a atualização da
+    // plataforma"): a causa real não era o cookie em si (ele continua
+    // intacto no navegador) — era esse catch aqui tratando QUALQUER
+    // falha da mesma forma, inclusive um ERRO DE REDE (servidor
+    // temporariamente fora do ar, exatamente o que acontece durante os
+    // ~15-20s de um deploy — `npm install && vite build && prisma db
+    // push` antes do servidor novo voltar a responder). Se a página
+    // carregasse justo nessa janela, a chamada de /auth/refresh nem
+    // chegava a ser respondida (erro de conexão, sem "response"
+    // nenhum) — e o app deslogava a pessoa mesmo com a sessão dela
+    // continuando perfeitamente válida no banco.
+    //
+    // A diferença certa: só um erro com `response` (o servidor
+    // respondeu de verdade, ex: 401 porque o cookie realmente não é
+    // mais válido) significa sessão inválida de verdade. Um erro SEM
+    // response (servidor inacessível) tenta de novo algumas vezes com
+    // espera crescente antes de desistir — dá tempo do deploy
+    // terminar sem derrubar ninguém por causa da janela de deploy.
+    const tryRestore = (attempt = 1) => {
+      api.post('/auth/refresh')
+        .then((res) => { applySession(res.data); setLoading(false); })
+        .catch((err) => {
+          if (err.response) {
+            // Servidor respondeu de propósito (401/403/etc) — sessão
+            // realmente inválida, não tem o que tentar de novo.
+            clearSession();
+            setLoading(false);
+            return;
+          }
+          if (attempt >= 5) {
+            // Já tentamos por um tempo razoável (até uns 30s de
+            // espera acumulada) — aí sim assume que não é só o deploy
+            // e desiste, pra não deixar a pessoa presa carregando pra
+            // sempre se estiver genuinamente sem internet.
+            clearSession();
+            setLoading(false);
+            return;
+          }
+          setTimeout(() => tryRestore(attempt + 1), attempt * 1500);
+        });
+    };
+    tryRestore();
   }, [applySession, clearSession]);
 
   const login = useCallback(async (payload) => {
