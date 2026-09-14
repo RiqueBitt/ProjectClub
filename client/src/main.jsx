@@ -10,6 +10,10 @@ import './styles/global.css';
 // arquivo) em vez de dentro de global.css, que já está com ~400KB.
 // Precisa vir DEPOIS do import acima para vencer no cascata do CSS.
 import './styles/settings-mobile-fix.css';
+// Correção do "scroll do celular passa por cima da barra de digitar" —
+// mesmo padrão do arquivo acima (arquivo próprio, importado depois de
+// global.css pra vencer no cascata).
+import './styles/mobile-scroll-fix.css';
 import './i18n/index.js';
 
 // Item pedido: "adicione nas configurações do usuário ele poder
