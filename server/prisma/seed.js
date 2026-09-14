@@ -197,9 +197,26 @@ async function seed() {
   // propósito — não existe API pública seguindo pra ele lá (ver
   // conversa: gta5-mods.com não tem API oficial, só teria como via
   // scraping, que não fazemos).
+  // Item pedido: corrigir o Steam Workshop pra Payday 2/3 — pesquisei
+  // e confirmei que NÃO deveriam estar aqui: o Payday 3 não tem
+  // suporte a Steam Workshop nenhum (mods de verdade ficam no
+  // ModWorkshop.net, um site totalmente diferente que a gente não
+  // integra), e o Payday 2 só usa o Workshop pra skins cosméticos
+  // votáveis — os mods de jogabilidade de verdade (a maioria do que a
+  // comunidade usa) também ficam só no ModWorkshop.net. Mantê-los aqui
+  // dava a entender errado que tinha mod ali quando na prática não
+  // tinha nada relevante — removidos.
   const workshopGames = [
-    { steamAppId: 218620, workshopAppId: 218620, displayName: 'Payday 2' },
-    { steamAppId: 1272080, workshopAppId: 1272080, displayName: 'Payday 3' },
+    { steamAppId: 4000, workshopAppId: 4000, displayName: "Garry's Mod" },
+    { steamAppId: 550, workshopAppId: 550, displayName: 'Left 4 Dead 2' },
+    { steamAppId: 232090, workshopAppId: 232090, displayName: 'Killing Floor 2' },
+    { steamAppId: 244850, workshopAppId: 244850, displayName: 'Space Engineers' },
+    { steamAppId: 255710, workshopAppId: 255710, displayName: 'Cities: Skylines' },
+    { steamAppId: 346110, workshopAppId: 346110, displayName: 'ARK: Survival Evolved' },
+    { steamAppId: 294100, workshopAppId: 294100, displayName: 'RimWorld' },
+    { steamAppId: 281990, workshopAppId: 281990, displayName: 'Stellaris' },
+    { steamAppId: 233860, workshopAppId: 233860, displayName: 'Kenshi' },
+    { steamAppId: 1142710, workshopAppId: 1142710, displayName: 'Total War: WARHAMMER III' },
     {
       steamAppId: 1281930, workshopAppId: 1281930, displayName: 'Terraria (tModLoader)',
       note: 'Isso lê os mods através do tModLoader, um app separado da Steam — instale-o também pela sua biblioteca Steam (é diferente do Terraria clássico).',
@@ -211,7 +228,13 @@ async function seed() {
   console.log(`Seeded ${workshopGames.length} jogos do Steam Workshop.`);
 
   // IDs conferidos direto nas páginas do GameBanana (gamebanana.com/games/<id>).
+  // Item pedido: "corrija pois eu tenho o Garry's Mod baixado e ele
+  // não está aparecendo" — faltava mesmo, id conferido direto na
+  // página do jogo no GameBanana (a atual, "GMod Hub" — existem
+  // páginas antigas tipo "Garry's Mod 9"/"13" com IDs diferentes, essa
+  // aqui é a principal/ativa).
   const gamebananaGames = [
+    { steamAppId: 4000, gameBananaGameId: 73, displayName: "Garry's Mod" },
     { steamAppId: 271590, gameBananaGameId: 4745, displayName: 'Grand Theft Auto V' },
     { steamAppId: 105600, gameBananaGameId: 4779, displayName: 'Terraria' },
   ];

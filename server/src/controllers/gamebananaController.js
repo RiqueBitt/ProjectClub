@@ -44,7 +44,13 @@ async function browse(req, res, next) {
     // devolve a lista direto em _aRecords também — os dois batem nesse
     // campo em comum, então não precisa de dois caminhos de código.
     const rawItems = data._aRecords || data._aResults || [];
-    res.json({ items: rawItems.map(normalizeListItem), hasMore: !!data._aMetadata?._bIsComplete === false });
+    // BUG CORRIGIDO: `!!x === false` tem precedência que deixa isso
+    // "true" sempre que _aMetadata vier ausente (comum nessa API
+    // semi-oficial) — o que fazia o botão "Ver mais" aparecer até
+    // quando não tinha mais nada pra carregar. Comparação direta:
+    // só considera que tem mais páginas quando o campo realmente
+    // vier e disser _bIsComplete: false.
+    res.json({ items: rawItems.map(normalizeListItem), hasMore: data._aMetadata?._bIsComplete === false });
   } catch (err) { next(err); }
 }
 

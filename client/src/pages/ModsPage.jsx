@@ -190,6 +190,8 @@ function GameModsView({ game, onBack, onOpenMod }) {
   const [tags, setTags] = useState([]);
   const [mods, setMods] = useState(null);
   const [resultTotal, setResultTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [installedState, setInstalledState] = useState({ enabled: [], disabled: [] });
   const [profiles, setProfiles] = useState(null);
   const [newProfileName, setNewProfileName] = useState('');
@@ -265,13 +267,31 @@ function GameModsView({ game, onBack, onOpenMod }) {
 
   useEffect(() => {
     setMods(null);
+    setLoadError('');
     const timeout = setTimeout(() => {
-      listMods(game.modioGameId, { q: query || undefined, sort, category: category || undefined })
+      listMods(game.modioGameId, { q: query || undefined, sort, category: category || undefined, offset: 0 })
         .then((d) => { setMods(d.mods); setResultTotal(d.resultTotal); })
-        .catch(() => setMods([]));
+        .catch((err) => { setMods([]); setLoadError(err.response?.data?.error || 'Não foi possível buscar mods agora.'); });
     }, 250); // pequeno debounce pra não disparar uma busca a cada tecla
     return () => clearTimeout(timeout);
   }, [game.modioGameId, query, sort, category]);
+
+  // Item pedido: "adicione páginas em cada jogo para poder ver mais" —
+  // "carregar mais" no final da grade em vez de páginas numeradas
+  // (mais natural pra rolagem contínua, mesmo padrão que o resto do
+  // app já usa em listas longas).
+  const loadMoreMods = async () => {
+    setLoadingMore(true);
+    try {
+      const d = await listMods(game.modioGameId, { q: query || undefined, sort, category: category || undefined, offset: mods.length });
+      setMods((prev) => [...prev, ...d.mods]);
+      setResultTotal(d.resultTotal);
+    } catch {
+      setLoadError('Não foi possível carregar mais mods agora.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const refreshInstalled = () => {
     if (!desktopReady || !game.installPath) return;
@@ -377,14 +397,21 @@ function GameModsView({ game, onBack, onOpenMod }) {
             <div className="mods-loading">Buscando mods...</div>
           ) : mods.length === 0 ? (
             <div className="mods-empty-state">
-              <span className="mods-empty-icon">🔍</span>
-              <h3>Nenhum mod encontrado</h3>
-              <p>Tente outra busca ou outro filtro.</p>
+              <span className="mods-empty-icon">{loadError ? '⚠️' : '🔍'}</span>
+              <h3>{loadError ? 'Não foi possível buscar' : 'Nenhum mod encontrado'}</h3>
+              <p>{loadError || 'Tente outra busca ou outro filtro.'}</p>
             </div>
           ) : (
-            <div className="mods-grid">
-              {mods.map((m) => <ModCard key={m.id} mod={m} onClick={() => onOpenMod(m.id)} />)}
-            </div>
+            <>
+              <div className="mods-grid">
+                {mods.map((m) => <ModCard key={m.id} mod={m} onClick={() => onOpenMod(m.id)} />)}
+              </div>
+              {mods.length < resultTotal && (
+                <button type="button" className="mods-load-more" disabled={loadingMore} onClick={loadMoreMods}>
+                  {loadingMore ? 'Carregando...' : `Ver mais (${mods.length} de ${resultTotal})`}
+                </button>
+              )}
+            </>
           )}
         </>
       )}
@@ -558,17 +585,39 @@ function WorkshopGameView({ game, onBack }) {
   const [sort, setSort] = useState('popular');
   const [items, setItems] = useState(null);
   const [total, setTotal] = useState(0);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [installedIds, setInstalledIds] = useState([]);
 
   useEffect(() => {
     setItems(null);
+    setLoadError('');
     const timeout = setTimeout(() => {
       listWorkshopItems(game.workshopAppId, { q: query || undefined, sort })
-        .then((d) => { setItems(d.items); setTotal(d.total); })
-        .catch(() => setItems([]));
+        .then((d) => { setItems(d.items); setTotal(d.total); setNextCursor(d.nextCursor); })
+        .catch((err) => { setItems([]); setLoadError(err.response?.data?.error || 'Não foi possível buscar no Steam Workshop agora.'); });
     }, 250);
     return () => clearTimeout(timeout);
   }, [game.workshopAppId, query, sort]);
+
+  // Item pedido: "adicione páginas em cada jogo para poder ver mais" —
+  // a API da Valve pagina por "cursor" (não por número de página), a
+  // gente só guarda o cursor que ela devolveu e manda de volta pra
+  // pedir a próxima leva.
+  const loadMoreItems = async () => {
+    if (!nextCursor) return;
+    setLoadingMore(true);
+    try {
+      const d = await listWorkshopItems(game.workshopAppId, { q: query || undefined, sort, cursor: nextCursor });
+      setItems((prev) => [...prev, ...d.items]);
+      setNextCursor(d.nextCursor);
+    } catch {
+      setLoadError('Não foi possível carregar mais itens agora.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     if (!desktopReady || !game.installPath) return;
@@ -608,16 +657,23 @@ function WorkshopGameView({ game, onBack }) {
         <div className="mods-loading">Buscando no Workshop...</div>
       ) : items.length === 0 ? (
         <div className="mods-empty-state">
-          <span className="mods-empty-icon">🔍</span>
-          <h3>Nenhum item encontrado</h3>
-          <p>Tente outra busca ou outro filtro.</p>
+          <span className="mods-empty-icon">{loadError ? '⚠️' : '🔍'}</span>
+          <h3>{loadError ? 'Não foi possível buscar' : 'Nenhum item encontrado'}</h3>
+          <p>{loadError || 'Tente outra busca ou outro filtro.'}</p>
         </div>
       ) : (
-        <div className="mods-grid">
-          {items.map((item) => (
-            <WorkshopItemCard key={item.publishedfileid} item={item} installed={installedIds.includes(item.publishedfileid)} />
-          ))}
-        </div>
+        <>
+          <div className="mods-grid">
+            {items.map((item) => (
+              <WorkshopItemCard key={item.publishedfileid} item={item} installed={installedIds.includes(item.publishedfileid)} />
+            ))}
+          </div>
+          {nextCursor && (
+            <button type="button" className="mods-load-more" disabled={loadingMore} onClick={loadMoreItems}>
+              {loadingMore ? 'Carregando...' : `Ver mais (${items.length} de ${total})`}
+            </button>
+          )}
+        </>
       )}
     </div>
   );
@@ -666,17 +722,39 @@ function GameBananaGameView({ game, onBack }) {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('default');
   const [items, setItems] = useState(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [selectedModId, setSelectedModId] = useState(null);
 
   useEffect(() => {
     setItems(null);
+    setLoadError('');
+    setPage(1);
     const timeout = setTimeout(() => {
-      browseGameBanana(game.gameBananaGameId, { q: query || undefined, sort })
-        .then((d) => setItems(d.items))
-        .catch(() => setItems([]));
+      browseGameBanana(game.gameBananaGameId, { q: query || undefined, sort, page: 1 })
+        .then((d) => { setItems(d.items); setHasMore(!!d.hasMore); })
+        .catch((err) => { setItems([]); setLoadError(err.response?.data?.error || 'Não foi possível buscar no GameBanana agora.'); });
     }, 250);
     return () => clearTimeout(timeout);
   }, [game.gameBananaGameId, query, sort]);
+
+  // Item pedido: "adicione páginas em cada jogo para poder ver mais".
+  const loadMoreItems = async () => {
+    const nextPage = page + 1;
+    setLoadingMore(true);
+    try {
+      const d = await browseGameBanana(game.gameBananaGameId, { q: query || undefined, sort, page: nextPage });
+      setItems((prev) => [...prev, ...d.items]);
+      setHasMore(!!d.hasMore);
+      setPage(nextPage);
+    } catch {
+      setLoadError('Não foi possível carregar mais itens agora.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   if (selectedModId) {
     return <GameBananaDetailView modId={selectedModId} onBack={() => setSelectedModId(null)} />;
@@ -704,28 +782,35 @@ function GameBananaGameView({ game, onBack }) {
         <div className="mods-loading">Buscando no GameBanana...</div>
       ) : items.length === 0 ? (
         <div className="mods-empty-state">
-          <span className="mods-empty-icon">🔍</span>
-          <h3>Nenhum item encontrado</h3>
-          <p>Tente outra busca.</p>
+          <span className="mods-empty-icon">{loadError ? '⚠️' : '🔍'}</span>
+          <h3>{loadError ? 'Não foi possível buscar' : 'Nenhum item encontrado'}</h3>
+          <p>{loadError || 'Tente outra busca.'}</p>
         </div>
       ) : (
-        <div className="mods-grid">
-          {items.map((item) => (
-            <button key={item.id} type="button" className="mods-mod-card" onClick={() => setSelectedModId(item.id)}>
-              <div className="mods-mod-card-thumb" style={item.thumbUrl ? { backgroundImage: `url(${proxyImage(item.thumbUrl)})` } : undefined}>
-                {!item.thumbUrl && <span>🧩</span>}
-              </div>
-              <div className="mods-mod-card-body">
-                <span className="mods-mod-card-name">{item.name}</span>
-                {item.submitter && <span className="mods-mod-card-author dim">por {item.submitter}</span>}
-                <div className="mods-mod-card-stats dim">
-                  {!!item.viewCount && <span>👁 {formatCount(item.viewCount)}</span>}
-                  {!!item.likeCount && <span>❤ {formatCount(item.likeCount)}</span>}
+        <>
+          <div className="mods-grid">
+            {items.map((item) => (
+              <button key={item.id} type="button" className="mods-mod-card" onClick={() => setSelectedModId(item.id)}>
+                <div className="mods-mod-card-thumb" style={item.thumbUrl ? { backgroundImage: `url(${proxyImage(item.thumbUrl)})` } : undefined}>
+                  {!item.thumbUrl && <span>🧩</span>}
                 </div>
-              </div>
+                <div className="mods-mod-card-body">
+                  <span className="mods-mod-card-name">{item.name}</span>
+                  {item.submitter && <span className="mods-mod-card-author dim">por {item.submitter}</span>}
+                  <div className="mods-mod-card-stats dim">
+                    {!!item.viewCount && <span>👁 {formatCount(item.viewCount)}</span>}
+                    {!!item.likeCount && <span>❤ {formatCount(item.likeCount)}</span>}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+          {hasMore && (
+            <button type="button" className="mods-load-more" disabled={loadingMore} onClick={loadMoreItems}>
+              {loadingMore ? 'Carregando...' : 'Ver mais'}
             </button>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   );

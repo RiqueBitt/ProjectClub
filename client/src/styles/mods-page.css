@@ -18,6 +18,15 @@
 
 .mods-loading { padding: 40px 0; text-align: center; color: var(--text-muted); }
 
+/* Item pedido: "adicione páginas em cada jogo para poder ver mais" */
+.mods-load-more {
+  display: block; margin: 18px auto 0; padding: 10px 24px; border-radius: 20px;
+  background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-normal);
+  font-size: 13px; font-weight: 600; transition: border-color .12s ease;
+}
+.mods-load-more:hover:not(:disabled) { border-color: var(--brand); }
+.mods-load-more:disabled { opacity: .6; }
+
 .mods-empty-state {
   display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
   padding: 60px 20px; background: var(--bg-elevated); border: 1px dashed var(--border); border-radius: 14px; color: var(--text-muted);
