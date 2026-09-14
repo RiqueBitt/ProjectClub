@@ -2456,7 +2456,15 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
   .members-list {
     position: fixed; top: 0; right: 0; bottom: 0; width: min(84vw, 280px);
     z-index: 220; box-shadow: -2px 0 16px rgba(0,0,0,.5);
-    transform: translateX(calc(100vw + 100%)); transition: transform .2s ease;
+    /* BUG CORRIGIDO ("bug no mobile que deixa a página de usuários
+       muito longe da tela"): translateX(calc(100vw + 100%)) empurrava
+       a gaveta pra MUITO além do necessário — a largura da tela
+       inteira SOMADA à largura da própria gaveta (num celular de
+       400px, isso é uns 680px de distância) — só precisa da largura
+       DELA MESMA (100%) pra sair completamente da tela, já que ela
+       fica ancorada em right:0. Isso fazia a animação de abrir
+       percorrer uma distância enorme e desnecessária. */
+    transform: translateX(100%); transition: transform .2s ease;
   }
   .app-shell.mobile-members-open .members-list { transform: translateX(0); }
   .app-shell.mobile-members-open .mobile-sidebar-backdrop {

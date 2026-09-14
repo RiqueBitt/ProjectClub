@@ -30,6 +30,7 @@ export default function TopSearchBar() {
   const myRoleIds = useMyRoleIds(user?.id);
   const [q, setQ] = useState('');
   const categories = useStore((s) => s.categories);
+  const mobileChannelListOpen = useStore((s) => s.mobileChannelListOpen);
   const channels = useStore((s) => s.channels);
   const channelReadAt = useStore((s) => s.channelReadAt);
   const conversations = useStore((s) => s.conversations);
@@ -71,8 +72,19 @@ export default function TopSearchBar() {
           MainApp.jsx), redundante com este — removido, e este botão
           único agora abre os dois juntos (barra principal + lista de
           canais/categorias, ver toggleMobileChannelList). */}
-      <button type="button" className="mobile-nav-toggle" onClick={() => useStore.getState().toggleMobileChannelList()} aria-label="Abrir menu">
-        ☰
+      {/* Item pedido: "colocar a seta de abrir e fechar a comunidade
+          no mobile" — o ☰ ficava igual sempre, sem indicar se um
+          clique ia abrir ou fechar a gaveta. Agora o próprio ícone
+          muda (☰ fechado → ✕ aberto), servindo de seta visual de
+          abrir/fechar, igual o botão de colapsar da sidebar no
+          desktop já faz. */}
+      <button
+        type="button"
+        className="mobile-nav-toggle"
+        onClick={() => useStore.getState().toggleMobileChannelList()}
+        aria-label={mobileChannelListOpen ? 'Fechar menu' : 'Abrir menu'}
+      >
+        {mobileChannelListOpen ? '✕' : '☰'}
       </button>
       <button type="button" className="top-search-bar-brand" onClick={() => navigate('/')}>
         <img className="top-search-bar-logo" src={logoIcon} alt="" />

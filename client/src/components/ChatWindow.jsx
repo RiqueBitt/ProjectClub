@@ -46,14 +46,17 @@ function HeaderAvatarImg({ url }) {
 }
 
 // Below 900px .members-list becomes an off-canvas drawer (see global.css) —
-// this arrow button, next to the channel name in the header, is what pulls
+// this button, next to the channel name in the header, is what pulls
 // it in from the right, since there's no room to show it inline alongside
 // the chat anymore. Hidden on desktop/tablet-wide via CSS, where the
 // members list is already visible inline.
+// Item pedido: "colocar ícones melhores no mobile que representem a
+// página de membros" — a seta "❮" antes não dizia nada sobre o que o
+// botão fazia; 👥 já comunica "membros" antes mesmo de tocar.
 function MembersToggleButton({ title = 'Membros da comunidade' }) {
   const toggleMobileMembers = useStore((s) => s.toggleMobileMembers);
   return (
-    <button className="icon-btn mobile-members-toggle" onClick={toggleMobileMembers} title={title}>❮</button>
+    <button className="icon-btn mobile-members-toggle" onClick={toggleMobileMembers} title={title}>👥</button>
   );
 }
 
