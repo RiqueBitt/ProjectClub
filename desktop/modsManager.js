@@ -248,7 +248,63 @@ function applyProfileMods({ gameInstallPath, enabledModNames }) {
 module.exports = {
   installMod, uninstallMod, listInstalledMods, setModEnabled, applyProfileMods, detectInstallStrategy,
   installLocalFile, listConfigFiles, readConfigFile, writeConfigFile,
+  saveModpackLocally, listLocalModpacks, loadLocalModpack, deleteLocalModpack,
 };
+
+// ---------- Pasta local de Modpacks (item pedido: "criar uma pasta do
+// Project Club chamada modpacks onde salva os modpacks criados... pra
+// assim ficar salvos") ----------
+// Fica dentro da PRÓPRIA pasta de dados do Project Club (não do jogo)
+// — sobrevive mesmo se o servidor cair ou a conta mudar de dispositivo
+// sem sincronizar ainda: um arquivo de texto (.json) por modpack,
+// organizado por jogo, com o nome de cada mod que faz parte dele. Não
+// substitui o registro no servidor (que sincroniza entre
+// computadores da mesma conta) — é uma cópia local, sempre disponível
+// mesmo offline.
+function modpacksRootDir() {
+  const dir = path.join(app.getPath('userData'), 'Modpacks');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function gameSlug(gameKey) {
+  return sanitizeModFolderName(String(gameKey));
+}
+
+function modpackFilePath(gameKey, packName) {
+  const dir = path.join(modpacksRootDir(), gameSlug(gameKey));
+  fs.mkdirSync(dir, { recursive: true });
+  return path.join(dir, `${sanitizeModFolderName(packName)}.json`);
+}
+
+function saveModpackLocally({ gameKey, gameDisplayName, packName, mods }) {
+  const data = { name: packName, game: gameDisplayName, mods, updatedAt: new Date().toISOString() };
+  fs.writeFileSync(modpackFilePath(gameKey, packName), JSON.stringify(data, null, 2), 'utf8');
+  return { saved: true, path: modpackFilePath(gameKey, packName) };
+}
+
+function listLocalModpacks(gameKey) {
+  const dir = path.join(modpacksRootDir(), gameSlug(gameKey));
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isFile() && e.name.endsWith('.json'))
+    .map((e) => {
+      try { return JSON.parse(fs.readFileSync(path.join(dir, e.name), 'utf8')); } catch { return null; }
+    })
+    .filter(Boolean);
+}
+
+function loadLocalModpack(gameKey, packName) {
+  const filePath = modpackFilePath(gameKey, packName);
+  if (!fs.existsSync(filePath)) throw new Error('Modpack não encontrado localmente.');
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function deleteLocalModpack(gameKey, packName) {
+  const filePath = modpackFilePath(gameKey, packName);
+  if (fs.existsSync(filePath)) fs.rmSync(filePath, { force: true });
+  return { deleted: true };
+}
 
 // Item pedido: "adicione mods de um arquivo local" — mesmo fluxo de
 // installMod, só que sem baixar nada: o arquivo já está no computador

@@ -756,6 +756,32 @@ if (!gotLock) {
     }
   });
 
+  // Item pedido: pasta própria do Project Club (não do jogo) onde os
+  // modpacks ficam salvos como arquivo, independente do servidor.
+  ipcMain.handle('mods:save-modpack-local', (_event, payload) => {
+    try {
+      return { success: true, ...modsManager.saveModpackLocally(payload) };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('mods:list-local-modpacks', (_event, gameKey) => {
+    try {
+      return { success: true, modpacks: modsManager.listLocalModpacks(gameKey) };
+    } catch (err) {
+      return { success: false, error: err.message, modpacks: [] };
+    }
+  });
+
+  ipcMain.handle('mods:delete-local-modpack', (_event, { gameKey, packName }) => {
+    try {
+      return { success: true, ...modsManager.deleteLocalModpack(gameKey, packName) };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   // Item pedido: "Sistema... Iniciar com o sistema... Minimizar para
   // bandeja... Abrir links no aplicativo... Confirmar saída" e "Jogos e
   // apps... Detecção automática de jogos" — recebe o UserSettings de

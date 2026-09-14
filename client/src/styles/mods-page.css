@@ -133,8 +133,14 @@
 /* ---------- Meus mods (instalados) ---------- */
 .mods-installed-list { display: flex; flex-direction: column; gap: 8px; }
 .mods-installed-item {
-  display: flex; justify-content: space-between; align-items: center; padding: 12px 16px;
+  display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; flex-wrap: wrap; gap: 10px;
   background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; font-size: 13.5px;
+}
+.mods-installed-item-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mods-installed-item-add-profile { display: flex; align-items: center; gap: 6px; }
+.mods-installed-item-add-profile select {
+  padding: 5px 8px; border-radius: 6px; font-size: 12px; background: var(--bg-secondary-alt, var(--bg-secondary));
+  border: 1px solid var(--border); color: var(--text-normal);
 }
 .mods-installed-tag { color: var(--green); font-weight: 700; font-size: 12px; }
 .mods-installed-item-disabled { opacity: .65; }
@@ -165,7 +171,16 @@
 .mods-profile-card { padding: 14px 16px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; }
 .mods-profile-card-header { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 4px; }
 .mods-profile-card-header strong { font-size: 14.5px; color: var(--header-primary); }
-.mods-profile-card-items { font-size: 12.5px; margin-bottom: 10px; }
+.mods-profile-card-item-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.mods-profile-item-chip {
+  display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 6px 4px 10px; border-radius: 20px;
+  background: var(--bg-secondary-alt, var(--bg-secondary)); border: 1px solid var(--border); color: var(--text-normal);
+}
+.mods-profile-item-chip button {
+  width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; line-height: 1; color: var(--text-muted); background: transparent;
+}
+.mods-profile-item-chip button:hover { color: var(--red); }
 .mods-profile-card-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 
 .mods-add-to-profile { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }

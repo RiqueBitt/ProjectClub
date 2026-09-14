@@ -75,6 +75,18 @@ export function writeModConfigFile(gameInstallPath, filename, content) {
   return window.electronAPI.mods.writeConfigFile(gameInstallPath, filename, content);
 }
 
+// Item pedido: "criar uma pasta do Project Club chamada modpacks onde
+// salva os modpacks criados com os mods, pra assim ficar salvos" —
+// cópia local em disco (fora do servidor), sempre disponível mesmo
+// offline. gameKey identifica o jogo (uso o steamAppId).
+export function saveModpackLocal(payload) {
+  return window.electronAPI.mods.saveModpackLocal(payload);
+}
+
+export function listLocalModpacks(gameKey) {
+  return window.electronAPI.mods.listLocalModpacks(gameKey);
+}
+
 // Item pedido: "como ele identifica a capa dos jogos da Steam" — a
 // própria Steam hospeda a capa (capsule vertical) de cada jogo numa
 // URL pública e previsível, só com o AppID — nenhuma chave nem login

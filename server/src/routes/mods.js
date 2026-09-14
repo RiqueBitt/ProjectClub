@@ -29,7 +29,7 @@ router.get('/games/:modioGameId/profiles', ctrl.listProfiles);
 router.post('/games/:modioGameId/profiles', ctrl.createProfile);
 router.delete('/profiles/:profileId', ctrl.deleteProfile);
 router.post('/profiles/:profileId/items', ctrl.upsertProfileItem);
-router.delete('/profiles/:profileId/items/:modioModId', ctrl.removeProfileItem);
+router.delete('/profiles/:profileId/items/:itemId', ctrl.removeProfileItem);
 
 // Coleções (item pedido 19)
 router.get('/games/:modioGameId/collections', ctrl.listCollections);

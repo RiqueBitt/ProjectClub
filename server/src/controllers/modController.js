@@ -338,6 +338,22 @@ async function upsertProfileItem(req, res, next) {
     const profile = await prisma.modProfile.findUnique({ where: { id: req.params.profileId } });
     if (!profile || profile.userId !== req.user.id) return res.status(404).json({ error: 'Perfil não encontrado.' });
     const { modioModId, modioModfileId, modName, version, enabled } = req.body;
+
+    // Item pedido: "adicionar mods já baixados direto no modpack" — um
+    // mod instalado localmente não tem modioModId nenhum (só existe
+    // como pasta no disco, com nome). Sem modioModId, o índice único
+    // não ajuda a achar duplicata sozinho — confere na mão por
+    // (profileId, modName) antes de criar, pra não duplicar a mesma
+    // pasta duas vezes no mesmo modpack.
+    if (modioModId === undefined || modioModId === null) {
+      if (!modName?.trim()) return res.status(400).json({ error: 'modioModId ou modName é obrigatório.' });
+      const existing = await prisma.modProfileItem.findFirst({ where: { profileId: profile.id, modioModId: null, modName } });
+      const item = existing
+        ? await prisma.modProfileItem.update({ where: { id: existing.id }, data: { ...(enabled !== undefined ? { enabled: !!enabled } : {}) } })
+        : await prisma.modProfileItem.create({ data: { profileId: profile.id, modName, enabled: enabled !== false } });
+      return res.json({ item });
+    }
+
     const item = await prisma.modProfileItem.upsert({
       where: { profileId_modioModId: { profileId: profile.id, modioModId: Number(modioModId) } },
       update: {
@@ -352,11 +368,15 @@ async function upsertProfileItem(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Item pedido: "adicionar mods já baixados direto no modpack" — um
+// item do modpack agora pode existir SEM modioModId (mod local), então
+// a remoção usa o próprio id do item (sempre existe, qualquer que seja
+// a origem do mod) em vez do modioModId (que só existe às vezes).
 async function removeProfileItem(req, res, next) {
   try {
     const profile = await prisma.modProfile.findUnique({ where: { id: req.params.profileId } });
     if (!profile || profile.userId !== req.user.id) return res.status(404).json({ error: 'Perfil não encontrado.' });
-    await prisma.modProfileItem.deleteMany({ where: { profileId: profile.id, modioModId: Number(req.params.modioModId) } });
+    await prisma.modProfileItem.deleteMany({ where: { profileId: profile.id, id: req.params.itemId } });
     res.json({ success: true });
   } catch (err) { next(err); }
 }

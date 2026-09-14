@@ -106,6 +106,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     listConfigFiles: (gameInstallPath) => ipcRenderer.invoke('mods:list-config-files', gameInstallPath),
     readConfigFile: (gameInstallPath, filename) => ipcRenderer.invoke('mods:read-config-file', { gameInstallPath, filename }),
     writeConfigFile: (gameInstallPath, filename, content) => ipcRenderer.invoke('mods:write-config-file', { gameInstallPath, filename, content }),
+    saveModpackLocal: (payload) => ipcRenderer.invoke('mods:save-modpack-local', payload),
+    listLocalModpacks: (gameKey) => ipcRenderer.invoke('mods:list-local-modpacks', gameKey),
+    deleteLocalModpack: (gameKey, packName) => ipcRenderer.invoke('mods:delete-local-modpack', { gameKey, packName }),
     onProgress: (callback) => {
       const listener = (_event, data) => callback(data);
       ipcRenderer.on('mods:progress', listener);

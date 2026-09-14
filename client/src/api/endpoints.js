@@ -561,7 +561,7 @@ export const listModProfiles = (modioGameId) => api.get(`/mods/games/${modioGame
 export const createModProfile = (modioGameId, name) => api.post(`/mods/games/${modioGameId}/profiles`, { name }).then((r) => r.data);
 export const deleteModProfile = (profileId) => api.delete(`/mods/profiles/${profileId}`).then((r) => r.data);
 export const upsertModProfileItem = (profileId, payload) => api.post(`/mods/profiles/${profileId}/items`, payload).then((r) => r.data);
-export const removeModProfileItem = (profileId, modioModId) => api.delete(`/mods/profiles/${profileId}/items/${modioModId}`).then((r) => r.data);
+export const removeModProfileItem = (profileId, itemId) => api.delete(`/mods/profiles/${profileId}/items/${itemId}`).then((r) => r.data);
 
 // Coleções (item pedido 19) — públicas pra qualquer pessoa logada ver e
 // instalar; só o autor edita/apaga.

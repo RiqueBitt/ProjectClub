@@ -10,9 +10,10 @@ import {
   matchGameBananaGames, browseGameBanana, getGameBananaMod,
 } from '../api/endpoints';
 import {
-  isDesktopModsAvailable, detectSteamGames, installModLocally, listInstalledModsLocally, onModsProgress,
+  isDesktopModsAvailable, detectSteamGames, installModLocally, uninstallModLocally, listInstalledModsLocally, onModsProgress,
   setModEnabledLocally, applyProfileLocally, listInstalledWorkshopItemsLocally, openWorkshopItemInSteam,
   openModsFolder, pickLocalModFile, installLocalModFile, listModConfigFiles, readModConfigFile, writeModConfigFile, steamCoverUrl,
+  saveModpackLocal, listLocalModpacks,
 } from '../utils/mods';
 import { proxyImage } from '../utils/imageProxy';
 import '../styles/mods-page.css';
@@ -286,6 +287,7 @@ function GameModsView({ game, onBack, onOpenMod }) {
   const [installedState, setInstalledState] = useState({ enabled: [], disabled: [] });
   const [localInstallBusy, setLocalInstallBusy] = useState(false);
   const [localInstallError, setLocalInstallError] = useState('');
+  const [uninstallError, setUninstallError] = useState('');
   const [configFiles, setConfigFiles] = useState([]);
   const [selectedConfigFile, setSelectedConfigFile] = useState(null);
   const [configContent, setConfigContent] = useState('');
@@ -410,6 +412,37 @@ function GameModsView({ game, onBack, onOpenMod }) {
     refreshInstalled();
   };
 
+  // Item pedido: "apagar mods que você baixou... apaga os arquivos" —
+  // diferente de desativar (que só move a pasta pro lado, mantendo os
+  // arquivos), isso apaga de vez. Confirmação antes, sem volta depois.
+  const doUninstallMod = async (name) => {
+    if (!confirm(`Apagar "${name}"? Isso remove os arquivos dele do disco — não dá pra desfazer.`)) return;
+    setUninstallError('');
+    try {
+      const result = await uninstallModLocally({ gameInstallPath: game.installPath, modName: name });
+      if (!result.success) throw new Error(result.error || 'Falha desconhecida.');
+      refreshInstalled();
+    } catch (err) {
+      setUninstallError(`Não foi possível apagar "${name}": ${err.message}`);
+    }
+  };
+
+  // Item pedido: "criar modpacks escolhendo os mods" — adiciona um mod
+  // JÁ INSTALADO (identificado só pelo nome da pasta, sem modioModId —
+  // funciona pra mod vindo de qualquer fonte: mod.io, Workshop,
+  // GameBanana ou arquivo local) direto num modpack, sem precisar
+  // visitar a página de cada mod um por um.
+  const doAddInstalledToProfile = async (name, profileId) => {
+    if (!profileId) return;
+    await upsertModProfileItem(profileId, { modName: name, enabled: true });
+    refreshProfiles();
+  };
+
+  const doRemoveFromProfile = async (profileId, itemId) => {
+    await removeModProfileItem(profileId, itemId);
+    refreshProfiles();
+  };
+
   // Item pedido: "abrir a pasta" — mesma pasta que a instalação
   // automática já usa (BepInEx/plugins ou Mods, dependendo do jogo).
   const doOpenFolder = () => openModsFolder(game.installPath);
@@ -483,10 +516,16 @@ function GameModsView({ game, onBack, onOpenMod }) {
       const enabledModNames = profile.items.filter((i) => i.enabled && i.modName).map((i) => i.modName);
       const result = await applyProfileLocally({ gameInstallPath: game.installPath, enabledModNames });
       refreshInstalled();
+      // Item pedido: "criar uma pasta do Project Club chamada modpacks
+      // onde salva os modpacks... pra assim ficar salvos" — toda vez
+      // que o modpack é ativado (o momento em que já sabemos a lista
+      // final de mods dele), uma cópia local também é gravada em
+      // disco, fora do servidor — continua disponível mesmo offline.
+      saveModpackLocal({ gameKey: game.steamAppId, gameDisplayName: game.displayName, packName: profile.name, mods: enabledModNames }).catch(() => {});
       if (result.missing?.length) {
-        setActivateMessage(`Perfil ativado, mas ${result.missing.length} mod(s) dele ainda não foram instalados neste computador.`);
+        setActivateMessage(`Modpack ativado, mas ${result.missing.length} mod(s) dele ainda não foram instalados neste computador.`);
       } else {
-        setActivateMessage(`Perfil "${profile.name}" ativado.`);
+        setActivateMessage(`Modpack "${profile.name}" ativado (e salvo localmente).`);
       }
       if (alsoPlay && game.steamAppId) {
         window.electronAPI?.openExternal?.(`steam://run/${game.steamAppId}`);
@@ -574,19 +613,20 @@ function GameModsView({ game, onBack, onOpenMod }) {
           </div>
         ) : (
           <>
-            <h2 className="mods-section-title" style={{ marginTop: 0 }}>Perfis</h2>
+            <h2 className="mods-section-title" style={{ marginTop: 0 }}>Modpacks</h2>
             <p className="dim" style={{ marginBottom: 12 }}>
-              Um perfil é um conjunto de mods que você liga de uma vez. Adicione mods a um perfil pela página de cada
-              mod ("Adicionar a um perfil"), depois ative o perfil aqui — ele desativa (sem desinstalar) qualquer
-              outro mod que não faça parte dele.
+              Um modpack é um conjunto de mods que você liga de uma vez. Escolha os mods direto na lista "Mods
+              instalados agora" logo abaixo (botão "+ Modpack" em cada um), depois ative o modpack aqui — ele
+              desativa (sem desinstalar) qualquer mod que não faça parte dele, e "▶ Jogar" já abre o jogo com esse
+              conjunto pronto.
             </p>
             <div className="mods-profile-create">
-              <input placeholder="Nome do novo perfil (ex: Terror, Vanilla...)" value={newProfileName} onChange={(e) => setNewProfileName(e.target.value)} />
-              <button type="button" className="btn-primary" onClick={doCreateProfile}>Criar perfil</button>
+              <input placeholder="Nome do novo modpack (ex: Terror, Vanilla...)" value={newProfileName} onChange={(e) => setNewProfileName(e.target.value)} />
+              <button type="button" className="btn-primary" onClick={doCreateProfile}>Criar modpack</button>
             </div>
             {activateMessage && <p className="dim" style={{ marginBottom: 12 }}>{activateMessage}</p>}
-            {profiles === null ? <p className="dim">Carregando perfis...</p> : profiles.length === 0 ? (
-              <p className="dim" style={{ marginBottom: 20 }}>Nenhum perfil criado ainda.</p>
+            {profiles === null ? <p className="dim">Carregando modpacks...</p> : profiles.length === 0 ? (
+              <p className="dim" style={{ marginBottom: 20 }}>Nenhum modpack criado ainda.</p>
             ) : (
               <div className="mods-profile-list">
                 {profiles.map((p) => (
@@ -595,15 +635,24 @@ function GameModsView({ game, onBack, onOpenMod }) {
                       <strong>{p.name}</strong>
                       <span className="dim">{p.items.filter((i) => i.enabled).length} mods ativos</span>
                     </div>
-                    {p.items.length > 0 && (
-                      <div className="mods-profile-card-items dim">{p.items.map((i) => i.modName || `Mod #${i.modioModId}`).join(', ')}</div>
+                    {p.items.length > 0 ? (
+                      <div className="mods-profile-card-item-chips">
+                        {p.items.map((i) => (
+                          <span key={i.id} className="mods-profile-item-chip">
+                            {i.modName || `Mod #${i.modioModId}`}
+                            <button type="button" onClick={() => doRemoveFromProfile(p.id, i.id)} title="Remover do modpack">×</button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="dim" style={{ fontSize: 12.5, margin: '4px 0 10px' }}>Nenhum mod ainda — adicione pela lista "Mods instalados agora".</p>
                     )}
                     <div className="mods-profile-card-actions">
                       <button type="button" className="btn-primary" disabled={activatingProfileId === p.id} onClick={() => activateProfile(p, false)}>
-                        {activatingProfileId === p.id ? 'Ativando...' : 'Ativar este perfil'}
+                        {activatingProfileId === p.id ? 'Ativando...' : 'Ativar este modpack'}
                       </button>
-                      <button type="button" className="btn-play" disabled={activatingProfileId === p.id} onClick={() => activateProfile(p, true)}>▶ Jogar com este perfil</button>
-                      <button type="button" className="btn-link" style={{ color: 'var(--red)' }} onClick={() => doDeleteProfile(p)}>Apagar</button>
+                      <button type="button" className="btn-play" disabled={activatingProfileId === p.id} onClick={() => activateProfile(p, true)}>▶ Jogar com este modpack</button>
+                      <button type="button" className="btn-link" style={{ color: 'var(--red)' }} onClick={() => doDeleteProfile(p)}>Apagar modpack</button>
                     </div>
                   </div>
                 ))}
@@ -620,27 +669,16 @@ function GameModsView({ game, onBack, onOpenMod }) {
               </div>
             </div>
             {localInstallError && <p className="mods-install-error">{localInstallError}</p>}
+            {uninstallError && <p className="mods-install-error">{uninstallError}</p>}
             {installedState.enabled.length === 0 && installedState.disabled.length === 0 ? (
               <p className="dim">Nenhum mod instalado ainda. Instale um mod na aba "Mods" acima, ou de um arquivo local pelo botão ao lado.</p>
             ) : (
               <div className="mods-installed-list">
                 {installedState.enabled.map((name) => (
-                  <div key={name} className="mods-installed-item">
-                    <span>🧩 {name}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span className="mods-installed-tag">✓ Ativado</span>
-                      <button type="button" className="btn-link" onClick={() => toggleInstalledMod(name, true)}>Desativar</button>
-                    </div>
-                  </div>
+                  <InstalledModRow key={name} name={name} enabled profiles={profiles} onToggle={() => toggleInstalledMod(name, true)} onUninstall={() => doUninstallMod(name)} onAddToProfile={doAddInstalledToProfile} />
                 ))}
                 {installedState.disabled.map((name) => (
-                  <div key={name} className="mods-installed-item mods-installed-item-disabled">
-                    <span>🧩 {name}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span className="dim">Desativado</span>
-                      <button type="button" className="btn-link" onClick={() => toggleInstalledMod(name, false)}>Ativar</button>
-                    </div>
-                  </div>
+                  <InstalledModRow key={name} name={name} enabled={false} profiles={profiles} onToggle={() => toggleInstalledMod(name, false)} onUninstall={() => doUninstallMod(name)} onAddToProfile={doAddInstalledToProfile} />
                 ))}
               </div>
             )}
@@ -718,6 +756,38 @@ function GameModsView({ game, onBack, onOpenMod }) {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// Item pedido: "apagar mods que você baixou" + "criar modpacks
+// escolhendo os mods" — cada mod instalado agora tem três ações:
+// ativar/desativar (não apaga nada), apagar de vez (apaga o arquivo),
+// e adicionar a um dos modpacks já criados.
+function InstalledModRow({ name, enabled, profiles, onToggle, onUninstall, onAddToProfile }) {
+  const [selectedProfileId, setSelectedProfileId] = useState('');
+  const doAdd = () => {
+    if (!selectedProfileId) return;
+    onAddToProfile(name, selectedProfileId);
+    setSelectedProfileId('');
+  };
+  return (
+    <div className={`mods-installed-item ${enabled ? '' : 'mods-installed-item-disabled'}`}>
+      <span>🧩 {name}</span>
+      <div className="mods-installed-item-actions">
+        {profiles?.length > 0 && (
+          <div className="mods-installed-item-add-profile">
+            <select value={selectedProfileId} onChange={(e) => setSelectedProfileId(e.target.value)}>
+              <option value="">+ Modpack...</option>
+              {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <button type="button" className="btn-link" disabled={!selectedProfileId} onClick={doAdd}>OK</button>
+          </div>
+        )}
+        {enabled ? <span className="mods-installed-tag">✓ Ativado</span> : <span className="dim">Desativado</span>}
+        <button type="button" className="btn-link" onClick={onToggle}>{enabled ? 'Desativar' : 'Ativar'}</button>
+        <button type="button" className="btn-link" style={{ color: 'var(--red)' }} onClick={onUninstall}>Apagar</button>
+      </div>
     </div>
   );
 }

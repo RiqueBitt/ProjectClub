@@ -26,11 +26,24 @@ async function matchGameBananaGames(req, res, next) {
 // frontend também ganhou um fallback visual (ver ModsPage.jsx) pra
 // nunca mostrar uma imagem quebrada mesmo se algum desses nomes mudar
 // de novo no futuro.
+// BUG CORRIGIDO ("os banners do GameBanana sumiram"): nomes de campo
+// tipo "_sFile220" eram um chute nosso — se a API não tiver exatamente
+// esses nomes (ela não documenta isso num lugar oficial único, ver
+// aviso no topo de gamebananaService.js), thumbUrl vinha sempre nulo e
+// TODO banner sumia de vez, não só ficava do tamanho errado. Em vez de
+// continuar chutando nomes exatos, isso aqui PROCURA sozinho qualquer
+// campo que comece com "_sFile" na resposta de verdade e usa o
+// primeiro que achar — se um dia a API mudar de novo, continua
+// funcionando sem precisar mexer no código de novo.
 function pickImageFile(image) {
-  if (!image) return null;
-  const filename = image._sFile220 || image._sFile530 || image._sFile100 || image._sFile800 || image._sFile;
-  if (!filename || !image._sBaseUrl) return null;
-  return `${image._sBaseUrl}/${filename}`;
+  if (!image || !image._sBaseUrl) return null;
+  const fileKeys = Object.keys(image).filter((k) => k.startsWith('_sFile'));
+  if (fileKeys.length === 0) return null;
+  // Prefere uma variante com tamanho no nome (normalmente uma miniatura
+  // menor, mais rápida de carregar) antes do arquivo original completo.
+  const sizedKey = fileKeys.find((k) => k !== '_sFile' && /\d/.test(k));
+  const key = sizedKey || fileKeys[0];
+  return `${image._sBaseUrl}/${image[key]}`;
 }
 
 function normalizeListItem(raw) {
