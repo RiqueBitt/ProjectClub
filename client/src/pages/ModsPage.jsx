@@ -12,6 +12,7 @@ import {
 import {
   isDesktopModsAvailable, detectSteamGames, installModLocally, listInstalledModsLocally, onModsProgress,
   setModEnabledLocally, applyProfileLocally, listInstalledWorkshopItemsLocally, openWorkshopItemInSteam,
+  openModsFolder, pickLocalModFile, installLocalModFile, listModConfigFiles, readModConfigFile, writeModConfigFile, steamCoverUrl,
 } from '../utils/mods';
 import { proxyImage } from '../utils/imageProxy';
 import '../styles/mods-page.css';
@@ -160,10 +161,12 @@ function ModsHome({ onBack, onOpenGame }) {
 }
 
 function GameCard({ game, onClick }) {
+  const coverUrl = game.iconUrl ? proxyImage(game.iconUrl) : steamCoverUrl(game.steamAppId);
   return (
     <button type="button" className="mods-game-card" onClick={onClick}>
       <div className="mods-game-card-icon">
-        {game.iconUrl ? <img src={proxyImage(game.iconUrl)} alt="" /> : <span>🎮</span>}
+        <img src={coverUrl} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }} />
+        <span className="mods-game-card-icon-fallback">🎮</span>
       </div>
       <span className="mods-game-card-name">{game.displayName}</span>
       <span className="mods-game-card-source dim">{game.source === 'workshop' ? 'Steam Workshop' : game.source === 'gamebanana' ? 'GameBanana' : 'mod.io'}</span>
@@ -193,6 +196,13 @@ function GameModsView({ game, onBack, onOpenMod }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [installedState, setInstalledState] = useState({ enabled: [], disabled: [] });
+  const [localInstallBusy, setLocalInstallBusy] = useState(false);
+  const [localInstallError, setLocalInstallError] = useState('');
+  const [configFiles, setConfigFiles] = useState([]);
+  const [selectedConfigFile, setSelectedConfigFile] = useState(null);
+  const [configContent, setConfigContent] = useState('');
+  const [configSaving, setConfigSaving] = useState(false);
+  const [configMessage, setConfigMessage] = useState('');
   const [profiles, setProfiles] = useState(null);
   const [newProfileName, setNewProfileName] = useState('');
   const [activatingProfileId, setActivatingProfileId] = useState(null);
@@ -303,12 +313,57 @@ function GameModsView({ game, onBack, onOpenMod }) {
     if (tab !== 'mine') return;
     refreshInstalled();
     refreshProfiles();
+    refreshConfigFiles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, game.installPath, game.modioGameId]);
 
   const toggleInstalledMod = async (name, currentlyEnabled) => {
     await setModEnabledLocally({ gameInstallPath: game.installPath, modName: name, enabled: !currentlyEnabled });
     refreshInstalled();
+  };
+
+  // Item pedido: "abrir a pasta" — mesma pasta que a instalação
+  // automática já usa (BepInEx/plugins ou Mods, dependendo do jogo).
+  const doOpenFolder = () => openModsFolder(game.installPath);
+
+  // Item pedido: "adicionar mods de um arquivo local".
+  const doInstallLocalFile = async () => {
+    const picked = await pickLocalModFile();
+    if (!picked.success) return;
+    setLocalInstallError('');
+    setLocalInstallBusy(true);
+    try {
+      const modName = picked.name.replace(/\.(zip|dll)$/i, '');
+      const result = await installLocalModFile({ filePath: picked.path, gameInstallPath: game.installPath, modName });
+      if (!result.success) throw new Error(result.error || 'Falha desconhecida.');
+      refreshInstalled();
+    } catch (err) {
+      setLocalInstallError(err.message);
+    } finally {
+      setLocalInstallBusy(false);
+    }
+  };
+
+  // Item pedido: "poder configurar mods" — lista/abre/edita os .cfg de
+  // BepInEx/config como texto puro (ver roadmap em modsManager.js).
+  const refreshConfigFiles = () => {
+    listModConfigFiles(game.installPath).then((d) => setConfigFiles(d.files || []));
+  };
+  const openConfigFile = async (filename) => {
+    setSelectedConfigFile(filename);
+    setConfigMessage('');
+    const d = await readModConfigFile(game.installPath, filename);
+    setConfigContent(d.success ? d.content : '');
+    if (!d.success) setConfigMessage(`Não foi possível abrir: ${d.error}`);
+  };
+  const saveConfigFile = async () => {
+    setConfigSaving(true);
+    try {
+      const d = await writeModConfigFile(game.installPath, selectedConfigFile, configContent);
+      setConfigMessage(d.success ? 'Salvo!' : `Erro ao salvar: ${d.error}`);
+    } finally {
+      setConfigSaving(false);
+    }
   };
 
   const doCreateProfile = async () => {
@@ -467,9 +522,18 @@ function GameModsView({ game, onBack, onOpenMod }) {
               </div>
             )}
 
-            <h2 className="mods-section-title">Mods instalados agora</h2>
+            <div className="mods-section-header-row">
+              <h2 className="mods-section-title" style={{ margin: 0 }}>Mods instalados agora</h2>
+              <div className="mods-section-header-actions">
+                <button type="button" className="btn-link" onClick={doOpenFolder}>📂 Abrir pasta</button>
+                <button type="button" className="btn-link" disabled={localInstallBusy} onClick={doInstallLocalFile}>
+                  {localInstallBusy ? 'Instalando...' : '➕ Instalar de um arquivo local'}
+                </button>
+              </div>
+            </div>
+            {localInstallError && <p className="mods-install-error">{localInstallError}</p>}
             {installedState.enabled.length === 0 && installedState.disabled.length === 0 ? (
-              <p className="dim">Nenhum mod instalado ainda. Instale um mod na aba "Mods" acima.</p>
+              <p className="dim">Nenhum mod instalado ainda. Instale um mod na aba "Mods" acima, ou de um arquivo local pelo botão ao lado.</p>
             ) : (
               <div className="mods-installed-list">
                 {installedState.enabled.map((name) => (
@@ -491,6 +555,36 @@ function GameModsView({ game, onBack, onOpenMod }) {
                   </div>
                 ))}
               </div>
+            )}
+
+            {configFiles.length > 0 && (
+              <>
+                <h2 className="mods-section-title">Configurar mods</h2>
+                <p className="dim" style={{ marginBottom: 12 }}>
+                  Edição em texto puro dos arquivos de configuração de cada mod — exatamente como eles são salvos no
+                  disco, sem tentar adivinhar um formulário pra cada mod diferente.
+                </p>
+                <div className="mods-config-layout">
+                  <div className="mods-config-file-list">
+                    {configFiles.map((f) => (
+                      <button key={f} type="button" className={`mods-config-file-item ${selectedConfigFile === f ? 'active' : ''}`} onClick={() => openConfigFile(f)}>
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedConfigFile && (
+                    <div className="mods-config-editor">
+                      <textarea value={configContent} onChange={(e) => setConfigContent(e.target.value)} spellCheck={false} />
+                      <div className="mods-config-editor-actions">
+                        <button type="button" className="btn-primary" disabled={configSaving} onClick={saveConfigFile}>
+                          {configSaving ? 'Salvando...' : 'Salvar'}
+                        </button>
+                        {configMessage && <span className="dim">{configMessage}</span>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </>
         )

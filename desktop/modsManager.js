@@ -220,7 +220,80 @@ function applyProfileMods({ gameInstallPath, enabledModNames }) {
   return { changed, missing };
 }
 
-module.exports = { installMod, uninstallMod, listInstalledMods, setModEnabled, applyProfileMods, detectInstallStrategy };
+module.exports = {
+  installMod, uninstallMod, listInstalledMods, setModEnabled, applyProfileMods, detectInstallStrategy,
+  installLocalFile, listConfigFiles, readConfigFile, writeConfigFile,
+};
+
+// Item pedido: "adicione mods de um arquivo local" — mesmo fluxo de
+// installMod, só que sem baixar nada: o arquivo já está no computador
+// da pessoa (escolhido pelo diálogo nativo, ver main.js). Se for um
+// .zip, extrai; qualquer outra extensão (.dll solto, por exemplo) só
+// copia direto pra dentro da própria pasta do mod.
+async function installLocalFile({ filePath, gameInstallPath, modName }, onProgress) {
+  if (!fs.existsSync(gameInstallPath)) throw new Error('A pasta do jogo não foi encontrada.');
+  if (!fs.existsSync(filePath)) throw new Error('O arquivo selecionado não existe mais.');
+
+  const { enabledDir, disabledDir, strategy } = modPaths(gameInstallPath, modName);
+  onProgress?.({ phase: 'installing', percent: 0 });
+  fs.mkdirSync(strategy.targetRoot, { recursive: true });
+  if (fs.existsSync(enabledDir)) fs.rmSync(enabledDir, { recursive: true, force: true });
+  if (fs.existsSync(disabledDir)) fs.rmSync(disabledDir, { recursive: true, force: true });
+
+  if (path.extname(filePath).toLowerCase() === '.zip') {
+    fs.mkdirSync(enabledDir, { recursive: true });
+    await extractZip(filePath, { dir: enabledDir });
+  } else {
+    fs.mkdirSync(enabledDir, { recursive: true });
+    fs.copyFileSync(filePath, path.join(enabledDir, path.basename(filePath)));
+  }
+  onProgress?.({ phase: 'done', percent: 100 });
+  return { installedPath: enabledDir };
+}
+
+// ---------- Configuração dos mods (item pedido: "poder configurar
+// mods") ----------
+// A maioria dos mods de BepInEx grava as opções configuráveis em
+// arquivos de texto simples (formato INI) dentro de BepInEx/config —
+// um por mod. Em vez de tentar entender e desenhar um formulário
+// pra CADA formato de configuração possível (impossível de fazer
+// direito pra todo mod que existe), a edição aqui é de TEXTO puro: a
+// pessoa vê o arquivo exatamente como ele é e edita à vontade — mesmo
+// modelo que qualquer editor de config de verdade usa por baixo.
+function configDir(gameInstallPath) {
+  return path.join(gameInstallPath, 'BepInEx', 'config');
+}
+
+// Nunca deixa escapar da pasta de config (sem "..", sem caminho
+// absoluto) — o nome do arquivo vem de uma lista que a gente mesmo
+// gerou em listConfigFiles, mas confere de novo aqui por segurança,
+// já que esse valor viaja até o processo principal via IPC.
+function safeConfigPath(gameInstallPath, filename) {
+  const base = configDir(gameInstallPath);
+  const resolved = path.resolve(base, filename);
+  if (!resolved.startsWith(path.resolve(base) + path.sep) || path.basename(filename) !== filename) {
+    throw new Error('Nome de arquivo de configuração inválido.');
+  }
+  return resolved;
+}
+
+function listConfigFiles(gameInstallPath) {
+  const dir = configDir(gameInstallPath);
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isFile() && e.name.toLowerCase().endsWith('.cfg'))
+    .map((e) => e.name)
+    .sort();
+}
+
+function readConfigFile(gameInstallPath, filename) {
+  return fs.readFileSync(safeConfigPath(gameInstallPath, filename), 'utf8');
+}
+
+function writeConfigFile(gameInstallPath, filename, content) {
+  fs.writeFileSync(safeConfigPath(gameInstallPath, filename), content, 'utf8');
+  return { saved: true };
+}
 
 // ---------- Roadmap (fora do escopo desta fase) ----------
 // - Resolver e instalar dependências automaticamente (item 16) — hoje a

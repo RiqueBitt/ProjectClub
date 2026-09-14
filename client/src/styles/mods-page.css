@@ -50,6 +50,7 @@
   background: var(--bg-secondary-alt, var(--bg-secondary)); font-size: 26px;
 }
 .mods-game-card-icon img { width: 100%; height: 100%; object-fit: cover; }
+.mods-game-card-icon-fallback { display: none; }
 .mods-game-card-name { font-size: 13px; font-weight: 700; text-align: center; color: var(--header-primary); }
 .mods-game-card-source { font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; }
 
@@ -117,6 +118,25 @@
 }
 .mods-installed-tag { color: var(--green); font-weight: 700; font-size: 12px; }
 .mods-installed-item-disabled { opacity: .65; }
+
+.mods-section-header-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+.mods-section-header-actions { display: flex; gap: 14px; }
+
+/* ---------- Configurar mods ---------- */
+.mods-config-layout { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.mods-config-file-list { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
+.mods-config-file-item {
+  text-align: left; padding: 8px 12px; border-radius: 8px; font-size: 12.5px;
+  background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-normal);
+}
+.mods-config-file-item:hover { border-color: var(--brand); }
+.mods-config-file-item.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+.mods-config-editor { flex: 1; min-width: 280px; display: flex; flex-direction: column; gap: 8px; }
+.mods-config-editor textarea {
+  width: 100%; min-height: 280px; padding: 12px; border-radius: 8px; background: var(--bg-elevated); border: 1px solid var(--border);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; font-size: 12.5px; line-height: 1.5; resize: vertical;
+}
+.mods-config-editor-actions { display: flex; align-items: center; gap: 10px; }
 
 /* ---------- Perfis (item pedido 15) ---------- */
 .mods-profile-create { display: flex; gap: 8px; margin-bottom: 16px; }

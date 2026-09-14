@@ -690,6 +690,72 @@ if (!gotLock) {
     }
   });
 
+  // Item pedido: "abrir a pasta... igual no r2modmanPlus" — abre a
+  // pasta de mods do jogo no explorador de arquivos do sistema
+  // (Explorer/Finder/Nautilus, o que a pessoa já usa normalmente),
+  // pra quem quiser mexer nos arquivos na mão.
+  ipcMain.handle('mods:open-folder', (_event, gameInstallPath) => {
+    try {
+      const strategy = modsManager.detectInstallStrategy(gameInstallPath);
+      require('fs').mkdirSync(strategy.targetRoot, { recursive: true });
+      shell.openPath(strategy.targetRoot);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // Item pedido: "adicionar mods de um arquivo local" — abre o diálogo
+  // nativo pra escolher um .zip/.dll do computador da pessoa, sem
+  // precisar vir de nenhuma das fontes online.
+  ipcMain.handle('mods:pick-local-file', async () => {
+    const result = await dialog.showOpenDialog(mainWindow || undefined, {
+      title: 'Selecione o arquivo do mod',
+      properties: ['openFile'],
+      filters: [{ name: 'Arquivos de mod', extensions: ['zip', 'dll'] }],
+    });
+    if (result.canceled || !result.filePaths[0]) return { success: false, canceled: true };
+    return { success: true, path: result.filePaths[0], name: require('path').basename(result.filePaths[0]) };
+  });
+
+  ipcMain.handle('mods:install-local', async (event, payload) => {
+    try {
+      const result = await modsManager.installLocalFile(payload, (progress) => {
+        event.sender.send('mods:progress', { modioModId: payload.modioModId || 'local', ...progress });
+      });
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // Item pedido: "poder configurar mods" — lê/escreve os .cfg do
+  // BepInEx/config como texto puro (ver modsManager.js pra entender
+  // por que é assim, não como formulário).
+  ipcMain.handle('mods:list-config-files', (_event, gameInstallPath) => {
+    try {
+      return { success: true, files: modsManager.listConfigFiles(gameInstallPath) };
+    } catch (err) {
+      return { success: false, error: err.message, files: [] };
+    }
+  });
+
+  ipcMain.handle('mods:read-config-file', (_event, { gameInstallPath, filename }) => {
+    try {
+      return { success: true, content: modsManager.readConfigFile(gameInstallPath, filename) };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('mods:write-config-file', (_event, { gameInstallPath, filename, content }) => {
+    try {
+      return { success: true, ...modsManager.writeConfigFile(gameInstallPath, filename, content) };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   // Item pedido: "Sistema... Iniciar com o sistema... Minimizar para
   // bandeja... Abrir links no aplicativo... Confirmar saída" e "Jogos e
   // apps... Detecção automática de jogos" — recebe o UserSettings de

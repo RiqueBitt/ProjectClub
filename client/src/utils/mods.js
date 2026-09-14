@@ -48,6 +48,42 @@ export function openWorkshopItemInSteam(publishedFileId) {
   window.electronAPI?.openExternal?.(`steam://url/CommunityFilePage/${publishedFileId}`);
 }
 
+// Item pedido: "abrir a pasta... adicionar mods de um arquivo local...
+// poder configurar mods" — igual no r2modmanPlus, mas implementação
+// própria (ver desktop/modsManager.js).
+export function openModsFolder(gameInstallPath) {
+  return window.electronAPI.mods.openFolder(gameInstallPath);
+}
+
+export function pickLocalModFile() {
+  return window.electronAPI.mods.pickLocalFile();
+}
+
+export function installLocalModFile(payload) {
+  return window.electronAPI.mods.installLocal(payload);
+}
+
+export function listModConfigFiles(gameInstallPath) {
+  return window.electronAPI.mods.listConfigFiles(gameInstallPath);
+}
+
+export function readModConfigFile(gameInstallPath, filename) {
+  return window.electronAPI.mods.readConfigFile(gameInstallPath, filename);
+}
+
+export function writeModConfigFile(gameInstallPath, filename, content) {
+  return window.electronAPI.mods.writeConfigFile(gameInstallPath, filename, content);
+}
+
+// Item pedido: "como ele identifica a capa dos jogos da Steam" — a
+// própria Steam hospeda a capa (capsule vertical) de cada jogo numa
+// URL pública e previsível, só com o AppID — nenhuma chave nem login
+// necessário, então dá pra usar direto como fallback quando a staff
+// não colou uma URL de ícone própria pro jogo.
+export function steamCoverUrl(steamAppId) {
+  return `https://cdn.akamai.steamstatic.com/steam/apps/${steamAppId}/library_600x900.jpg`;
+}
+
 export function listInstalledModsLocally(gameInstallPath) {
   return window.electronAPI.mods.listInstalled(gameInstallPath);
 }

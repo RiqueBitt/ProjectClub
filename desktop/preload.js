@@ -100,6 +100,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setEnabled: (payload) => ipcRenderer.invoke('mods:set-enabled', payload),
     applyProfile: (payload) => ipcRenderer.invoke('mods:apply-profile', payload),
     listWorkshopItems: (gameInstallPath, workshopAppId) => ipcRenderer.invoke('mods:list-workshop-items', { gameInstallPath, workshopAppId }),
+    openFolder: (gameInstallPath) => ipcRenderer.invoke('mods:open-folder', gameInstallPath),
+    pickLocalFile: () => ipcRenderer.invoke('mods:pick-local-file'),
+    installLocal: (payload) => ipcRenderer.invoke('mods:install-local', payload),
+    listConfigFiles: (gameInstallPath) => ipcRenderer.invoke('mods:list-config-files', gameInstallPath),
+    readConfigFile: (gameInstallPath, filename) => ipcRenderer.invoke('mods:read-config-file', { gameInstallPath, filename }),
+    writeConfigFile: (gameInstallPath, filename, content) => ipcRenderer.invoke('mods:write-config-file', { gameInstallPath, filename, content }),
     onProgress: (callback) => {
       const listener = (_event, data) => callback(data);
       ipcRenderer.on('mods:progress', listener);
