@@ -141,6 +141,14 @@ export default function MainApp() {
   const closeMobileChannelList = useStore((s) => s.closeMobileChannelList);
   useEffect(() => { closeMobileChannelList(); }, [location.pathname]);
 
+  // Item pedido: "enquanto estiver no perfil completo, ao clicar em
+  // qualquer outra categoria fecha o perfil" — o modal de perfil
+  // completo não fica ligado a nenhuma rota própria (abre por cima de
+  // qualquer página), então precisa fechar sozinho ao mudar de
+  // categoria, senão ficaria flutuando por cima da página nova.
+  const closeProfile = useStore((s) => s.closeProfile);
+  useEffect(() => { closeProfile(); }, [location.pathname]);
+
   // BUG EVITADO ("preso pra sempre na tela de carregamento se o socket
   // nunca conectar"): sem isso, alguém atrás de um firewall/proxy que
   // bloqueia WebSocket ficaria com o app completamente inacessível —

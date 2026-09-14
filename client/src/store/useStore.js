@@ -445,7 +445,16 @@ export const useStore = create((set, get) => ({
   // acima, fecha qualquer gaveta mobile aberta (categorias e lista de
   // membros) ao abrir o perfil, evitando as duas coisas sobrepostas.
   openProfile: (userId) => set({ viewingProfileUserId: userId, profileAutoOpenRoleMenu: false, mobileSidebarOpen: false, mobileMembersOpen: false }),
-  openMiniProfile: (userId, anchorRect, side) => set({ miniProfileUserId: userId, miniProfileAnchorRect: anchorRect || null, miniProfileSide: side || null }),
+  // Item pedido: "ao clicar no nome de um usuário e abrir o mini
+  // perfil, o segundo clique no seu nome fecha o mini perfil" —
+  // clicar de novo no MESMO usuário (o card já está aberto pra ele)
+  // agora fecha em vez de reabrir/reposicionar; clicar num usuário
+  // DIFERENTE enquanto um já está aberto troca pra ele normalmente.
+  openMiniProfile: (userId, anchorRect, side) => set((s) => (
+    s.miniProfileUserId === userId
+      ? { miniProfileUserId: null, miniProfileAnchorRect: null, miniProfileSide: null }
+      : { miniProfileUserId: userId, miniProfileAnchorRect: anchorRect || null, miniProfileSide: side || null }
+  )),
   setDisabledSystems: (disabledSystems) => set({ disabledSystems }),
   closeMiniProfile: () => set({ miniProfileUserId: null, miniProfileAnchorRect: null, miniProfileSide: null }),
   // Mesma coisa que openProfile, mas já abre direto em "adicionar cargo".

@@ -797,14 +797,26 @@ html.is-electron-app .app-shell { height: calc(100dvh - 32px); }
    topo da barra, sempre visível (ícone-só ou expandida), que alterna o
    toggle manual acima. */
 .main-sidebar { position: relative; }
+/* Item pedido: "a seta que expande/diminui os ícones da barra lateral
+   esquerda tem que ficar mais visível, mas sem cobrir os botões ou
+   outros componentes" — o botão ficava sobre o canto do logo/nome da
+   comunidade (main-sidebar-brand), tampando o final do nome quando a
+   sidebar tava expandida. Reserva espaço à direita do brand pra nunca
+   ficar embaixo do botão, e o próprio botão ficou maior/com mais
+   contraste (sombra + borda mais forte) pra realmente se notar. */
+.main-sidebar-brand { padding-right: 32px; }
 .main-sidebar-toggle {
-  position: absolute; top: 6px; right: 6px; z-index: 5;
-  width: 22px; height: 22px; border-radius: 50%;
+  position: absolute; top: 8px; right: 8px; z-index: 5;
+  width: 26px; height: 26px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-muted);
-  font-size: 13px; line-height: 1;
+  background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-normal);
+  font-size: 14px; font-weight: 700; line-height: 1;
+  box-shadow: 0 1px 4px rgba(0,0,0,.25);
 }
-.main-sidebar-toggle:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.main-sidebar-toggle:hover { background: var(--brand); border-color: var(--brand); color: #fff; }
+/* Sidebar recolhida (só ícones) é bem mais estreita — o botão precisa
+   encolher um pouco pra não sobrar quase nada de espaço útil do lado. */
+.main-sidebar-manually-collapsed .main-sidebar-toggle { width: 22px; height: 22px; top: 6px; right: 6px; font-size: 12px; }
 /* Mesmo motivo do .members-list acima — a barra de chamada de voz
    (aparece embaixo do chat) também ficava na coluna errada. */
 .app-shell.discord-layout-active .call-bar { grid-column: 3; }
