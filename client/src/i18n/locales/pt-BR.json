@@ -28,8 +28,8 @@
   "settings": {
     "title": "Configurações",
     "tabs": {
-      "PROFILE": "Meu perfil",
-      "PROFILE_CONTENT": "Conteúdo",
+      "PROFILE": "Perfil Geral",
+      "PROFILE_CONTENT": "Perfil Completo",
       "COLUMNS": "Colunas",
       "MINI_PROFILE": "Mini Perfil",
       "ACCOUNT": "Informação de conta",

@@ -1055,11 +1055,14 @@ export default function UserSettingsModal({ onClose }) {
           {/* Item pedido: "acabei com a categoria exibição e passa a
               tag pro perfil e as conquistas pro perfil e o mini
               perfil" — movido de dentro da extinta aba "Exibição". */}
-          <div className="settings-block">
-            <h4>Conquistas em destaque no perfil</h4>
-            <p className="dim">Escolha até 6 conquistas pra aparecerem no seu perfil completo.</p>
-            <button type="button" className="btn-secondary" onClick={() => setAchievementPickerOpen('profile')}>Escolher conquistas (até 6)</button>
-          </div>
+          {/* Item pedido: "Ranks e Conquistas ficam dentro da mesma
+              categoria (Progresso)" + "tudo que modifica somente o
+              perfil completo fica na aba Perfil Completo" — quais
+              conquistas aparecem em destaque só afeta o perfil
+              completo (ver UserProfileModal.jsx; o mini perfil não
+              mostra mais conquistas, ver aba Mini Perfil), então essa
+              escolha se mudou pra lá, junto do Álbum/Enquetes que já
+              eram só do perfil completo. */}
 
           {myClan?.tags?.length > 0 && (
             <div className="settings-block">
@@ -1092,6 +1095,12 @@ export default function UserSettingsModal({ onClose }) {
 
       {tab === 'PROFILE_CONTENT' && (
         <div className="settings-grid">
+          <div className="settings-block">
+            <h4>Conquistas em destaque no perfil completo</h4>
+            <p className="dim">Escolha até 6 conquistas pra aparecerem no seu perfil completo.</p>
+            <button type="button" className="btn-secondary" onClick={() => setAchievementPickerOpen('profile')}>Escolher conquistas (até 6)</button>
+          </div>
+
           {/* Item pedido: "desativar Galeria de fotos, sem apagar
               nada" — mantém o componente/rota/lógica intactos, só
               não mostra o botão de gerenciar enquanto estiver na
@@ -1160,13 +1169,12 @@ export default function UserSettingsModal({ onClose }) {
         <div className="settings-grid">
           {/* Item pedido: "acabei com a categoria exibição e passa...
               as conquistas pro perfil e o mini perfil" — a parte do
-              miniperfil, movida de dentro da extinta aba "Exibição". */}
-          <div className="settings-block">
-            <h4>Conquistas em destaque no miniperfil</h4>
-            <p className="dim">Escolha até 4 conquistas pra aparecerem no cartão pequeno do miniperfil.</p>
-            <button type="button" className="btn-secondary" onClick={() => setAchievementPickerOpen('mini')}>Escolher conquistas (até 4)</button>
-          </div>
-
+              miniperfil, movida de dentro da extinta aba "Exibição".
+              ATUALIZADO ("remover conquistas em destaque do mini
+              perfil, deixar somente no perfil completo") — o
+              miniperfil não mostra mais conquistas nenhuma (ver
+              MiniProfileCard.jsx), então essa escolha aqui não tinha
+              mais efeito nenhum — removida junto. */}
           <div className="settings-block">
             <h4>Banner do miniperfil</h4>
             <p className="dim">Esse banner aparece só no cartão pequeno que abre ao clicar no seu nome/avatar — independente do banner do seu perfil completo.</p>
