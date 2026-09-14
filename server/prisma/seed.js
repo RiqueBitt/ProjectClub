@@ -187,6 +187,38 @@ async function seed() {
     where: { layoutStyle: 'normal' }, data: { layoutStyle: 'discord' },
   });
   if (migratedToDiscordLayout.count > 0) console.log(`Layout padrão trocado pra 'discord' em ${migratedToDiscordLayout.count} conta(s).`);
+
+  // Item pedido: "cadastrar sozinho" os jogos do sistema de Mods, sem
+  // precisar clicar no painel da staff — mesmo padrão idempotente do
+  // resto do seed (upsert por chave estável, seguro rodar de novo a
+  // cada deploy). Cobre os jogos que a pessoa mencionou terem mods via
+  // Steam Workshop (Payday 2/3, Terraria via tModLoader) ou GameBanana
+  // (GTA V, Terraria). GTA V não tem entrada no mod.io/Workshop de
+  // propósito — não existe API pública seguindo pra ele lá (ver
+  // conversa: gta5-mods.com não tem API oficial, só teria como via
+  // scraping, que não fazemos).
+  const workshopGames = [
+    { steamAppId: 218620, workshopAppId: 218620, displayName: 'Payday 2' },
+    { steamAppId: 1272080, workshopAppId: 1272080, displayName: 'Payday 3' },
+    {
+      steamAppId: 1281930, workshopAppId: 1281930, displayName: 'Terraria (tModLoader)',
+      note: 'Isso lê os mods através do tModLoader, um app separado da Steam — instale-o também pela sua biblioteca Steam (é diferente do Terraria clássico).',
+    },
+  ];
+  for (const g of workshopGames) {
+    await prisma.workshopGameMapping.upsert({ where: { steamAppId: g.steamAppId }, update: g, create: g });
+  }
+  console.log(`Seeded ${workshopGames.length} jogos do Steam Workshop.`);
+
+  // IDs conferidos direto nas páginas do GameBanana (gamebanana.com/games/<id>).
+  const gamebananaGames = [
+    { steamAppId: 271590, gameBananaGameId: 4745, displayName: 'Grand Theft Auto V' },
+    { steamAppId: 105600, gameBananaGameId: 4779, displayName: 'Terraria' },
+  ];
+  for (const g of gamebananaGames) {
+    await prisma.gameBananaGameMapping.upsert({ where: { steamAppId: g.steamAppId }, update: g, create: g });
+  }
+  console.log(`Seeded ${gamebananaGames.length} jogos do GameBanana.`);
 }
 
 main()
