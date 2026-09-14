@@ -2189,6 +2189,31 @@ model GameBananaGameMapping {
   updatedAt         DateTime @updatedAt
 }
 
+// Item pedido: "quero que você pegue a interface e tudo do Gale
+// [Thunderstore Mod Manager] e funda com o que eu já tenho" — mesma
+// ideia do GameBananaGameMapping/WorkshopGameMapping, agora pro
+// Thunderstore (o repositório de mods usado por jogos com BepInEx —
+// Lethal Company, Risk of Rain 2, Content Warning, etc, exatamente os
+// mesmos jogos que o Gale gerencia). communityIdentifier é o slug que
+// o PRÓPRIO Thunderstore usa pra identificar o jogo/comunidade (ex:
+// "lethal-company" em thunderstore.io/c/lethal-company/) — não existe
+// um "ID numérico" aqui como no GameBanana, o slug já é o identificador
+// estável. Implementação própria, direto contra a API pública do
+// Thunderstore (docs em thunderstore.io/api/docs/) — nenhum código do
+// Gale (GPL-3.0) foi copiado; só o conceito de "essa fonte de mods
+// existe e mapeia por Steam AppID" segue o mesmo padrão já usado pelas
+// outras três fontes acima.
+model ThunderstoreGameMapping {
+  id                  String   @id @default(uuid())
+  steamAppId          Int      @unique
+  communityIdentifier String   // slug do Thunderstore, ex: "lethal-company"
+  displayName         String
+  iconUrl             String?
+  enabled             Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
 model ModFavorite {
   id          String   @id @default(uuid())
   userId      String
