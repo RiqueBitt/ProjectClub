@@ -556,6 +556,13 @@ export const addModComment = (modioGameId, modioModId, content) => api.post(`/mo
 export const deleteModComment = (commentId) => api.delete(`/mods/comments/${commentId}`).then((r) => r.data);
 export const reportMod = (modioModId, reason) => api.post(`/mods/mods/${modioModId}/report`, { reason }).then((r) => r.data);
 
+// Perfis (item pedido 15)
+export const listModProfiles = (modioGameId) => api.get(`/mods/games/${modioGameId}/profiles`).then((r) => r.data);
+export const createModProfile = (modioGameId, name) => api.post(`/mods/games/${modioGameId}/profiles`, { name }).then((r) => r.data);
+export const deleteModProfile = (profileId) => api.delete(`/mods/profiles/${profileId}`).then((r) => r.data);
+export const upsertModProfileItem = (profileId, payload) => api.post(`/mods/profiles/${profileId}/items`, payload).then((r) => r.data);
+export const removeModProfileItem = (profileId, modioModId) => api.delete(`/mods/profiles/${profileId}/items/${modioModId}`).then((r) => r.data);
+
 // Admin — mapeamento de jogos (Steam AppID → jogo no mod.io) e moderação
 // de denúncias.
 export const adminListModGameMappings = () => api.get('/admin/mods/game-mappings').then((r) => r.data);

@@ -2196,6 +2196,12 @@ model ModProfileItem {
   profile        ModProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
   modioModId     Int
   modioModfileId Int? // qual "Modfile" (versão específica) do mod.io está instalada nesse perfil
+  // Nome do mod (mod.name no mod.io) — guardado aqui além do
+  // modioModId porque a ativação/desativação de verdade no disco (ver
+  // desktop/modsManager.js) trabalha com o NOME da pasta do mod, não
+  // com o ID do mod.io; guardar os dois evita ter que consultar a API
+  // de novo só pra ativar um perfil.
+  modName        String?
   version        String?
   enabled        Boolean    @default(true)
   installedAt    DateTime   @default(now())

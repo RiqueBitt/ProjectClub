@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   matchSteamGames, getModioGameTags, listMods, getMod, getModDownload,
   toggleModFavorite, toggleModUp, listModComments, addModComment, reportMod,
+  listModProfiles, createModProfile, deleteModProfile, upsertModProfileItem, removeModProfileItem,
 } from '../api/endpoints';
 import {
   isDesktopModsAvailable, detectSteamGames, installModLocally, listInstalledModsLocally, onModsProgress,
+  setModEnabledLocally, applyProfileLocally,
 } from '../utils/mods';
 import { proxyImage } from '../utils/imageProxy';
 import '../styles/mods-page.css';
@@ -165,14 +167,19 @@ const SORT_OPTIONS = [
 ];
 
 function GameModsView({ game, onBack, onOpenMod }) {
-  const [tab, setTab] = useState('mods'); // 'mods' | 'installed' | 'soon'
+  const desktopReady = isDesktopModsAvailable();
+  const [tab, setTab] = useState('mods'); // 'mods' | 'mine' | 'soon'
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('popular');
   const [category, setCategory] = useState('');
   const [tags, setTags] = useState([]);
   const [mods, setMods] = useState(null);
   const [resultTotal, setResultTotal] = useState(0);
-  const [installedNames, setInstalledNames] = useState([]);
+  const [installedState, setInstalledState] = useState({ enabled: [], disabled: [] });
+  const [profiles, setProfiles] = useState(null);
+  const [newProfileName, setNewProfileName] = useState('');
+  const [activatingProfileId, setActivatingProfileId] = useState(null);
+  const [activateMessage, setActivateMessage] = useState('');
 
   useEffect(() => {
     getModioGameTags(game.modioGameId).then((d) => {
@@ -194,11 +201,65 @@ function GameModsView({ game, onBack, onOpenMod }) {
     return () => clearTimeout(timeout);
   }, [game.modioGameId, query, sort, category]);
 
+  const refreshInstalled = () => {
+    if (!desktopReady || !game.installPath) return;
+    listInstalledModsLocally(game.installPath).then((d) => setInstalledState({ enabled: d.enabled || [], disabled: d.disabled || [] }));
+  };
+  const refreshProfiles = () => listModProfiles(game.modioGameId).then((d) => setProfiles(d.profiles));
+
   useEffect(() => {
-    if (tab === 'installed' && game.installPath) {
-      listInstalledModsLocally(game.installPath).then((d) => setInstalledNames(d.mods || []));
+    if (tab !== 'mine') return;
+    refreshInstalled();
+    refreshProfiles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, game.installPath, game.modioGameId]);
+
+  const toggleInstalledMod = async (name, currentlyEnabled) => {
+    await setModEnabledLocally({ gameInstallPath: game.installPath, modName: name, enabled: !currentlyEnabled });
+    refreshInstalled();
+  };
+
+  const doCreateProfile = async () => {
+    const name = newProfileName.trim();
+    if (!name) return;
+    await createModProfile(game.modioGameId, name);
+    setNewProfileName('');
+    refreshProfiles();
+  };
+
+  const doDeleteProfile = async (profile) => {
+    if (!confirm(`Apagar o perfil "${profile.name}"? Isso não desinstala nenhum mod, só o agrupamento.`)) return;
+    await deleteModProfile(profile.id);
+    refreshProfiles();
+  };
+
+  // Item pedido 15/28: "trocar de perfil rapidamente" + "▶ Jogar" —
+  // reconcilia o disco (ver modsManager.applyProfileMods) pra deixar
+  // ativos exatamente os mods marcados como enabled neste perfil, e só
+  // depois, se pedido, abre o jogo via protocolo steam:// (não mexe em
+  // nenhuma configuração da Steam, só pede pra ELA abrir o jogo —
+  // item pedido 28: "não alterar configurações da Steam de maneira
+  // destrutiva").
+  const activateProfile = async (profile, alsoPlay) => {
+    if (!game.installPath) { setActivateMessage('Não sabemos onde este jogo está instalado.'); return; }
+    setActivatingProfileId(profile.id);
+    setActivateMessage('');
+    try {
+      const enabledModNames = profile.items.filter((i) => i.enabled && i.modName).map((i) => i.modName);
+      const result = await applyProfileLocally({ gameInstallPath: game.installPath, enabledModNames });
+      refreshInstalled();
+      if (result.missing?.length) {
+        setActivateMessage(`Perfil ativado, mas ${result.missing.length} mod(s) dele ainda não foram instalados neste computador.`);
+      } else {
+        setActivateMessage(`Perfil "${profile.name}" ativado.`);
+      }
+      if (alsoPlay && game.steamAppId) {
+        window.electronAPI?.openExternal?.(`steam://run/${game.steamAppId}`);
+      }
+    } finally {
+      setActivatingProfileId(null);
     }
-  }, [tab, game.installPath]);
+  };
 
   return (
     <div className="mods-page">
@@ -210,15 +271,18 @@ function GameModsView({ game, onBack, onOpenMod }) {
           <h1>{game.displayName}</h1>
           <p className="dim">{resultTotal} {resultTotal === 1 ? 'mod disponível' : 'mods disponíveis'}</p>
         </div>
+        {desktopReady && game.steamAppId && (
+          <button type="button" className="btn-play mods-play-btn" onClick={() => window.electronAPI?.openExternal?.(`steam://run/${game.steamAppId}`)}>▶ Jogar</button>
+        )}
       </div>
 
       <div className="mods-tabs">
         <button type="button" className={`mods-tab ${tab === 'mods' ? 'active' : ''}`} onClick={() => setTab('mods')}>Mods</button>
-        <button type="button" className={`mods-tab ${tab === 'installed' ? 'active' : ''}`} onClick={() => setTab('installed')}>Meus mods</button>
-        {/* Item pedido 9/19/18: Coleções e Atualizações ainda não têm
-            fluxo próprio nesta fase — placeholder honesto em vez de
-            fingir que já funciona (ver roadmap no topo do arquivo). */}
-        <button type="button" className={`mods-tab ${tab === 'soon' ? 'active' : ''}`} onClick={() => setTab('soon')}>Coleções · Atualizações</button>
+        <button type="button" className={`mods-tab ${tab === 'mine' ? 'active' : ''}`} onClick={() => setTab('mine')}>Meus mods · Perfis</button>
+        {/* Item pedido 19: Coleções ainda não tem fluxo próprio nesta
+            fase — placeholder honesto em vez de fingir que já funciona
+            (ver roadmap no topo do arquivo). */}
+        <button type="button" className={`mods-tab ${tab === 'soon' ? 'active' : ''}`} onClick={() => setTab('soon')}>Coleções</button>
       </div>
 
       {tab === 'mods' && (
@@ -256,36 +320,91 @@ function GameModsView({ game, onBack, onOpenMod }) {
         </>
       )}
 
-      {tab === 'installed' && (
-        !game.installPath ? (
+      {tab === 'mine' && (
+        !desktopReady ? (
+          <div className="mods-empty-state">
+            <span className="mods-empty-icon">🖥️</span>
+            <h3>Isso precisa do app de desktop</h3>
+            <p>Gerenciar mods instalados e perfis só funciona pelo app de desktop do Project Club.</p>
+          </div>
+        ) : !game.installPath ? (
           <div className="mods-empty-state">
             <span className="mods-empty-icon">📁</span>
             <h3>Pasta do jogo não detectada</h3>
             <p>Não conseguimos confirmar a pasta de instalação — abra o jogo pela Steam pra ela ser detectada de novo.</p>
           </div>
-        ) : installedNames.length === 0 ? (
-          <div className="mods-empty-state">
-            <span className="mods-empty-icon">🧩</span>
-            <h3>Nenhum mod instalado ainda</h3>
-            <p>Instale um mod na aba "Mods" acima pra ele aparecer aqui.</p>
-          </div>
         ) : (
-          <div className="mods-installed-list">
-            {installedNames.map((name) => (
-              <div key={name} className="mods-installed-item">
-                <span>🧩 {name}</span>
-                <span className="mods-installed-tag">✓ Instalado</span>
+          <>
+            <h2 className="mods-section-title" style={{ marginTop: 0 }}>Perfis</h2>
+            <p className="dim" style={{ marginBottom: 12 }}>
+              Um perfil é um conjunto de mods que você liga de uma vez. Adicione mods a um perfil pela página de cada
+              mod ("Adicionar a um perfil"), depois ative o perfil aqui — ele desativa (sem desinstalar) qualquer
+              outro mod que não faça parte dele.
+            </p>
+            <div className="mods-profile-create">
+              <input placeholder="Nome do novo perfil (ex: Terror, Vanilla...)" value={newProfileName} onChange={(e) => setNewProfileName(e.target.value)} />
+              <button type="button" className="btn-primary" onClick={doCreateProfile}>Criar perfil</button>
+            </div>
+            {activateMessage && <p className="dim" style={{ marginBottom: 12 }}>{activateMessage}</p>}
+            {profiles === null ? <p className="dim">Carregando perfis...</p> : profiles.length === 0 ? (
+              <p className="dim" style={{ marginBottom: 20 }}>Nenhum perfil criado ainda.</p>
+            ) : (
+              <div className="mods-profile-list">
+                {profiles.map((p) => (
+                  <div key={p.id} className="mods-profile-card">
+                    <div className="mods-profile-card-header">
+                      <strong>{p.name}</strong>
+                      <span className="dim">{p.items.filter((i) => i.enabled).length} mods ativos</span>
+                    </div>
+                    {p.items.length > 0 && (
+                      <div className="mods-profile-card-items dim">{p.items.map((i) => i.modName || `Mod #${i.modioModId}`).join(', ')}</div>
+                    )}
+                    <div className="mods-profile-card-actions">
+                      <button type="button" className="btn-primary" disabled={activatingProfileId === p.id} onClick={() => activateProfile(p, false)}>
+                        {activatingProfileId === p.id ? 'Ativando...' : 'Ativar este perfil'}
+                      </button>
+                      <button type="button" className="btn-play" disabled={activatingProfileId === p.id} onClick={() => activateProfile(p, true)}>▶ Jogar com este perfil</button>
+                      <button type="button" className="btn-link" style={{ color: 'var(--red)' }} onClick={() => doDeleteProfile(p)}>Apagar</button>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+
+            <h2 className="mods-section-title">Mods instalados agora</h2>
+            {installedState.enabled.length === 0 && installedState.disabled.length === 0 ? (
+              <p className="dim">Nenhum mod instalado ainda. Instale um mod na aba "Mods" acima.</p>
+            ) : (
+              <div className="mods-installed-list">
+                {installedState.enabled.map((name) => (
+                  <div key={name} className="mods-installed-item">
+                    <span>🧩 {name}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span className="mods-installed-tag">✓ Ativado</span>
+                      <button type="button" className="btn-link" onClick={() => toggleInstalledMod(name, true)}>Desativar</button>
+                    </div>
+                  </div>
+                ))}
+                {installedState.disabled.map((name) => (
+                  <div key={name} className="mods-installed-item mods-installed-item-disabled">
+                    <span>🧩 {name}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span className="dim">Desativado</span>
+                      <button type="button" className="btn-link" onClick={() => toggleInstalledMod(name, false)}>Ativar</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )
       )}
 
       {tab === 'soon' && (
         <div className="mods-empty-state">
           <span className="mods-empty-icon">🚧</span>
-          <h3>Coleções, perfis e atualizações em lote</h3>
-          <p>Essas partes do sistema de Mods ainda estão a caminho numa próxima fase — por enquanto, instale e desinstale mods individualmente pela aba "Mods".</p>
+          <h3>Coleções</h3>
+          <p>Montar e instalar modpacks inteiros de uma vez ainda está a caminho numa próxima fase — por enquanto, monte seu conjunto de mods usando Perfis (aba "Meus mods · Perfis").</p>
         </div>
       )}
     </div>
@@ -331,6 +450,11 @@ function ModDetailView({ game, modioModId, onBack }) {
   const [installed, setInstalled] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');
+  const [depsBusy, setDepsBusy] = useState(false);
+  const [depsError, setDepsError] = useState('');
+  const [profiles, setProfiles] = useState(null);
+  const [selectedProfileId, setSelectedProfileId] = useState('');
+  const [addToProfileMsg, setAddToProfileMsg] = useState('');
 
   const refresh = () => {
     getMod(game.modioGameId, modioModId).then(setData).catch(() => setData({ error: true }));
@@ -342,9 +466,18 @@ function ModDetailView({ game, modioModId, onBack }) {
     if (!desktopReady || !game.installPath || !data?.mod) return;
     listInstalledModsLocally(game.installPath).then((d) => {
       const folder = String(data.mod.name).trim().replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 120);
-      setInstalled((d.mods || []).includes(folder));
+      setInstalled((d.enabled || []).includes(folder) || (d.disabled || []).includes(folder));
     });
   }, [desktopReady, game.installPath, data?.mod]);
+
+  // Item pedido 15: "Adicionar a um perfil" — carrega os perfis do
+  // usuário pra este jogo, só quando o app desktop está disponível
+  // (perfis sem app desktop não têm como ser ativados de qualquer
+  // forma, então não vale a pena mostrar o controle).
+  useEffect(() => {
+    if (!desktopReady) return;
+    listModProfiles(game.modioGameId).then((d) => setProfiles(d.profiles)).catch(() => setProfiles([]));
+  }, [desktopReady, game.modioGameId]);
 
   useEffect(() => {
     if (!desktopReady) return undefined;
@@ -412,6 +545,45 @@ function ModDetailView({ game, modioModId, onBack }) {
     }
   };
 
+  // Item pedido 16: "quando um mod precisar de outros mods/frameworks...
+  // botão Instalar dependências". Instala uma de cada vez (sequencial,
+  // não em paralelo) — mais lento, mas mais fácil de mostrar progresso
+  // e de identificar qual delas falhou, se falhar.
+  const doInstallDependencies = async () => {
+    if (!game.installPath) { setDepsError('Não sabemos onde este jogo está instalado.'); return; }
+    setDepsBusy(true);
+    setDepsError('');
+    try {
+      for (const dep of dependencies) {
+        const depMod = await getMod(game.modioGameId, dep.mod_id);
+        const download = await getModDownload(game.modioGameId, dep.mod_id);
+        const result = await installModLocally({
+          downloadUrl: download.downloadUrl,
+          filename: download.filename,
+          gameInstallPath: game.installPath,
+          modName: depMod.mod.name,
+          modioModId: dep.mod_id,
+        });
+        if (!result.success) throw new Error(`${depMod.mod.name}: ${result.error || 'falha desconhecida'}`);
+      }
+    } catch (err) {
+      setDepsError(`Não foi possível instalar todas as dependências: ${err.message}`);
+    } finally {
+      setDepsBusy(false);
+    }
+  };
+
+  // Item pedido 15: adiciona o mod atual ao perfil selecionado (upsert —
+  // se já estiver lá, só atualiza a versão/estado).
+  const doAddToProfile = async () => {
+    if (!selectedProfileId) return;
+    await upsertModProfileItem(selectedProfileId, {
+      modioModId, modioModfileId: mod.modfile?.id, modName: mod.name, version: mod.modfile?.version, enabled: true,
+    });
+    setAddToProfileMsg('Adicionado ao perfil!');
+    setTimeout(() => setAddToProfileMsg(''), 2500);
+  };
+
   return (
     <div className="mods-page">
       <button type="button" className="mods-back" onClick={onBack}>‹ Voltar para {game.displayName}</button>
@@ -458,6 +630,17 @@ function ModDetailView({ game, modioModId, onBack }) {
           )}
           {installError && <p className="mods-install-error">Não foi possível instalar este mod: {installError}</p>}
         </div>
+
+        {desktopReady && profiles && profiles.length > 0 && (
+          <div className="mods-add-to-profile">
+            <select value={selectedProfileId} onChange={(e) => setSelectedProfileId(e.target.value)}>
+              <option value="">Adicionar a um perfil...</option>
+              {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <button type="button" className="btn-link" disabled={!selectedProfileId} onClick={doAddToProfile}>Adicionar</button>
+            {addToProfileMsg && <span className="dim">{addToProfileMsg}</span>}
+          </div>
+        )}
       </div>
 
       {reportOpen && (
@@ -471,6 +654,12 @@ function ModDetailView({ game, modioModId, onBack }) {
         <div className="mods-dependencies">
           <h3>«Este mod possui {dependencies.length} {dependencies.length === 1 ? 'dependência obrigatória' : 'dependências obrigatórias'}.»</h3>
           <ul>{dependencies.map((d) => <li key={d.mod_id}>{d.name || `Mod #${d.mod_id}`}</li>)}</ul>
+          {desktopReady && (
+            <button type="button" className="btn-primary" disabled={depsBusy} onClick={doInstallDependencies}>
+              {depsBusy ? 'Instalando dependências...' : 'Instalar dependências'}
+            </button>
+          )}
+          {depsError && <p className="mods-install-error">{depsError}</p>}
         </div>
       )}
 

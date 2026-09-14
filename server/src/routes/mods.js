@@ -24,4 +24,11 @@ router.post('/games/:modioGameId/mods/:modioModId/comments', ctrl.addComment);
 router.delete('/comments/:commentId', ctrl.deleteComment);
 router.post('/mods/:modioModId/report', ctrl.reportMod);
 
+// Perfis (item pedido 15)
+router.get('/games/:modioGameId/profiles', ctrl.listProfiles);
+router.post('/games/:modioGameId/profiles', ctrl.createProfile);
+router.delete('/profiles/:profileId', ctrl.deleteProfile);
+router.post('/profiles/:profileId/items', ctrl.upsertProfileItem);
+router.delete('/profiles/:profileId/items/:modioModId', ctrl.removeProfileItem);
+
 module.exports = router;

@@ -652,9 +652,28 @@ if (!gotLock) {
 
   ipcMain.handle('mods:list-installed', (_event, gameInstallPath) => {
     try {
-      return { success: true, mods: modsManager.listInstalledMods(gameInstallPath) };
+      return { success: true, ...modsManager.listInstalledMods(gameInstallPath) };
     } catch (err) {
-      return { success: false, error: err.message, mods: [] };
+      return { success: false, error: err.message, enabled: [], disabled: [] };
+    }
+  });
+
+  // Item pedido 15: ativar/desativar um mod específico sem desinstalar,
+  // e aplicar um perfil inteiro de uma vez (troca vários de uma vez —
+  // usado pelo botão "Ativar este perfil"/"▶ Jogar com este perfil").
+  ipcMain.handle('mods:set-enabled', (_event, payload) => {
+    try {
+      return { success: true, ...modsManager.setModEnabled(payload) };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('mods:apply-profile', (_event, payload) => {
+    try {
+      return { success: true, ...modsManager.applyProfileMods(payload) };
+    } catch (err) {
+      return { success: false, error: err.message };
     }
   });
 

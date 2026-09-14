@@ -290,9 +290,81 @@ async function adminResolveReport(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// ---------- Perfis (item pedido 15) ----------
+// "Perfis de mods" — um perfil é um conjunto nomeado de mods (com
+// estado ativo/inativo) pra um jogo. A ativação DE VERDADE (mover
+// pastas no disco) acontece no app desktop (ver desktop/modsManager.js,
+// applyProfileMods) — aqui só fica o registro de QUAIS mods pertencem a
+// cada perfil, pra sincronizar entre computadores da mesma conta.
+async function listProfiles(req, res, next) {
+  try {
+    const modioGameId = Number(req.params.modioGameId);
+    const profiles = await prisma.modProfile.findMany({
+      where: { userId: req.user.id, modioGameId },
+      include: { items: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    res.json({ profiles });
+  } catch (err) { next(err); }
+}
+
+async function createProfile(req, res, next) {
+  try {
+    const modioGameId = Number(req.params.modioGameId);
+    const name = (req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'Dê um nome pro perfil.' });
+    const profile = await prisma.modProfile.create({ data: { userId: req.user.id, modioGameId, name }, include: { items: true } });
+    res.status(201).json({ profile });
+  } catch (err) {
+    if (err.code === 'P2002') return res.status(409).json({ error: 'Você já tem um perfil com esse nome pra este jogo.' });
+    next(err);
+  }
+}
+
+async function deleteProfile(req, res, next) {
+  try {
+    const profile = await prisma.modProfile.findUnique({ where: { id: req.params.profileId } });
+    if (!profile || profile.userId !== req.user.id) return res.status(404).json({ error: 'Perfil não encontrado.' });
+    await prisma.modProfile.delete({ where: { id: profile.id } });
+    res.json({ success: true });
+  } catch (err) { next(err); }
+}
+
+// Adiciona/atualiza um mod dentro do perfil (upsert pela combinação
+// perfil+mod) — chamado tanto ao instalar um mod direto num perfil
+// quanto ao ativar/desativar um item já existente nele.
+async function upsertProfileItem(req, res, next) {
+  try {
+    const profile = await prisma.modProfile.findUnique({ where: { id: req.params.profileId } });
+    if (!profile || profile.userId !== req.user.id) return res.status(404).json({ error: 'Perfil não encontrado.' });
+    const { modioModId, modioModfileId, modName, version, enabled } = req.body;
+    const item = await prisma.modProfileItem.upsert({
+      where: { profileId_modioModId: { profileId: profile.id, modioModId: Number(modioModId) } },
+      update: {
+        ...(modioModfileId !== undefined ? { modioModfileId: Number(modioModfileId) } : {}),
+        ...(modName !== undefined ? { modName } : {}),
+        ...(version !== undefined ? { version } : {}),
+        ...(enabled !== undefined ? { enabled: !!enabled } : {}),
+      },
+      create: { profileId: profile.id, modioModId: Number(modioModId), modioModfileId: modioModfileId ? Number(modioModfileId) : null, modName: modName || null, version: version || null, enabled: enabled !== false },
+    });
+    res.json({ item });
+  } catch (err) { next(err); }
+}
+
+async function removeProfileItem(req, res, next) {
+  try {
+    const profile = await prisma.modProfile.findUnique({ where: { id: req.params.profileId } });
+    if (!profile || profile.userId !== req.user.id) return res.status(404).json({ error: 'Perfil não encontrado.' });
+    await prisma.modProfileItem.deleteMany({ where: { profileId: profile.id, modioModId: Number(req.params.modioModId) } });
+    res.json({ success: true });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   matchSteamGames, getGame, listMods, getGameTags, getMod, getModDownload,
   toggleFavorite, toggleUp, listComments, addComment, deleteComment, reportMod,
+  listProfiles, createProfile, deleteProfile, upsertProfileItem, removeProfileItem,
   adminListGameMappings, adminCreateGameMapping, adminUpdateGameMapping, adminDeleteGameMapping,
   adminListReports, adminResolveReport,
 };

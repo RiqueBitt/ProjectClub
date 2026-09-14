@@ -90,6 +90,29 @@ function sanitizeModFolderName(name) {
   return String(name).trim().replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 120) || 'mod';
 }
 
+// Item pedido 15: perfis (ativar/desativar sem desinstalar) — em vez de
+// apagar/rebaixar o mod loader pra "descobrir" o que está ativo, mantém
+// os mods DESATIVADOS numa pasta irmã, com sufixo ".disabled", do mesmo
+// jeito que ferramentas como o r2modmanPlus fazem (mas implementação
+// própria, sem usar ou incorporar ele — item pedido 31): o loader do
+// jogo (BepInEx ou a pasta genérica) só enxerga o que está na pasta
+// ativa; o que está desativado continua no disco, intacto, só invisível
+// pro jogo até ser reativado.
+function disabledRoot(strategy) {
+  return `${strategy.targetRoot}.disabled`;
+}
+
+function modPaths(gameInstallPath, modName) {
+  const folderName = sanitizeModFolderName(modName);
+  const strategy = detectInstallStrategy(gameInstallPath);
+  return {
+    folderName,
+    strategy,
+    enabledDir: path.join(strategy.targetRoot, folderName),
+    disabledDir: path.join(disabledRoot(strategy), folderName),
+  };
+}
+
 // Fluxo principal — item pedido 12, passos 1 a 11 (identificar jogo/
 // pasta, baixar, extrair, instalar, limpar temporário). Dependências e
 // conflitos (passos 5 e verificação de #16/#17) ainda não são resolvidos
@@ -115,8 +138,13 @@ async function installMod({ downloadUrl, filename, gameInstallPath, modName }, o
     const finalDir = path.join(strategy.targetRoot, folderName);
     // Item pedido 17: "nunca apagar silenciosamente arquivos de outro
     // mod" — só remove a pasta que é DESTE mod especificamente (nome
-    // sanitizado único por mod), nunca o targetRoot inteiro.
+    // sanitizado único por mod), nunca o targetRoot inteiro. Também
+    // limpa uma cópia desativada antiga do MESMO mod, se existir — uma
+    // instalação nova sempre volta ativada, sem deixar duas cópias
+    // divergentes (uma ativa nova, uma desativada velha) do mesmo mod.
     if (fs.existsSync(finalDir)) fs.rmSync(finalDir, { recursive: true, force: true });
+    const oldDisabledDir = path.join(disabledRoot(strategy), folderName);
+    if (fs.existsSync(oldDisabledDir)) fs.rmSync(oldDisabledDir, { recursive: true, force: true });
     fs.renameSync(stagingDir, finalDir);
 
     onProgress?.({ phase: 'done', percent: 100 });
@@ -126,34 +154,79 @@ async function installMod({ downloadUrl, filename, gameInstallPath, modName }, o
   }
 }
 
-// Item pedido 14: "Desinstalar" — só apaga a pasta do mod específico.
+// Item pedido 14: "Desinstalar" — apaga a pasta do mod específico, esteja
+// ela ativada ou desativada no momento.
 function uninstallMod({ gameInstallPath, modName }) {
-  const folderName = sanitizeModFolderName(modName);
-  const strategy = detectInstallStrategy(gameInstallPath);
-  const finalDir = path.join(strategy.targetRoot, folderName);
-  if (fs.existsSync(finalDir)) fs.rmSync(finalDir, { recursive: true, force: true });
+  const { enabledDir, disabledDir } = modPaths(gameInstallPath, modName);
+  if (fs.existsSync(enabledDir)) fs.rmSync(enabledDir, { recursive: true, force: true });
+  if (fs.existsSync(disabledDir)) fs.rmSync(disabledDir, { recursive: true, force: true });
   return { uninstalled: true };
 }
 
 // Lista o que já está instalado NESTE jogo, olhando o disco diretamente
 // (fonte de verdade é sempre a pasta real, nunca um registro que possa
-// ficar desatualizado) — usado pra marcar "✓ Instalado" na UI.
+// ficar desatualizado) — usado pra marcar "✓ Instalado" na UI. Separado
+// em ativados/desativados (item pedido 15).
 function listInstalledMods(gameInstallPath) {
   const strategy = detectInstallStrategy(gameInstallPath);
-  if (!fs.existsSync(strategy.targetRoot)) return [];
-  return fs.readdirSync(strategy.targetRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
+  const readNames = (dir) => (fs.existsSync(dir)
+    ? fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name)
+    : []);
+  return {
+    enabled: readNames(strategy.targetRoot),
+    disabled: readNames(disabledRoot(strategy)),
+  };
 }
 
-module.exports = { installMod, uninstallMod, listInstalledMods, detectInstallStrategy };
+// Item pedido 15: "Ativar"/"Desativar" — move a pasta do mod inteira
+// entre a área ativa e a área desativada. Nunca apaga nada (item pedido
+// 17: "nunca apagar silenciosamente arquivos de outro mod") — só troca
+// de lugar a pasta do PRÓPRIO mod que foi pedido.
+function setModEnabled({ gameInstallPath, modName, enabled }) {
+  const { enabledDir, disabledDir, strategy } = modPaths(gameInstallPath, modName);
+  if (enabled) {
+    if (!fs.existsSync(disabledDir)) return { changed: false }; // já ativado (ou nunca instalado)
+    fs.mkdirSync(strategy.targetRoot, { recursive: true });
+    fs.renameSync(disabledDir, enabledDir);
+  } else {
+    if (!fs.existsSync(enabledDir)) return { changed: false }; // já desativado (ou nunca instalado)
+    fs.mkdirSync(disabledRoot(strategy), { recursive: true });
+    fs.renameSync(enabledDir, disabledDir);
+  }
+  return { changed: true };
+}
 
-// ---------- Roadmap (fora do escopo desta primeira fase) ----------
-// - Ativar/desativar mod sem desinstalar (mover pra fora/dentro da pasta
-//   ativa, ver "perfis" item 15) — hoje só existe instalar/desinstalar.
+// Item pedido 15/28: aplica um PERFIL inteiro de uma vez — recebe a
+// lista de nomes de mod que devem ficar ativos; tudo que está instalado
+// mas NÃO está nessa lista é desativado, e tudo que está nessa lista (e
+// já foi instalado alguma vez) é ativado. Mods da lista que nunca foram
+// instalados são reportados em `missing` (a UI decide se oferece
+// instalar — ver roadmap: instalação automática de dependências ainda
+// não dispara isso sozinha).
+function applyProfileMods({ gameInstallPath, enabledModNames }) {
+  const wanted = new Set(enabledModNames.map(sanitizeModFolderName));
+  const current = listInstalledMods(gameInstallPath);
+  const changed = [];
+
+  for (const name of current.enabled) {
+    if (!wanted.has(name)) { setModEnabled({ gameInstallPath, modName: name, enabled: false }); changed.push(name); }
+  }
+  for (const name of current.disabled) {
+    if (wanted.has(name)) { setModEnabled({ gameInstallPath, modName: name, enabled: true }); changed.push(name); }
+  }
+
+  const installedNames = new Set([...current.enabled, ...current.disabled]);
+  const missing = [...wanted].filter((name) => !installedNames.has(name));
+  return { changed, missing };
+}
+
+module.exports = { installMod, uninstallMod, listInstalledMods, setModEnabled, applyProfileMods, detectInstallStrategy };
+
+// ---------- Roadmap (fora do escopo desta fase) ----------
 // - Resolver e instalar dependências automaticamente (item 16) — hoje a
-//   API só lista quais são; instalar cada uma ainda é manual.
+//   API só lista quais são; a UI oferece instalar cada uma manualmente
+//   (ver ModDetailView em ModsPage.jsx), sem detectar em cadeia.
 // - Detecção de conflito de arquivo entre mods (item 17).
 // - Suporte a outros mod loaders além do padrão BepInEx (item 27) —
 //   detectInstallStrategy é o ponto de extensão único pra isso.
-// - "▶ Jogar com este perfil" iniciando o jogo de verdade (item 28).
+// - Instalar uma coleção inteira de uma vez (item 19).

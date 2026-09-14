@@ -97,6 +97,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     install: (payload) => ipcRenderer.invoke('mods:install', payload),
     uninstall: (payload) => ipcRenderer.invoke('mods:uninstall', payload),
     listInstalled: (gameInstallPath) => ipcRenderer.invoke('mods:list-installed', gameInstallPath),
+    setEnabled: (payload) => ipcRenderer.invoke('mods:set-enabled', payload),
+    applyProfile: (payload) => ipcRenderer.invoke('mods:apply-profile', payload),
     onProgress: (callback) => {
       const listener = (_event, data) => callback(data);
       ipcRenderer.on('mods:progress', listener);
