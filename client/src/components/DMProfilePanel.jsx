@@ -92,7 +92,7 @@ export default function DMProfilePanel({ onToggle }) {
               </div>
             </div>
 
-            <h2 className="profile-display-name"><span className={nameStyleClassName(user)} style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} /> <ClanTagBadge user={user} /></h2>
+            <h2 className="profile-display-name"><span className={nameStyleClassName(user, { fullEffect: true })} style={nameStyleProps(user, { fullEffect: true })}>{user.displayName}</span> <TagBadge user={user} /> <ClanTagBadge user={user} /></h2>
             <div className="profile-username">@{user.username}</div>
 
             <div className="profile-votes-row">

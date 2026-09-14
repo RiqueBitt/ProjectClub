@@ -10,7 +10,6 @@ import ActivityBadge from './ActivityBadge.jsx';
 import TagBadge from './TagBadge.jsx';
 import ClanTagBadge from './ClanTagBadge.jsx';
 import levelStarIcon from '../assets/icons/level-star.png';
-import achievementDefaultIcon from '../assets/icons/nav-achievements.png';
 import { proxyImage } from '../utils/imageProxy';
 import PresenceDot from './PresenceDot.jsx';
 import { nameStyleProps, nameStyleClassName } from '../utils/nameStyle';
@@ -40,7 +39,6 @@ export default function MiniProfileCard() {
   const bioEmojiMap = Object.fromEntries(usableEmojis.map((e) => [e.name, e.url]));
   const [user, setUser] = useState(null);
   const [badges, setBadges] = useState([]);
-  const [miniAchievements, setMiniAchievements] = useState([]);
   const [mutualFriends, setMutualFriends] = useState([]);
   const cardRef = useRef(null);
   // Posição só fica pronta depois de medir a altura real do card (abaixo),
@@ -61,17 +59,17 @@ export default function MiniProfileCard() {
   const visibleRoles = memberRoles.slice(0, ROLES_PREVIEW_COUNT);
 
   useEffect(() => {
-    if (!userId) { setUser(null); setBadges([]); setMiniAchievements([]); setMutualFriends([]); return; }
+    if (!userId) { setUser(null); setBadges([]); setMutualFriends([]); return; }
     getUserProfile(userId)
       .then((d) => {
-        setUser(d.user); setBadges(d.badges || []); setMiniAchievements(d.displayedAchievementsMini || []); setMutualFriends(d.mutualFriends || []);
+        setUser(d.user); setBadges(d.badges || []); setMutualFriends(d.mutualFriends || []);
         // Item pedido: "ActivityBadge igual tem no perfil" — mesmo
         // ajuste que já existia em UserProfileModal.jsx: sem isso, o
         // badge fica vazio até chegar algum aviso ao vivo pelo socket,
         // mesmo com a atividade já existindo de verdade no servidor.
         if (d.activity) useStore.getState().setActivity(userId, d.activity);
       })
-      .catch(() => { setUser(null); setBadges([]); setMiniAchievements([]); setMutualFriends([]); });
+      .catch(() => { setUser(null); setBadges([]); setMutualFriends([]); });
   }, [userId]);
 
   useEffect(() => {
@@ -270,7 +268,7 @@ export default function MiniProfileCard() {
                 <span className="mini-profile-status-bubble">{user.customStatusEmoji ? `${user.customStatusEmoji} ` : ''}{user.customStatus}</span>
               )}
             </div>
-            <div className="mini-profile-name"><span className={nameStyleClassName(user)} style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} /> <ClanTagBadge user={user} /></div>
+            <div className="mini-profile-name"><span className={nameStyleClassName(user, { fullEffect: true })} style={nameStyleProps(user, { fullEffect: true })}>{user.displayName}</span> <TagBadge user={user} /> <ClanTagBadge user={user} /></div>
             <div className="dim mini-profile-handle">
               @{user.username}
               {user.pronouns && <span> • {user.pronouns}</span>}
@@ -292,15 +290,9 @@ export default function MiniProfileCard() {
               </div>
             )}
 
-            {miniAchievements.length > 0 && (
-              <div className="mini-profile-badges-row">
-                {miniAchievements.map((a) => (
-                  <span key={a.id} className="mini-profile-badge" title={`${a.name} — ${a.description}`}>
-                    <img className="mini-profile-badge-img" src={proxyImage(a.iconUrl) || achievementDefaultIcon} alt="" />
-                  </span>
-                ))}
-              </div>
-            )}
+            {/* Item pedido: "remover conquistas em destaque do mini
+                perfil, deixar somente no perfil completo" — removido
+                daqui (ver UserProfileModal.jsx, que continua mostrando). */}
 
             {visibleRoles.length > 0 && (
               <div className="mini-profile-roles-row">
@@ -328,11 +320,6 @@ export default function MiniProfileCard() {
                 comunidade'") — removido. */}
 
             {user.bio && <div className="mini-profile-bio">{renderRichContent(user.bio, { emojiMap: bioEmojiMap })}</div>}
-            {user.bio && (
-              <button type="button" className="btn-link mini-profile-full-bio-link" onClick={() => { openProfile(userId); closeMiniProfile(); }}>
-                Ver biografia completa
-              </button>
-            )}
             {/* BUG CORRIGIDO ("Ver biografia completa fica embaixo da
                 atividade em vez de embaixo da biografia") — movido o
                 ActivityBadge pra DEPOIS desses dois, não antes. */}

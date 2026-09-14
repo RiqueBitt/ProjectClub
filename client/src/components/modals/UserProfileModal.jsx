@@ -819,7 +819,7 @@ isMe && (
                 </div>
                 <div className="profile-ig-header-info">
                   <h2 className="profile-display-name">
-                    <span className={nameStyleClassName(user)} style={nameStyleProps(user)}>{user.displayName}</span> <TagBadge user={user} /> <ClanTagBadge user={user} />
+                    <span className={nameStyleClassName(user, { fullEffect: true })} style={nameStyleProps(user, { fullEffect: true })}>{user.displayName}</span> <TagBadge user={user} /> <ClanTagBadge user={user} />
                     {/* Item pedido: "no dia do aniversário, mostrar no
                         perfil a indicação visual" */}
                     {data.isBirthdayToday && <span className="profile-birthday-badge" title="Aniversário hoje!">🎂</span>}

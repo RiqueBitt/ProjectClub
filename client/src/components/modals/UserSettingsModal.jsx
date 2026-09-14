@@ -927,9 +927,13 @@ export default function UserSettingsModal({ onClose }) {
 
           <div className="settings-block">
             <h4>Estilo do nome</h4>
-            <p className="dim">A fonte, o efeito e a cor abaixo aparecem em mensagens, na lista de membros e no seu perfil.</p>
+            <p className="dim">
+              A fonte e a cor abaixo aparecem em mensagens e na lista de membros. Efeitos mais elaborados (néon,
+              arco-íris, glitch...) só aparecem no seu mini perfil e perfil completo — em mensagens e na lista de
+              membros o nome fica só com a fonte e a cor, mais discreto e legível.
+            </p>
             <div className="name-style-preview" style={{ fontSize: 22, fontWeight: 700 }}>
-              <span className={nameStyleClassName(form)} style={nameStyleProps(form)}>{form.displayName || user.displayName}</span>
+              <span className={nameStyleClassName(form, { fullEffect: true })} style={nameStyleProps(form, { fullEffect: true })}>{form.displayName || user.displayName}</span>
             </div>
 
             <div className="name-style-picker-row">
@@ -945,7 +949,7 @@ export default function UserSettingsModal({ onClose }) {
                           className={`name-style-picker-option ${form.profileNameFont === f.value ? 'active' : ''}`}
                           onClick={() => { setForm((s) => ({ ...s, profileNameFont: f.value })); setFontMenuOpen(false); }}
                         >
-                          <span className={nameStyleClassName(form)} style={{ ...nameStyleProps(form), fontFamily: FONT_FAMILY[f.value] }}>Abc</span>
+                          <span className={nameStyleClassName(form, { fullEffect: true })} style={{ ...nameStyleProps(form, { fullEffect: true }), fontFamily: FONT_FAMILY[f.value] }}>Abc</span>
                           <span className="name-style-picker-option-label">{f.label}</span>
                         </button>
                       ))}
@@ -953,7 +957,7 @@ export default function UserSettingsModal({ onClose }) {
                   </div>
                 )}
               >
-                <span className={`name-style-picker-button-sample ${nameStyleClassName(form)}`} style={{ ...nameStyleProps(form), fontFamily: FONT_FAMILY[form.profileNameFont] }}>Abc</span>
+                <span className={`name-style-picker-button-sample ${nameStyleClassName(form, { fullEffect: true })}`} style={{ ...nameStyleProps(form, { fullEffect: true }), fontFamily: FONT_FAMILY[form.profileNameFont] }}>Abc</span>
               </NameStylePickerButton>
             </div>
 
@@ -972,7 +976,7 @@ export default function UserSettingsModal({ onClose }) {
                             className={`name-style-picker-option ${form.profileNameEffect === f.value ? 'active' : ''}`}
                             onClick={() => { setForm((s) => ({ ...s, profileNameEffect: f.value })); setEffectMenuOpen(false); }}
                           >
-                            <span className={nameStyleClassName(previewUser)} style={nameStyleProps(previewUser)}>Abc</span>
+                            <span className={nameStyleClassName(previewUser, { fullEffect: true })} style={nameStyleProps(previewUser, { fullEffect: true })}>Abc</span>
                             <span className="name-style-picker-option-label">{f.label}</span>
                           </button>
                         );
@@ -981,7 +985,7 @@ export default function UserSettingsModal({ onClose }) {
                   </div>
                 )}
               >
-                <span className={`name-style-picker-button-sample ${nameStyleClassName(form)}`} style={nameStyleProps(form)}>Abc</span>
+                <span className={`name-style-picker-button-sample ${nameStyleClassName(form, { fullEffect: true })}`} style={nameStyleProps(form, { fullEffect: true })}>Abc</span>
               </NameStylePickerButton>
             </div>
             {form.profileNameEffect !== 'RAINBOW' && (

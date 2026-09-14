@@ -148,7 +148,17 @@ export function hasCustomNameStyle(user) {
 // aplicar essa classe (className={nameStyleClassName(user)}) pra
 // animação funcionar; sem ela, o efeito ainda funciona, só fica
 // parado (a cor "final" do gradiente, sem ciclar).
-export function nameStyleClassName(user) {
+// Item pedido: "nomes personalizados em chats só aparecem com cores
+// base e fonte ajustada, efeitos mais complexos como neon e afins
+// somente no Mini-Perfil ou Perfil Completo" — por padrão (sem passar
+// nada) devolve só fonte+cor sólida, mesmo que a pessoa tenha
+// escolhido um efeito chamativo (néon, arco-íris, glitch...). Só quem
+// passar explicitamente { fullEffect: true } (mini perfil, perfil
+// completo, o painel de perfil da DM, e o preview de configurações,
+// onde faz sentido a pessoa VER o efeito que está escolhendo) recebe
+// o efeito de verdade. Chat e lista de membros usam o padrão.
+export function nameStyleClassName(user, { fullEffect = false } = {}) {
+  if (!fullEffect) return '';
   const effect = user?.profileNameEffect;
   if (effect === 'RAINBOW') return 'name-style-anim-rainbow';
   if (effect === 'NEON') return 'name-style-anim-neon';
@@ -158,7 +168,7 @@ export function nameStyleClassName(user) {
   return '';
 }
 
-export function nameStyleProps(user) {
+export function nameStyleProps(user, { fullEffect = false } = {}) {
   const font = FONT_FAMILY[user?.profileNameFont] || undefined;
   const color = user?.profileNameColor || '#F2894D';
   const color2 = user?.profileNameColor2 || '#FFFFFF';
@@ -172,6 +182,11 @@ export function nameStyleProps(user) {
   // que já funcionava bem antes.
   const scale = FONT_SIZE_SCALE[user?.profileNameFont];
   const base = { fontFamily: font, ...(font ? { lineHeight: 1.3 } : {}), ...(scale ? { fontSize: `${scale}em` } : {}) };
+
+  // Fora do mini/perfil completo: só fonte + cor sólida, ignorando
+  // qualquer efeito chamativo escolhido (néon, gradiente, arco-íris
+  // etc) — mantém o chat/lista de membros mais limpo e legível.
+  if (!fullEffect) return { ...base, color };
 
   switch (effect) {
     case 'NEON':
