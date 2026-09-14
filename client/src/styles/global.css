@@ -460,8 +460,18 @@ body.body-auth-scroll { overflow-y: auto !important; }
   --auth-line: color-mix(in srgb, var(--brand) 30%, transparent);
   --auth-blue-a: color-mix(in srgb, var(--brand) 70%, #fff); --auth-blue-b: var(--brand); --auth-blue-c: var(--brand-hover);
   min-height: 100vh; min-height: 100dvh; padding: 40px 20px;
-  display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; position: relative;
   background: var(--auth-bg-0);
+  /* BUG CORRIGIDO ("o scroll do formulário de inscrição não funciona
+     pra cima e pra baixo"): esse "overflow: hidden" aqui bloqueava
+     completamente a rolagem do PRÓPRIO container — o formulário de
+     inscrição (8 perguntas + várias grades de opção) é bem mais alto
+     que a tela de login, então quando não cabia na viewport, o
+     conteúdo simplesmente ficava cortado, sem nenhuma barra de
+     rolagem funcionando (nem pra cima, nem pra baixo) pra alcançar o
+     resto. A tela de login continua idêntica (o conteúdo dela cabe
+     numa tela normal, então nunca chega a precisar rolar). */
+  overflow-y: auto; overflow-x: hidden;
 }
 .auth-screen::before {
   content: ''; position: absolute; inset: 0; z-index: 0;
