@@ -105,3 +105,18 @@ export function listInstalledModsLocally(gameInstallPath) {
 export function onModsProgress(callback) {
   return window.electronAPI?.mods?.onProgress?.(callback);
 }
+
+// Item pedido: "pegue a interface e tudo do Gale [Thunderstore Mod
+// Manager] e funda com o que eu já tenho" — instala um pacote do
+// Thunderstore de verdade (baixa + extrai + coloca na pasta certa).
+// Diferente de installModLocally porque um pacote do Thunderstore pode
+// ser o PRÓPRIO framework BepInEx (isLoader: true — precisa ir pra
+// RAIZ do jogo, não pra dentro de BepInEx/plugins como um mod comum)
+// — ver installThunderstorePackage em desktop/modsManager.js. Depois
+// de instalado, o pacote convive nas mesmas pastas que qualquer outra
+// fonte, então listInstalledModsLocally/setModEnabledLocally/
+// uninstallModLocally acima (sem nenhuma mudança) já enxergam e
+// gerenciam ele normalmente.
+export function installThunderstorePackageLocally(payload) {
+  return window.electronAPI.mods.installThunderstore(payload);
+}
