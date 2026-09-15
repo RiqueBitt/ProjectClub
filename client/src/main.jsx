@@ -14,6 +14,9 @@ import './styles/settings-mobile-fix.css';
 // mesmo padrão do arquivo acima (arquivo próprio, importado depois de
 // global.css pra vencer no cascata).
 import './styles/mobile-scroll-fix.css';
+// Mini perfil maior/estilo Discord (card, banner, avatar, bolha de
+// status) — mesmo padrão dos dois arquivos acima.
+import './styles/mini-profile-improvements.css';
 import './i18n/index.js';
 
 // Item pedido: "adicione nas configurações do usuário ele poder
