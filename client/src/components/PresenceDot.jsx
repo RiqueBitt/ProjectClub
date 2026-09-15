@@ -8,12 +8,19 @@ import { STATUS_COLOR } from '../utils/status';
 // className="status-dot" style={{ background: STATUS_COLOR[x] }} />
 // (12 arquivos diferentes) — trocar a forma de cada status num lugar
 // só, em vez de mexer em cada um dos 12 separadamente.
-export default function PresenceDot({ status, className = '', large, title }) {
+//
+// Item pedido: "escolher a cor de fundo da bolha que mostra os
+// status (Preto/Cinza/Branco)" — `style` opcional permite quem chama
+// (hoje só MiniProfileCard.jsx) sobrescrever a variável
+// --status-bubble-border, sem precisar de nenhuma prop nova
+// específica aqui — continua sendo o mesmo componente genérico de
+// sempre pra todos os outros 11 lugares que não passam nada.
+export default function PresenceDot({ status, className = '', large, title, style }) {
   const color = STATUS_COLOR[status] || STATUS_COLOR.OFFLINE;
   return (
     <span
       className={`status-dot status-dot-${(status || 'offline').toLowerCase()} ${large ? 'large' : ''} ${className}`}
-      style={{ '--presence-color': color }}
+      style={{ '--presence-color': color, ...style }}
       title={title}
     />
   );
