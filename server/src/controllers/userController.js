@@ -19,6 +19,15 @@ const activityStore = require('../services/activityStore');
 const VALID_NAME_FONTS = ['NORMAL', 'PIXEL', 'CARTOON', 'MEDIEVAL', 'HANDWRITING', 'CREEPY', 'FUTURISTIC', 'SIGNATURE', 'BOLD_CONDENSED', 'ROUNDED', 'CASUAL_SCRIPT', 'RETRO_NEON', 'URBAN', 'ELEGANT_SERIF', 'PLAYFUL', 'BOLD_SCRIPT'];
 const VALID_NAME_EFFECTS = ['SOLID', 'NEON', 'GRADIENT', 'POP', 'SKETCH', 'SHADOW_3D', 'OUTLINE', 'RAINBOW', 'GLITCH', 'ICE', 'FIRE', 'METALLIC', 'SHINE', 'EMBOSS', 'DOUBLE_STROKE', 'GOLD'];
 
+// Item pedido: "escolher a cor de fundo da bolha que mostra os
+// status (Preto/Cinza/Branco)" — só 3 valores fixos (diferente de
+// profileColor/miniProfileColor, que aceitam qualquer cor livre), por
+// isso validado como allowlist simples aqui, fora do bloco de
+// "cores_perfil" mais abaixo: não tem como usar isso pra burlar
+// aquele controle de moderação, já que a pessoa nunca escolhe uma cor
+// arbitrária, só uma dessas três.
+const VALID_STATUS_BUBBLE_COLORS = ['#000000', '#80848E', '#FFFFFF'];
+
 // Item pedido: "sistema igual da Steam" pra reorganizar o perfil —
 // chaves de seção conhecidas, mantidas em sincronia com
 // PROFILE_SECTIONS em client/src/components/modals/UserProfileModal.jsx.
@@ -150,6 +159,18 @@ async function updateProfile(req, res, next) {
             } catch { /* JSON malformado — ignora, campo simplesmente não é atualizado */ }
           }
         }
+      }
+    }
+    // Item pedido: "escolher a cor de fundo da bolha que mostra os
+    // status (Preto/Cinza/Branco)" — allowlist fixa de 3 hex, fora do
+    // bloco de "cores_perfil" acima (ver VALID_STATUS_BUBBLE_COLORS no
+    // topo do arquivo — não é uma cor livre, então não há como usar
+    // isso pra contornar aquele controle de moderação).
+    if (req.body.statusBubbleColor !== undefined) {
+      if (req.body.statusBubbleColor === null || req.body.statusBubbleColor === '') {
+        data.statusBubbleColor = null;
+      } else if (VALID_STATUS_BUBBLE_COLORS.includes(req.body.statusBubbleColor)) {
+        data.statusBubbleColor = req.body.statusBubbleColor;
       }
     }
     // BUG CORRIGIDO (junto com o de cima) — profileNameFont/Effect
