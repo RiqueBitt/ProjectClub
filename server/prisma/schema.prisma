@@ -87,6 +87,13 @@ model User {
   // perfil grande (comportamento de antes dessa opção existir).
   miniProfileColor       String?
   miniProfileButtonColor String?
+  // Item pedido: "escolher a cor de fundo da bolha que mostra os
+  // status (Preto / Cinza / Branco)" — guarda um dos 3 valores fixos
+  // (ver STATUS_BUBBLE_COLOR_OPTIONS em UserSettingsModal.jsx); null
+  // continua caindo no comportamento de sempre (acompanha o fundo do
+  // card, var(--bg-elevated)), sem mudança nenhuma pra quem nunca
+  // mexeu nisso.
+  statusBubbleColor      String?
   profileColor        String    @default("#1877F2")
   profileNameFont     String    @default("NORMAL")
   profileNameEffect   String    @default("SOLID")
