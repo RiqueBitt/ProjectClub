@@ -6,6 +6,7 @@ const adminClanCtrl = require('../controllers/adminClanController');
 const modCtrl = require('../controllers/modController');
 const workshopCtrl = require('../controllers/steamWorkshopController');
 const gamebananaCtrl = require('../controllers/gamebananaController');
+const thunderstoreCtrl = require('../controllers/thunderstoreController');
 const { requireAuth } = require('../middleware/auth');
 const { requirePlatformAdmin } = require('../middleware/platformAdmin');
 const { uploadImage } = require('../middleware/upload');
@@ -80,6 +81,12 @@ router.get('/gamebanana/game-mappings', gamebananaCtrl.adminListGameMappings);
 router.post('/gamebanana/game-mappings', gamebananaCtrl.adminCreateGameMapping);
 router.patch('/gamebanana/game-mappings/:id', gamebananaCtrl.adminUpdateGameMapping);
 router.delete('/gamebanana/game-mappings/:id', gamebananaCtrl.adminDeleteGameMapping);
+
+// Thunderstore — mapeamento Steam AppID → comunidade (slug) do Thunderstore
+router.get('/thunderstore/game-mappings', thunderstoreCtrl.adminListGameMappings);
+router.post('/thunderstore/game-mappings', thunderstoreCtrl.adminCreateGameMapping);
+router.patch('/thunderstore/game-mappings/:id', thunderstoreCtrl.adminUpdateGameMapping);
+router.delete('/thunderstore/game-mappings/:id', thunderstoreCtrl.adminDeleteGameMapping);
 
 router.post('/app-catalog', appCatalogCtrl.createAppCatalogItem);
 router.patch('/app-catalog/:id', appCatalogCtrl.updateAppCatalogItem);

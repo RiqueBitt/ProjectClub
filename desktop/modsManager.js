@@ -245,10 +245,108 @@ function applyProfileMods({ gameInstallPath, enabledModNames }) {
   return { changed, missing };
 }
 
+// ---------- Thunderstore (item pedido: "pegue a interface e tudo do
+// Gale [Thunderstore Mod Manager] e funda com o que eu já tenho") ----------
+// Pacotes do Thunderstore seguem uma convenção PÚBLICA fixa (documentada
+// pelo próprio Thunderstore, nada específico do Gale): o .zip carrega
+// manifest.json/icon.png/README.md/CHANGELOG.md na raiz, junto com o
+// conteúdo de verdade do mod — às vezes tudo solto na raiz, às vezes
+// dentro de UMA pasta com o nome do pacote. E o pacote "BepInExPack" de
+// cada jogo é especial: seu conteúdo não é um plugin, é o PRÓPRIO
+// instalador do framework BepInEx — precisa ser extraído direto na
+// RAIZ da pasta do jogo (onde fica o .exe), não dentro de
+// BepInEx/plugins como um mod comum (ver isLoader abaixo).
+const THUNDERSTORE_METADATA_FILES = new Set(['manifest.json', 'icon.png', 'readme.md', 'changelog.md']);
+
+// Desembrulha um nível de pasta quando o pacote coloca tudo dentro de
+// UMA pasta só (em vez de solto na raiz do zip) — sem isso, o conteúdo
+// real ficaria uma pasta mais fundo do que devia.
+function unwrapSingleThunderstoreFolder(stagingDir) {
+  const entries = fs.readdirSync(stagingDir, { withFileTypes: true });
+  const nonMetaFiles = entries.filter((e) => e.isFile() && !THUNDERSTORE_METADATA_FILES.has(e.name.toLowerCase()));
+  const dirs = entries.filter((e) => e.isDirectory());
+  if (nonMetaFiles.length === 0 && dirs.length === 1) {
+    return path.join(stagingDir, dirs[0].name);
+  }
+  return stagingDir;
+}
+
+// Copia recursivamente MESCLANDO com o que já existir no destino (nunca
+// apaga nada que já estava lá) — usado só pra instalar o BepInExPack na
+// raiz do jogo, onde já existem outros arquivos do próprio jogo que não
+// podem ser tocados (item pedido 17: nunca apagar silenciosamente
+// arquivos de outro mod/do próprio jogo).
+function copyMergeDir(srcDir, destDir) {
+  fs.mkdirSync(destDir, { recursive: true });
+  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    const srcPath = path.join(srcDir, entry.name);
+    const destPath = path.join(destDir, entry.name);
+    if (entry.isDirectory()) {
+      copyMergeDir(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
+// Item pedido: instalação "de um clique" tipo Gale — chamado uma vez
+// por pacote da árvore de dependência (já resolvida pelo backend, ver
+// thunderstoreService.js), na ordem certa, pelo ModsPage.jsx. Não
+// resolve dependência nenhuma aqui — só instala UM pacote, sabendo
+// se ele é o framework (isLoader) ou um mod comum.
+async function installThunderstorePackage({ downloadUrl, filename, gameInstallPath, fullName, isLoader }, onProgress) {
+  if (!fs.existsSync(gameInstallPath)) throw new Error('A pasta do jogo não foi encontrada. Talvez ele tenha sido desinstalado ou movido.');
+
+  const folderName = sanitizeModFolderName(fullName);
+  const archivePath = path.join(tempDir(), `${folderName}-${Date.now()}.zip`);
+
+  onProgress?.({ phase: 'downloading', percent: 0 });
+  try {
+    await downloadToFile(downloadUrl, archivePath, (percent) => onProgress?.({ phase: 'downloading', percent }));
+
+    onProgress?.({ phase: 'extracting', percent: 0 });
+    const stagingRoot = `${archivePath}.staging`;
+    fs.mkdirSync(stagingRoot, { recursive: true });
+    await extractZip(archivePath, { dir: stagingRoot });
+    const contentDir = unwrapSingleThunderstoreFolder(stagingRoot);
+
+    onProgress?.({ phase: 'installing', percent: 0 });
+
+    if (isLoader) {
+      // BepInExPack: mescla direto na raiz do jogo.
+      copyMergeDir(contentDir, gameInstallPath);
+      fs.rmSync(stagingRoot, { recursive: true, force: true });
+      onProgress?.({ phase: 'done', percent: 100 });
+      return { installedPath: gameInstallPath, strategy: 'bepinex-loader' };
+    }
+
+    // Mod comum: agora que o loader (instalado antes dele, na mesma
+    // sequência que o ModsPage.jsx já garante) faz detectInstallStrategy
+    // enxergar BepInEx, este mod cai na mesma pasta BepInEx/plugins que
+    // QUALQUER outra fonte (mod.io/GameBanana/arquivo local) já usa —
+    // reaproveitando listInstalledMods/setModEnabled/uninstallMod acima
+    // sem precisar de nenhuma versão "Thunderstore" separada delas.
+    const strategy = detectInstallStrategy(gameInstallPath);
+    fs.mkdirSync(strategy.targetRoot, { recursive: true });
+    const finalDir = path.join(strategy.targetRoot, folderName);
+    if (fs.existsSync(finalDir)) fs.rmSync(finalDir, { recursive: true, force: true });
+    const oldDisabledDir = path.join(disabledRoot(strategy), folderName);
+    if (fs.existsSync(oldDisabledDir)) fs.rmSync(oldDisabledDir, { recursive: true, force: true });
+    fs.renameSync(contentDir, finalDir);
+    fs.rmSync(stagingRoot, { recursive: true, force: true });
+
+    onProgress?.({ phase: 'done', percent: 100 });
+    return { installedPath: finalDir, strategy: strategy.kind };
+  } finally {
+    fs.rm(archivePath, { force: true }, () => {});
+  }
+}
+
 module.exports = {
   installMod, uninstallMod, listInstalledMods, setModEnabled, applyProfileMods, detectInstallStrategy,
   installLocalFile, listConfigFiles, readConfigFile, writeConfigFile,
   saveModpackLocally, listLocalModpacks, loadLocalModpack, deleteLocalModpack,
+  installThunderstorePackage,
 };
 
 // ---------- Pasta local de Modpacks (item pedido: "criar uma pasta do
@@ -377,10 +475,12 @@ function writeConfigFile(gameInstallPath, filename, content) {
 }
 
 // ---------- Roadmap (fora do escopo desta fase) ----------
-// - Resolver e instalar dependências automaticamente (item 16) — hoje a
-//   API só lista quais são; a UI oferece instalar cada uma manualmente
-//   (ver ModDetailView em ModsPage.jsx), sem detectar em cadeia.
 // - Detecção de conflito de arquivo entre mods (item 17).
 // - Suporte a outros mod loaders além do padrão BepInEx (item 27) —
 //   detectInstallStrategy é o ponto de extensão único pra isso.
 // - Instalar uma coleção inteira de uma vez (item 19).
+// - Thunderstore: resolução de dependência em árvore já existe (ver
+//   thunderstoreService.js no backend) e a instalação de cada pacote
+//   também (installThunderstorePackage acima) — o que falta é detecção
+//   de CONFLITO entre pacotes instalados juntos, igual o item 17 acima
+//   já cobre pras outras fontes.

@@ -1,0 +1,47 @@
+/* Melhorias do Mini Perfil (MiniProfileCard.jsx), estilo Discord —
+   mantidas em arquivo próprio, no mesmo padrão já usado por
+   settings-mobile-fix.css/mobile-scroll-fix.css, em vez de mexer em
+   global.css (que já está com ~430KB). Precisa vir DEPOIS de
+   global.css em main.jsx pra vencer no cascata do CSS.
+
+   Itens pedidos:
+   - "Aumentar o tamanho geral do mini perfil"
+   - "Aumentar o tamanho do banner no mini-perfil, seguir exemplo do
+     discord"
+   - "Colocar a foto do perfil um pouco mais acima, estilo discord,
+     pegando a foto na metade do banner"
+   - "Aumentar a bolha de status para ficar maior, similar a do
+     discord"
+   - "Escolher a cor de fundo da bolha que mostra os status" — a
+     PARTE de cor (Preto/Cinza/Branco) é feita à parte, via variável
+     CSS --status-bubble-border definida inline em MiniProfileCard.jsx
+     quando a pessoa escolheu uma; sem escolha, cai no valor padrão de
+     sempre (var(--bg-elevated)), sem mudança de comportamento. */
+
+/* Card geral: 280px → 320px (mesma ordem de grandeza do popout de
+   perfil do Discord). */
+.mini-profile-card { width: 320px; }
+
+/* Banner: 60px → 100px de altura, bem mais perto da proporção do
+   banner de perfil do Discord (que ocupa boa parte do card). */
+.mini-profile-banner { height: 100px; }
+
+/* Avatar: 64px → 84px. margin-top ajustado pra continuar exatamente
+   na "metade do banner" mesmo com o avatar e o banner maiores — o
+   centro do avatar cai bem em cima da borda de baixo do novo banner
+   (100px), erguendo boa parte dele por dentro do banner, igual o
+   Discord faz — em vez de só encostar de leve na borda de baixo como
+   antes. */
+.mini-profile-avatar-wrap { margin-top: -56px; width: 84px; height: 84px; }
+.mini-profile-avatar { width: 84px; height: 84px; border-width: 4px; }
+
+/* Bolha/indicador de status (presença) no canto do avatar: 20px → 28px,
+   proporcional ao avatar maior — tamanho comparável ao indicador de
+   status do Discord no popout de perfil. border-color agora lê a
+   variável --status-bubble-border quando a pessoa escolheu uma cor de
+   fundo própria pra essa bolha (Preto/Cinza/Branco); sem escolha, cai
+   no mesmo var(--bg-elevated) de sempre. */
+.mini-profile-presence-dot {
+  width: 28px; height: 28px; border-width: 4px;
+  border-color: var(--status-bubble-border, var(--bg-elevated));
+}

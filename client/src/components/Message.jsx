@@ -349,7 +349,20 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
       <div className="message-body">
         {showAuthor && (
           <div className="message-meta">
-            <span className={`message-author ${hasCustomNameStyle(message.author) ? nameStyleClassName(message.author) : ''}`} style={hasCustomNameStyle(message.author) ? nameStyleProps(message.author) : roleTextStyle(authorRoleColor)}>{message.author.displayName}</span>
+            {/* Item pedido: "volte com as cores nos nomes no chat de
+                novo... quero igual no mini perfil e no perfil" — o nome
+                do autor aqui usava nameStyleProps/nameStyleClassName SEM
+                fullEffect, que (de propósito, numa resposta anterior)
+                reduzia qualquer estilo de nome personalizado (néon,
+                gradiente, arco-íris etc) pra só cor sólida + fonte
+                dentro do chat, guardando o efeito completo só pro Mini
+                Perfil/Perfil Completo. Passando fullEffect: true aqui
+                também, o nome no chat volta a mostrar a MESMA cor/efeito
+                que aparece no perfil da pessoa, em vez da versão
+                reduzida. Continua caindo em roleTextStyle(cor do cargo)
+                quando a pessoa não tem nenhum estilo de nome próprio
+                (hasCustomNameStyle false) — sem mudança nesse caso. */}
+            <span className={`message-author ${hasCustomNameStyle(message.author) ? nameStyleClassName(message.author, { fullEffect: true }) : ''}`} style={hasCustomNameStyle(message.author) ? nameStyleProps(message.author, { fullEffect: true }) : roleTextStyle(authorRoleColor)}>{message.author.displayName}</span>
             <PendantIcon user={message.author} size={20} />
             <TagBadge user={message.author} />
             <ClanTagBadge user={message.author} />
@@ -367,7 +380,7 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
                 ? <ReplyAvatarImg url={message.replyTo.author.avatarUrl} />
                 : message.replyTo.author.displayName[0].toUpperCase()}
             </span>
-            <b className={`reply-preview-name ${hasCustomNameStyle(message.replyTo.author) ? nameStyleClassName(message.replyTo.author) : ''}`} style={hasCustomNameStyle(message.replyTo.author) ? nameStyleProps(message.replyTo.author) : roleTextStyle(replyAuthorRoleColor)}>{message.replyTo.author.displayName}</b>
+            <b className={`reply-preview-name ${hasCustomNameStyle(message.replyTo.author) ? nameStyleClassName(message.replyTo.author, { fullEffect: true }) : ''}`} style={hasCustomNameStyle(message.replyTo.author) ? nameStyleProps(message.replyTo.author, { fullEffect: true }) : roleTextStyle(replyAuthorRoleColor)}>{message.replyTo.author.displayName}</b>
             <span className="reply-preview-content">{message.replyTo.content?.slice(0, 80) || 'anexo'}</span>
           </div>
         )}

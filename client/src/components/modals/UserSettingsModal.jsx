@@ -192,6 +192,9 @@ export default function UserSettingsModal({ onClose }) {
     // Item pedido: "cores do mini perfil separadas do perfil grande"
     miniProfileColor: user.miniProfileColor || '',
     miniProfileButtonColor: user.miniProfileButtonColor || '',
+    // Item pedido: "escolher a cor de fundo da bolha que mostra os
+    // status (Preto/Cinza/Branco)".
+    statusBubbleColor: user.statusBubbleColor || '',
     profileNameFont: user.profileNameFont || 'NORMAL',
     profileNameEffect: user.profileNameEffect || 'SOLID',
     profileNameColor: user.profileNameColor || '#F2894D',
@@ -1288,6 +1291,31 @@ export default function UserSettingsModal({ onClose }) {
                 <button type="button" className="btn-link" onClick={() => setForm((f) => ({ ...f, miniProfileButtonColor: '' }))}>Usar cor padrão</button>
               )}
             </div>
+          </div>
+
+          {/* Item pedido: "escolher a cor de fundo da bolha que mostra
+              os status (Preto/Cinza/Branco)" — 3 valores fixos (não é
+              uma cor livre — ver o motivo em userController.js), por
+              isso um seletor de opções em vez de um <input
+              type="color">, mesmo padrão visual do seletor de tema. */}
+          <div className="settings-block">
+            <h4>Cor de fundo da bolha de status</h4>
+            <p className="dim">A cor atrás do indicador de status (online, ausente, etc) no avatar do seu mini perfil.</p>
+            <div className="theme-options">
+              {[['#000000', 'Preto'], ['#80848E', 'Cinza'], ['#FFFFFF', 'Branco']].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`theme-swatch ${form.statusBubbleColor === value ? 'active' : ''}`}
+                  onClick={() => setForm((f) => ({ ...f, statusBubbleColor: value }))}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {form.statusBubbleColor && (
+              <button type="button" className="btn-link" onClick={() => setForm((f) => ({ ...f, statusBubbleColor: '' }))}>Usar cor padrão</button>
+            )}
           </div>
           </div>
 

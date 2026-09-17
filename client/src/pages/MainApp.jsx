@@ -262,14 +262,27 @@ export default function MainApp() {
 
   // Só sobrou o gesto de abrir/fechar a lista de membros (borda direita)
   // — a gaveta de canais/DMs não existe mais, MainSidebar é sempre visível.
+  //
+  // BUG CORRIGIDO ("consigo mover a tela pros lados tocando na barra que
+  // mostra os online"): o toque de início era só guardado como {x, y} —
+  // ao SOLTAR o dedo, se o gesto tivesse arrastado o suficiente pro lado
+  // (com pouco componente vertical), a gaveta fechava/abria não importa
+  // ONDE na tela o toque tivesse começado. Isso incluía começar dentro da
+  // própria .members-list (a barra de quem está online) — rolar essa
+  // lista, tocar num membro, qualquer arrasto lateral ali disparava o
+  // mesmo fechamento pensado só pra um swipe de borda de verdade. Agora
+  // um toque que começa dentro de .members-list é marcado e ignorado
+  // aqui — só conta como esse gesto de abrir/fechar quando começa fora
+  // dela (na área do chat, por exemplo), igual antes.
   const onTouchStart = (e) => {
     const t = e.touches[0];
-    touchStart.current = { x: t.clientX, y: t.clientY };
+    const startedInMembersList = !!e.target.closest?.('.members-list');
+    touchStart.current = { x: t.clientX, y: t.clientY, startedInMembersList };
   };
   const onTouchEnd = (e) => {
     const start = touchStart.current;
     touchStart.current = null;
-    if (!start) return;
+    if (!start || start.startedInMembersList) return;
     const t = e.changedTouches[0];
     const deltaX = t.clientX - start.x;
     const deltaY = t.clientY - start.y;

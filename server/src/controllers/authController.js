@@ -109,6 +109,12 @@ const PUBLIC_USER_FIELDS = {
   profileSectionOpacity: true,
   miniProfileColor: true,
   miniProfileButtonColor: true,
+  // Item pedido: "escolher a cor de fundo da bolha que mostra os
+  // status (Preto/Cinza/Branco)" — pública pelo mesmo motivo de
+  // miniProfileColor/miniProfileButtonColor acima: é a bolha de
+  // status que aparece no mini perfil de QUALQUER pessoa que a gente
+  // visite, não só o próprio dono da conta.
+  statusBubbleColor: true,
   // Item pedido: "quando crio a tag não aparece em tag da comunidade"
   // — a tag de clã que a pessoa escolheu usar (ver TagBadge.jsx e o
   // novo ClanTagBadge, mostrado nos mesmos lugares que a tag de

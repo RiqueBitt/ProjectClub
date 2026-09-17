@@ -109,6 +109,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     saveModpackLocal: (payload) => ipcRenderer.invoke('mods:save-modpack-local', payload),
     listLocalModpacks: (gameKey) => ipcRenderer.invoke('mods:list-local-modpacks', gameKey),
     deleteLocalModpack: (gameKey, packName) => ipcRenderer.invoke('mods:delete-local-modpack', { gameKey, packName }),
+    // Item pedido: "pegue a interface e tudo do Gale [Thunderstore Mod
+    // Manager] e funda com o que eu já tenho" — instala um pacote do
+    // Thunderstore por vez (o ModsPage.jsx chama isso uma vez pra cada
+    // item da árvore de dependência já resolvida, na ordem certa, mais
+    // uma vez pro mod pedido em si — ver installThunderstorePackage em
+    // desktop/modsManager.js).
+    installThunderstore: (payload) => ipcRenderer.invoke('mods:install-thunderstore', payload),
     onProgress: (callback) => {
       const listener = (_event, data) => callback(data);
       ipcRenderer.on('mods:progress', listener);

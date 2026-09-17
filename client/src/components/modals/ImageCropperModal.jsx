@@ -23,7 +23,24 @@ import Modal from '../Modal.jsx';
 // igual object-fit: cover fazia — a pessoa parte vendo a foto
 // completa e decide o quanto quer aproximar a partir daí.
 const PREVIEW_SIZE = 460; // largura de referência da moldura na tela, independente do tamanho final do arquivo
-const OUTPUT_WIDTH = 800; // tamanho final do arquivo gerado — grande o suficiente pra não ficar borrado em nenhum lugar que a imagem aparece
+
+// Item pedido: "as imagens dos banners completos tão ficando com uma
+// qualidade muito baixa" — CAUSA: o arquivo final sempre saía com
+// 800px de LARGURA, não importa o formato do recorte. Pra um avatar
+// (quadrado, aspectRatio 1) isso é de sobra. Mas banners usam um
+// aspectRatio bem maior que 1 (ex: 8.2 no perfil completo, 320/60 no
+// mini perfil) — com largura fixa em 800px, a ALTURA do arquivo saía
+// proporcionalmente minúscula (800/8.2 ≈ 98px de altura!), e esse
+// arquivo pequeno depois é esticado por CSS (background-size: cover)
+// pra cobrir uma faixa de banner bem maior que isso na tela — daí o
+// borrão. Recortes bem mais largos que altos (banners) agora saem com
+// o DOBRO da largura base, o suficiente pra continuar nítido mesmo
+// esticado numa faixa larga, inclusive em tela retina/alta densidade;
+// avatares e outros recortes quadrados/quase-quadrados continuam com
+// o tamanho de antes, sem motivo pra pesar mais o arquivo à toa.
+function outputWidthFor(aspectRatio) {
+  return aspectRatio > 1.5 ? 1600 : 800;
+}
 
 export default function ImageCropperModal({ file, aspectRatio = 1, shape = 'rect', title = 'Ajustar imagem', onConfirm, onClose }) {
   const [imgEl, setImgEl] = useState(null);
@@ -120,9 +137,10 @@ export default function ImageCropperModal({ file, aspectRatio = 1, shape = 'rect
     const srcX = imgEl.naturalWidth / 2 - offset.x / scale - srcW / 2;
     const srcY = imgEl.naturalHeight / 2 - offset.y / scale - srcH / 2;
 
+    const outputWidth = outputWidthFor(aspectRatio);
     const canvas = document.createElement('canvas');
-    canvas.width = OUTPUT_WIDTH;
-    canvas.height = OUTPUT_WIDTH / aspectRatio;
+    canvas.width = outputWidth;
+    canvas.height = outputWidth / aspectRatio;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(imgEl, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
     canvas.toBlob((blob) => {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore, isChannelUnread, useMyRoleIds } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
+import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import ChannelTypeIcon from './ChannelTypeIcon.jsx';
 
 // Navegação entre os chats disponíveis, fica bem onde antes aparecia o
@@ -36,6 +37,22 @@ export default function ChannelSwitcher({ currentChannelId }) {
   const channelReadAt = useStore((s) => s.channelReadAt);
   const openCategoryId = useStore((s) => s.openCategoryId);
   const setOpenCategoryId = useStore((s) => s.setOpenCategoryId);
+  // BUG CORRIGIDO ("abro o menu de categorias com o menu de gif/emoji
+  // aberto e os dois ficam abertos juntos/um em cima do outro"): essa
+  // barrinha de canais da categoria (openCategoryId) é um popover como
+  // qualquer outro pra fins de tela, mas vivia fora do coordenador
+  // global de popovers (ver popoverCoordinator.js — o mesmo que já
+  // garante "só um aberto por vez" entre o seletor de emoji/GIF/
+  // figurinha do composer, o picker de reação de mensagem, o menu de
+  // contexto, etc), simplesmente porque nasceu como um valor solto no
+  // store global em vez de um useState local. Registrando aqui do
+  // mesmo jeito: abrir esta barra agora fecha qualquer outro popover
+  // coordenado que estivesse aberto (emoji/GIF, por exemplo), e abrir
+  // QUALQUER outro popover coordenado fecha esta barra — os dois só
+  // ficam abertos ao mesmo tempo se algum deles for feito de propósito
+  // pra conviver com o outro (nenhum é, hoje). Vale tanto no mobile
+  // quanto no desktop, já que o coordenador é global de qualquer jeito.
+  usePopoverCoordination(!!openCategoryId, () => setOpenCategoryId(null));
   // Item pedido: "em aparência adicione uma nova opção de layout, a
   // opção normal e a opção de layout discord" — quando 'discord', a
   // navegação de canais mora na coluna fixa (ver MainApp.jsx/

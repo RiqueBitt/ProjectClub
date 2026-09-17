@@ -642,6 +642,27 @@ if (!gotLock) {
     }
   });
 
+  // Item pedido: "pegue a interface e tudo do Gale [Thunderstore Mod
+  // Manager] e funda com o que eu já tenho" — instala UM pacote do
+  // Thunderstore por vez; o ModsPage.jsx chama isso em sequência pra
+  // cada item da árvore de dependência já resolvida pelo backend (ver
+  // thunderstoreService.js), na ordem certa, antes do mod pedido em si
+  // — é isso que faz a instalação "de um clique só" funcionar, sem
+  // nenhuma lógica nova aqui além de repassar pro modsManager (ver
+  // installThunderstorePackage lá, que sabe diferenciar o framework
+  // BepInEx em si — isLoader: true, vai pra raiz do jogo — de um mod
+  // comum, que vai pra BepInEx/plugins como qualquer outra fonte).
+  ipcMain.handle('mods:install-thunderstore', async (event, payload) => {
+    try {
+      const result = await modsManager.installThunderstorePackage(payload, (progress) => {
+        event.sender.send('mods:progress', { modioModId: payload.fullName, ...progress });
+      });
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('mods:uninstall', (_event, payload) => {
     try {
       return { success: true, ...modsManager.uninstallMod(payload) };
