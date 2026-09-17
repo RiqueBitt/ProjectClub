@@ -5560,8 +5560,16 @@ a.embed-card-title:hover { text-decoration: underline; }
    chip grande que usava antes. */
 .mini-profile-level-badge {
   display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 700;
-  color: var(--text-muted); margin-top: 6px;
+  color: var(--text-muted);
 }
+/* Item pedido: "colocar a barra de nível do mini perfil do lado do
+   pronome" — antes tinha margin-top:6px (fazia sentido numa linha
+   própria embaixo do handle); agora que entrou dentro da MESMA linha
+   flex do handle (.mini-profile-handle, que já é display:flex), esse
+   espaçamento vertical desalinharia com @usuário/pronome ao lado —
+   removido. Uma bolinha "•" antes dele separa visualmente do resto da
+   linha, igual já acontece entre @usuário e o pronome. */
+.mini-profile-level-badge::before { content: '•'; margin-right: 4px; opacity: .5; }
 /* Item pedido: "a caixa que fica no fundo das músicas/jogos/apps no
    mini perfil... quero ele meio transparente invés de uma cor
    sólida" — só aqui no mini perfil (.activity-badge sozinho, usado no

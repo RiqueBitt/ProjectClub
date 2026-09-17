@@ -328,14 +328,14 @@ export default function MiniProfileCard() {
             <div className="dim mini-profile-handle">
               @{user.username}
               {user.pronouns && <span> • {user.pronouns}</span>}
-            </div>
-
-            {/* Item pedido: "coloque o estrela e o número do nível na
-                linha depois dos pronomes" — movido pra cá. Item
-                pedido: "colocar a barra de nível por extenso: ao invés
-                de só 10 colocar Nível 10". */}
-            <div className="mini-profile-level-badge">
-              <img className="ui-icon-sm" src={levelStarIcon} alt="" /> Nível {user.accountLevel ?? 1}
+              {/* Item pedido: "colocar a barra de nível do mini perfil
+                  do lado do pronome" — antes ficava numa linha própria
+                  embaixo (era "depois dos pronomes", mas ainda assim
+                  quebrando linha); agora entra na MESMA linha, logo ao
+                  lado. */}
+              <span className="mini-profile-level-badge">
+                <img className="ui-icon-sm" src={levelStarIcon} alt="" /> Nível {user.accountLevel ?? 1}
+              </span>
             </div>
 
             {(badges.length > 0) && (
