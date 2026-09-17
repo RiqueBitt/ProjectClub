@@ -183,11 +183,16 @@ export function nameStyleProps(user, { fullEffect = false } = {}) {
   const scale = FONT_SIZE_SCALE[user?.profileNameFont];
   const base = { fontFamily: font, ...(font ? { lineHeight: 1.3 } : {}), ...(scale ? { fontSize: `${scale}em` } : {}) };
 
-  // Fora do mini/perfil completo: só fonte + cor sólida, ignorando
-  // qualquer efeito chamativo escolhido (néon, gradiente, arco-íris
-  // etc) — mantém o chat/lista de membros mais limpo e legível.
-  if (!fullEffect) return { ...base, color };
-
+  // Item pedido (revisado): "volta com as cores no nomes no chat" — a
+  // ideia original era limitar o chat só à cor sólida, mas isso também
+  // cortava os estilos ESTÁTICOS (gradiente, contorno, sombra 3D,
+  // metálico, dourado...) que não têm nada de "efeito chamativo" tipo
+  // animação — só cor/desenho diferente, parado. Agora só a ANIMAÇÃO
+  // em si (o brilho pulsando do néon, o gradiente correndo do
+  // arco-íris, o tremor do glitch — ver nameStyleClassName logo
+  // abaixo, que continua só liberando essas classes .name-style-anim-*
+  // no mini/perfil completo) fica de fora do chat; a cor/gradiente/
+  // sombra de cada efeito aparece igual em todo lugar, parada.
   switch (effect) {
     case 'NEON':
       return { ...base, color, textShadow: `0 0 4px ${color}, 0 0 11px ${color}, 0 0 19px ${color}` };

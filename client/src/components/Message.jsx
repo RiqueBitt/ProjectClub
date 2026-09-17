@@ -350,7 +350,7 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
         {showAuthor && (
           <div className="message-meta">
             <span className={`message-author ${hasCustomNameStyle(message.author) ? nameStyleClassName(message.author) : ''}`} style={hasCustomNameStyle(message.author) ? nameStyleProps(message.author) : roleTextStyle(authorRoleColor)}>{message.author.displayName}</span>
-            <PendantIcon user={message.author} size={14} />
+            <PendantIcon user={message.author} size={20} />
             <TagBadge user={message.author} />
             <ClanTagBadge user={message.author} />
             <span className="message-time">{formatTime(message.createdAt)}</span>
