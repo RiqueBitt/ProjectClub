@@ -9,17 +9,13 @@ const Redis = require('ioredis');
 const fs = require('fs');
 const env = require('./env');
 
-// TLS do Redis gerenciado — a maioria dos provedores (Square Cloud
-// incluso, confirmado na doc oficial deles) só entrega UM certificado
-// (a CA, pra verificar o servidor), não os 3 de um TLS mútuo completo.
-// BUG CORRIGIDO: antes isso exigia as 3 variáveis (CA + cert + key do
-// CLIENTE) pra ativar TLS — como a maioria dos provedores só dá a CA,
-// o TLS nunca chegava a ativar de verdade, mesmo com REDIS_CA_PATH
-// preenchido. Agora: só REDIS_CA_PATH já é suficiente (caso comum);
-// se REDIS_CERT_PATH/REDIS_KEY_PATH TAMBÉM estiverem preenchidos (TLS
-// mútuo de verdade, menos comum), eles entram junto. rediss:// (com
-// "s" de secure) na URL já liga o TLS no ioredis sozinho — isso aqui
-// só adiciona os certificados por cima.
+// TLS do Redis gerenciado — algumas hospedagens (Upstash, por exemplo)
+// só entregam a CA; outras (Square Cloud incluída, na prática — apesar
+// da doc oficial deles falar só em "um certificado", o .zip que o
+// painel baixa de verdade vem com os 3 arquivos de um TLS mútuo
+// completo) entregam CA + certificado + chave do cliente. Suporta os
+// dois casos: com só REDIS_CA_PATH preenchido, já liga TLS (verificação
+// do servidor); com os 3 preenchidos, liga TLS mútuo completo.
 function buildTlsOptions() {
   const { REDIS_CA_PATH, REDIS_CERT_PATH, REDIS_KEY_PATH } = env;
   if (!REDIS_CA_PATH) return undefined;
