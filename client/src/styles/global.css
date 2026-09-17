@@ -355,9 +355,19 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 .btn-primary {
   background: var(--brand); color: #fff; padding: 10px 16px; border-radius: 6px; font-weight: 600;
   transition: background-color .12s, transform .1s, box-shadow .12s;
-  box-shadow: 0 1px 2px rgba(0,0,0,.08);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--btn-shadow-color, var(--brand)) 35%, rgba(0,0,0,.5));
 }
-.btn-primary:hover { background: var(--brand-hover); transform: translateY(-1px); box-shadow: 0 4px 10px -2px color-mix(in srgb, var(--brand) 50%, transparent); }
+/* BUG CORRIGIDO ("a sombra do botão sempre tem que ser igual a cor do
+   botão, só um pouco mais escura"): antes a sombra do hover era
+   sempre color-mix com var(--brand) FIXO — se um botão tivesse a cor
+   trocada por style inline (ex: "Cor do botão Ver perfil completo" no
+   mini perfil), a sombra continuava na cor de marca padrão, destoando
+   da cor de verdade do botão. --btn-shadow-color deixa a sombra
+   acompanhar; quem troca a cor do botão via inline style agora
+   também seta essa variável junto (ver MiniProfileCard.jsx) — sem
+   setar nada, cai em var(--brand) de sempre, sem mudança nenhuma pros
+   outros botões do app. */
+.btn-primary:hover { background: var(--brand-hover); transform: translateY(-1px); box-shadow: 0 4px 10px -2px color-mix(in srgb, var(--btn-shadow-color, var(--brand)) 50%, transparent); }
 .btn-primary:active { transform: translateY(0); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 .btn-secondary {

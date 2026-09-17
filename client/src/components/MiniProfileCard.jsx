@@ -389,8 +389,12 @@ export default function MiniProfileCard() {
                 // Item pedido: "mudando a cor do botão ver perfil
                 // completo" — só sobrescreve quando a pessoa
                 // personalizou; senão fica com a cor de marca padrão
-                // do app, igual já era antes.
-                ...(user.miniProfileButtonColor ? { background: user.miniProfileButtonColor } : {}),
+                // do app, igual já era antes. Item pedido: "essa
+                // sombra do botão sempre ser igual a cor do botão,
+                // porém um pouco mais escura" — --btn-shadow-color
+                // acompanha, pra sombra nunca ficar destoando (ver
+                // .btn-primary em global.css).
+                ...(user.miniProfileButtonColor ? { background: user.miniProfileButtonColor, '--btn-shadow-color': user.miniProfileButtonColor } : {}),
               }}
               onClick={() => { openProfile(renderedUserId); closeMiniProfile(); }}
             >
