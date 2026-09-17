@@ -171,7 +171,7 @@ export default function MiniProfileCard() {
     // troca pra medir o card com o MESMO método getBoundingClientRect,
     // consistente com rect/shellRect em toda a função.
     const elRect = el.getBoundingClientRect();
-    const cardWidth = elRect.width || 280;
+    const cardWidth = elRect.width || 320;
     const cardHeight = elRect.height || 220;
     const margin = 8;
     // Limites da área visível em coordenadas de `position: fixed` (que é
@@ -298,8 +298,24 @@ export default function MiniProfileCard() {
           <div className="mini-profile-body">
             <div className="mini-profile-avatar-row">
               <div className="mini-profile-avatar-wrap">
-                <div className="mini-profile-avatar"><UserAvatar user={user} size={64} /></div>
-                <PresenceDot status={presence[renderedUserId]?.status || user.status || 'OFFLINE'} className="mini-profile-presence-dot" />
+                {/* Item pedido: "aumentar o tamanho geral do mini
+                    perfil... colocar a foto do perfil um pouco mais
+                    acima estilo discord pegando a foto na metade do
+                    banner" — 64 → 84 (ver mini-profile-improvements.css
+                    pro tamanho do wrap/recuo pra cima em si). */}
+                <div className="mini-profile-avatar"><UserAvatar user={user} size={84} /></div>
+                {/* Item pedido: "escolher a cor de fundo da bolha que
+                    mostra os status (Preto/Cinza/Branco)" —
+                    statusBubbleColor sobrescreve a variável CSS que a
+                    borda da bolha usa (ver .mini-profile-presence-dot
+                    em mini-profile-improvements.css); sem escolha, cai
+                    no comportamento de sempre (acompanha o fundo do
+                    card). */}
+                <PresenceDot
+                  status={presence[renderedUserId]?.status || user.status || 'OFFLINE'}
+                  className="mini-profile-presence-dot"
+                  style={user.statusBubbleColor ? { '--status-bubble-border': user.statusBubbleColor } : undefined}
+                />
               </div>
               {/* BUG CORRIGIDO ("o status fica do lado da foto de
                   perfil, não no banner") — movido pra cá, ao lado do
@@ -315,9 +331,11 @@ export default function MiniProfileCard() {
             </div>
 
             {/* Item pedido: "coloque o estrela e o número do nível na
-                linha depois dos pronomes" — movido pra cá. */}
+                linha depois dos pronomes" — movido pra cá. Item
+                pedido: "colocar a barra de nível por extenso: ao invés
+                de só 10 colocar Nível 10". */}
             <div className="mini-profile-level-badge">
-              <img className="ui-icon-sm" src={levelStarIcon} alt="" /> {user.accountLevel ?? 1}
+              <img className="ui-icon-sm" src={levelStarIcon} alt="" /> Nível {user.accountLevel ?? 1}
             </div>
 
             {(badges.length > 0) && (
