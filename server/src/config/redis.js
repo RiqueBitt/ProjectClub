@@ -9,20 +9,27 @@ const Redis = require('ioredis');
 const fs = require('fs');
 const env = require('./env');
 
-// TLS mútuo (CA + certificado/chave do cliente) — só ativado se as 3
-// variáveis apontarem pra arquivos que existem de verdade; sem isso,
-// conecta normalmente sem TLS (Redis local de desenvolvimento, por
-// exemplo). O rediss:// (com "s" de secure) na URL já liga o TLS no
-// ioredis sozinho — isso aqui só adiciona os certificados por cima.
+// TLS do Redis gerenciado — a maioria dos provedores (Square Cloud
+// incluso, confirmado na doc oficial deles) só entrega UM certificado
+// (a CA, pra verificar o servidor), não os 3 de um TLS mútuo completo.
+// BUG CORRIGIDO: antes isso exigia as 3 variáveis (CA + cert + key do
+// CLIENTE) pra ativar TLS — como a maioria dos provedores só dá a CA,
+// o TLS nunca chegava a ativar de verdade, mesmo com REDIS_CA_PATH
+// preenchido. Agora: só REDIS_CA_PATH já é suficiente (caso comum);
+// se REDIS_CERT_PATH/REDIS_KEY_PATH TAMBÉM estiverem preenchidos (TLS
+// mútuo de verdade, menos comum), eles entram junto. rediss:// (com
+// "s" de secure) na URL já liga o TLS no ioredis sozinho — isso aqui
+// só adiciona os certificados por cima.
 function buildTlsOptions() {
   const { REDIS_CA_PATH, REDIS_CERT_PATH, REDIS_KEY_PATH } = env;
-  if (!REDIS_CA_PATH || !REDIS_CERT_PATH || !REDIS_KEY_PATH) return undefined;
+  if (!REDIS_CA_PATH) return undefined;
   try {
-    return {
-      ca: fs.readFileSync(REDIS_CA_PATH),
-      cert: fs.readFileSync(REDIS_CERT_PATH),
-      key: fs.readFileSync(REDIS_KEY_PATH),
-    };
+    const options = { ca: fs.readFileSync(REDIS_CA_PATH) };
+    if (REDIS_CERT_PATH && REDIS_KEY_PATH) {
+      options.cert = fs.readFileSync(REDIS_CERT_PATH);
+      options.key = fs.readFileSync(REDIS_KEY_PATH);
+    }
+    return options;
   } catch (err) {
     console.error('[redis] não consegui ler os certificados TLS configurados:', err.message);
     return undefined;
