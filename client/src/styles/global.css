@@ -466,7 +466,15 @@ body.body-auth-scroll { overflow-y: auto !important; }
      que o app inteiro usa depois do login), então a tela de entrada
      já chega com a identidade visual certa, e muda sozinha se o tema
      padrão mudar no futuro, sem precisar editar essas telas de novo. */
-  --auth-bg-0: var(--bg-deepest); --auth-bg-1: var(--bg-primary); --auth-panel: var(--bg-elevated);
+  /* Item pedido: "deixando o web/site sempre no tema preto quando
+     alguém está criando uma conta" — antes essas variáveis seguiam o
+     TEMA ativo (--bg-deepest etc, que muda pra cores claras nos temas
+     claros) — misturava mal com o cartão do formulário, que sempre
+     teve fundo escuro fixo (rgba(17,22,46,.82)). Agora usa direto os
+     valores do tema escuro "puro" (mesmos hex do tema OLED do app,
+     não inventados) — fica sempre escuro aqui, não importa qual tema
+     a pessoa tiver escolhido (ou o tema do sistema dela). */
+  --auth-bg-0: #000000; --auth-bg-1: #050505; --auth-panel: #0d0d0d;
   --auth-line: color-mix(in srgb, var(--brand) 30%, transparent);
   --auth-blue-a: color-mix(in srgb, var(--brand) 70%, #fff); --auth-blue-b: var(--brand); --auth-blue-c: var(--brand-hover);
   /* BUG CORRIGIDO ("o formulário de inscrição não rola pra cima nem
@@ -482,29 +490,41 @@ body.body-auth-scroll { overflow-y: auto !important; }
      ESSE elemento vira o container de rolagem de verdade, com altura
      travada na tela — não depende mais do documento rolar por fora,
      então continua funcionando mesmo com o html travado. */
+  /* BUG CORRIGIDO ("o cadastro aparece no centro em vez de lá em cima,
+     não consigo rolar pra cima"): "align-items: center" nesse flex é o
+     problema clássico de "centralizar + conteúdo maior que a tela" —
+     quando o conteúdo estoura, o navegador deixa rolar só o
+     TRANSBORDO ao redor do centro, então nunca dá pra alcançar o
+     topo/fim de verdade do formulário (ele sempre fica com um pedaço
+     cortado, do topo ou do fim, sem jeito de destravar rolando).
+     Tirando o align-items (a centralização agora vem só do
+     margin:20px auto do próprio .auth-card, mais abaixo), o conteúdo
+     passa a nascer no TOPO do container — centralizado quando cabe
+     inteiro na tela (igual antes), mas rolável do início ao fim de
+     verdade quando não cabe. */
   height: 100vh; height: 100dvh; padding: 40px 20px;
-  display: flex; align-items: center; justify-content: center; position: relative;
+  display: flex; justify-content: center; position: relative;
   background: var(--auth-bg-0);
-  /* BUG CORRIGIDO ("o scroll do formulário de inscrição não funciona
-     pra cima e pra baixo"): esse "overflow: hidden" aqui bloqueava
-     completamente a rolagem do PRÓPRIO container — o formulário de
-     inscrição (8 perguntas + várias grades de opção) é bem mais alto
-     que a tela de login, então quando não cabia na viewport, o
-     conteúdo simplesmente ficava cortado, sem nenhuma barra de
-     rolagem funcionando (nem pra cima, nem pra baixo) pra alcançar o
-     resto. A tela de login continua idêntica (o conteúdo dela cabe
-     numa tela normal, então nunca chega a precisar rolar). */
   overflow-y: auto; overflow-x: hidden;
 }
 .auth-screen::before {
-  content: ''; position: absolute; inset: 0; z-index: 0;
+  /* BUG CORRIGIDO ("o fundo não acompanha o scroll pra cima nem pra
+     baixo"): position:absolute aqui dimensiona pelo tamanho do
+     PRÓPRIO .auth-screen (travado em 100dvh) — quando o conteúdo
+     rolava além disso, sobrava tela sem fundo nenhum (preto puro) na
+     parte que passava da altura original. position:fixed gruda no
+     VIEWPORT em vez do elemento, então cobre a tela inteira o tempo
+     todo, não importa quanto role — sem precisar "esticar" junto com
+     o conteúdo, porque nunca deixa de cobrir a tela toda desde o
+     início. */
+  content: ''; position: fixed; inset: 0; z-index: 0;
   background:
     radial-gradient(ellipse 60% 45% at 20% 15%, rgba(88, 130, 255, 0.22), transparent 60%),
     radial-gradient(ellipse 50% 40% at 85% 85%, rgba(88, 101, 242, 0.18), transparent 60%),
     linear-gradient(180deg, var(--auth-bg-0) 0%, var(--auth-bg-1) 100%);
 }
 .auth-screen::after {
-  content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background-image:
     linear-gradient(rgba(120, 160, 255, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(120, 160, 255, 0.05) 1px, transparent 1px);
@@ -6431,9 +6451,17 @@ a.embed-card-title:hover { text-decoration: underline; }
      mesma correção do .auth-screen acima: todas essas variáveis agora
      mapeiam pras cores reais do tema em vez de valores hardcoded
      próprios sem relação com o resto do app. */
-  --lp-bg-0: var(--bg-deepest); --lp-bg-1: var(--bg-primary); --lp-panel: var(--bg-elevated);
+  /* Item pedido: "deixando o web/site sempre no tema preto... ou abrir
+     o web de baixar o launcher do app" — mesma correção do
+     .auth-screen acima: valores fixos do tema escuro "puro", não mais
+     seguindo o tema ativo (que podia ficar claro). */
+  --lp-bg-0: #000000; --lp-bg-1: #050505; --lp-panel: #0d0d0d;
   --lp-line: color-mix(in srgb, var(--brand) 26%, transparent);
-  --lp-text: var(--header-primary); --lp-muted: var(--text-muted);
+  /* BUG CORRIGIDO (texto ilegível): --header-primary/--text-muted
+     continuavam seguindo o tema ativo — se a pessoa tivesse um tema
+     claro escolhido, isso dava texto ESCURO por cima do fundo preto
+     fixo acima, quase ilegível. Fixando junto com o fundo. */
+  --lp-text: #f2f3f5; --lp-muted: #949ba4;
   --lp-blue-a: color-mix(in srgb, var(--brand) 70%, #fff); --lp-blue-b: var(--brand); --lp-blue-c: var(--brand-hover);
   /* BUG CORRIGIDO ("não rola pra baixo"): min-height só define um PISO —
      o elemento cresce livremente pra caber o conteúdo, então nunca
