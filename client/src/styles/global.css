@@ -463,7 +463,20 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
    (ver mobile-scroll-fix.css, outra correção — do scroll do chat
    arrastando a página no celular), o conteúdo que passava da tela
    ficava sem NENHUM jeito de rolar até ele, nem por aqui nem por lá. */
-body.body-auth-scroll { height: 100vh; height: 100dvh; overflow-y: auto !important; }
+/* BUG CORRIGIDO ("agora não rola pra baixo de jeito nenhum"): mesmo com
+   altura própria, esse "overflow-y:auto !important" no BODY brigava
+   com "html, body, #root { height: 100% }" (regra de base do app, lá
+   em cima) — o #root (pai direto de tudo, inclusive do .auth-screen)
+   continuava travado em 100% de altura por essa regra, então o
+   conteúdo mais alto nunca chegava a "estourar" o BODY de verdade (só
+   estourava o #root, um nível mais interno, sem ninguém ali dentro
+   pra pegar esse transbordo). Trocando o dono do scroll pro #root em
+   si (o pai mais direto do .auth-screen, sem nenhum nível no meio pra
+   dar errado) resolve isso de vez: ele ganha altura travada + rolagem
+   própria só enquanto essa classe estiver ativa, e o body deixa de
+   tentar rolar (evita ter dois donos de novo). */
+body.body-auth-scroll { overflow: hidden; }
+body.body-auth-scroll #root { height: 100vh; height: 100dvh; overflow-y: auto; }
 .auth-screen {
   /* Item pedido: "melhore o estilo da página web e o estilo do
      registro e login deixando do estilo do Project Club... as cores
@@ -500,7 +513,10 @@ body.body-auth-scroll { height: 100vh; height: 100dvh; overflow-y: auto !importa
      que sobrava ficava scrollado por fora do desenho do cartão.
      Voltando pra min-height (cresce livre com o conteúdo, sem cortar
      em 100dvh) e tirando o overflow-y próprio, só sobra UM dono do
-     scroll — o body, que já é quem o AuthLayout.jsx decidiu usar. */
+     scroll — o #root (ver body.body-auth-scroll mais acima, que
+     precisou de mais um ajuste depois: o dono real do scroll acabou
+     sendo o #root, não o body, por causa de outra regra de base que
+     travava a altura do #root em 100%). */
   min-height: 100vh; min-height: 100dvh; padding: 40px 20px;
   /* BUG CORRIGIDO ("o cadastro aparece no centro em vez de lá em cima,
      não consigo rolar pra cima"): "align-items: center" nesse flex é o
