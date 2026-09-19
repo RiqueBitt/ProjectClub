@@ -455,7 +455,15 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
    com brilho, painel com borda/sombra sutis), reaproveitada aqui pra
    manter tudo consistente. AuthLayout.jsx é compartilhado por todas
    essas telas, então melhorar essas classes já melhora todas de uma vez. */
-body.body-auth-scroll { overflow-y: auto !important; }
+/* BUG CORRIGIDO ("o cartão não acompanha o scroll, conteúdo sobrando
+   fica inalcançável"): overflow-y:auto sozinho não faz NADA se o
+   elemento não tiver uma altura TRAVADA pra "estourar" contra — sem
+   isso, o body só cresce livre pra caber o conteúdo (nunca "sobra"
+   nada pra rolar) e, como o <html> tem overflow:hidden de propósito
+   (ver mobile-scroll-fix.css, outra correção — do scroll do chat
+   arrastando a página no celular), o conteúdo que passava da tela
+   ficava sem NENHUM jeito de rolar até ele, nem por aqui nem por lá. */
+body.body-auth-scroll { height: 100vh; height: 100dvh; overflow-y: auto !important; }
 .auth-screen {
   /* Item pedido: "melhore o estilo da página web e o estilo do
      registro e login deixando do estilo do Project Club... as cores
@@ -477,19 +485,23 @@ body.body-auth-scroll { overflow-y: auto !important; }
   --auth-bg-0: #000000; --auth-bg-1: #050505; --auth-panel: #0d0d0d;
   --auth-line: color-mix(in srgb, var(--brand) 30%, transparent);
   --auth-blue-a: color-mix(in srgb, var(--brand) 70%, #fff); --auth-blue-b: var(--brand); --auth-blue-c: var(--brand-hover);
-  /* BUG CORRIGIDO ("o formulário de inscrição não rola pra cima nem
-     pra baixo, não dá pra ver o campo de senha/e-mail"): min-height
-     deixa esse elemento CRESCER além da tela quando o conteúdo é alto
-     (8 perguntas + grades de opção) — o "overflow" de verdade
-     acontecia no DOCUMENTO (html/body), não aqui dentro, então quem
-     precisava rolar era a página toda. Isso funcionava até a gente
-     travar html{overflow:hidden} globalmente (ver mobile-scroll-
-     fix.css, correção separada pro scroll do CHAT arrastar a página
-     no celular) — daí a tela de registro ficou sem nenhum jeito de
-     rolar. Trocando pra height (não min-height) mais overflow-y:auto,
-     ESSE elemento vira o container de rolagem de verdade, com altura
-     travada na tela — não depende mais do documento rolar por fora,
-     então continua funcionando mesmo com o html travado. */
+  /* BUG CORRIGIDO ("o cartão do formulário não acompanha o scroll, fica
+     com um tamanho fixo enquanto o conteúdo continua além dele"): esse
+     elemento chegou a ter height (travada em 100dvh) + overflow-y:auto
+     próprio numa correção anterior — só que o AuthLayout.jsx (o
+     componente React que usa essa classe) já tinha OUTRA solução pra
+     esse mesmo problema, mais antiga: body.body-auth-scroll, que faz o
+     PRÓPRIO <body> rolar de verdade enquanto essa tela está montada
+     (escolhida de propósito na época por ser mais confiável entre
+     navegadores/zoom do que um container interno). As duas
+     competindo ao mesmo tempo é que causava o cartão parecer "cortado
+     num tamanho fixo": o body queria rolar uma altura, esse elemento
+     travado em 100dvh só deixava ver uma tela por vez, e o conteúdo
+     que sobrava ficava scrollado por fora do desenho do cartão.
+     Voltando pra min-height (cresce livre com o conteúdo, sem cortar
+     em 100dvh) e tirando o overflow-y próprio, só sobra UM dono do
+     scroll — o body, que já é quem o AuthLayout.jsx decidiu usar. */
+  min-height: 100vh; min-height: 100dvh; padding: 40px 20px;
   /* BUG CORRIGIDO ("o cadastro aparece no centro em vez de lá em cima,
      não consigo rolar pra cima"): "align-items: center" nesse flex é o
      problema clássico de "centralizar + conteúdo maior que a tela" —
@@ -502,10 +514,8 @@ body.body-auth-scroll { overflow-y: auto !important; }
      passa a nascer no TOPO do container — centralizado quando cabe
      inteiro na tela (igual antes), mas rolável do início ao fim de
      verdade quando não cabe. */
-  height: 100vh; height: 100dvh; padding: 40px 20px;
   display: flex; justify-content: center; position: relative;
   background: var(--auth-bg-0);
-  overflow-y: auto; overflow-x: hidden;
 }
 .auth-screen::before {
   /* BUG CORRIGIDO ("o fundo não acompanha o scroll pra cima nem pra
