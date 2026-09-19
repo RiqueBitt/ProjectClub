@@ -8,6 +8,15 @@ node_modules/
 **/.env
 **/.env.local
 
+# BUG DE SEGURANÇA CORRIGIDO: essa pasta (certificados TLS do MySQL/Redis
+# — chave privada incluída) estava sendo versionada desde o primeiro
+# commit, apesar da documentação em .env.example sempre ter dito o
+# contrário. Se você já tinha dado push pra algum lugar antes dessa
+# correção, considere os certificados antigos COMPROMETIDOS — troque-os
+# de novo na Square Cloud (gera um .zip novo, senha e certificados
+# mudam juntos) mesmo já tendo trocado antes.
+server/certs/
+
 # Builds/saídas geradas
 client/dist/
 desktop/dist/
