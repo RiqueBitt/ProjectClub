@@ -469,7 +469,20 @@ body.body-auth-scroll { overflow-y: auto !important; }
   --auth-bg-0: var(--bg-deepest); --auth-bg-1: var(--bg-primary); --auth-panel: var(--bg-elevated);
   --auth-line: color-mix(in srgb, var(--brand) 30%, transparent);
   --auth-blue-a: color-mix(in srgb, var(--brand) 70%, #fff); --auth-blue-b: var(--brand); --auth-blue-c: var(--brand-hover);
-  min-height: 100vh; min-height: 100dvh; padding: 40px 20px;
+  /* BUG CORRIGIDO ("o formulário de inscrição não rola pra cima nem
+     pra baixo, não dá pra ver o campo de senha/e-mail"): min-height
+     deixa esse elemento CRESCER além da tela quando o conteúdo é alto
+     (8 perguntas + grades de opção) — o "overflow" de verdade
+     acontecia no DOCUMENTO (html/body), não aqui dentro, então quem
+     precisava rolar era a página toda. Isso funcionava até a gente
+     travar html{overflow:hidden} globalmente (ver mobile-scroll-
+     fix.css, correção separada pro scroll do CHAT arrastar a página
+     no celular) — daí a tela de registro ficou sem nenhum jeito de
+     rolar. Trocando pra height (não min-height) mais overflow-y:auto,
+     ESSE elemento vira o container de rolagem de verdade, com altura
+     travada na tela — não depende mais do documento rolar por fora,
+     então continua funcionando mesmo com o html travado. */
+  height: 100vh; height: 100dvh; padding: 40px 20px;
   display: flex; align-items: center; justify-content: center; position: relative;
   background: var(--auth-bg-0);
   /* BUG CORRIGIDO ("o scroll do formulário de inscrição não funciona
