@@ -27,6 +27,28 @@ function toggleInArray(arr, value) {
   return arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value];
 }
 
+// Item pedido: "melhore o registro deixando mais organizado, compacto e
+// mais bonito" — cada uma das 8 perguntas tinha sua própria marcação
+// repetida (número + texto colados numa linha só, tudo maiúsculo, sem
+// nenhuma separação visual entre uma pergunta e a próxima). Esse
+// componente padroniza isso: o número vira um selo pequeno e redondo
+// (mais fácil de escanear "quantas faltam" que ler "1ª — 2ª — 3ª..."
+// em texto corrido), o título deixa de ser tudo em caixa alta (menos
+// "gritado", mais fácil de ler pergunta longa), e junto com o
+// .register-question mais compacto no CSS, o formulário inteiro fica
+// visivelmente mais curto sem cortar nenhuma pergunta.
+function Question({ number, title, hint, children }) {
+  return (
+    <div className="register-question">
+      <div className="register-question-head">
+        <span className="register-question-number">{number}</span>
+        <span className="register-question-title">{title}{hint && <span className="dim register-question-hint"> {hint}</span>}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 // Cadastro direto virou um formulário de inscrição — a conta só é criada
 // depois que a staff analisar e aprovar (ver AdminPanel.jsx aba
 // "Inscrições"). Enquanto isso, a pessoa não tem login nenhum ainda.
@@ -101,120 +123,119 @@ export default function RegisterPage() {
       wide
     >
       <form onSubmit={onSubmit} className="auth-form register-form-scrollable">
-        <p className="register-intro">
-          Olá, seja bem vindo ao Project Club, nosso clubinho no coração da internet! Ficamos
-          felizes em saber que você tem interesse em se juntar à nossa comunidade. Antes de
-          continuar, é importante saber que não somos uma rede social pública — somos uma
-          comunidade privada. Por conta de riscos de segurança com usuários mal intencionados,
-          exigimos que todos os interessados passem por um formulário com 8 perguntas sobre
-          você. Assim que for concluído, um dos nossos membros da equipe vai revisar seu pedido
-          e aprovar ou negar dependendo das circunstâncias. Preencha com cautela e aguarde o
-          resultado — você receberá um e-mail declarando sua aprovação ou rejeição.
-        </p>
+        <div className="register-intro">
+          <p>
+            Olá, seja bem vindo ao Project Club, nosso clubinho no coração da internet! Não somos
+            uma rede social pública — somos uma comunidade privada, e por conta de riscos de
+            segurança exigimos um formulário com 8 perguntas sobre você antes de aprovar o acesso.
+          </p>
+          <p className="dim register-intro-note">Preencha com cautela — você recebe a resposta (aprovado ou não) por e-mail.</p>
+        </div>
 
-        <label>
-          E-MAIL
-          <input type="email" name="email" value={form.email} onChange={onChange} required autoFocus />
-        </label>
-        <label>
-          NOME DE EXIBIÇÃO
-          <input name="displayName" value={form.displayName} onChange={onChange} />
-        </label>
-        <label>
-          CLUBTAG
-          <input name="username" value={form.username} onChange={onChange} required minLength={3} placeholder="Seu identificador único no Project Club" />
-        </label>
-        <label>
-          SENHA
-          <input type="password" name="password" value={form.password} onChange={onChange} required minLength={8} />
-        </label>
-
-        <label>
-          1ª — QUAL É A SUA IDADE? (data de nascimento)
-          <div className="birthdate-row">
-            <input type="number" name="birthDay" min="1" max="31" placeholder="Dia" value={form.birthDay} onChange={onChange} />
-            <input type="number" name="birthMonth" min="1" max="12" placeholder="Mês" value={form.birthMonth} onChange={onChange} />
-            <input type="number" name="birthYear" min="1930" max={new Date().getFullYear()} placeholder="Ano" value={form.birthYear} onChange={onChange} />
+        <div className="register-section">
+          <h3 className="register-section-title">Dados da conta</h3>
+          <div className="register-section-grid">
+            <label>
+              E-MAIL
+              <input type="email" name="email" value={form.email} onChange={onChange} required autoFocus />
+            </label>
+            <label>
+              NOME DE EXIBIÇÃO
+              <input name="displayName" value={form.displayName} onChange={onChange} />
+            </label>
+            <label>
+              CLUBTAG
+              <input name="username" value={form.username} onChange={onChange} required minLength={3} placeholder="Seu identificador único" />
+            </label>
+            <label>
+              SENHA
+              <input type="password" name="password" value={form.password} onChange={onChange} required minLength={8} />
+            </label>
           </div>
-        </label>
+        </div>
 
-        <label>
-          2ª — POR QUAL MEIO VOCÊ DESCOBRIU O PROJECT CLUB? <span className="dim">(escolha única)</span>
-          <div className="theme-options">
-            {HOW_FOUND_OPTIONS.map((o) => (
-              <button key={o} type="button" className={`theme-swatch ${answers.howFound === o ? 'active' : ''}`} onClick={() => setAnswers((a) => ({ ...a, howFound: o }))}>
-                {o}
-              </button>
-            ))}
-          </div>
-          {answers.howFound === 'Outros' && (
-            <input
-              style={{ marginTop: 8 }} placeholder="Escreva qual foi"
-              value={answers.howFoundOther} onChange={(e) => setAnswers((a) => ({ ...a, howFoundOther: e.target.value }))}
-            />
-          )}
-        </label>
+        <div className="register-section">
+          <h3 className="register-section-title">Questionário de admissão</h3>
 
-        <label>
-          3ª — QUAIS SÃO SEUS INTERESSES OU HOBBIES? <span className="dim">(escolha múltipla)</span>
-          <div className="theme-options">
-            {INTEREST_OPTIONS.map((o) => (
-              <button key={o} type="button" className={`theme-swatch ${answers.interests.includes(o) ? 'active' : ''}`} onClick={() => setAnswers((a) => ({ ...a, interests: toggleInArray(a.interests, o) }))}>
-                {o}
-              </button>
-            ))}
-          </div>
-        </label>
+          <Question number={1} title="Qual é a sua idade?" hint="(data de nascimento)">
+            <div className="birthdate-row">
+              <input type="number" name="birthDay" min="1" max="31" placeholder="Dia" value={form.birthDay} onChange={onChange} />
+              <input type="number" name="birthMonth" min="1" max="12" placeholder="Mês" value={form.birthMonth} onChange={onChange} />
+              <input type="number" name="birthYear" min="1930" max={new Date().getFullYear()} placeholder="Ano" value={form.birthYear} onChange={onChange} />
+            </div>
+          </Question>
 
-        <label>
-          4ª — VOCÊ É O QUÊ? <span className="dim">(escolha múltipla)</span>
-          <div className="theme-options">
-            {ROLE_OPTIONS.map((o) => (
-              <button key={o} type="button" className={`theme-swatch ${answers.roles.includes(o) ? 'active' : ''}`} onClick={() => setAnswers((a) => ({ ...a, roles: toggleInArray(a.roles, o) }))}>
-                {o}
-              </button>
-            ))}
-          </div>
-        </label>
+          <Question number={2} title="Por qual meio você descobriu o Project Club?" hint="(escolha única)">
+            <div className="theme-options register-options">
+              {HOW_FOUND_OPTIONS.map((o) => (
+                <button key={o} type="button" className={`theme-swatch ${answers.howFound === o ? 'active' : ''}`} onClick={() => setAnswers((a) => ({ ...a, howFound: o }))}>
+                  {o}
+                </button>
+              ))}
+            </div>
+            {answers.howFound === 'Outros' && (
+              <input
+                style={{ marginTop: 8 }} placeholder="Escreva qual foi"
+                value={answers.howFoundOther} onChange={(e) => setAnswers((a) => ({ ...a, howFoundOther: e.target.value }))}
+              />
+            )}
+          </Question>
 
-        <label>
-          5ª — QUAL SEU NÍVEL DE CONHECIMENTO SOBRE TECNOLOGIA? <span className="dim">(escolha única)</span>
-          <div className="theme-options theme-options-wrap">
-            {TECH_LEVEL_OPTIONS.map((o) => (
-              <button key={o} type="button" className={`theme-swatch ${answers.techLevel === o ? 'active' : ''}`} onClick={() => setAnswers((a) => ({ ...a, techLevel: o }))}>
-                {o}
-              </button>
-            ))}
-          </div>
-        </label>
+          <Question number={3} title="Quais são seus interesses ou hobbies?" hint="(escolha múltipla)">
+            <div className="theme-options register-options">
+              {INTEREST_OPTIONS.map((o) => (
+                <button key={o} type="button" className={`theme-swatch ${answers.interests.includes(o) ? 'active' : ''}`} onClick={() => setAnswers((a) => ({ ...a, interests: toggleInArray(a.interests, o) }))}>
+                  {o}
+                </button>
+              ))}
+            </div>
+          </Question>
 
-        <label>
-          6ª — JÁ PARTICIPOU DE ALGUMA OUTRA REDE SOCIAL "ALTERNATIVA"? <span className="dim">(escolha múltipla)</span>
-          <div className="theme-options">
-            {ALT_SOCIAL_OPTIONS.map((o) => (
-              <button key={o} type="button" className={`theme-swatch ${answers.altSocials.includes(o) ? 'active' : ''}`} onClick={() => setAnswers((a) => ({ ...a, altSocials: toggleInArray(a.altSocials, o) }))}>
-                {o}
-              </button>
-            ))}
-          </div>
-        </label>
+          <Question number={4} title="Você é o quê?" hint="(escolha múltipla)">
+            <div className="theme-options register-options">
+              {ROLE_OPTIONS.map((o) => (
+                <button key={o} type="button" className={`theme-swatch ${answers.roles.includes(o) ? 'active' : ''}`} onClick={() => setAnswers((a) => ({ ...a, roles: toggleInArray(a.roles, o) }))}>
+                  {o}
+                </button>
+              ))}
+            </div>
+          </Question>
 
-        <label>
-          7ª — VOCÊ SERIA UM MEMBRO ATIVO NA COMUNIDADE? <span className="dim">(escolha única)</span>
-          <div className="theme-options">
-            {ACTIVE_MEMBER_OPTIONS.map((o) => (
-              <button key={o} type="button" className={`theme-swatch ${answers.activeMember === o ? 'active' : ''}`} onClick={() => setAnswers((a) => ({ ...a, activeMember: o }))}>
-                {o}
-              </button>
-            ))}
-          </div>
-        </label>
+          <Question number={5} title="Qual seu nível de conhecimento sobre tecnologia?" hint="(escolha única)">
+            <div className="theme-options register-options theme-options-wrap">
+              {TECH_LEVEL_OPTIONS.map((o) => (
+                <button key={o} type="button" className={`theme-swatch ${answers.techLevel === o ? 'active' : ''}`} onClick={() => setAnswers((a) => ({ ...a, techLevel: o }))}>
+                  {o}
+                </button>
+              ))}
+            </div>
+          </Question>
 
-        <label>
-          8ª — POR QUAL MOTIVO VOCÊ GOSTARIA DE SE UNIR À NOSSA COMUNIDADE?
-          <textarea value={answers.joinReason} onChange={(e) => setAnswers((a) => ({ ...a, joinReason: e.target.value }))} rows={4} maxLength={1000} placeholder="Escreva sua resposta..." />
-          <span className="dim char-count">{answers.joinReason.length}/1000</span>
-        </label>
+          <Question number={6} title={'Já participou de alguma outra rede social "alternativa"?'} hint="(escolha múltipla)">
+            <div className="theme-options register-options">
+              {ALT_SOCIAL_OPTIONS.map((o) => (
+                <button key={o} type="button" className={`theme-swatch ${answers.altSocials.includes(o) ? 'active' : ''}`} onClick={() => setAnswers((a) => ({ ...a, altSocials: toggleInArray(a.altSocials, o) }))}>
+                  {o}
+                </button>
+              ))}
+            </div>
+          </Question>
+
+          <Question number={7} title="Você seria um membro ativo na comunidade?" hint="(escolha única)">
+            <div className="theme-options register-options">
+              {ACTIVE_MEMBER_OPTIONS.map((o) => (
+                <button key={o} type="button" className={`theme-swatch ${answers.activeMember === o ? 'active' : ''}`} onClick={() => setAnswers((a) => ({ ...a, activeMember: o }))}>
+                  {o}
+                </button>
+              ))}
+            </div>
+          </Question>
+
+          <Question number={8} title="Por qual motivo você gostaria de se unir à nossa comunidade?">
+            <textarea value={answers.joinReason} onChange={(e) => setAnswers((a) => ({ ...a, joinReason: e.target.value }))} rows={4} maxLength={1000} placeholder="Escreva sua resposta..." />
+            <span className="dim char-count">{answers.joinReason.length}/1000</span>
+          </Question>
+        </div>
 
         {error && <div className="auth-error">{error}</div>}
         <button type="submit" className="btn-primary register-submit-btn" disabled={busy}>{busy ? 'Enviando...' : 'Enviar inscrição'}</button>
