@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from './AuthLayout.jsx';
 import { submitApplication } from '../api/endpoints';
+import { useAuth } from '../context/AuthContext.jsx';
 
 const HOW_FOUND_OPTIONS = ['Instagram', 'Facebook', 'Twitter / X', 'Whatsapp', 'Youtube', 'Discord', 'Outros'];
 const INTEREST_OPTIONS = ['Vídeo Games', 'Cultura da internet', 'Assistir vídeos / conteúdo', 'Música'];
@@ -30,6 +31,8 @@ function toggleInArray(arr, value) {
 // depois que a staff analisar e aprovar (ver AdminPanel.jsx aba
 // "Inscrições"). Enquanto isso, a pessoa não tem login nenhum ainda.
 export default function RegisterPage() {
+  const navigate = useNavigate();
+  const { applySession } = useAuth();
   const [form, setForm] = useState({ email: '', username: '', displayName: '', password: '', birthDay: '', birthMonth: '', birthYear: '' });
   const [answers, setAnswers] = useState(emptyAnswers);
   const [error, setError] = useState('');
@@ -60,7 +63,17 @@ export default function RegisterPage() {
     try {
       const { birthDay: bd, birthMonth: bm, birthYear: by, ...rest } = form;
       const birthDateStr = `${by}-${String(bm).padStart(2, '0')}-${String(bd).padStart(2, '0')}`;
-      await submitApplication({ ...rest, birthDate: birthDateStr, answers });
+      const result = await submitApplication({ ...rest, birthDate: birthDateStr, answers });
+      // Item pedido: auto-aprovação do e-mail do dono da plataforma
+      // (ver PLATFORM_ADMIN_EMAIL em applicationsController.js) — a
+      // conta já vem criada e logada na hora, sem passar pela fila de
+      // aprovação; entra direto no app em vez de mostrar a tela de
+      // "aguarde aprovação".
+      if (result.autoApproved) {
+        applySession(result);
+        navigate('/');
+        return;
+      }
       setSubmitted(true);
     } catch (err) {
       setError(err.response?.data?.error || 'Não foi possível enviar sua inscrição.');
