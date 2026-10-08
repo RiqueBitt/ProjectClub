@@ -5,6 +5,7 @@ const env = require('./config/env');
 const { bootstrapPlatformAdmin, backfillPollTopicPermissions } = require('./services/adminBootstrap');
 const { seedAchievements } = require('./services/achievements');
 const voiceStore = require('./services/voiceRoomStore');
+const { checkB2 } = require('./services/b2HealthCheck');
 
 // Last-resort safety net: without these, a single unawaited/uncaught error
 // ANYWHERE in the process (a stray promise in a socket handler, a timer
@@ -55,6 +56,7 @@ httpServer.listen(env.PORT, () => {
   console.log(dim(top));
   lines.forEach((l) => console.log(dim('│ ') + l));
   console.log(dim(bottom));
+  checkB2().catch(() => {});
 });
 
 // Item pedido: "encontre uma solução para manter a sessão do usuário
