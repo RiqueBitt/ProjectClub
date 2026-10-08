@@ -87,11 +87,23 @@ async function issueApplicationSession(res, user) {
   return accessToken;
 }
 
+const USERNAME_RE = /^[a-zA-Z0-9_.]{3,32}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 async function submitApplication(req, res, next) {
   try {
-    const { email, username, password, displayName, birthDate, answers } = req.body;
-    if (!email || !username || !password || !birthDate) {
+    const { password, birthDate, answers } = req.body;
+    const str = (v) => (typeof v === 'string' ? v.trim() : '');
+    const email = str(req.body.email);
+    const username = str(req.body.username);
+    const displayName = str(req.body.displayName).slice(0, 32);
+    if (!email || !username || typeof password !== 'string' || !password || !birthDate) {
       return res.status(400).json({ error: 'Preencha e-mail, senha, ClubTag e data de nascimento.' });
+    }
+    // Mesmas regras mostradas no formulário (RegisterPage.jsx).
+    if (!EMAIL_RE.test(email) || email.length > 254) return res.status(400).json({ error: 'E-mail inválido.' });
+    if (!USERNAME_RE.test(username)) {
+      return res.status(400).json({ error: 'A ClubTag deve ter de 3 a 32 caracteres: letras, números, _ ou ponto.' });
     }
     const parsedBirthDate = new Date(birthDate);
     if (Number.isNaN(parsedBirthDate.getTime())) return res.status(400).json({ error: 'Data de nascimento inválida.' });

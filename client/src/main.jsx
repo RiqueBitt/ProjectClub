@@ -17,6 +17,8 @@ import './styles/mobile-scroll-fix.css';
 // Mini perfil maior/estilo Discord (card, banner, avatar, bolha de
 // status) — mesmo padrão dos dois arquivos acima.
 import './styles/mini-profile-improvements.css';
+// Telas de login/inscrição — por último, isoladas sob .pc-auth.
+import './styles/auth.css';
 import './i18n/index.js';
 
 // Item pedido: "adicione nas configurações do usuário ele poder

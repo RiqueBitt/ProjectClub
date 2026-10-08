@@ -1,11 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from './AuthLayout.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import IconGlyph from '../components/IconGlyph.jsx';
-import emailIcon from '../assets/icons/email.png';
-import lockIcon from '../assets/icons/lock.png';
-import shieldIcon from '../assets/icons/shield.png';
+import { AuthField, PasswordField, AuthAlert, SubmitButton, apiError } from '../components/auth/AuthFields.jsx';
+import { MailIcon, LockIcon, ShieldIcon } from '../components/auth/AuthIcons.jsx';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -14,34 +12,30 @@ export default function LoginPage() {
   const [needsTwoFactor, setNeedsTwoFactor] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  // Mostrar a senha ao passar o mouse em cima (desktop) ou segurar o
-  // dedo (celular) — nunca fica "travado" visível, só enquanto a pessoa
-  // mantém o cursor/dedo no botão do olho.
-  const [showPassword, setShowPassword] = useState(false);
+  const codeRef = useRef(null);
 
   const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
-  // Item pedido: verificação de "não sou um robô" removida do login —
-  // entra direto, sem nenhum desafio no meio do caminho.
   const onSubmit = async (e) => {
     e.preventDefault();
+    if (busy) return;
     setError('');
     setBusy(true);
     try {
-      const result = await login({ ...form });
+      const result = await login({
+        emailOrUsername: form.emailOrUsername.trim(),
+        password: form.password,
+        twoFactorCode: form.twoFactorCode.replace(/\s/g, ''),
+      });
       if (result.requiresTwoFactor) {
         setNeedsTwoFactor(true);
+        setTimeout(() => codeRef.current?.focus(), 0);
       } else {
-        // Item pedido: "quando abrir o app, abra na página de Início"
-        // — mudei só o redirecionamento pós-login (cenário mais direto
-        // de "abrir o app"), sem reestruturar a rota raiz "/" em si
-        // (usada em dezenas de outros lugares esperando ir pro
-        // Chat/Comunidade — mudar o significado dela seria um risco
-        // desnecessário de quebrar navegação existente).
-        navigate('/inicio');
+        // Pedido anterior: depois de entrar, abrir na página de Início.
+        navigate('/inicio', { replace: true });
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Não foi possível entrar.');
+      setError(apiError(err, 'Não foi possível entrar. Confira seus dados e tente de novo.'));
     } finally {
       setBusy(false);
     }
@@ -49,58 +43,52 @@ export default function LoginPage() {
 
   return (
     <AuthLayout
-      title="Bem-vindo de volta!"
-      subtitle="Estamos felizes em ver você novamente."
-      footer={<span>Precisa de uma conta? <Link to="/register">Cadastre-se</Link></span>}
+      title={needsTwoFactor ? 'Confirme que é você' : 'Bem-vindo de volta'}
+      subtitle={needsTwoFactor
+        ? 'Digite o código de 6 dígitos do seu app autenticador.'
+        : 'Entre com seu e-mail ou ClubTag.'}
+      footer={<>Ainda não é membro? <Link to="/register">Fazer inscrição</Link></>}
     >
-      <form onSubmit={onSubmit} className="auth-form">
-        <label className="auth-field">
-          E-MAIL OU NOME DE USUÁRIO
-          <div className="auth-input-wrap">
-            <IconGlyph src={emailIcon} size={16} className="auth-input-icon" />
-            <input name="emailOrUsername" value={form.emailOrUsername} onChange={onChange} placeholder="voce@exemplo.com" required autoFocus />
-          </div>
-        </label>
-        <label className="auth-field">
-          SENHA
-          <div className="auth-input-wrap">
-            <IconGlyph src={lockIcon} size={16} className="auth-input-icon" />
-            <input type={showPassword ? 'text' : 'password'} name="password" value={form.password} onChange={onChange} placeholder="••••••••" required />
-            <button
-              type="button"
-              className="auth-password-toggle"
-              tabIndex={-1}
-              aria-label="Mostrar senha"
-              onMouseEnter={() => setShowPassword(true)}
-              onMouseLeave={() => setShowPassword(false)}
-              onTouchStart={(e) => { e.preventDefault(); setShowPassword(true); }}
-              onTouchEnd={() => setShowPassword(false)}
-              onTouchCancel={() => setShowPassword(false)}
-            >
-              {showPassword ? '🙈' : '👁'}
-            </button>
-          </div>
-        </label>
+      <form onSubmit={onSubmit} className="pc-form" noValidate>
+        <div className={needsTwoFactor ? 'pc-collapsed' : undefined}>
+          <AuthField
+            label="E-mail ou ClubTag" icon={MailIcon} name="emailOrUsername"
+            value={form.emailOrUsername} onChange={onChange} required autoFocus
+            autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false}
+            inputMode="email" placeholder="voce@exemplo.com"
+          />
+        </div>
+        <div className={needsTwoFactor ? 'pc-collapsed' : undefined}>
+          <PasswordField
+            icon={LockIcon} name="password" value={form.password} onChange={onChange}
+            required autoComplete="current-password" placeholder="Sua senha"
+          />
+          <Link to="/forgot-password" className="pc-inline-link">Esqueci minha senha</Link>
+        </div>
+
         {needsTwoFactor && (
-          <label className="auth-field">
-            CÓDIGO DE AUTENTICAÇÃO DE DOIS FATORES
-            <div className="auth-input-wrap">
-              <IconGlyph src={shieldIcon} size={16} className="auth-input-icon" />
-              <input name="twoFactorCode" value={form.twoFactorCode} onChange={onChange} placeholder="000000" autoFocus />
-            </div>
-          </label>
+          <AuthField
+            label="Código de verificação" icon={ShieldIcon} name="twoFactorCode" inputRef={codeRef}
+            value={form.twoFactorCode} onChange={onChange} required
+            inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]*" maxLength={7}
+            placeholder="000 000" className="pc-code-input"
+          />
         )}
-        <Link to="/forgot-password" className="auth-link-small">Esqueceu sua senha?</Link>
-        {error && (
-          <div className="auth-error">
-            <span className="auth-error-icon">!</span>
-            {error}
-          </div>
+
+        <AuthAlert>{error}</AuthAlert>
+
+        <SubmitButton busy={busy} busyLabel="Entrando…" disabled={busy || !form.emailOrUsername || !form.password}>
+          {needsTwoFactor ? 'Confirmar e entrar' : 'Entrar'}
+        </SubmitButton>
+
+        {needsTwoFactor && (
+          <button
+            type="button" className="pc-btn pc-btn-ghost"
+            onClick={() => { setNeedsTwoFactor(false); setForm((f) => ({ ...f, twoFactorCode: '' })); setError(''); }}
+          >
+            Usar outra conta
+          </button>
         )}
-        <button type="submit" className="btn-primary auth-submit-btn" disabled={busy}>
-          {busy && <span className="auth-btn-spinner" />}
-          {busy ? 'Entrando...' : 'Entrar'}
-        </button>
       </form>
     </AuthLayout>
   );

@@ -450,143 +450,9 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 @keyframes loading-screen-spin { to { transform: rotate(360deg); } }
 .loading-screen-text { font-size: 13px; color: var(--text-muted); margin: 0; letter-spacing: .02em; }
 
-/* ---------- Auth screens (login, cadastro, verificação, recuperação de
-   senha) — mesma linguagem visual da página inicial (fundo azul escuro
-   com brilho, painel com borda/sombra sutis), reaproveitada aqui pra
-   manter tudo consistente. AuthLayout.jsx é compartilhado por todas
-   essas telas, então melhorar essas classes já melhora todas de uma vez. */
-/* BUG CORRIGIDO ("o cartão não acompanha o scroll, conteúdo sobrando
-   fica inalcançável"): overflow-y:auto sozinho não faz NADA se o
-   elemento não tiver uma altura TRAVADA pra "estourar" contra — sem
-   isso, o body só cresce livre pra caber o conteúdo (nunca "sobra"
-   nada pra rolar) e, como o <html> tem overflow:hidden de propósito
-   (ver mobile-scroll-fix.css, outra correção — do scroll do chat
-   arrastando a página no celular), o conteúdo que passava da tela
-   ficava sem NENHUM jeito de rolar até ele, nem por aqui nem por lá. */
-/* BUG CORRIGIDO ("agora não rola pra baixo de jeito nenhum"): mesmo com
-   altura própria, esse "overflow-y:auto !important" no BODY brigava
-   com "html, body, #root { height: 100% }" (regra de base do app, lá
-   em cima) — o #root (pai direto de tudo, inclusive do .auth-screen)
-   continuava travado em 100% de altura por essa regra, então o
-   conteúdo mais alto nunca chegava a "estourar" o BODY de verdade (só
-   estourava o #root, um nível mais interno, sem ninguém ali dentro
-   pra pegar esse transbordo). Trocando o dono do scroll pro #root em
-   si (o pai mais direto do .auth-screen, sem nenhum nível no meio pra
-   dar errado) resolve isso de vez: ele ganha altura travada + rolagem
-   própria só enquanto essa classe estiver ativa, e o body deixa de
-   tentar rolar (evita ter dois donos de novo). */
-body.body-auth-scroll { overflow: hidden; }
-body.body-auth-scroll #root { height: 100vh; height: 100dvh; overflow-y: auto; }
-.auth-screen {
-  /* Item pedido: "melhore o estilo da página web e o estilo do
-     registro e login deixando do estilo do Project Club... as cores
-     estão tudo fora do estilo" — antes essas 6 variáveis eram cores
-     hardcoded próprias (#080a14, #5865f2, um azul "estilo Discord"
-     sem relação nenhuma com o resto do app) — agora todas mapeiam
-     pras variáveis reais do tema (--bg-deepest/--brand/etc, as MESMAS
-     que o app inteiro usa depois do login), então a tela de entrada
-     já chega com a identidade visual certa, e muda sozinha se o tema
-     padrão mudar no futuro, sem precisar editar essas telas de novo. */
-  /* Item pedido: "deixando o web/site sempre no tema preto quando
-     alguém está criando uma conta" — antes essas variáveis seguiam o
-     TEMA ativo (--bg-deepest etc, que muda pra cores claras nos temas
-     claros) — misturava mal com o cartão do formulário, que sempre
-     teve fundo escuro fixo (rgba(17,22,46,.82)). Agora usa direto os
-     valores do tema escuro "puro" (mesmos hex do tema OLED do app,
-     não inventados) — fica sempre escuro aqui, não importa qual tema
-     a pessoa tiver escolhido (ou o tema do sistema dela). */
-  --auth-bg-0: #000000; --auth-bg-1: #050505; --auth-panel: #0d0d0d;
-  --auth-line: color-mix(in srgb, var(--brand) 30%, transparent);
-  --auth-blue-a: color-mix(in srgb, var(--brand) 70%, #fff); --auth-blue-b: var(--brand); --auth-blue-c: var(--brand-hover);
-  /* BUG CORRIGIDO ("o cartão do formulário não acompanha o scroll, fica
-     com um tamanho fixo enquanto o conteúdo continua além dele"): esse
-     elemento chegou a ter height (travada em 100dvh) + overflow-y:auto
-     próprio numa correção anterior — só que o AuthLayout.jsx (o
-     componente React que usa essa classe) já tinha OUTRA solução pra
-     esse mesmo problema, mais antiga: body.body-auth-scroll, que faz o
-     PRÓPRIO <body> rolar de verdade enquanto essa tela está montada
-     (escolhida de propósito na época por ser mais confiável entre
-     navegadores/zoom do que um container interno). As duas
-     competindo ao mesmo tempo é que causava o cartão parecer "cortado
-     num tamanho fixo": o body queria rolar uma altura, esse elemento
-     travado em 100dvh só deixava ver uma tela por vez, e o conteúdo
-     que sobrava ficava scrollado por fora do desenho do cartão.
-     Voltando pra min-height (cresce livre com o conteúdo, sem cortar
-     em 100dvh) e tirando o overflow-y próprio, só sobra UM dono do
-     scroll — o #root (ver body.body-auth-scroll mais acima, que
-     precisou de mais um ajuste depois: o dono real do scroll acabou
-     sendo o #root, não o body, por causa de outra regra de base que
-     travava a altura do #root em 100%). */
-  min-height: 100vh; min-height: 100dvh; padding: 40px 20px;
-  /* BUG CORRIGIDO ("o cadastro aparece no centro em vez de lá em cima,
-     não consigo rolar pra cima"): "align-items: center" nesse flex é o
-     problema clássico de "centralizar + conteúdo maior que a tela" —
-     quando o conteúdo estoura, o navegador deixa rolar só o
-     TRANSBORDO ao redor do centro, então nunca dá pra alcançar o
-     topo/fim de verdade do formulário (ele sempre fica com um pedaço
-     cortado, do topo ou do fim, sem jeito de destravar rolando).
-     Tirando o align-items (a centralização agora vem só do
-     margin:20px auto do próprio .auth-card, mais abaixo), o conteúdo
-     passa a nascer no TOPO do container — centralizado quando cabe
-     inteiro na tela (igual antes), mas rolável do início ao fim de
-     verdade quando não cabe. */
-  display: flex; justify-content: center; position: relative;
-  background: var(--auth-bg-0);
-}
-.auth-screen::before {
-  /* BUG CORRIGIDO ("o fundo não acompanha o scroll pra cima nem pra
-     baixo"): position:absolute aqui dimensiona pelo tamanho do
-     PRÓPRIO .auth-screen (travado em 100dvh) — quando o conteúdo
-     rolava além disso, sobrava tela sem fundo nenhum (preto puro) na
-     parte que passava da altura original. position:fixed gruda no
-     VIEWPORT em vez do elemento, então cobre a tela inteira o tempo
-     todo, não importa quanto role — sem precisar "esticar" junto com
-     o conteúdo, porque nunca deixa de cobrir a tela toda desde o
-     início. */
-  content: ''; position: fixed; inset: 0; z-index: 0;
-  background:
-    radial-gradient(ellipse 60% 45% at 20% 15%, rgba(88, 130, 255, 0.22), transparent 60%),
-    radial-gradient(ellipse 50% 40% at 85% 85%, rgba(88, 101, 242, 0.18), transparent 60%),
-    linear-gradient(180deg, var(--auth-bg-0) 0%, var(--auth-bg-1) 100%);
-}
-.auth-screen::after {
-  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  background-image:
-    linear-gradient(rgba(120, 160, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(120, 160, 255, 0.05) 1px, transparent 1px);
-  background-size: 46px 46px;
-  mask-image: radial-gradient(ellipse 65% 65% at 50% 40%, #000 0%, transparent 75%);
-  -webkit-mask-image: radial-gradient(ellipse 65% 65% at 50% 40%, #000 0%, transparent 75%);
-}
-@media (max-width: 640px) { .auth-screen::after { display: none; } }
-
-.auth-card {
-  position: relative; z-index: 1; width: 100%; max-width: 440px;
-  background: rgba(17, 22, 46, 0.82); backdrop-filter: blur(18px);
-  border: 1px solid var(--auth-line); border-radius: 18px; padding: 40px 36px;
-  text-align: center; margin: 20px auto;
-  box-shadow: 0 30px 70px -25px rgba(0, 0, 0, 0.65), 0 0 50px -20px rgba(76, 141, 255, 0.3);
-  animation: auth-card-in .5s ease both;
-}
-@keyframes auth-card-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-@media (prefers-reduced-motion: reduce) { .auth-card { animation: none; } }
-@media (max-width: 480px) { .auth-card { padding: 30px 22px; border-radius: 14px; } }
-
-/* Cartão "largo" (item pedido: "no PC use mais espaço da tela, não
-   precisa economizar") — usado só no formulário de inscrição (8
-   perguntas + várias grades de opções), que fica ótimo estreito no
-   celular mas parecia sufocado/comprimido num monitor grande. No
-   celular continua exatamente igual ao cartão normal (a media query só
-   vale a partir de 900px) — só ganha mais respiro em telas de PC de
-   verdade, sem mudar nada da experiência mobile já aprovada. */
-@media (min-width: 900px) {
-  .auth-card-wide { max-width: 760px; padding: 48px 64px; text-align: left; }
-  .auth-card-wide .auth-logo-wrap { margin-left: 0; margin-right: 0; }
-  .auth-card-wide h1, .auth-card-wide .auth-subtitle { text-align: left; }
-  .auth-card-wide .theme-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  .auth-card-wide .birthdate-row { max-width: 420px; }
-}
-
+/* ---------- Auth screens: estilos em styles/auth.css (prefixo .pc-).
+   Aqui ficam só .auth-form / .auth-error / .auth-hint, que também são
+   usados por modais do app (CreateChannelModal, UserSettingsModal...). */
 .template-preview-card { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .template-preview-icon { width: 72px; height: 72px; border-radius: 16px; object-fit: cover; }
 .template-preview-icon-fallback {
@@ -596,189 +462,17 @@ body.body-auth-scroll #root { height: 100vh; height: 100dvh; overflow-y: auto; }
 .template-preview-stats { display: flex; gap: 12px; list-style: none; padding: 0; margin: 4px 0; font-size: 13px; color: var(--text-muted); flex-wrap: wrap; justify-content: center; }
 .template-link-row { display: flex; gap: 8px; margin-top: 8px; }
 .template-link-row input { flex: 1; }
-.auth-logo { width: 56px; height: 56px; object-fit: contain; margin-bottom: 12px; }
-.auth-logo-wrap {
-  margin: 0 auto 18px; width: 72px; height: 72px; border-radius: 20px; display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(160deg, rgba(76, 141, 255, 0.16), rgba(88, 101, 242, 0.06));
-  border: 1px solid var(--auth-line); box-shadow: 0 0 30px -8px rgba(76, 141, 255, 0.5);
-}
-.auth-logo-wrap .auth-logo, .auth-logo-wrap img { margin-bottom: 0; }
-.auth-card { color: var(--text-normal); }
-.auth-card h1 { color: #fff; margin: 0 0 8px; font-size: 24px; font-weight: 700; }
-.auth-subtitle { color: var(--text-muted); margin: 0 0 24px; font-size: 14.5px; }
 .auth-form { display: flex; flex-direction: column; gap: 22px; text-align: left; margin-top: 8px; }
-
-/* ---------- Formulário de inscrição (8 perguntas) — redesenhado pra
-   ficar mais organizado, compacto e bonito: intro num cartão próprio
-   (não some no meio do resto), seções com título separando "dados da
-   conta" de "questionário", e cada pergunta com número em selo
-   redondo em vez de texto tudo maiúsculo grudado. ---------- */
-.register-intro {
-  background: rgba(255,255,255,0.03); border: 1px solid var(--auth-line); border-radius: 12px;
-  padding: 14px 16px; margin: 0;
-}
-.register-intro p { font-size: 12.5px; line-height: 1.55; color: #a8affa; margin: 0; }
-.register-intro-note { margin-top: 6px !important; font-size: 11.5px !important; }
-
-.register-section { display: flex; flex-direction: column; gap: 16px; }
-.register-section + .register-section { padding-top: 18px; border-top: 1px solid var(--auth-line); }
-.register-section-title {
-  font-size: 11px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase;
-  color: var(--auth-blue-a); margin: 0;
-}
-.register-section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
-@media (max-width: 560px) { .register-section-grid { grid-template-columns: 1fr; } }
-
-.register-question { display: flex; flex-direction: column; gap: 8px; }
-.register-question-head { display: flex; align-items: baseline; gap: 9px; }
-.register-question-number {
-  flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%;
-  background: color-mix(in srgb, var(--brand) 22%, transparent); border: 1px solid var(--auth-blue-b);
-  color: #fff; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center;
-}
-.register-question-title { font-size: 13px; font-weight: 700; color: var(--text-normal); line-height: 1.4; }
-.register-question-hint { font-size: 11px; font-weight: 500; }
-
-/* Os botões de opção (.theme-swatch) foram pensados pro seletor de
-   TEMA nas configurações — tiles grandes com preview de cor. Reutilizados
-   aqui pra economizar um componente novo, mas o padding grande deles
-   sozinho já deixava o formulário bem mais longo que precisava; reduzido
-   só dentro do registro (.register-options), sem mexer no seletor real. */
-.register-options.theme-options { gap: 8px; }
-.register-options .theme-swatch { padding: 9px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; }
-
-.birthdate-row { display: flex; gap: 8px; }
-.birthdate-row input { flex: 1; min-width: 0; }
-.theme-options-wrap .theme-swatch { white-space: normal; text-align: left; line-height: 1.4; }
-.register-submit-btn { margin-bottom: 4px; }
-/* O botão de enviar sumia lá embaixo do formulário porque o body do app
-   inteiro tem overflow:hidden (necessário pro resto do app gerenciar seu
-   próprio scroll interno) — sem isso a tela de inscrição, bem mais longa
-   que a de login, não tinha como rolar até o botão. Ver .auth-screen. */
-/* Bug fix: this used to have `transform: scale(0.95)` to shrink the widget
-   slightly — CSS transforms create a new "containing block" for any
-   position:fixed descendant, though, and Google's own image-challenge
-   popup (the "select all squares with..." one, shown after clicking the
-   checkbox) is exactly that: a fixed-position overlay meant to be
-   positioned relative to the whole viewport. With the transform in place,
-   it was instead positioning itself relative to this shrunk/offset
-   container, landing far below the visible area instead of centered on
-   screen. No scaling at all now — the widget renders at its real size. */
 .auth-form label {
   font-size: 11.5px; font-weight: 700; letter-spacing: 0.4px; color: #8b93bd;
   display: flex; flex-direction: column; gap: 7px;
 }
-/* BUG CORRIGIDO ("as caixinhas ficam brancas", "texto aparece preto ou
-   com outra cor"): antes, só os 3 campos do login (com ícone, dentro de
-   .auth-input-wrap) tinham fundo/texto escuros de verdade — TODO O
-   RESTO (cadastro, recuperação de senha, campos sem ícone) continuava
-   usando o <input> genérico do site inteiro, que muda de cor conforme o
-   TEMA ativo (podia ficar bem claro num tema claro, com texto escuro —
-   destoando total do cartão escuro do login/cadastro). Essa regra cobre
-   QUALQUER campo dentro de .auth-card, com ou sem ícone, sempre com o
-   mesmo fundo escuro e texto branco, em qualquer tela de autenticação. */
-.auth-card input, .auth-card textarea, .auth-card select {
-  background: rgba(255, 255, 255, 0.04) !important; border: 1px solid var(--auth-line);
-  border-radius: 10px; padding: 12px 14px; color: #fff !important; font-size: 14.5px;
-}
-.auth-card input::placeholder, .auth-card textarea::placeholder { color: color-mix(in srgb, var(--text-muted) 65%, transparent); }
-.auth-card input:focus, .auth-card textarea:focus, .auth-card select:focus {
-  border-color: var(--auth-blue-b); box-shadow: 0 0 0 3px rgba(76, 141, 255, 0.16);
-}
-/* BUG CORRIGIDO ("o branco que pedi está só no rótulo (label), o texto
-   real continua com cor escura"): as perguntas de múltipla escolha do
-   formulário de inscrição usam .theme-swatch — o mesmo componente de
-   "cartão de opção" usado no seletor de TEMA do site (Configurações →
-   Aparência). Lá faz sentido a cor mudar com o tema ativo; aqui dentro
-   do cartão de autenticação (sempre escuro, de propósito, independente
-   do tema) essa mesma regra fazia o texto desses botões ficar escuro
-   também — ilegível em cima do fundo escuro. Essas regras sobrescrevem
-   só DENTRO do .auth-card, sem mexer no seletor de tema de verdade em
-   Configurações. */
-.auth-card .theme-swatch { color: var(--text-normal) !important; border-color: var(--auth-line) !important; background: rgba(255, 255, 255, 0.03); }
-.auth-card .theme-swatch.active { background: color-mix(in srgb, var(--brand) 16%, transparent) !important; border-color: var(--auth-blue-b) !important; color: #fff !important; }
-.auth-card .theme-swatch:hover { background: rgba(255, 255, 255, 0.07); }
-.auth-card .dim { color: var(--text-muted) !important; }
-.auth-card .char-count { color: var(--text-muted) !important; }
-/* BUG CORRIGIDO ("a caixinha fica totalmente branca quando eu digito
-   algo"): isso é o preenchimento automático do NAVEGADOR (autofill do
-   Chrome/Edge pra e-mail e senha salvos) — ele ignora completamente
-   qualquer `background`/`color` normal que a gente define e força um
-   fundo próprio (geralmente branco ou amarelo bem claro) com texto
-   escuro, assim que reconhece o campo ou a pessoa começa a digitar algo
-   que bate com uma sugestão salva. O único jeito de vencer isso de
-   verdade é essa técnica da sombra interna gigante (`inset`) — ela força
-   visualmente o fundo escuro por cima do que o navegador tentou aplicar,
-   e -webkit-text-fill-color força o texto a continuar branco (que é o
-   que realmente controla a cor do texto sob autofill, não `color`
-   normal). `transition` bem longa faz o navegador não "flashar" branco
-   por uma fração de segundo antes da nossa cor aparecer. */
-.auth-card input:-webkit-autofill,
-.auth-card input:-webkit-autofill:hover,
-.auth-card input:-webkit-autofill:focus,
-.auth-card input:-webkit-autofill:active {
-  -webkit-text-fill-color: #fff !important;
-  -webkit-box-shadow: 0 0 0 1000px rgba(17, 22, 46, 0.98) inset !important;
-  box-shadow: 0 0 0 1000px rgba(17, 22, 46, 0.98) inset !important;
-  transition: background-color 9999s ease-in-out 0s, color 9999s ease-in-out 0s;
-  caret-color: #fff;
-}
-/* Campo com ícone (item pedido) — .auth-input-wrap dá o "corpo" visual
-   do campo (borda, fundo, foco); o <input> por dentro fica sem borda
-   própria, só ocupando o espaço que sobra ao lado do ícone. */
-.auth-input-wrap {
-  display: flex; align-items: center; gap: 10px; padding: 0 14px; border-radius: 0;
-  background: rgba(255, 255, 255, 0.03); border: 1px solid var(--auth-line);
-  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
-}
-.auth-input-wrap:focus-within {
-  border-color: var(--auth-blue-b); background: rgba(255, 255, 255, 0.05);
-  box-shadow: 0 0 0 3px rgba(76, 141, 255, 0.16);
-}
-.auth-input-icon { color: var(--text-muted); flex-shrink: 0; transition: color .15s ease; }
-.auth-input-wrap:focus-within .auth-input-icon { color: var(--auth-blue-a); }
-.auth-input-wrap input {
-  flex: 1; min-width: 0; background: none; border: none; border-radius: 0; padding: 12px 0; font-size: 14.5px;
-  color: #fff;
-}
-.auth-input-wrap input:focus { outline: none; box-shadow: none; }
-.auth-input-wrap input::placeholder { color: color-mix(in srgb, var(--text-muted) 65%, transparent); }
-/* Botão de mostrar senha (item pedido) — só revela enquanto o mouse
-   está em cima ou o dedo está segurando, nunca fica ligado sozinho. */
-.auth-password-toggle {
-  flex-shrink: 0; font-size: 15px; opacity: 0.6; padding: 4px; line-height: 1;
-  -webkit-user-select: none; user-select: none;
-}
-.auth-password-toggle:hover { opacity: 1; }
 .auth-error {
   display: flex; align-items: center; gap: 10px;
   background: rgba(242, 63, 67, 0.1); border: 1px solid rgba(242, 63, 67, 0.25);
   color: #ff8a8d; padding: 10px 14px; border-radius: 10px; font-size: 13px; text-align: left;
 }
-.auth-error-icon {
-  flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: rgba(242, 63, 67, 0.25);
-  display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #ff8a8d;
-}
 .auth-hint { color: var(--text-muted); font-size: 13px; }
-.auth-link-small { font-size: 13px; align-self: flex-start; color: var(--auth-blue-a); }
-.auth-link-small:hover { color: #fff; }
-.auth-footer { margin-top: 22px; font-size: 13.5px; color: var(--text-muted); }
-.auth-footer a { color: var(--auth-blue-a); font-weight: 600; }
-.auth-footer a:hover { color: #fff; }
-
-.auth-submit-btn {
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  background: linear-gradient(135deg, var(--auth-blue-c), var(--auth-blue-b));
-  border-radius: 10px; padding: 13px; font-size: 15px; font-weight: 700; color: #fff; margin-top: 4px;
-  box-shadow: 0 10px 28px -10px rgba(76, 141, 255, 0.55); transition: transform .15s ease, box-shadow .15s ease;
-}
-.auth-submit-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 14px 32px -10px color-mix(in srgb, var(--brand) 70%, transparent); }
-.auth-submit-btn:disabled { opacity: 0.75; cursor: default; }
-.auth-btn-spinner {
-  width: 15px; height: 15px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff; animation: auth-spin .7s linear infinite;
-}
-@keyframes auth-spin { to { transform: rotate(360deg); } }
 
 /* ---------- App shell ----------
    3 colunas × 2 linhas: barra lateral principal única (MainSidebar.jsx,
@@ -2615,7 +2309,10 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
      dois (CSS + nativo) ficariam empilhados ao mesmo tempo, dobrando
      o efeito — foi exatamente esse o motivo do bug relatado antes
      ("ainda mais bugado"). */
-  html:not(.is-electron-app) { zoom: var(--global-zoom); }
+  /* .auth-no-zoom: telas de login/inscrição (AuthLayout.jsx) ficam sem o
+     zoom — a classe já era colocada no <html>, mas não existia regra
+     nenhuma pra ela, então o zoom continuava ligado ali. */
+  html:not(.is-electron-app):not(.auth-no-zoom) { zoom: var(--global-zoom); }
   /* Compensa a altura de .app-shell (a estrutura principal da tela)
      na MESMA condição em que o zoom CSS acima está ativo — sem isso,
      o zoom faria "100dvh" (definido no seletor base, fora deste media
@@ -4401,7 +4098,6 @@ a.embed-card-title:hover { text-decoration: underline; }
 [data-theme='facebook'] .dm-sidebar,
 [data-theme='facebook'] .channel-header,
 [data-theme='facebook'] .modal-box,
-[data-theme='facebook'] .auth-card,
 [data-theme='facebook'] .settings-panel,
 [data-theme='facebook'] .admin-panel,
 [data-theme='facebook'] .friend-card,
@@ -4849,7 +4545,6 @@ a.embed-card-title:hover { text-decoration: underline; }
 [data-theme='clubpenguin'] .dm-sidebar,
 [data-theme='clubpenguin'] .channel-header,
 [data-theme='clubpenguin'] .modal-box,
-[data-theme='clubpenguin'] .auth-card,
 [data-theme='clubpenguin'] .settings-panel,
 [data-theme='clubpenguin'] .admin-panel,
 [data-theme='clubpenguin'] .friend-card,
@@ -6132,7 +5827,6 @@ a.embed-card-title:hover { text-decoration: underline; }
 [data-theme='light'] .sidebar,
 [data-theme='light'] .members-list,
 [data-theme='light'] .modal-box,
-[data-theme='light'] .auth-card,
 [data-theme='light'] .settings-panel,
 [data-theme='light'] .admin-panel,
 [data-theme='light'] .friend-row,
