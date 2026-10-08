@@ -1,0 +1,196 @@
+/* ============================================================
+   Layout "Normal 2.0" (padrão) — Normal2Sidebar.jsx
+   ------------------------------------------------------------
+   Uma coluna à esquerda (banner da comunidade + menu + canais), o chat
+   no meio e os membros à direita, com uma barra de topo fina que mostra
+   onde a pessoa está. Todas as cores vêm das variáveis do TEMA ativo
+   (--bg-*, --text-*, --brand…), então funciona em qualquer tema.
+   Tudo fica sob .app-shell.layout-n2 / .n2-*: os outros layouts não
+   mudam. Importado depois de global.css em main.jsx.
+   ============================================================ */
+
+/* Categoria recolhível (vale pra todos os layouts) */
+.category-toggle {
+  display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0;
+  padding: 0; border: 0; background: none; text-align: left; cursor: pointer;
+  font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit;
+}
+.category-toggle:hover { color: var(--header-primary); }
+.n2-sidebar .category-toggle > .truncate { flex: 0 1 auto; }
+.n2-sidebar .category-toggle { justify-content: space-between; }
+.category-chevron { flex-shrink: 0; transition: transform .15s ease; }
+.category-label.is-collapsed .category-chevron { transform: rotate(-90deg); }
+
+/* ---------- Grade ---------- */
+.app-shell.layout-n2 {
+  --n2-sidebar-width: 272px;
+  --n2-top-height: 44px;
+  grid-template-columns: var(--n2-sidebar-width) minmax(0, 1fr) var(--members-width, 240px);
+  grid-template-rows: calc(var(--n2-top-height) + env(safe-area-inset-top, 0px)) minmax(0, 1fr) auto;
+}
+@media (max-width: 1100px) and (min-width: 601px) {
+  .app-shell.layout-n2 { --n2-sidebar-width: 240px; }
+}
+
+/* ---------- Barra do topo ---------- */
+.layout-n2 .top-search-bar {
+  position: relative;
+  height: calc(var(--n2-top-height) + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: 12px; padding-right: 10px; gap: 8px;
+  background: var(--bg-deepest);
+  border-bottom: 1px solid var(--border);
+}
+.layout-n2 .top-search-bar-brand { display: none; }
+.layout-n2 .top-search-bar-form { flex: 0 1 220px; margin-left: auto; order: 2; }
+.layout-n2 .top-search-bar-input { height: 28px; font-size: 13px; border-radius: 6px; }
+.layout-n2 .top-search-bar-actions { margin-left: 0; order: 3; }
+.layout-n2 .top-search-bar-icon-btn { width: 30px; height: 30px; border-radius: 6px; }
+.layout-n2 .top-search-bar-icon-btn:hover { background: var(--bg-modifier-hover); }
+
+.n2-top-title {
+  position: absolute; left: 50%; top: calc(50% + env(safe-area-inset-top, 0px) / 2);
+  transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: 7px; max-width: 34%;
+  font-size: 14px; font-weight: 600; color: var(--header-primary);
+  pointer-events: none; white-space: nowrap;
+}
+.n2-top-title-icon {
+  width: 15px; height: 15px; flex-shrink: 0; background: var(--text-muted);
+  -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+}
+
+/* ---------- Coluna da esquerda ---------- */
+.n2-sidebar {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+}
+.n2-sidebar > .sidebar {
+  flex: 1; min-height: 0; height: auto; position: relative;
+  background: transparent; padding-top: 0;
+}
+
+/* Banner da comunidade com o nome por cima (como o topo de servidor) */
+.n2-sidebar .sidebar-banner {
+  position: relative; height: 136px;
+  background-size: cover; background-position: center;
+}
+.n2-sidebar .sidebar-banner::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, .55) 0%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0) 70%, var(--bg-secondary) 100%);
+}
+.n2-sidebar .sidebar-banner + .sidebar-header {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2;
+  border-bottom: 0; background: transparent;
+  color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .6);
+}
+.n2-sidebar .sidebar-banner + .sidebar-header:hover { background: rgba(0, 0, 0, .18); }
+.n2-sidebar .sidebar-header { padding: 11px 12px 11px 14px; font-size: 15px; font-weight: 700; }
+.n2-sidebar .sidebar-header .ui-icon { filter: none; }
+.n2-sidebar .sidebar-banner + .sidebar-header .ui-icon { filter: brightness(0) invert(1); }
+
+/* ---------- Menu ---------- */
+.n2-nav {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: start;
+  padding: 10px 8px 12px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.n2-nav-list { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.n2-nav-item {
+  position: relative;
+  display: flex; align-items: center; gap: 10px;
+  height: 36px; padding: 0 12px; border-radius: 8px;
+  background: var(--bg-primary); border: 1px solid var(--border);
+  color: var(--text-normal); font-size: 13.5px; font-weight: 600; text-decoration: none;
+  transition: background-color .12s ease, border-color .12s ease, color .12s ease;
+}
+.n2-nav-item:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.n2-nav-item.active {
+  background: color-mix(in srgb, var(--brand) 16%, var(--bg-primary));
+  border-color: color-mix(in srgb, var(--brand) 55%, transparent);
+  color: var(--header-primary);
+}
+.n2-nav-icon {
+  width: 16px; height: 16px; flex-shrink: 0; background: currentColor; opacity: .8;
+  -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+}
+.n2-nav-item.active .n2-nav-icon { background: var(--brand); opacity: 1; }
+.n2-nav-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.n2-nav-badge {
+  margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--red); color: #fff; font-size: 11px; font-weight: 700;
+}
+.n2-nav-toggle {
+  grid-column: 2; grid-row: 1;
+  width: 24px; height: 24px; border-radius: 6px; margin-top: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-muted); background: transparent;
+}
+.n2-nav-toggle:hover { color: var(--header-primary); background: var(--bg-modifier-hover); }
+
+/* Menu compacto: só os ícones, numa fileira */
+.n2-nav.is-compact { align-items: center; padding-bottom: 10px; }
+.n2-nav.is-compact .n2-nav-toggle { margin-top: 0; }
+.n2-nav.is-compact .n2-nav-list { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+.n2-nav.is-compact .n2-nav-item { width: 34px; height: 34px; padding: 0; justify-content: center; }
+.n2-nav.is-compact .n2-nav-label { display: none; }
+.n2-nav.is-compact .n2-nav-badge {
+  position: absolute; top: -5px; right: -5px; margin: 0;
+  min-width: 16px; height: 16px; font-size: 10px; box-shadow: 0 0 0 2px var(--bg-secondary);
+}
+
+/* ---------- Canais ---------- */
+.n2-sidebar .sidebar-list { padding: 6px 8px 14px; gap: 1px; }
+.n2-sidebar .category-block { margin-top: 10px; }
+.n2-sidebar .category-label {
+  text-transform: none; letter-spacing: 0;
+  font-size: 12.5px; font-weight: 700; padding: 6px 6px 4px 8px;
+}
+.n2-sidebar .category-actions { opacity: 0; transition: opacity .12s ease; }
+.n2-sidebar .category-label:hover .category-actions,
+.n2-sidebar .category-label:focus-within .category-actions { opacity: 1; }
+@media (hover: none) { .n2-sidebar .category-actions { opacity: 1; } }
+.n2-sidebar .channel-item {
+  padding: 6px 8px; border-radius: 6px; font-size: 14.5px; gap: 8px;
+}
+.n2-sidebar .channel-item:hover { transform: none; }
+.n2-sidebar .channel-item.active { background: var(--bg-elevated); color: var(--header-primary); }
+.n2-sidebar .channel-item.active::before { display: none; }
+
+/* ---------- Membros ---------- */
+.layout-n2 .members-list { background: var(--bg-secondary); border-left: 1px solid var(--border); padding: 4px 8px 12px; }
+.layout-n2 .member-group-label {
+  text-transform: none; letter-spacing: 0;
+  font-size: 12.5px; font-weight: 700; padding: 14px 8px 6px;
+}
+.layout-n2 .member-row { border-radius: 8px; padding: 6px 8px; margin-bottom: 1px; }
+.layout-n2 .member-row:hover { background-color: var(--bg-modifier-hover); }
+/* Banner do perfil: ocupa a parte da direita da linha e some suavemente
+   pra esquerda (máscara), sem cobrir o avatar nem o começo do nome. */
+.layout-n2 .member-row.has-id-card {
+  position: relative; isolation: isolate; overflow: hidden;
+  background-image: none !important;
+}
+.layout-n2 .member-row.has-id-card::before {
+  content: ''; position: absolute; inset: 0 0 0 30%; z-index: -1;
+  background: var(--id-card) center / cover no-repeat;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .35) 35%, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .35) 35%, #000 100%);
+  opacity: .9;
+}
+
+/* ---------- Celular: a coluna vira a gaveta (regras de .main-sidebar) ---------- */
+@media (max-width: 600px) {
+  .app-shell.layout-n2 { grid-template-columns: 0 minmax(0, 1fr); }
+  .layout-n2 .n2-sidebar { width: min(88vw, 320px); }
+  .layout-n2 .top-search-bar-form { display: none; }
+  .layout-n2 .top-search-bar-actions { margin-left: auto; }
+  /* No celular o título fica ao lado do ☰, sem disputar o centro com os ícones. */
+  .n2-top-title { position: static; transform: none; flex: 1; min-width: 0; max-width: none; }
+  .n2-nav-item { height: 40px; font-size: 14px; }
+  .n2-sidebar .channel-item { padding: 9px 8px; font-size: 15px; }
+}

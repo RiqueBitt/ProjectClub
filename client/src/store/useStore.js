@@ -154,7 +154,8 @@ export const useStore = create((set, get) => ({
   // (User.layoutStyle) já vem com o novo default também, ver
   // schema.prisma).
   layoutStyle: (() => {
-    try { return localStorage.getItem('layoutStyle') || 'discord'; } catch { return 'discord'; }
+    // Padrão: "Normal 2.0" (ver Normal2Sidebar.jsx).
+    try { return localStorage.getItem('layoutStyle') || 'normal2'; } catch { return 'normal2'; }
   })(),
   // Item pedido: "5 variantes de visual dos meus emoji" — mesmo padrão
   // do tema acima (localStorage como cache rápido, a conta como fonte

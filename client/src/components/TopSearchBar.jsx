@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { ITEMS, STAFF_ITEM } from './MainSidebar.jsx';
 import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '../store/useStore';
 import gameActivityIcon from '../assets/icons/activity-game.png';
 import spotifyActivityIcon from '../assets/icons/activity-spotify.png';
@@ -24,8 +26,29 @@ import chatIcon from '../assets/icons/chat.png';
 // Barra de topo estilo Reddit — logo + busca + criar post + notificações +
 // engrenagem de Configurações (item pedido) + perfil/status (item pedido:
 // movido pra cá, saiu do rodapé da barra lateral — ver MainSidebar.jsx).
+// Título da seção atual, mostrado no centro da barra no layout
+// "Normal 2.0" (igual ao topo do Discord): a seção do menu em que a
+// pessoa está (Comunidade no chat, Feeds, Social...).
+function useSectionTitle() {
+  const { t } = useTranslation();
+  const { pathname } = useLocation();
+  // No chat, o nome do canal já aparece no cabeçalho do próprio chat;
+  // aqui fica a seção (Comunidade), como no topo do Discord.
+  if (pathname === '/' || pathname.startsWith('/channels/')) {
+    const item = ITEMS.find((i) => i.to === '/');
+    return { icon: item.icon, label: t(item.labelKey) };
+  }
+  if (pathname.startsWith('/conversations/')) return { label: t('nav.amigos') };
+  if (pathname === '/notifications') return { label: 'Notificações' };
+  if (pathname === '/search') return { label: 'Busca' };
+  const item = [...ITEMS, STAFF_ITEM].find((i) => i.to !== '/' && i.match(pathname));
+  return item ? { icon: item.icon, label: t(item.labelKey) } : null;
+}
+
 export default function TopSearchBar() {
   const navigate = useNavigate();
+  const layoutStyle = useStore((s) => s.layoutStyle);
+  const sectionTitle = useSectionTitle();
   const { user, setUser } = useAuth();
   const myRoleIds = useMyRoleIds(user?.id);
   const [q, setQ] = useState('');
@@ -108,6 +131,13 @@ export default function TopSearchBar() {
         <img className="top-search-bar-logo" src={logoIcon} alt="" />
         <span className="top-search-bar-brand-name">Project Club</span>
       </button>
+
+      {layoutStyle === 'normal2' && sectionTitle && (
+        <div className="n2-top-title" aria-live="polite">
+          {sectionTitle.icon && <span className="n2-top-title-icon" style={{ WebkitMaskImage: `url(${sectionTitle.icon})`, maskImage: `url(${sectionTitle.icon})` }} aria-hidden="true" />}
+          <span className="truncate">{sectionTitle.label}</span>
+        </div>
+      )}
 
       <form className="top-search-bar-form" onSubmit={submitSearch}>
         <div className="top-search-bar-input-wrap">

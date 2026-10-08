@@ -26,7 +26,7 @@ import { proxyImage } from '../utils/imageProxy';
 // usuário) substituem os emojis antigos — "nav-profile.png" (o ícone
 // "User Account" do pacote) vai em Amigos, não em Perfil; Perfil fica
 // com o emoji padrão já que não veio um ícone específico pra ele.
-const ITEMS = [
+export const ITEMS = [
   // Item pedido: "crie uma nova categoria chamada Início, primeira
   // categoria da lista, funcionando como página principal de
   // novidades e destaques" — substitui "Atualizações" (removida
@@ -77,7 +77,7 @@ const ITEMS = [
 // no painel a não ser digitando a URL /admin na mão. Item separado (não
 // dentro de ITEMS) porque só aparece pra ADMIN/MODERATOR — ver o filtro
 // no componente abaixo.
-const STAFF_ITEM = { to: '/admin', icon: dashboardIcon, isImg: true, labelKey: 'nav.painel', match: (p) => p.startsWith('/admin') };
+export const STAFF_ITEM = { to: '/admin', icon: dashboardIcon, isImg: true, labelKey: 'nav.painel', match: (p) => p.startsWith('/admin') };
 
 
 export default function MainSidebar() {

@@ -183,10 +183,14 @@ async function seed() {
   // idempotente (não sobrescreve quem já escolheu 'discord' ou
   // qualquer outro valor de propósito), então fica seguro aqui pra
   // sempre, sem precisar remover depois.
-  const migratedToDiscordLayout = await prisma.user.updateMany({
-    where: { layoutStyle: 'normal' }, data: { layoutStyle: 'discord' },
+  // Layout "Normal 2.0" vira o padrão de todas as contas existentes, UMA
+  // vez só: a migração anterior (que trocava 'normal' por 'discord' a cada
+  // deploy) desfazia a escolha de quem preferia outro layout. Agora a
+  // conta migrada recebe layoutVersion = 2 e nunca mais é tocada aqui.
+  const migratedToNormal2 = await prisma.user.updateMany({
+    where: { layoutVersion: { lt: 2 } }, data: { layoutStyle: 'normal2', layoutVersion: 2 },
   });
-  if (migratedToDiscordLayout.count > 0) console.log(`Layout padrão trocado pra 'discord' em ${migratedToDiscordLayout.count} conta(s).`);
+  if (migratedToNormal2.count > 0) console.log(`Layout 'Normal 2.0' aplicado em ${migratedToNormal2.count} conta(s).`);
 
   // Item pedido: "cadastrar sozinho" os jogos do sistema de Mods, sem
   // precisar clicar no painel da staff — mesmo padrão idempotente do

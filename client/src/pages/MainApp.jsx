@@ -7,6 +7,7 @@ import { playSound } from '../utils/sounds';
 import { applyLanguage } from '../i18n/index.js';
 import { getCommunity, listConversations, listFriends } from '../api/endpoints';
 import MainSidebar from '../components/MainSidebar.jsx';
+import Normal2Sidebar from '../components/Normal2Sidebar.jsx';
 import ChannelSidebar from '../components/ChannelSidebar.jsx';
 import TopSearchBar from '../components/TopSearchBar.jsx';
 import ChatWindow from '../components/ChatWindow.jsx';
@@ -128,6 +129,9 @@ export default function MainApp() {
   const mainSidebarCollapsed = useStore((s) => s.mainSidebarCollapsed);
   const isInComunidade = location.pathname === '/' || location.pathname.startsWith('/channels/');
   const showDiscordChannelSidebar = layoutStyle === 'discord' && isInComunidade;
+  // Layout "Normal 2.0" (padrão): canais sempre visíveis numa coluna só
+  // com o menu (Normal2Sidebar.jsx).
+  const isNormal2 = layoutStyle === 'normal2';
   // No mobile não cabe coluna fixa + chat lado a lado — a lista de
   // canais e o chat se revezam em tela cheia (ver CSS). BUG CORRIGIDO
   // ("no mobile não está dando de mudar de canal/categoria"): antes,
@@ -306,13 +310,15 @@ export default function MainApp() {
 
   return (
     <div
-      className={`app-shell ${mobileMembersOpen ? 'mobile-members-open' : ''} ${mobileSidebarOpen ? 'mobile-sidebar-open' : ''} ${showDiscordChannelSidebar ? 'discord-layout-active' : ''} ${mainSidebarCollapsed ? 'main-sidebar-manually-collapsed' : ''} ${hasChannelOpen ? 'discord-layout-has-channel' : ''} ${mobileChannelListOpen ? 'discord-mobile-channel-list-open' : ''}`}
+      className={`app-shell ${mobileMembersOpen ? 'mobile-members-open' : ''} ${mobileSidebarOpen ? 'mobile-sidebar-open' : ''} ${showDiscordChannelSidebar ? 'discord-layout-active' : ''} ${mainSidebarCollapsed && !isNormal2 ? 'main-sidebar-manually-collapsed' : ''} ${hasChannelOpen ? 'discord-layout-has-channel' : ''} ${mobileChannelListOpen ? 'discord-mobile-channel-list-open' : ''} ${isNormal2 ? 'layout-n2' : ''}`}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
       <div className="mobile-sidebar-backdrop" onClick={() => { closeMobileMembers(); closeMobileSidebar(); }} />
       <TopSearchBar />
-      <MainSidebar />
+      {isNormal2
+        ? <Normal2Sidebar activeChannelId={currentChannelIdFromUrl} />
+        : <MainSidebar />}
       {showDiscordChannelSidebar && (
         <div className="discord-layout-fixed-sidebar">
           <ChannelSidebar activeChannelId={currentChannelIdFromUrl} />

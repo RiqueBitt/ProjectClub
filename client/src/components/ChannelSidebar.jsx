@@ -65,7 +65,19 @@ function buildSections(categories, channels) {
 // renderiza) tem prioridade quando existir; o useParams() interno
 // continua como respaldo pros outros lugares que ainda usam este
 // componente dentro de uma <Route> de verdade (ver TopMenu.jsx).
-export default function ChannelSidebar({ activeChannelId: propActiveChannelId } = {}) {
+// Categorias recolhidas ficam salvas por navegador (só preferência visual).
+const COLLAPSED_CATS_KEY = 'collapsedCategories';
+function readCollapsedCats() {
+  try { return new Set(JSON.parse(localStorage.getItem(COLLAPSED_CATS_KEY) || '[]')); } catch { return new Set(); }
+}
+
+// Props usadas pelo layout "Normal 2.0" (Normal2Sidebar.jsx):
+// - embedded: faz parte de uma coluna maior, ignora o "recolher canais"
+// - topSlot: conteúdo entre o cabeçalho da comunidade e a lista (o menu)
+// - sentenceCase: nome das categorias como foi escrito, sem caixa alta
+export default function ChannelSidebar({
+  activeChannelId: propActiveChannelId, embedded = false, topSlot = null, sentenceCase = false,
+} = {}) {
   const { user } = useAuth();
   const { openMenu } = useContextMenu();
   const categories = useStore((s) => s.categories);
@@ -99,11 +111,18 @@ export default function ChannelSidebar({ activeChannelId: propActiveChannelId } 
   const [dragOverChannelId, setDragOverChannelId] = useState(null);
   const [dragOverPosition, setDragOverPosition] = useState('before');
   const [dragOverCategoryId, setDragOverCategoryId] = useState(null);
+  const [collapsedCats, setCollapsedCats] = useState(readCollapsedCats);
+  const toggleCategory = (id) => setCollapsedCats((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    try { localStorage.setItem(COLLAPSED_CATS_KEY, JSON.stringify([...next])); } catch { /* sem localStorage: só não lembra */ }
+    return next;
+  });
 
   const myPerms = getMyCommunityPermissions(roles, members, user.id, user.platformRole);
   const canManage = hasPermission(myPerms, 'MANAGE_CHANNELS');
 
-  if (collapsed) {
+  if (collapsed && !embedded) {
     return (
       <aside className="sidebar sidebar-collapsed">
         <button className="icon-btn sidebar-expand-btn" title="Expandir canais" onClick={toggleChannelSidebar}>›</button>
@@ -168,7 +187,7 @@ export default function ChannelSidebar({ activeChannelId: propActiveChannelId } 
   };
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${embedded ? ' sidebar-embedded' : ''}`}>
       {community.bannerUrl && (
         <div className="sidebar-banner" style={{ backgroundImage: `url(${community.bannerUrl})` }} />
       )}
@@ -216,6 +235,8 @@ export default function ChannelSidebar({ activeChannelId: propActiveChannelId } 
       {emojiManagerOpen && <EmojiManagerModal onClose={() => setEmojiManagerOpen(false)} />}
       {stickerManagerOpen && <StickerManagerModal onClose={() => setStickerManagerOpen(false)} />}
 
+      {topSlot}
+
       <nav className="sidebar-list" onContextMenu={onListContextMenu}>
         {channels.length > 0 && (
           <ChannelGroup
@@ -257,8 +278,14 @@ export default function ChannelSidebar({ activeChannelId: propActiveChannelId } 
               else if (dragChannelId) onChannelDrop(cat.id, null);
             }}
           >
-            <div className="category-label">
-              <span>{cat.name.toUpperCase()}</span>
+            <div className={`category-label${collapsedCats.has(cat.id) ? ' is-collapsed' : ''}`}>
+              <button
+                type="button" className="category-toggle" aria-expanded={!collapsedCats.has(cat.id)}
+                onClick={() => toggleCategory(cat.id)} title={collapsedCats.has(cat.id) ? 'Mostrar canais' : 'Esconder canais'}
+              >
+                <span className="truncate">{sentenceCase ? cat.name : cat.name.toUpperCase()}</span>
+                <svg className="category-chevron" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
               {canManage && (
                 <span className="category-actions">
                   <button className="icon-btn-small" title="Criar canal nesta categoria" onClick={() => setChannelModal({ open: true, categoryId: cat.id })}><img className="ui-icon-sm" src={plusIcon} alt="+" /></button>
@@ -268,7 +295,7 @@ export default function ChannelSidebar({ activeChannelId: propActiveChannelId } 
               )}
             </div>
             <ChannelGroup
-              channels={cat.channels}
+              channels={collapsedCats.has(cat.id) ? (cat.channels || []).filter((c) => c.id === activeChannelId) : cat.channels}
               categoryId={cat.id}
               members={members}
               canManage={canManage}

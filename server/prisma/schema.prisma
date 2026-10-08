@@ -142,7 +142,14 @@ model User {
   // 'discord'; usuários já existentes são atualizados uma vez via
   // script (ver server/scripts/set-default-layout-discord.js), não
   // só o default de quem se cadastra dali pra frente.
-  layoutStyle         String   @default("discord")
+  // "normal2" = layout "Normal 2.0", o padrão desde 10/2026.
+  layoutStyle         String   @default("normal2")
+  // Versão da migração de layout já aplicada a esta conta. Toda conta
+  // começa em 0; o seed passa quem está em 0 pra "normal2" UMA vez e marca
+  // 2 (conta nova já nasce em "normal2", então pra ela não muda nada).
+  // Escolher um layout em Configurações também marca 2, então a escolha
+  // de cada um nunca é desfeita por um deploy.
+  layoutVersion       Int      @default(0)
   // Item pedido: "sistema no aparência podendo mudar o zoom de 1,0
   // até 2,0... para melhor personalização" — quanto maior, maior o
   // texto/espaçamento do chat e da barra de digitar no PC (nunca no

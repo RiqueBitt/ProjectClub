@@ -388,10 +388,12 @@ async function setPreferredTheme(req, res, next) {
 async function setLayoutStyle(req, res, next) {
   try {
     const { layoutStyle } = req.body;
-    const allowed = ['normal', 'discord'];
+    const allowed = ['normal2', 'normal', 'discord'];
     if (!allowed.includes(layoutStyle)) return res.status(400).json({ error: 'Layout inválido.' });
+    // layoutVersion 2: a pessoa já escolheu na versão atual dos layouts,
+    // então a migração do seed (prisma/seed.js) não mexe mais na conta.
     const user = await prisma.user.update({
-      where: { id: req.user.id }, data: { layoutStyle }, select: SELF_USER_FIELDS,
+      where: { id: req.user.id }, data: { layoutStyle, layoutVersion: 2 }, select: SELF_USER_FIELDS,
     });
     res.json({ user });
   } catch (err) { next(err); }

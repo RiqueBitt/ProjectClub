@@ -117,7 +117,9 @@ export default function ChannelSwitcher({ currentChannelId }) {
   // um botão aqui — a navegação entre canais já acontece por inteiro
   // nessa coluna, então essas abas horizontais no topo do chat não
   // fazem mais sentido nesse layout.
-  if (layoutStyle === 'discord') return null;
+  // Abas de canais só existem no layout "Beta" (normal); Discord e
+  // Normal 2.0 mostram os canais numa coluna própria.
+  if (layoutStyle !== 'normal') return null;
 
   return (
     <div className="channel-tabs-wrap">

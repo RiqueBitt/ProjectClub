@@ -29,6 +29,9 @@ export default function MembersList({ onToggle }) {
   // fica agrupado por cargo (todo mundo cai direto em ONLINE/OFFLINE)
   // nem tem o nome colorido pela cor do cargo.
   const cargosEnabled = !useStore((s) => s.disabledSystems).includes('cargos');
+  // Normal 2.0: títulos dos grupos como o cargo foi escrito, sem caixa alta.
+  const n2 = useStore((s) => s.layoutStyle) === 'normal2';
+  const label = (text) => (n2 ? text : text.toUpperCase());
 
   const withStatus = members.map((m) => ({
     ...m,
@@ -44,7 +47,7 @@ export default function MembersList({ onToggle }) {
   for (const role of hoisted) {
     const inRole = online.filter((m) => m.role?.id === role.id);
     inRole.forEach((m) => used.add(m.user.id));
-    if (inRole.length > 0) groups.push({ label: `${role.name.toUpperCase()} — ${inRole.length}`, members: inRole });
+    if (inRole.length > 0) groups.push({ label: `${label(role.name)} — ${inRole.length}`, members: inRole });
   }
   const restOnline = online.filter((m) => !used.has(m.user.id));
 
@@ -54,8 +57,8 @@ export default function MembersList({ onToggle }) {
       {groups.map((g) => (
         <MemberGroup key={g.label} label={g.label} members={g.members} roles={roles} cargosEnabled={cargosEnabled} />
       ))}
-      <MemberGroup label={`ONLINE — ${restOnline.length}`} members={restOnline} roles={roles} cargosEnabled={cargosEnabled} />
-      <MemberGroup label={`OFFLINE — ${offline.length}`} members={offline} roles={roles} dim cargosEnabled={cargosEnabled} />
+      <MemberGroup label={`${n2 ? 'Disponível' : 'ONLINE'} — ${restOnline.length}`} members={restOnline} roles={roles} cargosEnabled={cargosEnabled} />
+      <MemberGroup label={`${n2 ? 'Offline' : 'OFFLINE'} — ${offline.length}`} members={offline} roles={roles} dim cargosEnabled={cargosEnabled} />
     </aside>
   );
 }
@@ -123,7 +126,7 @@ function MemberGroup({ label, members, roles, dim, cargosEnabled }) {
         <div
           key={m.user.id}
           className={`member-row ${dim ? 'dim' : ''} ${m.user.idCardUrl ? 'has-id-card' : ''}`}
-          style={m.user.idCardUrl ? { backgroundImage: `linear-gradient(90deg, var(--bg-secondary) 15%, transparent), url(${m.user.idCardUrl})` } : undefined}
+          style={m.user.idCardUrl ? { backgroundImage: `linear-gradient(90deg, var(--bg-secondary) 15%, transparent), url(${m.user.idCardUrl})`, '--id-card': `url(${JSON.stringify(m.user.idCardUrl)})` } : undefined}
           onContextMenu={(e) => onContextMenu(e, m)}
           onClick={(e) => useStore.getState().openMiniProfile(m.user.id, e.currentTarget.getBoundingClientRect(), 'left')}
         >

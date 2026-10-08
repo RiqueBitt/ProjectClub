@@ -1474,9 +1474,9 @@ export default function UserSettingsModal({ onClose }) {
               ícone" — mesmo padrão visual do seletor de tema acima. */}
           <div className="settings-block">
             <h4>Layout</h4>
-            <p className="dim">Como os canais aparecem: em abas no topo do chat (Normal), ou num menu que abre por cima da tela (Discord).</p>
+            <p className="dim">Normal 2.0: menu e canais juntos numa coluna à esquerda. Normal: barra de ícones com os canais ao lado. Beta: canais em abas no topo do chat.</p>
             <div className="theme-options">
-              {['normal', 'discord'].map((l) => (
+              {['normal2', 'discord', 'normal'].map((l) => (
                 <button key={l} className={`theme-swatch ${layoutStyle === l ? 'active' : ''}`} onClick={() => pickLayoutStyle(l)}>
                   {/* Item pedido: renomear os rótulos exibidos —
                       "Normal" vira "Beta", "Discord" vira "Normal".
@@ -1484,7 +1484,7 @@ export default function UserSettingsModal({ onClose }) {
                       os mesmos por baixo, só o texto que a pessoa vê
                       muda — evita mexer em schema/backend/lógica por
                       uma troca que é só de nome na tela. */}
-                  {{ normal: 'Beta', discord: 'Normal' }[l]}
+                  {{ normal2: 'Normal 2.0', normal: 'Beta', discord: 'Normal' }[l]}
                 </button>
               ))}
             </div>
