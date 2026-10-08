@@ -132,6 +132,12 @@ export default function MainApp() {
   // Layout "Normal 2.0" (padrão): canais sempre visíveis numa coluna só
   // com o menu (Normal2Sidebar.jsx).
   const isNormal2 = layoutStyle === 'normal2';
+  // Classe no <html> pra elementos fixos fora da grade (perfil em tela
+  // cheia, etc.) usarem as medidas do Normal 2.0 (ver normal2.css).
+  useEffect(() => {
+    document.documentElement.classList.toggle('layout-n2-root', isNormal2);
+    return () => document.documentElement.classList.remove('layout-n2-root');
+  }, [isNormal2]);
   // No mobile não cabe coluna fixa + chat lado a lado — a lista de
   // canais e o chat se revezam em tela cheia (ver CSS). BUG CORRIGIDO
   // ("no mobile não está dando de mudar de canal/categoria"): antes,

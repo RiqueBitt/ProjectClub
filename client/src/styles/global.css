@@ -3565,30 +3565,7 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 .discover-tag-chip { font-size: 11px; color: var(--text-link); cursor: pointer; }
 .discover-join-btn { margin-top: 6px; width: 100%; }
 
-/* ---------- Admin panel ---------- */
-/* BUG CORRIGIDO ("meter tudo dentro da tela sem precisar uma barra de
-   rolagem lateral"): esse container externo tinha overflow-y: auto,
-   mas .admin-nav e .admin-content (os dois filhos, dentro de
-   .admin-panel-body) TAMBÉM tinham overflow-y: auto cada um — três
-   rolagens aninhadas, causando duas barras de rolagem visíveis ao
-   mesmo tempo (uma da navegação, outra do conteúdo) na prática. Esse
-   container fica com altura fixa (herda display:flex/height:100% de
-   .admin-panel-modern, sempre aplicada junto no mesmo elemento — só
-   min-height: 0 aqui, necessário pra um filho flex conseguir encolher
-   dentro do pai em vez de forçar o próprio tamanho) — só os dois
-   filhos rolam, cada um de forma independente, dentro do espaço que
-   realmente têm. */
-.admin-panel { padding: 24px; flex: 1; min-height: 0; }
-.admin-panel-header { margin-bottom: 20px; }
-.admin-panel-header h1 { font-size: 22px; margin: 0 0 4px; }
-.admin-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-top: 12px; }
-.admin-stat-card {
-  background: linear-gradient(160deg, var(--bg-elevated), var(--bg-secondary-alt)); border: 1px solid var(--border);
-  border-radius: 10px; padding: 18px; text-align: center; transition: border-color .12s;
-}
-.admin-stat-card:hover { border-color: var(--brand); }
-.admin-stat-card .admin-stat-value { font-size: 26px; font-weight: 700; color: var(--brand); }
-.admin-stat-value { font-size: 28px; font-weight: 700; color: var(--header-primary); }
+/* ---------- Admin panel (conteúdo das ferramentas; o shell está em staff.css) ---------- */
 .admin-search-input { width: 100%; margin: 12px 0; padding: 8px 10px; }
 .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .admin-table th { text-align: left; color: var(--header-secondary); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .02em; padding: 8px; border-bottom: 2px solid var(--border); }
@@ -3629,7 +3606,6 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
      quebra linha e a fonte encolhe um pouco pra caber na largura da tela. */
   .admin-table { font-size: 12px; table-layout: fixed; }
   .admin-table th, .admin-table td { white-space: normal; word-break: break-word; padding: 8px 6px; }
-  .admin-stats-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 }
 
 /* ---------- Rules channel ---------- */
@@ -4099,7 +4075,6 @@ a.embed-card-title:hover { text-decoration: underline; }
 [data-theme='facebook'] .channel-header,
 [data-theme='facebook'] .modal-box,
 [data-theme='facebook'] .settings-panel,
-[data-theme='facebook'] .admin-panel,
 [data-theme='facebook'] .friend-card,
 [data-theme='facebook'] .conversation-item,
 [data-theme='facebook'] .message-group,
@@ -4546,7 +4521,6 @@ a.embed-card-title:hover { text-decoration: underline; }
 [data-theme='clubpenguin'] .channel-header,
 [data-theme='clubpenguin'] .modal-box,
 [data-theme='clubpenguin'] .settings-panel,
-[data-theme='clubpenguin'] .admin-panel,
 [data-theme='clubpenguin'] .friend-card,
 [data-theme='clubpenguin'] .conversation-item,
 [data-theme='clubpenguin'] .card,
@@ -4795,9 +4769,6 @@ a.embed-card-title:hover { text-decoration: underline; }
   .mod-tab { flex-shrink: 0; }
   /* Dentro do painel da staff especificamente, nada de rolagem lateral —
      as sub-abas (ex: Honeypot) quebram linha em vez de arrastar pro lado. */
-  .admin-content .mod-tabs { overflow-x: hidden; flex-wrap: wrap; }
-  .admin-content .mod-tab { flex-shrink: initial; }
-  .admin-panel { padding: 14px; }
   .settings-block { padding: 12px; }
 }
 
@@ -5407,96 +5378,8 @@ a.embed-card-title:hover { text-decoration: underline; }
 .group-slot:hover:not(.taken) { background: var(--brand); color: #fff; }
 .group-slot.taken { cursor: default; opacity: 0.85; }
 
-/* ---------- Painel de staff — layout refeito do zero (item pedido:
-   "apague o layout antigo e faça um novo muito melhor e mais
-   organizado", sem NENHUMA rolagem lateral em lugar nenhum — só
-   vertical, tanto no desktop quanto no mobile). Categorias agora têm
-   ícone próprio, ficam em cartões separados, e no celular a navegação
-   vira um painel que abre/fecha empilhado (nunca uma fileira de lado a
-   lado) — ver .admin-mobile-nav-toggle logo abaixo. ---------- */
-.admin-panel-modern { display: flex; flex-direction: column; height: 100%; }
-.admin-panel-body { display: flex; gap: 22px; flex: 1; min-height: 0; }
+/* Painel da Equipe: estilos em styles/staff.css. */
 
-.admin-nav {
-  width: 250px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px;
-  overflow-y: auto; overflow-x: hidden; padding-right: 6px;
-}
-.admin-nav-search {
-  border-radius: 10px; padding: 10px 14px; font-size: 13px;
-  background: var(--bg-elevated); border: 1px solid var(--border);
-  transition: border-color .12s;
-}
-.admin-nav-search:focus { border-color: var(--brand); outline: none; }
-
-/* Editor de Interface fica fixo no topo, destacado — é a ferramenta mais
-   usada pra mexer no visual do resto do site, então não fica misturada
-   junto com as outras categorias. */
-.admin-nav-pinned {
-  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
-  padding: 10px 14px; border-radius: 10px; font-size: 14px; font-weight: 700;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 20%, var(--bg-elevated)), var(--bg-elevated));
-  border: 1px solid color-mix(in srgb, var(--brand) 45%, var(--border)); color: var(--header-primary);
-  transition: border-color .12s, transform .12s;
-}
-.admin-nav-pinned:hover { border-color: var(--brand); transform: translateY(-1px); }
-.admin-nav-pinned-icon { font-size: 16px; }
-
-.admin-nav-group {
-  background: var(--bg-secondary-alt); border: 1px solid var(--border); border-radius: 12px; padding: 6px;
-}
-.admin-nav-group-toggle {
-  display: flex; align-items: center; justify-content: space-between; width: 100%;
-  padding: 7px 8px; cursor: pointer; border-radius: 8px;
-}
-.admin-nav-group-toggle:hover { background: var(--bg-modifier-hover); }
-.admin-nav-group-title {
-  display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 800;
-  letter-spacing: .5px; color: var(--text-muted); text-transform: uppercase;
-}
-.admin-nav-group-icon { font-size: 14px; }
-.admin-nav-group-chevron { font-size: 10px; opacity: .6; }
-.admin-nav-group-items { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
-.admin-nav-empty { padding: 8px 10px; font-size: 13px; }
-
-.admin-content-breadcrumb {
-  font-size: 12px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
-}
-.admin-content-breadcrumb span { opacity: 0.5; margin: 0 4px; }
-
-.admin-nav-item {
-  display: block; width: 100%; text-align: left; padding: 9px 12px; border-radius: 8px;
-  font-size: 13.5px; font-weight: 600; color: var(--text-normal);
-  transition: background-color .12s var(--ease-smooth), color .12s var(--ease-smooth);
-}
-.admin-nav-item:hover { background: var(--bg-modifier-hover); }
-.admin-nav-item.active { background: var(--brand); color: #fff; box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--brand) 60%, transparent); }
-.admin-content { flex: 1; min-width: 0; overflow-y: auto; overflow-x: hidden; }
-
-/* Botão que abre/fecha a navegação no mobile — some no desktop. */
-.admin-mobile-nav-toggle { display: none; }
-
-@media (max-width: 900px) {
-  /* Uma rolagem só pra tudo em mobile (nav + conteúdo empilhados) e
-     SEMPRE vertical — nada de fileira de categorias de lado a lado
-     nem tabela "arrastável", que era o que causava a barra lateral. */
-  .admin-panel { overflow-y: auto; overflow-x: hidden; }
-  .admin-panel-body { flex-direction: column; gap: 0; }
-
-  .admin-mobile-nav-toggle {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
-    padding: 12px 14px; margin-bottom: 12px; border-radius: 10px; font-size: 14px; font-weight: 700;
-    background: var(--bg-secondary-alt); border: 1px solid var(--border); color: var(--header-primary);
-  }
-  .admin-mobile-nav-toggle-chevron { font-size: 11px; opacity: .7; }
-
-  .admin-nav {
-    display: none; width: 100%; max-height: 62vh; overflow-y: auto; overflow-x: hidden;
-    margin-bottom: 16px; padding: 12px; border-radius: 12px;
-    background: var(--bg-secondary-alt); border: 1px solid var(--border);
-  }
-  .admin-nav.admin-nav-open { display: flex; }
-  .admin-content { overflow: visible; }
-}
 
 /* ---------- Casa/mapa inicial marcados no painel admin ---------- */
 .card.starter-marked { outline: 2px solid var(--green); }
@@ -5828,7 +5711,6 @@ a.embed-card-title:hover { text-decoration: underline; }
 [data-theme='light'] .members-list,
 [data-theme='light'] .modal-box,
 [data-theme='light'] .settings-panel,
-[data-theme='light'] .admin-panel,
 [data-theme='light'] .friend-row,
 [data-theme='light'] .card,
 [data-theme='light'] .context-menu,

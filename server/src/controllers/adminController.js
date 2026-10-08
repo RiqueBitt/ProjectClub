@@ -371,13 +371,30 @@ async function deleteBadgeType(req, res, next) {
 
 async function getStats(req, res, next) {
   try {
-    const [userCount, messageCount, bannedCount, last24h] = await Promise.all([
+    const DAY = 24 * 60 * 60 * 1000;
+    // Filas de pendências do painel: uma contagem que falhar (ex.: tabela
+    // de um sistema desligado) vira 0, sem derrubar o painel inteiro.
+    const safe = (p) => p.catch(() => 0);
+    const [
+      userCount, messageCount, bannedCount, last24h, last7d,
+      pendingApplications, pendingReports, pendingAutomodFlags, pendingModReports,
+    ] = await Promise.all([
       prisma.user.count(),
       prisma.message.count(),
       prisma.user.count({ where: { isPlatformBanned: true } }),
-      prisma.user.count({ where: { createdAt: { gt: new Date(Date.now() - 24 * 60 * 60 * 1000) } } }),
+      prisma.user.count({ where: { createdAt: { gt: new Date(Date.now() - DAY) } } }),
+      prisma.user.count({ where: { createdAt: { gt: new Date(Date.now() - 7 * DAY) } } }),
+      safe(prisma.membershipApplication.count({ where: { status: 'PENDING' } })),
+      safe(prisma.report.count({ where: { status: 'PENDING' } })),
+      safe(prisma.automodFlag.count({ where: { status: 'PENDING' } })),
+      safe(prisma.modReport.count({ where: { status: 'PENDING' } })),
     ]);
-    res.json({ stats: { userCount, messageCount, bannedCount, newUsersLast24h: last24h } });
+    res.json({
+      stats: {
+        userCount, messageCount, bannedCount, newUsersLast24h: last24h, newUsersLast7d: last7d,
+        pendingApplications, pendingReports, pendingAutomodFlags, pendingModReports,
+      },
+    });
   } catch (err) { next(err); }
 }
 

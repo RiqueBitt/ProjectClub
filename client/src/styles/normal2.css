@@ -22,14 +22,32 @@
 .category-label.is-collapsed .category-chevron { transform: rotate(-90deg); }
 
 /* ---------- Grade ---------- */
+/* Medidas no <html> (classe ligada em MainApp.jsx) pra valerem também
+   em elementos fixos fora da grade, como o perfil em tela cheia. */
+html.layout-n2-root { --n2-sidebar-width: 272px; --n2-top-height: 44px; }
+@media (max-width: 1100px) and (min-width: 601px) {
+  html.layout-n2-root { --n2-sidebar-width: 240px; }
+}
 .app-shell.layout-n2 {
-  --n2-sidebar-width: 272px;
-  --n2-top-height: 44px;
   grid-template-columns: var(--n2-sidebar-width) minmax(0, 1fr) var(--members-width, 240px);
   grid-template-rows: calc(var(--n2-top-height) + env(safe-area-inset-top, 0px)) minmax(0, 1fr) auto;
 }
-@media (max-width: 1100px) and (min-width: 601px) {
-  .app-shell.layout-n2 { --n2-sidebar-width: 240px; }
+/* Página sem lista de membros (Painel, Feeds, Apps…): o chat/página usa
+   também a 3ª coluna, em vez de deixar uma faixa vazia à direita. */
+@media (min-width: 601px) {
+  .app-shell.layout-n2:not(:has(.members-list)) {
+    grid-template-columns: var(--n2-sidebar-width) minmax(0, 1fr) 0;
+  }
+}
+
+/* Perfil em tela cheia: começa logo depois da coluna e da barra do topo
+   (antes usava as medidas do layout antigo e cobria a borda do menu). */
+html.layout-n2-root .profile-fullscreen-overlay {
+  top: calc(var(--n2-top-height) + env(safe-area-inset-top, 0px));
+  left: var(--n2-sidebar-width);
+}
+html.layout-n2-root.is-electron-app .profile-fullscreen-overlay {
+  top: calc(32px + var(--n2-top-height) + env(safe-area-inset-top, 0px));
 }
 
 /* ---------- Barra do topo ---------- */
@@ -186,6 +204,7 @@
 /* ---------- Celular: a coluna vira a gaveta (regras de .main-sidebar) ---------- */
 @media (max-width: 600px) {
   .app-shell.layout-n2 { grid-template-columns: 0 minmax(0, 1fr); }
+  html.layout-n2-root .profile-fullscreen-overlay { left: 0; }
   .layout-n2 .n2-sidebar { width: min(88vw, 320px); }
   .layout-n2 .top-search-bar-form { display: none; }
   .layout-n2 .top-search-bar-actions { margin-left: auto; }

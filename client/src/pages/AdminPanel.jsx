@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePromptDialog } from '../utils/usePromptDialog.jsx';
 import UserSecurityInfoModal from '../components/modals/UserSecurityInfoModal.jsx';
 import UserAvatar from '../components/UserAvatar.jsx';
 import IconGlyph from '../components/IconGlyph.jsx';
-import staffIcon from '../assets/icons/nav-staff.png';
 import editIcon from '../assets/icons/nav-edit.png';
 import confirmIcon from '../assets/icons/nav-confirm.png';
 import closeIcon from '../assets/icons/nav-close.png';
@@ -65,120 +64,213 @@ import ClanIcon from '../components/ClanIcon.jsx';
 import { BADGE_RARITIES, RARITY_LABEL, RARITY_COLOR, badgeHasImage } from '../utils/badgeRarity';
 import { proxyImage } from '../utils/imageProxy';
 
-const TAB_LABEL = {
-  stats: '📊 Estatísticas', users: '👥 Usuários', badges: '🏅 Insígnias', inscricoes: '📝 Inscrições',
-  logs: '📜 Registro de auditoria', maintenance: '🚧 Manutenção', announcements: '📢 Mensagem', album: '📖 Álbum de Figurinhas',
-  economia: '💰 Economia', casas: '🧊 Casas e Móveis', sistema: '⚙️ Sistema', moderacao: '💬 Moderação de Recados',
-  automodDm: '🚩 Moderação de DMs', reports: '🚩 Denúncias', feeds: '📰 Feeds', honeypot: '🕸️ Segurança (Honeypot)',
-  roles: '🎭 Cargos', channels: '# Canais e Categorias', gifMove: '🎯 GIFa Move',
-  emojis: '😀 Emojis', stickers: '🏷️ Figurinhas', clanIcons: '⚔️ Ícones de Clube', clubs: '🏛️ Clubes',
-  achievements: '🏆 Conquistas', updates: '📰 Atualizações', events: '🎉 Eventos', reload: '🔄 Reload', appCatalog: '🧩 Apps',
-  modGames: '🧰 Mods — Jogos', modReports: '🧰 Mods — Denúncias', workshopGames: '🧰 Mods — Steam Workshop', gamebananaGames: '🧰 Mods — GameBanana',
-  pendants: '📎 Pingentes',
+// ============================================================
+// Painel da Equipe — shell redesenhado do zero.
+// Cada ferramenta (as *Tab abaixo) continua igual por dentro; aqui só
+// mudam a navegação, o cabeçalho e a visão geral. A aba aberta fica na
+// URL (?tab=...), então recarregar ou mandar o link abre no mesmo lugar.
+// ============================================================
+
+// Ícones SVG (traço, herdam a cor do texto) — sem emoji, que vira
+// quadrado vazio em Linux sem fonte de emoji.
+const ICON_PATHS = {
+  overview: 'M4 13h6V4H4v9Zm0 7h6v-5H4v5Zm10 0h6v-9h-6v9Zm0-16v5h6V4h-6Z',
+  people: 'M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM21 19v-1a4 4 0 0 0-3-3.87M15.5 4.13a3 3 0 0 1 0 5.74',
+  shield: 'M12 3 5 6v5.5c0 4.3 3 8 7 9.5 4-1.5 7-5.2 7-9.5V6l-7-3Z',
+  community: 'M4 6h16M4 12h16M4 18h10',
+  content: 'M5 4h14v16H5zM9 8h6M9 12h6M9 16h3',
+  economy: 'M12 3v18M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.6 4.5 3 4.5 1.3 4.5 3-2 3-4.5 3-4.5-1.3-4.5-3',
+  mods: 'M14.7 6.3a4 4 0 0 0-5.3 5.3L4 17v3h3l5.4-5.4a4 4 0 0 0 5.3-5.3l-2.5 2.5-2.5-2.5 2-3Z',
+  system: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.4-3a7.4 7.4 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-2-1.2L14.5 3h-5l-.4 2.6a7.5 7.5 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 2 1.2l.4 2.6h5l.4-2.6a7.5 7.5 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2Z',
+  search: 'm20 20-4.2-4.2M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z',
+  external: 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5',
+  menu: 'M4 6h16M4 12h16M4 18h16',
+  close: 'M6 6l12 12M18 6 6 18',
+  arrow: 'M9 6l6 6-6 6',
+};
+function StaffIcon({ name, size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={ICON_PATHS[name]} />
+    </svg>
+  );
+}
+
+// Nome e descrição de cada ferramenta (aparecem no cabeçalho da página).
+const TABS = {
+  overview: { label: 'Visão geral', desc: 'O que precisa da sua atenção agora e os números da comunidade.' },
+  inscricoes: { label: 'Inscrições', desc: 'Aprove ou recuse quem pediu para entrar no Project Club.' },
+  users: { label: 'Usuários', desc: 'Busque contas, ajuste cargos da plataforma, nível, moedas, banimentos e suspensões.' },
+  badges: { label: 'Insígnias', desc: 'Crie insígnias e conceda ou remova de membros.' },
+  roles: { label: 'Cargos', desc: 'Cargos da comunidade: cores, permissões e quem aparece separado na lista de membros.' },
+  reports: { label: 'Denúncias', desc: 'Mensagens e perfis denunciados pela comunidade.' },
+  automodDm: { label: 'Moderação de DMs', desc: 'Conversas privadas sinalizadas pelo filtro automático.' },
+  moderacao: { label: 'Recados', desc: 'Recados deixados nos murais das casas e perfis.' },
+  modReports: { label: 'Denúncias de mods', desc: 'Mods denunciados na área de Apps.' },
+  logs: { label: 'Registro de auditoria', desc: 'Tudo que a equipe fez na plataforma, do mais recente ao mais antigo.' },
+  honeypot: { label: 'Segurança', desc: 'Tentativas de acesso a rotas-isca e IPs bloqueados.' },
+  channels: { label: 'Canais e categorias', desc: 'Crie, edite e organize os canais da comunidade.' },
+  emojis: { label: 'Emojis', desc: 'Emojis personalizados da comunidade.' },
+  stickers: { label: 'Figurinhas do chat', desc: 'Figurinhas que os membros podem mandar no chat.' },
+  clubs: { label: 'Clubes', desc: 'Clubes criados pelos membros.' },
+  clanIcons: { label: 'Ícones de clube', desc: 'Ícones disponíveis para os clubes.' },
+  achievements: { label: 'Conquistas', desc: 'Conquistas, requisitos e raridades.' },
+  gifMove: { label: 'GIFa Move', desc: 'Posição e tamanho do GIF animado na tela da comunidade.' },
+  feeds: { label: 'Feeds', desc: 'Temas do Feed: crie ou exclua.' },
+  updates: { label: 'Atualizações', desc: 'Notas de atualização que aparecem no Início.' },
+  events: { label: 'Eventos', desc: 'Eventos com banner, ícone e data.' },
+  announcements: { label: 'Comunicado', desc: 'Mensagem em tela cheia para todos os membros.' },
+  appCatalog: { label: 'Apps', desc: 'Apps e launchers listados na área de Apps.' },
+  economia: { label: 'Economia', desc: 'Baús diários, moedas e recompensas.' },
+  casas: { label: 'Casas e móveis', desc: 'Casas, mapas, grupos e catálogo de móveis.' },
+  album: { label: 'Álbum de figurinhas', desc: 'Páginas e espaços do álbum de figurinhas colecionáveis.' },
+  pendants: { label: 'Pingentes', desc: 'Pingentes de perfil.' },
+  modGames: { label: 'Jogos (mod.io)', desc: 'Jogos ligados ao mod.io.' },
+  workshopGames: { label: 'Steam Workshop', desc: 'Jogos ligados ao Steam Workshop.' },
+  gamebananaGames: { label: 'GameBanana', desc: 'Jogos ligados ao GameBanana.' },
+  sistema: { label: 'Sistemas', desc: 'Ligue ou desligue economia, ranks, casas e figurinhas.' },
+  maintenance: { label: 'Manutenção', desc: 'Coloca a plataforma "em reforma" para todos, menos a equipe.' },
+  reload: { label: 'Reload', desc: 'Recarrega a presença online de usuários.' },
+};
+
+// Contadores de pendências (vindos de /admin/stats) mostrados no menu.
+const TAB_PENDING_KEY = {
+  inscricoes: 'pendingApplications', reports: 'pendingReports',
+  automodDm: 'pendingAutomodFlags', modReports: 'pendingModReports',
 };
 
 const TAB_GROUPS = [
-  { label: 'Visão geral', icon: '📊', tabs: ['stats', 'inscricoes', 'users', 'badges'] },
-  { label: 'Estrutura da comunidade', icon: '🏗️', tabs: ['roles', 'channels', 'gifMove', 'emojis', 'stickers', 'clanIcons', 'clubs', 'achievements'] },
-  { label: 'Conteúdo', icon: '🎨', tabs: ['feeds', 'economia', 'casas', 'album', 'updates', 'events', 'appCatalog', 'modGames', 'workshopGames', 'gamebananaGames', 'pendants'] },
-  { label: 'Moderação', icon: '🛡️', tabs: ['moderacao', 'automodDm', 'reports', 'modReports', 'logs', 'honeypot'] },
-  { label: 'Comunicação', icon: '📣', tabs: ['announcements'] },
-  { label: 'Sistema', icon: '⚙️', tabs: ['sistema', 'maintenance', 'reload'] },
+  { label: 'Pessoas', icon: 'people', tabs: ['inscricoes', 'users', 'badges', 'roles'] },
+  { label: 'Moderação', icon: 'shield', tabs: ['reports', 'automodDm', 'moderacao', 'modReports', 'logs', 'honeypot'] },
+  { label: 'Comunidade', icon: 'community', tabs: ['channels', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'gifMove'] },
+  { label: 'Conteúdo', icon: 'content', tabs: ['feeds', 'updates', 'events', 'announcements', 'appCatalog'] },
+  { label: 'Economia e casas', icon: 'economy', tabs: ['economia', 'casas', 'album', 'pendants'] },
+  { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
+  { label: 'Sistema', icon: 'system', tabs: ['sistema', 'maintenance', 'reload'] },
 ];
 
-// Painel da staff — layout do zero (item pedido: "apague o layout antigo
-// e faça um novo muito melhor e mais organizado", sem rolagem lateral em
-// lugar nenhum, só pra baixo). Categorias agora têm ícone próprio e
-// ficam em cartões separados; no mobile a navegação vira um painel que
-// abre/fecha empilhado ACIMA do conteúdo (nunca lado a lado), e fecha
-// sozinho assim que uma ferramenta é escolhida.
+const groupOf = (tab) => TAB_GROUPS.find((g) => g.tabs.includes(tab));
+
 export default function AdminPanel() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState('stats');
-  const [navQuery, setNavQuery] = useState('');
-  // Só o grupo da aba ativa começa aberto — com ~20 ferramentas ao todo,
-  // uma lista inteira expandida de cara vira poluição visual; assim a
-  // pessoa vê as categorias primeiro e abre só a que interessa.
-  const [collapsedGroups, setCollapsedGroups] = useState(() => {
-    const initial = {};
-    TAB_GROUPS.forEach((g) => { if (!g.tabs.includes('stats')) initial[g.label] = true; });
-    return initial;
-  });
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const toggleGroup = (label) => setCollapsedGroups((s) => ({ ...s, [label]: !s[label] }));
-  const selectTab = (t) => { setTab(t); setMobileNavOpen(false); };
+  const [params, setParams] = useSearchParams();
+  const tab = TABS[params.get('tab')] ? params.get('tab') : 'overview';
+  const [query, setQuery] = useState('');
+  const [navOpen, setNavOpen] = useState(false);
+  const [stats, setStats] = useState(null);
+  const searchRef = useRef(null);
+  const contentRef = useRef(null);
 
-  const normalizedQuery = navQuery.trim().toLowerCase();
-  const visibleGroups = TAB_GROUPS
-    .map((group) => ({
-      ...group,
-      tabs: normalizedQuery ? group.tabs.filter((t) => TAB_LABEL[t].toLowerCase().includes(normalizedQuery)) : group.tabs,
-    }))
-    .filter((group) => group.tabs.length > 0);
+  const loadStats = () => adminGetStats().then((d) => setStats(d.stats)).catch(() => {});
+  useEffect(() => { loadStats(); }, []);
+  // Atualiza os contadores ao trocar de ferramenta (ex.: depois de aprovar inscrições).
+  useEffect(() => { if (tab !== 'overview') loadStats(); }, [tab]);
 
-  const currentGroup = TAB_GROUPS.find((g) => g.tabs.includes(tab));
+  // Ctrl/⌘+K foca a busca de ferramentas.
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setNavOpen(true); searchRef.current?.focus(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const selectTab = (t) => {
+    setParams(t === 'overview' ? {} : { tab: t });
+    setNavOpen(false);
+    setQuery('');
+    contentRef.current?.scrollTo({ top: 0 });
+  };
 
   if (user.platformRole !== 'ADMIN') {
-    return <div className="admin-panel"><div className="dim" style={{ padding: 24 }}>Acesso restrito a administradores da plataforma.</div></div>;
+    return (
+      <div className="staff staff-denied">
+        <StaffIcon name="shield" size={28} />
+        <p>Acesso restrito à equipe da plataforma.</p>
+      </div>
+    );
   }
 
+  const q = query.trim().toLowerCase();
+  const groups = TAB_GROUPS
+    .map((g) => ({ ...g, tabs: q ? g.tabs.filter((t) => `${TABS[t].label} ${TABS[t].desc}`.toLowerCase().includes(q)) : g.tabs }))
+    .filter((g) => g.tabs.length > 0);
+  const pending = (t) => (stats && TAB_PENDING_KEY[t] ? stats[TAB_PENDING_KEY[t]] || 0 : 0);
+  const group = groupOf(tab);
+  const meta = TABS[tab];
+
   return (
-    <div className="admin-panel admin-panel-modern">
-      <div className="admin-panel-header">
-        <h1><IconGlyph src={staffIcon} size={22} /> Painel da Equipe</h1>
-        <p className="dim">Ferramentas administrativas da plataforma — visíveis só para a equipe.</p>
-      </div>
-
-      <button type="button" className="admin-mobile-nav-toggle" onClick={() => setMobileNavOpen((v) => !v)}>
-        <span>{currentGroup?.icon || '🧭'} {TAB_LABEL[tab]}</span>
-        <span className="admin-mobile-nav-toggle-chevron">{mobileNavOpen ? '▴ fechar' : '▾ trocar ferramenta'}</span>
-      </button>
-
-      <div className="admin-panel-body">
-        <nav className={`admin-nav ${mobileNavOpen ? 'admin-nav-open' : ''}`}>
-          <input
-            className="admin-nav-search"
-            placeholder="🔎 Buscar ferramenta..."
-            value={navQuery}
-            onChange={(e) => setNavQuery(e.target.value)}
-          />
-          <button type="button" className="admin-nav-pinned" onClick={() => { setMobileNavOpen(false); navigate('/admin/interface-editor'); }}>
-            <span className="admin-nav-pinned-icon">🎨</span>
-            <span>Editor de Interface</span>
+    <div className={`staff${navOpen ? ' staff-nav-open' : ''}`}>
+      <aside className="staff-rail" aria-label="Ferramentas da equipe">
+        <div className="staff-rail-head">
+          <span className="staff-rail-mark"><StaffIcon name="shield" size={18} /></span>
+          <div className="staff-rail-title">
+            <strong>Painel da Equipe</strong>
+            <span>{user.displayName}</span>
+          </div>
+          <button type="button" className="staff-rail-close" onClick={() => setNavOpen(false)} aria-label="Fechar menu">
+            <StaffIcon name="close" size={18} />
           </button>
-          {visibleGroups.map((group) => {
-            const isCollapsed = !normalizedQuery && collapsedGroups[group.label] && group.label !== currentGroup?.label;
-            return (
-              <div key={group.label} className="admin-nav-group">
-                <button type="button" className="admin-nav-group-toggle" onClick={() => toggleGroup(group.label)}>
-                  <span className="admin-nav-group-title">
-                    <span className="admin-nav-group-icon">{group.icon}</span>
-                    {group.label}
-                  </span>
-                  <span className="admin-nav-group-chevron">{isCollapsed ? '▸' : '▾'}</span>
+        </div>
+
+        <label className="staff-search">
+          <StaffIcon name="search" size={16} />
+          <input
+            ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar ferramenta" aria-label="Buscar ferramenta"
+            onKeyDown={(e) => { if (e.key === 'Enter' && groups[0]) selectTab(groups[0].tabs[0]); if (e.key === 'Escape') setQuery(''); }}
+          />
+          <kbd>Ctrl K</kbd>
+        </label>
+
+        <nav className="staff-nav">
+          {!q && (
+            <button type="button" className={`staff-nav-item staff-nav-home${tab === 'overview' ? ' active' : ''}`} onClick={() => selectTab('overview')}>
+              <StaffIcon name="overview" size={17} />
+              <span>Visão geral</span>
+            </button>
+          )}
+          {groups.map((g) => (
+            <div key={g.label} className="staff-nav-group">
+              <div className="staff-nav-group-label"><StaffIcon name={g.icon} size={14} /> {g.label}</div>
+              {g.tabs.map((t) => (
+                <button key={t} type="button" className={`staff-nav-item${tab === t ? ' active' : ''}`} onClick={() => selectTab(t)}>
+                  <span className="staff-nav-item-label">{TABS[t].label}</span>
+                  {pending(t) > 0 && <span className="staff-count" title="Pendentes">{pending(t)}</span>}
                 </button>
-                {!isCollapsed && (
-                  <div className="admin-nav-group-items">
-                    {group.tabs.map((t) => (
-                      <button key={t} className={`admin-nav-item ${tab === t ? 'active' : ''}`} onClick={() => selectTab(t)}>
-                        {TAB_LABEL[t]}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {normalizedQuery && visibleGroups.length === 0 && (
-            <p className="dim admin-nav-empty">Nenhuma ferramenta encontrada para "{navQuery}".</p>
-          )}
+              ))}
+            </div>
+          ))}
+          {q && groups.length === 0 && <p className="staff-empty">Nada encontrado para "{query}".</p>}
         </nav>
-        <div className="admin-content">
-          {currentGroup && (
-            <div className="admin-content-breadcrumb dim">{currentGroup.icon} {currentGroup.label} <span>›</span> {TAB_LABEL[tab]}</div>
-          )}
-          {tab === 'stats' && <StatsTab />}
+
+        <button type="button" className="staff-rail-link" onClick={() => navigate('/admin/interface-editor')}>
+          <span>Editor de Interface</span>
+          <StaffIcon name="external" size={15} />
+        </button>
+      </aside>
+
+      <div className="staff-backdrop" onClick={() => setNavOpen(false)} />
+
+      <main className="staff-main" ref={contentRef}>
+        <header className="staff-header">
+          <button type="button" className="staff-menu-btn" onClick={() => setNavOpen(true)} aria-label="Abrir ferramentas">
+            <StaffIcon name="menu" size={18} />
+          </button>
+          <div className="staff-header-text">
+            {group && (
+              <p className="staff-crumb">
+                {group.label} <StaffIcon name="arrow" size={12} />
+              </p>
+            )}
+            <h1>{meta.label}</h1>
+            <p className="staff-desc">{meta.desc}</p>
+          </div>
+        </header>
+
+        <div className={`staff-body staff-body-${tab}`}>
+          {tab === 'overview' && <OverviewTab stats={stats} onOpen={selectTab} onRefresh={loadStats} />}
           {tab === 'inscricoes' && <ApplicationsTab />}
           {tab === 'users' && <UsersTab />}
           {tab === 'badges' && <BadgesTab />}
@@ -212,16 +304,113 @@ export default function AdminPanel() {
           {tab === 'honeypot' && <HoneypotAdminTab />}
           {tab === 'reload' && <ReloadAdminTab />}
         </div>
-      </div>
+      </main>
     </div>
   );
 }
 
-// Segurança "isca" (honeypot) — mostra quem tentou acessar rotas que só
-// scanners automatizados conhecem (/wp-admin, /.env, /phpmyadmin, etc) e
-// os IPs banidos automaticamente por causa disso, com botão pra
-// desbloquear manualmente (útil se um IP compartilhado/corporativo cair
-// aqui sem querer).
+// Visão geral: filas que precisam de ação primeiro, depois os números
+// da comunidade e a atividade recente da equipe.
+const QUEUES = [
+  { tab: 'inscricoes', key: 'pendingApplications', label: 'Inscrições', hint: 'aguardando aprovação' },
+  { tab: 'reports', key: 'pendingReports', label: 'Denúncias', hint: 'para analisar' },
+  { tab: 'automodDm', key: 'pendingAutomodFlags', label: 'DMs sinalizadas', hint: 'pelo filtro automático' },
+  { tab: 'modReports', key: 'pendingModReports', label: 'Mods denunciados', hint: 'para analisar' },
+];
+
+// Texto legível de cada ação registrada no log de auditoria.
+const ACTION_TEXT = {
+  APPLICATION_APPROVE: 'aprovou uma inscrição', APPLICATION_REJECT: 'recusou uma inscrição',
+  APP_CATALOG_CREATE: 'adicionou um app', APP_CATALOG_UPDATE: 'editou um app', APP_CATALOG_DELETE: 'removeu um app',
+  AUTOMOD_FLAG_RESOLVE: 'resolveu uma DM sinalizada', AUTOMOD_FLAG_REVIEW: 'analisou uma DM sinalizada', AUTOMOD_TRIGGER: 'filtro automático disparou',
+  AUTOMOD_RULE_CREATE: 'criou uma regra de filtro', AUTOMOD_RULE_UPDATE: 'editou uma regra de filtro', AUTOMOD_RULE_DELETE: 'removeu uma regra de filtro',
+  BADGE_GRANT: 'concedeu uma insígnia', BADGE_REVOKE: 'removeu uma insígnia',
+  BADGE_TYPE_CREATE: 'criou uma insígnia', BADGE_TYPE_UPDATE: 'editou uma insígnia', BADGE_TYPE_DELETE: 'excluiu uma insígnia',
+  CLAN_ADMIN_UPDATE: 'editou um clube', CLAN_ADMIN_DELETE: 'excluiu um clube', COMMUNITY_EDIT: 'editou a comunidade',
+  HONEYPOT_UNBLOCK_IP: 'desbloqueou um IP',
+  MEMBER_BAN: 'baniu um membro', MEMBER_UNBAN: 'desbaniu um membro', MEMBER_TIMEOUT: 'silenciou um membro',
+  MEMBER_TIMEOUT_REMOVE: 'tirou o silêncio de um membro', MEMBER_WARN: 'advertiu um membro', MEMBER_WARN_CLEAR: 'limpou advertências',
+  MESSAGE_DELETE: 'apagou uma mensagem',
+  PENDANT_CREATE: 'criou um pingente', PENDANT_UPDATE: 'editou um pingente', PENDANT_DELETE: 'excluiu um pingente',
+  RELOAD_USER_PRESENCE: 'recarregou a presença online', REPORT_RESOLVE: 'resolveu uma denúncia', REPORT_REVIEW: 'analisou uma denúncia',
+  SYSTEM_TOGGLE: 'ligou/desligou um sistema',
+  USER_ADD_CURRENCY: 'deu moedas a um usuário', USER_ADD_XP: 'deu XP a um usuário', USER_SET_LEVEL: 'mudou o nível de um usuário',
+  USER_BAN: 'baniu um usuário', USER_UNBAN: 'desbaniu um usuário', USER_SUSPEND: 'suspendeu um usuário', USER_UNSUSPEND: 'tirou a suspensão de um usuário',
+  USER_DELETE_ACCOUNT: 'excluiu uma conta', USER_EDIT: 'editou um usuário', USER_ROLE_CHANGE: 'mudou o cargo de um usuário',
+};
+const actionText = (a) => ACTION_TEXT[a] || String(a || '').replaceAll('_', ' ').toLowerCase();
+
+function relativeTime(date) {
+  const diff = (Date.now() - new Date(date).getTime()) / 1000;
+  if (diff < 60) return 'agora';
+  if (diff < 3600) return `há ${Math.floor(diff / 60)} min`;
+  if (diff < 86400) return `há ${Math.floor(diff / 3600)} h`;
+  return new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+}
+
+function OverviewTab({ stats, onOpen, onRefresh }) {
+  const [logs, setLogs] = useState(null);
+  useEffect(() => { adminListAuditLog().then((d) => setLogs(d.logs.slice(0, 8))).catch(() => setLogs([])); onRefresh(); }, []);
+  const fmt = (n) => (typeof n === 'number' ? n.toLocaleString('pt-BR') : '—');
+  const totalPending = stats ? QUEUES.reduce((sum, item) => sum + (stats[item.key] || 0), 0) : null;
+
+  return (
+    <div className="staff-overview">
+      <section className="staff-section">
+        <div className="staff-section-head">
+          <h2>Precisa de atenção</h2>
+          {totalPending === 0 && <span className="staff-ok">Tudo em dia</span>}
+        </div>
+        <div className="staff-queues">
+          {QUEUES.map((item) => {
+            const n = stats ? stats[item.key] || 0 : null;
+            return (
+              <button key={item.tab} type="button" className={`staff-queue${n ? ' has-items' : ''}`} onClick={() => onOpen(item.tab)}>
+                <span className="staff-queue-num">{n === null ? '—' : n}</span>
+                <span className="staff-queue-label">{item.label}</span>
+                <span className="staff-queue-hint">{item.hint}</span>
+                <span className="staff-queue-go"><StaffIcon name="arrow" size={16} /></span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="staff-section">
+        <div className="staff-section-head"><h2>Comunidade</h2></div>
+        <dl className="staff-metrics">
+          <div><dt>Membros</dt><dd>{fmt(stats?.userCount)}</dd></div>
+          <div><dt>Novos em 24h</dt><dd>{fmt(stats?.newUsersLast24h)}</dd></div>
+          <div><dt>Novos em 7 dias</dt><dd>{fmt(stats?.newUsersLast7d)}</dd></div>
+          <div><dt>Mensagens</dt><dd>{fmt(stats?.messageCount)}</dd></div>
+          <div><dt>Contas banidas</dt><dd>{fmt(stats?.bannedCount)}</dd></div>
+        </dl>
+      </section>
+
+      <section className="staff-section">
+        <div className="staff-section-head">
+          <h2>Atividade recente da equipe</h2>
+          <button type="button" className="staff-link" onClick={() => onOpen('logs')}>Ver tudo</button>
+        </div>
+        {logs === null && <p className="staff-empty">Carregando…</p>}
+        {logs?.length === 0 && <p className="staff-empty">Nenhuma ação registrada ainda.</p>}
+        {logs?.length > 0 && (
+          <ol className="staff-activity">
+            {logs.map((l) => (
+              <li key={l.id}>
+                <span className="staff-activity-who">{l.actor?.displayName || 'Sistema'}</span>
+                <span className="staff-activity-what">{actionText(l.action)}</span>
+                {l.reason && <span className="staff-activity-why">“{l.reason}”</span>}
+                <time dateTime={l.createdAt}>{relativeTime(l.createdAt)}</time>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function HoneypotAdminTab() {
   const [hits, setHits] = useState(null);
   const [blocked, setBlocked] = useState(null);
@@ -1773,30 +1962,6 @@ function MaintenanceTab() {
           {saving ? 'Salvando...' : status.maintenanceMode ? 'Desativar manutenção' : 'Ativar manutenção'}
         </button>
       </div>
-    </div>
-  );
-}
-
-function StatsTab() {
-  const [stats, setStats] = useState(null);
-  useEffect(() => { adminGetStats().then((d) => setStats(d.stats)); }, []);
-  if (!stats) return <div className="dim">Carregando...</div>;
-  const cards = [
-    ['Usuários', stats.userCount],
-    ['Servidores', stats.serverCount],
-    ['Servidores públicos', stats.publicServerCount],
-    ['Mensagens enviadas', stats.messageCount],
-    ['Contas banidas', stats.bannedCount],
-    ['Novos usuários (24h)', stats.newUsersLast24h],
-  ];
-  return (
-    <div className="admin-stats-grid">
-      {cards.map(([label, value]) => (
-        <div key={label} className="admin-stat-card">
-          <div className="admin-stat-value">{value}</div>
-          <div className="dim">{label}</div>
-        </div>
-      ))}
     </div>
   );
 }
