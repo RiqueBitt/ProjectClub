@@ -348,3 +348,11 @@
   .cgal-media img, .cgal-media video, .icon-field-quick-btn, .cx-switch span { transition: none; }
   .cgal-tile:hover .cgal-media img, .cgal-tile:hover .cgal-media video { transform: none; }
 }
+
+/* BUG CORRIGIDO ("quando o nome do canal é maior, a caixa do fundo muda
+   de tamanho"): o canal é um <button>, que por padrão só ocupa a largura
+   do conteúdo — a caixa de fundo (selecionado/hover) ficava do tamanho
+   do nome. Agora toda linha ocupa a largura inteira da lista e nomes
+   longos terminam em "...". */
+.sidebar .channel-item { width: 100%; box-sizing: border-box; text-align: left; }
+.sidebar .channel-item > .truncate { flex: 1 1 auto; min-width: 0; }

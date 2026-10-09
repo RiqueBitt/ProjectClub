@@ -10,6 +10,7 @@ import UserAvatar from '../components/UserAvatar.jsx';
 import PageIcon from '../components/PageIcons.jsx';
 import { ClubTile, PrivacyChip, ClubForm, ICON_COLORS } from '../components/ClubBits.jsx';
 import '../styles/clubs.css';
+import { useLiveRefresh } from '../utils/liveRefresh';
 
 const CREATE_LEVEL_REQUIREMENT = 10;
 const EMPTY_FORM = { name: '', description: '', privacyType: 'PUBLIC', iconId: '', iconColor: ICON_COLORS[0] };
@@ -38,6 +39,14 @@ export default function ClansPage() {
   const refreshInvites = () => listMyClanInvites().then((d) => setInvites(d.invites)).catch(() => {});
   useEffect(() => { refresh(); refreshInvites(); listClanIcons().then((d) => setIcons(d.icons)).catch(() => {}); }, []);
   const refreshMyClan = () => getMyClan().then((d) => setMyClan(d));
+
+  // Tempo real (11s): lista de clubes e convites (busca digitada fica).
+  useLiveRefresh(async ({ put }) => {
+    await Promise.allSettled([
+      listPublicClans().then((d) => put(setClans)(d.clans)),
+      listMyClanInvites().then((d) => put(setInvites)(d.invites)),
+    ]);
+  }, { enabled: clans !== null });
 
   const level = user.accountLevel || 0;
   const canCreate = level >= CREATE_LEVEL_REQUIREMENT;

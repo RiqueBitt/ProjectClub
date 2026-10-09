@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { getUserProfile } from '../api/endpoints';
+import { useLiveRefresh, sameData } from '../utils/liveRefresh';
 import { roleChipStyle } from '../utils/roleColor';
 import { profileAccentVars } from '../utils/profileAccent';
 import { badgeHasImage } from '../utils/badgeRarity';
@@ -263,6 +264,17 @@ export default function MiniProfileCard() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [renderedUserId, closing]);
+
+  // Tempo real (11s): atualiza o miniperfil aberto sem fechar nem piscar.
+  // Mantém a mesma referência quando nada mudou (o amigo em comum
+  // sorteado não troca à toa).
+  useLiveRefresh(async (ctx) => {
+    const d = await getUserProfile(userId);
+    if (!ctx.ok() || !d?.user) return;
+    const keep = (setter, v) => setter((prev) => (sameData(prev, v) ? prev : v));
+    keep(setUser, d.user); keep(setBadges, d.badges || []); keep(setMutualFriends, d.mutualFriends || []);
+    if (d.activity) useStore.getState().setActivity(userId, d.activity);
+  }, { enabled: !!userId, key: userId });
 
   if (!renderedUserId) return null;
 

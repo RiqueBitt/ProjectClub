@@ -13,6 +13,7 @@ import TitleBar from './components/TitleBar.jsx';
 import { CUSTOM_BACKGROUND_ENABLED } from './utils/featureFlags';
 
 import MainApp from './pages/MainApp.jsx';
+import { useLiveRefresh, sameData } from './utils/liveRefresh';
 
 // Telas que quem já está logado quase nunca vê (login, cadastro, página
 // de divulgação, editor de interface) viram pacotes separados: quem abre
@@ -94,15 +95,17 @@ function ProtectedRoute({ children }) {
     html.style.setProperty('--saturation', `${userSettings?.saturation ?? 100}%`);
   }, [userSettings]);
 
+  const checkPlatformStatus = () => getPlatformStatus().then((d) => {
+    setMaintenance((prev) => (sameData(prev, d) ? prev : d));
+    const nextDisabled = d.disabledSystems || [];
+    if (!sameData(useStore.getState().disabledSystems, nextDisabled)) useStore.getState().setDisabledSystems(nextDisabled);
+  }).catch(() => {});
   useEffect(() => {
-    const check = () => getPlatformStatus().then((d) => {
-      setMaintenance(d);
-      useStore.getState().setDisabledSystems(d.disabledSystems || []);
-    }).catch(() => {});
-    check();
-    const id = setInterval(check, 30000);
-    return () => clearInterval(id);
+    checkPlatformStatus();
   }, []);
+  // Tempo real: o status (manutenção/sistemas desligados) agora segue o
+  // relógio global de 11s, que pausa com a aba escondida.
+  useLiveRefresh(() => checkPlatformStatus());
 
   // A busca da comunidade (usada tanto pra saber "já carregou de
   // verdade" quanto pras fotos de perfil reais na tela de esqueleto —

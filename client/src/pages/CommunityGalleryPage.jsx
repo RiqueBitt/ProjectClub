@@ -7,6 +7,7 @@ import ChannelIcon from '../components/ChannelIcon.jsx';
 import UserAvatar from '../components/UserAvatar.jsx';
 import { proxyImage } from '../utils/imageProxy';
 import '../styles/channels.css';
+import { useLiveRefresh, mergeFirstPage } from '../utils/liveRefresh';
 
 // Canal em destaque "Galeria": fotos, vídeos e GIFs que já foram postados
 // na comunidade — anexos dos canais (só dos que você pode ver) e imagens
@@ -60,6 +61,17 @@ export default function CommunityGalleryPage() {
       .catch(() => { if (alive) { setItems([]); setError('Não foi possível carregar a galeria.'); } });
     return () => { alive = false; };
   }, [source]);
+
+  // Tempo real (11s): busca só a 1ª página e junta com o que já foi
+  // carregado (mantém "carregar mais", scroll e filtros).
+  useLiveRefresh(async (ctx) => {
+    const d = await listCommunityGallery({ source, limit: 48 });
+    if (!ctx.ok()) return;
+    const fresh = d.items || [];
+    setItems((list) => (list ? mergeFirstPage(list, fresh) : list));
+    // Só tinha a 1ª página: o cursor também segue a versão nova.
+    setNextBefore((cur) => ((items || []).length <= fresh.length ? (d.nextBefore || null) : cur));
+  }, { enabled: items !== null, key: source });
 
   const loadMore = async () => {
     if (!nextBefore || loadingMore) return;

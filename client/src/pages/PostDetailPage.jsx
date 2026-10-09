@@ -14,6 +14,7 @@ import {
 } from '../api/endpoints';
 import { proxyImage } from '../utils/imageProxy';
 import { FeedIcon, VotePill, timeAgo } from './CommunitiesPage.jsx';
+import { useLiveRefresh } from '../utils/liveRefresh';
 
 // Reconhece se um comentário é só um link de imagem/GIF (colado a mão ou
 // escolhido no seletor de GIF abaixo) pra renderizar como imagem em vez
@@ -103,6 +104,15 @@ export default function PostDetailPage() {
       socket.off('post:comment-delete', onCommentDelete);
     };
   }, [socket, id]);
+
+  // Tempo real (11s): post e comentários, sem apagar a resposta sendo
+  // digitada (cada comentário mantém o próprio estado pela key).
+  useLiveRefresh(async ({ put }) => {
+    await Promise.allSettled([
+      getPost(id).then((d) => put(setPost)(d.post)),
+      listPostComments(id).then((d) => put(setComments)(d.comments)),
+    ]);
+  }, { enabled: !!post, key: id });
 
   const onVotePost = async (value) => {
     const nextMyVote = post.myVote === value ? 0 : value;
@@ -245,6 +255,9 @@ function CommentNode({ comment, postId, user, isStaff, onChange, depth = 0 }) {
     if (window.innerWidth - right - width < 8) right = Math.max(8, window.innerWidth - width - 8);
     setReplyPickerStyle({ position: 'fixed', bottom: `${bottom}px`, right: `${right}px`, left: 'auto', top: 'auto', transform: 'none', width: `${width}px`, maxWidth: `${width}px` });
   }, [replyEmojiOpen]);
+
+  // Placar vindo de fora (socket/tempo real) atualiza o voto local.
+  useEffect(() => { setLocalVote(comment.myVote); setLocalScore(comment.score); }, [comment.myVote, comment.score]);
 
   const vote = async (value) => {
     const nextMyVote = localVote === value ? 0 : value;

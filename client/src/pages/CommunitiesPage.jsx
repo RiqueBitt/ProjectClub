@@ -9,6 +9,7 @@ import {
 } from '../api/endpoints';
 import { proxyImage } from '../utils/imageProxy';
 import UserAvatar from '../components/UserAvatar.jsx';
+import { useLiveRefresh } from '../utils/liveRefresh';
 
 // Feeds — página principal, lista os posts de todos os Temas. Um Tema é
 // uma categoria principal criada só pela staff (ver AdminPanel.jsx →
@@ -34,6 +35,9 @@ export default function CommunitiesPage() {
 
   const refreshPosts = () => listPosts({ sort }).then((d) => setPosts(d.posts));
   useEffect(() => { refreshPosts(); }, [sort]);
+
+  // Tempo real (11s): feed na ordenação escolhida (votos/novos posts).
+  useLiveRefresh(({ put }) => listPosts({ sort }).then((d) => put(setPosts)(d.posts)), { enabled: posts !== null, key: sort });
 
   const onVote = async (post, value) => {
     // Otimista: atualiza a tela na hora, sem esperar o servidor.

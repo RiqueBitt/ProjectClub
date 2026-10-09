@@ -8,6 +8,7 @@ import UserAvatar from '../components/UserAvatar.jsx';
 import HouseIcon from '../components/HouseIcon.jsx';
 import { Ico, PageHero, PillTabs, EmptyState, Skeleton, Toast, Unavailable, Price } from '../components/PagesKit.jsx';
 import '../styles/houses.css';
+import { useLiveRefresh } from '../utils/liveRefresh';
 
 const TABS = ['DECORAR', 'LOJA', 'GALERIA'];
 const TAB_LABEL = { DECORAR: 'Decorar', LOJA: 'Imobiliária', GALERIA: 'Galeria' };
@@ -26,6 +27,9 @@ export default function HousesPage() {
     if (err?.response?.status === 503) setUnavailable(true);
   });
   useEffect(() => { refreshMyHouses(); }, []);
+
+  // Tempo real (11s): lista das minhas casas, em silêncio.
+  useLiveRefresh(({ put }) => listMyHouses().then((d) => put(setMyHouses)(d.houses)), { enabled: !unavailable });
 
   if (unavailable) return <Unavailable icon="house" />;
 
@@ -131,6 +135,15 @@ function DecorateTab({ myHouses, onChanged, pushNotice, goShop }) {
   }, [houseId]);
 
   useEffect(() => { listMapBackgrounds().then((d) => setMaps(d.maps)); }, []);
+
+  // Tempo real (11s): só catálogo/inventário e mapas — o layout é o
+  // rascunho sendo arrastado, não pode ser sobrescrito no meio.
+  useLiveRefresh(async ({ put }) => {
+    await Promise.allSettled([
+      houseId ? listFurnitureCatalog().then((d) => put(setInventory)(d.categories)) : null,
+      listMapBackgrounds().then((d) => put(setMaps)(d.maps)),
+    ]);
+  });
 
   const pickMap = async (mapBackgroundId) => {
     const { userHouse } = await setHouseMapBackground(houseId, mapBackgroundId);
@@ -413,6 +426,15 @@ function ShopTab({ onChanged, pushNotice }) {
   };
   useEffect(() => { refresh(); }, []);
 
+  // Tempo real (11s): catálogo da loja (preços/estoque/novos itens).
+  useLiveRefresh(async ({ put }) => {
+    await Promise.allSettled([
+      listHouseCatalog().then((d) => put(setHouses)(d.houses)),
+      listFurnitureCatalog().then((d) => put(setFurniture)(d.categories)),
+      listMapBackgrounds().then((d) => put(setMaps)(d.maps)),
+    ]);
+  });
+
   const doBuyHouse = async (h) => {
     try { await buyHouse(h.id); pushNotice(`Você comprou ${h.name}!`); refresh(); onChanged(); }
     catch (err) { pushNotice(err.response?.data?.error || 'Não foi possível comprar.'); }
@@ -518,6 +540,9 @@ function GalleryTab() {
   const [houses, setHouses] = useState(null);
   const [filterMapId, setFilterMapId] = useState('');
   useEffect(() => { getHouseGallery().then((d) => setHouses(d.houses)); }, []);
+
+  // Tempo real (11s): galeria de casas.
+  useLiveRefresh(({ put }) => getHouseGallery().then((d) => put(setHouses)(d.houses)), { enabled: houses !== null });
 
   if (houses === null) return <Skeleton rows={6} height={240} grid />;
   if (houses.length === 0) return <EmptyState icon="image" title="Galeria vazia" text="Ninguém decorou uma casa ainda." />;

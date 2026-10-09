@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listEvents } from '../api/endpoints';
+import { useLiveRefresh, sameData } from './liveRefresh';
 import { useSocket } from '../context/SocketContext.jsx';
 
 // Eventos da comunidade (os mesmos da página Início), compartilhados entre
@@ -15,7 +16,7 @@ function load(force = false) {
   if (inflight) return inflight;
   if (cache && !force) return Promise.resolve(cache);
   inflight = listEvents()
-    .then((d) => { setCache(d.events || []); return cache; })
+    .then((d) => { const next = d.events || []; if (!sameData(cache, next)) setCache(next); return cache; })
     .catch(() => { if (!cache) setCache([]); return cache; })
     .finally(() => { inflight = null; });
   return inflight;
@@ -45,6 +46,11 @@ export function useCommunityEvents() {
       socket.off('event:delete', onDelete);
     };
   }, [socket]);
+
+  // Tempo real: eventos já chegam por socket; ressincroniza em silêncio a
+  // cada 33s (várias telas usando o hook
+  // dividem a mesma requisição via `inflight`).
+  useLiveRefresh(() => load(true), { interval: 33000 });
 
   return { events, reload: () => load(true) };
 }

@@ -36,7 +36,7 @@ export function GameBananaBrowse({ game, onOpenMod }) {
     const timeout = setTimeout(() => {
       browseGameBanana(game.gameBananaGameId, { q: query || undefined, sort, page: 1 })
         .then((d) => { setItems(d.items); setHasMore(!!d.hasMore); })
-        .catch((err) => { setItems([]); setLoadError(err.response?.data?.error || 'Não foi possível buscar no GameBanana agora.'); });
+        .catch((err) => { setItems([]); setLoadError(err.response?.data?.error || 'Não foi possível buscar mods agora.'); });
     }, 250);
     return () => clearTimeout(timeout);
   }, [game.gameBananaGameId, query, sort]);
@@ -185,11 +185,6 @@ export function GameBananaModDetail({ game, modId, onBack }) {
               <span>{progressLabel(progress || { phase: 'downloading', percent: 0 })}</span>
               <ProgressBar percent={progress?.percent} indeterminate={progress && progress.phase !== 'downloading'} />
             </div>
-          )}
-          {data.profileUrl && (
-            <a href={data.profileUrl} target="_blank" rel="noreferrer" className="mdx-btn ghost">
-              <Icon name="external" size={15} /> Ver no GameBanana
-            </a>
           )}
         </>
       )}

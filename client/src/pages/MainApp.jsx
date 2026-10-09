@@ -32,6 +32,7 @@ import { checkForNativeUpdate } from '../utils/nativeUpdateCheck';
 import { setupPushNotifications } from '../utils/pushNotifications';
 import { updateUnreadBadge } from '../utils/unreadBadge';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useGlobalLiveRefresh } from '../utils/useGlobalLiveRefresh';
 
 // BUG CORRIGIDO ("web mais rápido e otimizado"): todas essas páginas de
 // seção (Amigos, Perfil, Notificações, Busca, Painel da staff, Economia,
@@ -90,6 +91,8 @@ const ModsPage = lazy(() => import('./ModsPage.jsx'));
 // que deve ter somente os 7 itens pedidos.
 export default function MainApp() {
   const { user } = useAuth();
+  // Tempo real: re-sincroniza comunidade/conta/conversas/amigos a cada 11s.
+  useGlobalLiveRefresh();
   const {
     setCommunityStructure, setConversations, setFriends, setUsableEmojis, setServerStickers, setEmojiCollections, setStickerCollections, setFavoriteGifs, setClubs, setMyClan, setUserSettings,
   } = useStore();

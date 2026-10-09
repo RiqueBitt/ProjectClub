@@ -16,7 +16,7 @@ import { identifyInstalledMods, formatBytes } from './unifiedApi.js';
 const ORIGIN = {
   managed: { label: 'Instalado pelo Project Club', short: 'Project Club', icon: 'check' },
   detected: { label: 'Detectado nos arquivos', short: 'Detectado', icon: 'search' },
-  vortex: { label: 'Instalado pelo Vortex (Nexus Mods)', short: 'Vortex', icon: 'link' },
+  vortex: { label: 'Instalado por outro gerenciador de mods', short: 'Outro gerenciador', icon: 'link' },
 };
 
 // Mod detectado que ainda não está no manifesto local.
@@ -71,7 +71,7 @@ export default function InstalledPanel({
   const rows = useMemo(() => (scan?.items || []).map((i) => ({
     ...i,
     origin: i.managedByProjectClub ? 'managed' : i.managedBy === 'vortex' ? 'vortex' : 'detected',
-    match: matches[i.vortexMod || i.name] || (i.vortexMod ? { name: i.vortexMod, source: 'nexus' } : null),
+    match: matches[i.vortexMod || i.name] || (i.vortexMod ? { name: i.vortexMod } : null),
   })), [scan, matches]);
 
   const counts = {
@@ -169,12 +169,12 @@ export default function InstalledPanel({
                   { value: 'off', label: 'Desativados', count: counts.off },
                   !scan.unsupported && counts.managed > 0 && { value: 'managed', label: 'Do Project Club', count: counts.managed },
                   !scan.unsupported && counts.detected > 0 && { value: 'detected', label: 'Detectados', count: counts.detected },
-                  !scan.unsupported && counts.vortex > 0 && { value: 'vortex', label: 'Vortex', count: counts.vortex },
+                  !scan.unsupported && counts.vortex > 0 && { value: 'vortex', label: 'Outro gerenciador', count: counts.vortex },
                 ].filter(Boolean)}
               />
             </div>
             {scan.vortex && (
-              <p className="mdx-note small"><Icon name="link" size={15} /> <span>O Vortex também cuida de {scan.vortex.modCount === 1 ? '1 mod' : `${scan.vortex.modCount} mods`} deste jogo. Pra desinstalar esses, prefira o próprio Vortex — se apagar por aqui, ele vai avisar que os arquivos sumiram.</span></p>
+              <p className="mdx-note small"><Icon name="link" size={15} /> <span>Outro gerenciador de mods também cuida de {scan.vortex.modCount === 1 ? '1 mod' : `${scan.vortex.modCount} mods`} deste jogo. Pra desinstalar esses, prefira o próprio gerenciador — se apagar por aqui, ele vai avisar que os arquivos sumiram.</span></p>
             )}
             {counts.detected > 0 && filter !== 'managed' && (
               <p className="mdx-note small"><Icon name="search" size={15} /> <span>{counts.detected === 1 ? '1 mod foi detectado' : `${counts.detected} mods foram detectados`} nas pastas do jogo (instalados antes ou por outro programa). Dá pra ativar, desativar e apagar do mesmo jeito.</span></p>

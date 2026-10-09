@@ -925,3 +925,28 @@ button.mdx-ux-tile.dim:hover { border-color: color-mix(in srgb, var(--red) 40%, 
   .mdx-lightbox-nav { top: auto; bottom: 14px; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) { .mdx-lightbox { animation: none; } .mdx-gallery-shot img { transition: none; } }
+.mdx-poster-modchip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 800; color: #fff; background: rgba(10, 12, 16, .62); border: 1px solid rgba(255, 255, 255, .18);
+  backdrop-filter: blur(4px);
+}
+
+/* Banner grande do mod no topo da página de detalhes. */
+.mdx-detail-cover {
+  position: relative; width: 100%; height: clamp(170px, 26vw, 320px); border-radius: 18px 18px 0 0; overflow: hidden;
+  border: 1px solid var(--border); border-bottom: 0; background: var(--bg-secondary);
+}
+.mdx-detail-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 30%; }
+.mdx-detail-cover::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 45%, color-mix(in srgb, var(--bg-secondary) 92%, transparent) 100%);
+}
+.mdx-detail-cover + .mdx-detail-head { border-top-left-radius: 0; border-top-right-radius: 0; border-top: 0; }
+.mdx-detail-cover + .mdx-detail-head .mdx-detail-media { margin-top: -90px; position: relative; z-index: 1; }
+.mdx-detail-cover + .mdx-detail-head.has-banner { overflow: visible; }
+.mdx-detail-cover + .mdx-detail-head .mdx-detail-banner { display: none; }
+.mdx-detail-cover + .mdx-detail-head.has-banner::after { display: none; }
+@media (max-width: 760px) {
+  .mdx-detail-cover { height: 150px; border-radius: 14px 14px 0 0; }
+  .mdx-detail-cover + .mdx-detail-head .mdx-detail-media { margin-top: -60px; max-width: 70%; }
+}

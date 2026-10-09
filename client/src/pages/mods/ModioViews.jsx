@@ -413,11 +413,6 @@ export function ModioModDetail({ game, modioModId, onBack }) {
               {addToCollectionMsg && <p className="mdx-note ok">{addToCollectionMsg}</p>}
             </Section>
           )}
-          {mod.profile_url && (
-            <a href={mod.profile_url} target="_blank" rel="noreferrer" className="mdx-btn ghost block">
-              <Icon name="external" size={15} /> Ver no mod.io
-            </a>
-          )}
         </>
       )}
     />

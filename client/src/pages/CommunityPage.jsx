@@ -11,6 +11,7 @@ import {
 } from '../api/endpoints';
 import { PostCard, CreatePostForm } from './CommunitiesPage.jsx';
 import { proxyImage } from '../utils/imageProxy';
+import { useLiveRefresh } from '../utils/liveRefresh';
 
 // Página de UM Tema — lê direto do estado global (useStore.clubs), que já
 // é mantido em tempo real via socket (club:new/update/delete e
@@ -29,6 +30,9 @@ export default function CommunityPage() {
 
   const refreshPosts = () => listPosts({ communitySlug: slug, sort: 'new' }).then((d) => setPosts(d.posts));
   useEffect(() => { refreshPosts(); }, [slug]);
+
+  // Tempo real (11s): posts do clube.
+  useLiveRefresh(({ put }) => listPosts({ communitySlug: slug, sort: 'new' }).then((d) => put(setPosts)(d.posts)), { enabled: posts !== null, key: slug });
 
   const onVote = async (post, value) => {
     const nextMyVote = post.myVote === value ? 0 : value;

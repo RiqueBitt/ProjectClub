@@ -1,3 +1,5 @@
+import { useLiveRefresh, mergeFirstPage } from '../../utils/liveRefresh';
+import { searchUnifiedMods } from './unifiedApi.js';
 import { getNexusMod } from '../../api/endpoints';
 import { installNexusFile, nexusIds } from './NexusViews.jsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -84,8 +86,9 @@ function ItemThumb({ item }) {
 }
 
 function SourceTag({ source }) {
-  const color = SOURCE_META[source]?.color || 'var(--text-muted)';
-  return <span className="mpk-source" style={{ '--src': color }}>{MODPACK_SOURCE_LABEL[source] || source}</span>;
+  // Origem do mod não aparece mais (item pedido) — só marca o que é arquivo local.
+  if (source !== 'local') return null;
+  return <span className="mpk-source" style={{ '--src': 'var(--text-muted)' }}>Arquivo local</span>;
 }
 
 function Modal({ title, onClose, children, footer, wide }) {
@@ -151,6 +154,19 @@ export default function ModpacksTab({ game, desktopReady, installedState, legacy
   }, [game.steamAppId]);
   useEffect(refreshMine, [refreshMine]);
 
+  // Ao vivo (a cada 11 s): meus modpacks e a 1ª página da comunidade
+  // (curtidas, downloads, novos modpacks), sem perder o que já carregou.
+  useLiveRefresh(async (ctx) => {
+    const [m, c] = await Promise.all([
+      listMyModpacks(game.steamAppId),
+      listPublicModpacks({ steamAppId: game.steamAppId, q: query.trim() || undefined, sort, page: 1 }),
+    ]);
+    if (!ctx.ok()) return;
+    ctx.put(setMine)(m.modpacks || []);
+    setCommunity((prev) => (prev ? mergeFirstPage(prev, c.modpacks || []) : prev));
+    setCommunityTotal(c.total || 0);
+  }, { key: `${game.steamAppId}:${query}:${sort}` });
+
   useEffect(() => {
     setCommunity(null);
     setCommunityError('');
@@ -212,7 +228,7 @@ export default function ModpacksTab({ game, desktopReady, installedState, legacy
     }
     if (item.source === 'modio') {
       const modioGameId = game.sources.modio?.modioGameId;
-      if (!modioGameId) return { status: 'skipped', reason: 'Este jogo não tem mod.io configurado.' };
+      if (!modioGameId) return { status: 'skipped', reason: 'Este mod não está disponível para este jogo.' };
       const id = Number(item.sourceId);
       const detail = await getMod(modioGameId, id);
       const name = detail.mod?.name || item.name;
@@ -226,7 +242,7 @@ export default function ModpacksTab({ game, desktopReady, installedState, legacy
       return { status: 'installed' };
     }
     if (item.source === 'gamebanana') {
-      if (!game.sources.gamebanana) return { status: 'skipped', reason: 'Este jogo não tem GameBanana configurado.' };
+      if (!game.sources.gamebanana) return { status: 'skipped', reason: 'Este mod não está disponível para este jogo.' };
       const id = Number(item.sourceId);
       const d = await getGameBananaMod(id);
       const data = d.mod || {};
@@ -243,7 +259,7 @@ export default function ModpacksTab({ game, desktopReady, installedState, legacy
     }
     if (item.source === 'thunderstore') {
       const community = game.sources.thunderstore?.thunderstoreCommunity;
-      if (!community) return { status: 'skipped', reason: 'Este jogo não tem Thunderstore configurado.' };
+      if (!community) return { status: 'skipped', reason: 'Este mod não está disponível para este jogo.' };
       const d = await getThunderstorePackage(community, item.sourceId);
       const pkg = d.package;
       const queue = [...(d.dependencies || []), { fullName: pkg.fullName, name: pkg.name, downloadUrl: pkg.version?.downloadUrl }]
@@ -262,7 +278,7 @@ export default function ModpacksTab({ game, desktopReady, installedState, legacy
     }
     if (item.source === 'nexus') {
       const { domain, modId } = nexusIds(item.sourceId);
-      if (!domain || !modId) return { status: 'skipped', reason: 'Mod da Nexus inválido.' };
+      if (!domain || !modId) return { status: 'skipped', reason: 'Mod inválido.' };
       const { mod } = await getNexusMod(domain, modId);
       const name = mod?.name || item.name;
       if (mgr.installedFolders.has(modFolderName(name))) return { status: 'already' };
@@ -275,7 +291,7 @@ export default function ModpacksTab({ game, desktopReady, installedState, legacy
       } catch (err) {
         mgr.untrackInstall(modId);
         // Conta grátis: precisa do botão "Mod Manager Download" do site.
-        if (err.needsManager) return { status: 'skipped', reason: 'A Nexus pede o botão "Mod Manager Download" do site pra este mod.' };
+        if (err.needsManager) return { status: 'skipped', reason: 'Este mod precisa ser baixado pela página dele (abra o mod e use "Baixar pela página").' };
         throw err;
       }
       mgr.completeInstall(modId);
@@ -544,7 +560,7 @@ function ItemChips({ items = [], itemInstalled, max = 5 }) {
   return (
     <div className="mpk-chips">
       {items.slice(0, max).map((i) => (
-        <span key={`${i.source}:${i.sourceId}`} className={`mpk-chip ${itemInstalled?.(i) ? 'installed' : ''}`} title={`${i.name} · ${MODPACK_SOURCE_LABEL[i.source]}`}>
+        <span key={`${i.source}:${i.sourceId}`} className={`mpk-chip ${itemInstalled?.(i) ? 'installed' : ''}`} title={i.name}>
           {i.name}
         </span>
       ))}
@@ -791,7 +807,7 @@ function ModpackEditor({ game, initial, installedState, legacyProfiles, onClose,
         <button type="button" className="mdx-btn primary sm" onClick={() => setPicking(true)}><Icon name="plus" size={14} /> Adicionar mods</button>
       </div>
       {items.length === 0 ? (
-        <EmptyState icon="puzzle" title="Nenhum mod ainda">Adicione mods instalados ou busque nas fontes deste jogo.</EmptyState>
+        <EmptyState icon="puzzle" title="Nenhum mod ainda">Adicione mods instalados ou busque mods deste jogo.</EmptyState>
       ) : (
         <ul className="mpk-items">
           {items.map((i) => (
@@ -815,8 +831,10 @@ function ModpackEditor({ game, initial, installedState, legacyProfiles, onClose,
 
 // ---------- "Adicionar mods": instalados + busca em cada fonte ----------
 function ModPicker({ game, installedState, legacyProfiles, selectedKeys, onToggle, count, onDone }) {
-  const sources = Object.keys(game.sources || {}).filter((k) => ['modio', 'thunderstore', 'gamebanana', 'workshop'].includes(k));
-  const tabs = [{ key: 'installed', label: 'Instalados' }, ...sources.map((k) => ({ key: k, label: MODPACK_SOURCE_LABEL[k] }))];
+  // Item pedido: "não mostrar de onde vêm os mods" — uma busca só,
+  // a mesma da aba Explorar, em vez de uma aba por fonte.
+  const hasSources = Object.keys(game.sources || {}).length > 0;
+  const tabs = [{ key: 'installed', label: 'Instalados' }, ...(hasSources ? [{ key: 'search', label: 'Buscar mods' }] : [])];
   const [tab, setTab] = useState('installed');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState(null);
@@ -849,7 +867,11 @@ function ModPicker({ game, installedState, legacyProfiles, selectedKeys, onToggl
     const t = setTimeout(async () => {
       try {
         let list = [];
-        if (tab === 'modio') {
+        if (tab === 'search') {
+          const d = await searchUnifiedMods(game.steamAppId, { q, sort: 'popular', gameName: game.displayName });
+          list = (d.items || []).filter((m) => m.compatibility?.status !== 'incompatible')
+            .map((m) => ({ source: m.source, sourceId: m.sourceId, name: m.name, thumbnailUrl: m.thumbnailUrl || undefined, version: m.version || undefined, by: m.author || undefined }));
+        } else if (tab === 'modio') {
           const d = await listMods(game.sources.modio.modioGameId, { q, sort: 'popular', offset: 0 });
           list = (d.mods || []).map((m) => ({ source: 'modio', sourceId: String(m.id), name: m.name, thumbnailUrl: m.logo?.thumb_320x180, version: m.modfile?.version || undefined, by: m.submitted_by?.username }));
         } else if (tab === 'thunderstore') {
@@ -893,15 +915,14 @@ function ModPicker({ game, installedState, legacyProfiles, selectedKeys, onToggl
       <div className="mpk-pills small" role="tablist" aria-label="De onde">
         {tabs.map((t) => (
           <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} className={`mpk-pill ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
-            {t.key !== 'installed' && <span className="mpk-src-dot" style={{ '--src': SOURCE_META[t.key]?.color }} />}
-            {t.key === 'installed' && <Icon name="puzzle" size={14} />}
+            <Icon name={t.key === 'installed' ? 'puzzle' : 'search'} size={14} />
             {t.label}
           </button>
         ))}
       </div>
-      <SearchField value={query} onChange={setQuery} placeholder={tab === 'installed' ? 'Filtrar mods instalados...' : `Buscar no ${MODPACK_SOURCE_LABEL[tab]}...`} />
+      <SearchField value={query} onChange={setQuery} placeholder={tab === 'installed' ? 'Filtrar mods instalados...' : `Buscar mods de ${game.displayName}...`} />
       {tab === 'installed' && (
-        <p className="mdx-muted mdx-small mpk-hint">Mods instalados só pela pasta contam como "arquivo local" — outras pessoas não conseguem baixar. Pra um modpack que todo mundo baixa, busque o mod na fonte dele (abas ao lado).</p>
+        <p className="mdx-muted mdx-small mpk-hint">Mods instalados só pela pasta contam como "arquivo local" — outras pessoas não conseguem baixar. Pra um modpack que todo mundo baixa, use "Buscar mods".</p>
       )}
       {shown === null ? (
         <div className="mdx-rows">{[0, 1, 2, 3].map((i) => <div key={i} className="mdx-skel mdx-skel-row" />)}</div>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
+import { useLiveRefresh, sameData } from '../../utils/liveRefresh';
 import { useStore } from '../../store/useStore';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { getUserProfile, createConversation, sendFriendRequest, assignRole, unassignRole, voteProfile, listPosts, listApprovedTestimonials, writeTestimonial, listScraps, writeScrap, deleteScrap, getFanStatus, toggleFan, registerProfileVisit, listProfileVisitors, getTraitStatus, toggleTrait, sendRelationshipRequest, endRelationship as endRelationshipApi, listPhotosByOwner, listProfilePollsByAuthor, voteProfilePoll, upcomingBirthdaysAmongFriends } from '../../api/endpoints';
@@ -464,6 +465,36 @@ export default function UserProfileModal() {
     if (!userId || !isMe) { setBirthdays({ today: [], upcoming: [] }); return; }
     upcomingBirthdaysAmongFriends().then(setBirthdays).catch(() => {});
   }, [userId, isMe]);
+
+  // Tempo real (11s): perfil + dados da aba aberta, em silêncio — o modal
+  // continua aberto, na mesma aba/scroll, sem skeleton e sem apagar o
+  // recado/depoimento sendo digitado.
+  useLiveRefresh(async (ctx) => {
+    const { put } = ctx;
+    const jobs = [
+      getUserProfile(userId).then((result) => {
+        if (!ctx.ok() || !result) return;
+        setData((prev) => (sameData(prev, result) ? prev : result));
+        if (result.activity) useStore.getState().setActivity(userId, result.activity);
+      }),
+      getFanStatus(userId).then(put(setFanStatus)),
+    ];
+    if (activeTab === 'about') {
+      jobs.push(getTraitStatus(userId).then(put(setTraitStatus)));
+      if (isMe) jobs.push(upcomingBirthdaysAmongFriends().then(put(setBirthdays)));
+    }
+    if (activeTab === 'activity') {
+      jobs.push(listPosts({ authorId: userId, sort: 'new' }).then((d) => put(setRedditActivity)(d.posts)));
+      jobs.push(listProfilePollsByAuthor(userId).then((d) => put(setProfilePolls)(d.polls)));
+      jobs.push(listPhotosByOwner(userId).then((d) => { put(setPhotoPreview)(d.photos.slice(0, 3)); put(setPhotoTotal)(d.total); }));
+    }
+    if (activeTab === 'wall') {
+      jobs.push(listScraps(userId).then((d) => { put(setScraps)(d.scraps); put(setScrapTotal)(d.total ?? d.scraps.length); }));
+      jobs.push(listApprovedTestimonials(userId).then((d) => { put(setTestimonials)(d.testimonials); put(setTestimonialTotal)(d.total ?? d.testimonials.length); }));
+      if (isMe) jobs.push(listProfileVisitors(userId).then(put(setVisitorsData)));
+    }
+    await Promise.allSettled(jobs);
+  }, { enabled: !!userId, key: userId });
 
   if (!userId) return null;
 

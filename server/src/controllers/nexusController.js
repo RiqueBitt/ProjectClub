@@ -4,7 +4,7 @@ const DOMAIN_RE = /^[a-z0-9]{1,64}$/;
 const isId = (v) => /^\d{1,10}$/.test(String(v));
 
 function notConfigured(res) {
-  return res.status(503).json({ error: 'A Nexus Mods ainda não foi configurada no servidor.' });
+  return res.status(503).json({ error: 'Essa fonte de mods está indisponível no momento.' });
 }
 
 // POST /api/nexus/steam-match { steamAppIds: [...], names: { [appId]: nome } }
@@ -33,7 +33,7 @@ async function getMod(req, res, next) {
     const mod = await nexus.getMod(domain, Number(modId));
     res.json({ mod });
   } catch (err) {
-    if (err.status === 404) return res.status(404).json({ error: 'Mod não encontrado na Nexus Mods.' });
+    if (err.status === 404) return res.status(404).json({ error: 'Mod não encontrado.' });
     next(err);
   }
 }
@@ -55,12 +55,12 @@ async function getDownload(req, res, next) {
     } catch (err) {
       if (err.status === 403 || err.status === 401) {
         return res.status(403).json({
-          error: 'A Nexus só libera o download direto pelo botão "Mod Manager Download" do site (ou pra conta Premium).',
+          error: 'Este mod precisa ser baixado pela página dele.',
           needsManager: true,
           managerUrl: nexus.managerDownloadUrl(domain, modId, fileId),
         });
       }
-      if (err.status === 410) return res.status(410).json({ error: 'O link do Vortex expirou. Clique de novo no site da Nexus.' });
+      if (err.status === 410) return res.status(410).json({ error: 'O link de download expirou. Clique de novo no botão de download da página.' });
       throw err;
     }
   } catch (err) { next(err); }

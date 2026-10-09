@@ -4,6 +4,7 @@ import { listMyModpacks, setFeaturedModpack } from '../api/endpoints';
 import { proxyImage } from '../utils/imageProxy';
 import { MODPACK_SOURCE_LABEL, steamHeaderUrl, requestOpenModpack } from '../pages/mods/modpackShared.js';
 import '../styles/modpacks.css';
+import { useLiveRefresh } from '../utils/liveRefresh';
 
 // Item pedido: coluna "Modpack preferido" no perfil — mostra o modpack
 // (ou um mod avulso) que a pessoa escolheu destacar: jogo, likes,
@@ -82,7 +83,7 @@ export default function FeaturedModpackSection({ Card, item, isMe, onChanged, on
             {mod.gameName && <span className="pfm-game">{mod.gameName}</span>}
             <h4 className="pfm-name">{mod.name}</h4>
             <div className="pfm-stats">
-              <span className="pfm-stat"><I name="puzzle" size={13} /> Mod · {MODPACK_SOURCE_LABEL[mod.source] || mod.source}</span>
+              <span className="pfm-stat"><I name="puzzle" size={13} /> Mod</span>
             </div>
           </div>
         </div>
@@ -113,6 +114,9 @@ function FeaturedPicker({ current, onClose, onChanged }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // Tempo real (11s): meus modpacks na lista de escolha.
+  useLiveRefresh(({ put }) => listMyModpacks().then((d) => put(setPacks)(d.modpacks || [])), { enabled: packs !== null });
 
   const mods = useMemo(() => {
     const seen = new Set();
@@ -202,7 +206,7 @@ function FeaturedPicker({ current, onClose, onChanged }) {
                     </span>
                     <div className="mpk-item-text">
                       <strong title={m.name}>{m.name}</strong>
-                      <span>{MODPACK_SOURCE_LABEL[m.source]} · {m.gameName}</span>
+                      <span>{m.gameName}</span>
                     </div>
                     <button type="button" className={`mpk-btn sm ${on ? 'ghost on' : 'primary'}`} disabled={busy || on} onClick={() => choose({ mod: m })}>
                       {on ? <><I name="check" size={14} /> Escolhido</> : 'Destacar'}

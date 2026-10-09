@@ -71,8 +71,11 @@ export const SOURCE_META = {
 };
 export const SOURCE_ORDER = ['nexus', 'modio', 'thunderstore', 'workshop', 'gamebanana'];
 
+// Item pedido: "não precisa mostrar que os mods são do Nexus etc.,
+// mostre só mods" — o chip de origem não aparece mais em lugar nenhum.
+// eslint-disable-next-line no-unused-vars
 export function SourceChip({ source, long = false }) {
-  const meta = SOURCE_META[source];
+  const meta = null;
   if (!meta) return null;
   return (
     <span className="mdx-source-chip" style={{ '--src': meta.color }}>
@@ -325,12 +328,28 @@ export function formatModDate(value) {
   return d.toLocaleString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+function ModBanner({ url }) {
+  const sources = useMemo(() => (url ? [...new Set([proxyImage(url), url])] : []), [url]);
+  const [idx, setIdx] = useState(0);
+  useEffect(() => setIdx(0), [sources]);
+  if (idx >= sources.length) return null;
+  return (
+    <div className="mdx-detail-cover">
+      <img src={sources[idx]} alt="" onError={() => setIdx((i) => i + 1)} />
+    </div>
+  );
+}
+
 export function ModDetailLayout({ onBack, backLabel, thumb, fallbackIcon, title, subtitle, stats, actions, notices, main, side, gallery, info }) {
+  const firstShot = gallery?.[0];
+  const bannerUrl = (typeof firstShot === 'string' ? firstShot : firstShot?.full || firstShot?.thumb) || thumb || null;
   return (
     <div className="mdx-detail">
       <button type="button" className="mdx-back-link" onClick={onBack}><Icon name="back" size={16} /> {backLabel}</button>
-      <div className={`mdx-detail-head ${thumb ? 'has-banner' : ''}`}>
-        {/* Banner do mod: a própria imagem dele, ampliada e desfocada atrás do cabeçalho. */}
+      {/* Banner do mod (item pedido): imagem grande no topo da página —
+          a 1ª screenshot (mais larga) ou a imagem principal do mod. */}
+      <ModBanner url={bannerUrl} />
+      <div className={`mdx-detail-head ${bannerUrl ? 'has-banner' : ''}`}>
         {thumb && <div className="mdx-detail-banner" aria-hidden="true" style={{ backgroundImage: `url("${proxyImage(thumb)}"), url("${thumb}")` }} />}
         <div className="mdx-detail-media"><ModThumb url={thumb} fallbackIcon={fallbackIcon} seed={title} /></div>
         <div className="mdx-detail-info">

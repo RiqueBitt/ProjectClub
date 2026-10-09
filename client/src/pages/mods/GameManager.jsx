@@ -1,3 +1,4 @@
+import { useLiveRefresh, sameData } from '../../utils/liveRefresh';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import {
@@ -65,8 +66,12 @@ export default function GameManager({ game, onBack, scrollRef }) {
 
   const refreshInstalled = useCallback(() => {
     if (!desktopReady || !game.installPath) { setInstalledLoaded(true); return; }
-    listInstalledModsLocally(game.installPath, game.steamAppId)
-      .then((d) => setInstalledState({ enabled: d.enabled || [], disabled: d.disabled || [] }))
+    return listInstalledModsLocally(game.installPath, game.steamAppId)
+      .then((d) => {
+        const next = { enabled: d.enabled || [], disabled: d.disabled || [] };
+        // Só troca o estado se mudou (a atualização ao vivo roda a cada 11 s).
+        setInstalledState((prev) => (sameData(prev, next) ? prev : next));
+      })
       .finally(() => setInstalledLoaded(true));
   }, [desktopReady, game.installPath, game.steamAppId]);
 
@@ -82,7 +87,10 @@ export default function GameManager({ game, onBack, scrollRef }) {
 
   const refreshWorkshop = useCallback(() => {
     if (!desktopReady || !game.installPath || !hasWorkshop) return;
-    listInstalledWorkshopItemsLocally(game.installPath, game.sources.workshop.workshopAppId).then((d) => setWorkshopIds(d.items || []));
+    return listInstalledWorkshopItemsLocally(game.installPath, game.sources.workshop.workshopAppId).then((d) => {
+      const next = d.items || [];
+      setWorkshopIds((prev) => (sameData(prev, next) ? prev : next));
+    });
   }, [desktopReady, game.installPath, hasWorkshop, game.sources.workshop]);
 
   const refreshProfiles = useCallback(() => {
@@ -91,6 +99,8 @@ export default function GameManager({ game, onBack, scrollRef }) {
   }, [hasModio, game.sources.modio]);
 
   useEffect(() => { refreshInstalled(); refreshWorkshop(); refreshProfiles(); }, [refreshInstalled, refreshWorkshop, refreshProfiles]);
+  // Ao vivo: mods colocados/tirados da pasta por fora aparecem sozinhos.
+  useLiveRefresh(() => Promise.all([refreshInstalled(), refreshWorkshop()]), { enabled: desktopReady && !!game.installPath });
 
   const finishLater = useCallback((id) => {
     setTimeout(() => setProgressById((prev) => {
@@ -316,7 +326,7 @@ function GameHero({ game, sourceKeys, installedTotal, onBack, actions }) {
             <h1>{game.displayName}</h1>
             <div className="mdx-hero-chips">
               {sourceKeys.length > 0
-                ? sourceKeys.map((k) => <SourceChip key={k} source={k} long />)
+                ? <span className="mdx-hero-chip"><Icon name="compass" size={13} /> Mods disponíveis</span>
                 : <span className="mdx-hero-chip muted">Sem suporte a mods ainda</span>}
               {installedTotal != null && (
                 <span className="mdx-hero-chip"><Icon name="puzzle" size={13} /> {installedTotal} {installedTotal === 1 ? 'mod instalado' : 'mods instalados'}</span>
@@ -665,7 +675,7 @@ function FilesTab({ game, desktopReady, supported, onOpenFolder, onAddLocal, loc
           </div>
         </div>
         {!supported && (
-          <p className="mdx-note"><Icon name="info" size={15} /> Este jogo ainda não tem uma fonte de mods configurada no Project Club — mas dá pra abrir a pasta e colocar mods do seu PC.</p>
+          <p className="mdx-note"><Icon name="info" size={15} /> Este jogo ainda não tem mods no Project Club — mas dá pra abrir a pasta e colocar mods do seu PC.</p>
         )}
       </Section>
 

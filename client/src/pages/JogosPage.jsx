@@ -8,6 +8,7 @@ import { listAppCatalog } from '../api/endpoints';
 import PageIcon from '../components/PageIcons.jsx';
 import { proxyImage } from '../utils/imageProxy';
 import '../styles/jogos-page.css';
+import { useLiveRefresh } from '../utils/liveRefresh';
 
 // Item pedido: "separe claramente os downloads para Windows e Linux"
 // — o botão de instalar/jogar só funciona pra plataforma em que o
@@ -43,6 +44,10 @@ export default function JogosPage() {
   useEffect(() => {
     listAppCatalog().then((d) => setCatalog(d.items)).catch(() => setCatalog([]));
   }, []);
+
+  // Tempo real (11s): catálogo (versões, banners, screenshots novas) sem
+  // sair da tela de detalhe aberta.
+  useLiveRefresh(({ put }) => listAppCatalog().then((d) => put(setCatalog)(d.items)), { enabled: catalog !== null });
 
   const detailItem = catalog?.find((c) => c.moduleId === detailModuleId);
 

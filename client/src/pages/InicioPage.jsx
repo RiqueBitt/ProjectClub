@@ -11,6 +11,7 @@ import { renderRichContent } from '../utils/richTextRender.jsx';
 import { proxyImage } from '../utils/imageProxy';
 import { hour12Option } from '../utils/formatTime';
 import inicioIcon from '../assets/icons/logo-project-club.png';
+import { useLiveRefresh, sameData } from '../utils/liveRefresh';
 
 const EVENT_STATUS_LABEL = { UPCOMING: 'Em breve', ACTIVE: 'Ativo', ENDED: 'Encerrado' };
 // Item pedido: mostra só os 4 vídeos mais recentes do canal.
@@ -159,6 +160,26 @@ export default function InicioPage() {
     // Perfil completo traz o progresso do nível (levelProgress).
     if (user?.id) getUserProfile(user.id).then((d) => setMe(d)).catch(() => setMe(null));
   }, [user?.id]);
+
+  // Tempo real (11s): posts em destaque, números e progresso do nível;
+  // novidades/eventos/vídeos já chegam por socket, então só uma
+  // ressincronização leve (33s).
+  useLiveRefresh(async (ctx) => {
+    const { put } = ctx;
+    await Promise.allSettled([
+      listFeaturedPosts().then((d) => put(setFeaturedPosts)(d.posts)),
+      getPlatformStats().then(put(setStats)),
+      user?.id ? getUserProfile(user.id).then(put(setMe)) : null,
+    ]);
+  });
+  useLiveRefresh(async (ctx) => {
+    const { put } = ctx;
+    await Promise.allSettled([
+      listUpdates().then((d) => put(setUpdates)(d.updates)),
+      listEvents().then((d) => put(setEvents)(d.events)),
+      listYoutubeVideos().then((d) => put(setVideos)(d.videos)),
+    ]);
+  }, { interval: 33000 });
 
   useEffect(() => {
     if (!socket) return;

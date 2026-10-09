@@ -84,7 +84,7 @@ export function ThunderstoreBrowse({ game, onOpenMod }) {
         />
       )}
       {packages !== null && packages.length > 0 && (
-        <p className="mdx-result-count">{total} {total === 1 ? 'mod disponível' : 'mods disponíveis'} · Thunderstore</p>
+        <p className="mdx-result-count">{total} {total === 1 ? 'mod disponível' : 'mods disponíveis'}</p>
       )}
 
       {packages === null ? (
@@ -226,11 +226,6 @@ export function ThunderstoreModDetail({ game, fullName, onBack }) {
       actions={(
         <>
           {installArea}
-          {pkg.packageUrl && (
-            <a href={pkg.packageUrl} target="_blank" rel="noreferrer" className="mdx-btn ghost">
-              <Icon name="external" size={15} /> Ver no Thunderstore
-            </a>
-          )}
         </>
       )}
       notices={installError && <p className="mdx-error">Não foi possível instalar este mod: {installError}</p>}

@@ -129,13 +129,7 @@ export default function UnifiedExplore({ game, localProfile, onOpenMod }) {
 
       <div className="mdx-ux-bar">
         <span className="mdx-result-count">
-          {items === null ? 'Buscando em todas as fontes...' : `${shown.length} ${shown.length === 1 ? 'mod' : 'mods'}${nextToken ? '+' : ''}`}
-          {items !== null && sources.length > 0 && (
-            <span className="mdx-ux-srcs">
-              {' · de '}
-              {sources.filter((s) => s.ok && !s.skipped).map((s) => SOURCE_META[s.source]?.label).filter(Boolean).join(', ') || 'nenhuma fonte'}
-            </span>
-          )}
+          {items === null ? 'Buscando mods...' : `${shown.length} ${shown.length === 1 ? 'mod' : 'mods'}${nextToken ? '+' : ''}`}
         </span>
         <label className={`mdx-ux-toggle ${showIncompatible ? 'on' : ''}`}>
           <input type="checkbox" checked={showIncompatible} onChange={(e) => setShowIncompatible(e.target.checked)} />
@@ -148,7 +142,7 @@ export default function UnifiedExplore({ game, localProfile, onOpenMod }) {
         <p className="mdx-note warn small">
           <Icon name="alert" size={15} />
           <span>
-            {failed.map((s) => SOURCE_META[s.source]?.long || s.source).join(', ')} não {failed.length === 1 ? 'respondeu' : 'responderam'} agora — mostrando o resto.
+            Parte dos mods não carregou agora — mostrando o resto.
             <button type="button" className="mdx-inline-link" onClick={() => setReloadKey((k) => k + 1)}>Tentar de novo</button>
           </span>
         </p>
@@ -196,7 +190,6 @@ export function CompatBadge({ compat, full = false }) {
 }
 
 function UnifiedCard({ item, compat, installed, onOpen }) {
-  const src = SOURCE_META[item.source];
   const isWorkshop = item.installMethod === 'steam-subscribe';
   const dim = compat.kind === 'bad';
   const stats = [
@@ -210,7 +203,6 @@ function UnifiedCard({ item, compat, installed, onOpen }) {
         {installed && (
           <span className="mdx-tile-badge"><Icon name="check" size={13} strokeWidth={2.6} /> {isWorkshop ? 'Inscrito' : 'Instalado'}</span>
         )}
-        {src && <span className="mdx-ux-src" style={{ '--src': src.color }}><span className="mdx-source-dot" />{src.label}</span>}
       </div>
       <div className="mdx-tile-body">
         <span className="mdx-tile-title">{item.name}</span>

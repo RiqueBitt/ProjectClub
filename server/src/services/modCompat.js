@@ -129,7 +129,7 @@ function computeCompat(item, profile) {
     if (item._banned) return { status: 'incompatible', reason: 'Item removido do Steam Workshop' };
     return { status: 'compatible', reason: 'Baixado pela própria Steam ao se inscrever' };
   }
-  if (item._removed) return { status: 'incompatible', reason: 'Mod oculto ou removido na Nexus Mods' };
+  if (item._removed) return { status: 'incompatible', reason: 'Mod oculto ou removido pelo autor' };
   if (item._notInstallable) return { status: 'incompatible', reason: item._notInstallable };
   if (item._noFile) return { status: 'incompatible', reason: 'Sem arquivo publicado' };
   if (item._unsafe) return { status: 'incompatible', reason: 'Arquivo marcado como inseguro pela fonte' };

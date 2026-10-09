@@ -230,7 +230,7 @@ function PosterCard({ game, installedCount, onClick }) {
         )}
         <div className="mdx-poster-foot">
           {supported ? (
-            <div className="mdx-poster-sources">{sources.map((k) => <SourceChip key={k} source={k} />)}</div>
+            <div className="mdx-poster-sources"><span className="mdx-poster-modchip"><Icon name="puzzle" size={12} /> Mods</span></div>
           ) : (
             <span className="mdx-poster-nosupport">Sem suporte ainda</span>
           )}

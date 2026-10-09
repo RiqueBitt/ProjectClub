@@ -32,7 +32,7 @@ export async function installNexusFile({ game, domain, modId, file, modName, key
     link = await getNexusDownload(domain, modId, file.id, { key, expires });
   } catch (err) {
     const data = err.response?.data || {};
-    const e = new Error(data.error || 'A Nexus Mods não liberou o download agora.');
+    const e = new Error(data.error || 'O download deste mod não foi liberado agora.');
     e.needsManager = !!data.needsManager;
     e.managerUrl = data.managerUrl || null;
     throw e;
@@ -70,10 +70,10 @@ export function NexusLinkToggle() {
     <div className="mdx-nexus-toggle">
       <span className="mdx-nexus-toggle-icon"><Icon name="link" size={17} /></span>
       <div className="mdx-nexus-toggle-text">
-        <strong>Downloads da Nexus Mods pelo Project Club</strong>
+        <strong>Instalar com um clique pelo navegador</strong>
         <span>{enabled
-          ? 'O botão "Mod Manager Download" do site abre aqui e instala direto no jogo.'
-          : 'Hoje o botão "Mod Manager Download" do site abre o Vortex (ou nada). Ligue pra instalar pelo Project Club.'}</span>
+          ? 'Quando um mod pedir "Baixar pela página", o botão de download da página abre aqui e instala direto no jogo.'
+          : 'Ligue pra que os downloads feitos pela página do mod sejam instalados automaticamente pelo Project Club.'}</span>
       </div>
       <button type="button" className={`mdx-switch ${enabled ? 'on' : ''}`} role="switch" aria-checked={enabled} disabled={busy} onClick={toggle}>
         <span />
@@ -160,9 +160,6 @@ export function NexusModDetail({ game, domain, modId, onBack }) {
               <ProgressBar percent={progress?.percent} indeterminate={progress && progress.phase !== 'downloading'} />
             </div>
           )}
-          <button type="button" className="mdx-btn ghost" onClick={() => openExternal(data.pageUrl)}>
-            <Icon name="external" size={15} /> Ver na Nexus Mods
-          </button>
         </>
       )}
       notices={(
@@ -175,11 +172,11 @@ export function NexusModDetail({ game, domain, modId, onBack }) {
               <Icon name="alert" size={15} />
               <span>
                 {installError.text}
-                {installError.managerUrl && <> Abra a página, clique em <strong>Mod Manager Download</strong> e o Project Club instala sozinho (ligue “Downloads da Nexus Mods pelo Project Club” no álbum de jogos).</>}
+                {installError.managerUrl && <> Abra a página do mod, clique em <strong>Mod Manager Download</strong> no arquivo e o Project Club instala sozinho (ligue “Instalar com um clique pelo navegador” no álbum de jogos).</>}
               </span>
               {installError.managerUrl && (
                 <button type="button" className="mdx-btn primary sm" onClick={() => openExternal(installError.managerUrl)}>
-                  <Icon name="external" size={14} /> Abrir na Nexus
+                  <Icon name="external" size={14} /> Baixar pela página
                 </button>
               )}
             </div>
@@ -248,7 +245,7 @@ export function NxmLinkHandler({ games, loading }) {
 
   const run = useCallback(async (link) => {
     const game = games.find((g) => g.sources?.nexus?.nexusDomain === link.domain);
-    if (!game) { setJob({ link, status: 'error', error: 'Esse jogo não foi encontrado no seu PC (ou não está na Nexus Mods pelo Project Club).' }); return; }
+    if (!game) { setJob({ link, status: 'error', error: 'Esse jogo não foi encontrado no seu PC.' }); return; }
     setJob({ link, game, status: 'loading' });
     try {
       const { mod } = await getNexusMod(link.domain, link.modId);
@@ -277,7 +274,7 @@ export function NxmLinkHandler({ games, loading }) {
         {job.mod?.thumbUrl ? <img src={proxyImage(job.mod.thumbUrl)} alt="" /> : <Icon name="download" size={20} />}
       </div>
       <div className="mdx-nxm-body">
-        <span className="mdx-nxm-kicker">Nexus Mods{job.game ? ` · ${job.game.displayName}` : ''}</span>
+        <span className="mdx-nxm-kicker">Download de mod{job.game ? ` · ${job.game.displayName}` : ''}</span>
         <strong>{job.mod?.name || 'Preparando download…'}</strong>
         {busy && (
           <>

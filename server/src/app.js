@@ -210,8 +210,12 @@ function createApp() {
   // actually for, while writes (POST/PUT/PATCH/DELETE — sending messages,
   // creating channels, reacting, etc) keep a tighter one, since that's the
   // traffic a real spam burst is actually made of.
+  // Tempo real: o cliente agora re-sincroniza a tela aberta a cada 11s
+  // (só com a aba visível — ver client/src/utils/liveRefresh.js), uns
+  // ~6-10 GETs por tick. 1500 ficava apertado pra quem divide IP (casa,
+  // escola); 4000 cobre isso com folga e ainda barra loop descontrolado.
   app.use('/api', rateLimit({
-    windowMs: 15 * 60 * 1000, max: 1500, standardHeaders: true, legacyHeaders: false,
+    windowMs: 15 * 60 * 1000, max: 4000, standardHeaders: true, legacyHeaders: false,
     store: createRateLimitStore('reads'),
     skip: (req) => req.method !== 'GET' || req.path.startsWith('/auth') || req.path === '/platform/status',
   }));

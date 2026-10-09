@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getActiveAnnouncement, dismissAnnouncement } from '../api/endpoints';
 import { proxyImage } from '../utils/imageProxy';
+import { useLiveRefresh } from '../utils/liveRefresh';
 
 // Checked once on app load and shown full-screen, "OK to dismiss" style —
 // see announcementController.js's getActiveAnnouncement for how the
@@ -14,6 +15,10 @@ export default function AnnouncementOverlay() {
 
   const check = () => getActiveAnnouncement().then((d) => setAnnouncement(d.announcement)).catch(() => {});
   useEffect(() => { check(); }, []);
+
+  // Tempo real: anúncio novo aparece sem recarregar (33s, só enquanto
+  // nenhum está aberto na tela).
+  useLiveRefresh(({ ok }) => getActiveAnnouncement().then((d) => { if (ok() && d.announcement) setAnnouncement(d.announcement); }), { enabled: !announcement, interval: 33000 });
 
   if (!announcement) return null;
 

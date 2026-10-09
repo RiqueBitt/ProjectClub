@@ -24,6 +24,7 @@ import { badgeHasImage } from '../utils/badgeRarity';
 import { PfIcon, PfCard } from './modals/UserProfileModal.jsx';
 import '../styles/profile.css';
 import BannerImage from './ProfileBanner.jsx';
+import { useLiveRefresh } from '../utils/liveRefresh';
 
 // The right-hand rail's DM counterpart to MembersList — reuses the exact
 // same `.members-list` grid slot/width/collapse-button styling (see
@@ -55,6 +56,13 @@ export default function DMProfilePanel({ onToggle }) {
       if (result?.activity) useStore.getState().setActivity(other.id, result.activity);
     }).catch(() => setData(null)).finally(() => setLoading(false));
   }, [other?.id]);
+
+  // Tempo real (11s): perfil da outra pessoa da DM, em silêncio.
+  useLiveRefresh(async ({ put, ok }) => {
+    const result = await getUserProfile(other.id);
+    put(setData)(result);
+    if (ok() && result?.activity) useStore.getState().setActivity(other.id, result.activity);
+  }, { enabled: !!other?.id && !!data, key: other?.id });
 
   if (!conversation) return null;
 

@@ -14,6 +14,7 @@ import { ClubTile, PrivacyChip, ClubForm, ICON_COLORS, privacyOf } from '../comp
 import { usePromptDialog } from '../utils/usePromptDialog.jsx';
 import { formatMessageTime } from '../utils/formatTime';
 import '../styles/clubs.css';
+import { useLiveRefresh } from '../utils/liveRefresh';
 
 const ROLE_LABEL = { OWNER: 'Dono', SUB_OWNER: 'Sub-dono', ADMIN: 'Admin', MODERATOR: 'Moderador', MEMBER: 'Membro' };
 const ROLE_ORDER = ['OWNER', 'SUB_OWNER', 'ADMIN', 'MODERATOR', 'MEMBER'];
@@ -65,6 +66,11 @@ export default function ClanPage() {
     if (caps.EDIT_CLAN) listClanIcons().then((d) => setIcons(d.icons)).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myClan?.id]);
+
+  // Tempo real (11s): o chat do clube não tem socket, então recarrega as
+  // mensagens aqui; dados do clube/cargos vêm do store global (o
+  // formulário de configurações não é resetado).
+  useLiveRefresh(({ put }) => listClanMessages(myClan.id).then((d) => put(setMessages)(d.messages)), { enabled: !!myClan?.id && messages !== null, key: myClan?.id });
 
   if (!myClan || !settingsForm) return null;
 

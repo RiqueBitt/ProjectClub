@@ -22,7 +22,7 @@ const APP_NAME = 'ProjectClub';
 const APP_VERSION = '1.0.0';
 
 class NexusNotConfiguredError extends Error {
-  constructor() { super('Nexus Mods não configurada no servidor.'); this.status = 503; }
+  constructor() { super('Fonte de mods indisponível no momento.'); this.status = 503; }
 }
 
 function isConfigured() {
@@ -45,7 +45,7 @@ async function v1(path, params) {
   for (const [k, v] of Object.entries(params || {})) if (v != null && v !== '') url.searchParams.set(k, v);
   const res = await fetch(url, { headers: headers() });
   if (!res.ok) {
-    let msg = `Nexus Mods respondeu ${res.status}`;
+    let msg = `A fonte de mods respondeu ${res.status}`;
     try { const body = await res.json(); if (body?.message) msg = body.message; } catch { /* sem corpo */ }
     const err = new Error(msg);
     err.status = res.status;
@@ -61,9 +61,9 @@ async function gql(query, variables) {
     headers: headers({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ query, variables }),
   });
-  if (!res.ok) { const err = new Error(`Nexus Mods (GraphQL) respondeu ${res.status}`); err.status = res.status; throw err; }
+  if (!res.ok) { const err = new Error(`A busca de mods respondeu ${res.status}`); err.status = res.status; throw err; }
   const body = await res.json();
-  if (body.errors?.length) throw new Error(body.errors[0].message || 'Erro na busca da Nexus Mods');
+  if (body.errors?.length) throw new Error(body.errors[0].message || 'Erro na busca de mods');
   return body.data;
 }
 
@@ -261,7 +261,7 @@ async function getDownloadLink(domain, modId, fileId, { key, expires } = {}) {
   const params = key && expires ? { key, expires } : undefined;
   const links = await v1(`/games/${encodeURIComponent(domain)}/mods/${modId}/files/${fileId}/download_link.json`, params);
   const first = Array.isArray(links) ? links.find((l) => l.URI) : null;
-  if (!first) throw new Error('A Nexus não devolveu link de download.');
+  if (!first) throw new Error('Não veio link de download.');
   return { url: first.URI, cdn: first.short_name || first.name || null };
 }
 

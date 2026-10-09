@@ -11,6 +11,7 @@ import { categoryFor, CATEGORY_ORDER } from '../utils/achievementCategory';
 import { proxyImage } from '../utils/imageProxy';
 import defaultAchievementIcon from '../assets/icons/nav-achievements.png';
 import '../styles/progress.css';
+import { useLiveRefresh } from '../utils/liveRefresh';
 
 // Progresso: um cabeçalho fixo com o seu nível (sempre visível) e três
 // abas — Ranking, Conquistas e Recompensas. A aba atual fica na URL
@@ -51,6 +52,16 @@ export default function ProgressPage() {
       socket.off('achievement:catalog-update', refreshAchievements);
     };
   }, [socket]);
+
+  // Tempo real (11s): rank e ranking; conquistas já chegam por socket,
+  // então só uma ressincronização leve (33s).
+  useLiveRefresh(async ({ put }) => {
+    await Promise.allSettled([
+      getRank().then(put(setRank)),
+      listLeaderboard().then((d) => put(setLeaderboard)(d.leaderboard)),
+    ]);
+  });
+  useLiveRefresh(({ put }) => listAchievements().then((d) => put(setAchievements)(d.achievements)), { interval: 33000 });
 
   const level = user?.accountLevel ?? rank?.level ?? 1;
   const unlocked = achievements?.filter((a) => a.unlocked).length ?? 0;

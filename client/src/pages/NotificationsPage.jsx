@@ -6,6 +6,7 @@ import {
   listPendingTestimonials, respondTestimonial, listPendingRelationships, respondRelationship,
   markChannelRead, markConversationRead,
 } from '../api/endpoints';
+import { useLiveRefresh } from '../utils/liveRefresh';
 import { DISABLED_PROFILE_SECTIONS } from '../utils/profileSections';
 import UserAvatar from '../components/UserAvatar.jsx';
 import { Ico, PageHero, PillTabs, EmptyState } from '../components/PagesKit.jsx';
@@ -100,6 +101,15 @@ export default function NotificationsPage() {
       .then(() => setPendingRelationships((prev) => prev.filter((r) => r.id !== id)))
       .catch(() => {});
   };
+
+  // Tempo real (11s): pedidos pendentes; canais/DMs/amigos vêm do store
+  // global, que já se atualiza sozinho (ver useGlobalLiveRefresh).
+  useLiveRefresh(async ({ put }) => {
+    await Promise.allSettled([
+      DISABLED_PROFILE_SECTIONS.includes('testimonials') ? null : listPendingTestimonials().then((d) => put(setPendingTestimonials)(d.testimonials)),
+      DISABLED_PROFILE_SECTIONS.includes('relationship') ? null : listPendingRelationships().then((d) => put(setPendingRelationships)(d.requests)),
+    ]);
+  });
 
   const isEmpty = unreadChannels.length === 0 && unreadConversations.length === 0 && pendingIncoming.length === 0 && pendingTestimonials.length === 0 && pendingRelationships.length === 0;
 

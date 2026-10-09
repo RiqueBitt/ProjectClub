@@ -4,6 +4,7 @@ import { getMyEconomy, claimDaily, listChests } from '../api/endpoints';
 import { useSocket } from '../context/SocketContext.jsx';
 import { Ico, PageHero, Skeleton, Toast, Unavailable } from '../components/PagesKit.jsx';
 import '../styles/economy.css';
+import { useLiveRefresh } from '../utils/liveRefresh';
 
 function fmt(n) { return Math.floor(Number(n) || 0).toLocaleString('pt-BR'); }
 
@@ -44,6 +45,14 @@ export default function EconomyPage() {
     socket.on('chests:update', refreshChests);
     return () => socket.off('chests:update', refreshChests);
   }, [socket]);
+
+  // Tempo real (11s): saldo/sequência e baús, em silêncio.
+  useLiveRefresh(async ({ put }) => {
+    await Promise.allSettled([
+      getMyEconomy().then(put(setEco)),
+      listChests().then((d) => put(setChests)(d.chests)),
+    ]);
+  }, { enabled: !unavailable });
 
   const pushNotice = (msg) => { setNotice(msg); setTimeout(() => setNotice(null), 4000); };
 

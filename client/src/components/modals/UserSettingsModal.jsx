@@ -1,3 +1,4 @@
+import { useLiveRefresh } from '../../utils/liveRefresh';
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
@@ -639,6 +640,18 @@ export default function UserSettingsModal({ onClose }) {
     listMyShortcuts().then((d) => setShortcuts(d.shortcuts)).catch(() => setShortcutsError('Não foi possível carregar seus atalhos.'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  // Tempo real (11s): listas da aba aberta (sessões de outros
+  // dispositivos, jogos, atalhos) e enquetes — campos sendo editados
+  // ficam como estão (só listas carregadas são atualizadas).
+  useLiveRefresh(async ({ put }) => {
+    await Promise.allSettled([
+      listProfilePollsByAuthor(user.id).then((d) => put(setMyPolls)(d.polls)),
+      tab === 'SECURITY' && sessions !== null ? listSessions().then((d) => put(setSessions)(d.sessions)) : null,
+      tab === 'GAMES' && games !== null ? listRegisteredGames().then((d) => put(setGames)(d.games)) : null,
+      tab === 'SYSTEM' && shortcuts !== null ? listMyShortcuts().then((d) => put(setShortcuts)(d.shortcuts)) : null,
+    ]);
+  });
 
   const submitShortcut = async () => {
     const action = newShortcutAction.trim();

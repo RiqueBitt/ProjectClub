@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { noteMutationStart, noteMutationEnd } from '../utils/liveRefresh';
 
 let accessToken = null;
 let onUnauthorized = null;
@@ -18,8 +19,26 @@ export const api = axios.create({
 
 api.interceptors.request.use((config) => {
   if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`;
+  // Marca escritas em andamento pro refresh ao vivo não aplicar dado velho
+  // por cima de uma mudança otimista (ver utils/liveRefresh.js).
+  const method = (config.method || 'get').toLowerCase();
+  if (method !== 'get' && method !== 'head' && !config._mutationTracked) {
+    config._mutationTracked = true;
+    noteMutationStart();
+  }
   return config;
 });
+
+const endMutation = (config) => {
+  if (config?._mutationTracked && !config._mutationEnded) {
+    config._mutationEnded = true;
+    noteMutationEnd();
+  }
+};
+api.interceptors.response.use(
+  (res) => { endMutation(res.config); return res; },
+  (error) => { endMutation(error.config); return Promise.reject(error); },
+);
 
 let refreshPromise = null;
 

@@ -9,6 +9,7 @@ import {
 } from '../api/endpoints';
 import { formatMessageTime } from '../utils/formatTime';
 import '../styles/support.css';
+import { useLiveRefresh } from '../utils/liveRefresh';
 
 // Central de suporte: lista de chamados à esquerda e a conversa à direita
 // (no celular, uma coisa de cada vez). A equipe ganha a aba "Fila" com
@@ -57,6 +58,10 @@ export default function TicketsPage() {
     socket.on('ticket:update', onAny);
     return () => { socket.off('ticket:message', onAny); socket.off('ticket:update', onAny); };
   }, [socket, mode]);
+
+  // Tempo real (11s): ressincroniza a lista (mensagens/status já chegam
+  // por socket; isso cobre o que o socket perder).
+  useLiveRefresh(({ put }) => (mode === 'STAFF' ? adminListTickets(undefined) : listMyTickets()).then((d) => put(setTickets)(d.tickets)), { enabled: tickets !== null, key: mode });
 
   const counts = useMemo(() => ({
     OPEN: tickets?.filter((t) => t.status === 'OPEN').length ?? 0,
@@ -278,6 +283,10 @@ function TicketDetail({ id, canModerate, onBack, onChanged }) {
     socket.on('ticket:update', onEvt);
     return () => { socket.off('ticket:message', onEvt); socket.off('ticket:update', onEvt); };
   }, [socket, id]);
+
+  // Ressincronização leve do chamado aberto (as mensagens já chegam por
+  // socket) — não mexe no texto sendo digitado.
+  useLiveRefresh(({ put }) => getTicket(id).then((d) => put(setTicket)(d.ticket)), { enabled: !!ticket, key: id, interval: 33000 });
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end' }); }, [ticket?.messages?.length]);
 

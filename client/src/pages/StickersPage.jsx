@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getStickerCollection, buyStickerCapsules, openAllCapsules, pasteSticker } from '../api/endpoints';
 import { Ico, PageHero, PillTabs, EmptyState, Skeleton, Toast, Unavailable } from '../components/PagesKit.jsx';
 import '../styles/stickers.css';
+import { useLiveRefresh } from '../utils/liveRefresh';
 
 const TABS = ['COLECAO', 'ALBUM', 'CAPSULAS'];
 const TAB_LABEL = { COLECAO: 'Coleção', ALBUM: 'Álbum', CAPSULAS: 'Cápsulas' };
@@ -21,6 +22,9 @@ export default function StickersPage() {
     if (err?.response?.status === 503) setUnavailable(true);
   });
   useEffect(() => { refresh(); }, [page]);
+
+  // Tempo real (11s): coleção/álbum/cápsulas da página atual.
+  useLiveRefresh(({ put }) => getStickerCollection(page).then(put(setData)), { enabled: !unavailable, key: page });
 
   if (unavailable) return <Unavailable icon="sticker" />;
   if (!data) {
