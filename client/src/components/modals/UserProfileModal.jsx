@@ -1096,7 +1096,7 @@ export default function UserProfileModal() {
                       <span className="pf-stat-text"><b>{data.mutualFriends.length}</b><span>Em comum</span></span>
                     </div>
                   )}
-                  {showMemberSince && (
+                  {showMemberSince && !Number.isNaN(createdAt.getTime()) && (
                     <div className="pf-stat" title={`Membro desde ${createdAt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}`}>
                       <span className="pf-stat-icon"><PfIcon name="calendar" size={16} /></span>
                       <span className="pf-stat-text">

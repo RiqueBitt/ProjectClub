@@ -142,7 +142,11 @@ async function unifiedSearch(steamAppId, { q, category, sort = 'popular', pageTo
   const mappings = await findMappings(steamAppId);
   const first = !pageToken;
   const state = decodeToken(pageToken) || { done: [] };
-  const catsBySource = (first || category) ? await gameCategories(mappings) : {};
+  // Com filtro de categoria, precisa saber antes como cada fonte escreve
+  // o nome dela; sem filtro, as categorias vêm em paralelo com a busca
+  // (uma fonte lenta não soma o tempo duas vezes).
+  const catsPromise = (first || category) ? gameCategories(mappings) : Promise.resolve({});
+  const catsBySource = category ? await catsPromise : {};
 
   const sources = [];
   const perSource = {};
@@ -169,11 +173,12 @@ async function unifiedSearch(steamAppId, { q, category, sort = 'popular', pageTo
     }
   }));
 
+  const allCats = await catsPromise;
   const active = Object.entries(mappings).filter(([, m]) => m).map(([s]) => s);
   const hasMore = active.some((s) => !nextState.done.includes(s));
   return {
     items: compat.mergeResults(perSource, sort),
-    categories: first ? compat.mergeCategories(catsBySource) : undefined,
+    categories: first ? compat.mergeCategories(allCats) : undefined,
     sources: sources.sort((a, b) => a.source.localeCompare(b.source)),
     nextPageToken: hasMore ? encodeToken(nextState) : null,
     profile: {

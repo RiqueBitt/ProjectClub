@@ -140,7 +140,7 @@ export function ThunderstoreModDetail({ game, fullName, onBack }) {
   useEffect(refresh, [community, fullName]);
 
   if (!data) return <div className="mdx-detail"><div className="mdx-skel mdx-skel-detail" /></div>;
-  if (data.error) return (
+  if (data.error || !data.package) return (
     <div className="mdx-detail">
       <button type="button" className="mdx-back-link" onClick={onBack}><Icon name="back" size={16} /> Voltar para os mods</button>
       <EmptyState icon="alert" tone="danger" title="Não foi possível carregar este mod" />
@@ -175,6 +175,7 @@ export function ThunderstoreModDetail({ game, fullName, onBack }) {
           gameInstallPath: game.installPath,
           fullName: item.fullName,
           isLoader: isThunderstoreLoaderPackage(item.name),
+          steamAppId: game.steamAppId,
         });
         if (!result.success) throw new Error(`${item.name}: ${result.error || 'falha desconhecida'}`);
         completeInstall(item.fullName);

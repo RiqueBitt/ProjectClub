@@ -221,6 +221,7 @@ export function ModioModDetail({ game, modioModId, onBack }) {
         gameInstallPath: game.installPath,
         modName: mod.name,
         modioModId,
+        steamAppId: game.steamAppId, source: 'modio', sourceId: modioModId, version: mod.modfile?.version || null,
       });
       if (!result.success) throw new Error(result.error || 'Falha desconhecida.');
       setInstallBusy(false);
@@ -250,6 +251,7 @@ export function ModioModDetail({ game, modioModId, onBack }) {
           gameInstallPath: game.installPath,
           modName: depMod.mod.name,
           modioModId: dep.mod_id,
+          steamAppId: game.steamAppId, source: 'modio', sourceId: dep.mod_id,
         });
         if (!result.success) { untrackInstall(dep.mod_id); throw new Error(`${depMod.mod.name}: ${result.error || 'falha desconhecida'}`); }
         completeInstall(dep.mod_id);

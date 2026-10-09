@@ -96,6 +96,9 @@ export function GameBananaBrowse({ game, onOpenMod }) {
   );
 }
 
+// Pacotes que o app desktop não sabe abrir (ver desktop/modArchive.js).
+const UNSUPPORTED_ARCHIVE = /\.(rar|tar|gz|tgz|bz2|xz)$/i;
+
 export function GameBananaModDetail({ game, modId, onBack }) {
   const desktopReady = isDesktopModsAvailable();
   const { installedFolders, trackInstall, untrackInstall, completeInstall, progressById } = useModsManager();
@@ -122,6 +125,7 @@ export function GameBananaModDetail({ game, modId, onBack }) {
   );
 
   const installed = justInstalled || (desktopReady && installedFolders.has(modFolderName(data.name)));
+  const installableFile = (data.files || []).find((f) => !UNSUPPORTED_ARCHIVE.test(f.filename || ''));
 
   // Item pedido: "faça o GameBanana... já baixa o mod na pasta do jogo
   // com o que precisa pra funcionar" — reaproveita o MESMO instalador do
@@ -137,6 +141,7 @@ export function GameBananaModDetail({ game, modId, onBack }) {
       const result = await installModLocally({
         downloadUrl: file.downloadUrl, filename: file.filename,
         gameInstallPath: game.installPath, modName: data.name, modioModId: modId,
+        steamAppId: game.steamAppId, source: 'gamebanana', sourceId: modId,
       });
       if (!result.success) throw new Error(result.error || 'Falha desconhecida.');
       setJustInstalled(true);
@@ -165,8 +170,8 @@ export function GameBananaModDetail({ game, modId, onBack }) {
       )}
       actions={(
         <>
-          {data.files?.length > 0 && desktopReady && !installingFileId && (
-            <button type="button" className={`mdx-btn ${installed ? 'ghost' : 'primary'} lg`} onClick={() => doInstallFile(data.files[0])}>
+          {installableFile && desktopReady && !installingFileId && (
+            <button type="button" className={`mdx-btn ${installed ? 'ghost' : 'primary'} lg`} onClick={() => doInstallFile(installableFile)}>
               <Icon name={installed ? 'refresh' : 'download'} size={17} /> {installed ? 'Reinstalar' : 'Instalar'}
             </button>
           )}
@@ -186,6 +191,7 @@ export function GameBananaModDetail({ game, modId, onBack }) {
       notices={(
         <>
           {!desktopReady && <p className="mdx-note"><Icon name="monitor" size={15} /> Instalar direto na pasta do jogo só funciona pelo app de desktop — o "Baixar" de cada arquivo funciona em qualquer lugar.</p>}
+          {desktopReady && data.files?.length > 0 && !installableFile && <p className="mdx-note warn"><Icon name="alert" size={15} /> Formato não suportado: este mod só tem arquivos .rar (ou parecidos), que o Project Club ainda não sabe abrir.</p>}
           {installError && <p className="mdx-error">Não foi possível instalar: {installError}</p>}
         </>
       )}
@@ -224,12 +230,14 @@ export function GameBananaModDetail({ game, modId, onBack }) {
                     <span className="mdx-muted">{progressLabel(progress || { phase: 'downloading', percent: 0 })}</span>
                   ) : (
                     <>
-                      {desktopReady && (
+                      {desktopReady && !UNSUPPORTED_ARCHIVE.test(f.filename || '') && (
                         <button type="button" className="mdx-btn primary sm" disabled={!!installingFileId} onClick={() => doInstallFile(f)}>
                           <Icon name="download" size={14} /> Instalar
                         </button>
                       )}
-                      <a href={f.downloadUrl} target="_blank" rel="noreferrer" className="mdx-btn ghost sm">Baixar</a>
+                      {desktopReady && UNSUPPORTED_ARCHIVE.test(f.filename || '') && <span className="mdx-compat bad"><span>Formato não suportado</span></span>}
+                      {/* No app tudo instala por aqui; "Baixar" fica só no navegador. */}
+                      {!desktopReady && <a href={f.downloadUrl} target="_blank" rel="noreferrer" className="mdx-btn ghost sm">Baixar</a>}
                     </>
                   )}
                 </div>

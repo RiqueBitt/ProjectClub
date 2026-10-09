@@ -51,8 +51,8 @@ export function openWorkshopItemInSteam(publishedFileId) {
 // Item pedido: "abrir a pasta... adicionar mods de um arquivo local...
 // poder configurar mods" — igual no r2modmanPlus, mas implementação
 // própria (ver desktop/modsManager.js).
-export function openModsFolder(gameInstallPath) {
-  return window.electronAPI.mods.openFolder(gameInstallPath);
+export function openModsFolder(gameInstallPath, steamAppId) {
+  return window.electronAPI.mods.openFolder(gameInstallPath, steamAppId);
 }
 
 export function pickLocalModFile() {
@@ -109,8 +109,28 @@ export function modFolderName(name) {
   return String(name || '').trim().replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 120);
 }
 
-export function listInstalledModsLocally(gameInstallPath) {
-  return window.electronAPI.mods.listInstalled(gameInstallPath);
+// steamAppId é opcional: com ele o app usa o perfil certo do jogo sem
+// precisar adivinhar pela biblioteca da Steam.
+export function listInstalledModsLocally(gameInstallPath, steamAppId) {
+  return window.electronAPI.mods.listInstalled(gameInstallPath, steamAppId);
+}
+
+// Varredura dos mods que JÁ estão nos arquivos do jogo (detectados +
+// instalados pelo Project Club) — só leitura. Versões antigas do app de
+// desktop não têm isso: devolve { unsupported: true } pra UI cair na
+// lista simples de nomes.
+export function scanInstalledModsLocally(gameInstallPath, steamAppId) {
+  const fn = window.electronAPI?.mods?.scanInstalled;
+  if (!fn) return Promise.resolve({ success: false, unsupported: true, items: [] });
+  return fn(gameInstallPath, steamAppId);
+}
+
+// "Como este jogo usa mods": loader (BepInEx, SMAPI...), pastas, tipos
+// de arquivo e avisos — ver desktop/modInstallProfiles.js.
+export function getModInstallProfileLocally(gameInstallPath, steamAppId) {
+  const fn = window.electronAPI?.mods?.getInstallProfile;
+  if (!fn) return Promise.resolve({ success: false, unsupported: true });
+  return fn(gameInstallPath, steamAppId);
 }
 
 // callback(data) recebe { modioModId, phase: 'downloading'|'extracting'|'installing'|'done', percent }

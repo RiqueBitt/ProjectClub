@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ModsLibrary, { useModsLibrary } from './mods/ModsLibrary.jsx';
 import GameManager from './mods/GameManager.jsx';
+import { peekPendingModpack } from './mods/modpackShared.js';
 import '../styles/mods.css';
 
 // Item pedido: "Project Club → Apps → Mods → detectar Steam → detectar
@@ -37,6 +38,15 @@ export default function ModsPage() {
     setSelectedGame(game);
     requestAnimationFrame(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; });
   };
+  // "Ver modpack" no perfil: quando a biblioteca termina de carregar,
+  // abre direto o jogo do modpack pedido (a aba Modpacks abre o pack).
+  useEffect(() => {
+    if (selectedGame || library.loading || !library.games.length) return;
+    const target = library.games.find((g) => peekPendingModpack(g.steamAppId));
+    if (target) openGame(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [library.loading, library.games]);
+
   const backToLibrary = () => {
     setSelectedGame(null);
     library.refreshCounts();

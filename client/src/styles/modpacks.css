@@ -204,8 +204,10 @@
 
 /* ---------- Celular ---------- */
 @media (max-width: 700px) {
-  .mpk-pills { display: flex; width: 100%; box-sizing: border-box; }
-  .mpk-pill { flex: 1 1 auto; justify-content: center; padding: 0 10px; }
+  /* Uma linha só, rolando de lado se não couber (sem rolagem na página). */
+  .mpk-pills { display: flex; flex-wrap: nowrap; width: 100%; box-sizing: border-box; overflow-x: auto; scrollbar-width: none; }
+  .mpk-pills::-webkit-scrollbar { display: none; }
+  .mpk-pill { flex: 1 0 auto; justify-content: center; padding: 0 11px; white-space: nowrap; }
   .mpk-grid { grid-template-columns: minmax(0, 1fr); }
   .mpk-overlay { padding: 0; align-items: flex-end; }
   .mpk-modal, .mpk-modal.wide { max-width: none; max-height: 92vh; border-radius: 18px 18px 0 0; }

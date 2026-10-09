@@ -20,10 +20,11 @@ function cleanString(value, max) {
   return String(value).trim().slice(0, max);
 }
 
-// Só http(s) — nada de javascript:/data: vindo de fora.
+// Só http(s) ou caminho do próprio site (/uploads..., upload de capa) —
+// nada de javascript:/data: vindo de fora.
 function cleanUrl(value) {
   const url = cleanString(value, 1000);
-  return /^https?:\/\//i.test(url) ? url : null;
+  return /^https?:\/\//i.test(url) || /^\/(?!\/)/.test(url) ? url : null;
 }
 
 // Um mod avulso (item de modpack OU "mod preferido" do perfil).

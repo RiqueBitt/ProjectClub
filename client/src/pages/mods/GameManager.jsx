@@ -2,32 +2,32 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import {
   getMod, getModDownload, getWorkshopItem,
-  listModProfiles, createModProfile, deleteModProfile, upsertModProfileItem, removeModProfileItem,
+  listModProfiles, createModProfile, deleteModProfile, removeModProfileItem,
   listModCollections, createModCollection, deleteModCollection,
 } from '../../api/endpoints';
 import {
-  isDesktopModsAvailable, installModLocally, uninstallModLocally, listInstalledModsLocally, onModsProgress,
-  setModEnabledLocally, applyProfileLocally, listInstalledWorkshopItemsLocally, openWorkshopItemInSteam,
+  isDesktopModsAvailable, installModLocally, listInstalledModsLocally, onModsProgress,
+  applyProfileLocally, listInstalledWorkshopItemsLocally, openWorkshopItemInSteam,
   openModsFolder, pickLocalModFile, installLocalModFile, listModConfigFiles, readModConfigFile, writeModConfigFile,
-  steamCoverUrl, steamHeroUrl, saveModpackLocal,
+  steamCoverUrl, steamHeroUrl, saveModpackLocal, getModInstallProfileLocally,
 } from '../../utils/mods';
 import {
-  Icon, GameCover, SourceChip, SOURCE_META, SOURCE_ORDER, EmptyState, SearchField, ChipRow, Section,
+  Icon, GameCover, SourceChip, SOURCE_ORDER, EmptyState, SearchField, Section,
   ProgressBar, progressLabel, hashHue, ModsManagerContext,
 } from './shared.jsx';
-import { ModioBrowse, ModioModDetail } from './ModioViews.jsx';
-import { WorkshopBrowse } from './WorkshopViews.jsx';
-import { GameBananaBrowse, GameBananaModDetail } from './GameBananaViews.jsx';
-import { ThunderstoreBrowse, ThunderstoreModDetail } from './ThunderstoreViews.jsx';
+import { ModioModDetail } from './ModioViews.jsx';
+import { GameBananaModDetail } from './GameBananaViews.jsx';
+import { ThunderstoreModDetail } from './ThunderstoreViews.jsx';
+import UnifiedExplore, { CompatBadge } from './UnifiedExplore.jsx';
+import InstalledPanel, { InstallProfileCard } from './InstalledPanel.jsx';
 import SharedModpacksTab from './ModpacksTab.jsx';
 import { peekPendingModpack } from './modpackShared.js';
 
 // Gerenciador de UM jogo, no estilo CurseForge: capa grande do jogo em
 // cima, ações rápidas (Jogar / Abrir pasta / Adicionar mod do PC) e
-// abas Explorar · Instalados · Modpacks · Arquivos. Antes cada fonte
-// (mod.io, Workshop, GameBanana, Thunderstore) tinha sua própria tela
-// com cabeçalho e "Meus mods" repetidos — agora o jogo é um lugar só e
-// as fontes viram só um seletor dentro de "Explorar".
+// abas Explorar · Instalados · Modpacks · Arquivos. "Explorar" mostra
+// TODAS as fontes (mod.io, Workshop, GameBanana, Thunderstore) numa
+// grade só, com compatibilidade — a fonte vira só um chip no cartão.
 export default function GameManager({ game, onBack, scrollRef }) {
   const desktopReady = isDesktopModsAvailable();
   const sourceKeys = SOURCE_ORDER.filter((k) => game.sources[k]);
@@ -37,8 +37,10 @@ export default function GameManager({ game, onBack, scrollRef }) {
 
   // "Ver modpack" vindo do perfil abre direto na aba Modpacks.
   const [tab, setTab] = useState(() => (peekPendingModpack(game.steamAppId) ? 'modpacks' : supported ? 'explore' : 'files'));
-  const [activeSource, setActiveSource] = useState(sourceKeys[0] || null);
-  const [openedMod, setOpenedMod] = useState(null); // id do mod aberto em "Explorar"
+  const [openedMod, setOpenedMod] = useState(null); // { item, compat } do mod aberto em "Explorar"
+  // Perfil de instalação do jogo vindo do app desktop (loader, pastas...).
+  const [installProfile, setInstallProfile] = useState(null);
+  const [installProfileLoading, setInstallProfileLoading] = useState(true);
   const listScrollRef = useRef(0);
 
   const [installedState, setInstalledState] = useState({ enabled: [], disabled: [] });
@@ -58,14 +60,23 @@ export default function GameManager({ game, onBack, scrollRef }) {
   const resolveSource = useCallback((key) => (key ? {
     ...game.sources[key], source: key, installPath: game.installPath, displayName: game.displayName, iconUrl: game.iconUrl, steamAppId: game.steamAppId,
   } : null), [game]);
-  const sourceGame = useMemo(() => resolveSource(activeSource), [resolveSource, activeSource]);
 
   const refreshInstalled = useCallback(() => {
     if (!desktopReady || !game.installPath) { setInstalledLoaded(true); return; }
-    listInstalledModsLocally(game.installPath)
+    listInstalledModsLocally(game.installPath, game.steamAppId)
       .then((d) => setInstalledState({ enabled: d.enabled || [], disabled: d.disabled || [] }))
       .finally(() => setInstalledLoaded(true));
-  }, [desktopReady, game.installPath]);
+  }, [desktopReady, game.installPath, game.steamAppId]);
+
+  const refreshInstallProfile = useCallback(() => {
+    if (!desktopReady || !game.installPath) { setInstallProfileLoading(false); return; }
+    getModInstallProfileLocally(game.installPath, game.steamAppId)
+      .then((d) => setInstallProfile(d.success ? d.profile : null))
+      .catch(() => setInstallProfile(null))
+      .finally(() => setInstallProfileLoading(false));
+  }, [desktopReady, game.installPath, game.steamAppId]);
+  // Instalar um mod pode instalar o loader junto — relê o perfil.
+  useEffect(() => { refreshInstallProfile(); }, [refreshInstallProfile, installedState]);
 
   const refreshWorkshop = useCallback(() => {
     if (!desktopReady || !game.installPath || !hasWorkshop) return;
@@ -113,9 +124,9 @@ export default function GameManager({ game, onBack, scrollRef }) {
   }), [installedFolders, refreshInstalled, trackInstall, untrackInstall, completeInstall, progressById, workshopIds]);
 
   // Abrir um mod guarda a posição da lista; voltar devolve o scroll.
-  const openMod = (id) => {
+  const openMod = (item, compat) => {
     listScrollRef.current = scrollRef?.current?.scrollTop || 0;
-    setOpenedMod(id);
+    setOpenedMod({ item, compat });
     requestAnimationFrame(() => {
       const el = scrollRef?.current; const anchor = document.getElementById('mdx-tabs-anchor');
       if (el && anchor) el.scrollTop = Math.max(0, anchor.offsetTop - 12);
@@ -125,11 +136,10 @@ export default function GameManager({ game, onBack, scrollRef }) {
     setOpenedMod(null);
     requestAnimationFrame(() => { if (scrollRef?.current) scrollRef.current.scrollTop = listScrollRef.current; });
   };
-  const switchSource = (key) => { setActiveSource(key); setOpenedMod(null); };
 
-  // Item pedido: "abrir a pasta" — mesma pasta que a instalação
-  // automática já usa (BepInEx/plugins ou Mods, dependendo do jogo).
-  const doOpenFolder = () => openModsFolder(game.installPath);
+  // Item pedido: "abrir a pasta" — a pasta principal de mods do perfil
+  // do jogo (BepInEx/plugins, Mods, Content/Paks/~mods, Data...).
+  const doOpenFolder = () => openModsFolder(game.installPath, game.steamAppId);
 
   // Item pedido: "adicionar mods de um arquivo local".
   const doInstallLocalFile = async () => {
@@ -137,10 +147,10 @@ export default function GameManager({ game, onBack, scrollRef }) {
     if (!picked.success) return;
     setLocalInstallError('');
     setLocalInstallBusy(true);
-    const modName = picked.name.replace(/\.(zip|dll)$/i, '');
+    const modName = picked.name.replace(/\.[a-z0-9]{1,10}$/i, '');
     trackInstall('local', modName);
     try {
-      const result = await installLocalModFile({ filePath: picked.path, gameInstallPath: game.installPath, modName });
+      const result = await installLocalModFile({ filePath: picked.path, gameInstallPath: game.installPath, modName, steamAppId: game.steamAppId });
       if (!result.success) throw new Error(result.error || 'Falha desconhecida.');
       completeInstall('local');
     } catch (err) {
@@ -201,41 +211,42 @@ export default function GameManager({ game, onBack, scrollRef }) {
 
         {supported && (
           <div hidden={tab !== 'explore'}>
-            {sourceKeys.length > 1 && !openedMod && (
-              <div className="mdx-source-switch" role="tablist" aria-label="Fonte dos mods">
-                {sourceKeys.map((k) => (
-                  <button key={k} type="button" role="tab" aria-selected={activeSource === k} className={`mdx-source-opt ${activeSource === k ? 'active' : ''}`} style={{ '--src': SOURCE_META[k].color }} onClick={() => switchSource(k)}>
-                    <span className="mdx-source-dot" /> {SOURCE_META[k].long}
-                  </button>
-                ))}
+            <div hidden={!!openedMod}>
+              <UnifiedExplore game={game} localProfile={installProfile} onOpenMod={openMod} />
+            </div>
+            {openedMod && ['auto', 'loader', 'bad'].includes(openedMod.compat?.kind) && (
+              <div className={`mdx-ux-detail-compat ${openedMod.compat.kind}`}>
+                <CompatBadge compat={openedMod.compat} />
+                <span>{openedMod.compat.kind === 'auto'
+                  ? `Ao instalar, o ${openedMod.compat.loaderLabel || 'loader'} é instalado junto.`
+                  : openedMod.compat.kind === 'loader'
+                    ? (installProfile?.loader?.howTo || `Instale o ${openedMod.compat.loaderLabel || 'loader'} antes — sem ele o mod não carrega.`)
+                    : openedMod.compat.reason}</span>
               </div>
             )}
-            <div hidden={!!openedMod}>
-              {activeSource === 'modio' && <ModioBrowse key="modio" game={sourceGame} onOpenMod={openMod} />}
-              {activeSource === 'workshop' && <WorkshopBrowse key="workshop" game={sourceGame} />}
-              {activeSource === 'gamebanana' && <GameBananaBrowse key="gamebanana" game={sourceGame} onOpenMod={openMod} />}
-              {activeSource === 'thunderstore' && <ThunderstoreBrowse key="thunderstore" game={sourceGame} onOpenMod={openMod} />}
-            </div>
-            {openedMod != null && activeSource === 'modio' && <ModioModDetail game={sourceGame} modioModId={openedMod} onBack={closeMod} />}
-            {openedMod != null && activeSource === 'gamebanana' && <GameBananaModDetail game={sourceGame} modId={openedMod} onBack={closeMod} />}
-            {openedMod != null && activeSource === 'thunderstore' && <ThunderstoreModDetail game={sourceGame} fullName={openedMod} onBack={closeMod} />}
+            {openedMod?.item.source === 'modio' && <ModioModDetail game={resolveSource('modio')} modioModId={Number(openedMod.item.sourceId)} onBack={closeMod} />}
+            {openedMod?.item.source === 'gamebanana' && <GameBananaModDetail game={resolveSource('gamebanana')} modId={Number(openedMod.item.sourceId)} onBack={closeMod} />}
+            {openedMod?.item.source === 'thunderstore' && <ThunderstoreModDetail game={resolveSource('thunderstore')} fullName={openedMod.item.sourceId} onBack={closeMod} />}
           </div>
         )}
 
         {tab === 'installed' && (
-          <InstalledTab
-            game={game}
-            desktopReady={desktopReady}
-            installedState={installedState}
-            installedLoaded={installedLoaded}
-            refreshInstalled={refreshInstalled}
-            profiles={hasModio ? profiles : null}
-            refreshProfiles={refreshProfiles}
-            workshopIds={hasWorkshop ? workshopIds : null}
-            onExplore={supported ? () => setTab('explore') : null}
-            onAddLocal={doInstallLocalFile}
-            localInstallBusy={localInstallBusy}
-          />
+          canTouchDisk ? (
+            <>
+              <InstalledPanel
+                game={game}
+                installedState={installedState}
+                refreshInstalled={refreshInstalled}
+                profiles={hasModio ? profiles : null}
+                refreshProfiles={refreshProfiles}
+                localProfile={installProfile}
+                onExplore={supported ? () => setTab('explore') : null}
+                onAddLocal={doInstallLocalFile}
+                localInstallBusy={localInstallBusy}
+              />
+              {hasWorkshop && <div className="mdx-tab-body"><WorkshopSubscribed ids={workshopIds} /></div>}
+            </>
+          ) : <DiskGuard desktopReady={desktopReady} game={game} what="Gerenciar mods instalados" />
         )}
 
         {/* Modpacks públicos (qualquer jogo) — os perfis/coleções antigos do mod.io ficam numa sub-aba. */}
@@ -269,6 +280,8 @@ export default function GameManager({ game, onBack, scrollRef }) {
             onOpenFolder={doOpenFolder}
             onAddLocal={doInstallLocalFile}
             localInstallBusy={localInstallBusy}
+            installProfile={installProfile}
+            installProfileLoading={installProfileLoading}
           />
         )}
 
@@ -333,173 +346,7 @@ function DiskGuard({ desktopReady, game, what }) {
 }
 
 // ---------- Aba "Instalados" ----------
-function InstalledTab({ game, desktopReady, installedState, installedLoaded, refreshInstalled, profiles, refreshProfiles, workshopIds, onExplore, onAddLocal, localInstallBusy }) {
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState('all');
-  const [uninstallError, setUninstallError] = useState('');
-  const [busyName, setBusyName] = useState(null);
-
-  const guard = <DiskGuard desktopReady={desktopReady} game={game} what="Gerenciar mods instalados" />;
-  if (!desktopReady || !game.installPath) return guard;
-
-  const toggleInstalledMod = async (name, currentlyEnabled) => {
-    setBusyName(name);
-    try {
-      await setModEnabledLocally({ gameInstallPath: game.installPath, modName: name, enabled: !currentlyEnabled });
-      refreshInstalled();
-    } finally {
-      setBusyName(null);
-    }
-  };
-
-  // Item pedido: "apagar mods que você baixou... apaga os arquivos" —
-  // diferente de desativar (que só move a pasta pro lado, mantendo os
-  // arquivos), isso apaga de vez. Confirmação antes, sem volta depois.
-  const doUninstallMod = async (name) => {
-    if (!confirm(`Apagar "${name}"? Isso remove os arquivos dele do disco — não dá pra desfazer.`)) return;
-    setUninstallError('');
-    try {
-      const result = await uninstallModLocally({ gameInstallPath: game.installPath, modName: name });
-      if (!result.success) throw new Error(result.error || 'Falha desconhecida.');
-      refreshInstalled();
-    } catch (err) {
-      setUninstallError(`Não foi possível apagar "${name}": ${err.message}`);
-    }
-  };
-
-  // Item pedido: "criar modpacks escolhendo os mods" — adiciona um mod
-  // JÁ INSTALADO (identificado só pelo nome da pasta — funciona pra mod
-  // de qualquer fonte ou arquivo local) direto num modpack.
-  const doAddInstalledToProfile = async (name, profileId) => {
-    if (!profileId) return;
-    await upsertModProfileItem(profileId, { modName: name, enabled: true });
-    refreshProfiles();
-  };
-
-  const q = query.trim().toLowerCase();
-  const rows = [
-    ...installedState.enabled.map((name) => ({ name, enabled: true })),
-    ...installedState.disabled.map((name) => ({ name, enabled: false })),
-  ].filter((r) => (filter === 'all' || (filter === 'on' ? r.enabled : !r.enabled)) && (!q || r.name.toLowerCase().includes(q)));
-  const total = installedState.enabled.length + installedState.disabled.length;
-
-  return (
-    <div className="mdx-tab-body">
-      <Section
-        title="Mods instalados"
-        icon="puzzle"
-        right={<span className="mdx-muted">{installedState.enabled.length} ativos · {installedState.disabled.length} desativados</span>}
-      >
-        {uninstallError && <p className="mdx-error">{uninstallError}</p>}
-        {!installedLoaded ? (
-          <div className="mdx-rows">{[0, 1, 2].map((i) => <div key={i} className="mdx-skel mdx-skel-row" />)}</div>
-        ) : total === 0 ? (
-          <EmptyState
-            icon="puzzle"
-            title="Nenhum mod instalado ainda"
-            action={(
-              <div className="mdx-row-center">
-                {onExplore && <button type="button" className="mdx-btn primary" onClick={onExplore}><Icon name="compass" size={16} /> Explorar mods</button>}
-                <button type="button" className="mdx-btn ghost" disabled={localInstallBusy} onClick={onAddLocal}><Icon name="upload" size={16} /> Adicionar mod do PC</button>
-              </div>
-            )}
-          >
-            {onExplore ? 'Instale um mod pela aba "Explorar", ou adicione um arquivo (.zip/.dll) do seu PC.' : 'Adicione um arquivo de mod (.zip/.dll) do seu PC.'}
-          </EmptyState>
-        ) : (
-          <>
-            <div className="mdx-toolbar compact">
-              <SearchField value={query} onChange={setQuery} placeholder="Pesquisar nos mods instalados..." />
-              <ChipRow
-                label="Mostrar"
-                value={filter}
-                onChange={setFilter}
-                options={[
-                  { value: 'all', label: 'Todos', count: total },
-                  { value: 'on', label: 'Ativos', count: installedState.enabled.length },
-                  { value: 'off', label: 'Desativados', count: installedState.disabled.length },
-                ]}
-              />
-            </div>
-            {rows.length === 0 ? (
-              <p className="mdx-muted mdx-pad">Nenhum mod com esse nome.</p>
-            ) : (
-              <div className="mdx-rows">
-                {rows.map((r) => (
-                  <InstalledModRow
-                    key={`${r.enabled ? 'on' : 'off'}-${r.name}`}
-                    name={r.name}
-                    enabled={r.enabled}
-                    busy={busyName === r.name}
-                    profiles={profiles}
-                    onToggle={() => toggleInstalledMod(r.name, r.enabled)}
-                    onUninstall={() => doUninstallMod(r.name)}
-                    onAddToProfile={doAddInstalledToProfile}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </Section>
-
-      {workshopIds && <WorkshopSubscribed ids={workshopIds} />}
-    </div>
-  );
-}
-
-// Item pedido: "apagar mods que você baixou" + "criar modpacks
-// escolhendo os mods" — cada mod instalado tem três ações:
-// ativar/desativar (não apaga nada), apagar de vez (apaga o arquivo),
-// e adicionar a um dos modpacks já criados.
-function InstalledModRow({ name, enabled, busy, profiles, onToggle, onUninstall, onAddToProfile }) {
-  const [selectedProfileId, setSelectedProfileId] = useState('');
-  const [added, setAdded] = useState(false);
-  const doAdd = async (profileId) => {
-    if (!profileId) return;
-    await onAddToProfile(name, profileId);
-    setSelectedProfileId('');
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2200);
-  };
-  return (
-    <div className={`mdx-row ${enabled ? '' : 'off'}`}>
-      <span className="mdx-row-icon" style={{ '--h1': hashHue(name) }}><Icon name="puzzle" size={18} /></span>
-      <div className="mdx-row-text">
-        <strong title={name}>{name}</strong>
-        <span className={enabled ? 'mdx-status on' : 'mdx-status'}>{enabled ? 'Ativado' : 'Desativado'}{added ? ' · adicionado ao modpack' : ''}</span>
-      </div>
-      <div className="mdx-row-actions">
-        {profiles?.length > 0 && (
-          <select
-            className="mdx-mini-select"
-            value={selectedProfileId}
-            onChange={(e) => { setSelectedProfileId(e.target.value); doAdd(e.target.value); }}
-            aria-label="Adicionar a um modpack"
-          >
-            <option value="">+ Modpack</option>
-            {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        )}
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          aria-label={enabled ? 'Desativar' : 'Ativar'}
-          title={enabled ? 'Desativar' : 'Ativar'}
-          className={`mdx-switch ${enabled ? 'on' : ''}`}
-          disabled={busy}
-          onClick={onToggle}
-        >
-          <span />
-        </button>
-        <button type="button" className="mdx-btn ghost danger sm icon-only-mobile" onClick={onUninstall} title="Apagar">
-          <Icon name="trash" size={15} /> <span>Apagar</span>
-        </button>
-      </div>
-    </div>
-  );
-}
+// A lista em si fica em InstalledPanel.jsx (detectados + Project Club).
 
 // Itens do Steam Workshop já inscritos (a Steam baixa sozinha; aqui só
 // mostramos e levamos pra página do item).
@@ -583,7 +430,7 @@ function ModpacksTab({ game, desktopReady, profiles, refreshProfiles, refreshIns
     setActivateMessage('');
     try {
       const enabledModNames = profile.items.filter((i) => i.enabled && i.modName).map((i) => i.modName);
-      const result = await applyProfileLocally({ gameInstallPath: game.installPath, enabledModNames });
+      const result = await applyProfileLocally({ gameInstallPath: game.installPath, enabledModNames, steamAppId: game.steamAppId });
       refreshInstalled();
       // Item pedido: "criar uma pasta do Project Club chamada modpacks
       // onde salva os modpacks..." — toda vez que o modpack é ativado,
@@ -634,6 +481,7 @@ function ModpacksTab({ game, desktopReady, profiles, refreshProfiles, refreshIns
           gameInstallPath: game.installPath,
           modName: modDetail.mod.name,
           modioModId: item.modioModId,
+          steamAppId: game.steamAppId, source: 'modio', sourceId: item.modioModId,
         });
         if (!result.success) { untrackInstall(item.modioModId); throw new Error(`${modDetail.mod.name}: ${result.error || 'falha desconhecida'}`); }
         completeInstall(item.modioModId);
@@ -758,7 +606,7 @@ function ModpacksTab({ game, desktopReady, profiles, refreshProfiles, refreshIns
 }
 
 // ---------- Aba "Arquivos" ----------
-function FilesTab({ game, desktopReady, supported, onOpenFolder, onAddLocal, localInstallBusy }) {
+function FilesTab({ game, desktopReady, supported, onOpenFolder, onAddLocal, localInstallBusy, installProfile, installProfileLoading }) {
   const [configFiles, setConfigFiles] = useState(null);
   const [fileQuery, setFileQuery] = useState('');
   const [selectedConfigFile, setSelectedConfigFile] = useState(null);
@@ -814,8 +662,12 @@ function FilesTab({ game, desktopReady, supported, onOpenFolder, onAddLocal, loc
           </div>
         </div>
         {!supported && (
-          <p className="mdx-note"><Icon name="info" size={15} /> Este jogo ainda não tem uma fonte de mods configurada no Project Club — mas dá pra abrir a pasta e colocar mods (.zip/.dll) do seu PC.</p>
+          <p className="mdx-note"><Icon name="info" size={15} /> Este jogo ainda não tem uma fonte de mods configurada no Project Club — mas dá pra abrir a pasta e colocar mods do seu PC.</p>
         )}
+      </Section>
+
+      <Section title="Como este jogo usa mods" icon="layers">
+        <InstallProfileCard profile={installProfile} loading={installProfileLoading} />
       </Section>
 
       <Section
