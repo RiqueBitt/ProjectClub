@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -6,49 +6,49 @@ import {
   listPublicClans, createClan, joinClan, leaveClan, getMyClan, listClanIcons,
   listMyClanInvites, respondClanInvite,
 } from '../api/endpoints';
-import ClanIcon from '../components/ClanIcon.jsx';
-
-// Item pedido: "a cor inicial/padrão de todos os ícones deve ser um
-// cinza neutro" — mesmo tom usado no backend (User.clanIcon default),
-// primeira opção da lista (ICON_COLORS[0], usado como valor inicial).
-const ICON_COLORS = ['#80848E', '#5865F2', '#EB459E', '#ED4245', '#FEE75C', '#57F287', '#00B0F4', '#9147FF', '#F0883E'];
+import UserAvatar from '../components/UserAvatar.jsx';
+import PageIcon from '../components/PageIcons.jsx';
+import { ClubTile, PrivacyChip, ClubForm, ICON_COLORS } from '../components/ClubBits.jsx';
+import '../styles/clubs.css';
 
 const CREATE_LEVEL_REQUIREMENT = 10;
+const EMPTY_FORM = { name: '', description: '', privacyType: 'PUBLIC', iconId: '', iconColor: ICON_COLORS[0] };
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
-// Item pedido: "renomear o sistema atual de Clãs para Clubes... dentro
-// de Social, criar as abas: Amigos / Mensagens / Clubes" — antes era
-// uma página própria (rota /clans); agora é renderizado como o
-// conteúdo da aba "Clubes" dentro de AmigosPage.jsx (Social). "A aba
-// Encontrar Clubes deve aparecer somente quando o usuário não estiver
-// em nenhum Clube" — não é mais uma aba separada de verdade: quando
-// já está em um clube, esta mesma tela mostra só o resumo dele (sem a
-// lista de "Encontrar Clubes" nem o formulário de criar); quando sai,
-// a lista some/volta sozinha, guiada só por myClan existir ou não.
+// Aba "Clubes" do Social. Quem já está num clube vê o cartão dele; quem
+// não está vê convites, a busca, os clubes abertos e o botão de criar.
+// Cada pessoa participa de um clube por vez (o servidor também garante isso).
 export default function ClansPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const myClan = useStore((s) => s.myClan);
+  const myClanRole = useStore((s) => s.myClanRole);
   const setMyClan = useStore((s) => s.setMyClan);
   const [clans, setClans] = useState(null);
   const [icons, setIcons] = useState([]);
   const [invites, setInvites] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', privacyType: 'PUBLIC', iconId: '', iconColor: ICON_COLORS[0] });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [joiningId, setJoiningId] = useState(null);
+  const [query, setQuery] = useState('');
 
-  const refresh = () => listPublicClans().then((d) => setClans(d.clans));
+  const refresh = () => listPublicClans().then((d) => setClans(d.clans)).catch(() => setClans([]));
   const refreshInvites = () => listMyClanInvites().then((d) => setInvites(d.invites)).catch(() => {});
   useEffect(() => { refresh(); refreshInvites(); listClanIcons().then((d) => setIcons(d.icons)).catch(() => {}); }, []);
-
   const refreshMyClan = () => getMyClan().then((d) => setMyClan(d));
 
-  // Item pedido: "Usuários poderão criar um Clube somente após atingir
-  // o nível 10" — o servidor já valida isso de qualquer forma (rede
-  // de segurança real); aqui é só pra nem mostrar o formulário como
-  // opção pra quem ainda não tem nível, evitando um erro previsível.
-  const canCreate = (user.accountLevel || 0) >= CREATE_LEVEL_REQUIREMENT;
+  const level = user.accountLevel || 0;
+  const canCreate = level >= CREATE_LEVEL_REQUIREMENT;
+
+  const visible = useMemo(() => {
+    if (!clans) return [];
+    const q = query.trim().toLowerCase();
+    const list = q ? clans.filter((c) => c.name.toLowerCase().includes(q) || c.description?.toLowerCase().includes(q)) : clans;
+    // Clubes com amigos primeiro, depois os maiores.
+    return [...list].sort((a, b) => (!!b.friendMember - !!a.friendMember) || (b.memberCount - a.memberCount));
+  }, [clans, query]);
 
   const onCreate = async () => {
     setError('');
@@ -57,7 +57,7 @@ export default function ClansPage() {
     try {
       await createClan({ name: form.name.trim(), description: form.description.trim() || undefined, privacyType: form.privacyType, iconId: form.iconId || undefined, iconColor: form.iconColor });
       setShowCreate(false);
-      setForm({ name: '', description: '', privacyType: 'PUBLIC', iconId: '', iconColor: ICON_COLORS[0] });
+      setForm(EMPTY_FORM);
       await Promise.all([refresh(), refreshMyClan()]);
       navigate('/clans/mine');
     } catch (err) {
@@ -73,7 +73,7 @@ export default function ClansPage() {
       const result = await joinClan(clan.id);
       await refreshMyClan();
       if (result.joined) navigate('/clans/mine');
-      else await refresh(); // vira solicitação — nada muda na tela além de avisar
+      else { useStore.getState().pushNotice('Pedido enviado! Você entra assim que aprovarem.'); await refresh(); }
     } catch (err) {
       useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível entrar no clube.');
     } finally {
@@ -82,6 +82,7 @@ export default function ClansPage() {
   };
 
   const onLeave = async () => {
+    if (!confirm(myClanRole === 'OWNER' ? 'Sair do clube? Se houver outros membros, transfira a liderança antes.' : 'Sair do clube?')) return;
     setBusy(true);
     try {
       await leaveClan();
@@ -103,163 +104,136 @@ export default function ClansPage() {
     }
   };
 
-  // Item pedido: "Como cada usuário só pode participar de um clã, o
-  // sistema deve impedir que ele entre em outro enquanto já estiver
-  // participando de um" — reforçado aqui também (o servidor já
-  // rejeita de qualquer forma, mas nem mostrar o botão como clicável
-  // evita a pessoa tentar e levar um erro à toa).
-  const alreadyInClan = !!myClan;
-
-  // Item pedido: "A aba Encontrar Clubes deve aparecer somente quando
-  // o usuário não estiver em nenhum Clube" — já em um clube: mostra só
-  // o resumo dele com a opção de sair, sem lista/criação.
-  if (alreadyInClan) {
+  /* ---------- Já está num clube ---------- */
+  if (myClan) {
+    const members = myClan.members || [];
     return (
-      <div className="clans-page">
-        <div className="clan-mine-section">
-          <div className="permission-group-label">SEU CLUBE</div>
-          <div className="clan-card clan-card-mine" onClick={() => navigate('/clans/mine')}>
-            <div className="clan-icon-preview">
-              <ClanIcon icon={myClan.icon} color={myClan.iconColor} />
+      <div className="cb">
+        <article className="cb-mine" style={{ '--club-color': myClan.iconColor || ICON_COLORS[0] }}>
+          <div className="cb-mine-glow" aria-hidden="true" />
+          <ClubTile clan={myClan} size={88} />
+          <div className="cb-mine-info">
+            <span className="cb-eyebrow">Seu clube</span>
+            <h2 className="truncate">{myClan.name}</h2>
+            {myClan.description && <p className="cb-mine-desc">{myClan.description}</p>}
+            <div className="cb-chips">
+              <span className="cb-chip"><PageIcon name="user" size={13} /> {plural(myClan.memberCount, 'membro', 'membros')}</span>
+              <PrivacyChip clan={myClan} />
             </div>
-            <div className="clan-card-body">
-              <div className="clan-card-name">{myClan.name} {!myClan.isPublic && <span className="clan-private-badge">🔒 Privado</span>}</div>
-              <div className="dim">{myClan.memberCount} membro{myClan.memberCount === 1 ? '' : 's'}</div>
-            </div>
-            <button className="btn-secondary" onClick={(e) => { e.stopPropagation(); onLeave(); }} disabled={busy}>Sair</button>
+            {members.length > 0 && (
+              <div className="cb-stack" aria-label="Alguns membros">
+                {members.slice(0, 6).map((m) => <UserAvatar key={m.id} user={m} size={30} />)}
+                {members.length > 6 && <span className="cb-stack-more">+{members.length - 6}</span>}
+              </div>
+            )}
           </div>
-        </div>
+          <div className="cb-mine-actions">
+            <button type="button" className="cb-btn primary" onClick={() => navigate('/clans/mine')}>
+              <PageIcon name="chat" size={17} /> Abrir clube
+            </button>
+            <button type="button" className="cb-btn ghost danger" onClick={onLeave} disabled={busy}>Sair</button>
+          </div>
+        </article>
+        <p className="cb-note">Você só pode participar de um clube por vez. Para entrar em outro, saia deste primeiro.</p>
       </div>
     );
   }
 
+  /* ---------- Sem clube ---------- */
   return (
-    <div className="clans-page">
-      <div className="clans-page-header">
-        <h1>⚔️ Encontrar Clubes</h1>
-        <p className="dim">Crie seu próprio clube ou entre em um já existente — cada pessoa participa de só um por vez.</p>
+    <div className="cb">
+      <div className="cb-bar">
+        <label className="cb-search">
+          <PageIcon name="search" size={16} />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar clubes" />
+        </label>
         {canCreate ? (
-          <button className="btn-primary" onClick={() => setShowCreate((v) => !v)}>
-            {showCreate ? 'Cancelar' : '+ Criar clube'}
+          <button type="button" className={`cb-btn primary${showCreate ? ' active' : ''}`} onClick={() => setShowCreate((v) => !v)}>
+            <PageIcon name={showCreate ? 'close' : 'plus'} size={17} /> {showCreate ? 'Fechar' : 'Criar clube'}
           </button>
         ) : (
-          <p className="dim">Você precisa estar no nível {CREATE_LEVEL_REQUIREMENT} pra criar um clube.</p>
+          <div className="cb-locked" title={`Criar clube libera no nível ${CREATE_LEVEL_REQUIREMENT}`}>
+            <PageIcon name="lock" size={15} />
+            <span>Criar clube libera no nível {CREATE_LEVEL_REQUIREMENT}</span>
+            <span className="cb-locked-bar"><span style={{ width: `${Math.min(100, (level / CREATE_LEVEL_REQUIREMENT) * 100)}%` }} /></span>
+          </div>
         )}
       </div>
 
-      {/* Item pedido: "Somente por convite — entrada apenas através de
-          convite" — convites recebidos aparecem aqui, já que clubes
-          "somente por convite" nunca entram na lista de baixo. */}
+      {showCreate && canCreate && (
+        <section className="cb-panel cb-create">
+          <header className="cb-panel-head">
+            <h3>Criar clube</h3>
+            <p>Escolha nome, ícone e quem pode entrar. Dá para mudar tudo depois.</p>
+          </header>
+          <ClubForm form={form} setForm={setForm} icons={icons} />
+          {error && <p className="cb-error" role="alert">{error}</p>}
+          <div className="cb-panel-foot">
+            <button type="button" className="cb-btn ghost" onClick={() => { setShowCreate(false); setError(''); }}>Cancelar</button>
+            <button type="button" className="cb-btn primary" onClick={onCreate} disabled={busy}>{busy ? 'Criando…' : 'Criar clube'}</button>
+          </div>
+        </section>
+      )}
+
       {invites.length > 0 && (
-        <>
-          <div className="permission-group-label">CONVITES PENDENTES</div>
-          <div className="clans-grid">
+        <section className="cb-section">
+          <h3 className="cb-section-title"><PageIcon name="inbox" size={16} /> Convites <span>{invites.length}</span></h3>
+          <div className="cb-grid">
             {invites.map((invite) => (
-              <div key={invite.id} className="clan-card">
-                <div className="clan-icon-preview"><ClanIcon icon={invite.clan.icon} color={invite.clan.iconColor} /></div>
-                <div className="clan-card-body">
-                  <div className="clan-card-name">{invite.clan.name}</div>
-                  <div className="dim">Convite de {invite.invitedBy.displayName}</div>
+              <article key={invite.id} className="cb-card is-invite" style={{ '--club-color': invite.clan.iconColor || ICON_COLORS[0] }}>
+                <div className="cb-card-top">
+                  <ClubTile clan={invite.clan} size={52} />
+                  <div className="cb-card-title">
+                    <strong className="truncate">{invite.clan.name}</strong>
+                    <span className="truncate">Convite de {invite.invitedBy.displayName}</span>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn-primary" onClick={() => onRespondInvite(invite, true)}>Aceitar</button>
-                  <button className="btn-secondary" onClick={() => onRespondInvite(invite, false)}>Recusar</button>
+                <div className="cb-card-actions">
+                  <button type="button" className="cb-btn primary" onClick={() => onRespondInvite(invite, true)}><PageIcon name="check" size={16} /> Aceitar</button>
+                  <button type="button" className="cb-btn ghost" onClick={() => onRespondInvite(invite, false)}>Recusar</button>
                 </div>
-              </div>
+              </article>
             ))}
           </div>
-        </>
+        </section>
       )}
 
-      {showCreate && canCreate && (
-        <div className="clan-create-form">
-          <div className="clan-create-icon-row">
-            <div className="clan-icon-preview">
-              <ClanIcon icon={icons.find((i) => i.id === form.iconId)} color={form.iconColor} />
-            </div>
-            <div className="clan-create-icon-fields">
-              <label>
-                ÍCONE
-                <select value={form.iconId} onChange={(e) => setForm({ ...form, iconId: e.target.value })}>
-                  <option value="">Padrão</option>
-                  {icons.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-                </select>
-              </label>
-              <label>
-                COR
-                <div className="clan-color-swatches">
-                  {ICON_COLORS.map((c) => (
-                    <button
-                      type="button" key={c}
-                      className={`clan-color-swatch ${form.iconColor === c ? 'active' : ''}`}
-                      style={{ background: c }}
-                      onClick={() => setForm({ ...form, iconColor: c })}
-                    />
-                  ))}
-                </div>
-              </label>
-            </div>
+      <section className="cb-section">
+        <h3 className="cb-section-title"><PageIcon name="grid" size={16} /> Clubes abertos {clans && <span>{clans.length}</span>}</h3>
+        {!clans ? (
+          <div className="cb-grid">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="cb-card cb-skeleton" />)}</div>
+        ) : visible.length === 0 ? (
+          <div className="cb-empty">
+            <span className="cb-empty-icon"><PageIcon name="shield" size={30} /></span>
+            <h3>{query ? 'Nenhum clube encontrado' : 'Nenhum clube aberto ainda'}</h3>
+            <p>{query ? 'Tente outro nome.' : canCreate ? 'Que tal criar o primeiro?' : `Chegue ao nível ${CREATE_LEVEL_REQUIREMENT} para criar o primeiro clube.`}</p>
           </div>
-          <label>
-            NOME
-            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} maxLength={40} placeholder="Nome do clube" />
-          </label>
-          <label>
-            DESCRIÇÃO (opcional)
-            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} maxLength={200} placeholder="Sobre o que é o seu clube" rows={2} />
-          </label>
-          {/* Item pedido: "Clubes poderão ser Públicos ou Privados.
-              Clubes privados terão duas opções: Exclusivo para amigos
-              ... Somente por convite" — 3 opções em vez do antigo
-              checkbox público/privado simples. */}
-          <label>
-            PRIVACIDADE
-            <select value={form.privacyType} onChange={(e) => setForm({ ...form, privacyType: e.target.value })}>
-              <option value="PUBLIC">Público — qualquer um pode entrar direto</option>
-              <option value="FRIENDS_ONLY">Exclusivo para amigos — só amigos do dono podem entrar</option>
-              <option value="INVITE_ONLY">Somente por convite — entrada só com convite</option>
-            </select>
-          </label>
-          {error && <div className="form-error">{error}</div>}
-          <button className="btn-primary" onClick={onCreate} disabled={busy}>{busy ? 'Criando...' : 'Criar clube'}</button>
-        </div>
-      )}
-
-      <div className="permission-group-label">CLUBES PÚBLICOS</div>
-      {!clans ? (
-        <div className="dim">Carregando clubes...</div>
-      ) : clans.length === 0 ? (
-        <div className="dim">Nenhum clube público ainda — seja o primeiro a criar um!</div>
-      ) : (
-        <div className="clans-grid">
-          {clans.map((clan) => (
-            <div key={clan.id} className="clan-card">
-              <div className="clan-icon-preview">
-                <ClanIcon icon={clan.icon} color={clan.iconColor} />
-              </div>
-              <div className="clan-card-body">
-                <div className="clan-card-name">
-                  {clan.name}
-                  {/* Item pedido: "Clubes configurados como Exclusivo
-                      para amigos também aparecerão em Encontrar
-                      Clubes, mostrando uma tag indicando qual amigo do
-                      usuário pertence àquele Clube." */}
-                  {clan.friendMember && <span className="clan-private-badge">👥 amigo: {clan.friendMember.displayName}</span>}
+        ) : (
+          <div className="cb-grid">
+            {visible.map((clan) => (
+              <article key={clan.id} className="cb-card" style={{ '--club-color': clan.iconColor || ICON_COLORS[0] }}>
+                <div className="cb-card-top">
+                  <ClubTile clan={clan} size={52} />
+                  <div className="cb-card-title">
+                    <strong className="truncate">{clan.name}</strong>
+                    <span>{plural(clan.memberCount, 'membro', 'membros')}</span>
+                  </div>
                 </div>
-                {clan.description && <div className="dim clan-card-desc">{clan.description}</div>}
-                <div className="dim">{clan.memberCount} membro{clan.memberCount === 1 ? '' : 's'}</div>
-              </div>
-              <button
-                className="btn-primary" disabled={alreadyInClan || joiningId === clan.id}
-                onClick={() => onJoin(clan)}
-                title={alreadyInClan ? 'Saia do seu clube atual antes de entrar em outro' : undefined}
-              >
-                {joiningId === clan.id ? '...' : 'Entrar'}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+                {clan.description ? <p className="cb-card-desc">{clan.description}</p> : <p className="cb-card-desc muted">Sem descrição.</p>}
+                <div className="cb-chips">
+                  <PrivacyChip clan={clan} />
+                  {clan.friendMember && <span className="cb-chip friend"><PageIcon name="user" size={13} /> {clan.friendMember.displayName} está aqui</span>}
+                </div>
+                <div className="cb-card-actions">
+                  <button type="button" className="cb-btn primary" disabled={joiningId === clan.id} onClick={() => onJoin(clan)}>
+                    {joiningId === clan.id ? 'Entrando…' : 'Entrar'}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

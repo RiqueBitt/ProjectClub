@@ -1,5 +1,13 @@
 import { create } from 'zustand';
 import { updateUserSettings } from '../api/endpoints';
+import { openPopover, closePopover, closeAllPopovers } from '../utils/popoverCoordinator';
+
+// Função estável (comparada por identidade no coordenador de menus) que
+// fecha o miniperfil quando outro menu flutuante abre.
+function closeMiniProfileFromCoordinator() {
+  // eslint-disable-next-line no-use-before-define
+  useStore.setState({ miniProfileUserId: null, miniProfileAnchorRect: null, miniProfileSide: null });
+}
 
 // Detecta PC vs Mobile pra saber qual configuração do Editor de Interface
 // aplicar — mesmo ponto de corte (900px) usado pelo resto do CSS pra virar
@@ -445,24 +453,32 @@ export const useStore = create((set, get) => ({
   // usuário também" — mesmo padrão já usado em openMobileMembers
   // acima, fecha qualquer gaveta mobile aberta (categorias e lista de
   // membros) ao abrir o perfil, evitando as duas coisas sobrepostas.
-  openProfile: (userId) => set({ viewingProfileUserId: userId, profileAutoOpenRoleMenu: false, mobileSidebarOpen: false, mobileMembersOpen: false }),
+  // Telas cheias (perfil, configurações) fecham qualquer menu flutuante
+  // aberto antes de aparecer — sem menu sobrando por cima ou por baixo.
+  openProfile: (userId) => { closeAllPopovers(); set({ viewingProfileUserId: userId, profileAutoOpenRoleMenu: false, mobileSidebarOpen: false, mobileMembersOpen: false, settingsModalOpen: false, miniProfileUserId: null, miniProfileAnchorRect: null }); },
   // Item pedido: "ao clicar no nome de um usuário e abrir o mini
   // perfil, o segundo clique no seu nome fecha o mini perfil" —
   // clicar de novo no MESMO usuário (o card já está aberto pra ele)
   // agora fecha em vez de reabrir/reposicionar; clicar num usuário
   // DIFERENTE enquanto um já está aberto troca pra ele normalmente.
-  openMiniProfile: (userId, anchorRect, side) => set((s) => (
-    s.miniProfileUserId === userId
+  // "Um menu por vez": o miniperfil entra no mesmo coordenador dos outros
+  // menus flutuantes (clique direito, emojis, status...) — abrir qualquer
+  // um deles fecha o miniperfil, e abrir o miniperfil fecha o que estava aberto.
+  openMiniProfile: (userId, anchorRect, side) => {
+    const closing = get().miniProfileUserId === userId;
+    if (closing) closePopover(closeMiniProfileFromCoordinator);
+    else openPopover(closeMiniProfileFromCoordinator);
+    set(closing
       ? { miniProfileUserId: null, miniProfileAnchorRect: null, miniProfileSide: null }
-      : { miniProfileUserId: userId, miniProfileAnchorRect: anchorRect || null, miniProfileSide: side || null }
-  )),
+      : { miniProfileUserId: userId, miniProfileAnchorRect: anchorRect || null, miniProfileSide: side || null });
+  },
   setDisabledSystems: (disabledSystems) => set({ disabledSystems }),
-  closeMiniProfile: () => set({ miniProfileUserId: null, miniProfileAnchorRect: null, miniProfileSide: null }),
+  closeMiniProfile: () => { closePopover(closeMiniProfileFromCoordinator); set({ miniProfileUserId: null, miniProfileAnchorRect: null, miniProfileSide: null }); },
   // Mesma coisa que openProfile, mas já abre direto em "adicionar cargo".
   openProfileAddRole: (userId) => set({ viewingProfileUserId: userId, profileAutoOpenRoleMenu: true }),
   clearProfileAutoOpenRoleMenu: () => set({ profileAutoOpenRoleMenu: false }),
   closeProfile: () => set({ viewingProfileUserId: null, profileAutoOpenRoleMenu: false }),
-  openSettings: () => set({ settingsModalOpen: true }),
+  openSettings: () => { closeAllPopovers(); set({ settingsModalOpen: true, miniProfileUserId: null, miniProfileAnchorRect: null }); },
   closeSettings: () => set({ settingsModalOpen: false }),
   openLinkConfirm: (url) => set({ pendingLinkUrl: url }),
   // Item pedido: "quando mandarem gif, imagem/vídeo, quando abrir ele
@@ -475,7 +491,7 @@ export const useStore = create((set, get) => ({
   // etc, e vai ter uma setinha de ir e voltar" — images é a lista
   // completa de imagens da mesma mensagem (pra navegar entre elas),
   // index é qual delas foi clicada primeiro.
-  openLightbox: (images, index = 0) => set({ lightboxImage: { images, index } }),
+  openLightbox: (images, index = 0) => { closeAllPopovers(); set({ lightboxImage: { images, index } }); },
   closeLightbox: () => set({ lightboxImage: null }),
   setLightboxIndex: (index) => set((s) => (s.lightboxImage ? { lightboxImage: { ...s.lightboxImage, index } } : {})),
   closeLinkConfirm: () => set({ pendingLinkUrl: null }),

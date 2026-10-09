@@ -23,6 +23,7 @@ import selectedIcon from '../assets/icons/selected.png';
 import linkIcon from '../assets/icons/link.png';
 import lockIcon from '../assets/icons/lock.png';
 import { proxyImage } from '../utils/imageProxy';
+import { usePopoverCoordination } from '../utils/popoverCoordinator';
 
 const VOICE_TYPES = ['VOICE', 'STAGE'];
 
@@ -89,6 +90,7 @@ export default function ChannelSidebar({
   const collapsed = useStore((s) => s.channelSidebarCollapsed);
   const toggleChannelSidebar = useStore((s) => s.toggleChannelSidebar);
   const [menuOpen, setMenuOpen] = useState(false);
+  usePopoverCoordination(menuOpen, () => setMenuOpen(false));
   const [communitySettingsOpen, setCommunitySettingsOpen] = useState(false);
   const [roleManagerOpen, setRoleManagerOpen] = useState(false);
   const [moderationOpen, setModerationOpen] = useState(false);

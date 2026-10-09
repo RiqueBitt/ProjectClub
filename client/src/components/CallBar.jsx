@@ -16,6 +16,7 @@ import volumeUpIcon from '../assets/icons/nav-volume-up-jitsi.png';
 import volumeOffIcon from '../assets/icons/nav-volume-off-jitsi.png';
 import raiseHandIcon from '../assets/icons/nav-raise-hand-jitsi.png';
 import { getPreferredSpeakerId, setPreferredSpeakerId, getPreferredMicId, isOutputSelectionSupported, onSpeakerPreferenceChange, listAudioDevices } from '../utils/audioDevices';
+import { usePopoverCoordination } from '../utils/popoverCoordinator';
 
 // Item pedido: "melhorando o sistema de conectar com microfone e
 // saídas de áudio... o mais fácil possível" — antes, trocar de
@@ -26,6 +27,7 @@ import { getPreferredSpeakerId, setPreferredSpeakerId, getPreferredMicId, isOutp
 // sair de onde já está.
 function AudioDeviceQuickMenu({ voice }) {
   const [open, setOpen] = useState(false);
+  usePopoverCoordination(open, () => setOpen(false));
   const [mics, setMics] = useState([]);
   const [speakers, setSpeakers] = useState([]);
   const menuRef = useRef(null);

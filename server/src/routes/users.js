@@ -54,8 +54,6 @@ router.delete('/me/games/:id', gamesCtrl.removeGame);
 router.get('/me/shortcuts', shortcutsCtrl.listMyShortcuts);
 
 // Item pedido: pingentes — catálogo público + escolha da própria conta.
-router.get('/me/pendants', pendantCtrl.listAvailablePendants);
-router.patch('/me/pendant', pendantCtrl.selectMyPendant);
 router.put('/me/shortcuts', shortcutsCtrl.setShortcut);
 router.delete('/me/shortcuts/:id', shortcutsCtrl.deleteShortcut);
 router.get('/search', ctrl.searchUsers);

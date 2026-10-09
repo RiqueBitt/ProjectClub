@@ -201,3 +201,73 @@
   .vc-live { animation: none; }
   .vc-ctrl:hover:not(:disabled), .vc-join:hover:not(:disabled) { transform: none; }
 }
+
+/* ============================================================
+   Menu "Transmitir tela" (ScreenShareModal.jsx) — desenhado no
+   <body> (portal), por cima de tudo.
+   ============================================================ */
+.ssm-overlay {
+  position: fixed; inset: 0; z-index: 400; display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: rgba(0, 0, 0, .6); backdrop-filter: blur(3px);
+  animation: ssm-fade .15s ease;
+}
+.ssm {
+  width: min(520px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; overflow: hidden;
+  border-radius: 20px; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-normal);
+  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .7); animation: ssm-pop .18s cubic-bezier(.2, .8, .2, 1);
+}
+.ssm-head { display: flex; align-items: center; gap: 12px; padding: 18px 18px 14px 20px; }
+.ssm-head-icon { width: 44px; height: 44px; flex-shrink: 0; border-radius: 13px; display: inline-flex; align-items: center; justify-content: center; background: var(--brand); color: #fff; }
+.ssm-head h2 { margin: 0; font-size: 18px; font-weight: 800; color: var(--header-primary); }
+.ssm-head p { margin: 2px 0 0; font-size: 13px; color: var(--text-muted); }
+.ssm-close { margin-left: auto; align-self: flex-start; width: 34px; height: 34px; flex-shrink: 0; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); }
+.ssm-close:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.ssm-body { padding: 4px 20px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+
+.ssm-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ssm-preset {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px; border-radius: 14px; text-align: left;
+  background: var(--bg-primary); border: 2px solid transparent; transition: border-color .12s ease, background .12s ease;
+}
+.ssm-preset:hover { border-color: color-mix(in srgb, var(--brand) 45%, transparent); }
+.ssm-preset.active { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 12%, var(--bg-primary)); }
+.ssm-preset-icon { width: 34px; height: 34px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: var(--bg-secondary); color: var(--text-muted); margin-bottom: 4px; }
+.ssm-preset.active .ssm-preset-icon { background: var(--brand); color: #fff; }
+.ssm-preset strong { font-size: 13.5px; color: var(--header-primary); }
+.ssm-preset small { font-size: 12px; color: var(--text-muted); }
+
+.ssm-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ssm-label { font-size: 13.5px; font-weight: 600; color: var(--header-primary); }
+.ssm-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 11px; background: var(--bg-primary); }
+.ssm-seg button { height: 32px; padding: 0 14px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.ssm-seg button:hover { color: var(--header-primary); }
+.ssm-seg button.active { background: var(--brand); color: #fff; }
+
+.ssm-toggle { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--bg-primary); cursor: pointer; }
+.ssm-toggle-icon { width: 34px; height: 34px; flex-shrink: 0; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: var(--bg-secondary); color: var(--brand); }
+.ssm-toggle-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ssm-toggle-text strong { font-size: 13.5px; color: var(--header-primary); }
+.ssm-toggle-text small { font-size: 12px; color: var(--text-muted); }
+.ssm-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.ssm-switch { position: relative; width: 40px; height: 24px; flex-shrink: 0; border-radius: 999px; background: var(--bg-modifier-hover); transition: background .15s ease; }
+.ssm-switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s ease; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
+.ssm-toggle input:checked + .ssm-switch { background: var(--green); }
+.ssm-toggle input:checked + .ssm-switch::after { transform: translateX(16px); }
+.ssm-toggle input:focus-visible + .ssm-switch { outline: 2px solid var(--brand); outline-offset: 2px; }
+.ssm-note { margin: 0; padding: 10px 12px; border-radius: 12px; font-size: 12.5px; color: var(--text-normal); background: color-mix(in srgb, #f0b232 14%, transparent); }
+
+.ssm-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 20px 18px; border-top: 1px solid var(--border); }
+.ssm-cancel { height: 40px; padding: 0 16px; border-radius: 11px; font-size: 14px; font-weight: 600; color: var(--header-primary); }
+.ssm-cancel:hover { background: var(--bg-modifier-hover); }
+.ssm-go { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; border-radius: 11px; background: var(--brand); color: #fff; font-size: 14px; font-weight: 700; }
+.ssm-go:hover { filter: brightness(1.07); }
+
+@keyframes ssm-fade { from { opacity: 0; } }
+@keyframes ssm-pop { from { opacity: 0; transform: translateY(8px) scale(.98); } }
+@media (max-width: 520px) {
+  .ssm-presets { grid-template-columns: minmax(0, 1fr); }
+  .ssm-preset { flex-direction: row; align-items: center; gap: 10px; }
+  .ssm-preset-icon { margin: 0; }
+  .ssm-preset small { margin-left: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .ssm-overlay, .ssm { animation: none; } }

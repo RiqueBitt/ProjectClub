@@ -1,149 +1,118 @@
 import { useEffect, useState } from 'react';
-import Modal from '../Modal.jsx';
-import monitorIcon from '../../assets/icons/video-call.png';
-import windowIcon from '../../assets/icons/menu-circled.png';
-import cameraIcon from '../../assets/icons/phone.png';
+import { createPortal } from 'react-dom';
+import PageIcon from '../PageIcons.jsx';
 
-const QUALITIES = [
-  { value: '1080p', label: '1080p — mais nítido', hint: 'Usa mais internet' },
-  { value: '720p', label: '720p — equilibrado', hint: 'Recomendado' },
+// Menu "Transmitir tela": escolhe o perfil (ou ajusta qualidade/FPS à mão)
+// e se o som do computador vai junto. Depois disso o seletor de tela/janela
+// do app de PC (ou do navegador) abre para escolher O QUE transmitir.
+//
+// BUG CORRIGIDO ("abre o menu e nada funciona"): esse menu era desenhado
+// dentro da barra de controles da chamada, que tem pointer-events: none
+// (pra não bloquear a tela por baixo). O menu herdava isso — aparecia, mas
+// nenhum clique funcionava. Agora ele é desenhado direto no <body>.
+const PRESETS = [
+  { key: 'text', icon: 'doc', title: 'Texto e slides', hint: 'Mais nítido, 15 FPS', quality: '1080p', frameRate: 15 },
+  { key: 'balanced', icon: 'scale', title: 'Equilibrado', hint: '720p, 30 FPS', quality: '720p', frameRate: 30 },
+  { key: 'games', icon: 'gamepad', title: 'Jogos e vídeos', hint: '1080p, 60 FPS', quality: '1080p', frameRate: 60 },
 ];
-const FRAME_RATES = [
-  { value: 15, label: '15 FPS', hint: 'Ideal para texto/planilhas' },
-  { value: 30, label: '30 FPS', hint: 'Ideal para vídeo/jogos' },
-  { value: 60, label: '60 FPS', hint: 'Movimento mais fluido — usa mais internet' },
-];
+const QUALITIES = ['720p', '1080p'];
+const FPS = [15, 30, 60];
+const STORAGE_KEY = 'screenShareOptions';
 
-const CATEGORIES = [
-  { key: 'APPS', label: 'Aplicativos', icon: windowIcon, hint: 'Escolha uma janela aberta (Steam, um app, etc.) no seletor do navegador.' },
-  { key: 'FULLSCREEN', label: 'Tela Inteira', icon: monitorIcon, hint: 'Transmite um monitor inteiro — se você tiver mais de um, o navegador deixa escolher qual.' },
-  { key: 'DEVICES', label: 'Dispositivos', icon: cameraIcon, hint: 'Câmeras e outros dispositivos de vídeo conectados neste computador.' },
-];
+function loadSaved() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (saved && QUALITIES.includes(saved.quality) && FPS.includes(saved.frameRate)) return saved;
+  } catch { /* sem storage */ }
+  return { quality: '720p', frameRate: 30, audio: true };
+}
 
-// A web page can't build its own live thumbnail grid of open windows or
-// monitors — that's a privacy boundary only the browser itself is allowed to
-// cross (see VoiceContext.jsx's toggleScreenShare comment). Aplicativos/Tela
-// Inteira each still have to hand off to the browser's own native
-// screen/window picker — this menu just hints which category to
-// pre-filter to (displaySurface) and, importantly, tells the browser to
-// drop "this tab" from ever being offered there (selfBrowserSurface:
-// 'exclude'), which is what actually removes the old "share this
-// browser tab" option. Dispositivos is the one category that CAN be a
-// real, fully custom in-app list, since enumerating capture *devices*
-// (cameras, connected phones acting as a webcam, etc.) — unlike
-// enumerating open windows — is something JS is allowed to do directly.
 export default function ScreenShareModal({ onClose, onShare }) {
-  const [category, setCategory] = useState('APPS');
-  const [quality, setQuality] = useState('1080p');
-  const [frameRate, setFrameRate] = useState(30);
-  const [devices, setDevices] = useState([]);
-  const [devicesError, setDevicesError] = useState('');
+  const [opts, setOpts] = useState(loadSaved);
+  const isDesktopApp = typeof window !== 'undefined' && !!window.electronAPI;
+  const activePreset = PRESETS.find((p) => p.quality === opts.quality && p.frameRate === opts.frameRate)?.key;
 
   useEffect(() => {
-    if (category !== 'DEVICES') return;
-    let cancelled = false;
-    navigator.mediaDevices?.enumerateDevices?.()
-      .then((list) => {
-        if (cancelled) return;
-        const cams = list.filter((d) => d.kind === 'videoinput');
-        setDevices(cams);
-        if (cams.length === 0) setDevicesError('Nenhuma câmera ou dispositivo de vídeo encontrado.');
-      })
-      .catch(() => { if (!cancelled) setDevicesError('Não foi possível listar os dispositivos.'); });
-    return () => { cancelled = true; };
-  }, [category]);
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const set = (patch) => setOpts((o) => ({ ...o, ...patch }));
 
   const share = () => {
-    const displaySurface = category === 'FULLSCREEN' ? 'monitor' : 'window';
-    onShare({ quality, frameRate, displaySurface });
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(opts)); } catch { /* sem storage */ }
     onClose();
+    onShare({ quality: opts.quality, frameRate: opts.frameRate, audio: opts.audio });
   };
 
-  const shareDevice = (device) => {
-    onShare({ deviceId: device.deviceId, quality: '720p', frameRate: 30 });
-    onClose();
-  };
+  return createPortal(
+    <div className="ssm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="ssm" role="dialog" aria-modal="true" aria-labelledby="ssm-title">
+        <header className="ssm-head">
+          <span className="ssm-head-icon"><PageIcon name="monitor" size={22} /></span>
+          <div>
+            <h2 id="ssm-title">Transmitir tela</h2>
+            <p>Escolha a qualidade. Depois você seleciona a tela ou a janela.</p>
+          </div>
+          <button type="button" className="ssm-close" onClick={onClose} aria-label="Fechar"><PageIcon name="close" size={18} /></button>
+        </header>
 
-  return (
-    <Modal title="Compartilhar tela" onClose={onClose} width="560px">
-      <div className="screen-share-form screen-share-form-wide">
-        <div className="screen-share-categories">
-          {CATEGORIES.map((c) => (
-            <button
-              key={c.key}
-              type="button"
-              className={`screen-share-category ${category === c.key ? 'active' : ''}`}
-              onClick={() => setCategory(c.key)}
-            >
-              <img className="ui-icon" src={c.icon} alt="" />
-              <span>{c.label}</span>
-            </button>
-          ))}
-        </div>
+        <div className="ssm-body">
+          <div className="ssm-presets" role="radiogroup" aria-label="Perfil de qualidade">
+            {PRESETS.map((p) => (
+              <button
+                key={p.key} type="button" role="radio" aria-checked={activePreset === p.key}
+                className={`ssm-preset${activePreset === p.key ? ' active' : ''}`}
+                onClick={() => set({ quality: p.quality, frameRate: p.frameRate })}
+              >
+                <span className="ssm-preset-icon"><PageIcon name={p.icon} size={20} /></span>
+                <strong>{p.title}</strong>
+                <small>{p.hint}</small>
+              </button>
+            ))}
+          </div>
 
-        <div className="screen-share-hint dim">
-          {CATEGORIES.find((c) => c.key === category)?.hint}
-        </div>
-
-        {category !== 'DEVICES' ? (
-          <>
-            <label>QUALIDADE</label>
-            <div className="screen-share-option-group">
+          <div className="ssm-row">
+            <span className="ssm-label">Resolução</span>
+            <div className="ssm-seg">
               {QUALITIES.map((q) => (
-                <button
-                  key={q.value}
-                  type="button"
-                  className={`screen-share-option ${quality === q.value ? 'active' : ''}`}
-                  onClick={() => setQuality(q.value)}
-                >
-                  <span>{q.label}</span>
-                  <span className="dim">{q.hint}</span>
-                </button>
+                <button key={q} type="button" className={opts.quality === q ? 'active' : ''} onClick={() => set({ quality: q })}>{q}</button>
               ))}
             </div>
+          </div>
+          <div className="ssm-row">
+            <span className="ssm-label">Quadros por segundo</span>
+            <div className="ssm-seg">
+              {FPS.map((f) => (
+                <button key={f} type="button" className={opts.frameRate === f ? 'active' : ''} onClick={() => set({ frameRate: f })}>{f} FPS</button>
+              ))}
+            </div>
+          </div>
 
-            <label>TAXA DE QUADROS</label>
-            <div className="screen-share-option-group">
-              {FRAME_RATES.map((f) => (
-                <button
-                  key={f.value}
-                  type="button"
-                  className={`screen-share-option ${frameRate === f.value ? 'active' : ''}`}
-                  onClick={() => setFrameRate(f.value)}
-                >
-                  <span>{f.label}</span>
-                  <span className="dim">{f.hint}</span>
-                </button>
-              ))}
-            </div>
+          <label className="ssm-toggle">
+            <span className="ssm-toggle-icon"><PageIcon name="volume" size={18} /></span>
+            <span className="ssm-toggle-text">
+              <strong>Incluir som do computador</strong>
+              <small>{isDesktopApp ? 'O som do PC vai junto com a imagem.' : 'Marque "compartilhar áudio" no seletor do navegador.'}</small>
+            </span>
+            <input type="checkbox" checked={opts.audio} onChange={(e) => set({ audio: e.target.checked })} />
+            <span className="ssm-switch" aria-hidden="true" />
+          </label>
 
-            <div className="modal-actions">
-              <button className="btn-link" onClick={onClose}>Cancelar</button>
-              <button className="btn-primary" onClick={share}>🖥️ Compartilhar</button>
-            </div>
-          </>
-        ) : (
-          <>
-            {devicesError && <div className="dim">{devicesError}</div>}
-            <div className="screen-share-device-list">
-              {devices.map((d, i) => (
-                <button
-                  key={d.deviceId || i}
-                  type="button"
-                  className="screen-share-device"
-                  onClick={() => shareDevice(d)}
-                >
-                  <img className="ui-icon" src={cameraIcon} alt="" />
-                  <span className="truncate">{d.label || `Câmera ${i + 1}`}</span>
-                </button>
-              ))}
-            </div>
-            <div className="modal-actions">
-              <button className="btn-link" onClick={onClose}>Cancelar</button>
-            </div>
-          </>
-        )}
+          {opts.frameRate === 60 && opts.quality === '1080p' && (
+            <p className="ssm-note">1080p a 60 FPS usa bastante internet. Se travar para quem assiste, troque para 720p.</p>
+          )}
+        </div>
+
+        <footer className="ssm-foot">
+          <button type="button" className="ssm-cancel" onClick={onClose}>Cancelar</button>
+          <button type="button" className="ssm-go" onClick={share} autoFocus>
+            <PageIcon name="monitor" size={17} /> Escolher tela
+          </button>
+        </footer>
       </div>
-    </Modal>
+    </div>,
+    document.body,
   );
 }

@@ -8,64 +8,67 @@ import {
   respondClanJoinRequest, createClanTag, deleteClanTag, setMyClanTag,
   listClanMessages, sendClanMessage, deleteClanMessage, listClanIcons,
 } from '../api/endpoints';
-import { proxyImage } from '../utils/imageProxy';
-import ClanIcon from '../components/ClanIcon.jsx';
+import UserAvatar from '../components/UserAvatar.jsx';
+import PageIcon from '../components/PageIcons.jsx';
+import { ClubTile, PrivacyChip, ClubForm, ICON_COLORS, privacyOf } from '../components/ClubBits.jsx';
 import { usePromptDialog } from '../utils/usePromptDialog.jsx';
-import { formatTimeOnly } from '../utils/formatTime';
+import { formatMessageTime } from '../utils/formatTime';
+import '../styles/clubs.css';
 
-const ROLE_LABEL = { OWNER: 'Dono', SUB_OWNER: 'Sub-Dono', ADMIN: 'Admin', MODERATOR: 'Moderador', MEMBER: 'Membro' };
+const ROLE_LABEL = { OWNER: 'Dono', SUB_OWNER: 'Sub-dono', ADMIN: 'Admin', MODERATOR: 'Moderador', MEMBER: 'Membro' };
 const ROLE_ORDER = ['OWNER', 'SUB_OWNER', 'ADMIN', 'MODERATOR', 'MEMBER'];
 const TABS = [
-  { key: 'chat', label: '💬 Chat' },
-  { key: 'members', label: '👥 Membros' },
-  { key: 'tags', label: '🏷️ Tags' },
-  { key: 'settings', label: '⚙️ Configurações' },
+  { key: 'chat', label: 'Chat', icon: 'chat' },
+  { key: 'members', label: 'Membros', icon: 'user' },
+  { key: 'tags', label: 'Tag', icon: 'hash' },
+  { key: 'settings', label: 'Configurações', icon: 'key' },
 ];
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
-// Item pedido: "Dentro do clan, o usuário deverá visualizar uma área
-// de gerenciamento de acordo com seu cargo... usuários comuns devem
-// visualizar apenas as funções permitidas pelo cargo Membro." — as
-// abas de gestão (Membros com ações, Tags criar/editar, Configurações)
-// mostram só o que o cargo da pessoa permite; todo mundo vê o chat e
-// a lista de membros, só não vê botão de ação que não pode usar.
+// Página do clube: cabeçalho com identidade e chamada de voz, e abas
+// Chat / Membros / Tag / Configurações. Cada cargo vê só as ações que
+// pode usar (o servidor também confere tudo).
 export default function ClanPage() {
   const navigate = useNavigate();
   const { user, setUser } = useAuth();
   const voice = useVoice();
   const myClan = useStore((s) => s.myClan);
   const myClanRole = useStore((s) => s.myClanRole);
-  const myClanCapabilities = useStore((s) => s.myClanCapabilities);
-  const myClanPendingRequests = useStore((s) => s.myClanPendingRequests);
+  const caps = useStore((s) => s.myClanCapabilities);
+  const pending = useStore((s) => s.myClanPendingRequests);
   const setMyClan = useStore((s) => s.setMyClan);
   const { confirmAsync, DialogElement } = usePromptDialog();
   const [tab, setTab] = useState('chat');
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(null);
   const [content, setContent] = useState('');
   const [icons, setIcons] = useState([]);
   const [settingsForm, setSettingsForm] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [tagError, setTagError] = useState('');
-  const messagesEndRef = useRef(null);
+  const endRef = useRef(null);
   const inVoice = voice.call?.channelId === `clan:${myClan?.id}`;
 
   const refreshMyClan = () => getMyClan().then((d) => setMyClan(d));
 
   useEffect(() => {
     if (!myClan) { navigate('/dms'); return; }
-    listClanMessages(myClan.id).then((d) => setMessages(d.messages));
+    listClanMessages(myClan.id).then((d) => setMessages(d.messages)).catch(() => setMessages([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myClan?.id]);
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ block: 'end' }); }, [messages.length]);
+  useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [messages?.length, tab]);
 
   useEffect(() => {
     if (!myClan) return;
-    setSettingsForm({ name: myClan.name, description: myClan.description || '', isPublic: myClan.isPublic, iconId: myClan.icon?.id || '', iconColor: myClan.iconColor });
-    if (myClanCapabilities.EDIT_CLAN) listClanIcons().then((d) => setIcons(d.icons)).catch(() => {});
+    setSettingsForm({ name: myClan.name, description: myClan.description || '', privacyType: privacyOf(myClan), iconId: myClan.icon?.id || '', iconColor: myClan.iconColor || ICON_COLORS[0] });
+    if (caps.EDIT_CLAN) listClanIcons().then((d) => setIcons(d.icons)).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myClan?.id]);
 
   if (!myClan || !settingsForm) return null;
+
+  const fail = (err, msg) => useStore.getState().pushNotice(err?.response?.data?.error || msg);
 
   const sendMsg = async (e) => {
     e.preventDefault();
@@ -74,10 +77,8 @@ export default function ClanPage() {
     setContent('');
     try {
       const { message } = await sendClanMessage(myClan.id, trimmed);
-      setMessages((m) => [...m, message]);
-    } catch (err) {
-      useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível enviar a mensagem.');
-    }
+      setMessages((m) => [...(m || []), message]);
+    } catch (err) { fail(err, 'Não foi possível enviar a mensagem.'); }
   };
 
   const removeMsg = async (msg) => {
@@ -92,262 +93,223 @@ export default function ClanPage() {
   };
 
   const onLeaveClan = async () => {
-    if (!(await confirmAsync(myClanRole === 'OWNER' ? 'Sair do clube? Se houver outros membros, você precisa transferir a propriedade primeiro.' : 'Sair do clube?'))) return;
-    try {
-      await leaveClan();
-      setMyClan({ clan: null });
-      navigate('/dms');
-    } catch (err) {
-      useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível sair do clube.');
-    }
+    if (!(await confirmAsync(myClanRole === 'OWNER' ? 'Sair do clube? Se houver outros membros, transfira a liderança antes.' : 'Sair do clube?'))) return;
+    try { await leaveClan(); setMyClan({ clan: null }); navigate('/dms'); } catch (err) { fail(err, 'Não foi possível sair do clube.'); }
   };
-
   const onChangeRole = async (member, role) => {
-    try {
-      await setClanMemberRole(myClan.id, member.id, role);
-      await refreshMyClan();
-    } catch (err) {
-      useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível mudar o cargo.');
-    }
+    try { await setClanMemberRole(myClan.id, member.id, role); await refreshMyClan(); } catch (err) { fail(err, 'Não foi possível mudar o cargo.'); }
   };
-
   const onKick = async (member) => {
     if (!(await confirmAsync(`Expulsar ${member.displayName} do clube?`))) return;
-    try {
-      await kickClanMember(myClan.id, member.id);
-      await refreshMyClan();
-    } catch (err) {
-      useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível expulsar esse membro.');
-    }
+    try { await kickClanMember(myClan.id, member.id); await refreshMyClan(); } catch (err) { fail(err, 'Não foi possível expulsar esse membro.'); }
   };
-
   const onTransfer = async (member) => {
-    if (!(await confirmAsync(`Transferir a propriedade do clube pra ${member.displayName}? Você vira Sub-Dono.`))) return;
-    try {
-      await transferClanOwnership(myClan.id, member.id);
-      await refreshMyClan();
-    } catch (err) {
-      useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível transferir a propriedade.');
-    }
+    if (!(await confirmAsync(`Passar a liderança do clube para ${member.displayName}? Você vira Sub-dono.`))) return;
+    try { await transferClanOwnership(myClan.id, member.id); await refreshMyClan(); } catch (err) { fail(err, 'Não foi possível transferir a liderança.'); }
   };
-
   const onRespondRequest = async (request, approve) => {
-    try {
-      await respondClanJoinRequest(myClan.id, request.id, approve);
-      await refreshMyClan();
-    } catch (err) {
-      useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível responder à solicitação.');
-    }
+    try { await respondClanJoinRequest(myClan.id, request.id, approve); await refreshMyClan(); } catch (err) { fail(err, 'Não foi possível responder à solicitação.'); }
   };
-
   const onCreateTag = async () => {
     setTagError('');
-    try {
-      await createClanTag(myClan.id, newTag);
-      setNewTag('');
-      await refreshMyClan();
-    } catch (err) {
-      setTagError(err?.response?.data?.error || 'Não foi possível criar a tag.');
-    }
+    try { await createClanTag(myClan.id, newTag); setNewTag(''); await refreshMyClan(); } catch (err) { setTagError(err?.response?.data?.error || 'Não foi possível criar a tag.'); }
   };
-
   const onDeleteTag = async (tag) => {
     if (!(await confirmAsync(`Excluir a tag "${tag.tag}"?`))) return;
     await deleteClanTag(myClan.id, tag.id).catch(() => {});
     await refreshMyClan();
   };
-
   const onPickMyTag = async (tagId) => {
     try {
       const { clanTagId, clanTag } = await setMyClanTag(tagId || null);
-      // BUG CORRIGIDO ("clico em mostrar tag, não acontece nada"): a
-      // chamada em si já funcionava, mas nada na tela refletia isso
-      // depois — o checkbox lê user.clanTagId direto do estado da
-      // sessão (AuthContext), que precisa ser atualizado manualmente
-      // aqui; ele não se atualiza sozinho só porque uma chamada de
-      // API qualquer teve sucesso em algum lugar da tela.
       setUser({ ...user, clanTagId, clanTag });
-    } catch (err) {
-      useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível atualizar sua tag.');
-    }
+    } catch (err) { fail(err, 'Não foi possível atualizar sua tag.'); }
   };
-
   const onSaveSettings = async () => {
+    if (!settingsForm.name.trim()) { useStore.getState().pushNotice('O clube precisa de um nome.'); return; }
+    setSaving(true);
     try {
       await updateClan(myClan.id, {
         name: settingsForm.name.trim(), description: settingsForm.description.trim() || null,
-        isPublic: settingsForm.isPublic, iconId: settingsForm.iconId || null, iconColor: settingsForm.iconColor,
+        privacyType: settingsForm.privacyType, iconId: settingsForm.iconId || null, iconColor: settingsForm.iconColor,
       });
       await refreshMyClan();
       useStore.getState().pushNotice('Clube atualizado.');
-    } catch (err) {
-      useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível salvar.');
-    }
+    } catch (err) { fail(err, 'Não foi possível salvar.'); } finally { setSaving(false); }
   };
 
-  // Cargos que a pessoa atual pode atribuir — mesma regra do backend
-  // (nunca no seu próprio nível ou acima), refletida aqui só pra não
-  // mostrar opção que o servidor rejeitaria de qualquer forma.
   const myLevel = ROLE_ORDER.indexOf(myClanRole);
   const assignableRoles = ROLE_ORDER.filter((r) => r !== 'OWNER' && ROLE_ORDER.indexOf(r) > myLevel);
+  const members = [...(myClan.members || [])].sort((a, b) => ROLE_ORDER.indexOf(a.clanRole) - ROLE_ORDER.indexOf(b.clanRole));
+  const pendingCount = caps.MANAGE_JOIN_REQUESTS ? (pending?.length || 0) : 0;
+  const color = myClan.iconColor || ICON_COLORS[0];
 
   return (
-    <div className="clan-page">
+    <div className="cb cb-page" style={{ '--club-color': color }}>
       {DialogElement}
-      <div className="clan-page-header">
-        <button className="btn-secondary clan-back-btn" onClick={() => navigate('/dms')}>← Clubes</button>
-        <div className="clan-icon-preview clan-page-icon">
-          <ClanIcon icon={myClan.icon} color={myClan.iconColor} />
-        </div>
-        <div>
-          <h1>{myClan.name}</h1>
-          <div className="dim">{ROLE_LABEL[myClanRole]} · {myClan.memberCount} membro{myClan.memberCount === 1 ? '' : 's'}</div>
-        </div>
-        <button className={`btn-secondary clan-voice-btn ${inVoice ? 'active' : ''}`} onClick={toggleVoice}>
-          {inVoice ? '🔇 Sair da voz' : '🎙️ Entrar na voz'}
-        </button>
-      </div>
 
-      <div className="clan-tabs">
-        {/* Item pedido: "não mostre as tags pros usuários ainda" —
-            a aba inteira só aparece pra quem já tem permissão de
-            gerenciar tags (dono/sub-dono/admin), escondida de
-            membros comuns enquanto a funcionalidade não é ativada
-            de vez pra todo mundo (ver CLAN_TAGS_ENABLED). */}
-        {TABS.filter((t) => t.key !== 'tags' || myClanCapabilities.MANAGE_TAGS).map((t) => (
-          <button key={t.key} className={`clan-tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
-            {t.label}
-            {t.key === 'members' && myClanPendingRequests?.length > 0 && <span className="clan-tab-badge">{myClanPendingRequests.length}</span>}
+      <header className="cb-hero">
+        <div className="cb-mine-glow" aria-hidden="true" />
+        <button type="button" className="cb-back" onClick={() => navigate('/dms')} aria-label="Voltar para Clubes"><PageIcon name="back" size={20} /></button>
+        <ClubTile clan={myClan} size={76} />
+        <div className="cb-hero-info">
+          <h1 className="truncate">{myClan.name}</h1>
+          <div className="cb-chips">
+            <span className={`cb-role role-${myClanRole?.toLowerCase()}`}>{ROLE_LABEL[myClanRole]}</span>
+            <span className="cb-chip"><PageIcon name="user" size={13} /> {plural(myClan.memberCount, 'membro', 'membros')}</span>
+            <PrivacyChip clan={myClan} />
+          </div>
+          {myClan.description && <p className="cb-hero-desc">{myClan.description}</p>}
+        </div>
+        <button type="button" className={`cb-voice${inVoice ? ' on' : ''}`} onClick={toggleVoice}>
+          <PageIcon name="headset" size={18} /> {inVoice ? 'Sair da voz' : 'Entrar na voz'}
+        </button>
+      </header>
+
+      <div className="cb-tabs" role="tablist" aria-label="Seções do clube">
+        {TABS.filter((t) => t.key !== 'tags' || caps.MANAGE_TAGS).map((t) => (
+          <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} className={`cb-tab${tab === t.key ? ' active' : ''}`} onClick={() => setTab(t.key)}>
+            <PageIcon name={t.icon} size={16} /> {t.label}
+            {t.key === 'members' && pendingCount > 0 && <span className="cb-badge">{pendingCount}</span>}
           </button>
         ))}
       </div>
 
       {tab === 'chat' && (
-        <div className="clan-chat">
-          <div className="clan-chat-messages">
-            {messages.map((m) => (
-              <div key={m.id} className="clan-chat-message">
-                <img className="clan-chat-avatar" src={proxyImage(m.author.avatarUrl)} alt="" />
-                <div className="clan-chat-message-body">
-                  <div className="clan-chat-message-head">
-                    <span className="clan-chat-author">{m.author.displayName}</span>
-                    <span className="dim clan-chat-time">{formatTimeOnly(m.createdAt)}</span>
-                  </div>
-                  <div>{m.content}</div>
-                </div>
-                {(m.authorId === user.id || (myClanCapabilities.MODERATE_CLAN_CHAT && ROLE_ORDER.indexOf(myClanRole) < ROLE_ORDER.indexOf(m.author.clanRole))) && (
-                  <button className="clan-chat-delete-btn" title="Apagar" onClick={() => removeMsg(m)}>×</button>
-                )}
+        <section className="cb-panel cb-chat">
+          <div className="cb-chat-list">
+            {messages === null && <div className="cb-chat-empty">Carregando…</div>}
+            {messages?.length === 0 && (
+              <div className="cb-chat-empty">
+                <span className="cb-empty-icon"><PageIcon name="chat" size={26} /></span>
+                <strong>Comece a conversa</strong>
+                <span>As mensagens daqui só aparecem para quem é do clube.</span>
               </div>
-            ))}
-            <div ref={messagesEndRef} />
+            )}
+            {messages?.map((m, i) => {
+              const prev = messages[i - 1];
+              const grouped = prev && prev.authorId === m.authorId && new Date(m.createdAt) - new Date(prev.createdAt) < 5 * 60000;
+              const canDelete = m.authorId === user.id || (caps.MODERATE_CLAN_CHAT && ROLE_ORDER.indexOf(myClanRole) < ROLE_ORDER.indexOf(m.author.clanRole));
+              return (
+                <div key={m.id} className={`cb-msg${grouped ? ' grouped' : ''}`}>
+                  {grouped ? <span className="cb-msg-gap" /> : <UserAvatar user={m.author} size={36} />}
+                  <div className="cb-msg-body">
+                    {!grouped && (
+                      <div className="cb-msg-head">
+                        <strong>{m.author.displayName}</strong>
+                        {m.author.clanRole && m.author.clanRole !== 'MEMBER' && <span className={`cb-role small role-${m.author.clanRole.toLowerCase()}`}>{ROLE_LABEL[m.author.clanRole]}</span>}
+                        <time dateTime={m.createdAt}>{formatMessageTime(m.createdAt)}</time>
+                      </div>
+                    )}
+                    <div className="cb-msg-text">{m.content}</div>
+                  </div>
+                  {canDelete && <button type="button" className="cb-msg-del" title="Apagar" aria-label="Apagar mensagem" onClick={() => removeMsg(m)}><PageIcon name="close" size={15} /></button>}
+                </div>
+              );
+            })}
+            <div ref={endRef} />
           </div>
-          <form className="clan-chat-form" onSubmit={sendMsg}>
+          <form className="cb-composer" onSubmit={sendMsg}>
             <input value={content} onChange={(e) => setContent(e.target.value)} placeholder={`Conversar em ${myClan.name}`} maxLength={2000} />
-            <button type="submit" className="btn-primary">Enviar</button>
+            <button type="submit" className="cb-send" disabled={!content.trim()} aria-label="Enviar"><PageIcon name="send" size={18} /></button>
           </form>
-        </div>
+        </section>
       )}
 
       {tab === 'members' && (
-        <div className="clan-members-tab">
-          {myClanCapabilities.MANAGE_JOIN_REQUESTS && myClanPendingRequests?.length > 0 && (
-            <div className="clan-requests-section">
-              <div className="permission-group-label">SOLICITAÇÕES PENDENTES</div>
-              {myClanPendingRequests.map((r) => (
-                <div key={r.id} className="clan-member-row">
-                  <img className="clan-chat-avatar" src={proxyImage(r.user.avatarUrl)} alt="" />
-                  <span className="clan-member-name">{r.user.displayName}</span>
-                  <div className="clan-member-actions">
-                    <button className="btn-primary" onClick={() => onRespondRequest(r, true)}>Aceitar</button>
-                    <button className="btn-secondary" onClick={() => onRespondRequest(r, false)}>Recusar</button>
-                  </div>
-                </div>
-              ))}
-            </div>
+        <div className="cb-stack-col">
+          {pendingCount > 0 && (
+            <section className="cb-panel">
+              <h3 className="cb-section-title"><PageIcon name="inbox" size={16} /> Pedidos para entrar <span>{pendingCount}</span></h3>
+              <ul className="cb-members">
+                {pending.map((r) => (
+                  <li key={r.id} className="cb-member is-request">
+                    <UserAvatar user={r.user} size={40} />
+                    <span className="cb-member-name truncate">{r.user.displayName}</span>
+                    <div className="cb-member-actions">
+                      <button type="button" className="cb-btn primary sm" onClick={() => onRespondRequest(r, true)}><PageIcon name="check" size={15} /> Aceitar</button>
+                      <button type="button" className="cb-btn ghost sm" onClick={() => onRespondRequest(r, false)}>Recusar</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
-          <div className="permission-group-label">MEMBROS</div>
-          {myClan.members.sort((a, b) => ROLE_ORDER.indexOf(a.clanRole) - ROLE_ORDER.indexOf(b.clanRole)).map((m) => (
-            <div key={m.id} className="clan-member-row">
-              <img className="clan-chat-avatar" src={proxyImage(m.avatarUrl)} alt="" />
-              <span className="clan-member-name">{m.displayName}</span>
-              <span className={`clan-role-badge clan-role-${m.clanRole?.toLowerCase()}`}>{ROLE_LABEL[m.clanRole]}</span>
-              {m.id !== user.id && m.clanRole !== 'OWNER' && (
-                <div className="clan-member-actions">
-                  {myClanCapabilities.MANAGE_ROLES && assignableRoles.length > 0 && ROLE_ORDER.indexOf(myClanRole) < ROLE_ORDER.indexOf(m.clanRole) && (
-                    <select value={m.clanRole} onChange={(e) => onChangeRole(m, e.target.value)}>
-                      {[...assignableRoles, m.clanRole].filter((v, i, arr) => arr.indexOf(v) === i).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
-                    </select>
-                  )}
-                  {myClanCapabilities.TRANSFER_OWNERSHIP && (
-                    <button className="btn-secondary" onClick={() => onTransfer(m)}>Tornar dono</button>
-                  )}
-                  {myClanCapabilities.MANAGE_MEMBERS && ROLE_ORDER.indexOf(myClanRole) < ROLE_ORDER.indexOf(m.clanRole) && (
-                    <button className="btn-danger-text" onClick={() => onKick(m)}>Expulsar</button>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+          <section className="cb-panel">
+            <h3 className="cb-section-title"><PageIcon name="user" size={16} /> Membros <span>{members.length}</span></h3>
+            <ul className="cb-members">
+              {members.map((m) => {
+                const canAct = m.id !== user.id && m.clanRole !== 'OWNER' && ROLE_ORDER.indexOf(myClanRole) < ROLE_ORDER.indexOf(m.clanRole);
+                return (
+                  <li key={m.id} className="cb-member">
+                    <UserAvatar user={m} size={40} />
+                    <span className="cb-member-name truncate">{m.displayName}{m.id === user.id && <span className="cb-you">você</span>}</span>
+                    <span className={`cb-role role-${m.clanRole?.toLowerCase()}`}>{ROLE_LABEL[m.clanRole]}</span>
+                    {canAct && (
+                      <div className="cb-member-actions">
+                        {caps.MANAGE_ROLES && assignableRoles.length > 0 && (
+                          <select className="cb-select" value={m.clanRole} onChange={(e) => onChangeRole(m, e.target.value)} aria-label={`Cargo de ${m.displayName}`}>
+                            {[...assignableRoles, m.clanRole].filter((v, i, arr) => arr.indexOf(v) === i).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                          </select>
+                        )}
+                        {caps.TRANSFER_OWNERSHIP && <button type="button" className="cb-icon-btn" title="Passar liderança" aria-label="Passar liderança" onClick={() => onTransfer(m)}><PageIcon name="star" size={16} /></button>}
+                        {caps.MANAGE_MEMBERS && <button type="button" className="cb-icon-btn danger" title="Expulsar" aria-label="Expulsar" onClick={() => onKick(m)}><PageIcon name="close" size={16} /></button>}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
         </div>
       )}
 
       {tab === 'tags' && (
-        <div className="clan-tags-tab">
-          {/* Item pedido: "não mostra uma lista, mostra se [quer]
-              mostrar a tag, deixe desativada [por padrão]" — como só
-              existe uma tag por clã agora, não faz mais sentido uma
-              lista pra "escolher entre várias" — vira um interruptor
-              simples de ligar/desligar essa única tag, começando
-              sempre desligado até a pessoa ativar por conta própria. */}
+        <section className="cb-panel cb-tagpanel">
+          <h3 className="cb-section-title"><PageIcon name="hash" size={16} /> Tag do clube</h3>
+          <p className="cb-muted">A tag aparece ao lado do nome de quem escolher mostrar.</p>
           {myClan.tags.length === 0 ? (
-            <p className="dim">Este clube ainda não tem uma tag.</p>
+            caps.MANAGE_TAGS ? (
+              <div className="cb-tag-create">
+                <input value={newTag} onChange={(e) => setNewTag(e.target.value.toUpperCase())} maxLength={4} placeholder="ABCD" aria-label="Tag (até 4 letras)" />
+                <button type="button" className="cb-btn primary" onClick={onCreateTag} disabled={!newTag.trim()}>Criar tag</button>
+              </div>
+            ) : <p className="cb-muted">Este clube ainda não tem uma tag.</p>
           ) : (
-            <label className="clan-tag-toggle-row">
-              <input type="checkbox" checked={!!user.clanTagId} onChange={(e) => onPickMyTag(e.target.checked ? myClan.tags[0].id : null)} />
-              Mostrar a tag <span className="clan-tag-chip clan-tag-chip-inline">{myClan.tags[0].tag}</span> no meu perfil
-              {myClanCapabilities.MANAGE_TAGS && <button type="button" className="clan-chat-delete-btn" title="Excluir tag" onClick={(e) => { e.preventDefault(); onDeleteTag(myClan.tags[0]); }}>×</button>}
-            </label>
-          )}
-          {myClanCapabilities.MANAGE_TAGS && myClan.tags.length === 0 && (
-            <div className="clan-create-tag-row">
-              <input value={newTag} onChange={(e) => setNewTag(e.target.value.toUpperCase())} maxLength={4} placeholder="Tag do clube (até 4 letras)" />
-              <button className="btn-primary" onClick={onCreateTag}>Criar</button>
+            <div className="cb-tag-row">
+              <span className="cb-tag" style={{ '--club-color': color }}>{myClan.tags[0].tag}</span>
+              <label className="cb-switch-row">
+                <span>Mostrar no meu nome</span>
+                <input type="checkbox" checked={!!user.clanTagId} onChange={(e) => onPickMyTag(e.target.checked ? myClan.tags[0].id : null)} />
+                <span className="cb-switch" aria-hidden="true" />
+              </label>
+              {caps.MANAGE_TAGS && <button type="button" className="cb-icon-btn danger" title="Excluir tag" aria-label="Excluir tag" onClick={() => onDeleteTag(myClan.tags[0])}><PageIcon name="close" size={16} /></button>}
             </div>
           )}
-          {tagError && <div className="form-error">{tagError}</div>}
-        </div>
+          {tagError && <p className="cb-error" role="alert">{tagError}</p>}
+        </section>
       )}
 
       {tab === 'settings' && (
-        <div className="clan-settings-tab">
-          {myClanCapabilities.EDIT_CLAN ? (
-            <>
-              <div className="clan-create-icon-row">
-                <div className="clan-icon-preview">
-                  <ClanIcon icon={icons.find((i) => i.id === settingsForm.iconId)} color={settingsForm.iconColor} />
-                </div>
-                <label>
-                  ÍCONE
-                  <select value={settingsForm.iconId} onChange={(e) => setSettingsForm({ ...settingsForm, iconId: e.target.value })}>
-                    <option value="">Padrão</option>
-                    {icons.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-                  </select>
-                </label>
+        <div className="cb-stack-col">
+          {caps.EDIT_CLAN ? (
+            <section className="cb-panel">
+              <h3 className="cb-section-title"><PageIcon name="key" size={16} /> Identidade do clube</h3>
+              <ClubForm form={settingsForm} setForm={setSettingsForm} icons={icons} />
+              <div className="cb-panel-foot">
+                <button type="button" className="cb-btn primary" onClick={onSaveSettings} disabled={saving}>{saving ? 'Salvando…' : 'Salvar alterações'}</button>
               </div>
-              <label>NOME<input value={settingsForm.name} onChange={(e) => setSettingsForm({ ...settingsForm, name: e.target.value })} maxLength={40} /></label>
-              <label>DESCRIÇÃO<textarea value={settingsForm.description} onChange={(e) => setSettingsForm({ ...settingsForm, description: e.target.value })} maxLength={200} rows={2} /></label>
-              <label className="clan-public-toggle">
-                <input type="checkbox" checked={settingsForm.isPublic} onChange={(e) => setSettingsForm({ ...settingsForm, isPublic: e.target.checked })} />
-                {settingsForm.isPublic ? 'Público' : 'Privado'}
-              </label>
-              <button className="btn-primary" onClick={onSaveSettings}>Salvar alterações</button>
-              <hr />
-            </>
+            </section>
           ) : (
-            <p className="dim">Só o dono e o sub-dono podem editar as configurações do clube.</p>
+            <section className="cb-panel"><p className="cb-muted">Só o dono e o sub-dono podem editar o clube.</p></section>
           )}
-          <button className="btn-danger-text" onClick={onLeaveClan}>Sair do clube</button>
+          <section className="cb-panel cb-danger">
+            <div>
+              <strong>Sair do clube</strong>
+              <p className="cb-muted">{myClanRole === 'OWNER' ? 'Como dono, passe a liderança antes de sair (se houver outros membros).' : 'Você pode entrar em outro clube depois.'}</p>
+            </div>
+            <button type="button" className="cb-btn danger" onClick={onLeaveClan}>Sair do clube</button>
+          </section>
         </div>
       )}
     </div>

@@ -3266,37 +3266,7 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
 .emoji-quick-btn.active { background: var(--brand); }
 .custom-status-form select { width: 100%; }
 
-.screen-share-form { display: flex; flex-direction: column; gap: 10px; }
-.screen-share-hint { line-height: 1.4; }
-.screen-share-form label { font-size: 11px; font-weight: 700; color: var(--header-secondary); margin-top: 4px; }
-.screen-share-option-group { display: flex; flex-direction: column; gap: 6px; }
-.screen-share-option {
-  display: flex; justify-content: space-between; align-items: center; text-align: left;
-  padding: 10px 12px; border-radius: 6px; background: var(--bg-secondary-alt);
-  border: 2px solid transparent; transition: border-color .12s, background-color .12s;
-}
-.screen-share-option:hover { background: var(--bg-modifier-hover); }
-.screen-share-option.active { border-color: var(--brand); background: rgba(24,119,242,.12); }
-
 /* ---------- Screen share category menu (ScreenShareModal.jsx) ---------- */
-.screen-share-form-wide { gap: 12px; }
-.screen-share-categories { display: flex; gap: 8px; }
-.screen-share-category {
-  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
-  padding: 14px 8px; border-radius: 8px; background: var(--bg-secondary-alt);
-  border: 2px solid transparent; color: var(--text-normal); font-size: 13px; font-weight: 600;
-  transition: border-color .12s, background-color .12s;
-}
-.screen-share-category:hover { background: var(--bg-modifier-hover); }
-.screen-share-category.active { border-color: var(--brand); background: rgba(24,119,242,.12); }
-.screen-share-category .ui-icon { width: 24px; height: 24px; }
-.screen-share-device-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
-.screen-share-device {
-  display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 12px;
-  border-radius: 6px; background: var(--bg-secondary-alt); border: 2px solid transparent;
-  transition: border-color .12s, background-color .12s;
-}
-.screen-share-device:hover { background: var(--bg-modifier-hover); border-color: var(--brand); }
 
 /* ---------- Invite manager ---------- */
 .invite-create-row { display: grid; grid-template-columns: 1fr 100px 120px auto; gap: 8px; margin-bottom: 12px; }
@@ -5122,19 +5092,6 @@ a.embed-card-title:hover { text-decoration: underline; }
    espírito de ícone de cargo do Discord. Aparece no mini perfil,
    perfil completo e chat (ver os 3 arquivos que importam
    PendantIcon.jsx) — nunca na lista de membros, de propósito. */
-.pendant-icon { border-radius: 4px; object-fit: cover; vertical-align: middle; flex-shrink: 0; }
-.pendant-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; margin-top: 8px; }
-.pendant-picker-option {
-  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border-radius: 10px;
-  background: var(--bg-elevated); border: 1px solid var(--border); transition: border-color .12s ease;
-}
-.pendant-picker-option:hover { border-color: var(--brand); }
-.pendant-picker-option.active { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 12%, var(--bg-elevated)); }
-.pendant-picker-option-img { width: 28px; height: 28px; border-radius: 6px; object-fit: cover; }
-.pendant-picker-option-none { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 14px; }
-.pendant-picker-option-label { font-size: 10.5px; color: var(--text-muted); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-.pendant-custom-upload { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
-.pendant-custom-upload-preview { width: 28px; height: 28px; border-radius: 6px; object-fit: cover; border: 1px solid var(--border); }
 .mini-profile-handle { font-size: 12px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .mini-profile-badges-row { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
 /* Item pedido: "não quero nenhuma caixa atrás das insígnias" —

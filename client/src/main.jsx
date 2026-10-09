@@ -29,6 +29,7 @@ import './styles/feeds.css';
 import './styles/social.css';
 // Canal de voz — lobby, chamada e controles.
 import './styles/voice.css';
+import './styles/presence.css';
 // Telas de login/inscrição — por último, isoladas sob .pc-auth.
 import './styles/auth.css';
 import './i18n/index.js';

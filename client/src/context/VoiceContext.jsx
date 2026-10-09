@@ -575,7 +575,7 @@ export function VoiceProvider({ children }) {
         }
         return;
       }
-      const { quality = '1080p', frameRate = 30 } = options;
+      const { quality = '1080p', frameRate = 30, audio = true } = options;
       const dims = QUALITY_PRESETS[quality] || QUALITY_PRESETS['1080p'];
       try {
         const AgoraRTC = await loadAgoraRTC();
@@ -592,7 +592,7 @@ export function VoiceProvider({ children }) {
           // acima) de verdade, que é o que a pessoa realmente sente como
           // "travando" ou não.
           optimizationMode: 'motion',
-        }, 'auto');
+        }, audio ? 'auto' : 'disable');
         const [screenTrack, screenAudioTrack] = Array.isArray(result) ? result : [result, null];
         screenTrackRef.current = screenTrack;
         screenAudioTrackRef.current = screenAudioTrack || null;

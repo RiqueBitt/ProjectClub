@@ -225,7 +225,7 @@ if (!gotLock) {
       const windows = sources.filter((s) => !s.id.startsWith('screen:'));
 
       const picker = new BrowserWindow({
-        width: 820, height: 600, resizable: false, minimizable: false, maximizable: false,
+        width: 820, height: 620, resizable: false, minimizable: false, maximizable: false,
         frame: false,
         parent: mainWindow, modal: true, backgroundColor: '#232428',
         webPreferences: {
@@ -254,109 +254,113 @@ if (!gotLock) {
       // fazem, duas abas em vez de tudo misturado numa lista só. A aba
       // "Tela" só numera os monitores (Tela 1, Tela 2...) quando existe
       // mais de um — com um só, o nome fica simplesmente "Tela inteira".
-      const cardsFor = (list, isScreen) => list.map((s, i) => `
-        <button class="card" data-source-id="${s.id.replace(/"/g, '&quot;')}">
+      const esc = (t) => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+      const cardsFor = (list, isScreen) => list.map((s, i) => {
+        const label = isScreen ? (list.length > 1 ? `Tela ${i + 1}` : 'Tela inteira') : (s.name || 'Sem nome').slice(0, 60);
+        const icon = !isScreen && s.appIcon && !s.appIcon.isEmpty() ? `<img class="app-icon" src="${s.appIcon.toDataURL()}" alt="" />` : '';
+        return `
+        <button class="card" data-source-id="${esc(s.id)}" title="${esc(label)}">
           <div class="card-thumb"><img src="${s.thumbnail.toDataURL()}" alt="" /></div>
-          <span>${isScreen && list.length > 1 ? `Tela ${i + 1}` : isScreen ? 'Tela inteira' : (s.name || 'Sem nome').replace(/</g, '&lt;').slice(0, 46)}</span>
-        </button>
-      `).join('');
+          <span class="card-label">${icon}<span>${esc(label)}</span></span>
+        </button>`;
+      }).join('');
 
       const screensHtml = screens.length
         ? `<div class="grid">${cardsFor(screens, true)}</div>`
         : `<div class="empty">Nenhuma tela detectada.</div>`;
       const windowsHtml = windows.length
         ? `<div class="grid">${cardsFor(windows, false)}</div>`
-        : `<div class="empty">Nenhuma janela disponível pra compartilhar agora.</div>`;
+        : `<div class="empty">Nenhuma janela aberta para transmitir agora.</div>`;
 
-      // Item pedido: "melhore deixando mais bonito" — visual bem mais
-      // trabalhado que a versão anterior: abas de verdade no topo,
-      // miniaturas maiores com moldura própria, cantos mais arredondados,
-      // transições suaves, mesma paleta escura/acento roxo-azulado do
-      // resto do app.
-      //
-      // BUG CORRIGIDO ("clico e não acontece nada"): SEM
-      // -webkit-app-region: drag em lugar nenhum — essa propriedade
-      // fazia o próprio sistema operacional capturar o clique pra mover
-      // a janela antes dele chegar nos botões, um comportamento
-      // conhecido e nada confiável do Electron nesse cenário. A telinha
-      // não precisa ser arrastável pra funcionar.
+      // Repaginado: mesmo visual do app (azul da marca, cantos arredondados,
+      // abas em pílula). Clique seleciona, "Transmitir" confirma; clique
+      // duplo transmite direto; Esc cancela. Sem -webkit-app-region: drag
+      // (ele "roubava" os cliques dos botões no Windows).
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
         * { box-sizing: border-box; }
         body {
-          margin: 0; background: #1e1f22; color: #f2f3f5;
-          font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
-          padding: 0; user-select: none; overflow: hidden;
+          margin: 0; height: 100vh; display: flex; flex-direction: column;
+          background: #1e1f22; color: #f2f3f5; overflow: hidden; user-select: none;
+          font-family: 'Segoe UI', -apple-system, Roboto, 'Noto Sans', sans-serif;
+          border: 1px solid #34363c; border-radius: 0;
         }
-        .titlebar { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px 0; }
-        h1 { font-size: 17px; font-weight: 700; margin: 0; }
-        .cancel-btn {
-          border-radius: 8px; border: none; padding: 8px 16px;
-          background: #3a3c42; color: #f2f3f5; cursor: pointer; font-size: 13px; font-weight: 600;
-          transition: background .12s ease;
-        }
-        .cancel-btn:hover { background: #46484f; }
-        .tabs { display: flex; gap: 6px; padding: 18px 22px 0; border-bottom: 1px solid #303136; }
-        .tab {
-          border: none; background: none; color: #949ba4; font-size: 13px; font-weight: 600;
-          padding: 10px 16px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
-          transition: color .12s ease, border-color .12s ease;
-        }
+        header { display: flex; align-items: center; gap: 12px; padding: 18px 20px 14px; }
+        .head-icon { width: 40px; height: 40px; border-radius: 12px; background: #4c9fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        h1 { margin: 0; font-size: 17px; font-weight: 700; }
+        header p { margin: 2px 0 0; font-size: 12.5px; color: #949ba4; }
+        .x { margin-left: auto; width: 34px; height: 34px; border: 0; border-radius: 10px; background: transparent; color: #b5bac1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .x:hover { background: #2e3035; color: #fff; }
+        .tabs { display: inline-flex; gap: 2px; padding: 3px; margin: 0 20px; border-radius: 11px; background: #2b2d31; align-self: flex-start; }
+        .tab { border: 0; background: none; color: #949ba4; font: inherit; font-size: 13px; font-weight: 600; padding: 7px 16px; border-radius: 8px; cursor: pointer; }
         .tab:hover { color: #dbdee1; }
-        .tab.active { color: #fff; border-bottom-color: #5865F2; }
-        .panel { display: none; padding: 20px 22px; max-height: 420px; overflow-y: auto; }
+        .tab.active { background: #383a40; color: #fff; }
+        .panel { display: none; flex: 1; min-height: 0; overflow-y: auto; padding: 14px 20px 6px; }
         .panel.active { display: block; }
-        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+        .panel::-webkit-scrollbar { width: 8px; } .panel::-webkit-scrollbar-thumb { background: #3a3c42; border-radius: 4px; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
         .card {
-          background: #2b2d31; border: 2px solid transparent; border-radius: 12px; padding: 10px; cursor: pointer;
-          color: #f2f3f5; font-size: 12px; font-weight: 600; text-align: left;
+          display: flex; flex-direction: column; gap: 8px; padding: 8px; border-radius: 14px; cursor: pointer; text-align: left;
+          background: #2b2d31; border: 2px solid transparent; color: #f2f3f5; font: inherit;
           transition: border-color .12s ease, background .12s ease, transform .12s ease;
         }
-        .card:hover { border-color: #5865F2; background: #34363c; transform: translateY(-1px); }
-        .card-thumb {
-          width: 100%; aspect-ratio: 16/10; background: #101113; border-radius: 8px; margin-bottom: 10px;
-          display: flex; align-items: center; justify-content: center; overflow: hidden; pointer-events: none;
-        }
+        .card:hover { background: #313338; transform: translateY(-1px); }
+        .card.selected { border-color: #4c9fff; background: #2a3445; }
+        .card-thumb { aspect-ratio: 16/10; border-radius: 9px; background: #111214; display: flex; align-items: center; justify-content: center; overflow: hidden; pointer-events: none; }
         .card-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
-        .card span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
-        .empty { color: #949ba4; font-size: 13px; padding: 30px 0; text-align: center; }
-        .error-banner { display: none; background: #f23f42; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 12px; margin: 0 22px 12px; }
+        .card-label { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 0 4px 2px; font-size: 12.5px; font-weight: 600; pointer-events: none; }
+        .card-label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .app-icon { width: 16px; height: 16px; flex-shrink: 0; }
+        .empty { color: #949ba4; font-size: 13px; padding: 48px 0; text-align: center; }
+        footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 20px 16px; border-top: 1px solid #2b2d31; }
+        footer small { color: #949ba4; font-size: 12px; }
+        .actions { display: flex; gap: 8px; }
+        .btn { border: 0; border-radius: 10px; padding: 9px 18px; font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; }
+        .btn.ghost { background: #2e3035; color: #f2f3f5; } .btn.ghost:hover { background: #383a40; }
+        .btn.go { background: #4c9fff; color: #fff; } .btn.go:hover { filter: brightness(1.08); }
+        .btn.go:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+        .error-banner { display: none; margin: 0 20px 10px; padding: 8px 12px; border-radius: 8px; background: #f23f42; color: #fff; font-size: 12.5px; }
       </style></head><body>
-        <div class="titlebar">
-          <h1>Escolha o que compartilhar</h1>
-          <button class="cancel-btn" id="cancel-btn">Não compartilhar</button>
-        </div>
+        <header>
+          <span class="head-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18v11H3zM8 20h8M12 16v4"/></svg></span>
+          <div><h1>O que você quer transmitir?</h1><p>Escolha uma tela ou uma janela aberta.</p></div>
+          <button class="x" id="x-btn" aria-label="Fechar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+        </header>
         <div class="error-banner" id="error-banner"></div>
         <div class="tabs">
-          <button class="tab active" id="tab-screen" data-target="panel-screen">Tela${screens.length > 1 ? `s (${screens.length})` : ''}</button>
-          <button class="tab" id="tab-window" data-target="panel-window">Aplicativos${windows.length ? ` (${windows.length})` : ''}</button>
+          <button class="tab active" data-target="panel-screen">Telas${screens.length > 1 ? ` (${screens.length})` : ''}</button>
+          <button class="tab" data-target="panel-window">Janelas${windows.length ? ` (${windows.length})` : ''}</button>
         </div>
         <div class="panel active" id="panel-screen">${screensHtml}</div>
         <div class="panel" id="panel-window">${windowsHtml}</div>
+        <footer>
+          <small id="hint">Clique para selecionar · clique duplo transmite</small>
+          <div class="actions">
+            <button class="btn ghost" id="cancel-btn">Cancelar</button>
+            <button class="btn go" id="go-btn" disabled>Transmitir</button>
+          </div>
+        </footer>
         <script>
-          function showError(msg) {
-            var el = document.getElementById('error-banner');
-            el.textContent = msg;
-            el.style.display = 'block';
-          }
-          function safeChoose(sourceId) {
+          var selected = null;
+          function showError(msg) { var el = document.getElementById('error-banner'); el.textContent = msg; el.style.display = 'block'; }
+          function choose(sourceId) {
             try {
-              if (!window.screenPickerAPI) {
-                showError('Falha interna: a ponte de comunicação com o app não carregou. Feche e tente de novo.');
-                return;
-              }
+              if (!window.screenPickerAPI) { showError('Falha interna: a ponte com o app não carregou. Feche e tente de novo.'); return; }
               window.screenPickerAPI.choose(sourceId);
-            } catch (err) {
-              showError('Erro ao escolher: ' + err.message);
-            }
+            } catch (err) { showError('Erro ao escolher: ' + err.message); }
           }
           try {
-            document.getElementById('cancel-btn').addEventListener('click', function () {
-              safeChoose(null);
-            });
+            var go = document.getElementById('go-btn');
+            document.getElementById('cancel-btn').addEventListener('click', function () { choose(null); });
+            document.getElementById('x-btn').addEventListener('click', function () { choose(null); });
+            go.addEventListener('click', function () { if (selected) choose(selected); });
             document.querySelectorAll('.card').forEach(function (card) {
               card.addEventListener('click', function () {
-                safeChoose(card.getAttribute('data-source-id'));
+                document.querySelectorAll('.card').forEach(function (c) { c.classList.remove('selected'); });
+                card.classList.add('selected');
+                selected = card.getAttribute('data-source-id');
+                go.disabled = false;
               });
+              card.addEventListener('dblclick', function () { choose(card.getAttribute('data-source-id')); });
             });
             document.querySelectorAll('.tab').forEach(function (tab) {
               tab.addEventListener('click', function () {
@@ -366,9 +370,14 @@ if (!gotLock) {
                 document.getElementById(tab.getAttribute('data-target')).classList.add('active');
               });
             });
-          } catch (err) {
-            showError('Não foi possível carregar a lista — ' + err.message);
-          }
+            document.addEventListener('keydown', function (e) {
+              if (e.key === 'Escape') choose(null);
+              if (e.key === 'Enter' && selected) choose(selected);
+            });
+            // Com uma tela só, já deixa ela selecionada.
+            var first = document.querySelector('#panel-screen .card');
+            if (first && document.querySelectorAll('#panel-screen .card').length === 1) first.click();
+          } catch (err) { showError('Não foi possível carregar a lista: ' + err.message); }
         </script>
       </body></html>`;
 
@@ -867,7 +876,9 @@ if (!gotLock) {
         });
         const chosen = await showScreenPickerWindow(sources);
         if (!chosen) { callback({}); return; } // pessoa cancelou — devolve vazio, o site trata como "cancelado" normalmente
-        callback({ video: chosen, audio: 'loopback' });
+        // Só manda o som do PC quando o site pediu áudio (a pessoa pode
+        // desligar "Incluir som do computador" no menu de transmitir tela).
+        callback(request.audioRequested ? { video: chosen, audio: 'loopback' } : { video: chosen });
       } catch (err) {
         console.error('[compartilhar tela] falhou:', err);
         callback({});

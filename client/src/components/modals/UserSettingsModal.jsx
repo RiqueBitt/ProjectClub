@@ -58,6 +58,7 @@ import { STATUS_LABEL } from '../../utils/status';
 import PresenceDot from '../PresenceDot.jsx';
 import { usePromptDialog } from '../../utils/usePromptDialog.jsx';
 import { useStore } from '../../store/useStore';
+import { proxyImage } from '../../utils/imageProxy';
 import IdCardPreviewModal from './IdCardPreviewModal.jsx';
 import ImageCropperModal from './ImageCropperModal.jsx';
 import { PENGUIN_COLORS, penguinAvatarUrl, isPenguinAvatarUrl } from '../PenguinAvatar.jsx';
@@ -81,7 +82,7 @@ import {
   changePassword, deleteAccount,
   listRegisteredGames, addRegisteredGame, removeRegisteredGame,
   listMyShortcuts, setShortcut, deleteShortcut,
-  listAvailablePendants, selectMyPendant, uploadMyCustomPendant, removeMyCustomPendant,
+  uploadMyCustomPendant, removeMyCustomPendant,
 } from '../../api/endpoints';
 
 // Item pedido: separar "Edição do Perfil" das "Configurações gerais" da
@@ -284,29 +285,19 @@ export default function UserSettingsModal({ onClose }) {
   // (voltou pra cá) e enquetes de perfil (criar/apagar — a exibição +
   // votação continua no próprio perfil, pra quem visita poder votar).
   const [tagSaving, setTagSaving] = useState(false);
-  // Item pedido: pingentes — catálogo carregado uma vez, o valor
-  // escolhido já vem de user.selectedPendant (não precisa de outro
-  // GET só pra isso).
-  const [availablePendants, setAvailablePendants] = useState([]);
+  // Pingente: agora é SEMPRE uma imagem/GIF enviada pela própria pessoa
+  // (o catálogo da staff foi removido a pedido).
   const [pendantSaving, setPendantSaving] = useState(false);
-  useEffect(() => { listAvailablePendants().then((d) => setAvailablePendants(d.pendants)).catch(() => setAvailablePendants([])); }, []);
-  const choosePendant = async (pendantId) => {
-    setPendantSaving(true);
-    try {
-      const { user: updated } = await selectMyPendant(pendantId);
-      setUser(updated);
-    } finally {
-      setPendantSaving(false);
-    }
-  };
-  // Item pedido: "sobre o pingente é uma imagem à escolha do usuário,
-  // que ele pega dos seus arquivos, qualquer imagem" — além do
-  // catálogo acima, a pessoa também pode mandar uma imagem própria.
+  const [pendantError, setPendantError] = useState('');
   const uploadCustomPendant = async (file) => {
+    setPendantError('');
+    if (file.size > 10 * 1024 * 1024) { setPendantError('Imagem grande demais: o limite do pingente é 10 MB.'); return; }
     setPendantSaving(true);
     try {
       const { user: updated } = await uploadMyCustomPendant(file);
       setUser(updated);
+    } catch (err) {
+      setPendantError(err.response?.data?.error || 'Não foi possível enviar o pingente.');
     } finally {
       setPendantSaving(false);
     }
@@ -448,12 +439,25 @@ export default function UserSettingsModal({ onClose }) {
   // salvo originalmente; isso faria o arquivo passar batido pelo
   // recortador mesmo sendo GIF, achatando a animação de qualquer jeito.
   const isGifFile = (f) => f.type === 'image/gif' || /\.gif$/i.test(f.name || '');
+  // GIF vai direto (sem recorte, pra manter a animação). Antes, se o envio
+  // falhasse (arquivo grande demais, etc.) nada acontecia na tela.
+  const MAX_GIF_MB = 25;
+  const uploadGif = (file, uploader) => {
+    if (file.size > MAX_GIF_MB * 1024 * 1024) {
+      useStore.getState().pushNotice(`Esse GIF tem ${(file.size / 1048576).toFixed(1)} MB. O limite é ${MAX_GIF_MB} MB.`);
+      return;
+    }
+    useStore.getState().pushNotice('Enviando GIF…');
+    uploader(file)
+      .then(({ user: updated }) => { setUser(updated); useStore.getState().pushNotice('GIF aplicado!'); })
+      .catch((err) => useStore.getState().pushNotice(err.response?.data?.error || 'Não foi possível enviar o GIF.'));
+  };
 
   const onAvatar = (e) => {
     const file = e.target.files[0]; if (!file) return;
     e.target.value = ''; // permite escolher o MESMO arquivo de novo depois de cancelar
     if (isGifFile(file)) {
-      uploadAvatar(file).then(({ user: updated }) => setUser(updated));
+      uploadGif(file, uploadAvatar);
       return;
     }
     setCropperState({
@@ -475,7 +479,7 @@ export default function UserSettingsModal({ onClose }) {
     const file = e.target.files[0]; if (!file) return;
     e.target.value = '';
     if (isGifFile(file)) {
-      uploadBanner(file).then(({ user: updated }) => setUser(updated));
+      uploadGif(file, uploadBanner);
       return;
     }
     setCropperState({
@@ -494,7 +498,7 @@ export default function UserSettingsModal({ onClose }) {
     const file = e.target.files[0]; if (!file) return;
     e.target.value = '';
     if (isGifFile(file)) {
-      uploadMiniProfileBanner(file).then(({ user: updated }) => setUser(updated));
+      uploadGif(file, uploadMiniProfileBanner);
       return;
     }
     setCropperState({
@@ -795,7 +799,8 @@ export default function UserSettingsModal({ onClose }) {
                     o botão de banner do miniperfil (que morava aqui
                     junto do banner do perfil completo) foi pra sua
                     própria aba (MINI_PROFILE), junto das cores dele. */}
-                <label className="btn-secondary">Alterar banner do perfil completo<input type="file" accept="image/*" hidden onChange={onBanner} /></label>
+                <label className="btn-secondary">Alterar banner do perfil completo<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={onBanner} /></label>
+                <span className="dim settings-upload-hint">Aceita GIF animado (até 25 MB)</span>
               </div>
 
               <div className="profile-edit-subsection">
@@ -887,45 +892,28 @@ export default function UserSettingsModal({ onClose }) {
 
           <div className="settings-block">
             <h4>Pingente</h4>
-            <p className="dim">Uma imagem pequena que aparece do lado do seu nome no chat, no seu mini perfil e no seu perfil completo — escolha um da lista, ou nenhum.</p>
-            <div className="pendant-picker-grid">
-              <button
-                type="button"
-                className={`pendant-picker-option ${!user.selectedPendant ? 'active' : ''}`}
-                disabled={pendantSaving}
-                onClick={() => choosePendant(null)}
-              >
-                <span className="pendant-picker-option-none">✕</span>
-                <span className="pendant-picker-option-label">Nenhum</span>
-              </button>
-              {availablePendants.map((p) => (
-                <button
-                  type="button" key={p.id}
-                  className={`pendant-picker-option ${user.selectedPendant?.id === p.id ? 'active' : ''}`}
-                  disabled={pendantSaving}
-                  onClick={() => choosePendant(p.id)}
-                >
-                  <img src={p.iconUrl} alt="" className="pendant-picker-option-img" />
-                  <span className="pendant-picker-option-label">{p.name}</span>
-                </button>
-              ))}
-              {availablePendants.length === 0 && <p className="dim" style={{ fontSize: 12.5 }}>Nenhum pingente disponível ainda.</p>}
-            </div>
-            {/* Item pedido: "o pingente é uma imagem à escolha do
-                usuário, que ele pega dos seus arquivos, qualquer
-                imagem" — além do catálogo acima, envio livre de
-                qualquer imagem do próprio dispositivo. */}
-            <div className="pendant-custom-upload">
-              <label className="btn-secondary" style={{ cursor: pendantSaving ? 'default' : 'pointer' }}>
-                {pendantSaving ? 'Enviando...' : '📁 Enviar minha imagem'}
-                <input type="file" accept="image/*" hidden disabled={pendantSaving} onChange={(e) => { const f = e.target.files[0]; if (f) uploadCustomPendant(f); e.target.value = ''; }} />
-              </label>
-              {user.customPendantUrl && (
-                <>
-                  <img src={user.customPendantUrl} alt="" className="pendant-custom-upload-preview" />
-                  <button type="button" className="btn-link" disabled={pendantSaving} onClick={clearCustomPendant}>Remover</button>
-                </>
-              )}
+            <p className="dim">Uma imagenzinha sua (pode ser GIF animado) que aparece ao lado do seu nome no chat, no miniperfil e no perfil completo.</p>
+            <div className="pendant-editor">
+              <div className="pendant-editor-preview">
+                {user.customPendantUrl
+                  ? <img src={proxyImage(user.customPendantUrl)} alt="Seu pingente" />
+                  : <span aria-hidden="true">+</span>}
+              </div>
+              <div className="pendant-editor-side">
+                <div className="pendant-editor-sample">
+                  <strong>{user.displayName}</strong>
+                  {user.customPendantUrl && <img src={proxyImage(user.customPendantUrl)} alt="" className="pendant-icon" style={{ width: 20, height: 20 }} />}
+                </div>
+                <div className="pendant-editor-actions">
+                  <label className={`btn-primary pendant-editor-upload${pendantSaving ? ' is-busy' : ''}`}>
+                    {pendantSaving ? 'Enviando…' : user.customPendantUrl ? 'Trocar imagem' : 'Enviar imagem'}
+                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden disabled={pendantSaving} onChange={(e) => { const f = e.target.files[0]; if (f) uploadCustomPendant(f); e.target.value = ''; }} />
+                  </label>
+                  {user.customPendantUrl && <button type="button" className="btn-link" disabled={pendantSaving} onClick={clearCustomPendant}>Remover</button>}
+                </div>
+                <span className="dim settings-upload-hint">PNG, JPG, WEBP ou GIF · até 10 MB · imagem quadrada fica melhor</span>
+                {pendantError && <span className="pendant-editor-error" role="alert">{pendantError}</span>}
+              </div>
             </div>
           </div>
 
@@ -1262,7 +1250,8 @@ export default function UserSettingsModal({ onClose }) {
           <div className="settings-block">
             <h4>Banner do miniperfil</h4>
             <p className="dim">Esse banner aparece só no cartão pequeno que abre ao clicar no seu nome/avatar — independente do banner do seu perfil completo.</p>
-            <label className="btn-secondary">Alterar banner do miniperfil<input type="file" accept="image/*" hidden onChange={onMiniProfileBanner} /></label>
+            <label className="btn-secondary">Alterar banner do miniperfil<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={onMiniProfileBanner} /></label>
+            <span className="dim settings-upload-hint">Aceita GIF animado (até 25 MB)</span>
           </div>
 
           <div className="profile-edit-columns">

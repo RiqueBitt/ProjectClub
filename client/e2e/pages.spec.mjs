@@ -66,3 +66,22 @@ test('configurações abrem sem erro', async ({ page }) => {
   await expect(page.locator('.settings-modal-layout')).toBeVisible();
   await expect(page.getByText('Algo deu errado')).toHaveCount(0);
 });
+
+test('clubes: aba Clubes lista convites e clubes abertos', async ({ page }) => {
+  await page.goto('/dms');
+  await expect(page.locator('.social-hero')).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('tab', { name: /Clubes/ }).click();
+  await expect(page.locator('.cb-card').first()).toBeVisible();
+  await expect(page.getByText('Algo deu errado')).toHaveCount(0);
+});
+
+test('miniperfil abre e fecha ao abrir outro menu', async ({ page }) => {
+  await page.goto('/channels/ch2');
+  await expect(page.locator('.chat-header')).toBeVisible({ timeout: 20_000 });
+  const row = page.locator('.member-row').first();
+  if (!(await row.isVisible())) test.skip(true, 'lista de membros escondida neste tamanho');
+  await row.click();
+  await expect(page.locator('.mini-profile-card')).toBeVisible();
+  await page.locator('.top-search-bar-icon-btn[title="Configurações"]').click();
+  await expect(page.locator('.mini-profile-card')).toHaveCount(0);
+});

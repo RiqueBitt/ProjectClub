@@ -31,6 +31,15 @@ export function closePopover(closeFn) {
   if (activeCloser === closeFn) activeCloser = null;
 }
 
+// Fecha o popover aberto (se houver) — usado quando algo de tela cheia
+// abre por cima (perfil completo, configurações, imagem ampliada), pra
+// nunca sobrar um menu flutuando por cima/por baixo dele.
+export function closeAllPopovers() {
+  const closer = activeCloser;
+  activeCloser = null;
+  if (closer) closer();
+}
+
 // One-line version of the above for a typical "const [open, setOpen] =
 // useState(false)" popover — call with (isOpen, () => setOpen(false)) and
 // it handles registering/unregistering itself at the right times.

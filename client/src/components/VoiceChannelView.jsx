@@ -5,6 +5,7 @@ import { useStore } from '../store/useStore';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import ScreenShareModal from './modals/ScreenShareModal.jsx';
 import UserAvatar from './UserAvatar.jsx';
+import { usePopoverCoordination } from '../utils/popoverCoordinator';
 
 // ============================================================
 // Canal de voz — visual refeito.
@@ -178,6 +179,7 @@ export default function VoiceChannelView({ channel }) {
 
 function PersonTile({ uid, person, isMe, state, connecting, cameraStream, volume, onVolume, extra }) {
   const [volOpen, setVolOpen] = useState(false);
+  usePopoverCoordination(volOpen, () => setVolOpen(false));
   const color = person?.profileColor || 'var(--brand)';
   return (
     <div

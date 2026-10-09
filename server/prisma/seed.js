@@ -260,6 +260,13 @@ async function seed() {
     await prisma.gameBananaGameMapping.upsert({ where: { steamAppId: g.steamAppId }, update: g, create: g });
   }
   console.log(`Seeded ${gamebananaGames.length} jogos do GameBanana.`);
+
+  // Pingentes do catálogo da staff foram descontinuados: agora só vale a
+  // imagem própria que cada pessoa envia. Limpa as escolhas antigas (não
+  // apaga nada do banco, só desmarca) pra ninguém ficar com um pingente
+  // que não dá mais pra trocar.
+  const clearedPendants = await prisma.user.updateMany({ where: { selectedPendantId: { not: null } }, data: { selectedPendantId: null } });
+  if (clearedPendants.count) console.log(`Pingentes do catálogo removidos de ${clearedPendants.count} conta(s).`);
 }
 
 main()

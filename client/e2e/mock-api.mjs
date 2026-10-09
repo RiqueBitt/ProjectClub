@@ -3,13 +3,13 @@
 const IMAGES = {};
 let imgN = 0;
 const svg = (w, h, body) => { const k = `/mock-img/${imgN++}.svg`; IMAGES[k] = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${body}</svg>`; return `http://localhost:4173${k}`; };
-export function imageHandler(route) { const k = new URL(route.request().url()).pathname; return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: IMAGES[k] || '' }); }
+export function imageHandler(route) { const k = new URL(route.request().url()).pathname; if (k.endsWith('pendant.svg')) return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><path d="M128 16 32 56v64c0 60 41 104 96 120 55-16 96-60 96-120V56z" fill="#2c5fd6" stroke="#9cc3ff" stroke-width="10"/></svg>' }); return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: IMAGES[k] || '' }); }
 const av = (c1, c2) => svg(64, 64, `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><rect width="64" height="64" fill="url(#g)"/>`);
 const banner = svg(600, 260, `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b1a3a"/><stop offset=".6" stop-color="#2c5fd6"/><stop offset="1" stop-color="#7cc1ff"/></linearGradient></defs><rect width="600" height="260" fill="url(#g)"/><text x="300" y="160" font-family="Impact,sans-serif" font-size="78" text-anchor="middle" fill="#fff" opacity=".92">PROJECT CLUB</text>`);
 const userBanner = svg(400, 120, `<defs><linearGradient id="g"><stop offset="0" stop-color="#ff7a18"/><stop offset="1" stop-color="#7a1f00"/></linearGradient></defs><rect width="400" height="120" fill="url(#g)"/>`);
 const now = Date.now();
 const U = (id, name, extra = {}) => ({ id, publicId: '1' + id.padStart(8, '0'), username: name.toLowerCase(), displayName: name, avatarUrl: av(extra.c1 || '#555', extra.c2 || '#222'), status: 'ONLINE', platformRole: extra.role || 'USER', emailVerified: true, ...extra });
-const me = U('1', 'RiqueBitt', { c1: '#c0392b', c2: '#2c0a0a', role: 'ADMIN', email: 'admin@local.test', layoutStyle: 'normal2', idCardUrl: userBanner, customStatus: 'Quem está marcando!!!' });
+const me = U('1', 'RiqueBitt', { customPendantUrl: 'http://localhost:4173/mock-img/pendant.svg', statusBubbleColor: '#000000', bannerUrl: 'http://localhost:4173/mock-img/0.svg', profileColor: '#b3261e', c1: '#c0392b', c2: '#2c0a0a', role: 'ADMIN', email: 'admin@local.test', layoutStyle: 'normal2', idCardUrl: userBanner, customStatus: 'Quem está marcando!!!' });
 const users = [me, U('2', 'Loritta', { c1: '#f6a6c1', c2: '#7d3c98', isBot: true, customStatus: 'Fan Art by Azu | Cluster 4' }), U('3', 'Rio Bot', { c1: '#8e44ad', c2: '#2c3e50', isBot: true, customStatus: 'Novo comando! /tickets' }), U('4', 'Haiz Bot', { c1: '#16a085', c2: '#0b3d33', isBot: true, customStatus: 'Quais as últimas notícias?' }), U('5', 'Lia', { c1: '#4c9fff', c2: '#7b5cff', status: 'OFFLINE' })];
 const roles = [
   { id: 'r0', name: '@everyone', isDefault: true, position: 0, permissions: '0' },
@@ -85,6 +85,22 @@ export function handler(route) {
   if (p === '/app-catalog') return json({ items: [
     { moduleId: 'projectmc', name: 'Project MC', version: '2.3.1', description: 'Launcher de Minecraft com modpacks da comunidade e login integrado.', bannerUrl: banner, iconUrl: av('#27ae60', '#145a32'), screenshots: [] },
     { moduleId: 'editor', name: 'Club Editor', version: '1.0.4', description: 'Editor de skins e mapas para os servidores do Club.', bannerUrl: null, iconUrl: av('#8e44ad', '#2c3e50'), screenshots: [] },
+  ] });
+
+  const clubMembers = [{ ...me, clanRole: 'OWNER' }, { ...users[4], clanRole: 'ADMIN' }, { ...U('7', 'Mr Pinguim', { c1: '#2c5fd6', c2: '#0b1a3a' }), clanRole: 'MODERATOR' }, { ...users[1], clanRole: 'MEMBER' }];
+  const myClub = { id: 'cl1', name: 'Os Construtores', description: 'Builds gigantes no servidor e muita resenha na call.', isPublic: true, privacyType: 'PUBLIC', icon: null, iconColor: '#F0883E', memberCount: 4, members: clubMembers, tags: [{ id: 'tg1', tag: 'BLD' }] };
+  if (p === '/clans/mine') return json(process.env.MOCK_CLAN ? { clan: myClub, myRole: 'OWNER', myCapabilities: { EDIT_CLAN: true, MANAGE_ROLES: true, MANAGE_MEMBERS: true, TRANSFER_OWNERSHIP: true, MANAGE_TAGS: true, MANAGE_JOIN_REQUESTS: true, MODERATE_CLAN_CHAT: true }, pendingRequests: [{ id: 'rq1', user: users[2] }] } : { clan: null });
+  if (p === '/clans') return json({ clans: [
+    { id: 'c2', name: 'Pixel Arts', description: 'Desenho, pixel art e figurinhas feitas pela galera.', privacyType: 'PUBLIC', isPublic: true, icon: null, iconColor: '#EB459E', memberCount: 18 },
+    { id: 'c3', name: 'Speedrunners BR', description: 'Treinos, rotas e corridas toda sexta.', privacyType: 'FRIENDS_ONLY', isPublic: false, icon: null, iconColor: '#57F287', memberCount: 7, friendMember: { displayName: 'Lia' } },
+    { id: 'c4', name: 'Noite do Terror', description: '', privacyType: 'PUBLIC', isPublic: true, icon: null, iconColor: '#9147FF', memberCount: 1 },
+  ] });
+  if (p === '/clans/invites/mine') return json({ invites: [{ id: 'iv1', clan: { name: 'Clube do Café', iconColor: '#00B0F4', icon: null }, invitedBy: { displayName: 'Mr Pinguim' } }] });
+  if (p === '/clans/icons') return json({ icons: [] });
+  if (p === '/clans/cl1/messages') return json({ messages: [
+    { id: 'cm1', authorId: '5', author: { ...users[4], clanRole: 'ADMIN' }, content: 'bora terminar o castelo hoje?', createdAt: new Date(now - 40 * 60000).toISOString() },
+    { id: 'cm2', authorId: '5', author: { ...users[4], clanRole: 'ADMIN' }, content: 'falta só a torre leste', createdAt: new Date(now - 39 * 60000).toISOString() },
+    { id: 'cm3', authorId: '1', author: { ...me, clanRole: 'OWNER' }, content: 'fechado! 21h na call do clube', createdAt: new Date(now - 10 * 60000).toISOString() },
   ] });
   if (p === '/auth/refresh') return json({ accessToken: 'x', user: me });
   if (p === '/community') return json({ categories, channels: [], members, roles, community: { name: 'Project Club', bannerUrl: banner, iconUrl: null } });
