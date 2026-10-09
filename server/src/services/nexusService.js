@@ -204,7 +204,13 @@ async function getMod(domain, modId) {
     }))
     // Principal primeiro, depois opcionais, depois o resto; mais novo antes.
     .sort((a, b) => (b.primary - a.primary) || ((a.category === 'MAIN' ? 0 : 1) - (b.category === 'MAIN' ? 0 : 1)) || String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
+  const [images, virusScan] = await Promise.all([
+    Promise.resolve(extractImages(mod)),
+    scanStatus(domain, modId, fileList.find((f) => f.primary) || fileList[0]).catch(() => null),
+  ]);
   return {
+    images, virusScan,
+    createdAt: mod.created_time || null, uploadedBy: mod.uploaded_by || null, creator: mod.author || null,
     id: mod.mod_id, domain, name: mod.name, summary: stripBBCode(mod.summary),
     description: stripBBCode(mod.description).slice(0, 6000),
     thumbUrl: mod.picture_url || null, version: mod.version || null,
@@ -215,6 +221,38 @@ async function getMod(domain, modId) {
     pageUrl: `https://www.nexusmods.com/${domain}/mods/${mod.mod_id}`,
     files: fileList,
   };
+}
+
+// Imagens do mod (item pedido: "parte de screenshots igual à Nexus"): a
+// API não lista a galeria, então usa a imagem principal + as imagens
+// que o autor colocou na descrição ([img]...[/img]).
+function extractImages(mod) {
+  const urls = [];
+  if (mod.picture_url) urls.push(mod.picture_url);
+  const re = /\[img(?:=[^\]]*)?\](https:\/\/[^\s[\]"']+?)\[\/img\]/gi;
+  let m;
+  while ((m = re.exec(String(mod.description || ''))) && urls.length < 24) {
+    const u = m[1].trim();
+    if (/\.(png|jpe?g|gif|webp)(\?|$)/i.test(u) || /staticdelivery|imgur|nexus/i.test(u)) urls.push(u);
+  }
+  return [...new Set(urls)];
+}
+
+const SAFE_SCANS = new Set(['VERIFIED', 'INTERNALLY_VERIFIED', 'MANUALLY_VERIFIED']);
+const BAD_SCANS = new Set(['QUARANTINED']);
+
+// Resultado da verificação de vírus do arquivo principal (GraphQL v2).
+async function scanStatus(domain, modId, file) {
+  if (!file) return null;
+  return cacheGetOrSet(`nexus:scan:${domain}:${modId}:${file.id}`, 60 * 60, async () => {
+    const info = await getGameInfo(domain);
+    if (!info?.id) return null;
+    const d = await gql('query F($g: ID!, $m: ID!) { modFiles(gameId: $g, modId: $m) { fileId scannedV2 } }', { g: String(info.id), m: String(modId) });
+    const hit = (d.modFiles || []).find((f) => f.fileId === file.id);
+    if (!hit) return null;
+    const status = hit.scannedV2;
+    return { status, safe: SAFE_SCANS.has(status), danger: BAD_SCANS.has(status) };
+  });
 }
 
 // key/expires vêm do link nxm:// (conta grátis). Sem eles, só funciona

@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { browseGameBanana, getGameBananaMod } from '../../api/endpoints';
 import { isDesktopModsAvailable, installModLocally, modFolderName } from '../../utils/mods';
-import { proxyImage } from '../../utils/imageProxy';
 import {
   Icon, formatCount, EmptyState, SkeletonGrid, SearchField, ChipRow, ModTile, LoadMore,
-  ModDetailLayout, DetailStat, Section, ProgressBar, progressLabel, useModsManager,
+  ModDetailLayout, DetailStat, Section, ProgressBar, progressLabel, useModsManager, formatModDate,
 } from './shared.jsx';
 
 // ---------- GameBanana (aba "Explorar") ----------
@@ -161,6 +160,12 @@ export function GameBananaModDetail({ game, modId, onBack }) {
       thumb={data.thumbUrl}
       title={data.name}
       subtitle={data.submitter ? <>por <strong>{data.submitter}</strong></> : null}
+      gallery={data.images}
+      info={[
+        { label: 'Última atualização', value: formatModDate(data.dateModified) },
+        { label: 'Enviado originalmente', value: formatModDate(data.dateAdded) },
+        { label: 'Enviado por', value: data.submitter, tone: 'accent' },
+      ]}
       stats={(
         <>
           {installed && !installingFileId && <span className="mdx-installed-pill"><Icon name="check" size={13} strokeWidth={2.6} /> Instalado</span>}
@@ -203,17 +208,6 @@ export function GameBananaModDetail({ game, modId, onBack }) {
               <div className="mdx-tags">{data.categories.map((c) => <span key={c} className="mdx-tag">{c}</span>)}</div>
             )}
           </Section>
-          {data.images?.length > 0 && (
-            <Section title="Imagens" icon="eye">
-              <div className="mdx-shots">
-                {data.images.map((img) => (
-                  <a key={img} href={proxyImage(img)} target="_blank" rel="noreferrer" className="mdx-shot">
-                    <img src={proxyImage(img)} alt="" loading="lazy" />
-                  </a>
-                ))}
-              </div>
-            </Section>
-          )}
         </>
       )}
       side={data.files?.length > 0 && (

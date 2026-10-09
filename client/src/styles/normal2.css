@@ -251,3 +251,36 @@ html.layout-n2-root.is-electron-app .profile-fullscreen-overlay {
     drop-shadow(0 1px 1px rgba(0, 0, 0, .55))
     drop-shadow(0 2px 8px rgba(0, 0, 0, .35));
 }
+
+/* ============================================================
+   Item pedido: "banner inteiro, sem barras nas laterais", "barra
+   lateral mais pra direita" e "categorias, chats e calls maiores".
+   ============================================================ */
+.n2-sidebar .sidebar-banner {
+  aspect-ratio: auto; height: auto; max-height: none; margin: 0; border-radius: 0;
+  background: none !important;
+}
+.n2-sidebar .sidebar-banner::before { display: none; }
+.n2-sidebar .sidebar-banner::after {
+  /* Só o degradê (pra o nome ficar legível e o banner emendar no fundo). */
+  background: linear-gradient(180deg, rgba(0, 0, 0, .5) 0%, rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, 0) 72%, var(--bg-secondary) 100%);
+}
+.n2-sidebar .sidebar-banner-img {
+  display: block; width: 100%; height: auto; max-height: 220px; object-fit: cover; object-position: center;
+}
+.sidebar-banner-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.n2-sidebar .n2-nav { padding-left: 14px; padding-right: 10px; }
+.n2-sidebar .sidebar-list { padding: 8px 10px 16px 14px; gap: 2px; }
+.n2-sidebar .category-block { margin-top: 14px; }
+.n2-sidebar .category-label { font-size: 14px; padding: 7px 6px 6px 8px; }
+.n2-sidebar .channel-item { padding: 8px 10px; font-size: 16px; gap: 10px; border-radius: 8px; min-height: 38px; }
+.n2-sidebar .channel-item .ui-icon { width: 20px; height: 20px; }
+.n2-sidebar .channel-item span.channel-hash { font-size: 18px; width: 20px; text-align: center; }
+.n2-sidebar .channel-custom-icon.custom-icon-img { width: 22px; height: 22px; }
+.n2-sidebar .channel-custom-icon.custom-icon-emoji { width: 22px; height: 22px; font-size: 18px; }
+.n2-sidebar .category-custom-icon.custom-icon-img { width: 16px; height: 16px; }
+.n2-sidebar .category-custom-icon.custom-icon-emoji { width: 16px; font-size: 14px; }
+@media (max-width: 600px) {
+  .n2-sidebar .channel-item { padding: 10px 10px; font-size: 16px; }
+}

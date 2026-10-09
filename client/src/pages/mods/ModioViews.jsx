@@ -6,10 +6,9 @@ import {
   listModProfiles, upsertModProfileItem, listModCollections, addModCollectionItem,
 } from '../../api/endpoints';
 import { isDesktopModsAvailable, installModLocally, modFolderName } from '../../utils/mods';
-import { proxyImage } from '../../utils/imageProxy';
 import {
   Icon, formatCount, EmptyState, SkeletonGrid, SearchField, ChipRow, ModTile, LoadMore,
-  ModDetailLayout, DetailStat, Section, ProgressBar, progressLabel, useModsManager,
+  ModDetailLayout, DetailStat, Section, ProgressBar, progressLabel, useModsManager, formatModDate,
 } from './shared.jsx';
 
 // ---------- mod.io: lista de mods (aba "Explorar") ----------
@@ -300,6 +299,13 @@ export function ModioModDetail({ game, modioModId, onBack }) {
       thumb={mod.logo?.thumb_640x360 || mod.logo?.original || mod.logo?.thumb_320x180}
       title={mod.name}
       subtitle={<>por <strong>{mod.submitted_by?.username}</strong> · v{mod.modfile?.version || '?'}</>}
+      gallery={(mod.media?.images || []).map((img) => ({ thumb: img.thumb_1280x720 || img.thumb_320x180 || img.original, full: img.original }))}
+      info={[
+        { label: 'Última atualização', value: formatModDate(mod.date_updated) },
+        { label: 'Enviado originalmente', value: formatModDate(mod.date_added) },
+        { label: 'Enviado por', value: mod.submitted_by?.username, tone: 'accent' },
+        mod.modfile && { label: 'Verificação de vírus', value: mod.modfile.virus_positive === 1 ? 'Arquivo marcado como inseguro' : mod.modfile.virus_status === 1 ? 'Seguro para usar' : 'Ainda não verificado', tone: mod.modfile.virus_positive === 1 ? 'bad' : mod.modfile.virus_status === 1 ? 'ok' : undefined },
+      ]}
       stats={(
         <>
           {installed && <span className="mdx-installed-pill"><Icon name="check" size={13} strokeWidth={2.6} /> Instalado</span>}
@@ -346,17 +352,6 @@ export function ModioModDetail({ game, modioModId, onBack }) {
             )}
           </Section>
 
-          {mod.media?.images?.length > 0 && (
-            <Section title="Imagens" icon="eye">
-              <div className="mdx-shots">
-                {mod.media.images.map((img) => (
-                  <a key={img.filename} href={proxyImage(img.original)} target="_blank" rel="noreferrer" className="mdx-shot">
-                    <img src={proxyImage(img.thumb_320x180)} alt="" loading="lazy" />
-                  </a>
-                ))}
-              </div>
-            </Section>
-          )}
 
           <Section title="Comentários" icon="chat">
             <div className="mdx-comment-form">

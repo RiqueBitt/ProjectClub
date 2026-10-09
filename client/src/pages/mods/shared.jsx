@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { steamCoverUrl } from '../../utils/mods';
 import { proxyImage } from '../../utils/imageProxy';
 
@@ -231,7 +232,100 @@ export function ProgressBar({ percent, indeterminate }) {
 // Esqueleto comum das páginas de detalhe de mod (mod.io, GameBanana,
 // Thunderstore): cabeçalho grande com miniatura + estatísticas + botão
 // de instalar, e embaixo duas colunas (conteúdo / lateral).
-export function ModDetailLayout({ onBack, backLabel, thumb, fallbackIcon, title, subtitle, stats, actions, notices, main, side }) {
+// ---------- Galeria de imagens do mod (estilo Nexus) ----------
+// Faixa rolável de screenshots com setas, contador e tela cheia.
+// images: lista de URLs (ou { thumb, full }).
+export function ModGallery({ images }) {
+  const list = useMemo(() => (images || []).map((i) => (typeof i === 'string' ? { thumb: i, full: i } : i)).filter((i) => i.thumb || i.full), [images]);
+  const stripRef = useRef(null);
+  const [open, setOpen] = useState(null); // índice aberto em tela cheia
+  const [edges, setEdges] = useState({ start: true, end: false });
+  const updateEdges = () => {
+    const el = stripRef.current;
+    if (!el) return;
+    setEdges({ start: el.scrollLeft <= 4, end: el.scrollLeft + el.clientWidth >= el.scrollWidth - 4 });
+  };
+  useEffect(() => { updateEdges(); }, [list.length]);
+  useEffect(() => {
+    if (open == null) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setOpen(null);
+      if (e.key === 'ArrowRight') setOpen((i) => (i + 1) % list.length);
+      if (e.key === 'ArrowLeft') setOpen((i) => (i - 1 + list.length) % list.length);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, list.length]);
+  if (list.length === 0) return null;
+  const scrollBy = (dir) => stripRef.current?.scrollBy({ left: dir * stripRef.current.clientWidth * 0.8, behavior: 'smooth' });
+  return (
+    <div className="mdx-gallery">
+      <div className="mdx-gallery-strip" ref={stripRef} onScroll={updateEdges}>
+        {list.map((img, i) => (
+          <GalleryShot key={`${img.thumb}-${i}`} img={img} onOpen={() => setOpen(i)} />
+        ))}
+      </div>
+      {!edges.start && <button type="button" className="mdx-gallery-arrow prev" aria-label="Imagens anteriores" onClick={() => scrollBy(-1)}><Icon name="back" size={18} /></button>}
+      {!edges.end && <button type="button" className="mdx-gallery-arrow next" aria-label="Próximas imagens" onClick={() => scrollBy(1)}><Icon name="next" size={18} /></button>}
+      {list.length > 1 && <span className="mdx-gallery-count">{list.length} imagens</span>}
+      {open != null && createPortal(
+        <div className="mdx-lightbox" role="dialog" aria-modal="true" aria-label="Imagem do mod" onClick={() => setOpen(null)}>
+          <img src={proxyImage(list[open].full || list[open].thumb)} alt="" onClick={(e) => e.stopPropagation()} />
+          <button type="button" className="mdx-lightbox-close" aria-label="Fechar" onClick={() => setOpen(null)}><Icon name="close" size={20} /></button>
+          {list.length > 1 && (
+            <>
+              <button type="button" className="mdx-lightbox-nav prev" aria-label="Anterior" onClick={(e) => { e.stopPropagation(); setOpen((i) => (i - 1 + list.length) % list.length); }}><Icon name="back" size={22} /></button>
+              <button type="button" className="mdx-lightbox-nav next" aria-label="Próxima" onClick={(e) => { e.stopPropagation(); setOpen((i) => (i + 1) % list.length); }}><Icon name="next" size={22} /></button>
+              <span className="mdx-lightbox-count">{open + 1} / {list.length}</span>
+            </>
+          )}
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
+function GalleryShot({ img, onOpen }) {
+  const sources = useMemo(() => [...new Set([proxyImage(img.thumb || img.full), img.thumb || img.full])], [img]);
+  const [idx, setIdx] = useState(0);
+  if (idx >= sources.length) return null; // imagem quebrada: some da faixa
+  return (
+    <button type="button" className="mdx-gallery-shot" onClick={onOpen}>
+      <img src={sources[idx]} alt="" loading="lazy" onError={() => setIdx((i) => i + 1)} />
+    </button>
+  );
+}
+
+// ---------- Ficha do mod (datas, autor, verificação de vírus) ----------
+// items: [{ label, value, tone?: 'ok' | 'bad' | 'accent', icon? }]
+export function ModInfoGrid({ items }) {
+  const list = (items || []).filter((i) => i && i.value);
+  if (list.length === 0) return null;
+  return (
+    <dl className="mdx-infogrid">
+      {list.map((i) => (
+        <div key={i.label} className="mdx-infogrid-item">
+          <dt>{i.label}</dt>
+          <dd className={i.tone ? `tone-${i.tone}` : undefined}>
+            {i.tone === 'ok' && <Icon name="check" size={14} strokeWidth={2.6} />}
+            {i.tone === 'bad' && <Icon name="alert" size={14} />}
+            {i.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+export function formatModDate(value) {
+  if (!value) return null;
+  const d = typeof value === 'number' ? new Date(value < 1e12 ? value * 1000 : value) : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+export function ModDetailLayout({ onBack, backLabel, thumb, fallbackIcon, title, subtitle, stats, actions, notices, main, side, gallery, info }) {
   return (
     <div className="mdx-detail">
       <button type="button" className="mdx-back-link" onClick={onBack}><Icon name="back" size={16} /> {backLabel}</button>
@@ -247,6 +341,12 @@ export function ModDetailLayout({ onBack, backLabel, thumb, fallbackIcon, title,
           {notices}
         </div>
       </div>
+      {(gallery?.length > 0 || info?.length > 0) && (
+        <div className="mdx-detail-showcase">
+          <ModGallery images={gallery} />
+          <ModInfoGrid items={info} />
+        </div>
+      )}
       <div className={`mdx-detail-cols ${side ? '' : 'single'}`}>
         <div className="mdx-detail-main">{main}</div>
         {side && <aside className="mdx-detail-side">{side}</aside>}

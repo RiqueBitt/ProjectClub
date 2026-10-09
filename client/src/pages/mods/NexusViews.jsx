@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getNexusMod, getNexusDownload } from '../../api/endpoints';
 import { isDesktopModsAvailable, installModLocally, modFolderName, onModsProgress } from '../../utils/mods';
 import {
-  Icon, formatCount, EmptyState, ModDetailLayout, DetailStat, Section, ProgressBar, progressLabel, useModsManager,
+  Icon, formatCount, EmptyState, ModDetailLayout, formatModDate, DetailStat, Section, ProgressBar, progressLabel, useModsManager,
 } from './shared.jsx';
 import { formatBytes } from './unifiedApi.js';
 import { proxyImage } from '../../utils/imageProxy';
@@ -132,6 +132,14 @@ export function NexusModDetail({ game, domain, modId, onBack }) {
       thumb={data.thumbUrl}
       title={data.name}
       subtitle={data.author ? <>por <strong>{data.author}</strong>{data.version ? <> · v{data.version}</> : null}</> : null}
+      gallery={data.images}
+      info={[
+        { label: 'Última atualização', value: formatModDate(data.updatedAt) },
+        { label: 'Enviado originalmente', value: formatModDate(data.createdAt) },
+        { label: 'Criado por', value: data.creator },
+        { label: 'Enviado por', value: data.uploadedBy, tone: 'accent' },
+        data.virusScan && { label: 'Verificação de vírus', value: data.virusScan.safe ? 'Seguro para usar' : data.virusScan.danger ? 'Arquivo em quarentena' : 'Ainda não verificado', tone: data.virusScan.safe ? 'ok' : data.virusScan.danger ? 'bad' : undefined },
+      ]}
       stats={(
         <>
           {installed && !installingFileId && <span className="mdx-installed-pill"><Icon name="check" size={13} strokeWidth={2.6} /> Instalado</span>}

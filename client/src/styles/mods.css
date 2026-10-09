@@ -863,3 +863,65 @@ button.mdx-ux-tile.dim:hover { border-color: color-mix(in srgb, var(--red) 40%, 
 }
 .mdx-detail-head.has-banner .mdx-detail-media .mdx-thumb { box-shadow: 0 16px 36px -14px rgba(0, 0, 0, .85); }
 @media (prefers-reduced-motion: reduce) { .mdx-detail-banner { transform: none; } }
+
+/* ---------- Galeria + ficha do mod (estilo Nexus) ---------- */
+.mdx-detail-showcase { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+.mdx-gallery { position: relative; }
+.mdx-gallery-strip {
+  display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+  border-radius: 14px;
+}
+.mdx-gallery-strip::-webkit-scrollbar { display: none; }
+.mdx-gallery-shot {
+  flex: 0 0 auto; width: clamp(220px, 24%, 300px); aspect-ratio: 16 / 9; padding: 0; overflow: hidden;
+  border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--border); scroll-snap-align: start;
+  position: relative;
+}
+.mdx-gallery-shot::after { content: ''; display: block; padding-top: 56.25%; }
+.mdx-gallery-shot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .3s ease, filter .2s; }
+.mdx-gallery-shot:hover img { transform: scale(1.04); filter: brightness(1.08); }
+.mdx-gallery-shot:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.mdx-gallery-arrow {
+  position: absolute; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; border-radius: 9px;
+  display: grid; place-items: center; color: #fff; background: rgba(10, 12, 16, .72); border: 1px solid rgba(255, 255, 255, .16);
+  backdrop-filter: blur(6px);
+}
+.mdx-gallery-arrow.prev { left: 8px; }
+.mdx-gallery-arrow.next { right: 8px; }
+.mdx-gallery-arrow:hover { background: rgba(10, 12, 16, .9); }
+.mdx-gallery-count {
+  position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); pointer-events: none;
+  padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #fff; background: rgba(10, 12, 16, .72);
+}
+
+.mdx-infogrid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px 18px; margin: 0;
+  padding: 14px 16px; border-radius: 14px; border: 1px solid var(--border); background: var(--bg-secondary);
+}
+.mdx-infogrid-item { min-width: 0; }
+.mdx-infogrid dt { font-size: 13px; color: var(--text-muted); margin-bottom: 3px; }
+.mdx-infogrid dd { margin: 0; display: flex; align-items: center; gap: 5px; font-size: 13.5px; font-weight: 700; color: var(--header-primary); overflow-wrap: anywhere; }
+.mdx-infogrid dd.tone-accent { color: #e6873c; }
+.mdx-infogrid dd.tone-ok { color: var(--green); }
+.mdx-infogrid dd.tone-bad { color: var(--red); }
+
+.mdx-lightbox {
+  position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 40px 64px;
+  background: rgba(4, 5, 8, .88); backdrop-filter: blur(4px); animation: mdx-nxm-in .18s ease-out;
+}
+.mdx-lightbox img { max-width: 100%; max-height: 100%; border-radius: 10px; box-shadow: 0 30px 80px rgba(0, 0, 0, .6); object-fit: contain; }
+.mdx-lightbox-close, .mdx-lightbox-nav {
+  position: absolute; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px;
+  color: #fff; background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .16);
+}
+.mdx-lightbox-close:hover, .mdx-lightbox-nav:hover { background: rgba(255, 255, 255, .2); }
+.mdx-lightbox-close { top: 16px; right: 16px; }
+.mdx-lightbox-nav.prev { left: 14px; top: 50%; transform: translateY(-50%); }
+.mdx-lightbox-nav.next { right: 14px; top: 50%; transform: translateY(-50%); }
+.mdx-lightbox-count { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); color: #fff; font-weight: 700; font-size: 13px; }
+@media (max-width: 700px) {
+  .mdx-gallery-shot { width: 78%; }
+  .mdx-lightbox { padding: 60px 8px; }
+  .mdx-lightbox-nav { top: auto; bottom: 14px; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .mdx-lightbox { animation: none; } .mdx-gallery-shot img { transition: none; } }

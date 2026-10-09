@@ -192,10 +192,12 @@ export default function ChannelSidebar({
   return (
     <aside className={`sidebar${embedded ? ' sidebar-embedded' : ''}`}>
       {community.bannerUrl && (
-        <div className="sidebar-banner" style={{ backgroundImage: `url(${community.bannerUrl})`, "--banner": `url(${JSON.stringify(community.bannerUrl)})` }} />
+        <div className="sidebar-banner" style={{ backgroundImage: `url(${community.bannerUrl})`, "--banner": `url(${JSON.stringify(community.bannerUrl)})` }}>
+          {/* Imagem de verdade: no Normal 2.0 o banner aparece inteiro, na proporção dele. */}
+          <img className="sidebar-banner-img" src={proxyImage(community.bannerUrl)} alt="" draggable={false} />
+        </div>
       )}
       <div className="sidebar-header" onClick={() => setMenuOpen((v) => !v)}>
-        {community.iconUrl && <img className="sidebar-header-icon" src={proxyImage(community.iconUrl)} alt="" />}
         <span className="truncate">{community.name || 'Project Club'}</span>
         {canManage && (
           <button className="icon-btn sidebar-header-toggle" title="Configurações da comunidade" onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}><img className="ui-icon" src={settingsIcon} alt="" /></button>

@@ -4,6 +4,15 @@ import { isDesktopModsAvailable, detectSteamGames, listInstalledModsLocally } fr
 import { Icon, GameCover, SourceChip, EmptyState, SkeletonGrid, SearchField, ChipRow, SOURCE_ORDER } from './shared.jsx';
 import { NexusLinkToggle } from './NexusViews.jsx';
 
+// Itens da Steam que não são jogos (pacotes de runtime, Proton, SteamVR,
+// redistribuíveis) — item pedido: "remova o Steamworks Common
+// Redistributables da aba de jogos".
+const STEAM_TOOL_IDS = new Set([228980, 1070560, 1391110, 1628350, 250820, 1826330, 1161040, 1493710, 961940, 1054830, 1113280, 1245040, 1420170, 1580130, 1887720, 2180100, 2230260, 2348590, 2805730, 3658110, 1007, 243750]);
+const STEAM_TOOL_NAME = /redistributable|^proton\b|steam linux runtime|steamvr|steamworks|easyanticheat runtime|battleye service|dedicated server|\bsdk\b/i;
+function isSteamTool(game) {
+  return STEAM_TOOL_IDS.has(Number(game.steamAppId)) || STEAM_TOOL_NAME.test(game.name || '');
+}
+
 // Carrega a biblioteca uma vez só (fica no ModsPage), pra voltar do
 // gerenciador de um jogo pro álbum sem detectar a Steam de novo.
 export function useModsLibrary() {
@@ -53,7 +62,7 @@ export function useModsLibrary() {
           // tudo num Map por steamAppId, então um jogo com suporte em
           // mais de uma fonte continua sendo UM cartão só.
           const merged = new Map();
-          for (const g of detection.games) {
+          for (const g of detection.games.filter((x) => !isSteamTool(x))) {
             if (merged.has(g.steamAppId)) continue;
             merged.set(g.steamAppId, { steamAppId: g.steamAppId, displayName: g.name || `App ${g.steamAppId}`, iconUrl: null, installPath: g.installPath, sources: {} });
           }
