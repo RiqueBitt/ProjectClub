@@ -96,6 +96,19 @@ export function steamCoverUrl(steamAppId) {
   return `https://cdn.akamai.steamstatic.com/steam/apps/${steamAppId}/library_600x900.jpg`;
 }
 
+// Arte horizontal grande (fundo do cabeçalho do jogo no gerenciador de
+// mods) — mesma CDN pública da Steam, só com o AppID.
+export function steamHeroUrl(steamAppId) {
+  return `https://cdn.akamai.steamstatic.com/steam/apps/${steamAppId}/library_hero.jpg`;
+}
+
+// Mesmo nome de pasta que o app desktop usa ao instalar um mod (ver
+// desktop/modsManager.js) — serve pra saber se um mod da lista já está
+// instalado comparando com listInstalledModsLocally.
+export function modFolderName(name) {
+  return String(name || '').trim().replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 120);
+}
+
 export function listInstalledModsLocally(gameInstallPath) {
   return window.electronAPI.mods.listInstalled(gameInstallPath);
 }

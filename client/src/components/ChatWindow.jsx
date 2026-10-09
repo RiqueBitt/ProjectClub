@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useElementHeight } from '../utils/useElementHeight';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -25,23 +25,17 @@ import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import { TYPE_ICON } from '../utils/channelIcons';
 import PresenceDot from './PresenceDot.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
-import searchIcon from '../assets/icons/search.png';
-import phoneIcon from '../assets/icons/phone.png';
-import cancelIcon from '../assets/icons/cancel.png';
-import selectedIcon from '../assets/icons/selected.png';
-import plusIcon from '../assets/icons/plus.png';
-import documentIcon from '../assets/icons/document.png';
-import micIcon from '../assets/icons/mic.png';
-import emojiPickerIcon from '../assets/icons/emoji-picker.png';
-import stickerPickerIcon from '../assets/icons/sticker-picker.png';
+import ChatIcon from './ChatIcons.jsx';
+import { STATUS_LABEL } from '../utils/status';
 import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from './PenguinAvatar.jsx';
+import '../styles/chat.css';
 
 // BUG CORRIGIDO: <img src={dmOther.avatarUrl}> quebrava (bloqueado pela
 // CSP img-src) quando a outra pessoa da DM tem avatar de pinguim
 // (pseudo-URL "penguin:<cor>", não uma URL de rede de verdade) — ver
 // PenguinAvatar.jsx.
-function HeaderAvatarImg({ url }) {
-  if (isPenguinAvatarUrl(url)) return <PenguinAvatar color={penguinColorFromUrl(url)} size={28} />;
+function HeaderAvatarImg({ url, size = 28 }) {
+  if (isPenguinAvatarUrl(url)) return <PenguinAvatar color={penguinColorFromUrl(url)} size={size} />;
   return <img src={url} alt="" />;
 }
 
@@ -53,10 +47,33 @@ function HeaderAvatarImg({ url }) {
 // Item pedido: "colocar ícones melhores no mobile que representem a
 // página de membros" — a seta "❮" antes não dizia nada sobre o que o
 // botão fazia; 👥 já comunica "membros" antes mesmo de tocar.
+// (Agora um ícone SVG de pessoas — emoji vira quadradinho em alguns sistemas.)
 function MembersToggleButton({ title = 'Membros da comunidade' }) {
   const toggleMobileMembers = useStore((s) => s.toggleMobileMembers);
   return (
-    <button className="icon-btn mobile-members-toggle" onClick={toggleMobileMembers} title={title}>👥</button>
+    <button className="icon-btn mobile-members-toggle chat-header-btn" onClick={toggleMobileMembers} title={title} aria-label={title}><ChatIcon name="users" /></button>
+  );
+}
+
+// Separador de dia entre mensagens: "Hoje", "Ontem" ou "08 de outubro".
+function dayKeyOf(date) {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+function dayLabelOf(iso) {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
+  const key = dayKeyOf(d);
+  if (key === dayKeyOf(today)) return 'Hoje';
+  if (key === dayKeyOf(yesterday)) return 'Ontem';
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', ...(d.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {}) });
+}
+function DaySeparator({ iso }) {
+  return (
+    <div className="chat-day-sep" role="separator">
+      <span className="chat-day-sep-label">{dayLabelOf(iso)}</span>
+    </div>
   );
 }
 
@@ -290,6 +307,11 @@ export default function ChatWindow({ kind }) {
   const chatListRef = useRef(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMoreOlder, setHasMoreOlder] = useState(true);
+  // Esqueleto enquanto a primeira página carrega (em vez da tela vazia
+  // piscando "início do canal" antes das mensagens chegarem).
+  const [initialLoading, setInitialLoading] = useState(true);
+  const currentRoomRef = useRef(roomKey);
+  currentRoomRef.current = roomKey;
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -368,9 +390,17 @@ export default function ChatWindow({ kind }) {
     if (isNonChatChannel) return;
     setRoomMessages(roomKey, []);
     setHasMoreOlder(true);
+    setInitialLoading(true);
+    const loadingKey = roomKey;
     listMessages({ conversationId, channelId }).then((d) => {
+      // Mesmo lote de render que as mensagens — senão o "início do canal"
+      // entra depois, por cima, e empurra a lista pra fora do final.
+      if (currentRoomRef.current === loadingKey) setInitialLoading(false);
       setRoomMessages(roomKey, d.messages);
       if (d.messages.length < 50) setHasMoreOlder(false);
+    }).finally(() => {
+      // Só some o esqueleto se ainda estamos na mesma sala.
+      if (currentRoomRef.current === loadingKey) setInitialLoading(false);
     });
     if (socket && channelId) socket.emit('channel:join', channelId);
     if (socket && conversationId) socket.emit('conversation:join', conversationId);
@@ -484,7 +514,17 @@ export default function ChatWindow({ kind }) {
       if (stickToBottomRef.current) bottomRef.current?.scrollIntoView({ block: 'end' });
     });
     observer.observe(list);
-    return () => observer.disconnect();
+    // O tamanho da própria lista não muda quando uma imagem termina de
+    // carregar lá dentro (só o conteúdo cresce) — então também escuta o
+    // "load" das imagens/vídeos (fase de captura) pra continuar no final.
+    const onMediaLoad = () => { if (stickToBottomRef.current) bottomRef.current?.scrollIntoView({ block: 'end' }); };
+    list.addEventListener('load', onMediaLoad, true);
+    list.addEventListener('loadedmetadata', onMediaLoad, true);
+    return () => {
+      observer.disconnect();
+      list.removeEventListener('load', onMediaLoad, true);
+      list.removeEventListener('loadedmetadata', onMediaLoad, true);
+    };
   }, [roomKey, isNonChatChannel]);
 
   // Item pedido: otimização/velocidade — `typing:start` estava sendo
@@ -725,13 +765,21 @@ export default function ChatWindow({ kind }) {
     setSearchResults(messages);
   };
 
+  // Ícone do tipo do canal num quadradinho com tom da marca, no cabeçalho.
+  const channelHeaderIcon = channel ? (
+    <span className="chat-header-icon" aria-hidden="true">
+      {channel.type === 'TEXT' || !channel.type ? <ChatIcon name="hash" size={18} /> : <ChannelTypeIcon type={channel.type} className="chat-header-type-icon" />}
+    </span>
+  ) : null;
+
   if (isCallChannel) {
     return (
       <section className="chat-window">
         {channelId && <ChannelSwitcher currentChannelId={channelId} />}
         <header className="chat-header">
+          {channelHeaderIcon}
           <div className="chat-title-block">
-            <ChatTitleOrCategoryChannels title={title} currentChannelId={channelId} />
+            <ChatTitleOrCategoryChannels title={channel?.name || title} currentChannelId={channelId} />
           </div>
           <MembersToggleButton />
         </header>
@@ -747,8 +795,9 @@ export default function ChatWindow({ kind }) {
       <section className="chat-window">
         {channelId && <ChannelSwitcher currentChannelId={channelId} />}
         <header className="chat-header">
+          {channelHeaderIcon}
           <div className="chat-title-block">
-            <ChatTitleOrCategoryChannels title={title} currentChannelId={channelId} />
+            <ChatTitleOrCategoryChannels title={channel?.name || title} currentChannelId={channelId} />
           </div>
           <MembersToggleButton />
         </header>
@@ -759,17 +808,33 @@ export default function ChatWindow({ kind }) {
 
   let lastAuthor = null;
   let lastTime = 0;
+  let lastDay = null;
+
+  const dmStatus = dmOther ? (dmOtherPresence?.status || dmOther.status || 'OFFLINE') : null;
+  const dmCustomStatus = dmOther ? (dmOtherPresence?.customStatus ?? dmOther.customStatus) : null;
+  // Quem está digitando, pelo nome (cai em "Alguém" se não achar).
+  const typingOthers = typingUserIds.filter((id) => id !== user.id);
+  const typingNames = typingOthers.map((id) => (
+    members.find((mm) => mm.user.id === id)?.user.displayName
+    || dmConvo?.members.find((mm) => mm.id === id)?.displayName
+    || 'Alguém'
+  ));
+  const typingText = typingNames.length === 0 ? ''
+    : typingNames.length === 1 ? <><b>{typingNames[0]}</b> está digitando…</>
+      : typingNames.length === 2 ? <><b>{typingNames[0]}</b> e <b>{typingNames[1]}</b> estão digitando…</>
+        : 'Várias pessoas estão digitando…';
 
   return (
-    <section className="chat-window">
+    <section className="chat-window chat-v2">
       {channelId && <ChannelSwitcher currentChannelId={channelId} />}
-      <header className="chat-header">
+      <header className={`chat-header ${dmOther ? 'is-dm' : ''}`}>
+        {channelHeaderIcon}
         {dmOther && (
           <div className="avatar-wrap small chat-header-avatar">
             <div className="avatar small" style={{ background: dmOther.profileColor || '#F2894D' }}>
-              {dmOther.avatarUrl ? <HeaderAvatarImg url={dmOther.avatarUrl} /> : title[0]?.toUpperCase()}
+              {dmOther.avatarUrl ? <HeaderAvatarImg url={dmOther.avatarUrl} size={34} /> : title[0]?.toUpperCase()}
             </div>
-            <PresenceDot status={dmOtherPresence?.status || dmOther.status || 'OFFLINE'} />
+            <PresenceDot status={dmStatus} />
           </div>
         )}
         {dmConvo?.isGroup && (
@@ -778,23 +843,34 @@ export default function ChatWindow({ kind }) {
           </button>
         )}
         <div className="chat-title-block">
-          <ChatTitleOrCategoryChannels title={title} currentChannelId={channelId} />
+          <ChatTitleOrCategoryChannels title={channel?.name || title} currentChannelId={channelId} />
+          {dmOther && (
+            <span className="chat-header-sub truncate">
+              <span className={`chat-header-status status-${dmStatus.toLowerCase()}`}>{STATUS_LABEL[dmStatus] || 'Offline'}</span>
+              {dmCustomStatus && <> · {dmCustomStatus}</>}
+            </span>
+          )}
+          {dmConvo?.isGroup && <span className="chat-header-sub truncate">{dmConvo.members.length} membros</span>}
+          {channel?.topic && <span className="chat-header-sub truncate" title={channel.topic}>{channel.topic}</span>}
         </div>
-        <button className="icon-btn" onClick={() => setSearchOpen((v) => !v)} title="Buscar mensagens"><img className="ui-icon" src={searchIcon} alt="" /></button>
-        {conversationId && (
-          <button
-            className={`icon-btn ${voice.call?.channelId === `dm:${conversationId}` ? 'on' : ''}`}
-            title={voice.call?.channelId === `dm:${conversationId}` ? 'Você está nesta chamada' : 'Ligar'}
-            onClick={() => {
-              if (voice.call?.channelId === `dm:${conversationId}`) return;
-              voice.joinChannel(null, `dm:${conversationId}`, title, 'DM');
-            }}
-          >
-            <img className="ui-icon" src={phoneIcon} alt="" />
-          </button>
-        )}
-        {channelId && <MembersToggleButton />}
-        {conversationId && <MembersToggleButton title="Perfil" />}
+        <div className="chat-header-actions">
+          <button className={`icon-btn chat-header-btn ${searchOpen ? 'on' : ''}`} onClick={() => setSearchOpen((v) => !v)} title="Buscar mensagens" aria-label="Buscar mensagens"><ChatIcon name="search" /></button>
+          {conversationId && (
+            <button
+              className={`icon-btn chat-header-btn ${voice.call?.channelId === `dm:${conversationId}` ? 'on' : ''}`}
+              title={voice.call?.channelId === `dm:${conversationId}` ? 'Você está nesta chamada' : 'Ligar'}
+              aria-label="Ligar"
+              onClick={() => {
+                if (voice.call?.channelId === `dm:${conversationId}`) return;
+                voice.joinChannel(null, `dm:${conversationId}`, title, 'DM');
+              }}
+            >
+              <ChatIcon name="phone" />
+            </button>
+          )}
+          {channelId && <MembersToggleButton />}
+          {conversationId && <MembersToggleButton title="Perfil" />}
+        </div>
       </header>
 
       {searchOpen && (
@@ -816,19 +892,29 @@ export default function ChatWindow({ kind }) {
 
       <div className="message-list" ref={chatListRef}>
         {loadingOlder && <div className="message-list-loading-older dim">Carregando mensagens antigas...</div>}
+        {initialLoading && messages.length === 0 && <ChatSkeleton />}
+        {!initialLoading && !hasMoreOlder && (
+          <ChatIntro channel={channel} dmOther={dmOther} dmConvo={dmConvo} title={title} />
+        )}
         {messages.map((m) => {
-          const showAuthor = m.authorId !== lastAuthor || new Date(m.createdAt) - lastTime > 5 * 60 * 1000;
+          // Dia novo (ou resposta) sempre começa um grupo novo, com autor.
+          const dayKey = dayKeyOf(m.createdAt);
+          const newDay = dayKey !== lastDay;
+          const showAuthor = newDay || !!m.replyTo || m.authorId !== lastAuthor || new Date(m.createdAt) - lastTime > 5 * 60 * 1000;
           lastAuthor = m.authorId;
           lastTime = new Date(m.createdAt);
+          lastDay = dayKey;
           return (
-            <Message
-              key={m.id}
-              message={m}
-              showAuthor={showAuthor}
-              onReply={setReplyTo}
-              topics={topicsByParent.get(m.id) || EMPTY_TOPICS}
-              onOpenTopic={setOpenTopic}
-            />
+            <Fragment key={m.id}>
+              {newDay && <DaySeparator iso={m.createdAt} />}
+              <Message
+                message={m}
+                showAuthor={showAuthor}
+                onReply={setReplyTo}
+                topics={topicsByParent.get(m.id) || EMPTY_TOPICS}
+                onOpenTopic={setOpenTopic}
+              />
+            </Fragment>
           );
         })}
         <div ref={bottomRef} />
@@ -852,21 +938,18 @@ export default function ChatWindow({ kind }) {
         <GroupSettingsModal conversation={dmConvo} onClose={() => setGroupSettingsOpen(false)} />
       )}
 
-      {typingUserIds.filter((id) => id !== user.id).length > 0 && (
-        <div className="typing-indicator">Alguém está digitando...</div>
-      )}
-
       {!!channel?.slowModeSeconds && (
         <div className="slow-mode-hint" title="Modo lento ativo neste canal">
-          🐢 Modo lento: {formatSlowModeDuration(channel.slowModeSeconds)} entre mensagens
+          <ChatIcon name="clock" size={14} /> Modo lento: {formatSlowModeDuration(channel.slowModeSeconds)} entre mensagens
         </div>
       )}
 
-      <form className="message-input-bar" ref={composerBarRef} onSubmit={onSubmit}>
+      <form className="message-input-bar chat-composer" ref={composerBarRef} onSubmit={onSubmit}>
         {replyToVisible && (
-          <div className={`reply-bar ${replyBarLeaving ? 'leaving' : ''}`}>
-            Respondendo a <b>{replyToVisible.author.displayName}</b>
-            <button type="button" className="icon-btn-small" onClick={() => setReplyTo(null)}><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button>
+          <div className={`reply-bar chat-composer-banner ${replyBarLeaving ? 'leaving' : ''}`}>
+            <ChatIcon name="reply" size={15} className="chat-composer-banner-icon" />
+            <span className="truncate">Respondendo a <b>{replyToVisible.author.displayName}</b></span>
+            <button type="button" className="icon-btn-small chat-composer-banner-close" title="Cancelar resposta" aria-label="Cancelar resposta" onClick={() => setReplyTo(null)}><ChatIcon name="close" size={14} /></button>
           </div>
         )}
         {filesVisible.length > 0 && (
@@ -889,17 +972,17 @@ export default function ChatWindow({ kind }) {
                       type="button" className={`pending-file-spoiler-btn ${f.spoiler ? 'active' : ''}`}
                       title={f.spoiler ? 'Remover spoiler' : 'Marcar como spoiler'}
                       onClick={() => setFiles(files.map((x, idx) => (idx === i ? { ...x, spoiler: !x.spoiler } : x)))}
-                    >👁</button>
+                    ><ChatIcon name="eye" size={15} /></button>
                     <button
                       type="button" className="pending-file-remove-btn" title="Remover"
                       onClick={() => setFiles(files.filter((_, idx) => idx !== i))}
-                    ><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button>
+                    ><ChatIcon name="close" size={15} /></button>
                   </div>
                   {f.spoiler && <span className="pending-file-spoiler-tag">Spoiler</span>}
                   <span className="pending-file-thumb-name truncate">{f.file.name}</span>
                 </div>
               ) : (
-                <span key={i} className="chip">{f.file.name} <button type="button" onClick={() => setFiles(files.filter((_, idx) => idx !== i))}><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button></span>
+                <span key={i} className="chip chat-pending-chip"><ChatIcon name="file" size={14} /> <span className="truncate">{f.file.name}</span> <button type="button" title="Remover" aria-label="Remover" onClick={() => setFiles(files.filter((_, idx) => idx !== i))}><ChatIcon name="close" size={13} /></button></span>
               )
             ))}
           </div>
@@ -927,10 +1010,10 @@ export default function ChatWindow({ kind }) {
           </div>
         )}
         {recording && (
-          <div className="reply-bar recording-bar">
-            <span className="recording-dot" /> Gravando áudio... {formatDuration(recordSeconds)}
-            <button type="button" className="icon-btn-small" title="Cancelar" onClick={() => stopRecording(true)}><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button>
-            <button type="button" className="icon-btn-small" title="Concluir e anexar" onClick={() => stopRecording(false)}><img className="ui-icon-sm" src={selectedIcon} alt="" /></button>
+          <div className="reply-bar recording-bar chat-composer-banner">
+            <span className="recording-dot" /> <span>Gravando áudio... <b>{formatDuration(recordSeconds)}</b></span>
+            <button type="button" className="icon-btn-small chat-composer-banner-close" title="Cancelar" aria-label="Cancelar" onClick={() => stopRecording(true)}><ChatIcon name="close" size={14} /></button>
+            <button type="button" className="icon-btn-small chat-composer-banner-ok" title="Concluir e anexar" aria-label="Concluir e anexar" onClick={() => stopRecording(false)}><ChatIcon name="check" size={14} /></button>
           </div>
         )}
         <div className="message-input-row">
@@ -940,15 +1023,15 @@ export default function ChatWindow({ kind }) {
             onChange={(e) => { addFiles(Array.from(e.target.files)); e.target.value = ''; }}
           />
           <div className="composer-picker-anchor">
-            <button type="button" className="icon-btn attach-plus-btn" title="Adicionar" onClick={() => setAttachMenuOpen((v) => !v)}><img className="ui-icon" src={plusIcon} alt="+" /></button>
+            <button type="button" className={`icon-btn attach-plus-btn chat-composer-btn ${attachMenuOpen ? 'on' : ''}`} title="Adicionar" aria-label="Adicionar" onClick={() => setAttachMenuOpen((v) => !v)}><ChatIcon name="plus" /></button>
             {attachMenuOpen && (
               <div className="attach-menu">
                 <button type="button" onClick={() => { fileInputRef.current?.click(); setAttachMenuOpen(false); }}>
-                  <img className="ui-icon-sm" src={documentIcon} alt="" /> Enviar arquivos
+                  <ChatIcon name="file" size={16} /> Enviar arquivos
                 </button>
                 {channel && hasPermission(myPerms, 'CREATE_POLLS') && (
                   <button type="button" onClick={() => { setPollComposerOpen(true); setAttachMenuOpen(false); }}>
-                    📊 Criar enquete
+                    <ChatIcon name="poll" size={16} /> Criar enquete
                   </button>
                 )}
               </div>
@@ -956,16 +1039,17 @@ export default function ChatWindow({ kind }) {
           </div>
           <button
             type="button"
-            className={`icon-btn ${recording ? 'danger-toggle' : ''}`}
+            className={`icon-btn chat-composer-btn ${recording ? 'danger-toggle' : ''}`}
             title={recording ? 'Parar gravação' : 'Gravar áudio'}
+            aria-label={recording ? 'Parar gravação' : 'Gravar áudio'}
             onClick={() => (recording ? stopRecording(false) : startRecording())}
           >
-            <img className="ui-icon" src={micIcon} alt="" />
+            <ChatIcon name="mic" />
           </button>
           <RichMessageInput
             inputRef={inputRef}
             className="message-input"
-            placeholder={`Conversar em ${title || ''}`}
+            placeholder={channel ? `Conversar em #${channel.name}` : `Conversar com ${title || ''}`}
             value={content}
             onChange={onContentChange}
             emojiMap={composerEmojiMap}
@@ -973,12 +1057,12 @@ export default function ChatWindow({ kind }) {
             onSubmit={() => onSubmit({ preventDefault: () => {} })}
           />
           <div className="composer-picker-anchor">
-            <button ref={gifBtnRef} type="button" className="icon-btn" title="GIF" onClick={() => setPickerTab((t) => (t === 'gifs' ? null : 'gifs'))}>GIF</button>
-            <button ref={stickerBtnRef} type="button" className="icon-btn" title="Figurinhas" onClick={() => setPickerTab((t) => (t === 'stickers' ? null : 'stickers'))}>
-              <img className="ui-icon" src={stickerPickerIcon} alt="" />
+            <button ref={gifBtnRef} type="button" className={`icon-btn chat-composer-btn chat-gif-btn ${pickerTab === 'gifs' ? 'on' : ''}`} title="GIF" onClick={() => setPickerTab((t) => (t === 'gifs' ? null : 'gifs'))}><span>GIF</span></button>
+            <button ref={stickerBtnRef} type="button" className={`icon-btn chat-composer-btn ${pickerTab === 'stickers' ? 'on' : ''}`} title="Figurinhas" aria-label="Figurinhas" onClick={() => setPickerTab((t) => (t === 'stickers' ? null : 'stickers'))}>
+              <ChatIcon name="sticker" />
             </button>
-            <button ref={emojiBtnRef} type="button" className="icon-btn" title="Emoji" onClick={() => setPickerTab((t) => (t === 'emojis' ? null : 'emojis'))}>
-              <img className="ui-icon" src={emojiPickerIcon} alt="" />
+            <button ref={emojiBtnRef} type="button" className={`icon-btn chat-composer-btn ${pickerTab === 'emojis' ? 'on' : ''}`} title="Emoji" aria-label="Emoji" onClick={() => setPickerTab((t) => (t === 'emojis' ? null : 'emojis'))}>
+              <ChatIcon name="smile" />
             </button>
             {emojiPickerOpen && createPortal(
               <EmojiPicker
@@ -996,8 +1080,16 @@ export default function ChatWindow({ kind }) {
               document.body,
             )}
           </div>
-          <button type="submit" className="icon-btn send-btn" title="Enviar">➤</button>
-        
+          <button type="submit" className={`icon-btn send-btn chat-send-btn ${content.trim() || files.length ? 'ready' : ''}`} title="Enviar" aria-label="Enviar"><ChatIcon name="send" size={18} /></button>
+        </div>
+        {/* Linha reservada pro "digitando…" — altura fixa, não empurra nada. */}
+        <div className="chat-typing" aria-live="polite">
+          {typingOthers.length > 0 && (
+            <>
+              <span className="chat-typing-dots" aria-hidden="true"><i /><i /><i /></span>
+              <span className="truncate">{typingText}</span>
+            </>
+          )}
         </div>
       </form>
     </section>
@@ -1080,6 +1172,58 @@ function ChatTitleOrCategoryChannels({ title, currentChannelId }) {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+// Topo da conversa: aparece quando não há mais mensagens antigas pra
+// carregar — "início do canal" / "início da conversa". Fica empurrado pra
+// baixo (margin-top:auto) quando há poucas mensagens.
+function ChatIntro({ channel, dmOther, dmConvo, title }) {
+  if (channel) {
+    return (
+      <div className="chat-intro">
+        <div className="chat-intro-icon"><ChatIcon name="hash" size={30} /></div>
+        <h2 className="chat-intro-title">Bem-vindo(a) a #{channel.name}</h2>
+        <p className="chat-intro-text">Este é o início do canal <b>#{channel.name}</b>. {channel.topic || 'Diga oi e comece a conversa!'}</p>
+      </div>
+    );
+  }
+  if (dmOther) {
+    return (
+      <div className="chat-intro">
+        <UserAvatar user={dmOther} size={72} className="chat-intro-avatar" />
+        <h2 className="chat-intro-title">{dmOther.displayName}</h2>
+        {dmOther.username && <div className="chat-intro-handle">@{dmOther.username}</div>}
+        <p className="chat-intro-text">Este é o início da sua conversa com <b>{dmOther.displayName}</b>.</p>
+      </div>
+    );
+  }
+  if (dmConvo?.isGroup) {
+    return (
+      <div className="chat-intro">
+        <div className="chat-intro-group"><ConversationIcon conversation={dmConvo} size="large" /></div>
+        <h2 className="chat-intro-title">{title}</h2>
+        <p className="chat-intro-text">Este é o início do grupo <b>{title}</b>.</p>
+      </div>
+    );
+  }
+  return null;
+}
+
+// Esqueleto pulsando enquanto a primeira página de mensagens carrega.
+function ChatSkeleton() {
+  return (
+    <div className="chat-skeleton" aria-hidden="true">
+      {[68, 42, 82, 55].map((w, i) => (
+        <div key={i} className="chat-skeleton-row">
+          <span className="chat-skeleton-avatar" />
+          <div className="chat-skeleton-lines">
+            <span className="chat-skeleton-line short" />
+            <span className="chat-skeleton-line" style={{ width: `${w}%` }} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

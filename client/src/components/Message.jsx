@@ -12,7 +12,8 @@ import { renderRichContent, isEmojiOnlyMessage } from '../utils/richTextRender.j
 import { groupReactions, MAX_DISTINCT_REACTIONS } from '../utils/reactions';
 import { roleTextStyle, highestColoredRole } from '../utils/roleColor';
 import { nameStyleProps, hasCustomNameStyle, nameStyleClassName } from '../utils/nameStyle';
-import { formatMessageTime, formatEmbedTime } from '../utils/formatTime';
+import { formatMessageTime, formatEmbedTime, formatTimeOnly } from '../utils/formatTime';
+import ChatIcon from './ChatIcons.jsx';
 import EmojiPicker from './EmojiPicker.jsx';
 import StyledEmoji from './StyledEmoji.jsx';
 import CustomAudioPlayer from './CustomAudioPlayer.jsx';
@@ -38,7 +39,7 @@ import { proxyImage } from '../utils/imageProxy';
 // (pseudo-URL "penguin:<cor>", não uma URL de rede de verdade) — ver
 // PenguinAvatar.jsx.
 function ReplyAvatarImg({ url }) {
-  if (isPenguinAvatarUrl(url)) return <PenguinAvatar color={penguinColorFromUrl(url)} size={16} />;
+  if (isPenguinAvatarUrl(url)) return <PenguinAvatar color={penguinColorFromUrl(url)} size={18} />;
   return <img src={url} alt="" />;
 }
 
@@ -306,6 +307,20 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
   const repliesToMe = !!message.replyTo && (message.replyTo.authorId ?? message.replyTo.author?.id) === user.id;
   const highlighted = mentionsMe || repliesToMe;
 
+  // Rola até a mensagem respondida (se ela já estiver carregada na
+  // lista) e dá um brilho rápido nela pra achar com o olho.
+  const jumpToReplied = () => {
+    const targetId = message.replyTo?.id || message.replyToId;
+    const el = targetId && document.querySelector(`.message[data-message-id="${targetId}"]`);
+    if (!el) return;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+    el.classList.remove('chat-flash');
+    void el.offsetWidth;
+    el.classList.add('chat-flash');
+    setTimeout(() => el.classList.remove('chat-flash'), 1600);
+  };
+
   const groupedReactions = groupReactions(message.reactions, user.id);
   const atReactionLimit = groupedReactions.length >= MAX_DISTINCT_REACTIONS;
   const emojiMap = Object.fromEntries(usableEmojis.map((e) => [e.name, e.url]));
@@ -319,9 +334,12 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
 
   return (
     <div
-      className={`message ${showAuthor ? 'with-author' : ''} ${message.pinned ? 'pinned' : ''} ${message.pending ? 'pending' : ''} ${message.failed ? 'failed' : ''} ${highlighted ? 'mentioned' : ''} ${message._animateIn ? 'message-animate-in' : ''}`}
+      className={`message ${showAuthor ? 'with-author' : ''} ${message.replyTo ? 'has-reply' : ''} ${message.pinned ? 'pinned' : ''} ${message.pending ? 'pending' : ''} ${message.failed ? 'failed' : ''} ${highlighted ? 'mentioned' : ''} ${message._animateIn ? 'message-animate-in' : ''}`}
+      data-message-id={message.id}
       onContextMenu={onContextMenu}
     >
+      {/* Barra flutuante (só mouse — ver chat.css): reações rápidas,
+          reagir, responder e "mais" (abre o mesmo menu do clique direito). */}
       {!isPending && (
         <div className="message-hover-actions">
           {QUICK_EMOJIS.map((e) => (
@@ -329,17 +347,37 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
               {e}
             </button>
           ))}
+          <span className="message-hover-divider" aria-hidden="true" />
           <button
             ref={reactBtnRef}
             type="button"
-            className="message-hover-action"
-            title="Mais reações"
+            className={`message-hover-action ${showEmojiPicker ? 'on' : ''}`}
+            title="Adicionar reação"
+            aria-label="Adicionar reação"
             onClick={() => setShowEmojiPicker((v) => !v)}
           >
-            +
+            <ChatIcon name="smilePlus" size={18} />
           </button>
-          <button type="button" className="message-hover-action" title="Responder" onClick={() => onReply(message)}>↪</button>
+          <button type="button" className="message-hover-action" title="Responder" aria-label="Responder" onClick={() => onReply(message)}><ChatIcon name="reply" size={18} /></button>
+          <button type="button" className="message-hover-action" title="Mais opções" aria-label="Mais opções" onClick={onContextMenu}><ChatIcon name="more" size={18} /></button>
         </div>
+      )}
+      {/* Prévia da resposta acima da mensagem, com a linha curva saindo
+          do avatar. Clicar pula até a mensagem original (se carregada). */}
+      {message.replyTo && (
+        <button type="button" className="reply-preview" onClick={jumpToReplied} title="Ir para a mensagem original">
+          <span className="reply-preview-connector" aria-hidden="true" />
+          <span className="reply-preview-avatar" style={{ background: message.replyTo.author.profileColor }}>
+            {message.replyTo.author.avatarUrl
+              ? <ReplyAvatarImg url={message.replyTo.author.avatarUrl} />
+              : message.replyTo.author.displayName[0].toUpperCase()}
+          </span>
+          <b className={`reply-preview-name ${hasCustomNameStyle(message.replyTo.author) ? nameStyleClassName(message.replyTo.author, { fullEffect: true }) : ''}`} style={hasCustomNameStyle(message.replyTo.author) ? nameStyleProps(message.replyTo.author, { fullEffect: true }) : roleTextStyle(replyAuthorRoleColor)}>{message.replyTo.author.displayName}</b>
+          <span className="reply-preview-content">{message.replyTo.content?.slice(0, 80) || <i>Clique para ver o anexo</i>}</span>
+        </button>
+      )}
+      {!showAuthor && (
+        <span className="message-gutter-time" title={formatEmbedTime(message.createdAt)}>{formatTimeOnly(message.createdAt)}</span>
       )}
       {showAuthor && (
         <div className="avatar clickable" onClick={(e) => useStore.getState().openMiniProfile(message.authorId, e.currentTarget.getBoundingClientRect())}>
@@ -366,22 +404,10 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
             <PendantIcon user={message.author} size={20} />
             <TagBadge user={message.author} />
             <ClanTagBadge user={message.author} />
-            <span className="message-time">{formatTime(message.createdAt)}</span>
+            <span className="message-time" title={formatTime(message.createdAt)}>{formatTimeOnly(message.createdAt)}</span>
             {message.pinned && <span className="pin-badge"><img className="ui-icon-sm" src={pinIcon} alt="" /> fixada</span>}
             {message.pending && <span className="pending-badge">enviando…</span>}
             {message.failed && <span className="failed-badge">falhou ao enviar</span>}
-          </div>
-        )}
-        {message.replyTo && (
-          <div className="reply-preview">
-            <span className="reply-preview-connector">↪</span>
-            <span className="reply-preview-avatar" style={{ background: message.replyTo.author.profileColor }}>
-              {message.replyTo.author.avatarUrl
-                ? <ReplyAvatarImg url={message.replyTo.author.avatarUrl} />
-                : message.replyTo.author.displayName[0].toUpperCase()}
-            </span>
-            <b className={`reply-preview-name ${hasCustomNameStyle(message.replyTo.author) ? nameStyleClassName(message.replyTo.author, { fullEffect: true }) : ''}`} style={hasCustomNameStyle(message.replyTo.author) ? nameStyleProps(message.replyTo.author, { fullEffect: true }) : roleTextStyle(replyAuthorRoleColor)}>{message.replyTo.author.displayName}</b>
-            <span className="reply-preview-content">{message.replyTo.content?.slice(0, 80) || 'anexo'}</span>
           </div>
         )}
 
@@ -664,7 +690,7 @@ function Attachment({ attachment, allImages, imageIndex }) {
         />
         {!revealed && (
           <button type="button" className="attachment-spoiler-reveal" onClick={() => setRevealed(true)}>
-            👁 Spoiler
+            <ChatIcon name="eye" size={15} /> Spoiler
           </button>
         )}
       </div>

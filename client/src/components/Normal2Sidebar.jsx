@@ -17,7 +17,7 @@ import { ITEMS, STAFF_ITEM } from './MainSidebar.jsx';
 // lateral dos outros layouts, sem regra nova de toque/abrir/fechar.
 const N2_ITEMS = ITEMS.filter((i) => i.to !== '/');
 
-function useBadges(user) {
+export function useBadges(user) {
   const myRoleIds = useMyRoleIds(user.id);
   const categories = useStore((s) => s.categories);
   const channels = useStore((s) => s.channels);

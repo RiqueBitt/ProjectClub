@@ -1,0 +1,107 @@
+/* ============================================================
+   Economia (EconomyPage.jsx): saldo no herói, recompensa diária com
+   trilha de sequência, galeria de baús e modal de revelação. Tudo sob .eco.
+   ============================================================ */
+
+.eco { --eco-coin: var(--yellow, #f0b232); --eco-gem: #b07cff; }
+
+.eco-balances { display: flex; gap: 10px; flex-wrap: wrap; }
+.eco-balance {
+  display: flex; align-items: center; gap: 12px; min-width: 160px; padding: 12px 16px; border-radius: 14px; box-sizing: border-box;
+  background: color-mix(in srgb, var(--bg-primary) 75%, transparent); border: 1px solid var(--border);
+}
+.eco-balance-icon { width: 40px; height: 40px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.eco-balance.coins .eco-balance-icon { color: var(--eco-coin); background: color-mix(in srgb, var(--eco-coin) 16%, transparent); }
+.eco-balance.gems .eco-balance-icon { color: var(--eco-gem); background: color-mix(in srgb, var(--eco-gem) 16%, transparent); }
+.eco-balance small { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.eco-balance strong { display: block; font-size: 22px; font-weight: 800; color: var(--header-primary); font-variant-numeric: tabular-nums; line-height: 1.2; }
+
+.eco-layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+
+/* ---------- Recompensa diária ---------- */
+.eco-daily { display: flex; flex-direction: column; gap: 20px; padding: 22px; }
+.eco-daily-head { display: flex; gap: 14px; align-items: flex-start; }
+.eco-daily-badge {
+  width: 48px; height: 48px; flex-shrink: 0; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--brand); background: color-mix(in srgb, var(--brand) 16%, transparent);
+}
+.eco-daily-head h2 { margin: 0 0 4px; font-size: 18px; font-weight: 800; color: var(--header-primary); }
+
+.eco-streak { padding: 16px; border-radius: 14px; background: var(--bg-primary); border: 1px solid var(--border); }
+.eco-streak-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; font-size: 13.5px; color: var(--text-muted); }
+.eco-streak-top span { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.eco-streak-top span svg { color: #ff8a3d; }
+.eco-streak-top strong { color: var(--header-primary); font-size: 15px; }
+.eco-streak-days { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; position: relative; }
+.eco-streak-days::before { content: ''; position: absolute; left: 10%; right: 10%; top: 19px; height: 2px; background: var(--border); }
+.eco-streak-days li { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.eco-streak-node {
+  position: relative; z-index: 1; width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 800; color: var(--text-muted); background: var(--bg-secondary); border: 2px solid var(--border); box-sizing: border-box;
+}
+.eco-streak-days li small { font-size: 11.5px; font-weight: 600; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.eco-streak-days li.done .eco-streak-node { background: var(--green); border-color: var(--green); color: #fff; }
+.eco-streak-days li.done small { color: var(--text-normal); }
+.eco-streak-days li.next .eco-streak-node { border-color: var(--brand); color: var(--brand); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 20%, transparent); }
+.eco-streak-days li.mega .eco-streak-node { color: var(--eco-gem); border-color: color-mix(in srgb, var(--eco-gem) 55%, var(--border)); background: color-mix(in srgb, var(--eco-gem) 12%, var(--bg-secondary)); }
+.eco-streak-days li.mega small { color: var(--eco-gem); }
+.eco-streak-days li.mega.done .eco-streak-node { background: var(--eco-gem); border-color: var(--eco-gem); color: #fff; }
+
+.eco-claim { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.eco-claim-wait { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-muted); }
+
+/* ---------- Galeria de baús ---------- */
+.eco-chests { padding: 20px; }
+.eco .eco-chest-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; margin: 0; }
+.eco .eco-chest {
+  width: auto; padding: 12px 8px 10px; border-radius: 14px; gap: 8px;
+  background: var(--bg-primary); border: 1px solid var(--border); transition: border-color .12s, transform .12s;
+}
+.eco .eco-chest:hover { border-color: color-mix(in srgb, var(--brand) 50%, var(--border)); transform: translateY(-2px); }
+.eco .eco-chest img { width: 56px; height: 56px; object-fit: contain; opacity: 1; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .35)); }
+.eco .eco-chest span { font-size: 12px; font-weight: 700; color: var(--text-normal); line-height: 1.25; }
+
+/* ---------- Atalhos ---------- */
+.eco-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.eco-link {
+  display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 16px;
+  background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-muted);
+}
+.eco-link:hover { border-color: color-mix(in srgb, var(--brand) 50%, var(--border)); text-decoration: none; }
+.eco-link > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.eco-link strong { color: var(--header-primary); font-size: 14.5px; }
+.eco-link small { font-size: 13px; color: var(--text-muted); }
+.eco-link-icon { width: 42px; height: 42px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent); flex-shrink: 0; }
+
+/* ---------- Revelação do baú ---------- */
+.eco-reveal-backdrop { backdrop-filter: blur(4px); padding: 16px; }
+.eco .eco-reveal {
+  position: relative; overflow: hidden; width: 100%; max-width: 360px; box-sizing: border-box; gap: 8px;
+  padding: 30px 24px 24px; border-radius: 22px; border: 1px solid color-mix(in srgb, var(--brand) 35%, var(--border));
+  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .7);
+}
+.eco-reveal-glow {
+  position: absolute; inset: -40% -20% auto; height: 300px; pointer-events: none;
+  background: radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--eco-coin) 35%, transparent), transparent 60%);
+}
+.eco .eco-reveal > * { position: relative; }
+.eco .eco-reveal h3 { margin: 0 0 4px; font-size: 22px; font-weight: 800; color: var(--header-primary); }
+.eco .eco-reveal-rewards { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 10px; }
+.eco-mega { --tint: var(--eco-gem); }
+.eco .eco-reveal .pk-btn { min-width: 160px; }
+
+@media (max-width: 860px) {
+  .eco-layout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 700px) {
+  .eco-balances { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+  .eco-balance { min-width: 0; padding: 10px 12px; gap: 10px; }
+  .eco-balance-icon { width: 34px; height: 34px; }
+  .eco-balance strong { font-size: 19px; }
+  .eco-daily { padding: 16px; gap: 16px; }
+  .eco-streak { padding: 14px 10px; }
+  .eco-streak-node { width: 34px; height: 34px; font-size: 13px; }
+  .eco-streak-days::before { top: 16px; }
+  .eco-streak-days li small { font-size: 10.5px; }
+  .eco-claim-btn { width: 100%; }
+}

@@ -6,10 +6,12 @@ import {
 } from '../api/endpoints';
 import UserAvatar from '../components/UserAvatar.jsx';
 import HouseIcon from '../components/HouseIcon.jsx';
-import SystemUnavailable from '../components/SystemUnavailable.jsx';
+import { Ico, PageHero, PillTabs, EmptyState, Skeleton, Toast, Unavailable, Price } from '../components/PagesKit.jsx';
+import '../styles/houses.css';
 
 const TABS = ['DECORAR', 'LOJA', 'GALERIA'];
-const TAB_LABEL = { DECORAR: '🏠 Decorar', LOJA: '🛍️ Imobiliária', GALERIA: '🖼️ Galeria' };
+const TAB_LABEL = { DECORAR: 'Decorar', LOJA: 'Imobiliária', GALERIA: 'Galeria' };
+const TAB_ICON = { DECORAR: 'sofa', LOJA: 'store', GALERIA: 'image' };
 
 function fmt(n) { return Math.floor(Number(n) || 0).toLocaleString('pt-BR'); }
 
@@ -25,21 +27,33 @@ export default function HousesPage() {
   });
   useEffect(() => { refreshMyHouses(); }, []);
 
-  if (unavailable) return <SystemUnavailable icon="🧊" />;
+  if (unavailable) return <Unavailable icon="house" />;
+
+  const active = myHouses?.find((h) => h.isActive);
 
   return (
-    <div className="economy-page">
-      <div className="economy-header"><h1>🧊 Casas</h1></div>
-      <div className="mod-tabs">
-        {TABS.map((t) => (
-          <button key={t} className={`mod-tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>{TAB_LABEL[t]}</button>
-        ))}
-      </div>
-      {notice && <div className="economy-notice">{notice}</div>}
+    <div className="pk-page hs">
+      <div className="pk-inner">
+        <PageHero
+          icon="house" eyebrow="Seu cantinho" title="Casas"
+          desc="Compre casas na Imobiliária, decore com móveis arrastando no quadro e mostre o resultado na Galeria."
+          aside={myHouses && (
+            <div className="hs-hero-stats">
+              <div><small>Casas</small><strong>{myHouses.length}</strong></div>
+              <div><small>Casa ativa</small><strong className="truncate">{active?.house?.name || '—'}</strong></div>
+            </div>
+          )}
+        />
+        <PillTabs
+          label="Seções das casas" value={tab} onChange={setTab}
+          tabs={TABS.map((t) => ({ id: t, label: TAB_LABEL[t], icon: TAB_ICON[t] }))}
+        />
 
-      {tab === 'DECORAR' && <DecorateTab myHouses={myHouses} onChanged={refreshMyHouses} pushNotice={pushNotice} />}
-      {tab === 'LOJA' && <ShopTab onChanged={refreshMyHouses} pushNotice={pushNotice} />}
-      {tab === 'GALERIA' && <GalleryTab />}
+        {tab === 'DECORAR' && <DecorateTab myHouses={myHouses} onChanged={refreshMyHouses} pushNotice={pushNotice} goShop={() => setTab('LOJA')} />}
+        {tab === 'LOJA' && <ShopTab onChanged={refreshMyHouses} pushNotice={pushNotice} />}
+        {tab === 'GALERIA' && <GalleryTab />}
+      </div>
+      <Toast>{notice}</Toast>
     </div>
   );
 }
@@ -95,7 +109,7 @@ function pointFromEvent(e) {
   return { clientX: e.clientX, clientY: e.clientY };
 }
 
-function DecorateTab({ myHouses, onChanged, pushNotice }) {
+function DecorateTab({ myHouses, onChanged, pushNotice, goShop }) {
   const [houseId, setHouseId] = useState(null);
   const [layout, setLayout] = useState(null);
   const [inventory, setInventory] = useState(null);
@@ -125,7 +139,7 @@ function DecorateTab({ myHouses, onChanged, pushNotice }) {
   };
 
   const buyMap = async (map) => {
-    if (!confirm(`Comprar o fundo "${map.name}" por 🪙 ${map.price}?`)) return;
+    if (!confirm(`Comprar o fundo "${map.name}" por ${map.price} moedas?`)) return;
     try {
       await buyMapBackground(map.id);
       setMaps((prev) => prev.map((m) => (m.id === map.id ? { ...m, owned: true } : m)));
@@ -135,11 +149,17 @@ function DecorateTab({ myHouses, onChanged, pushNotice }) {
     }
   };
 
-  if (myHouses === null) return <p className="dim">Carregando...</p>;
+  if (myHouses === null) return <DecorateSkeleton />;
   if (myHouses.length === 0) {
-    return <p className="dim">Você ainda não tem nenhuma casa. Vá até a aba Imobiliária para comprar uma!</p>;
+    return (
+      <EmptyState
+        icon="house" title="Você ainda não tem nenhuma casa"
+        text="Vá até a aba Imobiliária para comprar uma!"
+        action={<button className="pk-btn primary" onClick={goShop}><Ico name="store" size={17} /> Ir pra Imobiliária</button>}
+      />
+    );
   }
-  if (!layout) return <p className="dim">Carregando casa...</p>;
+  if (!layout) return <DecorateSkeleton />;
 
   const items = layout.items;
   const refWidth = layout.house.groupId != null && layout.mapBackground ? layout.mapBackground.width : layout.house.width;
@@ -241,19 +261,27 @@ function DecorateTab({ myHouses, onChanged, pushNotice }) {
 
   const selected = items.find((i) => i.id === selectedId);
 
+  const owned = inventory?.filter((cat) => cat.items.some((it) => it.ownedQuantity > 0)) || [];
+
   return (
-    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-      <div style={{ flex: '1 1 320px', minWidth: 0 }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-          {myHouses.map((h) => (
-            <button key={h.houseId} className={`theme-swatch ${houseId === h.houseId ? 'active' : ''}`} onClick={() => setHouseId(h.houseId)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <HouseIcon color={h.house.backgroundColor} size={20} /> {h.house.name}
-            </button>
-          ))}
-          <button className="theme-swatch" onClick={() => setMapPickerOpen((v) => !v)}>🖼️ Fundo{layout?.mapBackground ? `: ${layout.mapBackground.name}` : ''}</button>
+    <div className="hs-decorate">
+      <div className="hs-editor">
+        <div className="hs-switcher">
+          <div className="hs-house-chips" role="list">
+            {myHouses.map((h) => (
+              <button key={h.houseId} role="listitem" className={`hs-house-chip ${houseId === h.houseId ? 'active' : ''}`} onClick={() => setHouseId(h.houseId)}>
+                <HouseIcon color={h.house.backgroundColor} size={22} />
+                <span className="truncate">{h.house.name}</span>
+                {h.isActive && <span className="hs-active-dot" title="Casa ativa" />}
+              </button>
+            ))}
+          </div>
+          <button className={`pk-btn sm hs-bg-btn ${mapPickerOpen ? 'on' : ''}`} onClick={() => setMapPickerOpen((v) => !v)} aria-expanded={mapPickerOpen}>
+            <Ico name="image" size={16} /> <span className="truncate">Fundo{layout?.mapBackground ? `: ${layout.mapBackground.name}` : ''}</span>
+          </button>
         </div>
         {mapPickerOpen && (
-          <div className="map-picker">
+          <div className="map-picker hs-map-picker">
             {!layout?.house?.groupId && (
               <button className={`map-picker-option ${!layout?.mapBackground ? 'active' : ''}`} onClick={() => pickMap(null)}>
                 <div className="map-picker-swatch" style={{ background: layout?.house.backgroundColor }} />
@@ -266,15 +294,19 @@ function DecorateTab({ myHouses, onChanged, pushNotice }) {
                 className={`map-picker-option ${layout?.mapBackground?.id === m.id ? 'active' : ''} ${!m.owned ? 'locked' : ''}`}
                 onClick={() => (m.owned ? pickMap(m.id) : buyMap(m))}
               >
-                <img className="map-picker-swatch" src={m.imageUrl} alt="" />
-                <span>{m.name}</span>
-                {!m.owned && <span className="map-picker-price">🪙 {m.price}</span>}
+                <span className="hs-map-thumb">
+                  <img className="map-picker-swatch" src={m.imageUrl} alt="" />
+                  {!m.owned && <span className="hs-map-lock"><Ico name="lock" size={14} /></span>}
+                </span>
+                <span className="truncate">{m.name}</span>
+                {!m.owned && <span className="map-picker-price"><Price value={m.price} /></span>}
               </button>
             ))}
           </div>
         )}
         <div
           ref={surfaceRef}
+          className="hs-surface-wrap"
           onMouseMove={onSurfacePointerMove}
           onMouseUp={onSurfacePointerUp}
           onMouseLeave={onSurfacePointerUp}
@@ -302,47 +334,64 @@ function DecorateTab({ myHouses, onChanged, pushNotice }) {
                 style={{
                   position: 'absolute', left: `${(it.x / refWidth) * 100}%`, top: `${(it.y / refHeight) * 100}%`,
                   width: `${(it.width / refWidth) * 100}%`, height: `${(it.height / refHeight) * 100}%`, zIndex: it.zIndex,
-                  cursor: 'grab', outline: selectedId === it.id ? '2px solid var(--brand)' : 'none', touchAction: 'none',
+                  cursor: 'grab', outline: selectedId === it.id ? '2px solid var(--brand)' : 'none', outlineOffset: 2, borderRadius: 4, touchAction: 'none',
                   transform: it.flipped ? 'scaleX(-1)' : undefined,
                 }}
               />
             ))}
           </HouseSurface>
+          {items.length === 0 && <span className="hs-surface-hint">Clique num móvel ao lado pra colocar na casa</span>}
         </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-          <button className="btn-secondary" disabled={!selected} onClick={() => bumpLayer(1)}>⬆️ Trazer p/ frente</button>
-          <button className="btn-secondary" disabled={!selected} onClick={() => bumpLayer(-1)}>⬇️ Mandar p/ trás</button>
-          <button className="btn-secondary" disabled={!selected} onClick={() => resizeSelected(1.15)}>➕ Aumentar</button>
-          <button className="btn-secondary" disabled={!selected} onClick={() => resizeSelected(0.87)}>➖ Diminuir</button>
-          <button className="btn-secondary" disabled={!selected} onClick={flipSelected}>↔️ Virar</button>
-          <button className="btn-secondary" disabled={!selected} onClick={removeSelected}>🗑️ Remover</button>
-          {houseId !== myHouses.find((h) => h.isActive)?.houseId && (
-            <button className="btn-secondary" onClick={async () => { await setActiveHouse(houseId); onChanged(); pushNotice('Casa ativa alterada.'); }}>
-              Tornar ativa
-            </button>
-          )}
-          <button className="btn-primary" onClick={save} disabled={saving}>{saving ? 'Salvando...' : '💾 Salvar casa'}</button>
+        <div className="hs-toolbar">
+          <div className={`hs-tools ${selected ? 'on' : ''}`} role="toolbar" aria-label="Móvel selecionado">
+            <span className="hs-tools-label">{selected ? selected.furniture.name : 'Selecione um móvel'}</span>
+            <button className="pk-btn sm icon" title="Trazer p/ frente" aria-label="Trazer p/ frente" disabled={!selected} onClick={() => bumpLayer(1)}><Ico name="up" size={16} /></button>
+            <button className="pk-btn sm icon" title="Mandar p/ trás" aria-label="Mandar p/ trás" disabled={!selected} onClick={() => bumpLayer(-1)}><Ico name="down" size={16} /></button>
+            <button className="pk-btn sm icon" title="Aumentar" aria-label="Aumentar" disabled={!selected} onClick={() => resizeSelected(1.15)}><Ico name="plus" size={16} /></button>
+            <button className="pk-btn sm icon" title="Diminuir" aria-label="Diminuir" disabled={!selected} onClick={() => resizeSelected(0.87)}><Ico name="minus" size={16} /></button>
+            <button className="pk-btn sm icon" title="Virar" aria-label="Virar" disabled={!selected} onClick={flipSelected}><Ico name="flip" size={16} /></button>
+            <button className="pk-btn sm icon danger" title="Remover" aria-label="Remover" disabled={!selected} onClick={removeSelected}><Ico name="trash" size={16} /></button>
+          </div>
+          <div className="hs-save">
+            {houseId !== myHouses.find((h) => h.isActive)?.houseId && (
+              <button className="pk-btn" onClick={async () => { await setActiveHouse(houseId); onChanged(); pushNotice('Casa ativa alterada.'); }}>
+                <Ico name="star" size={16} /> Tornar ativa
+              </button>
+            )}
+            <button className="pk-btn primary" onClick={save} disabled={saving}><Ico name="save" size={16} /> {saving ? 'Salvando...' : 'Salvar casa'}</button>
+          </div>
         </div>
       </div>
 
-      <div style={{ minWidth: 220, maxHeight: 500, overflowY: 'auto' }}>
-        <h4 style={{ marginTop: 0 }}>Seus móveis</h4>
-        {inventory?.filter((cat) => cat.items.some((it) => it.ownedQuantity > 0)).map((cat) => (
-          <div key={cat.id} style={{ marginBottom: 10 }}>
-            <div className="dim" style={{ fontSize: 12, fontWeight: 700 }}>{cat.name.toUpperCase()}</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      <aside className="pk-card hs-inventory">
+        <h2 className="pk-section-title"><Ico name="sofa" /> Seus móveis</h2>
+        {!inventory && <Skeleton rows={6} height={56} grid />}
+        {owned.map((cat) => (
+          <div key={cat.id} className="hs-inv-cat">
+            <div className="hs-inv-cat-name">{cat.name}</div>
+            <div className="hs-inv-grid">
               {cat.items.filter((it) => it.ownedQuantity > 0).map((it) => (
-                <button key={it.id} className="icon-btn-small" title={`${it.name} (${it.ownedQuantity}x)`} style={{ padding: 4 }} onClick={() => addItem(it)}>
-                  <img src={it.imageUrl} alt="" style={{ width: 36, height: 36, objectFit: 'contain' }} />
+                <button key={it.id} className="hs-inv-item" title={`${it.name} (${it.ownedQuantity}x)`} onClick={() => addItem(it)}>
+                  <img src={it.imageUrl} alt="" />
+                  <span className="hs-inv-qty">{it.ownedQuantity}</span>
                 </button>
               ))}
             </div>
           </div>
         ))}
         {inventory && inventory.every((cat) => cat.items.every((it) => it.ownedQuantity === 0)) && (
-          <p className="dim" style={{ fontSize: 13 }}>Você ainda não tem móveis — compre na Imobiliária.</p>
+          <EmptyState compact icon="sofa" text="Você ainda não tem móveis — compre na Imobiliária." />
         )}
-      </div>
+      </aside>
+    </div>
+  );
+}
+
+function DecorateSkeleton() {
+  return (
+    <div className="hs-decorate">
+      <div className="hs-editor"><Skeleton rows={1} height={36} /><Skeleton rows={1} height={420} /></div>
+      <Skeleton rows={1} height={460} />
     </div>
   );
 }
@@ -380,61 +429,86 @@ function ShopTab({ onChanged, pushNotice }) {
   const activeCategory = furniture.find((c) => c.id === furnitureCategory);
 
   return (
-    <div>
-      <div className="shop-section-tabs">
-        <button className={`shop-section-tab ${section === 'HOUSES' ? 'active' : ''}`} onClick={() => setSection('HOUSES')}>🧊 Casas</button>
-        <button className={`shop-section-tab ${section === 'FURNITURE' ? 'active' : ''}`} onClick={() => setSection('FURNITURE')}>🪑 Móveis</button>
-        <button className={`shop-section-tab ${section === 'MAPS' ? 'active' : ''}`} onClick={() => setSection('MAPS')}>🖼️ Fundos</button>
+    <div className="hs-shop">
+      <div className="hs-seg" role="tablist" aria-label="Seções da Imobiliária">
+        {[['HOUSES', 'Casas', 'house'], ['FURNITURE', 'Móveis', 'sofa'], ['MAPS', 'Fundos', 'image']].map(([id, label, icon]) => (
+          <button key={id} role="tab" aria-selected={section === id} className={`hs-seg-btn ${section === id ? 'active' : ''}`} onClick={() => setSection(id)}>
+            <Ico name={icon} size={16} /> {label}
+          </button>
+        ))}
       </div>
 
       {section === 'HOUSES' && (
-        <div className="admin-badge-grid">
-          {houses.map((h) => (
-            <div key={h.id} className="card" style={{ padding: 14 }}>
-              <div style={{ height: 90, borderRadius: 8, background: h.backgroundColor, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                {h.imageUrl ? <img src={h.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <HouseIcon color="#FFFFFF" size={56} />}
-              </div>
-              <div style={{ fontWeight: 700 }}>{h.name}</div>
-              <p>{h.price === 0 ? 'Grátis' : `🪙 ${fmt(h.price)}`}</p>
-              <button className="btn-secondary" disabled={h.owned} onClick={() => doBuyHouse(h)}>{h.owned ? 'Você já tem' : 'Comprar'}</button>
-            </div>
-          ))}
-        </div>
+        houses.length === 0 ? <Skeleton rows={6} height={230} grid /> : (
+          <div className="hs-grid">
+            {houses.map((h) => (
+              <article key={h.id} className={`hs-product ${h.owned ? 'owned' : ''}`}>
+                <div className="hs-product-art" style={{ background: h.backgroundColor }}>
+                  {h.imageUrl ? <img src={h.imageUrl} alt="" className="cover" /> : <HouseIcon color="#FFFFFF" size={64} />}
+                  {h.owned && <span className="hs-owned-badge"><Ico name="check" size={13} strokeWidth={2.4} /> Sua</span>}
+                </div>
+                <div className="hs-product-body">
+                  <h3 className="truncate">{h.name}</h3>
+                  <Price value={h.price} />
+                </div>
+                <button className={`pk-btn block ${h.owned ? '' : 'primary'}`} disabled={h.owned} onClick={() => doBuyHouse(h)}>
+                  {h.owned ? <><Ico name="check" size={16} /> Você já tem</> : 'Comprar'}
+                </button>
+              </article>
+            ))}
+          </div>
+        )
       )}
 
       {section === 'FURNITURE' && (
-        <div>
-          <div className="shop-category-chips">
+        <div className="hs-shop-section">
+          <div className="pk-filters">
             {furniture.map((cat) => (
-              <button key={cat.id} className={`shop-category-chip ${furnitureCategory === cat.id ? 'active' : ''}`} onClick={() => setFurnitureCategory(cat.id)}>
+              <button key={cat.id} className={`pk-filter ${furnitureCategory === cat.id ? 'active' : ''}`} onClick={() => setFurnitureCategory(cat.id)}>
                 {cat.name}
               </button>
             ))}
           </div>
-          <div className="admin-badge-grid">
-            {activeCategory?.items.map((it) => (
-              <div key={it.id} className="card" style={{ padding: 14 }}>
-                <img src={it.imageUrl} alt="" style={{ width: '100%', height: 70, objectFit: 'contain' }} />
-                <div style={{ fontWeight: 700 }}>{it.name}</div>
-                <p>🪙 {fmt(it.price)} {it.ownedQuantity > 0 && <span className="dim">— você tem {it.ownedQuantity}</span>}</p>
-                <button className="btn-secondary" onClick={() => doBuyFurniture(it)}>Comprar</button>
-              </div>
-            ))}
-          </div>
+          {furniture.length === 0 ? <Skeleton rows={8} height={210} grid /> : (
+            <div className="hs-grid compact">
+              {activeCategory?.items.map((it) => (
+                <article key={it.id} className="hs-product">
+                  <div className="hs-product-art furniture">
+                    <img src={it.imageUrl} alt="" />
+                    {it.ownedQuantity > 0 && <span className="hs-owned-badge">Você tem {it.ownedQuantity}</span>}
+                  </div>
+                  <div className="hs-product-body">
+                    <h3 className="truncate">{it.name}</h3>
+                    <Price value={it.price} />
+                  </div>
+                  <button className="pk-btn primary block" onClick={() => doBuyFurniture(it)}>Comprar</button>
+                </article>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {section === 'MAPS' && (
-        <div className="admin-badge-grid">
-          {maps.map((m) => (
-            <div key={m.id} className="card" style={{ padding: 14 }}>
-              <img src={m.imageUrl} alt="" style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 8 }} />
-              <div style={{ fontWeight: 700, marginTop: 6 }}>{m.name}</div>
-              <p>{m.price === 0 ? 'Grátis' : `🪙 ${fmt(m.price)}`}</p>
-              <button className="btn-secondary" disabled={m.owned} onClick={() => doBuyMap(m)}>{m.owned ? 'Você já tem' : 'Comprar'}</button>
-            </div>
-          ))}
-        </div>
+        maps.length === 0 ? <EmptyState icon="image" title="Nenhum fundo à venda" text="Novos fundos aparecem aqui quando a equipe adicionar." /> : (
+          <div className="hs-grid wide">
+            {maps.map((m) => (
+              <article key={m.id} className={`hs-product ${m.owned ? 'owned' : ''}`}>
+                <div className="hs-product-art map">
+                  <img src={m.imageUrl} alt="" className="cover" />
+                  {m.owned && <span className="hs-owned-badge"><Ico name="check" size={13} strokeWidth={2.4} /> Seu</span>}
+                </div>
+                <div className="hs-product-body">
+                  <h3 className="truncate">{m.name}</h3>
+                  <Price value={m.price} />
+                </div>
+                <button className={`pk-btn block ${m.owned ? '' : 'primary'}`} disabled={m.owned} onClick={() => doBuyMap(m)}>
+                  {m.owned ? <><Ico name="check" size={16} /> Você já tem</> : 'Comprar'}
+                </button>
+              </article>
+            ))}
+          </div>
+        )
       )}
     </div>
   );
@@ -445,8 +519,8 @@ function GalleryTab() {
   const [filterMapId, setFilterMapId] = useState('');
   useEffect(() => { getHouseGallery().then((d) => setHouses(d.houses)); }, []);
 
-  if (houses === null) return <p className="dim">Carregando...</p>;
-  if (houses.length === 0) return <p className="dim">Ninguém decorou uma casa ainda.</p>;
+  if (houses === null) return <Skeleton rows={6} height={240} grid />;
+  if (houses.length === 0) return <EmptyState icon="image" title="Galeria vazia" text="Ninguém decorou uma casa ainda." />;
 
   // Fundos usados por pelo menos uma casa aqui na Galeria — dá pra
   // filtrar só quem escolheu aquele mapa (casas com grupo, igual o bot
@@ -456,20 +530,20 @@ function GalleryTab() {
   const visible = filterMapId ? houses.filter((h) => h.mapBackground?.id === filterMapId) : houses;
 
   return (
-    <div>
+    <div className="hs-gallery-wrap">
       {usedMaps.length > 0 && (
-        <div className="shop-category-chips" style={{ marginBottom: 14 }}>
-          <button className={`shop-category-chip ${!filterMapId ? 'active' : ''}`} onClick={() => setFilterMapId('')}>Todas as casas</button>
+        <div className="pk-filters">
+          <button className={`pk-filter ${!filterMapId ? 'active' : ''}`} onClick={() => setFilterMapId('')}>Todas as casas</button>
           {usedMaps.map((m) => (
-            <button key={m.id} className={`shop-category-chip ${filterMapId === m.id ? 'active' : ''}`} onClick={() => setFilterMapId(m.id)}>
-              🖼️ {m.name}
+            <button key={m.id} className={`pk-filter ${filterMapId === m.id ? 'active' : ''}`} onClick={() => setFilterMapId(m.id)}>
+              <Ico name="image" size={14} /> {m.name}
             </button>
           ))}
         </div>
       )}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+      <div className="hs-gallery">
         {visible.map((h) => (
-          <div key={h.id} style={{ width: '100%', maxWidth: 320, flex: '1 1 260px' }}>
+          <article key={h.id} className="hs-gallery-card">
             <HouseSurface
               backgroundColor={h.house.backgroundColor}
               backgroundImageUrl={h.mapBackground?.imageUrl}
@@ -479,11 +553,14 @@ function GalleryTab() {
               houseSprite={h.house.groupId != null ? h.house.imageUrl : null}
               houseGroup={h.house.group}
             />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-              <UserAvatar user={h.user} size={24} />
-              <span>{h.user.displayName}</span>
+            <div className="hs-gallery-foot">
+              <UserAvatar user={h.user} size={28} />
+              <div className="hs-gallery-who">
+                <strong className="truncate">{h.user.displayName}</strong>
+                <small className="truncate">{h.house.name}{h.mapBackground ? ` · ${h.mapBackground.name}` : ''}</small>
+              </div>
             </div>
-          </div>
+          </article>
         ))}
       </div>
     </div>

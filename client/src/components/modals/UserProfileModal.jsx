@@ -8,7 +8,7 @@ import { STATUS_LABEL } from '../../utils/status';
 import PresenceDot from '../PresenceDot.jsx';
 import { renderRichContent } from '../../utils/richTextRender.jsx';
 import { getMyCommunityPermissions, hasPermission } from '../../utils/permissions';
-import { roleChipStyle, gradientStops } from '../../utils/roleColor';
+import { roleChipStyle } from '../../utils/roleColor';
 import { profileAccentVars } from '../../utils/profileAccent';
 import TagBadge from '../TagBadge.jsx';
 import PendantIcon from '../PendantIcon.jsx';
@@ -33,6 +33,89 @@ import xIcon from '../../assets/icons/social-x.png';
 import levelStarIcon from '../../assets/icons/level-star.png';
 import { proxyImage } from '../../utils/imageProxy';
 import { visibleProfileSectionOrder } from '../../utils/profileSections';
+import '../../styles/profile.css';
+
+// Ícones de traço do perfil (SVG, herdam a cor do texto) — mapa local pra
+// não mexer no PageIcons.jsx compartilhado. Emoji vira quadradinho no Linux.
+const PF_PATHS = {
+  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 20a8 8 0 0 1 16 0',
+  users: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM2.5 20a6.5 6.5 0 0 1 13 0M16 4.3a3.5 3.5 0 0 1 0 6.4M18 14.2a6.5 6.5 0 0 1 3.5 5.8',
+  shield: 'M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6l-8-3Z',
+  link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+  heart: 'M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z',
+  sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3ZM19 16l.7 1.8 1.8.7-1.8.7L19 21l-.7-1.8-1.8-.7 1.8-.7L19 16Z',
+  trophy: 'M8 4h8v5a4 4 0 0 1-8 0V4ZM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M9 20h6M10 17h4',
+  medal: 'M8 3l2 6M16 3l-2 6M12 21a6 6 0 1 0 0-12 6 6 0 0 0 0 12ZM12 13v4',
+  image: 'M4 5h16v14H4zM4 16l5-5 4 4 2-2 5 5M15.5 9.5h.01',
+  poll: 'M5 20V10M12 20V4M19 20v-7',
+  flame: 'M12 21a6 6 0 0 0 6-6c0-4-3-6-4-10-2 2-3 4-3 6-1-1-2-2-2-4-2 2-3 4.5-3 8a6 6 0 0 0 6 6Z',
+  chat: 'M4 5h16v11H8l-4 4V5Z',
+  quote: 'M7 7h4v4c0 3-1.5 5-4 6M15 7h4v4c0 3-1.5 5-4 6',
+  eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12ZM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
+  cake: 'M4 21h16M5 21v-7h14v7M5 16c2 1.3 3.3 1.3 5 0 1.7 1.3 3.3 1.3 5 0 1.7 1.3 3 1.3 4 0M12 14V9M12 6.5V5',
+  calendar: 'M4 6h16v15H4zM4 10h16M8 3v4M16 3v4',
+  up: 'M12 19V5M5 12l7-7 7 7',
+  star: 'm12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3Z',
+  bolt: 'M13 3 5 14h6l-1 7 8-11h-6l1-7Z',
+  lock: 'M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3',
+  close: 'M6 6l12 12M18 6 6 18',
+  plus: 'M12 5v14M5 12h14',
+  send: 'M4 12 20 4l-6 16-3-7-7-1Z',
+  play: 'M8 5v14l11-7L8 5Z',
+  alert: 'M12 3 2 20h20L12 3ZM12 10v4M12 17h.01',
+  arrow: 'M5 12h14M13 6l6 6-6 6',
+  grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+};
+export function PfIcon({ name, size = 16, strokeWidth = 1.9 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={PF_PATHS[name]} />
+    </svg>
+  );
+}
+
+// Card das seções do perfil: título em frase normal com ícone, contador
+// opcional e uma ação no canto (ex: "Ver tudo").
+export function PfCard({ icon, title, count, action, className = '', innerRef, children }) {
+  return (
+    <section className={`pf-card ${className}`} ref={innerRef}>
+      <header className="pf-card-head">
+        <span className="pf-card-icon"><PfIcon name={icon} size={15} /></span>
+        <h3 className="pf-card-title">{title}</h3>
+        {count != null && count !== 0 && <span className="pf-card-count">{count}</span>}
+        {action && <span className="pf-card-action">{action}</span>}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+// Estado vazio pequeno, dentro de um card.
+function PfEmpty({ icon, children, action }) {
+  return (
+    <div className="pf-empty">
+      <span className="pf-empty-icon"><PfIcon name={icon} size={18} /></span>
+      <span className="pf-empty-text">{children}</span>
+      {action}
+    </div>
+  );
+}
+
+// Abas do perfil: cada seção (chave de profileSections.js) cai num grupo.
+// A ordem DENTRO de cada aba continua sendo a que a pessoa escolheu em
+// Configurações → Colunas.
+const PF_TABS = [
+  { id: 'about', label: 'Sobre', icon: 'user' },
+  { id: 'activity', label: 'Atividade', icon: 'bolt' },
+  { id: 'achievements', label: 'Conquistas', icon: 'trophy' },
+  { id: 'wall', label: 'Recados', icon: 'chat' },
+];
+const PF_SECTION_TAB = {
+  about: 'about', roles: 'about', connections: 'about', mutual_friends: 'about', relationship: 'about', traits: 'about', member_since: 'about',
+  community_activity: 'activity', polls: 'activity', album: 'activity',
+  achievements: 'achievements',
+  scraps: 'wall', testimonials: 'wall', visitors: 'wall',
+};
 
 // Rendered once at the app root (see MainApp.jsx) and driven entirely by
 // `viewingProfileUserId` in the zustand store — call `openProfile(userId)`
@@ -59,6 +142,10 @@ export default function UserProfileModal() {
   const [loading, setLoading] = useState(false);
   const [friendSent, setFriendSent] = useState(false);
   const [badgeListOpen, setBadgeListOpen] = useState(false);
+  // Aba ativa do perfil (Sobre / Atividade / Conquistas / Recados) —
+  // volta pra primeira sempre que abre outro perfil.
+  const [activeTab, setActiveTab] = useState('about');
+  useEffect(() => { setActiveTab('about'); }, [userId]);
   // Item pedido: "centralizar em Configurações" — tag da comunidade
   // voltou pra lá (UserSettingsModal.jsx), removida daqui.
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
@@ -186,9 +273,11 @@ export default function UserProfileModal() {
   useEffect(() => {
     if (!profileAutoOpenRoleMenu || !member) return;
     if (canManageRoles) {
+      // Cargos ficam na aba "Sobre" — garante que ela esteja aberta.
+      setActiveTab('about');
       setRolesExpanded(true);
       setRoleMenuOpen(true);
-      rolesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => rolesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
     }
     clearProfileAutoOpenRoleMenu();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -218,7 +307,8 @@ export default function UserProfileModal() {
       top = Math.max(8, rect.top - ROLE_MENU_MAX_HEIGHT - 4);
     }
     setRoleMenuStyle({ position: 'fixed', top: `${top}px`, left: `${left}px` });
-  }, [roleMenuOpen]);
+    // activeTab: o botão "+" só existe na aba Sobre — remede quando ela abre.
+  }, [roleMenuOpen, activeTab]);
 
   useEffect(() => {
     if (!roleMenuOpen) return;
@@ -379,13 +469,9 @@ export default function UserProfileModal() {
                   Colunas). SECTION_ELEMENTS é um mapa "chave da seção ->
                   elemento JSX já pronto" (o conteúdo de cada seção é
                   EXATAMENTE o mesmo de antes, só reorganizado nesse
-                  formato pra poder ser reordenado) — INSÍGNIAS/TAG DA
-                  COMUNIDADE/ANIVERSARIANTES continuam sempre fixas no
-                  topo (não fazem sentido como "conteúdo social"
-                  reordenável). CSS multi-column (ver global.css) deixa o
-                  navegador distribuir visualmente em 2 colunas sozinho,
-                  preservando a ordem escolhida — nenhuma lógica extra
-                  daqui precisa decidir "isso vai na coluna 1 ou 2". */
+                  formato pra poder ser reordenado). Agora cada seção vira
+                  um card e cai numa das abas (PF_SECTION_TAB) — a ordem
+                  escolhida continua valendo dentro de cada aba. */
   // BUG CORRIGIDO ("TypeError: can't access property bio, user is
   // undefined"): antes do refactor, todo esse JSX só existia DENTRO de
   // {!loading && user && (...)} — o React só processa (avalia) JSX
@@ -398,394 +484,456 @@ export default function UserProfileModal() {
   // `user &&` aqui garante que o objeto só é construído de verdade
   // quando `user` já existe; enquanto carrega, vira um objeto vazio
   // (nenhuma seção tenta ler nada de undefined).
+  const firstName = user?.displayName?.split(' ')[0] || '';
   const SECTION_ELEMENTS = user ? {
     about: (
-user.bio && (
-                    <div className="profile-section profile-ig-bio">
-                      <div className="profile-section-label">SOBRE</div>
-                      <div className="profile-section-body">{renderRichContent(user.bio, { emojiMap: bioEmojiMap })}</div>
-                    </div>
-                  )
+      user.bio && (
+        <PfCard icon="user" title="Sobre" className="profile-ig-bio">
+          <div className="pf-bio profile-section-body">{renderRichContent(user.bio, { emojiMap: bioEmojiMap })}</div>
+        </PfCard>
+      )
     ),
     achievements: (
-(isMe || data.displayedAchievements?.length > 0) && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">
-                        <span>CONQUISTAS EM DESTAQUE</span>
-                      </div>
-                      {data.displayedAchievements?.length > 0 ? (
-                        <div className="profile-badges-grid">
-                          {data.displayedAchievements.map((a) => (
-                            <div key={a.id} className="profile-badge-tile" title={a.description}>
-                              <span className="profile-badge-tile-icon">
-                                <img className="profile-badge-img" src={a.iconUrl ? proxyImage(a.iconUrl) : defaultAchievementIcon} alt="" />
-                              </span>
-                              <span className="profile-badge-tile-name truncate">{a.name}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="dim" style={{ fontSize: 13 }}>
-                          {isMe ? 'Nenhuma conquista em destaque — escolha em Configurações → Perfil.' : 'Nenhuma conquista em destaque ainda.'}
-                        </p>
-                      )}
-                    </div>
-                  )
+      (isMe || data.displayedAchievements?.length > 0) && (
+        <PfCard icon="trophy" title="Conquistas em destaque" count={data.displayedAchievements?.length}>
+          {data.displayedAchievements?.length > 0 ? (
+            <div className="pf-tiles">
+              {data.displayedAchievements.map((a) => (
+                <div key={a.id} className="pf-tile" title={a.description}>
+                  <span className="pf-tile-icon">
+                    <img src={a.iconUrl ? proxyImage(a.iconUrl) : defaultAchievementIcon} alt="" />
+                  </span>
+                  <span className="pf-tile-name">{a.name}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <PfEmpty icon="trophy">
+              {isMe ? 'Nenhuma conquista em destaque — escolha em Configurações → Perfil.' : 'Nenhuma conquista em destaque ainda.'}
+            </PfEmpty>
+          )}
+        </PfCard>
+      )
     ),
     album: (
-<div className="profile-section">
-                    <div className="profile-section-label">ÁLBUM DE FOTOS{photoTotal > 0 ? ` — ${photoTotal}` : ''}</div>
-                    {photoPreview.length === 0 && (
-                      <div className="profile-album-empty">
-                        <span className="profile-album-empty-icon">🖼️</span>
-                        <span className="dim">{isMe ? 'Você ainda não tem fotos no álbum.' : 'Nenhuma foto ainda.'}</span>
-                        {isMe && <button className="btn-secondary" onClick={() => setAlbumOpen(true)}>+ Adicionar foto</button>}
-                      </div>
-                    )}
-                    {photoPreview.length > 0 && (
-                      <div className="profile-photo-grid">
-                        {photoPreview.map((p) => {
-                          const isVid = p.url.match(/\.(mp4|webm|mov|mkv)$/i);
-                          return (
-                            <button key={p.id} className="profile-photo-grid-item" onClick={() => setAlbumOpen(true)}>
-                              {isVid ? <video src={p.url} muted /> : <img src={proxyImage(p.url)} alt="" />}
-                              {isVid && <span className="profile-photo-grid-play">▶</span>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                    {(photoTotal > 3 || isMe) && (
-                      <button className="profile-see-more-link" onClick={() => setAlbumOpen(true)}>
-                        {isMe ? 'Ver álbum completo' : `Ver mais (${photoTotal})`}
-                      </button>
-                    )}
-                  </div>
+      <PfCard
+        icon="image"
+        title="Álbum de fotos"
+        count={photoTotal}
+        action={(photoTotal > 3 || isMe) && (
+          <button className="pf-link" onClick={() => setAlbumOpen(true)}>
+            {isMe ? 'Ver álbum completo' : `Ver mais (${photoTotal})`}
+          </button>
+        )}
+      >
+        {photoPreview.length === 0 && (
+          <PfEmpty
+            icon="image"
+            action={isMe && <button className="pf-btn" onClick={() => setAlbumOpen(true)}><PfIcon name="plus" size={14} /> Adicionar foto</button>}
+          >
+            {isMe ? 'Você ainda não tem fotos no álbum.' : 'Nenhuma foto ainda.'}
+          </PfEmpty>
+        )}
+        {photoPreview.length > 0 && (
+          <div className="pf-photos">
+            {photoPreview.map((p) => {
+              const isVid = p.url.match(/\.(mp4|webm|mov|mkv)$/i);
+              return (
+                <button key={p.id} className="pf-photo" onClick={() => setAlbumOpen(true)}>
+                  {isVid ? <video src={p.url} muted /> : <img src={proxyImage(p.url)} alt="" />}
+                  {isVid && <span className="pf-photo-play"><PfIcon name="play" size={14} /></span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </PfCard>
     ),
     polls: (
-(profilePolls.length > 0 || isMe) && (
-<div className="profile-section">
-                    <div className="profile-section-label">ENQUETES{profilePolls.length > 0 ? ` — ${profilePolls.length}` : ''}</div>
-                    {/* Item pedido: "centralizar em Configurações" —
-                        criar/apagar enquete agora só em Configurações
-                        → Conteúdo. Aqui no perfil fica só a exibição +
-                        votação, pra quem visita poder participar. */}
-                    {profilePolls.length === 0 && <div className="dim profile-scrap-empty">Nenhuma enquete ainda.</div>}
-                    {profilePolls.map((poll) => (
-                      <div key={poll.id} className="profile-poll">
-                        <div className="profile-poll-question">{poll.question}</div>
-                        {poll.options.map((opt) => (
-                          <button
-                            key={opt.id}
-                            className={`profile-poll-option ${poll.myVoteOptionId === opt.id ? 'active' : ''}`}
-                            onClick={() => submitPollVote(poll.id, opt.id)}
-                          >
-                            <span className="profile-poll-option-bar" style={{ width: `${opt.percent}%` }} />
-                            <span className="profile-poll-option-text truncate">{opt.text}</span>
-                            <span className="profile-poll-option-percent">{opt.percent}%</span>
-                          </button>
-                        ))}
-                        <div className="dim profile-poll-total">{poll.totalVotes} {poll.totalVotes === 1 ? 'voto' : 'votos'}</div>
-                      </div>
-                    ))}
-                  </div>
-)
+      (profilePolls.length > 0 || isMe) && (
+        <PfCard icon="poll" title="Enquetes" count={profilePolls.length}>
+          {/* Item pedido: "centralizar em Configurações" —
+              criar/apagar enquete agora só em Configurações
+              → Conteúdo. Aqui no perfil fica só a exibição +
+              votação, pra quem visita poder participar. */}
+          {profilePolls.length === 0 && (
+            <PfEmpty icon="poll">{isMe ? 'Nenhuma enquete ainda — crie uma em Configurações → Conteúdo.' : 'Nenhuma enquete ainda.'}</PfEmpty>
+          )}
+          <div className="pf-polls">
+            {profilePolls.map((poll) => (
+              <div key={poll.id} className="pf-poll">
+                <div className="pf-poll-question">{poll.question}</div>
+                {poll.options.map((opt) => (
+                  <button
+                    key={opt.id}
+                    className={`pf-poll-option ${poll.myVoteOptionId === opt.id ? 'active' : ''}`}
+                    onClick={() => submitPollVote(poll.id, opt.id)}
+                  >
+                    <span className="pf-poll-bar" style={{ width: `${opt.percent}%` }} />
+                    <span className="pf-poll-text">{opt.text}</span>
+                    <span className="pf-poll-percent">{opt.percent}%</span>
+                  </button>
+                ))}
+                <div className="pf-poll-total">{poll.totalVotes} {poll.totalVotes === 1 ? 'voto' : 'votos'}</div>
+              </div>
+            ))}
+          </div>
+        </PfCard>
+      )
     ),
     community_activity: (
-redditActivity?.length > 0 && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">
-                        ATIVIDADE EM CLUBES — {redditActivity.reduce((sum, p) => sum + p.score, 0)} Ups
-                      </div>
-                      <div className="profile-reddit-activity-list">
-                        {redditActivity.slice(0, 5).map((post) => (
-                          <button
-                            key={post.id}
-                            className="profile-reddit-activity-item"
-                            onClick={() => { closeProfile(); navigate(`/posts/${post.id}`); }}
-                          >
-                            <span className="profile-reddit-activity-score">{post.score}</span>
-                            <span className="profile-reddit-activity-info truncate">
-                              <span className="truncate">{post.title}</span>
-                              <span className="dim">c/{post.community.name}</span>
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )
+      redditActivity?.length > 0 && (
+        <PfCard icon="flame" title="Atividade em clubes" count={`${redditActivity.reduce((sum, p) => sum + p.score, 0)} Ups`}>
+          <div className="pf-list">
+            {redditActivity.slice(0, 5).map((post) => (
+              <button
+                key={post.id}
+                className="pf-post"
+                onClick={() => { closeProfile(); navigate(`/posts/${post.id}`); }}
+              >
+                <span className="pf-post-score"><PfIcon name="up" size={12} strokeWidth={2.4} />{post.score}</span>
+                <span className="pf-post-info">
+                  <span className="pf-post-title">{post.title}</span>
+                  <span className="pf-post-club">c/{post.community.name}</span>
+                </span>
+                <span className="pf-post-arrow"><PfIcon name="arrow" size={14} /></span>
+              </button>
+            ))}
+          </div>
+        </PfCard>
+      )
     ),
     roles: (
-member && (memberRoles.length > 0 || canManageRoles) && (
-                    <div className="profile-section" ref={rolesSectionRef}>
-                      <div className="profile-section-label">
-                        CARGOS NA COMUNIDADE
-                      </div>
-                      <div className="profile-roles-row">
-                        {visibleRoles.map((r) => (
-                          <span key={r.id} className="role-chip profile-role-chip" style={roleChipStyle(r.color)}>
-                            {r.icon ? `${r.icon} ` : ''}{r.name}
-                            {canManageRoles && (
-                              <button
-                                type="button"
-                                className="profile-role-remove"
-                                title="Remover cargo"
-                                onClick={() => removeRole(r.id)}
-                              >×</button>
-                            )}
-                          </span>
-                        ))}
-                        {hiddenRolesCount > 0 && (
-                          <button
-                            type="button"
-                            className="role-chip profile-role-more"
-                            title={`Ver todos os ${memberRoles.length} cargos`}
-                            onClick={() => setRolesExpanded(true)}
-                          >
-                            +{hiddenRolesCount}…
-                          </button>
-                        )}
-                        {rolesExpanded && memberRoles.length > ROLES_PREVIEW_COUNT && (
-                          <button type="button" className="role-chip profile-role-more" onClick={() => setRolesExpanded(false)}>
-                            mostrar menos
-                          </button>
-                        )}
-                        {canManageRoles && (
-                          <div className="profile-role-add-wrap">
-                            <button
-                              ref={roleAddBtnRef}
-                              type="button"
-                              className="role-chip profile-role-add"
-                              title="Adicionar cargo"
-                              onClick={() => setRoleMenuOpen((v) => !v)}
-                            >+</button>
-                            {roleMenuOpen && createPortal(
-                              <div ref={roleMenuRef} className="profile-role-menu" style={roleMenuStyle || {}}>
-                                <input
-                                  className="profile-role-menu-search"
-                                  placeholder="Buscar cargo..."
-                                  value={roleSearch}
-                                  onChange={(e) => setRoleSearch(e.target.value)}
-                                  autoFocus
-                                />
-                                {roleSearchResults.length === 0 && (
-                                  <div className="empty-hint">{assignableRoles.length === 0 ? 'Nenhum outro cargo disponível.' : 'Nenhum cargo encontrado.'}</div>
-                                )}
-                                {roleSearchResults.map((r) => (
-                                  <button
-                                    type="button"
-                                    key={r.id}
-                                    className="profile-role-menu-item"
-                                    style={roleChipStyle(r.color)}
-                                    onClick={() => addRole(r.id)}
-                                  >
-                                    {r.icon ? `${r.icon} ` : ''}{r.name}
-                                  </button>
-                                ))}
-                              </div>,
-                              document.body,
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )
+      member && (memberRoles.length > 0 || canManageRoles) && (
+        <PfCard icon="shield" title="Cargos na comunidade" count={memberRoles.length} innerRef={rolesSectionRef}>
+          <div className="pf-roles profile-roles-row">
+            {visibleRoles.map((r) => (
+              <span key={r.id} className="role-chip profile-role-chip pf-role" style={roleChipStyle(r.color)}>
+                {r.icon ? `${r.icon} ` : ''}{r.name}
+                {canManageRoles && (
+                  <button
+                    type="button"
+                    className="profile-role-remove pf-role-remove"
+                    title="Remover cargo"
+                    onClick={() => removeRole(r.id)}
+                  ><PfIcon name="close" size={11} strokeWidth={2.6} /></button>
+                )}
+              </span>
+            ))}
+            {hiddenRolesCount > 0 && (
+              <button
+                type="button"
+                className="role-chip profile-role-more pf-role-more"
+                title={`Ver todos os ${memberRoles.length} cargos`}
+                onClick={() => setRolesExpanded(true)}
+              >
+                +{hiddenRolesCount}…
+              </button>
+            )}
+            {rolesExpanded && memberRoles.length > ROLES_PREVIEW_COUNT && (
+              <button type="button" className="role-chip profile-role-more pf-role-more" onClick={() => setRolesExpanded(false)}>
+                mostrar menos
+              </button>
+            )}
+            {canManageRoles && (
+              <div className="profile-role-add-wrap">
+                <button
+                  ref={roleAddBtnRef}
+                  type="button"
+                  className="role-chip profile-role-add pf-role-add"
+                  title="Adicionar cargo"
+                  onClick={() => setRoleMenuOpen((v) => !v)}
+                ><PfIcon name="plus" size={13} strokeWidth={2.4} /></button>
+                {roleMenuOpen && createPortal(
+                  <div ref={roleMenuRef} className="profile-role-menu" style={roleMenuStyle || {}}>
+                    <input
+                      className="profile-role-menu-search"
+                      placeholder="Buscar cargo..."
+                      value={roleSearch}
+                      onChange={(e) => setRoleSearch(e.target.value)}
+                      autoFocus
+                    />
+                    {roleSearchResults.length === 0 && (
+                      <div className="empty-hint">{assignableRoles.length === 0 ? 'Nenhum outro cargo disponível.' : 'Nenhum cargo encontrado.'}</div>
+                    )}
+                    {roleSearchResults.map((r) => (
+                      <button
+                        type="button"
+                        key={r.id}
+                        className="profile-role-menu-item"
+                        style={roleChipStyle(r.color)}
+                        onClick={() => addRole(r.id)}
+                      >
+                        {r.icon ? `${r.icon} ` : ''}{r.name}
+                      </button>
+                    ))}
+                  </div>,
+                  document.body,
+                )}
+              </div>
+            )}
+          </div>
+        </PfCard>
+      )
     ),
-    member_since: (
-<div className="profile-section">
-                    <div className="profile-section-label">MEMBRO DESDE</div>
-                    <div className="profile-section-body">{new Date(user.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
-                  </div>
-    ),
+    // "Membro desde" virou um bloquinho na fileira de números (logo
+    // abaixo do cabeçalho) — continua respeitando se a pessoa ocultou.
+    member_since: null,
     connections: (
-(user.youtubeUrl || user.steamUrl || user.robloxUrl || user.xUrl) && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">CONEXÕES</div>
-                      <div className="profile-connections-row">
-                        {user.youtubeUrl && (
-                          <a className="profile-connection" href={user.youtubeUrl} target="_blank" rel="noreferrer" title="YouTube">
-                            <span className="profile-connection-icon"><img className="ui-icon-sm" src={youtubeIcon} alt="" /></span> YouTube
-                          </a>
-                        )}
-                        {user.steamUrl && (
-                          <a className="profile-connection" href={user.steamUrl} target="_blank" rel="noreferrer" title="Steam">
-                            <span className="profile-connection-icon"><img className="ui-icon-sm" src={steamIcon} alt="" /></span> Steam
-                          </a>
-                        )}
-                        {user.robloxUrl && (
-                          <a className="profile-connection" href={user.robloxUrl} target="_blank" rel="noreferrer" title="Roblox">
-                            <span className="profile-connection-icon"><img className="ui-icon-sm" src={robloxIcon} alt="" /></span> Roblox
-                          </a>
-                        )}
-                        {user.xUrl && (
-                          <a className="profile-connection" href={user.xUrl} target="_blank" rel="noreferrer" title="X (Twitter)">
-                            <span className="profile-connection-icon"><img className="ui-icon-sm" src={xIcon} alt="" /></span> X
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  )
+      (user.youtubeUrl || user.steamUrl || user.robloxUrl || user.xUrl) && (
+        <PfCard icon="link" title="Conexões">
+          <div className="pf-connections">
+            {user.youtubeUrl && (
+              <a className="pf-connection" href={user.youtubeUrl} target="_blank" rel="noreferrer" title="YouTube">
+                <img src={youtubeIcon} alt="" /> YouTube
+              </a>
+            )}
+            {user.steamUrl && (
+              <a className="pf-connection" href={user.steamUrl} target="_blank" rel="noreferrer" title="Steam">
+                <img src={steamIcon} alt="" /> Steam
+              </a>
+            )}
+            {user.robloxUrl && (
+              <a className="pf-connection" href={user.robloxUrl} target="_blank" rel="noreferrer" title="Roblox">
+                <img src={robloxIcon} alt="" /> Roblox
+              </a>
+            )}
+            {user.xUrl && (
+              <a className="pf-connection" href={user.xUrl} target="_blank" rel="noreferrer" title="X (Twitter)">
+                <img src={xIcon} alt="" /> X
+              </a>
+            )}
+          </div>
+        </PfCard>
+      )
     ),
     mutual_friends: (
-!isMe && data.mutualFriends?.length > 0 && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">AMIGOS EM COMUM — {data.mutualFriends.length}</div>
-                      <div className="profile-mutual-list">
-                        {data.mutualFriends.map((f) => (
-                          <div key={f.id} className="profile-mutual-item">
-                            <div className="avatar tiny">
-                              <UserAvatar user={f} size={24} />
-                            </div>
-                            <span className="truncate">{f.displayName}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
+      !isMe && data.mutualFriends?.length > 0 && (
+        <PfCard icon="users" title="Amigos em comum" count={data.mutualFriends.length}>
+          <div className="pf-people">
+            {data.mutualFriends.map((f) => (
+              <div key={f.id} className="pf-person">
+                <UserAvatar user={f} size={28} />
+                <span className="pf-person-name">{f.displayName}</span>
+              </div>
+            ))}
+          </div>
+        </PfCard>
+      )
     ),
     relationship: (
-<>
-{!isMe && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">RELACIONAMENTO</div>
-                      {data.relationshipPartner ? (
-                        <div className="profile-relationship-status">
-                          💞 Namorando com <UserAvatar user={data.relationshipPartner} size={20} /> <b>{data.relationshipPartner.displayName}</b>
-                        </div>
-                      ) : (
-                        <button className="btn-secondary" onClick={requestRelationship}>💌 Pedir em namoro</button>
-                      )}
-                    </div>
-                  )}
-{isMe && me.relationshipPartnerId && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">RELACIONAMENTO</div>
-                      <div className="profile-relationship-status">
-                        💞 Em um relacionamento confirmado
-                        <button className="profile-relationship-end" onClick={breakUpRelationship}>Terminar</button>
-                      </div>
-                    </div>
-                  )}
-</>
+      (!isMe || me.relationshipPartnerId) ? (
+        <PfCard icon="heart" title="Relacionamento">
+          {!isMe && (data.relationshipPartner ? (
+            <div className="pf-relationship">
+              <span className="pf-relationship-icon"><PfIcon name="heart" size={16} /></span>
+              <span>Namorando com</span>
+              <UserAvatar user={data.relationshipPartner} size={22} />
+              <b>{data.relationshipPartner.displayName}</b>
+            </div>
+          ) : (
+            <button className="pf-btn" onClick={requestRelationship}><PfIcon name="heart" size={14} /> Pedir em namoro</button>
+          ))}
+          {isMe && me.relationshipPartnerId && (
+            <div className="pf-relationship">
+              <span className="pf-relationship-icon"><PfIcon name="heart" size={16} /></span>
+              <span>Em um relacionamento confirmado</span>
+              <button className="pf-link danger" onClick={breakUpRelationship}>Terminar</button>
+            </div>
+          )}
+        </PfCard>
+      ) : null
     ),
+    // Item pedido: mais sistemas estilo Orkut — traços,
+    // relacionamento, álbum de fotos, visitantes.
     traits: (
-<>
-                  {/* Item pedido: mais sistemas estilo Orkut — traços,
-                      relacionamento, álbum de fotos, visitantes. */}
-{!isMe && traitStatus && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">O QUE ACHAM DE {user.displayName.split(' ')[0].toUpperCase()}</div>
-                      <div className="profile-trait-row">
-                        {[
-                          { key: 'TRUSTWORTHY', label: 'Confiável' },
-                          { key: 'COOL', label: 'Legal' },
-                          { key: 'SEXY', label: 'Sexy' },
-                        ].map(({ key, label }) => (
-                          <button
-                            key={key}
-                            className={`profile-trait-chip ${traitStatus[key]?.voted ? 'active' : ''}`}
-                            onClick={() => toggleTraitStatus(key)}
-                          >
-                            {label} <b>{traitStatus[key]?.count ?? 0}</b>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-</>
+      !isMe && traitStatus ? (
+        <PfCard icon="sparkle" title={`O que acham de ${firstName}`}>
+          <div className="pf-traits">
+            {[
+              { key: 'TRUSTWORTHY', label: 'Confiável' },
+              { key: 'COOL', label: 'Legal' },
+              { key: 'SEXY', label: 'Sexy' },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                className={`pf-trait ${traitStatus[key]?.voted ? 'active' : ''}`}
+                onClick={() => toggleTraitStatus(key)}
+              >
+                {label} <b>{traitStatus[key]?.count ?? 0}</b>
+              </button>
+            ))}
+          </div>
+        </PfCard>
+      ) : null
     ),
+    // Item pedido: "sistema igual tinha no Orkut" — recados no mural e
+    // depoimentos (o antigo botão de "sou fã" virou "Seguir", movido pra
+    // cima, perto de Ups).
     scraps: (
-<>
-{/* Item pedido: "sistema igual tinha no Orkut" —
-                      recados no mural e depoimentos (o antigo botão de
-                      "sou fã" virou "Seguir", movido pra cima, perto de
-                      Ups). */}
-
-                  <div className="profile-section">
-                    <div className="profile-section-label">RECADOS{scraps.length > 0 ? ` — ${scraps.length}` : ''}</div>
-                    <div className="profile-scrap-composer">
-                      <input
-                        value={scrapDraft}
-                        onChange={(e) => setScrapDraft(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && submitScrap()}
-                        placeholder={isMe ? 'Escreva no seu próprio mural...' : `Deixe um recado pra ${user.displayName}...`}
-                        maxLength={300}
-                      />
-                      <button className="btn-secondary" disabled={!scrapDraft.trim() || scrapSending} onClick={submitScrap}>Enviar</button>
-                    </div>
-                    <div className="profile-scrap-list">
-                      {scraps.length === 0 && <div className="dim profile-scrap-empty">Nenhum recado ainda — seja o primeiro a deixar um.</div>}
-                      {scraps.slice(0, 3).map((s) => (
-                        <div key={s.id} className="profile-scrap-item">
-                          <UserAvatar user={s.author} size={28} />
-                          <div className="profile-scrap-item-body">
-                            <span className="profile-scrap-item-author">{s.author.displayName}</span>
-                            <span className="profile-scrap-item-text">{s.text}</span>
-                          </div>
-                          {(s.authorId === me.id || isMe) && (
-                            <button className="profile-scrap-item-remove" title="Apagar recado" onClick={() => removeScrap(s.id)}>✕</button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    {/* Item pedido: mais de 3 recados -> "ver mais" abre
-                        todos, paginados 100 por página. */}
-                    {scrapTotal > 3 && (
-                      <button className="profile-see-more-link" onClick={() => setScrapListOpen(true)}>Ver mais ({scrapTotal})</button>
-                    )}
-                  </div>
-</>
+      <PfCard
+        icon="chat"
+        title="Recados"
+        count={scrapTotal}
+        className="pf-card-scraps"
+        action={scrapTotal > 3 && (
+          // Item pedido: mais de 3 recados -> "ver mais" abre todos,
+          // paginados 100 por página.
+          <button className="pf-link" onClick={() => setScrapListOpen(true)}>Ver todos ({scrapTotal})</button>
+        )}
+      >
+        <div className="pf-composer">
+          <input
+            value={scrapDraft}
+            onChange={(e) => setScrapDraft(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && submitScrap()}
+            placeholder={isMe ? 'Escreva no seu próprio mural...' : `Deixe um recado pra ${user.displayName}...`}
+            maxLength={300}
+          />
+          <button className="pf-send" disabled={!scrapDraft.trim() || scrapSending} onClick={submitScrap} title="Enviar recado">
+            <PfIcon name="send" size={15} /> <span>Enviar</span>
+          </button>
+        </div>
+        <div className="pf-scraps">
+          {scraps.length === 0 && <PfEmpty icon="chat">Nenhum recado ainda — seja o primeiro a deixar um.</PfEmpty>}
+          {scraps.slice(0, 3).map((s) => (
+            <div key={s.id} className="pf-scrap">
+              <UserAvatar user={s.author} size={32} />
+              <div className="pf-scrap-body">
+                <span className="pf-scrap-author">{s.author.displayName}</span>
+                <span className="pf-scrap-text">{s.text}</span>
+              </div>
+              {(s.authorId === me.id || isMe) && (
+                <button className="pf-scrap-remove" title="Apagar recado" onClick={() => removeScrap(s.id)}><PfIcon name="close" size={13} strokeWidth={2.2} /></button>
+              )}
+            </div>
+          ))}
+        </div>
+      </PfCard>
     ),
     testimonials: (
-<div className="profile-section">
-                    <div className="profile-section-label">DEPOIMENTOS{testimonialTotal > 0 ? ` — ${testimonialTotal}` : ''}</div>
-                    {!isMe && (
-                      <div className="profile-testimonial-composer">
-                        <textarea
-                          value={testimonialDraft}
-                          onChange={(e) => setTestimonialDraft(e.target.value)}
-                          placeholder={`Escreva um depoimento pra ${user.displayName}... (fica visível só depois que a pessoa aprovar)`}
-                          maxLength={1000}
-                          rows={2}
-                        />
-                        <button className="btn-secondary" disabled={!testimonialDraft.trim() || testimonialSending} onClick={submitTestimonial}>Enviar depoimento</button>
-                      </div>
-                    )}
-                    <div className="profile-testimonial-list">
-                      {testimonials.length === 0 && <div className="dim profile-scrap-empty">Nenhum depoimento ainda.</div>}
-                      {testimonials.slice(0, 3).map((t) => (
-                        <div key={t.id} className="profile-testimonial-item">
-                          <UserAvatar user={t.author} size={32} />
-                          <div className="profile-testimonial-item-body">
-                            <span className="profile-testimonial-item-author">{t.author.displayName}</span>
-                            <span className="profile-testimonial-item-text">{t.text}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {testimonialTotal > 3 && (
-                      <button className="profile-see-more-link" onClick={() => setTestimonialListOpen(true)}>Ver mais ({testimonialTotal})</button>
-                    )}
-                  </div>
+      <PfCard
+        icon="quote"
+        title="Depoimentos"
+        count={testimonialTotal}
+        action={testimonialTotal > 3 && (
+          <button className="pf-link" onClick={() => setTestimonialListOpen(true)}>Ver mais ({testimonialTotal})</button>
+        )}
+      >
+        {!isMe && (
+          <div className="pf-composer pf-composer-col">
+            <textarea
+              value={testimonialDraft}
+              onChange={(e) => setTestimonialDraft(e.target.value)}
+              placeholder={`Escreva um depoimento pra ${user.displayName}... (fica visível só depois que a pessoa aprovar)`}
+              maxLength={1000}
+              rows={2}
+            />
+            <button className="pf-send" disabled={!testimonialDraft.trim() || testimonialSending} onClick={submitTestimonial}>
+              <PfIcon name="send" size={15} /> <span>Enviar depoimento</span>
+            </button>
+          </div>
+        )}
+        <div className="pf-scraps">
+          {testimonials.length === 0 && <PfEmpty icon="quote">Nenhum depoimento ainda.</PfEmpty>}
+          {testimonials.slice(0, 3).map((t) => (
+            <div key={t.id} className="pf-scrap">
+              <UserAvatar user={t.author} size={32} />
+              <div className="pf-scrap-body">
+                <span className="pf-scrap-author">{t.author.displayName}</span>
+                <span className="pf-scrap-text">{t.text}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </PfCard>
     ),
     visitors: (
-isMe && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">QUEM VISITOU SEU PERFIL{visitorsData.totalVisits > 0 ? ` — ${visitorsData.totalVisits}` : ''}</div>
-                      {visitorsData.visits.length === 0 && <div className="dim profile-scrap-empty">Ninguém visitou seu perfil ainda.</div>}
-                      <div className="profile-mutual-list">
-                        {visitorsData.visits.slice(0, 8).map((v) => (
-                          <div key={v.id} className="profile-mutual-item">
-                            <div className="avatar tiny"><UserAvatar user={v.visitor} size={24} /></div>
-                            <span className="truncate">{v.visitor.displayName}</span>
-                            {v.visitCount > 1 && <span className="dim"> ({v.visitCount}x)</span>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
+      isMe && (
+        <PfCard icon="eye" title="Quem visitou seu perfil" count={visitorsData.totalVisits}>
+          {visitorsData.visits.length === 0 && <PfEmpty icon="eye">Ninguém visitou seu perfil ainda.</PfEmpty>}
+          <div className="pf-people">
+            {visitorsData.visits.slice(0, 8).map((v) => (
+              <div key={v.id} className="pf-person">
+                <UserAvatar user={v.visitor} size={28} />
+                <span className="pf-person-name">{v.visitor.displayName}</span>
+                {v.visitCount > 1 && <span className="pf-person-meta">{v.visitCount}x</span>}
+              </div>
+            ))}
+          </div>
+        </PfCard>
+      )
     ),
   } : {};
+
+  // Insígnias e aniversariantes não entram na ordem personalizada — ficam
+  // fixos no começo das abas Conquistas e Sobre.
+  const badgesCard = user && data.badges?.length > 0 && (
+    <PfCard
+      icon="medal"
+      title="Insígnias"
+      count={data.badges.length}
+      action={<button className="pf-link" onClick={() => setBadgeListOpen(true)}>Ver detalhes</button>}
+    >
+      <div className="pf-tiles">
+        {data.badges.map((b) => (
+          <button
+            type="button"
+            key={b.id}
+            className="pf-tile"
+            title={b.description || b.name}
+            onClick={() => setBadgeListOpen(true)}
+          >
+            <span className="pf-tile-icon">
+              {badgeHasImage(b) ? <img src={proxyImage(b.iconUrl)} alt="" /> : b.icon}
+            </span>
+            <span className="pf-tile-name">{b.name}</span>
+          </button>
+        ))}
+      </div>
+    </PfCard>
+  );
+
+  const birthdaysCard = user && isMe && (birthdays.today.length > 0 || birthdays.upcoming.length > 0) && (
+    <PfCard icon="cake" title="Aniversariantes">
+      {birthdays.today.length > 0 && (
+        <div className="pf-birthday-today"><PfIcon name="cake" size={15} /> Hoje: {birthdays.today.map((f) => f.displayName).join(', ')}</div>
+      )}
+      {birthdays.upcoming.length > 0 && (
+        <div className="pf-people">
+          {birthdays.upcoming.map((f) => (
+            <div key={f.id} className="pf-person">
+              <UserAvatar user={f} size={28} />
+              <span className="pf-person-name">{f.displayName}</span>
+              <span className="pf-person-meta">{String(f.day).padStart(2, '0')}/{String(f.month).padStart(2, '0')}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </PfCard>
+  );
+
+  // Distribui as seções visíveis (na ordem escolhida) pelas abas.
+  const visibleKeys = user ? visibleProfileSectionOrder(user.profileSectionOrder) : [];
+  const tabContent = { about: [], activity: [], achievements: [], wall: [] };
+  if (user) {
+    if (badgesCard) tabContent.achievements.push(['badges', badgesCard]);
+    visibleKeys.forEach((key) => {
+      const el = SECTION_ELEMENTS[key];
+      const tab = PF_SECTION_TAB[key];
+      if (el && tab) tabContent[tab].push([key, el]);
+    });
+    if (birthdaysCard) tabContent.about.push(['birthdays', birthdaysCard]);
+  }
+  const tabCounts = {
+    achievements: user ? (data.badges?.length || 0) + (data.displayedAchievements?.length || 0) : 0,
+    wall: scrapTotal,
+  };
+  const tabs = PF_TABS.filter((t) => tabContent[t.id].length > 0);
+  const currentTab = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0]?.id;
+  const currentCards = currentTab ? tabContent[currentTab] : [];
+  const showMemberSince = visibleKeys.includes('member_since');
+  const createdAt = user ? new Date(user.createdAt) : null;
 
   return (
     <div className="modal-overlay profile-fullscreen-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) closeProfile(); }}>
@@ -804,7 +952,16 @@ isMe && (
             <img className="ui-icon" src={settingsIcon} alt="" />
           </button>
         )}
-        {loading && <div className="profile-modal-loading">Carregando...</div>}
+        {loading && (
+          <div className="pf-skeleton" aria-label="Carregando perfil">
+            <div className="pf-sk pf-sk-banner" />
+            <div className="pf-sk-row">
+              <div className="pf-sk pf-sk-avatar" />
+              <div className="pf-sk-lines"><span className="pf-sk" /><span className="pf-sk" /><span className="pf-sk" /></div>
+            </div>
+            <div className="pf-sk-cards"><span className="pf-sk" /><span className="pf-sk" /><span className="pf-sk" /><span className="pf-sk" /></div>
+          </div>
+        )}
         {!loading && user && (
           <>
             <div className="profile-top-row">
@@ -823,223 +980,202 @@ isMe && (
                     <span className={nameStyleClassName(user, { fullEffect: true })} style={nameStyleProps(user, { fullEffect: true })}>{user.displayName}</span> <PendantIcon user={user} /> <TagBadge user={user} /> <ClanTagBadge user={user} />
                     {/* Item pedido: "no dia do aniversário, mostrar no
                         perfil a indicação visual" */}
-                    {data.isBirthdayToday && <span className="profile-birthday-badge" title="Aniversário hoje!">🎂</span>}
+                    {data.isBirthdayToday && <span className="profile-birthday-badge pf-birthday-badge" title="Aniversário hoje!"><PfIcon name="cake" size={20} /></span>}
                   </h2>
                   <div className="profile-username">@{user.username}{user.pronouns && <span className="profile-pronouns-inline"> · {user.pronouns}</span>}</div>
                   <div className="profile-custom-status-balloon">
                     <ActivityIcon userId={user.id} customStatusEmoji={user.customStatusEmoji} customStatus={user.customStatus} />
                   </div>
                   <ActivityBadge userId={user.id} />
-                  <div className="profile-ig-stats">
-                    <div className="profile-ig-stat">
-                      <b>{liveUps}</b>
-                      <span>Ups</span>
-                    </div>
-                    {/* Item pedido: "seguir" do lado de Ups, perto da
-                        foto de perfil — o número fica junto dos outros
-                        contadores; o botão de ação em si fica lá
-                        embaixo, junto dos outros botões de ação
-                        (Enviar mensagem/Adicionar amigo). */}
-                    {!isMe && (
-                      <div className="profile-ig-stat">
-                        <b>{fanStatus.count}</b>
-                        <span>{fanStatus.count === 1 ? 'Seguidor' : 'Seguidores'}</span>
-                      </div>
-                    )}
-                    {data.badges?.length > 0 && (
-                      <button type="button" className="profile-ig-stat" onClick={() => setBadgeListOpen(true)}>
-                        <b>{data.badges.length}</b>
-                        <span>Insígnias</span>
-                      </button>
-                    )}
-                    {!isMe && data.mutualFriends?.length > 0 && (
-                      <div className="profile-ig-stat">
-                        <b>{data.mutualFriends.length}</b>
-                        <span>Em comum</span>
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
             </div>
 
             <div className="profile-modal-body">
-              {/* Item pedido: "Privacidade do perfil... O servidor deve
-                  verificar essa configuração antes de devolver
-                  informações" — profileRestricted vem PRONTO do backend
-                  (getUser em userController.js), calculado a partir da
-                  configuração de QUEM É O DONO do perfil; aqui só avisa
-                  visualmente, sem revelar qual privacidade exata a
-                  pessoa escolheu nem tentar "adivinhar" o que falta. */}
-              {!isMe && data.profileRestricted && (
-                <div className="profile-section profile-restricted-notice dim" style={{ fontStyle: 'italic' }}>
-                  🔒 Esta pessoa limitou quem pode ver os detalhes completos do perfil — você está vendo só as informações públicas.
+              <div className="pf">
+                {/* Item pedido: "Privacidade do perfil... O servidor deve
+                    verificar essa configuração antes de devolver
+                    informações" — profileRestricted vem PRONTO do backend
+                    (getUser em userController.js), calculado a partir da
+                    configuração de QUEM É O DONO do perfil; aqui só avisa
+                    visualmente, sem revelar qual privacidade exata a
+                    pessoa escolheu nem tentar "adivinhar" o que falta. */}
+                {!isMe && data.profileRestricted && (
+                  <div className="pf-notice profile-restricted-notice">
+                    <span className="pf-notice-icon"><PfIcon name="lock" size={16} /></span>
+                    Esta pessoa limitou quem pode ver os detalhes completos do perfil — você está vendo só as informações públicas.
+                  </div>
+                )}
+                {/* Barra de nível redesenhada — mostra XP atual/necessário
+                    e o número de porcentagem, não só uma barrinha muda. */}
+                <div className="profile-level-bar-wrap">
+                  <div className="profile-level-bar-labels">
+                    <span className="profile-level-bar-chip"><img className="ui-icon-sm" src={levelStarIcon} alt="" /> Nível {user.accountLevel ?? 1}</span>
+                    <span className="dim">{data.levelProgress ?? 0}% para o próximo nível</span>
+                  </div>
+                  <div className="profile-level-progress-track">
+                    <div className="profile-level-progress-fill" style={{ width: `${data.levelProgress ?? 0}%`, background: user.levelBarColor || undefined }} />
+                  </div>
                 </div>
-              )}
-              {/* Barra de nível redesenhada — mostra XP atual/necessário
-                  e o número de porcentagem, não só uma barrinha muda. */}
-              <div className="profile-level-bar-wrap">
-                <div className="profile-level-bar-labels">
-                  <span className="profile-level-bar-chip"><img className="ui-icon-sm" src={levelStarIcon} alt="" /> Nível {user.accountLevel ?? 1}</span>
-                  <span className="dim">{data.levelProgress ?? 0}% para o próximo nível</span>
+
+                {!isMe && (
+                  <div className="profile-ig-actions-row">
+                    <div className="profile-actions profile-ig-actions">
+                      <button className="btn-primary" onClick={openDM}>Enviar mensagem</button>
+                      <button className="btn-secondary" onClick={addFriend} disabled={friendSent}>
+                        {friendSent ? 'Solicitado' : 'Adicionar amigo'}
+                      </button>
+                      <button className={`btn-secondary ${fanStatus.isFan ? 'active' : ''}`} onClick={toggleFanStatus}>
+                        {fanStatus.isFan ? 'Seguindo' : 'Seguir'}
+                      </button>
+                    </div>
+                    {/* Botões de voto num grupo próprio (antes ficavam
+                        espremidos ao lado dos botões grandes). */}
+                    <div className="profile-vote-group">
+                      <button
+                        type="button"
+                        className={`icon-btn profile-vote-icon-btn like ${data.myVote === 1 ? 'active' : ''}`}
+                        title="Dar Up"
+                        onClick={() => vote(1)}
+                      >
+                        <img className="ui-icon-sm" src={likeIcon} alt="" />
+                      </button>
+                      <button
+                        type="button"
+                        className={`icon-btn profile-vote-icon-btn dislike ${data.myVote === -1 ? 'active' : ''}`}
+                        title={`Dar Down (${data.dislikeCount ?? 0})`}
+                        onClick={() => vote(-1)}
+                      >
+                        <img className="ui-icon-sm" src={dislikeIcon} alt="" /> {data.dislikeCount ?? 0}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Números do perfil em bloquinhos (antes ficavam soltos no
+                    cabeçalho, em caixa alta). Ups atualiza em tempo real. */}
+                <div className="pf-stats">
+                  <div className="pf-stat">
+                    <span className="pf-stat-icon"><PfIcon name="up" size={16} strokeWidth={2.2} /></span>
+                    <span className="pf-stat-text"><b>{liveUps}</b><span>Ups</span></span>
+                  </div>
+                  <div className="pf-stat">
+                    <span className="pf-stat-icon"><PfIcon name="star" size={16} /></span>
+                    <span className="pf-stat-text"><b>{user.accountLevel ?? 1}</b><span>Nível</span></span>
+                  </div>
+                  {/* Item pedido: "seguir" do lado de Ups — o número fica
+                      junto dos outros contadores; o botão fica junto dos
+                      outros botões de ação. */}
+                  <div className="pf-stat">
+                    <span className="pf-stat-icon"><PfIcon name="users" size={16} /></span>
+                    <span className="pf-stat-text"><b>{fanStatus.count}</b><span>{fanStatus.count === 1 ? 'Seguidor' : 'Seguidores'}</span></span>
+                  </div>
+                  {data.badges?.length > 0 && (
+                    <button type="button" className="pf-stat pf-stat-btn" onClick={() => setBadgeListOpen(true)} title="Ver insígnias">
+                      <span className="pf-stat-icon"><PfIcon name="medal" size={16} /></span>
+                      <span className="pf-stat-text"><b>{data.badges.length}</b><span>Insígnias</span></span>
+                    </button>
+                  )}
+                  {!isMe && data.mutualFriends?.length > 0 && (
+                    <div className="pf-stat">
+                      <span className="pf-stat-icon"><PfIcon name="users" size={16} /></span>
+                      <span className="pf-stat-text"><b>{data.mutualFriends.length}</b><span>Em comum</span></span>
+                    </div>
+                  )}
+                  {showMemberSince && (
+                    <div className="pf-stat" title={`Membro desde ${createdAt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}`}>
+                      <span className="pf-stat-icon"><PfIcon name="calendar" size={16} /></span>
+                      <span className="pf-stat-text">
+                        <b className="pf-stat-date">{(() => { const m = createdAt.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''); return `${m.charAt(0).toUpperCase()}${m.slice(1)} ${createdAt.getFullYear()}`; })()}</b>
+                        <span>Entrou em</span>
+                      </span>
+                    </div>
+                  )}
                 </div>
-                <div className="profile-level-progress-track">
-                  <div className="profile-level-progress-fill" style={{ width: `${data.levelProgress ?? 0}%`, background: user.levelBarColor || undefined }} />
+
+                {badgeListOpen && (
+                  <BadgeListModal userName={user.displayName} badges={data.badges} onClose={() => setBadgeListOpen(false)} />
+                )}
+
+                {tabs.length > 1 && (
+                  <div className="pf-tabs" role="tablist">
+                    {tabs.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={currentTab === t.id}
+                        className={`pf-tab ${currentTab === t.id ? 'active' : ''}`}
+                        onClick={() => setActiveTab(t.id)}
+                      >
+                        <PfIcon name={t.icon} size={16} />
+                        {t.label}
+                        {tabCounts[t.id] > 0 && <span className="pf-tab-count">{tabCounts[t.id]}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className={`pf-grid ${currentCards.length === 1 ? 'single' : ''}`} key={currentTab}>
+                  {currentCards.map(([key, el]) => (
+                    <div key={key} className="pf-grid-item">{el}</div>
+                  ))}
                 </div>
               </div>
 
-              {!isMe && (
-                <div className="profile-ig-actions-row">
-                  <div className="profile-actions profile-ig-actions">
-                    <button className="btn-primary" onClick={openDM}>Enviar mensagem</button>
-                    <button className="btn-secondary" onClick={addFriend} disabled={friendSent}>
-                      {friendSent ? 'Solicitado' : 'Adicionar amigo'}
-                    </button>
-                    <button className={`btn-secondary ${fanStatus.isFan ? 'active' : ''}`} onClick={toggleFanStatus}>
-                      {fanStatus.isFan ? 'Seguindo' : 'Seguir'}
-                    </button>
-                  </div>
-                  {/* BUG CORRIGIDO ("botões de voto minúsculos e
-                      espremidos ao lado dos botões grandes"): antes
-                      ficavam na MESMA fileira, sem nenhuma diferença
-                      de tratamento visual — os 3 primeiros esticam
-                      (flex: 1) pra preencher o espaço, os de voto não,
-                      então sobravam pequenos no canto, sem clareza do
-                      que faziam. Grupo próprio agora, com mais
-                      destaque. */}
-                  <div className="profile-vote-group">
-                    <button
-                      type="button"
-                      className={`icon-btn profile-vote-icon-btn like ${data.myVote === 1 ? 'active' : ''}`}
-                      title="Dar Up"
-                      onClick={() => vote(1)}
-                    >
-                      <img className="ui-icon-sm" src={likeIcon} alt="" />
-                    </button>
-                    <button
-                      type="button"
-                      className={`icon-btn profile-vote-icon-btn dislike ${data.myVote === -1 ? 'active' : ''}`}
-                      title={`Dar Down (${data.dislikeCount ?? 0})`}
-                      onClick={() => vote(-1)}
-                    >
-                      <img className="ui-icon-sm" src={dislikeIcon} alt="" /> {data.dislikeCount ?? 0}
-                    </button>
-                  </div>
-                </div>
+              {scrapListOpen && (
+                <PaginatedListModal
+                  title={`Recados de ${user.displayName}`}
+                  emptyLabel="Nenhum recado ainda."
+                  onClose={() => setScrapListOpen(false)}
+                  fetchPage={(page) => listScraps(userId, page).then((d) => ({ items: d.scraps, totalPages: d.totalPages }))}
+                  renderItem={(s) => (
+                    <div key={s.id} className="profile-scrap-item">
+                      <UserAvatar user={s.author} size={28} />
+                      <div className="profile-scrap-item-body">
+                        <span className="profile-scrap-item-author">{s.author.displayName}</span>
+                        <span className="profile-scrap-item-text">{s.text}</span>
+                      </div>
+                      {(s.authorId === me.id || isMe) && (
+                        <button className="profile-scrap-item-remove" title="Apagar recado" onClick={() => { removeScrap(s.id); setScrapListOpen(false); }}>✕</button>
+                      )}
+                    </div>
+                  )}
+                />
               )}
 
-
-              {badgeListOpen && (
-                <BadgeListModal userName={user.displayName} badges={data.badges} onClose={() => setBadgeListOpen(false)} />
-              )}
-
-              <div className="profile-color-divider" style={{ background: `linear-gradient(90deg, ${gradientStops(user.profileColor || '#F2894D')[0]}, ${gradientStops(user.profileColor || '#F2894D')[1] || gradientStops(user.profileColor || '#F2894D')[0]})` }} />
-
-
-              <div className="profile-ig-fixed-top">
-                  {data.badges?.length > 0 && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">INSÍGNIAS</div>
-                      <div className="profile-badges-grid">
-                        {data.badges.map((b) => (
-                          <div
-                            key={b.id}
-                            className="profile-badge-tile"
-                            title={b.description || b.name}
-                            onClick={() => setBadgeListOpen(true)}
-                          >
-                            <span className="profile-badge-tile-icon">
-                              {badgeHasImage(b) ? <img className="profile-badge-img" src={proxyImage(b.iconUrl)} alt="" /> : b.icon}
-                            </span>
-                            <span className="profile-badge-tile-name truncate">{b.name}</span>
-                          </div>
-                        ))}
+              {testimonialListOpen && (
+                <PaginatedListModal
+                  title={`Depoimentos de ${user.displayName}`}
+                  emptyLabel="Nenhum depoimento ainda."
+                  onClose={() => setTestimonialListOpen(false)}
+                  fetchPage={(page) => listApprovedTestimonials(userId, page).then((d) => ({ items: d.testimonials, totalPages: d.totalPages }))}
+                  renderItem={(t) => (
+                    <div key={t.id} className="profile-testimonial-item">
+                      <UserAvatar user={t.author} size={32} />
+                      <div className="profile-testimonial-item-body">
+                        <span className="profile-testimonial-item-author">{t.author.displayName}</span>
+                        <span className="profile-testimonial-item-text">{t.text}</span>
                       </div>
                     </div>
                   )}
+                />
+              )}
 
-                  {isMe && (birthdays.today.length > 0 || birthdays.upcoming.length > 0) && (
-                    <div className="profile-section">
-                      <div className="profile-section-label">ANIVERSARIANTES</div>
-                      {birthdays.today.length > 0 && (
-                        <div className="profile-birthday-today">🎂 Hoje: {birthdays.today.map((f) => f.displayName).join(', ')}</div>
-                      )}
-                      {birthdays.upcoming.length > 0 && (
-                        <div className="profile-mutual-list">
-                          {birthdays.upcoming.map((f) => (
-                            <div key={f.id} className="profile-mutual-item">
-                              <div className="avatar tiny"><UserAvatar user={f} size={24} /></div>
-                              <span className="truncate">{f.displayName}</span>
-                              <span className="dim"> ({String(f.day).padStart(2, '0')}/{String(f.month).padStart(2, '0')})</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-              </div>
-
-              <div className="profile-ig-columns">
-                {visibleProfileSectionOrder(user.profileSectionOrder).map((key) => (
-                  <div key={key} className="profile-section-order-wrap">{SECTION_ELEMENTS[key]}</div>
-                ))}
-              </div>
-
-                  {scrapListOpen && (
-                    <PaginatedListModal
-                      title={`Recados de ${user.displayName}`}
-                      emptyLabel="Nenhum recado ainda."
-                      onClose={() => setScrapListOpen(false)}
-                      fetchPage={(page) => listScraps(userId, page).then((d) => ({ items: d.scraps, totalPages: d.totalPages }))}
-                      renderItem={(s) => (
-                        <div key={s.id} className="profile-scrap-item">
-                          <UserAvatar user={s.author} size={28} />
-                          <div className="profile-scrap-item-body">
-                            <span className="profile-scrap-item-author">{s.author.displayName}</span>
-                            <span className="profile-scrap-item-text">{s.text}</span>
-                          </div>
-                          {(s.authorId === me.id || isMe) && (
-                            <button className="profile-scrap-item-remove" title="Apagar recado" onClick={() => { removeScrap(s.id); setScrapListOpen(false); }}>✕</button>
-                          )}
-                        </div>
-                      )}
-                    />
-                  )}
-
-                  {testimonialListOpen && (
-                    <PaginatedListModal
-                      title={`Depoimentos de ${user.displayName}`}
-                      emptyLabel="Nenhum depoimento ainda."
-                      onClose={() => setTestimonialListOpen(false)}
-                      fetchPage={(page) => listApprovedTestimonials(userId, page).then((d) => ({ items: d.testimonials, totalPages: d.totalPages }))}
-                      renderItem={(t) => (
-                        <div key={t.id} className="profile-testimonial-item">
-                          <UserAvatar user={t.author} size={32} />
-                          <div className="profile-testimonial-item-body">
-                            <span className="profile-testimonial-item-author">{t.author.displayName}</span>
-                            <span className="profile-testimonial-item-text">{t.text}</span>
-                          </div>
-                        </div>
-                      )}
-                    />
-                  )}
-
-                  {albumOpen && (
-                    <PhotoAlbumModal
-                      ownerId={userId}
-                      ownerName={user.displayName}
-                      isMe={isMe}
-                      onClose={() => setAlbumOpen(false)}
-                    />
-                  )}
-
+              {albumOpen && (
+                <PhotoAlbumModal
+                  ownerId={userId}
+                  ownerName={user.displayName}
+                  isMe={isMe}
+                  onClose={() => setAlbumOpen(false)}
+                />
+              )}
             </div>
           </>
         )}
         {!loading && !user && (
-          <div className="profile-modal-error">
-            <div className="profile-modal-error-icon">⚠️</div>
+          <div className="profile-modal-error pf-error">
+            <span className="pf-error-icon"><PfIcon name="alert" size={26} /></span>
             <div className="profile-modal-error-title">Não foi possível carregar este perfil</div>
             <div className="dim">Tente fechar e abrir de novo em alguns instantes.</div>
           </div>

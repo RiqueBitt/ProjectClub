@@ -21,6 +21,8 @@ import xIcon from '../assets/icons/social-x.png';
 import { proxyImage } from '../utils/imageProxy';
 import { nameStyleProps, nameStyleClassName } from '../utils/nameStyle';
 import { badgeHasImage } from '../utils/badgeRarity';
+import { PfIcon, PfCard } from './modals/UserProfileModal.jsx';
+import '../styles/profile.css';
 
 // The right-hand rail's DM counterpart to MembersList — reuses the exact
 // same `.members-list` grid slot/width/collapse-button styling (see
@@ -40,6 +42,7 @@ export default function DMProfilePanel({ onToggle }) {
   const usableEmojis = useStore((s) => s.usableEmojis);
   const bioEmojiMap = Object.fromEntries(usableEmojis.map((e) => [e.name, e.url]));
 
+  const openProfile = useStore((s) => s.openProfile);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -56,9 +59,12 @@ export default function DMProfilePanel({ onToggle }) {
 
   if (conversation.isGroup) {
     return (
-      <aside className="members-list dm-profile-panel">
+      <aside className="members-list dm-profile-panel dmp">
         <button className="icon-btn members-collapse" onClick={onToggle}>›</button>
-        <div className="dim dm-profile-empty">Conversas em grupo não têm um perfil único para mostrar aqui.</div>
+        <div className="dmp-empty">
+          <span className="pf-empty-icon"><PfIcon name="users" size={18} /></span>
+          Conversas em grupo não têm um perfil único para mostrar aqui.
+        </div>
       </aside>
     );
   }
@@ -68,7 +74,7 @@ export default function DMProfilePanel({ onToggle }) {
 
   return (
     <aside
-      className={`members-list dm-profile-panel dm-profile-accented`}
+      className={`members-list dm-profile-panel dm-profile-accented dmp`}
       // Item pedido: a "placa de identificação" (idCardUrl) não usa mais
       // imagem própria de fundo aqui — sempre a cor do perfil da pessoa
       // (mesmo tratamento do perfil completo e do miniperfil), pra ficar
@@ -76,151 +82,154 @@ export default function DMProfilePanel({ onToggle }) {
       style={user ? profileAccentVars(user.profileColor) : undefined}
     >
       <button className="icon-btn members-collapse" onClick={onToggle}>›</button>
-      {loading && <div className="dim dm-profile-empty">Carregando...</div>}
+      {loading && (
+        <div className="dmp-skeleton" aria-label="Carregando perfil">
+          <span className="pf-sk pf-sk-banner" />
+          <span className="pf-sk dmp-sk-avatar" />
+          <span className="pf-sk dmp-sk-line" style={{ width: '60%' }} />
+          <span className="pf-sk dmp-sk-line" style={{ width: '40%' }} />
+          <span className="pf-sk dmp-sk-card" />
+        </div>
+      )}
       {!loading && user && (
         <>
-          <div className="profile-banner" style={{ background: user.bannerUrl ? undefined : (user.profileColor || '#F2894D') }}>
+          <div className="dmp-banner profile-banner" style={{ background: user.bannerUrl ? undefined : 'transparent' }}>
             {user.bannerUrl && <img src={proxyImage(user.bannerUrl)} alt="" />}
           </div>
-          <div className="profile-modal-body">
-            <div className="profile-avatar-row">
-              <div className="avatar-wrap large">
-                <div className="avatar xlarge">
-                  <UserAvatar user={user} size={72} />
-                </div>
-                <PresenceDot status={status} large title={STATUS_LABEL[status]} />
+          <div className="dmp-head">
+            <div className="avatar-wrap large">
+              <div className="avatar xlarge">
+                <UserAvatar user={user} size={80} />
               </div>
+              <PresenceDot status={status} large title={STATUS_LABEL[status]} />
             </div>
 
             <h2 className="profile-display-name"><span className={nameStyleClassName(user, { fullEffect: true })} style={nameStyleProps(user, { fullEffect: true })}>{user.displayName}</span> <TagBadge user={user} /> <ClanTagBadge user={user} /></h2>
-            <div className="profile-username">@{user.username}</div>
-
-            <div className="profile-votes-row">
-              <span className="profile-vote-btn like" title="Ups"><img className="ui-icon-sm" src={likeIcon} alt="" /> {data.totalUps ?? data.likeCount}</span>
-              <span className="profile-vote-btn dislike" title={`Dar Down (${data.dislikeCount ?? 0})`}><img className="ui-icon-sm" src={dislikeIcon} alt="" /> {data.dislikeCount}</span>
-            </div>
+            <div className="profile-username">@{user.username}{user.pronouns && <span className="profile-pronouns-inline"> · {user.pronouns}</span>}</div>
 
             <div className="profile-custom-status-balloon">
               <ActivityIcon userId={user.id} customStatusEmoji={user.customStatusEmoji} customStatus={user.customStatus} />
             </div>
             <ActivityBadge userId={user.id} />
 
+            <button type="button" className="dmp-open-full" onClick={() => openProfile(user.id)}>
+              <PfIcon name="user" size={15} /> Ver perfil completo
+            </button>
+          </div>
+
+          <div className="dmp-stats">
+            <div className="dmp-stat" title="Ups">
+              <b><img src={likeIcon} alt="" /> {data.totalUps ?? data.likeCount}</b>
+              <span>Ups</span>
+            </div>
+            <div className="dmp-stat" title={`Downs (${data.dislikeCount ?? 0})`}>
+              <b><img src={dislikeIcon} alt="" /> {data.dislikeCount ?? 0}</b>
+              <span>Downs</span>
+            </div>
+            <div className="dmp-stat" title="Nível">
+              <b>{user.accountLevel ?? 1}</b>
+              <span>Nível</span>
+            </div>
+          </div>
+
+          <div className="dmp-cards">
+            {user.bio && (
+              <PfCard icon="user" title="Sobre mim">
+                <div className="pf-bio profile-section-body">{renderRichContent(user.bio, { emojiMap: bioEmojiMap })}</div>
+              </PfCard>
+            )}
+
+            <PfCard icon="calendar" title="Membro desde">
+              <div className="dmp-meta">{new Date(user.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+            </PfCard>
+
             {data.badges?.length > 0 && (
-              <div className="profile-section">
-                <div className="profile-section-label">INSÍGNIAS</div>
-                <div className="profile-badges-grid">
+              <PfCard icon="medal" title="Insígnias" count={data.badges.length}>
+                <div className="dmp-icons">
                   {data.badges.map((b) => (
-                    <div key={b.id} className="profile-badge-tile" title={`${b.name}${b.description ? ' — ' + b.description : ''}`}>
-                      <span className="profile-badge-tile-icon">
-                        {badgeHasImage(b) ? <img className="profile-badge-img" src={proxyImage(b.iconUrl)} alt="" /> : b.icon}
-                      </span>
-                      <span className="profile-badge-tile-name truncate">{b.name}</span>
-                    </div>
+                    <span key={b.id} className="dmp-icon" title={`${b.name}${b.description ? ' — ' + b.description : ''}`}>
+                      {badgeHasImage(b) ? <img src={proxyImage(b.iconUrl)} alt="" /> : b.icon}
+                    </span>
                   ))}
                 </div>
-              </div>
+              </PfCard>
             )}
 
             {data.displayedAchievements?.length > 0 && (
-              <div className="profile-section">
-                <div className="profile-section-label">CONQUISTAS EM DESTAQUE</div>
-                <div className="profile-badges-grid">
+              <PfCard icon="trophy" title="Conquistas" count={data.displayedAchievements.length}>
+                <div className="dmp-icons">
                   {data.displayedAchievements.map((a) => (
-                    <div key={a.id} className="profile-badge-tile" title={a.description}>
-                      <span className="profile-badge-tile-icon">
-                        <img className="profile-badge-img" src={a.iconUrl ? proxyImage(a.iconUrl) : undefined} alt="" />
-                      </span>
-                      <span className="profile-badge-tile-name truncate">{a.name}</span>
-                    </div>
+                    <span key={a.id} className="dmp-icon" title={`${a.name}${a.description ? ' — ' + a.description : ''}`}>
+                      {a.iconUrl ? <img src={proxyImage(a.iconUrl)} alt="" /> : <PfIcon name="trophy" size={18} />}
+                    </span>
                   ))}
                 </div>
-              </div>
+              </PfCard>
             )}
-
-            <hr />
-
-            {user.bio && (
-              <div className="profile-section">
-                <div className="profile-section-label">SOBRE MIM</div>
-                <div className="profile-section-body">{renderRichContent(user.bio, { emojiMap: bioEmojiMap })}</div>
-              </div>
-            )}
-
-            {user.pronouns && (
-              <div className="profile-section">
-                <div className="profile-section-label">PRONOMES</div>
-                <div className="profile-section-body">{user.pronouns}</div>
-              </div>
-            )}
-
-            <div className="profile-section">
-              <div className="profile-section-label">MEMBRO DESDE</div>
-              <div className="profile-section-body">{new Date(user.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
-            </div>
 
             {(user.youtubeUrl || user.steamUrl || user.robloxUrl || user.xUrl) && (
-              <div className="profile-section">
-                <div className="profile-section-label">CONEXÕES</div>
-                <div className="profile-connections-row">
+              <PfCard icon="link" title="Conexões">
+                <div className="pf-connections">
                   {user.youtubeUrl && (
-                    <a className="profile-connection" href={user.youtubeUrl} target="_blank" rel="noreferrer" title="YouTube">
-                      <span className="profile-connection-icon"><img className="ui-icon-sm" src={youtubeIcon} alt="" /></span> YouTube
+                    <a className="pf-connection" href={user.youtubeUrl} target="_blank" rel="noreferrer" title="YouTube">
+                      <img src={youtubeIcon} alt="" /> YouTube
                     </a>
                   )}
                   {user.steamUrl && (
-                    <a className="profile-connection" href={user.steamUrl} target="_blank" rel="noreferrer" title="Steam">
-                      <span className="profile-connection-icon"><img className="ui-icon-sm" src={steamIcon} alt="" /></span> Steam
+                    <a className="pf-connection" href={user.steamUrl} target="_blank" rel="noreferrer" title="Steam">
+                      <img src={steamIcon} alt="" /> Steam
                     </a>
                   )}
                   {user.robloxUrl && (
-                    <a className="profile-connection" href={user.robloxUrl} target="_blank" rel="noreferrer" title="Roblox">
-                      <span className="profile-connection-icon"><img className="ui-icon-sm" src={robloxIcon} alt="" /></span> Roblox
+                    <a className="pf-connection" href={user.robloxUrl} target="_blank" rel="noreferrer" title="Roblox">
+                      <img src={robloxIcon} alt="" /> Roblox
                     </a>
                   )}
                   {user.xUrl && (
-                    <a className="profile-connection" href={user.xUrl} target="_blank" rel="noreferrer" title="X (Twitter)">
-                      <span className="profile-connection-icon"><img className="ui-icon-sm" src={xIcon} alt="" /></span> X
+                    <a className="pf-connection" href={user.xUrl} target="_blank" rel="noreferrer" title="X (Twitter)">
+                      <img src={xIcon} alt="" /> X
                     </a>
                   )}
                 </div>
-              </div>
+              </PfCard>
             )}
 
             {data.mutualServers?.length > 0 && (
-              <div className="profile-section">
-                <div className="profile-section-label">SERVIDORES EM COMUM — {data.mutualServers.length}</div>
-                <div className="profile-mutual-list">
+              <PfCard icon="grid" title="Servidores em comum" count={data.mutualServers.length}>
+                <div className="pf-people">
                   {data.mutualServers.map((s) => (
-                    <div key={s.id} className="profile-mutual-item">
-                      <div className="avatar tiny" style={{ background: '#F2894D' }}>
+                    <div key={s.id} className="pf-person">
+                      <span className="dmp-server-icon">
                         {s.icon ? <img src={s.icon} alt="" /> : s.name[0]?.toUpperCase()}
-                      </div>
-                      <span className="truncate">{s.name}</span>
+                      </span>
+                      <span className="pf-person-name">{s.name}</span>
                     </div>
                   ))}
                 </div>
-              </div>
+              </PfCard>
             )}
 
             {data.mutualFriends?.length > 0 && (
-              <div className="profile-section">
-                <div className="profile-section-label">AMIGOS EM COMUM — {data.mutualFriends.length}</div>
-                <div className="profile-mutual-list">
+              <PfCard icon="users" title="Amigos em comum" count={data.mutualFriends.length}>
+                <div className="pf-people">
                   {data.mutualFriends.map((f) => (
-                    <div key={f.id} className="profile-mutual-item">
-                      <div className="avatar tiny">
-                        <UserAvatar user={f} size={24} />
-                      </div>
-                      <span className="truncate">{f.displayName}</span>
+                    <div key={f.id} className="pf-person">
+                      <UserAvatar user={f} size={24} />
+                      <span className="pf-person-name">{f.displayName}</span>
                     </div>
                   ))}
                 </div>
-              </div>
+              </PfCard>
             )}
           </div>
         </>
       )}
-      {!loading && !user && <div className="dim dm-profile-empty">Não foi possível carregar este perfil.</div>}
+      {!loading && !user && (
+        <div className="dmp-empty">
+          <span className="pf-empty-icon"><PfIcon name="alert" size={18} /></span>
+          Não foi possível carregar este perfil.
+        </div>
+      )}
     </aside>
   );
 }

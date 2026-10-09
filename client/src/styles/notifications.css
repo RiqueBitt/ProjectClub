@@ -1,0 +1,67 @@
+/* ============================================================
+   Notificações (NotificationsPage.jsx): grupos Hoje/Ontem/Antes,
+   item com avatar + selo do tipo, ponto de não lida e fundo tingido.
+   Cor por tipo via --k. Tudo sob .nt.
+   ============================================================ */
+
+.nt.notifications-page { padding: 20px 28px 56px; }
+
+.nt-group { margin: 0; }
+.nt .nt-group h3 {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 8px 4px;
+  font-size: 12px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: var(--text-muted);
+}
+.nt .nt-group h3 span { padding: 0 7px; border-radius: 999px; font-size: 11px; background: var(--bg-modifier-hover); color: var(--text-normal); letter-spacing: 0; }
+
+.nt .nt-list {
+  list-style: none; margin: 0; padding: 6px; display: flex; flex-direction: column; gap: 4px;
+  border-radius: 18px; background: var(--bg-secondary); border: 1px solid var(--border);
+}
+.nt .nt-item {
+  --k: var(--brand);
+  position: relative; display: flex; flex-direction: row; align-items: flex-start; gap: 12px;
+  padding: 12px 14px; border-radius: 13px; cursor: default; color: var(--text-normal);
+}
+.nt .nt-item[data-kind='testimonial'] { --k: #a37cff; }
+.nt .nt-item[data-kind='relationship'] { --k: #ff5c8a; }
+.nt .nt-item[data-kind='friend'] { --k: var(--green); }
+.nt .nt-item[data-kind='conversation'] { --k: #2fb8d6; }
+.nt .nt-item.unread { background: color-mix(in srgb, var(--k) 9%, transparent); }
+.nt .nt-item.clickable { cursor: pointer; }
+.nt .nt-item.clickable:hover { background: color-mix(in srgb, var(--k) 15%, transparent); }
+.nt .notifications-item-testimonial:hover { background: color-mix(in srgb, var(--k) 9%, transparent); }
+
+.nt-icon { position: relative; flex-shrink: 0; width: 40px; height: 40px; }
+.nt-icon-solo { width: 40px; height: 40px; border-radius: 13px; display: inline-flex; align-items: center; justify-content: center; color: var(--k); background: color-mix(in srgb, var(--k) 18%, transparent); }
+.nt-icon-badge {
+  position: absolute; right: -4px; bottom: -4px; width: 20px; height: 20px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center; color: #fff; background: var(--k);
+  box-shadow: 0 0 0 3px var(--bg-secondary);
+}
+
+.nt-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.nt-line { display: flex; align-items: baseline; gap: 10px; min-width: 0; font-size: 14.5px; line-height: 1.4; }
+.nt-line > span { flex: 1; min-width: 0; }
+.nt-line strong { color: var(--header-primary); font-weight: 700; }
+.nt-line time { flex-shrink: 0; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.nt-sub { display: block; font-size: 13px; color: var(--text-muted); }
+.nt .nt-quote {
+  margin: 6px 0 2px; padding: 10px 12px; border-radius: 12px; font-size: 13.5px; line-height: 1.5; color: var(--text-normal);
+  background: var(--bg-primary); border-left: 3px solid var(--k);
+}
+.nt .nt-actions { align-self: flex-start; margin-top: 8px; gap: 8px; }
+
+.nt-dot { flex-shrink: 0; width: 9px; height: 9px; margin-top: 7px; border-radius: 50%; background: var(--k); box-shadow: 0 0 0 3px color-mix(in srgb, var(--k) 22%, transparent); }
+.nt .nt-badge { flex-shrink: 0; margin-top: 2px; }
+
+@media (max-width: 700px) {
+  .nt.notifications-page { padding: 12px 12px 40px; }
+  .nt .nt-hero-aside .pk-btn, .nt .pk-hero-aside .pk-btn { width: 100%; }
+  .nt .nt-item { padding: 10px; gap: 10px; }
+  .nt-line { flex-direction: column; gap: 1px; font-size: 14px; }
+  .nt-line > span { white-space: normal; }
+  .nt .nt-actions { width: 100%; }
+  .nt .nt-actions .pk-btn { flex: 1; }
+  .nt .pk-tab { padding: 0 8px; gap: 5px; }
+  .nt .pk-tab svg { display: none; }
+}

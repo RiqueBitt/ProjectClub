@@ -2,8 +2,43 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
-import { listPendingTestimonials, respondTestimonial, listPendingRelationships, respondRelationship } from '../api/endpoints';
+import {
+  listPendingTestimonials, respondTestimonial, listPendingRelationships, respondRelationship,
+  markChannelRead, markConversationRead,
+} from '../api/endpoints';
 import { DISABLED_PROFILE_SECTIONS } from '../utils/profileSections';
+import UserAvatar from '../components/UserAvatar.jsx';
+import { Ico, PageHero, PillTabs, EmptyState } from '../components/PagesKit.jsx';
+import '../styles/notifications.css';
+
+// Agrupa por dia: Hoje / Ontem / Antes (sem data também cai em "Antes").
+function dayGroup(date) {
+  if (!date) return 'Antes';
+  const d = new Date(date);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  if (d >= today) return 'Hoje';
+  if (d >= new Date(today.getTime() - 86400000)) return 'Ontem';
+  return 'Antes';
+}
+const GROUPS = ['Hoje', 'Ontem', 'Antes'];
+
+function when(date) {
+  if (!date) return '';
+  const d = new Date(date);
+  const diff = (Date.now() - d.getTime()) / 60000;
+  if (diff < 1) return 'agora';
+  if (diff < 60) return `${Math.floor(diff)} min`;
+  if (dayGroup(date) === 'Hoje') return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  if (dayGroup(date) === 'Ontem') return `ontem, ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+}
+
+const FILTERS = [
+  { id: 'ALL', label: 'Todas', icon: 'bell' },
+  { id: 'MENTIONS', label: 'Menções', icon: 'at' },
+  { id: 'MESSAGES', label: 'Mensagens', icon: 'mail' },
+  { id: 'REQUESTS', label: 'Pedidos', icon: 'userPlus' },
+];
 
 // Área de notificações: reúne, num só lugar, tudo que já é sinalizado
 // pontualmente em outras partes do app — canais com menções não lidas,
@@ -68,107 +103,166 @@ export default function NotificationsPage() {
 
   const isEmpty = unreadChannels.length === 0 && unreadConversations.length === 0 && pendingIncoming.length === 0 && pendingTestimonials.length === 0 && pendingRelationships.length === 0;
 
-  return (
-    <div className="notifications-page">
-      <h2 className="notifications-page-title">Notificações</h2>
+  const [filter, setFilter] = useState('ALL');
+  const markChannelReadLocal = useStore((s) => s.markChannelReadLocal);
+  const markConversationReadLocal = useStore((s) => s.markConversationReadLocal);
 
-      {isEmpty && (
-        <div className="friends-empty-state">
-          <div className="friends-empty-state-icon">🔔</div>
-          <h3>Tudo em dia.</h3>
-          <p>Você não tem notificações novas no momento.</p>
+  // "Marcar todas como lidas" — mesmas chamadas que abrir o canal/conversa
+  // já faz (ChatWindow.jsx), só que pra todos os não lidos de uma vez.
+  // Pedidos (amizade, depoimento, namoro) continuam: precisam de resposta.
+  const markAllRead = () => {
+    unreadChannels.forEach((ch) => { markChannelRead(ch.id).catch(() => {}); markChannelReadLocal(ch.id); });
+    unreadConversations.forEach((c) => { markConversationRead(c.id).catch(() => {}); markConversationReadLocal(c.id); });
+  };
+
+  const convName = (c) => {
+    const other = !c.isGroup ? c.members.find((m) => m.id !== user.id) : null;
+    return { name: c.isGroup ? (c.name || c.members.map((m) => m.displayName).join(', ')) : other?.displayName, other };
+  };
+
+  // Lista única com tipo + data, pra agrupar por dia e filtrar.
+  const items = [
+    ...pendingTestimonials.map((t) => ({ kind: 'testimonial', cat: 'REQUESTS', key: `t-${t.id}`, at: t.createdAt, data: t })),
+    ...pendingRelationships.map((r) => ({ kind: 'relationship', cat: 'REQUESTS', key: `r-${r.id}`, at: r.createdAt, data: r })),
+    ...pendingIncoming.map((f) => ({ kind: 'friend', cat: 'REQUESTS', key: `f-${f.id}`, at: f.createdAt, data: f })),
+    ...unreadChannels.map((ch) => ({ kind: 'channel', cat: 'MENTIONS', key: `c-${ch.id}`, at: ch.lastMessage?.createdAt, data: ch })),
+    ...unreadConversations.map((c) => ({ kind: 'conversation', cat: 'MESSAGES', key: `d-${c.id}`, at: c.lastMessage?.createdAt, data: c })),
+  ];
+  const counts = { ALL: items.length };
+  items.forEach((it) => { counts[it.cat] = (counts[it.cat] || 0) + 1; });
+  const visible = items
+    .filter((it) => filter === 'ALL' || it.cat === filter)
+    .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
+  const canMarkAll = unreadChannels.length + unreadConversations.length > 0;
+
+  const renderItem = (it) => {
+    if (it.kind === 'testimonial') {
+      const t = it.data;
+      return (
+        <li key={it.key} className="notifications-item notifications-item-testimonial nt-item unread" data-kind="testimonial">
+          <NtIcon kind="testimonial" user={t.author} />
+          <div className="nt-body">
+            <div className="nt-line"><span><strong>{t.author.displayName}</strong> escreveu um depoimento pra você</span><time>{when(t.createdAt)}</time></div>
+            <p className="notifications-testimonial-text nt-quote">{t.text}</p>
+            <div className="notifications-testimonial-actions nt-actions">
+              <button className="pk-btn sm" onClick={() => respondToTestimonial(t.id, 'decline')}>Recusar</button>
+              <button className="pk-btn sm primary" onClick={() => respondToTestimonial(t.id, 'approve')}><Ico name="check" size={15} /> Aprovar</button>
+            </div>
+          </div>
+          <span className="nt-dot" aria-label="Não lida" />
+        </li>
+      );
+    }
+    if (it.kind === 'relationship') {
+      const r = it.data;
+      return (
+        <li key={it.key} className="notifications-item notifications-item-testimonial nt-item unread" data-kind="relationship">
+          <NtIcon kind="relationship" user={r.requester} />
+          <div className="nt-body">
+            <div className="nt-line"><span><strong>{r.requester.displayName}</strong> te pediu em namoro!</span><time>{when(r.createdAt)}</time></div>
+            <div className="notifications-testimonial-actions nt-actions">
+              <button className="pk-btn sm" onClick={() => respondToRelationship(r.id, 'decline')}>Recusar</button>
+              <button className="pk-btn sm primary" onClick={() => respondToRelationship(r.id, 'accept')}><Ico name="heart" size={15} /> Aceitar</button>
+            </div>
+          </div>
+          <span className="nt-dot" aria-label="Não lida" />
+        </li>
+      );
+    }
+    if (it.kind === 'friend') {
+      const f = it.data;
+      return (
+        <li key={it.key} className="notifications-item nt-item unread clickable" data-kind="friend" onClick={() => navigate('/dms')}>
+          <NtIcon kind="friend" user={f.user} />
+          <div className="nt-body">
+            <div className="nt-line"><span className="truncate"><strong>{f.user.displayName}</strong> quer ser seu amigo</span><time>{when(f.createdAt)}</time></div>
+            <span className="nt-sub">Pedido de amizade · toque pra responder</span>
+          </div>
+          <span className="nt-dot" aria-label="Não lida" />
+        </li>
+      );
+    }
+    if (it.kind === 'channel') {
+      const ch = it.data;
+      const last = ch.lastMessage;
+      return (
+        <li key={it.key} className="notifications-item nt-item unread clickable" data-kind="channel" onClick={() => navigate(`/channels/${ch.id}`)}>
+          <NtIcon kind="channel" user={last?.author} />
+          <div className="nt-body">
+            <div className="nt-line">
+              <span className="truncate">{last?.author ? <><strong>{last.author.displayName}</strong> mencionou você em </> : 'Menção em '}<strong>#{ch.name}</strong></span>
+              <time>{when(last?.createdAt)}</time>
+            </div>
+            {last?.content && <span className="nt-sub truncate">{last.content}</span>}
+          </div>
+          {ch.unreadMentions > 0 ? <span className="mention-badge nt-badge">{ch.unreadMentions > 99 ? '99+' : ch.unreadMentions}</span> : <span className="nt-dot" aria-label="Não lida" />}
+        </li>
+      );
+    }
+    const c = it.data;
+    const { name, other } = convName(c);
+    const last = c.lastMessage;
+    return (
+      <li key={it.key} className="notifications-item nt-item unread clickable" data-kind="conversation" onClick={() => navigate(`/conversations/${c.id}`)}>
+        <NtIcon kind="conversation" user={other} />
+        <div className="nt-body">
+          <div className="nt-line"><span className="truncate"><strong>{name}</strong>{c.isGroup ? ' · grupo' : ''}</span><time>{when(last?.createdAt)}</time></div>
+          <span className="nt-sub truncate">{last?.content ? `${c.isGroup && last.author ? `${last.author.displayName}: ` : ''}${last.content}` : 'Nova mensagem'}</span>
         </div>
-      )}
+        <span className="nt-dot" aria-label="Não lida" />
+      </li>
+    );
+  };
 
-      {pendingTestimonials.length > 0 && (
-        <section className="notifications-section">
-          <h3>Depoimentos pra aprovar</h3>
-          <ul className="notifications-list notifications-list-testimonials">
-            {pendingTestimonials.map((t) => (
-              <li key={t.id} className="notifications-item notifications-item-testimonial">
-                <div className="notifications-testimonial-header">
-                  <span className="notifications-item-icon">📝</span>
-                  <div className="notifications-testimonial-body">
-                    <span className="truncate"><strong>{t.author.displayName}</strong> escreveu um depoimento:</span>
-                    <span className="notifications-testimonial-text">{t.text}</span>
-                  </div>
-                </div>
-                <div className="notifications-testimonial-actions">
-                  <button className="btn-secondary" onClick={() => respondToTestimonial(t.id, 'decline')}>Recusar</button>
-                  <button className="btn-primary" onClick={() => respondToTestimonial(t.id, 'approve')}>Aprovar</button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+  return (
+    <div className="notifications-page pk-page nt">
+      <div className="pk-inner narrow">
+        <PageHero
+          icon="bell" eyebrow="Central" title="Notificações"
+          desc="Menções, mensagens não lidas e pedidos que esperam sua resposta — tudo num lugar só."
+          aside={canMarkAll && (
+            <button className="pk-btn" onClick={markAllRead}><Ico name="checkAll" size={18} /> Marcar todas como lidas</button>
+          )}
+        />
 
-      {pendingRelationships.length > 0 && (
-        <section className="notifications-section">
-          <h3>Pedidos de namoro</h3>
-          <ul className="notifications-list notifications-list-testimonials">
-            {pendingRelationships.map((r) => (
-              <li key={r.id} className="notifications-item notifications-item-testimonial">
-                <div className="notifications-testimonial-header">
-                  <span className="notifications-item-icon">💌</span>
-                  <span className="truncate"><strong>{r.requester.displayName}</strong> te pediu em namoro!</span>
-                </div>
-                <div className="notifications-testimonial-actions">
-                  <button className="btn-secondary" onClick={() => respondToRelationship(r.id, 'decline')}>Recusar</button>
-                  <button className="btn-primary" onClick={() => respondToRelationship(r.id, 'accept')}>Aceitar 💞</button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+        {!isEmpty && (
+          <PillTabs
+            className="small" label="Filtrar notificações" value={filter} onChange={setFilter}
+            tabs={FILTERS.map((f) => ({ ...f, count: counts[f.id] || 0 }))}
+          />
+        )}
 
-      {pendingIncoming.length > 0 && (
-        <section className="notifications-section">
-          <h3>Pedidos de amizade</h3>
-          <ul className="notifications-list">
-            {pendingIncoming.map((f) => (
-              <li key={f.id} className="notifications-item" onClick={() => navigate('/dms')}>
-                <span className="notifications-item-icon">👥</span>
-                <span className="truncate">{f.user.displayName} quer ser seu amigo</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+        {isEmpty && (
+          <EmptyState icon="bell" title="Tudo em dia." text="Você não tem notificações novas no momento." />
+        )}
 
-      {unreadChannels.length > 0 && (
-        <section className="notifications-section">
-          <h3>Canais não lidos</h3>
-          <ul className="notifications-list">
-            {unreadChannels.map((ch) => (
-              <li key={ch.id} className="notifications-item" onClick={() => navigate(`/channels/${ch.id}`)}>
-                <span className="notifications-item-icon">💬</span>
-                <span className="truncate">{ch.name}</span>
-                {ch.unreadMentions > 0 && <span className="mention-badge">{ch.unreadMentions > 99 ? '99+' : ch.unreadMentions}</span>}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+        {!isEmpty && visible.length === 0 && (
+          <EmptyState compact icon={FILTERS.find((f) => f.id === filter)?.icon} title="Nada por aqui" text="Nenhuma notificação neste filtro." />
+        )}
 
-      {unreadConversations.length > 0 && (
-        <section className="notifications-section">
-          <h3>Conversas não lidas</h3>
-          <ul className="notifications-list">
-            {unreadConversations.map((c) => {
-              const other = !c.isGroup ? c.members.find((m) => m.id !== user.id) : null;
-              const name = c.isGroup ? (c.name || c.members.map((m) => m.displayName).join(', ')) : other?.displayName;
-              return (
-                <li key={c.id} className="notifications-item" onClick={() => navigate(`/conversations/${c.id}`)}>
-                  <span className="notifications-item-icon">✉️</span>
-                  <span className="truncate">{name}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+        {GROUPS.map((g) => {
+          const list = visible.filter((it) => dayGroup(it.at) === g);
+          if (!list.length) return null;
+          return (
+            <section key={g} className="notifications-section nt-group">
+              <h3>{g} <span>{list.length}</span></h3>
+              <ul className="notifications-list nt-list">{list.map(renderItem)}</ul>
+            </section>
+          );
+        })}
+      </div>
     </div>
+  );
+}
+
+const KIND_ICON = { testimonial: 'pen', relationship: 'heart', friend: 'userPlus', channel: 'at', conversation: 'mail' };
+
+// Avatar de quem gerou + selinho com o ícone do tipo; sem pessoa, só o ícone.
+function NtIcon({ kind, user }) {
+  return (
+    <span className={`nt-icon k-${kind}`}>
+      {user ? <UserAvatar user={user} size={40} /> : <span className="nt-icon-solo"><Ico name={KIND_ICON[kind]} size={20} /></span>}
+      {user && <span className="nt-icon-badge"><Ico name={KIND_ICON[kind]} size={12} strokeWidth={2.4} /></span>}
+    </span>
   );
 }

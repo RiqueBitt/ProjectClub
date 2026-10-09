@@ -16,6 +16,7 @@ import PanelSlot from '../components/PanelSlot.jsx';
 import DMProfilePanel from '../components/DMProfilePanel.jsx';
 import FriendsListPanel from '../components/FriendsListPanel.jsx';
 import CallBar from '../components/CallBar.jsx';
+import MobileTabBar from '../components/MobileTabBar.jsx';
 import IncomingCallBanner from '../components/IncomingCallBanner.jsx';
 import NoticeToast from '../components/NoticeToast.jsx';
 import WelcomePane from '../components/WelcomePane.jsx';
@@ -417,6 +418,7 @@ export default function MainApp() {
 
       <IncomingCallBanner />
       <PanelSlot panelId="callbar"><CallBar /></PanelSlot>
+      <MobileTabBar />
       <NoticeToast />
       {/* BUG CORRIGIDO ("erro ao abrir o perfil quebra a tela toda"):
           o perfil é o modal que mais mudou nas últimas respostas (o
