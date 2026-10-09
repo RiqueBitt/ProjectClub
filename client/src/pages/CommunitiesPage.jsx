@@ -4,11 +4,11 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useStore } from '../store/useStore';
 import IconGlyph from '../components/IconGlyph.jsx';
 import emptyIcon from '../assets/icons/nav-empty.png';
-import linkIcon from '../assets/icons/nav-link.png';
 import {
   createCommunity, listPosts, createPost, uploadCommunityIconForSlug, uploadPostImage, votePost,
 } from '../api/endpoints';
 import { proxyImage } from '../utils/imageProxy';
+import UserAvatar from '../components/UserAvatar.jsx';
 
 // Feeds — página principal, lista os posts de todos os Temas. Um Tema é
 // uma categoria principal criada só pela staff (ver AdminPanel.jsx →
@@ -17,9 +17,9 @@ import { proxyImage } from '../utils/imageProxy';
 // categorias de post (Discussão, Meme, Dúvida...) também geridas só pela
 // staff. Todo post precisa de um Tema + uma categoria escolhidos.
 const SORTS = [
-  { key: 'hot', label: '🔥 Relevantes' },
-  { key: 'new', label: '🆕 Novos' },
-  { key: 'top', label: '⬆️ Melhores' },
+  { key: 'hot', icon: 'hot', label: 'Relevantes' },
+  { key: 'new', icon: 'new', label: 'Novos' },
+  { key: 'top', icon: 'top', label: 'Melhores' },
 ];
 
 export default function CommunitiesPage() {
@@ -45,16 +45,25 @@ export default function CommunitiesPage() {
 
   return (
     <div className="communities-page">
+      <header className="feeds-hero">
+        <div>
+          <h1>Feeds</h1>
+          <p>Posts da comunidade, organizados por Temas.</p>
+        </div>
+        <button className="feeds-create" onClick={() => setShowCreatePost(true)} disabled={clubs.length === 0}>
+          <FeedIcon name="plus" /> Criar post
+        </button>
+      </header>
       <div className="communities-feed-col">
-        <div className="communities-feed-header">
-          <div className="communities-sort-tabs">
-            {SORTS.map((s) => (
-              <button key={s.key} className={`communities-sort-tab ${sort === s.key ? 'active' : ''}`} onClick={() => setSort(s.key)}>
-                {s.label}
-              </button>
-            ))}
-          </div>
-          <button className="btn-primary" onClick={() => setShowCreatePost(true)} disabled={clubs.length === 0}>+ Criar post</button>
+        <div className="feeds-toolbar" role="tablist" aria-label="Ordenar posts">
+          {SORTS.map((s) => (
+            <button
+              key={s.key} role="tab" aria-selected={sort === s.key}
+              className={`feeds-sort${sort === s.key ? ' active' : ''}`} onClick={() => setSort(s.key)}
+            >
+              <FeedIcon name={s.icon} size={15} /> {s.label}
+            </button>
+          ))}
         </div>
 
         {showCreatePost && (
@@ -82,10 +91,14 @@ export default function CommunitiesPage() {
 
       <div className="communities-sidebar-col">
         <div className="communities-sidebar-card">
-          <h4>Temas</h4>
-          {isStaff && (
-            <button className="btn-secondary communities-create-btn" onClick={() => setShowCreateClub(true)}>+ Criar Tema</button>
-          )}
+          <div className="feeds-side-head">
+            <h4>Temas</h4>
+            {isStaff && (
+              <button className="feeds-side-add" onClick={() => setShowCreateClub(true)} title="Criar Tema" aria-label="Criar Tema">
+                <FeedIcon name="plus" size={15} />
+              </button>
+            )}
+          </div>
           {showCreateClub && (
             <CreateClubForm onClose={() => setShowCreateClub(false)} />
           )}
@@ -101,39 +114,107 @@ export default function CommunitiesPage() {
   );
 }
 
-export function PostCard({ post, onVote, onOpen }) {
+// Ícones dos Feeds (SVG, herdam a cor) — sem emoji, que some no Linux.
+const FEED_ICONS = {
+  up: 'M12 5 5 13h4.5v6h5v-6H19L12 5Z',
+  down: 'M12 19l7-8h-4.5V5h-5v6H5l7 8Z',
+  comment: 'M4 5h16v11H8l-4 4V5Z',
+  share: 'M15 8a3 3 0 1 0-2.8-4M9 12a3 3 0 1 0 0 .01M15 16a3 3 0 1 0 2.8 4M11.7 10.7l3.6-2M11.7 13.3l3.6 2',
+  link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+  hot: 'M12 3s5 4.5 5 9.5A5 5 0 0 1 7 12.5C7 10 9 8.5 9 8.5s0 2.5 2 3.5c0-4 1-9 1-9Z',
+  new: 'M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8',
+  top: 'M4 17l6-6 4 4 6-7M14 8h6v6',
+  plus: 'M12 5v14M5 12h14',
+};
+export function FeedIcon({ name, size = 16, filled = false }) {
   return (
-    <div className="post-card">
-      <div className="post-card-votes">
-        <button className={`post-vote-btn up ${post.myVote === 1 ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); onVote(post, 1); }}>▲</button>
-        <span className="post-vote-score">{post.score}</span>
-        <button className={`post-vote-btn down ${post.myVote === -1 ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); onVote(post, -1); }}>▼</button>
-      </div>
-      <div className="post-card-body" onClick={onOpen}>
-        <div className="post-card-meta">
-          <span className="post-card-community">{post.community.name}</span>
-          {post.category && (
-            <span className="post-card-category">
-              {post.category.iconUrl && <img className="post-card-category-icon" src={proxyImage(post.category.iconUrl)} alt="" />}
-              {post.category.name}
-            </span>
-          )}
-          <span className="dim">· por {post.author.displayName}</span>
-        </div>
-        <div className="post-card-title">{post.title}</div>
-        {post.type === 'TEXT' && post.content && <div className="post-card-text-preview">{post.content}</div>}
-        {post.type === 'IMAGE' && post.imageUrl && <img className="post-card-image" src={proxyImage(post.imageUrl)} alt="" loading="lazy" />}
-        {post.type === 'LINK' && <div className="post-card-link"><IconGlyph src={linkIcon} size={13} /> {post.linkUrl}</div>}
-        <div className="post-card-footer">💬 {post.commentCount} comentário{post.commentCount === 1 ? '' : 's'}</div>
-      </div>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={FEED_ICONS[name]} />
+    </svg>
+  );
+}
+
+export function timeAgo(date) {
+  if (!date) return '';
+  const diff = (Date.now() - new Date(date).getTime()) / 1000;
+  if (diff < 60) return 'agora';
+  if (diff < 3600) return `${Math.floor(diff / 60)} min`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} h`;
+  if (diff < 7 * 86400) return `${Math.floor(diff / 86400)} d`;
+  return new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+}
+
+// Votos: ▲ placar ▼ numa pílula só (cor muda conforme o seu voto).
+export function VotePill({ score, myVote, onVote }) {
+  return (
+    <div className={`fp-vote${myVote === 1 ? ' is-up' : myVote === -1 ? ' is-down' : ''}`} onClick={(e) => e.stopPropagation()}>
+      <button type="button" aria-label="Votar a favor" aria-pressed={myVote === 1} onClick={() => onVote(1)}>
+        <FeedIcon name="up" filled={myVote === 1} />
+      </button>
+      <span className="fp-vote-score">{score}</span>
+      <button type="button" aria-label="Votar contra" aria-pressed={myVote === -1} onClick={() => onVote(-1)}>
+        <FeedIcon name="down" filled={myVote === -1} />
+      </button>
     </div>
+  );
+}
+
+export function PostCard({ post, onVote, onOpen }) {
+  const [copied, setCopied] = useState(false);
+  const share = (e) => {
+    e.stopPropagation();
+    navigator.clipboard?.writeText(`${window.location.origin}/posts/${post.id}`).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    }).catch(() => {});
+  };
+  const onKey = (e) => { if (e.key === 'Enter' && e.target === e.currentTarget) onOpen(); };
+  return (
+    <article className="fp-card" onClick={onOpen} onKeyDown={onKey} tabIndex={0} aria-label={post.title}>
+      <header className="fp-card-head">
+        <span className="fp-club">
+          {post.community.iconUrl
+            ? <img src={proxyImage(post.community.iconUrl)} alt="" />
+            : <span className="fp-club-fallback">{post.community.name.slice(0, 1)}</span>}
+          {post.community.name}
+        </span>
+        {post.category && (
+          <span className="fp-cat">
+            {post.category.iconUrl && <img src={proxyImage(post.category.iconUrl)} alt="" />}
+            {post.category.name}
+          </span>
+        )}
+        <span className="fp-by">
+          <UserAvatar user={post.author} size={18} />
+          <span className="truncate">{post.author.displayName}</span>
+          {post.createdAt && <time dateTime={post.createdAt}>· {timeAgo(post.createdAt)}</time>}
+        </span>
+      </header>
+      <h3 className="fp-title">{post.title}</h3>
+      {post.type === 'TEXT' && post.content && <p className="fp-text">{post.content}</p>}
+      {post.type === 'IMAGE' && post.imageUrl && (
+        <div className="fp-media"><img src={proxyImage(post.imageUrl)} alt="" loading="lazy" /></div>
+      )}
+      {post.type === 'LINK' && (
+        <span className="fp-link"><FeedIcon name="link" size={14} /> <span className="truncate">{post.linkUrl}</span></span>
+      )}
+      <footer className="fp-actions">
+        <VotePill score={post.score} myVote={post.myVote} onVote={(v) => onVote(post, v)} />
+        <span className="fp-action">
+          <FeedIcon name="comment" /> {post.commentCount} <span className="fp-action-label">comentário{post.commentCount === 1 ? '' : 's'}</span>
+        </span>
+        <button type="button" className="fp-action" onClick={share}>
+          <FeedIcon name="share" /> <span className="fp-action-label">{copied ? 'Link copiado' : 'Compartilhar'}</span>
+        </button>
+      </footer>
+    </article>
   );
 }
 
 function ClubRow({ club, onOpen }) {
   return (
     <button className="community-row" onClick={onOpen}>
-      <span className="community-row-icon">{club.iconUrl ? <img src={proxyImage(club.iconUrl)} alt="" /> : '📌'}</span>
+      <span className="community-row-icon">{club.iconUrl ? <img src={proxyImage(club.iconUrl)} alt="" /> : <span className="fp-club-fallback">{club.name.slice(0, 1)}</span>}</span>
       <span className="community-row-info">
         <span className="community-row-name truncate">{club.name}</span>
         <span className="dim community-row-meta">{club.postCount} post{club.postCount === 1 ? '' : 's'}</span>

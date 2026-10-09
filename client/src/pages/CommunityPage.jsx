@@ -69,10 +69,10 @@ export default function CommunityPage() {
   return (
     <div className="community-page-layout">
       <div className="community-page-feed-col">
-        <button className="btn-link" onClick={() => navigate('/comunidades')}>‹ Todos os Temas</button>
+        <button className="feeds-back" onClick={() => navigate('/comunidades')}>‹ Todos os Temas</button>
 
         <div className="community-page-header">
-          <div className="community-page-icon">{club.iconUrl ? <img src={proxyImage(club.iconUrl)} alt="" /> : '📌'}</div>
+          <div className="community-page-icon">{club.iconUrl ? <img src={proxyImage(club.iconUrl)} alt="" /> : <span className="fp-club-fallback">{club.name.slice(0, 1)}</span>}</div>
           <div className="community-page-info">
             <h1>{club.name}</h1>
             {club.description && <p className="dim">{club.description}</p>}
@@ -80,7 +80,7 @@ export default function CommunityPage() {
         </div>
 
         {!showCreatePost && (
-          <button className="btn-primary communities-create-btn" onClick={() => setShowCreatePost(true)}>+ Criar post</button>
+          <button className="feeds-create" onClick={() => setShowCreatePost(true)}>+ Criar post</button>
         )}
         {showCreatePost && (
           <CreatePostForm

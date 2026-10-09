@@ -7,6 +7,7 @@ import PresenceDot from './PresenceDot.jsx';
 import NewDMModal from './modals/NewDMModal.jsx';
 import ConversationIcon from './ConversationIcon.jsx';
 import UserAvatar from './UserAvatar.jsx';
+import SocialIcon from './SocialIcons.jsx';
 import cancelIcon from '../assets/icons/cancel.png';
 
 // Lista de conversas diretas (DMs/grupos) — vive dentro da área "Amigos"
@@ -43,9 +44,9 @@ export default function DMConversationsList() {
       </div>
       {sorted.length === 0 && (
         <div className="friends-empty-state">
-          <div className="friends-empty-state-icon">✉️</div>
+          <div className="friends-empty-state-icon"><SocialIcon name="chat" size={30} /></div>
           <h3>Nenhuma conversa ainda.</h3>
-          <p>Inicie uma conversa direta com um amigo usando o botão acima.</p>
+          <p>Comece uma conversa direta com um amigo pelo botão acima.</p>
         </div>
       )}
       <nav className="sidebar-list">

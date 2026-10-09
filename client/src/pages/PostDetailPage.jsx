@@ -7,14 +7,13 @@ import { useSocket } from '../context/SocketContext.jsx';
 import { useStore } from '../store/useStore';
 import UserAvatar from '../components/UserAvatar.jsx';
 import EmojiPicker from '../components/EmojiPicker.jsx';
-import IconGlyph from '../components/IconGlyph.jsx';
-import linkIcon from '../assets/icons/nav-link.png';
 import emojiPickerIcon from '../assets/icons/emoji-picker.png';
 import {
   getPost, deletePost, votePost,
   listPostComments, addPostComment, votePostComment, deletePostComment,
 } from '../api/endpoints';
 import { proxyImage } from '../utils/imageProxy';
+import { FeedIcon, VotePill, timeAgo } from './CommunitiesPage.jsx';
 
 // Reconhece se um comentário é só um link de imagem/GIF (colado a mão ou
 // escolhido no seletor de GIF abaixo) pra renderizar como imagem em vez
@@ -153,32 +152,38 @@ export default function PostDetailPage() {
 
   return (
     <div className="post-detail-page">
-      <button className="btn-link" onClick={() => navigate(-1)}>‹ Voltar</button>
+      <button className="feeds-back" onClick={() => navigate(-1)}>‹ Voltar</button>
 
-      <div className="post-detail-card">
-        <div className="post-card-votes">
-          <button className={`post-vote-btn up ${post.myVote === 1 ? 'active' : ''}`} onClick={() => onVotePost(1)}>▲</button>
-          <span className="post-vote-score">{post.score}</span>
-          <button className={`post-vote-btn down ${post.myVote === -1 ? 'active' : ''}`} onClick={() => onVotePost(-1)}>▼</button>
-        </div>
-        <div className="post-detail-body">
-          <div className="post-card-meta">
-            <span className="post-card-community">{post.community.name}</span>
-            {post.category && (
-              <span className="post-card-category">
-                {post.category.iconUrl && <img className="post-card-category-icon" src={proxyImage(post.category.iconUrl)} alt="" />}
-                {post.category.name}
-              </span>
-            )}
-            <span className="dim">· por {post.author.displayName}</span>
-            {canDelete && <button className="btn-link danger post-detail-delete" onClick={onDeletePost}>Excluir</button>}
-          </div>
-          <h2 className="post-detail-title">{post.title}</h2>
-          {post.type === 'TEXT' && post.content && <p className="post-detail-text">{post.content}</p>}
-          {post.type === 'IMAGE' && post.imageUrl && <img className="post-detail-image" src={proxyImage(post.imageUrl)} alt="" />}
-          {post.type === 'LINK' && <a className="post-card-link" href={post.linkUrl} target="_blank" rel="noreferrer"><IconGlyph src={linkIcon} size={13} /> {post.linkUrl}</a>}
-        </div>
-      </div>
+      <article className="post-detail-card fp-detail">
+        <header className="fp-card-head">
+          <button type="button" className="fp-club" onClick={() => navigate(`/comunidades/${post.community.slug}`)}>
+            {post.community.iconUrl
+              ? <img src={proxyImage(post.community.iconUrl)} alt="" />
+              : <span className="fp-club-fallback">{post.community.name.slice(0, 1)}</span>}
+            {post.community.name}
+          </button>
+          {post.category && (
+            <span className="fp-cat">
+              {post.category.iconUrl && <img src={proxyImage(post.category.iconUrl)} alt="" />}
+              {post.category.name}
+            </span>
+          )}
+          <span className="fp-by">
+            <UserAvatar user={post.author} size={18} />
+            <span className="truncate">{post.author.displayName}</span>
+            {post.createdAt && <time dateTime={post.createdAt}>· {timeAgo(post.createdAt)}</time>}
+          </span>
+          {canDelete && <button className="btn-link danger post-detail-delete" onClick={onDeletePost}>Excluir</button>}
+        </header>
+        <h1 className="fp-title fp-detail-title">{post.title}</h1>
+        {post.type === 'TEXT' && post.content && <p className="fp-detail-text">{post.content}</p>}
+        {post.type === 'IMAGE' && post.imageUrl && <div className="fp-media fp-detail-media"><img src={proxyImage(post.imageUrl)} alt="" /></div>}
+        {post.type === 'LINK' && <a className="fp-link" href={post.linkUrl} target="_blank" rel="noreferrer"><FeedIcon name="link" size={14} /> <span className="truncate">{post.linkUrl}</span></a>}
+        <footer className="fp-actions">
+          <VotePill score={post.score} myVote={post.myVote} onVote={onVotePost} />
+          <span className="fp-action"><FeedIcon name="comment" /> {comments?.length ?? 0} <span className="fp-action-label">comentário{comments?.length === 1 ? '' : 's'}</span></span>
+        </footer>
+      </article>
 
       <form onSubmit={submitComment} className="post-comment-form" ref={commentFormRef}>
         <input value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Escreva um comentário..." maxLength={5000} />

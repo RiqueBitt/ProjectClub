@@ -21,6 +21,14 @@ import './styles/mini-profile-improvements.css';
 import './styles/normal2.css';
 // Painel da Equipe — isolado sob .staff.
 import './styles/staff.css';
+// Página Início — isolada sob .home.
+import './styles/home.css';
+// Feeds — cartão de post e páginas de Tema/post.
+import './styles/feeds.css';
+// Social — amigos, mensagens e clubes.
+import './styles/social.css';
+// Canal de voz — lobby, chamada e controles.
+import './styles/voice.css';
 // Telas de login/inscrição — por último, isoladas sob .pc-auth.
 import './styles/auth.css';
 import './i18n/index.js';
