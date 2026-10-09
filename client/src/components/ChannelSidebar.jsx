@@ -189,7 +189,7 @@ export default function ChannelSidebar({
   return (
     <aside className={`sidebar${embedded ? ' sidebar-embedded' : ''}`}>
       {community.bannerUrl && (
-        <div className="sidebar-banner" style={{ backgroundImage: `url(${community.bannerUrl})` }} />
+        <div className="sidebar-banner" style={{ backgroundImage: `url(${community.bannerUrl})`, "--banner": `url(${JSON.stringify(community.bannerUrl)})` }} />
       )}
       <div className="sidebar-header" onClick={() => setMenuOpen((v) => !v)}>
         {community.iconUrl && <img className="sidebar-header-icon" src={proxyImage(community.iconUrl)} alt="" />}

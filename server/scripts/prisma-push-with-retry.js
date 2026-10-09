@@ -8,7 +8,17 @@
 // novo segundos depois. O comando "start" já tinha essa proteção (ver
 // wait-for-db.js) — esse script aqui dá a MESMA proteção pro "db push"
 // que roda antes dele, no início do deploy.
-const { execSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
+
+// SEGURANÇA DOS DADOS: o push NÃO aceita mais perda de dados por padrão.
+// Antes rodava com --accept-data-loss sempre, então remover/renomear um
+// campo no schema apagava a coluna (e tudo dentro dela) no deploy, sem
+// aviso. Agora uma mudança destrutiva faz o deploy PARAR com o aviso do
+// Prisma, e nada é apagado. Quando a remoção for intencional, defina
+// PRISMA_ACCEPT_DATA_LOSS=1 nas variáveis do Square Cloud, faça UM deploy
+// e tire a variável de novo.
+const ACCEPT_DATA_LOSS = process.env.PRISMA_ACCEPT_DATA_LOSS === '1';
+const DATA_LOSS_HINT = /data loss|perda de dados|--accept-data-loss/i;
 
 const MAX_ATTEMPTS = 5;
 const BASE_DELAY_MS = 5000; // 5s, 10s, 15s, 20s... entre tentativas — um pouco mais generoso que o do wait-for-db.js, já que "banco recém-criado/reiniciado acordando" costuma levar mais tempo que uma instabilidade de rede passageira comum
@@ -23,18 +33,26 @@ function run(cmd) {
 
 async function main() {
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    try {
-      run('npx prisma db push --accept-data-loss --skip-generate');
-      break; // conseguiu — sai do laço de tentativas e segue pro generate/seed abaixo
-    } catch (err) {
-      if (attempt === MAX_ATTEMPTS) {
-        console.error(`[prisma-push] Banco de dados não respondeu depois de ${MAX_ATTEMPTS} tentativas — desistindo de verdade.`);
-        process.exit(1);
-      }
-      const delay = BASE_DELAY_MS * attempt;
-      console.error(`[prisma-push] Tentativa ${attempt}/${MAX_ATTEMPTS} falhou (banco pode ainda estar "acordando"). Tentando de novo em ${delay / 1000}s...`);
-      await sleep(delay);
+    const cmd = `npx prisma db push --skip-generate${ACCEPT_DATA_LOSS ? ' --accept-data-loss' : ''}`;
+    const res = spawnSync(cmd, { shell: true, encoding: 'utf8', env: { ...process.env, PRISMA_HIDE_UPDATE_MESSAGE: '1' } });
+    const output = `${res.stdout || ''}${res.stderr || ''}`;
+    process.stdout.write(output);
+    if (res.status === 0) break; // conseguiu — segue pro generate/seed abaixo
+
+    // Mudança destrutiva no schema: não adianta tentar de novo, e o deploy
+    // precisa parar ANTES de subir o servidor com um schema diferente do banco.
+    if (DATA_LOSS_HINT.test(output)) {
+      console.error('\n[prisma-push] PARADO: essa mudança no schema apagaria dados do banco.');
+      console.error('[prisma-push] Se for intencional, defina PRISMA_ACCEPT_DATA_LOSS=1, faça um deploy e remova a variável depois.');
+      process.exit(1);
     }
+    if (attempt === MAX_ATTEMPTS) {
+      console.error(`[prisma-push] Banco de dados não respondeu depois de ${MAX_ATTEMPTS} tentativas — desistindo de verdade.`);
+      process.exit(1);
+    }
+    const delay = BASE_DELAY_MS * attempt;
+    console.error(`[prisma-push] Tentativa ${attempt}/${MAX_ATTEMPTS} falhou (banco pode ainda estar "acordando"). Tentando de novo em ${delay / 1000}s...`);
+    await sleep(delay);
   }
 
   // generate/seed só rodam depois que o push realmente deu certo — sem

@@ -27,7 +27,7 @@ export default defineConfig({
         // deploy, not everything.
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
-          if (id.includes('react-router-dom')) return 'vendor-router';
+          if (id.includes('/react-router-dom/') || id.includes('/react-router/')) return 'vendor-router';
           if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('scheduler')) return 'vendor-react';
           if (id.includes('socket.io-client') || id.includes('engine.io-client')) return 'vendor-socket';
           // Item pedido ("web demora pra carregar página"): o SDK do
@@ -40,6 +40,8 @@ export default defineConfig({
           // pessoa parar de baixar esses ~500kB comprimidos toda vez que
           // só quer ver uma mensagem.
           if (id.includes('agora-rtc-sdk-ng')) return 'vendor-agora';
+          // Lista de emojis (~400 KB): só baixa quando o seletor abre.
+          if (id.includes('unicode-emoji-json')) return 'vendor-emoji';
           return 'vendor';
         },
       },

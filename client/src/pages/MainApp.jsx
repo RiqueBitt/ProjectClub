@@ -24,7 +24,6 @@ import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import MiniProfileCard from '../components/MiniProfileCard.jsx';
 import LinkConfirmModal from '../components/modals/LinkConfirmModal.jsx';
 import ImageLightbox from '../components/ImageLightbox.jsx';
-import UserSettingsModal from '../components/modals/UserSettingsModal.jsx';
 import AnnouncementOverlay from '../components/AnnouncementOverlay.jsx';
 import QuickSwitcher from '../components/QuickSwitcher.jsx';
 import { listUsableEmojis, listServerStickers, listAssetCollections, listFavoriteGifs, getUiLayout, listCommunities, getMyClan, getUserSettings } from '../api/endpoints';
@@ -45,6 +44,8 @@ import { useAuth } from '../context/AuthContext.jsx';
 // mais lentas. `ChatWindow` continua "eager" de propósito (é a página que
 // abre por padrão pra praticamente todo mundo, então não faria sentido
 // atrasar ela com uma segunda viagem de rede).
+// Modal de configurações é grande e só abre quando a pessoa clica.
+const UserSettingsModal = lazy(() => import('../components/modals/UserSettingsModal.jsx'));
 const AmigosPage = lazy(() => import('./AmigosPage.jsx'));
 const ProfilePage = lazy(() => import('./ProfilePage.jsx'));
 const NotificationsPage = lazy(() => import('./NotificationsPage.jsx'));
@@ -170,6 +171,7 @@ export default function MainApp() {
   // libera a tela mesmo assim (só perde atualizações em tempo real,
   // que é bem menos grave que não conseguir abrir o app).
   const [socketTimedOut, setSocketTimedOut] = useState(false);
+  const everConnected = useRef(false);
   useEffect(() => {
     if (connected) return;
     const id = setTimeout(() => setSocketTimedOut(true), 8000);
@@ -312,7 +314,12 @@ export default function MainApp() {
   // carregamento reaproveitada (LoadingScreen) — sem duplicar visual.
   // socketTimedOut (ver acima) evita ficar preso aqui pra sempre se o
   // socket nunca conseguir conectar.
-  if (!connected && !socketTimedOut) return <LoadingScreen />;
+  // Só segura na tela de carregamento ANTES da primeira conexão. Se o
+  // socket cair depois (wi-fi oscilou, servidor reiniciou no deploy), a
+  // interface continua na tela — antes ela era trocada inteira pelo
+  // carregamento, o que desmontava tudo (rascunho, rolagem, chamada).
+  if (connected) everConnected.current = true;
+  if (!connected && !socketTimedOut && !everConnected.current) return <LoadingScreen />;
 
   return (
     <div
@@ -424,7 +431,7 @@ export default function MainApp() {
       <MiniProfileCard />
       <LinkConfirmModal />
       <ImageLightbox />
-      {settingsModalOpen && <UserSettingsModal onClose={closeSettings} />}
+      {settingsModalOpen && <Suspense fallback={null}><UserSettingsModal onClose={closeSettings} /></Suspense>}
       <AnnouncementOverlay />
       <QuickSwitcher />
     </div>

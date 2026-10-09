@@ -231,3 +231,20 @@
   .staff-rail { transition: none; }
   .staff-queue:hover { transform: none; }
 }
+
+/* ============================================================
+   Configurações do usuário: mesmos raios, espaçamentos e foco
+   do padrão novo (Início, Progresso, Suporte). Só acabamento —
+   a organização e o item ativo discreto continuam como antes.
+   ============================================================ */
+.settings-modal-box.modal-box { border-radius: 20px; box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .6); }
+.settings-modal-sidebar { padding: 16px 12px; }
+.settings-modal-sidebar-header { padding: 10px; border-radius: 12px; background: var(--bg-primary); }
+.settings-modal-sidebar-item { padding: 8px 10px; border-radius: 9px; }
+.settings-modal-sidebar-item.active { box-shadow: inset 3px 0 0 var(--brand); }
+.settings-modal-sidebar-item:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.settings-modal-content { padding: 26px 30px 32px; }
+.settings-modal-content .settings-block { border-radius: 16px; padding: 18px 20px; box-shadow: none; }
+.settings-modal-content input:focus, .settings-modal-content textarea:focus, .settings-modal-content select:focus {
+  border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); outline: none;
+}

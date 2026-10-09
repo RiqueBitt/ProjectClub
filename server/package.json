@@ -6,7 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "predev": "PRISMA_HIDE_UPDATE_MESSAGE=1 prisma db push --skip-generate",
-    "dev": "nodemon src/index.js",
+    "dev": "node --watch src/index.js",
     "start": "node scripts/write-certs-from-env.js && node scripts/wait-for-db.js && node src/index.js",
     "prisma:generate": "PRISMA_HIDE_UPDATE_MESSAGE=1 prisma generate",
     "prisma:push": "node scripts/write-certs-from-env.js && node scripts/prisma-push-with-retry.js",
@@ -22,20 +22,20 @@
     "agora-token": "^2.0.5",
     "@aws-sdk/lib-storage": "^3.1111.0",
     "@prisma/client": "5.20.0",
-    "firebase-admin": "^12.7.0",
-    "compression": "^1.7.4",
+    "firebase-admin": "^14.5.0",
+    "compression": "^1.8.2",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2",
+    "express": "^4.22.3",
     "express-rate-limit": "^7.4.0",
     "helmet": "^7.1.0",
     "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.0",
-    "multer": "^2.2.0",
-    "nodemailer": "^9.0.3",
+    "morgan": "^1.12.1",
+    "multer": "^2.4.0",
+    "nodemailer": "^10.0.16",
     "otplib": "^13.4.0",
     "prisma": "5.20.0",
     "qrcode": "^1.5.4",
@@ -43,10 +43,7 @@
     "socket.io": "^4.7.5",
     "uuid": "^11.1.0"
   },
-  "devDependencies": {
-    "nodemon": "^3.1.4"
-  },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   }
 }

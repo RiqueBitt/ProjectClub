@@ -5,6 +5,7 @@ import {
   installProjectMc, launchProjectMc, uninstallProjectMc, onProjectMcProgress,
 } from '../utils/projectMc';
 import { listAppCatalog } from '../api/endpoints';
+import PageIcon from '../components/PageIcons.jsx';
 import { proxyImage } from '../utils/imageProxy';
 import '../styles/jogos-page.css';
 
@@ -64,7 +65,7 @@ export default function JogosPage() {
   return (
     <div className="jogos-page">
       <div className="jogos-page-header">
-        <span className="jogos-page-header-icon">🧩</span>
+        <span className="jogos-page-header-icon"><PageIcon name="grid" size={26} /></span>
         <div className="jogos-page-header-text">
           <h1>Apps</h1>
           <p className="dim">Módulos opcionais que rodam dentro da instalação do Project Club — instale só o que você usa.</p>
@@ -80,12 +81,12 @@ export default function JogosPage() {
           baixável como os cards abaixo), por isso vira um cartão
           destacado próprio, separado da grade de apps/módulos. */}
       <button type="button" className="jogos-page-mods-entry" onClick={() => navigate('/jogos/mods')}>
-        <span className="jogos-page-mods-entry-icon">🧰</span>
+        <span className="jogos-page-mods-entry-icon"><PageIcon name="bolt" size={22} /></span>
         <span className="jogos-page-mods-entry-text">
           <strong>Mods</strong>
           <span className="dim">Descubra e gerencie mods dos seus jogos da Steam</span>
         </span>
-        <span className="jogos-page-mods-entry-arrow">›</span>
+        <span className="jogos-page-mods-entry-arrow" style={{ transform: 'scaleX(-1)', display: 'inline-flex' }}><PageIcon name="back" size={20} /></span>
       </button>
 
       {catalog === null ? (
@@ -96,7 +97,7 @@ export default function JogosPage() {
         </div>
       ) : catalog.length === 0 ? (
         <div className="jogos-page-empty">
-          <span className="jogos-page-empty-icon">🧩</span>
+          <span className="jogos-page-empty-icon"><PageIcon name="grid" size={30} /></span>
           <h3>Nenhum app disponível ainda</h3>
           <p>A staff pode adicionar novos módulos a qualquer momento pelo painel administrativo.</p>
         </div>
@@ -216,7 +217,7 @@ function ModuleCard({ item, onOpenDetail }) {
   return (
     <div className="app-card" onClick={onOpenDetail} role="button" tabIndex={0}>
       <div className="app-card-banner" style={item.bannerUrl ? { backgroundImage: `url(${proxyImage(item.bannerUrl)})` } : undefined}>
-        {!item.bannerUrl && <span className="app-card-banner-fallback">🧩</span>}
+        {!item.bannerUrl && <span className="app-card-banner-fallback"><PageIcon name="grid" size={40} /></span>}
         <div className="app-card-banner-gradient" />
         <div className="app-card-badges">
           {item.version && <span className="app-card-version-badge">v{item.version}</span>}
@@ -393,7 +394,7 @@ function AppDetailView({ item, onBack, onOpenScreenshot }) {
       <button type="button" className="app-detail-back" onClick={onBack}>‹ Voltar para Apps</button>
 
       <div className="app-detail-banner" style={item.bannerUrl ? { backgroundImage: `url(${proxyImage(item.bannerUrl)})` } : undefined}>
-        {!item.bannerUrl && <span className="app-detail-banner-fallback">🧩</span>}
+        {!item.bannerUrl && <span className="app-detail-banner-fallback"><PageIcon name="grid" size={48} /></span>}
         <div className="app-detail-banner-gradient" />
         <div className="app-detail-title-row">
           {item.iconUrl && <img className="app-detail-icon" src={proxyImage(item.iconUrl)} alt="" />}

@@ -9,8 +9,11 @@
    texto e a contagem de apps disponíveis preenchendo o espaço que
    antes ficava meio vazio entre o título e a grade. */
 .jogos-page-header {
-  display: flex; align-items: center; gap: 16px; margin-bottom: 26px; padding-bottom: 20px;
-  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 16px; margin-bottom: 18px; padding: 22px 24px;
+  border-radius: 18px; border: 1px solid var(--border);
+  background:
+    radial-gradient(ellipse 60% 140% at 0% 0%, color-mix(in srgb, var(--brand) 30%, transparent), transparent 70%),
+    var(--bg-secondary);
 }
 .jogos-page-header-icon {
   width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0; font-size: 26px;
@@ -19,7 +22,7 @@
   border: 1px solid color-mix(in srgb, var(--brand) 40%, var(--border));
 }
 .jogos-page-header-text { flex: 1; min-width: 0; }
-.jogos-page-header h1 { margin: 0 0 4px; font-size: 22px; color: var(--header-primary); }
+.jogos-page-header h1 { margin: 0 0 4px; font-size: 28px; font-weight: 800; letter-spacing: -.5px; color: var(--header-primary); }
 .jogos-page-header-count {
   flex-shrink: 0; font-size: 12.5px; font-weight: 700; color: var(--header-secondary);
   background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 20px; padding: 6px 14px;
@@ -330,3 +333,8 @@
   .jogos-page-header { flex-wrap: wrap; }
   .jogos-page-header-count { order: 1; }
 }
+
+/* Padrão novo: ícones em SVG na cor da marca */
+.jogos-page-header-icon { background: var(--brand) !important; color: #fff; box-shadow: 0 10px 24px -12px var(--brand); }
+.jogos-page-mods-entry-icon { color: var(--brand); }
+.jogos-page-empty-icon { color: var(--brand); }

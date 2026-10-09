@@ -18,9 +18,10 @@ function getFirebaseApp() {
   if (!raw) return null;
   try {
     // eslint-disable-next-line global-require
-    const admin = require('firebase-admin');
+    // API modular (firebase-admin/app): funciona do v10 em diante, inclusive no v14.
+    const { initializeApp, cert } = require('firebase-admin/app');
     const serviceAccount = JSON.parse(raw);
-    firebaseApp = admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    firebaseApp = initializeApp({ credential: cert(serviceAccount) });
     console.log('[push] Firebase configurado — notificações push do Android ativas.');
   } catch (err) {
     console.error('[push] FIREBASE_SERVICE_ACCOUNT_JSON inválido — push notification do Android desativado:', err.message);
@@ -42,7 +43,7 @@ async function sendPushToUser(userId, { title, body, data } = {}) {
   if (tokens.length === 0) return;
 
   // eslint-disable-next-line global-require
-  const admin = require('firebase-admin');
+  const { getMessaging } = require('firebase-admin/messaging');
   const message = {
     notification: { title, body },
     data: Object.fromEntries(Object.entries(data || {}).map(([k, v]) => [k, String(v)])),
@@ -50,7 +51,7 @@ async function sendPushToUser(userId, { title, body, data } = {}) {
   };
 
   try {
-    const result = await admin.messaging().sendEachForMulticast(message);
+    const result = await getMessaging(app).sendEachForMulticast(message);
     const invalidIds = [];
     result.responses.forEach((r, i) => {
       if (!r.success && ['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(r.error?.code)) {

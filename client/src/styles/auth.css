@@ -44,7 +44,7 @@
   align-items: start;
   background: var(--a-bg);
   color: var(--a-text);
-  font-family: 'Inter', 'Space Grotesk', -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'DejaVu Sans', sans-serif;
+  font-family: 'Inter', 'Space Grotesk', -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'DejaVu Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;

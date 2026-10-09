@@ -1,0 +1,45 @@
+name: Testes de tela
+
+# Abre as páginas principais do site (Início, Feeds, Social, Progresso,
+# Suporte, Apps, chat e Configurações) no PC e no celular, com a API
+# simulada, a cada push na main e em cada Pull Request. Se alguma tela
+# quebrar (erro de JavaScript, "Algo deu errado", layout vazando), o
+# check fica vermelho e o relatório com prints fica nos artefatos.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client/**'
+      - '.github/workflows/e2e.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'client/**'
+  workflow_dispatch: {}
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Instalar dependências
+        run: npm ci --ignore-scripts
+      - name: Compilar o site
+        run: npm run build -w client
+      - name: Instalar o navegador
+        run: npx playwright install --with-deps chromium
+        working-directory: client
+      - name: Rodar os testes de tela
+        run: npm run test:e2e -w client
+      - name: Guardar relatório
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-testes-de-tela
+          path: client/playwright-report
+          retention-days: 7

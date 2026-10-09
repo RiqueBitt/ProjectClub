@@ -22,7 +22,7 @@ import PhotoAlbumModal from './PhotoAlbumModal.jsx';
 import defaultAchievementIcon from '../../assets/icons/nav-achievements.png';
 import { badgeHasImage } from '../../utils/badgeRarity';
 import { nameStyleProps, nameStyleClassName } from '../../utils/nameStyle';
-import cancelIcon from '../../assets/icons/cancel.png';
+import cancelIcon from '../../assets/icons/close-x.png';
 import settingsIcon from '../../assets/icons/settings.png';
 import likeIcon from '../../assets/icons/like.png';
 import dislikeIcon from '../../assets/icons/dislike.png';

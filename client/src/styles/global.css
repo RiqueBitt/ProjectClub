@@ -47,7 +47,6 @@
   --ease-smooth: cubic-bezier(.16, 1, .3, 1);
 }
 
-
 [data-theme='amoled'] {
   --bg-deepest: #000000;
   --bg-secondary: #000000;
@@ -288,7 +287,7 @@ html {
 }
 .message-list { scroll-behavior: auto; }
 body {
-  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
   background: var(--bg-deepest);
   color: var(--text-normal);
   overflow: hidden;
@@ -1977,7 +1976,6 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .incoming-call-btn.accept { background: var(--green); }
 .incoming-call-btn.decline { background: var(--red); }
 .incoming-call-btn img { filter: brightness(0) invert(1); width: 18px; height: 18px; }
-
 
 .voice-view { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 24px; overflow-y: auto; position: relative; }
 /* Item pedido: "melhore os canais de voz deixando mais bonitos e bem
@@ -4120,7 +4118,7 @@ a.embed-card-title:hover { text-decoration: underline; }
 [data-theme='facebook'] .sidebar-section-title,
 [data-theme='facebook'] .category-label,
 [data-theme='facebook'] .members-section-title {
-  font-family: 'Roboto', sans-serif;
+  font-family: 'Roboto', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
   font-weight: 700;
   letter-spacing: 1px;
   color: var(--text-muted);
@@ -4506,7 +4504,7 @@ a.embed-card-title:hover { text-decoration: underline; }
 }
 
 [data-theme='clubpenguin'] body {
-  font-family: 'Comic Sans MS', 'Baloo 2', 'Roboto', -apple-system, sans-serif;
+  font-family: 'Comic Sans MS', 'Baloo 2', 'Roboto', -apple-system, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
   background: linear-gradient(180deg, #BFEFFF 0%, #E3F7FF 60%);
 }
 
@@ -4635,93 +4633,21 @@ a.embed-card-title:hover { text-decoration: underline; }
 }
 
 /* ---------- Barra de progresso de XP (RankPage.jsx) ---------- */
-.rank-progress-bar { width: 100%; height: 12px; border-radius: 999px; background: var(--bg-deepest); overflow: hidden; margin-top: 10px; }
-.rank-progress-fill { height: 100%; background: var(--brand); border-radius: 999px; transition: width .3s ease; }
 
 /* ---------- Ranks (RankPage.jsx) — repaginado: cartão "herói" com o
    próprio nível em destaque + ranking em cartões (não mais tabela). ---------- */
-.rank-page { padding: 24px; overflow-y: auto; height: 100%; max-width: 720px; margin: 0 auto; width: 100%; }
-.rank-page-header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
-.rank-page-header h1 { margin: 0; font-size: 20px; color: var(--header-primary); }
-.rank-page-header .ui-icon { width: 26px; height: 26px; }
-
-.rank-hero-card {
-  display: flex; align-items: center; gap: 20px; padding: 22px;
-  border-radius: 16px; margin-bottom: 20px;
-  background: linear-gradient(150deg, color-mix(in srgb, var(--brand) 16%, transparent), var(--bg-elevated) 60%);
-  border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--border));
-  /* Item pedido: "deixando mais bonito" — sombra sutil dá um pouco
-     mais de profundidade ao cartão principal da página. */
-  box-shadow: 0 8px 24px -12px color-mix(in srgb, var(--brand) 35%, transparent);
-}
-.rank-hero-avatar-wrap { position: relative; flex-shrink: 0; }
-.rank-hero-level-badge {
-  position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
-  background: var(--brand); color: #fff; font-size: 11px; font-weight: 800;
-  padding: 2px 10px; border-radius: 999px; white-space: nowrap;
-  box-shadow: 0 2px 6px rgba(0,0,0,.3);
-}
-.rank-hero-info { flex: 1; min-width: 0; }
-.rank-hero-name { font-weight: 800; font-size: 18px; color: var(--header-primary); }
 /* Item pedido: título temático por faixa de nível (Novato/Veterano/
    Lenda/etc — ver titleForLevel em levelsCatalog.js), em vez de só
    "Lv.X" repetido (já mostrado no distintivo do avatar, redundante). */
-.rank-hero-level-name { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 10px; }
-.rank-hero-title-chip {
-  padding: 2px 10px; border-radius: 999px; font-weight: 700; font-size: 12px;
-  background: color-mix(in srgb, var(--brand) 20%, transparent); color: var(--brand);
-}
-.rank-hero-stats { display: flex; gap: 16px; margin-bottom: 10px; flex-wrap: wrap; }
-.rank-hero-stat { font-size: 13px; color: var(--text-normal); }
-.rank-hero-stat strong { color: var(--header-primary); }
-.rank-hero-progress-bar { height: 10px; margin-top: 0; }
-.rank-hero-progress-bar .rank-progress-fill { background: linear-gradient(90deg, var(--brand), #ff9d5c); }
-.rank-hero-progress-label { margin: 6px 0 0; font-size: 12px; }
-.rank-hero-maxed { margin: 4px 0 0; font-weight: 700; color: var(--yellow); }
-
-.rank-leaderboard-section h4 {
-  margin: 0 0 10px; font-size: 13px; font-weight: 800; text-transform: uppercase;
-  letter-spacing: .03em; color: var(--header-secondary);
-}
-.rank-leaderboard-list { display: flex; flex-direction: column; gap: 6px; }
-.rank-leaderboard-row {
-  display: flex; align-items: center; gap: 12px; padding: 10px 14px;
-  border-radius: 10px; background: var(--bg-elevated); border: 1px solid transparent;
-  transition: border-color .12s, transform .12s;
-}
-.rank-leaderboard-row:hover { transform: translateY(-1px); }
-.rank-leaderboard-row.me { border-color: var(--brand); box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 40%, transparent); }
-.rank-leaderboard-row.top-1 { background: linear-gradient(90deg, rgba(240,193,50,.16), var(--bg-elevated) 60%); }
-.rank-leaderboard-row.top-2 { background: linear-gradient(90deg, rgba(192,192,192,.16), var(--bg-elevated) 60%); }
-.rank-leaderboard-row.top-3 { background: linear-gradient(90deg, rgba(205,127,50,.16), var(--bg-elevated) 60%); }
-.rank-leaderboard-position { width: 30px; flex-shrink: 0; text-align: center; font-size: 15px; font-weight: 800; color: var(--text-muted); }
-.rank-leaderboard-name { flex: 1; min-width: 0; font-weight: 600; color: var(--header-primary); font-size: 14px; }
-.rank-leaderboard-level { font-size: 12px; color: var(--text-muted); flex-shrink: 0; }
-.rank-leaderboard-xp { font-size: 13px; font-weight: 700; color: var(--brand); flex-shrink: 0; min-width: 80px; text-align: right; }
 /* Item pedido: "melhore o código" — quem não está no top 50 agora se
    vê no fim da lista mesmo assim (ver outsideTop50 em
    economyController.js) — esse separador deixa claro que ela não é
    "a 51ª colocada" de verdade, só está fora do topo. */
-.rank-leaderboard-separator { text-align: center; font-size: 13px; letter-spacing: 4px; padding: 2px 0; }
 
 /* Item pedido: "melhore... fazendo bem pra mobile também" — sem
    nenhuma adaptação antes, o cartão herói (avatar + info lado a lado)
    e as linhas do ranking (5 elementos numa fileira só) ficavam
    apertados demais numa tela estreita. */
-@media (max-width: 520px) {
-  .rank-page { padding: 16px; }
-  .rank-hero-card { flex-direction: column; text-align: center; padding: 18px; gap: 14px; }
-  .rank-hero-stats { justify-content: center; }
-  .rank-hero-level-name { justify-content: center; }
-  .rank-leaderboard-row { flex-wrap: wrap; gap: 8px 10px; }
-  .rank-leaderboard-level { order: 3; flex-basis: 100%; padding-left: 46px; }
-}
-@media (max-width: 600px) {
-  .rank-page { padding: 14px; }
-  .rank-hero-card { flex-direction: column; text-align: center; gap: 12px; }
-  .rank-hero-stats { justify-content: center; }
-  .rank-leaderboard-level { display: none; }
-}
 
 /* ---------- Casas/decoração (HousesPage.jsx — fase 3 da fusão com o bot
    Robbie: editor de móveis, imobiliária, galeria) ---------- */
@@ -4974,38 +4900,6 @@ a.embed-card-title:hover { text-decoration: underline; }
    do antigo "Tickets de Suporte") — visual próprio de central de
    atendimento em vez de reaproveitar classes genéricas de outras
    páginas. ---------- */
-.support-page { padding: 24px; overflow-y: auto; height: 100%; max-width: 760px; margin: 0 auto; width: 100%; }
-.support-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
-.support-header-icon {
-  width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; font-size: 26px;
-  background: linear-gradient(150deg, color-mix(in srgb, var(--brand) 22%, transparent), var(--bg-elevated));
-  border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--border));
-}
-.support-header h1 { margin: 0 0 2px; font-size: 21px; color: var(--header-primary); }
-.support-header p { margin: 0; }
-
-.support-tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
-.support-tab {
-  padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 13px; color: var(--text-muted);
-  transition: background-color .12s, color .12s;
-}
-.support-tab:hover { background: var(--bg-modifier-hover); color: var(--text-normal); }
-.support-tab.active { background: var(--brand); color: #fff; }
-
-.support-new-ticket-cta {
-  width: 100%; display: flex; align-items: center; gap: 14px; text-align: left;
-  padding: 16px 18px; border-radius: 12px; margin-bottom: 16px;
-  background: linear-gradient(150deg, color-mix(in srgb, var(--brand) 12%, transparent), var(--bg-elevated));
-  border: 1px dashed color-mix(in srgb, var(--brand) 40%, var(--border));
-  transition: border-color .12s, transform .12s;
-}
-.support-new-ticket-cta:hover { border-color: var(--brand); transform: translateY(-1px); }
-.support-new-ticket-cta-icon { font-size: 22px; flex-shrink: 0; }
-.support-new-ticket-cta strong { display: block; color: var(--header-primary); font-size: 14px; margin-bottom: 2px; }
-.support-new-ticket-cta .dim { font-size: 12px; }
-.support-new-ticket-form { margin-bottom: 16px; }
-.support-new-ticket-form h4 { margin: 0 0 4px; }
 
 .support-empty-state {
   display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px;
@@ -5014,67 +4908,6 @@ a.embed-card-title:hover { text-decoration: underline; }
 .support-empty-state-icon { font-size: 34px; margin-bottom: 6px; }
 .support-empty-state h3 { margin: 0; color: var(--header-primary); font-size: 15px; }
 .support-empty-state p { margin: 0; }
-
-.support-filter-row { display: flex; gap: 6px; margin-bottom: 14px; }
-.support-filter-chip {
-  padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 700;
-  background: var(--bg-elevated); color: var(--text-muted);
-  transition: background-color .12s, color .12s;
-}
-.support-filter-chip:hover { background: var(--bg-modifier-hover); }
-.support-filter-chip.active { background: var(--brand); color: #fff; }
-
-.support-ticket-list { display: flex; flex-direction: column; gap: 8px; }
-.support-ticket-card {
-  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
-  padding: 13px 16px; border-radius: 10px; background: var(--bg-elevated);
-  border: 1px solid transparent; transition: border-color .12s, transform .12s;
-}
-.support-ticket-card:hover { border-color: color-mix(in srgb, var(--brand) 40%, transparent); transform: translateY(-1px); }
-.support-ticket-card-icon { font-size: 14px; flex-shrink: 0; }
-.support-ticket-card-avatar { flex-shrink: 0; cursor: pointer; }
-.support-ticket-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
-.support-ticket-card-subject { font-weight: 700; color: var(--header-primary); font-size: 14px; }
-.support-ticket-card-meta { font-size: 12px; }
-
-.support-status-chip {
-  display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
-  font-size: 11px; font-weight: 700; padding: 4px 11px; border-radius: 999px;
-}
-.support-status-chip.open { background: rgba(35,165,90,.16); color: var(--green); }
-.support-status-chip.closed { background: var(--bg-modifier-hover); color: var(--text-muted); }
-.support-status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-
-.support-detail { display: flex; flex-direction: column; height: calc(100% - 40px); }
-.support-detail-header {
-  display: flex; align-items: center; gap: 12px; padding-bottom: 14px; margin-bottom: 6px;
-  border-bottom: 1px solid var(--border); flex-wrap: wrap;
-}
-.support-detail-back { flex-shrink: 0; }
-.support-detail-heading { flex: 1; min-width: 160px; }
-.support-detail-heading h3 { margin: 0; font-size: 16px; color: var(--header-primary); }
-.support-detail-actions { display: flex; gap: 8px; }
-
-.support-messages { flex: 1; overflow-y: auto; padding: 14px 4px; display: flex; flex-direction: column; gap: 14px; }
-.support-message { display: flex; gap: 10px; max-width: 78%; }
-.support-message.mine { align-self: flex-end; flex-direction: row-reverse; }
-.support-message-bubble {
-  background: var(--bg-elevated); border-radius: 12px; padding: 8px 12px;
-  font-size: 14px; color: var(--text-normal);
-}
-.support-message.mine .support-message-bubble { background: color-mix(in srgb, var(--brand) 22%, var(--bg-elevated)); }
-.support-message-meta { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; }
-.support-message.mine .support-message-meta { text-align: right; }
-
-.support-reply-form { display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
-.support-reply-form input { flex: 1; background: var(--bg-elevated); border: none; border-radius: 999px; padding: 10px 16px; }
-.support-closed-notice { text-align: center; padding: 14px; }
-
-@media (max-width: 700px) {
-  .support-page { padding: 14px; }
-  .support-header { gap: 10px; }
-  .support-header-icon { width: 44px; height: 44px; font-size: 20px; }
-}
 
 .application-answers { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .automod-conversation-view { max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--bg-deepest); border-radius: 6px; font-size: 13px; }
@@ -5379,7 +5212,6 @@ a.embed-card-title:hover { text-decoration: underline; }
 .group-slot.taken { cursor: default; opacity: 0.85; }
 
 /* Painel da Equipe: estilos em styles/staff.css. */
-
 
 /* ---------- Casa/mapa inicial marcados no painel admin ---------- */
 .card.starter-marked { outline: 2px solid var(--green); }
@@ -5702,7 +5534,7 @@ a.embed-card-title:hover { text-decoration: underline; }
 }
 
 [data-theme='light'] body {
-  font-family: 'Helvetica Neue', Arial, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Helvetica Neue', Arial, -apple-system, BlinkMacSystemFont, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
 }
 
 /* Painéis principais — contorno fino em vez de sombra/cantos grandes,
@@ -5812,7 +5644,7 @@ a.embed-card-title:hover { text-decoration: underline; }
   border-radius: 50%;
 }
 
-[data-theme='light'] .post-comment-content { font-family: 'Helvetica Neue', Arial, sans-serif; }
+[data-theme='light'] .post-comment-content { font-family: 'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; }
 [data-theme='light'] .post-comment-replies { border-left: 2px solid var(--border); }
 
 /* ---------- Chat/canais/voz também no visual Reddit — cartão branco
@@ -5844,55 +5676,14 @@ a.embed-card-title:hover { text-decoration: underline; }
 
 /* ---------- Sistema de Conquistas (AchievementsPage.jsx,
    AchievementPickerModal.jsx, aba de gestão no AdminPanel.jsx) ---------- */
-.achievements-page { padding: 24px; overflow-y: auto; height: 100%; max-width: 900px; margin: 0 auto; width: 100%; }
-.achievements-page-header { margin-bottom: 18px; }
-.achievements-page-header h1 { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; font-size: 22px; }
 .achievements-page-title-icon { width: 28px; height: 28px; }
 /* Item pedido: "melhore a aba" — barra de progresso GERAL visual em
    vez de só um texto ("X de Y desbloqueadas"). */
-.achievements-overall-progress { display: flex; align-items: center; gap: 10px; max-width: 420px; }
-.achievements-overall-progress-track { flex: 1; height: 8px; border-radius: 999px; background: var(--bg-modifier-hover); overflow: hidden; }
-.achievements-overall-progress-fill {
-  height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--brand), #b463ff);
-  transition: width .3s var(--ease-smooth);
-}
-.achievements-overall-progress span { font-size: 13px; white-space: nowrap; }
 
 /* Item pedido: "adicionando também filtrar quais você quer ver" */
-.achievements-filters { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
-.achievements-filter-group { display: flex; gap: 6px; flex-wrap: wrap; }
-.achievements-filter-chip {
-  padding: 6px 14px; border-radius: 999px; background: var(--bg-secondary); color: var(--text-muted);
-  font-size: 13px; font-weight: 600; transition: background-color .12s var(--ease-smooth), color .12s var(--ease-smooth);
-}
-.achievements-filter-chip:hover { background: var(--bg-modifier-hover); color: var(--text-normal); }
-.achievements-filter-chip.active { background: var(--rarity-color, var(--brand)); color: #fff; }
-.achievements-empty-filter { padding: 24px 0; text-align: center; }
 
 /* Item pedido: "deixando mais organizada" — agrupamento por categoria
    (Feeds/Perfil/Amizades/etc), em vez de um grid único gigante. */
-.achievements-category-section { margin-bottom: 24px; }
-.achievements-category-title {
-  font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em;
-  color: var(--text-muted); margin: 0 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
-}
-.achievements-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
-.achievement-card {
-  display: flex; gap: 12px; padding: 14px; border-radius: 10px; background: var(--bg-elevated);
-  border: 1px solid var(--rarity-color, var(--border)); opacity: 1;
-}
-.achievement-card.locked { opacity: 0.55; filter: grayscale(0.6); }
-.achievement-card-icon { width: 44px; height: 44px; flex-shrink: 0; border-radius: 8px; object-fit: contain; }
-.achievement-card-body { flex: 1; min-width: 0; }
-.achievement-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.achievement-card-name { font-weight: 700; font-size: 14px; color: var(--header-primary); }
-.achievement-card-rarity { font-size: 11px; font-weight: 800; text-transform: uppercase; }
-.achievement-card-desc { font-size: 12.5px; color: var(--text-muted); margin: 4px 0 6px; }
-.achievement-card-unlocked-at { font-size: 11px; }
-.achievement-card-progress-wrap { display: flex; align-items: center; gap: 8px; }
-.achievement-card-progress-track { flex: 1; height: 6px; border-radius: 999px; background: var(--bg-modifier-hover); overflow: hidden; }
-.achievement-card-progress-fill { height: 100%; background: var(--rarity-color, var(--brand)); border-radius: 999px; }
-.achievement-card-progress-label { font-size: 11px; flex-shrink: 0; }
 
 /* Página Início: estilos em styles/home.css. */
 
@@ -6041,10 +5832,10 @@ a.embed-card-title:hover { text-decoration: underline; }
   height: 100vh; height: 100dvh; overflow-x: hidden; overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   background: var(--lp-bg-0); color: var(--lp-text);
-  font-family: 'Inter', 'Space Grotesk', sans-serif; position: relative;
+  font-family: 'Inter', 'Space Grotesk', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; position: relative;
 }
 .landing-page a { color: inherit; }
-.landing-pixel { font-family: 'Inter', 'Space Grotesk', sans-serif; font-weight: 800; letter-spacing: -0.5px; }
+.landing-pixel { font-family: 'Inter', 'Space Grotesk', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; font-weight: 800; letter-spacing: -0.5px; }
 
 .landing-bg-field {
   position: fixed; inset: 0; z-index: -2;
@@ -6322,7 +6113,6 @@ a.embed-card-title:hover { text-decoration: underline; }
 }
 .landing-final-cta h2 { margin-bottom: 12px; }
 .landing-final-cta p { color: var(--lp-muted); margin-bottom: 28px; font-size: 15.5px; }
-
 
 /* Item pedido: "GIFa Move" — editor visual de posição/tamanho do menu
    de GIFs no Painel da Staff. Ver GifMoveAdminTab em AdminPanel.jsx. */

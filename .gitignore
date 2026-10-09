@@ -50,3 +50,7 @@ client/android/.cxx/
 # Desktop (Electron) — build gerado
 desktop/dist/
 desktop/out/
+
+# Saídas dos testes de tela (Playwright)
+client/test-results/
+client/playwright-report/

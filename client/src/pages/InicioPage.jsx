@@ -205,7 +205,7 @@ export default function InicioPage() {
     .map((c) => ({ channel: c, people: (voice?.roster?.[c.id] || []).map((p) => members.find((m) => m.user.id === p.userId)?.user).filter(Boolean) }))
     .filter((c) => c.people.length > 0), [allChannels, voice?.roster, members]);
 
-  const level = me?.user?.accountLevel ?? user?.accountLevel ?? 0;
+  const level = me?.user?.accountLevel ?? user?.accountLevel ?? 1;
   const progress = me?.levelProgress ?? 0;
   const upcomingEvents = (events || []).filter((e) => e.status !== 'ENDED');
 

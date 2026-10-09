@@ -6,7 +6,12 @@ async function listMyTickets(req, res, next) {
   try {
     const tickets = await prisma.ticket.findMany({
       where: { authorId: req.user.id },
-      include: { author: { select: AUTHOR_FIELDS }, claimedBy: { select: AUTHOR_FIELDS } },
+      include: {
+        author: { select: AUTHOR_FIELDS }, claimedBy: { select: AUTHOR_FIELDS },
+        // Prévia da última mensagem + total, pra lista mostrar o andamento sem abrir o chamado.
+        messages: { take: 1, orderBy: { createdAt: 'desc' }, select: { content: true, createdAt: true, authorId: true } },
+        _count: { select: { messages: true } },
+      },
       orderBy: { updatedAt: 'desc' },
     });
     res.json({ tickets });
@@ -82,7 +87,12 @@ async function adminListTickets(req, res, next) {
     const { status } = req.query;
     const tickets = await prisma.ticket.findMany({
       where: status ? { status } : undefined,
-      include: { author: { select: AUTHOR_FIELDS }, claimedBy: { select: AUTHOR_FIELDS } },
+      include: {
+        author: { select: AUTHOR_FIELDS }, claimedBy: { select: AUTHOR_FIELDS },
+        // Prévia da última mensagem + total, pra lista mostrar o andamento sem abrir o chamado.
+        messages: { take: 1, orderBy: { createdAt: 'desc' }, select: { content: true, createdAt: true, authorId: true } },
+        _count: { select: { messages: true } },
+      },
       orderBy: { updatedAt: 'desc' },
     });
     res.json({ tickets });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import { SocketProvider } from './context/SocketContext.jsx';
@@ -7,20 +7,25 @@ import { ContextMenuProvider } from './context/ContextMenuContext.jsx';
 import { useStore } from './store/useStore';
 import { getPlatformStatus, getCommunity } from './api/endpoints';
 import MaintenanceScreen from './pages/MaintenanceScreen.jsx';
-import InterfaceEditorPage from './pages/InterfaceEditorPage.jsx';
 import { playSound } from './utils/sounds';
 import LoadingScreen from './components/LoadingScreen.jsx';
 import TitleBar from './components/TitleBar.jsx';
 import { CUSTOM_BACKGROUND_ENABLED } from './utils/featureFlags';
 
-import LoginPage from './pages/LoginPage.jsx';
-import RegisterPage from './pages/RegisterPage.jsx';
-import VerifyEmailPage from './pages/VerifyEmailPage.jsx';
-import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
-import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
 import MainApp from './pages/MainApp.jsx';
-import LandingPage from './pages/LandingPage.jsx';
-import PrivacyPage from './pages/PrivacyPage.jsx';
+
+// Telas que quem já está logado quase nunca vê (login, cadastro, página
+// de divulgação, editor de interface) viram pacotes separados: quem abre
+// o app logado não baixa esse código, e quem está no login não baixa o
+// app inteiro antes de precisar.
+const LoginPage = lazy(() => import('./pages/LoginPage.jsx'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage.jsx'));
+const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage.jsx'));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage.jsx'));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'));
+const LandingPage = lazy(() => import('./pages/LandingPage.jsx'));
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage.jsx'));
+const InterfaceEditorPage = lazy(() => import('./pages/InterfaceEditorPage.jsx'));
 
 // "Em reforma" (see adminController.setMaintenanceMode) only gates the
 // actual protected app — /login, /register etc stay reachable regardless,
@@ -289,6 +294,7 @@ export default function App() {
       <TitleBar />
       <div id="custom-bg-backdrop" />
       <div className="app-routes-container">
+        <Suspense fallback={<LoadingScreen />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -306,6 +312,7 @@ export default function App() {
           />
           <Route path="/*" element={<RootGate />} />
         </Routes>
+        </Suspense>
       </div>
     </div>
   );

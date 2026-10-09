@@ -1,252 +1,373 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import UserAvatar from '../components/UserAvatar.jsx';
-import IconGlyph from '../components/IconGlyph.jsx';
-import emptyIcon from '../assets/icons/nav-empty.png';
+import PageIcon from '../components/PageIcons.jsx';
 import {
   listMyTickets, createTicket, getTicket, addTicketMessage,
   adminListTickets, claimTicket, closeTicket,
 } from '../api/endpoints';
-import { formatTimeOnly } from '../utils/formatTime';
+import { formatMessageTime } from '../utils/formatTime';
+import '../styles/support.css';
 
-// REPAGINADO: "Tickets de Suporte" virou "Suporte da Plataforma" — visual
-// próprio de central de atendimento (cabeçalho com identidade, cartão de
-// abertura em destaque, lista com ícones de status, conversa em bolhas)
-// em vez de reaproveitar classes genéricas de outras páginas
-// (.economy-page/.mod-tabs/.theme-swatch) como antes. Nenhuma chamada de
-// API/comportamento mudou — só a apresentação.
+// Central de suporte: lista de chamados à esquerda e a conversa à direita
+// (no celular, uma coisa de cada vez). A equipe ganha a aba "Fila" com
+// todos os chamados, e pode assumir e fechar. Mesmas rotas de API de antes.
+const isStaffRole = (u) => ['ADMIN', 'MODERATOR'].includes(u?.platformRole);
+
+const TOPICS = [
+  { icon: 'key', title: 'Conta e login', hint: 'Senha, e-mail, verificação', subject: 'Problema com minha conta' },
+  { icon: 'flag', title: 'Denunciar alguém', hint: 'Assédio, spam, golpe', subject: 'Denúncia de usuário' },
+  { icon: 'bolt', title: 'Algo não funciona', hint: 'Erro, travamento, bug', subject: 'Encontrei um problema' },
+  { icon: 'bulb', title: 'Sugestão', hint: 'Ideias para o Project Club', subject: 'Sugestão' },
+];
+
+function timeAgo(iso) {
+  if (!iso) return '';
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return 'agora';
+  if (s < 3600) return `${Math.floor(s / 60)} min`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h`;
+  if (s < 86400 * 7) return `${Math.floor(s / 86400)} d`;
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+}
+
 export default function TicketsPage() {
   const { user } = useAuth();
-  const isStaff = ['ADMIN', 'MODERATOR'].includes(user.platformRole);
-  const [tab, setTab] = useState(isStaff ? 'STAFF' : 'MINE');
+  const { socket } = useSocket() || {};
+  const isStaff = isStaffRole(user);
+  const [mode, setMode] = useState(isStaff ? 'STAFF' : 'MINE');
+  const [filter, setFilter] = useState('OPEN');
+  const [query, setQuery] = useState('');
+  const [tickets, setTickets] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
+  const [composing, setComposing] = useState(null); // null | { subject }
+
+  const refresh = () => {
+    const req = mode === 'STAFF' ? adminListTickets(undefined) : listMyTickets();
+    return req.then((d) => setTickets(d.tickets)).catch(() => setTickets([]));
+  };
+  useEffect(() => { setTickets(null); refresh(); }, [mode]);
+
+  // Mensagem nova / mudança de status em qualquer chamado: atualiza a lista.
+  useEffect(() => {
+    if (!socket) return;
+    const onAny = () => refresh();
+    socket.on('ticket:message', onAny);
+    socket.on('ticket:update', onAny);
+    return () => { socket.off('ticket:message', onAny); socket.off('ticket:update', onAny); };
+  }, [socket, mode]);
+
+  const counts = useMemo(() => ({
+    OPEN: tickets?.filter((t) => t.status === 'OPEN').length ?? 0,
+    CLOSED: tickets?.filter((t) => t.status !== 'OPEN').length ?? 0,
+    ALL: tickets?.length ?? 0,
+  }), [tickets]);
+
+  const visible = useMemo(() => {
+    if (!tickets) return [];
+    const q = query.trim().toLowerCase();
+    return tickets.filter((t) => {
+      if (filter === 'OPEN' && t.status !== 'OPEN') return false;
+      if (filter === 'CLOSED' && t.status === 'OPEN') return false;
+      if (!q) return true;
+      return t.subject.toLowerCase().includes(q) || t.author?.displayName?.toLowerCase().includes(q);
+    });
+  }, [tickets, filter, query]);
+
+  const switchMode = (m) => { setMode(m); setSelectedId(null); setComposing(null); setFilter('OPEN'); };
+  const openTicket = (id) => { setComposing(null); setSelectedId(id); };
+  const startNew = (subject = '') => { setSelectedId(null); setComposing({ subject }); };
+  const paneOpen = !!selectedId || !!composing;
 
   return (
-    <div className="support-page">
-      <div className="support-header">
-        <div className="support-header-icon">🎧</div>
-        <div>
-          <h1>Suporte da Plataforma</h1>
-          <p className="dim">Precisa de ajuda? Abra um chamado e fale direto com a nossa equipe.</p>
+    <div className="sp">
+      <header className="sp-hero">
+        <span className="sp-hero-icon"><PageIcon name="headset" size={28} /></span>
+        <div className="sp-hero-text">
+          <h1>Central de suporte</h1>
+          <p>Fale direto com a equipe do Project Club. A resposta chega aqui e nas suas notificações.</p>
         </div>
-      </div>
+        <button type="button" className="sp-primary" onClick={() => startNew()}>
+          <PageIcon name="plus" size={17} strokeWidth={2.2} /> Novo chamado
+        </button>
+      </header>
 
       {isStaff && (
-        <div className="support-tabs">
-          <button className={`support-tab ${tab === 'MINE' ? 'active' : ''}`} onClick={() => { setTab('MINE'); setSelectedId(null); }}>
-            Meus chamados
+        <div className="sp-modes" role="tablist" aria-label="Tipo de lista">
+          <button type="button" role="tab" aria-selected={mode === 'STAFF'} className={`sp-mode${mode === 'STAFF' ? ' active' : ''}`} onClick={() => switchMode('STAFF')}>
+            <PageIcon name="shield" size={16} /> Fila da equipe
           </button>
-          <button className={`support-tab ${tab === 'STAFF' ? 'active' : ''}`} onClick={() => { setTab('STAFF'); setSelectedId(null); }}>
-            🛡️ Fila da equipe
+          <button type="button" role="tab" aria-selected={mode === 'MINE'} className={`sp-mode${mode === 'MINE' ? ' active' : ''}`} onClick={() => switchMode('MINE')}>
+            <PageIcon name="user" size={16} /> Meus chamados
           </button>
         </div>
       )}
 
-      {selectedId
-        ? <TicketDetail id={selectedId} onBack={() => setSelectedId(null)} isStaff={isStaff && tab === 'STAFF'} />
-        : (tab === 'STAFF' ? <StaffTicketList onOpen={setSelectedId} /> : <MyTicketList onOpen={setSelectedId} />)}
+      <div className={`sp-layout${paneOpen ? ' pane-open' : ''}`}>
+        <aside className="sp-list-panel">
+          <div className="sp-list-tools">
+            <label className="sp-search">
+              <PageIcon name="search" size={16} />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={mode === 'STAFF' ? 'Buscar por assunto ou pessoa' : 'Buscar chamados'} />
+            </label>
+            <div className="sp-filters">
+              {[['OPEN', 'Abertos'], ['CLOSED', 'Fechados'], ['ALL', 'Todos']].map(([k, label]) => (
+                <button key={k} type="button" className={`sp-filter${filter === k ? ' active' : ''}`} onClick={() => setFilter(k)}>
+                  {label} <span>{counts[k]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="sp-list">
+            {tickets === null && <div className="sp-skeleton"><span /><span /><span /></div>}
+            {tickets && visible.length === 0 && (
+              <div className="sp-list-empty">
+                <PageIcon name={mode === 'STAFF' ? 'check' : 'inbox'} size={22} />
+                <span>{query ? 'Nada encontrado.' : mode === 'STAFF' && filter === 'OPEN' ? 'Fila em dia! Nenhum chamado aberto.' : 'Nenhum chamado aqui.'}</span>
+              </div>
+            )}
+            {visible.map((t) => {
+              const last = t.messages?.[0];
+              const waitingStaff = t.status === 'OPEN' && last && last.authorId === t.authorId;
+              return (
+                <button
+                  key={t.id} type="button"
+                  className={`sp-item${selectedId === t.id ? ' active' : ''}${t.status !== 'OPEN' ? ' closed' : ''}`}
+                  onClick={() => openTicket(t.id)}
+                >
+                  {mode === 'STAFF'
+                    ? <UserAvatar user={t.author} size={36} />
+                    : <span className={`sp-item-status ${t.status === 'OPEN' ? 'open' : 'closed'}`}><PageIcon name={t.status === 'OPEN' ? 'chat' : 'check'} size={16} /></span>}
+                  <span className="sp-item-body">
+                    <span className="sp-item-top">
+                      <strong className="truncate">{t.subject}</strong>
+                      <time dateTime={t.updatedAt}>{timeAgo(t.updatedAt)}</time>
+                    </span>
+                    <span className="sp-item-preview truncate">
+                      {mode === 'STAFF' && <b>{t.author?.displayName}: </b>}
+                      {last?.content || 'Sem mensagens'}
+                    </span>
+                    <span className="sp-item-tags">
+                      {t.status !== 'OPEN' && <span className="sp-tag">Fechado</span>}
+                      {t.status === 'OPEN' && (waitingStaff
+                        ? <span className="sp-tag warn">{mode === 'STAFF' ? 'Aguardando resposta' : 'Aguardando equipe'}</span>
+                        : <span className="sp-tag ok">{mode === 'STAFF' ? 'Respondido' : 'Equipe respondeu'}</span>)}
+                      {t.claimedBy && <span className="sp-tag">com {t.claimedBy.displayName}</span>}
+                      {t._count?.messages > 0 && <span className="sp-tag muted"><PageIcon name="chat" size={12} /> {t._count.messages}</span>}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        <section className="sp-pane">
+          {composing ? (
+            <NewTicket
+              key={composing.subject}
+              initialSubject={composing.subject}
+              onCancel={() => setComposing(null)}
+              onCreated={(id) => { setComposing(null); if (mode === 'STAFF') switchMode('MINE'); refresh(); setSelectedId(id); }}
+            />
+          ) : selectedId ? (
+            <TicketDetail key={selectedId} id={selectedId} canModerate={isStaff} onBack={() => setSelectedId(null)} onChanged={refresh} />
+          ) : (
+            <Welcome isStaff={isStaff && mode === 'STAFF'} openCount={counts.OPEN} onTopic={startNew} />
+          )}
+        </section>
+      </div>
     </div>
   );
 }
 
-function StatusChip({ status }) {
+function Welcome({ isStaff, openCount, onTopic }) {
+  if (isStaff) {
+    return (
+      <div className="sp-welcome">
+        <span className="sp-welcome-icon"><PageIcon name="shield" size={30} /></span>
+        <h2>{openCount > 0 ? `${openCount} ${openCount === 1 ? 'chamado aberto' : 'chamados abertos'}` : 'Tudo respondido'}</h2>
+        <p>Escolha um chamado na lista para ler a conversa, assumir o atendimento ou fechar.</p>
+      </div>
+    );
+  }
   return (
-    <span className={`support-status-chip ${status === 'OPEN' ? 'open' : 'closed'}`}>
-      <span className="support-status-dot" /> {status === 'OPEN' ? 'Aberto' : 'Fechado'}
-    </span>
+    <div className="sp-welcome">
+      <span className="sp-welcome-icon"><PageIcon name="headset" size={30} /></span>
+      <h2>Como podemos ajudar?</h2>
+      <p>Escolha um assunto para começar ou abra um chamado livre.</p>
+      <div className="sp-topics">
+        {TOPICS.map((t) => (
+          <button key={t.title} type="button" className="sp-topic" onClick={() => onTopic(t.subject)}>
+            <span className="sp-topic-icon"><PageIcon name={t.icon} size={20} /></span>
+            <span><strong>{t.title}</strong><small>{t.hint}</small></span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
-function MyTicketList({ onOpen }) {
-  const [tickets, setTickets] = useState(null);
-  const [showNew, setShowNew] = useState(false);
-  const [subject, setSubject] = useState('');
+function NewTicket({ initialSubject, onCancel, onCreated }) {
+  const [subject, setSubject] = useState(initialSubject);
   const [content, setContent] = useState('');
   const [error, setError] = useState('');
-
-  const refresh = () => listMyTickets().then((d) => setTickets(d.tickets));
-  useEffect(() => { refresh(); }, []);
+  const [sending, setSending] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
-    setError('');
+    if (!subject.trim() || !content.trim()) return;
+    setError(''); setSending(true);
     try {
-      const { ticket } = await createTicket(subject, content);
-      setShowNew(false); setSubject(''); setContent('');
-      refresh();
-      onOpen(ticket.id);
-    } catch (err) { setError(err.response?.data?.error || 'Não foi possível abrir o chamado.'); }
+      const { ticket } = await createTicket(subject.trim(), content.trim());
+      onCreated(ticket.id);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Não foi possível abrir o chamado.');
+    } finally { setSending(false); }
   };
 
-  if (!tickets) return <p className="dim">Carregando...</p>;
-
   return (
-    <div>
-      {!showNew && (
-        <button type="button" className="support-new-ticket-cta" onClick={() => setShowNew(true)}>
-          <span className="support-new-ticket-cta-icon">✍️</span>
-          <span>
-            <strong>Abrir um novo chamado</strong>
-            <span className="dim">Conte o que está acontecendo — a equipe responde por aqui mesmo.</span>
-          </span>
+    <form className="sp-new" onSubmit={submit}>
+      <div className="sp-pane-head">
+        <button type="button" className="sp-back" onClick={onCancel} aria-label="Voltar"><PageIcon name="back" size={20} /></button>
+        <div className="sp-pane-title"><h2>Novo chamado</h2><span>A equipe costuma responder no mesmo dia.</span></div>
+      </div>
+      <div className="sp-new-body">
+        <label className="sp-field">
+          <span>Assunto</span>
+          <input value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={120} placeholder="Resuma em poucas palavras" required autoFocus={!initialSubject} />
+        </label>
+        <label className="sp-field">
+          <span>Descreva o que aconteceu</span>
+          <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={7} maxLength={2000} placeholder="Quanto mais detalhes (o que você fez, o que apareceu, links), mais rápido resolvemos." required autoFocus={!!initialSubject} />
+          <small>{content.length}/2000</small>
+        </label>
+        <p className="sp-tip"><PageIcon name="lock" size={14} /> Nunca envie sua senha. A equipe não precisa dela para ajudar.</p>
+        {error && <p className="sp-error" role="alert">{error}</p>}
+      </div>
+      <div className="sp-new-actions">
+        <button type="button" className="sp-ghost" onClick={onCancel}>Cancelar</button>
+        <button type="submit" className="sp-primary" disabled={sending || !subject.trim() || !content.trim()}>
+          <PageIcon name="send" size={16} /> {sending ? 'Enviando…' : 'Enviar chamado'}
         </button>
-      )}
-      {showNew && (
-        <form onSubmit={submit} className="settings-block support-new-ticket-form">
-          <h4>Novo chamado</h4>
-          <label>ASSUNTO<input value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={120} placeholder="Resuma o problema em poucas palavras" required /></label>
-          <label>MENSAGEM<textarea value={content} onChange={(e) => setContent(e.target.value)} rows={4} maxLength={2000} placeholder="Descreva com detalhes o que você precisa" required /></label>
-          {error && <div className="auth-error">{error}</div>}
-          <div className="modal-actions">
-            <button type="button" className="btn-link" onClick={() => setShowNew(false)}>Cancelar</button>
-            <button type="submit" className="btn-primary">Enviar chamado</button>
-          </div>
-        </form>
-      )}
-
-      <div className="support-ticket-list">
-        {tickets.length === 0 && !showNew && (
-          <div className="support-empty-state">
-            <div className="support-empty-state-icon"><IconGlyph src={emptyIcon} size={40} /></div>
-            <h3>Nenhum chamado por aqui</h3>
-            <p className="dim">Quando você abrir um chamado, ele aparece nesta lista.</p>
-          </div>
-        )}
-        {tickets.map((t) => (
-          <button key={t.id} className="support-ticket-card" onClick={() => onOpen(t.id)}>
-            <span className="support-ticket-card-icon">{t.status === 'OPEN' ? '🟢' : '⚪'}</span>
-            <span className="support-ticket-card-body">
-              <span className="support-ticket-card-subject">{t.subject}</span>
-              <span className="dim support-ticket-card-meta">{new Date(t.updatedAt).toLocaleString('pt-BR')}</span>
-            </span>
-            <StatusChip status={t.status} />
-          </button>
-        ))}
       </div>
-    </div>
+    </form>
   );
 }
 
-function StaffTicketList({ onOpen }) {
-  const [filter, setFilter] = useState('OPEN');
-  const [tickets, setTickets] = useState(null);
-
-  const refresh = () => adminListTickets(filter === 'ALL' ? undefined : filter).then((d) => setTickets(d.tickets));
-  useEffect(() => { refresh(); }, [filter]);
-
-  if (!tickets) return <p className="dim">Carregando...</p>;
-
-  return (
-    <div>
-      <div className="support-filter-row">
-        {['OPEN', 'CLOSED', 'ALL'].map((f) => (
-          <button key={f} className={`support-filter-chip ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>
-            {f === 'OPEN' ? 'Abertos' : f === 'CLOSED' ? 'Fechados' : 'Todos'}
-          </button>
-        ))}
-      </div>
-      <div className="support-ticket-list">
-        {tickets.length === 0 && (
-          <div className="support-empty-state">
-            <div className="support-empty-state-icon">✅</div>
-            <h3>Fila em dia</h3>
-            <p className="dim">Nenhum chamado nesse filtro no momento.</p>
-          </div>
-        )}
-        {tickets.map((t) => (
-          <button key={t.id} className="support-ticket-card">
-            <span className="support-ticket-card-avatar" onClick={() => onOpen(t.id)}>
-              <UserAvatar user={t.author} size={32} />
-            </span>
-            <span className="support-ticket-card-body" onClick={() => onOpen(t.id)}>
-              <span className="support-ticket-card-subject">{t.subject}</span>
-              <span className="dim support-ticket-card-meta">
-                {t.author.displayName} · {new Date(t.updatedAt).toLocaleString('pt-BR')}
-                {t.claimedBy && ` · assumido por ${t.claimedBy.displayName}`}
-              </span>
-            </span>
-            <StatusChip status={t.status} />
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function TicketDetail({ id, onBack, isStaff }) {
+function TicketDetail({ id, canModerate, onBack, onChanged }) {
   const { user } = useAuth();
   const { socket } = useSocket() || {};
   const [ticket, setTicket] = useState(null);
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
   const bottomRef = useRef(null);
+  const inputRef = useRef(null);
 
-  const refresh = () => getTicket(id).then((d) => setTicket(d.ticket));
+  const refresh = () => getTicket(id).then((d) => setTicket(d.ticket)).catch(() => setTicket(false));
   useEffect(() => { refresh(); }, [id]);
 
   useEffect(() => {
     if (!socket) return;
     socket.emit('ticket:join', id);
-    const onMessage = (data) => { if (data.ticketId === id) refresh(); };
-    const onUpdate = (data) => { if (data.ticketId === id) refresh(); };
-    socket.on('ticket:message', onMessage);
-    socket.on('ticket:update', onUpdate);
-    return () => { socket.off('ticket:message', onMessage); socket.off('ticket:update', onUpdate); };
+    const onEvt = (data) => { if (data.ticketId === id) refresh(); };
+    socket.on('ticket:message', onEvt);
+    socket.on('ticket:update', onEvt);
+    return () => { socket.off('ticket:message', onEvt); socket.off('ticket:update', onEvt); };
   }, [socket, id]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end' }); }, [ticket?.messages?.length]);
 
+  // Caixa de resposta cresce com o texto (até um limite).
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [content]);
+
   const send = async (e) => {
-    e.preventDefault();
-    if (!content.trim()) return;
-    setSending(true);
-    try { await addTicketMessage(id, content); setContent(''); refresh(); }
+    e?.preventDefault();
+    if (!content.trim() || sending) return;
+    setSending(true); setError('');
+    try { await addTicketMessage(id, content.trim()); setContent(''); await refresh(); onChanged?.(); }
+    catch (err) { setError(err.response?.data?.error || 'Não foi possível enviar.'); }
     finally { setSending(false); }
   };
+  const onKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } };
 
-  const claim = async () => { await claimTicket(id); refresh(); };
-  const close = async () => { if (confirm('Fechar este chamado?')) { await closeTicket(id); refresh(); } };
+  const claim = async () => { await claimTicket(id); refresh(); onChanged?.(); };
+  const close = async () => {
+    if (!confirm('Fechar este chamado? A pessoa não poderá mais responder nele.')) return;
+    await closeTicket(id); refresh(); onChanged?.();
+  };
 
-  if (!ticket) return <p className="dim">Carregando...</p>;
+  if (ticket === false) return <div className="sp-welcome"><h2>Não foi possível abrir</h2><p>Esse chamado não existe ou você não tem acesso.</p></div>;
+  if (!ticket) return <div className="sp-skeleton pane"><span /><span /><span /></div>;
+
+  const open = ticket.status === 'OPEN';
+  const staffView = canModerate && ticket.author.id !== user.id;
 
   return (
-    <div className="support-detail">
-      <div className="support-detail-header">
-        <button type="button" className="btn-link support-detail-back" onClick={onBack}>‹ Voltar</button>
-        <div className="support-detail-heading">
-          <h3>{ticket.subject}</h3>
-          <span className="dim">Aberto por {ticket.author.displayName}</span>
+    <div className="sp-detail">
+      <div className="sp-pane-head">
+        <button type="button" className="sp-back" onClick={onBack} aria-label="Voltar"><PageIcon name="back" size={20} /></button>
+        <div className="sp-pane-title">
+          <h2 className="truncate">{ticket.subject}</h2>
+          <span>
+            <span className={`sp-state ${open ? 'open' : 'closed'}`}>{open ? 'Aberto' : 'Fechado'}</span>
+            {staffView && <> · {ticket.author.displayName}</>}
+            {ticket.claimedBy && <> · com {ticket.claimedBy.displayName}</>}
+          </span>
         </div>
-        <StatusChip status={ticket.status} />
-        {isStaff && ticket.status === 'OPEN' && (
-          <div className="support-detail-actions">
-            {!ticket.claimedBy && <button className="btn-secondary" onClick={claim}>Assumir</button>}
-            <button className="btn-secondary" onClick={close}>Fechar</button>
+        {canModerate && open && (
+          <div className="sp-actions">
+            {!ticket.claimedBy && <button type="button" className="sp-ghost" onClick={claim}><PageIcon name="user" size={15} /> Assumir</button>}
+            <button type="button" className="sp-ghost danger" onClick={close}><PageIcon name="check" size={15} /> Fechar</button>
           </div>
         )}
       </div>
 
-      <div className="support-messages">
-        {ticket.messages.map((m) => (
-          <div key={m.id} className={`support-message ${m.authorId === user.id ? 'mine' : ''}`}>
-            <UserAvatar user={m.author} size={28} />
-            <div className="support-message-bubble">
-              <div className="support-message-meta">{m.author.displayName} · {formatTimeOnly(m.createdAt)}</div>
-              <div>{m.content}</div>
+      <div className="sp-messages">
+        <div className="sp-opened">Chamado aberto em {new Date(ticket.createdAt || ticket.messages[0]?.createdAt || Date.now()).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+        {ticket.messages.map((m, i) => {
+          const mine = m.authorId === user.id;
+          const prev = ticket.messages[i - 1];
+          const grouped = prev && prev.authorId === m.authorId && new Date(m.createdAt) - new Date(prev.createdAt) < 5 * 60000;
+          const fromStaff = isStaffRole(m.author) && m.authorId !== ticket.author.id;
+          return (
+            <div key={m.id} className={`sp-msg${mine ? ' mine' : ''}${grouped ? ' grouped' : ''}`}>
+              {!grouped ? <UserAvatar user={m.author} size={32} /> : <span className="sp-msg-spacer" />}
+              <div className="sp-msg-col">
+                {!grouped && (
+                  <div className="sp-msg-meta">
+                    <strong>{mine ? 'Você' : m.author.displayName}</strong>
+                    {fromStaff && <span className="sp-staff-tag"><PageIcon name="shield" size={11} strokeWidth={2.2} /> Equipe</span>}
+                    <time dateTime={m.createdAt}>{formatMessageTime(m.createdAt)}</time>
+                  </div>
+                )}
+                <div className="sp-bubble">{m.content}</div>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
+        {!open && <div className="sp-closed-note"><PageIcon name="check" size={16} /> Este chamado foi fechado. Se precisar de mais ajuda, abra um novo.</div>}
         <div ref={bottomRef} />
       </div>
 
-      {ticket.status === 'OPEN' ? (
-        <form onSubmit={send} className="support-reply-form">
-          <input value={content} onChange={(e) => setContent(e.target.value)} placeholder="Escreva uma resposta..." maxLength={2000} />
-          <button type="submit" className="btn-primary" disabled={sending}>Enviar</button>
+      {open && (
+        <form className="sp-composer" onSubmit={send}>
+          <textarea
+            ref={inputRef} rows={1} value={content} maxLength={2000}
+            onChange={(e) => setContent(e.target.value)} onKeyDown={onKeyDown}
+            placeholder={staffView ? `Responder ${ticket.author.displayName}…` : 'Escreva uma mensagem…'}
+          />
+          <button type="submit" className="sp-send" disabled={sending || !content.trim()} aria-label="Enviar"><PageIcon name="send" size={18} /></button>
+          {error && <p className="sp-error" role="alert">{error}</p>}
         </form>
-      ) : (
-        <p className="dim support-closed-notice">Este chamado está fechado.</p>
       )}
     </div>
   );

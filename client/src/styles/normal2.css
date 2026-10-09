@@ -91,12 +91,23 @@ html.layout-n2-root.is-electron-app .profile-fullscreen-overlay {
 
 /* Banner da comunidade com o nome por cima (como o topo de servidor) */
 .n2-sidebar .sidebar-banner {
-  position: relative; height: 136px;
-  background-size: cover; background-position: center;
+  /* O banner aparece INTEIRO (contain), sem cortar o nome/logo que
+     costuma estar escrito nele; as sobras dos lados são preenchidas com
+     uma cópia desfocada da própria imagem. */
+  position: relative; isolation: isolate; overflow: hidden;
+  height: auto; aspect-ratio: 2 / 1; max-height: 160px;
+  background-image: none !important;
+}
+.n2-sidebar .sidebar-banner::before {
+  content: ''; position: absolute; inset: -20px; z-index: -1;
+  background: var(--banner) center / cover no-repeat;
+  filter: blur(18px) brightness(.8);
 }
 .n2-sidebar .sidebar-banner::after {
   content: ''; position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, .55) 0%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0) 70%, var(--bg-secondary) 100%);
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .55) 0%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0) 70%, var(--bg-secondary) 100%),
+    var(--banner) center / contain no-repeat;
 }
 .n2-sidebar .sidebar-banner + .sidebar-header {
   position: absolute; top: 0; left: 0; right: 0; z-index: 2;
@@ -195,11 +206,21 @@ html.layout-n2-root.is-electron-app .profile-fullscreen-overlay {
 }
 .layout-n2 .member-row.has-id-card::before {
   content: ''; position: absolute; inset: 0 0 0 30%; z-index: -1;
-  background: var(--id-card) center / cover no-repeat;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, .15), rgba(0, 0, 0, .45)),
+    var(--id-card) center / cover no-repeat;
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .35) 35%, #000 100%);
   mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .35) 35%, #000 100%);
   opacity: .9;
 }
+/* Nome e status legíveis por cima da placa, mesmo quando a cor do nome
+   (cargo ou estilo próprio) é parecida com a da imagem — ex.: nome azul
+   numa placa azul. drop-shadow funciona também nos nomes em degradê. */
+.member-row.has-id-card .member-row-name,
+.member-row.has-id-card .member-row-status {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .9)) drop-shadow(0 0 3px rgba(0, 0, 0, .55));
+}
+.member-row.has-id-card .member-row-status { color: #e3e5e8; }
 
 /* ---------- Celular: a coluna vira a gaveta (regras de .main-sidebar) ---------- */
 @media (max-width: 600px) {
@@ -212,4 +233,21 @@ html.layout-n2-root.is-electron-app .profile-fullscreen-overlay {
   .n2-top-title { position: static; transform: none; flex: 1; min-width: 0; max-width: none; }
   .n2-nav-item { height: 40px; font-size: 14px; }
   .n2-sidebar .channel-item { padding: 9px 8px; font-size: 15px; }
+}
+
+/* ============================================================
+   Nome legível no perfil, no miniperfil e no painel da DM.
+   O cabeçalho desses cartões é pintado com a cor que a pessoa
+   escolheu, e o nome usa outra cor/degradê próprio — quando as duas
+   são parecidas (nome azul num perfil azul) o nome sumia. Um contorno
+   escuro suave (drop-shadow funciona inclusive em nome em degradê e
+   com efeitos) garante contraste sem mudar a cor escolhida.
+   ============================================================ */
+.profile-modal-accented .profile-display-name,
+.mini-profile-accented .mini-profile-name,
+.dm-profile-accented .profile-display-name {
+  filter:
+    drop-shadow(0 0 1px rgba(0, 0, 0, .75))
+    drop-shadow(0 1px 1px rgba(0, 0, 0, .55))
+    drop-shadow(0 2px 8px rgba(0, 0, 0, .35));
 }

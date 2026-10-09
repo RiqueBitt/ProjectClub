@@ -1,4 +1,4 @@
-import cancelIcon from '../assets/icons/cancel.png';
+import cancelIcon from '../assets/icons/close-x.png';
 
 export default function Modal({ title, onClose, children, width, className, overlayClassName }) {
   // `.modal-box` sets a fixed `width: 440px` by default; passing `width`
