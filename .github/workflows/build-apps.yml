@@ -327,6 +327,10 @@ jobs:
   # antes, o que anunciaria uma versão que ainda não existe pra baixar.
   finalize:
     needs: [compute-version, build-windows, build-linux, build-android]
+    # O app de PC (Windows/Linux) não fica mais preso esperando o Android:
+    # se os dois de PC deram certo, a versão é publicada mesmo que o
+    # build do Android tenha falhado.
+    if: ${{ !cancelled() && needs.build-windows.result == 'success' && needs.build-linux.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
