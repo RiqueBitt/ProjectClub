@@ -1,6 +1,7 @@
 const prisma = require('../config/prisma');
 const { requireCommunityPermission } = require('../services/authz');
 const { toStringBits, PERMISSIONS } = require('../services/permissions');
+const { sanitizeName, sanitizeIconEmoji, resolveIconUrl, checkIconUpload } = require('../utils/channelNames');
 
 async function assertManageChannels(userId) {
   return requireCommunityPermission(userId, 'MANAGE_CHANNELS');
@@ -8,10 +9,16 @@ async function assertManageChannels(userId) {
 
 async function createCategory(req, res, next) {
   try {
-    const { name } = req.body;
     await assertManageChannels(req.user.id);
+    // Nome como foi escrito (maiúsculas/espaços), só limpo.
+    const name = sanitizeName(req.body.name);
+    if (!name) return res.status(400).json({ error: 'Dê um nome à categoria.' });
+    const iconEmoji = sanitizeIconEmoji(req.body.iconEmoji);
+    const iconUrl = await resolveIconUrl(prisma, req.body.iconUrl, null);
     const count = await prisma.category.count();
-    const category = await prisma.category.create({ data: { name, position: count } });
+    const category = await prisma.category.create({
+      data: { name, position: count, iconEmoji: iconEmoji || null, iconUrl: iconEmoji ? null : (iconUrl || null) },
+    });
     req.app.get('io')?.to('community').emit('category:new', category);
     res.status(201).json({ category });
   } catch (err) { next(err); }
@@ -23,7 +30,34 @@ async function updateCategory(req, res, next) {
     await assertManageChannels(req.user.id);
     const existing = await prisma.category.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Categoria não encontrada.' });
-    const category = await prisma.category.update({ where: { id }, data: { name: req.body.name } });
+    const data = {};
+    if (req.body.name !== undefined) {
+      data.name = sanitizeName(req.body.name);
+      if (!data.name) return res.status(400).json({ error: 'Dê um nome à categoria.' });
+    }
+    // Ícone: emoji OU imagem — escolher um limpa o outro; null nos dois remove.
+    const iconEmoji = sanitizeIconEmoji(req.body.iconEmoji);
+    const iconUrl = await resolveIconUrl(prisma, req.body.iconUrl, existing.iconUrl);
+    if (iconEmoji !== undefined) data.iconEmoji = iconEmoji;
+    if (iconUrl !== undefined) data.iconUrl = iconUrl;
+    if (iconEmoji) data.iconUrl = null;
+    else if (iconUrl) data.iconEmoji = null;
+    const category = await prisma.category.update({ where: { id }, data });
+    req.app.get('io')?.to('community').emit('category:update', category);
+    res.json({ category });
+  } catch (err) { next(err); }
+}
+
+// POST /community/categories/:id/icon — imagem pequena como ícone da categoria.
+async function uploadCategoryIcon(req, res, next) {
+  try {
+    const { id } = req.params;
+    await assertManageChannels(req.user.id);
+    const problem = checkIconUpload(req.file);
+    if (problem) return res.status(400).json({ error: problem });
+    const existing = await prisma.category.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Categoria não encontrada.' });
+    const category = await prisma.category.update({ where: { id }, data: { iconUrl: req.file.url, iconEmoji: null } });
     req.app.get('io')?.to('community').emit('category:update', category);
     res.json({ category });
   } catch (err) { next(err); }
@@ -113,6 +147,6 @@ async function deleteCategoryOverwrite(req, res, next) {
 }
 
 module.exports = {
-  createCategory, updateCategory, reorderCategories, deleteCategory, assertManageChannels,
+  createCategory, updateCategory, uploadCategoryIcon, reorderCategories, deleteCategory, assertManageChannels,
   listCategoryOverwrites, setCategoryOverwrite, deleteCategoryOverwrite,
 };

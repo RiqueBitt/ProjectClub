@@ -841,3 +841,25 @@ button.mdx-ux-tile.dim:hover { border-color: color-mix(in srgb, var(--red) 40%, 
   .mdx-nexus-toggle { align-items: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) { .mdx-nxm-toast { animation: none; } }
+
+/* BUG CORRIGIDO ("os jogos não têm capa, só o nome" / "ícone dos mods não
+   aparece"): no app de PC (Electron 31 / Chrome 126) o aspect-ratio de um
+   item esticado dentro de um <button> em coluna dava altura 0 — a capa e a
+   imagem do mod sumiam inteiras. A "régua" com padding-top garante a altura
+   em qualquer navegador (os filhos já são todos absolutos). */
+.mdx-poster-art, .mdx-thumb, .mdx-skel-poster { width: 100%; }
+.mdx-poster-art::after, .mdx-skel-poster::after, .mdx-hero-poster::after { content: ''; display: block; padding-top: 150%; }
+.mdx-thumb::after { content: ''; display: block; padding-top: 56.25%; }
+
+/* Banner do mod no topo da página de detalhes. */
+.mdx-detail-head { position: relative; overflow: hidden; isolation: isolate; }
+.mdx-detail-banner {
+  position: absolute; inset: -30px; z-index: -1; background-size: cover; background-position: center;
+  filter: blur(28px) saturate(1.3); opacity: .42; transform: scale(1.05);
+}
+.mdx-detail-head.has-banner::after {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 35%, transparent), color-mix(in srgb, var(--bg-secondary) 88%, transparent));
+}
+.mdx-detail-head.has-banner .mdx-detail-media .mdx-thumb { box-shadow: 0 16px 36px -14px rgba(0, 0, 0, .85); }
+@media (prefers-reduced-motion: reduce) { .mdx-detail-banner { transform: none; } }

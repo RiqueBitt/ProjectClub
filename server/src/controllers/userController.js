@@ -29,6 +29,18 @@ const VALID_NAME_EFFECTS = ['SOLID', 'NEON', 'GRADIENT', 'POP', 'SKETCH', 'SHADO
 // arbitrária, só uma dessas três.
 const VALID_STATUS_BUBBLE_COLORS = ['#000000', '#80848E', '#FFFFFF'];
 
+// Enquadramento do banner (editor de banner no cliente): "x,y,zoom" —
+// x/y = ponto de foco em % (0–100), zoom de 1 a 4. Qualquer coisa fora
+// disso vira null (= centralizado, sem zoom), nunca texto livre no banco.
+function sanitizeBannerFraming(raw) {
+  if (raw === undefined || raw === null || raw === '') return null;
+  const parts = String(raw).split(',').map(Number);
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
+  const [x, y, zoom] = parts;
+  if (x < 0 || x > 100 || y < 0 || y > 100 || zoom < 1 || zoom > 4) return null;
+  return `${Math.round(x * 10) / 10},${Math.round(y * 10) / 10},${Math.round(zoom * 100) / 100}`;
+}
+
 // Item pedido: "sistema igual da Steam" pra reorganizar o perfil —
 // chaves de seção conhecidas, mantidas em sincronia com
 // PROFILE_SECTIONS em client/src/components/modals/UserProfileModal.jsx.
@@ -218,6 +230,9 @@ async function updateProfile(req, res, next) {
     if (req.body.customStatusEmoji !== undefined) {
       data.customStatusEmoji = req.body.customStatusEmoji ? String(req.body.customStatusEmoji).slice(0, 32) : null;
     }
+    // Reajuste do enquadramento do banner atual, sem reenviar a imagem.
+    if (req.body.bannerFraming !== undefined) data.bannerFraming = sanitizeBannerFraming(req.body.bannerFraming);
+    if (req.body.miniProfileBannerFraming !== undefined) data.miniProfileBannerFraming = sanitizeBannerFraming(req.body.miniProfileBannerFraming);
     const user = await prisma.user.update({ where: { id: req.user.id }, data, select: SELF_USER_FIELDS });
     await broadcastUserUpdate(req, user);
     res.json({ user });
@@ -316,8 +331,11 @@ async function uploadBanner(req, res, next) {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
     const bannerUrl = req.file.url;
+    // Imagem nova sempre zera o enquadramento antigo; GIF manda o
+    // enquadramento escolhido no editor junto (campo "framing").
+    const bannerFraming = sanitizeBannerFraming(req.body?.framing);
     const user = await prisma.user.update({
-      where: { id: req.user.id }, data: { bannerUrl }, select: SELF_USER_FIELDS,
+      where: { id: req.user.id }, data: { bannerUrl, bannerFraming }, select: SELF_USER_FIELDS,
     });
     await broadcastUserUpdate(req, user);
     res.json({ user });
@@ -331,8 +349,9 @@ async function uploadMiniProfileBanner(req, res, next) {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
     const miniProfileBannerUrl = req.file.url;
+    const miniProfileBannerFraming = sanitizeBannerFraming(req.body?.framing);
     const user = await prisma.user.update({
-      where: { id: req.user.id }, data: { miniProfileBannerUrl }, select: SELF_USER_FIELDS,
+      where: { id: req.user.id }, data: { miniProfileBannerUrl, miniProfileBannerFraming }, select: SELF_USER_FIELDS,
     });
     await broadcastUserUpdate(req, user);
     res.json({ user });
@@ -794,5 +813,5 @@ async function setDisplayedAchievements(req, res, next) {
 module.exports = {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, uploadIdCard, removeIdCard,
   setStatus, setCustomStatus, searchUsers, getUser, setActiveTag, voteProfile, setPreferredTheme, setLayoutStyle, setEmojiStyle, setChatZoom, setInterfaceZoom,
-  setDisplayedAchievements, hasFullProfileAccess,
+  setDisplayedAchievements, hasFullProfileAccess, sanitizeBannerFraming,
 };

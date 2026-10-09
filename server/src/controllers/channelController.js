@@ -1,7 +1,8 @@
 const prisma = require('../config/prisma');
 const { assertManageChannels } = require('./categoryController');
 const { getEveryoneRole } = require('../services/authz');
-const { toStringBits, PERMISSIONS } = require('../services/permissions');
+const { toStringBits, PERMISSIONS, has } = require('../services/permissions');
+const { sanitizeName, sanitizeIconEmoji, resolveIconUrl, checkIconUpload } = require('../utils/channelNames');
 
 const VALID_TYPES = ['TEXT', 'VOICE', 'ANNOUNCEMENT', 'STAGE', 'RULES'];
 function clampUserLimit(value) {
@@ -25,8 +26,14 @@ function clampTopic(value) {
 
 async function createChannel(req, res, next) {
   try {
-    const { name, type, categoryId, topic, isPrivate, userLimit } = req.body;
+    const { type, categoryId, topic, isPrivate, userLimit } = req.body;
     await assertManageChannels(req.user.id);
+    // Nome do jeito que a pessoa escreveu (maiúsculas e espaços valem),
+    // só limpo — ver utils/channelNames.js.
+    const name = sanitizeName(req.body.name);
+    if (!name) return res.status(400).json({ error: 'Dê um nome ao canal.' });
+    const iconEmoji = sanitizeIconEmoji(req.body.iconEmoji);
+    const iconUrl = await resolveIconUrl(prisma, req.body.iconUrl, null);
     const count = await prisma.channel.count({ where: { categoryId: categoryId || null } });
     const channel = await prisma.channel.create({
       data: {
@@ -37,6 +44,8 @@ async function createChannel(req, res, next) {
         position: count,
         isPrivate: !!isPrivate,
         userLimit: clampUserLimit(userLimit),
+        iconEmoji: iconEmoji || null,
+        iconUrl: iconEmoji ? null : (iconUrl || null),
       },
     });
 
@@ -69,6 +78,17 @@ async function updateChannel(req, res, next) {
     const data = {};
     for (const key of allowed) if (req.body[key] !== undefined) data[key] = req.body[key];
     if (data.topic !== undefined) data.topic = clampTopic(data.topic);
+    if (data.name !== undefined) {
+      data.name = sanitizeName(data.name);
+      if (!data.name) return res.status(400).json({ error: 'Dê um nome ao canal.' });
+    }
+    // Ícone: emoji OU imagem — escolher um limpa o outro; null nos dois remove.
+    const iconEmoji = sanitizeIconEmoji(req.body.iconEmoji);
+    const iconUrl = await resolveIconUrl(prisma, req.body.iconUrl, existing.iconUrl);
+    if (iconEmoji !== undefined) data.iconEmoji = iconEmoji;
+    if (iconUrl !== undefined) data.iconUrl = iconUrl;
+    if (iconEmoji) data.iconUrl = null;
+    else if (iconUrl) data.iconEmoji = null;
     if (req.body.type !== undefined && VALID_TYPES.includes(req.body.type)) data.type = req.body.type;
     if (req.body.userLimit !== undefined) data.userLimit = clampUserLimit(req.body.userLimit);
     if (req.body.slowModeSeconds !== undefined) data.slowModeSeconds = clampSlowMode(req.body.slowModeSeconds, req.body.type || existing.type);
@@ -205,7 +225,92 @@ async function deleteChannelOverwrite(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// POST /community/channels/:id/icon — imagem pequena como ícone do canal.
+async function uploadChannelIcon(req, res, next) {
+  try {
+    const { id } = req.params;
+    await assertManageChannels(req.user.id);
+    const problem = checkIconUpload(req.file);
+    if (problem) return res.status(400).json({ error: problem });
+    const existing = await prisma.channel.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Canal não encontrado.' });
+    const channel = await prisma.channel.update({ where: { id }, data: { iconUrl: req.file.url, iconEmoji: null } });
+    req.app.get('io')?.to('community').emit('channel:update', { id: channel.id });
+    res.json({ channel });
+  } catch (err) { next(err); }
+}
+
+// GET /community/gallery — fotos, vídeos e GIFs já postados na comunidade
+// (anexos dos canais que a pessoa pode ver + imagens dos posts do Feed).
+// Só lê o que já existe, sem sistema de upload novo. Paginado por data
+// (?before=ISO&limit=N).
+const GALLERY_MEDIA_RE = /^(image\/(png|jpe?g|gif|webp)|video\/(mp4|webm|quicktime))$/i;
+async function listGallery(req, res, next) {
+  try {
+    const { getEffectivePermissions } = require('../services/authz');
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 48, 1), 96);
+    const before = req.query.before ? new Date(req.query.before) : null;
+    const beforeFilter = before && !isNaN(before.getTime()) ? { lt: before } : undefined;
+    const source = ['channels', 'posts'].includes(req.query.source) ? req.query.source : 'all';
+
+    // Mesmo critério de getCommunity: só canais com VIEW_CHANNEL.
+    const channels = await prisma.channel.findMany({ select: { id: true, name: true, type: true, iconEmoji: true, iconUrl: true } });
+    const visible = [];
+    for (const ch of channels) {
+      const perms = await getEffectivePermissions(req.user.id, ch.id);
+      if (has(perms, 'VIEW_CHANNEL')) visible.push(ch);
+    }
+    const byId = Object.fromEntries(visible.map((c) => [c.id, c]));
+    const AUTHOR = { select: { id: true, displayName: true, avatarUrl: true } };
+
+    const [attachments, posts] = await Promise.all([
+      source === 'posts' || visible.length === 0 ? [] : prisma.attachment.findMany({
+        where: {
+          isSpoiler: false,
+          OR: [{ mimeType: { startsWith: 'image/' } }, { mimeType: { startsWith: 'video/' } }],
+          message: {
+            channelId: { in: visible.map((c) => c.id) }, deleted: false,
+            ...(beforeFilter ? { createdAt: beforeFilter } : {}),
+          },
+        },
+        include: { message: { select: { id: true, channelId: true, createdAt: true, author: AUTHOR } } },
+        orderBy: { message: { createdAt: 'desc' } },
+        take: limit,
+      }),
+      source === 'channels' ? [] : prisma.post.findMany({
+        where: { imageUrl: { not: null }, ...(beforeFilter ? { createdAt: beforeFilter } : {}) },
+        select: {
+          id: true, title: true, imageUrl: true, createdAt: true, author: AUTHOR,
+          community: { select: { slug: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      }),
+    ]);
+
+    const items = [
+      ...attachments.filter((a) => GALLERY_MEDIA_RE.test(a.mimeType)).map((a) => ({
+        id: `a:${a.id}`,
+        kind: a.mimeType.startsWith('video/') ? 'video' : (/gif$/i.test(a.mimeType) ? 'gif' : 'image'),
+        url: a.url, filename: a.filename, source: 'channel',
+        channel: byId[a.message.channelId] || null, messageId: a.message.id,
+        author: a.message.author, createdAt: a.message.createdAt,
+      })),
+      ...posts.map((p) => ({
+        id: `p:${p.id}`,
+        kind: /\.gif(\?|$)/i.test(p.imageUrl) ? 'gif' : 'image',
+        url: p.imageUrl, source: 'post', postId: p.id, title: p.title, club: p.community,
+        author: p.author, createdAt: p.createdAt,
+      })),
+    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, limit);
+
+    const hasMore = attachments.length === limit || posts.length === limit;
+    res.json({ items, nextBefore: hasMore && items.length ? items[items.length - 1].createdAt : null });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
+  uploadChannelIcon, listGallery,
   createChannel, updateChannel, reorderChannels, deleteChannel, markRead,
   listChannelOverwrites, setChannelOverwrite, deleteChannelOverwrite,
 };

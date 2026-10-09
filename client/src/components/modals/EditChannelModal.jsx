@@ -2,12 +2,16 @@ import { useEffect, useState } from 'react';
 import Modal from '../Modal.jsx';
 import { useStore } from '../../store/useStore';
 import {
-  updateChannel, deleteChannel, listChannelOverwrites, setChannelOverwrite, deleteChannelOverwrite,
+  updateChannel, deleteChannel, listChannelOverwrites, setChannelOverwrite, deleteChannelOverwrite, uploadChannelIcon,
 } from '../../api/endpoints';
 import { PERMISSION_LABELS } from '../../utils/permissions';
 import personIcon from '../../assets/icons/person.png';
 import selectedIcon from '../../assets/icons/selected.png';
 import ChannelTypePicker from '../ChannelTypePicker.jsx';
+import ChannelTypeIcon from '../ChannelTypeIcon.jsx';
+import IconPickerField, { iconValueFrom, saveIcon } from '../IconPickerField.jsx';
+import { cleanChannelName, CHANNEL_NAME_MAX } from '../../utils/channelName';
+import '../../styles/channels.css';
 
 const TYPES = ['TEXT', 'VOICE', 'ANNOUNCEMENT', 'STAGE'];
 
@@ -48,6 +52,9 @@ export default function EditChannelModal({ channel, onClose, onDeleted }) {
   // cycles through the three, mirrors Discord's own channel permission
   // editor instead of two separate allow/deny checkbox lists.
   const [newPerms, setNewPerms] = useState({});
+  const [icon, setIcon] = useState(() => iconValueFrom(channel));
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const isVoiceLike = type === 'VOICE' || type === 'STAGE';
 
   const loadOverwrites = async () => {
@@ -58,12 +65,24 @@ export default function EditChannelModal({ channel, onClose, onDeleted }) {
   useEffect(() => { loadOverwrites(); }, [channel.id]);
 
   const save = async () => {
-    await updateChannel(channel.id, {
-      name, topic, type, isPrivate,
-      userLimit: isVoiceLike ? userLimit : undefined,
-      slowModeSeconds: !isVoiceLike ? (slowModeSeconds || null) : undefined,
-    });
-    onClose();
+    const cleanName = cleanChannelName(name);
+    if (!cleanName) { setSaveError('Dê um nome ao canal.'); return; }
+    setSaving(true);
+    setSaveError('');
+    try {
+      await updateChannel(channel.id, {
+        name: cleanName, topic, type, isPrivate,
+        userLimit: isVoiceLike ? userLimit : undefined,
+        slowModeSeconds: !isVoiceLike ? (slowModeSeconds || null) : undefined,
+      });
+      // Ícone: só manda se mudou (o socket channel:update avisa todo mundo).
+      await saveIcon({ id: channel.id, initial: iconValueFrom(channel), value: icon, update: updateChannel, upload: uploadChannelIcon });
+      onClose();
+    } catch (err) {
+      setSaveError(err.response?.data?.error || 'Não foi possível salvar.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const remove = async () => {
@@ -120,11 +139,13 @@ export default function EditChannelModal({ channel, onClose, onDeleted }) {
 
   return (
     <Modal title={`Editar canal — ${channel.name}`} onClose={onClose} width="640px">
-      <div className="settings-grid">
+      <div className="settings-grid channel-form">
         <label>
           NOME DO CANAL
-          <input value={name} onChange={(e) => setName(e.target.value.toLowerCase().replace(/\s+/g, '-'))} />
+          {/* Nome do jeito que a pessoa escrever: maiúsculas e espaços valem. */}
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={CHANNEL_NAME_MAX} />
         </label>
+        <IconPickerField value={icon} onChange={setIcon} defaultIcon={<ChannelTypeIcon type={type} className="icon-field-default" />} />
         <label>
           DESCRIÇÃO
           <textarea value={topic} onChange={(e) => setTopic(e.target.value.slice(0, 500))} maxLength={500} rows={3} placeholder="Do que se trata este canal?" />
@@ -157,7 +178,8 @@ export default function EditChannelModal({ channel, onClose, onDeleted }) {
           <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />
           Canal privado (esconde de @everyone — quem precisa de acesso ainda pode ser adicionado abaixo)
         </label>
-        <button className="btn-primary" onClick={save}>Salvar alterações</button>
+        {saveError && <div className="auth-error">{saveError}</div>}
+        <button className="btn-primary" onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Salvar alterações'}</button>
 
         <hr />
         <h3>Permissões de cargos e membros</h3>

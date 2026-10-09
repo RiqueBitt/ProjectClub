@@ -35,6 +35,7 @@ import { proxyImage } from '../../utils/imageProxy';
 import { visibleProfileSectionOrder } from '../../utils/profileSections';
 import FeaturedModpackSection from '../FeaturedModpackSection.jsx';
 import '../../styles/profile.css';
+import BannerImage from '../ProfileBanner.jsx';
 
 // Ícones de traço do perfil (SVG, herdam a cor do texto) — mapa local pra
 // não mexer no PageIcons.jsx compartilhado. Emoji vira quadradinho no Linux.
@@ -980,7 +981,8 @@ export default function UserProfileModal() {
           <>
             <div className="profile-top-row">
               <div className="profile-banner" style={{ background: user.bannerUrl ? undefined : 'transparent' }}>
-                {user.bannerUrl && <img src={proxyImage(user.bannerUrl)} alt="" />}
+                {/* Enquadramento escolhido no editor de banner (ProfileBanner.jsx). */}
+                <BannerImage url={user.bannerUrl} framing={user.bannerFraming} />
               </div>
               <div className="profile-ig-header">
                 <div className="avatar-wrap large">

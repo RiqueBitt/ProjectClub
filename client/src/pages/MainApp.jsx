@@ -66,6 +66,9 @@ const CommunitiesPage = lazy(() => import('./CommunitiesPage.jsx'));
 const CommunityPage = lazy(() => import('./CommunityPage.jsx'));
 const PostDetailPage = lazy(() => import('./PostDetailPage.jsx'));
 const InicioPage = lazy(() => import('./InicioPage.jsx'));
+// Canais em destaque da comunidade (ver FeaturedChannels.jsx).
+const CommunityEventsPage = lazy(() => import('./CommunityEventsPage.jsx'));
+const CommunityGalleryPage = lazy(() => import('./CommunityGalleryPage.jsx'));
 // Item pedido: "crie uma nova categoria chamada Jogos" — mesmo padrão
 // lazy() de todas as outras seções acima.
 const JogosPage = lazy(() => import('./JogosPage.jsx'));
@@ -129,7 +132,7 @@ export default function MainApp() {
   // ativa no layout Discord que nunca deixava a seta expandir de
   // volta.
   const mainSidebarCollapsed = useStore((s) => s.mainSidebarCollapsed);
-  const isInComunidade = location.pathname === '/' || location.pathname.startsWith('/channels/');
+  const isInComunidade = location.pathname === '/' || location.pathname.startsWith('/channels/') || location.pathname.startsWith('/comunidade/');
   const showDiscordChannelSidebar = layoutStyle === 'discord' && isInComunidade;
   // Layout "Normal 2.0" (padrão): canais sempre visíveis numa coluna só
   // com o menu (Normal2Sidebar.jsx).
@@ -398,6 +401,8 @@ export default function MainApp() {
                 <Route path="/comunidades/:slug" element={<CommunityPage />} />
                 <Route path="/posts/:id" element={<PostDetailPage />} />
                 <Route path="/inicio" element={<InicioPage />} />
+                <Route path="/comunidade/eventos" element={<CommunityEventsPage />} />
+                <Route path="/comunidade/galeria" element={<CommunityGalleryPage />} />
                 {/* Item pedido: "crie uma nova categoria chamada Jogos" */}
                 <Route path="/jogos" element={<JogosPage />} />
                 <Route path="/jogos/mods" element={<ModsPage />} />

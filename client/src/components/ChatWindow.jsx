@@ -21,6 +21,7 @@ import GroupSettingsModal from './modals/GroupSettingsModal.jsx';
 import ConversationIcon from './ConversationIcon.jsx';
 import ChannelSwitcher from './ChannelSwitcher.jsx';
 import ChannelTypeIcon from './ChannelTypeIcon.jsx';
+import { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import { TYPE_ICON } from '../utils/channelIcons';
 import PresenceDot from './PresenceDot.jsx';
@@ -768,7 +769,9 @@ export default function ChatWindow({ kind }) {
   // Ícone do tipo do canal num quadradinho com tom da marca, no cabeçalho.
   const channelHeaderIcon = channel ? (
     <span className="chat-header-icon" aria-hidden="true">
-      {channel.type === 'TEXT' || !channel.type ? <ChatIcon name="hash" size={18} /> : <ChannelTypeIcon type={channel.type} className="chat-header-type-icon" />}
+      {/* Ícone personalizado do canal (emoji/imagem), quando houver. */}
+      {hasCustomIcon(channel) ? <CustomIcon item={channel} className="chat-header-custom-icon" />
+        : channel.type === 'TEXT' || !channel.type ? <ChatIcon name="hash" size={18} /> : <ChannelTypeIcon type={channel.type} className="chat-header-type-icon" />}
     </span>
   ) : null;
 
@@ -1163,7 +1166,7 @@ function ChatTitleOrCategoryChannels({ title, currentChannelId }) {
             className={`chat-title-category-channel ${active ? 'active' : ''} ${unread ? 'unread' : ''}`}
             onClick={() => { setOpenCategoryId(null); if (ch.id !== currentChannelId) navigate(`/channels/${ch.id}`); }}
           >
-            <ChannelTypeIcon type={ch.type} />
+            {hasCustomIcon(ch) ? <CustomIcon item={ch} className="channel-hash channel-custom-icon" /> : <ChannelTypeIcon type={ch.type} />}
             <span className="truncate">{ch.name}</span>
             {ch.unreadMentions > 0 && (
               <span className="mention-badge">{ch.unreadMentions > 99 ? '99+' : ch.unreadMentions}</span>

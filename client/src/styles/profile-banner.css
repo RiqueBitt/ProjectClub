@@ -1,0 +1,196 @@
+/* ============================================================
+   Banner de perfil com enquadramento (ProfileBanner.jsx) e editor de
+   imagem estilo Discord (ImageCropperModal.jsx — classes .ifx-*).
+   As faixas de banner têm proporção FIXA (3:1 perfil/DM/prévia,
+   16:5 miniperfil) pra bater exatamente com a moldura do editor.
+   Só variáveis do tema.
+   ============================================================ */
+
+/* ---------- Exibição do banner ---------- */
+.pb-banner-img { display: block; width: 100%; height: 100%; max-width: none; }
+
+.profile-banner,
+.dmp-banner,
+.mini-profile-banner,
+.profile-preview-banner { overflow: hidden; position: relative; }
+
+/* Perfil completo (tela cheia): faixa 3:1. No desktop fica ao lado do
+   cabeçalho; antes era flex: 1 com altura fixa, então a proporção
+   mudava com a largura da janela e cortava a imagem de jeitos
+   diferentes. */
+.modal-box.profile-modal-fullscreen .profile-banner {
+  flex: 0 1 720px; align-self: flex-start;
+  height: auto; aspect-ratio: 3 / 1; max-height: none;
+}
+.modal-box.profile-modal-fullscreen .profile-ig-header { margin-right: auto; }
+/* Esmaecido só na pontinha que encosta no cabeçalho (antes apagava
+   ~30% da imagem e escondia parte do que a pessoa escolheu). */
+.modal-box.profile-modal-fullscreen .profile-banner img {
+  -webkit-mask-image: linear-gradient(to left, #000 88%, transparent 100%);
+  mask-image: linear-gradient(to left, #000 88%, transparent 100%);
+}
+@media (max-width: 720px) {
+  .modal-box.profile-modal-fullscreen .profile-banner { flex: 0 0 auto; width: 100%; height: auto; align-self: stretch; }
+  .modal-box.profile-modal-fullscreen .profile-banner img { -webkit-mask-image: none; mask-image: none; }
+}
+
+/* O zoom do enquadramento usa transform na <img>, o que a faria pintar
+   POR CIMA do avatar que sobrepõe a borda do banner — o conteúdo logo
+   depois de cada banner sobe uma camada. */
+.profile-modal-fullscreen .profile-ig-header,
+.dm-profile-panel .dmp-head,
+.mini-profile-card .mini-profile-body,
+.profile-edit-card .profile-edit-identity { position: relative; z-index: 1; }
+
+/* Painel de perfil da DM */
+.dm-profile-panel.dmp .dmp-banner { height: auto; aspect-ratio: 3 / 1; }
+.dm-profile-panel.dmp .dmp-banner .pb-banner-img { position: relative; }
+
+/* Miniperfil: 320×100 = 16:5 */
+.mini-profile-card .mini-profile-banner { height: auto; aspect-ratio: 16 / 5; }
+
+/* Prévia na aba "Editar perfil" */
+.profile-edit-card .profile-edit-banner { height: auto; aspect-ratio: 3 / 1; }
+
+/* Botões de banner nas configurações */
+.pb-settings-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pb-adjust-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.pb-mini-preview {
+  width: 100%; max-width: 320px; aspect-ratio: 16 / 5; border-radius: 12px; overflow: hidden;
+  background: var(--brand); border: 1px solid var(--border); margin: 4px 0 10px;
+}
+
+/* ---------- Editor (ImageCropperModal) ---------- */
+.ifx-modal.modal-box { border-radius: 18px; }
+.ifx { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+.ifx-stage {
+  position: relative; width: 100%; overflow: hidden; border-radius: 14px;
+  border: 1px solid var(--border); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+  /* xadrez: mostra que áreas transparentes continuam transparentes */
+  background-color: var(--bg-primary);
+  background-image:
+    conic-gradient(color-mix(in srgb, var(--text-muted) 16%, transparent) 25%, transparent 0 50%,
+      color-mix(in srgb, var(--text-muted) 16%, transparent) 0 75%, transparent 0);
+  background-size: 18px 18px;
+  outline: none;
+}
+.ifx-stage.is-dragging { cursor: grabbing; }
+.ifx-stage:focus-visible { box-shadow: 0 0 0 2px var(--brand); }
+.ifx-img {
+  position: absolute; max-width: none; pointer-events: none; display: block;
+}
+.ifx-frame {
+  position: absolute; pointer-events: none; border-radius: 6px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, .58);
+  outline: 2px solid #fff; outline-offset: 0;
+}
+.ifx-circle .ifx-frame { border-radius: 50%; }
+/* grade de terços, só enquanto arrasta */
+.ifx-grid {
+  position: absolute; inset: 0; border-radius: inherit; opacity: 0; transition: opacity .15s ease;
+  background:
+    linear-gradient(to right, transparent calc(33.33% - .5px), rgba(255,255,255,.45) calc(33.33% - .5px) calc(33.33% + .5px), transparent calc(33.33% + .5px) calc(66.66% - .5px), rgba(255,255,255,.45) calc(66.66% - .5px) calc(66.66% + .5px), transparent calc(66.66% + .5px)),
+    linear-gradient(to bottom, transparent calc(33.33% - .5px), rgba(255,255,255,.45) calc(33.33% - .5px) calc(33.33% + .5px), transparent calc(33.33% + .5px) calc(66.66% - .5px), rgba(255,255,255,.45) calc(66.66% - .5px) calc(66.66% + .5px), transparent calc(66.66% + .5px));
+}
+.ifx-stage.is-dragging .ifx-grid { opacity: 1; }
+.ifx-hint {
+  position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px;
+  background: rgba(0, 0, 0, .6); color: #fff; font-size: 12px; font-weight: 600; white-space: nowrap; pointer-events: none;
+}
+.ifx-loading {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); font-size: 13px;
+}
+.ifx-load-error { color: var(--red); font-weight: 600; }
+.ifx-spinner {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--brand) 25%, transparent); border-top-color: var(--brand);
+  animation: ifx-spin .8s linear infinite;
+}
+.ifx-spinner.small { width: 14px; height: 14px; border-width: 2px; border-color: rgba(255,255,255,.35); border-top-color: #fff; }
+@keyframes ifx-spin { to { transform: rotate(360deg); } }
+
+.ifx-controls { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ifx-icon-btn {
+  width: 32px; height: 32px; flex-shrink: 0; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-primary); border: 1px solid var(--border); color: var(--header-primary); cursor: pointer;
+}
+.ifx-icon-btn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
+.ifx-icon-btn:disabled { opacity: .45; cursor: default; }
+.ifx-range {
+  flex: 1; min-width: 0; height: 6px; margin: 0; padding: 0; border: 0; border-radius: 999px; appearance: none; -webkit-appearance: none;
+  background: linear-gradient(to right, var(--brand) var(--ifx-fill, 0%), color-mix(in srgb, var(--text-muted) 28%, transparent) var(--ifx-fill, 0%));
+  cursor: pointer; box-shadow: none;
+}
+.ifx-range::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff;
+  border: 3px solid var(--brand); box-shadow: 0 1px 4px rgba(0,0,0,.3);
+}
+.ifx-range::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 3px solid var(--brand); }
+.ifx-range:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
+.ifx-zoom-val { width: 36px; flex-shrink: 0; text-align: right; font-size: 12px; font-weight: 700; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.ifx-reset {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 11px; flex-shrink: 0; border-radius: 9px;
+  font-size: 12.5px; font-weight: 600; color: var(--text-normal); background: transparent; border: 1px solid var(--border); cursor: pointer;
+}
+.ifx-reset:hover:not(:disabled) { color: var(--brand); border-color: var(--brand); }
+.ifx-reset:disabled { opacity: .45; cursor: default; }
+.ifx-icon-btn:focus-visible, .ifx-reset:focus-visible, .ifx-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+.ifx-note {
+  display: flex; align-items: center; gap: 8px; margin: 0; padding: 8px 12px; border-radius: 10px;
+  font-size: 12.5px; color: var(--text-normal);
+  background: color-mix(in srgb, var(--brand) 12%, transparent); border: 1px solid color-mix(in srgb, var(--brand) 28%, transparent);
+}
+.ifx-note svg { color: var(--brand); flex-shrink: 0; }
+
+.ifx-footer { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.ifx-footer .ifx-preview { flex: 1 1 260px; min-width: 0; }
+.ifx-footer .ifx-actions { margin-left: auto; }
+.ifx-preview { display: flex; flex-direction: column; gap: 8px; }
+.ifx-preview-label { font-size: 11.5px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; color: var(--text-muted); }
+.ifx-prev-card {
+  width: 100%; max-width: 320px; border-radius: 14px; overflow: hidden;
+  background: color-mix(in srgb, var(--ifx-tint, var(--brand)) 22%, var(--bg-secondary)); border: 1px solid var(--border);
+}
+.ifx-prev-card.is-mini { max-width: 280px; }
+.ifx-prev-banner { width: 100%; overflow: hidden; background: var(--ifx-pc); }
+.ifx-prev-banner img { display: block; width: 100%; height: 100%; }
+.ifx-prev-id { position: relative; z-index: 1; display: flex; align-items: flex-end; gap: 10px; padding: 0 12px 12px; margin-top: -20px; min-width: 0; }
+.ifx-prev-avatar { border-radius: 50%; border: 4px solid color-mix(in srgb, var(--ifx-tint, var(--brand)) 22%, var(--bg-secondary)); flex-shrink: 0; display: flex; }
+.ifx-prev-names { display: flex; flex-direction: column; min-width: 0; padding-bottom: 2px; }
+.ifx-prev-names b { font-size: 14px; color: var(--header-primary); }
+.ifx-prev-names span { font-size: 12px; color: var(--text-muted); }
+
+.ifx-prev-avatars { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.ifx-prev-av { border-radius: 50%; overflow: hidden; background: var(--ifx-pc); flex-shrink: 0; display: block; }
+.ifx-prev-av img { display: block; width: 100%; height: 100%; }
+.ifx-prev-av-note { flex: 1 1 160px; font-size: 12px; color: var(--text-muted); }
+
+.ifx-error { margin: 0; padding: 8px 12px; border-radius: 10px; font-size: 13px; color: var(--red); background: color-mix(in srgb, var(--red) 12%, transparent); }
+
+.ifx-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 2px; }
+.ifx-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 18px; border-radius: 11px;
+  font-size: 14px; font-weight: 700; cursor: pointer; border: 1px solid transparent;
+}
+.ifx-btn.primary { background: var(--brand); color: #fff; min-width: 108px; box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--brand) 80%, transparent); }
+.ifx-btn.primary:hover:not(:disabled) { filter: brightness(1.07); }
+.ifx-btn.ghost { background: var(--bg-primary); color: var(--header-primary); border-color: var(--border); }
+.ifx-btn.ghost:hover:not(:disabled) { border-color: var(--brand); }
+.ifx-btn:disabled { opacity: .55; cursor: default; }
+
+@media (max-width: 600px) {
+  .ifx-modal .modal-body { padding: 14px; }
+  .ifx-footer .ifx-actions { width: 100%; margin-left: 0; }
+  .ifx-actions .ifx-btn { flex: 1; }
+}
+@media (max-width: 420px) {
+  .ifx-zoom-val { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ifx-spinner { animation-duration: 2s; }
+  .ifx-grid { transition: none; }
+}

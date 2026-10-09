@@ -61,6 +61,7 @@ import { useStore } from '../../store/useStore';
 import { proxyImage } from '../../utils/imageProxy';
 import IdCardPreviewModal from './IdCardPreviewModal.jsx';
 import ImageCropperModal from './ImageCropperModal.jsx';
+import BannerImage, { PROFILE_BANNER_ASPECT, MINI_BANNER_ASPECT } from '../ProfileBanner.jsx';
 import { PENGUIN_COLORS, penguinAvatarUrl, isPenguinAvatarUrl } from '../PenguinAvatar.jsx';
 import PenguinAvatar from '../PenguinAvatar.jsx';
 import youtubeConnIcon from '../../assets/icons/social-youtube.png';
@@ -461,7 +462,7 @@ export default function UserSettingsModal({ onClose }) {
       return;
     }
     setCropperState({
-      file, aspectRatio: 1, shape: 'circle', title: 'Ajustar avatar',
+      file, aspectRatio: 1, shape: 'circle', title: 'Ajustar avatar', preview: 'avatar',
       onConfirm: async (cropped) => {
         const { user: updated } = await uploadAvatar(cropped);
         setUser(updated);
@@ -475,21 +476,64 @@ export default function UserSettingsModal({ onClose }) {
     setUser(updated);
   };
 
-  const onBanner = (e) => {
-    const file = e.target.files[0]; if (!file) return;
-    e.target.value = '';
-    if (isGifFile(file)) {
-      uploadGif(file, uploadBanner);
-      return;
-    }
+  // Editor de banner estilo Discord (ImageCropperModal): a moldura tem
+  // a MESMA proporção da faixa do perfil (PROFILE_BANNER_ASPECT /
+  // MINI_BANNER_ASPECT em ProfileBanner.jsx), então o que aparece no
+  // editor é o que aparece no perfil.
+  //  - Imagem estática: recorta no navegador e envia já recortada.
+  //  - GIF: canvas perderia a animação → envia o GIF original junto com
+  //    o enquadramento escolhido ("x,y,zoom"), que a exibição aplica.
+  const gifTooBig = (file) => {
+    if (file.size <= MAX_GIF_MB * 1024 * 1024) return false;
+    useStore.getState().pushNotice(`Esse GIF tem ${(file.size / 1048576).toFixed(1)} MB. O limite é ${MAX_GIF_MB} MB.`);
+    return true;
+  };
+  const openBannerEditor = (file, kind) => {
+    const isMini = kind === 'mini';
+    const uploader = isMini ? uploadMiniProfileBanner : uploadBanner;
+    const gif = isGifFile(file);
+    if (gif && gifTooBig(file)) return;
     setCropperState({
-      file, aspectRatio: 820 / 100, shape: 'rect', title: 'Ajustar banner do perfil',
-      onConfirm: async (cropped) => {
-        const { user: updated } = await uploadBanner(cropped);
+      file,
+      mode: gif ? 'frame' : 'crop',
+      aspectRatio: isMini ? MINI_BANNER_ASPECT : PROFILE_BANNER_ASPECT,
+      shape: 'rect',
+      preview: isMini ? 'mini' : 'banner',
+      title: isMini ? 'Ajustar banner do miniperfil' : 'Ajustar banner do perfil',
+      onConfirm: async (outFile, framing) => {
+        const { user: updated } = await uploader(outFile, framing);
+        setUser(updated);
+        setCropperState(null);
+        useStore.getState().pushNotice(gif ? 'GIF aplicado!' : 'Banner atualizado!');
+      },
+    });
+  };
+  // Reajustar o enquadramento do banner ATUAL sem enviar de novo — só
+  // salva o "x,y,zoom" (serve pra imagem estática e GIF).
+  const adjustCurrentBanner = (kind) => {
+    const isMini = kind === 'mini';
+    const bannerUrl = isMini ? user.miniProfileBannerUrl : user.bannerUrl;
+    if (!bannerUrl) return;
+    setCropperState({
+      src: proxyImage(bannerUrl),
+      mode: 'frame',
+      initialFraming: isMini ? user.miniProfileBannerFraming : user.bannerFraming,
+      aspectRatio: isMini ? MINI_BANNER_ASPECT : PROFILE_BANNER_ASPECT,
+      shape: 'rect',
+      preview: isMini ? 'mini' : 'banner',
+      title: 'Ajustar enquadramento',
+      onConfirm: async (_file, framing) => {
+        const { user: updated } = await updateProfile(isMini ? { miniProfileBannerFraming: framing } : { bannerFraming: framing });
         setUser(updated);
         setCropperState(null);
       },
     });
+  };
+
+  const onBanner = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    e.target.value = '';
+    openBannerEditor(file, 'profile');
   };
 
   // Item pedido: "dois banners independentes" — mesmo padrão de
@@ -497,18 +541,7 @@ export default function UserSettingsModal({ onClose }) {
   const onMiniProfileBanner = (e) => {
     const file = e.target.files[0]; if (!file) return;
     e.target.value = '';
-    if (isGifFile(file)) {
-      uploadGif(file, uploadMiniProfileBanner);
-      return;
-    }
-    setCropperState({
-      file, aspectRatio: 320 / 60, shape: 'rect', title: 'Ajustar banner do mini perfil',
-      onConfirm: async (cropped) => {
-        const { user: updated } = await uploadMiniProfileBanner(cropped);
-        setUser(updated);
-        setCropperState(null);
-      },
-    });
+    openBannerEditor(file, 'mini');
   };
 
   const start2FA = async () => {
@@ -771,12 +804,14 @@ export default function UserSettingsModal({ onClose }) {
       {tab === 'PROFILE' && (
         <div className="settings-grid">
           <div className="settings-block profile-edit-card">
-            <div className="profile-preview-banner profile-edit-banner" style={{ background: user.bannerUrl ? `url(${user.bannerUrl}) center/cover` : form.profileColor }} />
+            <div className="profile-preview-banner profile-edit-banner" style={{ background: form.profileColor }}>
+              <BannerImage url={user.bannerUrl} framing={user.bannerFraming} />
+            </div>
             <div className="profile-edit-identity">
               <div className="avatar large profile-edit-avatar" style={{ background: form.profileColor, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                 {isPenguinAvatarUrl(user.avatarUrl)
                   ? <PenguinAvatar color={PENGUIN_COLORS[user.avatarUrl.slice(8)] || PENGUIN_COLORS.blue} size={80} />
-                  : user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : user.displayName[0].toUpperCase()}
+                  : user.avatarUrl ? <img src={proxyImage(user.avatarUrl)} alt="" /> : user.displayName[0].toUpperCase()}
               </div>
               <div className="profile-edit-identity-info">
                 <div className="profile-edit-identity-name truncate">{form.displayName || user.displayName}</div>
@@ -800,6 +835,9 @@ export default function UserSettingsModal({ onClose }) {
                     junto do banner do perfil completo) foi pra sua
                     própria aba (MINI_PROFILE), junto das cores dele. */}
                 <label className="btn-secondary">Alterar banner do perfil completo<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={onBanner} /></label>
+                {user.bannerUrl && (
+                  <button type="button" className="btn-secondary pb-adjust-btn" onClick={() => adjustCurrentBanner('profile')}>Ajustar enquadramento</button>
+                )}
                 <span className="dim settings-upload-hint">Aceita GIF animado (até 25 MB)</span>
               </div>
 
@@ -1250,7 +1288,20 @@ export default function UserSettingsModal({ onClose }) {
           <div className="settings-block">
             <h4>Banner do miniperfil</h4>
             <p className="dim">Esse banner aparece só no cartão pequeno que abre ao clicar no seu nome/avatar — independente do banner do seu perfil completo.</p>
-            <label className="btn-secondary">Alterar banner do miniperfil<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={onMiniProfileBanner} /></label>
+            {(user.miniProfileBannerUrl || user.bannerUrl) && (
+              <div className="pb-mini-preview" style={{ background: user.miniProfileColor || form.profileColor }}>
+                <BannerImage
+                  url={user.miniProfileBannerUrl || user.bannerUrl}
+                  framing={user.miniProfileBannerUrl ? user.miniProfileBannerFraming : user.bannerFraming}
+                />
+              </div>
+            )}
+            <div className="pb-settings-actions">
+              <label className="btn-secondary">Alterar banner do miniperfil<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={onMiniProfileBanner} /></label>
+              {user.miniProfileBannerUrl && (
+                <button type="button" className="btn-secondary pb-adjust-btn" onClick={() => adjustCurrentBanner('mini')}>Ajustar enquadramento</button>
+              )}
+            </div>
             <span className="dim settings-upload-hint">Aceita GIF animado (até 25 MB)</span>
           </div>
 
@@ -2098,6 +2149,11 @@ export default function UserSettingsModal({ onClose }) {
     {cropperState && (
       <ImageCropperModal
         file={cropperState.file}
+        src={cropperState.src}
+        mode={cropperState.mode}
+        initialFraming={cropperState.initialFraming}
+        preview={cropperState.preview}
+        previewUser={{ ...user, profileColor: form.profileColor || user.profileColor }}
         aspectRatio={cropperState.aspectRatio}
         shape={cropperState.shape}
         title={cropperState.title}

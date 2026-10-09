@@ -4,17 +4,20 @@ import { useStore, isChannelUnread } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useVoice } from '../context/VoiceContext.jsx';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
-import { createCategory, deleteCategory, reorderCategories, reorderChannels, markChannelRead } from '../api/endpoints';
+import { deleteCategory, reorderCategories, reorderChannels, markChannelRead } from '../api/endpoints';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import CreateChannelModal from './modals/CreateChannelModal.jsx';
 import EditChannelModal from './modals/EditChannelModal.jsx';
 import EditCategoryModal from './modals/EditCategoryModal.jsx';
+import CreateCategoryModal from './modals/CreateCategoryModal.jsx';
+import FeaturedChannels from './FeaturedChannels.jsx';
+import ChannelIcon, { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
+import '../styles/channels.css';
 import CommunitySettingsModal from './modals/CommunitySettingsModal.jsx';
 import RoleManagerModal from './modals/RoleManagerModal.jsx';
 import ModerationModal from './modals/ModerationModal.jsx';
 import EmojiManagerModal from './modals/EmojiManagerModal.jsx';
 import StickerManagerModal from './modals/StickerManagerModal.jsx';
-import ChannelTypeIcon from './ChannelTypeIcon.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import settingsIcon from '../assets/icons/settings.png';
 import plusIcon from '../assets/icons/plus.png';
@@ -108,6 +111,7 @@ export default function ChannelSidebar({
   const [channelModal, setChannelModal] = useState({ open: false, categoryId: null });
   const [editChannel, setEditChannel] = useState(null);
   const [editCategory, setEditCategory] = useState(null);
+  const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
   const [dragChannelId, setDragChannelId] = useState(null);
   const [dragCategoryId, setDragCategoryId] = useState(null);
   const [dragOverChannelId, setDragOverChannelId] = useState(null);
@@ -132,14 +136,11 @@ export default function ChannelSidebar({
     );
   }
 
-  const addCategory = async () => {
-    const name = prompt('Nome da categoria');
-    if (!name) return;
-    await createCategory(name);
-  };
+  // Criar categoria agora abre um modal (nome livre + ícone), não prompt().
+  const addCategory = () => setCreateCategoryOpen(true);
 
   const removeCategory = async (id) => {
-    if (!confirm('Excluir esta categoria? Os canais dentro dela também serão excluídos.')) return;
+    if (!confirm('Excluir esta categoria? Os canais dentro dela ficam sem categoria (não são excluídos).')) return;
     await deleteCategory(id);
   };
 
@@ -240,6 +241,8 @@ export default function ChannelSidebar({
       {topSlot}
 
       <nav className="sidebar-list" onContextMenu={onListContextMenu}>
+        {/* Canais em destaque (Eventos, Feed, Galeria) — sempre no topo. */}
+        <FeaturedChannels canManage={canManage} />
         {channels.length > 0 && (
           <ChannelGroup
             channels={channels}
@@ -285,13 +288,14 @@ export default function ChannelSidebar({
                 type="button" className="category-toggle" aria-expanded={!collapsedCats.has(cat.id)}
                 onClick={() => toggleCategory(cat.id)} title={collapsedCats.has(cat.id) ? 'Mostrar canais' : 'Esconder canais'}
               >
+                {hasCustomIcon(cat) && <CustomIcon item={cat} className="category-custom-icon" />}
                 <span className="truncate">{sentenceCase ? cat.name : cat.name.toUpperCase()}</span>
                 <svg className="category-chevron" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>
               {canManage && (
                 <span className="category-actions">
                   <button className="icon-btn-small" title="Criar canal nesta categoria" onClick={() => setChannelModal({ open: true, categoryId: cat.id })}><img className="ui-icon-sm" src={plusIcon} alt="+" /></button>
-                  <button className="icon-btn-small" title="Permissões da categoria" onClick={() => setEditCategory(cat)}><img className="ui-icon-sm" src={settingsIcon} alt="" /></button>
+                  <button className="icon-btn-small" title="Editar categoria" onClick={() => setEditCategory(cat)}><img className="ui-icon-sm" src={settingsIcon} alt="" /></button>
                   <button className="icon-btn-small" title="Excluir categoria" onClick={() => removeCategory(cat.id)}><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button>
                 </span>
               )}
@@ -325,6 +329,7 @@ export default function ChannelSidebar({
         />
       )}
       {editChannel && <EditChannelModal channel={editChannel} onClose={() => setEditChannel(null)} />}
+      {createCategoryOpen && <CreateCategoryModal onClose={() => setCreateCategoryOpen(false)} />}
       {editCategory && <EditCategoryModal category={editCategory} onClose={() => setEditCategory(null)} onDeleted={() => setEditCategory(null)} />}
     </aside>
   );
@@ -430,7 +435,7 @@ function ChannelGroup({
                     {ch.unreadMentions > 99 ? '99+' : ch.unreadMentions}
                   </span>
                 )}
-                <ChannelTypeIcon type={ch.type} />
+                <ChannelIcon channel={ch} />
                 <span className="truncate">{ch.name}</span>
                 {isVoiceType && ch.userLimit > 0 && (
                   <span className="channel-user-limit" title="Limite de usuários no canal de voz">

@@ -5,6 +5,7 @@ import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '.
 import { useAuth } from '../context/AuthContext.jsx';
 import ChannelSidebar from './ChannelSidebar.jsx';
 import { ITEMS, STAFF_ITEM } from './MainSidebar.jsx';
+import { useFeaturedVisibility } from './FeaturedChannels.jsx';
 
 // Layout "Normal 2.0": uma coluna só à esquerda, no estilo Discord —
 // banner da comunidade no topo, o menu principal em botões logo abaixo
@@ -49,7 +50,11 @@ function N2Nav() {
   });
   const badgeFor = useBadges(user);
   const isStaff = user?.platformRole === 'ADMIN' || user?.platformRole === 'MODERATOR';
-  const items = isStaff ? [...N2_ITEMS, STAFF_ITEM] : N2_ITEMS;
+  // O Feed agora é um canal em destaque no topo da lista de canais; o
+  // botão do menu só volta se a staff esconder esse canal.
+  const isFeaturedVisible = useFeaturedVisibility();
+  const baseItems = isFeaturedVisible('feed') ? N2_ITEMS.filter((i) => i.to !== '/comunidades') : N2_ITEMS;
+  const items = isStaff ? [...baseItems, STAFF_ITEM] : baseItems;
 
   return (
     <div className={`n2-nav${compact ? ' is-compact' : ''}`}>

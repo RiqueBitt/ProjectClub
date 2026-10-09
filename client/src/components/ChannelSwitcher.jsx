@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore, isChannelUnread, useMyRoleIds } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
-import ChannelTypeIcon from './ChannelTypeIcon.jsx';
+import ChannelIcon from './ChannelIcon.jsx';
 
 // Navegação entre os chats disponíveis, fica bem onde antes aparecia o
 // dropdown com nome/descrição do canal (ver ChatWindow.jsx).
@@ -136,7 +136,7 @@ export default function ChannelSwitcher({ currentChannelId }) {
               className={`channel-tab ${active ? 'active' : ''} ${unread ? 'unread' : ''}`}
               onClick={() => go(ch.id)}
             >
-              <ChannelTypeIcon type={ch.type} />
+              <ChannelIcon channel={ch} />
               <span className="truncate">{ch.name}</span>
               {ch.unreadMentions > 0 && (
                 <span className="mention-badge">{ch.unreadMentions > 99 ? '99+' : ch.unreadMentions}</span>

@@ -15,6 +15,9 @@ const router = express.Router();
 router.use(requireAuth);
 
 router.get('/', communityCtrl.getCommunity);
+// Canais em destaque (Eventos/Feed/Galeria) e a Galeria da comunidade.
+router.patch('/featured-channels', communityCtrl.updateFeaturedChannels);
+router.get('/gallery', channelCtrl.listGallery);
 
 // --- Emojis da comunidade ---
 router.get('/emojis', emojiCtrl.listEmojis);
@@ -34,6 +37,7 @@ router.delete('/collections/:id', collectionCtrl.deleteCollection);
 // --- Categorias ---
 router.post('/categories', categoryCtrl.createCategory);
 router.patch('/categories/:id', categoryCtrl.updateCategory);
+router.post('/categories/:id/icon', uploadImage.single('icon'), categoryCtrl.uploadCategoryIcon);
 router.post('/categories/reorder', categoryCtrl.reorderCategories);
 router.delete('/categories/:id', categoryCtrl.deleteCategory);
 router.get('/categories/:id/overwrites', categoryCtrl.listCategoryOverwrites);
@@ -43,6 +47,7 @@ router.delete('/categories/:id/overwrites/:overwriteId', categoryCtrl.deleteCate
 // --- Canais ---
 router.post('/channels', channelCtrl.createChannel);
 router.patch('/channels/:id', channelCtrl.updateChannel);
+router.post('/channels/:id/icon', uploadImage.single('icon'), channelCtrl.uploadChannelIcon);
 router.post('/channels/reorder', channelCtrl.reorderChannels);
 router.delete('/channels/:id', channelCtrl.deleteChannel);
 router.post('/channels/:id/read', channelCtrl.markRead);

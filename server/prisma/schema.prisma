@@ -43,6 +43,11 @@ model User {
   // mesmo valor (bannerUrl), agora são de verdade independentes.
   bannerUrl           String?
   miniProfileBannerUrl String?
+  // Enquadramento do banner ("x,y,zoom" — foco em % + zoom 1–4),
+  // escolhido no editor de banner. Usado principalmente em GIF (que não
+  // dá pra recortar no navegador sem perder a animação). null = centro.
+  bannerFraming        String? @db.VarChar(32)
+  miniProfileBannerFraming String? @db.VarChar(32)
   idCardUrl           String?
   // Item pedido: pingente escolhido da lista curada pela staff (ver
   // model Pendant acima) — null = nenhum escolhido. onDelete: SetNull
@@ -461,6 +466,9 @@ model PlatformSettings {
   // assim que a conta é criada, sem precisar comprar nada.
   starterHouseId     String?
   starterMapId       String?
+  // Canais em destaque no topo da lista (Eventos, Feed, Galeria) que a
+  // staff escondeu — JSON array de chaves. Nulo = todos visíveis.
+  hiddenFeaturedChannels String?
 }
 
 // Item pedido: "sistema de eventos integrado ao painel da Staff" — só
@@ -884,6 +892,9 @@ model Category {
   name      String
   position  Int      @default(0)
   updatedAt DateTime @default(now()) @updatedAt
+  // Ícone personalizado (opcional): um emoji OU uma imagem pequena.
+  iconEmoji String?
+  iconUrl   String?
 
   channels   Channel[]
   overwrites PermissionOverwrite[]
@@ -902,6 +913,10 @@ model Channel {
   userLimit       Int?
   rulesContent    String?
   rulesTitle      String?
+  // Ícone personalizado (opcional): um emoji OU uma imagem pequena —
+  // sem nenhum dos dois, continua o # / alto-falante padrão.
+  iconEmoji       String?
+  iconUrl         String?
   updatedAt       DateTime  @default(now()) @updatedAt
 
   messages   Message[]

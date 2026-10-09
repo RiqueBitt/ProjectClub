@@ -23,6 +23,7 @@ import { nameStyleProps, nameStyleClassName } from '../utils/nameStyle';
 import { badgeHasImage } from '../utils/badgeRarity';
 import { PfIcon, PfCard } from './modals/UserProfileModal.jsx';
 import '../styles/profile.css';
+import BannerImage from './ProfileBanner.jsx';
 
 // The right-hand rail's DM counterpart to MembersList — reuses the exact
 // same `.members-list` grid slot/width/collapse-button styling (see
@@ -94,7 +95,7 @@ export default function DMProfilePanel({ onToggle }) {
       {!loading && user && (
         <>
           <div className="dmp-banner profile-banner" style={{ background: user.bannerUrl ? undefined : 'transparent' }}>
-            {user.bannerUrl && <img src={proxyImage(user.bannerUrl)} alt="" />}
+            <BannerImage url={user.bannerUrl} framing={user.bannerFraming} />
           </div>
           <div className="dmp-head">
             <div className="avatar-wrap large">

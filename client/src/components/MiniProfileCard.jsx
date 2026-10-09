@@ -14,6 +14,7 @@ import { proxyImage } from '../utils/imageProxy';
 import PresenceDot from './PresenceDot.jsx';
 import PendantIcon from './PendantIcon.jsx';
 import { nameStyleProps, nameStyleClassName } from '../utils/nameStyle';
+import BannerImage from './ProfileBanner.jsx';
 
 // Quantos cargos mostrar no popup compacto (a bio é limitada por CSS a 3
 // linhas — .mini-profile-bio) — o perfil completo (UserProfileModal) mostra
@@ -294,7 +295,13 @@ export default function MiniProfileCard() {
               o user mudar" — miniProfileBannerUrl primeiro, cai pro
               bannerUrl do perfil completo, só cai na cor sólida se
               nenhum dos dois estiver definido. */}
-          <div className="mini-profile-banner" style={{ background: (user.miniProfileBannerUrl || user.bannerUrl) ? `url("${proxyImage(user.miniProfileBannerUrl || user.bannerUrl)}") center/cover` : 'var(--brand)' }} />
+          {/* Cada banner com o próprio enquadramento (editor de banner). */}
+          <div className="mini-profile-banner" style={{ background: (user.miniProfileBannerUrl || user.bannerUrl) ? 'var(--profile-accent-start, var(--brand))' : 'var(--brand)' }}>
+            <BannerImage
+              url={user.miniProfileBannerUrl || user.bannerUrl}
+              framing={user.miniProfileBannerUrl ? user.miniProfileBannerFraming : user.bannerFraming}
+            />
+          </div>
           <div className="mini-profile-body">
             <div className="mini-profile-avatar-row">
               <div className="mini-profile-avatar-wrap">

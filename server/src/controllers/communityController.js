@@ -1,6 +1,8 @@
 const prisma = require('../config/prisma');
 const { getEffectivePermissions } = require('../services/authz');
 const { has } = require('../services/permissions');
+const { requireCommunityPermission } = require('../services/authz');
+const { FEATURED_KEYS, featuredVisibility } = require('../utils/channelNames');
 
 // GET /api/community — carrega tudo que o app precisa pra montar a barra
 // lateral e a lista de membros: categorias (com seus canais), canais soltos,
@@ -53,6 +55,8 @@ async function getCommunity(req, res, next) {
         name: settings?.communityName || 'Project Club',
         iconUrl: settings?.communityIconUrl || null,
         bannerUrl: settings?.communityBannerUrl || null,
+        // Canais em destaque (Eventos/Feed/Galeria): { eventos: true, ... }
+        featuredChannels: featuredVisibility(settings?.hiddenFeaturedChannels),
       },
       categories: shapedCategories,
       channels: shapedLoose,
@@ -62,4 +66,27 @@ async function getCommunity(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { getCommunity };
+// PATCH /community/featured-channels — mostra/esconde os canais em
+// destaque. Body: { eventos?: bool, feed?: bool, galeria?: bool }.
+// Quem gerencia canais pode mexer (mesma permissão da lista de canais).
+async function updateFeaturedChannels(req, res, next) {
+  try {
+    await requireCommunityPermission(req.user.id, 'MANAGE_CHANNELS');
+    const settings = await prisma.platformSettings.upsert({
+      where: { id: 'singleton' }, update: {}, create: { id: 'singleton' },
+    });
+    const visible = featuredVisibility(settings.hiddenFeaturedChannels);
+    for (const key of FEATURED_KEYS) {
+      if (typeof req.body?.[key] === 'boolean') visible[key] = req.body[key];
+    }
+    const hidden = FEATURED_KEYS.filter((k) => !visible[k]);
+    const updated = await prisma.platformSettings.update({
+      where: { id: 'singleton' },
+      data: { hiddenFeaturedChannels: hidden.length ? JSON.stringify(hidden) : null },
+    });
+    req.app.get('io')?.to('community').emit('community:update', updated);
+    res.json({ featuredChannels: visible });
+  } catch (err) { next(err); }
+}
+
+module.exports = { getCommunity, updateFeaturedChannels };

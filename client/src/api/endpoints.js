@@ -40,12 +40,16 @@ export const uploadAvatar = (file) => {
   const fd = new FormData(); fd.append('avatar', file);
   return api.post('/users/me/avatar', fd).then((r) => r.data);
 };
-export const uploadBanner = (file) => {
-  const fd = new FormData(); fd.append('banner', file);
+export const uploadBanner = (file, framing) => {
+  const fd = new FormData();
+  if (framing) fd.append('framing', framing); // enquadramento "x,y,zoom" (GIF)
+  fd.append('banner', file);
   return api.post('/users/me/banner', fd).then((r) => r.data);
 };
-export const uploadMiniProfileBanner = (file) => {
-  const fd = new FormData(); fd.append('banner', file);
+export const uploadMiniProfileBanner = (file, framing) => {
+  const fd = new FormData();
+  if (framing) fd.append('framing', framing); // enquadramento "x,y,zoom" (GIF)
+  fd.append('banner', file);
   return api.post('/users/me/mini-banner', fd).then((r) => r.data);
 };
 export const uploadIdCard = (file) => {
@@ -216,8 +220,13 @@ export const getActiveAnnouncement = () => api.get('/platform/announcements/acti
 export const dismissAnnouncement = (id) => api.post(`/platform/announcements/${id}/dismiss`).then((r) => r.data);
 
 // --- Categorias ---
-export const createCategory = (name) => api.post('/community/categories', { name }).then((r) => r.data);
-export const updateCategory = (id, name) => api.patch(`/community/categories/${id}`, { name }).then((r) => r.data);
+// Aceitam só o nome (texto, como antes) ou um objeto { name, iconEmoji, iconUrl }.
+export const createCategory = (nameOrPayload) => api.post('/community/categories', typeof nameOrPayload === 'string' ? { name: nameOrPayload } : nameOrPayload).then((r) => r.data);
+export const updateCategory = (id, nameOrPayload) => api.patch(`/community/categories/${id}`, typeof nameOrPayload === 'string' ? { name: nameOrPayload } : nameOrPayload).then((r) => r.data);
+export const uploadCategoryIcon = (id, file) => {
+  const fd = new FormData(); fd.append('icon', file);
+  return api.post(`/community/categories/${id}/icon`, fd).then((r) => r.data);
+};
 export const reorderCategories = (order) => api.post('/community/categories/reorder', { order }).then((r) => r.data);
 export const deleteCategory = (id) => api.delete(`/community/categories/${id}`).then((r) => r.data);
 export const listCategoryOverwrites = (id) => api.get(`/community/categories/${id}/overwrites`).then((r) => r.data);
@@ -233,6 +242,14 @@ export const markChannelRead = (id) => api.post(`/community/channels/${id}/read`
 export const listChannelOverwrites = (id) => api.get(`/community/channels/${id}/overwrites`).then((r) => r.data);
 export const setChannelOverwrite = (id, payload) => api.post(`/community/channels/${id}/overwrites`, payload).then((r) => r.data);
 export const deleteChannelOverwrite = (id, overwriteId) => api.delete(`/community/channels/${id}/overwrites/${overwriteId}`).then((r) => r.data);
+// Ícone do canal (imagem pequena) — emoji/remover vão pelo updateChannel.
+export const uploadChannelIcon = (id, file) => {
+  const fd = new FormData(); fd.append('icon', file);
+  return api.post(`/community/channels/${id}/icon`, fd).then((r) => r.data);
+};
+// Canais em destaque (Eventos/Feed/Galeria) e Galeria da comunidade.
+export const updateFeaturedChannels = (payload) => api.patch('/community/featured-channels', payload).then((r) => r.data);
+export const listCommunityGallery = (params = {}) => api.get('/community/gallery', { params }).then((r) => r.data);
 
 // --- Cargos ---
 export const listRoles = () => api.get('/community/roles').then((r) => r.data);

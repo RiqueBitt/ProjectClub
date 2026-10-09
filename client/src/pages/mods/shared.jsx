@@ -235,7 +235,9 @@ export function ModDetailLayout({ onBack, backLabel, thumb, fallbackIcon, title,
   return (
     <div className="mdx-detail">
       <button type="button" className="mdx-back-link" onClick={onBack}><Icon name="back" size={16} /> {backLabel}</button>
-      <div className="mdx-detail-head">
+      <div className={`mdx-detail-head ${thumb ? 'has-banner' : ''}`}>
+        {/* Banner do mod: a própria imagem dele, ampliada e desfocada atrás do cabeçalho. */}
+        {thumb && <div className="mdx-detail-banner" aria-hidden="true" style={{ backgroundImage: `url("${proxyImage(thumb)}"), url("${thumb}")` }} />}
         <div className="mdx-detail-media"><ModThumb url={thumb} fallbackIcon={fallbackIcon} seed={title} /></div>
         <div className="mdx-detail-info">
           <h2>{title}</h2>

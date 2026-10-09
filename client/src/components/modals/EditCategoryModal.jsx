@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 import Modal from '../Modal.jsx';
+import { useStore } from '../../store/useStore';
 import {
-  updateCategory, deleteCategory, listCategoryOverwrites, setCategoryOverwrite, deleteCategoryOverwrite,
+  updateCategory, deleteCategory, listCategoryOverwrites, setCategoryOverwrite, deleteCategoryOverwrite, uploadCategoryIcon,
 } from '../../api/endpoints';
+import IconPickerField, { iconValueFrom, saveIcon } from '../IconPickerField.jsx';
+import { cleanChannelName, CHANNEL_NAME_MAX } from '../../utils/channelName';
+import '../../styles/channels.css';
 import { PERMISSION_LABELS } from '../../utils/permissions';
 import personIcon from '../../assets/icons/person.png';
 import selectedIcon from '../../assets/icons/selected.png';
@@ -15,34 +19,54 @@ const OVERWRITE_KEYS = ['VIEW_CHANNEL', 'SEND_MESSAGES', 'MANAGE_MESSAGES', 'MEN
 // given role/member inherits whatever is set here (see
 // server/src/services/permissions.js's applyOverwrites: category layer is
 // applied first, then the channel's own overwrites on top of it).
-export default function EditCategoryModal({ server, category, onClose, onDeleted }) {
+// BUG CORRIGIDO: este modal ainda usava `server.id`/`server.roles` (resto
+// do EmberCord, de quando havia vários servidores) — ninguém passa
+// `server`, então abrir "Permissões da categoria" quebrava na hora.
+// Agora lê cargos/membros do store e chama a API pelo id da categoria.
+export default function EditCategoryModal({ category, onClose, onDeleted }) {
+  const roles = useStore((s) => s.roles);
+  const members = useStore((s) => s.members);
   const [name, setName] = useState(category.name);
+  const [icon, setIcon] = useState(() => iconValueFrom(category));
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [overwrites, setOverwrites] = useState([]);
   const [newTargetType, setNewTargetType] = useState('ROLE');
   const [newTargetId, setNewTargetId] = useState('');
   const [newPerms, setNewPerms] = useState({});
 
   const loadOverwrites = async () => {
-    const { overwrites } = await listCategoryOverwrites(server.id, category.id);
+    const { overwrites } = await listCategoryOverwrites(category.id);
     setOverwrites(overwrites);
   };
 
   useEffect(() => { loadOverwrites(); }, [category.id]);
 
   const save = async () => {
-    await updateCategory(server.id, category.id, name);
-    onClose();
+    const cleanName = cleanChannelName(name);
+    if (!cleanName) { setSaveError('Dê um nome à categoria.'); return; }
+    setSaving(true);
+    setSaveError('');
+    try {
+      await updateCategory(category.id, { name: cleanName });
+      await saveIcon({ id: category.id, initial: iconValueFrom(category), value: icon, update: updateCategory, upload: uploadCategoryIcon });
+      onClose();
+    } catch (err) {
+      setSaveError(err.response?.data?.error || 'Não foi possível salvar.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const remove = async () => {
     if (!confirm('Excluir esta categoria? Os canais dentro dela não serão excluídos.')) return;
-    await deleteCategory(server.id, category.id);
+    await deleteCategory(category.id);
     onDeleted?.();
     onClose();
   };
 
   const removeOverwrite = async (id) => {
-    await deleteCategoryOverwrite(server.id, category.id, id);
+    await deleteCategoryOverwrite(category.id, id);
     loadOverwrites();
   };
 
@@ -61,7 +85,7 @@ export default function EditCategoryModal({ server, category, onClose, onDeleted
     if (!newTargetId) return;
     const allow = Object.keys(newPerms).filter((k) => newPerms[k] === 'allow');
     const deny = Object.keys(newPerms).filter((k) => newPerms[k] === 'deny');
-    await setCategoryOverwrite(server.id, category.id, { targetType: newTargetType, targetId: newTargetId, allow, deny });
+    await setCategoryOverwrite(category.id, { targetType: newTargetType, targetId: newTargetId, allow, deny });
     setNewTargetId('');
     setNewPerms({});
     loadOverwrites();
@@ -79,18 +103,20 @@ export default function EditCategoryModal({ server, category, onClose, onDeleted
   };
 
   const targetLabel = (targetType, targetId) => {
-    if (targetType === 'ROLE') return server.roles.find((r) => r.id === targetId)?.name || targetId;
-    return server.members.find((m) => m.user.id === targetId)?.user.displayName || targetId;
+    if (targetType === 'ROLE') return roles.find((r) => r.id === targetId)?.name || targetId;
+    return members.find((m) => m.user.id === targetId)?.user.displayName || targetId;
   };
 
   return (
     <Modal title={`Editar categoria — ${category.name}`} onClose={onClose} width="640px">
-      <div className="settings-grid">
+      <div className="settings-grid channel-form">
         <label>
           NOME DA CATEGORIA
-          <input value={name} onChange={(e) => setName(e.target.value)} />
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={CHANNEL_NAME_MAX} />
         </label>
-        <button className="btn-primary" onClick={save}>Salvar alterações</button>
+        <IconPickerField value={icon} onChange={setIcon} hint="Aparece ao lado do nome da categoria. Emoji ou imagem PNG, GIF ou WebP de até 1 MB." />
+        {saveError && <div className="auth-error">{saveError}</div>}
+        <button className="btn-primary" onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Salvar alterações'}</button>
 
         <hr />
         <h3>Permissões de cargos e membros</h3>
@@ -122,8 +148,8 @@ export default function EditCategoryModal({ server, category, onClose, onDeleted
           <select value={newTargetId} onChange={(e) => setNewTargetId(e.target.value)}>
             <option value="">Selecione...</option>
             {newTargetType === 'ROLE'
-              ? server.roles.filter((r) => !r.isDefault).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)
-              : server.members.map((m) => <option key={m.user.id} value={m.user.id}>{m.user.displayName}</option>)}
+              ? roles.filter((r) => !r.isDefault).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)
+              : members.map((m) => <option key={m.user.id} value={m.user.id}>{m.user.displayName}</option>)}
           </select>
           <button className="btn-secondary" onClick={addOverwrite}>Salvar permissão</button>
         </div>
