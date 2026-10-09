@@ -347,6 +347,36 @@ function getInstallProfile({ gameInstallPath, steamAppId }) {
   return require('./modInstallProfiles').describeProfile(game.profile, game.ctx);
 }
 
+// Vortex (gerenciador da Nexus Mods) deixa um "vortex.deployment*.json"
+// na pasta onde instalou os mods, listando cada arquivo e de qual mod
+// ele veio. Lendo isso dá pra mostrar "Instalado pelo Vortex" em vez de
+// só "detectado". Só leitura — nada do Vortex é tocado.
+function readVortexDeployments(dirs) {
+  const files = new Map(); // caminho absoluto -> nome do mod no Vortex
+  for (const dir of new Set(dirs.filter(Boolean))) {
+    let names = [];
+    try { names = fs.readdirSync(dir); } catch { continue; }
+    for (const n of names) {
+      if (!/^vortex\.deployment(\..+)?\.json$/i.test(n)) continue;
+      try {
+        const data = JSON.parse(fs.readFileSync(path.join(dir, n), 'utf8'));
+        const base = data.targetPath || dir;
+        for (const f of data.files || []) {
+          if (!f || !f.relPath || !f.source) continue;
+          files.set(path.normalize(path.join(base, f.relPath)).toLowerCase(), String(f.source));
+        }
+      } catch { /* arquivo do Vortex ilegível: ignora */ }
+    }
+  }
+  return files;
+}
+
+// "SkyUI-12604-5-2SE-1564..." → nome legível + id do mod na Nexus.
+function parseVortexSource(source) {
+  const m = String(source).match(/^(.*?)-(\d+)-(.+)-(\d{9,11})$/) || String(source).match(/^(.*?)-(\d+)-([\d-]+)$/);
+  return m ? { name: m[1].replace(/[_]+/g, ' ').trim(), nexusModId: Number(m[2]) } : { name: source, nexusModId: null };
+}
+
 function scanInstalled({ gameInstallPath, steamAppId }) {
   if (!gameInstallPath || !fs.existsSync(gameInstallPath)) throw new Error('A pasta do jogo não foi encontrada.');
   const game = router.gameContext({ gameInstallPath, steamAppId });
@@ -392,7 +422,28 @@ function scanInstalled({ gameInstallPath, steamAppId }) {
       enabled: true, managedByProjectClub: false, location: d.location,
     });
   }
-  return { profile, loader: profile.loader, items };
+  // Marca o que foi instalado pelo Vortex.
+  const vortex = readVortexDeployments([gameInstallPath, ...Object.values(game.targets).map((t) => t.dir)]);
+  const vortexMods = new Set();
+  if (vortex.size > 0) {
+    const entries = [...vortex.entries()];
+    for (const it of items) {
+      if (it.managedByProjectClub || !it.path) continue;
+      const base = path.normalize(it.path).toLowerCase();
+      const hit = entries.find(([abs]) => abs === base || abs.startsWith(base + path.sep));
+      if (!hit) continue;
+      const info = parseVortexSource(hit[1]);
+      it.managedBy = 'vortex';
+      it.vortexMod = info.name;
+      if (info.nexusModId) it.nexusModId = info.nexusModId;
+      vortexMods.add(hit[1]);
+    }
+    for (const src of vortex.values()) vortexMods.add(src);
+  }
+  return {
+    profile, loader: profile.loader, items,
+    vortex: vortex.size > 0 ? { found: true, modCount: vortexMods.size, fileCount: vortex.size } : null,
+  };
 }
 
 module.exports = {

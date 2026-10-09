@@ -68,11 +68,59 @@ let desktopSettings = {
 // Só uma cópia do app rodando por vez — clicar duas vezes no atalho (ou o
 // Windows tentando abrir de novo no login enquanto já tá aberto) só traz
 // a janela existente pra frente, em vez de abrir uma segunda instância.
+// ---------- Links nxm:// da Nexus Mods (os mesmos do Vortex) ----------
+// Item pedido: "adicione a API de mods e o Vortex". Quando a pessoa liga
+// "Baixar da Nexus pelo Project Club", o app vira o programa que abre
+// os links nxm:// do botão "Mod Manager Download" do site. Cada link
+// traz a chave temporária que libera o download pra conta grátis.
+const pendingNxmLinks = [];
+function parseNxmLink(raw) {
+  try {
+    const u = new URL(String(raw));
+    if (u.protocol !== 'nxm:') return null;
+    const m = u.pathname.match(/^\/?\/?mods\/(\d+)\/files\/(\d+)/) || `${u.host}${u.pathname}`.match(/mods\/(\d+)\/files\/(\d+)/);
+    if (!m) return null;
+    return {
+      domain: u.host.toLowerCase(), modId: Number(m[1]), fileId: Number(m[2]),
+      key: u.searchParams.get('key') || null, expires: u.searchParams.get('expires') || null,
+      userId: u.searchParams.get('user_id') || null,
+    };
+  } catch { return null; }
+}
+function deliverNxmLink(link) {
+  if (!link) return;
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isLoading()) {
+    mainWindow.webContents.send('nexus:nxm-link', link);
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  } else {
+    pendingNxmLinks.push(link);
+  }
+}
+function queueNxmFromArgv(argv) {
+  for (const a of argv || []) if (typeof a === 'string' && a.toLowerCase().startsWith('nxm://')) deliverNxmLink(parseNxmLink(a));
+}
+// macOS entrega o link por evento, não por argumento.
+app.on('open-url', (event, url) => {
+  if (!String(url).toLowerCase().startsWith('nxm://')) return;
+  event.preventDefault();
+  deliverNxmLink(parseNxmLink(url));
+});
+function setNxmHandler(enabled) {
+  // Em desenvolvimento (electron .) precisa passar o caminho do script.
+  const args = process.defaultApp && process.argv.length >= 2 ? [process.execPath, [path.resolve(process.argv[1])]] : [];
+  return enabled ? app.setAsDefaultProtocolClient('nxm', ...args) : app.removeAsDefaultProtocolClient('nxm', ...args);
+}
+// Links que vieram junto com a abertura do app (Windows/Linux).
+for (const a of process.argv) if (typeof a === 'string' && a.toLowerCase().startsWith('nxm://')) { const l = parseNxmLink(a); if (l) pendingNxmLinks.push(l); }
+
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
+    queueNxmFromArgv(argv);
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
@@ -703,6 +751,18 @@ if (!gotLock) {
   });
 
   // "Como este jogo usa mods": loader, pastas, tipos de arquivo, avisos.
+  // Nexus Mods / Vortex: quem abre os links nxm:// e links pendentes.
+  ipcMain.handle('nexus:get-link-handler', () => {
+    try { return { success: true, enabled: app.isDefaultProtocolClient('nxm') }; } catch (err) { return { success: false, error: err.message }; }
+  });
+  ipcMain.handle('nexus:set-link-handler', (_event, enabled) => {
+    try {
+      const ok = setNxmHandler(!!enabled);
+      return { success: ok !== false, enabled: app.isDefaultProtocolClient('nxm') };
+    } catch (err) { return { success: false, error: err.message }; }
+  });
+  ipcMain.handle('nexus:consume-pending', () => pendingNxmLinks.splice(0, pendingNxmLinks.length));
+
   ipcMain.handle('mods:get-install-profile', (_event, { gameInstallPath, steamAppId } = {}) => {
     try {
       return { success: true, profile: modsManager.getInstallProfile({ gameInstallPath, steamAppId }) };

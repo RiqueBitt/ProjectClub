@@ -18,6 +18,7 @@ import {
 import { ModioModDetail } from './ModioViews.jsx';
 import { GameBananaModDetail } from './GameBananaViews.jsx';
 import { ThunderstoreModDetail } from './ThunderstoreViews.jsx';
+import { NexusModDetail, nexusIds } from './NexusViews.jsx';
 import UnifiedExplore, { CompatBadge } from './UnifiedExplore.jsx';
 import InstalledPanel, { InstallProfileCard } from './InstalledPanel.jsx';
 import SharedModpacksTab from './ModpacksTab.jsx';
@@ -227,6 +228,7 @@ export default function GameManager({ game, onBack, scrollRef }) {
             {openedMod?.item.source === 'modio' && <ModioModDetail game={resolveSource('modio')} modioModId={Number(openedMod.item.sourceId)} onBack={closeMod} />}
             {openedMod?.item.source === 'gamebanana' && <GameBananaModDetail game={resolveSource('gamebanana')} modId={Number(openedMod.item.sourceId)} onBack={closeMod} />}
             {openedMod?.item.source === 'thunderstore' && <ThunderstoreModDetail game={resolveSource('thunderstore')} fullName={openedMod.item.sourceId} onBack={closeMod} />}
+            {openedMod?.item.source === 'nexus' && <NexusModDetail game={resolveSource('nexus')} {...nexusIds(openedMod.item.sourceId)} onBack={closeMod} />}
           </div>
         )}
 

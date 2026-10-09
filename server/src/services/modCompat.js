@@ -103,6 +103,23 @@ function normalizeWorkshop(item) {
   };
 }
 
+// Nexus Mods (GraphQL v2, ver nexusService.searchMods).
+function normalizeNexus(m, domain) {
+  const d = m.game?.domainName || domain;
+  return {
+    key: `nexus:${d}:${m.modId}`, source: 'nexus', sourceId: `${d}:${m.modId}`,
+    name: m.name || `Mod #${m.modId}`, summary: m.summary || '',
+    thumbnailUrl: m.thumbnailUrl || m.pictureUrl || null,
+    author: m.author || m.uploader?.name || null,
+    downloads: m.downloads || 0, likes: m.endorsements || 0,
+    updatedAt: toIso(m.updatedAt), createdAt: toIso(m.createdAt),
+    categories: [m.modCategory?.name].filter(Boolean),
+    pageUrl: `https://www.nexusmods.com/${d}/mods/${m.modId}`,
+    version: m.version || null,
+    _removed: m.status && m.status !== 'published',
+  };
+}
+
 // ---------- Compatibilidade ----------
 // status: 'compatible' | 'needs-loader' | 'incompatible'
 function computeCompat(item, profile) {
@@ -112,6 +129,7 @@ function computeCompat(item, profile) {
     if (item._banned) return { status: 'incompatible', reason: 'Item removido do Steam Workshop' };
     return { status: 'compatible', reason: 'Baixado pela própria Steam ao se inscrever' };
   }
+  if (item._removed) return { status: 'incompatible', reason: 'Mod oculto ou removido na Nexus Mods' };
   if (item._notInstallable) return { status: 'incompatible', reason: item._notInstallable };
   if (item._noFile) return { status: 'incompatible', reason: 'Sem arquivo publicado' };
   if (item._unsafe) return { status: 'incompatible', reason: 'Arquivo marcado como inseguro pela fonte' };
@@ -150,7 +168,7 @@ function finalize(item, profile) {
 }
 
 // ---------- Junção das fontes ----------
-const SOURCE_PRIORITY = ['thunderstore', 'modio', 'gamebanana', 'workshop'];
+const SOURCE_PRIORITY = ['thunderstore', 'nexus', 'modio', 'gamebanana', 'workshop'];
 
 function mergeResults(perSource, sort) {
   const lists = SOURCE_PRIORITY.map((s) => perSource[s] || []).filter((l) => l.length > 0);
@@ -218,7 +236,7 @@ function pickConfident(name, candidates) {
 }
 
 module.exports = {
-  extOf, normalizeModio, normalizeThunderstore, normalizeGameBanana, normalizeWorkshop,
+  extOf, normalizeModio, normalizeThunderstore, normalizeGameBanana, normalizeWorkshop, normalizeNexus,
   computeCompat, finalize, mergeResults, mergeCategories, normCategory,
   normalizeModName, thunderstoreFullNameOf, pickConfident, getGameProfile,
 };

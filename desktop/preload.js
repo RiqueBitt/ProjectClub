@@ -91,6 +91,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // receber somente os dados necessários") e desktop/modsManager.js
   // (download + instalação, item pedido 13: só o app desktop tem acesso
   // de verdade às pastas do jogo, nunca o navegador).
+  // Nexus Mods (fonte do Vortex): links nxm:// abertos pelo app.
+  nexus: {
+    getLinkHandler: () => ipcRenderer.invoke('nexus:get-link-handler'),
+    setLinkHandler: (enabled) => ipcRenderer.invoke('nexus:set-link-handler', !!enabled),
+    consumePending: () => ipcRenderer.invoke('nexus:consume-pending'),
+    onLink: (callback) => {
+      const handler = (_e, link) => callback(link);
+      ipcRenderer.on('nexus:nxm-link', handler);
+      return () => ipcRenderer.removeListener('nexus:nxm-link', handler);
+    },
+  },
   mods: {
     detectSteamGames: () => ipcRenderer.invoke('mods:detect-steam-games'),
     selectGameFolder: () => ipcRenderer.invoke('mods:select-game-folder'),

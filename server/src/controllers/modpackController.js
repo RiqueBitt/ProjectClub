@@ -8,7 +8,7 @@ const prisma = require('../config/prisma');
 // por item, com o instalador de cada fonte; aqui só guardamos a lista e
 // contamos votos/downloads.
 
-const SOURCES = ['modio', 'thunderstore', 'gamebanana', 'workshop', 'local'];
+const SOURCES = ['modio', 'thunderstore', 'gamebanana', 'workshop', 'nexus', 'local'];
 const MAX_ITEMS = 200;
 const MAX_NAME = 80;
 const MAX_DESCRIPTION = 2000;

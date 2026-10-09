@@ -16,6 +16,7 @@ import { identifyInstalledMods, formatBytes } from './unifiedApi.js';
 const ORIGIN = {
   managed: { label: 'Instalado pelo Project Club', short: 'Project Club', icon: 'check' },
   detected: { label: 'Detectado nos arquivos', short: 'Detectado', icon: 'search' },
+  vortex: { label: 'Instalado pelo Vortex (Nexus Mods)', short: 'Vortex', icon: 'link' },
 };
 
 // Mod detectado que ainda não está no manifesto local.
@@ -37,7 +38,7 @@ export default function InstalledPanel({
     let alive = true;
     scanInstalledModsLocally(game.installPath, game.steamAppId).then((d) => {
       if (!alive) return;
-      if (d.success) { setScan({ items: d.items || [] }); return; }
+      if (d.success) { setScan({ items: d.items || [], vortex: d.vortex || null }); return; }
       if (d.unsupported) {
         // App de desktop antigo: só os nomes, sem distinguir a origem.
         listInstalledModsLocally(game.installPath, game.steamAppId).then((l) => {
@@ -59,18 +60,18 @@ export default function InstalledPanel({
   // Identificação pelas APIs (só nomes ainda não perguntados).
   useEffect(() => {
     if (!scan?.items?.length || !game.steamAppId) return;
-    const names = scan.items.filter((i) => !i.isLoader).map((i) => i.name).filter((n) => !identifiedRef.current.has(n)).slice(0, 60);
+    const names = scan.items.filter((i) => !i.isLoader).map((i) => i.vortexMod || i.name).filter((n) => !identifiedRef.current.has(n)).slice(0, 60);
     if (names.length === 0) return;
     names.forEach((n) => identifiedRef.current.add(n));
-    identifyInstalledMods(game.steamAppId, names)
+    identifyInstalledMods(game.steamAppId, names, game.displayName)
       .then((d) => setMatches((prev) => ({ ...prev, ...(d.matches || {}) })))
       .catch(() => {});
   }, [scan, game.steamAppId]);
 
   const rows = useMemo(() => (scan?.items || []).map((i) => ({
     ...i,
-    origin: i.managedByProjectClub ? 'managed' : 'detected',
-    match: matches[i.name] || null,
+    origin: i.managedByProjectClub ? 'managed' : i.managedBy === 'vortex' ? 'vortex' : 'detected',
+    match: matches[i.vortexMod || i.name] || (i.vortexMod ? { name: i.vortexMod, source: 'nexus' } : null),
   })), [scan, matches]);
 
   const counts = {
@@ -79,6 +80,7 @@ export default function InstalledPanel({
     off: rows.filter((r) => !r.enabled).length,
     managed: rows.filter((r) => r.origin === 'managed').length,
     detected: rows.filter((r) => r.origin === 'detected').length,
+    vortex: rows.filter((r) => r.origin === 'vortex').length,
   };
   const q = query.trim().toLowerCase();
   const shown = rows
@@ -167,9 +169,13 @@ export default function InstalledPanel({
                   { value: 'off', label: 'Desativados', count: counts.off },
                   !scan.unsupported && counts.managed > 0 && { value: 'managed', label: 'Do Project Club', count: counts.managed },
                   !scan.unsupported && counts.detected > 0 && { value: 'detected', label: 'Detectados', count: counts.detected },
+                  !scan.unsupported && counts.vortex > 0 && { value: 'vortex', label: 'Vortex', count: counts.vortex },
                 ].filter(Boolean)}
               />
             </div>
+            {scan.vortex && (
+              <p className="mdx-note small"><Icon name="link" size={15} /> <span>O Vortex também cuida de {scan.vortex.modCount === 1 ? '1 mod' : `${scan.vortex.modCount} mods`} deste jogo. Pra desinstalar esses, prefira o próprio Vortex — se apagar por aqui, ele vai avisar que os arquivos sumiram.</span></p>
+            )}
             {counts.detected > 0 && filter !== 'managed' && (
               <p className="mdx-note small"><Icon name="search" size={15} /> <span>{counts.detected === 1 ? '1 mod foi detectado' : `${counts.detected} mods foram detectados`} nas pastas do jogo (instalados antes ou por outro programa). Dá pra ativar, desativar e apagar do mesmo jeito.</span></p>
             )}

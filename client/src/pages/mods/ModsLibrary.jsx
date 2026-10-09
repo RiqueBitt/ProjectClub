@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { matchSteamGames, matchWorkshopGames, matchGameBananaGames, matchThunderstoreGames } from '../../api/endpoints';
+import { matchSteamGames, matchWorkshopGames, matchGameBananaGames, matchThunderstoreGames, matchNexusGames } from '../../api/endpoints';
 import { isDesktopModsAvailable, detectSteamGames, listInstalledModsLocally } from '../../utils/mods';
 import { Icon, GameCover, SourceChip, EmptyState, SkeletonGrid, SearchField, ChipRow, SOURCE_ORDER } from './shared.jsx';
+import { NexusLinkToggle } from './NexusViews.jsx';
 
 // Carrega a biblioteca uma vez só (fica no ModsPage), pra voltar do
 // gerenciador de um jogo pro álbum sem detectar a Steam de novo.
@@ -36,11 +37,14 @@ export function useModsLibrary() {
         setSteamFound(detection.steamFound);
         if (detection.steamFound && detection.games?.length > 0) {
           const appIds = detection.games.map((g) => g.steamAppId);
-          const [{ games: modioSupported }, { games: workshopSupported }, { games: gamebananaSupported }, { games: thunderstoreSupported }] = await Promise.all([
+          const names = Object.fromEntries(detection.games.map((g) => [g.steamAppId, g.name || '']));
+          const [{ games: modioSupported }, { games: workshopSupported }, { games: gamebananaSupported }, { games: thunderstoreSupported }, { games: nexusSupported }] = await Promise.all([
             matchSteamGames(appIds).catch(() => ({ games: [] })),
             matchWorkshopGames(appIds).catch(() => ({ games: [] })),
             matchGameBananaGames(appIds).catch(() => ({ games: [] })),
             matchThunderstoreGames(appIds).catch(() => ({ games: [] })),
+            // Nexus Mods (fonte do Vortex): acha o jogo pelo AppID ou nome.
+            matchNexusGames(appIds, names).catch(() => ({ games: [] })),
           ]);
 
           // Álbum: TODOS os jogos detectados viram um cartão (com ou
@@ -66,6 +70,7 @@ export function useModsLibrary() {
           addSource(workshopSupported, 'workshop');
           addSource(gamebananaSupported, 'gamebanana');
           addSource(thunderstoreSupported, 'thunderstore');
+          addSource(nexusSupported, 'nexus');
           const list = Array.from(merged.values());
           setGames(list);
           refreshCounts(list);
@@ -137,6 +142,7 @@ export default function ModsLibrary({ library, onBack, onOpenGame }) {
           </dl>
         )}
       </header>
+      {desktopReady && <NexusLinkToggle />}
 
       {!desktopReady && (
         <EmptyState icon="monitor" title="Isso precisa do app de desktop">

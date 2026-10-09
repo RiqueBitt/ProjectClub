@@ -10,8 +10,8 @@ export const searchUnifiedMods = (steamAppId, params) => api
   .then((r) => r.data);
 
 // names: nomes de pastas/arquivos detectados no disco → { matches: { [nome]: mod|null } }
-export const identifyInstalledMods = (steamAppId, names) => api
-  .post('/mods/identify', { steamAppId, names })
+export const identifyInstalledMods = (steamAppId, names, gameName) => api
+  .post('/mods/identify', { steamAppId, names, gameName })
   .then((r) => r.data);
 
 // Compatibilidade final de um item: o servidor decide pela regra do

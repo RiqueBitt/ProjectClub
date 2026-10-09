@@ -52,6 +52,7 @@ const workshopRoutes = require('./routes/workshop');
 // nenhuma, cobre vários jogos da Steam (Garry's Mod, GTA San Andreas,
 // Half-Life, Left 4 Dead, etc). Ver services/gamebananaService.js.
 const gamebananaRoutes = require('./routes/gamebanana');
+const nexusRoutes = require('./routes/nexus');
 // Thunderstore (thunderstore.io) — repositório de mods usado por jogos
 // com BepInEx (Lethal Company, Risk of Rain 2, Content Warning, etc.),
 // mesma fonte que ferramentas como o Gale gerenciam — API pública
@@ -314,6 +315,7 @@ function createApp() {
   app.use('/api/modpacks', modpacksRoutes);
   app.use('/api/workshop', workshopRoutes);
   app.use('/api/gamebanana', gamebananaRoutes);
+  app.use('/api/nexus', nexusRoutes);
   app.use('/api/thunderstore', thunderstoreRoutes);
   // Fusão com o Reddit clone (fase 1) — "/api/community" (singular) já é a
   // comunidade única existente da plataforma, por isso essas novas rotas

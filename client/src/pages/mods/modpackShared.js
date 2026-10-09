@@ -8,6 +8,7 @@ export const MODPACK_SOURCE_LABEL = {
   thunderstore: 'Thunderstore',
   gamebanana: 'GameBanana',
   workshop: 'Steam Workshop',
+  nexus: 'Nexus Mods',
   local: 'Arquivo local',
 };
 

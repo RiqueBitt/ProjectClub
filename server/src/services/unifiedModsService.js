@@ -11,6 +11,7 @@ const modio = require('./modioService');
 const thunderstore = require('./thunderstoreService');
 const gamebanana = require('./gamebananaService');
 const workshop = require('./steamWorkshopService');
+const nexus = require('./nexusService');
 const compat = require('./modCompat');
 
 const SOURCE_TIMEOUT_MS = 8000;
@@ -24,19 +25,23 @@ function withTimeout(promise, ms, label) {
   ]);
 }
 
-async function findMappings(steamAppId) {
+async function findMappings(steamAppId, gameName) {
   const appId = Number(steamAppId);
-  const [m, w, g, t] = await Promise.all([
+  const names = [gameName, compat.getGameProfile(appId).name].filter(Boolean);
+  const [m, w, g, t, n] = await Promise.all([
     prisma.modGameMapping.findFirst({ where: { steamAppId: appId, enabled: true } }),
     prisma.workshopGameMapping.findFirst({ where: { steamAppId: appId, enabled: true } }),
     prisma.gameBananaGameMapping.findFirst({ where: { steamAppId: appId, enabled: true } }),
     prisma.thunderstoreGameMapping.findFirst({ where: { steamAppId: appId, enabled: true } }),
+    // Nexus Mods: sem tabela — acha o jogo sozinho pelo AppID/nome.
+    nexus.resolveGame(appId, names).catch(() => null),
   ]);
   return {
     modio: m && modio.isConfigured() ? { gameId: m.modioGameId } : null,
     workshop: w && workshop.isConfigured() ? { appId: w.workshopAppId, note: w.note } : null,
     gamebanana: g ? { gameId: g.gameBananaGameId } : null,
     thunderstore: t ? { community: t.communityIdentifier } : null,
+    nexus: n ? { domain: n.domain, gameId: n.gameId } : null,
   };
 }
 
@@ -66,6 +71,7 @@ async function sourceCategories(source, mapping) {
     const list = await gamebanana.listCategories(mapping.gameId);
     return list.map((c) => c.name);
   }
+  if (source === 'nexus') return nexus.listCategories(mapping.domain);
   if (source === 'workshop') {
     // A Web API pública não lista as tags do jogo — junta as tags dos
     // itens mais populares (já cacheados pela busca normal).
@@ -128,6 +134,13 @@ async function searchSource(source, mapping, { q, sort, category, state, profile
     const raw = (d._aRecords || d._aResults || []).length;
     return { items, total: d._aMetadata?._nRecordCount ?? null, nextState: page + 1, done: d._aMetadata?._bIsComplete !== false || raw === 0 };
   }
+  if (source === 'nexus') {
+    const offset = state.nexus || 0;
+    const d = await nexus.searchMods(mapping.domain, { q, sort, category, offset, count: PER_SOURCE_LIMIT });
+    const items = d.nodes.map((m) => compat.normalizeNexus(m, mapping.domain));
+    const next = offset + d.nodes.length;
+    return { items, total: d.totalCount, nextState: next, done: d.nodes.length < PER_SOURCE_LIMIT || next >= d.totalCount };
+  }
   if (source === 'workshop') {
     const cursor = state.workshop || '*';
     const d = await workshop.queryFiles(mapping.appId, { query: q, sort, cursor, limit: PER_SOURCE_LIMIT, requiredTags: category ? [category] : undefined });
@@ -137,9 +150,9 @@ async function searchSource(source, mapping, { q, sort, category, state, profile
   return { items: [], total: 0, done: true };
 }
 
-async function unifiedSearch(steamAppId, { q, category, sort = 'popular', pageToken } = {}) {
+async function unifiedSearch(steamAppId, { q, category, sort = 'popular', pageToken, gameName } = {}) {
   const profile = compat.getGameProfile(steamAppId);
-  const mappings = await findMappings(steamAppId);
+  const mappings = await findMappings(steamAppId, gameName);
   const first = !pageToken;
   const state = decodeToken(pageToken) || { done: [] };
   // Com filtro de categoria, precisa saber antes como cada fonte escreve
@@ -207,10 +220,10 @@ function brief(item, profile) {
   return { key: f.key, source: f.source, sourceId: f.sourceId, name: f.name, thumbnailUrl: f.thumbnailUrl, author: f.author, summary: f.summary, pageUrl: f.pageUrl };
 }
 
-async function identify(steamAppId, rawNames) {
+async function identify(steamAppId, rawNames, gameName) {
   const names = [...new Set((rawNames || []).map((n) => String(n || '').trim()).filter(Boolean))].slice(0, MAX_IDENTIFY);
   const profile = compat.getGameProfile(steamAppId);
-  const mappings = await findMappings(steamAppId);
+  const mappings = await findMappings(steamAppId, gameName);
   const matches = Object.fromEntries(names.map((n) => [n, null]));
 
   // 1) Thunderstore: a lista inteira já está em cache — compara local.
@@ -246,6 +259,16 @@ async function identify(steamAppId, rawNames) {
       try {
         const d = await withTimeout(gamebanana.browseOrSearch(mappings.gamebanana.gameId, { query: searchName(n), limit: 5 }), SOURCE_TIMEOUT_MS, 'gamebanana');
         const cands = (d._aRecords || d._aResults || []).map(compat.normalizeGameBanana);
+        const hit = compat.pickConfident(n, cands);
+        if (hit) matches[n] = brief(hit, profile);
+      } catch { /* ignora */ }
+    });
+  }
+  if (mappings.nexus) {
+    await mapLimit(pending(), 4, async (n) => {
+      try {
+        const d = await withTimeout(nexus.searchMods(mappings.nexus.domain, { q: searchName(n), count: 5 }), SOURCE_TIMEOUT_MS, 'nexus');
+        const cands = d.nodes.map((m) => compat.normalizeNexus(m, mappings.nexus.domain));
         const hit = compat.pickConfident(n, cands);
         if (hit) matches[n] = brief(hit, profile);
       } catch { /* ignora */ }

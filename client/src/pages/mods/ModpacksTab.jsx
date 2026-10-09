@@ -1,3 +1,5 @@
+import { getNexusMod } from '../../api/endpoints';
+import { installNexusFile, nexusIds } from './NexusViews.jsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -256,6 +258,27 @@ export default function ModpacksTab({ game, desktopReady, installedState, legacy
         if (!result.success) { mgr.untrackInstall(p.fullName); throw new Error(`${p.name}: ${result.error || 'falha desconhecida'}`); }
         mgr.completeInstall(p.fullName);
       }
+      return { status: 'installed' };
+    }
+    if (item.source === 'nexus') {
+      const { domain, modId } = nexusIds(item.sourceId);
+      if (!domain || !modId) return { status: 'skipped', reason: 'Mod da Nexus inválido.' };
+      const { mod } = await getNexusMod(domain, modId);
+      const name = mod?.name || item.name;
+      if (mgr.installedFolders.has(modFolderName(name))) return { status: 'already' };
+      const file = (mod.files || []).find((f) => f.primary) || (mod.files || []).find((f) => f.category === 'MAIN') || mod.files?.[0];
+      if (!file) return { status: 'skipped', reason: 'Sem arquivo pra baixar.' };
+      onStep(modId);
+      mgr.trackInstall(modId, name);
+      try {
+        await installNexusFile({ game, domain, modId, file, modName: name });
+      } catch (err) {
+        mgr.untrackInstall(modId);
+        // Conta grátis: precisa do botão "Mod Manager Download" do site.
+        if (err.needsManager) return { status: 'skipped', reason: 'A Nexus pede o botão "Mod Manager Download" do site pra este mod.' };
+        throw err;
+      }
+      mgr.completeInstall(modId);
       return { status: 'installed' };
     }
     return { status: 'skipped', reason: 'Fonte desconhecida.' };

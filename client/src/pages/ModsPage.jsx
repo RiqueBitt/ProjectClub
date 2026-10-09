@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ModsLibrary, { useModsLibrary } from './mods/ModsLibrary.jsx';
 import GameManager from './mods/GameManager.jsx';
+import { NxmLinkHandler } from './mods/NexusViews.jsx';
 import { peekPendingModpack } from './mods/modpackShared.js';
 import '../styles/mods.css';
 
@@ -60,6 +61,7 @@ export default function ModsPage() {
       ) : (
         <ModsLibrary library={library} onBack={() => navigate('/jogos')} onOpenGame={openGame} />
       )}
+      <NxmLinkHandler games={library.games} loading={library.loading} />
     </div>
   );
 }

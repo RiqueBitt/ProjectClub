@@ -66,8 +66,9 @@ export const SOURCE_META = {
   workshop: { label: 'Workshop', long: 'Steam Workshop', color: '#66c0f4' },
   gamebanana: { label: 'GameBanana', long: 'GameBanana', color: '#f5c542' },
   thunderstore: { label: 'Thunderstore', long: 'Thunderstore', color: '#a78bfa' },
+  nexus: { label: 'Nexus', long: 'Nexus Mods', color: '#e6873c' },
 };
-export const SOURCE_ORDER = ['modio', 'thunderstore', 'workshop', 'gamebanana'];
+export const SOURCE_ORDER = ['nexus', 'modio', 'thunderstore', 'workshop', 'gamebanana'];
 
 export function SourceChip({ source, long = false }) {
   const meta = SOURCE_META[source];

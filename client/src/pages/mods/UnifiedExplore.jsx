@@ -46,7 +46,7 @@ export default function UnifiedExplore({ game, localProfile, onOpenMod }) {
     setItems(null);
     setLoadError('');
     const timeout = setTimeout(() => {
-      searchUnifiedMods(game.steamAppId, { q: query.trim() || undefined, sort, category: category || undefined })
+      searchUnifiedMods(game.steamAppId, { q: query.trim() || undefined, sort, category: category || undefined, gameName: game.displayName })
         .then((d) => {
           if (reqId !== reqRef.current) return;
           setItems(d.items || []);
@@ -68,7 +68,7 @@ export default function UnifiedExplore({ game, localProfile, onOpenMod }) {
     if (!nextToken) return;
     setLoadingMore(true);
     try {
-      const d = await searchUnifiedMods(game.steamAppId, { q: query.trim() || undefined, sort, category: category || undefined, pageToken: nextToken });
+      const d = await searchUnifiedMods(game.steamAppId, { q: query.trim() || undefined, sort, category: category || undefined, pageToken: nextToken, gameName: game.displayName });
       setItems((prev) => {
         const seen = new Set(prev.map((i) => i.key));
         return [...prev, ...(d.items || []).filter((i) => !seen.has(i.key))];

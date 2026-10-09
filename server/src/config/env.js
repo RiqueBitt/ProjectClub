@@ -104,6 +104,11 @@ module.exports = {
   // dedicada diferente da pública (ver "API path" na doc oficial).
   MODIO_API_BASE: process.env.MODIO_API_BASE || 'https://api.mod.io/v1',
 
+  // Nexus Mods (a fonte do Vortex) — chave pessoal gerada em
+  // https://www.nexusmods.com/users/myaccount?tab=api. Sem ela a Nexus
+  // só fica de fora da busca (o resto continua igual).
+  NEXUS_API_KEY: process.env.NEXUS_API_KEY || '',
+
   // Integração com o Steam Workshop (Terraria/tModLoader, Payday 2,
   // Payday 3, e qualquer outro jogo com suporte a Workshop) — chave
   // pública da Steamworks Web API, gerada de graça em

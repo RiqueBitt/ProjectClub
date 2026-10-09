@@ -800,3 +800,44 @@ button.mdx-ux-tile.dim:hover { border-color: color-mix(in srgb, var(--red) 40%, 
 @media (prefers-reduced-motion: reduce) {
   .mdx-ux-toggle-track, .mdx-ux-toggle-track > span { transition: none; }
 }
+
+/* ---------- Nexus Mods / Vortex ---------- */
+.mdx-origin.vortex { color: #e6873c; background: color-mix(in srgb, #e6873c 14%, transparent); }
+.mdx-nexus-toggle {
+  display: flex; align-items: center; gap: 14px; margin: 0 0 18px; padding: 14px 16px;
+  border-radius: 14px; border: 1px solid var(--border);
+  background: linear-gradient(90deg, color-mix(in srgb, #e6873c 10%, transparent), transparent 60%), var(--bg-secondary);
+}
+.mdx-nexus-toggle-icon {
+  flex-shrink: 0; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center;
+  color: #e6873c; background: color-mix(in srgb, #e6873c 16%, transparent);
+}
+.mdx-nexus-toggle-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mdx-nexus-toggle-text strong { color: var(--header-primary); font-size: 14px; }
+.mdx-nexus-toggle-text span { color: var(--text-muted); font-size: 12.5px; line-height: 1.4; }
+.mdx-nexus-toggle .mdx-switch { flex-shrink: 0; }
+.mdx-nexus-manager-note { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+.mdx-nexus-manager-note > span { flex: 1; min-width: 200px; }
+
+.mdx-nxm-toast {
+  position: fixed; right: 20px; bottom: 20px; z-index: 60; width: min(380px, calc(100vw - 24px));
+  display: flex; align-items: flex-start; gap: 12px; padding: 14px;
+  border-radius: 16px; border: 1px solid var(--border); background: var(--bg-secondary);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  animation: mdx-nxm-in 0.22s ease-out;
+}
+.mdx-nxm-thumb {
+  flex-shrink: 0; width: 52px; height: 52px; border-radius: 11px; overflow: hidden;
+  display: grid; place-items: center; color: #e6873c; background: color-mix(in srgb, #e6873c 14%, transparent);
+}
+.mdx-nxm-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.mdx-nxm-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.mdx-nxm-body strong { color: var(--header-primary); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mdx-nxm-kicker { font-size: 11px; font-weight: 700; letter-spacing: 0.3px; text-transform: uppercase; color: #e6873c; }
+.mdx-nxm-ok { display: inline-flex; align-items: center; gap: 5px; color: var(--green); font-size: 13px; font-weight: 600; }
+@keyframes mdx-nxm-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (max-width: 700px) {
+  .mdx-nxm-toast { right: 12px; bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
+  .mdx-nexus-toggle { align-items: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) { .mdx-nxm-toast { animation: none; } }

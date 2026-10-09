@@ -624,3 +624,10 @@ export const uploadModpackCover = (id, file) => { const fd = new FormData(); fd.
 export const voteModpack = (id, value) => api.post(`/modpacks/${id}/vote`, { value }).then((r) => r.data);
 export const registerModpackDownload = (id) => api.post(`/modpacks/${id}/download`).then((r) => r.data);
 export const setFeaturedModpack = (payload) => api.put('/modpacks/featured', payload).then((r) => r.data);
+
+// Nexus Mods (fonte do Vortex) — ver server/src/services/nexusService.js.
+export const matchNexusGames = (steamAppIds, names) => api.post('/nexus/steam-match', { steamAppIds, names }).then((r) => r.data);
+export const getNexusMod = (domain, modId) => api.get(`/nexus/games/${domain}/mods/${modId}`).then((r) => r.data);
+export const getNexusDownload = (domain, modId, fileId, { key, expires } = {}) => api
+  .get(`/nexus/games/${domain}/mods/${modId}/files/${fileId}/download`, { params: { key: key || undefined, expires: expires || undefined } })
+  .then((r) => r.data);
