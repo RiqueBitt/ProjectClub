@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { emojiImageUrl } from '../utils/emojiStyle';
+import { emojiImageUrl, useEmojiSet } from '../utils/emojiStyle';
 
 // Item pedido: "5 variantes de visual dos meus emoji" — usado no lugar
 // de {emoji} puro em qualquer lugar que precisa respeitar o estilo
@@ -35,6 +35,7 @@ export default function StyledEmoji({ emoji, size, className }) {
   const [failed, setFailed] = useState(false);
   const [inView, setInView] = useState(false);
   const ref = useRef(null);
+  useEmojiSet(style); // carrega o índice do tema e re-renderiza quando chegar
   const url = style !== 'native' ? emojiImageUrl(emoji, style) : null;
 
   // Reseta ao trocar de emoji/estilo — sem isso, uma instância de

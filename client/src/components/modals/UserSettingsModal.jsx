@@ -41,7 +41,7 @@ import UserAvatar from '../UserAvatar.jsx';
 import { usePopoverCoordination } from '../../utils/popoverCoordinator';
 import { isGradientColor, gradientStops, makeGradient } from '../../utils/roleColor';
 import { NAME_FONTS, NAME_EFFECTS, nameStyleProps, nameStyleClassName, FONT_FAMILY, DEFAULT_MULTI_COLORS } from '../../utils/nameStyle';
-import { EMOJI_STYLE_OPTIONS, emojiImageUrl } from '../../utils/emojiStyle';
+import { EMOJI_STYLE_OPTIONS, emojiImageUrl, useEmojiSet } from '../../utils/emojiStyle';
 import { isEyeDropperSupported, pickColorFromScreen } from '../../utils/eyeDropper';
 
 // Item pedido: "sistema... você pode escolher as cores de tudo" —
@@ -2246,6 +2246,7 @@ function StatusPicker() {
 // se a imagem falhar, cai pro texto normal.
 function EmojiStylePreview({ style, emoji = '😀' }) {
   const [failed, setFailed] = useState(false);
+  useEmojiSet(style);
   const url = style !== 'native' && !failed ? emojiImageUrl(emoji, style) : null;
   if (!url) return <span style={{ fontSize: 28 }}>{emoji}</span>;
   return <img src={url} alt={emoji} width={28} height={28} onError={() => setFailed(true)} />;
