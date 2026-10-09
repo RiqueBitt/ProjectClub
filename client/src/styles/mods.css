@@ -950,3 +950,4 @@ button.mdx-ux-tile.dim:hover { border-color: color-mix(in srgb, var(--red) 40%, 
   .mdx-detail-cover { height: 150px; border-radius: 14px 14px 0 0; }
   .mdx-detail-cover + .mdx-detail-head .mdx-detail-media { margin-top: -60px; max-width: 70%; }
 }
+.mdx-compat.account { color: var(--text-muted); background: color-mix(in srgb, var(--text-muted) 14%, transparent); }

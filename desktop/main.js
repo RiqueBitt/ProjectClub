@@ -98,6 +98,92 @@ function deliverNxmLink(link) {
     pendingNxmLinks.push(link);
   }
 }
+// ---------- Janela de download (login uma vez só) ----------
+// Item pedido: "baixar direto pelo Project Club, sem abrir o navegador
+// pedindo login toda vez". Abre a página do arquivo numa janela do
+// próprio app com sessão PERSISTENTE (o login fica salvo); quando a
+// pessoa clica no botão de download do gerenciador, o link nxm:// é
+// pego aqui dentro (nunca vai pro sistema/Vortex), a janela fecha e o
+// app instala sozinho, igual a qualquer outro mod.
+const DOWNLOAD_PARTITION = 'persist:mods-download';
+let downloadWindow = null;
+const recentNxm = new Map(); // evita instalar duas vezes o mesmo clique
+
+function catchNxm(url) {
+  if (!String(url || '').toLowerCase().startsWith('nxm://')) return false;
+  const link = parseNxmLink(url);
+  if (!link) return true;
+  const key = `${link.domain}:${link.modId}:${link.fileId}:${link.key}`;
+  const now = Date.now();
+  if (!(recentNxm.get(key) > now - 15000)) {
+    recentNxm.set(key, now);
+    deliverNxmLink(link);
+  }
+  if (downloadWindow && !downloadWindow.isDestroyed()) setTimeout(() => { try { downloadWindow.close(); } catch { /* já fechou */ } }, 150);
+  return true;
+}
+
+let downloadSessionReady = false;
+function downloadSession() {
+  const ses = session.fromPartition(DOWNLOAD_PARTITION);
+  if (!downloadSessionReady) {
+    downloadSessionReady = true;
+    try {
+      // Pedido de nxm:// dentro dessa janela vira instalação no app.
+      ses.protocol.handle('nxm', (request) => {
+        catchNxm(request.url);
+        return new Response('<html><body style="background:#111;color:#ddd;font-family:sans-serif;display:grid;place-items:center;height:100vh">Download enviado pro Project Club.</body></html>', { headers: { 'content-type': 'text/html' } });
+      });
+    } catch { /* versão sem protocol.handle: os eventos abaixo resolvem */ }
+  }
+  return ses;
+}
+
+const DOWNLOAD_ALLOWED_HOSTS = /(^|\.)(nexusmods\.com|nexus-cdn\.com|google\.com|gstatic\.com|googleusercontent\.com|discord\.com|apple\.com|steamcommunity\.com|steampowered\.com|facebook\.com|twitch\.tv|cloudflare\.com|challenges\.cloudflare\.com)$/i;
+function isAllowedDownloadUrl(url) {
+  try { const u = new URL(url); return u.protocol === 'https:' && DOWNLOAD_ALLOWED_HOSTS.test(u.hostname); } catch { return false; }
+}
+
+function openDownloadWindow(url) {
+  if (!isAllowedDownloadUrl(url)) return { success: false, error: 'Endereço de download inválido.' };
+  if (downloadWindow && !downloadWindow.isDestroyed()) {
+    downloadWindow.loadURL(url);
+    downloadWindow.show();
+    downloadWindow.focus();
+    return { success: true };
+  }
+  downloadWindow = new BrowserWindow({
+    width: 1180, height: 820, minWidth: 760, minHeight: 560,
+    title: 'Baixar mod — Project Club',
+    icon: path.join(__dirname, 'build', 'icon.ico'),
+    autoHideMenuBar: true,
+    parent: mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
+    backgroundColor: '#111214',
+    webPreferences: { session: downloadSession(), contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  const wc = downloadWindow.webContents;
+  const guard = (event, target) => {
+    if (catchNxm(target)) { event.preventDefault(); return; }
+    if (!/^https?:/i.test(String(target))) { event.preventDefault(); return; }
+    if (!isAllowedDownloadUrl(target)) { event.preventDefault(); shell.openExternal(target); }
+  };
+  wc.on('will-navigate', guard);
+  wc.on('will-redirect', guard);
+  wc.on('will-frame-navigate', (event) => { if (catchNxm(event.url)) event.preventDefault(); });
+  wc.setWindowOpenHandler(({ url: target }) => {
+    if (catchNxm(target)) return { action: 'deny' };
+    // Janelinhas de login (Google, Discord...) abrem dentro do app; o resto vai pro navegador.
+    if (isAllowedDownloadUrl(target)) {
+      return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, parent: downloadWindow, webPreferences: { session: downloadSession(), contextIsolation: true, nodeIntegration: false, sandbox: true } } };
+    }
+    if (/^https?:/i.test(target)) shell.openExternal(target);
+    return { action: 'deny' };
+  });
+  downloadWindow.on('closed', () => { downloadWindow = null; });
+  downloadWindow.loadURL(url);
+  return { success: true };
+}
+
 function queueNxmFromArgv(argv) {
   for (const a of argv || []) if (typeof a === 'string' && a.toLowerCase().startsWith('nxm://')) deliverNxmLink(parseNxmLink(a));
 }
@@ -760,6 +846,13 @@ if (!gotLock) {
       const ok = setNxmHandler(!!enabled);
       return { success: ok !== false, enabled: app.isDefaultProtocolClient('nxm') };
     } catch (err) { return { success: false, error: err.message }; }
+  });
+  ipcMain.handle('nexus:open-download', (_event, url) => {
+    try { return openDownloadWindow(String(url || '')); } catch (err) { return { success: false, error: err.message }; }
+  });
+  // "Sair da conta" da janela de download (apaga o login salvo).
+  ipcMain.handle('nexus:clear-download-login', async () => {
+    try { await session.fromPartition(DOWNLOAD_PARTITION).clearStorageData(); return { success: true }; } catch (err) { return { success: false, error: err.message }; }
   });
   ipcMain.handle('nexus:consume-pending', () => pendingNxmLinks.splice(0, pendingNxmLinks.length));
 

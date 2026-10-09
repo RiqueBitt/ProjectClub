@@ -186,6 +186,12 @@ async function unifiedSearch(steamAppId, { q, category, sort = 'popular', pageTo
     }
   }));
 
+  // Item pedido: "priorizar mods que baixam direto". Mods que pedem
+  // conta no site são marcados e vão pro fim da lista.
+  if (perSource.nexus?.length && !(await nexus.canDownloadDirect())) {
+    perSource.nexus = perSource.nexus.map((i) => ({ ...i, needsAccount: true }));
+  }
+
   const allCats = await catsPromise;
   const active = Object.entries(mappings).filter(([, m]) => m).map(([s]) => s);
   const hasMore = active.some((s) => !nextState.done.includes(s));

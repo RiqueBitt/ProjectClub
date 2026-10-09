@@ -96,6 +96,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getLinkHandler: () => ipcRenderer.invoke('nexus:get-link-handler'),
     setLinkHandler: (enabled) => ipcRenderer.invoke('nexus:set-link-handler', !!enabled),
     consumePending: () => ipcRenderer.invoke('nexus:consume-pending'),
+    // Janela de download com login salvo (o link nxm:// é pego lá dentro).
+    openDownload: (url) => ipcRenderer.invoke('nexus:open-download', url),
+    clearDownloadLogin: () => ipcRenderer.invoke('nexus:clear-download-login'),
     onLink: (callback) => {
       const handler = (_e, link) => callback(link);
       ipcRenderer.on('nexus:nxm-link', handler);

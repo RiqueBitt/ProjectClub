@@ -269,7 +269,21 @@ function managerDownloadUrl(domain, modId, fileId) {
   return `https://www.nexusmods.com/${domain}/mods/${modId}?tab=files&file_id=${fileId}&nmm=1`;
 }
 
+// A chave do servidor é Premium? Só aí o download direto funciona pra
+// todo mundo; senão os mods dessa fonte pedem conta no site (janela de
+// download do app). Cache de 6 h.
+async function canDownloadDirect() {
+  if (!isConfigured()) return false;
+  try {
+    return await cacheGetOrSet('nexus:premium', 6 * 60 * 60, async () => {
+      const u = await v1('/users/validate.json');
+      return !!(u?.is_premium || u?.['is_premium?']);
+    });
+  } catch { return false; }
+}
+
 module.exports = {
+  canDownloadDirect,
   isConfigured, resolveGame, listGames, getGameInfo, listCategories, searchMods, getMod,
   getDownloadLink, managerDownloadUrl, stripBBCode, STEAM_TO_NEXUS, NexusNotConfiguredError,
 };

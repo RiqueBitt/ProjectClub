@@ -62,6 +62,12 @@ export function NexusLinkToggle() {
     bridge.getLinkHandler().then((r) => setEnabled(!!r?.enabled)).catch(() => setEnabled(false));
   }, [bridge]);
   if (!bridge || enabled === null) return null;
+  const [loggedOut, setLoggedOut] = useState(false);
+  const logout = async () => {
+    await bridge.clearDownloadLogin?.().catch(() => {});
+    setLoggedOut(true);
+    setTimeout(() => setLoggedOut(false), 2500);
+  };
   const toggle = async () => {
     setBusy(true);
     try { const r = await bridge.setLinkHandler(!enabled); setEnabled(!!r?.enabled); } finally { setBusy(false); }
@@ -75,6 +81,11 @@ export function NexusLinkToggle() {
           ? 'Quando um mod pedir "Baixar pela página", o botão de download da página abre aqui e instala direto no jogo.'
           : 'Ligue pra que os downloads feitos pela página do mod sejam instalados automaticamente pelo Project Club.'}</span>
       </div>
+      {bridge.clearDownloadLogin && (
+        <button type="button" className="mdx-btn ghost sm" onClick={logout} title="Apaga o login salvo da janela de download">
+          {loggedOut ? 'Pronto' : 'Sair da conta de download'}
+        </button>
+      )}
       <button type="button" className={`mdx-switch ${enabled ? 'on' : ''}`} role="switch" aria-checked={enabled} disabled={busy} onClick={toggle}>
         <span />
       </button>
@@ -119,6 +130,13 @@ export function NexusModDetail({ game, domain, modId, onBack }) {
       completeInstall(modId);
     } catch (err) {
       untrackInstall(modId);
+      // Sem download direto: no app de PC abre a janela de download do
+      // próprio Project Club (login fica salvo; o clique em baixar volta
+      // pra cá e instala sozinho). No app antigo/navegador, mostra o aviso.
+      if (err.needsManager && err.managerUrl && window.electronAPI?.nexus?.openDownload) {
+        const r = await window.electronAPI.nexus.openDownload(err.managerUrl).catch(() => null);
+        if (r?.success) { setInstallError({ window: true }); return; }
+      }
       setInstallError({ text: err.message, managerUrl: err.managerUrl });
     } finally {
       setInstallingFileId(null);
@@ -167,7 +185,16 @@ export function NexusModDetail({ game, domain, modId, onBack }) {
           {!desktopReady && <p className="mdx-note"><Icon name="monitor" size={15} /> Instalar direto na pasta do jogo só funciona pelo app de desktop.</p>}
           {!data.available && <p className="mdx-note warn"><Icon name="alert" size={15} /> Este mod está oculto ou foi removido pelo autor.</p>}
           {desktopReady && data.files?.length > 0 && installable.length === 0 && <p className="mdx-note warn"><Icon name="alert" size={15} /> Formato não suportado: os arquivos deste mod são .rar/.exe, que o Project Club ainda não sabe instalar.</p>}
-          {installError && (
+          {installError?.window && (
+            <div className="mdx-note mdx-nexus-manager-note">
+              <Icon name="download" size={15} />
+              <span>
+                Abrimos a <strong>janela de download</strong>. Na primeira vez, entre na sua conta lá dentro (fica salvo pras próximas).
+                Depois é só clicar em <strong>Mod Manager Download</strong> (ou <strong>Slow download</strong>) — a janela fecha e o Project Club instala sozinho.
+              </span>
+            </div>
+          )}
+          {installError && !installError.window && (
             <div className="mdx-note warn mdx-nexus-manager-note">
               <Icon name="alert" size={15} />
               <span>

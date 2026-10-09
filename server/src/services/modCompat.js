@@ -168,9 +168,16 @@ function finalize(item, profile) {
 }
 
 // ---------- Junção das fontes ----------
-const SOURCE_PRIORITY = ['thunderstore', 'nexus', 'modio', 'gamebanana', 'workshop'];
+const SOURCE_PRIORITY = ['thunderstore', 'modio', 'gamebanana', 'workshop', 'nexus'];
 
 function mergeResults(perSource, sort) {
+  // Quem baixa direto vem antes; quem pede conta no site vai pro fim
+  // (mantendo a ordem escolhida dentro de cada grupo).
+  const merged = mergeOrdered(perSource, sort);
+  return [...merged.filter((i) => !i.needsAccount), ...merged.filter((i) => i.needsAccount)];
+}
+
+function mergeOrdered(perSource, sort) {
   const lists = SOURCE_PRIORITY.map((s) => perSource[s] || []).filter((l) => l.length > 0);
   if (sort === 'downloads') return lists.flat().sort((a, b) => (b.downloads || 0) - (a.downloads || 0));
   if (sort === 'new') return lists.flat().sort((a, b) => Date.parse(b.createdAt || b.updatedAt || 0) - Date.parse(a.createdAt || a.updatedAt || 0));

@@ -209,6 +209,8 @@ function UnifiedCard({ item, compat, installed, onOpen }) {
         {item.author && <span className="mdx-tile-author">por {item.author}</span>}
         <div className="mdx-ux-compat-line">
           <CompatBadge compat={compat} />
+          {/* Pede conta no site pra baixar (abre a janela de download do app). */}
+          {item.needsAccount && !dim && <span className="mdx-compat account" title="Na primeira vez, entre na sua conta pela janela de download do app"><Icon name="users" size={12} strokeWidth={2.4} /><span>Pede login</span></span>}
           {dim && compat.reason && <span className="mdx-ux-reason">{compat.reason}</span>}
         </div>
         {stats.length > 0 && (
