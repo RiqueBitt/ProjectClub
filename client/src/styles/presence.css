@@ -90,3 +90,9 @@
 .pendant-editor-upload { cursor: pointer; }
 .pendant-editor-upload.is-busy { opacity: .6; cursor: default; }
 .pendant-editor-error { font-size: 12.5px; color: var(--red); }
+
+/* Pingente no chat: a linha do nome alinhava pela linha de base do texto,
+   e uma imagem "senta" a borda de baixo nessa linha — o pingente ficava
+   mais alto que o nome (torto). Centraliza tudo na linha. */
+.message-meta { align-items: center; }
+.message-meta .pendant-icon { align-self: center; margin: -2px 0; }
