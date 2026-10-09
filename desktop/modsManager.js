@@ -16,7 +16,6 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const { app } = require('electron');
-const extractZip = require('extract-zip');
 
 function tempDir() {
   const dir = path.join(app.getPath('temp'), 'projectclub-mods');
@@ -66,287 +65,341 @@ function downloadToFile(url, destPath, onProgress, redirectsLeft = 5) {
   });
 }
 
-// Item pedido 26/27: "não criar uma regra universal que simplesmente
-// copie todos os arquivos para a pasta raiz... quando determinado jogo
-// precisar de um mod loader ou framework, o sistema deve identificar
-// isso." MVP: detecta se o jogo já tem uma instalação do BepInEx (o
-// framework de mod mais comum nos jogos-exemplo do pedido — Lethal
-// Company, Risk of Rain 2, Content Warning e a maioria dos jogos Unity
-// moddáveis via mod.io usam ele) e instala no padrão dele
-// (BepInEx/plugins/<nome>); sem BepInEx detectado, cai numa pasta
-// genérica "Mods/<nome>" na raiz do jogo. Suporte a outros loaders
-// específicos fica para uma fase seguinte (ver nota no final do
-// arquivo) — a função abaixo é o único lugar que precisa mudar pra
-// adicionar um novo loader, o resto do fluxo de instalação não muda.
-function detectInstallStrategy(gameInstallPath) {
-  const bepinexPluginsDir = path.join(gameInstallPath, 'BepInEx', 'plugins');
-  if (fs.existsSync(path.join(gameInstallPath, 'BepInEx'))) {
-    return { kind: 'bepinex', targetRoot: bepinexPluginsDir };
+// ---------- Instalação por jogo (item pedido: "cada jogo tem seu
+// jeito de instalar mods, arrume isso") ----------
+// Antes: "BepInEx/plugins se existir BepInEx, senão Mods/<nome>" pra
+// qualquer jogo. Agora cada jogo tem um PERFIL (modInstallProfiles.js:
+// loader, pastas, tipos de arquivo) e cada arquivo extraído é
+// encaminhado pro lugar certo (modRouter.js), com um manifesto local
+// por jogo dizendo exatamente o que cada mod colocou onde — é isso que
+// deixa desinstalar/ativar/desativar exatos. Mods instalados pela
+// lógica antiga continuam reconhecidos (ver "legado" no modRouter).
+const router = require('./modRouter');
+const archive = require('./modArchive');
+
+const { sanitizeModFolderName } = router;
+
+function manifestDir() {
+  return path.join(app.getPath('userData'), 'ModsManifest');
+}
+
+function stripExt(name) {
+  return name.replace(/\.[a-z0-9]{1,8}$/i, '');
+}
+
+// Pasta principal de mods do jogo (usada no "Abrir pasta de mods").
+function detectInstallStrategy(gameInstallPath, steamAppId) {
+  const game = router.gameContext({ gameInstallPath, steamAppId });
+  const primary = game.profile.primary && game.targets[game.profile.primary];
+  return { kind: game.profile.family, targetRoot: primary ? primary.dir : router.legacyTargetRoot(gameInstallPath), profile: game.profile.name };
+}
+
+// Coloca o arquivo baixado/escolhido numa pasta "staging": extrai se for
+// .zip/.7z, copia como está se o jogo lê o pacote direto (ex: .zip do
+// Factorio/Celeste, .scs do ETS2) ou se for um arquivo solto (.pak, .dll,
+// .esp, .tmod...).
+async function stageFile(localFile, filename, game, stagingDir) {
+  const ext = path.extname(filename || localFile).toLowerCase();
+  fs.mkdirSync(stagingDir, { recursive: true });
+  const keep = (game.profile.keepArchive || []).includes(ext);
+  if (!keep && archive.isUnsupportedArchive(filename || localFile)) throw archive.unsupportedArchiveError(ext);
+  if (!keep && archive.isArchive(filename || localFile)) {
+    await archive.extractArchive(localFile, stagingDir, { writableDir: app.getPath('userData') });
+    return;
   }
-  return { kind: 'generic', targetRoot: path.join(gameInstallPath, 'Mods') };
+  fs.copyFileSync(localFile, path.join(stagingDir, path.basename(filename || localFile)));
 }
 
-function sanitizeModFolderName(name) {
-  return String(name).trim().replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 120) || 'mod';
+function commonDir(paths) {
+  if (paths.length === 0) return null;
+  if (paths.length === 1) return paths[0];
+  let common = path.dirname(paths[0]);
+  while (!paths.every((p) => p.startsWith(common + path.sep))) {
+    const up = path.dirname(common);
+    if (up === common) break;
+    common = up;
+  }
+  return common;
 }
 
-// Item pedido 15: perfis (ativar/desativar sem desinstalar) — em vez de
-// apagar/rebaixar o mod loader pra "descobrir" o que está ativo, mantém
-// os mods DESATIVADOS numa pasta irmã, com sufixo ".disabled", do mesmo
-// jeito que ferramentas como o r2modmanPlus fazem (mas implementação
-// própria, sem usar ou incorporar ele — item pedido 31): o loader do
-// jogo (BepInEx ou a pasta genérica) só enxerga o que está na pasta
-// ativa; o que está desativado continua no disco, intacto, só invisível
-// pro jogo até ser reativado.
-function disabledRoot(strategy) {
-  return `${strategy.targetRoot}.disabled`;
-}
-
-function modPaths(gameInstallPath, modName) {
-  const folderName = sanitizeModFolderName(modName);
-  const strategy = detectInstallStrategy(gameInstallPath);
-  return {
-    folderName,
-    strategy,
-    enabledDir: path.join(strategy.targetRoot, folderName),
-    disabledDir: path.join(disabledRoot(strategy), folderName),
-  };
-}
-
-// Fluxo principal — item pedido 12, passos 1 a 11 (identificar jogo/
-// pasta, baixar, extrair, instalar, limpar temporário). Dependências e
-// conflitos (passos 5 e verificação de #16/#17) ainda não são resolvidos
-// automaticamente aqui — ver roadmap no final do arquivo.
-// Item pedido: "faça o GameBanana e o Workshop... já baixa o mod na
-// pasta do jogo com o que precisa pra funcionar" — os mods do
-// GameBanana nem sempre vêm num .zip (às vezes é só um arquivo solto,
-// tipo um .pak ou .dll) — o mesmo instalador que já servia o mod.io
-// agora aceita os dois casos: extrai se for .zip, só copia se não for.
-async function installMod({ downloadUrl, filename, gameInstallPath, modName }, onProgress) {
+// Fluxo comum de instalação (baixado, do PC ou do Thunderstore).
+async function installCore({ localFile, filename, gameInstallPath, steamAppId, modName, source, sourceId, version, loaderInstall }, onProgress) {
   if (!fs.existsSync(gameInstallPath)) throw new Error('A pasta do jogo não foi encontrada. Talvez ele tenha sido desinstalado ou movido.');
+  const game = router.gameContext({ gameInstallPath, steamAppId });
+  const key = sanitizeModFolderName(modName);
+  const stagingDir = path.join(tempDir(), `${key}-${Date.now()}.staging`);
+  try {
+    onProgress?.({ phase: 'extracting', percent: 0 });
+    await stageFile(localFile, filename, game, stagingDir);
 
-  const folderName = sanitizeModFolderName(modName);
-  const strategy = detectInstallStrategy(gameInstallPath);
+    onProgress?.({ phase: 'installing', percent: 0 });
+    // Planeja ANTES de mexer em qualquer coisa: se o formato não servir
+    // pra este jogo, nada do que já estava instalado é tocado.
+    const plan = router.planInstall({ stagingDir, game, modFolder: key, loaderInstall });
+
+    const dir = manifestDir();
+    const manifest = router.loadManifest(dir, gameInstallPath);
+    // Reinstalar/atualizar: tira a versão anterior DESTE mod (só os
+    // arquivos dele) — e a cópia do instalador antigo, se houver.
+    if (manifest.mods[key]) { router.removeEntryFiles(manifest.mods[key]); delete manifest.mods[key]; }
+    const legacy = router.findLegacy(gameInstallPath, key);
+    if (legacy) {
+      fs.rmSync(legacy.enabledDir, { recursive: true, force: true });
+      fs.rmSync(legacy.disabledDir, { recursive: true, force: true });
+    }
+
+    const { entry, conflicts } = router.applyPlan(plan, {
+      manifest, key, meta: { name: modName, source: source || null, sourceId: sourceId != null ? String(sourceId) : null, version: version || null, profileId: game.profile.id },
+    });
+    router.saveManifest(dir, gameInstallPath, manifest);
+    onProgress?.({ phase: 'done', percent: 100 });
+    return {
+      installedPath: commonDir(entry.files.map((f) => f.path)),
+      strategy: game.profile.family,
+      profile: game.profile.name,
+      fileCount: entry.files.length,
+      skipped: plan.skipped.length,
+      conflicts,
+      isLoader: entry.isLoader,
+    };
+  } finally {
+    fs.rm(stagingDir, { recursive: true, force: true }, () => {});
+  }
+}
+
+// Fluxo principal — baixa DIRETO da URL que a fonte gerou (mod.io,
+// GameBanana, Thunderstore), pra uma pasta temporária, instala e apaga o
+// temporário.
+async function installMod({ downloadUrl, filename, gameInstallPath, modName, steamAppId, source, sourceId, version, modioModId }, onProgress) {
+  if (!fs.existsSync(gameInstallPath)) throw new Error('A pasta do jogo não foi encontrada. Talvez ele tenha sido desinstalado ou movido.');
   const ext = path.extname(filename || '').toLowerCase();
-  const archivePath = path.join(tempDir(), `${folderName}-${Date.now()}${ext || '.zip'}`);
-
+  if (archive.isUnsupportedArchive(filename)) throw archive.unsupportedArchiveError(ext);
+  const archivePath = path.join(tempDir(), `${sanitizeModFolderName(modName)}-${Date.now()}${ext || '.zip'}`);
   onProgress?.({ phase: 'downloading', percent: 0 });
   try {
     await downloadToFile(downloadUrl, archivePath, (percent) => onProgress?.({ phase: 'downloading', percent }));
-
-    if (ext !== '.zip') {
-      // Arquivo solto (não .zip): dá pra instalar direto — se for algo
-      // que a gente não sabe abrir (.rar/.7z, por exemplo), avisa em
-      // vez de fingir que instalou.
-      if (['.rar', '.7z'].includes(ext)) {
-        throw new Error(`Este mod veio num formato (${ext}) que ainda não sabemos extrair automaticamente — baixe e extraia manualmente.`);
-      }
-      onProgress?.({ phase: 'installing', percent: 0 });
-      fs.mkdirSync(strategy.targetRoot, { recursive: true });
-      const finalDir = path.join(strategy.targetRoot, folderName);
-      if (fs.existsSync(finalDir)) fs.rmSync(finalDir, { recursive: true, force: true });
-      const oldDisabledDir = path.join(disabledRoot(strategy), folderName);
-      if (fs.existsSync(oldDisabledDir)) fs.rmSync(oldDisabledDir, { recursive: true, force: true });
-      fs.mkdirSync(finalDir, { recursive: true });
-      fs.copyFileSync(archivePath, path.join(finalDir, filename || `${folderName}${ext}`));
-      onProgress?.({ phase: 'done', percent: 100 });
-      return { installedPath: finalDir, strategy: strategy.kind };
-    }
-
-    onProgress?.({ phase: 'extracting', percent: 0 });
-    const stagingDir = `${archivePath}.staging`;
-    fs.mkdirSync(stagingDir, { recursive: true });
-    await extractZip(archivePath, { dir: stagingDir });
-
-    onProgress?.({ phase: 'installing', percent: 0 });
-    fs.mkdirSync(strategy.targetRoot, { recursive: true });
-    const finalDir = path.join(strategy.targetRoot, folderName);
-    // Item pedido 17: "nunca apagar silenciosamente arquivos de outro
-    // mod" — só remove a pasta que é DESTE mod especificamente (nome
-    // sanitizado único por mod), nunca o targetRoot inteiro. Também
-    // limpa uma cópia desativada antiga do MESMO mod, se existir — uma
-    // instalação nova sempre volta ativada, sem deixar duas cópias
-    // divergentes (uma ativa nova, uma desativada velha) do mesmo mod.
-    if (fs.existsSync(finalDir)) fs.rmSync(finalDir, { recursive: true, force: true });
-    const oldDisabledDir = path.join(disabledRoot(strategy), folderName);
-    if (fs.existsSync(oldDisabledDir)) fs.rmSync(oldDisabledDir, { recursive: true, force: true });
-    fs.renameSync(stagingDir, finalDir);
-
-    onProgress?.({ phase: 'done', percent: 100 });
-    return { installedPath: finalDir, strategy: strategy.kind };
+    return await installCore({
+      localFile: archivePath, filename: filename || path.basename(archivePath), gameInstallPath, steamAppId, modName,
+      source: source || (modioModId != null ? 'download' : null), sourceId: sourceId ?? modioModId, version,
+    }, onProgress);
   } finally {
     fs.rm(archivePath, { force: true }, () => {});
   }
 }
 
-// Item pedido 14: "Desinstalar" — apaga a pasta do mod específico, esteja
-// ela ativada ou desativada no momento.
-function uninstallMod({ gameInstallPath, modName }) {
-  const { enabledDir, disabledDir } = modPaths(gameInstallPath, modName);
-  if (fs.existsSync(enabledDir)) fs.rmSync(enabledDir, { recursive: true, force: true });
-  if (fs.existsSync(disabledDir)) fs.rmSync(disabledDir, { recursive: true, force: true });
-  return { uninstalled: true };
+// Item pedido: "adicione mods de um arquivo local" — mesmo fluxo, sem
+// baixar nada (arquivo escolhido pelo diálogo nativo, ver main.js).
+async function installLocalFile({ filePath, gameInstallPath, modName, steamAppId }, onProgress) {
+  if (!fs.existsSync(gameInstallPath)) throw new Error('A pasta do jogo não foi encontrada.');
+  if (!fs.existsSync(filePath)) throw new Error('O arquivo selecionado não existe mais.');
+  return installCore({ localFile: filePath, filename: path.basename(filePath), gameInstallPath, steamAppId, modName, source: 'local' }, onProgress);
 }
 
-// Lista o que já está instalado NESTE jogo, olhando o disco diretamente
-// (fonte de verdade é sempre a pasta real, nunca um registro que possa
-// ficar desatualizado) — usado pra marcar "✓ Instalado" na UI. Separado
-// em ativados/desativados (item pedido 15).
-function listInstalledMods(gameInstallPath) {
-  const strategy = detectInstallStrategy(gameInstallPath);
-  const readNames = (dir) => (fs.existsSync(dir)
-    ? fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name)
-    : []);
-  return {
-    enabled: readNames(strategy.targetRoot),
-    disabled: readNames(disabledRoot(strategy)),
-  };
-}
-
-// Item pedido 15: "Ativar"/"Desativar" — move a pasta do mod inteira
-// entre a área ativa e a área desativada. Nunca apaga nada (item pedido
-// 17: "nunca apagar silenciosamente arquivos de outro mod") — só troca
-// de lugar a pasta do PRÓPRIO mod que foi pedido.
-function setModEnabled({ gameInstallPath, modName, enabled }) {
-  const { enabledDir, disabledDir, strategy } = modPaths(gameInstallPath, modName);
-  if (enabled) {
-    if (!fs.existsSync(disabledDir)) return { changed: false }; // já ativado (ou nunca instalado)
-    fs.mkdirSync(strategy.targetRoot, { recursive: true });
-    fs.renameSync(disabledDir, enabledDir);
-  } else {
-    if (!fs.existsSync(enabledDir)) return { changed: false }; // já desativado (ou nunca instalado)
-    fs.mkdirSync(disabledRoot(strategy), { recursive: true });
-    fs.renameSync(enabledDir, disabledDir);
+// Thunderstore: um pacote por vez (a árvore de dependências já vem
+// resolvida do backend, na ordem certa). isLoader = BepInExPack — vai
+// pra raiz do jogo; o resto segue o perfil do jogo (plugins/, patchers/,
+// config/ do padrão Thunderstore viram as pastas certas do BepInEx).
+async function installThunderstorePackage({ downloadUrl, filename, gameInstallPath, fullName, isLoader, steamAppId, version }, onProgress) {
+  if (!fs.existsSync(gameInstallPath)) throw new Error('A pasta do jogo não foi encontrada. Talvez ele tenha sido desinstalado ou movido.');
+  const archivePath = path.join(tempDir(), `${sanitizeModFolderName(fullName)}-${Date.now()}.zip`);
+  onProgress?.({ phase: 'downloading', percent: 0 });
+  try {
+    await downloadToFile(downloadUrl, archivePath, (percent) => onProgress?.({ phase: 'downloading', percent }));
+    return await installCore({
+      localFile: archivePath, filename: filename || `${fullName}.zip`, gameInstallPath, steamAppId, modName: fullName,
+      source: 'thunderstore', sourceId: fullName, version, loaderInstall: !!isLoader,
+    }, onProgress);
+  } finally {
+    fs.rm(archivePath, { force: true }, () => {});
   }
-  return { changed: true };
 }
 
-// Item pedido 15/28: aplica um PERFIL inteiro de uma vez — recebe a
-// lista de nomes de mod que devem ficar ativos; tudo que está instalado
-// mas NÃO está nessa lista é desativado, e tudo que está nessa lista (e
-// já foi instalado alguma vez) é ativado. Mods da lista que nunca foram
-// instalados são reportados em `missing` (a UI decide se oferece
-// instalar — ver roadmap: instalação automática de dependências ainda
-// não dispara isso sozinha).
-function applyProfileMods({ gameInstallPath, enabledModNames }) {
-  const wanted = new Set(enabledModNames.map(sanitizeModFolderName));
-  const current = listInstalledMods(gameInstallPath);
-  const changed = [];
+// Acha um mod "detectado" (que a pessoa já tinha, fora do manifesto)
+// pelo caminho exato ou pelo nome — sempre a partir da varredura das
+// pastas do perfil, nunca um caminho qualquer vindo de fora.
+function findDetected(game, manifest, { modName, detectedPath }) {
+  const detected = router.scanEntries(game, manifest).filter((d) => !d.owner);
+  if (detectedPath) return detected.find((d) => path.resolve(d.abs) === path.resolve(detectedPath)) || null;
+  const key = sanitizeModFolderName(modName);
+  return detected.find((d) => sanitizeModFolderName(d.isDir ? d.name : stripExt(d.name)) === key) || null;
+}
 
+// Mod detectado vira "gerenciado" na primeira vez que a pessoa
+// desativa: registra os arquivos dele no manifesto (sem mover nada
+// ainda) — daí pra frente ativar/desativar é exato como os outros.
+function adoptDetected(manifest, det) {
+  let key = sanitizeModFolderName(det.isDir ? det.name : stripExt(det.name));
+  while (manifest.mods[key]) key = `${key}_`;
+  const files = det.isDir ? router.listFilesRecursive(det.abs).map((rel) => path.join(det.abs, ...rel.split('/'))) : [det.abs];
+  const dirs = [];
+  if (det.isDir) {
+    const walk = (d) => { dirs.push(d); for (const e of fs.readdirSync(d, { withFileTypes: true })) if (e.isDirectory()) walk(path.join(d, e.name)); };
+    walk(det.abs);
+  }
+  const entry = {
+    key, name: det.name, source: null, sourceId: null, version: null, adopted: true, enabled: true,
+    installedAt: new Date().toISOString(),
+    files: files.map((f) => ({ path: f, stash: path.join(det.root, router.DISABLED_DIR, key, path.relative(det.root, f)), root: det.root })),
+    dirs, backups: [], skipped: [], isLoader: false,
+  };
+  manifest.mods[key] = entry;
+  return entry;
+}
+
+// Item pedido 14: "Desinstalar" — só os arquivos deste mod.
+function uninstallMod({ gameInstallPath, modName, steamAppId, path: detectedPath }) {
+  const dir = manifestDir();
+  const manifest = router.loadManifest(dir, gameInstallPath);
+  const key = sanitizeModFolderName(modName || '');
+  if (!detectedPath && manifest.mods[key]) {
+    router.removeEntryFiles(manifest.mods[key]);
+    delete manifest.mods[key];
+    router.saveManifest(dir, gameInstallPath, manifest);
+    return { uninstalled: true };
+  }
+  const legacy = !detectedPath && router.findLegacy(gameInstallPath, key);
+  if (legacy) {
+    fs.rmSync(legacy.enabledDir, { recursive: true, force: true });
+    fs.rmSync(legacy.disabledDir, { recursive: true, force: true });
+    return { uninstalled: true };
+  }
+  const game = router.gameContext({ gameInstallPath, steamAppId });
+  const det = findDetected(game, manifest, { modName, detectedPath });
+  if (det) {
+    fs.rmSync(det.abs, { recursive: true, force: true });
+    return { uninstalled: true };
+  }
+  return { uninstalled: false };
+}
+
+// Lista de nomes (formato antigo, usado pra marcar "Instalado" na UI e
+// pelos modpacks): mods do manifesto + legado + detectados.
+function listInstalledMods(gameInstallPath, steamAppId) {
+  const enabled = new Set();
+  const disabled = new Set();
+  if (!gameInstallPath || !fs.existsSync(gameInstallPath)) return { enabled: [], disabled: [] };
+  const manifest = router.loadManifest(manifestDir(), gameInstallPath);
+  for (const [key, entry] of Object.entries(manifest.mods)) (entry.enabled === false ? disabled : enabled).add(key);
+  for (const r of router.legacyRoots(gameInstallPath)) {
+    const off = `${r}.disabled`;
+    if (fs.existsSync(off)) for (const e of fs.readdirSync(off, { withFileTypes: true })) if (e.isDirectory()) disabled.add(e.name);
+  }
+  const game = router.gameContext({ gameInstallPath, steamAppId });
+  for (const d of router.scanEntries(game, manifest)) {
+    if (d.owner) continue;
+    enabled.add(sanitizeModFolderName(d.isDir ? d.name : stripExt(d.name)));
+  }
+  return { enabled: [...enabled], disabled: [...disabled].filter((n) => !enabled.has(n)) };
+}
+
+// Item pedido 15: "Ativar"/"Desativar" sem desinstalar. Nunca apaga
+// nada — só move os arquivos DO PRÓPRIO mod pra área desativada e de
+// volta.
+function setModEnabled({ gameInstallPath, modName, enabled, steamAppId, path: detectedPath }) {
+  const dir = manifestDir();
+  const manifest = router.loadManifest(dir, gameInstallPath);
+  const key = sanitizeModFolderName(modName || '');
+  let entry = !detectedPath ? manifest.mods[key] : null;
+
+  if (!entry) {
+    const legacy = !detectedPath && router.findLegacy(gameInstallPath, key);
+    if (legacy) {
+      if (enabled === legacy.enabled) return { changed: false };
+      if (enabled) { fs.mkdirSync(legacy.root, { recursive: true }); fs.renameSync(legacy.disabledDir, legacy.enabledDir); }
+      else { fs.mkdirSync(`${legacy.root}.disabled`, { recursive: true }); fs.renameSync(legacy.enabledDir, legacy.disabledDir); }
+      return { changed: true };
+    }
+    if (enabled) return { changed: false }; // detectado já está ativo
+    const game = router.gameContext({ gameInstallPath, steamAppId });
+    const det = findDetected(game, manifest, { modName, detectedPath });
+    if (!det) return { changed: false };
+    entry = adoptDetected(manifest, det);
+  }
+  const changed = router.setEntryEnabled(entry, !!enabled);
+  router.saveManifest(dir, gameInstallPath, manifest);
+  return { changed, key: entry.key };
+}
+
+// Item pedido 15/28: aplica um PERFIL (modpack) inteiro de uma vez.
+function applyProfileMods({ gameInstallPath, enabledModNames, steamAppId }) {
+  const wanted = new Set(enabledModNames.map(sanitizeModFolderName));
+  // Loaders (BepInEx, MelonLoader...) nunca são desligados por um modpack.
+  const manifest = router.loadManifest(manifestDir(), gameInstallPath);
+  for (const [key, entry] of Object.entries(manifest.mods)) if (entry.isLoader) wanted.add(key);
+  const current = listInstalledMods(gameInstallPath, steamAppId);
+  const changed = [];
   for (const name of current.enabled) {
-    if (!wanted.has(name)) { setModEnabled({ gameInstallPath, modName: name, enabled: false }); changed.push(name); }
+    if (!wanted.has(name)) { setModEnabled({ gameInstallPath, modName: name, enabled: false, steamAppId }); changed.push(name); }
   }
   for (const name of current.disabled) {
-    if (wanted.has(name)) { setModEnabled({ gameInstallPath, modName: name, enabled: true }); changed.push(name); }
+    if (wanted.has(name)) { setModEnabled({ gameInstallPath, modName: name, enabled: true, steamAppId }); changed.push(name); }
   }
-
   const installedNames = new Set([...current.enabled, ...current.disabled]);
-  const missing = [...wanted].filter((name) => !installedNames.has(name));
+  const missing = [...wanted].filter((name) => !installedNames.has(name) && !manifest.mods[name]?.isLoader);
   return { changed, missing };
 }
 
-// ---------- Thunderstore (item pedido: "pegue a interface e tudo do
-// Gale [Thunderstore Mod Manager] e funda com o que eu já tenho") ----------
-// Pacotes do Thunderstore seguem uma convenção PÚBLICA fixa (documentada
-// pelo próprio Thunderstore, nada específico do Gale): o .zip carrega
-// manifest.json/icon.png/README.md/CHANGELOG.md na raiz, junto com o
-// conteúdo de verdade do mod — às vezes tudo solto na raiz, às vezes
-// dentro de UMA pasta com o nome do pacote. E o pacote "BepInExPack" de
-// cada jogo é especial: seu conteúdo não é um plugin, é o PRÓPRIO
-// instalador do framework BepInEx — precisa ser extraído direto na
-// RAIZ da pasta do jogo (onde fica o .exe), não dentro de
-// BepInEx/plugins como um mod comum (ver isLoader abaixo).
-const THUNDERSTORE_METADATA_FILES = new Set(['manifest.json', 'icon.png', 'readme.md', 'changelog.md']);
-
-// Desembrulha um nível de pasta quando o pacote coloca tudo dentro de
-// UMA pasta só (em vez de solto na raiz do zip) — sem isso, o conteúdo
-// real ficaria uma pasta mais fundo do que devia.
-function unwrapSingleThunderstoreFolder(stagingDir) {
-  const entries = fs.readdirSync(stagingDir, { withFileTypes: true });
-  const nonMetaFiles = entries.filter((e) => e.isFile() && !THUNDERSTORE_METADATA_FILES.has(e.name.toLowerCase()));
-  const dirs = entries.filter((e) => e.isDirectory());
-  if (nonMetaFiles.length === 0 && dirs.length === 1) {
-    return path.join(stagingDir, dirs[0].name);
-  }
-  return stagingDir;
+// ---------- Detecção de mods já instalados (item pedido: "identificar
+// mods JÁ instalados nos arquivos do jogo") ----------
+// Só LÊ o disco: nunca move/apaga nada durante a varredura.
+function getInstallProfile({ gameInstallPath, steamAppId }) {
+  const game = router.gameContext({ gameInstallPath, steamAppId });
+  return require('./modInstallProfiles').describeProfile(game.profile, game.ctx);
 }
 
-// Copia recursivamente MESCLANDO com o que já existir no destino (nunca
-// apaga nada que já estava lá) — usado só pra instalar o BepInExPack na
-// raiz do jogo, onde já existem outros arquivos do próprio jogo que não
-// podem ser tocados (item pedido 17: nunca apagar silenciosamente
-// arquivos de outro mod/do próprio jogo).
-function copyMergeDir(srcDir, destDir) {
-  fs.mkdirSync(destDir, { recursive: true });
-  for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
-    const srcPath = path.join(srcDir, entry.name);
-    const destPath = path.join(destDir, entry.name);
-    if (entry.isDirectory()) {
-      copyMergeDir(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
+function scanInstalled({ gameInstallPath, steamAppId }) {
+  if (!gameInstallPath || !fs.existsSync(gameInstallPath)) throw new Error('A pasta do jogo não foi encontrada.');
+  const game = router.gameContext({ gameInstallPath, steamAppId });
+  const profile = require('./modInstallProfiles').describeProfile(game.profile, game.ctx);
+  const manifest = router.loadManifest(manifestDir(), gameInstallPath);
+  const labelFor = (p) => {
+    const hit = Object.values(game.targets)
+      .filter((t) => t.dir !== gameInstallPath && router.isInside(p, t.dir))
+      .sort((a, b) => b.dir.length - a.dir.length)[0];
+    return hit ? hit.label : 'pasta do jogo';
+  };
+
+  const items = [];
+  for (const entry of Object.values(manifest.mods)) {
+    const on = entry.enabled !== false;
+    const paths = (entry.files || []).map((f) => (on ? f.path : f.stash));
+    const present = paths.filter((p) => fs.existsSync(p));
+    const rep = commonDir((entry.files || []).map((f) => f.path)) || '';
+    items.push({
+      key: entry.key, name: entry.name || entry.key, path: rep,
+      kind: (entry.files || []).length > 1 ? 'folder' : 'file',
+      size: present.reduce((s, p) => s + router.pathSize(p), 0),
+      enabled: on, managedByProjectClub: !entry.adopted, adopted: !!entry.adopted,
+      source: entry.source || null, sourceId: entry.sourceId || null, version: entry.version || null,
+      isLoader: !!entry.isLoader, fileCount: (entry.files || []).length, missingFiles: paths.length - present.length,
+      installedAt: entry.installedAt || null, location: labelFor(rep),
+    });
+  }
+  for (const r of router.legacyRoots(gameInstallPath)) {
+    const off = `${r}.disabled`;
+    if (!fs.existsSync(off)) continue;
+    for (const e of fs.readdirSync(off, { withFileTypes: true })) {
+      if (!e.isDirectory() || manifest.mods[e.name]) continue;
+      const p = path.join(off, e.name);
+      items.push({ key: e.name, name: e.name, path: p, kind: 'folder', size: router.pathSize(p), enabled: false, managedByProjectClub: true, legacy: true, location: path.relative(gameInstallPath, r) });
     }
   }
-}
-
-// Item pedido: instalação "de um clique" tipo Gale — chamado uma vez
-// por pacote da árvore de dependência (já resolvida pelo backend, ver
-// thunderstoreService.js), na ordem certa, pelo ModsPage.jsx. Não
-// resolve dependência nenhuma aqui — só instala UM pacote, sabendo
-// se ele é o framework (isLoader) ou um mod comum.
-async function installThunderstorePackage({ downloadUrl, filename, gameInstallPath, fullName, isLoader }, onProgress) {
-  if (!fs.existsSync(gameInstallPath)) throw new Error('A pasta do jogo não foi encontrada. Talvez ele tenha sido desinstalado ou movido.');
-
-  const folderName = sanitizeModFolderName(fullName);
-  const archivePath = path.join(tempDir(), `${folderName}-${Date.now()}.zip`);
-
-  onProgress?.({ phase: 'downloading', percent: 0 });
-  try {
-    await downloadToFile(downloadUrl, archivePath, (percent) => onProgress?.({ phase: 'downloading', percent }));
-
-    onProgress?.({ phase: 'extracting', percent: 0 });
-    const stagingRoot = `${archivePath}.staging`;
-    fs.mkdirSync(stagingRoot, { recursive: true });
-    await extractZip(archivePath, { dir: stagingRoot });
-    const contentDir = unwrapSingleThunderstoreFolder(stagingRoot);
-
-    onProgress?.({ phase: 'installing', percent: 0 });
-
-    if (isLoader) {
-      // BepInExPack: mescla direto na raiz do jogo.
-      copyMergeDir(contentDir, gameInstallPath);
-      fs.rmSync(stagingRoot, { recursive: true, force: true });
-      onProgress?.({ phase: 'done', percent: 100 });
-      return { installedPath: gameInstallPath, strategy: 'bepinex-loader' };
-    }
-
-    // Mod comum: agora que o loader (instalado antes dele, na mesma
-    // sequência que o ModsPage.jsx já garante) faz detectInstallStrategy
-    // enxergar BepInEx, este mod cai na mesma pasta BepInEx/plugins que
-    // QUALQUER outra fonte (mod.io/GameBanana/arquivo local) já usa —
-    // reaproveitando listInstalledMods/setModEnabled/uninstallMod acima
-    // sem precisar de nenhuma versão "Thunderstore" separada delas.
-    const strategy = detectInstallStrategy(gameInstallPath);
-    fs.mkdirSync(strategy.targetRoot, { recursive: true });
-    const finalDir = path.join(strategy.targetRoot, folderName);
-    if (fs.existsSync(finalDir)) fs.rmSync(finalDir, { recursive: true, force: true });
-    const oldDisabledDir = path.join(disabledRoot(strategy), folderName);
-    if (fs.existsSync(oldDisabledDir)) fs.rmSync(oldDisabledDir, { recursive: true, force: true });
-    fs.renameSync(contentDir, finalDir);
-    fs.rmSync(stagingRoot, { recursive: true, force: true });
-
-    onProgress?.({ phase: 'done', percent: 100 });
-    return { installedPath: finalDir, strategy: strategy.kind };
-  } finally {
-    fs.rm(archivePath, { force: true }, () => {});
+  for (const d of router.scanEntries(game, manifest)) {
+    if (d.owner) continue;
+    items.push({
+      key: `detected:${sanitizeModFolderName(d.isDir ? d.name : stripExt(d.name))}`,
+      name: d.name, path: d.abs, kind: d.isDir ? 'folder' : 'file', size: router.pathSize(d.abs),
+      enabled: true, managedByProjectClub: false, location: d.location,
+    });
   }
+  return { profile, loader: profile.loader, items };
 }
 
 module.exports = {
   installMod, uninstallMod, listInstalledMods, setModEnabled, applyProfileMods, detectInstallStrategy,
   installLocalFile, listConfigFiles, readConfigFile, writeConfigFile,
   saveModpackLocally, listLocalModpacks, loadLocalModpack, deleteLocalModpack,
-  installThunderstorePackage,
+  installThunderstorePackage, scanInstalled, getInstallProfile,
 };
 
 // ---------- Pasta local de Modpacks (item pedido: "criar uma pasta do
@@ -404,32 +457,6 @@ function deleteLocalModpack(gameKey, packName) {
   return { deleted: true };
 }
 
-// Item pedido: "adicione mods de um arquivo local" — mesmo fluxo de
-// installMod, só que sem baixar nada: o arquivo já está no computador
-// da pessoa (escolhido pelo diálogo nativo, ver main.js). Se for um
-// .zip, extrai; qualquer outra extensão (.dll solto, por exemplo) só
-// copia direto pra dentro da própria pasta do mod.
-async function installLocalFile({ filePath, gameInstallPath, modName }, onProgress) {
-  if (!fs.existsSync(gameInstallPath)) throw new Error('A pasta do jogo não foi encontrada.');
-  if (!fs.existsSync(filePath)) throw new Error('O arquivo selecionado não existe mais.');
-
-  const { enabledDir, disabledDir, strategy } = modPaths(gameInstallPath, modName);
-  onProgress?.({ phase: 'installing', percent: 0 });
-  fs.mkdirSync(strategy.targetRoot, { recursive: true });
-  if (fs.existsSync(enabledDir)) fs.rmSync(enabledDir, { recursive: true, force: true });
-  if (fs.existsSync(disabledDir)) fs.rmSync(disabledDir, { recursive: true, force: true });
-
-  if (path.extname(filePath).toLowerCase() === '.zip') {
-    fs.mkdirSync(enabledDir, { recursive: true });
-    await extractZip(filePath, { dir: enabledDir });
-  } else {
-    fs.mkdirSync(enabledDir, { recursive: true });
-    fs.copyFileSync(filePath, path.join(enabledDir, path.basename(filePath)));
-  }
-  onProgress?.({ phase: 'done', percent: 100 });
-  return { installedPath: enabledDir };
-}
-
 // ---------- Configuração dos mods (item pedido: "poder configurar
 // mods") ----------
 // A maioria dos mods de BepInEx grava as opções configuráveis em
@@ -440,7 +467,11 @@ async function installLocalFile({ filePath, gameInstallPath, modName }, onProgre
 // pessoa vê o arquivo exatamente como ele é e edita à vontade — mesmo
 // modelo que qualquer editor de config de verdade usa por baixo.
 function configDir(gameInstallPath) {
-  return path.join(gameInstallPath, 'BepInEx', 'config');
+  // Pasta de configuração do loader do jogo (BepInEx/config, UserData do
+  // MelonLoader...) — padrão BepInEx/config, como sempre foi.
+  let rel = 'BepInEx/config';
+  try { rel = router.gameContext({ gameInstallPath }).profile.configDir || rel; } catch { /* perfil indisponível */ }
+  return path.join(gameInstallPath, ...rel.split('/'));
 }
 
 // Nunca deixa escapar da pasta de config (sem "..", sem caminho
@@ -475,12 +506,9 @@ function writeConfigFile(gameInstallPath, filename, content) {
 }
 
 // ---------- Roadmap (fora do escopo desta fase) ----------
-// - Detecção de conflito de arquivo entre mods (item 17).
-// - Suporte a outros mod loaders além do padrão BepInEx (item 27) —
-//   detectInstallStrategy é o ponto de extensão único pra isso.
-// - Instalar uma coleção inteira de uma vez (item 19).
-// - Thunderstore: resolução de dependência em árvore já existe (ver
-//   thunderstoreService.js no backend) e a instalação de cada pacote
-//   também (installThunderstorePackage acima) — o que falta é detecção
-//   de CONFLITO entre pacotes instalados juntos, igual o item 17 acima
-//   já cobre pras outras fontes.
+// - Ordem de carga (plugins.txt da Bethesda, modsettings.lsx do BG3,
+//   ModsConfig.xml do RimWorld) continua sendo feita no próprio jogo.
+// - Instaladores FOMOD com opções e pacotes .oiv (OpenIV) não são
+//   suportados; .rar também não (sem extrator confiável embutido).
+// - Conflitos entre mods são só AVISADOS (o arquivo substituído vai pro
+//   backup e volta quando o mod que substituiu sai).

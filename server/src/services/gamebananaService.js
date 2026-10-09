@@ -68,4 +68,16 @@ async function getMod(modId) {
   return cacheGetOrSet(cacheKey, TTL_DETAIL, () => gbFetch(`/Mod/${modId}`, { _csvProperties: properties }));
 }
 
-module.exports = { browseOrSearch, getMod };
+// Categorias de mod do jogo (Mod/Categories) — usadas na lista unificada
+// de categorias do "Explorar". Mesma ressalva de API semi-oficial: se o
+// formato mudar, quem chama trata o erro e segue sem as categorias.
+async function listCategories(gameBananaGameId) {
+  const cacheKey = `gamebanana:categories:${gameBananaGameId}`;
+  return cacheGetOrSet(cacheKey, 60 * 60, async () => {
+    const data = await gbFetch('/Mod/Categories', { _idGameRow: gameBananaGameId, _sSort: 'a_to_z', _bShowEmpty: 'false' });
+    const list = Array.isArray(data) ? data : (data?._aRecords || []);
+    return list.map((c) => ({ id: c._idRow, name: c._sName, count: c._nItemCount ?? null })).filter((c) => c.name);
+  });
+}
+
+module.exports = { browseOrSearch, getMod, listCategories };

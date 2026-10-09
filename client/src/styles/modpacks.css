@@ -1,0 +1,287 @@
+/* Modpacks públicos — aba "Modpacks" do gerenciador de mods
+   (pages/mods/ModpacksTab.jsx) e card "Modpack preferido" do perfil. */
+
+/* ---------- Abas em pílula ---------- */
+.mpk-pills {
+  display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; margin-bottom: 14px; max-width: 100%;
+  border-radius: 13px; background: var(--bg-secondary); border: 1px solid var(--border);
+}
+.mpk-pills.small { margin-bottom: 12px; border-radius: 12px; }
+.mpk-pill {
+  display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border-radius: 10px;
+  font-size: 13.5px; font-weight: 700; color: var(--text-muted); background: transparent; border: 0; cursor: pointer;
+  transition: background-color .15s ease, color .15s ease;
+}
+.mpk-pills.small .mpk-pill { height: 32px; padding: 0 12px; font-size: 13px; }
+.mpk-pill:hover { color: var(--header-primary); }
+.mpk-pill.active { background: var(--bg-primary); color: var(--header-primary); box-shadow: 0 1px 4px rgba(0, 0, 0, .18); }
+.mpk-pill.active .mdx-icon { color: var(--brand); }
+.mpk-pill-count {
+  font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 999px;
+  background: var(--bg-modifier-hover); color: var(--text-normal);
+}
+.mpk-pill.active .mpk-pill-count { background: color-mix(in srgb, var(--brand) 22%, transparent); color: var(--header-primary); }
+.mpk-src-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--src, var(--brand)); flex-shrink: 0; }
+
+.mpk .mpk-lead { margin: -2px 0 16px; line-height: 1.5; }
+.mpk-hint { margin: 8px 0 10px; line-height: 1.45; }
+.mpk-spacer { flex: 1 1 auto; }
+.mpk-err { color: var(--red); font-size: 13px; }
+
+/* ---------- Aviso ---------- */
+.mpk-notice {
+  display: flex; align-items: flex-start; gap: 8px; margin: 0 0 14px; padding: 10px 10px 10px 14px; border-radius: 12px;
+  font-size: 13.5px; color: var(--text-normal); background: color-mix(in srgb, var(--brand) 10%, var(--bg-secondary));
+  border: 1px solid color-mix(in srgb, var(--brand) 28%, transparent);
+}
+.mpk-notice > span { flex: 1; min-width: 0; line-height: 1.45; padding-top: 2px; }
+.mpk-notice > .mdx-icon { margin-top: 3px; color: var(--brand); flex-shrink: 0; }
+.mpk-notice .mdx-icon-btn { width: 26px; height: 26px; }
+.mpk-notice.ok { background: color-mix(in srgb, var(--green) 10%, var(--bg-secondary)); border-color: color-mix(in srgb, var(--green) 30%, transparent); }
+.mpk-notice.ok > .mdx-icon { color: var(--green); }
+.mpk-notice.error { background: color-mix(in srgb, var(--red) 9%, var(--bg-secondary)); border-color: color-mix(in srgb, var(--red) 30%, transparent); }
+.mpk-notice.error > .mdx-icon { color: var(--red); }
+.mpk-notice.warn > .mdx-icon { color: #f0b232; }
+
+/* ---------- Grade de cards ---------- */
+.mpk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.mpk-skel-card { height: 300px; border-radius: 16px; }
+.mpk-card {
+  display: flex; flex-direction: column; min-width: 0; overflow: hidden; border-radius: 16px;
+  background: var(--bg-primary); border: 1px solid var(--border); transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.mpk-card:hover { border-color: color-mix(in srgb, var(--brand) 45%, var(--border)); box-shadow: 0 10px 26px -18px rgba(0, 0, 0, .7); }
+.mpk-card-media { position: relative; display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; }
+.mpk-card-body { display: flex; flex-direction: column; gap: 9px; padding: 12px 14px 14px; flex: 1; min-width: 0; }
+.mpk-card-title {
+  align-self: flex-start; max-width: 100%; padding: 0; border: 0; background: none; cursor: pointer; text-align: left;
+  font-size: 16px; font-weight: 800; letter-spacing: -.2px; color: var(--header-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mpk-card-title:hover { color: var(--brand); }
+.mpk-card-stats { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12.5px; color: var(--text-muted); font-weight: 600; }
+.mpk-card-stats > span { display: inline-flex; align-items: center; gap: 5px; }
+.mpk-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: auto; padding-top: 4px; }
+
+.mpk-cover {
+  position: relative; aspect-ratio: 460 / 215; width: 100%; overflow: hidden;
+  background: linear-gradient(135deg, hsl(var(--h1, 210) 55% 40%), hsl(var(--h2, 260) 50% 14%));
+}
+.mpk-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .35s ease; }
+.mpk-card:hover .mpk-cover img { transform: scale(1.03); }
+.mpk-cover-glyph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: rgba(255, 255, 255, .8); }
+.mpk-cover.wide { border-radius: 12px; }
+
+.mpk-badge {
+  position: absolute; top: 10px; left: 10px; display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px;
+  border-radius: 999px; font-size: 11.5px; font-weight: 800; color: #fff; background: rgba(0, 0, 0, .58);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.mpk-badge.public { background: color-mix(in srgb, var(--green) 82%, #000); }
+
+.mpk-author { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 12.5px; color: var(--text-muted); }
+.mpk-author strong { color: var(--text-normal); font-weight: 700; }
+.mpk-author > span:not(.mpk-dot) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mpk-dot { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: .6; flex-shrink: 0; }
+.mpk-desc {
+  margin: 0; font-size: 13px; line-height: 1.45; color: var(--text-normal);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
+}
+.mpk-desc.full { display: block; -webkit-line-clamp: unset; white-space: pre-wrap; }
+
+.mpk-chips { display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
+.mpk-chip {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 160px; height: 24px; padding: 0 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; color: var(--text-normal); background: var(--bg-secondary); border: 1px solid var(--border);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mpk-chip.installed { color: var(--green); border-color: color-mix(in srgb, var(--green) 35%, var(--border)); background: color-mix(in srgb, var(--green) 9%, var(--bg-secondary)); }
+.mpk-chip.more { color: var(--text-muted); }
+
+/* ---------- Votos ---------- */
+.mpk-votes { display: inline-flex; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--bg-secondary); }
+.mpk-vote {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 11px; border: 0; background: transparent; cursor: pointer;
+  font-size: 12.5px; font-weight: 800; color: var(--text-muted); transition: background-color .15s ease, color .15s ease;
+}
+.mpk-vote + .mpk-vote { border-left: 1px solid var(--border); }
+.mpk-vote:hover:not(:disabled) { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.mpk-vote:disabled { cursor: default; }
+.mpk-vote.up.on { color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.mpk-vote.down.on { color: var(--red); background: color-mix(in srgb, var(--red) 14%, transparent); }
+.mpk-flip { display: inline-flex; transform: rotate(180deg); }
+.mpk-downloads { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: var(--text-muted); }
+
+/* ---------- Lista de mods ---------- */
+.mpk-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.mpk-item {
+  display: flex; align-items: center; gap: 10px; min-width: 0; padding: 8px 10px; border-radius: 12px;
+  background: var(--bg-primary); border: 1px solid var(--border);
+}
+.mpk-items.pick .mpk-item.selected { border-color: color-mix(in srgb, var(--brand) 55%, var(--border)); background: color-mix(in srgb, var(--brand) 8%, var(--bg-primary)); }
+.mpk-items.compact .mpk-item { padding: 6px 10px; }
+.mpk-item-thumb {
+  position: relative; flex-shrink: 0; width: 52px; height: 32px; border-radius: 8px; overflow: hidden; display: inline-flex; align-items: center; justify-content: center;
+  color: rgba(255, 255, 255, .85); background: linear-gradient(135deg, hsl(var(--h1, 210) 45% 38%), hsl(calc(var(--h1, 210) + 40) 45% 18%));
+}
+.mpk-item-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.mpk-item-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mpk-item-text strong { font-size: 13.5px; color: var(--header-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mpk-item-text > span { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mpk-source { font-weight: 800; color: color-mix(in srgb, var(--src) 75%, var(--header-primary)); }
+.mpk-state { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--text-muted); }
+.mpk-state.ok { color: var(--green); }
+.mpk-state.muted { opacity: .8; font-weight: 600; }
+
+/* ---------- Modal ---------- */
+.mpk-overlay {
+  position: fixed; inset: 0; z-index: 1200; display: flex; align-items: center; justify-content: center; padding: 20px;
+  background: rgba(0, 0, 0, .6);
+}
+.mpk-modal {
+  display: flex; flex-direction: column; width: 100%; max-width: 560px; max-height: min(88vh, 860px); overflow: hidden;
+  border-radius: 18px; background: var(--bg-secondary); border: 1px solid var(--border); box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .7);
+  color: var(--text-normal);
+}
+.mpk-modal.wide { max-width: 720px; }
+.mpk-modal-head { display: flex; align-items: center; gap: 10px; padding: 14px 14px 12px 20px; border-bottom: 1px solid var(--border); }
+.mpk-modal-head h3 { flex: 1; min-width: 0; margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.3px; color: var(--header-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mpk-modal-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 18px; display: flex; flex-direction: column; gap: 12px; }
+.mpk-modal-body > .mdx-note { margin: 0; }
+.mpk-modal-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--bg-primary) 50%, var(--bg-secondary)); }
+@media (prefers-reduced-motion: no-preference) {
+  .mpk-overlay { animation: mpk-fade .16s ease-out; }
+  .mpk-modal { animation: mpk-pop .2s cubic-bezier(.2, .8, .2, 1); }
+}
+@keyframes mpk-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mpk-pop { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+
+/* Detalhe */
+.mpk-detail-hero { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.mpk-detail-info { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.mpk-detail-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mpk-eyebrow { font-size: 11.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--brand); }
+
+/* Editor */
+.mpk-form { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; align-items: start; }
+.mpk-form-cover { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.mpk-form-cover .mpk-cover { border-radius: 12px; }
+.mpk-form-fields { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.mpk-field { display: flex; flex-direction: column; gap: 6px; }
+.mpk-field > span { font-size: 12.5px; font-weight: 800; color: var(--header-primary); }
+.mpk-field em { font-style: normal; font-weight: 600; color: var(--text-muted); }
+.mpk-field input, .mpk-field textarea {
+  width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; font: inherit; font-size: 14px;
+  color: var(--text-normal); background: var(--bg-primary); border: 1px solid var(--border); resize: vertical;
+}
+.mpk-field input:focus, .mpk-field textarea:focus { outline: none; border-color: color-mix(in srgb, var(--brand) 65%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
+.mpk-toggle-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--bg-primary); border: 1px solid var(--border); }
+.mpk-toggle-row > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mpk-toggle-row strong { font-size: 14px; color: var(--header-primary); }
+.mpk-items-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
+.mpk-items-head h4 { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; color: var(--header-primary); }
+
+/* Progresso do download */
+.mpk-run-head { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--text-normal); }
+.mpk-run-head > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mpk-run-icon {
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-modifier-hover); color: var(--text-muted);
+}
+.mpk-run-icon.installed, .mpk-run-icon.already { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
+.mpk-run-icon.failed { background: color-mix(in srgb, var(--red) 16%, transparent); color: var(--red); }
+.mpk-run-icon.working { background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--brand); }
+.mpk-item.pending { opacity: .65; }
+.mpk-spinner { width: 13px; height: 13px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: mpk-spin .8s linear infinite; }
+@keyframes mpk-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .mpk-spinner { animation-duration: 2.4s; } }
+.mpk-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.mpk-summary-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 6px; border-radius: 12px; background: var(--bg-primary); border: 1px solid var(--border); }
+.mpk-summary-tile strong { font-size: 24px; font-weight: 800; color: var(--header-primary); }
+.mpk-summary-tile span { font-size: 12px; color: var(--text-muted); font-weight: 700; }
+.mpk-summary-tile.ok strong { color: var(--green); }
+.mpk-summary-tile.bad strong { color: var(--red); }
+
+/* ---------- Celular ---------- */
+@media (max-width: 700px) {
+  .mpk-pills { display: flex; width: 100%; box-sizing: border-box; }
+  .mpk-pill { flex: 1 1 auto; justify-content: center; padding: 0 10px; }
+  .mpk-grid { grid-template-columns: minmax(0, 1fr); }
+  .mpk-overlay { padding: 0; align-items: flex-end; }
+  .mpk-modal, .mpk-modal.wide { max-width: none; max-height: 92vh; border-radius: 18px 18px 0 0; }
+  .mpk-modal-body { padding: 14px 14px 16px; }
+  .mpk-modal-foot { padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); }
+  .mpk-detail-hero, .mpk-form { grid-template-columns: minmax(0, 1fr); }
+  .mpk-form-cover { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .mpk-form-cover .mpk-cover { width: 140px; }
+  .mpk-form-cover .mdx-small { flex-basis: 100%; }
+}
+
+/* ---------- Perfil: card "Modpack preferido" ---------- */
+.pfm { display: flex; gap: 14px; min-width: 0; }
+.pfm-poster {
+  position: relative; flex-shrink: 0; width: 92px; aspect-ratio: 2 / 3; border-radius: 10px; overflow: hidden;
+  background: linear-gradient(160deg, hsl(var(--h1, 210) 50% 38%), hsl(var(--h2, 250) 45% 12%)); box-shadow: 0 8px 20px -12px rgba(0, 0, 0, .8);
+}
+.pfm-poster img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.pfm-poster.mod { aspect-ratio: 16 / 10; width: 128px; }
+.pfm-poster-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 6px; text-align: center; font-size: 11px; font-weight: 800; color: rgba(255, 255, 255, .9); }
+.pfm-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.pfm-game { font-size: 11.5px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: var(--pf-accent, var(--brand)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pfm-name { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -.2px; color: var(--header-primary); overflow-wrap: anywhere; }
+.pfm-stats { display: flex; flex-wrap: wrap; gap: 6px; }
+.pfm-stat {
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 800; color: var(--text-normal); background: var(--pf-inner-bg, var(--bg-primary));
+}
+.pfm-stat.up svg { color: var(--green); }
+.pfm-stat.down svg { color: var(--red); }
+.pfm-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.pfm-private { font-size: 12px; color: var(--text-muted); }
+
+/* Escolher (modal do perfil) */
+.pfm-pick-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.pfm-pick {
+  display: flex; flex-direction: column; width: 100%; padding: 0; overflow: hidden; text-align: left; cursor: pointer;
+  border-radius: 14px; background: var(--bg-primary); border: 1px solid var(--border); color: inherit; transition: border-color .15s ease;
+}
+.pfm-pick:hover { border-color: color-mix(in srgb, var(--brand) 50%, var(--border)); }
+.pfm-pick.current { border-color: var(--brand); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 30%, transparent); }
+.pfm-pick-body { display: flex; flex-direction: column; gap: 4px; padding: 9px 11px 11px; min-width: 0; }
+.pfm-pick-body strong { font-size: 14px; color: var(--header-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pfm-pick-body span { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 700px) {
+  .pfm-poster { width: 76px; }
+  .pfm-poster.mod { width: 104px; }
+  .pfm-pick-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+}
+
+/* Peças genéricas pro modal do perfil (mods.css só carrega na página de mods). */
+.mpk-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 38px; padding: 0 15px; border-radius: 10px;
+  font-size: 13.5px; font-weight: 700; border: 1px solid transparent; cursor: pointer; white-space: nowrap;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.mpk-btn:disabled { opacity: .55; cursor: not-allowed; }
+.mpk-btn.sm { height: 32px; padding: 0 11px; font-size: 12.5px; border-radius: 9px; gap: 6px; }
+.mpk-btn.primary { background: var(--brand); color: #fff; }
+.mpk-btn.ghost { background: var(--bg-primary); color: var(--text-normal); border-color: var(--border); }
+.mpk-btn.ghost:hover:not(:disabled) { border-color: color-mix(in srgb, var(--brand) 55%, var(--border)); color: var(--header-primary); }
+.mpk-btn.ghost.on { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 55%, var(--border)); background: color-mix(in srgb, var(--brand) 12%, var(--bg-primary)); opacity: 1; }
+.mpk-btn.ghost.danger { color: var(--red); }
+.mpk-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px;
+  color: var(--text-muted); background: transparent; border: 0; cursor: pointer;
+}
+.mpk-icon-btn:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.mpk-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 26px 12px; }
+.mpk-empty-icon {
+  width: 52px; height: 52px; border-radius: 15px; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent); margin-bottom: 4px;
+}
+.mpk-empty h3 { margin: 0; font-size: 16px; color: var(--header-primary); }
+.mpk-empty p { margin: 0; font-size: 13.5px; color: var(--text-muted); }
+.mpk-skel { border-radius: 14px; background: var(--bg-modifier-hover); }
+@media (prefers-reduced-motion: no-preference) { .mpk-skel { animation: mpk-pulse 1.3s ease-in-out infinite; } }
+@keyframes mpk-pulse { 50% { opacity: .5; } }
+.pfm-pick .mpk-cover { display: block; }

@@ -1,5 +1,6 @@
 const express = require('express');
 const ctrl = require('../controllers/modController');
+const unifiedCtrl = require('../controllers/unifiedModsController');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -10,6 +11,11 @@ const router = express.Router();
 router.use(requireAuth);
 
 router.post('/steam-match', ctrl.matchSteamGames);
+
+// Busca unificada (todas as fontes juntas, com compatibilidade) e
+// identificação de mods detectados no disco — ver unifiedModsService.js.
+router.get('/unified/:steamAppId', unifiedCtrl.search);
+router.post('/identify', unifiedCtrl.identify);
 
 router.get('/games/:modioGameId', ctrl.getGame);
 router.get('/games/:modioGameId/tags', ctrl.getGameTags);

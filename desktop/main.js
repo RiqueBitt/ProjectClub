@@ -680,11 +680,34 @@ if (!gotLock) {
     }
   });
 
-  ipcMain.handle('mods:list-installed', (_event, gameInstallPath) => {
+  // Aceita o caminho (formato antigo) ou { gameInstallPath, steamAppId }.
+  ipcMain.handle('mods:list-installed', (_event, arg) => {
     try {
-      return { success: true, ...modsManager.listInstalledMods(gameInstallPath) };
+      const { gameInstallPath, steamAppId } = typeof arg === 'string' ? { gameInstallPath: arg } : (arg || {});
+      return { success: true, ...modsManager.listInstalledMods(gameInstallPath, steamAppId) };
     } catch (err) {
       return { success: false, error: err.message, enabled: [], disabled: [] };
+    }
+  });
+
+  // Item pedido: "identificar mods JÁ instalados nos arquivos do jogo" —
+  // varre as pastas de mods do perfil do jogo (só leitura, nunca move
+  // nem apaga nada) e devolve detectados + instalados pelo Project Club,
+  // junto com o estado do loader (BepInEx/MelonLoader/SMAPI...).
+  ipcMain.handle('mods:scan-installed', (_event, { gameInstallPath, steamAppId } = {}) => {
+    try {
+      return { success: true, ...modsManager.scanInstalled({ gameInstallPath, steamAppId }) };
+    } catch (err) {
+      return { success: false, error: err.message, items: [] };
+    }
+  });
+
+  // "Como este jogo usa mods": loader, pastas, tipos de arquivo, avisos.
+  ipcMain.handle('mods:get-install-profile', (_event, { gameInstallPath, steamAppId } = {}) => {
+    try {
+      return { success: true, profile: modsManager.getInstallProfile({ gameInstallPath, steamAppId }) };
+    } catch (err) {
+      return { success: false, error: err.message };
     }
   });
 
@@ -724,9 +747,10 @@ if (!gotLock) {
   // pasta de mods do jogo no explorador de arquivos do sistema
   // (Explorer/Finder/Nautilus, o que a pessoa já usa normalmente),
   // pra quem quiser mexer nos arquivos na mão.
-  ipcMain.handle('mods:open-folder', (_event, gameInstallPath) => {
+  ipcMain.handle('mods:open-folder', (_event, arg) => {
     try {
-      const strategy = modsManager.detectInstallStrategy(gameInstallPath);
+      const { gameInstallPath, steamAppId } = typeof arg === 'string' ? { gameInstallPath: arg } : (arg || {});
+      const strategy = modsManager.detectInstallStrategy(gameInstallPath, steamAppId);
       require('fs').mkdirSync(strategy.targetRoot, { recursive: true });
       shell.openPath(strategy.targetRoot);
       return { success: true };
@@ -742,7 +766,12 @@ if (!gotLock) {
     const result = await dialog.showOpenDialog(mainWindow || undefined, {
       title: 'Selecione o arquivo do mod',
       properties: ['openFile'],
-      filters: [{ name: 'Arquivos de mod', extensions: ['zip', 'dll'] }],
+      // Qualquer formato que o instalador por jogo sabe encaminhar
+      // (.zip/.7z extraídos; .pak/.esp/.tmod/... copiados pro lugar certo).
+      filters: [
+        { name: 'Arquivos de mod', extensions: ['zip', '7z', 'dll', 'pak', 'utoc', 'ucas', 'esp', 'esm', 'esl', 'bsa', 'ba2', 'vpk', 'gma', 'tmod', 'archive', 'reds', 'asi', 'package', 'ts4script', 'scs', 'jar', 'pack', 'crp'] },
+        { name: 'Todos os arquivos', extensions: ['*'] },
+      ],
     });
     if (result.canceled || !result.filePaths[0]) return { success: false, canceled: true };
     return { success: true, path: result.filePaths[0], name: require('path').basename(result.filePaths[0]) };

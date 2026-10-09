@@ -44,7 +44,7 @@ const SORT_QUERY_TYPE = {
 };
 const TEXT_SEARCH_QUERY_TYPE = 13; // RankedByTextSearch — usado quando tem busca por texto
 
-async function queryFiles(workshopAppId, { query, sort = 'popular', cursor = '*', limit = 20 } = {}) {
+async function queryFiles(workshopAppId, { query, sort = 'popular', cursor = '*', limit = 20, requiredTags } = {}) {
   if (!isConfigured()) throw new SteamWorkshopNotConfiguredError();
   const queryType = query ? TEXT_SEARCH_QUERY_TYPE : (SORT_QUERY_TYPE[sort] ?? SORT_QUERY_TYPE.popular);
   const params = new URLSearchParams({
@@ -60,6 +60,8 @@ async function queryFiles(workshopAppId, { query, sort = 'popular', cursor = '*'
     return_metadata: 'false',
   });
   if (query) params.set('search_text', query);
+  // Filtro por categoria (tag do Workshop) — usado pela busca unificada.
+  [].concat(requiredTags || []).filter(Boolean).forEach((tag, i) => params.set(`requiredtags[${i}]`, tag));
 
   const cacheKey = `workshop:list:${workshopAppId}:${params.toString()}`;
   return cacheGetOrSet(cacheKey, TTL_LIST, async () => {

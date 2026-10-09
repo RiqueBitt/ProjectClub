@@ -33,6 +33,7 @@ import xIcon from '../../assets/icons/social-x.png';
 import levelStarIcon from '../../assets/icons/level-star.png';
 import { proxyImage } from '../../utils/imageProxy';
 import { visibleProfileSectionOrder } from '../../utils/profileSections';
+import FeaturedModpackSection from '../FeaturedModpackSection.jsx';
 import '../../styles/profile.css';
 
 // Ícones de traço do perfil (SVG, herdam a cor do texto) — mapa local pra
@@ -65,6 +66,7 @@ const PF_PATHS = {
   alert: 'M12 3 2 20h20L12 3ZM12 10v4M12 17h.01',
   arrow: 'M5 12h14M13 6l6 6-6 6',
   grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+  layers: 'm12 3 9 5-9 5-9-5 9-5ZM3 12.5l9 5 9-5M3 16.5l9 5 9-5',
 };
 export function PfIcon({ name, size = 16, strokeWidth = 1.9 }) {
   return (
@@ -112,7 +114,7 @@ const PF_TABS = [
 ];
 const PF_SECTION_TAB = {
   about: 'about', roles: 'about', connections: 'about', mutual_friends: 'about', relationship: 'about', traits: 'about', member_since: 'about',
-  community_activity: 'activity', polls: 'activity', album: 'activity',
+  community_activity: 'activity', polls: 'activity', album: 'activity', featured_modpack: 'activity',
   achievements: 'achievements',
   scraps: 'wall', testimonials: 'wall', visitors: 'wall',
 };
@@ -579,6 +581,18 @@ export default function UserProfileModal() {
             ))}
           </div>
         </PfCard>
+      )
+    ),
+    // Item pedido: coluna "Modpack preferido" (modpack ou mod em destaque).
+    featured_modpack: (
+      (isMe || data.featuredItem) && (
+        <FeaturedModpackSection
+          Card={PfCard}
+          item={data.featuredItem || null}
+          isMe={isMe}
+          onChanged={(featuredItem) => setData((d) => (d ? { ...d, featuredItem } : d))}
+          onOpenModpack={() => { closeProfile(); navigate('/jogos/mods'); }}
+        />
       )
     ),
     community_activity: (

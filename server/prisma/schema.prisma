@@ -349,6 +349,17 @@ model User {
   modReports     ModReport[]
   modProfiles    ModProfile[]
   modCollections ModCollection[]
+  // Modpacks públicos (ver SharedModpack no fim do arquivo).
+  sharedModpacks         SharedModpack[]         @relation("SharedModpackAuthor")
+  sharedModpackVotes     SharedModpackVote[]
+  sharedModpackDownloads SharedModpackDownload[]
+  // Item pedido: coluna "Modpack preferido" no perfil — OU um modpack
+  // (featuredModpackId) OU um mod avulso (featuredModJson, objeto JSON
+  // { source, sourceId, name, thumbnailUrl, steamAppId, gameName }).
+  // Escolher um limpa o outro (ver modpackController.setFeatured).
+  featuredModpackId      String?
+  featuredModpack        SharedModpack?          @relation("UserFeaturedModpack", fields: [featuredModpackId], references: [id], onDelete: SetNull)
+  featuredModJson        String?                 @db.Text
 }
 
 // Item pedido: "pingentes... mini imagens que podem ser colocadas pelo
@@ -2354,4 +2365,64 @@ model ModCollectionItem {
   order        Int           @default(0)
 
   @@unique([collectionId, modioModId])
+}
+
+// Item pedido: "sistema de criar modpacks e postar pra outras pessoas
+// baixarem, com like, dislike e quantas pessoas já baixaram". Diferente
+// de ModProfile (privado, só mod.io) — vale pra QUALQUER jogo (chave =
+// steamAppId) e qualquer fonte. items é um array JSON de
+// { source: 'modio'|'thunderstore'|'gamebanana'|'workshop'|'local',
+// sourceId, name, thumbnailUrl?, version? } — 'local' é só uma pasta no
+// disco de quem criou e não pode ser baixado por outra pessoa.
+// likeCount/dislikeCount/downloadCount são contadores desnormalizados
+// (mantidos em transação junto com SharedModpackVote/Download).
+model SharedModpack {
+  id            String                  @id @default(uuid())
+  authorId      String
+  author        User                    @relation("SharedModpackAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  steamAppId    Int
+  gameName      String
+  name          String
+  description   String?                 @db.Text
+  coverUrl      String?
+  items         String                  @db.MediumText
+  isPublic      Boolean                 @default(false)
+  likeCount     Int                     @default(0)
+  dislikeCount  Int                     @default(0)
+  downloadCount Int                     @default(0)
+  votes         SharedModpackVote[]
+  downloads     SharedModpackDownload[]
+  featuredBy    User[]                  @relation("UserFeaturedModpack")
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  @@index([steamAppId, isPublic])
+  @@index([authorId])
+}
+
+model SharedModpackVote {
+  id         String        @id @default(uuid())
+  modpackId  String
+  modpack    SharedModpack @relation(fields: [modpackId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  value      Int // +1 = like, -1 = dislike
+  createdAt  DateTime      @default(now())
+
+  @@unique([modpackId, userId])
+  @@index([userId])
+}
+
+// Um registro por pessoa — "quantas pessoas já baixaram" conta gente,
+// não cliques (baixar de novo não soma).
+model SharedModpackDownload {
+  id         String        @id @default(uuid())
+  modpackId  String
+  modpack    SharedModpack @relation(fields: [modpackId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime      @default(now())
+
+  @@unique([modpackId, userId])
+  @@index([userId])
 }

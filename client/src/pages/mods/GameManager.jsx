@@ -19,6 +19,8 @@ import { ModioBrowse, ModioModDetail } from './ModioViews.jsx';
 import { WorkshopBrowse } from './WorkshopViews.jsx';
 import { GameBananaBrowse, GameBananaModDetail } from './GameBananaViews.jsx';
 import { ThunderstoreBrowse, ThunderstoreModDetail } from './ThunderstoreViews.jsx';
+import SharedModpacksTab from './ModpacksTab.jsx';
+import { peekPendingModpack } from './modpackShared.js';
 
 // Gerenciador de UM jogo, no estilo CurseForge: capa grande do jogo em
 // cima, ações rápidas (Jogar / Abrir pasta / Adicionar mod do PC) e
@@ -33,7 +35,8 @@ export default function GameManager({ game, onBack, scrollRef }) {
   const hasModio = !!game.sources.modio;
   const hasWorkshop = !!game.sources.workshop;
 
-  const [tab, setTab] = useState(supported ? 'explore' : 'files');
+  // "Ver modpack" vindo do perfil abre direto na aba Modpacks.
+  const [tab, setTab] = useState(() => (peekPendingModpack(game.steamAppId) ? 'modpacks' : supported ? 'explore' : 'files'));
   const [activeSource, setActiveSource] = useState(sourceKeys[0] || null);
   const [openedMod, setOpenedMod] = useState(null); // id do mod aberto em "Explorar"
   const listScrollRef = useRef(0);
@@ -154,7 +157,7 @@ export default function GameManager({ game, onBack, scrollRef }) {
   const tabs = [
     supported && { key: 'explore', label: 'Explorar', icon: 'compass' },
     { key: 'installed', label: 'Instalados', icon: 'puzzle', count: canTouchDisk && installedLoaded ? installedTotal + (hasWorkshop ? workshopIds.length : 0) : null },
-    hasModio && { key: 'modpacks', label: 'Modpacks', icon: 'layers', count: profiles?.length || null },
+    { key: 'modpacks', label: 'Modpacks', icon: 'layers' },
     { key: 'files', label: 'Arquivos', icon: 'folder' },
   ].filter(Boolean);
 
@@ -235,17 +238,26 @@ export default function GameManager({ game, onBack, scrollRef }) {
           />
         )}
 
-        {tab === 'modpacks' && hasModio && (
-          <ModpacksTab
-            game={resolveSource('modio')}
+        {/* Modpacks públicos (qualquer jogo) — os perfis/coleções antigos do mod.io ficam numa sub-aba. */}
+        {tab === 'modpacks' && (
+          <SharedModpacksTab
+            game={game}
             desktopReady={desktopReady}
-            profiles={profiles}
-            refreshProfiles={refreshProfiles}
-            refreshInstalled={refreshInstalled}
-            trackInstall={trackInstall}
-            untrackInstall={untrackInstall}
-            completeInstall={completeInstall}
-            onGoInstalled={() => setTab('installed')}
+            installedState={installedState}
+            legacyProfiles={hasModio ? profiles : null}
+            legacy={hasModio ? (
+              <ModpacksTab
+                game={resolveSource('modio')}
+                desktopReady={desktopReady}
+                profiles={profiles}
+                refreshProfiles={refreshProfiles}
+                refreshInstalled={refreshInstalled}
+                trackInstall={trackInstall}
+                untrackInstall={untrackInstall}
+                completeInstall={completeInstall}
+                onGoInstalled={() => setTab('installed')}
+              />
+            ) : null}
           />
         )}
 

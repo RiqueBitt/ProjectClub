@@ -10,6 +10,7 @@ export const PROFILE_SECTION_LABELS = {
   album: 'Álbum de fotos',
   polls: 'Enquetes',
   community_activity: 'Atividade em clubes',
+  featured_modpack: 'Modpack preferido',
   roles: 'Cargos na comunidade',
   member_since: 'Membro desde',
   connections: 'Conexões',
@@ -27,7 +28,7 @@ export const PROFILE_SECTION_LABELS = {
 // futuro (uma seção que existe mas não está na preferência salva
 // ainda entra no fim, em vez de sumir).
 export const DEFAULT_PROFILE_SECTION_ORDER = [
-  'about', 'achievements', 'album', 'polls', 'community_activity',
+  'about', 'achievements', 'album', 'polls', 'community_activity', 'featured_modpack',
   'roles', 'member_since', 'connections', 'mutual_friends', 'relationship',
   'traits', 'scraps', 'testimonials', 'visitors',
 ];

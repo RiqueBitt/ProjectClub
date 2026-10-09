@@ -43,6 +43,7 @@ const appCatalogRoutes = require('./routes/appCatalog');
 // sociais próprios (favoritos, ups, comentários, denúncias). Ver
 // services/modioService.js e controllers/modController.js.
 const modsRoutes = require('./routes/mods');
+const modpacksRoutes = require('./routes/modpacks');
 // Steam Workshop (Terraria/tModLoader, Payday 2, Payday 3 etc) — mesma
 // ideia do modsRoutes, mas falando com a Steamworks Web API em vez do
 // mod.io. Ver services/steamWorkshopService.js.
@@ -310,6 +311,7 @@ function createApp() {
   app.use('/api/admin', adminRoutes);
   app.use('/api/app-catalog', appCatalogRoutes);
   app.use('/api/mods', modsRoutes);
+  app.use('/api/modpacks', modpacksRoutes);
   app.use('/api/workshop', workshopRoutes);
   app.use('/api/gamebanana', gamebananaRoutes);
   app.use('/api/thunderstore', thunderstoreRoutes);

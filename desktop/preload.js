@@ -96,11 +96,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     selectGameFolder: () => ipcRenderer.invoke('mods:select-game-folder'),
     install: (payload) => ipcRenderer.invoke('mods:install', payload),
     uninstall: (payload) => ipcRenderer.invoke('mods:uninstall', payload),
-    listInstalled: (gameInstallPath) => ipcRenderer.invoke('mods:list-installed', gameInstallPath),
+    listInstalled: (gameInstallPath, steamAppId) => ipcRenderer.invoke('mods:list-installed', steamAppId ? { gameInstallPath, steamAppId } : gameInstallPath),
+    // Varredura dos mods já instalados (detectados + Project Club) e
+    // perfil de instalação do jogo (loader, pastas, tipos de arquivo).
+    scanInstalled: (gameInstallPath, steamAppId) => ipcRenderer.invoke('mods:scan-installed', { gameInstallPath, steamAppId }),
+    getInstallProfile: (gameInstallPath, steamAppId) => ipcRenderer.invoke('mods:get-install-profile', { gameInstallPath, steamAppId }),
     setEnabled: (payload) => ipcRenderer.invoke('mods:set-enabled', payload),
     applyProfile: (payload) => ipcRenderer.invoke('mods:apply-profile', payload),
     listWorkshopItems: (gameInstallPath, workshopAppId) => ipcRenderer.invoke('mods:list-workshop-items', { gameInstallPath, workshopAppId }),
-    openFolder: (gameInstallPath) => ipcRenderer.invoke('mods:open-folder', gameInstallPath),
+    openFolder: (gameInstallPath, steamAppId) => ipcRenderer.invoke('mods:open-folder', steamAppId ? { gameInstallPath, steamAppId } : gameInstallPath),
     pickLocalFile: () => ipcRenderer.invoke('mods:pick-local-file'),
     installLocal: (payload) => ipcRenderer.invoke('mods:install-local', payload),
     listConfigFiles: (gameInstallPath) => ipcRenderer.invoke('mods:list-config-files', gameInstallPath),

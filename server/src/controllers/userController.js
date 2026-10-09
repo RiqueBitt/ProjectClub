@@ -2,6 +2,7 @@ const prisma = require('../config/prisma');
 const { PUBLIC_USER_FIELDS, SELF_USER_FIELDS, ensurePublicId } = require('./authController');
 const { clearIfExpired } = require('../services/customStatus');
 const activityStore = require('../services/activityStore');
+const { getFeaturedForProfile } = require('./modpackController');
 
 // BUG CORRIGIDO ("achei um bloco de validação antigo/duplicado,
 // desatualizado, que contornava a proteção de cores_perfil"): essas
@@ -78,7 +79,7 @@ async function updateProfile(req, res, next) {
     const VALID_SECTION_KEYS = [
       'about', 'achievements', 'album', 'polls', 'community_activity', 'roles',
       'member_since', 'connections', 'mutual_friends', 'relationship', 'traits',
-      'scraps', 'testimonials', 'visitors',
+      'scraps', 'testimonials', 'visitors', 'featured_modpack',
     ];
     if (data.profileSectionOrder !== undefined) {
       try {
@@ -706,11 +707,15 @@ async function getUser(req, res, next) {
 
     const activity = (await hasActivityAccess(req.user.id, id)) ? await activityStore.getActivity(id) : null;
 
+    // Item pedido: coluna "Modpack preferido" — some junto com o resto
+    // do perfil completo quando a privacidade não deixa ver.
+    const featuredItem = fullAccess ? await getFeaturedForProfile(id, req.user.id).catch(() => null) : null;
+
     res.json({
       user: clearIfExpired(user), badges, mutualFriends,
       likeCount, dislikeCount, myVote: myVoteRow?.value || 0, levelProgress, totalUps,
       displayedAchievements, displayedAchievementsMini,
-      activity, relationshipPartner, isBirthdayToday,
+      activity, relationshipPartner, isBirthdayToday, featuredItem,
       // Item pedido: "Não mostrar informações administrativas
       // internas que não devam ser expostas ao usuário" (mesmo
       // espírito aqui) — sinaliza pro frontend que esse perfil está

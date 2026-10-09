@@ -611,3 +611,16 @@ export const adminResolveModReport = (id, status) => api.patch(`/admin/mods/repo
 // ---------- Pingentes ----------
 export const uploadMyCustomPendant = (file) => { const fd = new FormData(); fd.append('pendant', file); return api.post('/users/me/pendant/upload', fd).then((r) => r.data); };
 export const removeMyCustomPendant = () => api.delete('/users/me/pendant/upload').then((r) => r.data);
+
+// ---------- Modpacks públicos (qualquer jogo, chave = steamAppId) ----------
+export const listPublicModpacks = (params) => api.get('/modpacks', { params }).then((r) => r.data);
+export const listMyModpacks = (steamAppId) => api.get('/modpacks/mine', { params: steamAppId ? { steamAppId } : {} }).then((r) => r.data);
+export const listUserModpacks = (userId) => api.get(`/modpacks/user/${userId}`).then((r) => r.data);
+export const getModpack = (id) => api.get(`/modpacks/${id}`).then((r) => r.data);
+export const createModpack = (payload) => api.post('/modpacks', payload).then((r) => r.data);
+export const updateModpack = (id, payload) => api.patch(`/modpacks/${id}`, payload).then((r) => r.data);
+export const deleteModpack = (id) => api.delete(`/modpacks/${id}`).then((r) => r.data);
+export const uploadModpackCover = (id, file) => { const fd = new FormData(); fd.append('cover', file); return api.post(`/modpacks/${id}/cover`, fd).then((r) => r.data); };
+export const voteModpack = (id, value) => api.post(`/modpacks/${id}/vote`, { value }).then((r) => r.data);
+export const registerModpackDownload = (id) => api.post(`/modpacks/${id}/download`).then((r) => r.data);
+export const setFeaturedModpack = (payload) => api.put('/modpacks/featured', payload).then((r) => r.data);
