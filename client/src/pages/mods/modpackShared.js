@@ -14,7 +14,7 @@ export const MODPACK_SOURCE_LABEL = {
 
 // Arte horizontal padrão da Steam (460x215) — existe pra quase todo jogo.
 export function steamHeaderUrl(steamAppId) {
-  return `https://cdn.akamai.steamstatic.com/steam/apps/${steamAppId}/header.jpg`;
+  return `/api/proxy/steam/${steamAppId}/header`;
 }
 
 // Nome da pasta que o app desktop usa pra cada item (mesma regra de

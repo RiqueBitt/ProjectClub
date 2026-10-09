@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { steamCoverUrl } from '../../utils/mods';
 import { proxyImage } from '../../utils/imageProxy';
 
@@ -160,11 +160,16 @@ export function ChipRow({ options, value, onChange, label }) {
 // Miniatura 16:9 com reserva (img de verdade + onError, pra nunca
 // sobrar uma caixa cinza vazia sem explicação).
 export function ModThumb({ url, fallbackIcon = 'puzzle', seed }) {
-  const [failed, setFailed] = useState(!url);
+  // Tenta pelo nosso servidor primeiro, depois direto na fonte, e só
+  // então mostra o ícone padrão.
+  const sources = useMemo(() => (url ? [...new Set([proxyImage(url), url])] : []), [url]);
+  const [idx, setIdx] = useState(0);
+  useEffect(() => setIdx(0), [sources]);
+  const failed = idx >= sources.length;
   const hue = hashHue(seed || url || '');
   return (
     <div className="mdx-thumb" style={{ '--h1': hue }}>
-      {!failed && <img src={proxyImage(url)} alt="" loading="lazy" onError={() => setFailed(true)} />}
+      {!failed && <img src={sources[idx]} alt="" loading="lazy" onError={() => setIdx((i) => i + 1)} />}
       {failed && <span className="mdx-thumb-fallback"><Icon name={fallbackIcon} size={30} /></span>}
     </div>
   );

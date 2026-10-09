@@ -70,49 +70,94 @@ function evictOldestUntilFits(incomingSize) {
   }
 }
 
+// Item pedido: "os ícones dos mods e as capas dos jogos não aparecem".
+// Além do B2, passa pelo nosso servidor também as imagens das fontes de
+// mods e da Steam — CDNs de terceiro que VPN/bloqueador/operadora às
+// vezes barram, ou que bloqueiam imagem "linkada" de outro site. Só
+// esses domínios exatos (nunca uma URL qualquer).
+const ALLOWED_HOSTS = [
+  /(^|\.)backblazeb2\.com$/i,
+  /(^|\.)modcdn\.io$/i, // mod.io
+  /(^|\.)mod\.io$/i,
+  /(^|\.)gamebanana\.com$/i,
+  /(^|\.)thunderstore\.io$/i,
+  /(^|\.)nexusmods\.com$/i,
+  /(^|\.)nexus-cdn\.com$/i,
+  /(^|\.)steamstatic\.com$/i,
+  /(^|\.)steamusercontent\.com$/i,
+  /(^|\.)akamaihd\.net$/i, // imagens antigas do Workshop
+];
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
+function isAllowedUrl(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && ALLOWED_HOSTS.some((re) => re.test(u.hostname));
+  } catch { return false; }
+}
+
+// Busca (ou pega do cache) e devolve { buffer, contentType } ou null.
+async function loadImage(url) {
+  evictExpired();
+  const cached = cache.get(url);
+  if (cached) return { ...cached, hit: true };
+  const upstream = await fetch(url, { headers: { 'User-Agent': 'ProjectClub/1.0', Accept: 'image/*' }, redirect: 'follow' });
+  if (!upstream.ok) return { status: upstream.status };
+  const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
+  if (!/^image\//i.test(contentType)) return { status: 415 };
+  const buffer = Buffer.from(await upstream.arrayBuffer());
+  if (buffer.length > MAX_IMAGE_BYTES) return { status: 413 };
+  // Imagens gigantes não entram no cache — não vale gastar uma fatia
+  // grande do limite numa imagem só; ainda é servida normalmente.
+  if (buffer.length <= CACHE_MAX_BYTES / 4) {
+    evictOldestUntilFits(buffer.length);
+    cache.set(url, { buffer, contentType, size: buffer.length, expiresAt: Date.now() + CACHE_TTL_MS });
+    cacheBytes += buffer.length;
+  }
+  return { buffer, contentType, hit: false };
+}
+
+function sendImage(res, img) {
+  res.setHeader('Content-Type', img.contentType);
+  // A imagem não muda de conteúdo pra uma mesma URL.
+  res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+  res.setHeader('X-Cache', img.hit ? 'HIT' : 'MISS');
+  res.end(img.buffer);
+}
+
 const router = express.Router();
 
 router.get('/image', async (req, res) => {
   try {
     const { url } = req.query;
     if (!url || typeof url !== 'string') return res.status(400).send('URL obrigatória.');
-    if (!/^https:\/\/[a-z0-9.-]*backblazeb2\.com\//i.test(url)) {
-      return res.status(403).send('Origem não permitida.');
+    if (!isAllowedUrl(url)) return res.status(403).send('Origem não permitida.');
+    const img = await loadImage(url);
+    if (!img.buffer) return res.status(img.status || 502).send('Não foi possível buscar a imagem.');
+    sendImage(res, img);
+  } catch {
+    res.status(502).send('Falha ao buscar a imagem.');
+  }
+});
+
+// Capa / fundo / cabeçalho de um jogo da Steam pelo AppID. A Steam mudou
+// o endereço das artes (agora com um código no meio do caminho), então o
+// link antigo dá 404 em muitos jogos — steamArtService descobre o certo.
+const steamArt = require('../services/steamArtService');
+router.get('/steam/:appId/:kind', async (req, res) => {
+  try {
+    const appId = Number(req.params.appId);
+    const { kind } = req.params;
+    if (!Number.isInteger(appId) || appId <= 0 || !steamArt.KINDS.includes(kind)) return res.status(400).send('Pedido inválido.');
+    const url = await steamArt.resolve(appId, kind, loadImage);
+    if (!url) {
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return res.status(404).send('Sem arte pra esse jogo.');
     }
-
-    evictExpired();
-    const cached = cache.get(url);
-    if (cached) {
-      res.setHeader('Content-Type', cached.contentType);
-      res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
-      res.setHeader('X-Cache', 'HIT');
-      return res.end(cached.buffer);
-    }
-
-    const upstream = await fetch(url);
-    if (!upstream.ok || !upstream.body) return res.status(upstream.status || 502).send('Não foi possível buscar a imagem.');
-
-    const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
-    const buffer = Buffer.from(await upstream.arrayBuffer());
-
-    // Imagens gigantes (raro, mas possível) não entram no cache — não
-    // vale a pena gastar uma fatia grande do limite total numa imagem
-    // só; ela ainda é servida normalmente, só não fica guardada.
-    if (buffer.length <= CACHE_MAX_BYTES / 4) {
-      evictOldestUntilFits(buffer.length);
-      cache.set(url, { buffer, contentType, size: buffer.length, expiresAt: Date.now() + CACHE_TTL_MS });
-      cacheBytes += buffer.length;
-    }
-
-    res.setHeader('Content-Type', contentType);
-    // Cache generoso do lado do navegador/CDN — a imagem em si não muda
-    // de conteúdo pra uma mesma URL (uploads geram um nome novo a cada
-    // troca), só o CAMINHO pra buscar ela mudou de "direto no B2" pra
-    // "através de nós".
-    res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
-    res.setHeader('X-Cache', 'MISS');
-    res.end(buffer);
-  } catch (err) {
+    const img = await loadImage(url);
+    if (!img.buffer) return res.status(404).send('Sem arte pra esse jogo.');
+    sendImage(res, img);
+  } catch {
     res.status(502).send('Falha ao buscar a imagem.');
   }
 });

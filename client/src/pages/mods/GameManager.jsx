@@ -18,6 +18,7 @@ import {
 import { ModioModDetail } from './ModioViews.jsx';
 import { GameBananaModDetail } from './GameBananaViews.jsx';
 import { ThunderstoreModDetail } from './ThunderstoreViews.jsx';
+import { proxyImage } from '../../utils/imageProxy';
 import { NexusModDetail, nexusIds } from './NexusViews.jsx';
 import UnifiedExplore, { CompatBadge } from './UnifiedExplore.jsx';
 import InstalledPanel, { InstallProfileCard } from './InstalledPanel.jsx';
@@ -373,7 +374,7 @@ function WorkshopSubscribed({ ids }) {
           {ids.map((id) => (
             <div key={id} className="mdx-row">
               <span className="mdx-row-icon" style={{ '--h1': 205 }}>
-                {titles[id]?.preview ? <img src={titles[id].preview} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : <Icon name="box" size={18} />}
+                {titles[id]?.preview ? <img src={proxyImage(titles[id].preview)} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : <Icon name="box" size={18} />}
               </span>
               <div className="mdx-row-text">
                 <strong>{titles[id]?.title || `Item #${id}`}</strong>

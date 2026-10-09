@@ -93,13 +93,15 @@ export function listLocalModpacks(gameKey) {
 // necessário, então dá pra usar direto como fallback quando a staff
 // não colou uma URL de ícone própria pro jogo.
 export function steamCoverUrl(steamAppId) {
-  return `https://cdn.akamai.steamstatic.com/steam/apps/${steamAppId}/library_600x900.jpg`;
+  // Pelo nosso servidor: ele acha o endereço novo das artes da Steam
+  // (o link antigo dá 404 em muitos jogos) e evita bloqueio de CDN.
+  return `/api/proxy/steam/${steamAppId}/cover`;
 }
 
 // Arte horizontal grande (fundo do cabeçalho do jogo no gerenciador de
 // mods) — mesma CDN pública da Steam, só com o AppID.
 export function steamHeroUrl(steamAppId) {
-  return `https://cdn.akamai.steamstatic.com/steam/apps/${steamAppId}/library_hero.jpg`;
+  return `/api/proxy/steam/${steamAppId}/hero`;
 }
 
 // Mesmo nome de pasta que o app desktop usa ao instalar um mod (ver

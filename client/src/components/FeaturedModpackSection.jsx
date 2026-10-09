@@ -29,7 +29,7 @@ function I({ name, size = 15, style }) {
 }
 const hue = (text) => { let h = 0; for (const ch of String(text || '')) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
 const fmt = (n) => (n >= 1000000 ? `${(n / 1000000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n || 0));
-const steamPoster = (id) => `https://cdn.akamai.steamstatic.com/steam/apps/${id}/library_600x900.jpg`;
+const steamPoster = (id) => `/api/proxy/steam/${id}/cover`;
 
 // Imagem com uma fila de alternativas (capa vertical -> horizontal -> gradiente com o nome).
 function Poster({ urls, label, className = '' }) {

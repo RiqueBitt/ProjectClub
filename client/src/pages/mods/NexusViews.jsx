@@ -5,6 +5,7 @@ import {
   Icon, formatCount, EmptyState, ModDetailLayout, DetailStat, Section, ProgressBar, progressLabel, useModsManager,
 } from './shared.jsx';
 import { formatBytes } from './unifiedApi.js';
+import { proxyImage } from '../../utils/imageProxy';
 
 // ---------- Nexus Mods (a fonte do Vortex) ----------
 // Item pedido: "adicione a API de mods e o Vortex". A busca vem junto
@@ -265,7 +266,7 @@ export function NxmLinkHandler({ games, loading }) {
   return (
     <div className="mdx-nxm-toast" role="status">
       <div className="mdx-nxm-thumb">
-        {job.mod?.thumbUrl ? <img src={job.mod.thumbUrl} alt="" /> : <Icon name="download" size={20} />}
+        {job.mod?.thumbUrl ? <img src={proxyImage(job.mod.thumbUrl)} alt="" /> : <Icon name="download" size={20} />}
       </div>
       <div className="mdx-nxm-body">
         <span className="mdx-nxm-kicker">Nexus Mods{job.game ? ` · ${job.game.displayName}` : ''}</span>

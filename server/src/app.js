@@ -175,7 +175,7 @@ function createApp() {
   // já não comprime desperdiça CPU sem ganhar nada.
   app.use(compression({
     filter: (req, res) => {
-      if (req.path.startsWith('/api/proxy/image')) return false;
+      if (req.path.startsWith('/api/proxy/')) return false;
       return compression.filter(req, res);
     },
   }));

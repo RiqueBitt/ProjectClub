@@ -11,8 +11,13 @@
 // Não decodifica nem quebra URLs de OUTRAS origens (ícones locais do
 // app, avatar de pinguim, GIFs do Klipy etc) — só reescreve o que
 // reconhece como sendo do nosso bucket B2.
+// B2 + CDNs das fontes de mods e da Steam (item pedido: "os ícones dos
+// mods não aparecem") — mesma lista que o servidor aceita
+// (server/src/routes/imageProxy.js).
+const PROXIED_HOSTS = /^https:\/\/([a-z0-9-]+\.)*(backblazeb2\.com|modcdn\.io|mod\.io|gamebanana\.com|thunderstore\.io|nexusmods\.com|nexus-cdn\.com|steamstatic\.com|steamusercontent\.com|akamaihd\.net)\//i;
+
 export function proxyImage(url) {
   if (!url || typeof url !== 'string') return url;
-  if (!/backblazeb2\.com/i.test(url)) return url; // não é do B2 — devolve como veio
+  if (!PROXIED_HOSTS.test(url)) return url; // outra origem — devolve como veio
   return `/api/proxy/image?url=${encodeURIComponent(url)}`;
 }
