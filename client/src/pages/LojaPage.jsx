@@ -54,6 +54,7 @@ export default function LojaPage() {
   const previewUser = { ...user, avatarDecoration: shown ? { id: shown.id, url: shown.imageUrl, s: shown.scale, x: shown.offsetX, y: shown.offsetY } : null };
 
   return (
+    <div className="shop-scroll">
     <div className="shop-page">
       <header className="shop-hero">
         <div className="shop-hero-text">
@@ -118,6 +119,7 @@ export default function LojaPage() {
           })}
         </div>
       )}
+    </div>
     </div>
   );
 }
