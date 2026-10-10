@@ -811,11 +811,15 @@ model ProfilePoll {
   question  String
   createdAt DateTime @default(now())
   // Enquete presa a um post do Feed (null = enquete do perfil)
-  postId    String?  @unique
+  // Sem @unique de propósito: o prisma db push trata unique novo como
+  // "possível perda de dados" e trava o deploy. O código garante 1 por post.
+  postId    String?
   post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   options ProfilePollOption[]
   votes   ProfilePollVote[]
+
+  @@index([postId])
 }
 
 model ProfilePollOption {
@@ -1736,7 +1740,7 @@ model Post {
 
   votes    PostVote[]
   comments PostComment[]
-  poll     ProfilePoll? // enquete opcional do post (reaproveita o modelo das enquetes do perfil)
+  polls    ProfilePoll[] // enquete opcional (no máximo 1) do post (reaproveita o modelo das enquetes do perfil)
 
   // Mesmo raciocínio do Message acima — listar Feeds sempre filtra por
   // Clube (ou categoria) E ordena por pontuação/data ao mesmo tempo

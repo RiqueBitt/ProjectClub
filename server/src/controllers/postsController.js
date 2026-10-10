@@ -336,7 +336,7 @@ async function votePostPoll(req, res, next) {
   try {
     const { id } = req.params; // postId
     const { optionId } = req.body;
-    const poll = await prisma.profilePoll.findUnique({ where: { postId: id } });
+    const poll = await prisma.profilePoll.findFirst({ where: { postId: id } });
     if (!poll) return res.status(404).json({ error: 'Esse post não tem enquete.' });
     const option = await prisma.profilePollOption.findUnique({ where: { id: String(optionId || '') } });
     if (!option || option.pollId !== poll.id) return res.status(400).json({ error: 'Opção inválida.' });
