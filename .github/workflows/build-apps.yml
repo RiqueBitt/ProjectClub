@@ -266,8 +266,17 @@ jobs:
       # instalado em $ANDROID_HOME — a action setup-android@v3 vinha
       # falhando ao baixar as ferramentas e travava o APK. Agora ela só
       # roda como reserva, e o build usa o SDK que já existe no runner.
+      # O runner já vem com o Android SDK; a action só fica de reserva.
       - name: Instalar o Android SDK
         uses: android-actions/setup-android@v3
+        continue-on-error: true
+      - name: Usar o Android SDK do runner
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKM" ]; then yes | "$SDKM" --licenses > /dev/null || true; fi
         continue-on-error: true
       - name: Usar o Android SDK do runner
         run: |
