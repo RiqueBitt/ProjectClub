@@ -194,3 +194,20 @@
   .ifx-spinner { animation-duration: 2s; }
   .ifx-grid { transition: none; }
 }
+
+/* Tirar fundo preto (editor de avatar) */
+.ifx-bgtoggle {
+  display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 10px 12px; cursor: pointer;
+  border-radius: 12px; border: 1px solid var(--border); background: var(--bg-secondary);
+}
+.ifx-bgtoggle.on { border-color: color-mix(in srgb, var(--brand) 55%, var(--border)); background: color-mix(in srgb, var(--brand) 8%, var(--bg-secondary)); }
+.ifx-bgtoggle input { position: absolute; opacity: 0; pointer-events: none; }
+.ifx-bgtoggle-track { flex-shrink: 0; width: 38px; height: 22px; border-radius: 999px; background: var(--bg-modifier-hover); position: relative; transition: background .15s; }
+.ifx-bgtoggle-track > span { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.ifx-bgtoggle.on .ifx-bgtoggle-track { background: var(--green); }
+.ifx-bgtoggle.on .ifx-bgtoggle-track > span { transform: translateX(16px); }
+.ifx-bgtoggle input:focus-visible + .ifx-bgtoggle-track { outline: 2px solid var(--brand); outline-offset: 2px; }
+.ifx-bgtoggle-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ifx-bgtoggle-text b { font-size: 13.5px; color: var(--header-primary); }
+.ifx-bgtoggle-text small { font-size: 12px; color: var(--text-muted); line-height: 1.35; }
+@media (prefers-reduced-motion: reduce) { .ifx-bgtoggle-track, .ifx-bgtoggle-track > span { transition: none; } }

@@ -472,6 +472,22 @@ export default function UserSettingsModal({ onClose }) {
     });
   };
 
+  // Item pedido: "remover o fundo preto das fotos de perfil" — reabre a
+  // foto ATUAL no editor (pelo nosso servidor, pra poder ler os pixels)
+  // com "Tirar fundo preto", sem precisar achar o arquivo de novo.
+  const canFixAvatarBg = !!user.avatarUrl && !isPenguinAvatarUrl(user.avatarUrl) && !/\.gif(\?|$)/i.test(user.avatarUrl);
+  const fixAvatarBackground = () => {
+    if (!canFixAvatarBg) return;
+    setCropperState({
+      file: null, src: proxyImage(user.avatarUrl), aspectRatio: 1, shape: 'circle', title: 'Tirar fundo da foto', preview: 'avatar',
+      onConfirm: async (cropped) => {
+        const { user: updated } = await uploadAvatar(cropped);
+        setUser(updated);
+        setCropperState(null);
+      },
+    });
+  };
+
   const pickPenguinAvatar = async (colorKey) => {
     const { user: updated } = await updateProfile({ avatarUrl: penguinAvatarUrl(colorKey) });
     setUser(updated);
@@ -842,6 +858,7 @@ export default function UserSettingsModal({ onClose }) {
             <div className="profile-edit-body">
               <div className="image-uploads">
                 <label className="btn-secondary">Alterar avatar<input type="file" accept="image/*" hidden onChange={onAvatar} /></label>
+                {canFixAvatarBg && <button type="button" className="btn-secondary" onClick={fixAvatarBackground}>Tirar fundo preto da foto</button>}
                 {/* Item pedido: "adicione uma nova opção chamada mini
                     perfil, mova tudo que é sobre mini perfil pra lá" —
                     o botão de banner do miniperfil (que morava aqui

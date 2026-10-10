@@ -50,6 +50,71 @@ function outputWidthFor(aspectRatio, srcW) {
   return Math.round(Math.min(800, Math.max(256, srcW)));
 }
 
+// ---------- Tirar fundo preto (avatar) ----------
+// Item pedido: "remover o fundo preto das fotos de perfil que não têm
+// fundo e deixar transparente pra mostrar a cor do perfil". Fotos que
+// perderam a transparência (salvas antes da correção, ou exportadas por
+// outro programa) ficam com o fundo preto "chapado". A partir das bordas,
+// apaga o preto ligado ao contorno (flood fill) — o preto DENTRO do
+// desenho (olhos, contorno) fica, porque não encosta na borda.
+const BG_TOL = 38; // até onde conta como "preto"
+const BG_SOFT = 80; // faixa de borda suavizada
+
+function analyzeImage(img) {
+  const max = 1024;
+  const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.max(1, Math.round(img.naturalWidth * k));
+  const h = Math.max(1, Math.round(img.naturalHeight * k));
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, w, h);
+  let data;
+  try { data = ctx.getImageData(0, 0, w, h); } catch { return null; } // imagem de outro site: não dá pra ler
+  const px = data.data;
+  let transparent = 0;
+  for (let i = 3; i < px.length; i += 4 * 7) if (px[i] < 250) transparent += 1;
+  let border = 0; let dark = 0;
+  const isDark = (i) => Math.max(px[i], px[i + 1], px[i + 2]) <= BG_TOL && px[i + 3] > 200;
+  for (let x = 0; x < w; x += 1) { for (const y of [0, h - 1]) { border += 1; if (isDark((y * w + x) * 4)) dark += 1; } }
+  for (let y = 0; y < h; y += 1) { for (const x of [0, w - 1]) { border += 1; if (isDark((y * w + x) * 4)) dark += 1; } }
+  return { canvas, ctx, data, w, h, hasAlpha: transparent > 0, darkBorder: border ? dark / border : 0 };
+}
+
+function removeBlackBackground(info) {
+  const { w, h } = info;
+  const src = info.data.data;
+  const out = new Uint8ClampedArray(src);
+  const seen = new Uint8Array(w * h);
+  const stack = [];
+  const lum = (p) => Math.max(out[p * 4], out[p * 4 + 1], out[p * 4 + 2]);
+  const push = (p) => { if (!seen[p] && lum(p) <= BG_TOL) { seen[p] = 1; stack.push(p); } };
+  for (let x = 0; x < w; x += 1) { push(x); push((h - 1) * w + x); }
+  for (let y = 0; y < h; y += 1) { push(y * w); push(y * w + w - 1); }
+  while (stack.length) {
+    const p = stack.pop();
+    out[p * 4 + 3] = 0;
+    const x = p % w; const y = (p - x) / w;
+    if (x > 0) push(p - 1);
+    if (x < w - 1) push(p + 1);
+    if (y > 0) push(p - w);
+    if (y < h - 1) push(p + w);
+  }
+  // Borda suave: pixel escuro colado no que foi apagado fica semitransparente.
+  for (let p = 0; p < w * h; p += 1) {
+    if (seen[p]) continue;
+    const l = lum(p);
+    if (l > BG_SOFT) continue;
+    const x = p % w; const y = (p - x) / w;
+    const near = (x > 0 && seen[p - 1]) || (x < w - 1 && seen[p + 1]) || (y > 0 && seen[p - w]) || (y < h - 1 && seen[p + w]);
+    if (near) out[p * 4 + 3] = Math.round(out[p * 4 + 3] * clamp((l - BG_TOL) / (BG_SOFT - BG_TOL), 0, 1));
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').putImageData(new ImageData(out, w, h), 0, 0);
+  return new Promise((resolve) => canvas.toBlob((b) => resolve(b ? URL.createObjectURL(b) : null), 'image/png'));
+}
+
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 4;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -91,6 +156,11 @@ export default function ImageCropperModal({
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // Tirar fundo preto (só avatar): null = ainda não analisou.
+  const [bgInfo, setBgInfo] = useState(null);
+  const [removeBg, setRemoveBg] = useState(false);
+  const [cleanUrl, setCleanUrl] = useState(null);
+  const [bgBusy, setBgBusy] = useState(false);
   const stageRef = useRef(null);
   const imgRef = useRef(null);
   const framingRef = useRef(framing);
@@ -105,6 +175,7 @@ export default function ImageCropperModal({
 
   useEffect(() => {
     setNatural(null); setLoadError(false);
+    setBgInfo(null); setRemoveBg(false); setCleanUrl(null);
     if (file) {
       const u = URL.createObjectURL(file);
       setUrl(u);
@@ -113,6 +184,40 @@ export default function ImageCropperModal({
     setUrl(src || null);
     return undefined;
   }, [file, src]);
+
+  const avatarMode = preview === 'avatar' && mode !== 'frame' && !(!!file && (file.type === 'image/gif' || /\.gif$/i.test(file.name || '')));
+  const sourceImgRef = useRef(null);
+  useEffect(() => {
+    if (!avatarMode || !url) return undefined;
+    let alive = true;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      if (!alive) return;
+      const info = analyzeImage(img);
+      sourceImgRef.current = info;
+      setBgInfo(info ? { canEdit: true, hasAlpha: info.hasAlpha, suggest: !info.hasAlpha && info.darkBorder >= 0.55 } : { canEdit: false });
+      if (info && !info.hasAlpha && info.darkBorder >= 0.55) setRemoveBg(true);
+    };
+    img.onerror = () => { if (alive) setBgInfo({ canEdit: false }); };
+    img.src = url;
+    return () => { alive = false; };
+  }, [avatarMode, url]);
+
+  useEffect(() => {
+    if (!removeBg || !sourceImgRef.current) { setCleanUrl(null); return undefined; }
+    let alive = true;
+    let made = null;
+    setBgBusy(true);
+    removeBlackBackground(sourceImgRef.current).then((u) => {
+      made = u;
+      if (alive) setCleanUrl(u); else if (u) URL.revokeObjectURL(u);
+    }).finally(() => { if (alive) setBgBusy(false); });
+    return () => { alive = false; if (made) URL.revokeObjectURL(made); };
+  }, [removeBg, bgInfo]);
+
+  // Imagem mostrada/recortada: a versão sem fundo, quando ligada.
+  const shownUrl = (removeBg && cleanUrl) || url;
 
   // Largura real do palco (acompanha o tamanho do modal/tela).
   useLayoutEffect(() => {
@@ -242,8 +347,9 @@ export default function ImageCropperModal({
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-    // JPEG só se o original já era JPEG (não tinha transparência).
-    const wasJpeg = file && /^image\/jpe?g$/i.test(file.type);
+    // JPEG só se o original já era JPEG (não tinha transparência) e o
+    // fundo não foi tirado.
+    const wasJpeg = !(removeBg && cleanUrl) && file && /^image\/jpe?g$/i.test(file.type);
     const type = wasJpeg ? 'image/jpeg' : 'image/webp';
     canvas.toBlob((blob) => {
       if (!blob) { reject(new Error('Não foi possível processar a imagem.')); return; }
@@ -292,11 +398,12 @@ export default function ImageCropperModal({
           {url && (
             <img
               ref={imgRef}
-              src={url}
+              src={shownUrl}
+              crossOrigin={file ? undefined : 'anonymous'}
               alt=""
               draggable={false}
               className="ifx-img"
-              onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+              onLoad={(e) => { const t = e.currentTarget; setNatural((n) => (n && n.w === t.naturalWidth && n.h === t.naturalHeight ? n : { w: t.naturalWidth, h: t.naturalHeight })); }}
               onError={() => setLoadError(true)}
               style={disp ? { width: disp.dw, height: disp.dh, left: disp.left, top: disp.top } : { opacity: 0 }}
             />
@@ -345,6 +452,20 @@ export default function ImageCropperModal({
           </p>
         )}
 
+        {avatarMode && bgInfo?.canEdit && !bgInfo.hasAlpha && (
+          <label className={`ifx-bgtoggle ${removeBg ? 'on' : ''}`}>
+            <input type="checkbox" checked={removeBg} disabled={bgBusy} onChange={(e) => setRemoveBg(e.target.checked)} />
+            <span className="ifx-bgtoggle-track" aria-hidden="true"><span /></span>
+            <span className="ifx-bgtoggle-text">
+              <b>Tirar fundo preto</b>
+              <small>{bgInfo.hasAlpha
+                ? 'Sua imagem já tem fundo transparente — ele vai mostrar a cor do perfil.'
+                : bgInfo.suggest ? 'Detectamos um fundo preto: ele vira transparente e mostra a cor do seu perfil.' : 'Apaga o preto que encosta na borda da imagem.'}</small>
+            </span>
+            {bgBusy && <span className="ifx-spinner small" />}
+          </label>
+        )}
+
         {error && <p className="ifx-error" role="alert">{error}</p>}
 
         <div className="ifx-footer">
@@ -368,7 +489,7 @@ export default function ImageCropperModal({
               <div className="ifx-prev-avatars" style={{ '--ifx-pc': pc || '#F2894D' }}>
                 {[88, 48, 32].map((s) => (
                   <span key={s} className="ifx-prev-av" style={{ width: s, height: s }}>
-                    <img src={url} alt="" draggable={false} style={bannerImageStyle(framing)} />
+                    <img src={shownUrl} alt="" draggable={false} style={bannerImageStyle(framing)} />
                   </span>
                 ))}
                 <span className="ifx-prev-av-note">Áreas transparentes mostram a cor do seu perfil.</span>
