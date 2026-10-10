@@ -29,7 +29,7 @@ export function DecorationOverlay({ deco, size }) {
     <img
       className="avatar-decoration" src={proxyImage(deco.url)} alt="" aria-hidden="true" draggable="false"
       style={{
-        position: 'absolute', inset: 0, width: size, height: size, maxWidth: 'none', pointerEvents: 'none', zIndex: 2,
+        position: 'absolute', inset: 0, width: size, height: size, maxWidth: 'none', pointerEvents: 'none', zIndex: 1,
         objectFit: 'contain',
         transform: (deco.x || deco.y) ? `translate(${Number(deco.x) || 0}%, ${Number(deco.y) || 0}%)` : undefined,
       }}

@@ -8,3 +8,6 @@
 .avatar-deco-wrap .avatar-decoration { animation: avatar-deco-in .35s ease-out both; }
 @keyframes avatar-deco-in { from { opacity: 0; transform: scale(.92); } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .avatar-deco-wrap .avatar-decoration { animation: none; } }
+/* Bolinha de status (online/ausente/offline) por cima da moldura. */
+:has(> .avatar-deco-wrap) > :not(.avatar-deco-wrap) { z-index: 3; }
+.avatar-deco-wrap { isolation: isolate; }
