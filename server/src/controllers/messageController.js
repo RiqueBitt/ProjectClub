@@ -608,12 +608,40 @@ async function togglePin(req, res, next) {
       return res.status(403).json({ error: 'Sem permissão.' });
     }
 
+    const nowPinned = !existing.pinned;
     const message = await prisma.message.update({
-      where: { id }, data: { pinned: !existing.pinned }, include: messageInclude,
+      where: { id },
+      data: { pinned: nowPinned, pinnedAt: nowPinned ? new Date() : null, pinnedById: nowPinned ? req.user.id : null },
+      include: messageInclude,
     });
     const io = req.app.get('io');
     io?.to(roomFor(existing)).emit('message:update', message);
+    // Evento próprio pra lista de fixadas / faixa "Destaques" se atualizar.
+    io?.to(roomFor(existing)).emit('message:pin', {
+      id, pinned: nowPinned, conversationId: existing.conversationId, channelId: existing.channelId, byUserId: req.user.id,
+    });
     res.json({ message });
+  } catch (err) { next(err); }
+}
+
+// Mensagens fixadas de um canal/conversa (mais recente primeiro).
+// Mesmo controle de acesso de listMessages (VIEW_CHANNEL / participante).
+async function listPinned(req, res, next) {
+  try {
+    const { conversationId, channelId } = req.query;
+    await assertAccess(req, { conversationId, channelId });
+    const messages = await prisma.message.findMany({
+      where: {
+        conversationId: conversationId || undefined,
+        channelId: channelId || undefined,
+        pinned: true,
+        deleted: false,
+      },
+      include: messageInclude,
+      orderBy: [{ pinnedAt: 'desc' }, { createdAt: 'desc' }],
+      take: 50,
+    });
+    res.json({ messages });
   } catch (err) { next(err); }
 }
 
@@ -721,6 +749,6 @@ async function searchMessages(req, res, next) {
 }
 
 module.exports = {
-  listMessages, createMessage, setPostIcon, editMessage, deleteMessage, togglePin, react, searchMessages, toggleArchiveTopic,
+  listMessages, listPinned, createMessage, setPostIcon, editMessage, deleteMessage, togglePin, react, searchMessages, toggleArchiveTopic,
   messageInclude, assertAccess, roomFor,
 };

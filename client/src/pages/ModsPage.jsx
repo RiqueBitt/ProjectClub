@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import ModsLibrary, { useModsLibrary } from './mods/ModsLibrary.jsx';
 import GameManager from './mods/GameManager.jsx';
 import { NxmLinkHandler } from './mods/NexusViews.jsx';
-import { peekPendingModpack } from './mods/modpackShared.js';
+import { peekPendingModpack, peekAnyPendingModpack, clearPendingModpack } from './mods/modpackShared.js';
+import { useLibraryUpdates } from './mods/modUpdates.js';
 import '../styles/mods.css';
 
 // Item pedido: "Project Club → Apps → Mods → detectar Steam → detectar
@@ -30,36 +31,65 @@ import '../styles/mods.css';
 export default function ModsPage() {
   const navigate = useNavigate();
   const library = useModsLibrary();
+  const updates = useLibraryUpdates(library);
   const [selectedGame, setSelectedGame] = useState(null);
+  const [openOpts, setOpenOpts] = useState(null); // { tab, mod } vindos da tela inicial
+  const [notice, setNotice] = useState('');
   const scrollRef = useRef(null);
   const albumScroll = useRef(0);
 
-  const openGame = (game) => {
+  const openGame = (game, opts) => {
     albumScroll.current = scrollRef.current?.scrollTop || 0;
+    setOpenOpts(opts || null);
     setSelectedGame(game);
     requestAnimationFrame(() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; });
   };
   // "Ver modpack" no perfil: quando a biblioteca termina de carregar,
   // abre direto o jogo do modpack pedido (a aba Modpacks abre o pack).
+  // Sem o jogo no PC (ou no navegador): avisa em vez de ficar parado.
   useEffect(() => {
-    if (selectedGame || library.loading || !library.games.length) return;
+    if (selectedGame || library.loading) return;
+    const pending = peekAnyPendingModpack();
+    if (!pending) return;
     const target = library.games.find((g) => peekPendingModpack(g.steamAppId));
-    if (target) openGame(target);
+    if (target) { openGame(target); return; }
+    if (!pending.autoInstall) return;
+    clearPendingModpack();
+    setNotice(library.desktopReady
+      ? `Não encontramos o jogo deste modpack${pending.name ? ` (${pending.name})` : ''} na sua Steam. Instale o jogo e tente de novo pelo perfil.`
+      : 'Instalar modpacks precisa do app do Project Club no PC.');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [library.loading, library.games]);
 
   const backToLibrary = () => {
     setSelectedGame(null);
+    setOpenOpts(null);
     library.refreshCounts();
+    updates.refresh();
     requestAnimationFrame(() => { if (scrollRef.current) scrollRef.current.scrollTop = albumScroll.current; });
   };
 
   return (
     <div className="mdx-page" ref={scrollRef}>
       {selectedGame ? (
-        <GameManager key={selectedGame.steamAppId} game={selectedGame} onBack={backToLibrary} scrollRef={scrollRef} />
+        <GameManager
+          key={selectedGame.steamAppId}
+          game={selectedGame}
+          onBack={backToLibrary}
+          scrollRef={scrollRef}
+          initialTab={openOpts?.tab || null}
+          initialMod={openOpts?.mod || null}
+          onUpdatesChanged={updates.refresh}
+        />
       ) : (
-        <ModsLibrary library={library} onBack={() => navigate('/jogos')} onOpenGame={openGame} />
+        <ModsLibrary
+          library={library}
+          updates={updates}
+          onBack={() => navigate('/jogos')}
+          onOpenGame={openGame}
+          notice={notice}
+          onDismissNotice={() => setNotice('')}
+        />
       )}
       <NxmLinkHandler games={library.games} loading={library.loading} />
     </div>

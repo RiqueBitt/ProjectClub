@@ -9,6 +9,7 @@ router.use(requireAuth);
 
 router.get('/', ctrl.listMessages);
 router.get('/search', ctrl.searchMessages);
+router.get('/pinned', ctrl.listPinned);
 router.post('/', upload.array('attachments', 10), ctrl.createMessage);
 router.post('/:id/icon', uploadImage.single('icon'), ctrl.setPostIcon);
 router.patch('/:id', ctrl.editMessage);

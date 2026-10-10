@@ -57,7 +57,7 @@ export default function PrivacyPage() {
           <p><em>Clubes e grupos não são privados — temos acesso a eles como qualquer outro canal público.</em></p>
           <ul>
             <li>E-mail</li>
-            <li>Mensagens de canais públicos (Comunidade, Clubes, Feeds e Grupos)</li>
+            <li>Mensagens de canais públicos (Comunidade, Clubes, Fórum e Grupos)</li>
             <li>Imagens e GIFs enviados em canais públicos</li>
           </ul>
 

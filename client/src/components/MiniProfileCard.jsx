@@ -8,6 +8,7 @@ import { badgeHasImage } from '../utils/badgeRarity';
 import { renderRichContent } from '../utils/richTextRender.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import ActivityBadge from './ActivityBadge.jsx';
+import ActivityStatusLine from './ActivityStatusLine.jsx';
 import TagBadge from './TagBadge.jsx';
 import ClanTagBadge from './ClanTagBadge.jsx';
 import levelStarIcon from '../assets/icons/level-star.png';
@@ -356,6 +357,8 @@ export default function MiniProfileCard() {
                 <img className="ui-icon-sm" src={levelStarIcon} alt="" /> Nível {user.accountLevel ?? 1}
               </span>
             </div>
+            {/* "Jogando X" / "Ouvindo X" com a arte do jogo/capa */}
+            <ActivityStatusLine userId={renderedUserId} />
 
             {(badges.length > 0) && (
               <div className="mini-profile-badges-row">

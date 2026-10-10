@@ -287,3 +287,18 @@
 @media (prefers-reduced-motion: no-preference) { .mpk-skel { animation: mpk-pulse 1.3s ease-in-out infinite; } }
 @keyframes mpk-pulse { 50% { opacity: .5; } }
 .pfm-pick .mpk-cover { display: block; }
+
+/* "Instalar modpack" (um clique) no card "Modpack preferido" do perfil */
+.pf-btn.pfm-install { background: var(--pf-accent, var(--brand)); border-color: transparent; color: #fff; }
+.pf-btn.pfm-install svg { color: #fff; }
+.pf-btn.pfm-install:hover { filter: brightness(1.08); background: var(--pf-accent, var(--brand)); }
+.pfm-needs-app {
+  display: flex; align-items: flex-start; gap: 8px; margin-top: 4px; padding: 9px 10px; border-radius: 11px;
+  font-size: 12.5px; line-height: 1.45; color: var(--text-normal);
+  background: color-mix(in srgb, var(--pf-accent, var(--brand)) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pf-accent, var(--brand)) 30%, transparent);
+}
+.pfm-needs-app > svg { flex-shrink: 0; margin-top: 1px; color: var(--pf-accent, var(--brand)); }
+.pfm-needs-app span { flex: 1; min-width: 0; }
+.pfm-needs-close { flex-shrink: 0; display: inline-flex; padding: 3px; border-radius: 6px; color: var(--text-muted); background: none; border: 0; cursor: pointer; }
+.pfm-needs-close:hover { color: var(--header-primary); background: var(--bg-modifier-hover); }

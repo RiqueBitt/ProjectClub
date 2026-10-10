@@ -232,7 +232,7 @@ export default function InicioPage() {
 
   const shortcuts = [
     firstText && { icon: 'chat', label: 'Conversar', hint: `#${firstText.name}`, to: `/channels/${firstText.id}` },
-    { icon: 'feed', label: 'Feeds', hint: 'Posts e temas', to: '/comunidades' },
+    { icon: 'feed', label: 'Fórum', hint: 'Posts e temas', to: '/comunidades' },
     { icon: 'social', label: 'Social', hint: 'Amigos e mensagens', to: '/dms' },
     { icon: 'star', label: 'Progresso', hint: 'Ranks e conquistas', to: '/progresso' },
   ].filter(Boolean);
@@ -307,8 +307,8 @@ export default function InicioPage() {
           </Section>
 
           <Section
-            icon="fire" title="Em alta nos Feeds"
-            action={<button type="button" className="home-link" onClick={() => navigate('/comunidades')}>Ver Feeds</button>}
+            icon="fire" title="Em alta no Fórum"
+            action={<button type="button" className="home-link" onClick={() => navigate('/comunidades')}>Ver Fórum</button>}
           >
             {featuredPosts === null && <Empty>Carregando…</Empty>}
             {featuredPosts?.length === 0 && <Empty>Ainda não tem posts em destaque este mês. Que tal publicar o primeiro?</Empty>}

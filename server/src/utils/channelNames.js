@@ -75,7 +75,7 @@ function checkIconUpload(file) {
 }
 
 // Canais em destaque no topo da lista da comunidade.
-const FEATURED_KEYS = ['eventos', 'feed', 'galeria'];
+const FEATURED_KEYS = ['eventos', 'feed', 'galeria', 'loja']; // 'feed' aparece como "Fórum"
 function parseHiddenFeatured(raw) {
   try {
     const list = JSON.parse(raw || '[]');

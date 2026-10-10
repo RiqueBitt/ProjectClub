@@ -187,12 +187,20 @@ export default function ModpacksTab({ game, desktopReady, installedState, legacy
     } catch { /* fica como está */ } finally { setLoadingMore(false); }
   };
 
-  // Abrir direto um modpack (vindo do "Ver modpack" no perfil).
+  // Abrir direto um modpack (vindo do "Ver modpack" no perfil). Com
+  // autoInstall ("Instalar modpack" no perfil) já começa o download —
+  // espera a lista de mods instalados carregar pra não baixar de novo
+  // o que já está no PC.
+  const [autoStart, setAutoStart] = useState(null);
   useEffect(() => {
     const req = consumePendingModpack(game.steamAppId);
     if (!req?.modpackId) return;
-    getModpack(req.modpackId).then((d) => { if (d.modpack) { setOpened(d.modpack); if (d.modpack.authorId === user.id) setView('mine'); } }).catch(() => {});
-  }, [game.steamAppId, user.id]);
+    getModpack(req.modpackId).then((d) => {
+      if (!d.modpack) return;
+      if (req.autoInstall && desktopReady) { setView(d.modpack.authorId === user.id ? 'mine' : 'community'); setAutoStart(d.modpack); return; }
+      setOpened(d.modpack); if (d.modpack.authorId === user.id) setView('mine');
+    }).catch(() => setNotice({ tone: 'error', text: 'Não foi possível abrir este modpack — talvez ele tenha sido apagado ou ficado privado.' }));
+  }, [game.steamAppId, user.id, desktopReady]);
 
   // Atualiza o mesmo modpack em todas as listas abertas.
   const patchEverywhere = useCallback((id, patch) => {
@@ -236,7 +244,7 @@ export default function ModpacksTab({ game, desktopReady, installedState, legacy
       onStep(id);
       mgr.trackInstall(id, name);
       const download = await getModDownload(modioGameId, id);
-      const result = await installModLocally({ downloadUrl: download.downloadUrl, filename: download.filename, gameInstallPath: game.installPath, modName: name, modioModId: id });
+      const result = await installModLocally({ downloadUrl: download.downloadUrl, filename: download.filename, gameInstallPath: game.installPath, modName: name, modioModId: id, steamAppId: game.steamAppId, source: 'modio', sourceId: id, version: detail.mod?.modfile?.version || null });
       if (!result.success) { mgr.untrackInstall(id); throw new Error(result.error || 'falha desconhecida'); }
       mgr.completeInstall(id);
       return { status: 'installed' };
@@ -252,7 +260,7 @@ export default function ModpacksTab({ game, desktopReady, installedState, legacy
       if (!file) return { status: 'skipped', reason: 'Sem arquivo pra baixar.' };
       onStep(id);
       mgr.trackInstall(id, name);
-      const result = await installModLocally({ downloadUrl: file.downloadUrl, filename: file.filename, gameInstallPath: game.installPath, modName: name, modioModId: id });
+      const result = await installModLocally({ downloadUrl: file.downloadUrl, filename: file.filename, gameInstallPath: game.installPath, modName: name, modioModId: id, steamAppId: game.steamAppId, source: 'gamebanana', sourceId: id });
       if (!result.success) { mgr.untrackInstall(id); throw new Error(result.error || 'falha desconhecida'); }
       mgr.completeInstall(id);
       return { status: 'installed' };
@@ -262,7 +270,7 @@ export default function ModpacksTab({ game, desktopReady, installedState, legacy
       if (!community) return { status: 'skipped', reason: 'Este mod não está disponível para este jogo.' };
       const d = await getThunderstorePackage(community, item.sourceId);
       const pkg = d.package;
-      const queue = [...(d.dependencies || []), { fullName: pkg.fullName, name: pkg.name, downloadUrl: pkg.version?.downloadUrl }]
+      const queue = [...(d.dependencies || []), { fullName: pkg.fullName, name: pkg.name, downloadUrl: pkg.version?.downloadUrl, versionNumber: pkg.version?.versionNumber }]
         .filter((p) => !mgr.installedFolders.has(modFolderName(p.fullName)));
       if (queue.length === 0) return { status: 'already' };
       for (const p of queue) {
@@ -270,6 +278,7 @@ export default function ModpacksTab({ game, desktopReady, installedState, legacy
         mgr.trackInstall(p.fullName, p.name);
         const result = await installThunderstorePackageLocally({
           downloadUrl: p.downloadUrl, filename: `${p.fullName}.zip`, gameInstallPath: game.installPath, fullName: p.fullName, isLoader: isLoaderPackage(p.name),
+          steamAppId: game.steamAppId, version: p.versionNumber || undefined,
         });
         if (!result.success) { mgr.untrackInstall(p.fullName); throw new Error(`${p.name}: ${result.error || 'falha desconhecida'}`); }
         mgr.completeInstall(p.fullName);
@@ -325,6 +334,16 @@ export default function ModpacksTab({ game, desktopReady, installedState, legacy
     patchEverywhere(mp.id, { downloadCount, downloadedByMe: mp.authorId !== user.id ? true : mp.downloadedByMe });
     setRun((r) => ({ ...r, done: true, stepId: null }));
   };
+
+  // "Instalar modpack" do perfil: dispara assim que der.
+  const startDownloadRef = useRef(startDownload);
+  startDownloadRef.current = startDownload;
+  useEffect(() => {
+    if (!autoStart || mgr.installedLoaded === false) return;
+    const mp = autoStart;
+    setAutoStart(null);
+    startDownloadRef.current(mp);
+  }, [autoStart, mgr.installedLoaded]);
 
   // ---------- Meus modpacks: ativar / publicar / apagar ----------
   const activate = async (mp, alsoPlay) => {

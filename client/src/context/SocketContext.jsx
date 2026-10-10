@@ -331,9 +331,8 @@ export function SocketProvider({ children }) {
 
     // Conquistas e Ups em tempo real — ver services/achievements.js e
     // services/ups.js no backend, que emitem esses eventos.
-    socket.on('achievement:unlocked', (achievement) => {
-      useStore.getState().pushNotice(`🏆 Conquista desbloqueada: ${achievement.name}`);
-    });
+    // achievement:unlocked e xp:levelup agora viram o aviso animado com
+    // "Comemorar" (ver CelebrationToasts.jsx) — sem aviso de texto duplicado.
     socket.on('user:ups-update', ({ userId, totalUps }) => useStore.getState().setUserUps(userId, totalUps));
     socket.on('member:roles-update', () => refreshCommunity());
 
@@ -357,11 +356,6 @@ export function SocketProvider({ children }) {
     });
     socket.on('automod:raid-alert', ({ reason }) => {
       useStore.getState().pushNotice(`⚠️ Proteção anti-raid ativada: ${reason}`);
-    });
-    socket.on('xp:levelup', ({ newLevel, newLevelName, coinsReward }) => {
-      let msg = `🎉 Você subiu para o Nível ${newLevel} (${newLevelName})!`;
-      if (coinsReward > 0) msg += ` +${coinsReward} moedas.`;
-      useStore.getState().pushNotice(msg);
     });
 
     // Item pedido: "Sobreposição no jogo (overlay)... Pedido de

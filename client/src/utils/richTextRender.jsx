@@ -32,6 +32,8 @@ import { useStore } from '../store/useStore';
 import { roleTextStyle, roleWeakBackground, gradientStops } from './roleColor';
 import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from '../components/PenguinAvatar.jsx';
 import StyledEmoji from '../components/StyledEmoji.jsx';
+import { parseInternalLink, openInternalLink } from './internalLinks';
+import { CHANNEL_MENTION_RE, findChannelById, openChannelMention, VOICE_TYPES } from './channelMentions';
 
 // BUG CORRIGIDO: <img src={u.avatarUrl}> quebrava (bloqueado pela CSP
 // img-src) quando a pessoa mencionada (@fulano) tem avatar de pinguim
@@ -129,6 +131,7 @@ function renderInline(text, ctx, keyPrefix) {
     // imagem no estilo escolhido pela pessoa, em vez de ficar
     // misturado no texto puro usando a fonte nativa do sistema.
     { name: 'unicodeEmoji', re: UNICODE_EMOJI_RE },
+    { name: 'channelMention', re: CHANNEL_MENTION_RE },
     { name: 'mention', re: mentionRegex },
     // Plain http(s) links — deliberately not re-scanned for nested formatting
     // (same as inline code), and rendered as a click-to-confirm link (see
@@ -205,14 +208,37 @@ function renderInline(text, ctx, keyPrefix) {
       }
       break;
     }
+    case 'channelMention': {
+      // Chip "#canal" clicável (abre o canal ou a tela do canal de voz).
+      const ch = findChannelById(match[1]);
+      const isVoice = ch && VOICE_TYPES.includes(ch.type);
+      nodes.push(
+        <button
+          key={key} type="button"
+          className={`mention-chip channel-mention-chip${isVoice ? ' is-voice' : ''}${ch ? '' : ' is-missing'}`}
+          onClick={(e) => { e.stopPropagation(); if (ch) openChannelMention(ch.id); }}
+          title={ch ? (isVoice ? 'Abrir canal de voz' : 'Abrir canal') : 'Canal indisponível'}
+        >
+          #{ch?.name || 'canal-desconhecido'}
+        </button>,
+      );
+      break;
+    }
     case 'link': {
       const url = match[0];
+      // Link do próprio Project Club abre direto no app (sem o aviso de
+      // site externo); o resto continua passando pela confirmação.
+      const internal = parseInternalLink(url);
       nodes.push(
         <a
           key={key}
           href={url}
-          className="chat-link"
-          onClick={(e) => { e.preventDefault(); useStore.getState().openLinkConfirm(url); }}
+          className={`chat-link${internal ? ' chat-link-internal' : ''}`}
+          onClick={(e) => {
+            e.preventDefault();
+            if (internal) openInternalLink(internal);
+            else useStore.getState().openLinkConfirm(url);
+          }}
         >
           {url}
         </a>,

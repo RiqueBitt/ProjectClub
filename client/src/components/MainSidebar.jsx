@@ -26,6 +26,8 @@ import { proxyImage } from '../utils/imageProxy';
 // usuário) substituem os emojis antigos — "nav-profile.png" (o ícone
 // "User Account" do pacote) vai em Amigos, não em Perfil; Perfil fica
 // com o emoji padrão já que não veio um ícone específico pra ele.
+// Ícone da Atividade (SVG em data URL — a barra usa como máscara, igual aos PNGs).
+const ACTIVITY_NAV_ICON = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>')}`;
 export const ITEMS = [
   // Item pedido: "crie uma nova categoria chamada Início, primeira
   // categoria da lista, funcionando como página principal de
@@ -42,6 +44,7 @@ export const ITEMS = [
   // Item pedido: "mude o feed para cima e o amigos para baixo" — ordem
   // invertida (Feeds vem antes de Amigos agora).
   { to: '/comunidades', icon: feedIcon, isImg: true, labelKey: 'nav.feeds', match: (p) => p === '/comunidades' || p.startsWith('/posts/') },
+  { to: '/atividade', icon: ACTIVITY_NAV_ICON, isImg: true, labelKey: 'nav.atividade', match: (p) => p.startsWith('/atividade') }, // linha do tempo dos amigos (AtividadePage.jsx)
   { to: '/dms', icon: friendsIcon, isImg: true, labelKey: 'nav.amigos', match: (p) => p === '/dms' || p.startsWith('/conversations/') || p.startsWith('/clans') },
   // Item pedido originalmente: "crie uma nova categoria chamada Jogos,
   // posicionada logo abaixo da categoria Amigos" — item único levando

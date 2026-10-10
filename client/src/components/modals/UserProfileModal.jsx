@@ -105,17 +105,21 @@ function PfEmpty({ icon, children, action }) {
   );
 }
 
-// Abas do perfil: cada seção (chave de profileSections.js) cai num grupo.
-// A ordem DENTRO de cada aba continua sendo a que a pessoa escolheu em
-// Configurações → Colunas.
+// Perfil completo numa página só (sem abas), nesta ordem: Sobre,
+// Conexões, Recados, Insígnias, Conquistas (e por fim o resto da
+// atividade: posts, enquetes, álbum, modpack). Cada seção (chave de
+// profileSections.js) cai num grupo; a ordem DENTRO do grupo continua
+// sendo a que a pessoa escolheu em Configurações → Colunas.
 const PF_TABS = [
   { id: 'about', label: 'Sobre', icon: 'user' },
-  { id: 'activity', label: 'Atividade', icon: 'bolt' },
-  { id: 'achievements', label: 'Conquistas', icon: 'trophy' },
+  { id: 'connections', label: 'Conexões', icon: 'link' },
   { id: 'wall', label: 'Recados', icon: 'chat' },
+  { id: 'badges', label: 'Insígnias', icon: 'medal' },
+  { id: 'achievements', label: 'Conquistas', icon: 'trophy' },
+  { id: 'activity', label: 'Atividade', icon: 'bolt' },
 ];
 const PF_SECTION_TAB = {
-  about: 'about', roles: 'about', connections: 'about', mutual_friends: 'about', relationship: 'about', traits: 'about', member_since: 'about',
+  about: 'about', roles: 'about', connections: 'connections', mutual_friends: 'about', relationship: 'about', traits: 'about', member_since: 'about',
   community_activity: 'activity', polls: 'activity', album: 'activity', featured_modpack: 'activity',
   achievements: 'achievements',
   scraps: 'wall', testimonials: 'wall', visitors: 'wall',
@@ -125,6 +129,9 @@ const PF_SECTION_TAB = {
 // `viewingProfileUserId` in the zustand store — call `openProfile(userId)`
 // from anywhere (message author avatar, member list, your own user panel)
 // to pop it open, no prop drilling needed.
+// Aniversários não aparecem mais na interface (segurança de dados).
+const HIDE_BIRTHDAYS = true;
+
 export default function UserProfileModal() {
   const userId = useStore((s) => s.viewingProfileUserId);
   const profileAutoOpenRoleMenu = useStore((s) => s.profileAutoOpenRoleMenu);
@@ -144,6 +151,7 @@ export default function UserProfileModal() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const topRowRef = useRef(null);
   const [friendSent, setFriendSent] = useState(false);
   const [badgeListOpen, setBadgeListOpen] = useState(false);
   // Aba ativa do perfil (Sobre / Atividade / Conquistas / Recados) —
@@ -462,7 +470,8 @@ export default function UserProfileModal() {
   // lista sobre OS MEUS amigos, não faz sentido em perfil alheio).
   const [birthdays, setBirthdays] = useState({ today: [], upcoming: [] });
   useEffect(() => {
-    if (!userId || !isMe) { setBirthdays({ today: [], upcoming: [] }); return; }
+    // Aniversários escondidos da interface (segurança de dados) — não busca mais.
+    if (HIDE_BIRTHDAYS || !userId || !isMe) { setBirthdays({ today: [], upcoming: [] }); return; }
     upcomingBirthdaysAmongFriends().then(setBirthdays).catch(() => {});
   }, [userId, isMe]);
 
@@ -479,22 +488,49 @@ export default function UserProfileModal() {
       }),
       getFanStatus(userId).then(put(setFanStatus)),
     ];
-    if (activeTab === 'about') {
+    // Página única (sem abas): atualiza todas as seções.
+    {
       jobs.push(getTraitStatus(userId).then(put(setTraitStatus)));
-      if (isMe) jobs.push(upcomingBirthdaysAmongFriends().then(put(setBirthdays)));
+      if (isMe && !HIDE_BIRTHDAYS) jobs.push(upcomingBirthdaysAmongFriends().then(put(setBirthdays)));
     }
-    if (activeTab === 'activity') {
+    {
       jobs.push(listPosts({ authorId: userId, sort: 'new' }).then((d) => put(setRedditActivity)(d.posts)));
       jobs.push(listProfilePollsByAuthor(userId).then((d) => put(setProfilePolls)(d.polls)));
       jobs.push(listPhotosByOwner(userId).then((d) => { put(setPhotoPreview)(d.photos.slice(0, 3)); put(setPhotoTotal)(d.total); }));
     }
-    if (activeTab === 'wall') {
+    {
       jobs.push(listScraps(userId).then((d) => { put(setScraps)(d.scraps); put(setScrapTotal)(d.total ?? d.scraps.length); }));
       jobs.push(listApprovedTestimonials(userId).then((d) => { put(setTestimonials)(d.testimonials); put(setTestimonialTotal)(d.total ?? d.testimonials.length); }));
       if (isMe) jobs.push(listProfileVisitors(userId).then(put(setVisitorsData)));
     }
     await Promise.allSettled(jobs);
   }, { enabled: !!userId, key: userId });
+
+  // Banner do perfil completo: estica o banner pra trás do cabeçalho até
+  // logo depois de onde termina o texto (nome + tags/cargo do clube), e o
+  // esmaecido fica só nessa pontinha — não "come" metade da imagem.
+  useEffect(() => {
+    const row = topRowRef.current;
+    if (!row || typeof ResizeObserver === 'undefined') return undefined;
+    const measure = () => {
+      const banner = row.querySelector('.profile-banner');
+      const textEls = row.querySelectorAll('.profile-display-name, .profile-username');
+      if (!banner || !textEls.length || window.matchMedia('(max-width: 720px)').matches) { row.style.removeProperty('--pf-banner-pull'); return; }
+      let textRight = 0;
+      textEls.forEach((el) => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        textRight = Math.max(textRight, range.getBoundingClientRect().right);
+      });
+      const bannerLeft = banner.getBoundingClientRect().left + (parseFloat(row.style.getPropertyValue('--pf-banner-pull')) || 0);
+      const pull = Math.max(0, Math.round(bannerLeft - (textRight + 12)));
+      row.style.setProperty('--pf-banner-pull', `${pull}px`);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(row);
+    return () => ro.disconnect();
+  }, [userId, loading, data?.user?.id]);
 
   if (!userId) return null;
 
@@ -940,7 +976,7 @@ export default function UserProfileModal() {
     </PfCard>
   );
 
-  const birthdaysCard = user && isMe && (birthdays.today.length > 0 || birthdays.upcoming.length > 0) && (
+  const birthdaysCard = !HIDE_BIRTHDAYS && user && isMe && (birthdays.today.length > 0 || birthdays.upcoming.length > 0) && (
     <PfCard icon="cake" title="Aniversariantes">
       {birthdays.today.length > 0 && (
         <div className="pf-birthday-today"><PfIcon name="cake" size={15} /> Hoje: {birthdays.today.map((f) => f.displayName).join(', ')}</div>
@@ -961,9 +997,9 @@ export default function UserProfileModal() {
 
   // Distribui as seções visíveis (na ordem escolhida) pelas abas.
   const visibleKeys = user ? visibleProfileSectionOrder(user.profileSectionOrder) : [];
-  const tabContent = { about: [], activity: [], achievements: [], wall: [] };
+  const tabContent = { about: [], connections: [], wall: [], badges: [], achievements: [], activity: [] };
   if (user) {
-    if (badgesCard) tabContent.achievements.push(['badges', badgesCard]);
+    if (badgesCard) tabContent.badges.push(['badges', badgesCard]);
     visibleKeys.forEach((key) => {
       const el = SECTION_ELEMENTS[key];
       const tab = PF_SECTION_TAB[key];
@@ -971,13 +1007,7 @@ export default function UserProfileModal() {
     });
     if (birthdaysCard) tabContent.about.push(['birthdays', birthdaysCard]);
   }
-  const tabCounts = {
-    achievements: user ? (data.badges?.length || 0) + (data.displayedAchievements?.length || 0) : 0,
-    wall: scrapTotal,
-  };
-  const tabs = PF_TABS.filter((t) => tabContent[t.id].length > 0);
-  const currentTab = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0]?.id;
-  const currentCards = currentTab ? tabContent[currentTab] : [];
+  const sections = PF_TABS.filter((t) => tabContent[t.id].length > 0);
   const showMemberSince = visibleKeys.includes('member_since');
   const createdAt = user ? new Date(user.createdAt) : null;
 
@@ -1010,7 +1040,7 @@ export default function UserProfileModal() {
         )}
         {!loading && user && (
           <>
-            <div className="profile-top-row">
+            <div className="profile-top-row" ref={topRowRef}>
               <div className="profile-banner" style={{ background: user.bannerUrl ? undefined : 'transparent' }}>
                 {/* Enquadramento escolhido no editor de banner (ProfileBanner.jsx). */}
                 <BannerImage url={user.bannerUrl} framing={user.bannerFraming} />
@@ -1027,7 +1057,7 @@ export default function UserProfileModal() {
                     <span className={nameStyleClassName(user, { fullEffect: true })} style={nameStyleProps(user, { fullEffect: true })}>{user.displayName}</span> <PendantIcon user={user} /> <TagBadge user={user} /> <ClanTagBadge user={user} />
                     {/* Item pedido: "no dia do aniversário, mostrar no
                         perfil a indicação visual" */}
-                    {data.isBirthdayToday && <span className="profile-birthday-badge pf-birthday-badge" title="Aniversário hoje!"><PfIcon name="cake" size={20} /></span>}
+                    {!HIDE_BIRTHDAYS && data.isBirthdayToday && <span className="profile-birthday-badge pf-birthday-badge" title="Aniversário hoje!"><PfIcon name="cake" size={20} /></span>}
                   </h2>
                   <div className="profile-username">@{user.username}{user.pronouns && <span className="profile-pronouns-inline"> · {user.pronouns}</span>}</div>
                   <div className="profile-custom-status-balloon">
@@ -1144,30 +1174,19 @@ export default function UserProfileModal() {
                   <BadgeListModal userName={user.displayName} badges={data.badges} onClose={() => setBadgeListOpen(false)} />
                 )}
 
-                {tabs.length > 1 && (
-                  <div className="pf-tabs" role="tablist">
-                    {tabs.map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        role="tab"
-                        aria-selected={currentTab === t.id}
-                        className={`pf-tab ${currentTab === t.id ? 'active' : ''}`}
-                        onClick={() => setActiveTab(t.id)}
-                      >
-                        <PfIcon name={t.icon} size={16} />
-                        {t.label}
-                        {tabCounts[t.id] > 0 && <span className="pf-tab-count">{tabCounts[t.id]}</span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                <div className={`pf-grid ${currentCards.length === 1 ? 'single' : ''}`} key={currentTab}>
-                  {currentCards.map(([key, el]) => (
-                    <div key={key} className="pf-grid-item">{el}</div>
-                  ))}
-                </div>
+                {/* Tudo numa página só, rolando: uma seção por grupo. */}
+                {sections.map((sec) => (
+                  <section key={sec.id} className={`pf-onepage-section pf-onepage-${sec.id}`} aria-label={sec.label}>
+                    {sections.length > 1 && (
+                      <h3 className="pf-onepage-title"><PfIcon name={sec.icon} size={16} /> {sec.label}</h3>
+                    )}
+                    <div className={`pf-grid ${tabContent[sec.id].length === 1 ? 'single' : ''}`}>
+                      {tabContent[sec.id].map(([key, el]) => (
+                        <div key={key} className="pf-grid-item">{el}</div>
+                      ))}
+                    </div>
+                  </section>
+                ))}
               </div>
 
               {scrapListOpen && (

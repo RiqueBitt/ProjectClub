@@ -16,7 +16,7 @@ async function create(req, res, next) {
     if (cleanOptions.length > 10) return res.status(400).json({ error: 'No máximo 10 opções.' });
 
     // Item pedido: máximo de 2 enquetes por perfil.
-    const existingCount = await prisma.profilePoll.count({ where: { authorId: req.user.id } });
+    const existingCount = await prisma.profilePoll.count({ where: { authorId: req.user.id, postId: null } }); // enquetes de post do Feed não contam
     if (existingCount >= 2) {
       return res.status(409).json({ error: 'Você já tem 2 enquetes no seu perfil — apague uma antes de criar outra.' });
     }
@@ -55,7 +55,7 @@ async function listByAuthor(req, res, next) {
   try {
     const { authorId } = req.params;
     const polls = await prisma.profilePoll.findMany({
-      where: { authorId },
+      where: { authorId, postId: null }, // só as do perfil (as de post aparecem no Feed)
       include: { author: { select: PUBLIC_USER_FIELDS }, options: { include: { _count: { select: { votes: true } } } } },
       orderBy: { createdAt: 'desc' },
       take: 20,
@@ -99,4 +99,4 @@ async function remove(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { create, listByAuthor, vote, remove };
+module.exports = { create, listByAuthor, vote, remove, shapePoll };

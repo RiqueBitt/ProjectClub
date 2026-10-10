@@ -16,6 +16,9 @@ router.post('/steam-match', ctrl.matchSteamGames);
 // identificação de mods detectados no disco — ver unifiedModsService.js.
 router.get('/unified/:steamAppId', unifiedCtrl.search);
 router.post('/identify', unifiedCtrl.identify);
+// Tela inicial de Mods ("Em alta") e checagem de atualizações em lote.
+router.get('/trending', unifiedCtrl.trending);
+router.post('/updates', unifiedCtrl.checkUpdates);
 
 router.get('/games/:modioGameId', ctrl.getGame);
 router.get('/games/:modioGameId/tags', ctrl.getGameTags);

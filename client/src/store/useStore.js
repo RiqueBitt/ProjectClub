@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { updateUserSettings } from '../api/endpoints';
 import { openPopover, closePopover, closeAllPopovers } from '../utils/popoverCoordinator';
+import { trackSave } from '../utils/saveIndicator';
+import { loadLocalLayoutPrefs, normalizeLayoutPrefs, saveLocalLayoutPrefs, scheduleServerSave, loadFocusMode, saveFocusMode } from '../utils/appearance';
 
 // Função estável (comparada por identidade no coordenador de menus) que
 // fecha o miniperfil quando outro menu flutuante abre.
@@ -28,6 +30,9 @@ function getDeviceKey() {
 function syncDesktopSettings(settings) {
   try { window.electronAPI?.updateSettings?.(settings); } catch { /* não é o app desktop — ignora */ }
 }
+
+// Único tema da rede (preto). Ver setTheme.
+const FORCED_THEME = 'amoled';
 
 // Estado central em tempo real: categorias/canais da comunidade única,
 // membros, conversas DM, mensagens por sala, amigos, presença, digitação e
@@ -143,15 +148,8 @@ export const useStore = create((set, get) => ({
   // pra evitar o "flash" de tema errado antes da sessão carregar; a
   // fonte de verdade de verdade é o banco de dados, que sobrevive a
   // trocar de navegador/dispositivo ou limpar os dados locais.
-  theme: (() => {
-    try {
-      const saved = localStorage.getItem('theme');
-      if (saved === 'reddit') { localStorage.setItem('theme', 'light'); return 'light'; }
-      return saved || 'light';
-    } catch {
-      return 'light';
-    }
-  })(),
+  // Tema preto forçado pra todo mundo (ver setTheme).
+  theme: FORCED_THEME,
   // Item pedido: "em aparência adicione uma nova opção de layout, a
   // opção normal e a opção de layout discord" — mesmo padrão do tema
   // acima (localStorage como cache rápido, a conta como fonte de
@@ -196,6 +194,18 @@ export const useStore = create((set, get) => ({
   // os componentes tratam null como "ainda carregando" (mostram um
   // esqueleto/skeleton em vez de um valor errado piscando na tela).
   userSettings: null,
+  // Personalizar layout (ver utils/appearance.js): cache local + conta.
+  layoutPrefs: loadLocalLayoutPrefs(),
+  // opts.local: só aplica/guarda aqui (ex.: valor que acabou de vir da conta).
+  setLayoutPrefs: (patch, opts = {}) => {
+    const next = normalizeLayoutPrefs({ ...get().layoutPrefs, ...patch });
+    saveLocalLayoutPrefs(next);
+    set({ layoutPrefs: next });
+    if (!opts.local) scheduleServerSave(next, opts.delay);
+  },
+  // Modo foco: esconde as colunas laterais (lembrado só na sessão).
+  focusMode: loadFocusMode(),
+  setFocusMode: (on) => { saveFocusMode(on); set({ focusMode: on }); },
   // Configuração do Editor de Interface (staff pode reorganizar/
   // redimensionar os menus principais) — carregada uma vez ao abrir o
   // app, aplicada globalmente (AppRail, sidebar, lista de membros). null
@@ -310,6 +320,11 @@ export const useStore = create((set, get) => ({
   // precisa viver no store global pra os dois lerem/escreverem nele.
   openCategoryId: null,
   setOpenCategoryId: (id) => set({ openCategoryId: id }),
+  // Busca rápida (Ctrl+K) — aberta pelo atalho ou pelo botão da barra do topo.
+  quickSwitcherOpen: false,
+  setQuickSwitcherOpen: (open) => set((s) => ({ quickSwitcherOpen: typeof open === 'function' ? open(s.quickSwitcherOpen) : !!open })),
+  // Gaveta de canais no celular (gesto de deslizar da borda esquerda).
+  openMobileChannelList: () => set({ mobileChannelListOpen: true, mobileSidebarOpen: true, mobileMembersOpen: false }),
 
   setConversations: (conversations) => set({ conversations }),
   upsertConversation: (conversation) => set((s) => ({
@@ -335,7 +350,10 @@ export const useStore = create((set, get) => ({
   // degradê automaticamente; ligar o degradê desliga o destaque do tema
   // de categoria (o próprio setCustomBackground abaixo faz o mesmo na
   // direção inversa), então nunca ficam os dois marcados ao mesmo tempo.
-  setTheme: (theme) => {
+  // Tema preto é o único da rede agora: qualquer tema salvo (claro,
+  // facebook, clubpenguin...) é ignorado. Temas personalizados virão depois.
+  setTheme: (_requestedTheme) => {
+    const theme = FORCED_THEME;
     try {
       localStorage.setItem('theme', theme);
       localStorage.removeItem('customBackground');
@@ -395,7 +413,7 @@ export const useStore = create((set, get) => ({
     const prevSettings = get().userSettings;
     set((s) => ({ userSettings: { ...s.userSettings, [key]: value } }));
     try {
-      const { settings, rejected } = await updateUserSettings({ [key]: value });
+      const { settings, rejected } = await trackSave(updateUserSettings({ [key]: value }));
       set({ userSettings: settings });
       syncDesktopSettings(settings);
       if (rejected?.length) {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
+import { CHANNEL_MENTION_RE_G, findChannelById, VOICE_TYPES } from '../utils/channelMentions';
 
 // Item pedido: "quando colocar um emoji no seu texto... em vez de
 // aparecer :emoji: vai aparecer o emoji igual na barra de digitação"
@@ -56,6 +57,17 @@ function makeMentionChip(mentionText) {
   return span;
 }
 
+// Chip de menção de canal (token <#id> no texto, "#nome" na tela).
+function makeChannelChip(token, id) {
+  const ch = findChannelById(id);
+  const span = document.createElement('span');
+  span.contentEditable = 'false';
+  span.className = `composer-inline-mention mention-chip channel-mention-chip${ch && VOICE_TYPES.includes(ch.type) ? ' is-voice' : ''}`;
+  span.dataset.mention = token;
+  span.appendChild(document.createTextNode(`#${ch?.name || 'canal'}`));
+  return span;
+}
+
 // Nomes de menção conhecidos ordenados do mais LONGO pro mais curto —
 // evita "Rique" casar sozinho quando o nome de verdade é "Rique Bitt"
 // (um nome mais curto que por acaso é prefixo de um mais longo).
@@ -76,7 +88,7 @@ function renderInto(el, text, emojiMap, mentionMap) {
   // lógica de sempre), depois quebra CADA pedaço de texto puro
   // resultante nos pontos de @menção — assim os dois tipos de "chip"
   // convivem no mesmo texto sem atropelar um ao outro.
-  const appendWithMentions = (chunk) => {
+  const appendPeopleMentions = (chunk) => {
     if (!mentionRe) { frag.appendChild(document.createTextNode(chunk)); return; }
     mentionRe.lastIndex = 0;
     let last = 0;
@@ -89,6 +101,19 @@ function renderInto(el, text, emojiMap, mentionMap) {
       last = mentionRe.lastIndex;
     }
     if (last < chunk.length || !any) frag.appendChild(document.createTextNode(chunk.slice(last)));
+  };
+  // Menções de canal (<#id>) primeiro, o resto segue pras de pessoas.
+  const appendWithMentions = (chunk) => {
+    CHANNEL_MENTION_RE_G.lastIndex = 0;
+    let last = 0;
+    let cm;
+    while ((cm = CHANNEL_MENTION_RE_G.exec(chunk))) {
+      if (cm.index > last) appendPeopleMentions(chunk.slice(last, cm.index));
+      frag.appendChild(makeChannelChip(cm[0], cm[1]));
+      last = CHANNEL_MENTION_RE_G.lastIndex;
+    }
+    if (last === 0) appendPeopleMentions(chunk);
+    else if (last < chunk.length) appendPeopleMentions(chunk.slice(last));
   };
 
   SHORTCODE_RE.lastIndex = 0;
@@ -192,7 +217,7 @@ function replaceTypedMatch(node, range, matchText, element, sel, keepTrailingSpa
   return true;
 }
 
-export default function RichMessageInput({ value, onChange, emojiMap, mentionMap = {}, placeholder, inputRef, onSubmit, onFocus, onBlur, className }) {
+export default function RichMessageInput({ value, onChange, emojiMap, mentionMap = {}, placeholder, inputRef, onSubmit, onFocus, onBlur, className, onKeyDownExtra }) {
   const elRef = useRef(null);
   // Último valor que ESTE componente já emitiu via onChange — se o
   // `value` recebido por prop for igual a isso, a mudança veio da
@@ -290,6 +315,8 @@ export default function RichMessageInput({ value, onChange, emojiMap, mentionMap
   };
 
   const onKeyDown = (e) => {
+    // Lista de sugestões aberta (menção/canal) cuida das setas/Enter/Tab.
+    if (onKeyDownExtra?.(e)) return;
     // BUG CORRIGIDO ("Enter não envia mais"): o <input> de antes vivia
     // dentro de um <form>, que envia sozinho ao apertar Enter — uma
     // div contentEditable não tem esse comportamento nativo nenhum,

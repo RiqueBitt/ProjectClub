@@ -69,6 +69,9 @@ import youtubeConnIcon from '../../assets/icons/social-youtube.png';
 import steamConnIcon from '../../assets/icons/social-steam.png';
 import { useVoice } from '../../context/VoiceContext.jsx';
 import { CUSTOM_BACKGROUND_ENABLED } from '../../utils/featureFlags';
+import { LayoutCustomizer, AccessibilityExtras } from '../AppearanceSettings.jsx';
+import { trackSave, useSaveStatus } from '../../utils/saveIndicator';
+import '../../styles/settings.css';
 import {
   getPreferredMicId, getPreferredSpeakerId, setPreferredSpeakerId,
   isOutputSelectionSupported, listAudioDevices,
@@ -77,7 +80,7 @@ import robloxConnIcon from '../../assets/icons/social-roblox.png';
 import xConnIcon from '../../assets/icons/social-x.png';
 import {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, removeIdCard,
-  setup2FA, confirm2FA, disable2FA, setPreferredTheme, setLayoutStyle, setMyClanTag, setChatZoom, setInterfaceZoom,
+  setup2FA, confirm2FA, disable2FA, setLayoutStyle, setMyClanTag, setChatZoom, setInterfaceZoom,
   setEmojiStyle as setEmojiStyleApi,
   listSessions, revokeSession, revokeOtherSessions,
   createProfilePoll, listProfilePollsByAuthor, deleteProfilePoll,
@@ -106,7 +109,8 @@ import {
 // equivalente direto no documento (edição de bio/conquistas
 // exibidas/colunas do perfil) — mantida como já estava, sem mexer.
 const TAB_GROUPS = [
-  { label: 'Perfil', tabs: ['PROFILE', 'MINI_PROFILE', 'PROFILE_CONTENT', 'COLUMNS'] },
+  // Miniperfil virou uma seção dentro de Perfil (não é mais aba própria).
+  { label: 'Perfil', tabs: ['PROFILE', 'PROFILE_CONTENT', 'COLUMNS'] },
   { label: 'Conta', tabs: ['ACCOUNT', 'SECURITY', 'ACCOUNT_STATUS'] },
   { label: 'Dados e privacidade', tabs: ['PRIVACY'] },
   { label: 'Notificações', tabs: ['NOTIFICATIONS'] },
@@ -118,7 +122,7 @@ export default function UserSettingsModal({ onClose }) {
   const { t: translate } = useTranslation();
   const { user, setUser, logout } = useAuth();
   const navigate = useNavigate();
-  const { theme, setTheme, layoutStyle, setLayoutStyle: setLayoutStyleStore, customBackground, setCustomBackground, emojiStyle, setEmojiStyle: setEmojiStyleStore, myClan, chatZoom, setChatZoom: setChatZoomStore, interfaceZoom, setInterfaceZoom: setInterfaceZoomStore, userSettings, updateUserSetting } = useStore();
+  const { layoutStyle, setLayoutStyle: setLayoutStyleStore, customBackground, setCustomBackground, emojiStyle, setEmojiStyle: setEmojiStyleStore, myClan, chatZoom, setChatZoom: setChatZoomStore, interfaceZoom, setInterfaceZoom: setInterfaceZoomStore, userSettings, updateUserSetting } = useStore();
   const disabledSystems = useStore((s) => s.disabledSystems);
   // Ver adminController.js (TOGGLEABLE_SYSTEMS) e a nova opção "Cores
   // personalizadas para perfil" em /admin → Sistema: quando a staff
@@ -232,15 +236,43 @@ export default function UserSettingsModal({ onClose }) {
   // matches how most emoji pickers on mobile behave anyway.
   const insertBioEmoji = (text) => setForm((f) => ({ ...f, bio: (f.bio + text).slice(0, 190) }));
 
-  const saveProfile = async () => {
-    const { user: updated } = await updateProfile(form);
+  const saveProfile = async (snapshot = form) => {
+    const { user: updated } = await trackSave(updateProfile(snapshot));
     setUser(updated);
   };
+
+  // Salvamento automático (sem botão "Salvar alterações"): texto espera
+  // ~800ms depois da última tecla; cores/opções salvam logo em seguida.
+  const PROFILE_TEXT_FIELDS = ['displayName', 'bio', 'pronouns', 'customStatus', 'youtubeUrl', 'steamUrl', 'robloxUrl', 'xUrl'];
+  const savedFormRef = useRef(form);
+  const latestFormRef = useRef(form);
+  latestFormRef.current = form;
+  const formSaveTimerRef = useRef(null);
+  useEffect(() => {
+    const prev = savedFormRef.current;
+    const changed = Object.keys(form).filter((k) => form[k] !== prev[k]);
+    if (!changed.length) return;
+    if (!form.displayName.trim()) return; // nome vazio não é salvo
+    clearTimeout(formSaveTimerRef.current);
+    const delay = changed.some((k) => PROFILE_TEXT_FIELDS.includes(k)) ? 800 : 200;
+    formSaveTimerRef.current = setTimeout(() => {
+      formSaveTimerRef.current = null;
+      savedFormRef.current = form;
+      saveProfile(form).catch(() => {});
+    }, delay);
+  }, [form]);
+  // Fechou a janela antes do tempo? Salva o que faltava na hora.
+  useEffect(() => () => {
+    if (!formSaveTimerRef.current) return;
+    clearTimeout(formSaveTimerRef.current);
+    const latest = latestFormRef.current;
+    if (latest.displayName.trim()) trackSave(updateProfile(latest)).then(({ user: updated }) => setUser(updated)).catch(() => {});
+  }, []);
 
   const [friendRequestPrivacy, setFriendRequestPrivacy] = useState(user.friendRequestPrivacy || 'EVERYONE');
   const saveFriendRequestPrivacy = async (value) => {
     setFriendRequestPrivacy(value);
-    const { user: updated } = await updateProfile({ friendRequestPrivacy: value });
+    const { user: updated } = await trackSave(updateProfile({ friendRequestPrivacy: value }));
     setUser(updated);
   };
 
@@ -248,30 +280,12 @@ export default function UserSettingsModal({ onClose }) {
   // perfil (aba Colunas). Mesmo padrão de salvamento das outras
   // preferências acima.
   const saveProfileSectionOrder = async (orderJson) => {
-    const { user: updated } = await updateProfile({ profileSectionOrder: orderJson });
+    const { user: updated } = await trackSave(updateProfile({ profileSectionOrder: orderJson }));
     setUser(updated);
   };
 
-  // Item pedido: aniversário editável em "Editar Perfil" — dia e mês
-  // separados (o ano não importa pro sistema de aniversariantes, que
-  // ignora ele de propósito por privacidade). Usa um ano fixo
-  // (bissexto, aceita 29/fev) só como "caixa" pra guardar dia+mês
-  // como um DateTime de verdade no banco.
-  const initialBirth = user.birthDate ? new Date(user.birthDate) : null;
-  const [birthDay, setBirthDay] = useState(initialBirth ? initialBirth.getUTCDate() : '');
-  const [birthMonth, setBirthMonth] = useState(initialBirth ? initialBirth.getUTCMonth() + 1 : '');
-  const saveBirthday = async (day, month) => {
-    if (!day || !month) {
-      const { user: updated } = await updateProfile({ birthDate: null });
-      setUser(updated);
-      return;
-    }
-    const iso = `2000-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const { user: updated } = await updateProfile({ birthDate: iso });
-    setUser(updated);
-  };
-  const onBirthDayChange = (e) => { const v = e.target.value; setBirthDay(v); saveBirthday(v, birthMonth); };
-  const onBirthMonthChange = (e) => { const v = e.target.value; setBirthMonth(v); saveBirthday(birthDay, v); };
+  // Aniversário saiu das Configurações (segurança de dados) — o campo
+  // no banco continua existindo, só não é mais editado/mostrado.
 
   // Item pedido: "opacidade das caixas das colunas" — padrão de 3.5%
   // (o mesmo valor fixo que já existia no CSS antes dessa opção
@@ -279,7 +293,7 @@ export default function UserSettingsModal({ onClose }) {
   // nunca mexeu nisso.
   const [sectionOpacity, setSectionOpacity] = useState(user.profileSectionOpacity ?? 3);
   const saveSectionOpacity = async (value) => {
-    const { user: updated } = await updateProfile({ profileSectionOpacity: value });
+    const { user: updated } = await trackSave(updateProfile({ profileSectionOpacity: value }));
     setUser(updated);
   };
 
@@ -373,17 +387,14 @@ export default function UserSettingsModal({ onClose }) {
   // silenciosa do localStorage local (ver useStore.js). Falha de rede
   // aqui não trava nada — o tema já foi aplicado localmente de qualquer
   // forma, e a próxima vez que salvar com sucesso já resolve.
-  const pickTheme = (t) => {
-    setTheme(t);
-    setPreferredTheme(t).catch(() => {});
-  };
+  // Tema preto é o único agora (sem seletor de tema) — ver useStore.setTheme.
 
   // Item pedido: "em aparência adicione uma nova opção de layout, a
   // opção normal e a opção de layout discord" — mesmo padrão de
   // pickTheme acima.
   const pickLayoutStyle = (l) => {
     setLayoutStyleStore(l);
-    setLayoutStyle(l).catch(() => {});
+    trackSave(setLayoutStyle(l)).catch(() => {});
   };
 
   // Item pedido: "sistema podendo mudar o zoom de 1,0 até 2,0... pra
@@ -391,7 +402,7 @@ export default function UserSettingsModal({ onClose }) {
   // na hora, salva na conta em segundo plano).
   const pickChatZoom = (z) => {
     setChatZoomStore(z);
-    setChatZoom(z).catch(() => {});
+    trackSave(setChatZoom(z)).catch(() => {});
   };
 
   // Item pedido: "adicione nas configurações do usuário ele poder
@@ -399,23 +410,31 @@ export default function UserSettingsModal({ onClose }) {
   // interface, mesmo padrão de pickChatZoom acima.
   const pickInterfaceZoom = (z) => {
     setInterfaceZoomStore(z);
-    setInterfaceZoom(z).catch(() => {});
+    trackSave(setInterfaceZoom(z)).catch(() => {});
   };
 
   // Item pedido: "5 variantes de visual dos meus emoji" — mesmo padrão
   // de pickTheme acima.
   const pickEmojiStyleSetting = (s) => {
     setEmojiStyleStore(s);
-    setEmojiStyleApi(s).catch(() => {});
+    trackSave(setEmojiStyleApi(s)).catch(() => {});
   };
 
-  const saveUsername = async () => {
+  const saveUsername = async (value = username) => {
     setError('');
     try {
-      const { user: updated } = await updateUsername(username);
+      const { user: updated } = await trackSave(updateUsername(value));
       setUser(updated);
     } catch (err) { setError(err.response?.data?.error || 'Erro.'); }
   };
+  // Nome de usuário salva sozinho ~1s depois de parar de digitar.
+  useEffect(() => {
+    const value = username.trim();
+    if (value === user.username) { setError(''); return undefined; }
+    if (value.length < 3) { setError('O nome de usuário precisa ter pelo menos 3 caracteres.'); return undefined; }
+    const id = setTimeout(() => saveUsername(value), 1000);
+    return () => clearTimeout(id);
+  }, [username]);
 
   // Item pedido: "abra um menu pra você selecionar a área que quer
   // mostrar... vai mostrar um retângulo, quadrado, etc" — em vez de
@@ -786,7 +805,7 @@ export default function UserSettingsModal({ onClose }) {
 
   return (
     <>
-    <Modal title="Configurações do usuário" onClose={onClose} width="820px" className="settings-modal-box">
+    <Modal title={<span className="settings-title-row">Configurações do usuário <SaveStatusPill /></span>} onClose={onClose} width="1240px" className="settings-modal-box settings-modal-wide">
       <div className="settings-modal-layout">
         <div className="settings-modal-sidebar">
           {/* Item pedido: "reformule a interface das Configurações...
@@ -857,13 +876,12 @@ export default function UserSettingsModal({ onClose }) {
 
             <div className="profile-edit-body">
               <div className="image-uploads">
-                <label className="btn-secondary">Alterar avatar<input type="file" accept="image/*" hidden onChange={onAvatar} /></label>
-                {canFixAvatarBg && <button type="button" className="btn-secondary" onClick={fixAvatarBackground}>Tirar fundo preto da foto</button>}
+                <AvatarChangeMenu onFile={onAvatar} canFixBackground={canFixAvatarBg} onFixBackground={fixAvatarBackground} />
                 {/* Item pedido: "adicione uma nova opção chamada mini
                     perfil, mova tudo que é sobre mini perfil pra lá" —
                     o botão de banner do miniperfil (que morava aqui
                     junto do banner do perfil completo) foi pra sua
-                    própria aba (MINI_PROFILE), junto das cores dele. */}
+                    seção "Miniperfil" mais abaixo nesta mesma aba. */}
                 <label className="btn-secondary">Alterar banner do perfil completo<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={onBanner} /></label>
                 {user.bannerUrl && (
                   <button type="button" className="btn-secondary pb-adjust-btn" onClick={() => adjustCurrentBanner('profile')}>Ajustar enquadramento</button>
@@ -896,24 +914,6 @@ export default function UserSettingsModal({ onClose }) {
               <label>NOME DE EXIBIÇÃO<input name="displayName" value={form.displayName} onChange={onChange} /></label>
             </div>
             <label>PRONOMES<input name="pronouns" value={form.pronouns} onChange={onChange} placeholder="ele/dele, ela/dela..." /></label>
-            {/* Item pedido: aniversário — dia/mês editável a qualquer
-                momento, sem ficar "preso" numa data depois de escolher
-                uma vez. */}
-            <label>
-              ANIVERSÁRIO
-              <div className="birthday-picker-row">
-                <select value={birthDay} onChange={onBirthDayChange}>
-                  <option value="">Dia</option>
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d}</option>)}
-                </select>
-                <select value={birthMonth} onChange={onBirthMonthChange}>
-                  <option value="">Mês</option>
-                  {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, i) => (
-                    <option key={m} value={i + 1}>{m}</option>
-                  ))}
-                </select>
-              </div>
-            </label>
             <label>
               BIOGRAFIA
               <div className="bio-input-row">
@@ -1170,143 +1170,8 @@ export default function UserSettingsModal({ onClose }) {
 
           </div>
 
-          <div className="settings-block">
-            <h4>Conexões</h4>
-            <div className="profile-edit-connections-grid">
-              <label>
-                <span className="connection-label"><img className="ui-icon-sm" src={youtubeConnIcon} alt="" /> YOUTUBE</span>
-                <input name="youtubeUrl" value={form.youtubeUrl} onChange={onChange} placeholder="Link do seu canal do YouTube" />
-              </label>
-              <label>
-                <span className="connection-label"><img className="ui-icon-sm" src={steamConnIcon} alt="" /> STEAM</span>
-                <input name="steamUrl" value={form.steamUrl} onChange={onChange} placeholder="Link do seu perfil da Steam" />
-              </label>
-              <label>
-                <span className="connection-label"><img className="ui-icon-sm" src={robloxConnIcon} alt="" /> ROBLOX</span>
-                <input name="robloxUrl" value={form.robloxUrl} onChange={onChange} placeholder="Link do seu perfil do Roblox" />
-              </label>
-              <label>
-                <span className="connection-label"><img className="ui-icon-sm" src={xConnIcon} alt="" /> X (TWITTER)</span>
-                <input name="xUrl" value={form.xUrl} onChange={onChange} placeholder="Link do seu perfil no X" />
-              </label>
-            </div>
-          </div>
-
-          {/* Item pedido: "acabei com a categoria exibição e passa a
-              tag pro perfil e as conquistas pro perfil e o mini
-              perfil" — movido de dentro da extinta aba "Exibição". */}
-          {/* Item pedido: "Ranks e Conquistas ficam dentro da mesma
-              categoria (Progresso)" + "tudo que modifica somente o
-              perfil completo fica na aba Perfil Completo" — quais
-              conquistas aparecem em destaque só afeta o perfil
-              completo (ver UserProfileModal.jsx; o mini perfil não
-              mostra mais conquistas, ver aba Mini Perfil), então essa
-              escolha se mudou pra lá, junto do Álbum/Enquetes que já
-              eram só do perfil completo. */}
-
-          {myClan?.tags?.length > 0 && (
-            <div className="settings-block">
-              <h4>Tag do clube</h4>
-              <p className="dim">Exiba a tag do seu clube do lado do seu nome no chat, na lista de membros e no seu perfil.</p>
-              <div className="server-tag-options">
-                <button
-                  type="button"
-                  className={`server-tag-option ${!user.clanTagId ? 'active' : ''}`}
-                  disabled={tagSaving}
-                  onClick={async () => { setTagSaving(true); try { const { clanTagId, clanTag } = await setMyClanTag(null); setUser({ ...user, clanTagId, clanTag }); } finally { setTagSaving(false); } }}
-                >
-                  Nenhuma
-                </button>
-                <button
-                  type="button"
-                  className={`server-tag-option ${user.clanTagId ? 'active' : ''}`}
-                  disabled={tagSaving}
-                  onClick={() => pickClanTag(true)}
-                >
-                  <span className="server-tag-badge clan-tag-badge"><ClanIcon icon={myClan.icon} color={myClan.iconColor} size={14} /> {myClan.tags[0].tag}</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          <button className="btn-primary profile-edit-save" onClick={saveProfile}>Salvar alterações</button>
-        </div>
-      )}
-
-      {tab === 'PROFILE_CONTENT' && (
-        <div className="settings-grid">
-          <div className="settings-block">
-            <h4>Conquistas em destaque no perfil completo</h4>
-            <p className="dim">Escolha até 6 conquistas pra aparecerem no seu perfil completo.</p>
-            <button type="button" className="btn-secondary" onClick={() => setAchievementPickerOpen('profile')}>Escolher conquistas (até 6)</button>
-          </div>
-
-          {/* Item pedido: "desativar Galeria de fotos, sem apagar
-              nada" — mantém o componente/rota/lógica intactos, só
-              não mostra o botão de gerenciar enquanto estiver na
-              lista de desativadas. */}
-          {!DISABLED_PROFILE_SECTIONS.includes('album') && (
-            <div className="settings-block">
-              <h4>Álbum de fotos</h4>
-              <p className="dim">Adicione, organize ou apague fotos e vídeos do seu álbum de perfil.</p>
-              <button type="button" className="btn-secondary" onClick={() => setAlbumManagerOpen(true)}>Gerenciar álbum</button>
-            </div>
-          )}
-
-          <div className="settings-block">
-            <h4>Enquetes {myPolls.length > 0 ? `(${myPolls.length}/2)` : ''}</h4>
-            <p className="dim">Crie uma pergunta com opções pros seus amigos votarem, direto no seu perfil — no máximo 2 por vez.</p>
-            {myPolls.length < 2 ? (
-              <div className="profile-poll-composer">
-                <input value={pollQuestion} onChange={(e) => setPollQuestion(e.target.value)} placeholder="Pergunta da enquete..." maxLength={200} />
-                {pollOptions.map((opt, i) => (
-                  <input
-                    key={i}
-                    value={opt}
-                    onChange={(e) => setPollOptions((prev) => prev.map((o, j) => (j === i ? e.target.value : o)))}
-                    placeholder={`Opção ${i + 1}`}
-                    maxLength={100}
-                  />
-                ))}
-                {pollError && <p className="dim" style={{ color: 'var(--red)' }}>{pollError}</p>}
-                <div className="profile-poll-composer-actions">
-                  {pollOptions.length < 10 && <button type="button" className="btn-secondary" onClick={() => setPollOptions((prev) => [...prev, ''])}>+ Opção</button>}
-                  <button type="button" className="btn-secondary" disabled={pollCreating} onClick={createPoll}>Criar enquete</button>
-                </div>
-              </div>
-            ) : (
-              <p className="dim" style={{ fontStyle: 'italic' }}>Você já tem 2 enquetes — apague uma abaixo antes de criar outra.</p>
-            )}
-            {myPolls.length > 0 && (
-              <ul className="settings-poll-list">
-                {myPolls.map((p) => (
-                  <li key={p.id} className="settings-poll-list-item">
-                    <span className="truncate">{p.question}</span>
-                    <button type="button" className="profile-relationship-end" onClick={() => removePoll(p.id)}>Apagar</button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      )}
-
-      {tab === 'COLUMNS' && (
-        <div className="settings-grid">
-          <div className="settings-block">
-            <h4>Ordem das seções do perfil</h4>
-            <ProfileSectionOrderEditor value={user.profileSectionOrder} onChange={saveProfileSectionOrder} />
-          </div>
-        </div>
-      )}
-
-      {/* Item pedido: "adicione uma nova opção chamada mini perfil,
-          mova tudo que é sobre mini perfil pra lá, e também adicione
-          poder editar as cores do mini perfil separada do perfil
-          grande, mudando a cor do perfil, mudando a cor do botão ver
-          perfil completo". */}
-      {tab === 'MINI_PROFILE' && (
-        <div className="settings-grid">
+          {/* Miniperfil (antes era uma aba própria): banner, cores e bolha de status. */}
+          <div className="settings-section-title" id="settings-miniperfil">Miniperfil</div>
           {/* Item pedido: "acabei com a categoria exibição e passa...
               as conquistas pro perfil e o mini perfil" — a parte do
               miniperfil, movida de dentro da extinta aba "Exibição".
@@ -1389,7 +1254,132 @@ export default function UserSettingsModal({ onClose }) {
           </div>
           </div>
 
-          <button type="button" className="btn-primary" onClick={saveProfile}>Salvar</button>
+          <div className="settings-block">
+            <h4>Conexões</h4>
+            <div className="profile-edit-connections-grid">
+              <label>
+                <span className="connection-label"><img className="ui-icon-sm" src={youtubeConnIcon} alt="" /> YOUTUBE</span>
+                <input name="youtubeUrl" value={form.youtubeUrl} onChange={onChange} placeholder="Link do seu canal do YouTube" />
+              </label>
+              <label>
+                <span className="connection-label"><img className="ui-icon-sm" src={steamConnIcon} alt="" /> STEAM</span>
+                <input name="steamUrl" value={form.steamUrl} onChange={onChange} placeholder="Link do seu perfil da Steam" />
+              </label>
+              <label>
+                <span className="connection-label"><img className="ui-icon-sm" src={robloxConnIcon} alt="" /> ROBLOX</span>
+                <input name="robloxUrl" value={form.robloxUrl} onChange={onChange} placeholder="Link do seu perfil do Roblox" />
+              </label>
+              <label>
+                <span className="connection-label"><img className="ui-icon-sm" src={xConnIcon} alt="" /> X (TWITTER)</span>
+                <input name="xUrl" value={form.xUrl} onChange={onChange} placeholder="Link do seu perfil no X" />
+              </label>
+            </div>
+          </div>
+
+          {/* Item pedido: "acabei com a categoria exibição e passa a
+              tag pro perfil e as conquistas pro perfil e o mini
+              perfil" — movido de dentro da extinta aba "Exibição". */}
+          {/* Item pedido: "Ranks e Conquistas ficam dentro da mesma
+              categoria (Progresso)" + "tudo que modifica somente o
+              perfil completo fica na aba Perfil Completo" — quais
+              conquistas aparecem em destaque só afeta o perfil
+              completo (ver UserProfileModal.jsx; o mini perfil não
+              mostra mais conquistas, ver aba Mini Perfil), então essa
+              escolha se mudou pra lá, junto do Álbum/Enquetes que já
+              eram só do perfil completo. */}
+
+          {myClan?.tags?.length > 0 && (
+            <div className="settings-block">
+              <h4>Tag do clube</h4>
+              <p className="dim">Exiba a tag do seu clube do lado do seu nome no chat, na lista de membros e no seu perfil.</p>
+              <div className="server-tag-options">
+                <button
+                  type="button"
+                  className={`server-tag-option ${!user.clanTagId ? 'active' : ''}`}
+                  disabled={tagSaving}
+                  onClick={async () => { setTagSaving(true); try { const { clanTagId, clanTag } = await setMyClanTag(null); setUser({ ...user, clanTagId, clanTag }); } finally { setTagSaving(false); } }}
+                >
+                  Nenhuma
+                </button>
+                <button
+                  type="button"
+                  className={`server-tag-option ${user.clanTagId ? 'active' : ''}`}
+                  disabled={tagSaving}
+                  onClick={() => pickClanTag(true)}
+                >
+                  <span className="server-tag-badge clan-tag-badge"><ClanIcon icon={myClan.icon} color={myClan.iconColor} size={14} /> {myClan.tags[0].tag}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {tab === 'PROFILE_CONTENT' && (
+        <div className="settings-grid">
+          <div className="settings-block">
+            <h4>Conquistas em destaque no perfil completo</h4>
+            <p className="dim">Escolha até 6 conquistas pra aparecerem no seu perfil completo.</p>
+            <button type="button" className="btn-secondary" onClick={() => setAchievementPickerOpen('profile')}>Escolher conquistas (até 6)</button>
+          </div>
+
+          {/* Item pedido: "desativar Galeria de fotos, sem apagar
+              nada" — mantém o componente/rota/lógica intactos, só
+              não mostra o botão de gerenciar enquanto estiver na
+              lista de desativadas. */}
+          {!DISABLED_PROFILE_SECTIONS.includes('album') && (
+            <div className="settings-block">
+              <h4>Álbum de fotos</h4>
+              <p className="dim">Adicione, organize ou apague fotos e vídeos do seu álbum de perfil.</p>
+              <button type="button" className="btn-secondary" onClick={() => setAlbumManagerOpen(true)}>Gerenciar álbum</button>
+            </div>
+          )}
+
+          <div className="settings-block">
+            <h4>Enquetes {myPolls.length > 0 ? `(${myPolls.length}/2)` : ''}</h4>
+            <p className="dim">Crie uma pergunta com opções pros seus amigos votarem, direto no seu perfil — no máximo 2 por vez.</p>
+            {myPolls.length < 2 ? (
+              <div className="profile-poll-composer">
+                <input value={pollQuestion} onChange={(e) => setPollQuestion(e.target.value)} placeholder="Pergunta da enquete..." maxLength={200} />
+                {pollOptions.map((opt, i) => (
+                  <input
+                    key={i}
+                    value={opt}
+                    onChange={(e) => setPollOptions((prev) => prev.map((o, j) => (j === i ? e.target.value : o)))}
+                    placeholder={`Opção ${i + 1}`}
+                    maxLength={100}
+                  />
+                ))}
+                {pollError && <p className="dim" style={{ color: 'var(--red)' }}>{pollError}</p>}
+                <div className="profile-poll-composer-actions">
+                  {pollOptions.length < 10 && <button type="button" className="btn-secondary" onClick={() => setPollOptions((prev) => [...prev, ''])}>+ Opção</button>}
+                  <button type="button" className="btn-secondary" disabled={pollCreating} onClick={createPoll}>Criar enquete</button>
+                </div>
+              </div>
+            ) : (
+              <p className="dim" style={{ fontStyle: 'italic' }}>Você já tem 2 enquetes — apague uma abaixo antes de criar outra.</p>
+            )}
+            {myPolls.length > 0 && (
+              <ul className="settings-poll-list">
+                {myPolls.map((p) => (
+                  <li key={p.id} className="settings-poll-list-item">
+                    <span className="truncate">{p.question}</span>
+                    <button type="button" className="profile-relationship-end" onClick={() => removePoll(p.id)}>Apagar</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === 'COLUMNS' && (
+        <div className="settings-grid">
+          <div className="settings-block">
+            <h4>Ordem das seções do perfil</h4>
+            <ProfileSectionOrderEditor value={user.profileSectionOrder} onChange={saveProfileSectionOrder} />
+          </div>
         </div>
       )}
 
@@ -1403,7 +1393,7 @@ export default function UserSettingsModal({ onClose }) {
               <input value={username} onChange={(e) => setUsernameField(e.target.value)} />
             </label>
             {error && <div className="auth-error">{error}</div>}
-            <button className="btn-primary" onClick={saveUsername}>Salvar nome de usuário</button>
+            <p className="dim settings-autosave-hint">Salvo automaticamente.</p>
           </div>
 
           <div className="settings-block">
@@ -1526,17 +1516,6 @@ export default function UserSettingsModal({ onClose }) {
 
       {tab === 'APPEARANCE' && (
         <div className="settings-grid">
-          <div className="settings-block">
-            <h4>Tema</h4>
-            <div className="theme-options">
-              {['facebook', 'light', 'dark', 'amoled', 'clubpenguin'].map((t) => (
-                <button key={t} className={`theme-swatch ${t} ${theme === t && !customBackground ? 'active' : ''}`} onClick={() => pickTheme(t)}>
-                  {{ facebook: 'Muito Claro', clubpenguin: 'Cartoon', dark: 'Cinza', light: 'Claro', amoled: 'Preto' }[t]}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Item pedido: "em aparência adicione uma nova opção de
               layout, a opção normal (a atual) e a opção de layout
               discord — o layout discord faz os canais/categorias
@@ -1559,6 +1538,9 @@ export default function UserSettingsModal({ onClose }) {
               ))}
             </div>
           </div>
+
+          {/* Personalizar layout (densidade, cantos, coluna, fonte, fundo animado, temas sazonais) */}
+          <LayoutCustomizer />
 
           {/* Item pedido: "sistema podendo mudar o zoom de 1,0 até
               2,0... pra melhor personalização" — só afeta o chat e a
@@ -1749,6 +1731,7 @@ export default function UserSettingsModal({ onClose }) {
               </div>
             </>
           )}
+          <AccessibilityExtras />
         </div>
       )}
 
@@ -2041,7 +2024,7 @@ export default function UserSettingsModal({ onClose }) {
                     maxLength={32}
                   />
                   <button type="button" className="btn-secondary" disabled={savingShortcut || !newShortcutAction.trim() || !newShortcutCombo.trim()} onClick={submitShortcut}>
-                    {savingShortcut ? '...' : 'Salvar'}
+                    {savingShortcut ? '...' : 'Adicionar atalho'}
                   </button>
                 </div>
               </div>
@@ -2515,5 +2498,78 @@ function VoiceSettingsTab() {
         </div>
       )}
     </div>
+  );
+}
+
+// Indicador do salvamento automático ("Salvando…" / "Salvo").
+function SaveStatusPill() {
+  const status = useSaveStatus();
+  if (status === 'idle') return null;
+  const label = { saving: 'Salvando…', saved: 'Salvo', error: 'Não foi possível salvar' }[status];
+  return (
+    <span className={`settings-save-pill is-${status}`} role="status" aria-live="polite">
+      {status === 'saving' ? <span className="settings-save-spinner" aria-hidden="true" /> : (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d={status === 'saved' ? 'M5 12.5l4.5 4.5L19 7.5' : 'M12 8v5M12 16.5v.5'} />
+        </svg>
+      )}
+      {label}
+    </span>
+  );
+}
+
+// "Alterar avatar": abre um menu com enviar nova foto ou tirar o fundo
+// preto da foto atual (o editor de imagem também tem essa opção ao
+// escolher uma foto nova).
+function AvatarChangeMenu({ onFile, canFixBackground, onFixBackground }) {
+  const [pos, setPos] = useState(null); // posição do menu (fixo, fora do cartão que corta)
+  const btnRef = useRef(null);
+  const menuRef = useRef(null);
+  const fileRef = useRef(null);
+  const open = !!pos;
+  const toggle = () => {
+    if (open) { setPos(null); return; }
+    const r = btnRef.current.getBoundingClientRect();
+    const width = Math.min(300, window.innerWidth - 16);
+    setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)), width });
+  };
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = () => setPos(null);
+    const onDown = (e) => { if (!menuRef.current?.contains(e.target) && !btnRef.current?.contains(e.target)) close(); };
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey, true);
+    window.addEventListener('resize', close);
+    document.addEventListener('scroll', close, true);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('resize', close);
+      document.removeEventListener('scroll', close, true);
+    };
+  }, [open]);
+  return (
+    <>
+      <button ref={btnRef} type="button" className="btn-secondary" aria-haspopup="menu" aria-expanded={open} onClick={toggle}>
+        Alterar avatar
+      </button>
+      <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { setPos(null); onFile(e); }} />
+      {open && createPortal(
+        <div ref={menuRef} className="avatar-change-menu" role="menu" style={{ top: pos.top, left: pos.left, width: pos.width }}>
+          <button type="button" role="menuitem" onClick={() => fileRef.current?.click()}>
+            <strong>Escolher nova foto</strong>
+            <span>PNG, JPG, WEBP ou GIF. No editor dá pra tirar o fundo preto.</span>
+          </button>
+          {canFixBackground && (
+            <button type="button" role="menuitem" onClick={() => { setPos(null); onFixBackground(); }}>
+              <strong>Tirar fundo preto da foto atual</strong>
+              <span>Deixa transparente pra mostrar a cor do seu perfil.</span>
+            </button>
+          )}
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }

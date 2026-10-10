@@ -29,7 +29,10 @@ import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import ChatIcon from './ChatIcons.jsx';
 import { STATUS_LABEL } from '../utils/status';
 import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from './PenguinAvatar.jsx';
+import { usePinnedMessages, PinnedButton, PinnedStrip } from './PinnedMessages.jsx';
+import NavIcon from './NavIcons.jsx';
 import '../styles/chat.css';
+import '../styles/nav.css';
 
 // BUG CORRIGIDO: <img src={dmOther.avatarUrl}> quebrava (bloqueado pela
 // CSP img-src) quando a outra pessoa da DM tem avatar de pinguim
@@ -90,6 +93,12 @@ const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 const MAX_FILES_COUNT = 10;
 
 const MENTION_RE = /@([a-zA-Z0-9_ ]{0,24})$/;
+// "$nome" também marca pessoas (vira o mesmo @nome de sempre) e "#canal"
+// sugere canais de texto/voz (vira o token <#id>, ver channelMentions.js).
+// Só no começo ou depois de espaço, pra "R$ 10" ou "C#" não abrirem nada.
+const DOLLAR_MENTION_RE = /(^|\s)\$([^\s$]{0,24})$/;
+const CHANNEL_MENTION_TYPING_RE = /(^|\s)#([^\s#<>]{0,32})$/;
+const normName = (v) => (v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, '');
 
 function findChannel(categories, channels, channelId) {
   const all = [...channels, ...categories.flatMap((c) => c.channels)];
@@ -301,6 +310,8 @@ export default function ChatWindow({ kind }) {
   }, [emojiPickerOpen, uiLayout]);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState(null); // null = not showing; '' or partial name otherwise
+  const [mentionTrigger, setMentionTrigger] = useState('@'); // '@' | '$' (pessoas) | '#' (canais)
+  const [mentionActive, setMentionActive] = useState(0);
   const [recording, setRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const typingTimeoutRef = useRef(null);
@@ -334,13 +345,31 @@ export default function ChatWindow({ kind }) {
   // agora; mencionar um cargo digitando o nome dele à mão ainda
   // funciona normal como menção de verdade, só não sugere mais como
   // opção clicável aqui.
-  const mentionCandidates = channel
+  const mentionCandidatesAt = channel
     ? [
         ...(canMentionEveryone ? [{ id: '@everyone', label: 'everyone', hint: 'Notificar todos no canal' }, { id: '@here', label: 'here', hint: 'Notificar quem está online' }] : []),
         ...members
           .map((m) => ({ id: m.user.id, label: m.user.displayName, hint: `@${m.user.username}`, avatarUrl: m.user.avatarUrl, profileColor: m.user.profileColor })),
       ].filter((c) => !mentionQuery || c.label.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 8)
     : [];
+  // "$": só pessoas (membros do canal, ou quem está na conversa).
+  const dollarPeople = channel
+    ? members.map((m) => m.user)
+    : (conversations.find((c) => c.id === conversationId)?.members || []).filter((m) => m.id !== user.id);
+  const mentionCandidatesDollar = mentionTrigger === '$' && mentionQuery !== null
+    ? dollarPeople
+      .filter((u) => !mentionQuery || normName(u.displayName).includes(normName(mentionQuery)) || normName(u.username).includes(normName(mentionQuery)))
+      .slice(0, 8)
+      .map((u) => ({ id: u.id, label: u.displayName, hint: u.username ? `@${u.username}` : '', avatarUrl: u.avatarUrl, profileColor: u.profileColor }))
+    : [];
+  // "#": canais de texto e de voz da comunidade.
+  const mentionCandidatesChannel = mentionTrigger === '#' && mentionQuery !== null
+    ? [...channels, ...categories.flatMap((cat) => (cat.channels || []).map((c) => ({ ...c, _cat: cat.name })))]
+      .filter((c) => c.type !== 'RULES' && (!mentionQuery || normName(c.name).includes(normName(mentionQuery))))
+      .slice(0, 8)
+      .map((c) => ({ id: c.id, label: c.name, hint: c._cat || '', isChannel: true, isVoice: c.type === 'VOICE' || c.type === 'STAGE', channel: c }))
+    : [];
+  const mentionCandidates = mentionTrigger === '#' ? mentionCandidatesChannel : mentionTrigger === '$' ? mentionCandidatesDollar : mentionCandidatesAt;
 
   // Item pedido: "quando marcar algum cargo ou membro... quero que
   // apareça a foto de perfil do user" — todo nome que pode ser
@@ -387,8 +416,34 @@ export default function ChatWindow({ kind }) {
   const isCallChannel = channel && (channel.type === 'VOICE' || channel.type === 'STAGE');
   const isNonChatChannel = isCallChannel || channel?.type === 'RULES';
 
+  // Não lidas: guarda a "última leitura" de quando a sala abriu (antes de
+  // marcar como lida) pra pôr a linha "Novas mensagens" no lugar certo.
+  const [unreadMark, setUnreadMark] = useState({ roomKey: null, readAt: null });
+  const [firstUnreadId, setFirstUnreadId] = useState(null);
+  const unreadComputedForRef = useRef(null);
+  const [unreadPillDismissed, setUnreadPillDismissed] = useState(false);
+  const [scrollPill, setScrollPill] = useState({ far: false, dividerAbove: false });
+  // Mensagens fixadas (alfinete no cabeçalho + faixa "Destaques").
+  const [pinsOpen, setPinsOpen] = useState(false);
+  const { pins, loading: pinsLoading, setPins } = usePinnedMessages({ conversationId, channelId, enabled: !isNonChatChannel });
+  useEffect(() => { setPinsOpen(false); }, [roomKey]);
+
   useEffect(() => {
     if (isNonChatChannel) return;
+    {
+      const st = useStore.getState();
+      let readAt = null;
+      if (channelId) {
+        const ch = findChannel(st.categories, st.channels, channelId);
+        readAt = st.channelReadAt[channelId] ?? ch?.myReadAt ?? null;
+      } else if (conversationId) {
+        readAt = st.conversations.find((c) => c.id === conversationId)?.lastReadAt ?? null;
+      }
+      setUnreadMark({ roomKey, readAt });
+      setFirstUnreadId(null);
+      unreadComputedForRef.current = null;
+      setUnreadPillDismissed(false);
+    }
     setRoomMessages(roomKey, []);
     setHasMoreOlder(true);
     setInitialLoading(true);
@@ -528,6 +583,72 @@ export default function ChatWindow({ kind }) {
     };
   }, [roomKey, isNonChatChannel]);
 
+  // Primeira mensagem não lida (calculada uma vez, quando a 1ª página chega).
+  useEffect(() => {
+    if (isNonChatChannel || initialLoading || unreadComputedForRef.current === roomKey) return;
+    if (unreadMark.roomKey !== roomKey) return;
+    unreadComputedForRef.current = roomKey;
+    const readAt = unreadMark.readAt ? new Date(unreadMark.readAt) : null;
+    if (!readAt || messages.length === 0) return;
+    const first = messages.find((m) => !m.pending && !String(m.id).startsWith('temp-') && m.authorId !== user.id && new Date(m.createdAt) > readAt);
+    if (first) setFirstUnreadId(first.id);
+  }, [initialLoading, messages, roomKey, unreadMark, isNonChatChannel, user.id]);
+
+  // Pílulas flutuantes: "Pular para não lidas" (linha acima da tela) e
+  // "Voltar ao fim" (longe do final).
+  useEffect(() => {
+    const list = chatListRef.current;
+    if (!list || isNonChatChannel) return undefined;
+    let raf = 0;
+    const check = () => {
+      raf = 0;
+      const far = list.scrollHeight - list.scrollTop - list.clientHeight > 500;
+      const sep = list.querySelector('.chat-unread-sep');
+      const dividerAbove = !!sep && sep.getBoundingClientRect().bottom < list.getBoundingClientRect().top + 4;
+      setScrollPill((prev) => (prev.far === far && prev.dividerAbove === dividerAbove ? prev : { far, dividerAbove }));
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(check); };
+    list.addEventListener('scroll', onScroll, { passive: true });
+    check();
+    return () => { list.removeEventListener('scroll', onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, [roomKey, isNonChatChannel, firstUnreadId, messages.length]);
+
+  const scrollBehavior = () => (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
+  const jumpToUnread = () => {
+    const sep = chatListRef.current?.querySelector('.chat-unread-sep');
+    if (!sep) return;
+    stickToBottomRef.current = false;
+    sep.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
+  };
+  const jumpToBottom = () => {
+    stickToBottomRef.current = true;
+    bottomRef.current?.scrollIntoView({ block: 'end', behavior: scrollBehavior() });
+  };
+  // Leva até uma mensagem (ex.: fixada), carregando páginas antigas se preciso.
+  const jumpToMessage = async (target) => {
+    const find = () => chatListRef.current?.querySelector(`.message[data-message-id="${target.id}"]`);
+    stickToBottomRef.current = false;
+    let el = find();
+    for (let guard = 0; !el && guard < 8; guard += 1) {
+      const cur = useStore.getState().messagesByRoom[roomKey] || [];
+      if (cur.length === 0 || new Date(cur[0].createdAt) <= new Date(target.createdAt)) break;
+      let d;
+      try { d = await listMessages({ conversationId, channelId, before: cur[0].createdAt }); } catch { break; }
+      if (currentRoomRef.current !== roomKey) return;
+      if (!d.messages.length) { setHasMoreOlder(false); break; }
+      if (d.messages.length < 50) setHasMoreOlder(false);
+      useStore.getState().prependRoomMessages(roomKey, d.messages);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      el = find();
+    }
+    if (!el) { useStore.getState().pushNotice('Não deu pra encontrar essa mensagem no histórico.'); return; }
+    el.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
+    el.classList.remove('nav-flash');
+    void el.offsetWidth;
+    el.classList.add('nav-flash');
+    setTimeout(() => el.classList.remove('nav-flash'), 2000);
+  };
+
   // Item pedido: otimização/velocidade — `typing:start` estava sendo
   // mandado em TODA tecla digitada, sem parar — escrever uma frase de
   // 50 caracteres mandava 50 eventos pro servidor, que aí retransmite
@@ -553,8 +674,11 @@ export default function ChatWindow({ kind }) {
   const onContentChange = (value) => {
     setContent(value);
     notifyTyping();
-    const m = value.match(MENTION_RE);
-    setMentionQuery(m ? m[1] : null);
+    const ch = value.match(CHANNEL_MENTION_TYPING_RE);
+    const dl = !ch && value.match(DOLLAR_MENTION_RE);
+    const m = !ch && !dl && value.match(MENTION_RE);
+    if (ch) { setMentionTrigger('#'); setMentionQuery(ch[2]); } else if (dl) { setMentionTrigger('$'); setMentionQuery(dl[2]); } else { setMentionTrigger('@'); setMentionQuery(m ? m[1] : null); }
+    setMentionActive(0);
   };
 
   const insertText = (text) => {
@@ -644,7 +768,9 @@ export default function ChatWindow({ kind }) {
   }, []);
 
   const pickMention = (candidate) => {
-    setContent((c) => c.replace(MENTION_RE, `@${candidate.label} `));
+    if (mentionTrigger === '#') setContent((c) => c.replace(CHANNEL_MENTION_TYPING_RE, (_, pre) => `${pre}<#${candidate.id}> `));
+    else if (mentionTrigger === '$') setContent((c) => c.replace(DOLLAR_MENTION_RE, (_, pre) => `${pre}@${candidate.label} `));
+    else setContent((c) => c.replace(MENTION_RE, `@${candidate.label} `));
     setMentionQuery(null);
     inputRef.current?.focus();
   };
@@ -813,6 +939,10 @@ export default function ChatWindow({ kind }) {
   let lastTime = 0;
   let lastDay = null;
 
+  // Quantas não lidas a partir da linha "Novas mensagens".
+  const firstUnreadIdx = firstUnreadId ? messages.findIndex((m) => m.id === firstUnreadId) : -1;
+  const unreadCount = firstUnreadIdx < 0 ? 0 : messages.slice(firstUnreadIdx).filter((m) => m.authorId !== user.id).length;
+
   const dmStatus = dmOther ? (dmOtherPresence?.status || dmOther.status || 'OFFLINE') : null;
   const dmCustomStatus = dmOther ? (dmOtherPresence?.customStatus ?? dmOther.customStatus) : null;
   // Quem está digitando, pelo nome (cai em "Alguém" se não achar).
@@ -857,6 +987,12 @@ export default function ChatWindow({ kind }) {
           {channel?.topic && <span className="chat-header-sub truncate" title={channel.topic}>{channel.topic}</span>}
         </div>
         <div className="chat-header-actions">
+          <PinnedButton
+            pins={pins} loading={pinsLoading} open={pinsOpen} setOpen={setPinsOpen}
+            canUnpin={channelId ? hasPermission(myPerms, 'MANAGE_MESSAGES') : !!conversationId}
+            onJump={jumpToMessage}
+            onUnpinned={(id) => setPins((prev) => prev.filter((x) => x.id !== id))}
+          />
           <button className={`icon-btn chat-header-btn ${searchOpen ? 'on' : ''}`} onClick={() => setSearchOpen((v) => !v)} title="Buscar mensagens" aria-label="Buscar mensagens"><ChatIcon name="search" /></button>
           {conversationId && (
             <button
@@ -889,6 +1025,8 @@ export default function ChatWindow({ kind }) {
         </div>
       )}
 
+      <PinnedStrip roomKey={roomKey} pins={pins} onJump={jumpToMessage} onOpenList={() => setPinsOpen(true)} />
+
       {channel?.ticket && (channel.ticket.bannerImageUrl || channel.ticket.welcomeText) && (
         <TicketChannelBanner ticket={channel.ticket} />
       )}
@@ -910,6 +1048,11 @@ export default function ChatWindow({ kind }) {
           return (
             <Fragment key={m.id}>
               {newDay && <DaySeparator iso={m.createdAt} />}
+              {m.id === firstUnreadId && (
+                <div className="chat-unread-sep" role="separator" aria-label="Novas mensagens">
+                  <span className="chat-unread-sep-label">Novas mensagens</span>
+                </div>
+              )}
               <Message
                 message={m}
                 showAuthor={showAuthor}
@@ -921,6 +1064,25 @@ export default function ChatWindow({ kind }) {
           );
         })}
         <div ref={bottomRef} />
+      </div>
+
+      {/* Pílula flutuante: pular pras não lidas / voltar ao fim. */}
+      <div className="chat-jump-anchor">
+        {firstUnreadId && scrollPill.dividerAbove && !unreadPillDismissed ? (
+          <div className="chat-jump-pill is-unread">
+            <button type="button" className="chat-jump-pill-main" onClick={jumpToUnread}>
+              <NavIcon name="arrowUp" size={15} />
+              <span>Pular para não lidas</span>
+              {unreadCount > 0 && <span className="chat-jump-pill-count">{unreadCount >= 50 ? '50+' : unreadCount}</span>}
+            </button>
+            <button type="button" className="chat-jump-pill-x" onClick={() => setUnreadPillDismissed(true)} aria-label="Dispensar" title="Dispensar"><NavIcon name="close" size={13} /></button>
+          </div>
+        ) : scrollPill.far ? (
+          <button type="button" className="chat-jump-pill" onClick={jumpToBottom}>
+            <NavIcon name="arrowDown" size={15} />
+            <span>Voltar ao fim</span>
+          </button>
+        ) : null}
       </div>
 
       {openTopic && (
@@ -992,8 +1154,24 @@ export default function ChatWindow({ kind }) {
         )}
         {mentionQuery !== null && mentionCandidates.length > 0 && (
           <div className="mention-autocomplete">
-            {mentionCandidates.map((c) => (
-              <button key={c.id} type="button" onClick={() => pickMention(c)}>
+            <div className="mention-autocomplete-head">
+              {mentionTrigger === '#' ? 'Canais' : 'Marcar pessoas'}
+              <span>{mentionTrigger === '#' ? '#' : mentionTrigger} · ↑↓ e Enter</span>
+            </div>
+            {mentionCandidates.map((c, idx) => (
+              <button
+                key={c.id} type="button"
+                className={idx === mentionActive ? 'is-active' : ''}
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setMentionActive(idx)}
+                onClick={() => pickMention(c)}
+              >
+                {c.isChannel ? (
+                  <span className="mention-autocomplete-left">
+                    <span className="mention-autocomplete-channel-icon"><NavIcon name={c.isVoice ? 'voice' : 'hash'} size={15} /></span>
+                    <span className="mention-autocomplete-name truncate">{c.label}</span>
+                  </span>
+                ) : (
                 <span className="mention-autocomplete-left">
                   {/* Item pedido: "o user que não tem foto de perfil...
                       fundo azul, a inicial do nome" — @everyone/@here
@@ -1007,7 +1185,8 @@ export default function ChatWindow({ kind }) {
                   )}
                   <span className="mention-autocomplete-name">@{c.label}</span>
                 </span>
-                <span className="dim">{c.hint}</span>
+                )}
+                <span className="dim truncate">{c.isChannel ? (c.isVoice ? `Voz${c.hint ? ` · ${c.hint}` : ''}` : c.hint) : c.hint}</span>
               </button>
             ))}
           </div>
@@ -1058,6 +1237,22 @@ export default function ChatWindow({ kind }) {
             emojiMap={composerEmojiMap}
             mentionMap={composerMentionMap}
             onSubmit={() => onSubmit({ preventDefault: () => {} })}
+            onKeyDownExtra={(e) => {
+              if (mentionQuery === null || mentionCandidates.length === 0) return false;
+              if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const n = mentionCandidates.length;
+                setMentionActive((i) => (e.key === 'ArrowDown' ? (i + 1) % n : (i - 1 + n) % n));
+                return true;
+              }
+              if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                pickMention(mentionCandidates[Math.min(mentionActive, mentionCandidates.length - 1)]);
+                return true;
+              }
+              if (e.key === 'Escape') { e.preventDefault(); setMentionQuery(null); return true; }
+              return false;
+            }}
           />
           <div className="composer-picker-anchor">
             <button ref={gifBtnRef} type="button" className={`icon-btn chat-composer-btn chat-gif-btn ${pickerTab === 'gifs' ? 'on' : ''}`} title="GIF" onClick={() => setPickerTab((t) => (t === 'gifs' ? null : 'gifs'))}><span>GIF</span></button>

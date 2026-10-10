@@ -57,7 +57,12 @@ api.interceptors.response.use(
         original.headers.Authorization = `Bearer ${data.accessToken}`;
         return api(original);
       } catch (refreshErr) {
-        onUnauthorized?.();
+        // Só desloga se o servidor recusou a sessão de verdade (401/403).
+        // Se ele estiver fora do ar (deploy), mantém a pessoa logada e a
+        // próxima requisição tenta renovar de novo.
+        const st = refreshErr?.response?.status;
+        const json = String(refreshErr?.response?.headers?.['content-type'] || '').includes('application/json');
+        if ((st === 401 || st === 403) && json) onUnauthorized?.();
         return Promise.reject(refreshErr);
       }
     }

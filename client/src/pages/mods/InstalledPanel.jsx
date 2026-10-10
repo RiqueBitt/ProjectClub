@@ -4,8 +4,9 @@ import {
   setModEnabledLocally, uninstallModLocally, scanInstalledModsLocally, listInstalledModsLocally,
 } from '../../utils/mods';
 import { proxyImage } from '../../utils/imageProxy';
-import { Icon, EmptyState, SearchField, ChipRow, Section, SourceChip, hashHue } from './shared.jsx';
+import { Icon, EmptyState, SearchField, ChipRow, Section, SourceChip, hashHue, ProgressBar, progressLabel, useModsManager } from './shared.jsx';
 import { identifyInstalledMods, formatBytes } from './unifiedApi.js';
+import { checkUpdatesForItems, updateKey, updateInstalledMod } from './modUpdates.js';
 
 // Aba "Instalados" — item pedido: "identificar mods JÁ instalados nos
 // arquivos do jogo e usar as APIs pra achar quais são". Junta numa lista
@@ -23,8 +24,9 @@ const ORIGIN = {
 const isLoose = (row) => String(row.key || '').startsWith('detected:');
 
 export default function InstalledPanel({
-  game, installedState, refreshInstalled, profiles, refreshProfiles, localProfile, onExplore, onAddLocal, localInstallBusy,
+  game, installedState, refreshInstalled, profiles, refreshProfiles, localProfile, onExplore, onAddLocal, localInstallBusy, onUpdatesChanged,
 }) {
+  const mgr = useModsManager();
   const [scan, setScan] = useState(null); // { items, unsupported }
   const [matches, setMatches] = useState({});
   const [query, setQuery] = useState('');
@@ -32,6 +34,10 @@ export default function InstalledPanel({
   const [error, setError] = useState('');
   const [busyKey, setBusyKey] = useState(null);
   const identifiedRef = useRef(new Set());
+  // Atualizações: { 'source:sourceId': { latestVersion, updateAvailable, needsAccount } }
+  const [updates, setUpdates] = useState({});
+  const [updateRun, setUpdateRun] = useState(null); // { list, index, current, done, results }
+  const [updatingKey, setUpdatingKey] = useState(null);
 
   // Re-varre sempre que a lista simples muda (instalou/ativou/apagou).
   useEffect(() => {
@@ -68,11 +74,26 @@ export default function InstalledPanel({
       .catch(() => {});
   }, [scan, game.steamAppId]);
 
-  const rows = useMemo(() => (scan?.items || []).map((i) => ({
-    ...i,
-    origin: i.managedByProjectClub ? 'managed' : i.managedBy === 'vortex' ? 'vortex' : 'detected',
-    match: matches[i.vortexMod || i.name] || (i.vortexMod ? { name: i.vortexMod } : null),
-  })), [scan, matches]);
+  // Versão mais nova de cada mod instalado pelo Project Club (em lote).
+  useEffect(() => {
+    if (!scan?.items?.length || scan.unsupported) return undefined;
+    let alive = true;
+    checkUpdatesForItems(game, scan.items)
+      .then((r) => { if (alive) setUpdates(r); })
+      .catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scan, game.steamAppId]);
+
+  const rows = useMemo(() => (scan?.items || []).map((i) => {
+    const upd = i.managedByProjectClub && i.source ? updates[updateKey(i)] : null;
+    return {
+      ...i,
+      origin: i.managedByProjectClub ? 'managed' : i.managedBy === 'vortex' ? 'vortex' : 'detected',
+      match: matches[i.vortexMod || i.name] || (i.vortexMod ? { name: i.vortexMod } : null) || (upd?.name ? { name: upd.name, thumbnailUrl: upd.thumbnailUrl } : null),
+      update: upd?.updateAvailable ? upd : null,
+    };
+  }), [scan, matches, updates]);
 
   const counts = {
     all: rows.length,
@@ -81,14 +102,59 @@ export default function InstalledPanel({
     managed: rows.filter((r) => r.origin === 'managed').length,
     detected: rows.filter((r) => r.origin === 'detected').length,
     vortex: rows.filter((r) => r.origin === 'vortex').length,
+    updates: rows.filter((r) => r.update).length,
   };
   const q = query.trim().toLowerCase();
   const shown = rows
-    .filter((r) => filter === 'all' || (filter === 'on' && r.enabled) || (filter === 'off' && !r.enabled) || r.origin === filter)
+    .filter((r) => filter === 'all' || (filter === 'on' && r.enabled) || (filter === 'off' && !r.enabled) || (filter === 'updates' && r.update) || r.origin === filter)
     .filter((r) => !q || r.name.toLowerCase().includes(q) || (r.match?.name || '').toLowerCase().includes(q))
-    .sort((a, b) => (b.isLoader ? 1 : 0) - (a.isLoader ? 1 : 0) || (a.match?.name || a.name).localeCompare(b.match?.name || b.name, 'pt-BR'));
+    .sort((a, b) => (b.isLoader ? 1 : 0) - (a.isLoader ? 1 : 0) || (b.update ? 1 : 0) - (a.update ? 1 : 0) || (a.match?.name || a.name).localeCompare(b.match?.name || b.name, 'pt-BR'));
 
   const afterChange = () => refreshInstalled();
+
+  // Atualiza um mod (reinstala a versão nova por cima).
+  const updateOne = async (row) => {
+    setUpdatingKey(row.key);
+    setError('');
+    try {
+      const r = await updateInstalledMod({ game, row, mgr });
+      if (r.status === 'skipped') setError(`"${row.match?.name || row.name}": ${r.reason}`);
+      afterChange();
+      onUpdatesChanged?.();
+    } catch (err) {
+      setError(`Não foi possível atualizar "${row.match?.name || row.name}": ${err.response?.data?.error || err.message}`);
+    } finally {
+      setUpdatingKey(null);
+    }
+  };
+
+  // "Atualizar tudo": um por vez, com progresso; pula (e explica) os que
+  // precisam do login no site do mod.
+  const updateAll = async () => {
+    const list = rows.filter((r) => r.update);
+    if (list.length === 0) return;
+    setError('');
+    setUpdateRun({ list, index: 0, current: list[0], done: false, results: [] });
+    const results = [];
+    for (let i = 0; i < list.length; i += 1) {
+      const row = list[i];
+      setUpdateRun((r) => ({ ...r, index: i, current: row }));
+      if (row.update.needsAccount) {
+        results.push({ row, status: 'skipped', needsAccount: true, reason: 'precisa do login no site do mod' });
+        continue;
+      }
+      try {
+        const r = await updateInstalledMod({ game, row, mgr });
+        results.push({ row, ...r });
+      } catch (err) {
+        results.push({ row, status: 'failed', reason: err.response?.data?.error || err.message });
+      }
+      setUpdateRun((r) => ({ ...r, results: [...results] }));
+    }
+    setUpdateRun((r) => ({ ...r, done: true, current: null, results }));
+    afterChange();
+    onUpdatesChanged?.();
+  };
 
   const toggle = async (row) => {
     setBusyKey(row.key);
@@ -140,6 +206,17 @@ export default function InstalledPanel({
         right={scan && <span className="mdx-muted">{counts.on} ativos · {counts.off} desativados</span>}
       >
         {error && <p className="mdx-error">{error}</p>}
+        {(counts.updates > 0 || updateRun) && (
+          <UpdatesBanner
+            count={counts.updates}
+            run={updateRun}
+            progress={updateRun?.current ? mgr.progressById?.[progressIdOf(updateRun.current)] : null}
+            busy={!!updatingKey}
+            onUpdateAll={updateAll}
+            onShow={() => setFilter('updates')}
+            onClose={() => setUpdateRun(null)}
+          />
+        )}
         {scan === null ? (
           <div className="mdx-rows">{[0, 1, 2].map((i) => <div key={i} className="mdx-skel mdx-skel-row" />)}</div>
         ) : rows.length === 0 ? (
@@ -167,6 +244,7 @@ export default function InstalledPanel({
                   { value: 'all', label: 'Todos', count: counts.all },
                   { value: 'on', label: 'Ativos', count: counts.on },
                   { value: 'off', label: 'Desativados', count: counts.off },
+                  counts.updates > 0 && { value: 'updates', label: 'Com atualização', count: counts.updates },
                   !scan.unsupported && counts.managed > 0 && { value: 'managed', label: 'Do Project Club', count: counts.managed },
                   !scan.unsupported && counts.detected > 0 && { value: 'detected', label: 'Detectados', count: counts.detected },
                   !scan.unsupported && counts.vortex > 0 && { value: 'vortex', label: 'Outro gerenciador', count: counts.vortex },
@@ -188,6 +266,9 @@ export default function InstalledPanel({
                     key={`${r.origin}-${r.key}-${r.path || ''}`}
                     row={r}
                     busy={busyKey === r.key}
+                    updating={updatingKey === r.key || (updateRun && !updateRun.done && updateRun.current?.key === r.key)}
+                    updateLocked={!!updatingKey || (!!updateRun && !updateRun.done)}
+                    onUpdate={() => updateOne(r)}
                     profiles={profiles}
                     showOrigin={!scan.unsupported}
                     onToggle={() => toggle(r)}
@@ -204,7 +285,67 @@ export default function InstalledPanel({
   );
 }
 
-function InstalledRow({ row, busy, profiles, showOrigin, onToggle, onRemove, onAddToProfile }) {
+// Id usado no progresso (onModsProgress) de cada fonte.
+function progressIdOf(row) {
+  if (row.source === 'modio') return Number(row.sourceId);
+  if (row.source === 'nexus') return Number(String(row.sourceId).split(':')[1]);
+  return row.sourceId;
+}
+
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+// Faixa "Atualizações disponíveis" + progresso do "Atualizar tudo".
+function UpdatesBanner({ count, run, progress, busy, onUpdateAll, onShow, onClose }) {
+  if (run && !run.done) {
+    const name = run.current?.update?.name || run.current?.match?.name || run.current?.name;
+    return (
+      <div className="mdx-upd-banner working" role="status" aria-live="polite">
+        <span className="mdx-upd-icon"><Icon name="refresh" size={18} /></span>
+        <div className="mdx-upd-text">
+          <strong>Atualizando {run.index + 1} de {run.list.length}</strong>
+          <span>{name}{progress ? ` — ${progressLabel(progress)}` : ''}</span>
+          <ProgressBar percent={progress?.phase === 'downloading' ? progress.percent : ((run.index) / run.list.length) * 100} indeterminate={!progress} />
+        </div>
+      </div>
+    );
+  }
+  if (run?.done) {
+    const ok = run.results.filter((r) => r.status === 'updated').length;
+    const skipped = run.results.filter((r) => r.status === 'skipped');
+    const failed = run.results.filter((r) => r.status === 'failed');
+    return (
+      <div className={`mdx-upd-banner ${failed.length ? 'warn' : 'ok'}`} role="status">
+        <span className="mdx-upd-icon"><Icon name={failed.length ? 'alert' : 'check'} size={18} strokeWidth={2.2} /></span>
+        <div className="mdx-upd-text">
+          <strong>{ok > 0 ? `${plural(ok, 'mod atualizado', 'mods atualizados')}` : 'Nenhum mod foi atualizado'}</strong>
+          {skipped.length > 0 && (
+            <span>
+              {plural(skipped.length, 'mod ficou', 'mods ficaram')} de fora: {skipped.map((r) => r.row.update?.name || r.row.match?.name || r.row.name).join(', ')}.
+              {skipped.some((r) => r.needsAccount) && ' Esses só baixam com login no site do mod — abra cada um na aba "Explorar" e use "Baixar pela página".'}
+            </span>
+          )}
+          {failed.length > 0 && <span>Falharam: {failed.map((r) => `${r.row.update?.name || r.row.name} (${r.reason})`).join('; ')}.</span>}
+        </div>
+        <button type="button" className="mdx-icon-btn" aria-label="Fechar" onClick={onClose}><Icon name="close" size={14} /></button>
+      </div>
+    );
+  }
+  return (
+    <div className="mdx-upd-banner">
+      <span className="mdx-upd-icon"><Icon name="refresh" size={18} /></span>
+      <div className="mdx-upd-text">
+        <strong>{count === 1 ? '1 atualização disponível' : `${count} atualizações disponíveis`}</strong>
+        <span>Versões novas dos mods que você instalou pelo Project Club.</span>
+      </div>
+      <div className="mdx-upd-actions">
+        <button type="button" className="mdx-btn ghost sm" onClick={onShow}>Ver quais</button>
+        <button type="button" className="mdx-btn primary sm" disabled={busy} onClick={onUpdateAll}><Icon name="download" size={14} /> Atualizar tudo</button>
+      </div>
+    </div>
+  );
+}
+
+function InstalledRow({ row, busy, updating, updateLocked, profiles, showOrigin, onToggle, onRemove, onAddToProfile, onUpdate }) {
   const [thumbFailed, setThumbFailed] = useState(false);
   const [selected, setSelected] = useState('');
   const [added, setAdded] = useState(false);
@@ -231,6 +372,12 @@ function InstalledRow({ row, busy, profiles, showOrigin, onToggle, onRemove, onA
             <span className={`mdx-origin ${row.origin}`} title={origin.label}><Icon name={origin.icon} size={11} strokeWidth={2.4} /> {origin.short}</span>
           )}
           {row.isLoader && <span className="mdx-origin loader">Loader</span>}
+          {row.update && (
+            <span className="mdx-upd-chip" title={`Instalada: v${row.version || '?'} · Nova: v${row.update.latestVersion || '?'}`}>
+              <Icon name="refresh" size={11} strokeWidth={2.4} /> Atualização disponível
+              {row.update.latestVersion && <em>v{row.version} → v{row.update.latestVersion}</em>}
+            </span>
+          )}
           {row.match?.source && <SourceChip source={row.match.source} />}
           {row.match && row.match.name !== row.name && <span className="mdx-irow-file" title={row.name}>{row.name}</span>}
           {row.location && <span className="mdx-irow-file" title={row.path}>{row.location}</span>}
@@ -240,6 +387,11 @@ function InstalledRow({ row, busy, profiles, showOrigin, onToggle, onRemove, onA
         </span>
       </div>
       <div className="mdx-row-actions">
+        {row.update && (
+          <button type="button" className="mdx-btn primary sm" disabled={updateLocked} onClick={onUpdate} title={row.update.needsAccount ? 'Este mod pode precisar do login no site do mod' : `Atualizar para v${row.update.latestVersion}`}>
+            <Icon name="refresh" size={14} /> {updating ? 'Atualizando...' : 'Atualizar'}
+          </button>
+        )}
         {profiles?.length > 0 && (
           <select className="mdx-mini-select" value={selected} onChange={(e) => { setSelected(e.target.value); doAdd(e.target.value); }} aria-label="Adicionar a um modpack">
             <option value="">+ Modpack</option>

@@ -490,6 +490,8 @@ model Event {
   createdById String
   createdBy   User      @relation(fields: [createdById], references: [id])
   createdAt   DateTime  @default(now())
+
+  rsvps EventRsvp[] // presença confirmada ("Eu vou" / "Talvez" / "Não vou")
 }
 
 model PlatformAnnouncement {
@@ -808,6 +810,9 @@ model ProfilePoll {
   author    User     @relation("ProfilePollAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   question  String
   createdAt DateTime @default(now())
+  // Enquete presa a um post do Feed (null = enquete do perfil)
+  postId    String?  @unique
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   options ProfilePollOption[]
   votes   ProfilePollVote[]
@@ -1037,6 +1042,9 @@ model Message {
   replyTo        Message?      @relation("MessageReply", fields: [replyToId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   replies        Message[]     @relation("MessageReply")
   pinned         Boolean       @default(false)
+  // Quando/quem fixou (lista de fixadas ordenada pela fixação mais recente).
+  pinnedAt       DateTime?
+  pinnedById     String?
   edited         Boolean       @default(false)
   deleted        Boolean       @default(false)
   archived       Boolean       @default(false)
@@ -1728,6 +1736,7 @@ model Post {
 
   votes    PostVote[]
   comments PostComment[]
+  poll     ProfilePoll? // enquete opcional do post (reaproveita o modelo das enquetes do perfil)
 
   // Mesmo raciocínio do Message acima — listar Feeds sempre filtra por
   // Clube (ou categoria) E ordena por pontuação/data ao mesmo tempo
@@ -2021,6 +2030,12 @@ model UserSettings {
   confirmOnExit     Boolean @default(false)
 
   developerMode Boolean @default(false)
+
+  // --- Personalizar layout (Configurações → Aparência/Acessibilidade) ---
+  // JSON com as preferências de layout (densidade, cantos, largura da
+  // coluna, fonte, fundo animado, temas sazonais, fonte legível...) —
+  // validado/limpo em settingsController.js. null = padrão.
+  layoutPrefs String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2440,4 +2455,46 @@ model SharedModpackDownload {
 
   @@unique([modpackId, userId])
   @@index([userId])
+}
+
+// --- Social: RSVP de eventos e página "Atividade" (só aditivo) ---
+
+// Resposta de presença de uma pessoa num evento da comunidade.
+model EventRsvp {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  status    String // GOING | MAYBE | NO
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, userId])
+  @@index([userId])
+}
+
+// Coisas da linha do tempo que não ficam guardadas em outra tabela:
+// subida de nível (LEVEL_UP) e "Comemorar" (CELEBRATE, data.itemKey).
+model ActivityEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String // LEVEL_UP | CELEBRATE
+  data      String?  @db.Text // JSON
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+}
+
+// "Parabéns" de um amigo num item da Atividade (itemKey = ach:<id>, lvl:<id>, post:<id>, mp:<id>).
+model ActivityCheer {
+  id        String   @id @default(uuid())
+  itemKey   String
+  ownerId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@unique([itemKey, userId])
+  @@index([itemKey])
+  @@index([ownerId])
 }

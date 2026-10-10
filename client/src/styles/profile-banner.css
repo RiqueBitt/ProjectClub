@@ -211,3 +211,19 @@
 .ifx-bgtoggle-text b { font-size: 13.5px; color: var(--header-primary); }
 .ifx-bgtoggle-text small { font-size: 12px; color: var(--text-muted); line-height: 1.35; }
 @media (prefers-reduced-motion: reduce) { .ifx-bgtoggle-track, .ifx-bgtoggle-track > span { transition: none; } }
+
+/* Perfil completo: o banner se estende pra trás do cabeçalho até onde o
+   texto (nome + cargo/tag do clube) termina (--pf-banner-pull, medido em
+   UserProfileModal.jsx); o esmaecido ocupa só essa faixa inicial. */
+@media (min-width: 721px) {
+  .modal-box.profile-modal-fullscreen .profile-top-row { --pf-banner-pull: 0px; }
+  .modal-box.profile-modal-fullscreen .profile-banner {
+    margin-left: calc(-1 * var(--pf-banner-pull));
+    flex-basis: calc(720px + var(--pf-banner-pull));
+    aspect-ratio: auto; height: clamp(160px, 15vw, 230px);
+  }
+  .modal-box.profile-modal-fullscreen .profile-banner img {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, rgba(0, 0, 0, .55) 60px, #000 140px);
+    mask-image: linear-gradient(to right, transparent 0, rgba(0, 0, 0, .55) 60px, #000 140px);
+  }
+}

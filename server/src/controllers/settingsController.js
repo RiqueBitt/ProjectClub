@@ -70,7 +70,43 @@ const FIELD_VALIDATORS = {
   confirmOnExit: (v) => typeof v === 'boolean',
 
   developerMode: (v) => typeof v === 'boolean',
+
+  // Personalizar layout — objeto pequeno; vira texto JSON no banco
+  // (ver sanitizeLayoutPrefs abaixo). null volta pro padrão.
+  layoutPrefs: (v) => v === null || sanitizeLayoutPrefs(v) !== undefined,
 };
+
+// Só as chaves conhecidas, cada uma conferida — nunca grava um objeto
+// cru vindo do frontend. Retorna undefined se não for um objeto.
+const LAYOUT_PREF_RULES = {
+  density: (v) => ['compact', 'normal', 'spacious'].includes(v),
+  corners: (v) => ['round', 'square'].includes(v),
+  sidebarWidth: (v) => Number.isInteger(v) && v >= 200 && v <= 420,
+  fontSize: (v) => Number.isInteger(v) && v >= 12 && v <= 20,
+  showMembers: (v) => typeof v === 'boolean',
+  animatedBg: (v) => ['off', 'gradient', 'particles'].includes(v),
+  seasonal: (v) => typeof v === 'boolean',
+  legibleFont: (v) => typeof v === 'boolean',
+  resumeLastPage: (v) => typeof v === 'boolean',
+};
+function sanitizeLayoutPrefs(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  const out = {};
+  for (const [key, rule] of Object.entries(LAYOUT_PREF_RULES)) {
+    if (key in v && rule(v[key])) out[key] = v[key];
+  }
+  return out;
+}
+
+// Banco guarda texto; o frontend sempre recebe objeto (ou null).
+function serializeSettings(settings) {
+  if (!settings) return settings;
+  let layoutPrefs = null;
+  if (settings.layoutPrefs) {
+    try { layoutPrefs = JSON.parse(settings.layoutPrefs); } catch { layoutPrefs = null; }
+  }
+  return { ...settings, layoutPrefs };
+}
 
 async function getOrCreateSettings(userId) {
   // upsert com update: {} — cria na primeira vez que alguém pede,
@@ -84,7 +120,7 @@ async function getOrCreateSettings(userId) {
 async function getSettings(req, res, next) {
   try {
     const settings = await getOrCreateSettings(req.user.id);
-    res.json({ settings });
+    res.json({ settings: serializeSettings(settings) });
   } catch (err) { next(err); }
 }
 
@@ -96,14 +132,14 @@ async function updateSettings(req, res, next) {
       const validator = FIELD_VALIDATORS[key];
       if (!validator) { rejected.push(key); continue; } // campo desconhecido — nunca vira coluna nova sozinho
       if (!validator(value)) { rejected.push(key); continue; }
-      data[key] = value;
+      data[key] = key === 'layoutPrefs' && value !== null ? JSON.stringify(sanitizeLayoutPrefs(value)) : value;
     }
     if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: 'Nenhuma configuração válida foi enviada.', rejected });
     }
     await getOrCreateSettings(req.user.id);
     const settings = await prisma.userSettings.update({ where: { userId: req.user.id }, data });
-    res.json({ settings, rejected: rejected.length ? rejected : undefined });
+    res.json({ settings: serializeSettings(settings), rejected: rejected.length ? rejected : undefined });
   } catch (err) { next(err); }
 }
 
@@ -112,7 +148,7 @@ async function resetSettings(req, res, next) {
     await prisma.userSettings.deleteMany({ where: { userId: req.user.id } });
     const settings = await getOrCreateSettings(req.user.id);
     await logSecurityEvent(req, 'SETTINGS_RESET');
-    res.json({ settings });
+    res.json({ settings: serializeSettings(settings) });
   } catch (err) { next(err); }
 }
 

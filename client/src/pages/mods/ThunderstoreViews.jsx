@@ -163,7 +163,7 @@ export function ThunderstoreModDetail({ game, fullName, onBack }) {
     setInstallBusy(true);
     let current = null;
     try {
-      const toInstall = [...dependencies, { fullName: pkg.fullName, name: pkg.name, downloadUrl: pkg.version.downloadUrl }];
+      const toInstall = [...dependencies, { fullName: pkg.fullName, name: pkg.name, downloadUrl: pkg.version.downloadUrl, versionNumber: pkg.version.versionNumber }];
       for (let i = 0; i < toInstall.length; i += 1) {
         const item = toInstall[i];
         current = item;
@@ -176,6 +176,8 @@ export function ThunderstoreModDetail({ game, fullName, onBack }) {
           fullName: item.fullName,
           isLoader: isThunderstoreLoaderPackage(item.name),
           steamAppId: game.steamAppId,
+          // Versão no manifesto local — é com ela que checamos atualizações.
+          version: item.versionNumber || undefined,
         });
         if (!result.success) throw new Error(`${item.name}: ${result.error || 'falha desconhecida'}`);
         completeInstall(item.fullName);

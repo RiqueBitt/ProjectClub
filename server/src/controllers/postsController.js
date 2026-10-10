@@ -4,6 +4,29 @@ const achievements = require('../services/achievements');
 const AUTHOR_FIELDS = { id: true, displayName: true, avatarUrl: true, profileColor: true, platformRole: true };
 const COMMUNITY_FIELDS = { id: true, slug: true, name: true, iconUrl: true };
 const POST_INCLUDE = { author: { select: AUTHOR_FIELDS }, community: { select: COMMUNITY_FIELDS }, category: true };
+const { shapePoll } = require('./profilePollController');
+
+// Enquete opcional do post — reaproveita o modelo/formato das enquetes do
+// perfil (ProfilePoll com postId). Junta numa consulta só pra lista toda.
+const POLL_INCLUDE = { options: { orderBy: { order: 'asc' }, include: { _count: { select: { votes: true } } } } };
+async function attachPolls(posts, userId) {
+  const list = Array.isArray(posts) ? posts : [posts];
+  const ids = list.filter(Boolean).map((p) => p.id);
+  if (ids.length === 0) return posts;
+  const polls = await prisma.profilePoll.findMany({ where: { postId: { in: ids } }, include: POLL_INCLUDE });
+  if (polls.length === 0) return posts;
+  const myVotes = await prisma.profilePollVote.findMany({ where: { voterId: userId, pollId: { in: polls.map((p) => p.id) } } });
+  const voteBy = Object.fromEntries(myVotes.map((v) => [v.pollId, v]));
+  const byPost = Object.fromEntries(polls.map((p) => [p.postId, shapePoll(p, voteBy[p.id])]));
+  const withPoll = (p) => (p && byPost[p.id] ? { ...p, poll: byPost[p.id] } : p);
+  return Array.isArray(posts) ? posts.map(withPoll) : withPoll(posts);
+}
+
+function cleanPollOptions(poll) {
+  if (!poll || !Array.isArray(poll.options)) return null;
+  const options = poll.options.map((o) => (typeof o === 'string' ? o.trim().slice(0, 100) : '')).filter(Boolean);
+  return [...new Set(options)];
+}
 
 // Mesma ideia do "hot" do Reddit — pontuação por idade, não só score puro,
 // pra post novo com bom engajamento conseguir competir com um post velho
@@ -48,6 +71,7 @@ async function listPosts(req, res, next) {
     if (sort === 'hot') {
       result = result.sort((a, b) => hotScore(b.score, b.createdAt) - hotScore(a.score, a.createdAt));
     }
+    result = await attachPolls(result, req.user.id);
     res.json({ posts: result });
   } catch (err) { next(err); }
 }
@@ -60,6 +84,9 @@ async function createPost(req, res, next) {
     if (!['TEXT', 'IMAGE', 'LINK'].includes(type)) return res.status(400).json({ error: 'Tipo de post inválido.' });
     if (type === 'LINK' && !linkUrl?.trim()) return res.status(400).json({ error: 'Informe o link.' });
     if (type === 'IMAGE' && !imageUrl?.trim()) return res.status(400).json({ error: 'Envie uma imagem.' });
+    const pollOptions = cleanPollOptions(req.body.poll);
+    if (pollOptions && pollOptions.length < 2) return res.status(400).json({ error: 'A enquete precisa de pelo menos 2 opções diferentes.' });
+    if (pollOptions && pollOptions.length > 6) return res.status(400).json({ error: 'A enquete pode ter no máximo 6 opções.' });
 
     const community = await prisma.community.findUnique({ where: { slug: communitySlug } });
     if (!community) return res.status(404).json({ error: 'Clube não encontrado.' });
@@ -86,10 +113,19 @@ async function createPost(req, res, next) {
     // um voto "implícito" do autor.
     await prisma.postVote.create({ data: { postId: post.id, userId: req.user.id, value: 1 } });
     await prisma.post.update({ where: { id: post.id }, data: { score: 1 } });
+    if (pollOptions) {
+      await prisma.profilePoll.create({
+        data: {
+          authorId: req.user.id, postId: post.id, question: title.trim().slice(0, 200),
+          options: { create: pollOptions.map((text, i) => ({ text, order: i })) },
+        },
+      });
+    }
+    const full = await attachPolls({ ...post, score: 1, myVote: 1 }, req.user.id);
 
-    req.app.get('io')?.emit('post:new', { post: { ...post, score: 1, myVote: 1 } });
+    req.app.get('io')?.emit('post:new', { post: full });
     achievements.checkAndUnlock(req.user.id, req.app.get('io')); // primeiro_post / redator
-    res.status(201).json({ post: { ...post, score: 1, myVote: 1 } });
+    res.status(201).json({ post: full });
   } catch (err) { next(err); }
 }
 
@@ -102,7 +138,7 @@ async function getPost(req, res, next) {
     });
     if (!post) return res.status(404).json({ error: 'Post não encontrado.' });
     const myVote = await prisma.postVote.findUnique({ where: { postId_userId: { postId: id, userId: req.user.id } } });
-    res.json({ post: { ...post, myVote: myVote?.value || 0 } });
+    res.json({ post: await attachPolls({ ...post, myVote: myVote?.value || 0 }, req.user.id) });
   } catch (err) { next(err); }
 }
 
@@ -290,11 +326,34 @@ async function listFeaturedPostsThisMonth(req, res, next) {
       orderBy: { score: 'desc' },
       take: 3,
     });
-    res.json({ posts });
+    res.json({ posts: await attachPolls(posts, req.user.id) });
+  } catch (err) { next(err); }
+}
+
+// Votar na enquete de um post (uma opção por pessoa; votar de novo troca).
+// Avisa todo mundo por socket ('post:poll') pra contagem atualizar ao vivo.
+async function votePostPoll(req, res, next) {
+  try {
+    const { id } = req.params; // postId
+    const { optionId } = req.body;
+    const poll = await prisma.profilePoll.findUnique({ where: { postId: id } });
+    if (!poll) return res.status(404).json({ error: 'Esse post não tem enquete.' });
+    const option = await prisma.profilePollOption.findUnique({ where: { id: String(optionId || '') } });
+    if (!option || option.pollId !== poll.id) return res.status(400).json({ error: 'Opção inválida.' });
+    await prisma.profilePollVote.upsert({
+      where: { pollId_voterId: { pollId: poll.id, voterId: req.user.id } },
+      update: { optionId: option.id },
+      create: { pollId: poll.id, optionId: option.id, voterId: req.user.id },
+    });
+    const fresh = await prisma.profilePoll.findUnique({ where: { id: poll.id }, include: POLL_INCLUDE });
+    const shaped = shapePoll(fresh, { optionId: option.id });
+    req.app.get('io')?.emit('post:poll', { postId: id, totalVotes: shaped.totalVotes });
+    res.json({ poll: shaped });
   } catch (err) { next(err); }
 }
 
 module.exports = {
+  votePostPoll,
   listPosts, createPost, uploadPostImage, getPost, deletePost, votePost,
   listComments, addComment, voteComment, deleteComment,
   listFeaturedPostsThisMonth,

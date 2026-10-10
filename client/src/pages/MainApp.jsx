@@ -19,6 +19,7 @@ import CallBar from '../components/CallBar.jsx';
 import MobileTabBar from '../components/MobileTabBar.jsx';
 import IncomingCallBanner from '../components/IncomingCallBanner.jsx';
 import NoticeToast from '../components/NoticeToast.jsx';
+import CelebrationToasts from '../components/CelebrationToasts.jsx';
 import WelcomePane from '../components/WelcomePane.jsx';
 import UserProfileModal from '../components/modals/UserProfileModal.jsx';
 import ErrorBoundary from '../components/ErrorBoundary.jsx';
@@ -33,6 +34,9 @@ import { setupPushNotifications } from '../utils/pushNotifications';
 import { updateUnreadBadge } from '../utils/unreadBadge';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useGlobalLiveRefresh } from '../utils/useGlobalLiveRefresh';
+import { useMobileGestures } from '../utils/useMobileGestures';
+import AppShellExtras from '../components/AppearanceRuntime.jsx';
+import { lastRememberedPath, lastRememberedChannelId } from '../utils/appearance';
 
 // BUG CORRIGIDO ("web mais rápido e otimizado"): todas essas páginas de
 // seção (Amigos, Perfil, Notificações, Busca, Painel da staff, Economia,
@@ -69,6 +73,9 @@ const PostDetailPage = lazy(() => import('./PostDetailPage.jsx'));
 const InicioPage = lazy(() => import('./InicioPage.jsx'));
 // Canais em destaque da comunidade (ver FeaturedChannels.jsx).
 const CommunityEventsPage = lazy(() => import('./CommunityEventsPage.jsx'));
+const AtividadePage = lazy(() => import('./AtividadePage.jsx'));
+const LojaPage = lazy(() => import('./LojaPage.jsx'));
+const DeepLinkPage = lazy(() => import('./DeepLinkPage.jsx'));
 const CommunityGalleryPage = lazy(() => import('./CommunityGalleryPage.jsx'));
 // Item pedido: "crie uma nova categoria chamada Jogos" — mesmo padrão
 // lazy() de todas as outras seções acima.
@@ -93,10 +100,15 @@ export default function MainApp() {
   const { user } = useAuth();
   // Tempo real: re-sincroniza comunidade/conta/conversas/amigos a cada 11s.
   useGlobalLiveRefresh();
+  // Gestos do celular: gaveta de canais e segurar mensagem (ver useMobileGestures.js).
+  useMobileGestures();
   const {
     setCommunityStructure, setConversations, setFriends, setUsableEmojis, setServerStickers, setEmojiCollections, setStickerCollections, setFavoriteGifs, setClubs, setMyClan, setUserSettings,
   } = useStore();
-  const [membersOpen, setMembersOpen] = useState(true);
+  // Personalizar layout: lista de membros aberta ou fechada por padrão.
+  const showMembersPref = useStore((s) => s.layoutPrefs.showMembers);
+  const [membersOpen, setMembersOpen] = useState(showMembersPref);
+  useEffect(() => { setMembersOpen(showMembersPref); }, [showMembersPref]);
   const [dmProfileOpen, setDmProfileOpen] = useState(true);
   const mobileMembersOpen = useStore((s) => s.mobileMembersOpen);
   const mobileSidebarOpen = useStore((s) => s.mobileSidebarOpen);
@@ -198,7 +210,9 @@ export default function MainApp() {
     if (location.pathname !== '/') return;
     if (sessionStorage.getItem('inicio-redirect-done')) return;
     sessionStorage.setItem('inicio-redirect-done', '1');
-    navigate('/inicio', { replace: true });
+    // "Reabrir onde parei" (Personalizar layout) volta pra última página.
+    const resumePath = useStore.getState().layoutPrefs.resumeLastPage ? lastRememberedPath() : null;
+    navigate(resumePath || '/inicio', { replace: true });
   }, []);
 
   useEffect(() => {
@@ -334,6 +348,7 @@ export default function MainApp() {
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
+      <AppShellExtras />
       <div className="mobile-sidebar-backdrop" onClick={() => { closeMobileMembers(); closeMobileSidebar(); }} />
       <TopSearchBar />
       {isNormal2
@@ -405,6 +420,13 @@ export default function MainApp() {
                 <Route path="/posts/:id" element={<PostDetailPage />} />
                 <Route path="/inicio" element={<InicioPage />} />
                 <Route path="/comunidade/eventos" element={<CommunityEventsPage />} />
+                <Route path="/atividade" element={<AtividadePage />} />
+                <Route path="/loja" element={<LojaPage />} />
+                <Route path="/forum" element={<Navigate to="/comunidades" replace />} />
+                <Route path="/u/:id" element={<DeepLinkPage kind="user" />} />
+                <Route path="/modpack/:id" element={<DeepLinkPage kind="modpack" />} />
+                <Route path="/mod/:game/:id" element={<DeepLinkPage kind="mod" />} />
+                <Route path="/eventos/:id" element={<DeepLinkPage kind="event" />} />
                 <Route path="/comunidade/galeria" element={<CommunityGalleryPage />} />
                 {/* Item pedido: "crie uma nova categoria chamada Jogos" */}
                 <Route path="/jogos" element={<JogosPage />} />
@@ -428,6 +450,7 @@ export default function MainApp() {
       <PanelSlot panelId="callbar"><CallBar /></PanelSlot>
       <MobileTabBar />
       <NoticeToast />
+      <CelebrationToasts />
       {/* BUG CORRIGIDO ("erro ao abrir o perfil quebra a tela toda"):
           o perfil é o modal que mais mudou nas últimas respostas (o
           refactor grande de reordenar seções) — sem essa proteção,
@@ -459,7 +482,10 @@ function CommunityDefaultChannel() {
   useEffect(() => {
     const all = [...channels, ...categories.flatMap((c) => c.channels || [])];
     const geral = all.find((c) => c.name?.trim().toLowerCase() === 'geral');
-    const firstChannel = geral || categories.flatMap((c) => c.channels || [])[0] || channels[0];
+    // Volta pro último canal aberto nesta sessão, se ele ainda existir.
+    const lastId = lastRememberedChannelId();
+    const remembered = lastId ? all.find((c) => String(c.id) === lastId) : null;
+    const firstChannel = remembered || geral || categories.flatMap((c) => c.channels || [])[0] || channels[0];
     if (firstChannel) navigate(`/channels/${firstChannel.id}`, { replace: true });
   }, [categories, channels]);
 

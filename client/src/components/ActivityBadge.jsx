@@ -3,6 +3,8 @@ import { useStore } from '../store/useStore';
 import gameIcon from '../assets/icons/activity-game.png';
 import spotifyIcon from '../assets/icons/activity-spotify.png';
 import appIcon from '../assets/icons/activity-app.png';
+import { steamAppIdFromActivity } from '../utils/activityArt';
+import '../styles/socialx.css';
 
 // Item pedido: "Rich Presence" (jogo/Spotify/app aberto) — mostra o que
 // a pessoa está jogando (nome + logo + tempo jogando), ouvindo no
@@ -47,10 +49,13 @@ export default function ActivityBadge({ userId }) {
   if (!activity) return null;
 
   if (activity.type === 'game' || activity.type === 'app') {
+    // Jogo da Steam: mostra a capa horizontal oficial (via proxy, que
+    // acha o arquivo certo) em vez do ícone pequeno.
+    const steamAppId = activity.type === 'game' ? steamAppIdFromActivity(activity) : null;
     return (
-      <div className="activity-badge">
-        <div className="activity-badge-icon">
-          {activity.imageUrl ? <img src={activity.imageUrl} alt="" /> : <img src={ICON_BY_TYPE[activity.type]} alt="" className="activity-badge-icon-fallback" />}
+      <div className={`activity-badge${steamAppId ? ' has-capsule' : ''}`}>
+        <div className={`activity-badge-icon${steamAppId ? ' is-capsule' : ''}`}>
+          {steamAppId ? <img src={`/api/proxy/steam/${steamAppId}/header`} alt="" /> : activity.imageUrl ? <img src={activity.imageUrl} alt="" /> : <img src={ICON_BY_TYPE[activity.type]} alt="" className="activity-badge-icon-fallback" />}
         </div>
         <div className="activity-badge-text">
           <div className="activity-badge-title">{TITLE_BY_TYPE[activity.type]}</div>

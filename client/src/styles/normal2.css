@@ -284,3 +284,31 @@ html.layout-n2-root.is-electron-app .profile-fullscreen-overlay {
 @media (max-width: 600px) {
   .n2-sidebar .channel-item { padding: 10px 10px; font-size: 16px; }
 }
+
+/* ============================================================
+   Item pedido: "ícones do menu numa fileira só, centralizados, maiores,
+   com a setinha embaixo" — usa a largura do banner como referência.
+   A coluna ficou um pouco mais larga pra caber tudo.
+   ============================================================ */
+html.layout-n2-root { --n2-sidebar-width: 292px; }
+@media (max-width: 1100px) and (min-width: 601px) {
+  html.layout-n2-root { --n2-sidebar-width: 264px; }
+}
+.n2-sidebar .n2-nav { display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 12px 12px 6px; }
+.n2-sidebar .n2-nav-list { order: 1; }
+.n2-sidebar .n2-nav-toggle {
+  order: 2; align-self: center; margin: 0; width: 44px; height: 18px; border-radius: 999px;
+}
+.n2-sidebar .n2-nav-toggle svg { width: 14px; height: 14px; }
+.n2-sidebar .n2-nav.is-compact { padding-bottom: 4px; }
+.n2-sidebar .n2-nav.is-compact .n2-nav-list {
+  flex-direction: row; flex-wrap: nowrap; justify-content: center; gap: 6px; width: 100%;
+}
+.n2-sidebar .n2-nav.is-compact .n2-nav-item {
+  flex: 1 1 0; min-width: 0; max-width: 48px; width: auto; height: 44px; border-radius: 12px; padding: 0;
+}
+.n2-sidebar .n2-nav.is-compact .n2-nav-icon { width: 22px; height: 22px; }
+.n2-sidebar .n2-nav-icon { width: 18px; height: 18px; }
+@media (max-width: 600px) {
+  .n2-sidebar .n2-nav.is-compact .n2-nav-item { height: 46px; }
+}

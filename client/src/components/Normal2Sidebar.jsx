@@ -42,7 +42,8 @@ function N2Nav() {
   const { user } = useAuth();
   // Menu compacto (só ícones, numa fileira) — preferência deste navegador.
   const [compact, setCompact] = useState(() => {
-    try { return localStorage.getItem('n2NavCompact') === '1'; } catch { return false; }
+    // Padrão agora é a fileira de ícones (pedido do dono); '0' = com nomes.
+    try { return localStorage.getItem('n2NavCompact') !== '0'; } catch { return true; }
   });
   const toggle = () => setCompact((v) => {
     try { localStorage.setItem('n2NavCompact', v ? '0' : '1'); } catch { /* sem localStorage */ }

@@ -115,7 +115,7 @@ const TABS = {
   clanIcons: { label: 'Ícones de clube', desc: 'Ícones disponíveis para os clubes.' },
   achievements: { label: 'Conquistas', desc: 'Conquistas, requisitos e raridades.' },
   gifMove: { label: 'GIFa Move', desc: 'Posição e tamanho do GIF animado na tela da comunidade.' },
-  feeds: { label: 'Feeds', desc: 'Temas do Feed: crie ou exclua.' },
+  feeds: { label: 'Fórum', desc: 'Temas do Fórum: crie ou exclua.' },
   updates: { label: 'Atualizações', desc: 'Notas de atualização que aparecem no Início.' },
   events: { label: 'Eventos', desc: 'Eventos com banner, ícone e data.' },
   announcements: { label: 'Comunicado', desc: 'Mensagem em tela cheia para todos os membros.' },
@@ -1536,9 +1536,9 @@ function FeedsAdminTab() {
 
   return (
     <div>
-      <h2>Feeds (Temas)</h2>
+      <h2>Fórum (Temas)</h2>
       <p className="dim" style={{ marginBottom: 16 }}>
-        Gerencie os Temas do Feed — só a staff pode criar/editar/excluir (crie novos direto na página de Feeds,
+        Gerencie os Temas do Fórum — só a staff pode criar/editar/excluir (crie novos direto na página do Fórum,
         no botão "+ Criar Tema"). Excluir remove os posts e comentários junto.
       </p>
       {communities.length === 0 ? (

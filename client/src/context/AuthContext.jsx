@@ -6,6 +6,16 @@ import { useStore } from '../store/useStore';
 
 const AuthContext = createContext(null);
 
+// Só uma recusa de verdade do nosso servidor (401/403 com JSON) significa
+// que a sessão acabou. 5xx, 429, falta de rede ou página da hospedagem
+// durante um deploy são temporários.
+export function isAuthRejection(err) {
+  const status = err?.response?.status;
+  if (status !== 401 && status !== 403) return false;
+  const type = String(err.response.headers?.['content-type'] || '');
+  return type.includes('application/json');
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
@@ -89,27 +99,27 @@ export function AuthProvider({ children }) {
     // response (servidor inacessível) tenta de novo algumas vezes com
     // espera crescente antes de desistir — dá tempo do deploy
     // terminar sem derrubar ninguém por causa da janela de deploy.
+    // BUG CORRIGIDO ("desloga a conta toda vez que fazemos mudanças"):
+    // durante um deploy a Square Cloud fica alguns MINUTOS fora (npm
+    // install + build + prisma) e, nesse meio tempo, quem responde é a
+    // borda da hospedagem com 502/503/504 — ou seja, o erro TEM
+    // `response`, e a regra antiga tratava isso como "sessão inválida".
+    // Agora só 401/403 do nosso servidor derrubam a sessão; qualquer
+    // outra falha (rede, 5xx, 429, página HTML da hospedagem) continua
+    // tentando com espera crescente, sem limite, até o servidor voltar.
     const tryRestore = (attempt = 1) => {
       api.post('/auth/refresh')
-        .then((res) => { applySession(res.data); setLoading(false); })
+        .then((res) => {
+          if (!res.data?.accessToken) throw Object.assign(new Error('bad'), { transient: true });
+          applySession(res.data); setLoading(false);
+        })
         .catch((err) => {
-          if (err.response) {
-            // Servidor respondeu de propósito (401/403/etc) — sessão
-            // realmente inválida, não tem o que tentar de novo.
+          if (isAuthRejection(err)) {
             clearSession();
             setLoading(false);
             return;
           }
-          if (attempt >= 5) {
-            // Já tentamos por um tempo razoável (até uns 30s de
-            // espera acumulada) — aí sim assume que não é só o deploy
-            // e desiste, pra não deixar a pessoa presa carregando pra
-            // sempre se estiver genuinamente sem internet.
-            clearSession();
-            setLoading(false);
-            return;
-          }
-          setTimeout(() => tryRestore(attempt + 1), attempt * 1500);
+          setTimeout(() => tryRestore(attempt + 1), Math.min(10000, attempt * 1500));
         });
     };
     tryRestore();

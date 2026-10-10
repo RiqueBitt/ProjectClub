@@ -34,6 +34,13 @@ export default function ActivityIcon({ userId, customStatusEmoji, customStatus }
           title={`${TITLE_BY_TYPE[activity.type]} ${activity.name}`}
         />
       )}
+      {/* Sem status personalizado, a linha ficaria só com o ícone —
+          aí mostra "Jogando X" / "Ouvindo X" / "Usando X" por escrito. */}
+      {activity && !hasStatus && (
+        <span className="activity-inline-status activity-inline-verb">
+          {TITLE_BY_TYPE[activity.type] === 'Ouvindo Spotify' ? 'Ouvindo' : TITLE_BY_TYPE[activity.type]} <b>{activity.name}</b>
+        </span>
+      )}
       {activity && hasStatus && <span className="activity-inline-sep">•</span>}
       {hasStatus && (
         <span className="activity-inline-status">

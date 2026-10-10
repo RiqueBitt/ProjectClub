@@ -22,6 +22,7 @@ import notificationsIcon from '../assets/icons/nav-notifications.png';
 import createPostIcon from '../assets/icons/nav-create-post.png';
 import settingsIcon from '../assets/icons/settings.png';
 import chatIcon from '../assets/icons/chat.png';
+import { QuickSwitcherButton } from './QuickSwitcher.jsx';
 
 // Barra de topo estilo Reddit — logo + busca + criar post + notificações +
 // engrenagem de Configurações (item pedido) + perfil/status (item pedido:
@@ -152,6 +153,7 @@ export default function TopSearchBar() {
       </form>
 
       <div className="top-search-bar-actions">
+        <QuickSwitcherButton className="top-search-bar-icon-btn" />
         <button type="button" className="top-search-bar-icon-btn" title="Criar post" onClick={() => navigate('/comunidades')}>
           <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url(${createPostIcon})`, maskImage: `url(${createPostIcon})`, width: 18, height: 18 }} />
         </button>

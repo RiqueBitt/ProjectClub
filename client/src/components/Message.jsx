@@ -33,6 +33,8 @@ import documentIcon from '../assets/icons/document.png';
 import selectedIcon from '../assets/icons/selected.png';
 import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from './PenguinAvatar.jsx';
 import { proxyImage } from '../utils/imageProxy';
+import { InternalLinkCards } from './InternalLinkCard.jsx';
+import { findInternalLinks } from '../utils/internalLinks';
 
 // BUG CORRIGIDO: <img src={...avatarUrl}> quebrava (bloqueado pela CSP
 // img-src) quando o autor da mensagem respondida tem avatar de pinguim
@@ -270,8 +272,11 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
     items.push(
       { label: 'Responder', icon: '↪', onClick: () => onReply(message) },
       { label: 'Copiar texto', icon: '📋', onClick: () => navigator.clipboard?.writeText(message.content || ''), disabled: !message.content },
-      { label: message.pinned ? 'Desafixar' : 'Fixar', icon: <img className="ui-icon-sm" src={pinIcon} alt="" />, onClick: () => togglePinMessage(message.id) },
     );
+    // Fixar só aparece pra quem pode (gerenciar mensagens no canal; em DM, todos).
+    if (!isChannelMessage || canManageMessages) {
+      items.push({ label: message.pinned ? 'Desafixar' : 'Fixar', icon: <img className="ui-icon-sm" src={pinIcon} alt="" />, onClick: () => togglePinMessage(message.id) });
+    }
     if (message.channelId && hasPermission(myPerms, 'CREATE_TOPICS')) items.push({ label: 'Criar tópico', icon: '🧵', onClick: createTopic });
     if (isOwn) items.push({ label: 'Editar', icon: '✎', onClick: () => setEditing(true) });
     if (!isOwn) {
@@ -472,6 +477,9 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
           </>
         )}
 
+
+        {/* Cartões dos links internos do Project Club (post, modpack, perfil...) */}
+        {!editing && !message.contentFiltered && <MessageLinkCards content={message.content} />}
 
         {message.poll && <PollCard poll={message.poll} myUserId={user.id} />}
 
@@ -751,3 +759,12 @@ function formatTime(iso) {
 // passa já são referências estáveis entre renders (ver comentário de
 // EMPTY_TOPICS em ChatWindow.jsx).
 export default memo(MessageComponent);
+
+// Prévia dos links internos da mensagem — some se a pessoa desligou
+// "Mostrar prévia de links" nas configurações.
+function MessageLinkCards({ content }) {
+  const enabled = useStore((s) => s.userSettings?.showLinkPreviews !== false);
+  if (!enabled || !content || !content.includes('http')) return null;
+  const links = findInternalLinks(content);
+  return links.length ? <InternalLinkCards links={links} /> : null;
+}

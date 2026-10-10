@@ -30,8 +30,20 @@ export function itemFolderName(item) {
 // "Ver modpack" no perfil: guarda o pedido e a aba Modpacks do jogo
 // abre ele assim que o gerenciador daquele jogo for aberto.
 const PENDING_KEY = 'pc:open-modpack';
-export function requestOpenModpack(steamAppId, modpackId) {
-  try { sessionStorage.setItem(PENDING_KEY, JSON.stringify({ steamAppId: Number(steamAppId), modpackId, at: Date.now() })); } catch { /* sem storage */ }
+// autoInstall: "Instalar modpack" no perfil — além de abrir, já começa
+// o "Baixar modpack" sozinho.
+export function requestOpenModpack(steamAppId, modpackId, { autoInstall = false, name = null } = {}) {
+  try { sessionStorage.setItem(PENDING_KEY, JSON.stringify({ steamAppId: Number(steamAppId), modpackId, autoInstall: !!autoInstall, name, at: Date.now() })); } catch { /* sem storage */ }
+}
+// Pedido pendente de qualquer jogo (pra avisar quando o jogo não está no PC).
+export function peekAnyPendingModpack() {
+  try {
+    const raw = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null');
+    return raw && Date.now() - raw.at <= 10 * 60 * 1000 ? raw : null;
+  } catch { return null; }
+}
+export function clearPendingModpack() {
+  try { sessionStorage.removeItem(PENDING_KEY); } catch { /* sem storage */ }
 }
 export function peekPendingModpack(steamAppId) {
   try {

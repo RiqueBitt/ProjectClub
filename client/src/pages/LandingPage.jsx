@@ -96,7 +96,7 @@ export default function LandingPage() {
               Um jeito mais <span className="lp-grad">conectado</span> de fazer parte de algo
             </h1>
             <p className="lp-sub">
-              Chat em tempo real, canais de voz, Feeds com Temas e categorias, conquistas, economia e muito mais —
+              Chat em tempo real, canais de voz, Fórum com Temas e categorias, conquistas, economia e muito mais —
               tudo numa comunidade só, sem enrolação.
             </p>
             <div className="lp-cta-row">
@@ -152,7 +152,7 @@ export default function LandingPage() {
                 <div className="lp-window-grp">Navegação</div>
                 <div className="lp-window-item active"><Ico name="chat" size={15} /> Comunidade</div>
                 <div className="lp-window-item"><Ico name="users" size={15} /> Amigos</div>
-                <div className="lp-window-item"><Ico name="news" size={15} /> Feeds</div>
+                <div className="lp-window-item"><Ico name="news" size={15} /> Fórum</div>
                 <div className="lp-window-grp">Extras</div>
                 <div className="lp-window-item"><Ico name="trophy" size={15} /> Conquistas</div>
                 <div className="lp-window-item"><Ico name="star" size={15} /> Ranks</div>
@@ -161,7 +161,7 @@ export default function LandingPage() {
               <div className="lp-window-main">
                 <div className="lp-window-grid">
                   {[
-                    ['Chat Geral', 'Canal de texto', 'hash'], ['Sala de Voz', 'Canal de voz', 'volume'], ['Discussão', 'Categoria de Feed', 'news'],
+                    ['Chat Geral', 'Canal de texto', 'hash'], ['Sala de Voz', 'Canal de voz', 'volume'], ['Discussão', 'Categoria do Fórum', 'news'],
                     ['Veterano', 'Conquista · Rara', 'trophy'], ['Ranks', 'Nível de conta', 'star'], ['Temas', 'Organização de posts', 'grid'],
                   ].map(([name, meta, icon], i) => (
                     <div key={name} className={`lp-window-card c${i}`}>
@@ -202,7 +202,7 @@ export default function LandingPage() {
             <div className="lp-step landing-reveal">
               <div className="lp-step-num">02</div>
               <h3>Explore os Temas</h3>
-              <p>Entre nos canais de chat e voz, e navegue pelos Temas e categorias do Feed.</p>
+              <p>Entre nos canais de chat e voz, e navegue pelos Temas e categorias do Fórum.</p>
             </div>
             <div className="lp-step landing-reveal">
               <div className="lp-step-num">03</div>
@@ -220,7 +220,7 @@ export default function LandingPage() {
           </div>
           <div className="lp-feat-grid">
             <div className="lp-feat landing-reveal" style={{ '--c': '#4c9fff' }}><div className="lp-feat-icon"><Ico name="volume" size={22} /></div><h3>Chat e canais de voz</h3><p>Conversa em tempo real por texto ou voz, com canais organizados por categoria.</p></div>
-            <div className="lp-feat landing-reveal" style={{ '--c': '#a37cff' }}><div className="lp-feat-icon"><Ico name="news" size={22} /></div><h3>Feeds e Temas</h3><p>Publique posts organizados por Tema e categoria — discussão, dúvida, notícia e mais.</p></div>
+            <div className="lp-feat landing-reveal" style={{ '--c': '#a37cff' }}><div className="lp-feat-icon"><Ico name="news" size={22} /></div><h3>Fórum e Temas</h3><p>Publique posts organizados por Tema e categoria — discussão, dúvida, notícia e mais.</p></div>
             <div className="lp-feat landing-reveal" style={{ '--c': '#f0b232' }}><div className="lp-feat-icon"><Ico name="trophy" size={22} /></div><h3>Conquistas</h3><p>Desbloqueie conquistas conforme participa da comunidade, com raridades diferentes.</p></div>
             <div className="lp-feat landing-reveal" style={{ '--c': '#ff5c8a' }}><div className="lp-feat-icon"><Ico name="palette" size={22} /></div><h3>Perfil personalizado</h3><p>Cor de perfil, banner, conexões e conquistas em destaque — do seu jeito.</p></div>
             <div className="lp-feat landing-reveal" style={{ '--c': '#23a55a' }}><div className="lp-feat-icon"><Ico name="shield" size={22} /></div><h3>Amigos e privacidade</h3><p>Adicione amigos com controle total sobre quem pode te mandar pedido.</p></div>

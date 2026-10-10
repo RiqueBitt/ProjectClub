@@ -16,6 +16,7 @@ router.get('/featured', ctrl.listFeaturedPostsThisMonth);
 router.get('/:id', ctrl.getPost);
 router.delete('/:id', ctrl.deletePost);
 router.post('/:id/vote', ctrl.votePost);
+router.post('/:id/poll/vote', ctrl.votePostPoll);
 
 router.get('/:id/comments', ctrl.listComments);
 router.post('/:id/comments', ctrl.addComment);

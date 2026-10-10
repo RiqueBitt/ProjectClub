@@ -47,6 +47,10 @@ async function awardMessageXp(userId, content) {
   });
 
   if (!levelUp) return null;
+  // Guarda a subida de nível pra aparecer na página "Atividade" dos amigos.
+  prisma.activityEvent.create({
+    data: { userId, type: 'LEVEL_UP', data: JSON.stringify({ level: newLevelData.level, levelName: newLevelData.name }) },
+  }).catch(() => {});
   return { levelUp: true, oldLevel, newLevel: newLevelData.level, newLevelName: newLevelData.name, coinsReward: newLevelData.coinsReward };
 }
 

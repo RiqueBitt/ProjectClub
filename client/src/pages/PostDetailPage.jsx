@@ -15,6 +15,7 @@ import {
 import { proxyImage } from '../utils/imageProxy';
 import { FeedIcon, VotePill, timeAgo } from './CommunitiesPage.jsx';
 import { useLiveRefresh } from '../utils/liveRefresh';
+import FeedPoll from '../components/FeedPoll.jsx';
 
 // Reconhece se um comentário é só um link de imagem/GIF (colado a mão ou
 // escolhido no seletor de GIF abaixo) pra renderizar como imagem em vez
@@ -93,11 +94,15 @@ export default function PostDetailPage() {
     const onNewComment = (data) => { if (data.postId === id) refreshComments(); };
     const onCommentVote = (data) => { if (data.postId === id) refreshComments(); };
     const onCommentDelete = (data) => { if (data.postId === id) refreshComments(); };
+    // Alguém votou na enquete: busca de novo (o "meu voto" é por pessoa).
+    const onPoll = (data) => { if (data.postId === id) getPost(id).then((d) => setPost(d.post)).catch(() => {}); };
+    socket.on('post:poll', onPoll);
     socket.on('post:vote', onVote);
     socket.on('post:comment', onNewComment);
     socket.on('post:comment-vote', onCommentVote);
     socket.on('post:comment-delete', onCommentDelete);
     return () => {
+      socket.off('post:poll', onPoll);
       socket.off('post:vote', onVote);
       socket.off('post:comment', onNewComment);
       socket.off('post:comment-vote', onCommentVote);
@@ -189,6 +194,7 @@ export default function PostDetailPage() {
         {post.type === 'TEXT' && post.content && <p className="fp-detail-text">{post.content}</p>}
         {post.type === 'IMAGE' && post.imageUrl && <div className="fp-media fp-detail-media"><img src={proxyImage(post.imageUrl)} alt="" /></div>}
         {post.type === 'LINK' && <a className="fp-link" href={post.linkUrl} target="_blank" rel="noreferrer"><FeedIcon name="link" size={14} /> <span className="truncate">{post.linkUrl}</span></a>}
+        {post.poll && <FeedPoll postId={post.id} poll={post.poll} onChange={(poll) => setPost((p) => (p ? { ...p, poll } : p))} />}
         <footer className="fp-actions">
           <VotePill score={post.score} myVote={post.myVote} onVote={onVotePost} />
           <span className="fp-action"><FeedIcon name="comment" /> {comments?.length ?? 0} <span className="fp-action-label">comentário{comments?.length === 1 ? '' : 's'}</span></span>

@@ -35,12 +35,17 @@ export function useCommunityEvents() {
   useEffect(() => {
     if (!socket) return;
     const onNew = (e) => setCache(cache ? [e, ...cache.filter((x) => x.id !== e.id)] : [e]);
-    const onUpdate = (e) => setCache((cache || []).map((x) => (x.id === e.id ? e : x)));
+    // event:update não traz o RSVP — mantém o que já estava.
+    const onUpdate = (e) => setCache((cache || []).map((x) => (x.id === e.id ? { ...e, rsvp: e.rsvp || x.rsvp } : x)));
     const onDelete = ({ id }) => setCache((cache || []).filter((x) => x.id !== id));
+    // Contagem de "Eu vou / Talvez / Não vou" mudou (a minha resposta fica).
+    const onRsvp = ({ eventId, rsvp }) => setCache((cache || []).map((x) => (x.id === eventId ? { ...x, rsvp: { ...rsvp, mine: x.rsvp?.mine ?? null } } : x)));
     socket.on('event:new', onNew);
     socket.on('event:update', onUpdate);
     socket.on('event:delete', onDelete);
+    socket.on('event:rsvp', onRsvp);
     return () => {
+      socket.off('event:rsvp', onRsvp);
       socket.off('event:new', onNew);
       socket.off('event:update', onUpdate);
       socket.off('event:delete', onDelete);
@@ -52,5 +57,7 @@ export function useCommunityEvents() {
   // dividem a mesma requisição via `inflight`).
   useLiveRefresh(() => load(true), { interval: 33000 });
 
-  return { events, reload: () => load(true) };
+  // Atualiza um evento só na lista compartilhada (ex.: depois do RSVP).
+  const patchEvent = (id, changes) => setCache((cache || []).map((x) => (x.id === id ? { ...x, ...changes } : x)));
+  return { events, reload: () => load(true), patchEvent };
 }

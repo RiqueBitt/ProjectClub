@@ -3,6 +3,7 @@ import { matchSteamGames, matchWorkshopGames, matchGameBananaGames, matchThunder
 import { isDesktopModsAvailable, detectSteamGames, listInstalledModsLocally } from '../../utils/mods';
 import { Icon, GameCover, SourceChip, EmptyState, SkeletonGrid, SearchField, ChipRow, SOURCE_ORDER } from './shared.jsx';
 import { NexusLinkToggle } from './NexusViews.jsx';
+import ModsHome from './ModsHome.jsx';
 
 // Itens da Steam que não são jogos (pacotes de runtime, Proton, SteamVR,
 // redistribuíveis) — item pedido: "remova o Steamworks Common
@@ -100,7 +101,7 @@ const SORTS = [
   { value: 'az', label: 'A–Z' },
 ];
 
-export default function ModsLibrary({ library, onBack, onOpenGame }) {
+export default function ModsLibrary({ library, updates, onBack, onOpenGame, notice, onDismissNotice }) {
   const { desktopReady, loading, steamFound, games, installedCounts } = library;
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all'); // 'all' | 'supported' | 'unsupported'
@@ -132,6 +133,7 @@ export default function ModsLibrary({ library, onBack, onOpenGame }) {
   }, [games, query, filter, sort, installedCounts]);
 
   const ready = desktopReady && !loading && steamFound;
+  const updateTotal = Object.values(updates?.byGame || {}).reduce((a, l) => a + l.length, 0);
 
   return (
     <div className="mdx-wrap">
@@ -148,14 +150,33 @@ export default function ModsLibrary({ library, onBack, onOpenGame }) {
             <div><dt><Icon name="gamepad" size={15} /> Jogos encontrados</dt><dd>{games.length}</dd></div>
             <div><dt><Icon name="puzzle" size={15} /> Com suporte a mods</dt><dd>{supportedCount}</dd></div>
             <div><dt><Icon name="check" size={15} /> Mods instalados</dt><dd>{totalInstalled}</dd></div>
+            {updateTotal > 0 && <div className="upd"><dt><Icon name="refresh" size={15} /> Atualizações</dt><dd>{updateTotal}</dd></div>}
           </dl>
         )}
       </header>
       {desktopReady && <NexusLinkToggle />}
 
+      {notice && (
+        <p className="mdx-note mdx-home-notice">
+          <Icon name="info" size={15} />
+          <span>{notice}</span>
+          <button type="button" className="mdx-icon-btn" aria-label="Fechar aviso" onClick={onDismissNotice}><Icon name="close" size={13} /></button>
+        </p>
+      )}
+
+      <ModsHome library={library} updates={updates || { byGame: {} }} onOpenGame={onOpenGame} />
+
+      <div className="mdx-home-head mdx-lib-head">
+        <span className="mdx-home-head-icon"><Icon name="library" size={17} /></span>
+        <div>
+          <h2>Sua biblioteca</h2>
+          <p>{desktopReady ? 'Todos os jogos da sua Steam — escolha um pra gerenciar os mods.' : 'Seus jogos aparecem aqui quando você abre o Project Club pelo app do PC.'}</p>
+        </div>
+      </div>
+
       {!desktopReady && (
-        <EmptyState icon="monitor" title="Isso precisa do app de desktop">
-          A detecção da Steam e a instalação de mods só funcionam pelo app de desktop do Project Club — o navegador não tem acesso às pastas de jogos por segurança.
+        <EmptyState icon="monitor" title="Instalar mods precisa do app do PC">
+          A detecção dos seus jogos e a instalação de mods só funcionam pelo app de desktop do Project Club — o navegador não tem acesso às pastas de jogos por segurança. Daqui dá pra ver o que está em alta e os modpacks da comunidade.
         </EmptyState>
       )}
 
@@ -207,7 +228,7 @@ export default function ModsLibrary({ library, onBack, onOpenGame }) {
           ) : (
             <div className="mdx-album-grid">
               {visible.map((g) => (
-                <PosterCard key={g.steamAppId} game={g} installedCount={installedCounts[g.steamAppId] || 0} onClick={() => onOpenGame(g)} />
+                <PosterCard key={g.steamAppId} game={g} installedCount={installedCounts[g.steamAppId] || 0} updateCount={updates?.byGame?.[g.steamAppId]?.length || 0} onClick={() => onOpenGame(g, updates?.byGame?.[g.steamAppId]?.length ? { tab: 'installed' } : undefined)} />
               ))}
             </div>
           )}
@@ -217,7 +238,7 @@ export default function ModsLibrary({ library, onBack, onOpenGame }) {
   );
 }
 
-function PosterCard({ game, installedCount, onClick }) {
+function PosterCard({ game, installedCount, updateCount = 0, onClick }) {
   const sources = SOURCE_ORDER.filter((k) => game.sources[k]);
   const supported = sources.length > 0;
   return (
@@ -227,6 +248,11 @@ function PosterCard({ game, installedCount, onClick }) {
         <div className="mdx-poster-shade" />
         {installedCount > 0 && (
           <span className="mdx-poster-count" title={`${installedCount} mods instalados`}><Icon name="puzzle" size={13} /> {installedCount}</span>
+        )}
+        {updateCount > 0 && (
+          <span className="mdx-poster-upd" title={updateCount === 1 ? '1 mod com atualização' : `${updateCount} mods com atualização`}>
+            <Icon name="refresh" size={12} strokeWidth={2.4} /> {updateCount}
+          </span>
         )}
         <div className="mdx-poster-foot">
           {supported ? (

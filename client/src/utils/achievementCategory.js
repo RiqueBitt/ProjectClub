@@ -4,7 +4,7 @@
 // de schema pra isso, é só uma classificação visual do lado do
 // cliente). Um progressType desconhecido cai em "Outras".
 const CATEGORY_BY_TYPE = {
-  POSTS_CREATED: 'Feeds', POST_UPS_RECEIVED: 'Feeds', COMMENTS_CREATED: 'Feeds', COMMENT_UPS_RECEIVED: 'Feeds',
+  POSTS_CREATED: 'Fórum', POST_UPS_RECEIVED: 'Fórum', COMMENTS_CREATED: 'Fórum', COMMENT_UPS_RECEIVED: 'Fórum',
   PROFILE_UPS_RECEIVED: 'Perfil', TESTIMONIALS_RECEIVED: 'Perfil', SCRAPS_RECEIVED: 'Perfil', FANS_COUNT: 'Perfil', PHOTOS_UPLOADED: 'Perfil',
   FRIENDS_COUNT: 'Amizades',
   ACCOUNT_LEVEL: 'Progresso', DAILY_STREAK: 'Progresso',
@@ -17,4 +17,4 @@ export function categoryFor(progressType) {
 
 // Ordem fixa de exibição das categorias (em vez de alfabética, que
 // ficaria com uma sequência sem lógica nenhuma).
-export const CATEGORY_ORDER = ['Feeds', 'Perfil', 'Amizades', 'Comunicação', 'Progresso', 'Outras'];
+export const CATEGORY_ORDER = ['Fórum', 'Perfil', 'Amizades', 'Comunicação', 'Progresso', 'Outras'];

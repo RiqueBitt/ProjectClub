@@ -10,6 +10,7 @@ import {
 import { proxyImage } from '../utils/imageProxy';
 import UserAvatar from '../components/UserAvatar.jsx';
 import { useLiveRefresh } from '../utils/liveRefresh';
+import FeedPoll from '../components/FeedPoll.jsx';
 
 // Feeds — página principal, lista os posts de todos os Temas. Um Tema é
 // uma categoria principal criada só pela staff (ver AdminPanel.jsx →
@@ -51,7 +52,7 @@ export default function CommunitiesPage() {
     <div className="communities-page">
       <header className="feeds-hero">
         <div>
-          <h1>Feeds</h1>
+          <h1>Fórum</h1>
           <p>Posts da comunidade, organizados por Temas.</p>
         </div>
         <button className="feeds-create" onClick={() => setShowCreatePost(true)} disabled={clubs.length === 0}>
@@ -202,6 +203,7 @@ export function PostCard({ post, onVote, onOpen }) {
       {post.type === 'LINK' && (
         <span className="fp-link"><FeedIcon name="link" size={14} /> <span className="truncate">{post.linkUrl}</span></span>
       )}
+      {post.poll && <FeedPoll postId={post.id} poll={post.poll} compact />}
       <footer className="fp-actions">
         <VotePill score={post.score} myVote={post.myVote} onVote={(v) => onVote(post, v)} />
         <span className="fp-action">
@@ -292,6 +294,8 @@ export function CreatePostForm({ clubs, defaultClubSlug, onClose, onCreated }) {
   const [imagePreview, setImagePreview] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
+  // Enquete (aba "Enquete"): o título do post vira a pergunta.
+  const [pollOptions, setPollOptions] = useState(['', '']);
   const [error, setError] = useState('');
 
   const changeClub = (slug) => {
@@ -328,11 +332,14 @@ export function CreatePostForm({ clubs, defaultClubSlug, onClose, onCreated }) {
     setError('');
     if (!categoryId) { setError('Escolha uma categoria dentro do Tema.'); return; }
     if (type === 'IMAGE' && (!imageFile?.url || uploadingImage)) { setError('Espere a imagem terminar de enviar.'); return; }
+    const cleanOptions = pollOptions.map((o) => o.trim()).filter(Boolean);
+    if (type === 'POLL' && new Set(cleanOptions).size < 2) { setError('A enquete precisa de pelo menos 2 opções diferentes.'); return; }
     try {
       const { post } = await createPost({
-        communitySlug, categoryId, title, type, content,
+        communitySlug, categoryId, title, type: type === 'POLL' ? 'TEXT' : type, content,
         imageUrl: type === 'IMAGE' ? imageFile.url : undefined,
         linkUrl,
+        poll: type === 'POLL' ? { options: cleanOptions } : undefined,
       });
       onCreated(post);
     } catch (err) { setError(err.response?.data?.error || 'Não foi possível publicar o post.'); }
@@ -361,7 +368,7 @@ export function CreatePostForm({ clubs, defaultClubSlug, onClose, onCreated }) {
       </label>
       <label>TÍTULO<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} required /></label>
       <div className="post-type-tabs">
-        {[['TEXT', 'Texto'], ['IMAGE', 'Imagem'], ['LINK', 'Link']].map(([k, l]) => (
+        {[['TEXT', 'Texto'], ['IMAGE', 'Imagem'], ['LINK', 'Link'], ['POLL', 'Enquete']].map(([k, l]) => (
           <button key={k} type="button" className={`post-type-tab ${type === k ? 'active' : ''}`} onClick={() => setType(k)}>{l}</button>
         ))}
       </div>
@@ -379,6 +386,31 @@ export function CreatePostForm({ clubs, defaultClubSlug, onClose, onCreated }) {
         </label>
       )}
       {type === 'LINK' && <label>LINK<input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://..." required /></label>}
+      {type === 'POLL' && (
+        <div className="sx-poll-editor">
+          <span className="sx-poll-editor-hint">O título do post vira a pergunta. De 2 a 6 opções.</span>
+          {pollOptions.map((opt, i) => (
+            <div key={i} className="sx-poll-editor-row">
+              <span className="sx-poll-radio" aria-hidden="true" />
+              <input
+                value={opt} maxLength={100} placeholder={`Opção ${i + 1}`}
+                onChange={(e) => setPollOptions((list) => list.map((o, j) => (j === i ? e.target.value : o)))}
+              />
+              {pollOptions.length > 2 && (
+                <button type="button" className="sx-icon-btn" aria-label={`Remover opção ${i + 1}`} onClick={() => setPollOptions((list) => list.filter((_, j) => j !== i))}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+                </button>
+              )}
+            </div>
+          ))}
+          {pollOptions.length < 6 && (
+            <button type="button" className="sx-btn ghost sm sx-poll-add" onClick={() => setPollOptions((list) => [...list, ''])}>
+              <FeedIcon name="plus" size={14} /> Adicionar opção
+            </button>
+          )}
+          <label>TEXTO (opcional)<textarea value={content} onChange={(e) => setContent(e.target.value)} rows={2} maxLength={10000} /></label>
+        </div>
+      )}
       {error && <div className="auth-error">{error}</div>}
       <div className="modal-actions">
         <button type="button" className="btn-link" onClick={onClose}>Cancelar</button>

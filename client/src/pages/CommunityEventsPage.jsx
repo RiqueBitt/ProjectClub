@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { createEvent } from '../api/endpoints';
 import { useCommunityEvents } from '../utils/useCommunityEvents';
 import { FeaturedGlyph } from '../components/FeaturedChannels.jsx';
 import { proxyImage } from '../utils/imageProxy';
 import '../styles/channels.css';
+import EventRsvp from '../components/EventRsvp.jsx';
+import '../styles/socialx.css';
 
 // Canal em destaque "Eventos": os eventos da comunidade (os mesmos do
 // Início e do Painel da staff), separados em Acontecendo / Em breve /
@@ -39,8 +41,19 @@ function relative(iso, now) {
   return 'instantes';
 }
 
-function EventCard({ ev, now }) {
+function EventCard({ ev, now, highlighted, onRsvp }) {
   const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const ref = useRef(null);
+  // Veio de um link (/eventos/<id>): rola até o cartão e destaca.
+  useEffect(() => {
+    if (highlighted) ref.current?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }, [highlighted]);
+  const copyLink = () => {
+    navigator.clipboard?.writeText(`${window.location.origin}/eventos/${ev.id}`)
+      .then(() => { setCopied(true); setTimeout(() => setCopied(false), 1600); })
+      .catch(() => {});
+  };
   const starts = formatDate(ev.startsAt);
   const ends = formatDate(ev.endsAt);
   let when = null;
@@ -49,7 +62,7 @@ function EventCard({ ev, now }) {
   const longText = (ev.description || '').length > 220;
 
   return (
-    <article className={`cev-card status-${ev.status.toLowerCase()}`}>
+    <article ref={ref} className={`cev-card status-${ev.status.toLowerCase()}${highlighted ? ' sx-ev-highlight' : ''}`}>
       <div className="cev-banner">
         {ev.bannerUrl
           ? <img src={proxyImage(ev.bannerUrl)} alt="" loading="lazy" />
@@ -77,7 +90,14 @@ function EventCard({ ev, now }) {
         {longText && (
           <button type="button" className="cev-more" onClick={() => setOpen((v) => !v)}>{open ? 'Mostrar menos' : 'Ler mais'}</button>
         )}
-        {ev.createdBy?.displayName && <div className="cev-by">Por {ev.createdBy.displayName}</div>}
+        <EventRsvp event={ev} onChange={(rsvp) => onRsvp(ev.id, rsvp)} />
+        <div className="sx-ev-foot">
+          {ev.createdBy?.displayName && <div className="cev-by">Por {ev.createdBy.displayName}</div>}
+          <button type="button" className="sx-ev-share" onClick={copyLink}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></svg>
+            {copied ? 'Link copiado' : 'Copiar link'}
+          </button>
+        </div>
       </div>
     </article>
   );
@@ -129,7 +149,9 @@ export default function CommunityEventsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isStaff = user?.platformRole === 'ADMIN' || user?.platformRole === 'MODERATOR';
-  const { events, reload } = useCommunityEvents();
+  const { events, reload, patchEvent } = useCommunityEvents();
+  const [params] = useSearchParams();
+  const focusId = params.get('evento');
   const [tab, setTab] = useState(null);
   const [creating, setCreating] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -142,7 +164,9 @@ export default function CommunityEventsPage() {
     return by;
   }, [events]);
   // Abre na primeira aba que tem algo (prioridade: acontecendo agora).
-  const activeTab = tab || TABS.find((t) => groups[t.key].length > 0)?.key || 'UPCOMING';
+  // Link direto pra um evento abre na aba dele.
+  const focusTab = focusId ? (events || []).find((e) => e.id === focusId)?.status : null;
+  const activeTab = tab || (focusTab && groups[focusTab] ? focusTab : null) || TABS.find((t) => groups[t.key].length > 0)?.key || 'UPCOMING';
   const list = groups[activeTab];
 
   return (
@@ -195,7 +219,9 @@ export default function CommunityEventsPage() {
         )}
         {events !== null && list.length > 0 && (
           <div className="cev-grid">
-            {list.map((ev) => <EventCard key={ev.id} ev={ev} now={now} />)}
+            {list.map((ev) => (
+              <EventCard key={ev.id} ev={ev} now={now} highlighted={ev.id === focusId} onRsvp={(id, rsvp) => patchEvent(id, { rsvp })} />
+            ))}
           </div>
         )}
       </div>

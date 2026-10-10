@@ -31,7 +31,9 @@ import { peekPendingModpack } from './modpackShared.js';
 // abas Explorar · Instalados · Modpacks · Arquivos. "Explorar" mostra
 // TODAS as fontes (mod.io, Workshop, GameBanana, Thunderstore) numa
 // grade só, com compatibilidade — a fonte vira só um chip no cartão.
-export default function GameManager({ game, onBack, scrollRef }) {
+// initialTab / initialMod: vindos da tela inicial (ex: "Em alta" abre o
+// mod direto; "Atualizações" abre em Instalados).
+export default function GameManager({ game, onBack, scrollRef, initialTab = null, initialMod = null, onUpdatesChanged }) {
   const desktopReady = isDesktopModsAvailable();
   const sourceKeys = SOURCE_ORDER.filter((k) => game.sources[k]);
   const supported = sourceKeys.length > 0;
@@ -39,8 +41,11 @@ export default function GameManager({ game, onBack, scrollRef }) {
   const hasWorkshop = !!game.sources.workshop;
 
   // "Ver modpack" vindo do perfil abre direto na aba Modpacks.
-  const [tab, setTab] = useState(() => (peekPendingModpack(game.steamAppId) ? 'modpacks' : supported ? 'explore' : 'files'));
-  const [openedMod, setOpenedMod] = useState(null); // { item, compat } do mod aberto em "Explorar"
+  const [tab, setTab] = useState(() => (peekPendingModpack(game.steamAppId) ? 'modpacks'
+    : initialMod && supported ? 'explore'
+      : initialTab && (initialTab !== 'explore' || supported) ? initialTab
+        : supported ? 'explore' : 'files'));
+  const [openedMod, setOpenedMod] = useState(() => (initialMod && game.sources[initialMod.source] ? { item: initialMod, compat: null } : null)); // { item, compat } do mod aberto em "Explorar"
   // Perfil de instalação do jogo vindo do app desktop (loader, pastas...).
   const [installProfile, setInstallProfile] = useState(null);
   const [installProfileLoading, setInstallProfileLoading] = useState(true);
@@ -132,8 +137,8 @@ export default function GameManager({ game, onBack, scrollRef }) {
 
   const installedFolders = useMemo(() => new Set([...installedState.enabled, ...installedState.disabled]), [installedState]);
   const ctx = useMemo(() => ({
-    installedFolders, refreshInstalled, trackInstall, untrackInstall, completeInstall, progressById, workshopIds,
-  }), [installedFolders, refreshInstalled, trackInstall, untrackInstall, completeInstall, progressById, workshopIds]);
+    installedFolders, installedLoaded, refreshInstalled, trackInstall, untrackInstall, completeInstall, progressById, workshopIds,
+  }), [installedFolders, installedLoaded, refreshInstalled, trackInstall, untrackInstall, completeInstall, progressById, workshopIds]);
 
   // Abrir um mod guarda a posição da lista; voltar devolve o scroll.
   const openMod = (item, compat) => {
@@ -256,6 +261,7 @@ export default function GameManager({ game, onBack, scrollRef }) {
                 onExplore={supported ? () => setTab('explore') : null}
                 onAddLocal={doInstallLocalFile}
                 localInstallBusy={localInstallBusy}
+                onUpdatesChanged={onUpdatesChanged}
               />
               {hasWorkshop && <div className="mdx-tab-body"><WorkshopSubscribed ids={workshopIds} /></div>}
             </>

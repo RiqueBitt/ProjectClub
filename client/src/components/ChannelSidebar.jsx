@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useStore, isChannelUnread } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -19,6 +20,10 @@ import ModerationModal from './modals/ModerationModal.jsx';
 import EmojiManagerModal from './modals/EmojiManagerModal.jsx';
 import StickerManagerModal from './modals/StickerManagerModal.jsx';
 import UserAvatar from './UserAvatar.jsx';
+import UserStatusBar from './UserStatusBar.jsx';
+import NavIcon from './NavIcons.jsx';
+import { cssZoom } from '../utils/cssZoom';
+import '../styles/nav.css';
 import settingsIcon from '../assets/icons/settings.png';
 import plusIcon from '../assets/icons/plus.png';
 import cancelIcon from '../assets/icons/cancel.png';
@@ -70,9 +75,14 @@ function buildSections(categories, channels) {
 // continua como respaldo pros outros lugares que ainda usam este
 // componente dentro de uma <Route> de verdade (ver TopMenu.jsx).
 // Categorias recolhidas ficam salvas por navegador (só preferência visual).
+// Agora por conta (chave com o id do usuário); a chave antiga, sem id,
+// só serve de ponto de partida na primeira vez.
 const COLLAPSED_CATS_KEY = 'collapsedCategories';
-function readCollapsedCats() {
-  try { return new Set(JSON.parse(localStorage.getItem(COLLAPSED_CATS_KEY) || '[]')); } catch { return new Set(); }
+function readCollapsedCats(userId) {
+  try {
+    const own = localStorage.getItem(`${COLLAPSED_CATS_KEY}:${userId}`);
+    return new Set(JSON.parse(own ?? localStorage.getItem(COLLAPSED_CATS_KEY) ?? '[]'));
+  } catch { return new Set(); }
 }
 
 // Props usadas pelo layout "Normal 2.0" (Normal2Sidebar.jsx):
@@ -117,13 +127,33 @@ export default function ChannelSidebar({
   const [dragOverChannelId, setDragOverChannelId] = useState(null);
   const [dragOverPosition, setDragOverPosition] = useState('before');
   const [dragOverCategoryId, setDragOverCategoryId] = useState(null);
-  const [collapsedCats, setCollapsedCats] = useState(readCollapsedCats);
+  const [collapsedCats, setCollapsedCats] = useState(() => readCollapsedCats(user.id));
   const toggleCategory = (id) => setCollapsedCats((prev) => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
-    try { localStorage.setItem(COLLAPSED_CATS_KEY, JSON.stringify([...next])); } catch { /* sem localStorage: só não lembra */ }
+    try { localStorage.setItem(`${COLLAPSED_CATS_KEY}:${user.id}`, JSON.stringify([...next])); } catch { /* sem localStorage: só não lembra */ }
     return next;
   });
+  // Prévia dos canais com novidade ao passar o mouse numa categoria recolhida.
+  const [catPreview, setCatPreview] = useState(null); // { catId, top, left }
+  const catPreviewTimer = useRef(null);
+  const myRoleIdsForBadges = members.find((m) => m.user.id === user.id)?.roleIds || [];
+  const unreadInCategory = (cat) => (cat.channels || []).filter((c) => (
+    c.id !== activeChannelId && (c.unreadMentions > 0 || isChannelUnread(c, channelReadAt, user.id, myRoleIdsForBadges))
+  ));
+  const showCatPreview = (e, cat) => {
+    clearTimeout(catPreviewTimer.current);
+    if (!collapsedCats.has(cat.id) || !window.matchMedia?.('(hover: hover)').matches) return;
+    if (unreadInCategory(cat).length === 0) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const z = cssZoom();
+    setCatPreview({ catId: cat.id, top: r.top / z, left: r.right / z + 8 });
+  };
+  const hideCatPreview = () => {
+    clearTimeout(catPreviewTimer.current);
+    catPreviewTimer.current = setTimeout(() => setCatPreview(null), 140);
+  };
+  useEffect(() => () => clearTimeout(catPreviewTimer.current), []);
 
   const myPerms = getMyCommunityPermissions(roles, members, user.id, user.platformRole);
   const canManage = hasPermission(myPerms, 'MANAGE_CHANNELS');
@@ -285,13 +315,28 @@ export default function ChannelSidebar({
               else if (dragChannelId) onChannelDrop(cat.id, null);
             }}
           >
-            <div className={`category-label${collapsedCats.has(cat.id) ? ' is-collapsed' : ''}`}>
+            <div
+              className={`category-label${collapsedCats.has(cat.id) ? ' is-collapsed' : ''}`}
+              onMouseEnter={(e) => showCatPreview(e, cat)}
+              onMouseLeave={hideCatPreview}
+            >
               <button
                 type="button" className="category-toggle" aria-expanded={!collapsedCats.has(cat.id)}
-                onClick={() => toggleCategory(cat.id)} title={collapsedCats.has(cat.id) ? 'Mostrar canais' : 'Esconder canais'}
+                onClick={() => { setCatPreview(null); toggleCategory(cat.id); }} title={collapsedCats.has(cat.id) ? 'Mostrar canais' : 'Esconder canais'}
               >
                 {hasCustomIcon(cat) && <CustomIcon item={cat} className="category-custom-icon" />}
                 <span className="truncate">{sentenceCase ? cat.name : cat.name.toUpperCase()}</span>
+                {collapsedCats.has(cat.id) && (() => {
+                  // Contador de canais com novidade (vermelho se tiver menção).
+                  const unreadList = unreadInCategory(cat);
+                  if (unreadList.length === 0) return null;
+                  const hasMention = unreadList.some((c) => c.unreadMentions > 0);
+                  return (
+                    <span className={`category-unread-badge${hasMention ? ' is-mention' : ''}`} title={`${unreadList.length} ${unreadList.length === 1 ? 'canal' : 'canais'} com novidade`}>
+                      {unreadList.length > 99 ? '99+' : unreadList.length}
+                    </span>
+                  );
+                })()}
                 <svg className="category-chevron" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>
               {canManage && (
@@ -323,6 +368,35 @@ export default function ChannelSidebar({
           </div>
         ))}
       </nav>
+
+      {catPreview && (() => {
+        const cat = categories.find((c) => c.id === catPreview.catId);
+        const list = cat ? unreadInCategory(cat) : [];
+        if (!cat || list.length === 0) return null;
+        return createPortal(
+          <div
+            className="category-preview" role="tooltip"
+            style={{ top: Math.min(catPreview.top, window.innerHeight / cssZoom() - 48 - list.length * 38), left: catPreview.left }}
+            onMouseEnter={() => clearTimeout(catPreviewTimer.current)}
+            onMouseLeave={hideCatPreview}
+          >
+            <div className="category-preview-title">Novidades em <b>{cat.name}</b></div>
+            {list.slice(0, 8).map((c) => (
+              <button
+                key={c.id} type="button" className="category-preview-item"
+                onClick={() => { setCatPreview(null); navigate(`/channels/${c.id}`); }}
+              >
+                <span className="category-preview-icon">{hasCustomIcon(c) ? <CustomIcon item={c} className="channel-custom-icon" /> : <NavIcon name={VOICE_TYPES.includes(c.type) ? 'voice' : 'hash'} size={15} />}</span>
+                <span className="truncate">{c.name}</span>
+                {c.unreadMentions > 0 ? <span className="mention-badge">{c.unreadMentions > 99 ? '99+' : c.unreadMentions}</span> : <span className="unread-dot" />}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        );
+      })()}
+
+      <UserStatusBar />
 
       {channelModal.open && (
         <CreateChannelModal

@@ -67,6 +67,7 @@ const agoraRoutes = require('./routes/agora');
 const imageProxyRoutes = require('./routes/imageProxy');
 const updatesRoutes = require('./routes/updates');
 const eventsRoutes = require('./routes/events');
+const activityRoutes = require('./routes/activity');
 const youtubeRoutes = require('./routes/youtube');
 const clansRoutes = require('./routes/clans');
 
@@ -339,6 +340,7 @@ function createApp() {
   app.use('/api/proxy', imageProxyRoutes);
   app.use('/api/updates', updatesRoutes);
   app.use('/api/events', eventsRoutes);
+  app.use('/api/activity', activityRoutes);
   app.use('/api/youtube', youtubeRoutes);
   app.use('/api/clans', clansRoutes);
 

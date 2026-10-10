@@ -5,6 +5,7 @@ import { proxyImage } from '../utils/imageProxy';
 import { MODPACK_SOURCE_LABEL, steamHeaderUrl, requestOpenModpack } from '../pages/mods/modpackShared.js';
 import '../styles/modpacks.css';
 import { useLiveRefresh } from '../utils/liveRefresh';
+import { isDesktopModsAvailable } from '../utils/mods';
 
 // Item pedido: coluna "Modpack preferido" no perfil — mostra o modpack
 // (ou um mod avulso) que a pessoa escolheu destacar: jogo, likes,
@@ -20,6 +21,7 @@ const P = {
   arrow: 'M5 12h14M13 6l6 6-6 6',
   lock: 'M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3',
   check: 'm5 12.5 4.5 4.5L19 7.5',
+  monitor: 'M3 5h18v11H3zM8 20h8M12 16v4',
 };
 function I({ name, size = 15, style }) {
   return (
@@ -49,6 +51,7 @@ function Poster({ urls, label, className = '' }) {
 
 export default function FeaturedModpackSection({ Card, item, isMe, onChanged, onOpenModpack }) {
   const [picking, setPicking] = useState(false);
+  const [needsApp, setNeedsApp] = useState(false);
   const action = isMe && <button type="button" className="pf-link" onClick={() => setPicking(true)}>Escolher</button>;
   const mp = item?.type === 'modpack' ? item.modpack : null;
   const mod = item?.type === 'mod' ? item.mod : null;
@@ -69,10 +72,32 @@ export default function FeaturedModpackSection({ Card, item, isMe, onChanged, on
             </div>
             {!mp.isPublic && <span className="pfm-private"><I name="lock" size={12} /> Privado — só você vê este card até publicar.</span>}
             <div className="pfm-actions">
-              <button type="button" className="pf-btn" onClick={() => { requestOpenModpack(mp.steamAppId, mp.id); onOpenModpack?.(); }}>
+              {mp.itemCount > 0 && (
+                <button
+                  type="button"
+                  className="pf-btn pfm-install"
+                  onClick={() => {
+                    // Um clique: no app do PC abre o jogo e já começa o
+                    // "Baixar modpack"; no navegador explica que precisa do app.
+                    if (!isDesktopModsAvailable()) { setNeedsApp(true); return; }
+                    requestOpenModpack(mp.steamAppId, mp.id, { autoInstall: true, name: mp.gameName });
+                    onOpenModpack?.();
+                  }}
+                >
+                  <I name="download" size={14} /> Instalar modpack
+                </button>
+              )}
+              <button type="button" className="pf-btn pfm-ghost" onClick={() => { requestOpenModpack(mp.steamAppId, mp.id); onOpenModpack?.(); }}>
                 Ver modpack <I name="arrow" size={14} />
               </button>
             </div>
+            {needsApp && (
+              <div className="pfm-needs-app" role="note">
+                <I name="monitor" size={15} />
+                <span>Instalar modpacks precisa do app do Project Club no PC — ele coloca os mods direto na pasta do jogo. Abra este perfil pelo app e clique em "Instalar modpack" de novo.</span>
+                <button type="button" className="pfm-needs-close" aria-label="Fechar" onClick={() => setNeedsApp(false)}><I name="close" size={13} /></button>
+              </div>
+            )}
           </div>
         </div>
       )}

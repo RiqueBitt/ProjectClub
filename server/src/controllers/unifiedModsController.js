@@ -1,4 +1,5 @@
 const unified = require('../services/unifiedModsService');
+const updates = require('../services/modUpdatesService');
 
 const SORTS = new Set(['popular', 'downloads', 'new', 'updated']);
 
@@ -34,4 +35,35 @@ async function identify(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { search, identify };
+// POST /api/mods/updates { steamAppId, gameName?, mods: [{ source, sourceId, version }] }
+// Versão mais nova de cada mod instalado pelo Project Club (em lote).
+async function checkUpdates(req, res, next) {
+  try {
+    const steamAppId = Number(req.body?.steamAppId);
+    if (!Number.isInteger(steamAppId) || steamAppId <= 0) return res.status(400).json({ error: 'steamAppId inválido.' });
+    const mods = Array.isArray(req.body?.mods) ? req.body.mods.slice(0, 120) : [];
+    const gameName = typeof req.body?.gameName === 'string' ? req.body.gameName.slice(0, 120) : undefined;
+    res.json(await updates.checkUpdates(steamAppId, mods, gameName));
+  } catch (err) { next(err); }
+}
+
+// GET /api/mods/trending?games=730:Nome,1966720:Nome — mods em alta dos
+// jogos pedidos (até 6). Sem jogos: os jogos mais populares do site.
+async function trending(req, res, next) {
+  try {
+    const raw = typeof req.query.games === 'string' ? req.query.games.slice(0, 1500) : '';
+    const games = [];
+    for (const part of raw.split(',')) {
+      const [id, ...rest] = part.split(':');
+      const steamAppId = Number(id);
+      if (!Number.isInteger(steamAppId) || steamAppId <= 0 || games.some((g) => g.steamAppId === steamAppId)) continue;
+      let name = rest.join(':') || '';
+      try { name = decodeURIComponent(name); } catch { /* nome cru */ }
+      name = name.slice(0, 120) || null;
+      games.push({ steamAppId, name });
+    }
+    res.json(await updates.trending(games));
+  } catch (err) { next(err); }
+}
+
+module.exports = { search, identify, checkUpdates, trending };

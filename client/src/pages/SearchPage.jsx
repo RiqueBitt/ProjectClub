@@ -156,7 +156,7 @@ export default function SearchPage() {
   return (
     <div className="search-page pk-page sr">
       <div className="pk-inner narrow">
-        <PageHero icon="search" eyebrow="Encontre qualquer coisa" title="Busca" desc="Pessoas, posts dos Feeds, canais e conversas — tudo num só lugar.">
+        <PageHero icon="search" eyebrow="Encontre qualquer coisa" title="Busca" desc="Pessoas, posts do Fórum, canais e conversas — tudo num só lugar.">
           <label className="sr-input-wrap">
             <Ico name="search" size={20} />
             <input

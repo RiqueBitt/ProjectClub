@@ -44,3 +44,14 @@ export function formatBytes(n) {
   if (n >= 1024 ** 2) return `${(n / 1024 ** 2).toFixed(1)} MB`;
   return `${Math.max(1, Math.round(n / 1024))} KB`;
 }
+
+// Tela inicial de Mods: "Em alta esta semana". games = [{ steamAppId, name }]
+// (jogos do PC); sem jogos o servidor escolhe os mais populares do site.
+export const getTrendingMods = (games = []) => api
+  .get('/mods/trending', { params: games.length ? { games: games.map((g) => `${g.steamAppId}:${encodeURIComponent(g.name || '')}`).join(',') } : {} })
+  .then((r) => r.data);
+
+// mods: [{ source, sourceId, version }] → { results: { 'source:sourceId': { latestVersion, updateAvailable, needsAccount, ... } } }
+export const checkModUpdates = (steamAppId, mods, gameName) => api
+  .post('/mods/updates', { steamAppId, mods, gameName })
+  .then((r) => r.data);

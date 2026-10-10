@@ -22,7 +22,7 @@ const KINDS = [
 const SOURCES = [
   { key: 'all', label: 'Todos os lugares' },
   { key: 'channels', label: 'Canais' },
-  { key: 'posts', label: 'Feed' },
+  { key: 'posts', label: 'Fórum' },
 ];
 
 function timeAgo(iso) {
@@ -106,7 +106,7 @@ export default function CommunityGalleryPage() {
           <div className="cx-hero-text">
             <span className="cx-eyebrow">Canal em destaque</span>
             <h1>Galeria</h1>
-            <p>Fotos, vídeos e GIFs que a galera já compartilhou nos canais e no Feed, tudo num lugar só.</p>
+            <p>Fotos, vídeos e GIFs que a galera já compartilhou nos canais e no Fórum, tudo num lugar só.</p>
           </div>
         </header>
 
@@ -141,7 +141,7 @@ export default function CommunityGalleryPage() {
           <div className="cx-empty">
             <span className="cx-empty-icon"><FeaturedGlyph name="image" size={26} /></span>
             <h3>{error ? 'Algo deu errado' : 'Nada por aqui ainda'}</h3>
-            <p>{error || 'Quando alguém mandar uma foto, vídeo ou GIF nos canais ou no Feed, aparece aqui.'}</p>
+            <p>{error || 'Quando alguém mandar uma foto, vídeo ou GIF nos canais ou no Fórum, aparece aqui.'}</p>
           </div>
         )}
         {items !== null && visible.length > 0 && (
@@ -172,7 +172,7 @@ export default function CommunityGalleryPage() {
                   ) : item.source === 'post' ? (
                     <button type="button" className="cgal-where" onClick={() => navigate(`/posts/${item.postId}`)} title={item.title}>
                       <FeaturedGlyph name="feed" size={13} />
-                      <span className="truncate">{item.club?.name || 'Feed'}</span>
+                      <span className="truncate">{item.club?.name || 'Fórum'}</span>
                     </button>
                   ) : null}
                   <span className="cgal-time">{timeAgo(item.createdAt)}</span>

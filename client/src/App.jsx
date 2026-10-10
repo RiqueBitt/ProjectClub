@@ -11,6 +11,7 @@ import { playSound } from './utils/sounds';
 import LoadingScreen from './components/LoadingScreen.jsx';
 import TitleBar from './components/TitleBar.jsx';
 import { CUSTOM_BACKGROUND_ENABLED } from './utils/featureFlags';
+import { useApplyAppearance } from './components/AppearanceRuntime.jsx';
 
 import MainApp from './pages/MainApp.jsx';
 import { useLiveRefresh, sameData } from './utils/liveRefresh';
@@ -239,6 +240,8 @@ function AppSkeletonScreen() {
 export default function App() {
   const theme = useStore((s) => s.theme);
   const customBackground = useStore((s) => s.customBackground);
+  // Personalizar layout: atributos/variáveis no <html> (ver utils/appearance.js).
+  useApplyAppearance();
 
   // Deterrent-only "no inspecting" measures: blocks the browser's own
   // right-click menu everywhere (custom context menus elsewhere in the app
