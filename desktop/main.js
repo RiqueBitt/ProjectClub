@@ -1128,6 +1128,28 @@ if (!gotLock) {
   // visual — removida por completo agora: baixa e aplica tudo sozinho,
   // sem mostrar nada nunca, ver setupAutoUpdater abaixo.
 
+  // Estado da atualização (pro botão verde da barra do app).
+  const updateStatus = { current: app.getVersion(), available: false, downloaded: false, percent: 0, version: null };
+  ipcMain.handle('update:get-status', () => ({ ...updateStatus }));
+  // Clique no botão verde: se já baixou, fecha e instala (reabre sozinho);
+  // senão, pede pra procurar/baixar agora e instala quando terminar.
+  let installWhenReady = false;
+  ipcMain.handle('update:install', async () => {
+    if (updateStatus.downloaded) {
+      isQuitting = true;
+      setImmediate(() => autoUpdater.quitAndInstall(true, true));
+      return { success: true, installing: true };
+    }
+    installWhenReady = true;
+    try { await autoUpdater.checkForUpdates(); } catch (err) { return { success: false, error: err?.message || 'Falha ao procurar atualização.' }; }
+    return { success: true, downloading: true };
+  });
+  autoUpdater.on('update-downloaded', () => {
+    if (!installWhenReady) return;
+    isQuitting = true;
+    setImmediate(() => autoUpdater.quitAndInstall(true, true));
+  });
+
   function setupAutoUpdater() {
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
@@ -1145,13 +1167,25 @@ if (!gotLock) {
     // aplicando a atualização sozinho na próxima vez que for fechado
     // normalmente (autoInstallOnAppQuit), sem nunca precisar mostrar
     // nada nem interromper quem está usando.
+    // Estado pro botão verde de atualizar da barra do app (TitleBar.jsx).
+    const sendUpdateStatus = () => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update:status', { ...updateStatus });
+    };
     autoUpdater.on('update-available', (info) => {
       console.log('[atualização] nova versão disponível, baixando em segundo plano:', info?.version);
+      Object.assign(updateStatus, { available: true, version: info?.version || null });
+      sendUpdateStatus();
+    });
+    autoUpdater.on('download-progress', (p) => {
+      updateStatus.percent = Math.round(p?.percent || 0);
+      sendUpdateStatus();
     });
 
     autoUpdater.on('update-downloaded', (info) => {
       console.log('[atualização] baixada e pronta:', info?.version);
       updateReady = true;
+      Object.assign(updateStatus, { available: true, downloaded: true, percent: 100, version: info?.version || updateStatus.version });
+      sendUpdateStatus();
       maybeInstallUpdate();
     });
 

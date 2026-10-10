@@ -1,4 +1,80 @@
 import { useEffect, useState } from 'react';
+import { api } from '../api/client';
+import { useLiveRefresh } from '../utils/liveRefresh';
+
+// "1.10.2" > "1.9.9"
+function isNewer(a, b) {
+  const pa = String(a || '').split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = String(b || '').split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+  }
+  return false;
+}
+
+// Item pedido: "ícone de download verde do lado do minimizar; ao clicar
+// fecha o Project Club e atualiza pra versão nova". Aparece só quando
+// existe versão mais nova que a deste app.
+function UpdateButton() {
+  const bridge = window.electronAPI?.update;
+  const [current, setCurrent] = useState(null);
+  const [latest, setLatest] = useState(null);
+  const [status, setStatus] = useState(null); // estado vindo do app (versões novas)
+  const [working, setWorking] = useState(false);
+
+  useEffect(() => {
+    window.electronAPI?.getAppVersion?.().then(setCurrent).catch(() => {});
+    if (!bridge) return undefined;
+    bridge.getStatus().then(setStatus).catch(() => {});
+    return bridge.onStatus?.(setStatus);
+  }, [bridge]);
+
+  const checkLatest = () => api.get('/system/desktop-latest').then((r) => setLatest(r.data?.version || null)).catch(() => {});
+  useEffect(() => { checkLatest(); }, []);
+  useLiveRefresh(checkLatest, { interval: 5 * 60 * 1000 });
+
+
+  const hasUpdate = (status?.available) || (current && latest && isNewer(latest, current));
+  if (!hasUpdate) return null;
+  const downloading = working && status && !status.downloaded;
+  const label = status?.downloaded || !bridge
+    ? `Atualizar para ${status?.version || latest || 'a versão nova'} (fecha e reabre o Project Club)`
+    : `Baixar e instalar ${status?.version || latest || 'a versão nova'}`;
+
+  const run = async () => {
+    if (working) return;
+    setWorking(true);
+    if (bridge) {
+      const r = await bridge.install().catch(() => null);
+      if (!r?.success) setWorking(false);
+      return;
+    }
+    // App antigo (sem esse recurso): desliga "minimizar pra bandeja" só
+    // pra este fechamento — o app fecha de verdade e aplica a atualização
+    // já baixada; a preferência da conta volta sozinha na próxima abertura
+    // (as configurações da conta são reenviadas ao app quando o site carrega).
+    window.electronAPI?.updateSettings?.({ minimizeToTray: false, confirmOnExit: false });
+    setTimeout(() => window.electronAPI.windowClose(), 300);
+  };
+
+  return (
+    <button
+      type="button"
+      className={`app-title-bar-btn app-title-bar-btn--update ${working ? 'is-working' : ''}`}
+      aria-label={label}
+      title={downloading ? `Baixando atualização… ${status?.percent || 0}%` : label}
+      onClick={run}
+    >
+      {downloading ? (
+        <span className="app-title-bar-update-pct">{status?.percent || 0}%</span>
+      ) : (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+        </svg>
+      )}
+    </button>
+  );
+}
 
 // Item pedido: "no app do Project Club, faça igual ao launcher, e crie
 // uma barra que não seja do Windows, de fechar aba, minimizar, aumentar
@@ -29,6 +105,7 @@ export default function TitleBar() {
     <div className="app-title-bar">
       <div className="app-title-bar-drag" onDoubleClick={() => window.electronAPI.windowMaximizeToggle()} />
       <div className="app-title-bar-controls">
+        <UpdateButton />
         <button
           type="button"
           className="app-title-bar-btn"

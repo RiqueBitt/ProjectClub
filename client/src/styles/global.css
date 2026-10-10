@@ -6449,3 +6449,14 @@ a.embed-card-title:hover { text-decoration: underline; }
    claros, claro translúcido nos temas escuros). */
 .app-title-bar-btn:hover { background: var(--bg-modifier-hover); }
 .app-title-bar-btn--close:hover { background: #e81123; color: #fff; }
+/* Botão verde de atualizar (aparece só com versão nova disponível). */
+.app-title-bar-btn--update { color: #23a55a; position: relative; }
+.app-title-bar-btn--update::after {
+  content: ''; position: absolute; top: 7px; right: 12px; width: 6px; height: 6px; border-radius: 50%;
+  background: #23a55a; box-shadow: 0 0 0 2px var(--bg-tertiary, #1e1f22); animation: app-update-pulse 1.8s ease-in-out infinite;
+}
+.app-title-bar-btn--update:hover { background: color-mix(in srgb, #23a55a 22%, transparent); color: #2dc26b; }
+.app-title-bar-btn--update.is-working { cursor: progress; }
+.app-title-bar-update-pct { font-size: 10.5px; font-weight: 800; letter-spacing: -.2px; }
+@keyframes app-update-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .app-title-bar-btn--update::after { animation: none; } }
