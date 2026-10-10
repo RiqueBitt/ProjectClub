@@ -1226,7 +1226,7 @@ if (!gotLock) {
     // cada 4 horas enquanto o app continuar aberto/rodando em segundo
     // plano.
     setTimeout(check, 10000);
-    setInterval(check, 4 * 60 * 60 * 1000);
+    setInterval(check, 30 * 60 * 1000); // a cada 30 min (antes 4 h)
 
     // Item pedido: "outros apps que tiver baixados junto com o Project
     // Club" — checa e atualiza sozinho, em segundo plano, qualquer

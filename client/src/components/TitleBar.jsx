@@ -21,6 +21,7 @@ function UpdateButton() {
   const [latest, setLatest] = useState(null);
   const [status, setStatus] = useState(null); // estado vindo do app (versões novas)
   const [working, setWorking] = useState(false);
+  const [askOld, setAskOld] = useState(false); // explicação pro app antigo
 
   useEffect(() => {
     window.electronAPI?.getAppVersion?.().then(setCurrent).catch(() => {});
@@ -41,23 +42,40 @@ function UpdateButton() {
     ? `Atualizar para ${status?.version || latest || 'a versão nova'} (fecha e reabre o Project Club)`
     : `Baixar e instalar ${status?.version || latest || 'a versão nova'}`;
 
+  const INSTALLER_URL = 'https://github.com/RiqueBitt/ProjectClub-Downloads/releases/latest/download/ProjectClub-Setup-Windows.exe';
+
   const run = async () => {
     if (working) return;
+    if (!bridge) { setAskOld((v) => !v); return; } // app antigo: explica e oferece o instalador
     setWorking(true);
-    if (bridge) {
-      const r = await bridge.install().catch(() => null);
-      if (!r?.success) setWorking(false);
-      return;
-    }
-    // App antigo (sem esse recurso): desliga "minimizar pra bandeja" só
-    // pra este fechamento — o app fecha de verdade e aplica a atualização
-    // já baixada; a preferência da conta volta sozinha na próxima abertura
-    // (as configurações da conta são reenviadas ao app quando o site carrega).
+    const r = await bridge.install().catch(() => null);
+    if (!r?.success) setWorking(false);
+  };
+
+  // App antigo (sem atualização por clique): ele só sabe instalar o que já
+  // baixou ao FECHAR de verdade, e não reabre sozinho — às vezes uma versão
+  // intermediária. O caminho certo é o instalador da versão nova.
+  const downloadInstaller = () => {
+    window.electronAPI?.openExternal?.(INSTALLER_URL);
+    setAskOld(false);
+  };
+  const closeAndInstall = () => {
     window.electronAPI?.updateSettings?.({ minimizeToTray: false, confirmOnExit: false });
-    setTimeout(() => window.electronAPI.windowClose(), 300);
+    setTimeout(() => window.electronAPI.windowClose(), 200);
   };
 
   return (
+    <div className="app-title-bar-update-wrap">
+    {askOld && (
+      <div className="app-update-pop" role="dialog" aria-label="Atualizar o Project Club">
+        <strong>Atualizar para a {latest || 'versão nova'}</strong>
+        <p>Sua versão ({current}) ainda não atualiza com um clique. Baixe o instalador da versão nova e abra o arquivo — ele fecha o Project Club, instala e abre de novo. Depois disso, as próximas atualizações são automáticas e por este botão.</p>
+        <div className="app-update-pop-actions">
+          <button type="button" className="app-update-pop-btn primary" onClick={downloadInstaller}>Baixar instalador</button>
+          <button type="button" className="app-update-pop-btn" onClick={closeAndInstall} title="Instala a atualização que o app já baixou (pode ser uma versão intermediária) e fecha — abra de novo depois de alguns segundos">Fechar e instalar o que já baixou</button>
+        </div>
+      </div>
+    )}
     <button
       type="button"
       className={`app-title-bar-btn app-title-bar-btn--update ${working ? 'is-working' : ''}`}
@@ -73,6 +91,7 @@ function UpdateButton() {
         </svg>
       )}
     </button>
+    </div>
   );
 }
 

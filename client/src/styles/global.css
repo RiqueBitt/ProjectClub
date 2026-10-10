@@ -6460,3 +6460,18 @@ a.embed-card-title:hover { text-decoration: underline; }
 .app-title-bar-update-pct { font-size: 10.5px; font-weight: 800; letter-spacing: -.2px; }
 @keyframes app-update-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .app-title-bar-btn--update::after { animation: none; } }
+.app-title-bar-update-wrap { position: relative; display: flex; }
+.app-update-pop {
+  position: absolute; top: 36px; right: 0; z-index: 2000; width: 320px; padding: 14px;
+  border-radius: 12px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-normal);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .45); -webkit-app-region: no-drag; font-size: 13px;
+}
+.app-update-pop strong { display: block; color: var(--header-primary); font-size: 14px; margin-bottom: 6px; }
+.app-update-pop p { margin: 0 0 12px; line-height: 1.45; color: var(--text-muted); }
+.app-update-pop-actions { display: flex; flex-direction: column; gap: 6px; }
+.app-update-pop-btn {
+  height: 34px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-primary);
+  color: var(--header-primary); font-weight: 600; font-size: 13px; cursor: pointer;
+}
+.app-update-pop-btn.primary { background: #23a55a; border-color: transparent; color: #fff; }
+.app-update-pop-btn:hover { filter: brightness(1.08); }
