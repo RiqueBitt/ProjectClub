@@ -786,7 +786,7 @@ export default function ChatWindow({ kind }) {
           </div>
           <MembersToggleButton />
         </header>
-        <ErrorBoundary compact>
+        <ErrorBoundary compact resetKey={channel?.id}>
           <VoiceChannelView channel={channel} />
         </ErrorBoundary>
       </section>

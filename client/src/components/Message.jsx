@@ -58,7 +58,19 @@ const PICKER_GAP = 8;
 const BARE_IMAGE_URL_RE = /^https?:\/\/\S+\.(gif|png|jpe?g|webp)(\?\S*)?$/i;
 const GIF_URL_RE = /\.gif(\?\S*)?$/i;
 
-function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTopic }) {
+// BUG CORRIGIDO ("vários chats ficam com 'Essa parte travou'"): a
+// checagem de mensagem apagada retornava ANTES dos hooks que vêm depois
+// (useEffect) — quando alguém apagava uma mensagem com o chat aberto, a
+// mesma mensagem passava a renderizar com menos hooks e o React
+// derrubava o chat inteiro. Agora a mensagem apagada é outro componente.
+function MessageComponent(props) {
+  if (props.message.deleted) {
+    return <div className="message deleted-message"><em>Mensagem apagada</em></div>;
+  }
+  return <MessageBody {...props} />;
+}
+
+function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic }) {
   const { user } = useAuth();
   const { openMenu } = useContextMenu();
   const members = useStore((s) => s.members);
@@ -75,10 +87,6 @@ function MessageComponent({ message, showAuthor, onReply, topics = [], onOpenTop
   const favoriteGifs = useStore((s) => s.favoriteGifs);
   const addFavoriteGifLocal = useStore((s) => s.addFavoriteGifLocal);
   const removeFavoriteGifLocal = useStore((s) => s.removeFavoriteGifLocal);
-
-  if (message.deleted) {
-    return <div className="message deleted-message"><em>Mensagem apagada</em></div>;
-  }
 
   const saveEdit = async () => {
     if (draft.trim() && draft !== message.content) await editMessage(message.id, draft.trim());

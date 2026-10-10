@@ -30,6 +30,29 @@ export default class ErrorBoundary extends Component {
   componentDidCatch(error, info) {
     // eslint-disable-next-line no-console
     console.error('Unhandled render error, caught by ErrorBoundary:', error, info);
+    // Manda o erro pro servidor (só a mensagem/pilha e a página) pra
+    // dar pra descobrir a causa de verdade e corrigir.
+    try {
+      fetch('/api/system/client-error', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+        body: JSON.stringify({
+          where: this.props.compact ? 'parte' : 'tela',
+          path: window.location.pathname,
+          message: String(error?.message || error),
+          stack: String(error?.stack || '').slice(0, 1500),
+          componentStack: String(info?.componentStack || '').slice(0, 1500),
+          version: navigator.userAgent.match(/project-club-desktop\/[\d.]+/)?.[0] || '',
+        }),
+      }).catch(() => {});
+    } catch { /* sem rede */ }
+  }
+
+  // BUG CORRIGIDO ("só algumas partes voltam ao normal, outras ficam
+  // travadas"): ao mudar de página/canal (resetKey), a área volta a
+  // tentar renderizar — antes ficava presa no aviso até clicar em
+  // "Tentar de novo", mesmo trocando de canal.
+  componentDidUpdate(prevProps) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) this.reset();
   }
 
   render() {

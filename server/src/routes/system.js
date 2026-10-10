@@ -29,4 +29,20 @@ router.get('/desktop-latest', async (_req, res) => {
   }
 });
 
+// Erros de tela que o ErrorBoundary pegou no app de alguém — vão pro log
+// do servidor (sem dados pessoais além da página e do erro) pra dar pra
+// achar e corrigir a causa. Limite simples por IP.
+const recentErrors = new Map();
+router.post('/client-error', express.json({ limit: '16kb' }), (req, res) => {
+  const ip = req.ip || 'x';
+  const now = Date.now();
+  const list = (recentErrors.get(ip) || []).filter((t) => now - t < 60000);
+  if (list.length >= 10) return res.status(204).end();
+  list.push(now); recentErrors.set(ip, list);
+  const b = req.body || {};
+  const clip = (v, n) => String(v || '').slice(0, n).replace(/\s+/g, ' ');
+  console.warn(`[erro-de-tela] ${clip(b.where, 40)} ${clip(b.path, 120)} | ${clip(b.message, 300)} | ${clip(b.stack, 900)} | componentes: ${clip(b.componentStack, 900)} | ${clip(b.version, 40)}`);
+  res.status(204).end();
+});
+
 module.exports = router;

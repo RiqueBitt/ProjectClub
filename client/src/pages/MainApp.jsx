@@ -366,7 +366,7 @@ export default function MainApp() {
                 lateral, chamada de voz em andamento, etc.) continua
                 funcionando, e "Tentar de novo" só remonta essa área,
                 sem precisar recarregar nada. */}
-            <ErrorBoundary compact>
+            <ErrorBoundary compact resetKey={location.pathname}>
               <Routes>
                 <Route path="/" element={<CommunityDefaultChannel />} />
                 <Route path="/dms" element={<AmigosPage />} />

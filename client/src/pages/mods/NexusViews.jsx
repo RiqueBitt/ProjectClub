@@ -61,13 +61,13 @@ export function NexusLinkToggle() {
     if (!bridge) return;
     bridge.getLinkHandler().then((r) => setEnabled(!!r?.enabled)).catch(() => setEnabled(false));
   }, [bridge]);
-  if (!bridge || enabled === null) return null;
   const [loggedOut, setLoggedOut] = useState(false);
   const logout = async () => {
     await bridge.clearDownloadLogin?.().catch(() => {});
     setLoggedOut(true);
     setTimeout(() => setLoggedOut(false), 2500);
   };
+  if (!bridge || enabled === null) return null;
   const toggle = async () => {
     setBusy(true);
     try { const r = await bridge.setLinkHandler(!enabled); setEnabled(!!r?.enabled); } finally { setBusy(false); }
