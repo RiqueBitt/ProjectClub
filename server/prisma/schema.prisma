@@ -267,6 +267,9 @@ model User {
   // cassino). ---
   coins               Int       @default(0)  // "moedas"
   gems                Int       @default(0)  // "gemas" — vêm principalmente do Mega Baú
+  // Moldura do avatar equipada (loja) — JSON {id,url,s,x,y} copiado da
+  // AvatarDecoration pra não precisar de join em todo lugar que mostra avatar.
+  avatarDecoration    String?   @db.Text
   dailyStreak         Int       @default(0)
   lastDailyAt         DateTime?
 
@@ -2501,4 +2504,33 @@ model ActivityCheer {
   @@unique([itemKey, userId])
   @@index([itemKey])
   @@index([ownerId])
+}
+
+
+// Loja: molduras de avatar (estilo "decorações de perfil"). Criadas pela
+// staff no painel; preço em moedas e/ou gemas (null = não vende nessa moeda).
+model AvatarDecoration {
+  id         String   @id @default(uuid())
+  name       String
+  imageUrl   String   @db.Text
+  priceCoins Int?
+  priceGems  Int?
+  scale      Float    @default(1.2) // tamanho em relação ao avatar
+  offsetX    Float    @default(0)   // % do tamanho do avatar
+  offsetY    Float    @default(0)
+  active     Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  owners     UserAvatarDecoration[]
+}
+
+model UserAvatarDecoration {
+  id           String           @id @default(uuid())
+  userId       String
+  decorationId String
+  decoration   AvatarDecoration @relation(fields: [decorationId], references: [id], onDelete: Cascade)
+  createdAt    DateTime         @default(now())
+
+  @@unique([userId, decorationId])
+  @@index([decorationId])
 }

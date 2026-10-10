@@ -7,7 +7,58 @@ import { proxyImage } from '../utils/imageProxy';
 // pinguim grava em avatarUrl (ver PenguinAvatar.jsx) e desenha o SVG do
 // pinguim no lugar — sem precisar de upload nem mudar o schema do backend
 // (avatarUrl continua sendo uma string comum).
-export default function UserAvatar({ user, size = 32, className = '', style = {} }) {
+// Moldura da loja (User.avatarDecoration = JSON {id,url,s,x,y}).
+const decoCache = new Map();
+export function parseDecoration(raw) {
+  if (!raw) return null;
+  if (typeof raw === 'object') return raw.url ? raw : null;
+  if (decoCache.has(raw)) return decoCache.get(raw);
+  let v = null;
+  try { const o = JSON.parse(raw); if (o?.url) v = o; } catch { v = null; }
+  decoCache.set(raw, v);
+  return v;
+}
+
+export function DecorationOverlay({ deco, size }) {
+  if (!deco) return null;
+  const s = Number(deco.s) || 1.2;
+  const w = size * s;
+  return (
+    <img
+      className="avatar-decoration" src={proxyImage(deco.url)} alt="" aria-hidden="true" draggable="false"
+      style={{
+        position: 'absolute', width: w, height: w, maxWidth: 'none', pointerEvents: 'none', zIndex: 2,
+        left: (size - w) / 2 + (size * (Number(deco.x) || 0)) / 100,
+        top: (size - w) / 2 + (size * (Number(deco.y) || 0)) / 100,
+        objectFit: 'contain',
+      }}
+    />
+  );
+}
+
+const OUTER_KEYS = ['margin', 'marginLeft', 'marginRight', 'marginTop', 'marginBottom', 'position', 'top', 'left', 'right', 'bottom', 'alignSelf', 'gridArea', 'order'];
+
+export default function UserAvatar({ user, size = 32, className = '', style = {}, noDecoration = false }) {
+  const deco = noDecoration ? null : parseDecoration(user?.avatarDecoration);
+  const base = <BaseAvatar user={user} size={size} className={className} style={deco ? stripOuter(style) : style} />;
+  if (!deco) return base;
+  const outer = { position: 'relative', width: size, height: size, flexShrink: 0, display: 'inline-flex' };
+  for (const k of OUTER_KEYS) if (style[k] !== undefined) outer[k] = style[k];
+  return (
+    <span className="avatar-deco-wrap" style={outer}>
+      {base}
+      <DecorationOverlay deco={deco} size={size} />
+    </span>
+  );
+}
+
+function stripOuter(style) {
+  const out = { ...style };
+  for (const k of OUTER_KEYS) delete out[k];
+  return out;
+}
+
+function BaseAvatar({ user, size, className, style }) {
   const url = user?.avatarUrl;
   // BUG CORRIGIDO: 'var(--brand)' é a cor de destaque do TEMA — uma
   // variável de CSS que muda dependendo do tema escolhido por QUEM ESTÁ

@@ -813,5 +813,5 @@ async function setDisplayedAchievements(req, res, next) {
 module.exports = {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, uploadIdCard, removeIdCard,
   setStatus, setCustomStatus, searchUsers, getUser, setActiveTag, voteProfile, setPreferredTheme, setLayoutStyle, setEmojiStyle, setChatZoom, setInterfaceZoom,
-  setDisplayedAchievements, hasFullProfileAccess, sanitizeBannerFraming,
+  setDisplayedAchievements, hasFullProfileAccess, sanitizeBannerFraming, broadcastUserUpdate,
 };

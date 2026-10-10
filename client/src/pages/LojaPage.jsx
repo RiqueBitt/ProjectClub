@@ -1,37 +1,123 @@
-import { useNavigate } from 'react-router-dom';
-import '../styles/socialx.css';
+import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '../context/AuthContext.jsx';
+import UserAvatar from '../components/UserAvatar.jsx';
+import { Ico } from '../components/PagesKit.jsx';
+import { listDecorations, buyDecoration, equipDecoration } from '../api/decorations';
+import { useLiveRefresh } from '../utils/liveRefresh';
+import '../styles/shop.css';
 
-// Canal em destaque "Loja" — ainda vazio, só a tela de "Em breve".
-const ICONS = {
-  bag: 'M5 8h14l-1 12H6L5 8zM9 8V6a3 3 0 0 1 6 0v2',
-  coin: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM9.5 9.5a2.5 2 0 0 1 5 0c0 2.5-5 1.5-5 4a2.5 2 0 0 0 5 0M12 6v2M12 16v2',
-  sparkle: 'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5Z',
-  gift: 'M4 11h16v9H4zM3 7h18v4H3zM12 7v13M12 7S10 3 7.5 4 9 7 12 7ZM12 7s2-4 4.5-3S15 7 12 7Z',
-};
-function Ico({ name, size = 20 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICONS[name]} /></svg>
-  );
-}
+const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
+const errMsg = (e) => e?.response?.data?.error || 'Não deu certo, tente de novo.';
 
+// Loja — por enquanto vende molduras de avatar (criadas pela staff em
+// Painel da staff → Molduras), pagas com moedas ou gemas.
 export default function LojaPage() {
-  const navigate = useNavigate();
+  const { user, setUser } = useAuth();
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState('');
+  const [notice, setNotice] = useState(null);
+  const [preview, setPreview] = useState(null);
+
+  const load = useCallback(async (ctx) => {
+    try {
+      const d = await listDecorations();
+      if (!ctx || ctx.ok()) setData(d);
+    } catch (e) { if (!ctx) setNotice({ bad: true, text: errMsg(e) }); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  useLiveRefresh(load, { key: 'loja' });
+
+  const flash = (text, bad = false) => { setNotice({ text, bad }); setTimeout(() => setNotice(null), 3500); };
+
+  const buy = async (d, currency) => {
+    setBusy(`${d.id}:${currency}`);
+    try {
+      await buyDecoration(d.id, currency);
+      flash(`"${d.name}" é sua! Clique em Usar pra colocar no avatar.`);
+      await load();
+    } catch (e) { flash(errMsg(e), true); }
+    setBusy('');
+  };
+  const equip = async (id) => {
+    setBusy(`eq:${id}`);
+    try {
+      const r = await equipDecoration(id);
+      if (r.user) setUser((u) => ({ ...u, ...r.user }));
+      flash(id ? 'Moldura aplicada no seu avatar.' : 'Moldura removida.');
+      await load();
+    } catch (e) { flash(errMsg(e), true); }
+    setBusy('');
+  };
+
+  const items = data?.items || [];
+  const shown = preview || items.find((d) => d.id === data?.equippedId) || null;
+  const previewUser = { ...user, avatarDecoration: shown ? { id: shown.id, url: shown.imageUrl, s: shown.scale, x: shown.offsetX, y: shown.offsetY } : null };
+
   return (
-    <div className="sx-page">
-      <div className="sx-inner">
-        <section className="sx-soon">
-          <span className="sx-soon-icon"><Ico name="bag" size={40} /></span>
-          <span className="sx-soon-chip">Em breve</span>
-          <h1>Loja</h1>
-          <p>Estamos preparando a loja da comunidade. Logo você vai poder trocar suas moedas por itens exclusivos pro seu perfil.</p>
-          <div className="sx-soon-grid">
-            <div className="sx-soon-card"><Ico name="sparkle" size={22} />Itens de perfil<span>Molduras, efeitos e fundos</span></div>
-            <div className="sx-soon-card"><Ico name="coin" size={22} />Use suas moedas<span>As que você já ganha no app</span></div>
-            <div className="sx-soon-card"><Ico name="gift" size={22} />Presentes<span>Mande algo pra um amigo</span></div>
+    <div className="shop-page">
+      <header className="shop-hero">
+        <div className="shop-hero-text">
+          <span className="shop-kicker"><Ico name="sparkle" size={14} /> Loja</span>
+          <h1>Molduras de avatar</h1>
+          <p>Deixe sua foto com a sua cara. A moldura aparece em todo lugar: chat, lista de membros e perfil.</p>
+          <div className="shop-balances">
+            <span className="shop-bal coins"><Ico name="coin" size={16} /> {fmt(data?.coins)} moedas</span>
+            <span className="shop-bal gems"><Ico name="gem" size={16} /> {fmt(data?.gems)} gemas</span>
           </div>
-          <button type="button" className="sx-btn ghost" style={{ marginTop: 12 }} onClick={() => navigate('/economia')}>Ver minhas moedas</button>
-        </section>
-      </div>
+        </div>
+        <div className="shop-hero-preview">
+          <UserAvatar user={previewUser} size={112} />
+          <strong>{user?.displayName}</strong>
+          <small>{shown ? shown.name : 'Sem moldura'}{preview ? ' (prévia)' : ''}</small>
+          {data?.equippedId && (
+            <button type="button" className="shop-btn ghost" disabled={!!busy} onClick={() => equip(null)}>Tirar moldura</button>
+          )}
+        </div>
+      </header>
+
+      {notice && <div className={`shop-notice${notice.bad ? ' bad' : ''}`} role="status">{notice.text}</div>}
+
+      {!data ? (
+        <div className="shop-grid">{[0, 1, 2, 3].map((i) => <div key={i} className="shop-card skeleton" />)}</div>
+      ) : items.length === 0 ? (
+        <div className="shop-empty">Nenhuma moldura à venda ainda. Volte em breve!</div>
+      ) : (
+        <div className="shop-grid">
+          {items.map((d) => {
+            const equipped = d.id === data.equippedId;
+            const cardUser = { ...user, avatarDecoration: { id: d.id, url: d.imageUrl, s: d.scale, x: d.offsetX, y: d.offsetY } };
+            return (
+              <article
+                key={d.id} className={`shop-card${equipped ? ' equipped' : ''}`}
+                onMouseEnter={() => setPreview(d)} onMouseLeave={() => setPreview(null)}
+                onFocus={() => setPreview(d)} onBlur={() => setPreview(null)}
+              >
+                <div className="shop-card-art"><UserAvatar user={cardUser} size={84} /></div>
+                <h3>{d.name}</h3>
+                {d.owned ? (
+                  <button type="button" className={`shop-btn${equipped ? ' ghost' : ' primary'}`} disabled={equipped || !!busy} onClick={() => equip(d.id)}>
+                    {equipped ? 'Em uso' : 'Usar'}
+                  </button>
+                ) : (
+                  <div className="shop-prices">
+                    {d.priceCoins != null && (
+                      <button type="button" className="shop-btn coins" disabled={!!busy || data.coins < d.priceCoins} onClick={() => buy(d, 'coins')}>
+                        <Ico name="coin" size={15} /> {fmt(d.priceCoins)}
+                      </button>
+                    )}
+                    {d.priceGems != null && (
+                      <button type="button" className="shop-btn gems" disabled={!!busy || data.gems < d.priceGems} onClick={() => buy(d, 'gems')}>
+                        <Ico name="gem" size={15} /> {fmt(d.priceGems)}
+                      </button>
+                    )}
+                    {d.priceCoins == null && d.priceGems == null && <span className="shop-muted">Indisponível</span>}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

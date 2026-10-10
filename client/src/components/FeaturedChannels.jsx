@@ -47,7 +47,7 @@ export const FEATURED = [
     hint: 'Fotos, vídeos e GIFs postados na comunidade', match: (p) => p.startsWith('/comunidade/galeria'),
   },
   {
-    key: 'loja', label: 'Loja', icon: 'store', to: '/loja', soon: true,
+    key: 'loja', label: 'Loja', icon: 'store', to: '/loja',
     hint: 'Loja da comunidade (em breve)', match: (p) => p.startsWith('/loja'),
   },
 ];
