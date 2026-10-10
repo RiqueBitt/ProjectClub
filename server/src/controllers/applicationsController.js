@@ -7,6 +7,17 @@ const { grantStarterHouse } = require('../services/starterHouse');
 const { isPasswordStrongEnough, generatePublicId, SELF_USER_FIELDS } = require('./authController');
 const { generateRefreshToken } = require('../services/tokens');
 
+// Registro de auditoria da staff (mesmo formato do adminController). Falha
+// no log nunca derruba a aprovação/recusa em si.
+function logPlatformAction(req, { action, targetType, targetId, reason, metadata }) {
+  return prisma.platformAuditLog.create({
+    data: {
+      actorId: req.user.id, action, targetType, targetId, reason,
+      metadata: metadata ? JSON.stringify(metadata) : null,
+    },
+  }).catch((e) => console.warn('[auditoria]', e.message));
+}
+
 const HOW_FOUND_OPTIONS = ['Instagram', 'Facebook', 'Twitter / X', 'Whatsapp', 'Youtube', 'Discord', 'Outros'];
 const INTEREST_OPTIONS = ['Vídeo Games', 'Cultura da internet', 'Assistir vídeos / conteúdo', 'Música'];
 const ROLE_OPTIONS = ['Não tenho', 'Youtuber', 'Streamer', 'Designer', 'Game Developer', 'Designer Gráfico', 'Programador', 'Compositor Musical'];
