@@ -262,8 +262,21 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      # O runner do GitHub (ubuntu-latest) já vem com o Android SDK
+      # instalado em $ANDROID_HOME — a action setup-android@v3 vinha
+      # falhando ao baixar as ferramentas e travava o APK. Agora ela só
+      # roda como reserva, e o build usa o SDK que já existe no runner.
       - name: Instalar o Android SDK
         uses: android-actions/setup-android@v3
+        continue-on-error: true
+      - name: Usar o Android SDK do runner
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKM" ]; then yes | "$SDKM" --licenses > /dev/null || true; fi
+          ls "$SDK/platforms" || true
       - name: Instalar dependências do client
         working-directory: client
         run: npm install
