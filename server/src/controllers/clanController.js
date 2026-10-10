@@ -1,7 +1,7 @@
 const prisma = require('../config/prisma');
 const { hasClanCapability, canAssignRole, canActOnMember, CLAN_ROLES } = require('../services/clanPermissions');
 
-const MEMBER_FIELDS = { id: true, publicId: true, username: true, displayName: true, avatarUrl: true, clanRole: true };
+const MEMBER_FIELDS = { id: true, publicId: true, username: true, displayName: true, avatarUrl: true, avatarDecoration: true, clanRole: true };
 const CLAN_LIST_INCLUDE = { icon: true, members: { select: MEMBER_FIELDS } };
 
 function shapeClan(clan) {

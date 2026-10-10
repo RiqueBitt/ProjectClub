@@ -261,7 +261,7 @@ async function listGallery(req, res, next) {
       if (has(perms, 'VIEW_CHANNEL')) visible.push(ch);
     }
     const byId = Object.fromEntries(visible.map((c) => [c.id, c]));
-    const AUTHOR = { select: { id: true, displayName: true, avatarUrl: true } };
+    const AUTHOR = { select: { id: true, displayName: true, avatarUrl: true, avatarDecoration: true } };
 
     const [attachments, posts] = await Promise.all([
       source === 'posts' || visible.length === 0 ? [] : prisma.attachment.findMany({

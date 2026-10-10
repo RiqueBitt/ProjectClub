@@ -634,7 +634,7 @@ async function getUser(req, res, next) {
     if (fullAccess && user.relationshipPartnerId) {
       relationshipPartner = await prisma.user.findUnique({
         where: { id: user.relationshipPartnerId },
-        select: { id: true, displayName: true, username: true, avatarUrl: true, profileColor: true },
+        select: { id: true, displayName: true, username: true, avatarUrl: true, avatarDecoration: true, profileColor: true },
       });
     }
 
@@ -676,7 +676,7 @@ async function getUser(req, res, next) {
       const commonFriendIds = [...myFriendIds].filter((fid) => theirFriendIds.has(fid));
       if (commonFriendIds.length > 0) {
         mutualFriends = await prisma.user.findMany({
-          where: { id: { in: commonFriendIds } }, select: { id: true, displayName: true, username: true, avatarUrl: true, profileColor: true },
+          where: { id: { in: commonFriendIds } }, select: { id: true, displayName: true, username: true, avatarUrl: true, avatarDecoration: true, profileColor: true },
         });
       }
     }

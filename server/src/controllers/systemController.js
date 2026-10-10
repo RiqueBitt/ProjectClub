@@ -32,7 +32,7 @@ async function publishRelease(req, res, next) {
           description: notes?.trim().slice(0, 5000) || 'Correções e melhorias no aplicativo (Windows, Linux e Android).',
           createdById: admin.id,
         },
-        include: { createdBy: { select: { id: true, displayName: true, avatarUrl: true, profileColor: true } } },
+        include: { createdBy: { select: { id: true, displayName: true, avatarUrl: true, avatarDecoration: true, profileColor: true } } },
       });
       req.app.get('io')?.to('community').emit('update:new', entry);
     }

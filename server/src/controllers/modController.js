@@ -170,7 +170,7 @@ async function listComments(req, res, next) {
       where: { modioModId },
       orderBy: { createdAt: 'desc' },
       take: 50,
-      include: { user: { select: { id: true, displayName: true, username: true, avatarUrl: true } } },
+      include: { user: { select: { id: true, displayName: true, username: true, avatarUrl: true, avatarDecoration: true } } },
     });
     res.json({ comments });
   } catch (err) { next(err); }
@@ -185,7 +185,7 @@ async function addComment(req, res, next) {
     if (content.length > 2000) return res.status(400).json({ error: 'Comentário muito longo (máximo 2000 caracteres).' });
     const comment = await prisma.modComment.create({
       data: { userId: req.user.id, modioModId, modioGameId, content },
-      include: { user: { select: { id: true, displayName: true, username: true, avatarUrl: true } } },
+      include: { user: { select: { id: true, displayName: true, username: true, avatarUrl: true, avatarDecoration: true } } },
     });
     res.status(201).json({ comment });
   } catch (err) { next(err); }

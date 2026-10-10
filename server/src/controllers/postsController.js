@@ -1,7 +1,7 @@
 const prisma = require('../config/prisma');
 const achievements = require('../services/achievements');
 
-const AUTHOR_FIELDS = { id: true, displayName: true, avatarUrl: true, profileColor: true, platformRole: true };
+const AUTHOR_FIELDS = { id: true, displayName: true, avatarUrl: true, avatarDecoration: true, profileColor: true, platformRole: true };
 const COMMUNITY_FIELDS = { id: true, slug: true, name: true, iconUrl: true };
 const POST_INCLUDE = { author: { select: AUTHOR_FIELDS }, community: { select: COMMUNITY_FIELDS }, category: true };
 const { shapePoll } = require('./profilePollController');

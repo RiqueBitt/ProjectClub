@@ -1,6 +1,6 @@
 const prisma = require('../config/prisma');
 
-const AUTHOR_FIELDS = { id: true, displayName: true, avatarUrl: true, profileColor: true };
+const AUTHOR_FIELDS = { id: true, displayName: true, avatarUrl: true, avatarDecoration: true, profileColor: true };
 const VALID_STATUS = ['UPCOMING', 'ACTIVE', 'ENDED'];
 // Item pedido: "sistema de eventos integrado ao painel da Staff —
 // somente usuários autorizados pelo Painel da Staff poderão criar,

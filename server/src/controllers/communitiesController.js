@@ -1,6 +1,6 @@
 const prisma = require('../config/prisma');
 
-const AUTHOR_FIELDS = { id: true, displayName: true, avatarUrl: true, profileColor: true, platformRole: true };
+const AUTHOR_FIELDS = { id: true, displayName: true, avatarUrl: true, avatarDecoration: true, profileColor: true, platformRole: true };
 const SLUG_RE = /^[a-z0-9_]{3,24}$/;
 const isStaff = (user) => ['ADMIN', 'MODERATOR'].includes(user.platformRole);
 

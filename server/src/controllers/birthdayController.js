@@ -39,7 +39,7 @@ async function upcomingAmongFriends(req, res, next) {
 
     const friends = await prisma.user.findMany({
       where: { id: { in: friendIds }, birthDate: { not: null } },
-      select: { id: true, displayName: true, username: true, avatarUrl: true, profileColor: true, birthDate: true },
+      select: { id: true, displayName: true, username: true, avatarUrl: true, avatarDecoration: true, profileColor: true, birthDate: true },
     });
 
     const todayList = [];

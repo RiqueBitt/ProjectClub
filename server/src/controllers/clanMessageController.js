@@ -1,7 +1,7 @@
 const prisma = require('../config/prisma');
 const { hasClanCapability, canActOnMember } = require('../services/clanPermissions');
 
-const AUTHOR_FIELDS = { id: true, publicId: true, username: true, displayName: true, avatarUrl: true, clanRole: true };
+const AUTHOR_FIELDS = { id: true, publicId: true, username: true, displayName: true, avatarUrl: true, avatarDecoration: true, clanRole: true };
 
 // Item pedido: "Canal de Chat: usado para mensagens de texto entre os
 // membros... Somente usuários que fazem parte daquele clan poderão

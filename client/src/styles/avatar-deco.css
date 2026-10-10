@@ -1,0 +1,10 @@
+/* Molduras: quem envolve o avatar com recorte redondo (overflow:hidden +
+   border-radius) cortaria as bordas da moldura — libera o recorte só
+   quando dentro tem uma moldura. A foto continua redonda (ela mesma
+   tem o próprio recorte). */
+:has(> .avatar-deco-wrap) { overflow: visible !important; }
+.mini-profile-avatar:has(> .avatar-deco-wrap),
+.avatar:has(> .avatar-deco-wrap) { border-color: transparent !important; background: transparent !important; box-shadow: none !important; }
+.avatar-deco-wrap .avatar-decoration { animation: avatar-deco-in .35s ease-out both; }
+@keyframes avatar-deco-in { from { opacity: 0; transform: scale(.92); } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .avatar-deco-wrap .avatar-decoration { animation: none; } }

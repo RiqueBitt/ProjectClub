@@ -21,7 +21,7 @@ async function getCommunity(req, res, next) {
       prisma.role.findMany({ orderBy: { position: 'desc' } }),
       prisma.user.findMany({
         select: {
-          id: true, publicId: true, username: true, displayName: true, avatarUrl: true,
+          id: true, publicId: true, username: true, displayName: true, avatarUrl: true, avatarDecoration: true,
           status: true, customStatus: true, customStatusEmoji: true, profileColor: true,
           profileNameFont: true, profileNameEffect: true, profileNameColor: true, profileNameColor2: true, profileNameColors: true,
           accountLevel: true, tagEmoji: true, tagText: true, timeoutUntil: true, idCardUrl: true,

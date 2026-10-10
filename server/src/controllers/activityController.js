@@ -12,7 +12,7 @@ const activityStore = require('../services/activityStore');
 // (activityVisibility = 'none' esconde). Posts e modpacks públicos já são
 // públicos no app, então aparecem sempre.
 
-const USER_FIELDS = { id: true, username: true, displayName: true, avatarUrl: true, profileColor: true, accountLevel: true };
+const USER_FIELDS = { id: true, username: true, displayName: true, avatarUrl: true, avatarDecoration: true, profileColor: true, accountLevel: true };
 const PAGE = 40;
 const ITEM_KEY_RE = /^(ach|lvl|post|mp):([A-Za-z0-9-]{1,64})$/;
 

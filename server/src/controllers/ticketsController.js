@@ -1,6 +1,6 @@
 const prisma = require('../config/prisma');
 
-const AUTHOR_FIELDS = { id: true, displayName: true, avatarUrl: true, profileColor: true, platformRole: true };
+const AUTHOR_FIELDS = { id: true, displayName: true, avatarUrl: true, avatarDecoration: true, profileColor: true, platformRole: true };
 
 async function listMyTickets(req, res, next) {
   try {

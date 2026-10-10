@@ -1,6 +1,6 @@
 const prisma = require('../config/prisma');
 
-const AUTHOR_FIELDS = { id: true, displayName: true, avatarUrl: true, profileColor: true };
+const AUTHOR_FIELDS = { id: true, displayName: true, avatarUrl: true, avatarDecoration: true, profileColor: true };
 const isStaff = (user) => ['ADMIN', 'MODERATOR'].includes(user.platformRole);
 
 async function listUpdates(req, res, next) {

@@ -307,7 +307,7 @@ async function listComments(req, res, next) {
 
     const comments = await prisma.houseComment.findMany({
       where: { userHouseId: userHouse.id },
-      include: { author: { select: { id: true, displayName: true, avatarUrl: true, profileColor: true } } },
+      include: { author: { select: { id: true, displayName: true, avatarUrl: true, avatarDecoration: true, profileColor: true } } },
       orderBy: { createdAt: 'desc' },
     });
     res.json({ comments });
@@ -325,7 +325,7 @@ async function addComment(req, res, next) {
 
     const comment = await prisma.houseComment.create({
       data: { userHouseId: userHouse.id, authorId: req.user.id, content: content.trim().slice(0, 300) },
-      include: { author: { select: { id: true, displayName: true, avatarUrl: true, profileColor: true } } },
+      include: { author: { select: { id: true, displayName: true, avatarUrl: true, avatarDecoration: true, profileColor: true } } },
     });
     await achievements.checkAndUnlock(req.user.id, req.app.get('io'));
     if (userHouse.userId !== req.user.id) await achievements.checkAndUnlock(userHouse.userId, req.app.get('io'));
@@ -374,7 +374,7 @@ async function getGallery(req, res, next) {
         house: { include: { group: true } },
         mapBackground: true,
         items: { include: PLACED_FURNITURE_INCLUDE, orderBy: { zIndex: 'asc' } },
-        user: { select: { id: true, displayName: true, avatarUrl: true, profileColor: true } },
+        user: { select: { id: true, displayName: true, avatarUrl: true, avatarDecoration: true, profileColor: true } },
         _count: { select: { likes: true, comments: true } },
         likes: { where: { likerId: req.user.id }, select: { id: true } },
       },
@@ -598,7 +598,7 @@ async function adminListHouseComments(req, res, next) {
       orderBy: { createdAt: 'desc' },
       take: 100,
       include: {
-        author: { select: { id: true, displayName: true, avatarUrl: true, profileColor: true } },
+        author: { select: { id: true, displayName: true, avatarUrl: true, avatarDecoration: true, profileColor: true } },
         userHouse: { select: { user: { select: { id: true, displayName: true } } } },
       },
     });

@@ -13,7 +13,7 @@ const MAX_ITEMS = 200;
 const MAX_NAME = 80;
 const MAX_DESCRIPTION = 2000;
 const PAGE_SIZE = 24;
-const AUTHOR_SELECT = { id: true, displayName: true, username: true, avatarUrl: true, profileColor: true };
+const AUTHOR_SELECT = { id: true, displayName: true, username: true, avatarUrl: true, avatarDecoration: true, profileColor: true };
 
 function cleanString(value, max) {
   if (value === undefined || value === null) return '';

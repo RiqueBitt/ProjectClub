@@ -82,7 +82,7 @@ export default function DecorationsAdminTab() {
               <label>Preço em moedas<input type="number" min="0" value={form.priceCoins} onChange={set('priceCoins')} placeholder="vazio = não vende" /></label>
               <label>Preço em gemas<input type="number" min="0" value={form.priceGems} onChange={set('priceGems')} placeholder="vazio = não vende" /></label>
             </div>
-            <label>Tamanho: {Math.round(form.scale * 100)}%<input type="range" min="0.8" max="2" step="0.01" value={form.scale} onChange={setNum('scale')} /></label>
+            <label>Tamanho da moldura em volta da foto: {Math.round(form.scale * 100)}%<input type="range" min="0.8" max="2" step="0.01" value={form.scale} onChange={setNum('scale')} /></label>
             <label>Posição horizontal: {form.offsetX}%<input type="range" min="-50" max="50" step="1" value={form.offsetX} onChange={setNum('offsetX')} /></label>
             <label>Posição vertical: {form.offsetY}%<input type="range" min="-50" max="50" step="1" value={form.offsetY} onChange={setNum('offsetY')} /></label>
             <div className="deco-row">

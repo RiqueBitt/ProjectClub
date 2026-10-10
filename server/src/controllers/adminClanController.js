@@ -9,8 +9,8 @@ function logPlatformAction(req, { action, targetType, targetId, reason, metadata
   });
 }
 
-const MEMBER_FIELDS = { id: true, publicId: true, username: true, displayName: true, avatarUrl: true, clanRole: true };
-const AUTHOR_FIELDS = { id: true, publicId: true, username: true, displayName: true, avatarUrl: true, clanRole: true };
+const MEMBER_FIELDS = { id: true, publicId: true, username: true, displayName: true, avatarUrl: true, avatarDecoration: true, clanRole: true };
+const AUTHOR_FIELDS = { id: true, publicId: true, username: true, displayName: true, avatarUrl: true, avatarDecoration: true, clanRole: true };
 
 // Item pedido: "No painel da Staff, adicione uma nova categoria
 // chamada Clubes, onde será exibida uma lista com todos os clubes

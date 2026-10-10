@@ -1,5 +1,6 @@
 import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from './PenguinAvatar.jsx';
 import { proxyImage } from '../utils/imageProxy';
+import '../styles/avatar-deco.css';
 
 // Avatar compartilhado — usado em todo lugar que hoje mostra a foto do
 // usuário (barra de navegação, lista de membros, mensagens, perfil...).
@@ -19,18 +20,18 @@ export function parseDecoration(raw) {
   return v;
 }
 
+// A moldura ocupa exatamente o espaço do avatar (como no Discord): a foto
+// encolhe um pouco por dentro e a moldura fica em volta, então nada passa
+// da caixa e nenhum contêiner com overflow:hidden corta as bordas.
 export function DecorationOverlay({ deco, size }) {
   if (!deco) return null;
-  const s = Number(deco.s) || 1.2;
-  const w = size * s;
   return (
     <img
       className="avatar-decoration" src={proxyImage(deco.url)} alt="" aria-hidden="true" draggable="false"
       style={{
-        position: 'absolute', width: w, height: w, maxWidth: 'none', pointerEvents: 'none', zIndex: 2,
-        left: (size - w) / 2 + (size * (Number(deco.x) || 0)) / 100,
-        top: (size - w) / 2 + (size * (Number(deco.y) || 0)) / 100,
+        position: 'absolute', inset: 0, width: size, height: size, maxWidth: 'none', pointerEvents: 'none', zIndex: 2,
         objectFit: 'contain',
+        transform: (deco.x || deco.y) ? `translate(${Number(deco.x) || 0}%, ${Number(deco.y) || 0}%)` : undefined,
       }}
     />
   );
@@ -40,13 +41,14 @@ const OUTER_KEYS = ['margin', 'marginLeft', 'marginRight', 'marginTop', 'marginB
 
 export default function UserAvatar({ user, size = 32, className = '', style = {}, noDecoration = false }) {
   const deco = noDecoration ? null : parseDecoration(user?.avatarDecoration);
-  const base = <BaseAvatar user={user} size={size} className={className} style={deco ? stripOuter(style) : style} />;
-  if (!deco) return base;
-  const outer = { position: 'relative', width: size, height: size, flexShrink: 0, display: 'inline-flex' };
+  if (!deco) return <BaseAvatar user={user} size={size} className={className} style={style} />;
+  const scale = Math.min(2, Math.max(1, Number(deco.s) || 1.2));
+  const inner = Math.round(size / scale);
+  const outer = { position: 'relative', width: size, height: size, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' };
   for (const k of OUTER_KEYS) if (style[k] !== undefined) outer[k] = style[k];
   return (
     <span className="avatar-deco-wrap" style={outer}>
-      {base}
+      <BaseAvatar user={user} size={inner} className={className} style={stripOuter(style)} />
       <DecorationOverlay deco={deco} size={size} />
     </span>
   );
