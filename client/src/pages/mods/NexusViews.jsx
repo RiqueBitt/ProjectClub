@@ -137,6 +137,12 @@ export function NexusModDetail({ game, domain, modId, onBack }) {
         const r = await window.electronAPI.nexus.openDownload(err.managerUrl).catch(() => null);
         if (r?.success) { setInstallError({ window: true }); return; }
       }
+      // App de PC antigo (sem a janela de download): abrir o site levaria
+      // ao erro do Windows com o link nxm:// — pede pra atualizar o app.
+      if (err.needsManager && window.electronAPI && !window.electronAPI.nexus?.openDownload) {
+        setInstallError({ outdated: true });
+        return;
+      }
       setInstallError({ text: err.message, managerUrl: err.managerUrl });
     } finally {
       setInstallingFileId(null);
@@ -194,7 +200,16 @@ export function NexusModDetail({ game, domain, modId, onBack }) {
               </span>
             </div>
           )}
-          {installError && !installError.window && (
+          {installError?.outdated && (
+            <div className="mdx-note warn mdx-nexus-manager-note">
+              <Icon name="refresh" size={15} />
+              <span>
+                Seu app de PC está desatualizado e ainda não tem a janela de download. Feche o Project Club de verdade
+                (ícone perto do relógio → <strong>Sair</strong>) e abra de novo — ele atualiza sozinho e aí este mod baixa direto aqui.
+              </span>
+            </div>
+          )}
+          {installError && !installError.window && !installError.outdated && (
             <div className="mdx-note warn mdx-nexus-manager-note">
               <Icon name="alert" size={15} />
               <span>

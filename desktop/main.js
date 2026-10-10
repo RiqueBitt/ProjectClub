@@ -135,6 +135,22 @@ function downloadSession() {
         return new Response('<html><body style="background:#111;color:#ddd;font-family:sans-serif;display:grid;place-items:center;height:100vh">Download enviado pro Project Club.</body></html>', { headers: { 'content-type': 'text/html' } });
       });
     } catch { /* versão sem protocol.handle: os eventos abaixo resolvem */ }
+    // BUG CORRIGIDO ("o Windows abriu 'este arquivo não tem um aplicativo
+    // associado' com o link nxm://"): links de protocolo desconhecido não
+    // passam por will-navigate — o Chromium manda direto pro sistema. Esse
+    // pedido de "abrir app externo" passa por aqui: pega o nxm:// e
+    // nunca deixa chegar no Windows.
+    ses.setPermissionRequestHandler((_wc, permission, callback, details) => {
+      if (permission === 'openExternal') {
+        const target = details?.externalURL || '';
+        if (catchNxm(target)) { callback(false); return; }
+        callback(false);
+        if (/^https?:/i.test(target)) shell.openExternal(target);
+        return;
+      }
+      callback(permission === 'clipboard-sanitized-write' || permission === 'fullscreen');
+    });
+    ses.setPermissionCheckHandler((_wc, permission) => permission !== 'openExternal');
   }
   return ses;
 }
@@ -146,6 +162,9 @@ function isAllowedDownloadUrl(url) {
 
 function openDownloadWindow(url) {
   if (!isAllowedDownloadUrl(url)) return { success: false, error: 'Endereço de download inválido.' };
+  // Rede de segurança: se mesmo assim o link sair pro sistema, o próprio
+  // Project Club é quem abre (volta pelo second-instance → instala).
+  try { if (!app.isDefaultProtocolClient('nxm')) setNxmHandler(true); } catch { /* sem permissão: segue */ }
   if (downloadWindow && !downloadWindow.isDestroyed()) {
     downloadWindow.loadURL(url);
     downloadWindow.show();
@@ -1131,8 +1150,31 @@ if (!gotLock) {
     });
 
     autoUpdater.on('update-downloaded', (info) => {
-      console.log('[atualização] baixada e pronta — será aplicada sozinha da próxima vez que o app fechar:', info?.version);
+      console.log('[atualização] baixada e pronta:', info?.version);
+      updateReady = true;
+      maybeInstallUpdate();
     });
+
+    // BUG CORRIGIDO (o app ficava semanas na mesma versão): com "minimizar
+    // pra bandeja" o app nunca fecha de verdade, então o "instalar ao
+    // fechar" nunca acontecia. Agora aplica sozinho (e reabre) quando a
+    // janela está escondida/minimizada, sem som tocando e o PC sem uso há 5
+    // minutos — nunca no meio de quem está usando ou numa chamada de voz.
+    let updateReady = false;
+    function maybeInstallUpdate() {
+      if (!updateReady) return;
+      const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+      const hidden = !win || !win.isVisible() || win.isMinimized();
+      let idle = 0;
+      try { idle = require('electron').powerMonitor.getSystemIdleTime(); } catch { /* sem powerMonitor */ }
+      // Tocando áudio = provavelmente numa chamada: espera.
+      const audible = !!win && win.webContents.isCurrentlyAudible();
+      if (hidden && !audible && idle > 300) {
+        isQuitting = true;
+        setImmediate(() => autoUpdater.quitAndInstall(true, true));
+      }
+    }
+    setInterval(maybeInstallUpdate, 60 * 1000);
 
     // Erro de rede/servidor fora do ar é normal e não deveria assustar
     // ninguém com uma caixa de diálogo — só registra no log; a próxima
