@@ -31,6 +31,27 @@ const KLIPY_CLIENT = 'embercord';
 
 export default function EmojiPicker({ serverEmojis = [], serverStickers = [], onPick, onPickSticker, onPickGif, onClose, style, variant = 'composer', defaultHeightVh, initialTab = 'emojis' }) {
   const { heightVh, dragHandlers } = useSheetDrag(onClose, defaultHeightVh);
+  // Fecha com Esc ou clicando fora. O fechar-por-fora espera o clique
+  // terminar (setTimeout): se o clique foi no próprio botão que abre o
+  // seletor, ele já fecha sozinho e isso só confirma — nunca reabre.
+  const rootRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); onCloseRef.current?.(); } };
+    const onDown = (e) => {
+      const root = rootRef.current;
+      if (!root || root.contains(e.target)) return;
+      if (e.target.closest?.('.chat-composer-btn')) return; // GIF/figurinha/emoji do chat trocam de aba sozinhos
+      setTimeout(() => onCloseRef.current?.(), 0);
+    };
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('click', onDown, true);
+    return () => {
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('click', onDown, true);
+    };
+  }, []);
   const usableEmojis = useStore((s) => s.usableEmojis);
   const usableStickers = useStore((s) => s.usableStickers);
   // Item pedido: "emoji personalizado e figurinha vai ter a mesma
@@ -181,7 +202,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
   };
 
   return (
-    <div className={`emoji-picker-popover ${variant === 'reaction' ? 'reaction-picker' : ''} ${variant === 'composer-centered' ? 'composer-centered-picker' : ''}`} style={{ '--sheet-height': `${heightVh}vh`, ...style }} onMouseDown={(e) => e.stopPropagation()}>
+    <div ref={rootRef} className={`emoji-picker-popover ${variant === 'reaction' ? 'reaction-picker' : ''} ${variant === 'composer-centered' ? 'composer-centered-picker' : ''}`} style={{ '--sheet-height': `${heightVh}vh`, ...style }} onMouseDown={(e) => e.stopPropagation()}>
       <div className="sheet-drag-handle" {...dragHandlers} />
       <div className="emoji-picker-tabs">
         <button className={tab === 'emojis' ? 'active' : ''} onClick={() => { setTab('emojis'); setQuery(''); }}>Emojis</button>

@@ -1344,7 +1344,8 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
    vez de quebrar a linha quando o texto é mais largo que o campo. */
 .rich-message-input {
   flex: 1; background: transparent; border: none; padding: 10px 4px; outline: none;
-  white-space: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+  /* Várias linhas (Shift+Enter) — cresce até ~8 linhas e depois rola. */
+  white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: hidden; overflow-y: auto; max-height: 200px; scrollbar-width: none;
 }
 .rich-message-input::-webkit-scrollbar { display: none; }
 .rich-message-input:empty::before { content: attr(data-placeholder); color: var(--text-muted); pointer-events: none; }

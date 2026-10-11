@@ -69,7 +69,7 @@ export function useGlobalLiveRefresh() {
         if (!sameData(prev, next) || (d.pendingRequests !== undefined && !sameData(cur.myClanPendingRequests, d.pendingRequests))) s.setMyClan(d);
       }).catch(() => {}),
     ]);
-  });
+  }, { interval: 22000 });
 
   useLiveRefresh(async (ctx) => {
     const s = useStore.getState();
@@ -83,5 +83,5 @@ export function useGlobalLiveRefresh() {
       getUserSettings().then((d) => { if (ctx.ok()) setIfChanged('userSettings', d.settings, s.setUserSettings); }).catch(() => {}),
       getUiLayout().then((d) => { if (ctx.ok() && !sameData(useStore.getState().uiLayoutAll, d)) s.setUiLayoutAll(d); }).catch(() => {}),
     ]);
-  }, { interval: 33000 });
+  }, { interval: 90000 });
 }

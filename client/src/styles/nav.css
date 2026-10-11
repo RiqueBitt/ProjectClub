@@ -353,3 +353,12 @@ button.chat-jump-pill:hover { border-color: color-mix(in srgb, var(--brand) 50%,
 }
 button.mention-chip.channel-mention-chip:hover { background: color-mix(in srgb, var(--brand) 28%, transparent); text-decoration: underline; }
 .mention-chip.channel-mention-chip.is-missing { color: var(--text-muted); background: var(--bg-modifier-hover); cursor: default; }
+
+/* Reabrir o painel lateral direito (membros/amigos) depois de fechar. */
+.members-reopen-btn {
+  position: fixed; right: 0; top: 50%; transform: translateY(-50%); z-index: 30;
+  width: 22px; height: 56px; border-radius: 10px 0 0 10px; border: 1px solid var(--border); border-right: 0;
+  background: var(--bg-secondary); color: var(--text-muted); font-size: 18px; cursor: pointer; opacity: .75;
+}
+.members-reopen-btn:hover { opacity: 1; color: var(--header-primary); }
+@media (max-width: 768px) { .members-reopen-btn { display: none; } }

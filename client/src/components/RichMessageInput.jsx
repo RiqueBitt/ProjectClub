@@ -142,7 +142,8 @@ function extractText(el) {
     if (node.nodeType === Node.TEXT_NODE) out += node.textContent;
     else if (node.tagName === 'IMG') out += node.dataset.shortcode || '';
     else if (node.dataset?.mention) out += node.dataset.mention;
-    else if (node.tagName === 'BR') { /* ignora — campo de uma linha só, não deveria ter quebra */ }
+    else if (node.tagName === 'BR') out += '\n';
+    else if (node.tagName === 'DIV' || node.tagName === 'P') out += (out && !out.endsWith('\n') ? '\n' : '') + extractText(node);
     else out += node.textContent || '';
   }
   return out;
@@ -217,7 +218,7 @@ function replaceTypedMatch(node, range, matchText, element, sel, keepTrailingSpa
   return true;
 }
 
-export default function RichMessageInput({ value, onChange, emojiMap, mentionMap = {}, placeholder, inputRef, onSubmit, onFocus, onBlur, className, onKeyDownExtra }) {
+export default function RichMessageInput({ value, onChange, emojiMap, mentionMap = {}, placeholder, inputRef, onSubmit, onFocus, onBlur, className, onKeyDownExtra, onPasteFiles }) {
   const elRef = useRef(null);
   // Último valor que ESTE componente já emitiu via onChange — se o
   // `value` recebido por prop for igual a isso, a mudança veio da
@@ -235,7 +236,22 @@ export default function RichMessageInput({ value, onChange, emojiMap, mentionMap
 
   useEffect(() => {
     if (!inputRef) return;
-    inputRef.current = { focus: () => elRef.current?.focus() };
+    // Foca e põe o cursor no fim do texto (ex.: ao clicar em Responder).
+    inputRef.current = {
+      focus: () => {
+        const el = elRef.current;
+        if (!el) return;
+        el.focus({ preventScroll: true });
+        try {
+          const sel = window.getSelection();
+          if (sel && !el.contains(sel.anchorNode)) {
+            const r = document.createRange();
+            r.selectNodeContents(el); r.collapse(false);
+            sel.removeAllRanges(); sel.addRange(r);
+          }
+        } catch { /* sem seleção disponível */ }
+      },
+    };
   }, [inputRef]);
 
   useEffect(() => {
@@ -325,6 +341,13 @@ export default function RichMessageInput({ value, onChange, emojiMap, mentionMap
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       onSubmit?.();
+      return;
+    }
+    // Shift+Enter: quebra de linha sem enviar. Insere um "\n" de texto
+    // (o campo usa white-space: pre-wrap), que o extractText já lê.
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault();
+      document.execCommand('insertLineBreak');
     }
   };
 
@@ -333,6 +356,13 @@ export default function RichMessageInput({ value, onChange, emojiMap, mentionMap
   // parte do conteúdo "rico" da contentEditable por padrão, algo que
   // o <input> antigo nunca permitiria acontecer.
   const onPaste = (e) => {
+    // Imagem copiada (print, "copiar imagem"): vira anexo, igual ao clipe.
+    const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/'));
+    if (files.length && onPasteFiles) {
+      e.preventDefault();
+      onPasteFiles(files);
+      return;
+    }
     e.preventDefault();
     const text = e.clipboardData.getData('text/plain');
     document.execCommand('insertText', false, text);
@@ -345,7 +375,7 @@ export default function RichMessageInput({ value, onChange, emojiMap, mentionMap
       contentEditable
       suppressContentEditableWarning
       role="textbox"
-      aria-multiline="false"
+      aria-multiline="true"
       data-placeholder={placeholder}
       onInput={onInput}
       onCompositionStart={onCompositionStart}

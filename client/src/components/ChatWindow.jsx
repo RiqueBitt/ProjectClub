@@ -183,6 +183,12 @@ export default function ChatWindow({ kind }) {
   const [content, setContent] = useState('');
   const [files, setFiles] = useState([]);
   const [replyTo, setReplyTo] = useState(null);
+  // Ao clicar em Responder, o campo de mensagem já recebe o foco.
+  useEffect(() => {
+    if (!replyTo) return undefined;
+    const id = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, [replyTo]);
   // Item pedido ("pulinho" ao mandar mensagem): a barra de "respondendo
   // a" e a de anexos pendentes somem instantaneamente quando a mensagem
   // é enviada (o estado zera na hora) — sem transição nenhuma, o resto
@@ -1237,6 +1243,7 @@ export default function ChatWindow({ kind }) {
             emojiMap={composerEmojiMap}
             mentionMap={composerMentionMap}
             onSubmit={() => onSubmit({ preventDefault: () => {} })}
+            onPasteFiles={(fs) => addFiles(fs)}
             onKeyDownExtra={(e) => {
               if (mentionQuery === null || mentionCandidates.length === 0) return false;
               if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {

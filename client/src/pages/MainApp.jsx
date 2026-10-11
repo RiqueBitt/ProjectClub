@@ -440,10 +440,10 @@ export default function MainApp() {
       </PanelSlot>
 
       <Routes>
-        <Route path="/" element={membersOpen ? <PanelSlot panelId="membersList"><MembersList onToggle={() => setMembersOpen(false)} /></PanelSlot> : null} />
-        <Route path="/channels/:channelId" element={membersOpen ? <PanelSlot panelId="membersList"><MembersList onToggle={() => setMembersOpen(false)} /></PanelSlot> : null} />
+        <Route path="/" element={membersOpen ? <PanelSlot panelId="membersList"><MembersList onToggle={() => setMembersOpen(false)} /></PanelSlot> : <button type="button" className="members-reopen-btn" title="Mostrar painel lateral" aria-label="Mostrar painel lateral" onClick={() => setMembersOpen(true)}>‹</button>} />
+        <Route path="/channels/:channelId" element={membersOpen ? <PanelSlot panelId="membersList"><MembersList onToggle={() => setMembersOpen(false)} /></PanelSlot> : <button type="button" className="members-reopen-btn" title="Mostrar painel lateral" aria-label="Mostrar painel lateral" onClick={() => setMembersOpen(true)}>‹</button>} />
         <Route path="/conversations/:conversationId" element={dmProfileOpen ? <PanelSlot panelId="membersList"><DMProfilePanel onToggle={() => setDmProfileOpen(false)} /></PanelSlot> : null} />
-        <Route path="/dms" element={membersOpen ? <PanelSlot panelId="membersList"><FriendsListPanel onToggle={() => setMembersOpen(false)} /></PanelSlot> : null} />
+        <Route path="/dms" element={membersOpen ? <PanelSlot panelId="membersList"><FriendsListPanel onToggle={() => setMembersOpen(false)} /></PanelSlot> : <button type="button" className="members-reopen-btn" title="Mostrar painel lateral" aria-label="Mostrar painel lateral" onClick={() => setMembersOpen(true)}>‹</button>} />
       </Routes>
 
       <IncomingCallBanner />

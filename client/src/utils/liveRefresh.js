@@ -31,6 +31,35 @@ function isActive() {
   return true;
 }
 
+// ECONOMIA DE RECURSOS ("consome muita internet/CPU parado"): o ritmo
+// de atualização depende de a pessoa estar usando o app. Mensagens,
+// notificações e chamadas chegam por socket — o refresh periódico é só
+// rede de segurança, então pode desacelerar bastante quando ninguém mexe.
+//  - usando (mexeu nos últimos 2 min, janela em foco): ritmo normal
+//  - janela aberta mas sem foco, ou parado há 2+ min: 4x mais lento
+//  - parado há 10+ min: pausa (volta na hora ao mexer de novo)
+let lastInputAt = Date.now();
+const IDLE_SLOW_MS = 2 * 60 * 1000;
+const IDLE_STOP_MS = 10 * 60 * 1000;
+export function activityFactor() {
+  const idle = Date.now() - lastInputAt;
+  if (idle > IDLE_STOP_MS) return Infinity;
+  const focused = typeof document !== 'undefined' && typeof document.hasFocus === 'function' ? document.hasFocus() : true;
+  if (idle > IDLE_SLOW_MS || !focused) return 4;
+  return 1;
+}
+function noteInput() {
+  const wasStopped = Date.now() - lastInputAt > IDLE_STOP_MS;
+  lastInputAt = Date.now();
+  if (wasStopped) onWake();
+}
+if (typeof window !== 'undefined') {
+  let throttle = 0;
+  const handler = () => { const n = Date.now(); if (n - throttle < 1000) return; throttle = n; noteInput(); };
+  ['pointerdown', 'keydown', 'wheel', 'touchstart', 'mousemove'].forEach((ev) => window.addEventListener(ev, handler, { passive: true, capture: true }));
+  window.addEventListener('focus', () => { lastInputAt = Date.now(); onWake(); });
+}
+
 function runAll(force = false) {
   lastTickAt = Date.now();
   subscribers.forEach((sub) => {
@@ -52,7 +81,7 @@ function onWake() {
   if (!isActive()) { stop(); return; }
   // Voltou a ficar visível/online: atualiza na hora (se o último tick
   // já ficou pra trás) e reinicia o relógio a partir de agora.
-  if (Date.now() - lastTickAt > 1500) runAll(true);
+  if (Date.now() - lastTickAt > 20000) runAll(true);
   start();
 }
 
@@ -131,7 +160,7 @@ export function useLiveRefresh(callback, { enabled = true, interval = LIVE_REFRE
       run(force) {
         if (!alive || inFlight) return;
         const now = Date.now();
-        if (!force && now - lastRun < intervalRef.current - 1500) return;
+        if (!force && now - lastRun < intervalRef.current * activityFactor() - 1500) return;
         lastRun = now;
         const epoch = mutationEpoch;
         const busyAtStart = mutationsInFlight > 0;
