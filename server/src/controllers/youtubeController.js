@@ -86,3 +86,72 @@ async function listYoutubeVideos(req, res, next) {
 }
 
 module.exports = { listYoutubeVideos };
+
+// ============================================================
+// Navegador do "Assistir juntos" (services/youtubeBrowse.js).
+// Cache de 10 min no Redis; falha do YouTube nunca derruba a tela:
+// devolve lista vazia com unavailable:true (o colar-link continua).
+// ============================================================
+const crypto = require('crypto');
+const yt = require('../services/youtubeBrowse');
+const { cacheGetOrSet } = require('../config/redis');
+
+const BROWSE_TTL = 10 * 60;
+const h = (s) => crypto.createHash('sha1').update(String(s || '')).digest('hex').slice(0, 16);
+
+// Só cacheia resultado bom: compute lança erro quando vem vazio/falha.
+async function cached(key, compute) {
+  try {
+    return await cacheGetOrSet(`ytb:${key}`, BROWSE_TTL, async () => {
+      const r = await compute();
+      if (!r?.videos?.length) throw new Error('vazio');
+      return r;
+    });
+  } catch {
+    return { videos: [], continuation: null, unavailable: true };
+  }
+}
+
+const strParam = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
+async function browseSearch(req, res) {
+  const q = strParam(req.query.q, 100);
+  const cont = strParam(req.query.continuation, 4000);
+  if (!q && !cont) return res.status(400).json({ error: 'Digite o que procurar.' });
+  res.json(await cached(`s:${h(q)}:${h(cont)}`, () => yt.search(q, cont || undefined)));
+}
+
+async function browseTrending(req, res) {
+  const cat = Object.prototype.hasOwnProperty.call(yt.CATEGORY, req.query.category) ? req.query.category : 'now';
+  const cont = strParam(req.query.continuation, 4000);
+  res.json(await cached(`t:${cat}:${h(cont)}`, () => yt.trending(cat, cont || undefined)));
+}
+
+async function browseRelated(req, res) {
+  const id = String(req.params.id || '');
+  if (!/^[A-Za-z0-9_-]{11}$/.test(id)) return res.status(400).json({ error: 'Vídeo inválido.' });
+  res.json(await cached(`r:${id}`, () => yt.related(id)));
+}
+
+async function browseChannel(req, res) {
+  const id = String(req.params.id || '');
+  if (!/^UC[A-Za-z0-9_-]{22}$/.test(id)) return res.status(400).json({ error: 'Canal inválido.' });
+  res.json(await cached(`c:${id}`, () => yt.channelVideos(id)));
+}
+
+async function browseSuggest(req, res) {
+  const q = strParam(req.query.q, 100);
+  if (!q) return res.json({ suggestions: [] });
+  try {
+    const suggestions = await cacheGetOrSet(`ytb:q:${h(q.toLowerCase())}`, BROWSE_TTL, () => yt.suggest(q));
+    res.json({ suggestions });
+  } catch {
+    res.json({ suggestions: [] });
+  }
+}
+
+module.exports.browseSearch = browseSearch;
+module.exports.browseTrending = browseTrending;
+module.exports.browseRelated = browseRelated;
+module.exports.browseChannel = browseChannel;
+module.exports.browseSuggest = browseSuggest;

@@ -160,6 +160,37 @@ function isAllowedDownloadUrl(url) {
   try { const u = new URL(url); return u.protocol === 'https:' && DOWNLOAD_ALLOWED_HOSTS.test(u.hostname); } catch { return false; }
 }
 
+// YouTube completo dentro da chamada (app desktop): a página pode criar um
+// <webview> só com partition persist:youtube e src no youtube.com. Sem
+// preload, sem node, sandbox; navegação presa a YouTube/login Google.
+const YT_WEBVIEW_HOSTS = /(^|\.)(youtube\.com|youtu\.be|google\.com|google\.com\.br|gstatic\.com|googleusercontent\.com|ytimg\.com|ggpht\.com)$/i;
+function isAllowedYouTubeUrl(url) {
+  try { const u = new URL(url); return u.protocol === 'https:' && YT_WEBVIEW_HOSTS.test(u.hostname); } catch { return false; }
+}
+function hardenYouTubeWebview(contents) {
+  contents.on('will-attach-webview', (event, webPreferences, params) => {
+    delete webPreferences.preload;
+    webPreferences.nodeIntegration = false;
+    webPreferences.nodeIntegrationInSubFrames = false;
+    webPreferences.contextIsolation = true;
+    webPreferences.sandbox = true;
+    webPreferences.webviewTag = false;
+    let okSrc = false;
+    try { okSrc = /^(www\.|m\.)?youtube\.com$/i.test(new URL(params.src).hostname) && params.src.startsWith('https://'); } catch { okSrc = false; }
+    if (params.partition !== 'persist:youtube' || !okSrc) event.preventDefault();
+  });
+  contents.on('did-attach-webview', (_e, wc) => {
+    const guard = (event, target) => { if (!isAllowedYouTubeUrl(target)) { event.preventDefault(); if (/^https?:/i.test(String(target))) shell.openExternal(target); } };
+    wc.on('will-navigate', guard);
+    wc.on('will-redirect', guard);
+    wc.setWindowOpenHandler(({ url: target }) => {
+      if (isAllowedYouTubeUrl(target)) wc.loadURL(target);
+      else if (/^https?:/i.test(target)) shell.openExternal(target);
+      return { action: 'deny' };
+    });
+  });
+}
+
 function openDownloadWindow(url) {
   if (!isAllowedDownloadUrl(url)) return { success: false, error: 'Endereço de download inválido.' };
   // Rede de segurança: se mesmo assim o link sair pro sistema, o próprio
@@ -569,8 +600,12 @@ if (!gotLock) {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: false,
+        // <webview> só pro "YouTube completo" do Assistir juntos (ver
+        // hardenYouTubeWebview): só youtube.com, sem preload/node.
+        webviewTag: true,
       },
     });
+    hardenYouTubeWebview(mainWindow.webContents);
 
     mainWindow.loadURL(APP_URL);
 

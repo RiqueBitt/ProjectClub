@@ -450,6 +450,12 @@ export const uploadEventIcon = (id, file) => {
 
 // Item pedido: "vídeos publicados no canal do YouTube" (categoria Início)
 export const listYoutubeVideos = () => api.get('/youtube/videos').then((r) => r.data);
+// Navegador do "Assistir juntos" (busca/em alta/a seguir/canal/sugestões)
+export const ytSearch = (q, continuation) => api.get('/youtube/search', { params: { q, continuation } }).then((r) => r.data);
+export const ytTrending = (category, continuation) => api.get('/youtube/trending', { params: { category, continuation } }).then((r) => r.data);
+export const ytRelated = (id) => api.get(`/youtube/related/${encodeURIComponent(id)}`).then((r) => r.data);
+export const ytChannel = (id) => api.get(`/youtube/channel/${encodeURIComponent(id)}`).then((r) => r.data);
+export const ytSuggest = (q) => api.get('/youtube/suggest', { params: { q } }).then((r) => r.data);
 
 // Item pedido: "posts da comunidade em destaque durante o mês" (categoria Início)
 export const listFeaturedPosts = () => api.get('/posts/featured').then((r) => r.data);

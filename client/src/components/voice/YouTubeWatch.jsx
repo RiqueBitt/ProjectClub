@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSocket } from '../../context/SocketContext.jsx';
-import { listYoutubeVideos } from '../../api/endpoints';
+import { parseYouTubeId, thumb } from './ytUtils.js';
+import YouTubeBrowser, { RelatedList } from './YouTubeBrowser.jsx';
 import UserAvatar from '../UserAvatar.jsx';
 import '../../styles/ytwatch.css';
 
@@ -14,24 +15,9 @@ import '../../styles/ytwatch.css';
 // ============================================================
 
 const DRIFT_SEC = 1.5;
-const ID_RE = /^[A-Za-z0-9_-]{11}$/;
 
-export function parseYouTubeId(input) {
-  const s = String(input || '').trim();
-  if (ID_RE.test(s)) return s;
-  let u;
-  try { u = new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`); } catch { return null; }
-  const host = u.hostname.replace(/^(www\.|m\.|music\.)/, '').toLowerCase();
-  let id = null;
-  if (host === 'youtu.be') id = u.pathname.split('/')[1];
-  else if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
-    if (u.pathname === '/watch') id = u.searchParams.get('v');
-    else id = u.pathname.match(/^\/(shorts|embed|live|v)\/([^/?#]+)/)?.[2] || null;
-  }
-  return id && ID_RE.test(id) ? id : null;
-}
+export { parseYouTubeId };
 
-const thumb = (id) => `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
 
 // Carrega a IFrame API uma vez só.
 let apiPromise = null;
@@ -116,6 +102,7 @@ const P = {
   volOff: 'M4 9v6h4l5 4V5L8 9H4ZM17 10l4 4M21 10l-4 4',
   expand: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
   plus: 'M12 5v14M5 12h14',
+  upnext: 'M4 6h10M4 11h10M4 16h6M16 13v7l5-3.5-5-3.5Z',
   yt: 'M3.5 8.2c.2-1.6 1.3-2.7 2.9-2.8C8.2 5.2 10 5.1 12 5.1s3.8.1 5.6.3c1.6.1 2.7 1.2 2.9 2.8.2 1.3.2 2.5.2 3.8s0 2.5-.2 3.8c-.2 1.6-1.3 2.7-2.9 2.8-1.8.2-3.6.3-5.6.3s-3.8-.1-5.6-.3c-1.6-.1-2.7-1.2-2.9-2.8C3.3 14.5 3.3 13.3 3.3 12s0-2.5.2-3.8ZM10 9v6l5-3-5-3Z',
 };
 export const ACTIVITY_ICON = 'M5 4h5v5H5zM14 4h5v5h-5zM5 15h5v5H5zM14.5 15.2l4.3 2.3-4.3 2.3z';
@@ -151,6 +138,7 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
   const [blocked, setBlocked] = useState(false);
   const [volume, setVolume] = useState(readVol);
   const [showQueue, setShowQueue] = useState(false);
+  const [showNext, setShowNext] = useState(false);
   const [scrub, setScrub] = useState(null);
 
   // Aplica o estado do servidor no player.
@@ -290,7 +278,10 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
             <input type="range" min="0" max="100" step="1" value={volume} onChange={(e) => setVol(Number(e.target.value))} aria-label="Volume do vídeo (só para você)" />
           </label>
           <span className="ytw-spacer" />
-          <button type="button" className={`ytw-btn${showQueue ? ' is-on' : ''}`} onClick={() => setShowQueue((v) => !v)} aria-label="Fila" aria-expanded={showQueue} title="Fila">
+          <button type="button" className={`ytw-btn${showNext ? ' is-on' : ''}`} onClick={() => { setShowQueue(false); setShowNext((v) => !v); }} aria-label="A seguir" aria-expanded={showNext} title="A seguir (vídeos relacionados)" data-testid="yt-next-toggle">
+            <YIcon d={P.upnext} />
+          </button>
+          <button type="button" className={`ytw-btn${showQueue ? ' is-on' : ''}`} onClick={() => { setShowNext(false); setShowQueue((v) => !v); }} aria-label="Fila" aria-expanded={showQueue} title="Fila">
             <YIcon d={P.queue} />{queue.length > 0 && <span className="ytw-count">{queue.length}</span>}
           </button>
           <button type="button" className="ytw-btn" onClick={onAdd} aria-label="Adicionar vídeo" title="Adicionar vídeo"><YIcon d={P.plus} /></button>
@@ -298,6 +289,16 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
           <button type="button" className="ytw-btn ytw-danger" onClick={() => emit('yt:close')} aria-label="Fechar vídeo" title="Fechar vídeo para todos"><YIcon d={P.close} /></button>
         </div>
       </div>
+      {showNext && (
+        <div className="ytw-queue ytw-next" aria-label="A seguir">
+          <p className="ytw-queue-h">A seguir</p>
+          <RelatedList
+            videoId={state.videoId} compact
+            onPlay={(v) => { emit('yt:open', { videoId: v.videoId, title: v.title }); setShowNext(false); }}
+            onQueue={(v) => emit('yt:queue:add', { videoId: v.videoId, title: v.title })}
+          />
+        </div>
+      )}
       {showQueue && (
         <div className="ytw-queue" role="list" aria-label="Fila">
           <p className="ytw-queue-h">Fila ({queue.length})</p>
@@ -315,64 +316,9 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
   );
 }
 
-// Escolher vídeo: colar link/ID ou pegar dos vídeos sugeridos.
+// Escolher vídeo: navegador do YouTube (busca, em alta, a seguir, link colado).
 export function YouTubePicker({ yt, onClose }) {
-  const [text, setText] = useState('');
-  const [videos, setVideos] = useState(null);
-  const inputRef = useRef(null);
-  const id = parseYouTubeId(text);
-  const active = yt.active;
-
-  useEffect(() => {
-    inputRef.current?.focus();
-    let alive = true;
-    listYoutubeVideos().then((d) => { if (alive) setVideos(d?.videos || []); }).catch(() => { if (alive) setVideos([]); });
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => { alive = false; document.removeEventListener('keydown', onKey); };
-  }, [onClose]);
-
-  const go = (videoId, title, queue) => {
-    yt.emit(queue ? 'yt:queue:add' : 'yt:open', { videoId, title: title || undefined });
-    onClose();
-  };
-
-  return (
-    <div className="ytw-modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="ytw-modal" role="dialog" aria-modal="true" aria-label="YouTube - Assistir juntos">
-        <div className="ytw-modal-head">
-          <span className="ytw-yt"><YIcon d={P.yt} size={22} /></span>
-          <div><h3>YouTube - Assistir juntos</h3><p>Todo mundo na chamada vê o mesmo vídeo, sincronizado.</p></div>
-          <button type="button" className="ytw-btn" onClick={onClose} aria-label="Fechar"><YIcon d={P.close} /></button>
-        </div>
-        <form className="ytw-form" onSubmit={(e) => { e.preventDefault(); if (id) go(id, null, false); }}>
-          <input
-            ref={inputRef} value={text} onChange={(e) => setText(e.target.value)}
-            placeholder="Cole um link do YouTube (vídeo, youtu.be ou shorts)" aria-label="Link do YouTube"
-          />
-          <button type="submit" className="ytw-primary" disabled={!id}>Assistir</button>
-          {active && <button type="button" className="ytw-secondary" disabled={!id} onClick={() => id && go(id, null, true)}>Fila</button>}
-        </form>
-        {text && !id && <p className="ytw-hint">Link inválido. Ex.: https://youtu.be/dQw4w9WgXcQ</p>}
-        {id && <div className="ytw-preview"><img src={thumb(id)} alt="" /><span>Vídeo {id}</span></div>}
-        <p className="ytw-sub">Sugestões</p>
-        <div className="ytw-list">
-          {videos === null && <p className="ytw-empty">Carregando…</p>}
-          {videos?.length === 0 && <p className="ytw-empty">Sem sugestões agora. Cole um link acima.</p>}
-          {videos?.map((v) => (
-            <div key={v.videoId} className="ytw-item">
-              <img src={v.thumbnailUrl || thumb(v.videoId)} alt="" loading="lazy" />
-              <span className="ytw-item-title" data-no-translate>{v.title}</span>
-              <div className="ytw-item-actions">
-                <button type="button" className="ytw-primary" onClick={() => go(v.videoId, v.title, false)}>Assistir</button>
-                {active && <button type="button" className="ytw-secondary" onClick={() => go(v.videoId, v.title, true)}>Fila</button>}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+  return <YouTubeBrowser yt={yt} onClose={onClose} />;
 }
 
 // Botão "Atividades" do dock + menu.
