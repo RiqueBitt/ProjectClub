@@ -13,7 +13,7 @@ const STEPS = [
 ];
 
 const KIT_STEPS = [
-  { icon: UI.star, title: 'Memes BR', text: 'Caramelo, Capivara, Tio do Pavê, Saci, Boitatá e outras lendas da zoeira.' },
+  { icon: UI.star, title: 'Memes BR', text: 'Caramelo, Capivara, Tio do Pavê, Stonks, Impostor Sus e outras lendas da zoeira.' },
   { icon: UI.users, title: 'Club Penguin', text: 'Puffles, agentes, o Capitão Rockhopper e o famoso Iceberg.' },
   { icon: UI.trophy, title: 'Cultura Pop', text: 'Personagens e itens nostálgicos: fita K7, cartucho assoprado, lan house…' },
 ];
@@ -25,7 +25,7 @@ export default function WelcomeModal({ home, user, cards = [], onClaim, onLater,
     const pool = cards.filter((c) => c.rarity === 'COMUM' && c.kind !== 'SPELL' && !c.retired);
     return pool.length >= 3 ? [pool[0], pool[Math.floor(pool.length / 2)], pool[pool.length - 1]] : [];
   }, [cards]);
-  const n = kit ? (home.kitCount || 15) : (home.starterCount || home.rules.deckSize);
+  const n = kit ? (home.kitCount || 20) : (home.starterCount || home.rules.deckSize);
   const claim = async () => {
     setBusy(true); setErr('');
     try { sfx('pack'); await onClaim(); } catch (e) { setErr(errMsg(e)); setBusy(false); }
@@ -41,7 +41,7 @@ export default function WelcomeModal({ home, user, cards = [], onClaim, onLater,
         )}
         <p className="tcgw-kicker">{kit ? 'Nova era da Arena' : 'Novo jogo no Project Club'}</p>
         <h2 id="tcgw-title">{kit ? 'Chegaram as cartas novas!' : <>Bem-vindo à Arena de Cartas{user?.displayName ? `, ${user.displayName}` : ''}!</>}</h2>
-        <p className="tcgw-sub">{kit ? 'Memes, Club Penguin e cultura pop tomaram a Arena. Suas cartas antigas viraram “Clássicos” e continuam no seu baralho.' : 'Um jogo de cartas colecionáveis com batalhas de verdade, direto na comunidade.'}</p>
+        <p className="tcgw-sub">{kit ? 'Memes, Club Penguin e cultura pop tomaram a Arena. As cartas antigas saíram do jogo e viraram pó de criação na sua conta.' : 'Um jogo de cartas colecionáveis com batalhas de verdade, direto na comunidade.'}</p>
         <ol className="tcgw-steps">
           {(kit ? KIT_STEPS : STEPS).map((s, i) => (
             <li key={s.title} style={{ '--d': `${200 + i * 120}ms` }}>

@@ -229,7 +229,7 @@ export default function CardsGamePage() {
         {home?.kitAvailable && !kitOpen && (
           <div className="tcg-starter">
             <span className="tcg-starter-icon"><Icon d={UI.pack} size={30} /></span>
-            <div><strong>Chegaram as cartas novas!</strong><p>Pegue seu kit grátis com {home.kitCount || 15} cartas de Memes BR, Club Penguin e Cultura Pop.</p></div>
+            <div><strong>Chegaram as cartas novas!</strong><p>Pegue seu kit grátis com {home.kitCount || 20} cartas de Memes BR, Club Penguin e Cultura Pop.</p></div>
             <button type="button" className="tcg-btn primary" onClick={() => setKitOpen(true)}>Pegar kit</button>
           </div>
         )}

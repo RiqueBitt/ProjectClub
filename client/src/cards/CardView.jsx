@@ -1,4 +1,5 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
+import { cardIcon } from './cardIcons.js';
 
 // Visual das cartas do Jogo de Cartas. Sem imagem enviada pela staff, a arte
 // é gerada (SVG determinístico a partir do elemento + nome), então toda
@@ -99,8 +100,11 @@ function hash(s) {
 
 // Arte gerada: fundo no tom do elemento, formas decorativas e o símbolo.
 export const CardArt = memo(function CardArt({ card }) {
+  const icon = cardIcon(card);
   const el = ELEMENTS[card.element] || ELEMENTS.FOGO;
-  if (card.imageUrl) return <img className="tcg-art-img" src={card.imageUrl} alt="" loading="lazy" draggable="false" />;
+  // Imagem externa que falhar ao carregar cai de volta para a arte gerada.
+  const [broken, setBroken] = useState(null);
+  if (card.imageUrl && broken !== card.imageUrl) return <img className="tcg-art-img" src={card.imageUrl} alt="" loading="lazy" draggable="false" referrerPolicy="no-referrer" onError={() => setBroken(card.imageUrl)} />;
   const h = hash(`${card.slug || card.cardId || ''}${card.name}`);
   const shapes = Array.from({ length: 7 }, (_, i) => {
     const v = (h >>> (i * 4)) & 0xff;
@@ -119,8 +123,9 @@ export const CardArt = memo(function CardArt({ card }) {
       {shapes.map((s, i) => (i % 2
         ? <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="#fff" opacity={s.o} />
         : <rect key={i} x={s.x - s.r / 2} y={s.y - s.r / 2} width={s.r} height={s.r} rx="2" fill="#fff" opacity={s.o} transform={`rotate(${(h >> i) % 90} ${s.x} ${s.y})`} />))}
-      <g transform="translate(26 22) scale(2.0)" fill="none" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity="0.92">
-        <path d={el.glyph} />
+      {icon && <circle cx="50" cy="46" r="31" fill="#000" opacity="0.18" />}
+      <g transform={icon ? 'translate(23 19) scale(2.25)' : 'translate(26 22) scale(2.0)'} fill="none" stroke="#fff" strokeWidth={icon ? 1.5 : 1.4} strokeLinecap="round" strokeLinejoin="round" opacity="0.95" style={icon ? { filter: `drop-shadow(0 0 2px ${el.dark})` } : undefined}>
+        <path d={icon || el.glyph} />
       </g>
     </svg>
   );

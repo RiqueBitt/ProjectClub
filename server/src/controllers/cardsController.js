@@ -114,7 +114,7 @@ const claimStarter = handle(async (req, res) => {
 });
 
 // Kit grátis da nova coleção para quem já jogava (uma vez por conta).
-const KIT_SIZE = 15;
+const KIT_SIZE = 20;
 const claimKit = handle(async (req, res) => {
   const userId = req.user.id;
   await requireActivePlayer(userId);
@@ -130,7 +130,7 @@ const claimKit = handle(async (req, res) => {
   };
   const count = new Map();
   const picks = [];
-  pick(catalog.fresh.filter((c) => c.rarity === 'COMUM'), 12, count, picks);
+  pick(catalog.fresh.filter((c) => c.rarity === 'COMUM'), 16, count, picks);
   pick(catalog.fresh.filter((c) => c.rarity === 'INCOMUM'), KIT_SIZE, count, picks);
   pick(catalog.fresh.filter((c) => S.rankOf(c.rarity) <= S.rankOf('INCOMUM')), KIT_SIZE, count, picks);
   if (!picks.length) throw new CardError('Ainda não há cartas novas no catálogo.');

@@ -46,7 +46,7 @@ function makeInstance(state, card, level) {
   const hp = spell ? 0 : Math.max(1, st.health + (R.hpBonus | 0));
   state.uid += 1;
   return {
-    uid: `u${state.uid}`, cardId: card.id, name: card.name, imageUrl: card.imageUrl || null,
+    uid: `u${state.uid}`, cardId: card.id, slug: card.slug || null, name: card.name, imageUrl: card.imageUrl || null,
     rarity: card.rarity, element: card.element, kind: spell ? 'SPELL' : 'UNIT', cost: Math.max(0, cost),
     atk, hp, maxHp: hp, baseAtk: atk, golden: !!card.golden,
     ability: card.ability || 'NONE', value: Math.max(0, card.abilityValue | 0) + (card.kind === 'SPELL' ? Math.floor(((level || 1) - 1) / 2) : 0),

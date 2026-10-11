@@ -129,15 +129,15 @@ const SEED_CARDS_V4 = [
   C('tio-pave', 'Tio do Pavê', 'LUZ', 'COMUM', 2, 2, 2, 'GRITO_CURA', 3, 'Todo almoço de domingo, a mesma piada. E todo mundo ri.', MEME),
   C('gato-julgador', 'Gato Julgador', 'SOMBRA', 'COMUM', 1, 2, 1, 'FURTIVO', 0, 'Te julga em silêncio lá de cima da geladeira.', MEME),
   C('chihuahua', 'Chihuahua Nervosinho', 'FOGO', 'COMUM', 2, 3, 1, 'INVESTIDA', 0, 'Treme inteiro. Morde mesmo assim.', MEME),
-  C('mosquito', 'Mosquito da Madrugada', 'SOMBRA', 'COMUM', 1, 1, 2, 'ROUBO_VIDA', 0, 'Zzzz… bem no seu ouvido, às 3 da manhã.', MEME),
+  C('gato-vibe', 'Gato Dançante', 'SOMBRA', 'COMUM', 1, 1, 2, 'ROUBO_VIDA', 0, 'Balança a cabeça no ritmo e rouba a cena.', MEME),
   C('doguinho', 'Doguinho Much Wow', 'AR', 'INCOMUM', 2, 2, 2, 'ENERGIA', 1, 'Muito carta. Tão jogada. Uau.', MEME),
   C('stonks', 'Homem Stonks', 'LUZ', 'RARA', 2, 2, 3, 'ENERGIA', 2, 'Comprou na alta, vendeu na baixa e chamou de estratégia.', MEME),
   C('nazare', 'Nazaré Confusa', 'AR', 'RARA', 4, 3, 4, 'GRITO_COMPRA', 2, 'Ainda está fazendo as contas.', MEME),
-  C('iara', 'Iara, a Sereia', 'AGUA', 'RARA', 4, 3, 5, 'CONGELA', 0, 'Canta bonito. Não aceite o convite pro rio.', MEME),
-  C('saci', 'Saci Pererê', 'AR', 'EPICA', 5, 5, 4, 'FURTIVO', 0, 'Some num redemoinho levando uma das suas meias.', MEME),
-  C('mula-sem-cabeca', 'Mula Sem Cabeça', 'FOGO', 'EPICA', 5, 5, 4, 'ULTIMO_SUSPIRO', 4, 'Não tem cabeça, mas tem opinião.', MEME),
-  C('curupira', 'Curupira', 'TERRA', 'LENDARIA', 7, 6, 9, 'REGENERA', 4, 'Pés virados pra trás: ninguém sabe se ele vem ou vai.', MEME),
-  C('boitata', 'Boitatá', 'FOGO', 'LENDARIA', 8, 8, 8, 'FURIA', 0, 'A cobra de fogo que guarda a mata à noite.', MEME),
+  C('tia-zap', 'Tia do Zap', 'AR', 'RARA', 4, 3, 5, 'CONGELA', 0, 'Mandou um áudio de 7 minutos. Todo mundo parou pra ouvir.', MEME),
+  C('impostor', 'Impostor Sus', 'SOMBRA', 'EPICA', 5, 5, 4, 'FURTIVO', 0, 'Estava na elétrica fazendo tarefa. Juro.', MEME),
+  C('ta-tudo-bem', 'Cachorro Tá Tudo Bem', 'FOGO', 'EPICA', 5, 5, 4, 'ULTIMO_SUSPIRO', 4, 'A casa pegando fogo. Café na mão. Tá tudo bem.', MEME),
+  C('big-floppa', 'Gatão Floppa', 'TERRA', 'LENDARIA', 7, 6, 9, 'REGENERA', 4, 'O gatão de orelhas pontudas que a internet inteira respeita.', MEME),
+  C('gato-arco-iris', 'Gato Arco-Íris', 'LUZ', 'LENDARIA', 8, 8, 8, 'FURIA', 0, 'Atravessa o espaço deixando um arco-íris e uma musiquinha grudenta.', MEME),
   C('capivara-suprema', 'Capivara Suprema', 'TERRA', 'MITICA', 9, 9, 10, 'ESCUDO', 0, 'Quando ela relaxa, o universo relaxa junto.', MEME),
   SP('chinelo-mae', 'Chinelo da Mãe', 'FOGO', 'COMUM', 1, 'FEITICO_DANO', 2, 'Alcance infinito. Nunca erra.', MEME),
   SP('biscoito-bolacha', 'Biscoito ou Bolacha?', 'AR', 'INCOMUM', 2, 'FEITICO_COMPRA', 2, 'A discussão nunca acaba — mas você compra cartas.', MEME),
@@ -197,4 +197,27 @@ const SEED_PACKS_V4 = [
   { name: 'Pacote Lendário', description: '5 cartas sem Comuns, com uma Épica ou melhor garantida.', color: '#f5c542', priceGems: 30, cardsPerPack: 5, weights: W_LEG, guaranteed: 'EPICA', sort: 4, dailyLimit: 3 },
 ];
 
-module.exports = { SEED_CARDS, SEED_CARDS_V2, SEED_CARDS_V3, SEED_CARDS_V4, SEED_PACKS, SEED_PACKS_V4, NEW_COLLECTIONS, SEED_CAMPAIGN };
+// v7: troca do folclore/cartas genéricas por memes (slug antigo → carta nova).
+const V7_SWAPS = { mosquito: 'gato-vibe', iara: 'tia-zap', saci: 'impostor', 'mula-sem-cabeca': 'ta-tudo-bem', curupira: 'big-floppa', boitata: 'gato-arco-iris' };
+// v8: fotos livres (Wikimedia Commons, licenças abertas) para cartas de
+// animais e objetos. Personagens e memes com dono ficam para a staff enviar.
+const COMMONS = (file) => `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file.replace(/ /g, '_'))}?width=480`;
+const V8_PHOTOS = {
+  'capivara-zen': 'Capivara ST.jpg',
+  'capivara-suprema': 'Capybara (Hydrochoerus hydrochaeris) alpha male.JPG',
+  'pombo-praca': 'Columba livia - 02.jpg',
+  'gato-julgador': 'Gato atigrado.png',
+  chihuahua: 'Chihuahua-Dog.JPG',
+  doguinho: 'Shiba inu taiki.jpg',
+  'big-floppa': 'Caracal caracal caracal 54847036.jpg',
+  'chinelo-mae': 'Flipflops.jpg',
+  'biscoito-bolacha': 'Chocolate chip cookies.jpg',
+  'fita-k7': 'Cassette.jpg',
+  'bichinho-virtual': 'Tamagotchi Uni.png',
+  cartucho: 'Nintendo-Game-Boy-Color-Cartridge.jpg',
+  disquete: 'Back of floppy disk with transparent case.jpg',
+  iceberg: 'An iceberg in Jokulsarlon.jpg',
+  'pizza-pizzatron': 'Piazza pizza slice.JPG',
+  'bola-neve': 'Snowball Fight at the University of Pittsburgh.jpg',
+};
+module.exports = { COMMONS, V8_PHOTOS, V7_SWAPS, SEED_CARDS, SEED_CARDS_V2, SEED_CARDS_V3, SEED_CARDS_V4, SEED_PACKS, SEED_PACKS_V4, NEW_COLLECTIONS, SEED_CAMPAIGN };

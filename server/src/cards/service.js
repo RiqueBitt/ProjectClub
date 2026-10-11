@@ -5,7 +5,7 @@ const prisma = require('../config/prisma');
 const {
   RARITIES, DIFFICULTIES, mergeSettings, cardPower, divisionOf, BOARD_EFFECTS, BRAWLS, ELEMENTS,
 } = require('./config');
-const { SEED_CARDS, SEED_CARDS_V2, SEED_CARDS_V3, SEED_CARDS_V4, SEED_PACKS, SEED_PACKS_V4, NEW_COLLECTIONS, SEED_CAMPAIGN } = require('./seed');
+const { COMMONS, V8_PHOTOS, V7_SWAPS, SEED_CARDS, SEED_CARDS_V2, SEED_CARDS_V3, SEED_CARDS_V4, SEED_PACKS, SEED_PACKS_V4, NEW_COLLECTIONS, SEED_CAMPAIGN } = require('./seed');
 
 class CardError extends Error {
   constructor(message, status = 400) { super(message); this.status = status; }
@@ -123,6 +123,54 @@ async function doSeed() {
       invalidateCatalog();
     }
   } catch (err) { console.error('[cards] seed v6 falhou:', err?.message || err); }
+  // v7: cartas sem referência (a coleção "Clássicos") saem do jogo de vez —
+  // quem tinha recebe o valor em pó de criação e um kit novo de 20 cartas —
+  // e o folclore vira meme (a carta é atualizada no lugar: quem tinha, continua tendo).
+  try {
+    const st = await getSettings(true);
+    if ((st.seedVersion || 1) < 7) {
+      const byNew = new Map(SEED_CARDS_V4.map((c) => [c.slug, c]));
+      for (const [oldSlug, newSlug] of Object.entries(V7_SWAPS)) {
+        const def = byNew.get(newSlug);
+        const cur = await prisma.cardDef.findUnique({ where: { slug: oldSlug } });
+        if (!def || !cur || (await prisma.cardDef.findUnique({ where: { slug: newSlug } }))) continue;
+        const { slug, ...rest } = def;
+        await prisma.cardDef.update({ where: { id: cur.id }, data: { ...rest, slug } });
+      }
+      const gone = await prisma.cardDef.findMany({ where: { retired: true, enabled: true }, select: { id: true, rarity: true } });
+      const ids = gone.map((c) => c.id);
+      if (ids.length) {
+        const rar = new Map(gone.map((c) => [c.id, c.rarity]));
+        const { DUST_VALUES } = require('./progress');
+        const dust = new Map();
+        const add = (uid, cardId, n, golden = 0) => dust.set(uid, (dust.get(uid) || 0) + (DUST_VALUES[rar.get(cardId)] || 5) * (n + golden * 3));
+        const listings = await prisma.cardListing.findMany({ where: { status: 'ACTIVE', cardId: { in: ids } } });
+        for (const l of listings) {
+          const r = await prisma.cardListing.updateMany({ where: { id: l.id, status: 'ACTIVE' }, data: { status: 'CANCELLED' } });
+          if (r.count) add(l.sellerId, l.cardId, 1);
+        }
+        const rows = await prisma.userCard.findMany({ where: { cardId: { in: ids }, quantity: { gt: 0 } } });
+        for (const r of rows) add(r.userId, r.cardId, r.quantity, r.golden || 0);
+        await prisma.userCard.updateMany({ where: { cardId: { in: ids } }, data: { quantity: 0, foil: 0, golden: 0 } });
+        for (const [uid, n] of dust) if (n > 0) await prisma.cardPlayer.update({ where: { userId: uid }, data: { dust: { increment: n } } }).catch(() => {});
+        await prisma.cardDef.updateMany({ where: { id: { in: ids } }, data: { enabled: false } });
+      }
+      await prisma.cardPlayer.updateMany({ where: { starterClaimed: true }, data: { kitV2: false } });
+      await patchSavedSettings({ seedVersion: 7 });
+      invalidateCatalog();
+    }
+  } catch (err) { console.error('[cards] seed v7 falhou:', err?.message || err); }
+  // v8: fotos livres do Wikimedia Commons (só em cartas ainda sem imagem).
+  try {
+    const st = await getSettings(true);
+    if ((st.seedVersion || 1) < 8) {
+      for (const [slug, file] of Object.entries(V8_PHOTOS)) {
+        await prisma.cardDef.updateMany({ where: { slug, imageUrl: null }, data: { imageUrl: COMMONS(file), description: `Foto: "${file}" — Wikimedia Commons (licença livre).` } });
+      }
+      await patchSavedSettings({ seedVersion: 8 });
+      invalidateCatalog();
+    }
+  } catch (err) { console.error('[cards] seed v8 falhou:', err?.message || err); }
   seeded = true;
 }
 function ensureSeed() {
