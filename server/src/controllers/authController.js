@@ -19,6 +19,7 @@ const legacyGuardrails = createGuardrails({ MIN_SECRET_BYTES: 10 });
 const qrcode = require('qrcode');
 const prisma = require('../config/prisma');
 const env = require('../config/env');
+const sessionKeep = require('../services/sessionKeep');
 const {
   signAccessToken,
   generateRefreshToken,
@@ -182,6 +183,7 @@ async function issueSession(res, user, userAgent, ipAddress) {
     maxAge: env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
     path: '/api/auth',
   });
+  await sessionKeep.setKeepCookie(res, user.id);
   return accessToken;
 }
 
@@ -350,7 +352,23 @@ async function login(req, res, next) {
 async function refresh(req, res, next) {
   try {
     const raw = req.cookies?.refreshToken;
-    if (!raw) return res.status(401).json({ error: 'Sessão expirada.' });
+    // Sem cookie de refresh (ou inválido mais abaixo): tenta o "lembrar
+    // login" selado (iron-session) antes de mandar pra tela de login.
+    const restoreFromKeep = async () => {
+      const uid = await sessionKeep.readKeepCookie(req);
+      if (!uid) return false;
+      const user = await prisma.user.findUnique({ where: { id: uid } });
+      if (!user || user.isPlatformBanned || (user.suspendedUntil && user.suspendedUntil > new Date())) return false;
+      await maybePromoteToPlatformAdmin(user);
+      const accessToken = await issueSession(res, user, req.headers['user-agent'], req.ip);
+      const selfUser = await prisma.user.findUnique({ where: { id: user.id }, select: SELF_USER_FIELDS });
+      res.json({ user: selfUser, accessToken });
+      return true;
+    };
+    if (!raw) {
+      if (await restoreFromKeep()) return;
+      return res.status(401).json({ error: 'Sessão expirada.' });
+    }
 
     const hash = hashToken(raw);
     const stored = await prisma.refreshToken.findUnique({ where: { tokenHash: hash } });
@@ -393,8 +411,13 @@ async function refresh(req, res, next) {
         }
       }
       await prisma.refreshToken.updateMany({ where: { userId: stored.userId, revoked: false }, data: { revoked: true, revokedAt: new Date() } });
+      // Reuso tardio = possível roubo: derruba também o "lembrar login".
+      await sessionKeep.markSessionsRevoked(stored.userId);
+      sessionKeep.clearKeepCookie(res);
+      return res.status(401).json({ error: 'Sessão expirada.' });
     }
-    if (!stored || stored.revoked || stored.expiresAt < new Date()) {
+    if (!stored || stored.expiresAt < new Date()) {
+      if (await restoreFromKeep()) return;
       return res.status(401).json({ error: 'Sessão expirada.' });
     }
 
@@ -418,6 +441,7 @@ async function logout(req, res, next) {
       await prisma.refreshToken.updateMany({ where: { tokenHash: hash }, data: { revoked: true } });
     }
     res.clearCookie('refreshToken', { path: '/api/auth' });
+    sessionKeep.clearKeepCookie(res);
     res.json({ ok: true });
   } catch (err) { next(err); }
 }
@@ -477,6 +501,9 @@ async function revokeOtherSessions(req, res, next) {
       where: { userId: req.user.id, revoked: false, ...(currentHash ? { tokenHash: { not: currentHash } } : {}) },
       data: { revoked: true },
     });
+    // Derruba o "lembrar login" dos outros aparelhos e renova o deste.
+    await sessionKeep.markSessionsRevoked(req.user.id);
+    await sessionKeep.setKeepCookie(res, req.user.id);
     res.json({ ok: true });
   } catch (err) { next(err); }
 }
@@ -552,6 +579,7 @@ async function resetPassword(req, res, next) {
       prisma.passwordResetToken.update({ where: { id: record.id }, data: { used: true } }),
       prisma.refreshToken.updateMany({ where: { userId: record.userId }, data: { revoked: true } }),
     ]);
+    await sessionKeep.markSessionsRevoked(record.userId);
     res.json({ ok: true });
   } catch (err) { next(err); }
 }
@@ -635,6 +663,7 @@ async function changePassword(req, res, next) {
       prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
       prisma.refreshToken.updateMany({ where: { userId: user.id }, data: { revoked: true } }),
     ]);
+    await sessionKeep.markSessionsRevoked(user.id);
     res.json({ ok: true });
   } catch (err) { next(err); }
 }
@@ -657,6 +686,7 @@ async function deleteAccount(req, res, next) {
       prisma.user.update({ where: { id: user.id }, data: { accountDisabledAt: new Date() } }),
       prisma.refreshToken.updateMany({ where: { userId: user.id }, data: { revoked: true } }),
     ]);
+    await sessionKeep.markSessionsRevoked(user.id);
     res.json({ ok: true });
   } catch (err) { next(err); }
 }

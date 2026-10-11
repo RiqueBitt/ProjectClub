@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const sessionKeep = require('../services/sessionKeep');
 const { SELF_USER_FIELDS } = require('./authController');
 
 const ADMIN_USER_FIELDS = { ...SELF_USER_FIELDS, isPlatformBanned: true, platformBanReason: true, suspendedUntil: true };
@@ -173,6 +174,7 @@ async function banUser(req, res, next) {
       where: { id }, data: { isPlatformBanned: true, platformBanReason: reason || null }, select: ADMIN_USER_FIELDS,
     });
     await prisma.refreshToken.updateMany({ where: { userId: id }, data: { revoked: true } });
+    await sessionKeep.markSessionsRevoked(id);
     await logPlatformAction(req, { action: 'USER_BAN', targetType: 'USER', targetId: id, reason });
     res.json({ user });
   } catch (err) { next(err); }
@@ -196,6 +198,7 @@ async function suspendUser(req, res, next) {
     const suspendedUntil = new Date(Date.now() + (Number(hours) || 24) * 60 * 60 * 1000);
     const user = await prisma.user.update({ where: { id }, data: { suspendedUntil }, select: ADMIN_USER_FIELDS });
     await prisma.refreshToken.updateMany({ where: { userId: id }, data: { revoked: true } });
+    await sessionKeep.markSessionsRevoked(id);
     await logPlatformAction(req, { action: 'USER_SUSPEND', targetType: 'USER', targetId: id, reason, metadata: { suspendedUntil } });
     res.json({ user });
   } catch (err) { next(err); }
