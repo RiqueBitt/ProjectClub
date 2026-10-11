@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { QuickMessageBox, RecentDMs } from '../components/DMQuick.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useStore, isConversationUnread } from '../store/useStore';
 import FriendsPanel from '../components/FriendsPanel.jsx';
@@ -15,8 +17,8 @@ const TABS = [
 ];
 
 export default function AmigosPage() {
-  const [tab, setTab] = useState('amigos');
   const { user } = useAuth();
+  const [params] = useSearchParams();
   const friends = useStore((s) => s.friends);
   const presence = useStore((s) => s.presence);
   const conversations = useStore((s) => s.conversations);
@@ -28,6 +30,15 @@ export default function AmigosPage() {
   }).length;
   const pendingIncoming = friends.filter((f) => f.status === 'PENDING' && f.isIncoming).length;
   const unread = conversations.filter((c) => isConversationUnread(c, user.id)).length;
+  // Aba inicial: ?tab=, senão a última usada; com mensagem não lida, abre em Mensagens.
+  const [tab, setTabState] = useState(() => {
+    const q = params.get('tab');
+    if (TABS.some((t) => t.key === q)) return q;
+    if (unread) return 'mensagens';
+    try { const v = localStorage.getItem('pc-social-tab'); if (TABS.some((t) => t.key === v)) return v; } catch { /* ignora */ }
+    return 'amigos';
+  });
+  const setTab = (v) => { setTabState(v); try { localStorage.setItem('pc-social-tab', v); } catch { /* ignora */ } };
 
   const counter = (key) => {
     if (key === 'amigos') return pendingIncoming ? { n: pendingIncoming, alert: true } : null;
@@ -46,6 +57,9 @@ export default function AmigosPage() {
             <span className="social-online"><span className="social-dot" /> {onlineCount} online</span>
           </p>
         </div>
+        <div className="social-hero-actions">
+          <QuickMessageBox />
+        </div>
         <nav className="social-tabs" role="tablist" aria-label="Seções do Social">
           {TABS.map((t) => {
             const c = counter(t.key);
@@ -62,6 +76,7 @@ export default function AmigosPage() {
           })}
         </nav>
       </header>
+      {tab !== 'clubes' && <RecentDMs />}
       <div className={`social-content social-content-${tab}`}>
         {tab === 'amigos' && <FriendsPanel />}
         {tab === 'mensagens' && <DMConversationsList />}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { convName, lastPreview, timeAgo } from './DMQuick.jsx';
 import { useNavigate } from 'react-router-dom';
 import { useStore, isConversationUnread } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -22,12 +23,13 @@ export default function DMConversationsList() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [newDMOpen, setNewDMOpen] = useState(false);
+  const [filter, setFilter] = useState('');
 
   const sorted = [...conversations].sort((a, b) => {
     const at = a.lastMessage?.createdAt || 0;
     const bt = b.lastMessage?.createdAt || 0;
     return new Date(bt) - new Date(at);
-  });
+  }).filter((c) => !filter.trim() || convName(c, user.id).toLowerCase().includes(filter.trim().toLowerCase()));
 
   const doLeave = async (e, conversationId) => {
     e.preventDefault();
@@ -41,9 +43,10 @@ export default function DMConversationsList() {
   return (
     <div className="dm-conversations-list">
       <div className="dm-conversations-header">
+        <input className="dm-conv-filter" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filtrar conversas…" aria-label="Filtrar conversas" />
         <button className="btn-secondary" onClick={() => setNewDMOpen(true)}>+ Nova conversa</button>
       </div>
-      {sorted.length === 0 && (
+      {sorted.length === 0 && !filter && (
         <div className="friends-empty-state">
           <div className="friends-empty-state-icon"><SocialIcon name="chat" size={30} /></div>
           <h3>Nenhuma conversa ainda.</h3>
@@ -73,7 +76,11 @@ export default function DMConversationsList() {
                 )}
                 {status && <PresenceDot status={status} />}
               </div>
-              <span className="truncate">{name}</span>
+              <span className="dm-item-text">
+                <span className="truncate" data-no-translate>{name}</span>
+                <span className="dm-item-preview" data-no-translate>{lastPreview(c, user.id)}</span>
+              </span>
+              <span className="dm-item-time">{timeAgo(c.lastMessage?.createdAt)}</span>
               <TypingDots roomKey={`conversation:${c.id}`} myUserId={user.id} />
               {unread && <span className="unread-dot" />}
               {c.isGroup && (

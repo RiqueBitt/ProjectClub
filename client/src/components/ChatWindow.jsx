@@ -23,6 +23,7 @@ import PollComposerModal from './modals/PollComposerModal.jsx';
 import GroupSettingsModal from './modals/GroupSettingsModal.jsx';
 import ConversationIcon from './ConversationIcon.jsx';
 import ChannelSwitcher from './ChannelSwitcher.jsx';
+import { DMSwitcher } from './DMQuick.jsx';
 import ChannelTypeIcon from './ChannelTypeIcon.jsx';
 import { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
@@ -1269,6 +1270,7 @@ function ChatWindowInner({ conversationId, channelId }) {
     <section className="chat-window chat-v2">
       {dropActive && <div className="chat-drop-overlay" aria-hidden="true"><div className="chat-drop-box">Solte para enviar no chat</div></div>}
       {channelId && <ChannelSwitcher currentChannelId={channelId} />}
+      {conversationId && <DMSwitcher currentId={conversationId} />}
       <header className={`chat-header ${dmOther ? 'is-dm' : ''}`}>
         {channelHeaderIcon}
         {dmOther && (

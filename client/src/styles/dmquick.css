@@ -1,0 +1,52 @@
+.dmq-av { position: relative; display: inline-grid; place-items: center; flex-shrink: 0; }
+.dmq-av > img, .dmq-av > div:first-child { width: 100%; height: 100%; }
+.dmq-av .presence-dot { position: absolute; right: -2px; bottom: -2px; }
+.dmq-unread { width: 9px; height: 9px; border-radius: 50%; background: var(--red, #f23f43); box-shadow: 0 0 0 2px var(--bg-primary); flex-shrink: 0; }
+
+/* Barra de troca no topo da DM */
+.dmq-switcher { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--border); min-height: 44px; box-sizing: border-box; }
+.dmq-sw-btn { width: 32px; height: 32px; border-radius: 10px; border: 0; background: transparent; color: var(--text-muted); display: grid; place-items: center; cursor: pointer; flex-shrink: 0; }
+.dmq-sw-btn:hover { background: var(--bg-modifier-hover, rgba(255,255,255,.06)); color: var(--header-primary); }
+.dmq-sw-list { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; scroll-behavior: smooth; }
+.dmq-sw-list::-webkit-scrollbar { display: none; }
+.dmq-chip { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; max-width: 170px; height: 32px; padding: 0 10px 0 5px; border-radius: 999px; border: 1px solid transparent; background: var(--bg-secondary); color: var(--text-muted); font-size: 13px; font-weight: 600; cursor: pointer; }
+.dmq-chip:hover { color: var(--header-primary); border-color: var(--border); }
+.dmq-chip.is-on { color: var(--header-primary); border-color: var(--lit-border-color, var(--brand)); background: var(--bg-primary); }
+.dmq-chip.is-unread { color: var(--header-primary); }
+.dmq-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Caixa "Enviar mensagem para…" */
+.dmq-box { position: relative; width: min(360px, 100%); }
+.dmq-input { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-muted); }
+.dmq-input:focus-within { border-color: var(--lit-border-color, var(--brand)); }
+.dmq-input input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text-normal); font: inherit; font-size: 14px; }
+.dmq-pop { position: absolute; z-index: 60; top: calc(100% + 6px); left: 0; right: 0; padding: 6px; border-radius: 14px; background: var(--bg-secondary); border: 1px solid var(--lit-border-color, var(--border)); box-shadow: var(--lit-shadow, 0 14px 36px rgba(0,0,0,.5)); max-height: 360px; overflow-y: auto; }
+.dmq-opt { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border: 0; border-radius: 10px; background: transparent; color: inherit; cursor: pointer; text-align: left; }
+.dmq-opt.is-sel { background: var(--bg-modifier-hover, rgba(255,255,255,.06)); }
+.dmq-opt-text { min-width: 0; display: flex; flex-direction: column; }
+.dmq-opt-text b { font-size: 14px; color: var(--header-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dmq-opt-text small { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dmq-empty { margin: 10px; color: var(--text-muted); font-size: 13px; text-align: center; }
+
+/* Fileira de recentes no Social */
+.dmq-recent { display: flex; gap: 14px; overflow-x: auto; padding: 6px 2px 14px; margin-top: 16px; margin-bottom: 4px; scrollbar-width: thin; }
+.dmq-recent-item { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 64px; flex-shrink: 0; border: 0; background: none; color: var(--text-muted); cursor: pointer; padding: 0; }
+.dmq-recent-item:hover { color: var(--header-primary); }
+.dmq-recent-item:hover .dmq-av { transform: translateY(-2px); }
+.dmq-recent-item .dmq-av { transition: transform .15s; }
+.dmq-recent-item.is-unread { color: var(--header-primary); font-weight: 700; }
+.dmq-recent-item > .dmq-unread { position: absolute; top: 0; right: 6px; }
+.dmq-recent-name { max-width: 64px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Lista de mensagens: prévia + hora */
+.dm-item-text { flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left; }
+.dm-item-text .truncate { font-weight: 600; }
+.dm-item-preview { font-size: 12.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
+.dm-item.unread .dm-item-preview { color: var(--text-normal); font-weight: 600; }
+.dm-item-time { font-size: 11.5px; color: var(--text-muted); flex-shrink: 0; margin-left: 6px; }
+.dm-conversations-header { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.dm-conv-filter { flex: 1; min-width: 160px; height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-normal); font: inherit; font-size: 14px; outline: 0; }
+.dm-conv-filter:focus { border-color: var(--lit-border-color, var(--brand)); }
+.social-hero-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+@media (max-width: 760px) { .dmq-box { width: 100%; } .social-hero-actions { width: 100%; } }
+.dmq-input input, .dmq-input input:focus { border: 0 !important; box-shadow: none !important; outline: 0 !important; height: 100%; padding: 0 !important; background: transparent !important; }
