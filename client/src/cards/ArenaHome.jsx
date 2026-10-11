@@ -95,7 +95,7 @@ function StageModal({ stage, onClose, onPlay, busy }) {
   );
 }
 
-export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onWatch, onReplay }) {
+export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onWatch, onReplay, onOpenRoom }) {
   const navigate = useNavigate();
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
@@ -187,9 +187,24 @@ export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onW
         </div>
       </section>
 
+      <section className="tcg-modes" aria-label="Criar batalha">
+        <button type="button" className="tcg-mode is-duel" onClick={() => onOpenRoom?.({ initialFormat: '1V1' })}>
+          <span className="tcg-mode-icon"><Icon d={UI.sword} size={26} /></span>
+          <b>Criar batalha</b><small>Gere um link e chame alguém pelo chat ou DM</small>
+        </button>
+        <button type="button" className="tcg-mode is-duo" onClick={() => onOpenRoom?.({ initialFormat: '2V2' })}>
+          <span className="tcg-mode-icon"><Icon d={UI.users} size={26} /></span>
+          <b>2 vs 2</b><small>Monte uma dupla: herói e campo compartilhados</small>
+        </button>
+        <button type="button" className="tcg-mode is-custom" onClick={() => onOpenRoom?.({ initialCustom: true })}>
+          <span className="tcg-mode-icon"><Icon d={UI.wand} size={26} /></span>
+          <b>Personalizada</b><small>Suas regras: vida, energia, baralhos… (sem recompensa)</small>
+        </button>
+      </section>
+
       {home.activeMatch && (
         <div className="tcg-resume">
-          <span><Icon d={UI.sword} size={18} />Você tem uma partida {home.activeMatch.mode === 'PVP' ? 'PvP' : 'contra bot'} em andamento.</span>
+          <span><Icon d={UI.sword} size={18} />Você tem uma partida {home.activeMatch.format === '2V2' ? '2 vs 2' : home.activeMatch.mode === 'PVP' ? 'PvP' : 'contra bot'}{home.activeMatch.custom ? ' personalizada' : ''} em andamento.</span>
           <button type="button" className="tcg-btn primary" onClick={async () => { try { onStartMatch(await cardsMatch(home.activeMatch.id)); } catch (e) { setErr(errMsg(e)); } }}>Continuar</button>
         </div>
       )}
@@ -293,16 +308,18 @@ export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onW
                 <span className="tcg-live-top">
                   <b className="tcgb-live">AO VIVO</b>
                   {m.tournamentId && <span className="tcg-live-tag">Torneio</span>}
+                  {m.format === '2V2' && <span className="tcg-live-tag is-duo">2 vs 2</span>}
+                  {m.custom && <span className="tcg-live-tag is-custom">Personalizada</span>}
                   {m.friend && <span className="tcg-live-tag is-friend">Amigo</span>}
                   <span className="tcgb-spacer" />
                   <span className="tcg-live-eye" title="Assistindo agora"><Icon d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" size={14} />{m.spectators || 0}</span>
                 </span>
                 <span className="tcg-live-vs">
-                  {[m.p1, m.p2].map((p, i) => (
+                  {(m.format === '2V2' ? [[m.p1, m.p3], [m.p2, m.p4]] : [[m.p1], [m.p2]]).map((team, i) => (
                     <span key={i} className="tcg-live-p">
-                      {p?.bot ? <BotPortrait name={p.displayName} size={44} /> : <UserAvatar user={p} size={44} />}
-                      <b data-no-translate>{p?.displayName || '—'}</b>
-                      {m.info && <span className="tcg-live-hp"><i style={{ width: `${Math.max(0, Math.min(100, (m.info.hp[i] / 30) * 100))}%` }} /><em>{m.info.hp[i]}</em></span>}
+                      <span className="tcg-live-avs">{team.map((q, k) => (q?.bot ? <BotPortrait key={k} name={q.displayName} size={team.length > 1 ? 34 : 44} /> : <UserAvatar key={k} user={q} size={team.length > 1 ? 34 : 44} />))}</span>
+                      <b data-no-translate>{team.map((q) => q?.displayName || '—').join(' & ')}</b>
+                      {m.info && <span className="tcg-live-hp"><i style={{ width: `${Math.max(0, Math.min(100, (m.info.hp[i] / (m.format === '2V2' ? 42 : 30)) * 100))}%` }} /><em>{m.info.hp[i]}</em></span>}
                     </span>
                   ))}
                   <span className="tcg-live-x">VS</span>
@@ -319,7 +336,7 @@ export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onW
         {history.map((m) => (
           <div key={m.id} className={`tcg-hist${m.won ? ' is-win' : ' is-loss'}`}>
             <span className="tcg-hist-res">{m.won ? 'Vitória' : 'Derrota'}</span>
-            <span className="tcg-hist-vs">vs <b data-no-translate>{m.opponent?.displayName}</b>{m.mode === 'PVE' ? ' (bot)' : ''}</span>
+            <span className="tcg-hist-vs">vs <b data-no-translate>{m.opponent?.displayName}</b>{m.mode === 'PVE' ? ' (bot)' : ''}{m.format === '2V2' && <em className="tcg-hist-tag">2v2</em>}{m.custom && <em className="tcg-hist-tag is-custom">Personalizada</em>}</span>
             <span className="tcg-hist-coins">{m.reward > 0 ? <><Icon d={UI.coin} size={13} />+{m.reward}</> : '—'}</span>
             <button type="button" className="tcg-btn ghost tcg-btn-sm" onClick={() => onReplay(m.id)}>Replay</button>
           </div>

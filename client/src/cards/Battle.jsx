@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSocket } from '../context/SocketContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import UserAvatar from '../components/UserAvatar.jsx';
 import { CardView, CardArt, CardBack, ABILITIES, ELEMENTS, RARITY_ORDER, RARITIES, Icon, UI, abilityText } from './CardView.jsx';
 import { cardsAction, cardsMatch, cardsWatch, cardsStopWatch, errMsg } from './api';
@@ -56,7 +57,24 @@ function HpRing({ hp, max }) {
   );
 }
 
-function Hero({ p, side, targetable, onClick, active }) {
+function TeamChips({ team, activeMember }) {
+  if (!team?.length) return null;
+  return (
+    <span className="tcgb-team">
+      {team.map((m) => {
+        const on = activeMember && (m.userId || m.name) === activeMember;
+        return (
+          <span key={m.userId || m.name} className={`tcgb-team-m${on ? ' is-on' : ''}`} title={`${m.name}: ${m.handCount} na mão · ${m.energy}/${m.maxEnergy} de energia`}>
+            {m.isBot ? <BotPortrait name={m.name} size={22} /> : <UserAvatar user={{ displayName: m.name, avatarUrl: m.avatarUrl }} size={22} />}
+            <em data-no-translate>{m.name}</em><small>{m.handCount}</small>
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+function Hero({ p, side, targetable, onClick, active, activeMember }) {
   return (
     <div className={`tcgb-hero is-${side}${targetable ? ' is-target' : ''}${active ? ' is-active' : ''}${p.hp <= p.maxHp * 0.25 ? ' is-low' : ''}`} data-hero={side}>
       <button type="button" className="tcgb-hero-face" onClick={onClick} disabled={!targetable} aria-label={`${p.name}: ${p.hp} de vida`}>
@@ -68,6 +86,7 @@ function Hero({ p, side, targetable, onClick, active }) {
       </button>
       <div className="tcgb-hero-info">
         <strong data-no-translate>{p.name}</strong>
+        <TeamChips team={p.team} activeMember={activeMember} />
         <span className="tcgb-energy" title="Energia">
           {Array.from({ length: Math.max(p.maxEnergy, 1) }, (_, i) => <i key={i} className={i < p.energy ? 'on' : ''} />)}
           <em>{p.energy}/{p.maxEnergy}</em>
@@ -78,7 +97,7 @@ function Hero({ p, side, targetable, onClick, active }) {
   );
 }
 
-function EndTurnButton({ onClick, disabled, busy, myTurn, pulse, secondsLeft, total }) {
+function EndTurnButton({ onClick, disabled, busy, myTurn, pulse, secondsLeft, total, partnerTurn }) {
   const r = 30;
   const c = 2 * Math.PI * r;
   const pct = secondsLeft === null ? 1 : Math.max(0, secondsLeft / Math.max(1, total));
@@ -91,7 +110,7 @@ function EndTurnButton({ onClick, disabled, busy, myTurn, pulse, secondsLeft, to
         </svg>
       )}
       <button type="button" className="tcg-btn primary tcgb-endturn" disabled={disabled} onClick={onClick}>
-        {busy ? 'Aguarde…' : myTurn ? 'Encerrar turno' : 'Turno do oponente'}
+        {busy ? 'Aguarde…' : myTurn ? 'Encerrar turno' : partnerTurn ? 'Vez do parceiro' : 'Turno do oponente'}
         {secondsLeft !== null && <small>{secondsLeft}s</small>}
       </button>
     </div>
@@ -100,6 +119,8 @@ function EndTurnButton({ onClick, disabled, busy, myTurn, pulse, secondsLeft, to
 
 export default function Battle({ initial, onExit, onRematch, mode = 'play', frames = null, boards = [] }) {
   const { socket } = useSocket() || {};
+  const { user: authUser } = useAuth() || {};
+  const myId = authUser?.id;
   const readOnly = mode !== 'play';
   const [match, setMatch] = useState(initial);
   const [selected, setSelected] = useState(null); // atacante escolhido
@@ -136,7 +157,9 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
   const view = match?.view;
   const mySeat = view?.seat ?? 0;
   const legal = view?.legal || { playable: [], spellTargets: {}, attackers: [], targets: {}, canEndTurn: false };
-  const myTurn = !readOnly && view && !view.over && view.active === mySeat;
+  // 2v2: o time está na vez, mas só joga o membro da vez.
+  const myTurn = !readOnly && view && !view.over && view.active === mySeat && (!view.duo || view.activeMember === myId);
+  const partnerTurn = !readOnly && view?.duo && !view.over && view.active === mySeat && view.activeMember !== myId;
 
   // Música ambiente só durante a partida.
   useEffect(() => { startMusic(); return () => stopMusic(); }, []);
@@ -223,11 +246,14 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
         case 'fatigue': float(elFor(`hero:${side(e.seat)}`), `Cansaço -${e.amount}`, 'dmg'); break;
         case 'death': sfx('death'); setDying((d) => new Set(d).add(e.uid)); await W(380); break;
         case 'draw': if (e.seat === mySeat && !readOnly) sfx('draw'); break;
-        case 'turn': if (e.seat === mySeat && !readOnly && !events.some((x) => x.type === 'gameOver')) { sfx('turn'); setBanner('Sua vez!'); setTimeout(() => setBanner(''), 1100); } break;
+        case 'turn': if (e.seat === mySeat && !readOnly && !events.some((x) => x.type === 'gameOver')) {
+          const mine = !matchRef.current?.view?.duo || e.member === myId;
+          sfx('turn'); setBanner(mine ? 'Sua vez!' : 'Vez do seu parceiro'); setTimeout(() => setBanner(''), 1100);
+        } break;
         default: break;
       }
     }
-  }, [elFor, float, lunge, shake, cinematic, mySeat, readOnly]);
+  }, [elFor, float, lunge, shake, cinematic, mySeat, readOnly, myId]);
 
   const apply = useCallback(async (res) => {
     if (res?.events?.length) await playEvents(res.events);
@@ -277,10 +303,10 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
       if (fresh.version !== cur.version || fresh.status !== cur.status || fresh.spectators !== cur.spectators) {
         const prevSeq = cur.view?.seq;
         setMatch((m) => ({ ...m, ...fresh }));
-        if (mode === 'play' && fresh.view && fresh.view.active === fresh.view.seat && prevSeq !== fresh.view.seq && !fresh.view.over) { sfx('turn'); setBanner('Sua vez!'); setTimeout(() => setBanner(''), 1100); }
+        if (mode === 'play' && fresh.view && fresh.view.active === fresh.view.seat && (!fresh.view.duo || fresh.view.activeMember === myId) && prevSeq !== fresh.view.seq && !fresh.view.over) { sfx('turn'); setBanner('Sua vez!'); setTimeout(() => setBanner(''), 1100); }
       }
     } catch { /* ignora */ }
-  }, [mode, playEvents]);
+  }, [mode, playEvents, myId]);
   // Espectador: troca de lado (busca a visão do outro jogador na hora).
   useEffect(() => {
     if (mode !== 'watch') return undefined;
@@ -380,6 +406,8 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
   const spellCard = spellSel ? me.hand?.find((c) => c.uid === spellSel) : null;
   const pickCard = handPick ? me.hand?.find((c) => c.uid === handPick) : null;
   const toggleAudio = () => setAudio(setSfxPrefs({ muted: !audio.muted }));
+  const activeSide = view.active === me.seat ? me : foe;
+  const activeName = activeSide.team?.find((t) => (t.userId || t.name) === view.activeMember)?.name || activeSide.name;
 
   return (
     <div className={`tcgb theme-${board.theme || theme}${cine ? ' is-cine' : ''}${readOnly ? ' is-readonly' : ''}`} ref={boardRef} style={{ '--accent': board.accent || '#8b6bff' }}
@@ -392,7 +420,9 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
         <span className="tcgb-turn">
           {mode === 'watch' && <b className="tcgb-live">AO VIVO</b>}
           {mode === 'replay' && <b className="tcgb-live is-replay">REPLAY</b>}
-          Turno {view.turn} · {mode === 'play' ? (myTurn ? <b>Sua vez</b> : view.over ? 'Fim de jogo' : `Vez de ${foe.name}`) : (view.over ? 'Fim de jogo' : `Vez de ${view.active === me.seat ? me.name : foe.name}`)}
+          Turno {view.turn} · {mode === 'play' ? (myTurn ? <b>Sua vez</b> : view.over ? 'Fim de jogo' : partnerTurn ? <b className="is-partner">Vez do seu parceiro</b> : `Vez de ${activeName}`) : (view.over ? 'Fim de jogo' : `Vez de ${activeName}`)}
+          {match.custom && <em className="tcgb-chip is-custom">Personalizada · sem recompensas</em>}
+          {view.duo && <em className="tcgb-chip is-duo">2 vs 2</em>}
         </span>
         <span className="tcgb-arena-name">{board.name}</span>
         <span className="tcgb-spacer" />
@@ -415,7 +445,7 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
 
       <div className="tcgb-field">
         <div className="tcgb-side is-foe">
-          <Hero p={foe} side="foe" targetable={targets.has('hero')} onClick={clickFoeHero} active={view.active === foe.seat && !view.over} />
+          <Hero p={foe} side="foe" targetable={targets.has('hero')} onClick={clickFoeHero} active={view.active === foe.seat && !view.over} activeMember={view.active === foe.seat ? view.activeMember : null} />
           <div className="tcgb-foe-hand" aria-label={`${foe.handCount} cartas na mão`}>
             {Array.from({ length: Math.min(foe.handCount, 10) }, (_, i) => <CardBack key={i} small />)}
           </div>
@@ -430,7 +460,7 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
           <span className="tcgb-mid-line" />
           {mode === 'play' ? (
             <EndTurnButton
-              onClick={() => send({ type: 'END_TURN' })} disabled={!myTurn || busy} busy={busy} myTurn={myTurn}
+              onClick={() => send({ type: 'END_TURN' })} disabled={!myTurn || busy} busy={busy} myTurn={myTurn} partnerTurn={partnerTurn}
               pulse={myTurn && !legal.playable.length && !legal.attackers.length} secondsLeft={secondsLeft} total={view.rules?.turnSeconds || 75}
             />
           ) : mode === 'replay' ? (
@@ -464,7 +494,13 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
         </div>
         </div>
         <div className="tcgb-side is-me">
-          <Hero p={me} side="me" active={view.active === me.seat && !view.over} />
+          <Hero p={me} side="me" active={view.active === me.seat && !view.over} activeMember={view.active === me.seat ? view.activeMember : null} />
+          {me.partnerHand && !readOnly && (
+            <details className="tcgb-partner">
+              <summary><Icon d={UI.users} size={14} />Mão do parceiro ({me.partnerHand.length})</summary>
+              <div className="tcgb-partner-cards">{me.partnerHand.map((c) => <CardView key={c.uid} card={c} size="xs" tilt={false} />)}</div>
+            </details>
+          )}
           <div className="tcgb-hand" style={{ '--n': me.hand?.length || 0 }}>
             {(me.hand || []).map((c, i) => (
               <div key={c.uid}
@@ -544,9 +580,9 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
             <span className="tcgb-end-icon"><Icon d={won ? UI.trophy : UI.flag} size={44} /></span>
             <h2>{won ? 'Vitória!' : 'Derrota'}</h2>
             <p>{view.endReason === 'surrender' ? (won ? 'O oponente desistiu.' : 'Você desistiu.') : view.endReason === 'timeout' ? 'Tempo de turno esgotado.' : won ? 'Você derrotou o herói inimigo.' : 'Seu herói caiu.'}</p>
-            <p className="tcgb-reward"><Icon d={UI.coin} size={20} />{match.reward > 0 ? `+${match.reward} moedas` : 'Sem recompensa nesta partida'}</p>
+            <p className="tcgb-reward"><Icon d={UI.coin} size={20} />{match.custom ? 'Partida personalizada — sem recompensas' : match.reward > 0 ? `+${match.reward} moedas` : 'Sem recompensa nesta partida'}</p>
             {match.result?.campaign && <p className="tcg-ok">Fase concluída: {match.result.campaign.stage}! Próxima fase liberada.</p>}
-            {match.reward === 0 && <small>Partidas muito curtas, desistências no começo ou acima do limite diário não dão moedas.</small>}
+            {match.reward === 0 && !match.custom && <small>Partidas muito curtas, desistências no começo, partidas com bots no 2 vs 2 ou acima do limite diário não dão moedas.</small>}
             <div className="tcgb-end-actions">
               {match.mode === 'PVE' && !match.result?.campaign && <button type="button" className="tcg-btn primary" onClick={() => onRematch?.(match.difficulty)}>Jogar de novo</button>}
               <button type="button" className="tcg-btn" onClick={() => onExit({ replay: match.id })}>Ver replay</button>

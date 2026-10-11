@@ -47,7 +47,7 @@ const home = handle(async (req, res) => {
     S.getPlayer(userId),
     prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true } }),
     prisma.userCard.aggregate({ where: { userId, quantity: { gt: 0 } }, _sum: { quantity: true }, _count: true }),
-    prisma.cardMatch.findFirst({ where: { status: 'ACTIVE', OR: [{ p1Id: userId }, { p2Id: userId }] }, orderBy: { updatedAt: 'desc' }, select: { id: true, mode: true, difficulty: true } }),
+    prisma.cardMatch.findFirst({ where: { status: 'ACTIVE', OR: [{ p1Id: userId }, { p2Id: userId }, { p3Id: userId }, { p4Id: userId }] }, orderBy: { updatedAt: 'desc' }, select: { id: true, mode: true, difficulty: true, format: true, custom: true } }),
     pendingChallengesFor(userId),
     prisma.cardTrade.count({ where: { toId: userId, status: 'PENDING' } }),
     S.getBoards().catch(() => []),
@@ -381,19 +381,48 @@ function appendActions(raw, more) {
   return JSON.stringify(list.slice(0, 1500));
 }
 
+// Lado de cada jogador: 1v1 → p1 = 0, p2 = 1. 2v2 → p1 e p3 = time 0, p2 e p4 = time 1.
 function seatOf(m, userId) {
-  if (m.p1Id === userId) return 0;
-  if (m.p2Id === userId) return 1;
+  if (!userId) return -1;
+  if (m.p1Id === userId || m.p3Id === userId) return 0;
+  if (m.p2Id === userId || m.p4Id === userId) return 1;
   return -1;
+}
+const playersOf = (m) => [m.p1Id, m.p2Id, m.p3Id, m.p4Id].filter(Boolean);
+function rewardFor(m, userId, seat) {
+  const i = [m.p1Id, m.p2Id, m.p3Id, m.p4Id].indexOf(userId);
+  if (i >= 0) return [m.reward1, m.reward2, m.reward3, m.reward4][i] || 0;
+  return seat === 0 ? m.reward1 : m.reward2;
 }
 
 function payload(m, seat, state, extra = {}) {
+  const { viewer = null, ...rest } = extra;
   return {
-    id: m.id, mode: m.mode, difficulty: m.difficulty, status: m.status, version: m.version,
-    turnDeadline: m.turnDeadline, reward: seat === 0 ? m.reward1 : m.reward2, boardId: m.boardId || null,
+    id: m.id, mode: m.mode, difficulty: m.difficulty, status: m.status, version: m.version, format: m.format || '1V1', custom: !!m.custom,
+    turnDeadline: m.turnDeadline, reward: rewardFor(m, viewer, seat), boardId: m.boardId || null, lobbyId: m.lobbyId || null,
     spectators: spectatorCount(m.id),
-    view: state ? viewFor(state, seat) : null, ...extra,
+    view: state ? viewFor(state, seat, viewer) : null, ...rest,
   };
+}
+
+// Bots jogam enquanto for a vez deles (PvE e 2v2 com bot).
+function runBots(state, m) {
+  const events = [];
+  const actions = [];
+  let guard = 0;
+  while (!state.over && state.players[state.active].isBot && guard < 8) {
+    guard += 1;
+    const seat = state.active;
+    const r = playTurn(state, seat, state.players[seat].difficulty || m.difficulty || 'MEDIO');
+    state = r.state;
+    events.push(...r.events);
+    actions.push(...r.actions.map((a) => ({ s: seat, a })));
+  }
+  return { state, events, actions };
+}
+const timedMatch = (m) => m.mode === 'PVP';
+function notifyOthers(req, m, exceptId, event, data) {
+  for (const uid of playersOf(m)) if (uid !== exceptId) notify(req, uid, event, data);
 }
 
 function notify(req, userId, event, data) {
@@ -411,7 +440,7 @@ const BOT_NAMES = { FACIL: 'Aprendiz Pip', MEDIO: 'Duelista Nora', DIFICIL: 'Mes
 // inicial e o registro de ações para o replay.
 async function newPveMatch(userId, { difficulty, botName, botHp, botDeck, campaignStageId = null, boardId = null }) {
   const settings = await S.getSettings();
-  const busyPvp = await prisma.cardMatch.findFirst({ where: { mode: 'PVP', status: 'ACTIVE', OR: [{ p1Id: userId }, { p2Id: userId }] } });
+  const busyPvp = await prisma.cardMatch.findFirst({ where: { mode: 'PVP', status: 'ACTIVE', OR: [{ p1Id: userId }, { p2Id: userId }, { p3Id: userId }, { p4Id: userId }] } });
   if (busyPvp) throw new CardError('Termine sua partida PvP antes de começar outra.');
   const deck = await S.resolvePlayerDeck(userId, settings);
   const bot = botDeck ? { deck: botDeck, hp: botHp } : await S.botDeck(difficulty, settings);
@@ -427,7 +456,7 @@ async function newPveMatch(userId, { difficulty, botName, botHp, botDeck, campai
   let actions = [];
   if (state.active === 1) { const r = playTurn(state, 1, difficulty); state = r.state; events = r.events; actions = r.actions.map((a) => ({ s: 1, a })); }
   const m = await prisma.cardMatch.create({ data: { mode: 'PVE', difficulty, p1Id: userId, status: 'ACTIVE', state: JSON.stringify(state), initialState, actions: JSON.stringify(actions), campaignStageId, boardId: await S.pickBoardId(boardId) } });
-  return payload(m, 0, state, { events: eventsFor(events, 0) });
+  return payload(m, 0, state, { events: eventsFor(events, 0), viewer: userId });
 }
 
 const startPve = handle(async (req, res) => {
@@ -503,7 +532,7 @@ const respondChallenge = (accept) => handle(async (req, res) => {
   void settings;
   const { match: fresh, state } = await newPvpMatch(m.p1Id, m.p2Id, { pendingId: m.id });
   notify(req, m.p1Id, 'cards:match', { id: m.id, started: true });
-  res.json(payload(fresh, 1, state));
+  res.json(payload(fresh, 1, state, { viewer: userId }));
 });
 
 // Resolve prazo de turno estourado (PvP). Qualquer leitura ou ação chama isto.
@@ -515,15 +544,17 @@ async function applyTimeoutIfNeeded(req, m) {
   const timedOut = state.active;
   const r = reduce(state, state.active, { type: 'TIMEOUT' });
   state = r.state;
-  const log = appendActions(m.actions, [{ s: timedOut, a: { type: 'TIMEOUT' } }]);
+  const bots = runBots(state, m);
+  state = bots.state;
+  const log = appendActions(m.actions, [{ s: timedOut, a: { type: 'TIMEOUT' } }, ...bots.actions]);
+  const turnSecs = state.rules?.turnSeconds || settings.rules.turnSeconds;
   const upd = await prisma.cardMatch.updateMany({
     where: { id: m.id, version: m.version, status: 'ACTIVE' },
-    data: { state: JSON.stringify(state), actions: log, version: { increment: 1 }, turnDeadline: state.over ? null : new Date(Date.now() + settings.rules.turnSeconds * 1000) },
+    data: { state: JSON.stringify(state), actions: log, version: { increment: 1 }, turnDeadline: state.over ? null : new Date(Date.now() + turnSecs * 1000) },
   });
   if (upd.count) {
     if (state.over) await S.finalizeMatch(m, state, settings, req.app.get('io'));
-    notify(req, m.p1Id, 'cards:match', { id: m.id });
-    notify(req, m.p2Id, 'cards:match', { id: m.id });
+    notifyOthers(req, m, null, 'cards:match', { id: m.id });
   }
   return prisma.cardMatch.findUnique({ where: { id: m.id } });
 }
@@ -536,7 +567,7 @@ const getMatch = handle(async (req, res) => {
   const state = m.state ? JSON.parse(m.state) : null;
   const oppId = seat === 0 ? m.p2Id : m.p1Id;
   const opponent = oppId ? await prisma.user.findUnique({ where: { id: oppId }, select: PUBLIC_USER_FIELDS }) : null;
-  res.json(payload(m, seat, state, { opponent }));
+  res.json(payload(m, seat, state, { opponent, viewer: req.user.id }));
 });
 
 const action = handle(async (req, res) => {
@@ -545,7 +576,7 @@ const action = handle(async (req, res) => {
   const seat = m ? seatOf(m, userId) : -1;
   if (!m || seat < 0) throw new CardError('Partida não encontrada.', 404);
   m = await applyTimeoutIfNeeded(req, m);
-  if (m.status !== 'ACTIVE') return res.json(payload(m, seat, m.state ? JSON.parse(m.state) : null, { events: [] }));
+  if (m.status !== 'ACTIVE') return res.json(payload(m, seat, m.state ? JSON.parse(m.state) : null, { events: [], viewer: userId }));
   const settings = await S.getSettings();
   const body = req.body || {};
   const act = {
@@ -554,48 +585,56 @@ const action = handle(async (req, res) => {
     target: typeof body.target === 'string' ? body.target.slice(0, 20) : undefined,
   };
   let state = JSON.parse(m.state);
-  const before = state.active;
+  // 2v2: só o membro da vez joga (desistir vale pelo time a qualquer hora).
+  if (state.players[seat].bench?.length && act.type !== 'SURRENDER' && state.players[seat].userId !== userId) {
+    throw new CardError('É a vez do seu parceiro. Acompanhe e ajude na estratégia!');
+  }
+  const before = `${state.active}:${state.players[state.active].userId}`;
   const r = reduce(state, seat, act); // EngineError → 400
   state = r.state;
   const events = [...r.events];
   const newActions = [{ s: seat, a: act }];
-  if (m.mode === 'PVE' && !state.over && state.active === 1) {
-    const bot = playTurn(state, 1, m.difficulty);
-    state = bot.state;
-    events.push(...bot.events);
-    newActions.push(...bot.actions.map((a) => ({ s: 1, a })));
-  }
-  const turnChanged = state.active !== before;
+  const bot = runBots(state, m);
+  state = bot.state;
+  events.push(...bot.events);
+  newActions.push(...bot.actions);
+  const turnChanged = `${state.active}:${state.players[state.active].userId}` !== before;
+  const turnSecs = state.rules?.turnSeconds || settings.rules.turnSeconds;
   const upd = await prisma.cardMatch.updateMany({
     where: { id: m.id, version: m.version, status: 'ACTIVE' },
     data: {
       state: JSON.stringify(state), actions: appendActions(m.actions, newActions), version: { increment: 1 },
-      ...(m.mode === 'PVP' ? { turnDeadline: state.over ? null : (turnChanged ? new Date(Date.now() + settings.rules.turnSeconds * 1000) : m.turnDeadline) } : {}),
+      ...(timedMatch(m) ? { turnDeadline: state.over ? null : (turnChanged ? new Date(Date.now() + turnSecs * 1000) : m.turnDeadline) } : {}),
     },
   });
   if (upd.count === 0) throw new CardError('A partida mudou enquanto você jogava. Atualizando…', 409);
   let result = null;
   if (state.over) result = await S.finalizeMatch(m, state, settings, req.app.get('io'));
   const fresh = await prisma.cardMatch.findUnique({ where: { id: m.id } });
-  if (m.mode === 'PVP') notify(req, seat === 0 ? m.p2Id : m.p1Id, 'cards:match', { id: m.id, version: fresh.version });
-  res.json(payload(fresh, seat, state, { events: eventsFor(events, seat), result }));
+  if (m.mode === 'PVP') notifyOthers(req, m, userId, 'cards:match', { id: m.id, version: fresh.version });
+  res.json(payload(fresh, seat, state, { events: eventsFor(events, seat), result, viewer: userId }));
 });
 
 const history = handle(async (req, res) => {
   const userId = req.user.id;
   const rows = await prisma.cardMatch.findMany({
-    where: { status: 'FINISHED', OR: [{ p1Id: userId }, { p2Id: userId }] },
+    where: { status: 'FINISHED', OR: [{ p1Id: userId }, { p2Id: userId }, { p3Id: userId }, { p4Id: userId }] },
     orderBy: { endedAt: 'desc' }, take: 20,
-    select: { id: true, mode: true, difficulty: true, p1Id: true, p2Id: true, winnerId: true, reward1: true, reward2: true, endReason: true, endedAt: true },
+    select: { id: true, mode: true, difficulty: true, p1Id: true, p2Id: true, p3Id: true, p4Id: true, format: true, custom: true, winnerId: true, reward1: true, reward2: true, reward3: true, reward4: true, endReason: true, endedAt: true },
   });
   const ids = [...new Set(rows.flatMap((r) => [r.p1Id, r.p2Id]).filter((x) => x && x !== userId))];
   const users = ids.length ? await prisma.user.findMany({ where: { id: { in: ids } }, select: PUBLIC_USER_FIELDS }) : [];
   const byId = Object.fromEntries(users.map((u) => [u.id, u]));
   res.json({
     matches: rows.map((r) => {
-      const seat = r.p1Id === userId ? 0 : 1;
+      const seat = seatOf(r, userId);
       const oppId = seat === 0 ? r.p2Id : r.p1Id;
-      return { id: r.id, mode: r.mode, difficulty: r.difficulty, won: r.winnerId === userId, reward: seat === 0 ? r.reward1 : r.reward2, endReason: r.endReason, endedAt: r.endedAt, opponent: oppId ? byId[oppId] || null : { displayName: BOT_NAMES[r.difficulty] || 'Bot', bot: true } };
+      const winSeat = r.winnerId ? seatOf(r, r.winnerId) : -1;
+      const duo = r.format === '2V2';
+      return {
+        id: r.id, mode: r.mode, difficulty: r.difficulty, format: r.format, custom: r.custom, won: duo ? winSeat === seat : r.winnerId === userId, reward: rewardFor(r, userId, seat), endReason: r.endReason, endedAt: r.endedAt,
+        opponent: duo ? { displayName: `Time de ${byId[oppId]?.displayName || 'Bots'}`, ...(byId[oppId] ? { avatarUrl: byId[oppId].avatarUrl, id: oppId } : { bot: true }) } : oppId ? byId[oppId] || null : { displayName: BOT_NAMES[r.difficulty] || 'Bot', bot: true },
+      };
     }),
   });
 });
@@ -750,7 +789,7 @@ const respondTrade = (kind) => handle(async (req, res) => {
 });
 
 module.exports = {
-  newPveMatch, newPvpMatch, playerSeatInfo, notify, payload, seatOf, applyTimeoutIfNeeded, requireActivePlayer, handle, BOT_NAMES, safeJson,
+  newPveMatch, newPvpMatch, playerSeatInfo, notify, payload, seatOf, playersOf, runBots, notifyOthers, appendActions, applyTimeoutIfNeeded, requireActivePlayer, handle, BOT_NAMES, safeJson,
   home, claimStarter, collection, userCollection, profileSummary, sellCard, levelUp,
   listPacks, openPack, listDecks, saveDeck, deleteDeck, activateDeck, suggestDeck,
   startPve, challenge, acceptChallenge: respondChallenge(true), declineChallenge: respondChallenge(false),

@@ -5,6 +5,7 @@ import { loadLinkPreview, peekLinkPreview } from '../utils/internalLinks';
 import { requestOpenModpack } from '../pages/mods/modpackShared.js';
 import { proxyImage } from '../utils/imageProxy';
 import UserAvatar from './UserAvatar.jsx';
+import BattleInviteCard from '../cards/BattleInviteCard.jsx';
 import '../styles/socialx.css';
 
 // Cartão de prévia pra links internos colados no chat (post, modpack,
@@ -30,6 +31,11 @@ export function LinkKindIcon({ kind, size = 14 }) {
 }
 
 export default function InternalLinkCard({ link }) {
+  if (link.kind === 'battle') return <BattleInviteCard code={link.id} />;
+  return <LinkPreviewCard link={link} />;
+}
+
+function LinkPreviewCard({ link }) {
   const navigate = useNavigate();
   const [data, setData] = useState(() => peekLinkPreview(link));
 

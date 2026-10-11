@@ -44,6 +44,10 @@ export function parseInternalLink(raw) {
     }
     case 'channels': return id ? { kind: 'channel', id, path } : null;
     case 'comunidades': return id ? { kind: 'club', id, path } : null;
+    case 'cartas': {
+      const sala = u.searchParams.get('sala');
+      return sala && /^[A-Za-z0-9]{4,12}$/.test(sala) ? { kind: 'battle', id: sala.toUpperCase(), path } : null;
+    }
     default: return null;
   }
 }

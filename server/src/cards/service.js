@@ -99,6 +99,23 @@ async function getCatalog(force = false) {
 }
 function invalidateCatalog() { catalogCache = null; }
 
+// Baralho aleatório com TODAS as cartas (partidas personalizadas).
+function randomDeck(catalog, settings, level = 1) {
+  const pool = catalog.enabled;
+  const deck = [];
+  const count = new Map();
+  let guard = 0;
+  while (deck.length < settings.rules.deckSize && guard < 5000 && pool.length) {
+    guard += 1;
+    const c = pool[randInt(pool.length)];
+    const cap = rankOf(c.rarity) >= rankOf('LENDARIA') ? settings.rules.maxCopiesLegendary : settings.rules.maxCopies;
+    if ((count.get(c.id) || 0) >= cap && guard < 4000) continue;
+    count.set(c.id, (count.get(c.id) || 0) + 1);
+    deck.push({ card: c, level: Math.max(1, Math.min(settings.rules.levelCap || 5, level | 0)) });
+  }
+  return deck;
+}
+
 // ---------- Mesas (fundos de batalha) ----------
 const BOARD_THEMES = ['floresta', 'vulcao', 'templo', 'abismo', 'oceano', 'gelo', 'noite'];
 const SEED_BOARDS = [
@@ -350,7 +367,69 @@ function drawPack(pack, catalog) {
 // ---------- Recompensas ----------
 // Paga a recompensa de UMA partida, uma vez só (o update condicional em
 // status=ACTIVE garante isso mesmo com requisições simultâneas).
+// Partida personalizada: só encerra (ninguém ganha moedas, rating, missões).
+async function finalizeCustom(match, state) {
+  const winnerSeat = state.winner;
+  const winnerId = winnerSeat === 0 ? match.p1Id : winnerSeat === 1 ? (match.p2Id || 'BOT') : null;
+  const done = await prisma.cardMatch.updateMany({
+    where: { id: match.id, status: 'ACTIVE' },
+    data: { status: 'FINISHED', winnerId, endedAt: new Date(), endReason: state.endReason || null, state: JSON.stringify(state), turnDeadline: null },
+  });
+  if (!done.count) return null;
+  for (const uid of [match.p1Id, match.p2Id, match.p3Id, match.p4Id].filter(Boolean)) {
+    await prisma.cardPlayer.upsert({ where: { userId: uid }, update: { customPlayed: { increment: 1 } }, create: { userId: uid, customPlayed: 1 } }).catch(() => {});
+  }
+  return { rewards: [0, 0, 0, 0], winnerId, custom: true };
+}
+
+// 2v2: os dois do time vencedor ganham como no PvP (com os mesmos limites
+// diários). Sem rating. Com bot em algum lugar = sem recompensa.
+async function finalizeDuo(match, state, settings, io = null) {
+  const winnerSeat = state.winner;
+  const ids = [match.p1Id, match.p2Id, match.p3Id, match.p4Id];
+  const teamOf = (i) => i % 2; // p1,p3 = time 0; p2,p4 = time 1
+  const winnerId = winnerSeat === 0 ? match.p1Id : winnerSeat === 1 ? match.p2Id : null;
+  const R = settings.rewards;
+  const today = dayKey();
+  const turnsOk = state.turn >= R.minTurnsForReward;
+  const hasBot = state.players.some((p) => p.isBot || p.bench?.some((b) => b.isBot));
+  const rewards = [0, 0, 0, 0];
+  const r = await prisma.$transaction(async (tx) => {
+    const done = await tx.cardMatch.updateMany({
+      where: { id: match.id, status: 'ACTIVE' },
+      data: { status: 'FINISHED', winnerId, endedAt: new Date(), endReason: state.endReason || null, state: JSON.stringify(state), turnDeadline: null },
+    });
+    if (!done.count) return null;
+    for (let i = 0; i < 4; i += 1) {
+      const uid = ids[i];
+      if (!uid) continue;
+      const won = teamOf(i) === winnerSeat;
+      const p = await tx.cardPlayer.upsert({ where: { userId: uid }, update: {}, create: { userId: uid } });
+      const rewardsToday = p.rewardDay !== today ? 0 : p.rewardsToday;
+      let coins = 0;
+      if (!hasBot && turnsOk && !(state.endReason === 'surrender' && !turnsOk) && rewardsToday < R.dailyRewardedMatches && !p.banned) coins = won ? R.pvpWin : R.pvpLoss;
+      coins = Math.max(0, Math.trunc(coins));
+      rewards[i] = coins;
+      await tx.cardPlayer.update({ where: { userId: uid }, data: { rewardDay: today, rewardsToday: rewardsToday + (coins > 0 ? 1 : 0), coinsEarned: { increment: coins }, ...(won ? { duoWins: { increment: 1 } } : { duoLosses: { increment: 1 } }) } });
+      if (coins > 0) await tx.user.update({ where: { id: uid }, data: { coins: { increment: coins } } });
+    }
+    await tx.cardMatch.update({ where: { id: match.id }, data: { reward1: rewards[0], reward2: rewards[1], reward3: rewards[2], reward4: rewards[3] } });
+    return { rewards, winnerId };
+  });
+  if (r) {
+    const ledger = require('../services/economyLedger');
+    for (let i = 0; i < 4; i += 1) {
+      if (!ids[i]) continue;
+      if (rewards[i] > 0) ledger.recordTransaction(ids[i], { kind: 'CARDS', label: 'Jogo de Cartas: partida 2 vs 2', coins: rewards[i] });
+      afterActivity(ids[i], [['CARDS_PLAY', 1], ...(teamOf(i) === winnerSeat ? [['CARDS_WIN', 1]] : [])], io);
+    }
+  }
+  return r;
+}
+
 async function finalizeMatch(match, state, settings, io = null) {
+  if (match.custom) return finalizeCustom(match, state);
+  if (match.format === '2V2') return finalizeDuo(match, state, settings, io);
   const winnerSeat = state.winner;
   const seats = [match.p1Id, match.p2Id];
   const winnerId = winnerSeat === 0 || winnerSeat === 1 ? seats[winnerSeat] : null;
@@ -479,5 +558,5 @@ module.exports = {
   CardError, dayKey, rankOf, randInt, getSettings, invalidateSettings, ensureSeed, getCatalog, invalidateCatalog,
   shapeCard, getPlayer, ownedMap, grantCards, parseDeckCards, validateDeck, autoDeck, resolvePlayerDeck, botDeck,
   drawPack, packPool, finalizeMatch, copiesCap,
-  getBoards, invalidateBoards, shapeBoard, pickBoardId, BOARD_THEMES,
+  getBoards, invalidateBoards, shapeBoard, pickBoardId, BOARD_THEMES, randomDeck,
 };

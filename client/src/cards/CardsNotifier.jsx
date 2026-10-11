@@ -19,22 +19,38 @@ export default function CardsNotifier() {
     const onChallenge = (msg) => setToast({ kind: 'challenge', id: msg.id, from: msg.from });
     const onMatch = (msg) => { if (msg?.started) setToast({ kind: 'started', id: msg.id }); };
     const onTrade = (msg) => { if (!msg?.accepted) setToast({ kind: 'trade', id: msg.id }); else setToast({ kind: 'tradeDone', id: msg.id }); };
+    const onInvite = (msg) => setToast({ kind: 'invite', code: msg.code, from: msg.from, format: msg.format, custom: msg.custom });
+    socket.on('cards:invite', onInvite);
     socket.on('cards:challenge', onChallenge);
     socket.on('cards:match', onMatch);
     socket.on('cards:trade', onTrade);
-    return () => { socket.off('cards:challenge', onChallenge); socket.off('cards:match', onMatch); socket.off('cards:trade', onTrade); };
+    return () => { socket.off('cards:invite', onInvite); socket.off('cards:challenge', onChallenge); socket.off('cards:match', onMatch); socket.off('cards:trade', onTrade); };
   }, [socket]);
 
   useEffect(() => {
     if (!toast) return undefined;
-    const t = setTimeout(() => setToast(null), toast.kind === 'challenge' ? 60_000 : 12_000);
+    const t = setTimeout(() => setToast(null), toast.kind === 'challenge' || toast.kind === 'invite' ? 60_000 : 12_000);
     return () => clearTimeout(t);
   }, [toast]);
 
   if (!toast) return null;
   const onArena = pathname.startsWith('/cartas');
-  if (onArena && toast.kind !== 'challenge') return null;
+  if (onArena && toast.kind !== 'challenge' && toast.kind !== 'invite') return null;
   const close = () => setToast(null);
+
+  if (toast.kind === 'invite') {
+    return (
+      <div className="tcg-toast is-invite" role="alert">
+        <UserAvatar user={toast.from || {}} size={38} />
+        <span className="tcg-toast-text">
+          <b data-no-translate>{toast.from?.displayName || 'Alguém'}</b> está chamando você para uma batalha {toast.format === '2V2' ? '2 vs 2' : '1 vs 1'}{toast.custom ? ' personalizada' : ''}!
+          <small>Arena de Cartas · sala {toast.code}</small>
+        </span>
+        <button type="button" className="tcg-btn ghost" onClick={close}>Agora não</button>
+        <button type="button" className="tcg-btn primary" onClick={() => { close(); navigate(`/cartas?sala=${toast.code}`); }}><Icon d={UI.sword} size={15} />Entrar</button>
+      </div>
+    );
+  }
 
   if (toast.kind === 'challenge') {
     return (

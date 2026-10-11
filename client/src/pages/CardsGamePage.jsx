@@ -14,6 +14,7 @@ import Collection from '../cards/Collection.jsx';
 import Market from '../cards/Market.jsx';
 import Tournaments from '../cards/Tournaments.jsx';
 import WelcomeModal from '../cards/WelcomeModal.jsx';
+import LobbyRoom from '../cards/LobbyRoom.jsx';
 import {
   cardsHome, cardsClaimStarter, cardsCollection, cardsStartPve, cardsMatch, cardsChallenge, cardsRanking,
   cardsUserCollection, cardsWatch, cardsReplay, errMsg,
@@ -98,6 +99,8 @@ export default function CardsGamePage() {
   const tradeWith = params.get('trocar');
   const [tradeTarget, setTradeTarget] = useState(null);
   const openCard = params.get('carta');
+  const salaCode = params.get('sala');
+  const [room, setRoom] = useState(null); // { code } ou { create: defaults }
 
   const loadHome = useCallback(() => cardsHome().then((h) => { setHome(h); return h; }).catch((e) => setErr(errMsg(e, 'Não foi possível abrir o Jogo de Cartas.'))), []);
   const loadCards = useCallback(() => cardsCollection().then((d) => setCards(d.cards)).catch(() => {}), []);
@@ -121,6 +124,11 @@ export default function CardsGamePage() {
       cardsReplay(r).then((d) => setMatch({ data: { id: d.id, mode: d.mode, boardId: d.boardId, view: d.frames[0].view }, mode: 'replay', frames: d.frames })).catch((e) => { setErr(errMsg(e)); setParam('replay', null); });
     }
   }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ?sala=CODIGO (link de convite) abre a sala.
+  useEffect(() => {
+    if (salaCode) setRoom({ code: salaCode.toUpperCase() });
+  }, [salaCode]);
 
   // ?desafiar=userId / ?trocar=userId (vindo do perfil)
   useEffect(() => {
@@ -154,7 +162,12 @@ export default function CardsGamePage() {
   const setWallet = (wallet) => wallet && setHome((h) => (h ? { ...h, wallet } : h));
   const refreshAll = () => { loadHome(); loadCards(); };
 
-  const startMatch = (m) => { setMatch({ data: m, mode: 'play' }); setParams((p) => { const n = new URLSearchParams(p); n.set('partida', m.id); n.delete('assistir'); n.delete('replay'); return n; }, { replace: true }); };
+  const startMatch = (m) => { setRoom(null); setMatch({ data: m, mode: 'play' }); setParams((p) => { const n = new URLSearchParams(p); n.set('partida', m.id); n.delete('assistir'); n.delete('replay'); n.delete('sala'); return n; }, { replace: true }); };
+  const closeRoom = () => { setRoom(null); setParam('sala', null); };
+  const roomStarted = (matchId, watch) => {
+    setRoom(null);
+    setParams((p) => { const n = new URLSearchParams(p); n.delete('sala'); n.set(watch ? 'assistir' : 'partida', matchId); return n; }, { replace: true });
+  };
   const exitMatch = (opts) => {
     setMatch(null);
     setParams((p) => { const n = new URLSearchParams(p); n.delete('partida'); n.delete('assistir'); n.delete('replay'); if (opts?.replay) n.set('replay', opts.replay); return n; }, { replace: true });
@@ -207,7 +220,7 @@ export default function CardsGamePage() {
         </nav>
 
         {!home && !err && <p className="tcg-empty">Carregando…</p>}
-        {home && tab === 'jogar' && <ArenaHome home={home} me={user} cards={cards} onStartMatch={startMatch} onReload={loadHome} onWatch={(id) => setParam('assistir', id)} onReplay={(id) => setParam('replay', id)} />}
+        {home && tab === 'jogar' && <ArenaHome home={home} me={user} cards={cards} onStartMatch={startMatch} onReload={loadHome} onWatch={(id) => setParam('assistir', id)} onReplay={(id) => setParam('replay', id)} onOpenRoom={(defaults) => setRoom({ create: defaults || {} })} />}
         {home && tab === 'colecao' && <Collection cards={cards} home={home} onChanged={(r) => { setWallet(r?.wallet); refreshAll(); }} openId={openCard} onOpenChange={(id) => setParam('carta', id)} />}
         {home && tab === 'loja' && <PacksTab home={home} onOpened={(w) => { setWallet(w); loadCards(); loadHome(); }} />}
         {home && tab === 'baralhos' && <DeckBuilder collection={cards} rules={home.rules} onChanged={loadHome} />}
@@ -218,6 +231,12 @@ export default function CardsGamePage() {
         {home && tab === 'torneios' && <Tournaments me={user} onWatch={(id) => setParam('assistir', id)} onReload={loadHome} />}
         {home && tab === 'ranking' && <RankingTab divisions={home.meta.divisions} />}
       </div>
+      {room && (
+        <LobbyRoom
+          key={room.code || 'novo'} code={room.code} createDefaults={room.create} me={user} boards={(home?.boards || []).filter((b) => b.id)}
+          onClose={closeRoom} onStarted={roomStarted} onStartMatch={startMatch}
+        />
+      )}
       {welcome && home?.starterAvailable && (
         <WelcomeModal
           home={home} user={user} cards={cards}

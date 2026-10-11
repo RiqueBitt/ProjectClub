@@ -228,7 +228,7 @@ async function canWatch(req, m) {
   if (C.seatOf(m, req.user.id) >= 0 || isAdmin(req.user)) return true;
   if (m.mode === 'PVP' || m.tournamentId) return true;
   const friends = await friendIds(req.user.id);
-  return friends.has(m.p1Id) || (m.p2Id && friends.has(m.p2Id));
+  return [m.p1Id, m.p2Id, m.p3Id, m.p4Id].some((x) => x && friends.has(x));
 }
 
 const replay = handle(async (req, res) => {
@@ -237,7 +237,7 @@ const replay = handle(async (req, res) => {
   if (!m.initialState) throw new CardError('Essa partida não tem replay (é anterior ao recurso).');
   if (m.status === 'ACTIVE' && C.seatOf(m, req.user.id) < 0 && !isAdmin(req.user)) throw new CardError('Assista ao vivo enquanto a partida acontece.');
   const seat = C.seatOf(m, req.user.id);
-  const see = (st) => (seat >= 0 ? viewFor(st, seat) : spectatorView(st));
+  const see = (st) => (seat >= 0 ? viewFor(st, seat, req.user.id) : spectatorView(st));
   let state = JSON.parse(m.initialState);
   const frames = [{ view: see(state), events: [], actor: null }];
   for (const { s, a } of safeJson(m.actions || '[]', []).slice(0, 400)) {
@@ -288,14 +288,17 @@ const stopWatching = handle(async (req, res) => {
 const live = handle(async (req, res) => {
   const friends = await friendIds(req.user.id);
   const ids = [...friends];
-  const select = { id: true, mode: true, difficulty: true, p1Id: true, p2Id: true, updatedAt: true, createdAt: true, tournamentId: true, boardId: true, state: true };
+  const select = { id: true, mode: true, difficulty: true, p1Id: true, p2Id: true, p3Id: true, p4Id: true, format: true, custom: true, updatedAt: true, createdAt: true, tournamentId: true, boardId: true, state: true };
+  // Só partidas com movimento recente: quem largou o jogo não aparece "ao vivo".
+  const fresh = new Date(Date.now() - 4 * 60_000);
+  const me = req.user.id;
   const [mine, pub] = await Promise.all([
-    ids.length ? prisma.cardMatch.findMany({ where: { status: 'ACTIVE', OR: [{ p1Id: { in: ids } }, { p2Id: { in: ids } }] }, orderBy: { updatedAt: 'desc' }, take: 20, select }) : [],
-    prisma.cardMatch.findMany({ where: { status: 'ACTIVE', mode: 'PVP', NOT: { OR: [{ p1Id: req.user.id }, { p2Id: req.user.id }] } }, orderBy: { updatedAt: 'desc' }, take: 20, select }),
+    ids.length ? prisma.cardMatch.findMany({ where: { status: 'ACTIVE', updatedAt: { gte: fresh }, OR: [{ p1Id: { in: ids } }, { p2Id: { in: ids } }, { p3Id: { in: ids } }, { p4Id: { in: ids } }] }, orderBy: { updatedAt: 'desc' }, take: 20, select }) : [],
+    prisma.cardMatch.findMany({ where: { status: 'ACTIVE', mode: 'PVP', updatedAt: { gte: fresh } }, orderBy: { updatedAt: 'desc' }, take: 30, select }),
   ]);
   const seen = new Set();
-  const rows = [...mine, ...pub].filter((r) => !seen.has(r.id) && seen.add(r.id) && r.p1Id !== req.user.id && r.p2Id !== req.user.id);
-  const uids = [...new Set(rows.flatMap((r) => [r.p1Id, r.p2Id]).filter(Boolean))];
+  const rows = [...mine, ...pub].filter((r) => !seen.has(r.id) && seen.add(r.id) && ![r.p1Id, r.p2Id, r.p3Id, r.p4Id].includes(me));
+  const uids = [...new Set(rows.flatMap((r) => [r.p1Id, r.p2Id, r.p3Id, r.p4Id]).filter(Boolean))];
   const users = uids.length ? await prisma.user.findMany({ where: { id: { in: uids } }, select: PUBLIC_USER_FIELDS }) : [];
   const byId = Object.fromEntries(users.map((u) => [u.id, u]));
   const brief = (raw) => {
@@ -303,9 +306,12 @@ const live = handle(async (req, res) => {
     if (!st?.players) return null;
     return { turn: st.turn, hp: st.players.map((p) => p.hp), board: st.players.map((p) => p.board?.length || 0) };
   };
+  const bot = (r) => ({ displayName: C.BOT_NAMES[r.difficulty] || 'Bot', bot: true });
   const matches = rows.map(({ state, ...r }) => ({
-    ...r, friend: friends.has(r.p1Id) || (r.p2Id && friends.has(r.p2Id)), spectators: SP.count(r.id), info: brief(state),
-    p1: byId[r.p1Id], p2: r.p2Id ? byId[r.p2Id] : { displayName: C.BOT_NAMES[r.difficulty] || 'Bot', bot: true },
+    ...r, friend: [r.p1Id, r.p2Id, r.p3Id, r.p4Id].some((x) => x && friends.has(x)), spectators: SP.count(r.id), info: brief(state),
+    p1: byId[r.p1Id], p2: r.p2Id ? byId[r.p2Id] : bot(r),
+    p3: r.format === '2V2' ? (r.p3Id ? byId[r.p3Id] : { displayName: 'Bot', bot: true }) : undefined,
+    p4: r.format === '2V2' ? (r.p4Id ? byId[r.p4Id] : { displayName: 'Bot', bot: true }) : undefined,
   })).sort((a, b) => (b.spectators - a.spectators) || (Number(b.friend) - Number(a.friend)) || (new Date(b.updatedAt) - new Date(a.updatedAt)));
   res.json({ matches: matches.slice(0, 24) });
 });
@@ -471,6 +477,13 @@ function startSweeper(io) {
       const late = await prisma.cardMatch.findMany({ where: { mode: 'PVP', status: 'ACTIVE', turnDeadline: { lt: new Date(Date.now() - 3000) } }, take: 20 });
       const fakeReq = { app: { get: () => sweeperIo } };
       for (const m of late) await C.applyTimeoutIfNeeded(fakeReq, m).catch(() => {});
+      // Partida contra bot largada (sem jogada há 15 min) é encerrada sem recompensa —
+      // assim ela não fica aparecendo "ao vivo" com o jogador já offline.
+      await prisma.cardMatch.updateMany({ where: { mode: 'PVE', status: 'ACTIVE', updatedAt: { lt: new Date(Date.now() - 15 * 60_000) } }, data: { status: 'CANCELLED', endReason: 'abandoned', endedAt: new Date() } });
+      // PvP sem prazo (dados antigos) e parado há 30 min também sai.
+      await prisma.cardMatch.updateMany({ where: { mode: 'PVP', status: 'ACTIVE', turnDeadline: null, updatedAt: { lt: new Date(Date.now() - 30 * 60_000) } }, data: { status: 'CANCELLED', endReason: 'abandoned', endedAt: new Date() } });
+      // Salas vencidas.
+      await prisma.cardLobby.updateMany({ where: { status: 'OPEN', expiresAt: { lt: new Date() } }, data: { status: 'CANCELLED' } });
       // Desafios vencidos somem.
       await prisma.cardMatch.updateMany({ where: { status: 'PENDING', createdAt: { lt: new Date(Date.now() - 5 * 60_000) } }, data: { status: 'CANCELLED', endReason: 'expired' } });
     } catch { /* ignora */ }

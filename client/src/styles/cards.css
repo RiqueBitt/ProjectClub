@@ -1025,3 +1025,114 @@ button.tcg-card:hover:not(.is-dim) { transform: translateY(-6px); }
 .tcgw-fan { margin-bottom: 26px; }
 .tcg-qty { top: auto; bottom: 34%; right: -12px; }
 .tcg-foil-badge { top: auto; left: auto; right: -12px; bottom: calc(34% + 32px); }
+
+/* =====================================================================
+   Etapa 6 — salas (convite/link), 2 vs 2, personalizada
+   ===================================================================== */
+.tcg-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 0 0 18px; }
+.tcg-mode { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 16px; border-radius: 18px; text-align: left; font: inherit; color: var(--text-normal); cursor: pointer; overflow: hidden;
+  border: 1px solid var(--border); background: var(--bg-secondary); transition: transform .15s, border-color .15s, box-shadow .15s; }
+.tcg-mode::after { content: ''; position: absolute; right: -30px; bottom: -30px; width: 120px; height: 120px; border-radius: 50%; background: radial-gradient(circle, var(--mc, #8b6bff), transparent 70%); opacity: .25; transition: opacity .2s; }
+.tcg-mode:hover { transform: translateY(-3px); border-color: var(--mc); box-shadow: 0 12px 28px rgba(0,0,0,.3); }
+.tcg-mode:hover::after { opacity: .45; }
+.tcg-mode b { font-size: 16px; color: var(--header-primary); }
+.tcg-mode small { font-size: 12.5px; color: var(--text-muted); line-height: 1.35; }
+.tcg-mode-icon { width: 46px; height: 46px; margin-bottom: 4px; border-radius: 14px; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--mc), color-mix(in srgb, var(--mc) 50%, #000)); box-shadow: 0 0 16px color-mix(in srgb, var(--mc) 50%, transparent); }
+.tcg-mode.is-duel { --mc: #ff5a3c; }
+.tcg-mode.is-duo { --mc: #3aa0ff; }
+.tcg-mode.is-custom { --mc: #a46bff; }
+.tcg-hist-tag { margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-style: normal; font-size: 11px; font-weight: 800; background: rgba(58,160,255,.15); color: #6cb8ff; }
+.tcg-hist-tag.is-custom { background: rgba(164,107,255,.15); color: #c9a6ff; }
+.tcg-live-tag.is-duo { background: rgba(58,160,255,.15); color: #6cb8ff; }
+.tcg-live-tag.is-custom { background: rgba(164,107,255,.15); color: #c9a6ff; }
+.tcg-live-avs { display: inline-flex; gap: 2px; }
+/* Sala */
+.tcgl-modal { z-index: 1650; }
+.tcgl-box { position: relative; width: min(760px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; padding: 22px; border-radius: 22px; background: linear-gradient(170deg, #1a1426, var(--bg-primary) 55%); border: 1px solid rgba(164,107,255,.3); box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+.tcgl-loading { padding: 40px; text-align: center; color: var(--text-muted); }
+.tcgl-create h2, .tcgl-head h2 { margin: 0; font-size: 22px; color: var(--header-primary); }
+.tcgl-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+.tcgl-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 14px; border-radius: 16px; text-align: left; font: inherit; color: var(--text-normal); cursor: pointer; border: 2px solid var(--border); background: var(--bg-secondary); transition: border-color .15s, background .15s; }
+.tcgl-opt.on { border-color: #8b6bff; background: color-mix(in srgb, #8b6bff 14%, var(--bg-secondary)); }
+.tcgl-opt b { font-size: 15px; color: var(--header-primary); }
+.tcgl-opt small { font-size: 12.5px; color: var(--text-muted); line-height: 1.35; }
+.tcgl-opt-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; margin-bottom: 4px; color: #fff; background: linear-gradient(135deg, #8b6bff, #ff4fa3); }
+.tcgl-rules { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: 16px; background: var(--bg-secondary); border: 1px solid var(--border); }
+.tcgl-presets { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.tcgl-preset { flex: 0 0 auto; width: 150px; display: flex; flex-direction: column; gap: 2px; padding: 10px; border-radius: 12px; text-align: left; font: inherit; cursor: pointer; color: var(--text-normal); border: 1px solid var(--border); background: var(--bg-primary); }
+.tcgl-preset:hover { border-color: #a46bff; }
+.tcgl-preset b { color: #c9a6ff; font-size: 13.5px; }
+.tcgl-preset small { color: var(--text-muted); font-size: 11.5px; line-height: 1.3; }
+.tcgl-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px 16px; }
+.tcgl-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-muted); }
+.tcgl-field span { display: flex; justify-content: space-between; }
+.tcgl-field b { color: var(--header-primary); }
+.tcgl-field input[type="range"] { width: 100%; accent-color: #8b6bff; }
+.tcgl-boards { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.tcgl-board { display: flex; flex-direction: column; gap: 4px; padding: 4px; border-radius: 12px; border: 2px solid transparent; background: none; cursor: pointer; font: inherit; color: var(--text-muted); font-size: 12px; }
+.tcgl-board.on { border-color: #8b6bff; color: var(--header-primary); }
+.tcgl-board-rand { display: grid; place-items: center; aspect-ratio: 16 / 9; border-radius: 12px; background: var(--bg-secondary); color: var(--text-muted); }
+.tcgl-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+.tcgl-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.tcgl-head p { margin: 2px 0 0; }
+.tcgl-crest { width: 50px; height: 50px; border-radius: 16px; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, #ff5a3c, #8b6bff); box-shadow: 0 0 20px rgba(139,107,255,.45); }
+.tcgl-code { font-family: ui-monospace, monospace; letter-spacing: 2px; color: #ffd34d; }
+.tcgl-tag { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; background: rgba(255,211,77,.15); color: #ffd34d; }
+.tcgl-tag.is-none { background: rgba(255,255,255,.08); color: var(--text-muted); }
+.tcgl-tag.is-custom { background: rgba(164,107,255,.18); color: #c9a6ff; }
+.tcgl-link { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-radius: 14px; background: var(--bg-secondary); border: 1px dashed rgba(164,107,255,.45); color: #c9a6ff; flex-wrap: wrap; }
+.tcgl-link input { flex: 1; min-width: 160px; height: 36px; border: 0; background: none; color: var(--text-normal); font: inherit; font-size: 13.5px; outline: 0; }
+.tcgl-invite { margin-top: 10px; }
+.tcgl-teams { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin: 16px 0 10px; }
+.tcgl-team { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 16px; background: var(--bg-secondary); border: 1px solid var(--border); }
+.tcgl-team.is-t0 { border-color: rgba(58,160,255,.4); box-shadow: inset 0 3px 0 rgba(58,160,255,.6); }
+.tcgl-team.is-t1 { border-color: rgba(255,90,60,.4); box-shadow: inset 0 3px 0 rgba(255,90,60,.6); }
+.tcgl-team h4 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--text-muted); }
+.tcgl-vs { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-weight: 900; font-size: 18px; color: #ff6b7a; text-shadow: 0 0 12px rgba(255,90,60,.6); }
+.tcgl-slot { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 12px; background: var(--bg-primary); border: 1px solid transparent; min-height: 62px; }
+.tcgl-slot.is-me { border-color: #8b6bff; }
+.tcgl-slot.is-empty { border: 1px dashed var(--border); }
+.tcgl-slot-empty { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; color: var(--text-muted); background: var(--bg-secondary); }
+.tcgl-slot-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tcgl-slot-name b { font-size: 14px; color: var(--header-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tcgl-slot-name small { font-size: 12px; color: var(--text-muted); }
+.tcgl-slot-acts { display: flex; align-items: center; gap: 6px; }
+.tcgl-bot-select { height: 30px; font-size: 12.5px; }
+.tcgl-summary { display: flex; flex-wrap: wrap; gap: 6px; }
+.tcgl-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--bg-secondary); color: var(--text-normal); border: 1px solid var(--border); }
+.tcgl-hint { margin: 10px 0 0; font-size: 12.5px; }
+.tcgl-wait { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 14px; }
+.tcgl-wait i { width: 10px; height: 10px; border-radius: 50%; background: #4cc76b; animation: tcg-livedot 1.6s infinite; box-shadow: 0 0 0 0 rgba(76,199,107,.6); }
+.tcg-toast.is-invite { border-color: rgba(164,107,255,.7); box-shadow: 0 14px 40px rgba(0,0,0,.55), 0 0 26px rgba(164,107,255,.35); }
+.tcg-toast-text small { display: block; color: var(--text-muted); font-size: 12px; }
+/* 2 vs 2 na batalha */
+.tcgb-team { display: flex; gap: 4px; flex-wrap: wrap; }
+.tcgb-team-m { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 2px; border-radius: 999px; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.1); font-size: 11.5px; color: #cfd2da; }
+.tcgb-team-m em { font-style: normal; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tcgb-team-m small { padding: 0 5px; border-radius: 6px; background: rgba(255,255,255,.1); font-weight: 800; }
+.tcgb-team-m.is-on { border-color: var(--accent); color: #fff; box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 50%, transparent); }
+.tcgb-chip { margin-left: 8px; padding: 2px 8px; border-radius: 999px; font-style: normal; font-size: 11.5px; font-weight: 800; background: rgba(164,107,255,.2); color: #d9c2ff; }
+.tcgb-chip.is-duo { background: rgba(58,160,255,.2); color: #9fd0ff; }
+.tcgb-turn b.is-partner { color: #6cb8ff; }
+.tcgb-partner { position: relative; align-self: flex-end; margin-bottom: 8px; }
+.tcgb-partner summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 999px; background: rgba(0,0,0,.5); border: 1px solid rgba(58,160,255,.4); color: #9fd0ff; font-size: 12px; font-weight: 800; white-space: nowrap; }
+.tcgb-partner summary::-webkit-details-marker { display: none; }
+.tcgb-partner-cards { position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 20; display: flex; gap: 8px; padding: 10px; border-radius: 14px; background: rgba(6,6,12,.92); border: 1px solid rgba(58,160,255,.35); box-shadow: 0 16px 40px rgba(0,0,0,.6); }
+.tcgb-partner-cards .tcg-card { --w: 84px; }
+@media (max-width: 760px) {
+  .tcg-modes { grid-template-columns: 1fr; }
+  .tcg-mode { flex-direction: row; align-items: center; gap: 12px; padding: 12px; }
+  .tcg-mode-icon { margin: 0; flex-shrink: 0; }
+  .tcg-mode b { min-width: 90px; }
+  .tcgl-choice { grid-template-columns: 1fr; }
+  .tcgl-teams { grid-template-columns: 1fr; gap: 26px; }
+  .tcgl-box { padding: 16px; }
+  .tcgb-team { display: none; }
+  .tcgb-partner-cards { left: auto; right: -40px; flex-wrap: wrap; width: 250px; }
+}
+.tcgb-turn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; min-width: 0; }
+.tcgb-turn .tcgb-chip { margin-left: 0; }
+.tcgb-partner { position: absolute; right: 18px; bottom: 168px; z-index: 12; margin: 0; }
+.tcgb-partner-cards { left: auto; right: 0; }
+@media (max-width: 1200px) { .tcgb-turn .tcgb-chip.is-custom { display: none; } }
+@media (max-width: 760px) { .tcgb-partner { bottom: 150px; right: 8px; } .tcgb-turn .tcgb-chip { display: none; } }

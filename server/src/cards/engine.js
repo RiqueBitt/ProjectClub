@@ -58,8 +58,23 @@ function makeToken(state, element) {
   };
 }
 
+// 2v2: cada lado é um TIME com herói, vida e campo compartilhados; cada
+// membro tem mão, baralho e energia próprios. Os campos pessoais do membro
+// da vez ficam no próprio lado (o resto do motor nem percebe que é 2v2) e
+// o parceiro espera em "bench"; a cada vez do time os dois trocam de lugar.
+// Ordem: A1, B1, A2, B2, A1…
+const PERSONAL = ['userId', 'name', 'avatarUrl', 'isBot', 'difficulty', 'energy', 'maxEnergy', 'fatigue', 'timeouts', 'deck', 'hand'];
+function swapMember(p) {
+  if (!p.bench?.length) return;
+  const other = p.bench[0];
+  const mine = {};
+  for (const k of PERSONAL) { mine[k] = p[k]; p[k] = other[k]; }
+  p.bench[0] = mine;
+}
+
 /**
- * players: [{ userId, name, avatarUrl, isBot, hp, deck: [{ card, level }] }] (2 jogadores)
+ * players: [{ userId, name, avatarUrl, isBot, hp, deck: [{ card, level }], partner? }] (2 lados)
+ * partner (2v2): { userId, name, avatarUrl, isBot, difficulty, deck } — divide herói e campo.
  */
 function createGame({ players, rules, seed, first }) {
   if (!Array.isArray(players) || players.length !== 2) throw new EngineError('A partida precisa de 2 jogadores.');
@@ -69,18 +84,33 @@ function createGame({ players, rules, seed, first }) {
     rules: { ...rules }, log: [], played: [[], []],
     players: [],
   };
-  state.players = players.map((p) => ({
+  const startEnergy = Math.max(0, Math.min(9, rules.startEnergy | 0));
+  const member = (p) => ({
     userId: p.userId || null, name: String(p.name || 'Jogador').slice(0, 40), avatarUrl: p.avatarUrl || null,
-    isBot: !!p.isBot, hp: p.hp || rules.startHp, maxHp: p.hp || rules.startHp,
-    energy: 0, maxEnergy: 0, fatigue: 0, timeouts: 0,
+    isBot: !!p.isBot, difficulty: p.difficulty || null,
+    energy: 0, maxEnergy: startEnergy, fatigue: 0, timeouts: 0,
     deck: shuffle(state, p.deck.map((d) => makeInstance(state, d.card, d.level))),
-    hand: [], board: [], graveyard: 0,
-  }));
+    hand: [],
+  });
+  state.players = players.map((p) => {
+    const side = { ...member(p), hp: p.hp || rules.startHp, maxHp: p.hp || rules.startHp, board: [], graveyard: 0, turnsTaken: 0 };
+    if (p.partner) {
+      side.bench = [member(p.partner)];
+      side.teamName = `${side.name} & ${side.bench[0].name}`;
+      state.duo = true;
+    }
+    return side;
+  });
   const events = [];
   for (let s = 0; s < 2; s += 1) {
     // Quem joga depois começa com uma carta a mais (compensa a iniciativa).
     const n = rules.startHand + (s === state.active ? 0 : 1);
     for (let i = 0; i < n; i += 1) draw(state, s, events);
+    if (state.players[s].bench) {
+      swapMember(state.players[s]);
+      for (let i = 0; i < n; i += 1) draw(state, s, events);
+      swapMember(state.players[s]);
+    }
   }
   startTurn(state, state.active, events);
   return state;
@@ -130,8 +160,10 @@ function startTurn(state, seat, events) {
     }
   }
   state.turnStartedSeq = state.seq;
-  events.push({ type: 'turn', seat, turn: state.turn });
-  draw(state, seat, events);
+  p.turnsTaken = (p.turnsTaken || 0) + 1;
+  events.push({ type: 'turn', seat, turn: state.turn, member: p.userId || p.name });
+  const n = Math.max(1, Math.min(3, state.rules.drawPerTurn || 1));
+  for (let i = 0; i < n; i += 1) draw(state, seat, events);
 }
 
 function damageHero(state, seat, amount, events, meta = {}) {
@@ -154,7 +186,7 @@ function finish(state, winnerSeat, reason, events) {
   state.winner = winnerSeat;
   state.endReason = reason;
   events.push({ type: 'gameOver', winner: winnerSeat, reason });
-  pushLog(state, `${state.players[winnerSeat].name} venceu a partida!`);
+  pushLog(state, `${state.players[winnerSeat].teamName || state.players[winnerSeat].name} venceu a partida!`);
 }
 
 // Dano em unidade, com escudo, veneno e congelamento. Devolve o dano efetivo.
@@ -341,6 +373,8 @@ function endTurn(state, events) {
   for (const u of state.players[state.active].board) u.attacksLeft = 0;
   state.active = next;
   if (next === state.firstSeat) state.turn += 1; // um "turno" = cada jogador jogou uma vez
+  // 2v2: a partir da segunda vez do time, o parceiro assume.
+  if (state.players[next].bench?.length && state.players[next].turnsTaken > 0) swapMember(state.players[next]);
   startTurn(state, next, events);
 }
 
@@ -430,21 +464,42 @@ function publicCard(c) {
 
 function playerView(state, p, s, showHand) {
   return {
-    seat: s, userId: p.userId, name: p.name, avatarUrl: p.avatarUrl, isBot: p.isBot,
+    seat: s, userId: p.userId, name: p.teamName || p.name, avatarUrl: p.avatarUrl, isBot: p.isBot,
     hp: p.hp, maxHp: p.maxHp, energy: p.energy, maxEnergy: p.maxEnergy,
     deckCount: p.deck.length, handCount: p.hand.length, graveyard: p.graveyard, fatigue: p.fatigue,
     hand: showHand ? p.hand.map(publicCard) : undefined,
     board: p.board.map(publicCard),
+    team: p.bench ? [
+      { userId: p.userId, name: p.name, avatarUrl: p.avatarUrl, isBot: p.isBot, handCount: p.hand.length, deckCount: p.deck.length, energy: p.energy, maxEnergy: p.maxEnergy, current: true },
+      ...p.bench.map((b) => ({ userId: b.userId, name: b.name, avatarUrl: b.avatarUrl, isBot: b.isBot, handCount: b.hand.length, deckCount: b.deck.length, energy: b.energy, maxEnergy: b.maxEnergy, current: false })),
+    ] : undefined,
   };
 }
 
 // Visão de um jogador: mão do oponente e os dois baralhos ficam ocultos.
-function viewFor(state, seat) {
+// 2v2: viewerId diz QUAL membro do time está olhando — ele vê a própria
+// mão (e a do parceiro, como apoio), mas só age na própria vez.
+function viewFor(state, seat, viewerId = null) {
+  const side = state.players[seat];
+  const me = playerView(state, side, seat, true);
+  let legal = legalActions(state, seat);
+  if (side.bench?.length && viewerId && viewerId !== side.userId) {
+    const mine = side.bench.find((b) => b.userId === viewerId);
+    if (mine) {
+      me.partnerHand = me.hand;
+      me.hand = mine.hand.map(publicCard);
+      me.energy = mine.energy; me.maxEnergy = mine.maxEnergy; me.deckCount = mine.deck.length; me.handCount = mine.hand.length;
+    }
+    legal = { playable: [], spellTargets: {}, attackers: [], targets: {}, canEndTurn: false, partnerTurn: true };
+  } else if (side.bench?.length) {
+    me.partnerHand = side.bench[0].hand.map(publicCard);
+  }
   return {
     seat, turn: state.turn, active: state.active, over: state.over, winner: state.winner, endReason: state.endReason,
-    seq: state.seq, rules: state.rules, log: state.log.slice(-15),
-    me: playerView(state, state.players[seat], seat, true), foe: playerView(state, state.players[1 - seat], 1 - seat, false),
-    legal: legalActions(state, seat),
+    seq: state.seq, rules: state.rules, log: state.log.slice(-15), duo: !!state.duo,
+    activeMember: state.players[state.active].userId || state.players[state.active].name,
+    me, foe: playerView(state, state.players[1 - seat], 1 - seat, false),
+    legal,
   };
 }
 
@@ -452,6 +507,7 @@ function viewFor(state, seat) {
 function spectatorView(state, seat = 0) {
   const v = viewFor(state, seat === 1 ? 1 : 0);
   v.me.hand = undefined;
+  v.me.partnerHand = undefined;
   v.legal = { playable: [], spellTargets: {}, attackers: [], targets: {}, canEndTurn: false };
   v.spectator = true;
   return v;
@@ -462,4 +518,4 @@ function eventsFor(events, seat) {
   return events.map((e) => (e.type === 'burn' && e.seat !== seat ? { type: 'burn', seat: e.seat } : e));
 }
 
-module.exports = { createGame, reduce, viewFor, spectatorView, eventsFor, legalActions, EngineError, publicCard, SPELL_TARGET, ABILITIES };
+module.exports = { swapMember, createGame, reduce, viewFor, spectatorView, eventsFor, legalActions, EngineError, publicCard, SPELL_TARGET, ABILITIES };

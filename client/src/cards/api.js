@@ -44,6 +44,16 @@ export const cardsTournaments = () => api.get('/cards/tournaments').then(d);
 export const cardsJoinTournament = (id) => api.post(`/cards/tournaments/${id}/join`).then(d);
 export const cardsLeaveTournament = (id) => api.post(`/cards/tournaments/${id}/leave`).then(d);
 
+// Salas (convite por link, 2v2, personalizada)
+export const cardsLobbies = () => api.get('/cards/lobbies').then(d);
+export const cardsCreateLobby = (body) => api.post('/cards/lobbies', body).then(d);
+export const cardsLobby = (code) => api.get(`/cards/lobbies/${code}`).then(d);
+export const cardsJoinLobby = (code, slot) => api.post(`/cards/lobbies/${code}/join`, slot === undefined ? {} : { slot }).then(d);
+export const cardsLeaveLobby = (code) => api.post(`/cards/lobbies/${code}/leave`).then(d);
+export const cardsLobbySlot = (code, slot, bot) => api.post(`/cards/lobbies/${code}/slot`, { slot, bot: bot || null }).then(d);
+export const cardsLobbyInvite = (code, userId) => api.post(`/cards/lobbies/${code}/invite`, { userId }).then(d);
+export const cardsStartLobby = (code) => api.post(`/cards/lobbies/${code}/start`).then(d);
+
 // Staff
 export const cardsAdmin = {
   cards: () => api.get('/cards/admin/cards').then(d),
