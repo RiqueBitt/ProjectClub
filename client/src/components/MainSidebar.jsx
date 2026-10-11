@@ -30,6 +30,8 @@ import { proxyImage } from '../utils/imageProxy';
 export const ACTIVITY_NAV_ICON = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>')}`;
 // Ícone da Economia (moeda) — mesmo esquema de máscara dos outros ícones.
 const ECONOMY_NAV_ICON = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.5 9a2.5 2.5 0 0 0-2.5-1.5c-1.4 0-2.5.8-2.5 2s1.1 1.7 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2A2.6 2.6 0 0 1 9.5 15M12 6v1.5M12 16.5V18"/></svg>')}`;
+// Ícone do Navegador (globo) — mesmo esquema de máscara dos outros ícones.
+const BROWSER_NAV_ICON = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9z"/></svg>')}`;
 export const ITEMS = [
   // Item pedido: "crie uma nova categoria chamada Início, primeira
   // categoria da lista, funcionando como página principal de
@@ -75,6 +77,8 @@ export const ITEMS = [
   { to: '/economia', icon: ECONOMY_NAV_ICON, isImg: true, labelKey: 'nav.economia', system: 'economia', match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') },
   { to: '/progresso', icon: ranksIcon, isImg: true, labelKey: 'nav.progresso', match: (p) => p.startsWith('/progresso') || p.startsWith('/rank') || p.startsWith('/conquistas') },
   { to: '/tickets', icon: supportIcon, isImg: true, labelKey: 'nav.suporte', match: (p) => p.startsWith('/tickets') },
+  // Navegador do Project Club: só no app para computador (abas dentro do app).
+  { to: '/navegador', icon: BROWSER_NAV_ICON, isImg: true, labelKey: 'nav.navegador', label: 'Navegador', desktopOnly: true, match: (p) => p.startsWith('/navegador') },
   // Item pedido: "renomear o sistema atual de Clãs para Clubes...
   // remover completamente a categoria Clãs da interface" — item
   // próprio na barra removido; o sistema (renomeado pra "Clube")
@@ -92,8 +96,11 @@ export const STAFF_ITEM = { to: '/admin', icon: dashboardIcon, isImg: true, labe
 
 // Tira do menu os itens cujo sistema a staff desligou (admin continua vendo).
 export function visibleNavItems(items, disabledSystems, user) {
-  if (user?.platformRole === 'ADMIN') return items;
-  return items.filter((i) => !i.system || !(disabledSystems || []).includes(i.system));
+  // Itens só do app desktop (ex.: Navegador) somem no site e em apps antigos.
+  const hasBrowser = typeof window !== 'undefined' && window.electronAPI?.browser?.version >= 1;
+  const list = items.filter((i) => !i.desktopOnly || hasBrowser);
+  if (user?.platformRole === 'ADMIN') return list;
+  return list.filter((i) => !i.system || !(disabledSystems || []).includes(i.system));
 }
 
 

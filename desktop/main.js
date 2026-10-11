@@ -15,6 +15,9 @@ const projectMcManager = require('./projectMcManager');
 // mexe com disco/registro; o site fala com esses módulos só via IPC.
 const steamDetector = require('./steamDetector');
 const modsManager = require('./modsManager');
+// Navegador do Project Club (abas <webview> dentro do app): sessão isolada,
+// bloqueio de anúncios/rastreadores e privacidade ao estilo LibreWolf.
+const browserEngine = require('./browserEngine');
 
 // URL do site hospedado — trocar aqui se o domínio mudar um dia. Fica só
 // nesse único lugar de propósito.
@@ -169,6 +172,8 @@ function isAllowedYouTubeUrl(url) {
 }
 function hardenYouTubeWebview(contents) {
   contents.on('will-attach-webview', (event, webPreferences, params) => {
+    // Abas do navegador do Project Club: regras próprias (browserEngine.js).
+    if (browserEngine.onWillAttach(event, webPreferences, params)) return;
     delete webPreferences.preload;
     webPreferences.nodeIntegration = false;
     webPreferences.nodeIntegrationInSubFrames = false;
@@ -180,6 +185,7 @@ function hardenYouTubeWebview(contents) {
     if (params.partition !== 'persist:youtube' || !okSrc) event.preventDefault();
   });
   contents.on('did-attach-webview', (_e, wc) => {
+    if (browserEngine.onDidAttach(wc)) return;
     const guard = (event, target) => { if (!isAllowedYouTubeUrl(target)) { event.preventDefault(); if (/^https?:/i.test(String(target))) shell.openExternal(target); } };
     wc.on('will-navigate', guard);
     wc.on('will-redirect', guard);
@@ -606,6 +612,7 @@ if (!gotLock) {
       },
     });
     hardenYouTubeWebview(mainWindow.webContents);
+    browserEngine.init(mainWindow);
 
     mainWindow.loadURL(APP_URL);
 
@@ -641,15 +648,26 @@ if (!gotLock) {
     // 'allow') em vez de mandar pro navegador do sistema. Links que já
     // apontam pro próprio site sempre abrem dentro, independente dessa
     // configuração — só é sobre links EXTERNOS.
+    // Navegador do Project Club: com "Abrir links no aplicativo" ligado, o
+    // link externo vira uma aba do navegador interno (dentro do app, ao lado
+    // do chat) em vez de uma janela solta.
+    const openExternalLink = (url) => {
+      if (!/^https?:\/\//i.test(url)) { if (/^(mailto|tel):/i.test(url)) shell.openExternal(url); return; }
+      if (desktopSettings.openLinksInApp) mainWindow.webContents.send('browser:open-tab', { url, reveal: true });
+      else shell.openExternal(url);
+    };
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
       if (!url.startsWith(APP_URL)) {
-        if (desktopSettings.openLinksInApp) {
-          return { action: 'allow' };
-        }
-        shell.openExternal(url);
+        openExternalLink(url);
         return { action: 'deny' };
       }
       return { action: 'allow' };
+    });
+    // Link externo clicado sem target (navegaria a janela do app pra fora).
+    mainWindow.webContents.on('will-navigate', (event, url) => {
+      if (url.startsWith(APP_URL)) return;
+      event.preventDefault();
+      openExternalLink(url);
     });
 
     // Item pedido: "Minimizar para bandeja... Ao fechar a janela, o

@@ -29,6 +29,8 @@ import QuickSwitcher from '../components/QuickSwitcher.jsx';
 import { MusicEngine, MusicPanel, MiniMusicBar } from '../music/MusicPlayer.jsx';
 import YouTubeApp, { YouTubeHost } from '../youtube/YouTubeApp.jsx';
 import CinemaApp, { CinemaHost } from '../cinema/CinemaApp.jsx';
+import BrowserHost from '../browser/BrowserHost.jsx';
+import { BrowserPage, BrowserDock, BrowserBridge } from '../browser/BrowserShell.jsx';
 import CardsNotifier from '../cards/CardsNotifier.jsx';
 import { startBoot, cachedBoot } from '../utils/bootstrap';
 import { applyBootData } from '../utils/applyBoot';
@@ -449,11 +451,15 @@ export default function MainApp() {
                 <Route path="/jogos/biblioteca" element={<GameLibraryPage />} />
                 <Route path="/jogos/biblioteca/:userId" element={<GameLibraryPage />} />
                 <Route path="/minijogos" element={<MiniJogosPage />} />
+                {/* Navegador do Project Club (app desktop): abas dentro do app. */}
+                <Route path="/navegador" element={<BrowserPage />} />
                 <Route path="/conversations/:conversationId" element={<ChatWindow kind="conversation" />} />
                 <Route path="/channels/:channelId" element={<ChatWindow kind="channel" />} />
               </Routes>
             </ErrorBoundary>
           </Suspense>
+          {/* Navegador ao lado do chat (painel redimensionável). */}
+          <BrowserDock />
         </div>
       </PanelSlot>
 
@@ -493,6 +499,8 @@ export default function MainApp() {
       <YouTubeHost />
       <CinemaApp />
       <CinemaHost />
+      <BrowserHost />
+      <BrowserBridge />
       <CardsNotifier />
     </div>
   );

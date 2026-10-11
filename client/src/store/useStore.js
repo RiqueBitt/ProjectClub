@@ -498,7 +498,16 @@ export const useStore = create((set, get) => ({
   closeProfile: () => set({ viewingProfileUserId: null, profileAutoOpenRoleMenu: false }),
   openSettings: () => { closeAllPopovers(); set({ settingsModalOpen: true, miniProfileUserId: null, miniProfileAnchorRect: null }); },
   closeSettings: () => set({ settingsModalOpen: false }),
-  openLinkConfirm: (url) => set({ pendingLinkUrl: url }),
+  // App desktop com navegador: o link abre numa aba do navegador do Project
+  // Club (ao lado do chat), sem sair do app. Senão, confirmação como antes.
+  openLinkConfirm: (url) => {
+    const b = typeof window !== 'undefined' ? window.electronAPI?.browser : null;
+    if (b && b.version >= 1 && /^https?:\/\//i.test(String(url)) && get().userSettings?.openLinksInApp !== false) {
+      import('../browser/browserStore').then(({ openInBrowser }) => { if (!openInBrowser(url)) set({ pendingLinkUrl: url }); }).catch(() => set({ pendingLinkUrl: url }));
+      return;
+    }
+    set({ pendingLinkUrl: url });
+  },
   // Item pedido: "quando mandarem gif, imagem/vídeo, quando abrir ele
   // e clicar em baixar, faça baixar já de vez" — mimeType adicionado
   // (opcional — as chamadas de GIF colado continuam funcionando sem

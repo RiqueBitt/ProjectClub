@@ -116,6 +116,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => ipcRenderer.removeListener('nexus:nxm-link', handler);
     },
   },
+  // Navegador do Project Club (abas dentro do app). Ver browserEngine.js.
+  browser: {
+    version: 1,
+    getState: () => ipcRenderer.invoke('browser:get-state'),
+    setPrefs: (patch) => ipcRenderer.invoke('browser:set-prefs', patch),
+    setSiteAdblock: (host, enabled) => ipcRenderer.invoke('browser:site-adblock', host, enabled),
+    permissionReply: (id, allow, remember) => ipcRenderer.invoke('browser:permission-reply', id, allow, remember),
+    listPermissions: () => ipcRenderer.invoke('browser:list-permissions'),
+    forgetPermissions: (origin) => ipcRenderer.invoke('browser:forget-permissions', origin),
+    allowHttp: (host) => ipcRenderer.invoke('browser:allow-http', host),
+    allowDangerous: (host) => ipcRenderer.invoke('browser:allow-dangerous', host),
+    suggest: (q) => ipcRenderer.invoke('browser:suggest', q),
+    clearData: (opts) => ipcRenderer.invoke('browser:clear-data', opts),
+    clearPrivate: (partition) => ipcRenderer.invoke('browser:clear-private', partition),
+    downloadAction: (id, action) => ipcRenderer.invoke('browser:download-action', id, action),
+    updateLists: () => ipcRenderer.invoke('browser:update-lists'),
+    openSystem: (url) => ipcRenderer.invoke('browser:open-system', url),
+    savePdf: (webContentsId) => ipcRenderer.invoke('browser:pdf', webContentsId),
+    on: (event, callback) => {
+      const ok = ['open-tab', 'blocked', 'permission', 'download', 'shortcut', 'crashed', 'context-action', 'engine', 'dangerous', 'https-upgraded', 'external'];
+      if (!ok.includes(event)) return () => {};
+      const handler = (_e, data) => callback(data);
+      ipcRenderer.on(`browser:${event}`, handler);
+      return () => ipcRenderer.removeListener(`browser:${event}`, handler);
+    },
+  },
   mods: {
     detectSteamGames: () => ipcRenderer.invoke('mods:detect-steam-games'),
     selectGameFolder: () => ipcRenderer.invoke('mods:select-game-folder'),
