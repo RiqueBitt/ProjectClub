@@ -1,3 +1,4 @@
+import { useMusic } from '../../music/musicStore';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSocket } from '../../context/SocketContext.jsx';
 import { parseYouTubeId, thumb } from './ytUtils.js';
@@ -86,6 +87,8 @@ export function useYouTubeWatch(channelId) {
 
   return { state, error, setError, emit, expectedPos, active: !!state?.videoId };
 }
+
+const MUSIC_ICON = 'M9 18V5l11-2v13M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3zM20 16a3 3 0 1 1-3-3 3 3 0 0 1 3 3z';
 
 function YIcon({ d, size = 18 }) {
   return (
@@ -198,6 +201,11 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
     };
   }, [apply]);
 
+  // Música da call começou: pausa o player pessoal pra não tocar duas coisas.
+  useEffect(() => {
+    if (state?.mode === 'music' && state?.playing) { try { useMusic.getState().setPlaying(false); } catch { /* ignora */ } }
+  }, [state?.mode, state?.playing, state?.videoId]);
+
   // Estado novo do servidor → aplica.
   useEffect(() => { setApiError(null); apply(); }, [state, apply]);
   useEffect(() => { if (state?.title) setTitle(state.title); else if (state?.videoId !== loadedIdRef.current) setTitle(''); }, [state?.title, state?.videoId]);
@@ -235,20 +243,30 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
   };
 
   if (!state?.videoId) return null;
+  const isMusic = state.mode === 'music';
   const queue = state.queue || [];
   const shown = scrub ?? cur;
 
   return (
-    <div ref={wrapRef} className="vc-screen ytw-stage" data-testid="yt-stage">
+    <div ref={wrapRef} className={`vc-screen ytw-stage${isMusic ? ' ytw-music' : ''}`} data-testid="yt-stage">
       <div className="ytw-player" ref={hostRef} />
+      {isMusic && (
+        <div className="ytw-music-art" aria-hidden="true">
+          <img className="ytw-music-bg" src={`https://i.ytimg.com/vi/${state.videoId}/hqdefault.jpg`} alt="" />
+          <div className={`ytw-music-disc${state.playing ? ' is-playing' : ''}`}>
+            <img src={`https://i.ytimg.com/vi/${state.videoId}/hqdefault.jpg`} alt="" />
+          </div>
+          <div className="ytw-music-eq" data-on={state.playing ? '1' : '0'}><i /><i /><i /><i /><i /></div>
+        </div>
+      )}
       {apiError && <div className="ytw-overlay ytw-msg" role="alert">{apiError}</div>}
       {blocked && !apiError && (
         <button type="button" className="ytw-overlay ytw-unblock" onClick={unblock}>
-          <YIcon d={P.play} size={28} /> Clique para assistir junto
+          <YIcon d={P.play} size={28} /> {isMusic ? 'Clique para ouvir junto' : 'Clique para assistir junto'}
         </button>
       )}
       <div className="ytw-top">
-        <span className="ytw-badge"><YIcon d={P.yt} size={16} /> Assistindo juntos</span>
+        <span className="ytw-badge"><YIcon d={isMusic ? MUSIC_ICON : P.yt} size={16} /> {isMusic ? 'Ouvindo juntos' : 'Assistindo juntos'}</span>
         <span className="ytw-title truncate" data-no-translate title={title}>{title || 'YouTube'}</span>
         <div className="ytw-viewers" aria-label={`${viewers.length} assistindo`}>
           {viewers.slice(0, 5).map((v) => <UserAvatar key={v.id} user={v} size={22} />)}
@@ -284,9 +302,9 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
           <button type="button" className={`ytw-btn${showQueue ? ' is-on' : ''}`} onClick={() => { setShowNext(false); setShowQueue((v) => !v); }} aria-label="Fila" aria-expanded={showQueue} title="Fila">
             <YIcon d={P.queue} />{queue.length > 0 && <span className="ytw-count">{queue.length}</span>}
           </button>
-          <button type="button" className="ytw-btn" onClick={onAdd} aria-label="Adicionar vídeo" title="Adicionar vídeo"><YIcon d={P.plus} /></button>
+          <button type="button" className="ytw-btn" onClick={() => onAdd(isMusic ? 'music' : 'youtube')} aria-label={isMusic ? 'Adicionar música' : 'Adicionar vídeo'} title={isMusic ? 'Adicionar música' : 'Adicionar vídeo'}><YIcon d={P.plus} /></button>
           <button type="button" className="ytw-btn" onClick={toggleFull} aria-label="Tela cheia" title="Tela cheia"><YIcon d={P.expand} /></button>
-          <button type="button" className="ytw-btn ytw-danger" onClick={() => emit('yt:close')} aria-label="Fechar vídeo" title="Fechar vídeo para todos"><YIcon d={P.close} /></button>
+          <button type="button" className="ytw-btn ytw-danger" onClick={() => emit('yt:close')} aria-label={isMusic ? 'Parar música' : 'Fechar vídeo'} title={isMusic ? 'Parar música para todos' : 'Fechar vídeo para todos'}><YIcon d={P.close} /></button>
         </div>
       </div>
       {showNext && (
@@ -348,6 +366,10 @@ export function ActivitiesButton({ onPick }) {
           <button type="button" role="menuitem" className="ytw-act-item" onClick={() => { setOpen(false); onPick('youtube'); }}>
             <span className="ytw-yt"><YIcon d={P.yt} size={22} /></span>
             <span><strong>YouTube - Assistir juntos</strong><small>Vídeos sincronizados com a chamada</small></span>
+          </button>
+          <button type="button" role="menuitem" className="ytw-act-item" onClick={() => { setOpen(false); onPick('music'); }}>
+            <span className="ytw-yt ytw-ytm"><YIcon d={MUSIC_ICON} size={22} /></span>
+            <span><strong>YouTube Music - Ouvir juntos</strong><small>Músicas tocando para todo mundo da chamada</small></span>
           </button>
         </div>
       )}

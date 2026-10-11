@@ -9,6 +9,7 @@ import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import { MicTest, MicSilentWarning, QualityDot } from './voice/VoiceExtras.jsx';
 import ScreenQualityMenu from './voice/ScreenQualityMenu.jsx';
 import { useYouTubeWatch, YouTubeStage, YouTubePicker, ActivitiesButton, YouTubeToast } from './voice/YouTubeWatch.jsx';
+import { CallMusicPicker } from '../music/MusicPlayer.jsx';
 
 // ============================================================
 // Canal de voz — visual refeito.
@@ -173,7 +174,7 @@ export default function VoiceChannelView({ channel }) {
         {spotlight ? (
           <>
             <div className={`vc-screens vc-screens-${Math.min(screens.length + (yt.active ? 1 : 0), 2)}`}>
-              {yt.active && <YouTubeStage yt={yt} viewers={viewers} onAdd={() => setYtPicker(true)} />}
+              {yt.active && <YouTubeStage yt={yt} viewers={viewers} onAdd={(kind) => setYtPicker(kind || 'youtube')} />}
               {screens.map((s) => (
                 <div key={s.key} className="vc-screen">
                   {/* Sem tela cheia na própria tela: evita o "espelho infinito". */}
@@ -200,8 +201,9 @@ export default function VoiceChannelView({ channel }) {
       </div>
       <MicSilentWarning voice={voice} />
       <YouTubeToast yt={yt} />
-      <VoiceCallControls voice={voice} micLocked={false} onActivity={() => setYtPicker(true)} />
-      {ytPicker && <YouTubePicker yt={yt} onClose={closeYtPicker} />}
+      <VoiceCallControls voice={voice} micLocked={false} onActivity={(kind) => setYtPicker(kind || 'youtube')} />
+      {ytPicker === 'music' && <CallMusicPicker yt={yt} onClose={closeYtPicker} />}
+      {ytPicker && ytPicker !== 'music' && <YouTubePicker yt={yt} onClose={closeYtPicker} />}
     </div>
   );
 }

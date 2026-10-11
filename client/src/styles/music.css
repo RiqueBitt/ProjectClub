@@ -44,3 +44,7 @@
 @media (prefers-reduced-motion: reduce) { .mu-skel { animation: none; } }
 .top-search-bar-icon-btn.top-donate-btn { color: #ff4d6d; display: inline-grid; place-items: center; }
 .top-search-bar-icon-btn.is-music-on { color: #ff4d6d; }
+.mu-head-text { display: flex; flex-direction: column; line-height: 1.2; }
+.mu-head-text small { color: var(--text-muted); font-size: 12px; }
+.mu-added { font-size: 12px; font-weight: 700; color: #3ba55d; }
+.mu-hint { margin: 0; font-size: 12px; color: var(--text-muted); text-align: center; }

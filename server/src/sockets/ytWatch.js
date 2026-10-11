@@ -109,7 +109,10 @@ function register(io, socket, userId) {
     if (!videoId) { deny(payload.channelId, 'Link ou ID do YouTube inválido.'); return undefined; }
     return {
       videoId, title: cleanTitle(payload.title), playing: true, positionSec: 0, updatedAt: Date.now(),
-      hostId: st?.hostId || userId, startedBy: userId, queue: st?.queue || [],
+      hostId: st?.hostId || userId, startedBy: userId,
+      // mode 'music' = YouTube Music na call (só áudio + capa pra todo mundo).
+      mode: payload.mode === 'music' ? 'music' : (payload.mode === 'video' ? 'video' : (st?.mode || 'video')),
+      queue: st?.queue || [],
     };
   });
 
@@ -117,7 +120,7 @@ function register(io, socket, userId) {
     const videoId = parseVideoId(payload.videoId || payload.url);
     if (!videoId) { deny(payload.channelId, 'Link ou ID do YouTube inválido.'); return undefined; }
     const item = { videoId, title: cleanTitle(payload.title), addedBy: userId };
-    if (!st) return { videoId, title: item.title, playing: true, positionSec: 0, updatedAt: Date.now(), hostId: userId, startedBy: userId, queue: [] };
+    if (!st) return { videoId, title: item.title, playing: true, positionSec: 0, updatedAt: Date.now(), hostId: userId, startedBy: userId, mode: payload.mode === 'music' ? 'music' : 'video', queue: [] };
     if ((st.queue || []).length >= MAX_QUEUE) { deny(payload.channelId, 'A fila está cheia.'); return undefined; }
     return { ...st, queue: [...(st.queue || []), item] };
   });

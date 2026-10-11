@@ -53,10 +53,11 @@ export function MusicEngine() {
         host: 'https://www.youtube-nocookie.com', width: 200, height: 112, videoId: cur.videoId,
         playerVars: { autoplay: 1, controls: 0, playsinline: 1, rel: 0 },
         events: {
-          onReady: (e) => { readyRef.current = true; curIdRef.current = cur.videoId; e.target.setVolume(useMusic.getState().volume); if (useMusic.getState().playing) e.target.playVideo(); },
+          onReady: (e) => { readyRef.current = true; curIdRef.current = cur.videoId; e.target.setVolume(useMusic.getState().volume); if (useMusic.getState().playing && useMusic.getState().index >= 0) e.target.playVideo(); else e.target.pauseVideo(); },
           onStateChange: (e) => {
             if (e.data === 0) useMusic.getState().next();
-            else if (e.data === 1 && !useMusic.getState().playing) useMusic.getState().setPlaying(true);
+            // Tocou sozinho depois de fechar/pausar? Para de novo (a barra manda).
+            else if (e.data === 1 && (!useMusic.getState().playing || useMusic.getState().index < 0)) e.target.pauseVideo();
           },
           onError: () => useMusic.getState().next(),
         },
@@ -66,7 +67,9 @@ export function MusicEngine() {
   }, [cur]);
 
   useEffect(() => {
-    const p = playerRef.current; if (!p || !readyRef.current || !cur) return;
+    const p = playerRef.current; if (!p || !readyRef.current) return;
+    // Barra fechada (fila limpa): para de verdade e esquece o vídeo carregado.
+    if (!cur) { try { p.stopVideo(); } catch { /* ignora */ } curIdRef.current = null; return; }
     if (curIdRef.current !== cur.videoId) { curIdRef.current = cur.videoId; p.loadVideoById(cur.videoId); if (!playing) p.pauseVideo(); return; }
     if (playing) p.playVideo(); else p.pauseVideo();
   }, [cur, playing]);
@@ -101,20 +104,83 @@ function Results({ items, onPlay, onAdd, loading }) {
   );
 }
 
-export function MusicPanel() {
-  const m = useMusic();
+function useMusicSearch() {
   const [q, setQ] = useState('');
   const [genre, setGenre] = useState('hot');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState('browse');
-
+  const reqRef = useRef(0);
   const run = (query, g) => {
+    const my = ++reqRef.current;
     setLoading(true);
     const p = query ? ytSearch(query) : (g?.q ? ytSearch(g.q) : ytTrending('music'));
-    p.then((d) => setItems((d?.items || d?.videos || []).filter((v) => !v.live).map(toTrack))).catch(() => setItems([])).finally(() => setLoading(false));
+    p.then((d) => { if (my === reqRef.current) setItems((d?.items || d?.videos || []).filter((v) => !v.live).map(toTrack)); })
+      .catch(() => { if (my === reqRef.current) setItems([]); })
+      .finally(() => { if (my === reqRef.current) setLoading(false); });
   };
-  useEffect(() => { if (m.panelOpen && !items.length) run(null, GENRES[0]); }, [m.panelOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  return { q, setQ, genre, setGenre, items, loading, run };
+}
+
+// Busca + gêneros + resultados (usado no player pessoal e na call).
+function MusicBrowse({ ms, onPlay, onAdd }) {
+  const { q, setQ, genre, setGenre, items, loading, run } = ms;
+  return (
+    <>
+      <form className="mu-search" onSubmit={(e) => { e.preventDefault(); if (q.trim()) { setGenre(null); run(q.trim()); } }}>
+        <Ico d={I.search} size={16} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar músicas, artistas, álbuns…" aria-label="Buscar músicas" autoFocus />
+      </form>
+      <div className="mu-chips">
+        {GENRES.map((g) => (
+          <button key={g.id} type="button" className={genre === g.id ? 'on' : ''} onClick={() => { setGenre(g.id); setQ(''); run(null, g); }}>{g.label}</button>
+        ))}
+      </div>
+      <Results items={items} loading={loading} onPlay={onPlay} onAdd={onAdd} />
+    </>
+  );
+}
+
+// YouTube Music na call (Atividades): toca pra todo mundo, sincronizado.
+export function CallMusicPicker({ yt, onClose }) {
+  const ms = useMusicSearch();
+  const [added, setAdded] = useState(null);
+  useEffect(() => { ms.run(null, GENRES[0]); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const playing = yt.state?.videoId && yt.state?.mode === 'music';
+  return (
+    <div className="mu-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="mu-panel" role="dialog" aria-label="YouTube Music na chamada">
+        <div className="mu-head">
+          <span className="mu-logo"><Ico d={I.note} size={18} /></span>
+          <span className="mu-head-text"><strong>YouTube Music</strong><small>Toca na chamada para todo mundo</small></span>
+          <span style={{ flex: 1 }} />
+          {added && <span className="mu-added" role="status">Adicionada à fila</span>}
+          <button type="button" className="mu-icon-btn" onClick={onClose} aria-label="Fechar"><Ico d={I.x} /></button>
+        </div>
+        <MusicBrowse
+          ms={ms}
+          onPlay={(t) => {
+            useMusic.getState().setPlaying(false); // pausa o player pessoal
+            if (playing) { yt.emit('yt:queue:add', { videoId: t.videoId, title: t.title, mode: 'music' }); setAdded(t.videoId); setTimeout(() => setAdded(null), 1800); }
+            else { yt.emit('yt:open', { videoId: t.videoId, title: t.title, mode: 'music' }); onClose(); }
+          }}
+          onAdd={(t) => { yt.emit('yt:queue:add', { videoId: t.videoId, title: t.title, mode: 'music' }); setAdded(t.videoId); setTimeout(() => setAdded(null), 1800); }}
+        />
+        {playing && <p className="mu-hint">Já tem música tocando na chamada: clicar adiciona à fila.</p>}
+      </div>
+    </div>
+  );
+}
+
+export function MusicPanel() {
+  const m = useMusic();
+  const ms = useMusicSearch();
+  const [tab, setTab] = useState('browse');
+  useEffect(() => { if (m.panelOpen && !ms.items.length) ms.run(null, GENRES[0]); }, [m.panelOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!m.panelOpen) return undefined;
     const onKey = (e) => { if (e.key === 'Escape') m.openPanel(false); };
@@ -136,18 +202,7 @@ export function MusicPanel() {
           <button type="button" className="mu-icon-btn" onClick={() => m.openPanel(false)} aria-label="Fechar"><Ico d={I.x} /></button>
         </div>
         {tab === 'browse' ? (
-          <>
-            <form className="mu-search" onSubmit={(e) => { e.preventDefault(); if (q.trim()) { setGenre(null); run(q.trim()); } }}>
-              <Ico d={I.search} size={16} />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar músicas, artistas, álbuns…" aria-label="Buscar músicas" />
-            </form>
-            <div className="mu-chips">
-              {GENRES.map((g) => (
-                <button key={g.id} type="button" className={genre === g.id ? 'on' : ''} onClick={() => { setGenre(g.id); setQ(''); run(null, g); }}>{g.label}</button>
-              ))}
-            </div>
-            <Results items={items} loading={loading} onPlay={(t) => m.playNow(t, items)} onAdd={(t) => m.enqueue(t)} />
-          </>
+          <MusicBrowse ms={ms} onPlay={(t) => m.playNow(t, ms.items)} onAdd={(t) => m.enqueue(t)} />
         ) : (
           <div className="mu-list">
             {!m.queue.length && <p className="mu-empty">A fila está vazia. Toque uma música em Explorar.</p>}

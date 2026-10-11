@@ -315,7 +315,7 @@ export default function YouTubeBrowser({ yt, onClose }) {
     listYoutubeVideos().then((d) => setFallback((d?.videos || []).map((v) => ({ videoId: v.videoId, title: v.title, thumbnail: v.thumbnailUrl, channel: 'Mr. Pinguim', channelId: null })))).catch(() => setFallback([]));
   }, [feed.unavailable, fallback]);
 
-  const play = (v) => { yt.emit('yt:open', { videoId: v.videoId, title: v.title || undefined }); onClose(); };
+  const play = (v) => { yt.emit('yt:open', { videoId: v.videoId, title: v.title || undefined, mode: 'video' }); onClose(); };
   const queue = (v) => {
     yt.emit('yt:queue:add', { videoId: v.videoId, title: v.title || undefined });
     setQueued((s) => new Set(s).add(v.videoId));
