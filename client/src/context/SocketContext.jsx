@@ -8,6 +8,7 @@ import { playSound } from '../utils/sounds';
 import { setupNativeActivity } from '../utils/nativeActivity';
 import { updateUnreadBadge } from '../utils/unreadBadge';
 import { sameData } from '../utils/liveRefresh';
+import { getAccessToken, refreshAccessToken } from '../api/client';
 
 const SocketContext = createContext(null);
 
@@ -82,13 +83,36 @@ export function SocketProvider({ children }) {
     // de espera entre tentativas de reconexão) — conservadores demais
     // pra um chat em tempo real, onde detectar e se recuperar de uma
     // queda rápido importa mais do que economizar tentativas.
+    // BUG CORRIGIDO ("mensagens só chegam recarregando a página"): o
+    // token ia FIXO no socket (o do login). Ele expira em 15 min e o
+    // axios renova só pra ele mesmo — então, depois disso, qualquer queda
+    // de rede fazia a reconexão ser recusada pelo servidor ('unauthorized')
+    // e o Socket.IO NÃO tenta de novo depois de uma recusa do middleware:
+    // o chat parava de receber tudo em tempo real até dar F5. Agora cada
+    // (re)conexão lê o token mais recente e, se for recusado, renova e
+    // reconecta sozinho.
     const socket = io('/', {
-      auth: { token }, transports: ['websocket', 'polling'],
+      auth: (cb) => cb({ token: getAccessToken() || token }), transports: ['websocket', 'polling'],
       timeout: 10000, reconnectionDelay: 400, reconnectionDelayMax: 2500,
     });
     socketRef.current = socket;
+    let authRetryTimer = null;
+    let authRetries = 0;
+    socket.on('connect_error', (err) => {
+      if (err?.message !== 'unauthorized' || socket.active) return;
+      clearTimeout(authRetryTimer);
+      const wait = Math.min(15000, 500 * 2 ** authRetries);
+      authRetries += 1;
+      authRetryTimer = setTimeout(() => {
+        if (socketRef.current !== socket) return;
+        refreshAccessToken()
+          .catch(() => null)
+          .finally(() => { if (socketRef.current === socket && !socket.connected) socket.connect(); });
+      }, wait);
+    });
 
     socket.on('connect', () => {
+      authRetries = 0;
       setConnected(true);
       if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
         Notification.requestPermission().catch(() => {});
@@ -455,6 +479,7 @@ export function SocketProvider({ children }) {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('focus', notifyActivity);
       clearTimeout(communityTimer);
+      clearTimeout(authRetryTimer);
       socket.disconnect();
     };
   }, [token, userId]);

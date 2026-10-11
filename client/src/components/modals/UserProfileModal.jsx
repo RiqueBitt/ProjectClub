@@ -37,6 +37,7 @@ import { visibleProfileSectionOrder } from '../../utils/profileSections';
 import FeaturedModpackSection from '../FeaturedModpackSection.jsx';
 import '../../styles/profile.css';
 import BannerImage from '../ProfileBanner.jsx';
+import ProfileEffectOverlay from '../ProfileEffectOverlay.jsx';
 
 // Ícones de traço do perfil (SVG, herdam a cor do texto) — mapa local pra
 // não mexer no PageIcons.jsx compartilhado. Emoji vira quadradinho no Linux.
@@ -1247,6 +1248,8 @@ export default function UserProfileModal() {
           </div>
         )}
       </div>
+      {/* Efeito de perfil da Loja (por cima de tudo, sem receber clique). */}
+      {user?.profileEffect && <ProfileEffectOverlay effect={user.profileEffect} variant="full" />}
       {/* O modal de Configurações agora é renderizado uma única vez, globalmente, em MainApp.jsx — reage ao mesmo estado (settingsModalOpen) que o botão de engrenagem acima e o do cabeçalho abrem, então não precisa mais de uma instância própria aqui dentro. */}
     </div>
   );

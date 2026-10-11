@@ -1,5 +1,6 @@
 const express = require('express');
 const ctrl = require('../controllers/decorationsController');
+const shop = require('../controllers/shopController');
 const { requireAuth } = require('../middleware/auth');
 const { requirePlatformAdmin } = require('../middleware/platformAdmin');
 const { uploadImage } = require('../middleware/upload');
@@ -7,6 +8,20 @@ const { uploadImage } = require('../middleware/upload');
 const router = express.Router();
 router.use(requireAuth);
 router.get('/', ctrl.list);
+// Loja completa (molduras + efeitos de perfil + coleções).
+router.get('/shop', shop.shop);
+router.post('/effects/equip', shop.equipEffect);
+router.post('/effects/:id/buy', shop.buyEffect);
+router.post('/collections/:id/buy', shop.buyCollection);
+const collectionFiles = uploadImage.fields([{ name: 'banner', maxCount: 1 }, { name: 'logo', maxCount: 1 }]);
+router.get('/admin/effects', requirePlatformAdmin, shop.adminListEffects);
+router.post('/admin/effects', requirePlatformAdmin, uploadImage.single('image'), shop.adminCreateEffect);
+router.patch('/admin/effects/:id', requirePlatformAdmin, uploadImage.single('image'), shop.adminUpdateEffect);
+router.delete('/admin/effects/:id', requirePlatformAdmin, shop.adminRemoveEffect);
+router.get('/admin/collections', requirePlatformAdmin, shop.adminListCollections);
+router.post('/admin/collections', requirePlatformAdmin, collectionFiles, shop.adminCreateCollection);
+router.patch('/admin/collections/:id', requirePlatformAdmin, collectionFiles, shop.adminUpdateCollection);
+router.delete('/admin/collections/:id', requirePlatformAdmin, shop.adminRemoveCollection);
 router.post('/equip', ctrl.equip);
 router.get('/admin/all', requirePlatformAdmin, ctrl.adminList);
 router.post('/admin', requirePlatformAdmin, uploadImage.single('image'), ctrl.adminCreate);

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { usePromptDialog } from '../utils/usePromptDialog.jsx';
 import UserSecurityInfoModal from '../components/modals/UserSecurityInfoModal.jsx';
 import UserAvatar from '../components/UserAvatar.jsx';
-import DecorationsAdminTab from '../components/DecorationsAdminTab.jsx';
+import ShopAdminTab from '../components/ShopAdminTab.jsx';
 import IconGlyph from '../components/IconGlyph.jsx';
 import editIcon from '../assets/icons/nav-edit.png';
 import confirmIcon from '../assets/icons/nav-confirm.png';
@@ -122,7 +122,7 @@ const TABS = {
   announcements: { label: 'Comunicado', desc: 'Mensagem em tela cheia para todos os membros.' },
   appCatalog: { label: 'Apps', desc: 'Apps e launchers listados na área de Apps.' },
   economia: { label: 'Economia', desc: 'Baús diários, moedas e recompensas.' },
-  decoracoes: { label: 'Molduras (Loja)', desc: 'Molduras de avatar vendidas na Loja: imagem, preço em moedas/gemas e posição.' },
+  decoracoes: { label: 'Loja', desc: 'Molduras de avatar, efeitos de perfil e coleções vendidos na Loja.' },
   casas: { label: 'Casas e móveis', desc: 'Casas, mapas, grupos e catálogo de móveis.' },
   album: { label: 'Álbum de figurinhas', desc: 'Páginas e espaços do álbum de figurinhas colecionáveis.' },
   modGames: { label: 'Jogos (mod.io)', desc: 'Jogos ligados ao mod.io.' },
@@ -279,7 +279,7 @@ export default function AdminPanel() {
           {tab === 'announcements' && <AnnouncementsTab />}
           {tab === 'album' && <AlbumLayoutTab />}
           {tab === 'economia' && <EconomyAdminTab />}
-          {tab === 'decoracoes' && <DecorationsAdminTab />}
+          {tab === 'decoracoes' && <ShopAdminTab />}
           {tab === 'casas' && <HousesAdminTab />}
           {tab === 'sistema' && <SystemTab />}
           {tab === 'moderacao' && <ModerationTab />}

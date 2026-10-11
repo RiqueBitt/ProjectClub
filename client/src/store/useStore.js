@@ -568,7 +568,13 @@ export const useStore = create((set, get) => ({
   }),
   addMessage: (roomKey, message) => set((s) => {
     const existing = s.messagesByRoom[roomKey] || [];
-    if (existing.some((m) => m.id === message.id)) return {};
+    if (existing.some((m) => m.id === message.id)) {
+      // A real já entrou (ex.: pela busca de "catch-up") — só tira a
+      // otimista com o mesmo nonce, se ainda sobrou, pra não duplicar.
+      if (!message.nonce) return {};
+      const withoutTemp = existing.filter((m) => !(m.nonce === message.nonce && String(m.id).startsWith('temp-')));
+      return withoutTemp.length === existing.length ? {} : { messagesByRoom: { ...s.messagesByRoom, [roomKey]: withoutTemp } };
+    }
     // Eco da própria mensagem (o servidor emite 'message:new' antes de
     // responder o POST): troca a otimista NO LUGAR, pelo nonce — sem
     // duplicar por um instante nem pular de posição.

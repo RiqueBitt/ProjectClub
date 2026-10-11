@@ -277,24 +277,31 @@ function initSockets(httpServer) {
     // messageController.js) — these now enforce the same rule for the
     // real-time channel. Leaving a room never needs a check (you can only
     // ever leave one you're actually in).
-    socket.on('channel:join', async (channelId) => {
+    // `ack` (opcional): avisa o cliente QUANDO já está na sala — ele usa
+    // isso pra buscar o que chegou entre a 1ª página e a entrada na sala.
+    socket.on('channel:join', async (channelId, ack) => {
+      const reply = (ok) => { if (typeof ack === 'function') ack({ ok }); };
       try {
-        if (!channelId) return;
+        if (!channelId) return reply(false);
         const channel = await prisma.channel.findUnique({ where: { id: channelId } });
-        if (!channel) return;
+        if (!channel) return reply(false);
         const perms = await getEffectivePermissions(userId, channelId, channel);
-        if (has(perms, 'VIEW_CHANNEL')) socket.join(`channel:${channelId}`);
-      } catch (err) { console.error('[socket] channel:join falhou:', err); }
+        const ok = has(perms, 'VIEW_CHANNEL');
+        if (ok) socket.join(`channel:${channelId}`);
+        reply(ok);
+      } catch (err) { console.error('[socket] channel:join falhou:', err); reply(false); }
     });
     socket.on('channel:leave', (channelId) => socket.leave(`channel:${channelId}`));
-    socket.on('conversation:join', async (conversationId) => {
+    socket.on('conversation:join', async (conversationId, ack) => {
+      const reply = (ok) => { if (typeof ack === 'function') ack({ ok }); };
       try {
-        if (!conversationId) return;
+        if (!conversationId) return reply(false);
         const member = await prisma.conversationMember.findUnique({
           where: { conversationId_userId: { conversationId, userId } },
         }).catch(() => null);
         if (member) socket.join(`conversation:${conversationId}`);
-      } catch (err) { console.error('[socket] conversation:join falhou:', err); }
+        reply(!!member);
+      } catch (err) { console.error('[socket] conversation:join falhou:', err); reply(false); }
     });
 
     socket.on('ticket:join', async (ticketId) => {

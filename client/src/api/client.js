@@ -8,6 +8,11 @@ export function setAccessToken(token) {
   accessToken = token;
 }
 
+// Token atual (o socket lê daqui a cada (re)conexão — ver SocketContext).
+export function getAccessToken() {
+  return accessToken;
+}
+
 export function setUnauthorizedHandler(fn) {
   onUnauthorized = fn;
 }
@@ -41,6 +46,17 @@ api.interceptors.response.use(
 );
 
 let refreshPromise = null;
+
+// Renova o access token reaproveitando o mesmo pedido em andamento (o
+// refresh token é rotacionado — dois pedidos ao mesmo tempo brigariam).
+export async function refreshAccessToken() {
+  if (!refreshPromise) {
+    refreshPromise = api.post('/auth/refresh').finally(() => { refreshPromise = null; });
+  }
+  const { data } = await refreshPromise;
+  if (data?.accessToken) setAccessToken(data.accessToken);
+  return data?.accessToken || null;
+}
 
 api.interceptors.response.use(
   (res) => res,

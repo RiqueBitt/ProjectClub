@@ -4,12 +4,12 @@ import UserAvatar from './UserAvatar.jsx';
 import { adminListDecorations, adminSaveDecoration, adminDeleteDecoration } from '../api/decorations';
 import '../styles/shop.css';
 
-const EMPTY = { name: '', priceCoins: '500', priceGems: '', scale: 1.2, offsetX: 0, offsetY: 0, active: true, sortOrder: 0 };
+const EMPTY = { name: '', priceCoins: '500', priceGems: '', scale: 1.2, offsetX: 0, offsetY: 0, active: true, sortOrder: 0, collectionId: '' };
 const errMsg = (e) => e?.response?.data?.error || 'Não deu certo, tente de novo.';
 
 // Painel da staff → Molduras: cria/edita molduras da Loja com prévia ao
 // vivo em 3 tamanhos (chat, lista e perfil) pra acertar a posição.
-export default function DecorationsAdminTab() {
+export default function DecorationsAdminTab({ collections = [] }) {
   const { user } = useAuth();
   const [items, setItems] = useState(null);
   const [editing, setEditing] = useState(null); // null | 'new' | id
@@ -33,7 +33,7 @@ export default function DecorationsAdminTab() {
     setEditing(d.id);
     setForm({
       name: d.name, priceCoins: d.priceCoins ?? '', priceGems: d.priceGems ?? '', scale: d.scale,
-      offsetX: d.offsetX, offsetY: d.offsetY, active: d.active, sortOrder: d.sortOrder,
+      offsetX: d.offsetX, offsetY: d.offsetY, active: d.active, sortOrder: d.sortOrder, collectionId: d.collectionId || '',
     });
   };
   const pick = (e) => {
@@ -85,6 +85,12 @@ export default function DecorationsAdminTab() {
             <label>Tamanho da moldura em volta da foto: {Math.round(form.scale * 100)}%<input type="range" min="0.8" max="2" step="0.01" value={form.scale} onChange={setNum('scale')} /></label>
             <label>Posição horizontal: {form.offsetX}%<input type="range" min="-50" max="50" step="1" value={form.offsetX} onChange={setNum('offsetX')} /></label>
             <label>Posição vertical: {form.offsetY}%<input type="range" min="-50" max="50" step="1" value={form.offsetY} onChange={setNum('offsetY')} /></label>
+            <label>Coleção
+              <select value={form.collectionId} onChange={set('collectionId')}>
+                <option value="">Nenhuma</option>
+                {collections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
             <div className="deco-row">
               <label>Ordem na loja<input type="number" value={form.sortOrder} onChange={set('sortOrder')} /></label>
               <label className="deco-check"><input type="checkbox" checked={form.active} onChange={set('active')} /> À venda</label>

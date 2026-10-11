@@ -97,6 +97,7 @@ function readFields(body) {
   if (body.offsetY !== undefined) data.offsetY = clamp(body.offsetY, -50, 50, 0);
   if (body.active !== undefined) data.active = body.active === true || body.active === 'true';
   if (body.sortOrder !== undefined) data.sortOrder = parseInt(body.sortOrder, 10) || 0;
+  if (body.collectionId !== undefined) data.collectionId = body.collectionId && body.collectionId !== 'null' ? String(body.collectionId) : null;
   return data;
 }
 

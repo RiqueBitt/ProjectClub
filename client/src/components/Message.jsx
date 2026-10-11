@@ -22,12 +22,7 @@ import TagBadge from './TagBadge.jsx';
 import PendantIcon from './PendantIcon.jsx';
 import ClanTagBadge from './ClanTagBadge.jsx';
 import UserAvatar from './UserAvatar.jsx';
-import personIcon from '../assets/icons/person.png';
-import emojiPickerIcon from '../assets/icons/emoji-picker.png';
-import starIcon from '../assets/icons/star.png';
 import pinIcon from '../assets/icons/pin.png';
-import trashIcon from '../assets/icons/trash.png';
-import errorIcon from '../assets/icons/error.png';
 import micIcon from '../assets/icons/mic.png';
 import documentIcon from '../assets/icons/document.png';
 import selectedIcon from '../assets/icons/selected.png';
@@ -253,11 +248,32 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
 
   const onContextMenu = (e) => {
     if (isPending) return;
+    // Redesenho do menu: ícones SVG (ver ContextMenuContext.jsx) e seções
+    // separadas — ações na mensagem / pessoa / denúncia / apagar / moderação.
+    // Mesmas ações e mesmas checagens de permissão de antes.
     const items = [
-      { label: 'Ver perfil', icon: <img className="ui-icon-sm" src={personIcon} alt="" />, onClick: () => useStore.getState().openProfile(message.authorId) },
-      { label: 'Copiar ID do usuário', icon: '🆔', onClick: () => navigator.clipboard?.writeText(message.author?.publicId || message.authorId) },
-      { label: 'Reagir', icon: <img className="ui-icon-sm" src={emojiPickerIcon} alt="" />, onClick: () => setShowEmojiPicker((v) => !v) },
+      { label: 'Reagir', icon: 'smilePlus', onClick: () => setShowEmojiPicker((v) => !v) },
+      { label: 'Responder', icon: 'reply', onClick: () => onReply(message) },
     ];
+    if (isOwn) items.push({ label: 'Editar', icon: 'edit', onClick: () => setEditing(true) });
+    items.push({ label: 'Copiar texto', icon: 'copy', onClick: () => navigator.clipboard?.writeText(message.content || ''), disabled: !message.content });
+    // Fixar só aparece pra quem pode (gerenciar mensagens no canal; em DM, todos).
+    if (!isChannelMessage || canManageMessages) {
+      items.push({ label: message.pinned ? 'Desafixar' : 'Fixar', icon: 'pin', onClick: () => togglePinMessage(message.id) });
+    }
+    if (message.channelId && hasPermission(myPerms, 'CREATE_TOPICS')) items.push({ label: 'Criar tópico', icon: 'thread', onClick: createTopic });
+    if (isGifMessage) {
+      items.push({
+        label: isFavoriteGif ? 'Remover dos favoritos' : 'Adicionar aos favoritos',
+        icon: 'star',
+        onClick: () => toggleFavoriteGif(message.content.trim()),
+      });
+    }
+    items.push(
+      { divider: true },
+      { label: 'Ver perfil', icon: 'user', onClick: () => useStore.getState().openProfile(message.authorId) },
+      { label: 'Copiar ID do usuário', icon: 'id', onClick: () => navigator.clipboard?.writeText(message.author?.publicId || message.authorId) },
+    );
     // Item pedido: verificar se todos os toggles de Configurações têm
     // efeito real. "Modo desenvolvedor" já existia na tela ("Mostra IDs e
     // informações técnicas extras em menus de contexto") mas nenhum menu
@@ -267,41 +283,24 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
     // algo que qualquer um pode querer compartilhar) só aparece com o
     // modo ligado.
     if (useStore.getState().userSettings?.developerMode) {
-      items.push({ label: 'Copiar ID da mensagem', icon: '🆔', onClick: () => navigator.clipboard?.writeText(message.id) });
+      items.push({ label: 'Copiar ID da mensagem', icon: 'id', onClick: () => navigator.clipboard?.writeText(message.id) });
     }
-    if (isGifMessage) {
-      items.push({
-        label: isFavoriteGif ? 'Remover dos favoritos' : 'Adicionar aos favoritos',
-        icon: isFavoriteGif ? <img className="ui-icon-sm" src={starIcon} alt="" /> : '☆',
-        onClick: () => toggleFavoriteGif(message.content.trim()),
-      });
-    }
-    items.push(
-      { label: 'Responder', icon: '↪', onClick: () => onReply(message) },
-      { label: 'Copiar texto', icon: '📋', onClick: () => navigator.clipboard?.writeText(message.content || ''), disabled: !message.content },
-    );
-    // Fixar só aparece pra quem pode (gerenciar mensagens no canal; em DM, todos).
-    if (!isChannelMessage || canManageMessages) {
-      items.push({ label: message.pinned ? 'Desafixar' : 'Fixar', icon: <img className="ui-icon-sm" src={pinIcon} alt="" />, onClick: () => togglePinMessage(message.id) });
-    }
-    if (message.channelId && hasPermission(myPerms, 'CREATE_TOPICS')) items.push({ label: 'Criar tópico', icon: '🧵', onClick: createTopic });
-    if (isOwn) items.push({ label: 'Editar', icon: '✎', onClick: () => setEditing(true) });
     if (!isOwn) {
       items.push({ divider: true });
-      items.push({ label: 'Denunciar', icon: '🚩', onClick: reportThisMessage });
+      items.push({ label: 'Denunciar', icon: 'flag', onClick: reportThisMessage });
     }
     if (isOwn || canManageMessages) {
       items.push({ divider: true });
-      items.push({ label: 'Apagar mensagem', icon: <img className="ui-icon-sm" src={trashIcon} alt="" />, danger: true, onClick: removeMessage });
+      items.push({ label: 'Apagar mensagem', icon: 'trash', danger: true, onClick: removeMessage });
     }
     if (canModerateAuthor) {
       items.push({ divider: true });
       items.push({
-        label: 'Advertir autor', icon: <img className="ui-icon-sm" src={errorIcon} alt="" />, danger: true,
+        label: 'Advertir autor', icon: 'warn', danger: true,
         onClick: () => { const reason = prompt('Motivo da advertência:'); if (reason) warnMember(message.authorId, reason); },
       });
       items.push({
-        label: 'Silenciar autor', icon: '🔇', danger: true,
+        label: 'Silenciar autor', icon: 'mute', danger: true,
         onClick: () => { const m = prompt('Duração do silêncio (minutos):', '10'); if (m) timeoutMember(message.authorId, { minutes: parseInt(m, 10) }); },
       });
     }

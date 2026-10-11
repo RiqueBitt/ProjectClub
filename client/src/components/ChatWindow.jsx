@@ -368,6 +368,8 @@ function ChatWindowInner({ conversationId, channelId }) {
   const [initialLoading, setInitialLoading] = useState(true);
   const currentRoomRef = useRef(roomKey);
   currentRoomRef.current = roomKey;
+  // Sala cuja 1ª página já chegou (ver a entrada na sala do socket).
+  const initialLoadDoneRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -389,7 +391,9 @@ function ChatWindowInner({ conversationId, channelId }) {
   // agora; mencionar um cargo digitando o nome dele à mão ainda
   // funciona normal como menção de verdade, só não sugere mais como
   // opção clicável aqui.
-  const mentionCandidatesAt = channel
+  // Só monta a lista quando o "@" está ativo (antes: varria todos os
+  // membros a cada tecla digitada, mesmo sem menção nenhuma).
+  const mentionCandidatesAt = channel && mentionQuery !== null && mentionTrigger === '@'
     ? [
         ...(canMentionEveryone ? [{ id: '@everyone', label: 'everyone', hint: 'Notificar todos no canal' }, { id: '@here', label: 'here', hint: 'Notificar quem está online' }] : []),
         ...members
@@ -397,9 +401,10 @@ function ChatWindowInner({ conversationId, channelId }) {
       ].filter((c) => !mentionQuery || c.label.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 8)
     : [];
   // "$": só pessoas (membros do canal, ou quem está na conversa).
-  const dollarPeople = channel
-    ? members.map((m) => m.user)
-    : (conversations.find((c) => c.id === conversationId)?.members || []).filter((m) => m.id !== user.id);
+  const dollarPeople = mentionTrigger !== '$' || mentionQuery === null ? []
+    : channel
+      ? members.map((m) => m.user)
+      : (conversations.find((c) => c.id === conversationId)?.members || []).filter((m) => m.id !== user.id);
   const mentionCandidatesDollar = mentionTrigger === '$' && mentionQuery !== null
     ? dollarPeople
       .filter((u) => !mentionQuery || normName(u.displayName).includes(normName(mentionQuery)) || normName(u.username).includes(normName(mentionQuery)))
@@ -491,8 +496,10 @@ function ChatWindowInner({ conversationId, channelId }) {
     setRoomMessages(roomKey, []);
     setHasMoreOlder(true);
     setInitialLoading(true);
+    initialLoadDoneRef.current = null;
     const loadingKey = roomKey;
     listMessages({ conversationId, channelId }).then((d) => {
+      if (currentRoomRef.current === loadingKey) initialLoadDoneRef.current = loadingKey;
       // Mesmo lote de render que as mensagens — senão o "início do canal"
       // entra depois, por cima, e empurra a lista pra fora do final.
       if (currentRoomRef.current === loadingKey) setInitialLoading(false);
@@ -521,9 +528,10 @@ function ChatWindowInner({ conversationId, channelId }) {
   // conexão estava caída (catch-up), juntando sem duplicar.
   useEffect(() => {
     if (!socket || isNonChatChannel) return undefined;
-    const joinRoom = () => {
-      if (channelId) socket.emit('channel:join', channelId);
-      if (conversationId) socket.emit('conversation:join', conversationId);
+    const joinRoom = (afterJoin) => {
+      const ack = (res) => { if (res?.ok) afterJoin?.(); };
+      if (channelId) socket.emit('channel:join', channelId, ack);
+      if (conversationId) socket.emit('conversation:join', conversationId, ack);
     };
     let catchUpSeq = 0;
     const catchUp = () => {
@@ -537,23 +545,40 @@ function ChatWindowInner({ conversationId, channelId }) {
         if (gap) setHasMoreOlder(true);
       }).catch(() => {});
     };
-    if (socket.connected) joinRoom();
+    // A entrada na sala é assíncrona no servidor (checa permissão) — se a
+    // 1ª página já tinha chegado antes da confirmação, uma mensagem
+    // enviada nesse meio tempo não vinha nem na página nem pelo socket.
+    // Com a confirmação (ack) do servidor, busca de novo só nesse caso.
+    if (socket.connected) {
+      joinRoom(() => { if (initialLoadDoneRef.current === roomKey) catchUp(); });
+    }
     let wasDisconnected = !socket.connected;
     const onConnect = () => {
-      joinRoom();
       // Só busca de novo se estava sem conexão (queda/reconexão, ou o chat
       // abriu antes do socket conectar) — com a conexão estável, a 1ª
       // página pedida pelo efeito acima já basta.
-      if (wasDisconnected) catchUp();
+      const needsCatchUp = wasDisconnected;
       wasDisconnected = false;
+      joinRoom(() => { if (needsCatchUp) catchUp(); });
     };
     const onDisconnect = () => { wasDisconnected = true; };
+    // Aba/janela escondida por muito tempo (notebook dormindo, celular em
+    // segundo plano): o socket pode nem perceber a queda — ao voltar,
+    // confere se perdeu alguma mensagem.
+    let hiddenAt = document.visibilityState === 'hidden' ? Date.now() : 0;
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+      if (hiddenAt && Date.now() - hiddenAt > 30000 && socket.connected) catchUp();
+      hiddenAt = 0;
+    };
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       catchUpSeq += 1;
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, roomKey, isNonChatChannel]);
@@ -1006,6 +1031,43 @@ function ChatWindowInner({ conversationId, channelId }) {
     </span>
   ) : null;
 
+  // Linhas da lista de mensagens memorizadas: digitar no composer muda o
+  // estado deste componente a cada tecla — sem isso, a lista inteira
+  // (dezenas de mensagens + separadores) era reconciliada a cada letra.
+  const messageRows = useMemo(() => {
+    let lastAuthor = null;
+    let lastTime = 0;
+    let lastDay = null;
+    return messages.map((m) => {
+      // Dia novo (ou resposta) sempre começa um grupo novo, com autor.
+      const dayKey = dayKeyOf(m.createdAt);
+      const newDay = dayKey !== lastDay;
+      const showAuthor = newDay || !!m.replyTo || m.authorId !== lastAuthor || new Date(m.createdAt) - lastTime > 5 * 60 * 1000;
+      lastAuthor = m.authorId;
+      lastTime = new Date(m.createdAt);
+      lastDay = dayKey;
+      return (
+        <Fragment key={m.nonce || m.id}>
+          {newDay && <DaySeparator iso={m.createdAt} />}
+          {m.id === firstUnreadId && (
+            <div className="chat-unread-sep" role="separator" aria-label="Novas mensagens">
+              <span className="chat-unread-sep-label">Novas mensagens</span>
+            </div>
+          )}
+          <Message
+            message={m}
+            showAuthor={showAuthor}
+            onReply={setReplyTo}
+            topics={topicsByParent.get(m.id) || EMPTY_TOPICS}
+            onOpenTopic={setOpenTopic}
+          />
+        </Fragment>
+      );
+    });
+    // setReplyTo/setOpenTopic são setters estáveis do useState.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, firstUnreadId, topicsByParent]);
+
   if (isCallChannel) {
     return (
       <section className="chat-window">
@@ -1039,10 +1101,6 @@ function ChatWindowInner({ conversationId, channelId }) {
       </section>
     );
   }
-
-  let lastAuthor = null;
-  let lastTime = 0;
-  let lastDay = null;
 
   // Quantas não lidas a partir da linha "Novas mensagens".
   const firstUnreadIdx = firstUnreadId ? messages.findIndex((m) => m.id === firstUnreadId) : -1;
@@ -1142,32 +1200,7 @@ function ChatWindowInner({ conversationId, channelId }) {
         {!initialLoading && !hasMoreOlder && (
           <ChatIntro channel={channel} dmOther={dmOther} dmConvo={dmConvo} title={title} />
         )}
-        {messages.map((m) => {
-          // Dia novo (ou resposta) sempre começa um grupo novo, com autor.
-          const dayKey = dayKeyOf(m.createdAt);
-          const newDay = dayKey !== lastDay;
-          const showAuthor = newDay || !!m.replyTo || m.authorId !== lastAuthor || new Date(m.createdAt) - lastTime > 5 * 60 * 1000;
-          lastAuthor = m.authorId;
-          lastTime = new Date(m.createdAt);
-          lastDay = dayKey;
-          return (
-            <Fragment key={m.nonce || m.id}>
-              {newDay && <DaySeparator iso={m.createdAt} />}
-              {m.id === firstUnreadId && (
-                <div className="chat-unread-sep" role="separator" aria-label="Novas mensagens">
-                  <span className="chat-unread-sep-label">Novas mensagens</span>
-                </div>
-              )}
-              <Message
-                message={m}
-                showAuthor={showAuthor}
-                onReply={setReplyTo}
-                topics={topicsByParent.get(m.id) || EMPTY_TOPICS}
-                onOpenTopic={setOpenTopic}
-              />
-            </Fragment>
-          );
-        })}
+        {messageRows}
         <div ref={bottomRef} />
       </div>
 

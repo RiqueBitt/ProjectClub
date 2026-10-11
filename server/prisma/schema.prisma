@@ -270,6 +270,9 @@ model User {
   // Moldura do avatar equipada (loja) — JSON {id,url,s,x,y} copiado da
   // AvatarDecoration pra não precisar de join em todo lugar que mostra avatar.
   avatarDecoration    String?   @db.Text
+  // Efeito de perfil equipado (loja) — JSON {id,url,d:{s,x,y,o,t},m:{...}}
+  // copiado do ProfileEffect (d = computador, m = celular).
+  profileEffect       String?   @db.Text
   dailyStreak         Int       @default(0)
   lastDailyAt         DateTime?
 
@@ -2522,6 +2525,11 @@ model AvatarDecoration {
   sortOrder  Int      @default(0)
   createdAt  DateTime @default(now())
   owners     UserAvatarDecoration[]
+  // Coleção da loja (opcional).
+  collectionId String?
+  collection   ShopCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+
+  @@index([collectionId])
 }
 
 model UserAvatarDecoration {
@@ -2533,4 +2541,62 @@ model UserAvatarDecoration {
 
   @@unique([userId, decorationId])
   @@index([decorationId])
+}
+
+// Coleções da loja: agrupam molduras e efeitos de perfil, com banner
+// grande (carrossel "Destaques") e preço de pacote opcional.
+model ShopCollection {
+  id               String   @id @default(uuid())
+  name             String
+  description      String?  @db.Text
+  bannerUrl        String?  @db.Text
+  logoUrl          String?  @db.Text
+  accentColor      String?
+  active           Boolean  @default(true)
+  featured         Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  bundlePriceCoins Int?
+  bundlePriceGems  Int?
+  createdAt        DateTime @default(now())
+  decorations      AvatarDecoration[]
+  effects          ProfileEffect[]
+}
+
+// Efeito de perfil: imagem animada transparente (GIF/WebP/APNG) que passa
+// por cima do perfil inteiro. Ajustes separados pra computador e celular.
+model ProfileEffect {
+  id           String   @id @default(uuid())
+  name         String
+  imageUrl     String   @db.Text
+  priceCoins   Int?
+  priceGems    Int?
+  scale        Float    @default(1)
+  offsetX      Float    @default(0)
+  offsetY      Float    @default(0)
+  opacity      Float    @default(0.85)
+  duration     Float    @default(4)   // segundos visível
+  mScale       Float    @default(1)
+  mOffsetX     Float    @default(0)
+  mOffsetY     Float    @default(0)
+  mOpacity     Float    @default(0.85)
+  mDuration    Float    @default(4)
+  active       Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  collectionId String?
+  collection   ShopCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  owners       UserProfileEffect[]
+
+  @@index([collectionId])
+}
+
+model UserProfileEffect {
+  id        String        @id @default(uuid())
+  userId    String
+  effectId  String
+  effect    ProfileEffect @relation(fields: [effectId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@unique([userId, effectId])
+  @@index([effectId])
 }

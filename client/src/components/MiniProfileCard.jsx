@@ -17,6 +17,7 @@ import PresenceDot from './PresenceDot.jsx';
 import PendantIcon from './PendantIcon.jsx';
 import { nameStyleProps, nameStyleClassName } from '../utils/nameStyle';
 import BannerImage from './ProfileBanner.jsx';
+import ProfileEffectOverlay from './ProfileEffectOverlay.jsx';
 import { cssZoom } from '../utils/cssZoom';
 
 // Quantos cargos mostrar no popup compacto (a bio é limitada por CSS a 3
@@ -176,7 +177,11 @@ export default function MiniProfileCard() {
     // offsetHeight ignoram transform; vezes o zoom = mesma escala da tela.
     const zoomNow = cssZoom();
     const cardWidth = (el.offsetWidth * zoomNow) || 320;
-    const cardHeight = (el.offsetHeight * zoomNow) || 220;
+    // scrollHeight = altura do conteúdo inteiro, mesmo quando o card está
+    // encolhido por um maxHeight anterior — com offsetHeight, encolher
+    // fazia "caber" na medição seguinte, o card crescia de novo e ficava
+    // alternando de posição (pulando) perto das bordas.
+    const cardHeight = (Math.max(el.offsetHeight, el.scrollHeight) * zoomNow) || 220;
     const margin = 8;
     // Limites da área visível em coordenadas de `position: fixed` (que é
     // relativo ao layout viewport, não ao visual viewport — por isso soma
@@ -232,6 +237,12 @@ export default function MiniProfileCard() {
       left = rect.left;
     }
     left = Math.min(Math.max(vLeft + margin, left), vLeft + vw - cardWidth - margin);
+    // Trava final dentro da área visível (nunca acima do topo nem abaixo
+    // do fim da tela, qualquer que seja o ramo escolhido acima).
+    const shownHeight = maxHeight !== undefined ? Math.min(cardHeight, maxHeight) : cardHeight;
+    top = Math.max(viewportTop, Math.min(top, viewportBottom - shownHeight));
+    if (shownHeight > viewportBottom - viewportTop) { top = viewportTop; maxHeight = viewportBottom - viewportTop; }
+    left = Math.max(vLeft + margin, left);
     // BUG CORRIGIDO ("miniperfil corta/sai da tela nas bordas"): todas as
     // medidas acima (getBoundingClientRect) vêm em pixels da TELA, mas
     // top/left/maxHeight de um elemento fixo são multiplicados pelo zoom
@@ -306,6 +317,7 @@ export default function MiniProfileCard() {
       }}
     >
       {!user && <p className="dim" style={{ padding: 16 }}>Carregando...</p>}
+      {user?.profileEffect && <ProfileEffectOverlay effect={user.profileEffect} variant="mini" />}
       {user && (
         <>
           {/* Item pedido: "quando o user tiver colocado um banner no

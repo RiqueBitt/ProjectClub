@@ -80,6 +80,7 @@ async function ensurePublicId(userId, existingPublicId) {
 // SELF_USER_FIELDS below for the account-owner-only superset.
 const PUBLIC_USER_FIELDS = {
   id: true, publicId: true, username: true, displayName: true, avatarUrl: true, avatarDecoration: true,
+  profileEffect: true, // efeito de perfil da loja (perfil/miniperfil)
   bannerUrl: true, miniProfileBannerUrl: true, bannerFraming: true, miniProfileBannerFraming: true, bio: true, pronouns: true, profileColor: true, status: true,
   customStatus: true, customStatusEmoji: true, customStatusExpiresAt: true,
   createdAt: true, platformRole: true,

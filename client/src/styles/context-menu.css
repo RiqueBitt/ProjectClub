@@ -1,0 +1,109 @@
+/* Menu de contexto (clique direito) — redesenho. Ver ContextMenuContext.jsx.
+   Seletores com .cm-v2 pra ganhar das regras antigas de .context-menu
+   (global.css), inclusive as dos temas claros. */
+
+.context-menu.cm-v2 {
+  position: fixed;
+  z-index: 300;
+  min-width: 224px;
+  max-width: min(300px, calc(100vw - 16px));
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--bg-floating, var(--bg-secondary));
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .32), 0 2px 6px rgba(0, 0, 0, .18);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  outline: none;
+  transform: none;
+  animation: cm-pop .12s ease-out;
+}
+
+.cm-v2 .cm-section + .cm-section {
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid var(--border);
+}
+
+.cm-v2 .cm-item {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  color: var(--text-normal);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  outline: none;
+  transition: background-color .1s ease, color .1s ease;
+}
+.cm-v2 .cm-icon { flex-shrink: 0; color: var(--text-muted); transition: color .1s ease; }
+.cm-v2 .cm-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.cm-v2 .cm-item:hover:not(:disabled),
+.cm-v2 .cm-item:focus-visible:not(:disabled),
+.cm-v2 .cm-item:focus:not(:disabled) {
+  background: color-mix(in srgb, var(--brand) 16%, transparent);
+  color: var(--header-primary, var(--text-normal));
+}
+.cm-v2 .cm-item:hover:not(:disabled) .cm-icon,
+.cm-v2 .cm-item:focus:not(:disabled) .cm-icon { color: var(--brand); }
+
+.cm-v2 .cm-item.danger,
+.cm-v2 .cm-item.danger .cm-icon { color: var(--red); }
+.cm-v2 .cm-item.danger:hover:not(:disabled),
+.cm-v2 .cm-item.danger:focus:not(:disabled) {
+  background: color-mix(in srgb, var(--red) 15%, transparent);
+  color: var(--red);
+}
+.cm-v2 .cm-item.danger:hover:not(:disabled) .cm-icon,
+.cm-v2 .cm-item.danger:focus:not(:disabled) .cm-icon { color: var(--red); }
+
+.cm-v2 .cm-item:disabled { opacity: .45; cursor: not-allowed; }
+
+@keyframes cm-pop {
+  from { opacity: 0; transform: scale(.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Celular: folha presa embaixo da tela. */
+.context-menu.cm-v2.cm-sheet {
+  left: 0; right: 0; bottom: 0; top: auto;
+  width: 100%; max-width: none; min-width: 0;
+  max-height: 78vh; max-height: 78dvh;
+  border-radius: 18px 18px 0 0;
+  border-bottom: 0;
+  padding: 6px 10px calc(12px + env(safe-area-inset-bottom, 0px));
+  animation: cm-sheet-in .18s ease-out;
+}
+.cm-v2.cm-sheet .cm-grabber {
+  width: 40px; height: 4px; border-radius: 999px;
+  background: var(--border);
+  margin: 4px auto 8px;
+}
+.cm-v2.cm-sheet .cm-item { min-height: 46px; font-size: 15px; gap: 14px; padding: 10px 12px; }
+.cm-v2.cm-sheet .cm-section + .cm-section { margin-top: 6px; padding-top: 6px; }
+.cm-backdrop { z-index: 299; }
+
+@keyframes cm-sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .context-menu.cm-v2, .context-menu.cm-v2.cm-sheet { animation: none; }
+  .cm-v2 .cm-item, .cm-v2 .cm-icon { transition: none; }
+}
+
+/* O próprio menu recebe foco ao abrir (pra setas funcionarem) — sem o
+   contorno de acessibilidade em volta dele inteiro; os itens continuam
+   com o contorno, só que por dentro. */
+html .context-menu.cm-v2:focus,
+html .context-menu.cm-v2:focus-visible { outline: none !important; }
+html .cm-v2 .cm-item:focus-visible { outline-offset: -2px; }
