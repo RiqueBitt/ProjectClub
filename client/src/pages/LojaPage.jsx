@@ -11,6 +11,7 @@ import '../styles/shop.css';
 import '../styles/contentx.css';
 import { useStore } from '../store/useStore';
 import { getShopHistory, giftShopItem } from '../api/contentx';
+import ShopCardsTab from '../cards/ShopCardsTab.jsx';
 
 // "2d 4h" / "3h 12min" / "45s" — contagem regressiva da oferta.
 function countdown(target, now) {
@@ -153,7 +154,7 @@ export default function LojaPage() {
             <h1>Loja</h1>
           </div>
           <div className="shop-tabs" role="tablist" aria-label="Seções da loja">
-            {[['destaques', 'Destaques', 'star'], ['navegar', 'Navegar', 'search'], ['historico', 'Histórico', 'clock']].map(([id, label, icon]) => (
+            {[['destaques', 'Destaques', 'star'], ['navegar', 'Navegar', 'search'], ['cartas', 'Cartas', 'cards'], ['historico', 'Histórico', 'clock']].map(([id, label, icon]) => (
               <button
                 key={id} type="button" role="tab" aria-selected={tab === id && !current}
                 className={`shop-tab${tab === id && !current ? ' active' : ''}`}
@@ -176,6 +177,8 @@ export default function LojaPage() {
           </>
         ) : current ? (
           <CollectionView c={current} now={now} items={items.filter((i) => i.collectionId === current.id)} onBack={() => setCollectionId(null)} buyBundle={buyBundle} {...ctx} />
+        ) : tab === 'cartas' ? (
+          <ShopCardsTab onWallet={(w) => setData((d) => (d ? { ...d, coins: w.coins, gems: w.gems } : d))} />
         ) : tab === 'historico' ? (
           <ShopHistory />
         ) : tab === 'destaques' ? (
