@@ -1143,24 +1143,57 @@ if (!gotLock) {
   // Clique no botão verde: se já baixou, fecha e instala (reabre sozinho);
   // senão, pede pra procurar/baixar agora e instala quando terminar.
   let installWhenReady = false;
-  ipcMain.handle('update:install', async () => {
-    if (updateStatus.downloaded) {
-      isQuitting = true;
-      setImmediate(() => autoUpdater.quitAndInstall(true, true));
-      return { success: true, installing: true };
+  // BUG CORRIGIDO ("vai de atualização em atualização: 1.3 → 1.4 → … em vez
+  // de ir direto pra 1.7"): quando uma versão já tinha sido baixada e saíam
+  // outras depois, o app instalava a que estava guardada (velha), reabria,
+  // achava a próxima, e assim por diante. Agora, antes de instalar, sempre
+  // confere qual é a versão MAIS NOVA publicada; se for mais nova que a
+  // baixada, baixa essa e instala direto ela.
+  const newerVersion = (a, b) => {
+    const pa = String(a || '').split(/[.-]/).map((x) => parseInt(x, 10) || 0);
+    const pb = String(b || '').split(/[.-]/).map((x) => parseInt(x, 10) || 0);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+      if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
     }
-    installWhenReady = true;
-    try { await autoUpdater.checkForUpdates(); } catch (err) { return { success: false, error: err?.message || 'Falha ao procurar atualização.' }; }
+    return false;
+  };
+  let installing = false;
+  async function installLatest() {
+    if (installing) return 'busy';
+    try {
+      const r = await autoUpdater.checkForUpdates();
+      const latest = r?.updateInfo?.version;
+      if (latest && newerVersion(latest, updateStatus.version || app.getVersion()) ) {
+        // Tem uma mais nova que a baixada: espera ela baixar e instala.
+        installWhenReady = true;
+        updateStatus.downloaded = false;
+        return 'downloading';
+      }
+    } catch (err) {
+      console.error('[atualização] não deu pra conferir a mais nova antes de instalar:', err?.message || err);
+    }
+    if (!updateStatus.downloaded) { installWhenReady = true; return 'downloading'; }
+    installing = true;
+    isQuitting = true;
+    setImmediate(() => autoUpdater.quitAndInstall(true, true));
+    return 'installing';
+  }
+  ipcMain.handle('update:install', async () => {
+    const r = await installLatest();
+    if (r === 'installing') return { success: true, installing: true };
     return { success: true, downloading: true };
   });
   autoUpdater.on('update-downloaded', () => {
     if (!installWhenReady) return;
-    isQuitting = true;
-    setImmediate(() => autoUpdater.quitAndInstall(true, true));
+    installWhenReady = false;
+    installLatest();
   });
 
   function setupAutoUpdater() {
     autoUpdater.autoDownload = true;
+    // Ao fechar de verdade, instala o pacote já baixado. Como o app confere
+    // a cada 30 min e baixa sempre a versão mais nova, esse pacote é a
+    // última versão (antes ficava preso numa velha — ver installLatest).
     autoUpdater.autoInstallOnAppQuit = true;
 
     // Item pedido: "faça atualizações em segundo plano do Project Club
@@ -1212,10 +1245,7 @@ if (!gotLock) {
       try { idle = require('electron').powerMonitor.getSystemIdleTime(); } catch { /* sem powerMonitor */ }
       // Tocando áudio = provavelmente numa chamada: espera.
       const audible = !!win && win.webContents.isCurrentlyAudible();
-      if (hidden && !audible && idle > 300) {
-        isQuitting = true;
-        setImmediate(() => autoUpdater.quitAndInstall(true, true));
-      }
+      if (hidden && !audible && idle > 300) installLatest();
     }
     setInterval(maybeInstallUpdate, 60 * 1000);
 
@@ -1234,7 +1264,7 @@ if (!gotLock) {
     // com o carregamento inicial do site) — depois, verifica de novo a
     // cada 4 horas enquanto o app continuar aberto/rodando em segundo
     // plano.
-    setTimeout(check, 10000);
+    setTimeout(check, 4000);
     setInterval(check, 30 * 60 * 1000); // a cada 30 min (antes 4 h)
 
     // Item pedido: "outros apps que tiver baixados junto com o Project
