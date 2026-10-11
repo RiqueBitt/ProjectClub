@@ -34,6 +34,23 @@ import './styles/presence.css';
 import './styles/auth.css';
 import './i18n/index.js';
 
+// Depois de uma atualização do site, abas abertas ainda pedem os arquivos
+// antigos (com outro nome) e a página travava com "Failed to fetch
+// dynamically imported module". Recarrega uma vez pra pegar a versão nova.
+function reloadForNewVersion() {
+  try {
+    const last = Number(sessionStorage.getItem('pc-chunk-reload') || 0);
+    if (Date.now() - last < 30000) return; // evita loop
+    sessionStorage.setItem('pc-chunk-reload', String(Date.now()));
+  } catch { /* sem storage */ }
+  window.location.reload();
+}
+window.addEventListener('vite:preloadError', (e) => { e.preventDefault(); reloadForNewVersion(); });
+window.addEventListener('unhandledrejection', (e) => {
+  const msg = String(e?.reason?.message || e?.reason || '');
+  if (/dynamically imported module|Importing a module script failed|error loading dynamically imported/i.test(msg)) reloadForNewVersion();
+});
+
 // Item pedido: "adicione nas configurações do usuário ele poder
 // aumentar ou diminuir o zoom quanto quiser" — desliga o CSS zoom só
 // no app desktop (Electron), onde o zoom é feito de forma NATIVA em

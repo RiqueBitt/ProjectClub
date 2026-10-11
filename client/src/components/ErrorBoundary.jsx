@@ -28,6 +28,14 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
+    // Arquivo de uma versão antiga do site (logo depois de atualizar):
+    // recarrega uma vez em vez de mostrar "Essa parte travou".
+    if (/dynamically imported module|Importing a module script failed/i.test(String(error?.message || ''))) {
+      try {
+        const last = Number(sessionStorage.getItem('pc-chunk-reload') || 0);
+        if (Date.now() - last > 30000) { sessionStorage.setItem('pc-chunk-reload', String(Date.now())); window.location.reload(); return; }
+      } catch { /* sem storage */ }
+    }
     // eslint-disable-next-line no-console
     console.error('Unhandled render error, caught by ErrorBoundary:', error, info);
     // Manda o erro pro servidor (só a mensagem/pilha e a página) pra
