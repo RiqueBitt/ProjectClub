@@ -15,6 +15,7 @@ import Market from '../cards/Market.jsx';
 import Tournaments from '../cards/Tournaments.jsx';
 import WelcomeModal from '../cards/WelcomeModal.jsx';
 import LobbyRoom from '../cards/LobbyRoom.jsx';
+import PassTab from '../cards/PassTab.jsx';
 import {
   cardsHome, cardsClaimStarter, cardsCollection, cardsStartPve, cardsMatch, cardsChallenge, cardsRanking,
   cardsUserCollection, cardsWatch, cardsReplay, cardsStartTutorial, errMsg,
@@ -27,6 +28,7 @@ const TABS = [
   { key: 'jogar', label: 'Início', icon: UI.sword },
   { key: 'colecao', label: 'Coleção', icon: UI.deck },
   { key: 'loja', label: 'Pacotes', icon: UI.pack },
+  { key: 'passe', label: 'Passe', icon: UI.trophy },
   { key: 'baralhos', label: 'Baralhos', icon: UI.list },
   { key: 'mercado', label: 'Mercado', icon: UI.coin },
   { key: 'trocas', label: 'Trocas', icon: UI.swap },
@@ -227,6 +229,7 @@ export default function CardsGamePage() {
         {home && tab === 'jogar' && <ArenaHome home={home} me={user} cards={cards} onStartMatch={startMatch} onReload={loadHome} onWatch={(id) => setParam('assistir', id)} onReplay={(id) => setParam('replay', id)} onOpenRoom={(defaults) => setRoom({ create: defaults || {} })} />}
         {home && tab === 'colecao' && <Collection cards={cards} home={home} onChanged={(r) => { setWallet(r?.wallet); refreshAll(); }} openId={openCard} onOpenChange={(id) => setParam('carta', id)} />}
         {home && tab === 'loja' && <PacksTab home={home} onOpened={(w) => { setWallet(w); loadCards(); loadHome(); }} />}
+        {home && tab === 'passe' && <PassTab wallet={home.wallet} onWallet={loadHome} />}
         {home && tab === 'baralhos' && <DeckBuilder collection={cards} rules={home.rules} onChanged={loadHome} />}
         {home && tab === 'mercado' && <Market me={user} wallet={home.wallet} onWallet={setWallet} onChanged={refreshAll} />}
         {home && tab === 'trocas' && (home.enabled.trades

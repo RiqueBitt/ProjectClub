@@ -41,7 +41,7 @@ export default function PackOpening({ pack, cards, onClose, onAgain, canAgain, e
                 <button
                   key={i} type="button" className={`tcgp-slot${open ? ' is-open' : ''} tcg-r-${c.rarity}`}
                   style={{ '--d': `${i * 70}ms`, '--rar': RARITIES[c.rarity]?.color }}
-                  onClick={() => { if (!revealed.has(i)) sfx(RARITY_ORDER.indexOf(c.rarity) >= 3 || c.foil ? 'epic' : 'play'); setRevealed((s) => new Set(s).add(i)); }}
+                  onClick={() => { if (!revealed.has(i)) sfx(RARITY_ORDER.indexOf(c.rarity) >= 3 || c.foil || c.golden ? 'epic' : 'play'); setRevealed((s) => new Set(s).add(i)); }}
                   aria-label={open ? `${c.name}, ${RARITIES[c.rarity]?.label}` : 'Revelar carta'}
                 >
                   <span className="tcgp-flip">
@@ -50,6 +50,7 @@ export default function PackOpening({ pack, cards, onClose, onAgain, canAgain, e
                   </span>
                   {open && c.isNew && <span className="tcgp-new">Nova!</span>}
                   {open && c.foil && <span className="tcgp-new is-foil">✦ Brilhante!</span>}
+                  {open && c.golden && <span className="tcgp-new is-gold">★ Dourada!</span>}
                   {open && RARITY_ORDER.indexOf(c.rarity) >= 3 && <span className="tcgp-glow" />}
                 </button>
               );

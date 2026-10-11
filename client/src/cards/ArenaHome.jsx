@@ -7,7 +7,7 @@ import BotPortrait from './BotPortrait.jsx';
 import { UserPicker } from './Trades.jsx';
 import {
   cardsStartPve, cardsMatch, cardsChallenge, cardsAcceptChallenge, cardsDeclineChallenge, cardsHistory,
-  cardsCampaign, cardsStartCampaign, cardsQueue, cardsLeaveQueue, cardsLive, cardsBrawl, cardsStartBrawl, cardsStartTutorial, errMsg,
+  cardsCampaign, cardsStartCampaign, cardsQueue, cardsLeaveQueue, cardsLive, cardsBrawl, cardsStartBrawl, cardsStartTutorial, cardsChest, cardsOpenChest, cardsPass, errMsg,
 } from './api';
 import { sfx } from './sfx';
 
@@ -95,6 +95,8 @@ function StageModal({ stage, onClose, onPlay, busy }) {
   );
 }
 
+const todayKey = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+
 function timeLeft(end, now) {
   const ms = Math.max(0, new Date(end).getTime() - now);
   const d = Math.floor(ms / 86400000);
@@ -115,6 +117,9 @@ export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onW
   const [stage, setStage] = useState(null);
   const [live, setLive] = useState([]);
   const [brawl, setBrawl] = useState(null);
+  const [chest, setChest] = useState(null);
+  const [passInfo, setPassInfo] = useState(null);
+  const [chestGot, setChestGot] = useState(null);
   const [now, setNow] = useState(Date.now());
 
   const loadMissions = () => listMissions().then((d) => setMissions((d.missions || []).filter((m) => m.type.startsWith('CARDS_')))).catch(() => setMissions([]));
@@ -122,6 +127,8 @@ export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onW
     cardsHistory().then((d) => setHistory(d.matches)).catch(() => {});
     cardsCampaign().then(setCampaign).catch(() => {});
     cardsBrawl().then(setBrawl).catch(() => {});
+    cardsChest().then((d) => setChest(d.chest)).catch(() => {});
+    cardsPass().then((d) => setPassInfo(d.pass)).catch(() => {});
     const loadLive = () => cardsLive().then((d) => setLive(d.matches)).catch(() => {});
     loadLive();
     loadMissions();
@@ -210,6 +217,45 @@ export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onW
           <b>Personalizada</b><small>Suas regras: vida, energia, baralhos… (sem recompensa)</small>
         </button>
       </section>
+
+      <section className="tcg-daily">
+        <div className="tcg-daily-item is-streak" title="A primeira partida de cada dia dá moedas — e o bônus cresce a cada dia seguido.">
+          <span className="tcg-daily-icon">🔥</span>
+          <span><b>{home.player.streakDays || 0} dia(s) seguidos</b><small>{home.player.lastPlayDay === todayKey() ? 'Sequência garantida hoje' : 'Jogue hoje para ganhar o bônus'}</small></span>
+        </div>
+        {chest && (
+          <div className={`tcg-daily-item is-chest${chest.ready ? ' is-ready' : ''}`}>
+            <span className="tcg-daily-icon">{chest.ready ? '🎁' : '📦'}</span>
+            <span>
+              <b>Baú de vitórias</b>
+              <small>{chest.ready ? `${chest.ready} baú(s) prontos!` : chest.earned >= chest.max ? 'Baús de hoje abertos — volte amanhã' : `${chest.wins % chest.every}/${chest.every} vitórias para o próximo`}</small>
+              <i className="tcg-daily-bar"><em style={{ width: `${chest.earned >= chest.max ? 100 : ((chest.wins % chest.every) / chest.every) * 100}%` }} /></i>
+            </span>
+            {chest.ready > 0 && <button type="button" className="tcg-btn primary tcg-btn-sm" onClick={async () => { try { const r = await cardsOpenChest(); sfx('pack'); setChestGot(r.reward); setChest(r.chest); onReload?.(); } catch (e) { setErr(errMsg(e)); } }}>Abrir</button>}
+          </div>
+        )}
+        {passInfo && (
+          <div className="tcg-daily-item is-pass">
+            <span className="tcg-daily-icon">🏆</span>
+            <span>
+              <b>Passe · nível {passInfo.level}</b>
+              <small>{passInfo.levels.filter((l) => l.unlocked && !l.claimed).length ? `${passInfo.levels.filter((l) => l.unlocked && !l.claimed).length} prêmio(s) para pegar` : `${passInfo.intoLevel}/${passInfo.perLevel} XP`}</small>
+              <i className="tcg-daily-bar"><em style={{ width: `${(passInfo.intoLevel / passInfo.perLevel) * 100}%` }} /></i>
+            </span>
+            <button type="button" className="tcg-btn tcg-btn-sm" onClick={() => navigate('/cartas?aba=passe')}>Ver</button>
+          </div>
+        )}
+      </section>
+      {chestGot && (
+        <div className="tcg-modal" onClick={() => setChestGot(null)}>
+          <div className="tcgpass-got" onClick={(e) => e.stopPropagation()}>
+            <h3>Baú aberto!</h3>
+            <p>+{chestGot.coins} moedas</p>
+            <div className="tcgpass-cards">{chestGot.cards.map((c, i) => <CardView key={i} card={c} size="sm" tilt={false} />)}</div>
+            <button type="button" className="tcg-btn primary" onClick={() => setChestGot(null)}>Legal!</button>
+          </div>
+        </div>
+      )}
 
       <section className="tcg-events">
         {brawl && (

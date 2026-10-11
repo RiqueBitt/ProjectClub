@@ -26,7 +26,7 @@ function Unit({ u, mine, canAttack, selected, targetable, dying, entering, onCli
   return (
     <button
       type="button" data-uid={u.uid}
-      className={`tcgb-unit tcg-r-${u.rarity}${canAttack ? ' can-attack' : ''}${selected ? ' is-selected' : ''}${targetable ? ' is-target' : ''}${u.ability === 'GUARDA' ? ' is-guard' : ''}${u.shield ? ' has-shield' : ''}${u.sick && mine && u.ability !== 'INVESTIDA' ? ' is-sick' : ''}${u.frozen ? ' is-frozen' : ''}${u.stealth ? ' is-stealth' : ''}${u.token ? ' is-token' : ''}${u.foil ? ' is-foil' : ''}${dying ? ' is-dying' : ''}${entering && isEpic(u) ? ' is-epic-enter' : ''}`}
+      className={`tcgb-unit tcg-r-${u.rarity}${canAttack ? ' can-attack' : ''}${selected ? ' is-selected' : ''}${targetable ? ' is-target' : ''}${u.ability === 'GUARDA' ? ' is-guard' : ''}${u.shield ? ' has-shield' : ''}${u.sick && mine && u.ability !== 'INVESTIDA' ? ' is-sick' : ''}${u.frozen ? ' is-frozen' : ''}${u.stealth ? ' is-stealth' : ''}${u.token ? ' is-token' : ''}${u.foil ? ' is-foil' : ''}${u.golden ? ' is-golden' : ''}${dying ? ' is-dying' : ''}${entering && isEpic(u) ? ' is-epic-enter' : ''}`}
       style={{ '--el': el.color, '--el-dark': el.dark, '--rar': RARITIES[u.rarity]?.color }}
       onClick={onClick}
       onMouseEnter={() => onHover?.(u)} onMouseLeave={() => onHover?.(null)} onFocus={() => onHover?.(u)} onBlur={() => onHover?.(null)}
@@ -79,7 +79,7 @@ function TeamChips({ team, activeMember }) {
 // Coluna da esquerda: retrato com anel de vida e a vida grande (alvo dos ataques).
 function RailHero({ p, side, targetable, onClick, active, bubble }) {
   return (
-    <div className={`tcgb-hero tcgb-railhero is-${side}${targetable ? ' is-target' : ''}${active ? ' is-active' : ''}${p.hp <= p.maxHp * 0.25 ? ' is-low' : ''}`} data-hero={side}>
+    <div className={`tcgb-hero tcgb-railhero is-${side} fr-${(p.cosmetics?.frame || 'frame:padrao').replace('frame:', '')}${targetable ? ' is-target' : ''}${active ? ' is-active' : ''}${p.hp <= p.maxHp * 0.25 ? ' is-low' : ''}`} data-hero={side}>
       <button type="button" className="tcgb-hero-face" onClick={onClick} disabled={!targetable} aria-label={`${p.name}: ${p.hp} de vida`} title={p.name}>
         <HpRing hp={p.hp} max={p.maxHp} />
         <span className="tcgb-hero-pic">
@@ -112,7 +112,7 @@ function Piles({ p, side }) {
   return (
     <div className={`tcgb-piles is-${side}`}>
       <div className="tcgb-pile is-deck" title={`${p.deckCount} cartas no baralho`}>
-        <CardBack />
+        <CardBack variant={p.cosmetics?.back} />
         <b>{p.deckCount}</b>
         <small>Baralho</small>
       </div>
@@ -290,11 +290,14 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
     el.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 260 });
   }, []);
 
+  // Entrada especial: épicas ganham um feixe; lendárias e míticas têm uma
+  // animação própria do elemento (fogo, água, terra, ar, luz, sombra) + nome.
   const cinematic = useCallback(async (card) => {
     if (reduceMotion()) return;
-    setCine({ color: RARITIES[card.rarity]?.color || '#fff', key: Math.random() });
+    const legend = RARITY_ORDER.indexOf(card.rarity) >= RARITY_ORDER.indexOf('LENDARIA');
+    setCine({ color: RARITIES[card.rarity]?.color || '#fff', el: card.element, legend, name: card.name, key: Math.random() });
     sfx('epic');
-    await wait(650);
+    await wait(legend ? (fastRef.current ? 700 : 1250) : 650);
     setCine(null);
   }, []);
 
@@ -641,7 +644,7 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
         {/* Mesa: área do oponente em cima, a sua embaixo */}
         <div className="tcgb-zones">
           <div className="tcgb-foe-hand" aria-label={`${foe.handCount} cartas na mão`}>
-            {Array.from({ length: Math.min(foe.handCount, 10) }, (_, i) => <CardBack key={i} />)}
+            {Array.from({ length: Math.min(foe.handCount, 10) }, (_, i) => <CardBack key={i} variant={foe.cosmetics?.back} />)}
           </div>
           <section className={`tcgb-zone is-foe${view.active === foe.seat && !view.over ? ' is-active' : ''}`}>
             <Plate p={foe} side="foe" activeMember={view.active === foe.seat ? view.activeMember : null}>
@@ -743,7 +746,7 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
               />
             </div>
           ))}
-          {readOnly && me.handCount > 0 && Array.from({ length: Math.min(me.handCount, 10) }, (_, i) => <CardBack key={i} small />)}
+          {readOnly && me.handCount > 0 && Array.from({ length: Math.min(me.handCount, 10) }, (_, i) => <CardBack key={i} small variant={me.cosmetics?.back} />)}
         </div>
       </div>
 
@@ -772,7 +775,11 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
           </g>
         </svg>
       )}
-      {cine && <div key={cine.key} className="tcgb-cine" style={{ '--c': cine.color }} aria-hidden="true" />}
+      {cine && (
+        <div key={cine.key} className={`tcgb-cine el-${cine.el}${cine.legend ? ' is-legend' : ''}`} style={{ '--c': cine.color, '--elc': ELEMENTS[cine.el]?.color || cine.color }} aria-hidden="true">
+          {cine.legend && <><span className="tcgb-cine-fx" /><span className="tcgb-cine-name" data-no-translate>{cine.name}</span></>}
+        </div>
+      )}
       {floats.map((f) => <span key={f.id} className={`tcgb-float is-${f.kind}`} style={{ left: f.x, top: f.y }}>{f.text}</span>)}
       {popup && <div className="tcgb-popup"><span>{popup.who === me.seat ? me.name : foe.name} {popup.verb}</span><CardView card={popup.card} size="lg" /></div>}
       {banner && <div className="tcgb-banner">{banner}</div>}
@@ -818,6 +825,8 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
             {match.result?.campaign && <p className="tcg-ok">Fase concluída: {match.result.campaign.stage}! Próxima fase liberada.</p>}
             {match.result?.brawl && <p className="tcg-ok">Briga da semana vencida! +{match.result.brawl.coins} moedas e +{match.result.brawl.gems} gemas.</p>}
             {match.result?.tutorial && <p className="tcg-ok">Tutorial concluído! +{match.result.tutorial.coins} moedas. Agora você já sabe jogar 🎉</p>}
+            {match.result?.progress?.[myId]?.daily && <p className="tcg-ok">🔥 Sequência de {match.result.progress[myId].daily.days} dia(s): +{match.result.progress[myId].daily.coins} moedas</p>}
+            {match.result?.progress?.[myId]?.chest?.ready > 0 && <p className="tcg-ok">🎁 Baú de vitórias liberado! Abra no início da Arena.</p>}
             {endNote && <p className="tcg-dim">{endNote}</p>}
             {match.reward === 0 && !match.custom && <small>Partidas muito curtas, desistências no começo, partidas com bots no 2 vs 2 ou acima do limite diário não dão moedas.</small>}
             <div className="tcgb-end-actions">

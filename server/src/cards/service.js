@@ -5,7 +5,7 @@ const prisma = require('../config/prisma');
 const {
   RARITIES, DIFFICULTIES, mergeSettings, cardPower, divisionOf, BOARD_EFFECTS, BRAWLS, ELEMENTS,
 } = require('./config');
-const { SEED_CARDS, SEED_CARDS_V2, SEED_PACKS, SEED_CAMPAIGN } = require('./seed');
+const { SEED_CARDS, SEED_CARDS_V2, SEED_CARDS_V3, SEED_PACKS, SEED_CAMPAIGN } = require('./seed');
 
 class CardError extends Error {
   constructor(message, status = 400) { super(message); this.status = status; }
@@ -89,6 +89,25 @@ async function doSeed() {
       invalidateBoards();
     }
   } catch (err) { console.error('[cards] seed v4 falhou:', err?.message || err); }
+  // v5: expansão "Ecos do Abismo" (cartas + pacote por 30 dias) e cosméticos.
+  try {
+    const st = await getSettings(true);
+    if ((st.seedVersion || 1) < 5) {
+      await prisma.cardDef.createMany({ data: SEED_CARDS_V3, skipDuplicates: true });
+      const has = await prisma.cardPack.findFirst({ where: { poolCollection: 'Ecos do Abismo' } });
+      if (!has) {
+        await prisma.cardPack.create({ data: {
+          name: 'Expansão: Ecos do Abismo', description: '5 cartas da nova expansão, com uma Rara ou melhor garantida. Por tempo limitado!',
+          color: '#1fb5c9', priceCoins: 300, priceGems: 20, cardsPerPack: 5, guaranteed: 'RARA', poolMode: 'COLLECTION', poolCollection: 'Ecos do Abismo',
+          weights: JSON.stringify({ COMUM: 45, INCOMUM: 32, RARA: 16, EPICA: 5.5, LENDARIA: 1.3, MITICA: 0.2 }), sort: -1,
+          expansion: true, availableUntil: new Date(Date.now() + 30 * 86400000),
+        } });
+      }
+      await require('./progress').ensureCosmetics();
+      await patchSavedSettings({ seedVersion: 5 });
+      invalidateCatalog();
+    }
+  } catch (err) { console.error('[cards] seed v5 falhou:', err?.message || err); }
   seeded = true;
 }
 function ensureSeed() {
@@ -234,7 +253,7 @@ function shapeCard(c, owned) {
     rarity: c.rarity, element: c.element, collection: c.collection, cost: c.cost, attack: c.attack, health: c.health,
     ability: c.ability, abilityValue: c.abilityValue, enabled: c.enabled, kind: c.kind || 'UNIT',
     power: cardPower(c, owned?.level || 1),
-    ...(owned !== undefined ? { quantity: owned?.quantity || 0, level: owned?.level || 1, foil: Math.min(owned?.foil || 0, owned?.quantity || 0) } : {}),
+    ...(owned !== undefined ? { quantity: owned?.quantity || 0, level: owned?.level || 1, foil: Math.min(owned?.foil || 0, owned?.quantity || 0), golden: Math.min(owned?.golden || 0, owned?.quantity || 0) } : {}),
   };
 }
 
@@ -276,17 +295,20 @@ async function ownedMap(userId, tx = prisma) {
 }
 
 // Dá cartas (soma na quantidade). Dentro de transação quando possível.
-async function grantCards(tx, userId, cardIds, foilIds = []) {
+async function grantCards(tx, userId, cardIds, foilIds = [], goldenIds = []) {
   const counts = new Map();
   const foils = new Map();
+  const golds = new Map();
   for (const id of cardIds) counts.set(id, (counts.get(id) || 0) + 1);
   for (const id of foilIds) foils.set(id, (foils.get(id) || 0) + 1);
+  for (const id of goldenIds) golds.set(id, (golds.get(id) || 0) + 1);
   for (const [cardId, qty] of counts) {
     const f = foils.get(cardId) || 0;
+    const g = golds.get(cardId) || 0;
     await tx.userCard.upsert({
       where: { userId_cardId: { userId, cardId } },
-      update: { quantity: { increment: qty }, ...(f ? { foil: { increment: f } } : {}) },
-      create: { userId, cardId, quantity: qty, foil: f },
+      update: { quantity: { increment: qty }, ...(f ? { foil: { increment: f } } : {}), ...(g ? { golden: { increment: g } } : {}) },
+      create: { userId, cardId, quantity: qty, foil: f, golden: g },
     });
   }
 }
@@ -372,7 +394,12 @@ async function resolvePlayerDeck(userId, settings) {
   for (const { cardId, copies } of cards) {
     const card = catalog.byId.get(cardId);
     const row = owned.get(cardId);
-    for (let i = 0; i < copies; i += 1) out.push({ card: i < (row?.foil || 0) ? { ...card, foil: true } : card, level: row?.level || 1 });
+    // Douradas primeiro, depois brilhantes (a versão mais rara aparece na partida).
+    for (let i = 0; i < copies; i += 1) {
+      const g = i < (row?.golden || 0);
+      const f = !g && i < (row?.golden || 0) + (row?.foil || 0);
+      out.push({ card: g ? { ...card, golden: true } : f ? { ...card, foil: true } : card, level: row?.level || 1 });
+    }
   }
   return out;
 }
@@ -504,8 +531,19 @@ async function finalizeDuo(match, state, settings, io = null) {
       if (rewards[i] > 0) ledger.recordTransaction(ids[i], { kind: 'CARDS', label: 'Jogo de Cartas: partida 2 vs 2', coins: rewards[i] });
       afterActivity(ids[i], [['CARDS_PLAY', 1], ...(teamOf(i) === winnerSeat ? [['CARDS_WIN', 1]] : [])], io);
     }
+    r.progress = await progressAfter(ids.map((uid, i) => [uid, teamOf(i) === winnerSeat]), settings);
   }
   return r;
+}
+
+// Passe, sequência de dias e baú pra quem jogou (nunca quebra a partida).
+async function progressAfter(list, settings) {
+  const out = {};
+  for (const [uid, won] of list) {
+    if (!uid) continue;
+    try { out[uid] = await require('./progress').afterMatch(uid, won, settings); } catch (e) { console.error('[cards] progresso:', e?.message); }
+  }
+  return out;
 }
 
 async function finalizeMatch(match, state, settings, io = null) {
@@ -624,6 +662,7 @@ async function finalizeMatch(match, state, settings, io = null) {
     if (r && match.kind) {
       try { Object.assign(r, await afterMatchExtras(match, state, settings)); } catch (e) { console.error('[cards] extras:', e?.message); }
     }
+    if (r) r.progress = await progressAfter(seats.map((uid, s) => [uid, s === winnerSeat]), settings);
     return r;
   });
 }

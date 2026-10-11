@@ -2864,6 +2864,8 @@ model CardPack {
   dailyLimit     Int?
   discountPercent Int?
   offerEndsAt    DateTime?
+  expansion      Boolean   @default(false)
+  availableUntil DateTime?
   active         Boolean  @default(true)
   sort           Int      @default(0)
   createdAt      DateTime @default(now())
@@ -2877,6 +2879,7 @@ model UserCard {
   quantity  Int      @default(0)
   level     Int      @default(1)
   foil      Int      @default(0) // quantas das cópias são brilhantes (foil)
+  golden    Int      @default(0) // quantas das cópias são douradas (mais raras que brilhantes)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2923,6 +2926,14 @@ model CardPlayer {
   brawlWeek      String?
   brawlWins      Int      @default(0)
   tutorialDone   Boolean  @default(false)
+  dust           Int      @default(0)
+  chestDay       String?
+  chestWins      Int      @default(0)
+  chestsOpened   Int      @default(0)
+  streakDays     Int      @default(0)
+  lastPlayDay    String?
+  equippedBack   String?
+  equippedFrame  String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -3108,4 +3119,41 @@ model CardLobby {
 
   @@index([status, expiresAt])
   @@index([hostId])
+}
+
+// Passe da temporada (gratuito): XP por partidas, missões e pacotes.
+model CardPass {
+  id        String   @id @default(uuid())
+  userId    String
+  seasonKey String
+  xp        Int      @default(0)
+  claimed   String?  @db.Text // JSON [níveis já resgatados]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, seasonKey])
+}
+
+// Cosméticos da Arena (verso de carta, moldura do herói).
+model CardCosmetic {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  kind      String   // BACK | FRAME
+  name      String
+  rarity    String   @default("COMUM")
+  priceGems Int?
+  source    String   @default("SHOP") // SHOP | PASS | FREE
+  active    Boolean  @default(true)
+  sort      Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model UserCardCosmetic {
+  id         String   @id @default(uuid())
+  userId     String
+  cosmeticId String
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, cosmeticId])
+  @@index([userId])
 }

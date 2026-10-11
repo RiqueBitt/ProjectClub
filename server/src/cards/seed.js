@@ -95,4 +95,20 @@ const SEED_PACKS = [
   { name: 'Pacote Lendário', description: '5 cartas sem Comuns, com uma Épica ou melhor garantida.', color: '#f5c542', priceGems: 30, cardsPerPack: 5, weights: W_LEG, guaranteed: 'EPICA', sort: 2, dailyLimit: 3 },
 ];
 
-module.exports = { SEED_CARDS, SEED_CARDS_V2, SEED_PACKS, SEED_CAMPAIGN };
+// v3 — expansão "Ecos do Abismo" (pacote por tempo limitado).
+const SEED_CARDS_V3 = [
+  C('vigia-abissal', 'Vigia Abissal', 'SOMBRA', 'COMUM', 2, 2, 3, 'GUARDA', 0, 'Seus olhos nunca piscam.', 'Ecos do Abismo'),
+  C('enguia-voltaica', 'Enguia Voltaica', 'AGUA', 'COMUM', 1, 2, 1, 'INVESTIDA', 0, 'Um choque e some.', 'Ecos do Abismo'),
+  C('coral-ancestral', 'Coral Ancestral', 'TERRA', 'INCOMUM', 3, 1, 5, 'REGENERA', 2, 'Cresce mesmo partido.', 'Ecos do Abismo'),
+  C('lanterneiro', 'Peixe-Lanterneiro', 'LUZ', 'INCOMUM', 2, 2, 2, 'GRITO_COMPRA', 1, 'Ilumina o que estava perdido.', 'Ecos do Abismo'),
+  C('arraia-tempestade', 'Arraia da Tempestade', 'AR', 'RARA', 4, 4, 3, 'GRITO_RAIO', 2, 'Voa debaixo d\'água.', 'Ecos do Abismo'),
+  C('sereia-sombria', 'Sereia Sombria', 'SOMBRA', 'RARA', 4, 3, 4, 'ROUBO_VIDA', 0, 'Canta e drena.', 'Ecos do Abismo'),
+  C('magma-profundo', 'Magma Profundo', 'FOGO', 'RARA', 5, 5, 4, 'ULTIMO_SUSPIRO', 3, 'Até o mar ferve.', 'Ecos do Abismo'),
+  C('kraken-jovem', 'Kraken Jovem', 'AGUA', 'EPICA', 6, 5, 7, 'FURIA', 0, 'Oito braços, dois ataques.', 'Ecos do Abismo'),
+  C('oraculo-mares', 'Oráculo dos Mares', 'LUZ', 'EPICA', 5, 3, 6, 'AURA', 1, 'Vê o fim de cada batalha.', 'Ecos do Abismo'),
+  C('leviata-eclipse', 'Leviatã do Eclipse', 'SOMBRA', 'LENDARIA', 8, 8, 8, 'VENENO', 0, 'Quando ele sobe, a luz desce.', 'Ecos do Abismo'),
+  { ...S('maremoto', 'Maremoto', 'AGUA', 'EPICA', 6, 'FEITICO_AREA', 3, 'Nada fica de pé.'), collection: 'Ecos do Abismo' },
+  { ...S('corrente-fria', 'Corrente Fria', 'AGUA', 'COMUM', 2, 'FEITICO_CONGELAR', 1, 'O frio do fundo.'), collection: 'Ecos do Abismo' },
+];
+
+module.exports = { SEED_CARDS, SEED_CARDS_V2, SEED_CARDS_V3, SEED_PACKS, SEED_CAMPAIGN };

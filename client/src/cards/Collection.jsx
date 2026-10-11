@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CardView, CardBack, ELEMENTS, RARITIES, RARITY_ORDER, ABILITIES, Icon, UI, abilityText } from './CardView.jsx';
-import { cardsSell, cardsSellFoil, cardsLevelUp, cardsCreateListing, errMsg } from './api';
+import { cardsSell, cardsSellFoil, cardsLevelUp, cardsCreateListing, cardsDustTable, cardsDisenchant, cardsCraft, errMsg } from './api';
+
+let dustCache = null;
+function useDustTable() {
+  const [t, setT] = useState(dustCache);
+  useEffect(() => { if (!dustCache) cardsDustTable().then((d) => { dustCache = d; setT(d); }).catch(() => {}); }, []);
+  return t;
+}
 import { sfx } from './sfx';
 
 // Coleção: álbum por coleção (com silhueta das que faltam) ou grade com
@@ -49,6 +56,10 @@ export function CardModal({ card, home, onClose, onChanged }) {
     try { await navigator.clipboard.writeText(url); setOk('Link copiado! Cole no chat para mostrar a carta.'); } catch { setOk(url); }
   };
   const ab = ABILITIES[card.ability];
+  const dt = useDustTable();
+  const dustGain = dt?.dust?.[card.rarity] || 0;
+  const craftCost = dt?.craft?.[card.rarity] || 0;
+  const myDust = home.player?.dust || 0;
   return (
     <div className="tcg-modal" role="dialog" aria-label={card.name} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="tcg-modal-box">
@@ -91,7 +102,17 @@ export function CardModal({ card, home, onClose, onChanged }) {
               )}
               {card.quantity < 2 && <small className="tcg-dim">Evoluir e vender usam só cópias repetidas.</small>}
             </div>
-          ) : <p className="tcg-dim">Você ainda não tem esta carta. Abra pacotes, compre no mercado ou troque com outros jogadores.</p>}
+          ) : <p className="tcg-dim">Você ainda não tem esta carta. Abra pacotes, compre no mercado, troque com outros jogadores ou crie com pó.</p>}
+          {dt && (
+            <div className="tcg-dust">
+              <span className="tcg-dust-bal" title="Pó de criação: desmanche cartas repetidas e crie a carta que quiser"><Icon d="M12 2l2.4 6.6L21 9l-5 4.6L17.5 21 12 17l-5.5 4L8 13.6 3 9l6.6-.4z" size={14} />Seu pó: <b>{myDust}</b></span>
+              <div className="tcg-row-btns">
+                {card.quantity > 1 && <button type="button" className="tcg-btn" disabled={busy} onClick={() => run(() => cardsDisenchant(card.id, 1), `Desmanchada: +${dustGain} de pó`)}>Desmanchar 1 (+{dustGain} pó)</button>}
+                {card.golden > 0 && card.quantity > 1 && <button type="button" className="tcg-btn" disabled={busy} onClick={() => run(() => cardsDisenchant(card.id, 1, true), `Dourada desmanchada: +${dustGain * 4} de pó`)}>★ Desmanchar dourada (+{dustGain * 4})</button>}
+                <button type="button" className="tcg-btn primary" disabled={busy || myDust < craftCost} onClick={() => run(() => cardsCraft(card.id), 'Carta criada!')}>Criar com pó ({craftCost})</button>
+              </div>
+            </div>
+          )}
           <button type="button" className="tcg-btn ghost" onClick={share} style={{ marginTop: 8 }}><Icon d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13" />Compartilhar</button>
           {err && <p className="tcg-error">{err}</p>}
           {ok && <p className="tcg-ok">{ok}</p>}

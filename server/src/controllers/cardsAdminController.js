@@ -134,6 +134,8 @@ function readPack(req, isNew) {
   }
   if (b.discountPercent !== undefined) d.discountPercent = b.discountPercent === '' || b.discountPercent === null || b.discountPercent === 'null' ? null : int(b.discountPercent, 0, 90, 0) || null;
   if (b.offerEndsAt !== undefined) { const t = b.offerEndsAt ? new Date(b.offerEndsAt) : null; d.offerEndsAt = t && !Number.isNaN(t.getTime()) ? t : null; }
+  if (b.expansion !== undefined) d.expansion = b.expansion === true || b.expansion === 'true';
+  if (b.availableUntil !== undefined) { const t = b.availableUntil ? new Date(b.availableUntil) : null; d.availableUntil = t && !Number.isNaN(t.getTime()) ? t : null; }
   if (b.active !== undefined) d.active = b.active === true || b.active === 'true';
   if (b.sort !== undefined) d.sort = int(b.sort, -999, 999, 0);
   if (b.removeImage === 'true' || b.removeImage === true) d.imageUrl = null;

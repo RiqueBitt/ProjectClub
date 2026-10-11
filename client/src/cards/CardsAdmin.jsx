@@ -228,7 +228,7 @@ function PackEditor({ initial, cards, onSaved, onCancel }) {
   const save = async () => {
     setBusy(true); setErr('');
     try {
-      const body = { discountPercent: f.discountPercent === '' || f.discountPercent == null ? null : f.discountPercent, offerEndsAt: f.offerEndsAt ? new Date(f.offerEndsAt).toISOString() : null, name: f.name, description: f.description, color: f.color, priceCoins: f.priceCoins === '' ? null : f.priceCoins, priceGems: f.priceGems === '' ? null : f.priceGems, cardsPerPack: f.cardsPerPack, dailyLimit: f.dailyLimit === '' ? null : f.dailyLimit, guaranteed: f.guaranteed || null, poolMode: f.poolMode, poolCollection: f.poolCollection || null, poolCardIds: f.poolCardIds, active: f.active, sort: f.sort, weights: f.weights };
+      const body = { discountPercent: f.discountPercent === '' || f.discountPercent == null ? null : f.discountPercent, offerEndsAt: f.offerEndsAt ? new Date(f.offerEndsAt).toISOString() : null, name: f.name, description: f.description, color: f.color, priceCoins: f.priceCoins === '' ? null : f.priceCoins, priceGems: f.priceGems === '' ? null : f.priceGems, cardsPerPack: f.cardsPerPack, dailyLimit: f.dailyLimit === '' ? null : f.dailyLimit, guaranteed: f.guaranteed || null, poolMode: f.poolMode, poolCollection: f.poolCollection || null, poolCardIds: f.poolCardIds, active: f.active, sort: f.sort, weights: f.weights, expansion: !!f.expansion, availableUntil: f.availableUntil ? new Date(f.availableUntil).toISOString() : null };
       const r = initial?.id ? await cardsAdmin.updatePack(initial.id, toFd(body, file)) : await cardsAdmin.createPack(toFd(body, file));
       onSaved(r.pack);
     } catch (e) { setErr(errMsg(e)); } finally { setBusy(false); }
@@ -248,6 +248,8 @@ function PackEditor({ initial, cards, onSaved, onCancel }) {
         <Field label="Ordem na loja"><input type="number" value={f.sort} onChange={set('sort')} /></Field>
         <Field label="Desconto (%)" hint="Vazio = sem desconto. A oferta do dia também dá desconto automático."><input type="number" min="0" max="90" value={f.discountPercent ?? ''} onChange={set('discountPercent')} /></Field>
         <Field label="Oferta termina em" hint="Vazio = sem prazo."><input type="datetime-local" value={f.offerEndsAt ? String(f.offerEndsAt).slice(0, 16) : ''} onChange={set('offerEndsAt')} /></Field>
+        <Field label="À venda até" hint="Pacote por tempo limitado (some da loja depois). Vazio = sempre."><input type="datetime-local" value={f.availableUntil ? String(f.availableUntil).slice(0, 16) : ''} onChange={set('availableUntil')} /></Field>
+        <label className="tcg-check"><input type="checkbox" checked={!!f.expansion} onChange={(e) => setF((x) => ({ ...x, expansion: e.target.checked }))} />Selo "Nova expansão"</label>
         <Field label="Descrição" wide><textarea rows={2} maxLength={400} value={f.description || ''} onChange={set('description')} /></Field>
         <Field label="Imagem do pacote (opcional)" wide><input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} /></Field>
       </div>

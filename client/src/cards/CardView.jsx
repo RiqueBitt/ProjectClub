@@ -162,13 +162,14 @@ export function CardView({ card, size = 'md', className = '', onClick, quantity,
   const value = card.value ?? card.abilityValue;
   const ab = ABILITIES[card.ability];
   const spell = card.kind === 'SPELL';
-  const shiny = !!(foil ?? card.foil);
+  const golden = !!card.golden && (card.quantity === undefined || card.golden > 0);
+  const shiny = !golden && !!(foil ?? card.foil);
   const Tag = onClick ? 'button' : 'div';
   const tiltOn = tilt && size !== 'xs' && canTilt();
   return (
     <Tag
       type={onClick ? 'button' : undefined}
-      className={`tcg-card tcg-${size} tcg-r-${card.rarity}${dim ? ' is-dim' : ''}${spell ? ' is-spell' : ''}${shiny ? ' is-foil' : ''} ${className}`}
+      className={`tcg-card tcg-${size} tcg-r-${card.rarity}${dim ? ' is-dim' : ''}${spell ? ' is-spell' : ''}${shiny ? ' is-foil' : ''}${golden ? ' is-golden' : ''} ${className}`}
       {...rest}
       style={{ '--el': el.color, '--el-dark': el.dark, '--rar': rar.color, ...style }}
       onClick={onClick}
@@ -188,6 +189,7 @@ export function CardView({ card, size = 'md', className = '', onClick, quantity,
           </span>
           {spell && <span className="tcg-spell-tag">{rar.label}</span>}
           {shiny && <span className="tcg-foil-sheen" aria-hidden="true" />}
+          {golden && <span className="tcg-gold-sheen" aria-hidden="true" />}
           <span className="tcg-glare" aria-hidden="true" />
         </span>
         <span className="tcg-cost" title="Custo de energia"><b>{card.cost}</b></span>
@@ -201,6 +203,7 @@ export function CardView({ card, size = 'md', className = '', onClick, quantity,
       </span>
       {showQty && quantity > 0 && <span className="tcg-qty">x{quantity}</span>}
       {showQty && card.foil > 0 && <span className="tcg-foil-badge" title={`${card.foil} brilhante(s)`}>✦ {card.foil}</span>}
+      {showQty && card.golden > 0 && <span className="tcg-gold-badge" title={`${card.golden} dourada(s)`}>★ {card.golden}</span>}
       {showQty && !quantity && <span className="tcg-missing">Não tem</span>}
       {badge}
       {children}
@@ -208,9 +211,10 @@ export function CardView({ card, size = 'md', className = '', onClick, quantity,
   );
 }
 
-export function CardBack({ className = '', small = false }) {
+export function CardBack({ className = '', small = false, variant = null }) {
+  const v = variant ? String(variant).replace('back:', '') : 'classico';
   return (
-    <span className={`tcg-back${small ? ' is-small' : ''} ${className}`} aria-hidden="true">
+    <span className={`tcg-back v-${v}${small ? ' is-small' : ''} ${className}`} aria-hidden="true">
       <span className="tcg-back-inner">
         <svg viewBox="0 0 40 56" className="tcg-back-sigil" aria-hidden="true">
           <path d="M20 6 34 28 20 50 6 28z" fill="none" stroke="currentColor" strokeWidth="1.6" />

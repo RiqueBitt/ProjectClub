@@ -282,6 +282,8 @@ async function claim(userId, missionId, io = null) {
   });
 
   recordTransaction(userId, { kind: 'MISSION', label: `Missão: ${m.title}`, coins: m.rewardCoins, gems: m.rewardGems, xp: m.rewardXp });
+  // Missões da Arena também dão XP no passe da temporada.
+  if (String(m.type || '').startsWith('CARDS_')) setImmediate(() => { require('../cards/progress').addPassXpFor(userId, 'mission').catch(() => {}); });
   if (result.levelUp) {
     if (result.levelUp.coinsReward > 0) recordTransaction(userId, { kind: 'LEVEL', label: `Subiu para o nível ${result.levelUp.newLevel}`, coins: result.levelUp.coinsReward });
     io?.notifyUser?.(userId, 'xp:levelup', result.levelUp);

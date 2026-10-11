@@ -230,14 +230,14 @@ const listPacks = handle(async (req, res) => {
   await S.ensureSeed();
   const today = S.dayKey();
   const [packs, opens] = await Promise.all([
-    prisma.cardPack.findMany({ where: { active: true }, orderBy: [{ sort: 'asc' }, { createdAt: 'asc' }] }),
+    prisma.cardPack.findMany({ where: { active: true, OR: [{ availableUntil: null }, { availableUntil: { gt: new Date() } }] }, orderBy: [{ sort: 'asc' }, { createdAt: 'asc' }] }),
     prisma.cardPackOpen.groupBy({ by: ['packId'], where: { userId: req.user.id, dayKey: today }, _count: true }),
   ]);
   const openedToday = Object.fromEntries(opens.map((o) => [o.packId, o._count]));
   const settings = await S.getSettings();
   const dealId = dailyDealId(packs, today);
   res.json({
-    foilChance: settings.economy.foilChance,
+    foilChance: settings.economy.foilChance, goldenChance: settings.extras.goldenChance,
     packs: packs.map((p) => {
       const pct = packDiscount(p, dealId, settings);
       return {
@@ -247,6 +247,7 @@ const listPacks = handle(async (req, res) => {
       offerEndsAt: pct && p.id !== dealId ? p.offerEndsAt : null,
       weights: safeJson(p.weights, {}), guaranteed: p.guaranteed, dailyLimit: p.dailyLimit,
       openedToday: openedToday[p.id] || 0, poolMode: p.poolMode, poolCollection: p.poolCollection,
+      expansion: !!p.expansion, availableUntil: p.availableUntil || null,
     };
     }),
   });
@@ -261,6 +262,7 @@ const openPack = handle(async (req, res) => {
   if (!settings.enabled.packs) throw new CardError('A loja de pacotes está fechada no momento.');
   const pack = await prisma.cardPack.findUnique({ where: { id: req.params.id } });
   if (!pack || !pack.active) throw new CardError('Pacote não encontrado.', 404);
+  if (pack.availableUntil && new Date(pack.availableUntil).getTime() <= Date.now()) throw new CardError('Esse pacote não está mais à venda.');
   const currency = req.body?.currency === 'gems' ? 'gems' : 'coins';
   const allActive = await prisma.cardPack.findMany({ where: { active: true }, select: { id: true, active: true } });
   const pct = packDiscount(pack, dailyDealId(allActive, S.dayKey()), settings);
@@ -271,7 +273,10 @@ const openPack = handle(async (req, res) => {
   const cards = S.drawPack(pack, catalog);
   // Cada carta tem uma chance de vir brilhante (foil).
   const foilPct = Math.max(0, Math.min(100, Number(settings.economy.foilChance) || 0));
-  const foils = cards.map(() => crypto.randomInt(0, 10000) < foilPct * 100);
+  // Dourada: bem mais rara (por mil). Uma carta dourada não conta como brilhante.
+  const goldPm = Math.max(0, Math.min(1000, Number(settings.extras?.goldenChance) || 0));
+  const goldens = cards.map(() => crypto.randomInt(0, 100000) < goldPm * 100);
+  const foils = cards.map((_, i) => !goldens[i] && crypto.randomInt(0, 10000) < foilPct * 100);
   const today = S.dayKey();
   await prisma.$transaction(async (tx) => {
     if (pack.dailyLimit) {
@@ -282,17 +287,18 @@ const openPack = handle(async (req, res) => {
       const r = await tx.user.updateMany({ where: { id: userId, [currency]: { gte: price } }, data: { [currency]: { decrement: price } } });
       if (r.count === 0) throw new CardError(currency === 'gems' ? 'Gemas insuficientes.' : 'Moedas insuficientes.');
     }
-    await S.grantCards(tx, userId, cards.map((c) => c.id), cards.filter((_, i) => foils[i]).map((c) => c.id));
+    await S.grantCards(tx, userId, cards.map((c) => c.id), cards.filter((_, i) => foils[i]).map((c) => c.id), cards.filter((_, i) => goldens[i]).map((c) => c.id));
     await tx.cardPackOpen.create({ data: { userId, packId: pack.id, dayKey: today, cards: JSON.stringify(cards.map((c) => c.id)), paidCoins: currency === 'coins' ? price : 0, paidGems: currency === 'gems' ? price : 0 } });
     await tx.cardPlayer.upsert({ where: { userId }, update: { packsOpened: { increment: 1 } }, create: { userId, packsOpened: 1 } });
   });
   if (price > 0) ledger().recordTransaction(userId, { kind: 'CARDS', label: `Jogo de Cartas: ${pack.name}`, [currency]: -price });
   S.afterActivity(userId, [['CARDS_PACK', 1]], req.app.get('io'));
+  require('../cards/progress').addPassXpFor(userId, 'pack').catch(() => {});
   const seen = new Set();
   const result = cards.map((c, i) => {
     const isNew = !(owned.get(c.id)?.quantity > 0) && !seen.has(c.id);
     seen.add(c.id);
-    return { ...S.shapeCard(c), isNew, foil: foils[i] };
+    return { ...S.shapeCard(c), isNew, foil: foils[i], golden: goldens[i] };
   });
   const me = await prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true } });
   res.json({ cards: result, wallet: me });
@@ -432,8 +438,11 @@ function notify(req, userId, event, data) {
 }
 
 async function playerSeatInfo(userId) {
-  const u = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, displayName: true, avatarUrl: true } });
-  return { userId, name: u?.displayName || 'Jogador', avatarUrl: u?.avatarUrl || null };
+  const [u, cosmetics] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { id: true, displayName: true, avatarUrl: true } }),
+    require('../cards/progress').cosmeticsFor(userId).catch(() => null),
+  ]);
+  return { userId, name: u?.displayName || 'Jogador', avatarUrl: u?.avatarUrl || null, cosmetics };
 }
 
 const BOT_NAMES = { FACIL: 'Aprendiz Pip', MEDIO: 'Duelista Nora', DIFICIL: 'Mestre Kael', LENDARIO: 'Arquimaga Vex' };

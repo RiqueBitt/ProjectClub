@@ -60,6 +60,17 @@ export const cardsStartTutorial = () => api.post('/cards/tutorial/start').then(d
 export const cardsEmote = (id, key) => api.post(`/cards/matches/${id}/emote`, { key }).then(d);
 export const cardsAgain = (id) => api.post(`/cards/matches/${id}/again`).then(d);
 
+export const cardsPass = () => api.get('/cards/pass').then(d);
+export const cardsClaimPass = (level) => api.post(`/cards/pass/${level}/claim`).then(d);
+export const cardsChest = () => api.get('/cards/chest').then(d);
+export const cardsOpenChest = () => api.post('/cards/chest/open').then(d);
+export const cardsDustTable = () => api.get('/cards/dust').then(d);
+export const cardsDisenchant = (cardId, qty, golden = false) => api.post(`/cards/collection/${cardId}/disenchant`, { qty, golden }).then(d);
+export const cardsCraft = (cardId) => api.post(`/cards/collection/${cardId}/craft`).then(d);
+export const cardsCosmetics = () => api.get('/cards/cosmetics').then(d);
+export const cardsBuyCosmetic = (id) => api.post(`/cards/cosmetics/${id}/buy`).then(d);
+export const cardsEquipCosmetic = (key) => api.post('/cards/cosmetics/equip', { key }).then(d);
+
 // Staff
 export const cardsAdmin = {
   cards: () => api.get('/cards/admin/cards').then(d),

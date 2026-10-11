@@ -13,7 +13,8 @@ export default function PacksTab({ home, onOpened }) {
   const [busy, setBusy] = useState(null);
   const [opening, setOpening] = useState(null);
   const [foilChance, setFoilChance] = useState(4);
-  const load = () => cardsPacks().then((d) => { setPacks(d.packs); if (d.foilChance != null) setFoilChance(d.foilChance); }).catch((e) => setErr(errMsg(e)));
+  const [goldenChance, setGoldenChance] = useState(6);
+  const load = () => cardsPacks().then((d) => { setPacks(d.packs); if (d.foilChance != null) setFoilChance(d.foilChance); if (d.goldenChance != null) setGoldenChance(d.goldenChance); }).catch((e) => setErr(errMsg(e)));
   useEffect(() => { load(); }, []);
   const open = async (p, currency) => {
     setBusy(p.id + currency); setErr('');
@@ -49,6 +50,7 @@ export default function PacksTab({ home, onOpened }) {
                 <span className="tcg-pack-n">{p.cardsPerPack} cartas</span>
                 {p.guaranteed && <span className="tcg-pack-guar" style={{ '--c': RARITIES[p.guaranteed]?.color }}>{RARITIES[p.guaranteed]?.label}+ garantida</span>}
                 {p.discountPercent > 0 && <span className="tcg-pack-ribbon">{p.dailyDeal ? 'Oferta do dia' : 'Oferta'} −{p.discountPercent}%</span>}
+                {p.expansion && <span className="tcg-pack-exp">✦ Nova expansão</span>}
               </div>
               <div className="tcg-pack-body">
                 <h3 data-no-translate>{p.name}</h3>
@@ -60,6 +62,7 @@ export default function PacksTab({ home, onOpened }) {
                 </div>
                 {p.guaranteed && <small className="tcg-dim">Garantia: pelo menos 1 carta {RARITIES[p.guaranteed]?.label} ou melhor.</small>}
                 {limit !== null && <small className="tcg-dim">Hoje: {Math.max(0, limit)} de {p.dailyLimit} restantes.</small>}
+                {p.availableUntil && <small className="tcg-offer-left is-exp">Disponível por mais {(() => { const ms = new Date(p.availableUntil).getTime() - Date.now(); const h = Math.max(0, Math.floor(ms / 3600000)); return h >= 24 ? `${Math.floor(h / 24)} dia(s)` : `${h}h`; })()} — depois sai da loja!</small>}
                 {p.offerEndsAt && <small className="tcg-offer-left">Oferta termina em {(() => { const ms = new Date(p.offerEndsAt).getTime() - Date.now(); const h = Math.max(0, Math.floor(ms / 3600000)); return h >= 24 ? `${Math.floor(h / 24)}d ${h % 24}h` : `${h}h ${Math.max(0, Math.floor((ms % 3600000) / 60000))}min`; })()}</small>}
                 <div className="tcg-pack-buy">
                   {p.priceCoins !== null && p.priceCoins !== undefined && (
@@ -80,7 +83,7 @@ export default function PacksTab({ home, onOpened }) {
           );
         })}
       </div>
-      <p className="tcg-dim tcg-note">As chances são por carta. Cada carta também pode vir <b>brilhante</b> (✦ {foilChance}%). O sorteio é feito no servidor no momento da compra.</p>
+      <p className="tcg-dim tcg-note">As chances são por carta. Cada carta também pode vir <b>brilhante</b> (✦ {foilChance}%) ou, bem mais rara, <b>dourada</b> (★ {(goldenChance / 10).toLocaleString('pt-BR')}%). O sorteio é feito no servidor no momento da compra.</p>
       {opening && (
         <PackOpening
           pack={opening.pack} cards={opening.cards}
