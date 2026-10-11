@@ -33,18 +33,29 @@ function invalidateSettings() { settingsCache = null; }
 
 // ---------- Catálogo inicial ----------
 let seeded = false;
-async function ensureSeed() {
-  if (seeded) return;
-  const count = await prisma.cardDef.count();
-  if (count === 0) {
-    await prisma.cardDef.createMany({ data: SEED_CARDS, skipDuplicates: true });
+let seedPromise = null;
+// Uma vez só por processo, mesmo com várias requisições chegando juntas
+// (antes duas requisições simultâneas tentavam inserir o catálogo e o banco
+// acusava deadlock).
+async function doSeed() {
+  try {
+    if ((await prisma.cardDef.count()) === 0) await prisma.cardDef.createMany({ data: SEED_CARDS, skipDuplicates: true });
+  } catch (err) {
+    if ((await prisma.cardDef.count().catch(() => 0)) === 0) throw err; // outro processo já inseriu = tudo certo
   }
-  if ((await prisma.cardPack.count()) === 0) {
-    for (const p of SEED_PACKS) {
-      await prisma.cardPack.create({ data: { ...p, weights: JSON.stringify(p.weights) } });
+  try {
+    if ((await prisma.cardPack.count()) === 0) {
+      for (const p of SEED_PACKS) await prisma.cardPack.create({ data: { ...p, weights: JSON.stringify(p.weights) } });
     }
+  } catch (err) {
+    if ((await prisma.cardPack.count().catch(() => 0)) === 0) throw err;
   }
   seeded = true;
+}
+function ensureSeed() {
+  if (seeded) return Promise.resolve();
+  if (!seedPromise) seedPromise = doSeed().finally(() => { seedPromise = null; });
+  return seedPromise;
 }
 
 let catalogCache = null;
