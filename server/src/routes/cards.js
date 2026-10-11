@@ -69,6 +69,7 @@ router.get('/users/:userId/summary', ctrl.profileSummary); // vitrine do perfil 
 router.use(requireSystemEnabled('cartas'));
 router.get('/home', ctrl.home);
 router.post('/starter', buyLimiter, ctrl.claimStarter);
+router.post('/starter/kit', buyLimiter, ctrl.claimKit);
 router.get('/collection', ctrl.collection);
 router.get('/users/:userId/collection', ctrl.userCollection);
 router.post('/collection/:cardId/sell', buyLimiter, ctrl.sellCard);

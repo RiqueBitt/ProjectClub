@@ -18,7 +18,7 @@ import LobbyRoom from '../cards/LobbyRoom.jsx';
 import PassTab from '../cards/PassTab.jsx';
 import ChallengesTab from '../cards/ChallengesTab.jsx';
 import {
-  cardsHome, cardsClaimStarter, cardsCollection, cardsStartPve, cardsMatch, cardsChallenge, cardsRanking,
+  cardsHome, cardsClaimStarter, cardsClaimKit, cardsCollection, cardsStartPve, cardsMatch, cardsChallenge, cardsRanking,
   cardsUserCollection, cardsWatch, cardsReplay, cardsStartTutorial, errMsg,
 } from '../cards/api';
 import '../styles/cards.css';
@@ -102,6 +102,14 @@ export default function CardsGamePage() {
     try { later = sessionStorage.getItem('pc-cards-welcome') === '1'; } catch { /* ignora */ }
     if (home?.starterAvailable && !later) setWelcome(true);
   }, [home?.starterAvailable]);
+  // Kit da nova coleção para quem já jogava.
+  const [kitOpen, setKitOpen] = useState(false);
+  const [kitCards, setKitCards] = useState(null);
+  useEffect(() => {
+    let later = false;
+    try { later = sessionStorage.getItem('pc-cards-kit') === '1'; } catch { /* ignora */ }
+    if (home?.kitAvailable && !later) setKitOpen(true);
+  }, [home?.kitAvailable]);
   const tradeWith = params.get('trocar');
   const [tradeTarget, setTradeTarget] = useState(null);
   const openCard = params.get('carta');
@@ -218,6 +226,13 @@ export default function CardsGamePage() {
             <button type="button" className="tcg-btn primary" onClick={() => setWelcome(true)}>Pegar cartas</button>
           </div>
         )}
+        {home?.kitAvailable && !kitOpen && (
+          <div className="tcg-starter">
+            <span className="tcg-starter-icon"><Icon d={UI.pack} size={30} /></span>
+            <div><strong>Chegaram as cartas novas!</strong><p>Pegue seu kit grátis com {home.kitCount || 15} cartas de Memes BR, Club Penguin e Cultura Pop.</p></div>
+            <button type="button" className="tcg-btn primary" onClick={() => setKitOpen(true)}>Pegar kit</button>
+          </div>
+        )}
 
         <nav className="tcg-tabs" role="tablist" aria-label="Seções do jogo">
           {TABS.map((t) => (
@@ -255,6 +270,16 @@ export default function CardsGamePage() {
           onClaim={async () => { const r = await cardsClaimStarter(); setWelcome(false); setStarter(r.cards); refreshAll(); }}
           onLater={() => { setWelcome(false); try { sessionStorage.setItem('pc-cards-welcome', '1'); } catch { /* ignora */ } }}
         />
+      )}
+      {kitOpen && home?.kitAvailable && !welcome && (
+        <WelcomeModal
+          kit home={home} user={user} cards={cards}
+          onClaim={async () => { const r = await cardsClaimKit(); setKitOpen(false); setKitCards(r.cards); refreshAll(); }}
+          onLater={() => { setKitOpen(false); try { sessionStorage.setItem('pc-cards-kit', '1'); } catch { /* ignora */ } }}
+        />
+      )}
+      {kitCards && (
+        <PackOpening pack={{ name: 'Kit da nova coleção', color: '#22c55e' }} cards={kitCards.map((c) => ({ ...c, isNew: true }))} onClose={() => setKitCards(null)} />
       )}
       {starter && (
         <PackOpening

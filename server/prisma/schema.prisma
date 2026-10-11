@@ -2825,6 +2825,7 @@ model StaffAnnouncement {
 // ============================================================
 model CardDef {
   id           String   @id @default(uuid())
+  retired      Boolean  @default(false) // coleção antiga: jogável, mas fora de pacotes, bots e draft
   slug         String   @unique
   name         String
   description  String?  @db.Text
@@ -2940,6 +2941,7 @@ model CardPlayer {
   draftRuns      Int      @default(0)
   draftBest      Int      @default(0)
   bossDamage     Int      @default(0)
+  kitV2          Boolean  @default(false) // kit grátis da nova coleção (memes/Club Penguin/cultura pop)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

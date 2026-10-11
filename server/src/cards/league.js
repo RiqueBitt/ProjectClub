@@ -19,7 +19,7 @@ const DRAFT_WEIGHTS = { COMUM: 500, INCOMUM: 280, RARA: 140, EPICA: 60, LENDARIA
 const draftSize = (settings) => Math.max(10, Math.min(30, settings.rules.deckSize | 0 || 20));
 
 function rollDraftOptions(catalog, settings, picks) {
-  const pool = catalog.enabled;
+  const pool = catalog.fresh || catalog.enabled;
   if (!pool.length) throw new CardError('Nenhuma carta disponível.');
   const count = new Map();
   for (const id of picks) count.set(id, (count.get(id) || 0) + 1);
@@ -271,7 +271,7 @@ async function startBoss(userId) {
   if (!ok.count) ok = await prisma.cardBossHit.updateMany({ where: { bossId: boss.id, userId, OR: [{ day: null }, { day: { not: today } }] }, data: { day: today, dayTries: 1 } });
   if (!ok.count) throw new CardError(`Você já usou suas ${BOSS_TRIES_PER_DAY} tentativas de hoje. Volte amanhã!`);
   const catalog = await S.getCatalog();
-  const themed = catalog.enabled.filter((c) => c.element === boss.element);
+  const themed = catalog.fresh.filter((c) => c.element === boss.element);
   const pool = themed.length >= 8 ? { enabled: themed } : catalog;
   const botDeck = S.randomDeck(pool, settings, 3);
   const C = require('../controllers/cardsController');

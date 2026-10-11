@@ -56,6 +56,7 @@ function readCard(req, isNew) {
   if (b.health !== undefined) d.health = int(b.health, 1, 40, 1);
   if (b.abilityValue !== undefined) d.abilityValue = int(b.abilityValue, 0, 20, 0);
   if (b.enabled !== undefined) d.enabled = b.enabled === true || b.enabled === 'true';
+  if (b.retired !== undefined) d.retired = b.retired === true || b.retired === 'true';
   if (b.removeImage === 'true' || b.removeImage === true) d.imageUrl = null;
   else if (b.imageUrl !== undefined && typeof b.imageUrl === 'string' && /^https?:\/\//.test(b.imageUrl)) d.imageUrl = b.imageUrl.slice(0, 500);
   if (req.file?.url) d.imageUrl = req.file.url;

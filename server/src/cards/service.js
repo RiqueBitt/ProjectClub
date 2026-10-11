@@ -5,7 +5,7 @@ const prisma = require('../config/prisma');
 const {
   RARITIES, DIFFICULTIES, mergeSettings, cardPower, divisionOf, BOARD_EFFECTS, BRAWLS, ELEMENTS,
 } = require('./config');
-const { SEED_CARDS, SEED_CARDS_V2, SEED_CARDS_V3, SEED_PACKS, SEED_CAMPAIGN } = require('./seed');
+const { SEED_CARDS, SEED_CARDS_V2, SEED_CARDS_V3, SEED_CARDS_V4, SEED_PACKS, SEED_PACKS_V4, NEW_COLLECTIONS, SEED_CAMPAIGN } = require('./seed');
 
 class CardError extends Error {
   constructor(message, status = 400) { super(message); this.status = status; }
@@ -108,6 +108,21 @@ async function doSeed() {
       invalidateCatalog();
     }
   } catch (err) { console.error('[cards] seed v5 falhou:', err?.message || err); }
+  // v6: nova era — memes BR, Club Penguin e cultura pop. Tudo que existia vira
+  // "Clássicos" (aposentado: jogável, mas fora dos pacotes) e os pacotes
+  // antigos saem da loja. Só roda uma vez; a staff pode reverter pelo painel.
+  try {
+    const st = await getSettings(true);
+    if ((st.seedVersion || 1) < 6) {
+      await prisma.cardDef.createMany({ data: SEED_CARDS_V4, skipDuplicates: true });
+      const newSlugs = SEED_CARDS_V4.map((c) => c.slug);
+      await prisma.cardDef.updateMany({ where: { slug: { notIn: newSlugs }, collection: { notIn: NEW_COLLECTIONS } }, data: { retired: true, collection: 'Clássicos' } });
+      await prisma.cardPack.updateMany({ where: {}, data: { active: false } });
+      for (const p of SEED_PACKS_V4) await prisma.cardPack.create({ data: { ...p, weights: JSON.stringify(p.weights) } });
+      await patchSavedSettings({ seedVersion: 6 });
+      invalidateCatalog();
+    }
+  } catch (err) { console.error('[cards] seed v6 falhou:', err?.message || err); }
   seeded = true;
 }
 function ensureSeed() {
@@ -122,7 +137,12 @@ async function getCatalog(force = false) {
   if (!force && catalogCache && Date.now() - catalogAt < 20_000) return catalogCache;
   await ensureSeed();
   const all = await prisma.cardDef.findMany({ orderBy: [{ cost: 'asc' }, { name: 'asc' }] });
-  catalogCache = { all, byId: new Map(all.map((c) => [c.id, c])), enabled: all.filter((c) => c.enabled) };
+  const enabled = all.filter((c) => c.enabled);
+  // "fresh" = cartas em circulação (fora das coleções aposentadas): pacotes,
+  // bots, draft, baús e kit inicial só usam essas. As aposentadas continuam
+  // jogáveis no baralho de quem já tem.
+  const fresh = enabled.filter((c) => !c.retired);
+  catalogCache = { all, byId: new Map(all.map((c) => [c.id, c])), enabled, fresh: fresh.length >= 10 ? fresh : enabled };
   catalogAt = Date.now();
   return catalogCache;
 }
@@ -130,7 +150,7 @@ function invalidateCatalog() { catalogCache = null; }
 
 // Baralho aleatório com TODAS as cartas (partidas personalizadas).
 function randomDeck(catalog, settings, level = 1) {
-  const pool = catalog.enabled;
+  const pool = catalog.fresh || catalog.enabled;
   const deck = [];
   const count = new Map();
   let guard = 0;
@@ -199,7 +219,7 @@ async function brawlDecks(brawl, settings, userId) {
   const catalog = await getCatalog();
   if (brawl.deck === 'ELEMENT') {
     const el = ELEMENTS[randInt(ELEMENTS.length)] || 'FOGO';
-    const pool = { enabled: catalog.enabled.filter((c) => c.element === el) };
+    const pool = { enabled: catalog.fresh.filter((c) => c.element === el) };
     return { me: randomDeck(pool, settings, 2), bot: randomDeck(pool, settings, 2), note: el };
   }
   if (brawl.deck === 'MIRROR') {
@@ -257,7 +277,7 @@ function shapeCard(c, owned) {
   return {
     id: c.id, slug: c.slug, name: c.name, description: c.description, flavor: c.flavor, imageUrl: c.imageUrl,
     rarity: c.rarity, element: c.element, collection: c.collection, cost: c.cost, attack: c.attack, health: c.health,
-    ability: c.ability, abilityValue: c.abilityValue, enabled: c.enabled, kind: c.kind || 'UNIT',
+    ability: c.ability, abilityValue: c.abilityValue, enabled: c.enabled, retired: !!c.retired, kind: c.kind || 'UNIT',
     power: cardPower(c, owned?.level || 1),
     ...(owned !== undefined ? { quantity: owned?.quantity || 0, level: owned?.level || 1, foil: Math.min(owned?.foil || 0, owned?.quantity || 0), golden: Math.min(owned?.golden || 0, owned?.quantity || 0) } : {}),
   };
@@ -413,7 +433,7 @@ async function resolvePlayerDeck(userId, settings) {
 async function botDeck(difficulty, settings) {
   const catalog = await getCatalog();
   const diff = DIFFICULTIES[difficulty] || DIFFICULTIES.MEDIO;
-  const pool = catalog.enabled.filter((c) => rankOf(c.rarity) <= rankOf(diff.maxRarity));
+  const pool = catalog.fresh.filter((c) => rankOf(c.rarity) <= rankOf(diff.maxRarity));
   if (!pool.length) throw new CardError('Nenhuma carta disponível para o bot.');
   const counts = new Map();
   const out = [];
@@ -443,7 +463,7 @@ function packPool(pack, catalog) {
     const set = new Set(ids);
     return catalog.enabled.filter((c) => set.has(c.id));
   }
-  return catalog.enabled;
+  return catalog.fresh || catalog.enabled;
 }
 
 function drawPack(pack, catalog) {

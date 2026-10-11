@@ -35,7 +35,7 @@ const toFd = (obj, file) => {
 };
 
 // ---------------- Cartas ----------------
-const EMPTY_CARD = { name: '', slug: '', kind: 'UNIT', collection: 'Origens', rarity: 'COMUM', element: 'FOGO', cost: 1, attack: 1, health: 1, ability: 'NONE', abilityValue: 0, description: '', flavor: '', enabled: true, imageUrl: null };
+const EMPTY_CARD = { name: '', slug: '', kind: 'UNIT', collection: 'Memes BR', rarity: 'COMUM', element: 'FOGO', cost: 1, attack: 1, health: 1, ability: 'NONE', abilityValue: 0, description: '', flavor: '', enabled: true, retired: false, imageUrl: null };
 
 function CardEditor({ initial, collections, onSaved, onCancel }) {
   const [f, setF] = useState({ ...EMPTY_CARD, ...initial });
@@ -90,6 +90,7 @@ function CardEditor({ initial, collections, onSaved, onCancel }) {
             </span>
           </Field>
           <label className="tcg-check"><input type="checkbox" checked={!!f.enabled} onChange={set('enabled')} />Carta ativa (aparece em pacotes, coleções e partidas)</label>
+          <label className="tcg-check"><input type="checkbox" checked={!!f.retired} onChange={set('retired')} />Aposentada (coleção clássica: continua jogável, mas sai dos pacotes, bots e draft)</label>
         </div>
         <Msg err={err} />
         <div className="tca-actions">

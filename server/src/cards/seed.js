@@ -111,4 +111,90 @@ const SEED_CARDS_V3 = [
   { ...S('corrente-fria', 'Corrente Fria', 'AGUA', 'COMUM', 2, 'FEITICO_CONGELAR', 1, 'O frio do fundo.'), collection: 'Ecos do Abismo' },
 ];
 
-module.exports = { SEED_CARDS, SEED_CARDS_V2, SEED_CARDS_V3, SEED_PACKS, SEED_CAMPAIGN };
+
+// v4 — nova era da Arena: memes BR, Club Penguin e cultura pop. As cartas
+// antigas viram "Clássicos" (continuam jogáveis, mas saem dos pacotes).
+// Imagens: a staff envia pelo painel (cada carta tem upload de imagem).
+const SP = (slug, name, element, rarity, cost, ability, abilityValue, flavor, collection) => ({
+  slug, name, element, rarity, cost, attack: 0, health: 1, ability, abilityValue, flavor, collection, kind: 'SPELL',
+});
+const MEME = 'Memes BR';
+const CP = 'Club Penguin';
+const POP = 'Cultura Pop';
+const SEED_CARDS_V4 = [
+  // ---------------- Memes BR ----------------
+  C('caramelo', 'Vira-Lata Caramelo', 'TERRA', 'COMUM', 2, 2, 3, 'GUARDA', 0, 'Patrimônio nacional. Late pra moto e protege a família.', MEME),
+  C('capivara-zen', 'Capivara Zen', 'AGUA', 'COMUM', 2, 1, 4, 'REGENERA', 1, 'Nada a abala. Nem o jacaré do lado.', MEME),
+  C('pombo-praca', 'Pombo da Praça', 'AR', 'COMUM', 1, 1, 1, 'GRITO_COMPRA', 1, 'Roubou sua coxinha e ainda te encarou.', MEME),
+  C('tio-pave', 'Tio do Pavê', 'LUZ', 'COMUM', 2, 2, 2, 'GRITO_CURA', 3, 'Todo almoço de domingo, a mesma piada. E todo mundo ri.', MEME),
+  C('gato-julgador', 'Gato Julgador', 'SOMBRA', 'COMUM', 1, 2, 1, 'FURTIVO', 0, 'Te julga em silêncio lá de cima da geladeira.', MEME),
+  C('chihuahua', 'Chihuahua Nervosinho', 'FOGO', 'COMUM', 2, 3, 1, 'INVESTIDA', 0, 'Treme inteiro. Morde mesmo assim.', MEME),
+  C('mosquito', 'Mosquito da Madrugada', 'SOMBRA', 'COMUM', 1, 1, 2, 'ROUBO_VIDA', 0, 'Zzzz… bem no seu ouvido, às 3 da manhã.', MEME),
+  C('doguinho', 'Doguinho Much Wow', 'AR', 'INCOMUM', 2, 2, 2, 'ENERGIA', 1, 'Muito carta. Tão jogada. Uau.', MEME),
+  C('stonks', 'Homem Stonks', 'LUZ', 'RARA', 2, 2, 3, 'ENERGIA', 2, 'Comprou na alta, vendeu na baixa e chamou de estratégia.', MEME),
+  C('nazare', 'Nazaré Confusa', 'AR', 'RARA', 4, 3, 4, 'GRITO_COMPRA', 2, 'Ainda está fazendo as contas.', MEME),
+  C('iara', 'Iara, a Sereia', 'AGUA', 'RARA', 4, 3, 5, 'CONGELA', 0, 'Canta bonito. Não aceite o convite pro rio.', MEME),
+  C('saci', 'Saci Pererê', 'AR', 'EPICA', 5, 5, 4, 'FURTIVO', 0, 'Some num redemoinho levando uma das suas meias.', MEME),
+  C('mula-sem-cabeca', 'Mula Sem Cabeça', 'FOGO', 'EPICA', 5, 5, 4, 'ULTIMO_SUSPIRO', 4, 'Não tem cabeça, mas tem opinião.', MEME),
+  C('curupira', 'Curupira', 'TERRA', 'LENDARIA', 7, 6, 9, 'REGENERA', 4, 'Pés virados pra trás: ninguém sabe se ele vem ou vai.', MEME),
+  C('boitata', 'Boitatá', 'FOGO', 'LENDARIA', 8, 8, 8, 'FURIA', 0, 'A cobra de fogo que guarda a mata à noite.', MEME),
+  C('capivara-suprema', 'Capivara Suprema', 'TERRA', 'MITICA', 9, 9, 10, 'ESCUDO', 0, 'Quando ela relaxa, o universo relaxa junto.', MEME),
+  SP('chinelo-mae', 'Chinelo da Mãe', 'FOGO', 'COMUM', 1, 'FEITICO_DANO', 2, 'Alcance infinito. Nunca erra.', MEME),
+  SP('biscoito-bolacha', 'Biscoito ou Bolacha?', 'AR', 'INCOMUM', 2, 'FEITICO_COMPRA', 2, 'A discussão nunca acaba — mas você compra cartas.', MEME),
+  SP('pastel-vento', 'Pastel de Vento', 'LUZ', 'INCOMUM', 1, 'FEITICO_ESCUDO', 0, 'Por fora crocante, por dentro… nada. Perfeito pra se esconder.', MEME),
+  SP('danca-caixao', 'Dança do Caixão', 'SOMBRA', 'EPICA', 6, 'FEITICO_AREA', 3, 'Eles chegam dançando. E levam todo mundo.', MEME),
+
+  // ---------------- Club Penguin ----------------
+  C('puffle-vermelho', 'Puffle Vermelho', 'FOGO', 'COMUM', 1, 2, 1, 'INVESTIDA', 0, 'Adora ser lançado de um canhão.', CP),
+  C('puffle-azul', 'Puffle Azul', 'AGUA', 'COMUM', 1, 1, 2, 'GUARDA', 0, 'Leal, calmo e sempre do seu lado.', CP),
+  C('puffle-verde', 'Puffle Verde', 'TERRA', 'COMUM', 2, 1, 3, 'GRITO_CURA', 4, 'Hélice na cabeça, alegria no coração.', CP),
+  C('puffle-rosa', 'Puffle Rosa', 'AR', 'COMUM', 2, 2, 2, 'GRITO_RAIO', 1, 'Pula corda até cansar — e nunca cansa.', CP),
+  C('puffle-amarelo', 'Puffle Amarelo', 'LUZ', 'COMUM', 1, 1, 2, 'ESCUDO', 0, 'Artista nato, vive pintando a casa toda.', CP),
+  C('puffle-roxo', 'Puffle Roxo', 'SOMBRA', 'COMUM', 2, 3, 1, 'INVESTIDA', 0, 'Exigente: só dança com música boa.', CP),
+  C('rookie', 'Rookie', 'LUZ', 'COMUM', 2, 2, 3, 'GUARDA', 0, 'O agente mais desastrado da agência. E o mais animado.', CP),
+  C('puffle-preto', 'Puffle Preto', 'SOMBRA', 'INCOMUM', 2, 3, 2, 'FURTIVO', 0, 'Parece bravo. É só tímido. E bravo.', CP),
+  C('klutzy', 'Klutzy', 'AGUA', 'INCOMUM', 2, 1, 2, 'VENENO', 0, 'Um caranguejo pequeno com planos maléficos enormes.', CP),
+  C('gary', 'Gary, o Inventor', 'AR', 'RARA', 4, 3, 3, 'INVOCAR', 2, 'Toda invenção vem com um botão vermelho.', CP),
+  C('tia-artica', 'Tia Ártica', 'LUZ', 'RARA', 4, 3, 4, 'GRITO_COMPRA', 2, 'Editora do jornal. Sabe da notícia antes de acontecer.', CP),
+  C('ph', 'PH, a Treinadora', 'TERRA', 'RARA', 3, 2, 4, 'AURA', 1, 'Quando ela assobia, todos os puffles obedecem.', CP),
+  C('jetpack', 'Agente Mochila a Jato', 'FOGO', 'RARA', 4, 4, 3, 'INVESTIDA', 0, 'Chega voando antes de você terminar a frase.', CP),
+  C('cadence', 'Cadence', 'AR', 'EPICA', 6, 5, 5, 'AURA', 2, 'Quando a música começa, ninguém fica parado.', CP),
+  C('sensei', 'Sensei', 'TERRA', 'EPICA', 6, 5, 8, 'GUARDA', 0, 'Mestre ninja. Ensina com paciência — e com cartas.', CP),
+  C('herbert', 'Herbert, o Urso Polar', 'SOMBRA', 'LENDARIA', 8, 7, 7, 'VENENO', 0, 'Seu plano: esquentar a ilha inteira.', CP),
+  C('rockhopper', 'Capitão Rockhopper', 'AGUA', 'LENDARIA', 7, 6, 6, 'INVOCAR', 3, 'Chega no navio com tesouros, histórias e a tripulação.', CP),
+  C('iceberg', 'O Iceberg', 'AGUA', 'MITICA', 9, 8, 12, 'GUARDA', 0, 'Dizem que, se todo mundo pular junto, ele vira.', CP),
+  SP('bola-neve', 'Bola de Neve', 'AGUA', 'COMUM', 1, 'FEITICO_CONGELAR', 1, 'Guerra na praça: ninguém sai seco.', CP),
+  SP('pizza-pizzatron', 'Pizza do Pizzatron', 'FOGO', 'COMUM', 1, 'FEITICO_CURA', 4, 'Cobertura de pimenta… ou de chocolate?', CP),
+
+  // ---------------- Cultura Pop ----------------
+  C('chaves', 'Chaves', 'LUZ', 'COMUM', 1, 1, 1, 'GRITO_COMPRA', 1, 'Mora no barril e sonha com sanduíche de presunto.', POP),
+  C('kiko', 'Kiko', 'AR', 'COMUM', 2, 2, 2, 'GRITO_RAIO', 1, 'Bochechas cheias e uma bola nova que ninguém pode tocar.', POP),
+  C('burro-falante', 'Burro Falante', 'AR', 'COMUM', 2, 2, 1, 'GRITO_COMPRA', 1, 'Fala sem parar. Mas é amigo de verdade.', POP),
+  C('bob-esponja', 'Bob Esponja', 'AGUA', 'COMUM', 2, 2, 3, 'REGENERA', 1, 'Frita hambúrgueres com amor e energia infinita.', POP),
+  C('lula-molusco', 'Lula Molusco', 'SOMBRA', 'COMUM', 2, 1, 4, 'GUARDA', 0, 'Odeia segundas. E terças. E o resto da semana.', POP),
+  SP('fita-k7', 'Fita K7 e Caneta', 'AR', 'COMUM', 1, 'FEITICO_COMPRA', 1, 'Rebobinar era um esporte olímpico.', POP),
+  C('seu-madruga', 'Seu Madruga', 'SOMBRA', 'INCOMUM', 3, 3, 3, 'ESPINHOS', 2, 'Deve 14 meses de aluguel e nenhuma desculpa.', POP),
+  C('disquete', 'Disquete Guardião', 'TERRA', 'INCOMUM', 3, 2, 5, 'GUARDA', 0, 'Guarda 1,44 MB de pura coragem.', POP),
+  SP('cartucho', 'Cartucho Assoprado', 'FOGO', 'INCOMUM', 2, 'FEITICO_DANO', 3, 'Assopra e funciona. Ninguém sabe por quê.', POP),
+  SP('bichinho-virtual', 'Bichinho Virtual', 'LUZ', 'INCOMUM', 1, 'FEITICO_CURA', 5, 'Alimente, limpe, repita. Não deixe ele morrer!', POP),
+  C('sonic', 'Ouriço Supersônico', 'AR', 'RARA', 3, 4, 2, 'INVESTIDA', 0, 'Rápido demais pra esperar a vez.', POP),
+  C('mario', 'Encanador Saltitante', 'FOGO', 'RARA', 3, 2, 3, 'GRITO_DANO', 3, 'Pula, pega moeda, salva a princesa. Rotina.', POP),
+  SP('tijolao', 'Tijolão Indestrutível', 'TERRA', 'RARA', 3, 'FEITICO_BUFF', 3, 'O celular que sobreviveu ao 5º andar.', POP),
+  SP('discador', 'Discador da Internet', 'SOMBRA', 'RARA', 3, 'FEITICO_CONGELAR', 3, 'Piiii-krrrr-tshhh… e ninguém usa o telefone.', POP),
+  C('chapolin', 'Chapolin', 'LUZ', 'EPICA', 5, 4, 5, 'PROTEGER', 0, 'Chega na hora certa — às vezes tropeçando.', POP),
+  C('pikachu', 'Rato Elétrico', 'AR', 'EPICA', 5, 4, 4, 'GRITO_RAIO', 3, 'Um choque em quem chegar perto.', POP),
+  SP('lan-house', 'Lan House', 'FOGO', 'EPICA', 6, 'FEITICO_AREA', 3, '— Mais uma hora, tio!', POP),
+  C('shrek', 'Ogro do Pântano', 'TERRA', 'LENDARIA', 7, 7, 8, 'GUARDA', 0, 'Saia do pântano dele. Agora.', POP),
+  C('mestre-magos', 'Mestre dos Magos', 'LUZ', 'LENDARIA', 7, 6, 6, 'GRITO_COMPRA', 3, 'Aparece, dá um conselho enigmático e some.', POP),
+  C('goku', 'Guerreiro Saiyajin', 'FOGO', 'MITICA', 9, 9, 9, 'FURIA', 0, 'Sempre treinando para o próximo nível.', POP),
+];
+const NEW_COLLECTIONS = [MEME, CP, POP];
+const SEED_PACKS_V4 = [
+  { name: 'Pacote Memes BR', description: '5 cartas de memes, lendas e zoeiras brasileiras.', color: '#22c55e', priceCoins: 150, cardsPerPack: 5, weights: W_BASIC, guaranteed: 'INCOMUM', poolMode: 'COLLECTION', poolCollection: MEME, sort: 0 },
+  { name: 'Pacote Club Penguin', description: '5 cartas da ilha: puffles, agentes e capitães.', color: '#3aa0ff', priceCoins: 150, cardsPerPack: 5, weights: W_BASIC, guaranteed: 'INCOMUM', poolMode: 'COLLECTION', poolCollection: CP, sort: 1 },
+  { name: 'Pacote Cultura Pop', description: '5 cartas de personagens e itens nostálgicos e icônicos.', color: '#ff4fa3', priceCoins: 150, cardsPerPack: 5, weights: W_BASIC, guaranteed: 'INCOMUM', poolMode: 'COLLECTION', poolCollection: POP, sort: 2 },
+  { name: 'Pacote Nostalgia', description: '6 cartas de todas as coleções novas, com mais chance de Raras e Épicas.', color: '#ff7a3d', priceCoins: 400, cardsPerPack: 6, weights: W_PLUS, guaranteed: 'RARA', sort: 3 },
+  { name: 'Pacote Lendário', description: '5 cartas sem Comuns, com uma Épica ou melhor garantida.', color: '#f5c542', priceGems: 30, cardsPerPack: 5, weights: W_LEG, guaranteed: 'EPICA', sort: 4, dailyLimit: 3 },
+];
+
+module.exports = { SEED_CARDS, SEED_CARDS_V2, SEED_CARDS_V3, SEED_CARDS_V4, SEED_PACKS, SEED_PACKS_V4, NEW_COLLECTIONS, SEED_CAMPAIGN };

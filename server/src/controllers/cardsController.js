@@ -71,6 +71,8 @@ const home = handle(async (req, res) => {
     wallet: me,
     collection: { total: owned._sum.quantity || 0, distinct: owned._count || 0 },
     starterAvailable: !player.starterClaimed,
+    kitAvailable: !!player.starterClaimed && !player.kitV2,
+    kitCount: KIT_SIZE,
     starterCount: Math.max(settings.rules.deckSize, settings.economy.starterCards | 0),
     extras: settings.extras,
     boards: boards.map(S.shapeBoard),
@@ -87,8 +89,8 @@ const claimStarter = handle(async (req, res) => {
   const catalog = await S.getCatalog();
   const n = Math.max(settings.rules.deckSize, settings.economy.starterCards | 0);
   // Pacote de boas-vindas: cartas comuns (entram incomuns só se faltar variedade).
-  const commons = catalog.enabled.filter((c) => c.rarity === 'COMUM');
-  const basic = commons.length * settings.rules.maxCopies >= n ? commons : catalog.enabled.filter((c) => S.rankOf(c.rarity) <= S.rankOf('INCOMUM'));
+  const commons = catalog.fresh.filter((c) => c.rarity === 'COMUM');
+  const basic = commons.length * settings.rules.maxCopies >= n ? commons : catalog.fresh.filter((c) => S.rankOf(c.rarity) <= S.rankOf('INCOMUM'));
   if (!basic.length) throw new CardError('Ainda não há cartas básicas no catálogo.');
   const picks = [];
   const count = new Map();
@@ -102,7 +104,7 @@ const claimStarter = handle(async (req, res) => {
   }
   const ok = await prisma.$transaction(async (tx) => {
     await tx.cardPlayer.upsert({ where: { userId }, update: {}, create: { userId } });
-    const r = await tx.cardPlayer.updateMany({ where: { userId, starterClaimed: false }, data: { starterClaimed: true } });
+    const r = await tx.cardPlayer.updateMany({ where: { userId, starterClaimed: false }, data: { starterClaimed: true, kitV2: true } });
     if (r.count === 0) return false;
     await S.grantCards(tx, userId, picks);
     return true;
@@ -111,12 +113,46 @@ const claimStarter = handle(async (req, res) => {
   res.json({ cards: picks.map((id) => S.shapeCard(catalog.byId.get(id))) });
 });
 
+// Kit grátis da nova coleção para quem já jogava (uma vez por conta).
+const KIT_SIZE = 15;
+const claimKit = handle(async (req, res) => {
+  const userId = req.user.id;
+  await requireActivePlayer(userId);
+  const settings = await S.getSettings();
+  const catalog = await S.getCatalog();
+  const pick = (pool, n, count, out) => {
+    for (let guard = 0; out.length < n && guard < 4000 && pool.length; guard += 1) {
+      const c = pool[S.randInt(pool.length)];
+      if ((count.get(c.id) || 0) >= settings.rules.maxCopies && guard < 3000) continue;
+      count.set(c.id, (count.get(c.id) || 0) + 1);
+      out.push(c.id);
+    }
+  };
+  const count = new Map();
+  const picks = [];
+  pick(catalog.fresh.filter((c) => c.rarity === 'COMUM'), 12, count, picks);
+  pick(catalog.fresh.filter((c) => c.rarity === 'INCOMUM'), KIT_SIZE, count, picks);
+  pick(catalog.fresh.filter((c) => S.rankOf(c.rarity) <= S.rankOf('INCOMUM')), KIT_SIZE, count, picks);
+  if (!picks.length) throw new CardError('Ainda não há cartas novas no catálogo.');
+  const ok = await prisma.$transaction(async (tx) => {
+    await tx.cardPlayer.upsert({ where: { userId }, update: {}, create: { userId } });
+    const r = await tx.cardPlayer.updateMany({ where: { userId, starterClaimed: true, kitV2: false }, data: { kitV2: true } });
+    if (r.count === 0) return false;
+    await S.grantCards(tx, userId, picks);
+    return true;
+  });
+  if (!ok) throw new CardError('Você já pegou o kit da nova coleção.');
+  res.json({ cards: picks.map((id) => S.shapeCard(catalog.byId.get(id))) });
+});
+
 // ---------- Coleção ----------
 const collection = handle(async (req, res) => {
   const catalog = await S.getCatalog();
   const owned = await S.ownedMap(req.user.id);
-  const cards = catalog.enabled.map((c) => S.shapeCard(c, owned.get(c.id) || null));
-  res.json({ cards, collections: [...new Set(catalog.enabled.map((c) => c.collection))] });
+  // Coleções aposentadas só aparecem para quem tem alguma carta delas.
+  const visible = catalog.enabled.filter((c) => !c.retired || owned.get(c.id)?.quantity > 0);
+  const cards = visible.map((c) => S.shapeCard(c, owned.get(c.id) || null));
+  res.json({ cards, collections: [...new Set(visible.map((c) => c.collection))] });
 });
 
 // Cartas que outra pessoa tem (pra montar uma troca / ver no perfil).
@@ -145,7 +181,7 @@ const profileSummary = handle(async (req, res) => {
   cards.sort((a, b) => S.rankOf(b.rarity) - S.rankOf(a.rarity) || b.power - a.power);
   res.json({
     player: player ? publicPlayer(player) : null,
-    distinct: cards.length, total: catalog.enabled.length,
+    distinct: cards.length, total: catalog.fresh.length,
     showcase: cards.slice(0, 5),
   });
 });
@@ -814,7 +850,7 @@ const respondTrade = (kind) => handle(async (req, res) => {
 
 module.exports = {
   newPveMatch, newPvpMatch, playerSeatInfo, notify, payload, seatOf, playersOf, runBots, notifyOthers, appendActions, applyTimeoutIfNeeded, requireActivePlayer, handle, BOT_NAMES, safeJson,
-  home, claimStarter, collection, userCollection, profileSummary, sellCard, levelUp,
+  home, claimStarter, claimKit, collection, userCollection, profileSummary, sellCard, levelUp,
   listPacks, openPack, listDecks, saveDeck, deleteDeck, activateDeck, suggestDeck,
   startPve, challenge, acceptChallenge: respondChallenge(true), declineChallenge: respondChallenge(false),
   getMatch, action, history, ranking, listTrades, createTrade,

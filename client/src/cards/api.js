@@ -4,6 +4,7 @@ import { api } from '../api/client';
 const d = (r) => r.data;
 export const cardsHome = () => api.get('/cards/home').then(d);
 export const cardsClaimStarter = () => api.post('/cards/starter').then(d);
+export const cardsClaimKit = () => api.post('/cards/starter/kit').then(d);
 export const cardsCollection = () => api.get('/cards/collection').then(d);
 export const cardsUserCollection = (userId) => api.get(`/cards/users/${userId}/collection`).then(d);
 export const cardsUserSummary = (userId) => api.get(`/cards/users/${userId}/summary`).then(d);
