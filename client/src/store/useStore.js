@@ -569,6 +569,17 @@ export const useStore = create((set, get) => ({
   addMessage: (roomKey, message) => set((s) => {
     const existing = s.messagesByRoom[roomKey] || [];
     if (existing.some((m) => m.id === message.id)) return {};
+    // Eco da própria mensagem (o servidor emite 'message:new' antes de
+    // responder o POST): troca a otimista NO LUGAR, pelo nonce — sem
+    // duplicar por um instante nem pular de posição.
+    if (message.nonce) {
+      const idx = existing.findIndex((m) => m.nonce === message.nonce && String(m.id).startsWith('temp-'));
+      if (idx >= 0) {
+        const next = existing.slice();
+        next[idx] = { ...message, _animateIn: existing[idx]._animateIn };
+        return { messagesByRoom: { ...s.messagesByRoom, [roomKey]: next } };
+      }
+    }
     // Item pedido: "melhore a fluidez do chat, deixando mais suave e
     // com detalhes de animação" — só mensagens que chegam por aqui
     // (envio próprio otimista ou 'message:new' via socket) são
@@ -593,8 +604,19 @@ export const useStore = create((set, get) => ({
   resolveOptimisticMessage: (roomKey, tempId, realMessage) => set((s) => {
     const existing = s.messagesByRoom[roomKey] || [];
     const alreadyHasReal = existing.some((m) => m.id === realMessage.id);
-    const next = existing.filter((m) => m.id !== tempId);
-    if (!alreadyHasReal) next.push(realMessage);
+    const tempIdx = existing.findIndex((m) => m.id === tempId);
+    // O eco do socket já trocou a otimista pela real — nada a fazer
+    // (evita um render à toa).
+    if (tempIdx < 0 && alreadyHasReal) return {};
+    let next;
+    if (tempIdx >= 0 && !alreadyHasReal) {
+      // Troca no mesmo lugar (antes ia pro fim da lista e "pulava").
+      next = existing.slice();
+      next[tempIdx] = { ...realMessage, nonce: existing[tempIdx].nonce, _animateIn: existing[tempIdx]._animateIn };
+    } else {
+      next = existing.filter((m) => m.id !== tempId);
+      if (!alreadyHasReal) next.push(realMessage);
+    }
     return { messagesByRoom: { ...s.messagesByRoom, [roomKey]: next } };
   }),
   failOptimisticMessage: (roomKey, tempId) => set((s) => ({

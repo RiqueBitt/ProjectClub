@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from './AuthContext.jsx';
 import { useSocket } from './SocketContext.jsx';
 import { useStore } from '../store/useStore';
@@ -126,6 +126,25 @@ async function fetchAgoraToken(channelName) {
   return { token, appId };
 }
 
+// Volume individual por pessoa/transmissão (0 a 2 = 0% a 200%), lembrado
+// entre sessões. Chave = id do usuário.
+const VOLUMES_KEY = 'pc.voiceVolumes';
+function loadSavedVolumes() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(VOLUMES_KEY) || '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch { return {}; }
+}
+function saveVolumes(v) {
+  try { localStorage.setItem(VOLUMES_KEY, JSON.stringify(v)); } catch { /* sem storage — só não lembra */ }
+}
+function dropKey(obj, key) {
+  if (!(key in obj)) return obj;
+  const n = { ...obj }; delete n[key]; return n;
+}
+// Intervalo da reconciliação com o servidor enquanto está numa chamada.
+const VOICE_SYNC_MS = 20000;
+
 export function VoiceProvider({ children }) {
   const { user } = useAuth();
   const { socket } = useSocket();
@@ -143,10 +162,22 @@ export function VoiceProvider({ children }) {
   const [handsRaised, setHandsRaised] = useState({});
   const [participants, setParticipants] = useState({});
   const [localSpeaking, setLocalSpeaking] = useState(false);
-  const [remoteCameraStreams, setRemoteCameraStreams] = useState({});
-  const [remoteScreenStreams, setRemoteScreenStreams] = useState({});
+  const localSpeakingRef = useRef(false);
+  // BUG CORRIGIDO ("transmitindo mas aparece como câmera / não aparece
+  // a tela"): antes, cada vídeo remoto era classificado UMA vez, no
+  // momento em que chegava do Agora, como "tela" ou "câmera" olhando o
+  // estado do socket. Só que o aviso "estou transmitindo" (voice:state)
+  // é enviado DEPOIS de publicar, então quase sempre o vídeo chegava
+  // antes e era guardado como câmera pra sempre. Agora guarda um vídeo
+  // por pessoa e decide tela/câmera na hora de mostrar (useMemo abaixo),
+  // então se corrige sozinho assim que o estado chega.
+  const [remoteVideoStreams, setRemoteVideoStreams] = useState({});
   const [remoteAudioStreams, setRemoteAudioStreams] = useState({});
-  const [volumes, setVolumes] = useState({});
+  // Quem está conectado na mídia (Agora) agora — usado pra nunca
+  // esconder alguém que está na chamada de verdade só porque um evento
+  // de socket se perdeu.
+  const [mediaUids, setMediaUids] = useState({});
+  const [volumes, setVolumes] = useState(loadSavedVolumes);
   const [roster, setRoster] = useState({});
   const [rosterStartedAt, setRosterStartedAt] = useState({});
   const [rosterSpeaking, setRosterSpeaking] = useState({});
@@ -182,6 +213,24 @@ export function VoiceProvider({ children }) {
   const toggleMuteBusyRef = useRef(false);
   const toggleCameraBusyRef = useRef(false);
   const toggleScreenShareBusyRef = useRef(false);
+  // Espelhos em ref do estado local, lidos pelos listeners do socket sem
+  // precisar re-registrar tudo a cada clique (ver o efeito dos listeners).
+  const localStateRef = useRef({ muted: false, deafened: false, video: false, screenSharing: false });
+  useEffect(() => {
+    localStateRef.current = { muted, deafened, video: cameraOn, screenSharing: screenOn };
+  }, [muted, deafened, cameraOn, screenOn]);
+  // Pedido de reconciliação "em breve" (agrupa vários gatilhos num só).
+  const syncTimerRef = useRef(null);
+  const requestSync = useCallback((delay = 1500) => {
+    if (syncTimerRef.current) return;
+    syncTimerRef.current = setTimeout(() => {
+      syncTimerRef.current = null;
+      const current = callRef.current;
+      if (current && socket?.connected) socket.emit('voice:sync', { channelId: current.channelId });
+    }, delay);
+  }, [socket]);
+  const requestSyncRef = useRef(requestSync);
+  useEffect(() => { requestSyncRef.current = requestSync; }, [requestSync]);
 
   const broadcastState = useCallback((patch) => {
     if (!socket || !callRef.current) return;
@@ -192,6 +241,14 @@ export function VoiceProvider({ children }) {
     const AgoraRTC = await loadAgoraRTC();
     const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
 
+    // Alguém entrou na mídia. Se o socket ainda não contou, pede um
+    // retrato novo pro servidor (corrige "está na call e não aparece").
+    client.on('user-joined', (remoteUser) => {
+      const uid = String(remoteUser.uid);
+      setMediaUids((s) => (s[uid] ? s : { ...s, [uid]: true }));
+      if (!useStore.getState().voiceParticipantsSnapshot?.[uid]) requestSyncRef.current?.();
+    });
+
     client.on('user-published', async (remoteUser, mediaType) => {
       try {
         await client.subscribe(remoteUser, mediaType);
@@ -199,7 +256,9 @@ export function VoiceProvider({ children }) {
         console.error('[voz] Falha ao se inscrever na mídia de', remoteUser.uid, err);
         return;
       }
+      if (agoraClientRef.current !== client) return; // cliente antigo (já saiu)
       const uid = String(remoteUser.uid);
+      setMediaUids((s) => (s[uid] ? s : { ...s, [uid]: true }));
       if (mediaType === 'audio') {
         // BUG CORRIGIDO ("eco na voz"): o áudio estava sendo tocado DUAS
         // VEZES ao mesmo tempo — uma vez aqui (remoteUser.audioTrack.
@@ -216,27 +275,21 @@ export function VoiceProvider({ children }) {
         setRemoteAudioStreams((s) => ({ ...s, [uid]: mediaStream }));
       } else if (mediaType === 'video') {
         const mediaStream = new MediaStream([remoteUser.videoTrack.getMediaStreamTrack()]);
-        const isScreen = useStore.getState().voiceParticipantsSnapshot?.[uid]?.screenSharing;
-        if (isScreen) setRemoteScreenStreams((s) => ({ ...s, [uid]: mediaStream }));
-        else setRemoteCameraStreams((s) => ({ ...s, [uid]: mediaStream }));
+        setRemoteVideoStreams((s) => ({ ...s, [uid]: mediaStream }));
       }
     });
 
     client.on('user-unpublished', (remoteUser, mediaType) => {
       const uid = String(remoteUser.uid);
-      if (mediaType === 'audio') {
-        setRemoteAudioStreams((s) => { const n = { ...s }; delete n[uid]; return n; });
-      } else if (mediaType === 'video') {
-        setRemoteCameraStreams((s) => { const n = { ...s }; delete n[uid]; return n; });
-        setRemoteScreenStreams((s) => { const n = { ...s }; delete n[uid]; return n; });
-      }
+      if (mediaType === 'audio') setRemoteAudioStreams((s) => dropKey(s, uid));
+      else if (mediaType === 'video') setRemoteVideoStreams((s) => dropKey(s, uid));
     });
 
     client.on('user-left', (remoteUser) => {
       const uid = String(remoteUser.uid);
-      setRemoteAudioStreams((s) => { const n = { ...s }; delete n[uid]; return n; });
-      setRemoteCameraStreams((s) => { const n = { ...s }; delete n[uid]; return n; });
-      setRemoteScreenStreams((s) => { const n = { ...s }; delete n[uid]; return n; });
+      setRemoteAudioStreams((s) => dropKey(s, uid));
+      setRemoteVideoStreams((s) => dropKey(s, uid));
+      setMediaUids((s) => dropKey(s, uid));
     });
 
     client.enableAudioVolumeIndicator();
@@ -245,12 +298,15 @@ export function VoiceProvider({ children }) {
         const speaking = level > 15;
         const uidStr = String(uid);
         if (uidStr === String(user?.id)) {
-          setLocalSpeaking((prev) => {
-            if (prev !== speaking) socket?.emit('voice:speaking', { channelId: callRef.current?.channelId, speaking });
-            return speaking;
-          });
+          // Só avisa/re-renderiza quando muda (antes o emit ficava dentro
+          // do updater do setState, que o React pode rodar duas vezes).
+          if (localSpeakingRef.current !== speaking) {
+            localSpeakingRef.current = speaking;
+            setLocalSpeaking(speaking);
+            socket?.emit('voice:speaking', { channelId: callRef.current?.channelId, speaking });
+          }
         } else {
-          setParticipants((s) => (s[uidStr] ? { ...s, [uidStr]: { ...s[uidStr], speaking } } : s));
+          setParticipants((s) => (s[uidStr] && !!s[uidStr].speaking !== speaking ? { ...s, [uidStr]: { ...s[uidStr], speaking } } : s));
         }
       });
     });
@@ -258,6 +314,29 @@ export function VoiceProvider({ children }) {
     agoraClientRef.current = client;
     return client;
   }, [socket, user?.id]);
+
+  // Lista mostrada na tela = quem o servidor diz que está na sala + quem
+  // está conectado na mídia mas o socket ainda não contou (evento perdido,
+  // reconexão no meio). Assim ninguém "some" estando na chamada.
+  const shownParticipants = useMemo(() => {
+    const extra = Object.keys(mediaUids).filter((uid) => !participants[uid] && uid !== String(user?.id));
+    if (extra.length === 0) return participants;
+    const merged = { ...participants };
+    extra.forEach((uid) => {
+      merged[uid] = { muted: !remoteAudioStreams[uid], deafened: false, video: false, screenSharing: false, role: 'speaker' };
+    });
+    return merged;
+  }, [participants, mediaUids, remoteAudioStreams, user?.id]);
+
+  // Tela x câmera decidido na hora de mostrar (ver remoteVideoStreams).
+  const { remoteCameraStreams, remoteScreenStreams } = useMemo(() => {
+    const cams = {}; const screens = {};
+    Object.entries(remoteVideoStreams).forEach(([uid, stream]) => {
+      if (participants[uid]?.screenSharing) screens[uid] = stream;
+      else cams[uid] = stream;
+    });
+    return { remoteCameraStreams: cams, remoteScreenStreams: screens };
+  }, [remoteVideoStreams, participants]);
 
   useEffect(() => {
     useStore.setState({ voiceParticipantsSnapshot: participants });
@@ -356,19 +435,36 @@ export function VoiceProvider({ children }) {
       // independentes — rodando junto em vez de um depois do outro,
       // corta ainda mais o tempo total até a pessoa realmente estar na
       // call.
-      const [, gotMic] = await Promise.all([
-        client.join(appId, channelId, token, user.id),
-        connectMicrophone(),
-      ]);
-      if (joiningChannelIdRef.current !== channelId) { await client.leave(); return; }
-      if (!gotMic) {
-        useStore.getState().pushNotice('Microfone não encontrado. Você entrou no canal mudo — conecte um microfone e toque no botão de mudo para ativá-lo.');
-        setMicMissing(true);
-        setMuted(true);
-      } else {
-        await client.publish([localAudioTrackRef.current]);
+      let gotMic = false;
+      try {
+        [, gotMic] = await Promise.all([
+          client.join(appId, channelId, token, user.id),
+          connectMicrophone(),
+        ]);
+      } catch (err) {
+        // BUG CORRIGIDO: se o join do Agora falhava, o microfone que já
+        // tinha sido aberto ficava ligado (luz do mic acesa) e nada avisava.
+        console.error('[voz] Falha ao entrar no canal de mídia:', err);
+        localAudioTrackRef.current?.close();
+        localAudioTrackRef.current = null;
+        client.removeAllListeners?.();
+        client.leave().catch(() => {});
+        if (agoraClientRef.current === client) agoraClientRef.current = null;
+        useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
+        return;
+      }
+      if (joiningChannelIdRef.current !== channelId) {
+        // Desistiu no meio (clicou em outro canal): fecha o mic aberto.
+        localAudioTrackRef.current?.close();
+        localAudioTrackRef.current = null;
+        client.removeAllListeners?.();
+        await client.leave().catch(() => {});
+        return;
       }
 
+      // Avisa o servidor e mostra a chamada assim que a mídia conectou —
+      // antes só acontecia depois de publicar o microfone, atrasando a
+      // entrada pra você e pros outros.
       const next = { serverId, channelId, channelName, channelType };
       setCall(next);
       callRef.current = next;
@@ -377,6 +473,20 @@ export function VoiceProvider({ children }) {
       playSound('callJoin');
       startCallForegroundService(channelName);
       setIncomingCall((c) => (c && c.channelId === channelId ? null : c));
+
+      if (!gotMic) {
+        useStore.getState().pushNotice('Microfone não encontrado. Você entrou no canal mudo — conecte um microfone e toque no botão de mudo para ativá-lo.');
+        setMicMissing(true);
+        setMuted(true);
+        socket?.emit('voice:state', { channelId, muted: true });
+      } else {
+        try {
+          await client.publish([localAudioTrackRef.current]);
+        } catch (err) {
+          console.error('[voz] Falha ao publicar o microfone:', err);
+          useStore.getState().pushNotice('Não foi possível enviar seu microfone. Tente silenciar e ativar de novo.');
+        }
+      }
     } finally {
       if (joiningChannelIdRef.current === channelId) joiningChannelIdRef.current = null;
       setJoiningChannelId((c) => (c === channelId ? null : c));
@@ -405,18 +515,22 @@ export function VoiceProvider({ children }) {
     stopCallForegroundService();
     Object.values(soundboardAudiosRef.current).forEach((el) => { el.pause(); el.src = ''; });
     soundboardAudiosRef.current = {};
+    if (syncTimerRef.current) { clearTimeout(syncTimerRef.current); syncTimerRef.current = null; }
 
-    try {
-      if (agoraClientRef.current) await agoraClientRef.current.leave();
-    } catch { /* já desconectado — ok */ }
-    localAudioTrackRef.current?.close();
-    cameraTrackRef.current?.close();
-    screenTrackRef.current?.close();
-    screenAudioTrackRef.current?.close();
+    // BUG CORRIGIDO ("demora pra sair" / "tela travada ao sair e entrar
+    // de novo"): a tela só limpava DEPOIS do Agora terminar de sair
+    // (pode levar 1–2s) e os listeners do cliente antigo continuavam
+    // vivos, podendo jogar vídeo/áudio velho na chamada nova. Agora
+    // limpa a tela na hora, desliga os listeners e encerra a mídia logo
+    // em seguida.
+    const client = agoraClientRef.current;
+    const tracks = [localAudioTrackRef.current, cameraTrackRef.current, screenTrackRef.current, screenAudioTrackRef.current];
+    const hadAndroidScreen = !!androidScreenTrackRef.current;
     localAudioTrackRef.current = null;
     cameraTrackRef.current = null;
     screenTrackRef.current = null;
     screenAudioTrackRef.current = null;
+    androidScreenTrackRef.current = null;
     agoraClientRef.current = null;
 
     setCall(null);
@@ -430,10 +544,18 @@ export function VoiceProvider({ children }) {
     setMyRole('speaker');
     setMicMissing(false);
     setRemoteAudioStreams({});
-    setRemoteCameraStreams({});
-    setRemoteScreenStreams({});
+    setRemoteVideoStreams({});
+    setMediaUids({});
+    localSpeakingRef.current = false;
     setLocalSpeaking(false);
     forceLocalVideoTick((n) => n + 1);
+
+    client?.removeAllListeners?.();
+    tracks.forEach((t) => { try { t?.close(); } catch { /* já fechada */ } });
+    if (hadAndroidScreen) stopAndroidScreenShare();
+    try {
+      if (client) await client.leave();
+    } catch { /* já desconectado — ok */ }
   }, [socket]);
   useEffect(() => { leaveChannelRef.current = leaveChannel; }, [leaveChannel]);
 
@@ -598,7 +720,12 @@ export function VoiceProvider({ children }) {
         screenAudioTrackRef.current = screenAudioTrack || null;
         const toPublish = [screenTrack, screenAudioTrack].filter(Boolean);
         await client.publish(toPublish);
-        screenTrack.on('track-ended', () => toggleScreenShare());
+        // BUG CORRIGIDO ("tela congelada pra quem assiste"): ao clicar em
+        // "Parar de compartilhar" na barra do navegador, isto chamava a
+        // versão ANTIGA da função (de quando screenOn ainda era false) —
+        // que tentava COMEÇAR outra transmissão em vez de parar, deixando
+        // a faixa encerrada publicada (último quadro congelado pros outros).
+        screenTrack.on('track-ended', () => { if (screenTrackRef.current === screenTrack) toggleScreenShareRef.current?.(); });
         setScreenOn(true);
         broadcastState({ screenSharing: true });
         forceLocalVideoTick((n) => n + 1);
@@ -611,11 +738,19 @@ export function VoiceProvider({ children }) {
       toggleScreenShareBusyRef.current = false;
     }
   }, [screenOn, broadcastState]);
+  const toggleScreenShareRef = useRef(toggleScreenShare);
+  useEffect(() => { toggleScreenShareRef.current = toggleScreenShare; }, [toggleScreenShare]);
 
+  // Volume individual (0–2 = 0%–200%). Quem toca o áudio é o AudioSink
+  // (CallBar.jsx), via GainNode — por isso passa de 100% sem distorcer
+  // o elemento <audio>. Lembrado por pessoa no localStorage.
   const setParticipantVolume = useCallback((userId, volume) => {
-    setVolumes((s) => ({ ...s, [userId]: volume }));
-    const ru = agoraClientRef.current?.remoteUsers.find((r) => String(r.uid) === String(userId));
-    ru?.audioTrack?.setVolume(Math.round(volume * 100));
+    const v = Math.min(2, Math.max(0, Number(volume) || 0));
+    setVolumes((s) => {
+      const next = { ...s, [userId]: v };
+      saveVolumes(next);
+      return next;
+    });
   }, []);
 
   const raiseHand = useCallback((raised = true) => {
@@ -631,14 +766,36 @@ export function VoiceProvider({ children }) {
 
   const stepDownFromStage = useCallback(() => setParticipantRole(user?.id, 'audience'), [setParticipantRole, user?.id]);
 
+  // Refs pros listeners abaixo: antes o efeito dependia de `deafened` e
+  // `joinChannel`, então TODOS os listeners eram removidos e recolocados a
+  // cada ensurdecer/desensurdecer — e a marca "caiu a conexão" (usada pra
+  // reentrar sozinho na chamada ao reconectar) era zerada junto, fazendo
+  // a reentrada automática se perder.
+  const deafenedRef = useRef(deafened);
+  useEffect(() => { deafenedRef.current = deafened; }, [deafened]);
+  const joinChannelRef = useRef(joinChannel);
+  useEffect(() => { joinChannelRef.current = joinChannel; }, [joinChannel]);
+  const sawDisconnectRef = useRef(false);
+
   useEffect(() => {
     if (!socket) return;
 
-    const onJoined = ({ channelId, participants: existing, myRole: role }) => {
+    const onJoined = ({ channelId, participants: existing, myRole: role, sync }) => {
       if (callRef.current?.channelId !== channelId) return;
       const map = {};
       existing.forEach((p) => { map[p.userId] = p; });
-      setParticipants(map);
+      // Mantém o "falando" de quem já estava (o retrato do servidor não tem isso).
+      setParticipants((prev) => {
+        Object.keys(map).forEach((uid) => { if (prev[uid]?.speaking) map[uid] = { ...map[uid], speaking: true }; });
+        return map;
+      });
+      // Entrada nova/reentrada depois de queda: o servidor começa com tudo
+      // desligado — reenvia o estado real (mudo, câmera, tela) pra todos
+      // verem certo. No retrato periódico (sync) não precisa.
+      if (!sync) {
+        const st = localStateRef.current;
+        if (st.muted || st.deafened || st.video || st.screenSharing) socket.emit('voice:state', { channelId, ...st });
+      }
       if (role) {
         setMyRole(role);
         if (role === 'audience' && localAudioTrackRef.current) {
@@ -667,6 +824,13 @@ export function VoiceProvider({ children }) {
     };
     const onRoster = ({ channelId, participants: list, startedAt }) => {
       setRoster((s) => ({ ...s, [channelId]: list }));
+      // Lista pública da minha sala diferente do que eu vejo dentro dela?
+      // Algum evento se perdeu — pede o retrato completo ao servidor.
+      if (callRef.current?.channelId === channelId) {
+        const mine = useStore.getState().voiceParticipantsSnapshot || {};
+        const others = list.filter((p) => p.userId !== user?.id);
+        if (others.length !== Object.keys(mine).length || others.some((p) => !mine[p.userId])) requestSyncRef.current?.(800);
+      }
       setRosterStartedAt((s) => (startedAt ? { ...s, [channelId]: startedAt } : (() => {
         const next = { ...s }; delete next[channelId]; return next;
       })()));
@@ -690,7 +854,7 @@ export function VoiceProvider({ children }) {
         if (role === 'audience') {
           localAudioTrackRef.current?.setEnabled(false);
           setMuted(true);
-        } else if (role === 'speaker' && !deafened) {
+        } else if (role === 'speaker' && !deafenedRef.current) {
           localAudioTrackRef.current?.setEnabled(true);
           setMuted(false);
         }
@@ -716,7 +880,7 @@ export function VoiceProvider({ children }) {
       leaveChannelRef.current?.();
     };
     const onSoundboardPlay = ({ channelId, sound }) => {
-      if (callRef.current?.channelId !== channelId || deafened) return;
+      if (callRef.current?.channelId !== channelId || deafenedRef.current) return;
       try {
         const previous = soundboardAudiosRef.current[sound.id];
         if (previous) { previous.pause(); previous.src = ''; }
@@ -749,14 +913,28 @@ export function VoiceProvider({ children }) {
     };
     const onAfkMove = ({ channelId, channelName }) => {
       if (!callRef.current) return;
-      joinChannel(callRef.current.serverId, channelId, channelName, 'VOICE');
+      joinChannelRef.current?.(callRef.current.serverId, channelId, channelName, 'VOICE');
+    };
+    // Retrato completo de todas as salas (pedido ao conectar) — substitui
+    // o que tinha, então salas que esvaziaram enquanto estava offline somem.
+    const onRosters = (map) => {
+      const entries = Object.entries(map || {});
+      setRoster(Object.fromEntries(entries.map(([cid, r]) => [cid, r.participants || []])));
+      setRosterStartedAt(Object.fromEntries(entries.filter(([, r]) => r.startedAt).map(([cid, r]) => [cid, r.startedAt])));
+      setRosterSpeaking((s) => Object.fromEntries(Object.entries(s).filter(([cid]) => map?.[cid])));
+    };
+    // O servidor diz que não estou mais na sala (caí e a tolerância
+    // passou, ou o servidor reiniciou) mas a mídia continua: entra de novo.
+    const onNotInRoom = ({ channelId }) => {
+      if (callRef.current?.channelId !== channelId) return;
+      socket.emit('voice:join', { channelId });
     };
 
-    let sawDisconnect = false;
-    const onSocketDisconnect = () => { sawDisconnect = true; };
+    const onSocketDisconnect = () => { sawDisconnectRef.current = true; };
     const onSocketConnect = () => {
-      if (!sawDisconnect) return;
-      sawDisconnect = false;
+      socket.emit('voice:rosters');
+      if (!sawDisconnectRef.current) return;
+      sawDisconnectRef.current = false;
       const current = callRef.current;
       if (!current) return;
       socket.emit('voice:join', { channelId: current.channelId });
@@ -777,7 +955,11 @@ export function VoiceProvider({ children }) {
     socket.on('dm-call:declined', onDmCallDeclined);
     socket.on('dm-call:ended', onDmCallEnded);
     socket.on('voice:afk-move', onAfkMove);
+    socket.on('voice:rosters', onRosters);
+    socket.on('voice:not-in-room', onNotInRoom);
     socket.on('connect', onSocketConnect);
+    // Já conectado quando o efeito montou: pede o retrato inicial agora.
+    if (socket.connected) socket.emit('voice:rosters');
     socket.on('disconnect', onSocketDisconnect);
 
     return () => {
@@ -796,20 +978,55 @@ export function VoiceProvider({ children }) {
       socket.off('dm-call:declined', onDmCallDeclined);
       socket.off('dm-call:ended', onDmCallEnded);
       socket.off('voice:afk-move', onAfkMove);
+      socket.off('voice:rosters', onRosters);
+      socket.off('voice:not-in-room', onNotInRoom);
       socket.off('connect', onSocketConnect);
       socket.off('disconnect', onSocketDisconnect);
     };
-  }, [socket, user?.id, deafened, joinChannel]);
+  }, [socket, user?.id]);
 
-  useEffect(() => () => { if (callRef.current) leaveChannel(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Reconciliação periódica enquanto está numa chamada (servidor = fonte
+  // da verdade) + ao voltar pra aba. Leve: um evento pequeno a cada 20s,
+  // só pra quem está em chamada.
+  const callChannelId = call?.channelId;
+  useEffect(() => {
+    if (!socket || !callChannelId) return undefined;
+    const tick = () => { if (socket.connected) socket.emit('voice:sync', { channelId: callChannelId }); };
+    const iv = setInterval(tick, VOICE_SYNC_MS);
+    const onVisible = () => { if (document.visibilityState === 'visible') tick(); };
+    document.addEventListener('visibilitychange', onVisible);
+    // Fechou a aba/janela: avisa na hora em vez de esperar a tolerância
+    // do servidor (os outros veem a saída imediatamente).
+    const onPageHide = (e) => { if (!e.persisted) socket.emit('voice:leave', { channelId: callChannelId }); };
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pagehide', onPageHide);
+    };
+  }, [socket, callChannelId]);
+
+  useEffect(() => () => {
+    if (callRef.current) leaveChannel();
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // BUG CORRIGIDO ("vídeo piscando/travando"): o MediaStream local era
+  // recriado a CADA renderização do contexto (várias por segundo com o
+  // indicador de fala), e cada objeto novo fazia o <video> reiniciar.
+  // Agora só muda quando a faixa muda de verdade.
+  const camTrack = cameraTrackRef.current;
+  const scrTrack = screenTrackRef.current;
+  const localCameraStream = useMemo(() => (camTrack ? new MediaStream([camTrack.getMediaStreamTrack()]) : null), [camTrack]);
+  const localScreenStream = useMemo(() => (scrTrack ? new MediaStream([scrTrack.getMediaStreamTrack()]) : null), [scrTrack]);
 
   return (
     <VoiceContext.Provider value={{
-      call, muted, micMissing, deafened, cameraOn, screenOn, participants, roster, rosterStartedAt, rosterSpeaking, myRole, handsRaised,
+      call, muted, micMissing, deafened, cameraOn, screenOn, participants: shownParticipants, roster, rosterStartedAt, rosterSpeaking, myRole, handsRaised,
       localSpeaking, joiningChannelId,
       remoteCameraStreams, remoteScreenStreams, remoteAudioStreams, volumes,
-      localCameraStream: cameraTrackRef.current ? new MediaStream([cameraTrackRef.current.getMediaStreamTrack()]) : null,
-      localScreenStream: screenTrackRef.current ? new MediaStream([screenTrackRef.current.getMediaStreamTrack()]) : null,
+      localCameraStream,
+      localScreenStream,
       joinChannel, leaveChannel, toggleMute, toggleDeafen, toggleCamera, toggleScreenShare, setParticipantVolume,
       raiseHand, setParticipantRole, stepDownFromStage,
       incomingCall, answerIncomingCall, declineIncomingCall,

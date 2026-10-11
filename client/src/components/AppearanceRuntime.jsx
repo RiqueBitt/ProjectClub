@@ -131,14 +131,21 @@ function ParticlesBackdrop() {
       timer = setTimeout(() => { raf = requestAnimationFrame(() => { draw(); loop(); }); }, 50);
     };
     const stop = () => { clearTimeout(timer); cancelAnimationFrame(raf); timer = null; };
-    const onVisibility = () => { if (document.hidden) stop(); else if (!timer) loop(); };
-    draw(); loop();
+    // Também pausa com o app parado/sem foco (classe pc-idle — ver
+    // utils/liveRefresh.js): ninguém está olhando, não gasta CPU/GPU.
+    const onVisibility = () => {
+      const paused = document.hidden || document.documentElement.classList.contains('pc-idle');
+      if (paused) stop(); else if (!timer) loop();
+    };
+    draw(); loop(); onVisibility();
     window.addEventListener('resize', resize);
     document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pc-idle-change', onVisibility);
     return () => {
       stop();
       window.removeEventListener('resize', resize);
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pc-idle-change', onVisibility);
     };
   }, []);
   return <canvas ref={canvasRef} className="pc-anim-bg pc-anim-bg-particles" aria-hidden="true" />;

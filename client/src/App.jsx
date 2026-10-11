@@ -104,9 +104,12 @@ function ProtectedRoute({ children }) {
   useEffect(() => {
     checkPlatformStatus();
   }, []);
-  // Tempo real: o status (manutenção/sistemas desligados) agora segue o
-  // relógio global de 11s, que pausa com a aba escondida.
-  useLiveRefresh(() => checkPlatformStatus());
+  // Tempo real: o status (manutenção/sistemas desligados) segue o relógio
+  // global, que pausa com a aba escondida. Sistemas desligados já chegam
+  // por socket (system:toggles-update), então basta checar a cada 30s
+  // (60s com o socket conectado) — antes era a cada 11s, uma consulta ao
+  // banco por pessoa online o tempo todo.
+  useLiveRefresh(() => checkPlatformStatus(), { interval: 30000, realtimeInterval: 60000 });
 
   // A busca da comunidade (usada tanto pra saber "já carregou de
   // verdade" quanto pras fotos de perfil reais na tela de esqueleto —

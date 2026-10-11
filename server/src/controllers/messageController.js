@@ -384,7 +384,11 @@ async function createMessage(req, res, next) {
     // que as MessageMention fiquem precisas (não apenas texto batendo) —
     // alimenta o indicador de "não lido com menção" na lista de canais.
     let mentionRows = [];
-    if (access?.channel && content) {
+    // Toda menção começa com "@" (ver services/mentions.js) — sem nenhum
+    // "@" no texto não tem o que procurar. Antes isso carregava TODOS os
+    // usuários + cargos do banco e montava uma regex por pessoa em TODA
+    // mensagem de canal, atrasando o envio à toa.
+    if (access?.channel && content && content.includes('@')) {
       const [members, roles] = await Promise.all([
         prisma.user.findMany({ select: { id: true, displayName: true } }),
         prisma.role.findMany(),
@@ -426,8 +430,13 @@ async function createMessage(req, res, next) {
       include: messageInclude,
     });
 
-    io?.to(roomFor({ conversationId, channelId })).emit('message:new', message);
-    res.status(201).json({ message });
+    // `nonce` (opcional, gerado pelo cliente) volta no eco do socket e na
+    // resposta — o cliente usa pra trocar a mensagem otimista pela real no
+    // mesmo lugar, sem duplicar. Não é salvo no banco.
+    const nonce = typeof req.body.nonce === 'string' && req.body.nonce.length <= 80 ? req.body.nonce : null;
+    const outgoing = nonce ? { ...message, nonce } : message;
+    io?.to(roomFor({ conversationId, channelId })).emit('message:new', outgoing);
+    res.status(201).json({ message: outgoing });
 
     // Item pedido: "push notification de verdade no Android, mesmo com o
     // app fechado" — manda pra quem foi diretamente @mencionado (nunca

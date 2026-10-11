@@ -55,7 +55,7 @@ export function useCommunityEvents() {
   // Tempo real: eventos já chegam por socket; ressincroniza em silêncio a
   // cada 33s (várias telas usando o hook
   // dividem a mesma requisição via `inflight`).
-  useLiveRefresh(() => load(true), { interval: 33000 });
+  useLiveRefresh(() => load(true), { interval: 33000, realtimeInterval: 120000 });
 
   // Atualiza um evento só na lista compartilhada (ex.: depois do RSVP).
   const patchEvent = (id, changes) => setCache((cache || []).map((x) => (x.id === id ? { ...x, ...changes } : x)));

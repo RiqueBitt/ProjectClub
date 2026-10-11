@@ -312,7 +312,9 @@ function AudioSink({ stream, volume }) {
     return () => {
       retryCleanup?.();
       unsubscribe();
-      try { source.disconnect(); compressor.disconnect(); gain.disconnect(); destinationNode.disconnect(); } catch { /* already torn down */ }
+      // BUG CORRIGIDO: aqui ainda citava o `compressor` (removido) — o erro
+      // interrompia a limpeza e o ganho/destino ficavam conectados.
+      try { source.disconnect(); gain.disconnect(); destinationNode.disconnect(); } catch { /* already torn down */ }
       // Sem isso, o elemento <audio> escondido podia continuar tocando o
       // que já tinha em buffer mesmo depois do grafo WebAudio desconectado
       // — parar e limpar o srcObject explicitamente garante silêncio
@@ -329,7 +331,7 @@ function AudioSink({ stream, volume }) {
 
   useEffect(() => {
     if (gainRef.current) gainRef.current.gain.value = volume;
-    else if (audioRef.current) audioRef.current.volume = volume; // no-Web-Audio fallback path
+    else if (audioRef.current) audioRef.current.volume = Math.min(1, volume); // no-Web-Audio fallback path (<audio> não passa de 100%)
   }, [volume]);
 
   // Kept mounted (hidden) purely so autoplay-permission behavior for this

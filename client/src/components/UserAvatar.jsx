@@ -27,7 +27,7 @@ export function DecorationOverlay({ deco, size }) {
   if (!deco) return null;
   return (
     <img
-      className="avatar-decoration" src={proxyImage(deco.url)} alt="" aria-hidden="true" draggable="false"
+      className="avatar-decoration" src={proxyImage(deco.url)} alt="" aria-hidden="true" draggable="false" loading="lazy" decoding="async"
       style={{
         position: 'absolute', inset: 0, width: size, height: size, maxWidth: 'none', pointerEvents: 'none', zIndex: 1,
         objectFit: 'contain',
@@ -94,7 +94,7 @@ function BaseAvatar({ user, size, className, style }) {
   if (url) {
     return (
       <div className={`avatar ${className}`} style={wrapperStyle}>
-        <img src={proxyImage(url)} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img src={proxyImage(url)} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
     );
   }

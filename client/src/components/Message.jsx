@@ -35,6 +35,7 @@ import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from './Pengui
 import { proxyImage } from '../utils/imageProxy';
 import { InternalLinkCards } from './InternalLinkCard.jsx';
 import { findInternalLinks } from '../utils/internalLinks';
+import { cssZoom } from '../utils/cssZoom';
 
 // BUG CORRIGIDO: <img src={...avatarUrl}> quebrava (bloqueado pela CSP
 // img-src) quando o autor da mensagem respondida tem avatar de pinguim
@@ -136,10 +137,16 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
     if (isMobile) { setPickerStyle(null); return; }
     const btn = reactBtnRef.current;
     if (!btn) return;
-    const rect = btn.getBoundingClientRect();
-    const estimatedHeight = Math.min(window.innerHeight * (REACTION_PICKER_DEFAULT_VH / 100), window.innerHeight - 24);
+    // Zoom CSS da interface: medidas em pixels da tela, `top` em pixels
+    // CSS (multiplicados pelo zoom) — converte tudo pra mesma escala.
+    const z = cssZoom();
+    const raw = btn.getBoundingClientRect();
+    const rect = { top: raw.top / z, bottom: raw.bottom / z };
+    const vh = window.innerHeight / z;
+    // (unidades vh do CSS já saem em pixels CSS de innerHeight/100.)
+    const estimatedHeight = Math.min(window.innerHeight * (REACTION_PICKER_DEFAULT_VH / 100), vh - 24);
     let top = rect.top - estimatedHeight - PICKER_GAP;
-    if (top < 8) top = Math.min(rect.bottom + PICKER_GAP, window.innerHeight - estimatedHeight - 8);
+    if (top < 8) top = Math.min(rect.bottom + PICKER_GAP, vh - estimatedHeight - 8);
     setPickerStyle({ position: 'fixed', top: `${Math.max(8, top)}px` });
   }, [showEmojiPicker]);
 

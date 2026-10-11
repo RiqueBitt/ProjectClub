@@ -541,7 +541,11 @@ function ChannelGroup({
                         <UserAvatar user={person} size={20} />
                       </div>
                       <span className="truncate">{person?.displayName || p.userId}</span>
-                      {p.muted && <span title="Mudo">🔇</span>}
+                      {/* Ao vivo / câmera / mudo — a lista vem do servidor e agora
+                          atualiza quando a pessoa liga a tela ou a câmera. */}
+                      {p.screenSharing && <span className="voice-roster-live" title="Transmitindo a tela">AO VIVO</span>}
+                      {p.video && <svg className="voice-roster-ico" viewBox="0 0 24 24" aria-label="Câmera ligada" role="img"><path d="M3 7h12v10H3zM15 10l6-3v10l-6-3" /></svg>}
+                      {p.muted && <svg className="voice-roster-ico is-muted" viewBox="0 0 24 24" aria-label="Mudo" role="img"><path d="M15 9.3V6a3 3 0 0 0-5.7-1.3M9 9v3a3 3 0 0 0 4.9 2.3M19 11a7 7 0 0 1-1.1 3.8M5 11a7 7 0 0 0 11 5.7M12 18v3M3 3l18 18" /></svg>}
                     </div>
                   );
                 })}

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useElementHeight } from '../utils/useElementHeight';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -7,6 +7,8 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import { useVoice, preloadAgoraRTC } from '../context/VoiceContext.jsx';
 import { resolveDesktopGifMenuStyle, resolveMobileGifMenuStyle } from '../utils/gifMenuLayout';
+import { cssZoom } from '../utils/cssZoom';
+import { mergeLatestMessages } from '../utils/messageMerge';
 import { listMessages, sendMessage, searchMessages, markConversationRead, markChannelRead } from '../api/endpoints';
 import Message from './Message.jsx';
 import VoiceChannelView from './VoiceChannelView.jsx';
@@ -115,11 +117,38 @@ function findChannel(categories, channels, channelId) {
 // referência se mantém igual entre renders, e o memo funciona de
 // verdade.
 const EMPTY_TOPICS = [];
+// Mesma ideia pros seletores da store: `|| []` dentro do seletor cria um
+// array NOVO a cada mudança QUALQUER da store (presença, atividade,
+// digitando em outra sala...), e o zustand entende isso como "mudou" —
+// o chat inteiro re-renderizava a cada evento do socket, inclusive
+// enquanto a pessoa digitava (causa dos engasgos/pulos na digitação).
+const EMPTY_MESSAGES = [];
+const EMPTY_TYPING = [];
 
+// Rola a lista até o fim mexendo SÓ nela — scrollIntoView também rola os
+// "pais" (a página, o app-shell, a tela com o teclado do celular aberto),
+// o que fazia a interface inteira dar pulinhos enquanto digitava.
+function scrollListToBottom(list, behavior) {
+  if (!list) return;
+  const top = list.scrollHeight - list.clientHeight;
+  if (behavior && behavior !== 'auto' && typeof list.scrollTo === 'function') list.scrollTo({ top, behavior });
+  else list.scrollTop = top;
+}
+
+// Casca fina que só lê os parâmetros da rota. O contexto do roteador
+// muda a CADA render do MainApp (que re-renderiza a cada evento do
+// socket), e quem chama useParams re-renderiza junto — por isso o chat
+// de verdade (ChatWindowInner, com memo) recebe só os ids prontos e fica
+// imune a esses re-renders do pai (antes: 1 re-render do chat inteiro
+// por evento de presença/digitando, inclusive enquanto a pessoa digitava).
 export default function ChatWindow({ kind }) {
   const params = useParams();
   const conversationId = kind === 'conversation' ? params.conversationId : null;
   const channelId = kind === 'channel' ? params.channelId : null;
+  return <ChatWindowMemo conversationId={conversationId || null} channelId={channelId || null} />;
+}
+
+function ChatWindowInner({ conversationId, channelId }) {
   const roomKey = roomKeyFor({ conversationId, channelId });
 
   const { user } = useAuth();
@@ -156,7 +185,7 @@ export default function ChatWindow({ kind }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelId, conversationId]);
-  const messages = useStore((s) => s.messagesByRoom[roomKey] || []);
+  const messages = useStore((s) => s.messagesByRoom[roomKey] || EMPTY_MESSAGES);
   // Every message whose replyToId points at another message *and* carries a
   // title is a topic/thread root (see Message.jsx's "Criar tópico" action) —
   // grouped by parent so each parent message can show its own topic pills.
@@ -171,7 +200,7 @@ export default function ChatWindow({ kind }) {
     return map;
   }, [messages]);
   const setRoomMessages = useStore((s) => s.setRoomMessages);
-  const typingUserIds = useStore((s) => s.typing[roomKey] || []);
+  const typingUserIds = useStore((s) => s.typing[roomKey] || EMPTY_TYPING);
   const conversations = useStore((s) => s.conversations);
   const categories = useStore((s) => s.categories);
   const channels = useStore((s) => s.channels);
@@ -302,16 +331,25 @@ export default function ChatWindow({ kind }) {
     if (custom) { setPickerStyle(custom); return; }
     const btn = pickerBtnRefs[pickerTab]?.current;
     if (!btn) return;
-    const rect = btn.getBoundingClientRect();
-    const estimatedHeight = Math.min(window.innerHeight * (PICKER_HEIGHT_VH / 100), window.innerHeight - 24);
-    let bottom = window.innerHeight - rect.top + 8;
-    if (window.innerHeight - bottom - estimatedHeight < 8) bottom = Math.max(8, window.innerHeight - estimatedHeight - 8);
+    // Com o zoom CSS da interface (1.2 no desktop), getBoundingClientRect
+    // vem em pixels da tela, mas bottom/right de um elemento fixo são
+    // multiplicados pelo zoom — tudo é convertido pra mesma escala (CSS)
+    // antes de calcular, senão o seletor abria deslocado/fora da borda.
+    const z = cssZoom();
+    const raw = btn.getBoundingClientRect();
+    const rect = { top: raw.top / z, right: raw.right / z };
+    const vw = window.innerWidth / z;
+    const vh = window.innerHeight / z;
+    // (unidades vh do CSS já saem em pixels CSS de innerHeight/100.)
+    const estimatedHeight = Math.min(window.innerHeight * (PICKER_HEIGHT_VH / 100), vh - 24);
+    let bottom = vh - rect.top + 8;
+    if (vh - bottom - estimatedHeight < 8) bottom = Math.max(8, vh - estimatedHeight - 8);
     // Alinha a borda DIREITA do popover com a borda direita do botão —
     // "mais pra direita", perto de onde o botão realmente está, nunca
     // ultrapassando a borda da tela do lado esquerdo.
-    let right = window.innerWidth - rect.right;
-    const width = Math.min(PICKER_WIDTH, window.innerWidth - 32);
-    if (window.innerWidth - right - width < 8) right = Math.max(8, window.innerWidth - width - 8);
+    let right = vw - rect.right;
+    const width = Math.min(PICKER_WIDTH, vw - 32);
+    if (vw - right - width < 8) right = Math.max(8, vw - width - 8);
     setPickerStyle({ position: 'fixed', bottom: `${bottom}px`, right: `${right}px`, left: 'auto', top: 'auto', transform: 'none', width: `${width}px`, maxWidth: `${width}px` });
   }, [emojiPickerOpen, uiLayout]);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
@@ -458,16 +496,67 @@ export default function ChatWindow({ kind }) {
       // Mesmo lote de render que as mensagens — senão o "início do canal"
       // entra depois, por cima, e empurra a lista pra fora do final.
       if (currentRoomRef.current === loadingKey) setInitialLoading(false);
-      setRoomMessages(roomKey, d.messages);
+      // BUG CORRIGIDO ("mensagem some até recarregar"): a resposta
+      // SOBRESCREVIA a lista — qualquer mensagem que chegou pelo socket
+      // entre o pedido e a resposta (já mais nova que a "foto" do
+      // servidor) sumia. Agora junta as duas, sem duplicar.
+      const current = useStore.getState().messagesByRoom[roomKey] || [];
+      setRoomMessages(roomKey, mergeLatestMessages(current, d.messages).messages);
       if (d.messages.length < 50) setHasMoreOlder(false);
     }).finally(() => {
       // Só some o esqueleto se ainda estamos na mesma sala.
       if (currentRoomRef.current === loadingKey) setInitialLoading(false);
     });
-    if (socket && channelId) socket.emit('channel:join', channelId);
-    if (socket && conversationId) socket.emit('conversation:join', conversationId);
     markRead();
   }, [roomKey, isNonChatChannel]);
+
+  // Entrar na sala do socket (canal/conversa) pra receber mensagens em
+  // tempo real. BUG CORRIGIDO ("mensagens só aparecem recarregando"):
+  // antes isso só rodava ao TROCAR de sala — (1) se o chat abria antes do
+  // socket existir/conectar, nunca entrava na sala; (2) a cada queda e
+  // reconexão (Wi-Fi oscilando, notebook dormindo, app em segundo plano
+  // no celular) o servidor cria um socket NOVO, sem sala nenhuma de canal,
+  // e o chat aberto parava de receber mensagens até trocar de canal.
+  // Agora entra de novo a cada 'connect' e busca o que chegou enquanto a
+  // conexão estava caída (catch-up), juntando sem duplicar.
+  useEffect(() => {
+    if (!socket || isNonChatChannel) return undefined;
+    const joinRoom = () => {
+      if (channelId) socket.emit('channel:join', channelId);
+      if (conversationId) socket.emit('conversation:join', conversationId);
+    };
+    let catchUpSeq = 0;
+    const catchUp = () => {
+      const seq = ++catchUpSeq;
+      const key = roomKey;
+      listMessages({ conversationId, channelId }).then((d) => {
+        if (seq !== catchUpSeq || currentRoomRef.current !== key) return;
+        const current = useStore.getState().messagesByRoom[key] || [];
+        const { messages: merged, gap } = mergeLatestMessages(current, d.messages);
+        if (merged !== current) setRoomMessages(key, merged);
+        if (gap) setHasMoreOlder(true);
+      }).catch(() => {});
+    };
+    if (socket.connected) joinRoom();
+    let wasDisconnected = !socket.connected;
+    const onConnect = () => {
+      joinRoom();
+      // Só busca de novo se estava sem conexão (queda/reconexão, ou o chat
+      // abriu antes do socket conectar) — com a conexão estável, a 1ª
+      // página pedida pelo efeito acima já basta.
+      if (wasDisconnected) catchUp();
+      wasDisconnected = false;
+    };
+    const onDisconnect = () => { wasDisconnected = true; };
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    return () => {
+      catchUpSeq += 1;
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket, roomKey, isNonChatChannel]);
 
   // Loads an older page (see the existing `before` cursor support already
   // in messageController.listMessages on the server — this used to just
@@ -545,7 +634,7 @@ export default function ChatWindow({ kind }) {
     hasInitializedScrollRef.current = true;
     if (shouldAutoScroll) {
       stickToBottomRef.current = true;
-      bottomRef.current?.scrollIntoView({ block: 'end' });
+      scrollListToBottom(list);
     }
     // A new message arrived while this room is open — count it as read too.
     markRead();
@@ -573,13 +662,13 @@ export default function ChatWindow({ kind }) {
     const list = chatListRef.current;
     if (!list || isNonChatChannel || typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(() => {
-      if (stickToBottomRef.current) bottomRef.current?.scrollIntoView({ block: 'end' });
+      if (stickToBottomRef.current) scrollListToBottom(list);
     });
     observer.observe(list);
     // O tamanho da própria lista não muda quando uma imagem termina de
     // carregar lá dentro (só o conteúdo cresce) — então também escuta o
     // "load" das imagens/vídeos (fase de captura) pra continuar no final.
-    const onMediaLoad = () => { if (stickToBottomRef.current) bottomRef.current?.scrollIntoView({ block: 'end' }); };
+    const onMediaLoad = () => { if (stickToBottomRef.current) scrollListToBottom(list); };
     list.addEventListener('load', onMediaLoad, true);
     list.addEventListener('loadedmetadata', onMediaLoad, true);
     return () => {
@@ -628,7 +717,7 @@ export default function ChatWindow({ kind }) {
   };
   const jumpToBottom = () => {
     stickToBottomRef.current = true;
-    bottomRef.current?.scrollIntoView({ block: 'end', behavior: scrollBehavior() });
+    scrollListToBottom(chatListRef.current, scrollBehavior());
   };
   // Leva até uma mensagem (ex.: fixada), carregando páginas antigas se preciso.
   const jumpToMessage = async (target) => {
@@ -785,24 +874,31 @@ export default function ChatWindow({ kind }) {
   // server round-trip finishes — see `resolveOptimisticMessage` in the store
   // for how it gets swapped for the real one (or dropped if the real-time
   // socket echo beats the HTTP response back).
-  const makeOptimisticMessage = (overrides) => ({
-    id: `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    authorId: user.id,
-    author: user,
-    conversationId: conversationId || null,
-    channelId: channelId || null,
-    replyToId: null,
-    replyTo: null,
-    title: null,
-    attachments: [],
-    reactions: [],
-    mentions: [],
-    createdAt: new Date().toISOString(),
-    edited: false,
-    pinned: false,
-    pending: true,
-    ...overrides,
-  });
+  // `nonce` vai junto no envio e volta no eco do socket/na resposta — é
+  // o que permite trocar a otimista pela real no mesmo lugar (e com a
+  // mesma chave de render, sem a mensagem "piscar" ou remontar).
+  const makeOptimisticMessage = (overrides) => {
+    const id = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return {
+      id,
+      nonce: id,
+      authorId: user.id,
+      author: user,
+      conversationId: conversationId || null,
+      channelId: channelId || null,
+      replyToId: null,
+      replyTo: null,
+      title: null,
+      attachments: [],
+      reactions: [],
+      mentions: [],
+      createdAt: new Date().toISOString(),
+      edited: false,
+      pinned: false,
+      pending: true,
+      ...overrides,
+    };
+  };
 
   const sendGif = async (url) => {
     const fd = new FormData();
@@ -811,6 +907,7 @@ export default function ChatWindow({ kind }) {
     fd.append('content', url);
 
     const optimistic = makeOptimisticMessage({ content: url });
+    fd.append('nonce', optimistic.nonce);
     useStore.getState().addMessage(roomKey, optimistic);
     try {
       const { message } = await sendMessage(fd);
@@ -842,6 +939,7 @@ export default function ChatWindow({ kind }) {
     fd.append('stickerUrl', sticker.url);
 
     const optimistic = makeOptimisticMessage({ content: null, stickerUrl: sticker.url });
+    fd.append('nonce', optimistic.nonce);
     useStore.getState().addMessage(roomKey, optimistic);
     try {
       const { message } = await sendMessage(fd);
@@ -880,6 +978,7 @@ export default function ChatWindow({ kind }) {
       replyToId: pendingReplyTo?.id || null,
       replyTo: pendingReplyTo || null,
     });
+    fd.append('nonce', optimistic.nonce);
     useStore.getState().addMessage(roomKey, optimistic);
 
     try {
@@ -1052,7 +1151,7 @@ export default function ChatWindow({ kind }) {
           lastTime = new Date(m.createdAt);
           lastDay = dayKey;
           return (
-            <Fragment key={m.id}>
+            <Fragment key={m.nonce || m.id}>
               {newDay && <DaySeparator iso={m.createdAt} />}
               {m.id === firstUnreadId && (
                 <div className="chat-unread-sep" role="separator" aria-label="Novas mensagens">
@@ -1300,6 +1399,8 @@ export default function ChatWindow({ kind }) {
     </section>
   );
 }
+
+const ChatWindowMemo = memo(ChatWindowInner);
 
 function formatDuration(totalSeconds) {
   const m = Math.floor(totalSeconds / 60);

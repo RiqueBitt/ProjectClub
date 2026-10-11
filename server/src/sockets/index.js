@@ -9,6 +9,18 @@ const presenceStore = require('../services/presenceStore');
 const activityStore = require('../services/activityStore');
 const voiceStore = require('../services/voiceRoomStore');
 
+// Mesma atividade (só uma reconfirmação)? Spotify: mesma faixa e o
+// progresso novo bate (±3s) com o anterior + o tempo que passou — se a
+// pessoa pausou/pulou/voltou, conta como mudança e é retransmitida.
+function sameActivity(a, b) {
+  if (!a || !b || a.type !== b.type || a.name !== b.name || (a.detail || null) !== (b.detail || null)
+    || (a.imageUrl || null) !== (b.imageUrl || null) || (a.durationMs || null) !== (b.durationMs || null)) return false;
+  if (b.type !== 'spotify') return true;
+  if (!Number.isFinite(a.progressMs) || !Number.isFinite(b.progressMs)) return a.progressMs === b.progressMs;
+  const expected = a.progressMs + (b.startedAt - a.startedAt);
+  return Math.abs(b.progressMs - expected) < 3000;
+}
+
 // Item pedido: verificar se todos os toggles de Configurações têm efeito
 // real. "Compartilhar atividade" e "Quem pode ver sua atividade" já
 // existiam na tela, mas todo emit de atividade ia direto pra sala
@@ -384,6 +396,7 @@ function initSockets(httpServer) {
               io.to(existingDmSelf.socketId).emit('voice:kicked-by-other-device', { channelId });
             }
             await voiceStore.updateParticipant(channelId, userId, { socketId: socket.id });
+            clearVoiceGrace(userId, channelId);
             socket.join(`voice:${channelId}`);
             const roomNow = await voiceStore.getRoom(channelId);
             const rosterForSelf = Object.entries(roomNow)
@@ -465,12 +478,30 @@ function initSockets(httpServer) {
           return;
         }
 
-        const channel = await prisma.channel.findUnique({ where: { id: channelId } });
-        if (!channel) return;
-        const perms = await getEffectivePermissions(userId, channelId, channel);
-        if (!has(perms, 'CONNECT')) {
-          socket.emit('voice:join-denied', { channelId, reason: 'Você não tem permissão para entrar neste canal.' });
-          return;
+        // BUG CORRIGIDO ("ninguém aparece na call do clã"): a voz do clã
+        // usa o id sintético "clan:<id>" (ver ClanPage.jsx), que não existe
+        // na tabela de canais — o findUnique abaixo voltava null e a
+        // entrada era ignorada em silêncio. O Agora conectava, mas o
+        // servidor nunca registrava ninguém, então a lista ficava vazia.
+        // Acesso: só membros do clã (mesma regra do agoraController).
+        let channel;
+        let perms = null;
+        if (typeof channelId === 'string' && channelId.startsWith('clan:')) {
+          const me = await prisma.user.findUnique({ where: { id: userId }, select: { clanId: true } });
+          if (!me?.clanId || me.clanId !== channelId.slice(5)) {
+            socket.emit('voice:join-denied', { channelId, reason: 'Você não é membro deste clã.' });
+            return;
+          }
+          socket.join(`clan:${me.clanId}`);
+          channel = { id: channelId, type: 'VOICE', userLimit: null };
+        } else {
+          channel = await prisma.channel.findUnique({ where: { id: channelId } });
+          if (!channel) return;
+          perms = await getEffectivePermissions(userId, channelId, channel);
+          if (!has(perms, 'CONNECT')) {
+            socket.emit('voice:join-denied', { channelId, reason: 'Você não tem permissão para entrar neste canal.' });
+            return;
+          }
         }
 
         // IDEMPOTÊNCIA DE VERDADE (itens pedidos: "entrada idempotente",
@@ -511,6 +542,7 @@ function initSockets(httpServer) {
             io.to(existingSelf.socketId).emit('voice:kicked-by-other-device', { channelId });
           }
           await voiceStore.updateParticipant(channelId, userId, { socketId: socket.id, lastActiveAt: Date.now() });
+          clearVoiceGrace(userId, channelId); // reconectou dentro da tolerância
           socket.join(`voice:${channelId}`);
           const roomNow = await voiceStore.getRoom(channelId);
           const rosterForSelf = Object.entries(roomNow)
@@ -575,7 +607,60 @@ function initSockets(httpServer) {
         socket.emit('voice:joined', { channelId, participants: existingParticipants, myRole: role });
         socket.to(`voice:${channelId}`).emit('voice:user-joined', { channelId, userId, role });
         await broadcastRoster(io, channelId);
-      } catch (err) { /* silently ignore malformed signaling */ }
+      } catch (err) { console.error('[socket] voice:join falhou:', err?.message || err); }
+    });
+
+    // Reconciliação periódica (cliente em chamada manda a cada ~20s e ao
+    // voltar pra aba): o servidor é a fonte da verdade. Se a pessoa ainda
+    // está na sala, devolve o retrato completo (corrige qualquer evento
+    // perdido: alguém que "sumiu" da tela, estado de tela/câmera velho).
+    // Se não está mais (caiu, servidor reiniciou), avisa pra ela entrar
+    // de novo sozinha — sem precisar sair e entrar na mão.
+    socket.on('voice:sync', async ({ channelId } = {}) => {
+      try {
+        if (!channelId) return;
+        const self = await voiceStore.getParticipant(channelId, userId);
+        if (!self) { socket.emit('voice:not-in-room', { channelId }); return; }
+        if (self.socketId && self.socketId !== socket.id) {
+          // Outra conexão é a "dona" da vaga. Se ela ainda está viva, é
+          // outro dispositivo de verdade — este aqui sai. Se já morreu
+          // (reconexão cujo voice:join se perdeu), adota a vaga.
+          const alive = await io.in(self.socketId).fetchSockets().catch(() => []);
+          if (alive.length > 0) { socket.emit('voice:kicked-by-other-device', { channelId }); return; }
+          await voiceStore.updateParticipant(channelId, userId, { socketId: socket.id });
+        }
+        clearVoiceGrace(userId, channelId);
+        socket.join(`voice:${channelId}`);
+        const roomNow = await voiceStore.getRoom(channelId);
+        const list = Object.entries(roomNow)
+          .filter(([uid]) => uid !== userId)
+          .map(([uid, p]) => ({ userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role }));
+        socket.emit('voice:joined', { channelId, participants: list, myRole: self.role || 'speaker', sync: true });
+      } catch (err) { console.error('[socket] voice:sync falhou:', err?.message || err); }
+    });
+
+    // BUG CORRIGIDO ("abro o site e diz que não tem ninguém na call, mas
+    // tem gente"): a lista de quem está em cada canal de voz só chegava
+    // quando ALGUÉM entrava/saía depois que você conectou — nunca existia
+    // um retrato inicial. Quem abria/recarregava o site via todas as
+    // salas vazias até a próxima mudança. O cliente pede isso ao conectar
+    // (e a cada reconexão) e substitui o que tinha.
+    socket.on('voice:rosters', async () => {
+      try {
+        const me = await prisma.user.findUnique({ where: { id: userId }, select: { clanId: true } });
+        const out = {};
+        for (const channelId of await voiceStore.getActiveRoomIds()) {
+          if (channelId.startsWith('dm:')) continue; // chamadas de DM são privadas
+          if (channelId.startsWith('clan:') && channelId !== `clan:${me?.clanId}`) continue;
+          const room = await voiceStore.getRoom(channelId);
+          const participants = Object.entries(room).map(([uid, p]) => ({
+            userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role,
+          }));
+          if (participants.length === 0) continue;
+          out[channelId] = { participants, startedAt: (await voiceStore.getStartedAt(channelId)) || null };
+        }
+        socket.emit('voice:rosters', out);
+      } catch (err) { console.error('[socket] voice:rosters falhou:', err?.message || err); }
     });
 
     // --- Stage channel speaker/audience management ---
@@ -615,7 +700,21 @@ function initSockets(httpServer) {
       } catch (err) { /* ignore malformed signaling */ }
     });
 
-    socket.on('voice:leave', ({ channelId }) => leaveVoice(io, socket, channelId, userId));
+    // BUG CORRIGIDO ("entro pelo celular e o PC me derruba da call"): o
+    // dispositivo antigo recebe voice:kicked-by-other-device, sai e manda
+    // voice:leave — que removia a vaga que JÁ era do dispositivo novo.
+    // Agora só sai de verdade quem é o dono atual da vaga.
+    socket.on('voice:leave', async ({ channelId } = {}) => {
+      try {
+        const p = await voiceStore.getParticipant(channelId, userId);
+        if (p && p.socketId && p.socketId !== socket.id) {
+          const owner = await io.in(p.socketId).fetchSockets().catch(() => []);
+          if (owner.length > 0) { socket.leave(`voice:${channelId}`); return; }
+        }
+        clearVoiceGrace(userId, channelId);
+        await leaveVoice(io, socket, channelId, userId);
+      } catch (err) { console.error('[socket] voice:leave falhou:', err?.message || err); }
+    });
 
     // Callee explicitly declined an incoming DM call without ever joining
     // the voice room (see the client's IncomingCallBanner "Recusar" button)
@@ -671,6 +770,12 @@ function initSockets(httpServer) {
         channelId, userId, muted: updated.muted, deafened: updated.deafened,
         video: updated.video, screenSharing: updated.screenSharing,
       });
+      // BUG CORRIGIDO ("está transmitindo mas não aparece na prévia"):
+      // mudo/câmera/tela nunca atualizavam a lista pública das salas
+      // (barra lateral, prévia do canal) — só quem já estava dentro via.
+      if (patch.video !== undefined || patch.screenSharing !== undefined || patch.muted !== undefined) {
+        broadcastRoster(io, channelId).catch(() => {});
+      }
     });
 
     // High-frequency, ephemeral — not persisted in the roster, just relayed
@@ -684,7 +789,7 @@ function initSockets(httpServer) {
       if (!(await voiceStore.hasParticipant(channelId, userId))) return;
       // Só falar de fato conta como atividade pro AFK sweep abaixo.
       if (speaking) await voiceStore.updateParticipant(channelId, userId, { lastActiveAt: Date.now() });
-      const target = socket.to(`voice:${channelId}`).to('community');
+      const target = socket.to(`voice:${channelId}`).to(rosterRoomFor(channelId));
       target.emit('voice:speaking', { channelId, userId, speaking: !!speaking });
     });
 
@@ -717,6 +822,16 @@ function initSockets(httpServer) {
           durationMs: Number.isFinite(activity.durationMs) ? activity.durationMs : undefined,
           progressMs: Number.isFinite(activity.progressMs) ? activity.progressMs : undefined,
         };
+        // ECONOMIA DE REDE: o app de desktop reconfirma a mesma atividade
+        // de tempos em tempos (Spotify a cada poucos segundos). Se nada
+        // mudou de verdade (mesma música/jogo e o progresso bate com o
+        // tempo que passou), só renova a validade no Redis — sem
+        // retransmitir pra comunidade inteira a cada reenvio.
+        const prev = await activityStore.getActivity(userId).catch(() => null);
+        if (prev && sameActivity(prev, clean)) {
+          await activityStore.setActivity(userId, clean.type === 'spotify' ? clean : prev);
+          return;
+        }
         await activityStore.setActivity(userId, clean);
         await broadcastActivityChange(io, userId, clean);
       } else {
@@ -727,8 +842,19 @@ function initSockets(httpServer) {
 
     socket.on('disconnect', async () => {
       try {
+        // BUG CORRIGIDO ("some da call mesmo continuando conectado"):
+        // (1) qualquer socket da pessoa que caísse (outra aba, o app de
+        // desktop aberto junto, um F5 em outra janela) tirava ela da
+        // chamada — mesmo a chamada estando em OUTRA conexão. Agora só
+        // conta a queda da conexão dona da vaga. (2) Uma queda rápida de
+        // rede (o socket.io reconecta em segundos, e o áudio do Agora
+        // nem cai) removia a pessoa na hora e a fazia "piscar" pra todo
+        // mundo. Agora espera VOICE_GRACE_MS: se ela reconectar (voice:join
+        // ou voice:sync), o timer é cancelado e ninguém percebe nada.
         for (const channelId of await voiceStore.getActiveRoomIds()) {
-          if (await voiceStore.hasParticipant(channelId, userId)) await leaveVoice(io, socket, channelId, userId);
+          const p = await voiceStore.getParticipant(channelId, userId);
+          if (!p || (p.socketId && p.socketId !== socket.id)) continue;
+          scheduleVoiceGrace(userId, channelId, socket.id);
         }
 
         const remaining = await presenceStore.removeSocket(userId, socket.id);
@@ -767,12 +893,65 @@ function initSockets(httpServer) {
     });
   });
 
+  // ---------- Tolerância de queda de conexão em chamadas de voz ----------
+  const VOICE_GRACE_MS = 12000;
+  const voiceGraceTimers = new Map(); // `${userId}|${channelId}` -> timeout
+  function clearVoiceGrace(userId, channelId) {
+    const key = `${userId}|${channelId}`;
+    if (voiceGraceTimers.has(key)) { clearTimeout(voiceGraceTimers.get(key)); voiceGraceTimers.delete(key); }
+  }
+  function scheduleVoiceGrace(userId, channelId, deadSocketId) {
+    clearVoiceGrace(userId, channelId);
+    const key = `${userId}|${channelId}`;
+    voiceGraceTimers.set(key, setTimeout(async () => {
+      voiceGraceTimers.delete(key);
+      try {
+        const p = await voiceStore.getParticipant(channelId, userId);
+        // Já voltou com outro socket (ou já saiu) — nada a fazer.
+        if (!p || (p.socketId && p.socketId !== deadSocketId)) return;
+        await leaveVoice(io, null, channelId, userId);
+      } catch (err) { console.error('[socket] limpeza de voz atrasada falhou:', err?.message || err); }
+    }, VOICE_GRACE_MS));
+  }
+
+  // Quem recebe a lista de participantes de cada sala: canais normais vão
+  // pra comunidade toda; voz de clã só pro clã; chamada de DM só pra
+  // conversa (antes ia pra comunidade inteira — vazava quem estava em
+  // chamada privada).
+  function rosterRoomFor(channelId) {
+    if (channelId.startsWith('dm:')) return `conversation:${channelId.slice(3)}`;
+    if (channelId.startsWith('clan:')) return `clan:${channelId.slice(5)}`;
+    return 'community';
+  }
+
+  // Varredura de "fantasmas": participante cujo socket não existe mais em
+  // lugar nenhum (servidor caiu no meio, evento de desconexão perdido) e
+  // que não está na tolerância acima. Sem isso a pessoa ficava pra sempre
+  // na lista mesmo fora da chamada.
+  setInterval(async () => {
+    try {
+      for (const channelId of await voiceStore.getActiveRoomIds()) {
+        const room = await voiceStore.getRoom(channelId);
+        for (const [uid, p] of Object.entries(room)) {
+          if (voiceGraceTimers.has(`${uid}|${channelId}`)) continue;
+          // eslint-disable-next-line no-await-in-loop
+          const alive = p.socketId ? await io.in(p.socketId).fetchSockets().catch(() => [1]) : [];
+          if (alive.length === 0) {
+            console.log(`[voz] removendo participante fantasma ${uid} de ${channelId}`);
+            await leaveVoice(io, null, channelId, uid);
+          }
+        }
+      }
+    } catch (err) { console.error('[socket] varredura de voz falhou:', err?.message || err); }
+  }, 30 * 1000);
+
   async function leaveVoice(io, socket, channelId, userId) {
     const participant = await voiceStore.getParticipant(channelId, userId);
     if (!participant) return;
     const { conversationId } = participant;
     const remaining = await voiceStore.removeParticipant(channelId, userId);
-    socket.leave(`voice:${channelId}`);
+    if (socket) socket.leave(`voice:${channelId}`);
+    else if (participant.socketId) io.in(participant.socketId).socketsLeave(`voice:${channelId}`);
     io.to(`voice:${channelId}`).emit('voice:user-left', { channelId, userId });
     if (remaining === 0) {
       await voiceStore.deleteRoom(channelId);
@@ -840,7 +1019,7 @@ function initSockets(httpServer) {
       userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role,
     }));
     const startedAt = await voiceStore.getStartedAt(channelId);
-    io.to('community').emit('voice:roster', { channelId, participants, startedAt: startedAt || null });
+    io.to(rosterRoomFor(channelId)).emit('voice:roster', { channelId, participants, startedAt: startedAt || null });
   }
 
   // ---------- Ausência automática por inatividade (15min -> 4h offline) ----------

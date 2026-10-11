@@ -18,7 +18,7 @@ export default function AnnouncementOverlay() {
 
   // Tempo real: anúncio novo aparece sem recarregar (33s, só enquanto
   // nenhum está aberto na tela).
-  useLiveRefresh(({ ok }) => getActiveAnnouncement().then((d) => { if (ok() && d.announcement) setAnnouncement(d.announcement); }), { enabled: !announcement, interval: 33000 });
+  useLiveRefresh(({ ok }) => getActiveAnnouncement().then((d) => { if (ok() && d.announcement) setAnnouncement(d.announcement); }), { enabled: !announcement, interval: 60000 });
 
   if (!announcement) return null;
 

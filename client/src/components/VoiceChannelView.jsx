@@ -28,6 +28,7 @@ const ICONS = {
   speaker: 'M4 9v6h4l5 4V5L8 9H4ZM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11',
   stage: 'M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3ZM6 11a6 6 0 0 0 12 0M12 17v4M8 21h8',
   volume: 'M4 9v6h4l5 4V5L8 9H4ZM16 9a4 4 0 0 1 0 6',
+  volumeOff: 'M4 9v6h4l5 4V5L8 9H4ZM17 10l4 4M21 10l-4 4',
   expand: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
   shrink: 'M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5',
   people: 'M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM21 19v-1a4 4 0 0 0-3-3.87M15.5 4.13a3 3 0 0 1 0 5.74',
@@ -99,6 +100,9 @@ export default function VoiceChannelView({ channel }) {
                 {roster.slice(0, 6).map((p) => <UserAvatar key={p.userId} user={memberFor(p.userId)} size={44} />)}
                 {roster.length > 6 && <span className="vc-stack-more">+{roster.length - 6}</span>}
               </div>
+              {roster.some((p) => p.screenSharing) && (
+                <span className="vc-chip vc-chip-live"><Icon name="screen" size={14} /> {roster.filter((p) => p.screenSharing).length > 1 ? `${roster.filter((p) => p.screenSharing).length} transmitindo` : `${memberFor(roster.find((p) => p.screenSharing).userId)?.displayName || 'Alguém'} está transmitindo`}</span>
+              )}
               <p>
                 <span className="vc-live" /> {roster.length === 1
                   ? `${memberFor(roster[0].userId)?.displayName || 'Alguém'} está na sala`
@@ -163,6 +167,16 @@ export default function VoiceChannelView({ channel }) {
                   {/* Sem tela cheia na própria tela: evita o "espelho infinito". */}
                   <VideoTile stream={s.stream} muted allowFullscreen={!s.mine} />
                   <span className="vc-label"><Icon name="screen" size={14} /> {s.mine ? 'Sua tela' : (memberFor(s.uid)?.displayName || 'Tela')}</span>
+                  {/* Volume individual desta transmissão (0–200%). */}
+                  {!s.mine && (
+                    <VolumeControl
+                      className="vc-vol-stream"
+                      name={memberFor(s.uid)?.displayName || 'transmissão'}
+                      volume={volumes[s.uid] ?? 1}
+                      onVolume={(v) => voice.setParticipantVolume(s.uid, v)}
+                      label="Volume da transmissão"
+                    />
+                  )}
                 </div>
               ))}
             </div>
@@ -177,15 +191,51 @@ export default function VoiceChannelView({ channel }) {
   );
 }
 
+// Controle de volume individual (0% a 200%, lembrado por pessoa).
+// Usado no bloco de cada pessoa e em cada transmissão de tela.
+function VolumeControl({ name, volume, onVolume, className = '', label = 'Volume' }) {
+  const [open, setOpen] = useState(false);
+  usePopoverCoordination(open, () => setOpen(false));
+  const wrapRef = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => { if (!wrapRef.current?.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+  const pct = Math.round(volume * 100);
+  return (
+    <div ref={wrapRef} className={`vc-vol ${className}${open ? ' open' : ''}`}>
+      <button
+        type="button" className="vc-vol-btn" onClick={() => setOpen((v) => !v)}
+        aria-label={`${label}: ${name}`} aria-expanded={open} title={`${label} (${pct}%)`}
+      >
+        <Icon name={volume === 0 ? 'volumeOff' : 'volume'} size={16} />
+        {pct !== 100 && <span className="vc-vol-badge">{pct}%</span>}
+      </button>
+      {open && (
+        <div className="vc-vol-pop" role="group" aria-label={`${label}: ${name}`}>
+          <span className="vc-vol-value">{pct}%</span>
+          <input
+            type="range" min="0" max="2" step="0.05" value={volume}
+            aria-label={`${label}: ${name}`}
+            onChange={(e) => onVolume(parseFloat(e.target.value))}
+          />
+          <button type="button" className="vc-vol-reset" onClick={() => onVolume(1)} disabled={pct === 100}>100%</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PersonTile({ uid, person, isMe, state, connecting, cameraStream, volume, onVolume, extra }) {
-  const [volOpen, setVolOpen] = useState(false);
-  usePopoverCoordination(volOpen, () => setVolOpen(false));
   const color = person?.profileColor || 'var(--brand)';
   return (
     <div
       className={`vc-tile${state.speaking && !state.muted ? ' is-speaking' : ''}${cameraStream ? ' has-video' : ''}${connecting ? ' is-connecting' : ''}`}
       style={{ '--tile-color': color }}
-      onMouseLeave={() => setVolOpen(false)}
     >
       {cameraStream && !connecting ? (
         <VideoTile stream={cameraStream} muted={isMe} />
@@ -205,17 +255,7 @@ function PersonTile({ uid, person, isMe, state, connecting, cameraStream, volume
       {extra}
 
       {!isMe && !connecting && (
-        <div className={`vc-vol${volOpen ? ' open' : ''}`}>
-          <button type="button" className="vc-vol-btn" onClick={() => setVolOpen((v) => !v)} aria-label={`Volume de ${person?.displayName || 'participante'}`} title="Volume">
-            <Icon name="volume" size={16} />
-          </button>
-          {volOpen && (
-            <label className="vc-vol-pop">
-              <span>{Math.round(volume * 100)}%</span>
-              <input type="range" min="0" max="1" step="0.05" value={volume} onChange={(e) => onVolume(parseFloat(e.target.value))} />
-            </label>
-          )}
-        </div>
+        <VolumeControl name={person?.displayName || 'participante'} volume={volume} onVolume={onVolume} />
       )}
     </div>
   );

@@ -17,6 +17,7 @@ import PresenceDot from './PresenceDot.jsx';
 import PendantIcon from './PendantIcon.jsx';
 import { nameStyleProps, nameStyleClassName } from '../utils/nameStyle';
 import BannerImage from './ProfileBanner.jsx';
+import { cssZoom } from '../utils/cssZoom';
 
 // Quantos cargos mostrar no popup compacto (a bio é limitada por CSS a 3
 // linhas — .mini-profile-bio) — o perfil completo (UserProfileModal) mostra
@@ -168,14 +169,14 @@ export default function MiniProfileCard() {
     if (!renderedUserId || closing || !el) return;
     const { height: vh, width: vw, offsetTop: vTop, offsetLeft: vLeft } = getViewport();
     const rect = anchorRectRef.current || { top: vh / 2, left: vw / 2, bottom: vh / 2 };
-    // offsetWidth/offsetHeight ficam em outra escala que
-    // getBoundingClientRect() sob CSS zoom em alguns navegadores (mesmo
-    // tipo de inconsistência já corrigida pro container/anchor abaixo) —
-    // troca pra medir o card com o MESMO método getBoundingClientRect,
-    // consistente com rect/shellRect em toda a função.
-    const elRect = el.getBoundingClientRect();
-    const cardWidth = elRect.width || 320;
-    const cardHeight = elRect.height || 220;
+    // BUG CORRIGIDO (miniperfil por cima da lista de membros): o
+    // getBoundingClientRect do card pega o tamanho no MEIO da animação de
+    // abrir (transform: scale) — menor que o real — e a posição final
+    // ficava errada (sobrepondo o painel / passando da borda). offsetWidth/
+    // offsetHeight ignoram transform; vezes o zoom = mesma escala da tela.
+    const zoomNow = cssZoom();
+    const cardWidth = (el.offsetWidth * zoomNow) || 320;
+    const cardHeight = (el.offsetHeight * zoomNow) || 220;
     const margin = 8;
     // Limites da área visível em coordenadas de `position: fixed` (que é
     // relativo ao layout viewport, não ao visual viewport — por isso soma
@@ -231,7 +232,12 @@ export default function MiniProfileCard() {
       left = rect.left;
     }
     left = Math.min(Math.max(vLeft + margin, left), vLeft + vw - cardWidth - margin);
-    setPos({ top, left, maxHeight });
+    // BUG CORRIGIDO ("miniperfil corta/sai da tela nas bordas"): todas as
+    // medidas acima (getBoundingClientRect) vêm em pixels da TELA, mas
+    // top/left/maxHeight de um elemento fixo são multiplicados pelo zoom
+    // CSS da interface (1.2 no desktop) — o card ia parar 20% mais pra
+    // direita/baixo e estourava a borda. Converte de volta pra pixels CSS.
+    setPos({ top: top / zoomNow, left: left / zoomNow, maxHeight: maxHeight !== undefined ? maxHeight / zoomNow : undefined });
     // Item pedido: animação de abrir "como no Discord" — a origem do
     // scale/fade fica no canto mais perto de onde a pessoa clicou (se
     // abriu pra baixo do avatar, cresce a partir do topo; se virou pra

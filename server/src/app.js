@@ -241,6 +241,10 @@ function createApp() {
       if (!/\.(png|jpe?g|gif|webp|mp4|webm|mov|mp3|wav|ogg)$/i.test(filePath)) {
         res.setHeader('Content-Disposition', 'attachment');
       }
+      // Cada upload ganha um nome novo (UUID — ver fileStorage.js), então
+      // o navegador pode guardar em cache: sem isso, toda foto/anexo era
+      // revalidado a cada carregamento.
+      res.setHeader('Cache-Control', 'public, max-age=604800');
     },
   }));
 
@@ -349,9 +353,22 @@ function createApp() {
   // In production, serve the built React client from a single process
   // (this is what SquareCloud runs — one MAIN process, one port).
   const clientDist = path.resolve(__dirname, '../../client/dist');
-  app.use(express.static(clientDist));
+  // Cache do site: os arquivos em /assets têm o hash do conteúdo no nome
+  // (o Vite gera um nome novo a cada mudança), então podem ficar em cache
+  // por 1 ano sem nunca ficar desatualizados — o app (inclusive o de
+  // desktop) não baixa de novo JS/CSS/imagens a cada abertura. O
+  // index.html sempre revalida (no-cache), pra versão nova chegar na hora.
+  app.use(express.static(clientDist, {
+    setHeaders: (res, filePath) => {
+      if (/[\\/]assets[\\/]/.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      else if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+      // Pacotes de emoji e sons: nome fixo, mudam raramente — 1 dia.
+      else if (/[\\/](emoji-sets|sounds)[\\/]/.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=86400');
+    },
+  }));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(clientDist, 'index.html'), (err) => { if (err) next(); });
   });
 

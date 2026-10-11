@@ -52,12 +52,54 @@ function noteInput() {
   const wasStopped = Date.now() - lastInputAt > IDLE_STOP_MS;
   lastInputAt = Date.now();
   if (wasStopped) onWake();
+  if (isAppIdle()) syncIdleClass();
 }
 if (typeof window !== 'undefined') {
   let throttle = 0;
   const handler = () => { const n = Date.now(); if (n - throttle < 1000) return; throttle = n; noteInput(); };
   ['pointerdown', 'keydown', 'wheel', 'touchstart', 'mousemove'].forEach((ev) => window.addEventListener(ev, handler, { passive: true, capture: true }));
-  window.addEventListener('focus', () => { lastInputAt = Date.now(); onWake(); });
+  window.addEventListener('focus', () => { lastInputAt = Date.now(); onWake(); syncIdleClass(); });
+  window.addEventListener('blur', () => syncIdleClass());
+  setTimeout(syncIdleClass, 0);
+}
+
+// Socket conectado = mensagens/presença/canais/amigos chegam na hora pelo
+// tempo real; aí o refresh periódico é só rede de segurança e pode ir
+// bem mais devagar (assinantes com `realtimeInterval`). Quando o socket
+// cai, volta pro ritmo normal até reconectar. Quem informa é
+// useGlobalLiveRefresh (via useSocket).
+let realtimeUp = false;
+let everConnected = false;
+export function setRealtimeConnected(up) {
+  const wasUp = realtimeUp;
+  realtimeUp = !!up;
+  // Reconectou depois de uma queda: pode ter perdido eventos no meio —
+  // ressincroniza tudo de uma vez.
+  if (realtimeUp && !wasUp && everConnected) refreshNow();
+  if (realtimeUp) everConnected = true;
+}
+export function isRealtimeConnected() { return realtimeUp; }
+
+// Classe "pc-idle" no <html> enquanto ninguém está usando (parado há 2+
+// min, janela sem foco ou escondida): o CSS pausa animações decorativas
+// infinitas (nomes animados, fundo animado...) — ver styles/perf.css.
+// Indicadores de voz/carregamento continuam animando normalmente.
+let idleTimer = null;
+function syncIdleClass() {
+  if (typeof document === 'undefined') return;
+  const idle = document.visibilityState === 'hidden' || activityFactor() > 1;
+  const html = document.documentElement;
+  if (html.classList.contains('pc-idle') !== idle) {
+    html.classList.toggle('pc-idle', idle);
+    try { window.dispatchEvent(new CustomEvent('pc-idle-change', { detail: { idle } })); } catch { /* sem CustomEvent */ }
+  }
+  clearTimeout(idleTimer);
+  // Só precisa reagendar enquanto está ativo: o próximo input/foco chama
+  // de novo. Um único timeout, sem polling.
+  if (!idle) idleTimer = setTimeout(syncIdleClass, Math.max(1000, IDLE_SLOW_MS - (Date.now() - lastInputAt) + 50));
+}
+export function isAppIdle() {
+  return typeof document !== 'undefined' && document.documentElement.classList.contains('pc-idle');
 }
 
 function runAll(force = false) {
@@ -87,6 +129,7 @@ function onWake() {
 
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', onWake);
+  document.addEventListener('visibilitychange', syncIdleClass);
   window.addEventListener('online', onWake);
   window.addEventListener('offline', stop);
 }
@@ -141,13 +184,17 @@ export function mergeFirstPage(prev, fresh, getId = (x) => x.id) {
 // setState (ou ctx.put(setX)(valor), que já checa isso e só grava
 // se mudou). Erros são engolidos: o dado antigo continua na tela.
 // `interval` (opcional, >= 11000) deixa assinantes mais "lentos".
+// `realtimeInterval` (opcional): ritmo usado enquanto o socket está
+// conectado — pra dados que já chegam por evento em tempo real.
 // `key` (opcional): quando muda (ex: outro perfil aberto), respostas
 // antigas em voo são descartadas.
-export function useLiveRefresh(callback, { enabled = true, interval = LIVE_REFRESH_INTERVAL, key } = {}) {
+export function useLiveRefresh(callback, { enabled = true, interval = LIVE_REFRESH_INTERVAL, realtimeInterval, key } = {}) {
   const cbRef = useRef(callback);
   cbRef.current = callback;
   const intervalRef = useRef(interval);
   intervalRef.current = interval;
+  const rtRef = useRef(realtimeInterval);
+  rtRef.current = realtimeInterval;
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -160,7 +207,8 @@ export function useLiveRefresh(callback, { enabled = true, interval = LIVE_REFRE
       run(force) {
         if (!alive || inFlight) return;
         const now = Date.now();
-        if (!force && now - lastRun < intervalRef.current * activityFactor() - 1500) return;
+        const base = realtimeUp && rtRef.current ? Math.max(intervalRef.current, rtRef.current) : intervalRef.current;
+        if (!force && now - lastRun < base * activityFactor() - 1500) return;
         lastRun = now;
         const epoch = mutationEpoch;
         const busyAtStart = mutationsInFlight > 0;

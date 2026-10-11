@@ -173,7 +173,7 @@ function renderInline(text, ctx, keyPrefix) {
       break;
     case 'emoji': {
       const url = emojiMap[match[1]];
-      if (url) nodes.push(<img key={key} src={url} alt={`:${match[1]}:`} title={`:${match[1]}:`} className="inline-emoji" />);
+      if (url) nodes.push(<img key={key} src={url} alt={`:${match[1]}:`} title={`:${match[1]}:`} className="inline-emoji" loading="lazy" decoding="async" />);
       else nodes.push(<Fragment key={key}>{match[0]}</Fragment>);
       break;
     }

@@ -7,6 +7,7 @@ import { listFriends, getCommunity, listUsableEmojis, listServerStickers, listAs
 import { playSound } from '../utils/sounds';
 import { setupNativeActivity } from '../utils/nativeActivity';
 import { updateUnreadBadge } from '../utils/unreadBadge';
+import { sameData } from '../utils/liveRefresh';
 
 const SocketContext = createContext(null);
 
@@ -193,8 +194,16 @@ export function SocketProvider({ children }) {
     // mapa de presença inteiro, então corrige sozinho qualquer coisa que
     // tenha ficado desatualizada. Ver server/src/sockets/index.js.
     socket.on('presence:sync', (list) => {
-      const { setPresence: setP } = useStore.getState();
-      list.forEach(({ userId, status, customStatus }) => setP(userId, { status, customStatus }));
+      // Uma única atualização da store com a lista inteira — antes era um
+      // setPresence por pessoa (N cópias do mapa + N avisos pra todo
+      // componente inscrito), travando a tela a cada conexão/reconexão
+      // em comunidades grandes.
+      if (!Array.isArray(list)) return;
+      useStore.setState((s) => {
+        const next = { ...s.presence };
+        list.forEach(({ userId: uid, status, customStatus }) => { next[uid] = { status, customStatus }; });
+        return { presence: next };
+      });
     });
 
     // "Reload User" (painel de staff → Reload) — o servidor limpou o
@@ -217,7 +226,14 @@ export function SocketProvider({ children }) {
     // conectar (ver server/src/sockets/index.js), diferente de
     // activity:changed (que só chega quando algo MUDA depois).
     socket.on('activity:sync', (activitiesMap) => {
-      Object.entries(activitiesMap).forEach(([uid, activity]) => useStore.getState().setActivity(uid, activity));
+      // Mesma ideia do presence:sync — uma atualização só, não uma por pessoa.
+      const entries = Object.entries(activitiesMap || {});
+      if (!entries.length) return;
+      useStore.setState((s) => {
+        const next = { ...s.activities };
+        entries.forEach(([uid, activity]) => { if (activity) next[uid] = activity; else delete next[uid]; });
+        return { activities: next };
+      });
     });
     // Item pedido: "Rich Presence" — no app de desktop, começa a
     // escutar os avisos que o Electron manda (ver desktop/
@@ -281,6 +297,12 @@ export function SocketProvider({ children }) {
 
     socket.on('conversation:new', ({ conversation }) => {
       useStore.getState().upsertConversation(conversation);
+      // BUG CORRIGIDO ("DM nova só recebe mensagem recarregando"): o
+      // servidor só coloca o socket nas salas das conversas que já
+      // existiam na hora de conectar — numa conversa criada DEPOIS (alguém
+      // te chamou pela 1ª vez, grupo novo, amizade aceita), as mensagens
+      // não chegavam em tempo real até abrir essa conversa ou dar F5.
+      if (conversation?.id) socket.emit('conversation:join', conversation.id);
     });
     socket.on('conversation:left', ({ conversationId }) => {
       useStore.getState().removeConversation(conversationId);
@@ -393,12 +415,23 @@ export function SocketProvider({ children }) {
       setFriends(friendships);
     }
 
-    async function refreshCommunity() {
-      const data = await getCommunity().catch(() => null);
-      if (!data) return;
-      useStore.getState().setCommunityStructure({
-        categories: data.categories, channels: data.channels, members: data.members, roles: data.roles, community: data.community,
-      });
+    // Vários eventos seguidos (reordenar canais, cargos de membro, etc.)
+    // viravam uma busca da comunidade inteira CADA — agora junta os que
+    // chegam em ~300ms numa busca só, e só grava no store o que mudou
+    // (evita re-render do app inteiro à toa).
+    let communityTimer = null;
+    function refreshCommunity() {
+      clearTimeout(communityTimer);
+      communityTimer = setTimeout(async () => {
+        const data = await getCommunity().catch(() => null);
+        if (!data || socketRef.current !== socket) return;
+        const cur = useStore.getState();
+        const patch = {};
+        ['categories', 'channels', 'members', 'roles', 'community'].forEach((k) => {
+          if (data[k] !== undefined && !sameData(cur[k], data[k])) patch[k] = data[k];
+        });
+        if (Object.keys(patch).length) cur.setCommunityStructure(patch);
+      }, 300);
     }
 
     async function refreshUsableEmojis() {
@@ -421,6 +454,7 @@ export function SocketProvider({ children }) {
       activityEvents.forEach((evt) => window.removeEventListener(evt, notifyActivity));
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('focus', notifyActivity);
+      clearTimeout(communityTimer);
       socket.disconnect();
     };
   }, [token, userId]);

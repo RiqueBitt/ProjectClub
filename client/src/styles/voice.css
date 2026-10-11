@@ -271,3 +271,51 @@
   .ssm-preset small { margin-left: auto; }
 }
 @media (prefers-reduced-motion: reduce) { .ssm-overlay, .ssm { animation: none; } }
+
+/* ---- Volume individual (pessoa e transmissão), 0–200% ---- */
+.vc-vol-btn { width: auto; min-width: 30px; padding: 0 7px; gap: 4px; }
+.vc-vol-badge { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Volume alterado fica sempre visível, pra lembrar que não está em 100%. */
+.vc-vol-btn:has(.vc-vol-badge) { opacity: 1; }
+.vc-vol-value { min-width: 38px; text-align: right; }
+.vc-vol-pop input { width: 140px; accent-color: var(--brand); }
+.vc-vol-reset {
+  height: 24px; padding: 0 8px; border-radius: 7px; font-size: 11.5px; font-weight: 700;
+  background: rgba(255, 255, 255, .12); color: #fff;
+}
+.vc-vol-reset:disabled { opacity: .45; cursor: default; }
+/* Na transmissão de tela: canto inferior direito, aparece ao passar o mouse. */
+.vc-screen .vc-vol-stream { right: 12px; bottom: 12px; }
+.vc-screen:hover .vc-vol-btn, .vc-screen .vc-vol.open .vc-vol-btn { opacity: 1; }
+.vc-screen .vc-vol-btn { height: 32px; min-width: 34px; border-radius: 10px; }
+@media (max-width: 600px) {
+  .vc-vol-pop input { width: 96px; }
+}
+/* Prévia do canal: quem está transmitindo agora */
+.vc-chip-live {
+  margin: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; color: #fff; background: color-mix(in srgb, var(--red, #ed4245) 85%, transparent);
+  border-color: transparent;
+}
+
+/* Lista de quem está no canal de voz (barra lateral) */
+.voice-roster-item .truncate { min-width: 0; }
+.voice-roster-live {
+  flex-shrink: 0; margin-left: auto; padding: 1px 5px; border-radius: 5px;
+  background: var(--red, #ed4245); color: #fff; font-size: 9.5px; font-weight: 800; letter-spacing: .3px; line-height: 14px;
+}
+.voice-roster-ico {
+  flex-shrink: 0; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round; color: var(--text-muted);
+}
+.voice-roster-live + .voice-roster-ico, .voice-roster-item .truncate + .voice-roster-ico { margin-left: auto; }
+.voice-roster-ico + .voice-roster-ico { margin-left: 0; }
+.voice-roster-ico.is-muted { color: var(--red, #ed4245); }
+
+/* BUG CORRIGIDO (celular, 2+ transmissões): a grade de telas tinha altura
+   presa ao espaço livre (flex: 1) mas cada tela exigia 240px — a segunda
+   vazava por baixo da faixa de pessoas, ficando escondida/sobreposta.
+   No celular as telas empilham com proporção 16:9 e a área rola. */
+@media (max-width: 700px) {
+  .vc-stage.is-spotlight .vc-screens { flex: 0 0 auto; min-height: 0; }
+  .vc-stage.is-spotlight .vc-screen { min-height: 0; aspect-ratio: 16 / 9; }
+}

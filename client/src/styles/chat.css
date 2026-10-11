@@ -326,3 +326,16 @@ html.custom-bg-active .chat-window .chat-composer .message-input-row { backgroun
   .chat-typing-dots i, .chat-skeleton-avatar, .chat-skeleton-line, .message.chat-flash { animation: none; }
   .chat-v2 .reaction-chip:hover, .chat-v2 .message-hover-action.quick-react:hover { transform: none; }
 }
+
+/* Celular: o seletor de emoji/GIF/figurinha é uma folha de baixo, de
+   ponta a ponta. A regra base (.emoji-picker-popover, mais abaixo no
+   global.css) vinha DEPOIS da regra de celular e sobrescrevia a largura
+   pra 320px — a folha ficava torta, colada na esquerda. */
+@media (max-width: 600px) {
+  /* :root na frente = mais específico (a ordem dos arquivos no build não
+     é garantida). */
+  :root .emoji-picker-popover, :root .gif-picker-popover {
+    left: 0; right: 0; width: 100%; max-width: none;
+    max-height: 80vh;
+  }
+}

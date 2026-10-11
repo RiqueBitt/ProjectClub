@@ -52,12 +52,17 @@ async function detectGameOrApp(platform) {
   const platKey = platform === 'win32' ? 'win' : 'linux';
   let game = null;
   let appMatch = null;
+  // ECONOMIA DE CPU: o Spotify só é consultado (PowerShell no Windows,
+  // ~1s de CPU por vez) se o processo dele estiver aberto. Antes isso
+  // rodava a cada 2s pra todo mundo, mesmo sem Spotify instalado.
+  // Lista vazia = não conseguiu listar; aí consulta mesmo assim.
+  const spotifyRunning = !processes.length || processes.some((p) => /^spotify(\.exe)?$/i.test(p));
   for (const proc of processes) {
     if (!game) game = matchProcessName(proc, platKey);
     if (!appMatch) appMatch = matchAppProcessName(proc, platKey);
     if (game && appMatch) break; // achou os dois — não precisa continuar varrendo
   }
-  return { game, app: appMatch };
+  return { game, app: appMatch, spotifyRunning };
 }
 
 // ---------- Detecção de Spotify (mídia tocando agora) ----------
@@ -158,9 +163,14 @@ async function fetchAlbumArtFromItunes(artist, title) {
   }
 }
 
+let spotifyScriptWritten = false;
 async function detectSpotifyWindows() {
   const scriptPath = path.join(os.tmpdir(), 'project-club-spotify-check.ps1');
-  fs.writeFileSync(scriptPath, SPOTIFY_PS_SCRIPT, 'utf-8');
+  // Grava o script uma vez só (antes regravava no disco a cada 2s).
+  if (!spotifyScriptWritten || !fs.existsSync(scriptPath)) {
+    fs.writeFileSync(scriptPath, SPOTIFY_PS_SCRIPT, 'utf-8');
+    spotifyScriptWritten = true;
+  }
   const out = await run(`powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${scriptPath}"`);
   const trimmed = out.trim();
   if (!trimmed || trimmed === 'null') return null;
@@ -269,16 +279,29 @@ function startActivityDetection(onChange) {
   const platform = process.platform;
   if (platform !== 'win32' && platform !== 'linux') return; // macOS não é o público deste app
 
+  // Uma verificação por vez: o PowerShell do Spotify pode levar mais que
+  // o intervalo, e antes as verificações se empilhavam (vários
+  // PowerShell rodando juntos). Com o Spotify fechado, verifica a cada
+  // 4s (só a lista de processos); com ele aberto, a cada 2s.
+  let running = false;
+  let spotifyOpen = false;
+  let lastTickAt = 0;
   const tick = async () => {
+    if (running) return;
+    const now = Date.now();
+    if (!spotifyOpen && lastTickAt && now - lastTickAt < 3900) return;
+    running = true;
+    lastTickAt = now;
     try {
-      const { game, app } = await detectGameOrApp(platform);
+      const { game, app, spotifyRunning } = await detectGameOrApp(platform);
+      spotifyOpen = !!spotifyRunning;
       let activity = null;
       // Item pedido: "prioridade app -> música -> jogos" (trocado da
       // ordem anterior, que era Jogo -> Spotify -> App).
       if (app) {
         activity = { type: 'app', name: app.name, imageUrl: app.imageUrl || undefined, startedAt: Date.now() };
       } else {
-        const spotify = await detectSpotify(platform);
+        const spotify = spotifyRunning ? await detectSpotify(platform) : null;
         if (spotify) {
           activity = { type: 'spotify', ...spotify, startedAt: Date.now() };
         } else if (game) {
@@ -296,6 +319,8 @@ function startActivityDetection(onChange) {
       }
     } catch (err) {
       console.error('[atividade] falha ao detectar:', err.message);
+    } finally {
+      running = false;
     }
   };
 

@@ -72,6 +72,9 @@ export function usePinnedMessages({ conversationId, channelId, enabled = true })
 
   useLiveRefresh((ctx) => fetchPinned({ conversationId, channelId }).then((list) => ctx.put(setPins)(list)), {
     enabled: enabled && !!roomId, key: roomId,
+    // Fixar/desafixar já chega por socket (message:pin) — com ele
+    // conectado, o refresh é só rede de segurança.
+    realtimeInterval: 90000,
   });
 
   return { pins: pins.filter((p) => p.pinned !== false && !p.deleted), loading, reload, setPins };

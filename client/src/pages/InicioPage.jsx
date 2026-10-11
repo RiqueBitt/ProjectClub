@@ -161,17 +161,19 @@ export default function InicioPage() {
     if (user?.id) getUserProfile(user.id).then((d) => setMe(d)).catch(() => setMe(null));
   }, [user?.id]);
 
-  // Tempo real (11s): posts em destaque, números e progresso do nível;
+  // Tempo real (22s): posts em destaque e progresso do nível;
   // novidades/eventos/vídeos já chegam por socket, então só uma
   // ressincronização leve (33s).
   useLiveRefresh(async (ctx) => {
     const { put } = ctx;
     await Promise.allSettled([
       listFeaturedPosts().then((d) => put(setFeaturedPosts)(d.posts)),
-      getPlatformStats().then(put(setStats)),
       user?.id ? getUserProfile(user.id).then(put(setMe)) : null,
     ]);
-  });
+  }, { interval: 22000 });
+  // Números da plataforma (4 contagens no banco, incluindo TODAS as
+  // mensagens): mudam devagar e ninguém precisa deles ao segundo — 2 min.
+  useLiveRefresh(({ put }) => getPlatformStats().then(put(setStats)), { interval: 120000 });
   useLiveRefresh(async (ctx) => {
     const { put } = ctx;
     await Promise.allSettled([
@@ -179,7 +181,7 @@ export default function InicioPage() {
       listEvents().then((d) => put(setEvents)(d.events)),
       listYoutubeVideos().then((d) => put(setVideos)(d.videos)),
     ]);
-  }, { interval: 33000 });
+  }, { interval: 33000, realtimeInterval: 120000 });
 
   useEffect(() => {
     if (!socket) return;

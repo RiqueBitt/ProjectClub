@@ -1,11 +1,13 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
   getCommunity, listConversations, listFriends, fetchMe, getMyClan, getUserSettings,
   listUsableEmojis, listServerStickers, listAssetCollections, listFavoriteGifs, listCommunities, getUiLayout,
 } from '../api/endpoints';
-import { useLiveRefresh, sameData } from './liveRefresh';
+import { useSocket } from '../context/SocketContext.jsx';
+import { useLiveRefresh, sameData, setRealtimeConnected } from './liveRefresh';
+import '../styles/perf.css';
 
 // Só grava no store se o valor mudou de verdade (evita re-render global
 // a cada 11s quando nada aconteceu).
@@ -28,14 +30,21 @@ const ACCOUNT_PREFS = [
 
 // Atualização ao vivo dos dados GLOBAIS (barra lateral, cabeçalho,
 // pickers): estrutura da comunidade (canais/categorias/cargos/membros),
-// a própria conta, conversas, amigos e clã a cada 11s; o resto (emojis,
+// a própria conta, conversas, amigos e clã a cada 22s (60s com o socket
+// conectado, já que quase tudo isso chega por evento); o resto (emojis,
 // figurinhas, coleções, GIFs favoritos, clubes, layout, configurações)
-// num ritmo mais leve (33s), já que muda raramente e boa parte já chega
-// por socket.
+// num ritmo bem mais leve (90s / 3min com socket), já que muda raramente.
 export function useGlobalLiveRefresh() {
   const { user, setUser } = useAuth();
   const userRef = useRef(user);
   userRef.current = user;
+
+  // Informa o relógio global se o tempo real (socket) está de pé: com ele
+  // conectado, os dados abaixo já chegam por evento e o refresh vira só
+  // rede de segurança (bem mais espaçado); ao reconectar, ressincroniza.
+  const { connected } = useSocket() || {};
+  useEffect(() => { setRealtimeConnected(!!connected); }, [connected]);
+  useEffect(() => () => setRealtimeConnected(false), []);
 
   useLiveRefresh(async (ctx) => {
     const s = useStore.getState();
@@ -69,7 +78,7 @@ export function useGlobalLiveRefresh() {
         if (!sameData(prev, next) || (d.pendingRequests !== undefined && !sameData(cur.myClanPendingRequests, d.pendingRequests))) s.setMyClan(d);
       }).catch(() => {}),
     ]);
-  }, { interval: 22000 });
+  }, { interval: 22000, realtimeInterval: 60000 });
 
   useLiveRefresh(async (ctx) => {
     const s = useStore.getState();
@@ -83,5 +92,5 @@ export function useGlobalLiveRefresh() {
       getUserSettings().then((d) => { if (ctx.ok()) setIfChanged('userSettings', d.settings, s.setUserSettings); }).catch(() => {}),
       getUiLayout().then((d) => { if (ctx.ok() && !sameData(useStore.getState().uiLayoutAll, d)) s.setUiLayoutAll(d); }).catch(() => {}),
     ]);
-  }, { interval: 90000 });
+  }, { interval: 90000, realtimeInterval: 180000 });
 }
