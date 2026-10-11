@@ -10,6 +10,7 @@ const CATEGORY_BY_TYPE = {
   ACCOUNT_LEVEL: 'Progresso', DAILY_STREAK: 'Progresso',
   MESSAGES_SENT: 'Comunicação', REACTIONS_GIVEN: 'Comunicação', EMOJIS_CREATED: 'Comunicação',
   CARDS_WINS: 'Arena de Cartas', CARDS_PVP_WINS: 'Arena de Cartas', CARDS_PACKS: 'Arena de Cartas', CARDS_COLLECTION: 'Arena de Cartas', CARDS_FOILS: 'Arena de Cartas', CARDS_CAMPAIGN: 'Arena de Cartas',
+  CARDS_FLAWLESS: 'Arena de Cartas', CARDS_CLUTCH: 'Arena de Cartas', CARDS_DUO_WINS: 'Arena de Cartas', CARDS_DRAFT_BEST: 'Arena de Cartas', CARDS_BOSS_DAMAGE: 'Arena de Cartas', CARDS_GOLDEN: 'Arena de Cartas',
 };
 
 export function categoryFor(progressType) {

@@ -661,10 +661,18 @@ const ranking = handle(async (req, res) => {
     ? { banned: false, seasonKey: S.seasonKeyOf(), OR: [{ seasonWins: { gt: 0 } }, { seasonLosses: { gt: 0 } }] }
     : { banned: false, ...(by === 'rating' ? { OR: [{ pvpWins: { gt: 0 } }, { pvpLosses: { gt: 0 } }] } : { wins: { gt: 0 } }) };
   const orderBy = by === 'season' ? [{ seasonRating: 'desc' }, { seasonWins: 'desc' }] : by === 'rating' ? [{ rating: 'desc' }, { pvpWins: 'desc' }] : [{ wins: 'desc' }];
+  // Ranking só entre amigos (inclui você).
+  const friendsOnly = req.query.amigos === '1';
+  if (friendsOnly) {
+    const fr = await prisma.friendship.findMany({ where: { status: 'ACCEPTED', OR: [{ requesterId: req.user.id }, { addresseeId: req.user.id }] }, select: { requesterId: true, addresseeId: true }, take: 1000 });
+    const ids = new Set([req.user.id]);
+    for (const f of fr) ids.add(f.requesterId === req.user.id ? f.addresseeId : f.requesterId);
+    where.userId = { in: [...ids] };
+  }
   const rows = await prisma.cardPlayer.findMany({ where, orderBy, take: 50 });
   const users = rows.length ? await prisma.user.findMany({ where: { id: { in: rows.map((r) => r.userId) } }, select: PUBLIC_USER_FIELDS }) : [];
   const byId = Object.fromEntries(users.map((u) => [u.id, u]));
-  res.json({ by, players: rows.filter((r) => byId[r.userId]).map((r, i) => ({ rank: i + 1, user: byId[r.userId], ...publicPlayer(r) })) });
+  res.json({ by, friends: friendsOnly, players: rows.filter((r) => byId[r.userId]).map((r, i) => ({ rank: i + 1, user: byId[r.userId], ...publicPlayer(r) })) });
 });
 
 // ---------- Trocas ----------

@@ -1457,3 +1457,130 @@ button.tcg-card:hover:not(.is-dim) { transform: translateY(-6px); }
 @keyframes tcgb-fx-swirl { from { transform: rotate(0) scale(.6); opacity: 0; } 30% { opacity: 1; } to { transform: rotate(180deg) scale(1.6); opacity: 0; } }
 @keyframes tcgb-fx-void { 0% { transform: scale(2); opacity: 0; } 40% { transform: scale(1); opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .tcg-back.v-dourado, .tcgb-railhero[class*=' fr-'] .tcgb-hero-face::after, .tcg-gold-sheen, .tcg-card.is-golden .tcg-frame { animation: none !important; } }
+
+/* =====================================================================
+   Etapa 10 — Desafios: Draft, chefão semanal, liga de clãs; ranking de amigos
+   ===================================================================== */
+.tcg-rank-friends { margin-left: auto; }
+.tcg-rank-row.is-me { border-color: rgba(139,107,255,.55); background: linear-gradient(90deg, rgba(139,107,255,.14), var(--bg-secondary)); }
+.tcgchal-subs { margin-bottom: 14px; }
+.tcgchal-subs button { display: inline-flex; align-items: center; gap: 6px; }
+/* Draft */
+.tcgd { display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: 20px; background: radial-gradient(120% 90% at 0% 0%, rgba(139,107,255,.16), transparent 60%), var(--bg-secondary); border: 1px solid rgba(139,107,255,.3); }
+.tcgd-head { display: flex; gap: 14px; align-items: flex-start; }
+.tcgd-head h3 { margin: 0 0 4px; font-size: 20px; color: var(--header-primary); }
+.tcgd-head p { margin: 0; font-size: 13px; max-width: 720px; }
+.tcgd-badge { flex: 0 0 auto; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; color: #fff; background: linear-gradient(135deg, #8b6bff, #ff4fa3); box-shadow: 0 6px 18px rgba(139,107,255,.4); }
+.tcgd-rewards { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 8px; }
+.tcgd-rewards span { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 6px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid var(--border); }
+.tcgd-rewards small { font-size: 11px; color: var(--text-muted); }
+.tcgd-rewards b { display: inline-flex; align-items: center; gap: 4px; color: #ffd34d; font-size: 14px; }
+.tcgd-rewards span.is-max { border-color: rgba(255,211,77,.6); background: rgba(255,211,77,.1); box-shadow: 0 0 14px rgba(255,211,77,.2); }
+.tcgd-start { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.tcgd-start .tcg-btn { padding: 12px 20px; font-size: 15px; }
+.tcgd-last { margin: 0; font-size: 13px; color: var(--text-muted); }
+.tcgd-progress { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text-normal); }
+.tcgd-progress i { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,.08); overflow: hidden; }
+.tcgd-progress em { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #8b6bff, #ff4fa3); transition: width .3s; }
+.tcgd-body { display: grid; grid-template-columns: minmax(0, 1fr) 230px; gap: 16px; align-items: start; }
+.tcgd-options { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; padding: 6px 0 12px; }
+.tcgd-opt { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 18px; animation: tcgd-in .38s cubic-bezier(.2,.9,.3,1.25) both; transition: transform .15s; }
+.tcgd-opt .tcg-card { --w: 200px; }
+.tcgd-opt:hover:not(:disabled) { transform: translateY(-6px); }
+.tcgd-opt:focus-visible { outline: 3px solid #8b6bff; outline-offset: 4px; }
+.tcgd-opt:disabled { cursor: wait; opacity: .7; }
+@keyframes tcgd-in { from { opacity: 0; transform: translateY(24px) rotateY(70deg) scale(.9); } to { opacity: 1; transform: none; } }
+.tcgd-deck { padding: 12px; border-radius: 14px; background: rgba(0,0,0,.22); border: 1px solid var(--border); max-height: 440px; overflow: auto; }
+.tcgd-curve { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; height: 64px; align-items: end; margin-bottom: 10px; }
+.tcgd-curve span { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 2px; }
+.tcgd-curve i { display: block; width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, #a98bff, #6a4be0); }
+.tcgd-curve small { font-size: 10px; color: var(--text-muted); }
+.tcgd-deck ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.tcgd-deck li { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 8px; font-size: 12.5px; color: var(--text-normal); background: linear-gradient(90deg, color-mix(in srgb, var(--elc, #888) 22%, transparent), transparent 70%); border-left: 3px solid var(--rar, #888); }
+.tcgd-deck li span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tcgd-deck li em { font-style: normal; font-weight: 800; color: #ffd34d; }
+.tcgd-cost { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; color: #fff; background: #3b5bdb; flex: 0 0 auto; }
+.tcgd-score { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 12px 14px; border-radius: 14px; background: rgba(0,0,0,.2); }
+.tcgd-wins, .tcgd-losses { display: flex; gap: 6px; }
+.tcgd-wins span, .tcgd-losses span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,.06); color: rgba(255,255,255,.25); border: 1px solid var(--border); }
+.tcgd-wins span.on { color: #3a2400; background: radial-gradient(circle at 35% 30%, #ffe58a, #e6a82a 60%, #6b4306); border-color: transparent; box-shadow: 0 0 12px rgba(255,200,60,.5); animation: tcgw-pop .35s; }
+.tcgd-losses span.on { color: #fff; background: #d83c3e; border-color: transparent; }
+.tcgd-now { font-size: 13px; color: var(--text-muted); }
+.tcgd-now b { display: inline-flex; align-items: center; gap: 3px; color: #ffd34d; }
+.tcgd-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.tcgd-actions p { margin: 0; font-size: 13px; }
+.tcgd-play { padding: 14px 26px !important; font-size: 16px !important; }
+.tcgd-confirm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--text-normal); }
+/* Chefão */
+.tcgboss-wrap { display: flex; flex-direction: column; gap: 14px; }
+.tcgboss { position: relative; display: flex; gap: 22px; align-items: center; padding: 22px; border-radius: 22px; overflow: hidden; background: radial-gradient(90% 120% at 0% 50%, color-mix(in srgb, var(--elc) 30%, transparent), transparent 65%), linear-gradient(135deg, var(--eld), #0b0b12 70%); border: 1px solid color-mix(in srgb, var(--elc) 45%, transparent); }
+.tcgboss.is-compact { padding: 14px 18px; opacity: .95; }
+.tcgboss.is-compact .tcgboss-art { width: 84px; height: 84px; }
+.tcgboss.is-compact .tcgboss-art svg { width: 48px; height: 48px; }
+.tcgboss-art { position: relative; flex: 0 0 auto; display: grid; place-items: center; width: 150px; height: 150px; border-radius: 50%; color: var(--elc); background: radial-gradient(circle, color-mix(in srgb, var(--elc) 25%, #000), #000 70%); box-shadow: 0 0 40px color-mix(in srgb, var(--elc) 50%, transparent), inset 0 0 30px rgba(0,0,0,.8); }
+.tcgboss-art svg { position: relative; z-index: 1; filter: drop-shadow(0 0 12px var(--elc)); animation: tcgboss-breathe 3s ease-in-out infinite; }
+.tcgboss-aura { position: absolute; inset: -8px; border-radius: 50%; background: conic-gradient(from 0deg, transparent, var(--elc), transparent 40%, var(--elc), transparent 80%); -webkit-mask: radial-gradient(circle, transparent 64%, #000 66%); mask: radial-gradient(circle, transparent 64%, #000 66%); animation: tcg-spin 6s linear infinite; opacity: .8; }
+.tcgboss.is-down .tcgboss-art { filter: grayscale(.85) brightness(.6); }
+.tcgboss.is-down .tcgboss-art svg, .tcgboss.is-down .tcgboss-aura { animation: none; }
+@keyframes tcgboss-breathe { 50% { transform: scale(1.08); } }
+.tcgboss-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.tcgboss-kicker { font-size: 11.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--elc); }
+.tcgboss-info h3 { margin: 0; font-size: clamp(20px, 3vw, 28px); color: #fff; text-shadow: 0 2px 12px color-mix(in srgb, var(--elc) 60%, transparent); }
+.tcgboss-info p { margin: 0; font-size: 13px; }
+.tcgboss-bar { position: relative; height: 22px; border-radius: 11px; background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.12); overflow: hidden; }
+.tcgboss-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ff3b3b, #ff8a3b); box-shadow: 0 0 12px rgba(255,80,60,.6); transition: width .6s; }
+.tcgboss-bar span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; font-weight: 900; color: #fff; text-shadow: 0 1px 2px #000; }
+.tcgboss.is-down .tcgboss-bar span { color: #ffd34d; letter-spacing: 2px; }
+.tcgboss-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.tcgboss-top { padding: 14px; border-radius: 16px; background: var(--bg-secondary); border: 1px solid var(--border); }
+.tcgboss-top h4 { margin: 0 0 8px; color: var(--header-primary); }
+.tcgboss-row { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+.tcgboss-row:last-child { border-bottom: 0; }
+.tcgboss-row .tcg-rank-name { flex: 1; }
+.tcgboss-row b { color: #ff8a3b; }
+/* Liga de clãs */
+.tcgl { display: flex; flex-direction: column; gap: 12px; }
+.tcgl-head { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; padding: 16px 18px; border-radius: 18px; background: linear-gradient(120deg, rgba(31,181,201,.12), rgba(139,107,255,.12)); border: 1px solid rgba(31,181,201,.3); }
+.tcgl-head h3 { margin: 0 0 4px; font-size: 20px; color: var(--header-primary); }
+.tcgl-head p { margin: 0; font-size: 13px; max-width: 640px; }
+.tcgl-prizes { display: flex; gap: 8px; }
+.tcgl-prizes span { display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: 12px; font-weight: 800; font-size: 13px; color: #ffd34d; background: rgba(0,0,0,.25); }
+.tcgl-prizes small { color: var(--text-muted); margin-right: 2px; }
+.tcgl-prizes .is-p1 { box-shadow: inset 0 0 0 1px rgba(255,211,77,.6); }
+.tcgl-last { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; font-size: 13px; color: var(--text-muted); }
+.tcgl-last b { color: var(--header-primary); }
+.tcgl-table { display: flex; flex-direction: column; gap: 6px; }
+.tcgl-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 14px; background: var(--bg-secondary); border: 1px solid var(--border); }
+.tcgl-row b { color: #5fe0d0; font-size: 15px; }
+.tcgl-row.is-top1 { border-color: rgba(255,211,77,.6); background: linear-gradient(90deg, rgba(255,211,77,.12), var(--bg-secondary)); }
+.tcgl-row.is-top2 { border-color: rgba(200,210,225,.5); }
+.tcgl-row.is-top3 { border-color: rgba(205,127,50,.55); }
+.tcgl-row.is-me { box-shadow: 0 0 0 2px rgba(139,107,255,.55); }
+.tcgl-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--header-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tcgl-name em { font-style: normal; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; color: #fff; background: #8b6bff; }
+.tcgl-icon { flex: 0 0 auto; display: grid; place-items: center; border-radius: 10px; background: rgba(255,255,255,.06); }
+.tcgl-icon i { display: block; width: 70%; height: 70%; background: var(--cc); -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; }
+.tcgl-icon b { color: var(--cc); font-size: 16px; }
+.tcgl-note { margin: 0; font-size: 13px; }
+@media (max-width: 760px) {
+  .tcgd-body { grid-template-columns: 1fr; }
+  .tcgd-options { gap: 8px; flex-wrap: nowrap; }
+  .tcgd-opt .tcg-card { --w: min(31vw, 150px); }
+  .tcgd-deck { max-height: 260px; }
+  .tcgboss { flex-direction: column; text-align: center; padding: 18px 14px; }
+  .tcgboss-art { width: 110px; height: 110px; }
+  .tcgboss-art svg { width: 64px; height: 64px; }
+  .tcgboss-actions { justify-content: center; }
+  .tcgl-row small { display: none; }
+  .tcgd-wins span, .tcgd-losses span { width: 26px; height: 26px; }
+}
+@media (prefers-reduced-motion: reduce) { .tcgd-opt, .tcgboss-art svg, .tcgboss-aura { animation: none !important; } }
+.tcg-modes.is-challenges { margin-top: -6px; }
+.tcg-mode.is-draft { --mc: #ff4fa3; }
+.tcg-mode.is-boss { --mc: #ff7a3c; }
+.tcg-mode.is-league { --mc: #1fb5c9; }
+.tcgd-deck { display: flex; flex-direction: column; align-items: stretch; }
+.tcgd-curve { width: 100%; flex: 0 0 auto; }
+.tcgd-options { flex-wrap: nowrap; }
+.tcgd-opt .tcg-card.tcg-card { --w: 168px; }
+@media (max-width: 760px) { .tcgd-opt .tcg-card.tcg-card { --w: min(29vw, 140px); } }

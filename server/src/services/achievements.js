@@ -113,6 +113,17 @@ async function getProgressByType(userId, progressType) {
       const p = await prisma.cardPlayer.findUnique({ where: { userId } });
       return p?.campaignStage || 0;
     }
+    case 'CARDS_FLAWLESS':
+    case 'CARDS_CLUTCH':
+    case 'CARDS_DUO_WINS':
+    case 'CARDS_DRAFT_BEST':
+    case 'CARDS_BOSS_DAMAGE': {
+      const p = await prisma.cardPlayer.findUnique({ where: { userId } });
+      const field = { CARDS_FLAWLESS: 'flawlessWins', CARDS_CLUTCH: 'clutchWins', CARDS_DUO_WINS: 'duoWins', CARDS_DRAFT_BEST: 'draftBest', CARDS_BOSS_DAMAGE: 'bossDamage' }[progressType];
+      return p?.[field] || 0;
+    }
+    case 'CARDS_GOLDEN':
+      return prisma.userCard.count({ where: { userId, golden: { gt: 0 } } });
     default:
       return 0;
   }

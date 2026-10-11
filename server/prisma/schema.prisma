@@ -2934,10 +2934,72 @@ model CardPlayer {
   lastPlayDay    String?
   equippedBack   String?
   equippedFrame  String?
+  // Etapa 4: conquistas raras, draft e chefão
+  flawlessWins   Int      @default(0)
+  clutchWins     Int      @default(0)
+  draftRuns      Int      @default(0)
+  draftBest      Int      @default(0)
+  bossDamage     Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   @@index([rating])
+}
+
+// Draft (Arena): o jogador escolhe 1 de 3 cartas até montar o baralho e
+// joga contra bots até 7 vitórias ou 3 derrotas. Uma corrida ativa por vez.
+model CardDraft {
+  id         String    @id @default(uuid())
+  userId     String
+  status     String    @default("PICKING") // PICKING | PLAYING | DONE
+  picks      String    @db.Text // JSON [cardId]
+  options    String?   @db.Text // JSON [cardId] (3 opções da escolha atual)
+  wins       Int       @default(0)
+  losses     Int       @default(0)
+  fee        Int       @default(0)
+  reward     Int       @default(0)
+  matchId    String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  finishedAt DateTime?
+
+  @@index([userId, status])
+}
+
+// Chefão semanal da comunidade: todo mundo bate no mesmo chefe; quando a
+// vida acaba, quem participou resgata o prêmio.
+model CardBoss {
+  id         String    @id @default(uuid())
+  weekKey    String    @unique
+  name       String
+  element    String
+  hp         Int
+  damage     Int       @default(0)
+  defeatedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model CardBossHit {
+  id       String   @id @default(uuid())
+  bossId   String
+  userId   String
+  damage   Int      @default(0)
+  attempts Int      @default(0)
+  day      String?
+  dayTries Int      @default(0)
+  claimed  Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@unique([bossId, userId])
+  @@index([bossId, damage])
+}
+
+// Liga de clãs: resultado e pagamento de cada semana (uma linha por semana).
+model CardClanWeek {
+  id        String   @id @default(uuid())
+  weekKey   String   @unique
+  results   String   @db.Text // JSON [{clanId, name, points, coins}]
+  createdAt DateTime @default(now())
 }
 
 model CardMatch {

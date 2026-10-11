@@ -216,6 +216,12 @@ async function afterMatchExtras(match, state, settings) {
   const won = state.winner === 0;
   const X = settings.extras;
   const out = {};
+  if (uid && (match.kind === 'DRAFT' || match.kind === 'BOSS')) {
+    const L = require('./league');
+    if (match.kind === 'DRAFT') out.draft = await L.onDraftMatch(match, state, settings);
+    else out.boss = await L.onBossMatch(match, state, settings);
+    return out;
+  }
   if (!uid || !won) return out;
   if (match.kind === 'BRAWL') {
     const week = isoWeekKey(match.createdAt ? new Date(match.createdAt) : new Date());
@@ -593,7 +599,12 @@ async function finalizeMatch(match, state, settings, io = null) {
       coins = Math.max(0, Math.trunc(coins));
       rewards[s] = coins;
       const streak = won ? p.streak + 1 : 0;
+      // Conquistas raras: vitória sem perder vida / com exatamente 1 de vida.
+      const side = state.players?.[s];
+      const feat = won && match.kind !== 'TUTORIAL' && side && state.endReason !== 'surrender' && state.endReason !== 'timeout'
+        ? { ...(side.hp >= side.maxHp ? { flawlessWins: { increment: 1 } } : {}), ...(side.hp === 1 ? { clutchWins: { increment: 1 } } : {}) } : {};
       const data = {
+        ...feat,
         rewardDay: today,
         rewardsToday: rewardsToday + (coins > 0 ? 1 : 0),
         streak, bestStreak: Math.max(p.bestStreak, streak),

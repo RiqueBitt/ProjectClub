@@ -16,6 +16,7 @@ import Tournaments from '../cards/Tournaments.jsx';
 import WelcomeModal from '../cards/WelcomeModal.jsx';
 import LobbyRoom from '../cards/LobbyRoom.jsx';
 import PassTab from '../cards/PassTab.jsx';
+import ChallengesTab from '../cards/ChallengesTab.jsx';
 import {
   cardsHome, cardsClaimStarter, cardsCollection, cardsStartPve, cardsMatch, cardsChallenge, cardsRanking,
   cardsUserCollection, cardsWatch, cardsReplay, cardsStartTutorial, errMsg,
@@ -28,6 +29,7 @@ const TABS = [
   { key: 'jogar', label: 'Início', icon: UI.sword },
   { key: 'colecao', label: 'Coleção', icon: UI.deck },
   { key: 'loja', label: 'Pacotes', icon: UI.pack },
+  { key: 'desafios', label: 'Desafios', icon: UI.sword },
   { key: 'passe', label: 'Passe', icon: UI.trophy },
   { key: 'baralhos', label: 'Baralhos', icon: UI.list },
   { key: 'mercado', label: 'Mercado', icon: UI.coin },
@@ -45,16 +47,18 @@ function Wallet({ wallet }) {
   );
 }
 
-function RankingTab({ divisions }) {
+function RankingTab({ divisions, me }) {
   const [by, setBy] = useState('season');
+  const [friends, setFriends] = useState(false);
   const [data, setData] = useState(null);
-  useEffect(() => { setData(null); cardsRanking(by).then(setData).catch(() => setData({ players: [] })); }, [by]);
+  useEffect(() => { setData(null); cardsRanking(by, friends).then(setData).catch(() => setData({ players: [] })); }, [by, friends]);
   return (
     <div>
       <div className="tcg-chips">
         <button type="button" className={by === 'season' ? 'on' : ''} onClick={() => setBy('season')}>Temporada</button>
         <button type="button" className={by === 'rating' ? 'on' : ''} onClick={() => setBy('rating')}>PvP geral</button>
         <button type="button" className={by === 'wins' ? 'on' : ''} onClick={() => setBy('wins')}>Vitórias contra bots</button>
+        <label className="tcg-check tcg-rank-friends"><input type="checkbox" checked={friends} onChange={(e) => setFriends(e.target.checked)} />Só meus amigos</label>
       </div>
       {by === 'season' && (
         <div className="tcg-divs">
@@ -64,7 +68,7 @@ function RankingTab({ divisions }) {
       <div className="tcg-rank">
         {data === null && <p className="tcg-empty">Carregando…</p>}
         {data?.players.map((r) => (
-          <div key={r.user.id} className={`tcg-rank-row${r.rank <= 3 ? ` is-top${r.rank}` : ''}`}>
+          <div key={r.user.id} className={`tcg-rank-row${r.rank <= 3 ? ` is-top${r.rank}` : ''}${r.user.id === me?.id ? ' is-me' : ''}`}>
             <span className="tcg-rank-n">{r.rank}</span>
             <UserAvatar user={r.user} size={32} />
             <span className="tcg-rank-name" data-no-translate>{r.user.displayName}</span>
@@ -74,7 +78,7 @@ function RankingTab({ divisions }) {
                 : <><b>{r.wins}</b><small>vitórias</small></>}
           </div>
         ))}
-        {data?.players.length === 0 && <p className="tcg-empty">Ninguém no ranking ainda.</p>}
+        {data?.players.length === 0 && <p className="tcg-empty">{friends ? 'Nenhum amigo seu no ranking ainda. Chame alguém para jogar!' : 'Ninguém no ranking ainda.'}</p>}
       </div>
     </div>
   );
@@ -229,6 +233,7 @@ export default function CardsGamePage() {
         {home && tab === 'jogar' && <ArenaHome home={home} me={user} cards={cards} onStartMatch={startMatch} onReload={loadHome} onWatch={(id) => setParam('assistir', id)} onReplay={(id) => setParam('replay', id)} onOpenRoom={(defaults) => setRoom({ create: defaults || {} })} />}
         {home && tab === 'colecao' && <Collection cards={cards} home={home} onChanged={(r) => { setWallet(r?.wallet); refreshAll(); }} openId={openCard} onOpenChange={(id) => setParam('carta', id)} />}
         {home && tab === 'loja' && <PacksTab home={home} onOpened={(w) => { setWallet(w); loadCards(); loadHome(); }} />}
+        {home && tab === 'desafios' && <ChallengesTab me={user} wallet={home.wallet} onStartMatch={startMatch} onWallet={loadHome} />}
         {home && tab === 'passe' && <PassTab wallet={home.wallet} onWallet={loadHome} />}
         {home && tab === 'baralhos' && <DeckBuilder collection={cards} rules={home.rules} onChanged={loadHome} />}
         {home && tab === 'mercado' && <Market me={user} wallet={home.wallet} onWallet={setWallet} onChanged={refreshAll} />}
@@ -236,7 +241,7 @@ export default function CardsGamePage() {
           ? <Trades me={{ ...user, coins: home.wallet?.coins }} myCollection={cards} maxCoins={home.economy.tradeMaxCoins} onChanged={refreshAll} startWith={tradeTarget} />
           : <p className="tcg-empty">As trocas estão desativadas no momento.</p>)}
         {home && tab === 'torneios' && <Tournaments me={user} onWatch={(id) => setParam('assistir', id)} onReload={loadHome} />}
-        {home && tab === 'ranking' && <RankingTab divisions={home.meta.divisions} />}
+        {home && tab === 'ranking' && <RankingTab divisions={home.meta.divisions} me={user} />}
       </div>
       {room && (
         <LobbyRoom

@@ -23,7 +23,7 @@ export const cardsAcceptChallenge = (id) => api.post(`/cards/matches/${id}/accep
 export const cardsDeclineChallenge = (id) => api.post(`/cards/matches/${id}/decline`).then(d);
 export const cardsMatch = (id) => api.get(`/cards/matches/${id}`).then(d);
 export const cardsAction = (id, action) => api.post(`/cards/matches/${id}/action`, action).then(d);
-export const cardsRanking = (by) => api.get('/cards/ranking', { params: { by } }).then(d);
+export const cardsRanking = (by, friends = false) => api.get('/cards/ranking', { params: { by, ...(friends ? { amigos: 1 } : {}) } }).then(d);
 export const cardsTrades = () => api.get('/cards/trades').then(d);
 export const cardsCreateTrade = (payload) => api.post('/cards/trades', payload).then(d);
 export const cardsTradeAction = (id, kind) => api.post(`/cards/trades/${id}/${kind}`).then(d);
@@ -54,6 +54,15 @@ export const cardsLobbySlot = (code, slot, bot) => api.post(`/cards/lobbies/${co
 export const cardsLobbyInvite = (code, userId) => api.post(`/cards/lobbies/${code}/invite`, { userId }).then(d);
 export const cardsStartLobby = (code) => api.post(`/cards/lobbies/${code}/start`).then(d);
 
+export const cardsDraft = () => api.get('/cards/draft').then(d);
+export const cardsDraftStart = () => api.post('/cards/draft/start').then(d);
+export const cardsDraftPick = (index) => api.post('/cards/draft/pick', { index }).then(d);
+export const cardsDraftPlay = () => api.post('/cards/draft/play').then(d);
+export const cardsDraftRetire = () => api.post('/cards/draft/retire').then(d);
+export const cardsBoss = () => api.get('/cards/boss').then(d);
+export const cardsBossStart = () => api.post('/cards/boss/start').then(d);
+export const cardsBossClaim = (bossId) => api.post('/cards/boss/claim', { bossId }).then(d);
+export const cardsLeague = () => api.get('/cards/league').then(d);
 export const cardsBrawl = () => api.get('/cards/brawl').then(d);
 export const cardsStartBrawl = () => api.post('/cards/brawl/start').then(d);
 export const cardsStartTutorial = () => api.post('/cards/tutorial/start').then(d);

@@ -3,7 +3,7 @@ import { useSocket } from '../context/SocketContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import UserAvatar from '../components/UserAvatar.jsx';
 import { CardView, CardArt, CardBack, ABILITIES, ELEMENTS, RARITY_ORDER, RARITIES, Icon, UI, abilityText } from './CardView.jsx';
-import { cardsAction, cardsMatch, cardsWatch, cardsStopWatch, cardsEmote, cardsAgain, cardsChallenge, cardsStartBrawl, errMsg } from './api';
+import { cardsAction, cardsMatch, cardsWatch, cardsStopWatch, cardsEmote, cardsAgain, cardsChallenge, cardsStartBrawl, cardsDraftPlay, cardsBossStart, errMsg } from './api';
 import { sfx, startMusic, stopMusic, getSfxPrefs, setSfxPrefs } from './sfx';
 import BotPortrait from './BotPortrait.jsx';
 import { BoardBackdrop, BOARD_THEMES } from './BoardScene.jsx';
@@ -546,6 +546,8 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
     try {
       if (match.lobbyId) { const r = await cardsAgain(match.id); onExit({ room: r.code }); return; }
       if (match.kind === 'BRAWL') { const m = await cardsStartBrawl(); onExit({ start: m }); return; }
+      if (match.kind === 'DRAFT') { const m = await cardsDraftPlay(); onExit({ start: m }); return; }
+      if (match.kind === 'BOSS') { const m = await cardsBossStart(); onExit({ start: m }); return; }
       if (match.mode === 'PVP' && view.foe.userId) { await cardsChallenge(view.foe.userId); setEndNote(`Revanche enviada para ${view.foe.name}! Assim que aceitar, a partida começa.`); }
     } catch (e) { setEndNote(errMsg(e)); }
   };
@@ -598,6 +600,8 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
           <span className="tcgb-effect" title={EFFECT_LABEL[view.rules.effect][1]}><Icon d={UI.star} size={12} />{EFFECT_LABEL[view.rules.effect][0]}</span>
         )}
         {view.rules?.brawl && <span className="tcgb-effect is-brawl" title="Briga da semana: regras especiais"><Icon d={UI.trophy} size={12} />Briga da semana</span>}
+        {match.kind === 'DRAFT' && <span className="tcgb-effect is-brawl" title="Partida do Draft"><Icon d={UI.wand} size={12} />Draft</span>}
+        {match.kind === 'BOSS' && <span className="tcgb-effect is-brawl" title="Chefão semanal da comunidade"><Icon d={UI.flag} size={12} />Chefão semanal</span>}
         <span className="tcgb-spacer" />
         {match.spectators > 0 && (
           <span className="tcgb-eye" title={mode === 'watch' ? 'Pessoas assistindo' : 'Pessoas assistindo sua partida'}>
@@ -824,6 +828,18 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
             <p className="tcgb-reward"><Icon d={UI.coin} size={20} />{match.custom ? 'Partida personalizada — sem recompensas' : match.reward > 0 ? `+${match.reward} moedas` : 'Sem recompensa nesta partida'}</p>
             {match.result?.campaign && <p className="tcg-ok">Fase concluída: {match.result.campaign.stage}! Próxima fase liberada.</p>}
             {match.result?.brawl && <p className="tcg-ok">Briga da semana vencida! +{match.result.brawl.coins} moedas e +{match.result.brawl.gems} gemas.</p>}
+            {match.result?.draft && (
+              <p className={match.result.draft.over ? 'tcg-ok' : 'tcg-dim'}>
+                Draft: <b>{match.result.draft.wins}V · {match.result.draft.losses}D</b>
+                {match.result.draft.over ? ` — corrida encerrada! +${match.result.draft.reward} moedas.` : ' — continue para a próxima partida.'}
+              </p>
+            )}
+            {match.result?.boss && (
+              <p className="tcg-ok">
+                Você causou <b>{match.result.boss.damage}</b> de dano em {match.result.boss.name}!
+                {match.result.boss.defeated ? ' O chefão foi derrotado — resgate o prêmio em Desafios 🎉' : ` Comunidade: ${match.result.boss.total}/${match.result.boss.hp}.`}
+              </p>
+            )}
             {match.result?.tutorial && <p className="tcg-ok">Tutorial concluído! +{match.result.tutorial.coins} moedas. Agora você já sabe jogar 🎉</p>}
             {match.result?.progress?.[myId]?.daily && <p className="tcg-ok">🔥 Sequência de {match.result.progress[myId].daily.days} dia(s): +{match.result.progress[myId].daily.coins} moedas</p>}
             {match.result?.progress?.[myId]?.chest?.ready > 0 && <p className="tcg-ok">🎁 Baú de vitórias liberado! Abra no início da Arena.</p>}
@@ -832,6 +848,8 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
             <div className="tcgb-end-actions">
               {match.mode === 'PVE' && !match.result?.campaign && !match.kind && !match.lobbyId && <button type="button" className="tcg-btn primary" onClick={() => onRematch?.(match.difficulty)}>Jogar de novo</button>}
               {(match.lobbyId || match.kind === 'BRAWL') && <button type="button" className="tcg-btn primary" onClick={playAgain}>Jogar de novo</button>}
+              {match.kind === 'DRAFT' && match.result?.draft && !match.result.draft.over && <button type="button" className="tcg-btn primary" onClick={playAgain}>Próxima partida do Draft</button>}
+              {match.kind === 'BOSS' && match.result?.boss && !match.result.boss.defeated && <button type="button" className="tcg-btn primary" onClick={playAgain}>Atacar de novo</button>}
               {match.mode === 'PVP' && !match.lobbyId && !match.tournamentId && view.foe.userId && <button type="button" className="tcg-btn primary" onClick={playAgain}>Revanche</button>}
               <button type="button" className="tcg-btn" onClick={() => onExit({ replay: match.id })}>Ver replay</button>
               <button type="button" className="tcg-btn" onClick={() => onExit()}>Voltar para a arena</button>

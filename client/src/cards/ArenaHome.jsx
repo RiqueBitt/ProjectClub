@@ -217,6 +217,14 @@ export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onW
           <b>Personalizada</b><small>Suas regras: vida, energia, baralhos… (sem recompensa)</small>
         </button>
       </section>
+      <section className="tcg-modes is-challenges" aria-label="Desafios">
+        {[['draft', 'is-draft', UI.wand, 'Draft', 'Escolha 1 de 3 cartas e chegue a 7 vitórias'], ['boss', 'is-boss', UI.flag, 'Chefão semanal', 'A comunidade toda contra um chefe gigante'], ['league', 'is-league', UI.trophy, 'Liga de clãs', 'Suas vitórias somam pontos para o seu clã']].map(([k, cls, icon, title, desc]) => (
+          <button key={k} type="button" className={`tcg-mode ${cls}`} onClick={() => { try { sessionStorage.setItem('pc-cards-chal', k); } catch { /* ignora */ } navigate('/cartas?aba=desafios'); }}>
+            <span className="tcg-mode-icon"><Icon d={icon} size={26} /></span>
+            <b>{title}</b><small>{desc}</small>
+          </button>
+        ))}
+      </section>
 
       <section className="tcg-daily">
         <div className="tcg-daily-item is-streak" title="A primeira partida de cada dia dá moedas — e o bônus cresce a cada dia seguido.">

@@ -88,6 +88,13 @@ const ACHIEVEMENTS = [
   { key: 'cartas_pacotes', name: 'Viciado em Pacotes', description: 'Abra 25 pacotes de cartas.', rarity: 'RARE', progressType: 'CARDS_PACKS', target: 25, position: 35 },
   { key: 'cartas_brilho', name: 'Brilho Raro', description: 'Consiga 5 cartas brilhantes diferentes.', rarity: 'EPIC', progressType: 'CARDS_FOILS', target: 5, position: 36 },
   { key: 'cartas_lenda', name: 'Lenda da Arena', description: 'Complete a campanha da Arena de Cartas.', rarity: 'LEGENDARY', progressType: 'CARDS_CAMPAIGN', target: 6, position: 37 },
+  // Arena de Cartas — conquistas raras
+  { key: 'cartas_intocavel', name: 'Intocável', description: 'Vença uma partida sem o seu herói perder vida.', rarity: 'EPIC', progressType: 'CARDS_FLAWLESS', target: 1, position: 38 },
+  { key: 'cartas_por_um_fio', name: 'Por um Fio', description: 'Vença uma partida com exatamente 1 de vida.', rarity: 'EPIC', progressType: 'CARDS_CLUTCH', target: 1, position: 39 },
+  { key: 'cartas_dupla', name: 'Dupla Imbatível', description: 'Vença 10 partidas 2 vs 2.', rarity: 'RARE', progressType: 'CARDS_DUO_WINS', target: 10, position: 40 },
+  { key: 'cartas_draft', name: 'Rei do Draft', description: 'Chegue a 7 vitórias numa corrida de Draft.', rarity: 'LEGENDARY', progressType: 'CARDS_DRAFT_BEST', target: 7, position: 41 },
+  { key: 'cartas_cacador', name: 'Caçador de Chefões', description: 'Cause 500 de dano aos chefões semanais.', rarity: 'EPIC', progressType: 'CARDS_BOSS_DAMAGE', target: 500, position: 42 },
+  { key: 'cartas_ouro', name: 'Toque de Midas', description: 'Consiga uma carta dourada.', rarity: 'LEGENDARY', progressType: 'CARDS_GOLDEN', target: 1, position: 43 },
 ];
 
 // Chaves que EXISTIRAM no catálogo antes (casas/figurinhas/economia —
