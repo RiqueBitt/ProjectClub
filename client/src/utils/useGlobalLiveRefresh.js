@@ -1,21 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
-import {
-  getCommunity, listConversations, listFriends, fetchMe, getMyClan, getUserSettings,
-  listUsableEmojis, listServerStickers, listAssetCollections, listFavoriteGifs, listCommunities, getUiLayout,
-} from '../api/endpoints';
+import { fetchSections } from './bootstrap';
+import { applyBootData } from './applyBoot';
 import { useSocket } from '../context/SocketContext.jsx';
 import { useLiveRefresh, sameData, setRealtimeConnected } from './liveRefresh';
 import '../styles/perf.css';
-
-// Só grava no store se o valor mudou de verdade (evita re-render global
-// a cada 11s quando nada aconteceu).
-function setIfChanged(key, value, setter) {
-  if (value === undefined) return;
-  if (sameData(useStore.getState()[key], value)) return;
-  setter(value);
-}
 
 // Campos da conta que também vivem no store local (tema, layout...). Só
 // aplica se mudou NA CONTA desde o último valor visto (ex: trocado em
@@ -34,6 +24,8 @@ const ACCOUNT_PREFS = [
 // conectado, já que quase tudo isso chega por evento); o resto (emojis,
 // figurinhas, coleções, GIFs favoritos, clubes, layout, configurações)
 // num ritmo bem mais leve (90s / 3min com socket), já que muda raramente.
+const onlyChanged = (r) => Object.fromEntries([...r.changed].map((k) => [k, r.data[k]]));
+
 export function useGlobalLiveRefresh() {
   const { user, setUser } = useAuth();
   const userRef = useRef(user);
@@ -46,51 +38,30 @@ export function useGlobalLiveRefresh() {
   useEffect(() => { setRealtimeConnected(!!connected); }, [connected]);
   useEffect(() => () => setRealtimeConnected(false), []);
 
+  // Tudo numa requisição só (GET /api/bootstrap, ver utils/bootstrap.js),
+  // mandando os hashes do que já temos: seção que não mudou nem volta no
+  // corpo. Status da plataforma, anúncio e eventos vêm junto (antes cada
+  // um tinha o próprio relógio e a própria requisição).
   useLiveRefresh(async (ctx) => {
-    const s = useStore.getState();
-    await Promise.all([
-      getCommunity().then((d) => {
-        if (!ctx.ok()) return;
-        const cur = useStore.getState();
-        const patch = {};
-        ['categories', 'channels', 'members', 'roles', 'community'].forEach((k) => {
-          if (d[k] !== undefined && !sameData(cur[k], d[k])) patch[k] = d[k];
-        });
-        if (Object.keys(patch).length) s.setCommunityStructure(patch);
-      }).catch(() => {}),
-      fetchMe().then((d) => {
-        if (!ctx.ok() || !d?.user) return;
-        const prev = userRef.current;
-        if (!prev || prev.id !== d.user.id || sameData(prev, d.user)) return;
-        const st = useStore.getState();
-        ACCOUNT_PREFS.forEach(([field, setter]) => {
-          if (d.user[field] && d.user[field] !== prev[field]) st[setter]?.(d.user[field]);
-        });
-        setUser(d.user);
-      }).catch(() => {}),
-      listConversations().then((d) => { if (ctx.ok()) setIfChanged('conversations', d.conversations, s.setConversations); }).catch(() => {}),
-      listFriends().then((d) => { if (ctx.ok()) setIfChanged('friends', d.friendships, s.setFriends); }).catch(() => {}),
-      getMyClan().then((d) => {
-        if (!ctx.ok() || !d) return;
-        const cur = useStore.getState();
-        const next = { clan: d.clan, myRole: d.myRole || null, myCapabilities: d.myCapabilities || {} };
-        const prev = { clan: cur.myClan, myRole: cur.myClanRole, myCapabilities: cur.myClanCapabilities };
-        if (!sameData(prev, next) || (d.pendingRequests !== undefined && !sameData(cur.myClanPendingRequests, d.pendingRequests))) s.setMyClan(d);
-      }).catch(() => {}),
-    ]);
+    const r = await fetchSections(['community', 'me', 'conversations', 'friends', 'clan', 'status', 'announcement', 'events'], { accept: ctx.ok });
+    if (!ctx.ok()) return;
+    // Só o que mudou no servidor desde a última vez (o resto já está no
+    // store — reaplicar o valor antigo poderia desfazer algo que chegou
+    // pelo socket nesse meio-tempo).
+    applyBootData(onlyChanged(r));
+    const d = r.changed.has('me') ? r.data.me : null;
+    if (!d?.user) return;
+    const prev = userRef.current;
+    if (!prev || prev.id !== d.user.id || sameData(prev, d.user)) return;
+    const st = useStore.getState();
+    ACCOUNT_PREFS.forEach(([field, setter]) => {
+      if (d.user[field] && d.user[field] !== prev[field]) st[setter]?.(d.user[field]);
+    });
+    setUser(d.user);
   }, { interval: 22000, realtimeInterval: 60000 });
 
   useLiveRefresh(async (ctx) => {
-    const s = useStore.getState();
-    await Promise.all([
-      listUsableEmojis().then((d) => { if (ctx.ok()) setIfChanged('usableEmojis', d.emojis, s.setUsableEmojis); }).catch(() => {}),
-      listServerStickers().then((d) => { if (ctx.ok()) setIfChanged('serverStickers', d.stickers, s.setServerStickers); }).catch(() => {}),
-      listAssetCollections('EMOJI').then((d) => { if (ctx.ok()) setIfChanged('emojiCollections', d.collections, s.setEmojiCollections); }).catch(() => {}),
-      listAssetCollections('STICKER').then((d) => { if (ctx.ok()) setIfChanged('stickerCollections', d.collections, s.setStickerCollections); }).catch(() => {}),
-      listFavoriteGifs().then((d) => { if (ctx.ok()) setIfChanged('favoriteGifs', d.gifs, s.setFavoriteGifs); }).catch(() => {}),
-      listCommunities().then((d) => { if (ctx.ok()) setIfChanged('clubs', d.communities, s.setClubs); }).catch(() => {}),
-      getUserSettings().then((d) => { if (ctx.ok()) setIfChanged('userSettings', d.settings, s.setUserSettings); }).catch(() => {}),
-      getUiLayout().then((d) => { if (ctx.ok() && !sameData(useStore.getState().uiLayoutAll, d)) s.setUiLayoutAll(d); }).catch(() => {}),
-    ]);
+    const r = await fetchSections(['usableEmojis', 'stickers', 'emojiCollections', 'stickerCollections', 'favoriteGifs', 'clubs', 'settings', 'uiLayout'], { accept: ctx.ok });
+    if (ctx.ok()) applyBootData(onlyChanged(r));
   }, { interval: 90000, realtimeInterval: 180000 });
 }

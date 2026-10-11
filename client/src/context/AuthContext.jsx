@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import { setAccessToken, setUnauthorizedHandler } from '../api/client';
 import { loginUser, logoutUser, registerUser, fetchMe } from '../api/endpoints';
 import { useStore } from '../store/useStore';
+import { clearBootCache } from '../utils/bootstrap';
 
 const AuthContext = createContext(null);
 
@@ -140,6 +141,10 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     await logoutUser().catch(() => {});
+    // Apaga a cópia local do pacote de abertura (conversas, amigos...) —
+    // ver utils/bootstrap.js. Só ao sair de verdade: sessão expirada não
+    // apaga (a mesma conta volta e abre instantâneo).
+    clearBootCache();
     clearSession();
   }, [clearSession]);
 

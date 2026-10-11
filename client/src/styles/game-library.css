@@ -185,3 +185,7 @@
   .gl-dot, .gl-skeleton { animation: none; }
   .gl-row { transition: none; }
 }
+
+/* Mods ↔ biblioteca (app desktop) */
+.gl-row-mods { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.gl-row-mods .gl-link-btn { height: 28px; font-size: 12.5px; }

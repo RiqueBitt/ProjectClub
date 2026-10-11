@@ -353,6 +353,8 @@ function createApp() {
   app.use('/api/decorations', decorationsRoutes);
   app.use('/api/youtube', youtubeRoutes);
   app.use('/api/clans', clansRoutes);
+  // Pacote de abertura (várias seções numa requisição só) — ver bootstrapController.
+  app.get('/api/bootstrap', require('./middleware/auth').requireAuth, require('./controllers/bootstrapController').getBootstrap);
 
   // In production, serve the built React client from a single process
   // (this is what SquareCloud runs — one MAIN process, one port).

@@ -1,4 +1,4 @@
-import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, Suspense, lazy, memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useElementHeight } from '../utils/useElementHeight';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -9,9 +9,9 @@ import { useVoice, preloadAgoraRTC } from '../context/VoiceContext.jsx';
 import { resolveDesktopGifMenuStyle, resolveMobileGifMenuStyle } from '../utils/gifMenuLayout';
 import { cssZoom } from '../utils/cssZoom';
 import { mergeLatestMessages } from '../utils/messageMerge';
-import { listMessages, sendMessage, searchMessages, markConversationRead, markChannelRead } from '../api/endpoints';
+import { listMessages, sendMessage, searchMessages } from '../api/endpoints';
+import { queueRead } from '../utils/readMarker';
 import Message from './Message.jsx';
-import VoiceChannelView from './VoiceChannelView.jsx';
 import ErrorBoundary from './ErrorBoundary.jsx';
 import RulesChannelView from './RulesChannelView.jsx';
 import EmojiPicker from './EmojiPicker.jsx';
@@ -33,8 +33,11 @@ import { STATUS_LABEL } from '../utils/status';
 import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from './PenguinAvatar.jsx';
 import { usePinnedMessages, PinnedButton, PinnedStrip } from './PinnedMessages.jsx';
 import NavIcon from './NavIcons.jsx';
+import { requestEdit, setRetry, clearRetry, loadDraft, saveDraft } from '../utils/chatComposerBus';
 import '../styles/chat.css';
 import '../styles/nav.css';
+// Tela de canal de voz: pacote próprio, baixado só ao abrir um canal de voz.
+const VoiceChannelView = lazy(() => import('./VoiceChannelView.jsx'));
 
 // BUG CORRIGIDO: <img src={dmOther.avatarUrl}> quebrava (bloqueado pela
 // CSP img-src) quando a outra pessoa da DM tem avatar de pinguim
@@ -160,13 +163,6 @@ function ChatWindowInner({ conversationId, channelId }) {
   // arquivo anexado, etc — ver useElementHeight.js).
   const [composerBarRef, composerBarHeight] = useElementHeight();
 
-  // Item pedido: "deixando mais rápido pra entrar em canais de voz,
-  // principalmente no mobile" — adianta o download do SDK do Agora
-  // (~1.5MB) em segundo plano assim que a pessoa está numa área de
-  // canal/conversa (onde há chance real de entrar numa call), em vez
-  // de só começar a baixar no exato momento em que ela clica pra
-  // entrar. Já não baixa nada pra quem só está em Feeds/Perfil/etc.
-  useEffect(() => { preloadAgoraRTC(); }, []);
   // Kept in the store purely so SocketContext.jsx's `message:new` handler
   // can tell "is this message for the exact channel/DM I'm already looking
   // at right now?" and skip the notification sound for it — without this,
@@ -209,8 +205,23 @@ function ChatWindowInner({ conversationId, channelId }) {
   const markConversationReadLocal = useStore((s) => s.markConversationReadLocal);
   const markChannelReadLocal = useStore((s) => s.markChannelReadLocal);
 
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState(() => loadDraft(roomKey));
   const [files, setFiles] = useState([]);
+  // Rascunho por canal/conversa: troca de sala salva o texto da anterior
+  // e carrega o da nova; enquanto digita, salva com um pequeno atraso.
+  const contentRef = useRef(content);
+  contentRef.current = content;
+  const draftRoomRef = useRef(roomKey);
+  useEffect(() => {
+    if (draftRoomRef.current !== roomKey) setContent(loadDraft(roomKey));
+    draftRoomRef.current = roomKey;
+    return () => saveDraft(roomKey, contentRef.current);
+  }, [roomKey]);
+  useEffect(() => {
+    const key = draftRoomRef.current;
+    const t = setTimeout(() => saveDraft(key, content), 300);
+    return () => clearTimeout(t);
+  }, [content]);
   const [replyTo, setReplyTo] = useState(null);
   // Ao clicar em Responder, o campo de mensagem já recebe o foco.
   useEffect(() => {
@@ -452,17 +463,29 @@ function ChatWindowInner({ conversationId, channelId }) {
     return '';
   }, [conversationId, channel, conversations, user.id]);
 
+  // Leitura no servidor agrupada (no máx. 1 por sala a cada 2s e só se
+  // tem mensagem mais nova — ver utils/readMarker.js); a parte local
+  // (bolinhas de não lido) continua na hora.
   const markRead = () => {
+    const newestAt = messages[messages.length - 1]?.createdAt;
     if (conversationId) {
-      markConversationRead(conversationId).catch(() => {});
+      queueRead('conversation', conversationId, newestAt);
       markConversationReadLocal(conversationId);
     } else if (channelId) {
-      markChannelRead(channelId).catch(() => {});
+      queueRead('channel', channelId, newestAt);
       markChannelReadLocal(channelId);
     }
   };
 
   const isCallChannel = channel && (channel.type === 'VOICE' || channel.type === 'STAGE');
+  // Item pedido: "deixando mais rápido pra entrar em canais de voz,
+  // principalmente no mobile" — adianta o download do SDK do Agora
+  // (~1.5MB, ~440KB comprimido) em segundo plano. Antes isso rodava em
+  // QUALQUER chat aberto (todo mundo baixava o SDK de voz só por abrir o
+  // app); agora só quando a pessoa abre um canal de voz/palco — onde ela
+  // realmente vai entrar numa call. Entrar por outro lugar (ex.: ligar
+  // numa DM) baixa na hora de entrar, como sempre.
+  useEffect(() => { if (isCallChannel) preloadAgoraRTC(); }, [isCallChannel]);
   const isNonChatChannel = isCallChannel || channel?.type === 'RULES';
 
   // Não lidas: guarda a "última leitura" de quando a sala abriu (antes de
@@ -938,6 +961,7 @@ function ChatWindowInner({ conversationId, channelId }) {
       const { message } = await sendMessage(fd);
       useStore.getState().resolveOptimisticMessage(roomKey, optimistic.id, message);
     } catch (err) {
+      setRetry(optimistic.id, () => { useStore.getState().removeMessage(roomKey, optimistic.id); clearRetry(optimistic.id); sendGif(url); });
       useStore.getState().failOptimisticMessage(roomKey, optimistic.id);
     }
   };
@@ -970,16 +994,18 @@ function ChatWindowInner({ conversationId, channelId }) {
       const { message } = await sendMessage(fd);
       useStore.getState().resolveOptimisticMessage(roomKey, optimistic.id, message);
     } catch (err) {
+      setRetry(optimistic.id, () => { useStore.getState().removeMessage(roomKey, optimistic.id); clearRetry(optimistic.id); sendSticker(sticker); });
       useStore.getState().failOptimisticMessage(roomKey, optimistic.id);
     }
   };
 
-  const onSubmit = async (e) => {
+  // retry: { content, replyTo } de uma mensagem que falhou ("Tentar de novo").
+  const onSubmit = async (e, retry = null) => {
     e.preventDefault();
-    if (!content.trim() && files.length === 0) return;
-    const trimmedContent = content.trim();
-    const pendingFiles = files;
-    const pendingReplyTo = replyTo;
+    if (!retry && !content.trim() && files.length === 0) return;
+    const trimmedContent = retry ? retry.content : content.trim();
+    const pendingFiles = retry ? [] : files;
+    const pendingReplyTo = retry ? retry.replyTo : replyTo;
 
     const fd = new FormData();
     if (conversationId) fd.append('conversationId', conversationId);
@@ -989,9 +1015,11 @@ function ChatWindowInner({ conversationId, channelId }) {
     pendingFiles.forEach((f) => fd.append('attachments', f.file));
     if (pendingFiles.some((f) => f.spoiler)) fd.append('spoilerFlags', JSON.stringify(pendingFiles.map((f) => f.spoiler)));
 
-    setContent('');
-    setFiles([]);
-    setReplyTo(null);
+    if (!retry) {
+      setContent('');
+      setFiles([]);
+      setReplyTo(null);
+    }
     isTypingRef.current = false;
     clearTimeout(typingTimeoutRef.current);
     socket?.emit('typing:stop', { conversationId, channelId });
@@ -1010,6 +1038,14 @@ function ChatWindowInner({ conversationId, channelId }) {
       const { message } = await sendMessage(fd);
       useStore.getState().resolveOptimisticMessage(roomKey, optimistic.id, message);
     } catch (err) {
+      // Só texto dá pra reenviar (arquivos não ficam guardados).
+      if (trimmedContent && pendingFiles.length === 0) {
+        setRetry(optimistic.id, () => {
+          useStore.getState().removeMessage(roomKey, optimistic.id);
+          clearRetry(optimistic.id);
+          onSubmit({ preventDefault: () => {} }, { content: trimmedContent, replyTo: pendingReplyTo });
+        });
+      }
       useStore.getState().failOptimisticMessage(roomKey, optimistic.id);
       const serverMsg = err?.response?.data?.error;
       if (serverMsg) useStore.getState().pushNotice(serverMsg);
@@ -1122,7 +1158,7 @@ function ChatWindowInner({ conversationId, channelId }) {
           <MembersToggleButton />
         </header>
         <ErrorBoundary compact resetKey={channel?.id}>
-          <VoiceChannelView channel={channel} />
+          <Suspense fallback={null}><VoiceChannelView channel={channel} /></Suspense>
         </ErrorBoundary>
       </section>
     );
@@ -1420,6 +1456,12 @@ function ChatWindowInner({ conversationId, channelId }) {
             onSubmit={() => onSubmit({ preventDefault: () => {} })}
             onPasteFiles={(fs) => addFiles(fs)}
             onKeyDownExtra={(e) => {
+              // Seta pra cima com o campo vazio: edita sua última mensagem.
+              if (e.key === 'ArrowUp' && !content.trim() && files.length === 0 && (mentionQuery === null || mentionCandidates.length === 0)) {
+                const mine = [...messages].reverse().find((m) => m.authorId === user.id && !m.pending && !m.failed && !m.deleted && !String(m.id).startsWith('temp-') && m.content);
+                if (mine && requestEdit(mine.id)) { e.preventDefault(); return true; }
+                return false;
+              }
               if (mentionQuery === null || mentionCandidates.length === 0) return false;
               if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                 e.preventDefault();

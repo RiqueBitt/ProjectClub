@@ -6,6 +6,7 @@ import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import ScreenShareModal from './modals/ScreenShareModal.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
+import { MicTest, MicSilentWarning, QualityDot } from './voice/VoiceExtras.jsx';
 
 // ============================================================
 // Canal de voz — visual refeito.
@@ -121,6 +122,8 @@ export default function VoiceChannelView({ channel }) {
             {busy ? 'Entrando…' : isStage ? 'Entrar no palco' : 'Entrar na chamada'}
           </button>
           {inOtherCall && <p className="vc-lobby-note">Você vai sair da chamada atual ({voice.call?.channelName || 'outra sala'}).</p>}
+          {/* Teste de microfone antes de entrar (para sozinho ao entrar). */}
+          <MicTest stopSignal={busy} />
         </div>
       </div>
     );
@@ -151,6 +154,7 @@ export default function VoiceChannelView({ channel }) {
         cameraStream={isMe ? voice.localCameraStream : remoteCameraStreams[uid]}
         volume={volumes[uid] ?? 1}
         onVolume={(v) => voice.setParticipantVolume(uid, v)}
+        quality={voice.netQuality?.[uid]}
       />
     );
   });
@@ -186,6 +190,7 @@ export default function VoiceChannelView({ channel }) {
           <div className={`vc-grid vc-grid-${Math.min(allUserIds.length, 5)}`}>{tiles}</div>
         )}
       </div>
+      <MicSilentWarning voice={voice} />
       <VoiceCallControls voice={voice} micLocked={false} />
     </div>
   );
@@ -230,7 +235,7 @@ function VolumeControl({ name, volume, onVolume, className = '', label = 'Volume
   );
 }
 
-function PersonTile({ uid, person, isMe, state, connecting, cameraStream, volume, onVolume, extra }) {
+function PersonTile({ uid, person, isMe, state, connecting, cameraStream, volume, onVolume, extra, quality }) {
   const color = person?.profileColor || 'var(--brand)';
   return (
     <div
@@ -250,6 +255,7 @@ function PersonTile({ uid, person, isMe, state, connecting, cameraStream, volume
         {state.muted ? <span className="vc-label-muted"><Icon name="micOff" size={14} /></span> : null}
         <span className="truncate">{person?.displayName || uid}{isMe ? ' (você)' : ''}</span>
         {state.screenSharing && <Icon name="screen" size={14} />}
+        {!connecting && <QualityDot quality={quality} />}
       </span>
 
       {extra}
@@ -291,6 +297,7 @@ function StageView({ roles, members, channel, memberFor }) {
                 key={uid} uid={uid} person={person} isMe={isMe} state={state} connecting={false}
                 cameraStream={isMe ? voice.localCameraStream : remoteCameraStreams[uid]}
                 volume={volumes[uid] ?? 1} onVolume={(v) => voice.setParticipantVolume(uid, v)}
+                quality={voice.netQuality?.[uid]}
                 extra={(isMe || isModerator) && (
                   <button
                     type="button" className="vc-tile-action"
@@ -328,6 +335,7 @@ function StageView({ roles, members, channel, memberFor }) {
           </button>
         )}
       </div>
+      {myRole !== 'audience' && <MicSilentWarning voice={voice} />}
       <VoiceCallControls voice={voice} micLocked={myRole === 'audience'} />
     </div>
   );

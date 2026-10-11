@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useStore, isChannelUnread } from '../store/useStore';
@@ -8,17 +8,10 @@ import { useContextMenu } from '../context/ContextMenuContext.jsx';
 import { deleteCategory, reorderCategories, reorderChannels, markChannelRead } from '../api/endpoints';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import CreateChannelModal from './modals/CreateChannelModal.jsx';
-import EditChannelModal from './modals/EditChannelModal.jsx';
-import EditCategoryModal from './modals/EditCategoryModal.jsx';
 import CreateCategoryModal from './modals/CreateCategoryModal.jsx';
 import FeaturedChannels from './FeaturedChannels.jsx';
 import ChannelIcon, { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
 import '../styles/channels.css';
-import CommunitySettingsModal from './modals/CommunitySettingsModal.jsx';
-import RoleManagerModal from './modals/RoleManagerModal.jsx';
-import ModerationModal from './modals/ModerationModal.jsx';
-import EmojiManagerModal from './modals/EmojiManagerModal.jsx';
-import StickerManagerModal from './modals/StickerManagerModal.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import UserStatusBar from './UserStatusBar.jsx';
 import NavIcon from './NavIcons.jsx';
@@ -32,6 +25,16 @@ import linkIcon from '../assets/icons/link.png';
 import lockIcon from '../assets/icons/lock.png';
 import { proxyImage } from '../utils/imageProxy';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
+
+// Modais de staff/edição: cada um vira um pacote próprio, baixado só
+// quando é aberto (quase ninguém abre — não precisa estar no pacote inicial).
+const EditChannelModal = lazy(() => import('./modals/EditChannelModal.jsx'));
+const EditCategoryModal = lazy(() => import('./modals/EditCategoryModal.jsx'));
+const RoleManagerModal = lazy(() => import('./modals/RoleManagerModal.jsx'));
+const ModerationModal = lazy(() => import('./modals/ModerationModal.jsx'));
+const EmojiManagerModal = lazy(() => import('./modals/EmojiManagerModal.jsx'));
+const StickerManagerModal = lazy(() => import('./modals/StickerManagerModal.jsx'));
+const CommunitySettingsModal = lazy(() => import('./modals/CommunitySettingsModal.jsx'));
 
 const VOICE_TYPES = ['VOICE', 'STAGE'];
 
@@ -264,11 +267,11 @@ export default function ChannelSidebar({
         )}
       </div>
 
-      {communitySettingsOpen && <CommunitySettingsModal onClose={() => setCommunitySettingsOpen(false)} />}
-      {roleManagerOpen && <RoleManagerModal onClose={() => setRoleManagerOpen(false)} />}
-      {moderationOpen && <ModerationModal onClose={() => setModerationOpen(false)} />}
-      {emojiManagerOpen && <EmojiManagerModal onClose={() => setEmojiManagerOpen(false)} />}
-      {stickerManagerOpen && <StickerManagerModal onClose={() => setStickerManagerOpen(false)} />}
+      {communitySettingsOpen && <Suspense fallback={null}><CommunitySettingsModal onClose={() => setCommunitySettingsOpen(false)} /></Suspense>}
+      {roleManagerOpen && <Suspense fallback={null}><RoleManagerModal onClose={() => setRoleManagerOpen(false)} /></Suspense>}
+      {moderationOpen && <Suspense fallback={null}><ModerationModal onClose={() => setModerationOpen(false)} /></Suspense>}
+      {emojiManagerOpen && <Suspense fallback={null}><EmojiManagerModal onClose={() => setEmojiManagerOpen(false)} /></Suspense>}
+      {stickerManagerOpen && <Suspense fallback={null}><StickerManagerModal onClose={() => setStickerManagerOpen(false)} /></Suspense>}
 
       {topSlot}
 
@@ -404,9 +407,9 @@ export default function ChannelSidebar({
           onClose={() => setChannelModal({ open: false, categoryId: null })}
         />
       )}
-      {editChannel && <EditChannelModal channel={editChannel} onClose={() => setEditChannel(null)} />}
+      {editChannel && <Suspense fallback={null}><EditChannelModal channel={editChannel} onClose={() => setEditChannel(null)} /></Suspense>}
       {createCategoryOpen && <CreateCategoryModal onClose={() => setCreateCategoryOpen(false)} />}
-      {editCategory && <EditCategoryModal category={editCategory} onClose={() => setEditCategory(null)} onDeleted={() => setEditCategory(null)} />}
+      {editCategory && <Suspense fallback={null}><EditCategoryModal category={editCategory} onClose={() => setEditCategory(null)} onDeleted={() => setEditCategory(null)} /></Suspense>}
     </aside>
   );
 }

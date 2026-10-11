@@ -6,7 +6,7 @@ import { getGameLibrary } from '../api/games';
 import UserAvatar from '../components/UserAvatar.jsx';
 import {
   GlIcon, GameRow, GameCapsule, LockedLibrary, EmptyLibrary, LibrarySkeleton,
-  formatHoursShort, formatPlaytime, visibilityLabel,
+  formatHoursShort, formatPlaytime, visibilityLabel, useInstalledModCounts,
 } from '../components/games/GameLibraryParts.jsx';
 import '../styles/game-library.css';
 
@@ -48,6 +48,8 @@ export default function GameLibraryPage() {
   useLiveRefresh(({ put }) => getGameLibrary(target).then(put(setData)), { enabled: !!data, interval: 30000, key: `games-library:${target}` });
 
   const games = useMemo(() => data?.games || [], [data]);
+  // Mods ↔ biblioteca: só a minha biblioteca, só no app desktop.
+  const modCounts = useInstalledModCounts(games, !!data?.isMe);
   const shown = useMemo(() => {
     const term = q.trim().toLowerCase();
     const base = tab === 'recent'
@@ -148,7 +150,14 @@ export default function GameLibraryPage() {
               </div>
             ) : (
               <div className="gl-list">
-                {shown.map((g) => <GameRow key={g.gameKey} game={g} />)}
+                {shown.map((g) => (
+                  <GameRow
+                    key={g.gameKey}
+                    game={g}
+                    modCount={modCounts[g.steamAppId]}
+                    onOpenMods={g.steamAppId && modCounts[g.steamAppId] !== undefined ? () => navigate(`/jogos/mods?game=${g.steamAppId}`) : undefined}
+                  />
+                ))}
               </div>
             )}
           </>

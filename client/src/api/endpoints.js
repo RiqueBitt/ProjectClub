@@ -60,7 +60,16 @@ export const removeIdCard = () => api.delete('/users/me/id-card').then((r) => r.
 export const setStatus = (status) => api.patch('/users/me/status', { status }).then((r) => r.data);
 export const setCustomStatus = (payload) => api.patch('/users/me/custom-status', payload).then((r) => r.data);
 export const searchUsers = (q) => api.get('/users/search', { params: { q } }).then((r) => r.data);
-export const getUserProfile = (id) => api.get(`/users/${id}`).then((r) => r.data);
+// Mesmo perfil pedido por vários lugares ao mesmo tempo (miniperfil,
+// painel da DM, Início — todos no mesmo tique do refresh ao vivo) vira
+// UMA requisição só.
+const profileInflight = new Map();
+export const getUserProfile = (id) => {
+  if (profileInflight.has(id)) return profileInflight.get(id);
+  const p = api.get(`/users/${id}`).then((r) => r.data).finally(() => profileInflight.delete(id));
+  profileInflight.set(id, p);
+  return p;
+};
 export const voteProfile = (id, value) => api.post(`/users/${id}/vote`, { value }).then((r) => r.data);
 export const listUsableEmojis = () => api.get('/users/me/usable-emojis').then((r) => r.data);
 export const listFavoriteGifs = () => api.get('/users/me/favorite-gifs').then((r) => r.data);

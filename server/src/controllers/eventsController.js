@@ -118,8 +118,10 @@ async function updateEvent(req, res, next) {
       if (!description.trim()) return res.status(400).json({ error: 'Escreva uma descrição.' });
       data.description = description.trim().slice(0, 5000);
     }
-    if (startsAt !== undefined) data.startsAt = startsAt ? new Date(startsAt) : null;
-    if (endsAt !== undefined) data.endsAt = endsAt ? new Date(endsAt) : null;
+    // Data inválida virava "Invalid Date" e o Prisma respondia 500.
+    const parseDate = (v) => { if (!v) return null; const d = new Date(v); return isNaN(d.getTime()) ? undefined : d; };
+    if (startsAt !== undefined) { const d = parseDate(startsAt); if (d === undefined) return res.status(400).json({ error: 'Data de início inválida.' }); data.startsAt = d; }
+    if (endsAt !== undefined) { const d = parseDate(endsAt); if (d === undefined) return res.status(400).json({ error: 'Data de fim inválida.' }); data.endsAt = d; }
     if (status !== undefined && VALID_STATUS.includes(status)) data.status = status;
 
     const event = await prisma.event.update({ where: { id }, data, include: { createdBy: { select: AUTHOR_FIELDS } } });

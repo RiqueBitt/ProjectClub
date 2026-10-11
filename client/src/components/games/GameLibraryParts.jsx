@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { proxyImage } from '../../utils/imageProxy';
+import { isDesktopModsAvailable, detectSteamGames, listInstalledModsLocally } from '../../utils/mods';
 import '../../styles/game-library.css';
 
 // Peças da Biblioteca de jogos usadas na página (/jogos/biblioteca) e
@@ -16,6 +18,7 @@ const PATHS = {
   back: 'm15 18-6-6 6-6',
   play: 'M8 5v14l11-7L8 5Z',
   monitor: 'M3 5h18v11H3zM8 20h8M12 16v4',
+  puzzle: 'M10 3.5a2 2 0 1 1 4 0V5h4v4h1.5a2 2 0 1 1 0 4H18v6h-5v-1.5a2 2 0 1 0-4 0V19H4v-6h1.5a2 2 0 1 0 0-4H4V5h6V3.5Z',
 };
 export function GlIcon({ name, size = 16, strokeWidth = 1.9 }) {
   return (
@@ -61,19 +64,27 @@ function hueFor(key) {
   return h;
 }
 
-// Capa estilo Steam (proporção 460x215). Steam App ID -> capa pelo nosso
-// proxy; sem ele (ou se falhar), degradê com logo/nome.
+// Capa estilo Steam (proporção 460x215). Ordem: arte pelo App ID (nosso
+// proxy) -> imagem que o app de desktop mandou (capa larga da Steam vira
+// capa; logo/ícone fica por cima do degradê) -> degradê com o nome.
+function isWideArt(url) { return /steamstatic\.com|steampowered\.com|\/api\/proxy\/steam\//i.test(url || ''); }
+
 export function GameCapsule({ game, size = 'md' }) {
-  const [failed, setFailed] = useState(false);
-  const src = game.steamAppId && !failed ? `/api/proxy/steam/${game.steamAppId}/header` : null;
+  const [failedSteam, setFailedSteam] = useState(false);
+  const [failedIcon, setFailedIcon] = useState(false);
+  const steamSrc = game.steamAppId && !failedSteam ? `/api/proxy/steam/${game.steamAppId}/header` : null;
+  const iconSrc = game.iconUrl && !failedIcon ? proxyImage(game.iconUrl) : null;
+  const wideIcon = !steamSrc && iconSrc && isWideArt(game.iconUrl);
   const hue = hueFor(game.gameKey || game.name);
   return (
     <span className={`gl-capsule gl-capsule-${size}`} style={{ '--gl-hue': hue }}>
-      {src ? (
-        <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} />
+      {steamSrc ? (
+        <img src={steamSrc} alt="" loading="lazy" onError={() => setFailedSteam(true)} />
+      ) : wideIcon ? (
+        <img src={iconSrc} alt="" loading="lazy" onError={() => setFailedIcon(true)} />
       ) : (
         <span className="gl-capsule-fallback">
-          {game.iconUrl && !game.steamAppId && <img className="gl-capsule-logo" src={game.iconUrl} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
+          {iconSrc && <img className="gl-capsule-logo" src={iconSrc} alt="" loading="lazy" onError={() => setFailedIcon(true)} />}
           <span className="gl-capsule-name">{game.name}</span>
         </span>
       )}
@@ -82,8 +93,32 @@ export function GameCapsule({ game, size = 'md' }) {
   );
 }
 
+// Mods ↔ biblioteca (só no app desktop): quantos mods cada jogo tem
+// instalados no PC. Detecção da Steam roda uma vez por sessão (cache).
+let steamDetectPromise = null;
+export function useInstalledModCounts(games, enabled) {
+  const [counts, setCounts] = useState({}); // steamAppId -> nº de mods
+  const ids = (games || []).map((g) => g.steamAppId).filter(Boolean).join(',');
+  useEffect(() => {
+    if (!enabled || !ids || !isDesktopModsAvailable()) return undefined;
+    let alive = true;
+    if (!steamDetectPromise) steamDetectPromise = detectSteamGames().catch(() => ({ games: [] }));
+    steamDetectPromise.then(async (det) => {
+      const installed = new Map((det?.games || []).map((g) => [Number(g.steamAppId), g.installPath]));
+      const wanted = ids.split(',').map(Number).filter((id) => installed.has(id));
+      const pairs = await Promise.all(wanted.map((id) => listInstalledModsLocally(installed.get(id), id)
+        .then((d) => [id, (d?.enabled?.length || 0) + (d?.disabled?.length || 0)])
+        .catch(() => [id, 0])));
+      if (alive) setCounts(Object.fromEntries(pairs));
+    });
+    return () => { alive = false; };
+  }, [ids, enabled]);
+  return counts;
+}
+
 // Linha da lista (capa grande + nome + TEMPO DE JOGO + ÚLTIMA SESSÃO).
-export function GameRow({ game, compact = false }) {
+// modCount/onOpenMods: só no desktop, quando o jogo está instalado.
+export function GameRow({ game, compact = false, modCount, onOpenMods }) {
   return (
     <div className={`gl-row ${compact ? 'is-compact' : ''} ${game.playingNow ? 'is-live' : ''}`}>
       <GameCapsule game={game} size={compact ? 'sm' : 'md'} />
@@ -105,6 +140,14 @@ export function GameRow({ game, compact = false }) {
             </div>
           )}
         </div>
+        {onOpenMods && (
+          <div className="gl-row-mods">
+            {modCount > 0 && <span className="gl-chip"><GlIcon name="puzzle" size={13} /> {modCount} {modCount === 1 ? 'mod instalado' : 'mods instalados'}</span>}
+            <button type="button" className="gl-link-btn" onClick={onOpenMods}>
+              {modCount > 0 ? 'Gerenciar mods' : 'Ver mods'} <GlIcon name="arrow" size={14} />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

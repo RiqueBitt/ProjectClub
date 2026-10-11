@@ -339,3 +339,13 @@ html.custom-bg-active .chat-window .chat-composer .message-input-row { backgroun
     max-height: 80vh;
   }
 }
+
+/* Mensagem que falhou ao enviar: aviso + "Tentar de novo" visíveis */
+.message-failed-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; font-size: 12.5px; color: var(--red); }
+.message-failed-btn {
+  height: 26px; padding: 0 10px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--red) 55%, transparent);
+  background: color-mix(in srgb, var(--red) 14%, transparent); color: var(--header-primary); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.message-failed-btn:hover { background: color-mix(in srgb, var(--red) 24%, transparent); }
+.message-failed-btn.ghost { border-color: var(--border); background: transparent; color: var(--text-muted); }
+.message-failed-btn.ghost:hover { color: var(--header-primary); background: var(--bg-modifier-hover); }

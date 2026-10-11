@@ -16,6 +16,7 @@
 //  - Batimentos do mesmo usuário são processados em fila (sem corrida).
 const prisma = require('../config/prisma');
 const { redis } = require('../config/redis');
+const steamArt = require('./steamArtService');
 
 const MAX_GAP_MS = 30 * 1000; // maior intervalo creditado entre dois batimentos
 const STALE_MS = 45 * 1000; // sem batimento há mais que isso = sessão encerrada
@@ -68,7 +69,19 @@ function normalizeGame(game) {
   return { gameKey, name, steamAppId: steamAppIdFrom(game.imageUrl), iconUrl: img };
 }
 
+// Jogo sem App ID: descobre pelo nome (cacheado) e grava na linha da
+// pessoa — a capa passa a aparecer na biblioteca/perfil. Nunca lança.
+async function fillSteamAppId(userId, gameKey, name) {
+  try {
+    const appId = await steamArt.findAppIdByName(name);
+    if (!appId) return null;
+    await prisma.gamePlaytime.updateMany({ where: { userId, gameKey, steamAppId: null }, data: { steamAppId: appId } });
+    return appId;
+  } catch { return null; }
+}
+
 async function startSession(userId, game, now) {
+  if (!game.steamAppId) fillSteamAppId(userId, game.gameKey, game.name);
   await prisma.gamePlaytime.upsert({
     where: { userId_gameKey: { userId, gameKey: game.gameKey } },
     create: { userId, gameKey: game.gameKey, name: game.name, steamAppId: game.steamAppId, iconUrl: game.iconUrl, sessions: 1, firstPlayedAt: new Date(now), lastPlayedAt: new Date(now) },
@@ -176,4 +189,4 @@ async function getLiveSession(userId, now = Date.now()) {
   return state;
 }
 
-module.exports = { recordBeat, flushUser, sweep, startSweeper, getLiveSession, gameKeyFor, steamAppIdFrom, normalizeGame, MAX_GAP_MS, STALE_MS };
+module.exports = { recordBeat, flushUser, sweep, startSweeper, getLiveSession, gameKeyFor, steamAppIdFrom, normalizeGame, fillSteamAppId, MAX_GAP_MS, STALE_MS };

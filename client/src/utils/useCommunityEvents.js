@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { listEvents } from '../api/endpoints';
 import { useLiveRefresh, sameData } from './liveRefresh';
+import { onBootSection, bootSection, bootstrapActive } from './bootstrap';
 import { useSocket } from '../context/SocketContext.jsx';
 
 // Eventos da comunidade (os mesmos da página Início), compartilhados entre
@@ -12,10 +13,15 @@ const listeners = new Set();
 const emit = () => listeners.forEach((fn) => fn(cache));
 const setCache = (next) => { cache = next; emit(); };
 
+// Eventos também chegam no pacote de abertura e na atualização global
+// (utils/bootstrap.js) — aí não precisa de requisição própria.
+onBootSection('events', (d) => { const next = d?.events; if (next && !sameData(cache, next)) setCache(next); });
+
 function load(force = false) {
   if (inflight) return inflight;
   if (cache && !force) return Promise.resolve(cache);
-  inflight = listEvents()
+  const fromBoot = !force && bootSection('events');
+  inflight = (fromBoot ? fromBoot.catch(() => listEvents()) : listEvents())
     .then((d) => { const next = d.events || []; if (!sameData(cache, next)) setCache(next); return cache; })
     .catch(() => { if (!cache) setCache([]); return cache; })
     .finally(() => { inflight = null; });
@@ -55,7 +61,7 @@ export function useCommunityEvents() {
   // Tempo real: eventos já chegam por socket; ressincroniza em silêncio a
   // cada 33s (várias telas usando o hook
   // dividem a mesma requisição via `inflight`).
-  useLiveRefresh(() => load(true), { interval: 33000, realtimeInterval: 120000 });
+  useLiveRefresh(() => load(true), { interval: 33000, realtimeInterval: 120000, enabled: !bootstrapActive() });
 
   // Atualiza um evento só na lista compartilhada (ex.: depois do RSVP).
   const patchEvent = (id, changes) => setCache((cache || []).map((x) => (x.id === id ? { ...x, ...changes } : x)));

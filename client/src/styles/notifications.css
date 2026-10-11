@@ -26,6 +26,9 @@
 .nt .nt-item[data-kind='relationship'] { --k: #ff5c8a; }
 .nt .nt-item[data-kind='friend'] { --k: var(--green); }
 .nt .nt-item[data-kind='conversation'] { --k: #2fb8d6; }
+.nt .nt-item[data-kind='event'] { --k: #f0b232; }
+.nt .nt-item[data-kind='mission'] { --k: var(--green); }
+.nt .nt-item[data-kind='shop'] { --k: #e98bff; }
 .nt .nt-item.unread { background: color-mix(in srgb, var(--k) 9%, transparent); }
 .nt .nt-item.clickable { cursor: pointer; }
 .nt .nt-item.clickable:hover { background: color-mix(in srgb, var(--k) 15%, transparent); }

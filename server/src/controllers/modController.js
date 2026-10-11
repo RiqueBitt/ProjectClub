@@ -233,6 +233,9 @@ async function adminCreateGameMapping(req, res, next) {
     if (!steamAppId || !modioGameId || !modioNameId?.trim() || !displayName?.trim()) {
       return res.status(400).json({ error: 'steamAppId, modioGameId, modioNameId e displayName são obrigatórios.' });
     }
+    // IDs não numéricos viravam NaN e o Prisma respondia 500.
+    const isPosInt = (v) => Number.isInteger(Number(v)) && Number(v) > 0 && Number(v) <= 2147483647;
+    if (!isPosInt(steamAppId) || !isPosInt(modioGameId)) return res.status(400).json({ error: 'Os IDs precisam ser números inteiros positivos.' });
     const mapping = await prisma.modGameMapping.create({
       data: { steamAppId: Number(steamAppId), modioGameId: Number(modioGameId), modioNameId: modioNameId.trim(), displayName: displayName.trim(), iconUrl: iconUrl || null },
     });

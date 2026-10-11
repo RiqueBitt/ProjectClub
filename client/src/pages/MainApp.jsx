@@ -5,7 +5,6 @@ import { useSocket } from '../context/SocketContext.jsx';
 import LoadingScreen from '../components/LoadingScreen.jsx';
 import { playSound } from '../utils/sounds';
 import { applyLanguage } from '../i18n/index.js';
-import { getCommunity, listConversations, listFriends } from '../api/endpoints';
 import MainSidebar from '../components/MainSidebar.jsx';
 import Normal2Sidebar from '../components/Normal2Sidebar.jsx';
 import ChannelSidebar from '../components/ChannelSidebar.jsx';
@@ -21,14 +20,14 @@ import IncomingCallBanner from '../components/IncomingCallBanner.jsx';
 import NoticeToast from '../components/NoticeToast.jsx';
 import CelebrationToasts from '../components/CelebrationToasts.jsx';
 import WelcomePane from '../components/WelcomePane.jsx';
-import UserProfileModal from '../components/modals/UserProfileModal.jsx';
 import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import MiniProfileCard from '../components/MiniProfileCard.jsx';
 import LinkConfirmModal from '../components/modals/LinkConfirmModal.jsx';
 import ImageLightbox from '../components/ImageLightbox.jsx';
 import AnnouncementOverlay from '../components/AnnouncementOverlay.jsx';
 import QuickSwitcher from '../components/QuickSwitcher.jsx';
-import { listUsableEmojis, listServerStickers, listAssetCollections, listFavoriteGifs, getUiLayout, listCommunities, getMyClan, getUserSettings } from '../api/endpoints';
+import { startBoot, cachedBoot } from '../utils/bootstrap';
+import { applyBootData } from '../utils/applyBoot';
 import { checkForNativeUpdate } from '../utils/nativeUpdateCheck';
 import { setupPushNotifications } from '../utils/pushNotifications';
 import { updateUnreadBadge } from '../utils/unreadBadge';
@@ -53,6 +52,8 @@ import { isFeatureEnabled } from '../utils/features';
 // atrasar ela com uma segunda viagem de rede).
 // Modal de configurações é grande e só abre quando a pessoa clica.
 const UserSettingsModal = lazy(() => import('../components/modals/UserSettingsModal.jsx'));
+// Perfil completo (~80 KB com as seções): só baixa quando alguém abre um perfil.
+const UserProfileModal = lazy(() => import('../components/modals/UserProfileModal.jsx'));
 const AmigosPage = lazy(() => import('./AmigosPage.jsx'));
 const ProfilePage = lazy(() => import('./ProfilePage.jsx'));
 const NotificationsPage = lazy(() => import('./NotificationsPage.jsx'));
@@ -104,9 +105,10 @@ export default function MainApp() {
   useGlobalLiveRefresh();
   // Gestos do celular: gaveta de canais e segurar mensagem (ver useMobileGestures.js).
   useMobileGestures();
-  const {
-    setCommunityStructure, setConversations, setFriends, setUsableEmojis, setServerStickers, setEmojiCollections, setStickerCollections, setFavoriteGifs, setClubs, setMyClan, setUserSettings,
-  } = useStore();
+  // (Antes havia aqui um `useStore()` SEM seletor só pra pegar setters —
+  // isso inscrevia o MainApp no store INTEIRO: qualquer mudança (mensagem,
+  // digitando, presença) re-renderizava a casca toda do app. Os dados de
+  // abertura agora são aplicados por applyBootData, direto no store.)
   // Personalizar layout: lista de membros aberta ou fechada por padrão.
   const showMembersPref = useStore((s) => s.layoutPrefs.showMembers);
   const [membersOpen, setMembersOpen] = useState(showMembersPref);
@@ -119,7 +121,6 @@ export default function MainApp() {
   const closeSettings = useStore((s) => s.closeSettings);
   const openMobileMembers = useStore((s) => s.openMobileMembers);
   const closeMobileMembers = useStore((s) => s.closeMobileMembers);
-  const setUiLayoutAll = useStore((s) => s.setUiLayoutAll);
   const uiLayout = useStore((s) => s.uiLayout);
   // Item pedido: "melhore os idiomas e deixe só 3 idiomas mesmo" — o
   // seletor de idioma já salvava a escolha no banco, mas nada de
@@ -182,6 +183,7 @@ export default function MainApp() {
   // qualquer página), então precisa fechar sozinho ao mudar de
   // categoria, senão ficaria flutuando por cima da página nova.
   const closeProfile = useStore((s) => s.closeProfile);
+  const viewingProfileUserId = useStore((s) => s.viewingProfileUserId);
   useEffect(() => { closeProfile(); }, [location.pathname]);
 
   // BUG EVITADO ("preso pra sempre na tela de carregamento se o socket
@@ -218,24 +220,24 @@ export default function MainApp() {
   }, []);
 
   useEffect(() => {
-    getCommunity().then((d) => setCommunityStructure({
-      categories: d.categories, channels: d.channels, members: d.members, roles: d.roles, community: d.community,
-    })).catch(() => {});
-    listConversations().then((d) => setConversations(d.conversations)).catch(() => {});
-    listFriends().then((d) => setFriends(d.friendships)).catch(() => {});
-    listUsableEmojis().then((d) => setUsableEmojis(d.emojis)).catch(() => {});
-    listServerStickers().then((d) => setServerStickers(d.stickers)).catch(() => {});
-    listAssetCollections('EMOJI').then((d) => setEmojiCollections(d.collections)).catch(() => {});
-    listAssetCollections('STICKER').then((d) => setStickerCollections(d.collections)).catch(() => {});
-    getMyClan().then((d) => setMyClan(d)).catch(() => {});
-    listFavoriteGifs().then((d) => setFavoriteGifs(d.gifs)).catch(() => {});
-    listCommunities().then((d) => setClubs(d.communities)).catch(() => {});
+    // Comunidade, conversas, amigos, emojis, figurinhas, coleções, clã,
+    // GIFs favoritos, clubes, configurações e layout: tudo vem no pacote de
+    // abertura (UMA requisição, ver utils/bootstrap.js) — antes eram ~13
+    // requisições separadas aqui. Primeiro pinta com a cópia local da
+    // última vez (se houver), depois aplica o que chegou do servidor.
     // Item pedido: "Login → GET /api/users/me/settings → carregar
-    // configurações → aplicar configurações → renderizar aplicativo"
-    getUserSettings().then((d) => setUserSettings(d.settings)).catch(() => {});
+    // configurações → aplicar configurações → renderizar aplicativo" —
+    // as configurações (seção `settings`) vêm junto.
+    applyBootData(cachedBoot());
+    startBoot(user.id).then((r) => applyBootData(r.data)).catch(() => {});
     checkForNativeUpdate();
     setupPushNotifications();
-    getUiLayout().then((d) => setUiLayoutAll(d)).catch(() => {});
+    // Perfil é o modal mais aberto: baixa o pacote dele quando o app já
+    // está parado (não disputa com a abertura), pra abrir sem espera.
+    const prefetch = () => { import('../components/modals/UserProfileModal.jsx').catch(() => {}); };
+    const idle = window.requestIdleCallback ? (fn) => window.requestIdleCallback(fn, { timeout: 15000 }) : (fn) => setTimeout(fn, 8000);
+    const prefetchTimer = setTimeout(() => idle(prefetch), 6000);
+    return () => clearTimeout(prefetchTimer);
   }, []);
 
   // Item pedido: bolinha de não lidas no ícone do app — em vez de
@@ -465,7 +467,8 @@ export default function MainApp() {
           contido: só o perfil mostra um aviso de erro, o resto do app
           continua funcionando normalmente. */}
       <ErrorBoundary compact>
-        <UserProfileModal />
+        {/* Carregado só quando algum perfil é aberto (pacote próprio). */}
+        {viewingProfileUserId && <Suspense fallback={null}><UserProfileModal /></Suspense>}
       </ErrorBoundary>
       <MiniProfileCard />
       <LinkConfirmModal />

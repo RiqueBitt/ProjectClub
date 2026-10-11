@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLiveRefresh, sameData } from '../../utils/liveRefresh';
 import { useStore } from '../../store/useStore';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { getUserProfile, createConversation, sendFriendRequest, assignRole, unassignRole, voteProfile, listPosts, listApprovedTestimonials, writeTestimonial, listScraps, writeScrap, deleteScrap, getFanStatus, toggleFan, registerProfileVisit, listProfileVisitors, getTraitStatus, toggleTrait, sendRelationshipRequest, endRelationship as endRelationshipApi, listPhotosByOwner, listProfilePollsByAuthor, voteProfilePoll, upcomingBirthdaysAmongFriends } from '../../api/endpoints';
+import { createConversation, sendFriendRequest, assignRole, unassignRole, voteProfile, listPosts, listApprovedTestimonials, writeTestimonial, listScraps, writeScrap, deleteScrap, toggleFan, registerProfileVisit, toggleTrait, sendRelationshipRequest, endRelationship as endRelationshipApi, listPhotosByOwner, voteProfilePoll, upcomingBirthdaysAmongFriends } from '../../api/endpoints';
 import { STATUS_LABEL } from '../../utils/status';
 import PresenceDot from '../PresenceDot.jsx';
 import { renderRichContent } from '../../utils/richTextRender.jsx';
@@ -33,6 +33,7 @@ import robloxIcon from '../../assets/icons/social-roblox.png';
 import xIcon from '../../assets/icons/social-x.png';
 import levelStarIcon from '../../assets/icons/level-star.png';
 import { proxyImage } from '../../utils/imageProxy';
+import { getProfileSummary } from '../../api/profileSummary';
 import { visibleProfileSectionOrder } from '../../utils/profileSections';
 import FeaturedModpackSection from '../FeaturedModpackSection.jsx';
 import ProfileGamesSection from '../games/ProfileGamesSection.jsx';
@@ -40,61 +41,9 @@ import '../../styles/profile.css';
 import BannerImage from '../ProfileBanner.jsx';
 import ProfileEffectOverlay from '../ProfileEffectOverlay.jsx';
 
-// Ícones de traço do perfil (SVG, herdam a cor do texto) — mapa local pra
-// não mexer no PageIcons.jsx compartilhado. Emoji vira quadradinho no Linux.
-const PF_PATHS = {
-  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 20a8 8 0 0 1 16 0',
-  users: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM2.5 20a6.5 6.5 0 0 1 13 0M16 4.3a3.5 3.5 0 0 1 0 6.4M18 14.2a6.5 6.5 0 0 1 3.5 5.8',
-  shield: 'M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6l-8-3Z',
-  link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
-  heart: 'M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z',
-  sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3ZM19 16l.7 1.8 1.8.7-1.8.7L19 21l-.7-1.8-1.8-.7 1.8-.7L19 16Z',
-  trophy: 'M8 4h8v5a4 4 0 0 1-8 0V4ZM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M9 20h6M10 17h4',
-  medal: 'M8 3l2 6M16 3l-2 6M12 21a6 6 0 1 0 0-12 6 6 0 0 0 0 12ZM12 13v4',
-  image: 'M4 5h16v14H4zM4 16l5-5 4 4 2-2 5 5M15.5 9.5h.01',
-  poll: 'M5 20V10M12 20V4M19 20v-7',
-  flame: 'M12 21a6 6 0 0 0 6-6c0-4-3-6-4-10-2 2-3 4-3 6-1-1-2-2-2-4-2 2-3 4.5-3 8a6 6 0 0 0 6 6Z',
-  chat: 'M4 5h16v11H8l-4 4V5Z',
-  quote: 'M7 7h4v4c0 3-1.5 5-4 6M15 7h4v4c0 3-1.5 5-4 6',
-  eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12ZM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
-  cake: 'M4 21h16M5 21v-7h14v7M5 16c2 1.3 3.3 1.3 5 0 1.7 1.3 3.3 1.3 5 0 1.7 1.3 3 1.3 4 0M12 14V9M12 6.5V5',
-  calendar: 'M4 6h16v15H4zM4 10h16M8 3v4M16 3v4',
-  up: 'M12 19V5M5 12l7-7 7 7',
-  star: 'm12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3Z',
-  bolt: 'M13 3 5 14h6l-1 7 8-11h-6l1-7Z',
-  lock: 'M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3',
-  close: 'M6 6l12 12M18 6 6 18',
-  plus: 'M12 5v14M5 12h14',
-  send: 'M4 12 20 4l-6 16-3-7-7-1Z',
-  play: 'M8 5v14l11-7L8 5Z',
-  alert: 'M12 3 2 20h20L12 3ZM12 10v4M12 17h.01',
-  arrow: 'M5 12h14M13 6l6 6-6 6',
-  grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
-  layers: 'm12 3 9 5-9 5-9-5 9-5ZM3 12.5l9 5 9-5M3 16.5l9 5 9-5',
-};
-export function PfIcon({ name, size = 16, strokeWidth = 1.9 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d={PF_PATHS[name]} />
-    </svg>
-  );
-}
-
-// Card das seções do perfil: título em frase normal com ícone, contador
-// opcional e uma ação no canto (ex: "Ver tudo").
-export function PfCard({ icon, title, count, action, className = '', innerRef, children }) {
-  return (
-    <section className={`pf-card ${className}`} ref={innerRef}>
-      <header className="pf-card-head">
-        <span className="pf-card-icon"><PfIcon name={icon} size={15} /></span>
-        <h3 className="pf-card-title">{title}</h3>
-        {count != null && count !== 0 && <span className="pf-card-count">{count}</span>}
-        {action && <span className="pf-card-action">{action}</span>}
-      </header>
-      {children}
-    </section>
-  );
-}
+// PfIcon/PfCard moveram pra profileParts.jsx (re-exportados aqui).
+import { PfIcon, PfCard } from './profileParts.jsx';
+export { PfIcon, PfCard };
 
 // Estado vazio pequeno, dentro de um card.
 function PfEmpty({ icon, children, action }) {
@@ -133,6 +82,57 @@ const PF_SECTION_TAB = {
 // to pop it open, no prop drilling needed.
 // Aniversários não aparecem mais na interface (segurança de dados).
 const HIDE_BIRTHDAYS = true;
+
+// Contêiner com rolagem mais próximo (o modal rola por dentro, não a página).
+function scrollParent(el) {
+  for (let n = el?.parentElement; n && n !== document.body; n = n.parentElement) {
+    const oy = getComputedStyle(n).overflowY;
+    if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight) return n;
+  }
+  return null;
+}
+
+// Seções pesadas do perfil (recados, depoimentos, fotos, posts) só são
+// buscadas quando aparecem na tela (ou chegam a 400px de aparecer) —
+// antes tudo era buscado ao abrir, mesmo o que a pessoa nunca rolou até
+// ver. `refFor(chave)` vai no elemento da seção; `on[chave]` vira true
+// quando ela apareceu. Recomeça a cada perfil aberto.
+function useLazySections(resetKey) {
+  const [state, setState] = useState({ key: resetKey, on: {} });
+  const on = state.key === resetKey ? state.on : {};
+  const onRef = useRef(on);
+  onRef.current = on;
+  const cbs = useRef({});
+  const observers = useRef({});
+  useEffect(() => () => { Object.values(observers.current).forEach((o) => o.disconnect()); observers.current = {}; }, []);
+  const turnOn = (key) => setState((st) => {
+    const cur = st.key === resetKey ? st.on : {};
+    return cur[key] ? st : { key: resetKey, on: { ...cur, [key]: true } };
+  });
+  const refFor = (key) => {
+    const id = `${resetKey}:${key}`;
+    if (!cbs.current[id]) {
+      cbs.current[id] = (el) => {
+        observers.current[id]?.disconnect();
+        delete observers.current[id];
+        if (!el || onRef.current[key]) return;
+        if (typeof IntersectionObserver === 'undefined') { turnOn(key); return; }
+        const io = new IntersectionObserver((entries) => {
+          if (entries.some((e) => e.isIntersecting)) { io.disconnect(); delete observers.current[id]; turnOn(key); }
+        }, { root: scrollParent(el), rootMargin: '400px 0px' });
+        io.observe(el);
+        observers.current[id] = io;
+      };
+    }
+    return cbs.current[id];
+  };
+  return { on, refFor };
+}
+
+// Bloco "carregando" de uma seção que ainda não chegou.
+function PfLazySkeleton() {
+  return <span className="pf-sk" style={{ height: 56, margin: '4px 0' }} aria-hidden="true" />;
+}
 
 export default function UserProfileModal() {
   const userId = useStore((s) => s.viewingProfileUserId);
@@ -198,10 +198,36 @@ export default function UserProfileModal() {
   };
   const removeRole = (roleId) => { unassignRole(userId, roleId).catch(() => {}); };
 
+  // Seções carregadas só quando aparecem na tela (ver useLazySections).
+  const { on: lazyOn, refFor: lazyRef } = useLazySections(userId);
+  // Quais seções preguiçosas já chegaram (pra mostrar "carregando" e não
+  // "nada ainda" enquanto a resposta não vem).
+  const [lazyDoneState, setLazyDoneState] = useState({ key: userId, done: {} });
+  const lazyDone = lazyDoneState.key === userId ? lazyDoneState.done : {};
+  const markLazyDone = (forUser, k) => setLazyDoneState((st) => {
+    if (forUser !== userIdRef.current) return st;
+    const cur = st.key === forUser ? st.done : {};
+    return cur[k] ? st : { key: forUser, done: { ...cur, [k]: true } };
+  });
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId;
+
+  // Cabeçalho (perfil + "seguir" + traços + enquetes + visitantes) numa
+  // requisição só — ver api/profileSummary.js. Antes eram 5 separadas.
+  const applySummary = (r) => {
+    if (r.fan) setFanStatus((prev) => (sameData(prev, r.fan) ? prev : r.fan));
+    if (r.traits) setTraitStatus((prev) => (sameData(prev, r.traits) ? prev : r.traits));
+    if (r.polls?.polls) setProfilePolls((prev) => (sameData(prev, r.polls.polls) ? prev : r.polls.polls));
+    if (r.visitors) setVisitorsData((prev) => (sameData(prev, r.visitors) ? prev : r.visitors));
+  };
   useEffect(() => {
     if (!userId) { setData(null); return; }
     setLoading(true);
-    getUserProfile(userId).then((result) => {
+    let alive = true;
+    getProfileSummary(userId, { isMe: userId === me.id }).then((summary) => {
+      if (!alive) return;
+      const result = summary.profile;
+      applySummary(summary);
       setData(result);
       // BUG CORRIGIDO ("meu perfil não mostra jogo/Spotify"): o
       // ActivityBadge só lê do estado atualizado AO VIVO pelo socket
@@ -211,7 +237,8 @@ export default function UserProfileModal() {
       // carregou, o badge ficava vazio mesmo com a atividade
       // existindo de verdade no servidor.
       if (result?.activity) useStore.getState().setActivity(userId, result.activity);
-    }).catch(() => setData(null)).finally(() => setLoading(false));
+    }).catch(() => { if (alive) setData(null); }).finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
   }, [userId]);
 
   // NOVO (fusão com o Reddit clone — item 5): atividade em Comunidades —
@@ -220,8 +247,10 @@ export default function UserProfileModal() {
   const [redditActivity, setRedditActivity] = useState(null);
   useEffect(() => {
     if (!userId) { setRedditActivity(null); return; }
+    setRedditActivity(null);
+    if (!lazyOn.posts) return;
     listPosts({ authorId: userId, sort: 'new' }).then((d) => setRedditActivity(d.posts)).catch(() => setRedditActivity([]));
-  }, [userId]);
+  }, [userId, lazyOn.posts]);
 
   // Item pedido: sistemas estilo Orkut — depoimentos, recados (scraps)
   // e "sou fã", carregados junto do resto do perfil, mesmo padrão dos
@@ -233,8 +262,9 @@ export default function UserProfileModal() {
   const [testimonialListOpen, setTestimonialListOpen] = useState(false);
   useEffect(() => {
     if (!userId) { setTestimonials([]); setTestimonialTotal(0); return; }
-    listApprovedTestimonials(userId).then((d) => { setTestimonials(d.testimonials); setTestimonialTotal(d.total ?? d.testimonials.length); }).catch(() => setTestimonials([]));
-  }, [userId]);
+    if (!lazyOn.testimonials) { setTestimonials([]); setTestimonialTotal(0); return; }
+    listApprovedTestimonials(userId).then((d) => { setTestimonials(d.testimonials); setTestimonialTotal(d.total ?? d.testimonials.length); }).catch(() => setTestimonials([])).finally(() => markLazyDone(userId, 'testimonials'));
+  }, [userId, lazyOn.testimonials]);
 
   const [scraps, setScraps] = useState([]);
   const [scrapTotal, setScrapTotal] = useState(0);
@@ -243,13 +273,14 @@ export default function UserProfileModal() {
   const [scrapListOpen, setScrapListOpen] = useState(false);
   useEffect(() => {
     if (!userId) { setScraps([]); setScrapTotal(0); return; }
-    listScraps(userId).then((d) => { setScraps(d.scraps); setScrapTotal(d.total ?? d.scraps.length); }).catch(() => setScraps([]));
-  }, [userId]);
+    if (!lazyOn.scraps) { setScraps([]); setScrapTotal(0); return; }
+    listScraps(userId).then((d) => { setScraps(d.scraps); setScrapTotal(d.total ?? d.scraps.length); }).catch(() => setScraps([])).finally(() => markLazyDone(userId, 'scraps'));
+  }, [userId, lazyOn.scraps]);
 
   const [fanStatus, setFanStatus] = useState({ count: 0, isFan: false });
   useEffect(() => {
-    if (!userId) { setFanStatus({ count: 0, isFan: false }); return; }
-    getFanStatus(userId).then(setFanStatus).catch(() => {});
+    // Valor real chega junto do cabeçalho (applySummary).
+    setFanStatus({ count: 0, isFan: false });
   }, [userId]);
 
   const submitTestimonial = () => {
@@ -345,8 +376,8 @@ export default function UserProfileModal() {
   // fotos, tudo carregado junto do resto do perfil.
   const [traitStatus, setTraitStatus] = useState(null);
   useEffect(() => {
-    if (!userId) { setTraitStatus(null); return; }
-    getTraitStatus(userId).then(setTraitStatus).catch(() => {});
+    // Valor real chega junto do cabeçalho (applySummary).
+    setTraitStatus(null);
   }, [userId]);
 
   const toggleTraitStatus = (trait) => {
@@ -357,8 +388,8 @@ export default function UserProfileModal() {
   // pessoa que pode ver essa lista — checado no servidor também).
   const [visitorsData, setVisitorsData] = useState({ visits: [], totalVisits: 0 });
   useEffect(() => {
-    if (!userId || !isMe) { setVisitorsData({ visits: [], totalVisits: 0 }); return; }
-    listProfileVisitors(userId).then(setVisitorsData).catch(() => {});
+    // Valor real chega junto do cabeçalho (applySummary, só no próprio perfil).
+    setVisitorsData({ visits: [], totalVisits: 0 });
   }, [userId, isMe]);
 
   // Registra a visita ao abrir o perfil de OUTRA pessoa — uma vez por
@@ -386,7 +417,7 @@ export default function UserProfileModal() {
   const [photoTotal, setPhotoTotal] = useState(0);
   const [albumOpen, setAlbumOpen] = useState(false);
   useEffect(() => {
-    if (!userId) { setPhotoPreview([]); setPhotoTotal(0); return; }
+    if (!userId || !lazyOn.album) { setPhotoPreview([]); setPhotoTotal(0); return; }
     // BUG CORRIGIDO ("álbum fica feio, ocupa espaço e quebra os
     // outros"): com o layout de colunas (multi-column), uma seção
     // "não quebrável" (break-inside: avoid) e alta — 6 fotos, várias
@@ -394,8 +425,8 @@ export default function UserProfileModal() {
     // 3 fotos numa fileira única é bem mais previsível e compacto —
     // igual outras redes fazem (uma prévia rápida, não a galeria
     // inteira).
-    listPhotosByOwner(userId).then((d) => { setPhotoPreview(d.photos.slice(0, 3)); setPhotoTotal(d.total); }).catch(() => {});
-  }, [userId]);
+    listPhotosByOwner(userId).then((d) => { setPhotoPreview(d.photos.slice(0, 3)); setPhotoTotal(d.total); }).catch(() => {}).finally(() => markLazyDone(userId, 'album'));
+  }, [userId, lazyOn.album]);
 
   const user = data?.user;
   const liveUps = liveUpsOverride ?? data?.totalUps ?? 0;
@@ -458,8 +489,8 @@ export default function UserProfileModal() {
   // no perfil fica só a leitura + votação.
   const [profilePolls, setProfilePolls] = useState([]);
   useEffect(() => {
-    if (!userId) { setProfilePolls([]); return; }
-    listProfilePollsByAuthor(userId).then((d) => setProfilePolls(d.polls)).catch(() => setProfilePolls([]));
+    // Valor real chega junto do cabeçalho (applySummary).
+    setProfilePolls([]);
   }, [userId]);
 
   const submitPollVote = (pollId, optionId) => {
@@ -477,36 +508,30 @@ export default function UserProfileModal() {
     upcomingBirthdaysAmongFriends().then(setBirthdays).catch(() => {});
   }, [userId, isMe]);
 
-  // Tempo real (11s): perfil + dados da aba aberta, em silêncio — o modal
-  // continua aberto, na mesma aba/scroll, sem skeleton e sem apagar o
-  // recado/depoimento sendo digitado.
+  // Tempo real: cabeçalho (1 requisição, ver api/profileSummary.js) a cada
+  // 30s — 60s com o socket conectado (Ups/atividade já chegam por evento).
+  // As seções pesadas só se já foram abertas (apareceram na tela), num
+  // ritmo mais leve. Em silêncio: o modal continua aberto, na mesma
+  // aba/scroll, sem skeleton e sem apagar o recado sendo digitado.
+  useLiveRefresh(async (ctx) => {
+    const summary = await getProfileSummary(userId, { isMe });
+    if (!ctx.ok() || !summary?.profile) return;
+    const result = summary.profile;
+    setData((prev) => (sameData(prev, result) ? prev : result));
+    applySummary(summary);
+    if (result.activity) useStore.getState().setActivity(userId, result.activity);
+  }, { enabled: !!userId, key: userId, interval: 30000, realtimeInterval: 60000 });
+
   useLiveRefresh(async (ctx) => {
     const { put } = ctx;
-    const jobs = [
-      getUserProfile(userId).then((result) => {
-        if (!ctx.ok() || !result) return;
-        setData((prev) => (sameData(prev, result) ? prev : result));
-        if (result.activity) useStore.getState().setActivity(userId, result.activity);
-      }),
-      getFanStatus(userId).then(put(setFanStatus)),
-    ];
-    // Página única (sem abas): atualiza todas as seções.
-    {
-      jobs.push(getTraitStatus(userId).then(put(setTraitStatus)));
-      if (isMe && !HIDE_BIRTHDAYS) jobs.push(upcomingBirthdaysAmongFriends().then(put(setBirthdays)));
-    }
-    {
-      jobs.push(listPosts({ authorId: userId, sort: 'new' }).then((d) => put(setRedditActivity)(d.posts)));
-      jobs.push(listProfilePollsByAuthor(userId).then((d) => put(setProfilePolls)(d.polls)));
-      jobs.push(listPhotosByOwner(userId).then((d) => { put(setPhotoPreview)(d.photos.slice(0, 3)); put(setPhotoTotal)(d.total); }));
-    }
-    {
-      jobs.push(listScraps(userId).then((d) => { put(setScraps)(d.scraps); put(setScrapTotal)(d.total ?? d.scraps.length); }));
-      jobs.push(listApprovedTestimonials(userId).then((d) => { put(setTestimonials)(d.testimonials); put(setTestimonialTotal)(d.total ?? d.testimonials.length); }));
-      if (isMe) jobs.push(listProfileVisitors(userId).then(put(setVisitorsData)));
-    }
+    const jobs = [];
+    if (isMe && !HIDE_BIRTHDAYS) jobs.push(upcomingBirthdaysAmongFriends().then(put(setBirthdays)));
+    if (lazyOn.posts) jobs.push(listPosts({ authorId: userId, sort: 'new' }).then((d) => put(setRedditActivity)(d.posts)));
+    if (lazyOn.album) jobs.push(listPhotosByOwner(userId).then((d) => { put(setPhotoPreview)(d.photos.slice(0, 3)); put(setPhotoTotal)(d.total); }));
+    if (lazyOn.scraps) jobs.push(listScraps(userId).then((d) => { put(setScraps)(d.scraps); put(setScrapTotal)(d.total ?? d.scraps.length); }));
+    if (lazyOn.testimonials) jobs.push(listApprovedTestimonials(userId).then((d) => { put(setTestimonials)(d.testimonials); put(setTestimonialTotal)(d.total ?? d.testimonials.length); }));
     await Promise.allSettled(jobs);
-  }, { enabled: !!userId, key: userId });
+  }, { enabled: !!userId, key: userId, interval: 60000, realtimeInterval: 120000 });
 
   // Banner do perfil completo: estica o banner pra trás do cabeçalho até
   // logo depois de onde termina o texto (nome + tags/cargo do clube), e o
@@ -592,13 +617,15 @@ export default function UserProfileModal() {
         icon="image"
         title="Álbum de fotos"
         count={photoTotal}
+        innerRef={lazyRef('album')}
         action={(photoTotal > 3 || isMe) && (
           <button className="pf-link" onClick={() => setAlbumOpen(true)}>
             {isMe ? 'Ver álbum completo' : `Ver mais (${photoTotal})`}
           </button>
         )}
       >
-        {photoPreview.length === 0 && (
+        {!lazyDone.album && <PfLazySkeleton />}
+        {lazyDone.album && photoPreview.length === 0 && (
           <PfEmpty
             icon="image"
             action={isMe && <button className="pf-btn" onClick={() => setAlbumOpen(true)}><PfIcon name="plus" size={14} /> Adicionar foto</button>}
@@ -666,7 +693,8 @@ export default function UserProfileModal() {
       )
     ),
     community_activity: (
-      redditActivity?.length > 0 && (
+      // Ainda não apareceu na tela: só um marcador vazio pra saber quando buscar.
+      redditActivity === null ? <div ref={lazyRef('posts')} className="pf-lazy-sentinel" aria-hidden="true" /> : redditActivity.length > 0 && (
         <PfCard icon="flame" title="Atividade em clubes" count={`${redditActivity.reduce((sum, p) => sum + p.score, 0)} Ups`}>
           <div className="pf-list">
             {redditActivity.slice(0, 5).map((post) => (
@@ -860,6 +888,7 @@ export default function UserProfileModal() {
         title="Recados"
         count={scrapTotal}
         className="pf-card-scraps"
+        innerRef={lazyRef('scraps')}
         action={scrapTotal > 3 && (
           // Item pedido: mais de 3 recados -> "ver mais" abre todos,
           // paginados 100 por página.
@@ -879,7 +908,8 @@ export default function UserProfileModal() {
           </button>
         </div>
         <div className="pf-scraps">
-          {scraps.length === 0 && <PfEmpty icon="chat">Nenhum recado ainda — seja o primeiro a deixar um.</PfEmpty>}
+          {!lazyDone.scraps && <PfLazySkeleton />}
+          {lazyDone.scraps && scraps.length === 0 && <PfEmpty icon="chat">Nenhum recado ainda — seja o primeiro a deixar um.</PfEmpty>}
           {scraps.slice(0, 3).map((s) => (
             <div key={s.id} className="pf-scrap">
               <UserAvatar user={s.author} size={32} />
@@ -900,6 +930,7 @@ export default function UserProfileModal() {
         icon="quote"
         title="Depoimentos"
         count={testimonialTotal}
+        innerRef={lazyRef('testimonials')}
         action={testimonialTotal > 3 && (
           <button className="pf-link" onClick={() => setTestimonialListOpen(true)}>Ver mais ({testimonialTotal})</button>
         )}
@@ -919,7 +950,8 @@ export default function UserProfileModal() {
           </div>
         )}
         <div className="pf-scraps">
-          {testimonials.length === 0 && <PfEmpty icon="quote">Nenhum depoimento ainda.</PfEmpty>}
+          {!lazyDone.testimonials && <PfLazySkeleton />}
+          {lazyDone.testimonials && testimonials.length === 0 && <PfEmpty icon="quote">Nenhum depoimento ainda.</PfEmpty>}
           {testimonials.slice(0, 3).map((t) => (
             <div key={t.id} className="pf-scrap">
               <UserAvatar user={t.author} size={32} />

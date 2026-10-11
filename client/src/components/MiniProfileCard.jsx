@@ -282,7 +282,8 @@ export default function MiniProfileCard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [renderedUserId, closing]);
 
-  // Tempo real (11s): atualiza o miniperfil aberto sem fechar nem piscar.
+  // Tempo real (30s; 60s com socket — atividade/presença já chegam por
+  // evento): atualiza o miniperfil aberto sem fechar nem piscar.
   // Mantém a mesma referência quando nada mudou (o amigo em comum
   // sorteado não troca à toa).
   useLiveRefresh(async (ctx) => {
@@ -291,7 +292,7 @@ export default function MiniProfileCard() {
     const keep = (setter, v) => setter((prev) => (sameData(prev, v) ? prev : v));
     keep(setUser, d.user); keep(setBadges, d.badges || []); keep(setMutualFriends, d.mutualFriends || []);
     if (d.activity) useStore.getState().setActivity(userId, d.activity);
-  }, { enabled: !!userId, key: userId });
+  }, { enabled: !!userId, key: userId, interval: 30000, realtimeInterval: 60000 });
 
   if (!renderedUserId) return null;
 

@@ -65,6 +65,9 @@ async function adminCreateGameMapping(req, res, next) {
     if (!steamAppId || !communityIdentifier?.trim() || !displayName?.trim()) {
       return res.status(400).json({ error: 'steamAppId, communityIdentifier e displayName são obrigatórios.' });
     }
+    // IDs não numéricos viravam NaN e o Prisma respondia 500.
+    const isPosInt = (v) => Number.isInteger(Number(v)) && Number(v) > 0 && Number(v) <= 2147483647;
+    if (!isPosInt(steamAppId)) return res.status(400).json({ error: 'Os IDs precisam ser números inteiros positivos.' });
     const mapping = await prisma.thunderstoreGameMapping.create({
       data: {
         steamAppId: Number(steamAppId), communityIdentifier: communityIdentifier.trim().toLowerCase(),

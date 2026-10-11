@@ -4,6 +4,7 @@ const fs = require('fs');
 const env = require('../config/env');
 const { storeFile } = require('../services/fileStorage');
 const { detectImageMime } = require('../utils/imageSignature');
+const { optimizeImage } = require('../services/imageOptimizer');
 
 const uploadRoot = path.resolve(__dirname, '../../', env.UPLOAD_DIR);
 if (!fs.existsSync(uploadRoot)) fs.mkdirSync(uploadRoot, { recursive: true });
@@ -57,13 +58,29 @@ class ManagedStorage {
           file.mimetype = detected;
         }
 
+        // Imagem estática (PNG/JPEG/WebP) — e GIF animado nos anexos —
+        // sai mais leve: sem metadados (EXIF/GPS), girada certo, no tamanho
+        // máximo do tipo de upload e em WebP quando fica menor. Detecta pelo
+        // CONTEÚDO real (magic bytes), não pelo tipo declarado. Qualquer
+        // falha = sobe o original, igual antes. Ver services/imageOptimizer.js.
+        let out = { buffer, mimeType: file.mimetype, originalName: file.originalname };
+        const realImageType = detectImageMime(buffer);
+        if (realImageType) {
+          out = await optimizeImage({ buffer, mimeType: realImageType, originalName: file.originalname, field: file.fieldname });
+          if (!out.changed) out = { buffer, mimeType: file.mimetype, originalName: file.originalname };
+        }
+
         const asset = await storeFile({
-          buffer, originalName: file.originalname, mimeType: file.mimetype, ownerId: req.user?.id,
+          buffer: out.buffer, originalName: out.originalName, mimeType: out.mimeType, ownerId: req.user?.id,
         });
         // `filename` também é preenchido (igual o diskStorage antigo)
         // como rede de segurança pra qualquer código que ainda espere
         // esse campo — mas o certo agora é usar `req.file.url`.
-        cb(null, { filename: asset.storageKey, url: asset.url, size: asset.sizeBytes });
+        // originalname/mimetype voltam atualizados (ex.: foto.png → foto.webp)
+        // pra quem salva esses campos (anexos de mensagem).
+        cb(null, {
+          filename: asset.storageKey, url: asset.url, size: asset.sizeBytes, originalname: out.originalName, mimetype: out.mimeType,
+        });
       } catch (err) {
         cb(err);
       }

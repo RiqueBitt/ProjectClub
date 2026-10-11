@@ -152,15 +152,46 @@ async function deleteChannel(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// "Marcar canal como lido" chegava 2-3x por segundo num canal movimentado
+// (o cliente marcava a cada mensagem nova). O cliente agora agrupa, mas
+// aqui também: no máximo uma gravação por pessoa+canal a cada 2s — a
+// chamada que cai dentro da janela não grava na hora, só agenda UMA
+// gravação no fim da janela com o horário mais recente (nada se perde).
+const READ_WRITE_WINDOW_MS = 2000;
+const readWrites = new Map(); // `${userId}:${channelId}` -> { at, pendingAt, timer }
+function writeChannelRead(channelId, userId, at) {
+  return prisma.channelReadState.upsert({
+    where: { channelId_userId: { channelId, userId } },
+    update: { lastReadAt: at },
+    create: { channelId, userId, lastReadAt: at },
+  });
+}
 async function markRead(req, res, next) {
   try {
     const { id } = req.params;
+    const userId = req.user.id;
     const now = new Date();
-    await prisma.channelReadState.upsert({
-      where: { channelId_userId: { channelId: id, userId: req.user.id } },
-      update: { lastReadAt: now },
-      create: { channelId: id, userId: req.user.id, lastReadAt: now },
-    });
+    const key = `${userId}:${id}`;
+    const entry = readWrites.get(key);
+    if (entry && now - entry.at < READ_WRITE_WINDOW_MS) {
+      entry.pendingAt = now;
+      if (!entry.timer) {
+        entry.timer = setTimeout(() => {
+          const cur = readWrites.get(key);
+          if (!cur) return;
+          const at = cur.pendingAt;
+          cur.timer = null; cur.pendingAt = null; cur.at = Date.now();
+          if (at) writeChannelRead(id, userId, at).catch(() => {});
+          // Limpa a entrada depois de um tempo parado (o Map não cresce sem fim).
+          setTimeout(() => { const c = readWrites.get(key); if (c && !c.timer && Date.now() - c.at >= READ_WRITE_WINDOW_MS) readWrites.delete(key); }, READ_WRITE_WINDOW_MS + 100).unref?.();
+        }, Math.max(50, READ_WRITE_WINDOW_MS - (now - entry.at)));
+        entry.timer.unref?.();
+      }
+      return res.json({ ok: true, lastReadAt: now });
+    }
+    readWrites.set(key, { at: now.getTime(), pendingAt: null, timer: null });
+    await writeChannelRead(id, userId, now);
+    setTimeout(() => { const c = readWrites.get(key); if (c && !c.timer && Date.now() - c.at >= READ_WRITE_WINDOW_MS) readWrites.delete(key); }, READ_WRITE_WINDOW_MS + 100).unref?.();
     res.json({ ok: true, lastReadAt: now });
   } catch (err) { next(err); }
 }

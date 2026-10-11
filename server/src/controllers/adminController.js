@@ -282,10 +282,16 @@ const BADGE_RARITIES = ['COMMON', 'RARE', 'EPIC', 'LEGENDARY'];
 
 async function createBadgeType(req, res, next) {
   try {
-    const { key, name, description, icon, rarity, ageYears, priority } = req.body;
-    if (!key || !name || !icon) return res.status(400).json({ error: 'Chave, nome e ícone são obrigatórios.' });
-    const normalizedKey = String(key).trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_').slice(0, 40);
-    if (!normalizedKey) return res.status(400).json({ error: 'Chave inválida.' });
+    const { key, description, rarity, ageYears, priority } = req.body;
+    const name = String(req.body.name || '').trim();
+    // Ícone emoji agora é opcional (padrão 🏅) — a UI permite escolher uma
+    // imagem na criação, enviada logo depois com o id da insígnia nova.
+    const icon = String(req.body.icon || '').trim() || '🏅';
+    if (!name) return res.status(400).json({ error: 'Dê um nome para a insígnia.' });
+    // Chave opcional: se vier vazia, gera a partir do nome (sem acentos).
+    const rawKey = String(key || '').trim() || name.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const normalizedKey = rawKey.toUpperCase().replace(/[^A-Z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+    if (!normalizedKey) return res.status(400).json({ error: 'Chave inválida — use letras, números ou _.' });
 
     const existing = await prisma.badge.findUnique({ where: { key: normalizedKey } });
     if (existing) return res.status(409).json({ error: 'Já existe uma insígnia com essa chave.' });
@@ -294,7 +300,7 @@ async function createBadgeType(req, res, next) {
     const parsedPriority = priority !== undefined && priority !== null && priority !== '' ? parseInt(priority, 10) : 0;
     const badge = await prisma.badge.create({
       data: {
-        key: normalizedKey, name, description: description || null, icon: String(icon).slice(0, 8),
+        key: normalizedKey, name: name.slice(0, 60), description: description || null, icon: icon.slice(0, 8),
         rarity: BADGE_RARITIES.includes(rarity) ? rarity : 'COMMON',
         ageYears: Number.isFinite(parsedAgeYears) && parsedAgeYears > 0 ? parsedAgeYears : null,
         priority: Number.isFinite(parsedPriority) ? parsedPriority : 0,
@@ -314,7 +320,7 @@ async function updateBadgeType(req, res, next) {
     const data = {};
     if (req.body.name !== undefined) data.name = req.body.name;
     if (req.body.description !== undefined) data.description = req.body.description || null;
-    if (req.body.icon !== undefined) data.icon = String(req.body.icon).slice(0, 8);
+    if (req.body.icon !== undefined) data.icon = String(req.body.icon || '').trim().slice(0, 8) || '🏅';
     if (req.body.rarity !== undefined && BADGE_RARITIES.includes(req.body.rarity)) data.rarity = req.body.rarity;
     // Explicit null clears a previously-uploaded image icon, reverting to
     // just the emoji (see uploadBadgeIcon below for setting one).

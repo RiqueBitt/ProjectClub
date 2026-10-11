@@ -12,6 +12,7 @@ import { proxyImage } from '../utils/imageProxy';
 import { hour12Option } from '../utils/formatTime';
 import inicioIcon from '../assets/icons/logo-project-club.png';
 import { useLiveRefresh, sameData } from '../utils/liveRefresh';
+import { bootSection, onBootSection, bootstrapActive } from '../utils/bootstrap';
 
 const EVENT_STATUS_LABEL = { UPCOMING: 'Em breve', ACTIVE: 'Ativo', ENDED: 'Encerrado' };
 // Item pedido: mostra só os 4 vídeos mais recentes do canal.
@@ -153,7 +154,8 @@ export default function InicioPage() {
 
   useEffect(() => {
     listUpdates().then((d) => setUpdates(d.updates)).catch(() => setUpdates([]));
-    listEvents().then((d) => setEvents(d.events)).catch(() => setEvents([]));
+    // Eventos: reaproveita o pacote de abertura se ele acabou de chegar (utils/bootstrap.js).
+    (bootSection('events') || listEvents()).then((d) => setEvents(d.events)).catch(() => setEvents([]));
     listYoutubeVideos().then((d) => setVideos(d.videos)).catch(() => setVideos([]));
     listFeaturedPosts().then((d) => setFeaturedPosts(d.posts)).catch(() => setFeaturedPosts([]));
     getPlatformStats().then(setStats).catch(() => setStats(null));
@@ -178,10 +180,13 @@ export default function InicioPage() {
     const { put } = ctx;
     await Promise.allSettled([
       listUpdates().then((d) => put(setUpdates)(d.updates)),
-      listEvents().then((d) => put(setEvents)(d.events)),
+      // Eventos chegam pela atualização global (pacote de abertura) quando ela está ativa.
+      bootstrapActive() ? null : listEvents().then((d) => put(setEvents)(d.events)),
       listYoutubeVideos().then((d) => put(setVideos)(d.videos)),
     ]);
   }, { interval: 33000, realtimeInterval: 120000 });
+
+  useEffect(() => onBootSection('events', (d) => { if (d?.events) setEvents((prev) => (sameData(prev, d.events) ? prev : d.events)); }), []);
 
   useEffect(() => {
     if (!socket) return;

@@ -4,8 +4,9 @@ import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '.
 import { useAuth } from '../context/AuthContext.jsx';
 import {
   listPendingTestimonials, respondTestimonial, listPendingRelationships, respondRelationship,
-  markChannelRead, markConversationRead,
+  markChannelRead, markConversationRead, listEvents, listMissions,
 } from '../api/endpoints';
+import { getShop } from '../api/decorations';
 import { useLiveRefresh } from '../utils/liveRefresh';
 import { DISABLED_PROFILE_SECTIONS } from '../utils/profileSections';
 import UserAvatar from '../components/UserAvatar.jsx';
@@ -39,7 +40,20 @@ const FILTERS = [
   { id: 'MENTIONS', label: 'Menções', icon: 'at' },
   { id: 'MESSAGES', label: 'Mensagens', icon: 'mail' },
   { id: 'REQUESTS', label: 'Pedidos', icon: 'userPlus' },
+  { id: 'EVENTS', label: 'Eventos', icon: 'sparkles' },
+  { id: 'MISSIONS', label: 'Missões', icon: 'trophy' },
+  { id: 'SHOP', label: 'Loja', icon: 'store' },
 ];
+
+// Eventos/Loja/Missões não têm "lido" no servidor: guarda aqui, por
+// pessoa e aparelho, até quando já foi visto (e quais missões prontas).
+const RECENT_MS = 14 * 86400000;
+function readSeen(userId) {
+  try { const v = JSON.parse(localStorage.getItem(`nt-seen:${userId}`) || '{}'); return { at: Number(v.at) || 0, missions: Array.isArray(v.missions) ? v.missions : [] }; } catch { return { at: 0, missions: [] }; }
+}
+function writeSeen(userId, seen) {
+  try { localStorage.setItem(`nt-seen:${userId}`, JSON.stringify({ at: seen.at, missions: seen.missions.slice(-200) })); } catch { /* sem storage */ }
+}
 
 // Área de notificações: reúne, num só lugar, tudo que já é sinalizado
 // pontualmente em outras partes do app — canais com menções não lidas,
@@ -111,7 +125,32 @@ export default function NotificationsPage() {
     ]);
   });
 
-  const isEmpty = unreadChannels.length === 0 && unreadConversations.length === 0 && pendingIncoming.length === 0 && pendingTestimonials.length === 0 && pendingRelationships.length === 0;
+  // Eventos novos, missões prontas pra resgatar e novidades da Loja
+  // (só ao abrir esta página + atualização lenta, pra não pesar o app).
+  const [extra, setExtra] = useState({ events: [], missions: [], resets: null, shop: [] });
+  const [seen, setSeen] = useState(() => readSeen(user.id));
+  const loadExtra = async (put) => {
+    const [ev, mi, sh] = await Promise.allSettled([listEvents(), listMissions(), getShop()]);
+    const next = {
+      events: ev.status === 'fulfilled' ? (ev.value.events || []) : [],
+      missions: mi.status === 'fulfilled' ? (mi.value.missions || []) : [],
+      resets: mi.status === 'fulfilled' ? mi.value.resets || null : null,
+      shop: sh.status === 'fulfilled'
+        ? [...(sh.value.decorations || []).map((d) => ({ ...d, shopKind: 'Moldura' })), ...(sh.value.effects || []).map((e) => ({ ...e, shopKind: 'Efeito de perfil' })), ...(sh.value.collections || []).map((c) => ({ ...c, shopKind: 'Coleção' }))]
+        : [],
+    };
+    (put ? put(setExtra) : setExtra)(next);
+  };
+  useEffect(() => { loadExtra(); }, []);
+  useLiveRefresh(({ put }) => loadExtra(put), { interval: 60000, key: 'notifications-extra' });
+
+  const cutoff = Math.max(seen.at, Date.now() - RECENT_MS);
+  const missionKey = (m) => `${m.id}|${extra.resets?.[m.period === 'WEEKLY' ? 'weekly' : 'daily'] || ''}`;
+  const newEvents = extra.events.filter((e) => e.status !== 'ENDED' && new Date(e.createdAt).getTime() > cutoff);
+  const readyMissions = extra.missions.filter((m) => m.completed && !m.claimed && !seen.missions.includes(missionKey(m)));
+  const newShop = extra.shop.filter((it) => !it.owned && it.createdAt && new Date(it.createdAt).getTime() > cutoff).slice(0, 10);
+
+  const isEmpty = newEvents.length === 0 && readyMissions.length === 0 && newShop.length === 0 && unreadChannels.length === 0 && unreadConversations.length === 0 && pendingIncoming.length === 0 && pendingTestimonials.length === 0 && pendingRelationships.length === 0;
 
   const [filter, setFilter] = useState('ALL');
   const markChannelReadLocal = useStore((s) => s.markChannelReadLocal);
@@ -121,6 +160,9 @@ export default function NotificationsPage() {
   // já faz (ChatWindow.jsx), só que pra todos os não lidos de uma vez.
   // Pedidos (amizade, depoimento, namoro) continuam: precisam de resposta.
   const markAllRead = () => {
+    const nextSeen = { at: Date.now(), missions: [...seen.missions, ...readyMissions.map(missionKey)] };
+    setSeen(nextSeen);
+    writeSeen(user.id, nextSeen);
     unreadChannels.forEach((ch) => { markChannelRead(ch.id).catch(() => {}); markChannelReadLocal(ch.id); });
     unreadConversations.forEach((c) => { markConversationRead(c.id).catch(() => {}); markConversationReadLocal(c.id); });
   };
@@ -137,13 +179,16 @@ export default function NotificationsPage() {
     ...pendingIncoming.map((f) => ({ kind: 'friend', cat: 'REQUESTS', key: `f-${f.id}`, at: f.createdAt, data: f })),
     ...unreadChannels.map((ch) => ({ kind: 'channel', cat: 'MENTIONS', key: `c-${ch.id}`, at: ch.lastMessage?.createdAt, data: ch })),
     ...unreadConversations.map((c) => ({ kind: 'conversation', cat: 'MESSAGES', key: `d-${c.id}`, at: c.lastMessage?.createdAt, data: c })),
+    ...newEvents.map((e) => ({ kind: 'event', cat: 'EVENTS', key: `e-${e.id}`, at: e.createdAt, data: e })),
+    ...readyMissions.map((m) => ({ kind: 'mission', cat: 'MISSIONS', key: `m-${m.id}`, at: new Date().toISOString(), data: m })),
+    ...newShop.map((it) => ({ kind: 'shop', cat: 'SHOP', key: `s-${it.id}`, at: it.createdAt, data: it })),
   ];
   const counts = { ALL: items.length };
   items.forEach((it) => { counts[it.cat] = (counts[it.cat] || 0) + 1; });
   const visible = items
     .filter((it) => filter === 'ALL' || it.cat === filter)
     .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
-  const canMarkAll = unreadChannels.length + unreadConversations.length > 0;
+  const canMarkAll = unreadChannels.length + unreadConversations.length + newEvents.length + readyMissions.length + newShop.length > 0;
 
   const renderItem = (it) => {
     if (it.kind === 'testimonial') {
@@ -192,6 +237,46 @@ export default function NotificationsPage() {
         </li>
       );
     }
+    if (it.kind === 'event') {
+      const e = it.data;
+      return (
+        <li key={it.key} className="notifications-item nt-item unread clickable" data-kind="event" onClick={() => navigate(`/eventos/${e.id}`)}>
+          <NtIcon kind="event" />
+          <div className="nt-body">
+            <div className="nt-line"><span className="truncate">{e.status === 'ACTIVE' ? 'Evento acontecendo: ' : 'Novo evento: '}<strong>{e.title}</strong></span><time>{when(e.createdAt)}</time></div>
+            <span className="nt-sub truncate">{e.startsAt ? `Começa ${new Date(e.startsAt).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : (e.description || '').slice(0, 120)}</span>
+          </div>
+          <span className="nt-dot" aria-label="Não lida" />
+        </li>
+      );
+    }
+    if (it.kind === 'mission') {
+      const m = it.data;
+      const reward = [m.rewardCoins ? `${m.rewardCoins} moedas` : '', m.rewardGems ? `${m.rewardGems} gemas` : '', m.rewardXp ? `${m.rewardXp} XP` : ''].filter(Boolean).join(' · ');
+      return (
+        <li key={it.key} className="notifications-item nt-item unread clickable" data-kind="mission" onClick={() => navigate('/missoes')}>
+          <NtIcon kind="mission" />
+          <div className="nt-body">
+            <div className="nt-line"><span className="truncate">Missão concluída: <strong>{m.title}</strong></span><time>{m.period === 'WEEKLY' ? 'semanal' : 'diária'}</time></div>
+            <span className="nt-sub truncate">Resgate sua recompensa{reward ? ` · ${reward}` : ''}</span>
+          </div>
+          <span className="nt-dot" aria-label="Não lida" />
+        </li>
+      );
+    }
+    if (it.kind === 'shop') {
+      const s = it.data;
+      return (
+        <li key={it.key} className="notifications-item nt-item unread clickable" data-kind="shop" onClick={() => navigate('/loja')}>
+          <NtIcon kind="shop" />
+          <div className="nt-body">
+            <div className="nt-line"><span className="truncate">Novidade na Loja: <strong>{s.name || s.title || s.shopKind}</strong></span><time>{when(s.createdAt)}</time></div>
+            <span className="nt-sub truncate">{s.shopKind}</span>
+          </div>
+          <span className="nt-dot" aria-label="Não lida" />
+        </li>
+      );
+    }
     if (it.kind === 'channel') {
       const ch = it.data;
       const last = ch.lastMessage;
@@ -229,9 +314,9 @@ export default function NotificationsPage() {
       <div className="pk-inner narrow">
         <PageHero
           icon="bell" eyebrow="Central" title="Notificações"
-          desc="Menções, mensagens não lidas e pedidos que esperam sua resposta — tudo num lugar só."
+          desc="Menções, mensagens, pedidos, eventos, missões e novidades da Loja — tudo num lugar só."
           aside={canMarkAll && (
-            <button className="pk-btn" onClick={markAllRead}><Ico name="checkAll" size={18} /> Marcar todas como lidas</button>
+            <button className="pk-btn" onClick={markAllRead}><Ico name="checkAll" size={18} /> Marcar tudo como lido</button>
           )}
         />
 
@@ -265,7 +350,7 @@ export default function NotificationsPage() {
   );
 }
 
-const KIND_ICON = { testimonial: 'pen', relationship: 'heart', friend: 'userPlus', channel: 'at', conversation: 'mail' };
+const KIND_ICON = { testimonial: 'pen', relationship: 'heart', friend: 'userPlus', channel: 'at', conversation: 'mail', event: 'sparkles', mission: 'trophy', shop: 'store' };
 
 // Avatar de quem gerou + selinho com o ícone do tipo; sem pessoa, só o ícone.
 function NtIcon({ kind, user }) {

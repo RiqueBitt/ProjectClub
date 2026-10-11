@@ -97,12 +97,39 @@ async function getActiveMissions() {
   return list;
 }
 
-// Lembra (em memória) quais missões já foram concluídas neste período
-// pra não gravar no banco a cada mensagem depois de completar.
+// Dedupe de "já concluída neste período" e de reações: Redis com TTL até
+// o fim do período (vale entre instâncias e sobrevive a restart), com a
+// memória local como cache rápido e fallback quando o Redis está fora.
+let redisClient; // undefined = ainda não carregado; null = sem Redis
+function getRedis() {
+  if (redisClient === undefined) {
+    try { redisClient = require('../config/redis').redis; } catch { redisClient = null; }
+  }
+  return redisClient && redisClient.status === 'ready' ? redisClient : null;
+}
+
+// Segundos até o fim do período (+1 min de folga), mínimo 60s.
+function ttlUntilPeriodEnd(period, now = new Date()) {
+  const r = nextResets(now);
+  const end = new Date(period === 'WEEKLY' ? r.weekly : r.daily).getTime();
+  return Math.max(60, Math.ceil((end - now.getTime()) / 1000) + 60);
+}
+
 const doneSet = new Set();
-function markDone(key) {
+function markDone(key, period) {
   if (doneSet.size > 20000) doneSet.clear();
   doneSet.add(key);
+  const rc = getRedis();
+  if (rc) rc.set(`missions:done:${key}`, '1', 'EX', ttlUntilPeriodEnd(period)).catch(() => {});
+}
+async function isDone(key) {
+  if (doneSet.has(key)) return true;
+  const rc = getRedis();
+  if (!rc) return false;
+  try {
+    if (await rc.exists(`missions:done:${key}`)) { doneSet.add(key); return true; }
+  } catch { /* Redis instável — segue pelo banco */ }
+  return false;
 }
 
 // Conta progresso. Nunca lança erro (quem chama não espera).
@@ -115,11 +142,12 @@ async function track(userId, type, amount = 1, io = null) {
     for (const m of missions) {
       const key = periodKey(m.period, now);
       const memoKey = `${userId}|${m.id}|${key}`;
-      if (doneSet.has(memoKey)) continue;
+      // eslint-disable-next-line no-await-in-loop
+      if (await isDone(memoKey)) continue;
       const where = { userId_missionId_periodKey: { userId, missionId: m.id, periodKey: key } };
       // eslint-disable-next-line no-await-in-loop
       const existing = await prisma.userMissionProgress.findUnique({ where });
-      if (existing && existing.progress >= m.target) { markDone(memoKey); continue; }
+      if (existing && existing.progress >= m.target) { markDone(memoKey, m.period); continue; }
       const inc = Math.min(amount, m.target - (existing?.progress || 0));
       // eslint-disable-next-line no-await-in-loop
       const row = await prisma.userMissionProgress.upsert({
@@ -129,7 +157,7 @@ async function track(userId, type, amount = 1, io = null) {
       });
       const completed = row.progress >= m.target;
       if (completed) {
-        markDone(memoKey);
+        markDone(memoKey, m.period);
         if (!row.completedAt) {
           // eslint-disable-next-line no-await-in-loop
           await prisma.userMissionProgress.updateMany({ where: { id: row.id, completedAt: null }, data: { completedAt: now } });
@@ -145,16 +173,25 @@ async function track(userId, type, amount = 1, io = null) {
   }
 }
 
-// Reação: conta só uma vez por mensagem por pessoa (tirar e pôr de novo
-// não vale de novo) e não conta reação na própria mensagem.
+// Reação: conta só uma vez por mensagem por pessoa no período (tirar e
+// pôr de novo não vale de novo) e não conta reação na própria mensagem.
+// TTL até o fim da semana — cobre tanto missões diárias quanto semanais.
 const reactedSeen = new Map();
-function trackReaction(userId, messageId, authorId, io) {
+async function trackReaction(userId, messageId, authorId, io) {
   if (!userId || !messageId || userId === authorId) return;
   const k = `${userId}|${messageId}`;
   const now = Date.now();
   if (reactedSeen.has(k) && now - reactedSeen.get(k) < 7 * 24 * 3600 * 1000) return;
   if (reactedSeen.size > 50000) reactedSeen.clear();
   reactedSeen.set(k, now);
+  const rc = getRedis();
+  if (rc) {
+    try {
+      // NX: só a primeira vez grava; null = outra instância já contou.
+      const ok = await rc.set(`missions:react:${k}`, '1', 'EX', ttlUntilPeriodEnd('WEEKLY'), 'NX');
+      if (ok === null) return;
+    } catch { /* Redis instável — vale a memória local */ }
+  }
   track(userId, 'REACTIONS', 1, io);
 }
 
@@ -271,5 +308,5 @@ module.exports = {
   dayKey, weekKey, periodKey, nextResets,
   seedDefaultMissions, invalidateCache, getActiveMissions,
   track, trackReaction, listForUser, claim, startVoiceMinutesTicker,
-  _test: { doneSet, reactedSeen, serializeMission },
+  _test: { doneSet, reactedSeen, serializeMission, ttlUntilPeriodEnd, setRedis: (r) => { redisClient = r; } },
 };

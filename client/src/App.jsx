@@ -5,7 +5,8 @@ import { SocketProvider } from './context/SocketContext.jsx';
 import { VoiceProvider } from './context/VoiceContext.jsx';
 import { ContextMenuProvider } from './context/ContextMenuContext.jsx';
 import { useStore } from './store/useStore';
-import { getPlatformStatus, getCommunity } from './api/endpoints';
+import { getPlatformStatus } from './api/endpoints';
+import { startBoot, cachedBoot, onBootSection, bootstrapActive } from './utils/bootstrap';
 import MaintenanceScreen from './pages/MaintenanceScreen.jsx';
 import { playSound } from './utils/sounds';
 import LoadingScreen from './components/LoadingScreen.jsx';
@@ -96,20 +97,26 @@ function ProtectedRoute({ children }) {
     html.style.setProperty('--saturation', `${userSettings?.saturation ?? 100}%`);
   }, [userSettings]);
 
-  const checkPlatformStatus = () => getPlatformStatus().then((d) => {
+  const applyPlatformStatus = (d) => {
+    if (!d) return;
     setMaintenance((prev) => (sameData(prev, d) ? prev : d));
     const nextDisabled = d.disabledSystems || [];
     if (!sameData(useStore.getState().disabledSystems, nextDisabled)) useStore.getState().setDisabledSystems(nextDisabled);
-  }).catch(() => {});
+  };
+  const checkPlatformStatus = () => getPlatformStatus().then(applyPlatformStatus).catch(() => {});
+  // Com conta: o status vem dentro do pacote de abertura (utils/bootstrap.js)
+  // e das atualizações globais — sem requisição própria. Sem conta (tela
+  // de login), busca sozinho como antes.
+  useEffect(() => onBootSection('status', applyPlatformStatus), []);
   useEffect(() => {
-    checkPlatformStatus();
-  }, []);
+    if (!loading && !user) checkPlatformStatus();
+  }, [loading, user]);
   // Tempo real: o status (manutenção/sistemas desligados) segue o relógio
   // global, que pausa com a aba escondida. Sistemas desligados já chegam
   // por socket (system:toggles-update), então basta checar a cada 30s
   // (60s com o socket conectado) — antes era a cada 11s, uma consulta ao
   // banco por pessoa online o tempo todo.
-  useLiveRefresh(() => checkPlatformStatus(), { interval: 30000, realtimeInterval: 60000 });
+  useLiveRefresh(() => checkPlatformStatus(), { interval: 30000, realtimeInterval: 60000, enabled: !user || !bootstrapActive() });
 
   // A busca da comunidade (usada tanto pra saber "já carregou de
   // verdade" quanto pras fotos de perfil reais na tela de esqueleto —
@@ -124,13 +131,21 @@ function ProtectedRoute({ children }) {
   useEffect(() => {
     if (loading || !user || communityFetchStarted.current) return;
     communityFetchStarted.current = true;
-    getCommunity()
-      .then((d) => setCommunityPreview((d.members || []).slice(0, 7)))
+    // Pacote de abertura (uma requisição só, ver utils/bootstrap.js). Se
+    // já existe a cópia local da última vez, a tela abre na hora com ela
+    // e atualiza quando a resposta chegar.
+    const boot = startBoot(user.id);
+    const fromCache = cachedBoot()?.community;
+    if (fromCache) setCommunityPreview((fromCache.members || []).slice(0, 7));
+    boot.then((r) => {
+      if (r.data.status) applyPlatformStatus(r.data.status);
       // Se a busca falhar (rede caiu, etc.), não trava a pessoa numa
       // tela de carregamento pra sempre — considera "carregado" mesmo
       // assim (sem fotos de prévia) e deixa ela entrar no app normal,
       // que vai tentar essa mesma busca de novo por conta própria.
-      .catch(() => setCommunityPreview([]));
+      if (r.data.community) setCommunityPreview((r.data.community.members || []).slice(0, 7));
+      else if (!fromCache) setCommunityPreview([]);
+    }).catch(() => { if (!fromCache) setCommunityPreview([]); });
   }, [loading, user]);
 
   // Só considera "pronto" (esconde a tela de esqueleto) quando: a

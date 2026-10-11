@@ -21,7 +21,7 @@ import xIcon from '../assets/icons/social-x.png';
 import { proxyImage } from '../utils/imageProxy';
 import { nameStyleProps, nameStyleClassName } from '../utils/nameStyle';
 import { badgeHasImage } from '../utils/badgeRarity';
-import { PfIcon, PfCard } from './modals/UserProfileModal.jsx';
+import { PfIcon, PfCard } from './modals/profileParts.jsx';
 import '../styles/profile.css';
 import BannerImage from './ProfileBanner.jsx';
 import { useLiveRefresh } from '../utils/liveRefresh';
@@ -57,12 +57,12 @@ export default function DMProfilePanel({ onToggle }) {
     }).catch(() => setData(null)).finally(() => setLoading(false));
   }, [other?.id]);
 
-  // Tempo real (11s): perfil da outra pessoa da DM, em silêncio.
+  // Tempo real (30s; 60s com socket): perfil da outra pessoa da DM, em silêncio.
   useLiveRefresh(async ({ put, ok }) => {
     const result = await getUserProfile(other.id);
     put(setData)(result);
     if (ok() && result?.activity) useStore.getState().setActivity(other.id, result.activity);
-  }, { enabled: !!other?.id && !!data, key: other?.id });
+  }, { enabled: !!other?.id && !!data, key: other?.id, interval: 30000, realtimeInterval: 60000 });
 
   if (!conversation) return null;
 

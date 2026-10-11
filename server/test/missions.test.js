@@ -60,6 +60,7 @@ const fakePrisma = {
 require.cache[path.resolve(__dirname, '../src/config/prisma.js')] = { exports: fakePrisma, loaded: true, id: 'prisma' };
 
 const missions = require('../src/services/missions');
+missions._test.setRedis(null); // sem Redis: fallback em memória
 
 test('chaves de período usam o fuso de São Paulo', () => {
   // 02:30 UTC de sábado 11/10 = 23:30 de sexta 10/10 em SP.
@@ -109,6 +110,43 @@ test('resgate dá a recompensa uma vez só e registra no histórico', async () =
   await assert.rejects(() => missions.claim('u1', 'm2'), (e) => e.status === 400); // não concluída
   assert.equal(users.get('u1').coins, 30);
   assert.ok(ledger.some((t) => t.kind === 'MISSION' && t.coins === 30));
+});
+
+test('dedupe no Redis: TTL até o fim do período e reação contada uma vez entre instâncias', async () => {
+  const store = new Map();
+  const ttls = new Map();
+  const fakeRedis = {
+    status: 'ready',
+    set: async (key, val, ex, ttl, nx) => {
+      if (nx === 'NX' && store.has(key)) return null;
+      store.set(key, val); ttls.set(key, ttl); return 'OK';
+    },
+    exists: async (key) => (store.has(key) ? 1 : 0),
+  };
+  missions._test.setRedis(fakeRedis);
+  try {
+    // TTL: 02:30 UTC -> fim do dia SP em 30 min (+60s de folga)
+    assert.equal(missions._test.ttlUntilPeriodEnd('DAILY', new Date('2026-10-11T02:30:00Z')), 30 * 60 + 60);
+    // m1 já concluída: memória limpa (simula outra instância/restart), Redis lembra
+    missions._test.doneSet.clear();
+    await missions.track('u1', 'MESSAGES', 1, null);
+    const doneKeys = [...store.keys()].filter((key) => key.startsWith('missions:done:u1|m1|'));
+    assert.equal(doneKeys.length, 1, 'concluída gravada no Redis');
+    assert.ok(ttls.get(doneKeys[0]) > 0);
+    // Reação: outra instância (memória vazia) não conta de novo
+    missions._test.reactedSeen.clear();
+    await missions.trackReaction('u1', 'msgC', 'u2', null);
+    missions._test.reactedSeen.clear();
+    await missions.trackReaction('u1', 'msgC', 'u2', null);
+    await new Promise((r) => setTimeout(r, 20));
+    const list = await missions.listForUser('u1');
+    assert.equal(list.missions.find((m) => m.id === 'm3').progress, 2); // msgA + msgC
+    // Redis caiu: volta pro fallback em memória sem erro
+    fakeRedis.status = 'reconnecting';
+    await missions.trackReaction('u1', 'msgD', 'u2', null);
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal((await missions.listForUser('u1')).missions.find((m) => m.id === 'm3').progress, 3);
+  } finally { missions._test.setRedis(null); }
 });
 
 test('feature flags: casas e figurinhas desligadas devolvem 404', () => {

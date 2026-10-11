@@ -30,11 +30,27 @@ const messages = [
   msg('m3', me, 'bora! abro a sala de voz às 21h', 29),
   msg('m4', users[1], 'Lembrete: o evento de figurinhas começa amanhã 🎉', 5),
 ];
+// GET /api/bootstrap (pacote de abertura, ver src/utils/bootstrap.js): monta
+// cada seção chamando este mesmo mock pela rota antiga.
+const BOOT_PATHS = { me: '/auth/me', community: '/community', conversations: '/conversations', friends: '/friends', clan: '/clans/mine', usableEmojis: '/users/me/usable-emojis', stickers: '/community/stickers', emojiCollections: '/community/collections/EMOJI', stickerCollections: '/community/collections/STICKER', favoriteGifs: '/users/me/favorite-gifs', clubs: '/communities', settings: '/users/me/settings', uiLayout: '/ui-layout', status: '/platform/status', announcement: '/platform/announcements/active', events: '/events' };
+function subRequest(path) {
+  let body;
+  handler({ request: () => ({ url: () => 'http://mock/api' + path, method: () => 'GET', postData: () => null, headers: () => ({}) }), fulfill: (o) => { body = o.body; } });
+  return body === undefined ? null : JSON.parse(body);
+}
+function bootstrapMock(route, url) {
+  const only = (url.searchParams.get('only') || '').split(',').filter((k) => BOOT_PATHS[k]);
+  const data = {}; const hashes = {};
+  (only.length ? only : Object.keys(BOOT_PATHS)).forEach((k) => { data[k] = subRequest(BOOT_PATHS[k]); hashes[k] = 'h' + JSON.stringify(data[k]).length; });
+  return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ v: 1, at: Date.now(), hashes, data, failed: {} }) });
+}
 export function handler(route) {
   const req = route.request();
   const url = new URL(req.url());
   const p = url.pathname.replace(/^\/api/, '');
   const json = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+  if (p === '/bootstrap') return bootstrapMock(route, url);
+  { const m = p.match(/^\/users\/([^/]+)\/summary$/); if (m) return json({ profile: subRequest('/users/' + m[1]), fan: subRequest('/fans/' + m[1]), traits: subRequest('/traits/' + m[1]), polls: subRequest('/profile-polls/author/' + m[1]) }); }
 
   const clubs = [{ id: 'k1', slug: 'minecraft', name: 'Minecraft', description: 'Builds, seeds e servidores', iconUrl: null, memberCount: 182, postCount: 40 }, { id: 'k2', slug: 'setup', name: 'Setups', description: 'Mostre seu setup', iconUrl: av('#ff7a18','#7a1f00'), memberCount: 95, postCount: 12 }];
   const post = (id, title, content, c, a, score, cc, mins, extra = {}) => ({ id, title, content, type: 'TEXT', community: clubs[c], author: users[a], score, myVote: 0, commentCount: cc, createdAt: new Date(now - mins * 60000).toISOString(), ...extra });

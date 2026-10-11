@@ -163,6 +163,10 @@ export function VoiceProvider({ children }) {
   const [participants, setParticipants] = useState({});
   const [localSpeaking, setLocalSpeaking] = useState(false);
   const localSpeakingRef = useRef(false);
+  // Extras de voz: último instante com som no mic local (aviso "microfone
+  // sem som") e qualidade de rede por uid (Agora network-quality, 0-6).
+  const localSoundAtRef = useRef(0);
+  const [netQuality, setNetQuality] = useState({});
   // BUG CORRIGIDO ("transmitindo mas aparece como câmera / não aparece
   // a tela"): antes, cada vídeo remoto era classificado UMA vez, no
   // momento em que chegava do Agora, como "tela" ou "câmera" olhando o
@@ -298,6 +302,7 @@ export function VoiceProvider({ children }) {
         const speaking = level > 15;
         const uidStr = String(uid);
         if (uidStr === String(user?.id)) {
+          if (level >= 1) localSoundAtRef.current = Date.now();
           // Só avisa/re-renderiza quando muda (antes o emit ficava dentro
           // do updater do setState, que o React pode rodar duas vezes).
           if (localSpeakingRef.current !== speaking) {
@@ -309,6 +314,20 @@ export function VoiceProvider({ children }) {
           setParticipants((s) => (s[uidStr] && !!s[uidStr].speaking !== speaking ? { ...s, [uidStr]: { ...s[uidStr], speaking } } : s));
         }
       });
+    });
+
+    // Qualidade da conexão (a cada ~2s): a minha + a dos outros. Só
+    // re-renderiza quando algum valor muda.
+    client.on('network-quality', (stats) => {
+      try {
+        const next = { [String(user?.id)]: Math.max(stats?.uplinkNetworkQuality || 0, stats?.downlinkNetworkQuality || 0) };
+        const remote = client.getRemoteNetworkQuality?.() || {};
+        Object.entries(remote).forEach(([uid, q]) => { next[String(uid)] = Math.max(q?.uplinkNetworkQuality || 0, q?.downlinkNetworkQuality || 0); });
+        setNetQuality((prev) => {
+          const keys = Object.keys(next);
+          return keys.length === Object.keys(prev).length && keys.every((k) => prev[k] === next[k]) ? prev : next;
+        });
+      } catch { /* versão do SDK sem isso — só não mostra */ }
     });
 
     agoraClientRef.current = client;
@@ -516,6 +535,7 @@ export function VoiceProvider({ children }) {
     Object.values(soundboardAudiosRef.current).forEach((el) => { el.pause(); el.src = ''; });
     soundboardAudiosRef.current = {};
     if (syncTimerRef.current) { clearTimeout(syncTimerRef.current); syncTimerRef.current = null; }
+    setNetQuality({});
 
     // BUG CORRIGIDO ("demora pra sair" / "tela travada ao sair e entrar
     // de novo"): a tela só limpava DEPOIS do Agora terminar de sair
@@ -1031,6 +1051,7 @@ export function VoiceProvider({ children }) {
       raiseHand, setParticipantRole, stepDownFromStage,
       incomingCall, answerIncomingCall, declineIncomingCall,
       switchMicrophone,
+      netQuality, getMicLastSoundAt: () => localSoundAtRef.current,
     }}
     >
       {children}

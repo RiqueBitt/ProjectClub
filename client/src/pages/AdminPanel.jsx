@@ -1285,6 +1285,14 @@ function AchievementForm({ achievement, progressTypes, rarities, onClose, onSave
       } else {
         const { achievement: created } = await adminCreateAchievement({ key, name, description, rarity, progressType, target });
         id = created.id;
+        // Já criada: falha no ícone não pode deixar o form em "criar" (daria 409 ao tentar de novo).
+        if (iconFile) {
+          try { await adminUploadAchievementIcon(id, iconFile); } catch (err) {
+            alert(`Conquista criada, mas o ícone não foi enviado (${err.response?.data?.error || 'erro no upload'}). Use "Editar" para enviar de novo.`);
+          }
+        }
+        onSaved();
+        return;
       }
       if (iconFile) await adminUploadAchievementIcon(id, iconFile);
       onSaved();
@@ -1424,18 +1432,33 @@ function EventsAdminTab() {
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
   const [error, setError] = useState('');
+  // Banner/ícone escolhidos já na criação — enviados logo após criar (precisam do id).
+  const [newBanner, setNewBanner] = useState(null);
+  const [newIcon, setNewIcon] = useState(null);
+  const [publishing, setPublishing] = useState(false);
 
   const refresh = () => listEvents().then((d) => setEvents(d.events));
   useEffect(() => { refresh(); }, []);
 
+  // datetime-local não tem fuso: converte no navegador pra ISO (senão o
+  // servidor interpretaria no fuso dele e o horário ficaria deslocado).
+  const toIso = (v) => { if (!v) return undefined; const d = new Date(v); return isNaN(d.getTime()) ? undefined : d.toISOString(); };
+
   const publish = async (e) => {
     e.preventDefault();
     setError('');
+    if (startsAt && endsAt && new Date(endsAt) < new Date(startsAt)) { setError('O fim precisa ser depois do início.'); return; }
+    setPublishing(true);
     try {
-      await createEvent({ title, description, startsAt: startsAt || undefined, endsAt: endsAt || undefined });
-      setTitle(''); setDescription(''); setStartsAt(''); setEndsAt('');
+      const { event: created } = await createEvent({ title, description, startsAt: toIso(startsAt), endsAt: toIso(endsAt) });
+      const failed = [];
+      if (created?.id && newBanner) await uploadEventBanner(created.id, newBanner).catch(() => failed.push('banner'));
+      if (created?.id && newIcon) await uploadEventIcon(created.id, newIcon).catch(() => failed.push('ícone'));
+      setTitle(''); setDescription(''); setStartsAt(''); setEndsAt(''); setNewBanner(null); setNewIcon(null);
+      if (failed.length) setError(`Evento criado, mas não deu pra enviar: ${failed.join(' e ')}. Use os botões na lista pra tentar de novo.`);
       refresh();
     } catch (err) { setError(err.response?.data?.error || 'Erro ao criar evento.'); }
+    finally { setPublishing(false); }
   };
 
   const changeStatus = async (id, status) => {
@@ -1445,13 +1468,17 @@ function EventsAdminTab() {
 
   const onBanner = async (id, e) => {
     const file = e.target.files[0]; if (!file) return;
-    await uploadEventBanner(id, file);
+    setError('');
+    try { await uploadEventBanner(id, file); } catch (err) { setError(err.response?.data?.error || 'Não foi possível enviar o banner.'); }
+    e.target.value = '';
     refresh();
   };
 
   const onIcon = async (id, e) => {
     const file = e.target.files[0]; if (!file) return;
-    await uploadEventIcon(id, file);
+    setError('');
+    try { await uploadEventIcon(id, file); } catch (err) { setError(err.response?.data?.error || 'Não foi possível enviar o ícone.'); }
+    e.target.value = '';
     refresh();
   };
 
@@ -1474,8 +1501,12 @@ function EventsAdminTab() {
           <label>INÍCIO (opcional)<input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></label>
           <label>FIM (opcional)<input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} /></label>
         </div>
+        <div className="display-name-row">
+          <label>BANNER (opcional){newBanner && <span className="dim"> · {newBanner.name}</span>}<input type="file" accept="image/*" onChange={(e) => setNewBanner(e.target.files[0] || null)} /></label>
+          <label>ÍCONE (opcional){newIcon && <span className="dim"> · {newIcon.name}</span>}<input type="file" accept="image/*" onChange={(e) => setNewIcon(e.target.files[0] || null)} /></label>
+        </div>
         {error && <div className="auth-error">{error}</div>}
-        <button type="submit" className="btn-primary">Criar evento</button>
+        <button type="submit" className="btn-primary" disabled={publishing}>{publishing ? 'Criando...' : 'Criar evento'}</button>
       </form>
       <div className="admin-users-list" style={{ marginTop: 16 }}>
         {events.map((ev) => (
@@ -2226,19 +2257,37 @@ function BadgesTab() {
   const [form, setForm] = useState({ key: '', name: '', description: '', icon: '', rarity: 'COMMON', ageYears: '', priority: '0' });
   const [error, setError] = useState('');
   const [uploadingIcon, setUploadingIcon] = useState(false);
+  // Imagem escolhida durante a criação — enviada logo após criar (precisa do id).
+  const [pendingIcon, setPendingIcon] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   const refresh = () => { setLoading(true); adminListBadges().then((d) => setBadges(d.badges)).finally(() => setLoading(false)); };
   useEffect(refresh, []);
 
-  const startCreate = () => { setEditing('new'); setForm({ key: '', name: '', description: '', icon: '', rarity: 'COMMON', ageYears: '', priority: '0' }); setError(''); };
+  const startCreate = () => { setEditing('new'); setPendingIcon(null); setForm({ key: '', name: '', description: '', icon: '', rarity: 'COMMON', ageYears: '', priority: '0' }); setError(''); };
   const startEdit = (b) => { setEditing(b.id); setForm({ key: b.key, name: b.name, description: b.description || '', icon: b.icon, rarity: b.rarity || 'COMMON', ageYears: b.ageYears || '', priority: String(b.priority ?? 0) }); setError(''); };
-  const cancel = () => { setEditing(null); setError(''); };
+  const cancel = () => { setEditing(null); setPendingIcon(null); setError(''); };
 
   const save = async () => {
     setError('');
+    if (!form.name.trim()) { setError('Dê um nome para a insígnia.'); return; }
+    setSaving(true);
     try {
       if (editing === 'new') {
-        await adminCreateBadge(form);
+        const created = await adminCreateBadge({ ...form, icon: form.icon.trim() || '🏅' });
+        if (pendingIcon && created?.badge?.id) {
+          try {
+            await adminUploadBadgeIcon(created.badge.id, pendingIcon);
+          } catch (err) {
+            // A insígnia já existe — mantém aberta em modo edição para tentar de novo.
+            setEditing(created.badge.id);
+            setPendingIcon(null);
+            setError(`Insígnia criada, mas a imagem não foi enviada: ${err.response?.data?.error || 'erro no upload'}. Escolha a imagem de novo.`);
+            refresh();
+            return;
+          }
+        }
+        setPendingIcon(null);
       } else {
         await adminUpdateBadge(editing, { name: form.name, description: form.description, icon: form.icon, rarity: form.rarity, ageYears: form.ageYears || null, priority: form.priority });
       }
@@ -2246,12 +2295,16 @@ function BadgesTab() {
       refresh();
     } catch (err) {
       setError(err.response?.data?.error || 'Não foi possível salvar a insígnia.');
+    } finally {
+      setSaving(false);
     }
   };
 
   const onIconFile = async (e) => {
     const file = e.target.files[0];
-    if (!file || editing === 'new') return; // image upload only works once the badge already exists (needs an id)
+    if (!file) return;
+    // Na criação ainda não há id: guarda o arquivo e envia depois de criar.
+    if (editing === 'new') { setPendingIcon(file); return; }
     setUploadingIcon(true);
     try {
       await adminUploadBadgeIcon(editing, file);
@@ -2292,6 +2345,15 @@ function BadgesTab() {
             ÍCONE (emoji, usado se não houver imagem)
             <input value={form.icon} maxLength={8} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))} placeholder="🏅" />
           </label>
+          {editing === 'new' && (
+            <label>
+              ÍCONE (imagem, opcional — tem prioridade sobre o emoji)
+              <div className="admin-badge-icon-upload">
+                <input key={pendingIcon ? 'com-imagem' : 'sem-imagem'} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={onIconFile} />
+                {pendingIcon && <button type="button" className="btn-link danger" onClick={() => setPendingIcon(null)}>Remover imagem</button>}
+              </div>
+            </label>
+          )}
           {editing !== 'new' && (
             <label>
               ÍCONE (imagem, opcional — tem prioridade sobre o emoji)
@@ -2312,7 +2374,7 @@ function BadgesTab() {
           </label>
           {editing === 'new' && (
             <label>
-              CHAVE (identificador único, sem espaços)
+              CHAVE (opcional — gerada a partir do nome se ficar vazia)
               <input value={form.key} maxLength={40} onChange={(e) => setForm((f) => ({ ...f, key: e.target.value }))} placeholder="EX_MINHA_INSIGNIA" />
             </label>
           )}
@@ -2345,7 +2407,7 @@ function BadgesTab() {
           {error && <div className="auth-error">{error}</div>}
           <div className="modal-actions">
             <button className="btn-link" onClick={cancel}>Cancelar</button>
-            <button className="btn-primary" onClick={save}>Salvar</button>
+            <button className="btn-primary" onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button>
           </div>
         </div>
       )}

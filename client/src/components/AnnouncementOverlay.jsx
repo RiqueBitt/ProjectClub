@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getActiveAnnouncement, dismissAnnouncement } from '../api/endpoints';
 import { proxyImage } from '../utils/imageProxy';
 import { useLiveRefresh } from '../utils/liveRefresh';
+import { bootSection, onBootSection, bootstrapActive } from '../utils/bootstrap';
 
 // Checked once on app load and shown full-screen, "OK to dismiss" style —
 // see announcementController.js's getActiveAnnouncement for how the
@@ -14,11 +15,18 @@ export default function AnnouncementOverlay() {
   const [announcement, setAnnouncement] = useState(null);
 
   const check = () => getActiveAnnouncement().then((d) => setAnnouncement(d.announcement)).catch(() => {});
-  useEffect(() => { check(); }, []);
+  // Primeira checagem vem do pacote de abertura (utils/bootstrap.js) e
+  // anúncio novo chega pela atualização global — sem requisição própria.
+  useEffect(() => {
+    const fromBoot = bootSection('announcement');
+    if (fromBoot) fromBoot.then((d) => setAnnouncement(d?.announcement || null)).catch(() => check());
+    else check();
+    return onBootSection('announcement', (d) => { if (d?.announcement) setAnnouncement((cur) => cur || d.announcement); });
+  }, []);
 
   // Tempo real: anúncio novo aparece sem recarregar (33s, só enquanto
   // nenhum está aberto na tela).
-  useLiveRefresh(({ ok }) => getActiveAnnouncement().then((d) => { if (ok() && d.announcement) setAnnouncement(d.announcement); }), { enabled: !announcement, interval: 60000 });
+  useLiveRefresh(({ ok }) => getActiveAnnouncement().then((d) => { if (ok() && d.announcement) setAnnouncement(d.announcement); }), { enabled: !announcement && !bootstrapActive(), interval: 60000 });
 
   if (!announcement) return null;
 

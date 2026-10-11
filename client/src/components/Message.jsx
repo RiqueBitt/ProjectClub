@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
-import { useStore, messageMentionsUser } from '../store/useStore';
+import { useStore, messageMentionsUser, roomKeyFor } from '../store/useStore';
 import {
   editMessage, deleteMessage, togglePinMessage, reactToMessage,
   warnMember, timeoutMember, addFavoriteGif, removeFavoriteGif, sendMessage, votePoll, reportMessage,
@@ -31,6 +31,7 @@ import { proxyImage } from '../utils/imageProxy';
 import { InternalLinkCards } from './InternalLinkCard.jsx';
 import { findInternalLinks } from '../utils/internalLinks';
 import { cssZoom } from '../utils/cssZoom';
+import { registerEditor, getRetry, clearRetry } from '../utils/chatComposerBus';
 
 // BUG CORRIGIDO: <img src={...avatarUrl}> quebrava (bloqueado pela CSP
 // img-src) quando o autor da mensagem respondida tem avatar de pinguim
@@ -85,6 +86,13 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
   const favoriteGifs = useStore((s) => s.favoriteGifs);
   const addFavoriteGifLocal = useStore((s) => s.addFavoriteGifLocal);
   const removeFavoriteGifLocal = useStore((s) => s.removeFavoriteGifLocal);
+
+  // Seta pra cima no compositor vazio abre a edição desta mensagem (só as minhas, já enviadas).
+  const canEditViaKey = isOwn && !message.pending && !message.failed && !String(message.id).startsWith('temp-');
+  useEffect(() => {
+    if (!canEditViaKey) return undefined;
+    return registerEditor(message.id, () => { setDraft(message.content || ''); setEditing(true); });
+  }, [canEditViaKey, message.id, message.content]);
 
   const saveEdit = async () => {
     if (draft.trim() && draft !== message.content) await editMessage(message.id, draft.trim());
@@ -483,6 +491,16 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
           </>
         )}
 
+
+        {message.failed && (
+          <div className="message-failed-row" role="alert">
+            <span>Não foi enviada.</span>
+            {getRetry(message.id) && (
+              <button type="button" className="message-failed-btn" onClick={() => getRetry(message.id)?.()}>Tentar de novo</button>
+            )}
+            <button type="button" className="message-failed-btn ghost" onClick={() => { clearRetry(message.id); useStore.getState().removeMessage(roomKeyFor({ conversationId: message.conversationId, channelId: message.channelId }), message.id); }}>Descartar</button>
+          </div>
+        )}
 
         {/* Cartões dos links internos do Project Club (post, modpack, perfil...) */}
         {!editing && !message.contentFiltered && <MessageLinkCards content={message.content} />}

@@ -79,18 +79,32 @@ function applyContentFilter(messages, level) {
   });
 }
 
+// Autor de mensagem mais leve: cada mensagem da lista (e cada reação,
+// resposta e voto de enquete) levava o perfil PÚBLICO INTEIRO do autor —
+// bio, banners, links de redes, ordem das seções do perfil, conquistas em
+// destaque... que só o perfil/miniperfil usam (e esses buscam o perfil
+// completo por conta própria em GET /users/:id). Pra desenhar a mensagem
+// (avatar, decoração, nome estilizado, tag, clã, pingente) basta o resto.
+const MESSAGE_AUTHOR_OMIT = new Set([
+  'bio', 'pronouns', 'bannerUrl', 'miniProfileBannerUrl', 'bannerFraming', 'miniProfileBannerFraming',
+  'youtubeUrl', 'steamUrl', 'robloxUrl', 'xUrl', 'accountXp', 'displayedAchievements', 'displayedAchievementsMini',
+  'idCardUrl', 'relationshipPartnerId', 'profileSectionOrder', 'profileSectionOpacity', 'levelBarColor',
+  'miniProfileColor', 'miniProfileButtonColor', 'customStatusExpiresAt', 'profileEffect',
+]);
+const MESSAGE_AUTHOR_FIELDS = Object.fromEntries(Object.entries(PUBLIC_USER_FIELDS).filter(([k]) => !MESSAGE_AUTHOR_OMIT.has(k)));
+
 const messageInclude = {
-  author: { select: PUBLIC_USER_FIELDS },
+  author: { select: MESSAGE_AUTHOR_FIELDS },
   attachments: true,
-  reactions: { include: { user: { select: PUBLIC_USER_FIELDS } } },
-  replyTo: { include: { author: { select: PUBLIC_USER_FIELDS } } },
+  reactions: { include: { user: { select: MESSAGE_AUTHOR_FIELDS } } },
+  replyTo: { include: { author: { select: MESSAGE_AUTHOR_FIELDS } } },
   mentions: { select: { targetType: true, targetId: true } },
   // Vote rows are intentionally not scoped to just the current user here —
   // the client needs every vote to compute per-option totals/percentages
   // and show who voted for what (see Message.jsx's PollCard), and tallies
   // the current user's own pick client-side by matching userId against
   // their own id.
-  poll: { include: { votes: { select: { userId: true, optionIndex: true, user: { select: PUBLIC_USER_FIELDS } } } } },
+  poll: { include: { votes: { select: { userId: true, optionIndex: true, user: { select: MESSAGE_AUTHOR_FIELDS } } } } },
 };
 
 async function assertAccess(req, { conversationId, channelId }, requireSend = false) {
@@ -225,10 +239,33 @@ function stripUnauthorizedMentions(content) {
   return content.replace(/@(everyone|here)\b/gi, '@​$1');
 }
 
+// Armazenamento mais leve (sem mudar o que a pessoa escreveu): \r\n vira
+// \n, some só o espaço/linhas em branco no FIM e no COMEÇO do texto (o
+// recuo de blocos de código no meio continua), texto só com espaços vira
+// null, e um teto generoso (8000) evita mensagem de dezenas de KB no banco.
+const MAX_CONTENT_CHARS = 8000;
+function normalizeContent(raw) {
+  if (raw === undefined || raw === null) return null;
+  let text = String(raw).replace(/\r\n?/g, '\n').replace(/^\s*\n/, '').replace(/\s+$/, '');
+  if (!text.trim()) return null;
+  if (text.length > MAX_CONTENT_CHARS) text = text.slice(0, MAX_CONTENT_CHARS);
+  return text;
+}
+// Colunas String sem @db.Text são VARCHAR(191) no MySQL — nome de arquivo
+// ou título maior que isso dava erro 500 no envio. Corta mantendo a extensão.
+function fitVarchar(value, max = 191) {
+  if (value === undefined || value === null) return value;
+  const str = String(value);
+  if (str.length <= max) return str;
+  const ext = (str.match(/\.[A-Za-z0-9]{1,8}$/) || [''])[0];
+  return str.slice(0, max - ext.length) + ext;
+}
+
 async function createMessage(req, res, next) {
   try {
-    const { conversationId, channelId, replyToId, title } = req.body;
-    let { content } = req.body;
+    const { conversationId, channelId, replyToId } = req.body;
+    const title = req.body.title ? (fitVarchar(String(req.body.title).trim()) || null) : req.body.title;
+    let content = normalizeContent(req.body.content);
     const access = await assertAccess(req, { conversationId, channelId }, true);
 
     // Item pedido: "Filtro de spam... proteção do sistema" — checado
@@ -417,7 +454,7 @@ async function createMessage(req, res, next) {
           // "não é spoiler" — nunca trava o envio por causa disso.
           create: (req.files || []).map((f, i) => ({
             url: f.url,
-            filename: f.originalname,
+            filename: fitVarchar(f.originalname || 'arquivo'),
             mimeType: f.mimetype,
             size: f.size,
             isSpoiler: !!spoilerFlags[i],
@@ -546,7 +583,7 @@ async function setPostIcon(req, res, next) {
 async function editMessage(req, res, next) {
   try {
     const { id } = req.params;
-    const { content } = req.body;
+    const content = normalizeContent(req.body.content);
     const existing = await prisma.message.findUnique({ where: { id } });
     if (!existing || existing.authorId !== req.user.id) return res.status(403).json({ error: 'Sem permissão.' });
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import ModsLibrary, { useModsLibrary } from './mods/ModsLibrary.jsx';
 import GameManager from './mods/GameManager.jsx';
 import { NxmLinkHandler } from './mods/NexusViews.jsx';
@@ -60,6 +60,19 @@ export default function ModsPage() {
       : 'Instalar modpacks precisa do app do Project Club no PC.');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [library.loading, library.games]);
+
+  // Biblioteca de jogos → "Ver mods": /jogos/mods?game=<steamAppId> abre
+  // direto o gerenciador desse jogo quando a lista local termina de carregar.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const wantedGame = Number(searchParams.get('game')) || null;
+  useEffect(() => {
+    if (!wantedGame || library.loading) return;
+    const target = library.games.find((g) => Number(g.steamAppId) === wantedGame);
+    if (target) openGame(target);
+    else setNotice(library.desktopReady ? 'Esse jogo não foi encontrado na sua Steam neste PC.' : 'Gerenciar mods precisa do app do Project Club no PC.');
+    setSearchParams((p) => { const n = new URLSearchParams(p); n.delete('game'); return n; }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantedGame, library.loading, library.games]);
 
   const backToLibrary = () => {
     setSelectedGame(null);

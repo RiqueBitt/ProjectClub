@@ -58,6 +58,8 @@ router.put('/me/shortcuts', shortcutsCtrl.setShortcut);
 router.delete('/me/shortcuts/:id', shortcutsCtrl.deleteShortcut);
 router.get('/search', ctrl.searchUsers);
 router.get('/:id', ctrl.getUser);
+// Cabeçalho do perfil completo numa requisição só (ver profileSummaryController).
+router.get('/:id/summary', require('../controllers/profileSummaryController').getProfileSummary);
 router.post('/:id/vote', ctrl.voteProfile);
 
 module.exports = router;

@@ -44,6 +44,21 @@ async function getLibrary(req, res, next) {
       take: 1000,
     });
 
+    // Capa: App ID que faltava — tira do link da capa salvo (desktop manda
+    // o header antigo da Steam) ou procura pelo nome (cacheado), esperando
+    // no máximo ~1,2s; o que não der tempo fica pra próxima carga.
+    const missing = [];
+    for (const g of rows) {
+      if (g.steamAppId) continue;
+      const fromUrl = gamePlaytime.steamAppIdFrom(g.iconUrl);
+      if (fromUrl) { g.steamAppId = fromUrl; continue; }
+      if (missing.length < 6) missing.push(g);
+    }
+    if (missing.length) {
+      const lookups = Promise.all(missing.map((g) => gamePlaytime.fillSteamAppId(targetId, g.gameKey, g.name).then((id) => { if (id) g.steamAppId = id; })));
+      await Promise.race([lookups, new Promise((r) => setTimeout(r, 1200))]);
+    }
+
     // Sessão em andamento: soma o tempo ainda não gravado e marca "jogando agora".
     const live = await gamePlaytime.getLiveSession(targetId).catch(() => null);
     const games = rows.map((g) => {

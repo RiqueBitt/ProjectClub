@@ -78,4 +78,55 @@ async function resolve(appId, kind, loadImage) {
   return job;
 }
 
-module.exports = { resolve, KINDS };
+// --- App ID pelo nome do jogo -------------------------------------------
+// Jogos detectados sem App ID (ex.: "Overwatch 2") ficavam sem capa. Busca
+// na loja da Steam (storesearch, sem chave) e só aceita nome IGUAL (sem
+// acento/®/™/pontuação) — nunca chuta um jogo parecido ("Minecraft" não
+// vira "Minecraft Dungeons"). Cache: Redis (30 dias achou / 3 dias não
+// achou) + memória.
+function normalizeGameName(name) {
+  return String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[®™©]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 120);
+}
+
+async function searchStore(term) {
+  const url = `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(term)}&l=english&cc=US`;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 6000);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal, headers: { Accept: 'application/json' } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data?.items) ? data.items : [];
+  } catch { return null; } finally { clearTimeout(timer); }
+}
+
+const byNameMemory = new Map(); // nome normalizado -> appId | 0
+const byNameInFlight = new Map();
+function rememberByName(n, id) {
+  if (byNameMemory.size > 3000) byNameMemory.clear();
+  byNameMemory.set(n, id || 0);
+}
+
+async function findAppIdByName(name, search = searchStore) {
+  const n = normalizeGameName(name);
+  if (!n) return null;
+  if (byNameMemory.has(n)) return byNameMemory.get(n) || null;
+  const key = `steamart:byname:${n}`;
+  const cached = await cacheGet(key);
+  if (cached !== null) { const id = Number(cached) || 0; rememberByName(n, id); return id || null; }
+  if (byNameInFlight.has(n)) return byNameInFlight.get(n);
+  const job = (async () => {
+    const items = await search(name);
+    if (items === null) { await cacheSet(key, '', 60 * 60); return null; } // Steam fora: tenta de novo em 1h
+    const hit = items.find((it) => Number.isInteger(Number(it?.id)) && (!it.type || it.type === 'app') && normalizeGameName(it.name) === n);
+    const id = hit ? Number(hit.id) : 0;
+    rememberByName(n, id);
+    await cacheSet(key, id ? String(id) : '', id ? 30 * 24 * 60 * 60 : 3 * 24 * 60 * 60);
+    return id || null;
+  })().finally(() => byNameInFlight.delete(n));
+  byNameInFlight.set(n, job);
+  return job;
+}
+
+module.exports = { resolve, KINDS, findAppIdByName, normalizeGameName, _test: { byNameMemory } };

@@ -71,6 +71,8 @@ import { useVoice } from '../../context/VoiceContext.jsx';
 import { CUSTOM_BACKGROUND_ENABLED } from '../../utils/featureFlags';
 import { LayoutCustomizer, AccessibilityExtras } from '../AppearanceSettings.jsx';
 import { trackSave, useSaveStatus } from '../../utils/saveIndicator';
+import { useShallow } from 'zustand/react/shallow';
+import { chatZoomSaver, interfaceZoomSaver } from '../../utils/zoomSave';
 import '../../styles/settings.css';
 import {
   getPreferredMicId, getPreferredSpeakerId, setPreferredSpeakerId,
@@ -80,7 +82,7 @@ import robloxConnIcon from '../../assets/icons/social-roblox.png';
 import xConnIcon from '../../assets/icons/social-x.png';
 import {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, removeIdCard,
-  setup2FA, confirm2FA, disable2FA, setLayoutStyle, setMyClanTag, setChatZoom, setInterfaceZoom,
+  setup2FA, confirm2FA, disable2FA, setLayoutStyle, setMyClanTag,
   setEmojiStyle as setEmojiStyleApi,
   listSessions, revokeSession, revokeOtherSessions,
   createProfilePoll, listProfilePollsByAuthor, deleteProfilePoll,
@@ -159,7 +161,12 @@ export default function UserSettingsModal({ onClose }) {
   const { t: translate } = useTranslation();
   const { user, setUser, logout } = useAuth();
   const navigate = useNavigate();
-  const { layoutStyle, setLayoutStyle: setLayoutStyleStore, customBackground, setCustomBackground, emojiStyle, setEmojiStyle: setEmojiStyleStore, myClan, chatZoom, setChatZoom: setChatZoomStore, interfaceZoom, setInterfaceZoom: setInterfaceZoomStore, userSettings, updateUserSetting } = useStore();
+  // Seletor com comparação rasa: antes era useStore() sem seletor, que
+  // re-renderizava este modal inteiro a CADA mudança do store (mensagem
+  // chegando, alguém digitando, presença...) enquanto ele estava aberto.
+  const { layoutStyle, setLayoutStyle: setLayoutStyleStore, customBackground, setCustomBackground, emojiStyle, setEmojiStyle: setEmojiStyleStore, myClan, chatZoom, setChatZoom: setChatZoomStore, interfaceZoom, setInterfaceZoom: setInterfaceZoomStore, userSettings, updateUserSetting } = useStore(useShallow((s) => ({
+    layoutStyle: s.layoutStyle, setLayoutStyle: s.setLayoutStyle, customBackground: s.customBackground, setCustomBackground: s.setCustomBackground, emojiStyle: s.emojiStyle, setEmojiStyle: s.setEmojiStyle, myClan: s.myClan, chatZoom: s.chatZoom, setChatZoom: s.setChatZoom, interfaceZoom: s.interfaceZoom, setInterfaceZoom: s.setInterfaceZoom, userSettings: s.userSettings, updateUserSetting: s.updateUserSetting,
+  })));
   const disabledSystems = useStore((s) => s.disabledSystems);
   // Ver adminController.js (TOGGLEABLE_SYSTEMS) e a nova opção "Cores
   // personalizadas para perfil" em /admin → Sistema: quando a staff
@@ -439,9 +446,11 @@ export default function UserSettingsModal({ onClose }) {
   // Item pedido: "sistema podendo mudar o zoom de 1,0 até 2,0... pra
   // melhor personalização" — mesmo padrão de pickTheme acima (aplica
   // na hora, salva na conta em segundo plano).
+  // Salva na conta só depois que a pessoa para de mexer (ver utils/zoomSave.js).
   const pickChatZoom = (z) => {
     setChatZoomStore(z);
-    trackSave(setChatZoom(z)).catch(() => {});
+    chatZoomSaver.known(user?.chatZoom);
+    chatZoomSaver.schedule(z);
   };
 
   // Item pedido: "adicione nas configurações do usuário ele poder
@@ -449,7 +458,8 @@ export default function UserSettingsModal({ onClose }) {
   // interface, mesmo padrão de pickChatZoom acima.
   const pickInterfaceZoom = (z) => {
     setInterfaceZoomStore(z);
-    trackSave(setInterfaceZoom(z)).catch(() => {});
+    interfaceZoomSaver.known(user?.interfaceZoom);
+    interfaceZoomSaver.schedule(z);
   };
 
   // Item pedido: "5 variantes de visual dos meus emoji" — mesmo padrão
