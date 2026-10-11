@@ -145,6 +145,7 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
   const [dur, setDur] = useState(0);
   const [title, setTitle] = useState('');
   const [blocked, setBlocked] = useState(false);
+  const stuckRef = useRef(0);
   const [volume, setVolume] = useState(readVol);
   const [showQueue, setShowQueue] = useState(false);
   const [showNext, setShowNext] = useState(false);
@@ -201,7 +202,7 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
           onStateChange: (e) => {
             const s = stateRef.current;
             if (e.data === 0 && s?.videoId) emitRef.current('yt:next', { fromVideoId: s.videoId }); // terminou
-            if (e.data === 1) { setBlocked(false); applyCaptions(e.target, readCaptionsPref()); }
+            if (e.data === 1) { stuckRef.current = 0; setBlocked(false); applyCaptions(e.target, readCaptionsPref()); }
             try { const d = e.target.getVideoData?.(); if (d?.title) setTitle(d.title); } catch { /* ignora */ }
           },
           onError: () => setApiError('Este vídeo não pode ser reproduzido aqui.'),
@@ -236,7 +237,16 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
       if (!st) return;
       const ps = p.getPlayerState?.();
       // Navegador bloqueou o som automático: pede um clique.
-      if (st.playing && (ps === 2 || ps === -1 || ps === 5)) setBlocked(true);
+      // Só mostra "Clique para assistir" se o player ficar parado de verdade
+      // por ~4s seguidos (antes piscava sozinho nos estados de transição:
+      // carregando, buscando, trocando de vídeo).
+      if (st.playing && (ps === 2 || ps === -1 || ps === 5)) {
+        stuckRef.current += 1;
+        if (stuckRef.current >= 4) setBlocked(true);
+      } else {
+        stuckRef.current = 0;
+        if (ps === 1 || ps === 3 || !st.playing) setBlocked(false);
+      }
       apply();
     }, 1000);
     return () => clearInterval(t);
@@ -282,7 +292,7 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
     setNativeCtl(on); setShowMenu(false);
   };
   const toggleMute = () => setVol(volume ? 0 : (lastVolRef.current || 80));
-  const unblock = () => { setBlocked(false); try { playerRef.current?.playVideo(); } catch { /* ignora */ } };
+  const unblock = () => { stuckRef.current = -3; setBlocked(false); try { playerRef.current?.playVideo(); } catch { /* ignora */ } };
   const toggleFull = () => {
     const el = wrapRef.current;
     if (document.fullscreenElement === el) document.exitFullscreen().catch(() => {});
@@ -308,6 +318,10 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
   return (
     <div ref={wrapRef} className={`vc-screen ytw-stage${isMusic ? ' ytw-music' : ''}${nativeCtl ? ' is-native' : ''}`} data-testid="yt-stage" tabIndex={-1} onKeyDown={onKeyDown}>
       <div className="ytw-player" ref={hostRef} />
+      {/* Capa transparente: clique no vídeo pausa/toca PARA TODOS (antes o clique
+          ia direto pro player do YouTube, pausava só aqui e a sincronização
+          voltava a tocar, fazendo o botão do meio piscar). */}
+      {!isMusic && !nativeCtl && <div className="ytw-shield" onClick={togglePlay} onDoubleClick={toggleFull} aria-hidden="true" />}
       {isMusic && (
         <div className="ytw-music-art" aria-hidden="true">
           <img className="ytw-music-bg" src={`https://i.ytimg.com/vi/${state.videoId}/hqdefault.jpg`} alt="" />
