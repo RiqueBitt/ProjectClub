@@ -467,3 +467,8 @@
   .pfx-head-activity { max-width: none; padding-top: 12px; }
   .modal-box.profile-modal-fullscreen .profile-modal-body { padding-left: 12px; padding-right: 12px; }
 }
+
+/* Perfil grande ocupa toda a largura disponível (antes parava em 1180px
+   e sobrava uma faixa vazia à direita em telas largas). */
+.modal-overlay .modal-box.profile-modal-fullscreen .pf { max-width: none; }
+.modal-overlay .modal-box.profile-modal-fullscreen .profile-top-row { max-width: none; }
