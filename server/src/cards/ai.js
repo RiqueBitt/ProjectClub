@@ -47,6 +47,10 @@ function candidateActions(state, seat) {
     else out.push({ type: 'PLAY', uid });
   }
   for (const a of legal.attackers) for (const t of legal.targets[a]) out.push({ type: 'ATTACK', uid: a, target: t });
+  if (legal.power) {
+    if (legal.power.targets) for (const t of legal.power.targets.slice(0, 8)) out.push({ type: 'POWER', target: t });
+    else out.push({ type: 'POWER' });
+  }
   return out;
 }
 

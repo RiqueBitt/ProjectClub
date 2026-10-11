@@ -243,7 +243,9 @@ const start = handle(async (req, res) => {
   if (!lock.count) throw new CardError('Essa sala já começou.');
   try {
     const custom = safeJson(l.rules || 'null', null);
-    const rules = l.custom && custom ? { ...settings.rules, ...custom } : { ...settings.rules };
+    const boardId = await S.pickBoardId(l.boardId);
+    const base = await S.matchRules(settings, boardId);
+    const rules = l.custom && custom ? { ...base, ...custom } : base;
     const catalog = await S.getCatalog();
     const ctx = { settings, rules: l.custom ? custom : null, catalog, format: l.format };
     const seated = [];
@@ -267,7 +269,7 @@ const start = handle(async (req, res) => {
         mode: vsBot1v1 ? 'PVE' : 'PVP', difficulty: vsBot1v1 ? seated[1].difficulty : null, format: l.format, custom: l.custom, lobbyId: l.id,
         p1Id: ids[0], p2Id: ids[1] || null, p3Id: duo ? ids[2] : null, p4Id: duo ? ids[3] : null,
         status: 'ACTIVE', state: JSON.stringify(state), initialState, actions: JSON.stringify(bots.actions), version: 1,
-        boardId: await S.pickBoardId(l.boardId), turnDeadline: vsBot1v1 ? null : new Date(Date.now() + rules.turnSeconds * 1000),
+        boardId, turnDeadline: vsBot1v1 ? null : new Date(Date.now() + rules.turnSeconds * 1000),
       },
     });
     await prisma.cardLobby.update({ where: { id: l.id }, data: { matchId: match.id } });

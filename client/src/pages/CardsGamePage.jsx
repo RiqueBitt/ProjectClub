@@ -17,7 +17,7 @@ import WelcomeModal from '../cards/WelcomeModal.jsx';
 import LobbyRoom from '../cards/LobbyRoom.jsx';
 import {
   cardsHome, cardsClaimStarter, cardsCollection, cardsStartPve, cardsMatch, cardsChallenge, cardsRanking,
-  cardsUserCollection, cardsWatch, cardsReplay, errMsg,
+  cardsUserCollection, cardsWatch, cardsReplay, cardsStartTutorial, errMsg,
 } from '../cards/api';
 import '../styles/cards.css';
 
@@ -151,11 +151,13 @@ export default function CardsGamePage() {
       else reload();
     };
     const onMarket = () => { reload(); loadCards(); };
+    const onLobby = (msg) => { if (msg?.again && msg.code) setRoom({ code: msg.code }); };
+    socket.on('cards:lobby', onLobby);
     socket.on('cards:challenge', reload);
     socket.on('cards:trade', reload);
     socket.on('cards:match', onMatch);
     socket.on('cards:market', onMarket);
-    return () => { socket.off('cards:challenge', reload); socket.off('cards:trade', reload); socket.off('cards:match', onMatch); socket.off('cards:market', onMarket); };
+    return () => { socket.off('cards:lobby', onLobby); socket.off('cards:challenge', reload); socket.off('cards:trade', reload); socket.off('cards:match', onMatch); socket.off('cards:market', onMarket); };
   }, [socket, loadHome, loadCards, match]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setTab = (k) => setParams(k === 'jogar' ? {} : { aba: k });
@@ -169,7 +171,9 @@ export default function CardsGamePage() {
     setParams((p) => { const n = new URLSearchParams(p); n.delete('sala'); n.set(watch ? 'assistir' : 'partida', matchId); return n; }, { replace: true });
   };
   const exitMatch = (opts) => {
+    if (opts?.start) { startMatch(opts.start); return; }
     setMatch(null);
+    if (opts?.room) setRoom({ code: opts.room });
     setParams((p) => { const n = new URLSearchParams(p); n.delete('partida'); n.delete('assistir'); n.delete('replay'); if (opts?.replay) n.set('replay', opts.replay); return n; }, { replace: true });
     refreshAll();
   };
@@ -248,7 +252,7 @@ export default function CardsGamePage() {
         <PackOpening
           pack={{ name: 'Pacote de boas-vindas', color: '#7c5cff' }} cards={starter.map((c) => ({ ...c, isNew: true }))}
           onClose={() => setStarter(null)}
-          extraAction={{ label: 'Batalhar agora!', onClick: async () => { setStarter(null); try { startMatch(await cardsStartPve('FACIL')); } catch (e) { setErr(errMsg(e)); } } }}
+          extraAction={{ label: 'Aprender jogando!', onClick: async () => { setStarter(null); try { startMatch(await cardsStartTutorial()); } catch (e) { setErr(errMsg(e)); } } }}
         />
       )}
     </div>

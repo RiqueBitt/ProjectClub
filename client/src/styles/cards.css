@@ -1136,3 +1136,75 @@ button.tcg-card:hover:not(.is-dim) { transform: translateY(-6px); }
 .tcgb-partner-cards { left: auto; right: 0; }
 @media (max-width: 1200px) { .tcgb-turn .tcgb-chip.is-custom { display: none; } }
 @media (max-width: 760px) { .tcgb-partner { bottom: 150px; right: 8px; } .tcgb-turn .tcgb-chip { display: none; } }
+
+/* =====================================================================
+   Etapa 7 — poder do herói, sinergia, efeitos de mesa, briga, tutorial,
+   emotes, velocidade, atacar com tudo
+   ===================================================================== */
+.tcgb-hero { position: relative; }
+.tcgb-power { position: relative; flex-shrink: 0; display: grid; place-items: center; width: 52px; height: 52px; padding: 0; border-radius: 50%; cursor: pointer; color: #fff;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--el) 60%, #fff), var(--el) 50%, var(--el-dark)); border: 3px solid #d9b45a;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.6), 0 6px 14px rgba(0,0,0,.6); transition: transform .15s, box-shadow .2s, filter .2s; }
+.tcgb-power b { position: absolute; top: -7px; right: -7px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 900; color: #fff;
+  background: radial-gradient(circle at 40% 28%, #a8d6ff, #3170e6 55%, #10308a); border: 2px solid #050507; }
+.tcgb-power em { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 10.5px; font-weight: 800; color: #e6d7a8; white-space: nowrap; text-shadow: 0 1px 2px #000; }
+.tcgb-power:disabled { cursor: default; filter: grayscale(.6) brightness(.7); }
+.tcgb-power.is-ready { animation: tcgb-powerglow 1.6s ease-in-out infinite; }
+.tcgb-power.is-ready:hover { transform: scale(1.08); }
+.tcgb-power.is-used { filter: grayscale(1) brightness(.45); }
+.tcgb-power.is-casting { box-shadow: 0 0 0 3px #a46bff, 0 0 28px rgba(164,107,255,.8); }
+.tcgb-power.is-foe { width: 38px; height: 38px; border-width: 2px; }
+.tcgb-power.is-foe b { width: 18px; height: 18px; font-size: 10px; top: -6px; right: -6px; }
+@keyframes tcgb-powerglow { 50% { box-shadow: 0 0 0 2px rgba(0,0,0,.6), 0 0 22px color-mix(in srgb, var(--el) 80%, transparent); } }
+.tcgb-bubble { position: absolute; z-index: 12; left: calc(100% + 6px); top: -14px; max-width: 160px; padding: 7px 12px; border-radius: 14px 14px 14px 4px; background: #fff; color: #15121c; font-size: 13.5px; font-weight: 800; white-space: nowrap;
+  box-shadow: 0 8px 22px rgba(0,0,0,.5); animation: tcgb-bubble 3.2s ease forwards; pointer-events: none; }
+@keyframes tcgb-bubble { 0% { transform: scale(.4); opacity: 0; } 8% { transform: scale(1.05); opacity: 1; } 12%, 85% { transform: scale(1); opacity: 1; } 100% { opacity: 0; transform: translateY(-6px); } }
+.tcgb-emote-wrap { position: relative; }
+.tcgb-emotes { position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 260px; padding: 10px; border-radius: 14px; background: rgba(10,8,16,.96); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 14px 40px rgba(0,0,0,.6); }
+.tcgb-emotes button { height: 34px; border-radius: 10px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.tcgb-emotes button:hover { background: rgba(139,107,255,.3); }
+.tcgb-emotes .tcg-check { grid-column: 1 / -1; font-size: 12px; }
+.tcgb-speed { min-width: 44px; font-weight: 900; }
+.tcgb-speed.on { color: #ffd34d; border-color: rgba(255,211,77,.5); }
+.tcgb-allin { height: 42px; border-radius: 21px; background: linear-gradient(180deg, #ff7a4d, #c8361e); color: #fff; border: 0; font-weight: 800; box-shadow: 0 6px 16px rgba(200,54,30,.4); }
+.tcgb-allin:hover:not(:disabled) { filter: brightness(1.1); }
+.tcgb-left { display: inline-flex; gap: 6px; }
+.tcgb-left i { display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 999px; font-style: normal; font-size: 11.5px; font-weight: 800; background: rgba(76,199,107,.16); color: #7fe39a; border: 1px solid rgba(76,199,107,.35); }
+.tcgb-effect { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 800; color: #ffe08a; background: rgba(255,211,77,.12); border: 1px solid rgba(255,211,77,.35); white-space: nowrap; cursor: help; }
+.tcgb-effect.is-brawl { color: #ffb3c8; background: rgba(255,79,163,.12); border-color: rgba(255,79,163,.4); }
+.tcgb-coach { position: absolute; z-index: 14; left: 16px; bottom: 170px; display: flex; align-items: flex-start; gap: 10px; max-width: min(380px, calc(100% - 32px)); padding: 12px 12px 12px 14px; border-radius: 16px;
+  background: linear-gradient(160deg, rgba(40,28,70,.96), rgba(14,10,24,.96)); border: 1px solid rgba(164,107,255,.5); box-shadow: 0 16px 40px rgba(0,0,0,.6), 0 0 26px rgba(139,107,255,.3); animation: tcgw-pop .35s; }
+.tcgb-coach p { margin: 0; flex: 1; color: #f0eaff; font-size: 14px; line-height: 1.45; }
+.tcgb-coach-pic { flex-shrink: 0; }
+/* Briga da semana e tutorial (início da arena) */
+.tcg-events { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.tcg-brawl { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; border-radius: 18px; overflow: hidden; color: #fff;
+  background: radial-gradient(ellipse at 100% 0%, rgba(255,79,163,.35), transparent 60%), linear-gradient(140deg, #2a1240, #120a1e); border: 1px solid rgba(255,79,163,.4); }
+.tcg-brawl::after { content: '⚔'; position: absolute; right: 14px; top: 4px; font-size: 64px; opacity: .1; }
+.tcg-brawl h3 { margin: 0; font-size: 20px; }
+.tcg-brawl p { margin: 0; color: #e3d7f0; font-size: 14px; }
+.tcg-brawl-badge { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 900; text-transform: uppercase; letter-spacing: .5px; background: linear-gradient(90deg, #ff4fa3, #8b6bff); }
+.tcg-brawl-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.tcg-gold { color: #ffd34d; }
+.tcg-gem-t { color: #2fd0c0; }
+.tcg-tutorial { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-radius: 18px; background: linear-gradient(140deg, rgba(76,199,107,.16), var(--bg-secondary) 60%); border: 1px solid rgba(76,199,107,.4); }
+.tcg-tutorial h3 { margin: 0 0 3px; font-size: 17px; color: var(--header-primary); }
+.tcg-tutorial p { margin: 0; font-size: 13.5px; color: var(--text-muted); }
+.tcg-tutorial > div { flex: 1; }
+.tca-board-fx { color: #ffd34d !important; }
+@media (max-width: 760px) {
+  .tcgb-power { width: 42px; height: 42px; border-width: 2px; }
+  .tcgb-power em { display: none; }
+  .tcgb-allin { height: 36px; padding: 0 10px; font-size: 12.5px; }
+  .tcgb-left { display: none; }
+  .tcgb-effect { display: none; }
+  .tcgb-coach { bottom: 140px; left: 8px; right: 8px; max-width: none; }
+  .tcgb-bubble { left: auto; right: -10px; top: -30px; }
+  .tcg-tutorial { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) { .tcgb-power.is-ready, .tcgb-bubble { animation: none !important; } }
+.tcgb > .tcgb-top { z-index: 4; }
+.tcgb-arena-name { white-space: nowrap; }
+.tcgb-turn { flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; }
+.tcgb-coach { top: 70px; right: 16px; left: auto; bottom: auto; }
+@media (max-width: 760px) { .tcgb-coach { top: auto; bottom: 140px; left: 8px; right: 8px; } }

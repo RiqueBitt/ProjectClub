@@ -3,7 +3,7 @@
 // trocas e partidas — tudo sem mexer no código.
 const prisma = require('../config/prisma');
 const { PUBLIC_USER_FIELDS } = require('./authController');
-const { RARITIES, ELEMENTS, ABILITIES, DEFAULT_SETTINGS, mergeSettings } = require('../cards/config');
+const { RARITIES, ELEMENTS, ABILITIES, DEFAULT_SETTINGS, mergeSettings, BOARD_EFFECTS } = require('../cards/config');
 const S = require('../cards/service');
 const { logAction } = require('../services/audit');
 
@@ -181,6 +181,11 @@ const NUM_LIMITS = {
   rewards: { FACIL: [0, 10000], MEDIO: [0, 10000], DIFICIL: [0, 10000], LENDARIO: [0, 10000], pveLoss: [0, 10000], pvpWin: [0, 10000], pvpLoss: [0, 10000], dailyRewardedMatches: [0, 500], pvpRewardsPerOpponentPerDay: [0, 50], minTurnsForReward: [0, 30], streakBonus: [0, 1000], streakBonusMax: [0, 10000] },
   economy: { tradeMaxCoins: [0, 1_000_000], maxOpenTrades: [1, 50], starterCards: [0, 60], foilChance: [0, 100], foilSellMultiplier: [1, 20], marketTax: [0, 50], maxListings: [1, 100], dailyDealPercent: [0, 90] },
   season: { minGames: [0, 100] },
+  extras: {
+    brawlCoins: [0, 100000], brawlGems: [0, 1000], tutorialCoins: [0, 100000], chestEvery: [1, 20], chestCoins: [0, 100000], chestCards: [0, 10],
+    passXpWin: [0, 1000], passXpLoss: [0, 1000], passXpMission: [0, 1000], passXpPack: [0, 1000], passXpPerLevel: [10, 10000], passLevels: [5, 60],
+    goldenChance: [0, 1000], draftFee: [0, 100000], bossHp: [100, 1_000_000], bossCoins: [0, 100000], bossGems: [0, 1000],
+  },
 };
 
 const updateSettings = handle(async (req, res) => {
@@ -198,6 +203,9 @@ const updateSettings = handle(async (req, res) => {
   }
   for (const k of ['rewards', 'gems']) if (b.season?.[k]) for (const dv of Object.keys(DEFAULT_SETTINGS.season.rewards)) if (b.season[k][dv] !== undefined) next.season[k][dv] = int(b.season[k][dv], 0, 1_000_000, next.season[k][dv]);
   if (b.enabled) for (const k of Object.keys(DEFAULT_SETTINGS.enabled)) if (b.enabled[k] !== undefined) next.enabled[k] = !!b.enabled[k];
+  for (const k of ['streakCoins', 'draftRewards', 'clanTopCoins']) {
+    if (Array.isArray(b.extras?.[k])) next.extras[k] = b.extras[k].slice(0, 12).map((v) => int(v, 0, 100000, 0));
+  }
   if (next.rules.startHand > next.rules.maxHand) next.rules.startHand = next.rules.maxHand;
   next.seedVersion = cur.seedVersion || 1;
   await prisma.cardGameSettings.upsert({ where: { id: 'singleton' }, update: { data: JSON.stringify(next) }, create: { id: 'singleton', data: JSON.stringify(next) } });
@@ -327,6 +335,7 @@ function readBoard(req, isNew) {
   if (b.dim !== undefined) d.dim = int(b.dim, 0, 85, 35);
   if (b.accent !== undefined) d.accent = /^#[0-9a-fA-F]{6}$/.test(String(b.accent)) ? String(b.accent) : '#8b6bff';
   if (b.weight !== undefined) d.weight = int(b.weight, 0, 100, 10);
+  if (b.effect !== undefined) d.effect = BOARD_EFFECTS[b.effect] ? b.effect : 'NONE';
   if (b.sort !== undefined) d.sort = int(b.sort, -999, 999, 0);
   if (b.active !== undefined) d.active = b.active === true || b.active === 'true';
   if (b.removeImage === 'true' || b.removeImage === true) d.imageUrl = null;
@@ -340,7 +349,7 @@ const listBoards = handle(async (req, res) => {
     prisma.cardMatch.groupBy({ by: ['boardId'], _count: { _all: true } }).catch(() => []),
   ]);
   const uses = Object.fromEntries(used.filter((u) => u.boardId).map((u) => [u.boardId, u._count._all]));
-  res.json({ boards: boards.map((b) => ({ ...b, uses: uses[b.id] || 0 })), themes: S.BOARD_THEMES });
+  res.json({ boards: boards.map((b) => ({ ...b, uses: uses[b.id] || 0 })), themes: S.BOARD_THEMES, effects: Object.entries(BOARD_EFFECTS).map(([key, e]) => ({ key, label: e.label, desc: e.desc })) });
 });
 const createBoard = handle(async (req, res) => {
   const n = await prisma.cardBoard.count();

@@ -2920,6 +2920,9 @@ model CardPlayer {
   duoWins        Int      @default(0)
   duoLosses      Int      @default(0)
   customPlayed   Int      @default(0)
+  brawlWeek      String?
+  brawlWins      Int      @default(0)
+  tutorialDone   Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -2950,6 +2953,7 @@ model CardMatch {
   format       String    @default("1V1") // 1V1 | 2V2
   custom       Boolean   @default(false) // partida personalizada: sem recompensa nenhuma
   lobbyId      String?
+  kind         String?   // TUTORIAL | BRAWL | DRAFT | BOSS
   reward3      Int       @default(0)
   reward4      Int       @default(0)
   createdAt    DateTime  @default(now())
@@ -3078,6 +3082,7 @@ model CardBoard {
   imageUrl  String?  @db.Text
   dim       Int      @default(35)
   accent    String   @default("#8b6bff")
+  effect    String   @default("NONE")
   weight    Int      @default(10)
   active    Boolean  @default(true)
   sort      Int      @default(0)

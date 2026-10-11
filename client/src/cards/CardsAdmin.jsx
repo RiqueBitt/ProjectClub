@@ -347,6 +347,11 @@ const ECON_FIELDS = [
   ['economy', 'tradeMaxCoins', 'Moedas máx. por troca'], ['economy', 'maxOpenTrades', 'Trocas abertas por jogador'], ['economy', 'starterCards', 'Cartas no pacote inicial'],
   ['economy', 'foilChance', 'Chance de carta brilhante (%)'], ['economy', 'foilSellMultiplier', 'Multiplicador de venda da brilhante'], ['economy', 'marketTax', 'Taxa do mercado (%)'],
   ['economy', 'maxListings', 'Anúncios no mercado por jogador'], ['economy', 'dailyDealPercent', 'Desconto da oferta do dia (%)'], ['season', 'minGames', 'Partidas mínimas na temporada p/ prêmio'],
+  ['extras', 'brawlCoins', 'Briga da semana: moedas (1ª vitória)'], ['extras', 'brawlGems', 'Briga da semana: gemas (1ª vitória)'], ['extras', 'tutorialCoins', 'Moedas por concluir o tutorial'],
+  ['extras', 'chestEvery', 'Baú: a cada quantas vitórias no dia'], ['extras', 'chestCoins', 'Baú: moedas'], ['extras', 'chestCards', 'Baú: cartas'],
+  ['extras', 'passXpWin', 'Passe: XP por vitória'], ['extras', 'passXpLoss', 'Passe: XP por derrota'], ['extras', 'passXpMission', 'Passe: XP por missão'], ['extras', 'passXpPack', 'Passe: XP por pacote'],
+  ['extras', 'passXpPerLevel', 'Passe: XP por nível'], ['extras', 'passLevels', 'Passe: número de níveis'], ['extras', 'goldenChance', 'Chance de carta dourada (por mil)'],
+  ['extras', 'draftFee', 'Draft: entrada (moedas)'], ['extras', 'bossHp', 'Chefe semanal: vida total'], ['extras', 'bossCoins', 'Chefe semanal: moedas por participante'], ['extras', 'bossGems', 'Chefe semanal: gemas por participante'],
 ];
 const DIV_LABELS = { BRONZE: 'Bronze', PRATA: 'Prata', OURO: 'Ouro', PLATINA: 'Platina', DIAMANTE: 'Diamante', LENDARIO: 'Lendário' };
 const ENABLE_LABELS = { pve: 'Partidas contra bots', pvp: 'Partidas PvP', trades: 'Trocas entre jogadores', packs: 'Loja de pacotes', sell: 'Venda de cartas repetidas', market: 'Mercado entre jogadores' };
@@ -732,15 +737,16 @@ export function CardsAdminTournaments() {
 }
 
 // ---------------- Fundos de batalha ----------------
-const EMPTY_BOARD = { name: '', theme: 'floresta', dim: 35, accent: '#8b6bff', weight: 10, active: true, imageUrl: null };
+const EMPTY_BOARD = { name: '', theme: 'floresta', dim: 35, accent: '#8b6bff', weight: 10, active: true, imageUrl: null, effect: 'NONE' };
 export function CardsAdminBoards() {
   const [boards, setBoards] = useState(null);
+  const [effects, setEffects] = useState([]);
   const [edit, setEdit] = useState(null);
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [msg, setMsg] = useState({});
   const [busy, setBusy] = useState(false);
-  const load = () => cardsAdmin.boards().then((d) => setBoards(d.boards)).catch((e) => setMsg({ err: errMsg(e) }));
+  const load = () => cardsAdmin.boards().then((d) => { setBoards(d.boards); setEffects(d.effects || []); }).catch((e) => setMsg({ err: errMsg(e) }));
   useEffect(() => { load(); }, []);
   useEffect(() => {
     if (!file) { setPreview(null); return undefined; }
@@ -752,7 +758,7 @@ export function CardsAdminBoards() {
   const save = async () => {
     setBusy(true); setMsg({});
     try {
-      const body = { name: edit.name, theme: edit.theme, dim: edit.dim, accent: edit.accent, weight: edit.weight, active: edit.active, removeImage: edit.removeImage ? 'true' : undefined };
+      const body = { name: edit.name, theme: edit.theme, dim: edit.dim, accent: edit.accent, weight: edit.weight, active: edit.active, effect: edit.effect || 'NONE', removeImage: edit.removeImage ? 'true' : undefined };
       const fd = toFd(body, file);
       if (edit.id) await cardsAdmin.updateBoard(edit.id, fd); else await cardsAdmin.createBoard(fd);
       setEdit(null); setFile(null); setMsg({ ok: 'Fundo salvo. As próximas partidas já usam.' }); load();
@@ -782,6 +788,9 @@ export function CardsAdminBoards() {
           <Field label="Tema base" hint="Cena ilustrada usada sem imagem e partículas (vaga-lumes, brasas, neve…).">
             <select value={edit.theme} onChange={set('theme')}>{THEME_KEYS.map((k) => <option key={k} value={k}>{BOARD_THEMES[k].label}</option>)}</select>
           </Field>
+          <Field label="Efeito da mesa" hint={effects.find((x) => x.key === (edit.effect || 'NONE'))?.desc || 'Partidas nesta mesa seguem as regras normais.'}>
+            <select value={edit.effect || 'NONE'} onChange={set('effect')}>{effects.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select>
+          </Field>
           <Field label={`Escurecer fundo: ${edit.dim}%`} hint="Deixa as cartas mais legíveis em imagens claras."><input type="range" min="0" max="85" value={edit.dim} onChange={set('dim')} /></Field>
           <Field label="Cor de destaque" hint="Brilho da mesa e da linha do meio."><input type="color" value={edit.accent} onChange={set('accent')} /></Field>
           <Field label="Frequência" hint="Chance relativa de cair nas partidas (0 = nunca sorteado; ainda dá pra usar na campanha)."><input type="number" min="0" max="100" value={edit.weight} onChange={set('weight')} /></Field>
@@ -810,6 +819,7 @@ export function CardsAdminBoards() {
             <div className="tca-board-info">
               <b>{b.name}</b>
               <small>{b.imageUrl ? 'Imagem própria' : `Cena: ${BOARD_THEMES[b.theme]?.label || b.theme}`} · frequência {b.weight} · {b.uses} partida(s)</small>
+              {b.effect && b.effect !== 'NONE' && <small className="tca-board-fx">✦ {effects.find((x) => x.key === b.effect)?.label || b.effect}</small>}
             </div>
             <div className="tca-board-actions">
               <label className="tcg-check"><input type="checkbox" checked={b.active} onChange={(e) => quick(b, { active: e.target.checked })} />Ativo</label>

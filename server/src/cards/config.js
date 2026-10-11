@@ -76,6 +76,18 @@ const DEFAULT_SETTINGS = {
     gems: { BRONZE: 0, PRATA: 0, OURO: 2, PLATINA: 5, DIAMANTE: 10, LENDARIO: 20 },
   },
   enabled: { pve: true, pvp: true, trades: true, packs: true, sell: true, market: true },
+  // Sistemas de diversão/progressão (briga, tutorial, baú, sequência, passe,
+  // pó, douradas, draft, chefe, liga de clãs). Tudo editável no painel.
+  extras: {
+    brawlCoins: 250, brawlGems: 5, tutorialCoins: 150,
+    chestEvery: 3, chestCoins: 120, chestCards: 2,
+    streakCoins: [20, 30, 40, 60, 80, 100, 150],
+    passXpWin: 40, passXpLoss: 15, passXpMission: 25, passXpPack: 10, passXpPerLevel: 100, passLevels: 30,
+    goldenChance: 6, // por mil (6 = 0,6%)
+    draftFee: 150, draftRewards: [40, 80, 150, 260, 400, 600, 900, 1300],
+    bossHp: 2500, bossCoins: 300, bossGems: 10,
+    clanTopCoins: [300, 150, 80],
+  },
 };
 
 function mergeSettings(saved) {
@@ -134,7 +146,44 @@ function divisionOf(rating) {
   return d;
 }
 
+// Poder do herói: 2 de energia, 1 vez por turno. Vem do elemento que mais
+// aparece no baralho.
+const HERO_POWER_COST = 2;
+const HERO_POWERS = {
+  FOGO: { key: 'CHAMA', label: 'Chama', desc: 'Causa 1 de dano a uma unidade ou ao herói inimigo.', target: 'ENEMY' },
+  AGUA: { key: 'MARE', label: 'Maré', desc: 'Cura 2 de vida do seu herói.' },
+  TERRA: { key: 'MURALHA', label: 'Muralha', desc: 'Invoca um Muro 0/2 com Guarda.' },
+  AR: { key: 'BRISA', label: 'Brisa', desc: 'Compra 1 carta.' },
+  LUZ: { key: 'BENCAO', label: 'Bênção', desc: 'Uma unidade sua ganha +1/+1.', target: 'FRIENDLY_UNIT' },
+  SOMBRA: { key: 'SANGRIA', label: 'Sangria', desc: 'Causa 1 de dano ao herói inimigo e cura 1 do seu.' },
+};
+
+// Efeitos de mesa (a staff escolhe por fundo) — viram ajustes de regra.
+const BOARD_EFFECTS = {
+  NONE: { label: 'Sem efeito', desc: '' },
+  CHAMAS: { label: 'Chão de lava', desc: 'No início de cada turno, o herói da vez leva 1 de dano.', rules: { burnPerTurn: 1 } },
+  BENCAO: { label: 'Solo sagrado', desc: 'Todas as curas são dobradas.', rules: { healMult: 2 } },
+  ARCANO: { label: 'Energia arcana', desc: 'Todas as cartas custam 1 a menos.', rules: { costMod: -1 } },
+  FURIA: { label: 'Grito de guerra', desc: 'Todas as unidades entram com +1 de ataque.', rules: { atkBonus: 1 } },
+  MARE: { label: 'Maré alta', desc: 'Todos compram 1 carta a mais por turno.', rules: { extraDraw: 1 } },
+  REGENERACAO: { label: 'Seiva viva', desc: 'No início do seu turno, suas unidades curam 1 de vida.', rules: { regenPerTurn: 1 } },
+  GIGANTES: { label: 'Terra de gigantes', desc: 'Todas as unidades entram com +1/+1.', rules: { atkBonus: 1, hpBonus: 1 } },
+};
+
+// Briga da semana: uma regra maluca por semana (contra bot). A primeira
+// vitória da semana dá prêmio especial.
+const BRAWLS = [
+  { key: 'CUSTO_UM', label: 'Tudo custa 1', desc: 'Todas as cartas custam 1 de energia. Caos total!', rules: { costOverride: 1 } },
+  { key: 'GIGANTES', label: 'Gigantes', desc: 'Todas as unidades entram com +2/+2.', rules: { atkBonus: 2, hpBonus: 2 } },
+  { key: 'VIDA_CURTA', label: 'Vida curta', desc: 'Os heróis começam com 12 de vida. Cada golpe conta.', rules: { startHp: 12 } },
+  { key: 'MAO_CHEIA', label: 'Mão cheia', desc: 'Começa com 7 cartas e compra 2 por turno.', rules: { startHand: 7, drawPerTurn: 2, maxHand: 10 } },
+  { key: 'ELEMENTO', label: 'Pureza elemental', desc: 'Baralhos de um elemento só, sorteado na hora (com todas as cartas).', deck: 'ELEMENT' },
+  { key: 'ESPELHO', label: 'Espelho', desc: 'Você e o bot jogam com o MESMO baralho aleatório.', deck: 'MIRROR' },
+  { key: 'CAOS', label: 'Caos', desc: 'Baralhos aleatórios com todas as cartas no nível 3 e energia inicial extra.', deck: 'ALL', rules: { startEnergy: 2 } },
+];
+
 module.exports = {
+  HERO_POWER_COST, HERO_POWERS, BOARD_EFFECTS, BRAWLS,
   DIVISIONS, divisionOf,
   RARITIES, RARITY_LABEL, ELEMENTS, ELEMENT_LABEL, ELEMENT_BEATS, ABILITIES, DIFFICULTIES,
   DEFAULT_SETTINGS, mergeSettings, cardPower, levelStats, abilityText,

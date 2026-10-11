@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 const prisma = require('../config/prisma');
 const {
-  RARITIES, DIFFICULTIES, mergeSettings, cardPower, divisionOf,
+  RARITIES, DIFFICULTIES, mergeSettings, cardPower, divisionOf, BOARD_EFFECTS, BRAWLS, ELEMENTS,
 } = require('./config');
 const { SEED_CARDS, SEED_CARDS_V2, SEED_PACKS, SEED_CAMPAIGN } = require('./seed');
 
@@ -79,6 +79,16 @@ async function doSeed() {
       await patchSavedSettings({ seedVersion: 3 });
     }
   } catch (err) { console.error('[cards] seed v3 falhou:', err?.message || err); }
+  // v4: as mesas padrão ganham efeito (a staff pode mudar ou tirar).
+  try {
+    const st = await getSettings(true);
+    if ((st.seedVersion || 1) < 4) {
+      const fx = { floresta: 'REGENERACAO', vulcao: 'CHAMAS', templo: 'BENCAO', abismo: 'ARCANO', oceano: 'MARE' };
+      for (const sb of SEED_BOARDS) await prisma.cardBoard.updateMany({ where: { name: sb.name, theme: sb.theme, effect: 'NONE' }, data: { effect: fx[sb.theme] || 'NONE' } });
+      await patchSavedSettings({ seedVersion: 4 });
+      invalidateBoards();
+    }
+  } catch (err) { console.error('[cards] seed v4 falhou:', err?.message || err); }
   seeded = true;
 }
 function ensureSeed() {
@@ -135,7 +145,78 @@ async function getBoards(force = false) {
   return boardsCache;
 }
 function invalidateBoards() { boardsCache = null; }
-const shapeBoard = (b) => ({ id: b.id, name: b.name, theme: b.theme, imageUrl: b.imageUrl || null, dim: b.dim, accent: b.accent });
+const shapeBoard = (b) => ({
+  id: b.id, name: b.name, theme: b.theme, imageUrl: b.imageUrl || null, dim: b.dim, accent: b.accent,
+  effect: b.effect || 'NONE', effectLabel: BOARD_EFFECTS[b.effect]?.label || '', effectDesc: BOARD_EFFECTS[b.effect]?.desc || '',
+});
+
+// Regras da partida = regras do jogo + efeito da mesa + ajustes do modo.
+async function matchRules(settings, boardId, extra = {}) {
+  const board = boardId ? (await getBoards().catch(() => [])).find((b) => b.id === boardId) : null;
+  const fx = BOARD_EFFECTS[board?.effect] || BOARD_EFFECTS.NONE;
+  return { ...settings.rules, ...(fx.rules || {}), effect: board?.effect || 'NONE', ...extra };
+}
+
+// ---------- Briga da semana ----------
+function isoWeekKey(d = new Date()) {
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  const w = Math.ceil(((t - y0) / 86400000 + 1) / 7);
+  return `${t.getUTCFullYear()}-W${String(w).padStart(2, '0')}`;
+}
+function currentBrawl(d = new Date()) {
+  const key = isoWeekKey(d);
+  const n = parseInt(key.slice(0, 4), 10) * 53 + parseInt(key.slice(6), 10);
+  const b = BRAWLS[n % BRAWLS.length];
+  // Fim da semana (segunda 00:00 UTC).
+  const end = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  end.setUTCDate(end.getUTCDate() + (8 - (end.getUTCDay() || 7)));
+  return { ...b, week: key, endsAt: end };
+}
+// Baralhos da briga (alguns modos trocam os baralhos dos dois lados).
+async function brawlDecks(brawl, settings, userId) {
+  const catalog = await getCatalog();
+  if (brawl.deck === 'ELEMENT') {
+    const el = ELEMENTS[randInt(ELEMENTS.length)] || 'FOGO';
+    const pool = { enabled: catalog.enabled.filter((c) => c.element === el) };
+    return { me: randomDeck(pool, settings, 2), bot: randomDeck(pool, settings, 2), note: el };
+  }
+  if (brawl.deck === 'MIRROR') {
+    const d = randomDeck(catalog, settings, 2);
+    return { me: d, bot: d.map((x) => ({ ...x })) };
+  }
+  if (brawl.deck === 'ALL') return { me: randomDeck(catalog, settings, 3), bot: randomDeck(catalog, settings, 3) };
+  return { me: await resolvePlayerDeck(userId, settings), bot: (await botDeck('MEDIO', settings)).deck };
+}
+
+// Prêmios extras depois de uma partida contra bot (briga, tutorial).
+async function afterMatchExtras(match, state, settings) {
+  const uid = match.p1Id;
+  const won = state.winner === 0;
+  const X = settings.extras;
+  const out = {};
+  if (!uid || !won) return out;
+  if (match.kind === 'BRAWL') {
+    const week = isoWeekKey(match.createdAt ? new Date(match.createdAt) : new Date());
+    const r = await prisma.cardPlayer.updateMany({ where: { userId: uid, OR: [{ brawlWeek: null }, { brawlWeek: { not: week } }] }, data: { brawlWeek: week, brawlWins: { increment: 1 } } });
+    if (r.count) {
+      await prisma.user.update({ where: { id: uid }, data: { coins: { increment: X.brawlCoins | 0 }, gems: { increment: X.brawlGems | 0 } } });
+      out.brawl = { coins: X.brawlCoins | 0, gems: X.brawlGems | 0 };
+      require('../services/economyLedger').recordTransaction(uid, { kind: 'CARDS', label: 'Jogo de Cartas: briga da semana', coins: X.brawlCoins | 0, gems: X.brawlGems | 0 });
+    } else await prisma.cardPlayer.update({ where: { userId: uid }, data: { brawlWins: { increment: 1 } } }).catch(() => {});
+  }
+  if (match.kind === 'TUTORIAL') {
+    const r = await prisma.cardPlayer.updateMany({ where: { userId: uid, tutorialDone: false }, data: { tutorialDone: true } });
+    if (r.count && X.tutorialCoins > 0) {
+      await prisma.user.update({ where: { id: uid }, data: { coins: { increment: X.tutorialCoins | 0 } } });
+      out.tutorial = { coins: X.tutorialCoins | 0 };
+      require('../services/economyLedger').recordTransaction(uid, { kind: 'CARDS', label: 'Jogo de Cartas: tutorial concluído', coins: X.tutorialCoins | 0 });
+    }
+  }
+  return out;
+}
 // Sorteia uma mesa ativa (respeita o peso definido pela staff).
 async function pickBoardId(preferred = null) {
   const boards = (await getBoards().catch(() => [])).filter((b) => b.active);
@@ -539,6 +620,11 @@ async function finalizeMatch(match, state, settings, io = null) {
       }
     }
     return r;
+  }).then(async (r) => {
+    if (r && match.kind) {
+      try { Object.assign(r, await afterMatchExtras(match, state, settings)); } catch (e) { console.error('[cards] extras:', e?.message); }
+    }
+    return r;
   });
 }
 
@@ -559,4 +645,5 @@ module.exports = {
   shapeCard, getPlayer, ownedMap, grantCards, parseDeckCards, validateDeck, autoDeck, resolvePlayerDeck, botDeck,
   drawPack, packPool, finalizeMatch, copiesCap,
   getBoards, invalidateBoards, shapeBoard, pickBoardId, BOARD_THEMES, randomDeck,
+  matchRules, isoWeekKey, currentBrawl, brawlDecks, afterMatchExtras,
 };

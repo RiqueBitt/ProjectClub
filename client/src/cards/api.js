@@ -54,6 +54,12 @@ export const cardsLobbySlot = (code, slot, bot) => api.post(`/cards/lobbies/${co
 export const cardsLobbyInvite = (code, userId) => api.post(`/cards/lobbies/${code}/invite`, { userId }).then(d);
 export const cardsStartLobby = (code) => api.post(`/cards/lobbies/${code}/start`).then(d);
 
+export const cardsBrawl = () => api.get('/cards/brawl').then(d);
+export const cardsStartBrawl = () => api.post('/cards/brawl/start').then(d);
+export const cardsStartTutorial = () => api.post('/cards/tutorial/start').then(d);
+export const cardsEmote = (id, key) => api.post(`/cards/matches/${id}/emote`, { key }).then(d);
+export const cardsAgain = (id) => api.post(`/cards/matches/${id}/again`).then(d);
+
 // Staff
 export const cardsAdmin = {
   cards: () => api.get('/cards/admin/cards').then(d),

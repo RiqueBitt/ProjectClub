@@ -82,6 +82,9 @@ const SOUNDS = {
   win: () => { [523, 659, 784, 1047, 1319].forEach((f, i) => tone({ f, d: 0.45, type: 'triangle', g: 0.15, delay: i * 0.11 })); },
   lose: () => { [392, 330, 262, 196].forEach((f, i) => tone({ f, d: 0.45, type: 'sine', g: 0.14, delay: i * 0.16 })); },
   click: () => { tone({ f: 800, d: 0.04, type: 'square', g: 0.05 }); },
+  power: () => { tone({ f: 260, f2: 780, d: 0.3, type: 'triangle', g: 0.14 }); tone({ f: 520, f2: 1560, d: 0.25, type: 'sine', g: 0.08, delay: 0.06 }); },
+  synergy: () => { [440, 554, 659, 880].forEach((f, i) => tone({ f, d: 0.22, type: 'triangle', g: 0.12, delay: i * 0.06 })); },
+  emote: () => { tone({ f: 700, f2: 900, d: 0.08, type: 'sine', g: 0.08 }); },
   pack: () => { noise({ d: 0.6, g: 0.18, filter: 2500 }); [392, 523, 659].forEach((f, i) => tone({ f, d: 0.3, type: 'triangle', g: 0.12, delay: 0.3 + i * 0.08 })); },
 };
 

@@ -275,7 +275,8 @@ const watch = handle(async (req, res) => {
   res.json({
     id: m.id, mode: m.mode, status: m.status, version: m.version, turnDeadline: m.turnDeadline, boardId: m.boardId || null,
     tournamentId: m.tournamentId || null, n: total, events: events.slice(-150), side: seat,
-    spectators: SP.count(m.id), watchers: SP.list(m.id), view: state ? spectatorView(state, seat) : null,
+    spectators: SP.count(m.id), watchers: SP.list(m.id), emotes: require('../cards/emotes').recent(m.id), kind: m.kind || null, format: m.format, custom: m.custom,
+    view: state ? spectatorView(state, seat) : null,
   });
 });
 

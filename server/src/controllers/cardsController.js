@@ -11,6 +11,7 @@ const { createGame, reduce, viewFor, eventsFor } = require('../cards/engine');
 const { playTurn } = require('../cards/ai');
 const S = require('../cards/service');
 const { count: spectatorCount } = require('../cards/spectators');
+const { recent: recentEmotes } = require('../cards/emotes');
 
 const { CardError } = S;
 const ledger = () => require('../services/economyLedger');
@@ -71,6 +72,7 @@ const home = handle(async (req, res) => {
     collection: { total: owned._sum.quantity || 0, distinct: owned._count || 0 },
     starterAvailable: !player.starterClaimed,
     starterCount: Math.max(settings.rules.deckSize, settings.economy.starterCards | 0),
+    extras: settings.extras,
     boards: boards.map(S.shapeBoard),
     activeMatch: active,
     challenges,
@@ -400,7 +402,7 @@ function payload(m, seat, state, extra = {}) {
   return {
     id: m.id, mode: m.mode, difficulty: m.difficulty, status: m.status, version: m.version, format: m.format || '1V1', custom: !!m.custom,
     turnDeadline: m.turnDeadline, reward: rewardFor(m, viewer, seat), boardId: m.boardId || null, lobbyId: m.lobbyId || null,
-    spectators: spectatorCount(m.id),
+    spectators: spectatorCount(m.id), kind: m.kind || null, emotes: recentEmotes(m.id),
     view: state ? viewFor(state, seat, viewer) : null, ...rest,
   };
 }
@@ -438,24 +440,27 @@ const BOT_NAMES = { FACIL: 'Aprendiz Pip', MEDIO: 'Duelista Nora', DIFICIL: 'Mes
 
 // Cria partida contra bot (normal ou fase da campanha). Guarda o estado
 // inicial e o registro de ações para o replay.
-async function newPveMatch(userId, { difficulty, botName, botHp, botDeck, campaignStageId = null, boardId = null }) {
+async function newPveMatch(userId, { difficulty, botName, botHp, botDeck, campaignStageId = null, boardId = null, kind = null, rulesExtra = null, playerDeck = null }) {
   const settings = await S.getSettings();
   const busyPvp = await prisma.cardMatch.findFirst({ where: { mode: 'PVP', status: 'ACTIVE', OR: [{ p1Id: userId }, { p2Id: userId }, { p3Id: userId }, { p4Id: userId }] } });
   if (busyPvp) throw new CardError('Termine sua partida PvP antes de começar outra.');
-  const deck = await S.resolvePlayerDeck(userId, settings);
+  const deck = playerDeck || await S.resolvePlayerDeck(userId, settings);
   const bot = botDeck ? { deck: botDeck, hp: botHp } : await S.botDeck(difficulty, settings);
   // Só uma partida contra bot por vez: a antiga é abandonada (sem recompensa).
   await prisma.cardMatch.updateMany({ where: { p1Id: userId, mode: 'PVE', status: 'ACTIVE' }, data: { status: 'CANCELLED', endReason: 'abandoned', endedAt: new Date() } });
   const me = await playerSeatInfo(userId);
+  const chosenBoard = await S.pickBoardId(boardId);
+  const rules = await S.matchRules(settings, chosenBoard, rulesExtra || {});
+  const heroHp = rulesExtra?.startHp || null;
   let state = createGame({
-    players: [{ ...me, deck }, { userId: null, name: botName || BOT_NAMES[difficulty], isBot: true, hp: botHp || bot.hp, deck: bot.deck }],
-    rules: settings.rules, seed: crypto.randomInt(1, 2 ** 31), first: crypto.randomInt(2),
+    players: [{ ...me, deck, ...(heroHp ? { hp: heroHp } : {}) }, { userId: null, name: botName || BOT_NAMES[difficulty], isBot: true, difficulty, hp: heroHp || botHp || bot.hp, deck: bot.deck }],
+    rules, seed: crypto.randomInt(1, 2 ** 31), first: crypto.randomInt(2),
   });
   const initialState = JSON.stringify(state);
   let events = [];
   let actions = [];
   if (state.active === 1) { const r = playTurn(state, 1, difficulty); state = r.state; events = r.events; actions = r.actions.map((a) => ({ s: 1, a })); }
-  const m = await prisma.cardMatch.create({ data: { mode: 'PVE', difficulty, p1Id: userId, status: 'ACTIVE', state: JSON.stringify(state), initialState, actions: JSON.stringify(actions), campaignStageId, boardId: await S.pickBoardId(boardId) } });
+  const m = await prisma.cardMatch.create({ data: { mode: 'PVE', difficulty, p1Id: userId, status: 'ACTIVE', state: JSON.stringify(state), initialState, actions: JSON.stringify(actions), campaignStageId, boardId: chosenBoard, kind } });
   return payload(m, 0, state, { events: eventsFor(events, 0), viewer: userId });
 }
 
@@ -475,8 +480,10 @@ async function newPvpMatch(p1Id, p2Id, { pendingId = null, tournamentId = null }
   try { d1 = await S.resolvePlayerDeck(p1Id, settings); } catch { throw new CardError('O baralho de um dos jogadores não é válido.'); }
   const d2 = await S.resolvePlayerDeck(p2Id, settings);
   const [a, b] = await Promise.all([playerSeatInfo(p1Id), playerSeatInfo(p2Id)]);
-  const state = createGame({ players: [{ ...a, deck: d1 }, { ...b, deck: d2 }], rules: settings.rules, seed: crypto.randomInt(1, 2 ** 31), first: crypto.randomInt(2) });
-  const data = { status: 'ACTIVE', boardId: await S.pickBoardId(), state: JSON.stringify(state), initialState: JSON.stringify(state), actions: '[]', turnDeadline: new Date(Date.now() + settings.rules.turnSeconds * 1000), version: 1 };
+  const boardId = await S.pickBoardId();
+  const rules = await S.matchRules(settings, boardId);
+  const state = createGame({ players: [{ ...a, deck: d1 }, { ...b, deck: d2 }], rules, seed: crypto.randomInt(1, 2 ** 31), first: crypto.randomInt(2) });
+  const data = { status: 'ACTIVE', boardId, state: JSON.stringify(state), initialState: JSON.stringify(state), actions: '[]', turnDeadline: new Date(Date.now() + settings.rules.turnSeconds * 1000), version: 1 };
   if (pendingId) {
     const r = await prisma.cardMatch.updateMany({ where: { id: pendingId, status: 'PENDING' }, data });
     if (r.count === 0) throw new CardError('Esse desafio não está mais disponível.');
@@ -580,7 +587,7 @@ const action = handle(async (req, res) => {
   const settings = await S.getSettings();
   const body = req.body || {};
   const act = {
-    type: ['PLAY', 'ATTACK', 'END_TURN', 'SURRENDER'].includes(body.type) ? body.type : 'INVALID',
+    type: ['PLAY', 'ATTACK', 'END_TURN', 'SURRENDER', 'POWER'].includes(body.type) ? body.type : 'INVALID',
     uid: typeof body.uid === 'string' ? body.uid.slice(0, 20) : undefined,
     target: typeof body.target === 'string' ? body.target.slice(0, 20) : undefined,
   };

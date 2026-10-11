@@ -7,7 +7,7 @@
 // Aleatoriedade vem de um PRNG com semente guardada no estado (embaralhar,
 // alvos aleatórios), então uma partida é reproduzível (replay) e o cliente
 // não influencia nada além das ações que escolhe.
-const { ELEMENT_BEATS, ABILITIES, levelStats } = require('./config');
+const { ELEMENT_BEATS, ABILITIES, levelStats, HERO_POWERS, HERO_POWER_COST } = require('./config');
 
 class EngineError extends Error {
   constructor(message) { super(message); this.status = 400; this.engine = true; }
@@ -38,24 +38,37 @@ const SPELL_TARGET = {
 
 function makeInstance(state, card, level) {
   const st = levelStats(card, level);
+  const R = state.rules || {};
+  const spell = card.kind === 'SPELL';
+  // Ajustes de regra (mesa com efeito, briga da semana, personalizada).
+  const cost = R.costOverride !== undefined && R.costOverride !== null ? R.costOverride : Math.max(0, (card.cost | 0) + (R.costMod | 0));
+  const atk = spell ? 0 : Math.max(0, st.attack + (R.atkBonus | 0));
+  const hp = spell ? 0 : Math.max(1, st.health + (R.hpBonus | 0));
   state.uid += 1;
   return {
     uid: `u${state.uid}`, cardId: card.id, name: card.name, imageUrl: card.imageUrl || null,
-    rarity: card.rarity, element: card.element, kind: card.kind === 'SPELL' ? 'SPELL' : 'UNIT', cost: Math.max(0, card.cost | 0),
-    atk: card.kind === 'SPELL' ? 0 : st.attack, hp: card.kind === 'SPELL' ? 0 : st.health,
-    maxHp: card.kind === 'SPELL' ? 0 : st.health, baseAtk: card.kind === 'SPELL' ? 0 : st.attack,
+    rarity: card.rarity, element: card.element, kind: spell ? 'SPELL' : 'UNIT', cost: Math.max(0, cost),
+    atk, hp, maxHp: hp, baseAtk: atk, golden: !!card.golden,
     ability: card.ability || 'NONE', value: Math.max(0, card.abilityValue | 0) + (card.kind === 'SPELL' ? Math.floor(((level || 1) - 1) / 2) : 0),
     level: level || 1, foil: !!card.foil,
     shield: card.ability === 'ESCUDO', stealth: card.ability === 'FURTIVO', frozen: false, attacksLeft: 0, sick: true,
   };
 }
 
-function makeToken(state, element) {
+function makeToken(state, element, { name = 'Recruta', atk = 1, hp = 1, ability = 'NONE' } = {}) {
   state.uid += 1;
   return {
-    uid: `u${state.uid}`, cardId: null, token: true, name: 'Recruta', imageUrl: null, rarity: 'COMUM', element, kind: 'UNIT', cost: 0,
-    atk: 1, hp: 1, maxHp: 1, baseAtk: 1, ability: 'NONE', value: 0, level: 1, shield: false, stealth: false, frozen: false, attacksLeft: 0, sick: true,
+    uid: `u${state.uid}`, cardId: null, token: true, name, imageUrl: null, rarity: 'COMUM', element, kind: 'UNIT', cost: 0,
+    atk, hp, maxHp: hp, baseAtk: atk, ability, value: 0, level: 1, shield: false, stealth: false, frozen: false, attacksLeft: 0, sick: true,
   };
+}
+
+// Poder do herói vem do elemento mais frequente no baralho.
+function powerFor(deck) {
+  const count = {};
+  for (const c of deck) count[c.element] = (count[c.element] || 0) + 1;
+  const el = Object.keys(count).sort((a, b) => count[b] - count[a] || a.localeCompare(b))[0] || 'FOGO';
+  return { element: el, ...(HERO_POWERS[el] || HERO_POWERS.FOGO) };
 }
 
 // 2v2: cada lado é um TIME com herói, vida e campo compartilhados; cada
@@ -63,7 +76,7 @@ function makeToken(state, element) {
 // da vez ficam no próprio lado (o resto do motor nem percebe que é 2v2) e
 // o parceiro espera em "bench"; a cada vez do time os dois trocam de lugar.
 // Ordem: A1, B1, A2, B2, A1…
-const PERSONAL = ['userId', 'name', 'avatarUrl', 'isBot', 'difficulty', 'energy', 'maxEnergy', 'fatigue', 'timeouts', 'deck', 'hand'];
+const PERSONAL = ['userId', 'name', 'avatarUrl', 'isBot', 'difficulty', 'energy', 'maxEnergy', 'fatigue', 'timeouts', 'deck', 'hand', 'power', 'powerUsed', 'cosmetics'];
 function swapMember(p) {
   if (!p.bench?.length) return;
   const other = p.bench[0];
@@ -90,12 +103,13 @@ function createGame({ players, rules, seed, first }) {
     isBot: !!p.isBot, difficulty: p.difficulty || null,
     energy: 0, maxEnergy: startEnergy, fatigue: 0, timeouts: 0,
     deck: shuffle(state, p.deck.map((d) => makeInstance(state, d.card, d.level))),
-    hand: [],
+    hand: [], powerUsed: false, cosmetics: p.cosmetics || null,
   });
+  const withPower = (m) => { m.power = state.rules.noPowers ? null : powerFor(m.deck); return m; };
   state.players = players.map((p) => {
-    const side = { ...member(p), hp: p.hp || rules.startHp, maxHp: p.hp || rules.startHp, board: [], graveyard: 0, turnsTaken: 0 };
+    const side = { ...withPower(member(p)), hp: p.hp || rules.startHp, maxHp: p.hp || rules.startHp, board: [], graveyard: 0, turnsTaken: 0, synergy: {} };
     if (p.partner) {
-      side.bench = [member(p.partner)];
+      side.bench = [withPower(member(p.partner))];
       side.teamName = `${side.name} & ${side.bench[0].name}`;
       state.duo = true;
     }
@@ -143,6 +157,8 @@ function startTurn(state, seat, events) {
   const p = state.players[seat];
   p.maxEnergy = Math.min(state.rules.maxEnergy, p.maxEnergy + 1);
   p.energy = p.maxEnergy;
+  p.powerUsed = false;
+  const regen = state.rules.regenPerTurn | 0;
   for (const u of p.board) {
     u.sick = false;
     if (u.frozen) {
@@ -153,16 +169,23 @@ function startTurn(state, seat, events) {
     } else {
       u.attacksLeft = u.ability === 'FURIA' ? 2 : 1;
     }
-    if (u.ability === 'REGENERA' && u.hp < u.maxHp) {
-      const heal = Math.min(u.value, u.maxHp - u.hp);
+    const want = (u.ability === 'REGENERA' ? u.value : 0) + regen;
+    if (want > 0 && u.hp < u.maxHp) {
+      const heal = Math.min(want * (state.rules.healMult || 1), u.maxHp - u.hp);
       u.hp += heal;
       if (heal) events.push({ type: 'heal', seat, uid: u.uid, amount: heal });
     }
   }
+  // Chão de lava: o herói da vez leva dano (a partir do 2º turno).
+  if ((state.rules.burnPerTurn | 0) > 0 && state.turn >= 2) {
+    events.push({ type: 'boardFx', seat, fx: 'burn' });
+    damageHero(state, seat, state.rules.burnPerTurn | 0, events, { source: 'board' });
+    if (state.over) return;
+  }
   state.turnStartedSeq = state.seq;
   p.turnsTaken = (p.turnsTaken || 0) + 1;
   events.push({ type: 'turn', seat, turn: state.turn, member: p.userId || p.name });
-  const n = Math.max(1, Math.min(3, state.rules.drawPerTurn || 1));
+  const n = Math.max(1, Math.min(4, (state.rules.drawPerTurn || 1) + (state.rules.extraDraw | 0)));
   for (let i = 0; i < n; i += 1) draw(state, seat, events);
 }
 
@@ -176,7 +199,7 @@ function damageHero(state, seat, amount, events, meta = {}) {
 
 function healHero(state, seat, amount, events) {
   const p = state.players[seat];
-  const h = Math.min(amount, p.maxHp - p.hp);
+  const h = Math.min(amount * (state.rules.healMult || 1), p.maxHp - p.hp);
   if (h > 0) { p.hp += h; events.push({ type: 'heroHeal', seat, amount: h }); }
 }
 
@@ -259,7 +282,66 @@ function legalActions(state, seat) {
   const guards = visible.filter((u) => u.ability === 'GUARDA').map((u) => u.uid);
   const validTargets = guards.length ? guards : ['hero', ...visible.map((u) => u.uid)];
   const targets = Object.fromEntries(attackers.map((a) => [a, validTargets]));
-  return { playable, spellTargets: spellT, attackers, targets, canEndTurn: true };
+  return { playable, spellTargets: spellT, attackers, targets, canEndTurn: true, power: powerOptions(state, seat) };
+}
+
+// Poder do herói disponível agora? (e quais alvos)
+function powerOptions(state, seat) {
+  const me = state.players[seat];
+  const pw = me.power;
+  if (!pw || me.powerUsed || me.energy < HERO_POWER_COST) return null;
+  if (pw.key === 'MURALHA' && me.board.length >= state.rules.boardSize) return null;
+  let t = null;
+  if (pw.target === 'ENEMY') t = ['hero', ...targetable(state.players[1 - seat]).map((u) => u.uid)];
+  else if (pw.target === 'FRIENDLY_UNIT') { t = me.board.map((u) => u.uid); if (!t.length) return null; }
+  return { key: pw.key, targets: t };
+}
+
+function usePower(state, seat, target, events) {
+  const me = state.players[seat];
+  const foe = state.players[1 - seat];
+  const pw = me.power;
+  me.energy -= HERO_POWER_COST;
+  me.powerUsed = true;
+  me.timeouts = 0;
+  events.push({ type: 'power', seat, key: pw.key, element: pw.element, target: target || null });
+  pushLog(state, `${me.name} usou o poder ${pw.label}.`);
+  switch (pw.key) {
+    case 'CHAMA':
+      if (target === 'hero') damageHero(state, 1 - seat, 1, events, { source: 'power' });
+      else { const u = foe.board.find((x) => x.uid === target); events.push({ type: 'bolt', seat, uid: null, target }); damageUnit(state, 1 - seat, u, 1, events); }
+      break;
+    case 'MARE': healHero(state, seat, 2, events); break;
+    case 'MURALHA': {
+      const tk = makeToken(state, 'TERRA', { name: 'Muro', atk: 0, hp: 2, ability: 'GUARDA' });
+      me.board.push(tk);
+      events.push({ type: 'summon', seat, card: publicCard(tk) });
+      break;
+    }
+    case 'BRISA': draw(state, seat, events); break;
+    case 'BENCAO': {
+      const u = me.board.find((x) => x.uid === target);
+      u.atk += 1; u.hp += 1; u.maxHp += 1;
+      events.push({ type: 'buff', seat, uid: u.uid, atk: 1, hp: 1 });
+      break;
+    }
+    case 'SANGRIA': damageHero(state, 1 - seat, 1, events, { source: 'power' }); healHero(state, seat, 1, events); break;
+    default: break;
+  }
+}
+
+// Sinergia: a 3ª unidade do mesmo elemento em campo dá +1/+1 a todas elas (1x por elemento).
+function checkSynergy(state, seat, element, events) {
+  const me = state.players[seat];
+  if (state.rules.noSynergy) return;
+  me.synergy = me.synergy || {};
+  if (me.synergy[element]) return;
+  const same = me.board.filter((u) => u.element === element && !u.token);
+  if (same.length < 3) return;
+  me.synergy[element] = true;
+  for (const u of same) { u.atk += 1; u.hp += 1; u.maxHp += 1; }
+  events.push({ type: 'synergy', seat, element, uids: same.map((u) => u.uid) });
+  pushLog(state, `Sinergia de ${element.toLowerCase()}! As unidades de ${me.name} ganharam +1/+1.`);
 }
 
 // ---------- Reducer ----------
@@ -329,7 +411,14 @@ function reduce(prev, seat, action) {
       pushLog(state, `${me.name} jogou ${card.name}.`);
       onPlay(state, seat, card, events);
       cleanupDead(state, events);
+      if (!state.over && me.board.some((u) => u.uid === card.uid)) checkSynergy(state, seat, card.element, events);
     }
+  } else if (type === 'POWER') {
+    const opt = powerOptions(state, seat);
+    if (!opt) throw new EngineError(me.powerUsed ? 'Você já usou o poder neste turno.' : 'Energia insuficiente para o poder do herói.');
+    if (opt.targets && !opt.targets.includes(action.target)) throw new EngineError('Escolha um alvo válido para o poder.');
+    usePower(state, seat, opt.targets ? action.target : null, events);
+    cleanupDead(state, events);
   } else if (type === 'ATTACK') {
     const legal = legalActions(state, seat);
     if (!legal.attackers.includes(action.uid)) throw new EngineError('Essa unidade não pode atacar agora.');
@@ -457,7 +546,7 @@ function publicCard(c) {
   return {
     uid: c.uid, cardId: c.cardId, name: c.name, imageUrl: c.imageUrl, rarity: c.rarity, element: c.element, kind: c.kind || 'UNIT',
     cost: c.cost, atk: c.atk, hp: c.hp, maxHp: c.maxHp, baseAtk: c.baseAtk, ability: c.ability, value: c.value,
-    level: c.level, foil: !!c.foil, token: !!c.token, shield: c.shield, stealth: !!c.stealth, frozen: !!c.frozen,
+    level: c.level, foil: !!c.foil, golden: !!c.golden, token: !!c.token, shield: c.shield, stealth: !!c.stealth, frozen: !!c.frozen,
     attacksLeft: c.attacksLeft, sick: c.sick,
   };
 }
@@ -469,6 +558,9 @@ function playerView(state, p, s, showHand) {
     deckCount: p.deck.length, handCount: p.hand.length, graveyard: p.graveyard, fatigue: p.fatigue,
     hand: showHand ? p.hand.map(publicCard) : undefined,
     board: p.board.map(publicCard),
+    power: p.power ? { key: p.power.key, label: p.power.label, desc: p.power.desc, element: p.power.element, cost: HERO_POWER_COST, used: !!p.powerUsed } : null,
+    synergy: Object.keys(p.synergy || {}),
+    cosmetics: p.cosmetics || null,
     team: p.bench ? [
       { userId: p.userId, name: p.name, avatarUrl: p.avatarUrl, isBot: p.isBot, handCount: p.hand.length, deckCount: p.deck.length, energy: p.energy, maxEnergy: p.maxEnergy, current: true },
       ...p.bench.map((b) => ({ userId: b.userId, name: b.name, avatarUrl: b.avatarUrl, isBot: b.isBot, handCount: b.hand.length, deckCount: b.deck.length, energy: b.energy, maxEnergy: b.maxEnergy, current: false })),
@@ -490,7 +582,7 @@ function viewFor(state, seat, viewerId = null) {
       me.hand = mine.hand.map(publicCard);
       me.energy = mine.energy; me.maxEnergy = mine.maxEnergy; me.deckCount = mine.deck.length; me.handCount = mine.hand.length;
     }
-    legal = { playable: [], spellTargets: {}, attackers: [], targets: {}, canEndTurn: false, partnerTurn: true };
+    legal = { playable: [], spellTargets: {}, attackers: [], targets: {}, canEndTurn: false, partnerTurn: true, power: null };
   } else if (side.bench?.length) {
     me.partnerHand = side.bench[0].hand.map(publicCard);
   }
@@ -508,7 +600,7 @@ function spectatorView(state, seat = 0) {
   const v = viewFor(state, seat === 1 ? 1 : 0);
   v.me.hand = undefined;
   v.me.partnerHand = undefined;
-  v.legal = { playable: [], spellTargets: {}, attackers: [], targets: {}, canEndTurn: false };
+  v.legal = { playable: [], spellTargets: {}, attackers: [], targets: {}, canEndTurn: false, power: null };
   v.spectator = true;
   return v;
 }

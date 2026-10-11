@@ -7,7 +7,7 @@ import BotPortrait from './BotPortrait.jsx';
 import { UserPicker } from './Trades.jsx';
 import {
   cardsStartPve, cardsMatch, cardsChallenge, cardsAcceptChallenge, cardsDeclineChallenge, cardsHistory,
-  cardsCampaign, cardsStartCampaign, cardsQueue, cardsLeaveQueue, cardsLive, errMsg,
+  cardsCampaign, cardsStartCampaign, cardsQueue, cardsLeaveQueue, cardsLive, cardsBrawl, cardsStartBrawl, cardsStartTutorial, errMsg,
 } from './api';
 import { sfx } from './sfx';
 
@@ -95,6 +95,13 @@ function StageModal({ stage, onClose, onPlay, busy }) {
   );
 }
 
+function timeLeft(end, now) {
+  const ms = Math.max(0, new Date(end).getTime() - now);
+  const d = Math.floor(ms / 86400000);
+  const h = Math.floor((ms % 86400000) / 3600000);
+  return d > 0 ? `${d}d ${h}h` : `${h}h ${Math.floor((ms % 3600000) / 60000)}min`;
+}
+
 export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onWatch, onReplay, onOpenRoom }) {
   const navigate = useNavigate();
   const [err, setErr] = useState('');
@@ -107,12 +114,14 @@ export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onW
   const [campaign, setCampaign] = useState(null);
   const [stage, setStage] = useState(null);
   const [live, setLive] = useState([]);
+  const [brawl, setBrawl] = useState(null);
   const [now, setNow] = useState(Date.now());
 
   const loadMissions = () => listMissions().then((d) => setMissions((d.missions || []).filter((m) => m.type.startsWith('CARDS_')))).catch(() => setMissions([]));
   useEffect(() => {
     cardsHistory().then((d) => setHistory(d.matches)).catch(() => {});
     cardsCampaign().then(setCampaign).catch(() => {});
+    cardsBrawl().then(setBrawl).catch(() => {});
     const loadLive = () => cardsLive().then((d) => setLive(d.matches)).catch(() => {});
     loadLive();
     loadMissions();
@@ -200,6 +209,30 @@ export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onW
           <span className="tcg-mode-icon"><Icon d={UI.wand} size={26} /></span>
           <b>Personalizada</b><small>Suas regras: vida, energia, baralhos… (sem recompensa)</small>
         </button>
+      </section>
+
+      <section className="tcg-events">
+        {brawl && (
+          <div className="tcg-brawl">
+            <span className="tcg-brawl-badge"><Icon d={UI.trophy} size={14} />Briga da semana</span>
+            <h3>{brawl.brawl.label}</h3>
+            <p>{brawl.brawl.desc}</p>
+            <div className="tcg-brawl-foot">
+              <span className="tcg-dim">{brawl.wonThisWeek ? '✔ Prêmio da semana garantido' : <>1ª vitória: <b className="tcg-gold">+{brawl.reward.coins}</b> moedas e <b className="tcg-gem-t">+{brawl.reward.gems}</b> gemas</>} · termina em {timeLeft(brawl.brawl.endsAt, now)}</span>
+              <button type="button" className="tcg-btn primary" disabled={!!busy} onClick={async () => { setBusy('brawl'); setErr(''); try { onStartMatch(await cardsStartBrawl()); } catch (e) { setErr(errMsg(e)); } finally { setBusy(''); } }}><Icon d={UI.sword} />Jogar briga</button>
+            </div>
+          </div>
+        )}
+        {!home.player.tutorialDone && (
+          <div className="tcg-tutorial">
+            <BotPortrait name="Treinador Theo" size={56} />
+            <div>
+              <h3>Aprenda a jogar</h3>
+              <p>Uma partida guiada contra o Treinador Theo: custo, ataque, Guarda, feitiços e poder do herói. {home.extras?.tutorialCoins ? <>Ganhe <b className="tcg-gold">+{home.extras.tutorialCoins}</b> moedas ao concluir.</> : null}</p>
+            </div>
+            <button type="button" className="tcg-btn primary" disabled={!!busy} onClick={async () => { setBusy('tut'); setErr(''); try { onStartMatch(await cardsStartTutorial()); } catch (e) { setErr(errMsg(e)); } finally { setBusy(''); } }}>Começar</button>
+          </div>
+        )}
       </section>
 
       {home.activeMatch && (
