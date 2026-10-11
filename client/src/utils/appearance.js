@@ -305,7 +305,9 @@ export function applyColorVision(p) {
     html.removeAttribute('data-pc-cb');
     Object.values(CB_VARS).forEach((v) => html.style.removeProperty(v));
   }
-  const filterOn = on && p.colorblindFilter && typeof document !== 'undefined' && !!document.body;
+  // O filtro vale pro app inteiro (pedido do dono): sempre que um modo de
+  // daltonismo estiver ativo, tudo passa por ele — telas, imagens e vídeos.
+  const filterOn = on && typeof document !== 'undefined' && !!document.body;
   if (filterOn) ensureColorVisionFilter(colorVisionMatrix(mode, p.colorblindStrength));
   if (filterOn) html.setAttribute('data-pc-cb-filter', '1'); else html.removeAttribute('data-pc-cb-filter');
   // Formatos nas bolinhas: escolha da pessoa, ou sempre no modo sem cores.

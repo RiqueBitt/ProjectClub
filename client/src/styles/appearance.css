@@ -342,8 +342,10 @@ html[data-theme='amoled'].high-contrast-pref {
    ============================================================ */
 /* Filtro de correção: no #root (não no <html>, ver global.css — não
    quebra position:fixed). Soma com saturação e contraste alto. */
-html[data-pc-cb-filter] #root { filter: url(#pc-cb-filter) saturate(var(--saturation, 100%)); }
-html.high-contrast-pref[data-pc-cb-filter] #root { filter: url(#pc-cb-filter) saturate(var(--saturation, 100%)) contrast(1.35) brightness(1.03); }
+html[data-pc-cb-filter] #root,
+html[data-pc-cb-filter] body > :not(#root):not(#pc-cb-filter-svg):not(script) { filter: url(#pc-cb-filter) saturate(var(--saturation, 100%)); }
+html.high-contrast-pref[data-pc-cb-filter] #root,
+html.high-contrast-pref[data-pc-cb-filter] body > :not(#root):not(#pc-cb-filter-svg):not(script) { filter: url(#pc-cb-filter) saturate(var(--saturation, 100%)) contrast(1.35) brightness(1.03); }
 
 /* Menções seguem a cor segura do modo */
 html[data-pc-cb] .message.mentioned { background: color-mix(in srgb, var(--pc-mention) 9%, transparent); }

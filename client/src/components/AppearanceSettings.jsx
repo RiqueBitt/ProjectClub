@@ -296,11 +296,7 @@ export function ColorVisionSettings() {
             />
             <p className="pc-field-hint">0% deixa as cores originais; 100% usa as cores seguras por completo.</p>
           </div>
-          <SwitchRow
-            title="Filtro de correção de cor"
-            hint="Ajusta as cores do app inteiro, inclusive imagens e vídeos. Pode pesar um pouco em computadores mais fracos."
-            on={prefs.colorblindFilter} onChange={(v) => setPrefs({ colorblindFilter: v })}
-          />
+          <p className="pc-field-hint">O filtro de correção vale para o app inteiro: telas, menus, imagens e vídeos.</p>
         </>
       )}
 
