@@ -103,6 +103,22 @@ function UpdateButton() {
 // verdade dentro do app desktop (window.electronAPI existe) — no
 // navegador normal ou no app mobile a janela continua com a moldura
 // nativa de sempre, então não faz sentido nenhum mostrar isso ali.
+// Reserva: se o arrasto nativo da barra não pegar (o evento só chega aqui
+// quando o -webkit-app-region:drag NÃO funcionou), move a janela por JS.
+export function startManualDrag(e) {
+  const api = window.electronAPI;
+  if (e.button !== 0 || !api?.windowMoveBy) return;
+  let lx = e.screenX; let ly = e.screenY; let raf = 0; let px = 0; let py = 0;
+  const flush = () => { raf = 0; if (px || py) api.windowMoveBy(px, py); px = 0; py = 0; };
+  const move = (ev) => {
+    px += ev.screenX - lx; py += ev.screenY - ly; lx = ev.screenX; ly = ev.screenY;
+    if (!raf) raf = requestAnimationFrame(flush);
+  };
+  const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); if (raf) cancelAnimationFrame(raf); flush(); };
+  window.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', up);
+}
+
 export default function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
   const isElectron = typeof window !== 'undefined' && !!window.electronAPI?.windowMinimize;
@@ -122,7 +138,7 @@ export default function TitleBar() {
 
   return (
     <div className="app-title-bar">
-      <div className="app-title-bar-drag" onDoubleClick={() => window.electronAPI.windowMaximizeToggle()} />
+      <div className="app-title-bar-drag" onDoubleClick={() => window.electronAPI.windowMaximizeToggle()} onMouseDown={startManualDrag} />
       <div className="app-title-bar-controls">
         <UpdateButton />
         <button

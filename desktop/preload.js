@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Item pedido: "crie uma barra que não seja do Windows, de fechar
   // aba, minimizar, aumentar etc" — API exposta pro TitleBar.jsx.
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
+  windowMoveBy: (dx, dy) => ipcRenderer.send('window-move-by', dx, dy),
   // Atualização do app (botão verde na barra): estado, instalar agora e avisos.
   update: {
     getStatus: () => ipcRenderer.invoke('update:get-status'),

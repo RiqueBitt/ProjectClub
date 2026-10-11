@@ -678,6 +678,15 @@ if (!gotLock) {
   // não existe mais nenhum jeito padrão do sistema operacional de
   // minimizar/maximizar/fechar a janela.
   ipcMain.handle('window-minimize', () => mainWindow?.minimize());
+  // Arrastar a janela pela barra de título via JS — reserva pro caso de o
+  // -webkit-app-region:drag não pegar (zoom da interface, camadas por cima).
+  ipcMain.on('window-move-by', (_e, dx, dy) => {
+    if (!mainWindow || mainWindow.isMaximized() || mainWindow.isFullScreen()) return;
+    const x = Number(dx) || 0; const y = Number(dy) || 0;
+    if (!x && !y) return;
+    const [wx, wy] = mainWindow.getPosition();
+    mainWindow.setPosition(Math.round(wx + x), Math.round(wy + y));
+  });
   ipcMain.handle('window-maximize-toggle', () => {
     if (!mainWindow) return;
     if (mainWindow.isMaximized()) mainWindow.unmaximize();

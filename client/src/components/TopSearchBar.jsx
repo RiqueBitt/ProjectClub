@@ -23,6 +23,7 @@ import createPostIcon from '../assets/icons/nav-create-post.png';
 import settingsIcon from '../assets/icons/settings.png';
 import chatIcon from '../assets/icons/chat.png';
 import { QuickSwitcherButton } from './QuickSwitcher.jsx';
+import { startManualDrag } from './TitleBar.jsx';
 
 // Barra de topo estilo Reddit — logo + busca + criar post + notificações +
 // engrenagem de Configurações (item pedido) + perfil/status (item pedido:
@@ -98,7 +99,7 @@ export default function TopSearchBar() {
   };
 
   return (
-    <div className="top-search-bar">
+    <div className="top-search-bar" onMouseDown={(e) => { if (e.target === e.currentTarget) startManualDrag(e); }}>
       {/* Item pedido: menu principal virando gaveta de verdade no
           celular — esse botão só aparece em telas estreitas (≤600px,
           ver .mobile-nav-toggle no CSS) e abre/fecha a barra de

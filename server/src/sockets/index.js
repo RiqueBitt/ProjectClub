@@ -1208,7 +1208,7 @@ function initSockets(httpServer) {
   // direções, e loga (com nome, não só ID) quem foi corrigido — fica no
   // log do servidor pra dar pra confirmar exatamente quem estava
   // afetado e em qual direção, sem precisar acessar o banco direto.
-  const PRESENCE_SWEEP_MS = 60 * 1000;
+  const PRESENCE_SWEEP_MS = 120 * 1000; // era 60s — varre todos os usuários no banco, 2 min basta
   setInterval(async () => {
     try {
       const suspects = await prisma.user.findMany({

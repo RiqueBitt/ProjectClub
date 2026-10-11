@@ -1068,6 +1068,48 @@ function ChatWindowInner({ conversationId, channelId }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, firstUnreadId, topicsByParent]);
 
+  // Arrastar arquivos pra janela e Ctrl+V em qualquer lugar do canal
+  // (não só dentro do campo de texto) anexam direto, sem clicar no clipe.
+  const addFilesRef = useRef(addFiles);
+  addFilesRef.current = addFiles;
+  const [dropActive, setDropActive] = useState(false);
+  useEffect(() => {
+    if (isCallChannel || channel?.type === 'RULES') return undefined;
+    let depth = 0;
+    const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+    const onEnter = (e) => { if (!hasFiles(e)) return; e.preventDefault(); depth += 1; setDropActive(true); };
+    const onOver = (e) => { if (!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; };
+    const onLeave = (e) => { if (!hasFiles(e)) return; depth = Math.max(0, depth - 1); if (!depth) setDropActive(false); };
+    const onDrop = (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); depth = 0; setDropActive(false);
+      const list = [...(e.dataTransfer.files || [])];
+      if (list.length) { addFilesRef.current(list); inputRef.current?.focus(); }
+    };
+    const onPaste = (e) => {
+      if (e.defaultPrevented) return;
+      const t = e.target;
+      if (t && (t.closest?.('input, textarea, [contenteditable="true"], .modal-box, [role="dialog"]'))) return;
+      const list = [...(e.clipboardData?.files || [])];
+      if (!list.length) return;
+      e.preventDefault();
+      addFilesRef.current(list);
+      inputRef.current?.focus();
+    };
+    window.addEventListener('dragenter', onEnter);
+    window.addEventListener('dragover', onOver);
+    window.addEventListener('dragleave', onLeave);
+    window.addEventListener('drop', onDrop);
+    document.addEventListener('paste', onPaste);
+    return () => {
+      window.removeEventListener('dragenter', onEnter);
+      window.removeEventListener('dragover', onOver);
+      window.removeEventListener('dragleave', onLeave);
+      window.removeEventListener('drop', onDrop);
+      document.removeEventListener('paste', onPaste);
+    };
+  }, [isCallChannel, channel?.type]);
+
   if (isCallChannel) {
     return (
       <section className="chat-window">
@@ -1122,6 +1164,7 @@ function ChatWindowInner({ conversationId, channelId }) {
 
   return (
     <section className="chat-window chat-v2">
+      {dropActive && <div className="chat-drop-overlay" aria-hidden="true"><div className="chat-drop-box">Solte para enviar no chat</div></div>}
       {channelId && <ChannelSwitcher currentChannelId={channelId} />}
       <header className={`chat-header ${dmOther ? 'is-dm' : ''}`}>
         {channelHeaderIcon}
