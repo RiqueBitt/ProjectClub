@@ -11,6 +11,59 @@ import { proxyImage } from '../utils/imageProxy';
 import UserAvatar from '../components/UserAvatar.jsx';
 import { useLiveRefresh } from '../utils/liveRefresh';
 import FeedPoll from '../components/FeedPoll.jsx';
+import { pinPost } from '../api/contentx';
+import '../styles/contentx.css';
+
+// Tags podem chegar como array (lista do Fórum) ou texto JSON (outras telas).
+export function postTagsOf(post) {
+  if (Array.isArray(post?.tags)) return post.tags;
+  try { const v = post?.tags ? JSON.parse(post.tags) : []; return Array.isArray(v) ? v : []; } catch { return []; }
+}
+
+// Fixar/desafixar (staff) — atualiza a lista na hora e reordena.
+export function usePinToggle(setPosts) {
+  return async (post) => {
+    const next = !post.pinnedAt;
+    const at = next ? new Date().toISOString() : null;
+    const reorder = (list) => {
+      const updated = list.map((p) => (p.id === post.id ? { ...p, pinnedAt: at, pinned: next } : p));
+      const pinned = updated.filter((p) => p.pinnedAt).sort((a, b) => new Date(b.pinnedAt) - new Date(a.pinnedAt));
+      return [...pinned, ...updated.filter((p) => !p.pinnedAt)];
+    };
+    setPosts((list) => (list ? reorder(list) : list));
+    try { await pinPost(post.id, next); } catch { setPosts((list) => (list ? list.map((p) => (p.id === post.id ? { ...p, pinnedAt: post.pinnedAt, pinned: !!post.pinnedAt } : p)) : list)); }
+  };
+}
+
+// Linha de filtro por tag (chips). Só aparece se existir alguma tag.
+export function TagFilter({ tags, value, onChange }) {
+  if (!tags.length) return null;
+  return (
+    <div className="cxf-tagbar" role="group" aria-label="Filtrar por tag">
+      <span className="cxf-tagbar-label"><FeedIcon name="tag" size={14} /> Tags</span>
+      <button type="button" className={`cxf-tag-chip${!value ? ' active' : ''}`} aria-pressed={!value} onClick={() => onChange('')}>Todas</button>
+      {tags.map((t) => (
+        <button key={t} type="button" className={`cxf-tag-chip${value === t ? ' active' : ''}`} aria-pressed={value === t} onClick={() => onChange(value === t ? '' : t)}>{t}</button>
+      ))}
+    </div>
+  );
+}
+
+// Esqueleto dos cartões de post enquanto carrega.
+export function PostSkeletons({ count = 3 }) {
+  return (
+    <div className="post-card-list" aria-busy="true" aria-label="Carregando posts">
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className="cxf-skel-card">
+          <span className="cxf-skel cxf-skel-line short" />
+          <span className="cxf-skel cxf-skel-line title" />
+          <span className="cxf-skel cxf-skel-line" />
+          <span className="cxf-skel cxf-skel-line mid" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // Feeds — página principal, lista os posts de todos os Temas. Um Tema é
 // uma categoria principal criada só pela staff (ver AdminPanel.jsx →
@@ -33,12 +86,16 @@ export default function CommunitiesPage() {
   const [posts, setPosts] = useState(null);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [showCreateClub, setShowCreateClub] = useState(false);
+  const [tag, setTag] = useState('');
+  // Tags de todos os Temas juntas (a staff define por Tema).
+  const allTags = [...new Set(clubs.flatMap((c) => (Array.isArray(c.postTags) ? c.postTags : [])))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const onPin = usePinToggle(setPosts);
 
-  const refreshPosts = () => listPosts({ sort }).then((d) => setPosts(d.posts));
-  useEffect(() => { refreshPosts(); }, [sort]);
+  const refreshPosts = () => listPosts({ sort, tag: tag || undefined }).then((d) => setPosts(d.posts));
+  useEffect(() => { setPosts(null); refreshPosts(); }, [sort, tag]);
 
   // Tempo real (11s): feed na ordenação escolhida (votos/novos posts).
-  useLiveRefresh(({ put }) => listPosts({ sort }).then((d) => put(setPosts)(d.posts)), { enabled: posts !== null, key: sort });
+  useLiveRefresh(({ put }) => listPosts({ sort, tag: tag || undefined }).then((d) => put(setPosts)(d.posts)), { enabled: posts !== null, key: `${sort}|${tag}` });
 
   const onVote = async (post, value) => {
     // Otimista: atualiza a tela na hora, sem esperar o servidor.
@@ -70,6 +127,7 @@ export default function CommunitiesPage() {
             </button>
           ))}
         </div>
+        <TagFilter tags={allTags} value={tag} onChange={setTag} />
 
         {showCreatePost && (
           <CreatePostForm
@@ -79,16 +137,16 @@ export default function CommunitiesPage() {
           />
         )}
 
-        {!posts ? <p className="dim">Carregando...</p> : posts.length === 0 ? (
+        {!posts ? <PostSkeletons /> : posts.length === 0 ? (
           <div className="support-empty-state">
             <div className="support-empty-state-icon"><IconGlyph src={emptyIcon} size={40} /></div>
-            <h3>Nenhum post ainda</h3>
-            <p className="dim">Seja o primeiro a postar em algum Tema.</p>
+            <h3>{tag ? 'Nenhum post com essa tag' : 'Nenhum post ainda'}</h3>
+            <p className="dim">{tag ? 'Tente outra tag ou veja todas.' : 'Seja o primeiro a postar em algum Tema.'}</p>
           </div>
         ) : (
           <div className="post-card-list">
             {posts.map((post) => (
-              <PostCard key={post.id} post={post} onVote={onVote} onOpen={() => navigate(`/posts/${post.id}`)} />
+              <PostCard key={post.id} post={post} onVote={onVote} onPin={isStaff ? onPin : undefined} onTag={setTag} onOpen={() => navigate(`/posts/${post.id}`)} />
             ))}
           </div>
         )}
@@ -130,6 +188,8 @@ const FEED_ICONS = {
   new: 'M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8',
   top: 'M4 17l6-6 4 4 6-7M14 8h6v6',
   plus: 'M12 5v14M5 12h14',
+  pin: 'M9 4h6l-1 5 3 3v2H7v-2l3-3-1-5ZM12 14v6',
+  tag: 'M3 12V4h8l9 9-8 8-9-9ZM7.5 8.5h.01',
 };
 export function FeedIcon({ name, size = 16, filled = false }) {
   return (
@@ -164,7 +224,8 @@ export function VotePill({ score, myVote, onVote }) {
   );
 }
 
-export function PostCard({ post, onVote, onOpen }) {
+export function PostCard({ post, onVote, onOpen, onPin, onTag }) {
+  const tags = postTagsOf(post);
   const [copied, setCopied] = useState(false);
   const share = (e) => {
     e.stopPropagation();
@@ -175,7 +236,8 @@ export function PostCard({ post, onVote, onOpen }) {
   };
   const onKey = (e) => { if (e.key === 'Enter' && e.target === e.currentTarget) onOpen(); };
   return (
-    <article className="fp-card" onClick={onOpen} onKeyDown={onKey} tabIndex={0} aria-label={post.title}>
+    <article className={`fp-card${post.pinnedAt ? ' cxf-pinned' : ''}`} onClick={onOpen} onKeyDown={onKey} tabIndex={0} aria-label={post.title}>
+      {post.pinnedAt && <span className="cxf-pin-flag"><FeedIcon name="pin" size={13} /> Fixado pela staff</span>}
       <header className="fp-card-head">
         <span className="fp-club">
           {post.community.iconUrl
@@ -196,6 +258,16 @@ export function PostCard({ post, onVote, onOpen }) {
         </span>
       </header>
       <h3 className="fp-title">{post.title}</h3>
+      {tags.length > 0 && (
+        <div className="cxf-post-tags">
+          {tags.map((t) => (
+            <button
+              key={t} type="button" className="cxf-post-tag" title={onTag ? `Ver posts com a tag ${t}` : undefined}
+              onClick={(e) => { e.stopPropagation(); onTag?.(t); }} disabled={!onTag}
+            ><FeedIcon name="tag" size={11} /> {t}</button>
+          ))}
+        </div>
+      )}
       {post.type === 'TEXT' && post.content && <p className="fp-text">{post.content}</p>}
       {post.type === 'IMAGE' && post.imageUrl && (
         <div className="fp-media"><img src={proxyImage(post.imageUrl)} alt="" loading="lazy" /></div>
@@ -212,6 +284,11 @@ export function PostCard({ post, onVote, onOpen }) {
         <button type="button" className="fp-action" onClick={share}>
           <FeedIcon name="share" /> <span className="fp-action-label">{copied ? 'Link copiado' : 'Compartilhar'}</span>
         </button>
+        {onPin && (
+          <button type="button" className={`fp-action cxf-pin-btn${post.pinnedAt ? ' on' : ''}`} onClick={(e) => { e.stopPropagation(); onPin(post); }} aria-pressed={!!post.pinnedAt}>
+            <FeedIcon name="pin" /> <span className="fp-action-label">{post.pinnedAt ? 'Desafixar' : 'Fixar'}</span>
+          </button>
+        )}
       </footer>
     </article>
   );
@@ -266,7 +343,7 @@ function CreateClubForm({ onClose }) {
         LOGO (opcional)
         <div className="community-icon-picker-row">
           <span className="community-row-icon community-icon-preview">
-            {iconPreview ? <img src={iconPreview} alt="" /> : '📌'}
+            {iconPreview ? <img src={iconPreview} alt="" /> : <FeedIcon name="pin" size={18} />}
           </span>
           <label className="btn-secondary">Escolher imagem<input type="file" accept="image/*" hidden onChange={pickIcon} /></label>
         </div>
@@ -297,9 +374,14 @@ export function CreatePostForm({ clubs, defaultClubSlug, onClose, onCreated }) {
   // Enquete (aba "Enquete"): o título do post vira a pergunta.
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [error, setError] = useState('');
+  // Tags (até 3) da lista que a staff definiu pro Tema.
+  const [tags, setTags] = useState([]);
+  const clubTags = Array.isArray(selectedClub?.postTags) ? selectedClub.postTags : [];
+  const toggleTag = (t) => setTags((list) => (list.includes(t) ? list.filter((x) => x !== t) : list.length >= 3 ? list : [...list, t]));
 
   const changeClub = (slug) => {
     setCommunitySlug(slug);
+    setTags([]);
     const club = clubs.find((c) => c.slug === slug);
     setCategoryId(club?.categories?.[0]?.id || '');
   };
@@ -340,6 +422,7 @@ export function CreatePostForm({ clubs, defaultClubSlug, onClose, onCreated }) {
         imageUrl: type === 'IMAGE' ? imageFile.url : undefined,
         linkUrl,
         poll: type === 'POLL' ? { options: cleanOptions } : undefined,
+        tags: tags.length ? tags : undefined,
       });
       onCreated(post);
     } catch (err) { setError(err.response?.data?.error || 'Não foi possível publicar o post.'); }
@@ -367,6 +450,18 @@ export function CreatePostForm({ clubs, defaultClubSlug, onClose, onCreated }) {
         </select>
       </label>
       <label>TÍTULO<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} required /></label>
+      {clubTags.length > 0 && (
+        <div className="cxf-tag-picker">
+          <span className="cxf-tag-picker-label">TAGS <small>(até 3, opcional)</small></span>
+          <div className="cxf-tag-picker-list" role="group" aria-label="Escolher tags">
+            {clubTags.map((t) => (
+              <button key={t} type="button" className={`cxf-tag-chip${tags.includes(t) ? ' active' : ''}`} aria-pressed={tags.includes(t)} onClick={() => toggleTag(t)}>
+                {tags.includes(t) && <FeedIcon name="tag" size={12} />} {t}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="post-type-tabs">
         {[['TEXT', 'Texto'], ['IMAGE', 'Imagem'], ['LINK', 'Link'], ['POLL', 'Enquete']].map(([k, l]) => (
           <button key={k} type="button" className={`post-type-tab ${type === k ? 'active' : ''}`} onClick={() => setType(k)}>{l}</button>

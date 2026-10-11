@@ -17,7 +17,15 @@ export const DEFAULT_LAYOUT_PREFS = Object.freeze({
   seasonal: true, // temas sazonais automáticos
   legibleFont: false, // fonte mais fácil de ler (Atkinson Hyperlegible)
   resumeLastPage: false, // ao abrir, volta pra última página em vez do Início
+  // Daltonismo (Acessibilidade): troca as cores de status/sucesso/erro por
+  // cores que dá pra distinguir e, opcionalmente, um filtro de correção.
+  colorblind: 'none', // none | protanopia | deuteranopia | tritanopia | achromatopsia
+  colorblindStrength: 100, // 0–100: o quanto as cores trocam (e o filtro age)
+  colorblindFilter: false, // filtro de correção de cor no app inteiro (afeta imagens)
+  statusShapes: false, // ícones além de cores nas bolinhas de status
 });
+
+export const COLORBLIND_MODES = ['none', 'protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia'];
 
 export const SIDEBAR_WIDTH_MIN = 200;
 export const SIDEBAR_WIDTH_MAX = 420;
@@ -46,6 +54,10 @@ export function normalizeLayoutPrefs(raw) {
     seasonal: typeof p.seasonal === 'boolean' ? p.seasonal : d.seasonal,
     legibleFont: typeof p.legibleFont === 'boolean' ? p.legibleFont : d.legibleFont,
     resumeLastPage: typeof p.resumeLastPage === 'boolean' ? p.resumeLastPage : d.resumeLastPage,
+    colorblind: COLORBLIND_MODES.includes(p.colorblind) ? p.colorblind : d.colorblind,
+    colorblindStrength: clampInt(p.colorblindStrength, 0, 100, d.colorblindStrength),
+    colorblindFilter: typeof p.colorblindFilter === 'boolean' ? p.colorblindFilter : d.colorblindFilter,
+    statusShapes: typeof p.statusShapes === 'boolean' ? p.statusShapes : d.statusShapes,
   };
 }
 
@@ -57,6 +69,17 @@ export function sameLayoutPrefs(a, b) {
 
 export function isDefaultLayoutPrefs(p) {
   return sameLayoutPrefs(p, DEFAULT_LAYOUT_PREFS);
+}
+
+// Chaves que são de Acessibilidade (não voltam ao padrão pelo botão
+// "Restaurar padrão" do layout, que mora em Aparência).
+export const A11Y_PREF_KEYS = ['legibleFont', 'colorblind', 'colorblindStrength', 'colorblindFilter', 'statusShapes'];
+export function layoutOnlyDefaults() {
+  return Object.fromEntries(Object.entries(DEFAULT_LAYOUT_PREFS).filter(([k]) => !A11Y_PREF_KEYS.includes(k)));
+}
+export function isDefaultLayoutOnly(p) {
+  const x = normalizeLayoutPrefs(p);
+  return Object.entries(layoutOnlyDefaults()).every(([k, v]) => x[k] === v);
 }
 
 export function loadLocalLayoutPrefs() {
@@ -181,7 +204,113 @@ export function applyLayoutPrefs(prefs, { reducedMotion = false } = {}) {
 
   const season = p.seasonal ? currentSeason() : null;
   setAttr('data-pc-season', !!season, season || '');
+
+  applyColorVision(p);
   return { prefs: p, season, motionOff };
+}
+
+// ---------- Daltonismo ----------
+// Cores "seguras" de cada modo (baseadas na paleta Okabe-Ito). Só as
+// cores com significado mudam: status (online/ausente/não perturbe),
+// sucesso/aviso/erro e o destaque de menções. A marca (azul) fica.
+const BASE_SEMANTIC = { green: '#23a55a', yellow: '#f0b232', red: '#f23f43', online: '#23a55a', idle: '#f0b232', dnd: '#f23f43', offline: '#80848e', mention: '#f0b232' };
+export const COLORBLIND_PALETTES = {
+  // Vermelho e verde se confundem: sucesso vira azul-céu, erro vira laranja-vermelhão.
+  protanopia: { green: '#3fa9e8', yellow: '#f0e442', red: '#e66100', online: '#3fa9e8', idle: '#f0e442', dnd: '#e66100', offline: '#8a8f98', mention: '#f0e442' },
+  deuteranopia: { green: '#2f9ee8', yellow: '#f5d90a', red: '#d55e00', online: '#2f9ee8', idle: '#f5d90a', dnd: '#d55e00', offline: '#8a8f98', mention: '#f5d90a' },
+  // Azul e amarelo se confundem: ausente vira laranja, sucesso verde-água, erro magenta.
+  tritanopia: { green: '#1fbfa0', yellow: '#ff8a3d', red: '#e5306f', online: '#1fbfa0', idle: '#ff8a3d', dnd: '#e5306f', offline: '#8a8f98', mention: '#ff8a3d' },
+  // Sem cores: diferença só de claro/escuro (e os formatos fazem o resto).
+  // Botões verdes/vermelhos (texto branco por cima) ficam como estão: a
+  // diferença de claro/escuro deles já existe; só os status mudam.
+  achromatopsia: { green: '#23a55a', yellow: '#f0b232', red: '#f23f43', online: '#f2f3f5', idle: '#b5b9c0', dnd: '#8e929a', offline: '#5d6168', mention: '#c9ccd2' },
+};
+
+const hexToRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const rgbToHex = (rgb) => `#${rgb.map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, '0')).join('')}`;
+export function mixHex(a, b, t) {
+  const x = hexToRgb(a); const y = hexToRgb(b);
+  return rgbToHex(x.map((v, i) => v + (y[i] - v) * t));
+}
+
+// Cores semânticas finais pra um modo/intensidade (usado também na prévia).
+export function colorVisionPalette(mode, strength = 100) {
+  const target = COLORBLIND_PALETTES[mode];
+  if (!target) return { ...BASE_SEMANTIC };
+  const t = Math.min(100, Math.max(0, strength)) / 100;
+  return Object.fromEntries(Object.keys(BASE_SEMANTIC).map((k) => [k, mixHex(BASE_SEMANTIC[k], target[k], t)]));
+}
+
+// Matrizes de simulação (espaço sRGB, aproximação clássica) e a correção
+// "daltonize": o que a pessoa não enxerga é empurrado pros canais que
+// ela enxerga. M = I + E·(I − S); a intensidade mistura com a identidade.
+const SIM = {
+  protanopia: [[0.567, 0.433, 0], [0.558, 0.442, 0], [0, 0.242, 0.758]],
+  deuteranopia: [[0.625, 0.375, 0], [0.7, 0.3, 0], [0, 0.3, 0.7]],
+  tritanopia: [[0.95, 0.05, 0], [0, 0.433, 0.567], [0, 0.475, 0.525]],
+};
+const SHIFT = {
+  protanopia: [[0, 0, 0], [0.7, 1, 0], [0.7, 0, 1]],
+  deuteranopia: [[0, 0, 0], [0.7, 1, 0], [0.7, 0, 1]],
+  tritanopia: [[1, 0, 0.7], [0, 1, 0.7], [0, 0, 0]],
+};
+const I3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+const mul3 = (a, b) => a.map((row) => [0, 1, 2].map((j) => row[0] * b[0][j] + row[1] * b[1][j] + row[2] * b[2][j]));
+export function colorVisionMatrix(mode, strength = 100) {
+  const t = Math.min(100, Math.max(0, strength)) / 100;
+  let m;
+  if (mode === 'achromatopsia') {
+    // Sem cor pra corrigir: realça o contraste de claro/escuro.
+    const c = 1 + 0.25 * t; const o = -0.125 * t;
+    return [c, 0, 0, 0, o, 0, c, 0, 0, o, 0, 0, c, 0, o, 0, 0, 0, 1, 0].map((v) => +v.toFixed(4)).join(' ');
+  }
+  if (SIM[mode]) {
+    const diff = I3.map((row, i) => row.map((v, j) => v - SIM[mode][i][j]));
+    const corr = mul3(SHIFT[mode], diff);
+    m = I3.map((row, i) => row.map((v, j) => v + corr[i][j] * t));
+  } else {
+    m = I3;
+  }
+  return [...m[0], 0, 0, ...m[1], 0, 0, ...m[2], 0, 0, 0, 0, 0, 1, 0].map((v) => +v.toFixed(4)).join(' ');
+}
+
+const CB_VARS = { green: '--green', yellow: '--yellow', red: '--red', online: '--pc-st-online', idle: '--pc-st-idle', dnd: '--pc-st-dnd', offline: '--pc-st-offline', mention: '--pc-mention' };
+const CB_FILTER_ID = 'pc-cb-filter';
+
+function ensureColorVisionFilter(matrix) {
+  let svg = document.getElementById(`${CB_FILTER_ID}-svg`);
+  if (!svg) {
+    svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.id = `${CB_FILTER_ID}-svg`;
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('width', '0');
+    svg.setAttribute('height', '0');
+    svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none';
+    svg.innerHTML = `<filter id="${CB_FILTER_ID}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="" /></filter>`;
+    document.body.appendChild(svg);
+  }
+  svg.querySelector('feColorMatrix').setAttribute('values', matrix);
+}
+
+// Aplica (ou tira) as cores seguras e o filtro. Sem modo: nada muda.
+export function applyColorVision(p) {
+  const html = document.documentElement;
+  const mode = p.colorblind && p.colorblind !== 'none' ? p.colorblind : null;
+  const on = !!mode && p.colorblindStrength > 0;
+  if (on) {
+    html.setAttribute('data-pc-cb', mode);
+    const pal = colorVisionPalette(mode, p.colorblindStrength);
+    Object.entries(CB_VARS).forEach(([k, v]) => html.style.setProperty(v, pal[k]));
+  } else {
+    html.removeAttribute('data-pc-cb');
+    Object.values(CB_VARS).forEach((v) => html.style.removeProperty(v));
+  }
+  const filterOn = on && p.colorblindFilter && typeof document !== 'undefined' && !!document.body;
+  if (filterOn) ensureColorVisionFilter(colorVisionMatrix(mode, p.colorblindStrength));
+  if (filterOn) html.setAttribute('data-pc-cb-filter', '1'); else html.removeAttribute('data-pc-cb-filter');
+  // Formatos nas bolinhas: escolha da pessoa, ou sempre no modo sem cores.
+  if (p.statusShapes || mode === 'achromatopsia') html.setAttribute('data-pc-status-shapes', '1');
+  else html.removeAttribute('data-pc-status-shapes');
 }
 
 // ---------- Memória de página / rolagem ----------

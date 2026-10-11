@@ -150,6 +150,7 @@ function initSockets(httpServer) {
       if (!token) return next(new Error('unauthorized'));
       const payload = verifyAccessToken(token);
       socket.userId = payload.sub;
+      socket.data.userId = payload.sub; // visível também via fetchSockets() (RemoteSocket)
       next();
     } catch (err) {
       next(new Error('unauthorized'));
@@ -157,8 +158,28 @@ function initSockets(httpServer) {
   });
 
   gamePlaytime.startSweeper(); // fecha sessões de jogo sem batimento
+
+  // Presença no boot: nenhum socket sobrevive a um restart do processo
+  // (mesma lógica de voiceStore.clearAllRooms() no index.js), então tudo
+  // que estiver no Redis agora é de conexões mortas. Antes isso ficava lá
+  // até expirar e "segurava" a pessoa online. Toda conexão nova espera
+  // essa limpeza terminar (no máximo 4s, pra nunca travar se o Redis
+  // estiver fora) antes de se registrar.
+  const presenceReady = Promise.race([
+    presenceStore.clearAll()
+      .then((n) => { if (n > 0) console.log(`[presença] boot: ${n} registro(s) de conexões antigas limpos`); })
+      .catch((err) => console.error('[presença] limpeza no boot falhou:', err?.message || err)),
+    new Promise((resolve) => { setTimeout(resolve, 4000).unref?.(); }),
+  ]);
+
   io.on('connection', async (socket) => {
     const userId = socket.userId;
+    // Reconexão rápida: cancela já (antes de qualquer await) o "marcar
+    // offline" atrasado da conexão anterior — ver OFFLINE_GRACE_MS.
+    if (pendingOfflineTimers.has(userId)) {
+      clearTimeout(pendingOfflineTimers.get(userId));
+      pendingOfflineTimers.delete(userId);
+    }
 
     // A throw anywhere in here used to be an unhandled promise rejection —
     // in modern Node that crashes the *entire* process (every connected
@@ -167,6 +188,7 @@ function initSockets(httpServer) {
     // connection attempt (e.g. a DB hiccup) can't take the whole server
     // down; see also the process-level safety net in index.js.
     try {
+      await presenceReady;
       const socketCount = await presenceStore.addSocket(userId, socket.id);
       // BUG CORRIGIDO ("continua online mesmo sem a web aberta"): a
       // entrada de presença no Redis agora expira sozinha depois de
@@ -180,18 +202,17 @@ function initSockets(httpServer) {
       // a expirar à toa. Cancelado no 'disconnect' logo abaixo — depois
       // que a conexão cai de verdade, não tem mais nada aqui pra
       // renovar, e a entrada expira sozinha do jeito certo.
+      // Renova o relógio DESTE socket (não só da chave) — ver
+      // presenceStore.refreshPresence. Se a conexão já caiu (inclusive
+      // enquanto este 'connection' ainda rodava, quando o 'once' abaixo
+      // pode nunca disparar), o intervalo se cancela sozinho.
       const heartbeat = setInterval(() => {
-        presenceStore.refreshPresence(userId).catch((err) => console.error('[socket] falha ao renovar presença:', err));
+        if (!socket.connected) { clearInterval(heartbeat); return; }
+        presenceStore.refreshPresence(userId, socket.id).catch((err) => console.error('[socket] falha ao renovar presença:', err));
       }, (presenceStore.PRESENCE_TTL_SECONDS || 90) * 1000 / 3);
       socket.once('disconnect', () => clearInterval(heartbeat));
-      // A quick reconnect (see OFFLINE_GRACE_MS above) means the previous
-      // disconnect's delayed "mark offline" never actually fired yet —
-      // cancel it so it doesn't go through moments from now and wrongly
-      // flip someone who's clearly still connected to OFFLINE.
-      if (pendingOfflineTimers.has(userId)) {
-        clearTimeout(pendingOfflineTimers.get(userId));
-        pendingOfflineTimers.delete(userId);
-      }
+      // (O cancelamento do "marcar offline" atrasado de uma conexão
+      // anterior agora acontece no topo do 'connection', antes dos awaits.)
 
       // Junta na sala pessoal (DMs/notificações), na sala única da
       // comunidade e em toda conversa de que o usuário participa.
@@ -855,7 +876,12 @@ function initSockets(httpServer) {
       }
     });
 
-    socket.on('disconnect', async () => {
+    // Registrado só aqui embaixo, DEPOIS dos awaits do início da conexão:
+    // se a conexão caiu no meio deles, o evento 'disconnect' já passou e
+    // nunca chegaria a este handler — o socket morto ficava registrado na
+    // presença (uma das causas do "corrigido X: ONLINE -> OFFLINE"). Por
+    // isso, se já estiver desconectado, roda a limpeza na hora.
+    const onDisconnect = async () => {
       try {
         // BUG CORRIGIDO ("some da call mesmo continuando conectado"):
         // (1) qualquer socket da pessoa que caísse (outra aba, o app de
@@ -906,7 +932,9 @@ function initSockets(httpServer) {
           pendingOfflineTimers.set(userId, timer);
         }
       } catch (err) { console.error('[socket] disconnect cleanup falhou:', err); }
-    });
+    };
+    if (socket.disconnected) onDisconnect();
+    else socket.on('disconnect', onDisconnect);
   });
 
   // ---------- Tolerância de queda de conexão em chamadas de voz ----------
@@ -1182,9 +1210,20 @@ function initSockets(httpServer) {
   // agora, fazendo todo mundo aparecer offline pros outros até se
   // reconectar de verdade (recarregando a página) ou a heartbeat rodar
   // de novo sozinha.
+  // Agora o "Reload" refaz a presença na hora: depois de limpar, registra
+  // de novo cada socket que está conectado DE VERDADE neste momento,
+  // corrige o banco (reconcilePresence) e manda o retrato completo pra
+  // todo mundo — antes todos ficavam "offline" até recarregar a página.
   io.reloadAllUserPresence = async () => {
     const cleared = await presenceStore.clearAll();
     io.emit('presence:reset');
+    const live = await io.fetchSockets().catch(() => []);
+    await Promise.all(live.map((s) => (s.userId || s.data?.userId)
+      ? presenceStore.addSocket(s.userId || s.data.userId, s.id).catch(() => {})
+      : null));
+    await reconcilePresence({ summary: true, label: 'reload da staff' }).catch(() => {});
+    const allStatuses = await prisma.user.findMany({ select: { id: true, status: true, customStatus: true } });
+    io.emit('presence:sync', allStatuses.map((u) => ({ userId: u.id, status: u.status, customStatus: u.customStatus })));
     return cleared;
   };
 
@@ -1217,33 +1256,74 @@ function initSockets(httpServer) {
   // direções, e loga (com nome, não só ID) quem foi corrigido — fica no
   // log do servidor pra dar pra confirmar exatamente quem estava
   // afetado e em qual direção, sem precisar acessar o banco direto.
-  const PRESENCE_SWEEP_MS = 120 * 1000; // era 60s — varre todos os usuários no banco, 2 min basta
-  setInterval(async () => {
-    try {
-      const suspects = await prisma.user.findMany({
-        where: { status: { in: ['ONLINE', 'IDLE', 'OFFLINE'] } },
+  // Agora a varredura é só REDE DE SEGURANÇA: as causas reais do
+  // desencontro (sockets mortos contando como vivos, 'disconnect' perdido
+  // durante o início da conexão, batimento que não recriava a presença
+  // depois do "Reload" e registros de antes de um restart) foram
+  // corrigidas na origem — ver presenceStore.js e o 'connection' acima.
+  // Também ficou mais barata: em vez de 1 consulta no Redis por usuário
+  // cadastrado, lê de uma vez quem tem socket vivo e só confere no banco
+  // quem está do lado errado.
+  // Não Perturbe também entra: o 'disconnect' já marca OFFLINE qualquer
+  // status, então "Não perturbe" sem nenhuma conexão é o mesmo desencontro.
+  const PRESENCE_SWEEP_MS = 120 * 1000; // era 60s — 2 min basta
+  async function reconcilePresence({ summary = false, label = 'boot' } = {}) {
+    const liveIds = await presenceStore.listOnlineUserIds();
+    const liveSet = new Set(liveIds);
+    const fixedDown = [];
+    const fixedUp = [];
+    const stale = await prisma.user.findMany({
+      where: { status: { in: ['ONLINE', 'IDLE', 'DND'] }, ...(liveIds.length ? { id: { notIn: liveIds } } : {}) },
+      select: { id: true, displayName: true, status: true },
+    });
+    for (const u of stale) {
+      if (liveSet.has(u.id) || pendingOfflineTimers.has(u.id)) continue;
+      // Confere de novo, um a um: pode ter conectado durante a varredura.
+      // eslint-disable-next-line no-await-in-loop
+      if (await presenceStore.isOnline(u.id)) continue;
+      // eslint-disable-next-line no-await-in-loop
+      await prisma.user.update({ where: { id: u.id }, data: { status: 'OFFLINE' } }).catch(() => {});
+      clearIdleTimer(u.id);
+      clearAutoOfflineTimer(u.id);
+      autoIdledUsers.delete(u.id);
+      broadcastPresence(io, u.id);
+      fixedDown.push(u);
+    }
+    if (liveIds.length) {
+      // Direção oposta: conectado de verdade, mas o banco diz OFFLINE.
+      // Quem virou OFFLINE pela ausência prolongada (autoIdledUsers) está
+      // assim de propósito e não entra aqui.
+      const missing = await prisma.user.findMany({
+        where: { status: 'OFFLINE', id: { in: liveIds } },
         select: { id: true, displayName: true, status: true },
       });
-      for (const { id, displayName, status } of suspects) {
-        const reallyOnline = await presenceStore.isOnline(id);
-        if (status !== 'OFFLINE' && !reallyOnline) {
-          // Achava que estava online/ausente, mas não tem sessão real —
-          // corrige pra offline (mesma correção de antes).
-          await prisma.user.update({ where: { id }, data: { status: 'OFFLINE' } }).catch(() => {});
-          clearIdleTimer(id);
-          clearAutoOfflineTimer(id);
-          autoIdledUsers.delete(id);
-          broadcastPresence(io, id);
-          console.log(`[presença] corrigido "${displayName}" (${id}): ${status} -> OFFLINE (sem sessão real)`);
-        } else if (status === 'OFFLINE' && reallyOnline) {
-          // Direção oposta: está mesmo conectado, mas o banco ainda
-          // mostra offline — corrige pra online.
-          await prisma.user.update({ where: { id }, data: { status: 'ONLINE' } }).catch(() => {});
-          broadcastPresence(io, id);
-          console.log(`[presença] corrigido "${displayName}" (${id}): OFFLINE -> ONLINE (sessão real encontrada)`);
-        }
+      for (const u of missing) {
+        if (autoIdledUsers.has(u.id)) continue;
+        // eslint-disable-next-line no-await-in-loop
+        await prisma.user.update({ where: { id: u.id }, data: { status: 'ONLINE' } }).catch(() => {});
+        broadcastPresence(io, u.id);
+        fixedUp.push(u);
       }
-    } catch (err) { console.error('[socket] varredura de presença falhou:', err); }
+    }
+    if (summary) {
+      if (fixedDown.length || fixedUp.length) {
+        console.log(`[presença] ${label}: ${fixedDown.length} conta(s) marcadas offline (sem conexão), ${fixedUp.length} marcadas online`);
+      }
+      return;
+    }
+    fixedDown.forEach((u) => console.log(`[presença] corrigido "${u.displayName}" (${u.id}): ${u.status} -> OFFLINE (sem sessão real)`));
+    fixedUp.forEach((u) => console.log(`[presença] corrigido "${u.displayName}" (${u.id}): OFFLINE -> ONLINE (sessão real encontrada)`));
+  }
+  // Logo depois do boot: quem estava online antes do deploy e não voltou
+  // em 30s (o cliente reconecta em poucos segundos) é marcado offline de
+  // uma vez, com UMA linha de log — em vez de esperar a varredura e
+  // aparecer como "corrigido" um por um.
+  setTimeout(() => {
+    presenceReady.then(() => reconcilePresence({ summary: true }))
+      .catch((err) => console.error('[socket] reconciliação de presença no boot falhou:', err));
+  }, 30 * 1000).unref?.();
+  setInterval(() => {
+    reconcilePresence().catch((err) => console.error('[socket] varredura de presença falhou:', err));
   }, PRESENCE_SWEEP_MS);
 
   // AFK sweep: fase 2 (junto com o resto de voz/vídeo) — o conceito de

@@ -17,6 +17,8 @@ router.get('/:id', ctrl.getPost);
 router.delete('/:id', ctrl.deletePost);
 router.post('/:id/vote', ctrl.votePost);
 router.post('/:id/poll/vote', ctrl.votePostPoll);
+router.post('/:id/pin', ctrl.pinPost); // staff: fixar no topo
+router.patch('/:id/tags', ctrl.updatePostTags);
 
 router.get('/:id/comments', ctrl.listComments);
 router.post('/:id/comments', ctrl.addComment);

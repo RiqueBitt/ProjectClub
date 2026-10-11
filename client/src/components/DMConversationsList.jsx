@@ -7,6 +7,7 @@ import PresenceDot from './PresenceDot.jsx';
 import NewDMModal from './modals/NewDMModal.jsx';
 import ConversationIcon from './ConversationIcon.jsx';
 import UserAvatar from './UserAvatar.jsx';
+import TypingDots from './TypingDots.jsx';
 import SocialIcon from './SocialIcons.jsx';
 import cancelIcon from '../assets/icons/cancel.png';
 
@@ -73,6 +74,7 @@ export default function DMConversationsList() {
                 {status && <PresenceDot status={status} />}
               </div>
               <span className="truncate">{name}</span>
+              <TypingDots roomKey={`conversation:${c.id}`} myUserId={user.id} />
               {unread && <span className="unread-dot" />}
               {c.isGroup && (
                 <button className="dm-item-leave" title="Sair do grupo" onClick={(e) => doLeave(e, c.id)}>

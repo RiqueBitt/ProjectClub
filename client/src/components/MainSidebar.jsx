@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '../store/useStore';
+import { useClaimableMissions } from '../utils/missionBadge';
 import { useAuth } from '../context/AuthContext.jsx';
 import topicIcon from '../assets/icons/nav-topic.png';
 import feedIcon from '../assets/icons/nav-feed.png';
@@ -172,7 +173,9 @@ export default function MainSidebar() {
   const unreadConversations = conversations.filter((c) => isConversationUnread(c, user.id)).length;
   const pendingIncoming = friends.filter((f) => f.status === 'PENDING' && f.isIncoming).length;
 
+  const claimableMissions = useClaimableMissions(); // missões prontas pra resgatar
   const badgeFor = (to) => {
+    if (to === '/economia') return claimableMissions;
     if (to === '/') return unreadChannels;
     if (to === '/dms') return unreadConversations + pendingIncoming;
     if (to === '/notifications') return unreadChannels + unreadConversations + pendingIncoming;

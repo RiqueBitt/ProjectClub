@@ -2,9 +2,12 @@
 // única: o cargo "@todos" (equivalente ao antigo @everyone por servidor,
 // agora global — toda conta nova recebe automaticamente, ver
 // authController.register) e uma categoria/canais padrão pra não começar
-// vazio. Seguro rodar de novo: tudo é upsert por chave estável.
+// vazio. Seguro rodar de novo: cada parte só escreve o que falta/mudou
+// (ver syncCatalog/runOnce abaixo) e com os sistemas de casas/figurinhas
+// desligados (src/config/features.js) esses catálogos nem são lidos.
 const { PrismaClient } = require('@prisma/client');
 const { DEFAULT_EVERYONE_PERMISSIONS, toStringBits } = require('../src/services/permissions');
+const { isFeatureEnabled } = require('../src/config/features');
 const prisma = new PrismaClient();
 
 const BADGES = [
@@ -46,18 +49,54 @@ async function main() {
   await seed();
 }
 
-async function seed() {
-  for (const badge of BADGES) {
-    await prisma.badge.upsert({ where: { key: badge.key }, update: badge, create: badge });
+// ---------- Ajudantes: seed barato e silencioso ----------
+// O seed roda em TODO deploy (ver scripts/prisma-push-with-retry.js).
+// Antes ele fazia um upsert por item de cada catálogo (centenas de
+// consultas) e imprimia "Seeded ..." sempre, mesmo sem mudar nada. Agora
+// cada catálogo faz UMA leitura e só escreve o que falta ou mudou; o log
+// só aparece quando algo realmente foi criado/alterado.
+const changes = [];
+const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+async function syncCatalog(label, delegate, rows, idField = 'id') {
+  const existing = await delegate.findMany({ where: { [idField]: { in: rows.map((r) => r[idField]) } } });
+  const byId = new Map(existing.map((e) => [e[idField], e]));
+  let created = 0;
+  let updated = 0;
+  for (const row of rows) {
+    const cur = byId.get(row[idField]);
+    if (!cur) {
+      await delegate.create({ data: row });
+      created += 1;
+    } else if (Object.keys(row).some((k) => !same(cur[k], row[k]))) {
+      await delegate.update({ where: { [idField]: row[idField] }, data: row });
+      updated += 1;
+    }
   }
-  console.log(`Seeded ${BADGES.length} badges.`);
+  if (created || updated) changes.push(`${label}: ${created} novo(s), ${updated} atualizado(s)`);
+  return { created, updated };
+}
+
+// Migrações de dados que só podem rodar UMA vez (model SeedMarker). Se a
+// tabela ainda não existir no client gerado, cai no modo "sempre roda" —
+// por isso cada migração também é escrita pra ser inofensiva ao repetir.
+async function runOnce(key, fn) {
+  const markers = prisma.seedMarker;
+  if (markers) {
+    const done = await markers.findUnique({ where: { key } }).catch(() => null);
+    if (done) return;
+  }
+  await fn();
+  if (markers) await markers.upsert({ where: { key }, update: {}, create: { key } }).catch(() => {});
+}
+
+async function seed() {
+  await syncCatalog('Insígnias', prisma.badge, BADGES, 'key');
 
   // Configurações da plataforma/comunidade (singleton).
-  await prisma.platformSettings.upsert({
-    where: { id: 'singleton' },
-    update: {},
-    create: { id: 'singleton', communityName: 'Project Club' },
-  });
+  if (!(await prisma.platformSettings.findUnique({ where: { id: 'singleton' } }))) {
+    await prisma.platformSettings.create({ data: { id: 'singleton', communityName: 'Project Club' } });
+  }
 
   // Cargo @todos — o cargo padrão que toda conta nova recebe.
   const everyone = await prisma.role.findFirst({ where: { isDefault: true } });
@@ -71,7 +110,7 @@ async function seed() {
         isDefault: true,
       },
     });
-    console.log('Cargo @todos criado.');
+    changes.push('Cargo @todos criado');
   }
 
   // Estrutura inicial de canais, pra comunidade não abrir vazia.
@@ -81,135 +120,101 @@ async function seed() {
     await prisma.channel.create({ data: { name: 'início', type: 'TEXT', categoryId: geral.id, position: 0, topic: 'Bem-vindo(a) à comunidade!' } });
     await prisma.channel.create({ data: { name: 'avisos', type: 'ANNOUNCEMENT', categoryId: geral.id, position: 1 } });
     await prisma.channel.create({ data: { name: 'geral', type: 'TEXT', categoryId: geral.id, position: 2 } });
-    console.log('Categoria e canais padrão criados.');
+    changes.push('Categoria e canais padrão criados');
   }
 
-  // Casas/decoração (adaptado do bot Robbie — fase 3): catálogo real de
-  // casas (iglus temáticos), categorias e móveis extraídos do banco de
-  // dados original do usuário.
-  const { FURNITURE_CATEGORIES, FURNITURE_ITEMS, HOUSE_CATALOG } = require('../src/data/housesCatalog');
-  for (const cat of FURNITURE_CATEGORIES) {
-    await prisma.furnitureCategory.upsert({ where: { id: cat.id }, update: cat, create: cat });
+  // Casas/decoração e figurinhas colecionáveis (adaptados do bot Robbie)
+  // estão DESLIGADOS no código (src/config/features.js). Com o sistema
+  // desligado não há por que mexer nessas tabelas a cada deploy; os
+  // dados antigos continuam no banco intactos. Ao religar, o próximo
+  // deploy sincroniza tudo de novo.
+  if (isFeatureEnabled('houses')) {
+    const { FURNITURE_CATEGORIES, FURNITURE_ITEMS, HOUSE_CATALOG } = require('../src/data/housesCatalog');
+    await syncCatalog('Categorias de móveis', prisma.furnitureCategory, FURNITURE_CATEGORIES);
+    await syncCatalog('Móveis', prisma.furniture, FURNITURE_ITEMS);
+    await syncCatalog('Casas', prisma.houseCatalog, HOUSE_CATALOG);
+    // Fundos de casa (mapas) — fundos de imagem que o dono da casa pode
+    // escolher no lugar da cor sólida padrão.
+    const { MAP_BACKGROUNDS } = require('../src/data/mapsCatalog');
+    await syncCatalog('Fundos de casa', prisma.mapBackground, MAP_BACKGROUNDS);
   }
-  for (const item of FURNITURE_ITEMS) {
-    await prisma.furniture.upsert({ where: { id: item.id }, update: item, create: item });
-  }
-  for (const house of HOUSE_CATALOG) {
-    await prisma.houseCatalog.upsert({ where: { id: house.id }, update: house, create: house });
-  }
-  console.log(`Seeded ${FURNITURE_CATEGORIES.length} categorias, ${FURNITURE_ITEMS.length} móveis e ${HOUSE_CATALOG.length} casas.`);
 
-  // Baús diários (agora editáveis pela staff — ver adminController de
-  // economia) — valores iniciais extraídos 1:1 do catálogo original.
+  // Baús diários (editáveis pela staff — ver adminController de
+  // economia): só cria os que faltam, uma leitura só.
   const chestsCatalog = require('../src/data/chestsCatalog');
+  const chestRows = await prisma.dailyChest.findMany({ where: { name: { in: chestsCatalog.DAILY_CHESTS.map((c) => c.name) } } });
+  const chestByName = new Map(chestRows.map((c) => [c.name, c]));
   for (const [i, chest] of chestsCatalog.DAILY_CHESTS.entries()) {
-    const existing = await prisma.dailyChest.findFirst({ where: { name: chest.name } });
+    const existing = chestByName.get(chest.name);
     if (!existing) {
       await prisma.dailyChest.create({ data: { ...chest, position: i } });
+      changes.push(`Baú "${chest.name}" criado`);
     } else if (chest.imageClosed && !existing.imageClosed) {
-      // Backfill pra bancos de dados que já tinham os baús criados ANTES
-      // das imagens (imgur, extraídas do bot Robbie) entrarem no catálogo
-      // — sem isso, quem já jogava não ganhava as imagens novas.
+      // Backfill pra bancos que já tinham os baús criados ANTES das
+      // imagens entrarem no catálogo.
       await prisma.dailyChest.update({ where: { id: existing.id }, data: { imageClosed: chest.imageClosed, imageOpened: chest.imageOpened } });
+      changes.push(`Baú "${chest.name}": imagens adicionadas`);
     }
   }
-  console.log(`Seeded ${chestsCatalog.DAILY_CHESTS.length} baús diários.`);
 
-  // Figurinhas/álbum (adaptado do bot Robbie — fase 4): raridades e
-  // catálogo real extraídos do config original.
-  const { STICKER_RARITIES, STICKERS } = require('../src/data/stickersCatalog');
-  for (const r of STICKER_RARITIES) {
-    await prisma.stickerRarity.upsert({ where: { id: r.id }, update: r, create: r });
-  }
-  for (const s of STICKERS) {
-    const { slotIndex, ...stickerData } = s; // slotIndex é só auxiliar (ordem no catálogo), não existe no schema
-    await prisma.collectibleSticker.upsert({ where: { id: stickerData.id }, update: stickerData, create: stickerData });
-  }
-  console.log(`Seeded ${STICKER_RARITIES.length} raridades e ${STICKERS.length} figurinhas.`);
+  if (isFeatureEnabled('stickers')) {
+    // Figurinhas/álbum: raridades e catálogo real extraídos do config original.
+    const { STICKER_RARITIES, STICKERS } = require('../src/data/stickersCatalog');
+    await syncCatalog('Raridades de figurinha', prisma.stickerRarity, STICKER_RARITIES);
+    // slotIndex é só auxiliar (ordem no catálogo), não existe no schema.
+    await syncCatalog('Figurinhas', prisma.collectibleSticker, STICKERS.map(({ slotIndex, ...data }) => data));
 
-  // Fundos de casa (mapas) — adaptado do sistema de mapas do bot Robbie:
-  // fundos de imagem reais que o dono da casa pode escolher pra substituir
-  // a cor sólida padrão.
-  const { MAP_BACKGROUNDS } = require('../src/data/mapsCatalog');
-  for (const map of MAP_BACKGROUNDS) {
-    await prisma.mapBackground.upsert({ where: { id: map.id }, update: map, create: map });
+    // Layout do álbum (fundo + espaços): só na PRIMEIRA vez. Antes, toda
+    // execução redistribuía as figurinhas nos espaços — desfazendo o que
+    // a staff tivesse reposicionado no painel.
+    const album = await prisma.albumSettings.findUnique({ where: { id: 'singleton' } });
+    if (!album) {
+      await prisma.albumSettings.create({ data: { id: 'singleton', backgroundColor: '#14161c', totalPages: 2 } });
+      const SLOT_LAYOUT = Array.from({ length: 12 }, (_, i) => ({
+        slotKey: `slot${i}`, x: 50 + (i % 4) * 426, y: 150 + Math.floor(i / 4) * 346, width: 396, height: 316, enabled: i < 5,
+      }));
+      for (const slot of SLOT_LAYOUT) {
+        await prisma.albumSlot.upsert({ where: { slotKey: slot.slotKey }, update: {}, create: slot });
+      }
+      const enabledSlotKeys = SLOT_LAYOUT.filter((s) => s.enabled).map((s) => s.slotKey);
+      for (let i = 0; i < STICKERS.length; i++) {
+        const page = Math.floor(i / enabledSlotKeys.length) + 1;
+        const slotKey = enabledSlotKeys[i % enabledSlotKeys.length];
+        await prisma.collectibleSticker.update({
+          where: { id: STICKERS[i].id }, data: { assignedPage: page, assignedSlotKey: slotKey },
+        }).catch(() => {});
+      }
+      changes.push('Layout do álbum inicial criado (2 páginas, 5 espaços cada)');
+    }
   }
-  console.log(`Seeded ${MAP_BACKGROUNDS.length} fundos de casa (mapas).`);
 
-  // Layout do álbum (fundo + espaços) — pré-preenchido com 10 espaços (2
-  // páginas de 5, já que o catálogo real tem 10 figurinhas), staff pode
-  // reconfigurar tudo depois no painel administrativo.
-  await prisma.albumSettings.upsert({
-    where: { id: 'singleton' }, update: {},
-    create: { id: 'singleton', backgroundColor: '#14161c', totalPages: 2 },
-  });
-  const SLOT_LAYOUT = Array.from({ length: 12 }, (_, i) => ({
-    slotKey: `slot${i}`, x: 50 + (i % 4) * 426, y: 150 + Math.floor(i / 4) * 346, width: 396, height: 316, enabled: i < 5,
-  }));
-  for (const slot of SLOT_LAYOUT) {
-    await prisma.albumSlot.upsert({ where: { slotKey: slot.slotKey }, update: {}, create: slot });
-  }
-  // Distribui as figurinhas nas duas páginas (5 por página) só pra não
-  // abrir vazio — staff pode reposicionar cada uma livremente depois.
-  const enabledSlotKeys = SLOT_LAYOUT.filter((s) => s.enabled).map((s) => s.slotKey);
-  for (let i = 0; i < STICKERS.length; i++) {
-    const page = Math.floor(i / enabledSlotKeys.length) + 1;
-    const slotKey = enabledSlotKeys[i % enabledSlotKeys.length];
-    await prisma.collectibleSticker.update({
-      where: { id: STICKERS[i].id }, data: { assignedPage: page, assignedSlotKey: slotKey },
-    }).catch(() => {});
-  }
-  console.log('Layout do álbum inicial criado (2 páginas, 5 espaços cada).');
-
-  // Item pedido: "não quero a tag Clube, se não tiver tag de clã não
-  // apareça nada" — a funcionalidade genérica de "tag da comunidade"
-  // (o botão que ficava em Configurações > Exibição, que já mostrou
-  // "PROJ" e depois "Clube" como valor de reserva em tentativas
-  // anteriores) foi removida de vez da tela — não há mais como
-  // desativar isso por lá, então limpa aqui qualquer conta que ainda
-  // tenha um valor preso nesses dois campos, de quando a
-  // funcionalidade ainda existia. Idempotente: contas que já não têm
-  // nada aí simplesmente não são afetadas.
+  // A "tag da comunidade" foi removida da tela — limpa qualquer conta que
+  // ainda tenha um valor preso nesses campos. Uma consulta só; não faz
+  // nada quando já está tudo limpo.
   const removedCommunityTag = await prisma.user.updateMany({
     where: { tagText: { not: null } }, data: { tagEmoji: null, tagText: null },
   });
-  if (removedCommunityTag.count > 0) console.log(`Removida a tag de comunidade de ${removedCommunityTag.count} conta(s).`);
+  if (removedCommunityTag.count > 0) changes.push(`Tag de comunidade removida de ${removedCommunityTag.count} conta(s)`);
 
-  // Item pedido: "deixe o layout do discord como o principal pra todo
-  // mundo, atualiza pra deixar ele como principal pra qualquer user
-  // que for usar no futuro" — o default de conta nova já mudou
-  // (schema.prisma), esta é a parte que falta: contas já existentes
-  // que ainda estavam no valor antigo. Mesmo padrão do bloco acima —
-  // idempotente (não sobrescreve quem já escolheu 'discord' ou
-  // qualquer outro valor de propósito), então fica seguro aqui pra
-  // sempre, sem precisar remover depois.
-  // Layout "Normal 2.0" vira o padrão de todas as contas existentes, UMA
-  // vez só: a migração anterior (que trocava 'normal' por 'discord' a cada
-  // deploy) desfazia a escolha de quem preferia outro layout. Agora a
-  // conta migrada recebe layoutVersion = 2 e nunca mais é tocada aqui.
-  const migratedToNormal2 = await prisma.user.updateMany({
-    where: { layoutVersion: { lt: 2 } }, data: { layoutStyle: 'normal2', layoutVersion: 2 },
+  // Layout "Normal 2.0" como padrão: migração de UMA vez só (marcador
+  // 'layout-normal2'). Causa do log "aplicado em N conta(s)" a cada
+  // deploy: conta nova nasce com layoutVersion 0 (e já em "normal2"), e
+  // a versão anterior pegava toda conta em 0 de novo. Agora: só roda uma
+  // vez e só mexe em quem nunca escolheu (layoutVersion < 2) e ainda
+  // está num layout antigo — quem escolheu em Configurações já está em 2
+  // e nunca é tocado.
+  await runOnce('layout-normal2', async () => {
+    const migrated = await prisma.user.updateMany({
+      where: { layoutVersion: { lt: 2 }, layoutStyle: { not: 'normal2' } },
+      data: { layoutStyle: 'normal2', layoutVersion: 2 },
+    });
+    if (migrated.count > 0) changes.push(`Layout 'Normal 2.0' aplicado em ${migrated.count} conta(s) (migração única)`);
   });
-  if (migratedToNormal2.count > 0) console.log(`Layout 'Normal 2.0' aplicado em ${migratedToNormal2.count} conta(s).`);
 
-  // Item pedido: "cadastrar sozinho" os jogos do sistema de Mods, sem
-  // precisar clicar no painel da staff — mesmo padrão idempotente do
-  // resto do seed (upsert por chave estável, seguro rodar de novo a
-  // cada deploy). Cobre os jogos que a pessoa mencionou terem mods via
-  // Steam Workshop (Payday 2/3, Terraria via tModLoader) ou GameBanana
-  // (GTA V, Terraria). GTA V não tem entrada no mod.io/Workshop de
-  // propósito — não existe API pública seguindo pra ele lá (ver
-  // conversa: gta5-mods.com não tem API oficial, só teria como via
-  // scraping, que não fazemos).
-  // Item pedido: corrigir o Steam Workshop pra Payday 2/3 — pesquisei
-  // e confirmei que NÃO deveriam estar aqui: o Payday 3 não tem
-  // suporte a Steam Workshop nenhum (mods de verdade ficam no
-  // ModWorkshop.net, um site totalmente diferente que a gente não
-  // integra), e o Payday 2 só usa o Workshop pra skins cosméticos
-  // votáveis — os mods de jogabilidade de verdade (a maioria do que a
-  // comunidade usa) também ficam só no ModWorkshop.net. Mantê-los aqui
-  // dava a entender errado que tinha mod ali quando na prática não
-  // tinha nada relevante — removidos.
+  // Jogos do sistema de Mods cadastrados sozinhos (Steam Workshop e
+  // GameBanana). Payday 2/3 ficaram de fora de propósito: os mods de
+  // verdade deles ficam no ModWorkshop.net, que não integramos. GTA V não
+  // tem Workshop (só GameBanana).
   const workshopGames = [
     { steamAppId: 4000, workshopAppId: 4000, displayName: "Garry's Mod" },
     { steamAppId: 550, workshopAppId: 550, displayName: 'Left 4 Dead 2' },
@@ -227,46 +232,36 @@ async function seed() {
     { steamAppId: 581320, workshopAppId: 581320, displayName: 'Insurgency: Sandstorm' },
     { steamAppId: 108600, workshopAppId: 108600, displayName: 'Project Zomboid' },
     {
-      // Item pedido: "adicione o Workshop do Terraria" — o steamAppId
-      // aqui é o do Terraria CLÁSSICO (105600, o jogo que a pessoa
-      // realmente tem instalado e que o steamDetector encontra
-      // sozinho), não o do tModLoader — é assim que esse jogo consegue
-      // se FUNDIR com a entrada dele no GameBanana logo abaixo (mesmo
-      // steamAppId nos dois) em vez de aparecer como um cartão
-      // separado repetido. workshopAppId continua sendo o do
-      // tModLoader (1281930), que é quem lê os mods de verdade — pra
-      // isso funcionar, precisa instalá-lo também pela Steam.
+      // Terraria: steamAppId do jogo CLÁSSICO (105600, o que o
+      // steamDetector encontra) pra fundir com a entrada do GameBanana
+      // logo abaixo; workshopAppId é o do tModLoader (1281930), que é
+      // quem lê os mods de verdade.
       steamAppId: 105600, workshopAppId: 1281930, displayName: 'Terraria',
       note: 'Isso lê os mods através do tModLoader, um app separado da Steam — instale-o também pela sua biblioteca Steam.',
     },
   ];
-  for (const g of workshopGames) {
-    await prisma.workshopGameMapping.upsert({ where: { steamAppId: g.steamAppId }, update: g, create: g });
-  }
-  console.log(`Seeded ${workshopGames.length} jogos do Steam Workshop.`);
+  await syncCatalog('Jogos do Steam Workshop', prisma.workshopGameMapping, workshopGames, 'steamAppId');
 
   // IDs conferidos direto nas páginas do GameBanana (gamebanana.com/games/<id>).
-  // Item pedido: "corrija pois eu tenho o Garry's Mod baixado e ele
-  // não está aparecendo" — faltava mesmo, id conferido direto na
-  // página do jogo no GameBanana (a atual, "GMod Hub" — existem
-  // páginas antigas tipo "Garry's Mod 9"/"13" com IDs diferentes, essa
-  // aqui é a principal/ativa).
   const gamebananaGames = [
     { steamAppId: 4000, gameBananaGameId: 73, displayName: "Garry's Mod" },
     { steamAppId: 271590, gameBananaGameId: 4745, displayName: 'Grand Theft Auto V' },
     { steamAppId: 105600, gameBananaGameId: 4779, displayName: 'Terraria' },
   ];
-  for (const g of gamebananaGames) {
-    await prisma.gameBananaGameMapping.upsert({ where: { steamAppId: g.steamAppId }, update: g, create: g });
-  }
-  console.log(`Seeded ${gamebananaGames.length} jogos do GameBanana.`);
+  await syncCatalog('Jogos do GameBanana', prisma.gameBananaGameMapping, gamebananaGames, 'steamAppId');
 
   // Pingentes do catálogo da staff foram descontinuados: agora só vale a
   // imagem própria que cada pessoa envia. Limpa as escolhas antigas (não
-  // apaga nada do banco, só desmarca) pra ninguém ficar com um pingente
-  // que não dá mais pra trocar.
+  // apaga nada do banco, só desmarca). Uma consulta; nada quando já limpo.
   const clearedPendants = await prisma.user.updateMany({ where: { selectedPendantId: { not: null } }, data: { selectedPendantId: null } });
-  if (clearedPendants.count) console.log(`Pingentes do catálogo removidos de ${clearedPendants.count} conta(s).`);
+  if (clearedPendants.count) changes.push(`Pingentes do catálogo removidos de ${clearedPendants.count} conta(s)`);
+
+  if (changes.length) {
+    console.log('Seed: alterações aplicadas —');
+    changes.forEach((c) => console.log(`  - ${c}`));
+  } else {
+    console.log('Seed: nada a mudar (tudo já estava em dia).');
+  }
 }
 
 main()

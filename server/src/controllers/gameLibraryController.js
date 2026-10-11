@@ -83,8 +83,64 @@ async function getLibrary(req, res, next) {
     const recent = [...games].sort(SORTS.recent).slice(0, 8);
     const nowPlaying = games.find((g) => g.playingNow) || null;
 
-    res.json({ user, isMe, visible: true, visibility: isMe ? (await prisma.userSettings.findUnique({ where: { userId: targetId }, select: { gamesVisibility: true } }))?.gamesVisibility || 'friends' : access.level, sort, games: list, recent, totals, nowPlaying });
+    const [weekly, common] = await Promise.all([
+      weeklyHours(targetId, games).catch(() => null),
+      isMe ? null : commonGames(req.user.id, games).catch(() => null),
+    ]);
+
+    res.json({ weekly, common, user, isMe, visible: true, visibility: isMe ? (await prisma.userSettings.findUnique({ where: { userId: targetId }, select: { gamesVisibility: true } }))?.gamesVisibility || 'friends' : access.level, sort, games: list, recent, totals, nowPlaying });
   } catch (err) { next(err); }
+}
+
+// Horas por semana (últimas 8 semanas, começando na segunda-feira).
+// Fonte "days": GamePlayDay (gravado a partir deste update). Sem esses
+// dados ainda, devolve source "lastPlayed": só QUANTOS jogos foram abertos
+// pela última vez em cada semana — NÃO é tempo jogado, a tela avisa isso.
+const WEEKS = 8;
+function weekStarts(now = Date.now()) {
+  const today = gamePlaytime.dayKey(now); // AAAA-MM-DD em Brasília
+  const d = new Date(`${today}T12:00:00Z`);
+  const dow = (d.getUTCDay() + 6) % 7; // 0 = segunda
+  d.setUTCDate(d.getUTCDate() - dow);
+  const out = [];
+  for (let i = WEEKS - 1; i >= 0; i -= 1) {
+    const w = new Date(d); w.setUTCDate(d.getUTCDate() - i * 7);
+    out.push(w.toISOString().slice(0, 10));
+  }
+  return out;
+}
+async function weeklyHours(userId, games) {
+  const starts = weekStarts();
+  const rows = await prisma.gamePlayDay.findMany({ where: { userId, day: { gte: starts[0] } }, select: { day: true, seconds: true }, take: 5000 });
+  const idx = (day) => { let k = -1; for (let i = 0; i < starts.length; i += 1) if (day >= starts[i]) k = i; return k; };
+  if (rows.length > 0) {
+    const weeks = starts.map((start) => ({ start, seconds: 0 }));
+    for (const r of rows) { const k = idx(r.day); if (k >= 0) weeks[k].seconds += r.seconds; }
+    return { source: 'days', weeks };
+  }
+  const weeks = starts.map((start) => ({ start, games: 0 }));
+  for (const g of games) {
+    const k = idx(gamePlaytime.dayKey(new Date(g.lastPlayedAt).getTime()));
+    if (k >= 0) weeks[k].games += 1;
+  }
+  return { source: 'lastPlayed', weeks };
+}
+
+// Jogos em comum entre quem está vendo e a biblioteca aberta. Só usa a
+// biblioteca de quem vê (a dela é sempre dela) — a outra já passou pela
+// checagem de privacidade antes de chegar aqui.
+async function commonGames(viewerId, theirGames) {
+  if (!theirGames.length) return [];
+  const mine = await prisma.gamePlaytime.findMany({
+    where: { userId: viewerId, gameKey: { in: theirGames.map((g) => g.gameKey) } },
+    select: { gameKey: true, totalSeconds: true },
+  });
+  const myBy = Object.fromEntries(mine.map((m) => [m.gameKey, m.totalSeconds]));
+  return theirGames
+    .filter((g) => myBy[g.gameKey] !== undefined)
+    .map((g) => ({ gameKey: g.gameKey, name: g.name, steamAppId: g.steamAppId, iconUrl: g.iconUrl, theirSeconds: g.totalSeconds, mySeconds: myBy[g.gameKey] }))
+    .sort((a, b) => (b.theirSeconds + b.mySeconds) - (a.theirSeconds + a.mySeconds))
+    .slice(0, 24);
 }
 
 module.exports = { getLibrary, canSeeLibrary };

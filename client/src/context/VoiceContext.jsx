@@ -167,6 +167,11 @@ export function VoiceProvider({ children }) {
   // sem som") e qualidade de rede por uid (Agora network-quality, 0-6).
   const localSoundAtRef = useRef(0);
   const [netQuality, setNetQuality] = useState({});
+  // Barra de chamada: ping (RTT até o Agora, ms), hora em que EU entrei
+  // (tempo de chamada) e qualidade atual da transmissão de tela.
+  const [myRtt, setMyRtt] = useState(null);
+  const [callStartedAt, setCallStartedAt] = useState(null);
+  const [screenQuality, setScreenQuality] = useState(null); // { quality, frameRate }
   // BUG CORRIGIDO ("transmitindo mas aparece como câmera / não aparece
   // a tela"): antes, cada vídeo remoto era classificado UMA vez, no
   // momento em que chegava do Agora, como "tela" ou "câmera" olhando o
@@ -328,6 +333,15 @@ export function VoiceProvider({ children }) {
           return keys.length === Object.keys(prev).length && keys.every((k) => prev[k] === next[k]) ? prev : next;
         });
       } catch { /* versão do SDK sem isso — só não mostra */ }
+      // Ping (ida e volta até o servidor do Agora). Arredonda pra não
+      // re-renderizar por 1ms de diferença.
+      try {
+        const rtt = client.getRTCStats?.()?.RTT;
+        if (Number.isFinite(rtt) && rtt > 0) {
+          const r = Math.round(rtt / 5) * 5;
+          setMyRtt((prev) => (prev === r ? prev : r));
+        }
+      } catch { /* sem estatística — só não mostra o ping */ }
     });
 
     agoraClientRef.current = client;
@@ -487,6 +501,7 @@ export function VoiceProvider({ children }) {
       const next = { serverId, channelId, channelName, channelType };
       setCall(next);
       callRef.current = next;
+      setCallStartedAt(Date.now());
       setMyRole('speaker');
       socket?.emit('voice:join', { channelId });
       playSound('callJoin');
@@ -536,6 +551,9 @@ export function VoiceProvider({ children }) {
     soundboardAudiosRef.current = {};
     if (syncTimerRef.current) { clearTimeout(syncTimerRef.current); syncTimerRef.current = null; }
     setNetQuality({});
+    setMyRtt(null);
+    setCallStartedAt(null);
+    setScreenQuality(null);
 
     // BUG CORRIGIDO ("demora pra sair" / "tela travada ao sair e entrar
     // de novo"): a tela só limpava DEPOIS do Agora terminar de sair
@@ -678,6 +696,7 @@ export function VoiceProvider({ children }) {
           androidScreenTrackRef.current = null;
         }
         setScreenOn(false);
+        setScreenQuality(null);
         broadcastState({ screenSharing: false });
         forceLocalVideoTick((n) => n + 1);
         return;
@@ -746,6 +765,7 @@ export function VoiceProvider({ children }) {
         // que tentava COMEÇAR outra transmissão em vez de parar, deixando
         // a faixa encerrada publicada (último quadro congelado pros outros).
         screenTrack.on('track-ended', () => { if (screenTrackRef.current === screenTrack) toggleScreenShareRef.current?.(); });
+        setScreenQuality({ quality: QUALITY_PRESETS[quality] ? quality : '1080p', frameRate });
         setScreenOn(true);
         broadcastState({ screenSharing: true });
         forceLocalVideoTick((n) => n + 1);
@@ -758,6 +778,27 @@ export function VoiceProvider({ children }) {
       toggleScreenShareBusyRef.current = false;
     }
   }, [screenOn, broadcastState]);
+  // Trocar a qualidade da tela SEM parar a transmissão (setEncoderConfiguration
+  // do Agora na faixa que já está no ar). Também lembra a escolha pra próxima vez.
+  const setScreenShareQuality = useCallback(async ({ quality, frameRate }) => {
+    const dims = QUALITY_PRESETS[quality];
+    if (!dims || ![15, 30, 60].includes(frameRate)) return false;
+    try {
+      const saved = JSON.parse(localStorage.getItem('screenShareOptions') || 'null') || {};
+      localStorage.setItem('screenShareOptions', JSON.stringify({ audio: true, ...saved, quality, frameRate }));
+    } catch { /* sem storage */ }
+    const track = screenTrackRef.current;
+    if (!track || androidScreenTrackRef.current || typeof track.setEncoderConfiguration !== 'function') return false;
+    try {
+      await track.setEncoderConfiguration({ width: dims.width, height: dims.height, frameRate });
+      setScreenQuality({ quality, frameRate });
+      return true;
+    } catch (err) {
+      console.error('[voz] não foi possível trocar a qualidade da tela:', err);
+      useStore.getState().pushNotice('Não foi possível trocar a qualidade da transmissão agora.');
+      return false;
+    }
+  }, []);
   const toggleScreenShareRef = useRef(toggleScreenShare);
   useEffect(() => { toggleScreenShareRef.current = toggleScreenShare; }, [toggleScreenShare]);
 
@@ -1052,6 +1093,7 @@ export function VoiceProvider({ children }) {
       incomingCall, answerIncomingCall, declineIncomingCall,
       switchMicrophone,
       netQuality, getMicLastSoundAt: () => localSoundAtRef.current,
+      myRtt, callStartedAt, screenQuality, setScreenShareQuality,
     }}
     >
       {children}

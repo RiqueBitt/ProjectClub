@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import ChannelSidebar from './ChannelSidebar.jsx';
 import { ITEMS, STAFF_ITEM, visibleNavItems } from './MainSidebar.jsx';
 import { useFeaturedVisibility } from './FeaturedChannels.jsx';
+import { useClaimableMissions } from '../utils/missionBadge';
 
 // Layout "Normal 2.0": uma coluna só à esquerda, no estilo Discord —
 // banner da comunidade no topo, o menu principal em botões logo abaixo
@@ -29,7 +30,9 @@ export function useBadges(user) {
   const pendingIncoming = friends.filter((f) => f.status === 'PENDING' && f.isIncoming).length;
   const allChannels = [...channels, ...categories.flatMap((c) => c.channels || [])];
   const unreadChannels = allChannels.filter((ch) => isChannelUnread(ch, channelReadAt, user.id, myRoleIds)).length;
+  const claimableMissions = useClaimableMissions(); // missões prontas pra resgatar
   return (to) => {
+    if (to === '/economia') return claimableMissions;
     if (to === '/dms') return unreadConversations + pendingIncoming;
     if (to === '/notifications') return unreadChannels + unreadConversations + pendingIncoming;
     return 0;

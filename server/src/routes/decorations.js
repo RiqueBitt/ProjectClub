@@ -13,6 +13,8 @@ router.get('/shop', shop.shop);
 router.post('/effects/equip', shop.equipEffect);
 router.post('/effects/:id/buy', shop.buyEffect);
 router.post('/collections/:id/buy', shop.buyCollection);
+router.get('/history', shop.purchaseHistory); // compras + presentes
+router.post('/gift', shop.giftItem); // presentear um amigo
 const collectionFiles = uploadImage.fields([{ name: 'banner', maxCount: 1 }, { name: 'logo', maxCount: 1 }]);
 router.get('/admin/effects', requirePlatformAdmin, shop.adminListEffects);
 router.post('/admin/effects', requirePlatformAdmin, uploadImage.single('image'), shop.adminCreateEffect);

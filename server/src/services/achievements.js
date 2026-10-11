@@ -7,7 +7,12 @@ const { ACHIEVEMENTS, DEPRECATED_KEYS } = require('../data/achievementsCatalog')
 // painel (nome, ícone, raridade, meta...) nunca é perdida só por causa
 // de um restart do servidor.
 async function seedAchievements() {
+  // Uma leitura só; cria apenas as que faltam (antes: um upsert por
+  // conquista a cada boot).
+  const have = await prisma.achievement.findMany({ select: { key: true } }).catch(() => null);
+  const haveKeys = new Set((have || []).map((a) => a.key));
   for (const def of ACHIEVEMENTS) {
+    if (have && haveKeys.has(def.key)) continue;
     await prisma.achievement.upsert({
       where: { key: def.key },
       update: {},

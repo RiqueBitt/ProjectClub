@@ -8,6 +8,14 @@ import { listAppCatalog } from '../api/endpoints';
 import PageIcon from '../components/PageIcons.jsx';
 import { proxyImage } from '../utils/imageProxy';
 import '../styles/jogos-page.css';
+
+// Ícones locais (traço) no lugar dos símbolos ▶ ⬇ 🔍 que viravam caixinha no Linux.
+const JP_ICONS = { play: 'M8 5v14l11-7L8 5Z', download: 'M12 4v11M7 10l5 5 5-5M5 20h14', zoom: 'm20 20-4.2-4.2M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14ZM11 8v6M8 11h6' };
+function JpIcon({ name, size = 16, filled = false }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ verticalAlign: '-3px' }}><path d={JP_ICONS[name]} /></svg>
+  );
+}
 import { useLiveRefresh } from '../utils/liveRefresh';
 
 // Item pedido: "separe claramente os downloads para Windows e Linux"
@@ -249,14 +257,14 @@ function ModuleCard({ item, onOpenDetail }) {
             title={busy ? 'Baixando...' : installed ? 'Jogar' : 'Baixar'}
             aria-label={busy ? 'Baixando' : installed ? 'Jogar' : 'Baixar'}
           >
-            {busy && progress ? <span className="app-card-quick-btn-percent">{progress.percent}%</span> : installed ? '▶' : '⬇'}
+            {busy && progress ? <span className="app-card-quick-btn-percent">{progress.percent}%</span> : installed ? <JpIcon name="play" filled /> : <JpIcon name="download" />}
           </button>
         )}
       </div>
       {item.description && <p className="app-card-description">{item.description}</p>}
       {!desktopReady && <p className="app-card-hint dim">Disponível apenas no app de desktop do Project Club.</p>}
       {desktopReady && installed && !busy && (
-        <div className="app-card-installed-tag">✓ Instalado</div>
+        <div className="app-card-installed-tag"><PageIcon name="check" size={13} strokeWidth={2.6} /> Instalado</div>
       )}
       {desktopReady && busy && progress && (
         <div className="app-card-progress">
@@ -280,7 +288,7 @@ function ScreenshotGallery({ screenshots, onOpen }) {
         {screenshots.map((s, i) => (
           <button key={s.id} type="button" className="app-detail-screenshot-thumb" onClick={() => onOpen(i)}>
             <img src={proxyImage(s.imageUrl)} alt="" loading="lazy" />
-            <span className="app-detail-screenshot-thumb-zoom">🔍</span>
+            <span className="app-detail-screenshot-thumb-zoom"><JpIcon name="zoom" size={18} /></span>
           </button>
         ))}
       </div>
@@ -394,13 +402,13 @@ function AppDetailView({ item, onBack, onOpenScreenshot }) {
     if (installed) {
       return (
         <div className="app-detail-installed-row">
-          <button type="button" className="btn-play app-detail-play-btn" onClick={open}>▶ Jogar</button>
+          <button type="button" className="btn-play app-detail-play-btn" onClick={open}><JpIcon name="play" size={15} filled /> Jogar</button>
           {updateAvailable && <button type="button" className="btn-primary" onClick={install}>Atualizar para {updateInfo.latest}</button>}
           <button type="button" className="btn-danger-outline" onClick={uninstall}>Desinstalar</button>
         </div>
       );
     }
-    return <button type="button" className="btn-primary app-detail-install-btn" onClick={install}>⬇ Instalar</button>;
+    return <button type="button" className="btn-primary app-detail-install-btn" onClick={install}><JpIcon name="download" size={15} /> Instalar</button>;
   };
 
   return (

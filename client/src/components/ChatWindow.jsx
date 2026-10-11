@@ -9,7 +9,7 @@ import { useVoice, preloadAgoraRTC } from '../context/VoiceContext.jsx';
 import { resolveDesktopGifMenuStyle, resolveMobileGifMenuStyle } from '../utils/gifMenuLayout';
 import { cssZoom } from '../utils/cssZoom';
 import { mergeLatestMessages } from '../utils/messageMerge';
-import { listMessages, sendMessage, searchMessages } from '../api/endpoints';
+import { listMessages, sendMessage } from '../api/endpoints';
 import { queueRead } from '../utils/readMarker';
 import Message from './Message.jsx';
 import ErrorBoundary from './ErrorBoundary.jsx';
@@ -33,6 +33,8 @@ import { STATUS_LABEL } from '../utils/status';
 import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from './PenguinAvatar.jsx';
 import { usePinnedMessages, PinnedButton, PinnedStrip } from './PinnedMessages.jsx';
 import NavIcon from './NavIcons.jsx';
+import ChannelSearchPanel from './ChannelSearchPanel.jsx';
+import ImageCropModal, { canCropFile } from './ImageCropModal.jsx';
 import { requestEdit, setRetry, clearRetry, loadDraft, saveDraft } from '../utils/chatComposerBus';
 import '../styles/chat.css';
 import '../styles/nav.css';
@@ -87,6 +89,39 @@ function DaySeparator({ iso }) {
 }
 
 const TYPING_TIMEOUT = 3000;
+// Mensagens seguidas da mesma pessoa dentro desse intervalo ficam agrupadas
+// (sem repetir avatar/nome; a hora aparece no canto esquerdo ao passar o mouse).
+const GROUP_WINDOW_MS = 7 * 60 * 1000;
+
+// Prévia da mensagem respondida, mostrada acima do campo de digitar:
+// trecho de texto (sem tokens de canal/emoji crus) e miniatura se for imagem.
+const REPLY_BARE_IMAGE_RE = /^https?:\/\/\S+\.(gif|png|jpe?g|webp)(\?\S*)?$/i;
+const REPLY_LABEL_ATTACHMENT = 'Anexo';
+const REPLY_LABEL_STICKER = 'Figurinha';
+const REPLY_LABEL_POLL = 'Enquete';
+const REPLY_LABEL_IMAGE = 'Imagem';
+function replyPreviewOf(msg) {
+  if (!msg) return { text: '', thumb: null };
+  const raw = (msg.content || '').trim();
+  const firstImage = (msg.attachments || []).find((a) => a.mimeType?.startsWith('image/') && !a.isSpoiler);
+  if (raw && REPLY_BARE_IMAGE_RE.test(raw)) return { text: REPLY_LABEL_IMAGE, thumb: raw };
+  if (msg.stickerUrl) return { text: REPLY_LABEL_STICKER, thumb: msg.stickerUrl };
+  const text = raw
+    .replace(/<#[^>]+>/g, '#canal')
+    .replace(/\s+/g, ' ')
+    .slice(0, 140);
+  if (text) return { text, thumb: firstImage?.url || null };
+  if (firstImage) return { text: REPLY_LABEL_IMAGE, thumb: firstImage.url };
+  if (msg.attachments?.length) return { text: msg.attachments[0].filename || REPLY_LABEL_ATTACHMENT, thumb: null };
+  if (msg.poll) return { text: msg.poll.question || REPLY_LABEL_POLL, thumb: null };
+  return { text: REPLY_LABEL_ATTACHMENT, thumb: null };
+}
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 // Matches the server's default MAX_UPLOAD_MB (server/.env) — validating
 // client-side too means someone gets told immediately, instead of only
@@ -248,7 +283,7 @@ function ChatWindowInner({ conversationId, channelId }) {
   // mais).
   const [filePreviews, setFilePreviews] = useState([]);
   useEffect(() => {
-    const urls = filesVisible.map((f) => (f.file.type.startsWith('image/') ? URL.createObjectURL(f.file) : null));
+    const urls = filesVisible.map((f) => (f.file.type.startsWith('image/') || f.file.type.startsWith('video/') ? URL.createObjectURL(f.file) : null));
     setFilePreviews(urls);
     return () => { urls.forEach((u) => u && URL.revokeObjectURL(u)); };
   }, [filesVisible]);
@@ -275,9 +310,11 @@ function ChatWindowInner({ conversationId, channelId }) {
     }
   }, [files]); // eslint-disable-line react-hooks/exhaustive-deps
   const [searchOpen, setSearchOpen] = useState(false);
+  // Muda a cada Ctrl+F — refoca o campo mesmo com a busca já aberta.
+  const [searchFocusToken, setSearchFocusToken] = useState(0);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
+  // Índice do anexo (imagem) aberto no recorte, ou null.
+  const [cropIndex, setCropIndex] = useState(null);
   // Item pedido: "adicione novamente o botão de GIF, e adicione mais
   // um para abrir as figurinhas" — 3 botões, mas ainda o mesmo
   // popover único por trás (com abas) — cada botão só diz qual aba
@@ -1052,11 +1089,6 @@ function ChatWindowInner({ conversationId, channelId }) {
     }
   };
 
-  const runSearch = async (e) => {
-    e.preventDefault();
-    const { messages } = await searchMessages({ conversationId, channelId, q: searchQuery });
-    setSearchResults(messages);
-  };
 
   // Ícone do tipo do canal num quadradinho com tom da marca, no cabeçalho.
   const channelHeaderIcon = channel ? (
@@ -1078,7 +1110,7 @@ function ChatWindowInner({ conversationId, channelId }) {
       // Dia novo (ou resposta) sempre começa um grupo novo, com autor.
       const dayKey = dayKeyOf(m.createdAt);
       const newDay = dayKey !== lastDay;
-      const showAuthor = newDay || !!m.replyTo || m.authorId !== lastAuthor || new Date(m.createdAt) - lastTime > 5 * 60 * 1000;
+      const showAuthor = newDay || !!m.replyTo || m.authorId !== lastAuthor || new Date(m.createdAt) - lastTime > GROUP_WINDOW_MS;
       lastAuthor = m.authorId;
       lastTime = new Date(m.createdAt);
       lastDay = dayKey;
@@ -1145,6 +1177,40 @@ function ChatWindowInner({ conversationId, channelId }) {
       document.removeEventListener('paste', onPaste);
     };
   }, [isCallChannel, channel?.type]);
+
+  // Ctrl+F (ou Cmd+F) dentro de um canal/conversa abre a busca do chat
+  // em vez da busca do navegador.
+  useEffect(() => {
+    if (isNonChatChannel) return undefined;
+    const onKey = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+      if (e.key !== 'f' && e.key !== 'F') return;
+      if (document.querySelector('.modal-overlay, .chat-crop-overlay')) return;
+      e.preventDefault();
+      setSearchOpen(true);
+      setSearchFocusToken((t) => t + 1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isNonChatChannel]);
+  useEffect(() => { setSearchOpen(false); setCropIndex(null); }, [roomKey]);
+
+  // Esc cancela a resposta mesmo com o foco fora do campo de digitar
+  // (dentro do campo, quem cuida é o onKeyDownExtra lá embaixo).
+  const pickerOpenRef = useRef(false);
+  pickerOpenRef.current = emojiPickerOpen;
+  useEffect(() => {
+    if (!replyTo) return undefined;
+    const onKey = (e) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || pickerOpenRef.current) return;
+      const t = e.target;
+      if (t?.closest?.('input, textarea, select, [contenteditable="true"], .modal-overlay, [role="dialog"]')) return;
+      if (document.querySelector('.modal-overlay, .chat-crop-overlay')) return;
+      setReplyTo(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [replyTo]);
 
   if (isCallChannel) {
     return (
@@ -1235,7 +1301,7 @@ function ChatWindowInner({ conversationId, channelId }) {
             onJump={jumpToMessage}
             onUnpinned={(id) => setPins((prev) => prev.filter((x) => x.id !== id))}
           />
-          <button className={`icon-btn chat-header-btn ${searchOpen ? 'on' : ''}`} onClick={() => setSearchOpen((v) => !v)} title="Buscar mensagens" aria-label="Buscar mensagens"><ChatIcon name="search" /></button>
+          <button className={`icon-btn chat-header-btn ${searchOpen ? 'on' : ''}`} onClick={() => setSearchOpen((v) => !v)} title="Buscar mensagens (Ctrl+F)" aria-label="Buscar mensagens"><ChatIcon name="search" /></button>
           {conversationId && (
             <button
               className={`icon-btn chat-header-btn ${voice.call?.channelId === `dm:${conversationId}` ? 'on' : ''}`}
@@ -1254,18 +1320,16 @@ function ChatWindowInner({ conversationId, channelId }) {
         </div>
       </header>
 
-      {searchOpen && (
-        <div className="search-panel">
-          <form onSubmit={runSearch}>
-            <input placeholder="Buscar mensagens..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} autoFocus />
-          </form>
-          <ul>
-            {searchResults.map((m) => (
-              <li key={m.id}><b>{m.author.displayName}:</b> {m.content}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <ChannelSearchPanel
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        conversationId={conversationId}
+        channelId={channelId}
+        listRef={chatListRef}
+        messagesKey={messages}
+        focusToken={searchFocusToken}
+        onJump={jumpToMessage}
+      />
 
       <PinnedStrip roomKey={roomKey} pins={pins} onJump={jumpToMessage} onOpenList={() => setPinsOpen(true)} />
 
@@ -1319,6 +1383,18 @@ function ChatWindowInner({ conversationId, channelId }) {
       {groupSettingsOpen && dmConvo?.isGroup && (
         <GroupSettingsModal conversation={dmConvo} onClose={() => setGroupSettingsOpen(false)} />
       )}
+      {cropIndex !== null && files[cropIndex] && (
+        <ImageCropModal
+          file={files[cropIndex].file}
+          onCancel={() => setCropIndex(null)}
+          onApply={(cropped) => {
+            const idxToReplace = cropIndex;
+            setFiles((list) => list.map((x, idx) => (idx === idxToReplace ? { ...x, file: cropped } : x)));
+            setCropIndex(null);
+            inputRef.current?.focus();
+          }}
+        />
+      )}
 
       {!!channel?.slowModeSeconds && (
         <div className="slow-mode-hint" title="Modo lento ativo neste canal">
@@ -1327,13 +1403,30 @@ function ChatWindowInner({ conversationId, channelId }) {
       )}
 
       <form className="message-input-bar chat-composer" ref={composerBarRef} onSubmit={onSubmit}>
-        {replyToVisible && (
-          <div className={`reply-bar chat-composer-banner ${replyBarLeaving ? 'leaving' : ''}`}>
-            <ChatIcon name="reply" size={15} className="chat-composer-banner-icon" />
-            <span className="truncate">Respondendo a <b>{replyToVisible.author.displayName}</b></span>
-            <button type="button" className="icon-btn-small chat-composer-banner-close" title="Cancelar resposta" aria-label="Cancelar resposta" onClick={() => setReplyTo(null)}><ChatIcon name="close" size={14} /></button>
-          </div>
-        )}
+        {replyToVisible && (() => {
+          // Prévia de quem/o que está sendo respondido: avatar, nome,
+          // trecho do texto e miniatura (imagem/figurinha/GIF). Clicar leva
+          // até a mensagem; X ou Esc cancela.
+          const preview = replyPreviewOf(replyToVisible);
+          return (
+            <div className={`reply-bar chat-composer-banner chat-reply-banner ${replyBarLeaving ? 'leaving' : ''}`}>
+              <ChatIcon name="reply" size={15} className="chat-composer-banner-icon" />
+              <button type="button" className="chat-reply-target" onClick={() => jumpToMessage(replyToVisible)} title="Ir para a mensagem">
+                <UserAvatar user={replyToVisible.author} size={24} />
+                <span className="chat-reply-text">
+                  <span className="chat-reply-label">
+                    <span>Respondendo a</span>
+                    <b className="truncate">{replyToVisible.author?.displayName}</b>
+                  </span>
+                  <span className="chat-reply-snippet truncate">{preview.text}</span>
+                </span>
+              </button>
+              {preview.thumb && <img className="chat-reply-thumb" src={preview.thumb} alt="" />}
+              <kbd className="chat-reply-esc" aria-hidden="true">Esc</kbd>
+              <button type="button" className="icon-btn-small chat-composer-banner-close" title="Cancelar resposta (Esc)" aria-label="Cancelar resposta" onClick={() => setReplyTo(null)}><ChatIcon name="close" size={14} /></button>
+            </div>
+          );
+        })()}
         {filesVisible.length > 0 && (
           <div className={`pending-files ${filesBarLeaving ? 'leaving' : ''}`}>
             {/* Item pedido: "se enviar vários arquivo de imagem junto
@@ -1345,28 +1438,50 @@ function ChatWindowInner({ conversationId, channelId }) {
                 documento) continua como antes — um chip de texto
                 simples, já que não faz sentido mostrar miniatura de
                 algo que não é imagem. */}
-            {filesVisible.map((f, i) => (
-              f.file.type.startsWith('image/') ? (
-                <div key={i} className="pending-file-thumb">
-                  {filePreviews[i] && <img src={filePreviews[i]} alt="" />}
+            {filesVisible.map((f, i) => {
+              const isImage = f.file.type.startsWith('image/');
+              const isVideo = f.file.type.startsWith('video/');
+              const toggleSpoiler = () => setFiles(files.map((x, idx) => (idx === i ? { ...x, spoiler: !x.spoiler } : x)));
+              const remove = () => setFiles(files.filter((_, idx) => idx !== i));
+              if (!isImage && !isVideo) {
+                return (
+                  <span key={i} className="chip chat-pending-chip">
+                    <ChatIcon name="file" size={14} />
+                    <span className="truncate">{f.file.name}</span>
+                    <span className="chat-pending-size">{formatFileSize(f.file.size)}</span>
+                    <button type="button" title="Remover" aria-label="Remover" onClick={remove}><ChatIcon name="close" size={13} /></button>
+                  </span>
+                );
+              }
+              return (
+                <div key={i} className={`pending-file-thumb ${f.spoiler ? 'is-spoiler' : ''}`}>
+                  <div className="pending-file-media">
+                    {filePreviews[i] && (isImage
+                      ? <img src={filePreviews[i]} alt="" />
+                      : <video src={filePreviews[i]} muted preload="metadata" playsInline />)}
+                    {isVideo && <span className="pending-file-kind">Vídeo</span>}
+                  </div>
                   <div className="pending-file-thumb-actions">
+                    {isImage && canCropFile(f.file) && (
+                      <button type="button" className="pending-file-spoiler-btn pending-file-crop-btn" title="Recortar" aria-label="Recortar" onClick={() => setCropIndex(i)}>
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14" /><path d="M18 22V8a2 2 0 0 0-2-2H2" /></svg>
+                      </button>
+                    )}
                     <button
                       type="button" className={`pending-file-spoiler-btn ${f.spoiler ? 'active' : ''}`}
                       title={f.spoiler ? 'Remover spoiler' : 'Marcar como spoiler'}
-                      onClick={() => setFiles(files.map((x, idx) => (idx === i ? { ...x, spoiler: !x.spoiler } : x)))}
+                      aria-label={f.spoiler ? 'Remover spoiler' : 'Marcar como spoiler'}
+                      aria-pressed={f.spoiler}
+                      onClick={toggleSpoiler}
                     ><ChatIcon name="eye" size={15} /></button>
-                    <button
-                      type="button" className="pending-file-remove-btn" title="Remover"
-                      onClick={() => setFiles(files.filter((_, idx) => idx !== i))}
-                    ><ChatIcon name="close" size={15} /></button>
+                    <button type="button" className="pending-file-remove-btn" title="Remover" aria-label="Remover" onClick={remove}><ChatIcon name="close" size={15} /></button>
                   </div>
                   {f.spoiler && <span className="pending-file-spoiler-tag">Spoiler</span>}
-                  <span className="pending-file-thumb-name truncate">{f.file.name}</span>
+                  <span className="pending-file-thumb-name truncate" title={f.file.name}>{f.file.name}</span>
+                  <span className="pending-file-thumb-size">{formatFileSize(f.file.size)}</span>
                 </div>
-              ) : (
-                <span key={i} className="chip chat-pending-chip"><ChatIcon name="file" size={14} /> <span className="truncate">{f.file.name}</span> <button type="button" title="Remover" aria-label="Remover" onClick={() => setFiles(files.filter((_, idx) => idx !== i))}><ChatIcon name="close" size={13} /></button></span>
-              )
-            ))}
+              );
+            })}
           </div>
         )}
         {mentionQuery !== null && mentionCandidates.length > 0 && (
@@ -1456,6 +1571,12 @@ function ChatWindowInner({ conversationId, channelId }) {
             onSubmit={() => onSubmit({ preventDefault: () => {} })}
             onPasteFiles={(fs) => addFiles(fs)}
             onKeyDownExtra={(e) => {
+              // Esc com a lista de sugestões fechada: cancela a resposta.
+              if (e.key === 'Escape' && replyTo && (mentionQuery === null || mentionCandidates.length === 0)) {
+                e.preventDefault();
+                setReplyTo(null);
+                return true;
+              }
               // Seta pra cima com o campo vazio: edita sua última mensagem.
               if (e.key === 'ArrowUp' && !content.trim() && files.length === 0 && (mentionQuery === null || mentionCandidates.length === 0)) {
                 const mine = [...messages].reverse().find((m) => m.authorId === user.id && !m.pending && !m.failed && !m.deleted && !String(m.id).startsWith('temp-') && m.content);

@@ -22,6 +22,17 @@ async function attachPolls(posts, userId) {
   return Array.isArray(posts) ? posts.map(withPoll) : withPoll(posts);
 }
 
+// Tags do post ficam como JSON em texto (Post.tags); a lista permitida é
+// a do Tema (Community.postTags), definida pela staff.
+function parseTags(raw) {
+  if (Array.isArray(raw)) return raw;
+  try { const v = raw ? JSON.parse(raw) : []; return Array.isArray(v) ? v.filter((t) => typeof t === 'string') : []; } catch { return []; }
+}
+function shapePost(p) {
+  return p ? { ...p, tags: parseTags(p.tags), pinned: !!p.pinnedAt } : p;
+}
+const isStaffUser = (user) => ['ADMIN', 'MODERATOR'].includes(user?.platformRole);
+
 function cleanPollOptions(poll) {
   if (!poll || !Array.isArray(poll.options)) return null;
   const options = poll.options.map((o) => (typeof o === 'string' ? o.trim().slice(0, 100) : '')).filter(Boolean);
@@ -40,8 +51,10 @@ function hotScore(score, createdAt) {
 
 async function listPosts(req, res, next) {
   try {
-    const { communitySlug, categoryId, authorId, sort = 'hot', q } = req.query;
+    const { communitySlug, categoryId, authorId, sort = 'hot', q, tag } = req.query;
     const where = {};
+    // Filtro por tag (a tag fica salva como JSON: procura por "Tag" com aspas).
+    if (typeof tag === 'string' && tag.trim()) where.tags = { contains: JSON.stringify(tag.trim().slice(0, 30)) };
     if (communitySlug) where.community = { slug: communitySlug };
     if (categoryId) where.categoryId = categoryId;
     if (authorId) where.authorId = authorId;
@@ -67,9 +80,15 @@ async function listPosts(req, res, next) {
       where: { userId: req.user.id, postId: { in: posts.map((p) => p.id) } },
     });
     const voteMap = Object.fromEntries(myVotes.map((v) => [v.postId, v.value]));
-    let result = posts.map((p) => ({ ...p, myVote: voteMap[p.id] || 0 }));
+    let result = posts.map((p) => ({ ...shapePost(p), myVote: voteMap[p.id] || 0 }));
     if (sort === 'hot') {
       result = result.sort((a, b) => hotScore(b.score, b.createdAt) - hotScore(a.score, a.createdAt));
+    }
+    // Fixados pela staff ficam no topo (mais recente fixado primeiro);
+    // na busca e no perfil do autor, a ordem normal vale.
+    if (!q?.trim() && !authorId) {
+      const pinned = result.filter((p) => p.pinnedAt).sort((a, b) => new Date(b.pinnedAt) - new Date(a.pinnedAt));
+      if (pinned.length) result = [...pinned, ...result.filter((p) => !p.pinnedAt)];
     }
     result = await attachPolls(result, req.user.id);
     res.json({ posts: result });
@@ -99,8 +118,13 @@ async function createPost(req, res, next) {
       return res.status(400).json({ error: 'Essa categoria não pertence a esse Clube.' });
     }
 
+    // Tags: só as que a staff definiu pro Tema, no máximo 3.
+    const allowedTags = parseTags(community.postTags);
+    const pickedTags = [...new Set(parseTags(req.body.tags).map((t) => t.trim()))].filter((t) => allowedTags.includes(t)).slice(0, 3);
+
     const post = await prisma.post.create({
       data: {
+        tags: pickedTags.length ? JSON.stringify(pickedTags) : null,
         communityId: community.id, categoryId: category.id, authorId: req.user.id, title: title.trim().slice(0, 300),
         type, content: content?.trim().slice(0, 10000) || null,
         imageUrl: type === 'IMAGE' ? imageUrl.trim() : null,
@@ -122,7 +146,7 @@ async function createPost(req, res, next) {
         },
       });
     }
-    const full = await attachPolls({ ...post, score: 1, myVote: 1 }, req.user.id);
+    const full = await attachPolls({ ...shapePost(post), score: 1, myVote: 1 }, req.user.id);
 
     req.app.get('io')?.emit('post:new', { post: full });
     achievements.checkAndUnlock(req.user.id, req.app.get('io')); // primeiro_post / redator
@@ -139,7 +163,7 @@ async function getPost(req, res, next) {
     });
     if (!post) return res.status(404).json({ error: 'Post não encontrado.' });
     const myVote = await prisma.postVote.findUnique({ where: { postId_userId: { postId: id, userId: req.user.id } } });
-    res.json({ post: await attachPolls({ ...post, myVote: myVote?.value || 0 }, req.user.id) });
+    res.json({ post: await attachPolls({ ...shapePost(post), myVote: myVote?.value || 0 }, req.user.id) });
   } catch (err) { next(err); }
 }
 
@@ -328,7 +352,35 @@ async function listFeaturedPostsThisMonth(req, res, next) {
       orderBy: { score: 'desc' },
       take: 3,
     });
-    res.json({ posts: await attachPolls(posts, req.user.id) });
+    res.json({ posts: await attachPolls(posts.map(shapePost), req.user.id) });
+  } catch (err) { next(err); }
+}
+
+// POST /posts/:id/pin { pinned } — staff fixa/desafixa (fica no topo das listas).
+async function pinPost(req, res, next) {
+  try {
+    if (!isStaffUser(req.user)) return res.status(403).json({ error: 'Só a staff pode fixar posts.' });
+    const { id } = req.params;
+    const post = await prisma.post.findUnique({ where: { id }, select: { id: true, pinnedAt: true } });
+    if (!post) return res.status(404).json({ error: 'Post não encontrado.' });
+    const pinned = req.body?.pinned === undefined ? !post.pinnedAt : !!req.body.pinned;
+    const updated = await prisma.post.update({ where: { id }, data: { pinnedAt: pinned ? new Date() : null }, select: { id: true, pinnedAt: true } });
+    req.app.get('io')?.emit('post:pin', { postId: id, pinned, pinnedAt: updated.pinnedAt });
+    res.json({ pinned, pinnedAt: updated.pinnedAt });
+  } catch (err) { next(err); }
+}
+
+// PATCH /posts/:id/tags { tags } — autor ou staff troca as tags do post.
+async function updatePostTags(req, res, next) {
+  try {
+    const { id } = req.params;
+    const post = await prisma.post.findUnique({ where: { id }, include: { community: { select: { postTags: true } } } });
+    if (!post) return res.status(404).json({ error: 'Post não encontrado.' });
+    if (post.authorId !== req.user.id && !isStaffUser(req.user)) return res.status(403).json({ error: 'Sem permissão.' });
+    const allowed = parseTags(post.community?.postTags);
+    const tags = [...new Set(parseTags(req.body?.tags).map((t) => t.trim()))].filter((t) => allowed.includes(t)).slice(0, 3);
+    await prisma.post.update({ where: { id }, data: { tags: tags.length ? JSON.stringify(tags) : null } });
+    res.json({ tags });
   } catch (err) { next(err); }
 }
 
@@ -358,5 +410,5 @@ module.exports = {
   votePostPoll,
   listPosts, createPost, uploadPostImage, getPost, deletePost, votePost,
   listComments, addComment, voteComment, deleteComment,
-  listFeaturedPostsThisMonth,
+  listFeaturedPostsThisMonth, pinPost, updatePostTags, parseTags,
 };

@@ -3,9 +3,10 @@
 // e salva sozinho na conta — ver utils/appearance.js.
 import { useStore } from '../store/useStore';
 import {
-  DEFAULT_LAYOUT_PREFS, isDefaultLayoutPrefs, SEASONS, seasonForDate,
-  SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX, FONT_SIZE_MIN, FONT_SIZE_MAX,
+  layoutOnlyDefaults, isDefaultLayoutOnly, SEASONS, seasonForDate,
+  SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX, FONT_SIZE_MIN, FONT_SIZE_MAX, colorVisionPalette,
 } from '../utils/appearance';
+import PresenceDot from './PresenceDot.jsx';
 import '../styles/appearance.css';
 
 function Seg({ value, options, onChange, label }) {
@@ -91,7 +92,9 @@ export function LayoutCustomizer() {
   const prefs = useStore((s) => s.layoutPrefs);
   const setPrefs = useStore((s) => s.setLayoutPrefs);
   const nowSeason = seasonForDate();
-  const isDefault = isDefaultLayoutPrefs(prefs);
+  // Só as opções desta tela voltam ao padrão (fonte legível e daltonismo
+  // moram em Acessibilidade e não são apagadas daqui).
+  const isDefault = isDefaultLayoutOnly(prefs);
 
   return (
     <section className="pc-layout-panel" aria-labelledby="pc-layout-title">
@@ -100,7 +103,7 @@ export function LayoutCustomizer() {
           <h4 id="pc-layout-title">Personalizar layout</h4>
           <p>Deixe o Project Club do seu jeito. Salvo na sua conta.</p>
         </div>
-        <button type="button" className="pc-btn-ghost" disabled={isDefault} onClick={() => setPrefs({ ...DEFAULT_LAYOUT_PREFS })}>
+        <button type="button" className="pc-btn-ghost" disabled={isDefault} onClick={() => setPrefs(layoutOnlyDefaults())}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5" /></svg>
           Restaurar padrão
         </button>
@@ -219,6 +222,119 @@ export function AccessibilityExtras() {
           <kbd>Tab</kbd><span>No início da página, mostra &quot;Pular para o conteúdo&quot;</span>
           {isDesktopApp && <><kbd>Alt+← / Alt+→</kbd><span>Voltar / avançar (também nos botões laterais do mouse)</span></>}
         </div>
+      </div>
+    </section>
+  );
+}
+
+// ---------- Daltonismo ----------
+const CB_MODES = [
+  { value: 'none', label: 'Normal', hint: 'Cores de sempre.' },
+  { value: 'protanopia', label: 'Protanopia', hint: 'Dificuldade com vermelho.' },
+  { value: 'deuteranopia', label: 'Deuteranopia', hint: 'Dificuldade com verde.' },
+  { value: 'tritanopia', label: 'Tritanopia', hint: 'Dificuldade com azul e amarelo.' },
+  { value: 'achromatopsia', label: 'Acromatopsia', hint: 'Sem cores: tudo por claro e escuro.' },
+];
+const CB_ICON = {
+  check: 'M5 12.5l4.5 4.5L19 7.5',
+  alert: 'M12 8v5M12 16.5v.5M10.3 3.9 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
+  close: 'M6 6l12 12M18 6 6 18',
+};
+function CbIcon({ name }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={CB_ICON[name]} /></svg>
+  );
+}
+
+// Daltonismo: modo, intensidade, filtro opcional e formatos nos status.
+// Tudo aplica na hora no app inteiro (a prévia abaixo já mostra as cores
+// reais em uso) e salva na conta junto do layout.
+export function ColorVisionSettings() {
+  const prefs = useStore((s) => s.layoutPrefs);
+  const setPrefs = useStore((s) => s.setLayoutPrefs);
+  const mode = prefs.colorblind;
+  const active = mode !== 'none';
+  const shapesForced = mode === 'achromatopsia';
+
+  return (
+    <section className="pc-layout-panel" aria-labelledby="pc-cb-title">
+      <div className="pc-layout-head">
+        <div>
+          <h4 id="pc-cb-title">Daltonismo</h4>
+          <p>Troca as cores de status, sucesso, aviso e erro por cores fáceis de distinguir.</p>
+        </div>
+      </div>
+
+      <div className="pc-cb-modes" role="radiogroup" aria-label="Tipo de daltonismo">
+        {CB_MODES.map((m) => {
+          const pal = colorVisionPalette(m.value, 100);
+          return (
+            <button
+              key={m.value} type="button" role="radio" aria-checked={mode === m.value}
+              className={`pc-cb-mode ${mode === m.value ? 'active' : ''}`}
+              onClick={() => setPrefs({ colorblind: m.value })}
+            >
+              <span className="pc-cb-swatches" aria-hidden="true">
+                <i style={{ background: pal.online }} /><i style={{ background: pal.idle }} /><i style={{ background: pal.dnd }} />
+              </span>
+              <strong>{m.label}</strong>
+              <span>{m.hint}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {active && (
+        <>
+          <div className="pc-field">
+            <label className="pc-field-label" htmlFor="pc-cb-strength">
+              Intensidade <span className="pc-field-value">{prefs.colorblindStrength}%</span>
+            </label>
+            <input
+              id="pc-cb-strength" className="pc-range" type="range" min="0" max="100" step="5"
+              value={prefs.colorblindStrength} onChange={(e) => setPrefs({ colorblindStrength: Number(e.target.value) })}
+            />
+            <p className="pc-field-hint">0% deixa as cores originais; 100% usa as cores seguras por completo.</p>
+          </div>
+          <SwitchRow
+            title="Filtro de correção de cor"
+            hint="Ajusta as cores do app inteiro, inclusive imagens e vídeos. Pode pesar um pouco em computadores mais fracos."
+            on={prefs.colorblindFilter} onChange={(v) => setPrefs({ colorblindFilter: v })}
+          />
+        </>
+      )}
+
+      <SwitchRow
+        title="Ícones além de cores"
+        hint={shapesForced ? 'Sempre ligado na Acromatopsia.' : 'Cada status ganha um formato: online cheio, ausente em lua, não perturbe com um traço e offline vazado.'}
+        on={prefs.statusShapes || shapesForced} onChange={(v) => setPrefs({ statusShapes: v })}
+      />
+
+      <div className="pc-field">
+        <span className="pc-field-label">Prévia</span>
+        <div className="pc-cb-preview" aria-label="Prévia das cores">
+          <div className="pc-cb-preview-row">
+            {['ONLINE', 'IDLE', 'DND', 'OFFLINE'].map((st) => (
+              <span key={st} className="pc-cb-preview-status">
+                <span className="pc-cb-dot-wrap"><PresenceDot status={st} /></span>
+                {{ ONLINE: 'Online', IDLE: 'Ausente', DND: 'Não perturbe', OFFLINE: 'Offline' }[st]}
+              </span>
+            ))}
+          </div>
+          <div className="pc-cb-preview-row">
+            <span className="pc-cb-chip" style={{ background: 'var(--green)' }}><CbIcon name="check" /> Salvo</span>
+            <span className="pc-cb-chip" style={{ background: 'var(--yellow)', color: '#1a1a1a' }}><CbIcon name="alert" /> Atenção</span>
+            <span className="pc-cb-chip" style={{ background: 'var(--red)' }}><CbIcon name="close" /> Erro</span>
+            <span className="pc-cb-chip" style={{ background: 'var(--brand)' }}>Marca</span>
+          </div>
+          <div
+            className="pc-cb-mention"
+            style={{ background: 'color-mix(in srgb, var(--pc-mention, #f0b232) 10%, transparent)', borderLeftColor: 'var(--pc-mention, #f0b232)' }}
+          >
+            <b>@você</b> foi mencionado nesta mensagem.
+          </div>
+        </div>
+        <p className="pc-field-hint">A prévia e o app atrás desta janela já usam as cores escolhidas.</p>
       </div>
     </section>
   );

@@ -12,6 +12,8 @@ import { DISABLED_PROFILE_SECTIONS } from '../utils/profileSections';
 import UserAvatar from '../components/UserAvatar.jsx';
 import { Ico, PageHero, PillTabs, EmptyState } from '../components/PagesKit.jsx';
 import '../styles/notifications.css';
+import { listNotices, readAllNotices, readNotice } from '../api/contentx';
+import { useSocket } from '../context/SocketContext.jsx';
 
 // Agrupa por dia: Hoje / Ontem / Antes (sem data também cai em "Antes").
 function dayGroup(date) {
@@ -144,13 +146,35 @@ export default function NotificationsPage() {
   useEffect(() => { loadExtra(); }, []);
   useLiveRefresh(({ put }) => loadExtra(put), { interval: 60000, key: 'notifications-extra' });
 
+  // Avisos salvos no servidor (lembrete de evento 15 min antes, presente
+  // recebido na Loja): têm "lido" de verdade e chegam ao vivo pelo socket.
+  const { socket } = useSocket() || {};
+  const [notices, setNotices] = useState([]);
+  useEffect(() => { listNotices().then((d) => setNotices(d.notices || [])).catch(() => {}); }, []);
+  useLiveRefresh(({ put }) => listNotices().then((d) => put(setNotices)(d.notices || [])), { interval: 60000, key: 'notifications-notices' });
+  useEffect(() => {
+    if (!socket) return undefined;
+    const onNew = (n) => setNotices((list) => (list.some((x) => x.id === n.id) ? list : [n, ...list]));
+    socket.on('notice:new', onNew);
+    return () => socket.off('notice:new', onNew);
+  }, [socket]);
+  const unreadNotices = notices.filter((n) => !n.readAt);
+  const openNotice = (n) => {
+    if (!n.readAt) {
+      setNotices((list) => list.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)));
+      readNotice(n.id).catch(() => {});
+    }
+    if (n.link) navigate(n.link);
+  };
+
   const cutoff = Math.max(seen.at, Date.now() - RECENT_MS);
   const missionKey = (m) => `${m.id}|${extra.resets?.[m.period === 'WEEKLY' ? 'weekly' : 'daily'] || ''}`;
   const newEvents = extra.events.filter((e) => e.status !== 'ENDED' && new Date(e.createdAt).getTime() > cutoff);
   const readyMissions = extra.missions.filter((m) => m.completed && !m.claimed && !seen.missions.includes(missionKey(m)));
   const newShop = extra.shop.filter((it) => !it.owned && it.createdAt && new Date(it.createdAt).getTime() > cutoff).slice(0, 10);
 
-  const isEmpty = newEvents.length === 0 && readyMissions.length === 0 && newShop.length === 0 && unreadChannels.length === 0 && unreadConversations.length === 0 && pendingIncoming.length === 0 && pendingTestimonials.length === 0 && pendingRelationships.length === 0;
+  const recentNotices = notices.filter((n) => !n.readAt || Date.now() - new Date(n.createdAt).getTime() < RECENT_MS);
+  const isEmpty = recentNotices.length === 0 && newEvents.length === 0 && readyMissions.length === 0 && newShop.length === 0 && unreadChannels.length === 0 && unreadConversations.length === 0 && pendingIncoming.length === 0 && pendingTestimonials.length === 0 && pendingRelationships.length === 0;
 
   const [filter, setFilter] = useState('ALL');
   const markChannelReadLocal = useStore((s) => s.markChannelReadLocal);
@@ -165,6 +189,10 @@ export default function NotificationsPage() {
     writeSeen(user.id, nextSeen);
     unreadChannels.forEach((ch) => { markChannelRead(ch.id).catch(() => {}); markChannelReadLocal(ch.id); });
     unreadConversations.forEach((c) => { markConversationRead(c.id).catch(() => {}); markConversationReadLocal(c.id); });
+    if (unreadNotices.length) {
+      setNotices((list) => list.map((n) => (n.readAt ? n : { ...n, readAt: new Date().toISOString() })));
+      readAllNotices().catch(() => {});
+    }
   };
 
   const convName = (c) => {
@@ -182,15 +210,31 @@ export default function NotificationsPage() {
     ...newEvents.map((e) => ({ kind: 'event', cat: 'EVENTS', key: `e-${e.id}`, at: e.createdAt, data: e })),
     ...readyMissions.map((m) => ({ kind: 'mission', cat: 'MISSIONS', key: `m-${m.id}`, at: new Date().toISOString(), data: m })),
     ...newShop.map((it) => ({ kind: 'shop', cat: 'SHOP', key: `s-${it.id}`, at: it.createdAt, data: it })),
+    ...recentNotices.map((n) => ({ kind: 'notice', cat: n.kind === 'EVENT_REMINDER' ? 'EVENTS' : n.kind === 'GIFT' ? 'SHOP' : 'OTHER', key: `n-${n.id}`, at: n.createdAt, data: n })),
   ];
   const counts = { ALL: items.length };
   items.forEach((it) => { counts[it.cat] = (counts[it.cat] || 0) + 1; });
   const visible = items
     .filter((it) => filter === 'ALL' || it.cat === filter)
     .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
-  const canMarkAll = unreadChannels.length + unreadConversations.length + newEvents.length + readyMissions.length + newShop.length > 0;
+  const canMarkAll = unreadNotices.length + unreadChannels.length + unreadConversations.length + newEvents.length + readyMissions.length + newShop.length > 0;
 
   const renderItem = (it) => {
+    if (it.kind === 'notice') {
+      const n = it.data;
+      const icon = n.kind === 'GIFT' ? 'gift' : n.kind === 'EVENT_REMINDER' ? 'reminder' : 'notice';
+      const lead = n.kind === 'EVENT_REMINDER' ? 'Lembrete de evento' : n.kind === 'GIFT' ? 'Presente' : 'Aviso';
+      return (
+        <li key={it.key} className={`notifications-item nt-item clickable${n.readAt ? ' is-read' : ' unread'}`} data-kind={icon} onClick={() => openNotice(n)}>
+          <NtIcon kind={icon} />
+          <div className="nt-body">
+            <div className="nt-line"><span className="truncate">{lead}: <strong>{n.title}</strong></span><time>{when(n.createdAt)}</time></div>
+            {n.body && <span className="nt-sub truncate">{n.body}</span>}
+          </div>
+          {!n.readAt && <span className="nt-dot" aria-label="Não lida" />}
+        </li>
+      );
+    }
     if (it.kind === 'testimonial') {
       const t = it.data;
       return (
@@ -350,7 +394,7 @@ export default function NotificationsPage() {
   );
 }
 
-const KIND_ICON = { testimonial: 'pen', relationship: 'heart', friend: 'userPlus', channel: 'at', conversation: 'mail', event: 'sparkles', mission: 'trophy', shop: 'store' };
+const KIND_ICON = { testimonial: 'pen', relationship: 'heart', friend: 'userPlus', channel: 'at', conversation: 'mail', event: 'sparkles', mission: 'trophy', shop: 'store', gift: 'gift', reminder: 'clock', notice: 'bell' };
 
 // Avatar de quem gerou + selinho com o ícone do tipo; sem pessoa, só o ícone.
 function NtIcon({ kind, user }) {

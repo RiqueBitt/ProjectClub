@@ -7,6 +7,7 @@ import ScreenShareModal from './modals/ScreenShareModal.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import { MicTest, MicSilentWarning, QualityDot } from './voice/VoiceExtras.jsx';
+import ScreenQualityMenu from './voice/ScreenQualityMenu.jsx';
 
 // ============================================================
 // Canal de voz — visual refeito.
@@ -387,6 +388,8 @@ function VoiceCallControls({ voice, micLocked }) {
           onClick={() => (screenOn ? voice.toggleScreenShare() : setShowScreenShareMenu(true))}
           disabled={micLocked || !screenShareSupported} active={screenOn}
         />
+        {/* Transmitindo: troca 720p/1080p e 15/30/60 FPS sem parar. */}
+        {screenOn && <ScreenQualityMenu voice={voice} className="vc-sqm" />}
         <span className="vc-dock-sep" aria-hidden="true" />
         <button type="button" className="vc-ctrl vc-leave" onClick={voice.leaveChannel} aria-label="Sair da chamada" title="Sair da chamada">
           <Icon name="leave" size={22} />

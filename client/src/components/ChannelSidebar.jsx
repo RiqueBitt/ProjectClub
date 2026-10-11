@@ -15,6 +15,7 @@ import '../styles/channels.css';
 import UserAvatar from './UserAvatar.jsx';
 import UserStatusBar from './UserStatusBar.jsx';
 import NavIcon from './NavIcons.jsx';
+import TypingDots from './TypingDots.jsx';
 import { cssZoom } from '../utils/cssZoom';
 import '../styles/nav.css';
 import settingsIcon from '../assets/icons/settings.png';
@@ -525,6 +526,7 @@ function ChannelGroup({
                   <VoiceChannelTimer startedAt={voice?.rosterStartedAt?.[ch.id]} />
                 )}
                 {ch.isPrivate && <span title="Canal privado"><img className="ui-icon-sm" src={lockIcon} alt="" /></span>}
+                {!isVoiceType && <TypingDots roomKey={`channel:${ch.id}`} myUserId={myUserId} />}
                 {!(ch.unreadMentions > 0) && unread && <span className="unread-dot" />}
                 {canManage && (
                   <span className="channel-item-actions">
@@ -546,9 +548,10 @@ function ChannelGroup({
                       <span className="truncate">{person?.displayName || p.userId}</span>
                       {/* Ao vivo / câmera / mudo — a lista vem do servidor e agora
                           atualiza quando a pessoa liga a tela ou a câmera. */}
-                      {p.screenSharing && <span className="voice-roster-live" title="Transmitindo a tela">AO VIVO</span>}
+                      {p.screenSharing && <span className="voice-roster-live" title="Transmitindo a tela"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v11H3zM8 20h8M12 16v4" /></svg>AO VIVO</span>}
                       {p.video && <svg className="voice-roster-ico" viewBox="0 0 24 24" aria-label="Câmera ligada" role="img"><path d="M3 7h12v10H3zM15 10l6-3v10l-6-3" /></svg>}
-                      {p.muted && <svg className="voice-roster-ico is-muted" viewBox="0 0 24 24" aria-label="Mudo" role="img"><path d="M15 9.3V6a3 3 0 0 0-5.7-1.3M9 9v3a3 3 0 0 0 4.9 2.3M19 11a7 7 0 0 1-1.1 3.8M5 11a7 7 0 0 0 11 5.7M12 18v3M3 3l18 18" /></svg>}
+                      {p.deafened && <svg className="voice-roster-ico is-muted" viewBox="0 0 24 24" aria-label="Ensurdecido" role="img"><title>Ensurdecido</title><path d="M4 15v-3a8 8 0 0 1 12.7-6.5M20 12v3M3 14h5v7H5a2 2 0 0 1-2-2zM16 16v3a2 2 0 0 0 2 2h1M3 3l18 18" /></svg>}
+                      {p.muted && !p.deafened && <svg className="voice-roster-ico is-muted" viewBox="0 0 24 24" aria-label="Mudo" role="img"><path d="M15 9.3V6a3 3 0 0 0-5.7-1.3M9 9v3a3 3 0 0 0 4.9 2.3M19 11a7 7 0 0 1-1.1 3.8M5 11a7 7 0 0 0 11 5.7M12 18v3M3 3l18 18" /></svg>}
                     </div>
                   );
                 })}

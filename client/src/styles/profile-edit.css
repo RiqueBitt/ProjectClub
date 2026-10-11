@@ -1,0 +1,138 @@
+/* ============================================================
+   Edição direto no próprio perfil (UserProfileModal.jsx) e o modal
+   "Editar vitrine" (ProfileShowcaseModal.jsx). Prefixos pfe-/pfv-.
+   ============================================================ */
+
+/* Barra "este é o seu perfil" */
+.pfe-ownbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 14px; margin-bottom: 12px;
+  background: color-mix(in srgb, var(--pf-accent, var(--brand)) 10%, var(--bg-secondary));
+  border: 1px solid color-mix(in srgb, var(--pf-accent, var(--brand)) 32%, transparent);
+}
+.pfe-ownbar-icon {
+  width: 30px; height: 30px; flex-shrink: 0; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--pf-accent, var(--brand)); background: color-mix(in srgb, var(--pf-accent, var(--brand)) 16%, transparent);
+}
+.pfe-ownbar-text { flex: 1; min-width: 180px; font-size: 13px; color: var(--text-normal); }
+
+/* Trocar banner (canto do banner) */
+.pfe-banner-edit {
+  position: absolute; top: 10px; right: 10px; z-index: 2; display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px; border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 700; color: #fff;
+  background: rgba(0, 0, 0, .55); border: 1px solid rgba(255, 255, 255, .22); backdrop-filter: blur(6px);
+  opacity: .85; transition: opacity .15s ease, background-color .15s ease;
+}
+.profile-banner:hover .pfe-banner-edit, .pfe-banner-edit:focus-within { opacity: 1; background: rgba(0, 0, 0, .72); }
+
+/* Trocar foto (por cima do avatar) */
+.avatar-wrap.large { position: relative; }
+.pfe-avatar-edit {
+  position: absolute; inset: 0; z-index: 2; border-radius: 50%; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  font-size: 11.5px; font-weight: 800; color: #fff; text-align: center;
+  background: rgba(0, 0, 0, .55); opacity: 0; transition: opacity .15s ease;
+}
+.avatar-wrap.large:hover .pfe-avatar-edit, .pfe-avatar-edit:focus-within { opacity: 1; }
+@media (hover: none) {
+  /* Sem mouse: um selinho fixo no canto, sempre visível. */
+  .pfe-avatar-edit { inset: auto; left: 2px; top: 2px; width: 34px; height: 34px; opacity: 1; background: rgba(0, 0, 0, .65); border: 1px solid rgba(255, 255, 255, .25); }
+  .pfe-avatar-edit span { display: none; }
+  .pfe-avatar-edit svg { width: 16px; height: 16px; }
+  .pfe-banner-edit { opacity: 1; }
+}
+
+/* Nome clicável + editor */
+.pfe-name-btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 0 6px 0 0; margin: 0; border: 0; background: transparent;
+  font: inherit; color: inherit; text-align: left; cursor: text; border-radius: 8px; max-width: 100%;
+}
+.pfe-name-btn > span:first-child { overflow-wrap: anywhere; }
+.pfe-pencil {
+  display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 7px; flex-shrink: 0;
+  color: var(--text-muted); background: rgba(255, 255, 255, .06); opacity: .7; transition: opacity .15s ease;
+}
+.pfe-name-btn:hover .pfe-pencil, .pfe-name-btn:focus-visible .pfe-pencil { opacity: 1; color: var(--header-primary); }
+.pfe-name-editor { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 6px; }
+.pfe-name-editor input {
+  flex: 1 1 200px; min-width: 0; height: 42px; padding: 0 12px; border-radius: 11px; font-size: 20px; font-weight: 800;
+  color: var(--header-primary); background: var(--bg-primary); border: 1px solid color-mix(in srgb, var(--pf-accent, var(--brand)) 60%, transparent);
+}
+.pf-btn.ghost { background: transparent; }
+.pf-btn:disabled { opacity: .6; cursor: default; }
+.pfe-error { display: inline-flex; align-items: center; gap: 6px; margin: 4px 0; font-size: 12.5px; color: var(--red); }
+
+/* Bio */
+.pfe-bio-editor { display: flex; flex-direction: column; gap: 8px; }
+.pfe-bio-editor textarea {
+  width: 100%; box-sizing: border-box; resize: vertical; min-height: 92px; padding: 10px 12px; border-radius: 11px;
+  font: inherit; font-size: 14px; line-height: 1.5; color: var(--text-normal);
+  background: var(--bg-primary); border: 1px solid color-mix(in srgb, var(--pf-accent, var(--brand)) 50%, transparent);
+}
+.pfe-row { display: flex; align-items: center; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.pfe-count { margin-right: auto; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* Jogos em destaque no perfil */
+.pfe-games { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.pfe-game { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pfe-game .gl-capsule { width: 100%; }
+.pfe-game-name { font-size: 13px; font-weight: 700; color: var(--header-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Modal "Editar vitrine" ---------- */
+.pfv-modal .modal-body { display: flex; flex-direction: column; gap: 12px; }
+.pfv-intro { margin: 0; font-size: 13px; color: var(--text-muted); }
+.pfv-tabs {
+  display: flex; gap: 3px; padding: 3px; border-radius: 12px; width: fit-content; max-width: 100%; overflow-x: auto;
+  background: var(--bg-secondary); border: 1px solid var(--lit-border-color, var(--border));
+}
+.pfv-tab {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: 9px; border: 0; flex-shrink: 0;
+  font-size: 13px; font-weight: 600; color: var(--text-muted); background: transparent; cursor: pointer;
+}
+.pfv-tab:hover { color: var(--header-primary); }
+.pfv-tab.active { color: var(--header-primary); background: var(--bg-primary); box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
+.pfv-tab.active svg { color: var(--brand); }
+.pfv-panel { display: flex; flex-direction: column; gap: 10px; }
+.pfv-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.pfv-panel-head strong { font-size: 14px; color: var(--header-primary); }
+.pfv-panel-head span { font-size: 12px; font-weight: 700; color: var(--text-muted); }
+.pfv-note { margin: -4px 0 0; font-size: 12px; color: var(--text-muted); }
+.pfv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 8px; max-height: 46vh; overflow-y: auto; padding: 2px; }
+.pfv-grid.is-games { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.pfv-pick {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 8px; min-width: 0;
+  border-radius: 12px; cursor: pointer; text-align: center; color: var(--text-normal);
+  background: var(--bg-secondary); border: 1px solid var(--lit-border-color, var(--border));
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.pfv-pick:hover { border-color: color-mix(in srgb, var(--brand) 45%, transparent); }
+.pfv-pick.is-on { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, var(--bg-secondary)); }
+.pfv-pick:disabled { opacity: .45; cursor: not-allowed; }
+.pfv-pick-name { font-size: 12.5px; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pfv-pick-check {
+  position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-muted); background: var(--bg-primary); border: 1px solid var(--lit-border-color, var(--border));
+}
+.pfv-pick.is-on .pfv-pick-check { color: #fff; background: var(--brand); border-color: var(--brand); }
+.pfv-pick .gl-capsule { width: 100%; }
+.pfv-ach-icon { width: 44px; height: 44px; object-fit: contain; }
+.pfv-decor-img { width: 56px; height: 56px; object-fit: contain; }
+.pfv-none { width: 56px; height: 56px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); border: 1px dashed var(--lit-border-color, var(--border)); }
+.pfv-empty {
+  display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 12px; font-size: 13px; color: var(--text-muted);
+  background: var(--bg-secondary); border: 1px dashed var(--lit-border-color, var(--border));
+}
+.pfv-empty svg { flex-shrink: 0; color: var(--brand); }
+.pfv-loading { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pfv-loading .pf-sk { height: 96px; border-radius: 12px; }
+.pfv-error { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--red); }
+.pfv-actions { margin-top: 4px; }
+
+@media (max-width: 600px) {
+  .pfe-games { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pfv-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pfv-grid.is-games { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pfe-name-editor input { font-size: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pfe-banner-edit, .pfe-avatar-edit, .pfe-pencil, .pfv-pick { transition: none; }
+}

@@ -36,6 +36,7 @@ const PF_PATHS = {
   arrow: 'M5 12h14M13 6l6 6-6 6',
   grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
   layers: 'm12 3 9 5-9 5-9-5 9-5ZM3 12.5l9 5 9-5M3 16.5l9 5 9-5',
+  pencil: 'M4 20h4L19 9l-4-4L4 16v4ZM13.5 6.5l4 4',
 };
 export function PfIcon({ name, size = 16, strokeWidth = 1.9 }) {
   return (

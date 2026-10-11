@@ -665,8 +665,11 @@ async function togglePin(req, res, next) {
     const io = req.app.get('io');
     io?.to(roomFor(existing)).emit('message:update', message);
     // Evento próprio pra lista de fixadas / faixa "Destaques" se atualizar.
+    // Leva a mensagem inteira junto: o cliente atualiza a lista de
+    // fixadas direto pelo evento, sem buscar /messages/pinned de novo.
     io?.to(roomFor(existing)).emit('message:pin', {
       id, pinned: nowPinned, conversationId: existing.conversationId, channelId: existing.channelId, byUserId: req.user.id,
+      message,
     });
     res.json({ message });
   } catch (err) { next(err); }

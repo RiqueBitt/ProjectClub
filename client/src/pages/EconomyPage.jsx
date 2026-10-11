@@ -5,6 +5,8 @@ import { useSocket } from '../context/SocketContext.jsx';
 import { EmptyState, Ico, PageHero, PillTabs, Skeleton, Toast, Unavailable } from '../components/PagesKit.jsx';
 import '../styles/economy.css';
 import { useLiveRefresh } from '../utils/liveRefresh';
+import { setClaimableMissions } from '../utils/missionBadge';
+import '../styles/contentx.css';
 
 function fmt(n) { return Math.floor(Number(n) || 0).toLocaleString('pt-BR'); }
 
@@ -53,7 +55,7 @@ function MissionCard({ m, onClaim, busy, compact }) {
         {!compact && m.description && <p>{m.description}</p>}
         <div className="eco-mission-progress">
           <div
-            className="eco-bar" role="progressbar" aria-valuemin={0} aria-valuemax={m.target} aria-valuenow={m.progress}
+            className={`eco-bar cxm-bar${state === 'ready' ? ' is-ready' : ''}`} role="progressbar" aria-valuemin={0} aria-valuemax={m.target} aria-valuenow={m.progress}
             aria-label={`${m.title}: ${m.progress} de ${m.target}`}
           >
             <span style={{ width: `${pct}%` }} />
@@ -145,6 +147,11 @@ export default function EconomyPage({ initialTab = 'geral' }) {
   }, { enabled: !unavailable });
 
   const pushNotice = (msg) => { setNotice(msg); setTimeout(() => setNotice(null), 4000); };
+
+  // Mantém o badge do menu (missões pra resgatar) igual ao que esta tela mostra.
+  useEffect(() => {
+    if (missionData) setClaimableMissions((missionData.missions || []).filter((m) => m.completed && !m.claimed).length);
+  }, [missionData]);
 
   if (unavailable) return <Unavailable icon="coin" />;
   if (!eco) {

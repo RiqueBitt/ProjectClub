@@ -334,3 +334,68 @@ html[data-theme='amoled'].high-contrast-pref {
   --border: #3a3b42;
   --text-muted: #c9ccd2;
 }
+
+/* ============================================================
+   Daltonismo (Configurações → Acessibilidade). utils/appearance.js
+   liga data-pc-cb (cores seguras via variáveis), data-pc-cb-filter
+   (filtro de correção) e data-pc-status-shapes (formatos).
+   ============================================================ */
+/* Filtro de correção: no #root (não no <html>, ver global.css — não
+   quebra position:fixed). Soma com saturação e contraste alto. */
+html[data-pc-cb-filter] #root { filter: url(#pc-cb-filter) saturate(var(--saturation, 100%)); }
+html.high-contrast-pref[data-pc-cb-filter] #root { filter: url(#pc-cb-filter) saturate(var(--saturation, 100%)) contrast(1.35) brightness(1.03); }
+
+/* Menções seguem a cor segura do modo */
+html[data-pc-cb] .message.mentioned { background: color-mix(in srgb, var(--pc-mention) 9%, transparent); }
+html[data-pc-cb] .message.mentioned:hover { background: color-mix(in srgb, var(--pc-mention) 14%, transparent); }
+html[data-pc-cb] .message.mentioned::before { background: var(--pc-mention); }
+
+/* Ícones além de cores: cada status com um formato bem marcado
+   ● online · ◐ ausente (lua) · ⊖ não perturbe · ○ offline/invisível */
+html[data-pc-status-shapes] .status-dot.status-dot-online {
+  background: var(--presence-color);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
+}
+html[data-pc-status-shapes] .status-dot.status-dot-idle {
+  background: radial-gradient(circle at 28% 28%, var(--status-ring, var(--bg-secondary)) 0 44%, var(--presence-color) 47%);
+}
+html[data-pc-status-shapes] .status-dot.status-dot-dnd {
+  background:
+    linear-gradient(var(--status-ring, var(--bg-secondary)), var(--status-ring, var(--bg-secondary))) center / 66% 30% no-repeat,
+    var(--presence-color);
+}
+html[data-pc-status-shapes] .status-dot.status-dot-offline,
+html[data-pc-status-shapes] .status-dot.status-dot-invisible {
+  background: radial-gradient(circle, var(--status-ring, var(--bg-secondary)) 0 46%, var(--presence-color) 49%);
+}
+
+/* ---------- Painel de daltonismo ---------- */
+.pc-cb-modes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.pc-cb-mode {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left;
+  padding: 10px 12px; border-radius: 12px; cursor: pointer; min-height: 74px;
+  background: var(--bg-primary); color: var(--text-normal);
+  border: 1px solid var(--lit-border-color, var(--border));
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.pc-cb-mode:hover { border-color: color-mix(in srgb, var(--brand) 45%, transparent); }
+.pc-cb-mode.active { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, var(--bg-primary)); box-shadow: 0 0 0 1px var(--brand) inset; }
+.pc-cb-mode strong { font-size: 13.5px; color: var(--header-primary); }
+.pc-cb-mode span { font-size: 11.5px; color: var(--text-muted); line-height: 1.35; }
+.pc-cb-swatches { display: inline-flex; gap: 4px; }
+.pc-cb-swatches i { width: 14px; height: 14px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(255, 255, 255, .12) inset; }
+
+.pc-cb-preview {
+  display: grid; gap: 10px; padding: 14px; border-radius: 14px;
+  background: var(--bg-primary); border: 1px solid var(--lit-border-color, var(--border));
+}
+.pc-cb-preview-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.pc-cb-preview-status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-normal); }
+.pc-cb-preview-status .pc-cb-dot-wrap { position: relative; width: 28px; height: 28px; border-radius: 50%; background: color-mix(in srgb, var(--text-muted) 30%, transparent); flex-shrink: 0; }
+.pc-cb-preview-status .status-dot { --status-ring: var(--bg-primary); right: -3px; bottom: -3px; }
+.pc-cb-chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; color: #fff; }
+.pc-cb-chip svg { flex-shrink: 0; }
+.pc-cb-mention { padding: 8px 10px; border-radius: 8px; font-size: 13px; color: var(--text-normal); border-left: 3px solid; }
+.pc-cb-mention b { color: var(--header-primary); }
+@media (prefers-reduced-motion: reduce) { .pc-cb-mode { transition: none; } }
+@media (max-width: 600px) { .pc-cb-modes { grid-template-columns: 1fr 1fr; } }

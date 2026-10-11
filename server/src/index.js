@@ -17,11 +17,14 @@ const { checkB2 } = require('./services/b2HealthCheck');
 // try/catch or .catch() for the errors it expects, so anything reaching
 // this point is already an unexpected edge case being handled defensively,
 // not a substitute for fixing bugs at the source.
+const { recordError } = require('./services/errorRing');
 process.on('unhandledRejection', (reason) => {
   console.error('\x1b[31m[unhandledRejection]\x1b[0m', reason);
+  recordError('process', { where: 'unhandledRejection', message: reason?.message || String(reason), stack: reason?.stack });
 });
 process.on('uncaughtException', (err) => {
   console.error('\x1b[31m[uncaughtException]\x1b[0m', err);
+  recordError('process', { where: 'uncaughtException', message: err?.message || String(err), stack: err?.stack });
 });
 
 const app = createApp();
@@ -128,3 +131,5 @@ missions.seedDefaultMissions().catch((err) => {
   console.error('\x1b[31m[missões]\x1b[0m seed falhou:', err.message);
 });
 missions.startVoiceMinutesTicker(io);
+// Lembrete de evento 15 min antes pra quem respondeu "Eu vou".
+require('./services/eventReminders').startEventReminders(io);

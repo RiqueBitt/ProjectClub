@@ -1,4 +1,5 @@
 const env = require('../config/env');
+const { recordError } = require('../services/errorRing');
 
 function notFoundHandler(req, res) {
   res.status(404).json({ error: 'Rota não encontrada.' });
@@ -13,6 +14,7 @@ function errorHandler(err, req, res, next) { // eslint-disable-line no-unused-va
   const tag = useColor ? (status >= 500 ? '\x1b[31m[erro 5xx]\x1b[0m' : '\x1b[33m[erro 4xx]\x1b[0m') : `[erro ${status}]`;
   console.error(`${tag} ${req.method} ${req.originalUrl} —`, err.message || err);
   if (status >= 500) console.error(err.stack || err);
+  if (status >= 500) recordError('server', { status, path: `${req.method} ${req.originalUrl}`, message: err.message || String(err), stack: err.stack });
   if (err.code === 'LIMIT_FILE_SIZE') {
     // Multer's own hard cap (see middleware/upload.js) is now the highest
     // possible per-server ceiling across every Impulsos tier (100MB) — the

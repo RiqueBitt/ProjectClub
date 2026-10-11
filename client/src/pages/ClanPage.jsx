@@ -15,6 +15,7 @@ import { usePromptDialog } from '../utils/usePromptDialog.jsx';
 import { formatMessageTime } from '../utils/formatTime';
 import '../styles/clubs.css';
 import { useLiveRefresh } from '../utils/liveRefresh';
+import '../styles/contentx.css';
 
 const ROLE_LABEL = { OWNER: 'Dono', SUB_OWNER: 'Sub-dono', ADMIN: 'Admin', MODERATOR: 'Moderador', MEMBER: 'Membro' };
 const ROLE_ORDER = ['OWNER', 'SUB_OWNER', 'ADMIN', 'MODERATOR', 'MEMBER'];
@@ -184,7 +185,11 @@ export default function ClanPage() {
       {tab === 'chat' && (
         <section className="cb-panel cb-chat">
           <div className="cb-chat-list">
-            {messages === null && <div className="cb-chat-empty">Carregando…</div>}
+            {messages === null && (
+              <div className="cb-chat-empty cx-chat-skel" aria-busy="true" aria-label="Carregando mensagens">
+                {[70, 45, 60].map((w) => <span key={w} className="cxf-skel cxf-skel-line" style={{ width: `${w}%` }} />)}
+              </div>
+            )}
             {messages?.length === 0 && (
               <div className="cb-chat-empty">
                 <span className="cb-empty-icon"><PageIcon name="chat" size={26} /></span>

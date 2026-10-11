@@ -9,6 +9,7 @@ import {
   adminListCollections, adminSaveCollection, adminDeleteCollection,
 } from '../api/decorations';
 import '../styles/shop.css';
+import '../styles/contentx.css';
 
 const errMsg = (e) => e?.response?.data?.error || 'Não deu certo, tente de novo.';
 const priceText = (i) => [i.priceCoins != null && `${i.priceCoins} moedas`, i.priceGems != null && `${i.priceGems} gemas`].filter(Boolean).join(' · ') || 'Sem preço';
@@ -211,7 +212,16 @@ function PhoneFrame({ children }) {
 }
 
 // ---------- Coleções ----------
-const COL_EMPTY = { name: '', description: '', accentColor: '#5865f2', active: true, featured: true, sortOrder: 0, bundlePriceCoins: '', bundlePriceGems: '', removeLogo: false };
+const COL_EMPTY = { name: '', description: '', accentColor: '#5865f2', active: true, featured: true, sortOrder: 0, bundlePriceCoins: '', bundlePriceGems: '', removeLogo: false, offerDiscount: '', offerStartsAt: '', offerEndsAt: '' };
+// Oferta por tempo limitado: o campo datetime-local é no horário de quem
+// edita; vai pro servidor em ISO (com fuso) pra não mudar de hora.
+const toLocalInput = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
+const toIso = (local) => (local ? new Date(local).toISOString() : '');
 
 function CollectionsAdmin({ items, reload }) {
   const [editing, setEditing] = useState(null);
@@ -229,6 +239,7 @@ function CollectionsAdmin({ items, reload }) {
     setForm({
       name: c.name, description: c.description || '', accentColor: c.accentColor || '#5865f2', active: c.active, featured: c.featured,
       sortOrder: c.sortOrder, bundlePriceCoins: c.bundlePriceCoins ?? '', bundlePriceGems: c.bundlePriceGems ?? '', removeLogo: false,
+      offerDiscount: c.offerDiscount ?? '', offerStartsAt: toLocalInput(c.offerStartsAt), offerEndsAt: toLocalInput(c.offerEndsAt),
     });
   };
   const pick = (key) => (e) => {
@@ -241,9 +252,12 @@ function CollectionsAdmin({ items, reload }) {
   const set = (k) => (e) => setForm((s) => ({ ...s, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
   const save = async () => {
     if (!form.name.trim()) { setError('Dê um nome pra coleção.'); return; }
+    if (form.offerDiscount && !form.offerEndsAt) { setError('A oferta precisa de uma data de fim.'); return; }
+    if (form.offerStartsAt && form.offerEndsAt && new Date(form.offerEndsAt) <= new Date(form.offerStartsAt)) { setError('O fim da oferta precisa ser depois do início.'); return; }
     setSaving(true); setError('');
     try {
-      await adminSaveCollection(editing === 'new' ? null : editing, form, files);
+      const payload = { ...form, offerStartsAt: toIso(form.offerStartsAt), offerEndsAt: toIso(form.offerEndsAt) };
+      await adminSaveCollection(editing === 'new' ? null : editing, payload, files);
       setEditing(null);
       await reload();
     } catch (e) { setError(errMsg(e)); }
@@ -292,6 +306,18 @@ function CollectionsAdmin({ items, reload }) {
               <label className="deco-check"><input type="checkbox" checked={form.active} onChange={set('active')} /> Visível na loja</label>
             </div>
             <label className="deco-check"><input type="checkbox" checked={form.featured} onChange={set('featured')} /> Mostrar no carrossel de Destaques</label>
+            <fieldset className="cxs-offer-admin">
+              <legend>Oferta por tempo limitado</legend>
+              <small className="shop-muted">Desconto no pacote da coleção entre o início e o fim. A loja mostra a contagem regressiva. Deixe o desconto vazio pra não ter oferta.</small>
+              <div className="deco-row">
+                <label>Desconto (%)<input type="number" min="1" max="90" value={form.offerDiscount} onChange={set('offerDiscount')} placeholder="Ex.: 30" /></label>
+                <label>Começa<input type="datetime-local" value={form.offerStartsAt} onChange={set('offerStartsAt')} /></label>
+                <label>Termina<input type="datetime-local" value={form.offerEndsAt} onChange={set('offerEndsAt')} /></label>
+              </div>
+              {(form.offerDiscount || form.offerEndsAt) && (
+                <button type="button" className="shop-link" onClick={() => setForm((f) => ({ ...f, offerDiscount: '', offerStartsAt: '', offerEndsAt: '' }))}>Remover oferta</button>
+              )}
+            </fieldset>
             <div className="deco-actions">
               <span style={{ flex: 1 }} />
               <button type="button" className="shop-btn ghost" onClick={() => setEditing(null)} disabled={saving}>Cancelar</button>

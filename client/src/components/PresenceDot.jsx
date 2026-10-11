@@ -1,4 +1,4 @@
-import { STATUS_COLOR } from '../utils/status';
+import { STATUS_COLOR, STATUS_LABEL } from '../utils/status';
 
 // Item pedido: "a bolinha amarela do ausente transforme numa bolinha
 // parecida com a lua... o não perturbe, dentro dela tenha uma linha
@@ -22,6 +22,9 @@ export default function PresenceDot({ status, className = '', large, title, styl
       className={`status-dot status-dot-${(status || 'offline').toLowerCase()} ${large ? 'large' : ''} ${className}`}
       style={{ '--presence-color': color, ...style }}
       title={title}
+      // Leitor de tela: o status em palavras (não depende da cor).
+      role="img"
+      aria-label={STATUS_LABEL[status] || STATUS_LABEL.OFFLINE}
     />
   );
 }

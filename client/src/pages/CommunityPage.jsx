@@ -9,7 +9,8 @@ import {
   updateCommunity, uploadCommunityIconForSlug, deleteCommunity, listPosts, votePost,
   createClubCategory, updateClubCategory, uploadClubCategoryImage, deleteClubCategory,
 } from '../api/endpoints';
-import { PostCard, CreatePostForm } from './CommunitiesPage.jsx';
+import { PostCard, CreatePostForm, FeedIcon, TagFilter, PostSkeletons, usePinToggle } from './CommunitiesPage.jsx';
+import { updateClubTags } from '../api/contentx';
 import { proxyImage } from '../utils/imageProxy';
 import { useLiveRefresh } from '../utils/liveRefresh';
 
@@ -27,12 +28,14 @@ export default function CommunityPage() {
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState(null);
+  const [tag, setTag] = useState('');
+  const onPin = usePinToggle(setPosts);
 
-  const refreshPosts = () => listPosts({ communitySlug: slug, sort: 'new' }).then((d) => setPosts(d.posts));
-  useEffect(() => { refreshPosts(); }, [slug]);
+  const refreshPosts = () => listPosts({ communitySlug: slug, sort: 'new', tag: tag || undefined }).then((d) => setPosts(d.posts));
+  useEffect(() => { setPosts(null); refreshPosts(); }, [slug, tag]);
 
   // Tempo real (11s): posts do clube.
-  useLiveRefresh(({ put }) => listPosts({ communitySlug: slug, sort: 'new' }).then((d) => put(setPosts)(d.posts)), { enabled: posts !== null, key: slug });
+  useLiveRefresh(({ put }) => listPosts({ communitySlug: slug, sort: 'new', tag: tag || undefined }).then((d) => put(setPosts)(d.posts)), { enabled: posts !== null, key: `${slug}|${tag}` });
 
   const onVote = async (post, value) => {
     const nextMyVote = post.myVote === value ? 0 : value;
@@ -65,8 +68,20 @@ export default function CommunityPage() {
     try { await deleteClubCategory(cat.id); } catch (err) { alert(err.response?.data?.error || 'Não foi possível excluir.'); }
   };
 
-  if (club === undefined) return <div className="community-page"><p className="dim">Carregando...</p></div>;
-  if (!club) return <div className="community-page"><p className="dim">Tema não encontrado.</p></div>;
+  if (club === undefined) return <div className="community-page"><PostSkeletons /></div>;
+  if (!club) {
+    return (
+      <div className="community-page">
+        <div className="support-empty-state">
+          <div className="support-empty-state-icon"><FeedIcon name="tag" size={32} /></div>
+          <h3>Tema não encontrado</h3>
+          <p className="dim">Ele pode ter sido removido pela staff.</p>
+          <button type="button" className="btn-secondary" onClick={() => navigate('/comunidades')}>Ver todos os Temas</button>
+        </div>
+      </div>
+    );
+  }
+  const clubTags = Array.isArray(club.postTags) ? club.postTags : [];
 
   const editingCategory = (club.categories || []).find((c) => c.id === editingCategoryId);
 
@@ -84,8 +99,9 @@ export default function CommunityPage() {
         </div>
 
         {!showCreatePost && (
-          <button className="feeds-create" onClick={() => setShowCreatePost(true)}>+ Criar post</button>
+          <button className="feeds-create" onClick={() => setShowCreatePost(true)}><FeedIcon name="plus" /> Criar post</button>
         )}
+        <TagFilter tags={clubTags} value={tag} onChange={setTag} />
         {showCreatePost && (
           <CreatePostForm
             clubs={[club]}
@@ -95,16 +111,16 @@ export default function CommunityPage() {
           />
         )}
 
-        {!posts ? <p className="dim">Carregando posts...</p> : posts.length === 0 ? (
+        {!posts ? <PostSkeletons /> : posts.length === 0 ? (
           <div className="support-empty-state">
             <div className="support-empty-state-icon"><IconGlyph src={emptyIcon} size={40} /></div>
-            <h3>Nenhum post ainda</h3>
-            <p className="dim">Seja o primeiro a postar aqui.</p>
+            <h3>{tag ? 'Nenhum post com essa tag' : 'Nenhum post ainda'}</h3>
+            <p className="dim">{tag ? 'Tente outra tag.' : 'Seja o primeiro a postar aqui.'}</p>
           </div>
         ) : (
           <div className="post-card-list">
             {posts.map((post) => (
-              <PostCard key={post.id} post={post} onVote={onVote} onOpen={() => navigate(`/posts/${post.id}`)} />
+              <PostCard key={post.id} post={post} onVote={onVote} onPin={isStaff ? onPin : undefined} onTag={setTag} onOpen={() => navigate(`/posts/${post.id}`)} />
             ))}
           </div>
         )}
@@ -131,7 +147,7 @@ export default function CommunityPage() {
                     {cat.bannerUrl && <img className="club-category-visual-banner" src={proxyImage(cat.bannerUrl)} alt="" />}
                     <div className="club-category-visual-body">
                       <span className="club-category-visual-icon">
-                        {cat.iconUrl ? <img src={proxyImage(cat.iconUrl)} alt="" /> : '🏷️'}
+                        {cat.iconUrl ? <img src={proxyImage(cat.iconUrl)} alt="" /> : <FeedIcon name="tag" size={16} />}
                       </span>
                       <div className="club-category-visual-text">
                         <span className="club-category-visual-name">{cat.name}</span>
@@ -149,6 +165,7 @@ export default function CommunityPage() {
               </div>
               {isStaff && <button type="button" className="btn-secondary club-category-add-btn" onClick={addCategory}>+ Nova categoria</button>}
             </div>
+            <ClubTagsCard club={club} tags={clubTags} isStaff={isStaff} />
             {isStaff && (
               <div className="community-info-manage-actions">
                 <button className="btn-secondary community-info-edit-btn" onClick={() => setEditing(true)}>Editar Tema</button>
@@ -162,6 +179,53 @@ export default function CommunityPage() {
       {editingCategory && (
         <CategoryEditForm category={editingCategory} onClose={() => setEditingCategoryId(null)} />
       )}
+    </div>
+  );
+}
+
+// Tags do Fórum deste Tema: todo mundo vê a lista; a staff adiciona/remove.
+function ClubTagsCard({ club, tags, isStaff }) {
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  if (!isStaff && tags.length === 0) return null;
+  const save = async (next) => {
+    setBusy(true); setError('');
+    try { await updateClubTags(club.slug, next); } catch (err) { setError(err.response?.data?.error || 'Não foi possível salvar as tags.'); }
+    setBusy(false);
+  };
+  const add = (e) => {
+    e.preventDefault();
+    const t = draft.trim().slice(0, 24);
+    if (!t || tags.includes(t)) { setDraft(''); return; }
+    if (tags.length >= 20) { setError('No máximo 20 tags por Tema.'); return; }
+    setDraft('');
+    save([...tags, t]);
+  };
+  return (
+    <div className="community-info-rules cxf-tags-card">
+      <h4>Tags do Fórum</h4>
+      {tags.length === 0 ? <p className="dim">Nenhuma tag ainda. Crie algumas pra quem posta poder marcar o assunto.</p> : (
+        <div className="cxf-tag-picker-list">
+          {tags.map((t) => (
+            <span key={t} className="cxf-tag-chip static">
+              <FeedIcon name="tag" size={12} /> {t}
+              {isStaff && (
+                <button type="button" className="cxf-tag-remove" aria-label={`Remover tag ${t}`} disabled={busy} onClick={() => save(tags.filter((x) => x !== t))}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+      {isStaff && (
+        <form className="cxf-tag-add" onSubmit={add}>
+          <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={24} placeholder="Nova tag (ex: Guia)" aria-label="Nova tag" />
+          <button type="submit" className="btn-secondary" disabled={busy || !draft.trim()}>Adicionar</button>
+        </form>
+      )}
+      {error && <div className="auth-error">{error}</div>}
     </div>
   );
 }
@@ -199,7 +263,7 @@ function ClubEditForm({ club, onClose }) {
         LOGO
         <div className="community-icon-picker-row">
           <span className="community-row-icon community-icon-preview">
-            {iconPreview ? <img src={iconPreview} alt="" /> : '📌'}
+            {iconPreview ? <img src={iconPreview} alt="" /> : <FeedIcon name="pin" size={18} />}
           </span>
           <label className="btn-secondary">Trocar imagem<input type="file" accept="image/*" hidden onChange={pickIcon} /></label>
         </div>
@@ -282,7 +346,7 @@ function CategoryEditForm({ category, onClose }) {
           ÍCONE (opcional)
           <div className="community-icon-picker-row">
             <span className="community-row-icon community-icon-preview">
-              {iconPreview ? <img src={iconPreview} alt="" /> : '🏷️'}
+              {iconPreview ? <img src={iconPreview} alt="" /> : <FeedIcon name="tag" size={18} />}
             </span>
             <label className="btn-secondary">Escolher ícone<input type="file" accept="image/*" hidden onChange={pickIcon} /></label>
           </div>

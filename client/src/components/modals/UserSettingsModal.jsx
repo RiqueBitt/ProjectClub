@@ -69,7 +69,7 @@ import youtubeConnIcon from '../../assets/icons/social-youtube.png';
 import steamConnIcon from '../../assets/icons/social-steam.png';
 import { useVoice } from '../../context/VoiceContext.jsx';
 import { CUSTOM_BACKGROUND_ENABLED } from '../../utils/featureFlags';
-import { LayoutCustomizer, AccessibilityExtras } from '../AppearanceSettings.jsx';
+import { LayoutCustomizer, AccessibilityExtras, ColorVisionSettings } from '../AppearanceSettings.jsx';
 import { trackSave, useSaveStatus } from '../../utils/saveIndicator';
 import { useShallow } from 'zustand/react/shallow';
 import { chatZoomSaver, interfaceZoomSaver } from '../../utils/zoomSave';
@@ -155,6 +155,46 @@ const TAB_DESCRIPTION = {
   LANGUAGE: 'Idioma e formato de data e hora.',
   GAMES: 'Detecção de jogos, atividade e sobreposição.',
 };
+// Link de conexão: vazio vale; senão precisa parecer um endereço (o
+// servidor completa o "https://" sozinho).
+const looksLikeLink = (v) => !v || !v.trim() || /^(https?:\/\/)?[\w-]+(\.[\w-]+)+([/?#]\S*)?$/i.test(v.trim());
+// Nome falado por leitor de tela de cada chave liga/desliga.
+const TOGGLE_LABEL = {
+  reducedMotion: 'Movimento reduzido', highContrast: 'Contraste alto',
+  desktopNotifications: 'Notificações de desktop', emailNotifications: 'Notificações por e-mail', notificationSounds: 'Sons de notificação',
+  startWithSystem: 'Iniciar com o sistema', minimizeToTray: 'Minimizar para a bandeja', openLinksInApp: 'Abrir links no aplicativo',
+  confirmOnExit: 'Confirmar antes de sair', developerMode: 'Modo desenvolvedor',
+  gameDetectionEnabled: 'Detecção automática de jogos', activitySharing: 'Compartilhar atividade',
+  overlayEnabled: 'Sobreposição no jogo', overlayNotifications: 'Notificações na sobreposição',
+};
+// Requisitos da senha nova (os mesmos que o servidor confere).
+function passwordRules(pw) {
+  const v = pw || '';
+  return [
+    { ok: v.length >= 8, label: 'Pelo menos 8 caracteres' },
+    { ok: /[A-Za-zÀ-ÿ]/.test(v), label: 'Pelo menos uma letra' },
+    { ok: /\d/.test(v), label: 'Pelo menos um número' },
+  ];
+}
+// "Ctrl+Shift+K" a partir de um keydown (null se só apertou modificador).
+function comboFromEvent(e) {
+  if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return null;
+  const parts = [];
+  if (e.ctrlKey) parts.push('Ctrl');
+  if (e.altKey) parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+  if (e.metaKey) parts.push('Meta');
+  const key = e.key === ' ' ? 'Espaço' : e.key.length === 1 ? e.key.toUpperCase() : e.key;
+  parts.push(key);
+  return parts.join('+');
+}
+// "Agora: 14:32" / "2:32 PM" conforme o formato escolhido.
+function formatClockSample(fmt, lang) {
+  const opts = { hour: 'numeric', minute: '2-digit' };
+  if (fmt === '12h') opts.hour12 = true;
+  if (fmt === '24h') opts.hour12 = false;
+  try { return new Date().toLocaleTimeString(lang || 'pt-BR', opts); } catch { return new Date().toLocaleTimeString('pt-BR', opts); }
+}
 const normalizeSearch = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
 export default function UserSettingsModal({ onClose }) {
@@ -271,6 +311,9 @@ export default function UserSettingsModal({ onClose }) {
   const [effectMenuOpen, setEffectMenuOpen] = useState(false);
   const [twoFA, setTwoFA] = useState({ qrDataUrl: null, secret: null, code: '' });
   const [error, setError] = useState('');
+  // Erro do 2FA separado do erro do nome de usuário (antes era o mesmo
+  // estado e um aparecia na aba do outro).
+  const [twoFAError, setTwoFAError] = useState('');
   const [sessions, setSessions] = useState(null);
   const [sessionsError, setSessionsError] = useState('');
   const [revokingId, setRevokingId] = useState(null);
@@ -399,7 +442,11 @@ export default function UserSettingsModal({ onClose }) {
 
   const createPoll = () => {
     const cleanOptions = pollOptions.map((o) => o.trim()).filter(Boolean);
-    if (!pollQuestion.trim() || cleanOptions.length < 2 || pollCreating) return;
+    if (pollCreating) return;
+    // Antes o botão simplesmente não fazia nada sem pergunta/opções.
+    if (!pollQuestion.trim()) { setPollError('Escreva a pergunta da enquete.'); return; }
+    if (cleanOptions.length < 2) { setPollError('Preencha pelo menos 2 opções.'); return; }
+    if (new Set(cleanOptions.map((o) => o.toLowerCase())).size !== cleanOptions.length) { setPollError('Há opções repetidas.'); return; }
     setPollCreating(true);
     setPollError('');
     createProfilePoll(pollQuestion.trim(), cleanOptions)
@@ -630,17 +677,22 @@ export default function UserSettingsModal({ onClose }) {
   };
 
   const start2FA = async () => {
-    const data = await setup2FA();
-    setTwoFA({ ...data, code: '' });
+    setTwoFAError('');
+    try {
+      const data = await setup2FA();
+      setTwoFA({ ...data, code: '' });
+    } catch (err) {
+      setTwoFAError(err.response?.data?.error || 'Não foi possível começar a configuração do 2FA.');
+    }
   };
 
   const confirm2FASubmit = async () => {
-    setError('');
+    setTwoFAError('');
     try {
       await confirm2FA(twoFA.code);
       setUser({ ...user, twoFactorEnabled: true });
       setTwoFA({ qrDataUrl: null, secret: null, code: '' });
-    } catch (err) { setError(err.response?.data?.error || 'Código inválido.'); }
+    } catch (err) { setTwoFAError(err.response?.data?.error || 'Código inválido.'); }
   };
 
   const turnOff2FA = async () => {
@@ -656,7 +708,7 @@ export default function UserSettingsModal({ onClose }) {
       await disable2FA(password);
       setUser({ ...user, twoFactorEnabled: false });
     } catch (err) {
-      setError(err.response?.data?.error || 'Senha incorreta.');
+      setTwoFAError(err.response?.data?.error || 'Senha incorreta.');
     }
   };
 
@@ -685,6 +737,10 @@ export default function UserSettingsModal({ onClose }) {
   const submitAddGame = async () => {
     const displayName = newGameName.trim();
     if (!displayName || addingGame) return;
+    if ((games || []).some((g) => g.displayName.toLowerCase() === displayName.toLowerCase())) {
+      setGamesError('Esse jogo já está na sua lista.');
+      return;
+    }
     setGamesError('');
     setAddingGame(true);
     try {
@@ -821,6 +877,8 @@ export default function UserSettingsModal({ onClose }) {
   const submitChangePassword = async () => {
     setPwError(''); setPwSuccess(false);
     if (pwForm.next !== pwForm.confirm) { setPwError('As duas senhas novas não são iguais.'); return; }
+    if (!passwordRules(pwForm.next).every((r) => r.ok)) { setPwError('A senha nova ainda não cumpre todos os requisitos.'); return; }
+    if (pwForm.next === pwForm.current) { setPwError('A senha nova precisa ser diferente da atual.'); return; }
     setPwSaving(true);
     try {
       await changePassword(pwForm.current, pwForm.next);
@@ -957,7 +1015,7 @@ export default function UserSettingsModal({ onClose }) {
                 className="btn-link profile-edit-preview-link"
                 onClick={(e) => useStore.getState().openMiniProfile(user.id, e.currentTarget.getBoundingClientRect())}
               >
-                👁️ Ver miniperfil
+                <SIcon name="eye" /> Ver miniperfil
               </button>
             </div>
 
@@ -998,13 +1056,20 @@ export default function UserSettingsModal({ onClose }) {
           <div className="settings-block">
             <h4>Informações básicas</h4>
             <div className="display-name-row">
-              <label>NOME DE EXIBIÇÃO<input name="displayName" value={form.displayName} onChange={onChange} /></label>
+              <label>
+                <span className="settings-label-row">NOME DE EXIBIÇÃO <CharCount value={form.displayName} max={32} /></span>
+                <input name="displayName" value={form.displayName} onChange={onChange} maxLength={32} aria-invalid={!form.displayName.trim()} />
+              </label>
+              {!form.displayName.trim() && <FieldError>O nome de exibição não pode ficar vazio. Enquanto estiver vazio, ele não é salvo.</FieldError>}
             </div>
-            <label>PRONOMES<input name="pronouns" value={form.pronouns} onChange={onChange} placeholder="ele/dele, ela/dela..." /></label>
             <label>
-              BIOGRAFIA
+              <span className="settings-label-row">PRONOMES <CharCount value={form.pronouns} max={40} /></span>
+              <input name="pronouns" value={form.pronouns} onChange={onChange} maxLength={40} placeholder="ele/dele, ela/dela..." />
+            </label>
+            <label>
+              <span className="settings-label-row">BIOGRAFIA <CharCount value={form.bio} max={190} /></span>
               <div className="bio-input-row">
-                <textarea name="bio" value={form.bio} onChange={onChange} maxLength={190} />
+                <textarea name="bio" value={form.bio} onChange={onChange} maxLength={190} placeholder="Conte um pouco sobre você" />
                 <div className="composer-picker-anchor">
                   <button type="button" className="icon-btn" title="Emoji" onClick={() => setBioEmojiOpen((v) => !v)}><img className="ui-icon" src={emojiPickerIcon} alt="" /></button>
                   {bioEmojiOpen && <EmojiPicker serverEmojis={useStore.getState().usableEmojis} onPick={insertBioEmoji} onClose={() => setBioEmojiOpen(false)} />}
@@ -1023,10 +1088,10 @@ export default function UserSettingsModal({ onClose }) {
             <h4>Status personalizado</h4>
             <label>
               <div className="bio-input-row">
-                <input name="customStatus" value={form.customStatus} onChange={onChange} placeholder="O que você está pensando?" />
+                <input name="customStatus" value={form.customStatus} onChange={onChange} maxLength={128} placeholder="O que você está pensando?" />
                 <div className="composer-picker-anchor">
                   <button ref={statusEmojiBtnRef} type="button" className="icon-btn" title="Emoji do status" onClick={() => setStatusEmojiOpen((v) => !v)}>
-                    {form.customStatusEmoji || '☺'}
+                    {form.customStatusEmoji || <SIcon name="smile" size={18} />}
                   </button>
                   {statusEmojiOpen && createPortal(
                     <div ref={statusEmojiPickerRef} style={{ display: 'contents' }}>
@@ -1043,6 +1108,9 @@ export default function UserSettingsModal({ onClose }) {
                 </div>
               </div>
             </label>
+            {(form.customStatus || form.customStatusEmoji) && (
+              <button type="button" className="btn-link settings-inline-link" onClick={() => setForm((f) => ({ ...f, customStatus: '', customStatusEmoji: '' }))}>Limpar status</button>
+            )}
           </div>
 
           <div className="settings-block">
@@ -1130,6 +1198,7 @@ export default function UserSettingsModal({ onClose }) {
                 COR DA BARRA
                 <input type="color" value={form.levelBarColor || '#23a55a'} onChange={(e) => setForm((f) => ({ ...f, levelBarColor: e.target.value }))} />
               </label>
+              <span className="settings-level-preview" aria-hidden="true"><i style={{ background: form.levelBarColor || 'var(--green)' }} /></span>
               {form.levelBarColor && (
                 <button type="button" className="btn-link" onClick={() => setForm((f) => ({ ...f, levelBarColor: '' }))}>Usar verde padrão</button>
               )}
@@ -1329,8 +1398,10 @@ export default function UserSettingsModal({ onClose }) {
                   key={value}
                   type="button"
                   className={`theme-swatch ${form.statusBubbleColor === value ? 'active' : ''}`}
+                  aria-pressed={form.statusBubbleColor === value}
                   onClick={() => setForm((f) => ({ ...f, statusBubbleColor: value }))}
                 >
+                  <span className="settings-bubble-sample" style={{ background: value }} aria-hidden="true"><i /></span>
                   {label}
                 </button>
               ))}
@@ -1343,22 +1414,27 @@ export default function UserSettingsModal({ onClose }) {
 
           <div className="settings-block">
             <h4>Conexões</h4>
+            <p className="dim">Links que aparecem como botões no seu perfil completo. Deixe vazio pra esconder.</p>
             <div className="profile-edit-connections-grid">
               <label>
                 <span className="connection-label"><img className="ui-icon-sm" src={youtubeConnIcon} alt="" /> YOUTUBE</span>
-                <input name="youtubeUrl" value={form.youtubeUrl} onChange={onChange} placeholder="Link do seu canal do YouTube" />
+                <input name="youtubeUrl" value={form.youtubeUrl} onChange={onChange} placeholder="Link do seu canal do YouTube" inputMode="url" aria-invalid={!looksLikeLink(form.youtubeUrl)} />
+                {!looksLikeLink(form.youtubeUrl) && <FieldError>Isso não parece um link. Exemplo: https://site.com/seu-perfil</FieldError>}
               </label>
               <label>
                 <span className="connection-label"><img className="ui-icon-sm" src={steamConnIcon} alt="" /> STEAM</span>
-                <input name="steamUrl" value={form.steamUrl} onChange={onChange} placeholder="Link do seu perfil da Steam" />
+                <input name="steamUrl" value={form.steamUrl} onChange={onChange} placeholder="Link do seu perfil da Steam" inputMode="url" aria-invalid={!looksLikeLink(form.steamUrl)} />
+                {!looksLikeLink(form.steamUrl) && <FieldError>Isso não parece um link. Exemplo: https://site.com/seu-perfil</FieldError>}
               </label>
               <label>
                 <span className="connection-label"><img className="ui-icon-sm" src={robloxConnIcon} alt="" /> ROBLOX</span>
-                <input name="robloxUrl" value={form.robloxUrl} onChange={onChange} placeholder="Link do seu perfil do Roblox" />
+                <input name="robloxUrl" value={form.robloxUrl} onChange={onChange} placeholder="Link do seu perfil do Roblox" inputMode="url" aria-invalid={!looksLikeLink(form.robloxUrl)} />
+                {!looksLikeLink(form.robloxUrl) && <FieldError>Isso não parece um link. Exemplo: https://site.com/seu-perfil</FieldError>}
               </label>
               <label>
                 <span className="connection-label"><img className="ui-icon-sm" src={xConnIcon} alt="" /> X (TWITTER)</span>
-                <input name="xUrl" value={form.xUrl} onChange={onChange} placeholder="Link do seu perfil no X" />
+                <input name="xUrl" value={form.xUrl} onChange={onChange} placeholder="Link do seu perfil no X" inputMode="url" aria-invalid={!looksLikeLink(form.xUrl)} />
+                {!looksLikeLink(form.xUrl) && <FieldError>Isso não parece um link. Exemplo: https://site.com/seu-perfil</FieldError>}
               </label>
             </div>
           </div>
@@ -1407,8 +1483,11 @@ export default function UserSettingsModal({ onClose }) {
         <div className="settings-grid">
           <div className="settings-block">
             <h4>Conquistas em destaque no perfil completo</h4>
-            <p className="dim">Escolha até 6 conquistas pra aparecerem no seu perfil completo.</p>
-            <button type="button" className="btn-secondary" onClick={() => setAchievementPickerOpen('profile')}>Escolher conquistas (até 6)</button>
+            <p className="dim">Escolha até 6 conquistas pra aparecerem no seu perfil completo. Também dá pra mudar direto no seu perfil, em "Editar vitrine".</p>
+            <div className="settings-inline-actions">
+              <button type="button" className="btn-secondary" onClick={() => setAchievementPickerOpen('profile')}>Escolher conquistas</button>
+              <span className="settings-chip">{myDisplayedAchievements.profile.length} de 6 escolhidas</span>
+            </div>
           </div>
 
           {/* Item pedido: "desativar Galeria de fotos, sem apagar
@@ -1428,24 +1507,38 @@ export default function UserSettingsModal({ onClose }) {
             <p className="dim">Crie uma pergunta com opções pros seus amigos votarem, direto no seu perfil — no máximo 2 por vez.</p>
             {myPolls.length < 2 ? (
               <div className="profile-poll-composer">
-                <input value={pollQuestion} onChange={(e) => setPollQuestion(e.target.value)} placeholder="Pergunta da enquete..." maxLength={200} />
+                <label>
+                  <span className="settings-label-row">PERGUNTA <CharCount value={pollQuestion} max={200} /></span>
+                  <input value={pollQuestion} onChange={(e) => setPollQuestion(e.target.value)} placeholder="Ex.: Qual jogo a gente joga sábado?" maxLength={200} />
+                </label>
+                <span className="settings-label-row">OPÇÕES <span className="settings-char-count">{pollOptions.length}/10</span></span>
                 {pollOptions.map((opt, i) => (
-                  <input
-                    key={i}
-                    value={opt}
-                    onChange={(e) => setPollOptions((prev) => prev.map((o, j) => (j === i ? e.target.value : o)))}
-                    placeholder={`Opção ${i + 1}`}
-                    maxLength={100}
-                  />
+                  <div key={i} className="settings-poll-option-row">
+                    <input
+                      value={opt}
+                      onChange={(e) => setPollOptions((prev) => prev.map((o, j) => (j === i ? e.target.value : o)))}
+                      placeholder={`Opção ${i + 1}`}
+                      aria-label={`Opção ${i + 1}`}
+                      maxLength={100}
+                    />
+                    {pollOptions.length > 2 && (
+                      <button type="button" className="settings-icon-btn" aria-label={`Tirar opção ${i + 1}`} title="Tirar opção" onClick={() => setPollOptions((prev) => prev.filter((_, j) => j !== i))}>
+                        <SIcon name="close" size={14} />
+                      </button>
+                    )}
+                  </div>
                 ))}
-                {pollError && <p className="dim" style={{ color: 'var(--red)' }}>{pollError}</p>}
+                <FieldError>{pollError}</FieldError>
                 <div className="profile-poll-composer-actions">
-                  {pollOptions.length < 10 && <button type="button" className="btn-secondary" onClick={() => setPollOptions((prev) => [...prev, ''])}>+ Opção</button>}
-                  <button type="button" className="btn-secondary" disabled={pollCreating} onClick={createPoll}>Criar enquete</button>
+                  {pollOptions.length < 10 && <button type="button" className="btn-secondary" onClick={() => setPollOptions((prev) => [...prev, ''])}><SIcon name="plus" size={14} /> Opção</button>}
+                  <button type="button" className="btn-primary" disabled={pollCreating} onClick={createPoll}>{pollCreating ? 'Criando…' : 'Criar enquete'}</button>
                 </div>
               </div>
             ) : (
               <p className="dim" style={{ fontStyle: 'italic' }}>Você já tem 2 enquetes — apague uma abaixo antes de criar outra.</p>
+            )}
+            {myPolls.length === 0 && (
+              <div className="settings-empty"><span className="settings-empty-icon"><SIcon name="check" /></span>Nenhuma enquete ativa no seu perfil.</div>
             )}
             {myPolls.length > 0 && (
               <ul className="settings-poll-list">
@@ -1465,7 +1558,11 @@ export default function UserSettingsModal({ onClose }) {
         <div className="settings-grid">
           <div className="settings-block">
             <h4>Ordem das seções do perfil</h4>
+            <p className="dim">Arraste ou use as setas pra mudar a ordem; o olho esconde a seção. Cada mudança é salva na hora.</p>
             <ProfileSectionOrderEditor value={user.profileSectionOrder} onChange={saveProfileSectionOrder} />
+            <div className="settings-inline-actions">
+              <button type="button" className="btn-secondary" onClick={() => useStore.getState().openProfile(user.id)}><SIcon name="eye" /> Ver meu perfil</button>
+            </div>
           </div>
         </div>
       )}
@@ -1474,26 +1571,24 @@ export default function UserSettingsModal({ onClose }) {
         <div className="settings-grid">
           <div className="settings-block">
             <h4>Informações básicas</h4>
-            <label>E-MAIL<input value={user.email} disabled /></label>
             <label>
-              NOME DE USUÁRIO
-              <input value={username} onChange={(e) => setUsernameField(e.target.value)} />
+              <span className="settings-label-row">E-MAIL
+                {user.emailVerified
+                  ? <span className="settings-chip is-ok"><SIcon name="check" size={12} /> Verificado</span>
+                  : <span className="settings-chip is-warn"><SIcon name="alert" size={12} /> Não verificado</span>}
+              </span>
+              <input value={user.email} disabled />
             </label>
-            {error && <div className="auth-error">{error}</div>}
-            <p className="dim settings-autosave-hint">Salvo automaticamente.</p>
-          </div>
-
-          <div className="settings-block">
-            <h4>Trocar senha</h4>
-            <label>SENHA ATUAL<input type="password" value={pwForm.current} onChange={(e) => setPwForm((f) => ({ ...f, current: e.target.value }))} /></label>
-            <label>SENHA NOVA<input type="password" value={pwForm.next} onChange={(e) => setPwForm((f) => ({ ...f, next: e.target.value }))} /></label>
-            <label>CONFIRME A SENHA NOVA<input type="password" value={pwForm.confirm} onChange={(e) => setPwForm((f) => ({ ...f, confirm: e.target.value }))} /></label>
-            <p className="dim" style={{ fontSize: 12 }}>Pelo menos 8 caracteres, com letras e números. Você continua logado aqui, mas é desconectado dos outros dispositivos.</p>
-            {pwError && <div className="auth-error">{pwError}</div>}
-            {pwSuccess && <p className="dim" style={{ color: 'var(--green)' }}>Senha alterada com sucesso.</p>}
-            <button className="btn-primary" disabled={pwSaving || !pwForm.current || !pwForm.next} onClick={submitChangePassword}>
-              {pwSaving ? 'Salvando...' : 'Trocar senha'}
-            </button>
+            <p className="dim settings-field-hint">O e-mail não pode ser trocado por aqui. Ele é usado pra entrar e recuperar a senha.</p>
+            <label>
+              <span className="settings-label-row">NOME DE USUÁRIO <CharCount value={username} max={32} /></span>
+              <div className="settings-prefix-input">
+                <span aria-hidden="true">@</span>
+                <input value={username} maxLength={32} autoComplete="username" spellCheck={false} aria-invalid={!!error} onChange={(e) => setUsernameField(e.target.value.replace(/\s+/g, ''))} />
+              </div>
+            </label>
+            <FieldError>{error}</FieldError>
+            <p className="dim settings-autosave-hint">Salvo automaticamente 1 segundo depois de parar de digitar. Pelo menos 3 caracteres, sem espaços.</p>
           </div>
 
           <div className="settings-block danger-zone">
@@ -1530,54 +1625,83 @@ export default function UserSettingsModal({ onClose }) {
           <div className="settings-block">
             <h4>Privacidade de pedidos de amizade</h4>
             <p className="dim">Quem pode te mandar um pedido de amizade novo.</p>
-            <div className="theme-options">
-              {[['EVERYONE', 'Qualquer pessoa'], ['FRIENDS_OF_FRIENDS', 'Amigos de amigos'], ['NOBODY', 'Ninguém']].map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`theme-swatch ${friendRequestPrivacy === value ? 'active' : ''}`}
-                  onClick={() => saveFriendRequestPrivacy(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              label="Quem pode me mandar pedido de amizade" value={friendRequestPrivacy} onChange={saveFriendRequestPrivacy}
+              options={[['EVERYONE', 'Qualquer pessoa'], ['FRIENDS_OF_FRIENDS', 'Amigos de amigos'], ['NOBODY', 'Ninguém']]}
+            />
           </div>
 
+          {/* Trocar senha: morava em "Informação de conta", mas a aba
+              que tem "senha" no nome é esta. */}
+          <PasswordChangeBlock
+            pwForm={pwForm} setPwForm={setPwForm} pwError={pwError} pwSuccess={pwSuccess} pwSaving={pwSaving}
+            onSubmit={submitChangePassword}
+          />
+
           <div className="settings-block">
-            <h4>Autenticação de dois fatores</h4>
+            <h4 className="settings-h4-row">
+              Verificação em duas etapas (2FA)
+              {user.twoFactorEnabled
+                ? <span className="settings-chip is-ok"><SIcon name="shield" size={12} /> Ativada</span>
+                : <span className="settings-chip">Desativada</span>}
+            </h4>
             {user.twoFactorEnabled ? (
               <>
-                <p className="dim">2FA está ativado na sua conta.</p>
-                <button className="btn-danger" onClick={turnOff2FA}>Desativar 2FA</button>
+                <p className="dim">Ao entrar, além da senha, pedimos um código do seu app autenticador.</p>
+                <FieldError>{twoFAError}</FieldError>
+                <div className="settings-inline-actions">
+                  <button className="btn-danger" onClick={turnOff2FA}>Desativar 2FA</button>
+                </div>
               </>
             ) : twoFA.qrDataUrl ? (
-              <>
-                <p className="dim">Escaneie o QR code com seu app autenticador e digite o código gerado.</p>
-                <img src={twoFA.qrDataUrl} alt="QR code 2FA" width={180} height={180} />
-                <div className="dim">Ou insira manualmente: {twoFA.secret}</div>
-                <input placeholder="Código de 6 dígitos" value={twoFA.code} onChange={(e) => setTwoFA((s) => ({ ...s, code: e.target.value }))} />
-                {error && <div className="auth-error">{error}</div>}
-                <button className="btn-primary" onClick={confirm2FASubmit}>Confirmar e ativar</button>
-              </>
+              <div className="settings-2fa-setup">
+                <img src={twoFA.qrDataUrl} alt="QR code pra configurar o 2FA" width={168} height={168} className="settings-2fa-qr" />
+                <div className="settings-2fa-steps">
+                  <ol>
+                    <li>Abra seu app autenticador (Google Authenticator, Authy…).</li>
+                    <li>Escaneie o QR code ou digite a chave abaixo.</li>
+                    <li>Digite o código de 6 dígitos que aparecer.</li>
+                  </ol>
+                  <div className="settings-2fa-secret">
+                    <code>{twoFA.secret}</code>
+                    <button type="button" className="settings-icon-btn" title="Copiar chave" aria-label="Copiar chave" onClick={() => navigator.clipboard?.writeText(twoFA.secret).then(() => useStore.getState().pushNotice('Chave copiada.')).catch(() => {})}>
+                      <SIcon name="copy" size={14} />
+                    </button>
+                  </div>
+                  <input
+                    className="settings-code-input" placeholder="000000" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+                    aria-label="Código de 6 dígitos" value={twoFA.code}
+                    onChange={(e) => setTwoFA((st) => ({ ...st, code: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && twoFA.code.length === 6) confirm2FASubmit(); }}
+                  />
+                  <FieldError>{twoFAError}</FieldError>
+                  <div className="settings-inline-actions">
+                    <button className="btn-primary" disabled={twoFA.code.length !== 6} onClick={confirm2FASubmit}>Confirmar e ativar</button>
+                    <button type="button" className="btn-link" onClick={() => { setTwoFA({ qrDataUrl: null, secret: null, code: '' }); setTwoFAError(''); }}>Cancelar</button>
+                  </div>
+                </div>
+              </div>
             ) : (
               <>
-                <p className="dim">Peça um código do seu app autenticador (Google Authenticator, Authy, etc) toda vez que entrar.</p>
-                <button className="btn-primary" onClick={start2FA}>Configurar 2FA</button>
+                <p className="dim">Além da senha, pede um código do seu app autenticador (Google Authenticator, Authy…) toda vez que você entrar. Protege sua conta mesmo se alguém descobrir a senha.</p>
+                <div className="settings-inline-actions">
+                  <button className="btn-primary" onClick={start2FA}>Configurar 2FA</button>
+                </div>
               </>
             )}
           </div>
 
           <div className="settings-block">
-            <h4>Sessões ativas</h4>
-            <p className="dim">Dispositivos e navegadores onde sua conta está logada agora.</p>
-            {sessionsError && <div className="auth-error">{sessionsError}</div>}
-            {sessions === null && !sessionsError && <p className="dim">Carregando...</p>}
+            <h4 className="settings-h4-row">Sessões ativas {sessions && <span className="settings-chip">{sessions.length}</span>}</h4>
+            <p className="dim">Dispositivos e navegadores onde sua conta está logada agora. Encerre os que você não reconhece.</p>
+            <FieldError>{sessionsError}</FieldError>
+            {sessions === null && !sessionsError && <SettingsSkeleton rows={2} />}
             {sessions && (
               <>
                 <div className="sessions-list">
                   {sessions.map((s) => (
-                    <div key={s.id} className="session-row">
+                    <div key={s.id} className={`session-row ${s.isCurrent ? 'is-current' : ''}`}>
+                      <span className="settings-row-icon" aria-hidden="true"><SIcon name="monitor" /></span>
                       <div className="session-row-info">
                         <div>{describeSession(s.userAgent)}{s.isCurrent && <span className="session-current-badge">Este dispositivo</span>}</div>
                         <div className="dim">Desde {new Date(s.createdAt).toLocaleString('pt-BR')}</div>
@@ -1610,20 +1734,17 @@ export default function UserSettingsModal({ onClose }) {
               ícone" — mesmo padrão visual do seletor de tema acima. */}
           <div className="settings-block">
             <h4>Layout</h4>
-            <p className="dim">Normal 2.0: menu e canais juntos numa coluna à esquerda. Normal: barra de ícones com os canais ao lado. Beta: canais em abas no topo do chat.</p>
-            <div className="theme-options">
-              {['normal2', 'discord', 'normal'].map((l) => (
-                <button key={l} className={`theme-swatch ${layoutStyle === l ? 'active' : ''}`} onClick={() => pickLayoutStyle(l)}>
-                  {/* Item pedido: renomear os rótulos exibidos —
-                      "Normal" vira "Beta", "Discord" vira "Normal".
-                      Os valores internos (normal/discord) continuam
-                      os mesmos por baixo, só o texto que a pessoa vê
-                      muda — evita mexer em schema/backend/lógica por
-                      uma troca que é só de nome na tela. */}
-                  {{ normal2: 'Normal 2.0', normal: 'Beta', discord: 'Normal' }[l]}
-                </button>
-              ))}
-            </div>
+            <p className="dim">Como o menu e os canais ficam organizados na tela.</p>
+            {/* Rótulos renomeados a pedido (normal→Beta, discord→Normal);
+                os valores internos continuam os mesmos. */}
+            <RadioCards
+              label="Layout" value={layoutStyle} onChange={pickLayoutStyle}
+              options={[
+                { value: 'normal2', label: 'Normal 2.0', hint: 'Menu e canais juntos numa coluna à esquerda.' },
+                { value: 'discord', label: 'Normal', hint: 'Barra de ícones com os canais ao lado.' },
+                { value: 'normal', label: 'Beta', hint: 'Canais em abas no topo do chat.' },
+              ]}
+            />
           </div>
 
           {/* Personalizar layout (densidade, cantos, coluna, fonte, fundo animado, temas sazonais) */}
@@ -1639,11 +1760,12 @@ export default function UserSettingsModal({ onClose }) {
             <p className="dim">Deixa o texto das mensagens e a barra de digitar maiores ou menores — só no PC, o celular não muda.</p>
             <div className="chat-zoom-row">
               <input
-                type="range" min="1" max="2" step="0.1"
+                type="range" min="1" max="2" step="0.1" aria-label="Zoom do chat"
                 value={chatZoom}
                 onChange={(e) => pickChatZoom(Number(e.target.value))}
               />
               <span className="chat-zoom-value">{chatZoom.toFixed(1)}x</span>
+              {chatZoom !== 1 && <button type="button" className="settings-icon-btn" title="Voltar pra 1.0x" aria-label="Voltar o zoom do chat pra 1.0x" onClick={() => pickChatZoom(1)}><SIcon name="reset" size={14} /></button>}
             </div>
           </div>
 
@@ -1658,13 +1780,13 @@ export default function UserSettingsModal({ onClose }) {
             <p className="dim">Deixa o app inteiro maior ou menor, de 50% a 200% — só no PC, o celular não muda.</p>
             <div className="chat-zoom-row">
               <input
-                type="range" min="0.5" max="2" step="0.01"
+                type="range" min="0.5" max="2" step="0.01" aria-label="Zoom da interface"
                 value={interfaceZoom}
                 onChange={(e) => pickInterfaceZoom(Number(e.target.value))}
               />
               <input
                 type="number" min="50" max="200" step="1"
-                className="chat-zoom-input"
+                className="chat-zoom-input" aria-label="Zoom da interface em porcentagem"
                 value={Math.round(interfaceZoom * 100)}
                 onChange={(e) => {
                   const percent = Number(e.target.value);
@@ -1674,6 +1796,7 @@ export default function UserSettingsModal({ onClose }) {
                 }}
               />
               <span className="chat-zoom-value">%</span>
+              {Math.round(interfaceZoom * 100) !== 100 && <button type="button" className="settings-icon-btn" title="Voltar pra 100%" aria-label="Voltar o zoom da interface pra 100%" onClick={() => pickInterfaceZoom(1)}><SIcon name="reset" size={14} /></button>}
             </div>
           </div>
 
@@ -1745,12 +1868,12 @@ export default function UserSettingsModal({ onClose }) {
           na tela, como pedido) e salva sozinho a cada escolha. */}
       {tab === 'LANGUAGE' && (
         <div className="settings-grid">
-          {!userSettings ? <div className="dim">Carregando...</div> : (
+          {!userSettings ? <SettingsSkeleton /> : (
             <>
               <div className="settings-block">
                 <h4>Idioma</h4>
                 <p className="dim">Muda o idioma usado na interface do Project Club.</p>
-                <select value={userSettings.language} onChange={(e) => updateUserSetting('language', e.target.value)}>
+                <select aria-label="Idioma" value={userSettings.language} onChange={(e) => updateUserSetting('language', e.target.value)}>
                   <option value="pt-BR">Português (Brasil)</option>
                   <option value="en-US">English</option>
                   <option value="es-ES">Español</option>
@@ -1759,11 +1882,12 @@ export default function UserSettingsModal({ onClose }) {
               <div className="settings-block">
                 <h4>Formato de horário</h4>
                 <p className="dim">Como os horários aparecem nas mensagens e em toda a interface.</p>
-                <select value={userSettings.timeFormat} onChange={(e) => updateUserSetting('timeFormat', e.target.value)}>
+                <select aria-label="Formato de horário" value={userSettings.timeFormat} onChange={(e) => updateUserSetting('timeFormat', e.target.value)}>
                   <option value="auto">Automático (baseado no idioma)</option>
                   <option value="12h">12 horas</option>
                   <option value="24h">24 horas</option>
                 </select>
+                <p className="dim settings-field-hint">Agora: <strong>{formatClockSample(userSettings.timeFormat, userSettings.language)}</strong></p>
               </div>
             </>
           )}
@@ -1778,46 +1902,46 @@ export default function UserSettingsModal({ onClose }) {
           interface, não só nesta tela. */}
       {tab === 'ACCESSIBILITY' && (
         <div className="settings-grid">
-          {!userSettings ? <div className="dim">Carregando...</div> : (
+          {!userSettings ? <SettingsSkeleton /> : (
             <>
               <div className="settings-block settings-toggle-row">
                 <div>
                   <h4>Movimento reduzido</h4>
                   <p className="dim">Reduz animações e efeitos visuais para tornar a interface mais confortável.</p>
                 </div>
-                <button
-                  type="button" className={`toggle-switch ${userSettings.reducedMotion ? 'on' : ''}`}
-                  onClick={() => updateUserSetting('reducedMotion', !userSettings.reducedMotion)}
-                />
+                <Toggle on={userSettings.reducedMotion} onChange={(v) => updateUserSetting('reducedMotion', v)} label={TOGGLE_LABEL.reducedMotion} />
               </div>
               <div className="settings-block settings-toggle-row">
                 <div>
                   <h4>Contraste alto</h4>
                   <p className="dim">Aumenta o contraste de cores da interface.</p>
                 </div>
-                <button
-                  type="button" className={`toggle-switch ${userSettings.highContrast ? 'on' : ''}`}
-                  onClick={() => updateUserSetting('highContrast', !userSettings.highContrast)}
-                />
+                <Toggle on={userSettings.highContrast} onChange={(v) => updateUserSetting('highContrast', v)} label={TOGGLE_LABEL.highContrast} />
               </div>
               <div className="settings-block">
-                <h4>Tamanho do texto</h4>
-                <input
-                  type="range" min="0.8" max="1.5" step="0.1"
-                  value={userSettings.textScale}
-                  onChange={(e) => updateUserSetting('textScale', Number(e.target.value))}
-                />
+                <h4 className="settings-h4-row">Tamanho do texto <span className="settings-chip">{Math.round(userSettings.textScale * 100)}%</span></h4>
+                <p className="dim">Aumenta ou diminui o texto de toda a interface.</p>
+                <div className="chat-zoom-row">
+                  <input
+                    type="range" min="0.8" max="1.5" step="0.1" aria-label="Tamanho do texto"
+                    value={userSettings.textScale}
+                    onChange={(e) => updateUserSetting('textScale', Math.round(Number(e.target.value) * 10) / 10)}
+                  />
+                  {userSettings.textScale !== 1 && <button type="button" className="settings-icon-btn" title="Voltar pra 100%" aria-label="Voltar o tamanho do texto pra 100%" onClick={() => updateUserSetting('textScale', 1)}><SIcon name="reset" size={14} /></button>}
+                </div>
+                <p className="settings-text-sample" style={{ fontSize: `${15 * userSettings.textScale}px` }}>Exemplo: Bora jogar hoje à noite?</p>
               </div>
               <div className="settings-block">
                 <h4>Saturação</h4>
-                <div className="chip-choice-row">
-                  {[100, 75, 50, 0].map((v) => (
-                    <button key={v} type="button" className={`chip-choice ${userSettings.saturation === v ? 'active' : ''}`} onClick={() => updateUserSetting('saturation', v)}>{v}%</button>
-                  ))}
-                </div>
+                <p className="dim">Deixa as cores do app mais fracas. 0% fica em preto e branco.</p>
+                <Segmented
+                  label="Saturação" value={userSettings.saturation} onChange={(v) => updateUserSetting('saturation', v)}
+                  options={[[100, '100%'], [75, '75%'], [50, '50%'], [0, '0%']]}
+                />
               </div>
             </>
           )}
+          <ColorVisionSettings />
           <AccessibilityExtras />
         </div>
       )}
@@ -1840,35 +1964,40 @@ export default function UserSettingsModal({ onClose }) {
           preferência. */}
       {tab === 'PRIVACY' && (
         <div className="settings-grid">
-          {!userSettings ? <div className="dim">Carregando...</div> : (
+          {!userSettings ? <SettingsSkeleton /> : (
             <>
               <div className="settings-block">
                 <h4>Privacidade do perfil</h4>
-                <p className="dim">Quem pode ver os detalhes completos do seu perfil.</p>
-                <select value={userSettings.profilePrivacy} onChange={(e) => updateUserSetting('profilePrivacy', e.target.value)}>
-                  <option value="everyone">Qualquer pessoa</option>
-                  <option value="friends_groups">Amigos e pessoas dos meus grupos</option>
-                  <option value="friends">Apenas amigos</option>
-                </select>
+                <p className="dim">Quem pode ver os detalhes completos do seu perfil (bio, conexões, insígnias, recados…). Nome, foto e banner continuam visíveis pra todo mundo.</p>
+                <RadioCards
+                  label="Privacidade do perfil" value={userSettings.profilePrivacy} onChange={(v) => updateUserSetting('profilePrivacy', v)}
+                  options={[
+                    { value: 'everyone', label: 'Qualquer pessoa' },
+                    { value: 'friends_groups', label: 'Amigos e pessoas dos meus grupos' },
+                    { value: 'friends', label: 'Apenas amigos' },
+                  ]}
+                />
               </div>
               <div className="settings-block">
                 <h4>Quem pode me enviar mensagens</h4>
                 <p className="dim">Controla quem pode iniciar uma conversa direta com você.</p>
-                <select value={userSettings.dmPrivacy} onChange={(e) => updateUserSetting('dmPrivacy', e.target.value)}>
-                  <option value="everyone">Todos</option>
-                  <option value="friends">Amigos</option>
-                  <option value="friends_groups">Pessoas que compartilham grupos comigo</option>
-                  <option value="none">Ninguém</option>
-                </select>
+                <RadioCards
+                  label="Quem pode me enviar mensagens" value={userSettings.dmPrivacy} onChange={(v) => updateUserSetting('dmPrivacy', v)}
+                  options={[
+                    { value: 'everyone', label: 'Todos' },
+                    { value: 'friends', label: 'Amigos' },
+                    { value: 'friends_groups', label: 'Pessoas que compartilham grupos comigo' },
+                    { value: 'none', label: 'Ninguém', hint: 'Conversas que já existem continuam abertas.' },
+                  ]}
+                />
               </div>
               <div className="settings-block">
                 <h4>Filtrar conteúdo</h4>
                 <p className="dim">Nível de filtragem aplicado às mensagens que você recebe.</p>
-                <div className="chip-choice-row">
-                  {[['off', 'Desativado'], ['moderate', 'Moderado'], ['high', 'Alto']].map(([value, label]) => (
-                    <button key={value} type="button" className={`chip-choice ${userSettings.contentFilterLevel === value ? 'active' : ''}`} onClick={() => updateUserSetting('contentFilterLevel', value)}>{label}</button>
-                  ))}
-                </div>
+                <Segmented
+                  label="Filtrar conteúdo" value={userSettings.contentFilterLevel} onChange={(v) => updateUserSetting('contentFilterLevel', v)}
+                  options={[['off', 'Desativado'], ['moderate', 'Moderado'], ['high', 'Alto']]}
+                />
               </div>
               {/* Rodada 5: jogos e atividade também na privacidade.
                   gamesVisibility (everyone|friends|nobody) é validado no
@@ -1893,22 +2022,12 @@ export default function UserSettingsModal({ onClose }) {
                   <h4>Mostrar o que estou jogando/ouvindo</h4>
                   <p className="dim">Mostra pros outros o jogo, app ou música do Spotify que o aplicativo detectar.</p>
                 </div>
-                <button
-                  type="button" role="switch" aria-checked={!!userSettings.activitySharing}
-                  aria-label="Mostrar o que estou jogando/ouvindo"
-                  className={`toggle-switch ${userSettings.activitySharing ? 'on' : ''}`}
-                  onClick={() => updateUserSetting('activitySharing', !userSettings.activitySharing)}
-                />
+                <Toggle on={userSettings.activitySharing} onChange={(v) => updateUserSetting('activitySharing', v)} label="Mostrar o que estou jogando/ouvindo" />
               </div>
               {userSettings.activitySharing && (
                 <div className="settings-block">
                   <h4>Quem pode ver minha atividade</h4>
-                  <select value={userSettings.activityVisibility} onChange={(e) => updateUserSetting('activityVisibility', e.target.value)}>
-                    <option value="everyone">Todos permitidos</option>
-                    <option value="friends">Somente amigos</option>
-                    <option value="friends_groups">Pessoas dos mesmos grupos</option>
-                    <option value="none">Ninguém</option>
-                  </select>
+                  <ActivityVisibilityPicker value={userSettings.activityVisibility} onChange={(v) => updateUserSetting('activityVisibility', v)} />
                 </div>
               )}
               {/* BUG CORRIGIDO ("botão que não muda nada de verdade"):
@@ -1947,37 +2066,29 @@ export default function UserSettingsModal({ onClose }) {
           para uma próxima parte. */}
       {tab === 'NOTIFICATIONS' && (
         <div className="settings-grid">
-          {!userSettings ? <div className="dim">Carregando...</div> : (
+          {!userSettings ? <SettingsSkeleton /> : (
             <>
               <div className="settings-block settings-toggle-row">
                 <div>
                   <h4>Notificações de desktop</h4>
                   <p className="dim">Mostra um alerta na tela quando chega uma mensagem nova, mesmo com o Project Club em segundo plano.</p>
+                  {userSettings.desktopNotifications && <NotificationPermissionNote />}
                 </div>
-                <button
-                  type="button" className={`toggle-switch ${userSettings.desktopNotifications ? 'on' : ''}`}
-                  onClick={() => updateUserSetting('desktopNotifications', !userSettings.desktopNotifications)}
-                />
+                <Toggle on={userSettings.desktopNotifications} onChange={(v) => updateUserSetting('desktopNotifications', v)} label={TOGGLE_LABEL.desktopNotifications} />
               </div>
               <div className="settings-block settings-toggle-row">
                 <div>
                   <h4>Notificações por e-mail</h4>
                   <p className="dim">Recebe um e-mail para eventos importantes, como pedidos de amizade e menções, quando você está offline.</p>
                 </div>
-                <button
-                  type="button" className={`toggle-switch ${userSettings.emailNotifications ? 'on' : ''}`}
-                  onClick={() => updateUserSetting('emailNotifications', !userSettings.emailNotifications)}
-                />
+                <Toggle on={userSettings.emailNotifications} onChange={(v) => updateUserSetting('emailNotifications', v)} label={TOGGLE_LABEL.emailNotifications} />
               </div>
               <div className="settings-block settings-toggle-row">
                 <div>
                   <h4>Sons de notificação</h4>
                   <p className="dim">Toca um som quando você recebe uma mensagem, menção ou chamada.</p>
                 </div>
-                <button
-                  type="button" className={`toggle-switch ${userSettings.notificationSounds ? 'on' : ''}`}
-                  onClick={() => updateUserSetting('notificationSounds', !userSettings.notificationSounds)}
-                />
+                <Toggle on={userSettings.notificationSounds} onChange={(v) => updateUserSetting('notificationSounds', v)} label={TOGGLE_LABEL.notificationSounds} />
               </div>
             </>
           )}
@@ -1994,44 +2105,7 @@ export default function UserSettingsModal({ onClose }) {
           suspendedUntil/timeoutUntil/emailVerified/createdAt), sem
           expor nada que a staff não deva mostrar (motivo interno de
           moderação continua só no painel admin). */}
-      {tab === 'ACCOUNT_STATUS' && (
-        <div className="settings-grid">
-          <div className="settings-block">
-            <h4>Status</h4>
-            <p className="dim">
-              {user.accountDisabledAt
-                ? 'Desativada'
-                : user.isPlatformBanned
-                  ? 'Banida'
-                  : user.suspendedUntil && new Date(user.suspendedUntil) > new Date()
-                    ? 'Parcialmente limitada'
-                    : user.timeoutUntil && new Date(user.timeoutUntil) > new Date()
-                      ? 'Em silenciamento temporário'
-                      : 'Ativa'}
-            </p>
-          </div>
-          <div className="settings-block">
-            <h4>Conta criada em</h4>
-            <p className="dim">{new Date(user.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
-          </div>
-          <div className="settings-block">
-            <h4>Verificação de e-mail</h4>
-            <p className="dim">{user.emailVerified ? 'E-mail verificado' : 'E-mail ainda não verificado'}</p>
-          </div>
-          <div className="settings-block">
-            <h4>Restrições</h4>
-            {user.isPlatformBanned ? (
-              <p className="dim">Banida{user.platformBanReason ? ` — motivo: ${user.platformBanReason}` : ''}</p>
-            ) : user.suspendedUntil && new Date(user.suspendedUntil) > new Date() ? (
-              <p className="dim">Suspensa até {new Date(user.suspendedUntil).toLocaleString('pt-BR')}</p>
-            ) : user.timeoutUntil && new Date(user.timeoutUntil) > new Date() ? (
-              <p className="dim">Silenciada até {new Date(user.timeoutUntil).toLocaleString('pt-BR')}</p>
-            ) : (
-              <p className="dim">Nenhuma</p>
-            )}
-          </div>
-        </div>
-      )}
+      {tab === 'ACCOUNT_STATUS' && <AccountStatusTab user={user} />}
 
       {/* Item pedido: "Sistema... Geral... Iniciar com o sistema...
           Minimizar para bandeja... Abrir links no aplicativo...
@@ -2049,7 +2123,7 @@ export default function UserSettingsModal({ onClose }) {
           seu próprio backend (shortcutsController.js). */}
       {tab === 'SYSTEM' && (
         <div className="settings-grid">
-          {!userSettings ? <div className="dim">Carregando...</div> : (
+          {!userSettings ? <SettingsSkeleton /> : (
             <>
               {appDiag && (
                 <div className="settings-block">
@@ -2068,52 +2142,41 @@ export default function UserSettingsModal({ onClose }) {
               <div className="settings-block settings-toggle-row">
                 <div>
                   <h4>Iniciar com o sistema</h4>
-                  <p className="dim">Abre o Project Club automaticamente quando o computador liga. Só tem efeito no aplicativo ".exe".</p>
+                  <p className="dim">Abre o Project Club automaticamente quando o computador liga.</p>
+                  <DesktopOnlyChip />
                 </div>
-                <button
-                  type="button" className={`toggle-switch ${userSettings.startWithSystem ? 'on' : ''}`}
-                  onClick={() => updateUserSetting('startWithSystem', !userSettings.startWithSystem)}
-                />
+                <Toggle on={userSettings.startWithSystem} onChange={(v) => updateUserSetting('startWithSystem', v)} label={TOGGLE_LABEL.startWithSystem} />
               </div>
               <div className="settings-block settings-toggle-row">
                 <div>
                   <h4>Minimizar para a bandeja</h4>
-                  <p className="dim">Ao fechar a janela, o app continua rodando na bandeja do sistema em vez de encerrar. Só tem efeito no ".exe".</p>
+                  <p className="dim">Ao fechar a janela, o app continua rodando na bandeja do sistema em vez de encerrar.</p>
+                  <DesktopOnlyChip />
                 </div>
-                <button
-                  type="button" className={`toggle-switch ${userSettings.minimizeToTray ? 'on' : ''}`}
-                  onClick={() => updateUserSetting('minimizeToTray', !userSettings.minimizeToTray)}
-                />
+                <Toggle on={userSettings.minimizeToTray} onChange={(v) => updateUserSetting('minimizeToTray', v)} label={TOGGLE_LABEL.minimizeToTray} />
               </div>
               <div className="settings-block settings-toggle-row">
                 <div>
                   <h4>Abrir links no aplicativo</h4>
-                  <p className="dim">Links clicados dentro do Project Club abrem numa janela do próprio app em vez do navegador padrão. Só tem efeito no ".exe".</p>
+                  <p className="dim">Links clicados dentro do Project Club abrem numa janela do próprio app em vez do navegador padrão.</p>
+                  <DesktopOnlyChip />
                 </div>
-                <button
-                  type="button" className={`toggle-switch ${userSettings.openLinksInApp ? 'on' : ''}`}
-                  onClick={() => updateUserSetting('openLinksInApp', !userSettings.openLinksInApp)}
-                />
+                <Toggle on={userSettings.openLinksInApp} onChange={(v) => updateUserSetting('openLinksInApp', v)} label={TOGGLE_LABEL.openLinksInApp} />
               </div>
               <div className="settings-block settings-toggle-row">
                 <div>
                   <h4>Confirmar antes de sair</h4>
-                  <p className="dim">Pede confirmação ao tentar fechar o aplicativo. Só tem efeito no ".exe".</p>
+                  <p className="dim">Pede confirmação ao tentar fechar o aplicativo.</p>
+                  <DesktopOnlyChip />
                 </div>
-                <button
-                  type="button" className={`toggle-switch ${userSettings.confirmOnExit ? 'on' : ''}`}
-                  onClick={() => updateUserSetting('confirmOnExit', !userSettings.confirmOnExit)}
-                />
+                <Toggle on={userSettings.confirmOnExit} onChange={(v) => updateUserSetting('confirmOnExit', v)} label={TOGGLE_LABEL.confirmOnExit} />
               </div>
               <div className="settings-block settings-toggle-row">
                 <div>
                   <h4>Modo desenvolvedor</h4>
                   <p className="dim">Mostra IDs e informações técnicas extras em menus de contexto (canais, mensagens, usuários).</p>
                 </div>
-                <button
-                  type="button" className={`toggle-switch ${userSettings.developerMode ? 'on' : ''}`}
-                  onClick={() => updateUserSetting('developerMode', !userSettings.developerMode)}
-                />
+                <Toggle on={userSettings.developerMode} onChange={(v) => updateUserSetting('developerMode', v)} label={TOGGLE_LABEL.developerMode} />
               </div>
 
               {/* Item pedido: "Atalhos personalizados... UserShortcut...
@@ -2124,31 +2187,41 @@ export default function UserSettingsModal({ onClose }) {
                   direto da resposta de erro da API. */}
               <div className="settings-block">
                 <h4>Atalhos personalizados</h4>
-                <p className="dim">Defina uma combinação de teclas pra uma ação (ex: "abrir_configuracoes" → "Ctrl+,").</p>
-                {shortcutsError && <div className="auth-error">{shortcutsError}</div>}
-                {shortcuts === null && !shortcutsError && <p className="dim">Carregando...</p>}
+                <p className="dim">Dê um nome pra ação e aperte as teclas no campo da combinação (Backspace limpa). Uma combinação só pode ser usada por uma ação.</p>
+                <FieldError>{shortcutsError}</FieldError>
+                {shortcuts === null && !shortcutsError && <SettingsSkeleton rows={2} />}
                 {shortcuts && (
                   <ul className="settings-poll-list">
                     {shortcuts.map((s) => (
                       <li key={s.id} className="settings-poll-list-item">
-                        <span className="truncate">{s.action} — {s.keyCombination}</span>
+                        <span className="truncate">{s.action}</span>
+                        <kbd className="settings-kbd">{s.keyCombination}</kbd>
                         <button type="button" className="profile-relationship-end" onClick={() => removeShortcutFromList(s.id)}>Remover</button>
                       </li>
                     ))}
-                    {shortcuts.length === 0 && <li className="dim" style={{ fontStyle: 'italic' }}>Nenhum atalho personalizado ainda.</li>}
+                    {shortcuts.length === 0 && <li className="settings-empty"><span className="settings-empty-icon"><SIcon name="keyboard" /></span>Nenhum atalho personalizado ainda.</li>}
                   </ul>
                 )}
-                <div className="birthday-picker-row" style={{ marginTop: 10 }}>
+                <div className="birthday-picker-row settings-shortcut-form">
                   <input
                     value={newShortcutAction}
                     onChange={(e) => setNewShortcutAction(e.target.value)}
                     placeholder="Ação (ex: abrir_configuracoes)"
+                    aria-label="Ação do atalho"
                     maxLength={64}
                   />
                   <input
                     value={newShortcutCombo}
                     onChange={(e) => setNewShortcutCombo(e.target.value)}
-                    placeholder="Combinação (ex: Ctrl+,)"
+                    onKeyDown={(e) => {
+                      // Grava a combinação apertada (Tab/Backspace continuam normais).
+                      if (e.key === 'Tab') return;
+                      if (e.key === 'Backspace' && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); setNewShortcutCombo(''); return; }
+                      const combo = comboFromEvent(e);
+                      if (combo) { e.preventDefault(); e.stopPropagation(); setNewShortcutCombo(combo); }
+                    }}
+                    placeholder="Aperte as teclas (ex: Ctrl+,)"
+                    aria-label="Combinação de teclas"
                     maxLength={32}
                   />
                   <button type="button" className="btn-secondary" disabled={savingShortcut || !newShortcutAction.trim() || !newShortcutCombo.trim()} onClick={submitShortcut}>
@@ -2178,10 +2251,10 @@ export default function UserSettingsModal({ onClose }) {
       {tab === 'GAMES' && (
         <div className="settings-grid">
           <div className="settings-block">
-            <h4>Jogos adicionados</h4>
-            <p className="dim">Jogos que aparecem como sua atividade quando detectados (detecção automática só funciona no aplicativo ".exe").</p>
-            {gamesError && <div className="auth-error">{gamesError}</div>}
-            {games === null && !gamesError && <p className="dim">Carregando...</p>}
+            <h4 className="settings-h4-row">Jogos adicionados {games && games.length > 0 && <span className="settings-chip">{games.length}</span>}</h4>
+            <p className="dim">Jogos que aparecem como sua atividade quando detectados (detecção automática só funciona no app de computador).</p>
+            <FieldError>{gamesError}</FieldError>
+            {games === null && !gamesError && <SettingsSkeleton rows={2} />}
             {games && (
               <ul className="settings-poll-list">
                 {games.map((g) => (
@@ -2190,13 +2263,15 @@ export default function UserSettingsModal({ onClose }) {
                     <button type="button" className="profile-relationship-end" onClick={() => removeGameFromList(g.id)}>Remover</button>
                   </li>
                 ))}
-                {games.length === 0 && <li className="dim" style={{ fontStyle: 'italic' }}>Nenhum jogo adicionado ainda.</li>}
+                {games.length === 0 && <li className="settings-empty"><span className="settings-empty-icon"><SIcon name="gamepad" /></span>Nenhum jogo adicionado ainda. Digite o nome abaixo.</li>}
               </ul>
             )}
             <div className="birthday-picker-row" style={{ marginTop: 10 }}>
               <input
                 value={newGameName}
                 onChange={(e) => setNewGameName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') submitAddGame(); }}
+                aria-label="Nome do jogo"
                 placeholder="Nome do jogo (ex: Minecraft)"
                 maxLength={100}
               />
@@ -2206,37 +2281,31 @@ export default function UserSettingsModal({ onClose }) {
             </div>
           </div>
 
-          {!userSettings ? <div className="dim">Carregando...</div> : (
+          {!userSettings ? <SettingsSkeleton /> : (
             <>
               <div className="settings-block settings-toggle-row">
                 <div>
                   <h4>Detecção automática de jogos</h4>
-                  <p className="dim">Detecta sozinho quando você abre um jogo instalado. Só tem efeito no aplicativo ".exe".</p>
+                  <p className="dim">Detecta sozinho quando você abre um jogo instalado.</p>
+                  <DesktopOnlyChip />
                 </div>
-                <button
-                  type="button" className={`toggle-switch ${userSettings.gameDetectionEnabled ? 'on' : ''}`}
-                  onClick={() => updateUserSetting('gameDetectionEnabled', !userSettings.gameDetectionEnabled)}
-                />
+                <Toggle on={userSettings.gameDetectionEnabled} onChange={(v) => updateUserSetting('gameDetectionEnabled', v)} label={TOGGLE_LABEL.gameDetectionEnabled} />
               </div>
               <div className="settings-block settings-toggle-row">
                 <div>
                   <h4>Compartilhar atividade</h4>
                   <p className="dim">Mostra pros outros o que você está jogando agora, quando detectado.</p>
                 </div>
-                <button
-                  type="button" className={`toggle-switch ${userSettings.activitySharing ? 'on' : ''}`}
-                  onClick={() => updateUserSetting('activitySharing', !userSettings.activitySharing)}
-                />
+                <Toggle on={userSettings.activitySharing} onChange={(v) => updateUserSetting('activitySharing', v)} label={TOGGLE_LABEL.activitySharing} />
               </div>
-              <div className="settings-block">
-                <h4>Quem pode ver minha atividade</h4>
-                <select value={userSettings.activityVisibility} onChange={(e) => updateUserSetting('activityVisibility', e.target.value)}>
-                  <option value="everyone">Todos permitidos</option>
-                  <option value="friends">Somente amigos</option>
-                  <option value="friends_groups">Pessoas dos mesmos grupos</option>
-                  <option value="none">Ninguém</option>
-                </select>
-              </div>
+              {/* Mesmo comportamento da aba Dados e privacidade: só aparece
+                  com o compartilhamento ligado (antes aparecia sempre aqui). */}
+              {userSettings.activitySharing && (
+                <div className="settings-block">
+                  <h4>Quem pode ver minha atividade</h4>
+                  <ActivityVisibilityPicker value={userSettings.activityVisibility} onChange={(v) => updateUserSetting('activityVisibility', v)} />
+                </div>
+              )}
               {/* BUG CORRIGIDO ("botão que não muda nada de verdade"):
                   havia um controle "Quem pode se juntar ao meu jogo"
                   aqui, ligado a gameJoinPrivacy — mas isso descreve um
@@ -2253,12 +2322,10 @@ export default function UserSettingsModal({ onClose }) {
               <div className="settings-block settings-toggle-row">
                 <div>
                   <h4>Sobreposição no jogo (overlay)</h4>
-                  <p className="dim">Mostra mensagens e notificações por cima do jogo enquanto você joga. Só tem efeito no ".exe".</p>
+                  <p className="dim">Mostra mensagens e notificações por cima do jogo enquanto você joga.</p>
+                  <DesktopOnlyChip />
                 </div>
-                <button
-                  type="button" className={`toggle-switch ${userSettings.overlayEnabled ? 'on' : ''}`}
-                  onClick={() => updateUserSetting('overlayEnabled', !userSettings.overlayEnabled)}
-                />
+                <Toggle on={userSettings.overlayEnabled} onChange={(v) => updateUserSetting('overlayEnabled', v)} label={TOGGLE_LABEL.overlayEnabled} />
               </div>
               {userSettings.overlayEnabled && (
                 <div className="settings-block settings-toggle-row">
@@ -2266,10 +2333,7 @@ export default function UserSettingsModal({ onClose }) {
                     <h4>Notificações na sobreposição</h4>
                     <p className="dim">Nova mensagem, menção, convite, pedido de amizade e entrada em chamada aparecem na overlay.</p>
                   </div>
-                  <button
-                    type="button" className={`toggle-switch ${userSettings.overlayNotifications ? 'on' : ''}`}
-                    onClick={() => updateUserSetting('overlayNotifications', !userSettings.overlayNotifications)}
-                  />
+                  <Toggle on={userSettings.overlayNotifications} onChange={(v) => updateUserSetting('overlayNotifications', v)} label={TOGGLE_LABEL.overlayNotifications} />
                 </div>
               )}
             </>
@@ -2474,7 +2538,7 @@ function NameColorPresets({ setForm }) {
         ))}
         {isEyeDropperSupported() && (
           <button type="button" className="name-color-eyedropper-btn" title="Escolher cor da tela (conta-gotas)" onClick={pickWithEyeDropper}>
-            🎨
+            <SIcon name="pipette" size={16} />
           </button>
         )}
       </div>
@@ -2498,7 +2562,7 @@ function NameStylePickerButton({ label, open, setOpen, currentLabel, children, m
         <span className="name-style-picker-button-label">{label}</span>
         {children}
         <span className="name-style-picker-button-current truncate">{currentLabel}</span>
-        <span className={`name-style-picker-button-caret ${open ? 'open' : ''}`}>▾</span>
+        <span className={`name-style-picker-button-caret ${open ? 'open' : ''}`}><SIcon name="caret" size={14} /></span>
       </button>
       {open && menu}
     </div>
@@ -2514,6 +2578,7 @@ function VoiceSettingsTab() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [level, setLevel] = useState(0);
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const testStreamRef = useRef(null);
   const testCtxRef = useRef(null);
   const testRafRef = useRef(null);
@@ -2523,7 +2588,11 @@ function VoiceSettingsTab() {
       // Nomes de verdade (em vez de "Microfone 1") só vêm depois de alguma
       // permissão de mídia já ter sido concedida — pede um microfone
       // qualquer só pra "destravar" isso, sem manter nada gravando.
-      const probe = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+      const probe = await navigator.mediaDevices.getUserMedia({ audio: true }).catch((err) => {
+        if (err?.name === 'NotAllowedError') setPermissionDenied(true);
+        return null;
+      });
+      if (probe) setPermissionDenied(false);
       probe?.getTracks().forEach((t) => t.stop());
       const { mics: m, speakers: s } = await listAudioDevices();
       setMics(m);
@@ -2573,7 +2642,8 @@ function VoiceSettingsTab() {
         testRafRef.current = requestAnimationFrame(tick);
       };
       tick();
-    } catch {
+    } catch (err) {
+      if (err?.name === 'NotAllowedError') setPermissionDenied(true);
       setTesting(false);
     }
   };
@@ -2594,7 +2664,8 @@ function VoiceSettingsTab() {
   return (
     <div className="settings-grid">
       <div className="settings-block">
-        <h4><IconGlyph src={micIcon} size={16} /> Microfone</h4>
+        <h4 className="settings-h4-row"><SIcon name="mic" size={16} /> Microfone</h4>
+        {permissionDenied && <FieldError>O navegador bloqueou o microfone. Libere o acesso nas permissões do site e tente de novo.</FieldError>}
         <label>
           DISPOSITIVO
           <select value={selectedMic} onChange={(e) => changeMic(e.target.value)}>
@@ -2603,19 +2674,25 @@ function VoiceSettingsTab() {
           </select>
         </label>
         {saving && <p className="dim" style={{ fontSize: 12 }}>Trocando microfone...</p>}
-        <button className="btn-secondary" onClick={testing ? stopTest : startTest} style={{ marginTop: 8 }}>
-          {testing ? 'Parar teste' : '🎤 Testar microfone'}
-        </button>
+        {!saving && mics.length === 0 && !permissionDenied && <p className="dim settings-field-hint">Nenhum microfone encontrado. Conecte um e ele aparece aqui sozinho.</p>}
+        <div className="settings-inline-actions">
+          <button className={testing ? 'btn-danger' : 'btn-secondary'} onClick={testing ? stopTest : startTest}>
+            <SIcon name="mic" size={14} /> {testing ? 'Parar teste' : 'Testar microfone'}
+          </button>
+        </div>
         {testing && (
-          <div className="mic-level-meter" style={{ marginTop: 10 }}>
-            <div className="mic-level-meter-fill" style={{ width: `${level}%` }} />
+          <div className="settings-mic-test">
+            <div className="mic-level-meter" role="meter" aria-label="Volume do microfone" aria-valuemin={0} aria-valuemax={100} aria-valuenow={level}>
+              <div className="mic-level-meter-fill" style={{ width: `${level}%` }} />
+            </div>
+            <span className="dim">{level > 8 ? 'Estamos ouvindo você.' : 'Fale alguma coisa…'}</span>
           </div>
         )}
       </div>
 
       {isOutputSelectionSupported() && (
         <div className="settings-block">
-          <h4>🔊 Saída de áudio</h4>
+          <h4 className="settings-h4-row"><SIcon name="speaker" size={16} /> Saída de áudio</h4>
           <label>
             DISPOSITIVO (fones, caixa de som...)
             <select value={selectedSpeaker} onChange={(e) => changeSpeaker(e.target.value)}>
@@ -2699,5 +2776,242 @@ function AvatarChangeMenu({ onFile, canFixBackground, onFixBackground }) {
         document.body,
       )}
     </>
+  );
+}
+
+// ============================================================
+// Peças pequenas reaproveitadas pelas abas (rodada 7).
+// ============================================================
+// Ícones de traço locais (mesmo estilo de NavIcons/PageIcons).
+const S_ICONS = {
+  eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  eyeOff: 'M3 3l18 18M10.6 5.1A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.5 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7a9.8 9.8 0 0 0 4.4-1M9.9 9.9a3 3 0 0 0 4.2 4.2',
+  smile: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8.5 14.5s1.2 1.8 3.5 1.8 3.5-1.8 3.5-1.8M9 9.5h.01M15 9.5h.01',
+  pipette: 'M14.5 4.5l5 5M17 2.5a2.1 2.1 0 0 1 3 3l-2.5 2.5-3-3zM14.5 7.5 5 17v2h2l9.5-9.5',
+  caret: 'M6 9l6 6 6-6',
+  check: 'M5 12.5l4.5 4.5L19 7.5',
+  alert: 'M12 8v5M12 16.5v.5M10.3 3.9 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
+  lock: 'M6 11h12v10H6zM8.5 11V7.5a3.5 3.5 0 0 1 7 0V11',
+  mail: 'M3 6h18v12H3zM3 7l9 6 9-6',
+  calendar: 'M4 6h16v15H4zM4 10h16M8 3v4M16 3v4',
+  shield: 'M12 3l8 3v6c0 4.6-3.4 8.3-8 9-4.6-.7-8-4.4-8-9V6z',
+  mic: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3',
+  speaker: 'M4 9v6h4l5 4V5L8 9zM16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12',
+  bell: 'M6 16V11a6 6 0 1 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0',
+  keyboard: 'M3 6h18v12H3zM7 10h.01M11 10h.01M15 10h.01M7 14h10',
+  close: 'M6 6l12 12M18 6 6 18',
+  plus: 'M12 5v14M5 12h14',
+  copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
+  reset: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5',
+  monitor: 'M3 4h18v12H3zM8 20h8M12 16v4',
+  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
+  clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
+  gamepad: 'M6 9h12a4 4 0 0 1 4 4v1a3 3 0 0 1-5.4 1.8L15 14H9l-1.6 1.8A3 3 0 0 1 2 14v-1a4 4 0 0 1 4-4zM8 11v3M6.5 12.5h3M15.5 12h.01M17.5 13.5h.01',
+};
+function SIcon({ name, size = 15, strokeWidth = 2 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="s-icon">
+      <path d={S_ICONS[name]} />
+    </svg>
+  );
+}
+
+// Chave liga/desliga acessível (antes era um <button> sem nome nem estado).
+function Toggle({ on, onChange, label, disabled }) {
+  return (
+    <button
+      type="button" role="switch" aria-checked={!!on} aria-label={label} disabled={disabled}
+      className={`toggle-switch ${on ? 'on' : ''}`} onClick={() => onChange(!on)}
+    />
+  );
+}
+
+// Lista de opções com título + explicação (escolha única).
+function RadioCards({ value, options, onChange, label }) {
+  return (
+    <div className="settings-radio-cards" role="radiogroup" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o.value} type="button" role="radio" aria-checked={value === o.value}
+          className={`settings-radio-card ${value === o.value ? 'active' : ''}`}
+          onClick={() => onChange(o.value)}
+        >
+          <span className="settings-radio-dot" aria-hidden="true" />
+          <span className="settings-radio-text">
+            <strong>{o.label}</strong>
+            {o.hint && <span>{o.hint}</span>}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Escolha curta (2–4 opções) em pílulas.
+function Segmented({ value, options, onChange, label }) {
+  return (
+    <div className="chip-choice-row settings-segmented" role="radiogroup" aria-label={label}>
+      {options.map(([v, l]) => (
+        <button key={v} type="button" role="radio" aria-checked={value === v} className={`chip-choice ${value === v ? 'active' : ''}`} onClick={() => onChange(v)}>{l}</button>
+      ))}
+    </div>
+  );
+}
+
+// Esqueleto enquanto as preferências da conta carregam.
+function SettingsSkeleton({ rows = 3 }) {
+  return (
+    <div className="settings-skeleton" aria-label="Carregando" role="status">
+      {Array.from({ length: rows }, (_, i) => <span key={i} className="settings-sk-block" />)}
+    </div>
+  );
+}
+
+// Mensagem de erro de um campo.
+function FieldError({ children }) {
+  if (!children) return null;
+  return <span className="settings-field-error" role="alert"><SIcon name="alert" size={13} /> {children}</span>;
+}
+
+// Contador de caracteres (fica laranja perto do limite).
+function CharCount({ value, max }) {
+  const n = (value || '').length;
+  return <span className={`settings-char-count ${n >= max * 0.9 ? 'is-near' : ''}`}>{n}/{max}</span>;
+}
+
+// Selo "só no app de computador" pras opções que o navegador ignora.
+function DesktopOnlyChip() {
+  if (typeof window !== 'undefined' && window.electronAPI) return null;
+  return <span className="settings-chip"><SIcon name="monitor" size={12} /> Só no app de computador</span>;
+}
+
+// Trocar senha (aba Senha e segurança): mostrar/esconder, requisitos ao
+// vivo e aviso certo sobre as sessões (o servidor encerra TODAS).
+function PasswordChangeBlock({ pwForm, setPwForm, pwError, pwSuccess, pwSaving, onSubmit }) {
+  const [show, setShow] = useState(false);
+  const rules = passwordRules(pwForm.next);
+  const mismatch = pwForm.confirm && pwForm.next !== pwForm.confirm;
+  const type = show ? 'text' : 'password';
+  const set = (k) => (e) => setPwForm((f) => ({ ...f, [k]: e.target.value }));
+  return (
+    <div className="settings-block">
+      <h4 className="settings-h4-row">
+        Trocar senha
+        <button type="button" className="btn-link settings-inline-link" aria-pressed={show} onClick={() => setShow((v) => !v)}>
+          <SIcon name={show ? 'eyeOff' : 'eye'} size={14} /> {show ? 'Esconder' : 'Mostrar'}
+        </button>
+      </h4>
+      <label>SENHA ATUAL<input type={type} autoComplete="current-password" value={pwForm.current} onChange={set('current')} /></label>
+      <label>SENHA NOVA<input type={type} autoComplete="new-password" value={pwForm.next} onChange={set('next')} /></label>
+      {pwForm.next && (
+        <ul className="settings-pw-rules">
+          {rules.map((r) => (
+            <li key={r.label} className={r.ok ? 'is-ok' : ''}><SIcon name={r.ok ? 'check' : 'close'} size={12} /> {r.label}</li>
+          ))}
+        </ul>
+      )}
+      <label>CONFIRME A SENHA NOVA<input type={type} autoComplete="new-password" value={pwForm.confirm} aria-invalid={!!mismatch} onChange={set('confirm')} /></label>
+      {mismatch && <FieldError>As duas senhas novas não são iguais.</FieldError>}
+      <p className="dim settings-field-hint">Por segurança, trocar a senha encerra todas as sessões abertas — inclusive esta, quando ela expirar. Depois é só entrar de novo com a senha nova.</p>
+      <FieldError>{pwError}</FieldError>
+      {pwSuccess && <span className="settings-field-ok" role="status"><SIcon name="check" size={13} /> Senha alterada com sucesso.</span>}
+      <div className="settings-inline-actions">
+        <button className="btn-primary" disabled={pwSaving || !pwForm.current || !pwForm.next || !pwForm.confirm} onClick={onSubmit}>
+          {pwSaving ? 'Salvando…' : 'Trocar senha'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Status da conta (só leitura): um resumo com selo colorido + linhas.
+function AccountStatusTab({ user }) {
+  const now = new Date();
+  const suspended = user.suspendedUntil && new Date(user.suspendedUntil) > now;
+  const timedOut = user.timeoutUntil && new Date(user.timeoutUntil) > now;
+  const state = user.accountDisabledAt ? 'disabled' : user.isPlatformBanned ? 'banned' : suspended ? 'limited' : timedOut ? 'muted' : 'ok';
+  const STATE = {
+    ok: { label: 'Ativa', text: 'Tudo certo com a sua conta. Nenhuma restrição.', tone: 'ok', icon: 'check' },
+    limited: { label: 'Parcialmente limitada', text: `Suspensa até ${suspended ? new Date(user.suspendedUntil).toLocaleString('pt-BR') : ''}.`, tone: 'warn', icon: 'alert' },
+    muted: { label: 'Em silenciamento temporário', text: `Você não pode mandar mensagens até ${timedOut ? new Date(user.timeoutUntil).toLocaleString('pt-BR') : ''}.`, tone: 'warn', icon: 'clock' },
+    banned: { label: 'Banida', text: user.platformBanReason ? `Motivo: ${user.platformBanReason}` : 'A conta foi banida pela equipe.', tone: 'bad', icon: 'lock' },
+    disabled: { label: 'Desativada', text: 'A conta foi desativada.', tone: 'bad', icon: 'lock' },
+  }[state];
+  const created = new Date(user.createdAt);
+  return (
+    <div className="settings-grid">
+      <div className={`settings-block settings-status-hero is-${STATE.tone}`}>
+        <span className="settings-status-hero-icon" aria-hidden="true"><SIcon name={STATE.icon} size={22} /></span>
+        <div>
+          <h4>Conta {STATE.label.toLowerCase()}</h4>
+          <p className="dim">{STATE.text}</p>
+        </div>
+      </div>
+      <div className="settings-block">
+        <h4>Detalhes</h4>
+        <div className="settings-info-rows">
+          <div className="settings-info-row">
+            <span className="settings-row-icon" aria-hidden="true"><SIcon name="calendar" /></span>
+            <span>Conta criada em</span>
+            <strong>{Number.isNaN(created.getTime()) ? '—' : created.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</strong>
+          </div>
+          <div className="settings-info-row">
+            <span className="settings-row-icon" aria-hidden="true"><SIcon name="mail" /></span>
+            <span>Verificação de e-mail</span>
+            {user.emailVerified
+              ? <span className="settings-chip is-ok"><SIcon name="check" size={12} /> Verificado</span>
+              : <span className="settings-chip is-warn"><SIcon name="alert" size={12} /> Ainda não verificado</span>}
+          </div>
+          <div className="settings-info-row">
+            <span className="settings-row-icon" aria-hidden="true"><SIcon name="shield" /></span>
+            <span>Verificação em duas etapas</span>
+            {user.twoFactorEnabled
+              ? <span className="settings-chip is-ok"><SIcon name="check" size={12} /> Ativada</span>
+              : <span className="settings-chip">Desativada</span>}
+          </div>
+          <div className="settings-info-row">
+            <span className="settings-row-icon" aria-hidden="true"><SIcon name="alert" /></span>
+            <span>Restrições</span>
+            <strong>{state === 'ok' ? 'Nenhuma' : STATE.label}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Quem pode ver minha atividade (mesmo controle nas duas abas).
+function ActivityVisibilityPicker({ value, onChange }) {
+  return (
+    <RadioCards
+      label="Quem pode ver minha atividade" value={value} onChange={onChange}
+      options={[
+        { value: 'everyone', label: 'Todos permitidos' },
+        { value: 'friends', label: 'Somente amigos' },
+        { value: 'friends_groups', label: 'Pessoas dos mesmos grupos' },
+        { value: 'none', label: 'Ninguém' },
+      ]}
+    />
+  );
+}
+
+// Aviso quando o navegador bloqueia notificações (antes a chave ficava
+// "ligada" sem efeito nenhum, sem explicar por quê) + botão de teste.
+function NotificationPermissionNote() {
+  const supported = typeof window !== 'undefined' && 'Notification' in window;
+  const [perm, setPerm] = useState(() => (supported ? Notification.permission : 'unsupported'));
+  if (!supported || window.electronAPI) return null;
+  const ask = () => Notification.requestPermission().then(setPerm).catch(() => {});
+  const test = () => { try { new Notification('Project Club', { body: 'As notificações estão funcionando.' }); } catch { /* alguns navegadores só deixam via service worker */ } };
+  if (perm === 'granted') {
+    return <button type="button" className="btn-link settings-inline-link" onClick={test}><SIcon name="bell" size={14} /> Mandar notificação de teste</button>;
+  }
+  if (perm === 'denied') {
+    return <FieldError>O navegador está bloqueando as notificações deste site. Libere nas permissões do site (o cadeado ao lado do endereço).</FieldError>;
+  }
+  return (
+    <span className="settings-field-hint settings-perm-row">
+      O navegador ainda não deu permissão. <button type="button" className="btn-link settings-inline-link" onClick={ask}>Permitir notificações</button>
+    </span>
   );
 }

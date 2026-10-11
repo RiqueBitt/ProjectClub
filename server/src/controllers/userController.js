@@ -233,6 +233,9 @@ async function updateProfile(req, res, next) {
     // Reajuste do enquadramento do banner atual, sem reenviar a imagem.
     if (req.body.bannerFraming !== undefined) data.bannerFraming = sanitizeBannerFraming(req.body.bannerFraming);
     if (req.body.miniProfileBannerFraming !== undefined) data.miniProfileBannerFraming = sanitizeBannerFraming(req.body.miniProfileBannerFraming);
+    // Vitrine do perfil (UserProfileModal.jsx): jogos em destaque. Só
+    // campos conhecidos e pequenos — nunca grava um objeto cru.
+    if (req.body.profileShowcase !== undefined) data.profileShowcase = sanitizeProfileShowcase(req.body.profileShowcase);
     const user = await prisma.user.update({ where: { id: req.user.id }, data, select: SELF_USER_FIELDS });
     await broadcastUserUpdate(req, user);
     res.json({ user });
@@ -297,6 +300,27 @@ async function setActiveTag(req, res, next) {
     await broadcastUserUpdate(req, user);
     res.json({ user });
   } catch (err) { next(err); }
+}
+
+// { games: [{ gameKey, name, steamAppId?, iconUrl? }] } (até 4) → texto
+// JSON, ou null quando vazio/inválido.
+function sanitizeProfileShowcase(raw) {
+  let v = raw;
+  if (typeof v === 'string') { try { v = JSON.parse(v); } catch { return null; } }
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const games = (Array.isArray(v.games) ? v.games : []).slice(0, 4).map((g) => {
+    if (!g || typeof g !== 'object') return null;
+    const gameKey = typeof g.gameKey === 'string' ? g.gameKey.trim().slice(0, 64) : '';
+    const name = typeof g.name === 'string' ? g.name.trim().slice(0, 100) : '';
+    if (!gameKey || !name) return null;
+    const out = { gameKey, name };
+    if (g.steamAppId != null && /^\d{1,12}$/.test(String(g.steamAppId))) out.steamAppId = String(g.steamAppId);
+    if (typeof g.iconUrl === 'string' && g.iconUrl.length <= 500 && /^(https?:\/\/|\/)/i.test(g.iconUrl)) out.iconUrl = g.iconUrl;
+    return out;
+  }).filter(Boolean);
+  const seen = new Set();
+  const unique = games.filter((g) => (seen.has(g.gameKey) ? false : (seen.add(g.gameKey), true)));
+  return unique.length ? JSON.stringify({ games: unique }) : null;
 }
 
 async function updateUsername(req, res, next) {
@@ -597,7 +621,7 @@ async function hasActivityAccess(viewerId, targetId) {
 async function getUser(req, res, next) {
   try {
     const { id } = req.params;
-    const user = await prisma.user.findUnique({ where: { id }, select: PUBLIC_USER_FIELDS });
+    const user = await prisma.user.findUnique({ where: { id }, select: { ...PUBLIC_USER_FIELDS, profileShowcase: true } });
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
     if (!user.publicId) user.publicId = await ensurePublicId(user.id, user.publicId);
 
@@ -625,6 +649,7 @@ async function getUser(req, res, next) {
       user.profileSectionOrder = null;
       user.displayedAchievements = '[]';
       user.displayedAchievementsMini = '[]';
+      user.profileShowcase = null;
     }
 
     // Item pedido: status de relacionamento — busca os dados do

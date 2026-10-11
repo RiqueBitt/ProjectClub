@@ -8,67 +8,106 @@
 // simplesmente "essa chave existe".
 const { redis } = require('../config/redis');
 
-const keyFor = (userId) => `presence:sockets:${userId}`;
+// Formato antigo (SET simples) — só lido/limpo pra transição; nada novo
+// é gravado nele.
+const legacyKeyFor = (userId) => `presence:sockets:${userId}`;
+// Formato atual: SORTED SET, membro = socket id, score = último batimento
+// (ms). Ver "CAUSA RAIZ da presença desencontrada" abaixo.
+const keyFor = (userId) => `presence:live:${userId}`;
 
 // BUG CORRIGIDO ("continua aparecendo online mesmo sem a web aberta"): a
-// chave acima nunca tinha um TTL — a ÚNICA forma dela ser limpa era o
-// evento 'disconnect' do socket rodar e chamar removeSocket(). Isso
-// funciona bem numa desconexão normal (fechar a aba, cair a rede), mas
-// toda vez que o PROCESSO do servidor reinicia (um deploy, um crash, um
-// restart manual) — o que aconteceu várias vezes só nesta sessão — o
-// processo morre e leva junto qualquer conexão de socket ativa, SEM
-// nunca disparar 'disconnect' pra elas (não tem quem rode o handler,
-// o processo que rodaria já não existe mais). O socket id de quem
-// estava conectado na hora do restart ficava preso no Redis PARA
-// SEMPRE — como esse mesmo id nunca mais vai se reconectar (uma
-// reconexão de verdade sempre ganha um id NOVO), a chave nunca mais
-// esvaziava sozinha, e a pessoa continuava aparecendo online (ou
-// ausente, dependendo de quanto tempo já tinha passado) pro resto de
-// todo mundo, indefinidamente, até alguém reiniciar o servidor nessa
-// conta específica de novo por coincidência.
-// A correção: toda entrada na chave agora expira sozinha se não for
-// "renovada" periodicamente enquanto a conexão realmente existir (ver
-// scheduleHeartbeat em sockets/index.js, que chama refreshPresence a
-// cada ~30s enquanto o socket está de verdade conectado). Se o processo
-// morrer no meio disso, ninguém mais renova a chave, e ela expira
-// sozinha em no máximo PRESENCE_TTL_SECONDS — a pessoa se autocorrige
-// pra offline em vez de ficar presa online pra sempre.
+// chave inteira expira sozinha se ninguém renovar (processo morreu sem
+// rodar 'disconnect'), em no máximo PRESENCE_TTL_SECONDS.
 const PRESENCE_TTL_SECONDS = 90;
+const MEMBER_TTL_MS = PRESENCE_TTL_SECONDS * 1000;
 
-// Adiciona um socket e devolve quantos sockets esse usuário tem conectados
-// agora NO TOTAL (não só o que acabou de entrar) — quem chama usa isso
-// pra saber se essa foi a PRIMEIRA conexão (== 1) e precisa avisar todo
-// mundo que a pessoa ficou online.
+// CAUSA RAIZ da presença desencontrada (logs "[presença] corrigido X:
+// ONLINE -> OFFLINE (sem sessão real)"): o TTL acima valia pra CHAVE
+// inteira, não pra cada socket. Um socket id "morto" (de antes de um
+// deploy/restart, ou de uma conexão que caiu enquanto o 'connection'
+// ainda estava rodando e por isso nunca chegou a registrar o
+// 'disconnect') ficava no conjunto pra sempre enquanto QUALQUER outra aba
+// viva da pessoa continuasse renovando a chave. Quando a última aba
+// verdadeira fechava, removeSocket() devolvia 1 (o fantasma), o servidor
+// achava que ainda havia uma conexão e nunca marcava OFFLINE — até a
+// chave expirar e a varredura de 2 min corrigir no banco.
+// Agora cada socket tem o PRÓPRIO relógio (score = último batimento):
+// quem parou de bater há mais de MEMBER_TTL_MS simplesmente não conta, e
+// é podado em toda operação.
+function liveFloor() { return Date.now() - MEMBER_TTL_MS; }
+
+// Adiciona um socket e devolve quantos sockets VIVOS esse usuário tem
+// agora no total — quem chama usa isso pra saber se essa foi a PRIMEIRA
+// conexão (== 1) e precisa avisar todo mundo que a pessoa ficou online.
 async function addSocket(userId, socketId) {
   const key = keyFor(userId);
-  await redis.sadd(key, socketId);
-  await redis.expire(key, PRESENCE_TTL_SECONDS);
-  return redis.scard(key);
+  const res = await redis.multi()
+    .zremrangebyscore(key, '-inf', `(${liveFloor()}`)
+    .zadd(key, Date.now(), socketId)
+    .expire(key, PRESENCE_TTL_SECONDS)
+    .zcard(key)
+    .exec();
+  return Number(res?.[3]?.[1]) || 1;
 }
 
-// Remove um socket e devolve quantos sobraram — 0 significa que a pessoa
-// não tem mais nenhuma aba/dispositivo conectado.
+// Remove um socket e devolve quantos VIVOS sobraram — 0 significa que a
+// pessoa não tem mais nenhuma aba/dispositivo conectado.
 async function removeSocket(userId, socketId) {
   const key = keyFor(userId);
-  await redis.srem(key, socketId);
-  return redis.scard(key);
+  const res = await redis.multi()
+    .zrem(key, socketId)
+    .zremrangebyscore(key, '-inf', `(${liveFloor()}`)
+    .zcard(key)
+    .exec();
+  return Number(res?.[2]?.[1]) || 0;
 }
 
-// Chamado periodicamente (ver sockets/index.js) enquanto uma conexão
-// realmente segue viva — só "reseta o relógio" da expiração automática
-// acima, sem mexer em quem está no conjunto. Se isso parar de ser
-// chamado (processo morreu, ou esse socket específico já se desconectou
-// e teve seu próprio heartbeat cancelado), a chave se autolimpa sozinha.
-async function refreshPresence(userId) {
-  await redis.expire(keyFor(userId), PRESENCE_TTL_SECONDS);
+// Batimento de UM socket (ver scheduleHeartbeat em sockets/index.js):
+// renova o relógio dele e o da chave. Também recoloca o socket se a
+// chave tiver sido apagada no meio (ex.: "Reload" do painel da staff) —
+// antes o batimento só fazia EXPIRE, que não recria nada, e a pessoa
+// conectada de verdade ficava "sem sessão" até recarregar a página.
+// Sem socketId (chamadas antigas), só renova a chave.
+async function refreshPresence(userId, socketId) {
+  const key = keyFor(userId);
+  if (!socketId) {
+    await redis.expire(key, PRESENCE_TTL_SECONDS);
+    return;
+  }
+  await redis.multi()
+    .zadd(key, Date.now(), socketId)
+    .expire(key, PRESENCE_TTL_SECONDS)
+    .exec();
 }
 
 async function isOnline(userId) {
-  return (await redis.scard(keyFor(userId))) > 0;
+  return (await redis.zcount(keyFor(userId), liveFloor(), '+inf')) > 0;
 }
 
 async function getSocketIds(userId) {
-  return redis.smembers(keyFor(userId));
+  return redis.zrangebyscore(keyFor(userId), liveFloor(), '+inf');
+}
+
+// Ids de quem tem pelo menos um socket vivo agora (SCAN, sem travar o
+// Redis). Usado pela varredura de segurança e pela aba "Saúde" da staff.
+async function listOnlineUserIds() {
+  const prefix = 'presence:live:';
+  const ids = [];
+  let cursor = '0';
+  do {
+    // eslint-disable-next-line no-await-in-loop
+    const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', `${prefix}*`, 'COUNT', 500);
+    cursor = nextCursor;
+    if (keys.length) {
+      const floor = liveFloor();
+      const pipe = redis.pipeline();
+      keys.forEach((k) => pipe.zcount(k, floor, '+inf'));
+      // eslint-disable-next-line no-await-in-loop
+      const counts = await pipe.exec();
+      keys.forEach((k, i) => { if (Number(counts?.[i]?.[1]) > 0) ids.push(k.slice(prefix.length)); });
+    }
+  } while (cursor !== '0');
+  return ids;
 }
 
 // "Reload User" (painel de staff → Reload) — apaga TODAS as chaves de
@@ -88,14 +127,18 @@ async function clearAll() {
   let cursor = '0';
   let totalCleared = 0;
   do {
-    const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', 'presence:sockets:*', 'COUNT', 200);
+    const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', 'presence:*', 'COUNT', 200);
     cursor = nextCursor;
-    if (keys.length > 0) {
-      await redis.del(...keys);
-      totalCleared += keys.length;
+    const ours = keys.filter((k) => k.startsWith('presence:live:') || k.startsWith('presence:sockets:'));
+    if (ours.length > 0) {
+      await redis.del(...ours);
+      totalCleared += ours.length;
     }
   } while (cursor !== '0');
   return totalCleared;
 }
 
-module.exports = { addSocket, removeSocket, refreshPresence, isOnline, getSocketIds, clearAll, PRESENCE_TTL_SECONDS };
+module.exports = {
+  addSocket, removeSocket, refreshPresence, isOnline, getSocketIds, listOnlineUserIds, clearAll,
+  PRESENCE_TTL_SECONDS, _keys: { keyFor, legacyKeyFor },
+};

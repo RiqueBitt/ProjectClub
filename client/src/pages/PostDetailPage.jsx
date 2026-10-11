@@ -13,7 +13,8 @@ import {
   listPostComments, addPostComment, votePostComment, deletePostComment,
 } from '../api/endpoints';
 import { proxyImage } from '../utils/imageProxy';
-import { FeedIcon, VotePill, timeAgo } from './CommunitiesPage.jsx';
+import { FeedIcon, VotePill, timeAgo, postTagsOf, PostSkeletons } from './CommunitiesPage.jsx';
+import { pinPost } from '../api/contentx';
 import { useLiveRefresh } from '../utils/liveRefresh';
 import FeedPoll from '../components/FeedPoll.jsx';
 
@@ -160,16 +161,24 @@ export default function PostDetailPage() {
       </div>
     );
   }
-  if (!post) return <div className="post-detail-page"><p className="dim">Carregando...</p></div>;
+  if (!post) return <div className="post-detail-page"><PostSkeletons count={1} /></div>;
 
   const isStaff = ['ADMIN', 'MODERATOR'].includes(user.platformRole);
   const canDelete = post.authorId === user.id || isStaff;
+  const tags = postTagsOf(post);
+  // Staff: fixar no topo das listas do Fórum.
+  const togglePin = async () => {
+    const next = !post.pinnedAt;
+    setPost((p) => ({ ...p, pinnedAt: next ? new Date().toISOString() : null }));
+    try { await pinPost(post.id, next); } catch { refreshPost(); }
+  };
 
   return (
     <div className="post-detail-page">
       <button className="feeds-back" onClick={() => navigate(-1)}>‹ Voltar</button>
 
-      <article className="post-detail-card fp-detail">
+      <article className={`post-detail-card fp-detail${post.pinnedAt ? ' cxf-pinned' : ''}`}>
+        {post.pinnedAt && <span className="cxf-pin-flag"><FeedIcon name="pin" size={13} /> Fixado pela staff</span>}
         <header className="fp-card-head">
           <button type="button" className="fp-club" onClick={() => navigate(`/comunidades/${post.community.slug}`)}>
             {post.community.iconUrl
@@ -188,9 +197,19 @@ export default function PostDetailPage() {
             <span className="truncate">{post.author.displayName}</span>
             {post.createdAt && <time dateTime={post.createdAt}>· {timeAgo(post.createdAt)}</time>}
           </span>
+          {isStaff && (
+            <button type="button" className="btn-link cxf-detail-pin" onClick={togglePin} aria-pressed={!!post.pinnedAt}>
+              <FeedIcon name="pin" size={14} /> {post.pinnedAt ? 'Desafixar' : 'Fixar'}
+            </button>
+          )}
           {canDelete && <button className="btn-link danger post-detail-delete" onClick={onDeletePost}>Excluir</button>}
         </header>
         <h1 className="fp-title fp-detail-title">{post.title}</h1>
+        {tags.length > 0 && (
+          <div className="cxf-post-tags">
+            {tags.map((t) => <span key={t} className="cxf-post-tag"><FeedIcon name="tag" size={11} /> {t}</span>)}
+          </div>
+        )}
         {post.type === 'TEXT' && post.content && <p className="fp-detail-text">{post.content}</p>}
         {post.type === 'IMAGE' && post.imageUrl && <div className="fp-media fp-detail-media"><img src={proxyImage(post.imageUrl)} alt="" /></div>}
         {post.type === 'LINK' && <a className="fp-link" href={post.linkUrl} target="_blank" rel="noreferrer"><FeedIcon name="link" size={14} /> <span className="truncate">{post.linkUrl}</span></a>}
@@ -221,8 +240,15 @@ export default function PostDetailPage() {
       </form>
 
       <div className="post-comment-tree">
-        {!comments ? <p className="dim">Carregando comentários...</p> : comments.length === 0 ? (
-          <p className="dim" style={{ padding: '16px 0' }}>Nenhum comentário ainda — seja o primeiro.</p>
+        {!comments ? (
+          <div className="cxf-comment-skel" aria-busy="true" aria-label="Carregando comentários">
+            {[0, 1, 2].map((i) => <span key={i} className="cxf-skel cxf-skel-line" style={{ width: `${80 - i * 15}%` }} />)}
+          </div>
+        ) : comments.length === 0 ? (
+          <div className="cxf-empty-inline">
+            <span className="cxf-empty-inline-icon"><FeedIcon name="comment" size={18} /></span>
+            <div><strong>Nenhum comentário ainda</strong><span>Seja o primeiro a comentar.</span></div>
+          </div>
         ) : comments.map((c) => (
           <CommentNode key={c.id} comment={c} postId={id} user={user} isStaff={isStaff} onChange={refreshComments} />
         ))}
@@ -299,9 +325,9 @@ function CommentNode({ comment, postId, user, isStaff, onChange, depth = 0 }) {
   return (
     <div className="post-comment-node" style={{ marginLeft: depth > 0 ? 22 : 0 }}>
       <div className="post-comment-votes">
-        <button className={`post-vote-btn up small ${localVote === 1 ? 'active' : ''}`} onClick={() => vote(1)} disabled={comment.deleted}>▲</button>
+        <button className={`post-vote-btn up small ${localVote === 1 ? 'active' : ''}`} onClick={() => vote(1)} disabled={comment.deleted} aria-label="Votar a favor"><FeedIcon name="up" size={14} filled={localVote === 1} /></button>
         <span className="post-vote-score small">{localScore}</span>
-        <button className={`post-vote-btn down small ${localVote === -1 ? 'active' : ''}`} onClick={() => vote(-1)} disabled={comment.deleted}>▼</button>
+        <button className={`post-vote-btn down small ${localVote === -1 ? 'active' : ''}`} onClick={() => vote(-1)} disabled={comment.deleted} aria-label="Votar contra"><FeedIcon name="down" size={14} filled={localVote === -1} /></button>
       </div>
       <div className="post-comment-body">
         <div className="post-comment-meta">

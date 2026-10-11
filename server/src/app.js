@@ -348,6 +348,9 @@ function createApp() {
   app.use('/api/proxy', imageProxyRoutes);
   app.use('/api/updates', updatesRoutes);
   app.use('/api/events', eventsRoutes);
+  // Avisos pessoais salvos e Galeria (curtidas/álbuns).
+  app.use('/api/notices', require('./routes/notices'));
+  app.use('/api/gallery', require('./routes/gallery'));
   app.use('/api/activity', activityRoutes);
   app.use('/api/games', gamesLibraryRoutes);
   app.use('/api/decorations', decorationsRoutes);

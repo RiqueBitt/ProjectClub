@@ -65,6 +65,7 @@ import { BADGE_RARITIES, RARITY_LABEL, RARITY_COLOR, badgeHasImage } from '../ut
 import { proxyImage } from '../utils/imageProxy';
 import { isFeatureEnabled } from '../utils/features';
 import MissionsAdmin from '../components/admin/MissionsAdmin.jsx';
+import { StaffHealthTab, StaffUserSearchTab } from '../components/admin/StaffTools.jsx';
 
 // ============================================================
 // Painel da Equipe — shell redesenhado do zero.
@@ -102,6 +103,7 @@ function StaffIcon({ name, size = 18 }) {
 const TABS = {
   overview: { label: 'Visão geral', desc: 'O que precisa da sua atenção agora e os números da comunidade.' },
   inscricoes: { label: 'Inscrições', desc: 'Aprove ou recuse quem pediu para entrar no Project Club.' },
+  busca: { label: 'Busca rápida', desc: 'Ache qualquer conta por nome, @usuário, ID ou e-mail e veja a ficha completa com punições.' },
   users: { label: 'Usuários', desc: 'Busque contas, ajuste cargos da plataforma, nível, moedas, banimentos e suspensões.' },
   badges: { label: 'Insígnias', desc: 'Crie insígnias e conceda ou remova de membros.' },
   roles: { label: 'Cargos', desc: 'Cargos da comunidade: cores, permissões e quem aparece separado na lista de membros.' },
@@ -133,6 +135,7 @@ const TABS = {
   sistema: { label: 'Sistemas', desc: 'Ligue ou desligue economia, ranks e outros sistemas.' },
   maintenance: { label: 'Manutenção', desc: 'Coloca a plataforma "em reforma" para todos, menos a equipe.' },
   reload: { label: 'Reload', desc: 'Recarrega a presença online de usuários.' },
+  saude: { label: 'Saúde', desc: 'Online agora, conexões, chamadas, erros recentes, banco, Redis e memória. Atualiza sozinho a cada 15s.' },
 };
 
 // Contadores de pendências (vindos de /admin/stats) mostrados no menu.
@@ -149,13 +152,13 @@ const HIDDEN_TABS = new Set([
 ]);
 
 const TAB_GROUPS = [
-  { label: 'Pessoas', icon: 'people', tabs: ['inscricoes', 'users', 'badges', 'roles'] },
+  { label: 'Pessoas', icon: 'people', tabs: ['busca', 'inscricoes', 'users', 'badges', 'roles'] },
   { label: 'Moderação', icon: 'shield', tabs: ['reports', 'automodDm', 'moderacao', 'modReports', 'logs', 'honeypot'] },
   { label: 'Comunidade', icon: 'community', tabs: ['channels', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'gifMove'] },
   { label: 'Conteúdo', icon: 'content', tabs: ['feeds', 'updates', 'events', 'announcements', 'appCatalog'] },
   { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'casas', 'album'] },
   { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
-  { label: 'Sistema', icon: 'system', tabs: ['sistema', 'maintenance', 'reload'] },
+  { label: 'Sistema', icon: 'system', tabs: ['saude', 'sistema', 'maintenance', 'reload'] },
 ].map((g) => ({ ...g, tabs: g.tabs.filter((t) => !HIDDEN_TABS.has(t)) }));
 
 const groupOf = (tab) => TAB_GROUPS.find((g) => g.tabs.includes(tab));
@@ -312,6 +315,8 @@ export default function AdminPanel() {
           {tab === 'events' && <EventsAdminTab />}
           {tab === 'honeypot' && <HoneypotAdminTab />}
           {tab === 'reload' && <ReloadAdminTab />}
+          {tab === 'saude' && <StaffHealthTab />}
+          {tab === 'busca' && <StaffUserSearchTab />}
         </div>
       </main>
     </div>
@@ -499,7 +504,7 @@ function ReloadAdminTab() {
   const [error, setError] = useState('');
 
   const runReloadUser = async () => {
-    if (!confirm('Isso faz TODO MUNDO aparecer offline temporariamente, até recarregar a página. Ninguém é desconectado, nenhum dado é apagado. Continuar?')) return;
+    if (!confirm('Isso limpa e refaz a presença online de todo mundo. Ninguém é desconectado, nenhum dado é apagado. Continuar?')) return;
     setBusy(true);
     setError('');
     setResult(null);
@@ -523,10 +528,9 @@ function ReloadAdminTab() {
       <div className="settings-block">
         <h4>Reload User</h4>
         <p className="dim">
-          Atualiza o status de presença (online/ausente/ocupado/offline) de todo mundo de uma vez — todo usuário
-          aparece <b>temporariamente offline</b> pros outros até recarregar a página, quando volta a ficar online
-          normalmente sozinho. Ninguém é desconectado, nenhuma sessão é encerrada, nenhum dado é alterado — só o
-          cache de presença é limpo.
+          Refaz a presença online de todo mundo de uma vez: limpa o que o servidor tinha guardado, registra de novo
+          quem está conectado agora e corrige o status salvo de quem não está. Ninguém é desconectado, nenhuma sessão
+          é encerrada, nenhum dado de conta é alterado.
         </p>
         <button className="btn-secondary" disabled={busy} onClick={runReloadUser}>
           {busy ? 'Executando...' : 'Reload User'}

@@ -15,8 +15,18 @@ const communityInclude = {
   _count: { select: { posts: true } },
 };
 
+// postTags fica como JSON em texto no banco; a tela recebe array.
+function parsePostTags(raw) {
+  try { const v = raw ? JSON.parse(raw) : []; return Array.isArray(v) ? v.filter((t) => typeof t === 'string') : []; } catch { return []; }
+}
+function cleanPostTags(list) {
+  if (!Array.isArray(list)) return null;
+  const tags = [...new Set(list.map((t) => (typeof t === 'string' ? t.trim().slice(0, 24) : '')).filter(Boolean))].slice(0, 20);
+  return tags.length ? JSON.stringify(tags) : null;
+}
+
 function shapeCommunity(c) {
-  return { ...c, postCount: c._count.posts, _count: undefined };
+  return { ...c, postTags: parsePostTags(c.postTags), postCount: c._count.posts, _count: undefined };
 }
 
 async function listCommunities(req, res, next) {
@@ -82,6 +92,8 @@ async function updateCommunity(req, res, next) {
       data.name = name.trim().slice(0, 80);
     }
     if (description !== undefined) data.description = description?.trim().slice(0, 500) || null;
+    // Tags do Fórum desse Tema (lista definida pela staff).
+    if (req.body.postTags !== undefined) data.postTags = cleanPostTags(req.body.postTags);
 
     const updated = await prisma.community.update({ where: { slug }, data, include: communityInclude });
     const shaped = shapeCommunity(updated);

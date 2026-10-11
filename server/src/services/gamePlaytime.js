@@ -93,6 +93,20 @@ async function startSession(userId, game, now) {
   });
 }
 
+// Gráfico "horas por semana": soma os segundos também por dia (fuso de
+// Brasília). Best-effort — se falhar, o total do jogo já foi gravado.
+const DAY_FMT = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' });
+function dayKey(ms) { return DAY_FMT.format(new Date(ms)); }
+function addDaySeconds(userId, gameKey, seconds, now) {
+  if (!(seconds > 0)) return;
+  const day = dayKey(now);
+  prisma.gamePlayDay.upsert({
+    where: { userId_gameKey_day: { userId, gameKey, day } },
+    create: { userId, gameKey, day, seconds },
+    update: { seconds: { increment: seconds } },
+  }).catch(() => {});
+}
+
 async function flush(userId, state, now) {
   const seconds = Math.floor(state.pendingMs / 1000);
   if (seconds <= 0) return;
@@ -101,6 +115,7 @@ async function flush(userId, state, now) {
     data: { totalSeconds: { increment: seconds }, lastPlayedAt: new Date(now) },
   });
   state.pendingMs -= seconds * 1000;
+  addDaySeconds(userId, state.gameKey, seconds, now);
 }
 
 async function endSession(userId, state, now) {
@@ -189,4 +204,4 @@ async function getLiveSession(userId, now = Date.now()) {
   return state;
 }
 
-module.exports = { recordBeat, flushUser, sweep, startSweeper, getLiveSession, gameKeyFor, steamAppIdFrom, normalizeGame, fillSteamAppId, MAX_GAP_MS, STALE_MS };
+module.exports = { dayKey, recordBeat, flushUser, sweep, startSweeper, getLiveSession, gameKeyFor, steamAppIdFrom, normalizeGame, fillSteamAppId, MAX_GAP_MS, STALE_MS };

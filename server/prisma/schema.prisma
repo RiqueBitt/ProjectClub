@@ -372,6 +372,9 @@ model User {
   featuredModpackId      String?
   featuredModpack        SharedModpack?          @relation("UserFeaturedModpack", fields: [featuredModpackId], references: [id], onDelete: SetNull)
   featuredModJson        String?                 @db.Text
+  // Vitrine do perfil: jogos em destaque (JSON { games: [...] }, ver
+  // sanitizeProfileShowcase em userController.js). null = nada escolhido.
+  profileShowcase        String?                 @db.Text
 }
 
 // Item pedido: "pingentes... mini imagens que podem ser colocadas pelo
@@ -1699,6 +1702,9 @@ model Community {
   createdById String
   createdBy   User     @relation("CommunitiesCreated", fields: [createdById], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
+  // Tags do Fórum definidas pela staff (JSON: ["Guia","Bug",...]) — quem
+  // posta escolhe entre elas; a lista do Fórum filtra por tag.
+  postTags    String?  @db.Text
 
   posts      Post[]
   categories PostCategory[]
@@ -1742,6 +1748,9 @@ model Post {
   linkUrl      String?
   score        Int          @default(0) // upvotes - downvotes, denormalizado pra ordenar sem contar toda vez
   commentCount Int          @default(0)
+  // Tags escolhidas no post (JSON: ["Guia"]) e "fixado pela staff" (topo).
+  tags         String?      @db.Text
+  pinnedAt     DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -2499,6 +2508,8 @@ model EventRsvp {
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   userId    String
   status    String // GOING | MAYBE | NO
+  // Lembrete de 15 min antes já enviado (idempotente; zera se o horário mudar).
+  remindedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2580,6 +2591,10 @@ model ShopCollection {
   sortOrder        Int      @default(0)
   bundlePriceCoins Int?
   bundlePriceGems  Int?
+  // Oferta por tempo limitado (staff): desconto % no pacote entre início e fim.
+  offerStartsAt    DateTime?
+  offerEndsAt      DateTime?
+  offerDiscount    Int?
   createdAt        DateTime @default(now())
   decorations      AvatarDecoration[]
   effects          ProfileEffect[]
@@ -2676,4 +2691,84 @@ model EconomyTransaction {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+// ============================================================
+// Round 7 (contentx): avisos persistentes, Galeria (curtidas/álbuns)
+// e tempo de jogo por dia. Sem @relation com User de propósito (não
+// mexe no modelo User, que outras áreas também editam).
+// ============================================================
+
+// Aviso pessoal que fica salvo (lembrete de evento, presente recebido...).
+model UserNotice {
+  id        String    @id @default(uuid())
+  userId    String
+  kind      String    // EVENT_REMINDER | GIFT | ...
+  title     String
+  body      String?   @db.Text
+  link      String?
+  data      String?   @db.Text // JSON livre
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// Curtida numa mídia da Galeria. itemKey = "a:<attachmentId>" ou "p:<postId>".
+model GalleryLike {
+  id        String   @id @default(uuid())
+  itemKey   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@unique([itemKey, userId])
+  @@index([itemKey])
+  @@index([userId])
+}
+
+model GalleryAlbum {
+  id          String   @id @default(uuid())
+  name        String
+  description String?  @db.Text
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items GalleryAlbumItem[]
+
+  @@index([createdById])
+}
+
+model GalleryAlbumItem {
+  id        String       @id @default(uuid())
+  albumId   String
+  album     GalleryAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  itemKey   String
+  url       String       @db.Text
+  kind      String       // image | gif | video
+  title     String?
+  addedById String
+  createdAt DateTime     @default(now())
+
+  @@unique([albumId, itemKey])
+  @@index([albumId, createdAt])
+}
+
+// Segundos jogados por dia (fuso de Brasília), pro gráfico de horas por semana.
+model GamePlayDay {
+  id      String @id @default(uuid())
+  userId  String
+  gameKey String
+  day     String // "AAAA-MM-DD"
+  seconds Int    @default(0)
+
+  @@unique([userId, gameKey, day])
+  @@index([userId, day])
+}
+
+// Migrações de dados que rodam UMA vez só no deploy (prisma/seed.js):
+// cada uma grava sua chave aqui quando termina e nunca mais roda.
+model SeedMarker {
+  key    String   @id
+  doneAt DateTime @default(now())
 }

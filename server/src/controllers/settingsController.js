@@ -90,6 +90,11 @@ const LAYOUT_PREF_RULES = {
   seasonal: (v) => typeof v === 'boolean',
   legibleFont: (v) => typeof v === 'boolean',
   resumeLastPage: (v) => typeof v === 'boolean',
+  // Acessibilidade → daltonismo (ver client/src/utils/appearance.js).
+  colorblind: (v) => ['none', 'protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia'].includes(v),
+  colorblindStrength: (v) => Number.isInteger(v) && v >= 0 && v <= 100,
+  colorblindFilter: (v) => typeof v === 'boolean',
+  statusShapes: (v) => typeof v === 'boolean',
 };
 function sanitizeLayoutPrefs(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;

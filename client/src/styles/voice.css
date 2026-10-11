@@ -319,3 +319,27 @@
   .vc-stage.is-spotlight .vc-screens { flex: 0 0 auto; min-height: 0; }
   .vc-stage.is-spotlight .vc-screen { min-height: 0; aspect-ratio: 16 / 9; }
 }
+
+/* Seta de qualidade da transmissão, colada no botão de tela do dock */
+.vc-sqm { display: flex; align-self: stretch; margin-left: -4px; }
+.vc-sqm .sqm-toggle {
+  width: 22px; border-radius: 0 12px 12px 0; display: inline-flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--brand) 22%, var(--bg-primary)); color: var(--brand); border: 0; cursor: pointer;
+}
+.vc-sqm .sqm-toggle:hover, .vc-sqm.is-open .sqm-toggle { filter: brightness(1.15); }
+.vc-sqm .sqm-pop-up { right: -60px; }
+@media (max-width: 700px) { .vc-sqm .sqm-pop-up { right: -110px; } }
+
+/* Lista de voz na barra lateral: anel verde de quem fala + ícones */
+.voice-roster-item { border-radius: 6px; padding: 2px 4px; margin-left: -4px; transition: background-color .12s ease; }
+.voice-roster-item .avatar.tiny { border-radius: 50%; }
+.voice-roster-item.speaking .avatar.tiny {
+  box-shadow: 0 0 0 1.5px var(--bg-secondary), 0 0 0 3px var(--green, #3ba55d);
+}
+.voice-roster-item.speaking .truncate { color: var(--header-primary); }
+.voice-roster-ico.is-stream { color: var(--red, #ed4245); }
+@media (prefers-reduced-motion: reduce) {
+  .voice-roster-item.speaking .avatar.tiny { animation: none; transform: none; }
+}
+.voice-roster-live { display: inline-flex; align-items: center; gap: 3px; }
+.voice-roster-live svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }

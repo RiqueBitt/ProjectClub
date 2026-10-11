@@ -124,7 +124,12 @@ async function updateEvent(req, res, next) {
     if (endsAt !== undefined) { const d = parseDate(endsAt); if (d === undefined) return res.status(400).json({ error: 'Data de fim inválida.' }); data.endsAt = d; }
     if (status !== undefined && VALID_STATUS.includes(status)) data.status = status;
 
+    const before = data.startsAt !== undefined ? await prisma.event.findUnique({ where: { id }, select: { startsAt: true } }) : null;
     const event = await prisma.event.update({ where: { id }, data, include: { createdBy: { select: AUTHOR_FIELDS } } });
+    // Horário mudou: o lembrete de 15 min vale de novo pro horário novo.
+    if (before && String(before.startsAt || '') !== String(event.startsAt || '')) {
+      await prisma.eventRsvp.updateMany({ where: { eventId: id, remindedAt: { not: null } }, data: { remindedAt: null } }).catch(() => {});
+    }
     req.app.get('io')?.to('community').emit('event:update', event);
     res.json({ event });
   } catch (err) { next(err); }

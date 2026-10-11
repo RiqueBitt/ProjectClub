@@ -38,8 +38,14 @@ import { visibleProfileSectionOrder } from '../../utils/profileSections';
 import FeaturedModpackSection from '../FeaturedModpackSection.jsx';
 import ProfileGamesSection from '../games/ProfileGamesSection.jsx';
 import '../../styles/profile.css';
+import '../../styles/profile-edit.css';
 import BannerImage from '../ProfileBanner.jsx';
 import ProfileEffectOverlay from '../ProfileEffectOverlay.jsx';
+import ImageCropperModal from './ImageCropperModal.jsx';
+import ProfileShowcaseModal, { parseShowcase } from './ProfileShowcaseModal.jsx';
+import { GameCapsule } from '../games/GameLibraryParts.jsx';
+import { PROFILE_BANNER_ASPECT } from '../ProfileBanner.jsx';
+import { updateProfile, uploadAvatar, uploadBanner } from '../../api/endpoints';
 
 // PfIcon/PfCard moveram pra profileParts.jsx (re-exportados aqui).
 import { PfIcon, PfCard } from './profileParts.jsx';
@@ -63,6 +69,7 @@ function PfEmpty({ icon, children, action }) {
 // sendo a que a pessoa escolheu em Configurações → Colunas.
 const PF_TABS = [
   { id: 'about', label: 'Sobre', icon: 'user' },
+  { id: 'showcase', label: 'Vitrine', icon: 'star' },
   { id: 'connections', label: 'Conexões', icon: 'link' },
   { id: 'wall', label: 'Recados', icon: 'chat' },
   { id: 'badges', label: 'Insígnias', icon: 'medal' },
@@ -155,7 +162,16 @@ export default function UserProfileModal() {
   const [loading, setLoading] = useState(false);
   const topRowRef = useRef(null);
   const [friendSent, setFriendSent] = useState(false);
-  const [badgeListOpen, setBadgeListOpen] = useState(false);
+  const [badgeListOpen, setBadgeListOpen] = useState(false); // false | true | id da insígnia clicada
+  // Edição direto no próprio perfil (rodada 7): nome, bio, foto, banner
+  // e a vitrine. null = não está editando.
+  const [nameDraft, setNameDraft] = useState(null);
+  const [bioDraft, setBioDraft] = useState(null);
+  const [inlineSaving, setInlineSaving] = useState(false);
+  const [inlineError, setInlineError] = useState('');
+  const [cropper, setCropper] = useState(null);
+  const [showcaseOpen, setShowcaseOpen] = useState(false);
+  useEffect(() => { setNameDraft(null); setBioDraft(null); setInlineError(''); setShowcaseOpen(false); }, [userId]);
   // Aba ativa do perfil (Sobre / Atividade / Conquistas / Recados) —
   // volta pra primeira sempre que abre outro perfil.
   const [activeTab, setActiveTab] = useState('about');
@@ -371,6 +387,64 @@ export default function UserProfileModal() {
 
   const isMe = userId === me.id;
 
+  // Aplica o que o servidor devolveu na conta (AuthContext) e no perfil aberto.
+  const applyMine = (updated) => {
+    if (!updated) return;
+    setMe((m) => ({ ...m, ...updated }));
+    setData((d) => (d ? { ...d, user: { ...d.user, ...updated } } : d));
+  };
+  const saveInline = async (patch, done) => {
+    setInlineSaving(true);
+    setInlineError('');
+    try {
+      const { user: updated } = await updateProfile(patch);
+      applyMine(updated);
+      done?.();
+    } catch (err) {
+      setInlineError(err?.response?.data?.error || 'Não foi possível salvar. Tente de novo.');
+    } finally {
+      setInlineSaving(false);
+    }
+  };
+  const submitName = () => {
+    const v = (nameDraft || '').trim();
+    if (!v) { setInlineError('O nome não pode ficar vazio.'); return; }
+    if (v === data?.user?.displayName) { setNameDraft(null); return; }
+    saveInline({ displayName: v }, () => setNameDraft(null));
+  };
+  const submitBio = () => {
+    const v = (bioDraft || '').slice(0, 190);
+    if (v === (data?.user?.bio || '')) { setBioDraft(null); return; }
+    saveInline({ bio: v }, () => setBioDraft(null));
+  };
+  // Foto/banner: mesmos envios de Configurações (GIF vai direto pra não
+  // perder a animação; imagem passa pelo recortador).
+  const isGif = (f) => f.type === 'image/gif' || /\.gif$/i.test(f.name || '');
+  const pickAvatarFile = (e) => {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    if (isGif(file)) {
+      if (file.size > 25 * 1024 * 1024) { setInlineError('GIF grande demais: o limite é 25 MB.'); return; }
+      setInlineError('');
+      uploadAvatar(file).then(({ user: u }) => applyMine(u)).catch((err) => setInlineError(err?.response?.data?.error || 'Não foi possível enviar a foto.'));
+      return;
+    }
+    setCropper({
+      file, aspectRatio: 1, shape: 'circle', title: 'Ajustar avatar', preview: 'avatar',
+      onConfirm: async (cropped) => { const { user: u } = await uploadAvatar(cropped); applyMine(u); setCropper(null); },
+    });
+  };
+  const pickBannerFile = (e) => {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    const gif = isGif(file);
+    if (gif && file.size > 25 * 1024 * 1024) { setInlineError('GIF grande demais: o limite é 25 MB.'); return; }
+    setCropper({
+      file, mode: gif ? 'frame' : 'crop', aspectRatio: PROFILE_BANNER_ASPECT, shape: 'rect', preview: 'banner', title: 'Ajustar banner do perfil',
+      onConfirm: async (outFile, framing) => { const { user: u } = await uploadBanner(outFile, framing); applyMine(u); setCropper(null); },
+    });
+  };
+
   // Item pedido: mais sistemas estilo Orkut — traços (confiável/legal/
   // sexy), visitantes de perfil, relacionamento, e prévia do álbum de
   // fotos, tudo carregado junto do resto do perfil.
@@ -584,15 +658,41 @@ export default function UserProfileModal() {
   const firstName = user?.displayName?.split(' ')[0] || '';
   const SECTION_ELEMENTS = user ? {
     about: (
-      user.bio && (
-        <PfCard icon="user" title="Sobre" className="profile-ig-bio">
-          <div className="pf-bio profile-section-body">{renderRichContent(user.bio, { emojiMap: bioEmojiMap })}</div>
+      (user.bio || isMe) && (
+        <PfCard
+          icon="user" title="Sobre" className="profile-ig-bio"
+          action={isMe && bioDraft === null && (
+            <button type="button" className="pf-link" onClick={() => { setInlineError(''); setBioDraft(user.bio || ''); }}>{user.bio ? 'Editar' : 'Adicionar'}</button>
+          )}
+        >
+          {isMe && bioDraft !== null ? (
+            <div className="pfe-bio-editor">
+              <textarea
+                value={bioDraft} maxLength={190} rows={4} autoFocus aria-label="Sua bio"
+                placeholder="Conte um pouco sobre você"
+                onChange={(e) => setBioDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setBioDraft(null); } if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitBio(); }}
+              />
+              <div className="pfe-row">
+                <span className="pfe-count">{bioDraft.length}/190</span>
+                <button type="button" className="pf-btn ghost" onClick={() => setBioDraft(null)}>Cancelar</button>
+                <button type="button" className="pf-btn" disabled={inlineSaving} onClick={submitBio}>{inlineSaving ? 'Salvando…' : 'Salvar'}</button>
+              </div>
+            </div>
+          ) : user.bio ? (
+            <div className="pf-bio profile-section-body">{renderRichContent(user.bio, { emojiMap: bioEmojiMap })}</div>
+          ) : (
+            <PfEmpty icon="user">Você ainda não escreveu uma bio.</PfEmpty>
+          )}
         </PfCard>
       )
     ),
     achievements: (
       (isMe || data.displayedAchievements?.length > 0) && (
-        <PfCard icon="trophy" title="Conquistas em destaque" count={data.displayedAchievements?.length}>
+        <PfCard
+          icon="trophy" title="Conquistas em destaque" count={data.displayedAchievements?.length}
+          action={isMe && <button type="button" className="pf-link" onClick={() => setShowcaseOpen(true)}>Editar vitrine</button>}
+        >
           {data.displayedAchievements?.length > 0 ? (
             <div className="pf-tiles">
               {data.displayedAchievements.map((a) => (
@@ -606,7 +706,7 @@ export default function UserProfileModal() {
             </div>
           ) : (
             <PfEmpty icon="trophy">
-              {isMe ? 'Nenhuma conquista em destaque — escolha em Configurações → Perfil.' : 'Nenhuma conquista em destaque ainda.'}
+              {isMe ? 'Nenhuma conquista em destaque ainda.' : 'Nenhuma conquista em destaque ainda.'}
             </PfEmpty>
           )}
         </PfCard>
@@ -998,7 +1098,7 @@ export default function UserProfileModal() {
             key={b.id}
             className="pf-tile"
             title={b.description || b.name}
-            onClick={() => setBadgeListOpen(true)}
+            onClick={() => setBadgeListOpen(b.id)}
           >
             <span className="pf-tile-icon">
               {badgeHasImage(b) ? <img src={proxyImage(b.iconUrl)} alt="" /> : b.icon}
@@ -1029,10 +1129,35 @@ export default function UserProfileModal() {
     </PfCard>
   );
 
+  // Vitrine: jogos em destaque escolhidos pela pessoa (User.profileShowcase).
+  const showcaseGames = user ? parseShowcase(user.profileShowcase).games : [];
+  const showcaseCard = user && (showcaseGames.length > 0 || isMe) && (
+    <PfCard
+      icon="star" title="Jogos em destaque" count={showcaseGames.length}
+      action={isMe && <button type="button" className="pf-link" onClick={() => setShowcaseOpen(true)}>Editar vitrine</button>}
+    >
+      {showcaseGames.length > 0 ? (
+        <div className="pfe-games">
+          {showcaseGames.map((g) => (
+            <div key={g.gameKey} className="pfe-game" title={g.name}>
+              <GameCapsule game={g} size="sm" />
+              <span className="pfe-game-name">{g.name}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <PfEmpty icon="star" action={<button type="button" className="pf-btn" onClick={() => setShowcaseOpen(true)}><PfIcon name="plus" size={14} /> Escolher jogos</button>}>
+          Mostre aqui os jogos que você mais curte.
+        </PfEmpty>
+      )}
+    </PfCard>
+  );
+
   // Distribui as seções visíveis (na ordem escolhida) pelas abas.
   const visibleKeys = user ? visibleProfileSectionOrder(user.profileSectionOrder) : [];
-  const tabContent = { about: [], connections: [], wall: [], badges: [], achievements: [], activity: [] };
+  const tabContent = { about: [], showcase: [], connections: [], wall: [], badges: [], achievements: [], activity: [] };
   if (user) {
+    if (showcaseCard) tabContent.showcase.push(['showcase_games', showcaseCard]);
     if (badgesCard) tabContent.badges.push(['badges', badgesCard]);
     visibleKeys.forEach((key) => {
       const el = SECTION_ELEMENTS[key];
@@ -1078,21 +1203,54 @@ export default function UserProfileModal() {
               <div className="profile-banner" style={{ background: user.bannerUrl ? undefined : 'transparent' }}>
                 {/* Enquadramento escolhido no editor de banner (ProfileBanner.jsx). */}
                 <BannerImage url={user.bannerUrl} framing={user.bannerFraming} />
+                {isMe && (
+                  <label className="pfe-banner-edit" title="Trocar banner">
+                    <PfIcon name="image" size={15} /> <span>Trocar banner</span>
+                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={pickBannerFile} />
+                  </label>
+                )}
               </div>
               <div className="profile-ig-header">
                 <div className="avatar-wrap large">
                   <div className="avatar xlarge">
                     <UserAvatar user={user} size={112} />
                   </div>
+                  {isMe && (
+                    <label className="pfe-avatar-edit" title="Trocar foto">
+                      <PfIcon name="image" size={20} />
+                      <span>Trocar foto</span>
+                      <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={pickAvatarFile} />
+                    </label>
+                  )}
                   <PresenceDot status={status} large title={STATUS_LABEL[status]} />
                 </div>
                 <div className="profile-ig-header-info">
+                  {isMe && nameDraft !== null ? (
+                    <div className="pfe-name-editor">
+                      <input
+                        value={nameDraft} maxLength={32} autoFocus aria-label="Nome de exibição"
+                        onChange={(e) => setNameDraft(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') submitName(); if (e.key === 'Escape') { e.stopPropagation(); setNameDraft(null); setInlineError(''); } }}
+                      />
+                      <button type="button" className="pf-btn" disabled={inlineSaving} onClick={submitName}>{inlineSaving ? 'Salvando…' : 'Salvar'}</button>
+                      <button type="button" className="pf-btn ghost" onClick={() => { setNameDraft(null); setInlineError(''); }}>Cancelar</button>
+                    </div>
+                  ) : (
                   <h2 className="profile-display-name">
-                    <span className={nameStyleClassName(user, { fullEffect: true })} style={nameStyleProps(user, { fullEffect: true })}>{user.displayName}</span> <PendantIcon user={user} /> <TagBadge user={user} /> <ClanTagBadge user={user} />
+                    {isMe ? (
+                      <button type="button" className="pfe-name-btn" title="Clique pra mudar seu nome" onClick={() => { setInlineError(''); setNameDraft(user.displayName); }}>
+                        <span className={nameStyleClassName(user, { fullEffect: true })} style={nameStyleProps(user, { fullEffect: true })}>{user.displayName}</span>
+                        <span className="pfe-pencil" aria-hidden="true"><PfIcon name="pencil" size={13} /></span>
+                      </button>
+                    ) : (
+                      <span className={nameStyleClassName(user, { fullEffect: true })} style={nameStyleProps(user, { fullEffect: true })}>{user.displayName}</span>
+                    )} <PendantIcon user={user} /> <TagBadge user={user} /> <ClanTagBadge user={user} />
                     {/* Item pedido: "no dia do aniversário, mostrar no
                         perfil a indicação visual" */}
                     {!HIDE_BIRTHDAYS && data.isBirthdayToday && <span className="profile-birthday-badge pf-birthday-badge" title="Aniversário hoje!"><PfIcon name="cake" size={20} /></span>}
                   </h2>
+                  )}
+                  {isMe && inlineError && <div className="pfe-error" role="alert"><PfIcon name="alert" size={13} /> {inlineError}</div>}
                   <div className="profile-username">@{user.username}{user.pronouns && <span className="profile-pronouns-inline"> · {user.pronouns}</span>}</div>
                   {/* Só o status personalizado aqui — a atividade (jogo/
                       música) aparece uma vez só, na caixa grande ao lado. */}
@@ -1168,6 +1326,13 @@ export default function UserProfileModal() {
                   </div>
                 )}
 
+                {isMe && (
+                  <div className="pfe-ownbar">
+                    <span className="pfe-ownbar-icon"><PfIcon name="sparkle" size={15} /></span>
+                    <span className="pfe-ownbar-text">Este é o seu perfil. Clique na foto, no banner, no nome ou na bio pra editar.</span>
+                    <button type="button" className="pf-btn" onClick={() => setShowcaseOpen(true)}><PfIcon name="star" size={14} /> Editar vitrine</button>
+                  </div>
+                )}
                 {/* Números do perfil em bloquinhos (antes ficavam soltos no
                     cabeçalho, em caixa alta). Ups atualiza em tempo real. */}
                 <div className="pf-stats">
@@ -1210,7 +1375,7 @@ export default function UserProfileModal() {
                 </div>
 
                 {badgeListOpen && (
-                  <BadgeListModal userName={user.displayName} badges={data.badges} onClose={() => setBadgeListOpen(false)} />
+                  <BadgeListModal userName={user.displayName} badges={data.badges} initialId={typeof badgeListOpen === 'string' ? badgeListOpen : undefined} onClose={() => setBadgeListOpen(false)} />
                 )}
 
                 {/* Tudo numa página só, rolando: uma seção por grupo. */}
@@ -1274,6 +1439,34 @@ export default function UserProfileModal() {
                   ownerName={user.displayName}
                   isMe={isMe}
                   onClose={() => setAlbumOpen(false)}
+                />
+              )}
+
+              {isMe && showcaseOpen && (
+                <ProfileShowcaseModal
+                  user={user}
+                  displayedAchievements={data.displayedAchievements || []}
+                  onClose={() => setShowcaseOpen(false)}
+                  onSaved={(patch) => {
+                    if (patch.user) applyMine(patch.user);
+                    if (patch.displayedAchievements) {
+                      setData((d) => (d ? { ...d, displayedAchievements: patch.displayedAchievements } : d));
+                      setMe((m) => ({ ...m, displayedAchievements: JSON.stringify(patch.displayedAchievements.map((a) => a.key)) }));
+                    }
+                  }}
+                />
+              )}
+              {isMe && cropper && (
+                <ImageCropperModal
+                  file={cropper.file}
+                  mode={cropper.mode}
+                  preview={cropper.preview}
+                  previewUser={user}
+                  aspectRatio={cropper.aspectRatio}
+                  shape={cropper.shape}
+                  title={cropper.title}
+                  onConfirm={cropper.onConfirm}
+                  onClose={() => setCropper(null)}
                 />
               )}
             </div>

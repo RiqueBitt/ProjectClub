@@ -9,6 +9,85 @@ import {
   formatHoursShort, formatPlaytime, visibilityLabel, useInstalledModCounts,
 } from '../components/games/GameLibraryParts.jsx';
 import '../styles/game-library.css';
+import '../styles/contentx.css';
+
+// Gráfico simples de barras: horas por semana (últimas 8 semanas). Quando
+// ainda não existe registro por dia (dados novos começam a contar a
+// partir desta versão), mostra quantos jogos foram abertos pela última
+// vez em cada semana — e avisa que NÃO é tempo de jogo.
+function WeeklyChart({ weekly }) {
+  if (!weekly?.weeks?.length) return null;
+  const byDays = weekly.source === 'days';
+  const values = weekly.weeks.map((w) => (byDays ? w.seconds / 3600 : w.games));
+  const max = Math.max(...values, byDays ? 1 : 1);
+  const total = values.reduce((a, b) => a + b, 0);
+  const label = (w) => new Date(`${w.start}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  const valueText = (v) => (byDays ? (v >= 10 ? `${Math.round(v)}h` : `${v.toFixed(1).replace('.', ',')}h`) : String(v));
+  return (
+    <section className="cxl-chart" aria-label={byDays ? 'Horas jogadas por semana' : 'Jogos abertos por semana'}>
+      <header>
+        <h2><GlIcon name="clock" size={16} /> {byDays ? 'Horas por semana' : 'Atividade por semana'}</h2>
+        <span className="cxl-chart-sub">{byDays ? `${valueText(total)} nas últimas 8 semanas` : 'Últimas 8 semanas'}</span>
+      </header>
+      <div className="cxl-bars">
+        {weekly.weeks.map((w, i) => {
+          const v = values[i];
+          const pct = max > 0 ? Math.max(v > 0 ? 4 : 0, Math.round((v / max) * 100)) : 0;
+          return (
+            <div key={w.start} className={`cxl-bar-col${i === weekly.weeks.length - 1 ? ' current' : ''}`} title={`Semana de ${label(w)}: ${valueText(v)}${byDays ? '' : (v === 1 ? ' jogo' : ' jogos')}`}>
+              <span className="cxl-bar-val">{v > 0 ? valueText(v) : ''}</span>
+              <span className="cxl-bar-track"><span className="cxl-bar-fill" style={{ height: `${pct}%` }} /></span>
+              <span className="cxl-bar-label">{i === weekly.weeks.length - 1 ? 'Esta' : label(w)}</span>
+            </div>
+          );
+        })}
+      </div>
+      {!byDays && (
+        <p className="cxl-chart-note">
+          Ainda não temos o tempo jogado por dia: ele começa a ser contado a partir de agora. Por enquanto as barras mostram quantos jogos foram abertos pela última vez em cada semana, não horas.
+        </p>
+      )}
+    </section>
+  );
+}
+
+// "Jogos em comum" na biblioteca de outra pessoa: os dois tempos lado a lado.
+function CommonGames({ list, name }) {
+  if (!Array.isArray(list)) return null;
+  return (
+    <section className="cxl-common" aria-label="Jogos em comum">
+      <header>
+        <h2><GlIcon name="gamepad" size={16} /> Jogos em comum</h2>
+        <span className="cxl-chart-sub">{list.length === 0 ? 'Nenhum ainda' : list.length === 1 ? '1 jogo' : `${list.length} jogos`}</span>
+      </header>
+      {list.length === 0 ? (
+        <p className="cxl-chart-note">Vocês ainda não jogaram nenhum jogo igual (pelo tempo registrado no app de desktop).</p>
+      ) : (
+        <ul className="cxl-common-list">
+          {list.map((g) => {
+            const sum = Math.max(1, g.mySeconds + g.theirSeconds);
+            return (
+              <li key={g.gameKey}>
+                <GameCapsule game={g} size="sm" />
+                <div className="cxl-common-main">
+                  <strong className="truncate">{g.name}</strong>
+                  <span className="cxl-common-split" aria-hidden="true">
+                    <span className="me" style={{ width: `${(g.mySeconds / sum) * 100}%` }} />
+                    <span className="them" style={{ width: `${(g.theirSeconds / sum) * 100}%` }} />
+                  </span>
+                  <span className="cxl-common-times">
+                    <span><i className="me" /> Você: {formatHoursShort(g.mySeconds)}</span>
+                    <span><i className="them" /> {name || 'Amigo'}: {formatHoursShort(g.theirSeconds)}</span>
+                  </span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 // Biblioteca de jogos estilo Steam: /jogos/biblioteca (a minha) e
 // /jogos/biblioteca/:userId (de outra pessoa, respeitando a privacidade).
@@ -114,6 +193,13 @@ export default function GameLibraryPage() {
         )}
 
         {data?.visible && games.length === 0 && <EmptyLibrary isMe={isMe} name={user?.displayName} />}
+
+        {data?.visible && games.length > 0 && (
+          <div className={`cxl-insights${!isMe && Array.isArray(data.common) ? ' two' : ''}`}>
+            <WeeklyChart weekly={data.weekly} />
+            {!isMe && <CommonGames list={data.common} name={user?.displayName} />}
+          </div>
+        )}
 
         {data?.visible && games.length > 0 && (
           <>

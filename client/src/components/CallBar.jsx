@@ -1,22 +1,45 @@
 import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useVoice } from '../context/VoiceContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import { useStore } from '../store/useStore';
-import IconGlyph from './IconGlyph.jsx';
 import ScreenShareModal from './modals/ScreenShareModal.jsx';
-import speakerIcon from '../assets/icons/speaker.png';
-// Ícones adaptados do Jitsi Meet (Apache-2.0) — mesmo pacote de SVGs usado
-// na barra de chamada deles, convertidos pra PNG no mesmo padrão visual
-// já usado no resto do projeto (preto sólido, funciona com mask-image).
-import micIcon from '../assets/icons/nav-mic-jitsi.png';
-import micMutedIcon from '../assets/icons/nav-mic-muted-jitsi.png';
-import videoCallIcon from '../assets/icons/nav-video-jitsi.png';
-import callEndIcon from '../assets/icons/nav-hangup-jitsi.png';
-import screenshareIcon from '../assets/icons/nav-screenshare-jitsi.png';
-import volumeUpIcon from '../assets/icons/nav-volume-up-jitsi.png';
-import volumeOffIcon from '../assets/icons/nav-volume-off-jitsi.png';
-import raiseHandIcon from '../assets/icons/nav-raise-hand-jitsi.png';
+import CallIcon, { SignalBars, QUALITY_LABELS, signalTone } from './voice/CallIcons.jsx';
+import ScreenQualityMenu from './voice/ScreenQualityMenu.jsx';
+import MiniCallWindow from './voice/MiniCallWindow.jsx';
 import { getPreferredSpeakerId, setPreferredSpeakerId, getPreferredMicId, isOutputSelectionSupported, onSpeakerPreferenceChange, listAudioDevices } from '../utils/audioDevices';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
+import '../styles/callbar.css';
+
+// Barra de chamada (rodapé da coluna de canais) — visual refeito: status
+// com sinal/ping do Agora, nome do canal clicável (abre a chamada), tempo
+// de chamada, botões de ícone com dica e estado (mudo/ensurdecido em
+// vermelho), menu de dispositivos e desligar. Também cuida da janelinha
+// flutuante quando você sai da tela da chamada.
+
+// Rota da tela "dona" da chamada (canal, DM ou clã).
+function callViewPath(call) {
+  if (!call?.channelId) return null;
+  const id = String(call.channelId);
+  if (id.startsWith('dm:')) return `/conversations/${id.slice(3)}`;
+  if (id.startsWith('clan:')) return '/clans/mine';
+  return `/channels/${id}`;
+}
+
+// Tempo desde que você entrou (mm:ss ou h:mm:ss).
+function useCallElapsed(startedAt) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!startedAt) return undefined;
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [startedAt]);
+  if (!startedAt) return null;
+  const s = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); const sec = s % 60;
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
 
 // Item pedido: "melhorando o sistema de conectar com microfone e
 // saídas de áudio... o mais fácil possível" — antes, trocar de
@@ -30,6 +53,9 @@ function AudioDeviceQuickMenu({ voice }) {
   usePopoverCoordination(open, () => setOpen(false));
   const [mics, setMics] = useState([]);
   const [speakers, setSpeakers] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  // Força re-render depois de trocar (as preferências moram no storage).
+  const [, setPickTick] = useState(0);
   const menuRef = useRef(null);
 
   const refreshDevices = async () => {
@@ -38,65 +64,111 @@ function AudioDeviceQuickMenu({ voice }) {
       setMics(m);
       setSpeakers(s);
     } catch { /* sem permissão de mídia ainda — lista fica vazia */ }
+    setLoaded(true);
   };
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     refreshDevices();
     const onDocClick = (e) => { if (!menuRef.current?.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDocClick); document.removeEventListener('keydown', onKey); };
   }, [open]);
 
   const currentMicId = getPreferredMicId();
   const currentSpeakerId = getPreferredSpeakerId();
 
   return (
-    <div className="audio-device-quick-menu-wrap" ref={menuRef}>
+    <div className={`audio-device-quick-menu-wrap cb-devwrap${open ? ' is-open' : ''}`} ref={menuRef}>
       <button
-        type="button" className="icon-btn audio-device-quick-toggle"
-        title="Escolher microfone/saída de áudio"
+        type="button" className="cb-caret"
+        aria-label="Escolher microfone e saída de áudio" aria-expanded={open} data-tip="Microfone e saída"
         onClick={() => setOpen((v) => !v)}
       >
-        ▾
+        <CallIcon name="caretUp" size={14} strokeWidth={2.4} />
       </button>
       {open && (
-        <div className="audio-device-quick-menu">
-          <div className="audio-device-quick-menu-label">Microfone</div>
-          {mics.length === 0 && <div className="dim audio-device-quick-menu-empty">Nenhum encontrado</div>}
-          {mics.map((d) => (
-            <button
-              key={d.deviceId} type="button"
-              className={`audio-device-quick-menu-item ${(d.deviceId === currentMicId || (!currentMicId && d === mics[0])) ? 'active' : ''}`}
-              onClick={() => { voice.switchMicrophone(d.deviceId); setOpen(false); }}
-            >
-              {d.label || 'Microfone'}
-            </button>
-          ))}
+        <div className="audio-device-quick-menu cb-devmenu" role="dialog" aria-label="Dispositivos de áudio">
+          <div className="cb-devmenu-label"><CallIcon name="mic" size={14} /> Microfone</div>
+          {!loaded && <div className="cb-devmenu-empty">Procurando…</div>}
+          {loaded && mics.length === 0 && <div className="cb-devmenu-empty">Nenhum microfone encontrado</div>}
+          {mics.map((d) => {
+            const active = d.deviceId === currentMicId || (!currentMicId && d === mics[0]);
+            return (
+              <button
+                key={d.deviceId} type="button" role="menuitemradio" aria-checked={active}
+                className={`audio-device-quick-menu-item cb-devmenu-item${active ? ' active' : ''}`}
+                onClick={async () => { await voice.switchMicrophone(d.deviceId); setPickTick((n) => n + 1); setOpen(false); }}
+              >
+                <span className="truncate">{d.label || 'Microfone'}</span>
+                {active && <CallIcon name="check" size={15} strokeWidth={2.4} />}
+              </button>
+            );
+          })}
           {isOutputSelectionSupported() && (
             <>
-              <div className="audio-device-quick-menu-label">Saída de áudio</div>
-              {speakers.length === 0 && <div className="dim audio-device-quick-menu-empty">Nenhuma encontrada</div>}
-              {speakers.map((d) => (
-                <button
-                  key={d.deviceId} type="button"
-                  className={`audio-device-quick-menu-item ${(d.deviceId === currentSpeakerId || (!currentSpeakerId && d === speakers[0])) ? 'active' : ''}`}
-                  onClick={() => { setPreferredSpeakerId(d.deviceId); setOpen(false); }}
-                >
-                  {d.label || 'Saída de áudio'}
-                </button>
-              ))}
+              <div className="cb-devmenu-sep" />
+              <div className="cb-devmenu-label"><CallIcon name="headphones" size={14} /> Saída de áudio</div>
+              {loaded && speakers.length === 0 && <div className="cb-devmenu-empty">Nenhuma saída encontrada</div>}
+              {speakers.map((d) => {
+                const active = d.deviceId === currentSpeakerId || (!currentSpeakerId && d === speakers[0]);
+                return (
+                  <button
+                    key={d.deviceId} type="button" role="menuitemradio" aria-checked={active}
+                    className={`audio-device-quick-menu-item cb-devmenu-item${active ? ' active' : ''}`}
+                    onClick={() => { setPreferredSpeakerId(d.deviceId); setPickTick((n) => n + 1); setOpen(false); }}
+                  >
+                    <span className="truncate">{d.label || 'Saída de áudio'}</span>
+                    {active && <CallIcon name="check" size={15} strokeWidth={2.4} />}
+                  </button>
+                );
+              })}
             </>
           )}
+          <div className="cb-devmenu-sep" />
+          <button
+            type="button" className="cb-devmenu-item cb-devmenu-settings"
+            onClick={() => { setOpen(false); useStore.getState().openSettings?.(); }}
+          >
+            <CallIcon name="gear" size={15} />
+            <span className="truncate">Abrir configurações</span>
+          </button>
         </div>
       )}
     </div>
   );
 }
 
+// Botão de ícone da barra: dica própria (data-tip) + estados.
+function CbButton({ icon, label, tip, onClick, disabled, state, className = '', pressed }) {
+  return (
+    <button
+      type="button" onClick={onClick} disabled={disabled}
+      className={`cb-btn${state ? ` is-${state}` : ''} ${className}`}
+      aria-label={label} aria-pressed={pressed} data-tip={tip || label}
+    >
+      <CallIcon name={icon} size={18} />
+    </button>
+  );
+}
+
 export default function CallBar() {
   const voice = useVoice();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [showScreenShareMenu, setShowScreenShareMenu] = useState(false);
+  // Janelinha flutuante escondida pela pessoa: volta na próxima chamada
+  // ou depois de abrir a tela da chamada de novo.
+  const [miniHidden, setMiniHidden] = useState(false);
+  const callId = voice?.call?.channelId;
+  const viewPath = callViewPath(voice?.call);
+  const onCallView = !!viewPath && location.pathname === viewPath;
+  useEffect(() => { setMiniHidden(false); }, [callId]);
+  useEffect(() => { if (onCallView) setMiniHidden(false); }, [onCallView]);
+  const elapsed = useCallElapsed(voice?.callStartedAt);
   if (!voice?.call) return null;
 
   const { call, muted, micMissing, deafened, cameraOn, screenOn, participants, myRole } = voice;
@@ -123,41 +195,89 @@ export default function CallBar() {
   const participantCount = Object.keys(participants).length + 1;
   const micLocked = call.channelType === 'STAGE' && myRole === 'audience';
 
+  const myQuality = voice.netQuality?.[String(user?.id)] ?? 0;
+  const tone = signalTone(myQuality);
+  const pingText = voice.myRtt != null ? `${voice.myRtt} ms` : null;
+  const statusText = call.channelType === 'DM' ? 'Em chamada' : 'Conectado por voz';
+  const signalTip = pingText ? `${QUALITY_LABELS[myQuality] || QUALITY_LABELS[0]} · ping ${pingText}` : (QUALITY_LABELS[myQuality] || QUALITY_LABELS[0]);
+
+  const micTip = micLocked ? 'Você é plateia: peça para falar'
+    : micMissing ? 'Microfone não conectado: clique para tentar de novo'
+      : muted ? 'Ativar microfone' : 'Silenciar';
+  const screenTip = !screenShareSupported
+    ? (isNativeApp ? 'Compartilhar tela não é suportado no app iOS: use pelo navegador' : 'Compartilhar tela não é suportado neste navegador')
+    : screenOn ? 'Parar de compartilhar tela' : 'Compartilhar tela';
+  const canPickScreenQuality = screenOn && !isAndroidApp && typeof voice.setScreenShareQuality === 'function';
+
   return (
-    <div className="call-bar">
-      <div className="call-bar-info"><img className="ui-icon-sm" src={speakerIcon} alt="" /> {call.channelType === 'DM' ? 'Em chamada' : 'Conectado por voz'}</div>
-      <div className="call-bar-channel truncate">{call.channelName}</div>
-      <div className="call-bar-controls">
-        <button
-          className={`icon-btn ${muted ? 'danger-toggle' : ''}`}
-          title={micLocked ? 'Você é plateia — peça para falar' : (micMissing ? 'Microfone não conectado — toque para tentar de novo' : (muted ? 'Ativar microfone' : 'Silenciar'))}
-          onClick={voice.toggleMute}
-          disabled={micLocked}
-        >
-          {micLocked ? <IconGlyph src={raiseHandIcon} size={18} /> : (micMissing ? '🎙️🚫' : <IconGlyph src={muted ? micMutedIcon : micIcon} size={18} />)}
-        </button>
-        {!micLocked && <AudioDeviceQuickMenu voice={voice} />}
-        <button className={`icon-btn ${deafened ? 'danger-toggle' : ''}`} title={deafened ? 'Reativar áudio' : 'Ensurdecer'} onClick={voice.toggleDeafen}>
-          <IconGlyph src={deafened ? volumeOffIcon : volumeUpIcon} size={18} />
-        </button>
-        <button className={`icon-btn ${cameraOn ? 'on' : ''}`} title="Câmera" onClick={voice.toggleCamera}><IconGlyph src={videoCallIcon} size={18} /></button>
-        <button
-          className={`icon-btn ${screenOn ? 'on' : ''}`}
-          title={screenShareSupported ? (screenOn ? 'Parar de compartilhar tela' : 'Compartilhar tela') : (isNativeApp ? 'Compartilhar tela não é suportado no app iOS — use pelo navegador' : 'Compartilhar tela não é suportado neste navegador')}
-          onClick={() => (screenOn || isAndroidApp ? voice.toggleScreenShare() : setShowScreenShareMenu(true))}
-          disabled={!screenShareSupported}
-        >
-          <IconGlyph src={screenshareIcon} size={18} />
-        </button>
-        <button className="icon-btn danger-toggle" title="Desconectar" onClick={voice.leaveChannel}><IconGlyph src={callEndIcon} size={18} /></button>
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>{participantCount}</span>
+    <div className={`call-bar cb cb-tone-${tone}`}>
+      <div className="cb-inner">
+      <div className="cb-info">
+      <div className="cb-head">
+        <div className="cb-status" data-tip={signalTip} tabIndex={0} aria-label={signalTip}>
+          <SignalBars quality={myQuality} />
+          <span className="cb-status-text truncate">{statusText}</span>
+          {pingText && <span className="cb-ping">{pingText}</span>}
+        </div>
+        {elapsed && <span className="cb-time" aria-label="Tempo de chamada">{elapsed}</span>}
       </div>
+
+      <div className="cb-chan-row">
+        <button
+          type="button" className="cb-chan" onClick={() => viewPath && navigate(viewPath)}
+          disabled={!viewPath || onCallView} data-tip={onCallView ? undefined : 'Abrir a chamada'}
+          aria-label={onCallView ? (call.channelName || 'Chamada') : 'Abrir a chamada'}
+        >
+          <CallIcon name="speaker" size={14} />
+          <span className="truncate">{call.channelName}</span>
+          {!onCallView && <CallIcon name="chevron" size={14} className="cb-chan-go" />}
+        </button>
+        <span className="cb-count" aria-label="Pessoas na chamada" data-tip="Pessoas na chamada">
+          <CallIcon name="people" size={13} /> {participantCount}
+        </span>
+      </div>
+
+      </div>
+
+      <div className="call-bar-controls cb-controls" role="toolbar" aria-label="Controles da chamada">
+        <div className={`cb-split${muted || micMissing ? ' is-off' : ''}`}>
+          <CbButton
+            icon={micLocked ? 'hand' : (muted || micMissing ? 'micOff' : 'mic')}
+            label={micTip} onClick={voice.toggleMute} disabled={micLocked}
+            state={!micLocked && (muted || micMissing) ? 'off' : null} pressed={!micLocked ? muted : undefined}
+          />
+          {!micLocked && <AudioDeviceQuickMenu voice={voice} />}
+        </div>
+        <CbButton
+          icon={deafened ? 'headphonesOff' : 'headphones'}
+          label={deafened ? 'Voltar a ouvir' : 'Ensurdecer'}
+          onClick={voice.toggleDeafen} state={deafened ? 'off' : null} pressed={deafened}
+        />
+        <CbButton
+          icon="camera" label={cameraOn ? 'Desligar câmera' : 'Ligar câmera'}
+          onClick={voice.toggleCamera} state={cameraOn ? 'on' : null} pressed={cameraOn}
+        />
+        <div className={`cb-split${screenOn ? ' is-on' : ''}${canPickScreenQuality ? '' : ' is-single'}`}>
+          <CbButton
+            icon={screenOn ? 'screenOn' : 'screen'} label={screenTip}
+            onClick={() => (screenOn || isAndroidApp ? voice.toggleScreenShare() : setShowScreenShareMenu(true))}
+            disabled={!screenShareSupported} state={screenOn ? 'on' : null} pressed={screenOn}
+          />
+          {canPickScreenQuality && <ScreenQualityMenu voice={voice} className="cb-sqm" />}
+        </div>
+        <CbButton icon="hangup" label="Desconectar" onClick={voice.leaveChannel} className="cb-hangup" />
+      </div>
+      </div>
+
       <RemoteAudioSinks />
       {showScreenShareMenu && (
         <ScreenShareModal
           onClose={() => setShowScreenShareMenu(false)}
           onShare={(options) => voice.toggleScreenShare(options)}
         />
+      )}
+      {!onCallView && !miniHidden && (
+        <MiniCallWindow voice={voice} onBack={() => viewPath && navigate(viewPath)} onHide={() => setMiniHidden(true)} />
       )}
     </div>
   );

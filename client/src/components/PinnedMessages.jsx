@@ -4,7 +4,6 @@ import { api } from '../api/client';
 import { togglePinMessage } from '../api/endpoints';
 import { useSocket } from '../context/SocketContext.jsx';
 import { useStore } from '../store/useStore';
-import { useLiveRefresh } from '../utils/liveRefresh';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import UserAvatar from './UserAvatar.jsx';
 import NavIcon from './NavIcons.jsx';
@@ -13,12 +12,22 @@ import '../styles/nav.css';
 
 // Mensagens fixadas de um canal/conversa: lista no cabeçalho do chat
 // (ícone de alfinete) e a faixa opcional "Destaques" com a mais recente.
-// Atualiza sozinho pelo evento de socket `message:pin` (e `message:update`,
-// que o servidor já mandava), com o refresh ao vivo como rede de segurança.
+// Busca a lista UMA vez ao abrir o canal (e de novo só se o socket cair e
+// voltar, quando pode ter perdido eventos). Depois disso tudo chega pelo
+// socket: `message:pin` já traz a mensagem inteira, e `message:update` /
+// `message:delete` atualizam a lista localmente. Antes havia um refresh
+// periódico + um refetch a cada edição/reação numa mensagem fixada
+// (~27 requisições a cada 5 min por canal aberto).
 
 const fetchPinned = ({ conversationId, channelId }) => api
   .get('/messages/pinned', { params: { conversationId: conversationId || undefined, channelId: channelId || undefined } })
   .then((r) => r.data?.messages || []);
+
+const MAX_PINS = 50; // mesmo limite do servidor (listPinned)
+const pinTime = (m) => new Date(m?.pinnedAt || 0).getTime() || 0;
+const sortPins = (list) => [...list]
+  .sort((a, b) => (pinTime(b) - pinTime(a)) || (new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
+  .slice(0, MAX_PINS);
 
 export function usePinnedMessages({ conversationId, channelId, enabled = true }) {
   const { socket } = useSocket() || {};
@@ -37,6 +46,7 @@ export function usePinnedMessages({ conversationId, channelId, enabled = true })
       .finally(() => { if (roomRef.current === asked) setLoading(false); });
   }, [enabled, roomId, conversationId, channelId]);
 
+  // Abriu o canal/conversa: uma busca.
   useEffect(() => {
     setPins([]);
     setLoading(true);
@@ -49,33 +59,47 @@ export function usePinnedMessages({ conversationId, channelId, enabled = true })
     let t = null;
     const later = () => { clearTimeout(t); t = setTimeout(reload, 250); };
     const sameRoom = (m) => (conversationId ? m?.conversationId === conversationId : m?.channelId === channelId);
-    const onPin = (p) => { if (sameRoom(p)) later(); };
+    const onPin = (p) => {
+      if (!sameRoom(p)) return;
+      if (!p.pinned) {
+        setPins((prev) => prev.filter((x) => x.id !== p.id));
+      } else if (p.message) {
+        setPins((prev) => sortPins([p.message, ...prev.filter((x) => x.id !== p.id)]));
+      } else {
+        later(); // servidor antigo: evento sem a mensagem
+      }
+    };
     const onUpdate = (m) => {
-      if (!sameRoom(m)) return;
+      if (!sameRoom(m) || !m?.id) return;
       setPins((prev) => {
         const had = prev.some((x) => x.id === m.id);
-        if (had || m.pinned) later();
-        return had ? prev.map((x) => (x.id === m.id ? { ...x, ...m } : x)) : prev;
+        if (had && m.pinned === false) return prev.filter((x) => x.id !== m.id);
+        if (had) return prev.map((x) => (x.id === m.id ? { ...x, ...m } : x));
+        if (m.pinned && m.pinnedAt && !m.deleted) return sortPins([m, ...prev]);
+        return prev;
       });
     };
     const onDelete = ({ id }) => setPins((prev) => prev.filter((x) => x.id !== id));
+    // Reconectou depois de uma queda: pode ter perdido eventos — busca de
+    // novo uma vez. (Também cobre o caso de o socket ainda estar
+    // conectando quando o canal abriu.)
+    let missedEvents = !socket.connected;
+    const onDisconnect = () => { missedEvents = true; };
+    const onConnect = () => { if (missedEvents) { missedEvents = false; reload(); } };
     socket.on('message:pin', onPin);
     socket.on('message:update', onUpdate);
     socket.on('message:delete', onDelete);
+    socket.on('disconnect', onDisconnect);
+    socket.on('connect', onConnect);
     return () => {
       clearTimeout(t);
       socket.off('message:pin', onPin);
       socket.off('message:update', onUpdate);
       socket.off('message:delete', onDelete);
+      socket.off('disconnect', onDisconnect);
+      socket.off('connect', onConnect);
     };
   }, [socket, enabled, reload, conversationId, channelId]);
-
-  useLiveRefresh((ctx) => fetchPinned({ conversationId, channelId }).then((list) => ctx.put(setPins)(list)), {
-    enabled: enabled && !!roomId, key: roomId,
-    // Fixar/desafixar já chega por socket (message:pin) — com ele
-    // conectado, o refresh é só rede de segurança.
-    realtimeInterval: 90000,
-  });
 
   return { pins: pins.filter((p) => p.pinned !== false && !p.deleted), loading, reload, setPins };
 }

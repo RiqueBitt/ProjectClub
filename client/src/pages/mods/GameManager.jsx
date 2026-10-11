@@ -25,6 +25,8 @@ import UnifiedExplore, { CompatBadge } from './UnifiedExplore.jsx';
 import InstalledPanel, { InstallProfileCard } from './InstalledPanel.jsx';
 import SharedModpacksTab from './ModpacksTab.jsx';
 import { peekPendingModpack } from './modpackShared.js';
+import GameSummary from './GameSummary.jsx';
+import { useNavigate } from 'react-router-dom';
 
 // Gerenciador de UM jogo, no estilo CurseForge: capa grande do jogo em
 // cima, ações rápidas (Jogar / Abrir pasta / Adicionar mod do PC) e
@@ -35,6 +37,7 @@ import { peekPendingModpack } from './modpackShared.js';
 // mod direto; "Atualizações" abre em Instalados).
 export default function GameManager({ game, onBack, scrollRef, initialTab = null, initialMod = null, onUpdatesChanged }) {
   const desktopReady = isDesktopModsAvailable();
+  const navigate = useNavigate();
   const sourceKeys = SOURCE_ORDER.filter((k) => game.sources[k]);
   const supported = sourceKeys.length > 0;
   const hasModio = !!game.sources.modio;
@@ -215,6 +218,13 @@ export default function GameManager({ game, onBack, scrollRef, initialTab = null
           )}
         />
         {localInstallError && <p className="mdx-error mdx-error-banner">Não foi possível instalar o arquivo: {localInstallError}</p>}
+        {/* Tempo de jogo + mods instalados + modpacks, juntos. */}
+        <GameSummary
+          game={game}
+          installedTotal={canTouchDisk && installedLoaded ? installedTotal + (hasWorkshop ? workshopIds.length : 0) : null}
+          onOpenTab={(k) => { setTab(k); requestAnimationFrame(() => document.getElementById('mdx-tabs-anchor')?.scrollIntoView({ block: 'start' })); }}
+          onOpenLibrary={() => navigate('/jogos/biblioteca')}
+        />
 
         <div id="mdx-tabs-anchor" />
         <nav className="mdx-tabs" aria-label="Seções do jogo">

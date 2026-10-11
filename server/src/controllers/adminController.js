@@ -779,6 +779,188 @@ async function deleteUserAccount(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// ============================================================
+// Staff: aba "Saúde" e busca rápida de usuário (painel da equipe)
+// ============================================================
+const os = require('os');
+const presenceStore = require('../services/presenceStore');
+const voiceStore = require('../services/voiceRoomStore');
+const { recentErrors, errorStats } = require('../services/errorRing');
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { setTimeout(() => reject(new Error(`sem resposta em ${ms}ms`)), ms).unref?.(); }),
+  ]);
+}
+
+async function timed(fn, ms = 3000) {
+  const start = process.hrtime.bigint();
+  try {
+    await withTimeout(Promise.resolve().then(fn), ms);
+    return { ok: true, ms: Math.round(Number(process.hrtime.bigint() - start) / 1e4) / 100 };
+  } catch (err) {
+    return { ok: false, ms: null, error: String(err?.message || err).slice(0, 160) };
+  }
+}
+
+// GET /admin/health — números ao vivo do servidor. Tudo com tempo-limite
+// e tolerante a falha: o Redis/banco fora do ar aparece como "falhou"
+// na tela em vez de derrubar a resposta inteira.
+async function getHealth(req, res, next) {
+  try {
+    const { redis } = require('../config/redis');
+    const io = req.app.get('io');
+
+    const [db, redisPing, onlineIds, statusRows, calls] = await Promise.all([
+      timed(() => prisma.$queryRaw`SELECT 1`),
+      timed(() => redis.ping()),
+      withTimeout(presenceStore.listOnlineUserIds(), 3000).catch(() => null),
+      prisma.user.groupBy({ by: ['status'], _count: { _all: true } }).catch(() => []),
+      withTimeout((async () => {
+        const out = { channels: 0, dms: 0, clans: 0, participants: 0 };
+        for (const roomId of await voiceStore.getActiveRoomIds()) {
+          // eslint-disable-next-line no-await-in-loop
+          const n = Object.keys((await voiceStore.getRoom(roomId)) || {}).length;
+          if (!n) continue;
+          out.participants += n;
+          if (roomId.startsWith('dm:')) out.dms += 1;
+          else if (roomId.startsWith('clan:')) out.clans += 1;
+          else out.channels += 1;
+        }
+        return out;
+      })(), 3000).catch(() => null),
+    ]);
+
+    const byStatus = Object.fromEntries(statusRows.map((r) => [r.status, r._count._all]));
+    const mem = process.memoryUsage();
+    const mb = (b) => Math.round((b / 1024 / 1024) * 10) / 10;
+
+    res.json({
+      at: new Date().toISOString(),
+      presence: {
+        online: onlineIds ? onlineIds.length : null,
+        byStatus,
+      },
+      sockets: {
+        // Conexões deste processo (hoje a plataforma roda numa instância só).
+        connected: io ? io.of('/').sockets.size : 0,
+        engineClients: io?.engine?.clientsCount ?? null,
+      },
+      calls,
+      db,
+      redis: { ...redisPing, status: redis.status },
+      process: {
+        uptimeSec: Math.round(process.uptime()),
+        node: process.version,
+        rssMb: mb(mem.rss),
+        heapUsedMb: mb(mem.heapUsed),
+        heapTotalMb: mb(mem.heapTotal),
+        externalMb: mb(mem.external),
+        loadAvg: os.loadavg().map((n) => Math.round(n * 100) / 100),
+        cpus: os.cpus()?.length || null,
+        systemFreeMb: mb(os.freemem()),
+        systemTotalMb: mb(os.totalmem()),
+      },
+      errors: { ...errorStats(), recent: recentErrors(20) },
+    });
+  } catch (err) { next(err); }
+}
+
+const STAFF_SEARCH_FIELDS = {
+  id: true, publicId: true, username: true, displayName: true, email: true,
+  avatarUrl: true, status: true, platformRole: true, createdAt: true,
+  isPlatformBanned: true, suspendedUntil: true, timeoutUntil: true,
+};
+
+// GET /admin/staff/users/search?q= — busca rápida por nome, @usuário, id
+// (interno ou público) ou e-mail. O roteador inteiro já é só pra ADMIN
+// (ver middleware/platformAdmin.js), por isso o e-mail entra na busca.
+async function staffSearchUsers(req, res, next) {
+  try {
+    const raw = String(req.query.q || '').trim().slice(0, 100);
+    if (!raw) return res.json({ users: [] });
+    const q = raw.replace(/^@/, '');
+    const OR = [
+      { username: { contains: q } },
+      { displayName: { contains: q } },
+      { email: { contains: q } },
+      { id: raw },
+      { publicId: q },
+    ];
+    const found = await prisma.user.findMany({ where: { OR }, select: STAFF_SEARCH_FIELDS, take: 25 });
+    const lower = q.toLowerCase();
+    const rank = (u) => {
+      if (u.id === raw || u.publicId === q || u.username?.toLowerCase() === lower || u.email?.toLowerCase() === lower) return 0;
+      if (u.username?.toLowerCase().startsWith(lower) || u.displayName?.toLowerCase().startsWith(lower)) return 1;
+      return 2;
+    };
+    found.sort((a, b) => rank(a) - rank(b) || String(a.displayName).localeCompare(String(b.displayName)));
+    const online = await Promise.all(found.map((u) => presenceStore.isOnline(u.id).catch(() => false)));
+    res.json({ users: found.map((u, i) => ({ ...u, online: online[i] })) });
+  } catch (err) { next(err); }
+}
+
+// GET /admin/staff/users/:id — ficha completa pra gaveta de detalhes:
+// conta, punições (advertências, banimento da comunidade, silêncio,
+// banimento/suspensão da plataforma), ações da equipe sobre a conta e
+// denúncias recebidas. Cada parte falha sozinha sem derrubar as outras.
+async function staffUserDetail(req, res, next) {
+  try {
+    const { id } = req.params;
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: { ...ADMIN_USER_FIELDS, ...STAFF_SEARCH_FIELDS, emailVerified: true, accountDisabledAt: true },
+    });
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+
+    const safe = (p, fallback) => p.catch(() => fallback);
+    const [online, warnings, communityBan, platformLog, modLog, reports, reportCount, messageCount] = await Promise.all([
+      presenceStore.isOnline(id).catch(() => false),
+      safe(prisma.warning.findMany({ where: { userId: id }, orderBy: { createdAt: 'desc' }, take: 50 }), []),
+      safe(prisma.ban.findUnique({ where: { userId: id } }), null),
+      safe(prisma.platformAuditLog.findMany({ where: { targetId: id }, orderBy: { createdAt: 'desc' }, take: 50 }), []),
+      safe(prisma.auditLogEntry.findMany({ where: { targetId: id }, orderBy: { createdAt: 'desc' }, take: 50 }), []),
+      safe(prisma.report.findMany({
+        where: { reportedUserId: id }, orderBy: { createdAt: 'desc' }, take: 10,
+        select: { id: true, reason: true, snippet: true, status: true, createdAt: true, reporterId: true },
+      }), []),
+      safe(prisma.report.count({ where: { reportedUserId: id } }), 0),
+      safe(prisma.message.count({ where: { authorId: id } }), null),
+    ]);
+
+    // Nomes de quem aplicou cada ação ("system" = filtro automático).
+    const actorIds = new Set();
+    warnings.forEach((w) => actorIds.add(w.moderatorId));
+    if (communityBan) actorIds.add(communityBan.moderatorId);
+    platformLog.forEach((l) => actorIds.add(l.actorId));
+    modLog.forEach((l) => actorIds.add(l.actorId));
+    actorIds.delete('system');
+    const actors = actorIds.size
+      ? await safe(prisma.user.findMany({ where: { id: { in: [...actorIds] } }, select: { id: true, displayName: true, username: true } }), [])
+      : [];
+    const actorMap = new Map(actors.map((a) => [a.id, a]));
+    const by = (actorId) => (actorId === 'system' ? { id: 'system', displayName: 'Filtro automático' } : actorMap.get(actorId) || { id: actorId, displayName: 'Conta removida' });
+    const parse = (m) => { try { return m ? JSON.parse(m) : null; } catch { return null; } };
+
+    const history = [
+      ...warnings.map((w) => ({ id: `w:${w.id}`, kind: 'warning', action: 'MEMBER_WARN', reason: w.reason, at: w.createdAt, by: by(w.moderatorId), warningId: w.id })),
+      ...(communityBan ? [{ id: `b:${communityBan.id}`, kind: 'ban', action: 'MEMBER_BAN', reason: communityBan.reason, at: communityBan.createdAt, by: by(communityBan.moderatorId), active: true }] : []),
+      ...modLog.filter((l) => l.action !== 'MEMBER_WARN' && l.action !== 'MEMBER_BAN').map((l) => ({ id: `m:${l.id}`, kind: 'community', action: l.action, reason: l.reason, at: l.createdAt, by: by(l.actorId), metadata: parse(l.metadata) })),
+      ...platformLog.map((l) => ({ id: `p:${l.id}`, kind: 'platform', action: l.action, reason: l.reason, at: l.createdAt, by: by(l.actorId), metadata: parse(l.metadata) })),
+    ].sort((a, b) => new Date(b.at) - new Date(a.at));
+
+    res.json({
+      user: { ...user, online },
+      communityBan: communityBan ? { reason: communityBan.reason, at: communityBan.createdAt, by: by(communityBan.moderatorId) } : null,
+      warningsCount: warnings.length,
+      history,
+      reports: { total: reportCount, recent: reports },
+      messageCount,
+    });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
   getCommunitySettings, updateCommunitySettings, uploadCommunityIcon, uploadCommunityBanner,
   listUsers, updateUserAdmin, banUser, unbanUser, suspendUser, unsuspendUser, setPlatformRole,
@@ -790,5 +972,6 @@ module.exports = {
   listReports, getReportedContext, resolveReport,
   listHoneypotHits, listBlockedIps, unblockIp,
   reloadUserPresence, deleteUserAccount,
+  getHealth, staffSearchUsers, staffUserDetail,
   logPlatformAction,
 };

@@ -26,6 +26,27 @@ const effectJson = (e) => JSON.stringify({
   d: { s: e.scale, x: e.offsetX, y: e.offsetY, o: e.opacity, t: e.duration },
   m: { s: e.mScale, x: e.mOffsetX, y: e.mOffsetY, o: e.mOpacity, t: e.mDuration },
 });
+// Oferta por tempo limitado numa coleção: desconto % no pacote entre
+// offerStartsAt e offerEndsAt (sem início = já vale; sem fim = não tem oferta).
+function offerOf(col, now = Date.now()) {
+  const pct = Number(col?.offerDiscount) || 0;
+  if (!(pct > 0) || !col.offerEndsAt) return null;
+  const ends = new Date(col.offerEndsAt).getTime();
+  const starts = col.offerStartsAt ? new Date(col.offerStartsAt).getTime() : 0;
+  if (!(ends > now)) return null;
+  return { discount: Math.min(90, pct), startsAt: col.offerStartsAt || null, endsAt: col.offerEndsAt, active: starts <= now };
+}
+const discounted = (price, offer) => (price == null || !offer?.active ? price : Math.max(0, Math.ceil(price * (100 - offer.discount) / 100)));
+function shapeCollection(c, now = Date.now()) {
+  const offer = offerOf(c, now);
+  return {
+    ...c, offer,
+    // Preço cheio fica em bundlePrice*; o que se paga agora em finalBundle*.
+    finalBundleCoins: discounted(c.bundlePriceCoins, offer),
+    finalBundleGems: discounted(c.bundlePriceGems, offer),
+  };
+}
+
 const idFromJson = (raw) => { try { return raw ? JSON.parse(raw).id || null : null; } catch { return null; } };
 
 // GET /decorations/shop — tudo que a Loja mostra, numa chamada só.
@@ -46,7 +67,7 @@ async function shop(req, res, next) {
     res.json({
       decorations: decorations.map((d) => ({ ...d, owned: od.has(d.id) })),
       effects: effects.map((e) => ({ ...e, owned: oe.has(e.id) })),
-      collections,
+      collections: collections.map((c) => shapeCollection(c)),
       coins: me?.coins ?? 0, gems: me?.gems ?? 0,
       equippedId: idFromJson(me?.avatarDecoration),
       equippedEffectId: idFromJson(me?.profileEffect),
@@ -109,8 +130,9 @@ async function buyCollection(req, res, next) {
       include: { decorations: { where: { active: true } }, effects: { where: { active: true } } },
     });
     if (!col || !col.active) return res.status(404).json({ error: 'Coleção não encontrada.' });
-    const bundle = currency === 'gems' ? col.bundlePriceGems : col.bundlePriceCoins;
-    if (bundle === null || bundle === undefined) return res.status(400).json({ error: 'Essa coleção não vende pacote nessa moeda.' });
+    const fullBundle = currency === 'gems' ? col.bundlePriceGems : col.bundlePriceCoins;
+    if (fullBundle === null || fullBundle === undefined) return res.status(400).json({ error: 'Essa coleção não vende pacote nessa moeda.' });
+    const bundle = discounted(fullBundle, offerOf(col)); // oferta por tempo limitado
     const userId = req.user.id;
     const key = currency === 'gems' ? 'priceGems' : 'priceCoins';
     let paid = 0;
@@ -237,6 +259,14 @@ function readCollection(b) {
   if (b.bundlePriceCoins !== undefined) data.bundlePriceCoins = priceOrNull(b.bundlePriceCoins);
   if (b.bundlePriceGems !== undefined) data.bundlePriceGems = priceOrNull(b.bundlePriceGems);
   if (bool(b.removeLogo)) data.logoUrl = null;
+  // Oferta por tempo limitado (vazio = sem oferta).
+  const dateOrNull = (v) => { if (v === undefined || v === null || v === '' || v === 'null') return null; const d = new Date(v); return Number.isNaN(d.getTime()) ? null : d; };
+  if (b.offerStartsAt !== undefined) data.offerStartsAt = dateOrNull(b.offerStartsAt);
+  if (b.offerEndsAt !== undefined) data.offerEndsAt = dateOrNull(b.offerEndsAt);
+  if (b.offerDiscount !== undefined) {
+    const n = parseInt(b.offerDiscount, 10);
+    data.offerDiscount = Number.isFinite(n) && n > 0 ? Math.min(90, n) : null;
+  }
   return data;
 }
 
@@ -273,7 +303,83 @@ async function adminRemoveCollection(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// ---------- Histórico de compras e presentes ----------
+// GET /decorations/history?before= — compras e presentes enviados (vêm do
+// histórico da carteira) + presentes recebidos (avisos salvos).
+async function purchaseHistory(req, res, next) {
+  try {
+    const where = { userId: req.user.id, kind: { in: ['SHOP', 'GIFT'] } };
+    const before = req.query.before ? new Date(req.query.before) : null;
+    if (before && !Number.isNaN(before.getTime())) where.createdAt = { lt: before };
+    const take = 30;
+    const [rows, received] = await Promise.all([
+      prisma.economyTransaction.findMany({ where, orderBy: { createdAt: 'desc' }, take }),
+      before ? [] : prisma.userNotice.findMany({ where: { userId: req.user.id, kind: 'GIFT' }, orderBy: { createdAt: 'desc' }, take: 30 }).catch(() => []),
+    ]);
+    const { shapeNotice } = require('../services/notices');
+    res.json({ purchases: rows, hasMore: rows.length === take, received: received.map(shapeNotice) });
+  } catch (err) { next(err); }
+}
+
+// ---------- Presentear um amigo ----------
+// POST /decorations/gift { kind: 'deco'|'effect', id, toUserId, currency, note }
+// Quem dá paga com a própria moeda; o amigo ganha o item e um aviso.
+async function giftItem(req, res, next) {
+  try {
+    const kind = req.body?.kind === 'effect' ? 'effect' : req.body?.kind === 'deco' ? 'deco' : null;
+    const currency = req.body?.currency === 'gems' ? 'gems' : 'coins';
+    const toUserId = String(req.body?.toUserId || '');
+    const note = String(req.body?.note || '').trim().slice(0, 140);
+    const fromId = req.user.id;
+    if (!kind) return res.status(400).json({ error: 'Item inválido.' });
+    if (!toUserId || toUserId === fromId) return res.status(400).json({ error: 'Escolha um amigo pra presentear.' });
+    const friendship = await prisma.friendship.findFirst({
+      where: { status: 'ACCEPTED', OR: [{ requesterId: fromId, addresseeId: toUserId }, { requesterId: toUserId, addresseeId: fromId }] },
+      select: { id: true },
+    });
+    if (!friendship) return res.status(403).json({ error: 'Você só pode presentear amigos.' });
+    const item = kind === 'deco'
+      ? await prisma.avatarDecoration.findUnique({ where: { id: String(req.body?.id || '') } })
+      : await prisma.profileEffect.findUnique({ where: { id: String(req.body?.id || '') } });
+    if (!item || !item.active) return res.status(404).json({ error: 'Item não encontrado.' });
+    const price = currency === 'gems' ? item.priceGems : item.priceCoins;
+    if (price === null || price === undefined) return res.status(400).json({ error: 'Esse item não é vendido nessa moeda.' });
+    const [sender, recipient] = await Promise.all([
+      prisma.user.findUnique({ where: { id: fromId }, select: { displayName: true } }),
+      prisma.user.findUnique({ where: { id: toUserId }, select: { id: true, displayName: true } }),
+    ]);
+    if (!recipient) return res.status(404).json({ error: 'Amigo não encontrado.' });
+    try {
+      await prisma.$transaction(async (tx) => {
+        const already = kind === 'deco'
+          ? await tx.userAvatarDecoration.findUnique({ where: { userId_decorationId: { userId: toUserId, decorationId: item.id } } })
+          : await tx.userProfileEffect.findUnique({ where: { userId_effectId: { userId: toUserId, effectId: item.id } } });
+        if (already) throw fail(`${recipient.displayName} já tem esse item.`);
+        const r = await tx.user.updateMany({ where: { id: fromId, [currency]: { gte: price } }, data: { [currency]: { decrement: price } } });
+        if (r.count === 0) throw fail(currency === 'gems' ? 'Gemas insuficientes.' : 'Moedas insuficientes.');
+        if (kind === 'deco') await tx.userAvatarDecoration.create({ data: { userId: toUserId, decorationId: item.id } });
+        else await tx.userProfileEffect.create({ data: { userId: toUserId, effectId: item.id } });
+      });
+    } catch (e) {
+      if (e.status) return res.status(e.status).json({ error: e.message });
+      throw e;
+    }
+    const what = kind === 'deco' ? 'moldura' : 'efeito';
+    require('../services/economyLedger').recordTransaction(fromId, { kind: 'GIFT', label: `Presente para ${recipient.displayName}: ${what} ${item.name || ''}`.trim(), [currency]: -price });
+    await require('../services/notices').createNotice(req.app.get('io'), toUserId, {
+      kind: 'GIFT',
+      title: `${sender?.displayName || 'Um amigo'} te deu um presente`,
+      body: note ? `"${item.name}" — ${note}` : `"${item.name}" já está nos seus itens da Loja.`,
+      link: '/loja',
+      data: { fromUserId: fromId, itemKind: kind, itemId: item.id, itemName: item.name },
+    });
+    const me = await prisma.user.findUnique({ where: { id: fromId }, select: { coins: true, gems: true } });
+    res.json({ ok: true, ...me });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
+  purchaseHistory, giftItem, offerOf,
   shop, buyEffect, equipEffect, buyCollection,
   adminListEffects, adminCreateEffect, adminUpdateEffect, adminRemoveEffect,
   adminListCollections, adminCreateCollection, adminUpdateCollection, adminRemoveCollection,

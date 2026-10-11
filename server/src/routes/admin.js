@@ -124,4 +124,9 @@ router.delete('/honeypot/blocked/:ip', ctrl.unblockIp);
 // "Reload User" — ver services/presenceStore.js e adminController.js.
 router.post('/reload-user-presence', ctrl.reloadUserPresence);
 
+// Aba "Saúde" e busca rápida de usuário (gaveta de detalhes).
+router.get('/health', ctrl.getHealth);
+router.get('/staff/users/search', ctrl.staffSearchUsers);
+router.get('/staff/users/:id', ctrl.staffUserDetail);
+
 module.exports = router;
