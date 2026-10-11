@@ -128,3 +128,18 @@
 @keyframes ytw-eq { 0%, 100% { height: 25%; } 50% { height: 100%; } }
 @media (prefers-reduced-motion: reduce) { .ytw-music-disc, .ytw-music-eq i { animation: none; } }
 .ytw-music .ytw-bar { opacity: 1; }
+
+/* Controles do YouTube ligados: o vídeo para acima da nossa barra para a
+   engrenagem nativa (qualidade/velocidade/legenda) ficar clicável. */
+.ytw-stage.is-native .ytw-player { bottom: 86px; }
+.ytw-stage.is-native .ytw-bar { opacity: 1; background: #000; padding-top: 8px; }
+.ytw-stage:focus { outline: none; }
+.ytw-btn.is-on { color: #ff6b6b; }
+.ytw-menu-wrap { position: relative; display: inline-flex; }
+.ytw-menu { position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 5; width: 290px; padding: 6px; border-radius: 12px; background: rgba(18, 18, 22, .97); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 12px 30px rgba(0,0,0,.5); display: flex; flex-direction: column; gap: 2px; }
+.ytw-menu button { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 10px 10px; border: 0; border-radius: 8px; background: transparent; color: #fff; font-size: 13.5px; text-align: left; cursor: pointer; }
+.ytw-menu button:hover { background: rgba(255,255,255,.08); }
+.ytw-menu span { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ytw-menu small { font-size: 11.5px; color: rgba(255,255,255,.6); line-height: 1.35; }
+.ytw-menu b { flex-shrink: 0; font-size: 12px; color: #ff8080; }
+.ytw-menu button[aria-checked="true"] b { color: #7ee2a8; }

@@ -12,12 +12,12 @@ import { useMusic } from '../../music/musicStore';
 // No app desktop ainda tem a aba "YouTube completo" (<webview>).
 // ============================================================
 
-function Ico({ d, size = 18 }) {
+export function Ico({ d, size = 18 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
   );
 }
-const I = {
+export const I = {
   search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM20 20l-4-4',
   close: 'M6 6l12 12M18 6 6 18',
   plus: 'M12 5v14M5 12h14',
@@ -33,7 +33,7 @@ const I = {
   reload: 'M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7',
 };
 
-const CHIPS = [
+export const CHIPS = [
   { id: 'now', label: 'Em alta', icon: I.fire },
   { id: 'music', label: 'Música', icon: I.music },
   { id: 'gaming', label: 'Jogos', icon: I.game },
@@ -49,7 +49,7 @@ function fetchPage(view, continuation) {
 }
 
 // Lista paginada de uma "visão" (em alta/busca/canal), com continuação.
-function useFeed(view) {
+export function useFeed(view) {
   const [feed, setFeed] = useState({ key: null, items: [], cont: null, loading: true, unavailable: false });
   const keyRef = useRef(null);
   const busyRef = useRef(false);
@@ -92,14 +92,14 @@ function Badge({ v }) {
   return null;
 }
 
-function VideoCard({ v, onPlay, onQueue, onChannel, queued }) {
+export function VideoCard({ v, onPlay, onQueue, onChannel, queued, playLabel = 'Assistir juntos' }) {
   const meta = [v.views, v.published].filter(Boolean).join(' • ');
   return (
     <article className="ytb-card" data-testid="ytb-card">
-      <button type="button" className="ytb-thumb" onClick={() => onPlay(v)} aria-label={`Assistir com a call: ${v.title}`}>
+      <button type="button" className="ytb-thumb" onClick={() => onPlay(v)} aria-label={`${playLabel}: ${v.title}`}>
         <img src={v.thumbnail || thumb(v.videoId)} alt="" loading="lazy" />
         <Badge v={v} />
-        <span className="ytb-play"><Ico d="M8 5.5v13l10-6.5-10-6.5Z" size={22} /> Assistir juntos</span>
+        <span className="ytb-play"><Ico d="M8 5.5v13l10-6.5-10-6.5Z" size={22} /> {playLabel}</span>
       </button>
       <div className="ytb-row">
       <div className="ytb-info">
@@ -126,7 +126,7 @@ function VideoCard({ v, onPlay, onQueue, onChannel, queued }) {
   );
 }
 
-function Skeletons({ n = 8 }) {
+export function Skeletons({ n = 8 }) {
   return Array.from({ length: n }, (_, i) => (
     <div key={i} className="ytb-card ytb-skel" aria-hidden="true"><div className="ytb-thumb" /><div className="ytb-line" /><div className="ytb-line short" /></div>
   ));
@@ -172,7 +172,7 @@ export function RelatedList({ videoId, onPlay, onQueue, compact = false }) {
 }
 
 // Campo de busca com sugestões (setas + Enter).
-function SearchBox({ initial, onSearch, inputRef }) {
+export function SearchBox({ initial, onSearch, inputRef }) {
   const [text, setText] = useState(initial || '');
   const [sugs, setSugs] = useState([]);
   const [open, setOpen] = useState(false);

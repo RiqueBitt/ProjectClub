@@ -27,6 +27,7 @@ import ImageLightbox from '../components/ImageLightbox.jsx';
 import AnnouncementOverlay from '../components/AnnouncementOverlay.jsx';
 import QuickSwitcher from '../components/QuickSwitcher.jsx';
 import { MusicEngine, MusicPanel, MiniMusicBar } from '../music/MusicPlayer.jsx';
+import YouTubeApp, { YouTubeHost } from '../youtube/YouTubeApp.jsx';
 import CardsNotifier from '../cards/CardsNotifier.jsx';
 import { startBoot, cachedBoot } from '../utils/bootstrap';
 import { applyBootData } from '../utils/applyBoot';
@@ -487,6 +488,8 @@ export default function MainApp() {
       <MusicEngine />
       <MusicPanel />
       <MiniMusicBar />
+      <YouTubeApp />
+      <YouTubeHost />
       <CardsNotifier />
     </div>
   );

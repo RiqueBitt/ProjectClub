@@ -1,7 +1,8 @@
 import { useMusic } from '../../music/musicStore';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSocket } from '../../context/SocketContext.jsx';
-import { parseYouTubeId, thumb } from './ytUtils.js';
+import { parseYouTubeId, thumb, readCaptionsPref, writeCaptionsPref, applyCaptions } from './ytUtils.js';
+import { ytRelated } from '../../api/endpoints';
 import YouTubeBrowser, { RelatedList } from './YouTubeBrowser.jsx';
 import UserAvatar from '../UserAvatar.jsx';
 import '../../styles/ytwatch.css';
@@ -106,6 +107,11 @@ const P = {
   expand: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
   plus: 'M12 5v14M5 12h14',
   upnext: 'M4 6h10M4 11h10M4 16h6M16 13v7l5-3.5-5-3.5Z',
+  back10: 'M4 12a8 8 0 1 0 2.3-5.7M4 4v5h5M10 10v5M13 10h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1Z',
+  fwd10: 'M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5M10 10v5M13 10h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1Z',
+  cc: 'M4 6h16v12H4zM10.5 10.2A2.2 2.2 0 1 0 10.5 13.8M17 10.2A2.2 2.2 0 1 0 17 13.8',
+  ccOff: 'M4 6h16v12H4zM10.5 10.2A2.2 2.2 0 1 0 10.5 13.8M17 10.2A2.2 2.2 0 1 0 17 13.8M3 3l18 18',
+  gear: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM19.4 13a7.5 7.5 0 0 0 0-2l2-1.5-2-3.4-2.4 1a7.6 7.6 0 0 0-1.7-1L15 3.5h-4l-.4 2.6a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.5a7.5 7.5 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a7.6 7.6 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.6 7.6 0 0 0 1.7-1l2.4 1 2-3.4z',
   yt: 'M3.5 8.2c.2-1.6 1.3-2.7 2.9-2.8C8.2 5.2 10 5.1 12 5.1s3.8.1 5.6.3c1.6.1 2.7 1.2 2.9 2.8.2 1.3.2 2.5.2 3.8s0 2.5-.2 3.8c-.2 1.6-1.3 2.7-2.9 2.8-1.8.2-3.6.3-5.6.3s-3.8-.1-5.6-.3c-1.6-.1-2.7-1.2-2.9-2.8C3.3 14.5 3.3 13.3 3.3 12s0-2.5.2-3.8ZM10 9v6l5-3-5-3Z',
 };
 export const ACTIVITY_ICON = 'M5 4h5v5H5zM14 4h5v5h-5zM5 15h5v5H5zM14.5 15.2l4.3 2.3-4.3 2.3z';
@@ -143,6 +149,10 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
   const [showQueue, setShowQueue] = useState(false);
   const [showNext, setShowNext] = useState(false);
   const [scrub, setScrub] = useState(null);
+  const [cc, setCc] = useState(readCaptionsPref);
+  const [nativeCtl, setNativeCtl] = useState(() => { try { return localStorage.getItem('pc.ytwatch.native') === '1'; } catch { return false; } });
+  const [showMenu, setShowMenu] = useState(false);
+  const lastVolRef = useRef(80);
 
   // Aplica o estado do servidor no player.
   const apply = useCallback(() => {
@@ -176,17 +186,22 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
         host: 'https://www.youtube-nocookie.com',
         videoId: st?.videoId,
         width: '100%', height: '100%',
-        playerVars: { autoplay: st?.playing ? 1 : 0, controls: 0, disablekb: 1, rel: 0, modestbranding: 1, playsinline: 1, iv_load_policy: 3, start: Math.floor(expectedRef.current(st)), origin: window.location.origin },
+        playerVars: {
+          autoplay: st?.playing ? 1 : 0, controls: nativeCtl ? 1 : 0, disablekb: nativeCtl ? 0 : 1, rel: 0, modestbranding: 1, playsinline: 1, iv_load_policy: 3,
+          start: Math.floor(expectedRef.current(st)), origin: window.location.origin, hl: 'pt-BR', cc_lang_pref: 'pt', cc_load_policy: readCaptionsPref() ? 1 : 0,
+        },
         events: {
           onReady: (e) => {
             readyRef.current = true;
             try { e.target.setVolume(readVol()); } catch { /* ignora */ }
+            applyCaptions(e.target, readCaptionsPref());
             apply();
           },
+          onApiChange: (e) => applyCaptions(e.target, readCaptionsPref()),
           onStateChange: (e) => {
             const s = stateRef.current;
             if (e.data === 0 && s?.videoId) emitRef.current('yt:next', { fromVideoId: s.videoId }); // terminou
-            if (e.data === 1) setBlocked(false);
+            if (e.data === 1) { setBlocked(false); applyCaptions(e.target, readCaptionsPref()); }
             try { const d = e.target.getVideoData?.(); if (d?.title) setTitle(d.title); } catch { /* ignora */ }
           },
           onError: () => setApiError('Este vídeo não pode ser reproduzido aqui.'),
@@ -199,7 +214,7 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
       playerRef.current = null;
       if (hostRef.current) hostRef.current.innerHTML = '';
     };
-  }, [apply]);
+  }, [apply, nativeCtl]);
 
   // Música da call começou: pausa o player pessoal pra não tocar duas coisas.
   useEffect(() => {
@@ -228,18 +243,61 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
   }, [apply]);
 
   const setVol = (v) => {
+    if (v > 0) lastVolRef.current = v;
     setVolume(v);
     try { localStorage.setItem('pc.ytwatch.volume', String(v)); } catch { /* ignora */ }
     try { playerRef.current?.setVolume(v); if (v > 0) playerRef.current?.unMute(); } catch { /* ignora */ }
   };
 
   const pos = () => playerRef.current?.getCurrentTime?.() || expectedPos();
-  const togglePlay = () => emit(state.playing ? 'yt:pause' : 'yt:play', { positionSec: pos() });
+  // Tocar depois que o vídeo acabou recomeça do início (antes ficava preso no fim).
+  const togglePlay = () => {
+    if (state.playing) { emit('yt:pause', { positionSec: pos() }); return; }
+    const d = playerRef.current?.getDuration?.() || dur;
+    const p = pos();
+    emit('yt:play', { positionSec: d && p >= d - 1.5 ? 0 : p });
+  };
+  const seekBy = (delta) => {
+    const d = playerRef.current?.getDuration?.() || dur || Infinity;
+    emit('yt:seek', { positionSec: Math.max(0, Math.min(d - 1, pos() + delta)) });
+  };
+  // Próximo: fila primeiro; com a fila vazia, toca um vídeo relacionado
+  // (antes fechava o vídeo para todo mundo).
+  const next = async () => {
+    if ((state.queue || []).length) { emit('yt:next'); return; }
+    try {
+      const d = await ytRelated(state.videoId);
+      const v = (d?.videos || []).find((x) => !x.live && x.videoId !== state.videoId);
+      if (v) emit('yt:open', { videoId: v.videoId, title: v.title });
+    } catch { /* ignora */ }
+  };
+  const toggleCc = () => {
+    const on = !cc; setCc(on); writeCaptionsPref(on);
+    applyCaptions(playerRef.current, on);
+  };
+  const toggleNative = () => {
+    const on = !nativeCtl;
+    try { localStorage.setItem('pc.ytwatch.native', on ? '1' : '0'); } catch { /* ignora */ }
+    readyRef.current = false; loadedIdRef.current = null;
+    setNativeCtl(on); setShowMenu(false);
+  };
+  const toggleMute = () => setVol(volume ? 0 : (lastVolRef.current || 80));
   const unblock = () => { setBlocked(false); try { playerRef.current?.playVideo(); } catch { /* ignora */ } };
   const toggleFull = () => {
     const el = wrapRef.current;
     if (document.fullscreenElement === el) document.exitFullscreen().catch(() => {});
     else el?.requestFullscreen?.().catch(() => {});
+  };
+
+  const onKeyDown = (e) => {
+    if (e.target.closest?.('input, textarea, [contenteditable="true"]') && e.target.type !== 'range') return;
+    const k = e.key.toLowerCase();
+    if (k === ' ' || k === 'k') { e.preventDefault(); togglePlay(); }
+    else if (k === 'arrowleft' || k === 'j') { e.preventDefault(); seekBy(k === 'j' ? -10 : -5); }
+    else if (k === 'arrowright' || k === 'l') { e.preventDefault(); seekBy(k === 'l' ? 10 : 5); }
+    else if (k === 'm') toggleMute();
+    else if (k === 'f') toggleFull();
+    else if (k === 'c') toggleCc();
   };
 
   if (!state?.videoId) return null;
@@ -248,7 +306,7 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
   const shown = scrub ?? cur;
 
   return (
-    <div ref={wrapRef} className={`vc-screen ytw-stage${isMusic ? ' ytw-music' : ''}`} data-testid="yt-stage">
+    <div ref={wrapRef} className={`vc-screen ytw-stage${isMusic ? ' ytw-music' : ''}${nativeCtl ? ' is-native' : ''}`} data-testid="yt-stage" tabIndex={-1} onKeyDown={onKeyDown}>
       <div className="ytw-player" ref={hostRef} />
       {isMusic && (
         <div className="ytw-music-art" aria-hidden="true">
@@ -285,12 +343,14 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
           <button type="button" className="ytw-btn" onClick={togglePlay} aria-label={state.playing ? 'Pausar' : 'Tocar'} title={state.playing ? 'Pausar' : 'Tocar'}>
             <YIcon d={state.playing ? P.pause : P.play} />
           </button>
-          <button type="button" className="ytw-btn" onClick={() => emit('yt:next')} aria-label="Próximo da fila" title={queue.length ? 'Próximo da fila' : 'Fila vazia: encerra o vídeo'}>
+          <button type="button" className="ytw-btn" onClick={() => seekBy(-10)} aria-label="Voltar 10 segundos" title="Voltar 10s (J)"><YIcon d={P.back10} /></button>
+          <button type="button" className="ytw-btn" onClick={() => seekBy(10)} aria-label="Avançar 10 segundos" title="Avançar 10s (L)"><YIcon d={P.fwd10} /></button>
+          <button type="button" className="ytw-btn" onClick={next} aria-label="Próximo" title={queue.length ? 'Próximo da fila' : 'Próximo (vídeo relacionado)'}>
             <YIcon d={P.next} />
           </button>
           <span className="ytw-time">{fmt(shown)} / {fmt(dur)}</span>
           <label className="ytw-vol" title={`Volume (só para você): ${volume}%`}>
-            <button type="button" className="ytw-btn" onClick={() => setVol(volume ? 0 : 80)} aria-label={volume ? 'Silenciar vídeo' : 'Ativar som do vídeo'}>
+            <button type="button" className="ytw-btn" onClick={(e) => { e.preventDefault(); toggleMute(); }} aria-label={volume ? 'Silenciar vídeo' : 'Ativar som do vídeo'}>
               <YIcon d={volume ? P.vol : P.volOff} />
             </button>
             <input type="range" min="0" max="100" step="1" value={volume} onChange={(e) => setVol(Number(e.target.value))} aria-label="Volume do vídeo (só para você)" />
@@ -303,7 +363,28 @@ export function YouTubeStage({ yt, viewers = [], onAdd }) {
             <YIcon d={P.queue} />{queue.length > 0 && <span className="ytw-count">{queue.length}</span>}
           </button>
           <button type="button" className="ytw-btn" onClick={() => onAdd(isMusic ? 'music' : 'youtube')} aria-label={isMusic ? 'Adicionar música' : 'Adicionar vídeo'} title={isMusic ? 'Adicionar música' : 'Adicionar vídeo'}><YIcon d={P.plus} /></button>
-          <button type="button" className="ytw-btn" onClick={toggleFull} aria-label="Tela cheia" title="Tela cheia"><YIcon d={P.expand} /></button>
+          {!isMusic && (
+            <button type="button" className={`ytw-btn${cc ? ' is-on' : ''}`} onClick={toggleCc} aria-pressed={cc} aria-label={cc ? 'Desligar legendas' : 'Ligar legendas'} title={cc ? 'Legendas ligadas (C)' : 'Legendas desligadas, inclusive automáticas (C)'}>
+              <YIcon d={cc ? P.cc : P.ccOff} />
+            </button>
+          )}
+          {!isMusic && (
+            <span className="ytw-menu-wrap">
+              <button type="button" className={`ytw-btn${showMenu ? ' is-on' : ''}`} onClick={() => setShowMenu((v) => !v)} aria-expanded={showMenu} aria-label="Configurações do vídeo" title="Configurações (qualidade, velocidade, legendas)"><YIcon d={P.gear} /></button>
+              {showMenu && (
+                <div className="ytw-menu" role="menu">
+                  <button type="button" role="menuitemcheckbox" aria-checked={cc} onClick={toggleCc}>
+                    <span>Legendas</span><b>{cc ? 'Ligadas' : 'Desligadas'}</b>
+                  </button>
+                  <button type="button" role="menuitemcheckbox" aria-checked={nativeCtl} onClick={toggleNative}>
+                    <span>Controles do YouTube<small>Mostra a engrenagem do YouTube para escolher qualidade (até 4K), velocidade e idioma da legenda.</small></span>
+                    <b>{nativeCtl ? 'Ligados' : 'Desligados'}</b>
+                  </button>
+                </div>
+              )}
+            </span>
+          )}
+          <button type="button" className="ytw-btn" onClick={toggleFull} aria-label="Tela cheia" title="Tela cheia (F)"><YIcon d={P.expand} /></button>
           <button type="button" className="ytw-btn ytw-danger" onClick={() => emit('yt:close')} aria-label={isMusic ? 'Parar música' : 'Fechar vídeo'} title={isMusic ? 'Parar música para todos' : 'Fechar vídeo para todos'}><YIcon d={P.close} /></button>
         </div>
       </div>

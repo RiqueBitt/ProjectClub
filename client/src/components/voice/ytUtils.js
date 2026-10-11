@@ -26,3 +26,25 @@ export function canUseWebview() {
     return !(document.createElement('webview') instanceof HTMLUnknownElement);
   } catch { return false; }
 }
+
+// Legendas: preferência do usuário (padrão: desligadas, inclusive as
+// automáticas). O player do YouTube aplica via módulo "captions".
+const CC_KEY = 'pc.yt.captions';
+export function readCaptionsPref() {
+  try { return localStorage.getItem(CC_KEY) === 'on'; } catch { return false; }
+}
+export function writeCaptionsPref(on) {
+  try { localStorage.setItem(CC_KEY, on ? 'on' : 'off'); } catch { /* sem storage */ }
+}
+export function applyCaptions(player, on) {
+  if (!player) return;
+  try {
+    if (on) {
+      player.loadModule?.('captions');
+      player.setOption?.('captions', 'track', { languageCode: 'pt' });
+    } else {
+      player.setOption?.('captions', 'track', {});
+      player.unloadModule?.('captions');
+    }
+  } catch { /* módulo ainda não carregado */ }
+}
