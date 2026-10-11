@@ -72,6 +72,7 @@ const activityRoutes = require('./routes/activity');
 const gamesLibraryRoutes = require('./routes/games'); // biblioteca de jogos (tempo de jogo)
 const decorationsRoutes = require('./routes/decorations');
 const youtubeRoutes = require('./routes/youtube');
+const archiveRoutes = require('./routes/archive');
 const clansRoutes = require('./routes/clans');
 const minigamesRoutes = require('./routes/minigames');
 
@@ -356,6 +357,7 @@ function createApp() {
   app.use('/api/games', gamesLibraryRoutes);
   app.use('/api/decorations', decorationsRoutes);
   app.use('/api/youtube', youtubeRoutes);
+  app.use('/api/archive', archiveRoutes);
   app.use('/api/clans', clansRoutes);
   app.use('/api/minigames', minigamesRoutes);
   app.use('/api/anuncios', require('./routes/staffAnnouncements'));

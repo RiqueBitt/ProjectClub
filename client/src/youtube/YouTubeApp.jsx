@@ -63,6 +63,7 @@ export function YouTubeHost() {
             if (e.data === 1) {
               applyCaptions(e.target, readCaptionsPref());
               try { useMusic.getState().setPlaying(false); } catch { /* ignora */ }
+              window.dispatchEvent(new Event('pc-yt-play'));
               try {
                 const d = e.target.getVideoData?.();
                 const st = useYouTubeApp.getState();
@@ -117,8 +118,11 @@ export function YouTubeHost() {
   // Pausa ao ir para o mini player? Não: continua tocando (como no YouTube).
   useEffect(() => {
     const onCaptions = (e) => applyCaptions(playerRef.current, !!e.detail);
+    // Cinema começou a tocar: pausa o YouTube (um vídeo por vez).
+    const onCine = () => { try { playerRef.current?.pauseVideo?.(); } catch { /* ignora */ } };
     window.addEventListener('pc-yt-captions', onCaptions);
-    return () => window.removeEventListener('pc-yt-captions', onCaptions);
+    window.addEventListener('pc-cine-play', onCine);
+    return () => { window.removeEventListener('pc-yt-captions', onCaptions); window.removeEventListener('pc-cine-play', onCine); };
   }, []);
 
   if (!video) return null;

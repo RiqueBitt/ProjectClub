@@ -3,7 +3,7 @@
 .ytb {
   --ytb-red: #ff3b3b;
   --ytb-line: var(--lit-border-color, var(--border));
-  width: min(1240px, 100%); height: min(860px, calc(100vh - 32px)); display: flex; flex-direction: column; overflow: hidden;
+  width: min(1240px, 100%); height: min(860px, calc(100dvh / var(--pc-css-zoom, 1) - 32px)); display: flex; flex-direction: column; overflow: hidden;
   background: var(--bg-primary); color: var(--text-normal); border: 1px solid var(--ytb-line); border-radius: 18px;
   box-shadow: 0 30px 80px -24px rgba(0, 0, 0, .85);
 }

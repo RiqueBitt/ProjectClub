@@ -2322,6 +2322,9 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
      nenhuma compensação precisa entrar, já que ali não existe esse
      descompasso pra corrigir. */
   html:not(.is-electron-app) .app-shell { height: calc(100dvh / var(--global-zoom)); }
+  /* Zoom CSS efetivo (só quando ele está de fato ligado): painéis em
+     position: fixed (Cinema, YouTube) dividem 100dvh por ele. */
+  html:not(.is-electron-app):not(.auth-no-zoom) { --pc-css-zoom: var(--global-zoom); }
   /* Item pedido: "sistema podendo mudar o zoom de 1,0 até 2,0... pra
      melhor personalização" — histórico: começou fixo em 2x, foi
      reduzido em pedidos sucessivos (2 → 1.5 → 1.2 → 1, removido por

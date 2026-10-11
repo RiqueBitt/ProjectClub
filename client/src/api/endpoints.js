@@ -456,6 +456,11 @@ export const ytTrending = (category, continuation) => api.get('/youtube/trending
 export const ytRelated = (id) => api.get(`/youtube/related/${encodeURIComponent(id)}`).then((r) => r.data);
 export const ytChannel = (id) => api.get(`/youtube/channel/${encodeURIComponent(id)}`).then((r) => r.data);
 export const ytSuggest = (q) => api.get('/youtube/suggest', { params: { q } }).then((r) => r.data);
+// Cinema (Internet Archive): filmes, séries, desenhos e anime de domínio público.
+export const cineHome = () => api.get('/archive/home').then((r) => r.data);
+export const cineSearch = ({ q = '', cat = 'populares', sort = 'populares', page = 1 } = {}) => api.get('/archive/search', { params: { q, cat, sort, page } }).then((r) => r.data);
+export const cineItem = (id) => api.get(`/archive/item/${encodeURIComponent(id)}`).then((r) => r.data);
+export const cineSubtitle = (id, file) => api.get(`/archive/subtitle/${encodeURIComponent(id)}`, { params: { file }, responseType: 'text', transformResponse: (d) => d }).then((r) => r.data);
 
 // Item pedido: "posts da comunidade em destaque durante o mês" (categoria Início)
 export const listFeaturedPosts = () => api.get('/posts/featured').then((r) => r.data);
