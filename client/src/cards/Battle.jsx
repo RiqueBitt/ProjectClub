@@ -34,11 +34,13 @@ function Unit({ u, mine, canAttack, selected, targetable, dying, entering, onCli
     >
       <span className="tcgb-unit-shadow" aria-hidden="true" />
       <span className="tcgb-unit-body">
+        <span className="tcgb-unit-name" data-no-translate>{u.name}</span>
         <span className="tcgb-unit-art"><CardArt card={u} /><span className="tcgb-unit-gloss" /></span>
         {ab?.icon && <span className="tcgb-unit-ab" title={`${ab.label}: ${abilityText(u.ability, u.value)}`}><Icon d={ab.icon} size={12} /></span>}
-        <span className="tcgb-unit-atk"><b>{u.atk}</b></span>
-        <span className={`tcgb-unit-hp${u.hp < u.maxHp ? ' is-hurt' : ''}`}><b>{u.hp}</b></span>
-        {u.level > 1 && <span className="tcgb-unit-lv">{u.level}</span>}
+        <span className="tcgb-unit-pt">
+          <b className={`tcgb-unit-atk${u.atk > u.baseAtk ? ' is-up' : ''}`}>{u.atk}</b><i>/</i><b className={`tcgb-unit-hp${u.hp < u.maxHp ? ' is-hurt' : ''}`}>{u.hp}</b>
+        </span>
+        {u.level > 1 && <span className="tcgb-unit-lv">Nv {u.level}</span>}
       </span>
     </button>
   );
@@ -74,30 +76,52 @@ function TeamChips({ team, activeMember }) {
   );
 }
 
-function Hero({ p, side, targetable, onClick, active, activeMember, children, bubble }) {
+// Coluna da esquerda: retrato com anel de vida e a vida grande (alvo dos ataques).
+function RailHero({ p, side, targetable, onClick, active, bubble }) {
   return (
-    <div className={`tcgb-hero is-${side}${targetable ? ' is-target' : ''}${active ? ' is-active' : ''}${p.hp <= p.maxHp * 0.25 ? ' is-low' : ''}`} data-hero={side}>
-      <button type="button" className="tcgb-hero-face" onClick={onClick} disabled={!targetable} aria-label={`${p.name}: ${p.hp} de vida`}>
+    <div className={`tcgb-hero tcgb-railhero is-${side}${targetable ? ' is-target' : ''}${active ? ' is-active' : ''}${p.hp <= p.maxHp * 0.25 ? ' is-low' : ''}`} data-hero={side}>
+      <button type="button" className="tcgb-hero-face" onClick={onClick} disabled={!targetable} aria-label={`${p.name}: ${p.hp} de vida`} title={p.name}>
         <HpRing hp={p.hp} max={p.maxHp} />
         <span className="tcgb-hero-pic">
-          {p.isBot ? <BotPortrait name={p.name} size={72} className="tcgb-bot" /> : <UserAvatar user={{ displayName: p.name, avatarUrl: p.avatarUrl }} size={72} />}
+          {p.isBot ? <BotPortrait name={p.name} size={52} className="tcgb-bot" /> : <UserAvatar user={{ displayName: p.name, avatarUrl: p.avatarUrl }} size={52} />}
         </span>
-        <span className="tcgb-hero-hp"><Icon d={UI.heart} size={13} fill />{p.hp}</span>
         {bubble && <span key={bubble.id} className="tcgb-bubble">{bubble.text}</span>}
       </button>
-      {children}
-      <div className="tcgb-hero-info">
-        <strong data-no-translate>{p.name}</strong>
-        <TeamChips team={p.team} activeMember={activeMember} />
-        <span className="tcgb-energy" title="Energia">
-          {Array.from({ length: Math.max(p.maxEnergy, 1) }, (_, i) => <i key={i} className={i < p.energy ? 'on' : ''} />)}
-          <em>{p.energy}/{p.maxEnergy}</em>
-        </span>
-        <span className="tcgb-hero-meta"><Icon d={UI.deck} size={12} />{p.deckCount} no baralho · {p.handCount} na mão</span>
-      </div>
+      <span className="tcgb-rail-hp" title="Vida"><b>{p.hp}</b><small>/{p.maxHp}</small></span>
     </div>
   );
 }
+
+// Plaquinha do jogador no canto da área dele: nome, energia, poder, time.
+function Plate({ p, side, activeMember, children }) {
+  return (
+    <div className={`tcgb-plate is-${side}`}>
+      <strong data-no-translate>{p.name}</strong>
+      <TeamChips team={p.team} activeMember={activeMember} />
+      <span className="tcgb-energy" title={`Energia: ${p.energy}/${p.maxEnergy}`}>
+        {Array.from({ length: Math.max(p.maxEnergy, 1) }, (_, i) => <i key={i} className={i < p.energy ? 'on' : ''} />)}
+        <em>{p.energy}/{p.maxEnergy}</em>
+      </span>
+      {children}
+    </div>
+  );
+}
+
+// Coluna da direita: baralho, descarte e mão (contagens).
+function Piles({ p, side }) {
+  return (
+    <div className={`tcgb-piles is-${side}`}>
+      <div className="tcgb-pile is-deck" title={`${p.deckCount} cartas no baralho`}>
+        <CardBack />
+        <b>{p.deckCount}</b>
+        <small>Baralho</small>
+      </div>
+      <div className="tcgb-pile is-count" title="Cartas usadas ou destruídas"><small>Descarte</small><b>{p.graveyard}</b></div>
+      <div className="tcgb-pile is-count" title="Cartas na mão"><small>Mão</small><b>{p.handCount}</b></div>
+    </div>
+  );
+}
+
 
 const EMOTES = [['hello', 'Olá!'], ['gg', 'Bom jogo!'], ['nice', 'Boa jogada!'], ['wow', 'Uau!'], ['think', 'Hmm…'], ['oops', 'Ops!'], ['thanks', 'Valeu!'], ['threat', 'Prepare-se!']];
 const EFFECT_LABEL = {
@@ -202,6 +226,7 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
   const [emoteOpen, setEmoteOpen] = useState(false);
   const [emotesMuted, setEmotesMuted] = useState(() => readPref('pc-cards-emotes', 'on') === 'off');
   const [coach, setCoach] = useState(true);
+  const [handOpen, setHandOpen] = useState(false);
   const [endNote, setEndNote] = useState('');
   const seenEmotes = useRef(new Set());
   const [ticker, setTicker] = useState([]);
@@ -581,119 +606,144 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
             <Icon d={UI.swap} /><span className="tcgb-lbl">Trocar lado</span>
           </button>
         )}
-        {mode === 'play' && match.mode === 'PVP' && !view.over && (
-          <span className="tcgb-emote-wrap">
-            <button type="button" className="tcg-btn ghost" onClick={() => setEmoteOpen((v) => !v)} aria-expanded={emoteOpen} aria-label="Emotes" title="Emotes">
-              <Icon d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8.5 14.5s1.3 2 3.5 2 3.5-2 3.5-2M9 9.5h.01M15 9.5h.01" />
-            </button>
-            {emoteOpen && (
-              <div className="tcgb-emotes">
-                {EMOTES.map(([k, t]) => <button key={k} type="button" onClick={() => sendEmote(k, t)}>{t}</button>)}
-                <label className="tcg-check"><input type="checkbox" checked={emotesMuted} onChange={toggleEmotes} />Silenciar emotes do oponente</label>
-              </div>
-            )}
-          </span>
-        )}
-        {mode !== 'replay' && (
-          <button type="button" className={`tcg-btn ghost tcgb-speed${fast ? ' on' : ''}`} onClick={toggleFast} title="Velocidade das animações" aria-pressed={fast}>{fast ? '2x' : '1x'}</button>
-        )}
-        <button type="button" className="tcg-btn ghost" onClick={toggleAudio} aria-label={audio.muted ? 'Ativar som' : 'Silenciar'} title={audio.muted ? 'Ativar som' : 'Silenciar'}>
-          <Icon d={audio.muted ? 'M11 5 6 9H3v6h3l5 4zM22 9l-6 6M16 9l6 6' : 'M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13'} />
-        </button>
-        <button type="button" className="tcg-btn ghost" onClick={() => setShowLog((v) => !v)} aria-expanded={showLog}><Icon d={UI.list} /><span className="tcgb-lbl">Registro</span></button>
-        {mode === 'play' && !view.over && <button type="button" className="tcg-btn ghost danger" disabled={busy} onClick={() => { if (window.confirm('Desistir da partida?')) send({ type: 'SURRENDER' }); }}><Icon d={UI.flag} /><span className="tcgb-lbl">Desistir</span></button>}
       </div>
 
-      <div className="tcgb-field">
-        <div className="tcgb-side is-foe">
-          <Hero p={foe} side="foe" targetable={targets.has('hero')} onClick={clickFoeHero} active={view.active === foe.seat && !view.over} activeMember={view.active === foe.seat ? view.activeMember : null} bubble={bubbles.foe}>
-            <HeroPower power={foe.power} foe />
-          </Hero>
-          <div className="tcgb-foe-hand" aria-label={`${foe.handCount} cartas na mão`}>
-            {Array.from({ length: Math.min(foe.handCount, 10) }, (_, i) => <CardBack key={i} small />)}
-          </div>
-        </div>
-        <div className="tcgb-mat">
-        <div className="tcgb-board is-foe">
-          {foe.board.map((u) => <Unit key={u.uid} u={u} targetable={targets.has(u.uid)} dying={dying.has(u.uid)} entering={entering.has(u.uid)} onClick={() => clickUnit(u, false)} onHover={setHover} />)}
-          {!foe.board.length && <span className="tcgb-empty">Campo vazio</span>}
-        </div>
-
-        <div className="tcgb-mid">
-          <span className="tcgb-mid-line" />
-          {mode === 'play' ? (
-            <>
-            {myTurn && legal.attackers.length > 1 && !spellSel && !powerSel && (
-              <button type="button" className="tcg-btn tcgb-allin" disabled={busy} onClick={attackAll} title="Ataca com todas as unidades que puderem"><Icon d={UI.sword} />Atacar com tudo</button>
-            )}
-            <EndTurnButton
-              onClick={() => send({ type: 'END_TURN' })} disabled={!myTurn || busy} busy={busy} myTurn={myTurn} partnerTurn={partnerTurn}
-              pulse={myTurn && !legal.playable.length && !legal.attackers.length && !legal.power} secondsLeft={secondsLeft} total={view.rules?.turnSeconds || 75}
-            />
-            {myTurn && (legal.playable.length + legal.attackers.length + (legal.power ? 1 : 0)) > 0 && (
-              <span className="tcgb-left" title="Cartas que dá pra jogar, unidades que podem atacar e o poder do herói">
-                {legal.playable.length > 0 && <i><Icon d={UI.deck} size={12} />{legal.playable.length}</i>}
-                {legal.attackers.length > 0 && <i><Icon d={UI.sword} size={12} />{legal.attackers.length}</i>}
-                {legal.power && <i><Icon d={UI.bolt} size={12} />poder</i>}
+      <div className="tcgb-table">
+        {/* Coluna da esquerda: vida dos heróis e ações */}
+        <aside className="tcgb-rail">
+          <RailHero p={foe} side="foe" targetable={targets.has('hero')} onClick={clickFoeHero} active={view.active === foe.seat && !view.over} bubble={bubbles.foe} />
+          <div className="tcgb-rail-tools">
+            {mode === 'play' && match.mode === 'PVP' && !view.over && (
+              <span className="tcgb-emote-wrap">
+                <button type="button" className="tcgb-rail-btn" onClick={() => setEmoteOpen((v) => !v)} aria-expanded={emoteOpen} aria-label="Emotes" title="Emotes">
+                  <Icon d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8.5 14.5s1.3 2 3.5 2 3.5-2 3.5-2M9 9.5h.01M15 9.5h.01" />
+                </button>
+                {emoteOpen && (
+                  <div className="tcgb-emotes">
+                    {EMOTES.map(([k, t]) => <button key={k} type="button" onClick={() => sendEmote(k, t)}>{t}</button>)}
+                    <label className="tcg-check"><input type="checkbox" checked={emotesMuted} onChange={toggleEmotes} />Silenciar emotes do oponente</label>
+                  </div>
+                )}
               </span>
             )}
-            </>
-          ) : mode === 'replay' ? (
-            <div className="tcgb-replay">
-              <button type="button" className="tcg-icon-btn" onClick={() => jumpTo(Math.max(0, frameIdx - 1))} aria-label="Voltar"><Icon d="M15 18l-6-6 6-6" /></button>
-              <button type="button" className="tcg-btn primary" onClick={() => { if (frameIdx >= frames.length - 1) jumpTo(0); setPlaying((p) => !p); }}>{playing ? 'Pausar' : frameIdx >= frames.length - 1 ? 'Ver de novo' : 'Reproduzir'}</button>
-              <button type="button" className="tcg-icon-btn" onClick={() => jumpTo(Math.min(frames.length - 1, frameIdx + 1))} aria-label="Avançar"><Icon d="M9 6l6 6-6 6" /></button>
-              <select className="tcg-select" value={speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label="Velocidade"><option value={0.5}>0,5x</option><option value={1}>1x</option><option value={2}>2x</option><option value={4}>4x</option></select>
-              <span className="tcg-dim">{frameIdx + 1}/{frames.length}</span>
+            {mode !== 'replay' && (
+              <button type="button" className={`tcgb-rail-btn tcgb-speed${fast ? ' on' : ''}`} onClick={toggleFast} title="Velocidade das animações" aria-pressed={fast}>{fast ? '2x' : '1x'}</button>
+            )}
+            <button type="button" className="tcgb-rail-btn" onClick={toggleAudio} aria-label={audio.muted ? 'Ativar som' : 'Silenciar'} title={audio.muted ? 'Ativar som' : 'Silenciar'}>
+              <Icon d={audio.muted ? 'M11 5 6 9H3v6h3l5 4zM22 9l-6 6M16 9l6 6' : 'M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13'} />
+            </button>
+            <button type="button" className={`tcgb-rail-btn${showLog ? ' on' : ''}`} onClick={() => setShowLog((v) => !v)} aria-expanded={showLog} aria-label="Registro" title="Registro da partida"><Icon d={UI.list} /></button>
+            {mode === 'play' && !view.over && <button type="button" className="tcgb-rail-btn is-danger" disabled={busy} onClick={() => { if (window.confirm('Desistir da partida?')) send({ type: 'SURRENDER' }); }} aria-label="Desistir" title="Desistir"><Icon d={UI.flag} /></button>}
+          </div>
+          <RailHero p={me} side="me" active={view.active === me.seat && !view.over} bubble={bubbles.me} />
+        </aside>
+
+        {/* Mesa: área do oponente em cima, a sua embaixo */}
+        <div className="tcgb-zones">
+          <div className="tcgb-foe-hand" aria-label={`${foe.handCount} cartas na mão`}>
+            {Array.from({ length: Math.min(foe.handCount, 10) }, (_, i) => <CardBack key={i} />)}
+          </div>
+          <section className={`tcgb-zone is-foe${view.active === foe.seat && !view.over ? ' is-active' : ''}`}>
+            <Plate p={foe} side="foe" activeMember={view.active === foe.seat ? view.activeMember : null}>
+              <HeroPower power={foe.power} foe />
+            </Plate>
+            <div className="tcgb-board is-foe">
+              {foe.board.map((u) => <Unit key={u.uid} u={u} targetable={targets.has(u.uid)} dying={dying.has(u.uid)} entering={entering.has(u.uid)} onClick={() => clickUnit(u, false)} onHover={setHover} />)}
+              {!foe.board.length && <span className="tcgb-empty">Campo vazio</span>}
             </div>
-          ) : (
-            <div className="tcgb-watchbar">
-              <b className="tcgb-live">AO VIVO</b>
-              <span>{view.over ? 'Partida encerrada' : `Vez de ${view.active === me.seat ? me.name : foe.name}`}</span>
-              {match.watchers?.length > 0 && (
-                <span className="tcgb-watchers" title={match.watchers.map((w) => w.displayName).join(', ')}>
-                  {match.watchers.slice(0, 5).map((w) => <UserAvatar key={w.id} user={w} size={22} />)}
-                </span>
+          </section>
+
+          <div className="tcgb-mid">
+            {mode === 'play' ? (
+              <>
+                {myTurn && (legal.playable.length + legal.attackers.length + (legal.power ? 1 : 0)) > 0 && (
+                  <span className="tcgb-left" title="Cartas que dá pra jogar, unidades que podem atacar e o poder do herói">
+                    {legal.playable.length > 0 && <i><Icon d={UI.deck} size={12} />{legal.playable.length}</i>}
+                    {legal.attackers.length > 0 && <i><Icon d={UI.sword} size={12} />{legal.attackers.length}</i>}
+                    {legal.power && <i><Icon d={UI.bolt} size={12} />poder</i>}
+                  </span>
+                )}
+                {myTurn && legal.attackers.length > 1 && !spellSel && !powerSel && (
+                  <button type="button" className="tcg-btn tcgb-allin" disabled={busy} onClick={attackAll} title="Ataca com todas as unidades que puderem"><Icon d={UI.sword} />Atacar com tudo</button>
+                )}
+                <EndTurnButton
+                  onClick={() => send({ type: 'END_TURN' })} disabled={!myTurn || busy} busy={busy} myTurn={myTurn} partnerTurn={partnerTurn}
+                  pulse={myTurn && !legal.playable.length && !legal.attackers.length && !legal.power} secondsLeft={secondsLeft} total={view.rules?.turnSeconds || 75}
+                />
+              </>
+            ) : mode === 'replay' ? (
+              <div className="tcgb-replay">
+                <button type="button" className="tcg-icon-btn" onClick={() => jumpTo(Math.max(0, frameIdx - 1))} aria-label="Voltar"><Icon d="M15 18l-6-6 6-6" /></button>
+                <button type="button" className="tcg-btn primary" onClick={() => { if (frameIdx >= frames.length - 1) jumpTo(0); setPlaying((p) => !p); }}>{playing ? 'Pausar' : frameIdx >= frames.length - 1 ? 'Ver de novo' : 'Reproduzir'}</button>
+                <button type="button" className="tcg-icon-btn" onClick={() => jumpTo(Math.min(frames.length - 1, frameIdx + 1))} aria-label="Avançar"><Icon d="M9 6l6 6-6 6" /></button>
+                <select className="tcg-select" value={speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label="Velocidade"><option value={0.5}>0,5x</option><option value={1}>1x</option><option value={2}>2x</option><option value={4}>4x</option></select>
+                <span className="tcg-dim">{frameIdx + 1}/{frames.length}</span>
+              </div>
+            ) : (
+              <div className="tcgb-watchbar">
+                <b className="tcgb-live">AO VIVO</b>
+                <span>{view.over ? 'Partida encerrada' : `Vez de ${view.active === me.seat ? me.name : foe.name}`}</span>
+                {match.watchers?.length > 0 && (
+                  <span className="tcgb-watchers" title={match.watchers.map((w) => w.displayName).join(', ')}>
+                    {match.watchers.slice(0, 5).map((w) => <UserAvatar key={w.id} user={w} size={22} />)}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          <section className={`tcgb-zone is-me${view.active === me.seat && !view.over ? ' is-active' : ''}`}>
+            <Plate p={me} side="me" activeMember={view.active === me.seat ? view.activeMember : null}>
+              <HeroPower power={me.power} usable={myTurn && !busy && !!legal.power} casting={powerSel} onUse={usePower} foe={readOnly} />
+              {me.partnerHand && !readOnly && (
+                <details className="tcgb-partner">
+                  <summary><Icon d={UI.users} size={14} />Mão do parceiro ({me.partnerHand.length})</summary>
+                  <div className="tcgb-partner-cards">{me.partnerHand.map((c) => <CardView key={c.uid} card={c} size="xs" tilt={false} />)}</div>
+                </details>
               )}
+            </Plate>
+            <div className={`tcgb-board is-me${myTurn && legal.playable.length ? ' is-drop' : ''}`}
+              onDragOver={(e) => { if (myTurn) e.preventDefault(); }}
+              onDrop={(e) => { e.preventDefault(); playCard(e.dataTransfer.getData('text/plain'), true); }}
+            >
+              {me.board.map((u) => <Unit key={u.uid} u={u} mine canAttack={myTurn && !spellSel && attackers.has(u.uid)} targetable={targets.has(u.uid)} selected={selected === u.uid} dying={dying.has(u.uid)} entering={entering.has(u.uid)} onClick={() => clickUnit(u, true)} onHover={setHover} />)}
+              {!me.board.length && <span className="tcgb-empty">{myTurn ? 'Arraste ou clique numa carta da mão' : 'Campo'}</span>}
             </div>
-          )}
-          <span className="tcgb-mid-line" />
+          </section>
         </div>
 
-        <div className={`tcgb-board is-me${myTurn && legal.playable.length ? ' is-drop' : ''}`}
-          onDragOver={(e) => { if (myTurn) e.preventDefault(); }}
-          onDrop={(e) => { e.preventDefault(); playCard(e.dataTransfer.getData('text/plain'), true); }}
-        >
-          {me.board.map((u) => <Unit key={u.uid} u={u} mine canAttack={myTurn && !spellSel && attackers.has(u.uid)} targetable={targets.has(u.uid)} selected={selected === u.uid} dying={dying.has(u.uid)} entering={entering.has(u.uid)} onClick={() => clickUnit(u, true)} onHover={setHover} />)}
-          {!me.board.length && <span className="tcgb-empty">{myTurn ? 'Arraste ou clique numa carta da mão' : 'Campo'}</span>}
-        </div>
-        </div>
-        <div className="tcgb-side is-me">
-          <Hero p={me} side="me" active={view.active === me.seat && !view.over} activeMember={view.active === me.seat ? view.activeMember : null} bubble={bubbles.me}>
-            <HeroPower power={me.power} usable={myTurn && !busy && !!legal.power} casting={powerSel} onUse={usePower} foe={readOnly} />
-          </Hero>
-          {me.partnerHand && !readOnly && (
-            <details className="tcgb-partner">
-              <summary><Icon d={UI.users} size={14} />Mão do parceiro ({me.partnerHand.length})</summary>
-              <div className="tcgb-partner-cards">{me.partnerHand.map((c) => <CardView key={c.uid} card={c} size="xs" tilt={false} />)}</div>
-            </details>
-          )}
-          <div className="tcgb-hand" style={{ '--n': me.hand?.length || 0 }}>
-            {(me.hand || []).map((c, i) => (
-              <div key={c.uid}
-                className={`tcgb-hand-slot${playable.has(c.uid) && myTurn ? ' is-playable' : ''}${spellSel === c.uid ? ' is-casting' : ''}${handPick === c.uid ? ' is-picked' : ''}`}
-                style={{ '--i': i, '--n': me.hand.length }}
-              >
-                <CardView
-                  card={c} size="sm" onClick={() => playCard(c.uid)} dim={!myTurn || !playable.has(c.uid)}
-                  draggable={myTurn && playable.has(c.uid) && !legal.spellTargets?.[c.uid]}
-                  onDragStart={(e) => { e.dataTransfer.setData('text/plain', c.uid); e.dataTransfer.effectAllowed = 'move'; }}
-                  aria-label={`${c.kind === 'SPELL' ? 'Lançar' : 'Jogar'} ${c.name} (custo ${c.cost})`}
-                />
-              </div>
-            ))}
-            {readOnly && me.handCount > 0 && Array.from({ length: Math.min(me.handCount, 10) }, (_, i) => <CardBack key={i} small />)}
-          </div>
+        {/* Coluna da direita: pilhas */}
+        <aside className="tcgb-pilecol">
+          <Piles p={foe} side="foe" />
+          <Piles p={me} side="me" />
+        </aside>
+      </div>
+
+      {/* Mão: recolhida embaixo, abre ao passar o mouse (ou tocar) */}
+      <div className={`tcgb-handdock${handOpen || spellSel || handPick ? ' is-open' : ''}${readOnly ? ' is-readonly' : ''}`}
+        onMouseEnter={() => setHandOpen(true)} onMouseLeave={() => setHandOpen(false)}
+      >
+        {!readOnly && (me.hand?.length || 0) > 0 && (
+          <button type="button" className="tcgb-handtab" onClick={() => setHandOpen((v) => !v)} aria-expanded={handOpen}>
+            <Icon d={handOpen ? 'M6 9l6 6 6-6' : 'M6 15l6-6 6 6'} size={14} />
+            {handOpen ? 'Recolher mão' : `Passe o mouse para ver a mão (${me.hand.length})`}
+          </button>
+        )}
+        <div className="tcgb-hand" style={{ '--n': me.hand?.length || 0 }}>
+          {(me.hand || []).map((c, i) => (
+            <div key={c.uid}
+              className={`tcgb-hand-slot${playable.has(c.uid) && myTurn ? ' is-playable' : ''}${spellSel === c.uid ? ' is-casting' : ''}${handPick === c.uid ? ' is-picked' : ''}`}
+              style={{ '--i': i, '--n': me.hand.length }}
+            >
+              <CardView
+                card={c} size="sm" onClick={() => playCard(c.uid)} dim={!myTurn || !playable.has(c.uid)}
+                draggable={myTurn && playable.has(c.uid) && !legal.spellTargets?.[c.uid]}
+                onDragStart={(e) => { e.dataTransfer.setData('text/plain', c.uid); e.dataTransfer.effectAllowed = 'move'; }}
+                aria-label={`${c.kind === 'SPELL' ? 'Lançar' : 'Jogar'} ${c.name} (custo ${c.cost})`}
+              />
+            </div>
+          ))}
+          {readOnly && me.handCount > 0 && Array.from({ length: Math.min(me.handCount, 10) }, (_, i) => <CardBack key={i} small />)}
         </div>
       </div>
 
@@ -715,7 +765,11 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
       {aim && (
         <svg className="tcgb-aim" aria-hidden="true">
           <defs><marker id="tcgb-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 10 5 0 10z" fill={spellSel || powerSel ? '#a46bff' : '#ff4d6d'} /></marker></defs>
-          <line x1={aim.x1} y1={aim.y1} x2={aim.x2} y2={aim.y2} stroke={spellSel || powerSel ? '#a46bff' : '#ff4d6d'} strokeWidth="4" strokeDasharray="8 6" markerEnd="url(#tcgb-arrow)" />
+          <line x1={aim.x1} y1={aim.y1} x2={aim.x2} y2={aim.y2} stroke={spellSel || powerSel ? '#a46bff' : '#ff4d6d'} strokeWidth="3.5" strokeLinecap="round" markerEnd="url(#tcgb-arrow)" opacity=".9" />
+          <g transform={`translate(${(aim.x1 + aim.x2) / 2} ${(aim.y1 + aim.y2) / 2})`}>
+            <circle r="13" fill={spellSel || powerSel ? '#7b46e6' : '#d8344f'} stroke="#fff" strokeOpacity=".55" strokeWidth="2" />
+            <path d={spellSel || powerSel ? 'M1 -7 -4 1h4l-1 6 5-8h-4z' : 'M-5 5 4 -4M1 -5h4v4M-6 1l5 5'} fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </g>
         </svg>
       )}
       {cine && <div key={cine.key} className="tcgb-cine" style={{ '--c': cine.color }} aria-hidden="true" />}

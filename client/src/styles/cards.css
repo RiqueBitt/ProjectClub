@@ -1208,3 +1208,134 @@ button.tcg-card:hover:not(.is-dim) { transform: translateY(-6px); }
 .tcgb-turn { flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; }
 .tcgb-coach { top: 70px; right: 16px; left: auto; bottom: auto; }
 @media (max-width: 760px) { .tcgb-coach { top: auto; bottom: 140px; left: 8px; right: 8px; } }
+
+/* =====================================================================
+   Etapa 8 — mesa estilo tabuleiro: coluna de vida/ações à esquerda,
+   áreas tracejadas, pilhas à direita e mão que abre ao passar o mouse
+   ===================================================================== */
+.tcgb { --zone-line: rgba(140,170,220,.3); --panel: rgba(8,16,34,.84); }
+.tcgb > .tcgb-table { position: relative; z-index: 1; }
+.tcgb-table { flex: 1; min-height: 0; display: grid; grid-template-columns: 78px minmax(0, 1fr) 118px; gap: 10px; padding: 10px 10px 66px; }
+/* Coluna esquerda */
+.tcgb-rail { display: flex; flex-direction: column; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 0; border-radius: 18px; background: var(--panel); border: 1px solid rgba(120,150,210,.2); box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+.tcgb-railhero { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.tcgb-railhero.is-me { flex-direction: column-reverse; }
+.tcgb-railhero .tcgb-hero-face { width: 62px; height: 62px; }
+.tcgb-railhero .tcgb-hero-pic { inset: 6px; }
+.tcgb-railhero.is-active .tcgb-hero-face { box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 70%, transparent); }
+.tcgb-rail-hp { display: flex; align-items: baseline; gap: 1px; padding: 2px 10px; border-radius: 999px; background: rgba(0,0,0,.35); border: 1px solid rgba(140,170,220,.22); }
+.tcgb-rail-hp b { font-size: 24px; line-height: 1.1; font-weight: 900; color: #fff; font-variant-numeric: tabular-nums; }
+.tcgb-rail-hp small { font-size: 11px; color: #8da3c9; font-weight: 700; }
+.tcgb-railhero.is-low .tcgb-rail-hp b { color: #ff6b7a; }
+.tcgb-rail-tools { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.tcgb-rail-btn { position: relative; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; padding: 0; cursor: pointer; font: inherit; font-size: 13px; font-weight: 900;
+  color: #cfe0ff; background: radial-gradient(circle at 35% 30%, #23365e, #121d36); border: 1px solid rgba(140,170,220,.32); box-shadow: 0 4px 10px rgba(0,0,0,.35); transition: background .15s, transform .15s; }
+.tcgb-rail-btn:hover:not(:disabled) { background: radial-gradient(circle at 35% 30%, #34508a, #18264a); transform: translateY(-1px); }
+.tcgb-rail-btn.on { color: #ffd34d; border-color: rgba(255,211,77,.5); }
+.tcgb-rail-btn.is-danger { color: #ff7a88; }
+.tcgb-rail-btn:disabled { opacity: .5; cursor: default; }
+.tcgb-rail .tcgb-emotes { top: 0; left: calc(100% + 12px); right: auto; }
+.tcgb-rail .tcgb-bubble { left: calc(100% + 10px); top: 4px; }
+/* Mesa */
+.tcgb-zones { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; }
+.tcgb-zone { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 44px 14px 12px;
+  border: 2px dashed var(--zone-line); border-radius: 16px; background: rgba(9,18,38,.7); transition: border-color .25s, box-shadow .25s; }
+.tcgb-zone.is-foe { padding-top: 52px; }
+.tcgb-zone.is-active { border-color: color-mix(in srgb, var(--accent) 65%, rgba(255,255,255,.4)); box-shadow: inset 0 0 50px color-mix(in srgb, var(--accent) 12%, transparent); }
+.tcgb-zone .tcgb-board { width: 100%; min-height: 0; padding: 4px; }
+.tcgb-plate { position: absolute; z-index: 3; top: 8px; left: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; max-width: calc(100% - 20px); }
+.tcgb-plate strong { font-size: 13.5px; color: #e6eeff; text-shadow: 0 1px 2px #000; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tcgb-plate .tcgb-energy { padding: 3px 8px; border-radius: 999px; background: rgba(0,0,0,.35); }
+.tcgb-plate .tcgb-power { width: 38px; height: 38px; border-width: 2px; }
+.tcgb-plate .tcgb-power b { width: 18px; height: 18px; font-size: 10px; top: -6px; right: -6px; }
+.tcgb-plate .tcgb-power em { position: static; transform: none; margin-left: 6px; display: none; }
+.tcgb-plate .tcgb-partner { position: relative; right: auto; bottom: auto; margin: 0; }
+.tcgb-plate .tcgb-partner-cards { top: calc(100% + 6px); bottom: auto; left: 0; right: auto; }
+.tcgb-zones > .tcgb-foe-hand { position: absolute; z-index: 2; top: 0; left: 50%; transform: translate(-50%, -46%); display: flex; flex-wrap: nowrap; gap: 0; pointer-events: none; }
+.tcgb-zones > .tcgb-foe-hand .tcg-back { width: 58px; margin: 0 -7px; box-shadow: 0 6px 14px rgba(0,0,0,.5); }
+.tcgb-zones > .tcgb-mid { flex: 0 0 auto; display: flex; justify-content: flex-end; align-items: center; gap: 10px; min-height: 50px; padding: 0 4px; }
+.tcgb-zones > .tcgb-mid .tcgb-watchbar, .tcgb-zones > .tcgb-mid .tcgb-replay { margin: 0 auto; }
+/* Unidades planas com faixa de nome e A/V */
+.tcgb-unit { --uw: 108px; height: calc(var(--uw) * 1.24); }
+.tcgb-unit-shadow { display: none; }
+.tcgb-unit-body { transform: none; padding: 3px; border-radius: 11px; background: linear-gradient(160deg, var(--m1), var(--m2) 40%, var(--m3)); box-shadow: 0 8px 18px rgba(0,0,0,.55); }
+.tcgb-unit-name { position: absolute; z-index: 2; left: 3px; right: 3px; top: 3px; height: 21px; display: flex; align-items: center; padding: 0 7px; border-radius: 8px 8px 0 0;
+  background: linear-gradient(180deg, #2b3654, #151c30); color: #f2f5ff; font-family: Georgia, 'Times New Roman', serif; font-size: 11.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: inset 0 -1px 0 rgba(255,255,255,.08); }
+.tcgb-unit-art { inset: 24px 3px 3px; border-radius: 0 0 8px 8px; }
+.tcgb-unit.is-guard .tcgb-unit-body { border-radius: 11px 11px 22px 22px; padding: 3px; }
+.tcgb-unit.is-guard .tcgb-unit-art { inset: 24px 3px 3px; border-radius: 0 0 19px 19px; }
+.tcgb-unit-ab { top: 28px; right: 6px; left: auto; margin: 0; width: 22px; height: 22px; transform: none; }
+.tcgb-unit-pt { position: absolute; z-index: 3; right: 6px; bottom: 6px; display: inline-flex; align-items: baseline; gap: 1px; padding: 2px 8px; border-radius: 8px;
+  background: #f4f6fb; color: #141a2a; font-weight: 900; font-size: 14px; line-height: 1.2; box-shadow: 0 2px 8px rgba(0,0,0,.55); font-variant-numeric: tabular-nums; }
+.tcgb-unit-pt .tcgb-unit-atk, .tcgb-unit-pt .tcgb-unit-hp { position: static; width: auto; height: auto; display: inline; transform: none; filter: none; font-size: inherit; color: #1a2033; text-shadow: none; }
+.tcgb-unit-pt .tcgb-unit-atk::before, .tcgb-unit-pt .tcgb-unit-atk::after, .tcgb-unit-pt .tcgb-unit-hp::before, .tcgb-unit-pt .tcgb-unit-hp::after { content: none; }
+.tcgb-unit-pt .tcgb-unit-atk.is-up { color: #138a3a; }
+.tcgb-unit-pt .tcgb-unit-hp.is-hurt { color: #e11d48; }
+.tcgb-unit-pt i { font-style: normal; color: #8a93a8; margin: 0 1px; }
+.tcgb-unit-lv { top: auto; bottom: 7px; left: 7px; padding: 1px 6px; border-radius: 6px; background: rgba(0,0,0,.6); font-size: 10px; }
+.tcgb-unit.is-sick .tcgb-unit-body::before { top: 28px; right: auto; left: 8px; }
+.tcgb-unit.can-attack .tcgb-unit-body { box-shadow: 0 0 0 3px #4cc76b, 0 0 22px rgba(76,199,107,.65); }
+.tcgb-unit.is-selected .tcgb-unit-body { box-shadow: 0 0 0 3px #ffd34d, 0 0 30px rgba(255,211,77,.75); }
+.tcgb-unit.is-target .tcgb-unit-body { box-shadow: 0 0 0 3px #ff4d6d, 0 0 26px rgba(255,77,109,.7); }
+.tcgb-unit.has-shield .tcgb-unit-body::after { inset: -6px; border-radius: 16px; }
+.tcgb-unit.is-token { --uw: 86px; }
+/* Pilhas (direita) */
+.tcgb-pilecol { display: flex; flex-direction: column; justify-content: space-between; gap: 10px; min-height: 0; }
+.tcgb-piles { display: flex; flex-direction: column; gap: 8px; }
+.tcgb-piles.is-me { flex-direction: column-reverse; }
+.tcgb-pile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 8px; border-radius: 14px; background: var(--panel); border: 1px solid rgba(120,150,210,.22); color: #93a9d2; }
+.tcgb-pile small { font-size: 10.5px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; }
+.tcgb-pile b { font-size: 22px; font-weight: 900; color: #cfe0ff; font-variant-numeric: tabular-nums; }
+.tcgb-pile.is-deck .tcg-back { width: 62px; }
+.tcgb-pile.is-deck b { position: absolute; right: 10px; bottom: 28px; min-width: 28px; height: 28px; padding: 0 6px; border-radius: 14px; display: grid; place-items: center; font-size: 13px; background: #0d1a33; border: 2px solid rgba(140,170,220,.45); }
+/* Mão recolhida */
+.tcgb-handdock { position: absolute; z-index: 9; left: 50%; bottom: 0; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, calc(100% - 70px)); transition: transform .3s cubic-bezier(.2,.8,.2,1); }
+.tcgb-handdock.is-open { transform: translate(-50%, -6px); }
+.tcgb-handdock.is-readonly { transform: translate(-50%, calc(100% - 60px)); }
+.tcgb-handtab { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 14px; margin-bottom: 6px; border-radius: 10px; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 700;
+  color: #cfe0ff; background: rgba(8,16,34,.92); border: 1px solid rgba(140,170,220,.35); box-shadow: 0 6px 16px rgba(0,0,0,.4); }
+.tcgb-handdock .tcgb-hand { height: auto; padding: 0 20px 6px; flex: 0 0 auto; }
+.tcgb-handdock .tcgb-hand-slot { margin: 0 -10px; transform-origin: 50% 120%; transform: rotate(calc((var(--i) - var(--mid)) * 3deg)) translateY(calc(max(var(--i) - var(--mid), var(--mid) - var(--i)) * 4px)); }
+.tcgb-handdock .tcgb-hand-slot:hover, .tcgb-handdock .tcgb-hand-slot.is-casting { transform: rotate(0) translateY(-18px) scale(1.12); }
+.tcgb-handdock .tcgb-hand-slot .tcg-card { --w: 126px; }
+.tcgb-coach { right: 140px; }
+@media (max-width: 1100px) { .tcgb-table { grid-template-columns: 70px minmax(0, 1fr) 96px; } .tcgb-pile.is-deck .tcg-back { width: 50px; } .tcgb-unit { --uw: 96px; } }
+@media (max-width: 760px) {
+  .tcgb-table { grid-template-columns: 56px minmax(0, 1fr); gap: 6px; padding: 6px; }
+  .tcgb-pilecol { display: none; }
+  .tcgb-rail { padding: 8px 0; border-radius: 14px; }
+  .tcgb-railhero .tcgb-hero-face { width: 46px; height: 46px; }
+  .tcgb-railhero .tcgb-hero-pic { inset: 4px; }
+  .tcgb-rail-hp { padding: 1px 6px; }
+  .tcgb-rail-hp b { font-size: 17px; }
+  .tcgb-rail-hp small { display: none; }
+  .tcgb-rail-btn { width: 36px; height: 36px; }
+  .tcgb-rail-tools { gap: 6px; }
+  .tcgb-zone { padding: 34px 6px 6px; border-radius: 12px; }
+  .tcgb-zone.is-foe { padding-top: 40px; }
+  .tcgb-plate { top: 5px; left: 6px; gap: 6px; }
+  .tcgb-plate strong { font-size: 12px; max-width: 110px; }
+  .tcgb-plate .tcgb-energy i { width: 8px; height: 8px; }
+  .tcgb-plate .tcgb-power { width: 30px; height: 30px; }
+  .tcgb-zones > .tcgb-foe-hand .tcg-back { width: 34px; margin: 0 -4px; }
+  .tcgb-unit { --uw: 64px; }
+  .tcgb-unit.is-token { --uw: 52px; }
+  .tcgb-unit-name { height: 15px; font-size: 8.5px; padding: 0 4px; }
+  .tcgb-unit-art { inset: 18px 3px 3px; }
+  .tcgb-unit.is-guard .tcgb-unit-art { inset: 18px 3px 3px; }
+  .tcgb-unit-ab { top: 20px; right: 3px; width: 17px; height: 17px; }
+  .tcgb-unit-pt { right: 3px; bottom: 3px; padding: 1px 4px; font-size: 11px; border-radius: 6px; }
+  .tcgb-unit-lv { display: none; }
+  .tcgb-handdock, .tcgb-handdock.is-open, .tcgb-handdock.is-readonly { position: relative; left: auto; transform: none; }
+  .tcgb-handtab { display: none; }
+  .tcgb-handdock .tcgb-hand { padding: 0 6px 6px; }
+  .tcgb-handdock .tcgb-hand-slot { margin: 0 -6px; transform: none !important; }
+  .tcgb-handdock .tcgb-hand-slot .tcg-card { --w: 84px; }
+  .tcgb-rail .tcgb-emotes { left: calc(100% + 6px); width: 220px; }
+  .tcgb-coach { right: 8px; }
+}
+.tcgb-zone.is-foe .tcgb-plate { top: auto; bottom: 8px; }
+.tcgb-zone.is-foe { padding-top: 40px; padding-bottom: 50px; }
+.tcgb-zones > .tcgb-foe-hand { transform: translate(-50%, -58%); }
+.tcgb-preview { right: 146px; }
+@media (max-width: 760px) { .tcgb-zone.is-foe { padding-top: 26px; padding-bottom: 38px; } .tcgb-zone.is-foe .tcgb-plate { bottom: 5px; } .tcgb-preview { right: 8px; } }
