@@ -23,6 +23,10 @@ import createPostIcon from '../assets/icons/nav-create-post.png';
 import settingsIcon from '../assets/icons/settings.png';
 import chatIcon from '../assets/icons/chat.png';
 import { QuickSwitcherButton } from './QuickSwitcher.jsx';
+import { useMusic } from '../music/musicStore';
+
+export const DONATE_URL = 'https://livepix.gg/projectclubr';
+const svg = (d) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
 import { startManualDrag } from './TitleBar.jsx';
 
 // Barra de topo estilo Reddit — logo + busca + criar post + notificações +
@@ -49,6 +53,8 @@ function useSectionTitle() {
 
 export default function TopSearchBar() {
   const navigate = useNavigate();
+  const openMusic = useMusic((s) => s.openPanel);
+  const musicOn = useMusic((s) => s.playing);
   const layoutStyle = useStore((s) => s.layoutStyle);
   const sectionTitle = useSectionTitle();
   const { user, setUser } = useAuth();
@@ -157,6 +163,12 @@ export default function TopSearchBar() {
         <QuickSwitcherButton className="top-search-bar-icon-btn" />
         <button type="button" className="top-search-bar-icon-btn" title="Criar post" onClick={() => navigate('/comunidades')}>
           <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url(${createPostIcon})`, maskImage: `url(${createPostIcon})`, width: 18, height: 18 }} />
+        </button>
+        <a className="top-search-bar-icon-btn top-donate-btn" href={DONATE_URL} target="_blank" rel="noreferrer" title="Apoiar o Project Club (doação)" aria-label="Apoiar o Project Club">
+          {svg('M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z')}
+        </a>
+        <button type="button" className={`top-search-bar-icon-btn${musicOn ? ' is-music-on' : ''}`} title="Música (YouTube Music)" aria-label="Música" onClick={() => openMusic(true)}>
+          {svg('M9 18V5l11-2v13M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3zM20 16a3 3 0 1 1-3-3 3 3 0 0 1 3 3z')}
         </button>
         <button type="button" className="top-search-bar-icon-btn" title="Atividade dos amigos" aria-label="Atividade dos amigos" onClick={() => navigate('/atividade')}>
           <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url("${ACTIVITY_NAV_ICON}")`, maskImage: `url("${ACTIVITY_NAV_ICON}")`, width: 19, height: 19 }} />

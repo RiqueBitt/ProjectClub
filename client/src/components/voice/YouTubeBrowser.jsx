@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ytSearch, ytTrending, ytRelated, ytChannel, ytSuggest, listYoutubeVideos } from '../../api/endpoints';
 import { parseYouTubeId, thumb, canUseWebview } from './ytUtils.js';
 import '../../styles/ytbrowser.css';
+import { useMusic } from '../../music/musicStore';
 
 // ============================================================
 // Navegador do YouTube dentro do "Assistir juntos": busca com
@@ -110,6 +111,11 @@ function VideoCard({ v, onPlay, onQueue, onChannel, queued }) {
         )}
         {meta && <span className="ytb-meta">{meta}</span>}
       </div>
+      {!v.live && (
+        <button type="button" className="ytb-qbtn" onClick={() => { useMusic.getState().playNow({ videoId: v.videoId, title: v.title, artist: v.channel || '', thumbnail: v.thumbnail || thumb(v.videoId), duration: v.duration || '' }); }} aria-label="Ouvir só o áudio pra mim" title="Ouvir no player de música (só pra você)">
+          <Ico d="M9 18V5l11-2v13M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3zM20 16a3 3 0 1 1-3-3 3 3 0 0 1 3 3z" size={15} />
+        </button>
+      )}
       {onQueue && (
         <button type="button" className={`ytb-qbtn${queued ? ' is-done' : ''}`} onClick={() => onQueue(v)} aria-label={queued ? 'Adicionado à fila' : 'Adicionar à fila'} title={queued ? 'Na fila' : 'Adicionar à fila'}>
           <Ico d={queued ? I.check : I.plus} size={16} />

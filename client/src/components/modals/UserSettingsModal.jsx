@@ -970,6 +970,10 @@ export default function UserSettingsModal({ onClose }) {
             );
           })()}
           <div className="settings-modal-sidebar-divider" />
+          <a className="settings-modal-sidebar-item" href="https://livepix.gg/projectclubr" target="_blank" rel="noreferrer" style={{ color: '#ff4d6d', textDecoration: 'none' }}>
+            <span className="settings-modal-sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z" /></svg></span>
+            Apoiar o Project Club
+          </a>
           <button className="settings-modal-sidebar-item settings-modal-logout" onClick={doLogout}>
             {/* Item pedido: "troque o emoji/ícone de porta... mantenha
                 o ícone na cor vermelha, exatamente igual à cor do

@@ -26,6 +26,7 @@ import LinkConfirmModal from '../components/modals/LinkConfirmModal.jsx';
 import ImageLightbox from '../components/ImageLightbox.jsx';
 import AnnouncementOverlay from '../components/AnnouncementOverlay.jsx';
 import QuickSwitcher from '../components/QuickSwitcher.jsx';
+import { MusicEngine, MusicPanel, MiniMusicBar } from '../music/MusicPlayer.jsx';
 import { startBoot, cachedBoot } from '../utils/bootstrap';
 import { applyBootData } from '../utils/applyBoot';
 import { checkForNativeUpdate } from '../utils/nativeUpdateCheck';
@@ -480,6 +481,9 @@ export default function MainApp() {
       {settingsModalOpen && <Suspense fallback={null}><UserSettingsModal onClose={closeSettings} /></Suspense>}
       <AnnouncementOverlay />
       <QuickSwitcher />
+      <MusicEngine />
+      <MusicPanel />
+      <MiniMusicBar />
     </div>
   );
 }

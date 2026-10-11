@@ -21,7 +21,7 @@ export { parseYouTubeId };
 
 // Carrega a IFrame API uma vez só.
 let apiPromise = null;
-function loadYouTubeApi() {
+export function loadYouTubeApi() {
   if (typeof window === 'undefined') return Promise.reject(new Error('no window'));
   if (window.YT?.Player) return Promise.resolve(window.YT);
   if (apiPromise) return apiPromise;
