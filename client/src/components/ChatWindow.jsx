@@ -1,3 +1,4 @@
+import MiniJogosComposerButton from '../minijogos/MiniJogosComposerButton.jsx';
 import { Fragment, Suspense, lazy, memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useElementHeight } from '../utils/useElementHeight';
 import { createPortal } from 'react-dom';
@@ -1607,6 +1608,7 @@ function ChatWindowInner({ conversationId, channelId }) {
             <button ref={emojiBtnRef} type="button" className={`icon-btn chat-composer-btn ${pickerTab === 'emojis' ? 'on' : ''}`} title="Emoji" aria-label="Emoji" onClick={() => setPickerTab((t) => (t === 'emojis' ? null : 'emojis'))}>
               <ChatIcon name="smile" />
             </button>
+            <MiniJogosComposerButton />
             {emojiPickerOpen && createPortal(
               <EmojiPicker
                 key={pickerTab}

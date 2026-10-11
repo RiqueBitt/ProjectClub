@@ -73,6 +73,7 @@ const gamesLibraryRoutes = require('./routes/games'); // biblioteca de jogos (te
 const decorationsRoutes = require('./routes/decorations');
 const youtubeRoutes = require('./routes/youtube');
 const clansRoutes = require('./routes/clans');
+const minigamesRoutes = require('./routes/minigames');
 
 function createApp() {
   const app = express();
@@ -123,12 +124,11 @@ function createApp() {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        // 'wasm-unsafe-eval' removido — só existia pro RNNoise (redução de
-        // ruído do canal de voz, rodava via WebAssembly/AudioWorklet), que
-        // foi removido por completo do sistema de voz. Sem nenhum outro
-        // WASM no projeto, essa permissão só ficaria aberta à toa.
+        // 'wasm-unsafe-eval': o Ruffle (emulador de Flash dos Mini-Jogos,
+        // servido em /ruffle) roda em WebAssembly. Só libera compilar WASM,
+        // não libera eval() de JS.
         // YouTube "Assistir juntos" (chamada de voz): IFrame Player API.
-        scriptSrc: ["'self'", 'https://www.youtube.com'],
+        scriptSrc: ["'self'", "'wasm-unsafe-eval'", 'https://www.youtube.com'],
         scriptSrcElem: ["'self'", 'https://www.youtube.com'],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         // Item pedido (migração pro Agora.io): o SDK deles roda parte do
@@ -357,6 +357,7 @@ function createApp() {
   app.use('/api/decorations', decorationsRoutes);
   app.use('/api/youtube', youtubeRoutes);
   app.use('/api/clans', clansRoutes);
+  app.use('/api/minigames', minigamesRoutes);
   // Pacote de abertura (várias seções numa requisição só) — ver bootstrapController.
   app.get('/api/bootstrap', require('./middleware/auth').requireAuth, require('./controllers/bootstrapController').getBootstrap);
 
@@ -374,7 +375,7 @@ function createApp() {
       else if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
       // Pacotes de emoji, sons e arquivos dos Mini-Jogos (menos os .html,
       // que caem no no-cache acima): nome fixo, mudam raramente — 1 dia.
-      else if (/[\\/](emoji-sets|sounds|minigames)[\\/]/.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=86400');
+      else if (/[\\/](emoji-sets|sounds|minigames|ruffle)[\\/]/.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=86400');
     },
   }));
   app.get('*', (req, res, next) => {

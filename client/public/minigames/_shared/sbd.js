@@ -19,6 +19,14 @@
 
   w.include = function () { /* scripts já carregados via <script src> */ };
 
+  // Recordes do Project Club: o jogo chama pcReportScore(n) no fim da partida
+  // e isso sobe pra página do Project Club (mesma origem), que salva o placar.
+  w.pcReportScore = function (n) {
+    n = Math.floor(Number(n));
+    if (!isFinite(n) || n <= 0) return;
+    try { w.top.postMessage({ type: 'pc-minigame-score', score: n }, location.origin); } catch (e) { /* ignora */ }
+  };
+
   var state = 'Init';
   var loadFns = [];
   var loaded = document.readyState === 'complete';

@@ -173,3 +173,26 @@
   .mj-card:hover .mj-card-banner img { transform: none; }
   .mj-player-spinner { animation-duration: 2s; }
 }
+
+/* Recordes */
+.mj-player-stage { position: relative; }
+.mj-scores-btn { width: auto; gap: 6px; padding: 0 10px; }
+.mj-scores-best { font-size: 12px; font-weight: 800; color: #f5c542; }
+.mj-scores { position: absolute; top: 12px; right: 12px; z-index: 5; width: min(320px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow: auto;
+  background: var(--bg-secondary); border: 1px solid var(--lit-border-color, var(--border)); border-radius: 14px; box-shadow: var(--lit-shadow, 0 12px 32px rgba(0,0,0,.5)); padding: 12px; }
+.mj-scores-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; color: var(--header-primary); }
+.mj-scores-mine { font-size: 13px; color: var(--text-normal); background: color-mix(in srgb, var(--brand) 14%, transparent); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
+.mj-scores-empty { font-size: 13px; color: var(--text-muted); margin: 8px 2px; }
+.mj-scores-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.mj-scores-list li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; background: var(--bg-primary); font-size: 13px; }
+.mj-scores-pos { width: 18px; text-align: center; font-weight: 800; color: var(--text-muted); }
+.mj-scores-list li:nth-child(1) .mj-scores-pos { color: #f5c542; }
+.mj-scores-list li:nth-child(2) .mj-scores-pos { color: #c0c7d1; }
+.mj-scores-list li:nth-child(3) .mj-scores-pos { color: #d08a4a; }
+.mj-scores-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-normal); }
+.mj-scores-val { font-weight: 800; color: var(--header-primary); }
+.mj-score-toast { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 6; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 10px 18px; border-radius: 14px; background: var(--bg-secondary); border: 1px solid #f5c54266; color: var(--text-normal); font-size: 13px; animation: mj-toast-in .3s ease-out; }
+.mj-score-toast strong { color: #f5c542; font-size: 15px; }
+@keyframes mj-toast-in { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) { .mj-score-toast { animation: none; } }

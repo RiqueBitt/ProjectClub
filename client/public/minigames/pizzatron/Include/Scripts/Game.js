@@ -132,6 +132,8 @@ function ShowEnding(number) {
 		$("body").removeClass("bottle-hitbox hold").append('<audio autoplay class="ending-sfx" src="Assets/Sounds/Cash.mp3"></audio>')
 		$(".bottle-squeeze").remove()
 		app.setState("Ending")
+		// Project Club: manda as moedas da partida pro player (recordes)
+		if (window.pcReportScore) window.pcReportScore(coins)
 	}
 }
 

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { MINIJOGOS, MINIJOGOS_CATEGORIES, findMinijogo } from '../minijogos/catalog.js';
 import '../styles/minijogos.css';
+import { useMinijogoScores, ScoresPanel } from '../minijogos/MiniJogoScores.jsx';
 
 // Mini-Jogos: jogos que já vêm no Project Club (ver minijogos/catalog.js).
 // Lista no estilo "loja de atividades" (busca, destaques em cartões com
@@ -12,6 +13,7 @@ import '../styles/minijogos.css';
 
 // Ícones locais de traço (mesmo estilo de NavIcons.jsx).
 const MJ_PATHS = {
+  trophy: <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4ZM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4" />,
   search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></>,
   back: <path d="M15 18l-6-6 6-6" />,
   expand: <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />,
@@ -58,13 +60,15 @@ function MiniJogoPlayer({ game, onClose }) {
   const { user } = useAuth();
   const wrapRef = useRef(null);
   const frameRef = useRef(null);
+  const { board, toast } = useMinijogoScores(game.slug);
+  const [showScores, setShowScores] = useState(false);
   const [muted, setMuted] = useState(readMuted);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   const playerName = user?.displayName || user?.username || '';
-  const src = `${game.path}?name=${encodeURIComponent(playerName.slice(0, 19))}`;
+  const src = `${game.path}${game.path.includes('?') ? '&' : '?'}name=${encodeURIComponent(playerName.slice(0, 19))}`;
 
   // Repassa o mudo pro jogo (o shim dos jogos escuta essa mensagem).
   const sendMute = (value) => {
@@ -146,6 +150,10 @@ function MiniJogoPlayer({ game, onClose }) {
           <span className="mj-player-controls"><MjIcon name="keyboard" size={13} />{game.controls}</span>
         </div>
         <div className="mj-player-actions">
+          <button type="button" className={`mj-player-btn mj-scores-btn${showScores ? ' is-on' : ''}`} onClick={() => setShowScores((v) => !v)} title="Recordes" aria-label="Recordes" aria-pressed={showScores}>
+            <MjIcon name="trophy" />
+            {board?.me?.best > 0 && <span className="mj-scores-best">{board.me.best.toLocaleString('pt-BR')}</span>}
+          </button>
           <button type="button" className="mj-player-btn" onClick={() => { setLoaded(false); setReloadKey((k) => k + 1); }} title="Reiniciar" aria-label="Reiniciar">
             <MjIcon name="reload" />
           </button>
@@ -158,6 +166,10 @@ function MiniJogoPlayer({ game, onClose }) {
         </div>
       </div>
       <div className="mj-player-stage">
+        {showScores && <ScoresPanel board={board} onClose={() => setShowScores(false)} />}
+        {toast && (
+          <div className="mj-score-toast" role="status"><strong>{toast.title}</strong><span>{toast.text}</span></div>
+        )}
         {!loaded && (
           <div className="mj-player-loading" aria-hidden="true">
             <img src={game.icon} alt="" />

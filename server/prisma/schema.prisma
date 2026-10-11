@@ -2772,3 +2772,32 @@ model SeedMarker {
   key    String   @id
   doneAt DateTime @default(now())
 }
+
+// Mini-Jogos: cada placar enviado no fim de uma partida (histórico).
+model MinigameScore {
+  id        String   @id @default(uuid())
+  userId    String
+  game      String   @db.VarChar(40)
+  score     Int
+  createdAt DateTime @default(now())
+
+  @@index([game, score])
+  @@index([userId, game])
+}
+
+// Mini-Jogos: resumo por pessoa e jogo (recorde, partidas, tempo jogado).
+// O ranking lê daqui (1 linha por pessoa), não do histórico.
+model MinigameStat {
+  id           String    @id @default(uuid())
+  userId       String
+  game         String    @db.VarChar(40)
+  bestScore    Int       @default(0)
+  bestAt       DateTime?
+  plays        Int       @default(0)
+  seconds      Int       @default(0)
+  lastPlayedAt DateTime  @default(now())
+
+  @@unique([userId, game])
+  @@index([game, bestScore])
+  @@index([userId, lastPlayedAt])
+}

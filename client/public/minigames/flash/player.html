@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mini-Jogo</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #stage, #stage ruffle-player, #stage ruffle-object { display: block; width: 100%; height: 100%; }
+  #err { display: none; position: absolute; inset: 0; color: #ddd; font: 600 15px/1.5 system-ui, sans-serif; align-items: center; justify-content: center; text-align: center; padding: 24px; }
+</style>
+<script src="/ruffle/ruffle.js"></script>
+</head>
+<body>
+<div id="stage"></div>
+<div id="err">Não foi possível abrir este jogo.</div>
+<script src="player.js"></script>
+</body>
+</html>

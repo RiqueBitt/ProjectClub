@@ -230,6 +230,8 @@ function DropBag() {
 
 // Game over (resetting all variables)
 function GameOver() {
+	// Project Club: manda o placar da partida pro player (recordes)
+	if (window.pcReportScore) window.pcReportScore(score)
 	dead = false
 	holding = 0
 	life = 3
