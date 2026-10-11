@@ -13,7 +13,7 @@ const ITEMS = [
   { to: '/economia', icon: '💰', label: 'Economia' },
   { to: '/rank', icon: '🏆', label: 'Rank' },
   { to: '/casas', icon: '🧊', label: 'Casas', feature: 'houses' },
-  { to: '/figurinhas', icon: '🧷', label: 'Figurinhas', feature: 'stickers' },
+  { to: '/cartas', icon: '🃏', label: 'Arena de Cartas' },
   { to: '/tickets', icon: '🎫', label: 'Tickets' },
 ].filter((i) => !i.feature || isFeatureEnabled(i.feature)); // Casas/Figurinhas desligadas no código
 

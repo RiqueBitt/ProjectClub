@@ -1,0 +1,461 @@
+import { useEffect, useMemo, useState } from 'react';
+import UserAvatar from '../components/UserAvatar.jsx';
+import { CardView, CardArt, ELEMENTS, RARITIES, RARITY_ORDER, ABILITIES, Icon, UI } from './CardView.jsx';
+import { cardsAdmin, errMsg } from './api';
+import '../styles/cards.css';
+
+// Painel da Staff → Jogo de Cartas. Tudo que dá pra mudar no jogo sem código:
+// cartas, pacotes, regras/economia, jogadores, trocas e partidas.
+
+function Msg({ err, ok }) {
+  if (err) return <p className="tcg-error">{err}</p>;
+  if (ok) return <p className="tcg-ok">{ok}</p>;
+  return null;
+}
+function Field({ label, hint, children, wide }) {
+  return (
+    <label className={`tca-field${wide ? ' is-wide' : ''}`}>
+      <span>{label}</span>
+      {children}
+      {hint && <small>{hint}</small>}
+    </label>
+  );
+}
+const toFd = (obj, file) => {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined) continue;
+    fd.append(k, v === null ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v)));
+  }
+  if (file) fd.append('image', file);
+  return fd;
+};
+
+// ---------------- Cartas ----------------
+const EMPTY_CARD = { name: '', slug: '', collection: 'Origens', rarity: 'COMUM', element: 'FOGO', cost: 1, attack: 1, health: 1, ability: 'NONE', abilityValue: 0, description: '', flavor: '', enabled: true, imageUrl: null };
+
+function CardEditor({ initial, collections, onSaved, onCancel }) {
+  const [f, setF] = useState({ ...EMPTY_CARD, ...initial });
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(initial?.imageUrl || null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
+  useEffect(() => () => { if (preview?.startsWith('blob:')) URL.revokeObjectURL(preview); }, [preview]);
+  const save = async () => {
+    setBusy(true); setErr('');
+    try {
+      const body = { ...f, removeImage: !preview && initial?.imageUrl ? 'true' : undefined };
+      delete body.imageUrl; delete body.id; delete body.stats; delete body.power; delete body.quantity; delete body.level;
+      const r = initial?.id ? await cardsAdmin.updateCard(initial.id, toFd(body, file)) : await cardsAdmin.createCard(toFd(body, file));
+      onSaved(r.card);
+    } catch (e) { setErr(errMsg(e)); } finally { setBusy(false); }
+  };
+  const ab = ABILITIES[f.ability];
+  const previewCard = { ...f, cost: Number(f.cost), attack: Number(f.attack), health: Number(f.health), abilityValue: Number(f.abilityValue), imageUrl: preview };
+  return (
+    <div className="tca-editor">
+      <div className="tca-preview"><CardView card={previewCard} size="lg" /><small className="tcg-dim">Pré-visualização ao vivo</small></div>
+      <div className="tca-form">
+        <div className="tca-grid">
+          <Field label="Nome"><input value={f.name} maxLength={60} onChange={set('name')} /></Field>
+          <Field label="Identificador" hint="Gerado do nome se ficar vazio."><input value={f.slug} maxLength={60} onChange={set('slug')} placeholder="ex: fenix-rubra" /></Field>
+          <Field label="Coleção">
+            <input value={f.collection} maxLength={40} onChange={set('collection')} list="tca-collections" />
+            <datalist id="tca-collections">{collections.map((c) => <option key={c} value={c} />)}</datalist>
+          </Field>
+          <Field label="Raridade"><select value={f.rarity} onChange={set('rarity')}>{RARITY_ORDER.map((r) => <option key={r} value={r}>{RARITIES[r].label}</option>)}</select></Field>
+          <Field label="Elemento"><select value={f.element} onChange={set('element')}>{Object.entries(ELEMENTS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></Field>
+          <Field label="Custo (energia)"><input type="number" min="0" max="10" value={f.cost} onChange={set('cost')} /></Field>
+          <Field label="Ataque"><input type="number" min="0" max="30" value={f.attack} onChange={set('attack')} /></Field>
+          <Field label="Vida"><input type="number" min="1" max="40" value={f.health} onChange={set('health')} /></Field>
+          <Field label="Habilidade" hint={ab?.desc?.replace('{v}', f.abilityValue) || 'Sem habilidade especial.'}>
+            <select value={f.ability} onChange={set('ability')}>{Object.entries(ABILITIES).map(([k, v]) => <option key={k} value={k}>{v.label || 'Nenhuma'}</option>)}</select>
+          </Field>
+          {ab?.desc?.includes('{v}') && <Field label="Valor da habilidade"><input type="number" min="0" max="20" value={f.abilityValue} onChange={set('abilityValue')} /></Field>}
+          <Field label="Descrição" wide><textarea rows={2} maxLength={600} value={f.description || ''} onChange={set('description')} /></Field>
+          <Field label="Frase (texto de ambientação)" wide><input maxLength={300} value={f.flavor || ''} onChange={set('flavor')} /></Field>
+          <Field label="Imagem" hint="PNG/JPG/WebP/GIF. Sem imagem, a arte é gerada automaticamente." wide>
+            <span className="tca-file">
+              <input type="file" accept="image/*" onChange={(e) => { const x = e.target.files?.[0]; if (x) { setFile(x); setPreview(URL.createObjectURL(x)); } }} />
+              {preview && <button type="button" className="tcg-btn ghost" onClick={() => { setFile(null); setPreview(null); }}>Remover imagem</button>}
+            </span>
+          </Field>
+          <label className="tcg-check"><input type="checkbox" checked={!!f.enabled} onChange={set('enabled')} />Carta ativa (aparece em pacotes, coleções e partidas)</label>
+        </div>
+        <Msg err={err} />
+        <div className="tca-actions">
+          <button type="button" className="tcg-btn ghost" onClick={onCancel}>Cancelar</button>
+          <button type="button" className="tcg-btn primary" disabled={busy || !f.name.trim()} onClick={save}>{busy ? 'Salvando…' : initial?.id ? 'Salvar carta' : 'Criar carta'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function CardsAdminCards() {
+  const [data, setData] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [q, setQ] = useState('');
+  const [rar, setRar] = useState('');
+  const [el, setEl] = useState('');
+  const [msg, setMsg] = useState({});
+  const load = () => cardsAdmin.cards().then(setData).catch((e) => setMsg({ err: errMsg(e) }));
+  useEffect(() => { load(); }, []);
+  const collections = useMemo(() => [...new Set((data?.cards || []).map((c) => c.collection))], [data]);
+  const toggle = async (c) => {
+    try { await cardsAdmin.updateCard(c.id, toFd({ enabled: !c.enabled })); load(); } catch (e) { setMsg({ err: errMsg(e) }); }
+  };
+  const remove = async (c) => {
+    if (!window.confirm(`Excluir "${c.name}"?`)) return;
+    try { await cardsAdmin.deleteCard(c.id); setMsg({ ok: 'Carta excluída.' }); load(); } catch (e) {
+      if (e?.response?.status === 409 && window.confirm(`${errMsg(e)}\n\nExcluir mesmo assim? As cópias somem das coleções dos jogadores.`)) {
+        try { await cardsAdmin.deleteCard(c.id, true); setMsg({ ok: 'Carta excluída.' }); load(); } catch (e2) { setMsg({ err: errMsg(e2) }); }
+      } else if (e?.response?.status !== 409) setMsg({ err: errMsg(e) });
+    }
+  };
+  if (editing) return <CardEditor initial={editing === 'new' ? null : editing} collections={collections} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); setMsg({ ok: 'Carta salva.' }); load(); }} />;
+  const t = q.trim().toLowerCase();
+  const list = (data?.cards || []).filter((c) => (!rar || c.rarity === rar) && (!el || c.element === el) && (!t || `${c.name} ${c.collection}`.toLowerCase().includes(t)));
+  return (
+    <div className="tca">
+      <div className="tca-bar">
+        <label className="tcg-search"><Icon d={UI.search} size={15} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar carta ou coleção" /></label>
+        <select className="tcg-select" value={rar} onChange={(e) => setRar(e.target.value)}><option value="">Todas as raridades</option>{RARITY_ORDER.map((r) => <option key={r} value={r}>{RARITIES[r].label}</option>)}</select>
+        <select className="tcg-select" value={el} onChange={(e) => setEl(e.target.value)}><option value="">Todos os elementos</option>{Object.entries(ELEMENTS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
+        <span className="tcgb-spacer" />
+        <button type="button" className="tcg-btn primary" onClick={() => setEditing('new')}><Icon d={UI.plus} />Nova carta</button>
+      </div>
+      <Msg {...msg} />
+      <p className="tcg-dim">{data ? `${data.cards.length} cartas · ${data.cards.filter((c) => c.enabled).length} ativas` : 'Carregando…'}</p>
+      <div className="tca-table">
+        {list.map((c) => (
+          <div key={c.id} className={`tca-row${c.enabled ? '' : ' is-off'}`} style={{ '--rar': RARITIES[c.rarity]?.color }}>
+            <span className="tca-thumb"><CardArt card={c} /></span>
+            <span className="tca-main"><b data-no-translate>{c.name}</b><small>{RARITIES[c.rarity]?.label} · {ELEMENTS[c.element]?.label} · {c.collection}</small></span>
+            <span className="tca-stats" title="Custo / Ataque / Vida"><i>{c.cost}</i>{c.attack}/{c.health}</span>
+            <span className="tca-ab">{ABILITIES[c.ability]?.label || '—'}{ABILITIES[c.ability]?.desc?.includes('{v}') ? ` ${c.abilityValue}` : ''}</span>
+            <span className="tca-pow" title="Força">F{c.power}</span>
+            <span className="tca-owners" title="Jogadores que têm / cópias no total">{c.stats.owners} jog. · {c.stats.copies} cóp.</span>
+            <button type="button" className={`tca-toggle${c.enabled ? ' on' : ''}`} onClick={() => toggle(c)} aria-label={c.enabled ? 'Desativar' : 'Ativar'} title={c.enabled ? 'Ativa' : 'Desativada'}><i /></button>
+            <button type="button" className="tcg-btn ghost" onClick={() => setEditing(c)}>Editar</button>
+            <button type="button" className="tcg-icon-btn" onClick={() => remove(c)} aria-label="Excluir"><Icon d={UI.close} size={14} /></button>
+          </div>
+        ))}
+        {data && !list.length && <p className="tcg-empty">Nenhuma carta encontrada.</p>}
+      </div>
+    </div>
+  );
+}
+
+// ---------------- Pacotes ----------------
+const EMPTY_PACK = { name: '', description: '', color: '#7c5cff', priceCoins: 150, priceGems: '', cardsPerPack: 5, dailyLimit: '', guaranteed: '', poolMode: 'ALL', poolCollection: '', poolCardIds: [], active: true, sort: 0, weights: { COMUM: 60, INCOMUM: 28, RARA: 9, EPICA: 2.5, LENDARIA: 0.45, MITICA: 0.05 } };
+
+function PackEditor({ initial, cards, onSaved, onCancel }) {
+  const [f, setF] = useState(() => ({ ...EMPTY_PACK, ...initial, priceCoins: initial?.priceCoins ?? (initial ? '' : 150), priceGems: initial?.priceGems ?? '', dailyLimit: initial?.dailyLimit ?? '', guaranteed: initial?.guaranteed || '', poolCollection: initial?.poolCollection || '' }));
+  const [file, setFile] = useState(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [sim, setSim] = useState(null);
+  const [cq, setCq] = useState('');
+  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
+  const total = RARITY_ORDER.reduce((s, r) => s + (Number(f.weights[r]) || 0), 0) || 1;
+  const collections = [...new Set(cards.map((c) => c.collection))];
+  const pool = new Set(f.poolCardIds);
+  const save = async () => {
+    setBusy(true); setErr('');
+    try {
+      const body = { name: f.name, description: f.description, color: f.color, priceCoins: f.priceCoins === '' ? null : f.priceCoins, priceGems: f.priceGems === '' ? null : f.priceGems, cardsPerPack: f.cardsPerPack, dailyLimit: f.dailyLimit === '' ? null : f.dailyLimit, guaranteed: f.guaranteed || null, poolMode: f.poolMode, poolCollection: f.poolCollection || null, poolCardIds: f.poolCardIds, active: f.active, sort: f.sort, weights: f.weights };
+      const r = initial?.id ? await cardsAdmin.updatePack(initial.id, toFd(body, file)) : await cardsAdmin.createPack(toFd(body, file));
+      onSaved(r.pack);
+    } catch (e) { setErr(errMsg(e)); } finally { setBusy(false); }
+  };
+  return (
+    <div className="tca-form">
+      <div className="tca-grid">
+        <Field label="Nome"><input value={f.name} maxLength={60} onChange={set('name')} /></Field>
+        <Field label="Cor"><input type="color" value={f.color} onChange={set('color')} /></Field>
+        <Field label="Cartas por pacote"><input type="number" min="1" max="15" value={f.cardsPerPack} onChange={set('cardsPerPack')} /></Field>
+        <Field label="Preço em moedas" hint="Vazio = não vende em moedas."><input type="number" min="0" value={f.priceCoins} onChange={set('priceCoins')} /></Field>
+        <Field label="Preço em gemas" hint="Vazio = não vende em gemas."><input type="number" min="0" value={f.priceGems} onChange={set('priceGems')} /></Field>
+        <Field label="Limite por dia (por jogador)" hint="Vazio = sem limite."><input type="number" min="1" value={f.dailyLimit} onChange={set('dailyLimit')} /></Field>
+        <Field label="Raridade mínima garantida" hint="Pelo menos 1 carta dessa raridade ou melhor.">
+          <select value={f.guaranteed} onChange={set('guaranteed')}><option value="">Sem garantia</option>{RARITY_ORDER.map((r) => <option key={r} value={r}>{RARITIES[r].label}</option>)}</select>
+        </Field>
+        <Field label="Ordem na loja"><input type="number" value={f.sort} onChange={set('sort')} /></Field>
+        <Field label="Descrição" wide><textarea rows={2} maxLength={400} value={f.description || ''} onChange={set('description')} /></Field>
+        <Field label="Imagem do pacote (opcional)" wide><input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} /></Field>
+      </div>
+      <h4 className="tca-h4">Chances por raridade (por carta)</h4>
+      <div className="tca-weights">
+        {RARITY_ORDER.map((r) => (
+          <label key={r} style={{ '--c': RARITIES[r].color }}>
+            <span>{RARITIES[r].label}</span>
+            <input type="number" min="0" step="0.01" value={f.weights[r] ?? 0} onChange={(e) => setF((x) => ({ ...x, weights: { ...x.weights, [r]: e.target.value } }))} />
+            <em>{(((Number(f.weights[r]) || 0) / total) * 100).toFixed(2)}%</em>
+          </label>
+        ))}
+      </div>
+      <h4 className="tca-h4">Quais cartas podem sair</h4>
+      <div className="tcg-chips">
+        {[['ALL', 'Todas as cartas ativas'], ['COLLECTION', 'Uma coleção'], ['LIST', 'Lista escolhida']].map(([k, l]) => <button key={k} type="button" className={f.poolMode === k ? 'on' : ''} onClick={() => setF((x) => ({ ...x, poolMode: k }))}>{l}</button>)}
+      </div>
+      {f.poolMode === 'COLLECTION' && (
+        <Field label="Coleção"><select value={f.poolCollection} onChange={set('poolCollection')}><option value="">Escolha…</option>{collections.map((c) => <option key={c} value={c}>{c}</option>)}</select></Field>
+      )}
+      {f.poolMode === 'LIST' && (
+        <div className="tca-pool">
+          <label className="tcg-search"><Icon d={UI.search} size={14} /><input value={cq} onChange={(e) => setCq(e.target.value)} placeholder="Filtrar cartas" /></label>
+          <small className="tcg-dim">{pool.size} selecionadas</small>
+          <div className="tca-pool-list">
+            {cards.filter((c) => !cq || c.name.toLowerCase().includes(cq.toLowerCase())).map((c) => (
+              <label key={c.id} className="tcg-check" style={{ borderLeft: `3px solid ${RARITIES[c.rarity]?.color}`, paddingLeft: 6 }}>
+                <input type="checkbox" checked={pool.has(c.id)} onChange={(e) => setF((x) => ({ ...x, poolCardIds: e.target.checked ? [...x.poolCardIds, c.id] : x.poolCardIds.filter((id) => id !== c.id) }))} />
+                {c.name} <small className="tcg-dim">({RARITIES[c.rarity]?.label})</small>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+      <label className="tcg-check" style={{ marginTop: 10 }}><input type="checkbox" checked={!!f.active} onChange={set('active')} />Pacote à venda</label>
+      {initial?.id && (
+        <div className="tca-sim">
+          <button type="button" className="tcg-btn" onClick={() => cardsAdmin.simulatePack(initial.id, 500).then(setSim).catch((e) => setErr(errMsg(e)))}>Simular 500 aberturas</button>
+          {sim && <span className="tcg-dim">{sim.cards} cartas de {sim.pool} possíveis: {RARITY_ORDER.filter((r) => sim.byRarity[r]).map((r) => `${RARITIES[r].label} ${((sim.byRarity[r] / sim.cards) * 100).toFixed(1)}%`).join(' · ')}</span>}
+          <small className="tcg-dim">A simulação usa a versão salva do pacote.</small>
+        </div>
+      )}
+      <Msg err={err} />
+      <div className="tca-actions">
+        <button type="button" className="tcg-btn ghost" onClick={onCancel}>Cancelar</button>
+        <button type="button" className="tcg-btn primary" disabled={busy || !f.name.trim()} onClick={save}>{busy ? 'Salvando…' : initial?.id ? 'Salvar pacote' : 'Criar pacote'}</button>
+      </div>
+    </div>
+  );
+}
+
+export function CardsAdminPacks() {
+  const [packs, setPacks] = useState(null);
+  const [cards, setCards] = useState([]);
+  const [editing, setEditing] = useState(null);
+  const [msg, setMsg] = useState({});
+  const load = () => cardsAdmin.packs().then((d) => setPacks(d.packs)).catch((e) => setMsg({ err: errMsg(e) }));
+  useEffect(() => { load(); cardsAdmin.cards().then((d) => setCards(d.cards)).catch(() => {}); }, []);
+  if (editing) return <PackEditor initial={editing === 'new' ? null : editing} cards={cards} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); setMsg({ ok: 'Pacote salvo.' }); load(); }} />;
+  return (
+    <div className="tca">
+      <div className="tca-bar"><span className="tcg-dim">Pacotes vendidos na aba "Pacotes" da Arena.</span><span className="tcgb-spacer" /><button type="button" className="tcg-btn primary" onClick={() => setEditing('new')}><Icon d={UI.plus} />Novo pacote</button></div>
+      <Msg {...msg} />
+      <div className="tca-table">
+        {packs?.map((p) => (
+          <div key={p.id} className={`tca-row${p.active ? '' : ' is-off'}`} style={{ '--rar': p.color }}>
+            <span className="tca-thumb" style={{ background: p.color, display: 'grid', placeItems: 'center', color: '#fff' }}>{p.imageUrl ? <img src={p.imageUrl} alt="" /> : <Icon d={UI.pack} size={20} />}</span>
+            <span className="tca-main"><b data-no-translate>{p.name}</b><small>{p.cardsPerPack} cartas · {p.poolMode === 'ALL' ? 'todas' : p.poolMode === 'COLLECTION' ? `coleção ${p.poolCollection}` : `${p.poolCardIds.length} escolhidas`}{p.guaranteed ? ` · garantia ${RARITIES[p.guaranteed]?.label}` : ''}</small></span>
+            <span className="tca-stats">{p.priceCoins != null ? `${p.priceCoins} moedas` : ''}{p.priceCoins != null && p.priceGems != null ? ' · ' : ''}{p.priceGems != null ? `${p.priceGems} gemas` : ''}</span>
+            <span className="tca-owners">{p.sold} abertos{p.dailyLimit ? ` · ${p.dailyLimit}/dia` : ''}</span>
+            <button type="button" className={`tca-toggle${p.active ? ' on' : ''}`} onClick={() => cardsAdmin.updatePack(p.id, toFd({ active: !p.active })).then(load)} aria-label={p.active ? 'Tirar da loja' : 'Colocar na loja'}><i /></button>
+            <button type="button" className="tcg-btn ghost" onClick={() => setEditing(p)}>Editar</button>
+            <button type="button" className="tcg-icon-btn" onClick={() => { if (window.confirm(`Excluir "${p.name}"?`)) cardsAdmin.deletePack(p.id).then(load).catch((e) => setMsg({ err: errMsg(e) })); }} aria-label="Excluir"><Icon d={UI.close} size={14} /></button>
+          </div>
+        ))}
+        {packs === null && <p className="tcg-empty">Carregando…</p>}
+        {packs?.length === 0 && <p className="tcg-empty">Nenhum pacote. Crie o primeiro!</p>}
+      </div>
+    </div>
+  );
+}
+
+// ---------------- Regras e economia ----------------
+const RULE_FIELDS = [
+  ['rules', 'startHp', 'Vida inicial do herói'], ['rules', 'deckSize', 'Cartas por baralho'], ['rules', 'maxCopies', 'Cópias máx. por carta'],
+  ['rules', 'maxCopiesLegendary', 'Cópias máx. (Lendária/Mítica)'], ['rules', 'startHand', 'Cartas na mão inicial'], ['rules', 'maxHand', 'Limite da mão'],
+  ['rules', 'maxEnergy', 'Energia máxima'], ['rules', 'boardSize', 'Unidades no campo'], ['rules', 'turnSeconds', 'Segundos por turno (PvP)'],
+  ['rules', 'elementBonus', 'Bônus de dano por elemento'], ['rules', 'maxTimeouts', 'Turnos perdidos até perder (PvP)'], ['rules', 'levelCap', 'Nível máximo das cartas'],
+];
+const REWARD_FIELDS = [
+  ['rewards', 'FACIL', 'Vitória contra bot Fácil'], ['rewards', 'MEDIO', 'Vitória contra bot Médio'], ['rewards', 'DIFICIL', 'Vitória contra bot Difícil'],
+  ['rewards', 'LENDARIO', 'Vitória contra bot Lendário'], ['rewards', 'pveLoss', 'Derrota contra bot'], ['rewards', 'pvpWin', 'Vitória PvP'],
+  ['rewards', 'pvpLoss', 'Derrota PvP'], ['rewards', 'dailyRewardedMatches', 'Partidas com recompensa por dia'], ['rewards', 'pvpRewardsPerOpponentPerDay', 'Recompensas PvP contra o mesmo oponente (24h)'],
+  ['rewards', 'minTurnsForReward', 'Turnos mínimos para ganhar moedas'], ['rewards', 'streakBonus', 'Bônus por vitória seguida'], ['rewards', 'streakBonusMax', 'Bônus máximo de sequência'],
+];
+const ECON_FIELDS = [['economy', 'tradeMaxCoins', 'Moedas máx. por troca'], ['economy', 'maxOpenTrades', 'Trocas abertas por jogador'], ['economy', 'starterCards', 'Cartas no pacote inicial']];
+const ENABLE_LABELS = { pve: 'Partidas contra bots', pvp: 'Partidas PvP', trades: 'Trocas entre jogadores', packs: 'Loja de pacotes', sell: 'Venda de cartas repetidas' };
+
+export function CardsAdminSettings() {
+  const [s, setS] = useState(null);
+  const [msg, setMsg] = useState({});
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { cardsAdmin.settings().then((d) => setS(d.settings)).catch((e) => setMsg({ err: errMsg(e) })); }, []);
+  if (!s) return msg.err ? <Msg {...msg} /> : <p className="tcg-empty">Carregando…</p>;
+  const setNum = (sec, k) => (e) => setS((x) => ({ ...x, [sec]: { ...x[sec], [k]: e.target.value } }));
+  const fields = (list) => list.map(([sec, k, label]) => <Field key={k} label={label}><input type="number" min="0" value={s[sec][k]} onChange={setNum(sec, k)} /></Field>);
+  const save = async () => {
+    setBusy(true); setMsg({});
+    try { const r = await cardsAdmin.saveSettings(s); setS(r.settings); setMsg({ ok: 'Configurações salvas — valem para as próximas partidas.' }); } catch (e) { setMsg({ err: errMsg(e) }); } finally { setBusy(false); }
+  };
+  return (
+    <div className="tca">
+      <h4 className="tca-h4">Sistemas</h4>
+      <div className="tca-grid">
+        {Object.entries(ENABLE_LABELS).map(([k, l]) => <label key={k} className="tcg-check"><input type="checkbox" checked={!!s.enabled[k]} onChange={(e) => setS((x) => ({ ...x, enabled: { ...x.enabled, [k]: e.target.checked } }))} />{l}</label>)}
+      </div>
+      <h4 className="tca-h4">Regras da batalha</h4>
+      <div className="tca-grid">{fields(RULE_FIELDS)}</div>
+      <h4 className="tca-h4">Recompensas (moedas)</h4>
+      <p className="tcg-dim">Desistir antes dos turnos mínimos, passar do limite diário ou repetir vitórias contra o mesmo jogador não dá moedas (proteção contra farm).</p>
+      <div className="tca-grid">{fields(REWARD_FIELDS)}</div>
+      <h4 className="tca-h4">Economia</h4>
+      <div className="tca-grid">{fields(ECON_FIELDS)}</div>
+      <h4 className="tca-h4">Valor de venda (por cópia repetida)</h4>
+      <div className="tca-grid">
+        {RARITY_ORDER.map((r) => <Field key={r} label={RARITIES[r].label}><input type="number" min="0" value={s.economy.sellValues[r]} onChange={(e) => setS((x) => ({ ...x, economy: { ...x.economy, sellValues: { ...x.economy.sellValues, [r]: e.target.value } } }))} /></Field>)}
+      </div>
+      <h4 className="tca-h4">Evolução de cartas</h4>
+      <div className="tca-levels">
+        <span />{s.economy.levelUpCopies.map((_, i) => <b key={i}>Nv {i + 1}→{i + 2}</b>)}
+        <span>Cópias</span>{s.economy.levelUpCopies.map((v, i) => <input key={i} type="number" min="0" value={v} onChange={(e) => setS((x) => { const a = [...x.economy.levelUpCopies]; a[i] = e.target.value; return { ...x, economy: { ...x.economy, levelUpCopies: a } }; })} />)}
+        <span>Moedas</span>{s.economy.levelUpCoins.map((v, i) => <input key={i} type="number" min="0" value={v} onChange={(e) => setS((x) => { const a = [...x.economy.levelUpCoins]; a[i] = e.target.value; return { ...x, economy: { ...x.economy, levelUpCoins: a } }; })} />)}
+      </div>
+      <Msg {...msg} />
+      <div className="tca-actions"><button type="button" className="tcg-btn primary" disabled={busy} onClick={save}>{busy ? 'Salvando…' : 'Salvar configurações'}</button></div>
+    </div>
+  );
+}
+
+// ---------------- Jogadores ----------------
+function PlayerDetail({ userId, onBack }) {
+  const [d, setD] = useState(null);
+  const [cards, setCards] = useState([]);
+  const [msg, setMsg] = useState({});
+  const [grant, setGrant] = useState({ cardId: '', qty: 1, level: '' });
+  const load = () => cardsAdmin.player(userId).then(setD).catch((e) => setMsg({ err: errMsg(e) }));
+  useEffect(() => { load(); cardsAdmin.cards().then((x) => setCards(x.cards)).catch(() => {}); }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const upd = async (body, ok) => { try { await cardsAdmin.updatePlayer(userId, body); setMsg({ ok }); load(); } catch (e) { setMsg({ err: errMsg(e) }); } };
+  if (!d) return <><button type="button" className="tcg-btn ghost" onClick={onBack}><Icon d={UI.back} />Voltar</button><Msg {...msg} /></>;
+  const p = d.player;
+  return (
+    <div className="tca">
+      <div className="tca-bar">
+        <button type="button" className="tcg-btn ghost" onClick={onBack}><Icon d={UI.back} />Voltar</button>
+        <UserAvatar user={d.user} size={36} />
+        <span className="tca-main"><b data-no-translate>{d.user.displayName}</b><small>@{d.user.username} · {d.user.coins} moedas · {d.user.gems} gemas</small></span>
+      </div>
+      <Msg {...msg} />
+      <div className="tcg-showcase-stats">
+        <span>Bots: <b>{p.wins}V/{p.losses}D</b></span><span>PvP: <b>{p.pvpWins}V/{p.pvpLosses}D</b></span><span>Rating <b>{p.rating}</b></span>
+        <span>Pacotes <b>{p.packsOpened}</b></span><span>Moedas ganhas <b>{p.coinsEarned}</b></span><span>Pacote inicial: <b>{p.starterClaimed ? 'pego' : 'disponível'}</b></span>
+        {p.banned && <span style={{ color: '#ff6b7a' }}><b>BLOQUEADO</b></span>}
+      </div>
+      <div className="tca-actions" style={{ justifyContent: 'flex-start' }}>
+        <button type="button" className="tcg-btn" onClick={() => upd({ banned: !p.banned }, p.banned ? 'Jogador desbloqueado.' : 'Jogador bloqueado no jogo.')}>{p.banned ? 'Desbloquear' : 'Bloquear no jogo'}</button>
+        <button type="button" className="tcg-btn" onClick={() => { if (window.confirm('Zerar vitórias, derrotas e rating?')) upd({ resetStats: true }, 'Estatísticas zeradas.'); }}>Zerar estatísticas</button>
+        <button type="button" className="tcg-btn" onClick={() => upd({ resetStarter: true }, 'Pacote inicial liberado de novo.')}>Liberar pacote inicial</button>
+        <button type="button" className="tcg-btn danger" onClick={() => { if (window.confirm('Apagar TODA a coleção deste jogador? Não dá para desfazer.')) upd({ wipeCollection: true }, 'Coleção apagada.'); }}>Apagar coleção</button>
+      </div>
+      <h4 className="tca-h4">Dar ou tirar cartas</h4>
+      <div className="tca-bar">
+        <select className="tcg-select" value={grant.cardId} onChange={(e) => setGrant((g) => ({ ...g, cardId: e.target.value }))}>
+          <option value="">Escolha a carta…</option>
+          {cards.map((c) => <option key={c.id} value={c.id}>{c.name} ({RARITIES[c.rarity]?.label})</option>)}
+        </select>
+        <input className="tca-num" type="number" value={grant.qty} onChange={(e) => setGrant((g) => ({ ...g, qty: e.target.value }))} title="Quantidade (negativo tira)" />
+        <input className="tca-num" type="number" min="1" max="10" placeholder="Nível" value={grant.level} onChange={(e) => setGrant((g) => ({ ...g, level: e.target.value }))} />
+        <button type="button" className="tcg-btn primary" disabled={!grant.cardId} onClick={async () => {
+          try { await cardsAdmin.grant(userId, { cardId: grant.cardId, qty: Number(grant.qty), ...(grant.level ? { level: Number(grant.level) } : {}) }); setMsg({ ok: 'Coleção atualizada.' }); load(); } catch (e) { setMsg({ err: errMsg(e) }); }
+        }}>Aplicar</button>
+      </div>
+      <h4 className="tca-h4">Coleção ({d.cards.length} cartas diferentes)</h4>
+      <div className="tcg-grid is-compact">{d.cards.map((c) => <CardView key={c.id} card={c} size="sm" showQty quantity={c.quantity} />)}</div>
+      <h4 className="tca-h4">Últimas partidas</h4>
+      <div className="tca-table">
+        {d.matches.map((m) => (
+          <div key={m.id} className="tca-row"><span className="tca-main"><b>{m.mode === 'PVP' ? 'PvP' : `Bot ${m.difficulty}`}</b><small>{new Date(m.createdAt).toLocaleString('pt-BR')} · {m.status}{m.endReason ? ` · ${m.endReason}` : ''}</small></span><span className="tca-owners">{m.winnerId === userId ? 'Venceu' : m.winnerId ? 'Perdeu' : '—'} · +{m.p1Id === userId ? m.reward1 : m.reward2}</span></div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function CardsAdminPlayers() {
+  const [q, setQ] = useState('');
+  const [list, setList] = useState(null);
+  const [open, setOpen] = useState(null);
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => cardsAdmin.players(q.trim()).then((d) => setList(d.players)).catch((e) => setErr(errMsg(e))), 250);
+    return () => clearTimeout(t);
+  }, [q]);
+  if (open) return <PlayerDetail userId={open} onBack={() => setOpen(null)} />;
+  return (
+    <div className="tca">
+      <div className="tca-bar"><label className="tcg-search"><Icon d={UI.search} size={15} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nome, @usuário ou ID" /></label><span className="tcg-dim">{q ? 'Resultados da busca' : 'Jogadores ativos recentemente'}</span></div>
+      <Msg err={err} />
+      <div className="tca-table">
+        {list?.map(({ user, player, cards }) => (
+          <div key={user.id} className="tca-row">
+            <UserAvatar user={user} size={32} />
+            <span className="tca-main"><b data-no-translate>{user.displayName}</b><small>@{user.username}</small></span>
+            <span className="tca-owners">{cards} cartas · {player ? `${player.wins + player.pvpWins} vitórias · rating ${player.rating}` : 'nunca jogou'}{player?.banned ? ' · BLOQUEADO' : ''}</span>
+            <button type="button" className="tcg-btn ghost" onClick={() => setOpen(user.id)}>Gerenciar</button>
+          </div>
+        ))}
+        {list?.length === 0 && <p className="tcg-empty">Ninguém encontrado.</p>}
+      </div>
+    </div>
+  );
+}
+
+// ---------------- Trocas e partidas ----------------
+const STATUSES = { PENDING: 'Pendentes', ACCEPTED: 'Aceitas', DECLINED: 'Recusadas', CANCELLED: 'Canceladas', FAILED: 'Falharam' };
+export function CardsAdminTrades() {
+  const [status, setStatus] = useState('PENDING');
+  const [list, setList] = useState(null);
+  const [msg, setMsg] = useState({});
+  const load = () => cardsAdmin.trades(status).then((d) => setList(d.trades)).catch((e) => setMsg({ err: errMsg(e) }));
+  useEffect(() => { setList(null); load(); }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+  const items = (arr, coins) => [...arr.map((i) => `${i.qty}x ${i.name}`), ...(coins ? [`${coins} moedas`] : [])].join(', ') || 'nada';
+  return (
+    <div className="tca">
+      <div className="tcg-chips">{Object.entries(STATUSES).map(([k, l]) => <button key={k} type="button" className={status === k ? 'on' : ''} onClick={() => setStatus(k)}>{l}</button>)}</div>
+      <Msg {...msg} />
+      <div className="tca-table">
+        {list?.map((t) => (
+          <div key={t.id} className="tca-row">
+            <span className="tca-main"><b data-no-translate>{t.from?.displayName} → {t.to?.displayName}</b><small>{new Date(t.createdAt).toLocaleString('pt-BR')}</small></span>
+            <span className="tca-trade"><small>Oferece:</small> {items(t.offer, t.offerCoins)}<br /><small>Pede:</small> {items(t.request, t.requestCoins)}</span>
+            {t.status === 'PENDING' && <button type="button" className="tcg-btn ghost danger" onClick={() => cardsAdmin.cancelTrade(t.id).then(() => { setMsg({ ok: 'Troca cancelada.' }); load(); }).catch((e) => setMsg({ err: errMsg(e) }))}>Cancelar</button>}
+          </div>
+        ))}
+        {list === null && <p className="tcg-empty">Carregando…</p>}
+        {list?.length === 0 && <p className="tcg-empty">Nenhuma troca.</p>}
+      </div>
+    </div>
+  );
+}
+
+const MSTATUS = { ACTIVE: 'Em andamento', PENDING: 'Desafios', FINISHED: 'Terminadas', CANCELLED: 'Canceladas' };
+export function CardsAdminMatches() {
+  const [status, setStatus] = useState('ACTIVE');
+  const [d, setD] = useState(null);
+  const [msg, setMsg] = useState({});
+  const load = () => cardsAdmin.matches(status).then(setD).catch((e) => setMsg({ err: errMsg(e) }));
+  useEffect(() => { setD(null); load(); }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className="tca">
+      {d && <div className="tcg-showcase-stats"><span>Partidas terminadas <b>{d.stats.finished}</b></span><span>Em andamento <b>{d.stats.active}</b></span><span>Pacotes abertos hoje <b>{d.stats.packsToday}</b></span></div>}
+      <div className="tcg-chips">{Object.entries(MSTATUS).map(([k, l]) => <button key={k} type="button" className={status === k ? 'on' : ''} onClick={() => setStatus(k)}>{l}</button>)}</div>
+      <Msg {...msg} />
+      <div className="tca-table">
+        {d?.matches.map((m) => (
+          <div key={m.id} className="tca-row">
+            <span className="tca-main"><b data-no-translate>{m.p1?.displayName} vs {m.mode === 'PVP' ? m.p2?.displayName : `Bot (${m.difficulty})`}</b><small>{new Date(m.createdAt).toLocaleString('pt-BR')}{m.endReason ? ` · ${m.endReason}` : ''}</small></span>
+            <span className="tca-owners">{m.winnerId ? (m.winnerId === m.p1Id ? `Venceu ${m.p1?.displayName}` : m.winnerId === 'BOT' ? 'Venceu o bot' : `Venceu ${m.p2?.displayName}`) : '—'} · moedas {m.reward1}/{m.reward2}</span>
+            {['ACTIVE', 'PENDING'].includes(m.status) && <button type="button" className="tcg-btn ghost danger" onClick={() => { if (window.confirm('Cancelar esta partida? Ninguém recebe recompensa.')) cardsAdmin.cancelMatch(m.id).then(() => { setMsg({ ok: 'Partida cancelada.' }); load(); }).catch((e) => setMsg({ err: errMsg(e) })); }}>Cancelar</button>}
+          </div>
+        ))}
+        {d === null && <p className="tcg-empty">Carregando…</p>}
+        {d?.matches.length === 0 && <p className="tcg-empty">Nenhuma partida.</p>}
+      </div>
+    </div>
+  );
+}

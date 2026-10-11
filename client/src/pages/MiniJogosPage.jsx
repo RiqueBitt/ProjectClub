@@ -5,6 +5,15 @@ import { MINIJOGOS, MINIJOGOS_CATEGORIES, findMinijogo } from '../minijogos/cata
 import '../styles/minijogos.css';
 import { useMinijogoScores, ScoresPanel } from '../minijogos/MiniJogoScores.jsx';
 import TouchPad from '../minijogos/TouchPad.jsx';
+import { CardView } from '../cards/CardView.jsx';
+import '../styles/cards.css';
+
+// Cartas de vitrine do destaque da Arena (só visual).
+const ARENA_SAMPLE = [
+  { slug: 'a1', name: 'Fênix Rubra', element: 'FOGO', rarity: 'EPICA', cost: 5, attack: 5, health: 4, ability: 'ULTIMO_SUSPIRO', abilityValue: 4 },
+  { slug: 'a2', name: 'Leviatã Ancestral', element: 'AGUA', rarity: 'MITICA', cost: 9, attack: 9, health: 10, ability: 'ESCUDO' },
+  { slug: 'a3', name: 'Rainha dos Céus', element: 'AR', rarity: 'LENDARIA', cost: 7, attack: 6, health: 6, ability: 'GRITO_RAIO', abilityValue: 5 },
+];
 
 // Mini-Jogos: jogos que já vêm no Project Club (ver minijogos/catalog.js).
 // Lista no estilo "loja de atividades" (busca, destaques em cartões com
@@ -255,6 +264,17 @@ export default function MiniJogosPage() {
             </section>
           ) : (
             <>
+              <button type="button" className="mj-tcg-feature" onClick={() => navigate('/cartas')}>
+                <span className="mj-tcg-text">
+                  <em>Jogo principal</em>
+                  <strong>Arena de Cartas</strong>
+                  <span>Colecione cartas, abra pacotes com suas moedas, monte baralhos e duele contra bots e amigos.</span>
+                </span>
+                <span className="mj-tcg-cards" aria-hidden="true">
+                  {ARENA_SAMPLE.map((c, i) => <CardView key={c.slug} card={c} size="sm" style={{ '--r': `${(i - 1) * 8}deg` }} />)}
+                </span>
+                <span className="tcg-btn primary mj-tcg-play"><MjIcon name="play" size={14} />Jogar</span>
+              </button>
               <section className="mj-section">
                 <h2 className="mj-section-title">Em destaque</h2>
                 <div className="mj-featured">

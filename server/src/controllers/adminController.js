@@ -69,7 +69,7 @@ async function uploadCommunityBanner(req, res, next) {
 // --- Toggles de sistema (adaptado do "disabled_systems" do bot Robbie —
 // liga/desliga uma seção inteira pra toda a comunidade de uma vez). ---
 
-const TOGGLEABLE_SYSTEMS = ['economia', 'rank', 'casas', 'figurinhas', 'cores_perfil', 'cargos'];
+const TOGGLEABLE_SYSTEMS = ['economia', 'rank', 'casas', 'cartas', 'cores_perfil', 'cargos'];
 
 // "economia", "casas" e "figurinhas" nascem DESLIGADOS (só "rank" fica
 // ativo por padrão) — pedido do dono da comunidade pra simplificar a
@@ -81,7 +81,7 @@ const TOGGLEABLE_SYSTEMS = ['economia', 'rank', 'casas', 'figurinhas', 'cores_pe
 // tiraria uma opção que ninguém pediu pra tirar; esse toggle serve pra
 // staff DESATIVAR quando quiser, não pra já nascer desativado.
 // economia agora nasce LIGADA (round 5: virou categoria principal do menu).
-const SYSTEMS_ENABLED_BY_DEFAULT = { economia: true, rank: true, casas: false, figurinhas: false, cores_perfil: true };
+const SYSTEMS_ENABLED_BY_DEFAULT = { economia: true, rank: true, casas: false, figurinhas: false, cartas: true, cores_perfil: true };
 
 async function getSystemToggles(req, res, next) {
   try {

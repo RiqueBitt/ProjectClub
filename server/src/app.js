@@ -359,6 +359,7 @@ function createApp() {
   app.use('/api/clans', clansRoutes);
   app.use('/api/minigames', minigamesRoutes);
   app.use('/api/anuncios', require('./routes/staffAnnouncements'));
+  app.use('/api/cards', require('./routes/cards'));
   // Pacote de abertura (várias seções numa requisição só) — ver bootstrapController.
   app.get('/api/bootstrap', require('./middleware/auth').requireAuth, require('./controllers/bootstrapController').getBootstrap);
 

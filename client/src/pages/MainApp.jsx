@@ -27,6 +27,7 @@ import ImageLightbox from '../components/ImageLightbox.jsx';
 import AnnouncementOverlay from '../components/AnnouncementOverlay.jsx';
 import QuickSwitcher from '../components/QuickSwitcher.jsx';
 import { MusicEngine, MusicPanel, MiniMusicBar } from '../music/MusicPlayer.jsx';
+import CardsNotifier from '../cards/CardsNotifier.jsx';
 import { startBoot, cachedBoot } from '../utils/bootstrap';
 import { applyBootData } from '../utils/applyBoot';
 import { checkForNativeUpdate } from '../utils/nativeUpdateCheck';
@@ -67,7 +68,7 @@ const EconomyPage = lazy(() => import('./EconomyPage.jsx'));
 // rota própria aqui — a rota é só /progresso agora.
 const ProgressPage = lazy(() => import('./ProgressPage.jsx'));
 const HousesPage = lazy(() => import('./HousesPage.jsx'));
-const StickersPage = lazy(() => import('./StickersPage.jsx'));
+const CardsGamePage = lazy(() => import('./CardsGamePage.jsx'));
 const ClanPage = lazy(() => import('./ClanPage.jsx'));
 const TicketsPage = lazy(() => import('./TicketsPage.jsx'));
 const CommunitiesPage = lazy(() => import('./CommunitiesPage.jsx'));
@@ -412,7 +413,9 @@ export default function MainApp() {
                 <Route path="/conquistas" element={<Navigate to="/progresso" replace />} />
                 {/* Casas e Figurinhas desligadas no código (utils/features.js) — rota antiga cai na Economia. */}
                 <Route path="/casas" element={isFeatureEnabled('houses') ? <HousesPage /> : <Navigate to="/economia" replace />} />
-                <Route path="/figurinhas" element={isFeatureEnabled('stickers') ? <StickersPage /> : <Navigate to="/economia" replace />} />
+                {/* Figurinhas colecionáveis viraram o Jogo de Cartas (Arena de Cartas). */}
+                <Route path="/figurinhas" element={<Navigate to="/cartas" replace />} />
+                <Route path="/cartas" element={<CardsGamePage />} />
                 <Route path="/tickets" element={<TicketsPage />} />
                 {/* Item pedido: "remover completamente a categoria
                     Clãs da interface... dentro de Social, criar as
@@ -484,6 +487,7 @@ export default function MainApp() {
       <MusicEngine />
       <MusicPanel />
       <MiniMusicBar />
+      <CardsNotifier />
     </div>
   );
 }

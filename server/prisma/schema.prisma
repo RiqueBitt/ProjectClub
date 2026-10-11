@@ -2817,3 +2817,158 @@ model StaffAnnouncement {
 
   @@index([pinned, createdAt])
 }
+
+// ============================================================
+// Jogo de Cartas (substitui as Figurinhas colecionáveis). Tudo editável
+// pela staff (Painel → Jogo de Cartas). Sem @relation com User de propósito.
+// Lógica do jogo: server/src/cards/ (motor puro + IA, servidor autoritativo).
+// ============================================================
+model CardDef {
+  id           String   @id @default(uuid())
+  slug         String   @unique
+  name         String
+  description  String?  @db.Text
+  flavor       String?  @db.Text
+  imageUrl     String?
+  rarity       String   @default("COMUM") // COMUM | INCOMUM | RARA | EPICA | LENDARIA | MITICA
+  element      String   @default("FOGO")  // FOGO | AGUA | TERRA | AR | LUZ | SOMBRA
+  collection   String   @default("Origens")
+  cost         Int      @default(1)
+  attack       Int      @default(1)
+  health       Int      @default(1)
+  ability      String   @default("NONE")
+  abilityValue Int      @default(0)
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([rarity])
+  @@index([collection])
+}
+
+model CardPack {
+  id             String   @id @default(uuid())
+  name           String
+  description    String?  @db.Text
+  imageUrl       String?
+  color          String   @default("#7c5cff")
+  priceCoins     Int?
+  priceGems      Int?
+  cardsPerPack   Int      @default(5)
+  weights        String   @db.Text // JSON { COMUM: 60, INCOMUM: 25, ... }
+  guaranteed     String?  // raridade mínima garantida na última carta
+  poolMode       String   @default("ALL") // ALL | COLLECTION | LIST
+  poolCollection String?
+  poolCardIds    String?  @db.Text // JSON [cardId]
+  dailyLimit     Int?
+  active         Boolean  @default(true)
+  sort           Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model UserCard {
+  id        String   @id @default(uuid())
+  userId    String
+  cardId    String
+  quantity  Int      @default(0)
+  level     Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, cardId])
+  @@index([cardId])
+}
+
+model CardDeck {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  cards     String   @db.Text // JSON [{ cardId, copies }]
+  active    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model CardPlayer {
+  userId         String   @id
+  wins           Int      @default(0)
+  losses         Int      @default(0)
+  pvpWins        Int      @default(0)
+  pvpLosses      Int      @default(0)
+  rating         Int      @default(1000)
+  coinsEarned    Int      @default(0)
+  packsOpened    Int      @default(0)
+  streak         Int      @default(0)
+  bestStreak     Int      @default(0)
+  rewardDay      String?
+  rewardsToday   Int      @default(0)
+  starterClaimed Boolean  @default(false)
+  banned         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([rating])
+}
+
+model CardMatch {
+  id           String    @id @default(uuid())
+  mode         String    // PVE | PVP
+  difficulty   String?
+  p1Id         String
+  p2Id         String?
+  status       String    @default("ACTIVE") // PENDING | ACTIVE | FINISHED | CANCELLED | DECLINED
+  winnerId     String?
+  state        String?   @db.LongText
+  version      Int       @default(0)
+  turnDeadline DateTime?
+  reward1      Int       @default(0)
+  reward2      Int       @default(0)
+  endReason    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  endedAt      DateTime?
+
+  @@index([p1Id, status])
+  @@index([p2Id, status])
+  @@index([status, createdAt])
+}
+
+model CardTrade {
+  id           String    @id @default(uuid())
+  fromId       String
+  toId         String
+  offer        String    @db.Text // JSON [{ cardId, qty }]
+  request      String    @db.Text
+  offerCoins   Int       @default(0)
+  requestCoins Int       @default(0)
+  message      String?
+  status       String    @default("PENDING") // PENDING | ACCEPTED | DECLINED | CANCELLED | FAILED
+  createdAt    DateTime  @default(now())
+  resolvedAt   DateTime?
+
+  @@index([toId, status])
+  @@index([fromId, status])
+}
+
+model CardPackOpen {
+  id        String   @id @default(uuid())
+  userId    String
+  packId    String
+  dayKey    String
+  cards     String   @db.Text
+  paidCoins Int      @default(0)
+  paidGems  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([userId, dayKey])
+  @@index([userId, createdAt])
+}
+
+model CardGameSettings {
+  id        String   @id @default("singleton")
+  data      String   @db.Text
+  updatedAt DateTime @updatedAt
+}

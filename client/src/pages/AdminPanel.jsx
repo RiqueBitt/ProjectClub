@@ -66,6 +66,7 @@ import { proxyImage } from '../utils/imageProxy';
 import { isFeatureEnabled } from '../utils/features';
 import MissionsAdmin from '../components/admin/MissionsAdmin.jsx';
 import { StaffHealthTab, StaffUserSearchTab } from '../components/admin/StaffTools.jsx';
+import { CardsAdminCards, CardsAdminPacks, CardsAdminSettings, CardsAdminPlayers, CardsAdminTrades, CardsAdminMatches } from '../cards/CardsAdmin.jsx';
 
 // ============================================================
 // Painel da Equipe — shell redesenhado do zero.
@@ -90,6 +91,7 @@ const ICON_PATHS = {
   menu: 'M4 6h16M4 12h16M4 18h16',
   close: 'M6 6l12 12M18 6 6 18',
   arrow: 'M9 6l6 6-6 6',
+  cards: 'M7 3h11a2 2 0 0 1 2 2v13M4 7h11a2 2 0 0 1 2 2v11H6a2 2 0 0 1-2-2z',
 };
 function StaffIcon({ name, size = 18 }) {
   return (
@@ -135,6 +137,12 @@ const TABS = {
   sistema: { label: 'Sistemas', desc: 'Ligue ou desligue economia, ranks e outros sistemas.' },
   maintenance: { label: 'Manutenção', desc: 'Coloca a plataforma "em reforma" para todos, menos a equipe.' },
   reload: { label: 'Reload', desc: 'Recarrega a presença online de usuários.' },
+  cartasCartas: { label: 'Cartas', desc: 'Crie, edite e exclua cartas: imagem, nome, descrição, raridade, elemento, força e habilidades.' },
+  cartasPacotes: { label: 'Pacotes', desc: 'Pacotes vendidos na Arena: preço, quantas cartas, chances de cada raridade e quais cartas podem sair.' },
+  cartasRegras: { label: 'Regras e economia', desc: 'Regras das batalhas, recompensas em moedas, proteção contra farm, venda e evolução de cartas.' },
+  cartasJogadores: { label: 'Jogadores', desc: 'Veja a coleção e o histórico de um jogador, dê ou tire cartas, bloqueie ou zere estatísticas.' },
+  cartasTrocas: { label: 'Trocas', desc: 'Trocas de cartas entre jogadores. Cancele propostas pendentes suspeitas.' },
+  cartasPartidas: { label: 'Partidas', desc: 'Partidas em andamento e terminadas. Cancele partidas travadas.' },
   saude: { label: 'Saúde', desc: 'Online agora, conexões, chamadas, erros recentes, banco, Redis e memória. Atualiza sozinho a cada 15s.' },
 };
 
@@ -157,6 +165,7 @@ const TAB_GROUPS = [
   { label: 'Comunidade', icon: 'community', tabs: ['channels', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'gifMove'] },
   { label: 'Conteúdo', icon: 'content', tabs: ['feeds', 'updates', 'events', 'announcements', 'appCatalog'] },
   { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'casas', 'album'] },
+  { label: 'Jogo de Cartas', icon: 'cards', tabs: ['cartasCartas', 'cartasPacotes', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
   { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
   { label: 'Sistema', icon: 'system', tabs: ['saude', 'sistema', 'maintenance', 'reload'] },
 ].map((g) => ({ ...g, tabs: g.tabs.filter((t) => !HIDDEN_TABS.has(t)) }));
@@ -317,6 +326,12 @@ export default function AdminPanel() {
           {tab === 'reload' && <ReloadAdminTab />}
           {tab === 'saude' && <StaffHealthTab />}
           {tab === 'busca' && <StaffUserSearchTab />}
+          {tab === 'cartasCartas' && <CardsAdminCards />}
+          {tab === 'cartasPacotes' && <CardsAdminPacks />}
+          {tab === 'cartasRegras' && <CardsAdminSettings />}
+          {tab === 'cartasJogadores' && <CardsAdminPlayers />}
+          {tab === 'cartasTrocas' && <CardsAdminTrades />}
+          {tab === 'cartasPartidas' && <CardsAdminMatches />}
         </div>
       </main>
     </div>
@@ -3069,7 +3084,7 @@ function SystemTab() {
 
   if (!toggles) return <div className="dim">Carregando...</div>;
 
-  const LABELS = { economia: '💰 Economia', rank: '🏆 Rank', casas: '🧊 Casas e decoração', figurinhas: '🧷 Figurinhas e álbum', cores_perfil: '🎨 Cores personalizadas para perfil', cargos: '🎖️ Cargos' };
+  const LABELS = { economia: '💰 Economia', rank: '🏆 Rank', casas: '🧊 Casas e decoração', cartas: '🃏 Jogo de Cartas', cores_perfil: '🎨 Cores personalizadas para perfil', cargos: '🎖️ Cargos' };
 
   return (
     <div className="settings-grid">

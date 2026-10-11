@@ -44,6 +44,7 @@ import ProfileEffectOverlay from '../ProfileEffectOverlay.jsx';
 import ImageCropperModal from './ImageCropperModal.jsx';
 import ProfileShowcaseModal, { parseShowcase } from './ProfileShowcaseModal.jsx';
 import { GameCapsule } from '../games/GameLibraryParts.jsx';
+import ProfileCards from '../../cards/ProfileCards.jsx';
 import { PROFILE_BANNER_ASPECT } from '../ProfileBanner.jsx';
 import { updateProfile, uploadAvatar, uploadBanner } from '../../api/endpoints';
 
@@ -1153,11 +1154,19 @@ export default function UserProfileModal() {
     </PfCard>
   );
 
+  // Arena de Cartas (Jogo de Cartas): vitrine + desafiar/trocar.
+  const cardsGameCard = user && (
+    <PfCard icon="star" title="Arena de Cartas">
+      <ProfileCards userId={user.id} isMe={isMe} onNavigate={closeProfile} />
+    </PfCard>
+  );
+
   // Distribui as seções visíveis (na ordem escolhida) pelas abas.
   const visibleKeys = user ? visibleProfileSectionOrder(user.profileSectionOrder) : [];
   const tabContent = { about: [], showcase: [], connections: [], wall: [], badges: [], achievements: [], activity: [] };
   if (user) {
     if (showcaseCard) tabContent.showcase.push(['showcase_games', showcaseCard]);
+    if (cardsGameCard) tabContent.showcase.push(['cards_game', cardsGameCard]);
     if (badgesCard) tabContent.badges.push(['badges', badgesCard]);
     visibleKeys.forEach((key) => {
       const el = SECTION_ELEMENTS[key];
