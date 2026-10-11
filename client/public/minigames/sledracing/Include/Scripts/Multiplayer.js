@@ -7,7 +7,7 @@ var multiplayer = false, players = [], server = {connect:noop,emit:noop,on:noop,
 function updateRoom(count) {
 	$(".starting").remove()
 	// Show the players in the room
-	$(".waiting div").text("Waiting for Players... ("+players.length+"/4)")
+	$(".waiting div").text("Esperando jogadores... ("+players.length+"/4)")
 	if(count) {
 		// Do the countdown
 		startTimer = setInterval(function() {
@@ -25,7 +25,7 @@ function updateRoom(count) {
 		}, 1000)
 		return
 	}
-	$(".waiting").append('<div class="starting"><span class="solo">Play Solo</span></div>')
+	$(".waiting").append('<div class="starting"><span class="solo">Jogar sozinho</span></div>')
 }
 
 // Connected to the server
@@ -61,7 +61,7 @@ server.once("disconnect", function() {
 
 // Game verified
 server.once("confirmed", function() {
-	$(".waiting div").text("Finding a Match...")
+	$(".waiting div").text("Procurando partida...")
 })
 
 // A game was found / created

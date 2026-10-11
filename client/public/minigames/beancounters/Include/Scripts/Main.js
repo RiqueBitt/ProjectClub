@@ -55,7 +55,7 @@ app.onLoad(function() {
 // Show the main menu
 function MainMenu() {
 	app.setState("Menu")
-	$("body").addClass("in-game").removeClass("loading").find(".game").html('<div class="menu"><img class="game-menu" src="Assets/Main.png"><div class="start-button">'+(device.isSwitch?'<img class="start" src="Assets/Start.png">':"")+'<span'+(!device.isSwitch?' style="left:2px"':"")+'>Play</span><img class="button" src="Assets/Button.png"></div><div class="vr-start"><span>VR Mode</span><img class="button" src="Assets/Button.png"></div><img class="logo" src="Assets/Game.png"></div>')
+	$("body").addClass("in-game").removeClass("loading").find(".game").html('<div class="menu"><img class="game-menu" src="Assets/Main.png"><div class="start-button">'+(device.isSwitch?'<img class="start" src="Assets/Start.png">':"")+'<span'+(!device.isSwitch?' style="left:2px"':"")+'>Jogar</span><img class="button" src="Assets/Button.png"></div><div class="vr-start"><span>Modo VR</span><img class="button" src="Assets/Button.png"></div><img class="logo" src="Assets/Game.png"></div>')
 	$(".start-button").click(Play)
 	$(".vr-start").on("click", PlayVR).on("touchend", function() {
 		// Enter fullscreen

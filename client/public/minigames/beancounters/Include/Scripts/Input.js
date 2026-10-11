@@ -32,7 +32,7 @@ function handleInput() {
 					$(".vr-setup").fadeOut("slow", function() {
 						if(!done) {
 							done = true
-							$(".left-eye").html('<div class="how-to" style="display:none">Press <img class="vr-go" src="Assets/Start.png"> to exit VR Mode<br>at any time. <img class="ok" src="Assets/Start.png"></div>')
+							$(".left-eye").html('<div class="how-to" style="display:none">Aperte <img class="vr-go" src="Assets/Start.png"> para sair do modo VR<br>a qualquer momento. <img class="ok" src="Assets/Start.png"></div>')
 							$(".how-to").delay(200).fadeIn("fast")
 							setTimeout(function() {
 								$(".ok").fadeIn("slow", function() {
@@ -51,7 +51,7 @@ function handleInput() {
 	
 	// Project Club: removido o atalho que saía pro site externo (4TU DNS)
 	if(p == input.Y) {
-		if(confirm("Refresh the page?")) {
+		if(confirm("Recarregar o jogo?")) {
 			location.reload()
 		}
 	}

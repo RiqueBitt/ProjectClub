@@ -12,7 +12,7 @@ function Lobby() {
 			// Create the game arena
 			app.setState("Lobby")
 			$(".loading").addClass("in-game").removeClass("loading")
-			$(".game").html('<div class="victory-screen"><span class="header">Leaderboard</span><span class="placement first">1st <span class="player-name"><span class="name"></span> — <img class="timer" src="Assets/Timer.png"><span class="time"></span></span></span><span class="placement second">2nd <span class="player-name"><span class="name"></span> — <img class="timer" src="Assets/Timer.png"><span class="time"></span></span></span><span class="placement third">3rd <span class="player-name"><span class="name"></span> — <img class="timer" src="Assets/Timer.png"><span class="time"></span></span></span><span class="placement fourth">4th <span class="player-name"><span class="name"></span> — <img class="timer" src="Assets/Timer.png"><span class="time"></span></span></span><div class="play-again">Play Again</div></div><div class="background"></div><img class="clouds" src="Assets/Clouds.png" style="left:255px"><img class="corner" src="Assets/MapCorner.png"><div class="map"><div class="map-bar"></div></div><div class="tiles"><img class="tile tile-start" src="Assets/HillTiles/Start.png"><img class="tile tile-0" src="Assets/HillTiles/0.png" style="left:485px;top:318px"><img class="tile tile-0" src="Assets/HillTiles/0.png" style="left:734px;top:467px"></div><div class="waiting"><div>Waiting for Client...</div><img src="Assets/Loading.gif"></div><div class="server-status">Server Status: <span class="o'+(multiplayer?"n":"ff")+'line"></span></div>')
+			$(".game").html('<div class="victory-screen"><span class="header">Classificação</span><span class="placement first">1º <span class="player-name"><span class="name"></span> — <img class="timer" src="Assets/Timer.png"><span class="time"></span></span></span><span class="placement second">2º <span class="player-name"><span class="name"></span> — <img class="timer" src="Assets/Timer.png"><span class="time"></span></span></span><span class="placement third">3º <span class="player-name"><span class="name"></span> — <img class="timer" src="Assets/Timer.png"><span class="time"></span></span></span><span class="placement fourth">4º <span class="player-name"><span class="name"></span> — <img class="timer" src="Assets/Timer.png"><span class="time"></span></span></span><div class="play-again">Jogar de novo</div></div><div class="background"></div><img class="clouds" src="Assets/Clouds.png" style="left:255px"><img class="corner" src="Assets/MapCorner.png"><div class="map"><div class="map-bar"></div></div><div class="tiles"><img class="tile tile-start" src="Assets/HillTiles/Start.png"><img class="tile tile-0" src="Assets/HillTiles/0.png" style="left:485px;top:318px"><img class="tile tile-0" src="Assets/HillTiles/0.png" style="left:734px;top:467px"></div><div class="waiting"><div>Conectando...</div><img src="Assets/Loading.gif"></div><div class="server-status">Servidor: <span class="o'+(multiplayer?"n":"ff")+'line"></span></div>')
 			
 			// Delay slightly and prompt for a username
 			setTimeout(promptUsername, 200)
@@ -84,15 +84,15 @@ function StartGame() {
 		})
 		// Start the countdown
 		$(".waiting").remove()
-		$(".game").append('<div class="countdown">READY</div>')
+		$(".game").append('<div class="countdown">PRONTOS</div>')
 		// Start the music
 		$("body").append('<audio autoplay class="music" loop src="Assets/Music.mp3">')
 		setTimeout(function() {
 			$(".countdown").remove()
-			$(".game").append('<div class="countdown">SET</div>')
+			$(".game").append('<div class="countdown">ATENÇÃO</div>')
 			setTimeout(function() {
 				$(".countdown").remove()
-				$(".game").append('<div class="countdown go">GO!</div>')
+				$(".game").append('<div class="countdown go">JÁ!</div>')
 				setTimeout(function() {
 					// Remove the countdown
 					$(".countdown").fadeOut("fast", function() {$(this).remove()})

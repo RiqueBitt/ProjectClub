@@ -74,6 +74,7 @@
     allowNetworking: 'all',
     openUrlMode: 'deny',
     logLevel: 'error',
+    locale: 'pt-BR',
     publicPath: '/ruffle/',
     polyfills: false,
   }).then(function () {

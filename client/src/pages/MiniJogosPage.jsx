@@ -10,9 +10,9 @@ import '../styles/cards.css';
 
 // Cartas de vitrine do destaque da Arena (só visual).
 const ARENA_SAMPLE = [
-  { slug: 'a1', name: 'Fênix Rubra', element: 'FOGO', rarity: 'EPICA', cost: 5, attack: 5, health: 4, ability: 'ULTIMO_SUSPIRO', abilityValue: 4 },
-  { slug: 'a2', name: 'Leviatã Ancestral', element: 'AGUA', rarity: 'MITICA', cost: 9, attack: 9, health: 10, ability: 'ESCUDO' },
-  { slug: 'a3', name: 'Rainha dos Céus', element: 'AR', rarity: 'LENDARIA', cost: 7, attack: 6, health: 6, ability: 'GRITO_RAIO', abilityValue: 5 },
+  { slug: 'capivara-suprema', name: 'Capivara Suprema', element: 'TERRA', rarity: 'MITICA', cost: 9, attack: 9, health: 10, ability: 'ESCUDO' },
+  { slug: 'iceberg', name: 'O Iceberg', element: 'AGUA', rarity: 'MITICA', cost: 9, attack: 8, health: 12, ability: 'GUARDA' },
+  { slug: 'goku', name: 'Goku', element: 'FOGO', rarity: 'MITICA', cost: 9, attack: 9, health: 9, ability: 'FURIA' },
 ];
 
 // Mini-Jogos: jogos que já vêm no Project Club (ver minijogos/catalog.js).
@@ -45,6 +45,14 @@ function MjIcon({ name, size = 18 }) {
 }
 
 const MUTE_KEY = 'minijogos:muted';
+const isCoarse = () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
+// No celular: tela cheia + paisagem travada (quando o navegador deixa).
+function goLandscape(el) {
+  if (!el) return;
+  const lock = () => { try { window.screen?.orientation?.lock?.('landscape').catch(() => {}); } catch { /* ignora */ } };
+  if (document.fullscreenElement === el) { lock(); return; }
+  try { el.requestFullscreen?.({ navigationUI: 'hide' }).then(lock).catch(() => {}); } catch { /* ignora */ }
+}
 function readMuted() {
   try { return localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; }
 }
@@ -58,7 +66,7 @@ function GameRow({ game, onOpen }) {
     <button type="button" className="mj-row" onClick={() => onOpen(game.slug)}>
       <img className="mj-row-icon" src={game.icon} alt="" loading="lazy" draggable="false" />
       <span className="mj-row-text">
-        <span className="mj-row-name">{game.name}</span>
+        <span className="mj-row-name">{game.name}{game.original && <span className="mj-row-orig">{game.original}</span>}</span>
         <span className="mj-row-desc">{game.description}</span>
       </span>
       <span className="mj-row-play" aria-hidden="true"><MjIcon name="play" size={14} /></span>
@@ -101,8 +109,12 @@ function MiniJogoPlayer({ game, onClose }) {
     const el = wrapRef.current;
     if (!el) return;
     if (document.fullscreenElement === el) document.exitFullscreen().catch(() => {});
+    else if (isCoarse()) goLandscape(el);
     else el.requestFullscreen?.().catch(() => {});
   };
+
+  // Celular: abre em tela cheia na horizontal (o toque que abriu o jogo ainda vale).
+  useEffect(() => { if (isCoarse()) goLandscape(wrapRef.current); }, []);
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(document.fullscreenElement === wrapRef.current);
@@ -157,7 +169,7 @@ function MiniJogoPlayer({ game, onClose }) {
         <img className="mj-player-icon" src={game.icon} alt="" draggable="false" />
         <div className="mj-player-title">
           <span className="mj-player-name">{game.name}</span>
-          <span className="mj-player-controls"><MjIcon name="keyboard" size={13} />{game.controls}</span>
+          <span className="mj-player-controls"><MjIcon name="keyboard" size={13} />{isCoarse() && game.touch ? game.touch : game.controls}</span>
         </div>
         <div className="mj-player-actions">
           <button type="button" className={`mj-player-btn mj-scores-btn${showScores ? ' is-on' : ''}`} onClick={() => setShowScores((v) => !v)} title="Recordes" aria-label="Recordes" aria-pressed={showScores}>
@@ -195,11 +207,12 @@ function MiniJogoPlayer({ game, onClose }) {
           allow="autoplay; fullscreen"
           onLoad={onFrameLoad}
         />
-        <TouchPad frameRef={frameRef} />
+        <TouchPad frameRef={frameRef} layout={game.pad || 'dpada'} />
+        {loaded && isCoarse() && game.touch && <div className="mj-touch-hint" role="note">{game.touch}</div>}
         <div className="mj-rotate-hint" role="note">
           <MjIcon name="rotate" size={34} />
           <strong>Gire o celular</strong>
-          <span>Os mini-jogos funcionam melhor na horizontal, e alguns precisam de mouse e teclado.</span>
+          <span>Os mini-jogos funcionam melhor na horizontal. Toque em tela cheia (⤢) para jogar deitado.</span>
         </div>
       </div>
     </div>
@@ -224,7 +237,7 @@ export default function MiniJogosPage() {
 
   const q = normalize(query.trim());
   const results = q
-    ? MINIJOGOS.filter((g) => normalize(`${g.name} ${g.description}`).includes(q))
+    ? MINIJOGOS.filter((g) => normalize(`${g.name} ${g.original || ''} ${g.description}`).includes(q))
     : null;
   const featured = MINIJOGOS.filter((g) => g.featured);
   const ROW_LIMIT = 3;
@@ -320,7 +333,7 @@ export default function MiniJogosPage() {
               })}
 
               <p className="mj-credits">
-                Bean Counters, Pizzatron 3000 e Sled Racing são recriações feitas por fãs dos mini-jogos do Club Penguin.
+                Recriações feitas por fãs dos mini-jogos do Club Penguin, com textos traduzidos para o português. Funcionam no PC (mouse e teclado) e no celular (toque e controles na tela).
               </p>
             </>
           )}

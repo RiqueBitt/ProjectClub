@@ -36,9 +36,9 @@ app.onLoad(function() {
 	// Check for a mobile client
 	if(false && testMobile()) { // Project Club: celular liberado (controles na tela)
 		app.setState("Mobile")
-		$("body").toggleClass("loading sorry").html("Sorry :(")
+		$("body").toggleClass("loading sorry").html("Foi mal :(")
 		setTimeout(function() {
-			alert("Sorry, this game app is not supported on mobile devices. Please play on a PC or laptop instead.")
+			alert("Este jogo não funciona neste aparelho.")
 		}, 1)
 		return
 	}
@@ -77,7 +77,7 @@ app.onLoad(function() {
 		// Show the main menu
 		app.setState("Main")
 		$(".loading").toggleClass("in-game loading").removeClass("loading").empty()
-		$("body").append('<div class="game"><span class="debug">Debug: Hitboxes Visible</span><img class="logo" src="Assets/Logo.png"><div class="candy-trigger"></div><img class="start-button" src="Assets/ButtonStart.png"><div class="start-text">Play</div><img class="main-menu" src="Assets/Menu.png"></div><audio autoplay loop src="Assets/Sounds/Music.mp3">')
+		$("body").append('<div class="game"><span class="debug">Debug: áreas visíveis</span><img class="logo" src="Assets/Logo.png"><div class="candy-trigger"></div><img class="start-button" src="Assets/ButtonStart.png"><div class="start-text">Jogar</div><img class="main-menu" src="Assets/Menu.png"></div><audio autoplay loop src="Assets/Sounds/Music.mp3">')
 		// Show the hitboxes if dev mode is on
 		if(getCookie("showHitboxes") == 1) {
 			$(".game").addClass("show-hitboxes")

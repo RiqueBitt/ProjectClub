@@ -1,3 +1,7 @@
+// Project Club: nomes em português só na tela (as chaves continuam em inglês).
+var PT_NAMES = {"Cheese Pizza": "Pizza de Queijo", "Hot Cheese Pizza": "Pizza de Queijo Picante", "Seaweed Pizza": "Pizza de Alga", "Spicy Seaweed Pizza": "Pizza de Alga Apimentada", "Shrimp Pizza": "Pizza de Camarão", "Hot Shrimp Pizza": "Pizza de Camarão Picante", "Squid Pizza": "Pizza de Lula", "Spicy Squid Pizza": "Pizza de Lula Apimentada", "Fish Pizza": "Pizza de Peixe", "Flamethrower Fish Pizza": "Pizza de Peixe Lança-Chamas", "Seaweed-Shrimp Pizza": "Pizza de Alga e Camarão", "Hot Seaweed-Shrimp Pizza": "Pizza de Alga e Camarão Picante", "Fish Dish Pizza": "Pizza Frutos do Mar", "Hot Fish Dish Pizza": "Pizza Frutos do Mar Picante", "Seaweed-Squid Pizza": "Pizza de Alga e Lula", "Hot Seaweed-Squid Pizza": "Pizza de Alga e Lula Picante", "Fish Shrimp Pizza": "Pizza de Peixe e Camarão", "Hot Fish Shrimp Pizza": "Pizza de Peixe e Camarão Picante", "Seaweed Fish Pizza": "Pizza de Alga e Peixe", "Hot Seaweed Fish Pizza": "Pizza de Alga e Peixe Picante", "Shrimp Squid Pizza": "Pizza de Camarão e Lula", "Hot Shrimp Squid Pizza": "Pizza de Camarão e Lula Picante", "Supreme Pizza": "Pizza Suprema", "Supreme Sizzle Pizza": "Pizza Suprema Picante"}
+var PT_WORDS = {"Cheese":"Queijo","Seaweed":"Alga","Shrimp":"Camarão","Squid":"Lula","Fish":"Peixe","Pizza":"Normal","Hot":"Picante"}
+function pt(w) { return PT_NAMES[w] || PT_WORDS[w] || w }
 var order, currentPizza = {sauce:"",ingredients:{}}, completedOrder = false, pizzaPc = {l:[],t:[]}, infoFrame
 
 // List the orders
@@ -102,15 +106,15 @@ function GetNextOrder() {
 		$(".ingredient-orders").remove()
 		
 		// Display it
-		$(".order").text(order.name)
+		$(".order").text(pt(order.name))
 		$(".order-image").attr("src", "Assets/Orders/"+order.sauce+".png")
-		$(".sauce-order span").text(order.sauce)
+		$(".sauce-order span").text(pt(order.sauce))
 		
 		// Get the extra ingredients
 		Object.keys(order.ingredients).forEach(function(f,i) {
 			if(i) {
 				// Add the info to the menu
-				$(".extra-"+i).find(".count").text(order.ingredients[f]).next().text(f)
+				$(".extra-"+i).find(".count").text(order.ingredients[f]).next().text(pt(f))
 				$(".done").before('<div class="ingredient-orders ingredient-'+i+' ingredient-'+(f.toLowerCase())+' hid"></div>')
 				for(var c = 0; c < order.ingredients[f]; c++) {
 					// Add an image for each ingredient

@@ -8,12 +8,12 @@ function Play() {
 	$(".menu").toggleClass("play-area menu")
 	$(".game-menu").addClass("background").removeClass("game-menu").attr("src", "Assets/Background.png")
 	$(".start-button, .vr-start, .logo").remove()
-	$(".background").after('<div class="alert" style="display:none">Truck Unloaded!!</div>')
+	$(".background").after('<div class="alert" style="display:none">Caminhão descarregado!!</div>')
 	$(".alert").after('<img class="platform" src="Assets/Platform.png">')
 	$(".platform").after('<div class="stack"></div>')
 	$(".stack").after('<div class="player" style="left: 360px;"><div class="hitbox"></div><img src="Assets/Player/0.png"></div>')
-	$(".player").after('<div class="badluck" style="display:none">Try Again...</div>')
-	$(".badluck").after('<div class="scoreboard">Lives: <span class="lives">3</span> Truck: <span class="truck-num">1</span> Score: <span class="score">0</span></div>')
+	$(".player").after('<div class="badluck" style="display:none">Tente de novo...</div>')
+	$(".badluck").after('<div class="scoreboard">Vidas: <span class="lives">3</span> Caminhão: <span class="truck-num">1</span> Pontos: <span class="score">0</span></div>')
 	$(".scoreboard").after('<img class="truck ready" src="Assets/Truck.png">')
 	addBags()
 	StartHazards()
@@ -131,7 +131,7 @@ function Dead(type) {
 						$(this).text(1).fadeIn(200, function() {
 							$(this).delay(600).fadeOut(200, function() {
 								// Reset the screen
-								$(this).hide().removeClass("countdown").text("Truck Unloaded!!")
+								$(this).hide().removeClass("countdown").text("Caminhão descarregado!!")
 								$(".badluck").first().hide()
 								dead = false
 								holding = 0
@@ -153,7 +153,7 @@ function Dead(type) {
 	}
 	else {
 		setTimeout(function() {
-			alert("Game Over!")
+			alert("Fim de jogo!")
 			GameOver()
 		}, 50)
 	}
@@ -186,7 +186,7 @@ function DropBag() {
 					var truckLeave = function() {
 						if(parseInt($(".truck").first().css("right")) <= -316) {
 							// Hide the text and change it
-							$(".alert").first().hide().text("Next Truck!!")
+							$(".alert").first().hide().text("Próximo caminhão!!")
 							// Play the reverse sound
 							$("body").append('<audio autoplay class="truck-sound" src="Assets/Sounds/TruckReverse.mp3"></audio>')
 							// Make the truck come back
@@ -201,7 +201,7 @@ function DropBag() {
 					var truckLoad = function() {
 						if(parseInt($(".truck").first().css("right")) >= -5) {
 							// Hide the text again
-							$(".alert").first().hide().text("Truck Unloaded!!")
+							$(".alert").first().hide().text("Caminhão descarregado!!")
 							// Reset all the variables and start the next level
 							holding = 0
 							moving = 0
@@ -220,7 +220,7 @@ function DropBag() {
 					}
 				}
 				else {
-					alert("Congratulations! All the trucks have been unloaded! You achieved a score of "+score+"!")
+					alert("Parabéns! Você descarregou todos os caminhões e fez "+score+" pontos!")
 					GameOver()
 				}
 			}, 80)

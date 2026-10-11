@@ -125,4 +125,44 @@
       return origPlay.apply(this, arguments);
     };
   }
+
+  // Project Club — toque vira mouse (celular/tablet). Os jogos foram feitos
+  // para mouse: arrastar ingrediente, mover o pinguim, clicar nos botões.
+  // Toque e arraste geram mousedown/mousemove/mouseup/click no ponto tocado.
+  if (document.body && document.body.classList.contains('frame') && ('ontouchstart' in w || navigator.maxTouchPoints > 0)) {
+    var tStart = null, tMoved = false, tLast = null;
+    var fire = function (type, t, el) {
+      try {
+        el.dispatchEvent(new MouseEvent(type, {
+          bubbles: true, cancelable: true, view: w, clientX: t.clientX, clientY: t.clientY,
+          screenX: t.screenX, screenY: t.screenY, button: 0, buttons: type === 'mouseup' || type === 'click' ? 0 : 1,
+        }));
+      } catch (e) { /* ignora */ }
+    };
+    var at = function (t) { return document.elementFromPoint(t.clientX, t.clientY) || document.body; };
+    document.addEventListener('touchstart', function (e) {
+      if (e.touches.length > 1) return;
+      var t = e.changedTouches[0]; var el = at(t);
+      tStart = { x: t.clientX, y: t.clientY }; tMoved = false; tLast = el;
+      fire('mouseover', t, el); fire('mousemove', t, el); fire('mousedown', t, el);
+      e.preventDefault();
+    }, { passive: false });
+    document.addEventListener('touchmove', function (e) {
+      if (!tStart) return;
+      var t = e.changedTouches[0]; var el = at(t);
+      if (Math.abs(t.clientX - tStart.x) + Math.abs(t.clientY - tStart.y) > 10) tMoved = true;
+      fire('mousemove', t, el); tLast = el;
+      e.preventDefault();
+    }, { passive: false });
+    var end = function (e) {
+      if (!tStart) return;
+      var t = e.changedTouches[0]; var el = at(t) || tLast;
+      fire('mouseup', t, el);
+      if (!tMoved) fire('click', t, el);
+      tStart = null;
+      e.preventDefault();
+    };
+    document.addEventListener('touchend', end, { passive: false });
+    document.addEventListener('touchcancel', end, { passive: false });
+  }
 })();

@@ -19,7 +19,10 @@ export const MINIJOGOS_CATEGORIES = [
 export const MINIJOGOS = [
   {
     slug: 'beancounters',
-    name: 'Bean Counters',
+    name: 'Pilha de Café',
+    original: 'Bean Counters',
+    pad: 'none',
+    touch: 'Arraste o dedo para andar e toque para soltar o saco.',
     description: 'Pegue os sacos de café que caem do caminhão e empilhe na plataforma.',
     category: 'acao',
     controls: 'Mouse ou setas pra andar, clique ou Espaço pra soltar o saco.',
@@ -28,6 +31,8 @@ export const MINIJOGOS = [
   {
     slug: 'pizzatron',
     name: 'Pizzatron 3000',
+    pad: 'none',
+    touch: 'Arraste o molho e os ingredientes até a pizza.',
     description: 'Monte as pizzas dos pedidos na esteira antes que elas passem.',
     category: 'casual',
     controls: 'Arraste os ingredientes com o mouse até a pizza.',
@@ -35,7 +40,10 @@ export const MINIJOGOS = [
   },
   {
     slug: 'sledracing',
-    name: 'Sled Racing',
+    name: 'Corrida de Trenó',
+    original: 'Sled Racing',
+    pad: 'lr',
+    touch: 'Use os botões ◀ ▶ para desviar.',
     description: 'Desça a montanha de boia desviando de pedras e troncos.',
     category: 'corrida',
     controls: 'Setas pra esquerda e direita pra desviar.',
@@ -48,26 +56,28 @@ export const MINIJOGOS = [
   icon: `/minigames/${g.slug}/icon.webp`,
 }));
 
+// Textos dos jogos em Flash traduzidos para pt-BR (lang/en/locale.swf).
 // Jogos em Flash (.swf), rodando no Ruffle (emulador em WebAssembly servido
 // pelo próprio app). Vieram do segundo zip do dono (recriação de fã).
 const FLASH = [
-  ['thinice', 'Thin Ice', 'Derreta todo o gelo do labirinto sem ficar preso.', 'arcade', true],
-  ['astrobarrier', 'Astro Barrier', 'Atire nos alvos que passam e avance de fase.', 'arcade', true],
-  ['cartsurfer', 'Cart Surfer', 'Surfe no carrinho da mina fazendo manobras.', 'corrida', true],
-  ['icefishing', 'Ice Fishing', 'Pesque peixes no gelo sem perder a linha.', 'casual', false],
-  ['aquagrabber', 'Aqua Grabber', 'Explore o fundo do mar com o submarino.', 'arcade', false],
-  ['catchinwaves', "Catchin' Waves", 'Pegue as ondas e faça manobras na prancha.', 'acao', false],
-  ['dance', 'Dance Contest', 'Acerte as setas no ritmo da música.', 'musica', true],
-  ['systemdefender', 'System Defender', 'Defenda o sistema das ondas de robôs.', 'arcade', false],
-  ['hydrohopper', 'Hydro Hopper', 'Pilote o barco e desvie dos obstáculos.', 'acao', false],
-  ['balloonpop', 'Balloon Pop', 'Estoure os balões e faça pontos.', 'casual', false],
-  ['feedapuffle', 'Feed-A-Puffle', 'Alimente os puffles antes que fiquem com fome.', 'puffles', false],
-  ['pufflepaddle', 'Puffle Paddle', 'Rebata os puffles e não deixe nenhum cair.', 'puffles', false],
-  ['puffleroundup', 'Puffle Roundup', 'Junte todos os puffles no cercado.', 'puffles', false],
-  ['pufflesoaker', 'Puffle Soaker', 'Molhe os alvos com os puffles.', 'puffles', false],
-  ['fluffy', 'Fluffy the Fish', 'Pesque com o Fluffy.', 'casual', false],
-].map(([slug, name, description, category, featured]) => ({
-  slug, name, description, category, featured, flash: true,
+  // [slug, nome em pt-BR, nome original, descrição, categoria, destaque, controles na tela, dica no toque]
+  ['thinice', 'Gelo Fino', 'Thin Ice', 'Derreta todo o gelo do labirinto sem ficar preso.', 'arcade', true, 'dpad', 'Use as setas na tela para andar.'],
+  ['astrobarrier', 'Astro Barreira', 'Astro Barrier', 'Atire nos alvos que passam e avance de fase.', 'arcade', true, 'lra', '◀ ▶ movem a nave, A atira, OK continua.'],
+  ['cartsurfer', 'Surfe no Carrinho', 'Cart Surfer', 'Surfe no carrinho da mina fazendo manobras.', 'corrida', true, 'dpada', 'Setas inclinam e fazem manobras, A pula.'],
+  ['icefishing', 'Pescaria no Gelo', 'Ice Fishing', 'Pesque peixes no gelo sem perder a linha.', 'casual', false, 'none', 'Arraste o dedo para subir e descer o anzol; toque para soltar o peixe.'],
+  ['aquagrabber', 'Garra Submarina', 'Aqua Grabber', 'Explore o fundo do mar com o submarino.', 'arcade', false, 'dpada', 'Setas movem o submarino, A usa a garra.'],
+  ['catchinwaves', 'Pegando Onda', "Catchin' Waves", 'Pegue as ondas e faça manobras na prancha.', 'acao', false, 'none', 'Arraste o dedo para surfar e toque para manobrar.'],
+  ['dance', 'Competição de Dança', 'Dance Contest', 'Acerte as setas no ritmo da música.', 'musica', true, 'arrows', 'Toque nas setas no ritmo da música.'],
+  ['systemdefender', 'Defensor do Sistema', 'System Defender', 'Defenda o sistema das ondas de robôs.', 'arcade', false, 'none', 'Toque no canhão e depois no quadrado onde quer construir.'],
+  ['hydrohopper', 'Hidro Saltador', 'Hydro Hopper', 'Pilote o barco e desvie dos obstáculos.', 'acao', false, 'none', 'Arraste o dedo para mover e toque para pular.'],
+  ['balloonpop', 'Estoura-Balão', 'Balloon Pop', 'Estoure os balões e faça pontos.', 'casual', false, 'none', 'Toque e segure para soprar o puffle.'],
+  ['feedapuffle', 'Alimente o Puffle', 'Feed-A-Puffle', 'Alimente os puffles antes que fiquem com fome.', 'puffles', false, 'none', 'Arraste para mirar e toque para lançar a comida.'],
+  ['pufflepaddle', 'Raquete Puffle', 'Puffle Paddle', 'Rebata os puffles e não deixe nenhum cair.', 'puffles', false, 'none', 'Arraste o dedo para mover a raquete.'],
+  ['puffleroundup', 'Reunir Puffles', 'Puffle Roundup', 'Junte todos os puffles no cercado.', 'puffles', false, 'none', 'Arraste o dedo para guiar os puffles até o cercado.'],
+  ['pufflesoaker', 'Molha-Puffle', 'Puffle Soaker', 'Molhe os alvos com os puffles.', 'puffles', false, 'dpada', 'Setas movem e mudam a mira, A atira.'],
+  ['fluffy', 'Fluffy, o Peixe', 'Fluffy the Fish', 'Pesque com o Fluffy.', 'casual', false, 'none', 'Arraste o dedo para mover o anzol.'],
+].map(([slug, name, original, description, category, featured, pad, touch]) => ({
+  slug, name, original, description, category, featured, pad, touch, flash: true,
   controls: 'Mouse e teclado (setas e Espaço).',
   path: `/minigames/flash/player.html?swf=${slug}/${slug === 'fluffy' ? 'fluffy.swf' : 'pcshell.swf'}`,
   cover: `/minigames/flash/${slug}/cover.webp`,

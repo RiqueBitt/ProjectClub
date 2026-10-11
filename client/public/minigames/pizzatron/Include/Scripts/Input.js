@@ -1,6 +1,6 @@
 // Handle button clicks
 $("body").on("click", ".candy-trigger", function() {
-	alert("Sorry, the Candytron 3000 is not available at this time.")
+	alert("Foi mal, a Candytron 3000 não está disponível agora.")
 }).on("click", ".start-button", function() {
 	StartGame()
 }).on("click", ".end-button", function() {

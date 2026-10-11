@@ -38,9 +38,9 @@ app.onLoad(function() {
 	// Check for a mobile client
 	if(false && testMobile()) { // Project Club: celular liberado (controles na tela)
 		app.setState("Mobile")
-		$("body").toggleClass("loading sorry").html("Sorry :(")
+		$("body").toggleClass("loading sorry").html("Foi mal :(")
 		setTimeout(function() {
-			alert("Sorry, this game app is not supported on mobile devices. Please play on a PC or laptop instead.")
+			alert("Este jogo não funciona neste aparelho.")
 		}, 1)
 		return
 	}

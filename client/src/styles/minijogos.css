@@ -220,3 +220,17 @@
   .mj-player-bar { min-height: 44px; }
 }
 .mj-player-stage:has(.mj-pad) .mj-rotate-hint { display: none; }
+
+/* Controles na tela por jogo (◀ ▶, setas, setas em linha) */
+.mj-pad-dpad.is-lr { width: auto; height: auto; display: flex; gap: 14px; }
+.mj-pad-dpad.is-lr .mj-pad-btn { position: static; width: 68px; height: 68px; border-radius: 18px; }
+.mj-pad.is-arrows { justify-content: center; }
+.mj-pad-row { display: flex; gap: 12px; pointer-events: auto; }
+.mj-pad-row .mj-pad-btn { position: static; width: 64px; height: 64px; border-radius: 18px; }
+.mj-pad-actions .mj-pad-btn { position: static; }
+.mj-touch-hint { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); z-index: 6; max-width: min(92%, 520px); padding: 8px 14px; border-radius: 12px; background: rgba(0,0,0,.66); color: #fff; font-size: 13px; font-weight: 600; text-align: center; pointer-events: none; animation: mj-hint-fade 6s ease forwards; }
+@keyframes mj-hint-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+.mj-row-orig, .mj-card-orig { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-left: 6px; }
+@media (pointer: coarse) {
+  .mj-player-frame { touch-action: none; }
+}
