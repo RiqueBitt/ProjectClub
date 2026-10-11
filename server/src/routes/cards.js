@@ -3,6 +3,7 @@ const rateLimit = require('express-rate-limit');
 const { createRateLimitStore } = require('../config/rateLimitStore');
 const ctrl = require('../controllers/cardsController');
 const admin = require('../controllers/cardsAdminController');
+const extra = require('../controllers/cardsExtraController');
 const { requireAuth } = require('../middleware/auth');
 const { requirePlatformAdmin } = require('../middleware/platformAdmin');
 const { requireSystemEnabled } = require('../middleware/systemToggle');
@@ -11,6 +12,8 @@ const { uploadImage } = require('../middleware/upload');
 // Jogo de Cartas (substitui as Figurinhas). Painel da staff em /admin/*.
 const router = express.Router();
 router.use(requireAuth);
+// Varredura de prazos de turno (precisa do io pra avisar os jogadores).
+router.use((req, res, next) => { extra.startSweeper(req.app.get('io')); next(); });
 
 const key = (req) => `u:${req.user?.id}`;
 const actionLimiter = rateLimit({ windowMs: 10 * 1000, max: 60, keyGenerator: key, standardHeaders: true, legacyHeaders: false, store: createRateLimitStore('cards-action'), message: { error: 'Calma! Muitas ações seguidas.' } });
@@ -39,6 +42,18 @@ a.get('/trades', admin.listTrades);
 a.post('/trades/:id/cancel', admin.cancelTrade);
 a.get('/matches', admin.listMatches);
 a.post('/matches/:id/cancel', admin.cancelMatch);
+a.get('/stats', extra.adminStats);
+a.get('/export', extra.exportCards);
+a.post('/import', extra.importCards);
+a.get('/campaign', extra.adminCampaign);
+a.post('/campaign', extra.createStage);
+a.patch('/campaign/:id', extra.updateStage);
+a.delete('/campaign/:id', extra.deleteStage);
+a.get('/tournaments', extra.adminTournaments);
+a.post('/tournaments', extra.createTournament);
+a.patch('/tournaments/:id', extra.updateTournament);
+a.post('/tournaments/:id/start', extra.startTournament);
+a.post('/tournaments/:id/cancel', extra.cancelTournament);
 router.use('/admin', a);
 
 // --- Jogadores ---
@@ -66,6 +81,20 @@ router.post('/matches/:id/decline', ctrl.declineChallenge);
 router.get('/matches/:id', ctrl.getMatch);
 router.post('/matches/:id/action', actionLimiter, ctrl.action);
 router.get('/ranking', ctrl.ranking);
+router.get('/campaign', extra.campaign);
+router.post('/campaign/:id/start', socialLimiter, extra.startCampaign);
+router.post('/queue', extra.joinQueue);
+router.delete('/queue', extra.leaveQueue);
+router.get('/live', extra.live);
+router.get('/matches/:id/replay', extra.replay);
+router.get('/matches/:id/watch', extra.watch);
+router.get('/market', extra.market);
+router.post('/market', buyLimiter, extra.createListing);
+router.post('/market/:id/buy', buyLimiter, extra.buyListing);
+router.post('/market/:id/cancel', extra.cancelListing);
+router.get('/tournaments', extra.tournaments);
+router.post('/tournaments/:id/join', extra.joinTournament);
+router.post('/tournaments/:id/leave', extra.leaveTournament);
 router.get('/trades', ctrl.listTrades);
 router.post('/trades', socialLimiter, ctrl.createTrade);
 router.post('/trades/:id/accept', ctrl.acceptTrade);

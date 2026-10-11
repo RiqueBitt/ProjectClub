@@ -65,7 +65,7 @@ export default function DeckBuilder({ collection, rules, onChanged }) {
             {filtered.map((c) => {
               const used = editing.cards.get(c.id) || 0;
               return (
-                <CardView key={c.id} card={c} size="sm" onClick={() => add(c)} dim={used >= cap(c)}
+                <CardView key={c.id} card={c} size="xs" onClick={() => add(c)} dim={used >= cap(c)}
                   badge={<span className="tcgd-use">{used}/{cap(c)}</span>} aria-label={`Adicionar ${c.name}`} />
               );
             })}

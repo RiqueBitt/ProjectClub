@@ -25,6 +25,11 @@ const MISSION_TYPES = {
   FORUM_COMMENTS: { label: 'Comentários no Fórum', unit: 'comentários' },
   SHOP_VISIT: { label: 'Visitar a Loja', unit: 'visita' },
   DAILY_CHEST: { label: 'Resgatar o baú diário', unit: 'baú' },
+  CARDS_PLAY: { label: 'Arena de Cartas: jogar partidas', unit: 'partidas' },
+  CARDS_WIN: { label: 'Arena de Cartas: vencer partidas', unit: 'vitórias' },
+  CARDS_PVP_WIN: { label: 'Arena de Cartas: vencer jogadores (PvP)', unit: 'vitórias' },
+  CARDS_PACK: { label: 'Arena de Cartas: abrir pacotes', unit: 'pacotes' },
+  CARDS_TRADE: { label: 'Arena de Cartas: concluir trocas ou vendas', unit: 'trocas' },
 };
 const PERIODS = ['DAILY', 'WEEKLY'];
 // Únicos tipos que o próprio cliente pode avisar (o resto vem de eventos do servidor).
@@ -80,10 +85,26 @@ const DEFAULT_MISSIONS = [
   { period: 'WEEKLY', type: 'FORUM_COMMENTS', title: 'Bom de papo', description: 'Comente 5 vezes no Fórum.', target: 5, rewardCoins: 80 },
 ];
 
+// Missões da Arena de Cartas — entram uma vez, mesmo em bancos que já
+// tinham missões (a staff edita/desativa depois).
+const CARDS_MISSIONS = [
+  { period: 'DAILY', type: 'CARDS_PLAY', title: 'Duelista do dia', description: 'Jogue 3 partidas na Arena de Cartas.', target: 3, rewardCoins: 40, rewardXp: 20 },
+  { period: 'DAILY', type: 'CARDS_WIN', title: 'Primeira vitória', description: 'Vença 1 partida na Arena de Cartas.', target: 1, rewardCoins: 30 },
+  { period: 'DAILY', type: 'CARDS_PACK', title: 'Novas cartas', description: 'Abra 1 pacote de cartas.', target: 1, rewardCoins: 20 },
+  { period: 'WEEKLY', type: 'CARDS_WIN', title: 'Campeão da semana', description: 'Vença 15 partidas na Arena de Cartas.', target: 15, rewardCoins: 300, rewardGems: 2, rewardXp: 100 },
+  { period: 'WEEKLY', type: 'CARDS_PVP_WIN', title: 'Rei da Arena', description: 'Vença 5 partidas contra outros jogadores.', target: 5, rewardCoins: 250, rewardGems: 2, rewardXp: 80 },
+  { period: 'WEEKLY', type: 'CARDS_TRADE', title: 'Negociante', description: 'Conclua 2 trocas ou vendas no mercado.', target: 2, rewardCoins: 120 },
+];
+
 async function seedDefaultMissions() {
   const count = await prisma.mission.count();
-  if (count > 0) return;
-  await prisma.mission.createMany({ data: DEFAULT_MISSIONS.map((m, i) => ({ ...m, position: i })) });
+  if (count === 0) await prisma.mission.createMany({ data: DEFAULT_MISSIONS.map((m, i) => ({ ...m, position: i })) });
+  const hasCards = await prisma.mission.count({ where: { type: { in: CARDS_MISSIONS.map((m) => m.type) } } });
+  if (hasCards === 0) {
+    const base = await prisma.mission.count();
+    await prisma.mission.createMany({ data: CARDS_MISSIONS.map((m, i) => ({ ...m, position: base + i })) });
+    invalidateCache();
+  }
 }
 
 // Cache curto das missões ativas — evita ler a tabela a cada mensagem.

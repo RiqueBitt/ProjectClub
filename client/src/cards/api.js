@@ -27,6 +27,21 @@ export const cardsRanking = (by) => api.get('/cards/ranking', { params: { by } }
 export const cardsTrades = () => api.get('/cards/trades').then(d);
 export const cardsCreateTrade = (payload) => api.post('/cards/trades', payload).then(d);
 export const cardsTradeAction = (id, kind) => api.post(`/cards/trades/${id}/${kind}`).then(d);
+export const cardsSellFoil = (cardId) => api.post(`/cards/collection/${cardId}/sell`, { qty: 1, foil: true }).then(d);
+export const cardsCampaign = () => api.get('/cards/campaign').then(d);
+export const cardsStartCampaign = (id) => api.post(`/cards/campaign/${id}/start`).then(d);
+export const cardsQueue = () => api.post('/cards/queue').then(d);
+export const cardsLeaveQueue = () => api.delete('/cards/queue').then(d);
+export const cardsLive = () => api.get('/cards/live').then(d);
+export const cardsReplay = (id) => api.get(`/cards/matches/${id}/replay`).then(d);
+export const cardsWatch = (id) => api.get(`/cards/matches/${id}/watch`).then(d);
+export const cardsMarket = (params) => api.get('/cards/market', { params }).then(d);
+export const cardsCreateListing = (body) => api.post('/cards/market', body).then(d);
+export const cardsBuyListing = (id) => api.post(`/cards/market/${id}/buy`).then(d);
+export const cardsCancelListing = (id) => api.post(`/cards/market/${id}/cancel`).then(d);
+export const cardsTournaments = () => api.get('/cards/tournaments').then(d);
+export const cardsJoinTournament = (id) => api.post(`/cards/tournaments/${id}/join`).then(d);
+export const cardsLeaveTournament = (id) => api.post(`/cards/tournaments/${id}/leave`).then(d);
 
 // Staff
 export const cardsAdmin = {
@@ -49,6 +64,18 @@ export const cardsAdmin = {
   cancelTrade: (id) => api.post(`/cards/admin/trades/${id}/cancel`).then(d),
   matches: (status) => api.get('/cards/admin/matches', { params: { status } }).then(d),
   cancelMatch: (id) => api.post(`/cards/admin/matches/${id}/cancel`).then(d),
+  stats: (days) => api.get('/cards/admin/stats', { params: { days } }).then(d),
+  exportCards: () => api.get('/cards/admin/export').then(d),
+  importCards: (cards) => api.post('/cards/admin/import', { cards }).then(d),
+  campaign: () => api.get('/cards/admin/campaign').then(d),
+  createStage: (b) => api.post('/cards/admin/campaign', b).then(d),
+  updateStage: (id, b) => api.patch(`/cards/admin/campaign/${id}`, b).then(d),
+  deleteStage: (id) => api.delete(`/cards/admin/campaign/${id}`).then(d),
+  tournaments: () => api.get('/cards/admin/tournaments').then(d),
+  createTournament: (b) => api.post('/cards/admin/tournaments', b).then(d),
+  updateTournament: (id, b) => api.patch(`/cards/admin/tournaments/${id}`, b).then(d),
+  startTournament: (id) => api.post(`/cards/admin/tournaments/${id}/start`).then(d),
+  cancelTournament: (id) => api.post(`/cards/admin/tournaments/${id}/cancel`).then(d),
 };
 
 export const errMsg = (e, fb = 'Algo deu errado.') => e?.response?.data?.error || fb;

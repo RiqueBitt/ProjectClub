@@ -471,3 +471,290 @@ button.tcg-card:hover:not(.is-dim) { transform: translateY(-6px) rotate(-1deg); 
 .tca-levels { display: grid; grid-template-columns: 80px repeat(4, minmax(70px, 1fr)); gap: 6px 10px; align-items: center; max-width: 560px; font-size: 13px; }
 .tca-levels input { height: 34px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-normal); padding: 0 8px; font: inherit; min-width: 0; }
 .tca-levels b { color: var(--text-muted); font-size: 12px; }
+
+/* =====================================================================
+   Etapa 4 — layout: arena, coleção, loja, batalha temática, feitiços,
+   foil, campanha, mercado, torneios, missões.
+   ===================================================================== */
+.tcg-card.tcg-xs { --w: 100px; }
+.tcg-grid.is-compact { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+.tcg-btn-xl { height: 48px; padding: 0 22px; font-size: 15.5px; border-radius: 14px; }
+.tcg-btn-sm { height: 30px; padding: 0 11px; font-size: 12.5px; border-radius: 9px; }
+.tcg-h3-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.tcg-seg { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--border); }
+.tcg-seg button { border: 0; background: none; color: var(--text-muted); font: inherit; font-size: 13px; font-weight: 700; padding: 5px 12px; border-radius: 8px; cursor: pointer; }
+.tcg-seg button.on { background: #8b6bff; color: #fff; }
+.tcg-row-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.tcg-row-btns .tcg-btn { flex: 1; }
+
+/* Feitiço */
+.tcg-card.is-spell .tcg-frame { background: linear-gradient(160deg, color-mix(in srgb, var(--el) 22%, #181024), #0b0910 60%); }
+.tcg-card.is-spell .tcg-art { border-radius: 50% 50% calc(var(--w) * .045) calc(var(--w) * .045) / 30% 30% calc(var(--w) * .045) calc(var(--w) * .045); }
+.tcg-card.is-spell .tcg-cost { background: radial-gradient(circle at 35% 30%, #d6b4ff, #6a2bd9 70%); }
+.tcg-spell-tag { position: absolute; bottom: calc(var(--w) * .03); left: 50%; transform: translateX(-50%); padding: 2px calc(var(--w) * .06); border-radius: 999px; font-size: calc(var(--w) * .06); font-weight: 900; text-transform: uppercase; letter-spacing: .5px; color: var(--rar); border: 1px solid var(--rar); background: rgba(0,0,0,.55); }
+
+/* Foil (brilhante) */
+.tcg-card.is-foil .tcg-frame { box-shadow: 0 0 0 1px rgba(0,0,0,.6), 0 10px 26px rgba(0,0,0,.55), 0 0 24px rgba(255,79,163,.45), 0 0 46px rgba(95,224,208,.25); }
+.tcg-foil-sheen { position: absolute; inset: 0; z-index: 3; pointer-events: none; border-radius: inherit; mix-blend-mode: color-dodge; opacity: .55;
+  background: linear-gradient(115deg, transparent 20%, rgba(255,0,170,.35) 35%, rgba(0,255,230,.35) 45%, rgba(255,240,0,.35) 55%, rgba(120,90,255,.35) 65%, transparent 80%); background-size: 250% 250%; animation: tcg-holo 4s ease-in-out infinite; }
+@keyframes tcg-holo { 0%, 100% { background-position: 0% 0%; } 50% { background-position: 100% 100%; } }
+.tcg-foil-badge { position: absolute; top: -8px; left: -6px; z-index: 4; padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 900; color: #fff; background: linear-gradient(90deg, #ff4fa3, #5fe0d0); border: 2px solid var(--bg-primary); }
+.tcgp-new.is-foil { top: auto; bottom: -10px; background: linear-gradient(90deg, #ff4fa3, #5fe0d0); color: #fff; }
+
+/* Detalhe 3D */
+.tcg-tilt { position: relative; perspective: 900px; transform-style: preserve-3d; }
+.tcg-tilt > .tcg-card { transform: rotateX(var(--rx)) rotateY(var(--ry)); transition: transform .08s linear; }
+.tcg-tilt:hover > .tcg-card { transform: rotateX(var(--rx)) rotateY(var(--ry)) scale(1.03); }
+.tcg-tilt-glare { position: absolute; inset: 0; z-index: 5; pointer-events: none; border-radius: 20px; background: radial-gradient(circle at var(--gx) var(--gy), rgba(255,255,255,.28), transparent 45%); mix-blend-mode: overlay; transform: rotateX(var(--rx)) rotateY(var(--ry)); }
+.tcg-market-sell { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tcg-market-sell input[type="number"] { width: 150px; height: 38px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-normal); padding: 0 10px; font: inherit; }
+
+/* Coleção — álbum */
+.tcg-album { margin-bottom: 26px; }
+.tcg-album-head { display: flex; align-items: center; gap: 12px; margin: 6px 0 14px; }
+.tcg-album-head h3 { margin: 0; color: var(--header-primary); font-size: 18px; }
+.tcg-album-count { font-weight: 900; color: #a58bff; }
+.tcg-album-head .tcg-bar { max-width: 220px; }
+.tcg-album-done { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 800; color: #4cc76b; }
+.tcg-sil { --w: 176px; position: relative; width: var(--w); aspect-ratio: 5 / 7; border-radius: calc(var(--w) * .075); border: 2px dashed color-mix(in srgb, var(--rar) 45%, #333); background: repeating-linear-gradient(135deg, rgba(255,255,255,.025) 0 8px, transparent 8px 16px), #0c0c10; color: #555; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 10px; font: inherit; transition: border-color .15s, color .15s; }
+.tcg-sil:hover { color: #999; border-color: var(--rar); }
+.tcg-sil-cost { position: absolute; top: 8px; left: 8px; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #1c1c24; font-weight: 900; color: #777; }
+.tcg-sil-q { font-size: 46px; font-weight: 900; opacity: .5; }
+.tcg-sil-name { font-weight: 800; font-size: 13px; text-align: center; color: #888; }
+.tcg-sil-rar { font-size: 11px; font-weight: 800; text-transform: uppercase; color: color-mix(in srgb, var(--rar) 70%, #666); }
+@media (max-width: 760px) { .tcg-sil { --w: 140px; } }
+
+/* Início — destaque */
+.tcg-spot { position: relative; display: flex; gap: 30px; align-items: center; padding: 26px 30px; margin: 4px 0 18px; border-radius: 24px; overflow: hidden; border: 1px solid rgba(139,107,255,.35);
+  background: radial-gradient(ellipse 50% 120% at 15% 50%, rgba(139,107,255,.35), transparent 70%), radial-gradient(ellipse 60% 100% at 100% 0%, rgba(255,90,60,.18), transparent 70%), linear-gradient(180deg, #0f0c1c, #08070d); }
+.tcg-spot::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(115deg, rgba(255,255,255,.02) 0 2px, transparent 2px 14px); pointer-events: none; }
+.tcg-spot-card { position: relative; flex-shrink: 0; width: 260px; display: grid; place-items: center; }
+.tcg-spot-float { animation: tcg-floaty 5s ease-in-out infinite; }
+@keyframes tcg-floaty { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-10px) rotate(2deg); } }
+.tcg-spot-empty { width: 220px; aspect-ratio: 5 / 7; border-radius: 18px; border: 2px dashed #3a2f66; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #8b7bd6; text-align: center; padding: 16px; font-weight: 700; }
+.tcg-spot-main { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.tcg-spot-hi { color: var(--text-muted); font-size: 15px; }
+.tcg-spot-hi b { color: #fff; font-size: 26px; display: block; letter-spacing: -.4px; }
+.tcg-season { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: 16px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.08); max-width: 520px; }
+.tcg-season-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.tcg-season-info strong { color: #fff; font-size: 17px; }
+.tcg-season-info strong em { font-style: normal; color: var(--text-muted); font-size: 14px; margin-left: 6px; }
+.tcg-season-info .tcg-bar { max-width: none; }
+.tcg-season-info small { color: var(--text-muted); font-size: 12px; }
+.tcg-div { display: inline-grid; place-items: center; flex-shrink: 0; border-radius: 14px; color: var(--c); background: radial-gradient(circle, color-mix(in srgb, var(--c) 30%, transparent), transparent 70%); filter: drop-shadow(0 0 8px color-mix(in srgb, var(--c) 50%, transparent)); }
+.tcg-spot-stats { display: flex; gap: 22px; flex-wrap: wrap; }
+.tcg-spot-stats span { display: flex; flex-direction: column; font-size: 12px; color: var(--text-muted); }
+.tcg-spot-stats b { color: #fff; font-size: 20px; }
+.tcg-spot-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.tcg-resume.is-season { background: rgba(255,211,77,.1); border-color: rgba(255,211,77,.45); }
+
+/* Partida rápida */
+.tcg-queue { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 34px 40px; border-radius: 24px; background: var(--bg-secondary); border: 1px solid rgba(139,107,255,.45); text-align: center; max-width: 380px; }
+.tcg-queue h2 { margin: 8px 0 0; color: #fff; }
+.tcg-queue p { margin: 0; font-variant-numeric: tabular-nums; color: var(--text-muted); }
+.tcg-queue-radar { position: relative; width: 120px; height: 120px; display: grid; place-items: center; color: #a58bff; }
+.tcg-queue-radar i { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(139,107,255,.6); animation: tcg-radar 2.4s ease-out infinite; }
+.tcg-queue-radar i:nth-child(2) { animation-delay: .8s; }
+.tcg-queue-radar i:nth-child(3) { animation-delay: 1.6s; }
+@keyframes tcg-radar { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.1); opacity: 0; } }
+
+/* Missões */
+.tcg-missions { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.tcg-mission { display: flex; flex-direction: column; gap: 5px; padding: 12px 14px; border-radius: 14px; background: var(--bg-secondary); border: 1px solid var(--border); }
+.tcg-mission.is-done { border-color: rgba(76,199,107,.55); box-shadow: 0 0 16px rgba(76,199,107,.15); }
+.tcg-mission.is-claimed { opacity: .55; }
+.tcg-mission strong { color: var(--header-primary); }
+.tcg-mission small { color: var(--text-muted); font-size: 12.5px; }
+.tcg-mission .tcg-bar { max-width: none; height: 6px; }
+.tcg-mission.is-done .tcg-bar i { background: #4cc76b; }
+.tcg-mission-period { align-self: flex-start; font-size: 10.5px; font-weight: 900; letter-spacing: .6px; text-transform: uppercase; color: #a58bff; }
+.tcg-mission-foot { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-muted); }
+.tcg-mission-reward { display: inline-flex; align-items: center; gap: 3px; color: #ffd34d; font-weight: 800; flex: 1; }
+
+/* Campanha (mapa) */
+.tcg-map { display: flex; gap: 0; overflow-x: auto; padding: 10px 4px 16px; scrollbar-width: thin; }
+.tcg-map-node { position: relative; flex: 0 0 140px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.tcg-map-node button { position: relative; z-index: 1; padding: 0; border: 3px solid #333; border-radius: 22px; background: #000; cursor: pointer; transition: transform .15s, box-shadow .2s; line-height: 0; }
+.tcg-map-node button:hover:not(:disabled) { transform: translateY(-4px) scale(1.05); }
+.tcg-map-node.is-current button { border-color: #ffd34d; box-shadow: 0 0 0 4px rgba(255,211,77,.25), 0 0 24px rgba(255,211,77,.45); animation: tcg-glowpulse 1.8s infinite; }
+.tcg-map-node.is-done button { border-color: #4cc76b; }
+.tcg-map-node.is-locked button { cursor: not-allowed; filter: grayscale(1) brightness(.4); }
+.tcg-map-node strong { color: var(--header-primary); font-size: 13px; max-width: 130px; }
+.tcg-map-node small { color: var(--text-muted); font-size: 11.5px; }
+.tcg-map-path { position: absolute; z-index: 0; top: 34px; right: 50%; width: 100%; height: 4px; background: repeating-linear-gradient(90deg, #3a3a4a 0 8px, transparent 8px 14px); }
+.tcg-map-node.is-done .tcg-map-path, .tcg-map-node.is-current .tcg-map-path { background: repeating-linear-gradient(90deg, #4cc76b 0 8px, transparent 8px 14px); }
+.tcg-map-check { position: absolute; right: -6px; bottom: -6px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #4cc76b; color: #04210d; border: 2px solid #000; }
+.tcg-map-lock { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; }
+.tcg-stage-box { display: flex; gap: 22px; align-items: flex-start; max-width: 620px; padding: 26px; border-radius: 22px; background: var(--bg-secondary); border: 1px solid var(--lit-border-color, var(--border)); flex-wrap: wrap; }
+.tcg-stage-box h2 { margin: 2px 0 8px; color: #fff; }
+.tcg-stage-box > div { flex: 1; min-width: 240px; }
+.tcg-stage-n { font-style: normal; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .5px; color: #ffd34d; }
+.tcg-stage-story { line-height: 1.55; color: #d6d8de; font-style: italic; }
+.tcg-stage-reward { display: inline-flex; align-items: center; gap: 6px; color: #ffd34d; font-weight: 800; }
+.tcg-botp { flex-shrink: 0; border-radius: 22%; }
+.tcg-bot .tcg-botp { box-shadow: 0 8px 22px color-mix(in srgb, var(--c) 45%, transparent); }
+.tcg-hist.is-live { border-left-color: #f23f43; grid-template-columns: 80px 1fr auto; }
+.tcgb-live { display: inline-block; padding: 1px 7px; margin-right: 6px; border-radius: 6px; background: #f23f43; color: #fff; font-size: 10.5px; font-weight: 900; letter-spacing: .6px; animation: tcg-glowpulse 1.4s infinite; }
+.tcgb-live.is-replay { background: #8b6bff; animation: none; }
+.tcg-hist { grid-template-columns: 80px 1fr auto auto; }
+
+/* Ranking */
+.tcg-divs { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0 0; font-size: 12.5px; color: var(--text-muted); }
+.tcg-divs span { display: inline-flex; align-items: center; gap: 5px; }
+.tcg-divs i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); }
+.tcg-rank-div { font-size: 11.5px; font-weight: 900; color: var(--c); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--c); }
+
+/* Loja de pacotes (3D + ofertas) */
+.tcg-pack-art { height: 190px; }
+.tcg-pack-3d { position: relative; display: grid; place-items: center; transform-style: preserve-3d; animation: tcg-sway 4.5s ease-in-out infinite; }
+.tcg-pack:hover .tcg-pack-3d { animation-duration: 1.2s; }
+@keyframes tcg-sway { 0%, 100% { transform: perspective(600px) rotateY(-12deg) rotateZ(-2deg); } 50% { transform: perspective(600px) rotateY(12deg) rotateZ(2deg) translateY(-6px); } }
+.tcg-pack-3d img { width: 112px; height: 160px; object-fit: cover; border-radius: 10px; box-shadow: 0 16px 34px rgba(0,0,0,.6); }
+.tcg-pack-face { position: relative; width: 112px; height: 158px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 14px 8px; box-sizing: border-box; color: #fff; text-align: center;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--pack) 90%, #fff), color-mix(in srgb, var(--pack) 55%, #000)); box-shadow: 0 16px 34px rgba(0,0,0,.6), inset 0 0 0 2px rgba(255,255,255,.25), inset -14px 0 24px rgba(0,0,0,.25); overflow: hidden; }
+.tcg-pack-face::after { content: ''; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.35) 45%, transparent 60%); background-size: 250% 100%; animation: tcg-shine 3.5s ease-in-out infinite; }
+.tcg-pack-face b { font-size: 12px; line-height: 1.15; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+.tcg-pack-crimp { position: absolute; top: 0; left: 0; right: 0; height: 9px; background: repeating-linear-gradient(90deg, rgba(0,0,0,.35) 0 4px, rgba(255,255,255,.2) 4px 8px); }
+.tcg-pack-crimp.is-bottom { top: auto; bottom: 0; }
+.tcg-pack-guar { position: absolute; left: 10px; bottom: 10px; padding: 3px 9px; border-radius: 999px; background: rgba(0,0,0,.65); color: var(--c); font-size: 11.5px; font-weight: 900; border: 1px solid var(--c); }
+.tcg-pack-ribbon { position: absolute; top: 14px; right: -34px; transform: rotate(35deg); padding: 4px 40px; background: linear-gradient(90deg, #ff3b5c, #ff8a00); color: #fff; font-size: 11.5px; font-weight: 900; box-shadow: 0 4px 12px rgba(0,0,0,.4); }
+.tcg-pack.has-offer { box-shadow: 0 0 34px rgba(255,90,60,.25); }
+.tcg-pack-buy s { opacity: .65; font-weight: 600; margin-left: 4px; font-size: 12.5px; }
+.tcg-offer-left { color: #ff8a5c; font-size: 12.5px; font-weight: 700; }
+
+/* Mercado */
+.tcg-listings { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; justify-items: center; margin-bottom: 10px; }
+.tcg-listing { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+.tcg-listing-seller { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-muted); max-width: 130px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tcg-listing-price { display: inline-flex; align-items: center; gap: 4px; color: #ffd34d; }
+
+/* Torneios */
+.tcg-tourn { padding: 16px 18px; border-radius: 18px; background: var(--bg-secondary); border: 1px solid var(--border); margin-bottom: 14px; }
+.tcg-tourn.is-open { border-color: rgba(76,199,107,.5); }
+.tcg-tourn.is-running { border-color: rgba(255,90,60,.55); box-shadow: 0 0 22px rgba(255,90,60,.15); }
+.tcg-tourn header { display: flex; align-items: center; gap: 12px; }
+.tcg-tourn-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: linear-gradient(135deg, #ffd34d, #c78400); color: #2a1a00; flex-shrink: 0; }
+.tcg-tourn-title { flex: 1; min-width: 0; }
+.tcg-tourn-title h3 { margin: 0; color: #fff; }
+.tcg-tourn-title small { color: var(--text-muted); }
+.tcg-tourn-desc { color: #c9ccd3; font-size: 14px; }
+.tcg-tourn-prize { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0; font-size: 14px; color: var(--text-muted); }
+.tcg-tourn-prize b { display: inline-flex; align-items: center; gap: 4px; color: #ffd34d; }
+.tcg-tourn-prize b.is-gem { color: #2fd0c0; }
+.tcg-tourn-players { display: flex; gap: 4px; flex-wrap: wrap; }
+.tcg-bracket { display: flex; gap: 22px; overflow-x: auto; padding: 8px 0 4px; }
+.tcg-bracket-col { display: flex; flex-direction: column; justify-content: space-around; gap: 12px; min-width: 170px; }
+.tcg-bracket-col h5 { margin: 0; font-size: 11.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); }
+.tcg-bracket-pair { display: flex; flex-direction: column; gap: 2px; padding: 6px; border-radius: 10px; background: var(--bg-primary); border: 1px solid var(--border); }
+.tcg-bracket-p { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 7px; font-size: 13px; color: var(--text-normal); }
+.tcg-bracket-p.is-win { background: rgba(76,199,107,.15); color: #4cc76b; font-weight: 800; }
+.tcg-bracket-p.is-out { opacity: .45; text-decoration: line-through; }
+.tcg-bracket-p em { color: var(--text-muted); font-size: 12px; }
+
+/* ===== Batalha temática ===== */
+.tcgb.theme-floresta { background: radial-gradient(ellipse 90% 60% at 50% 0%, rgba(98,194,74,.22), transparent 70%), radial-gradient(ellipse 90% 60% at 50% 100%, rgba(40,90,30,.35), transparent 70%), repeating-radial-gradient(circle at 20% 30%, rgba(98,194,74,.05) 0 2px, transparent 2px 28px), #050a05; }
+.tcgb.theme-vulcao { background: radial-gradient(ellipse 90% 60% at 50% 0%, rgba(255,90,60,.25), transparent 70%), radial-gradient(ellipse 100% 50% at 50% 100%, rgba(255,120,0,.28), transparent 70%), repeating-linear-gradient(160deg, rgba(255,90,60,.04) 0 3px, transparent 3px 40px), #0b0503; }
+.tcgb.theme-templo { background: radial-gradient(ellipse 90% 60% at 50% 0%, rgba(255,211,77,.2), transparent 70%), radial-gradient(ellipse 90% 60% at 50% 100%, rgba(140,100,20,.3), transparent 70%), repeating-linear-gradient(90deg, rgba(255,211,77,.035) 0 2px, transparent 2px 60px), #0a0803; }
+.tcgb.theme-abismo { background: radial-gradient(ellipse 90% 60% at 50% 0%, rgba(164,107,255,.25), transparent 70%), radial-gradient(ellipse 90% 60% at 50% 100%, rgba(60,20,120,.4), transparent 70%), repeating-radial-gradient(circle at 70% 60%, rgba(164,107,255,.05) 0 1px, transparent 1px 22px), #06030c; }
+.tcgb.theme-oceano { background: radial-gradient(ellipse 90% 60% at 50% 0%, rgba(58,160,255,.25), transparent 70%), radial-gradient(ellipse 90% 60% at 50% 100%, rgba(20,80,140,.4), transparent 70%), repeating-linear-gradient(175deg, rgba(58,160,255,.04) 0 2px, transparent 2px 30px), #03070c; }
+.tcgb-board { position: relative; border: 1px solid rgba(255,255,255,.05); background: linear-gradient(180deg, rgba(255,255,255,.025), rgba(255,255,255,.01)); box-shadow: inset 0 0 40px rgba(0,0,0,.45); }
+.tcgb-arena-name { font-size: 12px; color: rgba(255,255,255,.4); font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
+
+/* Heróis grandes com anel de vida */
+.tcgb-hero-face { width: 92px; height: 92px; border: 0; background: transparent; padding: 0; }
+.tcgb-hp-ring { position: absolute; inset: -4px; width: calc(100% + 8px); height: calc(100% + 8px); }
+.tcgb-hero-pic { position: absolute; inset: 8px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: #111; box-shadow: 0 6px 20px rgba(0,0,0,.6); }
+.tcgb-hero-pic > * { width: 100% !important; height: 100% !important; }
+.tcgb-hero-face > :first-child { width: auto !important; height: auto !important; border-radius: 0; overflow: visible; }
+.tcgb-hero.is-active .tcgb-hero-face { border: 0; box-shadow: 0 0 26px rgba(139,107,255,.6); border-radius: 50%; }
+.tcgb-hero.is-target .tcgb-hero-face { border: 0; border-radius: 50%; }
+.tcgb-hero.is-low .tcgb-hero-pic { animation: tcgb-lowhp 1.1s ease-in-out infinite; }
+@keyframes tcgb-lowhp { 50% { box-shadow: 0 0 0 3px rgba(242,63,67,.6), 0 0 26px rgba(242,63,67,.6); } }
+.tcgb-hero-hp { bottom: -6px; right: -8px; font-size: 16px; height: 30px; min-width: 46px; }
+.tcgb-bot { width: 100%; height: 100%; border-radius: 50%; }
+
+/* Mão em leque */
+.tcgb-hand { position: relative; height: 150px; overflow: visible; }
+.tcgb-hand-slot { --mid: calc((var(--n) - 1) / 2); margin: 0 -16px; transform-origin: 50% 160%; transform: rotate(calc((var(--i) - var(--mid)) * 4deg)) translateY(calc(max(var(--i) - var(--mid), var(--mid) - var(--i)) * 5px + 36px)); transition: transform .2s cubic-bezier(.2,.8,.3,1.2), z-index 0s .05s; }
+.tcgb-hand-slot:hover, .tcgb-hand-slot.is-casting { z-index: 10; transform: rotate(0) translateY(-34px) scale(1.25); transition: transform .18s cubic-bezier(.2,.8,.3,1.2), z-index 0s; }
+.tcgb-hand-slot.is-casting .tcg-frame { box-shadow: 0 0 0 3px #a46bff, 0 0 30px rgba(164,107,255,.75); }
+.tcgb-board.is-drop { outline: 2px dashed rgba(139,107,255,.35); }
+.tcgb-board.is-drop:hover { background: rgba(139,107,255,.08); }
+
+/* Botão encerrar turno com anel */
+.tcgb-endwrap { position: relative; display: grid; place-items: center; }
+.tcgb-endring { position: absolute; width: 74px; height: 74px; left: -36px; top: 50%; transform: translateY(-50%); }
+.tcgb-endturn { flex-direction: column; gap: 0; height: 46px; padding: 0 22px; border-radius: 23px; }
+.tcgb-endturn small { font-size: 11px; opacity: .8; font-variant-numeric: tabular-nums; }
+.tcgb-endwrap.is-pulse .tcgb-endturn:not(:disabled) { animation: tcg-endpulse 1.2s ease-in-out infinite; }
+@keyframes tcg-endpulse { 50% { box-shadow: 0 0 0 6px rgba(139,107,255,.25), 0 0 28px rgba(139,107,255,.7); transform: scale(1.04); } }
+.tcgb-endwrap.is-low .tcgb-endturn { background: linear-gradient(180deg, #ff5f6d, #c81e3a); }
+.tcgb-replay { display: flex; align-items: center; gap: 8px; }
+
+/* Estados de unidade */
+.tcgb-unit.is-frozen::before { content: ''; position: absolute; inset: -2px; z-index: 3; border-radius: 16px; background: linear-gradient(160deg, rgba(180,230,255,.55), rgba(90,170,255,.25)); box-shadow: inset 0 0 18px rgba(200,240,255,.8); pointer-events: none; }
+.tcgb-unit.is-frozen { filter: saturate(.6); }
+.tcgb-unit.is-stealth { opacity: .55; filter: blur(.3px) saturate(.6); animation: tcgb-stealth 2.4s ease-in-out infinite; }
+@keyframes tcgb-stealth { 50% { opacity: .35; } }
+.tcgb-unit.is-token { width: 76px; height: 96px; }
+.tcgb-unit.is-foil::after { content: ''; position: absolute; inset: 0; border-radius: 13px; mix-blend-mode: color-dodge; opacity: .45; pointer-events: none; background: linear-gradient(115deg, transparent 20%, rgba(255,0,170,.4) 40%, rgba(0,255,230,.4) 55%, transparent 75%); background-size: 250% 250%; animation: tcg-holo 4s ease-in-out infinite; }
+.tcgb-unit.is-epic-enter { animation: tcgb-epicin .7s cubic-bezier(.2,.9,.3,1.3); box-shadow: 0 0 40px var(--rar); }
+@keyframes tcgb-epicin { 0% { transform: translateY(-120px) scale(1.8) rotate(-8deg); opacity: 0; filter: brightness(3); } 60% { transform: translateY(6px) scale(.95); opacity: 1; filter: brightness(1.6); } 100% { transform: none; } }
+.tcgb-float.is-ice { color: #9fe3ff; font-size: 18px; }
+
+/* Entrada cinematográfica */
+.tcgb.is-cine .tcgb-field { animation: tcgb-quake .45s ease-in-out; }
+@keyframes tcgb-quake { 0%, 100% { transform: none; } 20% { transform: translate(-6px, 3px); } 40% { transform: translate(5px, -4px); } 60% { transform: translate(-4px, 2px); } 80% { transform: translate(3px, -2px); } }
+.tcgb-cine { position: absolute; inset: 0; z-index: 24; pointer-events: none; background: radial-gradient(ellipse 30% 100% at 50% 50%, color-mix(in srgb, var(--c) 55%, transparent), transparent 70%); animation: tcgb-beam .65s ease-out forwards; mix-blend-mode: screen; }
+@keyframes tcgb-beam { 0% { opacity: 0; transform: scaleX(.1); } 30% { opacity: 1; transform: scaleX(1); } 100% { opacity: 0; transform: scaleX(1.6); } }
+
+/* Toque no celular: carta ampliada */
+.tcgb-pick { position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: rgba(0,0,0,.72); animation: tcg-fade .15s; }
+.tcgb-pick-actions { display: flex; gap: 10px; }
+.tcgb-pick-actions .tcg-btn { height: 48px; padding: 0 26px; font-size: 16px; }
+
+@media (max-width: 900px) {
+  .tcg-spot { flex-direction: column; align-items: stretch; padding: 18px; gap: 14px; }
+  .tcg-spot-card { width: auto; }
+  .tcg-spot-card .tcg-card.tcg-lg { --w: 170px; }
+}
+@media (max-width: 760px) {
+  .tcgb-hero-face { width: 62px; height: 62px; }
+  .tcgb-hero-pic { inset: 6px; }
+  .tcgb-hero-hp { font-size: 13px; height: 24px; min-width: 36px; }
+  .tcgb-hand { height: auto; }
+  .tcgb-hand-slot { margin: 0 -6px; transform: none !important; }
+  .tcgb-hand-slot.is-picked .tcg-frame { box-shadow: 0 0 0 3px #ffd34d; }
+  .tcgb-endring { width: 58px; height: 58px; left: -26px; }
+  .tcgb-endturn { height: 40px; padding: 0 16px; }
+  .tcgb-arena-name { display: none; }
+  .tcgb-unit.is-token { width: 52px; height: 68px; }
+  .tcg-map-node { flex-basis: 110px; }
+  .tcg-btn-xl { height: 44px; padding: 0 16px; font-size: 14px; flex: 1; }
+  .tcg-spot-stats { gap: 14px; }
+  .tcg-pack-ribbon { right: -40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tcg-spot-float, .tcg-pack-3d, .tcg-foil-sheen, .tcgb-unit.is-stealth, .tcg-queue-radar i, .tcgb-cine { animation: none !important; }
+}
+.tca-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.tca-kpis > div { display: flex; flex-direction: column; padding: 12px 14px; border-radius: 14px; background: var(--bg-secondary); border: 1px solid var(--border); }
+.tca-kpis b { font-size: 22px; color: var(--header-primary); }
+.tca-kpis span { font-size: 12.5px; color: var(--text-muted); }
+.tca-chart { display: flex; align-items: flex-end; gap: 6px; height: 160px; padding: 10px; border-radius: 14px; background: var(--bg-secondary); border: 1px solid var(--border); overflow-x: auto; }
+.tca-chart-col { position: relative; flex: 1; min-width: 22px; height: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 2px; padding-bottom: 16px; }
+.tca-chart-col span { width: 8px; border-radius: 3px 3px 0 0; min-height: 2px; }
+.tca-chart-col span.is-spent { background: #8b6bff; }
+.tca-chart-col span.is-paid { background: #ffd34d; }
+.tca-chart-col small { position: absolute; bottom: 0; font-size: 10px; color: var(--text-muted); }
+.tca-winbar { position: relative; width: 160px; height: 18px; border-radius: 9px; background: var(--bg-primary); overflow: hidden; display: flex; align-items: center; }
+.tca-winbar i { position: absolute; inset: 0 auto 0 0; border-radius: 9px; opacity: .7; }
+.tca-winbar b { position: relative; margin-left: 8px; font-size: 12px; color: #fff; }
+.tca-editor .tca-preview { position: sticky; top: 0; align-self: flex-start; }
+.tca-editor .tca-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.tcg-tabs { gap: 2px; }
+.tcg-tabs button { padding: 10px 11px; font-size: 14.5px; }
+.tcgb, .tcg-page.is-battle { overflow: clip; }
+.tcgb-hand { height: 136px; }
+.tcgb-hand-slot { transform: rotate(calc((var(--i) - var(--mid)) * 4deg)) translateY(calc(max(var(--i) - var(--mid), var(--mid) - var(--i)) * 5px + 22px)); }
+.tcg-tourn-prize .tcg-card { margin-left: 4px; }

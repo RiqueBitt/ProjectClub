@@ -66,7 +66,7 @@ import { proxyImage } from '../utils/imageProxy';
 import { isFeatureEnabled } from '../utils/features';
 import MissionsAdmin from '../components/admin/MissionsAdmin.jsx';
 import { StaffHealthTab, StaffUserSearchTab } from '../components/admin/StaffTools.jsx';
-import { CardsAdminCards, CardsAdminPacks, CardsAdminSettings, CardsAdminPlayers, CardsAdminTrades, CardsAdminMatches } from '../cards/CardsAdmin.jsx';
+import { CardsAdminCards, CardsAdminPacks, CardsAdminSettings, CardsAdminPlayers, CardsAdminTrades, CardsAdminMatches, CardsAdminStats, CardsAdminCampaign, CardsAdminTournaments } from '../cards/CardsAdmin.jsx';
 
 // ============================================================
 // Painel da Equipe — shell redesenhado do zero.
@@ -143,6 +143,9 @@ const TABS = {
   cartasJogadores: { label: 'Jogadores', desc: 'Veja a coleção e o histórico de um jogador, dê ou tire cartas, bloqueie ou zere estatísticas.' },
   cartasTrocas: { label: 'Trocas', desc: 'Trocas de cartas entre jogadores. Cancele propostas pendentes suspeitas.' },
   cartasPartidas: { label: 'Partidas', desc: 'Partidas em andamento e terminadas. Cancele partidas travadas.' },
+  cartasEstatisticas: { label: 'Estatísticas', desc: 'Uso e taxa de vitória de cada carta, moedas geradas e gastas por dia e vitórias contra bots — para equilibrar o jogo.' },
+  cartasCampanha: { label: 'Campanha', desc: 'Fases da campanha: história, bot, dificuldade, baralho e prêmios.' },
+  cartasTorneios: { label: 'Torneios', desc: 'Crie torneios eliminatórios, acompanhe o chaveamento e premie o campeão.' },
   saude: { label: 'Saúde', desc: 'Online agora, conexões, chamadas, erros recentes, banco, Redis e memória. Atualiza sozinho a cada 15s.' },
 };
 
@@ -165,7 +168,7 @@ const TAB_GROUPS = [
   { label: 'Comunidade', icon: 'community', tabs: ['channels', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'gifMove'] },
   { label: 'Conteúdo', icon: 'content', tabs: ['feeds', 'updates', 'events', 'announcements', 'appCatalog'] },
   { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'casas', 'album'] },
-  { label: 'Jogo de Cartas', icon: 'cards', tabs: ['cartasCartas', 'cartasPacotes', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
+  { label: 'Jogo de Cartas', icon: 'cards', tabs: ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
   { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
   { label: 'Sistema', icon: 'system', tabs: ['saude', 'sistema', 'maintenance', 'reload'] },
 ].map((g) => ({ ...g, tabs: g.tabs.filter((t) => !HIDDEN_TABS.has(t)) }));
@@ -332,6 +335,9 @@ export default function AdminPanel() {
           {tab === 'cartasJogadores' && <CardsAdminPlayers />}
           {tab === 'cartasTrocas' && <CardsAdminTrades />}
           {tab === 'cartasPartidas' && <CardsAdminMatches />}
+          {tab === 'cartasEstatisticas' && <CardsAdminStats />}
+          {tab === 'cartasCampanha' && <CardsAdminCampaign />}
+          {tab === 'cartasTorneios' && <CardsAdminTournaments />}
         </div>
       </main>
     </div>

@@ -50,6 +50,41 @@ const SEED_CARDS = [
   C('rei-abismo', 'Rei do Abismo', 'SOMBRA', 'LENDARIA', 8, 7, 7, 'VENENO', 0, 'Seu trono fica onde a luz não chega.'),
 ];
 
+// v2: novas habilidades + feitiços e equipamentos.
+const S = (slug, name, element, rarity, cost, ability, abilityValue, flavor) => ({
+  slug, name, element, rarity, cost, attack: 0, health: 1, ability, abilityValue, flavor, collection: 'Arcanos', kind: 'SPELL',
+});
+const SEED_CARDS_V2 = [
+  C('raposa-sombra', 'Raposa da Sombra', 'SOMBRA', 'INCOMUM', 2, 3, 2, 'FURTIVO', 0, 'Você só a vê quando já é tarde.', 'Arcanos'),
+  C('lobo-glacial', 'Lobo Glacial', 'AGUA', 'RARA', 4, 3, 5, 'CONGELA', 0, 'Seu uivo congela o ar.', 'Arcanos'),
+  C('capita-recrutas', 'Capitã dos Recrutas', 'LUZ', 'RARA', 4, 3, 3, 'INVOCAR', 2, 'Nunca luta sozinha.', 'Arcanos'),
+  C('cacto-guardiao', 'Cacto Guardião', 'TERRA', 'INCOMUM', 3, 1, 6, 'ESPINHOS', 2, 'Abraços não são recomendados.', 'Arcanos'),
+  C('sacerdote-vento', 'Sacerdote do Vento', 'AR', 'EPICA', 5, 3, 5, 'PROTEGER', 0, 'Uma brisa que vira muralha.', 'Arcanos'),
+  C('assassina-lua', 'Assassina da Lua', 'SOMBRA', 'EPICA', 5, 6, 3, 'FURTIVO', 0, 'Golpeia de onde ninguém olha.', 'Arcanos'),
+  C('fera-magma', 'Fera de Magma', 'FOGO', 'RARA', 5, 5, 5, 'ESPINHOS', 2, 'Tocar nela queima.', 'Arcanos'),
+  C('dragao-gelo', 'Dragão do Gelo Eterno', 'AGUA', 'LENDARIA', 8, 7, 8, 'CONGELA', 0, 'Seu sopro para o tempo.', 'Arcanos'),
+  S('bola-fogo', 'Bola de Fogo', 'FOGO', 'COMUM', 2, 'FEITICO_DANO', 3, 'Clássica. Eficiente. Quente.'),
+  S('chuva-meteoros', 'Chuva de Meteoros', 'FOGO', 'EPICA', 6, 'FEITICO_AREA', 3, 'O céu inteiro desaba.'),
+  S('pocao-vida', 'Poção de Vida', 'LUZ', 'COMUM', 1, 'FEITICO_CURA', 5, 'Gosto de morango.'),
+  S('pergaminho-antigo', 'Pergaminho Antigo', 'AR', 'RARA', 2, 'FEITICO_COMPRA', 2, 'Escrito por quem já viu tudo.'),
+  S('espada-runica', 'Espada Rúnica', 'TERRA', 'INCOMUM', 2, 'FEITICO_BUFF', 2, 'Equipamento: brilha na mão certa.'),
+  S('armadura-sagrada', 'Armadura Sagrada', 'LUZ', 'RARA', 3, 'FEITICO_BUFF', 3, 'Equipamento: forjada na aurora.'),
+  S('bolha-protetora', 'Bolha Protetora', 'AGUA', 'INCOMUM', 1, 'FEITICO_ESCUDO', 0, 'Pop! Mas só depois do golpe.'),
+  S('prisao-gelo', 'Prisão de Gelo', 'AGUA', 'INCOMUM', 2, 'FEITICO_CONGELAR', 1, 'Fica aí e pensa no que fez.'),
+  S('raio-sombrio', 'Raio Sombrio', 'SOMBRA', 'RARA', 4, 'FEITICO_DANO', 5, 'Nem a luz escapa.'),
+  S('furacao', 'Furacão', 'AR', 'LENDARIA', 7, 'FEITICO_AREA', 4, 'Leva tudo, menos você.'),
+];
+
+// Campanha inicial (a staff edita depois).
+const SEED_CAMPAIGN = [
+  { position: 0, name: 'O Primeiro Duelo', botName: 'Aprendiz Pip', difficulty: 'FACIL', heroHp: 20, rewardCoins: 60, story: 'Pip encontrou um baralho velho no sótão e jura que é o melhor duelista da vila. Mostre a ele como se joga de verdade.' },
+  { position: 1, name: 'A Floresta Sussurrante', botName: 'Druida Mel', difficulty: 'FACIL', heroHp: 26, rewardCoins: 90, story: 'As árvores comentam sobre um novato habilidoso. A druida Mel quer testar se os boatos são verdadeiros.' },
+  { position: 2, name: 'Porto das Marés', botName: 'Capitã Nora', difficulty: 'MEDIO', heroHp: 28, rewardCoins: 130, story: 'No porto, a Capitã Nora só deixa passar quem vence uma partida. A maré não espera ninguém.' },
+  { position: 3, name: 'Forja do Vulcão', botName: 'Ferreiro Brasa', difficulty: 'MEDIO', heroHp: 32, rewardCoins: 180, story: 'O ferreiro forja cartas lendárias — e só entrega uma a quem sobreviver ao calor do seu baralho de fogo.' },
+  { position: 4, name: 'Torre dos Ventos', botName: 'Mestre Kael', difficulty: 'DIFICIL', heroHp: 32, rewardCoins: 260, story: 'Kael pensa uma jogada à frente. No topo da torre, cada erro custa caro.' },
+  { position: 5, name: 'O Trono do Eclipse', botName: 'Arquimaga Vex', difficulty: 'LENDARIO', heroHp: 36, rewardCoins: 500, story: 'A Arquimaga reúne as cartas mais raras do mundo. Vencê-la faz de você uma lenda da Arena.' },
+];
+
 const W_BASIC = { COMUM: 62, INCOMUM: 25, RARA: 9, EPICA: 3, LENDARIA: 0.9, MITICA: 0.1 };
 const W_PLUS = { COMUM: 40, INCOMUM: 32, RARA: 18, EPICA: 7, LENDARIA: 2.5, MITICA: 0.5 };
 const W_LEG = { COMUM: 0, INCOMUM: 30, RARA: 40, EPICA: 20, LENDARIA: 8, MITICA: 2 };
@@ -60,4 +95,4 @@ const SEED_PACKS = [
   { name: 'Pacote Lendário', description: '5 cartas sem Comuns, com uma Épica ou melhor garantida.', color: '#f5c542', priceGems: 30, cardsPerPack: 5, weights: W_LEG, guaranteed: 'EPICA', sort: 2, dailyLimit: 3 },
 ];
 
-module.exports = { SEED_CARDS, SEED_PACKS };
+module.exports = { SEED_CARDS, SEED_CARDS_V2, SEED_PACKS, SEED_CAMPAIGN };

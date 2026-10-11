@@ -2838,6 +2838,7 @@ model CardDef {
   health       Int      @default(1)
   ability      String   @default("NONE")
   abilityValue Int      @default(0)
+  kind         String   @default("UNIT") // UNIT | SPELL
   enabled      Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -2861,6 +2862,8 @@ model CardPack {
   poolCollection String?
   poolCardIds    String?  @db.Text // JSON [cardId]
   dailyLimit     Int?
+  discountPercent Int?
+  offerEndsAt    DateTime?
   active         Boolean  @default(true)
   sort           Int      @default(0)
   createdAt      DateTime @default(now())
@@ -2873,6 +2876,7 @@ model UserCard {
   cardId    String
   quantity  Int      @default(0)
   level     Int      @default(1)
+  foil      Int      @default(0) // quantas das cópias são brilhantes (foil)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2907,6 +2911,12 @@ model CardPlayer {
   rewardsToday   Int      @default(0)
   starterClaimed Boolean  @default(false)
   banned         Boolean  @default(false)
+  seasonKey      String?
+  seasonRating   Int      @default(1000)
+  seasonWins     Int      @default(0)
+  seasonLosses   Int      @default(0)
+  lastSeasonReward String? @db.Text
+  campaignStage  Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -2927,6 +2937,10 @@ model CardMatch {
   reward1      Int       @default(0)
   reward2      Int       @default(0)
   endReason    String?
+  initialState String?   @db.LongText
+  actions      String?   @db.LongText
+  campaignStageId String?
+  tournamentId String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   endedAt      DateTime?
@@ -2971,4 +2985,74 @@ model CardGameSettings {
   id        String   @id @default("singleton")
   data      String   @db.Text
   updatedAt DateTime @updatedAt
+}
+
+// Estatísticas por carta (equilíbrio do jogo — Painel da Staff).
+model CardStat {
+  cardId    String   @id
+  played    Int      @default(0)
+  wins      Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+// Mercado: carta fica "em custódia" enquanto anunciada.
+model CardListing {
+  id        String    @id @default(uuid())
+  sellerId  String
+  cardId    String
+  foil      Boolean   @default(false)
+  price     Int
+  status    String    @default("ACTIVE") // ACTIVE | SOLD | CANCELLED
+  buyerId   String?
+  createdAt DateTime  @default(now())
+  soldAt    DateTime?
+
+  @@index([status, createdAt])
+  @@index([sellerId, status])
+  @@index([cardId, status])
+}
+
+// Campanha (história contra bots), editável pela staff.
+model CardCampaignStage {
+  id           String   @id @default(uuid())
+  position     Int      @default(0)
+  name         String
+  story        String?  @db.Text
+  botName      String
+  difficulty   String   @default("MEDIO")
+  heroHp       Int      @default(30)
+  deckCardIds  String?  @db.Text // JSON [cardId] (opcional; vazio = baralho gerado)
+  rewardCoins  Int      @default(0)
+  rewardCardId String?
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Torneios criados pela staff (chaveamento eliminatório).
+model CardTournament {
+  id          String    @id @default(uuid())
+  name        String
+  description String?   @db.Text
+  status      String    @default("OPEN") // OPEN | RUNNING | FINISHED | CANCELLED
+  maxPlayers  Int       @default(8)
+  prizeCoins  Int       @default(0)
+  prizeGems   Int       @default(0)
+  prizeCardId String?
+  startsAt    DateTime?
+  bracket     String?   @db.LongText
+  winnerId    String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model CardTournamentEntry {
+  id           String   @id @default(uuid())
+  tournamentId String
+  userId       String
+  createdAt    DateTime @default(now())
+
+  @@unique([tournamentId, userId])
+  @@index([userId])
 }

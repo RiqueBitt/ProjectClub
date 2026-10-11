@@ -15,7 +15,7 @@ const PROFILE = {
 function unitValue(u) {
   const ab = ABILITIES[u.ability] || ABILITIES.NONE;
   const abv = ab.value ? ab.power * u.value * 0.5 : ab.power;
-  return u.atk * 1.2 + u.hp + abv + (u.shield ? 1.5 : 0);
+  return u.atk * 1.2 + u.hp + abv + (u.shield ? 1.5 : 0) + (u.stealth ? 1 : 0) - (u.frozen ? u.atk * 0.6 : 0);
 }
 
 // Avaliação do ponto de vista de `seat` (maior = melhor).
@@ -40,7 +40,12 @@ function evaluate(state, seat, prof) {
 
 function candidateActions(state, seat) {
   const legal = legalActions(state, seat);
-  const out = legal.playable.map((uid) => ({ type: 'PLAY', uid }));
+  const out = [];
+  for (const uid of legal.playable) {
+    const t = legal.spellTargets?.[uid];
+    if (t) for (const target of t) out.push({ type: 'PLAY', uid, target });
+    else out.push({ type: 'PLAY', uid });
+  }
   for (const a of legal.attackers) for (const t of legal.targets[a]) out.push({ type: 'ATTACK', uid: a, target: t });
   return out;
 }
@@ -50,6 +55,7 @@ function playTurn(initial, seat, difficulty = 'MEDIO', rng = Math.random) {
   const prof = PROFILE[difficulty] || PROFILE.MEDIO;
   let state = initial;
   const events = [];
+  const actions = [];
   for (let step = 0; step < 40 && !state.over && state.active === seat; step += 1) {
     const cands = candidateActions(state, seat);
     let best = null;
@@ -71,13 +77,15 @@ function playTurn(initial, seat, difficulty = 'MEDIO', rng = Math.random) {
     if (!best) break;
     state = best.r.state;
     events.push(...best.r.events);
+    actions.push(best.a);
   }
   if (!state.over && state.active === seat) {
     const r = reduce(state, seat, { type: 'END_TURN' });
     state = r.state;
     events.push(...r.events);
+    actions.push({ type: 'END_TURN' });
   }
-  return { state, events };
+  return { state, events, actions };
 }
 
 module.exports = { playTurn, evaluate };

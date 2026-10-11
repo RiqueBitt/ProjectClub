@@ -78,6 +78,16 @@ const ACHIEVEMENTS = [
   // Reações
   { key: 'sempre_reagindo', name: 'Sempre Reagindo', description: 'Reaja a 50 mensagens.', rarity: 'COMMON', progressType: 'REACTIONS_GIVEN', target: 50, position: 27 },
   { key: 'expressivo', name: 'Expressivo', description: 'Reaja a 500 mensagens.', rarity: 'RARE', progressType: 'REACTIONS_GIVEN', target: 500, position: 28 },
+  // Arena de Cartas
+  { key: 'cartas_primeira_vitoria', name: 'Primeiro Duelo', description: 'Vença sua primeira partida na Arena de Cartas.', rarity: 'COMMON', progressType: 'CARDS_WINS', target: 1, position: 29 },
+  { key: 'cartas_duelista', name: 'Duelista', description: 'Vença 25 partidas na Arena de Cartas.', rarity: 'RARE', progressType: 'CARDS_WINS', target: 25, position: 30 },
+  { key: 'cartas_mestre', name: 'Mestre das Cartas', description: 'Vença 150 partidas na Arena de Cartas.', rarity: 'EPIC', progressType: 'CARDS_WINS', target: 150, position: 31 },
+  { key: 'cartas_pvp', name: 'Rival à Altura', description: 'Vença 10 partidas contra outros jogadores.', rarity: 'RARE', progressType: 'CARDS_PVP_WINS', target: 10, position: 32 },
+  { key: 'cartas_colecionador', name: 'Colecionador', description: 'Tenha 30 cartas diferentes.', rarity: 'RARE', progressType: 'CARDS_COLLECTION', target: 30, position: 33 },
+  { key: 'cartas_completo', name: 'Coleção Completa', description: 'Tenha 54 cartas diferentes.', rarity: 'LEGENDARY', progressType: 'CARDS_COLLECTION', target: 54, position: 34 },
+  { key: 'cartas_pacotes', name: 'Viciado em Pacotes', description: 'Abra 25 pacotes de cartas.', rarity: 'RARE', progressType: 'CARDS_PACKS', target: 25, position: 35 },
+  { key: 'cartas_brilho', name: 'Brilho Raro', description: 'Consiga 5 cartas brilhantes diferentes.', rarity: 'EPIC', progressType: 'CARDS_FOILS', target: 5, position: 36 },
+  { key: 'cartas_lenda', name: 'Lenda da Arena', description: 'Complete a campanha da Arena de Cartas.', rarity: 'LEGENDARY', progressType: 'CARDS_CAMPAIGN', target: 6, position: 37 },
 ];
 
 // Chaves que EXISTIRAM no catálogo antes (casas/figurinhas/economia —

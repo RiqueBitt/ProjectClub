@@ -3,9 +3,9 @@
 const crypto = require('crypto');
 const prisma = require('../config/prisma');
 const {
-  RARITIES, DIFFICULTIES, mergeSettings, cardPower,
+  RARITIES, DIFFICULTIES, mergeSettings, cardPower, divisionOf,
 } = require('./config');
-const { SEED_CARDS, SEED_PACKS } = require('./seed');
+const { SEED_CARDS, SEED_CARDS_V2, SEED_PACKS, SEED_CAMPAIGN } = require('./seed');
 
 class CardError extends Error {
   constructor(message, status = 400) { super(message); this.status = status; }
@@ -31,6 +31,16 @@ async function getSettings(force = false) {
 }
 function invalidateSettings() { settingsCache = null; }
 
+// Grava campos no JSON salvo (sem perder o que a staff já configurou).
+async function patchSavedSettings(patch) {
+  const row = await prisma.cardGameSettings.findUnique({ where: { id: 'singleton' } }).catch(() => null);
+  let saved = {};
+  try { saved = row?.data ? JSON.parse(row.data) : {}; } catch { saved = {}; }
+  const data = JSON.stringify({ ...saved, ...patch });
+  await prisma.cardGameSettings.upsert({ where: { id: 'singleton' }, update: { data }, create: { id: 'singleton', data } });
+  invalidateSettings();
+}
+
 // ---------- Catálogo inicial ----------
 let seeded = false;
 let seedPromise = null;
@@ -50,6 +60,17 @@ async function doSeed() {
   } catch (err) {
     if ((await prisma.cardPack.count().catch(() => 0)) === 0) throw err;
   }
+  // Conteúdo novo (v2: feitiços/novas habilidades) entra uma vez só — se a
+  // staff excluir alguma carta depois, ela não volta sozinha.
+  try {
+    const st = await getSettings(true);
+    if ((st.seedVersion || 1) < 2) {
+      await prisma.cardDef.createMany({ data: SEED_CARDS_V2, skipDuplicates: true });
+      await patchSavedSettings({ seedVersion: 2 });
+      invalidateCatalog();
+    }
+    if ((await prisma.cardCampaignStage.count()) === 0) await prisma.cardCampaignStage.createMany({ data: SEED_CAMPAIGN });
+  } catch (err) { console.error('[cards] seed v2 falhou:', err?.message || err); }
   seeded = true;
 }
 function ensureSeed() {
@@ -74,14 +95,42 @@ function shapeCard(c, owned) {
   return {
     id: c.id, slug: c.slug, name: c.name, description: c.description, flavor: c.flavor, imageUrl: c.imageUrl,
     rarity: c.rarity, element: c.element, collection: c.collection, cost: c.cost, attack: c.attack, health: c.health,
-    ability: c.ability, abilityValue: c.abilityValue, enabled: c.enabled,
+    ability: c.ability, abilityValue: c.abilityValue, enabled: c.enabled, kind: c.kind || 'UNIT',
     power: cardPower(c, owned?.level || 1),
-    ...(owned !== undefined ? { quantity: owned?.quantity || 0, level: owned?.level || 1 } : {}),
+    ...(owned !== undefined ? { quantity: owned?.quantity || 0, level: owned?.level || 1, foil: Math.min(owned?.foil || 0, owned?.quantity || 0) } : {}),
   };
 }
 
+// Temporada = mês (America/Sao_Paulo). Na primeira atividade de um mês novo,
+// paga a recompensa da divisão alcançada no mês anterior e faz o reset suave.
+const seasonKeyOf = (d = new Date()) => dayKey(d).slice(0, 7);
+async function ensureSeason(p) {
+  const cur = seasonKeyOf();
+  if (p.seasonKey === cur) return p;
+  const settings = await getSettings();
+  let reward = null;
+  if (p.seasonKey && p.seasonWins + p.seasonLosses >= settings.season.minGames) {
+    const div = divisionOf(p.seasonRating);
+    reward = { season: p.seasonKey, division: div.key, label: div.label, coins: settings.season.rewards[div.key] || 0, gems: settings.season.gems[div.key] || 0 };
+  }
+  const r = await prisma.cardPlayer.updateMany({
+    where: { userId: p.userId, seasonKey: p.seasonKey },
+    data: {
+      seasonKey: cur, seasonWins: 0, seasonLosses: 0,
+      seasonRating: p.seasonKey ? 1000 + Math.round((p.seasonRating - 1000) / 2) : 1000,
+      lastSeasonReward: reward ? JSON.stringify(reward) : null,
+    },
+  });
+  if (r.count && reward && (reward.coins || reward.gems)) {
+    await prisma.user.update({ where: { id: p.userId }, data: { coins: { increment: reward.coins }, gems: { increment: reward.gems } } });
+    require('../services/economyLedger').recordTransaction(p.userId, { kind: 'CARDS', label: `Arena de Cartas: temporada ${reward.season} (${reward.label})`, coins: reward.coins, gems: reward.gems });
+  }
+  return prisma.cardPlayer.findUnique({ where: { userId: p.userId } });
+}
+
 async function getPlayer(userId) {
-  return prisma.cardPlayer.upsert({ where: { userId }, update: {}, create: { userId } });
+  const p = await prisma.cardPlayer.upsert({ where: { userId }, update: {}, create: { userId } });
+  return ensureSeason(p);
 }
 
 async function ownedMap(userId, tx = prisma) {
@@ -90,16 +139,25 @@ async function ownedMap(userId, tx = prisma) {
 }
 
 // Dá cartas (soma na quantidade). Dentro de transação quando possível.
-async function grantCards(tx, userId, cardIds) {
+async function grantCards(tx, userId, cardIds, foilIds = []) {
   const counts = new Map();
+  const foils = new Map();
   for (const id of cardIds) counts.set(id, (counts.get(id) || 0) + 1);
+  for (const id of foilIds) foils.set(id, (foils.get(id) || 0) + 1);
   for (const [cardId, qty] of counts) {
+    const f = foils.get(cardId) || 0;
     await tx.userCard.upsert({
       where: { userId_cardId: { userId, cardId } },
-      update: { quantity: { increment: qty } },
-      create: { userId, cardId, quantity: qty },
+      update: { quantity: { increment: qty }, ...(f ? { foil: { increment: f } } : {}) },
+      create: { userId, cardId, quantity: qty, foil: f },
     });
   }
+}
+
+// Depois de tirar cópias comuns, as brilhantes nunca passam do total.
+async function clampFoil(tx, userId, cardId) {
+  const r = await tx.userCard.findUnique({ where: { userId_cardId: { userId, cardId } } });
+  if (r && r.foil > r.quantity) await tx.userCard.update({ where: { id: r.id }, data: { foil: Math.max(0, r.quantity) } });
 }
 
 // ---------- Baralhos ----------
@@ -176,7 +234,8 @@ async function resolvePlayerDeck(userId, settings) {
   const out = [];
   for (const { cardId, copies } of cards) {
     const card = catalog.byId.get(cardId);
-    for (let i = 0; i < copies; i += 1) out.push({ card, level: owned.get(cardId)?.level || 1 });
+    const row = owned.get(cardId);
+    for (let i = 0; i < copies; i += 1) out.push({ card: i < (row?.foil || 0) ? { ...card, foil: true } : card, level: row?.level || 1 });
   }
   return out;
 }
@@ -252,7 +311,7 @@ function drawPack(pack, catalog) {
 // ---------- Recompensas ----------
 // Paga a recompensa de UMA partida, uma vez só (o update condicional em
 // status=ACTIVE garante isso mesmo com requisições simultâneas).
-async function finalizeMatch(match, state, settings) {
+async function finalizeMatch(match, state, settings, io = null) {
   const winnerSeat = state.winner;
   const seats = [match.p1Id, match.p2Id];
   const winnerId = winnerSeat === 0 || winnerSeat === 1 ? seats[winnerSeat] : null;
@@ -309,30 +368,75 @@ async function finalizeMatch(match, state, settings) {
       await tx.cardPlayer.update({ where: { userId: uid }, data });
       if (coins > 0) await tx.user.update({ where: { id: uid }, data: { coins: { increment: coins } } });
     }
-    // Rating Elo só no PvP.
+    // Rating Elo só no PvP (geral e da temporada).
     if (match.mode === 'PVP' && winnerId) {
       const [a, b] = await Promise.all(seats.map((id) => tx.cardPlayer.findUnique({ where: { userId: id } })));
-      const ea = 1 / (1 + 10 ** ((b.rating - a.rating) / 400));
       const k = 32;
       const sa = winnerSeat === 0 ? 1 : 0;
-      const da = Math.round(k * (sa - ea));
-      await tx.cardPlayer.update({ where: { userId: seats[0] }, data: { rating: Math.max(100, a.rating + da) } });
-      await tx.cardPlayer.update({ where: { userId: seats[1] }, data: { rating: Math.max(100, b.rating - da) } });
+      const elo = (ra, rb) => Math.round(k * (sa - 1 / (1 + 10 ** ((rb - ra) / 400))));
+      const da = elo(a.rating, b.rating);
+      const ds = elo(a.seasonRating, b.seasonRating);
+      await tx.cardPlayer.update({ where: { userId: seats[0] }, data: { rating: Math.max(100, a.rating + da), seasonRating: Math.max(100, a.seasonRating + ds), ...(sa ? { seasonWins: { increment: 1 } } : { seasonLosses: { increment: 1 } }) } });
+      await tx.cardPlayer.update({ where: { userId: seats[1] }, data: { rating: Math.max(100, b.rating - da), seasonRating: Math.max(100, b.seasonRating - ds), ...(sa ? { seasonLosses: { increment: 1 } } : { seasonWins: { increment: 1 } }) } });
+    }
+    // Campanha: primeira vitória numa fase libera a próxima e dá o prêmio.
+    let campaign = null;
+    if (match.campaignStageId && winnerSeat === 0 && seats[0]) {
+      const stage = await tx.cardCampaignStage.findUnique({ where: { id: match.campaignStageId } });
+      const ordered = await tx.cardCampaignStage.findMany({ where: { enabled: true }, orderBy: { position: 'asc' }, select: { id: true } });
+      const idx = ordered.findIndex((x) => x.id === match.campaignStageId);
+      if (stage && idx >= 0) {
+        const adv = await tx.cardPlayer.updateMany({ where: { userId: seats[0], campaignStage: idx }, data: { campaignStage: idx + 1 } });
+        if (adv.count) {
+          campaign = { stage: stage.name, coins: stage.rewardCoins || 0, cardId: stage.rewardCardId || null, next: idx + 1 };
+          if (campaign.coins) { await tx.user.update({ where: { id: seats[0] }, data: { coins: { increment: campaign.coins } } }); rewards[0] += campaign.coins; }
+          if (campaign.cardId && (await tx.cardDef.findUnique({ where: { id: campaign.cardId } }))) await grantCards(tx, seats[0], [campaign.cardId]);
+        }
+      }
+    }
+    // Estatísticas por carta (para o equilíbrio do jogo).
+    for (let s = 0; s < 2; s += 1) {
+      if (!seats[s]) continue;
+      const used = [...new Set((state.played?.[s] || []).filter(Boolean))].slice(0, 40);
+      for (const cardId of used) {
+        await tx.cardStat.upsert({ where: { cardId }, update: { played: { increment: 1 }, ...(s === winnerSeat ? { wins: { increment: 1 } } : {}) }, create: { cardId, played: 1, wins: s === winnerSeat ? 1 : 0 } });
+      }
     }
     await tx.cardMatch.update({ where: { id: match.id }, data: { reward1: rewards[0], reward2: rewards[1] } });
-    return { rewards, winnerId };
+    return { rewards, winnerId, campaign };
   }).then((r) => {
     if (r) {
       const ledger = require('../services/economyLedger');
       for (let s = 0; s < 2; s += 1) {
         if (r.rewards[s] > 0) ledger.recordTransaction(seats[s], { kind: 'CARDS', label: match.mode === 'PVP' ? 'Jogo de Cartas: partida PvP' : `Jogo de Cartas: partida contra bot (${DIFFICULTIES[match.difficulty]?.label || ''})`, coins: r.rewards[s] });
       }
+      // Missões e conquistas (não bloqueiam a resposta).
+      for (let s = 0; s < 2; s += 1) {
+        const uid = seats[s];
+        if (!uid) continue;
+        afterActivity(uid, [['CARDS_PLAY', 1], ...(s === winnerSeat ? [['CARDS_WIN', 1]] : []), ...(s === winnerSeat && match.mode === 'PVP' ? [['CARDS_PVP_WIN', 1]] : [])], io);
+      }
+      if (match.tournamentId) {
+        try { require('./tournaments').onMatchFinished(match, r.winnerId, io).catch((e) => console.error('[cards] torneio:', e?.message)); } catch { /* ignora */ }
+      }
     }
     return r;
   });
 }
 
+// Missões (tipos CARDS_*) e conquistas da Arena — sempre em segundo plano.
+function afterActivity(userId, events, io = null) {
+  setImmediate(async () => {
+    try {
+      const missions = require('../services/missions');
+      for (const [type, n] of events) await missions.track(userId, type, n, io).catch(() => {});
+      await require('../services/achievements').checkAndUnlock(userId, io).catch(() => {});
+    } catch { /* ignora */ }
+  });
+}
+
 module.exports = {
+  afterActivity, patchSavedSettings, seasonKeyOf, ensureSeason, clampFoil,
   CardError, dayKey, rankOf, randInt, getSettings, invalidateSettings, ensureSeed, getCatalog, invalidateCatalog,
   shapeCard, getPlayer, ownedMap, grantCards, parseDeckCards, validateDeck, autoDeck, resolvePlayerDeck, botDeck,
   drawPack, packPool, finalizeMatch, copiesCap,

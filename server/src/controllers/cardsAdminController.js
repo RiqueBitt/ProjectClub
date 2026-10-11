@@ -50,6 +50,7 @@ function readCard(req, isNew) {
   if (b.rarity !== undefined) { if (!RARITIES.includes(b.rarity)) throw new CardError('Raridade inválida.'); d.rarity = b.rarity; }
   if (b.element !== undefined) { if (!ELEMENTS.includes(b.element)) throw new CardError('Elemento inválido.'); d.element = b.element; }
   if (b.ability !== undefined) { if (!ABILITIES[b.ability]) throw new CardError('Habilidade inválida.'); d.ability = b.ability; }
+  if (b.kind !== undefined) d.kind = b.kind === 'SPELL' ? 'SPELL' : 'UNIT';
   if (b.cost !== undefined) d.cost = int(b.cost, 0, 10, 1);
   if (b.attack !== undefined) d.attack = int(b.attack, 0, 30, 1);
   if (b.health !== undefined) d.health = int(b.health, 1, 40, 1);
@@ -131,6 +132,8 @@ function readPack(req, isNew) {
     const ids = typeof b.poolCardIds === 'string' ? safe(b.poolCardIds, []) : b.poolCardIds;
     d.poolCardIds = JSON.stringify(Array.isArray(ids) ? ids.filter((x) => typeof x === 'string').slice(0, 500) : []);
   }
+  if (b.discountPercent !== undefined) d.discountPercent = b.discountPercent === '' || b.discountPercent === null || b.discountPercent === 'null' ? null : int(b.discountPercent, 0, 90, 0) || null;
+  if (b.offerEndsAt !== undefined) { const t = b.offerEndsAt ? new Date(b.offerEndsAt) : null; d.offerEndsAt = t && !Number.isNaN(t.getTime()) ? t : null; }
   if (b.active !== undefined) d.active = b.active === true || b.active === 'true';
   if (b.sort !== undefined) d.sort = int(b.sort, -999, 999, 0);
   if (b.removeImage === 'true' || b.removeImage === true) d.imageUrl = null;
@@ -176,7 +179,8 @@ const getSettings = handle(async (req, res) => {
 const NUM_LIMITS = {
   rules: { startHp: [5, 100], deckSize: [10, 40], maxCopies: [1, 5], maxCopiesLegendary: [1, 5], startHand: [1, 8], maxHand: [3, 12], maxEnergy: [3, 15], boardSize: [3, 7], turnSeconds: [20, 300], elementBonus: [0, 5], maxTimeouts: [1, 10], levelCap: [1, 10] },
   rewards: { FACIL: [0, 10000], MEDIO: [0, 10000], DIFICIL: [0, 10000], LENDARIO: [0, 10000], pveLoss: [0, 10000], pvpWin: [0, 10000], pvpLoss: [0, 10000], dailyRewardedMatches: [0, 500], pvpRewardsPerOpponentPerDay: [0, 50], minTurnsForReward: [0, 30], streakBonus: [0, 1000], streakBonusMax: [0, 10000] },
-  economy: { tradeMaxCoins: [0, 1_000_000], maxOpenTrades: [1, 50], starterCards: [0, 60] },
+  economy: { tradeMaxCoins: [0, 1_000_000], maxOpenTrades: [1, 50], starterCards: [0, 60], foilChance: [0, 100], foilSellMultiplier: [1, 20], marketTax: [0, 50], maxListings: [1, 100], dailyDealPercent: [0, 90] },
+  season: { minGames: [0, 100] },
 };
 
 const updateSettings = handle(async (req, res) => {
@@ -192,8 +196,10 @@ const updateSettings = handle(async (req, res) => {
   for (const k of ['levelUpCopies', 'levelUpCoins']) {
     if (Array.isArray(b.economy?.[k])) next.economy[k] = b.economy[k].slice(0, 9).map((v) => int(v, 0, 100000, 0));
   }
+  for (const k of ['rewards', 'gems']) if (b.season?.[k]) for (const dv of Object.keys(DEFAULT_SETTINGS.season.rewards)) if (b.season[k][dv] !== undefined) next.season[k][dv] = int(b.season[k][dv], 0, 1_000_000, next.season[k][dv]);
   if (b.enabled) for (const k of Object.keys(DEFAULT_SETTINGS.enabled)) if (b.enabled[k] !== undefined) next.enabled[k] = !!b.enabled[k];
   if (next.rules.startHand > next.rules.maxHand) next.rules.startHand = next.rules.maxHand;
+  next.seedVersion = cur.seedVersion || 1;
   await prisma.cardGameSettings.upsert({ where: { id: 'singleton' }, update: { data: JSON.stringify(next) }, create: { id: 'singleton', data: JSON.stringify(next) } });
   S.invalidateSettings();
   audit(req, 'CARDS_SETTINGS_UPDATE', 'settings', {});

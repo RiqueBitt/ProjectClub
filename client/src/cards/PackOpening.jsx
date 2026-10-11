@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { CardView, Icon, UI, RARITIES, RARITY_ORDER } from './CardView.jsx';
+import { sfx } from './sfx';
 
 // Abertura de pacote: o pacote treme, explode em luz e as cartas são viradas
 // uma a uma (clique ou "Revelar todas"). Raridade alta = brilho maior.
@@ -8,6 +9,7 @@ export default function PackOpening({ pack, cards, onClose, onAgain, canAgain })
   const [revealed, setRevealed] = useState(() => new Set());
   useEffect(() => {
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    sfx('pack');
     const t1 = setTimeout(() => setPhase('burst'), reduce ? 50 : 900);
     const t2 = setTimeout(() => setPhase('cards'), reduce ? 100 : 1400);
     return () => { clearTimeout(t1); clearTimeout(t2); };
@@ -38,7 +40,7 @@ export default function PackOpening({ pack, cards, onClose, onAgain, canAgain })
                 <button
                   key={i} type="button" className={`tcgp-slot${open ? ' is-open' : ''} tcg-r-${c.rarity}`}
                   style={{ '--d': `${i * 70}ms`, '--rar': RARITIES[c.rarity]?.color }}
-                  onClick={() => setRevealed((s) => new Set(s).add(i))}
+                  onClick={() => { if (!revealed.has(i)) sfx(RARITY_ORDER.indexOf(c.rarity) >= 3 || c.foil ? 'epic' : 'play'); setRevealed((s) => new Set(s).add(i)); }}
                   aria-label={open ? `${c.name}, ${RARITIES[c.rarity]?.label}` : 'Revelar carta'}
                 >
                   <span className="tcgp-flip">
@@ -46,6 +48,7 @@ export default function PackOpening({ pack, cards, onClose, onAgain, canAgain })
                     <span className="tcgp-front"><CardView card={c} size="md" /></span>
                   </span>
                   {open && c.isNew && <span className="tcgp-new">Nova!</span>}
+                  {open && c.foil && <span className="tcgp-new is-foil">✦ Brilhante!</span>}
                   {open && RARITY_ORDER.indexOf(c.rarity) >= 3 && <span className="tcgp-glow" />}
                 </button>
               );

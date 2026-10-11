@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const prisma = require('../config/prisma');
 const { PUBLIC_USER_FIELDS } = require('./authController');
 const {
-  RARITIES, RARITY_LABEL, ELEMENTS, ELEMENT_LABEL, ELEMENT_BEATS, ABILITIES, DIFFICULTIES, abilityText,
+  RARITIES, RARITY_LABEL, ELEMENTS, ELEMENT_LABEL, ELEMENT_BEATS, ABILITIES, DIFFICULTIES, DIVISIONS, divisionOf, abilityText,
 } = require('../cards/config');
 const { createGame, reduce, viewFor, eventsFor } = require('../cards/engine');
 const { playTurn } = require('../cards/ai');
@@ -33,7 +33,8 @@ async function requireActivePlayer(userId) {
 const META = {
   rarities: RARITIES.map((r) => ({ key: r, label: RARITY_LABEL[r] })),
   elements: ELEMENTS.map((e) => ({ key: e, label: ELEMENT_LABEL[e], beats: ELEMENT_BEATS[e] })),
-  abilities: Object.entries(ABILITIES).map(([key, a]) => ({ key, label: a.label, desc: a.desc, value: a.value })),
+  abilities: Object.entries(ABILITIES).map(([key, a]) => ({ key, label: a.label, desc: a.desc, value: a.value, spell: !!a.spell })),
+  divisions: DIVISIONS,
   difficulties: Object.entries(DIFFICULTIES).map(([key, d]) => ({ key, label: d.label, heroHp: d.heroHp, level: d.level })),
 };
 
@@ -54,9 +55,16 @@ const home = handle(async (req, res) => {
     meta: META,
     rules: settings.rules,
     rewards: { FACIL: R.FACIL, MEDIO: R.MEDIO, DIFICIL: R.DIFICIL, LENDARIO: R.LENDARIO, pvpWin: R.pvpWin, dailyRewardedMatches: R.dailyRewardedMatches },
-    economy: { sellValues: settings.economy.sellValues, levelUpCopies: settings.economy.levelUpCopies, levelUpCoins: settings.economy.levelUpCoins, tradeMaxCoins: settings.economy.tradeMaxCoins, starterCards: settings.economy.starterCards },
+    economy: { sellValues: settings.economy.sellValues, levelUpCopies: settings.economy.levelUpCopies, levelUpCoins: settings.economy.levelUpCoins, tradeMaxCoins: settings.economy.tradeMaxCoins, starterCards: settings.economy.starterCards, foilSellMultiplier: settings.economy.foilSellMultiplier, foilChance: settings.economy.foilChance, marketTax: settings.economy.marketTax },
     enabled: settings.enabled,
-    player: { ...player, rewardsToday: player.rewardDay === S.dayKey() ? player.rewardsToday : 0 },
+    player: { ...player, rewardsToday: player.rewardDay === S.dayKey() ? player.rewardsToday : 0, lastSeasonReward: undefined },
+    season: (() => {
+      const div = divisionOf(player.seasonRating);
+      const next = DIVISIONS[DIVISIONS.findIndex((d) => d.key === div.key) + 1] || null;
+      const now = new Date();
+      const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 3));
+      return { key: player.seasonKey, rating: player.seasonRating, wins: player.seasonWins, losses: player.seasonLosses, division: div, next, endsAt: end, minGames: settings.season.minGames, rewards: settings.season.rewards, gems: settings.season.gems, lastReward: safeJson(player.lastSeasonReward || 'null', null) };
+    })(),
     wallet: me,
     collection: { total: owned._sum.quantity || 0, distinct: owned._count || 0 },
     starterAvailable: !player.starterClaimed,
@@ -115,7 +123,7 @@ const userCollection = handle(async (req, res) => {
   res.json({ user: target, cards, player: player ? publicPlayer(player) : null });
 });
 
-const publicPlayer = (p) => ({ wins: p.wins, losses: p.losses, pvpWins: p.pvpWins, pvpLosses: p.pvpLosses, rating: p.rating, packsOpened: p.packsOpened, bestStreak: p.bestStreak, streak: p.streak });
+const publicPlayer = (p) => ({ wins: p.wins, losses: p.losses, pvpWins: p.pvpWins, pvpLosses: p.pvpLosses, rating: p.rating, packsOpened: p.packsOpened, bestStreak: p.bestStreak, streak: p.streak, seasonRating: p.seasonRating, seasonWins: p.seasonWins, seasonLosses: p.seasonLosses, division: divisionOf(p.seasonRating) });
 
 // Resumo pro perfil (vitrine).
 const profileSummary = handle(async (req, res) => {
@@ -143,12 +151,17 @@ const sellCard = handle(async (req, res) => {
   const catalog = await S.getCatalog();
   const card = catalog.byId.get(req.params.cardId);
   if (!card) throw new CardError('Carta não encontrada.', 404);
-  const unit = Math.max(0, settings.economy.sellValues[card.rarity] | 0);
+  const foil = req.body?.foil === true;
+  const unit = Math.max(0, settings.economy.sellValues[card.rarity] | 0) * (foil ? Math.max(1, settings.economy.foilSellMultiplier | 0) : 1);
   const total = unit * qty;
   await prisma.$transaction(async (tx) => {
     // Só vende REPETIDAS: precisa sobrar pelo menos 1 cópia.
-    const r = await tx.userCard.updateMany({ where: { userId, cardId: card.id, quantity: { gte: qty + 1 } }, data: { quantity: { decrement: qty } } });
-    if (r.count === 0) throw new CardError('Você só pode vender cópias repetidas (fica sempre 1).');
+    const r = await tx.userCard.updateMany({
+      where: { userId, cardId: card.id, quantity: { gte: qty + 1 }, ...(foil ? { foil: { gte: qty } } : {}) },
+      data: { quantity: { decrement: qty }, ...(foil ? { foil: { decrement: qty } } : {}) },
+    });
+    if (r.count === 0) throw new CardError(foil ? 'Você não tem essa cópia brilhante repetida.' : 'Você só pode vender cópias repetidas (fica sempre 1).');
+    if (!foil) await S.clampFoil(tx, userId, card.id);
     if (total > 0) await tx.user.update({ where: { id: userId }, data: { coins: { increment: total } } });
   });
   if (total > 0) ledger().recordTransaction(userId, { kind: 'CARDS', label: `Jogo de Cartas: vendeu ${qty}x ${card.name}`, coins: total });
@@ -176,6 +189,7 @@ const levelUp = handle(async (req, res) => {
       data: { quantity: { decrement: copies }, level: { increment: 1 } },
     });
     if (r.count === 0) throw new CardError(`Precisa de ${copies} cópia(s) repetida(s) para evoluir.`);
+    await S.clampFoil(tx, userId, card.id);
     if (coins > 0) {
       const m = await tx.user.updateMany({ where: { id: userId, coins: { gte: coins } }, data: { coins: { decrement: coins } } });
       if (m.count === 0) throw new CardError('Moedas insuficientes.');
@@ -188,6 +202,22 @@ const levelUp = handle(async (req, res) => {
 });
 
 // ---------- Pacotes ----------
+// Preço final: desconto da staff (com ou sem prazo) ou "oferta do dia"
+// (um pacote sorteado por dia, sempre o mesmo para todos). Vale o maior.
+function dailyDealId(packs, day) {
+  const list = packs.filter((p) => p.active).sort((a, b) => a.id.localeCompare(b.id));
+  if (!list.length) return null;
+  let h = 0;
+  for (const ch of day) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return list[h % list.length].id;
+}
+function packDiscount(pack, dealId, settings, now = Date.now()) {
+  const staff = pack.discountPercent && (!pack.offerEndsAt || new Date(pack.offerEndsAt).getTime() > now) ? pack.discountPercent : 0;
+  const deal = pack.id === dealId ? (settings.economy.dailyDealPercent | 0) : 0;
+  return Math.max(0, Math.min(90, Math.max(staff, deal)));
+}
+const discounted = (price, pct) => (price === null || price === undefined ? price : Math.max(0, Math.round(price * (100 - pct) / 100)));
+
 const listPacks = handle(async (req, res) => {
   await S.ensureSeed();
   const today = S.dayKey();
@@ -196,13 +226,21 @@ const listPacks = handle(async (req, res) => {
     prisma.cardPackOpen.groupBy({ by: ['packId'], where: { userId: req.user.id, dayKey: today }, _count: true }),
   ]);
   const openedToday = Object.fromEntries(opens.map((o) => [o.packId, o._count]));
+  const settings = await S.getSettings();
+  const dealId = dailyDealId(packs, today);
   res.json({
-    packs: packs.map((p) => ({
+    foilChance: settings.economy.foilChance,
+    packs: packs.map((p) => {
+      const pct = packDiscount(p, dealId, settings);
+      return {
       id: p.id, name: p.name, description: p.description, imageUrl: p.imageUrl, color: p.color,
-      priceCoins: p.priceCoins, priceGems: p.priceGems, cardsPerPack: p.cardsPerPack,
+      priceCoins: discounted(p.priceCoins, pct), priceGems: discounted(p.priceGems, pct), cardsPerPack: p.cardsPerPack,
+      fullPriceCoins: p.priceCoins, fullPriceGems: p.priceGems, discountPercent: pct, dailyDeal: p.id === dealId && pct > 0,
+      offerEndsAt: pct && p.id !== dealId ? p.offerEndsAt : null,
       weights: safeJson(p.weights, {}), guaranteed: p.guaranteed, dailyLimit: p.dailyLimit,
       openedToday: openedToday[p.id] || 0, poolMode: p.poolMode, poolCollection: p.poolCollection,
-    })),
+    };
+    }),
   });
 });
 
@@ -216,11 +254,16 @@ const openPack = handle(async (req, res) => {
   const pack = await prisma.cardPack.findUnique({ where: { id: req.params.id } });
   if (!pack || !pack.active) throw new CardError('Pacote não encontrado.', 404);
   const currency = req.body?.currency === 'gems' ? 'gems' : 'coins';
-  const price = currency === 'gems' ? pack.priceGems : pack.priceCoins;
+  const allActive = await prisma.cardPack.findMany({ where: { active: true }, select: { id: true, active: true } });
+  const pct = packDiscount(pack, dailyDealId(allActive, S.dayKey()), settings);
+  const price = discounted(currency === 'gems' ? pack.priceGems : pack.priceCoins, pct);
   if (price === null || price === undefined || price < 0) throw new CardError('Esse pacote não é vendido nessa moeda.');
   const catalog = await S.getCatalog();
   const owned = await S.ownedMap(userId);
   const cards = S.drawPack(pack, catalog);
+  // Cada carta tem uma chance de vir brilhante (foil).
+  const foilPct = Math.max(0, Math.min(100, Number(settings.economy.foilChance) || 0));
+  const foils = cards.map(() => crypto.randomInt(0, 10000) < foilPct * 100);
   const today = S.dayKey();
   await prisma.$transaction(async (tx) => {
     if (pack.dailyLimit) {
@@ -231,16 +274,17 @@ const openPack = handle(async (req, res) => {
       const r = await tx.user.updateMany({ where: { id: userId, [currency]: { gte: price } }, data: { [currency]: { decrement: price } } });
       if (r.count === 0) throw new CardError(currency === 'gems' ? 'Gemas insuficientes.' : 'Moedas insuficientes.');
     }
-    await S.grantCards(tx, userId, cards.map((c) => c.id));
+    await S.grantCards(tx, userId, cards.map((c) => c.id), cards.filter((_, i) => foils[i]).map((c) => c.id));
     await tx.cardPackOpen.create({ data: { userId, packId: pack.id, dayKey: today, cards: JSON.stringify(cards.map((c) => c.id)), paidCoins: currency === 'coins' ? price : 0, paidGems: currency === 'gems' ? price : 0 } });
     await tx.cardPlayer.upsert({ where: { userId }, update: { packsOpened: { increment: 1 } }, create: { userId, packsOpened: 1 } });
   });
   if (price > 0) ledger().recordTransaction(userId, { kind: 'CARDS', label: `Jogo de Cartas: ${pack.name}`, [currency]: -price });
+  S.afterActivity(userId, [['CARDS_PACK', 1]], req.app.get('io'));
   const seen = new Set();
-  const result = cards.map((c) => {
+  const result = cards.map((c, i) => {
     const isNew = !(owned.get(c.id)?.quantity > 0) && !seen.has(c.id);
     seen.add(c.id);
-    return { ...S.shapeCard(c), isNew };
+    return { ...S.shapeCard(c), isNew, foil: foils[i] };
   });
   const me = await prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true } });
   res.json({ cards: result, wallet: me });
@@ -323,6 +367,14 @@ async function pendingChallengesFor(userId) {
   return rows.map((r) => ({ id: r.id, incoming: r.p2Id === userId, from: byId[r.p1Id] || null, to: byId[r.p2Id] || null, createdAt: r.createdAt }));
 }
 
+// Registro de ações para o replay (limitado para não crescer sem fim).
+function appendActions(raw, more) {
+  let list = [];
+  try { list = raw ? JSON.parse(raw) : []; } catch { list = []; }
+  list.push(...more);
+  return JSON.stringify(list.slice(0, 1500));
+}
+
 function seatOf(m, userId) {
   if (m.p1Id === userId) return 0;
   if (m.p2Id === userId) return 1;
@@ -348,28 +400,55 @@ async function playerSeatInfo(userId) {
 
 const BOT_NAMES = { FACIL: 'Aprendiz Pip', MEDIO: 'Duelista Nora', DIFICIL: 'Mestre Kael', LENDARIO: 'Arquimaga Vex' };
 
+// Cria partida contra bot (normal ou fase da campanha). Guarda o estado
+// inicial e o registro de ações para o replay.
+async function newPveMatch(userId, { difficulty, botName, botHp, botDeck, campaignStageId = null }) {
+  const settings = await S.getSettings();
+  const busyPvp = await prisma.cardMatch.findFirst({ where: { mode: 'PVP', status: 'ACTIVE', OR: [{ p1Id: userId }, { p2Id: userId }] } });
+  if (busyPvp) throw new CardError('Termine sua partida PvP antes de começar outra.');
+  const deck = await S.resolvePlayerDeck(userId, settings);
+  const bot = botDeck ? { deck: botDeck, hp: botHp } : await S.botDeck(difficulty, settings);
+  // Só uma partida contra bot por vez: a antiga é abandonada (sem recompensa).
+  await prisma.cardMatch.updateMany({ where: { p1Id: userId, mode: 'PVE', status: 'ACTIVE' }, data: { status: 'CANCELLED', endReason: 'abandoned', endedAt: new Date() } });
+  const me = await playerSeatInfo(userId);
+  let state = createGame({
+    players: [{ ...me, deck }, { userId: null, name: botName || BOT_NAMES[difficulty], isBot: true, hp: botHp || bot.hp, deck: bot.deck }],
+    rules: settings.rules, seed: crypto.randomInt(1, 2 ** 31), first: crypto.randomInt(2),
+  });
+  const initialState = JSON.stringify(state);
+  let events = [];
+  let actions = [];
+  if (state.active === 1) { const r = playTurn(state, 1, difficulty); state = r.state; events = r.events; actions = r.actions.map((a) => ({ s: 1, a })); }
+  const m = await prisma.cardMatch.create({ data: { mode: 'PVE', difficulty, p1Id: userId, status: 'ACTIVE', state: JSON.stringify(state), initialState, actions: JSON.stringify(actions), campaignStageId } });
+  return payload(m, 0, state, { events: eventsFor(events, 0) });
+}
+
 const startPve = handle(async (req, res) => {
   const userId = req.user.id;
   await requireActivePlayer(userId);
   const settings = await S.getSettings();
   if (!settings.enabled.pve) throw new CardError('Partidas contra bots estão desativadas.');
   const difficulty = DIFFICULTIES[req.body?.difficulty] ? req.body.difficulty : 'MEDIO';
-  const busyPvp = await prisma.cardMatch.findFirst({ where: { mode: 'PVP', status: 'ACTIVE', OR: [{ p1Id: userId }, { p2Id: userId }] } });
-  if (busyPvp) throw new CardError('Termine sua partida PvP antes de começar outra.');
-  const deck = await S.resolvePlayerDeck(userId, settings);
-  const bot = await S.botDeck(difficulty, settings);
-  // Só uma partida contra bot por vez: a antiga é abandonada (sem recompensa).
-  await prisma.cardMatch.updateMany({ where: { p1Id: userId, mode: 'PVE', status: 'ACTIVE' }, data: { status: 'CANCELLED', endReason: 'abandoned', endedAt: new Date() } });
-  const me = await playerSeatInfo(userId);
-  let state = createGame({
-    players: [{ ...me, deck }, { userId: null, name: BOT_NAMES[difficulty], isBot: true, hp: bot.hp, deck: bot.deck }],
-    rules: settings.rules, seed: crypto.randomInt(1, 2 ** 31), first: crypto.randomInt(2),
-  });
-  let events = [];
-  if (state.active === 1) { const r = playTurn(state, 1, difficulty); state = r.state; events = r.events; }
-  const m = await prisma.cardMatch.create({ data: { mode: 'PVE', difficulty, p1Id: userId, status: 'ACTIVE', state: JSON.stringify(state) } });
-  res.json(payload(m, 0, state, { events: eventsFor(events, 0) }));
+  res.json(await newPveMatch(userId, { difficulty }));
 });
+
+// Cria partida PvP já ativa (desafio aceito, partida rápida ou torneio).
+async function newPvpMatch(p1Id, p2Id, { pendingId = null, tournamentId = null } = {}) {
+  const settings = await S.getSettings();
+  let d1;
+  try { d1 = await S.resolvePlayerDeck(p1Id, settings); } catch { throw new CardError('O baralho de um dos jogadores não é válido.'); }
+  const d2 = await S.resolvePlayerDeck(p2Id, settings);
+  const [a, b] = await Promise.all([playerSeatInfo(p1Id), playerSeatInfo(p2Id)]);
+  const state = createGame({ players: [{ ...a, deck: d1 }, { ...b, deck: d2 }], rules: settings.rules, seed: crypto.randomInt(1, 2 ** 31), first: crypto.randomInt(2) });
+  const data = { status: 'ACTIVE', state: JSON.stringify(state), initialState: JSON.stringify(state), actions: '[]', turnDeadline: new Date(Date.now() + settings.rules.turnSeconds * 1000), version: 1 };
+  if (pendingId) {
+    const r = await prisma.cardMatch.updateMany({ where: { id: pendingId, status: 'PENDING' }, data });
+    if (r.count === 0) throw new CardError('Esse desafio não está mais disponível.');
+    return { match: await prisma.cardMatch.findUnique({ where: { id: pendingId } }), state };
+  }
+  const match = await prisma.cardMatch.create({ data: { mode: 'PVP', p1Id, p2Id, tournamentId, ...data } });
+  return { match, state };
+}
 
 const challenge = handle(async (req, res) => {
   const userId = req.user.id;
@@ -414,16 +493,8 @@ const respondChallenge = (accept) => handle(async (req, res) => {
   const settings = await S.getSettings();
   const busy = await prisma.cardMatch.findFirst({ where: { mode: 'PVP', status: 'ACTIVE', OR: [{ p1Id: { in: [m.p1Id, m.p2Id] } }, { p2Id: { in: [m.p1Id, m.p2Id] } }] } });
   if (busy) throw new CardError('Um de vocês já está em outra partida PvP.');
-  let d1;
-  try { d1 = await S.resolvePlayerDeck(m.p1Id, settings); } catch { throw new CardError('O baralho de quem desafiou não é mais válido.'); }
-  const d2 = await S.resolvePlayerDeck(m.p2Id, settings);
-  const [a, b] = await Promise.all([playerSeatInfo(m.p1Id), playerSeatInfo(m.p2Id)]);
-  const state = createGame({ players: [{ ...a, deck: d1 }, { ...b, deck: d2 }], rules: settings.rules, seed: crypto.randomInt(1, 2 ** 31), first: crypto.randomInt(2) });
-  const deadline = new Date(Date.now() + settings.rules.turnSeconds * 1000);
-  const r = await prisma.cardMatch.updateMany({ where: { id: m.id, status: 'PENDING' }, data: { status: 'ACTIVE', state: JSON.stringify(state), turnDeadline: deadline, version: 1 } });
-  if (r.count === 0) throw new CardError('Esse desafio não está mais disponível.');
-  // Desafios pendentes antigos entre os dois somem.
-  const fresh = await prisma.cardMatch.findUnique({ where: { id: m.id } });
+  void settings;
+  const { match: fresh, state } = await newPvpMatch(m.p1Id, m.p2Id, { pendingId: m.id });
   notify(req, m.p1Id, 'cards:match', { id: m.id, started: true });
   res.json(payload(fresh, 1, state));
 });
@@ -434,14 +505,16 @@ async function applyTimeoutIfNeeded(req, m) {
   if (Date.now() < new Date(m.turnDeadline).getTime() + 1500) return m;
   const settings = await S.getSettings();
   let state = JSON.parse(m.state);
+  const timedOut = state.active;
   const r = reduce(state, state.active, { type: 'TIMEOUT' });
   state = r.state;
+  const log = appendActions(m.actions, [{ s: timedOut, a: { type: 'TIMEOUT' } }]);
   const upd = await prisma.cardMatch.updateMany({
     where: { id: m.id, version: m.version, status: 'ACTIVE' },
-    data: { state: JSON.stringify(state), version: { increment: 1 }, turnDeadline: state.over ? null : new Date(Date.now() + settings.rules.turnSeconds * 1000) },
+    data: { state: JSON.stringify(state), actions: log, version: { increment: 1 }, turnDeadline: state.over ? null : new Date(Date.now() + settings.rules.turnSeconds * 1000) },
   });
   if (upd.count) {
-    if (state.over) await S.finalizeMatch(m, state, settings);
+    if (state.over) await S.finalizeMatch(m, state, settings, req.app.get('io'));
     notify(req, m.p1Id, 'cards:match', { id: m.id });
     notify(req, m.p2Id, 'cards:match', { id: m.id });
   }
@@ -478,22 +551,24 @@ const action = handle(async (req, res) => {
   const r = reduce(state, seat, act); // EngineError → 400
   state = r.state;
   const events = [...r.events];
+  const newActions = [{ s: seat, a: act }];
   if (m.mode === 'PVE' && !state.over && state.active === 1) {
     const bot = playTurn(state, 1, m.difficulty);
     state = bot.state;
     events.push(...bot.events);
+    newActions.push(...bot.actions.map((a) => ({ s: 1, a })));
   }
   const turnChanged = state.active !== before;
   const upd = await prisma.cardMatch.updateMany({
     where: { id: m.id, version: m.version, status: 'ACTIVE' },
     data: {
-      state: JSON.stringify(state), version: { increment: 1 },
+      state: JSON.stringify(state), actions: appendActions(m.actions, newActions), version: { increment: 1 },
       ...(m.mode === 'PVP' ? { turnDeadline: state.over ? null : (turnChanged ? new Date(Date.now() + settings.rules.turnSeconds * 1000) : m.turnDeadline) } : {}),
     },
   });
   if (upd.count === 0) throw new CardError('A partida mudou enquanto você jogava. Atualizando…', 409);
   let result = null;
-  if (state.over) result = await S.finalizeMatch(m, state, settings);
+  if (state.over) result = await S.finalizeMatch(m, state, settings, req.app.get('io'));
   const fresh = await prisma.cardMatch.findUnique({ where: { id: m.id } });
   if (m.mode === 'PVP') notify(req, seat === 0 ? m.p2Id : m.p1Id, 'cards:match', { id: m.id, version: fresh.version });
   res.json(payload(fresh, seat, state, { events: eventsFor(events, seat), result }));
@@ -519,11 +594,12 @@ const history = handle(async (req, res) => {
 });
 
 const ranking = handle(async (req, res) => {
-  const by = req.query.by === 'wins' ? 'wins' : 'rating';
-  const rows = await prisma.cardPlayer.findMany({
-    where: { banned: false, ...(by === 'rating' ? { OR: [{ pvpWins: { gt: 0 } }, { pvpLosses: { gt: 0 } }] } : { wins: { gt: 0 } }) },
-    orderBy: by === 'rating' ? [{ rating: 'desc' }, { pvpWins: 'desc' }] : [{ wins: 'desc' }], take: 50,
-  });
+  const by = ['wins', 'season'].includes(req.query.by) ? req.query.by : 'rating';
+  const where = by === 'season'
+    ? { banned: false, seasonKey: S.seasonKeyOf(), OR: [{ seasonWins: { gt: 0 } }, { seasonLosses: { gt: 0 } }] }
+    : { banned: false, ...(by === 'rating' ? { OR: [{ pvpWins: { gt: 0 } }, { pvpLosses: { gt: 0 } }] } : { wins: { gt: 0 } }) };
+  const orderBy = by === 'season' ? [{ seasonRating: 'desc' }, { seasonWins: 'desc' }] : by === 'rating' ? [{ rating: 'desc' }, { pvpWins: 'desc' }] : [{ wins: 'desc' }];
+  const rows = await prisma.cardPlayer.findMany({ where, orderBy, take: 50 });
   const users = rows.length ? await prisma.user.findMany({ where: { id: { in: rows.map((r) => r.userId) } }, select: PUBLIC_USER_FIELDS }) : [];
   const byId = Object.fromEntries(users.map((u) => [u.id, u]));
   res.json({ by, players: rows.filter((r) => byId[r.userId]).map((r, i) => ({ rank: i + 1, user: byId[r.userId], ...publicPlayer(r) })) });
@@ -536,9 +612,10 @@ function parseItems(raw) {
   for (const it of raw.slice(0, 20)) {
     const id = typeof it?.cardId === 'string' ? it.cardId : null;
     const q = Math.max(0, Math.min(50, parseInt(it?.qty, 10) || 0));
-    if (id && q) merged.set(id, (merged.get(id) || 0) + q);
+    const key = `${id}|${it?.foil === true ? 1 : 0}`;
+    if (id && q) merged.set(key, (merged.get(key) || 0) + q);
   }
-  return [...merged].map(([cardId, qty]) => ({ cardId, qty })).slice(0, 10);
+  return [...merged].map(([k, qty]) => { const [cardId, f] = k.split('|'); return { cardId, qty, ...(f === '1' ? { foil: true } : {}) }; }).slice(0, 10);
 }
 
 async function shapeTrades(rows, userId) {
@@ -582,15 +659,20 @@ const createTrade = handle(async (req, res) => {
   if (open >= settings.economy.maxOpenTrades) throw new CardError(`Você já tem ${open} trocas abertas.`);
   const catalog = await S.getCatalog();
   const [mine, theirs] = await Promise.all([S.ownedMap(userId), S.ownedMap(toId)]);
-  for (const it of offer) {
-    const c = catalog.byId.get(it.cardId);
+  const need = (list) => { const m = new Map(); for (const it of list) { const k = it.cardId; const cur = m.get(k) || { q: 0, f: 0 }; cur.q += it.qty; if (it.foil) cur.f += it.qty; m.set(k, cur); } return m; };
+  for (const [cardId, n] of need(offer)) {
+    const c = catalog.byId.get(cardId);
     if (!c) throw new CardError('Carta inválida na oferta.');
-    if ((mine.get(it.cardId)?.quantity || 0) < it.qty) throw new CardError(`Você não tem ${it.qty}x ${c.name}.`);
+    const row = mine.get(cardId);
+    if ((row?.quantity || 0) < n.q) throw new CardError(`Você não tem ${n.q}x ${c.name}.`);
+    if ((row?.foil || 0) < n.f) throw new CardError(`Você não tem ${n.f}x ${c.name} brilhante.`);
   }
-  for (const it of request) {
-    const c = catalog.byId.get(it.cardId);
+  for (const [cardId, n] of need(request)) {
+    const c = catalog.byId.get(cardId);
     if (!c) throw new CardError('Carta inválida no pedido.');
-    if ((theirs.get(it.cardId)?.quantity || 0) < it.qty) throw new CardError(`A outra pessoa não tem ${it.qty}x ${c.name}.`);
+    const row = theirs.get(cardId);
+    if ((row?.quantity || 0) < n.q) throw new CardError(`A outra pessoa não tem ${n.q}x ${c.name}.`);
+    if ((row?.foil || 0) < n.f) throw new CardError(`A outra pessoa não tem ${n.f}x ${c.name} brilhante.`);
   }
   const t = await prisma.cardTrade.create({
     data: { fromId: userId, toId, offer: JSON.stringify(offer), request: JSON.stringify(request), offerCoins, requestCoins, message: String(req.body?.message || '').trim().slice(0, 180) || null },
@@ -603,9 +685,14 @@ const createTrade = handle(async (req, res) => {
 // Move cartas com checagem atômica de posse (falha = rollback de tudo).
 async function moveCards(tx, fromId, toId, items) {
   for (const it of items) {
-    const r = await tx.userCard.updateMany({ where: { userId: fromId, cardId: it.cardId, quantity: { gte: it.qty } }, data: { quantity: { decrement: it.qty } } });
+    const f = it.foil ? it.qty : 0;
+    const r = await tx.userCard.updateMany({
+      where: { userId: fromId, cardId: it.cardId, quantity: { gte: it.qty }, ...(f ? { foil: { gte: f } } : {}) },
+      data: { quantity: { decrement: it.qty }, ...(f ? { foil: { decrement: f } } : {}) },
+    });
     if (r.count === 0) throw new CardError('Alguém não tem mais as cartas da troca. A troca foi cancelada.');
-    await tx.userCard.upsert({ where: { userId_cardId: { userId: toId, cardId: it.cardId } }, update: { quantity: { increment: it.qty } }, create: { userId: toId, cardId: it.cardId, quantity: it.qty } });
+    if (!f) await S.clampFoil(tx, fromId, it.cardId);
+    await tx.userCard.upsert({ where: { userId_cardId: { userId: toId, cardId: it.cardId } }, update: { quantity: { increment: it.qty }, ...(f ? { foil: { increment: f } } : {}) }, create: { userId: toId, cardId: it.cardId, quantity: it.qty, foil: f } });
   }
 }
 async function moveCoins(tx, fromId, toId, coins) {
@@ -650,10 +737,13 @@ const respondTrade = (kind) => handle(async (req, res) => {
   if (t.offerCoins) { ledger().recordTransaction(t.fromId, { kind: 'CARDS', label: 'Jogo de Cartas: troca', coins: -t.offerCoins }); ledger().recordTransaction(t.toId, { kind: 'CARDS', label: 'Jogo de Cartas: troca', coins: t.offerCoins }); }
   if (t.requestCoins) { ledger().recordTransaction(t.toId, { kind: 'CARDS', label: 'Jogo de Cartas: troca', coins: -t.requestCoins }); ledger().recordTransaction(t.fromId, { kind: 'CARDS', label: 'Jogo de Cartas: troca', coins: t.requestCoins }); }
   notify(req, t.fromId, 'cards:trade', { id: t.id, accepted: true });
+  S.afterActivity(t.fromId, [['CARDS_TRADE', 1]], req.app.get('io'));
+  S.afterActivity(t.toId, [['CARDS_TRADE', 1]], req.app.get('io'));
   res.json({ ok: true });
 });
 
 module.exports = {
+  newPveMatch, newPvpMatch, playerSeatInfo, notify, payload, seatOf, applyTimeoutIfNeeded, requireActivePlayer, handle, BOT_NAMES, safeJson,
   home, claimStarter, collection, userCollection, profileSummary, sellCard, levelUp,
   listPacks, openPack, listDecks, saveDeck, deleteDeck, activateDeck, suggestDeck,
   startPve, challenge, acceptChallenge: respondChallenge(true), declineChallenge: respondChallenge(false),

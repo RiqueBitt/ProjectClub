@@ -39,10 +39,22 @@ export const ABILITIES = {
   REGENERA: { label: 'Regenerar', desc: 'No início do seu turno, cura {v} de vida desta unidade.', icon: 'M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5' },
   ULTIMO_SUSPIRO: { label: 'Último suspiro', desc: 'Ao morrer: causa {v} de dano ao herói inimigo.', icon: 'M12 3a7 7 0 0 0-7 7v4l2 2v4h10v-4l2-2v-4a7 7 0 0 0-7-7zM9 11h.01M15 11h.01' },
   ENERGIA: { label: 'Canalizar', desc: 'Ao entrar: ganha {v} de energia neste turno.', icon: 'M12 2 4 7v10l8 5 8-5V7z' },
+  FURTIVO: { label: 'Furtivo', desc: 'Não pode ser alvo de ataques nem feitiços até atacar.', icon: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM3 3l18 18' },
+  CONGELA: { label: 'Gélido', desc: 'Congela as unidades em que causa dano (perdem o próximo ataque).', icon: 'M12 2v20M4.9 6.9l14.2 10.2M19.1 6.9 4.9 17.1M9 4l3 3 3-3M9 20l3-3 3 3' },
+  INVOCAR: { label: 'Convocar', desc: 'Ao entrar: invoca {v} Recruta(s) 1/1.', icon: 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM17 11a3 3 0 1 0 0-6M3 20v-1a5 5 0 0 1 10 0v1M15 14a5 5 0 0 1 6 5v1' },
+  ESPINHOS: { label: 'Espinhos', desc: 'Quem a atacar recebe +{v} de dano.', icon: 'M12 2l2 6h6l-5 4 2 6-5-4-5 4 2-6-5-4h6z' },
+  PROTEGER: { label: 'Proteger', desc: 'Ao entrar: suas outras unidades ganham Escudo.', icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4' },
+  FEITICO_DANO: { label: 'Disparo', desc: 'Causa {v} de dano a uma unidade ou ao herói inimigo.', icon: 'M13 2 6 13h6l-1 9 7-12h-6z', spell: true, target: 'ENEMY' },
+  FEITICO_AREA: { label: 'Tempestade', desc: 'Causa {v} de dano a todas as unidades inimigas.', icon: 'M4 14a4 4 0 0 1 2-7.5A6 6 0 0 1 18 8a4 4 0 0 1 0 8H7M9 18l-1 3M13 18l-1 3M17 18l-1 3', spell: true },
+  FEITICO_CURA: { label: 'Cura', desc: 'Cura {v} de vida do seu herói.', icon: 'M12 5v14M5 12h14', spell: true },
+  FEITICO_COMPRA: { label: 'Visão', desc: 'Compra {v} carta(s).', icon: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', spell: true },
+  FEITICO_BUFF: { label: 'Equipamento', desc: 'Uma unidade sua ganha +{v} de ataque e +{v} de vida.', icon: 'M14.5 17.5 3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4', spell: true, target: 'FRIENDLY' },
+  FEITICO_ESCUDO: { label: 'Barreira', desc: 'Uma unidade sua ganha Escudo.', icon: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z', spell: true, target: 'FRIENDLY' },
+  FEITICO_CONGELAR: { label: 'Congelar', desc: 'Congela uma unidade inimiga e causa {v} de dano.', icon: 'M12 2v20M4.9 6.9l14.2 10.2M19.1 6.9 4.9 17.1', spell: true, target: 'ENEMY_UNIT' },
 };
 
 export function abilityText(ability, value) {
-  return (ABILITIES[ability]?.desc || '').replace('{v}', String(value ?? 0));
+  return (ABILITIES[ability]?.desc || '').replace(/\{v\}/g, String(value ?? 0));
 }
 
 export function Icon({ d, size = 16, fill = false, sw = 2 }) {
@@ -118,7 +130,7 @@ export const CardArt = memo(function CardArt({ card }) {
  * Carta completa (coleção, loja, mão). Aceita definição (attack/health)
  * ou instância de batalha (atk/hp).
  */
-export function CardView({ card, size = 'md', className = '', onClick, quantity, showQty = false, dim = false, badge, children, style, ...rest }) {
+export function CardView({ card, size = 'md', className = '', onClick, quantity, showQty = false, dim = false, badge, children, style, foil, ...rest }) {
   if (!card) return null;
   const el = ELEMENTS[card.element] || ELEMENTS.FOGO;
   const rar = RARITIES[card.rarity] || RARITIES.COMUM;
@@ -126,11 +138,13 @@ export function CardView({ card, size = 'md', className = '', onClick, quantity,
   const hp = card.hp ?? card.health;
   const value = card.value ?? card.abilityValue;
   const ab = ABILITIES[card.ability];
+  const spell = card.kind === 'SPELL';
+  const shiny = !!(foil ?? card.foil);
   const Tag = onClick ? 'button' : 'div';
   return (
     <Tag
       type={onClick ? 'button' : undefined}
-      className={`tcg-card tcg-${size} tcg-r-${card.rarity}${dim ? ' is-dim' : ''} ${className}`}
+      className={`tcg-card tcg-${size} tcg-r-${card.rarity}${dim ? ' is-dim' : ''}${spell ? ' is-spell' : ''}${shiny ? ' is-foil' : ''} ${className}`}
       {...rest}
       style={{ '--el': el.color, '--el-dark': el.dark, '--rar': rar.color, ...style }}
       onClick={onClick}
@@ -141,15 +155,23 @@ export function CardView({ card, size = 'md', className = '', onClick, quantity,
         <span className="tcg-name" data-no-translate>{card.name}</span>
         <span className="tcg-type">
           <span className="tcg-el" title={el.label}><Icon d={el.glyph} size={11} /></span>
-          {rar.label}{card.level > 1 ? ` · Nv ${card.level}` : ''}
+          {spell ? 'Feitiço' : rar.label}{card.level > 1 ? ` · Nv ${card.level}` : ''}
         </span>
         <span className="tcg-text">
           {ab?.label ? <><b>{ab.label}.</b> {abilityText(card.ability, value)}</> : <i>{card.flavor || ''}</i>}
         </span>
-        <span className="tcg-atk" title="Ataque"><Icon d={UI.sword} size={12} />{atk}</span>
-        <span className={`tcg-hp${card.maxHp && hp < card.maxHp ? ' is-hurt' : ''}`} title="Vida"><Icon d={UI.heart} size={12} fill />{hp}</span>
+        {spell ? (
+          <span className="tcg-spell-tag" title={RARITIES[card.rarity]?.label}>{rar.label}</span>
+        ) : (
+          <>
+            <span className="tcg-atk" title="Ataque"><Icon d={UI.sword} size={12} />{atk}</span>
+            <span className={`tcg-hp${card.maxHp && hp < card.maxHp ? ' is-hurt' : ''}`} title="Vida"><Icon d={UI.heart} size={12} fill />{hp}</span>
+          </>
+        )}
+        {shiny && <span className="tcg-foil-sheen" aria-hidden="true" />}
       </span>
       {showQty && quantity > 0 && <span className="tcg-qty">x{quantity}</span>}
+      {showQty && card.foil > 0 && <span className="tcg-foil-badge" title={`${card.foil} brilhante(s)`}>✦ {card.foil}</span>}
       {showQty && !quantity && <span className="tcg-missing">Não tem</span>}
       {badge}
       {children}

@@ -1,37 +1,36 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import UserAvatar from '../components/UserAvatar.jsx';
-import { CardView, ELEMENTS, RARITIES, RARITY_ORDER, ABILITIES, Icon, UI, abilityText } from '../cards/CardView.jsx';
+import { Icon, UI } from '../cards/CardView.jsx';
 import Battle from '../cards/Battle.jsx';
 import PackOpening from '../cards/PackOpening.jsx';
 import PacksTab from '../cards/PacksShop.jsx';
 import DeckBuilder from '../cards/DeckBuilder.jsx';
-import Trades, { UserPicker } from '../cards/Trades.jsx';
+import Trades from '../cards/Trades.jsx';
+import ArenaHome from '../cards/ArenaHome.jsx';
+import Collection from '../cards/Collection.jsx';
+import Market from '../cards/Market.jsx';
+import Tournaments from '../cards/Tournaments.jsx';
 import {
-  cardsHome, cardsClaimStarter, cardsCollection, cardsStartPve, cardsMatch,
-  cardsChallenge, cardsAcceptChallenge, cardsDeclineChallenge, cardsHistory, cardsRanking, cardsSell, cardsLevelUp, errMsg,
+  cardsHome, cardsClaimStarter, cardsCollection, cardsStartPve, cardsMatch, cardsChallenge, cardsRanking,
+  cardsUserCollection, cardsWatch, cardsReplay, errMsg,
 } from '../cards/api';
 import '../styles/cards.css';
 
 // Arena de Cartas — jogo de cartas colecionáveis do Project Club (substitui
 // as Figurinhas). Jogo principal da seção Mini-Jogos.
 const TABS = [
-  { key: 'jogar', label: 'Jogar', icon: UI.sword },
+  { key: 'jogar', label: 'Início', icon: UI.sword },
   { key: 'colecao', label: 'Coleção', icon: UI.deck },
   { key: 'loja', label: 'Pacotes', icon: UI.pack },
   { key: 'baralhos', label: 'Baralhos', icon: UI.list },
+  { key: 'mercado', label: 'Mercado', icon: UI.coin },
   { key: 'trocas', label: 'Trocas', icon: UI.swap },
-  { key: 'ranking', label: 'Ranking', icon: UI.trophy },
+  { key: 'torneios', label: 'Torneios', icon: UI.trophy },
+  { key: 'ranking', label: 'Ranking', icon: UI.star },
 ];
-
-const BOT_LOOK = {
-  FACIL: { name: 'Aprendiz Pip', color: '#4cc76b', desc: 'Bom para aprender. Comete erros e usa cartas simples.' },
-  MEDIO: { name: 'Duelista Nora', color: '#3b8bff', desc: 'Joga com calma e faz boas trocas. Usa cartas Raras.' },
-  DIFICIL: { name: 'Mestre Kael', color: '#b55cff', desc: 'Pensa uma jogada à frente. Cartas até Lendárias, nível 3.' },
-  LENDARIO: { name: 'Arquimaga Vex', color: '#ffb020', desc: 'O maior desafio: cartas Míticas no nível máximo.' },
-};
 
 function Wallet({ wallet }) {
   return (
@@ -42,215 +41,22 @@ function Wallet({ wallet }) {
   );
 }
 
-function CardModal({ card, home, onClose, onChanged }) {
-  const [err, setErr] = useState('');
-  const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-  const lvIdx = (card.level || 1) - 1;
-  const needCopies = home.economy.levelUpCopies[lvIdx] ?? home.economy.levelUpCopies.at(-1);
-  const needCoins = home.economy.levelUpCoins[lvIdx] ?? home.economy.levelUpCoins.at(-1);
-  const maxed = (card.level || 1) >= home.rules.levelCap;
-  const sellValue = home.economy.sellValues[card.rarity] || 0;
-  const run = async (fn) => {
-    setBusy(true); setErr('');
-    try { const r = await fn(); onChanged(r); } catch (e) { setErr(errMsg(e)); } finally { setBusy(false); }
-  };
-  const ab = ABILITIES[card.ability];
-  return (
-    <div className="tcg-modal" role="dialog" aria-label={card.name} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="tcg-modal-box">
-        <button type="button" className="tcg-icon-btn tcg-modal-x" onClick={onClose} aria-label="Fechar"><Icon d={UI.close} /></button>
-        <CardView card={card} size="lg" />
-        <div className="tcg-modal-info">
-          <h2 data-no-translate>{card.name}</h2>
-          <p className="tcg-tags">
-            <span style={{ '--c': RARITIES[card.rarity]?.color }}>{RARITIES[card.rarity]?.label}</span>
-            <span style={{ '--c': ELEMENTS[card.element]?.color }}>{ELEMENTS[card.element]?.label}</span>
-            <span>{card.collection}</span>
-            <span>Força {card.power}</span>
-          </p>
-          {ab?.label && <p><b>{ab.label}:</b> {abilityText(card.ability, card.abilityValue)}</p>}
-          {card.description && <p>{card.description}</p>}
-          {card.flavor && <p className="tcg-flavor">“{card.flavor}”</p>}
-          <p className="tcg-dim">Elemento forte contra: {(home.meta.elements.find((e) => e.key === card.element)?.beats || []).map((b) => ELEMENTS[b]?.label).join(', ') || '—'} (+{home.rules.elementBonus} de dano)</p>
-          {card.quantity > 0 ? (
-            <div className="tcg-modal-actions">
-              <div className="tcg-stat-row"><span>Você tem <b>{card.quantity}</b></span><span>Nível <b>{card.level}</b>/{home.rules.levelCap}</span></div>
-              {!maxed && (
-                <button type="button" className="tcg-btn primary" disabled={busy || card.quantity < needCopies + 1} onClick={() => run(() => cardsLevelUp(card.id))}>
-                  <Icon d={UI.up} />Evoluir para Nv {card.level + 1} · {needCopies} cópia(s) + {needCoins} moedas
-                </button>
-              )}
-              {home.enabled.sell && (
-                <button type="button" className="tcg-btn" disabled={busy || card.quantity < 2} onClick={() => run(() => cardsSell(card.id, 1))}>
-                  <Icon d={UI.coin} />Vender 1 repetida (+{sellValue})
-                </button>
-              )}
-              {card.quantity < 2 && <small className="tcg-dim">Evoluir e vender usam só cópias repetidas.</small>}
-            </div>
-          ) : <p className="tcg-dim">Você ainda não tem esta carta. Abra pacotes ou troque com outros jogadores.</p>}
-          {err && <p className="tcg-error">{err}</p>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CollectionTab({ cards, home, onChanged }) {
-  const [q, setQ] = useState('');
-  const [el, setEl] = useState('');
-  const [rar, setRar] = useState('');
-  const [onlyOwned, setOnlyOwned] = useState(false);
-  const [sort, setSort] = useState('cost');
-  const [open, setOpen] = useState(null);
-  const shown = useMemo(() => {
-    const t = q.trim().toLowerCase();
-    const list = cards.filter((c) => (!el || c.element === el) && (!rar || c.rarity === rar) && (!onlyOwned || c.quantity > 0) && (!t || c.name.toLowerCase().includes(t)));
-    const s = {
-      cost: (a, b) => a.cost - b.cost || a.name.localeCompare(b.name),
-      rarity: (a, b) => RARITY_ORDER.indexOf(b.rarity) - RARITY_ORDER.indexOf(a.rarity) || a.cost - b.cost,
-      power: (a, b) => b.power - a.power,
-      owned: (a, b) => b.quantity - a.quantity,
-    }[sort];
-    return [...list].sort(s);
-  }, [cards, q, el, rar, onlyOwned, sort]);
-  const owned = cards.filter((c) => c.quantity > 0).length;
-  const current = open ? cards.find((c) => c.id === open) : null;
-  return (
-    <div>
-      <div className="tcg-progress">
-        <span>Coleção: <b>{owned}</b> de <b>{cards.length}</b> cartas</span>
-        <span className="tcg-bar"><i style={{ width: `${cards.length ? (owned / cards.length) * 100 : 0}%` }} /></span>
-      </div>
-      <div className="tcg-filters">
-        <label className="tcg-search"><Icon d={UI.search} size={15} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar carta" aria-label="Buscar carta" /></label>
-        <div className="tcg-chips">
-          <button type="button" className={!el ? 'on' : ''} onClick={() => setEl('')}>Todos</button>
-          {Object.entries(ELEMENTS).map(([k, v]) => <button key={k} type="button" className={el === k ? 'on' : ''} style={{ '--el': v.color }} onClick={() => setEl(el === k ? '' : k)}><Icon d={v.glyph} size={12} />{v.label}</button>)}
-        </div>
-        <div className="tcg-chips">
-          <button type="button" className={!rar ? 'on' : ''} onClick={() => setRar('')}>Todas</button>
-          {RARITY_ORDER.map((r) => <button key={r} type="button" className={rar === r ? 'on' : ''} style={{ '--el': RARITIES[r].color }} onClick={() => setRar(rar === r ? '' : r)}>{RARITIES[r].label}</button>)}
-        </div>
-        <label className="tcg-check"><input type="checkbox" checked={onlyOwned} onChange={(e) => setOnlyOwned(e.target.checked)} />Só as que tenho</label>
-        <select className="tcg-select" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Ordenar">
-          <option value="cost">Custo</option><option value="rarity">Raridade</option><option value="power">Força</option><option value="owned">Quantidade</option>
-        </select>
-      </div>
-      <div className="tcg-grid">
-        {shown.map((c) => <CardView key={c.id} card={c} size="md" showQty quantity={c.quantity} dim={!c.quantity} onClick={() => setOpen(c.id)} />)}
-        {!shown.length && <p className="tcg-empty">Nenhuma carta com esse filtro.</p>}
-      </div>
-      {current && <CardModal card={current} home={home} onClose={() => setOpen(null)} onChanged={onChanged} />}
-    </div>
-  );
-}
-
-function PlayTab({ home, me, onStartMatch, onReload }) {
-  const [err, setErr] = useState('');
-  const [busy, setBusy] = useState('');
-  const [history, setHistory] = useState([]);
-  const [picking, setPicking] = useState(false);
-  const [sent, setSent] = useState('');
-  useEffect(() => { cardsHistory().then((d) => setHistory(d.matches)).catch(() => {}); }, []);
-  const start = async (difficulty) => {
-    setBusy(difficulty); setErr('');
-    try { onStartMatch(await cardsStartPve(difficulty)); } catch (e) { setErr(errMsg(e)); } finally { setBusy(''); }
-  };
-  const challenge = async (u) => {
-    setErr(''); setSent('');
-    try { await cardsChallenge(u.id); setSent(`Desafio enviado para ${u.displayName}. Assim que aceitar, a partida começa.`); setPicking(false); onReload(); } catch (e) { setErr(errMsg(e)); }
-  };
-  const accept = async (id) => {
-    setErr('');
-    try { onStartMatch(await cardsAcceptChallenge(id)); } catch (e) { setErr(errMsg(e)); onReload(); }
-  };
-  const p = home.player;
-  return (
-    <div className="tcg-play">
-      {err && <p className="tcg-error">{err}</p>}
-      {sent && <p className="tcg-ok">{sent}</p>}
-      {home.activeMatch && (
-        <div className="tcg-resume">
-          <span><Icon d={UI.sword} size={18} />Você tem uma partida {home.activeMatch.mode === 'PVP' ? 'PvP' : 'contra bot'} em andamento.</span>
-          <button type="button" className="tcg-btn primary" onClick={async () => { try { onStartMatch(await cardsMatch(home.activeMatch.id)); } catch (e) { setErr(errMsg(e)); } }}>Continuar</button>
-        </div>
-      )}
-      {home.challenges.filter((c) => c.incoming).map((c) => (
-        <div key={c.id} className="tcg-resume is-challenge">
-          <UserAvatar user={c.from || {}} size={30} />
-          <span><b data-no-translate>{c.from?.displayName}</b> desafiou você para um duelo!</span>
-          <button type="button" className="tcg-btn ghost" onClick={() => cardsDeclineChallenge(c.id).then(onReload)}>Recusar</button>
-          <button type="button" className="tcg-btn primary" onClick={() => accept(c.id)}>Aceitar</button>
-        </div>
-      ))}
-
-      <h3 className="tcg-h3">Contra bots</h3>
-      <div className="tcg-bots">
-        {home.meta.difficulties.map((d) => {
-          const look = BOT_LOOK[d.key] || {};
-          return (
-            <div key={d.key} className="tcg-bot" style={{ '--c': look.color }}>
-              <span className="tcg-bot-face"><Icon d={UI.bot} size={34} /></span>
-              <strong>{look.name}</strong>
-              <em>{d.label}</em>
-              <p>{look.desc}</p>
-              <span className="tcg-bot-meta"><Icon d={UI.heart} size={13} fill />{d.heroHp} de vida · <Icon d={UI.coin} size={13} />+{home.rewards[d.key]} por vitória</span>
-              <button type="button" className="tcg-btn primary" disabled={!!busy || !home.enabled.pve} onClick={() => start(d.key)}>{busy === d.key ? 'Preparando…' : 'Jogar'}</button>
-            </div>
-          );
-        })}
-      </div>
-      <p className="tcg-dim tcg-note">Partidas com recompensa hoje: {p.rewardsToday}/{home.rewards.dailyRewardedMatches}. Sequência de vitórias dá bônus de moedas.</p>
-
-      <h3 className="tcg-h3">Contra jogadores</h3>
-      {!home.enabled.pvp ? <p className="tcg-empty">Partidas PvP estão desativadas.</p> : picking ? (
-        <div>
-          <div className="tcg-section-head"><p>Quem você quer desafiar? O desafio vale por 5 minutos.</p><button type="button" className="tcg-btn ghost" onClick={() => setPicking(false)}>Voltar</button></div>
-          <UserPicker meId={me.id} actionLabel="Desafiar" onPick={challenge} />
-        </div>
-      ) : (
-        <div className="tcg-pvp">
-          <div>
-            <p>Desafie amigos para um duelo ao vivo. Turnos de {home.rules.turnSeconds}s, vale ranking e <b>+{home.rewards.pvpWin}</b> moedas por vitória.</p>
-            {home.challenges.filter((c) => !c.incoming).map((c) => (
-              <p key={c.id} className="tcg-dim">Aguardando <b data-no-translate>{c.to?.displayName}</b> aceitar… <button type="button" className="tcg-link" onClick={() => cardsDeclineChallenge(c.id).then(onReload)}>cancelar</button></p>
-            ))}
-          </div>
-          <button type="button" className="tcg-btn primary" onClick={() => setPicking(true)}><Icon d={UI.users} />Desafiar alguém</button>
-        </div>
-      )}
-
-      <h3 className="tcg-h3">Últimas partidas</h3>
-      <div className="tcg-history">
-        {history.map((m) => (
-          <div key={m.id} className={`tcg-hist${m.won ? ' is-win' : ' is-loss'}`}>
-            <span className="tcg-hist-res">{m.won ? 'Vitória' : 'Derrota'}</span>
-            <span className="tcg-hist-vs">vs <b data-no-translate>{m.opponent?.displayName}</b>{m.mode === 'PVE' ? ' (bot)' : ''}</span>
-            <span className="tcg-hist-coins">{m.reward > 0 ? <><Icon d={UI.coin} size={13} />+{m.reward}</> : '—'}</span>
-            <span className="tcg-dim">{new Date(m.endedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
-          </div>
-        ))}
-        {!history.length && <p className="tcg-empty">Nenhuma partida ainda. Que tal começar contra a Aprendiz Pip?</p>}
-      </div>
-    </div>
-  );
-}
-
-function RankingTab() {
-  const [by, setBy] = useState('rating');
+function RankingTab({ divisions }) {
+  const [by, setBy] = useState('season');
   const [data, setData] = useState(null);
   useEffect(() => { setData(null); cardsRanking(by).then(setData).catch(() => setData({ players: [] })); }, [by]);
   return (
     <div>
       <div className="tcg-chips">
-        <button type="button" className={by === 'rating' ? 'on' : ''} onClick={() => setBy('rating')}>Ranking PvP</button>
+        <button type="button" className={by === 'season' ? 'on' : ''} onClick={() => setBy('season')}>Temporada</button>
+        <button type="button" className={by === 'rating' ? 'on' : ''} onClick={() => setBy('rating')}>PvP geral</button>
         <button type="button" className={by === 'wins' ? 'on' : ''} onClick={() => setBy('wins')}>Vitórias contra bots</button>
       </div>
+      {by === 'season' && (
+        <div className="tcg-divs">
+          {divisions.map((d) => <span key={d.key} style={{ '--c': d.color }}><i />{d.label} <small>{d.min}+</small></span>)}
+        </div>
+      )}
       <div className="tcg-rank">
         {data === null && <p className="tcg-empty">Carregando…</p>}
         {data?.players.map((r) => (
@@ -258,7 +64,10 @@ function RankingTab() {
             <span className="tcg-rank-n">{r.rank}</span>
             <UserAvatar user={r.user} size={32} />
             <span className="tcg-rank-name" data-no-translate>{r.user.displayName}</span>
-            {by === 'rating' ? <><b>{r.rating}</b><small>{r.pvpWins}V · {r.pvpLosses}D</small></> : <><b>{r.wins}</b><small>vitórias</small></>}
+            {by === 'season' && <span className="tcg-rank-div" style={{ '--c': r.division?.color }}>{r.division?.label}</span>}
+            {by === 'season' ? <><b>{r.seasonRating}</b><small>{r.seasonWins}V · {r.seasonLosses}D</small></>
+              : by === 'rating' ? <><b>{r.rating}</b><small>{r.pvpWins}V · {r.pvpLosses}D</small></>
+                : <><b>{r.wins}</b><small>vitórias</small></>}
           </div>
         ))}
         {data?.players.length === 0 && <p className="tcg-empty">Ninguém no ranking ainda.</p>}
@@ -275,20 +84,34 @@ export default function CardsGamePage() {
   const tab = TABS.some((t) => t.key === params.get('aba')) ? params.get('aba') : 'jogar';
   const [home, setHome] = useState(null);
   const [cards, setCards] = useState([]);
-  const [match, setMatch] = useState(null);
+  const [match, setMatch] = useState(null); // { data, mode, frames }
   const [err, setErr] = useState('');
   const [starter, setStarter] = useState(null);
   const tradeWith = params.get('trocar');
   const [tradeTarget, setTradeTarget] = useState(null);
+  const openCard = params.get('carta');
 
   const loadHome = useCallback(() => cardsHome().then((h) => { setHome(h); return h; }).catch((e) => setErr(errMsg(e, 'Não foi possível abrir o Jogo de Cartas.'))), []);
   const loadCards = useCallback(() => cardsCollection().then((d) => setCards(d.cards)).catch(() => {}), []);
   useEffect(() => { loadHome(); loadCards(); }, [loadHome, loadCards]);
 
-  // Abre partida pela URL (?partida=id), ex.: vinda de um desafio aceito.
+  const setParam = (k, v) => setParams((p) => { const n = new URLSearchParams(p); if (v === null || v === undefined) n.delete(k); else n.set(k, v); return n; }, { replace: true });
+
+  // Link compartilhado de carta (?carta=) abre na Coleção.
+  useEffect(() => {
+    if (openCard && tab !== 'colecao') setParams((p) => { const n = new URLSearchParams(p); n.set('aba', 'colecao'); return n; }, { replace: true });
+  }, [openCard, tab, setParams]);
+
+  // Abre partida/assistir/replay pela URL (links de avisos e do chat).
   useEffect(() => {
     const id = params.get('partida');
-    if (id && (!match || match.id !== id)) cardsMatch(id).then(setMatch).catch((e) => setErr(errMsg(e)));
+    const w = params.get('assistir');
+    const r = params.get('replay');
+    if (id && match?.data?.id !== id) cardsMatch(id).then((m) => setMatch({ data: m, mode: 'play' })).catch((e) => { setErr(errMsg(e)); setParam('partida', null); });
+    else if (w && match?.data?.id !== w) cardsWatch(w).then((m) => setMatch({ data: m, mode: 'watch' })).catch((e) => { setErr(errMsg(e)); setParam('assistir', null); });
+    else if (r && match?.data?.id !== r) {
+      cardsReplay(r).then((d) => setMatch({ data: { id: d.id, mode: d.mode, view: d.frames[0].view }, mode: 'replay', frames: d.frames })).catch((e) => { setErr(errMsg(e)); setParam('replay', null); });
+    }
   }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ?desafiar=userId / ?trocar=userId (vindo do perfil)
@@ -296,35 +119,48 @@ export default function CardsGamePage() {
     const id = params.get('desafiar');
     if (!id) return;
     cardsChallenge(id).then(() => { setErr(''); loadHome(); }).catch((e) => setErr(errMsg(e)));
-    setParams((p) => { const n = new URLSearchParams(p); n.delete('desafiar'); return n; }, { replace: true });
-  }, [params, setParams, loadHome]);
+    setParam('desafiar', null);
+  }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!tradeWith) return;
-    import('../cards/api').then(({ cardsUserCollection }) => cardsUserCollection(tradeWith)).then((d) => setTradeTarget(d.user)).catch(() => {});
+    cardsUserCollection(tradeWith).then((d) => setTradeTarget(d.user)).catch(() => {});
   }, [tradeWith]);
 
-  // Desafios/trocas em tempo real.
+  // Desafios/trocas/mercado em tempo real.
   useEffect(() => {
     if (!socket) return undefined;
     const reload = () => loadHome();
-    const onMatch = (msg) => { if (msg?.started && !match) cardsMatch(msg.id).then(setMatch).catch(() => {}); else reload(); };
+    const onMatch = (msg) => {
+      if (msg?.started && !match) setParam('partida', msg.id);
+      else reload();
+    };
+    const onMarket = () => { reload(); loadCards(); };
     socket.on('cards:challenge', reload);
     socket.on('cards:trade', reload);
     socket.on('cards:match', onMatch);
-    return () => { socket.off('cards:challenge', reload); socket.off('cards:trade', reload); socket.off('cards:match', onMatch); };
-  }, [socket, loadHome, match]);
+    socket.on('cards:market', onMarket);
+    return () => { socket.off('cards:challenge', reload); socket.off('cards:trade', reload); socket.off('cards:match', onMatch); socket.off('cards:market', onMarket); };
+  }, [socket, loadHome, loadCards, match]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setTab = (k) => setParams(k === 'jogar' ? {} : { aba: k });
   const setWallet = (wallet) => wallet && setHome((h) => (h ? { ...h, wallet } : h));
   const refreshAll = () => { loadHome(); loadCards(); };
 
-  const startMatch = (m) => { setMatch(m); setParams((p) => { const n = new URLSearchParams(p); n.set('partida', m.id); return n; }, { replace: true }); };
-  const exitMatch = () => { setMatch(null); setParams((p) => { const n = new URLSearchParams(p); n.delete('partida'); return n; }, { replace: true }); refreshAll(); };
+  const startMatch = (m) => { setMatch({ data: m, mode: 'play' }); setParams((p) => { const n = new URLSearchParams(p); n.set('partida', m.id); n.delete('assistir'); n.delete('replay'); return n; }, { replace: true }); };
+  const exitMatch = (opts) => {
+    setMatch(null);
+    setParams((p) => { const n = new URLSearchParams(p); n.delete('partida'); n.delete('assistir'); n.delete('replay'); if (opts?.replay) n.set('replay', opts.replay); return n; }, { replace: true });
+    refreshAll();
+  };
 
   if (match) {
     return (
       <div className="tcg-page is-battle">
-        <Battle key={match.id} initial={match} onExit={exitMatch} onRematch={async (d) => { try { startMatch(await cardsStartPve(d)); } catch (e) { setErr(errMsg(e)); exitMatch(); } }} />
+        <Battle
+          key={`${match.mode}-${match.data.id}`} initial={match.data} mode={match.mode} frames={match.frames}
+          onExit={exitMatch}
+          onRematch={async (d) => { try { startMatch(await cardsStartPve(d)); } catch (e) { setErr(errMsg(e)); exitMatch(); } }}
+        />
       </div>
     );
   }
@@ -339,13 +175,6 @@ export default function CardsGamePage() {
             <h1>Arena de Cartas</h1>
             <p>Colecione, monte seu baralho e duele contra bots e amigos.</p>
           </div>
-          {home && (
-            <div className="tcg-hero-stats">
-              <span><b>{home.player.wins + home.player.pvpWins}</b> vitórias</span>
-              <span><b>{home.player.rating}</b> rating</span>
-              <span><b>{home.collection.distinct}</b> cartas únicas</span>
-            </div>
-          )}
           <Wallet wallet={home?.wallet} />
         </header>
 
@@ -372,14 +201,16 @@ export default function CardsGamePage() {
         </nav>
 
         {!home && !err && <p className="tcg-empty">Carregando…</p>}
-        {home && tab === 'jogar' && <PlayTab home={home} me={user} onStartMatch={startMatch} onReload={loadHome} />}
-        {home && tab === 'colecao' && <CollectionTab cards={cards} home={home} onChanged={(r) => { setWallet(r?.wallet); refreshAll(); }} />}
+        {home && tab === 'jogar' && <ArenaHome home={home} me={user} cards={cards} onStartMatch={startMatch} onReload={loadHome} onWatch={(id) => setParam('assistir', id)} onReplay={(id) => setParam('replay', id)} />}
+        {home && tab === 'colecao' && <Collection cards={cards} home={home} onChanged={(r) => { setWallet(r?.wallet); refreshAll(); }} openId={openCard} onOpenChange={(id) => setParam('carta', id)} />}
         {home && tab === 'loja' && <PacksTab home={home} onOpened={(w) => { setWallet(w); loadCards(); loadHome(); }} />}
         {home && tab === 'baralhos' && <DeckBuilder collection={cards} rules={home.rules} onChanged={loadHome} />}
+        {home && tab === 'mercado' && <Market me={user} wallet={home.wallet} onWallet={setWallet} onChanged={refreshAll} />}
         {home && tab === 'trocas' && (home.enabled.trades
           ? <Trades me={{ ...user, coins: home.wallet?.coins }} myCollection={cards} maxCoins={home.economy.tradeMaxCoins} onChanged={refreshAll} startWith={tradeTarget} />
           : <p className="tcg-empty">As trocas estão desativadas no momento.</p>)}
-        {home && tab === 'ranking' && <RankingTab />}
+        {home && tab === 'torneios' && <Tournaments me={user} onWatch={(id) => setParam('assistir', id)} onReload={loadHome} />}
+        {home && tab === 'ranking' && <RankingTab divisions={home.meta.divisions} />}
       </div>
       {starter && (
         <PackOpening pack={{ name: 'Pacote inicial', color: '#7c5cff' }} cards={starter.map((c) => ({ ...c, isNew: true }))} onClose={() => setStarter(null)} />
@@ -387,4 +218,3 @@ export default function CardsGamePage() {
     </div>
   );
 }
-
