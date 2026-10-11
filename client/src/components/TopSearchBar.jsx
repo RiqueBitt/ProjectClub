@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ITEMS, STAFF_ITEM } from './MainSidebar.jsx';
+import { ITEMS, STAFF_ITEM, ACTIVITY_NAV_ICON } from './MainSidebar.jsx';
 import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '../store/useStore';
 import gameActivityIcon from '../assets/icons/activity-game.png';
 import spotifyActivityIcon from '../assets/icons/activity-spotify.png';
@@ -157,6 +157,9 @@ export default function TopSearchBar() {
         <QuickSwitcherButton className="top-search-bar-icon-btn" />
         <button type="button" className="top-search-bar-icon-btn" title="Criar post" onClick={() => navigate('/comunidades')}>
           <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url(${createPostIcon})`, maskImage: `url(${createPostIcon})`, width: 18, height: 18 }} />
+        </button>
+        <button type="button" className="top-search-bar-icon-btn" title="Atividade dos amigos" aria-label="Atividade dos amigos" onClick={() => navigate('/atividade')}>
+          <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url("${ACTIVITY_NAV_ICON}")`, maskImage: `url("${ACTIVITY_NAV_ICON}")`, width: 19, height: 19 }} />
         </button>
         <button type="button" className="top-search-bar-icon-btn" title="Notificações" onClick={() => navigate('/notifications')}>
           <span className="top-search-bar-icon-mask top-search-bar-notif-icon" style={{ WebkitMaskImage: `url(${notificationsIcon})`, maskImage: `url(${notificationsIcon})` }} />

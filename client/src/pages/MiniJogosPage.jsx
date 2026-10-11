@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { MINIJOGOS, MINIJOGOS_CATEGORIES, findMinijogo } from '../minijogos/catalog.js';
 import '../styles/minijogos.css';
 import { useMinijogoScores, ScoresPanel } from '../minijogos/MiniJogoScores.jsx';
+import TouchPad from '../minijogos/TouchPad.jsx';
 
 // Mini-Jogos: jogos que já vêm no Project Club (ver minijogos/catalog.js).
 // Lista no estilo "loja de atividades" (busca, destaques em cartões com
@@ -185,6 +186,7 @@ function MiniJogoPlayer({ game, onClose }) {
           allow="autoplay; fullscreen"
           onLoad={onFrameLoad}
         />
+        <TouchPad frameRef={frameRef} />
         <div className="mj-rotate-hint" role="note">
           <MjIcon name="rotate" size={34} />
           <strong>Gire o celular</strong>

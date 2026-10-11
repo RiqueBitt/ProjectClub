@@ -36,7 +36,7 @@ function preload(a, c, pc) {
 
 app.onLoad(function() {
 	// Check for a mobile client
-	if(testMobile()) {
+	if(false && testMobile()) { // Project Club: celular liberado (controles na tela)
 		app.setState("Mobile")
 		$("body").toggleClass("loading sorry").html("Sorry :(")
 		setTimeout(function() {

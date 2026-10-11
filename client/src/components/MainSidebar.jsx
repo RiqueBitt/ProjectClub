@@ -14,7 +14,6 @@ import dashboardIcon from '../assets/icons/nav-dashboard.png';
 // Item pedido: "troque a logo... mantenha a cor dos ícones consistente
 // com o resto da interface" — mesmo padrão isImg:true dos outros
 // (mask-image via CSS, a cor de verdade vem de lá, não do PNG).
-import appsIcon from '../assets/icons/nav-apps.png';
 import achievementsIcon from '../assets/icons/nav-achievements.png'; // eslint-disable-line no-unused-vars -- mantido: pode ser reaproveitado se algum dia a categoria Progresso ganhar submenu na própria sidebar
 import inicioIcon from '../assets/icons/nav-updates.png';
 import { proxyImage } from '../utils/imageProxy';
@@ -28,11 +27,9 @@ import { proxyImage } from '../utils/imageProxy';
 // "User Account" do pacote) vai em Amigos, não em Perfil; Perfil fica
 // com o emoji padrão já que não veio um ícone específico pra ele.
 // Ícone da Atividade (SVG em data URL — a barra usa como máscara, igual aos PNGs).
-const ACTIVITY_NAV_ICON = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>')}`;
+export const ACTIVITY_NAV_ICON = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>')}`;
 // Ícone da Economia (moeda) — mesmo esquema de máscara dos outros ícones.
 const ECONOMY_NAV_ICON = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.5 9a2.5 2.5 0 0 0-2.5-1.5c-1.4 0-2.5.8-2.5 2s1.1 1.7 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2A2.6 2.6 0 0 1 9.5 15M12 6v1.5M12 16.5V18"/></svg>')}`;
-// Ícone dos Mini-Jogos (4 formas, desenho do dono) — máscara, igual aos outros.
-const MINIJOGOS_NAV_ICON = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><path d="M17 3.5 21 10.5h-8z"/><circle cx="7" cy="17" r="3.6"/><path d="M17 13c.5 2.6 1.4 3.5 4 4-2.6.5-3.5 1.4-4 4-.5-2.6-1.4-3.5-4-4 2.6-.5 3.5-1.4 4-4z"/></svg>')}`;
 export const ITEMS = [
   // Item pedido: "crie uma nova categoria chamada Início, primeira
   // categoria da lista, funcionando como página principal de
@@ -49,7 +46,7 @@ export const ITEMS = [
   // Item pedido: "mude o feed para cima e o amigos para baixo" — ordem
   // invertida (Feeds vem antes de Amigos agora).
   { to: '/comunidades', icon: feedIcon, isImg: true, labelKey: 'nav.feeds', match: (p) => p === '/comunidades' || p.startsWith('/posts/') },
-  { to: '/atividade', icon: ACTIVITY_NAV_ICON, isImg: true, labelKey: 'nav.atividade', match: (p) => p.startsWith('/atividade') }, // linha do tempo dos amigos (AtividadePage.jsx)
+  // (removido do menu a pedido do dono — rota continua existindo)
   { to: '/dms', icon: friendsIcon, isImg: true, labelKey: 'nav.amigos', match: (p) => p === '/dms' || p.startsWith('/conversations/') || p.startsWith('/clans') },
   // Item pedido originalmente: "crie uma nova categoria chamada Jogos,
   // posicionada logo abaixo da categoria Amigos" — item único levando
@@ -59,9 +56,9 @@ export const ITEMS = [
   // as categorias Jogos, Aplicativos e deixe todos os apps em um só
   // menu") — a "Aplicativos" nunca listava nada de verdade, virou uma
   // aba morta. Agora é uma grade única com tudo do catálogo.
-  { to: '/jogos', icon: appsIcon, isImg: true, labelKey: 'nav.jogos', match: (p) => p.startsWith('/jogos') },
+  // (removido do menu a pedido do dono — rota continua existindo)
   // Mini-Jogos: jogos que já vêm no app (MiniJogosPage.jsx). `label` = texto padrão enquanto não houver tradução.
-  { to: '/minijogos', icon: MINIJOGOS_NAV_ICON, isImg: true, labelKey: 'nav.minijogos', label: 'Mini-Jogos', match: (p) => p.startsWith('/minijogos') },
+  // (removido do menu a pedido do dono — rota continua existindo)
   // Item pedido: "remover a aba Notificações do menu lateral esquerdo
   // e deixar as notificações disponíveis somente pelo ícone de sino
   // localizado na parte superior da interface" — o sino já existe e

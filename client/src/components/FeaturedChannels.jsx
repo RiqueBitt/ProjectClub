@@ -15,6 +15,7 @@ import '../styles/socialx.css';
 // comunidade, ou clique direito aqui).
 
 const PATHS = {
+  megaphone: 'M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15 9a3 3 0 0 1 0 6M18 6a7 7 0 0 1 0 12',
   calendar: 'M7 3v3M17 3v3M4 8h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM8 12h3v3H8z',
   feed: 'M4 5h16v14H4zM8 9h8M8 13h8M8 17h4',
   image: 'M4 5h16v14H4zM4 16l5-5 4 4 2-2 5 5M15.5 9.5h.01',
@@ -34,6 +35,10 @@ export function FeaturedGlyph({ name, size = 16 }) {
 
 export const FEATURED = [
   {
+    key: 'anuncios', label: 'Anúncios', icon: 'megaphone', to: '/anuncios',
+    hint: 'Anúncios da staff', match: (p) => p.startsWith('/anuncios'),
+  },
+  {
     key: 'eventos', label: 'Eventos', icon: 'calendar', to: '/comunidade/eventos',
     hint: 'Eventos da comunidade', match: (p) => p.startsWith('/comunidade/eventos'),
   },
@@ -42,10 +47,7 @@ export const FEATURED = [
     key: 'feed', label: 'Fórum', icon: 'forum', to: '/comunidades',
     hint: 'Posts e Temas da comunidade', match: (p) => p === '/comunidades' || p.startsWith('/comunidades/') || p.startsWith('/posts/'),
   },
-  {
-    key: 'galeria', label: 'Galeria', icon: 'image', to: '/comunidade/galeria',
-    hint: 'Fotos, vídeos e GIFs postados na comunidade', match: (p) => p.startsWith('/comunidade/galeria'),
-  },
+  // Galeria saiu da lista (a página /comunidade/galeria continua existindo).
   {
     key: 'loja', label: 'Loja', icon: 'store', to: '/loja',
     hint: 'Loja da comunidade (em breve)', match: (p) => p.startsWith('/loja'),

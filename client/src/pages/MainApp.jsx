@@ -77,6 +77,7 @@ const InicioPage = lazy(() => import('./InicioPage.jsx'));
 const CommunityEventsPage = lazy(() => import('./CommunityEventsPage.jsx'));
 const AtividadePage = lazy(() => import('./AtividadePage.jsx'));
 const LojaPage = lazy(() => import('./LojaPage.jsx'));
+const AnunciosPage = lazy(() => import('./AnunciosPage.jsx'));
 const DeepLinkPage = lazy(() => import('./DeepLinkPage.jsx'));
 const CommunityGalleryPage = lazy(() => import('./CommunityGalleryPage.jsx'));
 // Item pedido: "crie uma nova categoria chamada Jogos" — mesmo padrão
@@ -429,6 +430,7 @@ export default function MainApp() {
                 <Route path="/comunidade/eventos" element={<CommunityEventsPage />} />
                 <Route path="/atividade" element={<AtividadePage />} />
                 <Route path="/loja" element={<LojaPage />} />
+                <Route path="/anuncios" element={<AnunciosPage />} />
                 <Route path="/forum" element={<Navigate to="/comunidades" replace />} />
                 <Route path="/u/:id" element={<DeepLinkPage kind="user" />} />
                 <Route path="/modpack/:id" element={<DeepLinkPage kind="modpack" />} />

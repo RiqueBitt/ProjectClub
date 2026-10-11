@@ -2801,3 +2801,19 @@ model MinigameStat {
   @@index([game, bestScore])
   @@index([userId, lastPlayedAt])
 }
+
+// Canal em destaque "Anúncios": posts da staff com banner (acima de Eventos).
+model StaffAnnouncement {
+  id          String   @id @default(uuid())
+  title       String   @db.VarChar(160)
+  body        String   @db.Text
+  bannerUrl   String?  @db.Text
+  linkUrl     String?  @db.VarChar(500)
+  linkLabel   String?  @db.VarChar(60)
+  pinned      Boolean  @default(false)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([pinned, createdAt])
+}

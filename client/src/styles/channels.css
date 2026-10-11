@@ -11,6 +11,7 @@
   border-bottom: 1px solid var(--border);
 }
 .featured-eventos { --fc: var(--yellow); }
+.featured-anuncios { --fc: color-mix(in srgb, var(--brand) 70%, var(--yellow)); }
 .featured-feed { --fc: var(--brand); }
 .featured-galeria { --fc: color-mix(in srgb, var(--red) 55%, var(--brand)); }
 

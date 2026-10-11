@@ -343,3 +343,8 @@
 }
 .voice-roster-live { display: inline-flex; align-items: center; gap: 3px; }
 .voice-roster-live svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Prévia de quem está na call (barra de canais): um pouco mais de espaço
+   entre as pessoas, pra não ficarem grudadas. */
+.voice-roster { gap: 5px; margin-top: 2px; margin-bottom: 8px; }
+.voice-roster-item { padding: 3px 0; gap: 8px; font-size: 12.5px; }
