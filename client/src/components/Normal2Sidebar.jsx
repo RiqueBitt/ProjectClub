@@ -76,7 +76,7 @@ function N2Nav() {
         {items.map((item) => {
           const active = item.match(location.pathname);
           const badge = badgeFor(item.to);
-          const label = t(item.labelKey);
+          const label = t(item.labelKey, item.label);
           return (
             <NavLink
               key={item.to} to={item.to} title={compact ? label : undefined}

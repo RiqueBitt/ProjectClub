@@ -127,8 +127,9 @@ function createApp() {
         // ruído do canal de voz, rodava via WebAssembly/AudioWorklet), que
         // foi removido por completo do sistema de voz. Sem nenhum outro
         // WASM no projeto, essa permissão só ficaria aberta à toa.
-        scriptSrc: ["'self'"],
-        scriptSrcElem: ["'self'"],
+        // YouTube "Assistir juntos" (chamada de voz): IFrame Player API.
+        scriptSrc: ["'self'", 'https://www.youtube.com'],
+        scriptSrcElem: ["'self'", 'https://www.youtube.com'],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         // Item pedido (migração pro Agora.io): o SDK deles roda parte do
         // processamento de áudio (cancelamento de eco etc) dentro de Web
@@ -159,7 +160,7 @@ function createApp() {
           'https://*.agora.io', 'https://*.sd-rtn.com',
           'wss:', 'ws:', 'stun:', 'turn:', 'turns:',
         ],
-        frameSrc: ["'self'"],
+        frameSrc: ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com'],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         frameAncestors: ["'self'"],
@@ -371,8 +372,9 @@ function createApp() {
     setHeaders: (res, filePath) => {
       if (/[\\/]assets[\\/]/.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       else if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
-      // Pacotes de emoji e sons: nome fixo, mudam raramente — 1 dia.
-      else if (/[\\/](emoji-sets|sounds)[\\/]/.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=86400');
+      // Pacotes de emoji, sons e arquivos dos Mini-Jogos (menos os .html,
+      // que caem no no-cache acima): nome fixo, mudam raramente — 1 dia.
+      else if (/[\\/](emoji-sets|sounds|minigames)[\\/]/.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=86400');
     },
   }));
   app.get('*', (req, res, next) => {

@@ -44,7 +44,7 @@ function useSectionTitle() {
   if (pathname === '/notifications') return { label: 'Notificações' };
   if (pathname === '/search') return { label: 'Busca' };
   const item = [...ITEMS, STAFF_ITEM].find((i) => i.to !== '/' && i.match(pathname));
-  return item ? { icon: item.icon, label: t(item.labelKey) } : null;
+  return item ? { icon: item.icon, label: t(item.labelKey, item.label) } : null;
 }
 
 export default function TopSearchBar() {

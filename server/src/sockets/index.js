@@ -9,6 +9,7 @@ const presenceStore = require('../services/presenceStore');
 const activityStore = require('../services/activityStore');
 const voiceStore = require('../services/voiceRoomStore');
 const gamePlaytime = require('../services/gamePlaytime');
+const ytWatch = require('./ytWatch');
 
 // Mesma atividade (só uma reconfirmação)? Spotify: mesma faixa e o
 // progresso novo bate (±3s) com o anterior + o tempo que passou — se a
@@ -666,6 +667,7 @@ function initSockets(httpServer) {
           .filter(([uid]) => uid !== userId)
           .map(([uid, p]) => ({ userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role }));
         socket.emit('voice:joined', { channelId, participants: list, myRole: self.role || 'speaker', sync: true });
+        ytWatch.sendState(socket, channelId); // "Assistir juntos": estado atual do vídeo
       } catch (err) { console.error('[socket] voice:sync falhou:', err?.message || err); }
     });
 
@@ -694,6 +696,9 @@ function initSockets(httpServer) {
     });
 
     // --- Stage channel speaker/audience management ---
+
+    // YouTube "Assistir juntos" na chamada (yt:open/play/pause/seek/next/close/queue:add) — ver ytWatch.js.
+    ytWatch.register(io, socket, userId);
 
     socket.on('voice:raise-hand', async ({ channelId, raised }) => {
       // Checa se a pessoa está mesmo na sala (o roster já mora no Redis
@@ -999,6 +1004,7 @@ function initSockets(httpServer) {
     io.to(`voice:${channelId}`).emit('voice:user-left', { channelId, userId });
     if (remaining === 0) {
       await voiceStore.deleteRoom(channelId);
+      ytWatch.clearIfEmpty(channelId);
       // Last person just left a DM call room — resolve its chat message
       // (see createCallMessage/updateCallMessage) to whatever actually
       // happened: nobody ever answered -> "Chamada perdida", someone did

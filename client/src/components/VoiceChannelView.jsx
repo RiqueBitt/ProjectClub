@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useVoice } from '../context/VoiceContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useStore } from '../store/useStore';
@@ -8,6 +8,7 @@ import UserAvatar from './UserAvatar.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import { MicTest, MicSilentWarning, QualityDot } from './voice/VoiceExtras.jsx';
 import ScreenQualityMenu from './voice/ScreenQualityMenu.jsx';
+import { useYouTubeWatch, YouTubeStage, YouTubePicker, ActivitiesButton, YouTubeToast } from './voice/YouTubeWatch.jsx';
 
 // ============================================================
 // Canal de voz — visual refeito.
@@ -81,6 +82,10 @@ export default function VoiceChannelView({ channel }) {
   const inThisCall = voice?.call?.channelId === channel.id;
   const isStage = channel.type === 'STAGE';
   const memberFor = (userId) => members.find((m) => m.user.id === userId)?.user;
+  // YouTube "Assistir juntos" (só em canal de voz comum, dentro da chamada).
+  const yt = useYouTubeWatch(inThisCall && !isStage ? channel.id : null);
+  const [ytPicker, setYtPicker] = useState(false);
+  const closeYtPicker = useCallback(() => setYtPicker(false), []);
 
   // ---------- Lobby (antes de entrar) ----------
   if (!inThisCall) {
@@ -142,7 +147,8 @@ export default function VoiceChannelView({ channel }) {
     ...Object.entries(remoteScreenStreams).map(([uid, stream]) => ({ key: `screen-${uid}`, uid, stream, mine: false })),
     ...(screenOn && voice.localScreenStream ? [{ key: 'screen-me', uid: user.id, stream: voice.localScreenStream, mine: true }] : []),
   ];
-  const spotlight = screens.length > 0;
+  const spotlight = screens.length > 0 || yt.active;
+  const viewers = allUserIds.map((uid) => (uid === user.id ? user : memberFor(uid))).filter(Boolean);
 
   const tiles = allUserIds.map((uid) => {
     const isMe = uid === user.id;
@@ -166,7 +172,8 @@ export default function VoiceChannelView({ channel }) {
       <div className={`vc-stage${spotlight ? ' is-spotlight' : ''}`}>
         {spotlight ? (
           <>
-            <div className={`vc-screens vc-screens-${Math.min(screens.length, 2)}`}>
+            <div className={`vc-screens vc-screens-${Math.min(screens.length + (yt.active ? 1 : 0), 2)}`}>
+              {yt.active && <YouTubeStage yt={yt} viewers={viewers} onAdd={() => setYtPicker(true)} />}
               {screens.map((s) => (
                 <div key={s.key} className="vc-screen">
                   {/* Sem tela cheia na própria tela: evita o "espelho infinito". */}
@@ -192,7 +199,9 @@ export default function VoiceChannelView({ channel }) {
         )}
       </div>
       <MicSilentWarning voice={voice} />
-      <VoiceCallControls voice={voice} micLocked={false} />
+      <YouTubeToast yt={yt} />
+      <VoiceCallControls voice={voice} micLocked={false} onActivity={() => setYtPicker(true)} />
+      {ytPicker && <YouTubePicker yt={yt} onClose={closeYtPicker} />}
     </div>
   );
 }
@@ -354,7 +363,7 @@ function ControlButton({ icon, label, onClick, disabled, active, danger, title }
   );
 }
 
-function VoiceCallControls({ voice, micLocked }) {
+function VoiceCallControls({ voice, micLocked, onActivity }) {
   const { muted, micMissing, deafened, cameraOn, screenOn } = voice;
   const [showScreenShareMenu, setShowScreenShareMenu] = useState(false);
   const isNativeApp = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
@@ -390,6 +399,7 @@ function VoiceCallControls({ voice, micLocked }) {
         />
         {/* Transmitindo: troca 720p/1080p e 15/30/60 FPS sem parar. */}
         {screenOn && <ScreenQualityMenu voice={voice} className="vc-sqm" />}
+        {onActivity && <ActivitiesButton onPick={onActivity} />}
         <span className="vc-dock-sep" aria-hidden="true" />
         <button type="button" className="vc-ctrl vc-leave" onClick={voice.leaveChannel} aria-label="Sair da chamada" title="Sair da chamada">
           <Icon name="leave" size={22} />

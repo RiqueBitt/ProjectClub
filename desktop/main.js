@@ -1301,7 +1301,7 @@ if (!gotLock) {
     // por que testar com o celular no wifi ou nos dados móveis dava
     // exatamente no mesmo resultado: o problema nunca esteve na rede.
     session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-      const allowed = ['media', 'microphone', 'camera', 'display-capture', 'notifications'];
+      const allowed = ['media', 'microphone', 'camera', 'display-capture', 'notifications', 'fullscreen']; // fullscreen: player do YouTube na chamada
       callback(allowed.includes(permission));
     });
     // Mesma liberação, mas pra checagem SÍNCRONA que alguns navegadores/
@@ -1310,7 +1310,7 @@ if (!gotLock) {
     // versões o pedido nem chega a acionar o handler de cima, e cai
     // direto numa negação silenciosa de qualquer jeito.
     session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
-      const allowed = ['media', 'microphone', 'camera', 'display-capture', 'notifications'];
+      const allowed = ['media', 'microphone', 'camera', 'display-capture', 'notifications', 'fullscreen']; // fullscreen: player do YouTube na chamada
       return allowed.includes(permission);
     });
 

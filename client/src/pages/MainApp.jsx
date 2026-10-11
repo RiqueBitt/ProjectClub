@@ -89,6 +89,7 @@ const JogosPage = lazy(() => import('./JogosPage.jsx'));
 // pedido 1: "não crie uma nova categoria principal Jogos").
 const ModsPage = lazy(() => import('./ModsPage.jsx'));
 const GameLibraryPage = lazy(() => import('./GameLibraryPage.jsx')); // biblioteca de jogos (tempo de jogo)
+const MiniJogosPage = lazy(() => import('./MiniJogosPage.jsx')); // Mini-Jogos (jogos que já vêm no app)
 
 // Interface com UMA barra lateral principal só (MainSidebar.jsx —
 // Chat/Amigos/Perfil/Notificações/Ranks/Busca/Suporte). A antiga dupla
@@ -439,6 +440,7 @@ export default function MainApp() {
                 <Route path="/jogos/mods" element={<ModsPage />} />
                 <Route path="/jogos/biblioteca" element={<GameLibraryPage />} />
                 <Route path="/jogos/biblioteca/:userId" element={<GameLibraryPage />} />
+                <Route path="/minijogos" element={<MiniJogosPage />} />
                 <Route path="/conversations/:conversationId" element={<ChatWindow kind="conversation" />} />
                 <Route path="/channels/:channelId" element={<ChatWindow kind="channel" />} />
               </Routes>
