@@ -5,7 +5,7 @@ const prisma = require('../config/prisma');
 const {
   RARITIES, DIFFICULTIES, mergeSettings, cardPower, divisionOf, BOARD_EFFECTS, BRAWLS, ELEMENTS,
 } = require('./config');
-const { COMMONS, V8_PHOTOS, V7_SWAPS, SEED_CARDS, SEED_CARDS_V2, SEED_CARDS_V3, SEED_CARDS_V4, SEED_PACKS, SEED_PACKS_V4, NEW_COLLECTIONS, SEED_CAMPAIGN } = require('./seed');
+const { V9_RENAMES, COMMONS, V8_PHOTOS, V7_SWAPS, SEED_CARDS, SEED_CARDS_V2, SEED_CARDS_V3, SEED_CARDS_V4, SEED_PACKS, SEED_PACKS_V4, NEW_COLLECTIONS, SEED_CAMPAIGN } = require('./seed');
 
 class CardError extends Error {
   constructor(message, status = 400) { super(message); this.status = status; }
@@ -171,6 +171,27 @@ async function doSeed() {
       invalidateCatalog();
     }
   } catch (err) { console.error('[cards] seed v8 falhou:', err?.message || err); }
+  // v9: apaga DE VEZ as cartas antigas (e o que aponta para elas) e os
+  // pacotes antigos; nomes reais da cultura pop nas cartas novas.
+  try {
+    const st = await getSettings(true);
+    if ((st.seedVersion || 1) < 9) {
+      for (const [slug, [name, flavor]] of Object.entries(V9_RENAMES)) {
+        await prisma.cardDef.updateMany({ where: { slug }, data: { name, flavor } });
+      }
+      const gone = (await prisma.cardDef.findMany({ where: { retired: true }, select: { id: true } })).map((c) => c.id);
+      if (gone.length) {
+        await prisma.userCard.deleteMany({ where: { cardId: { in: gone } } });
+        await prisma.cardStat.deleteMany({ where: { cardId: { in: gone } } });
+        await prisma.cardListing.deleteMany({ where: { cardId: { in: gone } } });
+        await prisma.cardCampaignStage.updateMany({ where: { rewardCardId: { in: gone } }, data: { rewardCardId: null } });
+        await prisma.cardDef.deleteMany({ where: { id: { in: gone } } });
+      }
+      await prisma.cardPack.deleteMany({ where: { active: false } });
+      await patchSavedSettings({ seedVersion: 9 });
+      invalidateCatalog();
+    }
+  } catch (err) { console.error('[cards] seed v9 falhou:', err?.message || err); }
   seeded = true;
 }
 function ensureSeed() {

@@ -104,7 +104,18 @@ export const CardArt = memo(function CardArt({ card }) {
   const el = ELEMENTS[card.element] || ELEMENTS.FOGO;
   // Imagem externa que falhar ao carregar cai de volta para a arte gerada.
   const [broken, setBroken] = useState(null);
-  if (card.imageUrl && broken !== card.imageUrl) return <img className="tcg-art-img" src={card.imageUrl} alt="" loading="lazy" draggable="false" referrerPolicy="no-referrer" onError={() => setBroken(card.imageUrl)} />;
+  if (card.imageUrl && broken !== card.imageUrl) {
+    return (
+      <>
+        <img className="tcg-art-img" src={card.imageUrl} alt="" loading="lazy" draggable="false" referrerPolicy="no-referrer" onError={() => setBroken(card.imageUrl)} />
+        {icon && (
+          <svg className="tcg-art-badge" viewBox="0 0 24 24" aria-hidden="true" style={{ '--elc': el.color }}>
+            <path d={icon} fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </>
+    );
+  }
   const h = hash(`${card.slug || card.cardId || ''}${card.name}`);
   const shapes = Array.from({ length: 7 }, (_, i) => {
     const v = (h >>> (i * 4)) & 0xff;

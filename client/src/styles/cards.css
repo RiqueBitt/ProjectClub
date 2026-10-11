@@ -1584,3 +1584,5 @@ button.tcg-card:hover:not(.is-dim) { transform: translateY(-6px); }
 .tcgd-options { flex-wrap: nowrap; }
 .tcgd-opt .tcg-card.tcg-card { --w: 168px; }
 @media (max-width: 760px) { .tcgd-opt .tcg-card.tcg-card { --w: min(29vw, 140px); } }
+/* Ícone da carta por cima da foto (toda carta mostra o seu ícone) */
+.tcg-art-badge { position: absolute; z-index: 2; left: 6%; bottom: 7%; width: 24%; max-width: 46px; min-width: 16px; aspect-ratio: 1; padding: 4%; border-radius: 50%; background: color-mix(in srgb, var(--elc) 70%, #000); box-shadow: 0 0 0 2px rgba(255,255,255,.65), 0 3px 8px rgba(0,0,0,.5); box-sizing: border-box; pointer-events: none; }

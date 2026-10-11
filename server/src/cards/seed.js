@@ -188,6 +188,29 @@ const SEED_CARDS_V4 = [
   C('mestre-magos', 'Mestre dos Magos', 'LUZ', 'LENDARIA', 7, 6, 6, 'GRITO_COMPRA', 3, 'Aparece, dá um conselho enigmático e some.', POP),
   C('goku', 'Guerreiro Saiyajin', 'FOGO', 'MITICA', 9, 9, 9, 'FURIA', 0, 'Sempre treinando para o próximo nível.', POP),
 ];
+// v9: nomes de verdade da cultura pop / memes (aplicado também no banco).
+const V9_RENAMES = {
+  'gato-julgador': ['Gato Rabugento', 'A cara fechada mais famosa da internet.'],
+  'pombo-praca': ['É um Pombo?', 'Aponta pra uma borboleta e jura que é pombo.'],
+  chihuahua: ['Cheems', 'Doguinho que fala com “m” no meio. Bonk!'],
+  'gato-vibe': ['Gato Vibando', 'Balança a cabeça no ritmo e não para nunca.'],
+  doguinho: ['Doge', 'Much carta. Very jogada. Wow.'],
+  'big-floppa': ['Big Floppa', 'O gatão de orelhas pontudas que a internet inteira respeita.'],
+  'gato-arco-iris': ['Nyan Cat', 'Atravessa o espaço deixando um arco-íris e uma musiquinha grudenta.'],
+  'ta-tudo-bem': ['This Is Fine', 'A casa pegando fogo. Café na mão. Tá tudo bem.'],
+  impostor: ['Impostor (Among Us)', 'Estava na elétrica fazendo tarefa. Juro.'],
+  jetpack: ['Jet Pack Guy', 'Chega voando antes de você terminar a frase.'],
+  sonic: ['Sonic', 'Rápido demais pra esperar a vez.'],
+  mario: ['Mario', 'Pula, pega moeda, salva a princesa. Rotina.'],
+  pikachu: ['Pikachu', 'Um choque do trovão em quem chegar perto.'],
+  shrek: ['Shrek', 'Saia do pântano dele. Agora.'],
+  goku: ['Goku', 'Sempre treinando para o próximo nível.'],
+  'burro-falante': ['Burro (Shrek)', 'Fala sem parar. Mas é amigo de verdade.'],
+  chapolin: ['Chapolin Colorado', 'Chega na hora certa — às vezes tropeçando.'],
+  'bichinho-virtual': ['Tamagotchi', 'Alimente, limpe, repita. Não deixe ele morrer!'],
+  disquete: ['Disquete', 'Guarda 1,44 MB de pura coragem.'],
+};
+for (const c of SEED_CARDS_V4) if (V9_RENAMES[c.slug]) [c.name, c.flavor] = V9_RENAMES[c.slug];
 const NEW_COLLECTIONS = [MEME, CP, POP];
 const SEED_PACKS_V4 = [
   { name: 'Pacote Memes BR', description: '5 cartas de memes, lendas e zoeiras brasileiras.', color: '#22c55e', priceCoins: 150, cardsPerPack: 5, weights: W_BASIC, guaranteed: 'INCOMUM', poolMode: 'COLLECTION', poolCollection: MEME, sort: 0 },
@@ -220,4 +243,4 @@ const V8_PHOTOS = {
   'pizza-pizzatron': 'Piazza pizza slice.JPG',
   'bola-neve': 'Snowball Fight at the University of Pittsburgh.jpg',
 };
-module.exports = { COMMONS, V8_PHOTOS, V7_SWAPS, SEED_CARDS, SEED_CARDS_V2, SEED_CARDS_V3, SEED_CARDS_V4, SEED_PACKS, SEED_PACKS_V4, NEW_COLLECTIONS, SEED_CAMPAIGN };
+module.exports = { V9_RENAMES, COMMONS, V8_PHOTOS, V7_SWAPS, SEED_CARDS, SEED_CARDS_V2, SEED_CARDS_V3, SEED_CARDS_V4, SEED_PACKS, SEED_PACKS_V4, NEW_COLLECTIONS, SEED_CAMPAIGN };
