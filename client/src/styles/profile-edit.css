@@ -15,9 +15,10 @@
 }
 .pfe-ownbar-text { flex: 1; min-width: 180px; font-size: 13px; color: var(--text-normal); }
 
-/* Trocar banner (canto do banner) */
+/* Trocar banner (canto de BAIXO do banner: em cima ficam a engrenagem e o
+   X do modal — antes este botão cobria os dois e ninguém conseguia clicar) */
 .pfe-banner-edit {
-  position: absolute; top: 10px; right: 10px; z-index: 2; display: inline-flex; align-items: center; gap: 6px;
+  position: absolute; bottom: 10px; right: 10px; z-index: 2; display: inline-flex; align-items: center; gap: 6px;
   height: 32px; padding: 0 12px; border-radius: 10px; cursor: pointer; font-size: 12.5px; font-weight: 700; color: #fff;
   background: rgba(0, 0, 0, .55); border: 1px solid rgba(255, 255, 255, .22); backdrop-filter: blur(6px);
   opacity: .85; transition: opacity .15s ease, background-color .15s ease;
