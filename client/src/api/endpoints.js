@@ -461,6 +461,13 @@ export const cineHome = () => api.get('/archive/home').then((r) => r.data);
 export const cineSearch = ({ q = '', cat = 'populares', sort = 'populares', page = 1 } = {}) => api.get('/archive/search', { params: { q, cat, sort, page } }).then((r) => r.data);
 export const cineItem = (id) => api.get(`/archive/item/${encodeURIComponent(id)}`).then((r) => r.data);
 export const cineSubtitle = (id, file) => api.get(`/archive/subtitle/${encodeURIComponent(id)}`, { params: { file }, responseType: 'text', transformResponse: (d) => d }).then((r) => r.data);
+// Cinema → Lançamentos (catálogo recente: TMDB/MyAnimeList/TVmaze/iTunes).
+export const catHome = () => api.get('/catalog/home').then((r) => r.data);
+export const catList = (name, page = 1) => api.get(`/catalog/list/${encodeURIComponent(name)}`, { params: { page } }).then((r) => r.data);
+export const catSearch = (q, kind = 'todos') => api.get('/catalog/search', { params: { q, kind } }).then((r) => r.data);
+export const catItem = (id) => api.get(`/catalog/item/${encodeURIComponent(id)}`).then((r) => r.data);
+export const plutoMeta = () => api.get('/catalog/pluto/meta').then((r) => r.data);
+export const plutoList = ({ type, yearFrom, genre, lang, sort, q, page }) => api.get('/catalog/pluto', { params: { type, yearFrom, genre: genre || undefined, lang: lang || undefined, sort, q: q || undefined, page } }).then((r) => r.data);
 
 // Item pedido: "posts da comunidade em destaque durante o mês" (categoria Início)
 export const listFeaturedPosts = () => api.get('/posts/featured').then((r) => r.data);

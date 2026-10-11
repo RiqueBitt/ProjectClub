@@ -310,6 +310,14 @@ export default function YouTubeApp() {
     return () => document.removeEventListener('keydown', onKey);
   }, [st.open]);
 
+  // Busca pedida de fora (ex.: Cinema → "episódios oficiais no YouTube").
+  useEffect(() => {
+    const q = st.pendingQuery;
+    if (!q) return;
+    useYouTubeApp.setState({ pendingQuery: null });
+    setPasted(null); setView({ type: 'search', q });
+  }, [st.pendingQuery]);
+
   if (!st.open) return null;
   const onSearch = (q) => {
     const id = parseYouTubeId(q);

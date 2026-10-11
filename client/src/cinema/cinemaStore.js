@@ -33,7 +33,12 @@ export const useCinema = create((set, get) => ({
     set({ open: true, mini: false, view: s.playing ? 'watch' : (s.view === 'watch' ? 'browse' : s.view) });
   },
   browse() { set({ open: true, mini: false, view: 'browse' }); },
-  showDetail(id) { if (id) set({ open: true, mini: false, view: 'detail', detailId: id }); },
+  showDetail(id, opts = {}) { if (id) set({ open: true, mini: false, view: 'detail', detailId: id, detailTrailer: !!opts.trailer, detailPluto: !!opts.pluto }); },
+  detailPluto: false,
+  detailTrailer: false,
+  // 'lancamentos' (catálogo recente) | 'pluto' (grátis na Pluto TV) | 'classicos' (Internet Archive)
+  section: (() => { try { const v = localStorage.getItem('pc.cine.section'); return ['classicos', 'pluto'].includes(v) ? v : 'lancamentos'; } catch { return 'lancamentos'; } })(),
+  setSection(section) { try { localStorage.setItem('pc.cine.section', section); } catch { /* ignora */ } set({ section, view: 'browse', open: true, mini: false }); },
   play(item, epIdx = 0, opts = {}) {
     if (!item?.episodes?.length) return;
     const idx = Math.min(Math.max(0, epIdx), item.episodes.length - 1);

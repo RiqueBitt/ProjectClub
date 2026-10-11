@@ -4,6 +4,9 @@ import { cineHome, cineSearch, cineItem, cineSubtitle } from '../api/endpoints';
 import { useMusic } from '../music/musicStore';
 import { useYouTubeApp } from '../youtube/youtubeStore';
 import '../styles/cinema.css';
+import { P, Ico, KIND, fmtTime, fmtDur, Art, CineCard, Skeletons, Row, translateUrl } from './ui.jsx';
+import { CatalogHome, CatalogList, CatalogSearch, CatalogDetail } from './CatalogViews.jsx';
+import PlutoView from './PlutoView.jsx';
 
 // ============================================================
 // Cinema do Project Club: filmes, séries, desenhos e anime do Internet
@@ -13,35 +16,6 @@ import '../styles/cinema.css';
 // pequeno no canto enquanto você navega pelo resto do app.
 // ============================================================
 
-const P = {
-  film: 'M4 4h16v16H4zM8 4v16M16 4v16M4 8h4M4 12h4M4 16h4M16 8h4M16 12h4M16 16h4',
-  search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4',
-  close: 'M6 6l12 12M18 6 6 18',
-  mini: 'M4 5h16v14H4zM12 12h6v5h-6z',
-  expand: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
-  play: 'M7 4v16l13-8z',
-  pause: 'M7 4h3v16H7zM14 4h3v16h-3z',
-  plus: 'M12 5v14M5 12h14',
-  check: 'M5 12l5 5 9-10',
-  ext: 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5',
-  back: 'M15 5l-7 7 7 7',
-  left: 'M15 5l-7 7 7 7',
-  right: 'M9 5l7 7-7 7',
-  next: 'M5 4v16l10-8zM18 4v16',
-  prev: 'M19 4v16L9 12zM6 4v16',
-  cc: 'M4 6h16v12H4zM10.5 10.2A2.2 2.2 0 1 0 10.5 13.8M17 10.2A2.2 2.2 0 1 0 17 13.8',
-  hd: 'M4 6h16v12H4zM8 9v6M8 12h3M11 9v6M14 9v6h2a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2z',
-  auto: 'M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4',
-  home: 'M4 11l8-7 8 7v9h-5v-6H9v6H4z',
-  translate: 'M4 5h8M8 3v2M6 5c0 4 3 7 6 8M10 5c0 4-3 7-6 8M13 21l4-10 4 10M14.5 17h5',
-  trash: 'M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13',
-  grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
-  warn: 'M12 3 2 20h20zM12 10v4M12 17h.01',
-};
-const Ico = ({ d, size = 18, fill = false }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill ? 'currentColor' : 'none'} stroke={fill ? 'none' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
-);
-
 const CATS = [
   ['populares', 'Em alta'], ['filmes', 'Filmes'], ['series', 'Séries e TV'], ['desenhos', 'Desenhos'], ['anime', 'Anime'],
   ['terror', 'Terror'], ['ficcao', 'Ficção científica'], ['comedia', 'Comédia'], ['noir', 'Policial e noir'],
@@ -49,21 +23,8 @@ const CATS = [
 ];
 const CAT_LABEL = Object.fromEntries(CATS);
 const SORTS = [['populares', 'Mais vistos'], ['recentes', 'Adicionados recentemente'], ['novos', 'Mais novos'], ['antigos', 'Mais antigos'], ['titulo', 'Título (A–Z)']];
-const KIND = { filme: 'Filme', serie: 'Série', desenho: 'Desenho', anime: 'Anime' };
 const KIND_CAT = { filme: 'filmes', serie: 'series', desenho: 'desenhos', anime: 'anime' };
 
-function fmtTime(s) {
-  if (!Number.isFinite(s) || s < 0) return '';
-  const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); const sec = Math.floor(s % 60);
-  return h ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
-}
-const fmtDur = (s) => {
-  if (!s) return '';
-  const h = Math.floor(s / 3600); const m = Math.round((s % 3600) / 60);
-  return h ? `${h} h ${m ? `${m} min` : ''}`.trim() : `${m} min`;
-};
-
-// Cache simples dos itens já abertos (detalhe -> assistir sem refazer o pedido).
 const itemCache = new Map();
 function useItem(id) {
   const [state, setState] = useState(() => ({ item: itemCache.get(id) || null, loading: !itemCache.has(id), error: null }));
@@ -83,67 +44,6 @@ const loadItem = async (id) => {
   if (itemCache.has(id)) return itemCache.get(id);
   const it = await cineItem(id); itemCache.set(id, it); return it;
 };
-
-// ---------------- Cartões ----------------
-function Art({ src, alt = '' }) {
-  const [bad, setBad] = useState(false);
-  return (
-    <span className="cine-art">
-      {!bad && <img className="cine-art-bg" src={src} alt="" loading="lazy" referrerPolicy="no-referrer" aria-hidden="true" />}
-      {!bad ? <img className="cine-art-img" src={src} alt={alt} loading="lazy" referrerPolicy="no-referrer" onError={() => setBad(true)} />
-        : <span className="cine-art-fallback"><Ico d={P.film} size={34} /></span>}
-    </span>
-  );
-}
-
-function CineCard({ it, prog, onOpen, onRemove }) {
-  const pct = prog?.d ? Math.min(100, Math.max(2, (prog.t / prog.d) * 100)) : 0;
-  return (
-    <div className="cine-card">
-      <button type="button" className="cine-card-btn" onClick={() => onOpen(it)} title={it.title}>
-        <span className="cine-card-media">
-          <Art src={it.thumbnail} alt="" />
-          <span className="cine-card-kind">{KIND[it.kind] || 'Filme'}</span>
-          {it.duration && !onRemove ? <span className="cine-card-dur">{fmtDur(it.duration)}</span> : null}
-          {pct > 0 && <span className="cine-card-prog"><i style={{ width: `${pct}%` }} /></span>}
-          <span className="cine-card-play"><Ico d={P.play} size={22} fill /></span>
-        </span>
-        <span className="cine-card-t">
-          <strong data-no-translate>{it.title}</strong>
-          <small>
-            {prog ? (prog.epCount > 1 ? `Ep. ${prog.epIdx + 1}${prog.d ? ` · faltam ${fmtDur(Math.max(60, prog.d - prog.t))}` : ''}` : (prog.d ? `Faltam ${fmtDur(Math.max(60, prog.d - prog.t))}` : 'Continuar'))
-              : [it.year, KIND[it.kind]].filter(Boolean).join(' · ')}
-          </small>
-        </span>
-      </button>
-      {onRemove && <button type="button" className="cine-card-x" onClick={() => onRemove(it)} title="Remover" aria-label="Remover"><Ico d={P.close} size={14} /></button>}
-    </div>
-  );
-}
-
-function Skeletons({ n = 8, row = false }) {
-  return Array.from({ length: n }, (_, i) => <div key={i} className={`cine-card cine-skel${row ? ' in-row' : ''}`}><span className="cine-art" /><span className="cine-skel-l" /><span className="cine-skel-l short" /></div>);
-}
-
-function Row({ title, items, progress, onOpen, onMore, onRemove, loading }) {
-  const ref = useRef(null);
-  const scroll = (dir) => { const el = ref.current; if (el) el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: 'smooth' }); };
-  if (!loading && !items?.length) return null;
-  return (
-    <section className="cine-row">
-      <div className="cine-row-h">
-        <h3>{title}</h3>
-        {onMore && <button type="button" className="cine-link" onClick={onMore}>Ver tudo</button>}
-        <span className="cine-grow" />
-        <button type="button" className="cine-arrow" onClick={() => scroll(-1)} aria-label="Voltar"><Ico d={P.left} size={16} /></button>
-        <button type="button" className="cine-arrow" onClick={() => scroll(1)} aria-label="Avançar"><Ico d={P.right} size={16} /></button>
-      </div>
-      <div className="cine-row-list" ref={ref}>
-        {loading ? <Skeletons n={7} row /> : items.map((it) => <CineCard key={it.id} it={it} prog={progress?.[it.id]} onOpen={onOpen} onRemove={onRemove} />)}
-      </div>
-    </section>
-  );
-}
 
 // ---------------- Início ----------------
 function Hero({ it, onOpen, onPlay }) {
@@ -193,7 +93,7 @@ function HomeView({ go, onOpen, onPlay }) {
         </div>
       ) : <Hero it={hero} onOpen={onOpen} onPlay={onPlay} />}
       <Row title="Continuar assistindo" items={cont} progress={progress} onOpen={(it) => onPlay(it, true)} onRemove={(it) => forget(it.id)} />
-      <Row title="Minha lista" items={list} onOpen={onOpen} onRemove={(it) => toggleList(it)} />
+      <Row title="Minha lista" items={list.filter((x) => !String(x.id).includes(':'))} onOpen={onOpen} onRemove={(it) => toggleList(it)} />
       {rows === null
         ? ['Em alta', 'Filmes', 'Séries e TV'].map((t) => <Row key={t} title={t} loading />)
         : rows.map((r) => <Row key={r.cat} title={r.label} items={r.items} progress={progress} onOpen={onOpen} onMore={() => go({ type: 'cat', cat: r.cat })} />)}
@@ -315,7 +215,6 @@ function EpisodeList({ item, current, onPick, compact }) {
   );
 }
 
-const translateUrl = (text) => `https://translate.google.com/?sl=auto&tl=pt&op=translate&text=${encodeURIComponent(text.slice(0, 4500))}`;
 
 function DetailView({ id, onPlay, go }) {
   const { item, loading, error, retry } = useItem(id);
@@ -523,7 +422,8 @@ export function CinemaHost() {
   useEffect(() => {
     const onYt = () => vRef.current?.pause();
     window.addEventListener('pc-yt-play', onYt);
-    return () => window.removeEventListener('pc-yt-play', onYt);
+    window.addEventListener('pc-trailer-play', onYt);
+    return () => { window.removeEventListener('pc-yt-play', onYt); window.removeEventListener('pc-trailer-play', onYt); };
   }, []);
   const musicPlaying = useMusic((s) => s.playing);
   useEffect(() => { if (musicPlaying) vRef.current?.pause(); }, [musicPlaying]);
@@ -664,10 +564,15 @@ export function CinemaHost() {
 }
 
 // ---------------- App ----------------
+const SECTIONS = [['lancamentos', 'Lançamentos', P.spark], ['pluto', 'Grátis na Pluto TV', P.tv], ['classicos', 'Clássicos grátis', P.film]];
+
 export default function CinemaApp() {
   const st = useCinema();
-  const [nav, setNav] = useState({ type: 'home' });
+  const section = st.section;
+  const [navs, setNavs] = useState({ lancamentos: { type: 'home' }, pluto: { type: 'home' }, classicos: { type: 'home' } });
+  const nav = navs[section];
   const [q, setQ] = useState('');
+  const [trail, setTrail] = useState([]); // detalhes visitados (para o "Voltar")
   const mainRef = useRef(null);
   const [toast, setToast] = useState(null);
 
@@ -681,8 +586,28 @@ export default function CinemaApp() {
 
   if (!st.open) return null;
 
-  const go = (n) => { setNav(n); if (n.type !== 'search') setQ(''); st.browse(); mainRef.current?.scrollTo?.({ top: 0 }); };
-  const onOpen = (it) => st.showDetail(it.id);
+  const top = () => mainRef.current?.scrollTo?.({ top: 0 });
+  // go({ type }) navega na aba atual; go({ section, q? }) troca de aba (e busca nela).
+  const go = (n) => {
+    const sec = n.section || section;
+    const next = n.section
+      ? (n.q ? (sec === 'classicos' ? { type: 'search', q: n.q, cat: 'populares' } : sec === 'pluto' ? { type: 'home', q: n.q } : { type: 'search', q: n.q, kind: 'todos' })
+        : (sec === section && st.view === 'browse' ? { type: 'home' } : navs[sec]))
+      : n;
+    setNavs((v) => ({ ...v, [sec]: next }));
+    setQ(next.q || '');
+    setTrail([]);
+    if (n.section && n.section !== section) st.setSection(n.section); else st.browse();
+    top();
+  };
+  const onOpen = (it, opts) => {
+    if (st.view === 'detail' && st.detailId && st.detailId !== it.id) setTrail((t) => [...t, st.detailId].slice(-20));
+    st.showDetail(it.id, opts);
+    top();
+  };
+  const back = () => {
+    if (trail.length) { const prev = trail[trail.length - 1]; setTrail((t) => t.slice(0, -1)); st.showDetail(prev); top(); } else st.browse();
+  };
   // Assistir direto de um cartão: carrega o item e retoma o episódio salvo.
   const onPlay = async (it, resume) => {
     try {
@@ -694,43 +619,70 @@ export default function CinemaApp() {
     } catch { setToast('Não consegui abrir esse título agora.'); }
   };
   const playFromDetail = (item, idx, startAt) => st.play(item, idx, startAt === 0 ? { startAt: 0 } : {});
-  const submit = (e) => { e.preventDefault(); const t = q.trim(); if (t) go({ type: 'search', q: t, cat: nav.cat && nav.type !== 'home' ? nav.cat : 'populares' }); };
+  const submit = (e) => {
+    e.preventDefault();
+    const t = q.trim();
+    if (!t) { if (section === 'pluto' && nav.q) go({ type: 'home' }); return; }
+    if (section === 'pluto') go({ type: 'home', q: t });
+    else if (section === 'classicos') go({ type: 'search', q: t, cat: nav.cat && nav.type !== 'home' ? nav.cat : 'populares' });
+    else go({ type: 'search', q: t, kind: nav.kind || 'todos' });
+  };
   const watching = st.view === 'watch' && st.playing;
+  const isCatalogId = (id) => String(id || '').includes(':');
+
+  let body;
+  if (watching) body = <WatchView onOpen={onOpen} />;
+  else if (st.view === 'detail' && st.detailId) {
+    body = (
+      <>
+        <button type="button" className="cine-back-btn" onClick={back}><Ico d={P.back} size={16} /> Voltar</button>
+        {isCatalogId(st.detailId)
+          ? <CatalogDetail key={st.detailId} id={st.detailId} openTrailer={st.detailTrailer} fromPluto={st.detailPluto || section === 'pluto'} onOpen={onOpen} go={go} />
+          : <DetailView id={st.detailId} onPlay={playFromDetail} go={go} />}
+      </>
+    );
+  } else if (section === 'pluto') {
+    body = <PlutoView q={nav.q || ''} onOpen={onOpen} mainRef={mainRef} clearSearch={() => go({ type: 'home' })} />;
+  } else if (section === 'lancamentos') {
+    body = nav.type === 'list' ? <CatalogList view={nav} onOpen={onOpen} mainRef={mainRef} />
+      : nav.type === 'search' ? <CatalogSearch view={nav} go={go} onOpen={onOpen} />
+        : <CatalogHome go={go} onOpen={onOpen} />;
+  } else {
+    body = nav.type === 'home' ? <HomeView go={go} onOpen={onOpen} onPlay={onPlay} /> : <GridView view={nav} go={go} onOpen={onOpen} mainRef={mainRef} />;
+  }
 
   return (
     <div className="cine-back" onMouseDown={(e) => { if (e.target === e.currentTarget) st.minimize(); }}>
-      <div className="cine" role="dialog" aria-modal="true" aria-label="Cinema">
+      <div className="cine" role="dialog" aria-modal="true" aria-label="Filmes e Séries">
         <header className="cine-head">
-          <button type="button" className="cine-brand" onClick={() => go({ type: 'home' })} title="Início do Cinema">
+          <button type="button" className="cine-brand" onClick={() => go({ type: 'home' })} title="Início de Filmes e Séries">
             <span className="cine-logo"><Ico d={P.film} size={20} /></span>
-            <span className="cine-brand-t"><strong>Cinema</strong><small>filmes · séries · desenhos</small></span>
+            <span className="cine-brand-t"><strong>Filmes e Séries</strong><small>lançamentos · grátis · anime</small></span>
           </button>
           <form className="cine-search" onSubmit={submit} role="search">
             <Ico d={P.search} size={17} />
-            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar filmes, séries, desenhos…" aria-label="Buscar no Cinema" enterKeyHint="search" />
+            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={section === 'classicos' ? 'Buscar clássicos grátis…' : section === 'pluto' ? 'Buscar na Pluto TV…' : 'Buscar filmes, séries e anime…'} aria-label="Buscar em Filmes e Séries" enterKeyHint="search" />
           </form>
           <nav className="cine-nav">
             <button type="button" className={`cine-icon${st.view === 'browse' && nav.type === 'home' ? ' is-on' : ''}`} onClick={() => go({ type: 'home' })} title="Início" aria-label="Início"><Ico d={P.home} /></button>
-            <button type="button" className={`cine-icon${st.view === 'browse' && nav.type !== 'home' ? ' is-on' : ''}`} onClick={() => go({ type: 'cat', cat: nav.cat || 'filmes' })} title="Categorias" aria-label="Categorias"><Ico d={P.grid} /></button>
+            {section === 'classicos' && <button type="button" className={`cine-icon${st.view === 'browse' && nav.type === 'cat' ? ' is-on' : ''}`} onClick={() => go({ type: 'cat', cat: nav.cat || 'filmes' })} title="Categorias" aria-label="Categorias"><Ico d={P.grid} /></button>}
             {st.playing && !watching && <button type="button" className="cine-icon is-live" onClick={st.restore} title="Voltar ao vídeo" aria-label="Voltar ao vídeo"><Ico d={P.play} fill /></button>}
             <button type="button" className="cine-icon" onClick={st.minimize} title={st.playing ? 'Minimizar (continua tocando)' : 'Fechar'} aria-label="Minimizar"><Ico d={st.playing ? P.mini : P.close} /></button>
             {st.playing && <button type="button" className="cine-icon" onClick={st.close} title="Fechar e parar" aria-label="Fechar"><Ico d={P.close} /></button>}
           </nav>
         </header>
-        <div className="cine-body" ref={mainRef}>
-          {watching ? <WatchView onOpen={onOpen} />
-            : st.view === 'detail' && st.detailId ? (
-              <>
-                <button type="button" className="cine-back-btn" onClick={() => st.browse()}><Ico d={P.back} size={16} /> Voltar</button>
-                <DetailView id={st.detailId} onPlay={playFromDetail} go={go} />
-              </>
-            )
-              : nav.type === 'home' ? <HomeView go={go} onOpen={onOpen} onPlay={onPlay} />
-                : <GridView view={nav} go={go} onOpen={onOpen} mainRef={mainRef} />}
-        </div>
+        {!watching && (
+          <div className="cine-tabs" role="tablist" aria-label="Seções do Cinema">
+            {SECTIONS.map(([id, label, icon]) => (
+              <button key={id} type="button" role="tab" aria-selected={section === id} className={section === id ? 'is-on' : ''} onClick={() => go({ section: id })}>
+                <Ico d={icon} size={16} /> {label}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="cine-body" ref={mainRef}>{body}</div>
         {toast && <div className="cine-toast" role="status">{toast}</div>}
       </div>
     </div>
   );
 }
-

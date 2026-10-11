@@ -179,7 +179,7 @@ export default function TopSearchBar() {
         <button type="button" className={`top-search-bar-icon-btn top-yt-btn${ytOn ? ' is-yt-on' : ''}`} title="YouTube" aria-label="YouTube" onClick={() => openYouTube()}>
           {svg('M3.5 8.2c.2-1.6 1.3-2.7 2.9-2.8C8.2 5.2 10 5.1 12 5.1s3.8.1 5.6.3c1.6.1 2.7 1.2 2.9 2.8.2 1.3.2 2.5.2 3.8s0 2.5-.2 3.8c-.2 1.6-1.3 2.7-2.9 2.8-1.8.2-3.6.3-5.6.3s-3.8-.1-5.6-.3c-1.6-.1-2.7-1.2-2.9-2.8C3.3 14.5 3.3 13.3 3.3 12s0-2.5.2-3.8ZM10 9v6l5-3-5-3Z')}
         </button>
-        <button type="button" className={`top-search-bar-icon-btn top-cine-btn${cineOn ? ' is-cine-on' : ''}`} title="Cinema: filmes, séries e desenhos" aria-label="Cinema" onClick={() => openCinema()}>
+        <button type="button" className={`top-search-bar-icon-btn top-cine-btn${cineOn ? ' is-cine-on' : ''}`} title="Filmes e Séries" aria-label="Filmes e Séries" onClick={() => openCinema()}>
           {svg('M4 5h16v14H4zM8 5v14M16 5v14M4 9h4M4 15h4M16 9h4M16 15h4M11 10l3 2-3 2z')}
         </button>
         <button type="button" className="top-search-bar-icon-btn" title="Atividade dos amigos" aria-label="Atividade dos amigos" onClick={() => navigate('/atividade')}>

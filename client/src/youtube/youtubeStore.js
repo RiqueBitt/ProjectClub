@@ -18,6 +18,9 @@ export const useYouTubeApp = create((set, get) => ({
     set((s) => ({ video, open: true, mini: false, view: 'watch', history: [video, ...s.history.filter((h) => h.videoId !== video.videoId)].slice(0, 30) }));
   },
   browse() { set({ view: 'browse', mini: false, open: true }); },
+  // Abre o YouTube já pesquisando (usado pelo Cinema: episódios oficiais).
+  searchFor(q) { if (q) set({ open: true, mini: false, view: 'browse', pendingQuery: String(q) }); },
+  pendingQuery: null,
   minimize() { if (get().video) set({ mini: true, open: false }); else set({ open: false }); },
   restore() { set({ open: true, mini: false, view: 'watch' }); },
   enqueue(v) {
