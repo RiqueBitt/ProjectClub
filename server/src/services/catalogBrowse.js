@@ -326,6 +326,15 @@ function cached(key, ttl, fn) {
   const hit = cache.get(key);
   const now = Date.now();
   if (hit && now - hit.at < ttl) return hit.promise;
+  // Vencido mas com valor: entrega o antigo na hora e renova em segundo
+  // plano (ninguém espera a fonte externa por causa de cache vencido).
+  if (hit && hit.value !== undefined && !hit.refreshing) {
+    hit.refreshing = true;
+    fn().then((value) => cache.set(key, { at: Date.now(), promise: Promise.resolve(value), value }))
+      .catch(() => { hit.at = Date.now() - ttl + 5 * 60 * 1000; }) // tenta de novo em 5 min
+      .finally(() => { hit.refreshing = false; });
+    return Promise.resolve(hit.value);
+  }
   const promise = fn().catch((e) => { if (hit?.value !== undefined) return hit.value; cache.delete(key); throw e; });
   promise.then((value) => { const c = cache.get(key); if (c) c.value = value; }).catch(() => {});
   cache.set(key, { at: now, promise, value: hit?.value });
@@ -422,13 +431,12 @@ function list(name, page = 1) {
 function home() {
   return cached(`home:${hasTmdb() ? 1 : 0}`, 1 * H, async () => {
     const names = hasTmdb() ? HOME_WITH_TMDB : HOME_NO_TMDB;
-    const rows = [];
-    for (const name of names) { // sequencial: o Jikan não aguenta rajadas
-      try {
-        const r = await list(name, 1);
-        if (r.items.length) rows.push({ list: name, label: LISTS[name].label, items: r.items.slice(0, 20) });
-      } catch { /* fonte fora do ar: some só essa fileira */ }
-    }
+    // Em paralelo (o Jikan tem fila própria com espaçamento); cada fonte tem
+    // até 8 s — uma fonte lenta não segura as outras.
+    const within = (pr, ms) => Promise.race([pr, new Promise((_, rej) => setTimeout(() => rej(err(504, 'lento')), ms))]);
+    const results = await Promise.allSettled(names.map((name) => within(list(name, 1), 8000)));
+    const rows = results.map((r, i) => (r.status === 'fulfilled' && r.value.items.length
+      ? { list: names[i], label: LISTS[names[i]].label, items: r.value.items.slice(0, 20) } : null)).filter(Boolean);
     if (!rows.length) throw err(502, 'Fontes indisponíveis');
     return { rows, tmdb: hasTmdb() };
   });
@@ -628,7 +636,19 @@ async function plutoMeta() {
   };
 }
 
+// Aquece o cache logo depois que o servidor sobe (a primeira pessoa que
+// abrir Filmes e Séries não espera as fontes externas).
+function warmUp() {
+  if (process.env.NODE_ENV === 'test') return;
+  const t = setTimeout(() => {
+    home().catch(() => {});
+    if (hasTmdb()) ensurePluto().catch(() => {});
+  }, 15000);
+  t.unref?.();
+}
+
 module.exports = {
+  warmUp,
   home, list, lists, search, item, hasTmdb, plutoSearch, plutoMeta,
   _pluto: pluto, filterPluto, plutoRow,
   // puros (testes)

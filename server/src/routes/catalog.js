@@ -51,4 +51,6 @@ router.get('/item/:id', wrap(async (req, res) => {
   res.json(await cat.item(String(req.params.id)));
 }));
 
+cat.warmUp();
+
 module.exports = router;
