@@ -10,6 +10,7 @@ const {
 const { createGame, reduce, viewFor, eventsFor } = require('../cards/engine');
 const { playTurn } = require('../cards/ai');
 const S = require('../cards/service');
+const { count: spectatorCount } = require('../cards/spectators');
 
 const { CardError } = S;
 const ledger = () => require('../services/economyLedger');
@@ -42,13 +43,14 @@ const home = handle(async (req, res) => {
   const userId = req.user.id;
   const settings = await S.getSettings();
   await S.ensureSeed();
-  const [player, me, owned, active, challenges, tradesIn] = await Promise.all([
+  const [player, me, owned, active, challenges, tradesIn, boards] = await Promise.all([
     S.getPlayer(userId),
     prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true } }),
     prisma.userCard.aggregate({ where: { userId, quantity: { gt: 0 } }, _sum: { quantity: true }, _count: true }),
     prisma.cardMatch.findFirst({ where: { status: 'ACTIVE', OR: [{ p1Id: userId }, { p2Id: userId }] }, orderBy: { updatedAt: 'desc' }, select: { id: true, mode: true, difficulty: true } }),
     pendingChallengesFor(userId),
     prisma.cardTrade.count({ where: { toId: userId, status: 'PENDING' } }),
+    S.getBoards().catch(() => []),
   ]);
   const R = settings.rewards;
   res.json({
@@ -68,6 +70,8 @@ const home = handle(async (req, res) => {
     wallet: me,
     collection: { total: owned._sum.quantity || 0, distinct: owned._count || 0 },
     starterAvailable: !player.starterClaimed,
+    starterCount: Math.max(settings.rules.deckSize, settings.economy.starterCards | 0),
+    boards: boards.map(S.shapeBoard),
     activeMatch: active,
     challenges,
     tradesPending: tradesIn,
@@ -79,9 +83,11 @@ const claimStarter = handle(async (req, res) => {
   await requireActivePlayer(userId);
   const settings = await S.getSettings();
   const catalog = await S.getCatalog();
-  const basic = catalog.enabled.filter((c) => S.rankOf(c.rarity) <= S.rankOf('INCOMUM'));
-  if (!basic.length) throw new CardError('Ainda não há cartas básicas no catálogo.');
   const n = Math.max(settings.rules.deckSize, settings.economy.starterCards | 0);
+  // Pacote de boas-vindas: cartas comuns (entram incomuns só se faltar variedade).
+  const commons = catalog.enabled.filter((c) => c.rarity === 'COMUM');
+  const basic = commons.length * settings.rules.maxCopies >= n ? commons : catalog.enabled.filter((c) => S.rankOf(c.rarity) <= S.rankOf('INCOMUM'));
+  if (!basic.length) throw new CardError('Ainda não há cartas básicas no catálogo.');
   const picks = [];
   const count = new Map();
   let guard = 0;
@@ -384,7 +390,8 @@ function seatOf(m, userId) {
 function payload(m, seat, state, extra = {}) {
   return {
     id: m.id, mode: m.mode, difficulty: m.difficulty, status: m.status, version: m.version,
-    turnDeadline: m.turnDeadline, reward: seat === 0 ? m.reward1 : m.reward2,
+    turnDeadline: m.turnDeadline, reward: seat === 0 ? m.reward1 : m.reward2, boardId: m.boardId || null,
+    spectators: spectatorCount(m.id),
     view: state ? viewFor(state, seat) : null, ...extra,
   };
 }
@@ -402,7 +409,7 @@ const BOT_NAMES = { FACIL: 'Aprendiz Pip', MEDIO: 'Duelista Nora', DIFICIL: 'Mes
 
 // Cria partida contra bot (normal ou fase da campanha). Guarda o estado
 // inicial e o registro de ações para o replay.
-async function newPveMatch(userId, { difficulty, botName, botHp, botDeck, campaignStageId = null }) {
+async function newPveMatch(userId, { difficulty, botName, botHp, botDeck, campaignStageId = null, boardId = null }) {
   const settings = await S.getSettings();
   const busyPvp = await prisma.cardMatch.findFirst({ where: { mode: 'PVP', status: 'ACTIVE', OR: [{ p1Id: userId }, { p2Id: userId }] } });
   if (busyPvp) throw new CardError('Termine sua partida PvP antes de começar outra.');
@@ -419,7 +426,7 @@ async function newPveMatch(userId, { difficulty, botName, botHp, botDeck, campai
   let events = [];
   let actions = [];
   if (state.active === 1) { const r = playTurn(state, 1, difficulty); state = r.state; events = r.events; actions = r.actions.map((a) => ({ s: 1, a })); }
-  const m = await prisma.cardMatch.create({ data: { mode: 'PVE', difficulty, p1Id: userId, status: 'ACTIVE', state: JSON.stringify(state), initialState, actions: JSON.stringify(actions), campaignStageId } });
+  const m = await prisma.cardMatch.create({ data: { mode: 'PVE', difficulty, p1Id: userId, status: 'ACTIVE', state: JSON.stringify(state), initialState, actions: JSON.stringify(actions), campaignStageId, boardId: await S.pickBoardId(boardId) } });
   return payload(m, 0, state, { events: eventsFor(events, 0) });
 }
 
@@ -440,7 +447,7 @@ async function newPvpMatch(p1Id, p2Id, { pendingId = null, tournamentId = null }
   const d2 = await S.resolvePlayerDeck(p2Id, settings);
   const [a, b] = await Promise.all([playerSeatInfo(p1Id), playerSeatInfo(p2Id)]);
   const state = createGame({ players: [{ ...a, deck: d1 }, { ...b, deck: d2 }], rules: settings.rules, seed: crypto.randomInt(1, 2 ** 31), first: crypto.randomInt(2) });
-  const data = { status: 'ACTIVE', state: JSON.stringify(state), initialState: JSON.stringify(state), actions: '[]', turnDeadline: new Date(Date.now() + settings.rules.turnSeconds * 1000), version: 1 };
+  const data = { status: 'ACTIVE', boardId: await S.pickBoardId(), state: JSON.stringify(state), initialState: JSON.stringify(state), actions: '[]', turnDeadline: new Date(Date.now() + settings.rules.turnSeconds * 1000), version: 1 };
   if (pendingId) {
     const r = await prisma.cardMatch.updateMany({ where: { id: pendingId, status: 'PENDING' }, data });
     if (r.count === 0) throw new CardError('Esse desafio não está mais disponível.');

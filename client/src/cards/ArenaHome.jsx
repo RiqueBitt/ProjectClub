@@ -113,10 +113,12 @@ export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onW
   useEffect(() => {
     cardsHistory().then((d) => setHistory(d.matches)).catch(() => {});
     cardsCampaign().then(setCampaign).catch(() => {});
-    cardsLive().then((d) => setLive(d.matches)).catch(() => {});
+    const loadLive = () => cardsLive().then((d) => setLive(d.matches)).catch(() => {});
+    loadLive();
     loadMissions();
     const t = setInterval(() => setNow(Date.now()), 60000);
-    return () => clearInterval(t);
+    const l = setInterval(loadLive, 20000);
+    return () => { clearInterval(t); clearInterval(l); };
   }, []);
 
   const best = useMemo(() => [...cards].filter((c) => c.quantity > 0).sort((a, b) => RARITY_ORDER.indexOf(b.rarity) - RARITY_ORDER.indexOf(a.rarity) || b.power - a.power)[0], [cards]);
@@ -284,14 +286,29 @@ export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onW
 
       {live.length > 0 && (
         <>
-          <h3 className="tcg-h3">Amigos jogando agora</h3>
-          <div className="tcg-history">
+          <h3 className="tcg-h3 tcg-h3-live"><span className="tcg-live-dot" />Partidas ao vivo <small className="tcg-dim">{live.length}</small></h3>
+          <div className="tcg-live-grid">
             {live.map((m) => (
-              <div key={m.id} className="tcg-hist is-live">
-                <span className="tcg-hist-res"><b className="tcgb-live">AO VIVO</b></span>
-                <span className="tcg-hist-vs"><b data-no-translate>{m.p1?.displayName}</b> vs <b data-no-translate>{m.p2?.displayName}</b>{m.tournamentId ? ' · torneio' : ''}</span>
-                <button type="button" className="tcg-btn tcg-btn-sm" onClick={() => onWatch(m.id)}>Assistir</button>
-              </div>
+              <button key={m.id} type="button" className="tcg-live-card" onClick={() => onWatch(m.id)}>
+                <span className="tcg-live-top">
+                  <b className="tcgb-live">AO VIVO</b>
+                  {m.tournamentId && <span className="tcg-live-tag">Torneio</span>}
+                  {m.friend && <span className="tcg-live-tag is-friend">Amigo</span>}
+                  <span className="tcgb-spacer" />
+                  <span className="tcg-live-eye" title="Assistindo agora"><Icon d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" size={14} />{m.spectators || 0}</span>
+                </span>
+                <span className="tcg-live-vs">
+                  {[m.p1, m.p2].map((p, i) => (
+                    <span key={i} className="tcg-live-p">
+                      {p?.bot ? <BotPortrait name={p.displayName} size={44} /> : <UserAvatar user={p} size={44} />}
+                      <b data-no-translate>{p?.displayName || '—'}</b>
+                      {m.info && <span className="tcg-live-hp"><i style={{ width: `${Math.max(0, Math.min(100, (m.info.hp[i] / 30) * 100))}%` }} /><em>{m.info.hp[i]}</em></span>}
+                    </span>
+                  ))}
+                  <span className="tcg-live-x">VS</span>
+                </span>
+                <span className="tcg-live-foot">{m.info ? `Turno ${m.info.turn} · ${m.info.board[0]} x ${m.info.board[1]} unidades em campo` : 'Começando…'}<span className="tcg-live-go">Assistir <Icon d="M9 6l6 6-6 6" size={14} /></span></span>
+              </button>
             ))}
           </div>
         </>

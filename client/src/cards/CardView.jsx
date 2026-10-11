@@ -126,11 +126,34 @@ export const CardArt = memo(function CardArt({ card }) {
   );
 });
 
+// Inclinação 3D que segue o ponteiro (sem re-render: só variáveis CSS).
+const canTilt = () => typeof window !== 'undefined'
+  && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  && !window.matchMedia?.('(pointer: coarse)').matches;
+function tiltMove(e) {
+  const el = e.currentTarget;
+  const r = el.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width;
+  const y = (e.clientY - r.top) / r.height;
+  el.style.setProperty('--ty', `${(x - 0.5) * 22}deg`);
+  el.style.setProperty('--tx', `${(0.5 - y) * 18}deg`);
+  el.style.setProperty('--gx', `${x * 100}%`);
+  el.style.setProperty('--gy', `${y * 100}%`);
+  el.classList.add('is-tilting');
+}
+function tiltLeave(e) {
+  const el = e.currentTarget;
+  el.style.setProperty('--tx', '0deg');
+  el.style.setProperty('--ty', '0deg');
+  el.classList.remove('is-tilting');
+}
+
 /**
  * Carta completa (coleção, loja, mão). Aceita definição (attack/health)
- * ou instância de batalha (atk/hp).
+ * ou instância de batalha (atk/hp). Moldura em camadas com profundidade:
+ * ao passar o mouse a carta inclina em 3D e os selos saltam pra frente.
  */
-export function CardView({ card, size = 'md', className = '', onClick, quantity, showQty = false, dim = false, badge, children, style, foil, ...rest }) {
+export function CardView({ card, size = 'md', className = '', onClick, quantity, showQty = false, dim = false, badge, children, style, foil, tilt = true, ...rest }) {
   if (!card) return null;
   const el = ELEMENTS[card.element] || ELEMENTS.FOGO;
   const rar = RARITIES[card.rarity] || RARITIES.COMUM;
@@ -141,6 +164,7 @@ export function CardView({ card, size = 'md', className = '', onClick, quantity,
   const spell = card.kind === 'SPELL';
   const shiny = !!(foil ?? card.foil);
   const Tag = onClick ? 'button' : 'div';
+  const tiltOn = tilt && size !== 'xs' && canTilt();
   return (
     <Tag
       type={onClick ? 'button' : undefined}
@@ -148,27 +172,32 @@ export function CardView({ card, size = 'md', className = '', onClick, quantity,
       {...rest}
       style={{ '--el': el.color, '--el-dark': el.dark, '--rar': rar.color, ...style }}
       onClick={onClick}
+      onPointerMove={tiltOn ? tiltMove : rest.onPointerMove}
+      onPointerLeave={tiltOn ? tiltLeave : rest.onPointerLeave}
     >
       <span className="tcg-frame">
-        <span className="tcg-cost" title="Custo de energia">{card.cost}</span>
-        <span className="tcg-art"><CardArt card={card} /></span>
-        <span className="tcg-name" data-no-translate>{card.name}</span>
-        <span className="tcg-type">
-          <span className="tcg-el" title={el.label}><Icon d={el.glyph} size={11} /></span>
-          {spell ? 'Feitiço' : rar.label}{card.level > 1 ? ` · Nv ${card.level}` : ''}
+        <span className="tcg-face">
+          <span className="tcg-art"><CardArt card={card} /><span className="tcg-art-vignette" /></span>
+          <span className="tcg-banner"><span className="tcg-name" data-no-translate>{card.name}</span></span>
+          <span className="tcg-type">
+            <span className="tcg-gem" title={rar.label} />
+            {spell ? 'Feitiço' : rar.label}{card.level > 1 ? ` · Nv ${card.level}` : ''}
+          </span>
+          <span className="tcg-text">
+            {ab?.label ? <><b>{ab.label}.</b> {abilityText(card.ability, value)}</> : <i>{card.flavor || ''}</i>}
+          </span>
+          {spell && <span className="tcg-spell-tag">{rar.label}</span>}
+          {shiny && <span className="tcg-foil-sheen" aria-hidden="true" />}
+          <span className="tcg-glare" aria-hidden="true" />
         </span>
-        <span className="tcg-text">
-          {ab?.label ? <><b>{ab.label}.</b> {abilityText(card.ability, value)}</> : <i>{card.flavor || ''}</i>}
-        </span>
-        {spell ? (
-          <span className="tcg-spell-tag" title={RARITIES[card.rarity]?.label}>{rar.label}</span>
-        ) : (
+        <span className="tcg-cost" title="Custo de energia"><b>{card.cost}</b></span>
+        <span className="tcg-el" title={el.label}><Icon d={el.glyph} size={12} /></span>
+        {!spell && (
           <>
-            <span className="tcg-atk" title="Ataque"><Icon d={UI.sword} size={12} />{atk}</span>
-            <span className={`tcg-hp${card.maxHp && hp < card.maxHp ? ' is-hurt' : ''}`} title="Vida"><Icon d={UI.heart} size={12} fill />{hp}</span>
+            <span className="tcg-atk" title="Ataque"><b>{atk}</b></span>
+            <span className={`tcg-hp${card.maxHp && hp < card.maxHp ? ' is-hurt' : ''}`} title="Vida"><b>{hp}</b></span>
           </>
         )}
-        {shiny && <span className="tcg-foil-sheen" aria-hidden="true" />}
       </span>
       {showQty && quantity > 0 && <span className="tcg-qty">x{quantity}</span>}
       {showQty && card.foil > 0 && <span className="tcg-foil-badge" title={`${card.foil} brilhante(s)`}>✦ {card.foil}</span>}
@@ -182,7 +211,13 @@ export function CardView({ card, size = 'md', className = '', onClick, quantity,
 export function CardBack({ className = '', small = false }) {
   return (
     <span className={`tcg-back${small ? ' is-small' : ''} ${className}`} aria-hidden="true">
-      <span className="tcg-back-inner"><Icon d={UI.star} size={small ? 12 : 26} /></span>
+      <span className="tcg-back-inner">
+        <svg viewBox="0 0 40 56" className="tcg-back-sigil" aria-hidden="true">
+          <path d="M20 6 34 28 20 50 6 28z" fill="none" stroke="currentColor" strokeWidth="1.6" />
+          <path d="M20 14 28 28 20 42 12 28z" fill="currentColor" opacity=".35" />
+          <circle cx="20" cy="28" r="3.2" fill="currentColor" />
+        </svg>
+      </span>
     </span>
   );
 }

@@ -4,6 +4,7 @@ import { CardView, CardArt, ELEMENTS, RARITIES, RARITY_ORDER, ABILITIES, Icon, U
 import { cardsAdmin, errMsg } from './api';
 import BotPortrait from './BotPortrait.jsx';
 import { Bracket as TournamentBracket } from './Tournaments.jsx';
+import { BoardThumb, BOARD_THEMES, THEME_KEYS } from './BoardScene.jsx';
 import '../styles/cards.css';
 
 // Painel da Staff → Jogo de Cartas. Tudo que dá pra mudar no jogo sem código:
@@ -598,10 +599,11 @@ export function CardsAdminStats() {
 export function CardsAdminCampaign() {
   const [stages, setStages] = useState(null);
   const [cards, setCards] = useState([]);
+  const [boards, setBoards] = useState([]);
   const [edit, setEdit] = useState(null);
   const [msg, setMsg] = useState({});
   const load = () => cardsAdmin.campaign().then((d) => setStages(d.stages)).catch((e) => setMsg({ err: errMsg(e) }));
-  useEffect(() => { load(); cardsAdmin.cards().then((d) => setCards(d.cards)).catch(() => {}); }, []);
+  useEffect(() => { load(); cardsAdmin.cards().then((d) => setCards(d.cards)).catch(() => {}); cardsAdmin.boards().then((d) => setBoards(d.boards)).catch(() => {}); }, []);
   const save = async () => {
     try {
       const body = { ...edit, deckCardIds: edit.deckCardIds || [] };
@@ -632,6 +634,9 @@ export function CardsAdminCampaign() {
           <Field label="Moedas ao vencer (1ª vez)"><input type="number" min="0" value={edit.rewardCoins ?? 0} onChange={set('rewardCoins')} /></Field>
           <Field label="Carta de prêmio (1ª vez)">
             <select value={edit.rewardCardId || ''} onChange={set('rewardCardId')}><option value="">Nenhuma</option>{cards.map((c) => <option key={c.id} value={c.id}>{c.name} ({RARITIES[c.rarity]?.label})</option>)}</select>
+          </Field>
+          <Field label="Fundo da batalha" hint="Vazio = sorteado entre os fundos ativos.">
+            <select value={edit.boardId || ''} onChange={set('boardId')}><option value="">Sorteado</option>{boards.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
           </Field>
           <Field label="História" wide><textarea rows={3} maxLength={2000} value={edit.story || ''} onChange={set('story')} /></Field>
           <label className="tcg-check"><input type="checkbox" checked={edit.enabled !== false} onChange={set('enabled')} />Fase ativa</label>
@@ -722,6 +727,100 @@ export function CardsAdminTournaments() {
       ))}
       {list === null && <p className="tcg-empty">Carregando…</p>}
       {list?.length === 0 && <p className="tcg-empty">Nenhum torneio ainda.</p>}
+    </div>
+  );
+}
+
+// ---------------- Fundos de batalha ----------------
+const EMPTY_BOARD = { name: '', theme: 'floresta', dim: 35, accent: '#8b6bff', weight: 10, active: true, imageUrl: null };
+export function CardsAdminBoards() {
+  const [boards, setBoards] = useState(null);
+  const [edit, setEdit] = useState(null);
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [msg, setMsg] = useState({});
+  const [busy, setBusy] = useState(false);
+  const load = () => cardsAdmin.boards().then((d) => setBoards(d.boards)).catch((e) => setMsg({ err: errMsg(e) }));
+  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!file) { setPreview(null); return undefined; }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+  const open = (b) => { setFile(null); setMsg({}); setEdit(b ? { ...b } : { ...EMPTY_BOARD }); };
+  const save = async () => {
+    setBusy(true); setMsg({});
+    try {
+      const body = { name: edit.name, theme: edit.theme, dim: edit.dim, accent: edit.accent, weight: edit.weight, active: edit.active, removeImage: edit.removeImage ? 'true' : undefined };
+      const fd = toFd(body, file);
+      if (edit.id) await cardsAdmin.updateBoard(edit.id, fd); else await cardsAdmin.createBoard(fd);
+      setEdit(null); setFile(null); setMsg({ ok: 'Fundo salvo. As próximas partidas já usam.' }); load();
+    } catch (e) { setMsg({ err: errMsg(e) }); } finally { setBusy(false); }
+  };
+  const quick = async (b, patch) => {
+    try { await cardsAdmin.updateBoard(b.id, toFd(patch)); load(); } catch (e) { setMsg({ err: errMsg(e) }); }
+  };
+
+  if (edit) {
+    const set = (k) => (e) => setEdit((x) => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
+    const shown = { ...edit, imageUrl: preview || (edit.removeImage ? null : edit.imageUrl) };
+    return (
+      <div className="tca-form tca-board-editor">
+        <div className="tca-board-preview">
+          <BoardThumb board={shown} className="is-big" />
+          <small className="tcg-dim">Pré-visualização ao vivo — a mesa e as cartas ficam por cima do fundo.</small>
+        </div>
+        <div className="tca-grid">
+          <Field label="Nome" hint="Aparece no topo da batalha."><input value={edit.name} maxLength={50} onChange={set('name')} placeholder="ex: Castelo de Gelo" /></Field>
+          <Field label="Imagem de fundo" hint="JPG/PNG/WebP, de preferência 1920×1080. Sem imagem, usa a cena do tema base.">
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => { setFile(e.target.files?.[0] || null); setEdit((x) => ({ ...x, removeImage: false })); }} />
+          </Field>
+          {(edit.imageUrl || file) && !edit.removeImage && (
+            <button type="button" className="tcg-btn ghost danger" onClick={() => { setFile(null); setEdit((x) => ({ ...x, removeImage: true })); }}>Remover imagem (usar a cena do tema)</button>
+          )}
+          <Field label="Tema base" hint="Cena ilustrada usada sem imagem e partículas (vaga-lumes, brasas, neve…).">
+            <select value={edit.theme} onChange={set('theme')}>{THEME_KEYS.map((k) => <option key={k} value={k}>{BOARD_THEMES[k].label}</option>)}</select>
+          </Field>
+          <Field label={`Escurecer fundo: ${edit.dim}%`} hint="Deixa as cartas mais legíveis em imagens claras."><input type="range" min="0" max="85" value={edit.dim} onChange={set('dim')} /></Field>
+          <Field label="Cor de destaque" hint="Brilho da mesa e da linha do meio."><input type="color" value={edit.accent} onChange={set('accent')} /></Field>
+          <Field label="Frequência" hint="Chance relativa de cair nas partidas (0 = nunca sorteado; ainda dá pra usar na campanha)."><input type="number" min="0" max="100" value={edit.weight} onChange={set('weight')} /></Field>
+          <label className="tcg-check"><input type="checkbox" checked={edit.active} onChange={set('active')} />Ativo</label>
+        </div>
+        <Msg {...msg} />
+        <div className="tca-actions">
+          <button type="button" className="tcg-btn ghost" onClick={() => setEdit(null)}>Cancelar</button>
+          <button type="button" className="tcg-btn primary" disabled={!edit.name || busy} onClick={save}>{busy ? 'Salvando…' : 'Salvar fundo'}</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="tca">
+      <div className="tca-bar">
+        <span className="tcg-dim">Cada partida sorteia um fundo ativo (pela frequência). Fases da campanha podem ter um fundo fixo.</span>
+        <span className="tcgb-spacer" />
+        <button type="button" className="tcg-btn primary" onClick={() => open(null)}><Icon d={UI.plus} />Novo fundo</button>
+      </div>
+      <Msg {...msg} />
+      <div className="tca-boards">
+        {boards?.map((b) => (
+          <div key={b.id} className={`tca-board${b.active ? '' : ' is-off'}`}>
+            <button type="button" className="tca-board-pic" onClick={() => open(b)} aria-label={`Editar ${b.name}`}><BoardThumb board={b} /></button>
+            <div className="tca-board-info">
+              <b>{b.name}</b>
+              <small>{b.imageUrl ? 'Imagem própria' : `Cena: ${BOARD_THEMES[b.theme]?.label || b.theme}`} · frequência {b.weight} · {b.uses} partida(s)</small>
+            </div>
+            <div className="tca-board-actions">
+              <label className="tcg-check"><input type="checkbox" checked={b.active} onChange={(e) => quick(b, { active: e.target.checked })} />Ativo</label>
+              <button type="button" className="tcg-btn ghost tcg-btn-sm" onClick={() => open(b)}>Editar</button>
+              <button type="button" className="tcg-icon-btn" onClick={() => { if (window.confirm(`Excluir o fundo "${b.name}"?`)) cardsAdmin.deleteBoard(b.id).then(load).catch((e) => setMsg({ err: errMsg(e) })); }} aria-label="Excluir"><Icon d={UI.close} size={14} /></button>
+            </div>
+          </div>
+        ))}
+        {boards === null && <p className="tcg-empty">Carregando…</p>}
+        {boards?.length === 0 && <p className="tcg-empty">Nenhum fundo. As partidas usam as cenas padrão.</p>}
+      </div>
     </div>
   );
 }

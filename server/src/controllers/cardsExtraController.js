@@ -8,6 +8,7 @@ const { reduce, viewFor, spectatorView, eventsFor } = require('../cards/engine')
 const S = require('../cards/service');
 const C = require('./cardsController');
 const T = require('../cards/tournaments');
+const SP = require('../cards/spectators');
 const { logAction } = require('../services/audit');
 
 const { CardError } = S;
@@ -61,7 +62,7 @@ const startCampaign = handle(async (req, res) => {
       for (let i = 0; botDeck.length < settings.rules.deckSize; i += 1) botDeck.push({ card: cards[i % cards.length], level: DIFFICULTIES[difficulty].level });
     }
   }
-  res.json(await C.newPveMatch(userId, { difficulty, botName: st.botName, botHp: st.heroHp, botDeck, campaignStageId: st.id }));
+  res.json(await C.newPveMatch(userId, { difficulty, botName: st.botName, botHp: st.heroHp, botDeck, campaignStageId: st.id, boardId: st.boardId || null }));
 });
 
 // ================= Partida rápida (fila PvP) =================
@@ -221,8 +222,11 @@ const buyListing = handle(async (req, res) => {
 });
 
 // ================= Replay / assistir =================
+// PvP e torneios são públicos (só o campo; a mão nunca aparece). Partidas
+// contra bot: só amigos e a staff.
 async function canWatch(req, m) {
   if (C.seatOf(m, req.user.id) >= 0 || isAdmin(req.user)) return true;
+  if (m.mode === 'PVP' || m.tournamentId) return true;
   const friends = await friendIds(req.user.id);
   return friends.has(m.p1Id) || (m.p2Id && friends.has(m.p2Id));
 }
@@ -243,27 +247,67 @@ const replay = handle(async (req, res) => {
       frames.push({ view: see(state), events: seat >= 0 ? eventsFor(r.events, seat) : eventsFor(r.events, -1), actor: s, action: a.type });
     } catch { break; }
   }
-  res.json({ id: m.id, mode: m.mode, frames });
+  res.json({ id: m.id, mode: m.mode, boardId: m.boardId || null, frames });
 });
 
+// Ao vivo: devolve a visão do lado escolhido (?lado=0|1) e, se o cliente
+// mandar quantas ações já viu (?n=), os eventos novos pra animar a jogada.
 const watch = handle(async (req, res) => {
   const m = await prisma.cardMatch.findUnique({ where: { id: req.params.id } });
   if (!m || !(await canWatch(req, m))) throw new CardError('Partida não encontrada.', 404);
+  const seat = req.query.lado === '1' ? 1 : 0;
   const state = m.state ? JSON.parse(m.state) : null;
-  res.json({ id: m.id, mode: m.mode, status: m.status, version: m.version, turnDeadline: m.turnDeadline, view: state ? spectatorView(state) : null });
+  if (m.status === 'ACTIVE' && C.seatOf(m, req.user.id) < 0) SP.touch(m.id, req.user);
+  const log = safeJson(m.actions || '[]', []);
+  const total = log.length;
+  const since = req.query.n !== undefined ? int(req.query.n, 0, 100000, total) : total;
+  let events = [];
+  if (m.initialState && since < total && total - since <= 80) {
+    try {
+      let st = JSON.parse(m.initialState);
+      for (let i = 0; i < total; i += 1) {
+        const r = reduce(st, log[i].s, log[i].a);
+        st = r.state;
+        if (i >= since) events.push(...eventsFor(r.events, -1));
+      }
+    } catch { events = []; }
+  }
+  res.json({
+    id: m.id, mode: m.mode, status: m.status, version: m.version, turnDeadline: m.turnDeadline, boardId: m.boardId || null,
+    tournamentId: m.tournamentId || null, n: total, events: events.slice(-150), side: seat,
+    spectators: SP.count(m.id), watchers: SP.list(m.id), view: state ? spectatorView(state, seat) : null,
+  });
 });
 
+const stopWatching = handle(async (req, res) => {
+  SP.leave(req.params.id, req.user.id);
+  res.json({ ok: true });
+});
+
+// Partidas ao vivo: de amigos, de torneios e PvP públicas (as mais assistidas primeiro).
 const live = handle(async (req, res) => {
   const friends = await friendIds(req.user.id);
   const ids = [...friends];
-  const rows = ids.length ? await prisma.cardMatch.findMany({
-    where: { status: 'ACTIVE', OR: [{ p1Id: { in: ids } }, { p2Id: { in: ids } }] },
-    orderBy: { updatedAt: 'desc' }, take: 20, select: { id: true, mode: true, difficulty: true, p1Id: true, p2Id: true, updatedAt: true, tournamentId: true },
-  }) : [];
+  const select = { id: true, mode: true, difficulty: true, p1Id: true, p2Id: true, updatedAt: true, createdAt: true, tournamentId: true, boardId: true, state: true };
+  const [mine, pub] = await Promise.all([
+    ids.length ? prisma.cardMatch.findMany({ where: { status: 'ACTIVE', OR: [{ p1Id: { in: ids } }, { p2Id: { in: ids } }] }, orderBy: { updatedAt: 'desc' }, take: 20, select }) : [],
+    prisma.cardMatch.findMany({ where: { status: 'ACTIVE', mode: 'PVP', NOT: { OR: [{ p1Id: req.user.id }, { p2Id: req.user.id }] } }, orderBy: { updatedAt: 'desc' }, take: 20, select }),
+  ]);
+  const seen = new Set();
+  const rows = [...mine, ...pub].filter((r) => !seen.has(r.id) && seen.add(r.id) && r.p1Id !== req.user.id && r.p2Id !== req.user.id);
   const uids = [...new Set(rows.flatMap((r) => [r.p1Id, r.p2Id]).filter(Boolean))];
   const users = uids.length ? await prisma.user.findMany({ where: { id: { in: uids } }, select: PUBLIC_USER_FIELDS }) : [];
   const byId = Object.fromEntries(users.map((u) => [u.id, u]));
-  res.json({ matches: rows.map((r) => ({ ...r, p1: byId[r.p1Id], p2: r.p2Id ? byId[r.p2Id] : { displayName: C.BOT_NAMES[r.difficulty] || 'Bot', bot: true } })) });
+  const brief = (raw) => {
+    const st = safeJson(raw || 'null', null);
+    if (!st?.players) return null;
+    return { turn: st.turn, hp: st.players.map((p) => p.hp), board: st.players.map((p) => p.board?.length || 0) };
+  };
+  const matches = rows.map(({ state, ...r }) => ({
+    ...r, friend: friends.has(r.p1Id) || (r.p2Id && friends.has(r.p2Id)), spectators: SP.count(r.id), info: brief(state),
+    p1: byId[r.p1Id], p2: r.p2Id ? byId[r.p2Id] : { displayName: C.BOT_NAMES[r.difficulty] || 'Bot', bot: true },
+  })).sort((a, b) => (b.spectators - a.spectators) || (Number(b.friend) - Number(a.friend)) || (new Date(b.updatedAt) - new Date(a.updatedAt)));
+  res.json({ matches: matches.slice(0, 24) });
 });
 
 // ================= Torneios (jogadores) =================
@@ -369,6 +413,7 @@ function readStage(b, isNew) {
   if (b.deckCardIds !== undefined) d.deckCardIds = JSON.stringify(Array.isArray(b.deckCardIds) ? b.deckCardIds.filter((x) => typeof x === 'string').slice(0, 40) : []);
   if (b.position !== undefined) d.position = int(b.position, 0, 999, 0);
   if (b.enabled !== undefined) d.enabled = !!b.enabled;
+  if (b.boardId !== undefined) d.boardId = b.boardId ? String(b.boardId).slice(0, 64) : null;
   return d;
 }
 const createStage = handle(async (req, res) => {
@@ -435,7 +480,7 @@ function startSweeper(io) {
 
 module.exports = {
   campaign, startCampaign, joinQueue, leaveQueue, market, createListing, cancelListing, buyListing,
-  replay, watch, live, tournaments, joinTournament, leaveTournament,
+  replay, watch, stopWatching, live, tournaments, joinTournament, leaveTournament,
   adminStats, exportCards, importCards, adminCampaign, createStage, updateStage, deleteStage,
   adminTournaments, createTournament, updateTournament, startTournament, cancelTournament, startSweeper,
   _queue: queue,

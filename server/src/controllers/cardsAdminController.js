@@ -317,7 +317,56 @@ const cancelMatch = handle(async (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- Mesas (fundos de batalha) ----------
+function readBoard(req, isNew) {
+  const b = req.body || {};
+  const d = {};
+  if (b.name !== undefined) d.name = str(b.name, 50) || '';
+  if (isNew && !d.name) throw new CardError('Dê um nome ao fundo.');
+  if (b.theme !== undefined) d.theme = S.BOARD_THEMES.includes(b.theme) ? b.theme : 'floresta';
+  if (b.dim !== undefined) d.dim = int(b.dim, 0, 85, 35);
+  if (b.accent !== undefined) d.accent = /^#[0-9a-fA-F]{6}$/.test(String(b.accent)) ? String(b.accent) : '#8b6bff';
+  if (b.weight !== undefined) d.weight = int(b.weight, 0, 100, 10);
+  if (b.sort !== undefined) d.sort = int(b.sort, -999, 999, 0);
+  if (b.active !== undefined) d.active = b.active === true || b.active === 'true';
+  if (b.removeImage === 'true' || b.removeImage === true) d.imageUrl = null;
+  else if (typeof b.imageUrl === 'string' && /^https:\/\//.test(b.imageUrl)) d.imageUrl = b.imageUrl.slice(0, 500);
+  if (req.file?.url) d.imageUrl = req.file.url;
+  return d;
+}
+const listBoards = handle(async (req, res) => {
+  const [boards, used] = await Promise.all([
+    S.getBoards(true),
+    prisma.cardMatch.groupBy({ by: ['boardId'], _count: { _all: true } }).catch(() => []),
+  ]);
+  const uses = Object.fromEntries(used.filter((u) => u.boardId).map((u) => [u.boardId, u._count._all]));
+  res.json({ boards: boards.map((b) => ({ ...b, uses: uses[b.id] || 0 })), themes: S.BOARD_THEMES });
+});
+const createBoard = handle(async (req, res) => {
+  const n = await prisma.cardBoard.count();
+  if (n >= 60) throw new CardError('Limite de 60 fundos.');
+  const board = await prisma.cardBoard.create({ data: { sort: n, ...readBoard(req, true) } });
+  S.invalidateBoards();
+  audit(req, 'CARDS_BOARD_CREATE', board.id, { name: board.name });
+  res.status(201).json({ board });
+});
+const updateBoard = handle(async (req, res) => {
+  const data = readBoard(req, false);
+  const board = await prisma.cardBoard.update({ where: { id: req.params.id }, data }).catch((e) => { if (e.code === 'P2025') throw new CardError('Fundo não encontrado.', 404); throw e; });
+  S.invalidateBoards();
+  audit(req, 'CARDS_BOARD_UPDATE', board.id, { name: board.name, fields: Object.keys(data) });
+  res.json({ board });
+});
+const deleteBoard = handle(async (req, res) => {
+  const r = await prisma.cardBoard.deleteMany({ where: { id: req.params.id } });
+  if (!r.count) throw new CardError('Fundo não encontrado.', 404);
+  S.invalidateBoards();
+  audit(req, 'CARDS_BOARD_DELETE', req.params.id);
+  res.json({ ok: true });
+});
+
 module.exports = {
+  listBoards, createBoard, updateBoard, deleteBoard,
   listCards, createCard, updateCard, deleteCard, listPacks, createPack, updatePack, deletePack, simulatePack,
   getSettings, updateSettings, searchPlayers, playerDetail, grantCard, updatePlayer, listTrades, cancelTrade, listMatches, cancelMatch,
 };

@@ -23,6 +23,8 @@ const PATHS = {
   forum: 'M3 5h12v9H8l-4 3v-3H3zM18 9h3v9h-1v3l-4-3h-5v-2',
   // Loja: sacola
   store: 'M5 8h14l-1 12H6L5 8zM9 8V6a3 3 0 0 1 6 0v2M9 12h.01M15 12h.01',
+  // Arena de Cartas: duas cartas em leque
+  cards: 'M8 4h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM4 7.5 6 7M4 7.5v10.2a2 2 0 0 0 1.6 2L6 20M12.5 9l1.3 2.6 2.7.4-2 1.9.5 2.7-2.5-1.3-2.5 1.3.5-2.7-2-1.9 2.7-.4z',
 };
 
 export function FeaturedGlyph({ name, size = 16 }) {
@@ -49,6 +51,10 @@ export const FEATURED = [
   },
   // Galeria saiu da lista (a página /comunidade/galeria continua existindo).
   {
+    key: 'arena', label: 'Arena de Cartas', icon: 'cards', to: '/cartas',
+    hint: 'Jogo de cartas: colecione, monte seu baralho e batalhe', match: (p) => p.startsWith('/cartas'), tag: 'Jogar',
+  },
+  {
     key: 'loja', label: 'Loja', icon: 'store', to: '/loja',
     hint: 'Loja da comunidade (em breve)', match: (p) => p.startsWith('/loja'),
   },
@@ -66,7 +72,8 @@ export default function FeaturedChannels({ canManage }) {
   const { openMenu } = useContextMenu();
   const isVisible = useFeaturedVisibility();
   const { events } = useCommunityEvents();
-  const items = FEATURED.filter((f) => isVisible(f.key));
+  const disabledSystems = useStore((st) => st.disabledSystems) || [];
+  const items = FEATURED.filter((f) => isVisible(f.key) && !(f.key === 'arena' && disabledSystems.includes('cartas') && !canManage));
   if (items.length === 0) return null;
 
   const live = (events || []).filter((e) => e.status === 'ACTIVE').length;
@@ -101,6 +108,7 @@ export default function FeaturedChannels({ canManage }) {
         if (item.key === 'eventos' && live > 0) badge = <span className="featured-channel-live" title={`${live} evento${live === 1 ? '' : 's'} acontecendo agora`}>Ao vivo</span>;
         else if (item.key === 'eventos' && upcoming > 0) badge = <span className="featured-channel-count" title={`${upcoming} evento${upcoming === 1 ? '' : 's'} em breve`}>{upcoming}</span>;
         else if (item.soon) badge = <span className="featured-channel-soon">Em breve</span>;
+        else if (item.tag && !active) badge = <span className="featured-channel-tag">{item.tag}</span>;
         return (
           <button
             key={item.key} type="button"

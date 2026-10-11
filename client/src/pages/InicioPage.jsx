@@ -13,6 +13,7 @@ import { hour12Option } from '../utils/formatTime';
 import inicioIcon from '../assets/icons/logo-project-club.png';
 import { useLiveRefresh, sameData } from '../utils/liveRefresh';
 import { bootSection, onBootSection, bootstrapActive } from '../utils/bootstrap';
+import ArenaPromo from '../cards/ArenaPromo.jsx';
 
 const EVENT_STATUS_LABEL = { UPCOMING: 'Em breve', ACTIVE: 'Ativo', ENDED: 'Encerrado' };
 // Item pedido: mostra só os 4 vídeos mais recentes do canal.
@@ -237,6 +238,7 @@ export default function InicioPage() {
   const progress = me?.levelProgress ?? 0;
   const upcomingEvents = (events || []).filter((e) => e.status !== 'ENDED');
 
+  const disabledSystems = useStore((st) => st.disabledSystems) || [];
   const shortcuts = [
     firstText && { icon: 'chat', label: 'Conversar', hint: `#${firstText.name}`, to: `/channels/${firstText.id}` },
     { icon: 'feed', label: 'Fórum', hint: 'Posts e temas', to: '/comunidades' },
@@ -279,6 +281,8 @@ export default function InicioPage() {
           </button>
         ))}
       </nav>
+
+      {(!disabledSystems.includes('cartas') || user?.platformRole === 'ADMIN') && <ArenaPromo />}
 
       <div className="home-grid">
         <div className="home-main">

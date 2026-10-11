@@ -71,6 +71,14 @@ async function doSeed() {
     }
     if ((await prisma.cardCampaignStage.count()) === 0) await prisma.cardCampaignStage.createMany({ data: SEED_CAMPAIGN });
   } catch (err) { console.error('[cards] seed v2 falhou:', err?.message || err); }
+  // v3: mesas de batalha editáveis (as 5 cenas ilustradas viram registros).
+  try {
+    const st = await getSettings(true);
+    if ((st.seedVersion || 1) < 3) {
+      if ((await prisma.cardBoard.count()) === 0) await prisma.cardBoard.createMany({ data: SEED_BOARDS });
+      await patchSavedSettings({ seedVersion: 3 });
+    }
+  } catch (err) { console.error('[cards] seed v3 falhou:', err?.message || err); }
   seeded = true;
 }
 function ensureSeed() {
@@ -90,6 +98,37 @@ async function getCatalog(force = false) {
   return catalogCache;
 }
 function invalidateCatalog() { catalogCache = null; }
+
+// ---------- Mesas (fundos de batalha) ----------
+const BOARD_THEMES = ['floresta', 'vulcao', 'templo', 'abismo', 'oceano', 'gelo', 'noite'];
+const SEED_BOARDS = [
+  { name: 'Floresta Antiga', theme: 'floresta', accent: '#62c24a', sort: 0 },
+  { name: 'Forja do Vulcão', theme: 'vulcao', accent: '#ff7a3c', sort: 1 },
+  { name: 'Templo Dourado', theme: 'templo', accent: '#ffd34d', sort: 2 },
+  { name: 'Abismo Eterno', theme: 'abismo', accent: '#a46bff', sort: 3 },
+  { name: 'Recife Profundo', theme: 'oceano', accent: '#3aa0ff', sort: 4 },
+];
+let boardsCache = null;
+let boardsAt = 0;
+async function getBoards(force = false) {
+  if (!force && boardsCache && Date.now() - boardsAt < 30_000) return boardsCache;
+  await ensureSeed();
+  boardsCache = await prisma.cardBoard.findMany({ orderBy: [{ sort: 'asc' }, { createdAt: 'asc' }] });
+  boardsAt = Date.now();
+  return boardsCache;
+}
+function invalidateBoards() { boardsCache = null; }
+const shapeBoard = (b) => ({ id: b.id, name: b.name, theme: b.theme, imageUrl: b.imageUrl || null, dim: b.dim, accent: b.accent });
+// Sorteia uma mesa ativa (respeita o peso definido pela staff).
+async function pickBoardId(preferred = null) {
+  const boards = (await getBoards().catch(() => [])).filter((b) => b.active);
+  if (preferred && boards.some((b) => b.id === preferred)) return preferred;
+  const total = boards.reduce((n, b) => n + Math.max(0, b.weight | 0), 0);
+  if (!total) return boards[0]?.id || null;
+  let r = randInt(total);
+  for (const b of boards) { r -= Math.max(0, b.weight | 0); if (r < 0) return b.id; }
+  return boards[0]?.id || null;
+}
 
 function shapeCard(c, owned) {
   return {
@@ -440,4 +479,5 @@ module.exports = {
   CardError, dayKey, rankOf, randInt, getSettings, invalidateSettings, ensureSeed, getCatalog, invalidateCatalog,
   shapeCard, getPlayer, ownedMap, grantCards, parseDeckCards, validateDeck, autoDeck, resolvePlayerDeck, botDeck,
   drawPack, packPool, finalizeMatch, copiesCap,
+  getBoards, invalidateBoards, shapeBoard, pickBoardId, BOARD_THEMES,
 };

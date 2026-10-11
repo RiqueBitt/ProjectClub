@@ -34,7 +34,8 @@ export const cardsQueue = () => api.post('/cards/queue').then(d);
 export const cardsLeaveQueue = () => api.delete('/cards/queue').then(d);
 export const cardsLive = () => api.get('/cards/live').then(d);
 export const cardsReplay = (id) => api.get(`/cards/matches/${id}/replay`).then(d);
-export const cardsWatch = (id) => api.get(`/cards/matches/${id}/watch`).then(d);
+export const cardsWatch = (id, params) => api.get(`/cards/matches/${id}/watch`, { params }).then(d);
+export const cardsStopWatch = (id) => api.delete(`/cards/matches/${id}/watch`).then(d).catch(() => {});
 export const cardsMarket = (params) => api.get('/cards/market', { params }).then(d);
 export const cardsCreateListing = (body) => api.post('/cards/market', body).then(d);
 export const cardsBuyListing = (id) => api.post(`/cards/market/${id}/buy`).then(d);
@@ -76,6 +77,10 @@ export const cardsAdmin = {
   updateTournament: (id, b) => api.patch(`/cards/admin/tournaments/${id}`, b).then(d),
   startTournament: (id) => api.post(`/cards/admin/tournaments/${id}/start`).then(d),
   cancelTournament: (id) => api.post(`/cards/admin/tournaments/${id}/cancel`).then(d),
+  boards: () => api.get('/cards/admin/boards').then(d),
+  createBoard: (fd) => api.post('/cards/admin/boards', fd).then(d),
+  updateBoard: (id, fd) => api.patch(`/cards/admin/boards/${id}`, fd).then(d),
+  deleteBoard: (id) => api.delete(`/cards/admin/boards/${id}`).then(d),
 };
 
 export const errMsg = (e, fb = 'Algo deu errado.') => e?.response?.data?.error || fb;

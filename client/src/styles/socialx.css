@@ -442,3 +442,12 @@ button.sx-item-body:hover { border-color: color-mix(in srgb, var(--brand) 40%, v
   .featured-channels .sidebar-item.featured-channel,
   .n2-sidebar .featured-channels .sidebar-item.featured-channel { min-height: 46px; }
 }
+/* Arena de Cartas em destaque: roxo com brilho e selo "Jogar" */
+.featured-arena { --fc: #a46bff; }
+.featured-channels .sidebar-item.featured-arena { background: linear-gradient(100deg, color-mix(in srgb, #a46bff 22%, transparent), color-mix(in srgb, #ff4fa3 10%, transparent)); }
+.featured-channels .featured-arena .featured-channel-icon { background: linear-gradient(135deg, #a46bff, #ff4fa3); color: #fff; box-shadow: 0 0 12px rgba(164,107,255,.45); }
+.featured-channel-tag {
+  margin-left: auto; flex-shrink: 0; height: 20px; padding: 0 8px; border-radius: 999px; display: inline-flex; align-items: center;
+  font-size: 11px; font-weight: 900; letter-spacing: .3px; color: #fff;
+  background: linear-gradient(90deg, #8b6bff, #ff4fa3); box-shadow: 0 0 10px rgba(164,107,255,.5);
+}

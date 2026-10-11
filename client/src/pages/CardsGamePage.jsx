@@ -13,6 +13,7 @@ import ArenaHome from '../cards/ArenaHome.jsx';
 import Collection from '../cards/Collection.jsx';
 import Market from '../cards/Market.jsx';
 import Tournaments from '../cards/Tournaments.jsx';
+import WelcomeModal from '../cards/WelcomeModal.jsx';
 import {
   cardsHome, cardsClaimStarter, cardsCollection, cardsStartPve, cardsMatch, cardsChallenge, cardsRanking,
   cardsUserCollection, cardsWatch, cardsReplay, errMsg,
@@ -87,6 +88,13 @@ export default function CardsGamePage() {
   const [match, setMatch] = useState(null); // { data, mode, frames }
   const [err, setErr] = useState('');
   const [starter, setStarter] = useState(null);
+  // Boas-vindas: abre sozinho no primeiro acesso (enquanto o pacote não foi pego).
+  const [welcome, setWelcome] = useState(false);
+  useEffect(() => {
+    let later = false;
+    try { later = sessionStorage.getItem('pc-cards-welcome') === '1'; } catch { /* ignora */ }
+    if (home?.starterAvailable && !later) setWelcome(true);
+  }, [home?.starterAvailable]);
   const tradeWith = params.get('trocar');
   const [tradeTarget, setTradeTarget] = useState(null);
   const openCard = params.get('carta');
@@ -110,7 +118,7 @@ export default function CardsGamePage() {
     if (id && match?.data?.id !== id) cardsMatch(id).then((m) => setMatch({ data: m, mode: 'play' })).catch((e) => { setErr(errMsg(e)); setParam('partida', null); });
     else if (w && match?.data?.id !== w) cardsWatch(w).then((m) => setMatch({ data: m, mode: 'watch' })).catch((e) => { setErr(errMsg(e)); setParam('assistir', null); });
     else if (r && match?.data?.id !== r) {
-      cardsReplay(r).then((d) => setMatch({ data: { id: d.id, mode: d.mode, view: d.frames[0].view }, mode: 'replay', frames: d.frames })).catch((e) => { setErr(errMsg(e)); setParam('replay', null); });
+      cardsReplay(r).then((d) => setMatch({ data: { id: d.id, mode: d.mode, boardId: d.boardId, view: d.frames[0].view }, mode: 'replay', frames: d.frames })).catch((e) => { setErr(errMsg(e)); setParam('replay', null); });
     }
   }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -157,7 +165,7 @@ export default function CardsGamePage() {
     return (
       <div className="tcg-page is-battle">
         <Battle
-          key={`${match.mode}-${match.data.id}`} initial={match.data} mode={match.mode} frames={match.frames}
+          key={`${match.mode}-${match.data.id}`} initial={match.data} mode={match.mode} frames={match.frames} boards={home?.boards || []}
           onExit={exitMatch}
           onRematch={async (d) => { try { startMatch(await cardsStartPve(d)); } catch (e) { setErr(errMsg(e)); exitMatch(); } }}
         />
@@ -169,7 +177,7 @@ export default function CardsGamePage() {
     <div className="tcg-page">
       <div className="tcg-inner">
         <header className="tcg-hero">
-          <button type="button" className="tcg-icon-btn" onClick={() => navigate('/minijogos')} aria-label="Voltar para Mini-Jogos"><Icon d={UI.back} /></button>
+          <button type="button" className="tcg-icon-btn" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/inicio'))} aria-label="Voltar"><Icon d={UI.back} /></button>
           <span className="tcg-logo"><Icon d={UI.deck} size={26} /></span>
           <div className="tcg-hero-text">
             <h1>Arena de Cartas</h1>
@@ -180,13 +188,11 @@ export default function CardsGamePage() {
 
         {err && <p className="tcg-error">{err}</p>}
 
-        {home?.starterAvailable && (
+        {home?.starterAvailable && !welcome && (
           <div className="tcg-starter">
             <span className="tcg-starter-icon"><Icon d={UI.pack} size={30} /></span>
-            <div><strong>Pacote inicial grátis!</strong><p>Ganhe {Math.max(home.rules.deckSize, home.economy?.starterCards || 0)} cartas para montar seu primeiro baralho e começar a jogar.</p></div>
-            <button type="button" className="tcg-btn primary" onClick={async () => {
-              try { const r = await cardsClaimStarter(); setStarter(r.cards); refreshAll(); } catch (e) { setErr(errMsg(e)); }
-            }}>Pegar cartas</button>
+            <div><strong>Seu pacote de boas-vindas está esperando!</strong><p>Ganhe {home.starterCount || home.rules.deckSize} cartas comuns e comece a batalhar agora.</p></div>
+            <button type="button" className="tcg-btn primary" onClick={() => setWelcome(true)}>Pegar cartas</button>
           </div>
         )}
 
@@ -212,8 +218,19 @@ export default function CardsGamePage() {
         {home && tab === 'torneios' && <Tournaments me={user} onWatch={(id) => setParam('assistir', id)} onReload={loadHome} />}
         {home && tab === 'ranking' && <RankingTab divisions={home.meta.divisions} />}
       </div>
+      {welcome && home?.starterAvailable && (
+        <WelcomeModal
+          home={home} user={user} cards={cards}
+          onClaim={async () => { const r = await cardsClaimStarter(); setWelcome(false); setStarter(r.cards); refreshAll(); }}
+          onLater={() => { setWelcome(false); try { sessionStorage.setItem('pc-cards-welcome', '1'); } catch { /* ignora */ } }}
+        />
+      )}
       {starter && (
-        <PackOpening pack={{ name: 'Pacote inicial', color: '#7c5cff' }} cards={starter.map((c) => ({ ...c, isNew: true }))} onClose={() => setStarter(null)} />
+        <PackOpening
+          pack={{ name: 'Pacote de boas-vindas', color: '#7c5cff' }} cards={starter.map((c) => ({ ...c, isNew: true }))}
+          onClose={() => setStarter(null)}
+          extraAction={{ label: 'Batalhar agora!', onClick: async () => { setStarter(null); try { startMatch(await cardsStartPve('FACIL')); } catch (e) { setErr(errMsg(e)); } } }}
+        />
       )}
     </div>
   );

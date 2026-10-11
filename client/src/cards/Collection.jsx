@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { CardView, ELEMENTS, RARITIES, RARITY_ORDER, ABILITIES, Icon, UI, abilityText } from './CardView.jsx';
+import { useEffect, useMemo, useState } from 'react';
+import { CardView, CardBack, ELEMENTS, RARITIES, RARITY_ORDER, ABILITIES, Icon, UI, abilityText } from './CardView.jsx';
 import { cardsSell, cardsSellFoil, cardsLevelUp, cardsCreateListing, errMsg } from './api';
 import { sfx } from './sfx';
 
@@ -7,23 +7,19 @@ import { sfx } from './sfx';
 // filtros. A carta abre num detalhe 3D (inclina com o mouse) com evoluir,
 // vender, anunciar no mercado e compartilhar.
 
+// Vitrine 3D: a carta flutua, inclina com o mouse e dá pra virar e ver o verso.
 function TiltCard({ card }) {
-  const ref = useRef(null);
-  const [t, setT] = useState({ x: 0, y: 0, gx: 50, gy: 50 });
-  const onMove = (e) => {
-    const r = ref.current?.getBoundingClientRect();
-    if (!r) return;
-    const px = (e.clientX - r.left) / r.width;
-    const py = (e.clientY - r.top) / r.height;
-    setT({ x: (0.5 - py) * 18, y: (px - 0.5) * 22, gx: px * 100, gy: py * 100 });
-  };
+  const [flipped, setFlipped] = useState(false);
   return (
-    <div
-      ref={ref} className="tcg-tilt" onMouseMove={onMove} onMouseLeave={() => setT({ x: 0, y: 0, gx: 50, gy: 50 })}
-      style={{ '--rx': `${t.x}deg`, '--ry': `${t.y}deg`, '--gx': `${t.gx}%`, '--gy': `${t.gy}%` }}
-    >
-      <CardView card={card} size="lg" />
-      <span className="tcg-tilt-glare" aria-hidden="true" />
+    <div className="tcg-showcase">
+      <div className={`tcg-flip3d${flipped ? ' is-flipped' : ''}`}>
+        <div className="tcg-flip3d-front"><CardView card={card} size="lg" /></div>
+        <div className="tcg-flip3d-back"><CardBack /></div>
+      </div>
+      <span className="tcg-showcase-floor" aria-hidden="true" />
+      <button type="button" className="tcg-btn ghost tcg-btn-sm tcg-showcase-flip" onClick={() => setFlipped((f) => !f)}>
+        <Icon d="M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.2L3 16M3 21v-5h5" size={14} />{flipped ? 'Ver frente' : 'Virar carta'}
+      </button>
     </div>
   );
 }

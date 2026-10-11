@@ -4,7 +4,7 @@ import { sfx } from './sfx';
 
 // Abertura de pacote: o pacote treme, explode em luz e as cartas são viradas
 // uma a uma (clique ou "Revelar todas"). Raridade alta = brilho maior.
-export default function PackOpening({ pack, cards, onClose, onAgain, canAgain }) {
+export default function PackOpening({ pack, cards, onClose, onAgain, canAgain, extraAction }) {
   const [phase, setPhase] = useState('shake'); // shake → burst → cards
   const [revealed, setRevealed] = useState(() => new Set());
   useEffect(() => {
@@ -22,8 +22,9 @@ export default function PackOpening({ pack, cards, onClose, onAgain, canAgain })
   const best = cards.reduce((b, c) => Math.max(b, RARITY_ORDER.indexOf(c.rarity)), 0);
   const bestColor = RARITIES[RARITY_ORDER[best]]?.color || '#fff';
   const all = revealed.size >= cards.length;
+  const many = cards.length > 8;
   return (
-    <div className="tcgp-overlay" role="dialog" aria-label={`Abrindo ${pack.name}`} style={{ '--best': bestColor, '--pack': pack.color }}>
+    <div className={`tcgp-overlay${many ? ' is-many' : ''}`} role="dialog" aria-label={`Abrindo ${pack.name}`} style={{ '--best': bestColor, '--pack': pack.color }}>
       {phase !== 'cards' && (
         <div className={`tcgp-pack is-${phase}`}>
           <span className="tcgp-pack-face"><Icon d={UI.pack} size={64} sw={1.6} /><b>{pack.name}</b></span>
@@ -45,7 +46,7 @@ export default function PackOpening({ pack, cards, onClose, onAgain, canAgain })
                 >
                   <span className="tcgp-flip">
                     <span className="tcgp-back"><Icon d={UI.star} size={30} /></span>
-                    <span className="tcgp-front"><CardView card={c} size="md" /></span>
+                    <span className="tcgp-front"><CardView card={c} size={many ? 'sm' : 'md'} tilt={false} /></span>
                   </span>
                   {open && c.isNew && <span className="tcgp-new">Nova!</span>}
                   {open && c.foil && <span className="tcgp-new is-foil">✦ Brilhante!</span>}
@@ -57,6 +58,7 @@ export default function PackOpening({ pack, cards, onClose, onAgain, canAgain })
           <div className="tcgp-actions">
             {!all && <button type="button" className="tcg-btn" onClick={() => setRevealed(new Set(cards.map((_, i) => i)))}>Revelar todas</button>}
             {all && canAgain && <button type="button" className="tcg-btn primary" onClick={onAgain}>Abrir outro</button>}
+            {all && extraAction && <button type="button" className="tcg-btn primary tcg-btn-xl" onClick={extraAction.onClick}><Icon d={UI.sword} />{extraAction.label}</button>}
             <button type="button" className="tcg-btn ghost" onClick={onClose}>Fechar</button>
           </div>
         </>

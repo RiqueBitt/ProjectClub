@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSocket } from '../context/SocketContext.jsx';
 import UserAvatar from '../components/UserAvatar.jsx';
 import { CardView, CardArt, CardBack, ABILITIES, ELEMENTS, RARITY_ORDER, RARITIES, Icon, UI, abilityText } from './CardView.jsx';
-import { cardsAction, cardsMatch, cardsWatch, errMsg } from './api';
+import { cardsAction, cardsMatch, cardsWatch, cardsStopWatch, errMsg } from './api';
 import { sfx, startMusic, stopMusic, getSfxPrefs, setSfxPrefs } from './sfx';
 import BotPortrait from './BotPortrait.jsx';
+import { BoardBackdrop, BOARD_THEMES } from './BoardScene.jsx';
 
 // Tela de batalha. O servidor manda a visão do jogador (`view`, com as ações
 // legais já calculadas pelo motor) e a lista de eventos da jogada; aqui só
@@ -15,7 +16,6 @@ const wait = (ms) => new Promise((r) => { setTimeout(r, ms); });
 const reduceMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const coarse = () => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
 const THEMES = ['floresta', 'vulcao', 'templo', 'abismo', 'oceano'];
-const THEME_LABEL = { floresta: 'Floresta Antiga', vulcao: 'Forja do Vulcão', templo: 'Templo Dourado', abismo: 'Abismo Eterno', oceano: 'Recife Profundo' };
 const themeOf = (id = '') => THEMES[[...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % THEMES.length];
 const isEpic = (c) => RARITY_ORDER.indexOf(c?.rarity) >= RARITY_ORDER.indexOf('EPICA');
 
@@ -31,11 +31,14 @@ function Unit({ u, mine, canAttack, selected, targetable, dying, entering, onCli
       onMouseEnter={() => onHover?.(u)} onMouseLeave={() => onHover?.(null)} onFocus={() => onHover?.(u)} onBlur={() => onHover?.(null)}
       aria-label={`${u.name}: ataque ${u.atk}, vida ${u.hp}${ab?.label ? `, ${ab.label}` : ''}${u.frozen ? ', congelada' : ''}${u.stealth ? ', furtiva' : ''}`}
     >
-      <span className="tcgb-unit-art"><CardArt card={u} /></span>
-      {ab?.icon && <span className="tcgb-unit-ab" title={`${ab.label}: ${abilityText(u.ability, u.value)}`}><Icon d={ab.icon} size={12} /></span>}
-      <span className="tcgb-unit-atk"><Icon d={UI.sword} size={11} />{u.atk}</span>
-      <span className={`tcgb-unit-hp${u.hp < u.maxHp ? ' is-hurt' : ''}`}><Icon d={UI.heart} size={11} fill />{u.hp}</span>
-      {u.level > 1 && <span className="tcgb-unit-lv">{u.level}</span>}
+      <span className="tcgb-unit-shadow" aria-hidden="true" />
+      <span className="tcgb-unit-body">
+        <span className="tcgb-unit-art"><CardArt card={u} /><span className="tcgb-unit-gloss" /></span>
+        {ab?.icon && <span className="tcgb-unit-ab" title={`${ab.label}: ${abilityText(u.ability, u.value)}`}><Icon d={ab.icon} size={12} /></span>}
+        <span className="tcgb-unit-atk"><b>{u.atk}</b></span>
+        <span className={`tcgb-unit-hp${u.hp < u.maxHp ? ' is-hurt' : ''}`}><b>{u.hp}</b></span>
+        {u.level > 1 && <span className="tcgb-unit-lv">{u.level}</span>}
+      </span>
     </button>
   );
 }
@@ -95,7 +98,7 @@ function EndTurnButton({ onClick, disabled, busy, myTurn, pulse, secondsLeft, to
   );
 }
 
-export default function Battle({ initial, onExit, onRematch, mode = 'play', frames = null }) {
+export default function Battle({ initial, onExit, onRematch, mode = 'play', frames = null, boards = [] }) {
   const { socket } = useSocket() || {};
   const readOnly = mode !== 'play';
   const [match, setMatch] = useState(initial);
@@ -118,11 +121,17 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
   const [frameIdx, setFrameIdx] = useState(0);
   const [playing, setPlaying] = useState(mode === 'replay');
   const [speed, setSpeed] = useState(1);
+  const [side, setSide] = useState(initial?.side || 0); // espectador: de que lado assiste
+  const [ticker, setTicker] = useState([]);
+  const nRef = useRef(initial?.n ?? null);
+  const sideRef = useRef(side);
+  sideRef.current = side;
   const boardRef = useRef(null);
   const busyRef = useRef(false);
   const matchRef = useRef(match);
   matchRef.current = match;
   const theme = useMemo(() => themeOf(initial?.id), [initial?.id]);
+  const board = useMemo(() => boards?.find((b) => b.id === (match?.boardId || initial?.boardId)) || { theme, name: BOARD_THEMES[theme]?.label, accent: BOARD_THEMES[theme]?.accent }, [boards, match?.boardId, initial?.boardId, theme]);
 
   const view = match?.view;
   const mySeat = view?.seat ?? 0;
@@ -249,15 +258,42 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
   const refresh = useCallback(async () => {
     if (busyRef.current) return;
     try {
-      const fresh = mode === 'watch' ? await cardsWatch(matchRef.current.id) : await cardsMatch(matchRef.current.id);
+      if (mode === 'watch') {
+        const fresh = await cardsWatch(matchRef.current.id, { lado: sideRef.current, ...(nRef.current !== null ? { n: nRef.current } : {}) });
+        const cur = matchRef.current;
+        const changed = fresh.version !== cur.version || fresh.status !== cur.status;
+        nRef.current = fresh.n;
+        if (changed && fresh.events?.length && fresh.side === sideRef.current) {
+          busyRef.current = true;
+          try { await playEvents(fresh.events); } finally { busyRef.current = false; }
+          setDying(new Set());
+          setTimeout(() => setEntering(new Set()), 900);
+        }
+        setMatch((m) => ({ ...m, ...fresh }));
+        return;
+      }
+      const fresh = await cardsMatch(matchRef.current.id);
       const cur = matchRef.current;
-      if (fresh.version !== cur.version || fresh.status !== cur.status) {
+      if (fresh.version !== cur.version || fresh.status !== cur.status || fresh.spectators !== cur.spectators) {
         const prevSeq = cur.view?.seq;
         setMatch((m) => ({ ...m, ...fresh }));
         if (mode === 'play' && fresh.view && fresh.view.active === fresh.view.seat && prevSeq !== fresh.view.seq && !fresh.view.over) { sfx('turn'); setBanner('Sua vez!'); setTimeout(() => setBanner(''), 1100); }
       }
     } catch { /* ignora */ }
-  }, [mode]);
+  }, [mode, playEvents]);
+  // Espectador: troca de lado (busca a visão do outro jogador na hora).
+  useEffect(() => {
+    if (mode !== 'watch') return undefined;
+    nRef.current = null;
+    refresh();
+    return undefined;
+  }, [side]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { if (mode === 'watch') cardsStopWatch(initial?.id); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Faixa com as últimas jogadas pra quem assiste.
+  useEffect(() => {
+    if (mode !== 'watch' || !view?.log?.length) return;
+    setTicker(view.log.slice(-3).reverse());
+  }, [mode, view?.log?.length]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!socket || match?.mode !== 'PVP' || mode !== 'play') return undefined;
     const on = (msg) => { if (msg?.id === matchRef.current.id) refresh(); };
@@ -267,11 +303,13 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
   useEffect(() => {
     if (mode === 'replay' || view?.over) return undefined;
     if (mode === 'play' && match?.mode !== 'PVP') return undefined;
+    let tick = 0;
     const t = setInterval(() => {
       setNow(Date.now());
+      tick += 1;
       if (mode === 'watch') { refresh(); return; }
-      if (!myTurn) refresh(); else if (match.turnDeadline && Date.now() > new Date(match.turnDeadline).getTime() + 2000) refresh();
-    }, mode === 'watch' ? 2000 : 1000);
+      if (!myTurn) refresh(); else if ((match.turnDeadline && Date.now() > new Date(match.turnDeadline).getTime() + 2000) || tick % 10 === 0) refresh();
+    }, mode === 'watch' ? 1800 : 1000);
     return () => clearInterval(t);
   }, [mode, match?.mode, match?.turnDeadline, view?.over, myTurn, refresh]);
 
@@ -344,10 +382,11 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
   const toggleAudio = () => setAudio(setSfxPrefs({ muted: !audio.muted }));
 
   return (
-    <div className={`tcgb theme-${theme}${cine ? ' is-cine' : ''}`} ref={boardRef}
+    <div className={`tcgb theme-${board.theme || theme}${cine ? ' is-cine' : ''}${readOnly ? ' is-readonly' : ''}`} ref={boardRef} style={{ '--accent': board.accent || '#8b6bff' }}
       onMouseMove={(e) => { if ((!selected && !spellSel) || !boardRef.current) return; const b = boardRef.current.getBoundingClientRect(); setPointer({ x: e.clientX - b.left, y: e.clientY - b.top }); }}
       onContextMenu={(e) => { if (selected || spellSel) { e.preventDefault(); setSelected(null); setSpellSel(null); } }}
     >
+      <BoardBackdrop board={board} />
       <div className="tcgb-top">
         <button type="button" className="tcg-btn ghost" onClick={() => onExit()}><Icon d={UI.back} /><span className="tcgb-lbl">Sair</span></button>
         <span className="tcgb-turn">
@@ -355,8 +394,18 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
           {mode === 'replay' && <b className="tcgb-live is-replay">REPLAY</b>}
           Turno {view.turn} · {mode === 'play' ? (myTurn ? <b>Sua vez</b> : view.over ? 'Fim de jogo' : `Vez de ${foe.name}`) : (view.over ? 'Fim de jogo' : `Vez de ${view.active === me.seat ? me.name : foe.name}`)}
         </span>
-        <span className="tcgb-arena-name">{THEME_LABEL[theme]}</span>
+        <span className="tcgb-arena-name">{board.name}</span>
         <span className="tcgb-spacer" />
+        {match.spectators > 0 && (
+          <span className="tcgb-eye" title={mode === 'watch' ? 'Pessoas assistindo' : 'Pessoas assistindo sua partida'}>
+            <Icon d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" size={15} />{match.spectators}
+          </span>
+        )}
+        {mode === 'watch' && (
+          <button type="button" className="tcg-btn ghost" onClick={() => setSide((x) => 1 - x)} title="Ver a partida do lado do outro jogador">
+            <Icon d={UI.swap} /><span className="tcgb-lbl">Trocar lado</span>
+          </button>
+        )}
         <button type="button" className="tcg-btn ghost" onClick={toggleAudio} aria-label={audio.muted ? 'Ativar som' : 'Silenciar'} title={audio.muted ? 'Ativar som' : 'Silenciar'}>
           <Icon d={audio.muted ? 'M11 5 6 9H3v6h3l5 4zM22 9l-6 6M16 9l6 6' : 'M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13'} />
         </button>
@@ -371,6 +420,7 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
             {Array.from({ length: Math.min(foe.handCount, 10) }, (_, i) => <CardBack key={i} small />)}
           </div>
         </div>
+        <div className="tcgb-mat">
         <div className="tcgb-board is-foe">
           {foe.board.map((u) => <Unit key={u.uid} u={u} targetable={targets.has(u.uid)} dying={dying.has(u.uid)} entering={entering.has(u.uid)} onClick={() => clickUnit(u, false)} onHover={setHover} />)}
           {!foe.board.length && <span className="tcgb-empty">Campo vazio</span>}
@@ -391,7 +441,17 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
               <select className="tcg-select" value={speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label="Velocidade"><option value={0.5}>0,5x</option><option value={1}>1x</option><option value={2}>2x</option><option value={4}>4x</option></select>
               <span className="tcg-dim">{frameIdx + 1}/{frames.length}</span>
             </div>
-          ) : <span className="tcg-dim">Assistindo em tempo real</span>}
+          ) : (
+            <div className="tcgb-watchbar">
+              <b className="tcgb-live">AO VIVO</b>
+              <span>{view.over ? 'Partida encerrada' : `Vez de ${view.active === me.seat ? me.name : foe.name}`}</span>
+              {match.watchers?.length > 0 && (
+                <span className="tcgb-watchers" title={match.watchers.map((w) => w.displayName).join(', ')}>
+                  {match.watchers.slice(0, 5).map((w) => <UserAvatar key={w.id} user={w} size={22} />)}
+                </span>
+              )}
+            </div>
+          )}
           <span className="tcgb-mid-line" />
         </div>
 
@@ -401,6 +461,7 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
         >
           {me.board.map((u) => <Unit key={u.uid} u={u} mine canAttack={myTurn && !spellSel && attackers.has(u.uid)} targetable={targets.has(u.uid)} selected={selected === u.uid} dying={dying.has(u.uid)} entering={entering.has(u.uid)} onClick={() => clickUnit(u, true)} onHover={setHover} />)}
           {!me.board.length && <span className="tcgb-empty">{myTurn ? 'Arraste ou clique numa carta da mão' : 'Campo'}</span>}
+        </div>
         </div>
         <div className="tcgb-side is-me">
           <Hero p={me} side="me" active={view.active === me.seat && !view.over} />
@@ -455,6 +516,26 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
           <h3>Registro</h3>
           <ol>{[...view.log].reverse().map((l, i) => <li key={i}><em>T{l.t}</em> {l.text}</li>)}</ol>
         </aside>
+      )}
+
+      {mode === 'watch' && ticker.length > 0 && !view.over && (
+        <ol className="tcgb-ticker" aria-live="polite">
+          {ticker.map((l, i) => <li key={`${l.t}-${i}-${l.text}`}><em>T{l.t}</em> {l.text}</li>)}
+        </ol>
+      )}
+
+      {view.over && mode === 'watch' && (
+        <div className="tcgb-end">
+          <div className="tcgb-end-box is-win">
+            <span className="tcgb-end-icon"><Icon d={UI.trophy} size={44} /></span>
+            <h2 data-no-translate>{view.winner === me.seat ? me.name : foe.name} venceu!</h2>
+            <p>{view.endReason === 'surrender' ? 'O oponente desistiu.' : view.endReason === 'timeout' ? 'Tempo de turno esgotado.' : 'O herói inimigo caiu.'}</p>
+            <div className="tcgb-end-actions">
+              <button type="button" className="tcg-btn primary" onClick={() => onExit({ replay: match.id })}>Ver replay</button>
+              <button type="button" className="tcg-btn" onClick={() => onExit()}>Voltar para a arena</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {view.over && mode === 'play' && (

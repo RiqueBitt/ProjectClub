@@ -2941,6 +2941,7 @@ model CardMatch {
   actions      String?   @db.LongText
   campaignStageId String?
   tournamentId String?
+  boardId String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   endedAt      DateTime?
@@ -3024,6 +3025,7 @@ model CardCampaignStage {
   deckCardIds  String?  @db.Text // JSON [cardId] (opcional; vazio = baralho gerado)
   rewardCoins  Int      @default(0)
   rewardCardId String?
+  boardId String?
   enabled      Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -3055,4 +3057,20 @@ model CardTournamentEntry {
 
   @@unique([tournamentId, userId])
   @@index([userId])
+}
+
+// Fundos (mesas) de batalha do Jogo de Cartas — editáveis pela staff.
+// Sem imagem, usa a cena ilustrada do tema base.
+model CardBoard {
+  id        String   @id @default(uuid())
+  name      String
+  theme     String   @default("floresta")
+  imageUrl  String?  @db.Text
+  dim       Int      @default(35)
+  accent    String   @default("#8b6bff")
+  weight    Int      @default(10)
+  active    Boolean  @default(true)
+  sort      Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

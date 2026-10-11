@@ -449,8 +449,8 @@ function viewFor(state, seat) {
 }
 
 // Visão de espectador / replay: as duas mãos ocultas, nenhuma ação.
-function spectatorView(state) {
-  const v = viewFor(state, 0);
+function spectatorView(state, seat = 0) {
+  const v = viewFor(state, seat === 1 ? 1 : 0);
   v.me.hand = undefined;
   v.legal = { playable: [], spellTargets: {}, attackers: [], targets: {}, canEndTurn: false };
   v.spectator = true;
