@@ -10,6 +10,7 @@ import PresenceDot from './PresenceDot.jsx';
 import NavIcon from './NavIcons.jsx';
 import { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
 import '../styles/nav.css';
+import { isFeatureEnabled } from '../utils/features';
 
 // Ctrl+K / Cmd+K quick-jump palette - search across every channel in the
 // server you're currently in, plus every DM/group conversation, and jump
@@ -40,9 +41,12 @@ const PAGES = [
   { path: '/search', label: 'Busca', keywords: 'procurar pesquisar' },
   { path: '/comunidade/eventos', label: 'Eventos', keywords: 'agenda calendário' },
   { path: '/comunidade/galeria', label: 'Galeria', keywords: 'fotos imagens mídia' },
-  { path: '/economia', label: 'Economia', keywords: 'moedas loja' },
-  { path: '/casas', label: 'Casas', keywords: 'casa' },
-  { path: '/figurinhas', label: 'Figurinhas', keywords: 'stickers álbum' },
+  { path: '/economia', label: 'Economia', keywords: 'moedas gemas carteira baú diário histórico' },
+  { path: '/missoes', label: 'Missões', keywords: 'missões tarefas diárias semanais recompensas' },
+  { path: '/loja', label: 'Loja', keywords: 'loja molduras efeitos comprar' },
+  // Casas/Figurinhas desligadas no código (utils/features.js).
+  ...(isFeatureEnabled('houses') ? [{ path: '/casas', label: 'Casas', keywords: 'casa' }] : []),
+  ...(isFeatureEnabled('stickers') ? [{ path: '/figurinhas', label: 'Figurinhas', keywords: 'stickers álbum' }] : []),
   { path: '/admin', label: 'Painel da staff', keywords: 'admin moderação', staff: true },
 ];
 

@@ -17,6 +17,21 @@ import '../styles/socialx.css';
 const ICON_BY_TYPE = { game: gameIcon, spotify: spotifyIcon, app: appIcon };
 const TITLE_BY_TYPE = { game: 'Jogando', spotify: 'Ouvindo Spotify', app: 'Usando' };
 
+// Ícone pequeno (traço) ao lado do título da caixa — mesmo estilo dos
+// ícones da plataforma, sem emoji.
+const GLYPH = {
+  game: 'M6 11h4M8 9v4M15 12h.01M18 10h.01M17.3 5H6.7a4 4 0 0 0-4 3.6L2 15a3 3 0 0 0 5.2 2l1.3-1.5h7l1.3 1.5A3 3 0 0 0 22 15l-.7-6.4a4 4 0 0 0-4-3.6Z',
+  spotify: 'M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
+  app: 'M3 5h18v12H3zM8 21h8M12 17v4',
+};
+function TitleGlyph({ type }) {
+  return (
+    <svg className="activity-badge-glyph" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={GLYPH[type] || GLYPH.game} />
+    </svg>
+  );
+}
+
 function formatElapsed(startedAt) {
   const mins = Math.max(0, Math.floor((Date.now() - startedAt) / 60000));
   if (mins < 1) return 'agora mesmo';
@@ -53,12 +68,12 @@ export default function ActivityBadge({ userId }) {
     // acha o arquivo certo) em vez do ícone pequeno.
     const steamAppId = activity.type === 'game' ? steamAppIdFromActivity(activity) : null;
     return (
-      <div className={`activity-badge${steamAppId ? ' has-capsule' : ''}`}>
+      <div className={`activity-badge activity-badge-${activity.type}${steamAppId ? ' has-capsule' : ''}`}>
         <div className={`activity-badge-icon${steamAppId ? ' is-capsule' : ''}`}>
           {steamAppId ? <img src={`/api/proxy/steam/${steamAppId}/header`} alt="" /> : activity.imageUrl ? <img src={activity.imageUrl} alt="" /> : <img src={ICON_BY_TYPE[activity.type]} alt="" className="activity-badge-icon-fallback" />}
         </div>
         <div className="activity-badge-text">
-          <div className="activity-badge-title">{TITLE_BY_TYPE[activity.type]}</div>
+          <div className="activity-badge-title"><TitleGlyph type={activity.type} />{TITLE_BY_TYPE[activity.type]}</div>
           <div className="activity-badge-name truncate">{activity.name}</div>
           <div className="activity-badge-detail">{formatElapsed(activity.startedAt)}</div>
         </div>
@@ -97,7 +112,7 @@ export default function ActivityBadge({ userId }) {
         {activity.imageUrl ? <img src={activity.imageUrl} alt="" /> : <img src={spotifyIcon} alt="" className="activity-badge-icon-fallback" />}
       </div>
       <div className="activity-badge-text">
-        <div className="activity-badge-title">Ouvindo Spotify</div>
+        <div className="activity-badge-title"><TitleGlyph type="spotify" />Ouvindo Spotify</div>
         <div className="activity-badge-name truncate">{activity.name}</div>
         {activity.detail && <div className="activity-badge-detail truncate">{activity.detail}</div>}
         {activity.durationMs > 0 && (

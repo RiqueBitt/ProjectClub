@@ -33,6 +33,7 @@ const communityRoutes = require('./routes/community');
 const economyRoutes = require('./routes/economy');
 const housesRoutes = require('./routes/houses');
 const stickersRoutes = require('./routes/stickers');
+const missionsRoutes = require('./routes/missions'); // missões diárias/semanais (Economia)
 const ticketsRoutes = require('./routes/tickets');
 const applicationsRoutes = require('./routes/applications');
 const uiEditorRoutes = require('./routes/uiEditor');
@@ -68,6 +69,7 @@ const imageProxyRoutes = require('./routes/imageProxy');
 const updatesRoutes = require('./routes/updates');
 const eventsRoutes = require('./routes/events');
 const activityRoutes = require('./routes/activity');
+const gamesLibraryRoutes = require('./routes/games'); // biblioteca de jogos (tempo de jogo)
 const decorationsRoutes = require('./routes/decorations');
 const youtubeRoutes = require('./routes/youtube');
 const clansRoutes = require('./routes/clans');
@@ -315,6 +317,7 @@ function createApp() {
   app.use('/api/economy', economyRoutes);
   app.use('/api/houses', housesRoutes);
   app.use('/api/stickers', stickersRoutes);
+  app.use('/api/missions', missionsRoutes);
   app.use('/api/tickets', ticketsRoutes);
   app.use('/api/applications', applicationsRoutes);
   app.use('/api/ui-layout', uiEditorRoutes);
@@ -346,6 +349,7 @@ function createApp() {
   app.use('/api/updates', updatesRoutes);
   app.use('/api/events', eventsRoutes);
   app.use('/api/activity', activityRoutes);
+  app.use('/api/games', gamesLibraryRoutes);
   app.use('/api/decorations', decorationsRoutes);
   app.use('/api/youtube', youtubeRoutes);
   app.use('/api/clans', clansRoutes);

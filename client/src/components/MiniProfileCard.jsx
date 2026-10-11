@@ -8,7 +8,6 @@ import { badgeHasImage } from '../utils/badgeRarity';
 import { renderRichContent } from '../utils/richTextRender.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import ActivityBadge from './ActivityBadge.jsx';
-import ActivityStatusLine from './ActivityStatusLine.jsx';
 import TagBadge from './TagBadge.jsx';
 import ClanTagBadge from './ClanTagBadge.jsx';
 import levelStarIcon from '../assets/icons/level-star.png';
@@ -375,8 +374,9 @@ export default function MiniProfileCard() {
                 <img className="ui-icon-sm" src={levelStarIcon} alt="" /> Nível {user.accountLevel ?? 1}
               </span>
             </div>
-            {/* "Jogando X" / "Ouvindo X" com a arte do jogo/capa */}
-            <ActivityStatusLine userId={renderedUserId} />
+            {/* Item pedido: a atividade aparecia DUAS vezes (linha curta
+                "Ouvindo X" + caixa grande). Fica só a caixa grande
+                (ActivityBadge, com capa/ícone e progresso), mais abaixo. */}
 
             {(badges.length > 0) && (
               <div className="mini-profile-badges-row">
@@ -392,18 +392,35 @@ export default function MiniProfileCard() {
                 perfil, deixar somente no perfil completo" — removido
                 daqui (ver UserProfileModal.jsx, que continua mostrando). */}
 
-            {visibleRoles.length > 0 && (
-              <div className="mini-profile-roles-row">
-                {visibleRoles.map((r) => (
-                  <span key={r.id} className="role-chip" style={roleChipStyle(r.color)}>
-                    {r.icon ? `${r.icon} ` : ''}{r.name}
-                  </span>
-                ))}
-                {memberRoles.length > visibleRoles.length && (
-                  <span className="role-chip mini-profile-roles-more">+{memberRoles.length - visibleRoles.length}</span>
-                )}
+            {/* Seções em blocos com rótulo (Sobre mim / Cargos / Atividade),
+                estilo popout do Discord. */}
+            {user.bio && (
+              <div className="mini-profile-section">
+                <div className="mini-profile-section-label">Sobre mim</div>
+                <div className="mini-profile-bio">{renderRichContent(user.bio, { emojiMap: bioEmojiMap })}</div>
               </div>
             )}
+
+            {visibleRoles.length > 0 && (
+              <div className="mini-profile-section">
+                <div className="mini-profile-section-label">Cargos</div>
+                <div className="mini-profile-roles-row">
+                  {visibleRoles.map((r) => (
+                    <span key={r.id} className="role-chip" style={roleChipStyle(r.color)}>
+                      {r.icon ? `${r.icon} ` : ''}{r.name}
+                    </span>
+                  ))}
+                  {memberRoles.length > visibleRoles.length && (
+                    <span className="role-chip mini-profile-roles-more">+{memberRoles.length - visibleRoles.length}</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* BUG CORRIGIDO ("Ver biografia completa fica embaixo da
+                atividade em vez de embaixo da biografia") — o
+                ActivityBadge continua DEPOIS da bio. */}
+            <ActivityBadge userId={renderedUserId} />
 
             {mutualFriends.length > 0 && (
               <div className="mini-profile-mutual-row dim">
@@ -417,15 +434,10 @@ export default function MiniProfileCard() {
             {/* BUG CORRIGIDO ("remova o texto 'há mais de 1 ano na
                 comunidade'") — removido. */}
 
-            {user.bio && <div className="mini-profile-bio">{renderRichContent(user.bio, { emojiMap: bioEmojiMap })}</div>}
-            {/* BUG CORRIGIDO ("Ver biografia completa fica embaixo da
-                atividade em vez de embaixo da biografia") — movido o
-                ActivityBadge pra DEPOIS desses dois, não antes. */}
-            <ActivityBadge userId={renderedUserId} />
             <button
               className="btn-primary"
               style={{
-                width: '100%', marginTop: 8,
+                width: '100%', marginTop: 12,
                 // Item pedido: "mudando a cor do botão ver perfil
                 // completo" — só sobrescreve quando a pessoa
                 // personalizou; senão fica com a cor de marca padrão

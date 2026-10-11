@@ -250,6 +250,7 @@ model User {
   shortcuts           UserShortcut[]
   connectedAccounts   ConnectedAccount[]
   registeredGames     RegisteredGame[]
+  gamePlaytimes       GamePlaytime[]
   securityLogs        SecurityLog[]
   // Item pedido: "um user só pode criar um clã" — restrição vitalícia
   // (diferente de clanId, que só impede estar em DOIS ao mesmo
@@ -2028,6 +2029,8 @@ model UserSettings {
   activityVisibility String @default("everyone") // "everyone" | "friends" | "friends_groups" | "none"
   gameJoinPrivacy   String  @default("friends")   // "none" | "friends" | "friends_groups" | "everyone"
   gameDetectionEnabled Boolean @default(true)
+  // Biblioteca de jogos (tempo de jogo): "everyone" | "friends" | "nobody" — dono e staff sempre veem.
+  gamesVisibility      String  @default("friends")
 
   // --- Overlay (só ".exe") ---
   overlayEnabled       Boolean @default(false)
@@ -2152,6 +2155,26 @@ model AppScreenshot {
   imageUrl        String
   order           Int           @default(0)
   createdAt       DateTime      @default(now())
+}
+
+// Biblioteca de jogos (estilo Steam): tempo total por jogo, somado a
+// partir da atividade que o app de desktop reporta (ver
+// services/gamePlaytime.js). gameKey = nome normalizado (slug).
+model GamePlaytime {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameKey        String
+  name           String
+  steamAppId     Int?
+  iconUrl        String?  @db.VarChar(500)
+  totalSeconds   Int      @default(0)
+  sessions       Int      @default(0)
+  firstPlayedAt  DateTime @default(now())
+  lastPlayedAt   DateTime @default(now())
+
+  @@unique([userId, gameKey])
+  @@index([userId, lastPlayedAt])
 }
 
 model RegisteredGame {
@@ -2599,4 +2622,58 @@ model UserProfileEffect {
 
   @@unique([userId, effectId])
   @@index([effectId])
+}
+
+// --- Missões diárias/semanais + histórico da economia (round 5) ---
+// Tabelas novas e independentes (sem relação com User pra não mexer no
+// model User). Período em America/Sao_Paulo: periodKey "D2026-10-10"
+// (diária) ou "W2026-10-05" (semanal, segunda-feira da semana).
+model Mission {
+  id          String   @id @default(uuid())
+  period      String   @default("DAILY") // DAILY | WEEKLY
+  type        String   // MESSAGES | REACTIONS | VOICE_MINUTES | FORUM_POSTS | FORUM_COMMENTS | SHOP_VISIT | DAILY_CHEST
+  title       String
+  description String?  @db.Text
+  target      Int      @default(1)
+  rewardCoins Int      @default(0)
+  rewardGems  Int      @default(0)
+  rewardXp    Int      @default(0)
+  enabled     Boolean  @default(true)
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  progress    UserMissionProgress[]
+
+  @@index([enabled, type])
+}
+
+model UserMissionProgress {
+  id          String    @id @default(uuid())
+  userId      String
+  missionId   String
+  mission     Mission   @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  periodKey   String
+  progress    Int       @default(0)
+  completedAt DateTime?
+  claimedAt   DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, missionId, periodKey])
+  @@index([userId, periodKey])
+  @@index([missionId])
+}
+
+// Histórico de moedas/gemas/XP (só o que acontece daqui pra frente —
+// baú diário, missões, compras na Loja, ajustes da staff, nível).
+model EconomyTransaction {
+  id        String   @id @default(uuid())
+  userId    String
+  kind      String   // DAILY | MISSION | SHOP | ADMIN | LEVEL
+  label     String
+  coins     Int      @default(0)
+  gems      Int      @default(0)
+  xp        Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }

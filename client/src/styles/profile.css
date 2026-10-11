@@ -411,3 +411,59 @@
   color: var(--pf-accent, var(--text-muted)); border-bottom: 1px solid var(--pf-card-border, var(--border));
 }
 .pf-onepage-section .pf-grid.single { max-width: none; }
+
+/* ============================================================
+   Rodada 5 — cabeçalho do perfil completo em "cartão herói":
+   banner em cima ocupando a largura toda, avatar sobrepondo a borda
+   do banner, nome/@/status/nível ao lado e a caixa de atividade
+   (única — sem a linha "Ouvindo X" repetida) à direita.
+   Seletores longos de propósito pra vencer global.css e
+   profile-banner.css (banner ao lado + --pf-banner-pull).
+   ============================================================ */
+.modal-overlay .modal-box.profile-modal-fullscreen .profile-top-row {
+  display: block; position: relative; margin: 16px 24px 0; max-width: 1180px;
+  border-radius: 20px; overflow: hidden;
+  background: var(--pf-card-bg); border: 1px solid var(--pf-card-border);
+}
+.modal-overlay .modal-box.profile-modal-fullscreen .profile-top-row .profile-banner {
+  display: block; width: 100%; flex: none; margin: 0; border-radius: 0;
+  aspect-ratio: auto; height: clamp(120px, 12vw, 190px);
+}
+.modal-overlay .modal-box.profile-modal-fullscreen .profile-top-row .profile-banner img {
+  -webkit-mask-image: none; mask-image: none;
+}
+.modal-overlay .modal-box.profile-modal-fullscreen .profile-top-row .profile-ig-header {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start;
+  gap: 4px 22px; margin: 0; padding: 0 24px 20px;
+}
+.modal-box.profile-modal-fullscreen .profile-top-row .avatar-wrap.large { margin-top: -64px; }
+.modal-box.profile-modal-fullscreen .profile-top-row .profile-ig-header-info { padding-top: 16px; min-width: 0; }
+.modal-box.profile-modal-fullscreen .profile-top-row .profile-username { margin-top: 2px; font-size: 14.5px; }
+.modal-box.profile-modal-fullscreen .profile-top-row .profile-custom-status-balloon { margin-top: 10px; }
+.modal-box.profile-modal-fullscreen .pfx-head-level { max-width: 420px; margin: 12px 0 0; }
+.pfx-head-activity { width: min(360px, 34vw); padding-top: 16px; }
+.pfx-head-activity:empty { display: none; }
+.modal-box.profile-modal-fullscreen .pfx-head-activity .activity-badge {
+  max-width: none; margin: 0; border-radius: 14px;
+  background: rgba(0, 0, 0, .34); border: 1px solid rgba(255, 255, 255, .09);
+}
+
+/* Corpo: respiro alinhado com o cartão herói */
+.modal-box.profile-modal-fullscreen .profile-modal-body { padding-top: 16px; }
+.pf-card { transition: border-color .15s ease; }
+.pf-card:hover { border-color: rgba(255, 255, 255, .16); }
+.pf-onepage-title { letter-spacing: .06em; }
+
+@media (max-width: 900px) {
+  .modal-overlay .modal-box.profile-modal-fullscreen .profile-top-row .profile-ig-header { grid-template-columns: auto minmax(0, 1fr); }
+  .pfx-head-activity { grid-column: 1 / -1; width: 100%; max-width: 520px; padding-top: 6px; }
+}
+@media (max-width: 720px) {
+  .modal-overlay .modal-box.profile-modal-fullscreen .profile-top-row { margin: 12px 12px 0; border-radius: 16px; }
+  .modal-overlay .modal-box.profile-modal-fullscreen .profile-top-row .profile-banner { height: 130px; }
+  .modal-overlay .modal-box.profile-modal-fullscreen .profile-top-row .profile-ig-header { grid-template-columns: minmax(0, 1fr); padding: 0 16px 16px; gap: 0; }
+  .modal-box.profile-modal-fullscreen .profile-top-row .avatar-wrap.large { margin-top: -60px; }
+  .modal-box.profile-modal-fullscreen .profile-top-row .profile-ig-header-info { padding-top: 8px; }
+  .pfx-head-activity { max-width: none; padding-top: 12px; }
+  .modal-box.profile-modal-fullscreen .profile-modal-body { padding-left: 12px; padding-right: 12px; }
+}

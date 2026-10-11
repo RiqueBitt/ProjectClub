@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useStore } from '../store/useStore';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
+import { isFeatureEnabled } from '../utils/features';
 import ChannelSidebar from './ChannelSidebar.jsx';
 import DMSidebar from './DMSidebar.jsx';
 
@@ -11,10 +12,10 @@ const ITEMS = [
   { to: '/dms', icon: '👥', label: 'Amigos', dropdown: 'friends' },
   { to: '/economia', icon: '💰', label: 'Economia' },
   { to: '/rank', icon: '🏆', label: 'Rank' },
-  { to: '/casas', icon: '🧊', label: 'Casas' },
-  { to: '/figurinhas', icon: '🧷', label: 'Figurinhas' },
+  { to: '/casas', icon: '🧊', label: 'Casas', feature: 'houses' },
+  { to: '/figurinhas', icon: '🧷', label: 'Figurinhas', feature: 'stickers' },
   { to: '/tickets', icon: '🎫', label: 'Tickets' },
-];
+].filter((i) => !i.feature || isFeatureEnabled(i.feature)); // Casas/Figurinhas desligadas no código
 
 // Menu único no topo do app — substitui a antiga AppRail (coluna vertical
 // fixa) + a antiga barra lateral fixa de canais/amigos. As seções que só

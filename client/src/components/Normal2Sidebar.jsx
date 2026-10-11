@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import ChannelSidebar from './ChannelSidebar.jsx';
-import { ITEMS, STAFF_ITEM } from './MainSidebar.jsx';
+import { ITEMS, STAFF_ITEM, visibleNavItems } from './MainSidebar.jsx';
 import { useFeaturedVisibility } from './FeaturedChannels.jsx';
 
 // Layout "Normal 2.0": uma coluna só à esquerda, no estilo Discord —
@@ -54,7 +54,9 @@ function N2Nav() {
   // O Feed agora é um canal em destaque no topo da lista de canais; o
   // botão do menu só volta se a staff esconder esse canal.
   const isFeaturedVisible = useFeaturedVisibility();
-  const baseItems = isFeaturedVisible('feed') ? N2_ITEMS.filter((i) => i.to !== '/comunidades') : N2_ITEMS;
+  const disabledSystems = useStore((s) => s.disabledSystems);
+  const shownItems = visibleNavItems(N2_ITEMS, disabledSystems, user);
+  const baseItems = isFeaturedVisible('feed') ? shownItems.filter((i) => i.to !== '/comunidades') : shownItems;
   const items = isStaff ? [...baseItems, STAFF_ITEM] : baseItems;
 
   return (

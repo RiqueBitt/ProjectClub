@@ -24,7 +24,8 @@ let lastSentAt = 0;
 function changed(prev, next) {
   if (!prev || !next) return prev !== next;
   if (prev.type !== next.type || prev.name !== next.name || prev.detail !== next.detail
-    || prev.imageUrl !== next.imageUrl || prev.durationMs !== next.durationMs) return true;
+    || prev.imageUrl !== next.imageUrl || prev.durationMs !== next.durationMs
+    || (prev.playingGame?.name || null) !== (next.playingGame?.name || null)) return true;
   if (next.type !== 'spotify' || !Number.isFinite(prev.progressMs) || !Number.isFinite(next.progressMs)) return false;
   // Pausou/pulou/voltou a música: o progresso não bate com o tempo passado.
   return Math.abs(next.progressMs - (prev.progressMs + (next.startedAt - prev.startedAt))) >= 2500;

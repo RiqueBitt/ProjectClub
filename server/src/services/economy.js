@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { recordTransaction } = require('./economyLedger');
 const { MEGA_CHEST_STREAK_REQUIRED, MEGA_CHEST_GEMS_MIN, MEGA_CHEST_GEMS_MAX } = require('../data/chestsCatalog');
 
 const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
@@ -61,6 +62,9 @@ async function claimDaily(userId) {
     },
     select: { coins: true, gems: true, dailyStreak: true },
   });
+
+  recordTransaction(userId, { kind: 'DAILY', label: `Baú diário: ${chest.name}`, coins });
+  if (megaAwarded) recordTransaction(userId, { kind: 'DAILY', label: 'Mega Baú (sequência completa)', gems: earnedMegaGems });
 
   return {
     chestName: chest.name, chestImageClosed: chest.imageClosed, chestImageOpened: chest.imageOpened,

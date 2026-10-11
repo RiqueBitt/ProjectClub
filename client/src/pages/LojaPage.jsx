@@ -5,6 +5,7 @@ import { Ico } from '../components/PagesKit.jsx';
 import { MockProfile, decoValue, effectValue } from '../components/shop/ShopPreviews.jsx';
 import { getShop, buyDecoration, equipDecoration, buyEffect, equipEffect, buyCollection } from '../api/decorations';
 import { useLiveRefresh } from '../utils/liveRefresh';
+import { trackMissionEvent } from '../api/endpoints';
 import { proxyImage } from '../utils/imageProxy';
 import '../styles/shop.css';
 
@@ -47,6 +48,8 @@ export default function LojaPage() {
     } catch (e) { if (!ctx) setNotice({ bad: true, text: errMsg(e) }); }
   }, []);
   useEffect(() => { load(); }, [load]);
+  // Missão "Visite a Loja" (Economia) — avisa o servidor uma vez por abertura.
+  useEffect(() => { trackMissionEvent('SHOP_VISIT').catch(() => {}); }, []);
   useLiveRefresh(load, { key: 'loja' });
 
   const flash = (text, bad = false) => { setNotice({ text, bad }); setTimeout(() => setNotice(null), 3500); };

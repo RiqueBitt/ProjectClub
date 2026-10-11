@@ -261,7 +261,7 @@ let timer = null;
 
 function activityKey(activity) {
   if (!activity) return 'none';
-  return `${activity.type}:${activity.name}:${activity.detail || ''}`;
+  return `${activity.type}:${activity.name}:${activity.detail || ''}:${activity.playingGame?.name || ''}`;
 }
 
 function startActivityDetection(onChange) {
@@ -307,6 +307,11 @@ function startActivityDetection(onChange) {
         } else if (game) {
           activity = { type: 'game', name: game.name, imageUrl: game.imageUrl || undefined, startedAt: Date.now() };
         }
+      }
+      // Biblioteca de jogos: se o que aparece é música/app mas tem jogo
+      // rodando por trás, avisa o jogo também (só pro tempo de jogo).
+      if (activity && activity.type !== 'game' && game) {
+        activity.playingGame = { name: game.name, imageUrl: game.imageUrl || undefined };
       }
       const key = activityKey(activity);
       if (key !== lastSentKey || (activity && activity.type === 'spotify')) {

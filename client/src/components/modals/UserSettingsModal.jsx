@@ -114,9 +114,46 @@ const TAB_GROUPS = [
   { label: 'Conta', tabs: ['ACCOUNT', 'SECURITY', 'ACCOUNT_STATUS'] },
   { label: 'Dados e privacidade', tabs: ['PRIVACY'] },
   { label: 'Notificações', tabs: ['NOTIFICATIONS'] },
-  { label: 'EXPERIÊNCIA', tabs: ['VOICE', 'APPEARANCE', 'ACCESSIBILITY', 'SYSTEM', 'LANGUAGE'] },
-  { label: 'JOGOS E APPS', tabs: ['GAMES'] },
+  { label: 'Experiência', tabs: ['VOICE', 'APPEARANCE', 'ACCESSIBILITY', 'SYSTEM', 'LANGUAGE'] },
+  { label: 'Jogos e apps', tabs: ['GAMES'] },
 ];
+
+// Busca de configurações: palavras que levam a cada aba (sem acento,
+// minúsculas). O nome da própria aba também conta.
+const TAB_KEYWORDS = {
+  PROFILE: 'perfil avatar foto banner bio biografia nome exibicao cor pronomes status miniperfil mini perfil pingente fonte efeito botao bolha tag clube',
+  PROFILE_CONTENT: 'conteudo enquete enquetes album fotos conquistas destaque',
+  COLUMNS: 'colunas secoes ordem organizar perfil',
+  ACCOUNT: 'conta email e-mail nome de usuario username desativar excluir apagar',
+  SECURITY: 'seguranca senha trocar senha 2fa dois fatores autenticacao sessoes dispositivos pedidos de amizade amigos',
+  ACCOUNT_STATUS: 'status da conta punicoes avisos advertencias banimento',
+  PRIVACY: 'privacidade dados mensagens dm direta filtro conteudo jogos quem pode ver atividade jogando ouvindo spotify',
+  NOTIFICATIONS: 'notificacoes avisos sons som email alertas',
+  VOICE: 'voz video audio microfone saida fone alto-falante teste',
+  APPEARANCE: 'aparencia tema layout zoom emoji fundo cores interface',
+  ACCESSIBILITY: 'acessibilidade movimento reduzido contraste fonte tamanho leitura',
+  SYSTEM: 'sistema atalhos teclado inicializacao bandeja iniciar com o windows',
+  LANGUAGE: 'idioma lingua horario hora data formato',
+  GAMES: 'jogos apps deteccao atividade overlay sobreposicao compartilhar registrados',
+};
+// Uma linha explicando cada aba (topo da página de conteúdo).
+const TAB_DESCRIPTION = {
+  PROFILE: 'Foto, banner, nome, cores e o seu miniperfil.',
+  PROFILE_CONTENT: 'Enquetes, álbum de fotos e conquistas em destaque.',
+  COLUMNS: 'Escolha a ordem das seções do seu perfil.',
+  ACCOUNT: 'Nome de usuário, e-mail e opções da conta.',
+  SECURITY: 'Senha, verificação em duas etapas e sessões abertas.',
+  ACCOUNT_STATUS: 'Situação da sua conta e avisos recebidos.',
+  PRIVACY: 'Quem pode ver seu perfil, seus jogos e falar com você.',
+  NOTIFICATIONS: 'Quando e como o Project Club te avisa.',
+  VOICE: 'Microfone, saída de áudio e teste de voz.',
+  APPEARANCE: 'Tema, layout, zoom e estilo dos emojis.',
+  ACCESSIBILITY: 'Movimento, contraste e leitura confortável.',
+  SYSTEM: 'Atalhos e comportamento do aplicativo.',
+  LANGUAGE: 'Idioma e formato de data e hora.',
+  GAMES: 'Detecção de jogos, atividade e sobreposição.',
+};
+const normalizeSearch = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
 export default function UserSettingsModal({ onClose }) {
   const { t: translate } = useTranslation();
@@ -132,6 +169,8 @@ export default function UserSettingsModal({ onClose }) {
   // guard equivalente em server/src/controllers/userController.js).
   const profileColorEditEnabled = !disabledSystems.includes('cores_perfil');
   const [tab, setTab] = useState('PROFILE');
+  // Busca de configurações (filtra as abas da barra lateral)
+  const [settingsQuery, setSettingsQuery] = useState('');
   // Item pedido: verificar todos os sistemas de Configurações e afins —
   // diagnóstico de instalações duplicadas do app desktop. Só busca de
   // verdade quando existe (window.electronAPI), então continua vazio
@@ -821,17 +860,47 @@ export default function UserSettingsModal({ onClose }) {
               <div className="settings-modal-sidebar-header-edit">Editar perfil</div>
             </div>
           </button>
-          {TAB_GROUPS.map((group) => (
-            <div key={group.label} className="settings-modal-sidebar-group">
-              <div className="settings-modal-sidebar-group-label">{group.label}</div>
-              {group.tabs.map((t) => (
-                <button key={t} className={`settings-modal-sidebar-item ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-                  <span className="settings-modal-sidebar-icon">{iconFor(t)}</span>
-                  {labelFor(t, translate)}
-                </button>
-              ))}
-            </div>
-          ))}
+          {(() => {
+            // Busca: cada palavra digitada precisa aparecer no nome da aba,
+            // no nome do grupo ou nas palavras-chave dela.
+            const words = normalizeSearch(settingsQuery).split(/\s+/).filter(Boolean);
+            const matches = (group, t) => !words.length || words.every((w) => normalizeSearch(`${labelFor(t, translate)} ${group.label} ${TAB_KEYWORDS[t] || ''}`).includes(w));
+            const groups = TAB_GROUPS.map((g) => ({ ...g, shown: g.tabs.filter((t) => matches(g, t)) })).filter((g) => g.shown.length > 0);
+            const first = groups[0]?.shown[0];
+            return (
+              <>
+                <div className="settings-search" role="search">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                  <input
+                    type="search" value={settingsQuery} placeholder="Buscar configuração"
+                    aria-label="Buscar configuração"
+                    onChange={(e) => setSettingsQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && first) { setTab(first); }
+                      if (e.key === 'Escape' && settingsQuery) { e.stopPropagation(); setSettingsQuery(''); }
+                    }}
+                  />
+                  {settingsQuery && (
+                    <button type="button" className="settings-search-clear" aria-label="Limpar busca" onClick={() => setSettingsQuery('')}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+                    </button>
+                  )}
+                </div>
+                {groups.length === 0 && <div className="settings-search-empty">Nenhuma configuração encontrada.</div>}
+                {groups.map((group) => (
+                  <div key={group.label} className="settings-modal-sidebar-group">
+                    <div className="settings-modal-sidebar-group-label">{group.label}</div>
+                    {group.shown.map((t) => (
+                      <button key={t} className={`settings-modal-sidebar-item ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
+                        <span className="settings-modal-sidebar-icon">{iconFor(t)}</span>
+                        {labelFor(t, translate)}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </>
+            );
+          })()}
           <div className="settings-modal-sidebar-divider" />
           <button className="settings-modal-sidebar-item settings-modal-logout" onClick={doLogout}>
             {/* Item pedido: "troque o emoji/ícone de porta... mantenha
@@ -848,6 +917,14 @@ export default function UserSettingsModal({ onClose }) {
         </div>
         <div className="settings-modal-content" key={tab}>
       {DialogElement}
+      {/* Cabeçalho da página atual (ícone + nome + uma linha de ajuda) */}
+      <div className="settings-page-head">
+        <span className="settings-page-head-icon">{iconFor(tab)}</span>
+        <div className="settings-page-head-text">
+          <h2>{labelFor(tab, translate)}</h2>
+          {TAB_DESCRIPTION[tab] && <p>{TAB_DESCRIPTION[tab]}</p>}
+        </div>
+      </div>
 
       {tab === 'PROFILE' && (
         <div className="settings-grid">
@@ -1783,6 +1860,47 @@ export default function UserSettingsModal({ onClose }) {
                   ))}
                 </div>
               </div>
+              {/* Rodada 5: jogos e atividade também na privacidade.
+                  gamesVisibility (everyone|friends|nobody) é validado no
+                  servidor (settingsController.js); activitySharing é o
+                  MESMO campo do toggle da aba Jogos e apps. */}
+              <div className="settings-block">
+                <h4>Quem pode ver meus jogos</h4>
+                <p className="dim">Controla quem vê a sua lista de jogos e estatísticas de jogo no perfil.</p>
+                <div className="chip-choice-row settings-segmented" role="radiogroup" aria-label="Quem pode ver meus jogos">
+                  {[['everyone', 'Todos'], ['friends', 'Amigos'], ['nobody', 'Ninguém']].map(([value, label]) => (
+                    <button
+                      key={value} type="button" role="radio"
+                      aria-checked={(userSettings.gamesVisibility || 'friends') === value}
+                      className={`chip-choice ${(userSettings.gamesVisibility || 'friends') === value ? 'active' : ''}`}
+                      onClick={() => updateUserSetting('gamesVisibility', value)}
+                    >{label}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="settings-block settings-toggle-row">
+                <div>
+                  <h4>Mostrar o que estou jogando/ouvindo</h4>
+                  <p className="dim">Mostra pros outros o jogo, app ou música do Spotify que o aplicativo detectar.</p>
+                </div>
+                <button
+                  type="button" role="switch" aria-checked={!!userSettings.activitySharing}
+                  aria-label="Mostrar o que estou jogando/ouvindo"
+                  className={`toggle-switch ${userSettings.activitySharing ? 'on' : ''}`}
+                  onClick={() => updateUserSetting('activitySharing', !userSettings.activitySharing)}
+                />
+              </div>
+              {userSettings.activitySharing && (
+                <div className="settings-block">
+                  <h4>Quem pode ver minha atividade</h4>
+                  <select value={userSettings.activityVisibility} onChange={(e) => updateUserSetting('activityVisibility', e.target.value)}>
+                    <option value="everyone">Todos permitidos</option>
+                    <option value="friends">Somente amigos</option>
+                    <option value="friends_groups">Pessoas dos mesmos grupos</option>
+                    <option value="none">Ninguém</option>
+                  </select>
+                </div>
+              )}
               {/* BUG CORRIGIDO ("botão que não muda nada de verdade"):
                   havia um controle "Filtro de spam" aqui, ligado a
                   spamFilterEnabled — mas em nenhum lugar do backend

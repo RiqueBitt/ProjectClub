@@ -55,6 +55,7 @@ async function buy(req, res, next) {
       if (e.status) return res.status(e.status).json({ error: e.message });
       throw e;
     }
+    require('../services/economyLedger').recordTransaction(userId, { kind: 'SHOP', label: `Loja: moldura ${deco.name || ''}`.trim(), [currency]: -price });
     const me = await prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true } });
     res.json({ ok: true, ...me });
   } catch (err) { next(err); }

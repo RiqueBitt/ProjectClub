@@ -3,8 +3,11 @@ const ctrl = require('../controllers/stickersController');
 const { requireAuth } = require('../middleware/auth');
 const { requirePlatformAdmin } = require('../middleware/platformAdmin');
 const { requireSystemEnabled } = require('../middleware/systemToggle');
+const { requireFeature } = require('../config/features');
 
 const router = express.Router();
+// Álbum/cápsulas desligados no código (config/features.js) — 404 antes de tudo.
+router.use(requireFeature('stickers'));
 router.use(requireAuth);
 router.use(requireSystemEnabled('figurinhas'));
 

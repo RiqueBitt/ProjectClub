@@ -1,56 +1,146 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getMyEconomy, claimDaily, listChests } from '../api/endpoints';
+import { getMyEconomy, claimDaily, listChests, listMissions, claimMission, getEconomyHistory } from '../api/endpoints';
 import { useSocket } from '../context/SocketContext.jsx';
-import { Ico, PageHero, Skeleton, Toast, Unavailable } from '../components/PagesKit.jsx';
+import { EmptyState, Ico, PageHero, PillTabs, Skeleton, Toast, Unavailable } from '../components/PagesKit.jsx';
 import '../styles/economy.css';
 import { useLiveRefresh } from '../utils/liveRefresh';
 
 function fmt(n) { return Math.floor(Number(n) || 0).toLocaleString('pt-BR'); }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const STREAK_GOAL = 5;
+const DEFAULT_STREAK_GOAL = 5;
 
-// "Volta em 5h 12min" — só texto, calculado da última coleta.
-function timeLeft(lastDailyAt) {
-  const ms = new Date(lastDailyAt).getTime() + DAY_MS - Date.now();
-  if (ms <= 0) return null;
-  const h = Math.floor(ms / 3600000);
+// "5h 12min" / "2d 4h" — contagem regressiva até um instante.
+function untilText(target, now = Date.now()) {
+  const ms = new Date(target).getTime() - now;
+  if (!(ms > 0)) return null;
+  const d = Math.floor(ms / DAY_MS);
+  const h = Math.floor((ms % DAY_MS) / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
-  return h > 0 ? `${h}h ${m}min` : `${m}min`;
+  if (d > 0) return `${d}d ${h}h`;
+  return h > 0 ? `${h}h ${m}min` : `${Math.max(1, m)}min`;
 }
 
-export default function EconomyPage() {
+// Ícone de cada tipo de missão (traço, sem emoji).
+const MISSION_ICON = {
+  MESSAGES: 'chat', REACTIONS: 'heart', VOICE_MINUTES: 'volume', FORUM_POSTS: 'news',
+  FORUM_COMMENTS: 'pen', SHOP_VISIT: 'store', DAILY_CHEST: 'chest',
+};
+const HISTORY_ICON = { DAILY: 'chest', MISSION: 'bolt', SHOP: 'store', ADMIN: 'shield', LEVEL: 'trophy' };
+
+function RewardChips({ m }) {
+  return (
+    <span className="eco-rewards">
+      {m.rewardCoins > 0 && <span className="eco-reward coins"><Ico name="coin" size={13} strokeWidth={2} />{fmt(m.rewardCoins)}</span>}
+      {m.rewardGems > 0 && <span className="eco-reward gems"><Ico name="gem" size={13} strokeWidth={2} />{fmt(m.rewardGems)}</span>}
+      {m.rewardXp > 0 && <span className="eco-reward xp"><Ico name="star" size={13} strokeWidth={2} />{fmt(m.rewardXp)} XP</span>}
+    </span>
+  );
+}
+
+function MissionCard({ m, onClaim, busy, compact }) {
+  const pct = m.target > 0 ? Math.min(100, Math.round((m.progress / m.target) * 100)) : 0;
+  const state = m.claimed ? 'claimed' : m.completed ? 'ready' : 'open';
+  return (
+    <div className={`eco-mission ${state}${compact ? ' compact' : ''}`}>
+      <span className="eco-mission-icon"><Ico name={m.claimed ? 'check' : (MISSION_ICON[m.type] || 'bolt')} size={compact ? 18 : 20} strokeWidth={m.claimed ? 2.4 : 1.8} /></span>
+      <div className="eco-mission-body">
+        <div className="eco-mission-top">
+          <strong className="truncate">{m.title}</strong>
+          <RewardChips m={m} />
+        </div>
+        {!compact && m.description && <p>{m.description}</p>}
+        <div className="eco-mission-progress">
+          <div
+            className="eco-bar" role="progressbar" aria-valuemin={0} aria-valuemax={m.target} aria-valuenow={m.progress}
+            aria-label={`${m.title}: ${m.progress} de ${m.target}`}
+          >
+            <span style={{ width: `${pct}%` }} />
+          </div>
+          <small>{fmt(m.progress)}/{fmt(m.target)}{m.unit ? ` ${m.unit}` : ''}</small>
+        </div>
+      </div>
+      {state === 'ready' && (
+        <button type="button" className="pk-btn primary eco-mission-claim" disabled={busy} onClick={() => onClaim(m)}>
+          <Ico name="gift" size={16} /> {busy ? '...' : 'Resgatar'}
+        </button>
+      )}
+      {state === 'claimed' && <span className="eco-mission-done">Resgatada</span>}
+    </div>
+  );
+}
+
+// Hub da Economia: saldo, baú diário, missões, histórico e atalhos.
+export default function EconomyPage({ initialTab = 'geral' }) {
   const { socket } = useSocket();
+  const [tab, setTab] = useState(initialTab);
   const [eco, setEco] = useState(null);
   const [chests, setChests] = useState([]);
-  const [wonChest, setWonChest] = useState(null); // { name, imageOpened } — última recompensa, pra mostrar o PNG do baú
+  const [missionData, setMissionData] = useState(null); // { missions, resets }
+  const [history, setHistory] = useState(null); // { transactions, hasMore }
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [wonChest, setWonChest] = useState(null); // última recompensa, pra mostrar o PNG do baú
   const [notice, setNotice] = useState(null);
   const [unavailable, setUnavailable] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  const [claimingId, setClaimingId] = useState(null);
+  const [now, setNow] = useState(() => Date.now());
 
-  const refresh = () => getMyEconomy().then(setEco).catch((err) => {
+  useEffect(() => { setTab(initialTab); }, [initialTab]);
+
+  const refresh = useCallback(() => getMyEconomy().then(setEco).catch((err) => {
     if (err?.response?.status === 503) setUnavailable(true);
-  });
-  const refreshChests = () => listChests().then((d) => setChests(d.chests)).catch(() => {});
+  }), []);
+  const refreshChests = useCallback(() => listChests().then((d) => setChests(d.chests)).catch(() => {}), []);
+  const refreshMissions = useCallback(() => listMissions().then(setMissionData).catch(() => {}), []);
+  const refreshHistory = useCallback(() => getEconomyHistory({ limit: 30 }).then(setHistory).catch(() => setHistory((h) => h || { transactions: [], hasMore: false })), []);
+
   useEffect(() => {
     refresh();
     refreshChests();
+    refreshMissions();
+  }, [refresh, refreshChests, refreshMissions]);
+  useEffect(() => { if (tab === 'historico') refreshHistory(); }, [tab, refreshHistory]);
+
+  // Relógio das contagens regressivas (baú e reset das missões).
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
   }, []);
 
-  // Staff edita um baú (imagem, chances, moedas...) e a galeria daqui
-  // atualiza sozinha, sem precisar recarregar a página.
+  // Staff edita baús/missões e a tela atualiza sozinha; o progresso das
+  // missões chega ao vivo pelo socket (mensagem, reação, call...).
   useEffect(() => {
     if (!socket) return undefined;
+    const onProgress = (p) => {
+      setMissionData((cur) => {
+        if (!cur) return cur;
+        let changed = false;
+        const missions = cur.missions.map((m) => {
+          if (m.id !== p.missionId) return m;
+          changed = true;
+          return { ...m, progress: Math.max(m.progress, p.progress), completed: m.completed || !!p.completed };
+        });
+        return changed ? { ...cur, missions } : cur;
+      });
+    };
     socket.on('chests:update', refreshChests);
-    return () => socket.off('chests:update', refreshChests);
-  }, [socket]);
+    socket.on('missions:update', refreshMissions);
+    socket.on('missions:progress', onProgress);
+    return () => {
+      socket.off('chests:update', refreshChests);
+      socket.off('missions:update', refreshMissions);
+      socket.off('missions:progress', onProgress);
+    };
+  }, [socket, refreshChests, refreshMissions]);
 
-  // Tempo real (11s): saldo/sequência e baús, em silêncio.
+  // Tempo real: saldo, baús e missões, em silêncio.
   useLiveRefresh(async ({ put }) => {
     await Promise.allSettled([
       getMyEconomy().then(put(setEco)),
       listChests().then((d) => put(setChests)(d.chests)),
+      listMissions().then(put(setMissionData)),
     ]);
   }, { enabled: !unavailable });
 
@@ -66,9 +156,17 @@ export default function EconomyPage() {
     );
   }
 
-  const canClaim = !eco.lastDailyAt || (Date.now() - new Date(eco.lastDailyAt).getTime()) >= DAY_MS;
-  const streak = Math.min(Number(eco.dailyStreak) || 0, STREAK_GOAL);
+  const goal = Number(eco.streakRequired) || DEFAULT_STREAK_GOAL;
+  const nextDailyAt = eco.nextDailyAt || (eco.lastDailyAt ? new Date(new Date(eco.lastDailyAt).getTime() + DAY_MS) : null);
+  const canClaim = !nextDailyAt || new Date(nextDailyAt).getTime() <= now;
+  const streak = Math.min(Number(eco.dailyStreak) || 0, goal);
+  const daysToMega = Math.max(0, goal - streak);
   const gallery = chests.filter((c) => c.imageClosed);
+  const missions = missionData?.missions || [];
+  const daily = missions.filter((m) => m.period === 'DAILY');
+  const weekly = missions.filter((m) => m.period === 'WEEKLY');
+  const readyCount = missions.filter((m) => m.completed && !m.claimed).length;
+  const doneToday = daily.filter((m) => m.claimed).length;
 
   const claim = async () => {
     setClaiming(true);
@@ -78,7 +176,9 @@ export default function EconomyPage() {
         name: r.chestName, imageOpened: r.chestImageOpened,
         coins: r.coins, tickets: r.tickets, megaAwarded: r.megaAwarded, megaGems: r.megaGems,
       });
+      if (!r.chestImageOpened) pushNotice(`Baú ${r.chestName}: +${fmt(r.coins)} moedas${r.megaAwarded ? ` e +${r.megaGems} gemas` : ''}!`);
       refresh();
+      refreshMissions();
     } catch (err) {
       pushNotice(err.response?.data?.error || 'Não foi possível resgatar.');
     } finally {
@@ -86,12 +186,57 @@ export default function EconomyPage() {
     }
   };
 
+  const claimOne = async (m) => {
+    setClaimingId(m.id);
+    try {
+      const r = await claimMission(m.id);
+      setMissionData((cur) => cur && { ...cur, missions: cur.missions.map((x) => (x.id === m.id ? { ...x, claimed: true } : x)) });
+      if (r.balance) setEco((e) => e && { ...e, coins: r.balance.coins, gems: r.balance.gems, accountLevel: r.balance.accountLevel, accountXp: r.balance.accountXp });
+      const parts = [];
+      if (r.reward?.coins) parts.push(`+${fmt(r.reward.coins)} moedas`);
+      if (r.reward?.gems) parts.push(`+${fmt(r.reward.gems)} gemas`);
+      if (r.reward?.xp) parts.push(`+${fmt(r.reward.xp)} XP`);
+      pushNotice(`${m.title}: ${parts.join(', ') || 'resgatada'}${r.levelUp ? ` · Nível ${r.levelUp.newLevel}!` : ''}`);
+      if (tab === 'historico') refreshHistory();
+    } catch (err) {
+      pushNotice(err.response?.data?.error || 'Não foi possível resgatar a missão.');
+      refreshMissions();
+    } finally {
+      setClaimingId(null);
+    }
+  };
+
+  const loadMoreHistory = async () => {
+    const list = history?.transactions || [];
+    if (!list.length) return;
+    setLoadingMore(true);
+    try {
+      const d = await getEconomyHistory({ limit: 30, before: list[list.length - 1].createdAt });
+      setHistory({ transactions: [...list, ...d.transactions], hasMore: d.hasMore });
+    } catch { /* tenta de novo no próximo clique */ } finally { setLoadingMore(false); }
+  };
+
+  const tabs = [
+    { id: 'geral', label: 'Visão geral', icon: 'grid' },
+    { id: 'missoes', label: 'Missões', icon: 'bolt', count: readyCount },
+    { id: 'historico', label: 'Histórico', icon: 'clock' },
+  ];
+
+  const resetDaily = missionData?.resets?.daily ? untilText(missionData.resets.daily, now) : null;
+  const resetWeekly = missionData?.resets?.weekly ? untilText(missionData.resets.weekly, now) : null;
+
+  const missionList = (list, emptyText) => (list.length > 0 ? (
+    <div className="eco-mission-list">
+      {list.map((m) => <MissionCard key={m.id} m={m} onClaim={claimOne} busy={claimingId === m.id} />)}
+    </div>
+  ) : <EmptyState compact icon="bolt" title="Nenhuma missão" text={emptyText} />);
+
   return (
     <div className="pk-page eco">
       <div className="pk-inner">
         <PageHero
           icon="coin" eyebrow="Sua carteira" title="Economia"
-          desc="Ganhe moedas todo dia e gaste em casas, móveis e figurinhas. Gemas vêm das sequências completas."
+          desc="Ganhe moedas com o baú diário e as missões, e gaste na Loja. Gemas vêm das sequências completas e das missões semanais."
           aside={(
             <div className="eco-balances">
               <div className="eco-balance coins">
@@ -106,80 +251,161 @@ export default function EconomyPage() {
           )}
         />
 
-        <div className="eco-layout">
-          <section className="pk-card eco-daily">
-            <div className="eco-daily-head">
-              <span className="eco-daily-badge"><Ico name="gift" size={24} /></span>
-              <div>
-                <h2>Recompensa diária</h2>
-                <p className="pk-muted">Resgate uma vez por dia. Mantenha a sequência por 5 dias seguidos para ganhar um Mega Baú de gemas.</p>
-              </div>
-            </div>
+        <PillTabs tabs={tabs} value={tab} onChange={setTab} label="Seções da Economia" className="eco-tabs" />
 
-            <div className="eco-streak" aria-label={`Sequência atual: ${eco.dailyStreak} de ${STREAK_GOAL} dias`}>
-              <div className="eco-streak-top">
-                <span><Ico name="flame" size={16} /> Sequência atual</span>
-                <strong>{eco.dailyStreak}/{STREAK_GOAL} dias</strong>
-              </div>
-              <ol className="eco-streak-days">
-                {Array.from({ length: STREAK_GOAL }).map((_, i) => {
-                  const done = i < streak;
-                  const isMega = i === STREAK_GOAL - 1;
-                  return (
-                    <li key={i} className={`${done ? 'done' : ''} ${isMega ? 'mega' : ''} ${i === streak && canClaim ? 'next' : ''}`}>
-                      <span className="eco-streak-node">
-                        {done ? <Ico name="check" size={16} strokeWidth={2.4} /> : isMega ? <Ico name="gem" size={16} /> : i + 1}
-                      </span>
-                      <small>{isMega ? 'Mega Baú' : `Dia ${i + 1}`}</small>
-                    </li>
-                  );
-                })}
-              </ol>
-            </div>
-
-            <div className="eco-claim">
-              <button className="pk-btn primary lg eco-claim-btn" disabled={!canClaim || claiming} onClick={claim}>
-                <Ico name={canClaim ? 'chest' : 'check'} size={19} />
-                {claiming ? 'Abrindo...' : canClaim ? 'Resgatar baú diário' : 'Já resgatado hoje'}
-              </button>
-              {!canClaim && eco.lastDailyAt && timeLeft(eco.lastDailyAt) && (
-                <span className="eco-claim-wait"><Ico name="clock" size={15} /> Próximo baú em {timeLeft(eco.lastDailyAt)}</span>
-              )}
-            </div>
-          </section>
-
-          <section className="pk-card eco-chests">
-            <h2 className="pk-section-title"><Ico name="chest" /> Baús possíveis <small>{gallery.length > 0 ? `· ${gallery.length}` : ''}</small></h2>
-            {gallery.length > 0 ? (
-              <div className="daily-chest-gallery eco-chest-grid">
-                {gallery.map((c) => (
-                  <div key={c.id} className="daily-chest-gallery-item eco-chest" title={c.name}>
-                    <img src={c.imageClosed} alt={c.name} />
-                    <span>{c.name}</span>
+        {tab === 'geral' && (
+          <>
+            <div className="eco-layout">
+              <section className="pk-card eco-daily">
+                <div className="eco-daily-head">
+                  <span className="eco-daily-badge"><Ico name="gift" size={24} /></span>
+                  <div>
+                    <h2>Recompensa diária</h2>
+                    <p className="pk-muted">Resgate uma vez por dia. Mantenha a sequência por {goal} dias seguidos para ganhar um Mega Baú de gemas.</p>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="pk-muted">Cada resgate abre um baú aleatório com moedas e, às vezes, tickets.</p>
-            )}
-          </section>
-        </div>
+                </div>
 
-        <section>
-          <h2 className="pk-section-title"><Ico name="sparkles" /> Onde usar suas moedas</h2>
-          <div className="eco-links">
-            <Link to="/casas" className="eco-link">
-              <span className="eco-link-icon"><Ico name="house" size={20} /></span>
-              <div><strong>Casas</strong><small>Compre uma casa e decore com móveis.</small></div>
-              <Ico name="right" size={18} />
-            </Link>
-            <Link to="/figurinhas" className="eco-link">
-              <span className="eco-link-icon"><Ico name="sticker" size={20} /></span>
-              <div><strong>Figurinhas</strong><small>Abra cápsulas e complete o álbum.</small></div>
-              <Ico name="right" size={18} />
-            </Link>
-          </div>
-        </section>
+                <div className="eco-streak" aria-label={`Sequência atual: ${eco.dailyStreak} de ${goal} dias`}>
+                  <div className="eco-streak-top">
+                    <span><Ico name="flame" size={16} /> Sequência atual</span>
+                    <strong>{eco.dailyStreak}/{goal} dias</strong>
+                  </div>
+                  <ol className="eco-streak-days" style={{ '--eco-days': goal }}>
+                    {Array.from({ length: goal }).map((_, i) => {
+                      const done = i < streak;
+                      const isMega = i === goal - 1;
+                      return (
+                        <li key={i} className={`${done ? 'done' : ''} ${isMega ? 'mega' : ''} ${i === streak && canClaim ? 'next' : ''}`}>
+                          <span className="eco-streak-node">
+                            {done ? <Ico name="check" size={16} strokeWidth={2.4} /> : isMega ? <Ico name="gem" size={16} /> : i + 1}
+                          </span>
+                          <small>{isMega ? 'Mega Baú' : `Dia ${i + 1}`}</small>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                  <p className="eco-streak-hint">
+                    {daysToMega <= 1
+                      ? <><Ico name="gem" size={14} /> O próximo resgate abre o <b>Mega Baú</b> (1 a 6 gemas)!</>
+                      : <>Faltam <b>{daysToMega} dias</b> para o Mega Baú. Ficar mais de 48h sem resgatar zera a sequência.</>}
+                  </p>
+                </div>
+
+                <div className="eco-claim">
+                  <button className="pk-btn primary lg eco-claim-btn" disabled={!canClaim || claiming} onClick={claim}>
+                    <Ico name={canClaim ? 'chest' : 'check'} size={19} />
+                    {claiming ? 'Abrindo...' : canClaim ? 'Resgatar baú diário' : 'Já resgatado hoje'}
+                  </button>
+                  {!canClaim && nextDailyAt && untilText(nextDailyAt, now) && (
+                    <span className="eco-claim-wait"><Ico name="clock" size={15} /> Próximo baú em {untilText(nextDailyAt, now)}</span>
+                  )}
+                </div>
+              </section>
+
+              <section className="pk-card eco-today">
+                <div className="eco-card-head">
+                  <h2 className="pk-section-title"><Ico name="bolt" /> Missões de hoje <small>{daily.length > 0 ? `· ${doneToday}/${daily.length}` : ''}</small></h2>
+                  <button type="button" className="pk-btn ghost sm" onClick={() => setTab('missoes')}>Ver todas</button>
+                </div>
+                {!missionData ? <Skeleton rows={3} height={52} /> : daily.length > 0 ? (
+                  <div className="eco-mission-list">
+                    {daily.slice(0, 4).map((m) => <MissionCard key={m.id} m={m} onClaim={claimOne} busy={claimingId === m.id} compact />)}
+                  </div>
+                ) : <EmptyState compact icon="bolt" title="Sem missões hoje" text="A equipe ainda não criou missões diárias." />}
+                {resetDaily && <p className="eco-reset"><Ico name="clock" size={14} /> Novas missões em {resetDaily}</p>}
+              </section>
+            </div>
+
+            <section className="pk-card eco-chests">
+              <h2 className="pk-section-title"><Ico name="chest" /> Baús possíveis <small>{gallery.length > 0 ? `· ${gallery.length}` : ''}</small></h2>
+              {gallery.length > 0 ? (
+                <div className="daily-chest-gallery eco-chest-grid">
+                  {gallery.map((c) => (
+                    <div key={c.id} className="daily-chest-gallery-item eco-chest" title={c.name}>
+                      <img src={c.imageClosed} alt={c.name} />
+                      <span>{c.name}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="pk-muted">Cada resgate abre um baú aleatório com moedas e, às vezes, tickets.</p>
+              )}
+            </section>
+
+            <section>
+              <h2 className="pk-section-title"><Ico name="sparkles" /> Atalhos</h2>
+              <div className="eco-links">
+                <Link to="/loja" className="eco-link">
+                  <span className="eco-link-icon"><Ico name="store" size={20} /></span>
+                  <div><strong>Loja</strong><small>Molduras, efeitos de perfil e coleções.</small></div>
+                  <Ico name="right" size={18} />
+                </Link>
+                <button type="button" className="eco-link" onClick={() => setTab('missoes')}>
+                  <span className="eco-link-icon"><Ico name="bolt" size={20} /></span>
+                  <div><strong>Missões</strong><small>{readyCount > 0 ? `${readyCount} recompensa${readyCount > 1 ? 's' : ''} para resgatar.` : 'Tarefas diárias e semanais com prêmios.'}</small></div>
+                  <Ico name="right" size={18} />
+                </button>
+                <Link to="/progresso" className="eco-link">
+                  <span className="eco-link-icon"><Ico name="trophy" size={20} /></span>
+                  <div><strong>Ranking</strong><small>Nível {fmt(eco.accountLevel)} · veja sua posição.</small></div>
+                  <Ico name="right" size={18} />
+                </Link>
+              </div>
+            </section>
+          </>
+        )}
+
+        {tab === 'missoes' && (
+          !missionData ? <Skeleton rows={4} height={86} /> : (
+            <div className="eco-missions">
+              <section>
+                <div className="eco-card-head">
+                  <h2 className="pk-section-title"><Ico name="bolt" /> Diárias</h2>
+                  {resetDaily && <span className="eco-reset"><Ico name="clock" size={14} /> Renova em {resetDaily}</span>}
+                </div>
+                {missionList(daily, 'A equipe ainda não criou missões diárias.')}
+              </section>
+              <section>
+                <div className="eco-card-head">
+                  <h2 className="pk-section-title"><Ico name="star" /> Semanais</h2>
+                  {resetWeekly && <span className="eco-reset"><Ico name="clock" size={14} /> Renova em {resetWeekly}</span>}
+                </div>
+                {missionList(weekly, 'A equipe ainda não criou missões semanais.')}
+              </section>
+              <p className="pk-muted eco-missions-note">O progresso conta sozinho: mensagens nos canais, reações em mensagens de outras pessoas, tempo em call com mais alguém, posts e comentários no Fórum. Horário de Brasília.</p>
+            </div>
+          )
+        )}
+
+        {tab === 'historico' && (
+          !history ? <Skeleton rows={6} height={58} /> : history.transactions.length === 0 ? (
+            <EmptyState icon="clock" title="Nada por aqui ainda" text="Baús, missões e compras na Loja aparecem aqui a partir de agora." />
+          ) : (
+            <section className="pk-card eco-history">
+              <ul>
+                {history.transactions.map((t) => (
+                  <li key={t.id}>
+                    <span className={`eco-history-icon k-${String(t.kind).toLowerCase()}`}><Ico name={HISTORY_ICON[t.kind] || 'coin'} size={18} /></span>
+                    <div className="eco-history-text">
+                      <strong className="truncate">{t.label}</strong>
+                      <small>{new Date(t.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>
+                    </div>
+                    <span className="eco-history-deltas">
+                      {t.coins !== 0 && <span className={t.coins > 0 ? 'plus' : 'minus'}><Ico name="coin" size={13} strokeWidth={2} />{t.coins > 0 ? '+' : '−'}{fmt(Math.abs(t.coins))}</span>}
+                      {t.gems !== 0 && <span className={t.gems > 0 ? 'plus gem' : 'minus gem'}><Ico name="gem" size={13} strokeWidth={2} />{t.gems > 0 ? '+' : '−'}{fmt(Math.abs(t.gems))}</span>}
+                      {t.xp > 0 && <span className="plus xp">+{fmt(t.xp)} XP</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {history.hasMore && (
+                <button type="button" className="pk-btn ghost eco-history-more" disabled={loadingMore} onClick={loadMoreHistory}>
+                  {loadingMore ? 'Carregando...' : 'Ver mais'}
+                </button>
+              )}
+            </section>
+          )
+        )}
       </div>
 
       <Toast>{notice}</Toast>

@@ -37,6 +37,7 @@ import { useGlobalLiveRefresh } from '../utils/useGlobalLiveRefresh';
 import { useMobileGestures } from '../utils/useMobileGestures';
 import AppShellExtras from '../components/AppearanceRuntime.jsx';
 import { lastRememberedPath, lastRememberedChannelId } from '../utils/appearance';
+import { isFeatureEnabled } from '../utils/features';
 
 // BUG CORRIGIDO ("web mais rápido e otimizado"): todas essas páginas de
 // seção (Amigos, Perfil, Notificações, Busca, Painel da staff, Economia,
@@ -86,6 +87,7 @@ const JogosPage = lazy(() => import('./JogosPage.jsx'));
 // partir de um cartão dentro de Apps (nunca pela barra lateral — item
 // pedido 1: "não crie uma nova categoria principal Jogos").
 const ModsPage = lazy(() => import('./ModsPage.jsx'));
+const GameLibraryPage = lazy(() => import('./GameLibraryPage.jsx')); // biblioteca de jogos (tempo de jogo)
 
 // Interface com UMA barra lateral principal só (MainSidebar.jsx —
 // Chat/Amigos/Perfil/Notificações/Ranks/Busca/Suporte). A antiga dupla
@@ -390,6 +392,7 @@ export default function MainApp() {
                 <Route path="/search" element={<SearchPage />} />
                 <Route path="/admin" element={<AdminPanel />} />
                 <Route path="/economia" element={<EconomyPage />} />
+                <Route path="/missoes" element={<EconomyPage initialTab="missoes" />} />
                 {/* Item pedido: "Ranks e Conquistas ficam dentro da
                     mesma categoria (Progresso)... aba extra chamada
                     de recompensas" — /rank e /conquistas eram duas
@@ -402,8 +405,9 @@ export default function MainApp() {
                 <Route path="/progresso" element={<ProgressPage />} />
                 <Route path="/rank" element={<Navigate to="/progresso" replace />} />
                 <Route path="/conquistas" element={<Navigate to="/progresso" replace />} />
-                <Route path="/casas" element={<HousesPage />} />
-                <Route path="/figurinhas" element={<StickersPage />} />
+                {/* Casas e Figurinhas desligadas no código (utils/features.js) — rota antiga cai na Economia. */}
+                <Route path="/casas" element={isFeatureEnabled('houses') ? <HousesPage /> : <Navigate to="/economia" replace />} />
+                <Route path="/figurinhas" element={isFeatureEnabled('stickers') ? <StickersPage /> : <Navigate to="/economia" replace />} />
                 <Route path="/tickets" element={<TicketsPage />} />
                 {/* Item pedido: "remover completamente a categoria
                     Clãs da interface... dentro de Social, criar as
@@ -431,6 +435,8 @@ export default function MainApp() {
                 {/* Item pedido: "crie uma nova categoria chamada Jogos" */}
                 <Route path="/jogos" element={<JogosPage />} />
                 <Route path="/jogos/mods" element={<ModsPage />} />
+                <Route path="/jogos/biblioteca" element={<GameLibraryPage />} />
+                <Route path="/jogos/biblioteca/:userId" element={<GameLibraryPage />} />
                 <Route path="/conversations/:conversationId" element={<ChatWindow kind="conversation" />} />
                 <Route path="/channels/:channelId" element={<ChatWindow kind="channel" />} />
               </Routes>

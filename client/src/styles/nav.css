@@ -367,3 +367,17 @@ button.mention-chip.channel-mention-chip:hover { background: color-mix(in srgb, 
 .chat-window { position: relative; }
 .chat-drop-overlay { position: absolute; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--bg-primary) 70%, transparent); backdrop-filter: blur(2px); pointer-events: none; }
 .chat-drop-box { padding: 28px 40px; border-radius: 18px; border: 2px dashed var(--brand); background: var(--bg-secondary); color: var(--header-primary); font-weight: 700; font-size: 18px; }
+
+/* Menu do usuário: atalho da Economia com o saldo (round 5). */
+.usb-menu-wallet .usb-wallet { margin-left: auto; display: inline-flex; gap: 8px; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.usb-menu-wallet .usb-wallet > span { display: inline-flex; align-items: center; gap: 3px; }
+.usb-menu-wallet .usb-wallet-coins, .usb-menu-wallet .usb-wallet-coins .nav-icon { color: var(--yellow, #f0b232); }
+.usb-menu-wallet .usb-wallet-gems, .usb-menu-wallet .usb-wallet-gems .nav-icon { color: #b07cff; }
+
+/* Barra de baixo do celular com 6 botões (Economia entrou): um pouco mais compacta. */
+@media (max-width: 600px) {
+  .mtb.mtb-dense { gap: 0; padding-left: 4px; padding-right: 4px; }
+  .mtb.mtb-dense .mtb-item { font-size: 10.5px; padding: 4px 0; letter-spacing: -0.1px; }
+  .mtb.mtb-dense .mtb-icon { width: 44px; }
+  .mtb.mtb-dense .mtb-badge { right: 2px; }
+}

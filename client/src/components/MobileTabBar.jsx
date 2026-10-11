@@ -12,11 +12,13 @@ const PATHS = {
   chat: 'M4 5h16v11H8l-4 4V5Z',
   friends: 'M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM21 19v-1a4 4 0 0 0-3-3.87M15.5 4.13a3 3 0 0 1 0 5.74',
   bell: 'M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0',
+  coin: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM14.5 9a2.5 2.5 0 0 0-2.5-1.5c-1.4 0-2.5.8-2.5 2s1.1 1.7 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2A2.6 2.6 0 0 1 9.5 15M12 6v1.5M12 16.5V18',
 };
 const ITEMS = [
   { to: '/inicio', label: 'Início', icon: 'home', match: (p) => p === '/inicio' },
   { to: '/', label: 'Comunidade', icon: 'chat', match: (p) => p === '/' },
   { to: '/dms', label: 'Social', icon: 'friends', match: (p) => p === '/dms' || p.startsWith('/clans') },
+  { to: '/economia', label: 'Economia', icon: 'coin', system: 'economia', match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') || p === '/loja' },
   { to: '/notifications', label: 'Avisos', icon: 'bell', match: (p) => p === '/notifications' },
 ];
 const HIDDEN = [/^\/channels\//, /^\/conversations\//, /^\/clans\/mine/, /^\/$/];
@@ -27,12 +29,15 @@ export default function MobileTabBar() {
   const { user } = useAuth();
   const badgeFor = useBadges(user);
   const viewingProfile = useStore((s) => s.viewingProfileUserId);
+  const disabledSystems = useStore((s) => s.disabledSystems);
   if (HIDDEN.some((re) => re.test(pathname)) || viewingProfile) return null;
+  // Economia some pra membros quando a staff desliga o sistema (admin sempre vê).
+  const items = ITEMS.filter((it) => !it.system || user?.platformRole === 'ADMIN' || !disabledSystems.includes(it.system));
 
   const go = (to) => { useStore.getState().closeMobileSidebar?.(); navigate(to); };
   return (
-    <nav className="mtb" aria-label="Navegação principal">
-      {ITEMS.map((it) => {
+    <nav className={`mtb${items.length >= 5 ? ' mtb-dense' : ''}`} aria-label="Navegação principal">
+      {items.map((it) => {
         const active = it.match(pathname);
         const badge = badgeFor(it.to);
         return (

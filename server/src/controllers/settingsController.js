@@ -60,6 +60,8 @@ const FIELD_VALIDATORS = {
   activityVisibility: (v) => ['everyone', 'friends', 'friends_groups', 'none'].includes(v),
   gameJoinPrivacy: (v) => ['none', 'friends', 'friends_groups', 'everyone'].includes(v),
   gameDetectionEnabled: (v) => typeof v === 'boolean',
+  // Quem vê a biblioteca de jogos (tempo de jogo) — ver gameLibraryController.js.
+  gamesVisibility: (v) => ['everyone', 'friends', 'nobody'].includes(v),
 
   overlayEnabled: (v) => typeof v === 'boolean',
   overlayNotifications: (v) => typeof v === 'boolean',

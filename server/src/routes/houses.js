@@ -4,8 +4,11 @@ const { requireAuth } = require('../middleware/auth');
 const { requirePlatformAdmin } = require('../middleware/platformAdmin');
 const { uploadImage } = require('../middleware/upload');
 const { requireSystemEnabled } = require('../middleware/systemToggle');
+const { requireFeature } = require('../config/features');
 
 const router = express.Router();
+// Sistema desligado no código (config/features.js) — 404 antes de tudo.
+router.use(requireFeature('houses'));
 router.use(requireAuth);
 router.use(requireSystemEnabled('casas'));
 

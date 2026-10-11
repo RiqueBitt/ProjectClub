@@ -32,7 +32,7 @@
 .eco-streak-top span { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
 .eco-streak-top span svg { color: #ff8a3d; }
 .eco-streak-top strong { color: var(--header-primary); font-size: 15px; }
-.eco-streak-days { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; position: relative; }
+.eco-streak-days { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(var(--eco-days, 5), minmax(0, 1fr)); gap: 6px; position: relative; }
 .eco-streak-days::before { content: ''; position: absolute; left: 10%; right: 10%; top: 19px; height: 2px; background: var(--border); }
 .eco-streak-days li { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
 .eco-streak-node {
@@ -105,3 +105,97 @@
   .eco-streak-days li small { font-size: 10.5px; }
   .eco-claim-btn { width: 100%; }
 }
+
+/* ============================================================
+   Round 5 — hub de Economia: abas, missões, histórico.
+   ============================================================ */
+.eco .pk-inner { display: flex; flex-direction: column; gap: 18px; }
+.eco-tabs { align-self: flex-start; }
+.eco-streak-hint { margin: 12px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--text-muted); }
+.eco-streak-hint svg { color: var(--eco-gem); vertical-align: -2px; margin-right: 4px; }
+.eco-streak-hint b { color: var(--header-primary); }
+
+.eco-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.eco-card-head .pk-section-title { margin: 0; }
+.eco-today { padding: 20px; display: flex; flex-direction: column; }
+.eco-reset { display: inline-flex; align-items: center; gap: 6px; margin: 12px 0 0; font-size: 12.5px; font-weight: 600; color: var(--text-muted); }
+.eco-card-head .eco-reset { margin: 0; }
+
+/* ---------- Missões ---------- */
+.eco-missions { display: flex; flex-direction: column; gap: 22px; }
+.eco-missions-note { margin: 0; font-size: 12.5px; }
+.eco-mission-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 10px; }
+.eco-today .eco-mission-list { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.eco-mission {
+  display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 14px; min-width: 0;
+  background: var(--bg-secondary); border: var(--lit-border, 1px solid var(--border)); transition: border-color .15s, background .15s;
+}
+.eco-today .eco-mission { background: var(--bg-primary); padding: 10px 12px; }
+.eco-mission.ready { border-color: color-mix(in srgb, var(--green) 55%, var(--border)); background: color-mix(in srgb, var(--green) 7%, var(--bg-secondary)); }
+.eco-mission.claimed { opacity: .62; }
+.eco-mission-icon {
+  width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent);
+}
+.eco-mission.compact .eco-mission-icon { width: 36px; height: 36px; border-radius: 10px; }
+.eco-mission.ready .eco-mission-icon { color: var(--green); background: color-mix(in srgb, var(--green) 16%, transparent); }
+.eco-mission.claimed .eco-mission-icon { color: var(--green); }
+.eco-mission-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.eco-mission-top { display: flex; align-items: center; gap: 4px 8px; justify-content: space-between; min-width: 0; flex-wrap: wrap; }
+.eco-mission-top strong { flex: 1 1 110px; font-size: 14px; color: var(--header-primary); min-width: 0; }
+.eco-mission-body p { margin: 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.4; }
+.eco-mission-progress { display: flex; align-items: center; gap: 10px; }
+.eco-mission-progress small { font-size: 12px; font-weight: 700; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.eco-bar { flex: 1; height: 7px; border-radius: 999px; background: color-mix(in srgb, var(--text-muted) 18%, transparent); overflow: hidden; }
+.eco-bar span { display: block; height: 100%; border-radius: inherit; background: var(--brand); transition: width .4s ease; }
+.eco-mission.ready .eco-bar span, .eco-mission.claimed .eco-bar span { background: var(--green); }
+.eco-mission-claim { flex-shrink: 0; height: 36px; padding: 0 14px; font-size: 13px; gap: 6px; }
+.eco-mission-done { flex-shrink: 0; font-size: 12px; font-weight: 700; color: var(--green); }
+.eco-rewards { display: inline-flex; gap: 4px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.eco-reward {
+  display: inline-flex; align-items: center; gap: 3px; height: 22px; padding: 0 8px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.eco-reward.coins { color: var(--eco-coin); background: color-mix(in srgb, var(--eco-coin) 14%, transparent); }
+.eco-reward.gems { color: var(--eco-gem); background: color-mix(in srgb, var(--eco-gem) 14%, transparent); }
+.eco-reward.xp { color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent); }
+
+/* ---------- Histórico ---------- */
+.eco-history { padding: 6px 0; }
+.eco-history ul { list-style: none; margin: 0; padding: 0; }
+.eco-history li { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--border); min-width: 0; }
+.eco-history li:last-child { border-bottom: 0; }
+.eco-history-icon {
+  width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--brand); background: color-mix(in srgb, var(--brand) 13%, transparent);
+}
+.eco-history-icon.k-daily { color: var(--eco-coin); background: color-mix(in srgb, var(--eco-coin) 14%, transparent); }
+.eco-history-icon.k-shop { color: var(--eco-gem); background: color-mix(in srgb, var(--eco-gem) 14%, transparent); }
+.eco-history-icon.k-level { color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.eco-history-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.eco-history-text strong { font-size: 14px; color: var(--header-primary); }
+.eco-history-text small { font-size: 12px; color: var(--text-muted); }
+.eco-history-deltas { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.eco-history-deltas span { display: inline-flex; align-items: center; gap: 3px; font-size: 13.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.eco-history-deltas .plus { color: var(--green); }
+.eco-history-deltas .minus { color: var(--red); }
+.eco-history-deltas .xp { color: var(--brand); font-size: 12px; }
+.eco-history-more { display: flex; margin: 10px auto 8px; }
+
+button.eco-link { width: 100%; text-align: left; font: inherit; cursor: pointer; }
+
+@media (max-width: 700px) {
+  .eco .pk-inner { gap: 14px; }
+  .eco-tabs { align-self: stretch; }
+  .eco-today { padding: 16px; }
+  .eco-mission { padding: 12px; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+  .eco-mission-claim { width: 100%; justify-content: center; }
+  .eco-history li { padding: 12px 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eco-bar span, .eco-mission { transition: none; }
+}
+/* Card compacto (Missões de hoje) pronto pra resgatar: botão desce pra linha de baixo. */
+.eco-mission.compact.ready { flex-wrap: wrap; }
+.eco-mission.compact.ready .eco-mission-body { flex: 1 1 calc(100% - 52px); }
+.eco-mission.compact .eco-mission-claim { width: 100%; justify-content: center; height: 34px; }

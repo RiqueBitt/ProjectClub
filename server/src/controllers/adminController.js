@@ -79,7 +79,8 @@ const TOGGLEABLE_SYSTEMS = ['economia', 'rank', 'casas', 'figurinhas', 'cores_pe
 // funcionava antes desse toggle existir, então desligar ele por padrão
 // tiraria uma opção que ninguém pediu pra tirar; esse toggle serve pra
 // staff DESATIVAR quando quiser, não pra já nascer desativado.
-const SYSTEMS_ENABLED_BY_DEFAULT = { economia: false, rank: true, casas: false, figurinhas: false, cores_perfil: true };
+// economia agora nasce LIGADA (round 5: virou categoria principal do menu).
+const SYSTEMS_ENABLED_BY_DEFAULT = { economia: true, rank: true, casas: false, figurinhas: false, cores_perfil: true };
 
 async function getSystemToggles(req, res, next) {
   try {
@@ -541,6 +542,7 @@ async function addUserCurrency(req, res, next) {
       select: { id: true, coins: true, gems: true },
     });
     await logPlatformAction(req, { action: 'USER_ADD_CURRENCY', targetType: 'USER', targetId: id, metadata: { coinsDelta, gemsDelta } });
+    require('../services/economyLedger').recordTransaction(id, { kind: 'ADMIN', label: 'Ajuste da equipe', coins: newCoins - existing.coins, gems: newGems - existing.gems });
     req.app.get('io')?.to('community').emit('user:update', { id: user.id, coins: user.coins, gems: user.gems });
     const { checkAndUnlock } = require('../services/achievements');
     await checkAndUnlock(id, req.app.get('io'));

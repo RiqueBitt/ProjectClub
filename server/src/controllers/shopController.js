@@ -76,6 +76,7 @@ async function buyEffect(req, res, next) {
       if (e.status) return res.status(e.status).json({ error: e.message });
       throw e;
     }
+    require('../services/economyLedger').recordTransaction(userId, { kind: 'SHOP', label: `Loja: efeito ${fx.name || ''}`.trim(), [currency]: -price });
     const me = await prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true } });
     res.json({ ok: true, ...me });
   } catch (err) { next(err); }
@@ -139,6 +140,7 @@ async function buyCollection(req, res, next) {
       if (e.status) return res.status(e.status).json({ error: e.message });
       throw e;
     }
+    if (paid > 0) require('../services/economyLedger').recordTransaction(userId, { kind: 'SHOP', label: `Loja: coleção ${col.name || ''}`.trim(), [currency]: -paid });
     const me = await prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true } });
     res.json({ ok: true, paid, ...me });
   } catch (err) { next(err); }

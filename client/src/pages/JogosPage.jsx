@@ -93,6 +93,15 @@ export default function JogosPage() {
         </span>
         <span className="jogos-page-mods-entry-arrow" style={{ transform: 'scaleX(-1)', display: 'inline-flex' }}><PageIcon name="back" size={20} /></span>
       </button>
+      {/* Biblioteca de jogos (tempo de jogo, estilo Steam). */}
+      <button type="button" className="jogos-page-mods-entry" onClick={() => navigate('/jogos/biblioteca')}>
+        <span className="jogos-page-mods-entry-icon"><PageIcon name="gamepad" size={22} /></span>
+        <span className="jogos-page-mods-entry-text">
+          <strong>Biblioteca de jogos</strong>
+          <span className="dim">Seu tempo de jogo, jogos recentes e o que está jogando agora</span>
+        </span>
+        <span className="jogos-page-mods-entry-arrow" style={{ transform: 'scaleX(-1)', display: 'inline-flex' }}><PageIcon name="back" size={20} /></span>
+      </button>
 
       {catalog === null ? (
         // Item pedido: "melhore as partes vazias da tela" — enquanto

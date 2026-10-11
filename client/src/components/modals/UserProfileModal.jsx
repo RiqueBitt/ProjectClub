@@ -35,6 +35,7 @@ import levelStarIcon from '../../assets/icons/level-star.png';
 import { proxyImage } from '../../utils/imageProxy';
 import { visibleProfileSectionOrder } from '../../utils/profileSections';
 import FeaturedModpackSection from '../FeaturedModpackSection.jsx';
+import ProfileGamesSection from '../games/ProfileGamesSection.jsx';
 import '../../styles/profile.css';
 import BannerImage from '../ProfileBanner.jsx';
 import ProfileEffectOverlay from '../ProfileEffectOverlay.jsx';
@@ -1061,9 +1062,26 @@ export default function UserProfileModal() {
                     {!HIDE_BIRTHDAYS && data.isBirthdayToday && <span className="profile-birthday-badge pf-birthday-badge" title="Aniversário hoje!"><PfIcon name="cake" size={20} /></span>}
                   </h2>
                   <div className="profile-username">@{user.username}{user.pronouns && <span className="profile-pronouns-inline"> · {user.pronouns}</span>}</div>
-                  <div className="profile-custom-status-balloon">
-                    <ActivityIcon userId={user.id} customStatusEmoji={user.customStatusEmoji} customStatus={user.customStatus} />
+                  {/* Só o status personalizado aqui — a atividade (jogo/
+                      música) aparece uma vez só, na caixa grande ao lado. */}
+                  {(user.customStatus || user.customStatusEmoji) && (
+                    <div className="profile-custom-status-balloon">
+                      <ActivityIcon userId={user.id} customStatusEmoji={user.customStatusEmoji} customStatus={user.customStatus} hideActivity />
+                    </div>
+                  )}
+                  {/* Barra de nível redesenhada — mostra XP atual/necessário
+                      e o número de porcentagem, não só uma barrinha muda. */}
+                  <div className="profile-level-bar-wrap pfx-head-level">
+                    <div className="profile-level-bar-labels">
+                      <span className="profile-level-bar-chip"><img className="ui-icon-sm" src={levelStarIcon} alt="" /> Nível {user.accountLevel ?? 1}</span>
+                      <span className="dim">{data.levelProgress ?? 0}% para o próximo nível</span>
+                    </div>
+                    <div className="profile-level-progress-track">
+                      <div className="profile-level-progress-fill" style={{ width: `${data.levelProgress ?? 0}%`, background: user.levelBarColor || undefined }} />
+                    </div>
                   </div>
+                </div>
+                <div className="pfx-head-activity">
                   <ActivityBadge userId={user.id} />
                 </div>
               </div>
@@ -1084,18 +1102,6 @@ export default function UserProfileModal() {
                     Esta pessoa limitou quem pode ver os detalhes completos do perfil — você está vendo só as informações públicas.
                   </div>
                 )}
-                {/* Barra de nível redesenhada — mostra XP atual/necessário
-                    e o número de porcentagem, não só uma barrinha muda. */}
-                <div className="profile-level-bar-wrap">
-                  <div className="profile-level-bar-labels">
-                    <span className="profile-level-bar-chip"><img className="ui-icon-sm" src={levelStarIcon} alt="" /> Nível {user.accountLevel ?? 1}</span>
-                    <span className="dim">{data.levelProgress ?? 0}% para o próximo nível</span>
-                  </div>
-                  <div className="profile-level-progress-track">
-                    <div className="profile-level-progress-fill" style={{ width: `${data.levelProgress ?? 0}%`, background: user.levelBarColor || undefined }} />
-                  </div>
-                </div>
-
                 {!isMe && (
                   <div className="profile-ig-actions-row">
                     <div className="profile-actions profile-ig-actions">
@@ -1188,6 +1194,7 @@ export default function UserProfileModal() {
                     </div>
                   </section>
                 ))}
+                <ProfileGamesSection userId={user.id} />
               </div>
 
               {scrapListOpen && (

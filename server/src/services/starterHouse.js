@@ -1,9 +1,12 @@
 const prisma = require('../config/prisma');
+const { isFeatureEnabled } = require('../config/features');
 
 // Dá a casa (e o mapa, se ela tiver grupo) inicial pra uma conta recém
 // criada — de graça, já ativa, sem precisar comprar nada. Igual o bot
 // Robbie tinha ("todo usuário novo já ganha ela no primeiro login").
 async function grantStarterHouse(userId) {
+  // Casas desligadas no código (config/features.js): não concede nada.
+  if (!isFeatureEnabled('houses')) return;
   try {
     const settings = await prisma.platformSettings.findUnique({ where: { id: 'singleton' } });
     if (!settings?.starterHouseId) return;

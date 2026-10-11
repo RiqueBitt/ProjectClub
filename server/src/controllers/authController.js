@@ -232,7 +232,8 @@ async function register(req, res, next) {
 
     // Casa inicial de graça (adaptado do bot Robbie — fase 3): toda conta
     // nova já ganha a casa mais barata do catálogo (preço 0) automaticamente.
-    prisma.houseCatalog.findFirst({ where: { price: 0 }, orderBy: { createdAt: 'asc' } })
+    // (desligado junto com o sistema de Casas — ver config/features.js)
+    if (require('../config/features').isFeatureEnabled('houses')) prisma.houseCatalog.findFirst({ where: { price: 0 }, orderBy: { createdAt: 'asc' } })
       .then((starterHouse) => {
         if (!starterHouse) return;
         return prisma.userHouse.create({ data: { userId: user.id, houseId: starterHouse.id, isActive: true } });

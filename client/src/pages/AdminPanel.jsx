@@ -63,6 +63,8 @@ import ClanIconManagerModal from '../components/modals/ClanIconManagerModal.jsx'
 import ClanIcon from '../components/ClanIcon.jsx';
 import { BADGE_RARITIES, RARITY_LABEL, RARITY_COLOR, badgeHasImage } from '../utils/badgeRarity';
 import { proxyImage } from '../utils/imageProxy';
+import { isFeatureEnabled } from '../utils/features';
+import MissionsAdmin from '../components/admin/MissionsAdmin.jsx';
 
 // ============================================================
 // Painel da Equipe — shell redesenhado do zero.
@@ -121,14 +123,14 @@ const TABS = {
   events: { label: 'Eventos', desc: 'Eventos com banner, ícone e data.' },
   announcements: { label: 'Comunicado', desc: 'Mensagem em tela cheia para todos os membros.' },
   appCatalog: { label: 'Apps', desc: 'Apps e launchers listados na área de Apps.' },
-  economia: { label: 'Economia', desc: 'Baús diários, moedas e recompensas.' },
+  economia: { label: 'Economia e missões', desc: 'Missões diárias/semanais, baús diários, moedas e recompensas.' },
   decoracoes: { label: 'Loja', desc: 'Molduras de avatar, efeitos de perfil e coleções vendidos na Loja.' },
   casas: { label: 'Casas e móveis', desc: 'Casas, mapas, grupos e catálogo de móveis.' },
   album: { label: 'Álbum de figurinhas', desc: 'Páginas e espaços do álbum de figurinhas colecionáveis.' },
   modGames: { label: 'Jogos (mod.io)', desc: 'Jogos ligados ao mod.io.' },
   workshopGames: { label: 'Steam Workshop', desc: 'Jogos ligados ao Steam Workshop.' },
   gamebananaGames: { label: 'GameBanana', desc: 'Jogos ligados ao GameBanana.' },
-  sistema: { label: 'Sistemas', desc: 'Ligue ou desligue economia, ranks, casas e figurinhas.' },
+  sistema: { label: 'Sistemas', desc: 'Ligue ou desligue economia, ranks e outros sistemas.' },
   maintenance: { label: 'Manutenção', desc: 'Coloca a plataforma "em reforma" para todos, menos a equipe.' },
   reload: { label: 'Reload', desc: 'Recarrega a presença online de usuários.' },
 };
@@ -139,15 +141,22 @@ const TAB_PENDING_KEY = {
   automodDm: 'pendingAutomodFlags', modReports: 'pendingModReports',
 };
 
+// Ferramentas de sistemas desligados no código (utils/features.js) somem
+// do menu e a URL antiga cai na visão geral — nada é apagado.
+const HIDDEN_TABS = new Set([
+  ...(isFeatureEnabled('houses') ? [] : ['casas', 'moderacao']),
+  ...(isFeatureEnabled('stickers') ? [] : ['album']),
+]);
+
 const TAB_GROUPS = [
   { label: 'Pessoas', icon: 'people', tabs: ['inscricoes', 'users', 'badges', 'roles'] },
   { label: 'Moderação', icon: 'shield', tabs: ['reports', 'automodDm', 'moderacao', 'modReports', 'logs', 'honeypot'] },
   { label: 'Comunidade', icon: 'community', tabs: ['channels', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'gifMove'] },
   { label: 'Conteúdo', icon: 'content', tabs: ['feeds', 'updates', 'events', 'announcements', 'appCatalog'] },
-  { label: 'Economia e casas', icon: 'economy', tabs: ['economia', 'decoracoes', 'casas', 'album'] },
+  { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'casas', 'album'] },
   { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
   { label: 'Sistema', icon: 'system', tabs: ['sistema', 'maintenance', 'reload'] },
-];
+].map((g) => ({ ...g, tabs: g.tabs.filter((t) => !HIDDEN_TABS.has(t)) }));
 
 const groupOf = (tab) => TAB_GROUPS.find((g) => g.tabs.includes(tab));
 
@@ -155,7 +164,7 @@ export default function AdminPanel() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const tab = TABS[params.get('tab')] ? params.get('tab') : 'overview';
+  const tab = TABS[params.get('tab')] && !HIDDEN_TABS.has(params.get('tab')) ? params.get('tab') : 'overview';
   const [query, setQuery] = useState('');
   const [navOpen, setNavOpen] = useState(false);
   const [stats, setStats] = useState(null);
@@ -2626,6 +2635,7 @@ function EconomyAdminTab() {
 
   return (
     <div>
+      <MissionsAdmin />
       <h4><IconGlyph src={giftIcon} size={16} /> Baús diários</h4>
       <p className="dim" style={{ fontSize: 13 }}>A soma das chances não precisa fechar em 100% — o restante cai no último baú da lista, igual ao bot original.</p>
       <div className="admin-badges-toolbar"><button className="btn-secondary" onClick={create}>+ Novo baú</button></div>
@@ -3000,7 +3010,7 @@ function SystemTab() {
       <div className="settings-block">
         <h4>Sistemas da comunidade</h4>
         <p className="dim">Desativar um sistema bloqueia o acesso pra todo mundo (menos administradores) e mostra uma tela de indisponível.</p>
-        {toggles.availableSystems.map((sys) => {
+        {toggles.availableSystems.filter((sys) => (sys !== 'casas' || isFeatureEnabled('houses')) && (sys !== 'figurinhas' || isFeatureEnabled('stickers'))).map((sys) => {
           const enabled = !toggles.disabledSystems.includes(sys);
           return (
             <label key={sys} className="checkbox-row" style={{ fontSize: 14 }}>

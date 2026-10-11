@@ -14,8 +14,13 @@ const TITLE_BY_TYPE = { game: 'Jogando', spotify: 'Ouvindo Spotify', app: 'Usand
 // mesmo tempo — se não tiver status personalizado nenhum, o ícone
 // aparece sozinho (sem bolinha sobrando); se não tiver atividade
 // nenhuma, só o status aparece (sem ícone nem bolinha).
-export default function ActivityIcon({ userId, customStatusEmoji, customStatus }) {
-  const activity = useStore((s) => s.activities[userId]);
+// hideActivity: perfis que já mostram a caixa grande da atividade
+// (ActivityBadge) passam isso pra não repetir "Ouvindo X" duas vezes —
+// aqui fica só o status personalizado. A lista de membros não passa
+// (lá a linha curta é a única indicação).
+export default function ActivityIcon({ userId, customStatusEmoji, customStatus, hideActivity = false }) {
+  const liveActivity = useStore((s) => s.activities[userId]);
+  const activity = hideActivity ? null : liveActivity;
   const hasStatus = !!(customStatusEmoji || customStatus);
   if (!activity && !hasStatus) return null;
   return (

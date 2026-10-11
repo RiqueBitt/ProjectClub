@@ -8,6 +8,7 @@ const { messageInclude } = require('../controllers/messageController');
 const presenceStore = require('../services/presenceStore');
 const activityStore = require('../services/activityStore');
 const voiceStore = require('../services/voiceRoomStore');
+const gamePlaytime = require('../services/gamePlaytime');
 
 // Mesma atividade (só uma reconfirmação)? Spotify: mesma faixa e o
 // progresso novo bate (±3s) com o anterior + o tempo que passou — se a
@@ -155,6 +156,7 @@ function initSockets(httpServer) {
     }
   });
 
+  gamePlaytime.startSweeper(); // fecha sessões de jogo sem batimento
   io.on('connection', async (socket) => {
     const userId = socket.userId;
 
@@ -829,6 +831,11 @@ function initSockets(httpServer) {
           durationMs: Number.isFinite(activity.durationMs) ? activity.durationMs : undefined,
           progressMs: Number.isFinite(activity.progressMs) ? activity.progressMs : undefined,
         };
+        // Biblioteca de jogos: cada aviso é um batimento de tempo de jogo.
+        // Só conta jogo (nunca Spotify/apps); playingGame = jogo rodando por
+        // trás quando o que aparece é música/app (ver activityDetector.js).
+        const playing = clean.type === 'game' ? clean : (activity.playingGame && typeof activity.playingGame === 'object' ? activity.playingGame : null);
+        gamePlaytime.recordBeat(userId, playing);
         // ECONOMIA DE REDE: o app de desktop reconfirma a mesma atividade
         // de tempos em tempos (Spotify a cada poucos segundos). Se nada
         // mudou de verdade (mesma música/jogo e o progresso bate com o
@@ -842,6 +849,7 @@ function initSockets(httpServer) {
         await activityStore.setActivity(userId, clean);
         await broadcastActivityChange(io, userId, clean);
       } else {
+        gamePlaytime.recordBeat(userId, null);
         await activityStore.clearActivity(userId);
         await broadcastActivityChange(io, userId, null);
       }
@@ -871,6 +879,7 @@ function initSockets(httpServer) {
           // mandava isso também caiu junto (é o mesmo processo).
           await activityStore.clearActivity(userId);
           await broadcastActivityChange(io, userId, null);
+          gamePlaytime.flushUser(userId); // grava o tempo de jogo acumulado
           // Ninguém mais conectado nessa conta — não faz sentido continuar
           // contando os 15min pra "Ausente" (vai ficar OFFLINE daqui a
           // pouco de qualquer jeito, ver timer logo abaixo).

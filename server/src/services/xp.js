@@ -47,6 +47,9 @@ async function awardMessageXp(userId, content) {
   });
 
   if (!levelUp) return null;
+  if (newLevelData.coinsReward > 0) {
+    require('./economyLedger').recordTransaction(userId, { kind: 'LEVEL', label: `Subiu para o nível ${newLevelData.level}`, coins: newLevelData.coinsReward });
+  }
   // Guarda a subida de nível pra aparecer na página "Atividade" dos amigos.
   prisma.activityEvent.create({
     data: { userId, type: 'LEVEL_UP', data: JSON.stringify({ level: newLevelData.level, levelName: newLevelData.name }) },

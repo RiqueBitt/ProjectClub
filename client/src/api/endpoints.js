@@ -130,6 +130,15 @@ export const uploadCommunityBanner = (file) => {
 export const getMyEconomy = () => api.get('/economy').then((r) => r.data);
 export const claimDaily = () => api.post('/economy/daily').then((r) => r.data);
 export const listChests = () => api.get('/economy/chests').then((r) => r.data);
+export const getEconomyHistory = (params = {}) => api.get('/economy/history', { params }).then((r) => r.data);
+// Missões diárias/semanais (Economia)
+export const listMissions = () => api.get('/missions').then((r) => r.data);
+export const claimMission = (id) => api.post(`/missions/${id}/claim`).then((r) => r.data);
+export const trackMissionEvent = (type) => api.post('/missions/track', { type }).then((r) => r.data);
+export const adminListMissions = () => api.get('/missions/admin/all').then((r) => r.data);
+export const adminCreateMission = (payload) => api.post('/missions/admin', payload).then((r) => r.data);
+export const adminUpdateMission = (id, payload) => api.patch(`/missions/admin/${id}`, payload).then((r) => r.data);
+export const adminDeleteMission = (id) => api.delete(`/missions/admin/${id}`).then((r) => r.data);
 
 export const adminListChests = () => api.get('/economy/admin/chests').then((r) => r.data);
 export const adminCreateChest = (payload) => api.post('/economy/admin/chests', payload).then((r) => r.data);

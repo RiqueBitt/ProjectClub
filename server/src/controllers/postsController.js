@@ -113,6 +113,7 @@ async function createPost(req, res, next) {
     // um voto "implícito" do autor.
     await prisma.postVote.create({ data: { postId: post.id, userId: req.user.id, value: 1 } });
     await prisma.post.update({ where: { id: post.id }, data: { score: 1 } });
+    require('../services/missions').track(req.user.id, 'FORUM_POSTS', 1, req.app.get('io')); // missões do Fórum
     if (pollOptions) {
       await prisma.profilePoll.create({
         data: {
@@ -240,6 +241,7 @@ async function addComment(req, res, next) {
       include: { author: { select: AUTHOR_FIELDS } },
     });
     await prisma.post.update({ where: { id }, data: { commentCount: { increment: 1 } } });
+    require('../services/missions').track(req.user.id, 'FORUM_COMMENTS', 1, req.app.get('io')); // missões do Fórum
 
     const io = req.app.get('io');
     io?.emit('post:comment', { postId: id, comment: { ...comment, replies: [], myVote: 0 } });

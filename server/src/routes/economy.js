@@ -10,6 +10,7 @@ router.use(requireAuth);
 router.get('/', requireSystemEnabled('economia'), ctrl.getMyEconomy);
 router.post('/daily', requireSystemEnabled('economia'), ctrl.claimDaily);
 router.get('/chests', requireSystemEnabled('economia'), ctrl.listChests);
+router.get('/history', requireSystemEnabled('economia'), ctrl.getHistory);
 
 // Rank tem interruptor PRÓPRIO em Sistema (staff pode desligar o
 // ranking sem desligar o resto da economia, ou vice-versa).

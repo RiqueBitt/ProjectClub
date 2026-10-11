@@ -4,6 +4,7 @@ const { initSockets } = require('./sockets');
 const env = require('./config/env');
 const { bootstrapPlatformAdmin, backfillPollTopicPermissions } = require('./services/adminBootstrap');
 const { seedAchievements } = require('./services/achievements');
+const missions = require('./services/missions');
 const voiceStore = require('./services/voiceRoomStore');
 const { checkB2 } = require('./services/b2HealthCheck');
 
@@ -121,3 +122,9 @@ seedAchievements().catch((err) => {
 voiceStore.clearAllRooms().catch((err) => {
   console.error('\x1b[31m[voice-store]\x1b[0m limpeza no boot falhou:', err.message);
 });
+// Missões (Economia): cria as missões padrão se a tabela estiver vazia e
+// liga a contagem de minutos em call (1x por minuto, só sockets locais).
+missions.seedDefaultMissions().catch((err) => {
+  console.error('\x1b[31m[missões]\x1b[0m seed falhou:', err.message);
+});
+missions.startVoiceMinutesTicker(io);

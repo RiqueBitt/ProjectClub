@@ -514,6 +514,8 @@ async function createMessage(req, res, next) {
         })
         .catch(() => {});
     }
+    // Missões (Economia): mensagem em canal conta pras missões de mensagens.
+    if (channelId) require('../services/missions').track(req.user.id, 'MESSAGES', 1, io);
   } catch (err) { next(err); }
 }
 
@@ -725,6 +727,7 @@ async function react(req, res, next) {
         return res.status(400).json({ error: `Este post já atingiu o limite de ${cap} emojis diferentes.` });
       }
       await prisma.reaction.create({ data: { messageId: id, userId: req.user.id, emoji } });
+      require('../services/missions').trackReaction(req.user.id, id, existing.authorId, req.app.get('io')); // missões de reação
     }
 
     const message = await prisma.message.findUnique({ where: { id }, include: messageInclude });

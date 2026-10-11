@@ -117,7 +117,7 @@ export default function DMProfilePanel({ onToggle }) {
             <div className="profile-username">@{user.username}{user.pronouns && <span className="profile-pronouns-inline"> · {user.pronouns}</span>}</div>
 
             <div className="profile-custom-status-balloon">
-              <ActivityIcon userId={user.id} customStatusEmoji={user.customStatusEmoji} customStatus={user.customStatus} />
+              <ActivityIcon userId={user.id} customStatusEmoji={user.customStatusEmoji} customStatus={user.customStatus} hideActivity />
             </div>
             <ActivityBadge userId={user.id} />
 

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useVoice } from '../context/VoiceContext.jsx';
-import { setStatus as setStatusApi } from '../api/endpoints';
+import { useNavigate } from 'react-router-dom';
+import { setStatus as setStatusApi, getMyEconomy } from '../api/endpoints';
 import { STATUS_LABEL } from '../utils/status';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import UserAvatar from './UserAvatar.jsx';
@@ -27,6 +28,16 @@ export default function UserStatusBar() {
   usePopoverCoordination(menuOpen, () => setMenuOpen(false));
   const [customOpen, setCustomOpen] = useState(false);
   const rootRef = useRef(null);
+  const navigate = useNavigate();
+  const disabledSystems = useStore((s) => s.disabledSystems);
+  // Saldo da carteira no menu do usuário — busca só quando o menu abre.
+  const [wallet, setWallet] = useState(null);
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    let alive = true;
+    getMyEconomy().then((d) => { if (alive) setWallet(d); }).catch(() => { if (alive) setWallet(null); });
+    return () => { alive = false; };
+  }, [menuOpen]);
   // Fecha o menu de status ao clicar fora ou apertar Esc.
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -122,6 +133,17 @@ export default function UserStatusBar() {
           <button type="button" role="menuitem" className="usb-menu-item" onClick={() => { setMenuOpen(false); useStore.getState().openProfile(user.id); }}>
             <NavIcon name="user" size={16} /> <span>Ver meu perfil</span>
           </button>
+          {(user.platformRole === 'ADMIN' || !disabledSystems.includes('economia')) && (
+            <button type="button" role="menuitem" className="usb-menu-item usb-menu-wallet" onClick={() => { setMenuOpen(false); useStore.getState().closeMobileSidebar?.(); navigate('/economia'); }}>
+              <NavIcon name="coin" size={16} /> <span>Economia</span>
+              {wallet && (
+                <span className="usb-wallet">
+                  <span className="usb-wallet-coins"><NavIcon name="coin" size={12} />{Math.floor(wallet.coins || 0).toLocaleString('pt-BR')}</span>
+                  <span className="usb-wallet-gems"><NavIcon name="gem" size={12} />{Math.floor(wallet.gems || 0).toLocaleString('pt-BR')}</span>
+                </span>
+              )}
+            </button>
+          )}
         </div>
       )}
       {customOpen && <CustomStatusModal user={user} onClose={() => setCustomOpen(false)} onSaved={setUser} />}

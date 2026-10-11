@@ -28,6 +28,8 @@ import { proxyImage } from '../utils/imageProxy';
 // com o emoji padrão já que não veio um ícone específico pra ele.
 // Ícone da Atividade (SVG em data URL — a barra usa como máscara, igual aos PNGs).
 const ACTIVITY_NAV_ICON = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>')}`;
+// Ícone da Economia (moeda) — mesmo esquema de máscara dos outros ícones.
+const ECONOMY_NAV_ICON = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.5 9a2.5 2.5 0 0 0-2.5-1.5c-1.4 0-2.5.8-2.5 2s1.1 1.7 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2A2.6 2.6 0 0 1 9.5 15M12 6v1.5M12 16.5V18"/></svg>')}`;
 export const ITEMS = [
   // Item pedido: "crie uma nova categoria chamada Início, primeira
   // categoria da lista, funcionando como página principal de
@@ -65,6 +67,10 @@ export const ITEMS = [
   // (Progresso)" — antes eram duas entradas separadas na sidebar; uma
   // só agora, levando pra ProgressPage.jsx (que tem as duas dentro,
   // como abas, mais a nova aba de Recompensas).
+  // Economia (round 5): saldo, baú diário, missões, histórico e atalhos
+  // pra Loja/Ranking. `system` = some pra membros se a staff desligar
+  // "economia" em Admin → Sistemas (admin sempre vê).
+  { to: '/economia', icon: ECONOMY_NAV_ICON, isImg: true, labelKey: 'nav.economia', system: 'economia', match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') },
   { to: '/progresso', icon: ranksIcon, isImg: true, labelKey: 'nav.progresso', match: (p) => p.startsWith('/progresso') || p.startsWith('/rank') || p.startsWith('/conquistas') },
   { to: '/tickets', icon: supportIcon, isImg: true, labelKey: 'nav.suporte', match: (p) => p.startsWith('/tickets') },
   // Item pedido: "renomear o sistema atual de Clãs para Clubes...
@@ -81,6 +87,12 @@ export const ITEMS = [
 // dentro de ITEMS) porque só aparece pra ADMIN/MODERATOR — ver o filtro
 // no componente abaixo.
 export const STAFF_ITEM = { to: '/admin', icon: dashboardIcon, isImg: true, labelKey: 'nav.painel', match: (p) => p.startsWith('/admin') };
+
+// Tira do menu os itens cujo sistema a staff desligou (admin continua vendo).
+export function visibleNavItems(items, disabledSystems, user) {
+  if (user?.platformRole === 'ADMIN') return items;
+  return items.filter((i) => !i.system || !(disabledSystems || []).includes(i.system));
+}
 
 
 export default function MainSidebar() {
@@ -168,7 +180,9 @@ export default function MainSidebar() {
   };
 
   const isStaff = user?.platformRole === 'ADMIN' || user?.platformRole === 'MODERATOR';
-  const navItems = isStaff ? [...ITEMS, STAFF_ITEM] : ITEMS;
+  const disabledSystems = useStore((s) => s.disabledSystems);
+  const baseNav = visibleNavItems(ITEMS, disabledSystems, user);
+  const navItems = isStaff ? [...baseNav, STAFF_ITEM] : baseNav;
 
   return (
     <aside className={`main-sidebar ${mainSidebarCollapsed ? 'main-sidebar-manually-collapsed' : ''}`}>

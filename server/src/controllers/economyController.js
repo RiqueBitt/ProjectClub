@@ -2,16 +2,23 @@ const prisma = require('../config/prisma');
 const economy = require('../services/economy');
 const achievements = require('../services/achievements');
 const { LEVELS, nextLevel, titleForLevel } = require('../data/levelsCatalog');
+const { MEGA_CHEST_STREAK_REQUIRED } = require('../data/chestsCatalog');
+const missions = require('../services/missions');
+const { listTransactions } = require('../services/economyLedger');
 
 async function getMyEconomy(req, res, next) {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { coins: true, gems: true, dailyStreak: true, lastDailyAt: true, accountLevel: true },
+      select: { coins: true, gems: true, dailyStreak: true, lastDailyAt: true, accountLevel: true, accountXp: true },
     });
+    const nextDailyAt = user.lastDailyAt ? new Date(user.lastDailyAt.getTime() + economy.DAILY_COOLDOWN_MS) : null;
     res.json({
       coins: user.coins, gems: user.gems, dailyStreak: user.dailyStreak,
-      lastDailyAt: user.lastDailyAt, accountLevel: user.accountLevel,
+      lastDailyAt: user.lastDailyAt, accountLevel: user.accountLevel, accountXp: user.accountXp,
+      // Extras pro hub de Economia: meta da sequência e quando o próximo baú libera.
+      streakRequired: MEGA_CHEST_STREAK_REQUIRED,
+      nextDailyAt: nextDailyAt && nextDailyAt.getTime() > Date.now() ? nextDailyAt : null,
     });
   } catch (err) { next(err); }
 }
@@ -19,8 +26,16 @@ async function getMyEconomy(req, res, next) {
 async function claimDaily(req, res, next) {
   try {
     const result = await economy.claimDaily(req.user.id);
+    missions.track(req.user.id, 'DAILY_CHEST', 1, req.app.get('io')); // missão "baú do dia"
     const newAchievements = await achievements.checkAndUnlock(req.user.id, req.app.get('io'));
     res.json({ ...result, newAchievements });
+  } catch (err) { next(err); }
+}
+
+// Histórico da carteira (só registra daqui pra frente — ver services/economyLedger.js).
+async function getHistory(req, res, next) {
+  try {
+    res.json(await listTransactions(req.user.id, { limit: req.query.limit, before: req.query.before }));
   } catch (err) { next(err); }
 }
 
@@ -142,6 +157,6 @@ async function adminDeleteChest(req, res, next) {
 }
 
 module.exports = {
-  getMyEconomy, claimDaily, listChests, getRank, listLeaderboard,
+  getMyEconomy, claimDaily, listChests, getRank, listLeaderboard, getHistory,
   adminListChests, adminCreateChest, adminUpdateChest, adminDeleteChest,
 };
