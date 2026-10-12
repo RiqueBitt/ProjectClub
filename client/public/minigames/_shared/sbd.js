@@ -122,9 +122,58 @@
   if (origPlay) {
     w.HTMLMediaElement.prototype.play = function () {
       this.muted = muted;
-      return origPlay.apply(this, arguments);
+      var el = this;
+      var res = origPlay.apply(this, arguments);
+      if (res && res.catch) {
+        res.catch(function (err) {
+          if (err && err.name === 'NotAllowedError' && blockedMedia.indexOf(el) === -1) blockedMedia.push(el);
+        });
+      }
+      return res;
     };
   }
+
+  // Som no celular: AudioContext e música em autoplay só tocam depois de um
+  // toque. O Project Club chama window.__pcResumeAudio() no primeiro toque
+  // (controles na tela) e aqui também tentamos a cada toque/tecla no jogo.
+  var audioCtxs = [];
+  var blockedMedia = [];
+  ['AudioContext', 'webkitAudioContext'].forEach(function (name) {
+    var Orig = w[name];
+    if (!Orig) return;
+    var Wrapped = function (opts) { var c = new Orig(opts); audioCtxs.push(c); return c; };
+    Wrapped.prototype = Orig.prototype;
+    try { w[name] = Wrapped; } catch (e) { /* ignora */ }
+  });
+  w.__pcResumeAudio = function () {
+    audioCtxs.forEach(function (c) { try { if (c.state !== 'running') c.resume(); } catch (e) { /* ignora */ } });
+    try {
+      // só o que o navegador barrou (play() recusado ou autoplay que nem começou)
+      var list = blockedMedia.splice(0);
+      document.querySelectorAll('audio[autoplay]').forEach(function (a) {
+        if (a.paused && a.currentTime === 0 && list.indexOf(a) === -1) list.push(a);
+      });
+      list.forEach(function (a) {
+        if (!a.isConnected || !a.paused) return;
+        var p = a.play(); if (p && p.catch) p.catch(function () {});
+      });
+    } catch (e) { /* ignora */ }
+    // repassa pro Game.html (iframe interno)
+    try {
+      var f = document.querySelector('iframe.game-box');
+      if (f && f.contentWindow && f.contentWindow.__pcResumeAudio) f.contentWindow.__pcResumeAudio();
+    } catch (e) { /* ignora */ }
+  };
+  ['touchend', 'pointerdown', 'keydown'].forEach(function (t) {
+    document.addEventListener(t, function () { w.__pcResumeAudio(); }, true);
+  });
+
+  // Sem zoom de toque duplo, sem menu de toque longo e sem "puxar" a página.
+  try {
+    var st = document.createElement('style');
+    st.textContent = 'html,body{touch-action:none;overscroll-behavior:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}';
+    (document.head || document.documentElement).appendChild(st);
+  } catch (e) { /* ignora */ }
 
   // Project Club — toque vira mouse (celular/tablet). Os jogos foram feitos
   // para mouse: arrastar ingrediente, mover o pinguim, clicar nos botões.
@@ -158,7 +207,8 @@
       if (!tStart) return;
       var t = e.changedTouches[0]; var el = at(t) || tLast;
       fire('mouseup', t, el);
-      if (!tMoved) fire('click', t, el);
+      // toque cancelado (sistema/gesto) solta o "botão", mas não vira clique
+      if (!tMoved && e.type !== 'touchcancel') fire('click', t, el);
       tStart = null;
       e.preventDefault();
     };

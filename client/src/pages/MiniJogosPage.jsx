@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { MINIJOGOS, MINIJOGOS_CATEGORIES, findMinijogo } from '../minijogos/catalog.js';
 import '../styles/minijogos.css';
 import { useMinijogoScores, ScoresPanel } from '../minijogos/MiniJogoScores.jsx';
-import TouchPad from '../minijogos/TouchPad.jsx';
+import TouchControls from '../minijogos/touch/TouchControls.jsx';
+import { touchSchemeFor, hasOnScreenControls } from '../minijogos/touch/schemes.js';
+import { createGameInput, resumeGameAudio, focusGame } from '../minijogos/touch/gameInput.js';
+import { isTouchDevice, useTouchControlsPref } from '../minijogos/touch/detect.js';
 import { CardView } from '../cards/CardView.jsx';
 import { isFeatureEnabled } from '../utils/features';
 import '../styles/cards.css';
@@ -35,6 +38,7 @@ const MJ_PATHS = {
   play: <path d="M8 5v14l11-7L8 5Z" />,
   rotate: <><rect x="7" y="2" width="10" height="20" rx="2" transform="rotate(90 12 12)" /><path d="M4 7a8 8 0 0 1 4-4M8 3H5v3" /></>,
   keyboard: <><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10" /></>,
+  gamepad: <><path d="M7.5 7h9a5 5 0 0 1 4.9 6l-.7 3.4a2.4 2.4 0 0 1-4.2 1l-1.9-2.4H9.4l-1.9 2.4a2.4 2.4 0 0 1-4.2-1L2.6 13a5 5 0 0 1 4.9-6Z" /><path d="M7.5 10v4M5.5 12h4M15.5 11h.01M18 13h.01" /></>,
   shapes: <><rect x="3.5" y="3.5" width="7" height="7" rx="1.8" /><path d="M17 3.5 21 10.5h-8z" /><circle cx="7" cy="17" r="3.6" /><path d="M17 13c.5 2.6 1.4 3.5 4 4-2.6.5-3.5 1.4-4 4-.5-2.6-1.4-3.5-4-4 2.6-.5 3.5-1.4 4-4z" /></>,
 };
 function MjIcon({ name, size = 18 }) {
@@ -46,7 +50,8 @@ function MjIcon({ name, size = 18 }) {
 }
 
 const MUTE_KEY = 'minijogos:muted';
-const isCoarse = () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
+// Celular/tablet/app Android (ver minijogos/touch/detect.js).
+const isCoarse = () => isTouchDevice();
 // No celular: tela cheia + paisagem travada (quando o navegador deixa).
 function goLandscape(el) {
   if (!el) return;
@@ -86,6 +91,16 @@ function MiniJogoPlayer({ game, onClose }) {
   const [loaded, setLoaded] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
+  // Controles na tela (celular): esquema do jogo + teclas "de mentira".
+  const scheme = touchSchemeFor(game);
+  const hasControls = hasOnScreenControls(scheme);
+  const [touchOn, toggleTouch, touchAuto] = useTouchControlsPref();
+  const showControls = touchOn && hasControls;
+  const touchUI = touchAuto || touchOn;
+  const input = useMemo(() => createGameInput(() => frameRef.current), []);
+  const stageRef = useRef(null);
+  const [fit, setFit] = useState({ mode: 'overlay', side: 0, below: 0, portrait: false, small: false });
+
   const playerName = user?.displayName || user?.username || '';
   const src = `${game.path}${game.path.includes('?') ? '&' : '?'}name=${encodeURIComponent(playerName.slice(0, 19))}`;
 
@@ -116,6 +131,56 @@ function MiniJogoPlayer({ game, onClose }) {
 
   // Celular: abre em tela cheia na horizontal (o toque que abriu o jogo ainda vale).
   useEffect(() => { if (isCoarse()) goLandscape(wrapRef.current); }, []);
+
+  // Onde cabem os controles: mede o palco e a área que o jogo ocupa (a
+  // proporção do jogo é fixa) — sobra nos lados (deitado) ou embaixo (em pé).
+  useLayoutEffect(() => {
+    const el = stageRef.current;
+    if (!el) return undefined;
+    const measure = () => {
+      const W = el.clientWidth; const H = el.clientHeight;
+      if (!W || !H) return;
+      const a = scheme.aspect || 1.6;
+      const gameW = Math.min(W, H * a); const gameH = Math.min(H, W / a);
+      const side = Math.floor((W - gameW) / 2);
+      const below = Math.floor(H - gameH);
+      const portrait = H > W;
+      let mode = 'overlay';
+      if (!portrait && side >= 118) mode = 'side';
+      else if (portrait && below >= 150) mode = 'below';
+      const next = { mode, side, below, portrait, small: Math.min(W, H) < 340, gameH: Math.floor(gameH) };
+      setFit((f) => (f.mode === next.mode && f.side === next.side && f.below === next.below && f.portrait === next.portrait && f.small === next.small && f.gameH === next.gameH ? f : next));
+    };
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    window.addEventListener('orientationchange', measure);
+    return () => { ro?.disconnect(); window.removeEventListener('orientationchange', measure); };
+  }, [scheme.aspect]);
+
+  // Solta todas as teclas ao sair do app, trocar de aba ou fechar o jogo
+  // (senão o pinguim continuaria andando sozinho).
+  useEffect(() => {
+    const release = () => input.releaseAll();
+    const onVis = () => { if (document.visibilityState !== 'visible') release(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('blur', release);
+    window.addEventListener('pagehide', release);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('blur', release);
+      window.removeEventListener('pagehide', release);
+      release();
+    };
+  }, [input]);
+  useEffect(() => { if (!showControls) input.releaseAll(); }, [showControls, input]);
+
+  // Enquanto joga: a página por trás não rola nem "puxa" (pull-to-refresh).
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add('mj-playing');
+    return () => root.classList.remove('mj-playing');
+  }, []);
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(document.fullscreenElement === wrapRef.current);
@@ -156,13 +221,19 @@ function MiniJogoPlayer({ game, onClose }) {
   }, [onClose, reloadKey]);
 
   const onFrameLoad = () => {
+    input.releaseAll();
     setLoaded(true);
     sendMute(muted);
     try { frameRef.current?.focus(); } catch { /* ignora */ }
   };
 
   return (
-    <div className={`mj-player${isFullscreen ? ' is-fullscreen' : ''}`} ref={wrapRef} role="dialog" aria-label={game.name}>
+    <div
+      className={`mj-player${isFullscreen ? ' is-fullscreen' : ''}${touchUI ? ' is-touch' : ''}${fit.portrait ? ' is-portrait' : ' is-landscape'}${showControls ? ` has-controls fit-${fit.mode}` : ''}`}
+      ref={wrapRef} role="dialog" aria-label={game.name}
+      // Primeiro toque destrava o som do jogo (o navegador exige um gesto).
+      onPointerDownCapture={() => resumeGameAudio(frameRef.current)}
+    >
       <div className="mj-player-bar">
         <button type="button" className="mj-player-btn" onClick={onClose} title="Voltar (Esc)" aria-label="Voltar">
           <MjIcon name="back" />
@@ -170,14 +241,23 @@ function MiniJogoPlayer({ game, onClose }) {
         <img className="mj-player-icon" src={game.icon} alt="" draggable="false" />
         <div className="mj-player-title">
           <span className="mj-player-name">{game.name}</span>
-          <span className="mj-player-controls"><MjIcon name="keyboard" size={13} />{isCoarse() && game.touch ? game.touch : game.controls}</span>
+          <span className="mj-player-controls"><MjIcon name={touchUI ? 'gamepad' : 'keyboard'} size={13} />{touchUI && game.touch ? game.touch : game.controls}</span>
         </div>
         <div className="mj-player-actions">
+          {hasControls && (
+            <button
+              type="button" className={`mj-player-btn mj-touch-toggle${showControls ? ' is-active' : ''}`} onClick={() => { toggleTouch(); focusGame(frameRef.current); }}
+              title={showControls ? 'Esconder controles na tela' : 'Mostrar controles na tela'} aria-label="Controles na tela" aria-pressed={showControls}
+              data-testid="mj-touch-toggle"
+            >
+              <MjIcon name="gamepad" />
+            </button>
+          )}
           <button type="button" className={`mj-player-btn mj-scores-btn${showScores ? ' is-on' : ''}`} onClick={() => setShowScores((v) => !v)} title="Recordes" aria-label="Recordes" aria-pressed={showScores}>
             <MjIcon name="trophy" />
             {board?.me?.best > 0 && <span className="mj-scores-best">{board.me.best.toLocaleString('pt-BR')}</span>}
           </button>
-          <button type="button" className="mj-player-btn" onClick={() => { setLoaded(false); setReloadKey((k) => k + 1); }} title="Reiniciar" aria-label="Reiniciar">
+          <button type="button" className="mj-player-btn" onClick={() => { input.releaseAll(); setLoaded(false); setReloadKey((k) => k + 1); }} title="Reiniciar" aria-label="Reiniciar">
             <MjIcon name="reload" />
           </button>
           <button type="button" className={`mj-player-btn${muted ? ' is-on' : ''}`} onClick={toggleMute} title={muted ? 'Ativar som' : 'Silenciar'} aria-label={muted ? 'Ativar som' : 'Silenciar'} aria-pressed={muted}>
@@ -188,7 +268,10 @@ function MiniJogoPlayer({ game, onClose }) {
           </button>
         </div>
       </div>
-      <div className="mj-player-stage">
+      <div
+        className="mj-player-stage" ref={stageRef}
+        style={showControls ? { '--mjt-side': `${fit.side}px`, '--mjt-below': `${fit.below}px`, '--mj-game-h': `${fit.gameH}px` } : undefined}
+      >
         {showScores && <ScoresPanel board={board} onClose={() => setShowScores(false)} />}
         {toast && (
           <div className="mj-score-toast" role="status"><strong>{toast.title}</strong><span>{toast.text}</span></div>
@@ -208,13 +291,15 @@ function MiniJogoPlayer({ game, onClose }) {
           allow="autoplay; fullscreen"
           onLoad={onFrameLoad}
         />
-        <TouchPad frameRef={frameRef} layout={game.pad || 'dpada'} />
-        {loaded && isCoarse() && game.touch && <div className="mj-touch-hint" role="note">{game.touch}</div>}
-        <div className="mj-rotate-hint" role="note">
-          <MjIcon name="rotate" size={34} />
-          <strong>Gire o celular</strong>
-          <span>Os mini-jogos funcionam melhor na horizontal. Toque em tela cheia (⤢) para jogar deitado.</span>
-        </div>
+        {showControls && <TouchControls scheme={scheme} input={input} fit={fit.mode} size={fit.small ? 'sm' : 'md'} />}
+        {loaded && touchUI && game.touch && <div className="mj-touch-hint" role="note">{game.touch}</div>}
+        {touchUI && fit.portrait && (
+          <div className={`mj-rotate-hint${showControls && fit.mode === 'below' ? ' is-compact' : ''}`} role="note">
+            <MjIcon name="rotate" size={showControls && fit.mode === 'below' ? 18 : 34} />
+            <strong>Gire o celular</strong>
+            <span>Os mini-jogos ficam maiores na horizontal. Dá pra jogar em pé também.</span>
+          </div>
+        )}
       </div>
     </div>
   );

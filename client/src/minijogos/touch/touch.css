@@ -1,0 +1,101 @@
+/* Controles na tela dos Mini-Jogos — estilo "jogo de celular": setas em
+   triângulo azul translúcido e botão de ação grande e redondo à direita. */
+
+.mjt-controls {
+  --mjt-blue: 64, 156, 255;
+  --dpad: 136px; --key: 62px; --key-xl: 78px; --act: 74px; --act-small: 58px;
+  --pad-x: max(12px, env(safe-area-inset-left, 0px));
+  --pad-r: max(12px, env(safe-area-inset-right, 0px));
+  --pad-b: max(12px, env(safe-area-inset-bottom, 0px));
+  position: absolute; inset: 0; z-index: 6; pointer-events: none;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+}
+.mjt-controls * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+.mjt-zone { position: absolute; bottom: 0; display: flex; align-items: flex-end; gap: 12px; pointer-events: none; box-sizing: border-box; }
+.mjt-zone > *, .mjt-pair > *, .mjt-actions > * { pointer-events: auto; }
+.mjt-zone.is-left { left: 0; padding: 0 0 var(--pad-b) var(--pad-x); }
+.mjt-zone.is-right { right: 0; padding: 0 var(--pad-r) var(--pad-b) 0; justify-content: flex-end; }
+
+/* Faixas pretas dos lados (deitado) */
+.mjt-controls.fit-side { --dpad: min(150px, calc(var(--mjt-side, 160px) - 22px)); --key: min(66px, calc((var(--mjt-side, 160px) - 34px) / 2)); --key-xl: min(92px, calc(var(--mjt-side, 160px) - 30px)); --act: min(84px, calc(var(--mjt-side, 160px) - 34px)); }
+.mjt-controls.fit-side .mjt-zone { top: 0; width: var(--mjt-side, 160px); justify-content: center; padding-left: 0; padding-right: 0; }
+.mjt-controls.fit-side .mjt-zone.is-left { padding-left: env(safe-area-inset-left, 0px); }
+.mjt-controls.fit-side .mjt-zone.is-right { flex-direction: column; align-items: center; justify-content: flex-end; padding-right: env(safe-area-inset-right, 0px); }
+
+/* Faixa de baixo (em pé) */
+.mjt-controls.fit-below { --dpad: min(168px, calc(var(--mjt-below, 200px) - 34px)); --key: min(74px, calc(var(--mjt-below, 200px) - 40px)); --key-xl: min(96px, calc(var(--mjt-below, 200px) - 40px)); --act: min(90px, calc(var(--mjt-below, 200px) - 40px)); }
+.mjt-controls.fit-below .mjt-zone { height: var(--mjt-below, 200px); width: 50%; align-items: center; }
+.mjt-controls.fit-below .mjt-zone.is-left { justify-content: center; padding-left: var(--pad-x); }
+.mjt-controls.fit-below .mjt-zone.is-right { justify-content: center; padding-right: var(--pad-r); }
+
+/* Por cima do jogo (sem faixa livre): menores e mais transparentes */
+.mjt-controls.fit-overlay { --dpad: 122px; --key: 56px; --key-xl: 68px; --act: 68px; opacity: .82; }
+.mjt-controls.size-sm { --dpad: 112px; --key: 52px; --key-xl: 62px; --act: 62px; }
+
+/* Direcional */
+.mjt-dpad {
+  position: relative; width: var(--dpad); height: var(--dpad); border-radius: 50%; flex-shrink: 0; touch-action: none; cursor: pointer;
+  background: radial-gradient(circle at 50% 50%, rgba(var(--mjt-blue), .10) 0 30%, rgba(10, 24, 48, .38) 31% 100%);
+  border: 2px solid rgba(var(--mjt-blue), .38); box-shadow: 0 6px 18px rgba(0, 0, 0, .35), inset 0 0 18px rgba(var(--mjt-blue), .12);
+}
+.mjt-dpad-btn {
+  position: absolute; width: 34%; height: 34%; display: grid; place-items: center; pointer-events: none;
+  color: rgba(150, 205, 255, .92); transition: transform .08s ease, color .08s ease, filter .08s ease;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55));
+}
+.mjt-dpad-btn .mjt-arrow { width: 74%; height: 74%; }
+.mjt-dpad-btn.is-up { left: 33%; top: 3%; }
+.mjt-dpad-btn.is-down { left: 33%; bottom: 3%; }
+.mjt-dpad-btn.is-left { top: 33%; left: 3%; }
+.mjt-dpad-btn.is-right { top: 33%; right: 3%; }
+.mjt-dpad-btn.is-on { color: #fff; transform: scale(1.18); filter: drop-shadow(0 0 10px rgba(var(--mjt-blue), .95)); }
+.mjt-dpad-hub { position: absolute; left: 50%; top: 50%; width: 20%; height: 20%; transform: translate(-50%, -50%); border-radius: 50%; background: rgba(var(--mjt-blue), .25); border: 1.5px solid rgba(var(--mjt-blue), .45); pointer-events: none; }
+
+/* Setas soltas (◀ ▶, dança) */
+.mjt-pair { display: flex; gap: 10px; align-items: flex-end; pointer-events: none; }
+.mjt-key {
+  position: relative; display: grid; place-items: center; padding: 0; margin: 0; flex-shrink: 0; touch-action: none; cursor: pointer;
+  font: inherit; color: #fff; outline: none; transition: transform .08s ease, background-color .08s ease, opacity .08s ease;
+}
+.mjt-arrowkey {
+  width: var(--key); height: var(--key); border-radius: 20px;
+  background: linear-gradient(180deg, rgba(var(--mjt-blue), .42), rgba(30, 90, 190, .36));
+  border: 2px solid rgba(170, 215, 255, .55); box-shadow: 0 6px 16px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .25);
+  color: rgba(235, 246, 255, .95);
+}
+.mjt-arrowkey.is-xl { width: var(--key-xl); height: calc(var(--key-xl) * 1.15); border-radius: 24px; }
+.mjt-arrowkey.is-xl .mjt-arrow { width: 46px; height: 46px; }
+.mjt-key.is-on { transform: scale(.92); background-color: rgba(var(--mjt-blue), .55); opacity: 1; box-shadow: 0 0 0 3px rgba(var(--mjt-blue), .45), 0 4px 12px rgba(0, 0, 0, .35); }
+
+/* Botões de ação (grandes e redondos, à direita) */
+.mjt-actions { display: flex; flex-direction: column-reverse; align-items: center; gap: 10px; pointer-events: none; }
+.mjt-action {
+  width: var(--act-small); height: var(--act-small); border-radius: 50%; gap: 0; align-content: center;
+  background: radial-gradient(circle at 35% 30%, rgba(120, 190, 255, .65), rgba(25, 95, 210, .55) 70%);
+  border: 2px solid rgba(190, 225, 255, .7); box-shadow: 0 8px 20px rgba(0, 0, 0, .4), inset 0 2px 0 rgba(255, 255, 255, .3);
+}
+.mjt-action.is-main { width: var(--act); height: var(--act); }
+.mjt-action svg { width: 42%; height: 42%; }
+.mjt-action-label { font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; line-height: 1; margin-top: 2px; text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
+
+/* Analógico flutuante */
+.mjt-joy-zone { position: relative; touch-action: none; pointer-events: auto; width: calc(var(--dpad) + 40px); height: calc(var(--dpad) + 40px); }
+.mjt-controls.fit-side .mjt-joy-zone { width: var(--mjt-side, 160px); height: 100%; }
+.mjt-controls.fit-side .has-joystick .mjt-zone.is-left, .mjt-controls.fit-side.has-joystick .mjt-zone.is-left { align-items: stretch; padding-bottom: 0; }
+.mjt-controls.fit-below .mjt-joy-zone { width: 100%; height: 100%; }
+.mjt-controls.fit-below.has-joystick .mjt-zone.is-left { padding: 0; }
+.mjt-joy-base {
+  position: absolute; width: calc(var(--r) * 2); height: calc(var(--r) * 2); margin: calc(var(--r) * -1) 0 0 calc(var(--r) * -1); border-radius: 50%;
+  background: rgba(10, 24, 48, .35); border: 2px solid rgba(var(--mjt-blue), .5); box-shadow: inset 0 0 18px rgba(var(--mjt-blue), .18); pointer-events: none;
+}
+.mjt-joy-base.is-idle { left: 50%; top: auto; bottom: calc(var(--pad-b) + var(--r)); opacity: .75; }
+.mjt-joy-base.is-idle::after { content: ''; position: absolute; inset: -12px; border-radius: 50%; border: 1.5px dashed rgba(var(--mjt-blue), .35); }
+.mjt-joy-knob {
+  position: absolute; left: 50%; top: 50%; width: 52%; height: 52%; margin: -26% 0 0 -26%; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(150, 205, 255, .9), rgba(40, 110, 220, .75)); border: 2px solid rgba(220, 240, 255, .8);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mjt-dpad-btn, .mjt-key { transition: none; }
+}
