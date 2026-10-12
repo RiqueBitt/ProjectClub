@@ -92,20 +92,17 @@ function resolveModulesRoot() {
 }
 
 // Catálogo dos módulos "jogo/app" que o Project Club sabe gerenciar.
-// IMPORTANTE SOBRE O NOME: o repositório de onde os pacotes publicados
-// são baixados ainda se chama "goldapple-launcher-releases" no GitHub —
-// renomear esse repositório em si está fora do que esta integração
-// consegue fazer (é uma ação de administração da conta do GitHub, não
-// uma mudança de código) — mas em qualquer lugar que o Project Club
-// MOSTRA ou GRAVA esse módulo (nome exibido, nome da pasta, nome do
-// executável esperado), ele já é tratado como "ProjectMC" de ponta a
-// ponta, como pedido.
+// Cada app baixa as versões das releases do PRÓPRIO repositório do código
+// (RiqueBitt/<Nome>/releases). Os antigos repositórios "-releases"
+// (goldapple-launcher-releases, PhotoProject_releases-, HyProject-releases,
+// DaVinci-Project-releases) foram arquivados depois que todas as versões
+// foram copiadas para os repositórios de código.
 const MODULES = {
   projectmc: {
     displayName: 'ProjectMC',
     description: 'Launcher de Minecraft do Project Club',
     folder: 'ProjectMC',
-    manifestUrl: 'https://api.github.com/repos/RiqueBitt/goldapple-launcher-releases/releases',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/ProjectMC/releases',
     packageType: 'single-file',
     exeName: { win32: 'ProjectMC.exe', linux: 'ProjectMC.AppImage' },
   },
@@ -124,7 +121,7 @@ const MODULES = {
     displayName: 'PhotoProject',
     description: 'Editor de imagem do Project Club',
     folder: 'PhotoProject',
-    manifestUrl: 'https://api.github.com/repos/RiqueBitt/PhotoProject_releases-/releases',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/PhotoProject/releases',
     // Item pedido: "adicione suporte para gerar uma versão .AppImage
     // de cada projeto... mantenha as versões atuais para Windows
     // funcionando normalmente" — Windows continua 'archive' (o .exe
@@ -142,23 +139,29 @@ const MODULES = {
     displayName: 'HyProject',
     description: 'Launcher de Hytale do Project Club',
     folder: 'HyProject',
-    manifestUrl: 'https://api.github.com/repos/RiqueBitt/HyProject-releases/releases',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/HyProject/releases',
     packageType: 'single-file',
     exeName: { win32: 'HyProject.exe', linux: 'HyProject.AppImage' },
   },
-  // Item pedido: "faça um novo app o DaVinci Project" — editor de
-  // vídeo, empacotado como .zip/.tar.gz com o executável dentro (igual
+  // Editor de vídeo (antes "DaVinci Project", agora CutProject), empacotado como .zip/.tar.gz com o executável dentro (igual
   // ao PhotoProject, precisa extrair — diferente do ProjectMC/
   // HyProject, que são um arquivo único portátil só).
+  // O id continua "davinciproject" (é a chave do catálogo da aba Apps e
+  // de quem já instalou), mas o app agora se chama CutProject. Quem tinha
+  // a versão antiga instalada (pasta DaVinciProject, DaVinciProject.exe)
+  // continua vendo o app como instalado — legacyFolders/legacyExeNames
+  // abaixo — e a próxima atualização já traz o CutProject.exe.
   davinciproject: {
-    displayName: 'DaVinci Project',
+    displayName: 'CutProject',
     description: 'Editor de vídeo do Project Club',
-    folder: 'DaVinciProject',
-    manifestUrl: 'https://api.github.com/repos/RiqueBitt/DaVinci-Project-releases/releases',
+    folder: 'CutProject',
+    legacyFolders: ['DaVinciProject'],
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/CutProject/releases',
     // Mesmo motivo do PhotoProject acima.
     packageType: { win32: 'archive', linux: 'single-file' },
     assetExt: { win32: '.zip' },
-    exeName: { win32: 'DaVinciProject.exe', linux: 'DaVinciProject.AppImage' },
+    exeName: { win32: 'CutProject.exe', linux: 'CutProject.AppImage' },
+    legacyExeNames: { win32: ['DaVinciProject.exe'], linux: ['DaVinciProject.AppImage'] },
   },
   // Apps criativos do Project Club (cada um no próprio repositório, com
   // as releases lá mesmo). Windows: .zip com o executável dentro da
@@ -230,11 +233,45 @@ function getExeName(mod, id) {
   }
   const name = mod.exeName[process.platform];
   if (!name) throw new Error(`${mod.displayName} não tem um pacote disponível para esta plataforma (${process.platform}).`);
+  // App renomeado (ex.: DaVinci Project → CutProject): enquanto a versão
+  // instalada ainda for a antiga, o executável dela tem o nome antigo.
+  if (id && !fs.existsSync(path.join(moduleDir(id), name))) {
+    const legacy = (mod.legacyExeNames?.[process.platform] || []).find((n) => fs.existsSync(path.join(moduleDir(id), n)));
+    if (legacy) return legacy;
+  }
   return name;
 }
 
+// Pasta de instalação do módulo. Se o app mudou de nome e a pessoa ainda
+// tem a pasta antiga (legacyFolders), ela é renomeada para a nova na
+// primeira vez que o Project Club olhar para o app — sem reinstalar nada.
+// Se a renomeação falhar (arquivo em uso, permissão), continua usando a
+// pasta antiga até a próxima tentativa.
 function moduleDir(id) {
-  return path.join(resolveModulesRoot(), getModule(id).folder);
+  const mod = getModule(id);
+  const root = resolveModulesRoot();
+  const dir = path.join(root, mod.folder);
+  if (mod.legacyFolders?.length && !fs.existsSync(dir)) {
+    for (const old of mod.legacyFolders) {
+      const oldDir = path.join(root, old);
+      if (!fs.existsSync(oldDir)) continue;
+      try {
+        fs.renameSync(oldDir, dir);
+        return dir;
+      } catch {
+        return oldDir;
+      }
+    }
+  }
+  return dir;
+}
+
+// Depois de instalar a versão com o nome novo, apaga o executável antigo
+// que tenha sobrado na pasta (só acontece em pacotes de arquivo único).
+function removeLegacyExecutables(mod, dir) {
+  for (const n of mod.legacyExeNames?.[process.platform] || []) {
+    try { fs.rmSync(path.join(dir, n), { force: true }); } catch { /* segue */ }
+  }
 }
 
 function versionFilePath(id) {
@@ -324,11 +361,11 @@ function httpsGet(url, { asJson = false, onProgress } = {}, redirectsLeft = 5) {
 // no futuro (um domínio próprio, por exemplo), só esta função precisa
 // mudar — o resto do módulo não sabe nem se importa de onde isso veio.
 //
-// O repositório goldapple-launcher-releases recebe releases de DOIS
-// processos diferentes: este projeto (build-projectmc-release.yml, tags
-// "v1.1.0" — formato semântico, com pontos) e o workflow de release
-// pública do launcher em si (outro repositório, tags "v37" — só um
-// número, sem pontos). Filtra só tags no formato semântico (com pontos)
+// O repositório do ProjectMC recebe releases de DOIS processos
+// diferentes: build-projectmc-release.yml (tags "v1.1.0" — formato
+// semântico, com pontos, o que o Project Club usa) e a build automática
+// do launcher a cada push (tags "v37" — só um número, sem pontos, usadas
+// pela atualização automática do próprio launcher). Filtra só tags no formato semântico (com pontos)
 // — o formato que só este projeto usa — pegando a mais recente dentre
 // essas, ignorando qualquer release "v37"-like publicada por outro
 // processo.
@@ -455,6 +492,7 @@ async function installSingleFilePackage(mod, dir, data, version) {
     fs.renameSync(tmpExePath, finalExePath);
   }
   fs.writeFileSync(path.join(dir, '.version'), version, 'utf-8');
+  removeLegacyExecutables(mod, dir);
 }
 
 // Item pedido: "adicione esse projeto... editor de imagem chamado
@@ -485,7 +523,13 @@ async function installArchivePackage(mod, id, finalDir, data, version, onProgres
 
   const exePath = path.join(stagingDir, getExeName(mod));
   let finalExeName = getExeName(mod);
+  // Pacote publicado antes de o app mudar de nome (ex.: CutProject v1.0.2
+  // ainda traz DaVinciProject.exe): aceita o nome antigo conhecido.
   if (!fs.existsSync(exePath)) {
+    const legacy = (mod.legacyExeNames?.[process.platform] || []).find((n) => fs.existsSync(path.join(stagingDir, n)));
+    if (legacy) finalExeName = legacy;
+  }
+  if (!fs.existsSync(path.join(stagingDir, finalExeName))) {
     // Item pedido: "corrija para aceitar mesmo assim" — em vez de
     // falhar direto quando o nome configurado não bate com o que veio
     // no pacote (normalmente porque o app do Project Club instalado

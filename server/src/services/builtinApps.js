@@ -142,4 +142,34 @@ async function seedBuiltinApps() {
   }
 }
 
-module.exports = { BUILTIN_APPS, seedBuiltinApps, shots };
+// Os apps que já estavam no catálogo (cadastrados pela staff) ganharam
+// ícone e banner novos, no mesmo padrão dos apps acima, e o "DaVinci
+// Project" passou a se chamar CutProject. Isso é aplicado UMA vez: só nas
+// linhas que ninguém editou depois de REBRAND_CUTOFF. Depois de aplicada, a
+// linha fica com updatedAt mais novo que o corte e nunca mais é tocada — se
+// a staff trocar o ícone ou o texto depois, vale o que a staff colocou.
+const REBRAND_CUTOFF = new Date('2026-10-12T06:00:00Z');
+const REBRANDED_APPS = ['projectmc', 'photoproject', 'hyproject', 'davinciproject'];
+const OLD_NAME = /DaVinci[ -]?Project/g;
+
+async function rebrandLegacyApps() {
+  try {
+    const rows = await prisma.appCatalogItem.findMany({ where: { moduleId: { in: REBRANDED_APPS }, updatedAt: { lt: REBRAND_CUTOFF } } });
+    for (const row of rows) {
+      const id = row.moduleId;
+      const data = { iconUrl: `/apps/${id}/icon.png`, bannerUrl: `/apps/${id}/banner.jpg` };
+      if (id === 'davinciproject') {
+        for (const f of ['name', 'description', 'featuresText']) {
+          if (typeof row[f] === 'string' && OLD_NAME.test(row[f])) data[f] = row[f].replace(OLD_NAME, 'CutProject');
+          OLD_NAME.lastIndex = 0;
+        }
+      }
+      await prisma.appCatalogItem.update({ where: { id: row.id }, data });
+      console.log(`[apps] ${data.name || row.name}: ícone e banner novos aplicados.`);
+    }
+  } catch (e) {
+    console.error('[apps] não consegui atualizar ícones/nomes dos apps antigos:', e?.message);
+  }
+}
+
+module.exports = { BUILTIN_APPS, seedBuiltinApps, rebrandLegacyApps, shots };

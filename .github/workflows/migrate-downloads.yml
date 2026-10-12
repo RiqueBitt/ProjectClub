@@ -1,0 +1,60 @@
+name: Copiar releases do ProjectClub-Downloads
+
+# Traz as releases do app (Windows, Linux e Android) do antigo repositório
+# RiqueBitt/ProjectClub-Downloads para este repositório, que passa a ser o
+# lugar oficial dos downloads. Copia das mais novas para as mais antigas,
+# pode ser rodado de novo para continuar de onde parou (release que já
+# existe aqui com todos os arquivos é pulada) e não altera o repositório
+# antigo. A release fixa "latest" (legado) não é copiada.
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: 'Repositório de origem'
+        default: 'RiqueBitt/ProjectClub-Downloads'
+
+permissions:
+  contents: write
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Copiar releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SRC: ${{ inputs.from }}
+          DST: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          gh api --paginate "repos/$SRC/releases?per_page=100" \
+            --jq '.[] | select(.draft|not) | select(.tag_name != "latest") | [.created_at, .tag_name, (.assets|length)] | @tsv' \
+            | sort -r > rels.tsv
+          echo "Releases em $SRC: $(wc -l < rels.tsv)"
+          gh api --paginate "repos/$DST/releases?per_page=100" --jq '.[] | [.tag_name, (.assets|length)] | @tsv' > have.tsv || true
+          while IFS=$'\t' read -r CREATED TAG COUNT; do
+            HAVE=$(awk -F'\t' -v t="$TAG" '$1==t {print $2}' have.tsv)
+            if [ -n "$HAVE" ] && [ "$HAVE" -ge "$COUNT" ]; then echo "= $TAG já copiada"; continue; fi
+            echo "::group::$TAG ($COUNT arquivos)"
+            rm -rf dl && mkdir dl
+            gh api "repos/$SRC/releases/tags/$TAG" > rel.json
+            jq -r '.body // ""' rel.json > notes.md
+            [ -s notes.md ] || echo "Versão $TAG do Project Club." > notes.md
+            for i in 1 2 3; do gh release download "$TAG" -R "$SRC" -D dl --skip-existing && break || sleep 15; done
+            if [ -n "$HAVE" ]; then
+              EXIST=$(gh release view "$TAG" -R "$DST" --json assets --jq '.assets[].name')
+              for f in dl/*; do grep -qxF "$(basename "$f")" <<< "$EXIST" || gh release upload "$TAG" "$f" -R "$DST"; done
+            else
+              gh release create "$TAG" dl/* -R "$DST" --title "$(jq -r '.name // .tag_name' rel.json)" \
+                --notes-file notes.md --target "$GITHUB_SHA" --latest=false
+            fi
+            echo "::endgroup::"
+          done < rels.tsv
+          # "Latest" = a maior versão que existir aqui (inclusive uma build nova
+          # que tenha saído durante a cópia).
+          NEWEST=$(gh api --paginate "repos/$DST/releases?per_page=100" --jq '.[].tag_name' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          [ -n "$NEWEST" ] && gh release edit "$NEWEST" -R "$DST" --latest
+          echo "Pronto. Releases em $DST: $(gh api --paginate "repos/$DST/releases?per_page=100" --jq '.[].tag_name' | wc -l)"
