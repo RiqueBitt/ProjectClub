@@ -184,6 +184,7 @@ const LEGACY_APP_PAGES = [
   {
     moduleId: 'projectmc',
     pageRev: 1,
+    order: 21,
     name: 'ProjectMC',
     version: '1.6.0',
     description: 'Launcher de Minecraft do Project Club: organize instâncias, instale mods, modpacks, resource packs e shaders e entre no jogo com a sua conta, tudo em um só lugar. Baseado no X Minecraft Launcher (código aberto, MIT).',
@@ -208,6 +209,7 @@ const LEGACY_APP_PAGES = [
   {
     moduleId: 'hyproject',
     pageRev: 1,
+    order: 22,
     name: 'HyProject',
     version: '1.1.0',
     description: 'Launcher de Hytale do Project Club: instale e atualize o jogo, organize perfis, gerencie mods e acompanhe as novidades, com o tema do Project Club. Baseado no HyPrism (código aberto, GPL v3).',
@@ -228,6 +230,31 @@ const LEGACY_APP_PAGES = [
     requirementsLinux: 'Linux x86_64 (Ubuntu 22.04 ou mais novo)\nCPU: 4 núcleos\nRAM: 8 GB mínimo\nGPU: OpenGL 4.1, 2 GB de VRAM\nDisco: ~182 MB + espaço do jogo',
     shots: ['01-abertura', '02-autenticacao', '03-boas-vindas-idioma', '04-boas-vindas-2', '05-boas-vindas-3', '06-boas-vindas-4', '07-painel', '08-noticias', '09-perfis', '10-instancias', '11-configuracoes', '12-painel-2'],
   },
+  {
+    moduleId: 'davinciproject',
+    pageRev: 1,
+    order: 23,
+    name: 'CutProject',
+    version: '1.1.0',
+    description: 'Editor de vídeo do Project Club: monte vídeos com várias faixas, corte, aplique efeitos, títulos e transições, corrija as cores e exporte para redes sociais ou em alta qualidade. Baseado no Sprocket (código aberto, MIT).',
+    featuresText: [
+      'Edição não destrutiva em linha do tempo multipista (miniaturas, forma de onda, encaixe e zoom)',
+      'Qualquer formato de sequência, inclusive vertical para redes sociais',
+      'Efeitos na GPU com keyframes, títulos, geradores, camadas de ajuste e transições',
+      'Correção de cor: balanço de branco, rodas de cor, curvas, qualificador HSL e LUTs',
+      'Mixer de áudio com envelopes de ganho, pan, mute e solo por faixa',
+      'Mídia proxy e cache de render para editar com fluidez',
+      'Exporta MP4 (H.264/AAC) e outros formatos, além de áudio (WAV/FLAC/MP3), com predefinições',
+      'Salvamento automático, recuperação após falha e desfazer/refazer completo',
+      'Windows 10/11 (64 bits) e Linux (AppImage) — tema do Project Club, atualizações pela aba Apps',
+      'Tecnologias: C#/.NET 10, Avalonia, SkiaSharp, FFmpeg 8 — versão 1.1.0 (base Sprocket)',
+    ].join('\n'),
+    sizeLabelWin: '~141 MB (download) · ~400 MB instalado',
+    sizeLabelLinux: '~131 MB (AppImage)',
+    requirementsWin: 'Windows 10 ou 11 (64 bits)\nCPU: 4 núcleos (6–8 para 4K)\nRAM: 8 GB mínimo — o app usa ~0,5–3 GB conforme o projeto (16 GB recomendado)\nGPU: Direct3D 11 / OpenGL 3.3 com 2 GB de VRAM (4 GB+ recomendado)\nDisco: ~400 MB + mídia, proxies e cache',
+    requirementsLinux: 'Linux x86_64 com glibc 2.35+ (Ubuntu 22.04 ou mais novo)\nCPU: 4 núcleos\nRAM: 8 GB mínimo\nGPU: OpenGL 3.3 com 2 GB de VRAM\nDisco: ~131 MB + mídia, proxies e cache',
+    shots: ['01-projeto-de-exemplo', '02-reproduzindo', '03-clipe-selecionado', '04-menu-arquivo', '05-menu-clip', '06-menu-efeitos', '07-painel-efeitos', '08-painel-transicoes', '09-exportar', '10-menu-sequencia', '11-menu-janela'],
+  },
 ];
 
 const PAGE_FIELDS = ['name', 'description', 'version', 'featuresText', 'sizeLabelWin', 'sizeLabelLinux', 'requirementsWin', 'requirementsLinux'];
@@ -240,8 +267,13 @@ async function applyAppPages() {
   ];
   for (const pg of pages) {
     try {
-      const row = await prisma.appCatalogItem.findUnique({ where: { moduleId: pg.moduleId }, include: { screenshots: true } });
-      if (!row) continue;
+      let row = await prisma.appCatalogItem.findUnique({ where: { moduleId: pg.moduleId }, include: { screenshots: true } });
+      if (!row) {
+        // App publicado que ainda não estava no catálogo: entra na aba Apps.
+        row = await prisma.appCatalogItem.create({ data: { moduleId: pg.moduleId, name: pg.name, order: pg.order ?? 50, enabled: true } });
+        row.screenshots = [];
+        console.log(`[apps] ${pg.name} adicionado à aba Apps.`);
+      }
       const applied = Math.max(0, ...row.screenshots.map((sc) => revOf(sc.imageUrl)));
       if (applied >= pg.pageRev) continue;
       const data = { iconUrl: `/apps/${pg.moduleId}/icon.png`, bannerUrl: `/apps/${pg.moduleId}/banner.jpg` };
