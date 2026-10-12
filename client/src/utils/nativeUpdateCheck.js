@@ -15,8 +15,10 @@ import { openExternal } from './openExternal';
 // Store). Item pedido: "quero pra .exe, .appimage e .apk" — baixa o
 // .apk sozinho e tenta instalar direto, em vez de só abrir o
 // navegador e depender da pessoa fazer tudo manualmente.
-const VERSION_MANIFEST_URL = 'https://raw.githubusercontent.com/RiqueBitt/ProjectClub-Downloads/main/version.json';
-const APK_DOWNLOAD_URL = 'https://github.com/RiqueBitt/ProjectClub-Downloads/releases/latest/download/ProjectClub.apk';
+// Versão mais nova = release mais recente deste repositório (tag vX.Y.Z +
+// notas). A API do GitHub responde com CORS, então funciona dentro do app.
+const VERSION_MANIFEST_URL = 'https://api.github.com/repos/RiqueBitt/ProjectClub/releases/latest';
+const APK_DOWNLOAD_URL = 'https://github.com/RiqueBitt/ProjectClub/releases/latest/download/ProjectClub.apk';
 const DOWNLOAD_PAGE_URL = 'https://projectclub.squareweb.app/#download';
 const LAST_SEEN_KEY = 'pc_last_seen_native_version';
 
@@ -125,7 +127,8 @@ export async function checkForNativeUpdate() {
 
     const res = await fetch(VERSION_MANIFEST_URL, { cache: 'no-store' });
     if (!res.ok) return;
-    const manifest = await res.json();
+    const rel = await res.json();
+    const manifest = { version: rel?.tag_name, notes: (rel?.body || '').trim() };
     if (!manifest?.version) return;
 
     if (isNewer(manifest.version, localVersion)) {

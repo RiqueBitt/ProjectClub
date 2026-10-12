@@ -443,7 +443,9 @@ jobs:
           # criar uma tag que já existe falha. Isso não é um erro de
           # verdade (só significa "essa versão já foi marcada"), então
           # detecta e pula em vez de derrubar o job inteiro.
-          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+          # A release (criada pelos jobs de build) já pode ter criado a tag no
+          # GitHub — confere lá, não só no clone local (que vem sem tags).
+          if git rev-parse "$VERSION" >/dev/null 2>&1 || git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1; then
             echo "Tag $VERSION já existe — pulando (nenhum commit novo desde a última vez)."
           else
             git tag -a "$VERSION" -m "$(cat /tmp/changelog.txt)"

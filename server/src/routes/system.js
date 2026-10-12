@@ -11,7 +11,7 @@ router.post('/publish-release', ctrl.publishRelease);
 // Versão mais nova do app de PC (lida do latest.yml que o electron-updater
 // usa) — o botão verde de "atualizar" da barra do app compara com a dele.
 const { cacheGetOrSet } = require('../config/redis');
-const LATEST_YML = 'https://github.com/RiqueBitt/ProjectClub-Downloads/releases/latest/download/latest.yml';
+const LATEST_YML = 'https://github.com/RiqueBitt/ProjectClub/releases/latest/download/latest.yml';
 router.get('/desktop-latest', async (_req, res) => {
   try {
     const data = await cacheGetOrSet('desktop:latest', 5 * 60, async () => {

@@ -28,14 +28,14 @@ function useReveal() {
 }
 
 // Publicados como assets de uma GitHub Release no repositório PÚBLICO
-// separado ProjectClub-Downloads (sem nenhum código-fonte dentro, só os
+// repositório RiqueBitt/ProjectClub (antes ficavam no ProjectClub-Downloads, só os
 // instaladores) — o repositório principal continua privado. O GitHub
 // Actions do repositório principal (.github/workflows/build-apps.yml)
 // publica ali automaticamente sempre que desktop/ ou client/android/
 // mudam. "releases/latest/download/<nome>" é um link ESTÁVEL do próprio
 // GitHub — sempre baixa o arquivo daquele nome da versão mais recente
 // publicada, sem precisar saber o número da versão.
-const DOWNLOADS_BASE = 'https://github.com/RiqueBitt/ProjectClub-Downloads/releases/latest/download';
+const DOWNLOADS_BASE = 'https://github.com/RiqueBitt/ProjectClub/releases/latest/download';
 const WINDOWS_DOWNLOAD_URL = `${DOWNLOADS_BASE}/ProjectClub-Setup-Windows.exe`;
 const LINUX_DOWNLOAD_URL = `${DOWNLOADS_BASE}/ProjectClub-Linux.AppImage`;
 const ANDROID_DOWNLOAD_URL = `${DOWNLOADS_BASE}/ProjectClub.apk`;

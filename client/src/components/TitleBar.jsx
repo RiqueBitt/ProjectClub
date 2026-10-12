@@ -42,7 +42,7 @@ function UpdateButton() {
     ? `Atualizar para ${status?.version || latest || 'a versão nova'} (fecha e reabre o Project Club)`
     : `Baixar e instalar ${status?.version || latest || 'a versão nova'}`;
 
-  const INSTALLER_URL = 'https://github.com/RiqueBitt/ProjectClub-Downloads/releases/latest/download/ProjectClub-Setup-Windows.exe';
+  const INSTALLER_URL = 'https://github.com/RiqueBitt/ProjectClub/releases/latest/download/ProjectClub-Setup-Windows.exe';
 
   const run = async () => {
     if (working) return;
