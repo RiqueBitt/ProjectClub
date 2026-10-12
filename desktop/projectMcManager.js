@@ -160,6 +160,45 @@ const MODULES = {
     assetExt: { win32: '.zip' },
     exeName: { win32: 'DaVinciProject.exe', linux: 'DaVinciProject.AppImage' },
   },
+  // Apps criativos do Project Club (cada um no próprio repositório, com
+  // as releases lá mesmo). Windows: .zip com o executável dentro da
+  // pasta indicada em exeName; Linux: .AppImage de arquivo único.
+  waveproject: {
+    displayName: 'WaveProject',
+    description: 'Editor de áudio do Project Club',
+    folder: 'WaveProject',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/WaveProject/releases',
+    packageType: { win32: 'archive', linux: 'single-file' },
+    assetExt: { win32: '.zip' },
+    exeName: { win32: 'bin/WaveProject.exe', linux: 'WaveProject.AppImage' },
+  },
+  texelproject: {
+    displayName: 'TexelProject',
+    description: 'Pintura de texturas 3D do Project Club',
+    folder: 'TexelProject',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/TexelProject/releases',
+    packageType: { win32: 'archive', linux: 'single-file' },
+    assetExt: { win32: '.zip' },
+    exeName: { win32: 'TexelProject.exe', linux: 'TexelProject.AppImage' },
+  },
+  forgeproject: {
+    displayName: 'ForgeProject',
+    description: 'Modelagem, animação e render 3D do Project Club',
+    folder: 'ForgeProject',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/ForgeProject/releases',
+    packageType: { win32: 'archive', linux: 'single-file' },
+    assetExt: { win32: '.zip' },
+    exeName: { win32: 'ForgeProject.exe', linux: 'ForgeProject.AppImage' },
+  },
+  canvasproject: {
+    displayName: 'CanvasProject',
+    description: 'Pintura digital e ilustração do Project Club',
+    folder: 'CanvasProject',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/CanvasProject/releases',
+    packageType: { win32: 'archive', linux: 'single-file' },
+    assetExt: { win32: '.zip' },
+    exeName: { win32: 'bin/CanvasProject.exe', linux: 'CanvasProject.AppImage' },
+  },
 };
 
 function getModule(id) {
