@@ -64,7 +64,7 @@ httpServer.listen(env.PORT, () => {
   // Textos antigos salvos no banco com o nome "Arena de Cartas".
   require('./services/renameCardGame').renameCardGame();
   // Apps do ecossistema (WaveProject, TexelProject...) na aba Apps.
-  { const apps = require('./services/builtinApps'); apps.seedBuiltinApps(); apps.rebrandLegacyApps(); }
+  { const apps = require('./services/builtinApps'); apps.seedBuiltinApps().then(() => apps.rebrandLegacyApps()).then(() => apps.applyAppPages()); }
 });
 
 // Item pedido: "encontre uma solução para manter a sessão do usuário
