@@ -48,8 +48,15 @@ jobs:
               EXIST=$(gh release view "$TAG" -R "$DST" --json assets --jq '.assets[].name')
               for f in dl/*; do grep -qxF "$(basename "$f")" <<< "$EXIST" || gh release upload "$TAG" "$f" -R "$DST"; done
             else
-              gh release create "$TAG" dl/* -R "$DST" --title "$(jq -r '.name // .tag_name' rel.json)" \
-                --notes-file notes.md --target "$GITHUB_SHA" --latest=false
+              # O GitHub limita criações seguidas: tenta de novo com pausa.
+              for i in 1 2 3 4 5; do
+                gh release create "$TAG" dl/* -R "$DST" --title "$(jq -r '.name // .tag_name' rel.json)" \
+                  --notes-file notes.md --target "$GITHUB_SHA" --latest=false && break
+                gh release view "$TAG" -R "$DST" >/dev/null 2>&1 && break
+                [ "$i" = 5 ] && exit 1
+                echo "Limite do GitHub, esperando $((i*60))s..."; sleep $((i*60))
+              done
+              sleep 8
             fi
             echo "::endgroup::"
           done < rels.tsv
