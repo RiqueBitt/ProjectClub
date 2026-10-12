@@ -658,6 +658,7 @@ function uninstall(id) {
 // periodicamente pelo main.js, do mesmo jeito que o autoUpdater do
 // próprio Project Club já roda em segundo plano.
 async function checkAndUpdateInstalledModules() {
+  loadRemoteModules();
   for (const id of Object.keys(MODULES)) {
     try {
       if (!isInstalled(id)) continue; // nunca instala algo que a pessoa nunca baixou
@@ -672,4 +673,70 @@ async function checkAndUpdateInstalledModules() {
   }
 }
 
-module.exports = { getStatus, checkForUpdate, installOrUpdate, launch, uninstall, checkAndUpdateInstalledModules };
+// ---------- Apps novos sem atualizar o Project Club ----------
+// Um app que entrou no catálogo depois desta versão do Project Club não
+// está em MODULES. Em vez de dar "Módulo desconhecido", pergunta ao
+// servidor o nome e o repositório dele e monta a definição no padrão
+// de todos os apps novos (zip no Windows, AppImage no Linux). A
+// definição fica salva em disco para funcionar também sem internet.
+const REMOTE_MODULES_FILE = () => path.join(app.getPath('userData'), 'remote-modules.json');
+let remoteLoaded = false;
+
+function moduleFromRemote(id, info) {
+  const name = String(info.displayName || '').replace(/[^A-Za-z0-9]/g, '');
+  const repo = String(info.repo || name).replace(/[^A-Za-z0-9_.-]/g, '');
+  if (!name || !repo) return null;
+  return {
+    displayName: info.displayName,
+    description: info.description || '',
+    folder: name,
+    manifestUrl: `https://api.github.com/repos/RiqueBitt/${repo}/releases`,
+    packageType: { win32: 'archive', linux: 'single-file' },
+    assetExt: { win32: '.zip' },
+    exeName: { win32: info.exeWin || `${name}.exe`, linux: `${name}.AppImage` },
+    remote: true,
+  };
+}
+
+function loadRemoteModules() {
+  if (remoteLoaded) return;
+  remoteLoaded = true;
+  try {
+    const saved = JSON.parse(fs.readFileSync(REMOTE_MODULES_FILE(), 'utf8'));
+    for (const [id, info] of Object.entries(saved || {})) {
+      if (!MODULES[id]) { const mod = moduleFromRemote(id, info); if (mod) MODULES[id] = mod; }
+    }
+  } catch { /* ainda não tem nenhum salvo */ }
+}
+
+async function ensureModule(id) {
+  loadRemoteModules();
+  if (MODULES[id]) return;
+  if (!/^[a-z0-9-]{2,40}$/.test(String(id))) throw new Error(`Módulo desconhecido: ${id}`);
+  let info;
+  try {
+    info = await httpsGet(`${RELEASES_SERVER}/api/app-catalog/module/${id}`, { asJson: true });
+  } catch {
+    throw new Error('Este app é novo e não foi possível buscar os dados dele agora. Verifique a internet ou atualize o Project Club.');
+  }
+  const mod = moduleFromRemote(id, info || {});
+  if (!mod) throw new Error(`Módulo desconhecido: ${id}`);
+  MODULES[id] = mod;
+  try {
+    let saved = {};
+    try { saved = JSON.parse(fs.readFileSync(REMOTE_MODULES_FILE(), 'utf8')) || {}; } catch { /* primeiro */ }
+    saved[id] = info;
+    fs.writeFileSync(REMOTE_MODULES_FILE(), JSON.stringify(saved, null, 2));
+  } catch { /* só um cache */ }
+}
+
+const withModule = (fn) => async (id, ...rest) => { await ensureModule(id); return fn(id, ...rest); };
+
+module.exports = {
+  getStatus: withModule(getStatus),
+  checkForUpdate: withModule(checkForUpdate),
+  installOrUpdate: withModule(installOrUpdate),
+  launch: withModule(launch),
+  uninstall: withModule(uninstall),
+  checkAndUpdateInstalledModules,
+};

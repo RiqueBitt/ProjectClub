@@ -28,4 +28,25 @@ async function getPlatformStats(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { getStatus, getPlatformStats };
+// Pulso público da página inicial: só contagens agregadas (ninguém é
+// identificado), guardadas por 30 s para não pesar no banco.
+const { cacheGetOrSet } = require('../config/redis');
+async function getPublicPulse(req, res) {
+  try {
+    const data = await cacheGetOrSet('platform:pulse', 30, async () => {
+      const since = new Date(); since.setHours(0, 0, 0, 0);
+      const [members, online, messagesToday] = await Promise.all([
+        prisma.user.count(),
+        prisma.user.count({ where: { status: { in: ['ONLINE', 'IDLE', 'DND'] } } }), // quem está invisível não conta
+        prisma.message.count({ where: { createdAt: { gte: since } } }),
+      ]);
+      return { members, online, messagesToday, at: new Date().toISOString() };
+    });
+    res.set('Cache-Control', 'public, max-age=20');
+    res.json(data);
+  } catch {
+    res.json({ members: null, online: null, messagesToday: null });
+  }
+}
+
+module.exports = { getStatus, getPlatformStats, getPublicPulse };

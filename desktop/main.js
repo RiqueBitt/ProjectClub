@@ -878,17 +878,17 @@ if (!gotLock) {
       return { success: false, error: err.message };
     }
   });
-  ipcMain.handle('projectmc:launch', (_event, id) => {
+  ipcMain.handle('projectmc:launch', async (_event, id) => {
     try {
-      projectMcManager.launch(id || 'projectmc');
+      await projectMcManager.launch(id || 'projectmc');
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
     }
   });
-  ipcMain.handle('projectmc:uninstall', (_event, id) => {
+  ipcMain.handle('projectmc:uninstall', async (_event, id) => {
     try {
-      projectMcManager.uninstall(id || 'projectmc');
+      await projectMcManager.uninstall(id || 'projectmc');
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
