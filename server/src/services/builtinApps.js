@@ -183,6 +183,30 @@ async function rebrandLegacyApps() {
 // banco — depois disso, o que a staff editar continua valendo.
 const LEGACY_APP_PAGES = [
   {
+    moduleId: 'photoproject',
+    pageRev: 1,
+    order: 20,
+    name: 'PhotoProject',
+    version: '0.98.3',
+    description: 'Editor de imagem do Project Club: retoque fotos, monte artes com camadas, edite arquivos do Photoshop (PSD/PSB) e automatize tarefas, com o tema do Project Club. Baseado no Patchy Image Editor (código aberto, MIT).',
+    featuresText: [
+      'Abre e salva PSD/PSB com camadas, máscaras, estilos de camada, texto e vetores editáveis',
+      'Smart Objects e Smart Filters, ajustes não destrutivos e modos de mistura',
+      'Curvas, níveis, matiz/saturação e dezenas de filtros',
+      'Pincéis, seleção, recorte, clonagem, correção (healing), liquify, warp e gradientes',
+      'Texto e formas vetoriais editáveis',
+      'Camera RAW, HEIF/AVIF, WebP, JPEG XL, TIFF, PNG, SVG e PDF',
+      'Plug-ins 8BF, scripts em JavaScript e automação pela linha de comando',
+      'Windows 10/11 (64 bits) e Linux (AppImage) — tema do Project Club, atualizações pela aba Apps',
+      'Tecnologias: C++20, Qt 6 — versão 0.98.3 (base Patchy)',
+    ].join('\n'),
+    sizeLabelWin: '~58 MB (zip)',
+    sizeLabelLinux: '~51 MB (AppImage)',
+    requirementsWin: 'Windows 10 ou 11 (64 bits)\nCPU: 2 núcleos com SSE4.1 (4+ recomendado)\nRAM: 4 GB mínimo — o app usa ~300 MB–2 GB conforme a imagem (8–16 GB para PSDs grandes)\nGPU: OpenGL 3.3\nDisco: ~250 MB + espaço das imagens',
+    requirementsLinux: 'Linux x86_64 (glibc 2.35+, Ubuntu 22.04 ou mais novo)\nCPU: 2 núcleos com SSE4.1\nRAM: 4 GB mínimo\nGPU: OpenGL 3.3\nDisco: ~250 MB + espaço das imagens',
+    shots: ['01-inicio', '02-novo-documento', '03-foto-aberta', '04-curvas', '05-niveis', '06-matiz-saturacao', '07-menu-filtro', '08-pincel-camadas', '09-selecao', '10-texto', '11-menu-camada', '12-menu-imagem', '13-menu-editar'],
+  },
+  {
     moduleId: 'projectmc',
     pageRev: 1,
     order: 21,
