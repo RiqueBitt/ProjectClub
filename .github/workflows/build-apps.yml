@@ -159,17 +159,13 @@ jobs:
         shell: bash
         env:
           OWN_TOKEN: ${{ github.token }}
-          DOWNLOADS_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
         run: |
           set -e
           EXE_PATH=$(ls dist/*.exe | head -n 1)
           cp "$EXE_PATH" "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe"
           cp "dist/ProjectClub-Setup-Windows.exe.blockmap" "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe.blockmap"
           cp "dist/latest.yml" "$RUNNER_TEMP/latest.yml"
-          # Publica neste repositório (lugar oficial dos downloads). Durante a
-          # transição, publica também no antigo ProjectClub-Downloads, para que
-          # quem ainda tem uma versão antiga instalada receba esta atualização,
-          # que já procura as próximas aqui. Falha lá não derruba a build.
+          # Publica neste repositório (lugar oficial dos downloads).
           publish() {
             REPO="$1"
             # Item pedido: "não quero que apague as versões antigas" — cada
@@ -196,9 +192,6 @@ jobs:
             for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/latest.yml" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
           }
           export GH_TOKEN="$OWN_TOKEN"; publish "${{ github.repository }}"
-          if [ -n "$DOWNLOADS_TOKEN" ]; then
-            ( export GH_TOKEN="$DOWNLOADS_TOKEN"; publish "RiqueBitt/ProjectClub-Downloads" ) || echo "::warning::Não consegui publicar a cópia de transição no ProjectClub-Downloads."
-          fi
 
   build-linux:
     needs: compute-version
@@ -257,16 +250,12 @@ jobs:
       - name: Publicar na Release "latest"
         env:
           OWN_TOKEN: ${{ github.token }}
-          DOWNLOADS_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
         run: |
           set -e
           APPIMAGE_PATH=$(ls dist/*.AppImage | head -n 1)
           cp "$APPIMAGE_PATH" "$RUNNER_TEMP/ProjectClub-Linux.AppImage"
           cp "dist/latest-linux.yml" "$RUNNER_TEMP/latest-linux.yml"
-          # Publica neste repositório (lugar oficial dos downloads). Durante a
-          # transição, publica também no antigo ProjectClub-Downloads, para que
-          # quem ainda tem uma versão antiga instalada receba esta atualização,
-          # que já procura as próximas aqui. Falha lá não derruba a build.
+          # Publica neste repositório (lugar oficial dos downloads).
           publish() {
             REPO="$1"
             # Item pedido: "não quero que apague as versões antigas" —
@@ -288,9 +277,6 @@ jobs:
             fi
           }
           export GH_TOKEN="$OWN_TOKEN"; publish "${{ github.repository }}"
-          if [ -n "$DOWNLOADS_TOKEN" ]; then
-            ( export GH_TOKEN="$DOWNLOADS_TOKEN"; publish "RiqueBitt/ProjectClub-Downloads" ) || echo "::warning::Não consegui publicar a cópia de transição no ProjectClub-Downloads."
-          fi
 
   build-android:
     needs: compute-version
@@ -372,15 +358,11 @@ jobs:
       - name: Publicar na Release "latest"
         env:
           OWN_TOKEN: ${{ github.token }}
-          DOWNLOADS_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
         run: |
           set -e
           APK_PATH=$(find client/android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
           cp "$APK_PATH" "$RUNNER_TEMP/ProjectClub.apk"
-          # Publica neste repositório (lugar oficial dos downloads). Durante a
-          # transição, publica também no antigo ProjectClub-Downloads, para que
-          # quem ainda tem uma versão antiga instalada receba esta atualização,
-          # que já procura as próximas aqui. Falha lá não derruba a build.
+          # Publica neste repositório (lugar oficial dos downloads).
           publish() {
             REPO="$1"
             # Item pedido: "não quero que apague as versões antigas" —
@@ -394,9 +376,6 @@ jobs:
             for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub.apk" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
           }
           export GH_TOKEN="$OWN_TOKEN"; publish "${{ github.repository }}"
-          if [ -n "$DOWNLOADS_TOKEN" ]; then
-            ( export GH_TOKEN="$DOWNLOADS_TOKEN"; publish "RiqueBitt/ProjectClub-Downloads" ) || echo "::warning::Não consegui publicar a cópia de transição no ProjectClub-Downloads."
-          fi
 
   # Item pedido: "quando lançar uma nova release, quero que apareça no
   # app pedindo pra atualizar, e quando atualizar mande uma mensagem
@@ -451,25 +430,6 @@ jobs:
             git tag -a "$VERSION" -m "$(cat /tmp/changelog.txt)"
             git push origin "$VERSION"
           fi
-
-      - name: Publicar version.json no ProjectClub-Downloads (transição)
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}
-        run: |
-          set -e
-          VERSION="${{ needs.compute-version.outputs.version }}"
-          git clone --depth 1 "https://${GH_TOKEN}@github.com/RiqueBitt/ProjectClub-Downloads.git" /tmp/downloads-repo
-          cd /tmp/downloads-repo
-          git config user.name "Project Club CI"
-          git config user.email "noreply@projectclub.local"
-          python3 -c "
-          import json
-          notes = open('/tmp/changelog.txt', encoding='utf-8').read().strip()
-          json.dump({'version': '$VERSION', 'notes': notes}, open('version.json', 'w'), ensure_ascii=False)
-          "
-          git add version.json
-          git diff --cached --quiet && echo "Nada mudou." || (git commit -q -m "Atualiza version.json ($VERSION)" && git push)
 
       - name: Atualizar as notas da GitHub Release
         env:

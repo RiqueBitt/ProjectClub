@@ -62,7 +62,7 @@ Copie `server/.env.example` para `server/.env` e preencha as variáveis antes da
 
 ## Versões e publicação
 
-Cada push na `main` que mexe no app gera uma versão `vX.Y.Z` (Conventional Commits). O workflow **Build Apps** compila Windows, Linux e Android e publica a release **neste repositório**. As versões antigas, que ficavam no ProjectClub-Downloads, foram copiadas para cá.
+Cada push na `main` que mexe no app gera uma versão `vX.Y.Z` (Conventional Commits). O workflow **Build Apps** compila Windows, Linux e Android e publica a release **neste repositório**. As versões a partir da v1.2.11 estão em [Releases](../../releases).
 
 ## Documentação técnica
 
