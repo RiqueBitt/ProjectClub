@@ -27,6 +27,8 @@ const loginLimiter = rateLimit({
 // rate-limiting against scripted guessing.
 const codeLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, store: createRateLimitStore('code') });
 
+// Cadastro direto desativado (410) — contas novas só pelo fluxo de
+// inscrição em /api/applications (ver authController.register).
 router.post('/register', authLimiter, ctrl.register);
 router.post('/login', loginLimiter, ctrl.login);
 router.post('/refresh', ctrl.refresh);
@@ -35,9 +37,11 @@ router.post('/verify-email/send', requireAuth, authLimiter, ctrl.sendVerificatio
 router.post('/verify-email/confirm', requireAuth, codeLimiter, ctrl.verifyEmail);
 router.post('/forgot-password', authLimiter, ctrl.forgotPassword);
 router.post('/reset-password', authLimiter, ctrl.resetPassword);
-router.post('/2fa/setup', requireAuth, ctrl.setup2FA);
+router.post('/2fa/setup', requireAuth, codeLimiter, ctrl.setup2FA);
 router.post('/2fa/confirm', requireAuth, codeLimiter, ctrl.confirm2FA);
-router.post('/2fa/disable', requireAuth, ctrl.disable2FA);
+router.post('/2fa/disable', requireAuth, codeLimiter, ctrl.disable2FA);
+router.get('/2fa/recovery-codes', requireAuth, ctrl.recoveryCodesStatus);
+router.post('/2fa/recovery-codes', requireAuth, codeLimiter, ctrl.regenerateRecoveryCodesHandler);
 router.post('/change-password', requireAuth, authLimiter, ctrl.changePassword);
 router.post('/delete-account', requireAuth, authLimiter, ctrl.deleteAccount);
 router.get('/me', requireAuth, ctrl.me);

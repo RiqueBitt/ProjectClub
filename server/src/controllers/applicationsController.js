@@ -1,11 +1,12 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../config/prisma');
 const env = require('../config/env');
-const { sendApplicationApproved, sendApplicationRejected } = require('../services/email');
+const { sendApplicationApproved, sendApplicationRejected, sendVerificationCode } = require('../services/email');
 const { getEveryoneRole } = require('../services/authz');
 const { grantStarterHouse } = require('../services/starterHouse');
-const { isPasswordStrongEnough, generatePublicId, SELF_USER_FIELDS } = require('./authController');
-const { generateRefreshToken } = require('../services/tokens');
+const {
+  isPasswordStrongEnough, generatePublicId, SELF_USER_FIELDS, issueSession, createEmailVerificationCode,
+} = require('./authController');
 
 // Registro de auditoria da staff (mesmo formato do adminController). Falha
 // no log nunca derruba a aprovação/recusa em si.
@@ -60,11 +61,32 @@ function validateAnswers(answers) {
 // (staff aprova manualmente) quanto pelo auto-aprovado abaixo (dono
 // da plataforma), pra nunca duplicar a lógica de "o que significa uma
 // inscrição virar conta" em dois lugares.
+//
+// SECURITY: a inscrição NÃO prova que a pessoa tem acesso ao e-mail
+// informado (o formulário não manda código nenhum) — antes a conta já
+// nascia com emailVerified: true, então dava pra se inscrever com o
+// e-mail de outra pessoa (inclusive o PLATFORM_ADMIN_EMAIL, que promove
+// a ADMIN). Agora a conta nasce NÃO verificada e recebe um código por
+// e-mail; o app pede esse código no primeiro login (VerifyEmailPage —
+// o login em si continua funcionando normalmente).
+const APPROVAL_CODE_TTL_MS = 48 * 60 * 60 * 1000;
+
+async function sendInitialVerificationCode(user) {
+  try {
+    const code = await createEmailVerificationCode(user.id, APPROVAL_CODE_TTL_MS);
+    await sendVerificationCode(user.email, code, { expiresIn: '48 horas' });
+  } catch (err) {
+    // Não derruba a aprovação: a pessoa sempre pode pedir "Reenviar
+    // código" na tela de verificação depois de entrar.
+    console.error(`[applications] falha ao enviar código de verificação para ${user.email}:`, err.message);
+  }
+}
+
 async function createAccountFromApplicationData({ email, username, displayName, passwordHash, birthDate }) {
   const user = await prisma.user.create({
     data: {
       email, username, displayName, passwordHash,
-      publicId: generatePublicId(), emailVerified: true, birthDate,
+      publicId: generatePublicId(), emailVerified: false, birthDate,
     },
   });
   const everyoneRole = await getEveryoneRole();
@@ -86,19 +108,13 @@ async function createAccountFromApplicationData({ email, username, displayName, 
 // mecanismo é auditável (uma variável de ambiente, visível pra
 // qualquer um com acesso ao servidor) e não abre nenhum atalho novo
 // pra mais ninguém.
-async function issueApplicationSession(res, user) {
-  const { signAccessToken } = require('../services/tokens');
-  const accessToken = signAccessToken(user);
-  const { raw, hash, expiresAt } = generateRefreshToken();
-  await prisma.refreshToken.create({ data: { tokenHash: hash, userId: user.id, expiresAt } });
-  res.cookie('refreshToken', raw, {
-    httpOnly: true, sameSite: 'lax', secure: env.NODE_ENV === 'production',
-    maxAge: env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000, path: '/api/auth',
-  });
-  return accessToken;
-}
+// SECURITY: a conta auto-aprovada nasce com o e-mail NÃO verificado e
+// NÃO vira ADMIN na hora — a promoção (adminBootstrap.js) só acontece
+// depois que o código enviado pra esse e-mail for confirmado. Assim,
+// alguém que se inscreva com o e-mail do dono antes dele não ganha nada.
 
-const USERNAME_RE = /^[a-zA-Z0-9_.]{3,32}$/;
+const { validateUsername } = require('../utils/usernameRules');
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function submitApplication(req, res, next) {
@@ -113,9 +129,8 @@ async function submitApplication(req, res, next) {
     }
     // Mesmas regras mostradas no formulário (RegisterPage.jsx).
     if (!EMAIL_RE.test(email) || email.length > 254) return res.status(400).json({ error: 'E-mail inválido.' });
-    if (!USERNAME_RE.test(username)) {
-      return res.status(400).json({ error: 'A ClubTag deve ter de 3 a 32 caracteres: letras, números, _ ou ponto.' });
-    }
+    const usernameError = validateUsername(username);
+    if (usernameError) return res.status(400).json({ error: usernameError });
     const parsedBirthDate = new Date(birthDate);
     if (Number.isNaN(parsedBirthDate.getTime())) return res.status(400).json({ error: 'Data de nascimento inválida.' });
     if (parsedBirthDate > new Date()) return res.status(400).json({ error: 'Data de nascimento inválida.' });
@@ -137,8 +152,8 @@ async function submitApplication(req, res, next) {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Auto-aprovação do dono da plataforma — ver comentário em
-    // issueApplicationSession acima. Cria a conta direto, sem passar
+    // Auto-aprovação do dono da plataforma — ver o comentário "registrar
+    // automático..." mais acima. Cria a conta direto, sem passar
     // pela fila de MembershipApplication nem precisar de nenhuma
     // staff pra aprovar.
     const adminEmail = (env.PLATFORM_ADMIN_EMAIL || '').trim().toLowerCase();
@@ -147,7 +162,8 @@ async function submitApplication(req, res, next) {
         email: normalizedEmail, username, displayName: displayName || username, passwordHash, birthDate: parsedBirthDate,
       });
       req.app.get('io')?.to('community').emit('community:update');
-      const accessToken = await issueApplicationSession(res, user);
+      await sendInitialVerificationCode(user);
+      const accessToken = await issueSession(res, user, req.headers['user-agent'], req.ip);
       const selfUser = await prisma.user.findUnique({ where: { id: user.id }, select: SELF_USER_FIELDS });
       return res.status(201).json({ autoApproved: true, user: selfUser, accessToken });
     }
@@ -221,6 +237,7 @@ async function approveApplication(req, res, next) {
 
     const loginUrl = `${env.CLIENT_ORIGIN}/login`;
     await sendApplicationApproved(application.email, loginUrl).catch(() => {});
+    await sendInitialVerificationCode(user);
 
     res.json({ ok: true, userId: user.id });
   } catch (err) { next(err); }

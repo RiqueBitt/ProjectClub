@@ -3274,7 +3274,7 @@ function ReportsTab() {
   return (
     <div>
       <p className="dim" style={{ marginBottom: 12 }}>
-        Mensagens denunciadas manualmente por usuários. Denúncia de DM tem o mesmo cuidado de
+        Mensagens e perfis denunciados manualmente por usuários. Denúncia de DM tem o mesmo cuidado de
         privacidade do automod (nenhum dos dois envolvidos sabe que você está analisando);
         denúncia de canal público mostra o contexto ao redor normalmente.
       </p>
@@ -3297,7 +3297,7 @@ function ReportsTab() {
                   {r.reportedUser?.displayName} <span className="dim">@{r.reportedUser?.username}</span>
                 </div>
                 <div className="dim" style={{ fontSize: 12 }}>
-                  {r.conversationId ? 'Mensagem privada' : 'Mensagem de canal'} · {new Date(r.createdAt).toLocaleString('pt-BR')}
+                  {r.kind === 'PROFILE' ? 'Perfil' : r.conversationId ? 'Mensagem privada' : 'Mensagem de canal'} · {new Date(r.createdAt).toLocaleString('pt-BR')}
                 </div>
               </div>
               <span className={`ticket-status-chip ${r.status === 'PENDING' ? 'open' : 'closed'}`}>
@@ -3305,9 +3305,9 @@ function ReportsTab() {
               </span>
             </div>
             <div className="dim" style={{ marginTop: 8, fontSize: 13 }}>Motivo: {r.reason}</div>
-            <p style={{ marginTop: 4, fontStyle: 'italic' }}>"{r.snippet}"</p>
+            <p style={{ marginTop: 4, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>"{r.snippet}"</p>
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button className="btn-link" onClick={() => openCase(r)}>🔍 Analisar contexto</button>
+              <button className="btn-link" onClick={() => openCase(r)}>{r.kind === 'PROFILE' ? '🔍 Ver perfil' : '🔍 Analisar contexto'}</button>
               {r.status === 'PENDING' && (
                 <button className="btn-link" disabled={busyId === r.id} onClick={() => resolve(r.id, 'DISMISSED')}>Ignorar</button>
               )}
@@ -3317,7 +3317,22 @@ function ReportsTab() {
       </div>
 
       {viewing && (
-        <Modal onClose={() => setViewing(null)} title={viewing.report.conversationId ? 'Conversa completa (visualização de staff)' : 'Contexto do canal'}>
+        <Modal onClose={() => setViewing(null)} title={viewing.report.kind === 'PROFILE' ? 'Perfil denunciado' : viewing.report.conversationId ? 'Conversa completa (visualização de staff)' : 'Contexto do canal'}>
+          {viewing.report.kind === 'PROFILE' && (
+            <div className="settings-block" style={{ marginBottom: 8 }}>
+              {viewing.profile ? (
+                <>
+                  <div style={{ fontWeight: 700 }}>
+                    {viewing.profile.displayName} <span className="dim">@{viewing.profile.username}</span>
+                  </div>
+                  {viewing.profile.pronouns && <div className="dim" style={{ fontSize: 12 }}>{viewing.profile.pronouns}</div>}
+                  <p style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{viewing.profile.bio || <span className="dim">(sem bio)</span>}</p>
+                </>
+              ) : <p className="dim">Esta conta não existe mais.</p>}
+              <div className="dim" style={{ fontSize: 12, marginTop: 8 }}>No momento da denúncia:</div>
+              <p style={{ marginTop: 4, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>{viewing.report.snippet}</p>
+            </div>
+          )}
           {viewing.report.conversationId && (
             <div className="dim" style={{ fontSize: 12, marginBottom: 8 }}>
               Nenhum dos dois usuários é notificado sobre essa visualização.

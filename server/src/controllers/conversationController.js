@@ -1,6 +1,6 @@
 const prisma = require('../config/prisma');
 const { PUBLIC_USER_FIELDS } = require('./authController');
-const { canSendDirectMessage } = require('../services/dmPermissions');
+const { getDirectMessageDenial, DM_DENIAL_MESSAGES } = require('../services/dmPermissions');
 
 async function listConversations(req, res, next) {
   try {
@@ -31,33 +31,39 @@ async function listConversations(req, res, next) {
 
 async function createConversation(req, res, next) {
   try {
-    const { userIds = [], name } = req.body;
+    const { userIds = [], name } = req.body || {};
+    if (!Array.isArray(userIds) || !userIds.every((id) => typeof id === 'string' && id)) {
+      return res.status(400).json({ error: 'Lista de usuários inválida.' });
+    }
     const memberIds = Array.from(new Set([req.user.id, ...userIds]));
     if (memberIds.length < 2) return res.status(400).json({ error: 'Selecione ao menos um usuário.' });
 
     const isGroup = memberIds.length > 2;
 
-    if (!isGroup) {
-      const otherId = memberIds.find((id) => id !== req.user.id);
-      if (otherId) {
-        // Item pedido: "Permissão de mensagem... Quem pode me enviar
-        // mensagens? Todos / Amigos / Pessoas que compartilham grupos
-        // comigo / Ninguém... verificar configurações... Só depois
-        // criar a conversa." — checagem única em services/dmPermissions.js
-        // (compartilhada com messageController.js).
-        const allowed = await canSendDirectMessage(req.user.id, otherId);
-        if (!allowed) {
-          const settings = await prisma.userSettings.findUnique({ where: { userId: otherId }, select: { dmPrivacy: true } });
-          // BUG CORRIGIDO: mesmo desalinhamento já visto em
-          // dmPermissions.js — o valor de reserva aqui dizia
-          // 'friends', mas o padrão de verdade do schema é
-          // 'everyone' (dmPrivacy @default("everyone")).
-          const dmPrivacy = settings?.dmPrivacy || 'everyone';
-          return res.status(403).json({
-            error: dmPrivacy === 'none' ? 'Esta pessoa não está aceitando novas mensagens diretas.' : 'Vocês precisam ser amigos para iniciar uma conversa direta.',
-          });
-        }
+    // Item pedido: "Permissão de mensagem... Quem pode me enviar
+    // mensagens? Todos / Amigos / Pessoas que compartilham grupos
+    // comigo / Ninguém... verificar configurações... Só depois
+    // criar a conversa." — checagem única em services/dmPermissions.js
+    // (compartilhada com messageController.js). Vale também pra GRUPO:
+    // antes, colocar alguém num grupo novo ignorava tanto o dmPrivacy
+    // quanto bloqueios — um jeito fácil de furar o "Ninguém" ou de
+    // mandar mensagem pra quem te bloqueou.
+    for (const otherId of memberIds) {
+      if (otherId === req.user.id) continue;
+      const denial = await getDirectMessageDenial(req.user.id, otherId);
+      if (denial) {
+        if (!isGroup) return res.status(403).json({ error: DM_DENIAL_MESSAGES[denial] });
+        const other = await prisma.user.findUnique({ where: { id: otherId }, select: { displayName: true, username: true } });
+        const who = other?.displayName || other?.username || 'Uma das pessoas';
+        return res.status(403).json({
+          error: denial === 'blocked'
+            ? `Não é possível adicionar ${who} a um grupo com você.`
+            : `${who} não aceita ser adicionado(a) a conversas por você (privacidade de mensagens).`,
+        });
       }
+    }
+
+    if (!isGroup) {
 
       // Reuse an existing 1:1 conversation if it already exists.
       const existing = await prisma.conversation.findFirst({
@@ -110,7 +116,8 @@ async function hydrate(id) {
 async function addMember(req, res, next) {
   try {
     const { id } = req.params;
-    const { userId } = req.body;
+    const { userId } = req.body || {};
+    if (typeof userId !== 'string' || !userId) return res.status(400).json({ error: 'Usuário inválido.' });
     const conversation = await prisma.conversation.findUnique({ where: { id } });
     if (!conversation || !conversation.isGroup) return res.status(400).json({ error: 'Grupo inválido.' });
 
@@ -128,6 +135,32 @@ async function addMember(req, res, next) {
       where: { conversationId_userId: { conversationId: id, userId } },
     });
     if (already) return res.status(409).json({ error: 'Este usuário já está no grupo.' });
+
+    // Mesmas regras de privacidade de DM/bloqueio de createConversation:
+    // quem adiciona precisa poder mandar DM pra pessoa, e a pessoa nova
+    // não pode ter bloqueio (em nenhum sentido) com quem já está no grupo.
+    const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, displayName: true, username: true } });
+    if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
+    const denial = await getDirectMessageDenial(req.user.id, userId);
+    if (denial) {
+      return res.status(403).json({
+        error: denial === 'blocked'
+          ? 'Não é possível adicionar esta pessoa ao grupo.'
+          : `${target.displayName || target.username} não aceita ser adicionado(a) a conversas por você (privacidade de mensagens).`,
+      });
+    }
+    const memberIds = (await prisma.conversationMember.findMany({ where: { conversationId: id }, select: { userId: true } })).map((m) => m.userId);
+    const blockWithMember = await prisma.friendship.findFirst({
+      where: {
+        status: 'BLOCKED',
+        OR: [
+          { requesterId: userId, addresseeId: { in: memberIds } },
+          { addresseeId: userId, requesterId: { in: memberIds } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (blockWithMember) return res.status(403).json({ error: 'Não é possível adicionar esta pessoa ao grupo.' });
 
     await prisma.conversationMember.create({ data: { conversationId: id, userId } });
     const hydrated = await hydrate(id);

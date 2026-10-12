@@ -199,7 +199,19 @@ model User {
   emailVerified       Boolean   @default(false)
   twoFactorEnabled    Boolean   @default(false)
   twoFactorSecret     String?
+  // SECURITY: último "passo" TOTP (janela de 30s) já aceito pra esta
+  // conta — impede reaproveitar o MESMO código 2FA (ex: capturado por
+  // phishing em tempo real) uma segunda vez dentro da validade dele.
+  twoFactorLastUsedStep Int?
   platformRole        String    @default("USER")
+  // SECURITY: marca quando a conta foi promovida automaticamente a ADMIN
+  // via PLATFORM_ADMIN_EMAIL (ver adminBootstrap.js). Preenchido = a
+  // promoção automática já aconteceu uma vez e NÃO se repete — se outra
+  // pessoa da staff rebaixar essa conta depois, ela continua rebaixada.
+  platformAdminBootstrappedAt DateTime?
+  // Última troca de @usuário (ClubTag) — cooldown de 7 dias entre trocas
+  // (ver updateUsername em userController.js).
+  usernameChangedAt   DateTime?
   isPlatformBanned    Boolean   @default(false)
   platformBanReason   String?
   suspendedUntil      DateTime?
@@ -284,8 +296,9 @@ model User {
   pushTokens           PushToken[]
   verificationCodes    EmailVerificationCode[]
   passwordResetTokens  PasswordResetToken[]
+  twoFactorRecoveryCodes TwoFactorRecoveryCode[]
 
-  sentFriendRequests     Friendship[] @relation("Requester")
+  sentFriendRequests    Friendship[] @relation("Requester")
   receivedFriendRequests Friendship[] @relation("Addressee")
   // Item pedido: sistemas estilo Orkut — depoimentos, recados (scraps)
   // e "sou fã". Cada um segue o mesmo padrão de duas pontas (quem
@@ -612,6 +625,30 @@ model RefreshToken {
   expiresAt DateTime
   revoked   Boolean  @default(false)
   revokedAt DateTime?
+  // Por que essa linha foi revogada — distingue rotação normal
+  // ("ROTATED"), encerramento explícito ("LOGOUT", "REVOKED",
+  // "PASSWORD_CHANGE", "PASSWORD_RESET", "ADMIN", "ACCOUNT_DISABLED") e
+  // detecção de roubo ("THEFT"). Só reuso de um token "ROTATED" (fora da
+  // pequena janela de corrida) é tratado como roubo em refresh().
+  revokedReason String?
+  // Token que substituiu este na rotação (só preenchido pra "ROTATED").
+  replacedById  String?
+  // Quando a sessão/aparelho começou de verdade (o login) — a linha é
+  // recriada a cada rotação, então createdAt sozinho só diz "último uso".
+  sessionStartedAt DateTime?
+  lastUsedAt    DateTime @default(now())
+}
+
+// Códigos de recuperação do 2FA (10 por vez, uso único). Só o hash
+// (sha256) fica salvo — o código em si aparece UMA vez pra pessoa, na
+// hora em que é gerado.
+model TwoFactorRecoveryCode {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 }
 
 // Token de push (Firebase Cloud Messaging) — item pedido: "push
@@ -1133,9 +1170,15 @@ model AutomodFlag {
 // não duplicar o que a Message já resolve.
 model Report {
   id             String    @id @default(uuid())
-  messageId      String
-  message        Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  // "MESSAGE" (denúncia de uma mensagem — o caso original) ou "PROFILE"
+  // (denúncia do perfil/usuário em si, feita pelo modal de perfil). Em
+  // denúncia de perfil não existe mensagem, por isso messageId é
+  // opcional; o alvo é sempre reportedUserId.
+  kind           String    @default("MESSAGE")
+  messageId      String?
+  message        Message?  @relation(fields: [messageId], references: [id], onDelete: Cascade)
   reporterId     String
+  // Usuário denunciado (autor da mensagem, ou o dono do perfil).
   reportedUserId String
   conversationId String?
   conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)

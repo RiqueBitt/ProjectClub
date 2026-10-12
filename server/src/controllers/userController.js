@@ -1,6 +1,7 @@
 const prisma = require('../config/prisma');
 const { PUBLIC_USER_FIELDS, SELF_USER_FIELDS, ensurePublicId } = require('./authController');
 const { clearIfExpired } = require('../services/customStatus');
+const { validateUsername, USERNAME_CHANGE_COOLDOWN_MS } = require('../utils/usernameRules');
 const activityStore = require('../services/activityStore');
 const { getFeaturedForProfile } = require('./modpackController');
 
@@ -325,14 +326,29 @@ function sanitizeProfileShowcase(raw) {
 
 async function updateUsername(req, res, next) {
   try {
-    const { username } = req.body;
-    if (!username || username.length < 3) {
-      return res.status(400).json({ error: 'Nome de usuário inválido.' });
+    const raw = req.body?.username;
+    const username = typeof raw === 'string' ? raw.trim() : raw;
+    // Mesmas regras da inscrição (utils/usernameRules.js) + nomes
+    // reservados (admin, staff, suporte...).
+    const invalid = validateUsername(username);
+    if (invalid) return res.status(400).json({ error: invalid });
+    if (username === req.user.username) return res.status(400).json({ error: 'Essa já é a sua ClubTag.' });
+
+    // Cooldown de 7 dias entre trocas — evita ficar trocando de @ pra
+    // confundir/assumir a identidade de outra pessoa (e quebrar menções).
+    const last = req.user.usernameChangedAt ? new Date(req.user.usernameChangedAt).getTime() : 0;
+    if (last && Date.now() - last < USERNAME_CHANGE_COOLDOWN_MS) {
+      const retryAt = new Date(last + USERNAME_CHANGE_COOLDOWN_MS);
+      return res.status(429).json({
+        error: `Você só pode trocar sua ClubTag uma vez a cada 7 dias. Próxima troca liberada em ${retryAt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.`,
+        retryAt,
+      });
     }
+
     const taken = await prisma.user.findFirst({ where: { username, NOT: { id: req.user.id } } });
     if (taken) return res.status(409).json({ error: 'Nome de usuário já em uso.' });
     const user = await prisma.user.update({
-      where: { id: req.user.id }, data: { username }, select: SELF_USER_FIELDS,
+      where: { id: req.user.id }, data: { username, usernameChangedAt: new Date() }, select: SELF_USER_FIELDS,
     });
     await broadcastUserUpdate(req, user);
     res.json({ user });

@@ -145,11 +145,23 @@ function initSockets(httpServer) {
     pingTimeout: 8000,
   });
 
-  io.use((socket, next) => {
+  // SECURITY: antes só validava o JWT — uma conta banida, suspensa ou
+  // desativada com um access token ainda dentro da validade continuava
+  // conectando e recebendo tudo em tempo real. Agora confere o estado da
+  // conta no banco a cada conexão (mesmas regras de requireAuth).
+  io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth?.token;
       if (!token) return next(new Error('unauthorized'));
       const payload = verifyAccessToken(token);
+      const user = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, isPlatformBanned: true, suspendedUntil: true, accountDisabledAt: true },
+      });
+      if (!user) return next(new Error('unauthorized'));
+      if (user.isPlatformBanned) return next(new Error('banned'));
+      if (user.accountDisabledAt) return next(new Error('account_disabled'));
+      if (user.suspendedUntil && new Date(user.suspendedUntil) > new Date()) return next(new Error('suspended'));
       socket.userId = payload.sub;
       socket.data.userId = payload.sub; // visível também via fetchSockets() (RemoteSocket)
       next();
@@ -1202,6 +1214,20 @@ function initSockets(httpServer) {
   io.disconnectUser = async (userId) => {
     const sockets = await io.in(`user:${userId}`).fetchSockets();
     sockets.forEach((s) => s.disconnect(true));
+  };
+  // Ban/suspensão/desativação: avisa o cliente (pra ele mostrar a tela
+  // certa) e derruba TODOS os sockets dessa conta logo em seguida — antes
+  // o socket aberto continuava recebendo mensagens/presença em tempo
+  // real até a pessoa recarregar a página. O atraso curto dá tempo do
+  // evento chegar antes do corte. Reconectar não adianta: o io.use acima
+  // recusa contas banidas/suspensas/desativadas.
+  io.kickUser = (userId, event, payload) => {
+    if (!userId) return;
+    if (event) io.to(`user:${userId}`).emit(event, payload || {});
+    const t = setTimeout(() => {
+      io.in(`user:${userId}`).disconnectSockets(true);
+    }, 500);
+    t.unref?.();
   };
   io.emitPresenceUpdate = (user) => io.emit('presence:update', {
     userId: user.id, status: user.status, customStatus: user.customStatus,

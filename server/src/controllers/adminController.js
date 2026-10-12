@@ -173,8 +173,10 @@ async function banUser(req, res, next) {
     const user = await prisma.user.update({
       where: { id }, data: { isPlatformBanned: true, platformBanReason: reason || null }, select: ADMIN_USER_FIELDS,
     });
-    await prisma.refreshToken.updateMany({ where: { userId: id }, data: { revoked: true } });
+    await prisma.refreshToken.updateMany({ where: { userId: id, revoked: false }, data: { revoked: true, revokedAt: new Date(), revokedReason: 'ADMIN' } });
     await sessionKeep.markSessionsRevoked(id);
+    // Derruba os sockets abertos na hora (ver io.kickUser em sockets/index.js).
+    req.app.get('io')?.kickUser?.(id, 'account:banned', { reason: reason || null });
     await logPlatformAction(req, { action: 'USER_BAN', targetType: 'USER', targetId: id, reason });
     res.json({ user });
   } catch (err) { next(err); }
@@ -197,8 +199,9 @@ async function suspendUser(req, res, next) {
     const { hours, reason } = req.body;
     const suspendedUntil = new Date(Date.now() + (Number(hours) || 24) * 60 * 60 * 1000);
     const user = await prisma.user.update({ where: { id }, data: { suspendedUntil }, select: ADMIN_USER_FIELDS });
-    await prisma.refreshToken.updateMany({ where: { userId: id }, data: { revoked: true } });
+    await prisma.refreshToken.updateMany({ where: { userId: id, revoked: false }, data: { revoked: true, revokedAt: new Date(), revokedReason: 'ADMIN' } });
     await sessionKeep.markSessionsRevoked(id);
+    req.app.get('io')?.kickUser?.(id, 'account:suspended', { suspendedUntil, reason: reason || null });
     await logPlatformAction(req, { action: 'USER_SUSPEND', targetType: 'USER', targetId: id, reason, metadata: { suspendedUntil } });
     res.json({ user });
   } catch (err) { next(err); }
@@ -657,6 +660,16 @@ async function getReportedContext(req, res, next) {
     const report = await prisma.report.findUnique({ where: { id } });
     if (!report) return res.status(404).json({ error: 'Denúncia não encontrada.' });
 
+    // Denúncia de PERFIL: não tem conversa/canal — devolve o perfil atual
+    // da pessoa denunciada (o snippet já guarda como ele estava na hora).
+    // Sem esse desvio, a busca abaixo caía em `channelId: null` e listava
+    // mensagens aleatórias.
+    if (report.kind === 'PROFILE' || (!report.conversationId && !report.channelId)) {
+      const { PUBLIC_USER_FIELDS } = require('./authController');
+      const profile = await prisma.user.findUnique({ where: { id: report.reportedUserId }, select: PUBLIC_USER_FIELDS });
+      return res.json({ report, messages: [], profile });
+    }
+
     const { messageInclude } = require('./messageController');
     const where = report.conversationId
       ? { conversationId: report.conversationId, deleted: false }
@@ -718,6 +731,10 @@ async function unblockIp(req, res, next) {
   try {
     const { ip } = req.params;
     await prisma.blockedIp.deleteMany({ where: { ip } });
+    // Zera também a contagem recente (senão um único hit novo já
+    // re-bloqueava na hora) e o cache em memória do blockedIpGuard.
+    await prisma.honeypotHit.deleteMany({ where: { ip, createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) } } });
+    require('../middleware/honeypot').invalidateBlockedIpCache(ip);
     await logPlatformAction(req, { action: 'HONEYPOT_UNBLOCK_IP', targetType: 'IP', targetId: ip });
     res.json({ unblocked: true });
   } catch (err) { next(err); }

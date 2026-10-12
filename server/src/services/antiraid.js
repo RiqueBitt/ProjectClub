@@ -41,7 +41,7 @@ async function recordJoinAndCheck(io, userId) {
         create: { userId, reason, moderatorId: 'system' },
       }).catch(() => {});
       await prisma.user.update({ where: { id: userId }, data: { isPlatformBanned: true, platformBanReason: reason } }).catch(() => {});
-      io?.notifyUser?.(userId, 'account:banned', { reason, automated: true });
+      io?.kickUser?.(userId, 'account:banned', { reason, automated: true });
     }
   }
 

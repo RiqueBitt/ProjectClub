@@ -46,7 +46,7 @@ import ProfileShowcaseModal, { parseShowcase } from './ProfileShowcaseModal.jsx'
 import { GameCapsule } from '../games/GameLibraryParts.jsx';
 import ProfileCards from '../../cards/ProfileCards.jsx';
 import { PROFILE_BANNER_ASPECT } from '../ProfileBanner.jsx';
-import { updateProfile, uploadAvatar, uploadBanner } from '../../api/endpoints';
+import { updateProfile, uploadAvatar, uploadBanner, reportUserProfile } from '../../api/endpoints';
 
 // PfIcon/PfCard moveram pra profileParts.jsx (re-exportados aqui).
 import { PfIcon, PfCard } from './profileParts.jsx';
@@ -140,6 +140,70 @@ function useLazySections(resetKey) {
 // Bloco "carregando" de uma seção que ainda não chegou.
 function PfLazySkeleton() {
   return <span className="pf-sk" style={{ height: 56, margin: '4px 0' }} aria-hidden="true" />;
+}
+
+// "Denunciar" perfil: motivo (lista fixa, mesma do servidor —
+// reportController.PROFILE_REPORT_REASONS) + detalhes opcionais (obrigatórios
+// em "Outro"). Vai pra mesma fila de denúncias da staff (Painel → Denúncias).
+const PROFILE_REPORT_REASONS = ['Spam', 'Assédio ou bullying', 'Conteúdo impróprio no perfil', 'Perfil falso / se passando por outra pessoa', 'Outro'];
+
+function ReportProfileDialog({ user, onClose }) {
+  const [reason, setReason] = useState('');
+  const [details, setDetails] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [done, setDone] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!reason || busy) return;
+    if (reason === 'Outro' && !details.trim()) { setError('Descreva o motivo da denúncia.'); return; }
+    setBusy(true); setError('');
+    try {
+      await reportUserProfile(user.id, reason, details.trim());
+      setDone(true);
+    } catch (err) {
+      setError(err?.response?.data?.error || 'Não foi possível enviar a denúncia.');
+    } finally { setBusy(false); }
+  };
+
+  return createPortal(
+    <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <form className="modal-box prompt-dialog-box" onSubmit={submit}>
+        {done ? (
+          <>
+            <p className="prompt-dialog-message">Denúncia enviada. A equipe vai analisar o perfil de @{user.username}. Obrigado por ajudar a manter a comunidade segura.</p>
+            <div className="modal-actions">
+              <button type="button" className="btn-primary" onClick={onClose} autoFocus>Fechar</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="prompt-dialog-message"><strong>Denunciar o perfil de {user.displayName}</strong> <span className="dim">@{user.username}</span></p>
+            <div className="report-profile-reasons" role="radiogroup" aria-label="Motivo da denúncia">
+              {PROFILE_REPORT_REASONS.map((r) => (
+                <label key={r} className="report-profile-reason">
+                  <input type="radio" name="report-reason" value={r} checked={reason === r} onChange={() => setReason(r)} />
+                  <span>{r}</span>
+                </label>
+              ))}
+            </div>
+            <textarea
+              value={details} maxLength={500} rows={3}
+              placeholder={reason === 'Outro' ? 'Conte o que aconteceu (obrigatório)' : 'Detalhes (opcional)'}
+              onChange={(e) => setDetails(e.target.value)}
+            />
+            {error && <div className="auth-error">{error}</div>}
+            <div className="modal-actions">
+              <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
+              <button type="submit" className="btn-danger" disabled={!reason || busy}>{busy ? 'Enviando…' : 'Enviar denúncia'}</button>
+            </div>
+          </>
+        )}
+      </form>
+    </div>,
+    document.body,
+  );
 }
 
 export default function UserProfileModal() {
@@ -508,10 +572,18 @@ export default function UserProfileModal() {
   const status = presence?.status || user?.status || 'ONLINE';
 
   const openDM = async () => {
-    const { conversation } = await createConversation([userId]);
-    closeProfile();
-    navigate(`/conversations/${conversation.id}`);
+    try {
+      const { conversation } = await createConversation([userId]);
+      closeProfile();
+      navigate(`/conversations/${conversation.id}`);
+    } catch (err) {
+      // Privacidade de DM / bloqueio: o servidor recusa com uma mensagem
+      // pronta — antes isso virava um erro silencioso no console.
+      useStore.getState().pushNotice?.(err?.response?.data?.error || 'Não foi possível abrir a conversa.');
+    }
   };
+
+  const [reportOpen, setReportOpen] = useState(false);
 
   const addFriend = async () => {
     if (!user) return;
@@ -1311,6 +1383,9 @@ export default function UserProfileModal() {
                       <button className={`btn-secondary ${fanStatus.isFan ? 'active' : ''}`} onClick={toggleFanStatus}>
                         {fanStatus.isFan ? 'Seguindo' : 'Seguir'}
                       </button>
+                      <button className="btn-secondary" onClick={() => setReportOpen(true)} title="Denunciar este perfil para a equipe">
+                        Denunciar
+                      </button>
                     </div>
                     {/* Botões de voto num grupo próprio (antes ficavam
                         espremidos ao lado dos botões grandes). */}
@@ -1464,6 +1539,9 @@ export default function UserProfileModal() {
                     }
                   }}
                 />
+              )}
+              {!isMe && reportOpen && (
+                <ReportProfileDialog user={user} onClose={() => setReportOpen(false)} />
               )}
               {isMe && cropper && (
                 <ImageCropperModal

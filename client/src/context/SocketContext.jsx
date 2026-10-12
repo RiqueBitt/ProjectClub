@@ -318,6 +318,20 @@ export function SocketProvider({ children }) {
       alert(msg);
       window.location.reload();
     });
+    // O servidor derruba o socket logo depois destes avisos (ver
+    // io.kickUser no servidor) — recarrega pra cair na tela de login,
+    // que mostra a mensagem certa.
+    socket.on('account:suspended', ({ suspendedUntil, reason } = {}) => {
+      let msg = 'Sua conta foi suspensa temporariamente';
+      if (suspendedUntil) msg += ` até ${new Date(suspendedUntil).toLocaleString('pt-BR')}`;
+      msg += '.';
+      if (reason) msg += `\nMotivo: ${reason}`;
+      alert(msg);
+      window.location.reload();
+    });
+    socket.on('account:disabled', () => {
+      logout();
+    });
 
     socket.on('conversation:new', ({ conversation }) => {
       useStore.getState().upsertConversation(conversation);

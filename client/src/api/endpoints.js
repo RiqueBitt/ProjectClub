@@ -13,9 +13,12 @@ export const sendVerificationCode = () => api.post('/auth/verify-email/send').th
 export const confirmVerificationCode = (code) => api.post('/auth/verify-email/confirm', { code }).then((r) => r.data);
 export const forgotPassword = (email) => api.post('/auth/forgot-password', { email }).then((r) => r.data);
 export const resetPassword = (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }).then((r) => r.data);
-export const setup2FA = () => api.post('/auth/2fa/setup').then((r) => r.data);
+export const setup2FA = (password) => api.post('/auth/2fa/setup', { password }).then((r) => r.data);
 export const confirm2FA = (code) => api.post('/auth/2fa/confirm', { code }).then((r) => r.data);
-export const disable2FA = (password) => api.post('/auth/2fa/disable', { password }).then((r) => r.data);
+// Desativar exige senha + código do app autenticador OU um código de recuperação.
+export const disable2FA = (password, { code, recoveryCode } = {}) => api.post('/auth/2fa/disable', { password, code, recoveryCode }).then((r) => r.data);
+export const getRecoveryCodesStatus = () => api.get('/auth/2fa/recovery-codes').then((r) => r.data);
+export const regenerateRecoveryCodes = (password) => api.post('/auth/2fa/recovery-codes', { password }).then((r) => r.data);
 export const changePassword = (currentPassword, newPassword) => api.post('/auth/change-password', { currentPassword, newPassword }).then((r) => r.data);
 export const deleteAccount = (password) => api.post('/auth/delete-account', { password }).then((r) => r.data);
 export const listSessions = () => api.get('/auth/sessions').then((r) => r.data);
@@ -93,6 +96,10 @@ export const sendFriendRequest = (username) => api.post('/friends/request', { us
 export const respondFriendRequest = (id, action) => api.post(`/friends/${id}/respond`, { action }).then((r) => r.data);
 export const removeFriend = (id) => api.delete(`/friends/${id}`).then((r) => r.data);
 export const blockUser = (username) => api.post('/friends/block', { username }).then((r) => r.data);
+export const listBlockedUsers = () => api.get('/friends/blocked').then((r) => r.data);
+export const unblockUser = (userId) => api.delete(`/friends/block/${userId}`).then((r) => r.data);
+// Denúncia de perfil (botão "Denunciar" do modal de perfil).
+export const reportUserProfile = (userId, reason, details) => api.post(`/users/${userId}/report`, { reason, details }).then((r) => r.data);
 
 // --- Conversations / DMs ---
 export const listConversations = () => api.get('/conversations').then((r) => r.data);

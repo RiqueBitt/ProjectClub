@@ -72,7 +72,15 @@ async function respondRequest(req, res, next) {
     const status = statusMap[action];
     if (!status) return res.status(400).json({ error: 'Ação inválida.' });
 
-    const updated = await prisma.friendship.update({ where: { id }, data: { status } });
+    // Bloqueio sempre fica registrado com requesterId = quem bloqueou
+    // (mesma convenção de blockUser) — é isso que a "Lista de bloqueados"
+    // e o desbloqueio usam pra saber de quem é o bloqueio.
+    const updated = await prisma.friendship.update({
+      where: { id },
+      data: status === 'BLOCKED'
+        ? { status, requesterId: req.user.id, addresseeId: friendship.requesterId }
+        : { status },
+    });
     const io = req.app.get('io');
     io?.notifyUser?.(friendship.requesterId, 'friend:update', { friendship: updated });
 
@@ -103,6 +111,12 @@ async function removeFriend(req, res, next) {
     if (!friendship || ![friendship.requesterId, friendship.addresseeId].includes(req.user.id)) {
       return res.status(404).json({ error: 'Amizade não encontrada.' });
     }
+    // SECURITY: a pessoa BLOQUEADA não pode "desfazer" o bloqueio de quem
+    // a bloqueou apagando a linha por aqui — só quem bloqueou desbloqueia
+    // (DELETE /friends/block/:userId).
+    if (friendship.status === 'BLOCKED' && friendship.requesterId !== req.user.id) {
+      return res.status(404).json({ error: 'Amizade não encontrada.' });
+    }
     await prisma.friendship.delete({ where: { id } });
     const otherId = friendship.requesterId === req.user.id ? friendship.addresseeId : friendship.requesterId;
     req.app.get('io')?.notifyUser?.(otherId, 'friend:removed', { friendshipId: id });
@@ -112,9 +126,11 @@ async function removeFriend(req, res, next) {
 
 async function blockUser(req, res, next) {
   try {
-    const { username } = req.body;
+    const { username } = req.body || {};
+    if (typeof username !== 'string' || !username) return res.status(400).json({ error: 'Usuário inválido.' });
     const target = await prisma.user.findUnique({ where: { username } });
     if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
+    if (target.id === req.user.id) return res.status(400).json({ error: 'Você não pode bloquear a si mesmo.' });
 
     const existing = await prisma.friendship.findFirst({
       where: {
@@ -143,7 +159,12 @@ async function listFriends(req, res, next) {
   try {
     const friendships = await prisma.friendship.findMany({
       where: {
-        OR: [{ requesterId: req.user.id }, { addresseeId: req.user.id }],
+        OR: [
+          { requesterId: req.user.id },
+          // Bloqueios feitos POR OUTRA pessoa contra mim não aparecem —
+          // a lista não deve revelar quem te bloqueou.
+          { addresseeId: req.user.id, status: { not: 'BLOCKED' } },
+        ],
       },
       include: {
         requester: { select: PUBLIC_USER_FIELDS },
@@ -164,4 +185,32 @@ async function listFriends(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { sendRequest, respondRequest, removeFriend, blockUser, listFriends };
+// GET /friends/blocked — "Lista de bloqueados" (Configurações). Só os
+// bloqueios feitos PELA própria pessoa (requesterId = ela) — nunca
+// revela quem bloqueou ela.
+async function listBlocked(req, res, next) {
+  try {
+    const rows = await prisma.friendship.findMany({
+      where: { status: 'BLOCKED', requesterId: req.user.id },
+      include: { addressee: { select: PUBLIC_USER_FIELDS } },
+      orderBy: { updatedAt: 'desc' },
+    });
+    res.json({ blocked: rows.map((r) => ({ id: r.id, user: r.addressee, blockedAt: r.updatedAt })) });
+  } catch (err) { next(err); }
+}
+
+// DELETE /friends/block/:userId — desbloquear. Só apaga um bloqueio que
+// a própria pessoa fez; depois disso vocês voltam a ser "ninguém" um pro
+// outro (sem amizade — precisa mandar pedido de novo se quiser).
+async function unblockUser(req, res, next) {
+  try {
+    const { userId } = req.params;
+    const result = await prisma.friendship.deleteMany({
+      where: { status: 'BLOCKED', requesterId: req.user.id, addresseeId: userId },
+    });
+    if (result.count === 0) return res.status(404).json({ error: 'Este usuário não está na sua lista de bloqueados.' });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+}
+
+module.exports = { sendRequest, respondRequest, removeFriend, blockUser, listFriends, listBlocked, unblockUser };

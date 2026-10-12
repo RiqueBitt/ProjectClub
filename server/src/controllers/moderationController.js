@@ -52,8 +52,14 @@ async function banMember(req, res, next) {
       });
     }
 
+    // Mesmo efeito do ban pelo painel de staff: encerra as sessões e
+    // derruba os sockets abertos na hora.
+    await prisma.refreshToken.updateMany({
+      where: { userId, revoked: false }, data: { revoked: true, revokedAt: new Date(), revokedReason: 'ADMIN' },
+    });
+    await require('../services/sessionKeep').markSessionsRevoked(userId);
     const io = req.app.get('io');
-    io?.notifyUser?.(userId, 'account:banned', { reason: reason || null });
+    io?.kickUser?.(userId, 'account:banned', { reason: reason || null });
     await logAction(io, { actorId: req.user.id, action: 'MEMBER_BAN', targetType: 'MEMBER', targetId: userId, reason });
     res.json({ ok: true });
   } catch (err) { next(err); }
