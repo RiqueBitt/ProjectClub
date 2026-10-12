@@ -262,3 +262,18 @@ button.pcb-row:hover, .pcb-row:hover { background: var(--bg-modifier-hover); }
 html.pcb-docked .app-shell { --members-width: 0px; }
 html.pcb-docked .app-shell .members-list,
 html.pcb-docked .app-shell .members-reopen-btn { display: none !important; }
+
+/* Senhas e dados locais */
+.pcb-tool.is-key { color: #f0b232; }
+.pcb-perm.is-pw { background: color-mix(in srgb, #f0b232 12%, var(--bg-secondary)); }
+.pcb-vault { display: flex; align-items: flex-start; gap: 12px; font-size: 13.5px; line-height: 1.5; }
+.pcb-vault > svg { flex-shrink: 0; margin-top: 2px; color: #3ba55d; }
+.pcb-vault.is-warn > svg { color: #f0a020; }
+.pcb-pw-row { gap: 12px; padding: 8px 10px; border-bottom: 1px solid var(--pcb-line); border-radius: 0; }
+.pcb-pw-site { flex: 1.2; min-width: 0; color: var(--header-primary); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pcb-pw-user { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pcb-pw-pass { flex: 1; min-width: 0; font-family: ui-monospace, monospace; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pcb-mini.is-danger { color: #f23f43; }
+.pcb-local-files { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
+.pcb-local-files code { padding: 3px 8px; border-radius: 6px; background: var(--bg-primary); border: 1px solid var(--pcb-line); font-size: 12px; color: var(--text-normal); }
+.pcb-local small { font-size: 11.5px; word-break: break-all; }

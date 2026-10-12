@@ -22,6 +22,9 @@
 const { app, session, ipcMain, shell, net, Menu, clipboard, webContents, BrowserWindow } = require('electron');
 const path = require('path');
 const fs = require('fs');
+// Perfil em arquivos no computador (favoritos, histórico, abas, senhas...).
+const profile = require('./browserProfile');
+const GUEST_PRELOAD = path.join(__dirname, 'browserGuestPreload.js');
 
 let tldts = null;
 let ElectronBlocker = null;
@@ -105,7 +108,7 @@ const preparedSessions = new WeakSet();
 const pendingPerms = new Map(); // id -> callback
 let permSeq = 0;
 const downloads = new Map(); // id -> { item?, info }
-let dlSeq = 0;
+let dlSeq = Date.now(); // ids únicos entre execuções (a lista fica salva em arquivo)
 
 const stateFile = () => path.join(S.dir, 'state.json');
 function loadState() {
@@ -236,7 +239,11 @@ function prepareSession(ses) {
   preparedSessions.add(ses);
   ses.setUserAgent(cleanUserAgent(ses.getUserAgent()));
   try { ses.setSpellCheckerLanguages(['pt-BR', 'en-US']); } catch { /* sem dicionário */ }
-  if (PRELOAD_PATH) { try { ses.setPreloads([...ses.getPreloads().filter((p) => p !== PRELOAD_PATH), PRELOAD_PATH]); } catch { /* sem preload: só bloqueio de rede */ } }
+  // Preloads das páginas: login salvo (sempre) + filtros cosméticos (se houver).
+  try {
+    const mine = [GUEST_PRELOAD, PRELOAD_PATH].filter(Boolean);
+    ses.setPreloads([...ses.getPreloads().filter((p) => !mine.includes(p)), ...mine]);
+  } catch { /* sem preload: só bloqueio de rede */ }
 
   const filter = { urls: ['<all_urls>'] };
   ses.webRequest.onBeforeRequest(filter, (details, cb) => {
@@ -360,17 +367,19 @@ function prepareSession(ses) {
     item.setSavePath(target);
     const info = { id, filename: path.basename(target), url: item.getURL(), total: item.getTotalBytes(), received: 0, state: 'progressing', savePath: target, startedAt: Date.now(), private: !ses.isPersistent(), webContentsId: wc?.id || null };
     downloads.set(id, { item, info });
-    send('browser:download', info);
+    send('browser:download', info); profile.recordDownload(info);
     item.on('updated', (_ev, state) => {
       info.received = item.getReceivedBytes(); info.total = item.getTotalBytes();
       info.state = state === 'interrupted' ? 'interrupted' : (item.isPaused() ? 'paused' : 'progressing');
       send('browser:download', info);
+      profile.recordDownload(info);
     });
     item.once('done', (_ev, state) => {
       info.received = item.getReceivedBytes();
       info.state = state; // completed | cancelled | interrupted
       downloads.set(id, { item: null, info });
       send('browser:download', info);
+      profile.recordDownload(info);
     });
   });
   return ses;
@@ -543,6 +552,7 @@ function registerIpc() {
     stats: { ...S.stats, tabs: Object.fromEntries(tabBlocked) },
     engine: engineInfo,
     downloads: [...downloads.values()].map((d) => d.info).slice(-100),
+    profileDir: profile.dir(),
     partition: PERSIST_PARTITION,
   }));
   handle('browser:set-prefs', async (patch = {}) => {
@@ -605,8 +615,15 @@ function registerIpc() {
     return true;
   });
   handle('browser:download-action', async (id, action) => {
-    const d = downloads.get(Number(id));
-    if (!d) return false;
+    let d = downloads.get(Number(id));
+    if (!d) {
+      // Download de uma execução anterior (lista salva em arquivo).
+      const saved = (profile.savedDownloads?.() || []).find((x) => x.id === Number(id));
+      if (!saved) return false;
+      if (action === 'remove') { profile.removeDownload?.(Number(id)); return true; }
+      if (!fs.existsSync(saved.savePath)) return false;
+      d = { item: null, info: saved };
+    }
     const { item, info } = d;
     if (action === 'cancel' && item) item.cancel();
     else if (action === 'pause' && item) item.pause();
@@ -641,12 +658,13 @@ function init(win) {
   fs.mkdirSync(S.dir, { recursive: true });
   loadState();
   registerIpc();
+  profile.init(win, { baseDir: S.dir, isBrowserSession: (ses) => preparedSessions.has(ses) });
   sessionFor(PERSIST_PARTITION);
   // Liga o bloqueador sem atrasar a abertura do app.
   setTimeout(() => buildEngine().catch(() => {}), 1500);
   setInterval(() => buildEngine().catch(() => {}), 12 * 3600 * 1000).unref?.();
 }
-function setWindow(win) { mainWin = win; }
+function setWindow(win) { mainWin = win; profile.setWindow(win); }
 
 module.exports = {
   init, setWindow, onWillAttach, onDidAttach, isBrowserPartition, BrowserWindow,

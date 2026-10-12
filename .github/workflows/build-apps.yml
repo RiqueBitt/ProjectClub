@@ -81,6 +81,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # Modo offline: cópia do navegador que vai DENTRO do app (abre quando
+      # o servidor do Project Club não responde). Gerada a partir do site.
+      - name: Gerar a cópia offline do navegador
+        working-directory: .
+        shell: bash
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund --workspace=client
+          npm run build:offline --workspace=client
+          test -f desktop/offline/offline.html
       - name: Instalar dependências
         run: npm install
       - name: Gravar a versão no app
@@ -189,6 +198,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # Modo offline: cópia do navegador que vai DENTRO do app (abre quando
+      # o servidor do Project Club não responde). Gerada a partir do site.
+      - name: Gerar a cópia offline do navegador
+        working-directory: .
+        shell: bash
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund --workspace=client
+          npm run build:offline --workspace=client
+          test -f desktop/offline/offline.html
       - name: Instalar dependências
         run: npm install
       - name: Gravar a versão no app

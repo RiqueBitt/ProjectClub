@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useBrowser } from './browserStore';
 import { wvOf } from './BrowserHost.jsx';
 import {
-  NEW_TAB, INTERNAL, SEARCH_ENGINES, isInternal, displayUrl, searchTermOf, hostOf, nativeBrowser, PERMISSION_TEXT, fmtBytes, isYouTubeWatch, toUrl,
+  NEW_TAB, INTERNAL, SEARCH_ENGINES, isInternal, displayUrl, searchTermOf, hostOf, nativeBrowser, PERMISSION_TEXT, fmtBytes, isYouTubeWatch, toUrl, isOfflineMode,
 } from './urlTools';
 import { InternalPage, ErrorPage } from './BrowserPages.jsx';
 import { useYouTubeApp } from '../youtube/youtubeStore';
@@ -22,6 +22,7 @@ export const B = {
   zoomIn: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4M11 8v6M8 11h6', zoomOut: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4M8 11h6',
   ext: 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5', print: 'M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z',
   yt: 'M3.5 8.2c.2-1.6 1.3-2.7 2.9-2.8C8.2 5.2 10 5.1 12 5.1s3.8.1 5.6.3c1.6.1 2.7 1.2 2.9 2.8.2 1.3.2 2.5.2 3.8s0 2.5-.2 3.8c-.2 1.6-1.3 2.7-2.9 2.8-1.8.2-3.6.3-5.6.3s-3.8-.1-5.6-.3c-1.6-.1-2.7-1.2-2.9-2.8C3.3 14.5 3.3 13.3 3.3 12s0-2.5.2-3.8ZM10 9v6l5-3-5-3Z',
+  key: 'M15 7a4 4 0 1 1-3.9 5H9v2H7v2H4v-3l5.1-5.1A4 4 0 0 1 15 7zM16 7h.01',
   up: 'M6 15l6-6 6 6', downArrow: 'M6 9l6 6 6-6', home: 'M4 11l8-7 8 7v9h-5v-6H9v6H4z',
 };
 export const Ico = ({ d, size = 16, fill = false, className }) => (
@@ -32,7 +33,7 @@ export function Favicon({ tab, size = 16 }) {
   const [bad, setBad] = useState(false);
   useEffect(() => setBad(false), [tab?.favicon]);
   if (tab?.loading && !isInternal(tab.url)) return <span className="pcb-spin" style={{ width: size, height: size }} aria-hidden="true" />;
-  if (isInternal(tab?.url)) return <span className="pcb-fav-int" style={{ width: size, height: size }}><Ico d={tab.url === NEW_TAB ? B.home : tab.url === 'pc://historico' ? B.history : tab.url === 'pc://favoritos' ? B.bookmarks : tab.url === 'pc://downloads' ? B.down : B.settings} size={size - 2} /></span>;
+  if (isInternal(tab?.url)) return <span className="pcb-fav-int" style={{ width: size, height: size }}><Ico d={tab.url === NEW_TAB ? B.home : tab.url === 'pc://historico' ? B.history : tab.url === 'pc://favoritos' ? B.bookmarks : tab.url === 'pc://downloads' ? B.down : tab.url === 'pc://senhas' ? B.key : B.settings} size={size - 2} /></span>;
   if (tab?.favicon && !bad) return <img className="pcb-fav" src={tab.favicon} alt="" width={size} height={size} referrerPolicy="no-referrer" onError={() => setBad(true)} />;
   const letter = (hostOf(tab?.url) || '?').slice(0, 1).toUpperCase();
   return <span className="pcb-fav-letter" style={{ width: size, height: size, fontSize: size * 0.62 }}>{letter}</span>;
@@ -89,7 +90,7 @@ function TabStrip({ compact }) {
             {item('Duplicar', () => st().openTab(t.url, { afterId: t.id, private: t.private }))}
             {item(t.pinned ? 'Desafixar' : 'Fixar aba', () => st().togglePin(t.id))}
             {item(t.muted ? 'Ativar som' : 'Silenciar', () => { wvOf(t.id)?.setAudioMuted(!t.muted); st().update(t.id, { muted: !t.muted }); })}
-            {!isInternal(t.url) && item('Compartilhar no Project Club…', () => useBrowser.setState({ share: { url: t.url, title: t.title } }))}
+            {!isInternal(t.url) && !isOfflineMode() && item('Compartilhar no Project Club…', () => useBrowser.setState({ share: { url: t.url, title: t.title } }))}
             <hr />
             {item('Fechar', () => st().closeTab(t.id))}
             {item('Fechar outras abas', () => tabs.filter((x) => x.id !== t.id && !x.pinned).forEach((x) => st().closeTab(x.id)))}
@@ -273,11 +274,12 @@ function MainMenu({ tab, onClose, docked, onToggleDock }) {
       {item(B.history, 'Histórico', () => st().openTab('pc://historico'), 'Ctrl+H')}
       {item(B.bookmarks, 'Favoritos', () => st().openTab('pc://favoritos'))}
       {item(B.down, 'Downloads', () => st().openTab('pc://downloads'), 'Ctrl+J')}
+      {item(B.key, 'Senhas salvas', () => st().openTab('pc://senhas'))}
       <hr />
       {item(B.search, 'Procurar na página', () => useBrowser.setState({ findOpen: true }), 'Ctrl+F')}
       {item(B.print, 'Imprimir…', () => wv?.print(), 'Ctrl+P')}
       {tab && !isInternal(tab.url) && item(B.ext, 'Abrir no navegador do sistema', () => nativeBrowser()?.openSystem(tab.url))}
-      {item(docked ? B.full : B.dock, docked ? 'Abrir em tela cheia' : 'Abrir ao lado do chat', onToggleDock)}
+      {!isOfflineMode() && item(docked ? B.full : B.dock, docked ? 'Abrir em tela cheia' : 'Abrir ao lado do chat', onToggleDock)}
       <hr />
       {item(B.settings, 'Configurações do navegador', () => st().openTab('pc://config'))}
     </div>
@@ -303,6 +305,48 @@ function FindBar({ tab }) {
       <button type="button" onClick={() => find(false)} aria-label="Anterior"><Ico d={B.up} size={14} /></button>
       <button type="button" onClick={() => find(true)} aria-label="Próximo"><Ico d={B.downArrow} size={14} /></button>
       <button type="button" onClick={close} aria-label="Fechar busca"><Ico d={B.close} size={14} /></button>
+    </div>
+  );
+}
+
+// Depois de entrar num site: salvar o login neste computador?
+function PasswordBar({ tab }) {
+  const o = tab.pwOffer;
+  if (!o) return null;
+  const host = hostOf(o.origin) || o.origin;
+  const decide = (action) => { nativeBrowser()?.passwords?.decide(o.id, action); useBrowser.getState().update(tab.id, { pwOffer: null }); };
+  if (!o.canSave) {
+    return (
+      <div className="pcb-perm is-pw" role="status">
+        <Ico d={B.key} size={16} />
+        <span>Este computador não tem um cofre seguro do sistema disponível, então a senha de <strong data-no-translate>{host}</strong> não foi salva.</span>
+        <button type="button" className="pcb-btn" onClick={() => decide('dismiss')}>Ok</button>
+      </div>
+    );
+  }
+  return (
+    <div className="pcb-perm is-pw" role="alertdialog" aria-label="Salvar senha">
+      <Ico d={B.key} size={16} />
+      <span>{o.update ? 'Atualizar' : 'Salvar'} a senha{o.username ? <> de <strong data-no-translate>{o.username}</strong></> : ''} em <strong data-no-translate>{host}</strong>? {o.weak ? 'Fica só neste computador (proteção básica: este sistema não tem chaveiro).' : 'Fica criptografada só neste computador.'}</span>
+      <button type="button" className="pcb-link" onClick={() => decide('never')}>Nunca neste site</button>
+      <button type="button" className="pcb-btn" onClick={() => decide('dismiss')}>Agora não</button>
+      <button type="button" className="pcb-btn is-primary" onClick={() => decide('save')}>{o.update ? 'Atualizar' : 'Salvar'}</button>
+    </div>
+  );
+}
+
+function KeyPanel({ tab, onClose }) {
+  const accounts = tab?.pwAccounts || [];
+  const fill = (id) => { nativeBrowser()?.passwords?.fill(tab.wcId, id); onClose(); setTimeout(() => wvOf(tab.id)?.focus(), 50); };
+  return (
+    <div className="pcb-pop is-key" role="dialog" aria-label="Logins salvos">
+      <div className="pcb-pop-h"><Ico d={B.key} size={18} /> <strong>Logins salvos <span data-no-translate>de {hostOf(tab?.pwOrigin || tab?.url)}</span></strong></div>
+      {accounts.map((a) => (
+        <button key={a.id} type="button" className="pcb-row" onClick={() => fill(a.id)}>
+          <Ico d={B.key} size={14} /><span className="pcb-row-t" data-no-translate>{a.username || '(sem usuário)'}</span><span className="pcb-row-s">Preencher</span>
+        </button>
+      ))}
+      <p className="pcb-pop-foot"><span>Guardados criptografados neste computador.</span><button type="button" className="pcb-link" onClick={() => { onClose(); useBrowser.getState().openTab('pc://senhas'); }}>Gerenciar</button></p>
     </div>
   );
 }
@@ -392,9 +436,10 @@ export default function BrowserChrome({ docked = false }) {
   const prefs = useBrowser((s) => s.prefs);
   const navigate = useNavigate();
   const st = useBrowser.getState;
+  const hydrated = useBrowser((s) => s.hydrated);
 
-  // Sem abas: abre a página inicial.
-  useEffect(() => { if (!tabsCount) st().openTab(); }, [tabsCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Sem abas: abre a página inicial (depois de ler as abas salvas no computador).
+  useEffect(() => { if (hydrated && !tabsCount) st().openTab(); }, [tabsCount, hydrated]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!panel) return undefined;
     const onDown = (e) => { if (!e.target.closest?.('.pcb-pop') && !e.target.closest?.('.pcb-tool-pop')) useBrowser.setState({ panel: null }); };
@@ -410,7 +455,8 @@ export default function BrowserChrome({ docked = false }) {
     if (tab.error && wv?.canGoBack()) { st().update(tab.id, { error: null }); wv.goBack(); return; }
     wv?.goBack();
   };
-  const ytId = tab ? isYouTubeWatch(tab.url) : null;
+  const offline = isOfflineMode();
+  const ytId = tab && !offline ? isYouTubeWatch(tab.url) : null;
   const toggleDock = () => {
     if (docked) { st().setDock(false); navigate('/navegador'); } else { st().setDock(true); navigate(useBrowser.getState().lastAppPath || '/'); }
   };
@@ -435,16 +481,19 @@ export default function BrowserChrome({ docked = false }) {
           useYouTubeApp.getState().play({ videoId: ytId, title: tab.title.replace(/ - YouTube$/, '') });
         }, { cls: 'is-yt' })}
         <span className="pcb-tool-pop">{tool(prefs.adblock ? B.shield : B.shieldOff, 'Proteção', () => st().setPanel('shield'), { on: panel === 'shield', badge: !internal && tab?.blocked ? (tab.blocked > 99 ? '99+' : tab.blocked) : null, cls: 'is-shield' })}</span>
-        {!internal && tool(B.share, 'Compartilhar no Project Club', () => useBrowser.setState({ share: { url: tab.url, title: tab.title } }))}
+        {!internal && tab?.pwAccounts?.length > 0 && <span className="pcb-tool-pop">{tool(B.key, 'Preencher login salvo', () => st().setPanel('key'), { on: panel === 'key', cls: 'is-key' })}</span>}
+        {!internal && !offline && tool(B.share, 'Compartilhar no Project Club', () => useBrowser.setState({ share: { url: tab.url, title: tab.title } }))}
         <span className="pcb-tool-pop">{tool(B.down, 'Downloads', () => st().setPanel('downloads'), { on: panel === 'downloads', badge: downloadsActive || null })}</span>
-        {tool(docked ? B.full : B.dock, docked ? 'Tela cheia' : 'Abrir ao lado do chat', toggleDock)}
+        {!offline && tool(docked ? B.full : B.dock, docked ? 'Tela cheia' : 'Abrir ao lado do chat', toggleDock)}
         <span className="pcb-tool-pop">{tool(B.menu, 'Menu', () => st().setPanel('menu'), { on: panel === 'menu' })}</span>
         {panel === 'shield' && <ShieldPanel tab={tab} onClose={() => st().setPanel(null)} />}
         {panel === 'downloads' && <DownloadsPanel onClose={() => st().setPanel(null)} />}
+        {panel === 'key' && tab && <KeyPanel tab={tab} onClose={() => st().setPanel(null)} />}
         {panel === 'menu' && <MainMenu tab={tab} docked={docked} onToggleDock={toggleDock} onClose={() => useBrowser.setState({ panel: null })} />}
       </div>
       {tab && findOpen && !internal && <FindBar key={tab.id} tab={tab} />}
       {tab?.permission && <PermissionBar tab={tab} />}
+      {tab?.pwOffer && <PasswordBar tab={tab} />}
       {tab?.loading && !internal && <div className="pcb-progress" aria-hidden="true"><i /></div>}
       <div className={`pcb-viewport${tab?.private ? ' is-private' : ''}`}>
         {tab && internal && <InternalPage tab={tab} />}

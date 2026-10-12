@@ -116,9 +116,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => ipcRenderer.removeListener('nexus:nxm-link', handler);
     },
   },
+  // Modo offline (servidor fora do ar → navegador embutido no app).
+  offline: {
+    retry: () => ipcRenderer.invoke('offline:retry'),
+    onOnline: (callback) => {
+      const handler = () => callback();
+      ipcRenderer.on('offline:online', handler);
+      return () => ipcRenderer.removeListener('offline:online', handler);
+    },
+  },
   // Navegador do Project Club (abas dentro do app). Ver browserEngine.js.
   browser: {
-    version: 1,
+    version: 2,
     getState: () => ipcRenderer.invoke('browser:get-state'),
     setPrefs: (patch) => ipcRenderer.invoke('browser:set-prefs', patch),
     setSiteAdblock: (host, enabled) => ipcRenderer.invoke('browser:site-adblock', host, enabled),
@@ -134,8 +143,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     updateLists: () => ipcRenderer.invoke('browser:update-lists'),
     openSystem: (url) => ipcRenderer.invoke('browser:open-system', url),
     savePdf: (webContentsId) => ipcRenderer.invoke('browser:pdf', webContentsId),
+    // Perfil em arquivos no computador (favoritos, histórico, abas, senhas).
+    profile: {
+      load: () => ipcRenderer.invoke('browser:profile-load'),
+      save: (key, data) => ipcRenderer.invoke('browser:profile-save', key, data),
+      openFolder: () => ipcRenderer.invoke('browser:profile-open-folder'),
+      clearDownloads: () => ipcRenderer.invoke('browser:profile-clear-downloads'),
+    },
+    passwords: {
+      decide: (id, action) => ipcRenderer.invoke('browser:pw-decide', id, action),
+      fill: (webContentsId, entryId) => ipcRenderer.invoke('browser:pw-fill', webContentsId, entryId),
+      list: () => ipcRenderer.invoke('browser:pw-list'),
+      reveal: (id) => ipcRenderer.invoke('browser:pw-reveal', id),
+      remove: (id) => ipcRenderer.invoke('browser:pw-delete', id),
+      forgetNever: (origin) => ipcRenderer.invoke('browser:pw-forget-never', origin),
+      removeAll: () => ipcRenderer.invoke('browser:pw-delete-all'),
+    },
     on: (event, callback) => {
-      const ok = ['open-tab', 'blocked', 'permission', 'download', 'shortcut', 'crashed', 'context-action', 'engine', 'dangerous', 'https-upgraded', 'external'];
+      const ok = ['open-tab', 'blocked', 'permission', 'download', 'shortcut', 'crashed', 'context-action', 'engine', 'dangerous', 'https-upgraded', 'external', 'pw-offer', 'pw-available'];
       if (!ok.includes(event)) return () => {};
       const handler = (_e, data) => callback(data);
       ipcRenderer.on(`browser:${event}`, handler);

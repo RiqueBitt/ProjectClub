@@ -4,9 +4,17 @@
 // ícone na bandeja do sistema, iniciar sozinho com o Windows, e continuar
 // rodando em segundo plano mesmo com a janela fechada — exatamente como
 // Discord/Slack fazem.
-const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage, session, desktopCapturer, screen, dialog } = require('electron');
-const { autoUpdater } = require('electron-updater');
+const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage, session, desktopCapturer, screen, dialog, protocol, net } = require('electron');
 const path = require('path');
+const { pathToFileURL } = require('url');
+
+// Modo offline: cópia do navegador dentro do app (pasta offline/, gerada por
+// `npm run build:offline -w client`), servida em pcapp://app/. Abre quando o
+// servidor do Project Club não responde — o navegador continua funcionando.
+protocol.registerSchemesAsPrivileged([{ scheme: 'pcapp', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: false } }]);
+const OFFLINE_DIR = path.join(__dirname, 'offline');
+const OFFLINE_URL = 'pcapp://app/offline.html';
+const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const { startActivityDetection, stopActivityDetection } = require('./activityDetector');
 const projectMcManager = require('./projectMcManager');
@@ -256,6 +264,60 @@ function setNxmHandler(enabled) {
 }
 // Links que vieram junto com a abertura do app (Windows/Linux).
 for (const a of process.argv) if (typeof a === 'string' && a.toLowerCase().startsWith('nxm://')) { const l = parseNxmLink(a); if (l) pendingNxmLinks.push(l); }
+
+// ---------- Project Club fora do ar → navegador embutido ----------
+let offlineMode = false;
+let onlineTimer = null;
+const hasOfflineCopy = () => fs.existsSync(path.join(OFFLINE_DIR, 'offline.html'));
+async function serverAlive() {
+  try {
+    const r = await net.fetch(APP_URL, { method: 'GET', signal: AbortSignal.timeout(6000), headers: { 'cache-control': 'no-cache' } });
+    return r.status < 500;
+  } catch { return false; }
+}
+function goOffline(win, reason) {
+  if (offlineMode || !win || win.isDestroyed() || !hasOfflineCopy()) return;
+  offlineMode = true;
+  win.loadURL(`${OFFLINE_URL}?motivo=${encodeURIComponent(reason)}`);
+  // Fica checando o servidor; quando voltar, avisa (não tira a pessoa do que
+  // ela está fazendo — ela decide quando voltar).
+  clearInterval(onlineTimer);
+  onlineTimer = setInterval(async () => {
+    if (!offlineMode) { clearInterval(onlineTimer); return; }
+    if (await serverAlive()) { try { win.webContents.send('offline:online'); } catch { /* fechando */ } }
+  }, 20000);
+}
+function goOnline(win) {
+  if (!win || win.isDestroyed()) return;
+  offlineMode = false;
+  clearInterval(onlineTimer);
+  win.loadURL(APP_URL);
+}
+function watchOnline(win) {
+  const wc = win.webContents;
+  let readyOnce = false;
+  wc.on('dom-ready', () => { if (wc.getURL().startsWith(APP_URL)) readyOnce = true; });
+  // Sem conexão / DNS / recusado → modo offline.
+  wc.on('did-fail-load', (_e, code, _desc, url, isMainFrame) => {
+    if (!isMainFrame || code === -3 || !String(url).startsWith(APP_URL)) return;
+    goOffline(win, 'network');
+  });
+  // Servidor respondeu com erro (502/503 da hospedagem etc.).
+  wc.on('did-navigate', (_e, url, httpCode) => {
+    if (String(url).startsWith(APP_URL) && httpCode >= 500) goOffline(win, 'server');
+  });
+  // Servidor "pendurado": 15 s sem carregar e sem responder → offline.
+  setTimeout(async () => {
+    if (readyOnce || offlineMode || win.isDestroyed()) return;
+    if (!(await serverAlive())) goOffline(win, 'timeout');
+  }, 15000);
+  ipcMain.removeHandler('offline:retry');
+  ipcMain.handle('offline:retry', async (e) => {
+    if (e.sender !== wc) return false;
+    if (await serverAlive()) { goOnline(win); return true; }
+    return false;
+  });
+}
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -615,6 +677,7 @@ if (!gotLock) {
     browserEngine.init(mainWindow);
 
     mainWindow.loadURL(APP_URL);
+    watchOnline(mainWindow);
 
     // Item pedido: "Rich Presence" (jogo/Spotify) — só começa a detectar
     // depois que a janela terminar de carregar o site de verdade, senão
@@ -1335,6 +1398,16 @@ if (!gotLock) {
   }
 
   app.whenReady().then(() => {
+    // Arquivos da cópia offline do navegador (sem sair da pasta offline/).
+    try {
+      protocol.handle('pcapp', (request) => {
+        const u = new URL(request.url);
+        const rel = decodeURIComponent(u.pathname).replace(/^\/+/, '') || 'offline.html';
+        const file = path.normalize(path.join(OFFLINE_DIR, rel));
+        if (!file.startsWith(OFFLINE_DIR + path.sep) || !fs.existsSync(file)) return new Response('Não encontrado', { status: 404 });
+        return net.fetch(pathToFileURL(file).toString());
+      });
+    } catch (err) { console.warn('[offline] protocolo indisponível:', err.message); }
     setupScreenShareHandler();
     setupDownloadHandler();
     // BUG CORRIGIDO — CAUSA RAIZ CONFIRMADA de "no PC eu falo e não sai

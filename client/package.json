@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "build:offline": "vite build --config vite.offline.config.js"
   },
   "dependencies": {
     "@anuradev/capacitor-background-mode": "^8.1.0",

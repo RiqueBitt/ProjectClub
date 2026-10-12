@@ -57,7 +57,7 @@ function TabView({ tab, active, visible }) {
     on('did-navigate', (e) => {
       const cur = useBrowser.getState().tabs.find((x) => x.id === tab.id);
       const wcId = cur?.wcId;
-      up({ url: e.url, error: null, permission: null, hoverUrl: '', blockedBase: wcId ? (blockedByWc.get(wcId) || 0) : 0, blocked: 0, upgradedHost: cur?.upgradedHost && e.url.startsWith(`https://${cur.upgradedHost}`) ? null : cur?.upgradedHost });
+      up({ url: e.url, error: null, permission: null, hoverUrl: '', pwAccounts: cur?.pwOrigin && e.url.startsWith(cur.pwOrigin) ? cur.pwAccounts : null, blockedBase: wcId ? (blockedByWc.get(wcId) || 0) : 0, blocked: 0, upgradedHost: cur?.upgradedHost && e.url.startsWith(`https://${cur.upgradedHost}`) ? null : cur?.upgradedHost });
       nav();
       if (!cur?.private) useBrowser.getState().addHistory({ url: e.url, title: '', favicon: null });
     });
@@ -153,6 +153,7 @@ function useViewportRect() {
 export default function BrowserHost() {
   const available = useBrowser((s) => s.available);
   const tabs = useBrowser((s) => s.tabs);
+  const hydrated = useBrowser((s) => s.hydrated);
   const activeId = useBrowser((s) => s.activeId);
   const rect = useViewportRect();
 
@@ -161,7 +162,7 @@ export default function BrowserHost() {
     const nb = nativeBrowser();
     if (!nb) return undefined;
     const st = () => useBrowser.getState();
-    st().loadNative();
+    st().hydrate().finally(() => st().loadNative());
     const offs = [
       nb.on('blocked', ({ tabs: map, total }) => {
         for (const [k, v] of Object.entries(map || {})) blockedByWc.set(Number(k), v);
@@ -182,6 +183,9 @@ export default function BrowserHost() {
       nb.on('dangerous', ({ webContentsId, url, host }) => { const t = st().byWc(webContentsId); if (t) st().update(t.id, { loading: false, url, title: 'Site perigoso bloqueado', favicon: null, error: { kind: 'danger', url, host } }); }),
       nb.on('crashed', ({ webContentsId }) => { const t = st().byWc(webContentsId); if (t) st().update(t.id, { loading: false, error: { kind: 'crash', url: t.url } }); }),
       nb.on('external', ({ url }) => { if (/^(mailto|tel):/i.test(url)) window.electronAPI?.openExternal?.(url); }),
+      // Senhas: oferta de salvar depois de um login e logins salvos para a página.
+      nb.on('pw-offer', (o) => { const t = st().byWc(o.webContentsId); if (t) st().update(t.id, { pwOffer: o }); }),
+      nb.on('pw-available', ({ webContentsId, origin, accounts }) => { const t = st().byWc(webContentsId); if (t) st().update(t.id, { pwAccounts: accounts, pwOrigin: origin }); }),
     ];
     return () => offs.forEach((off) => off && off());
   }, []);
@@ -216,7 +220,7 @@ export default function BrowserHost() {
   const style = rect ? { top: rect.top, left: rect.left, width: rect.width, height: rect.height } : undefined;
   return (
     <div className={`pcb-host${visible ? ' is-visible' : ''}`} style={style} aria-hidden={!visible}>
-      {tabs.map((t) => <TabView key={t.id} tab={t} active={t.id === activeId} visible={visible} />)}
+      {hydrated && tabs.map((t) => <TabView key={t.id} tab={t} active={t.id === activeId} visible={visible} />)}
     </div>
   );
 }

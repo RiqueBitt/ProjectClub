@@ -6,6 +6,10 @@ export const nativeBrowser = () => {
   return b && b.version >= 1 ? b : null;
 };
 
+// Modo offline: o app desktop abriu a cópia embutida do navegador porque o
+// servidor do Project Club não respondeu (pcapp://). Sem chat/amigos ali.
+export const isOfflineMode = () => typeof window !== 'undefined' && window.location.protocol === 'pcapp:';
+
 export const SEARCH_ENGINES = {
   ddg: { name: 'DuckDuckGo', url: 'https://duckduckgo.com/?kl=br-pt&q=', home: 'https://duckduckgo.com' },
   google: { name: 'Google', url: 'https://www.google.com/search?hl=pt-BR&q=', home: 'https://www.google.com' },
@@ -20,6 +24,7 @@ export const INTERNAL = {
   'pc://historico': 'Histórico',
   'pc://favoritos': 'Favoritos',
   'pc://downloads': 'Downloads',
+  'pc://senhas': 'Senhas salvas',
   'pc://config': 'Configurações do navegador',
 };
 export const NEW_TAB = 'pc://nova-aba';

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useBrowser } from './browserStore';
 import BrowserChrome, { B, Ico, useBrowserShortcuts } from './BrowserChrome.jsx';
-import { nativeBrowser, hostOf } from './urlTools';
+import { nativeBrowser, hostOf, isOfflineMode } from './urlTools';
 import { useStore } from '../store/useStore';
 import { sendMessage } from '../api/endpoints';
 import Modal from '../components/Modal.jsx';
@@ -210,7 +210,7 @@ export function BrowserBridge() {
         if (action === 'open-tab') st().openTab(url, { background: !!background, afterId: tab?.id, private: !!tab?.private });
         else if (action === 'open-private') st().openTab(url, { private: true });
         else if (action === 'search') st().openTab(text, { afterId: tab?.id, private: !!tab?.private });
-        else if (action === 'share') useBrowser.setState({ share: { url, title, quote } });
+        else if (action === 'share') { if (!isOfflineMode()) useBrowser.setState({ share: { url, title, quote } }); }
         else if (action === 'pdf') nb.savePdf(webContentsId).catch(() => {});
       }),
     ];

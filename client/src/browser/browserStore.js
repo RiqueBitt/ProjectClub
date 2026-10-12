@@ -7,7 +7,16 @@ import { NEW_TAB, nativeBrowser, toUrl, isInternal } from './urlTools';
 
 const K = { tabs: 'pc.browser.tabs', bookmarks: 'pc.browser.bookmarks', history: 'pc.browser.history', ui: 'pc.browser.ui' };
 const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
-const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* cheio/bloqueado */ } };
+// No app desktop (navegador v2+), tudo vai para ARQUIVOS no computador
+// (pasta de dados do app → browser/perfil). localStorage só no app antigo.
+const PROFILE_KEY = { [K.tabs]: 'tabs', [K.bookmarks]: 'bookmarks', [K.history]: 'history', [K.ui]: 'ui' };
+const profileApi = () => nativeBrowser()?.profile || null;
+const save = (k, v) => {
+  const pf = profileApi();
+  if (pf && hydratedFromFiles) { pf.save(PROFILE_KEY[k], v).catch(() => {}); return; }
+  try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* cheio/bloqueado */ }
+};
+let hydratedFromFiles = false;
 
 let seq = 0;
 const newId = () => `t${Date.now().toString(36)}${(++seq).toString(36)}`;
@@ -51,6 +60,9 @@ const ui = load(K.ui, {});
 
 export const useBrowser = create((set, get) => ({
   available: !!nativeBrowser(),
+  // Com perfil em arquivos, as abas só aparecem depois de ler os arquivos.
+  hydrated: !profileApi(),
+  profileDir: null,
   tabs: initial.tabs,
   activeId: initial.activeId,
   dockOpen: !!ui.dockOpen,
@@ -172,12 +184,48 @@ export const useBrowser = create((set, get) => ({
   setDockWidth(w) { const dockWidth = Math.min(Math.max(Math.round(w), 340), 1200); set({ dockWidth }); save(K.ui, { dockOpen: get().dockOpen, dockWidth }); },
   setPanel(panel) { set((s) => ({ panel: s.panel === panel ? null : panel })); },
 
+  // Lê favoritos, histórico, abas e preferências dos arquivos do computador.
+  // Primeira vez: leva o que estava salvo no app para os arquivos e limpa o
+  // armazenamento antigo (os dados passam a existir só nos arquivos).
+  async hydrate() {
+    const pf = profileApi();
+    if (!pf || hydratedFromFiles) { set({ hydrated: true }); return; }
+    let data = null;
+    try { data = await pf.load(); } catch { set({ hydrated: true }); return; }
+    const s = get();
+    const patch = { profileDir: data.dir || null };
+    if (Array.isArray(data.bookmarks)) patch.bookmarks = data.bookmarks;
+    else await pf.save('bookmarks', s.bookmarks).catch(() => {});
+    if (Array.isArray(data.history)) patch.history = data.history;
+    else await pf.save('history', s.history).catch(() => {});
+    if (data.ui) { patch.dockOpen = !!data.ui.dockOpen; patch.dockWidth = Math.min(Math.max(Number(data.ui.dockWidth) || 480, 340), 1200); }
+    else await pf.save('ui', { dockOpen: s.dockOpen, dockWidth: s.dockWidth }).catch(() => {});
+    if (data.tabs?.tabs?.length) {
+      const tabs = data.tabs.tabs.slice(0, 40).map((t) => blankTab(t.url, { title: t.title || '', favicon: t.favicon || null, pinned: !!t.pinned, zoom: t.zoom || 1, restored: true }));
+      const extra = s.tabs.filter((t) => !t.restored); // abas abertas antes de ler os arquivos
+      patch.tabs = [...tabs, ...extra];
+      patch.activeId = extra[extra.length - 1]?.id || tabs[Math.min(Math.max(0, data.tabs.active || 0), tabs.length - 1)]?.id || null;
+    } else if (s.tabs.length) {
+      const normal = s.tabs.filter((t) => !t.private);
+      await pf.save('tabs', { tabs: normal.map((t) => ({ url: t.url, title: t.title, favicon: t.favicon, pinned: t.pinned, zoom: t.zoom })), active: Math.max(0, normal.findIndex((t) => t.id === s.activeId)) }).catch(() => {});
+    }
+    if (Array.isArray(data.downloads) && data.downloads.length) {
+      const seen = new Set(s.downloads.map((d) => d.id));
+      patch.downloads = [...data.downloads.filter((d) => !seen.has(d.id)), ...s.downloads].slice(-200);
+    }
+    hydratedFromFiles = true;
+    for (const k of Object.values(K)) { try { localStorage.removeItem(k); } catch { /* ok */ } }
+    set({ ...patch, hydrated: true });
+  },
+
   async loadNative() {
     const nb = nativeBrowser();
     if (!nb) return;
     try {
       const st = await nb.getState();
-      set({ prefs: { ...get().prefs, ...st.prefs }, engine: st.engine, totalBlocked: st.stats?.total || 0, siteAllow: st.siteAllow || [], downloads: st.downloads || [], statsSince: st.stats?.since });
+      const cur = get().downloads;
+      const ids = new Set((st.downloads || []).map((d) => d.id));
+      set({ prefs: { ...get().prefs, ...st.prefs }, engine: st.engine, totalBlocked: st.stats?.total || 0, siteAllow: st.siteAllow || [], downloads: [...cur.filter((d) => !ids.has(d.id)), ...(st.downloads || [])].slice(-200), statsSince: st.stats?.since, profileDir: st.profileDir || get().profileDir });
     } catch { /* app antigo */ }
   },
   async setPrefs(patch) {

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useBrowser } from './browserStore';
 import { wvOf } from './BrowserHost.jsx';
 import { B, Ico, Favicon } from './BrowserChrome.jsx';
-import { SEARCH_ENGINES, NEW_TAB, displayUrl, hostOf, nativeBrowser, fmtBytes, timeAgo, toUrl } from './urlTools';
+import { SEARCH_ENGINES, NEW_TAB, displayUrl, hostOf, nativeBrowser, fmtBytes, timeAgo, toUrl, isOfflineMode } from './urlTools';
 import { useStore } from '../store/useStore';
 import { useCinema } from '../cinema/cinemaStore';
 import { useYouTubeApp } from '../youtube/youtubeStore';
@@ -82,7 +82,7 @@ function NewTabPage({ tab }) {
           ))}
         </div>
       )}
-      {!tab.private && (
+      {!tab.private && !isOfflineMode() && (
         <section className="pcb-nt-pc">
           <h3>No Project Club</h3>
           <div className="pcb-nt-pc-list">
@@ -230,6 +230,65 @@ function DownloadsPage() {
   );
 }
 
+// ---------------- Senhas ----------------
+function PasswordsPage() {
+  const nb = nativeBrowser();
+  const pw = nb?.passwords;
+  const [data, setData] = useState(null);
+  const [shown, setShown] = useState({});
+  const [q, setQ] = useState('');
+  const [copied, setCopied] = useState('');
+  const reload = () => pw?.list().then(setData).catch(() => setData({ entries: [], never: [], encryption: {} }));
+  useEffect(() => { reload(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!pw) return <div className="pcb-page"><p className="pcb-empty">Atualize o app para usar as senhas salvas.</p></div>;
+  const reveal = async (id) => { if (shown[id]) { setShown((s) => ({ ...s, [id]: null })); return; } const v = await pw.reveal(id); setShown((s) => ({ ...s, [id]: v })); setTimeout(() => setShown((s) => ({ ...s, [id]: null })), 20000); };
+  const copy = async (id) => { const v = shown[id] || await pw.reveal(id); if (!v) return; await navigator.clipboard.writeText(v).catch(() => {}); setCopied(id); setTimeout(() => setCopied(''), 1500); };
+  const enc = data?.encryption || {};
+  const list = (data?.entries || []).filter((x) => !q || x.origin.includes(q.toLowerCase()) || (x.username || '').toLowerCase().includes(q.toLowerCase()));
+  return (
+    <div className="pcb-page pcb-settings">
+      <header className="pcb-page-h">
+        <h2><Ico d={B.key} size={20} /> Senhas salvas</h2>
+        <input className="pcb-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar site ou usuário" aria-label="Buscar senhas" />
+      </header>
+      <div className={`pcb-card pcb-vault${enc.available && !enc.weak ? '' : ' is-warn'}`}>
+        <Ico d={B.lock} size={18} />
+        <span>
+          {enc.available && !enc.weak
+            ? <>Os logins ficam <strong>só neste computador</strong>, num arquivo criptografado pelo sistema ({enc.backend === 'dpapi' ? 'Windows DPAPI' : enc.backend === 'keychain' ? 'Chaveiro do macOS' : `chaveiro do sistema: ${enc.backend || 'ativo'}`}). Nada vai para o servidor do Project Club.</>
+            : enc.available
+              ? <>Os logins ficam <strong>só neste computador</strong>, mas este sistema não tem chaveiro configurado, então a proteção do arquivo é <strong>básica</strong> (como no Chrome sem chaveiro). Instale/ative o chaveiro do sistema para proteção completa.</>
+              : <>O cofre do sistema não está disponível neste computador, então o navegador <strong>não salva senhas novas</strong>.</>}
+        </span>
+      </div>
+      {data && !list.length && <p className="pcb-empty">{q ? 'Nada encontrado.' : 'Quando você entrar num site, o navegador pergunta se quer salvar o login aqui.'}</p>}
+      {list.map((x) => (
+        <div key={x.id} className="pcb-row pcb-pw-row">
+          <Favicon tab={{ url: x.origin, loading: false }} size={18} />
+          <span className="pcb-pw-site" data-no-translate>{hostOf(x.origin)}</span>
+          <span className="pcb-pw-user" data-no-translate>{x.username || '(sem usuário)'}</span>
+          <span className="pcb-pw-pass" data-no-translate>{shown[x.id] || '••••••••••'}</span>
+          <button type="button" className="pcb-mini" onClick={() => reveal(x.id)}>{shown[x.id] ? 'Ocultar' : 'Mostrar'}</button>
+          <button type="button" className="pcb-mini" onClick={() => copy(x.id)}>{copied === x.id ? 'Copiado!' : 'Copiar'}</button>
+          <button type="button" className="pcb-mini is-danger" onClick={async () => { await pw.remove(x.id); reload(); }}>Excluir</button>
+        </div>
+      ))}
+      {data?.never?.length > 0 && (
+        <section className="pcb-card" style={{ marginTop: 18 }}>
+          <h3>Nunca salvar nestes sites</h3>
+          {data.never.map((o) => (
+            <div key={o} className="pcb-row"><span className="pcb-row-t" data-no-translate>{hostOf(o) || o}</span>
+              <button type="button" className="pcb-btn" onClick={async () => { await pw.forgetNever(o); reload(); }}>Remover</button></div>
+          ))}
+        </section>
+      )}
+      {data?.entries?.length > 0 && (
+        <p style={{ marginTop: 18 }}><button type="button" className="pcb-btn is-danger" onClick={async () => { if (window.confirm('Apagar todas as senhas salvas neste computador?')) { await pw.removeAll(); reload(); } }}>Apagar todas as senhas</button></p>
+      )}
+    </div>
+  );
+}
+
 // ---------------- Configurações ----------------
 const PRIVACY = [
   ['adblock', 'Bloquear anúncios, rastreadores, malware e phishing', 'As mesmas listas que o LibreWolf usa no uBlock Origin: uBlock, EasyList, EasyPrivacy, AdGuard (PT/ES), URLhaus e phishing.'],
@@ -245,6 +304,7 @@ function SettingsPage() {
   const engine = useBrowser((s) => s.engine);
   const siteAllow = useBrowser((s) => s.siteAllow);
   const total = useBrowser((s) => s.totalBlocked);
+  const profileDir = useBrowser((s) => s.profileDir);
   const userSettings = useStore((s) => s.userSettings);
   const updateUserSetting = useStore((s) => s.updateUserSetting);
   const [perms, setPerms] = useState(null);
@@ -257,6 +317,19 @@ function SettingsPage() {
   return (
     <div className="pcb-page pcb-settings">
       <header className="pcb-page-h"><h2><Ico d={B.settings} size={20} /> Configurações do navegador</h2></header>
+
+      <section className="pcb-card pcb-local">
+        <h3>Seus dados ficam neste computador</h3>
+        <p className="pcb-muted">Favoritos, histórico, abas abertas, downloads, senhas (criptografadas), permissões e logins/cookies dos sites são guardados em arquivos na pasta do app, no seu computador. Nada disso é enviado ao servidor do Project Club.</p>
+        <div className="pcb-local-files">
+          {['favoritos.json', 'historico.json', 'abas.json', 'downloads.json', 'senhas.json (criptografado)', 'interface.json'].map((f) => <code key={f}>{f}</code>)}
+        </div>
+        <div className="pcb-clear-a">
+          {nb?.profile && <button type="button" className="pcb-btn" onClick={() => nb.profile.openFolder()}>Abrir a pasta dos dados</button>}
+          <button type="button" className="pcb-btn" onClick={() => st().openTab('pc://senhas')}>Senhas salvas</button>
+        </div>
+        {profileDir && <p className="pcb-muted" data-no-translate><small>{profileDir}</small></p>}
+      </section>
 
       <section className="pcb-card">
         <h3>Busca</h3>
@@ -394,5 +467,6 @@ export function InternalPage({ tab }) {
   if (tab.url === 'pc://favoritos') return <BookmarksPage tab={tab} />;
   if (tab.url === 'pc://downloads') return <DownloadsPage />;
   if (tab.url === 'pc://config') return <SettingsPage />;
+  if (tab.url === 'pc://senhas') return <PasswordsPage />;
   return <NewTabPage tab={tab} />;
 }
