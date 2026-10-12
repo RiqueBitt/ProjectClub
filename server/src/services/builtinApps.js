@@ -115,7 +115,8 @@ const BUILTIN_APPS = [
   },
   {
     moduleId: 'canvasproject',
-    released: false,
+    released: true,
+    pageRev: 1,
     order: 33,
     name: 'CanvasProject',
     version: '1.0.0',
@@ -131,11 +132,11 @@ const BUILTIN_APPS = [
       'Windows 10/11 (64 bits) e Linux (AppImage)',
       'Tecnologias: C++17, Qt, KDE Frameworks, OpenGL — versão 1.0.0 (base Krita 6)',
     ].join('\n'),
-    sizeLabelWin: '~180 MB (download) · ~600 MB instalado',
-    sizeLabelLinux: '~250 MB (AppImage)',
+    sizeLabelWin: '~255 MB (download) · ~700 MB instalado',
+    sizeLabelLinux: '~326 MB (AppImage)',
     requirementsWin: 'Windows 10 ou 11 (64 bits)\nCPU: 2 núcleos com SSE4.1 (4+ recomendado)\nRAM: 4 GB mínimo — o app usa ~400 MB–2 GB conforme o tamanho da tela (8–16 GB recomendado)\nGPU: OpenGL 3.0 / Direct3D 11\nDisco: ~600 MB + projetos\nMesa digitalizadora opcional (Wacom, XP-Pen, Huion)',
-    requirementsLinux: 'Linux x86_64 com glibc 2.35+\nCPU: 2 núcleos com SSE4.1\nRAM: 4 GB mínimo — o app usa ~400 MB–2 GB\nGPU: OpenGL 3.0\nDisco: ~250 MB + projetos',
-    screenshots: [],
+    requirementsLinux: 'Linux x86_64 com glibc 2.35+\nCPU: 2 núcleos com SSE4.1\nRAM: 4 GB mínimo — o app usa ~400 MB–2 GB\nGPU: OpenGL 3.0\nDisco: ~330 MB + projetos',
+    screenshots: shots('canvasproject', ['01-tela-de-boas-vindas.jpg', '02-novo-documento.jpg', '03-tela-em-branco.jpg', '04-pinceladas.jpg', '05-borracha.jpg', '06-predefinicoes-de-pincel.jpg', '07-nova-camada.jpg', '08-rotacao-da-tela.jpg', '09-modo-tela-cheia.jpg', '10-ajuste-de-curvas.jpg', '11-menu.jpg']),
   },
 ];
 
