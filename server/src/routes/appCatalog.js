@@ -10,4 +10,20 @@ const router = express.Router();
 // routes/admin.js), então só requireAuth aqui, sem requirePlatformAdmin.
 router.get('/', requireAuth, ctrl.listPublicAppCatalog);
 
+// Releases dos apps (público: são as mesmas informações públicas do GitHub).
+// O app para computador usa isto em vez de chamar a API do GitHub direto,
+// que bloqueia (HTTP 403) depois de 60 consultas por hora por IP.
+const appReleases = require('../services/appReleases');
+router.get('/releases/:repo', async (req, res) => {
+  const { repo } = req.params;
+  if (!appReleases.isAllowedRepo(repo)) return res.status(404).json({ error: 'App desconhecido' });
+  try {
+    const releases = await appReleases.getReleases(repo);
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(releases);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
 module.exports = router;
