@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import logo from '../assets/icons/logo-project-club.png';
 import { ArrowLeftIcon } from '../components/auth/AuthIcons.jsx';
 
+const SHOWCASE_APPS = ['gameproject', 'photoproject', 'projectmc', 'hyproject', 'davinciproject', 'waveproject', 'texelproject', 'forgeproject', 'canvasproject'];
+const TICKER = ['Chat e voz', 'Fórum', 'Conquistas', 'Jogos', 'Imagem', 'Vídeo', 'Áudio', '3D'];
+
 const isNativeApp = () =>
   typeof window !== 'undefined' && (!!window.electronAPI || !!window.Capacitor?.isNativePlatform?.());
 
@@ -30,6 +33,7 @@ export default function AuthLayout({ title, subtitle, children, footer, wide = f
   return (
     <div className={`pc-auth${wide ? ' pc-auth-wide' : ''}${showcase ? '' : ' pc-auth-solo'}`}>
       <div className="pc-auth-glow" aria-hidden="true" />
+      <div className="pc-auth-grain" aria-hidden="true" />
 
       {showcase && (
         <aside className="pc-auth-showcase" aria-hidden="true">
@@ -39,20 +43,26 @@ export default function AuthLayout({ title, subtitle, children, footer, wide = f
           </div>
 
           <div className="pc-showcase-copy">
-            <h2>O seu clubinho no coração da internet.</h2>
-            <p>Chat, voz, feeds, casas e figurinhas, numa comunidade só.</p>
+            <span className="pc-eyebrow">▶ comunidade · apps · grátis</span>
+            <h2 className="pc-showcase-title" aria-label="Project Club">
+              {['Project', 'Club'].map((w, wi) => (
+                <span key={w} className="pc-word">
+                  {[...w].map((ch, i) => <span key={i} className="pc-char" style={{ '--d': `${wi * 360 + i * 45}ms` }}>{ch}</span>)}
+                </span>
+              ))}
+            </h2>
+            <p>Chat, voz, fórum, conquistas e nove programas de criação, numa conta só.</p>
           </div>
 
-          <div className="pc-preview">
-            <div className="pc-preview-bar">
-              <span /><span /><span />
-              <b># geral</b>
-            </div>
-            <div className="pc-preview-body">
-              <div className="pc-msg"><i className="a1" /><div><b>Lia</b><p>alguém pra call hoje à noite?</p></div></div>
-              <div className="pc-msg"><i className="a2" /><div><b>Rafa</b><p>bora! abro a sala de voz às 21h</p></div></div>
-              <div className="pc-msg"><i className="a3" /><div><b>Nico</b><p>terminei o álbum de figurinhas!</p></div></div>
-              <div className="pc-preview-voice"><span className="pc-live-dot" /> Sala de voz · 3 conectados</div>
+          <div className="pc-showcase-apps">
+            {SHOWCASE_APPS.map((id, i) => (
+              <img key={id} src={`/apps/${id}/icon.png`} alt="" style={{ '--i': i }} loading="lazy" />
+            ))}
+          </div>
+
+          <div className="pc-ticker">
+            <div className="pc-ticker-track">
+              {[...TICKER, ...TICKER].map((t, i) => <span key={i}>{t}<i>✦</i></span>)}
             </div>
           </div>
         </aside>

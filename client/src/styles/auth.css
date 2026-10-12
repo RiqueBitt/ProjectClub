@@ -10,18 +10,19 @@
    ============================================================ */
 
 .pc-auth {
-  --a-bg: #000000;
-  --a-bg-2: #05070b;
-  --a-panel: #0b0e15;
-  --a-panel-2: #11161f;
-  --a-line: rgba(76, 159, 255, 0.22);
+  --a-bg: #08080a;
+  --a-bg-2: #0b0b0e;
+  --a-panel: #121216;
+  --a-panel-2: #18181d;
+  --a-line: rgba(255, 255, 255, 0.22);
   --a-line-soft: rgba(255, 255, 255, 0.08);
-  --a-brand: #4c9fff;
-  --a-brand-strong: #2e7fe0;
-  --a-brand-soft: rgba(76, 159, 255, 0.14);
-  --a-text: #f2f3f5;
-  --a-muted: #9aa3b2;
-  --a-faint: #6b7383;
+  --a-brand: #ffffff;
+  --a-brand-strong: #e6e6ea;
+  --a-brand-soft: rgba(255, 255, 255, 0.14);
+  --a-text: #f5f5f7;
+  --a-muted: #a5a5ae;
+  --a-faint: #6e6e78;
+  --a-display: 'Bebas Neue', 'Barlow Condensed', Impact, sans-serif;
   --a-error: #ff7275;
   --a-ok: #3ddc84;
   --a-radius: 12px;
@@ -44,7 +45,7 @@
   align-items: start;
   background: var(--a-bg);
   color: var(--a-text);
-  font-family: 'Inter', 'Space Grotesk', -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'DejaVu Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  font-family: 'Space Grotesk', 'Inter', -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'DejaVu Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -56,8 +57,9 @@
 html.is-electron-app .pc-auth { --a-titlebar: 32px; }
 
 .pc-auth *, .pc-auth *::before, .pc-auth *::after { box-sizing: border-box; }
-.pc-auth a { color: var(--a-brand); text-decoration: none; }
-.pc-auth a:hover { color: #fff; }
+.pc-auth a { color: var(--a-text); text-decoration: underline; text-decoration-color: rgba(255,255,255,.3); text-underline-offset: 3px; transition: text-decoration-color .2s; }
+.pc-auth a:hover { color: #fff; text-decoration-color: #fff; }
+.pc-auth ::selection { background: #fff; color: #000; }
 .pc-auth :focus-visible { outline: 2px solid var(--a-brand); outline-offset: 2px; }
 
 .pc-auth .sr-only {
@@ -69,8 +71,8 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
 .pc-auth-glow {
   position: fixed; inset: var(--a-titlebar) 0 0 0; z-index: 0; pointer-events: none;
   background:
-    radial-gradient(ellipse 70% 50% at 75% -10%, rgba(76, 159, 255, 0.22), transparent 60%),
-    radial-gradient(ellipse 50% 40% at 0% 100%, rgba(46, 127, 224, 0.14), transparent 60%),
+    radial-gradient(ellipse 60% 45% at 75% -10%, rgba(255, 255, 255, 0.08), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 0% 100%, rgba(255, 255, 255, 0.05), transparent 60%),
     linear-gradient(180deg, var(--a-bg) 0%, var(--a-bg-2) 100%);
 }
 
@@ -81,7 +83,7 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
 }
 .pc-brand-mark {
   width: 36px; height: 36px; object-fit: contain; border-radius: 10px;
-  filter: drop-shadow(0 0 12px rgba(76, 159, 255, 0.55));
+  filter: none;
 }
 
 /* ---------- Coluna principal ---------- */
@@ -105,7 +107,7 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
 .pc-auth-wide .pc-auth-top { max-width: 640px; }
 .pc-back {
   display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 999px;
-  font-size: 13.5px; font-weight: 600; color: var(--a-muted) !important;
+  font-size: 13.5px; font-weight: 600; color: var(--a-muted) !important; text-decoration: none !important;
   border: 1px solid var(--a-line-soft); background: rgba(255, 255, 255, 0.02);
 }
 .pc-back:hover { color: var(--a-text) !important; border-color: var(--a-line); }
@@ -119,8 +121,8 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
 
 .pc-auth-head { margin-bottom: 26px; }
 .pc-auth-head h1 {
-  margin: 0 0 8px; font-size: clamp(26px, 6vw, 32px); line-height: 1.15;
-  font-weight: 800; letter-spacing: -0.6px; color: #fff;
+  margin: 0 0 10px; font-family: var(--a-display); font-weight: 400; text-transform: uppercase;
+  font-size: clamp(46px, 9vw, 64px); line-height: .9; letter-spacing: .005em; color: #fff;
 }
 .pc-auth-head p { margin: 0; color: var(--a-muted); font-size: 15px; max-width: 46ch; }
 
@@ -129,6 +131,10 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
   color: var(--a-muted); font-size: 14px; text-align: center;
 }
 .pc-auth-foot a { font-weight: 700; }
+.pc-auth-head::before {
+  content: '▶ project club'; display: block; margin-bottom: 14px;
+  font-size: 11px; font-weight: 600; letter-spacing: .24em; text-transform: uppercase; color: var(--a-muted);
+}
 
 /* ---------- Vitrine (só PC) ---------- */
 .pc-auth-showcase { display: none; }
@@ -145,7 +151,7 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
     padding: 44px clamp(32px, 5vw, 72px);
     border-right: 1px solid var(--a-line-soft);
     background:
-      radial-gradient(ellipse 80% 60% at 30% 20%, rgba(76, 159, 255, 0.16), transparent 65%),
+      radial-gradient(ellipse 80% 60% at 30% 20%, rgba(255, 255, 255, 0.16), transparent 65%),
       linear-gradient(160deg, #060a12 0%, #000 70%);
     overflow: hidden;
   }
@@ -153,8 +159,8 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
   .pc-auth-showcase::before {
     content: ''; position: absolute; inset: 0; pointer-events: none;
     background-image:
-      linear-gradient(rgba(120, 160, 255, 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(120, 160, 255, 0.05) 1px, transparent 1px);
+      linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
     background-size: 44px 44px;
     -webkit-mask-image: radial-gradient(ellipse 70% 60% at 40% 45%, #000, transparent 75%);
     mask-image: radial-gradient(ellipse 70% 60% at 40% 45%, #000, transparent 75%);
@@ -165,37 +171,44 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
   .pc-auth-main { padding-top: 32px; padding-left: clamp(24px, 4vw, 64px); padding-right: clamp(24px, 4vw, 64px); }
 }
 
-.pc-showcase-copy h2 {
-  margin: 0 0 14px; font-size: clamp(32px, 3.4vw, 48px); line-height: 1.08;
-  font-weight: 800; letter-spacing: -1.2px; color: #fff; max-width: 14ch;
+/* Vitrine: título enorme com letras entrando, ícones dos apps e faixa correndo. */
+.pc-eyebrow { display: block; margin-bottom: 18px; font-size: 11px; font-weight: 600; letter-spacing: .24em; text-transform: uppercase; color: var(--a-muted); }
+.pc-showcase-title {
+  margin: 0 0 18px; font-family: var(--a-display); font-weight: 400; text-transform: uppercase;
+  font-size: clamp(96px, 11vw, 190px); line-height: .84; letter-spacing: -.005em; color: #fff;
 }
-.pc-showcase-copy p { margin: 0; color: var(--a-muted); font-size: 16.5px; max-width: 36ch; }
-
-/* Prévia estática do chat (decorativa, aria-hidden no JSX). */
-.pc-preview {
-  width: min(100%, 440px); border-radius: 16px; overflow: hidden;
-  background: rgba(11, 14, 21, 0.85); border: 1px solid var(--a-line);
-  box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.8), 0 0 60px -25px rgba(76, 159, 255, 0.45);
+.pc-word { display: block; white-space: nowrap; }
+.pc-char {
+  display: inline-block; opacity: 0; transform: translateY(.4em) rotate(6deg); filter: blur(8px);
+  animation: pc-char .9s cubic-bezier(.16, 1, .3, 1) both; animation-delay: var(--d, 0ms);
 }
-.pc-preview-bar {
-  display: flex; align-items: center; gap: 7px; padding: 12px 16px;
-  border-bottom: 1px solid var(--a-line-soft); background: rgba(255, 255, 255, 0.02);
+@keyframes pc-char { to { opacity: 1; transform: none; filter: none; } }
+.pc-showcase-copy p { margin: 0; color: var(--a-muted); font-size: 16.5px; max-width: 38ch; animation: pc-in .8s .7s cubic-bezier(.16, 1, .3, 1) both; }
+.pc-showcase-apps { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 10px; max-width: 560px; }
+.pc-showcase-apps img {
+  width: 100%; aspect-ratio: 1; border-radius: 24%;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 16px 30px -18px #000;
+  opacity: 0; animation: pc-pop .8s cubic-bezier(.16, 1, .3, 1) both, pc-float 7s ease-in-out infinite;
+  animation-delay: calc(.9s + var(--i) * 70ms), calc(var(--i) * -0.8s);
+  transition: transform .3s cubic-bezier(.2, .7, .2, 1);
 }
-.pc-preview-bar span { width: 10px; height: 10px; border-radius: 50%; background: #2a3140; }
-.pc-preview-bar b { margin-left: 8px; font-size: 13px; font-weight: 700; color: var(--a-muted); }
-.pc-preview-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
-.pc-msg { display: flex; gap: 12px; }
-.pc-msg i { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; }
-.pc-msg i.a1 { background: linear-gradient(135deg, #4c9fff, #7b5cff); }
-.pc-msg i.a2 { background: linear-gradient(135deg, #2ecc8f, #1d8f6a); }
-.pc-msg i.a3 { background: linear-gradient(135deg, #ffb84c, #ff7a59); }
-.pc-msg b { display: block; font-size: 13.5px; color: #fff; }
-.pc-msg p { margin: 2px 0 0; font-size: 13.5px; color: #c4cad6; }
-.pc-preview-voice {
-  display: flex; align-items: center; gap: 8px; margin-top: 2px; padding: 10px 12px; border-radius: 10px;
-  background: var(--a-brand-soft); border: 1px solid var(--a-line); font-size: 13px; font-weight: 600; color: #cfe3ff;
+.pc-showcase-apps img:hover { transform: translateY(-6px) scale(1.08); }
+@keyframes pc-pop { from { opacity: 0; transform: scale(.5) translateY(20px); } to { opacity: 1; transform: none; } }
+@keyframes pc-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -6px; } }
+.pc-ticker {
+  margin: 0 calc(clamp(32px, 5vw, 72px) * -1) -44px; overflow: hidden; border-top: 1px solid var(--a-line-soft);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
 }
-.pc-live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--a-ok); box-shadow: 0 0 0 4px rgba(61, 220, 132, 0.18); }
+.pc-ticker-track { display: flex; width: max-content; animation: pc-marquee 32s linear infinite; }
+.pc-ticker span { display: inline-flex; align-items: center; gap: 22px; padding: 16px 11px 12px; font-family: var(--a-display); font-size: 30px; text-transform: uppercase; color: var(--a-faint); }
+.pc-ticker i { font-style: normal; font-family: inherit; font-size: .45em; color: #fff; }
+@keyframes pc-marquee { to { transform: translateX(-50%); } }
+.pc-auth-grain {
+  position: fixed; inset: -50%; z-index: 5; pointer-events: none; opacity: .055; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: pc-grain 1.2s steps(6) infinite;
+}
+@keyframes pc-grain { 0%,100% { transform: translate(0,0); } 25% { transform: translate(-4%,3%); } 50% { transform: translate(3%,-3%); } 75% { transform: translate(-2%,-4%); } }
 
 /* ---------- Formulário ---------- */
 .pc-form { display: flex; flex-direction: column; gap: 18px; }
@@ -214,7 +227,7 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
 .pc-field-box:hover { border-color: rgba(255, 255, 255, 0.16); }
 .pc-field-box:focus-within {
   border-color: var(--a-brand); background: var(--a-panel-2);
-  box-shadow: 0 0 0 4px rgba(76, 159, 255, 0.16);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.16);
 }
 .pc-field.has-error .pc-field-box, .pc-field.has-error textarea { border-color: var(--a-error); }
 .pc-field-icon { flex-shrink: 0; color: var(--a-faint); transition: color .15s ease; }
@@ -265,7 +278,7 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
 .pc-auth textarea { padding: 12px 14px; resize: vertical; min-height: 120px; line-height: 1.55; }
 .pc-auth textarea:focus, .pc-auth select:focus,
 .pc-auth .pc-birth input:focus {
-  border-color: var(--a-brand); box-shadow: 0 0 0 4px rgba(76, 159, 255, 0.16);
+  border-color: var(--a-brand); box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.16);
 }
 
 .pc-inline-link { display: inline-block; margin-top: 10px; font-size: 13.5px; font-weight: 600; }
@@ -308,16 +321,21 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
   -webkit-tap-highlight-color: transparent;
 }
 .pc-auth .pc-btn-primary {
-  width: 100%; color: #fff;
-  background: linear-gradient(180deg, #5aa8ff 0%, var(--a-brand-strong) 100%);
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset, 0 12px 28px -12px rgba(76, 159, 255, 0.7);
+  position: relative; overflow: hidden; isolation: isolate;
+  width: 100%; color: #0a0a0c; background: #fff; border-color: #fff; border-radius: 999px;
+  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.3);
 }
-.pc-auth .pc-btn-primary:hover:not(:disabled) { transform: translateY(-1px); color: #fff; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset, 0 16px 34px -12px rgba(76, 159, 255, 0.85); }
+.pc-auth .pc-btn-primary::after {
+  content: ''; position: absolute; inset: 0; z-index: -1; transform: translateX(-120%);
+  background: linear-gradient(100deg, transparent 30%, rgba(0,0,0,.09) 50%, transparent 70%); transition: transform .6s cubic-bezier(.2,.7,.2,1);
+}
+.pc-auth .pc-btn-primary:hover:not(:disabled) { transform: translateY(-2px); color: #0a0a0c; box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.1), 0 18px 40px -18px rgba(255, 255, 255, 0.55); }
+.pc-auth .pc-btn-primary:hover:not(:disabled)::after { transform: translateX(120%); }
+.pc-auth .pc-btn-primary .pc-spinner { border-color: rgba(0,0,0,.25); border-top-color: #000; }
 .pc-auth .pc-btn-primary:active:not(:disabled) { transform: none; }
 .pc-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
 .pc-btn-ghost {
-  color: var(--a-text); background: rgba(255, 255, 255, 0.03); border-color: var(--a-line-soft);
+  border-radius: 999px; color: var(--a-text); background: rgba(255, 255, 255, 0.03); border-color: var(--a-line-soft);
 }
 .pc-btn-ghost:hover:not(:disabled) { background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.16); }
 .pc-text-btn {
@@ -375,7 +393,7 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
   font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums;
   border: 1px solid var(--a-line-soft); background: var(--a-panel);
 }
-.pc-steps li.current .pc-step-dot { background: var(--a-brand); border-color: var(--a-brand); color: #fff; }
+.pc-steps li.current .pc-step-dot { background: #fff; border-color: #fff; color: #0a0a0c; }
 .pc-steps li.done .pc-step-dot { background: var(--a-brand-soft); border-color: var(--a-line); color: var(--a-brand); }
 .pc-step-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -411,7 +429,7 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
   display: inline-flex; align-items: center; justify-content: center;
   border: 1px solid rgba(255, 255, 255, 0.22); color: transparent;
 }
-.pc-chip.on .pc-chip-check { background: var(--a-brand); border-color: var(--a-brand); color: #fff; }
+.pc-chip.on .pc-chip-check { background: #fff; border-color: #fff; color: #0a0a0c; }
 .pc-choice.has-error .pc-chip { border-color: rgba(255, 114, 117, 0.45); }
 
 /* ---------- Celular ---------- */
@@ -439,6 +457,6 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
 
 @media (prefers-reduced-motion: reduce) {
   .pc-auth { scroll-behavior: auto; }
-  .pc-auth-panel, .pc-step-body { animation: none; }
+  .pc-auth-panel, .pc-step-body, .pc-char, .pc-showcase-copy p, .pc-showcase-apps img, .pc-ticker-track, .pc-auth-grain { animation: none; opacity: 1; transform: none; filter: none; }
   .pc-auth .pc-btn-primary:hover:not(:disabled) { transform: none; }
 }
