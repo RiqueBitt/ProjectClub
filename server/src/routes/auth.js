@@ -2,6 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { createRateLimitStore } = require('../config/rateLimitStore');
 const ctrl = require('../controllers/authController');
+const oauthCtrl = require('../controllers/oauthController');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -26,6 +27,14 @@ const loginLimiter = rateLimit({
 // caller's own account so it's not a cross-account risk, but still worth
 // rate-limiting against scripted guessing.
 const codeLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, store: createRateLimitStore('code') });
+// Entrar com Google/Discord/GitHub: início, callback e conexão pelas
+// Configurações contam no mesmo balde por IP (cada login legítimo gasta
+// 2 — start + callback).
+const oauthLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false,
+  store: createRateLimitStore('oauth'),
+  message: { error: 'Muitas tentativas. Tente novamente em alguns minutos.' },
+});
 
 // Cadastro direto desativado (410) — contas novas só pelo fluxo de
 // inscrição em /api/applications (ver authController.register).
@@ -45,6 +54,17 @@ router.post('/2fa/recovery-codes', requireAuth, codeLimiter, ctrl.regenerateReco
 router.post('/change-password', requireAuth, authLimiter, ctrl.changePassword);
 router.post('/delete-account', requireAuth, authLimiter, ctrl.deleteAccount);
 router.get('/me', requireAuth, ctrl.me);
+
+// OAuth (ver controllers/oauthController.js e docs/oauth.md).
+router.get('/oauth/providers', oauthCtrl.listProviders);
+router.post('/oauth/2fa', loginLimiter, oauthCtrl.complete2FA);
+router.get('/oauth/signup', oauthCtrl.signupInfo);
+router.delete('/oauth/signup', oauthCtrl.cancelSignup);
+router.get('/oauth/accounts', requireAuth, oauthCtrl.listAccounts);
+router.delete('/oauth/accounts/:provider', requireAuth, authLimiter, oauthCtrl.unlinkAccount);
+router.get('/oauth/:provider/start', oauthLimiter, oauthCtrl.start);
+router.post('/oauth/:provider/link', requireAuth, oauthLimiter, oauthCtrl.link);
+router.get('/oauth/:provider/callback', oauthLimiter, oauthCtrl.callback);
 router.get('/sessions', requireAuth, ctrl.listSessions);
 router.delete('/sessions/other', requireAuth, ctrl.revokeOtherSessions);
 router.delete('/sessions/:id', requireAuth, ctrl.revokeSession);

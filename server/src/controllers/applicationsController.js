@@ -115,6 +115,23 @@ async function createAccountFromApplicationData({ email, username, displayName, 
 
 const { validateUsername } = require('../utils/usernameRules');
 
+// "Inscrever-se com Google/Discord/GitHub": conecta a identidade do
+// provedor guardada na inscrição à conta recém-criada. Se, nesse meio
+// tempo, essa identidade já foi conectada a outra conta, só pula (a
+// pessoa pode conectar de novo pelas Configurações).
+async function linkOAuthFromApplication(userId, { provider, providerUserId, email }) {
+  if (!provider || !providerUserId) return;
+  try {
+    await prisma.oAuthAccount.create({ data: { userId, provider, providerUserId, email: email || null } });
+  } catch (err) {
+    if (err.code !== 'P2002') throw err;
+    console.warn(`[applications] identidade ${provider} já conectada a outra conta — não vinculada.`);
+  }
+}
+
+// Lido sob demanda (oauthController também importa authController).
+const oauthSignup = () => require('./oauthController');
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function submitApplication(req, res, next) {
@@ -150,6 +167,22 @@ async function submitApplication(req, res, next) {
     });
     if (existingApplication) return res.status(409).json({ error: 'Você já tem uma inscrição pendente com este e-mail.' });
 
+    // Identidade de um provedor (cookie assinado da etapa "Inscrever-se
+    // com…") — fica guardada na inscrição e só é conectada na aprovação.
+    const oauthIdentity = oauthSignup().readSignupIdentity(req);
+    if (oauthIdentity) {
+      const taken = await prisma.oAuthAccount.findUnique({
+        where: { provider_providerUserId: { provider: oauthIdentity.p, providerUserId: oauthIdentity.id } },
+      });
+      if (taken) {
+        oauthSignup().clearSignupCookie(res);
+        return res.status(409).json({ error: 'Essa conta externa já está conectada a um membro do Project Club. Entre com ela na tela de login.' });
+      }
+    }
+    const oauthFields = oauthIdentity
+      ? { oauthProvider: oauthIdentity.p, oauthProviderUserId: oauthIdentity.id, oauthEmail: oauthIdentity.email || null }
+      : {};
+
     const passwordHash = await bcrypt.hash(password, 12);
 
     // Auto-aprovação do dono da plataforma — ver o comentário "registrar
@@ -162,6 +195,10 @@ async function submitApplication(req, res, next) {
         email: normalizedEmail, username, displayName: displayName || username, passwordHash, birthDate: parsedBirthDate,
       });
       req.app.get('io')?.to('community').emit('community:update');
+      if (oauthIdentity) {
+        await linkOAuthFromApplication(user.id, { provider: oauthIdentity.p, providerUserId: oauthIdentity.id, email: oauthIdentity.email });
+        oauthSignup().clearSignupCookie(res);
+      }
       await sendInitialVerificationCode(user);
       const accessToken = await issueSession(res, user, req.headers['user-agent'], req.ip);
       const selfUser = await prisma.user.findUnique({ where: { id: user.id }, select: SELF_USER_FIELDS });
@@ -172,6 +209,7 @@ async function submitApplication(req, res, next) {
       data: {
         email: normalizedEmail, username, displayName: displayName || username,
         passwordHash, birthDate: parsedBirthDate,
+        ...oauthFields,
         answers: JSON.stringify({
           howFound: answers.howFound,
           howFoundOther: answers.howFound === 'Outros' ? String(answers.howFoundOther).trim().slice(0, 200) : undefined,
@@ -185,7 +223,8 @@ async function submitApplication(req, res, next) {
       },
     });
 
-    res.status(201).json({ applicationId: application.id });
+    if (oauthIdentity) oauthSignup().clearSignupCookie(res);
+    res.status(201).json({ applicationId: application.id, oauthProvider: oauthFields.oauthProvider || undefined });
   } catch (err) { next(err); }
 }
 
@@ -197,7 +236,7 @@ async function adminListApplications(req, res, next) {
       orderBy: { createdAt: 'desc' },
       select: {
         id: true, email: true, username: true, displayName: true, birthDate: true, answers: true,
-        status: true, reviewedById: true, reviewedAt: true, createdAt: true,
+        status: true, reviewedById: true, reviewedAt: true, createdAt: true, oauthProvider: true,
       },
     });
     // Inscrições antigas (de antes do questionário de 8 perguntas) não têm
@@ -229,6 +268,9 @@ async function approveApplication(req, res, next) {
     // mundo na hora, sem precisar recarregar a página — reaproveita o
     // mesmo evento que já dispara refreshCommunity() no cliente.
     req.app.get('io')?.to('community').emit('community:update');
+    await linkOAuthFromApplication(user.id, {
+      provider: application.oauthProvider, providerUserId: application.oauthProviderUserId, email: application.oauthEmail,
+    });
 
     await prisma.membershipApplication.update({
       where: { id }, data: { status: 'APPROVED', reviewedById: req.user.id, reviewedAt: new Date() },
