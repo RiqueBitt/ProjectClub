@@ -17,6 +17,10 @@ on:
     paths:
       - 'server/**'
 
+concurrency:
+  group: testes-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
