@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { createIgnoreDuplicate } = require('../utils/prismaSafe');
 
 // Item pedido: "Confiável/Legal/Sexy" — três selos separados, cada um
 // binário (votou = conta como "sim") — alternando (marcar/desmarcar),
@@ -19,9 +20,9 @@ async function toggle(req, res, next) {
       where: { voterId_targetId_trait: { voterId: req.user.id, targetId, trait } },
     });
     if (existing) {
-      await prisma.traitVote.delete({ where: { id: existing.id } });
+      await prisma.traitVote.deleteMany({ where: { id: existing.id } });
     } else {
-      await prisma.traitVote.create({ data: { voterId: req.user.id, targetId, trait } });
+      await createIgnoreDuplicate(prisma.traitVote, { data: { voterId: req.user.id, targetId, trait } });
     }
     res.json(await computeStatus(req.user.id, targetId));
   } catch (err) { next(err); }

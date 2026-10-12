@@ -10,6 +10,9 @@ const { createRateLimitStore } = require('./config/rateLimitStore');
 const { verifyAccessToken } = require('./services/tokens');
 const env = require('./config/env');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
+const { timingMiddleware } = require('./middleware/timing');
+const { invalidateOnWrite } = require('./services/sharedCache');
+const { maskInvisibleResponses } = require('./utils/presenceVisibility');
 const { honeypotMiddleware, blockedIpGuard } = require('./middleware/honeypot');
 const { getB2Client, isB2Configured } = require('./config/b2');
 const { GetObjectCommand } = require('@aws-sdk/client-s3');
@@ -90,6 +93,10 @@ function createApp() {
   // bucket for everyone). `1` means "trust exactly one hop" — the
   // platform's own proxy — which matches this deployment topology.
   app.set('trust proxy', 1);
+  // ETag fraco (padrão do Express, deixado explícito): todo GET de JSON
+  // sai com ETag e, se o cliente mandar If-None-Match igual, volta 304 sem
+  // corpo — o refresh ao vivo que não mudou nada quase não gasta banda.
+  app.set('etag', 'weak');
 
   // Sistema de segurança "isca" (honeypot) — ver middleware/honeypot.js.
   // blockedIpGuard roda primeiro que QUALQUER outra coisa (antes até do
@@ -98,6 +105,9 @@ function createApp() {
   // scanners tentando /wp-admin, /.env etc antes de cair no 404 normal
   // do app — devolve dado falso em vez de confirmar "essa rota não
   // existe aqui".
+  // Server-Timing + log [lento] (> 500ms) — primeiro de tudo, pra medir
+  // o tempo inteiro da requisição. Ver middleware/timing.js.
+  app.use(timingMiddleware());
   app.use(blockedIpGuard);
   app.use(honeypotMiddleware);
 
@@ -278,8 +288,9 @@ function createApp() {
       }
       // Cada upload ganha um nome novo (UUID — ver fileStorage.js), então
       // o navegador pode guardar em cache: sem isso, toda foto/anexo era
-      // revalidado a cada carregamento.
-      res.setHeader('Cache-Control', 'public, max-age=604800');
+      // revalidado a cada carregamento. O conteúdo de um nome nunca muda
+      // (arquivo novo = UUID novo), então pode ser immutable (1 ano).
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     },
   }));
 
@@ -327,6 +338,14 @@ function createApp() {
       res.status(404).end();
     }
   });
+
+  // Escrita bem-sucedida em comunidade/perfil/staff/eventos/layout apaga
+  // o cache compartilhado do carregamento (ver services/sharedCache.js).
+  app.use('/api', invalidateOnWrite);
+  // Status "invisível" nunca sai pra outra pessoa: toda resposta da API
+  // passa por maskDeep (INVISIBLE -> OFFLINE em quem não é você). Ver
+  // utils/presenceVisibility.js.
+  app.use('/api', maskInvisibleResponses);
 
   app.get('/api/health', (req, res) => res.json({ ok: true, env: env.NODE_ENV }));
   app.use('/api/auth', authRoutes);

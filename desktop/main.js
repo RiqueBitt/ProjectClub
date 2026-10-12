@@ -16,6 +16,18 @@ const OFFLINE_DIR = path.join(__dirname, 'offline');
 const OFFLINE_URL = 'pcapp://app/offline.html';
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
+
+// Ajustes conservadores do Chromium (só desligam extras que um app de uma
+// página só não usa; nada de GPU/flags experimentais que quebram em PC
+// fraco). PROJECT_CLUB_NO_SWITCHES=1 desliga tudo, pra diagnóstico.
+//  - SpareRendererForSitePerProcess: o Chromium deixa um processo de
+//    renderização "reserva" aquecido pra próxima navegação — aqui a janela
+//    nunca navega pra outro site, então era só ~30-50MB de RAM parados.
+//  - HardwareMediaKeyHandling: o app não "rouba" as teclas de mídia
+//    (play/pause) do Spotify/player do sistema.
+if (!process.env.PROJECT_CLUB_NO_SWITCHES) {
+  app.commandLine.appendSwitch('disable-features', 'SpareRendererForSitePerProcess,HardwareMediaKeyHandling');
+}
 const security = require('./security');
 
 // Abertura mais rápida: os módulos pesados (detector de jogos com o banco de
@@ -221,6 +233,38 @@ let isQuitting = false;
 // reiniciar o app inteiro pra isso valer.
 let activityCallback = null;
 let activityDetectionRunning = false;
+
+// ---------- Abertura em etapas ----------
+// Tarefas que não precisam rodar antes da janela aparecer (checar
+// atualização, detector de jogos...) esperam STARTUP_DEFER_MS depois que a
+// janela foi mostrada — assim não competem com o carregamento do site.
+const STARTUP_DEFER_MS = 4000;
+let startupDone = false;
+const startupQueue = [];
+function runAfterStartup(fn) {
+  if (startupDone) { setTimeout(fn, 0); return; }
+  startupQueue.push(fn);
+}
+function scheduleDeferredStartup() {
+  if (startupDone || scheduleDeferredStartup.scheduled) return;
+  scheduleDeferredStartup.scheduled = true;
+  setTimeout(() => {
+    startupDone = true;
+    for (const fn of startupQueue.splice(0)) {
+      try { fn(); } catch (err) { console.error('[abertura] tarefa adiada falhou:', err?.message || err); }
+    }
+  }, STARTUP_DEFER_MS);
+}
+
+// ---------- Estrangulamento em segundo plano ----------
+// Ligado por padrão (economiza CPU com a janela escondida); desligado
+// enquanto tem chamada de voz (aviso do site) ou som tocando.
+let voiceCallActive = false;
+let audioPlaying = false;
+function applyThrottling() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try { mainWindow.webContents.setBackgroundThrottling(!(voiceCallActive || audioPlaying)); } catch { /* janela fechando */ }
+}
 // Item pedido: "Sobreposição no jogo (overlay)... Mostra mensagens e
 // notificações por cima do jogo enquanto você joga" — a notificação da
 // overlay só deve aparecer enquanto a pessoa está DE VERDADE dentro de
@@ -845,7 +889,9 @@ if (!gotLock) {
       height: 800,
       minWidth: 900,
       minHeight: 600,
-      show: !startHidden,
+      // Só aparece quando o primeiro quadro já está pintado (ready-to-show
+      // abaixo) — sem o "flash" de janela vazia/branca na abertura.
+      show: false,
       icon: path.join(__dirname, 'build', 'icon.ico'),
       autoHideMenuBar: true,
       // Item pedido: "crie uma barra que não seja do Windows, de fechar
@@ -874,7 +920,47 @@ if (!gotLock) {
         // <webview> só pro "YouTube completo" do Assistir juntos (ver
         // hardenYouTubeWebview): só youtube.com, sem preload/node.
         webviewTag: true,
+        // Janela escondida/minimizada economiza CPU (timers/animações mais
+        // lentos). Desligado só durante chamada de voz — ver
+        // setVoiceCallActive/audio-state-changed abaixo.
+        backgroundThrottling: true,
+        // Dados que o site pedia por IPC logo ao abrir (versão, caminho do
+        // .exe) já vão junto na criação — o preload responde na hora, sem
+        // ida e volta ao processo principal.
+        additionalArguments: [`--pc-boot=${Buffer.from(JSON.stringify({
+          version: app.getVersion(),
+          installPath: app.getPath('exe'),
+        })).toString('base64')}`],
       },
+    });
+    // Mostra assim que o primeiro quadro estiver pronto (mesma cor de fundo
+    // do app = sem flash). Rede de segurança: se o site demorar demais pra
+    // pintar (servidor lento), mostra mesmo assim depois de 4s.
+    let shownOnce = false;
+    const revealWindow = () => {
+      if (shownOnce || !mainWindow || mainWindow.isDestroyed()) return;
+      shownOnce = true;
+      if (!startHidden) mainWindow.show();
+      scheduleDeferredStartup();
+    };
+    mainWindow.once('ready-to-show', revealWindow);
+    setTimeout(revealWindow, 4000);
+
+    // Estado de maximizado pro TitleBar.jsx (antes isso era registrado
+    // antes da janela existir — mainWindow ainda era null — e nunca ligava).
+    mainWindow.on('maximize', () => mainWindow?.webContents.send('window-maximized-changed', true));
+    mainWindow.on('unmaximize', () => mainWindow?.webContents.send('window-maximized-changed', false));
+
+    // Chamada de voz em segundo plano não pode ter o áudio/timers
+    // estrangulados: tocando som (chamada, música) => sem throttling;
+    // 30s depois de ficar em silêncio volta ao normal (a não ser que o
+    // site tenha avisado que a chamada continua, via setVoiceCallActive).
+    let audibleOffTimer = null;
+    mainWindow.webContents.on('audio-state-changed', (event) => {
+      const audible = !!(event?.audible ?? mainWindow.webContents.isCurrentlyAudible());
+      clearTimeout(audibleOffTimer);
+      if (audible) { audioPlaying = true; applyThrottling(); return; }
+      audibleOffTimer = setTimeout(() => { audioPlaying = false; applyThrottling(); }, 30000);
     });
     hardenYouTubeWebview(mainWindow.webContents);
     if (BROWSER_ENABLED) browserEngine().init(mainWindow);
@@ -907,7 +993,9 @@ if (!gotLock) {
           mainWindow.webContents.send('activity:detected', activity);
         }
       };
-      applyGameDetectionSetting();
+      // Abertura mais leve: o detector de jogos (lê a lista de processos do
+      // sistema) só começa alguns segundos depois da janela aparecer.
+      runAfterStartup(() => applyGameDetectionSetting());
     });
 
     // Item pedido: "Abrir links no aplicativo... Links clicados dentro
@@ -988,6 +1076,13 @@ if (!gotLock) {
   // do package.json empacotado (o CI grava a versão certa ali antes de
   // gerar o instalador, ver .github/workflows/build-apps.yml).
   secureHandle('get-app-version', () => app.getVersion());
+  // O site avisa quando entra/sai de uma chamada de voz — durante a
+  // chamada a janela não é estrangulada em segundo plano (ver
+  // applyThrottling). Fire and forget.
+  secureOn('voice:active', (_e, active) => {
+    voiceCallActive = !!active;
+    applyThrottling();
+  });
   // Item pedido: verificar todos os sistemas de Configurações e afins —
   // diagnóstico de "instalações duplicadas confundindo qual versão está
   // rodando de verdade". Mostra o caminho exato do executável em uso
@@ -1024,8 +1119,7 @@ if (!gotLock) {
   // teclado do Windows tipo Win+Up, ou arrastar a janela pro topo da
   // tela) — sem isso, o ícone do botão maximizar/restaurar ficaria
   // dessincronizado do estado real da janela nesses casos.
-  mainWindow?.on('maximize', () => mainWindow?.webContents.send('window-maximized-changed', true));
-  mainWindow?.on('unmaximize', () => mainWindow?.webContents.send('window-maximized-changed', false));
+  // (os avisos de maximize/unmaximize agora são ligados em createWindow.)
   // Item pedido: botão "Baixar agora" no aviso de atualização precisa
   // abrir a página de download no NAVEGADOR de verdade — o app nativo
   // nunca mostra a página de marketing/download dentro dele mesmo (ver
@@ -1610,7 +1704,7 @@ if (!gotLock) {
     // com o carregamento inicial do site) — depois, verifica de novo a
     // cada 4 horas enquanto o app continuar aberto/rodando em segundo
     // plano.
-    setTimeout(check, 4000);
+    runAfterStartup(check);
     setInterval(check, 30 * 60 * 1000); // a cada 30 min (antes 4 h)
 
     // Item pedido: "outros apps que tiver baixados junto com o Project

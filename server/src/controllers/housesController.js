@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { createIgnoreDuplicate } = require('../utils/prismaSafe');
 const achievements = require('../services/achievements');
 
 const PLACED_FURNITURE_INCLUDE = { furniture: true };
@@ -290,11 +291,11 @@ async function toggleLike(req, res, next) {
       where: { userHouseId_likerId: { userHouseId: userHouse.id, likerId: req.user.id } },
     });
     if (existing) {
-      await prisma.houseLike.delete({ where: { id: existing.id } });
+      await prisma.houseLike.deleteMany({ where: { id: existing.id } });
       return res.json({ liked: false });
     }
-    await prisma.houseLike.create({ data: { userHouseId: userHouse.id, likerId: req.user.id } });
-    if (userHouse.userId !== req.user.id) await achievements.checkAndUnlock(userHouse.userId, req.app.get('io'));
+    const created = await createIgnoreDuplicate(prisma.houseLike, { data: { userHouseId: userHouse.id, likerId: req.user.id } });
+    if (created && userHouse.userId !== req.user.id) await achievements.checkAndUnlock(userHouse.userId, req.app.get('io'));
     res.json({ liked: true });
   } catch (err) { next(err); }
 }

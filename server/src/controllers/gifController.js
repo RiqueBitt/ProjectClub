@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 
 async function listFavoriteGifs(req, res, next) {
   try {
@@ -19,7 +20,7 @@ async function addFavoriteGif(req, res, next) {
     // bare-URL message — see Message.jsx), so the URL itself is the fallback
     // dedupe key in that case.
     const key = (gifId || url).toString().slice(0, 300);
-    const gif = await prisma.favoriteGif.upsert({
+    const gif = await safeUpsert(prisma.favoriteGif, {
       where: { userId_gifId: { userId: req.user.id, gifId: key } },
       update: {},
       create: { userId: req.user.id, gifId: key, url, preview: preview || url },

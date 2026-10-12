@@ -641,6 +641,10 @@ model RefreshToken {
   // recriada a cada rotação, então createdAt sozinho só diz "último uso".
   sessionStartedAt DateTime?
   lastUsedAt    DateTime @default(now())
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([userId, revoked])
+  @@index([expiresAt])
 }
 
 // Códigos de recuperação do 2FA (10 por vez, uso único). Só o hash
@@ -653,6 +657,9 @@ model TwoFactorRecoveryCode {
   codeHash  String
   usedAt    DateTime?
   createdAt DateTime  @default(now())
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([userId])
 }
 
 // Token de push (Firebase Cloud Messaging) — item pedido: "push
@@ -682,6 +689,9 @@ model EmailVerificationCode {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([expiresAt])
 }
 
 model PasswordResetToken {
@@ -692,6 +702,9 @@ model PasswordResetToken {
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([expiresAt])
 }
 
 model Friendship {
@@ -705,6 +718,10 @@ model Friendship {
   updatedAt    DateTime @updatedAt
 
   @@unique([requesterId, addresseeId])
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([addresseeId, status])
+  @@index([requesterId, status])
 }
 
 // Item pedido: "sistema igual tinha no Orkut" — depoimento é um texto
@@ -1225,6 +1242,9 @@ model Report {
   reviewedById   String?
   reviewedAt     DateTime?
   createdAt      DateTime  @default(now())
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([status, createdAt])
 }
 
 // BUG CORRIGIDO ("erro 500 ao excluir canal — Foreign key constraint
@@ -1319,6 +1339,9 @@ model Warning {
   reason      String
   moderatorId String // uuid de um User, ou "system" (AutoMod) — sem @relation de propósito
   createdAt   DateTime @default(now())
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([userId, createdAt])
 }
 
 model AuditLogEntry {
@@ -1330,6 +1353,9 @@ model AuditLogEntry {
   reason     String?
   metadata   String?
   createdAt  DateTime @default(now())
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([createdAt])
 }
 
 model AutoModRule {
@@ -1695,6 +1721,10 @@ model Ticket {
   closedAt    DateTime?
 
   messages TicketMessage[]
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([authorId, createdAt])
+  @@index([status, createdAt])
 }
 
 model TicketMessage {
@@ -1705,6 +1735,9 @@ model TicketMessage {
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   content   String @db.Text
   createdAt DateTime @default(now())
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([ticketId, createdAt])
 }
 
 // --- Inscrições (formulário de entrada com aprovação da staff) — a conta
@@ -1840,6 +1873,9 @@ model Post {
   @@index([communityId, createdAt])
   @@index([communityId, score])
   @@index([categoryId, createdAt])
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([authorId, createdAt])
 }
 
 model PostVote {
@@ -1880,6 +1916,9 @@ model PostComment {
   votes PostCommentVote[]
 
   @@index([postId, createdAt])
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([authorId, createdAt])
 }
 
 model PostCommentVote {
@@ -2036,6 +2075,9 @@ model ClanMessage {
   createdAt DateTime @default(now())
 
   @@index([clanId, createdAt])
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([authorId, createdAt])
 }
 
 // ============================================================
@@ -2607,6 +2649,9 @@ model ActivityEvent {
 
   @@index([userId, createdAt])
   @@index([type, createdAt])
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([createdAt])
 }
 
 // "Parabéns" de um amigo num item da Atividade (itemKey = ach:<id>, lvl:<id>, post:<id>, mp:<id>).
@@ -2791,6 +2836,10 @@ model UserNotice {
   createdAt DateTime  @default(now())
 
   @@index([userId, createdAt])
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([userId, readAt])
+  @@index([createdAt])
 }
 
 // Curtida numa mídia da Galeria. itemKey = "a:<attachmentId>" ou "p:<postId>".
@@ -3299,4 +3348,27 @@ model UserCardCosmetic {
 
   @@unique([userId, cosmeticId])
   @@index([userId])
+}
+
+// Erros persistidos (painel da staff → GET /api/admin/errors). Alimentado
+// pelas mesmas entradas do errorRing (erro de tela do cliente, 500 do
+// servidor, erro do processo), agrupado por impressão digital (sha1 de
+// origem + mensagem normalizada + 1ª linha da pilha): o mesmo erro
+// repetido só soma `count`/`lastSeen`. No máximo 1 gravação por
+// impressão digital a cada 10s; some depois de 30 dias (cleanupJobs).
+model ErrorLog {
+  id          String   @id @default(uuid())
+  source      String   // server | client | process
+  message     String   @db.Text
+  stack       String?  @db.Text
+  url         String?  @db.VarChar(512)
+  userAgent   String?  @db.VarChar(512)
+  userId      String?
+  count       Int      @default(1)
+  firstSeen   DateTime @default(now())
+  lastSeen    DateTime @updatedAt
+  fingerprint String   @unique
+
+  @@index([lastSeen])
+  @@index([source, lastSeen])
 }

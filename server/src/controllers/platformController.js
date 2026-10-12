@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { getShared } = require('../services/sharedCache');
 
 // GET /api/platform/status — deliberately public (no auth) so the client
 // can check this BEFORE even knowing if the person is logged in, and show
@@ -6,10 +7,18 @@ const prisma = require('../config/prisma');
 // some other request 503s.
 async function getStatus(req, res, next) {
   try {
-    const row = await prisma.platformSettings.findUnique({ where: { id: 'singleton' } });
-    let disabledSystems = [];
-    try { disabledSystems = JSON.parse(row?.disabledSystems || '[]'); } catch { disabledSystems = []; }
-    res.json({ maintenanceMode: !!row?.maintenanceMode, maintenanceMessage: row?.maintenanceMessage || null, disabledSystems });
+    // Igual pra todo mundo e pedido em toda abertura/refresh: cache
+    // compartilhado curto (apagado quando a staff muda algo em /admin).
+    const body = await getShared('status', async () => {
+      const row = await prisma.platformSettings.findUnique({
+        where: { id: 'singleton' },
+        select: { maintenanceMode: true, maintenanceMessage: true, disabledSystems: true },
+      });
+      let disabledSystems = [];
+      try { disabledSystems = JSON.parse(row?.disabledSystems || '[]'); } catch { disabledSystems = []; }
+      return { maintenanceMode: !!row?.maintenanceMode, maintenanceMessage: row?.maintenanceMessage || null, disabledSystems };
+    });
+    res.json(body);
   } catch (err) { next(err); }
 }
 

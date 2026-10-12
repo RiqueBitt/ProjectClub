@@ -10,7 +10,7 @@ const activityStore = require('../services/activityStore');
 const voiceStore = require('../services/voiceRoomStore');
 const gamePlaytime = require('../services/gamePlaytime');
 const ytWatch = require('./ytWatch');
-const { visibleStatus } = require('../utils/presenceVisibility');
+const { visibleStatus, installSocketMasking } = require('../utils/presenceVisibility');
 const { createTokenBucket } = require('../utils/tokenBucket');
 
 // Quem está online agora (Redis) — lido no máximo a cada 5s e
@@ -184,7 +184,22 @@ function initSockets(httpServer) {
     // false-positive on a momentarily busy tab.
     pingInterval: 8000,
     pingTimeout: 8000,
+    // Compressão do WebSocket (vem desligada no Socket.IO 4): só pra
+    // mensagens >= 1KB (lista de membros, mensagem com embed, sync de
+    // presença), nível baixo (pouca CPU) e SEM "context takeover" — cada
+    // conexão não guarda um dicionário zlib próprio na memória, que com
+    // muita gente online pesava mais que a economia de banda.
+    perMessageDeflate: {
+      threshold: 1024,
+      zlibDeflateOptions: { level: 3, memLevel: 7 },
+      serverNoContextTakeover: true,
+      clientNoContextTakeover: true,
+    },
   });
+
+  // Todo emit (broadcast, sala user:<id>, socket direto) mascara o status
+  // INVISIBLE de quem não é o destinatário — ver presenceVisibility.js.
+  installSocketMasking(io);
 
   // SECURITY: antes só validava o JWT — uma conta banida, suspensa ou
   // desativada com um access token ainda dentro da validade continuava

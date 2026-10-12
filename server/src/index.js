@@ -29,6 +29,12 @@ process.on('uncaughtException', (err) => {
 
 const app = createApp();
 const httpServer = http.createServer(app);
+// Conexões keep-alive: o proxy da hospedagem reaproveita a conexão por até
+// ~60s; se o Node fechar antes (padrão dele: 5s), o proxy às vezes manda a
+// próxima requisição numa conexão que acabou de fechar → 502 aleatório.
+// headersTimeout precisa ser MAIOR que keepAliveTimeout.
+httpServer.keepAliveTimeout = 65_000;
+httpServer.headersTimeout = 66_000;
 const io = initSockets(httpServer);
 app.set('io', io);
 
@@ -137,3 +143,6 @@ missions.seedDefaultMissions().catch((err) => {
 missions.startVoiceMinutesTicker(io);
 // Lembrete de evento 15 min antes pra quem respondeu "Eu vou".
 require('./services/eventReminders').startEventReminders(io);
+// Faxina diária do banco (tokens vencidos, avisos lidos antigos, ErrorLog
+// velho...) — 5 min depois do boot e depois a cada 24h. Ver cleanupJobs.js.
+require('./services/cleanupJobs').startCleanupJobs();

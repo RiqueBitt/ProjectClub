@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 
 // Item pedido: "Atalhos personalizados... UserShortcut... action,
 // keyCombination... Antes de salvar: verificar se já existe outro
@@ -42,7 +43,7 @@ async function setShortcut(req, res, next) {
       return res.status(400).json({ error: 'Este atalho já está sendo utilizado.' });
     }
 
-    const shortcut = await prisma.userShortcut.upsert({
+    const shortcut = await safeUpsert(prisma.userShortcut, {
       where: { userId_action: { userId: req.user.id, action: cleanAction } },
       update: { keyCombination: cleanCombo },
       create: { userId: req.user.id, action: cleanAction, keyCombination: cleanCombo },

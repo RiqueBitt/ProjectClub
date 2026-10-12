@@ -15,6 +15,7 @@
 //    STALE_MS (app fechou de repente, servidor reiniciou etc).
 //  - Batimentos do mesmo usuário são processados em fila (sem corrida).
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 const { redis } = require('../config/redis');
 const steamArt = require('./steamArtService');
 
@@ -82,7 +83,7 @@ async function fillSteamAppId(userId, gameKey, name) {
 
 async function startSession(userId, game, now) {
   if (!game.steamAppId) fillSteamAppId(userId, game.gameKey, game.name);
-  await prisma.gamePlaytime.upsert({
+  await safeUpsert(prisma.gamePlaytime, {
     where: { userId_gameKey: { userId, gameKey: game.gameKey } },
     create: { userId, gameKey: game.gameKey, name: game.name, steamAppId: game.steamAppId, iconUrl: game.iconUrl, sessions: 1, firstPlayedAt: new Date(now), lastPlayedAt: new Date(now) },
     update: {
@@ -100,7 +101,7 @@ function dayKey(ms) { return DAY_FMT.format(new Date(ms)); }
 function addDaySeconds(userId, gameKey, seconds, now) {
   if (!(seconds > 0)) return;
   const day = dayKey(now);
-  prisma.gamePlayDay.upsert({
+  safeUpsert(prisma.gamePlayDay, {
     where: { userId_gameKey_day: { userId, gameKey, day } },
     create: { userId, gameKey, day, seconds },
     update: { seconds: { increment: seconds } },

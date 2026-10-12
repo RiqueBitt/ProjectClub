@@ -34,6 +34,14 @@ router.get('/desktop-latest', async (_req, res) => {
 // achar e corrigir a causa. Limite simples por IP.
 const { recordError } = require('../services/errorRing');
 const recentErrors = new Map();
+// Rota sem login obrigatório: se vier um token válido, guarda de quem era
+// a tela (só o id) no ErrorLog; token ausente/inválido não muda nada.
+const { verifyAccessToken } = require('../services/tokens');
+function optionalUserId(req) {
+  const header = req.headers.authorization || '';
+  if (!header.startsWith('Bearer ')) return null;
+  try { return verifyAccessToken(header.slice(7))?.sub || null; } catch { return null; }
+}
 router.post('/client-error', express.json({ limit: '16kb' }), (req, res) => {
   const ip = req.ip || 'x';
   const now = Date.now();
@@ -42,7 +50,10 @@ router.post('/client-error', express.json({ limit: '16kb' }), (req, res) => {
   list.push(now); recentErrors.set(ip, list);
   const b = req.body || {};
   const clip = (v, n) => String(v || '').slice(0, n).replace(/\s+/g, ' ');
-  recordError('client', { where: b.where, path: b.path, message: b.message, stack: b.stack });
+  recordError('client', {
+    where: b.where, path: b.path, message: b.message, stack: b.stack,
+    userAgent: req.get('user-agent'), userId: optionalUserId(req),
+  });
   console.warn(`[erro-de-tela] ${clip(b.where, 40)} ${clip(b.path, 120)} | ${clip(b.message, 300)} | ${clip(b.stack, 900)} | componentes: ${clip(b.componentStack, 900)} | ${clip(b.version, 40)}`);
   res.status(204).end();
 });

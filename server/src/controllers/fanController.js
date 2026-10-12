@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { createIgnoreDuplicate } = require('../utils/prismaSafe');
 
 // Item pedido: "sou fã" — só um contador simples, sem texto/aprovação,
 // alternando (marcar/desmarcar) igual um "curtir".
@@ -16,10 +17,10 @@ async function toggle(req, res, next) {
     });
 
     if (existing) {
-      await prisma.fan.delete({ where: { id: existing.id } });
+      await prisma.fan.deleteMany({ where: { id: existing.id } });
     } else {
-      await prisma.fan.create({ data: { fanId: req.user.id, targetId } });
-      req.app.get('io')?.notifyUser?.(targetId, 'fan:new', { fanId: req.user.id, fanName: req.user.displayName });
+      const created = await createIgnoreDuplicate(prisma.fan, { data: { fanId: req.user.id, targetId } });
+      if (created) req.app.get('io')?.notifyUser?.(targetId, 'fan:new', { fanId: req.user.id, fanName: req.user.displayName });
     }
 
     const count = await prisma.fan.count({ where: { targetId } });

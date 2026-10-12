@@ -13,6 +13,7 @@
 // quando nada mudou. `?only=a,b` pede só algumas seções.
 const crypto = require('crypto');
 const { runHandler } = require('../utils/internalCall');
+const { maskDeep } = require('../utils/presenceVisibility');
 const authCtrl = require('./authController');
 const communityCtrl = require('./communityController');
 const conversationCtrl = require('./conversationController');
@@ -97,9 +98,12 @@ async function getBootstrap(req, res, next) {
     const failed = {};
     results.forEach(([name, r]) => {
       if (r.status >= 200 && r.status < 300) {
-        const h = hashOf(r.body);
+        // Mascara o "invisível" ANTES do hash: o hash não pode mudar quando
+        // alguém só alterna entre invisível e offline.
+        const body = maskDeep(r.body, req.user?.id || null);
+        const h = hashOf(body);
         hashes[name] = h;
-        if (have[name] !== h) data[name] = r.body ?? null;
+        if (have[name] !== h) data[name] = body ?? null;
       } else {
         // O cliente busca essa seção pela rota antiga (mesmo erro que antes).
         failed[name] = r.status;

@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { getShared } = require('../services/sharedCache');
 
 function logPlatformAction(req, { action, targetType, targetId, reason, metadata }) {
   return prisma.platformAuditLog.create({
@@ -22,7 +23,9 @@ function logPlatformAction(req, { action, targetType, targetId, reason, metadata
 // configurada pela staff. Usada pela aba Apps de todo mundo.
 async function listPublicAppCatalog(req, res, next) {
   try {
-    const items = await prisma.appCatalogItem.findMany({
+    // Igual pra todo mundo: cache compartilhado curto (apagado em qualquer
+    // escrita da staff em /admin — ver services/sharedCache.js).
+    const items = await getShared('appCatalog', () => prisma.appCatalogItem.findMany({
       where: { enabled: true },
       orderBy: { order: 'asc' },
       select: {
@@ -31,7 +34,7 @@ async function listPublicAppCatalog(req, res, next) {
         featuresText: true,
         screenshots: { orderBy: { order: 'asc' }, select: { id: true, imageUrl: true } },
       },
-    });
+    }), 60);
     res.json({ items });
   } catch (err) { next(err); }
 }

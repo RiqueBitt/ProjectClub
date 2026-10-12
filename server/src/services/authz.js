@@ -114,7 +114,52 @@ async function channelHasRestrictions(channel) {
   return own > 0 || cat > 0;
 }
 
+// Versão em lote de getEffectivePermissions(userId, ch) pra VÁRIOS canais
+// de uma vez — mesmo resultado, mas em 4 consultas no total em vez de ~5
+// por canal (a lista da comunidade checava canal privado por canal privado
+// em sequência: N+1 no carregamento de toda página). Devolve
+// Map(channelId -> bits). `channels` precisa ter { id, categoryId }.
+async function getEffectivePermissionsForChannels(userId, channels) {
+  const out = new Map();
+  if (!channels?.length) return out;
+  const [user, userRoles, everyoneRole] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { id: true, platformRole: true } }),
+    prisma.userRole.findMany({ where: { userId }, include: { role: true } }),
+    getEveryoneRole(),
+  ]);
+  if (!user) { channels.forEach((ch) => out.set(ch.id, 0n)); return out; }
+  if (user.platformRole === 'ADMIN') { channels.forEach((ch) => out.set(ch.id, ALL_PERMISSIONS)); return out; }
+
+  const roles = userRoles.map((ur) => ur.role);
+  if (everyoneRole && !roles.some((r) => r.id === everyoneRole.id)) roles.push(everyoneRole);
+  const base = computeBasePermissions(roles);
+  const roleIds = roles.map((r) => r.id);
+
+  const channelIds = channels.map((ch) => ch.id);
+  const categoryIds = [...new Set(channels.map((ch) => ch.categoryId).filter(Boolean))];
+  const overwrites = await prisma.permissionOverwrite.findMany({
+    where: { OR: [{ channelId: { in: channelIds } }, ...(categoryIds.length ? [{ categoryId: { in: categoryIds } }] : [])] },
+  });
+  const byChannel = new Map();
+  const byCategory = new Map();
+  for (const ow of overwrites) {
+    if (ow.channelId) { if (!byChannel.has(ow.channelId)) byChannel.set(ow.channelId, []); byChannel.get(ow.channelId).push(ow); }
+    if (ow.categoryId) { if (!byCategory.has(ow.categoryId)) byCategory.set(ow.categoryId, []); byCategory.get(ow.categoryId).push(ow); }
+  }
+  for (const ch of channels) {
+    out.set(ch.id, applyOverwrites(base, {
+      everyoneRoleId: everyoneRole?.id,
+      roleIds,
+      memberId: userId,
+      categoryOverwrites: ch.categoryId ? (byCategory.get(ch.categoryId) || []) : [],
+      channelOverwrites: byChannel.get(ch.id) || [],
+    }));
+  }
+  return out;
+}
+
 module.exports = {
+  getEffectivePermissionsForChannels,
   channelHasRestrictions,
   ForbiddenError,
   ALL_PERMISSIONS,

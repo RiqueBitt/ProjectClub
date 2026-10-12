@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 const { verifyAccessToken, hashToken } = require('../services/tokens');
 
 // Caminhos que uma pessoa de verdade usando o site NUNCA visita — só
@@ -184,7 +185,7 @@ async function recordHitAndMaybeBlock(req, ip) {
 
   const expiresAt = new Date(Date.now() + BLOCK_DURATION_MS);
   const reason = `Acessou ${distinctPaths.size} rotas-isca em ${Math.round(HIT_WINDOW_MS / 60000)} min (última: ${req.path})`.slice(0, 190);
-  await prisma.blockedIp.upsert({
+  await safeUpsert(prisma.blockedIp, {
     where: { ip },
     update: { hitCount: { increment: 1 }, reason, expiresAt },
     create: { ip, reason, hitCount: distinctPaths.size, expiresAt },

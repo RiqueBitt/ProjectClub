@@ -40,6 +40,14 @@ async function listConversations(req, res, next) {
     // horário + uma pra buscar as linhas, em vez de uma por conversa.
     const ids = memberships.map((m) => m.conversationId);
     const lastByConversation = new Map();
+    // "Visto" nas DMs 1:1: quando a outra pessoa leu pela última vez. Não
+    // depende das últimas mensagens — roda em paralelo com elas.
+    const directOthers = memberships
+      .filter((m) => !m.conversation.isGroup)
+      .map((m) => m.conversation.members.find((cm) => cm.userId !== me)?.userId)
+      .filter(Boolean);
+    const offPromise = readReceiptsOff([me, ...directOthers]);
+    offPromise.catch(() => {}); // erro é tratado no await abaixo
     if (ids.length) {
       const maxes = await prisma.message.groupBy({
         by: ['conversationId'], where: { conversationId: { in: ids }, deleted: false }, _max: { createdAt: true },
@@ -55,12 +63,7 @@ async function listConversations(req, res, next) {
       }
     }
 
-    // "Visto" nas DMs 1:1: quando a outra pessoa leu pela última vez.
-    const directOthers = memberships
-      .filter((m) => !m.conversation.isGroup)
-      .map((m) => m.conversation.members.find((cm) => cm.userId !== me)?.userId)
-      .filter(Boolean);
-    const off = await readReceiptsOff([me, ...directOthers]);
+    const off = await offPromise;
 
     const conversations = memberships.map((m) => {
       const c = m.conversation;

@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 const { hasClanCapability, canAssignRole, canActOnMember, CLAN_ROLES } = require('../services/clanPermissions');
 
 const MEMBER_FIELDS = { id: true, publicId: true, username: true, displayName: true, avatarUrl: true, avatarDecoration: true, clanRole: true };
@@ -233,7 +234,7 @@ async function joinClan(req, res, next) {
     const existing = await prisma.clanJoinRequest.findUnique({ where: { clanId_userId: { clanId: id, userId: req.user.id } } });
     if (existing && existing.status === 'PENDING') return res.status(409).json({ error: 'Você já pediu pra entrar nesse clã — aguarde a resposta.' });
 
-    await prisma.clanJoinRequest.upsert({
+    await safeUpsert(prisma.clanJoinRequest, {
       where: { clanId_userId: { clanId: id, userId: req.user.id } },
       update: { status: 'PENDING', createdAt: new Date() },
       create: { clanId: id, userId: req.user.id },
@@ -471,7 +472,7 @@ async function createClanInvite(req, res, next) {
     if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
     if (target.clanId) return res.status(400).json({ error: 'Essa pessoa já está em um clube.' });
 
-    const invite = await prisma.clanInvite.upsert({
+    const invite = await safeUpsert(prisma.clanInvite, {
       where: { clanId_invitedUserId: { clanId: id, invitedUserId: userId } },
       update: { status: 'PENDING', createdAt: new Date(), invitedById: req.user.id },
       create: { clanId: id, invitedUserId: userId, invitedById: req.user.id },

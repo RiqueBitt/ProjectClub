@@ -1,4 +1,6 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
+const { getShared } = require('../services/sharedCache');
 
 const AUTHOR_FIELDS = { id: true, displayName: true, avatarUrl: true, avatarDecoration: true, profileColor: true };
 const VALID_STATUS = ['UPCOMING', 'ACTIVE', 'ENDED'];
@@ -12,13 +14,24 @@ const isStaff = (user) => ['ADMIN', 'MODERATOR'].includes(user.platformRole);
 // categoria "Início"). Mais recentes primeiro.
 async function listEvents(req, res, next) {
   try {
-    const events = await prisma.event.findMany({
-      include: { createdBy: { select: AUTHOR_FIELDS } },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
+    // Lista + contagens de RSVP são iguais pra todo mundo: cache
+    // compartilhado curto (apagado em qualquer escrita em /events). Só a
+    // resposta da própria pessoa (mine) é buscada por pessoa.
+    const shared = await getShared('events', async () => {
+      const list = await prisma.event.findMany({
+        include: { createdBy: { select: AUTHOR_FIELDS } },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      });
+      const summaries = await rsvpSummaries(list.map((e) => e.id), null);
+      return list.map((e) => ({ ...e, rsvp: summaries[e.id] }));
     });
-    const summaries = await rsvpSummaries(events.map((e) => e.id), req.user.id);
-    res.json({ events: events.map((e) => ({ ...e, rsvp: summaries[e.id] })) });
+    const ids = shared.map((e) => e.id);
+    const mine = ids.length
+      ? await prisma.eventRsvp.findMany({ where: { userId: req.user.id, eventId: { in: ids } }, select: { eventId: true, status: true } })
+      : [];
+    const mineBy = Object.fromEntries(mine.filter((r) => RSVP_STATUS.includes(r.status)).map((r) => [r.eventId, r.status]));
+    res.json({ events: shared.map((e) => ({ ...e, rsvp: { ...e.rsvp, mine: mineBy[e.id] || null } })) });
   } catch (err) { next(err); }
 }
 
@@ -72,7 +85,7 @@ async function setRsvp(req, res, next) {
     if (status === null || existing?.status === status) {
       if (existing) await prisma.eventRsvp.delete({ where: key });
     } else {
-      await prisma.eventRsvp.upsert({ where: key, update: { status }, create: { eventId: id, userId: req.user.id, status } });
+      await safeUpsert(prisma.eventRsvp, { where: key, update: { status }, create: { eventId: id, userId: req.user.id, status } });
     }
     const summary = (await rsvpSummaries([id], req.user.id))[id];
     const { mine, ...publicSummary } = summary;
