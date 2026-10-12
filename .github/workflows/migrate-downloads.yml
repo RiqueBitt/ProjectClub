@@ -6,6 +6,11 @@ name: Copiar releases do ProjectClub-Downloads
 # pode ser rodado de novo para continuar de onde parou (release que já
 # existe aqui com todos os arquivos é pulada) e não altera o repositório
 # antigo. A release fixa "latest" (legado) não é copiada.
+#
+# Cada release é lida pelo ID e os arquivos são baixados pela API (funciona
+# mesmo quando a tag original não existe mais). Uma release com problema não
+# interrompe as outras: ela é listada no fim e o fluxo termina com erro só
+# depois de tentar todas.
 
 on:
   workflow_dispatch:
@@ -28,40 +33,59 @@ jobs:
           SRC: ${{ inputs.from }}
           DST: ${{ github.repository }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           shopt -s nullglob
           gh api --paginate "repos/$SRC/releases?per_page=100" \
-            --jq '.[] | select(.draft|not) | select(.tag_name != "latest") | [.created_at, .tag_name, (.assets|length)] | @tsv' \
+            --jq '.[] | select(.draft|not) | select(.tag_name != "latest") | [.created_at, .id, .tag_name, (.assets|length)] | @tsv' \
             | sort -r > rels.tsv
           echo "Releases em $SRC: $(wc -l < rels.tsv)"
           gh api --paginate "repos/$DST/releases?per_page=100" --jq '.[] | [.tag_name, (.assets|length)] | @tsv' > have.tsv || true
-          while IFS=$'\t' read -r CREATED TAG COUNT; do
+          : > falhas.txt
+
+          complete_assets() {
+            local TAG="$1" EXIST
+            EXIST=$(gh release view "$TAG" -R "$DST" --json assets --jq '.assets[].name') || return 1
+            for f in dl/*; do grep -qxF "$(basename "$f")" <<< "$EXIST" || gh release upload "$TAG" "$f" -R "$DST" || return 1; done
+          }
+
+          copy_one() {
+            local ID="$1" TAG="$2" HAVE="$3"
+            rm -rf dl && mkdir dl
+            gh api "repos/$SRC/releases/$ID" > rel.json || return 1
+            jq -r '.body // ""' rel.json > notes.md
+            [ -s notes.md ] || echo "Versão $TAG do Project Club." > notes.md
+            jq -r '.assets[] | [.id, .name] | @tsv' rel.json > assets.tsv
+            while IFS=$'\t' read -r AID NAME; do
+              for i in 1 2 3; do
+                gh api "repos/$SRC/releases/assets/$AID" -H 'Accept: application/octet-stream' > "dl/$NAME" && break
+                sleep 15
+              done
+            done < assets.tsv
+            [ "$(ls dl | wc -l)" -eq "$(wc -l < assets.tsv)" ] || return 1
+            if [ -n "$HAVE" ]; then complete_assets "$TAG"; return $?; fi
+            # O GitHub limita criações seguidas: tenta de novo com pausa.
+            for i in 1 2 3 4 5; do
+              gh release create "$TAG" dl/* -R "$DST" --title "$(jq -r '.name // .tag_name' rel.json)" \
+                --notes-file notes.md --target "$GITHUB_SHA" --latest=false && { sleep 8; return 0; }
+              # criou mas algum envio falhou: completa os arquivos que faltam
+              gh release view "$TAG" -R "$DST" >/dev/null 2>&1 && { complete_assets "$TAG"; return $?; }
+              echo "Limite do GitHub, esperando $((i*60))s..."; sleep $((i*60))
+            done
+            return 1
+          }
+
+          while IFS=$'\t' read -r CREATED ID TAG COUNT; do
             HAVE=$(awk -F'\t' -v t="$TAG" '$1==t {print $2}' have.tsv)
             if [ -n "$HAVE" ] && [ "$HAVE" -ge "$COUNT" ]; then echo "= $TAG já copiada"; continue; fi
             echo "::group::$TAG ($COUNT arquivos)"
-            rm -rf dl && mkdir dl
-            gh api "repos/$SRC/releases/tags/$TAG" > rel.json
-            jq -r '.body // ""' rel.json > notes.md
-            [ -s notes.md ] || echo "Versão $TAG do Project Club." > notes.md
-            for i in 1 2 3; do gh release download "$TAG" -R "$SRC" -D dl --skip-existing && break || sleep 15; done
-            if [ -n "$HAVE" ]; then
-              EXIST=$(gh release view "$TAG" -R "$DST" --json assets --jq '.assets[].name')
-              for f in dl/*; do grep -qxF "$(basename "$f")" <<< "$EXIST" || gh release upload "$TAG" "$f" -R "$DST"; done
-            else
-              # O GitHub limita criações seguidas: tenta de novo com pausa.
-              for i in 1 2 3 4 5; do
-                gh release create "$TAG" dl/* -R "$DST" --title "$(jq -r '.name // .tag_name' rel.json)" \
-                  --notes-file notes.md --target "$GITHUB_SHA" --latest=false && break
-                gh release view "$TAG" -R "$DST" >/dev/null 2>&1 && break
-                [ "$i" = 5 ] && exit 1
-                echo "Limite do GitHub, esperando $((i*60))s..."; sleep $((i*60))
-              done
-              sleep 8
-            fi
+            if copy_one "$ID" "$TAG" "$HAVE"; then echo "ok $TAG"; else echo "::warning::Falhou: $TAG"; echo "$TAG" >> falhas.txt; fi
             echo "::endgroup::"
           done < rels.tsv
+
           # "Latest" = a maior versão que existir aqui (inclusive uma build nova
           # que tenha saído durante a cópia).
           NEWEST=$(gh api --paginate "repos/$DST/releases?per_page=100" --jq '.[].tag_name' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
           [ -n "$NEWEST" ] && gh release edit "$NEWEST" -R "$DST" --latest
-          echo "Pronto. Releases em $DST: $(gh api --paginate "repos/$DST/releases?per_page=100" --jq '.[].tag_name' | wc -l)"
+          echo "Releases em $DST: $(gh api --paginate "repos/$DST/releases?per_page=100" --jq '.[].tag_name' | wc -l)"
+          if [ -s falhas.txt ]; then echo "Não copiadas:"; cat falhas.txt; exit 1; fi
+          echo "Todas copiadas."
