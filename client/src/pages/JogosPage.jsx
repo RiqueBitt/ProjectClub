@@ -165,6 +165,7 @@ const APP_THEMES = {
   texelproject: ['#FB923C', '#EF4444'],
   forgeproject: ['#4ADE80', '#14B8A6'],
   canvasproject: ['#F472B6', '#A855F7'],
+  gameproject: ['#818CF8', '#4F46E5'],
 };
 function themeVars(moduleId) {
   const t = APP_THEMES[moduleId];

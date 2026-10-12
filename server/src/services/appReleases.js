@@ -9,7 +9,7 @@
 const OWNER = 'RiqueBitt';
 const ALLOWED_REPOS = new Set([
   'ProjectClub', 'ProjectMC', 'PhotoProject', 'HyProject', 'CutProject',
-  'WaveProject', 'TexelProject', 'ForgeProject', 'CanvasProject',
+  'WaveProject', 'TexelProject', 'ForgeProject', 'CanvasProject', 'GameProject',
 ]);
 const TTL_MS = 10 * 60 * 1000;
 const cache = new Map(); // repo -> { at, data }
