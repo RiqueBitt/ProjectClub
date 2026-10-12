@@ -4,7 +4,7 @@ import { CardView, Icon, UI } from './CardView.jsx';
 import { cardsUserSummary } from './api';
 import '../styles/cards.css';
 
-// Vitrine da Arena de Cartas no perfil: estatísticas, cartas mais raras e
+// Vitrine da Guerra das Cartas no perfil: estatísticas, cartas mais raras e
 // atalhos para desafiar ou propor uma troca.
 export default function ProfileCards({ userId, isMe, onNavigate }) {
   const navigate = useNavigate();
@@ -24,10 +24,10 @@ export default function ProfileCards({ userId, isMe, onNavigate }) {
       </div>
       {data.showcase.length > 0 ? (
         <div className="tcg-showcase">{data.showcase.map((c) => <CardView key={c.id} card={c} size="sm" />)}</div>
-      ) : <p className="tcg-dim">{isMe ? 'Você ainda não tem cartas — pegue o pacote inicial grátis na Arena.' : 'Ainda não começou a coleção.'}</p>}
+      ) : <p className="tcg-dim">{isMe ? 'Você ainda não tem cartas — pegue o pacote inicial grátis na Guerra das Cartas.' : 'Ainda não começou a coleção.'}</p>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
         {isMe ? (
-          <button type="button" className="tcg-btn" onClick={() => go('/cartas')}><Icon d={UI.deck} />Abrir a Arena</button>
+          <button type="button" className="tcg-btn" onClick={() => go('/cartas')}><Icon d={UI.deck} />Abrir o jogo</button>
         ) : (
           <>
             <button type="button" className="tcg-btn primary" onClick={() => go(`/cartas?desafiar=${userId}`)}><Icon d={UI.sword} />Desafiar</button>

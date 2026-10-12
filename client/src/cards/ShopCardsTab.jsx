@@ -4,7 +4,7 @@ import PacksTab from './PacksShop.jsx';
 import { Icon, UI } from './CardView.jsx';
 import { cardsHome, errMsg } from './api';
 
-// Categoria "Cartas" da Loja: pacotes do Jogo de Cartas com o mesmo saldo da Loja.
+// Categoria "Cartas" da Loja: pacotes da Guerra das Cartas com o mesmo saldo da Loja.
 export default function ShopCardsTab({ onWallet }) {
   const navigate = useNavigate();
   const [home, setHome] = useState(null);
@@ -17,10 +17,10 @@ export default function ShopCardsTab({ onWallet }) {
       <div className="tcg-starter" style={{ marginTop: 0, marginBottom: 18 }}>
         <span className="tcg-starter-icon"><Icon d={UI.deck} size={28} /></span>
         <div>
-          <strong>Pacotes de cartas da Arena</strong>
-          <p>{home.starterAvailable ? 'Você ainda pode pegar o pacote inicial grátis na Arena!' : `Você tem ${home.collection.distinct} cartas diferentes. Use-as nos baralhos e duelos.`}</p>
+          <strong>Pacotes de cartas</strong>
+          <p>{home.starterAvailable ? 'Você ainda pode pegar o pacote inicial grátis na Guerra das Cartas!' : `Você tem ${home.collection.distinct} cartas diferentes. Use-as nos baralhos e duelos.`}</p>
         </div>
-        <button type="button" className="tcg-btn primary" onClick={() => navigate('/cartas')}>Abrir a Arena</button>
+        <button type="button" className="tcg-btn primary" onClick={() => navigate('/cartas')}>Abrir o jogo</button>
       </div>
       <PacksTab home={home} onOpened={(w) => { if (w) { setHome((h) => ({ ...h, wallet: w })); onWallet?.(w); } }} />
     </div>

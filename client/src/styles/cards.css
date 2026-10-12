@@ -1,5 +1,5 @@
 /* ============================================================
-   Arena de Cartas (Jogo de Cartas) — identidade preta com bordas
+   Guerra das Cartas (jogo de cartas) — identidade preta com bordas
    iluminadas da plataforma + cor do elemento/raridade de cada carta.
    ============================================================ */
 .tcg-page { height: 100%; overflow-y: auto; overflow-x: hidden; background: var(--bg-primary); color: var(--text-normal); }
@@ -35,6 +35,8 @@
 .tcg-hero-stats { display: flex; gap: 14px; font-size: 13px; color: var(--text-muted); }
 .tcg-hero-stats b { color: var(--header-primary); font-size: 16px; display: block; }
 .tcg-wallet { display: flex; gap: 8px; }
+.tcg-hero-shop { gap: 7px; border-radius: 999px; background: linear-gradient(135deg, rgba(34,197,94,.22), rgba(245,176,65,.16)); border-color: rgba(34,197,94,.45); color: var(--header-primary); }
+.tcg-hero-shop:hover { background: linear-gradient(135deg, rgba(34,197,94,.32), rgba(245,176,65,.24)); }
 .tcg-wallet span { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; background: var(--bg-primary); border: 1px solid var(--border); font-weight: 800; color: #ffd34d; }
 .tcg-wallet span.is-gem { color: #2fd0c0; }
 
@@ -1586,3 +1588,18 @@ button.tcg-card:hover:not(.is-dim) { transform: translateY(-6px); }
 @media (max-width: 760px) { .tcgd-opt .tcg-card.tcg-card { --w: min(29vw, 140px); } }
 /* Ícone da carta por cima da foto (toda carta mostra o seu ícone) */
 .tcg-art-badge { position: absolute; z-index: 2; left: 6%; bottom: 7%; width: 24%; max-width: 46px; min-width: 16px; aspect-ratio: 1; padding: 4%; border-radius: 50%; background: color-mix(in srgb, var(--elc) 70%, #000); box-shadow: 0 0 0 2px rgba(255,255,255,.65), 0 3px 8px rgba(0,0,0,.5); box-sizing: border-box; pointer-events: none; }
+
+/* Sua aparência (Coleção): versos e molduras do herói que você tem */
+.tcg-looks { margin: 4px 0 18px; padding: 14px 16px; border-radius: 16px; background: var(--bg-secondary); border: 1px solid var(--border); }
+.tcg-looks-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.tcg-looks-head .tcg-h3 { margin: 0; }
+.tcg-looks-sub { margin: 14px 0 6px; font-size: 13px; }
+.tcg-looks-row { display: flex; gap: 10px; overflow-x: auto; padding: 10px 2px 4px; scrollbar-width: thin; }
+.tcg-look { flex: 0 0 auto; width: 88px; display: grid; justify-items: center; gap: 4px; padding: 8px 6px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-normal); cursor: pointer; font: inherit; transition: transform .15s, border-color .15s; }
+.tcg-look:hover:not(:disabled) { transform: translateY(-2px); border-color: rgba(124,92,255,.6); }
+.tcg-look:disabled { cursor: default; }
+.tcg-look.is-on { border-color: #22c55e; box-shadow: 0 0 0 1px #22c55e inset; }
+.tcg-look-prev { width: 46px; display: grid; place-items: center; min-height: 64px; }
+.tcg-look b { font-size: 12.5px; color: var(--header-primary); text-align: center; line-height: 1.15; }
+.tcg-look small { font-size: 11px; color: var(--text-muted); }
+.tcg-look.is-on small { color: #22c55e; font-weight: 700; }

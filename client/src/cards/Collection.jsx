@@ -1,3 +1,4 @@
+import CardLooks from './CardLooks.jsx';
 import { useEffect, useMemo, useState } from 'react';
 import { CardView, CardBack, ELEMENTS, RARITIES, RARITY_ORDER, ABILITIES, Icon, UI, abilityText } from './CardView.jsx';
 import { cardsSell, cardsSellFoil, cardsLevelUp, cardsCreateListing, cardsDustTable, cardsDisenchant, cardsCraft, errMsg } from './api';
@@ -162,6 +163,7 @@ export default function Collection({ cards, home, onChanged, openId, onOpenChang
   const current = openId ? cards.find((c) => c.id === openId) : null;
   return (
     <div>
+      <CardLooks />
       <div className="tcg-progress">
         <span>Coleção: <b>{owned}</b> de <b>{cards.length}</b></span>
         <span className="tcg-bar"><i style={{ width: `${cards.length ? (owned / cards.length) * 100 : 0}%` }} /></span>

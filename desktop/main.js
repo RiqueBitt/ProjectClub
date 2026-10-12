@@ -178,10 +178,15 @@ const YT_WEBVIEW_HOSTS = /(^|\.)(youtube\.com|youtu\.be|google\.com|google\.com\
 function isAllowedYouTubeUrl(url) {
   try { const u = new URL(url); return u.protocol === 'https:' && YT_WEBVIEW_HOSTS.test(u.hostname); } catch { return false; }
 }
+// Navegador do Project Club (browserEngine.js): desligado a pedido. O código
+// fica no app para religar depois — basta trocar para true (e ligar
+// `browser` em client/src/utils/features.js e server/src/config/features.js).
+const BROWSER_ENABLED = false;
+
 function hardenYouTubeWebview(contents) {
   contents.on('will-attach-webview', (event, webPreferences, params) => {
     // Abas do navegador do Project Club: regras próprias (browserEngine.js).
-    if (browserEngine.onWillAttach(event, webPreferences, params)) return;
+    if (BROWSER_ENABLED && browserEngine.onWillAttach(event, webPreferences, params)) return;
     delete webPreferences.preload;
     webPreferences.nodeIntegration = false;
     webPreferences.nodeIntegrationInSubFrames = false;
@@ -193,7 +198,7 @@ function hardenYouTubeWebview(contents) {
     if (params.partition !== 'persist:youtube' || !okSrc) event.preventDefault();
   });
   contents.on('did-attach-webview', (_e, wc) => {
-    if (browserEngine.onDidAttach(wc)) return;
+    if (BROWSER_ENABLED && browserEngine.onDidAttach(wc)) return;
     const guard = (event, target) => { if (!isAllowedYouTubeUrl(target)) { event.preventDefault(); if (/^https?:/i.test(String(target))) shell.openExternal(target); } };
     wc.on('will-navigate', guard);
     wc.on('will-redirect', guard);
@@ -674,7 +679,7 @@ if (!gotLock) {
       },
     });
     hardenYouTubeWebview(mainWindow.webContents);
-    browserEngine.init(mainWindow);
+    if (BROWSER_ENABLED) browserEngine.init(mainWindow);
 
     mainWindow.loadURL(APP_URL);
     watchOnline(mainWindow);
@@ -716,7 +721,7 @@ if (!gotLock) {
     // do chat) em vez de uma janela solta.
     const openExternalLink = (url) => {
       if (!/^https?:\/\//i.test(url)) { if (/^(mailto|tel):/i.test(url)) shell.openExternal(url); return; }
-      if (desktopSettings.openLinksInApp) mainWindow.webContents.send('browser:open-tab', { url, reveal: true });
+      if (BROWSER_ENABLED && desktopSettings.openLinksInApp) mainWindow.webContents.send('browser:open-tab', { url, reveal: true });
       else shell.openExternal(url);
     };
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {

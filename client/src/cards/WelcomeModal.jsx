@@ -39,9 +39,9 @@ export default function WelcomeModal({ home, user, cards = [], onClaim, onLater,
             {show.map((c, i) => <div key={c.id} className="tcgw-fan-card" style={{ '--i': i - 1 }}><CardView card={c} size="sm" tilt={false} /></div>)}
           </div>
         )}
-        <p className="tcgw-kicker">{kit ? 'Nova era da Arena' : 'Novo jogo no Project Club'}</p>
-        <h2 id="tcgw-title">{kit ? 'Chegaram as cartas novas!' : <>Bem-vindo à Arena de Cartas{user?.displayName ? `, ${user.displayName}` : ''}!</>}</h2>
-        <p className="tcgw-sub">{kit ? 'Memes, Club Penguin e cultura pop tomaram a Arena. As cartas antigas saíram do jogo e viraram pó de criação na sua conta.' : 'Um jogo de cartas colecionáveis com batalhas de verdade, direto na comunidade.'}</p>
+        <p className="tcgw-kicker">{kit ? 'Nova era da Guerra das Cartas' : 'Novo jogo no Project Club'}</p>
+        <h2 id="tcgw-title">{kit ? 'Chegaram as cartas novas!' : <>Bem-vindo à Guerra das Cartas{user?.displayName ? `, ${user.displayName}` : ''}!</>}</h2>
+        <p className="tcgw-sub">{kit ? 'Memes, Club Penguin e cultura pop tomaram a Guerra das Cartas. As cartas antigas saíram do jogo e viraram pó de criação na sua conta.' : 'Um jogo de cartas colecionáveis com batalhas de verdade, direto na comunidade.'}</p>
         <ol className="tcgw-steps">
           {(kit ? KIT_STEPS : STEPS).map((s, i) => (
             <li key={s.title} style={{ '--d': `${200 + i * 120}ms` }}>

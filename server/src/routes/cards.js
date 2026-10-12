@@ -20,6 +20,17 @@ router.use(requireAuth);
 router.use((req, res, next) => { extra.startSweeper(req.app.get('io')); next(); });
 
 const key = (req) => `u:${req.user?.id}`;
+// Modos que podem ser desligados no painel (settings.enabled): o pedido
+// responde 403 sem tocar em nada — dados e progresso ficam guardados.
+const { getSettings } = require('../cards/service');
+const OFF_MSG = { tournaments: 'Os torneios estão desativados no momento.', pass: 'O passe está desativado no momento.', draft: 'O Draft está desativado no momento.', boss: 'O Chefão está desativado no momento.', league: 'A Liga de clãs está desativada no momento.' };
+const requireMode = (mode) => async (req, res, next) => {
+  try {
+    const s = await getSettings();
+    if (s.enabled?.[mode]) return next();
+    return res.status(403).json({ error: OFF_MSG[mode] || 'Este modo está desativado.', modeDisabled: mode });
+  } catch (e) { return next(e); }
+};
 const actionLimiter = rateLimit({ windowMs: 10 * 1000, max: 60, keyGenerator: key, standardHeaders: true, legacyHeaders: false, store: createRateLimitStore('cards-action'), message: { error: 'Calma! Muitas ações seguidas.' } });
 const buyLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, keyGenerator: key, standardHeaders: true, legacyHeaders: false, store: createRateLimitStore('cards-buy'), message: { error: 'Muitas compras seguidas. Espere um pouco.' } });
 const socialLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, keyGenerator: key, standardHeaders: true, legacyHeaders: false, store: createRateLimitStore('cards-social'), message: { error: 'Muitos pedidos seguidos. Espere um pouco.' } });
@@ -96,8 +107,8 @@ router.post('/queue', extra.joinQueue);
 router.delete('/queue', extra.leaveQueue);
 router.get('/live', extra.live);
 router.get('/matches/:id/replay', extra.replay);
-router.get('/pass', prog.pass);
-router.post('/pass/:level/claim', buyLimiter, prog.claimPass);
+router.get('/pass', requireMode('pass'), prog.pass);
+router.post('/pass/:level/claim', requireMode('pass'), buyLimiter, prog.claimPass);
 router.get('/chest', prog.chest);
 router.post('/chest/open', buyLimiter, prog.openChest);
 router.get('/dust', prog.dustTable);
@@ -106,15 +117,15 @@ router.post('/collection/:cardId/craft', buyLimiter, prog.craft);
 router.get('/cosmetics', prog.cosmetics);
 router.post('/cosmetics/:id/buy', buyLimiter, prog.buyCosmetic);
 router.post('/cosmetics/equip', prog.equipCosmetic);
-router.get('/draft', league.draft);
-router.post('/draft/start', buyLimiter, league.startDraft);
-router.post('/draft/pick', actionLimiter, league.pickDraft);
-router.post('/draft/play', socialLimiter, league.playDraft);
-router.post('/draft/retire', buyLimiter, league.retireDraft);
-router.get('/boss', league.boss);
-router.post('/boss/start', socialLimiter, league.startBoss);
-router.post('/boss/claim', buyLimiter, league.claimBoss);
-router.get('/league', league.league);
+router.get('/draft', requireMode('draft'), league.draft);
+router.post('/draft/start', requireMode('draft'), buyLimiter, league.startDraft);
+router.post('/draft/pick', requireMode('draft'), actionLimiter, league.pickDraft);
+router.post('/draft/play', requireMode('draft'), socialLimiter, league.playDraft);
+router.post('/draft/retire', requireMode('draft'), buyLimiter, league.retireDraft);
+router.get('/boss', requireMode('boss'), league.boss);
+router.post('/boss/start', requireMode('boss'), socialLimiter, league.startBoss);
+router.post('/boss/claim', requireMode('boss'), buyLimiter, league.claimBoss);
+router.get('/league', requireMode('league'), league.league);
 router.get('/brawl', fun.brawl);
 router.post('/brawl/start', actionLimiter, fun.startBrawl);
 router.post('/tutorial/start', actionLimiter, fun.startTutorial);
@@ -134,9 +145,9 @@ router.get('/market', extra.market);
 router.post('/market', buyLimiter, extra.createListing);
 router.post('/market/:id/buy', buyLimiter, extra.buyListing);
 router.post('/market/:id/cancel', extra.cancelListing);
-router.get('/tournaments', extra.tournaments);
-router.post('/tournaments/:id/join', extra.joinTournament);
-router.post('/tournaments/:id/leave', extra.leaveTournament);
+router.get('/tournaments', requireMode('tournaments'), extra.tournaments);
+router.post('/tournaments/:id/join', requireMode('tournaments'), extra.joinTournament);
+router.post('/tournaments/:id/leave', requireMode('tournaments'), extra.leaveTournament);
 router.get('/trades', ctrl.listTrades);
 router.post('/trades', socialLimiter, ctrl.createTrade);
 router.post('/trades/:id/accept', ctrl.acceptTrade);

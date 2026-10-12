@@ -1,4 +1,4 @@
-// Torneios da Arena de Cartas — chaveamento eliminatório criado pela staff.
+// Torneios da Guerra das Cartas — chaveamento eliminatório criado pela staff.
 // As partidas são PvP normais (com prazo de turno); quem não aparece perde
 // por tempo. Ao terminar cada partida o chaveamento avança sozinho.
 const crypto = require('crypto');

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CardView, CardBack, Icon, UI } from './CardView.jsx';
 import {
-  cardsPass, cardsClaimPass, cardsCosmetics, cardsBuyCosmetic, cardsEquipCosmetic, errMsg,
+  cardsPass, cardsClaimPass, errMsg,
 } from './api';
 import { sfx } from './sfx';
 
@@ -47,9 +47,9 @@ export function PassTrack({ onWallet }) {
       <header className="tcgpass-head">
         <div className="tcgpass-lv"><small>Nível</small><b>{pass.level}</b><small>de {pass.max}</small></div>
         <div className="tcgpass-info">
-          <h2>Passe da Arena <span className="tcg-dim">· temporada {pass.seasonKey}</span></h2>
+          <h2>Passe da Guerra das Cartas <span className="tcg-dim">· temporada {pass.seasonKey}</span></h2>
           <div className="tcgpass-bar"><i style={{ width: `${pass.level >= pass.max ? 100 : (pass.intoLevel / pass.perLevel) * 100}%` }} /></div>
-          <p className="tcg-dim">{pass.level >= pass.max ? 'Passe completo! 🎉' : `${pass.intoLevel}/${pass.perLevel} XP para o nível ${pass.level + 1}`} · termina em {fmtLeft(pass.endsAt)} · XP vem de partidas, missões da Arena e pacotes</p>
+          <p className="tcg-dim">{pass.level >= pass.max ? 'Passe completo! 🎉' : `${pass.intoLevel}/${pass.perLevel} XP para o nível ${pass.level + 1}`} · termina em {fmtLeft(pass.endsAt)} · XP vem de partidas, missões da Guerra das Cartas e pacotes</p>
         </div>
         {ready > 0 && <span className="tcgpass-ready">{ready} prêmio(s) para resgatar</span>}
       </header>
@@ -84,55 +84,12 @@ export function PassTrack({ onWallet }) {
   );
 }
 
-export function CosmeticsShop({ wallet, onWallet }) {
-  const [data, setData] = useState(null);
-  const [err, setErr] = useState('');
-  const [ok, setOk] = useState('');
-  const load = () => cardsCosmetics().then(setData).catch((e) => setErr(errMsg(e)));
-  useEffect(() => { load(); }, []);
-  const run = async (fn, msg) => {
-    setErr(''); setOk('');
-    try { setData(await fn()); if (msg) setOk(msg); onWallet?.(); } catch (e) { setErr(errMsg(e)); }
-  };
-  if (!data) return <p className="tcg-empty">{err || 'Carregando…'}</p>;
-  const groups = [['BACK', 'Versos de carta', 'Aparecem na sua mão para o oponente, no seu baralho e nas pilhas da mesa.'], ['FRAME', 'Molduras do herói', 'O anel em volta do seu retrato na batalha.']];
-  return (
-    <section className="tcgcos">
-      {err && <p className="tcg-error">{err}</p>}
-      {ok && <p className="tcg-ok">{ok}</p>}
-      {groups.map(([kind, title, hint]) => (
-        <div key={kind} className="tcgcos-group">
-          <h3 className="tcg-h3">{title} <small className="tcg-dim">{hint}</small></h3>
-          <div className="tcgcos-grid">
-            {data.items.filter((i) => i.kind === kind).map((i) => {
-              const equipped = (kind === 'BACK' ? data.equipped.back : data.equipped.frame) === i.key;
-              return (
-                <div key={i.id} className={`tcgcos-item tcg-r-${i.rarity}${equipped ? ' is-on' : ''}`}>
-                  <span className="tcgcos-prev">
-                    {kind === 'BACK' ? <CardBack variant={i.key} /> : <span className={`tcgpass-frame f-${i.key.replace('frame:', '')}`}><span /></span>}
-                  </span>
-                  <b>{i.name}</b>
-                  <small>{i.source === 'PASS' ? 'Prêmio do passe' : i.source === 'FREE' ? 'Grátis' : `${i.priceGems} gemas`}</small>
-                  {equipped ? <span className="tcgcos-on"><Icon d={UI.check} size={13} />Em uso</span>
-                    : i.owned ? <button type="button" className="tcg-btn tcg-btn-sm" onClick={() => run(() => cardsEquipCosmetic(i.key), `${i.name} equipado!`)}>Usar</button>
-                      : i.source === 'SHOP' ? <button type="button" className="tcg-btn primary tcg-btn-sm" disabled={(wallet?.gems ?? 0) < i.priceGems} onClick={() => run(() => cardsBuyCosmetic(i.id), `${i.name} comprado!`)}><Icon d={UI.gem} size={13} />Comprar</button>
-                        : <span className="tcg-dim">Bloqueado</span>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-export default function PassTab({ wallet, onWallet }) {
+export default function PassTab({ onWallet }) {
   return (
     <div className="tcgpass-tab">
       <PassTrack onWallet={onWallet} />
-      <h2 className="tcg-h3" style={{ marginTop: 26 }}>Cosméticos</h2>
-      <CosmeticsShop wallet={wallet} onWallet={onWallet} />
+      {/* Versos de cartas agora são vendidos na Loja (categoria Versos de Cartas). */}
+      <p className="tcg-dim" style={{ marginTop: 22 }}>Versos de cartas ficam na <a className="tcg-link" href="/loja?cat=versos">Loja → Versos de Cartas</a>.</p>
     </div>
   );
 }

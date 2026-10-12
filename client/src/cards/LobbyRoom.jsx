@@ -194,7 +194,7 @@ export default function LobbyRoom({ code: initialCode, me, boards, onClose, onSt
       const { conversation } = await createConversation([u.id]);
       const fd = new FormData();
       fd.append('conversationId', conversation.id);
-      fd.append('content', `⚔️ Bora uma batalha ${lobby.format === '2V2' ? '2 vs 2' : '1 vs 1'}${lobby.custom ? ' personalizada' : ''} na Arena de Cartas? ${link}`);
+      fd.append('content', `⚔️ Bora uma batalha ${lobby.format === '2V2' ? '2 vs 2' : '1 vs 1'}${lobby.custom ? ' personalizada' : ''} na Guerra das Cartas? ${link}`);
       await sendMessage(fd);
       setNote(`Convite enviado pra ${u.displayName} (aviso + DM).`);
     } catch { setNote(`Aviso enviado pra ${u.displayName}.`); }

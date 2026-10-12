@@ -12,6 +12,10 @@ import '../styles/contentx.css';
 import { useStore } from '../store/useStore';
 import { getShopHistory, giftShopItem } from '../api/contentx';
 import ShopCardsTab from '../cards/ShopCardsTab.jsx';
+import { CardBack } from '../cards/CardView.jsx';
+import { cardsCosmetics, cardsBuyCosmetic, cardsEquipCosmetic } from '../cards/api';
+import { useSearchParams } from 'react-router-dom';
+import '../styles/cards.css';
 
 // "2d 4h" / "3h 12min" / "45s" — contagem regressiva da oferta.
 function countdown(target, now) {
@@ -53,7 +57,9 @@ function OfferBadge({ offer, now, big }) {
 
 const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
 const errMsg = (e) => e?.response?.data?.error || 'Não deu certo, tente de novo.';
-const KIND_LABEL = { deco: 'Moldura de avatar', effect: 'Efeito de perfil' };
+const KIND_LABEL = { deco: 'Moldura de avatar', effect: 'Efeito de perfil', back: 'Verso de carta' };
+const DEFAULT_BACK = 'back:classico';
+const RARITY_LABEL = { COMUM: 'Comum', INCOMUM: 'Incomum', RARA: 'Rara', EPICA: 'Épica', LENDARIA: 'Lendária', MITICA: 'Mítica' };
 const SORTS = [
   { id: 'recent', label: 'Mais recentes' },
   { id: 'cheap', label: 'Menor preço' },
@@ -63,6 +69,7 @@ const SORTS = [
 const TYPES = [
   { id: 'deco', label: 'Molduras de avatar', icon: 'frame' },
   { id: 'effect', label: 'Efeitos de perfil', icon: 'sparkles' },
+  { id: 'back', label: 'Versos de Cartas', icon: 'cards' },
   { id: 'collection', label: 'Coleções', icon: 'grid' },
 ];
 // Preço usado pra ordenar: moedas; se só vende em gemas, gemas valem 100.
@@ -70,7 +77,8 @@ const sortPrice = (i) => (i.priceCoins != null ? i.priceCoins : i.priceGems != n
 const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 // Loja: molduras de avatar, efeitos de perfil e coleções (criados pela staff
-// em Painel → Loja), pagos com moedas ou gemas.
+// em Painel → Loja) e versos de cartas da Guerra das Cartas, pagos com
+// moedas ou gemas — tudo no mesmo saldo e no mesmo lugar.
 export default function LojaPage() {
   const { user, setUser } = useAuth();
   const [data, setData] = useState(null);
@@ -83,11 +91,17 @@ export default function LojaPage() {
   const [types, setTypes] = useState([]); // vazio = tudo
   const [query, setQuery] = useState('');
   const [giftFor, setGiftFor] = useState(null); // item a presentear
+  const [params] = useSearchParams();
+
+  // ?cat=versos (vindo do jogo) abre direto nos versos de cartas.
+  useEffect(() => {
+    if (params.get('cat') === 'versos') { setTab('navegar'); setTypes(['back']); }
+  }, [params]);
 
   const load = useCallback(async (ctx) => {
     try {
-      const d = await getShop();
-      if (!ctx || ctx.ok()) setData(d);
+      const [d, cos] = await Promise.all([getShop(), cardsCosmetics().catch(() => null)]);
+      if (!ctx || ctx.ok()) setData({ ...d, cosmetics: cos });
     } catch (e) { if (!ctx) setNotice({ bad: true, text: errMsg(e) }); }
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -99,25 +113,35 @@ export default function LojaPage() {
 
   const items = useMemo(() => {
     if (!data) return [];
-    return [
-      ...(data.decorations || []).map((d) => ({ ...d, kind: 'deco' })),
-      ...(data.effects || []).map((e) => ({ ...e, kind: 'effect' })),
-    ];
+    return allItems(data);
   }, [data]);
   const collections = useMemo(() => data?.collections || [], [data]);
-  const isEquipped = (i) => (i.kind === 'deco' ? i.id === data?.equippedId : i.id === data?.equippedEffectId);
+  const isEquipped = (i) => (i.kind === 'back' ? i.key === (data?.cosmetics?.equipped?.back || DEFAULT_BACK)
+    : i.kind === 'deco' ? i.id === data?.equippedId : i.id === data?.equippedEffectId);
 
   const buy = async (i, currency) => {
     setBusy(`${i.id}:${currency}`);
     try {
-      await (i.kind === 'deco' ? buyDecoration(i.id, currency) : buyEffect(i.id, currency));
-      flash(`"${i.name}" é sua! Toque em Usar pra equipar.`);
+      if (i.kind === 'back') await cardsBuyCosmetic(i.id);
+      else await (i.kind === 'deco' ? buyDecoration(i.id, currency) : buyEffect(i.id, currency));
+      flash(i.kind === 'back' ? `Verso "${i.name}" é seu! Toque em Usar pra levar pras partidas.` : `"${i.name}" é sua! Toque em Usar pra equipar.`);
       await load();
     } catch (e) { flash(errMsg(e), true); }
     setBusy('');
   };
   const equip = async (kind, id) => {
     setBusy(`eq:${kind}`);
+    if (kind === 'back') {
+      // Versos: "Tirar" volta para o verso Clássico (grátis).
+      const it = items.find((x) => x.kind === 'back' && x.id === id);
+      try {
+        await cardsEquipCosmetic(it ? it.key : DEFAULT_BACK);
+        flash(it ? `Verso "${it.name}" em uso nas suas partidas.` : 'Voltou para o verso Clássico.');
+        await load();
+      } catch (e) { flash(errMsg(e), true); }
+      setBusy('');
+      return;
+    }
     try {
       const r = await (kind === 'deco' ? equipDecoration(id) : equipEffect(id));
       if (r.user) setUser((u) => ({ ...u, ...r.user }));
@@ -201,6 +225,22 @@ export default function LojaPage() {
   );
 }
 
+// Itens da loja + versos de cartas (vendidos com gemas). Versos que não
+// estão à venda (prêmios antigos do passe) só aparecem para quem já tem.
+function allItems(data) {
+  const backs = (data?.cosmetics?.items || [])
+    .filter((c) => c.kind === 'BACK' && (c.owned || (c.source === 'SHOP' && c.priceGems)))
+    .map((c) => ({
+      id: c.id, key: c.key, kind: 'back', name: c.name, rarity: c.rarity, priceCoins: null,
+      priceGems: c.source === 'SHOP' ? c.priceGems : null, owned: !!c.owned, createdAt: c.createdAt || 0,
+    }));
+  return [
+    ...(data?.decorations || []).map((d) => ({ ...d, kind: 'deco' })),
+    ...(data?.effects || []).map((e) => ({ ...e, kind: 'effect' })),
+    ...backs,
+  ];
+}
+
 // ---------- Destaques ----------
 function Featured({ collections, items, openCollection, goBrowse, now, ...ctx }) {
   const featured = collections.filter((c) => c.featured);
@@ -212,7 +252,7 @@ function Featured({ collections, items, openCollection, goBrowse, now, ...ctx })
         <section className="shop-hero-plain">
           <span className="shop-kicker"><Ico name="sparkles" size={14} /> Loja do Project Club</span>
           <h2>Deixe seu perfil com a sua cara</h2>
-          <p>Molduras pro avatar e efeitos animados que aparecem por cima do seu perfil. Tudo pago com moedas ou gemas.</p>
+          <p>Molduras pro avatar, efeitos animados no perfil e versos para as suas cartas na Guerra das Cartas. Tudo pago com moedas ou gemas.</p>
           <button type="button" className="shop-btn primary" onClick={() => goBrowse()}>Ver tudo</button>
         </section>
       )}
@@ -238,6 +278,12 @@ function Featured({ collections, items, openCollection, goBrowse, now, ...ctx })
             <span className="shop-style-ico"><Ico name="sparkles" size={22} /></span>
             <strong>Efeitos de perfil</strong><small>{count('effect')} itens</small>
           </button>
+          {count('back') > 0 && (
+            <button type="button" className="shop-style-tile is-backs" onClick={() => goBrowse('back')}>
+              <span className="shop-style-ico"><Ico name="cards" size={22} /></span>
+              <strong>Versos de Cartas</strong><small>{count('back')} itens · Guerra das Cartas</small>
+            </button>
+          )}
           {collections.map((c) => (
             <button
               key={c.id} type="button" className="shop-style-tile has-art" onClick={() => openCollection(c.id)}
@@ -407,6 +453,16 @@ function CollectionView({ c, items, onBack, buyBundle, now, ...ctx }) {
 
 // ---------- Cartão / modal ----------
 function Preview({ item, user, big = false }) {
+  if (item.kind === 'back') {
+    return (
+      <div className={`shop-art-back r-${item.rarity}${big ? ' is-big' : ''}`}>
+        <span className="shop-back-fan" aria-hidden="true">
+          <CardBack variant={item.key} className="shop-back-shadow" />
+          <CardBack variant={item.key} className="shop-back-main" />
+        </span>
+      </div>
+    );
+  }
   if (item.kind === 'deco') {
     return <div className="shop-art-deco"><UserAvatar user={{ ...user, avatarDecoration: decoValue(item) }} size={big ? 150 : 96} /></div>;
   }
@@ -443,9 +499,11 @@ function ItemCard({ item, user, data, busy, buy, equip, isEquipped, open }) {
         <small>{KIND_LABEL[item.kind]}</small>
         <h3 title={item.name}>{item.name}</h3>
         {item.owned ? (
-          <button type="button" className={`shop-btn${on ? ' ghost' : ' primary'}`} disabled={!!busy} onClick={() => equip(item.kind, on ? null : item.id)}>
-            {on ? 'Tirar' : 'Usar'}
-          </button>
+          on && item.key === DEFAULT_BACK ? <span className="shop-muted">Verso padrão</span> : (
+            <button type="button" className={`shop-btn${on ? ' ghost' : ' primary'}`} disabled={!!busy} onClick={() => equip(item.kind, on ? null : item.id)}>
+              {on ? 'Tirar' : 'Usar'}
+            </button>
+          )
         ) : <PriceButtons item={item} data={data} busy={busy} buy={buy} />}
       </div>
     </article>
@@ -454,7 +512,7 @@ function ItemCard({ item, user, data, busy, buy, equip, isEquipped, open }) {
 
 function ItemModal({ item: initial, onClose, collection, openCollection, user, data, busy, buy, equip, isEquipped, gift }) {
   // Pega a versão mais nova do item (depois de comprar/usar).
-  const all = [...(data.decorations || []).map((d) => ({ ...d, kind: 'deco' })), ...(data.effects || []).map((e) => ({ ...e, kind: 'effect' }))];
+  const all = allItems(data);
   const item = all.find((i) => i.kind === initial.kind && i.id === initial.id) || initial;
   const on = isEquipped(item);
   useEffect(() => {
@@ -471,9 +529,11 @@ function ItemModal({ item: initial, onClose, collection, openCollection, user, d
           <small className="shop-modal-kind">{KIND_LABEL[item.kind]}</small>
           <h2>{item.name}</h2>
           <p>
-            {item.kind === 'deco'
-              ? 'Fica em volta da sua foto em todo lugar: chat, lista de membros e perfil.'
-              : 'Uma animação que passa por cima do seu perfil e do seu mini perfil quando alguém abre (e de novo a cada 30 segundos).'}
+            {item.kind === 'back'
+              ? <>Verso {RARITY_LABEL[item.rarity] ? <b>{RARITY_LABEL[item.rarity].toLowerCase()}</b> : null} das suas cartas na Guerra das Cartas: aparece no seu baralho, na sua mão para o oponente e nas pilhas da mesa. Fica salvo no seu inventário.</>
+              : item.kind === 'deco'
+                ? 'Fica em volta da sua foto em todo lugar: chat, lista de membros e perfil.'
+                : 'Uma animação que passa por cima do seu perfil e do seu mini perfil quando alguém abre (e de novo a cada 30 segundos).'}
           </p>
           {collection && (
             <button type="button" className="shop-link" onClick={() => openCollection(collection.id)}>
@@ -482,12 +542,14 @@ function ItemModal({ item: initial, onClose, collection, openCollection, user, d
           )}
           <div className="shop-modal-actions">
             {item.owned ? (
-              <button type="button" className={`shop-btn big${on ? ' ghost' : ' primary'}`} disabled={!!busy} onClick={() => equip(item.kind, on ? null : item.id)}>
-                {on ? 'Tirar' : 'Usar'}
-              </button>
+              on && item.key === DEFAULT_BACK ? <span className="shop-muted">Verso padrão, já em uso</span> : (
+                <button type="button" className={`shop-btn big${on ? ' ghost' : ' primary'}`} disabled={!!busy} onClick={() => equip(item.kind, on ? null : item.id)}>
+                  {on ? 'Tirar' : 'Usar'}
+                </button>
+              )
             ) : <PriceButtons item={item} data={data} busy={busy} buy={buy} />}
           </div>
-          {(item.priceCoins != null || item.priceGems != null) && (
+          {item.kind !== 'back' && (item.priceCoins != null || item.priceGems != null) && (
             <button type="button" className="shop-btn ghost cxs-gift-btn" onClick={() => { onClose(); gift(item); }}>
               <Ico name="gift" size={16} /> Presentear um amigo
             </button>

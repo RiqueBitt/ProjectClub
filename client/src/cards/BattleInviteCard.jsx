@@ -32,7 +32,7 @@ export default function BattleInviteCard({ code }) {
       <span className="bic-glow" aria-hidden="true" />
       <span className="bic-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={SWORDS} /></svg></span>
       <span className="bic-body">
-        <span className="bic-label">Arena de Cartas · {lobby.format === '2V2' ? '2 vs 2' : '1 vs 1'}{lobby.custom ? ' · Personalizada' : ''}</span>
+        <span className="bic-label">Guerra das Cartas · {lobby.format === '2V2' ? '2 vs 2' : '1 vs 1'}{lobby.custom ? ' · Personalizada' : ''}</span>
         <span className="bic-title">
           {mine ? 'Sua sala de batalha' : <><b data-no-translate>{lobby.host?.displayName}</b> está chamando você para uma batalha!</>}
         </span>

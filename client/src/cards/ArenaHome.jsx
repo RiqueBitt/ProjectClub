@@ -104,6 +104,9 @@ function timeLeft(end, now) {
   return d > 0 ? `${d}d ${h}h` : `${h}h ${Math.floor((ms % 3600000) / 60000)}min`;
 }
 
+// Draft, Chefão e Liga: só aparecem com o modo ligado no painel da staff.
+const CHALLENGE_MODES = [['draft', 'is-draft', UI.wand, 'Draft', 'Escolha 1 de 3 cartas e chegue a 7 vitórias'], ['boss', 'is-boss', UI.flag, 'Chefão semanal', 'A comunidade toda contra um chefe gigante'], ['league', 'is-league', UI.trophy, 'Liga de clãs', 'Suas vitórias somam pontos para o seu clã']];
+
 export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onWatch, onReplay, onOpenRoom }) {
   const navigate = useNavigate();
   const [err, setErr] = useState('');
@@ -128,7 +131,7 @@ export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onW
     cardsCampaign().then(setCampaign).catch(() => {});
     cardsBrawl().then(setBrawl).catch(() => {});
     cardsChest().then((d) => setChest(d.chest)).catch(() => {});
-    cardsPass().then((d) => setPassInfo(d.pass)).catch(() => {});
+    if (home.enabled?.pass) cardsPass().then((d) => setPassInfo(d.pass)).catch(() => {});
     const loadLive = () => cardsLive().then((d) => setLive(d.matches)).catch(() => {});
     loadLive();
     loadMissions();
@@ -217,14 +220,14 @@ export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onW
           <b>Personalizada</b><small>Suas regras: vida, energia, baralhos… (sem recompensa)</small>
         </button>
       </section>
-      <section className="tcg-modes is-challenges" aria-label="Desafios">
-        {[['draft', 'is-draft', UI.wand, 'Draft', 'Escolha 1 de 3 cartas e chegue a 7 vitórias'], ['boss', 'is-boss', UI.flag, 'Chefão semanal', 'A comunidade toda contra um chefe gigante'], ['league', 'is-league', UI.trophy, 'Liga de clãs', 'Suas vitórias somam pontos para o seu clã']].map(([k, cls, icon, title, desc]) => (
+      {CHALLENGE_MODES.some(([k]) => home.enabled?.[k]) && <section className="tcg-modes is-challenges" aria-label="Desafios">
+        {CHALLENGE_MODES.filter(([k]) => home.enabled?.[k]).map(([k, cls, icon, title, desc]) => (
           <button key={k} type="button" className={`tcg-mode ${cls}`} onClick={() => { try { sessionStorage.setItem('pc-cards-chal', k); } catch { /* ignora */ } navigate('/cartas?aba=desafios'); }}>
             <span className="tcg-mode-icon"><Icon d={icon} size={26} /></span>
             <b>{title}</b><small>{desc}</small>
           </button>
         ))}
-      </section>
+      </section>}
 
       <section className="tcg-daily">
         <div className="tcg-daily-item is-streak" title="A primeira partida de cada dia dá moedas — e o bônus cresce a cada dia seguido.">
@@ -307,7 +310,7 @@ export default function ArenaHome({ home, me, cards, onStartMatch, onReload, onW
       {/* Missões */}
       {missions?.length > 0 && (
         <>
-          <div className="tcg-h3-row"><h3 className="tcg-h3">Missões da Arena</h3><button type="button" className="tcg-link" onClick={() => navigate('/economia')}>Ver todas as missões</button></div>
+          <div className="tcg-h3-row"><h3 className="tcg-h3">Missões da Guerra das Cartas</h3><button type="button" className="tcg-link" onClick={() => navigate('/economia')}>Ver todas as missões</button></div>
           <div className="tcg-missions">
             {missions.map((m) => (
               <div key={m.id} className={`tcg-mission${m.completed ? ' is-done' : ''}${m.claimed ? ' is-claimed' : ''}`}>

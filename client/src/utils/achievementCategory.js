@@ -9,8 +9,8 @@ const CATEGORY_BY_TYPE = {
   FRIENDS_COUNT: 'Amizades',
   ACCOUNT_LEVEL: 'Progresso', DAILY_STREAK: 'Progresso',
   MESSAGES_SENT: 'Comunicação', REACTIONS_GIVEN: 'Comunicação', EMOJIS_CREATED: 'Comunicação',
-  CARDS_WINS: 'Arena de Cartas', CARDS_PVP_WINS: 'Arena de Cartas', CARDS_PACKS: 'Arena de Cartas', CARDS_COLLECTION: 'Arena de Cartas', CARDS_FOILS: 'Arena de Cartas', CARDS_CAMPAIGN: 'Arena de Cartas',
-  CARDS_FLAWLESS: 'Arena de Cartas', CARDS_CLUTCH: 'Arena de Cartas', CARDS_DUO_WINS: 'Arena de Cartas', CARDS_DRAFT_BEST: 'Arena de Cartas', CARDS_BOSS_DAMAGE: 'Arena de Cartas', CARDS_GOLDEN: 'Arena de Cartas',
+  CARDS_WINS: 'Guerra das Cartas', CARDS_PVP_WINS: 'Guerra das Cartas', CARDS_PACKS: 'Guerra das Cartas', CARDS_COLLECTION: 'Guerra das Cartas', CARDS_FOILS: 'Guerra das Cartas', CARDS_CAMPAIGN: 'Guerra das Cartas',
+  CARDS_FLAWLESS: 'Guerra das Cartas', CARDS_CLUTCH: 'Guerra das Cartas', CARDS_DUO_WINS: 'Guerra das Cartas', CARDS_DRAFT_BEST: 'Guerra das Cartas', CARDS_BOSS_DAMAGE: 'Guerra das Cartas', CARDS_GOLDEN: 'Guerra das Cartas',
 };
 
 export function categoryFor(progressType) {
@@ -19,4 +19,4 @@ export function categoryFor(progressType) {
 
 // Ordem fixa de exibição das categorias (em vez de alfabética, que
 // ficaria com uma sequência sem lógica nenhuma).
-export const CATEGORY_ORDER = ['Fórum', 'Perfil', 'Amizades', 'Comunicação', 'Arena de Cartas', 'Progresso', 'Outras'];
+export const CATEGORY_ORDER = ['Fórum', 'Perfil', 'Amizades', 'Comunicação', 'Guerra das Cartas', 'Progresso', 'Outras'];

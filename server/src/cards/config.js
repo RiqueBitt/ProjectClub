@@ -75,7 +75,12 @@ const DEFAULT_SETTINGS = {
     rewards: { BRONZE: 50, PRATA: 150, OURO: 300, PLATINA: 500, DIAMANTE: 800, LENDARIO: 1200 },
     gems: { BRONZE: 0, PRATA: 0, OURO: 2, PLATINA: 5, DIAMANTE: 10, LENDARIO: 20 },
   },
-  enabled: { pve: true, pvp: true, trades: true, packs: true, sell: true, market: true },
+  enabled: {
+    pve: true, pvp: true, trades: true, packs: true, sell: true, market: true,
+    // Desligados a pedido (código e dados preservados): religue no painel
+    // da staff (Cartas → Configurações) quando quiser.
+    tournaments: false, pass: false, draft: false, boss: false, league: false,
+  },
   // Sistemas de diversão/progressão (briga, tutorial, baú, sequência, passe,
   // pó, douradas, draft, chefe, liga de clãs). Tudo editável no painel.
   extras: {

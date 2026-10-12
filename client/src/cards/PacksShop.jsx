@@ -4,7 +4,7 @@ import PackOpening from './PackOpening.jsx';
 import { cardsPacks, cardsOpenPack, errMsg } from './api';
 import '../styles/cards.css';
 
-// Loja de pacotes do Jogo de Cartas — usada na Arena (aba Pacotes) e na
+// Loja de pacotes da Guerra das Cartas — usada na Arena (aba Pacotes) e na
 // Loja do Project Club (categoria Cartas). A compra e o sorteio acontecem
 // no servidor; aqui só mostramos e animamos a abertura.
 export default function PacksTab({ home, onOpened }) {

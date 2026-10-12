@@ -61,6 +61,8 @@ httpServer.listen(env.PORT, () => {
   lines.forEach((l) => console.log(dim('│ ') + l));
   console.log(dim(bottom));
   checkB2().catch(() => {});
+  // Textos antigos salvos no banco com o nome "Arena de Cartas".
+  require('./services/renameCardGame').renameCardGame();
 });
 
 // Item pedido: "encontre uma solução para manter a sessão do usuário

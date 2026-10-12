@@ -82,7 +82,7 @@ const SEED_CAMPAIGN = [
   { position: 2, name: 'Porto das Marés', botName: 'Capitã Nora', difficulty: 'MEDIO', heroHp: 28, rewardCoins: 130, story: 'No porto, a Capitã Nora só deixa passar quem vence uma partida. A maré não espera ninguém.' },
   { position: 3, name: 'Forja do Vulcão', botName: 'Ferreiro Brasa', difficulty: 'MEDIO', heroHp: 32, rewardCoins: 180, story: 'O ferreiro forja cartas lendárias — e só entrega uma a quem sobreviver ao calor do seu baralho de fogo.' },
   { position: 4, name: 'Torre dos Ventos', botName: 'Mestre Kael', difficulty: 'DIFICIL', heroHp: 32, rewardCoins: 260, story: 'Kael pensa uma jogada à frente. No topo da torre, cada erro custa caro.' },
-  { position: 5, name: 'O Trono do Eclipse', botName: 'Arquimaga Vex', difficulty: 'LENDARIO', heroHp: 36, rewardCoins: 500, story: 'A Arquimaga reúne as cartas mais raras do mundo. Vencê-la faz de você uma lenda da Arena.' },
+  { position: 5, name: 'O Trono do Eclipse', botName: 'Arquimaga Vex', difficulty: 'LENDARIO', heroHp: 36, rewardCoins: 500, story: 'A Arquimaga reúne as cartas mais raras do mundo. Vencê-la faz de você uma lenda da Guerra das Cartas.' },
 ];
 
 const W_BASIC = { COMUM: 62, INCOMUM: 25, RARA: 9, EPICA: 3, LENDARIA: 0.9, MITICA: 0.1 };

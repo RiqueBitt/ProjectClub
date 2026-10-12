@@ -1,7 +1,8 @@
+import { CoinIcon, GemIcon } from '../components/CurrencyIcon.jsx';
 import { memo, useState } from 'react';
 import { cardIcon } from './cardIcons.js';
 
-// Visual das cartas do Jogo de Cartas. Sem imagem enviada pela staff, a arte
+// Visual das cartas da Guerra das Cartas. Sem imagem enviada pela staff, a arte
 // é gerada (SVG determinístico a partir do elemento + nome), então toda
 // carta nova já nasce com uma arte própria.
 
@@ -59,6 +60,9 @@ export function abilityText(ability, value) {
 }
 
 export function Icon({ d, size = 16, fill = false, sw = 2 }) {
+  // Moedas e gemas: ícones coloridos novos (components/CurrencyIcon.jsx).
+  if (d === UI.coin) return <CoinIcon size={size} />;
+  if (d === UI.gem) return <GemIcon size={size} />;
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill={fill ? 'currentColor' : 'none'} stroke={fill ? 'none' : 'currentColor'} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d={d} />

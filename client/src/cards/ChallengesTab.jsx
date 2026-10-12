@@ -7,7 +7,8 @@ import {
 import { sfx } from './sfx';
 import UserAvatar from '../components/UserAvatar.jsx';
 
-// Aba "Desafios": Draft (Arena), chefão semanal da comunidade e liga de clãs.
+// Aba "Desafios": Draft, chefão semanal da comunidade e liga de clãs
+// (cada um pode ser ligado/desligado no painel da staff).
 
 const fmtLeft = (end) => {
   const ms = Math.max(0, new Date(end).getTime() - Date.now());
@@ -72,7 +73,7 @@ function DraftPanel({ wallet, onStartMatch, onWallet }) {
     <header className="tcgd-head">
       <span className="tcgd-badge"><Icon d={UI.wand} size={22} /></span>
       <div>
-        <h3>Draft da Arena</h3>
+        <h3>Draft da Guerra das Cartas</h3>
         <p className="tcg-dim">Monte um baralho escolhendo 1 entre 3 cartas e vá o mais longe que conseguir: até {d?.maxWins || 7} vitórias ou {d?.maxLosses || 3} derrotas. Cartas novas pra todo mundo — vale a estratégia, não a coleção.</p>
       </div>
     </header>
@@ -270,10 +271,13 @@ function LeaguePanel() {
   );
 }
 
-export default function ChallengesTab({ wallet, onStartMatch, onWallet }) {
-  const [sub, setSub] = useState(() => { try { return sessionStorage.getItem('pc-cards-chal') || 'draft'; } catch { return 'draft'; } });
+export default function ChallengesTab({ wallet, enabled, onStartMatch, onWallet }) {
+  // Só os modos ligados no painel da staff (todos desligados por enquanto).
+  const SUBS = [['draft', 'Draft', UI.wand], ['boss', 'Chefão semanal', UI.flag], ['league', 'Liga de clãs', UI.users]].filter(([k]) => enabled?.[k]);
+  const [chosen, setSub] = useState(() => { try { return sessionStorage.getItem('pc-cards-chal') || 'draft'; } catch { return 'draft'; } });
+  const sub = SUBS.some(([k]) => k === chosen) ? chosen : SUBS[0]?.[0];
   const pick = (k) => { setSub(k); try { sessionStorage.setItem('pc-cards-chal', k); } catch { /* ignora */ } };
-  const SUBS = [['draft', 'Draft', UI.wand], ['boss', 'Chefão semanal', UI.flag], ['league', 'Liga de clãs', UI.users]];
+  if (!SUBS.length) return <p className="tcg-empty">Os desafios estão desativados no momento.</p>;
   return (
     <div className="tcgchal">
       <div className="tcg-chips tcgchal-subs">

@@ -842,7 +842,7 @@ export default function Battle({ initial, onExit, onRematch, mode = 'play', fram
             )}
             {match.result?.tutorial && <p className="tcg-ok">Tutorial concluído! +{match.result.tutorial.coins} moedas. Agora você já sabe jogar 🎉</p>}
             {match.result?.progress?.[myId]?.daily && <p className="tcg-ok">🔥 Sequência de {match.result.progress[myId].daily.days} dia(s): +{match.result.progress[myId].daily.coins} moedas</p>}
-            {match.result?.progress?.[myId]?.chest?.ready > 0 && <p className="tcg-ok">🎁 Baú de vitórias liberado! Abra no início da Arena.</p>}
+            {match.result?.progress?.[myId]?.chest?.ready > 0 && <p className="tcg-ok">🎁 Baú de vitórias liberado! Abra no início da Guerra das Cartas.</p>}
             {endNote && <p className="tcg-dim">{endNote}</p>}
             {match.reward === 0 && !match.custom && <small>Partidas muito curtas, desistências no começo, partidas com bots no 2 vs 2 ou acima do limite diário não dão moedas.</small>}
             <div className="tcgb-end-actions">

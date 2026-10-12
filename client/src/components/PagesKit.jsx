@@ -1,3 +1,4 @@
+import { CoinIcon, GemIcon } from './CurrencyIcon.jsx';
 import '../styles/pages-kit.css';
 
 // Peças visuais compartilhadas por Economia, Casas, Figurinhas,
@@ -5,8 +6,8 @@ import '../styles/pages-kit.css';
 // Linux), cabeçalho "herói", abas em pílula, estado vazio, esqueleto de
 // carregamento e aviso flutuante.
 const PATHS = {
-  coin: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM14.5 9a2.5 2.5 0 0 0-2.5-1.5c-1.4 0-2.5.8-2.5 2s1.1 1.7 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2A2.6 2.6 0 0 1 9.5 15M12 6v1.5M12 16.5V18',
-  gem: 'M6 3h12l4 6-10 12L2 9l4-6ZM2 9h20M12 21 8 9l4-6 4 6-4 12',
+  coin: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7.6l1.3 2.65 2.9.42-2.1 2.05.5 2.9L12 14.25l-2.6 1.37.5-2.9-2.1-2.05 2.9-.42z',
+  gem: 'M7 3.5h10l4.5 5.2L12 21 2.5 8.7zM2.5 8.7h19M9.6 8.7 12 21l2.4-12.3M7 3.5l2.6 5.2L12 3.5l2.4 5.2L17 3.5',
   gift: 'M4 11h16v9H4zM3 7h18v4H3zM12 7v13M12 7c-2-4-6-3-5 0M12 7c2-4 6-3 5 0',
   chest: 'M3 10h18v10H3zM3 10V8a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v2M10 10v3h4v-3',
   flame: 'M12 21c-3.9 0-7-2.7-7-6.5 0-3 2-5.3 3.5-6.8.4 1.6 1.3 2.8 2.5 3.3-.3-3.3 1.2-6.4 3.5-8 .2 3 1.9 4.6 3.3 6.2A7.3 7.3 0 0 1 19 14.5c0 3.8-3.1 6.5-7 6.5Z',
@@ -65,6 +66,9 @@ const PATHS = {
 };
 
 export function Ico({ name, size = 18, strokeWidth = 1.8, className }) {
+  // Moedas e gemas: ícones coloridos novos (components/CurrencyIcon.jsx).
+  if (name === 'coin') return <CoinIcon size={size} className={className} />;
+  if (name === 'gem') return <GemIcon size={size} className={className} />;
   return (
     <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d={PATHS[name] || PATHS.star} />

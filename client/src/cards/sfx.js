@@ -1,4 +1,4 @@
-// Sons da Arena de Cartas — sintetizados com Web Audio (sem arquivos).
+// Sons da Guerra das Cartas — sintetizados com Web Audio (sem arquivos).
 // Mudo e volume ficam salvos no navegador.
 let ctx = null;
 let master = null;

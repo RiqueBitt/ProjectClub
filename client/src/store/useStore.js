@@ -1,3 +1,4 @@
+import { isFeatureEnabled } from '../utils/features';
 import { create } from 'zustand';
 import { updateUserSettings } from '../api/endpoints';
 import { openPopover, closePopover, closeAllPopovers } from '../utils/popoverCoordinator';
@@ -505,7 +506,7 @@ export const useStore = create((set, get) => ({
     // App do celular com o navegador nativo (PcBrowserPlugin) também abre aqui.
     const cap = typeof window !== 'undefined' ? window.Capacitor : null;
     const androidBrowser = !!(cap?.getPlatform?.() === 'android' && cap?.isPluginAvailable?.('PcBrowser'));
-    if (((b && b.version >= 1) || androidBrowser) && /^https?:\/\//i.test(String(url)) && get().userSettings?.openLinksInApp !== false) {
+    if (isFeatureEnabled('browser') && ((b && b.version >= 1) || androidBrowser) && /^https?:\/\//i.test(String(url)) && get().userSettings?.openLinksInApp !== false) {
       import('../browser/browserStore').then(({ openInBrowser }) => { if (!openInBrowser(url)) set({ pendingLinkUrl: url }); }).catch(() => set({ pendingLinkUrl: url }));
       return;
     }

@@ -92,7 +92,7 @@ async function getProgressByType(userId, progressType) {
       return prisma.message.count({ where: { authorId: userId } });
     case 'REACTIONS_GIVEN':
       return prisma.reaction.count({ where: { userId } });
-    // Arena de Cartas
+    // Guerra das Cartas
     case 'CARDS_WINS': {
       const p = await prisma.cardPlayer.findUnique({ where: { userId } });
       return p ? p.wins + p.pvpWins : 0;

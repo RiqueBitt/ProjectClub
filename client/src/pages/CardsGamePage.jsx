@@ -23,20 +23,23 @@ import {
 } from '../cards/api';
 import '../styles/cards.css';
 
-// Arena de Cartas — jogo de cartas colecionáveis do Project Club (substitui
-// as Figurinhas). Jogo principal da seção Mini-Jogos.
-const TABS = [
+// Guerra das Cartas — jogo de cartas colecionáveis do Project Club
+// (substitui as Figurinhas). Jogo principal da seção Mini-Jogos.
+// Abas com `mode` só aparecem com o modo ligado no painel da staff
+// (Torneios, Desafios, Passe estão desligados — código e dados guardados).
+const ALL_TABS = [
   { key: 'jogar', label: 'Início', icon: UI.sword },
   { key: 'colecao', label: 'Coleção', icon: UI.deck },
   { key: 'loja', label: 'Pacotes', icon: UI.pack },
-  { key: 'desafios', label: 'Desafios', icon: UI.sword },
-  { key: 'passe', label: 'Passe', icon: UI.trophy },
   { key: 'baralhos', label: 'Baralhos', icon: UI.list },
+  { key: 'desafios', label: 'Desafios', icon: UI.sword, mode: ['draft', 'boss', 'league'] },
+  { key: 'passe', label: 'Passe', icon: UI.trophy, mode: ['pass'] },
   { key: 'mercado', label: 'Mercado', icon: UI.coin },
   { key: 'trocas', label: 'Trocas', icon: UI.swap },
-  { key: 'torneios', label: 'Torneios', icon: UI.trophy },
+  { key: 'torneios', label: 'Torneios', icon: UI.trophy, mode: ['tournaments'] },
   { key: 'ranking', label: 'Ranking', icon: UI.star },
 ];
+const tabsFor = (enabled) => ALL_TABS.filter((t) => !t.mode || t.mode.some((m) => enabled?.[m]));
 
 function Wallet({ wallet }) {
   return (
@@ -89,8 +92,9 @@ export default function CardsGamePage() {
   const { socket } = useSocket() || {};
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const tab = TABS.some((t) => t.key === params.get('aba')) ? params.get('aba') : 'jogar';
   const [home, setHome] = useState(null);
+  const TABS = tabsFor(home?.enabled);
+  const tab = TABS.some((t) => t.key === params.get('aba')) ? params.get('aba') : 'jogar';
   const [cards, setCards] = useState([]);
   const [match, setMatch] = useState(null); // { data, mode, frames }
   const [err, setErr] = useState('');
@@ -116,7 +120,7 @@ export default function CardsGamePage() {
   const salaCode = params.get('sala');
   const [room, setRoom] = useState(null); // { code } ou { create: defaults }
 
-  const loadHome = useCallback(() => cardsHome().then((h) => { setHome(h); return h; }).catch((e) => setErr(errMsg(e, 'Não foi possível abrir o Jogo de Cartas.'))), []);
+  const loadHome = useCallback(() => cardsHome().then((h) => { setHome(h); return h; }).catch((e) => setErr(errMsg(e, 'Não foi possível abrir a Guerra das Cartas.'))), []);
   const loadCards = useCallback(() => cardsCollection().then((d) => setCards(d.cards)).catch(() => {}), []);
   useEffect(() => { loadHome(); loadCards(); }, [loadHome, loadCards]);
 
@@ -211,9 +215,10 @@ export default function CardsGamePage() {
           <button type="button" className="tcg-icon-btn" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/inicio'))} aria-label="Voltar"><Icon d={UI.back} /></button>
           <span className="tcg-logo"><Icon d={UI.deck} size={26} /></span>
           <div className="tcg-hero-text">
-            <h1>Arena de Cartas</h1>
+            <h1>Guerra das Cartas</h1>
             <p>Colecione, monte seu baralho e duele contra bots e amigos.</p>
           </div>
+          <button type="button" className="tcg-btn tcg-hero-shop" onClick={() => navigate('/loja?cat=versos')} title="Versos de cartas, molduras e pacotes"><Icon d={UI.pack} size={16} />Loja</button>
           <Wallet wallet={home?.wallet} />
         </header>
 
@@ -248,7 +253,7 @@ export default function CardsGamePage() {
         {home && tab === 'jogar' && <ArenaHome home={home} me={user} cards={cards} onStartMatch={startMatch} onReload={loadHome} onWatch={(id) => setParam('assistir', id)} onReplay={(id) => setParam('replay', id)} onOpenRoom={(defaults) => setRoom({ create: defaults || {} })} />}
         {home && tab === 'colecao' && <Collection cards={cards} home={home} onChanged={(r) => { setWallet(r?.wallet); refreshAll(); }} openId={openCard} onOpenChange={(id) => setParam('carta', id)} />}
         {home && tab === 'loja' && <PacksTab home={home} onOpened={(w) => { setWallet(w); loadCards(); loadHome(); }} />}
-        {home && tab === 'desafios' && <ChallengesTab me={user} wallet={home.wallet} onStartMatch={startMatch} onWallet={loadHome} />}
+        {home && tab === 'desafios' && <ChallengesTab me={user} wallet={home.wallet} enabled={home.enabled} onStartMatch={startMatch} onWallet={loadHome} />}
         {home && tab === 'passe' && <PassTab wallet={home.wallet} onWallet={loadHome} />}
         {home && tab === 'baralhos' && <DeckBuilder collection={cards} rules={home.rules} onChanged={loadHome} />}
         {home && tab === 'mercado' && <Market me={user} wallet={home.wallet} onWallet={setWallet} onChanged={refreshAll} />}

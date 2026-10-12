@@ -442,7 +442,7 @@ button.sx-item-body:hover { border-color: color-mix(in srgb, var(--brand) 40%, v
   .featured-channels .sidebar-item.featured-channel,
   .n2-sidebar .featured-channels .sidebar-item.featured-channel { min-height: 46px; }
 }
-/* Arena de Cartas em destaque: roxo com brilho e selo "Jogar" */
+/* Guerra das Cartas em destaque: roxo com brilho e selo "Jogar" */
 .featured-arena { --fc: #a46bff; }
 .featured-channels .sidebar-item.featured-arena { background: linear-gradient(100deg, color-mix(in srgb, #a46bff 22%, transparent), color-mix(in srgb, #ff4fa3 10%, transparent)); }
 .featured-channels .featured-arena .featured-channel-icon { background: linear-gradient(135deg, #a46bff, #ff4fa3); color: #fff; box-shadow: 0 0 12px rgba(164,107,255,.45); }
@@ -451,7 +451,7 @@ button.sx-item-body:hover { border-color: color-mix(in srgb, var(--brand) 40%, v
   font-size: 11px; font-weight: 900; letter-spacing: .3px; color: #fff;
   background: linear-gradient(90deg, #8b6bff, #ff4fa3); box-shadow: 0 0 10px rgba(164,107,255,.5);
 }
-/* Convite de batalha (Arena de Cartas) no chat/DM */
+/* Convite de batalha (Guerra das Cartas) no chat/DM */
 .bic { position: relative; display: flex; align-items: center; gap: 12px; max-width: 520px; margin-top: 6px; padding: 12px 14px; border-radius: 14px; overflow: hidden; cursor: pointer;
   background: linear-gradient(120deg, rgba(139,107,255,.22), rgba(255,79,163,.12) 60%, rgba(20,16,30,.6)); border: 1px solid rgba(164,107,255,.45); box-shadow: 0 6px 22px rgba(0,0,0,.25); transition: transform .15s, box-shadow .15s; }
 .bic:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(0,0,0,.35), 0 0 22px rgba(164,107,255,.25); }
@@ -475,3 +475,18 @@ button.sx-item-body:hover { border-color: color-mix(in srgb, var(--brand) 40%, v
 .bic-btn { position: relative; flex-shrink: 0; height: 36px; padding: 0 14px; border: 0; border-radius: 10px; font: inherit; font-weight: 800; font-size: 13.5px; color: #fff; cursor: pointer; background: linear-gradient(135deg, #8b6bff, #6a46f0); box-shadow: 0 4px 14px rgba(106,70,240,.45); }
 .bic-btn:disabled { opacity: .5; cursor: default; }
 @media (max-width: 600px) { .bic { flex-wrap: wrap; } .bic-btn { width: 100%; } }
+
+/* Guerra das Cartas + Loja: bloco em destaque no topo dos canais (acima de Anúncios) */
+.featured-spotlight { display: grid; gap: 6px; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px dashed color-mix(in srgb, var(--border) 80%, transparent); }
+.featured-channels .sidebar-item.featured-channel.is-spotlight { min-height: 52px; padding: 8px 10px; gap: 10px; border-radius: 12px; }
+.featured-channels .sidebar-item.featured-channel.is-spotlight .featured-channel-icon { width: 34px; height: 34px; border-radius: 10px; }
+.featured-channels .sidebar-item.featured-channel.is-spotlight .featured-channel-icon svg { width: 18px; height: 18px; }
+.featured-channel-text { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.2; }
+.featured-channel-text .featured-channel-name { font-size: 14.5px; font-weight: 800; color: var(--header-primary); }
+.featured-channel-sub { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.featured-channels .sidebar-item.featured-loja.is-spotlight { background: linear-gradient(100deg, color-mix(in srgb, #22c55e 20%, transparent), color-mix(in srgb, #f5b041 10%, transparent)); }
+.featured-channels .featured-loja.is-spotlight .featured-channel-icon { background: linear-gradient(135deg, #22c55e, #f5b041); color: #fff; box-shadow: 0 0 12px rgba(34,197,94,.4); }
+.featured-channels .sidebar-item.featured-channel.is-spotlight::after { top: 10px; bottom: 10px; }
+@media (max-width: 600px) {
+  .featured-channels .sidebar-item.featured-channel.is-spotlight { min-height: 58px; }
+}

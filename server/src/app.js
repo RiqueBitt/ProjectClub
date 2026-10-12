@@ -72,6 +72,7 @@ const activityRoutes = require('./routes/activity');
 const gamesLibraryRoutes = require('./routes/games'); // biblioteca de jogos (tempo de jogo)
 const decorationsRoutes = require('./routes/decorations');
 const youtubeRoutes = require('./routes/youtube');
+const { requireFeature, isFeatureEnabled } = require('./config/features');
 const archiveRoutes = require('./routes/archive');
 const catalogRoutes = require('./routes/catalog');
 const clansRoutes = require('./routes/clans');
@@ -162,10 +163,10 @@ function createApp() {
           'https://*.agora.io', 'https://*.sd-rtn.com',
           'wss:', 'ws:', 'stun:', 'turn:', 'turns:',
         ],
-        // Navegador do Project Club no site: páginas que PERMITEM ser abertas
-        // dentro de outro site aparecem num iframe isolado (sandbox, sem
-        // allow-top-navigation). Quem não permite abre numa guia nova.
-        frameSrc: ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com', 'https:'],
+        // Navegador do Project Club no site (quando ligado em
+        // config/features.js): páginas que PERMITEM ser abertas dentro de
+        // outro site aparecem num iframe isolado. Desligado = só YouTube.
+        frameSrc: ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com', ...(isFeatureEnabled('browser') ? ['https:'] : [])],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         frameAncestors: ["'self'"],
@@ -361,9 +362,11 @@ function createApp() {
   app.use('/api/games', gamesLibraryRoutes);
   app.use('/api/decorations', decorationsRoutes);
   app.use('/api/youtube', youtubeRoutes);
-  app.use('/api/archive', archiveRoutes);
-  app.use('/api/catalog', catalogRoutes);
-  app.use('/api/browser', require('./routes/browser'));
+  // Filmes e Séries e Navegador: desligados no código (config/features.js),
+  // respondem 404 sem carregar nada; o código fica guardado pra religar.
+  app.use('/api/archive', requireFeature('cinema'), archiveRoutes);
+  app.use('/api/catalog', requireFeature('cinema'), catalogRoutes);
+  app.use('/api/browser', requireFeature('browser'), require('./routes/browser'));
   app.use('/api/clans', clansRoutes);
   app.use('/api/minigames', minigamesRoutes);
   app.use('/api/anuncios', require('./routes/staffAnnouncements'));

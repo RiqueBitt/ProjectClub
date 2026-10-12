@@ -318,7 +318,7 @@ async function afterMatchExtras(match, state, settings) {
     if (r.count) {
       await prisma.user.update({ where: { id: uid }, data: { coins: { increment: X.brawlCoins | 0 }, gems: { increment: X.brawlGems | 0 } } });
       out.brawl = { coins: X.brawlCoins | 0, gems: X.brawlGems | 0 };
-      require('../services/economyLedger').recordTransaction(uid, { kind: 'CARDS', label: 'Jogo de Cartas: briga da semana', coins: X.brawlCoins | 0, gems: X.brawlGems | 0 });
+      require('../services/economyLedger').recordTransaction(uid, { kind: 'CARDS', label: 'Guerra das Cartas: briga da semana', coins: X.brawlCoins | 0, gems: X.brawlGems | 0 });
     } else await prisma.cardPlayer.update({ where: { userId: uid }, data: { brawlWins: { increment: 1 } } }).catch(() => {});
   }
   if (match.kind === 'TUTORIAL') {
@@ -326,7 +326,7 @@ async function afterMatchExtras(match, state, settings) {
     if (r.count && X.tutorialCoins > 0) {
       await prisma.user.update({ where: { id: uid }, data: { coins: { increment: X.tutorialCoins | 0 } } });
       out.tutorial = { coins: X.tutorialCoins | 0 };
-      require('../services/economyLedger').recordTransaction(uid, { kind: 'CARDS', label: 'Jogo de Cartas: tutorial concluído', coins: X.tutorialCoins | 0 });
+      require('../services/economyLedger').recordTransaction(uid, { kind: 'CARDS', label: 'Guerra das Cartas: tutorial concluído', coins: X.tutorialCoins | 0 });
     }
   }
   return out;
@@ -374,7 +374,7 @@ async function ensureSeason(p) {
   });
   if (r.count && reward && (reward.coins || reward.gems)) {
     await prisma.user.update({ where: { id: p.userId }, data: { coins: { increment: reward.coins }, gems: { increment: reward.gems } } });
-    require('../services/economyLedger').recordTransaction(p.userId, { kind: 'CARDS', label: `Arena de Cartas: temporada ${reward.season} (${reward.label})`, coins: reward.coins, gems: reward.gems });
+    require('../services/economyLedger').recordTransaction(p.userId, { kind: 'CARDS', label: `Guerra das Cartas: temporada ${reward.season} (${reward.label})`, coins: reward.coins, gems: reward.gems });
   }
   return prisma.cardPlayer.findUnique({ where: { userId: p.userId } });
 }
@@ -623,7 +623,7 @@ async function finalizeDuo(match, state, settings, io = null) {
     const ledger = require('../services/economyLedger');
     for (let i = 0; i < 4; i += 1) {
       if (!ids[i]) continue;
-      if (rewards[i] > 0) ledger.recordTransaction(ids[i], { kind: 'CARDS', label: 'Jogo de Cartas: partida 2 vs 2', coins: rewards[i] });
+      if (rewards[i] > 0) ledger.recordTransaction(ids[i], { kind: 'CARDS', label: 'Guerra das Cartas: partida 2 vs 2', coins: rewards[i] });
       afterActivity(ids[i], [['CARDS_PLAY', 1], ...(teamOf(i) === winnerSeat ? [['CARDS_WIN', 1]] : [])], io);
     }
     r.progress = await progressAfter(ids.map((uid, i) => [uid, teamOf(i) === winnerSeat]), settings);
@@ -745,7 +745,7 @@ async function finalizeMatch(match, state, settings, io = null) {
     if (r) {
       const ledger = require('../services/economyLedger');
       for (let s = 0; s < 2; s += 1) {
-        if (r.rewards[s] > 0) ledger.recordTransaction(seats[s], { kind: 'CARDS', label: match.mode === 'PVP' ? 'Jogo de Cartas: partida PvP' : `Jogo de Cartas: partida contra bot (${DIFFICULTIES[match.difficulty]?.label || ''})`, coins: r.rewards[s] });
+        if (r.rewards[s] > 0) ledger.recordTransaction(seats[s], { kind: 'CARDS', label: match.mode === 'PVP' ? 'Guerra das Cartas: partida PvP' : `Guerra das Cartas: partida contra bot (${DIFFICULTIES[match.difficulty]?.label || ''})`, coins: r.rewards[s] });
       }
       // Missões e conquistas (não bloqueiam a resposta).
       for (let s = 0; s < 2; s += 1) {

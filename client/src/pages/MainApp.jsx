@@ -28,9 +28,7 @@ import AnnouncementOverlay from '../components/AnnouncementOverlay.jsx';
 import QuickSwitcher from '../components/QuickSwitcher.jsx';
 import { MusicEngine, MusicPanel, MiniMusicBar } from '../music/MusicPlayer.jsx';
 import YouTubeApp, { YouTubeHost } from '../youtube/YouTubeApp.jsx';
-import CinemaApp, { CinemaHost } from '../cinema/CinemaApp.jsx';
-import BrowserHost from '../browser/BrowserHost.jsx';
-import { BrowserPage, BrowserDock, BrowserBridge } from '../browser/BrowserShell.jsx';
+import { DesktopLinkFallback } from '../utils/desktopLinks.jsx';
 import CardsNotifier from '../cards/CardsNotifier.jsx';
 import { startBoot, cachedBoot } from '../utils/bootstrap';
 import { applyBootData } from '../utils/applyBoot';
@@ -58,6 +56,16 @@ import { isFeatureEnabled } from '../utils/features';
 // atrasar ela com uma segunda viagem de rede).
 // Modal de configurações é grande e só abre quando a pessoa clica.
 const UserSettingsModal = lazy(() => import('../components/modals/UserSettingsModal.jsx'));
+// Filmes e Séries e Navegador: desligados em utils/features.js — o código
+// continua no projeto e só é carregado se forem religados.
+const CINEMA_ON = isFeatureEnabled('cinema');
+const BROWSER_ON = isFeatureEnabled('browser');
+const CinemaApp = CINEMA_ON ? lazy(() => import('../cinema/CinemaApp.jsx')) : null;
+const CinemaHost = CINEMA_ON ? lazy(() => import('../cinema/CinemaApp.jsx').then((m) => ({ default: m.CinemaHost }))) : null;
+const BrowserHost = BROWSER_ON ? lazy(() => import('../browser/BrowserHost.jsx')) : null;
+const BrowserPage = BROWSER_ON ? lazy(() => import('../browser/BrowserShell.jsx').then((m) => ({ default: m.BrowserPage }))) : null;
+const BrowserDock = BROWSER_ON ? lazy(() => import('../browser/BrowserShell.jsx').then((m) => ({ default: m.BrowserDock }))) : null;
+const BrowserBridge = BROWSER_ON ? lazy(() => import('../browser/BrowserShell.jsx').then((m) => ({ default: m.BrowserBridge }))) : null;
 // Perfil completo (~80 KB com as seções): só baixa quando alguém abre um perfil.
 const UserProfileModal = lazy(() => import('../components/modals/UserProfileModal.jsx'));
 const AmigosPage = lazy(() => import('./AmigosPage.jsx'));
@@ -417,7 +425,7 @@ export default function MainApp() {
                 <Route path="/conquistas" element={<Navigate to="/progresso" replace />} />
                 {/* Casas e Figurinhas desligadas no código (utils/features.js) — rota antiga cai na Economia. */}
                 <Route path="/casas" element={isFeatureEnabled('houses') ? <HousesPage /> : <Navigate to="/economia" replace />} />
-                {/* Figurinhas colecionáveis viraram o Jogo de Cartas (Arena de Cartas). */}
+                {/* Figurinhas colecionáveis viraram a Guerra das Cartas (Guerra das Cartas). */}
                 <Route path="/figurinhas" element={<Navigate to="/cartas" replace />} />
                 <Route path="/cartas" element={<CardsGamePage />} />
                 <Route path="/tickets" element={<TicketsPage />} />
@@ -451,15 +459,15 @@ export default function MainApp() {
                 <Route path="/jogos/biblioteca" element={<GameLibraryPage />} />
                 <Route path="/jogos/biblioteca/:userId" element={<GameLibraryPage />} />
                 <Route path="/minijogos" element={<MiniJogosPage />} />
-                {/* Navegador do Project Club (app desktop): abas dentro do app. */}
-                <Route path="/navegador" element={<BrowserPage />} />
+                {/* Navegador do Project Club (desligado em utils/features.js). */}
+                <Route path="/navegador" element={BROWSER_ON ? <BrowserPage /> : <Navigate to="/" replace />} />
                 <Route path="/conversations/:conversationId" element={<ChatWindow kind="conversation" />} />
                 <Route path="/channels/:channelId" element={<ChatWindow kind="channel" />} />
               </Routes>
             </ErrorBoundary>
           </Suspense>
           {/* Navegador ao lado do chat (painel redimensionável). */}
-          <BrowserDock />
+          {BROWSER_ON && <Suspense fallback={null}><BrowserDock /></Suspense>}
         </div>
       </PanelSlot>
 
@@ -497,10 +505,8 @@ export default function MainApp() {
       <MiniMusicBar />
       <YouTubeApp />
       <YouTubeHost />
-      <CinemaApp />
-      <CinemaHost />
-      <BrowserHost />
-      <BrowserBridge />
+      {CINEMA_ON && <Suspense fallback={null}><CinemaApp /><CinemaHost /></Suspense>}
+      {BROWSER_ON ? <Suspense fallback={null}><BrowserHost /><BrowserBridge /></Suspense> : <DesktopLinkFallback />}
       <CardsNotifier />
     </div>
   );

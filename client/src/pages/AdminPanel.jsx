@@ -138,7 +138,7 @@ const TABS = {
   maintenance: { label: 'Manutenção', desc: 'Coloca a plataforma "em reforma" para todos, menos a equipe.' },
   reload: { label: 'Reload', desc: 'Recarrega a presença online de usuários.' },
   cartasCartas: { label: 'Cartas', desc: 'Crie, edite e exclua cartas: imagem, nome, descrição, raridade, elemento, força e habilidades.' },
-  cartasPacotes: { label: 'Pacotes', desc: 'Pacotes vendidos na Arena: preço, quantas cartas, chances de cada raridade e quais cartas podem sair.' },
+  cartasPacotes: { label: 'Pacotes', desc: 'Pacotes vendidos na Guerra das Cartas: preço, quantas cartas, chances de cada raridade e quais cartas podem sair.' },
   cartasRegras: { label: 'Regras e economia', desc: 'Regras das batalhas, recompensas em moedas, proteção contra farm, venda e evolução de cartas.' },
   cartasJogadores: { label: 'Jogadores', desc: 'Veja a coleção e o histórico de um jogador, dê ou tire cartas, bloqueie ou zere estatísticas.' },
   cartasTrocas: { label: 'Trocas', desc: 'Trocas de cartas entre jogadores. Cancele propostas pendentes suspeitas.' },
@@ -169,7 +169,7 @@ const TAB_GROUPS = [
   { label: 'Comunidade', icon: 'community', tabs: ['channels', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'gifMove'] },
   { label: 'Conteúdo', icon: 'content', tabs: ['feeds', 'updates', 'events', 'announcements', 'appCatalog'] },
   { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'casas', 'album'] },
-  { label: 'Jogo de Cartas', icon: 'cards', tabs: ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
+  { label: 'Guerra das Cartas', icon: 'cards', tabs: ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
   { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
   { label: 'Sistema', icon: 'system', tabs: ['saude', 'sistema', 'maintenance', 'reload'] },
 ].map((g) => ({ ...g, tabs: g.tabs.filter((t) => !HIDDEN_TABS.has(t)) }));
@@ -3092,7 +3092,7 @@ function SystemTab() {
 
   if (!toggles) return <div className="dim">Carregando...</div>;
 
-  const LABELS = { economia: '💰 Economia', rank: '🏆 Rank', casas: '🧊 Casas e decoração', cartas: '🃏 Jogo de Cartas', cores_perfil: '🎨 Cores personalizadas para perfil', cargos: '🎖️ Cargos' };
+  const LABELS = { economia: '💰 Economia', rank: '🏆 Rank', casas: '🧊 Casas e decoração', cartas: '🃏 Guerra das Cartas', cores_perfil: '🎨 Cores personalizadas para perfil', cargos: '🎖️ Cargos' };
 
   return (
     <div className="settings-grid">

@@ -280,7 +280,7 @@ export default function MiniJogosPage() {
               <button type="button" className="mj-tcg-feature" onClick={() => navigate('/cartas')}>
                 <span className="mj-tcg-text">
                   <em>Jogo principal</em>
-                  <strong>Arena de Cartas</strong>
+                  <strong>Guerra das Cartas</strong>
                   <span>Colecione cartas, abra pacotes com suas moedas, monte baralhos e duele contra bots e amigos.</span>
                 </span>
                 <span className="mj-tcg-cards" aria-hidden="true">

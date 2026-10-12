@@ -1154,9 +1154,9 @@ export default function UserProfileModal() {
     </PfCard>
   );
 
-  // Arena de Cartas (Jogo de Cartas): vitrine + desafiar/trocar.
+  // Guerra das Cartas (Jogo de Cartas): vitrine + desafiar/trocar.
   const cardsGameCard = user && (
-    <PfCard icon="star" title="Arena de Cartas">
+    <PfCard icon="star" title="Guerra das Cartas">
       <ProfileCards userId={user.id} isMe={isMe} onNavigate={closeProfile} />
     </PfCard>
   );

@@ -27,7 +27,7 @@ function handle(fn) {
 
 async function requireActivePlayer(userId) {
   const p = await S.getPlayer(userId);
-  if (p.banned) throw new CardError('Você está bloqueado no Jogo de Cartas. Fale com a equipe.', 403);
+  if (p.banned) throw new CardError('Você está bloqueado na Guerra das Cartas. Fale com a equipe.', 403);
   return p;
 }
 
@@ -208,7 +208,7 @@ const sellCard = handle(async (req, res) => {
     if (!foil) await S.clampFoil(tx, userId, card.id);
     if (total > 0) await tx.user.update({ where: { id: userId }, data: { coins: { increment: total } } });
   });
-  if (total > 0) ledger().recordTransaction(userId, { kind: 'CARDS', label: `Jogo de Cartas: vendeu ${qty}x ${card.name}`, coins: total });
+  if (total > 0) ledger().recordTransaction(userId, { kind: 'CARDS', label: `Guerra das Cartas: vendeu ${qty}x ${card.name}`, coins: total });
   const me = await prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true } });
   res.json({ ok: true, earned: total, wallet: me });
 });
@@ -239,7 +239,7 @@ const levelUp = handle(async (req, res) => {
       if (m.count === 0) throw new CardError('Moedas insuficientes.');
     }
   });
-  if (coins > 0) ledger().recordTransaction(userId, { kind: 'CARDS', label: `Jogo de Cartas: evoluiu ${card.name}`, coins: -coins });
+  if (coins > 0) ledger().recordTransaction(userId, { kind: 'CARDS', label: `Guerra das Cartas: evoluiu ${card.name}`, coins: -coins });
   const updated = await prisma.userCard.findUnique({ where: { userId_cardId: { userId, cardId: card.id } } });
   const me = await prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true } });
   res.json({ card: S.shapeCard(card, updated), wallet: me });
@@ -327,7 +327,7 @@ const openPack = handle(async (req, res) => {
     await tx.cardPackOpen.create({ data: { userId, packId: pack.id, dayKey: today, cards: JSON.stringify(cards.map((c) => c.id)), paidCoins: currency === 'coins' ? price : 0, paidGems: currency === 'gems' ? price : 0 } });
     await tx.cardPlayer.upsert({ where: { userId }, update: { packsOpened: { increment: 1 } }, create: { userId, packsOpened: 1 } });
   });
-  if (price > 0) ledger().recordTransaction(userId, { kind: 'CARDS', label: `Jogo de Cartas: ${pack.name}`, [currency]: -price });
+  if (price > 0) ledger().recordTransaction(userId, { kind: 'CARDS', label: `Guerra das Cartas: ${pack.name}`, [currency]: -price });
   S.afterActivity(userId, [['CARDS_PACK', 1]], req.app.get('io'));
   require('../cards/progress').addPassXpFor(userId, 'pack').catch(() => {});
   const seen = new Set();
@@ -840,8 +840,8 @@ const respondTrade = (kind) => handle(async (req, res) => {
     }
     throw e;
   }
-  if (t.offerCoins) { ledger().recordTransaction(t.fromId, { kind: 'CARDS', label: 'Jogo de Cartas: troca', coins: -t.offerCoins }); ledger().recordTransaction(t.toId, { kind: 'CARDS', label: 'Jogo de Cartas: troca', coins: t.offerCoins }); }
-  if (t.requestCoins) { ledger().recordTransaction(t.toId, { kind: 'CARDS', label: 'Jogo de Cartas: troca', coins: -t.requestCoins }); ledger().recordTransaction(t.fromId, { kind: 'CARDS', label: 'Jogo de Cartas: troca', coins: t.requestCoins }); }
+  if (t.offerCoins) { ledger().recordTransaction(t.fromId, { kind: 'CARDS', label: 'Guerra das Cartas: troca', coins: -t.offerCoins }); ledger().recordTransaction(t.toId, { kind: 'CARDS', label: 'Guerra das Cartas: troca', coins: t.offerCoins }); }
+  if (t.requestCoins) { ledger().recordTransaction(t.toId, { kind: 'CARDS', label: 'Guerra das Cartas: troca', coins: -t.requestCoins }); ledger().recordTransaction(t.fromId, { kind: 'CARDS', label: 'Guerra das Cartas: troca', coins: t.requestCoins }); }
   notify(req, t.fromId, 'cards:trade', { id: t.id, accepted: true });
   S.afterActivity(t.fromId, [['CARDS_TRADE', 1]], req.app.get('io'));
   S.afterActivity(t.toId, [['CARDS_TRADE', 1]], req.app.get('io'));

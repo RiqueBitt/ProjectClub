@@ -105,7 +105,7 @@ async function claimPass(userId, level) {
       }
     }
   });
-  require('../services/economyLedger').recordTransaction(userId, { kind: 'CARDS', label: `Passe da Arena: nível ${lv}`, coins: out.coins, gems: out.gems });
+  require('../services/economyLedger').recordTransaction(userId, { kind: 'CARDS', label: `Passe da Guerra das Cartas: nível ${lv}`, coins: out.coins, gems: out.gems });
   return out;
 }
 
@@ -127,7 +127,7 @@ async function afterMatch(userId, won, settings) {
       const coins = Math.max(0, table[Math.min(days, table.length) - 1] | 0);
       if (coins) {
         await prisma.user.update({ where: { id: userId }, data: { coins: { increment: coins } } });
-        require('../services/economyLedger').recordTransaction(userId, { kind: 'CARDS', label: `Arena: sequência de ${days} dia(s)`, coins });
+        require('../services/economyLedger').recordTransaction(userId, { kind: 'CARDS', label: `Guerra das Cartas: sequência de ${days} dia(s)`, coins });
       }
       out.daily = { days, coins };
     }
@@ -169,7 +169,7 @@ async function openChest(userId) {
     if (X.chestCoins > 0) await tx.user.update({ where: { id: userId }, data: { coins: { increment: X.chestCoins | 0 } } });
     if (cards.length) await S.grantCards(tx, userId, cards.map((c) => c.id));
   });
-  require('../services/economyLedger').recordTransaction(userId, { kind: 'CARDS', label: 'Arena: baú de vitórias', coins: X.chestCoins | 0 });
+  require('../services/economyLedger').recordTransaction(userId, { kind: 'CARDS', label: 'Guerra das Cartas: baú de vitórias', coins: X.chestCoins | 0 });
   return { coins: X.chestCoins | 0, cards: cards.map((c) => S.shapeCard(c)) };
 }
 
@@ -230,7 +230,12 @@ async function listCosmetics(userId) {
   ]);
   const owned = new Set(mine.map((m) => m.cosmeticId));
   return {
-    items: all.map((c) => ({ id: c.id, key: c.key, kind: c.kind, name: c.name, rarity: c.rarity, priceGems: c.priceGems, source: c.source, owned: c.source === 'FREE' || owned.has(c.id) })),
+    // Molduras do herói não são mais vendidas: só aparecem para quem já tem
+    // (continuam valendo e podem ser equipadas). Versos são vendidos na Loja.
+    items: all.filter((c) => c.kind !== 'FRAME' || c.source === 'FREE' || owned.has(c.id)).map((c) => ({
+      id: c.id, key: c.key, kind: c.kind, name: c.name, rarity: c.rarity, priceGems: c.kind === 'FRAME' ? null : c.priceGems,
+      source: c.kind === 'FRAME' && c.source === 'SHOP' ? 'RETIRED' : c.source, owned: c.source === 'FREE' || owned.has(c.id), createdAt: c.createdAt,
+    })),
     equipped: { back: p.equippedBack || 'back:classico', frame: p.equippedFrame || 'frame:padrao' },
   };
 }
@@ -239,6 +244,7 @@ async function buyCosmetic(userId, id) {
   const c = await prisma.cardCosmetic.findUnique({ where: { id } });
   if (!c || !c.active) throw new CardError('Item não encontrado.', 404);
   if (c.source !== 'SHOP' || !c.priceGems) throw new CardError(c.source === 'PASS' ? 'Esse item só sai no passe da temporada.' : 'Esse item é grátis.');
+  if (c.kind === 'FRAME') throw new CardError('As molduras de herói não são mais vendidas.');
   await prisma.$transaction(async (tx) => {
     const has = await tx.userCardCosmetic.findUnique({ where: { userId_cosmeticId: { userId, cosmeticId: c.id } } });
     if (has) throw new CardError('Você já tem esse item.');
@@ -246,7 +252,7 @@ async function buyCosmetic(userId, id) {
     if (!r.count) throw new CardError('Gemas insuficientes.');
     await tx.userCardCosmetic.create({ data: { userId, cosmeticId: c.id } });
   });
-  require('../services/economyLedger').recordTransaction(userId, { kind: 'CARDS', label: `Arena: ${c.name}`, gems: -c.priceGems });
+  require('../services/economyLedger').recordTransaction(userId, { kind: 'CARDS', label: `Guerra das Cartas: verso ${c.name}`, gems: -c.priceGems });
   return { ok: true };
 }
 async function equipCosmetic(userId, key) {

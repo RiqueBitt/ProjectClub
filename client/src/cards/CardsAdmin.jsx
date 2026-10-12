@@ -312,7 +312,7 @@ export function CardsAdminPacks() {
   if (editing) return <PackEditor initial={editing === 'new' ? null : editing} cards={cards} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); setMsg({ ok: 'Pacote salvo.' }); load(); }} />;
   return (
     <div className="tca">
-      <div className="tca-bar"><span className="tcg-dim">Pacotes vendidos na aba "Pacotes" da Arena.</span><span className="tcgb-spacer" /><button type="button" className="tcg-btn primary" onClick={() => setEditing('new')}><Icon d={UI.plus} />Novo pacote</button></div>
+      <div className="tca-bar"><span className="tcg-dim">Pacotes vendidos na aba "Pacotes" da Guerra das Cartas.</span><span className="tcgb-spacer" /><button type="button" className="tcg-btn primary" onClick={() => setEditing('new')}><Icon d={UI.plus} />Novo pacote</button></div>
       <Msg {...msg} />
       <div className="tca-table">
         {packs?.map((p) => (
@@ -357,7 +357,7 @@ const ECON_FIELDS = [
   ['extras', 'draftFee', 'Draft: entrada (moedas)'], ['extras', 'bossHp', 'Chefe semanal: vida total'], ['extras', 'bossCoins', 'Chefe semanal: moedas por participante'], ['extras', 'bossGems', 'Chefe semanal: gemas por participante'],
 ];
 const DIV_LABELS = { BRONZE: 'Bronze', PRATA: 'Prata', OURO: 'Ouro', PLATINA: 'Platina', DIAMANTE: 'Diamante', LENDARIO: 'Lendário' };
-const ENABLE_LABELS = { pve: 'Partidas contra bots', pvp: 'Partidas PvP', trades: 'Trocas entre jogadores', packs: 'Loja de pacotes', sell: 'Venda de cartas repetidas', market: 'Mercado entre jogadores' };
+const ENABLE_LABELS = { pve: 'Partidas contra bots', pvp: 'Partidas PvP', trades: 'Trocas entre jogadores', packs: 'Loja de pacotes', sell: 'Venda de cartas repetidas', market: 'Mercado entre jogadores', tournaments: 'Torneios', pass: 'Passe da temporada', draft: 'Draft', boss: 'Chefão semanal', league: 'Liga de clãs' };
 
 export function CardsAdminSettings() {
   const [s, setS] = useState(null);
@@ -719,7 +719,7 @@ export function CardsAdminTournaments() {
   }
   return (
     <div className="tca">
-      <div className="tca-bar"><span className="tcg-dim">Crie o torneio, os jogadores se inscrevem na aba Torneios da Arena e você inicia quando quiser. Quem não aparece perde por tempo.</span><span className="tcgb-spacer" /><button type="button" className="tcg-btn primary" onClick={() => setForm({ maxPlayers: 8, prizeCoins: 500 })}><Icon d={UI.plus} />Novo torneio</button></div>
+      <div className="tca-bar"><span className="tcg-dim">Crie o torneio, os jogadores se inscrevem na aba Torneios da Guerra das Cartas e você inicia quando quiser. Quem não aparece perde por tempo.</span><span className="tcgb-spacer" /><button type="button" className="tcg-btn primary" onClick={() => setForm({ maxPlayers: 8, prizeCoins: 500 })}><Icon d={UI.plus} />Novo torneio</button></div>
       <Msg {...msg} />
       {list?.map((t) => (
         <div key={t.id} className="tcg-tourn">

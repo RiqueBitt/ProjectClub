@@ -87,7 +87,7 @@ async function startDraft(userId) {
   if (fee > 0) {
     const paid = await prisma.user.updateMany({ where: { id: userId, coins: { gte: fee } }, data: { coins: { decrement: fee } } });
     if (!paid.count) throw new CardError(`Você precisa de ${fee} moedas para entrar no Draft.`);
-    ledger().recordTransaction(userId, { kind: 'CARDS', label: 'Jogo de Cartas: entrada no Draft', coins: -fee });
+    ledger().recordTransaction(userId, { kind: 'CARDS', label: 'Guerra das Cartas: entrada no Draft', coins: -fee });
   }
   const catalog = await S.getCatalog();
   const d = await prisma.cardDraft.create({ data: { userId, picks: '[]', options: JSON.stringify(rollDraftOptions(catalog, settings, [])), fee } });
@@ -121,7 +121,7 @@ async function finishDraft(d, settings) {
   if (!r.count) return null;
   if (reward > 0) {
     await prisma.user.update({ where: { id: d.userId }, data: { coins: { increment: reward } } });
-    ledger().recordTransaction(d.userId, { kind: 'CARDS', label: `Jogo de Cartas: Draft (${d.wins} vitórias)`, coins: reward });
+    ledger().recordTransaction(d.userId, { kind: 'CARDS', label: `Guerra das Cartas: Draft (${d.wins} vitórias)`, coins: reward });
   }
   const p = await prisma.cardPlayer.findUnique({ where: { userId: d.userId } });
   if (p && d.wins > p.draftBest) await prisma.cardPlayer.update({ where: { userId: d.userId }, data: { draftBest: d.wins } });
@@ -314,7 +314,7 @@ async function claimBoss(userId, bossId) {
   const coins = settings.extras.bossCoins | 0;
   const gems = settings.extras.bossGems | 0;
   await prisma.user.update({ where: { id: userId }, data: { coins: { increment: coins }, gems: { increment: gems } } });
-  ledger().recordTransaction(userId, { kind: 'CARDS', label: `Jogo de Cartas: chefão ${boss.name}`, coins, gems });
+  ledger().recordTransaction(userId, { kind: 'CARDS', label: `Guerra das Cartas: chefão ${boss.name}`, coins, gems });
   return { reward: { coins, gems }, ...(await bossView(userId)) };
 }
 
@@ -373,7 +373,7 @@ async function settlePreviousWeek(settings) {
     if (!r.coins) continue;
     for (const uid of r.players) {
       await prisma.user.update({ where: { id: uid }, data: { coins: { increment: r.coins } } }).catch(() => {});
-      ledger().recordTransaction(uid, { kind: 'CARDS', label: `Jogo de Cartas: liga de clãs (${r.name})`, coins: r.coins });
+      ledger().recordTransaction(uid, { kind: 'CARDS', label: `Guerra das Cartas: liga de clãs (${r.name})`, coins: r.coins });
     }
   }
 }

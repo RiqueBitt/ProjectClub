@@ -17,3 +17,12 @@ html.pc-offline-mode, html.pc-offline-mode body, html.pc-offline-mode #root { he
 .pco-win:hover { background: rgba(255,255,255,.08); color: var(--header-primary, #fff); }
 .pco-win.is-close:hover { background: #e81123; color: #fff; }
 .pco-fail { height: 100%; display: grid; place-items: center; color: var(--text-muted, #b5bac1); font: 15px sans-serif; }
+
+/* Tela de reconexão (navegador desligado) */
+.pco-wait { display: grid; place-items: center; padding: 24px; }
+.pco-wait-card { max-width: 440px; text-align: center; display: grid; gap: 12px; justify-items: center; padding: 32px 28px; border-radius: 18px; background: #16171b; border: 1px solid rgba(255,255,255,.08); color: #e6e7eb; }
+.pco-wait-card h1 { margin: 0; font-size: 20px; }
+.pco-wait-card p { margin: 0; color: #a3a6ad; line-height: 1.5; }
+.pco-wait-dot { width: 14px; height: 14px; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 0 6px rgba(245,158,11,.18); animation: pco-pulse 1.6s ease-in-out infinite; }
+@keyframes pco-pulse { 50% { box-shadow: 0 0 0 12px rgba(245,158,11,0); } }
+@media (prefers-reduced-motion: reduce) { .pco-wait-dot { animation: none; } }

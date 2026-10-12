@@ -23,7 +23,7 @@ const PATHS = {
   forum: 'M3 5h12v9H8l-4 3v-3H3zM18 9h3v9h-1v3l-4-3h-5v-2',
   // Loja: sacola
   store: 'M5 8h14l-1 12H6L5 8zM9 8V6a3 3 0 0 1 6 0v2M9 12h.01M15 12h.01',
-  // Arena de Cartas: duas cartas em leque
+  // Guerra das Cartas: duas cartas em leque
   cards: 'M8 4h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM4 7.5 6 7M4 7.5v10.2a2 2 0 0 0 1.6 2L6 20M12.5 9l1.3 2.6 2.7.4-2 1.9.5 2.7-2.5-1.3-2.5 1.3.5-2.7-2-1.9 2.7-.4z',
 };
 
@@ -35,7 +35,17 @@ export function FeaturedGlyph({ name, size = 16 }) {
   );
 }
 
+// Guerra das Cartas e Loja ficam no topo, acima dos Anúncios, com mais
+// destaque (pedido): são os dois atalhos mais usados da comunidade.
 export const FEATURED = [
+  {
+    key: 'arena', label: 'Guerra das Cartas', icon: 'cards', to: '/cartas', spotlight: true, sub: 'Jogue, colecione e duele',
+    hint: 'Jogo de cartas: colecione, monte seu baralho e batalhe', match: (p) => p.startsWith('/cartas'), tag: 'Jogar',
+  },
+  {
+    key: 'loja', label: 'Loja', icon: 'store', to: '/loja', spotlight: true, sub: 'Molduras, efeitos e versos',
+    hint: 'Molduras, efeitos de perfil, versos de cartas e pacotes', match: (p) => p.startsWith('/loja'),
+  },
   {
     key: 'anuncios', label: 'Anúncios', icon: 'megaphone', to: '/anuncios',
     hint: 'Anúncios da staff', match: (p) => p.startsWith('/anuncios'),
@@ -50,14 +60,6 @@ export const FEATURED = [
     hint: 'Posts e Temas da comunidade', match: (p) => p === '/comunidades' || p.startsWith('/comunidades/') || p.startsWith('/posts/'),
   },
   // Galeria saiu da lista (a página /comunidade/galeria continua existindo).
-  {
-    key: 'arena', label: 'Arena de Cartas', icon: 'cards', to: '/cartas',
-    hint: 'Jogo de cartas: colecione, monte seu baralho e batalhe', match: (p) => p.startsWith('/cartas'), tag: 'Jogar',
-  },
-  {
-    key: 'loja', label: 'Loja', icon: 'store', to: '/loja',
-    hint: 'Loja da comunidade (em breve)', match: (p) => p.startsWith('/loja'),
-  },
 ];
 
 // Visibilidade salva por comunidade (padrão: todos visíveis).
@@ -100,28 +102,37 @@ export default function FeaturedChannels({ canManage }) {
     ]);
   };
 
+  const renderItem = (item) => {
+    const active = item.match(location.pathname);
+    let badge = null;
+    if (item.key === 'eventos' && live > 0) badge = <span className="featured-channel-live" title={`${live} evento${live === 1 ? '' : 's'} acontecendo agora`}>Ao vivo</span>;
+    else if (item.key === 'eventos' && upcoming > 0) badge = <span className="featured-channel-count" title={`${upcoming} evento${upcoming === 1 ? '' : 's'} em breve`}>{upcoming}</span>;
+    else if (item.soon) badge = <span className="featured-channel-soon">Em breve</span>;
+    else if (item.tag && !active) badge = <span className="featured-channel-tag">{item.tag}</span>;
+    return (
+      <button
+        key={item.key} type="button"
+        className={`sidebar-item featured-channel featured-${item.key}${item.spotlight ? ' is-spotlight' : ''}${active ? ' active' : ''}`}
+        onClick={() => go(item)} onContextMenu={(e) => onContextMenu(e, item)}
+        title={item.hint} aria-current={active ? 'page' : undefined}
+      >
+        <span className="featured-channel-icon"><FeaturedGlyph name={item.icon} size={item.spotlight ? 18 : 16} /></span>
+        {item.spotlight ? (
+          <span className="featured-channel-text">
+            <span className="featured-channel-name truncate">{item.label}</span>
+            <span className="featured-channel-sub truncate">{item.sub}</span>
+          </span>
+        ) : <span className="featured-channel-name truncate">{item.label}</span>}
+        {badge}
+      </button>
+    );
+  };
+  const spot = items.filter((i) => i.spotlight);
+  const rest = items.filter((i) => !i.spotlight);
   return (
     <div className="featured-channels" role="group" aria-label="Canais em destaque">
-      {items.map((item) => {
-        const active = item.match(location.pathname);
-        let badge = null;
-        if (item.key === 'eventos' && live > 0) badge = <span className="featured-channel-live" title={`${live} evento${live === 1 ? '' : 's'} acontecendo agora`}>Ao vivo</span>;
-        else if (item.key === 'eventos' && upcoming > 0) badge = <span className="featured-channel-count" title={`${upcoming} evento${upcoming === 1 ? '' : 's'} em breve`}>{upcoming}</span>;
-        else if (item.soon) badge = <span className="featured-channel-soon">Em breve</span>;
-        else if (item.tag && !active) badge = <span className="featured-channel-tag">{item.tag}</span>;
-        return (
-          <button
-            key={item.key} type="button"
-            className={`sidebar-item featured-channel featured-${item.key}${active ? ' active' : ''}`}
-            onClick={() => go(item)} onContextMenu={(e) => onContextMenu(e, item)}
-            title={item.hint} aria-current={active ? 'page' : undefined}
-          >
-            <span className="featured-channel-icon"><FeaturedGlyph name={item.icon} /></span>
-            <span className="featured-channel-name truncate">{item.label}</span>
-            {badge}
-          </button>
-        );
-      })}
+      {spot.length > 0 && <div className="featured-spotlight">{spot.map(renderItem)}</div>}
+      {rest.map(renderItem)}
     </div>
   );
 }

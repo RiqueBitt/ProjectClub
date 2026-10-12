@@ -6,6 +6,8 @@
 const FEATURES = Object.freeze({
   houses: false,   // Casas, móveis, mapas, galeria e recados das casas
   stickers: false, // Figurinhas colecionáveis: álbum e cápsulas (NÃO as figurinhas do chat)
+  browser: false,  // Navegador do Project Club: conferir páginas/sugestões (/api/browser)
+  cinema: false,   // Filmes e Séries: Internet Archive (/api/archive) e catálogo/Pluto (/api/catalog)
 });
 
 function isFeatureEnabled(key) {

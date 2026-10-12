@@ -6,7 +6,7 @@ import { Icon, UI } from './CardView.jsx';
 import { cardsAcceptChallenge, cardsDeclineChallenge, errMsg } from './api';
 import '../styles/cards.css';
 
-// Avisos do Jogo de Cartas em qualquer tela: desafio recebido, desafio
+// Avisos da Guerra das Cartas em qualquer tela: desafio recebido, desafio
 // aceito e proposta de troca. Dentro da Arena a própria página atualiza.
 export default function CardsNotifier() {
   const { socket } = useSocket() || {};
@@ -44,7 +44,7 @@ export default function CardsNotifier() {
         <UserAvatar user={toast.from || {}} size={38} />
         <span className="tcg-toast-text">
           <b data-no-translate>{toast.from?.displayName || 'Alguém'}</b> está chamando você para uma batalha {toast.format === '2V2' ? '2 vs 2' : '1 vs 1'}{toast.custom ? ' personalizada' : ''}!
-          <small>Arena de Cartas · sala {toast.code}</small>
+          <small>Guerra das Cartas · sala {toast.code}</small>
         </span>
         <button type="button" className="tcg-btn ghost" onClick={close}>Agora não</button>
         <button type="button" className="tcg-btn primary" onClick={() => { close(); navigate(`/cartas?sala=${toast.code}`); }}><Icon d={UI.sword} size={15} />Entrar</button>
@@ -56,7 +56,7 @@ export default function CardsNotifier() {
     return (
       <div className="tcg-toast" role="alert">
         <UserAvatar user={toast.from || {}} size={34} />
-        <span className="tcg-toast-text"><b data-no-translate>{toast.from?.displayName || 'Alguém'}</b> desafiou você na Arena de Cartas!</span>
+        <span className="tcg-toast-text"><b data-no-translate>{toast.from?.displayName || 'Alguém'}</b> desafiou você na Guerra das Cartas!</span>
         <button type="button" className="tcg-btn ghost" onClick={() => { cardsDeclineChallenge(toast.id).catch(() => {}); close(); }}>Recusar</button>
         <button type="button" className="tcg-btn primary" onClick={async () => {
           try { const m = await cardsAcceptChallenge(toast.id); close(); navigate(`/cartas?partida=${m.id}`); } catch (e) { setToast({ kind: 'error', text: errMsg(e) }); }

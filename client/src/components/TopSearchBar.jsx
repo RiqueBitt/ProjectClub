@@ -3,37 +3,21 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ITEMS, STAFF_ITEM, ACTIVITY_NAV_ICON } from './MainSidebar.jsx';
 import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '../store/useStore';
-import gameActivityIcon from '../assets/icons/activity-game.png';
-import spotifyActivityIcon from '../assets/icons/activity-spotify.png';
-import appActivityIcon from '../assets/icons/activity-app.png';
-
-const ACTIVITY_ICON_BY_TYPE = { game: gameActivityIcon, spotify: spotifyActivityIcon, app: appActivityIcon };
 import { useAuth } from '../context/AuthContext.jsx';
-import { setStatus as setStatusApi } from '../api/endpoints';
-import { STATUS_LABEL, STATUS_COLOR } from '../utils/status';
-import PresenceDot from './PresenceDot.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
-import UserAvatar from './UserAvatar.jsx';
-import StatusEmoji from './StatusEmoji.jsx';
-import CustomStatusModal from './modals/CustomStatusModal.jsx';
 import logoIcon from '../assets/icons/logo-project-club.png';
 import searchIcon from '../assets/icons/nav-search.png';
 import notificationsIcon from '../assets/icons/nav-notifications.png';
-import createPostIcon from '../assets/icons/nav-create-post.png';
 import settingsIcon from '../assets/icons/settings.png';
-import chatIcon from '../assets/icons/chat.png';
 import { QuickSwitcherButton } from './QuickSwitcher.jsx';
-import { useMusic } from '../music/musicStore';
-import { useYouTubeApp } from '../youtube/youtubeStore';
-import { useCinema } from '../cinema/cinemaStore';
 
 export const DONATE_URL = 'https://livepix.gg/projectclubr';
 const svg = (d) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
 import { startManualDrag } from './TitleBar.jsx';
 
-// Barra de topo estilo Reddit — logo + busca + criar post + notificações +
-// engrenagem de Configurações (item pedido) + perfil/status (item pedido:
-// movido pra cá, saiu do rodapé da barra lateral — ver MainSidebar.jsx).
+// Barra de topo — logo + busca + atalhos + notificações + Configurações.
+// (Criar post, foto de perfil, YouTube, Música e Filmes saíram daqui a
+// pedido: YouTube e Música ficam só dentro das calls — Assistir juntos.)
 // Título da seção atual, mostrado no centro da barra no layout
 // "Normal 2.0" (igual ao topo do Discord): a seção do menu em que a
 // pessoa está (Comunidade no chat, Feeds, Social...).
@@ -55,15 +39,9 @@ function useSectionTitle() {
 
 export default function TopSearchBar() {
   const navigate = useNavigate();
-  const openMusic = useMusic((s) => s.openPanel);
-  const musicOn = useMusic((s) => s.playing);
-  const openYouTube = useYouTubeApp((s) => s.openApp);
-  const ytOn = useYouTubeApp((s) => !!s.video);
-  const openCinema = useCinema((s) => s.openApp);
-  const cineOn = useCinema((s) => !!s.playing);
   const layoutStyle = useStore((s) => s.layoutStyle);
   const sectionTitle = useSectionTitle();
-  const { user, setUser } = useAuth();
+  const { user } = useAuth();
   const myRoleIds = useMyRoleIds(user?.id);
   const [q, setQ] = useState('');
   const categories = useStore((s) => s.categories);
@@ -85,25 +63,12 @@ export default function TopSearchBar() {
   const channelReadAt = useStore((s) => s.channelReadAt);
   const conversations = useStore((s) => s.conversations);
   const friends = useStore((s) => s.friends);
-  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
-  usePopoverCoordination(statusMenuOpen, () => setStatusMenuOpen(false));
-  const [customStatusOpen, setCustomStatusOpen] = useState(false);
-  const myActivity = useStore((s) => s.activities[user?.id]);
 
   const allChannels = [...channels, ...categories.flatMap((c) => c.channels || [])];
   const unreadChannels = allChannels.filter((ch) => isChannelUnread(ch, channelReadAt, user.id, myRoleIds)).length;
   const unreadConversations = conversations.filter((c) => isConversationUnread(c, user.id)).length;
   const pendingIncoming = friends.filter((f) => f.status === 'PENDING' && f.isIncoming).length;
   const notifBadge = unreadChannels + unreadConversations + pendingIncoming;
-
-  const presence = useStore((s) => (user ? s.presence[user.id] : null));
-  const status = presence?.status || user?.status || 'ONLINE';
-
-  const changeStatus = async (newStatus) => {
-    const { user: updated } = await setStatusApi(newStatus);
-    setUser(updated);
-    setStatusMenuOpen(false);
-  };
 
   const submitSearch = (e) => {
     e.preventDefault();
@@ -167,21 +132,9 @@ export default function TopSearchBar() {
 
       <div className="top-search-bar-actions">
         <QuickSwitcherButton className="top-search-bar-icon-btn" />
-        <button type="button" className="top-search-bar-icon-btn" title="Criar post" onClick={() => navigate('/comunidades')}>
-          <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url(${createPostIcon})`, maskImage: `url(${createPostIcon})`, width: 18, height: 18 }} />
-        </button>
         <a className="top-search-bar-icon-btn top-donate-btn" href={DONATE_URL} target="_blank" rel="noreferrer" title="Apoiar o Project Club (doação)" aria-label="Apoiar o Project Club">
           {svg('M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z')}
         </a>
-        <button type="button" className={`top-search-bar-icon-btn${musicOn ? ' is-music-on' : ''}`} title="Música (YouTube Music)" aria-label="Música" onClick={() => openMusic(true)}>
-          {svg('M9 18V5l11-2v13M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3zM20 16a3 3 0 1 1-3-3 3 3 0 0 1 3 3z')}
-        </button>
-        <button type="button" className={`top-search-bar-icon-btn top-yt-btn${ytOn ? ' is-yt-on' : ''}`} title="YouTube" aria-label="YouTube" onClick={() => openYouTube()}>
-          {svg('M3.5 8.2c.2-1.6 1.3-2.7 2.9-2.8C8.2 5.2 10 5.1 12 5.1s3.8.1 5.6.3c1.6.1 2.7 1.2 2.9 2.8.2 1.3.2 2.5.2 3.8s0 2.5-.2 3.8c-.2 1.6-1.3 2.7-2.9 2.8-1.8.2-3.6.3-5.6.3s-3.8-.1-5.6-.3c-1.6-.1-2.7-1.2-2.9-2.8C3.3 14.5 3.3 13.3 3.3 12s0-2.5.2-3.8ZM10 9v6l5-3-5-3Z')}
-        </button>
-        <button type="button" className={`top-search-bar-icon-btn top-cine-btn${cineOn ? ' is-cine-on' : ''}`} title="Filmes e Séries" aria-label="Filmes e Séries" onClick={() => openCinema()}>
-          {svg('M4 5h16v14H4zM8 5v14M16 5v14M4 9h4M4 15h4M16 9h4M16 15h4M11 10l3 2-3 2z')}
-        </button>
         <button type="button" className="top-search-bar-icon-btn" title="Atividade dos amigos" aria-label="Atividade dos amigos" onClick={() => navigate('/atividade')}>
           <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url("${ACTIVITY_NAV_ICON}")`, maskImage: `url("${ACTIVITY_NAV_ICON}")`, width: 19, height: 19 }} />
         </button>
@@ -195,75 +148,10 @@ export default function TopSearchBar() {
           <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url(${settingsIcon})`, maskImage: `url(${settingsIcon})`, width: 18, height: 18 }} />
         </button>
 
-        {/* Item pedido: acesso ao Perfil (e status) saiu do rodapé da
-            barra lateral e agora mora aqui no cabeçalho — clicar no
-            avatar abre o perfil completo; clicar no pontinho de status
-            abre o menu rápido de status, igual já funcionava antes. */}
-        <div className="top-search-bar-profile">
-          <button type="button" className="top-search-bar-avatar" onClick={() => useStore.getState().openProfile(user.id)} title={user.displayName}>
-            <UserAvatar user={user} size={30} />
-            {/* Item pedido: ícone verde de "jogando/ouvindo" bem onde
-                fica o indicador de status — 🎮 jogo, 🎵 Spotify. Só
-                aparece quando o app de desktop detectou alguma coisa
-                (myActivity vem undefined caso contrário). */}
-            {myActivity && (
-              <span className="top-search-bar-activity-dot" title={{ game: 'Jogando ', spotify: 'Ouvindo ', app: 'Usando ' }[myActivity.type] + myActivity.name}>
-                <img src={ACTIVITY_ICON_BY_TYPE[myActivity.type]} alt="" className="top-search-bar-activity-icon-img" />
-              </span>
-            )}
-            {/* Item pedido: a bolinha verde (status online) saiu daqui —
-                agora que tem o ícone de atividade no mesmo canto, os
-                dois competiam visualmente. Continua clicável pra abrir
-                o menu de "mudar status", só sem o círculo colorido
-                sempre visível — aparece suavemente só ao passar o
-                mouse em cima do avatar (ver .top-search-bar-status-
-                trigger no CSS). */}
-            <button
-              type="button"
-              className="top-search-bar-status-trigger"
-              style={{ '--status-trigger-color': STATUS_COLOR[status] }}
-              title="Mudar status online"
-              onClick={(e) => { e.stopPropagation(); setStatusMenuOpen((v) => !v); }}
-            />
-          </button>
-          {statusMenuOpen && (
-            <div className="status-menu top-search-bar-status-menu" onClick={(e) => e.stopPropagation()}>
-              <div className="top-search-bar-status-menu-header">
-                <UserAvatar user={user} size={28} />
-                <div className="top-search-bar-status-menu-name">
-                  <span>{user.displayName}</span>
-                  <span className="dim">
-                    {/* Item pedido: ícone compacto de "jogando"/"ouvindo"
-                        bem aqui, perto do status — 🎮 pra jogo, 🎵 pra
-                        Spotify, só um ícone rápido antes do texto do
-                        status em si (não é o card grande do perfil, é
-                        um resuminho). */}
-                    {myActivity && (
-                      <span className="top-search-bar-activity-icon" title={{ game: 'Jogando ', spotify: 'Ouvindo ', app: 'Usando ' }[myActivity.type] + myActivity.name}>
-                        <img src={ACTIVITY_ICON_BY_TYPE[myActivity.type]} alt="" className="top-search-bar-activity-icon-img" />
-                      </span>
-                    )}
-                    <StatusEmoji emoji={user.customStatusEmoji} /> {user.customStatus || STATUS_LABEL[status]}
-                  </span>
-                </div>
-              </div>
-              <div className="dropdown-divider" />
-              <button onClick={() => { setCustomStatusOpen(true); setStatusMenuOpen(false); }}>
-                <img className="ui-icon-sm" src={chatIcon} alt="" /> Definir status personalizado
-              </button>
-              <div className="dropdown-divider" />
-              {Object.keys(STATUS_LABEL).map((s) => (
-                <button key={s} onClick={() => changeStatus(s)}>
-                  <PresenceDot status={s} /> {STATUS_LABEL[s]}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Foto de perfil saiu da barra superior (pedido): o perfil e o
+            status continuam no painel do usuário da barra lateral e na
+            aba "Você" do celular. */}
       </div>
-      {customStatusOpen && (
-        <CustomStatusModal user={user} onClose={() => setCustomStatusOpen(false)} onSaved={setUser} />
-      )}
     </div>
   );
 }

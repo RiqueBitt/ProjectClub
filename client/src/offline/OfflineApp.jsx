@@ -3,6 +3,9 @@ import { MemoryRouter } from 'react-router-dom';
 import BrowserHost from '../browser/BrowserHost.jsx';
 import BrowserChrome, { B, Ico } from '../browser/BrowserChrome.jsx';
 import { BrowserBridge } from '../browser/BrowserShell.jsx';
+import { isFeatureEnabled } from '../utils/features';
+
+const BROWSER_ON = isFeatureEnabled('browser');
 
 // ============================================================
 // Modo offline do app desktop: o servidor do Project Club não respondeu,
@@ -33,12 +36,12 @@ function TitleBar({ online, retrying, onRetry }) {
   return (
     <div className="pco-bar">
       <div className="pco-drag" onDoubleClick={() => api().windowMaximizeToggle?.()} onMouseDown={moveDrag}>
-        <span className="pco-brand"><Ico d={B.globe} size={14} /> Project Club · Navegador</span>
+        <span className="pco-brand"><Ico d={B.globe} size={14} /> {BROWSER_ON ? 'Project Club · Navegador' : 'Project Club'}</span>
         {online ? (
           <span className="pco-status is-online">O Project Club voltou!</span>
         ) : (
           <span className="pco-status" title={reason === 'server' ? 'O servidor respondeu com erro' : reason === 'timeout' ? 'O servidor não respondeu a tempo' : 'Sem conexão com o servidor'}>
-            <i /> Project Club fora do ar — o navegador continua funcionando
+            <i /> {BROWSER_ON ? 'Project Club fora do ar — o navegador continua funcionando' : 'Project Club fora do ar — reconectando sozinho'}
           </span>
         )}
       </div>
@@ -62,6 +65,22 @@ export default function OfflineApp() {
     setRetrying(true);
     try { await api().offline?.retry?.(); } finally { setTimeout(() => setRetrying(false), 1500); }
   };
+  // Navegador desligado (utils/features.js): só a tela de reconexão.
+  if (!BROWSER_ON) {
+    return (
+      <div className="pco">
+        <TitleBar online={online} retrying={retrying} onRetry={retry} />
+        <div className="pco-main pco-wait">
+          <div className="pco-wait-card">
+            <span className="pco-wait-dot" aria-hidden="true" />
+            <h1>{online ? 'O Project Club voltou!' : 'Sem conexão com o Project Club'}</h1>
+            <p>{online ? 'Clique em “Voltar ao Project Club” para continuar.' : 'Assim que o servidor responder, o app avisa aqui. Você também pode tentar agora.'}</p>
+            <button type="button" className={`pco-retry${online ? ' is-online' : ''}`} onClick={retry} disabled={retrying}>{online ? 'Voltar ao Project Club' : retrying ? 'Conectando…' : 'Tentar reconectar'}</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (!api().browser) {
     return <div className="pco-fail">O Project Club está fora do ar. Tente de novo em instantes.</div>;
   }
