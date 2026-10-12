@@ -39,8 +39,13 @@ export const updateUserSettings = (patch) => api.patch('/users/me/settings', pat
 export const resetUserSettings = () => api.post('/users/me/settings/reset').then((r) => r.data);
 export const setEmojiStyle = (emojiStyle) => api.patch('/users/me/emoji-style', { emojiStyle }).then((r) => r.data);
 export const updateUsername = (username) => api.patch('/users/me/username', { username }).then((r) => r.data);
-export const uploadAvatar = (file) => {
-  const fd = new FormData(); fd.append('avatar', file);
+// crop = enquadramento "x,y,zoom" (só GIF: o servidor recorta todos os
+// quadros). Vai ANTES do arquivo no FormData pro multer já ter o campo
+// quando o arquivo chega (ver server/src/middleware/upload.js).
+export const uploadAvatar = (file, crop) => {
+  const fd = new FormData();
+  if (crop) fd.append('crop', crop);
+  fd.append('avatar', file);
   return api.post('/users/me/avatar', fd).then((r) => r.data);
 };
 export const uploadBanner = (file, framing) => {

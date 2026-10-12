@@ -58,7 +58,10 @@ export default function MiniProfileCard() {
   // controla qual animação CSS toca (ver .mini-profile-closing).
   const [renderedUserId, setRenderedUserId] = useState(userId);
   const [closing, setClosing] = useState(false);
-  useEffect(() => {
+  // useLayoutEffect (não useEffect): a classe de fechar entra ANTES do
+  // navegador pintar o frame em que o userId virou null — senão sobrava um
+  // frame "aberto" sem âncora (ver BUG CORRIGIDO em reposition).
+  useLayoutEffect(() => {
     if (userId) {
       setRenderedUserId(userId);
       setClosing(false);
@@ -107,7 +110,7 @@ export default function MiniProfileCard() {
 
   useEffect(() => {
     if (!userId) return;
-    const onDocDown = (e) => { if (!cardRef.current?.contains(e.target)) closeMiniProfile(); };
+    const onDocDown = (e) => { if (!cardRef.current?.contains(e.target)) closeMiniProfile('outside'); };
     const onKey = (e) => { if (e.key === 'Escape') closeMiniProfile(); };
     document.addEventListener('mousedown', onDocDown);
     document.addEventListener('keydown', onKey);
@@ -124,10 +127,22 @@ export default function MiniProfileCard() {
   // useLayoutEffect abaixo) porque o card pode crescer depois da 1ª medição
   // — ex: uma imagem de insígnia ou emoji da bio que termina de carregar
   // um instante depois de badges/user já terem chegado.
+  // BUG CORRIGIDO ("miniperfil muda de lugar ao fechar, dependendo de onde
+  // clico"): closeMiniProfile limpa userId, anchorRect e side DE UMA VEZ na
+  // store. O render seguinte ainda tinha o card montado (renderedUserId) e
+  // closing=false (só virava true num useEffect, depois do layout) — o
+  // useLayoutEffect abaixo via anchorRect/side mudarem, rodava reposition()
+  // e, sem âncora, caía no fallback (meio da tela, lado padrão): o card
+  // pulava pro centro e a animação de saída tocava lá, com o
+  // transform-origin trocado. Agora a âncora/lado só são lidos enquanto o
+  // miniperfil está aberto (userId != null) e reposition não roda depois
+  // que ele começou a fechar — o card fecha exatamente onde estava.
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId;
   const anchorRectRef = useRef(anchorRect);
-  anchorRectRef.current = anchorRect;
+  if (userId) anchorRectRef.current = anchorRect;
   const sideRef = useRef(side);
-  sideRef.current = side;
+  if (userId) sideRef.current = side;
 
   // Bug: perto do fim da lista de mensagens (penúltima/antepenúltima), o
   // avatar costuma estar sendo tocado com o teclado aberto (usuário estava
@@ -166,7 +181,7 @@ export default function MiniProfileCard() {
     // causa do fallback do anchorRect, que já é limpo nesse momento —
     // ver closeMiniProfile na store). Mantém a última posição válida
     // parada, só a animação CSS (.mini-profile-closing) cuida do resto.
-    if (!renderedUserId || closing || !el) return;
+    if (!renderedUserId || closing || !userIdRef.current || !el) return;
     const { height: vh, width: vw, offsetTop: vTop, offsetLeft: vLeft } = getViewport();
     const rect = anchorRectRef.current || { top: vh / 2, left: vw / 2, bottom: vh / 2 };
     // BUG CORRIGIDO (miniperfil por cima da lista de membros): o

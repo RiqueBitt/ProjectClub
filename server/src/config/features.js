@@ -8,6 +8,12 @@ const FEATURES = Object.freeze({
   stickers: false, // Figurinhas colecionáveis: álbum e cápsulas (NÃO as figurinhas do chat)
   browser: false,  // Navegador do Project Club: conferir páginas/sugestões (/api/browser)
   cinema: false,   // Filmes e Séries: Internet Archive (/api/archive) e catálogo/Pluto (/api/catalog)
+  // Guerra das Cartas (jogo de cartas: /api/cards, salas, batalhas, convites,
+  // trocas, mercado, torneios). DESATIVADO TEMPORARIAMENTE: as rotas
+  // respondem 503 "temporariamente desativado", a varredura de turnos não
+  // liga e as missões CARDS_* somem da lista. Baús diários e o resto da
+  // Economia NÃO dependem disto e continuam funcionando.
+  cardsWar: false,
 });
 
 function isFeatureEnabled(key) {
@@ -15,11 +21,17 @@ function isFeatureEnabled(key) {
 }
 
 // Middleware: bloqueia o router inteiro com 404 quando o sistema está desligado.
-function requireFeature(key) {
+// opts.status/opts.message trocam a resposta (ex: 503 pra "temporariamente
+// desativado", quando o sistema vai voltar).
+function requireFeature(key, opts = {}) {
+  const status = opts.status || 404;
+  const message = opts.message || 'Este sistema foi desativado.';
   return function featureGate(req, res, next) {
     if (isFeatureEnabled(key)) return next();
-    return res.status(404).json({ error: 'Este sistema foi desativado.', featureDisabled: key });
+    return res.status(status).json({ error: message, featureDisabled: key, temporarilyDisabled: status === 503 });
   };
 }
 
-module.exports = { FEATURES, isFeatureEnabled, requireFeature };
+const CARDS_WAR_OFF_MSG = 'O Guerra das Cartas está temporariamente desativado.';
+
+module.exports = { FEATURES, isFeatureEnabled, requireFeature, CARDS_WAR_OFF_MSG };

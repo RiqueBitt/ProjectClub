@@ -6,6 +6,7 @@ import '../styles/minijogos.css';
 import { useMinijogoScores, ScoresPanel } from '../minijogos/MiniJogoScores.jsx';
 import TouchPad from '../minijogos/TouchPad.jsx';
 import { CardView } from '../cards/CardView.jsx';
+import { isFeatureEnabled } from '../utils/features';
 import '../styles/cards.css';
 
 // Cartas de vitrine do destaque da Arena (só visual).
@@ -277,7 +278,8 @@ export default function MiniJogosPage() {
             </section>
           ) : (
             <>
-              <button type="button" className="mj-tcg-feature" onClick={() => navigate('/cartas')}>
+              {/* Guerra das Cartas desligada temporariamente (utils/features.js). */}
+              {isFeatureEnabled('cardsWar') && <button type="button" className="mj-tcg-feature" onClick={() => navigate('/cartas')}>
                 <span className="mj-tcg-text">
                   <em>Jogo principal</em>
                   <strong>Guerra das Cartas</strong>
@@ -287,7 +289,7 @@ export default function MiniJogosPage() {
                   {ARENA_SAMPLE.map((c, i) => <CardView key={c.slug} card={c} size="sm" style={{ '--r': `${(i - 1) * 8}deg` }} />)}
                 </span>
                 <span className="tcg-btn primary mj-tcg-play"><MjIcon name="play" size={14} />Jogar</span>
-              </button>
+              </button>}
               <section className="mj-section">
                 <h2 className="mj-section-title">Em destaque</h2>
                 <div className="mj-featured">

@@ -6,6 +6,7 @@ import { requestOpenModpack } from '../pages/mods/modpackShared.js';
 import { proxyImage } from '../utils/imageProxy';
 import UserAvatar from './UserAvatar.jsx';
 import BattleInviteCard from '../cards/BattleInviteCard.jsx';
+import { isFeatureEnabled } from '../utils/features';
 import '../styles/socialx.css';
 
 // Cartão de prévia pra links internos colados no chat (post, modpack,
@@ -31,7 +32,8 @@ export function LinkKindIcon({ kind, size = 14 }) {
 }
 
 export default function InternalLinkCard({ link }) {
-  if (link.kind === 'battle') return <BattleInviteCard code={link.id} />;
+  // Guerra das Cartas desligada: o convite vira só o link comum (abre o "Em breve").
+  if (link.kind === 'battle') return isFeatureEnabled('cardsWar') ? <BattleInviteCard code={link.id} /> : null;
   return <LinkPreviewCard link={link} />;
 }
 

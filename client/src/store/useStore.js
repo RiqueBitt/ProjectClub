@@ -7,6 +7,14 @@ import { loadLocalLayoutPrefs, normalizeLayoutPrefs, saveLocalLayoutPrefs, sched
 
 // Função estável (comparada por identidade no coordenador de menus) que
 // fecha o miniperfil quando outro menu flutuante abre.
+// Último fechamento do miniperfil por clique FORA dele (mousedown no
+// documento, ver MiniProfileCard): o mousedown fecha e o click que vem logo
+// depois, no MESMO avatar/item que abriu o card, reabria tudo de novo (o
+// toggle de openMiniProfile já não via o card aberto) — o card "piscava" e
+// voltava/mudava de lugar conforme onde se clicava. Ver openMiniProfile.
+let lastOutsideClose = null;
+const sameAnchor = (a, b) => (!a && !b) || (!!a && !!b && Math.abs(a.top - b.top) < 2 && Math.abs(a.left - b.left) < 2 && Math.abs(a.width - b.width) < 2 && Math.abs(a.height - b.height) < 2);
+
 function closeMiniProfileFromCoordinator() {
   // eslint-disable-next-line no-use-before-define
   useStore.setState({ miniProfileUserId: null, miniProfileAnchorRect: null, miniProfileSide: null });
@@ -508,6 +516,11 @@ export const useStore = create((set, get) => ({
   // menus flutuantes (clique direito, emojis, status...) — abrir qualquer
   // um deles fecha o miniperfil, e abrir o miniperfil fecha o que estava aberto.
   openMiniProfile: (userId, anchorRect, side) => {
+    // Clique no mesmo item que abriu o card: o mousedown de "clique fora" já
+    // fechou — este click completa o toggle (fica fechado) em vez de reabrir.
+    const lc = lastOutsideClose;
+    lastOutsideClose = null;
+    if (!get().miniProfileUserId && lc && lc.userId === userId && Date.now() - lc.at < 600 && sameAnchor(lc.rect, anchorRect || null)) return;
     const closing = get().miniProfileUserId === userId;
     if (closing) closePopover(closeMiniProfileFromCoordinator);
     else openPopover(closeMiniProfileFromCoordinator);
@@ -516,7 +529,18 @@ export const useStore = create((set, get) => ({
       : { miniProfileUserId: userId, miniProfileAnchorRect: anchorRect || null, miniProfileSide: side || null });
   },
   setDisabledSystems: (disabledSystems) => set({ disabledSystems }),
-  closeMiniProfile: () => { closePopover(closeMiniProfileFromCoordinator); set({ miniProfileUserId: null, miniProfileAnchorRect: null, miniProfileSide: null }); },
+  closeMiniProfile: (reason) => {
+    const st = get();
+    lastOutsideClose = reason === 'outside' && st.miniProfileUserId ? { userId: st.miniProfileUserId, rect: st.miniProfileAnchorRect, at: Date.now() } : null;
+    // Só vale pro click DESTE mesmo gesto: o onClick do React (na raiz do
+    // app) roda antes deste listener no window, que então esquece o registro
+    // — o próximo clique no avatar abre normalmente.
+    if (lastOutsideClose && typeof window !== 'undefined') {
+      const rec = lastOutsideClose;
+      window.addEventListener('click', () => { if (lastOutsideClose === rec) lastOutsideClose = null; }, { once: true });
+    }
+    closePopover(closeMiniProfileFromCoordinator); set({ miniProfileUserId: null, miniProfileAnchorRect: null, miniProfileSide: null });
+  },
   // Mesma coisa que openProfile, mas já abre direto em "adicionar cargo".
   openProfileAddRole: (userId) => set({ viewingProfileUserId: userId, profileAutoOpenRoleMenu: true }),
   clearProfileAutoOpenRoleMenu: () => set({ profileAutoOpenRoleMenu: false }),

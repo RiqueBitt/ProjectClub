@@ -61,6 +61,7 @@ const UserSettingsModal = lazy(() => import('../components/modals/UserSettingsMo
 // continua no projeto e só é carregado se forem religados.
 const CINEMA_ON = isFeatureEnabled('cinema');
 const BROWSER_ON = isFeatureEnabled('browser');
+const CARDS_WAR_ON = isFeatureEnabled('cardsWar'); // Guerra das Cartas (desligada temporariamente)
 const CinemaApp = CINEMA_ON ? lazy(() => import('../cinema/CinemaApp.jsx')) : null;
 const CinemaHost = CINEMA_ON ? lazy(() => import('../cinema/CinemaApp.jsx').then((m) => ({ default: m.CinemaHost }))) : null;
 const BrowserHost = BROWSER_ON ? lazy(() => import('../browser/BrowserHost.jsx')) : null;
@@ -82,6 +83,7 @@ const EconomyPage = lazy(() => import('./EconomyPage.jsx'));
 const ProgressPage = lazy(() => import('./ProgressPage.jsx'));
 const HousesPage = lazy(() => import('./HousesPage.jsx'));
 const CardsGamePage = lazy(() => import('./CardsGamePage.jsx'));
+const CardsDisabledPage = lazy(() => import('./CardsDisabledPage.jsx'));
 const ClanPage = lazy(() => import('./ClanPage.jsx'));
 const TicketsPage = lazy(() => import('./TicketsPage.jsx'));
 const CommunitiesPage = lazy(() => import('./CommunitiesPage.jsx'));
@@ -428,7 +430,8 @@ export default function MainApp() {
                 <Route path="/casas" element={isFeatureEnabled('houses') ? <HousesPage /> : <Navigate to="/economia" replace />} />
                 {/* Figurinhas colecionáveis viraram a Guerra das Cartas (Guerra das Cartas). */}
                 <Route path="/figurinhas" element={<Navigate to="/cartas" replace />} />
-                <Route path="/cartas" element={<CardsGamePage />} />
+                {/* Desligada no código: /cartas (inclusive ?sala=, ?partida=) mostra "Em breve". */}
+                <Route path="/cartas" element={CARDS_WAR_ON ? <CardsGamePage /> : <CardsDisabledPage />} />
                 <Route path="/tickets" element={<TicketsPage />} />
                 {/* Item pedido: "remover completamente a categoria
                     Clãs da interface... dentro de Social, criar as
@@ -508,7 +511,7 @@ export default function MainApp() {
       <YouTubeHost />
       {CINEMA_ON && <Suspense fallback={null}><CinemaApp /><CinemaHost /></Suspense>}
       {BROWSER_ON ? <Suspense fallback={null}><BrowserHost /><BrowserBridge /></Suspense> : <DesktopLinkFallback />}
-      <CardsNotifier />
+      {CARDS_WAR_ON && <CardsNotifier />}
     </div>
   );
 }

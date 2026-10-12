@@ -20,18 +20,27 @@ export function parseDecoration(raw) {
   return v;
 }
 
-// A moldura ocupa exatamente o espaço do avatar (como no Discord): a foto
-// encolhe um pouco por dentro e a moldura fica em volta, então nada passa
-// da caixa e nenhum contêiner com overflow:hidden corta as bordas.
-export function DecorationOverlay({ deco, size }) {
+// BUG CORRIGIDO ("com moldura equipada o avatar fica menor"): antes a
+// moldura ocupava exatamente a caixa do avatar e a FOTO encolhia por dentro
+// (size / escala da moldura) — com a moldura padrão (s=1.2) a foto ficava
+// ~17% menor que a de quem não usa moldura, em todo lugar (chat, lista de
+// membros, miniperfil, perfil, prévia nas configurações). Agora a foto
+// mantém o tamanho pedido e a moldura é desenhada MAIOR (size * escala),
+// centralizada por cima e "vazando" em volta (position: absolute, sem
+// mudar a caixa/layout — overflow liberado em avatar-deco.css).
+// Centraliza com left/top em px (não transform), pra não brigar com a
+// animação de entrada (avatar-deco-in usa transform).
+export function DecorationOverlay({ deco, size, avatarSize = size }) {
   if (!deco) return null;
+  const off = (avatarSize - size) / 2;
+  const dx = ((Number(deco.x) || 0) / 100) * size;
+  const dy = ((Number(deco.y) || 0) / 100) * size;
   return (
     <img
       className="avatar-decoration" src={proxyImage(deco.url)} alt="" aria-hidden="true" draggable="false" loading="lazy" decoding="async"
       style={{
-        position: 'absolute', inset: 0, width: size, height: size, maxWidth: 'none', pointerEvents: 'none', zIndex: 1,
+        position: 'absolute', left: off + dx, top: off + dy, width: size, height: size, maxWidth: 'none', maxHeight: 'none', pointerEvents: 'none', zIndex: 1,
         objectFit: 'contain',
-        transform: (deco.x || deco.y) ? `translate(${Number(deco.x) || 0}%, ${Number(deco.y) || 0}%)` : undefined,
       }}
     />
   );
@@ -43,13 +52,14 @@ export default function UserAvatar({ user, size = 32, className = '', style = {}
   const deco = noDecoration ? null : parseDecoration(user?.avatarDecoration);
   if (!deco) return <BaseAvatar user={user} size={size} className={className} style={style} />;
   const scale = Math.min(2, Math.max(1, Number(deco.s) || 1.2));
-  const inner = Math.round(size / scale);
-  const outer = { position: 'relative', width: size, height: size, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' };
+  // A caixa (layout) continua com o tamanho do avatar; só a moldura cresce.
+  const decoSize = Math.round(size * scale);
+  const outer = { position: 'relative', width: size, height: size, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' };
   for (const k of OUTER_KEYS) if (style[k] !== undefined) outer[k] = style[k];
   return (
     <span className="avatar-deco-wrap" style={outer}>
-      <BaseAvatar user={user} size={inner} className={className} style={stripOuter(style)} />
-      <DecorationOverlay deco={deco} size={size} />
+      <BaseAvatar user={user} size={size} className={className} style={stripOuter(style)} />
+      <DecorationOverlay deco={deco} size={decoSize} avatarSize={size} />
     </span>
   );
 }

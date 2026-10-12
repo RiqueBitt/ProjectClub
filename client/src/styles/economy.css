@@ -85,6 +85,19 @@
   background: radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--eco-coin) 35%, transparent), transparent 60%);
 }
 .eco .eco-reveal > * { position: relative; }
+/* BUG CORRIGIDO ("baú pequeno num card alto, cheio de espaço vazio em
+   cima"): a regra acima (.eco .eco-reveal > *, mais específica) também
+   pegava o brilho decorativo e trocava o position:absolute dele por
+   relative — o .eco-reveal-glow (height: 300px) passava a ocupar 300px
+   DE VERDADE no topo do card, empurrando o baú pra baixo. O brilho volta
+   a flutuar por trás, sem ocupar espaço. */
+.eco .eco-reveal > .eco-reveal-glow { position: absolute; }
+/* Baú como destaque: largura cheia do quadro, altura pela proporção da
+   imagem (já sem a borda transparente — utils/trimImage), sem deformar. */
+.eco .eco-reveal .chest-reveal-img {
+  display: block; width: min(220px, 72%); height: auto; max-height: 200px;
+  aspect-ratio: auto; object-fit: contain; margin: 4px auto 6px;
+}
 .eco .eco-reveal h3 { margin: 0 0 4px; font-size: 22px; font-weight: 800; color: var(--header-primary); }
 .eco .eco-reveal-rewards { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 10px; }
 .eco-mega { --tint: var(--eco-gem); }

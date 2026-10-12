@@ -397,7 +397,9 @@ function createApp() {
   app.use('/api/clans', clansRoutes);
   app.use('/api/minigames', minigamesRoutes);
   app.use('/api/anuncios', require('./routes/staffAnnouncements'));
-  app.use('/api/cards', require('./routes/cards'));
+  // Guerra das Cartas: desligada temporariamente no código (config/features.js)
+  // — 503 antes de carregar o router (nem a varredura de turnos liga).
+  app.use('/api/cards', requireFeature('cardsWar', { status: 503, message: require('./config/features').CARDS_WAR_OFF_MSG }), require('./routes/cards'));
   // Pacote de abertura (várias seções numa requisição só) — ver bootstrapController.
   app.get('/api/bootstrap', require('./middleware/auth').requireAuth, require('./controllers/bootstrapController').getBootstrap);
 
