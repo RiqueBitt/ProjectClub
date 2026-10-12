@@ -1,7 +1,9 @@
 /* ============================================================
-   Bonequinhos das telas de autenticação (AuthCharacters.jsx).
-   Só transform/opacity animam. Modo calmo (prefers-reduced-motion
-   ou html[data-lite]) desliga respiração, tremida, pulo e transições.
+   Turminha das telas de autenticação (AuthCharacters.jsx).
+   Só transform/opacity animam. Partes que giram/escalam são
+   desenhadas na origem local (transform-origin 0 0). Modo calmo
+   (prefers-reduced-motion ou html[data-lite]) desliga respiração,
+   transições e brilhinhos animados — as expressões continuam.
    ============================================================ */
 
 .pcc-stage {
@@ -10,107 +12,158 @@
   pointer-events: none;
   -webkit-user-select: none;
   user-select: none;
+  /* Molinha: passa um pouco e volta. */
+  --pcc-spring: cubic-bezier(.34, 1.45, .64, 1);
+  --pcc-soft: cubic-bezier(.22, 1, .36, 1);
 }
 .pcc-svg { display: block; width: 100%; height: 100%; overflow: visible; }
 
-.pcc-char, .pcc-lean, .pcc-breathe, .pcc-face, .pcc-eye, .pcc-pupil, .pcc-lid, .pcc-mouth, .pcc-brows, .pcc-hands {
-  transform-box: fill-box;
+/* Origem na própria coordenada local (0,0) de cada peça. */
+.pcc-eye, .pcc-eye-open, .pcc-blink, .pcc-pupil, .pcc-pupil-s, .pcc-lid, .pcc-eye-alt,
+.pcc-mouth, .pcc-brow, .pcc-hand, .pcc-antenna, .pcc-antenna-sway, .pcc-tuft, .pcc-shadow, .pcc-spark {
+  transform-box: view-box;
+  transform-origin: 0 0;
 }
-.pcc-lean {
-  transform-origin: 50% 100%;
-  transition: transform .45s cubic-bezier(.2, .8, .2, 1);
-  will-change: transform;
-}
-.pcc-breathe {
-  transform-origin: 50% 100%;
-  animation: pcc-breathe 3.6s ease-in-out infinite;
-  animation-delay: var(--breath, 0s);
-}
+/* Corpo: escala/pula a partir do pé. */
+.pcc-hop, .pcc-breathe { transform-box: fill-box; transform-origin: 50% 100%; }
+
+/* Cada um reage um tiquinho depois do outro. */
+.pcc-char { --d: calc(var(--i, 0) * 55ms); }
+
+/* ---------- respiração (cada um no seu ritmo) ---------- */
+.pcc-breathe { animation: pcc-breathe 4.2s ease-in-out infinite; }
+.pcc-lila .pcc-breathe { animation-duration: 4.6s; }
+.pcc-menta .pcc-breathe { animation-duration: 5.2s; animation-delay: -1.8s; }
+.pcc-coral .pcc-breathe { animation-duration: 3.9s; animation-delay: -.9s; }
+.pcc-mel .pcc-breathe { animation-name: pcc-bounce; animation-duration: 2.6s; animation-delay: -.4s; }
 @keyframes pcc-breathe {
   0%, 100% { transform: scale(1, 1); }
-  50% { transform: scale(1.012, 1.028); }
+  50% { transform: scale(1.012, 1.03); }
 }
-.pcc-face { transition: transform .3s cubic-bezier(.2, .8, .2, 1); }
-.pcc-eye {
-  transform-origin: 50% 50%;
-  transition: transform .12s ease, opacity .12s ease;
+@keyframes pcc-bounce {
+  0%, 100% { transform: scale(1.025, .975); }
+  50% { transform: scale(.985, 1.035); }
 }
-.pcc-pupil { transform-origin: 50% 50%; transition: transform .14s cubic-bezier(.2, .8, .2, 1); }
-.pcc-lid { transition: opacity .12s ease; }
+
+.pcc-antenna-sway { animation: pcc-sway 3.8s ease-in-out infinite; }
+@keyframes pcc-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(4deg); } }
+.pcc-antenna-glow { animation: pcc-glow 2.8s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 50%; }
+@keyframes pcc-glow { 0%, 100% { opacity: .12; transform: scale(.9); } 50% { opacity: .32; transform: scale(1.2); } }
+
+/* ---------- rosto ---------- */
+.pcc-rim { opacity: .5; }
+
+.pcc-eye { transition: transform .45s var(--pcc-spring) var(--d); }
+.pcc-eye-open { transition: transform .32s var(--pcc-soft) var(--d), opacity .2s ease var(--d); }
+.pcc-blink { transition: transform .09s ease-out; }
+.pcc-pupil-s { transition: transform .35s var(--pcc-spring) var(--d); }
+.pcc-lid {
+  transform: translateY(calc(var(--r, 10) * -1px - 4px));
+  transition: transform .14s ease-out;
+}
+.pcc-lidline { opacity: 0; transition: opacity .2s ease var(--d); }
+.pcc-eye-alt {
+  fill: none; stroke: #1d1631; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round;
+  opacity: 0; transform: scale(.6, .2);
+  transition: opacity .18s ease var(--d), transform .4s var(--pcc-spring) var(--d);
+}
+
+/* Estados do olho. */
+.pcc-eye[data-state='wide'] { transform: scale(1.14); }
+.pcc-eye[data-state='wide'] .pcc-pupil-s { transform: scale(.72); }
+.pcc-eye[data-state='closed'] .pcc-eye-open,
+.pcc-eye[data-state='happy'] .pcc-eye-open,
+.pcc-eye[data-state='squeeze'] .pcc-eye-open { opacity: 0; transform: scale(1, .15); }
+.pcc-eye[data-state='closed'] .pcc-eye-closed,
+.pcc-eye[data-state='happy'] .pcc-eye-happy,
+.pcc-eye[data-state='squeeze'] .pcc-eye-squeeze { opacity: 1; transform: none; }
+/* Meio fechado (desconfiado / emburrado): a pálpebra desce até o meio. */
+.pcc-eye[data-state='half'] .pcc-lid { transform: translateY(calc(var(--r, 10) * -0.12px)); transition-duration: .35s; }
+.pcc-eye[data-state='half'] .pcc-eye-open { transform: scale(1, .82); }
+.pcc-eye[data-state='half'] .pcc-lidline { opacity: 1; }
+.pcc-menta .pcc-eye[data-state='half'] .pcc-blink,
+.pcc-coral .pcc-eye[data-state='half'] .pcc-blink { transform: translateY(1.5px) scale(1, .62); }
+
+/* Piscada: pálpebra desce (olhos com esclera) ou o olho achata. */
+.pcc-char[data-blink] .pcc-lid { transform: translateY(calc(var(--r, 10) * 1px + 3px)); transition-duration: .07s; }
+.pcc-coral[data-blink] .pcc-blink,
+.pcc-menta[data-blink] .pcc-blink { transform: scale(1, .1); transition-duration: .07s; }
+
+/* Bocas: troca com um "pop" de mola. */
 .pcc-mouth {
-  opacity: 0;
-  transform-origin: 50% 50%;
-  transform: scale(.6);
-  transition: opacity .18s ease, transform .25s cubic-bezier(.3, 1.6, .5, 1);
+  opacity: 0; transform: scale(.5);
+  transition: opacity .16s ease var(--d), transform .42s var(--pcc-spring) var(--d);
 }
 .pcc-mouth[data-on] { opacity: 1; transform: none; }
-.pcc-brows {
+
+/* Sobrancelhas. */
+.pcc-brows { opacity: 0; transition: opacity .2s ease var(--d); }
+.pcc-brows[data-on] { opacity: 1; }
+.pcc-brow { transition: transform .45s var(--pcc-spring) var(--d); }
+
+/* Bochechas (0 = sem, 3 = vermelhinho). */
+.pcc-blush { opacity: .5; transition: opacity .4s ease var(--d); }
+.pcc-char[data-blush='0'] .pcc-blush { opacity: 0; }
+.pcc-char[data-blush='2'] .pcc-blush { opacity: .72; }
+.pcc-char[data-blush='3'] .pcc-blush { opacity: .92; }
+.pcc-menta .pcc-blush { opacity: .75; }
+.pcc-menta[data-blush='2'] .pcc-blush, .pcc-menta[data-blush='3'] .pcc-blush { opacity: .95; }
+
+/* Mãozinhas: sobem com mola; a da espiada desce devagarinho. */
+.pcc-hand { transition: transform .6s var(--pcc-spring) var(--d), opacity .22s ease var(--d); }
+/* No susto tudo é rápido: as mãos somem na hora. */
+.pcc-stage[data-mode='error'] .pcc-hand { transition-duration: .18s; transition-delay: 0s; }
+.pcc-stage[data-mode='error'] .pcc-eye-open, .pcc-stage[data-mode='error'] .pcc-eye-alt { transition-delay: 0s; }
+.pcc-hand[data-slow] { transition: transform 1.3s cubic-bezier(.45, 0, .2, 1) .15s, opacity .3s ease; }
+
+/* ---------- sucesso: brilhinhos ---------- */
+.pcc-spark {
   opacity: 0;
-  transform-origin: 50% 100%;
-  transform: translateY(4px);
-  transition: opacity .15s ease, transform .2s ease;
+  animation: pcc-spark-in .6s var(--pcc-spring) both, pcc-twinkle 1.6s ease-in-out infinite;
+  animation-delay: calc(.25s + var(--i) * 70ms), calc(.9s + var(--i) * 130ms);
 }
-.pcc-brows[data-on] { opacity: 1; transform: none; }
-.pcc-hands { transform-origin: 50% 100%; animation: pcc-hands .35s cubic-bezier(.3, 1.5, .5, 1) both; }
-@keyframes pcc-hands { from { transform: translateY(26px) scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
-
-/* Erro: tremida de "não acredito" (o grupo é remontado a cada reação,
-   então a animação recomeça mesmo errando duas vezes seguidas). */
-.pcc-stage[data-mode='error'] .pcc-char { animation: pcc-shake .55s cubic-bezier(.36, .07, .19, .97) both; animation-delay: calc(var(--i) * 40ms); transform-origin: 50% 100%; }
-@keyframes pcc-shake {
-  10%, 90% { transform: translateX(-2px); }
-  20%, 80% { transform: translateX(4px) rotate(.6deg); }
-  30%, 50%, 70% { transform: translateX(-7px) rotate(-1deg); }
-  40%, 60% { transform: translateX(7px) rotate(1deg); }
+@keyframes pcc-spark-in {
+  from { opacity: 0; transform: scale(0) rotate(-60deg); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pcc-twinkle {
+  0%, 100% { opacity: 1; transform: none; }
+  50% { opacity: .35; transform: scale(.6) rotate(25deg); }
 }
 
-/* Sucesso: pulinho com amassadinho na volta. */
-.pcc-stage[data-mode='success'] .pcc-char {
-  transform-origin: 50% 100%;
-  animation: pcc-jump .8s cubic-bezier(.3, .7, .4, 1) both;
-  animation-delay: calc(var(--i) * 70ms);
-}
-@keyframes pcc-jump {
-  0% { transform: none; }
-  18% { transform: scale(1.06, .9); }
-  45% { transform: translateY(-34px) scale(.96, 1.06); }
-  70% { transform: none; }
-  82% { transform: scale(1.05, .93); }
-  100% { transform: none; }
-}
-
-/* Modo calmo. */
+/* ---------- modo calmo ---------- */
 .pcc-stage[data-calm] *,
 html[data-lite] .pcc-stage * {
   animation: none !important;
   transition: none !important;
 }
-
+.pcc-stage[data-calm] .pcc-spark,
+html[data-lite] .pcc-stage .pcc-spark { opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
   .pcc-stage * { animation: none !important; transition: none !important; }
+  .pcc-stage .pcc-spark { opacity: 1; }
 }
 
 /* ---------- Onde a turma aparece ---------- */
-/* PC: no painel da esquerda (vitrine), olhando pro formulário. */
+/* PC: na vitrine (painel da esquerda), em cima do chão, olhando pro formulário. */
 .pc-showcase-chars {
   flex: 1 1 auto;
-  min-height: 220px;
-  max-height: 46vh;
+  min-height: 200px;
+  max-height: 38vh;
   display: flex;
   align-items: flex-end;
-  justify-content: center;
+  justify-content: flex-start;
 }
-.pc-showcase-chars .pcc-stage { height: 100%; max-width: 540px; }
+.pc-showcase-chars .pcc-stage { height: 100%; max-width: 500px; }
 
-/* Celular/tablet: em cima do formulário, pequena. */
+/* Celular/tablet: fileirinha compacta no canto direito do cabeçalho,
+   em pé sobre a mesma linha do "▶ project club". */
 .pc-auth-chars-mobile {
   width: 100%;
-  max-width: 440px;
-  height: 128px;
-  margin: -8px 0 14px;
+  height: 120px;
+  margin: -14px 0 -27px;
 }
-.pc-auth-wide .pc-auth-chars-mobile { max-width: 640px; }
-@media (max-width: 380px) { .pc-auth-chars-mobile { height: 108px; } }
+@media (max-width: 380px) { .pc-auth-chars-mobile { height: 98px; margin-bottom: -26px; } }
 @media (max-height: 560px) and (orientation: landscape) { .pc-auth-chars-mobile { display: none; } }
 
 /* Vitrine com a turma: título menor pra caber todo mundo. */

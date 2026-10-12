@@ -25,7 +25,7 @@ function accountNoticeFrom(err) {
 
 const OAUTH_BLOCK_TITLES = { banida: 'Conta banida', suspensa: 'Conta suspensa', desativada: 'Conta desativada' };
 // Tempo do pulinho de comemoração antes de abrir o app.
-const SUCCESS_DELAY_MS = 850;
+const SUCCESS_DELAY_MS = 950;
 
 export default function LoginPage() {
   const { login, applySession, user, loading } = useAuth();

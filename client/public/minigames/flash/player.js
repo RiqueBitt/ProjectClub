@@ -19,6 +19,14 @@
     try { if (window.parent && window.parent !== window) window.parent.postMessage(msg, parentOrigin); } catch (e) { /* ignora */ }
   }
 
+  // Celular: o Ruffle desenha na resolução real da tela (DPR 2,6–3,5 em
+  // muitos Androids), o que pesa e esquenta. Limita a 2 — a diferença não
+  // aparece nesses jogos de 760x480. No PC fica como sempre foi.
+  var coarse = (navigator.maxTouchPoints || 0) > 0 && !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  if (coarse && (window.devicePixelRatio || 1) > 2) {
+    try { Object.defineProperty(window, 'devicePixelRatio', { configurable: true, get: function () { return 2; } }); } catch (e) { /* ignora */ }
+  }
+
   var dir = swf.indexOf('/') === -1 ? '' : swf.slice(0, swf.lastIndexOf('/') + 1);
   var ruffle = window.RufflePlayer && window.RufflePlayer.newest && window.RufflePlayer.newest();
   if (!ruffle) { fail(); return; }
@@ -54,6 +62,33 @@
     return true;
   };
 
+  // Som: o navegador do celular só deixa o AudioContext tocar depois de um
+  // toque. O Project Club chama window.__pcResumeAudio() no primeiro toque
+  // (nos controles ou no jogo) e aqui também tentamos a cada toque/tecla.
+  function audioCtx() {
+    try { var inst = player.instance; return inst && inst.audio_context ? inst.audio_context() : null; } catch (e) { return null; }
+  }
+  window.__pcResumeAudio = function () {
+    var ctx = audioCtx();
+    try { if (ctx && ctx.state !== 'running' && ctx.resume) ctx.resume(); } catch (e) { /* ignora */ }
+  };
+  ['pointerdown', 'touchend', 'keydown'].forEach(function (t) {
+    document.addEventListener(t, window.__pcResumeAudio, true);
+  });
+
+  // Toque: o Ruffle usa o primeiro toque só pra "acordar" o jogo (o botão
+  // tocado não reage). Em vez de parecer travado, mostramos "Toque para
+  // começar" até esse primeiro toque — o próximo já vale no jogo.
+  var touchDevice = coarse;
+  var tapHint = null;
+  function hideTapHint() {
+    if (!tapHint) return;
+    tapHint.classList.add('is-gone');
+    var el = tapHint; tapHint = null;
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 300);
+  }
+  if (touchDevice) document.addEventListener('pointerdown', hideTapHint, true);
+
   window.addEventListener('message', function (e) {
     if (e.origin !== location.origin) return;
     var d = e.data;
@@ -80,6 +115,12 @@
   }).then(function () {
     applyMute();
     toParent({ type: 'pc-minigame-ready' });
+    if (touchDevice && !tapHint) {
+      tapHint = document.createElement('div');
+      tapHint.id = 'tap-hint';
+      tapHint.textContent = 'Toque para começar';
+      document.body.appendChild(tapHint);
+    }
     try { player.focus(); } catch (e) { /* ignora */ }
   }).catch(function () { fail(); });
 })();

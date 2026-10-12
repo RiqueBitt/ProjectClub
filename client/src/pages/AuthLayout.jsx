@@ -107,9 +107,10 @@ export default function AuthLayout({ title, subtitle, children, footer, wide = f
           )}
         </div>
 
-        {charsAboveForm && <AuthCharacters reaction={reaction} className="pc-auth-chars-mobile" />}
-
         <section className="pc-auth-panel" aria-labelledby="pc-auth-title">
+          {/* Celular/tablet: a turma fica à direita, no mesmo "chão" da
+              linha "▶ project club" do cabeçalho. */}
+          {charsAboveForm && <AuthCharacters reaction={reaction} className="pc-auth-chars-mobile" align="right" />}
           <header className="pc-auth-head">
             <h1 id="pc-auth-title">{title}</h1>
             {subtitle && <p>{subtitle}</p>}

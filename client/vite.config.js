@@ -11,6 +11,10 @@ export default defineConfig({
       '/socket.io': { target: 'http://localhost:3000', ws: true },
     },
   },
+  // Nos testes de tela (PW_E2E=1) não há servidor na porta 3000: sem o
+  // proxy, o preview não enche o log de "ws proxy error" a cada tentativa
+  // de reconexão do socket. Fora dos testes, continua igual ao server.
+  ...(process.env.PW_E2E ? { preview: { proxy: {} } } : {}),
   build: {
     outDir: 'dist',
     rollupOptions: {

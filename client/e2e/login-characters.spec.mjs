@@ -17,6 +17,19 @@ const SIZES = [
 const ME = { id: 'u1', username: 'ana', displayName: 'Ana', emailVerified: true, email: 'ana@exemplo.com' };
 
 async function mockApi(page) {
+  // Guarda todo modo/humor por que a turma passou: reações duram ~1,8s e
+  // a máquina de teste pode estar lenta (ex.: o erro do OAuth aparece já
+  // no carregamento da página).
+  await page.addInitScript(() => {
+    window.__pccSeen = [];
+    const note = (el) => {
+      for (const v of [el.dataset.mode, el.dataset.mood]) if (v && !window.__pccSeen.includes(v)) window.__pccSeen.push(v);
+    };
+    new MutationObserver((list) => list.forEach((m) => {
+      if (m.target.classList?.contains('pcc-stage')) note(m.target);
+      m.addedNodes?.forEach((n) => n.querySelectorAll?.('.pcc-stage').forEach(note));
+    })).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-mode', 'data-mood'] });
+  });
   await page.route('**/api/**', (route) => {
     const req = route.request();
     const p = new URL(req.url()).pathname.replace(/^\/api/, '');
@@ -43,7 +56,7 @@ const waitMode = (page, m, extra = null) => page.waitForFunction(([want, sel]) =
   return !sel || !!document.querySelector(sel);
 }, [m, extra], { polling: 'raf', timeout: 15_000 });
 const mode = (page) => page.locator('.pcc-stage').getAttribute('data-mode');
-const pupil = (page) => page.locator('.pcc-roxo .pcc-pupil').first().evaluate((el) => el.style.transform);
+const pupil = (page) => page.locator('.pcc-lila .pcc-pupil').first().evaluate((el) => el.style.transform);
 const shot = (page, size, name) => page.screenshot({ path: `${SHOTS_DIR}/${size}-${name}.png` });
 
 for (const size of SIZES) {
@@ -51,6 +64,8 @@ for (const size of SIZES) {
     test.use({ viewport: { width: size.width, height: size.height } });
 
     test('bonequinhos reagem ao formulário', async ({ page }) => {
+      // Muitas fotos de tela inteira: com a máquina ocupada passa dos 2 min.
+      test.slow();
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
       await mockApi(page);
@@ -86,32 +101,40 @@ for (const size of SIZES) {
       expect(p2).not.toBe(p1); // o cursor andou, as pupilas também
       await shot(page, size.name, '2-digitando');
 
-      // Senha: fecham os olhos / olham pro lado.
+      // Senha: tapam os olhos com as mãozinhas / apertam os olhos sorrindo.
       const pass = page.getByLabel('Senha', { exact: true });
       await pass.click();
       await pass.pressSequentially('senhaErrada1', { delay: 10 });
-      // Laranja de olhos fechados (pálpebra visível, olho aberto escondido).
-      await waitMode(page, 'password', '.pcc-laranja .pcc-lid[style*="opacity: 1"]');
+      // Menta aperta os olhos e o Coral tapa os dele.
+      await waitMode(page, 'password', '.pcc-menta .pcc-eye[data-state="squeeze"]');
+      await expect(page.locator('.pcc-coral .pcc-hands')).toHaveAttribute('data-pose', 'cover');
       await page.waitForTimeout(450);
       await shot(page, size.name, '3-senha');
 
-      // "Mostrar senha" com texto: o roxo espia.
+      // "Mostrar senha" com texto: a Lila espia com um olho só.
       await page.getByRole('button', { name: 'Mostrar senha' }).focus();
       await page.keyboard.press('Enter');
       await expect(pass).toHaveAttribute('type', 'text');
-      await waitMode(page, 'peek', '.pcc-hands');
+      await waitMode(page, 'peek', '.pcc-lila .pcc-hands[data-pose="peek"]');
+      await expect(page.locator('.pcc-lila .pcc-eye').nth(1)).toHaveAttribute('data-state', 'open');
       await page.waitForTimeout(450);
       await shot(page, size.name, '4-espiando');
       await page.keyboard.press('Enter'); // esconde de novo
       await expect(pass).toHaveAttribute('type', 'password');
 
-      // Erro: tremem com cara de espanto/bravos (~1,2s) e voltam.
+      // Erro: susto (sobrancelha lá em cima), depois biquinho bravo, e voltam.
       await page.getByRole('button', { name: 'Entrar', exact: true }).click();
       // Sobrancelha brava aparece no mesmo quadro do modo "error".
-      await waitMode(page, 'error', '.pcc-roxo .pcc-brows[data-on]');
+      await waitMode(page, 'error', '.pcc-lila .pcc-brows[data-on]');
       await expect(page.locator('.pc-alert-error')).toContainText('Credenciais inválidas');
       await page.waitForTimeout(260);
       await shot(page, size.name, '5-erro');
+      // Segunda fase: emburrados (olhos meio fechados).
+      await expect.poll(() => page.evaluate(() => window.__pccSeen.includes('pout')), { timeout: 4000 }).toBe(true);
+      if (await page.locator('.pcc-stage[data-mood="pout"]').count()) {
+        await page.waitForTimeout(300);
+        await shot(page, size.name, '5b-emburrado');
+      }
       await expect.poll(() => mode(page), { timeout: 3000 }).not.toBe('error');
 
       // Nenhum erro de JavaScript nas telas de login (depois do sucesso o
@@ -122,8 +145,10 @@ for (const size of SIZES) {
       await pass.fill('senhaCerta1');
       await page.getByRole('button', { name: 'Entrar', exact: true }).click();
       await waitMode(page, 'success');
-      await page.waitForTimeout(280);
-      await shot(page, size.name, '6-sucesso');
+      await page.waitForTimeout(150);
+      // A foto só vale se ainda estiverem comemorando (máquina lenta pode
+      // já ter aberto o /inicio).
+      if (await page.locator('.pcc-stage[data-mode="success"]').count()) await shot(page, size.name, '6-sucesso');
       await expect(page).toHaveURL(/\/inicio$/);
     });
 
@@ -145,7 +170,7 @@ for (const size of SIZES) {
       await mockApi(page);
       await page.goto('/login?oauth_error=email_existente&provider=github');
       await expect(page.locator('.pc-alert-error')).toContainText('Configurações → Segurança');
-      await expect.poll(() => mode(page)).toBe('error');
+      await expect.poll(() => page.evaluate(() => window.__pccSeen.includes('error'))).toBe(true);
       await expect(page).toHaveURL(/\/login$/);
       await page.waitForTimeout(250);
       await shot(page, size.name, '9-erro-oauth');
