@@ -61,7 +61,7 @@ const BUILTIN_APPS = [
     sizeLabelLinux: '~18 MB (AppImage)',
     requirementsWin: 'Windows 10 ou 11 (64 bits)\nCPU: 4 núcleos (recomendado 6+)\nRAM: 4 GB mínimo — o app usa ~0,8–2 GB (8–16 GB recomendado)\nGPU: Direct3D 12, 2 GB de VRAM (4 GB+ recomendado; ray tracing para o path tracer)\nDisco: ~60 MB + projetos',
     requirementsLinux: 'Linux x86_64 com driver Vulkan 1.1 (Mesa 22+, NVIDIA 470+)\nCPU: 4 núcleos\nRAM: 4 GB mínimo — o app usa ~0,8–2 GB\nGPU: Vulkan 1.1, 2 GB de VRAM\nDisco: ~18 MB + projetos\nBibliotecas: GTK 3 e ALSA (já vêm na maioria das distribuições)',
-    screenshots: shots('texelproject', ['01-modelo-importado.jpg', '02-base-roxa.jpg', '03-cobre-metalico.jpg', '04-camadas.jpg', '05-detalhes-rosa.jpg', '06-editor-de-materiais.jpg', '07-vista-lateral.jpg', '08-vista-de-cima.jpg', '09-textura-2d.jpg', '10-navegador-de-arquivos.jpg', '11-exportar-texturas.jpg', '12-sem-distracoes.jpg']),
+    screenshots: shots('texelproject', ['01-modelo-importado.jpg', '02-base-roxa.jpg', '03-cobre-metalico.jpg', '04-camadas.jpg', '05-detalhes-rosa.jpg', '06-editor-de-materiais.jpg', '07-vista-lateral.jpg', '08-vista-de-cima.jpg', '09-textura-2d.jpg', '10-navegador-de-arquivos.jpg']),
   },
   {
     moduleId: 'forgeproject',
