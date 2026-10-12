@@ -450,19 +450,28 @@ async function login(req, res, next) {
       }
     }
 
-    await maybePromoteToPlatformAdmin(user);
-    if (user.failedLoginAttempts > 0 || user.loginLockedUntil) {
-      await prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, loginLockedUntil: null } });
-    }
-    const userAgent = req.headers['user-agent'];
-    // Checa "aparelho novo" ANTES de criar a sessão deste login (senão a
-    // própria sessão nova sempre "bate" consigo mesma).
-    const newDevice = await isNewDeviceLogin(user.id, userAgent, req.ip);
-    const accessToken = await issueSession(res, user, userAgent, req.ip);
-    if (newDevice) sendNewLoginAlertInBackground(user, userAgent, req.ip);
-    const selfUser = await prisma.user.findUnique({ where: { id: user.id }, select: SELF_USER_FIELDS });
-    res.json({ user: selfUser, accessToken });
+    const session = await completeLogin(req, res, user);
+    res.json(session);
   } catch (err) { next(err); }
+}
+
+// Fim de um login bem-sucedido (senha + 2FA, ou Google/Discord/GitHub +
+// 2FA — ver oauthController.js): zera o contador de erros, emite a sessão
+// (refresh em cookie + access token) e avisa por e-mail se for um
+// aparelho novo. Um lugar só, pra os dois caminhos nunca divergirem.
+async function completeLogin(req, res, user) {
+  await maybePromoteToPlatformAdmin(user);
+  if (user.failedLoginAttempts > 0 || user.loginLockedUntil) {
+    await prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, loginLockedUntil: null } });
+  }
+  const userAgent = req.headers['user-agent'];
+  // Checa "aparelho novo" ANTES de criar a sessão deste login (senão a
+  // própria sessão nova sempre "bate" consigo mesma).
+  const newDevice = await isNewDeviceLogin(user.id, userAgent, req.ip);
+  const accessToken = await issueSession(res, user, userAgent, req.ip);
+  if (newDevice) sendNewLoginAlertInBackground(user, userAgent, req.ip);
+  const selfUser = await prisma.user.findUnique({ where: { id: user.id }, select: SELF_USER_FIELDS });
+  return { user: selfUser, accessToken };
 }
 
 // Janela curtíssima pra corrida de refresh: duas requisições quase
@@ -962,4 +971,5 @@ module.exports = {
   changePassword, deleteAccount,
   recoveryCodesStatus, regenerateRecoveryCodesHandler,
   createEmailVerificationCode, issueSession, REVOKE_REASONS, describeDevice, maskIp,
+  completeLogin, verifyTotpOnce, consumeRecoveryCode, registerFailedLogin, isAccountBlocked,
 };

@@ -203,8 +203,11 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
 .pc-ticker span { display: inline-flex; align-items: center; gap: 22px; padding: 16px 11px 12px; font-family: var(--a-display); font-size: 30px; text-transform: uppercase; color: var(--a-faint); }
 .pc-ticker i { font-style: normal; font-family: inherit; font-size: .45em; color: #fff; }
 @keyframes pc-marquee { to { transform: translateX(-50%); } }
+.pc-auth-grain-clip {
+  position: fixed; inset: 0; z-index: 5; pointer-events: none; overflow: hidden; mix-blend-mode: overlay;
+}
 .pc-auth-grain {
-  position: fixed; inset: -50%; z-index: 5; pointer-events: none; opacity: .055; mix-blend-mode: overlay;
+  position: absolute; inset: -50%; pointer-events: none; opacity: .055;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   animation: pc-grain 1.2s steps(6) infinite;
 }
@@ -464,8 +467,42 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
   .pc-auth-top { margin-bottom: 14px; }
 }
 
+/* ---------- Entrar com Google / Discord / GitHub ---------- */
+.pc-oauth { display: flex; flex-direction: column; gap: 18px; }
+.pc-oauth-compact { gap: 12px; }
+.pc-oauth-compact .pc-oauth-list { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
+.pc-oauth-compact .pc-oauth-divider { margin-top: 6px; }
+.pc-oauth-lead { margin: 0; font-size: 13.5px; font-weight: 600; color: #d6dbe4; }
+.pc-oauth-list { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.pc-auth .pc-oauth-btn {
+  width: 100%; min-height: 46px; padding: 0 16px; gap: 10px; border-radius: 999px;
+  color: var(--a-text); background: rgba(255, 255, 255, 0.035); border-color: var(--a-line-soft);
+  font-weight: 650; font-size: 14.5px;
+}
+.pc-auth .pc-oauth-btn svg { flex-shrink: 0; }
+.pc-auth .pc-oauth-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.28); transform: translateY(-1px); }
+.pc-auth .pc-oauth-btn:active:not(:disabled) { transform: none; }
+.pc-auth .pc-oauth-btn[aria-busy='true'] { opacity: 1; border-color: rgba(255, 255, 255, 0.4); }
+.pc-oauth-divider {
+  display: flex; align-items: center; gap: 12px; color: var(--a-faint);
+  font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+}
+.pc-oauth-divider::before, .pc-oauth-divider::after { content: ''; flex: 1; height: 1px; background: var(--a-line-soft); }
+
+/* Inscrição vinda de um provedor: faixa "será conectada a …". */
+.pc-oauth-pending {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--a-radius);
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--a-line);
+  font-size: 14px; color: #d6dbe4; line-height: 1.45;
+}
+.pc-oauth-pending > svg { flex-shrink: 0; width: 22px; height: 22px; color: #fff; }
+.pc-oauth-pending > div { flex: 1; min-width: 0; }
+.pc-oauth-pending b { color: #fff; }
+
 @media (prefers-reduced-motion: reduce) {
   .pc-auth { scroll-behavior: auto; }
-  .pc-auth-panel, .pc-step-body, .pc-char, .pc-showcase-copy p, .pc-showcase-apps img, .pc-ticker-track, .pc-auth-grain { animation: none; opacity: 1; transform: none; filter: none; }
+  .pc-auth .pc-oauth-btn:hover:not(:disabled) { transform: none; }
+  .pc-auth-panel, .pc-step-body, .pc-char, .pc-showcase-copy p, .pc-showcase-apps img, .pc-ticker-track { animation: none; opacity: 1; transform: none; filter: none; }
+  .pc-auth-grain { animation: none; }
   .pc-auth .pc-btn-primary:hover:not(:disabled) { transform: none; }
 }

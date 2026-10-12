@@ -1,0 +1,121 @@
+/* ============================================================
+   Bonequinhos das telas de autenticação (AuthCharacters.jsx).
+   Só transform/opacity animam. Modo calmo (prefers-reduced-motion
+   ou html[data-lite]) desliga respiração, tremida, pulo e transições.
+   ============================================================ */
+
+.pcc-stage {
+  position: relative;
+  width: 100%;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.pcc-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+
+.pcc-char, .pcc-lean, .pcc-breathe, .pcc-face, .pcc-eye, .pcc-pupil, .pcc-lid, .pcc-mouth, .pcc-brows, .pcc-hands {
+  transform-box: fill-box;
+}
+.pcc-lean {
+  transform-origin: 50% 100%;
+  transition: transform .45s cubic-bezier(.2, .8, .2, 1);
+  will-change: transform;
+}
+.pcc-breathe {
+  transform-origin: 50% 100%;
+  animation: pcc-breathe 3.6s ease-in-out infinite;
+  animation-delay: var(--breath, 0s);
+}
+@keyframes pcc-breathe {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.012, 1.028); }
+}
+.pcc-face { transition: transform .3s cubic-bezier(.2, .8, .2, 1); }
+.pcc-eye {
+  transform-origin: 50% 50%;
+  transition: transform .12s ease, opacity .12s ease;
+}
+.pcc-pupil { transform-origin: 50% 50%; transition: transform .14s cubic-bezier(.2, .8, .2, 1); }
+.pcc-lid { transition: opacity .12s ease; }
+.pcc-mouth {
+  opacity: 0;
+  transform-origin: 50% 50%;
+  transform: scale(.6);
+  transition: opacity .18s ease, transform .25s cubic-bezier(.3, 1.6, .5, 1);
+}
+.pcc-mouth[data-on] { opacity: 1; transform: none; }
+.pcc-brows {
+  opacity: 0;
+  transform-origin: 50% 100%;
+  transform: translateY(4px);
+  transition: opacity .15s ease, transform .2s ease;
+}
+.pcc-brows[data-on] { opacity: 1; transform: none; }
+.pcc-hands { transform-origin: 50% 100%; animation: pcc-hands .35s cubic-bezier(.3, 1.5, .5, 1) both; }
+@keyframes pcc-hands { from { transform: translateY(26px) scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* Erro: tremida de "não acredito" (o grupo é remontado a cada reação,
+   então a animação recomeça mesmo errando duas vezes seguidas). */
+.pcc-stage[data-mode='error'] .pcc-char { animation: pcc-shake .55s cubic-bezier(.36, .07, .19, .97) both; animation-delay: calc(var(--i) * 40ms); transform-origin: 50% 100%; }
+@keyframes pcc-shake {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(4px) rotate(.6deg); }
+  30%, 50%, 70% { transform: translateX(-7px) rotate(-1deg); }
+  40%, 60% { transform: translateX(7px) rotate(1deg); }
+}
+
+/* Sucesso: pulinho com amassadinho na volta. */
+.pcc-stage[data-mode='success'] .pcc-char {
+  transform-origin: 50% 100%;
+  animation: pcc-jump .8s cubic-bezier(.3, .7, .4, 1) both;
+  animation-delay: calc(var(--i) * 70ms);
+}
+@keyframes pcc-jump {
+  0% { transform: none; }
+  18% { transform: scale(1.06, .9); }
+  45% { transform: translateY(-34px) scale(.96, 1.06); }
+  70% { transform: none; }
+  82% { transform: scale(1.05, .93); }
+  100% { transform: none; }
+}
+
+/* Modo calmo. */
+.pcc-stage[data-calm] *,
+html[data-lite] .pcc-stage * {
+  animation: none !important;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pcc-stage * { animation: none !important; transition: none !important; }
+}
+
+/* ---------- Onde a turma aparece ---------- */
+/* PC: no painel da esquerda (vitrine), olhando pro formulário. */
+.pc-showcase-chars {
+  flex: 1 1 auto;
+  min-height: 220px;
+  max-height: 46vh;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.pc-showcase-chars .pcc-stage { height: 100%; max-width: 540px; }
+
+/* Celular/tablet: em cima do formulário, pequena. */
+.pc-auth-chars-mobile {
+  width: 100%;
+  max-width: 440px;
+  height: 128px;
+  margin: -8px 0 14px;
+}
+.pc-auth-wide .pc-auth-chars-mobile { max-width: 640px; }
+@media (max-width: 380px) { .pc-auth-chars-mobile { height: 108px; } }
+@media (max-height: 560px) and (orientation: landscape) { .pc-auth-chars-mobile { display: none; } }
+
+/* Vitrine com a turma: título menor pra caber todo mundo. */
+@media (min-width: 1024px) {
+  .pc-auth-showcase-chars { gap: 28px; }
+  .pc-auth-showcase-chars .pc-showcase-title { font-size: clamp(64px, 6.2vw, 112px); margin-bottom: 12px; }
+  .pc-auth-showcase-chars .pc-showcase-copy p { font-size: 15.5px; }
+}

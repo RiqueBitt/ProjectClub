@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import AuthLayout from './AuthLayout.jsx';
-import { submitApplication } from '../api/endpoints';
+import { submitApplication, getOAuthSignup, cancelOAuthSignup } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
   AuthField, PasswordField, PasswordRules, isPasswordValid, AuthAlert, SubmitButton, apiError,
 } from '../components/auth/AuthFields.jsx';
 import { MailIcon, LockIcon, UserIcon, AtIcon, CheckIcon, ArrowLeftIcon } from '../components/auth/AuthIcons.jsx';
+import { useReaction } from '../components/auth/AuthCharacters.jsx';
+import OAuthButtons, { oauthErrorMessage, PROVIDER_META } from '../components/auth/OAuthButtons.jsx';
 
 const HOW_FOUND_OPTIONS = ['Instagram', 'Facebook', 'Twitter / X', 'Whatsapp', 'Youtube', 'Discord', 'Outros'];
 const INTEREST_OPTIONS = ['Vídeo Games', 'Cultura da internet', 'Assistir vídeos / conteúdo', 'Música'];
@@ -98,6 +100,38 @@ export default function RegisterPage() {
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const panelTopRef = useRef(null);
+  const [reaction, react] = useReaction();
+  const [params, setParams] = useSearchParams();
+  // Inscrição começada com "Inscrever-se com Google/Discord/GitHub": a
+  // identidade fica num cookie assinado no servidor; aqui só mostramos e
+  // pré-preenchemos. Ela é conectada à conta quando a staff aprovar.
+  const [oauthPending, setOauthPending] = useState(null);
+
+  useEffect(() => {
+    const code = params.get('oauth_error');
+    if (code) {
+      setError(oauthErrorMessage(code, params.get('provider')));
+      react('error');
+    }
+    getOAuthSignup().then(({ pending }) => {
+      if (!pending) return;
+      setOauthPending(pending);
+      setForm((f) => ({
+        ...f,
+        email: f.email || pending.email || '',
+        displayName: f.displayName || (pending.name || '').slice(0, 32),
+        username: f.username || pending.username || '',
+      }));
+    }).catch(() => {});
+    if (code || params.get('oauth')) setParams({}, { replace: true });
+    // Só na chegada.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const dropOAuth = () => {
+    cancelOAuthSignup().catch(() => {});
+    setOauthPending(null);
+  };
 
   const onChange = (e) => {
     const { name, value } = e.target;
@@ -141,6 +175,7 @@ export default function RegisterPage() {
     }
     setErrors(e);
     if (Object.keys(e).length) {
+      react('error');
       // Leva o foco pro primeiro campo com problema.
       requestAnimationFrame(() => {
         document.querySelector('.pc-auth .has-error input, .pc-auth .has-error textarea, .pc-auth .has-error select')?.focus();
@@ -181,10 +216,12 @@ export default function RegisterPage() {
         navigate('/', { replace: true });
         return;
       }
+      react('success');
       setSubmitted(true);
     } catch (err) {
       const msg = apiError(err, 'Não foi possível enviar sua inscrição. Tente de novo.');
       setError(msg);
+      react('error');
       // Conflito de e-mail/ClubTag: volta pra etapa da conta.
       if (err?.response?.status === 409) setStep(0);
     } finally {
@@ -194,13 +231,16 @@ export default function RegisterPage() {
 
   if (submitted) {
     return (
-      <AuthLayout title="Inscrição enviada" footer={<>Já foi aprovado? <Link to="/login">Entrar</Link></>}>
+      <AuthLayout title="Inscrição enviada" footer={<>Já foi aprovado? <Link to="/login">Entrar</Link></>} reaction={reaction}>
         <div className="pc-success">
           <span className="pc-success-badge"><CheckIcon width={28} height={28} /></span>
           <p>
             A equipe vai analisar suas respostas. O resultado chega por e-mail em <b>{form.email.trim()}</b>,
             e, se for aprovada, sua conta já vem pronta para entrar.
           </p>
+          {oauthPending && (
+            <p>Quando a inscrição for aprovada, você também vai poder entrar com {oauthPending.label}.</p>
+          )}
           <p className="pc-muted">Confira também a caixa de spam.</p>
         </div>
       </AuthLayout>
@@ -215,6 +255,7 @@ export default function RegisterPage() {
       subtitle="Somos uma comunidade privada: sua conta é criada depois que a equipe aprovar a inscrição."
       footer={<>Já tem uma conta? <Link to="/login">Entrar</Link></>}
       wide
+      reaction={reaction}
     >
       <div ref={panelTopRef} className="pc-scroll-anchor" />
       <ol className="pc-steps" aria-label="Etapas da inscrição">
@@ -229,6 +270,18 @@ export default function RegisterPage() {
       <form onSubmit={onSubmit} className="pc-form" noValidate>
         {step === 0 && (
           <div className="pc-step-body">
+            {oauthPending ? (
+              <div className="pc-oauth-pending" role="status">
+                {(() => { const M = PROVIDER_META[oauthPending.provider]?.Mark; return M ? <M /> : null; })()}
+                <div>
+                  Inscrição com <b>{oauthPending.label}</b>. Ela será conectada à sua conta quando a equipe aprovar.
+                  Crie também uma senha: você pode entrar dos dois jeitos.
+                </div>
+                <button type="button" className="pc-text-btn" onClick={dropOAuth}>Não usar</button>
+              </div>
+            ) : (
+              <OAuthButtons from="register" verb="Inscrever-se com" position="top" compact />
+            )}
             <div className="pc-grid-2">
               <AuthField
                 label="E-mail" icon={MailIcon} type="email" name="email" value={form.email} onChange={onChange}

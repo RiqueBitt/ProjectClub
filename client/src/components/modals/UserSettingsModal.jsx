@@ -74,6 +74,7 @@ import { trackSave, useSaveStatus } from '../../utils/saveIndicator';
 import { useShallow } from 'zustand/react/shallow';
 import { chatZoomSaver, interfaceZoomSaver } from '../../utils/zoomSave';
 import '../../styles/settings.css';
+import ConnectedAccountsBlock from '../auth/ConnectedAccountsBlock.jsx';
 import {
   getPreferredMicId, getPreferredSpeakerId, setPreferredSpeakerId,
   isOutputSelectionSupported, listAudioDevices,
@@ -217,7 +218,18 @@ export default function UserSettingsModal({ onClose }) {
   // normalmente em todo o app — só a EDIÇÃO fica bloqueada, ver também o
   // guard equivalente em server/src/controllers/userController.js).
   const profileColorEditEnabled = !disabledSystems.includes('cores_perfil');
-  const [tab, setTab] = useState('PROFILE');
+  // Volta de "Conectar conta" (OAuthReturnPage) abre direto em Segurança.
+  const [tab, setTab] = useState(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('pc-settings-open-tab') || 'null');
+      if (saved?.tab && Date.now() - saved.at < 60 * 1000) return saved.tab;
+      sessionStorage.removeItem('pc-settings-open-tab');
+    } catch { /* sem sessionStorage */ }
+    return 'PROFILE';
+  });
+  useEffect(() => {
+    if (tab !== 'SECURITY') { try { sessionStorage.removeItem('pc-settings-open-tab'); } catch { /* sem storage */ } }
+  }, [tab]);
   // Busca de configurações (filtra as abas da barra lateral)
   const [settingsQuery, setSettingsQuery] = useState('');
   // Item pedido: verificar todos os sistemas de Configurações e afins —
@@ -1642,6 +1654,8 @@ export default function UserSettingsModal({ onClose }) {
           />
 
           <TwoFactorBlock user={user} setUser={setUser} />
+
+          <ConnectedAccountsBlock />
 
           <div className="settings-block">
             <h4 className="settings-h4-row">Sessões ativas {sessions && <span className="settings-chip">{sessions.length}</span>}</h4>

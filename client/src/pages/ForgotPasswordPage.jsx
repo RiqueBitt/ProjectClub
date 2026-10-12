@@ -4,6 +4,7 @@ import AuthLayout from './AuthLayout.jsx';
 import { forgotPassword } from '../api/endpoints';
 import { AuthField, SubmitButton, AuthAlert } from '../components/auth/AuthFields.jsx';
 import { MailIcon, CheckIcon } from '../components/auth/AuthIcons.jsx';
+import { useReaction } from '../components/auth/AuthCharacters.jsx';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -12,10 +13,11 @@ export default function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [reaction, react] = useReaction();
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    if (!EMAIL_RE.test(email.trim())) { setError('Digite um e-mail válido.'); return; }
+    if (!EMAIL_RE.test(email.trim())) { setError('Digite um e-mail válido.'); react('error'); return; }
     setError('');
     setBusy(true);
     // A resposta é sempre a mesma (existindo conta ou não), pra não
@@ -23,9 +25,10 @@ export default function ForgotPasswordPage() {
     try {
       await forgotPassword(email.trim());
       setSent(true);
+      react('success');
     } catch (err) {
-      if (!err?.response) setError('Sem conexão com o servidor. Verifique sua internet e tente de novo.');
-      else setSent(true);
+      if (!err?.response) { setError('Sem conexão com o servidor. Verifique sua internet e tente de novo.'); react('error'); }
+      else { setSent(true); react('success'); }
     } finally {
       setBusy(false);
     }
@@ -36,6 +39,7 @@ export default function ForgotPasswordPage() {
       title={sent ? 'Confira seu e-mail' : 'Esqueceu sua senha?'}
       subtitle={sent ? null : 'Informe o e-mail da conta e enviaremos um link para criar uma senha nova.'}
       footer={<Link to="/login">Voltar para o login</Link>}
+      reaction={reaction}
     >
       {sent ? (
         <div className="pc-success">

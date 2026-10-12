@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import AuthLayout from './AuthLayout.jsx';
+import { useReaction } from '../components/auth/AuthCharacters.jsx';
 import { resetPassword } from '../api/endpoints';
 import {
   PasswordField, PasswordRules, isPasswordValid, AuthAlert, SubmitButton, apiError,
@@ -14,21 +15,24 @@ export default function ResetPasswordPage() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
+  const [reaction, react] = useReaction();
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    if (!isPasswordValid(password)) { setError('A senha ainda não cumpre os requisitos.'); return; }
-    if (password !== confirm) { setError('As senhas não são iguais.'); return; }
+    if (!isPasswordValid(password)) { setError('A senha ainda não cumpre os requisitos.'); react('error'); return; }
+    if (password !== confirm) { setError('As senhas não são iguais.'); react('error'); return; }
     setError('');
     setBusy(true);
     try {
       await resetPassword(token, password);
       setDone(true);
+      react('success');
       setTimeout(() => navigate('/login', { replace: true }), 2500);
     } catch (err) {
       setError(apiError(err, 'Não foi possível redefinir a senha. O link pode ter expirado.'));
+      react('error');
     } finally {
       setBusy(false);
     }
@@ -45,7 +49,7 @@ export default function ResetPasswordPage() {
 
   if (done) {
     return (
-      <AuthLayout title="Senha alterada" footer={<Link to="/login">Ir para o login</Link>}>
+      <AuthLayout title="Senha alterada" footer={<Link to="/login">Ir para o login</Link>} reaction={reaction}>
         <div className="pc-success">
           <span className="pc-success-badge"><CheckIcon width={28} height={28} /></span>
           <p>Sua senha nova já está valendo. Levando você para o login…</p>
@@ -55,7 +59,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <AuthLayout title="Criar senha nova" subtitle="Escolha uma senha que você não usa em outros sites." footer={<Link to="/login">Voltar para o login</Link>}>
+    <AuthLayout title="Criar senha nova" subtitle="Escolha uma senha que você não usa em outros sites." footer={<Link to="/login">Voltar para o login</Link>} reaction={reaction}>
       <form onSubmit={onSubmit} className="pc-form" noValidate>
         <PasswordField
           label="Nova senha" icon={LockIcon} value={password} onChange={(e) => setPassword(e.target.value)}

@@ -1,140 +1,300 @@
-import { useNavigate } from 'react-router-dom';
-import logo from '../assets/icons/logo-project-club.png';
+import { Link } from 'react-router-dom';
+import DocShell from './public/DocShell.jsx';
+import { Facts, Note } from './public/blogContent.jsx';
 
-// Página pública de transparência — "Proteção e Privacidade" + "Sistema
-// de segurança e denúncia", linkada no rodapé da LandingPage. Reusa as
-// classes .landing-* já existentes (mesmo fundo/nav/tipografia da home)
-// pra não introduzir um segundo estilo visual só pra esta página —
-// só o conteúdo central muda pra um layout de artigo (mais estreito,
-// pensado pra leitura de texto corrido em vez de seções de marketing).
+// Termos de uso + política de privacidade (/termos, e /privacidade, o
+// endereço antigo, que continua valendo).
 //
-// Conteúdo escrito a partir do que o servidor realmente faz hoje — cada
-// afirmação aqui foi conferida contra o código antes de publicar:
-// - Dados de acesso: authController.js (email), canais públicos são
-//   sempre visíveis à staff (mensagens/imagens/gifs, inclusive clãs/
-//   grupos — não são privados).
-// - Sem telemetria/IP: não há nenhum serviço de analytics/tracking no
-//   projeto; honeypot.js registra IP só de quem bate em rotas-isca
-//   (scanners), não de uso normal.
-// - Chamadas de voz: Agora.io é usado só pra transporte em tempo real,
-//   não há gravação/armazenamento de áudio em lugar nenhum do código.
-// - 2FA: authController.js (ativar/desativar, verificação no login) —
-//   real e funcional.
-// - Gatilhos de canal público: services/automod.js — automático (a
-//   staff já tem acesso a canais públicos de qualquer forma, então
-//   bloquear na hora protege sem violar privacidade nenhuma).
-// - Gatilhos de DM: services/dmAutomod.js + model AutomodFlag — a
-//   mensagem É enviada normalmente, só fica sinalizada pra staff
-//   revisar depois (revisão manual de verdade, não automática).
-// - Denúncia manual: controllers/reportController.js + model Report —
-//   qualquer usuário pode denunciar uma mensagem de canal ou DM.
-// - Punição após revisão: hoje é um passo separado da resolução do
-//   caso — a staff marca "ação tomada" e aplica o castigo/banimento
-//   pelo menu de Usuários, não é uma única ação automática.
-// - Pote de Mel: middleware/honeypot.js — sistema à parte, de defesa
-//   de infraestrutura contra bots/scanners tentando achar painéis de
-//   admin falsos; não tem relação com moderação de mensagens.
-export default function PrivacyPage() {
-  const navigate = useNavigate();
+// Tudo aqui foi conferido no código antes de entrar no texto:
+// - dados: server/prisma/schema.prisma (User, MembershipApplication,
+//   RefreshToken.ipAddress/userAgent, SecurityLog.ipHash, PushToken,
+//   Message/Attachment/FileAsset, EconomyTransaction, GamePlaytime,
+//   Report/AutomodFlag, HoneypotHit/BlockedIp);
+// - IP mascarado: maskIp() em controllers/authController.js; hash do IP:
+//   services/securityLog.js; erros: services/errorRing.js (50 em memória)
+//   e routes/system.js (/client-error);
+// - prazos: códigos de e-mail (15 min, 48 h na aprovação), link de senha
+//   (1 h), cookie de sessão (REFRESH_TOKEN_TTL_DAYS, 30 dias por padrão),
+//   pcKeep (60 dias, services/sessionKeep.js). NÃO existe rotina de
+//   limpeza automática de dados antigos: se uma for criada, atualize a
+//   seção "Quanto tempo guardamos";
+// - exclusão: deleteAccount() só DESATIVA (accountDisabledAt);
+// - terceiros: config/b2.js, agoraController, pushNotifications (FCM),
+//   youtube-nocookie (YouTubeWatch), Klipy (GifPicker), GitHub (releases),
+//   mod.io/Nexus/GameBanana/Thunderstore/Steam (services/*Service.js),
+//   Square Cloud (hospedagem, projectclub.squareweb.app);
+// - moderação: services/automod.js, dmAutomod.js, reportController.js,
+//   middleware/honeypot.js.
 
+const UPDATED = 'Atualizado em 12 de outubro de 2026';
+
+function DataTable({ rows }) {
   return (
-    <div className="landing-page">
-      <div className="landing-bg-grid" />
-
-      <nav className="landing-nav">
-        <div className="landing-brand" style={{ cursor: 'pointer' }} onClick={() => navigate('/')}>
-          <img className="landing-brand-mark" src={logo} alt="" /><span>PROJECT CLUB</span>
+    <div className="tm-table" role="table" aria-label="Dados coletados">
+      <div className="tm-row is-head" role="row">
+        <span role="columnheader">Dado</span><span role="columnheader">Para quê</span><span role="columnheader">Por quanto tempo</span>
+      </div>
+      {rows.map(([what, why, keep]) => (
+        <div className="tm-row" role="row" key={what}>
+          <span role="cell"><b>{what}</b></span>
+          <span role="cell">{why}</span>
+          <span role="cell">{keep}</span>
         </div>
-        <button className="landing-nav-cta" onClick={() => navigate('/login')}>Entrar</button>
-      </nav>
-
-      <main>
-        <section className="legal-doc">
-          <h1>Proteção e Privacidade</h1>
-          <p className="legal-doc-updated">Como o Project Club lida com os dados e mensagens da comunidade.</p>
-
-          <h2>🟢 Dados que temos acesso</h2>
-          <p><em>Clubes e grupos não são privados — temos acesso a eles como qualquer outro canal público.</em></p>
-          <ul>
-            <li>E-mail</li>
-            <li>Mensagens de canais públicos (Comunidade, Clubes, Fórum e Grupos)</li>
-            <li>Imagens e GIFs enviados em canais públicos</li>
-          </ul>
-
-          <h2>🔴 Dados que não temos acesso</h2>
-          <p><em>Não existe telemetria de dados na plataforma — essa função nem existe aqui.</em></p>
-          <ul>
-            <li>Endereço de IP</li>
-            <li>Gravações ou registros de chamadas de voz</li>
-            <li>
-              Fotos, mensagens e mensagens de voz de chats privados
-              (só temos acesso caso sejam denunciadas ou acionem nosso sistema de gatilhos — ver abaixo)
-            </li>
-          </ul>
-
-          <h2>🔐 Implementações de segurança</h2>
-          <ul>
-            <li><b>Autenticação de dois fatores (2FA)</b> — pode ser ativada nas configurações da conta.</li>
-          </ul>
-
-          <h2>Sistema de segurança e denúncia</h2>
-          <p>
-            As únicas mensagens privadas que existem são as de chats privados entre amigos.
-            Só temos acesso a uma mensagem privada quando ela é <b>denunciada</b> por alguém
-            ou aciona nosso <b>sistema de gatilhos</b> — nunca por acompanhamento de rotina.
-          </p>
-
-          <h3>Gatilhos</h3>
-          <p>
-            Em canais públicos, certas mensagens (spam, links não permitidos, palavras
-            bloqueadas, envio excessivo) são bloqueadas automaticamente no momento do envio —
-            já que a staff tem acesso normal a canais públicos de qualquer forma, isso protege
-            a comunidade sem precisar de revisão antes.
-          </p>
-          <p>
-            Em mensagens privadas, o critério é mais conservador: a mensagem é enviada
-            normalmente (quem manda e quem recebe não percebem nada diferente), mas se
-            contiver uma palavra sinalizada, fica registrada para um membro da staff revisar
-            depois — sem entrar na conversa a menos que isso aconteça.
-          </p>
-
-          <h3>Formulário de denúncia</h3>
-          <p>
-            Qualquer mensagem, de canal público ou privado, pode ser denunciada diretamente
-            pelo menu de ações dela, com um motivo. A denúncia entra na mesma fila de revisão
-            manual da staff.
-          </p>
-
-          <h3>Como funciona a revisão</h3>
-          <ol>
-            <li>Uma mensagem é sinalizada (por gatilho) ou denunciada por alguém.</li>
-            <li>Um membro da staff analisa o caso — no caso de mensagem privada, só o
-              necessário da conversa para entender o contexto, e ninguém envolvido é avisado
-              dessa análise.</li>
-            <li>A staff decide se a mensagem é uma infração ou está segura.</li>
-            <li>
-              Se for uma infração, a staff aplica a penalidade conforme a gravidade:{' '}
-              <b>Castigo</b> (fica temporariamente impedido de enviar mensagens ou entrar em
-              chamadas) ou <b>Banimento</b>.
-            </li>
-          </ol>
-
-          <h3>Pote de mel (Honeypot)</h3>
-          <p>
-            Sistema à parte, sem relação com mensagens de usuários — defende a infraestrutura
-            contra bots e scanners automatizados que tentam encontrar painéis administrativos,
-            arquivos de configuração ou credenciais vazadas. Qualquer tentativa de acesso a
-            essas rotas-isca bloqueia o IP de origem automaticamente por um período.
-          </p>
-        </section>
-      </main>
-
-      <footer className="landing-footer">
-        <div className="landing-footer-col">
-          <div className="landing-footer-brand landing-pixel">PROJECT CLUB</div>
-          <div className="landing-footer-note">Feito pela comunidade, para a comunidade.</div>
-        </div>
-      </footer>
+      ))}
     </div>
+  );
+}
+
+function Store({ rows }) {
+  return (
+    <dl className="tm-store">
+      {rows.map(([name, kind, d]) => (
+        <div key={name}><dt><code>{name}</code><small>{kind}</small></dt><dd>{d}</dd></div>
+      ))}
+    </dl>
+  );
+}
+
+const SECTIONS = [
+  {
+    id: 'resumo', group: 'Resumo', title: 'Em resumo',
+    body: (
+      <>
+        <p className="wk-lead">A versão curta, antes dos detalhes:</p>
+        <ul className="tm-short">
+          <li><b>Guardamos o necessário para a comunidade funcionar:</b> conta, perfil, o que você publica e as sessões de login.</li>
+          <li><b>Não vendemos dados, não mostramos anúncios e não usamos rastreadores</b> de análise ou publicidade.</li>
+          <li><b>Mensagens privadas entre duas pessoas</b> só são vistas pela staff quando denunciadas ou quando acionam um gatilho de segurança.</li>
+          <li><b>Chamadas de voz não são gravadas.</b></li>
+          <li><b>Você pode corrigir, desativar e pedir a remoção</b> dos seus dados, como manda a LGPD.</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    id: 'termos', group: 'Termos de uso', title: 'Termos de uso',
+    body: (
+      <>
+        <p className="wk-lead">Ao criar uma conta ou usar o site, os apps de computador e o app de Android, você concorda com estes termos e com a política de privacidade abaixo.</p>
+        <h3>A comunidade</h3>
+        <p>O Project Club é uma comunidade privada e gratuita. A conta só existe depois que a staff aprova a sua inscrição, e a staff pode recusar uma inscrição sem precisar justificar.</p>
+        <h3>Sua conta</h3>
+        <p>A conta é pessoal. Você responde pelo que acontece nela, então use uma senha só sua (pelo menos 8 caracteres, com letras e números) e, se puder, ligue a verificação em duas etapas. Não compartilhe a conta nem crie contas para fugir de uma punição.</p>
+        <h3>Regras de convivência</h3>
+        <ul>
+          <li>Trate as pessoas com respeito. Assédio, ameaça, discurso de ódio e exposição de dados de terceiros não são aceitos.</li>
+          <li>Nada de spam, golpes, links maliciosos ou conteúdo ilegal.</li>
+          <li>Conteúdo sexual explícito e violência gráfica não são permitidos.</li>
+          <li>Não tente burlar a moderação, explorar falhas ou atrapalhar o serviço. Se achar uma falha, avise a staff pelo Suporte.</li>
+        </ul>
+        <h3>O que você publica</h3>
+        <p>O que você posta continua sendo seu. Ao publicar, você permite que o Project Club guarde e mostre esse conteúdo para quem tem acesso a ele, só para fazer a comunidade funcionar. Publique apenas o que você tem direito de compartilhar.</p>
+        <h3>Os apps</h3>
+        <p>Os programas da aba Apps são versões de projetos de código aberto. Cada um segue a licença do projeto original (MIT, GPL, zlib e outras), que vale acima destes termos para o próprio programa. Eles são oferecidos como estão, sem garantia de funcionamento em todos os computadores.</p>
+        <h3>Punições</h3>
+        <p>Quem descumpre as regras pode receber castigo (sem mandar mensagens nem entrar em chamadas por um tempo), suspensão ou banimento, conforme a gravidade. Veja como funciona em <a href="#moderacao">Moderação</a>.</p>
+      </>
+    ),
+  },
+  {
+    id: 'dados', group: 'Privacidade', title: 'Dados que coletamos',
+    body: (
+      <>
+        <p className="wk-lead">Esta é a lista completa do que fica guardado no servidor, de onde vem e por quanto tempo.</p>
+        <DataTable rows={[
+          ['E-mail, nome de usuário, nome de exibição e senha', 'Criar a conta, entrar e mandar códigos e avisos. A senha nunca é guardada como texto: só um hash bcrypt.', 'Enquanto a conta existir.'],
+          ['Data de nascimento e respostas da inscrição', 'A staff analisar a inscrição. A data também aparece em aniversariantes.', 'Enquanto a conta existir.'],
+          ['Perfil', 'Foto, banners, bio, status, conexões e o que mais você escolher preencher, para mostrar aos outros.', 'Até você mudar ou apagar.'],
+          ['Mensagens, posts, comentários, reações e enquetes', 'Entregar e exibir a conversa. Mensagens editadas guardam as versões anteriores.', 'Até você apagar. Ao apagar, o texto sai da conversa; versões anteriores de uma mensagem editada e os anexos continuam guardados.'],
+          ['Arquivos enviados', 'Imagens, GIFs e anexos que você manda no chat, no perfil e no fórum.', 'Até você ou a staff removerem.'],
+          ['Sessões de login', 'IP, navegador e sistema de cada aparelho conectado, com data de início e de último uso. Você vê o IP mascarado (só os dois primeiros blocos); a staff pode usar o IP completo para identificar abuso e contas duplicadas.', 'O registro fica no histórico da conta; a sessão em si expira em 30 dias sem uso.'],
+          ['Registro de segurança', 'Troca de senha, sessões encerradas, e-mail alterado e conexões adicionadas, com o aparelho e um hash do IP (nunca o IP em si).', 'Enquanto a conta existir.'],
+          ['Token de notificação', 'Um token por aparelho Android para entregar notificações com o app fechado.', 'Até você sair do aparelho ou o token deixar de valer.'],
+          ['Economia e progresso', 'Moedas, gemas, XP, nível, conquistas, missões e o histórico de transações.', 'Enquanto a conta existir.'],
+          ['Jogos (app de PC)', 'Jogos detectados no computador e tempo de jogo, para a biblioteca e o status "jogando".', 'Enquanto a conta existir.'],
+          ['Denúncias e moderação', 'Denúncias, mensagens sinalizadas por gatilho, punições e o registro das ações da staff.', 'Enquanto for necessário para a segurança da comunidade.'],
+          ['Erros de tela', 'Quando uma tela quebra, o app manda a mensagem do erro, o endereço da página e o trecho técnico do código. Sem dados da conversa.', 'Os últimos 50 ficam em memória e somem quando o servidor reinicia; também passam pelo log do servidor.'],
+          ['Acessos a rotas-isca', 'IP, endereço e navegador de robôs que procuram painéis e arquivos sensíveis (pote de mel).', 'O bloqueio do IP vale por um período.'],
+        ]} />
+        <Note title="O que não coletamos">Não há ferramentas de análise, pixels de publicidade nem telemetria de uso. Chamadas de voz e telas compartilhadas não são gravadas. O seu token de acesso fica só na memória da aba, nunca no armazenamento do navegador.</Note>
+      </>
+    ),
+  },
+  {
+    id: 'finalidade', group: 'Privacidade', title: 'Por que usamos',
+    body: (
+      <>
+        <p className="wk-lead">Cada uso tem uma base na Lei Geral de Proteção de Dados (Lei 13.709/2018).</p>
+        <Facts items={[
+          ['Fazer o serviço funcionar', 'Conta, login, mensagens, voz, perfil e economia. Base: execução do contrato que você aceita ao se cadastrar.'],
+          ['Proteger a comunidade', 'Sessões, IPs, registro de segurança, AutoMod, denúncias e pote de mel. Base: legítimo interesse em manter as contas e o serviço seguros.'],
+          ['O que é opcional', 'Conexões, bio, banners, biblioteca de jogos e notificações. Base: o seu consentimento, que você retira apagando ou desligando.'],
+          ['Quando a lei pedir', 'Guardar ou entregar dados a uma autoridade quando houver ordem legal. Base: cumprimento de obrigação legal.'],
+        ]} />
+        <p>Não usamos seus dados para publicidade, não traçamos perfil de consumo e não vendemos nem alugamos nada a ninguém.</p>
+      </>
+    ),
+  },
+  {
+    id: 'retencao', group: 'Privacidade', title: 'Quanto tempo guardamos',
+    body: (
+      <>
+        <p className="wk-lead">Os dados da conta ficam guardados enquanto a conta existir. Uma limpeza automática roda todo dia e apaga o que é temporário: sessões vencidas há mais de 30 dias, links de senha e códigos de e-mail vencidos há mais de 7 dias, códigos de recuperação já usados há mais de 90 dias, atividades com mais de 90 dias, avisos já lidos com mais de 90 dias e registros de erro sem ocorrência há mais de 30 dias.</p>
+        <Facts items={[
+          ['Código de verificação', '15 minutos. O que chega depois da aprovação da inscrição vale 48 horas.'],
+          ['Link de nova senha', '1 hora, e só funciona uma vez.'],
+          ['Sessão de login', 'O cookie expira em 30 dias sem uso. O "lembrar login" vale até 60 dias.'],
+          ['Mensagem apagada', 'O texto sai da conversa na hora. Versões anteriores (se ela foi editada) e anexos continuam guardados até um pedido de remoção.'],
+          ['Erros de tela', 'Os últimos 50, em memória, até o servidor reiniciar.'],
+          ['Conta desativada', 'Os dados continuam guardados até você pedir a remoção (veja abaixo).'],
+        ]} />
+      </>
+    ),
+  },
+  {
+    id: 'direitos', group: 'Privacidade', title: 'Seus direitos',
+    body: (
+      <>
+        <p className="wk-lead">A LGPD garante a você, a qualquer momento:</p>
+        <ul className="tm-rights">
+          <li><b>Confirmação e acesso</b><span>saber se tratamos seus dados e receber uma cópia deles.</span></li>
+          <li><b>Correção</b><span>arrumar dados incompletos ou errados.</span></li>
+          <li><b>Exclusão</b><span>pedir que dados desnecessários ou tratados com o seu consentimento sejam apagados ou anonimizados.</span></li>
+          <li><b>Portabilidade</b><span>receber os seus dados num formato que dá para levar a outro serviço.</span></li>
+          <li><b>Informação</b><span>saber com quem compartilhamos os dados (a lista está em <a href="#terceiros">Serviços de terceiros</a>).</span></li>
+          <li><b>Revogação</b><span>retirar o consentimento do que é opcional.</span></li>
+        </ul>
+        <h3>Como pedir</h3>
+        <Facts items={[
+          ['Corrigir', 'Quase tudo se corrige sozinho em Configurações: nome, perfil, e-mail, senha e privacidade.'],
+          ['Desativar a conta', 'Configurações → "Excluir conta", confirmando com a senha. A conta é desativada na hora, todas as sessões caem e ninguém mais consegue entrar nela. Para reativar, fale com a equipe.'],
+          ['Cópia ou remoção dos dados', 'Abra um ticket no Suporte, dentro do app, dizendo o que você quer. Respondemos em até 15 dias.'],
+          ['Sem acesso à conta', 'Use o contato do fim desta página. Não publique dados pessoais em lugar público.'],
+        ]} />
+        <Note>Desativar não é o mesmo que apagar: mensagens antigas continuam onde estavam para não quebrar as conversas dos outros. Se quiser que os dados sejam removidos ou anonimizados, peça pelo Suporte.</Note>
+      </>
+    ),
+  },
+  {
+    id: 'cookies', group: 'Privacidade', title: 'Cookies e armazenamento local',
+    body: (
+      <>
+        <p className="wk-lead">Usamos só dois cookies, os dois de login, e guardamos preferências no seu navegador. Nenhum cookie de publicidade ou de análise.</p>
+        <Store rows={[
+          ['refreshToken', 'cookie httpOnly · 30 dias', 'Renova o seu login sem pedir a senha de novo. O JavaScript da página não consegue ler, e ele só é enviado para o endereço de login do servidor.'],
+          ['pcKeep', 'cookie httpOnly · até 60 dias', '"Lembrar login": criptografado e assinado pelo servidor, guarda só o seu identificador. Cai junto quando você sai de todas as sessões ou troca a senha.'],
+          ['Preferências', 'armazenamento local', 'Tema, layout, zoom, estilo dos emojis, volume e fila do player, aba aberta e opções parecidas. Ficam só no seu aparelho.'],
+        ]} />
+        <p>O player do YouTube das chamadas usa o domínio youtube-nocookie.com, a versão do YouTube com menos cookies.</p>
+      </>
+    ),
+  },
+  {
+    id: 'terceiros', group: 'Privacidade', title: 'Serviços de terceiros',
+    body: (
+      <>
+        <p className="wk-lead">Alguns serviços externos fazem parte do funcionamento. Cada um recebe só o necessário para a sua parte.</p>
+        <Facts items={[
+          ['Square Cloud', 'Hospeda o site e o servidor do Project Club.'],
+          ['Backblaze B2', 'Guarda os arquivos enviados (fotos, banners, anexos). As imagens passam pelo nosso servidor antes de chegar a você, então o B2 não vê o seu IP.'],
+          ['Agora', 'Transmite voz e tela das chamadas em tempo real. Nada é gravado.'],
+          ['Firebase Cloud Messaging (Google)', 'Entrega as notificações do app de Android.'],
+          ['YouTube', 'Vídeos assistidos juntos nas chamadas, o player de música e os vídeos do canal na página Início do app.'],
+          ['Klipy', 'Busca de GIFs: o termo que você digita na busca de GIFs vai para eles.'],
+          ['GitHub', 'Hospeda o código, os instaladores e as atualizações do app e dos programas.'],
+          ['Fontes de mods', 'mod.io, Nexus Mods, GameBanana, Thunderstore e Steam, para buscar mods e capas de jogos. No ProjectMC, Modrinth e CurseForge.'],
+          ['E-mail', 'Um servidor de envio de e-mail entrega códigos de verificação, links de senha e avisos de login novo.'],
+        ]} />
+        <p>Para montar a prévia de um link, quem visita a página é o nosso servidor, não o seu navegador.</p>
+      </>
+    ),
+  },
+  {
+    id: 'seguranca', group: 'Privacidade', title: 'Segurança',
+    body: (
+      <>
+        <p className="wk-lead">Nenhum sistema é perfeito, mas a conta tem várias camadas.</p>
+        <Facts items={[
+          ['Senhas', 'Guardadas só como hash bcrypt.'],
+          ['Duas etapas', 'Verificação por app autenticador, com 10 códigos de recuperação de uso único guardados só como hash.'],
+          ['Sessões', 'Tokens guardados como hash e trocados a cada renovação. Se um token antigo for reaproveitado, a sessão é derrubada como possível roubo.'],
+          ['Avisos', 'Login de um aparelho ou rede nova gera um aviso por e-mail.'],
+          ['Limites', 'Tentativas de login, de código e de cadastro têm limite por tempo.'],
+          ['Prévias seguras', 'O servidor só busca links públicos e bloqueia endereços internos.'],
+        ]} />
+        <p>Se você perceber algo estranho na sua conta, troque a senha (isso encerra as outras sessões) e avise a staff pelo Suporte.</p>
+      </>
+    ),
+  },
+  {
+    id: 'moderacao', group: 'Privacidade', title: 'Moderação e acesso da staff',
+    body: (
+      <>
+        <p className="wk-lead">A staff vê o que é público na comunidade. Conversas privadas entre duas pessoas só chegam à staff em dois casos.</p>
+        <Facts items={[
+          ['Visível para a staff', 'Canais da comunidade, fórum, chats de clã e grupos, com as imagens e GIFs enviados neles.'],
+          ['Privado', 'DMs entre duas pessoas. Só são vistas quando denunciadas ou quando acionam um gatilho.'],
+          ['Canais públicos', 'O AutoMod barra na hora spam, links não permitidos, palavras bloqueadas e envio em excesso.'],
+          ['DMs', 'A mensagem é entregue normalmente. Se tiver uma palavra sinalizada, fica registrada para revisão, sem ninguém entrar na conversa por isso.'],
+        ]} />
+        <h3>Como funciona a revisão</h3>
+        <ol className="tm-flow">
+          <li>Uma mensagem é sinalizada por gatilho ou denunciada pelo menu dela.</li>
+          <li>Alguém da staff analisa. Numa DM, só o necessário da conversa para entender o contexto. Ninguém envolvido é avisado da análise.</li>
+          <li>A staff decide se houve infração.</li>
+          <li>Se houve, aplica castigo ou banimento conforme a gravidade.</li>
+        </ol>
+      </>
+    ),
+  },
+  {
+    id: 'menores', group: 'Privacidade', title: 'Menores de idade',
+    body: (
+      <>
+        <p>A inscrição pede a data de nascimento, e a staff leva a idade em conta na análise. Se você tem menos de 18 anos, use o Project Club com o conhecimento de um responsável.</p>
+        <p>Pais e responsáveis podem pedir acesso, correção ou remoção dos dados de um menor pelo contato abaixo. Dados de crianças e adolescentes são tratados no melhor interesse deles, como pede o artigo 14 da LGPD.</p>
+      </>
+    ),
+  },
+  {
+    id: 'mudancas', group: 'Final', title: 'Mudanças nestes termos',
+    body: (
+      <p>Quando algo mudar aqui, a data no topo muda junto. Mudanças importantes, como um novo serviço de terceiros ou um novo tipo de dado, também são avisadas nos Anúncios da comunidade antes de valerem.</p>
+    ),
+  },
+  {
+    id: 'contato', group: 'Final', title: 'Contato',
+    body: (
+      <>
+        <p>Para qualquer pedido sobre os seus dados ou sobre estes termos, abra um ticket no <b>Suporte</b>, dentro do app. É o canal mais rápido, e a conversa fica registrada só entre você e a staff.</p>
+        <p>Sem acesso à conta, abra uma issue no <a href="https://github.com/RiqueBitt/ProjectClub/issues" target="_blank" rel="noreferrer">repositório do Project Club no GitHub</a> pedindo contato, sem escrever dados pessoais nela, e a staff responde por um canal privado.</p>
+        <p className="tm-back"><Link to="/blog">Quer saber como cada parte funciona? Leia o Blog.</Link></p>
+      </>
+    ),
+  },
+];
+
+function HeroArt() {
+  return (
+    <div className="tm-badges" aria-hidden="true">
+      <div><strong>0</strong><span>anúncios e rastreadores</span></div>
+      <div><strong>2</strong><span>cookies, os dois de login</span></div>
+      <div><strong>bcrypt</strong><span>para as senhas</span></div>
+      <div><strong>LGPD</strong><span>acesso, correção e exclusão</span></div>
+    </div>
+  );
+}
+
+export default function PrivacyPage() {
+  return (
+    <DocShell
+      page="termos"
+      kicker="Termos de uso e política de privacidade"
+      title="Termos de privacidade"
+      lede="O que você combina com a gente ao usar o Project Club, quais dados ficam guardados, por quanto tempo e como pedir uma cópia, uma correção ou a exclusão."
+      meta={UPDATED}
+      heroArt={<HeroArt />}
+      sections={SECTIONS}
+    />
   );
 }

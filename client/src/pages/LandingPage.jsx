@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import logo from '../assets/icons/logo-project-club.png';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Ico } from '../components/PagesKit.jsx';
+import { PublicFooter, PublicHeader, usePublicScrollChrome } from './public/PublicChrome.jsx';
 import '../styles/landing.css';
 
 // Página inicial pública (vitrine + download).
@@ -67,26 +67,6 @@ function useReveal() {
     }, { root, threshold: 0.12 });
     document.querySelectorAll('.lp-reveal').forEach((el) => io.observe(el));
     return () => io.disconnect();
-  }, []);
-}
-
-// Topo com vidro depois de rolar + barra de progresso.
-function useScrollChrome() {
-  useEffect(() => {
-    const root = document.querySelector('.lp');
-    if (!root) return undefined;
-    let raf = 0;
-    const onScroll = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const max = root.scrollHeight - root.clientHeight;
-        root.style.setProperty('--progress', max > 0 ? (root.scrollTop / max).toFixed(4) : '0');
-        root.classList.toggle('is-scrolled', root.scrollTop > 24);
-      });
-    };
-    root.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-    return () => { root.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); };
   }, []);
 }
 
@@ -371,8 +351,9 @@ const AppStage = forwardRef(function AppStage({ versions }, apiRef) {
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   useReveal();
-  useScrollChrome();
+  usePublicScrollChrome();
   const [platform] = useState(detectPlatform);
   const [copied, setCopied] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
@@ -387,21 +368,28 @@ export default function LandingPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
   const jump = (id) => document.getElementById(id)?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth' });
+  // Vindo de outra página pública com "/#secao": rola até a seção.
+  useEffect(() => {
+    const id = decodeURIComponent((location.hash || '').slice(1));
+    if (!id) return undefined;
+    const t = setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'auto' }), 60);
+    return () => clearTimeout(t);
+  }, [location.hash]);
   const cmdActions = [
     { key: 'go-dl', label: 'Baixar o Project Club', hint: 'Windows, Linux e Android', glyph: '↓', run: () => jump('download') },
     { key: 'go-login', label: 'Entrar', hint: 'Já tenho conta', glyph: '→', run: () => navigate('/login') },
     { key: 'go-reg', label: 'Criar conta', hint: 'Grátis, leva um minuto', glyph: '+', run: () => navigate('/register') },
     { key: 'go-com', label: 'Comunidade', hint: 'Chat, voz, fórum e conquistas', glyph: '#', run: () => jump('comunidade') },
-    { key: 'go-faq', label: 'Perguntas', hint: 'Preço, dados e atualizações', glyph: '?', run: () => jump('perguntas') },
+    { key: 'go-faq', label: 'Perguntas', hint: 'Preço, requisitos e atualizações', glyph: '?', run: () => jump('perguntas') },
+    { key: 'go-blog', label: 'Blog', hint: 'O guia completo do Project Club', glyph: '¶', run: () => navigate('/blog') },
+    { key: 'go-terms', label: 'Termos de privacidade', hint: 'Termos de uso e dados', glyph: '§', run: () => navigate('/termos') },
   ];
 
   const goLogin = () => navigate('/login');
   const goRegister = () => navigate('/register');
-  const toTop = (e) => { e.preventDefault(); document.querySelector('.lp')?.scrollTo({ top: 0, behavior: 'smooth' }); };
   const copyLink = async () => {
     try { await navigator.clipboard.writeText('https://projectclub.squareweb.app'); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* sem área de transferência */ }
   };
-  const year = new Date().getFullYear();
 
   return (
     <div className="lp">
@@ -409,25 +397,7 @@ export default function LandingPage() {
       <div className="lp-progress" aria-hidden="true" />
       <div className="lp-grain" aria-hidden="true" />
 
-      <header className="lp-top">
-        <a className="lp-logo" href="#" onClick={toTop} aria-label="Project Club, início">
-          <img src={logo} alt="" width="34" height="34" />
-        </a>
-        <nav className="lp-menu" aria-label="Seções">
-          <a href="#apps">Apps</a>
-          <a href="#comunidade">Comunidade</a>
-          <a href="#download">Download</a>
-          <a href="#perguntas">Perguntas</a>
-        </nav>
-        <div className="lp-top-actions">
-          <button type="button" className="lp-search" onClick={() => setCmdOpen(true)} aria-label="Busca rápida (Ctrl+K)">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="m20 20-4.2-4.2M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z" /></svg>
-            <span>Buscar</span><kbd>Ctrl K</kbd>
-          </button>
-          <button type="button" className="lp-link" onClick={goLogin}>Entrar</button>
-          <button type="button" className="lp-btn is-accent is-sm" onClick={goRegister}>Criar conta</button>
-        </div>
-      </header>
+      <PublicHeader page="inicio" onSearch={() => setCmdOpen(true)} />
 
       <main id="conteudo">
         <section className="lp-hero" aria-labelledby="titulo">
@@ -530,8 +500,8 @@ export default function LandingPage() {
                 <p>Sozinho. O Project Club busca a versão nova ao abrir, e cada programa mostra um botão de atualizar quando sai uma versão.</p>
               </details>
               <details>
-                <summary>E os meus dados?</summary>
-                <p>Ficam no nosso servidor, com verificação em duas etapas opcional e sessões visíveis por aparelho. Os detalhes estão na página de <button type="button" className="lp-inline" onClick={() => navigate('/privacidade')}>proteção e privacidade</button>.</p>
+                <summary>Roda em PC fraco?</summary>
+                <p>A comunidade sim: ela abre em qualquer navegador atual e no Android. Os programas variam. O WaveProject pede 2 GB de RAM, o GameProject e o CanvasProject pedem 4 GB, e o ForgeProject, que faz 3D e render, pede 8 GB. Todos rodam em Windows 10 ou 11 de 64 bits e em Linux, e a página de cada app mostra os requisitos completos antes de instalar.</p>
               </details>
             </div>
           </div>
@@ -548,25 +518,7 @@ export default function LandingPage() {
 
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} onPickApp={(i) => stageRef.current?.goTo(i)} actions={cmdActions} />
 
-      <footer className="lp-foot">
-        <div className="lp-foot-brand">
-          <img src={logo} alt="" width="28" height="28" />
-          <span>Project Club</span>
-          <small>Comunidade e apps de criação, feitos pela comunidade.</small>
-        </div>
-        <nav className="lp-foot-nav" aria-label="Rodapé">
-          <a href="#apps">Apps</a>
-          <a href="#comunidade">Comunidade</a>
-          <a href="#download">Download</a>
-          <a href="#perguntas">Perguntas</a>
-          <a href="https://github.com/RiqueBitt/ProjectClub" target="_blank" rel="noreferrer">GitHub</a>
-          <button type="button" className="lp-link" onClick={() => navigate('/privacidade')}>Privacidade</button>
-        </nav>
-        <div className="lp-foot-meta">
-          <span>© {year} Project Club</span>
-          <a href="#" onClick={toTop}>Voltar ao topo</a>
-        </div>
-      </footer>
+      <PublicFooter page="inicio" />
     </div>
   );
 }
