@@ -17,6 +17,7 @@
 const { app, ipcMain, shell, safeStorage, webContents } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const security = require('./security');
 const crypto = require('crypto');
 
 let DIR = null;
@@ -33,7 +34,9 @@ const FILES = {
 const LIMITS = { bookmarks: 1000, history: 5000, tabs: 60, downloads: 200 };
 
 const send = (ch, data) => { try { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send(ch, data); } catch { /* fechando */ } };
-const fromMain = (e) => mainWin && !mainWin.isDestroyed() && e.sender === mainWin.webContents;
+// Janela principal E frame do site do Project Club (ver security.js) —
+// senhas e perfil nunca respondem a iframe/página de fora.
+const fromMain = (e) => mainWin && !mainWin.isDestroyed() && e.sender === mainWin.webContents && security.isTrustedEvent(e);
 
 function readJson(name, fallback) {
   try { return JSON.parse(fs.readFileSync(path.join(DIR, name), 'utf8')); } catch { return fallback; }

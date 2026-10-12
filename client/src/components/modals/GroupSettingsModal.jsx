@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { useStore } from '../../store/useStore';
 import {
   searchUsers, renameConversation, uploadConversationIcon, addConversationMember, leaveConversation,
+  removeConversationMember,
 } from '../../api/endpoints';
 
 // Opened by clicking the group's own icon/name in ChatWindow.jsx's header
@@ -26,7 +27,25 @@ export default function GroupSettingsModal({ conversation, onClose }) {
   const [results, setResults] = useState([]);
   const [addingId, setAddingId] = useState(null);
   const [leaving, setLeaving] = useState(false);
+  const [removingId, setRemovingId] = useState(null);
   const [error, setError] = useState('');
+  // Dono do grupo (quem criou; grupos antigos: o membro mais antigo).
+  const ownerId = conversation.ownerId || conversation.members[0]?.id || null;
+  const iAmOwner = ownerId === user.id;
+
+  const removeMember = async (m) => {
+    if (!window.confirm(`Remover ${m.displayName} do grupo?`)) return;
+    setRemovingId(m.id);
+    setError('');
+    try {
+      await removeConversationMember(conversation.id, m.id);
+      upsertConversation({ ...conversation, members: conversation.members.filter((x) => x.id !== m.id) });
+    } catch (err) {
+      setError(err.response?.data?.error || 'Não foi possível remover essa pessoa.');
+    } finally {
+      setRemovingId(null);
+    }
+  };
 
   const saveName = async () => {
     if (!name.trim() || name.trim() === conversation.name) return;
@@ -141,6 +160,15 @@ export default function GroupSettingsModal({ conversation, onClose }) {
                   <UserAvatar user={m} size={32} />
                 </div>
                 {m.displayName}{m.id === user.id && <span className="dim"> (você)</span>}
+                {m.id === ownerId && <span className="dim"> · dono</span>}
+                {iAmOwner && m.id !== user.id && (
+                  <button
+                    type="button" className="btn-link danger" style={{ marginLeft: 'auto' }}
+                    disabled={removingId === m.id} onClick={() => removeMember(m)}
+                  >
+                    {removingId === m.id ? '...' : 'Remover'}
+                  </button>
+                )}
               </li>
             ))}
           </ul>

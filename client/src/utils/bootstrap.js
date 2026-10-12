@@ -2,7 +2,7 @@ import { api } from '../api/client';
 import {
   fetchMe, getCommunity, listConversations, listFriends, getMyClan, listUsableEmojis, listServerStickers,
   listAssetCollections, listFavoriteGifs, listCommunities, getUserSettings, getUiLayout, getPlatformStatus,
-  getActiveAnnouncement, listEvents,
+  getActiveAnnouncement, listEvents, getChannelStates,
 } from '../api/endpoints';
 
 // "Pacote de abertura" (GET /api/bootstrap — ver server/src/controllers/
@@ -33,6 +33,8 @@ const LEGACY = {
   status: getPlatformStatus,
   announcement: getActiveAnnouncement,
   events: listEvents,
+  // Não lidas / menções por canal (sobrevive a recarregar a página).
+  channelStates: getChannelStates,
 };
 
 // Tudo que a abertura precisa (a conta já veio do /auth/refresh).

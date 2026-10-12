@@ -112,11 +112,26 @@ export const uploadConversationIcon = (id, file) => {
   return api.post(`/conversations/${id}/icon`, fd).then((r) => r.data);
 };
 export const leaveConversation = (id) => api.delete(`/conversations/${id}/members/me`).then((r) => r.data);
+// Só o dono do grupo pode remover outra pessoa.
+export const removeConversationMember = (id, userId) => api.delete(`/conversations/${id}/members/${userId}`).then((r) => r.data);
 
 // --- Messages (shared by DMs and channels) ---
 export const listMessages = (params) => api.get('/messages', { params }).then((r) => r.data);
 export const searchMessages = (params) => api.get('/messages/search', { params }).then((r) => r.data);
-export const sendMessage = (formData) => api.post('/messages', formData).then((r) => r.data);
+// A sala vai também na query: o servidor checa permissão/spam ANTES de
+// receber os anexos (ver precheckCreateMessage no messageController).
+export const sendMessage = (formData) => {
+  const params = {};
+  const channelId = typeof formData?.get === 'function' ? formData.get('channelId') : null;
+  const conversationId = typeof formData?.get === 'function' ? formData.get('conversationId') : null;
+  if (channelId) params.channelId = channelId;
+  if (conversationId) params.conversationId = conversationId;
+  return api.post('/messages', formData, { params }).then((r) => r.data);
+};
+export const getMessageEdits = (id) => api.get(`/messages/${id}/edits`).then((r) => r.data);
+export const forwardMessage = (id, target) => api.post(`/messages/${id}/forward`, target).then((r) => r.data);
+export const unfurlLink = (url) => api.get('/unfurl', { params: { url } }).then((r) => r.data);
+export const getChannelStates = () => api.get('/community/channels/read-states').then((r) => r.data);
 export const createPoll = (payload) => api.post('/polls', payload).then((r) => r.data);
 export const votePoll = (pollId, optionIndex) => api.post(`/polls/${pollId}/vote`, { optionIndex }).then((r) => r.data);
 export const editMessage = (id, content) => api.patch(`/messages/${id}`, { content }).then((r) => r.data);

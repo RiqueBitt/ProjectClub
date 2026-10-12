@@ -452,9 +452,13 @@ model FavoriteGif {
   id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  gifId     String
-  url       String
-  preview   String?
+  // Chave de deduplicação (id do provedor ou a própria URL, cortada em
+  // 300 no gifController) — VARCHAR(191) padrão era pequeno demais e dava
+  // erro 500 ao favoritar um GIF com URL longa. 512 * 4 bytes (utf8mb4) +
+  // userId ainda cabe no limite de 3072 bytes do índice único do InnoDB.
+  gifId     String   @db.VarChar(512)
+  url       String   @db.Text
+  preview   String?  @db.Text
   createdAt DateTime @default(now())
 
   @@unique([userId, gifId])
@@ -897,6 +901,10 @@ model Conversation {
   isGroup   Boolean  @default(false)
   name      String?
   icon      String?
+  // Dono do grupo (quem criou). Só o dono remove outros membros; se ele
+  // sair, a posse passa pro membro mais antigo. null em DM 1:1 e em
+  // grupos antigos (nesses, o membro mais antigo conta como dono).
+  ownerId   String?
   createdAt DateTime @default(now())
 
   members  ConversationMember[]
@@ -961,13 +969,14 @@ model Channel {
   categoryId      String?
   category        Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   name            String
-  topic           String?
+  // clampTopic aceita até 500 caracteres — VARCHAR(191) dava erro 500.
+  topic           String?   @db.VarChar(512)
   slowModeSeconds Int?
   type            String    @default("TEXT")
   position        Int       @default(0)
   isPrivate       Boolean   @default(false)
   userLimit       Int?
-  rulesContent    String?
+  rulesContent    String?   @db.Text
   rulesTitle      String?
   // Ícone personalizado (opcional): um emoji OU uma imagem pequena —
   // sem nenhum dos dois, continua o # / alto-falante padrão.
@@ -1107,10 +1116,17 @@ model Message {
   mentions    MessageMention[]
   poll        Poll?
 
-  embed String?
+  // JSON do embed (EmbedBuilderModal / chamadas / prévia de link) — a
+  // descrição sozinha pode ter 4096 caracteres; VARCHAR(191) quebrava.
+  embed String? @db.Text
   icon  String?
   quickReactions String @default("[]")
-  stickerUrl String?
+  stickerUrl String? @db.VarChar(512)
+  // Mensagem encaminhada: JSON { authorId, authorName, channelId,
+  // channelName, conversationId, messageId, createdAt } da original.
+  forwardedFrom String? @db.Text
+
+  edits MessageEdit[]
 
   automodFlags AutomodFlag[]
   reports Report[]
@@ -1127,6 +1143,23 @@ model Message {
   // inteiro (toda troca de canal/DM dispara essa consulta).
   @@index([channelId, createdAt])
   @@index([conversationId, createdAt])
+  // Filtro de spam (checkSpamLimits) e "from:@pessoa" na busca: autor + data.
+  @@index([authorId, createdAt])
+  // Modo lento: última mensagem da pessoa NESTE canal.
+  @@index([channelId, authorId, createdAt])
+}
+
+// Histórico de edições: o conteúdo ANTERIOR de uma mensagem, gravado a
+// cada edição (ver messageController.editMessage). Visível pra quem pode
+// ver a mensagem, clicando no "(editado)".
+model MessageEdit {
+  id        String   @id @default(uuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  content   String?  @db.Text
+  editedAt  DateTime @default(now())
+
+  @@index([messageId, editedAt])
 }
 
 // Cada sistema (economia/rank/casas/figurinhas) é sua PRÓPRIA linha —
@@ -2050,6 +2083,9 @@ model UserSettings {
   friendRequestPrivacy String  @default("everyone")  // "everyone" | "friends_of_friends" | "none"
   contentFilterLevel    String  @default("moderate")  // "off" | "moderate" | "high"
   spamFilterEnabled     Boolean @default(true)
+  // "Mostrar confirmação de leitura" (Visto) nas DMs 1:1 — desligado, a
+  // pessoa não manda nem vê o "Visto" (recíproco, igual WhatsApp).
+  showReadReceipts      Boolean @default(true)
 
   // --- Notificações ---
   desktopNotifications Boolean @default(true)

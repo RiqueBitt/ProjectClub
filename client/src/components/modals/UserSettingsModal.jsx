@@ -1932,6 +1932,13 @@ export default function UserSettingsModal({ onClose }) {
                   ]}
                 />
               </div>
+              <div className="settings-block settings-toggle-row">
+                <div>
+                  <h4>Mostrar confirmação de leitura</h4>
+                  <p className="dim">Mostra "Visto" nas conversas diretas quando a pessoa lê sua mensagem. Desligado, você também não vê o "Visto" dos outros.</p>
+                </div>
+                <Toggle on={userSettings.showReadReceipts !== false} onChange={(v) => updateUserSetting('showReadReceipts', v)} label="Mostrar confirmação de leitura" />
+              </div>
               <div className="settings-block">
                 <h4>Filtrar conteúdo</h4>
                 <p className="dim">Nível de filtragem aplicado às mensagens que você recebe.</p>

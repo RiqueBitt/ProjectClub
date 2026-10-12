@@ -12,6 +12,7 @@ router.patch('/:id', ctrl.updateConversation);
 router.post('/:id/icon', uploadImage.single('icon'), ctrl.uploadIcon);
 router.post('/:id/members', ctrl.addMember);
 router.delete('/:id/members/me', ctrl.leaveConversation);
+router.delete('/:id/members/:userId', ctrl.removeMember);
 router.post('/:id/read', ctrl.markRead);
 
 module.exports = router;

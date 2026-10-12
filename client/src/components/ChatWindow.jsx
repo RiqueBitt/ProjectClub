@@ -1,5 +1,6 @@
 import MiniJogosComposerButton from '../minijogos/MiniJogosComposerButton.jsx';
-import { Fragment, Suspense, lazy, memo, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, Suspense, memo, useEffect, useMemo, useRef, useState } from 'react';
+import { lazyWithRetry as lazy } from '../utils/lazyWithRetry';
 import { useElementHeight } from '../utils/useElementHeight';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -36,6 +37,7 @@ import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from './Pengui
 import { usePinnedMessages, PinnedButton, PinnedStrip } from './PinnedMessages.jsx';
 import NavIcon from './NavIcons.jsx';
 import ChannelSearchPanel from './ChannelSearchPanel.jsx';
+import { SeenReceipt } from './MessageExtras.jsx';
 import ImageCropModal, { canCropFile } from './ImageCropModal.jsx';
 import { requestEdit, setRetry, clearRetry, loadDraft, saveDraft } from '../utils/chatComposerBus';
 import '../styles/chat.css';
@@ -641,9 +643,25 @@ function ChatWindowInner({ conversationId, channelId }) {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       document.removeEventListener('visibilitychange', onVisibility);
+      // Sai da sala do canal ao trocar de canal — antes o socket ia
+      // acumulando TODAS as salas visitadas e recebia cada mensagem de
+      // cada uma até recarregar a página. (DMs continuam: o servidor põe
+      // o socket em todas as conversas ao conectar, pras notificações.)
+      // Menções em canais fechados chegam pelo 'mention:new'.
+      if (channelId) socket.emit('channel:leave', channelId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, roomKey, isNonChatChannel]);
+
+  // Clicou numa notificação de menção: leva até a mensagem depois que a
+  // 1ª página do canal carregar (ver SocketContext → pendingJump).
+  const pendingJump = useStore((s) => s.pendingJump);
+  useEffect(() => {
+    if (!pendingJump || pendingJump.roomKey !== roomKey || initialLoading) return;
+    useStore.getState().setPendingJump(null);
+    jumpToMessage({ id: pendingJump.messageId, createdAt: pendingJump.createdAt });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingJump, roomKey, initialLoading]);
 
   // Loads an older page (see the existing `before` cursor support already
   // in messageController.listMessages on the server — this used to just
@@ -657,7 +675,7 @@ function ChatWindowInner({ conversationId, channelId }) {
     const prevScrollHeight = list?.scrollHeight || 0;
     setLoadingOlder(true);
     try {
-      const d = await listMessages({ conversationId, channelId, before: messages[0].createdAt });
+      const d = await listMessages({ conversationId, channelId, before: messages[0].createdAt, beforeId: messages[0].id });
       if (d.messages.length === 0) { setHasMoreOlder(false); return; }
       if (d.messages.length < 50) setHasMoreOlder(false);
       useStore.getState().prependRoomMessages(roomKey, d.messages);
@@ -815,7 +833,7 @@ function ChatWindowInner({ conversationId, channelId }) {
       const cur = useStore.getState().messagesByRoom[roomKey] || [];
       if (cur.length === 0 || new Date(cur[0].createdAt) <= new Date(target.createdAt)) break;
       let d;
-      try { d = await listMessages({ conversationId, channelId, before: cur[0].createdAt }); } catch { break; }
+      try { d = await listMessages({ conversationId, channelId, before: cur[0].createdAt, beforeId: cur[0].id }); } catch { break; }
       if (currentRoomRef.current !== roomKey) return;
       if (!d.messages.length) { setHasMoreOlder(false); break; }
       if (d.messages.length < 50) setHasMoreOlder(false);
@@ -1347,6 +1365,15 @@ function ChatWindowInner({ conversationId, channelId }) {
           <ChatIntro channel={channel} dmOther={dmOther} dmConvo={dmConvo} title={title} />
         )}
         {messageRows}
+        {(() => {
+          // "Visto" (DM 1:1): a última mensagem é minha e a outra pessoa
+          // já leu depois dela. otherReadAt só vem se as DUAS deixam a
+          // confirmação de leitura ligada (ver conversationController).
+          const last = messages[messages.length - 1];
+          const readAt = dmOther ? dmConvo?.otherReadAt : null;
+          if (!readAt || !last || last.authorId !== user.id || String(last.id).startsWith('temp-')) return null;
+          return new Date(last.createdAt) <= new Date(readAt) ? <SeenReceipt at={readAt} /> : null;
+        })()}
         <div ref={bottomRef} />
       </div>
 

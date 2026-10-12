@@ -50,7 +50,7 @@ export function lastPreview(c, meId) {
   const m = c.lastMessage;
   if (!m) return 'Diga oi!';
   const mine = (m.authorId || m.author?.id || m.userId) === meId;
-  const body = (m.content || '').trim() || (m.attachments?.length ? 'Enviou um anexo' : m.stickerId || m.sticker ? 'Enviou uma figurinha' : 'Mensagem');
+  const body = (m.content || '').trim() || ((m.attachments?.length || m.attachmentCount) ? 'Enviou um anexo' : m.stickerUrl || m.stickerId || m.sticker ? 'Enviou uma figurinha' : 'Mensagem');
   return `${mine ? 'Você: ' : ''}${body}`.replace(/\s+/g, ' ').slice(0, 90);
 }
 

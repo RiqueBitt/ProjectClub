@@ -1,4 +1,5 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { lazyWithRetry as lazy } from '../utils/lazyWithRetry';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useStore, isChannelUnread } from '../store/useStore';

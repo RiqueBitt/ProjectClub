@@ -28,6 +28,7 @@ const uiEditorCtrl = require('./uiEditorController');
 const platformCtrl = require('./platformController');
 const announcementCtrl = require('./announcementController');
 const eventsCtrl = require('./eventsController');
+const channelCtrl = require('./channelController');
 
 // seção -> [handler, opções] — o corpo de cada seção é igual ao da rota antiga.
 const SECTIONS = {
@@ -47,6 +48,7 @@ const SECTIONS = {
   status: [platformCtrl.getStatus], // GET /platform/status
   announcement: [announcementCtrl.getActiveAnnouncement], // GET /platform/announcements/active
   events: [eventsCtrl.listEvents], // GET /events
+  channelStates: [channelCtrl.getChannelStates], // GET /community/channels/read-states
 };
 const SECTION_NAMES = Object.keys(SECTIONS);
 

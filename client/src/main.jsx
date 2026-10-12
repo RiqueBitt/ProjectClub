@@ -33,22 +33,19 @@ import './styles/presence.css';
 // Telas de login/inscrição — por último, isoladas sob .pc-auth.
 import './styles/auth.css';
 import './i18n/index.js';
+import { isChunkLoadError, reloadForNewVersion } from './utils/lazyWithRetry';
 
 // Depois de uma atualização do site, abas abertas ainda pedem os arquivos
 // antigos (com outro nome) e a página travava com "Failed to fetch
 // dynamically imported module". Recarrega uma vez pra pegar a versão nova.
-function reloadForNewVersion() {
-  try {
-    const last = Number(sessionStorage.getItem('pc-chunk-reload') || 0);
-    if (Date.now() - last < 30000) return; // evita loop
-    sessionStorage.setItem('pc-chunk-reload', String(Date.now()));
-  } catch { /* sem storage */ }
-  window.location.reload();
-}
-window.addEventListener('vite:preloadError', (e) => { e.preventDefault(); reloadForNewVersion(); });
+// BUG CORRIGIDO: NÃO chama mais e.preventDefault() aqui — isso fazia o
+// import() "dar certo" devolvendo undefined, e o React.lazy estourava
+// "Cannot read properties of undefined (reading 'default')". Agora o erro
+// segue normal até o lazyWithRetry (utils/lazyWithRetry.js), que tenta de
+// novo e só então recarrega.
+window.addEventListener('vite:preloadError', () => { reloadForNewVersion(); });
 window.addEventListener('unhandledrejection', (e) => {
-  const msg = String(e?.reason?.message || e?.reason || '');
-  if (/dynamically imported module|Importing a module script failed|error loading dynamically imported/i.test(msg)) reloadForNewVersion();
+  if (isChunkLoadError(e?.reason)) reloadForNewVersion();
 });
 
 // Item pedido: "adicione nas configurações do usuário ele poder

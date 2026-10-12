@@ -22,6 +22,7 @@
 const { app, session, ipcMain, shell, net, Menu, clipboard, webContents, BrowserWindow } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const security = require('./security');
 // Perfil em arquivos no computador (favoritos, histórico, abas, senhas...).
 const profile = require('./browserProfile');
 const GUEST_PRELOAD = path.join(__dirname, 'browserGuestPreload.js');
@@ -521,7 +522,9 @@ function buildContextMenu(wc, p) {
 }
 
 // ---------------- IPC com o site ----------------
-function fromMain(e) { return mainWin && !mainWin.isDestroyed() && e.sender === mainWin.webContents; }
+// Além de vir da janela principal, o frame tem que ser do site do Project
+// Club (origem exata, ver security.js) — nunca um iframe/página de fora.
+function fromMain(e) { return mainWin && !mainWin.isDestroyed() && e.sender === mainWin.webContents && security.isTrustedEvent(e); }
 function handle(channel, fn) {
   ipcMain.handle(channel, async (e, ...args) => {
     if (!fromMain(e)) throw new Error('não autorizado');

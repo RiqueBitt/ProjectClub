@@ -1,6 +1,7 @@
 const prisma = require('../config/prisma');
 const { assertManageChannels } = require('./categoryController');
-const { getEveryoneRole } = require('../services/authz');
+const { getEveryoneRole, getEffectivePermissions } = require('../services/authz');
+const { Prisma } = require('@prisma/client');
 const { toStringBits, PERMISSIONS, has } = require('../services/permissions');
 const { sanitizeName, sanitizeIconEmoji, resolveIconUrl, checkIconUpload } = require('../utils/channelNames');
 
@@ -189,10 +190,80 @@ async function markRead(req, res, next) {
       }
       return res.json({ ok: true, lastReadAt: now });
     }
+    // SEGURANÇA: antes qualquer id de canal (até privado/inexistente)
+    // ganhava um ChannelReadState. Só checa aqui, na 1ª chamada da janela —
+    // as seguintes caem no caminho acima, que só existe depois disso.
+    const channel = await prisma.channel.findUnique({ where: { id } });
+    if (!channel) return res.status(404).json({ error: 'Canal não encontrado.' });
+    const perms = await getEffectivePermissions(userId, id, channel);
+    if (!has(perms, 'VIEW_CHANNEL')) return res.status(403).json({ error: 'Sem acesso a este canal.' });
     readWrites.set(key, { at: now.getTime(), pendingAt: null, timer: null });
     await writeChannelRead(id, userId, now);
     setTimeout(() => { const c = readWrites.get(key); if (c && !c.timer && Date.now() - c.at >= READ_WRITE_WINDOW_MS) readWrites.delete(key); }, READ_WRITE_WINDOW_MS + 100).unref?.();
     res.json({ ok: true, lastReadAt: now });
+  } catch (err) { next(err); }
+}
+
+// GET /community/channels/read-states — estado de leitura de cada canal
+// que a pessoa vê: { [channelId]: { lastMessageAt, myReadAt, unreadMentions,
+// lastMentionAt } }. Antes o ChannelReadState era gravado mas nunca lido de
+// volta — depois de recarregar a página, nenhum canal aparecia como não
+// lido. Tudo em 3 consultas agrupadas (nunca uma por canal).
+const MENTION_LOOKBACK_DAYS = 30;
+async function getChannelStates(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const channels = await prisma.channel.findMany({ select: { id: true, isPrivate: true, categoryId: true, type: true } });
+    const visible = [];
+    for (const ch of channels) {
+      if (!ch.isPrivate) { visible.push(ch.id); continue; }
+      // eslint-disable-next-line no-await-in-loop
+      const perms = await getEffectivePermissions(userId, ch.id, ch).catch(() => null);
+      if (perms && has(perms, 'VIEW_CHANNEL')) visible.push(ch.id);
+    }
+    if (!visible.length) return res.json({ states: {} });
+
+    const [reads, lasts, myRoles, me] = await Promise.all([
+      prisma.channelReadState.findMany({ where: { userId, channelId: { in: visible } }, select: { channelId: true, lastReadAt: true } }),
+      // MAX(createdAt) por canal — usa o índice (channelId, createdAt).
+      prisma.message.groupBy({ by: ['channelId'], where: { channelId: { in: visible }, deleted: false }, _max: { createdAt: true } }),
+      prisma.userRole.findMany({ where: { userId }, select: { roleId: true } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } }),
+    ]);
+
+    // Menções não lidas (a mim, a um cargo meu, @everyone/@here) depois da
+    // última leitura de cada canal — numa consulta agrupada só. Canal
+    // nunca aberto conta a partir de quando a conta foi criada, e nunca
+    // olha mais que MENTION_LOOKBACK_DAYS pra trás.
+    const floor = new Date(Math.max(Date.now() - MENTION_LOOKBACK_DAYS * 86400000, new Date(me?.createdAt || 0).getTime()));
+    const roleIds = myRoles.map((r) => r.roleId);
+    const roleClause = roleIds.length
+      ? Prisma.sql`OR (mm.targetType = 'ROLE' AND mm.targetId IN (${Prisma.join(roleIds)}))`
+      : Prisma.empty;
+    const mentionRows = await prisma.$queryRaw`
+      SELECT m.channelId AS channelId, COUNT(DISTINCT m.id) AS cnt, MAX(m.createdAt) AS lastAt
+      FROM Message m
+      JOIN MessageMention mm ON mm.messageId = m.id
+      LEFT JOIN ChannelReadState r ON r.channelId = m.channelId AND r.userId = ${userId}
+      WHERE m.channelId IN (${Prisma.join(visible)})
+        AND m.deleted = false
+        AND m.authorId <> ${userId}
+        AND m.createdAt > ${floor}
+        AND (r.lastReadAt IS NULL OR m.createdAt > r.lastReadAt)
+        AND ((mm.targetType = 'USER' AND mm.targetId = ${userId}) OR mm.targetType IN ('EVERYONE', 'HERE') ${roleClause})
+      GROUP BY m.channelId`;
+
+    const states = {};
+    visible.forEach((id) => { states[id] = { lastMessageAt: null, myReadAt: null, unreadMentions: 0, lastMentionAt: null }; });
+    reads.forEach((r) => { if (states[r.channelId]) states[r.channelId].myReadAt = r.lastReadAt; });
+    lasts.forEach((l) => { if (l.channelId && states[l.channelId]) states[l.channelId].lastMessageAt = l._max.createdAt; });
+    mentionRows.forEach((r) => {
+      if (!states[r.channelId]) return;
+      states[r.channelId].unreadMentions = Number(r.cnt) || 0;
+      states[r.channelId].lastMentionAt = r.lastAt;
+    });
+    res.set('Cache-Control', 'private, no-cache');
+    res.json({ states });
   } catch (err) { next(err); }
 }
 
@@ -342,6 +413,6 @@ async function listGallery(req, res, next) {
 
 module.exports = {
   uploadChannelIcon, listGallery,
-  createChannel, updateChannel, reorderChannels, deleteChannel, markRead,
+  createChannel, updateChannel, reorderChannels, deleteChannel, markRead, getChannelStates,
   listChannelOverwrites, setChannelOverwrite, deleteChannelOverwrite,
 };

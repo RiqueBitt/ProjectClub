@@ -45,4 +45,47 @@ function parseMentions(content, { members = [], roles = [] } = {}) {
   return found;
 }
 
-module.exports = { parseMentions };
+// Candidatos a nome logo depois de cada "@": 1 a 6 palavras seguidas
+// (nomes de exibição podem ter espaço — "@Ana Clara"), com e sem
+// pontuação no fim ("@Ana," / "@Ana!"). Só esses nomes vão pro banco —
+// antes cada mensagem com "@" carregava TODOS os usuários e cargos.
+const MAX_WORDS = 6;
+const MAX_NAME_LEN = 64;
+const MAX_CANDIDATES = 200;
+function mentionCandidates(content) {
+  const out = new Set();
+  if (!content || !content.includes('@')) return [];
+  const re = /@([^\s@][^@\n]{0,80})/g;
+  let m;
+  while ((m = re.exec(content)) && out.size < MAX_CANDIDATES) {
+    const words = m[1].split(/\s+/).filter(Boolean).slice(0, MAX_WORDS);
+    let acc = '';
+    for (const w of words) {
+      acc = acc ? `${acc} ${w}` : w;
+      if (acc.length > MAX_NAME_LEN) break;
+      out.add(acc);
+      const trimmed = acc.replace(/[.,!?;:)\]}'"»”]+$/u, '');
+      if (trimmed && trimmed !== acc) out.add(trimmed);
+    }
+  }
+  out.delete('everyone');
+  out.delete('here');
+  return [...out];
+}
+
+// Resolve as menções de um texto consultando só os nomes candidatos
+// (`displayName in [...]`, e cargos por nome) e depois aplica o mesmo
+// parseMentions de sempre em cima desse subconjunto pequeno.
+async function resolveMentions(prisma, content) {
+  if (!content || !content.includes('@')) return [];
+  const names = mentionCandidates(content);
+  const [members, roles] = names.length
+    ? await Promise.all([
+      prisma.user.findMany({ where: { displayName: { in: names } }, select: { id: true, displayName: true }, take: 200 }),
+      prisma.role.findMany({ where: { name: { in: names } }, select: { id: true, name: true, mentionable: true } }),
+    ])
+    : [[], []];
+  return parseMentions(content, { members, roles });
+}
+
+module.exports = { parseMentions, mentionCandidates, resolveMentions };

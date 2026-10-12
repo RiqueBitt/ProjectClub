@@ -32,6 +32,7 @@ import { InternalLinkCards } from './InternalLinkCard.jsx';
 import { findInternalLinks } from '../utils/internalLinks';
 import { cssZoom } from '../utils/cssZoom';
 import { registerEditor, getRetry, clearRetry } from '../utils/chatComposerBus';
+import { EditedTag, ForwardedLabel, ForwardMessageModal, LinkPreview } from './MessageExtras.jsx';
 
 // BUG CORRIGIDO: <img src={...avatarUrl}> quebrava (bloqueado pela CSP
 // img-src) quando o autor da mensagem respondida tem avatar de pinguim
@@ -95,7 +96,18 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
   }, [canEditViaKey, message.id, message.content]);
 
   const saveEdit = async () => {
-    if (draft.trim() && draft !== message.content) await editMessage(message.id, draft.trim());
+    const next = draft.trim();
+    // Texto vazio numa mensagem só de texto: o servidor recusa (apague em vez disso).
+    if (!next && !message.attachments?.length) { useStore.getState().pushNotice('A mensagem não pode ficar vazia — apague-a em vez disso.'); return; }
+    if (next !== (message.content || '')) {
+      try {
+        await editMessage(message.id, next);
+      } catch (err) {
+        // AutoMod, sem permissão, silêncio temporário...
+        useStore.getState().pushNotice(err?.response?.data?.error || 'Não foi possível editar a mensagem.');
+        return;
+      }
+    }
     setEditing(false);
   };
 
@@ -254,6 +266,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
   const isGifMessage = !!message.content && GIF_URL_RE.test(message.content.trim());
   const isFavoriteGif = isGifMessage && favoriteGifs.some((g) => g.gifId === message.content.trim());
 
+  const [forwardOpen, setForwardOpen] = useState(false);
   const onContextMenu = (e) => {
     if (isPending) return;
     // Redesenho do menu: ícones SVG (ver ContextMenuContext.jsx) e seções
@@ -265,6 +278,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
     ];
     if (isOwn) items.push({ label: 'Editar', icon: 'edit', onClick: () => setEditing(true) });
     items.push({ label: 'Copiar texto', icon: 'copy', onClick: () => navigator.clipboard?.writeText(message.content || ''), disabled: !message.content });
+    items.push({ label: 'Encaminhar', icon: 'reply', onClick: () => setForwardOpen(true) });
     // Fixar só aparece pra quem pode (gerenciar mensagens no canal; em DM, todos).
     if (!isChannelMessage || canManageMessages) {
       items.push({ label: message.pinned ? 'Desafixar' : 'Fixar', icon: 'pin', onClick: () => togglePinMessage(message.id) });
@@ -447,6 +461,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
             de verdade (o servidor nem manda), então não tem "revelar"
             possível aqui — só o aviso fixo. 'Moderado' (contentFlagged)
             mantém o texto normal, só com um aviso em cima dele. */}
+        {message.forwardedFrom && <ForwardedLabel forwardedFrom={message.forwardedFrom} />}
         {editing ? (
           <div className="edit-box">
             <input
@@ -484,7 +499,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
               ) : (
                 <div className={`message-content ${isEmojiOnlyMessage(message.content, emojiMap) ? 'emoji-only' : ''}`}>
                   {renderRichContent(message.content, { emojiMap, memberNames, roleNames, memberInfoByName, roleInfoByName })}
-                  {message.edited && <span className="edited-tag"> (editado)</span>}
+                  {message.edited && <EditedTag message={message} />}
                 </div>
               )
             )}
@@ -504,6 +519,9 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
 
         {/* Cartões dos links internos do Project Club (post, modpack, perfil...) */}
         {!editing && !message.contentFiltered && <MessageLinkCards content={message.content} />}
+        {/* Prévia de link externo (Open Graph) — no máximo 1 por mensagem. */}
+        {!editing && !message.contentFiltered && !message.embed && !isPending && <LinkPreview content={message.content} />}
+        {forwardOpen && <ForwardMessageModal message={message} myUserId={user.id} onClose={() => setForwardOpen(false)} />}
 
         {message.poll && <PollCard poll={message.poll} myUserId={user.id} />}
 

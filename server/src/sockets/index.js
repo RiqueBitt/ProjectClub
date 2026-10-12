@@ -2,7 +2,7 @@ const { Server } = require('socket.io');
 const { verifyAccessToken } = require('../services/tokens');
 const prisma = require('../config/prisma');
 const env = require('../config/env');
-const { getEffectivePermissions } = require('../services/authz');
+const { getEffectivePermissions, channelHasRestrictions } = require('../services/authz');
 const { has } = require('../services/permissions');
 const { messageInclude } = require('../controllers/messageController');
 const presenceStore = require('../services/presenceStore');
@@ -10,6 +10,47 @@ const activityStore = require('../services/activityStore');
 const voiceStore = require('../services/voiceRoomStore');
 const gamePlaytime = require('../services/gamePlaytime');
 const ytWatch = require('./ytWatch');
+const { visibleStatus } = require('../utils/presenceVisibility');
+const { createTokenBucket } = require('../utils/tokenBucket');
+
+// Quem está online agora (Redis) — lido no máximo a cada 5s e
+// compartilhado entre conexões: depois de um deploy, centenas de sockets
+// reconectam juntos e cada um fazia a varredura sozinho.
+let onlineIdsCache = { at: 0, promise: null };
+function getOnlineIdsCached() {
+  const now = Date.now();
+  if (onlineIdsCache.promise && now - onlineIdsCache.at < 5000) return onlineIdsCache.promise;
+  const promise = presenceStore.listOnlineUserIds().catch(() => []);
+  onlineIdsCache = { at: now, promise };
+  return promise;
+}
+
+// Retrato de presença pra quem conecta: só quem tem sessão viva (mais a
+// própria pessoa), com "Invisível" virando "Offline" pros outros. O
+// cliente trata a lista como completa — quem não está nela, está offline.
+async function buildPresenceSnapshot(viewerId) {
+  const ids = new Set(await getOnlineIdsCached());
+  if (viewerId) ids.add(viewerId);
+  if (!ids.size) return [];
+  const rows = await prisma.user.findMany({
+    where: { id: { in: [...ids] } }, select: { id: true, status: true, customStatus: true },
+  });
+  return rows.map((u) => ({ userId: u.id, status: visibleStatus(u.status, u.id === viewerId), customStatus: u.customStatus }));
+}
+
+// Canal privado (ou com sobrescritas): a lista de quem está na voz não
+// pode ir pra comunidade inteira. Cache curto do "é restrito?" por canal.
+const restrictedChannelCache = new Map(); // channelId -> { at, restricted }
+async function isRestrictedChannel(channelId) {
+  const hit = restrictedChannelCache.get(channelId);
+  if (hit && Date.now() - hit.at < 60000) return hit.restricted;
+  const channel = await prisma.channel.findUnique({ where: { id: channelId }, select: { id: true, isPrivate: true, categoryId: true } });
+  // Canal inexistente (ex.: voz de clã/DM, que nem passa por aqui) = não restrito.
+  const restricted = channel ? await channelHasRestrictions(channel) : false;
+  restrictedChannelCache.set(channelId, { at: Date.now(), restricted });
+  if (restrictedChannelCache.size > 2000) restrictedChannelCache.clear();
+  return restricted;
+}
 
 // Mesma atividade (só uma reconfirmação)? Spotify: mesma faixa e o
 // progresso novo bate (±3s) com o anterior + o tempo que passou — se a
@@ -279,8 +320,11 @@ function initSockets(httpServer) {
       // então mesmo que eventos tenham se perdido no caminho, o estado se
       // autocorrige a cada conexão/reconexão, sem depender só de eventos
       // incrementais nunca falharem.
-      const allStatuses = await prisma.user.findMany({ select: { id: true, status: true, customStatus: true } });
-      socket.emit('presence:sync', allStatuses.map((u) => ({ userId: u.id, status: u.status, customStatus: u.customStatus })));
+      // Só quem está online de verdade (Redis) — antes lia TODOS os
+      // usuários do banco a cada conexão. O cliente trata a lista como o
+      // conjunto completo de quem está online (o resto fica offline).
+      const snapshot = await buildPresenceSnapshot(userId);
+      socket.emit('presence:sync', snapshot, { complete: true });
 
       // Item pedido: ícone de atividade (jogo/Spotify/app) na lista de
       // membros — sem isso, só quem TROCASSE de atividade DEPOIS de eu
@@ -290,7 +334,7 @@ function initSockets(httpServer) {
       // não quando alguém simplesmente conecta. Só busca de quem está
       // online agora (offline nunca tem atividade de verdade) — evita
       // buscar no Redis pra todo mundo à toa.
-      const onlineIds = allStatuses.filter((u) => u.status !== 'OFFLINE').map((u) => u.id);
+      const onlineIds = snapshot.filter((u) => u.status !== 'OFFLINE').map((u) => u.userId);
       const activityEntries = await Promise.all(onlineIds.map(async (uid) => [uid, await activityStore.getActivity(uid)]));
       const activitiesMap = Object.fromEntries(activityEntries.filter(([, activity]) => activity));
       socket.emit('activity:sync', activitiesMap);
@@ -327,7 +371,9 @@ function initSockets(httpServer) {
         reply(ok);
       } catch (err) { console.error('[socket] channel:join falhou:', err); reply(false); }
     });
-    socket.on('channel:leave', (channelId) => socket.leave(`channel:${channelId}`));
+    socket.on('channel:leave', (channelId) => {
+      if (typeof channelId === 'string' && channelId) socket.leave(`channel:${channelId}`);
+    });
     socket.on('conversation:join', async (conversationId, ack) => {
       const reply = (ok) => { if (typeof ack === 'function') ack({ ok }); };
       try {
@@ -360,29 +406,46 @@ function initSockets(httpServer) {
     // vaza conteúdo nenhum, mas é uma ação sendo feita em nome de uma
     // sala que a pessoa não tem autorização de participar — o mesmo
     // princípio de ownership/autorização do resto da auditoria.
+    // Resultado guardado por 30s por sala: o "digitando" dispara várias
+    // vezes por mensagem e cada uma consultava o banco.
+    const typingAccessCache = new Map(); // roomKey -> { ok, at }
     async function canRelayTyping({ conversationId, channelId }) {
+      const key = conversationId ? `c:${conversationId}` : channelId ? `ch:${channelId}` : null;
+      if (!key || typeof (conversationId || channelId) !== 'string') return false;
+      const hit = typingAccessCache.get(key);
+      if (hit && Date.now() - hit.at < 30000) return hit.ok;
+      let ok = false;
       if (conversationId) {
         const member = await prisma.conversationMember.findUnique({
           where: { conversationId_userId: { conversationId, userId } },
-        });
-        return !!member;
+        }).catch(() => null);
+        ok = !!member;
+      } else {
+        const perms = await getEffectivePermissions(userId, channelId).catch(() => null);
+        ok = !!perms && has(perms, 'VIEW_CHANNEL');
       }
-      if (channelId) {
-        const perms = await getEffectivePermissions(userId, channelId);
-        return has(perms, 'VIEW_CHANNEL');
-      }
-      return false;
+      if (typingAccessCache.size > 100) typingAccessCache.clear();
+      typingAccessCache.set(key, { ok, at: Date.now() });
+      return ok;
     }
-    socket.on('typing:start', async ({ conversationId, channelId }) => {
+    // Limites por socket (balde de fichas): eventos baratos de mandar em
+    // loop. Estourou = o evento é ignorado em silêncio.
+    const typingBucket = createTokenBucket({ capacity: 10, refillPerSec: 2 });
+    const presenceBucket = createTokenBucket({ capacity: 5, refillPerSec: 0.2 });
+    const signalBucket = createTokenBucket({ capacity: 300, refillPerSec: 60 });
+    socket.on('typing:start', async ({ conversationId, channelId } = {}) => {
+      if (!typingBucket()) return;
       if (!(await canRelayTyping({ conversationId, channelId }))) return;
       socket.to(roomFor({ conversationId, channelId })).emit('typing:start', { userId, conversationId, channelId });
     });
-    socket.on('typing:stop', async ({ conversationId, channelId }) => {
+    socket.on('typing:stop', async ({ conversationId, channelId } = {}) => {
+      if (!typingBucket()) return;
       if (!(await canRelayTyping({ conversationId, channelId }))) return;
       socket.to(roomFor({ conversationId, channelId })).emit('typing:stop', { userId, conversationId, channelId });
     });
 
     socket.on('presence:set', async (status) => {
+      if (!presenceBucket()) return;
       try {
         const allowed = ['ONLINE', 'IDLE', 'DND', 'INVISIBLE'];
         if (!allowed.includes(status)) return;
@@ -696,6 +759,12 @@ function initSockets(httpServer) {
         for (const channelId of await voiceStore.getActiveRoomIds()) {
           if (channelId.startsWith('dm:')) continue; // chamadas de DM são privadas
           if (channelId.startsWith('clan:') && channelId !== `clan:${me?.clanId}`) continue;
+          // Canal que a pessoa não pode VER: não revela quem está nele.
+          if (!channelId.startsWith('clan:')) {
+            // eslint-disable-next-line no-await-in-loop
+            const perms = await getEffectivePermissions(userId, channelId).catch(() => null);
+            if (!perms || !has(perms, 'VIEW_CHANNEL')) continue;
+          }
           const room = await voiceStore.getRoom(channelId);
           const participants = Object.entries(room).map(([uid, p]) => ({
             userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role,
@@ -787,7 +856,8 @@ function initSockets(httpServer) {
       } catch (err) { console.error('[socket] dm-call:reject falhou:', err); }
     });
 
-    socket.on('voice:signal', async ({ channelId, to, data }) => {
+    socket.on('voice:signal', async ({ channelId, to, data } = {}) => {
+      if (!signalBucket()) return;
       // The sender must themselves be a legitimate participant of this
       // voice room, not just the target — otherwise anyone could inject
       // arbitrary WebRTC signaling data into any active call by naming a
@@ -1081,7 +1151,11 @@ function initSockets(httpServer) {
       userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role,
     }));
     const startedAt = await voiceStore.getStartedAt(channelId);
-    io.to(rosterRoomFor(channelId)).emit('voice:roster', { channelId, participants, startedAt: startedAt || null });
+    let target = rosterRoomFor(channelId);
+    // Canal de voz privado/restrito: a lista só vai pra quem está dentro
+    // da chamada (antes ia pra comunidade inteira).
+    if (target === 'community' && await isRestrictedChannel(channelId).catch(() => false)) target = `voice:${channelId}`;
+    io.to(target).emit('voice:roster', { channelId, participants, startedAt: startedAt || null });
   }
 
   // ---------- Ausência automática por inatividade (15min -> 4h offline) ----------
@@ -1189,13 +1263,22 @@ function initSockets(httpServer) {
     }
   }
 
-  async function broadcastPresence(io, userId) {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+  // Um emit global (os clientes filtram), com payload mínimo. "Invisível"
+  // só vai cru pra própria pessoa (todas as abas dela); pros outros é
+  // "Offline".
+  function emitPresence(io, user) {
     if (!user) return;
-    const payload = { userId: user.id, status: user.status, customStatus: user.customStatus };
-    // Broadcast to every room this user shares with others (simplest correct approach
-    // for a moderate-size deployment: emit globally, clients filter by relevance).
-    io.emit('presence:update', payload);
+    const payload = { userId: user.id, status: user.status, customStatus: user.customStatus ?? null };
+    if (user.status === 'INVISIBLE') {
+      io.to(`user:${user.id}`).emit('presence:update', payload);
+      io.except(`user:${user.id}`).emit('presence:update', { ...payload, status: 'OFFLINE' });
+    } else {
+      io.emit('presence:update', payload);
+    }
+  }
+  async function broadcastPresence(io, userId) {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, status: true, customStatus: true } });
+    emitPresence(io, user);
   }
 
   function roomFor({ conversationId, channelId }) {
@@ -1229,9 +1312,7 @@ function initSockets(httpServer) {
     }, 500);
     t.unref?.();
   };
-  io.emitPresenceUpdate = (user) => io.emit('presence:update', {
-    userId: user.id, status: user.status, customStatus: user.customStatus,
-  });
+  io.emitPresenceUpdate = (user) => emitPresence(io, user);
   io.isOnline = (userId) => presenceStore.isOnline(userId);
   io.onManualStatusChange = onManualStatusChange;
 
@@ -1254,8 +1335,15 @@ function initSockets(httpServer) {
       ? presenceStore.addSocket(s.userId || s.data.userId, s.id).catch(() => {})
       : null));
     await reconcilePresence({ summary: true, label: 'reload da staff' }).catch(() => {});
-    const allStatuses = await prisma.user.findMany({ select: { id: true, status: true, customStatus: true } });
-    io.emit('presence:sync', allStatuses.map((u) => ({ userId: u.id, status: u.status, customStatus: u.customStatus })));
+    onlineIdsCache = { at: 0, promise: null };
+    const snapshot = await buildPresenceSnapshot(null);
+    io.emit('presence:sync', snapshot, { complete: true });
+    // Quem está "Invisível" recebeu "Offline" no retrato geral — devolve
+    // o status real só pra ela mesma.
+    const invisible = await prisma.user.findMany({
+      where: { id: { in: snapshot.map((s) => s.userId) }, status: 'INVISIBLE' }, select: { id: true, status: true, customStatus: true },
+    }).catch(() => []);
+    invisible.forEach((u) => io.to(`user:${u.id}`).emit('presence:update', { userId: u.id, status: u.status, customStatus: u.customStatus }));
     return cleared;
   };
 

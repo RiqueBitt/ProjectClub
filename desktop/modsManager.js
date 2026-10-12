@@ -83,6 +83,12 @@ function manifestDir() {
   return path.join(app.getPath('userData'), 'ModsManifest');
 }
 
+// Já existe manifesto de mods instalados pelo Project Club nessa pasta?
+// (usado pelo main.js pra reconhecer pastas de jogo de sessões anteriores).
+function hasManifest(gameInstallPath) {
+  return fs.existsSync(router.manifestPath(manifestDir(), gameInstallPath));
+}
+
 function stripExt(name) {
   return name.replace(/\.[a-z0-9]{1,8}$/i, '');
 }
@@ -450,7 +456,7 @@ module.exports = {
   installMod, uninstallMod, listInstalledMods, setModEnabled, applyProfileMods, detectInstallStrategy,
   installLocalFile, listConfigFiles, readConfigFile, writeConfigFile,
   saveModpackLocally, listLocalModpacks, loadLocalModpack, deleteLocalModpack,
-  installThunderstorePackage, scanInstalled, getInstallProfile,
+  installThunderstorePackage, scanInstalled, getInstallProfile, hasManifest,
 };
 
 // ---------- Pasta local de Modpacks (item pedido: "criar uma pasta do
@@ -532,7 +538,7 @@ function configDir(gameInstallPath) {
 function safeConfigPath(gameInstallPath, filename) {
   const base = configDir(gameInstallPath);
   const resolved = path.resolve(base, filename);
-  if (!resolved.startsWith(path.resolve(base) + path.sep) || path.basename(filename) !== filename) {
+  if (typeof filename !== 'string' || !/\.cfg$/i.test(filename) || !resolved.startsWith(path.resolve(base) + path.sep) || path.basename(filename) !== filename) {
     throw new Error('Nome de arquivo de configuração inválido.');
   }
   return resolved;
