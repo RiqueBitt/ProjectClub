@@ -155,8 +155,11 @@ async function buyCollection(req, res, next) {
           const r = await tx.user.updateMany({ where: { id: userId, [currency]: { gte: paid } }, data: { [currency]: { decrement: paid } } });
           if (r.count === 0) throw fail(currency === 'gems' ? 'Gemas insuficientes.' : 'Moedas insuficientes.');
         }
-        for (const d of missD) await tx.userAvatarDecoration.create({ data: { userId, decorationId: d.id } });
-        for (const e of missE) await tx.userProfileEffect.create({ data: { userId, effectId: e.id } });
+        // Um INSERT por tabela (antes: um por item). Sem skipDuplicates de
+        // propósito: compra repetida em paralelo estoura a UNIQUE e desfaz a
+        // transação inteira (inclusive o débito) — ninguém paga duas vezes.
+        if (missD.length) await tx.userAvatarDecoration.createMany({ data: missD.map((d) => ({ userId, decorationId: d.id })) });
+        if (missE.length) await tx.userProfileEffect.createMany({ data: missE.map((e) => ({ userId, effectId: e.id })) });
       });
     } catch (e) {
       if (e.status) return res.status(e.status).json({ error: e.message });

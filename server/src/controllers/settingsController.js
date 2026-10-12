@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 const { logSecurityEvent } = require('../services/securityLog');
 
 // Item pedido: "Nunca aceitar userId do frontend pra decidir qual
@@ -120,7 +121,7 @@ async function getOrCreateSettings(userId) {
   // upsert com update: {} — cria na primeira vez que alguém pede,
   // sem sobrescrever nada se já existir (comportamento idempotente,
   // seguro de chamar toda vez).
-  return prisma.userSettings.upsert({
+  return safeUpsert(prisma.userSettings, {
     where: { userId }, update: {}, create: { userId },
   });
 }

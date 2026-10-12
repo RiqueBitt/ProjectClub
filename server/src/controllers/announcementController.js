@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 
 const TARGET_TYPES = ['ALL', 'USER'];
 
@@ -86,7 +87,7 @@ async function getActiveAnnouncement(req, res, next) {
 async function dismissAnnouncement(req, res, next) {
   try {
     const { id } = req.params;
-    await prisma.announcementDismissal.upsert({
+    await safeUpsert(prisma.announcementDismissal, {
       where: { announcementId_userId: { announcementId: id, userId: req.user.id } },
       update: {},
       create: { announcementId: id, userId: req.user.id },

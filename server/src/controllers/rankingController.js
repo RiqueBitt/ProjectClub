@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 const { PUBLIC_USER_FIELDS } = require('./authController');
 
 // Item pedido: "sistema igual tinha no Orkut" — rankings. Cada pessoa
@@ -18,7 +19,7 @@ async function vote(req, res, next) {
     const target = await prisma.user.findUnique({ where: { id: targetId } });
     if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
 
-    await prisma.rankingVote.upsert({
+    await safeUpsert(prisma.rankingVote, {
       where: { voterId_category: { voterId: req.user.id, category } },
       update: { targetId },
       create: { voterId: req.user.id, targetId, category },

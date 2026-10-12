@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 const { calculateLevel } = require('../data/levelsCatalog');
 const { recordTransaction } = require('./economyLedger');
 
@@ -174,7 +175,7 @@ async function track(userId, type, amount = 1, io = null) {
       if (existing && existing.progress >= m.target) { markDone(memoKey, m.period); continue; }
       const inc = Math.min(amount, m.target - (existing?.progress || 0));
       // eslint-disable-next-line no-await-in-loop
-      const row = await prisma.userMissionProgress.upsert({
+      const row = await safeUpsert(prisma.userMissionProgress, {
         where,
         create: { userId, missionId: m.id, periodKey: key, progress: Math.min(amount, m.target) },
         update: { progress: { increment: inc } },

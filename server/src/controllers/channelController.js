@@ -1,6 +1,7 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 const { assertManageChannels } = require('./categoryController');
-const { getEveryoneRole, getEffectivePermissions } = require('../services/authz');
+const { getEveryoneRole, getEffectivePermissions, getEffectivePermissionsForChannels } = require('../services/authz');
 const { Prisma } = require('@prisma/client');
 const { toStringBits, PERMISSIONS, has } = require('../services/permissions');
 const { sanitizeName, sanitizeIconEmoji, resolveIconUrl, checkIconUpload } = require('../utils/channelNames');
@@ -161,7 +162,7 @@ async function deleteChannel(req, res, next) {
 const READ_WRITE_WINDOW_MS = 2000;
 const readWrites = new Map(); // `${userId}:${channelId}` -> { at, pendingAt, timer }
 function writeChannelRead(channelId, userId, at) {
-  return prisma.channelReadState.upsert({
+  return safeUpsert(prisma.channelReadState, {
     where: { channelId_userId: { channelId, userId } },
     update: { lastReadAt: at },
     create: { channelId, userId, lastReadAt: at },
@@ -214,13 +215,15 @@ async function getChannelStates(req, res, next) {
   try {
     const userId = req.user.id;
     const channels = await prisma.channel.findMany({ select: { id: true, isPrivate: true, categoryId: true, type: true } });
-    const visible = [];
-    for (const ch of channels) {
-      if (!ch.isPrivate) { visible.push(ch.id); continue; }
-      // eslint-disable-next-line no-await-in-loop
-      const perms = await getEffectivePermissions(userId, ch.id, ch).catch(() => null);
-      if (perms && has(perms, 'VIEW_CHANNEL')) visible.push(ch.id);
-    }
+    // Canais privados: permissão calculada em lote (antes: ~5 consultas por
+    // canal privado, em sequência — N+1 a cada abertura/refresh).
+    const privateChannels = channels.filter((ch) => ch.isPrivate);
+    const permsByChannel = privateChannels.length
+      ? ((await Promise.resolve().then(() => getEffectivePermissionsForChannels(userId, privateChannels)).catch(() => null)) || new Map())
+      : new Map();
+    const visible = channels
+      .filter((ch) => !ch.isPrivate || has(permsByChannel.get(ch.id) || 0n, 'VIEW_CHANNEL'))
+      .map((ch) => ch.id);
     if (!visible.length) return res.json({ states: {} });
 
     const [reads, lasts, myRoles, me] = await Promise.all([

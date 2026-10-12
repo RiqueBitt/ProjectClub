@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 const { PUBLIC_USER_FIELDS } = require('./authController');
 
 // Item pedido: "enquetes" NO PERFIL (estilo Orkut) — pergunta + opções,
@@ -75,7 +76,7 @@ async function vote(req, res, next) {
 
     // upsert pelo par (pollId, voterId) — trocar de opção substitui o
     // voto anterior, não soma um segundo voto.
-    await prisma.profilePollVote.upsert({
+    await safeUpsert(prisma.profilePollVote, {
       where: { pollId_voterId: { pollId: id, voterId: req.user.id } },
       update: { optionId },
       create: { pollId: id, optionId, voterId: req.user.id },

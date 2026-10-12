@@ -9,8 +9,18 @@
 // diz a versão do NOSSO app, só do Chromium/Electron em si).
 const { contextBridge, ipcRenderer, webFrame } = require('electron');
 
+// Dados de abertura que o main.js já manda junto na criação da janela
+// (webPreferences.additionalArguments --pc-boot=<base64 JSON>): versão e
+// caminho do .exe respondem na hora, sem ida e volta de IPC no carregamento.
+// Se não vier (versão antiga do main), cai pro IPC normal.
+let boot = {};
+try {
+  const arg = (process.argv || []).find((a) => typeof a === 'string' && a.startsWith('--pc-boot='));
+  if (arg) boot = JSON.parse(Buffer.from(arg.slice('--pc-boot='.length), 'base64').toString('utf8')) || {};
+} catch { boot = {}; }
+
 contextBridge.exposeInMainWorld('electronAPI', {
-  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  getAppVersion: () => (boot.version ? Promise.resolve(boot.version) : ipcRenderer.invoke('get-app-version')),
   // Item pedido: "separe claramente os downloads para Windows e
   // Linux" — a aba Apps precisa saber em qual SO o app desktop está
   // rodando, pra destacar a seção certa (o botão de instalar só
@@ -27,7 +37,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // problema de "sobra"/corte de conteúdo que o CSS "zoom" property
   // causava nesse app especificamente (já relatado e corrigido antes).
   setZoomFactor: (factor) => webFrame.setZoomFactor(factor),
-  getAppInstallPath: () => ipcRenderer.invoke('get-app-install-path'),
+  getAppInstallPath: () => (boot.installPath ? Promise.resolve(boot.installPath) : ipcRenderer.invoke('get-app-install-path')),
+  // Chamada de voz começou/terminou: com chamada ativa o app não reduz a
+  // prioridade da janela em segundo plano (áudio e timers em dia).
+  setVoiceCallActive: (active) => ipcRenderer.send('voice:active', !!active),
   // Item pedido: "crie uma barra que não seja do Windows, de fechar
   // aba, minimizar, aumentar etc" — API exposta pro TitleBar.jsx.
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),

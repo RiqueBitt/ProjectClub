@@ -11,7 +11,8 @@ const startedAt = Date.now();
 const clip = (v, n) => String(v ?? '').replace(/\s+/g, ' ').slice(0, n);
 
 // kind: 'server' (5xx de uma rota) | 'client' (erro de tela) | 'process'
-function recordError(kind, { message, where, path, status, stack } = {}) {
+// url/userAgent/userId são opcionais — só vão pra tabela ErrorLog.
+function recordError(kind, { message, where, path, status, stack, url, userAgent, userId } = {}) {
   total += 1;
   ring.push({
     at: new Date().toISOString(),
@@ -23,6 +24,18 @@ function recordError(kind, { message, where, path, status, stack } = {}) {
     stack: stack ? clip(stack, 600) : null,
   });
   if (ring.length > MAX) ring.splice(0, ring.length - MAX);
+  // Também persiste no banco (agrupado/limitado — ver services/errorLog.js),
+  // pra staff ver o histórico depois de um restart/deploy.
+  try {
+    require('./errorLog').persistError({
+      source: kind,
+      message: where ? `[${clip(where, 60)}] ${message || ''}` : message,
+      stack,
+      url: url || path,
+      userAgent,
+      userId,
+    });
+  } catch { /* nunca derruba quem registrou o erro */ }
 }
 
 function recentErrors(limit = 20) {

@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 const { PUBLIC_USER_FIELDS } = require('./authController');
 
 // Recordes dos Mini-Jogos (client/src/minijogos/catalog.js). O jogo roda num
@@ -44,7 +45,7 @@ async function submitScore(req, res, next) {
     const prevBest = prev?.bestScore || 0;
     const isRecord = score > prevBest;
     await prisma.minigameScore.create({ data: { userId, game, score } });
-    const stat = await prisma.minigameStat.upsert({
+    const stat = await safeUpsert(prisma.minigameStat, {
       where: { userId_game: { userId, game } },
       update: isRecord ? { bestScore: score, bestAt: new Date() } : {},
       create: { userId, game, bestScore: score, bestAt: new Date() },
@@ -59,7 +60,7 @@ async function registerPlay(req, res, next) {
     const game = gameOf(req, res); if (!game) return;
     const seconds = Math.max(0, Math.min(MAX_SECONDS, Math.floor(Number(req.body?.seconds) || 0)));
     const userId = req.user.id;
-    await prisma.minigameStat.upsert({
+    await safeUpsert(prisma.minigameStat, {
       where: { userId_game: { userId, game } },
       update: { plays: { increment: 1 }, seconds: { increment: seconds }, lastPlayedAt: new Date() },
       create: { userId, game, plays: 1, seconds },

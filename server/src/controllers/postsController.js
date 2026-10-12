@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 const achievements = require('../services/achievements');
 
 const AUTHOR_FIELDS = { id: true, displayName: true, avatarUrl: true, avatarDecoration: true, profileColor: true, platformRole: true };
@@ -204,7 +205,7 @@ async function votePost(req, res, next) {
     if (finalValue === 0) {
       await prisma.postVote.delete({ where: { postId_userId: { postId: id, userId: req.user.id } } });
     } else {
-      await prisma.postVote.upsert({
+      await safeUpsert(prisma.postVote, {
         where: { postId_userId: { postId: id, userId: req.user.id } },
         update: { value: finalValue }, create: { postId: id, userId: req.user.id, value: finalValue },
       });
@@ -289,7 +290,7 @@ async function voteComment(req, res, next) {
     if (finalValue === 0) {
       await prisma.postCommentVote.delete({ where: { commentId_userId: { commentId: id, userId: req.user.id } } });
     } else {
-      await prisma.postCommentVote.upsert({
+      await safeUpsert(prisma.postCommentVote, {
         where: { commentId_userId: { commentId: id, userId: req.user.id } },
         update: { value: finalValue }, create: { commentId: id, userId: req.user.id, value: finalValue },
       });
@@ -394,7 +395,7 @@ async function votePostPoll(req, res, next) {
     if (!poll) return res.status(404).json({ error: 'Esse post não tem enquete.' });
     const option = await prisma.profilePollOption.findUnique({ where: { id: String(optionId || '') } });
     if (!option || option.pollId !== poll.id) return res.status(400).json({ error: 'Opção inválida.' });
-    await prisma.profilePollVote.upsert({
+    await safeUpsert(prisma.profilePollVote, {
       where: { pollId_voterId: { pollId: poll.id, voterId: req.user.id } },
       update: { optionId: option.id },
       create: { pollId: poll.id, optionId: option.id, voterId: req.user.id },

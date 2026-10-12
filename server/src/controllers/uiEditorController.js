@@ -1,4 +1,6 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
+const { getShared } = require('../services/sharedCache');
 
 const DEFAULTS = {
   PC: { railOrder: [], railHidden: [], sidebarWidth: 280, membersWidth: 240, membersDefaultOpen: true },
@@ -23,12 +25,13 @@ function parseRow(row, device) {
 // que a staff configurou (não é só uma preferência pessoal de quem edita).
 async function getUiLayout(req, res, next) {
   try {
-    const rows = await prisma.uiLayoutConfig.findMany();
-    const byDevice = Object.fromEntries(rows.map((r) => [r.device, r]));
-    res.json({
-      PC: parseRow(byDevice.PC, 'PC'),
-      MOBILE: parseRow(byDevice.MOBILE, 'MOBILE'),
+    // Igual pra todo mundo: cache compartilhado curto (apagado ao salvar).
+    const body = await getShared('uiLayout', async () => {
+      const rows = await prisma.uiLayoutConfig.findMany();
+      const byDevice = Object.fromEntries(rows.map((r) => [r.device, r]));
+      return { PC: parseRow(byDevice.PC, 'PC'), MOBILE: parseRow(byDevice.MOBILE, 'MOBILE') };
     });
+    res.json(body);
   } catch (err) { next(err); }
 }
 
@@ -49,7 +52,7 @@ async function updateUiLayout(req, res, next) {
       panelPositions: JSON.stringify(panelPositions || {}),
       gifMenuLayout: JSON.stringify(gifMenuLayout || {}),
     };
-    const row = await prisma.uiLayoutConfig.upsert({
+    const row = await safeUpsert(prisma.uiLayoutConfig, {
       where: { device }, update: data, create: { device, ...data },
     });
 

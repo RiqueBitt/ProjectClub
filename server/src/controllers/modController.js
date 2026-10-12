@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeUpsert, createIgnoreDuplicate } = require('../utils/prismaSafe');
 const modio = require('../services/modioService');
 
 // Item pedido: "Project Club → Apps → Mods → detectar Steam → detectar
@@ -141,10 +142,10 @@ async function toggleFavorite(req, res, next) {
     const modioGameId = Number(req.params.modioGameId);
     const existing = await prisma.modFavorite.findUnique({ where: { userId_modioModId: { userId: req.user.id, modioModId } } });
     if (existing) {
-      await prisma.modFavorite.delete({ where: { id: existing.id } });
+      await prisma.modFavorite.deleteMany({ where: { id: existing.id } });
       return res.json({ favorited: false });
     }
-    await prisma.modFavorite.create({ data: { userId: req.user.id, modioModId, modioGameId } });
+    await createIgnoreDuplicate(prisma.modFavorite, { data: { userId: req.user.id, modioModId, modioGameId } });
     res.json({ favorited: true });
   } catch (err) { next(err); }
 }
@@ -357,7 +358,7 @@ async function upsertProfileItem(req, res, next) {
       return res.json({ item });
     }
 
-    const item = await prisma.modProfileItem.upsert({
+    const item = await safeUpsert(prisma.modProfileItem, {
       where: { profileId_modioModId: { profileId: profile.id, modioModId: Number(modioModId) } },
       update: {
         ...(modioModfileId !== undefined ? { modioModfileId: Number(modioModfileId) } : {}),
@@ -449,7 +450,7 @@ async function addCollectionItem(req, res, next) {
     if (!collection) return res.status(404).json({ error: 'Coleção não encontrada.' });
     if (collection.authorId !== req.user.id) return res.status(403).json({ error: 'Sem permissão.' });
     const { modioModId, modName } = req.body;
-    const item = await prisma.modCollectionItem.upsert({
+    const item = await safeUpsert(prisma.modCollectionItem, {
       where: { collectionId_modioModId: { collectionId: collection.id, modioModId: Number(modioModId) } },
       update: { ...(modName !== undefined ? { modName } : {}) },
       create: { collectionId: collection.id, modioModId: Number(modioModId), modName: modName || null },

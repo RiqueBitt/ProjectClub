@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 const { PUBLIC_USER_FIELDS, SELF_USER_FIELDS, ensurePublicId } = require('./authController');
 const { clearIfExpired } = require('../services/customStatus');
 const { validateUsername, USERNAME_CHANGE_COOLDOWN_MS } = require('../utils/usernameRules');
@@ -263,7 +264,10 @@ async function broadcastUserUpdate(req, user) {
   // (`user:${id}`), mas o resto da comunidade só pode ver a versão pública.
   const { email, emailVerified, twoFactorEnabled, ...publicUser } = user;
   io.to(`user:${user.id}`).emit('user:update', user);
-  io.to('community').emit('user:update', publicUser);
+  // except: o dono já recebeu a versão completa acima — e o broadcast da
+  // comunidade sai com o "invisível" mascarado (OFFLINE), que não pode
+  // sobrescrever o status real nas abas da própria pessoa.
+  io.to('community').except(`user:${user.id}`).emit('user:update', publicUser);
 }
 
 // Tag da comunidade (ex.: "🔥 FUNDADOR") — como agora só existe uma
@@ -668,61 +672,60 @@ async function getUser(req, res, next) {
       user.profileShowcase = null;
     }
 
+    // perf: tudo daqui pra baixo depende só de `user`/`fullAccess` e não
+    // uma parte da outra — antes eram ~7 idas ao banco EM SÉRIE (parceiro,
+    // aniversário, insígnias, amigos em comum, votos, conquistas); agora
+    // rodam juntas. Mesmo resultado, mesmas regras de privacidade.
+
     // Item pedido: status de relacionamento — busca os dados do
     // parceiro só se existir um confirmado (evita uma query aninhada
     // desnecessária pro caso comum de não ter parceiro nenhum).
-    let relationshipPartner = null;
-    if (fullAccess && user.relationshipPartnerId) {
-      relationshipPartner = await prisma.user.findUnique({
+    const partnerJob = (fullAccess && user.relationshipPartnerId)
+      ? prisma.user.findUnique({
         where: { id: user.relationshipPartnerId },
         select: { id: true, displayName: true, username: true, avatarUrl: true, avatarDecoration: true, profileColor: true },
-      });
-    }
+      })
+      : Promise.resolve(null);
 
     // Item pedido: aniversariantes — só um booleano de "é hoje", nunca
     // a data completa (nem no PUBLIC_USER_FIELDS genérico) — evita
     // expor a idade da pessoa em qualquer resposta de perfil.
-    let isBirthdayToday = false;
-    if (fullAccess) {
-      const rawUser = await prisma.user.findUnique({ where: { id }, select: { birthDate: true } });
-      if (rawUser?.birthDate) {
+    const birthdayJob = fullAccess
+      ? prisma.user.findUnique({ where: { id }, select: { birthDate: true } }).then((rawUser) => {
+        if (!rawUser?.birthDate) return false;
         const today = new Date();
         const bd = rawUser.birthDate;
-        isBirthdayToday = bd.getUTCDate() === today.getUTCDate() && bd.getUTCMonth() === today.getUTCMonth();
-      }
-    }
+        return bd.getUTCDate() === today.getUTCDate() && bd.getUTCMonth() === today.getUTCMonth();
+      })
+      : Promise.resolve(false);
 
-    const badgeRows = fullAccess
-      ? await prisma.userBadge.findMany({ where: { userId: id }, include: { badge: true }, orderBy: { badge: { priority: 'asc' } } })
-      : [];
-    // awardedAt lives on the UserBadge join row (when THIS user unlocked it),
-    // not on the Badge itself (which is shared across everyone who has it) —
-    // has to be merged in by hand or the "Data desbloqueada" on the badge
-    // browser modal has nothing to show.
-    const badges = badgeRows.map((b) => ({ ...b.badge, awardedAt: b.awardedAt }));
+    const badgesJob = fullAccess
+      ? prisma.userBadge.findMany({ where: { userId: id }, include: { badge: true }, orderBy: { badge: { priority: 'asc' } } })
+      : Promise.resolve([]);
 
-    let mutualFriends = [];
-    if (fullAccess && id !== req.user.id) {
+    const mutualJob = (async () => {
+      if (!fullAccess || id === req.user.id) return [];
       const [myFriendships, theirFriendships] = await Promise.all([
         prisma.friendship.findMany({
           where: { status: 'ACCEPTED', OR: [{ requesterId: req.user.id }, { addresseeId: req.user.id }] },
+          select: { requesterId: true, addresseeId: true },
         }),
         prisma.friendship.findMany({
           where: { status: 'ACCEPTED', OR: [{ requesterId: id }, { addresseeId: id }] },
+          select: { requesterId: true, addresseeId: true },
         }),
       ]);
       const otherIdOf = (f, selfId) => (f.requesterId === selfId ? f.addresseeId : f.requesterId);
       const myFriendIds = new Set(myFriendships.map((f) => otherIdOf(f, req.user.id)));
       const theirFriendIds = new Set(theirFriendships.map((f) => otherIdOf(f, id)).filter((fid) => fid !== req.user.id));
       const commonFriendIds = [...myFriendIds].filter((fid) => theirFriendIds.has(fid));
-      if (commonFriendIds.length > 0) {
-        mutualFriends = await prisma.user.findMany({
-          where: { id: { in: commonFriendIds } }, select: { id: true, displayName: true, username: true, avatarUrl: true, avatarDecoration: true, profileColor: true },
-        });
-      }
-    }
+      if (commonFriendIds.length === 0) return [];
+      return prisma.user.findMany({
+        where: { id: { in: commonFriendIds } }, select: { id: true, displayName: true, username: true, avatarUrl: true, avatarDecoration: true, profileColor: true },
+      });
+    })();
 
-    const [likeCount, dislikeCount, myVoteRow, postUpvotes, commentUpvotes] = await Promise.all([
+    const votesJob = Promise.all([
       prisma.profileVote.count({ where: { toUserId: id, value: 1 } }),
       prisma.profileVote.count({ where: { toUserId: id, value: -1 } }),
       prisma.profileVote.findUnique({ where: { fromUserId_toUserId: { fromUserId: req.user.id, toUserId: id } } }),
@@ -732,27 +735,36 @@ async function getUser(req, res, next) {
       prisma.postVote.count({ where: { value: 1, post: { authorId: id } } }),
       prisma.postCommentVote.count({ where: { value: 1, comment: { authorId: id } } }),
     ]);
-    const totalUps = likeCount + postUpvotes + commentUpvotes;
 
     // Resolve as conquistas escolhidas pra exibir (guardadas como array
     // de `key` no JSON de User.displayedAchievements/Mini) pros objetos
     // completos (ícone/nome/raridade) — assim a tela do perfil não
     // precisa de uma segunda chamada só pra isso.
-    let displayedAchievements = [];
-    let displayedAchievementsMini = [];
-    if (fullAccess) {
+    const achievementsJob = (async () => {
+      if (!fullAccess) return [[], []];
       try {
         const profileKeys = JSON.parse(user.displayedAchievements || '[]');
         const miniKeys = JSON.parse(user.displayedAchievementsMini || '[]');
         const allKeys = [...new Set([...profileKeys, ...miniKeys])];
-        if (allKeys.length > 0) {
-          const defs = await prisma.achievement.findMany({ where: { key: { in: allKeys } } });
-          const byKey = Object.fromEntries(defs.map((d) => [d.key, d]));
-          displayedAchievements = profileKeys.map((k) => byKey[k]).filter(Boolean);
-          displayedAchievementsMini = miniKeys.map((k) => byKey[k]).filter(Boolean);
-        }
-      } catch { /* JSON inválido — trata como vazio */ }
-    }
+        if (allKeys.length === 0) return [[], []];
+        const defs = await prisma.achievement.findMany({ where: { key: { in: allKeys } } });
+        const byKey = Object.fromEntries(defs.map((d) => [d.key, d]));
+        return [profileKeys.map((k) => byKey[k]).filter(Boolean), miniKeys.map((k) => byKey[k]).filter(Boolean)];
+      } catch { return [[], []]; /* JSON inválido — trata como vazio */ }
+    })();
+
+    const [
+      relationshipPartner, isBirthdayToday, badgeRows, mutualFriends,
+      [likeCount, dislikeCount, myVoteRow, postUpvotes, commentUpvotes],
+      [displayedAchievements, displayedAchievementsMini],
+    ] = await Promise.all([partnerJob, birthdayJob, badgesJob, mutualJob, votesJob, achievementsJob]);
+
+    // awardedAt lives on the UserBadge join row (when THIS user unlocked it),
+    // not on the Badge itself (which is shared across everyone who has it) —
+    // has to be merged in by hand or the "Data desbloqueada" on the badge
+    // browser modal has nothing to show.
+    const badges = badgeRows.map((b) => ({ ...b.badge, awardedAt: b.awardedAt }));
+    const totalUps = likeCount + postUpvotes + commentUpvotes;
 
     // Progresso até o próximo nível (pra barra de progresso no perfil).
     const { LEVELS, nextLevel } = require('../data/levelsCatalog');
@@ -765,11 +777,13 @@ async function getUser(req, res, next) {
       levelProgress = Math.max(0, Math.min(100, Math.floor((xpInLevel / xpNeeded) * 100)));
     }
 
-    const activity = (await hasActivityAccess(req.user.id, id)) ? await activityStore.getActivity(id) : null;
-
     // Item pedido: coluna "Modpack preferido" — some junto com o resto
-    // do perfil completo quando a privacidade não deixa ver.
-    const featuredItem = fullAccess ? await getFeaturedForProfile(id, req.user.id).catch(() => null) : null;
+    // do perfil completo quando a privacidade não deixa ver. (Em paralelo
+    // com a atividade — não dependem uma da outra.)
+    const [activity, featuredItem] = await Promise.all([
+      (async () => ((await hasActivityAccess(req.user.id, id)) ? activityStore.getActivity(id) : null))(),
+      fullAccess ? getFeaturedForProfile(id, req.user.id).catch(() => null) : null,
+    ]);
 
     res.json({
       user: clearIfExpired(user), badges, mutualFriends,
@@ -807,7 +821,7 @@ async function voteProfile(req, res, next) {
       await prisma.profileVote.delete({ where: { id: existing.id } });
       myVote = 0;
     } else {
-      await prisma.profileVote.upsert({
+      await safeUpsert(prisma.profileVote, {
         where: { fromUserId_toUserId: { fromUserId: req.user.id, toUserId: id } },
         update: { value },
         create: { fromUserId: req.user.id, toUserId: id, value },

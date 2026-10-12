@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 const { CAPSULE_PRICES } = require('../data/stickersCatalog');
 
 function weightedDraw(rarities) {
@@ -12,7 +13,7 @@ function weightedDraw(rarities) {
 }
 
 async function getAlbumSettings() {
-  const settings = await prisma.albumSettings.upsert({
+  const settings = await safeUpsert(prisma.albumSettings, {
     where: { id: 'singleton' }, update: {}, create: { id: 'singleton' },
   });
   const slots = await prisma.albumSlot.findMany({ where: { enabled: true }, orderBy: { slotKey: 'asc' } });
@@ -172,7 +173,7 @@ async function adminUpdateAlbumSettings(req, res, next) {
     const allowed = ['backgroundColor', 'backgroundImageUrl', 'totalPages', 'showBorder', 'showNames'];
     const data = {};
     for (const key of allowed) if (req.body[key] !== undefined) data[key] = req.body[key];
-    const settings = await prisma.albumSettings.upsert({
+    const settings = await safeUpsert(prisma.albumSettings, {
       where: { id: 'singleton' }, update: data, create: { id: 'singleton', ...data },
     });
     res.json({ settings });
@@ -197,7 +198,7 @@ async function adminUpsertAlbumSlot(req, res, next) {
       ...(height !== undefined ? { height: Math.round(height) } : {}),
       ...(enabled !== undefined ? { enabled: !!enabled } : {}),
     };
-    const slot = await prisma.albumSlot.upsert({
+    const slot = await safeUpsert(prisma.albumSlot, {
       where: { slotKey }, update: patch, create: { ...fallback, ...patch },
     });
     res.json({ slot });

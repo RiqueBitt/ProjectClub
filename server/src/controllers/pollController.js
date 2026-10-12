@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 const { has } = require('../services/permissions');
 const { messageInclude, assertAccess, roomFor } = require('./messageController');
 
@@ -71,7 +72,7 @@ async function votePoll(req, res, next) {
 
     await assertAccess(req, { conversationId: poll.message.conversationId, channelId: poll.message.channelId }, true);
 
-    await prisma.pollVote.upsert({
+    await safeUpsert(prisma.pollVote, {
       where: { pollId_userId: { pollId: id, userId: req.user.id } },
       update: { optionIndex },
       create: { pollId: id, userId: req.user.id, optionIndex },

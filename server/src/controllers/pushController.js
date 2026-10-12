@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 
 // Registra/atualiza o token de push (FCM) do dispositivo atual pra essa
 // conta — chamado pelo app Android assim que ele consegue um token do
@@ -6,13 +7,23 @@ const prisma = require('../config/prisma');
 // ter vários tokens (vários aparelhos) ao mesmo tempo, todos recebem.
 async function registerToken(req, res, next) {
   try {
-    const { token, platform } = req.body;
-    if (!token?.trim()) return res.status(400).json({ error: 'Token obrigatório.' });
+    const { platform } = req.body;
+    const token = typeof req.body.token === 'string' ? req.body.token.trim() : '';
+    if (!token) return res.status(400).json({ error: 'Token obrigatório.' });
+    if (token.length > 191) return res.status(400).json({ error: 'Token inválido.' });
 
-    await prisma.pushToken.upsert({
+    // BUG CORRIGIDO (500 "Unique constraint failed on PushToken_token_key"):
+    // o app manda o registro mais de uma vez quase ao mesmo tempo (abrir +
+    // renovar token do Firebase), e no MySQL o upsert do Prisma não é
+    // atômico — a 2ª requisição perdia a corrida. safeUpsert cai pro
+    // update quando isso acontece. O mesmo token vindo de OUTRA conta
+    // (trocou de conta no aparelho) passa a ser desta conta: o aparelho
+    // só deve receber push de quem está logado nele agora.
+    const plat = typeof platform === 'string' && platform.trim() ? platform.trim().slice(0, 32) : 'android';
+    await safeUpsert(prisma.pushToken, {
       where: { token },
-      update: { userId: req.user.id, lastUsedAt: new Date() },
-      create: { userId: req.user.id, token, platform: platform || 'android' },
+      update: { userId: req.user.id, platform: plat, lastUsedAt: new Date() },
+      create: { userId: req.user.id, token, platform: plat },
     });
     res.status(201).json({ ok: true });
   } catch (err) { next(err); }

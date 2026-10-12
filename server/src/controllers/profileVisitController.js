@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
 const { PUBLIC_USER_FIELDS } = require('./authController');
 
 // Item pedido: "quem visitou seu perfil" — registra a visita (ou
@@ -11,7 +12,7 @@ async function registerVisit(req, res, next) {
     const { targetId } = req.params;
     if (targetId === req.user.id) return res.json({ ok: true }); // visitar o próprio perfil não conta
 
-    await prisma.profileVisit.upsert({
+    await safeUpsert(prisma.profileVisit, {
       where: { visitorId_targetId: { visitorId: req.user.id, targetId } },
       update: { visitCount: { increment: 1 }, lastVisitAt: new Date() },
       create: { visitorId: req.user.id, targetId },

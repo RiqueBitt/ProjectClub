@@ -1,5 +1,6 @@
 const fs = require('fs');
 const prisma = require('../config/prisma');
+const { createIgnoreDuplicate } = require('../utils/prismaSafe');
 const { PUBLIC_USER_FIELDS } = require('./authController');
 const { getEffectivePermissions, channelHasRestrictions } = require('../services/authz');
 const { has } = require('../services/permissions');
@@ -208,6 +209,11 @@ const THREAD_MAX_REPLIES = 500;
 async function listMessages(req, res, next) {
   try {
     const { conversationId, channelId, topLevelOnly, threadId } = req.query;
+    // perf: o nível do filtro de conteúdo não depende da checagem de
+    // acesso — busca em paralelo com ela (uma ida ao banco a menos em série
+    // em toda abertura de canal/DM). Se o acesso falhar, o resultado é
+    // só ignorado.
+    const myFilterPromise = prisma.userSettings.findUnique({ where: { userId: req.user.id }, select: { contentFilterLevel: true } }).catch(() => null);
     // SEGURANÇA: com threadId, o acesso era checado só contra o
     // channelId/conversationId informado — qualquer um com acesso a UM
     // canal podia ler o tópico de um canal PRIVADO só passando o id dele
@@ -227,7 +233,7 @@ async function listMessages(req, res, next) {
     } else {
       await assertAccess(req, { conversationId, channelId });
     }
-    const myFilter = await prisma.userSettings.findUnique({ where: { userId: req.user.id }, select: { contentFilterLevel: true } });
+    const myFilter = await myFilterPromise;
     // BUG CORRIGIDO: o valor de reserva dizia 'off' (filtro
     // desativado), mas o padrão de verdade do schema é 'moderate'
     // (contentFilterLevel @default("moderate")) — pra quem nunca
@@ -1101,7 +1107,8 @@ async function react(req, res, next) {
     }).catch(() => null);
 
     if (already) {
-      await prisma.reaction.delete({ where: { id: already.id } });
+      // deleteMany: dois cliques seguidos não estouram P2025 (já apagada).
+      await prisma.reaction.deleteMany({ where: { id: already.id } });
     } else {
       // Only a brand-new emoji on this message counts against the cap —
       // someone adding themselves to an emoji that's already there doesn't
@@ -1121,8 +1128,10 @@ async function react(req, res, next) {
       if (isNewEmoji && distinctEmojis.length >= cap) {
         return res.status(400).json({ error: `Este post já atingiu o limite de ${cap} emojis diferentes.` });
       }
-      await prisma.reaction.create({ data: { messageId: id, userId: req.user.id, emoji } });
-      require('../services/missions').trackReaction(req.user.id, id, existing.authorId, req.app.get('io')); // missões de reação
+      // Clique duplo / dois aparelhos: o 2º create perdia a corrida da
+      // UNIQUE (P2002) e virava 500 — agora só não conta de novo.
+      const created = await createIgnoreDuplicate(prisma.reaction, { data: { messageId: id, userId: req.user.id, emoji } });
+      if (created) require('../services/missions').trackReaction(req.user.id, id, existing.authorId, req.app.get('io')); // missões de reação
     }
 
     const message = await prisma.message.findUnique({ where: { id }, include: messageInclude });
