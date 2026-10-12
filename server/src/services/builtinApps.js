@@ -39,7 +39,7 @@ const BUILTIN_APPS = [
   },
   {
     moduleId: 'texelproject',
-    released: false,
+    released: true,
     order: 31,
     name: 'TexelProject',
     version: '1.0.0',
@@ -59,7 +59,7 @@ const BUILTIN_APPS = [
     sizeLabelLinux: '~70 MB (AppImage)',
     requirementsWin: 'Windows 10 ou 11 (64 bits)\nCPU: 4 núcleos (recomendado 6+)\nRAM: 4 GB mínimo — o app usa ~0,8–2 GB (8–16 GB recomendado)\nGPU: Direct3D 12, 2 GB de VRAM (4 GB+ recomendado; ray tracing para o path tracer)\nDisco: ~150 MB + projetos',
     requirementsLinux: 'Linux x86_64 com driver Vulkan 1.1 (Mesa 22+, NVIDIA 470+)\nCPU: 4 núcleos\nRAM: 4 GB mínimo — o app usa ~0,8–2 GB\nGPU: Vulkan 1.1, 2 GB de VRAM\nDisco: ~70 MB + projetos\nBibliotecas: GTK 3 e ALSA (já vêm na maioria das distribuições)',
-    screenshots: [],
+    screenshots: shots('texelproject', ['01-inicio-projetos.jpg', '02-area-de-trabalho.jpg', '03-pincel.jpg', '04-preenchimento.jpg', '05-vista-lateral.jpg', '06-vista-de-cima.jpg', '07-modo-de-visualizacao.jpg', '09-editor-de-nos.jpg', '10-vista-2d.jpg', '11-navegador-de-arquivos.jpg', '12-preferencias.jpg', '13-exportar-texturas.jpg']),
   },
   {
     moduleId: 'forgeproject',
