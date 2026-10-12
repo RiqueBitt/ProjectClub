@@ -15,7 +15,7 @@ const shots = (id, names) => names.map((n) => `/apps/${id}/shots/${n}`);
 const BUILTIN_APPS = [
   {
     moduleId: 'waveproject',
-    released: false,
+    released: true,
     order: 30,
     name: 'WaveProject',
     version: '1.0.0',
@@ -35,7 +35,7 @@ const BUILTIN_APPS = [
     sizeLabelLinux: '~190 MB (AppImage)',
     requirementsWin: 'Windows 10 ou 11 (64 bits)\nCPU: 2 núcleos 2 GHz (recomendado 4)\nRAM: 2 GB mínimo — o app usa ~250–500 MB (8 GB para projetos longos)\nGPU: Direct3D 11 / OpenGL 3.3, uso leve\nDisco: ~420 MB + espaço dos projetos',
     requirementsLinux: 'Linux x86_64 com glibc 2.35+ (Ubuntu 22.04, Fedora 36, Debian 12 ou mais novo)\nCPU: 2 núcleos 2 GHz (recomendado 4)\nRAM: 2 GB mínimo — o app usa ~250–500 MB\nGPU: OpenGL 3.3, uso leve\nDisco: ~190 MB + espaço dos projetos\nÁudio: PulseAudio, PipeWire ou ALSA',
-    screenshots: [],
+    screenshots: shots('waveproject', ['01-abertura-assistente.jpg', '02-assistente-1.jpg', '03-assistente-2.jpg', '07-projeto-com-audio.jpg', '08-ajustar-a-tela.jpg', '09-selecao.jpg', '10-zoom.jpg', '11-efeitos-em-tempo-real.jpg', '12-nova-faixa.jpg', '13-exportar.jpg', '16-importar.jpg', '17-novo-projeto.jpg']),
   },
   {
     moduleId: 'texelproject',
