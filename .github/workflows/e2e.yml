@@ -17,10 +17,20 @@ on:
       - 'client/**'
   workflow_dispatch: {}
 
+# Cancela a rodada anterior do mesmo PR/ramo quando chega um push novo.
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Os testes são divididos em 4 máquinas que rodam ao mesmo tempo.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,15 +41,30 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Compilar o site
         run: npm run build -w client
+      - name: Versão do Playwright
+        id: pw
+        run: echo "v=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+        working-directory: client
+      - name: Cache do navegador
+        id: pwcache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-chromium-${{ steps.pw.outputs.v }}
       - name: Instalar o navegador
+        if: steps.pwcache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
         working-directory: client
-      - name: Rodar os testes de tela
-        run: npm run test:e2e -w client
+      - name: Dependências do sistema do navegador
+        if: steps.pwcache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+        working-directory: client
+      - name: Rodar os testes de tela (parte ${{ matrix.shard }} de 4)
+        run: npm run test:e2e -w client -- --shard=${{ matrix.shard }}/4
       - name: Guardar relatório
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: relatorio-testes-de-tela
+          name: relatorio-testes-de-tela-${{ matrix.shard }}
           path: client/playwright-report
           retention-days: 7
