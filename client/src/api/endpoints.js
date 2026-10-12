@@ -24,6 +24,15 @@ export const deleteAccount = (password) => api.post('/auth/delete-account', { pa
 export const listSessions = () => api.get('/auth/sessions').then((r) => r.data);
 export const revokeSession = (id) => api.delete(`/auth/sessions/${id}`).then((r) => r.data);
 export const revokeOtherSessions = () => api.delete('/auth/sessions/other').then((r) => r.data);
+// Entrar com Google/Discord/GitHub (ver server/src/controllers/oauthController.js).
+export const getOAuthProviders = () => api.get('/auth/oauth/providers').then((r) => r.data);
+export const oauthStartUrl = (provider, from = 'login') => `/api/auth/oauth/${encodeURIComponent(provider)}/start?from=${from}`;
+export const completeOAuth2FA = (payload) => api.post('/auth/oauth/2fa', payload).then((r) => r.data);
+export const getOAuthSignup = () => api.get('/auth/oauth/signup').then((r) => r.data);
+export const cancelOAuthSignup = () => api.delete('/auth/oauth/signup').then((r) => r.data);
+export const listOAuthAccounts = () => api.get('/auth/oauth/accounts').then((r) => r.data);
+export const linkOAuthAccount = (provider) => api.post(`/auth/oauth/${encodeURIComponent(provider)}/link`).then((r) => r.data);
+export const unlinkOAuthAccount = (provider) => api.delete(`/auth/oauth/accounts/${encodeURIComponent(provider)}`).then((r) => r.data);
 
 // --- Users / profile ---
 export const updateProfile = (payload) => api.patch('/users/me', payload).then((r) => r.data);

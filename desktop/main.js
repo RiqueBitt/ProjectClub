@@ -17,6 +17,7 @@ const OFFLINE_URL = 'pcapp://app/offline.html';
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const security = require('./security');
+const oauthWindow = require('./oauthWindow');
 
 // Abertura mais rápida: os módulos pesados (detector de jogos com o banco de
 // processos, gerenciador de mods com os perfis de instalação, ProjectMC,
@@ -932,11 +933,15 @@ if (!gotLock) {
       }
       return { action: 'allow' };
     });
+    // Entrar com Discord/GitHub: a página do provedor abre numa janelinha
+    // própria do app (ver oauthWindow.js), não no navegador do sistema.
+    const handleOAuthNavigation = oauthWindow.attach(mainWindow, { isAppUrl, appUrl: APP_URL });
     // Link externo clicado sem target (navegaria a janela do app pra fora).
     mainWindow.webContents.on('will-navigate', (event, url) => {
       // A cópia offline (pcapp://app) também navega dentro dela mesma.
       if (security.isTrustedUrl(url)) return;
       event.preventDefault();
+      if (handleOAuthNavigation(url)) return;
       openExternalLink(url);
     });
 

@@ -297,6 +297,8 @@ model User {
   verificationCodes    EmailVerificationCode[]
   passwordResetTokens  PasswordResetToken[]
   twoFactorRecoveryCodes TwoFactorRecoveryCode[]
+  // Contas externas conectadas (Google/Discord/GitHub) — ver OAuthAccount.
+  oauthAccounts          OAuthAccount[]
 
   sentFriendRequests    Friendship[] @relation("Requester")
   receivedFriendRequests Friendship[] @relation("Addressee")
@@ -616,6 +618,23 @@ model PlatformAuditLog {
   reason     String?
   metadata   String?
   createdAt  DateTime @default(now())
+}
+
+// Login com Google/Discord/GitHub (ver services/oauth.js e
+// controllers/oauthController.js). Só guarda QUEM é a pessoa no provedor
+// (o id estável dela lá) — nunca o token de acesso do provedor, que é
+// usado uma única vez no callback e descartado.
+model OAuthAccount {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       String   // "google" | "discord" | "github"
+  providerUserId String
+  email          String?
+  createdAt      DateTime @default(now())
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
 }
 
 model RefreshToken {
@@ -1722,6 +1741,12 @@ model MembershipApplication {
   // querer mudar as perguntas no futuro sem precisar de outra migração.
   answers      String?   @db.Text
   status       String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  // Inscrição feita com "Inscrever-se com Google/Discord/GitHub": a
+  // identidade do provedor fica guardada aqui e só vira OAuthAccount
+  // quando a staff aprovar (approveApplication).
+  oauthProvider       String?
+  oauthProviderUserId String?
+  oauthEmail          String?
   reviewedById String?
   reviewedAt   DateTime?
   createdAt    DateTime  @default(now())
