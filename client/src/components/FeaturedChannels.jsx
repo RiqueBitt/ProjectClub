@@ -35,16 +35,11 @@ export function FeaturedGlyph({ name, size = 16 }) {
   );
 }
 
-// Guerra das Cartas e Loja ficam no topo, acima dos Anúncios, com mais
-// destaque (pedido): são os dois atalhos mais usados da comunidade.
+// Guerra das Cartas fica em primeiro, acima dos Anúncios (pedido).
 export const FEATURED = [
   {
-    key: 'arena', label: 'Guerra das Cartas', icon: 'cards', to: '/cartas', spotlight: true, sub: 'Jogue, colecione e duele',
+    key: 'arena', label: 'Guerra das Cartas', icon: 'cards', to: '/cartas',
     hint: 'Jogo de cartas: colecione, monte seu baralho e batalhe', match: (p) => p.startsWith('/cartas'), tag: 'Jogar',
-  },
-  {
-    key: 'loja', label: 'Loja', icon: 'store', to: '/loja', spotlight: true, sub: 'Molduras, efeitos e versos',
-    hint: 'Molduras, efeitos de perfil, versos de cartas e pacotes', match: (p) => p.startsWith('/loja'),
   },
   {
     key: 'anuncios', label: 'Anúncios', icon: 'megaphone', to: '/anuncios',
@@ -60,6 +55,10 @@ export const FEATURED = [
     hint: 'Posts e Temas da comunidade', match: (p) => p === '/comunidades' || p.startsWith('/comunidades/') || p.startsWith('/posts/'),
   },
   // Galeria saiu da lista (a página /comunidade/galeria continua existindo).
+  {
+    key: 'loja', label: 'Loja', icon: 'store', to: '/loja',
+    hint: 'Molduras, efeitos de perfil, versos de cartas e pacotes', match: (p) => p.startsWith('/loja'),
+  },
 ];
 
 // Visibilidade salva por comunidade (padrão: todos visíveis).
@@ -112,27 +111,19 @@ export default function FeaturedChannels({ canManage }) {
     return (
       <button
         key={item.key} type="button"
-        className={`sidebar-item featured-channel featured-${item.key}${item.spotlight ? ' is-spotlight' : ''}${active ? ' active' : ''}`}
+        className={`sidebar-item featured-channel featured-${item.key}${active ? ' active' : ''}`}
         onClick={() => go(item)} onContextMenu={(e) => onContextMenu(e, item)}
         title={item.hint} aria-current={active ? 'page' : undefined}
       >
-        <span className="featured-channel-icon"><FeaturedGlyph name={item.icon} size={item.spotlight ? 18 : 16} /></span>
-        {item.spotlight ? (
-          <span className="featured-channel-text">
-            <span className="featured-channel-name truncate">{item.label}</span>
-            <span className="featured-channel-sub truncate">{item.sub}</span>
-          </span>
-        ) : <span className="featured-channel-name truncate">{item.label}</span>}
+        <span className="featured-channel-icon"><FeaturedGlyph name={item.icon} /></span>
+        <span className="featured-channel-name truncate">{item.label}</span>
         {badge}
       </button>
     );
   };
-  const spot = items.filter((i) => i.spotlight);
-  const rest = items.filter((i) => !i.spotlight);
   return (
     <div className="featured-channels" role="group" aria-label="Canais em destaque">
-      {spot.length > 0 && <div className="featured-spotlight">{spot.map(renderItem)}</div>}
-      {rest.map(renderItem)}
+      {items.map(renderItem)}
     </div>
   );
 }

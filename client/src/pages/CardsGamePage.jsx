@@ -44,8 +44,8 @@ const tabsFor = (enabled) => ALL_TABS.filter((t) => !t.mode || t.mode.some((m) =
 function Wallet({ wallet }) {
   return (
     <div className="tcg-wallet">
-      <span title="Moedas"><Icon d={UI.coin} size={16} />{(wallet?.coins ?? 0).toLocaleString('pt-BR')}</span>
-      <span title="Gemas" className="is-gem"><Icon d={UI.gem} size={16} />{(wallet?.gems ?? 0).toLocaleString('pt-BR')}</span>
+      <span title="Moedas"><Icon d={UI.coin} size={20} />{(wallet?.coins ?? 0).toLocaleString('pt-BR')}</span>
+      <span title="Gemas" className="is-gem"><Icon d={UI.gem} size={20} />{(wallet?.gems ?? 0).toLocaleString('pt-BR')}</span>
     </div>
   );
 }

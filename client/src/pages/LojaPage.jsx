@@ -187,8 +187,8 @@ export default function LojaPage() {
             ))}
           </div>
           <div className="shop-balances">
-            <span className="shop-bal coins" title="Moedas"><Ico name="coin" size={16} /> {fmt(data?.coins)}</span>
-            <span className="shop-bal gems" title="Gemas"><Ico name="gem" size={16} /> {fmt(data?.gems)}</span>
+            <span className="shop-bal coins" title="Moedas"><Ico name="coin" size={19} /> {fmt(data?.coins)}</span>
+            <span className="shop-bal gems" title="Gemas"><Ico name="gem" size={19} /> {fmt(data?.gems)}</span>
           </div>
         </header>
 
