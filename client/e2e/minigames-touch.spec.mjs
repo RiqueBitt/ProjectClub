@@ -231,6 +231,9 @@ test.describe('PC (teclado e mouse)', () => {
       // Teclado de verdade chega no jogo.
       const box = await page.locator('.mj-player-frame').boundingBox();
       await page.mouse.click(box.x + 4, box.y + box.height - 4);
+      // Alguns jogos têm faixas de fundo em volta (letterbox): garante o
+      // foco no iframe do jogo, como acontece quando a pessoa clica nele.
+      await (await frame.frameElement()).focus();
       await clearLog(frame);
       await page.keyboard.down('ArrowRight');
       await page.keyboard.up('ArrowRight');
