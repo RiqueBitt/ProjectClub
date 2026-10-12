@@ -125,9 +125,21 @@ export async function checkForNativeUpdate() {
     const localVersion = await getLocalVersion();
     if (!localVersion) return; // web comum, ou não deu pra descobrir — não faz nada
 
-    const res = await fetch(VERSION_MANIFEST_URL, { cache: 'no-store' });
-    if (!res.ok) return;
-    const rel = await res.json();
+    // Primeiro pelo servidor do Project Club (cópia das releases, sem o
+    // limite de 60 consultas/hora da API do GitHub); o GitHub é o plano B.
+    let rel = null;
+    try {
+      const r = await fetch('/api/app-catalog/releases/ProjectClub', { cache: 'no-store' });
+      if (r.ok) {
+        const list = await r.json();
+        rel = (Array.isArray(list) ? list : []).find((x) => !x.prerelease && /^v?\d+\.\d+\.\d+$/.test(x.tag_name || '')) || null;
+      }
+    } catch { /* segue para o GitHub */ }
+    if (!rel) {
+      const res = await fetch(VERSION_MANIFEST_URL, { cache: 'no-store' });
+      if (!res.ok) return;
+      rel = await res.json();
+    }
     const manifest = { version: rel?.tag_name, notes: (rel?.body || '').trim() };
     if (!manifest?.version) return;
 

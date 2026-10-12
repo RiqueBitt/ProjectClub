@@ -398,9 +398,48 @@ function pickAssetForPlatform(assets, mod) {
   return assets.find((a) => a.name.toLowerCase().endsWith(ext.toLowerCase())) || null;
 }
 
+// A lista de releases vem do servidor do Project Club (que guarda uma cópia
+// e consulta o GitHub no máximo a cada 10 minutos). Chamar a API do GitHub
+// direto do PC esbarra no limite de 60 consultas por hora por IP e dá
+// HTTP 403. O GitHub direto fica só como plano B, e o resultado fica
+// guardado em memória por alguns minutos para não repetir a consulta.
+const RELEASES_SERVER = (process.env.PROJECT_CLUB_URL || 'https://projectclub.squareweb.app').replace(/\/$/, '');
+const RELEASES_TTL_MS = 5 * 60 * 1000;
+const releasesCache = new Map(); // manifestUrl -> { at, data }
+
+function repoFromManifestUrl(url) {
+  const m = /api\.github\.com\/repos\/[^/]+\/([^/]+)\/releases/.exec(url || '');
+  return m ? m[1] : null;
+}
+
+async function fetchReleases(mod) {
+  const hit = releasesCache.get(mod.manifestUrl);
+  if (hit && Date.now() - hit.at < RELEASES_TTL_MS) return hit.data;
+  const repo = repoFromManifestUrl(mod.manifestUrl);
+  const sources = [];
+  if (repo) sources.push(`${RELEASES_SERVER}/api/app-catalog/releases/${repo}`);
+  sources.push(`${mod.manifestUrl}${mod.manifestUrl.includes('?') ? '&' : '?'}per_page=100`);
+  let lastErr;
+  for (const url of sources) {
+    try {
+      const data = await httpsGet(url, { asJson: true });
+      if (!Array.isArray(data)) throw new Error(`Resposta inesperada de ${url}`);
+      releasesCache.set(mod.manifestUrl, { at: Date.now(), data });
+      return data;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  if (hit) return hit.data; // última cópia boa, mesmo que antiga
+  if (/HTTP 403/.test(String(lastErr && lastErr.message))) {
+    throw new Error(`Não foi possível consultar as versões de ${mod.displayName} agora (limite do GitHub atingido). Tente de novo em alguns minutos.`);
+  }
+  throw lastErr;
+}
+
 async function fetchLatestRelease(id) {
   const mod = getModule(id);
-  const releases = await httpsGet(mod.manifestUrl, { asJson: true });
+  const releases = await fetchReleases(mod);
   const release = (Array.isArray(releases) ? releases : [])
     .filter((r) => isSemverTag(r.tag_name))
     .sort((a, b) => new Date(b.published_at) - new Date(a.published_at))[0];
