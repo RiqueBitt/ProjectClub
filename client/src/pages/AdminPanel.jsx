@@ -161,6 +161,7 @@ const TAB_PENDING_KEY = {
 const HIDDEN_TABS = new Set([
   ...(isFeatureEnabled('houses') ? [] : ['casas', 'moderacao']),
   ...(isFeatureEnabled('stickers') ? [] : ['album']),
+  ...(isFeatureEnabled('cardsWar') ? [] : ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas']),
 ]);
 
 const TAB_GROUPS = [
@@ -172,7 +173,7 @@ const TAB_GROUPS = [
   { label: 'Guerra das Cartas', icon: 'cards', tabs: ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
   { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
   { label: 'Sistema', icon: 'system', tabs: ['saude', 'sistema', 'maintenance', 'reload'] },
-].map((g) => ({ ...g, tabs: g.tabs.filter((t) => !HIDDEN_TABS.has(t)) }));
+].map((g) => ({ ...g, tabs: g.tabs.filter((t) => !HIDDEN_TABS.has(t)) })).filter((g) => g.tabs.length > 0);
 
 const groupOf = (tab) => TAB_GROUPS.find((g) => g.tabs.includes(tab));
 
@@ -3099,7 +3100,7 @@ function SystemTab() {
       <div className="settings-block">
         <h4>Sistemas da comunidade</h4>
         <p className="dim">Desativar um sistema bloqueia o acesso pra todo mundo (menos administradores) e mostra uma tela de indisponível.</p>
-        {toggles.availableSystems.filter((sys) => (sys !== 'casas' || isFeatureEnabled('houses')) && (sys !== 'figurinhas' || isFeatureEnabled('stickers'))).map((sys) => {
+        {toggles.availableSystems.filter((sys) => (sys !== 'casas' || isFeatureEnabled('houses')) && (sys !== 'figurinhas' || isFeatureEnabled('stickers')) && (sys !== 'cartas' || isFeatureEnabled('cardsWar'))).map((sys) => {
           const enabled = !toggles.disabledSystems.includes(sys);
           return (
             <label key={sys} className="checkbox-row" style={{ fontSize: 14 }}>

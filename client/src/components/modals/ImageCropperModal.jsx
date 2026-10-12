@@ -146,7 +146,7 @@ function sourceRect(nw, nh, aspect, { x, y, zoom }) {
 
 export default function ImageCropperModal({
   file, src, aspectRatio = 1, shape = 'rect', title = 'Ajustar imagem',
-  mode = 'crop', initialFraming, preview, previewUser, onConfirm, onClose,
+  mode = 'crop', initialFraming, preview, previewUser, onConfirm, onClose, gif = false,
 }) {
   const [url, setUrl] = useState(null);
   const [natural, setNatural] = useState(null); // { w, h }
@@ -170,7 +170,9 @@ export default function ImageCropperModal({
   const mounted = useRef(true);
   useEffect(() => () => { mounted.current = false; }, []);
 
-  const isGif = !!file && (file.type === 'image/gif' || /\.gif$/i.test(file.name || ''));
+  // gif: quem abriu já detectou GIF pelo conteúdo (utils/gifDetect) — vale
+  // mesmo quando o arquivo vem sem tipo/extensão (galeria do Android).
+  const isGif = (!!file && gif) || (!!file && (file.type === 'image/gif' || /\.gif$/i.test(file.name || '')));
   const circle = shape === 'circle';
 
   useEffect(() => {

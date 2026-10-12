@@ -14,6 +14,7 @@ import inicioIcon from '../assets/icons/logo-project-club.png';
 import { useLiveRefresh, sameData } from '../utils/liveRefresh';
 import { bootSection, onBootSection, bootstrapActive } from '../utils/bootstrap';
 import ArenaPromo from '../cards/ArenaPromo.jsx';
+import { isFeatureEnabled } from '../utils/features';
 
 const EVENT_STATUS_LABEL = { UPCOMING: 'Em breve', ACTIVE: 'Ativo', ENDED: 'Encerrado' };
 // Item pedido: mostra só os 4 vídeos mais recentes do canal.
@@ -282,7 +283,7 @@ export default function InicioPage() {
         ))}
       </nav>
 
-      {(!disabledSystems.includes('cartas') || user?.platformRole === 'ADMIN') && <ArenaPromo />}
+      {isFeatureEnabled('cardsWar') && (!disabledSystems.includes('cartas') || user?.platformRole === 'ADMIN') && <ArenaPromo />}
 
       <div className="home-grid">
         <div className="home-main">

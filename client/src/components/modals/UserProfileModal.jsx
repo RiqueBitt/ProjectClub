@@ -45,11 +45,13 @@ import ImageCropperModal from './ImageCropperModal.jsx';
 import ProfileShowcaseModal, { parseShowcase } from './ProfileShowcaseModal.jsx';
 import { GameCapsule } from '../games/GameLibraryParts.jsx';
 import ProfileCards from '../../cards/ProfileCards.jsx';
+import { isFeatureEnabled } from '../../utils/features';
 import { PROFILE_BANNER_ASPECT } from '../ProfileBanner.jsx';
 import { updateProfile, uploadAvatar, uploadBanner, reportUserProfile } from '../../api/endpoints';
 
 // PfIcon/PfCard moveram pra profileParts.jsx (re-exportados aqui).
 import { PfIcon, PfCard } from './profileParts.jsx';
+import { looksLikeGif, isGifByContent, GIF_AVATAR_MAX_MB } from '../../utils/gifDetect';
 export { PfIcon, PfCard };
 
 // Estado vazio pequeno, dentro de um card.
@@ -484,14 +486,19 @@ export default function UserProfileModal() {
   };
   // Foto/banner: mesmos envios de Configurações (GIF vai direto pra não
   // perder a animação; imagem passa pelo recortador).
-  const isGif = (f) => f.type === 'image/gif' || /\.gif$/i.test(f.name || '');
-  const pickAvatarFile = (e) => {
+  const isGif = looksLikeGif;
+  const pickAvatarFile = async (e) => {
     const file = e.target.files?.[0]; e.target.value = '';
     if (!file) return;
-    if (isGif(file)) {
-      if (file.size > 25 * 1024 * 1024) { setInlineError('GIF grande demais: o limite é 25 MB.'); return; }
+    // GIF: editor só enquadra (sem canvas) e o servidor recorta todos os
+    // quadros — a animação continua (ver utils/gifDetect e Configurações).
+    if (await isGifByContent(file)) {
+      if (file.size > GIF_AVATAR_MAX_MB * 1024 * 1024) { setInlineError(`GIF grande demais: o limite para foto de perfil é ${GIF_AVATAR_MAX_MB} MB.`); return; }
       setInlineError('');
-      uploadAvatar(file).then(({ user: u }) => applyMine(u)).catch((err) => setInlineError(err?.response?.data?.error || 'Não foi possível enviar a foto.'));
+      setCropper({
+        file, mode: 'frame', gif: true, aspectRatio: 1, shape: 'circle', title: 'Ajustar avatar (GIF)', preview: 'avatar',
+        onConfirm: async (outFile, framing) => { const { user: u } = await uploadAvatar(outFile, framing); applyMine(u); setCropper(null); },
+      });
       return;
     }
     setCropper({
@@ -1227,7 +1234,7 @@ export default function UserProfileModal() {
   );
 
   // Guerra das Cartas (Jogo de Cartas): vitrine + desafiar/trocar.
-  const cardsGameCard = user && (
+  const cardsGameCard = user && isFeatureEnabled('cardsWar') && (
     <PfCard icon="star" title="Guerra das Cartas">
       <ProfileCards userId={user.id} isMe={isMe} onNavigate={closeProfile} />
     </PfCard>
@@ -1547,6 +1554,7 @@ export default function UserProfileModal() {
                 <ImageCropperModal
                   file={cropper.file}
                   mode={cropper.mode}
+                  gif={!!cropper.gif}
                   preview={cropper.preview}
                   previewUser={user}
                   aspectRatio={cropper.aspectRatio}

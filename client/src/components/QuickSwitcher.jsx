@@ -46,7 +46,7 @@ const PAGES = [
   { path: '/loja', label: 'Loja', keywords: 'loja molduras efeitos comprar' },
   // Casas/Figurinhas desligadas no código (utils/features.js).
   ...(isFeatureEnabled('houses') ? [{ path: '/casas', label: 'Casas', keywords: 'casa' }] : []),
-  { path: '/cartas', label: 'Guerra das Cartas', keywords: 'cartas jogo de cartas pacotes baralho duelo figurinhas tcg' },
+  ...(isFeatureEnabled('cardsWar') ? [{ path: '/cartas', label: 'Guerra das Cartas', keywords: 'cartas jogo de cartas pacotes baralho duelo figurinhas tcg' }] : []),
   { path: '/admin', label: 'Painel da staff', keywords: 'admin moderação', staff: true },
 ];
 

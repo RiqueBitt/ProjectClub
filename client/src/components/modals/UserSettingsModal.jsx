@@ -80,6 +80,7 @@ import {
 } from '../../utils/audioDevices';
 import robloxConnIcon from '../../assets/icons/social-roblox.png';
 import xConnIcon from '../../assets/icons/social-x.png';
+import { looksLikeGif, isGifByContent, GIF_AVATAR_MAX_MB } from '../../utils/gifDetect';
 import {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, removeIdCard,
   setup2FA, confirm2FA, disable2FA, getRecoveryCodesStatus, regenerateRecoveryCodes, setLayoutStyle, setMyClanTag,
@@ -565,7 +566,7 @@ export default function UserSettingsModal({ onClose }) {
   // ou errado pra um GIF de verdade, dependendo de como o arquivo foi
   // salvo originalmente; isso faria o arquivo passar batido pelo
   // recortador mesmo sendo GIF, achatando a animação de qualquer jeito.
-  const isGifFile = (f) => f.type === 'image/gif' || /\.gif$/i.test(f.name || '');
+  const isGifFile = looksLikeGif;
   // GIF vai direto (sem recorte, pra manter a animação). Antes, se o envio
   // falhasse (arquivo grande demais, etc.) nada acontecia na tela.
   const MAX_GIF_MB = 25;
@@ -580,11 +581,27 @@ export default function UserSettingsModal({ onClose }) {
       .catch((err) => useStore.getState().pushNotice(err.response?.data?.error || 'Não foi possível enviar o GIF.'));
   };
 
-  const onAvatar = (e) => {
+  const onAvatar = async (e) => {
     const file = e.target.files[0]; if (!file) return;
     e.target.value = ''; // permite escolher o MESMO arquivo de novo depois de cancelar
-    if (isGifFile(file)) {
-      uploadGif(file, uploadAvatar);
+    // GIF (detectado pelo conteúdo, ver utils/gifDetect): abre o editor só
+    // pra ENQUADRAR (modo 'frame' — sem canvas, a animação continua) e o
+    // servidor recorta todos os quadros com esse enquadramento.
+    if (await isGifByContent(file)) {
+      if (file.size > GIF_AVATAR_MAX_MB * 1024 * 1024) {
+        useStore.getState().pushNotice(`Esse GIF tem ${(file.size / 1048576).toFixed(1)} MB. O limite para foto de perfil é ${GIF_AVATAR_MAX_MB} MB.`);
+        return;
+      }
+      setCropperState({
+        file, mode: 'frame', gif: true, aspectRatio: 1, shape: 'circle', title: 'Ajustar avatar (GIF)', preview: 'avatar',
+        onConfirm: async (outFile, framing) => {
+          useStore.getState().pushNotice('Enviando GIF…');
+          const { user: updated } = await uploadAvatar(outFile, framing);
+          setUser(updated);
+          setCropperState(null);
+          useStore.getState().pushNotice('GIF aplicado!');
+        },
+      });
       return;
     }
     setCropperState({
@@ -2304,6 +2321,7 @@ export default function UserSettingsModal({ onClose }) {
         file={cropperState.file}
         src={cropperState.src}
         mode={cropperState.mode}
+        gif={!!cropperState.gif}
         initialFraming={cropperState.initialFraming}
         preview={cropperState.preview}
         previewUser={{ ...user, profileColor: form.profileColor || user.profileColor }}

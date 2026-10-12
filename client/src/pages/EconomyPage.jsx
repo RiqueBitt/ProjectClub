@@ -7,6 +7,7 @@ import '../styles/economy.css';
 import { useLiveRefresh } from '../utils/liveRefresh';
 import { setClaimableMissions } from '../utils/missionBadge';
 import '../styles/contentx.css';
+import { TrimmedImg } from '../utils/trimImage.jsx';
 
 function fmt(n) { return Math.floor(Number(n) || 0).toLocaleString('pt-BR'); }
 
@@ -329,7 +330,7 @@ export default function EconomyPage({ initialTab = 'geral' }) {
                 <div className="daily-chest-gallery eco-chest-grid">
                   {gallery.map((c) => (
                     <div key={c.id} className="daily-chest-gallery-item eco-chest" title={c.name}>
-                      <img src={c.imageClosed} alt={c.name} />
+                      <TrimmedImg src={c.imageClosed} alt={c.name} />
                       <span>{c.name}</span>
                     </div>
                   ))}
@@ -421,7 +422,8 @@ export default function EconomyPage({ initialTab = 'geral' }) {
         <div className="chest-reveal-overlay eco-reveal-backdrop" onClick={() => setWonChest(null)}>
           <div className="chest-reveal-card eco-reveal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Recompensa do baú">
             <div className="eco-reveal-glow" aria-hidden="true" />
-            <img className="chest-reveal-img" src={wonChest.imageOpened} alt={wonChest.name} />
+            {/* Baú sem a borda transparente das imagens (utils/trimImage) — ele é o destaque do card. */}
+            <TrimmedImg className="chest-reveal-img" src={wonChest.imageOpened} alt={wonChest.name} />
             <span className="pk-eyebrow">Você abriu</span>
             <h3>Baú {wonChest.name}!</h3>
             <div className="chest-reveal-rewards eco-reveal-rewards">

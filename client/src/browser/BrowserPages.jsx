@@ -5,6 +5,7 @@ import { wvOf } from './BrowserHost.jsx';
 import { B, Ico, Favicon } from './BrowserChrome.jsx';
 import { SEARCH_ENGINES, NEW_TAB, displayUrl, hostOf, nativeBrowser, fmtBytes, timeAgo, toUrl, isOfflineMode } from './urlTools';
 import { useStore } from '../store/useStore';
+import { isFeatureEnabled } from '../utils/features';
 import { useCinema } from '../cinema/cinemaStore';
 import { useYouTubeApp } from '../youtube/youtubeStore';
 import { useMusic } from '../music/musicStore';
@@ -48,7 +49,7 @@ function NewTabPage({ tab }) {
     { label: 'YouTube', icon: B.yt, run: () => useYouTubeApp.getState().openApp() },
     { label: 'Música', icon: 'M9 18V5l11-2v13M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3zM20 16a3 3 0 1 1-3-3 3 3 0 0 1 3 3z', run: () => useMusic.getState().openPanel?.(true) },
     { label: 'Mini-jogos', icon: 'M6 11h4M8 9v4M15 12h.01M18 10h.01M17 6H7a5 5 0 0 0-5 5v1a4 4 0 0 0 7 2.6h6A4 4 0 0 0 22 12v-1a5 5 0 0 0-5-5z', run: () => navigate('/minijogos') },
-    { label: 'Arena de Cartas', icon: 'M4 6l8-3 8 3v6c0 5-4 8-8 9-4-1-8-4-8-9z', run: () => navigate('/cartas') },
+    ...(isFeatureEnabled('cardsWar') ? [{ label: 'Arena de Cartas', icon: 'M4 6l8-3 8 3v6c0 5-4 8-8 9-4-1-8-4-8-9z', run: () => navigate('/cartas') }] : []),
     { label: 'Chat', icon: 'M4 5h16v11H8l-4 4z', run: () => navigate('/') },
   ];
   return (

@@ -16,6 +16,9 @@ import { CardBack } from '../cards/CardView.jsx';
 import { cardsCosmetics, cardsBuyCosmetic, cardsEquipCosmetic } from '../cards/api';
 import { useSearchParams } from 'react-router-dom';
 import '../styles/cards.css';
+import { isFeatureEnabled } from '../utils/features';
+// Guerra das Cartas desligada temporariamente: some a aba Cartas e os versos.
+const CARDS_WAR_ON = isFeatureEnabled('cardsWar');
 
 // "2d 4h" / "3h 12min" / "45s" — contagem regressiva da oferta.
 function countdown(target, now) {
@@ -71,7 +74,7 @@ const TYPES = [
   { id: 'effect', label: 'Efeitos de perfil', icon: 'sparkles' },
   { id: 'back', label: 'Versos de Cartas', icon: 'cards' },
   { id: 'collection', label: 'Coleções', icon: 'grid' },
-];
+].filter((t) => t.id !== 'back' || CARDS_WAR_ON);
 // Preço usado pra ordenar: moedas; se só vende em gemas, gemas valem 100.
 const sortPrice = (i) => (i.priceCoins != null ? i.priceCoins : i.priceGems != null ? i.priceGems * 100 : Infinity);
 const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -95,12 +98,12 @@ export default function LojaPage() {
 
   // ?cat=versos (vindo do jogo) abre direto nos versos de cartas.
   useEffect(() => {
-    if (params.get('cat') === 'versos') { setTab('navegar'); setTypes(['back']); }
+    if (CARDS_WAR_ON && params.get('cat') === 'versos') { setTab('navegar'); setTypes(['back']); }
   }, [params]);
 
   const load = useCallback(async (ctx) => {
     try {
-      const [d, cos] = await Promise.all([getShop(), cardsCosmetics().catch(() => null)]);
+      const [d, cos] = await Promise.all([getShop(), CARDS_WAR_ON ? cardsCosmetics().catch(() => null) : null]);
       if (!ctx || ctx.ok()) setData({ ...d, cosmetics: cos });
     } catch (e) { if (!ctx) setNotice({ bad: true, text: errMsg(e) }); }
   }, []);
@@ -178,7 +181,7 @@ export default function LojaPage() {
             <h1>Loja</h1>
           </div>
           <div className="shop-tabs" role="tablist" aria-label="Seções da loja">
-            {[['destaques', 'Destaques', 'star'], ['navegar', 'Navegar', 'search'], ['cartas', 'Cartas', 'cards'], ['historico', 'Histórico', 'clock']].map(([id, label, icon]) => (
+            {[['destaques', 'Destaques', 'star'], ['navegar', 'Navegar', 'search'], ['cartas', 'Cartas', 'cards'], ['historico', 'Histórico', 'clock']].filter(([id]) => id !== 'cartas' || CARDS_WAR_ON).map(([id, label, icon]) => (
               <button
                 key={id} type="button" role="tab" aria-selected={tab === id && !current}
                 className={`shop-tab${tab === id && !current ? ' active' : ''}`}

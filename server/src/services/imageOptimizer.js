@@ -72,6 +72,66 @@ function isApng(buffer) {
   return actl !== -1 && (idat === -1 || actl < idat);
 }
 
+// ---- Avatar em GIF (animado) ----
+// BUG CORRIGIDO ("foto de perfil em GIF não funciona"): o GIF de avatar
+// subia cru — sem recorte (o recortador do navegador desenha num <canvas>,
+// que só pega 1 quadro, então o GIF pulava o editor e ficava retangular/
+// descentralizado), sem limite de tamanho (GIF de 2000px e 20 MB) e, quando
+// passava de 8 MB, nem aparecia nas telas que buscam a imagem pelo proxy
+// (/api/proxy/image recusa > 8 MB). Agora o recorte escolhido no editor
+// chega como "x,y,zoom" (mesma regra do enquadramento de banner) e é
+// aplicado aqui em TODOS os quadros com o sharp ({ animated: true }); o
+// resultado é reduzido pra no máximo 512px e sai GIF de novo — a animação,
+// os tempos de cada quadro e o loop continuam.
+const AVATAR_GIF_MAX_BYTES = 8 * 1024 * 1024; // GIF enviado pra avatar (antes de processar)
+
+function parseFraming(raw) {
+  if (raw === undefined || raw === null || raw === '') return null;
+  const parts = String(raw).split(',').map(Number);
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
+  const [x, y, zoom] = parts;
+  if (x < 0 || x > 100 || y < 0 || y > 100 || zoom < 1 || zoom > 4) return null;
+  return { x, y, zoom };
+}
+
+// Mesma conta do sourceRect do ImageCropperModal.jsx (cliente): retângulo
+// de origem na proporção `aspect`, com zoom por cima do "cover" e o ponto
+// de foco x/y em % — o que a pessoa viu no editor é o que sai aqui.
+function framingRect(nw, nh, aspect, { x, y, zoom }) {
+  let srcW; let srcH;
+  if (nw / nh >= aspect) { srcH = nh / zoom; srcW = srcH * aspect; } else { srcW = nw / zoom; srcH = srcW / aspect; }
+  const width = Math.max(1, Math.min(nw, Math.round(srcW)));
+  const height = Math.max(1, Math.min(nh, Math.round(srcH)));
+  const left = Math.max(0, Math.min(nw - width, Math.round((nw - srcW) * (x / 100))));
+  const top = Math.max(0, Math.min(nh - height, Math.round((nh - srcH) * (y / 100))));
+  return { left, top, width, height };
+}
+
+async function processGifAvatar({ buffer, originalName, meta, base, crop, keep }) {
+  const w = meta.width || 0;
+  const h = (meta.pageHeight || meta.height) || 0;
+  if (!w || !h) return keep;
+  const framing = parseFraming(crop);
+  let p = base();
+  let cw = w; let ch = h;
+  if (framing) {
+    const r = framingRect(w, h, 1, framing);
+    // Recorte que não muda nada (imagem já quadrada, sem zoom) é pulado.
+    if (r.width !== w || r.height !== h || r.left || r.top) {
+      p = p.extract(r);
+      cw = r.width; ch = r.height;
+    }
+  }
+  const cropped = cw !== w || ch !== h;
+  const resize = Math.max(cw, ch) > LIMITS.avatar.side;
+  if (!cropped && !resize) return keep;
+  if (resize) p = p.resize({ width: LIMITS.avatar.side, height: LIMITS.avatar.side, fit: 'inside', withoutEnlargement: true });
+  const out = await p.gif({ loop: meta.loop ?? 0, effort: 7 }).toBuffer();
+  // Só reduziu (sem recorte) e o GIF reencodado ficou maior: o original é melhor.
+  if (!cropped && out.length >= buffer.length) return keep;
+  return { buffer: out, mimeType: 'image/gif', originalName: replaceExt(originalName, '.gif'), changed: true };
+}
+
 function replaceExt(name, ext) {
   const base = String(name || 'imagem').replace(/\.[^./\\]{1,8}$/, '');
   return `${base}${ext}`;
@@ -79,7 +139,7 @@ function replaceExt(name, ext) {
 
 // Devolve { buffer, mimeType, originalName, changed, stats } — sempre um
 // resultado válido (no pior caso, o original).
-async function optimizeImage({ buffer, mimeType, originalName, field }) {
+async function optimizeImage({ buffer, mimeType, originalName, field, crop }) {
   const keep = { buffer, mimeType, originalName, changed: false };
   if (!sharp || !buffer || !/^image\/(png|jpeg|webp|gif)$/i.test(mimeType || '')) return keep;
   if (mimeType === 'image/png' && isApng(buffer)) return keep;
@@ -94,6 +154,8 @@ async function optimizeImage({ buffer, mimeType, originalName, field }) {
 
     // ---- GIF ----
     if (mimeType === 'image/gif') {
+      // Avatar: recorta (enquadramento do editor) e reduz TODOS os quadros, continua GIF.
+      if (field === 'avatar') return await processGifAvatar({ buffer, originalName, meta, base, crop, keep });
       if (!animated || !GIF_TO_WEBP_FIELDS.has(field)) return keep;
       let p = base();
       if (resize) p = p.resize(resize);
@@ -160,4 +222,4 @@ async function optimizeImage({ buffer, mimeType, originalName, field }) {
   }
 }
 
-module.exports = { optimizeImage, isAvailable: () => !!sharp, LIMITS };
+module.exports = { optimizeImage, isAvailable: () => !!sharp, LIMITS, AVATAR_GIF_MAX_BYTES, framingRect, parseFraming };

@@ -4,7 +4,7 @@ const fs = require('fs');
 const env = require('../config/env');
 const { storeFile, deleteFile } = require('../services/fileStorage');
 const { detectImageMime } = require('../utils/imageSignature');
-const { optimizeImage } = require('../services/imageOptimizer');
+const { optimizeImage, AVATAR_GIF_MAX_BYTES } = require('../services/imageOptimizer');
 
 const uploadRoot = path.resolve(__dirname, '../../', env.UPLOAD_DIR);
 if (!fs.existsSync(uploadRoot)) fs.mkdirSync(uploadRoot, { recursive: true });
@@ -88,8 +88,16 @@ class ManagedStorage {
         // falha = sobe o original, igual antes. Ver services/imageOptimizer.js.
         let out = { buffer, mimeType: file.mimetype, originalName: file.originalname };
         const realImageType = detectImageMime(buffer);
+        // GIF de avatar: limite próprio (o arquivo é processado quadro a
+        // quadro e precisa caber no proxy de imagens, 8 MB).
+        if (file.fieldname === 'avatar' && realImageType === 'image/gif' && buffer.length > AVATAR_GIF_MAX_BYTES) {
+          return cb(Object.assign(new Error(`GIF grande demais para foto de perfil: o limite é ${Math.round(AVATAR_GIF_MAX_BYTES / 1048576)} MB.`), { status: 400 }));
+        }
         if (realImageType) {
-          out = await optimizeImage({ buffer, mimeType: realImageType, originalName: file.originalname, field: file.fieldname });
+          // "crop" = enquadramento "x,y,zoom" do editor (avatar em GIF) — o
+          // cliente manda esse campo ANTES do arquivo no FormData, então o
+          // multer já preencheu req.body.crop quando o arquivo chega aqui.
+          out = await optimizeImage({ buffer, mimeType: realImageType, originalName: file.originalname, field: file.fieldname, crop: file.fieldname === 'avatar' ? req.body?.crop : undefined });
           if (!out.changed) out = { buffer, mimeType: file.mimetype, originalName: file.originalname };
         }
 

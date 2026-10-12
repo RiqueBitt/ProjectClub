@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
+import { isFeatureEnabled } from '../utils/features';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
 import { updateFeaturedChannels } from '../api/endpoints';
 import { useCommunityEvents } from '../utils/useCommunityEvents';
@@ -40,6 +41,7 @@ export const FEATURED = [
   {
     key: 'arena', label: 'Guerra das Cartas', icon: 'cards', to: '/cartas',
     hint: 'Jogo de cartas: colecione, monte seu baralho e batalhe', match: (p) => p.startsWith('/cartas'), tag: 'Jogar',
+    feature: 'cardsWar', // desligada temporariamente (utils/features.js)
   },
   {
     key: 'anuncios', label: 'Anúncios', icon: 'megaphone', to: '/anuncios',
@@ -59,7 +61,7 @@ export const FEATURED = [
     key: 'loja', label: 'Loja', icon: 'store', to: '/loja',
     hint: 'Molduras, efeitos de perfil, versos de cartas e pacotes', match: (p) => p.startsWith('/loja'),
   },
-];
+].filter((f) => !f.feature || isFeatureEnabled(f.feature));
 
 // Visibilidade salva por comunidade (padrão: todos visíveis).
 export function useFeaturedVisibility() {

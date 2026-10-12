@@ -113,7 +113,10 @@ const CACHE_MS = 60 * 1000;
 function invalidateCache() { cache = { at: 0, list: null }; }
 async function getActiveMissions() {
   if (cache.list && Date.now() - cache.at < CACHE_MS) return cache.list;
-  const list = await prisma.mission.findMany({ where: { enabled: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] });
+  let list = await prisma.mission.findMany({ where: { enabled: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] });
+  // Guerra das Cartas desligada (config/features.js): missões CARDS_* não
+  // dá pra cumprir, então saem da lista (continuam salvas no banco).
+  if (!require('../config/features').isFeatureEnabled('cardsWar')) list = list.filter((m) => !String(m.type || '').startsWith('CARDS_'));
   cache = { at: Date.now(), list };
   return list;
 }
