@@ -1,335 +1,283 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logo from '../assets/icons/logo-project-club.png';
-import dlWindowsBlack from '../assets/icons/dl-windows-black.png';
-import dlWindowsWhite from '../assets/icons/dl-windows-white.png';
-import dlLinuxWhite from '../assets/icons/dl-linux-white.png';
-import dlAndroidWhite from '../assets/icons/dl-android-white.png';
-import dlNavegadorWhite from '../assets/icons/dl-navegador-white.png';
-import dlMenuBlack from '../assets/icons/dl-menu-black.png';
 import { Ico } from '../components/PagesKit.jsx';
 import '../styles/landing.css';
 
-// Página inicial pública — hero + janela de prévia + como funciona +
-// recursos + sobre + estatísticas + download + CTA final + rodapé.
-// Revelação suave ao rolar (useReveal abaixo) é a única animação além
-// do fundo ambiente já existente — desligada de propósito se a pessoa
-// tiver "reduzir movimento" ativado no sistema.
+// Página inicial pública (vitrine + download).
+// Estilo editorial: fundo claro, título enorme em fonte condensada,
+// legendas pequenas em caixa alta, uma faixa escura no meio e os apps do
+// Project Club com a arte de verdade de cada um. Só duas animações:
+// revelar ao rolar e a esteira dos apps — as duas param com "reduzir
+// movimento" ligado no sistema.
+
+const DOWNLOADS_BASE = 'https://github.com/RiqueBitt/ProjectClub/releases/latest/download';
+const DOWNLOADS = {
+  windows: `${DOWNLOADS_BASE}/ProjectClub-Setup-Windows.exe`,
+  linux: `${DOWNLOADS_BASE}/ProjectClub-Linux.AppImage`,
+  android: `${DOWNLOADS_BASE}/ProjectClub.apk`,
+};
+
+// Apps da aba Apps, com a arte publicada em /public/apps/<id>/.
+const APPS = [
+  { id: 'gameproject', name: 'GameProject', what: 'Criação de jogos 2D e 3D', color: '#818CF8' },
+  { id: 'photoproject', name: 'PhotoProject', what: 'Editor de imagem', color: '#A855F7' },
+  { id: 'projectmc', name: 'ProjectMC', what: 'Launcher de Minecraft', color: '#A3E635' },
+  { id: 'hyproject', name: 'HyProject', what: 'Launcher de Hytale', color: '#FACC15' },
+  { id: 'davinciproject', name: 'CutProject', what: 'Editor de vídeo', color: '#F87171' },
+  { id: 'waveproject', name: 'WaveProject', what: 'Editor de áudio', color: '#22D3EE' },
+  { id: 'texelproject', name: 'TexelProject', what: 'Pintura de texturas 3D', color: '#FB923C' },
+  { id: 'forgeproject', name: 'ForgeProject', what: 'Modelagem e render 3D', color: '#4ADE80' },
+  { id: 'canvasproject', name: 'CanvasProject', what: 'Pintura digital', color: '#F472B6' },
+];
+
+const ICONS = {
+  windows: 'M3 5.5 10 4.5v7H3zM12 4.2 21 3v8.5h-9zM3 13h7v6.5L3 18.5zM12 13h9V21l-9-1.2z',
+  linux: 'M12 3c-2.2 0-3.5 1.8-3.5 4.3 0 1.5-.6 2.6-1.6 4C5.6 13 5 14.6 5 16c0 2.8 3 5 7 5s7-2.2 7-5c0-1.4-.6-3-1.9-4.7-1-1.4-1.6-2.5-1.6-4C15.5 4.8 14.2 3 12 3Z',
+  android: 'M6 9h12v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2zM6 9a6 6 0 0 1 12 0M8.5 4 7 2M15.5 4 17 2M9.5 6.5h.01M14.5 6.5h.01M4 10v5M20 10v5M9 19v3M15 19v3',
+  browser: 'M3 6h18v13H3zM3 10h18M6 8h.01M8.5 8h.01',
+};
+function Mark({ name, size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICONS[name]} /></svg>
+  );
+}
+
 function useReveal() {
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const els = document.querySelectorAll('.landing-reveal');
+    const els = document.querySelectorAll('.lp-reveal');
+    // A própria página (.lp) é o que rola, então ela é a raiz do observador.
     const io = new IntersectionObserver((entries) => {
-      entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add('in-view'); });
-    }, { threshold: 0.15 });
+      entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); } });
+    }, { root: document.querySelector('.lp'), threshold: 0.08 });
     els.forEach((el) => io.observe(el));
     return () => io.disconnect();
   }, []);
 }
 
-// Publicados como assets de uma GitHub Release no repositório PÚBLICO
-// repositório RiqueBitt/ProjectClub (antes ficavam no ProjectClub-Downloads, só os
-// instaladores) — o repositório principal continua privado. O GitHub
-// Actions do repositório principal (.github/workflows/build-apps.yml)
-// publica ali automaticamente sempre que desktop/ ou client/android/
-// mudam. "releases/latest/download/<nome>" é um link ESTÁVEL do próprio
-// GitHub — sempre baixa o arquivo daquele nome da versão mais recente
-// publicada, sem precisar saber o número da versão.
-const DOWNLOADS_BASE = 'https://github.com/RiqueBitt/ProjectClub/releases/latest/download';
-const WINDOWS_DOWNLOAD_URL = `${DOWNLOADS_BASE}/ProjectClub-Setup-Windows.exe`;
-const LINUX_DOWNLOAD_URL = `${DOWNLOADS_BASE}/ProjectClub-Linux.AppImage`;
-const ANDROID_DOWNLOAD_URL = `${DOWNLOADS_BASE}/ProjectClub.apk`;
+// Mostra "Windows", "Linux" ou "Android" no botão principal conforme o
+// sistema de quem está lendo. Quem está no iPhone/Mac vê "pelo navegador".
+function detectPlatform() {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  if (/android/i.test(ua)) return 'android';
+  if (/windows/i.test(ua)) return 'windows';
+  if (/linux/i.test(ua)) return 'linux';
+  return null;
+}
+const PLATFORM_LABEL = { windows: 'Windows', linux: 'Linux', android: 'Android' };
 
 export default function LandingPage() {
   const navigate = useNavigate();
   useReveal();
-  // Menuzinho de plataforma (item pedido) — igual o botão de download do
-  // Discord: o botão principal já baixa a opção mais comum (Windows)
-  // direto, e uma setinha do lado abre um menu pra escolher Linux/Mobile
-  // em vez disso.
-  const [platformMenuOpen, setPlatformMenuOpen] = useState(false);
-  useEffect(() => {
-    if (!platformMenuOpen) return;
-    const closeOnOutsideClick = (e) => {
-      if (!e.target.closest('.landing-download-split')) setPlatformMenuOpen(false);
-    };
-    document.addEventListener('click', closeOnOutsideClick);
-    return () => document.removeEventListener('click', closeOnOutsideClick);
-  }, [platformMenuOpen]);
+  const [platform] = useState(detectPlatform);
+  const [copied, setCopied] = useState(false);
 
   const goLogin = () => navigate('/login');
   const goRegister = () => navigate('/register');
-  // A própria página é o container que rola (.lp), não a janela.
   const toTop = (e) => {
     e.preventDefault();
     document.querySelector('.lp')?.scrollTo({ top: 0, behavior: 'smooth' });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+  const copyLink = async () => {
+    try { await navigator.clipboard.writeText('https://projectclub.squareweb.app'); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* sem área de transferência */ }
+  };
+
+  const year = new Date().getFullYear();
 
   return (
     <div className="lp">
-      <div className="lp-bg" aria-hidden="true"><span className="lp-orb o1" /><span className="lp-orb o2" /><span className="lp-grid" /></div>
+      <a className="lp-skip" href="#conteudo">Pular para o conteúdo</a>
 
-      <nav className="lp-nav">
-        <a className="lp-brand" href="#" onClick={toTop}>
-          <img className="lp-brand-mark" src={logo} alt="" /><span>PROJECT CLUB</span>
+      <header className="lp-top">
+        <a className="lp-logo" href="#" onClick={toTop} aria-label="Project Club, início">
+          <img src={logo} alt="" width="34" height="34" />
         </a>
-        <ul className="lp-nav-links">
-          <li><a href="#" onClick={toTop}>Início</a></li>
-          <li><a href="#como-funciona">Como funciona</a></li>
-          <li><a href="#recursos">Recursos</a></li>
-          <li><a href="#sobre">Sobre</a></li>
-          <li><a href="#faq">FAQ</a></li>
-          <li><a href="#download">Download</a></li>
-        </ul>
-        <div className="lp-nav-actions">
-          <button className="lp-btn ghost sm" onClick={goLogin}>Entrar</button>
-          <button className="lp-btn primary sm" onClick={goRegister}>Criar conta</button>
+        <nav className="lp-menu" aria-label="Seções">
+          <a href="#apps">Apps</a>
+          <a href="#comunidade">Comunidade</a>
+          <a href="#download">Download</a>
+          <a href="#perguntas">Perguntas</a>
+        </nav>
+        <div className="lp-top-actions">
+          <button type="button" className="lp-link" onClick={goLogin}>Entrar</button>
+          <button type="button" className="lp-btn is-dark is-sm" onClick={goRegister}>Criar conta</button>
         </div>
-      </nav>
+      </header>
 
-      <main>
-        <section className="lp-hero">
-          <div className="lp-hero-copy">
-            <span className="lp-eyebrow"><span className="lp-live-dot" /> Comunidade ativa agora</span>
-            <h1>
-              Um jeito mais <span className="lp-grad">conectado</span> de fazer parte de algo
-            </h1>
-            <p className="lp-sub">
-              Chat em tempo real, canais de voz, Fórum com Temas e categorias, conquistas, economia e muito mais —
-              tudo numa comunidade só, sem enrolação.
+      <main id="conteudo">
+        {/* ---------- Abertura ---------- */}
+        <section className="lp-hero" aria-labelledby="titulo">
+          <div className="lp-hero-shapes" aria-hidden="true">
+            {APPS.slice(0, 6).map((a, i) => (
+              <img key={a.id} className={`lp-shape s${i + 1}`} src={`/apps/${a.id}/icon.png`} alt="" loading="lazy" />
+            ))}
+          </div>
+          <h1 id="titulo" className="lp-display"><span>Project</span> <span>Club</span></h1>
+          <div className="lp-hero-foot">
+            <p className="lp-lede">
+              Uma comunidade com chat, voz e fórum, e um app para computador que instala e atualiza os nossos programas de criação: jogos, imagem, vídeo, áudio e 3D. Tudo de graça, feito por quem usa.
             </p>
-            <div className="lp-cta-row">
-              <button className="lp-btn primary lg" onClick={goRegister}>Criar conta grátis <Ico name="arrowRight" size={18} /></button>
-              <button className="lp-btn ghost lg" onClick={goLogin}>
-                <img className="lp-btn-img" src={dlNavegadorWhite} alt="" /> Entrar pelo navegador
-              </button>
-            </div>
-            <div className="lp-download-row">
-              <div className="landing-download-split lp-split">
-                <a className="lp-split-main" href={WINDOWS_DOWNLOAD_URL} download>
-                  <img className="lp-btn-img" src={dlWindowsBlack} alt="" /> Download App
+            <div className="lp-hero-cta">
+              {platform ? (
+                <a className="lp-btn is-accent is-lg" href={DOWNLOADS[platform]} download>
+                  <Mark name={platform} size={20} /> Baixar para {PLATFORM_LABEL[platform]}
                 </a>
-                <button
-                  type="button"
-                  className="lp-split-caret"
-                  aria-label="Escolher outra plataforma"
-                  aria-expanded={platformMenuOpen}
-                  onClick={() => setPlatformMenuOpen((v) => !v)}
-                >
-                  <img className="lp-btn-img sm" src={dlMenuBlack} alt="" />
-                </button>
-                {platformMenuOpen && (
-                  <div className="lp-platform-menu" onMouseLeave={() => setPlatformMenuOpen(false)}>
-                    <a href={WINDOWS_DOWNLOAD_URL} download className="lp-platform-menu-item">
-                      <img src={dlWindowsWhite} alt="" /> Windows
-                    </a>
-                    <a href={ANDROID_DOWNLOAD_URL} download className="lp-platform-menu-item">
-                      <img src={dlAndroidWhite} alt="" /> Mobile (Android)
-                    </a>
-                    <a href={LINUX_DOWNLOAD_URL} download className="lp-platform-menu-item">
-                      <img src={dlLinuxWhite} alt="" /> Linux
-                    </a>
-                  </div>
-                )}
-              </div>
-              <p className="lp-platform-note">Ou baixe direto: Windows, Linux ou Android · Grátis</p>
+              ) : (
+                <button type="button" className="lp-btn is-accent is-lg" onClick={goRegister}>Criar conta grátis <Ico name="arrowRight" size={18} /></button>
+              )}
+              <a className="lp-btn is-ghost is-lg" href="#download">Outros sistemas</a>
             </div>
-            <div className="lp-trust">
-              <span><Ico name="lock" size={15} /> Sem custo nenhum</span>
-              <span><Ico name="bolt" size={15} /> Conta pronta em 1 minuto</span>
-              <span><Ico name="globe" size={15} /> Comunidade ativa todo dia</span>
-            </div>
-          </div>
-
-          <div className="lp-window landing-reveal" aria-hidden="true">
-            <div className="lp-window-bar">
-              <span className="lp-dot d1" /><span className="lp-dot d2" /><span className="lp-dot d3" />
-              <span className="lp-window-title">Project Club — Comunidade</span>
-            </div>
-            <div className="lp-window-body">
-              <div className="lp-window-side">
-                <div className="lp-window-grp">Navegação</div>
-                <div className="lp-window-item active"><Ico name="chat" size={15} /> Comunidade</div>
-                <div className="lp-window-item"><Ico name="users" size={15} /> Amigos</div>
-                <div className="lp-window-item"><Ico name="news" size={15} /> Fórum</div>
-                <div className="lp-window-grp">Extras</div>
-                <div className="lp-window-item"><Ico name="trophy" size={15} /> Conquistas</div>
-                <div className="lp-window-item"><Ico name="star" size={15} /> Ranks</div>
-                <div className="lp-window-item"><Ico name="bell" size={15} /> Atualizações</div>
-              </div>
-              <div className="lp-window-main">
-                <div className="lp-window-grid">
-                  {[
-                    ['Chat Geral', 'Canal de texto', 'hash'], ['Sala de Voz', 'Canal de voz', 'volume'], ['Discussão', 'Categoria do Fórum', 'news'],
-                    ['Veterano', 'Conquista · Rara', 'trophy'], ['Ranks', 'Nível de conta', 'star'], ['Temas', 'Organização de posts', 'grid'],
-                  ].map(([name, meta, icon], i) => (
-                    <div key={name} className={`lp-window-card c${i}`}>
-                      <div className="lp-window-thumb"><Ico name={icon} size={22} /></div>
-                      <div className="lp-window-card-name">{name}</div>
-                      <div className="lp-window-card-meta">{meta}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="lp-window-online">
-                  <span className="lp-live-dot" /> 3 pessoas online agora
-                  <span className="lp-online-avatars"><i /><i /><i /></span>
-                </div>
-              </div>
-            </div>
+            <span className="lp-eyebrow">▶ comunidade · apps · grátis</span>
           </div>
         </section>
 
-        <div className="lp-stats landing-reveal">
-          <div className="lp-stat"><div className="lp-stat-num">∞</div><div className="lp-stat-label">Canais e categorias</div></div>
-          <div className="lp-stat"><div className="lp-stat-num">100%</div><div className="lp-stat-label">Tempo real</div></div>
-          <div className="lp-stat"><div className="lp-stat-num">18</div><div className="lp-stat-label">Conquistas pra desbloquear</div></div>
-          <div className="lp-stat"><div className="lp-stat-num">24/7</div><div className="lp-stat-label">Comunidade ativa</div></div>
-        </div>
-
-        <section id="como-funciona" className="lp-section">
-          <div className="lp-head">
-            <div className="lp-tag">Como funciona</div>
-            <h2>Três passos e você já está dentro</h2>
-            <p>Sem formulário complicado, sem enrolação — comece a participar em minutos.</p>
-          </div>
-          <div className="lp-steps">
-            <div className="lp-step landing-reveal">
-              <div className="lp-step-num">01</div>
-              <h3>Crie sua conta</h3>
-              <p>Cadastro rápido, direto pelo navegador — sem precisar instalar nada.</p>
-            </div>
-            <div className="lp-step landing-reveal">
-              <div className="lp-step-num">02</div>
-              <h3>Explore os Temas</h3>
-              <p>Entre nos canais de chat e voz, e navegue pelos Temas e categorias do Fórum.</p>
-            </div>
-            <div className="lp-step landing-reveal">
-              <div className="lp-step-num">03</div>
-              <h3>Participe em tempo real</h3>
-              <p>Converse, publique posts, desbloqueie conquistas — tudo atualiza na hora pra todo mundo.</p>
-            </div>
-          </div>
-        </section>
-
-        <section id="recursos" className="lp-section">
-          <div className="lp-head">
-            <div className="lp-tag">Recursos</div>
-            <h2>Tudo que uma comunidade precisa, num lugar só</h2>
-            <p>Chat, voz, feed de posts e sistema de conquistas — pensado pra quem quer mais que só um grupo.</p>
-          </div>
-          <div className="lp-feat-grid">
-            <div className="lp-feat landing-reveal" style={{ '--c': '#4c9fff' }}><div className="lp-feat-icon"><Ico name="volume" size={22} /></div><h3>Chat e canais de voz</h3><p>Conversa em tempo real por texto ou voz, com canais organizados por categoria.</p></div>
-            <div className="lp-feat landing-reveal" style={{ '--c': '#a37cff' }}><div className="lp-feat-icon"><Ico name="news" size={22} /></div><h3>Fórum e Temas</h3><p>Publique posts organizados por Tema e categoria — discussão, dúvida, notícia e mais.</p></div>
-            <div className="lp-feat landing-reveal" style={{ '--c': '#f0b232' }}><div className="lp-feat-icon"><Ico name="trophy" size={22} /></div><h3>Conquistas</h3><p>Desbloqueie conquistas conforme participa da comunidade, com raridades diferentes.</p></div>
-            <div className="lp-feat landing-reveal" style={{ '--c': '#ff5c8a' }}><div className="lp-feat-icon"><Ico name="palette" size={22} /></div><h3>Perfil personalizado</h3><p>Cor de perfil, banner, conexões e conquistas em destaque — do seu jeito.</p></div>
-            <div className="lp-feat landing-reveal" style={{ '--c': '#23a55a' }}><div className="lp-feat-icon"><Ico name="shield" size={22} /></div><h3>Amigos e privacidade</h3><p>Adicione amigos com controle total sobre quem pode te mandar pedido.</p></div>
-            <div className="lp-feat landing-reveal" style={{ '--c': '#2fb8d6' }}><div className="lp-feat-icon"><Ico name="bolt" size={22} /></div><h3>Tempo real de verdade</h3><p>Tudo atualiza na hora pra todo mundo — sem precisar recarregar a página.</p></div>
-          </div>
-        </section>
-
-        <section id="sobre" className="lp-section">
-          <div className="lp-about landing-reveal">
-            <div className="lp-tag">Sobre</div>
-            <h2>Feito pra comunidade de verdade, não só pra mais um grupo</h2>
-            <p>
-              O Project Club nasceu de um jeito simples de pensar: uma comunidade não é só um monte de gente no
-              mesmo lugar — é gente conversando, criando, e sendo reconhecida por isso. Por isso cada detalhe
-              (dos canais de voz às conquistas que você desbloqueia) foi pensado pra fazer parte parecer mais
-              com estar em casa do que com só mais uma aba aberta.
+        {/* ---------- Apps (faixa escura) ---------- */}
+        <section id="apps" className="lp-band is-dark" aria-labelledby="apps-titulo">
+          <div className="lp-band-head lp-reveal">
+            <span className="lp-eyebrow">▶ a aba apps</span>
+            <h2 id="apps-titulo" className="lp-display is-md">Nove programas,<br />um só lugar</h2>
+            <p className="lp-copy">
+              Cada um é um projeto de código aberto conhecido, com o nome e a cara do Project Club. Você instala pelo app para computador, e as atualizações chegam por lá, sem procurar instalador por aí.
             </p>
           </div>
-        </section>
-
-        <section id="download" className="lp-section">
-          <div className="lp-head">
-            <div className="lp-tag">Download</div>
-            <h2>Escolha como entrar</h2>
-            <p>O jeito mais rápido é pelo navegador — os apps nativos ainda estão a caminho.</p>
-          </div>
-          <div className="lp-platforms">
-            <button className="lp-platform landing-reveal featured" onClick={goLogin}>
-              <span className="lp-platform-icon"><img src={dlNavegadorWhite} alt="" /></span>
-              <span className="lp-platform-os">Navegador</span>
-              <span className="lp-platform-fmt">Disponível agora</span>
-            </button>
-            <a className="lp-platform landing-reveal" href={WINDOWS_DOWNLOAD_URL} download>
-              <span className="lp-platform-icon"><img src={dlWindowsWhite} alt="" /></span>
-              <span className="lp-platform-os">Windows</span>
-              <span className="lp-platform-fmt"><Ico name="download" size={14} /> Baixar .exe</span>
-            </a>
-            <a className="lp-platform landing-reveal" href={LINUX_DOWNLOAD_URL} download>
-              <span className="lp-platform-icon"><img src={dlLinuxWhite} alt="" /></span>
-              <span className="lp-platform-os">Linux</span>
-              <span className="lp-platform-fmt"><Ico name="download" size={14} /> Baixar .AppImage</span>
-            </a>
-            <a className="lp-platform landing-reveal" href={ANDROID_DOWNLOAD_URL} download>
-              <span className="lp-platform-icon"><img src={dlAndroidWhite} alt="" /></span>
-              <span className="lp-platform-os">Android</span>
-              <span className="lp-platform-fmt"><Ico name="download" size={14} /> Baixar .apk</span>
-            </a>
-          </div>
-        </section>
-
-        <section id="faq" className="lp-section">
-          <div className="lp-head">
-            <div className="lp-tag">Perguntas frequentes</div>
-            <h2>Ainda com dúvida?</h2>
-          </div>
-          <div className="lp-faq">
-            <details className="lp-faq-item landing-reveal">
-              <summary>Preciso pagar alguma coisa pra usar?<Ico name="plus" size={18} /></summary>
-              <p>Não. Criar conta, entrar em Temas, usar chat e canais de voz é 100% gratuito — inclusive nos apps de Windows, Linux e Android.</p>
-            </details>
-            <details className="lp-faq-item landing-reveal">
-              <summary>Funciona bem no celular?<Ico name="plus" size={18} /></summary>
-              <p>Sim — pelo navegador do celular ou pelo app Android, com suporte a chamada de voz continuando em segundo plano mesmo se você sair do app.</p>
-            </details>
-            <details className="lp-faq-item landing-reveal">
-              <summary>Meus dados ficam seguros?<Ico name="plus" size={18} /></summary>
-              <p>Sim. Suporte a autenticação em duas etapas, sessões visíveis por dispositivo, e moderação ativa contra spam e abuso.</p>
-            </details>
-            <details className="lp-faq-item landing-reveal">
-              <summary>Preciso instalar algo pra começar?<Ico name="plus" size={18} /></summary>
-              <p>Não — o botão "Entrar pelo navegador" já é suficiente pra usar tudo. Os apps de Windows/Linux/Android são só uma conveniência a mais, pra quem quer notificação nativa e a chamada de voz sempre à mão.</p>
-            </details>
-          </div>
-        </section>
-
-        <section className="lp-section">
-          <div className="lp-final landing-reveal">
-            <img className="lp-final-logo" src={logo} alt="" />
-            <h2>Pronto pra entrar?</h2>
-            <p>Leva menos de um minuto pra criar sua conta e já estar dentro de um Tema.</p>
-            <div className="lp-cta-row center">
-              <button className="lp-btn primary lg" onClick={goRegister}>Criar conta <Ico name="arrowRight" size={18} /></button>
-              <button className="lp-btn ghost lg" onClick={goLogin}><Ico name="login" size={18} /> Entrar agora pelo navegador</button>
+          <div className="lp-marquee" aria-hidden="true">
+            <div className="lp-marquee-track">
+              {[...APPS, ...APPS].map((a, i) => (
+                <img key={`${a.id}-${i}`} src={`/apps/${a.id}/banner.jpg`} alt="" loading="lazy" style={{ '--c': a.color }} />
+              ))}
             </div>
+          </div>
+          <ul className="lp-apps lp-reveal">
+            {APPS.map((a) => (
+              <li key={a.id} style={{ '--c': a.color }}>
+                <img src={`/apps/${a.id}/icon.png`} alt="" width="44" height="44" loading="lazy" />
+                <span className="lp-app-name">{a.name}</span>
+                <span className="lp-app-what">{a.what}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {/* ---------- Comunidade ---------- */}
+        <section id="comunidade" className="lp-band" aria-labelledby="com-titulo">
+          <div className="lp-split">
+            <div className="lp-reveal">
+              <span className="lp-eyebrow">▶ a comunidade</span>
+              <h2 id="com-titulo" className="lp-display is-md">Conversa de<br />verdade</h2>
+            </div>
+            <div className="lp-reveal">
+              <p className="lp-copy">
+                Canais de texto e de voz, um fórum com temas e categorias, amigos, conquistas e uma economia com moedas, casas e figurinhas. Parece Discord por fora, mas é nosso por dentro: a gente decide o que entra.
+              </p>
+              <dl className="lp-facts">
+                <div><dt>Tempo real</dt><dd>Mensagens, voz e presença atualizam na hora, sem recarregar.</dd></div>
+                <div><dt>Conquistas</dt><dd>18 para desbloquear, com raridades e destaque no perfil.</dd></div>
+                <div><dt>Perfil seu</dt><dd>Cor, banner, conexões e o que você quiser mostrar.</dd></div>
+                <div><dt>Segurança</dt><dd>Verificação em duas etapas, sessões por aparelho e moderação ativa.</dd></div>
+              </dl>
+            </div>
+          </div>
+        </section>
+
+        {/* ---------- Download ---------- */}
+        <section id="download" className="lp-band is-tint" aria-labelledby="dl-titulo">
+          <div className="lp-band-head lp-reveal">
+            <span className="lp-eyebrow">▶ download</span>
+            <h2 id="dl-titulo" className="lp-display is-md">Escolha o seu<br />sistema</h2>
+            <p className="lp-copy">O app para computador é o que instala os programas da aba Apps. No celular e no navegador você usa a comunidade.</p>
+          </div>
+          <div className="lp-dl lp-reveal">
+            <a className={`lp-dl-card ${platform === 'windows' ? 'is-you' : ''}`} href={DOWNLOADS.windows} download>
+              <Mark name="windows" size={28} />
+              <strong>Windows</strong>
+              <span>Instalador .exe · Windows 10 e 11</span>
+              <em>Baixar <Ico name="download" size={15} /></em>
+            </a>
+            <a className={`lp-dl-card ${platform === 'linux' ? 'is-you' : ''}`} href={DOWNLOADS.linux} download>
+              <Mark name="linux" size={28} />
+              <strong>Linux</strong>
+              <span>AppImage · x86_64</span>
+              <em>Baixar <Ico name="download" size={15} /></em>
+            </a>
+            <a className={`lp-dl-card ${platform === 'android' ? 'is-you' : ''}`} href={DOWNLOADS.android} download>
+              <Mark name="android" size={28} />
+              <strong>Android</strong>
+              <span>Arquivo .apk · instalação manual</span>
+              <em>Baixar <Ico name="download" size={15} /></em>
+            </a>
+            <button type="button" className="lp-dl-card" onClick={goLogin}>
+              <Mark name="browser" size={28} />
+              <strong>Navegador</strong>
+              <span>Sem instalar nada, em qualquer aparelho</span>
+              <em>Entrar <Ico name="arrowRight" size={15} /></em>
+            </button>
+          </div>
+          <p className="lp-fine lp-reveal">
+            Os arquivos vêm das versões publicadas no GitHub e se atualizam sozinhos depois de instalados. No Android, permita a instalação de apps fora da loja quando o sistema pedir.
+          </p>
+        </section>
+
+        {/* ---------- Perguntas ---------- */}
+        <section id="perguntas" className="lp-band" aria-labelledby="faq-titulo">
+          <div className="lp-split">
+            <div className="lp-reveal">
+              <span className="lp-eyebrow">▶ perguntas</span>
+              <h2 id="faq-titulo" className="lp-display is-md">Antes de<br />entrar</h2>
+            </div>
+            <div className="lp-faq lp-reveal">
+              <details>
+                <summary>Custa alguma coisa?<Ico name="plus" size={18} /></summary>
+                <p>Não. A conta, a comunidade e todos os apps são gratuitos. Não tem plano pago nem anúncio.</p>
+              </details>
+              <details>
+                <summary>Os apps são de vocês?</summary>
+                <p>São versões dos projetos de código aberto que a gente usa (Godot, Krita, Blender, Audacity e outros), com o nome e o tema do Project Club e integrados ao app. O código de cada um fica público no GitHub, com os créditos e a licença original.</p>
+              </details>
+              <details>
+                <summary>Preciso do app para computador?</summary>
+                <p>Só para instalar os programas da aba Apps. A comunidade funciona no navegador e no Android também, inclusive com chamada de voz em segundo plano.</p>
+              </details>
+              <details>
+                <summary>Como o app se atualiza?</summary>
+                <p>Sozinho. O Project Club busca a versão nova ao abrir, e cada programa da aba Apps mostra um botão de atualizar quando sai uma versão.</p>
+              </details>
+              <details>
+                <summary>E os meus dados?</summary>
+                <p>Ficam no nosso servidor, com verificação em duas etapas opcional e sessões visíveis por aparelho. Os detalhes estão na página de <button type="button" className="lp-inline" onClick={() => navigate('/privacidade')}>proteção e privacidade</button>.</p>
+              </details>
+            </div>
+          </div>
+        </section>
+
+        {/* ---------- Fechamento ---------- */}
+        <section className="lp-band is-dark is-end" aria-labelledby="fim-titulo">
+          <span className="lp-eyebrow">▶ é isso</span>
+          <h2 id="fim-titulo" className="lp-display is-lg">Vem pro<br />clube</h2>
+          <div className="lp-hero-cta">
+            <button type="button" className="lp-btn is-accent is-lg" onClick={goRegister}>Criar conta <Ico name="arrowRight" size={18} /></button>
+            <button type="button" className="lp-btn is-ghost-light is-lg" onClick={copyLink}>{copied ? 'Link copiado' : 'Copiar o link do site'}</button>
           </div>
         </section>
       </main>
 
-      <footer className="lp-footer">
-        <div className="lp-footer-col brand">
-          <div className="lp-brand"><img className="lp-brand-mark" src={logo} alt="" /><span>PROJECT CLUB</span></div>
-          <div className="lp-footer-note">Feito pela comunidade, para a comunidade.</div>
+      <footer className="lp-foot">
+        <div className="lp-foot-brand">
+          <img src={logo} alt="" width="28" height="28" />
+          <span>Project Club</span>
+          <small>Comunidade e apps de criação, feitos pela comunidade.</small>
         </div>
-        <div className="lp-footer-col">
-          <div className="lp-footer-heading">Plataforma</div>
-          <a href="#como-funciona">Como funciona</a>
-          <a href="#recursos">Recursos</a>
-          <a href="#sobre">Sobre</a>
-          <a href="#faq">FAQ</a>
-        </div>
-        <div className="lp-footer-col">
-          <div className="lp-footer-heading">Comece</div>
+        <nav className="lp-foot-nav" aria-label="Rodapé">
+          <a href="#apps">Apps</a>
+          <a href="#comunidade">Comunidade</a>
           <a href="#download">Download</a>
-          <button className="lp-footer-link" onClick={goLogin}>Entrar</button>
-          <button className="lp-footer-link" onClick={goRegister}>Criar conta</button>
-        </div>
-        <div className="lp-footer-col">
-          <div className="lp-footer-heading">Legal</div>
-          <button className="lp-footer-link" onClick={() => navigate('/privacidade')}>Proteção e Privacidade</button>
+          <a href="#perguntas">Perguntas</a>
+          <a href="https://github.com/RiqueBitt/ProjectClub" target="_blank" rel="noreferrer">GitHub</a>
+          <button type="button" className="lp-link" onClick={() => navigate('/privacidade')}>Privacidade</button>
+        </nav>
+        <div className="lp-foot-meta">
+          <span>© {year} Project Club</span>
+          <a href="#" onClick={toTop}>Topo ↑</a>
         </div>
       </footer>
     </div>
