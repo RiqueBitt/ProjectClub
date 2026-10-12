@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logo from '../assets/icons/logo-project-club.png';
 import { Ico } from '../components/PagesKit.jsx';
@@ -23,15 +23,15 @@ const DOWNLOADS = {
 };
 
 const APPS = [
-  { id: 'gameproject', shot: '09-jogo-rodando', name: 'GameProject', what: 'Criação de jogos 2D e 3D', color: '#818CF8', line: 'Cenas, física, animação e scripts num editor só. Aperte F5 e o jogo roda ali mesmo.', base: 'Godot Engine' },
-  { id: 'photoproject', shot: '08-pincel-camadas', name: 'PhotoProject', what: 'Editor de imagem', color: '#A855F7', line: 'Camadas, máscaras, ajustes e arquivos do Photoshop abrindo do jeito que foram salvos.', base: 'Patchy' },
-  { id: 'projectmc', shot: '08-loja-de-mods', name: 'ProjectMC', what: 'Launcher de Minecraft', color: '#A3E635', line: 'Instâncias separadas, mods do Modrinth e do CurseForge e o Java certo para cada versão.', base: 'X Minecraft Launcher' },
-  { id: 'hyproject', shot: '07-painel', name: 'HyProject', what: 'Launcher de Hytale', color: '#FACC15', line: 'Instala, atualiza e organiza perfis e mods, com as novidades do jogo na tela inicial.', base: 'HyPrism' },
-  { id: 'davinciproject', shot: '03-clipe-selecionado', name: 'CutProject', what: 'Editor de vídeo', color: '#F87171', line: 'Linha do tempo com várias faixas, cor, títulos e exportação pronta para as redes.', base: 'Sprocket' },
-  { id: 'waveproject', shot: '11-efeitos-em-tempo-real', name: 'WaveProject', what: 'Editor de áudio', color: '#22D3EE', line: 'Grave, corte e limpe voz, música e podcast com efeitos em tempo real.', base: 'Audacity' },
-  { id: 'texelproject', shot: '03-pincel', name: 'TexelProject', what: 'Pintura de texturas 3D', color: '#FB923C', line: 'Pinte direto no modelo, com materiais PBR, camadas e máscaras.', base: 'ArmorPaint' },
-  { id: 'forgeproject', shot: '07-shading', name: 'ForgeProject', what: 'Modelagem e render 3D', color: '#4ADE80', line: 'Modele, anime e renderize. Tudo que o Blender faz, com a cara do clube.', base: 'Bforartists' },
-  { id: 'canvasproject', shot: null, name: 'CanvasProject', what: 'Pintura digital', color: '#F472B6', line: 'Pincéis que parecem tinta, mesa digitalizadora, quadrinhos e animação quadro a quadro.', base: 'Krita' },
+  { id: 'gameproject', verb: 'Jogos', shot: '09-jogo-rodando', name: 'GameProject', what: 'Criação de jogos 2D e 3D', color: '#818CF8', line: 'Cenas, física, animação e scripts num editor só. Aperte F5 e o jogo roda ali mesmo.', base: 'Godot Engine' },
+  { id: 'photoproject', verb: 'Fotos', shot: '08-pincel-camadas', name: 'PhotoProject', what: 'Editor de imagem', color: '#A855F7', line: 'Camadas, máscaras, ajustes e arquivos do Photoshop abrindo do jeito que foram salvos.', base: 'Patchy' },
+  { id: 'projectmc', verb: 'Minecraft', shot: '08-loja-de-mods', name: 'ProjectMC', what: 'Launcher de Minecraft', color: '#A3E635', line: 'Instâncias separadas, mods do Modrinth e do CurseForge e o Java certo para cada versão.', base: 'X Minecraft Launcher' },
+  { id: 'hyproject', verb: 'Hytale', shot: '07-painel', name: 'HyProject', what: 'Launcher de Hytale', color: '#FACC15', line: 'Instala, atualiza e organiza perfis e mods, com as novidades do jogo na tela inicial.', base: 'HyPrism' },
+  { id: 'davinciproject', verb: 'Vídeo', shot: '03-clipe-selecionado', name: 'CutProject', what: 'Editor de vídeo', color: '#F87171', line: 'Linha do tempo com várias faixas, cor, títulos e exportação pronta para as redes.', base: 'Sprocket' },
+  { id: 'waveproject', verb: 'Música e voz', shot: '11-efeitos-em-tempo-real', name: 'WaveProject', what: 'Editor de áudio', color: '#22D3EE', line: 'Grave, corte e limpe voz, música e podcast com efeitos em tempo real.', base: 'Audacity' },
+  { id: 'texelproject', verb: 'Texturas 3D', shot: '08-vista-de-cima', name: 'TexelProject', what: 'Pintura de texturas 3D', color: '#FB923C', line: 'Pinte direto no modelo, com materiais PBR, camadas e máscaras.', base: 'ArmorPaint' },
+  { id: 'forgeproject', verb: 'Modelos 3D', shot: '07-shading', name: 'ForgeProject', what: 'Modelagem e render 3D', color: '#4ADE80', line: 'Modele, anime e renderize. Tudo que o Blender faz, com a cara do clube.', base: 'Bforartists' },
+  { id: 'canvasproject', verb: 'Desenho', shot: null, name: 'CanvasProject', what: 'Pintura digital', color: '#F472B6', line: 'Pincéis que parecem tinta, mesa digitalizadora, quadrinhos e animação quadro a quadro.', base: 'Krita' },
 ];
 
 const ICONS = {
@@ -88,6 +88,100 @@ function useScrollChrome() {
     onScroll();
     return () => { root.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); };
   }, []);
+}
+
+// ---------- Dados ao vivo ----------
+// Pulso da comunidade (só números agregados) e versão publicada de cada app.
+function usePulse() {
+  const [pulse, setPulse] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () => fetch('/api/platform/pulse').then((r) => (r.ok ? r.json() : null)).then((d) => { if (alive && d && d.members != null) setPulse(d); }).catch(() => {});
+    load();
+    const t = setInterval(load, 30000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+  return pulse;
+}
+function useVersions() {
+  const [v, setV] = useState({});
+  useEffect(() => { fetch('/api/app-catalog/versions').then((r) => (r.ok ? r.json() : {})).then(setV).catch(() => {}); }, []);
+  return v;
+}
+const fmtNum = (n) => new Intl.NumberFormat('pt-BR').format(n);
+const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' }).replace('.', ''); } catch { return ''; } };
+
+// Número que conta até o valor quando aparece.
+function CountUp({ value }) {
+  const [shown, setShown] = useState(reducedMotion() ? value : 0);
+  useEffect(() => {
+    if (reducedMotion()) { setShown(value); return undefined; }
+    const from = shown; const start = performance.now(); let raf = 0;
+    const step = (now) => {
+      const k = Math.min(1, (now - start) / 900); const e = 1 - Math.pow(1 - k, 3);
+      setShown(Math.round(from + (value - from) * e));
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return <>{fmtNum(shown)}</>;
+}
+
+function Pulse() {
+  const pulse = usePulse();
+  if (!pulse) return null;
+  return (
+    <p className="lp-pulse" aria-live="polite">
+      <span className="lp-pulse-item"><i className="lp-pulse-dot" aria-hidden="true" /><b><CountUp value={pulse.online} /></b> {pulse.online === 1 ? 'pessoa online agora' : 'pessoas online agora'}</span>
+      <span className="lp-pulse-item"><b><CountUp value={pulse.members} /></b> membros</span>
+      <span className="lp-pulse-item"><b><CountUp value={pulse.messagesToday} /></b> mensagens hoje</span>
+    </p>
+  );
+}
+
+// ---------- Busca rápida (Ctrl+K) ----------
+// Pula para qualquer app, seção ou ação sem rolar a página.
+function CommandPalette({ open, onClose, onPickApp, actions }) {
+  const [q, setQ] = useState('');
+  const [sel, setSel] = useState(0);
+  const inputRef = useRef(null);
+  useEffect(() => { if (open) { setQ(''); setSel(0); setTimeout(() => inputRef.current?.focus(), 0); } }, [open]);
+  const norm = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const items = [
+    ...APPS.map((a, i) => ({ key: a.id, label: a.name, hint: a.what, icon: `/apps/${a.id}/icon.png`, run: () => onPickApp(i) })),
+    ...actions,
+  ].filter((it) => !q || norm(`${it.label} ${it.hint}`).includes(norm(q)));
+  const run = (it) => { onClose(); setTimeout(it.run, 30); };
+  if (!open) return null;
+  return (
+    <div className="lp-cmd" role="dialog" aria-modal="true" aria-label="Busca rápida" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="lp-cmd-box">
+        <input
+          ref={inputRef} className="lp-cmd-input" value={q} placeholder="Buscar um app, uma seção ou uma ação"
+          onChange={(e) => { setQ(e.target.value); setSel(0); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') onClose();
+            if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(items.length - 1, s + 1)); }
+            if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => Math.max(0, s - 1)); }
+            if (e.key === 'Enter' && items[sel]) run(items[sel]);
+          }}
+          aria-activedescendant={items[sel] ? `cmd-${items[sel].key}` : undefined}
+        />
+        <ul className="lp-cmd-list" role="listbox">
+          {items.map((it, i) => (
+            <li key={it.key} id={`cmd-${it.key}`} role="option" aria-selected={i === sel} className={i === sel ? 'is-on' : ''} onMouseEnter={() => setSel(i)} onClick={() => run(it)}>
+              {it.icon ? <img src={it.icon} alt="" width="28" height="28" /> : <span className="lp-cmd-glyph" aria-hidden="true">{it.glyph}</span>}
+              <span><strong>{it.label}</strong><small>{it.hint}</small></span>
+            </li>
+          ))}
+          {items.length === 0 && <li className="lp-cmd-empty">Nada encontrado. Tente "jogos", "download" ou "entrar".</li>}
+        </ul>
+        <p className="lp-cmd-foot"><kbd>↑</kbd><kbd>↓</kbd> para escolher, <kbd>Enter</kbd> para abrir, <kbd>Esc</kbd> para fechar</p>
+      </div>
+    </div>
+  );
 }
 
 // ---------- Abertura: órbita 3D dos apps ----------
@@ -158,7 +252,7 @@ function Letters({ text, start = 0 }) {
 // ---------- Palco dos apps ----------
 // A seção é alta (um "andar" por app) e o palco fica preso na tela; a
 // posição da rolagem escolhe o app. Os ícones ao lado levam direto a cada um.
-function AppStage() {
+const AppStage = forwardRef(function AppStage({ versions }, apiRef) {
   const sectionRef = useRef(null);
   const artRef = useRef(null);
   const [index, setIndex] = useState(0);
@@ -193,9 +287,12 @@ function AppStage() {
 
   const goTo = (i) => {
     const root = document.querySelector('.lp'); const sec = sectionRef.current;
+    if (!sec) return;
+    if (!pinned) { sec.querySelectorAll('li')[i]?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'center' }); return; }
     const span = sec.offsetHeight - root.clientHeight;
     root.scrollTo({ top: sec.offsetTop + span * ((i + 0.5) / APPS.length), behavior: reducedMotion() ? 'auto' : 'smooth' });
   };
+  useImperativeHandle(apiRef, () => ({ goTo }));
 
   // Banner inclina na direção do mouse.
   const onArtMove = (e) => {
@@ -208,14 +305,14 @@ function AppStage() {
 
   if (!pinned) {
     return (
-      <section id="apps" className="lp-apps-list" aria-labelledby="apps-titulo">
+      <section id="apps" ref={sectionRef} className="lp-apps-list" aria-labelledby="apps-titulo">
         <h2 id="apps-titulo" className="lp-display is-md">Nove programas, uma conta</h2>
         <p className="lp-copy">Cada um é um projeto de código aberto conhecido, com o nome e a cara do Project Club. Você instala pelo app para computador e as atualizações chegam por lá.</p>
         <ul>
           {APPS.map((a) => (
             <li key={a.id} style={{ '--c': a.color }}>
               <img src={`/apps/${a.id}/banner.jpg`} alt="" loading="lazy" />
-              <div><strong>{a.name}</strong><span>{a.what}</span><p>{a.line}</p></div>
+              <div><strong>{a.name}</strong><span>{a.what}</span><p>{a.line}</p>{versions[a.id] && <small>Versão {versions[a.id].version}</small>}</div>
             </li>
           ))}
         </ul>
@@ -228,14 +325,24 @@ function AppStage() {
     <section id="apps" ref={sectionRef} className="lp-stage" style={{ '--c': app.color, height: `${APPS.length * 75 + 100}vh` }} aria-labelledby="apps-titulo">
       <div className="lp-stage-pin">
         <div className="lp-stage-bg" aria-hidden="true" />
-        <h2 id="apps-titulo" className="lp-stage-kicker">Nove programas, uma conta</h2>
+        <div className="lp-stage-head">
+          <h2 id="apps-titulo" className="lp-stage-kicker">O que você quer criar?</h2>
+          <div className="lp-stage-chips" role="tablist" aria-label="Escolher app">
+            {APPS.map((a, i) => (
+              <button key={a.id} type="button" role="tab" aria-selected={i === index} className={i === index ? 'is-on' : ''} style={{ '--c': a.color }} onClick={() => goTo(i)}>{a.verb}</button>
+            ))}
+          </div>
+        </div>
 
         <div className="lp-stage-copy" key={app.id}>
           <span className="lp-stage-count" aria-hidden="true">{index + 1}<i>/{APPS.length}</i></span>
           <h3 className="lp-stage-name">{app.name}</h3>
           <p className="lp-stage-what">{app.what}</p>
           <p className="lp-stage-line">{app.line}</p>
-          <p className="lp-stage-base">Feito a partir do {app.base}, de código aberto.</p>
+          <p className="lp-stage-base">
+            Feito a partir do {app.base}, de código aberto.
+            {versions[app.id] ? <> Versão {versions[app.id].version}, publicada em {fmtDate(versions[app.id].date)}.</> : <> Chegando em breve.</>}
+          </p>
         </div>
 
         <div className="lp-stage-art" ref={artRef} onPointerMove={onArtMove} onPointerLeave={onArtLeave}>
@@ -256,18 +363,11 @@ function AppStage() {
           ))}
         </div>
 
-        <nav className="lp-stage-dots" aria-label="Escolher app">
-          {APPS.map((a, i) => (
-            <button key={a.id} type="button" className={i === index ? 'is-on' : ''} style={{ '--c': a.color }} onClick={() => goTo(i)} aria-label={a.name} aria-current={i === index}>
-              <img src={`/apps/${a.id}/icon.png`} alt="" width="28" height="28" />
-            </button>
-          ))}
-        </nav>
         <div className="lp-stage-rail" aria-hidden="true"><span /></div>
       </div>
     </section>
   );
-}
+});
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -275,6 +375,25 @@ export default function LandingPage() {
   useScrollChrome();
   const [platform] = useState(detectPlatform);
   const [copied, setCopied] = useState(false);
+  const [cmdOpen, setCmdOpen] = useState(false);
+  const stageRef = useRef(null);
+  const versions = useVersions();
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setCmdOpen((o) => !o); }
+      else if (e.key === '/' && !/input|textarea/i.test(document.activeElement?.tagName || '')) { e.preventDefault(); setCmdOpen(true); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  const jump = (id) => document.getElementById(id)?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth' });
+  const cmdActions = [
+    { key: 'go-dl', label: 'Baixar o Project Club', hint: 'Windows, Linux e Android', glyph: '↓', run: () => jump('download') },
+    { key: 'go-login', label: 'Entrar', hint: 'Já tenho conta', glyph: '→', run: () => navigate('/login') },
+    { key: 'go-reg', label: 'Criar conta', hint: 'Grátis, leva um minuto', glyph: '+', run: () => navigate('/register') },
+    { key: 'go-com', label: 'Comunidade', hint: 'Chat, voz, fórum e conquistas', glyph: '#', run: () => jump('comunidade') },
+    { key: 'go-faq', label: 'Perguntas', hint: 'Preço, dados e atualizações', glyph: '?', run: () => jump('perguntas') },
+  ];
 
   const goLogin = () => navigate('/login');
   const goRegister = () => navigate('/register');
@@ -301,6 +420,10 @@ export default function LandingPage() {
           <a href="#perguntas">Perguntas</a>
         </nav>
         <div className="lp-top-actions">
+          <button type="button" className="lp-search" onClick={() => setCmdOpen(true)} aria-label="Busca rápida (Ctrl+K)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="m20 20-4.2-4.2M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z" /></svg>
+            <span>Buscar</span><kbd>Ctrl K</kbd>
+          </button>
           <button type="button" className="lp-link" onClick={goLogin}>Entrar</button>
           <button type="button" className="lp-btn is-accent is-sm" onClick={goRegister}>Criar conta</button>
         </div>
@@ -326,11 +449,12 @@ export default function LandingPage() {
               )}
               <a className="lp-btn is-ghost is-lg" href="#download">Outros sistemas</a>
             </div>
+            <Pulse />
           </div>
           <a className="lp-scroll-hint" href="#apps" aria-label="Ver os apps"><span /></a>
         </section>
 
-        <AppStage />
+        <AppStage ref={stageRef} versions={versions} />
 
         <section id="comunidade" className="lp-band" aria-labelledby="com-titulo">
           <div className="lp-split">
@@ -421,6 +545,8 @@ export default function LandingPage() {
           </div>
         </section>
       </main>
+
+      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} onPickApp={(i) => stageRef.current?.goTo(i)} actions={cmdActions} />
 
       <footer className="lp-foot">
         <div className="lp-foot-brand">

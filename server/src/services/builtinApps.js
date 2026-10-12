@@ -41,7 +41,7 @@ const BUILTIN_APPS = [
   {
     moduleId: 'texelproject',
     released: true,
-    pageRev: 1,
+    pageRev: 2,
     order: 31,
     name: 'TexelProject',
     version: '1.0.0',
@@ -61,7 +61,7 @@ const BUILTIN_APPS = [
     sizeLabelLinux: '~18 MB (AppImage)',
     requirementsWin: 'Windows 10 ou 11 (64 bits)\nCPU: 4 núcleos (recomendado 6+)\nRAM: 4 GB mínimo — o app usa ~0,8–2 GB (8–16 GB recomendado)\nGPU: Direct3D 12, 2 GB de VRAM (4 GB+ recomendado; ray tracing para o path tracer)\nDisco: ~60 MB + projetos',
     requirementsLinux: 'Linux x86_64 com driver Vulkan 1.1 (Mesa 22+, NVIDIA 470+)\nCPU: 4 núcleos\nRAM: 4 GB mínimo — o app usa ~0,8–2 GB\nGPU: Vulkan 1.1, 2 GB de VRAM\nDisco: ~18 MB + projetos\nBibliotecas: GTK 3 e ALSA (já vêm na maioria das distribuições)',
-    screenshots: shots('texelproject', ['01-inicio-projetos.jpg', '02-area-de-trabalho.jpg', '03-pincel.jpg', '04-preenchimento.jpg', '05-vista-lateral.jpg', '06-vista-de-cima.jpg', '07-modo-de-visualizacao.jpg', '09-editor-de-nos.jpg', '10-vista-2d.jpg', '11-navegador-de-arquivos.jpg', '12-preferencias.jpg', '13-exportar-texturas.jpg']),
+    screenshots: shots('texelproject', ['01-modelo-importado.jpg', '02-base-roxa.jpg', '03-cobre-metalico.jpg', '04-camadas.jpg', '05-detalhes-rosa.jpg', '06-editor-de-materiais.jpg', '07-vista-lateral.jpg', '08-vista-de-cima.jpg', '09-textura-2d.jpg', '10-navegador-de-arquivos.jpg']),
   },
   {
     moduleId: 'forgeproject',
@@ -282,7 +282,7 @@ const LEGACY_APP_PAGES = [
   },
   {
     moduleId: 'davinciproject',
-    pageRev: 1,
+    pageRev: 2,
     order: 23,
     name: 'CutProject',
     version: '1.1.0',
