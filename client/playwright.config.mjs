@@ -28,5 +28,6 @@ export default defineConfig({
     command: `npx vite preview --port ${PORT} --strictPort`,
     port: PORT,
     reuseExistingServer: !process.env.CI,
+    env: { PW_E2E: '1' },
   },
 });
