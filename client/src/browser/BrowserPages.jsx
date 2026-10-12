@@ -8,6 +8,7 @@ import { useStore } from '../store/useStore';
 import { useCinema } from '../cinema/cinemaStore';
 import { useYouTubeApp } from '../youtube/youtubeStore';
 import { useMusic } from '../music/musicStore';
+import { feat, engineApi, browserPlatform } from './platform';
 
 const Fav = ({ url, favicon, size = 18 }) => <Favicon tab={{ url, favicon, loading: false }} size={size} />;
 
@@ -70,7 +71,9 @@ function NewTabPage({ tab }) {
           <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Pesquisar com ${engine.name} ou digitar um endereço`} aria-label="Pesquisar" />
           <button type="submit" className="pcb-btn is-primary">Ir</button>
         </form>
-        <p className="pcb-nt-shield"><Ico d={B.shield} size={15} /> <strong>{total.toLocaleString('pt-BR')}</strong> anúncios e rastreadores bloqueados · Só HTTPS · Sem telemetria</p>
+        {feat('shield')
+          ? <p className="pcb-nt-shield"><Ico d={B.shield} size={15} /> <strong>{total.toLocaleString('pt-BR')}</strong> anúncios e rastreadores bloqueados · Só HTTPS · Sem telemetria</p>
+          : <p className="pcb-nt-shield"><Ico d={B.globe} size={15} /> Sites que permitem abrem aqui dentro; os outros abrem numa guia nova. No app para computador e no celular, todos abrem aqui.</p>}
       </div>
       {top.length > 0 && (
         <div className="pcb-nt-tiles">
@@ -127,7 +130,7 @@ function HistoryPage({ tab }) {
   }
   const clear = async (ms, data) => {
     st().clearHistory(ms);
-    if (data) await nativeBrowser()?.clearData({ cookies: true, cache: true, storage: true });
+    if (data) await engineApi()?.clearData?.({ cookies: true, cache: true, storage: true });
     setClearing(false);
   };
   return (
@@ -204,25 +207,25 @@ function BookmarksPage({ tab }) {
 // ---------------- Downloads ----------------
 function DownloadsPage() {
   const downloads = useBrowser((s) => s.downloads);
-  const nb = nativeBrowser();
+  const nb = engineApi();
   const list = [...downloads].reverse();
   return (
     <div className="pcb-page">
       <header className="pcb-page-h"><h2><Ico d={B.down} size={20} /> Downloads</h2></header>
-      {!list.length && <p className="pcb-empty">Os arquivos baixados vão para a sua pasta Downloads. Programas (.exe etc.) nunca abrem sozinhos.</p>}
+      {!list.length && <p className="pcb-empty">{browserPlatform() === 'android' ? 'Os arquivos baixados vão para a pasta Download do celular (o Android avisa na barra de notificações quando terminar).' : browserPlatform() === 'web' ? 'Os downloads vão para a pasta de downloads do seu navegador.' : 'Os arquivos baixados vão para a sua pasta Downloads. Programas (.exe etc.) nunca abrem sozinhos.'}</p>}
       {list.map((d) => (
         <div key={d.id} className={`pcb-card pcb-dl is-${d.state}`}>
           <div className="pcb-dl-t">
             <strong data-no-translate>{d.filename}</strong>
-            <small data-no-translate>{hostOf(d.url)} · {d.state === 'completed' ? fmtBytes(d.total || d.received) : d.state === 'cancelled' ? 'Cancelado' : d.state === 'interrupted' ? 'Falhou' : `${fmtBytes(d.received)} de ${d.total ? fmtBytes(d.total) : '?'}`}{d.private ? ' · aba privada' : ''}</small>
+            <small data-no-translate>{hostOf(d.url)} · {d.state === 'system' ? 'Baixado pelo Android · pasta Download' : d.state === 'completed' ? fmtBytes(d.total || d.received) : d.state === 'cancelled' ? 'Cancelado' : d.state === 'interrupted' ? 'Falhou' : `${fmtBytes(d.received)} de ${d.total ? fmtBytes(d.total) : '?'}`}{d.private ? ' · aba privada' : ''}</small>
             {(d.state === 'progressing' || d.state === 'paused') && <span className="pcb-bar"><i style={{ width: `${d.total ? Math.round((d.received / d.total) * 100) : 30}%` }} /></span>}
           </div>
           <div className="pcb-dl-a">
-            {d.state === 'completed' && <button type="button" className="pcb-btn" onClick={() => nb?.downloadAction(d.id, 'open')}>Abrir</button>}
-            {d.state === 'completed' && <button type="button" className="pcb-btn" onClick={() => nb?.downloadAction(d.id, 'show')}>Mostrar na pasta</button>}
-            {d.state === 'progressing' && <button type="button" className="pcb-btn" onClick={() => nb?.downloadAction(d.id, 'pause')}>Pausar</button>}
-            {d.state === 'paused' && <button type="button" className="pcb-btn" onClick={() => nb?.downloadAction(d.id, 'resume')}>Continuar</button>}
-            {(d.state === 'progressing' || d.state === 'paused') && <button type="button" className="pcb-btn" onClick={() => nb?.downloadAction(d.id, 'cancel')}>Cancelar</button>}
+            {d.state === 'completed' && <button type="button" className="pcb-btn" onClick={() => nb?.downloadAction?.(d.id, 'open')}>Abrir</button>}
+            {d.state === 'completed' && <button type="button" className="pcb-btn" onClick={() => nb?.downloadAction?.(d.id, 'show')}>Mostrar na pasta</button>}
+            {d.state === 'progressing' && <button type="button" className="pcb-btn" onClick={() => nb?.downloadAction?.(d.id, 'pause')}>Pausar</button>}
+            {d.state === 'paused' && <button type="button" className="pcb-btn" onClick={() => nb?.downloadAction?.(d.id, 'resume')}>Continuar</button>}
+            {(d.state === 'progressing' || d.state === 'paused') && <button type="button" className="pcb-btn" onClick={() => nb?.downloadAction?.(d.id, 'cancel')}>Cancelar</button>}
           </div>
         </div>
       ))}
@@ -240,7 +243,7 @@ function PasswordsPage() {
   const [copied, setCopied] = useState('');
   const reload = () => pw?.list().then(setData).catch(() => setData({ entries: [], never: [], encryption: {} }));
   useEffect(() => { reload(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  if (!pw) return <div className="pcb-page"><p className="pcb-empty">Atualize o app para usar as senhas salvas.</p></div>;
+  if (!pw) return <div className="pcb-page"><p className="pcb-empty">{browserPlatform() === 'desktop' ? 'Atualize o app para usar as senhas salvas.' : browserPlatform() === 'android' ? 'No celular, o preenchimento automático do Android (Google, Samsung Pass, Bitwarden…) salva e preenche as senhas dos sites.' : 'No site, as senhas ficam com o gerenciador do seu navegador.'}</p></div>;
   const reveal = async (id) => { if (shown[id]) { setShown((s) => ({ ...s, [id]: null })); return; } const v = await pw.reveal(id); setShown((s) => ({ ...s, [id]: v })); setTimeout(() => setShown((s) => ({ ...s, [id]: null })), 20000); };
   const copy = async (id) => { const v = shown[id] || await pw.reveal(id); if (!v) return; await navigator.clipboard.writeText(v).catch(() => {}); setCopied(id); setTimeout(() => setCopied(''), 1500); };
   const enc = data?.encryption || {};
@@ -299,6 +302,7 @@ const PRIVACY = [
   ['trimReferrer', 'Não contar de onde você veio', 'Para outros sites, envia só o domínio da página anterior, nunca o endereço completo.'],
   ['gpc', 'Pedir “não venda meus dados”', 'Envia o sinal Global Privacy Control (e Do Not Track) para todos os sites.'],
 ];
+const ANDROID_PRIVACY = ['adblock', 'httpsOnly', 'stripTracking', 'block3pCookies'];
 function SettingsPage() {
   const prefs = useBrowser((s) => s.prefs);
   const engine = useBrowser((s) => s.engine);
@@ -309,16 +313,34 @@ function SettingsPage() {
   const updateUserSetting = useStore((s) => s.updateUserSetting);
   const [perms, setPerms] = useState(null);
   const [busy, setBusy] = useState('');
-  const nb = nativeBrowser();
+  const nb = engineApi();
+  const platform = browserPlatform();
   const st = useBrowser.getState;
-  useEffect(() => { nb?.listPermissions().then(setPerms).catch(() => setPerms([])); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const updateLists = async () => { setBusy('lists'); try { const e = await nb?.updateLists(); if (e) useBrowser.setState({ engine: e }); } finally { setBusy(''); } };
-  const clearAll = async () => { if (!window.confirm('Apagar cookies, cache e dados dos sites? Você será desconectado dos sites.')) return; setBusy('clear'); try { await nb?.clearData({ cookies: true, cache: true, storage: true }); } finally { setBusy(''); } };
+  useEffect(() => { if (nb?.listPermissions) nb.listPermissions().then(setPerms).catch(() => setPerms([])); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const updateLists = async () => { setBusy('lists'); try { const e = await nb?.updateLists?.(); if (e) useBrowser.setState({ engine: e }); } finally { setBusy(''); } };
+  const clearAll = async () => { if (!window.confirm('Apagar cookies, cache e dados dos sites? Você será desconectado dos sites.')) return; setBusy('clear'); try { await nb?.clearData?.({ cookies: true, cache: true, storage: true }); } finally { setBusy(''); } };
   return (
     <div className="pcb-page pcb-settings">
       <header className="pcb-page-h"><h2><Ico d={B.settings} size={20} /> Configurações do navegador</h2></header>
 
-      <section className="pcb-card pcb-local">
+      {platform === 'android' && (
+        <section className="pcb-card pcb-local">
+          <h3>Seus dados ficam neste celular</h3>
+          <p className="pcb-muted">Favoritos, histórico, abas abertas e preferências ficam em arquivos na pasta de dados do app no celular. Logins e cookies dos sites ficam no próprio Android. Nada disso vai para o servidor do Project Club. Senhas: use o preenchimento automático do Android.</p>
+          <div className="pcb-local-files">{['favoritos.json', 'historico.json', 'abas.json', 'interface.json', 'preferencias.json'].map((f) => <code key={f}>{f}</code>)}</div>
+        </section>
+      )}
+      {platform === 'web' && (
+        <section className="pcb-card pcb-local">
+          <h3>Navegador na versão site</h3>
+          <p className="pcb-muted">Aqui o navegador usa o seu navegador de verdade por baixo. Sites que permitem ser abertos dentro de outro site aparecem nesta aba; os que não permitem (Google, YouTube, bancos, redes sociais…) abrem numa guia nova — é uma proteção desses sites. Favoritos e histórico ficam só neste navegador. No app para computador e no app do celular, todos os sites abrem aqui dentro, com bloqueador de anúncios.</p>
+          <label className="pcb-switch-row">
+            <span><strong>Abrir numa guia nova automaticamente</strong><small>Quando o site não deixa ser aberto aqui, abre direto numa guia nova (em vez de mostrar o aviso).</small></span>
+            <input type="checkbox" className="pcb-switch" checked={prefs.webAutoNewTab !== false} onChange={(e) => st().setPrefs({ webAutoNewTab: e.target.checked })} />
+          </label>
+        </section>
+      )}
+      {platform === 'desktop' && <section className="pcb-card pcb-local">
         <h3>Seus dados ficam neste computador</h3>
         <p className="pcb-muted">Favoritos, histórico, abas abertas, downloads, senhas (criptografadas), permissões e logins/cookies dos sites são guardados em arquivos na pasta do app, no seu computador. Nada disso é enviado ao servidor do Project Club.</p>
         <div className="pcb-local-files">
@@ -329,7 +351,7 @@ function SettingsPage() {
           <button type="button" className="pcb-btn" onClick={() => st().openTab('pc://senhas')}>Senhas salvas</button>
         </div>
         {profileDir && <p className="pcb-muted" data-no-translate><small>{profileDir}</small></p>}
-      </section>
+      </section>}
 
       <section className="pcb-card">
         <h3>Busca</h3>
@@ -338,7 +360,7 @@ function SettingsPage() {
             {Object.entries(SEARCH_ENGINES).map(([id, e]) => <option key={id} value={id}>{e.name}{id === 'ddg' ? ' (recomendado, privado)' : ''}</option>)}
           </select>
         </label>
-        {userSettings && (
+        {userSettings && platform !== 'web' && (
           <label className="pcb-switch-row">
             <span><strong>Abrir links do Project Club aqui</strong><small>Links do chat, posts e perfis abrem em uma aba deste navegador em vez do navegador do sistema.</small></span>
             <input type="checkbox" className="pcb-switch" checked={userSettings.openLinksInApp !== false} onChange={(e) => updateUserSetting('openLinksInApp', e.target.checked)} />
@@ -346,32 +368,32 @@ function SettingsPage() {
         )}
       </section>
 
-      <section className="pcb-card">
+      {platform !== 'web' && <section className="pcb-card">
         <h3>Privacidade e proteção <small>inspiradas no LibreWolf</small></h3>
-        {PRIVACY.map(([k, title, desc]) => (
+        {PRIVACY.filter(([k]) => platform === 'desktop' || ANDROID_PRIVACY.includes(k)).map(([k, title, desc]) => (
           <label key={k} className="pcb-switch-row">
             <span><strong>{title}</strong><small>{desc}</small></span>
             <input type="checkbox" className="pcb-switch" checked={!!prefs[k]} onChange={(e) => st().setPrefs({ [k]: e.target.checked })} />
           </label>
         ))}
-        <p className="pcb-muted">Sempre ligados: WebRTC sem expor seu IP local, identificação como um Chrome comum, nenhuma telemetria.</p>
+        <p className="pcb-muted">{platform === 'android' ? 'No celular o bloqueio é por endereço (EasyList, EasyPrivacy e Peter Lowe) e sites de phishing/malware são avisados antes de abrir. Sempre ligados: sem conteúdo misto, identificação como um Chrome comum, nenhuma telemetria.' : 'Sempre ligados: WebRTC sem expor seu IP local, identificação como um Chrome comum, nenhuma telemetria.'}</p>
         <div className="pcb-engine">
           <span className={`pcb-dot is-${engine.state}`} />
           <span>{engine.state === 'on' ? `${engine.lists} listas ativas${engine.updatedAt ? ` · atualizadas ${timeAgo(engine.updatedAt)}` : ''}` : engine.state === 'loading' ? 'Carregando listas…' : engine.state === 'error' ? 'Não consegui baixar as listas agora' : 'Bloqueador desligado'} · {total.toLocaleString('pt-BR')} bloqueios</span>
           <button type="button" className="pcb-btn" disabled={busy === 'lists'} onClick={updateLists}>{busy === 'lists' ? 'Atualizando…' : 'Atualizar listas'}</button>
         </div>
-      </section>
+      </section>}
 
-      <section className="pcb-card">
+      {platform !== 'web' && <section className="pcb-card">
         <h3>Sites com o bloqueador desligado</h3>
         {!siteAllow.length && <p className="pcb-muted">Nenhum. Use o escudo da barra de endereço para desligar em um site.</p>}
         {siteAllow.map((h) => (
           <div key={h} className="pcb-row"><span className="pcb-row-t" data-no-translate>{h}</span>
-            <button type="button" className="pcb-btn" onClick={async () => { await nb?.setSiteAdblock(h, true); st().loadNative(); }}>Voltar a bloquear</button></div>
+            <button type="button" className="pcb-btn" onClick={async () => { await nb?.setSiteAdblock?.(h, true); st().loadNative(); }}>Voltar a bloquear</button></div>
         ))}
-      </section>
+      </section>}
 
-      <section className="pcb-card">
+      {feat('permissionsList') && <section className="pcb-card">
         <h3>Permissões dos sites</h3>
         {perms && !perms.length && <p className="pcb-muted">Nenhuma permissão salva.</p>}
         {(perms || []).map((p) => (
@@ -381,13 +403,13 @@ function SettingsPage() {
             <button type="button" className="pcb-btn" onClick={async () => { await nb?.forgetPermissions(p.origin); setPerms(await nb?.listPermissions()); }}>Esquecer</button>
           </div>
         ))}
-      </section>
+      </section>}
 
       <section className="pcb-card">
         <h3>Dados de navegação</h3>
         <div className="pcb-clear-a">
           <button type="button" className="pcb-btn" onClick={() => st().clearHistory(null)}>Limpar histórico</button>
-          <button type="button" className="pcb-btn is-danger" disabled={busy === 'clear'} onClick={clearAll}>{busy === 'clear' ? 'Limpando…' : 'Apagar cookies, cache e dados dos sites'}</button>
+          {platform !== 'web' && <button type="button" className="pcb-btn is-danger" disabled={busy === 'clear'} onClick={clearAll}>{busy === 'clear' ? 'Limpando…' : 'Apagar cookies, cache e dados dos sites'}</button>}
         </div>
       </section>
     </div>
@@ -420,7 +442,7 @@ export function ErrorPage({ tab }) {
         <p><strong data-no-translate>{e.host}</strong> está nas listas de malware/phishing. Ele pode tentar roubar senhas, dados de cartão ou instalar programas maliciosos.</p>
         <div className="pcb-err-a">
           <button type="button" className="pcb-btn is-primary" onClick={() => { st().update(tab.id, { error: null }); if (wv?.canGoBack()) wv.goBack(); else st().navigate(tab.id, NEW_TAB); }}>Voltar para a segurança</button>
-          <button type="button" className="pcb-link" onClick={async () => { await nativeBrowser()?.allowDangerous(e.host); retry(); }}>Entendo o risco, abrir mesmo assim</button>
+          <button type="button" className="pcb-link" onClick={async () => { await engineApi()?.allowDangerous?.(e.host); retry(); }}>Entendo o risco, abrir mesmo assim</button>
         </div>
       </div>
     );
@@ -433,8 +455,31 @@ export function ErrorPage({ tab }) {
         <p>O modo só-HTTPS tentou abrir <strong data-no-translate>{e.host}</strong> com segurança, mas o site não oferece HTTPS. Na versão comum (HTTP), o que você enviar pode ser visto por outros na rede.</p>
         <div className="pcb-err-a">
           <button type="button" className="pcb-btn is-primary" onClick={() => { if (wv?.canGoBack()) { st().update(tab.id, { error: null }); wv.goBack(); } else st().navigate(tab.id, NEW_TAB); }}>Voltar</button>
-          <button type="button" className="pcb-btn" onClick={async () => { await nativeBrowser()?.allowHttp(e.host); st().update(tab.id, { error: null, upgradedHost: null }); st().navigate(tab.id, `http://${String(e.url).replace(/^https?:\/\//, '')}`); }}>Continuar no site sem HTTPS</button>
+          <button type="button" className="pcb-btn" onClick={async () => { await engineApi()?.allowHttp?.(e.host); st().update(tab.id, { error: null, upgradedHost: null }); st().navigate(tab.id, `http://${String(e.url).replace(/^https?:\/\//, '')}`); }}>Continuar no site sem HTTPS</button>
         </div>
+      </div>
+    );
+  }
+  if (e.kind === 'noframe') {
+    const self = e.reason === 'self';
+    const open = () => { const w = window.open(e.url, '_blank'); if (w) { try { w.opener = null; } catch { /* ok */ } } };
+    return (
+      <div className="pcb-page pcb-error is-noframe">
+        <Favicon tab={{ url: e.url, loading: false }} size={44} />
+        <h2>{self ? 'Esse link é do próprio Project Club' : e.opened ? 'Aberto numa guia nova' : 'Este site abre numa guia nova'}</h2>
+        <p>{self
+          ? 'Ele abre direto no app, fora do navegador.'
+          : e.reason === 'blocked'
+            ? 'Esse endereço não pode ser aberto aqui dentro.'
+            : <><strong data-no-translate>{e.host}</strong> não permite ser aberto dentro de outro site (é uma proteção do próprio site contra golpes). {e.opened ? 'Abrimos ele numa guia nova do seu navegador.' : 'Abra numa guia nova do seu navegador.'}</>}</p>
+        <p className="pcb-muted" data-no-translate>{displayUrl(e.url)}</p>
+        <div className="pcb-err-a">
+          {self
+            ? <button type="button" className="pcb-btn is-primary" onClick={() => { try { const u = new URL(e.url); window.location.assign(u.pathname + u.search + u.hash); } catch { /* ok */ } }}>Abrir no Project Club</button>
+            : <button type="button" className="pcb-btn is-primary" onClick={open}>{e.opened ? 'Abrir de novo' : 'Abrir em nova guia'}</button>}
+          <button type="button" className="pcb-btn" onClick={() => { st().update(tab.id, { error: null }); if (wv?.canGoBack()) wv.goBack(); else st().navigate(tab.id, NEW_TAB); }}>Voltar</button>
+        </div>
+        {!self && <p className="pcb-muted"><small>No app para computador e no app do celular, todos os sites abrem aqui dentro.</small></p>}
       </div>
     );
   }
@@ -456,7 +501,7 @@ export function ErrorPage({ tab }) {
       <p className="pcb-muted" data-no-translate>{displayUrl(e.url)} · {e.desc || e.code}</p>
       <div className="pcb-err-a">
         <button type="button" className="pcb-btn is-primary" onClick={retry}>Tentar de novo</button>
-        <button type="button" className="pcb-btn" onClick={() => nativeBrowser()?.openSystem(e.url)}>Abrir no navegador do sistema</button>
+        <button type="button" className="pcb-btn" onClick={() => engineApi()?.openSystem?.(e.url)}>{browserPlatform() === 'web' ? 'Abrir em nova guia' : 'Abrir no navegador do sistema'}</button>
       </div>
     </div>
   );

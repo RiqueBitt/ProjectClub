@@ -162,7 +162,10 @@ function createApp() {
           'https://*.agora.io', 'https://*.sd-rtn.com',
           'wss:', 'ws:', 'stun:', 'turn:', 'turns:',
         ],
-        frameSrc: ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com'],
+        // Navegador do Project Club no site: páginas que PERMITEM ser abertas
+        // dentro de outro site aparecem num iframe isolado (sandbox, sem
+        // allow-top-navigation). Quem não permite abre numa guia nova.
+        frameSrc: ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com', 'https:'],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         frameAncestors: ["'self'"],
@@ -360,6 +363,7 @@ function createApp() {
   app.use('/api/youtube', youtubeRoutes);
   app.use('/api/archive', archiveRoutes);
   app.use('/api/catalog', catalogRoutes);
+  app.use('/api/browser', require('./routes/browser'));
   app.use('/api/clans', clansRoutes);
   app.use('/api/minigames', minigamesRoutes);
   app.use('/api/anuncios', require('./routes/staffAnnouncements'));

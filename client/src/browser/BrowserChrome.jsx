@@ -7,6 +7,7 @@ import {
 } from './urlTools';
 import { InternalPage, ErrorPage } from './BrowserPages.jsx';
 import { useYouTubeApp } from '../youtube/youtubeStore';
+import { feat, engineApi, browserPlatform } from './platform';
 
 // Ícones (traço 24×24, mesmo estilo do resto do app).
 export const B = {
@@ -70,7 +71,7 @@ function TabStrip({ compact }) {
           onContextMenu={(e) => { e.preventDefault(); setMenu({ id: t.id, x: e.clientX, y: e.clientY }); }}>
           <Favicon tab={t} size={16} />
           {!t.pinned && <span className="pcb-tab-t" data-no-translate>{tabTitle(t)}</span>}
-          {(t.audible || t.muted) && (
+          {feat('mute') && (t.audible || t.muted) && (
             <button type="button" className="pcb-tab-audio" onClick={(e) => { e.stopPropagation(); const m = !t.muted; wvOf(t.id)?.setAudioMuted(m); st().update(t.id, { muted: m }); }} title={t.muted ? 'Ativar som da aba' : 'Silenciar aba'} aria-label={t.muted ? 'Ativar som' : 'Silenciar'}>
               <Ico d={t.muted ? B.mute : B.speaker} size={13} />
             </button>
@@ -89,7 +90,7 @@ function TabStrip({ compact }) {
             {item('Recarregar', () => wvOf(t.id)?.reload())}
             {item('Duplicar', () => st().openTab(t.url, { afterId: t.id, private: t.private }))}
             {item(t.pinned ? 'Desafixar' : 'Fixar aba', () => st().togglePin(t.id))}
-            {item(t.muted ? 'Ativar som' : 'Silenciar', () => { wvOf(t.id)?.setAudioMuted(!t.muted); st().update(t.id, { muted: !t.muted }); })}
+            {feat('mute') && item(t.muted ? 'Ativar som' : 'Silenciar', () => { wvOf(t.id)?.setAudioMuted(!t.muted); st().update(t.id, { muted: !t.muted }); })}
             {!isInternal(t.url) && !isOfflineMode() && item('Compartilhar no Project Club…', () => useBrowser.setState({ share: { url: t.url, title: t.title } }))}
             <hr />
             {item('Fechar', () => st().closeTab(t.id))}
@@ -127,7 +128,7 @@ function Omnibox({ tab }) {
     const q = text.trim();
     if (!q || q.length < 2 || /^\S+\.\S+$/.test(q)) { setRemote([]); return undefined; }
     let alive = true;
-    const t = setTimeout(() => { nativeBrowser()?.suggest(q).then((r) => alive && setRemote(r || [])).catch(() => {}); }, 140);
+    const t = setTimeout(() => { engineApi()?.suggest?.(q).then((r) => alive && setRemote(r || [])).catch(() => {}); }, 140);
     return () => { alive = false; clearTimeout(t); };
   }, [text, focused]);
 
@@ -198,7 +199,7 @@ function ShieldPanel({ tab, onClose }) {
   const host = hostOf(tab?.url);
   const allowed = siteAllow.some((h) => host === h || host.endsWith(`.${h}`));
   const toggleSite = async () => {
-    const nb = nativeBrowser(); if (!nb || !host) return;
+    const nb = engineApi(); if (!nb?.setSiteAdblock || !host) return;
     await nb.setSiteAdblock(host, allowed);
     await useBrowser.getState().loadNative();
     wvOf(tab.id)?.reload();
@@ -216,8 +217,8 @@ function ShieldPanel({ tab, onClose }) {
         <li className={prefs.httpsOnly ? 'is-on' : ''}>Só HTTPS</li>
         <li className={prefs.block3pCookies ? 'is-on' : ''}>Cookies de terceiros bloqueados</li>
         <li className={prefs.stripTracking ? 'is-on' : ''}>Rastreio removido dos links</li>
-        <li className={prefs.gpc ? 'is-on' : ''}>“Não venda meus dados” (GPC)</li>
-        <li className={prefs.cookieBanners ? 'is-on' : ''}>Avisos de cookies escondidos</li>
+        {feat('adblockFull') && <li className={prefs.gpc ? 'is-on' : ''}>“Não venda meus dados” (GPC)</li>}
+        {feat('adblockFull') && <li className={prefs.cookieBanners ? 'is-on' : ''}>Avisos de cookies escondidos</li>}
       </ul>
       <p className="pcb-pop-foot">
         {total.toLocaleString('pt-BR')} bloqueios no total · listas {engine.state === 'on' ? 'ativas' : engine.state === 'loading' ? 'carregando…' : 'indisponíveis'}
@@ -261,25 +262,32 @@ function MainMenu({ tab, onClose, docked, onToggleDock }) {
   const item = (icon, label, fn, hint) => <button type="button" role="menuitem" onClick={() => { fn(); onClose(); }}><Ico d={icon} size={15} /> <span>{label}</span>{hint && <kbd>{hint}</kbd>}</button>;
   return (
     <div className="pcb-pop is-menu" role="menu">
-      {item(B.plus, 'Nova aba', () => st().openTab(), 'Ctrl+T')}
-      {item(B.mask, 'Nova aba privada', () => st().openTab(null, { private: true }), 'Ctrl+Shift+N')}
-      <hr />
-      <div className="pcb-zoom" role="group" aria-label="Zoom">
+      {tab && !isInternal(tab.url) && (
+        <div className="pcb-narrow-only">
+          <button type="button" role="menuitem" disabled={!tab.canForward} onClick={() => { wv?.goForward(); onClose(); }}><Ico d={B.fwd} size={15} /> <span>Avançar</span></button>
+          {!isOfflineMode() && <button type="button" role="menuitem" onClick={() => { useBrowser.setState({ share: { url: tab.url, title: tab.title } }); onClose(); }}><Ico d={B.share} size={15} /> <span>Compartilhar no Project Club</span></button>}
+          <hr />
+        </div>
+      )}
+      {item(B.plus, 'Nova aba', () => st().openTab(), feat('shortcuts') ? 'Ctrl+T' : null)}
+      {feat('private') && item(B.mask, 'Nova aba privada', () => st().openTab(null, { private: true }), 'Ctrl+Shift+N')}
+      {feat('zoom') && <hr />}
+      {feat('zoom') && <div className="pcb-zoom" role="group" aria-label="Zoom">
         <span>Zoom</span>
         <button type="button" onClick={() => setZoom(zoom - 0.1)} disabled={!wv} aria-label="Diminuir zoom"><Ico d={B.zoomOut} size={15} /></button>
         <button type="button" className="pcb-zoom-v" onClick={() => setZoom(1)} disabled={!wv} title="Voltar a 100%">{Math.round(zoom * 100)}%</button>
         <button type="button" onClick={() => setZoom(zoom + 0.1)} disabled={!wv} aria-label="Aumentar zoom"><Ico d={B.zoomIn} size={15} /></button>
-      </div>
+      </div>}
       <hr />
       {item(B.history, 'Histórico', () => st().openTab('pc://historico'), 'Ctrl+H')}
       {item(B.bookmarks, 'Favoritos', () => st().openTab('pc://favoritos'))}
-      {item(B.down, 'Downloads', () => st().openTab('pc://downloads'), 'Ctrl+J')}
-      {item(B.key, 'Senhas salvas', () => st().openTab('pc://senhas'))}
+      {browserPlatform() !== 'web' && item(B.down, 'Downloads', () => st().openTab('pc://downloads'), 'Ctrl+J')}
+      {feat('passwords') && item(B.key, 'Senhas salvas', () => st().openTab('pc://senhas'))}
       <hr />
-      {item(B.search, 'Procurar na página', () => useBrowser.setState({ findOpen: true }), 'Ctrl+F')}
-      {item(B.print, 'Imprimir…', () => wv?.print(), 'Ctrl+P')}
-      {tab && !isInternal(tab.url) && item(B.ext, 'Abrir no navegador do sistema', () => nativeBrowser()?.openSystem(tab.url))}
-      {!isOfflineMode() && item(docked ? B.full : B.dock, docked ? 'Abrir em tela cheia' : 'Abrir ao lado do chat', onToggleDock)}
+      {feat('find') && item(B.search, 'Procurar na página', () => useBrowser.setState({ findOpen: true }), 'Ctrl+F')}
+      {feat('print') && item(B.print, 'Imprimir…', () => wv?.print(), 'Ctrl+P')}
+      {tab && !isInternal(tab.url) && item(B.ext, browserPlatform() === 'web' ? 'Abrir em nova guia' : 'Abrir no navegador do sistema', () => engineApi()?.openSystem?.(tab.url))}
+      {!isOfflineMode() && feat('dock') && item(docked ? B.full : B.dock, docked ? 'Abrir em tela cheia' : 'Abrir ao lado do chat', onToggleDock)}
       <hr />
       {item(B.settings, 'Configurações do navegador', () => st().openTab('pc://config'))}
     </div>
@@ -357,12 +365,12 @@ function PermissionBar({ tab }) {
   if (!p) return null;
   const host = hostOf(p.origin) || p.origin;
   const what = (PERMISSION_TEXT[p.permission] || (() => p.permission))(p.extra);
-  const reply = (allow) => { nativeBrowser()?.permissionReply(p.id, allow, remember && !tab.private); useBrowser.getState().update(tab.id, { permission: null }); };
+  const reply = (allow) => { engineApi()?.permissionReply?.(p.id, allow, remember && !tab.private); useBrowser.getState().update(tab.id, { permission: null }); };
   return (
     <div className="pcb-perm" role="alertdialog" aria-label="Pedido de permissão">
       <Ico d={B.shield} size={16} />
       <span><strong data-no-translate>{host}</strong> quer {what}.</span>
-      {p.permission !== 'openExternal' && !tab.private && <label className="pcb-perm-rem"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Lembrar</label>}
+      {p.permission !== 'openExternal' && !tab.private && feat('permissionsList') && <label className="pcb-perm-rem"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Lembrar</label>}
       <button type="button" className="pcb-btn" onClick={() => reply(false)}>Bloquear</button>
       <button type="button" className="pcb-btn is-primary" onClick={() => reply(true)}>Permitir</button>
     </div>
@@ -374,18 +382,18 @@ function runShortcut(k, { shift, alt, mod }) {
   const s = useBrowser.getState();
   const tab = s.active();
   const wv = tab ? wvOf(tab.id) : null;
-  const zoom = (z) => { if (!wv || !tab) return; const v = Math.min(3, Math.max(0.3, Math.round(z * 10) / 10)); wv.setZoomFactor(v); s.update(tab.id, { zoom: v }); };
+  const zoom = (z) => { if (!wv || !tab || !feat('zoom')) return; const v = Math.min(3, Math.max(0.3, Math.round(z * 10) / 10)); wv.setZoomFactor(v); s.update(tab.id, { zoom: v }); };
   if (mod) {
     if (k === 't') return s.openTab(), true;
-    if (k === 'n') return s.openTab(null, { private: shift }), true;
+    if (k === 'n') return s.openTab(null, { private: shift && feat('private') }), true;
     if (k === 'w') return tab && s.closeTab(tab.id), true;
     if (k === 'l' || k === 'k') return useBrowser.setState({ focusOmnibox: Date.now() }), true;
-    if (k === 'f') return useBrowser.setState({ findOpen: true }), true;
+    if (k === 'f') { if (!feat('find')) return false; return useBrowser.setState({ findOpen: true }), true; }
     if (k === 'r') { if (wv) { shift ? wv.reloadIgnoringCache() : wv.reload(); } return true; }
     if (k === 'd') return tab && !isInternal(tab.url) && s.toggleBookmark(tab.url, tab.title, tab.favicon), true;
     if (k === 'h') return s.openTab('pc://historico'), true;
-    if (k === 'j') return s.openTab('pc://downloads'), true;
-    if (k === 'p') return wv?.print(), true;
+    if (k === 'j') { if (browserPlatform() === 'web') return false; return s.openTab('pc://downloads'), true; }
+    if (k === 'p') { if (!feat('print')) return false; return wv?.print(), true; }
     if (k === 'tab') return s.cycle(shift ? -1 : 1), true;
     if (k === '=' || k === '+') return zoom((tab?.zoom || 1) + 0.1), true;
     if (k === '-') return zoom((tab?.zoom || 1) - 0.1), true;
@@ -468,30 +476,30 @@ export default function BrowserChrome({ docked = false }) {
   );
 
   return (
-    <div className={`pcb-chrome${docked ? ' is-docked' : ''}`}>
+    <div className={`pcb-chrome${docked ? ' is-docked' : ''} is-${browserPlatform()}`}>
       <TabStrip compact={docked} />
       <div className="pcb-toolbar">
         {tool(B.back, 'Voltar (Alt+←)', back, { disabled: !(tab?.canBack || (internal && wv) || (tab?.error && wv?.canGoBack?.())) })}
-        {tool(B.fwd, 'Avançar (Alt+→)', () => wv?.goForward(), { disabled: !tab?.canForward || internal })}
+        {tool(B.fwd, 'Avançar (Alt+→)', () => wv?.goForward(), { disabled: !tab?.canForward || internal, cls: 'is-fwd' })}
         {tab?.loading && !internal ? tool(B.stop, 'Parar', () => wv?.stop()) : tool(B.reload, 'Recarregar (Ctrl+R)', () => (internal ? null : tab?.error ? (st().update(tab.id, { error: null }), wv ? wv.reload() : st().navigate(tab.id, tab.url)) : wv?.reload()), { disabled: internal })}
         <Omnibox tab={tab} />
         {!internal && tool(B.star, bookmarked ? 'Remover dos favoritos (Ctrl+D)' : 'Adicionar aos favoritos (Ctrl+D)', () => st().toggleBookmark(tab.url, tab.title, tab.favicon), { on: bookmarked, cls: 'is-star' })}
         {ytId && tool(B.yt, 'Assistir no player do Project Club', () => {
-          try { wv?.executeJavaScript('document.querySelectorAll("video").forEach(v=>v.pause())', true); } catch { /* ok */ }
+          try { if (wv?.pauseMedia) wv.pauseMedia(); else wv?.executeJavaScript?.('document.querySelectorAll("video").forEach(v=>v.pause())', true); } catch { /* ok */ }
           useYouTubeApp.getState().play({ videoId: ytId, title: tab.title.replace(/ - YouTube$/, '') });
         }, { cls: 'is-yt' })}
-        <span className="pcb-tool-pop">{tool(prefs.adblock ? B.shield : B.shieldOff, 'Proteção', () => st().setPanel('shield'), { on: panel === 'shield', badge: !internal && tab?.blocked ? (tab.blocked > 99 ? '99+' : tab.blocked) : null, cls: 'is-shield' })}</span>
+        {feat('shield') && <span className="pcb-tool-pop">{tool(prefs.adblock ? B.shield : B.shieldOff, 'Proteção', () => st().setPanel('shield'), { on: panel === 'shield', badge: !internal && tab?.blocked ? (tab.blocked > 99 ? '99+' : tab.blocked) : null, cls: 'is-shield' })}</span>}
         {!internal && tab?.pwAccounts?.length > 0 && <span className="pcb-tool-pop">{tool(B.key, 'Preencher login salvo', () => st().setPanel('key'), { on: panel === 'key', cls: 'is-key' })}</span>}
-        {!internal && !offline && tool(B.share, 'Compartilhar no Project Club', () => useBrowser.setState({ share: { url: tab.url, title: tab.title } }))}
-        <span className="pcb-tool-pop">{tool(B.down, 'Downloads', () => st().setPanel('downloads'), { on: panel === 'downloads', badge: downloadsActive || null })}</span>
-        {!offline && tool(docked ? B.full : B.dock, docked ? 'Tela cheia' : 'Abrir ao lado do chat', toggleDock)}
+        {!internal && !offline && tool(B.share, 'Compartilhar no Project Club', () => useBrowser.setState({ share: { url: tab.url, title: tab.title } }), { cls: 'is-share' })}
+        {feat('downloads') && <span className="pcb-tool-pop">{tool(B.down, 'Downloads', () => st().setPanel('downloads'), { on: panel === 'downloads', badge: downloadsActive || null })}</span>}
+        {!offline && feat('dock') && tool(docked ? B.full : B.dock, docked ? 'Tela cheia' : 'Abrir ao lado do chat', toggleDock, { cls: 'is-dock' })}
         <span className="pcb-tool-pop">{tool(B.menu, 'Menu', () => st().setPanel('menu'), { on: panel === 'menu' })}</span>
         {panel === 'shield' && <ShieldPanel tab={tab} onClose={() => st().setPanel(null)} />}
         {panel === 'downloads' && <DownloadsPanel onClose={() => st().setPanel(null)} />}
         {panel === 'key' && tab && <KeyPanel tab={tab} onClose={() => st().setPanel(null)} />}
         {panel === 'menu' && <MainMenu tab={tab} docked={docked} onToggleDock={toggleDock} onClose={() => useBrowser.setState({ panel: null })} />}
       </div>
-      {tab && findOpen && !internal && <FindBar key={tab.id} tab={tab} />}
+      {tab && findOpen && !internal && feat('find') && <FindBar key={tab.id} tab={tab} />}
       {tab?.permission && <PermissionBar tab={tab} />}
       {tab?.pwOffer && <PasswordBar tab={tab} />}
       {tab?.loading && !internal && <div className="pcb-progress" aria-hidden="true"><i /></div>}

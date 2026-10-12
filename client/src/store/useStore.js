@@ -502,7 +502,10 @@ export const useStore = create((set, get) => ({
   // Club (ao lado do chat), sem sair do app. Senão, confirmação como antes.
   openLinkConfirm: (url) => {
     const b = typeof window !== 'undefined' ? window.electronAPI?.browser : null;
-    if (b && b.version >= 1 && /^https?:\/\//i.test(String(url)) && get().userSettings?.openLinksInApp !== false) {
+    // App do celular com o navegador nativo (PcBrowserPlugin) também abre aqui.
+    const cap = typeof window !== 'undefined' ? window.Capacitor : null;
+    const androidBrowser = !!(cap?.getPlatform?.() === 'android' && cap?.isPluginAvailable?.('PcBrowser'));
+    if (((b && b.version >= 1) || androidBrowser) && /^https?:\/\//i.test(String(url)) && get().userSettings?.openLinksInApp !== false) {
       import('../browser/browserStore').then(({ openInBrowser }) => { if (!openInBrowser(url)) set({ pendingLinkUrl: url }); }).catch(() => set({ pendingLinkUrl: url }));
       return;
     }

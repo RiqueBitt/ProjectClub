@@ -6,6 +6,7 @@ import { nativeBrowser, hostOf, isOfflineMode } from './urlTools';
 import { useStore } from '../store/useStore';
 import { sendMessage } from '../api/endpoints';
 import Modal from '../components/Modal.jsx';
+import { feat } from './platform';
 import '../styles/browser.css';
 
 // ============================================================
@@ -39,7 +40,7 @@ export function BrowserDock() {
   const dockOpen = useBrowser((s) => s.dockOpen);
   const width = useBrowser((s) => s.dockWidth);
   const location = useLocation();
-  const show = available && dockOpen && !location.pathname.startsWith('/navegador');
+  const show = available && dockOpen && feat('dock') && !location.pathname.startsWith('/navegador');
   const dragRef = useRef(null);
   // O chat sempre fica com pelo menos ~400px: o painel encolhe se precisar.
   const [maxW, setMaxW] = useState(1200);
@@ -192,7 +193,7 @@ export function BrowserBridge() {
     lastReveal.current = reveal;
     const p = location.pathname;
     if (p.startsWith('/navegador')) return;
-    if (isChatPath(p)) useBrowser.getState().setDock(true);
+    if (isChatPath(p) && feat('dock') && window.innerWidth >= 900) useBrowser.getState().setDock(true);
     else navigate('/navegador');
   }, [reveal]); // eslint-disable-line react-hooks/exhaustive-deps
 

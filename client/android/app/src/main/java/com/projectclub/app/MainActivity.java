@@ -10,6 +10,8 @@ public class MainActivity extends BridgeActivity {
     // plugin nativo criado especificamente pra isso (ScreenSharePlugin.
     // java + ScreenCaptureService.java, nesta mesma pasta).
     registerPlugin(ScreenSharePlugin.class);
+    // Navegador do Project Club (abas WebView dentro do app) — PcBrowserPlugin.java.
+    registerPlugin(PcBrowserPlugin.class);
     super.onCreate(savedInstanceState);
   }
 }

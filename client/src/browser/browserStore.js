@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { NEW_TAB, nativeBrowser, toUrl, isInternal } from './urlTools';
+import { browserPlatform, androidProfile, androidEngine, engineApi } from './platform';
 
 // Estado do navegador do Project Club: abas, favoritos, histórico, downloads
 // e preferências. Abas normais, favoritos e histórico ficam neste aparelho
@@ -10,13 +11,15 @@ const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); re
 // No app desktop (navegador v2+), tudo vai para ARQUIVOS no computador
 // (pasta de dados do app → browser/perfil). localStorage só no app antigo.
 const PROFILE_KEY = { [K.tabs]: 'tabs', [K.bookmarks]: 'bookmarks', [K.history]: 'history', [K.ui]: 'ui' };
-const profileApi = () => nativeBrowser()?.profile || null;
+// No celular (app Android), arquivos na pasta de dados do app. No site, localStorage.
+const profileApi = () => nativeBrowser()?.profile || (browserPlatform() === 'android' ? androidProfile : null);
 const save = (k, v) => {
   const pf = profileApi();
   if (pf && hydratedFromFiles) { pf.save(PROFILE_KEY[k], v).catch(() => {}); return; }
   try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* cheio/bloqueado */ }
 };
 let hydratedFromFiles = false;
+let hydrating = false;
 
 let seq = 0;
 const newId = () => `t${Date.now().toString(36)}${(++seq).toString(36)}`;
@@ -59,7 +62,9 @@ const initial = restoreTabs();
 const ui = load(K.ui, {});
 
 export const useBrowser = create((set, get) => ({
-  available: !!nativeBrowser(),
+  // Funciona no app de computador, no app do celular e no site.
+  available: true,
+  platform: browserPlatform(),
   // Com perfil em arquivos, as abas só aparecem depois de ler os arquivos.
   hydrated: !profileApi(),
   profileDir: null,
@@ -190,8 +195,11 @@ export const useBrowser = create((set, get) => ({
   async hydrate() {
     const pf = profileApi();
     if (!pf || hydratedFromFiles) { set({ hydrated: true }); return; }
+    if (hydrating) return;
+    hydrating = true;
     let data = null;
     try { data = await pf.load(); } catch { set({ hydrated: true }); return; }
+    if (browserPlatform() === 'android') await androidEngine.init(data.prefs).catch(() => {});
     const s = get();
     const patch = { profileDir: data.dir || null };
     if (Array.isArray(data.bookmarks)) patch.bookmarks = data.bookmarks;
@@ -219,8 +227,8 @@ export const useBrowser = create((set, get) => ({
   },
 
   async loadNative() {
-    const nb = nativeBrowser();
-    if (!nb) return;
+    const nb = engineApi();
+    if (!nb?.getState) return;
     try {
       const st = await nb.getState();
       const cur = get().downloads;
@@ -230,8 +238,8 @@ export const useBrowser = create((set, get) => ({
   },
   async setPrefs(patch) {
     set((s) => ({ prefs: { ...s.prefs, ...patch } }));
-    const nb = nativeBrowser();
-    if (nb) { try { const p = await nb.setPrefs(patch); set({ prefs: { ...get().prefs, ...p } }); } catch { /* ignora */ } }
+    const nb = engineApi();
+    if (nb?.setPrefs) { try { const p = await nb.setPrefs(patch); set({ prefs: { ...get().prefs, ...p } }); } catch { /* ignora */ } }
   },
   upsertDownload(d) {
     set((s) => {

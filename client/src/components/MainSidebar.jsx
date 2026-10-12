@@ -77,8 +77,8 @@ export const ITEMS = [
   { to: '/economia', icon: ECONOMY_NAV_ICON, isImg: true, labelKey: 'nav.economia', system: 'economia', match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') },
   { to: '/progresso', icon: ranksIcon, isImg: true, labelKey: 'nav.progresso', match: (p) => p.startsWith('/progresso') || p.startsWith('/rank') || p.startsWith('/conquistas') },
   { to: '/tickets', icon: supportIcon, isImg: true, labelKey: 'nav.suporte', match: (p) => p.startsWith('/tickets') },
-  // Navegador do Project Club: só no app para computador (abas dentro do app).
-  { to: '/navegador', icon: BROWSER_NAV_ICON, isImg: true, labelKey: 'nav.navegador', label: 'Navegador', desktopOnly: true, match: (p) => p.startsWith('/navegador') },
+  // Navegador do Project Club: app para computador, app do celular e site.
+  { to: '/navegador', icon: BROWSER_NAV_ICON, isImg: true, labelKey: 'nav.navegador', label: 'Navegador', match: (p) => p.startsWith('/navegador') },
   // Item pedido: "renomear o sistema atual de Clãs para Clubes...
   // remover completamente a categoria Clãs da interface" — item
   // próprio na barra removido; o sistema (renomeado pra "Clube")
