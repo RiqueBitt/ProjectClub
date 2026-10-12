@@ -308,17 +308,21 @@ html[data-theme='amoled'] :is(
   .modal-box, .dropdown-menu, .context-menu, .status-menu, .usb-menu, .mini-profile-card,
   .emoji-picker, .gif-picker, [class*='popover']:not([class*='popover-anchor']), .name-style-picker-menu,
   .main-sidebar-item-tooltip-portal, .quick-switcher, [role='dialog'] > [class*='box']
-) {
+):not(.lp *) {
   border: var(--lit-border) !important;
   box-shadow: var(--lit-shadow), var(--lit-glow) !important;
 }
 
-/* Caixas e cartões: só a borda clara + brilho bem leve (sem mexer no tamanho). */
+/* Caixas e cartões: só a borda clara + brilho bem leve (sem mexer no tamanho).
+   Fora das páginas públicas (.lp: início, blog e termos): lá o seletor
+   [class*='-hero'] pegava .lp-hero, .lp-hero-stage, .lp-hero-foot e
+   .lp-hero-cta e desenhava um contorno branco com brilho azul em volta
+   do nome PROJECT CLUB e dos botões de download. */
 html[data-theme='amoled'] :is(
   .settings-block, .pc-layout-panel, .poll-card, .vc-lobby-card, .error-boundary-card,
   [class$='-card']:not(.mini-profile-card):not([class*='avatar']), [class*='-card ']:not(.mini-profile-card):not([class*='avatar']),
   [class*='-hero'], [class*='-tile']:not([class*='gif-picker'])
-) {
+):not(.lp *) {
   border-color: var(--lit-border-color);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.015), 0 0 18px -8px color-mix(in srgb, var(--brand) 18%, transparent);
 }

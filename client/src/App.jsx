@@ -29,6 +29,7 @@ const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage.jsx'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'));
 const LandingPage = lazy(() => import('./pages/LandingPage.jsx'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage.jsx'));
+const BlogPage = lazy(() => import('./pages/BlogPage.jsx'));
 const InterfaceEditorPage = lazy(() => import('./pages/InterfaceEditorPage.jsx'));
 
 // "Em reforma" (see adminController.setMaintenanceMode) only gates the
@@ -327,6 +328,8 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/privacidade" element={<PrivacyPage />} />
+          <Route path="/termos" element={<PrivacyPage />} />
+          <Route path="/blog" element={<BlogPage />} />
           <Route
             path="/admin/interface-editor"
             element={

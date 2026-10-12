@@ -37,6 +37,13 @@
 .lp img { display: block; }
 .lp button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 .lp :focus-visible { outline: 2px solid #fff; outline-offset: 3px; border-radius: 4px; }
+/* O anel de foco global do app (appearance.css, azul e !important) não
+   vale aqui: nas páginas públicas o destaque é branco. */
+html .lp :focus-visible { outline: 2px solid #fff !important; outline-offset: 3px; }
+/* Idem para o foco de campo do global.css (borda e anel azuis). */
+.lp input:focus { box-shadow: none; }
+.lp .lp-cmd-input:focus { border-color: var(--line); }
+.lp .lp-cmd-input:focus-visible { outline: none !important; }
 .lp ::selection { background: #fff; color: #000; }
 
 .lp-skip { position: absolute; left: 16px; top: -60px; z-index: 60; padding: 10px 14px; background: #fff; color: #000; border-radius: 8px; }
@@ -103,13 +110,14 @@
   background: rgba(5, 5, 6, .66); backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4);
   border-bottom-color: var(--line);
 }
-.lp-logo img { border-radius: 9px; transition: transform .5s var(--ease); }
+.lp-logo img { object-fit: contain; transition: transform .5s var(--ease); }
 .lp-logo:hover img { transform: rotate(-10deg) scale(1.08); }
 .lp-menu { display: flex; gap: 30px; }
 .lp-menu a { font-size: 14px; font-weight: 600; color: var(--text-2); position: relative; padding: 4px 0; transition: color .2s; }
 .lp-menu a::after { content: ''; position: absolute; left: 0; right: 100%; bottom: 0; height: 1.5px; background: #fff; transition: right .35s var(--ease); }
 .lp-menu a:hover { color: var(--text); }
-.lp-menu a:hover::after { right: 0; }
+.lp-menu a:hover::after, .lp-menu a.is-current::after { right: 0; }
+.lp-menu a.is-current { color: var(--text); }
 .lp-top-actions { display: flex; align-items: center; gap: 18px; }
 
 /* ---------- Abertura ---------- */
@@ -138,9 +146,12 @@
   will-change: transform; --depth: .5;
 }
 .lp-orbit-item img {
-  width: 100%; height: auto; border-radius: 23%;
-  filter: brightness(calc(.45 + var(--depth) * .6)) blur(calc((1 - var(--depth)) * 1.6px));
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, .08), 0 22px 50px -18px color-mix(in srgb, var(--c) calc(var(--depth) * 70%), transparent);
+  /* O PNG já tem os cantos arredondados (e o selo no canto de baixo);
+     recortar com border-radius comia a borda do ícone. A sombra vem do
+     filtro, que segue o formato real da imagem. */
+  width: 100%; height: auto; object-fit: contain;
+  filter: brightness(calc(.45 + var(--depth) * .6)) blur(calc((1 - var(--depth)) * 1.6px))
+    drop-shadow(0 16px 18px color-mix(in srgb, var(--c) calc(var(--depth) * 55%), transparent));
   animation: lp-orbit-in 1.1s var(--ease-out) both; animation-delay: calc(900ms + var(--i) * 70ms);
 }
 @keyframes lp-orbit-in { from { opacity: 0; transform: scale(.3); } to { opacity: 1; transform: none; } }
@@ -212,7 +223,7 @@
   flex: 0 0 auto; display: flex; align-items: center; gap: 9px; height: 34px; padding: 0 12px;
   background: #16161a; border-bottom: 1px solid rgba(255, 255, 255, .07); font-size: 12.5px; font-weight: 600; color: var(--text-2);
 }
-.lp-window-bar img { border-radius: 5px; }
+.lp-window-bar img { flex: 0 0 auto; object-fit: contain; }
 .lp-window-bar span { flex: 1; }
 .lp-window-bar i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, .12); }
 .lp-window-shot { flex: 1; width: 100%; min-height: 0; object-fit: cover; object-position: top left; background: #0d0d10; }
@@ -229,7 +240,7 @@
   border: 1px solid var(--line); background: rgba(255, 255, 255, .03);
   opacity: .45; filter: grayscale(1); transition: opacity .3s, filter .3s, transform .3s var(--ease), border-color .3s;
 }
-.lp-stage-dots button img { border-radius: 8px; }
+.lp-stage-dots button img { object-fit: contain; }
 .lp-stage-dots button:hover { opacity: .85; filter: none; transform: translateY(-2px); }
 .lp-stage-dots button.is-on { opacity: 1; filter: none; border-color: var(--c); transform: translateY(-4px); }
 .lp-stage-rail { position: absolute; left: var(--gutter); right: var(--gutter); bottom: 22px; height: 1px; background: var(--line); }
@@ -316,7 +327,7 @@
   padding: 36px var(--gutter) 40px; background: var(--bg-2); border-top: 1px solid var(--line); font-size: 13.5px; color: var(--text-3);
 }
 .lp-foot-brand { display: grid; grid-template-columns: 28px 1fr; column-gap: 12px; align-items: center; }
-.lp-foot-brand img { grid-row: 1 / 3; border-radius: 8px; }
+.lp-foot-brand img { grid-row: 1 / 3; object-fit: contain; }
 .lp-foot-brand span { font-weight: 700; color: var(--text); }
 .lp-foot-nav { display: flex; flex-wrap: wrap; gap: 20px; }
 .lp-foot-nav a, .lp-foot-nav button { font-size: 14px; font-weight: 600; color: var(--text-2); transition: color .2s; }
@@ -325,8 +336,25 @@
 .lp-foot-meta a { font-weight: 700; color: var(--text); }
 
 /* ---------- Telas menores ---------- */
+/* Menu do celular: o botão de duas linhas abre uma folha com tudo. */
+.lp .lp-burger { display: none; width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--line); place-items: center; align-content: center; gap: 5px; }
+.lp-burger span { display: block; width: 16px; height: 1.5px; background: var(--text); border-radius: 2px; transition: transform .3s var(--ease); }
+.lp-top.is-menu-open .lp-burger span:first-child { transform: translateY(3.25px) rotate(45deg); }
+.lp-top.is-menu-open .lp-burger span:last-child { transform: translateY(-3.25px) rotate(-45deg); }
+.lp-sheet {
+  position: absolute; left: 12px; right: 12px; top: calc(100% + 6px); z-index: 26;
+  display: grid; padding: 8px; border-radius: 18px; background: #0f0f12; border: 1px solid var(--line-2);
+  box-shadow: 0 30px 80px -20px #000; animation: lp-pop-in .25s var(--ease-out);
+}
+.lp-sheet a { padding: 13px 14px; border-radius: 12px; font-size: 16px; font-weight: 600; color: var(--text-2); }
+.lp-sheet a:hover, .lp-sheet a[aria-current='page'] { color: var(--text); background: rgba(255, 255, 255, .06); }
+.lp-sheet .lp-sheet-login { margin-top: 6px; border-top: 1px solid var(--line); border-radius: 0 0 12px 12px; color: var(--text); }
+@media (min-width: 901px) { .lp-sheet { display: none; } }
+@media (max-width: 1180px) and (min-width: 901px) { .lp-menu { gap: 20px; } .lp-search span, .lp-search kbd { display: none; } .lp-search { padding: 8px; } }
+
 @media (max-width: 900px) {
   .lp-menu { display: none; }
+  .lp .lp-burger { display: grid; }
   .lp-split { grid-template-columns: 1fr; }
   .lp-facts { grid-template-columns: 1fr; }
   .lp-foot { grid-template-columns: 1fr; align-items: start; gap: 22px; }
@@ -399,7 +427,7 @@
 .lp-cmd-list { list-style: none; margin: 0; padding: 8px; max-height: min(52vh, 440px); overflow-y: auto; }
 .lp-cmd-list li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 11px; cursor: pointer; }
 .lp-cmd-list li.is-on { background: rgba(255, 255, 255, .07); }
-.lp-cmd-list li img { border-radius: 8px; }
+.lp-cmd-list li img { flex: 0 0 auto; object-fit: contain; }
 .lp-cmd-list li span:not(.lp-cmd-glyph) { display: flex; flex-direction: column; }
 .lp-cmd-list strong { font-size: 15px; color: var(--text); }
 .lp-cmd-list small { font-size: 12.5px; color: var(--text-3); }
