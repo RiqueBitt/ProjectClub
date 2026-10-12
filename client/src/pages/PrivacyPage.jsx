@@ -139,7 +139,7 @@ const SECTIONS = [
     id: 'retencao', group: 'Privacidade', title: 'Quanto tempo guardamos',
     body: (
       <>
-        <p className="wk-lead">Hoje não existe uma rotina automática que apague dados antigos. A regra é simples: os dados da conta ficam guardados enquanto a conta existir, e o que é temporário expira sozinho.</p>
+        <p className="wk-lead">Os dados da conta ficam guardados enquanto a conta existir. Uma limpeza automática roda todo dia e apaga o que é temporário: sessões vencidas há mais de 30 dias, links de senha e códigos de e-mail vencidos há mais de 7 dias, códigos de recuperação já usados há mais de 90 dias, atividades com mais de 90 dias, avisos já lidos com mais de 90 dias e registros de erro sem ocorrência há mais de 30 dias.</p>
         <Facts items={[
           ['Código de verificação', '15 minutos. O que chega depois da aprovação da inscrição vale 48 horas.'],
           ['Link de nova senha', '1 hora, e só funciona uma vez.'],
