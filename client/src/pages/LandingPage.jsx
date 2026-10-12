@@ -67,9 +67,58 @@ function detectPlatform() {
 }
 const PLATFORM_LABEL = { windows: 'Windows', linux: 'Linux', android: 'Android' };
 
+// Efeitos da página: barra de progresso de rolagem, topo com fundo depois
+// de rolar, luz que segue o mouse (variáveis --mx/--my) e brilho dos
+// cartões de download seguindo o cursor. Tudo por variáveis CSS, sem
+// re-render do React; nada roda com "reduzir movimento" ligado.
+function usePageEffects() {
+  useEffect(() => {
+    const root = document.querySelector('.lp');
+    if (!root) return undefined;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const max = root.scrollHeight - root.clientHeight;
+        root.style.setProperty('--progress', max > 0 ? (root.scrollTop / max).toFixed(4) : '0');
+        root.classList.toggle('is-scrolled', root.scrollTop > 24);
+      });
+    };
+    const onMove = (e) => {
+      if (reduce) return;
+      root.style.setProperty('--mx', `${e.clientX}px`);
+      root.style.setProperty('--my', `${e.clientY}px`);
+      const card = e.target.closest?.('.lp-dl-card, .lp-apps li');
+      if (card) {
+        const r = card.getBoundingClientRect();
+        card.style.setProperty('--cx', `${e.clientX - r.left}px`);
+        card.style.setProperty('--cy', `${e.clientY - r.top}px`);
+      }
+    };
+    root.addEventListener('scroll', onScroll, { passive: true });
+    root.addEventListener('pointermove', onMove, { passive: true });
+    onScroll();
+    return () => { root.removeEventListener('scroll', onScroll); root.removeEventListener('pointermove', onMove); cancelAnimationFrame(raf); };
+  }, []);
+}
+
+// Título com as letras entrando uma a uma (o texto inteiro fica no
+// aria-label; as letras soltas ficam escondidas do leitor de tela).
+function Letters({ text, start = 0 }) {
+  return (
+    <span className="lp-word" aria-hidden="true">
+      {[...text].map((ch, i) => <span key={i} className="lp-char" style={{ '--d': `${start + i * 45}ms` }}>{ch}</span>)}
+    </span>
+  );
+}
+
+const TICKER = ['Comunidade', 'Chat e voz', 'Fórum', 'Conquistas', 'Criação de jogos', 'Imagem', 'Vídeo', 'Áudio', '3D', 'Grátis'];
+
 export default function LandingPage() {
   const navigate = useNavigate();
   useReveal();
+  usePageEffects();
   const [platform] = useState(detectPlatform);
   const [copied, setCopied] = useState(false);
 
@@ -88,6 +137,9 @@ export default function LandingPage() {
   return (
     <div className="lp">
       <a className="lp-skip" href="#conteudo">Pular para o conteúdo</a>
+      <div className="lp-progress" aria-hidden="true" />
+      <div className="lp-spot" aria-hidden="true" />
+      <div className="lp-grain" aria-hidden="true" />
 
       <header className="lp-top">
         <a className="lp-logo" href="#" onClick={toTop} aria-label="Project Club, início">
@@ -101,7 +153,7 @@ export default function LandingPage() {
         </nav>
         <div className="lp-top-actions">
           <button type="button" className="lp-link" onClick={goLogin}>Entrar</button>
-          <button type="button" className="lp-btn is-dark is-sm" onClick={goRegister}>Criar conta</button>
+          <button type="button" className="lp-btn is-accent is-sm" onClick={goRegister}>Criar conta</button>
         </div>
       </header>
 
@@ -113,7 +165,7 @@ export default function LandingPage() {
               <img key={a.id} className={`lp-shape s${i + 1}`} src={`/apps/${a.id}/icon.png`} alt="" loading="lazy" />
             ))}
           </div>
-          <h1 id="titulo" className="lp-display"><span>Project</span> <span>Club</span></h1>
+          <h1 id="titulo" className="lp-display" aria-label="Project Club"><Letters text="Project" /> <Letters text="Club" start={360} /></h1>
           <div className="lp-hero-foot">
             <p className="lp-lede">
               Uma comunidade com chat, voz e fórum, e um app para computador que instala e atualiza os nossos programas de criação: jogos, imagem, vídeo, áudio e 3D. Tudo de graça, feito por quem usa.
@@ -132,7 +184,13 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ---------- Apps (faixa escura) ---------- */}
+        <div className="lp-ticker" aria-hidden="true">
+          <div className="lp-ticker-track">
+            {[...TICKER, ...TICKER].map((t, i) => <span key={i}>{t}<i>✦</i></span>)}
+          </div>
+        </div>
+
+        {/* ---------- Apps ---------- */}
         <section id="apps" className="lp-band is-dark" aria-labelledby="apps-titulo">
           <div className="lp-band-head lp-reveal">
             <span className="lp-eyebrow">▶ a aba apps</span>
@@ -253,10 +311,10 @@ export default function LandingPage() {
         {/* ---------- Fechamento ---------- */}
         <section className="lp-band is-dark is-end" aria-labelledby="fim-titulo">
           <span className="lp-eyebrow">▶ é isso</span>
-          <h2 id="fim-titulo" className="lp-display is-lg">Vem pro<br />clube</h2>
+          <h2 id="fim-titulo" className="lp-display is-lg lp-reveal">Vem pro<br />clube</h2>
           <div className="lp-hero-cta">
             <button type="button" className="lp-btn is-accent is-lg" onClick={goRegister}>Criar conta <Ico name="arrowRight" size={18} /></button>
-            <button type="button" className="lp-btn is-ghost-light is-lg" onClick={copyLink}>{copied ? 'Link copiado' : 'Copiar o link do site'}</button>
+            <button type="button" className="lp-btn is-ghost is-lg" onClick={copyLink}>{copied ? 'Link copiado' : 'Copiar o link do site'}</button>
           </div>
         </section>
       </main>
