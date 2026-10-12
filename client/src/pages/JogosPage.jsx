@@ -10,10 +10,27 @@ import { proxyImage } from '../utils/imageProxy';
 import '../styles/jogos-page.css';
 
 // Ícones locais (traço) no lugar dos símbolos ▶ ⬇ 🔍 que viravam caixinha no Linux.
-const JP_ICONS = { play: 'M8 5v14l11-7L8 5Z', download: 'M12 4v11M7 10l5 5 5-5M5 20h14', zoom: 'm20 20-4.2-4.2M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14ZM11 8v6M8 11h6' };
-function JpIcon({ name, size = 16, filled = false }) {
+const JP_ICONS = {
+  play: 'M8 5v14l11-7L8 5Z',
+  download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
+  zoom: 'm20 20-4.2-4.2M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14ZM11 8v6M8 11h6',
+  refresh: 'M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7',
+  trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
+  check: 'm5 12 5 5L20 7',
+  back: 'M15 18l-6-6 6-6',
+  next: 'M9 18l6-6-6-6',
+  close: 'M6 6l12 12M18 6 6 18',
+  windows: 'M3 5.5 10 4.5v7H3zM12 4.2 21 3v8.5h-9zM3 13h7v6.5L3 18.5zM12 13h9V21l-9-1.2z',
+  linux: 'M12 3c-2.2 0-3.5 1.8-3.5 4.3 0 1.5-.6 2.6-1.6 4C5.6 13 5 14.6 5 16c0 2.8 3 5 7 5s7-2.2 7-5c0-1.4-.6-3-1.9-4.7-1-1.4-1.6-2.5-1.6-4C15.5 4.8 14.2 3 12 3Z',
+  info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 11v5M12 8h.01',
+  cpu: 'M6 6h12v12H6zM9 9h6v6H9zM9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4',
+  sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z',
+  image: 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9h.01',
+  shield: 'M12 3 5 6v6c0 4.5 3 7.8 7 9 4-1.2 7-4.5 7-9V6l-7-3Z',
+};
+function JpIcon({ name, size = 16, filled = false, strokeWidth = 2 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ verticalAlign: '-3px' }}><path d={JP_ICONS[name]} /></svg>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="jp-icon"><path d={JP_ICONS[name]} /></svg>
   );
 }
 import { useLiveRefresh } from '../utils/liveRefresh';
@@ -115,7 +132,9 @@ export default function JogosPage() {
         // Item pedido: "melhore as partes vazias da tela" — enquanto
         // carrega, cards-esqueleto no lugar de uma tela em branco.
         <div className="jogos-page-grid">
-          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="app-card-skeleton" />)}
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="app-card-skeleton"><span /><span /><span /></div>
+          ))}
         </div>
       ) : catalog.length === 0 ? (
         <div className="jogos-page-empty">
@@ -125,8 +144,8 @@ export default function JogosPage() {
         </div>
       ) : (
         <div className="jogos-page-grid">
-          {catalog.map((item) => (
-            <ModuleCard key={item.moduleId} item={item} onOpenDetail={() => setDetailModuleId(item.moduleId)} />
+          {catalog.map((item, i) => (
+            <ModuleCard key={item.moduleId} item={item} index={i} onOpenDetail={() => setDetailModuleId(item.moduleId)} />
           ))}
         </div>
       )}
@@ -134,10 +153,52 @@ export default function JogosPage() {
   );
 }
 
+// ===== Identidade de cada app =====
+// Cor de destaque de cada app (a mesma dos ícones e banners). Apps novos
+// cadastrados pela staff usam a cor do tema do Project Club.
+const APP_THEMES = {
+  photoproject: ['#A855F7', '#6366F1'],
+  projectmc: ['#A3E635', '#22C55E'],
+  hyproject: ['#FACC15', '#F97316'],
+  davinciproject: ['#F87171', '#FB923C'],
+  waveproject: ['#22D3EE', '#3B82F6'],
+  texelproject: ['#FB923C', '#EF4444'],
+  forgeproject: ['#4ADE80', '#14B8A6'],
+  canvasproject: ['#F472B6', '#A855F7'],
+};
+function themeVars(moduleId) {
+  const t = APP_THEMES[moduleId];
+  return t ? { '--app-accent': t[0], '--app-accent-2': t[1] } : undefined;
+}
+
+// A descrição cadastrada segue o padrão "Editor de imagem do Project Club:
+// retoque fotos, ... Baseado no Patchy (código aberto, MIT)." — separa o
+// slogan (antes dos dois-pontos), o resumo e o crédito da base, para cada
+// parte aparecer no lugar certo em vez de repetir o mesmo texto.
+function splitDescription(description = '') {
+  const text = description.trim();
+  const colon = text.indexOf(':');
+  const tagline = colon > 0 && colon < 70 ? text.slice(0, colon).trim() : '';
+  let body = tagline ? text.slice(colon + 1).trim() : text;
+  let base = '';
+  const m = /\s*Baseado no (.+?)\.?$/i.exec(body);
+  if (m) { base = m[1].trim(); body = body.slice(0, m.index).trim(); }
+  if (body) body = body.charAt(0).toUpperCase() + body.slice(1);
+  return { tagline, body, base };
+}
+
+// "~58 MB (zip)" -> "~58 MB"; "~96 MB (download) · ~300 MB instalado" -> "~96 MB"
+const shortSize = (label) => (label || '').split(/\s+[·|]\s+/)[0].replace(/\s*\(.*?\)\s*/g, ' ').trim();
+
+function sizesFor(item, platform) {
+  const win = item.sizeLabelWin || (platform !== 'linux' ? item.sizeLabel : null);
+  const linux = item.sizeLabelLinux || (platform === 'linux' ? item.sizeLabel : null);
+  return { win, linux, current: platform === 'linux' ? linux : win };
+}
+
 // Hook compartilhado entre o card da grade e a tela de detalhe — status
-// de instalação, progresso, e as 3 ações (instalar, abrir, desinstalar)
-// vivem aqui pra não duplicar essa lógica nos dois lugares que precisam
-// dela.
+// de instalação, progresso, e as ações (instalar/atualizar, abrir,
+// desinstalar) vivem aqui pra não duplicar a lógica.
 function useModuleState(moduleId) {
   const desktopReady = isProjectMcAvailable();
   const [status, setStatus] = useState(null);
@@ -149,7 +210,7 @@ function useModuleState(moduleId) {
   const refreshStatus = () => {
     if (!desktopReady) return;
     getProjectMcStatus(moduleId).then(setStatus).catch(() => {});
-    checkProjectMcUpdate(moduleId).then((d) => (d.error ? setError(d.error) : setUpdateInfo(d))).catch((err) => setError(err.message));
+    checkProjectMcUpdate(moduleId).then((d) => (d.error ? setError(d.error) : (setError(''), setUpdateInfo(d)))).catch((err) => setError(err.message));
   };
 
   useEffect(() => {
@@ -190,12 +251,8 @@ function useModuleState(moduleId) {
     }
   };
 
-  // Item pedido: "mude o botão de reinstalar para Desinstalar aí apaga
-  // o arquivo, não quero isso de reinstalar" — antes desinstalava E
-  // reinstalava em seguida (recuperação de instalação corrompida);
-  // agora só apaga mesmo, sem nenhum download de volta. Quem quiser
-  // instalar de novo usa o botão "Instalar" normal, que já aparece
-  // sozinho depois que installed vira false.
+  // Só desinstala (apaga os arquivos); para instalar de novo é o botão
+  // "Instalar" normal, que volta a aparecer sozinho.
   const uninstall = async () => {
     if (!confirm(`Isso vai desinstalar ${status?.displayName || 'este app'} e apagar os arquivos dele. Continuar?`)) return;
     setError('');
@@ -217,89 +274,123 @@ function useModuleState(moduleId) {
   };
 }
 
-// Item pedido: "a imagem quando abrir a aba apps vai mostrar o banner
-// com o botão de download, se tiver baixado vai mostrar um botão
-// verde com a icon de play... clique no banner e em outro lugar não
-// sendo a caixinha de play aí abre a outra aba" — card inteiro é
-// clicável e sempre abre o detalhe (estilo Steam); só a caixinha no
-// canto tem ação PRÓPRIA e direta: baixar (não instalado, entra no
-// detalhe pra acompanhar o progresso) ou jogar (instalado, abre na
-// hora). Item pedido: "melhore quando tiver fazendo o download" — o
-// botão de ação vira o próprio indicador de porcentagem enquanto
-// baixa, em vez de só a barrinha fina embaixo.
-function ModuleCard({ item, onOpenDetail }) {
-  const { desktopReady, installed, updateAvailable, busy, progress, open } = useModuleState(item.moduleId);
+const PHASE_LABEL = { downloading: 'Baixando', extracting: 'Extraindo', installing: 'Instalando' };
+const phaseLabel = (phase) => PHASE_LABEL[phase] || 'Concluindo';
 
-  const onQuickAction = (e) => {
-    e.stopPropagation();
-    if (installed && !busy) open();
-    else if (!busy) onOpenDetail();
-  };
+// Botão principal (o mesmo no card e no detalhe): mostra o que vai
+// acontecer ao clicar — Instalar, Atualizar ou Abrir — e vira a própria
+// barra de progresso enquanto baixa.
+function PrimaryAction({ state, size = 'md', onClick }) {
+  const { installed, updateAvailable, busy, progress, install, open } = state;
+  if (busy) {
+    const pct = progress?.percent ?? 0;
+    return (
+      <div className={`pc-action is-${size} is-busy`} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+        <span className="pc-action-fill" style={{ width: `${progress ? pct : 100}%` }} />
+        <span className="pc-action-label">{progress ? `${phaseLabel(progress.phase)} ${pct}%` : 'Aguarde...'}</span>
+      </div>
+    );
+  }
+  const run = (fn) => (e) => { e.stopPropagation(); onClick?.(); fn(); };
+  if (installed && updateAvailable) {
+    return <button type="button" className={`pc-action is-${size} is-update`} onClick={run(install)}><JpIcon name="refresh" size={size === 'lg' ? 18 : 15} /> Atualizar</button>;
+  }
+  if (installed) {
+    return <button type="button" className={`pc-action is-${size} is-open`} onClick={run(open)}><JpIcon name="play" size={size === 'lg' ? 17 : 14} filled /> Abrir</button>;
+  }
+  return <button type="button" className={`pc-action is-${size} is-install`} onClick={run(install)}><JpIcon name="download" size={size === 'lg' ? 18 : 15} /> Instalar</button>;
+}
+
+// ===== Card da grade =====
+// Banner inteiro (sem cortar o ícone da arte), resumo do que o app faz,
+// versão + tamanho e um botão claro com a ação. Clicar no resto do card
+// abre a página do app.
+function ModuleCard({ item, index, onOpenDetail }) {
+  const state = useModuleState(item.moduleId);
+  const { desktopReady, installed, updateAvailable, busy, error } = state;
+  const platform = currentPlatform();
+  const { body } = splitDescription(item.description);
+  const size = shortSize(sizesFor(item, platform).current);
 
   return (
-    <div className="app-card" onClick={onOpenDetail} role="button" tabIndex={0}>
-      <div className="app-card-banner" style={item.bannerUrl ? { backgroundImage: `url(${proxyImage(item.bannerUrl)})` } : undefined}>
-        {!item.bannerUrl && <span className="app-card-banner-fallback"><PageIcon name="grid" size={40} /></span>}
-        <div className="app-card-banner-gradient" />
-        <div className="app-card-badges">
-          {item.version && <span className="app-card-version-badge">v{item.version}</span>}
-          {installed && !busy && updateAvailable && <span className="app-card-update-badge">Atualização</span>}
+    <article
+      className={`app-card ${installed ? 'is-installed' : ''}`}
+      style={{ ...themeVars(item.moduleId), '--i': index }}
+      onClick={onOpenDetail}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenDetail(); } }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Abrir a página do ${item.name}`}
+    >
+      <div className="app-card-media">
+        {item.bannerUrl
+          ? <img src={proxyImage(item.bannerUrl)} alt="" loading="lazy" />
+          : <span className="app-card-media-fallback"><PageIcon name="grid" size={40} /></span>}
+        <div className="app-card-chips">
+          {installed && !busy && !updateAvailable && <span className="app-chip is-ok"><JpIcon name="check" size={12} strokeWidth={3} /> Instalado</span>}
+          {installed && !busy && updateAvailable && <span className="app-chip is-accent"><JpIcon name="refresh" size={12} strokeWidth={2.5} /> Atualização</span>}
         </div>
-        <div className="app-card-title-row">
-          {item.iconUrl && <img className="app-card-icon" src={proxyImage(item.iconUrl)} alt="" />}
-          <span className="app-card-name">{item.name}</span>
+      </div>
+
+      <div className="app-card-body">
+        {body && <p className="app-card-description">{body}</p>}
+        {error && <p className="app-card-error" title={error}>{error}</p>}
+        <div className="app-card-foot">
+          <div className="app-card-meta">
+            {item.version && <span>v{item.version}</span>}
+            {size && <span>{size}</span>}
+          </div>
+          {desktopReady
+            ? <PrimaryAction state={state} />
+            : <span className="app-card-more">Ver detalhes <JpIcon name="next" size={14} /></span>}
         </div>
-        {desktopReady && (
-          <button
-            type="button"
-            className={`app-card-quick-btn ${installed ? 'is-play' : 'is-download'} ${busy ? 'is-busy' : ''}`}
-            onClick={onQuickAction}
-            title={busy ? 'Baixando...' : installed ? 'Jogar' : 'Baixar'}
-            aria-label={busy ? 'Baixando' : installed ? 'Jogar' : 'Baixar'}
-          >
-            {busy && progress ? <span className="app-card-quick-btn-percent">{progress.percent}%</span> : installed ? <JpIcon name="play" filled /> : <JpIcon name="download" />}
+      </div>
+    </article>
+  );
+}
+
+// ===== Página do app =====
+
+// Galeria estilo loja: uma captura grande em destaque + miniaturas
+// (sem rolagem lateral). Clicar na grande abre em tela cheia.
+function ScreenshotGallery({ screenshots, onOpen }) {
+  const [active, setActive] = useState(0);
+  if (!screenshots?.length) return null;
+  const total = screenshots.length;
+  const current = screenshots[Math.min(active, total - 1)];
+  const go = (d) => setActive((i) => (i + d + total) % total);
+  return (
+    <section className="app-section">
+      <h2 className="app-section-title"><JpIcon name="image" size={18} /> Capturas de tela <span className="app-section-count">{total}</span></h2>
+      <div className="app-gallery">
+        <div className="app-gallery-stage">
+          <button type="button" className="app-gallery-main" onClick={() => onOpen(active)} aria-label="Ampliar captura">
+            <img key={current.id} src={proxyImage(current.imageUrl)} alt={`Captura ${active + 1} de ${total}`} />
+            <span className="app-gallery-zoom"><JpIcon name="zoom" size={16} /> Ampliar</span>
           </button>
+          {total > 1 && (
+            <>
+              <button type="button" className="app-gallery-nav is-prev" onClick={() => go(-1)} aria-label="Anterior"><JpIcon name="back" size={20} /></button>
+              <button type="button" className="app-gallery-nav is-next" onClick={() => go(1)} aria-label="Próxima"><JpIcon name="next" size={20} /></button>
+              <span className="app-gallery-counter">{active + 1} / {total}</span>
+            </>
+          )}
+        </div>
+        {total > 1 && (
+          <div className="app-gallery-thumbs">
+            {screenshots.map((s, i) => (
+              <button key={s.id} type="button" className={`app-gallery-thumb ${i === active ? 'is-active' : ''}`} onClick={() => setActive(i)} aria-label={`Ver captura ${i + 1}`}>
+                <img src={proxyImage(s.imageUrl)} alt="" loading="lazy" />
+              </button>
+            ))}
+          </div>
         )}
       </div>
-      {item.description && <p className="app-card-description">{item.description}</p>}
-      {!desktopReady && <p className="app-card-hint dim">Disponível apenas no app de desktop do Project Club.</p>}
-      {desktopReady && installed && !busy && (
-        <div className="app-card-installed-tag"><PageIcon name="check" size={13} strokeWidth={2.6} /> Instalado</div>
-      )}
-      {desktopReady && busy && progress && (
-        <div className="app-card-progress">
-          <div className="app-card-progress-fill" style={{ width: `${progress.percent}%` }} />
-        </div>
-      )}
-    </div>
+    </section>
   );
 }
 
-// Item pedido: "melhore o menu das screenshots do app, deixa mais no
-// pc e mais bonito e organizado" — grade responsiva (mais colunas em
-// telas largas de PC) em vez da fileira que precisava arrastar de
-// lado pra ver tudo; sem rolagem horizontal em lugar nenhum.
-function ScreenshotGallery({ screenshots, onOpen }) {
-  if (!screenshots?.length) return null;
-  return (
-    <div className="app-detail-screenshots">
-      <h3>Screenshots <span className="app-detail-screenshots-count dim">{screenshots.length}</span></h3>
-      <div className="app-detail-screenshots-grid">
-        {screenshots.map((s, i) => (
-          <button key={s.id} type="button" className="app-detail-screenshot-thumb" onClick={() => onOpen(i)}>
-            <img src={proxyImage(s.imageUrl)} alt="" loading="lazy" />
-            <span className="app-detail-screenshot-thumb-zoom"><JpIcon name="zoom" size={18} /></span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Item pedido: "ao clicar fora da imagem, feche a visualização" —
-// fundo escuro clicável fecha; a própria imagem tem stopPropagation
-// pra não fechar clicando nela sem querer. Agora com setas pra
-// navegar entre as screenshots sem precisar fechar e abrir de novo.
+// Tela cheia: Esc fecha, setas navegam, clicar fora fecha.
 function ScreenshotLightbox({ screenshots, index, onIndexChange, onClose }) {
   const total = screenshots.length;
   const go = (delta) => onIndexChange((i) => (i + delta + total) % total);
@@ -319,131 +410,189 @@ function ScreenshotLightbox({ screenshots, index, onIndexChange, onClose }) {
   if (!current) return null;
 
   return (
-    <div className="screenshot-lightbox" onClick={onClose}>
-      <button type="button" className="screenshot-lightbox-close" onClick={onClose} aria-label="Fechar">×</button>
+    <div className="screenshot-lightbox" onClick={onClose} role="dialog" aria-modal="true">
+      <button type="button" className="screenshot-lightbox-close" onClick={onClose} aria-label="Fechar"><JpIcon name="close" size={20} /></button>
       {total > 1 && (
-        <button type="button" className="screenshot-lightbox-nav screenshot-lightbox-prev" onClick={(e) => { e.stopPropagation(); go(-1); }} aria-label="Anterior">‹</button>
+        <button type="button" className="screenshot-lightbox-nav screenshot-lightbox-prev" onClick={(e) => { e.stopPropagation(); go(-1); }} aria-label="Anterior"><JpIcon name="back" size={24} /></button>
       )}
-      <img src={proxyImage(current.imageUrl)} alt="" onClick={(e) => e.stopPropagation()} />
+      <img key={current.id} src={proxyImage(current.imageUrl)} alt="" onClick={(e) => e.stopPropagation()} />
       {total > 1 && (
-        <button type="button" className="screenshot-lightbox-nav screenshot-lightbox-next" onClick={(e) => { e.stopPropagation(); go(1); }} aria-label="Próxima">›</button>
+        <button type="button" className="screenshot-lightbox-nav screenshot-lightbox-next" onClick={(e) => { e.stopPropagation(); go(1); }} aria-label="Próxima"><JpIcon name="next" size={24} /></button>
       )}
       {total > 1 && <div className="screenshot-lightbox-counter">{index + 1} / {total}</div>}
     </div>
   );
 }
 
-// Item pedido: "adicione mais informações sobre cada app, como...
-// recursos principais" — featuresText é texto livre (um recurso por
-// linha, configurado pela staff); linhas vazias são ignoradas.
-function FeaturesList({ featuresText }) {
-  const features = (featuresText || '').split('\n').map((f) => f.trim()).filter(Boolean);
+// Recursos (um por linha, cadastrados pela staff). A linha "Tecnologias: ..."
+// vai para o quadro de detalhes ao lado, não para a lista.
+function parseFeatures(featuresText) {
+  const lines = (featuresText || '').split('\n').map((f) => f.trim()).filter(Boolean);
+  const techLine = lines.find((l) => /^tecnologias\s*:/i.test(l));
+  const features = lines.filter((l) => l !== techLine);
+  const tech = techLine ? techLine.replace(/^tecnologias\s*:\s*/i, '').replace(/\s+—\s+vers[ãa]o.*$/i, '').trim() : '';
+  return { features, tech };
+}
+
+function FeaturesList({ features }) {
   if (!features.length) return null;
   return (
-    <div className="app-detail-features">
-      <h3>Recursos principais</h3>
-      <ul>{features.map((f, i) => <li key={i}>{f}</li>)}</ul>
-    </div>
+    <section className="app-section">
+      <h2 className="app-section-title"><JpIcon name="sparkle" size={18} /> Recursos principais</h2>
+      <ul className="app-features">
+        {features.map((f, i) => (
+          <li key={i}><span className="app-features-check"><JpIcon name="check" size={13} strokeWidth={3} /></span><span>{f}</span></li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
-// Item pedido: "separe claramente os downloads para Windows e Linux,
-// já que os dois sistemas possuem formatos e requisitos diferentes" —
-// duas seções lado a lado, cada uma com seu próprio tamanho e
-// requisitos; a que bate com a plataforma que o app desktop já está
-// rodando ganha destaque visual e é a única com um botão que faz
-// algo de verdade (a outra plataforma não tem como instalar daqui,
-// já que window.electronAPI só existe pra a que já está rodando).
-function PlatformSection({ platformKey, label, sizeLabel, requirements, isCurrent, children }) {
+// "CPU: 4 núcleos" -> { label: 'Processador', value: '4 núcleos' }; a
+// primeira linha sem rótulo é o sistema operacional.
+const REQ_LABELS = { cpu: 'Processador', ram: 'Memória', gpu: 'Placa de vídeo', disco: 'Armazenamento', 'áudio': 'Áudio', audio: 'Áudio', sistema: 'Sistema' };
+function parseRequirements(text) {
+  return (text || '').split('\n').map((l) => l.trim()).filter(Boolean).map((line, i) => {
+    const m = /^([\wÀ-ú ]{2,20}):\s*(.+)$/.exec(line);
+    if (m) return { label: REQ_LABELS[m[1].toLowerCase()] || m[1], value: m[2] };
+    return { label: i === 0 ? 'Sistema' : '', value: line };
+  });
+}
+
+function RequirementsCard({ item, platform }) {
+  const options = [
+    { key: 'win32', label: 'Windows', icon: 'windows', text: item.requirementsWin },
+    { key: 'linux', label: 'Linux', icon: 'linux', text: item.requirementsLinux },
+  ].filter((o) => o.text);
+  const [tab, setTab] = useState(options.some((o) => o.key === platform) ? platform : options[0]?.key);
+  if (!options.length) return null;
+  const current = options.find((o) => o.key === tab) || options[0];
   return (
-    <div className={`app-detail-platform ${isCurrent ? 'is-current' : ''}`}>
-      <div className="app-detail-platform-header">
-        <span className="app-detail-platform-name">{label}</span>
-        {isCurrent && <span className="app-detail-platform-tag">Seu sistema</span>}
-      </div>
-      {sizeLabel && <div className="app-detail-platform-row"><span className="dim">Espaço necessário</span><strong>{sizeLabel}</strong></div>}
-      {requirements && <div className="app-detail-platform-row app-detail-platform-requirements"><span className="dim">Requisitos</span><span>{requirements}</span></div>}
-      <div className="app-detail-platform-actions">{children}</div>
-    </div>
+    <section className="app-side-card">
+      <h3 className="app-side-title"><JpIcon name="cpu" size={16} /> Requisitos</h3>
+      {options.length > 1 && (
+        <div className="app-segmented" role="tablist">
+          {options.map((o) => (
+            <button key={o.key} type="button" role="tab" aria-selected={o.key === current.key} className={o.key === current.key ? 'is-active' : ''} onClick={() => setTab(o.key)}>
+              <JpIcon name={o.icon} size={14} /> {o.label}{o.key === platform && <span className="app-segmented-dot" title="Seu sistema" />}
+            </button>
+          ))}
+        </div>
+      )}
+      <dl className="app-reqs">
+        {parseRequirements(current.text).map((r, i) => (
+          <div key={i} className="app-reqs-row">
+            {r.label && <dt>{r.label}</dt>}
+            <dd>{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 
-// Item pedido: "clique no botão download vai abrir outra aba que é
-// parecida com a outra foto que te mandei (a página do jogo na Steam)
-// mostra do download etc, aí quando baixar vai mostrar um botão
-// Jogar" — banner grande, "espaço necessário" configurado pela staff,
-// progresso durante o download, Jogar + Desinstalar depois de pronto.
-// Item pedido: "melhore quando tiver fazendo o download de algum
-// app" — barra de progresso com fase nomeada + porcentagem grande em
-// destaque, em vez de só um texto pequeno acima da barra.
+function DetailsCard({ item, sizes, tech, base }) {
+  const rows = [
+    item.version && ['Versão', item.version],
+    sizes.win && ['Download Windows', sizes.win],
+    sizes.linux && ['Download Linux', sizes.linux],
+    ['Atualizações', 'Automáticas pela aba Apps'],
+    tech && ['Tecnologias', tech],
+    base && ['Baseado em', base],
+  ].filter(Boolean);
+  return (
+    <section className="app-side-card">
+      <h3 className="app-side-title"><JpIcon name="info" size={16} /> Detalhes</h3>
+      <dl className="app-facts">
+        {rows.map(([k, v]) => (<div key={k}><dt>{k}</dt><dd>{v}</dd></div>))}
+      </dl>
+    </section>
+  );
+}
+
 function AppDetailView({ item, onBack, onOpenScreenshot }) {
-  const { desktopReady, installed, updateAvailable, updateInfo, busy, progress, error, install, open, uninstall } = useModuleState(item.moduleId);
+  const state = useModuleState(item.moduleId);
+  const { desktopReady, installed, updateAvailable, updateInfo, busy, error, uninstall } = state;
   const platform = currentPlatform();
-
-  const sizeWin = item.sizeLabelWin || (platform !== 'linux' ? item.sizeLabel : null);
-  const sizeLinux = item.sizeLabelLinux || (platform === 'linux' ? item.sizeLabel : null);
-
-  const renderActions = (forPlatform) => {
-    if (!desktopReady || platform !== forPlatform) {
-      return <p className="dim app-detail-platform-hint">Abra o Project Club nesse sistema pra instalar por aqui.</p>;
-    }
-    if (busy && progress) {
-      const phaseLabel = progress.phase === 'downloading' ? 'Baixando' : progress.phase === 'extracting' ? 'Extraindo arquivos' : 'Concluindo instalação';
-      return (
-        <div className="app-detail-progress">
-          <div className="app-detail-progress-top">
-            <span className="app-detail-progress-label">{phaseLabel}...</span>
-            <span className="app-detail-progress-percent">{progress.percent}%</span>
-          </div>
-          <div className="app-detail-progress-bar"><div className="app-detail-progress-bar-fill" style={{ width: `${progress.percent}%` }} /></div>
-        </div>
-      );
-    }
-    if (installed) {
-      return (
-        <div className="app-detail-installed-row">
-          <button type="button" className="btn-play app-detail-play-btn" onClick={open}><JpIcon name="play" size={15} filled /> Jogar</button>
-          {updateAvailable && <button type="button" className="btn-primary" onClick={install}>Atualizar para {updateInfo.latest}</button>}
-          <button type="button" className="btn-danger-outline" onClick={uninstall}>Desinstalar</button>
-        </div>
-      );
-    }
-    return <button type="button" className="btn-primary app-detail-install-btn" onClick={install}><JpIcon name="download" size={15} /> Instalar</button>;
-  };
+  const sizes = sizesFor(item, platform);
+  const { tagline, body, base } = splitDescription(item.description);
+  const { features, tech } = parseFeatures(item.featuresText);
+  const platformName = platform === 'linux' ? 'Linux' : 'Windows';
+  const hasPlatformBuild = platform === 'linux' ? !!(item.sizeLabelLinux || item.requirementsLinux) : !!(item.sizeLabelWin || item.requirementsWin);
 
   return (
-    <div className="app-detail-view">
-      <button type="button" className="app-detail-back" onClick={onBack}>‹ Voltar para Apps</button>
+    <div className="app-detail-view" style={themeVars(item.moduleId)}>
+      <div className="app-detail-inner">
+        <button type="button" className="app-detail-back" onClick={onBack}><JpIcon name="back" size={16} /> Apps</button>
 
-      <div className="app-detail-banner" style={item.bannerUrl ? { backgroundImage: `url(${proxyImage(item.bannerUrl)})` } : undefined}>
-        {!item.bannerUrl && <span className="app-detail-banner-fallback"><PageIcon name="grid" size={48} /></span>}
-        <div className="app-detail-banner-gradient" />
-        <div className="app-detail-title-row">
-          {item.iconUrl && <img className="app-detail-icon" src={proxyImage(item.iconUrl)} alt="" />}
-          <div>
-            <h1>{item.name}</h1>
-            {item.version && <span className="app-detail-version">Versão {item.version}</span>}
-          </div>
+        <div className="app-detail-hero">
+          {item.bannerUrl
+            ? <img className="app-detail-hero-img" src={proxyImage(item.bannerUrl)} alt={item.name} />
+            : <div className="app-detail-hero-fallback"><PageIcon name="grid" size={56} /></div>}
         </div>
-      </div>
 
-      {error && <p className="app-detail-error app-detail-error-top">{error}</p>}
+        <header className="app-detail-head">
+          <div className="app-detail-id">
+            {item.iconUrl && <img className="app-detail-icon" src={proxyImage(item.iconUrl)} alt="" />}
+            <div className="app-detail-id-text">
+              <h1>{item.name}</h1>
+              {tagline && <p className="app-detail-tagline">{tagline}</p>}
+              <div className="app-detail-pills">
+                {item.version && <span className="app-pill">v{item.version}</span>}
+                {(item.sizeLabelWin || item.requirementsWin) && <span className="app-pill"><JpIcon name="windows" size={12} /> Windows</span>}
+                {(item.sizeLabelLinux || item.requirementsLinux) && <span className="app-pill"><JpIcon name="linux" size={12} /> Linux</span>}
+                {installed && !busy && <span className="app-pill is-ok"><JpIcon name="check" size={12} strokeWidth={3} /> Instalado</span>}
+              </div>
+            </div>
+          </div>
 
-      <div className="app-detail-platforms">
-        <PlatformSection platformKey="win32" label="Windows" sizeLabel={sizeWin} requirements={item.requirementsWin} isCurrent={platform === 'win32'}>
-          {renderActions('win32')}
-        </PlatformSection>
-        <PlatformSection platformKey="linux" label="Linux" sizeLabel={sizeLinux} requirements={item.requirementsLinux} isCurrent={platform === 'linux'}>
-          {renderActions('linux')}
-        </PlatformSection>
-      </div>
+          <div className="app-detail-cta">
+            {!desktopReady ? (
+              <div className="app-detail-cta-note">
+                <strong>Instale pelo app para computador</strong>
+                <span>Abra o Project Club no Windows ou no Linux para instalar este app.</span>
+              </div>
+            ) : !hasPlatformBuild ? (
+              <div className="app-detail-cta-note">
+                <strong>Indisponível no {platformName}</strong>
+                <span>Este app ainda não tem versão para o seu sistema.</span>
+              </div>
+            ) : (
+              <>
+                <PrimaryAction state={state} size="lg" />
+                <div className="app-detail-cta-sub">
+                  {busy ? <span>Não feche o Project Club até terminar.</span>
+                    : updateAvailable ? <span>Nova versão {updateInfo?.latest} disponível</span>
+                    : installed ? <span>Pronto para usar no {platformName}</span>
+                    : <span>{shortSize(sizes.current) ? `${shortSize(sizes.current)} · ` : ''}{platformName}</span>}
+                  {installed && !busy && (
+                    <button type="button" className="app-detail-uninstall" onClick={uninstall}><JpIcon name="trash" size={13} /> Desinstalar</button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </header>
 
-      {!desktopReady && <p className="dim app-detail-web-hint">Baixe e abra o app de desktop do Project Club (Windows ou Linux) pra instalar aplicativos.</p>}
+        {error && <div className="app-detail-error" role="alert"><JpIcon name="info" size={16} /> {error}</div>}
 
-      <div className="app-detail-body">
-        {item.description && <p className="app-detail-description">{item.description}</p>}
-        <FeaturesList featuresText={item.featuresText} />
-        <ScreenshotGallery screenshots={item.screenshots} onOpen={onOpenScreenshot} />
+        <div className="app-detail-layout">
+          <main className="app-detail-main">
+            {body && (
+              <section className="app-section">
+                <h2 className="app-section-title"><JpIcon name="info" size={18} /> Sobre</h2>
+                <p className="app-detail-about">{body}</p>
+              </section>
+            )}
+            <ScreenshotGallery screenshots={item.screenshots} onOpen={onOpenScreenshot} />
+            <FeaturesList features={features} />
+          </main>
+          <aside className="app-detail-side">
+            <RequirementsCard item={item} platform={platform} />
+            <DetailsCard item={item} sizes={sizes} tech={tech} base={base} />
+            <p className="app-detail-trust"><JpIcon name="shield" size={14} /> App oficial do Project Club, de código aberto. Atualizações chegam só por aqui.</p>
+          </aside>
+        </div>
       </div>
     </div>
   );
