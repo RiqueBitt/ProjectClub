@@ -193,6 +193,15 @@ const MODULES = {
     assetExt: { win32: '.zip' },
     exeName: { win32: 'ForgeProject.exe', linux: 'ForgeProject.AppImage' },
   },
+  gameproject: {
+    displayName: 'GameProject',
+    description: 'Criação de jogos 2D e 3D do Project Club',
+    folder: 'GameProject',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/GameProject/releases',
+    packageType: { win32: 'archive', linux: 'single-file' },
+    assetExt: { win32: '.zip' },
+    exeName: { win32: 'GameProject.exe', linux: 'GameProject.AppImage' },
+  },
   canvasproject: {
     displayName: 'CanvasProject',
     description: 'Pintura digital e ilustração do Project Club',
