@@ -2,7 +2,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const env = require('../config/env');
-const { storeFile } = require('../services/fileStorage');
+const { storeFile, deleteFile } = require('../services/fileStorage');
 const { detectImageMime } = require('../utils/imageSignature');
 const { optimizeImage } = require('../services/imageOptimizer');
 
@@ -31,11 +31,34 @@ if (!fs.existsSync(uploadRoot)) fs.mkdirSync(uploadRoot, { recursive: true });
 // não precisa mexer nas ~17 rotas que fazem upload, `req.file.url` já
 // chega pronto no controller.
 class ManagedStorage {
+  // maxTotalBytes (opcional): teto da SOMA de todos os arquivos de uma
+  // requisição — cada arquivo fica inteiro na memória até subir pro
+  // storage, então 10 anexos no limite individual podiam segurar
+  // centenas de MB por requisição.
+  constructor({ maxTotalBytes = null } = {}) {
+    this.maxTotalBytes = maxTotalBytes;
+  }
+
   _handleFile(req, file, cb) {
     const chunks = [];
-    file.stream.on('data', (chunk) => chunks.push(chunk));
+    let aborted = false;
+    file.stream.on('data', (chunk) => {
+      if (aborted) return;
+      if (this.maxTotalBytes) {
+        req._uploadTotalBytes = (req._uploadTotalBytes || 0) + chunk.length;
+        if (req._uploadTotalBytes > this.maxTotalBytes) {
+          aborted = true;
+          chunks.length = 0;
+          file.stream.resume();
+          cb(Object.assign(new Error(`Os anexos somam mais de ${Math.round(this.maxTotalBytes / 1048576)}MB.`), { status: 413 }));
+          return;
+        }
+      }
+      chunks.push(chunk);
+    });
     file.stream.on('error', cb);
     file.stream.on('end', async () => {
+      if (aborted) return;
       try {
         const buffer = Buffer.concat(chunks);
 
@@ -87,12 +110,25 @@ class ManagedStorage {
     });
   }
 
+  // Chamado pelo multer quando a requisição falha no meio (ex.: o 3º
+  // arquivo passou do limite) pros arquivos que JÁ tinham subido — antes
+  // era um no-op e esses arquivos ficavam órfãos no B2.
   _removeFile(req, file, cb) {
-    cb(null); // best-effort — não há nada síncrono útil a desfazer aqui
+    if (!file?.filename) return cb(null);
+    deleteFile(file.filename).then(() => cb(null), () => cb(null));
   }
 }
 
 const storage = new ManagedStorage();
+
+// Exclui os arquivos que o multer já subiu nesta requisição — usado
+// quando o controller rejeita a mensagem DEPOIS do upload (permissão,
+// AutoMod, mensagem vazia...), pra não deixar lixo no storage.
+async function discardUploadedFiles(req) {
+  const list = Array.isArray(req.files) ? req.files : Object.values(req.files || {}).flat();
+  if (req.file) list.push(req.file);
+  await Promise.all(list.map((f) => (f?.filename ? deleteFile(f.filename).catch(() => {}) : null)));
+}
 
 // Message attachments intentionally allow most file types (Discord-style —
 // "any file" behaviour, see Message.jsx's generic 📎 attachment fallback),
@@ -173,6 +209,19 @@ const upload = multer({
   fileFilter: attachmentFileFilter,
 });
 
+// Anexos de mensagem: o limite real é 50MB em canal / 25MB em DM
+// (messageController.createMessage) — não há mais Impulsos de 100MB, então
+// o multer já corta em 50MB por arquivo, no máximo 10 arquivos e 100MB
+// somados por mensagem (a UI nunca prometeu mais que isso).
+const MESSAGE_MAX_FILE_MB = 50;
+const MESSAGE_MAX_FILES = 10;
+const MESSAGE_MAX_TOTAL_MB = 100;
+const uploadMessageAttachments = multer({
+  storage: new ManagedStorage({ maxTotalBytes: MESSAGE_MAX_TOTAL_MB * 1024 * 1024 }),
+  limits: { fileSize: MESSAGE_MAX_FILE_MB * 1024 * 1024, files: MESSAGE_MAX_FILES, fields: 40, fieldSize: 256 * 1024 },
+  fileFilter: attachmentFileFilter,
+});
+
 // Stricter variant for anything that's always meant to be an image (avatars,
 // banners, server/role icons, custom emoji) — no reason those should ever
 // accept arbitrary files.
@@ -201,4 +250,7 @@ const uploadPhotoOrVideo = multer({
   fileFilter: photoOrVideoFileFilter,
 });
 
-module.exports = { upload, uploadImage, uploadAudio, uploadPhotoOrVideo, uploadRoot };
+module.exports = {
+  upload, uploadImage, uploadAudio, uploadPhotoOrVideo, uploadRoot,
+  uploadMessageAttachments, discardUploadedFiles, MESSAGE_MAX_FILES, MESSAGE_MAX_FILE_MB,
+};

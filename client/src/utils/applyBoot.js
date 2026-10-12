@@ -1,4 +1,4 @@
-import { useStore } from '../store/useStore';
+import { useStore, withChannelStates } from '../store/useStore';
 import { sameData } from './liveRefresh';
 
 // Aplica no store as seções do pacote de abertura (utils/bootstrap.js).
@@ -21,11 +21,23 @@ const LIST_SECTIONS = [
 export function applyBootData(data) {
   if (!data) return;
   const s = useStore.getState();
+  // Estado de leitura dos canais primeiro — a estrutura da comunidade
+  // logo abaixo já entra mesclada com ele.
+  if (data.channelStates?.states && !sameData(s.channelStates, data.channelStates.states)) {
+    s.setChannelStates(data.channelStates.states);
+  }
   if (data.community) {
     const d = data.community;
+    const cur = useStore.getState();
+    // Compara já mesclado com o estado de leitura (é assim que está no store).
+    const merged = {
+      ...d,
+      channels: d.channels && withChannelStates(d.channels, cur.channelStates, cur.channelReadAt),
+      categories: d.categories && d.categories.map((cat) => ({ ...cat, channels: withChannelStates(cat.channels || [], cur.channelStates, cur.channelReadAt) })),
+    };
     const patch = {};
     ['categories', 'channels', 'members', 'roles', 'community'].forEach((k) => {
-      if (d[k] !== undefined && !sameData(s[k], d[k])) patch[k] = d[k];
+      if (d[k] !== undefined && !sameData(cur[k], merged[k])) patch[k] = d[k];
     });
     if (Object.keys(patch).length) s.setCommunityStructure(patch);
   }

@@ -101,7 +101,21 @@ async function requireCommunityPermission(userId, permissionKey) {
   return requirePermission(userId, null, permissionKey);
 }
 
+// O canal tem alguma restrição de acesso (privado, ou sobrescrita de
+// permissão no canal OU na categoria)? Se não tiver, todo membro vê —
+// dá pra pular a checagem por pessoa (ex.: avisar menções de um cargo).
+async function channelHasRestrictions(channel) {
+  if (!channel) return true;
+  if (channel.isPrivate) return true;
+  const [own, cat] = await Promise.all([
+    prisma.permissionOverwrite.count({ where: { channelId: channel.id } }),
+    channel.categoryId ? prisma.permissionOverwrite.count({ where: { categoryId: channel.categoryId } }) : Promise.resolve(0),
+  ]);
+  return own > 0 || cat > 0;
+}
+
 module.exports = {
+  channelHasRestrictions,
   ForbiddenError,
   ALL_PERMISSIONS,
   getEveryoneRole,

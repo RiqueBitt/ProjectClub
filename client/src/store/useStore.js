@@ -58,6 +58,28 @@ export const useStore = create((set, get) => ({
   typing: {}, // roomKey -> Set(userId) (mantido como array simples)
   messagesByRoom: {}, // roomKey -> Message[]
   channelReadAt: {}, // channelId -> ISO date string (override local, feedback instantâneo ao abrir)
+  // Estado de leitura vindo do servidor (GET /community/channels/read-states):
+  // channelId -> { lastMessageAt, myReadAt, unreadMentions, lastMentionAt }.
+  // Mesclado nos objetos de canal (ver withChannelStates) — é o que faz o
+  // "não lido"/menções sobreviver a um F5.
+  channelStates: {},
+  setChannelStates: (states) => set((s) => {
+    const next = states || {};
+    const merge = (list) => withChannelStates(list, next, s.channelReadAt);
+    return {
+      channelStates: next,
+      channels: merge(s.channels),
+      categories: s.categories.map((cat) => ({ ...cat, channels: merge(cat.channels || []) })),
+    };
+  }),
+  // Notificação de menção clicada: o ChatWindow da sala certa leva até a
+  // mensagem assim que a 1ª página carregar. { roomKey, messageId, createdAt }
+  pendingJump: null,
+  setPendingJump: (pendingJump) => set({ pendingJump }),
+  // "Visto" (DM 1:1): a outra pessoa leu até aqui.
+  setConversationOtherRead: (conversationId, lastReadAt) => set((s) => ({
+    conversations: s.conversations.map((c) => (c.id === conversationId ? { ...c, otherReadAt: lastReadAt } : c)),
+  })),
   // Fila de toasts dispensáveis (avisos de moderação, alerta de
   // anti-raid, atualização de app disponível, etc). `action` é opcional
   // — { label, onClick } — e some sozinho quando o toast é dispensado ou
@@ -256,8 +278,10 @@ export const useStore = create((set, get) => ({
   mobileMembersOpen: false,
 
   setCommunityStructure: ({ categories, channels, members, roles, community }) => set((s) => ({
-    categories: categories ?? s.categories,
-    channels: channels ?? s.channels,
+    categories: categories
+      ? categories.map((cat) => ({ ...cat, channels: withChannelStates(cat.channels || [], s.channelStates, s.channelReadAt) }))
+      : s.categories,
+    channels: channels ? withChannelStates(channels, s.channelStates, s.channelReadAt) : s.channels,
     members: members ?? s.members,
     roles: roles ?? s.roles,
     community: community ?? s.community,
@@ -571,15 +595,20 @@ export const useStore = create((set, get) => ({
 
   roomMessages: (roomKey) => get().messagesByRoom[roomKey] || [],
   setRoomMessages: (roomKey, messages) => set((s) => ({
-    messagesByRoom: { ...s.messagesByRoom, [roomKey]: messages },
+    messagesByRoom: capRooms({ ...s.messagesByRoom, [roomKey]: messages }, roomKey),
   })),
   prependRoomMessages: (roomKey, olderMessages) => set((s) => {
     const existing = s.messagesByRoom[roomKey] || [];
     const existingIds = new Set(existing.map((m) => m.id));
     const fresh = olderMessages.filter((m) => !existingIds.has(m.id));
-    return { messagesByRoom: { ...s.messagesByRoom, [roomKey]: [...fresh, ...existing] } };
+    return { messagesByRoom: capRooms({ ...s.messagesByRoom, [roomKey]: [...fresh, ...existing] }, roomKey) };
   }),
   addMessage: (roomKey, message) => set((s) => {
+    // Sala que nunca foi aberta (o socket recebe TODAS as DMs): não
+    // guarda — o ChatWindow zera e recarrega a sala ao abrir de qualquer
+    // jeito, então isso só acumulava memória à toa.
+    if (!s.messagesByRoom[roomKey]) return {};
+    touchRoom(roomKey);
     const existing = s.messagesByRoom[roomKey] || [];
     if (existing.some((m) => m.id === message.id)) {
       // A real já entrou (ex.: pela busca de "catch-up") — só tira a
@@ -701,6 +730,45 @@ export const useStore = create((set, get) => ({
   }),
 }));
 
+// Memória do chat: só as MAX_CACHED_ROOMS salas usadas mais recentemente
+// ficam com mensagens na memória (antes, cada canal/DM visitado ficava
+// pra sempre). Abrir uma sala de novo recarrega do servidor, como já era.
+const MAX_CACHED_ROOMS = 8;
+const roomLru = [];
+function touchRoom(roomKey) {
+  const i = roomLru.indexOf(roomKey);
+  if (i >= 0) roomLru.splice(i, 1);
+  roomLru.push(roomKey);
+}
+function capRooms(byRoom, currentKey) {
+  touchRoom(currentKey);
+  const keys = Object.keys(byRoom);
+  if (keys.length <= MAX_CACHED_ROOMS) return byRoom;
+  const keep = new Set(roomLru.slice(-MAX_CACHED_ROOMS));
+  keep.add(currentKey);
+  const out = {};
+  keys.forEach((k) => { if (keep.has(k)) out[k] = byRoom[k]; });
+  for (let i = roomLru.length - 1; i >= 0; i -= 1) if (!out[roomLru[i]] && !keep.has(roomLru[i])) roomLru.splice(i, 1);
+  return out;
+}
+
+// Mescla o estado de leitura do servidor nos canais. Uma menção já lida
+// localmente (channelReadAt mais novo que a última menção) não volta a
+// acender só porque o servidor ainda não gravou a leitura.
+export function withChannelStates(list, states, localReadAt = {}) {
+  if (!list || !states || !Object.keys(states).length) return list;
+  return list.map((ch) => {
+    const st = states[ch.id];
+    if (!st) return ch;
+    const local = localReadAt[ch.id];
+    const readLocally = local && (!st.lastMentionAt || new Date(local) >= new Date(st.lastMentionAt));
+    const unreadMentions = readLocally ? 0 : (st.unreadMentions || 0);
+    if (ch.myReadAt === st.myReadAt && ch.lastMessageAt === st.lastMessageAt
+      && ch.unreadMentions === unreadMentions && ch.lastMentionAt === st.lastMentionAt) return ch;
+    return { ...ch, myReadAt: st.myReadAt, lastMessageAt: st.lastMessageAt, lastMentionAt: st.lastMentionAt, unreadMentions };
+  });
+}
+
 export function roomKeyFor({ conversationId, channelId }) {
   return conversationId ? `conversation:${conversationId}` : `channel:${channelId}`;
 }
@@ -737,6 +805,9 @@ export function isConversationUnread(conversation, myUserId) {
 // direta a uma mensagem dela — mensagem normal, sem nenhum desses,
 // não acende nada pra mais ninguém.
 export function isChannelUnread(channel, channelReadAtMap, myUserId, myRoleIds = []) {
+  // Menções pendentes vindas do servidor (sobrevive a recarregar a página)
+  // ou contadas ao vivo pelo 'mention:new'.
+  if (channel.unreadMentions > 0) return true;
   const last = channel.lastMessage;
   if (!last || last.authorId === myUserId) return false;
   const repliedToMe = last.replyTo?.authorId === myUserId || last.replyTo?.author?.id === myUserId;

@@ -3,6 +3,7 @@ const { getEffectivePermissions } = require('../services/authz');
 const { has } = require('../services/permissions');
 const { requireCommunityPermission } = require('../services/authz');
 const { FEATURED_KEYS, featuredVisibility } = require('../utils/channelNames');
+const { maskUserStatus } = require('../utils/presenceVisibility');
 
 // GET /api/community — carrega tudo que o app precisa pra montar a barra
 // lateral e a lista de membros: categorias (com seus canais), canais soltos,
@@ -46,7 +47,8 @@ async function getCommunity(req, res, next) {
     const shapedLoose = looseChannels.filter(filterChannel);
 
     const members = users.map((u) => ({
-      user: { ...u, roles: undefined },
+      // "Invisível" aparece como "Offline" pra todo mundo menos a própria pessoa.
+      user: maskUserStatus({ ...u, roles: undefined }, req.user.id),
       roleIds: u.roles.map((r) => r.roleId),
     }));
 

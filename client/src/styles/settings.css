@@ -260,6 +260,26 @@ html.reduced-motion-pref .settings-sk-block { animation: none; }
 }
 .settings-modal-wide input.settings-code-input { max-width: 180px; font-size: 20px; letter-spacing: .35em; text-align: center; font-variant-numeric: tabular-nums; }
 .session-row { display: flex; align-items: center; gap: 12px; }
+.session-row .session-row-info { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+/* 2FA: formulários inline (senha + código) e os códigos de recuperação
+   mostrados uma vez só depois de ativar/gerar. */
+.settings-2fa-form { display: flex; flex-direction: column; gap: 10px; }
+.settings-recovery-codes {
+  display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 12px;
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent);
+}
+.settings-recovery-codes p { margin: 0; }
+.settings-recovery-list {
+  margin: 0; padding: 0; list-style: none;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px;
+}
+.settings-recovery-list code {
+  display: block; text-align: center; padding: 6px 8px; border-radius: 8px; font-size: 13px; letter-spacing: .06em;
+  font-variant-numeric: tabular-nums; background: var(--bg-primary); color: var(--header-primary);
+  border: 1px solid var(--lit-border-color, var(--border));
+}
 .session-row.is-current { border-color: color-mix(in srgb, var(--brand) 35%, transparent); }
 .settings-row-icon {
   width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;

@@ -35,9 +35,12 @@ async function bootstrapPlatformAdmin() {
     return;
   }
 
-  if (user.platformRole !== 'ADMIN') {
-    await prisma.user.update({ where: { id: user.id }, data: { platformRole: 'ADMIN' } });
-    console.log(`[admin-bootstrap] ${user.username} (${user.email}) promovido a ADMIN da plataforma via PLATFORM_ADMIN_EMAIL.`);
+  const current = await maybePromoteToPlatformAdmin(user);
+  if (current.platformRole !== 'ADMIN') {
+    if (!current.emailVerified) {
+      console.log(`[admin-bootstrap] ${current.username}: e-mail ainda não verificado — a promoção a ADMIN acontece depois que o código de verificação for confirmado.`);
+    }
+    return;
   }
 
   // Runs every start regardless of whether the promotion above just
@@ -76,10 +79,30 @@ async function backfillPollTopicPermissions() {
 // no way to tell from the UI that a restart was even the missing step.
 // Cheap (one string compare, no DB write) for every other account, and
 // idempotent for the matching one.
+//
+// SECURITY (duas regras novas):
+// 1. Só promove conta com e-mail VERIFICADO por código. Antes bastava
+//    alguém criar uma conta/inscrição com o e-mail do dono (antes do dono
+//    se cadastrar) pra virar ADMIN no primeiro login, sem nunca provar
+//    que tinha acesso àquela caixa de e-mail.
+// 2. Promove UMA vez só (User.platformAdminBootstrappedAt). Se outra
+//    pessoa da staff rebaixar essa conta depois, ela não volta a ser
+//    ADMIN sozinha a cada login/refresh. Contas que JÁ são ADMIN só
+//    ganham a marcação (nunca são rebaixadas por aqui) — o dono atual
+//    continua exatamente como está.
 async function maybePromoteToPlatformAdmin(user) {
   const email = (env.PLATFORM_ADMIN_EMAIL || '').trim().toLowerCase();
-  if (!email || !user || user.email !== email || user.platformRole === 'ADMIN') return user;
-  const updated = await prisma.user.update({ where: { id: user.id }, data: { platformRole: 'ADMIN' } });
+  if (!email || !user || user.email !== email) return user;
+  if (user.platformRole === 'ADMIN') {
+    if (!user.platformAdminBootstrappedAt) {
+      await prisma.user.update({ where: { id: user.id }, data: { platformAdminBootstrappedAt: new Date() } }).catch(() => {});
+    }
+    return user;
+  }
+  if (!user.emailVerified || user.platformAdminBootstrappedAt) return user;
+  const updated = await prisma.user.update({
+    where: { id: user.id }, data: { platformRole: 'ADMIN', platformAdminBootstrappedAt: new Date() },
+  });
   console.log(`[admin-bootstrap] ${updated.username} (${updated.email}) promovido a ADMIN da plataforma (checagem em login/refresh).`);
   await grantBadgeByKey(user.id, 'STAFF');
   await grantBadgeByKey(user.id, 'PLATFORM_OWNER');

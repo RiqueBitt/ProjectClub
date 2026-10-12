@@ -52,4 +52,53 @@ async function createReport(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { createReport };
+// POST /users/:id/report — denúncia do PERFIL/usuário em si (não de uma
+// mensagem), feita pelo botão "Denunciar" do modal de perfil. Report.kind
+// = 'PROFILE', sem messageId; o snippet guarda um retrato do perfil no
+// momento da denúncia (nome, @, bio) pra staff ver o que foi denunciado
+// mesmo se a pessoa editar o perfil depois.
+const PROFILE_REPORT_REASONS = ['Spam', 'Assédio ou bullying', 'Conteúdo impróprio no perfil', 'Perfil falso / se passando por outra pessoa', 'Outro'];
+
+async function createProfileReport(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { reason, details } = req.body || {};
+    if (typeof reason !== 'string' || !reason.trim()) return res.status(400).json({ error: 'Escolha o motivo da denúncia.' });
+    const category = reason.trim().slice(0, 100);
+    const extra = typeof details === 'string' ? details.trim().slice(0, 500) : '';
+    if (category === 'Outro' && !extra) return res.status(400).json({ error: 'Descreva o motivo da denúncia.' });
+    const cleanReason = extra ? `${category}: ${extra}` : category;
+
+    if (id === req.user.id) return res.status(400).json({ error: 'Você não pode denunciar seu próprio perfil.' });
+    const target = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, username: true, displayName: true, bio: true, pronouns: true },
+    });
+    if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
+
+    const existing = await prisma.report.findFirst({
+      where: { kind: 'PROFILE', reportedUserId: id, reporterId: req.user.id, status: 'PENDING' },
+    });
+    if (existing) return res.json({ report: existing, alreadyReported: true });
+
+    const bio = target.bio || '';
+    const snippet = [
+      `Perfil: ${target.displayName} (@${target.username})`,
+      target.pronouns ? `Pronomes: ${target.pronouns}` : null,
+      bio ? `Bio: ${bio.length > 300 ? `${bio.slice(0, 300)}…` : bio}` : null,
+    ].filter(Boolean).join('\n');
+
+    const report = await prisma.report.create({
+      data: {
+        kind: 'PROFILE',
+        reporterId: req.user.id,
+        reportedUserId: id,
+        reason: cleanReason,
+        snippet,
+      },
+    });
+    res.json({ report: { id: report.id, status: report.status } });
+  } catch (err) { next(err); }
+}
+
+module.exports = { createReport, createProfileReport, PROFILE_REPORT_REASONS };

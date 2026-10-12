@@ -21,6 +21,15 @@ const HINT_LOADING = 'Buscando…';
 const LABEL_ATTACHMENT = 'Anexo';
 const LABEL_KEYS = '↑↓ para escolher · Enter para ir · Esc para fechar';
 const HIGHLIGHT_NAME = 'chat-search-hit';
+const HINT_FILTERS = 'Filtros: from:@nome · has:file|image|link|video · before:AAAA-MM-DD · after:AAAA-MM-DD';
+const LABEL_MORE = 'Carregar mais';
+
+// Filtros (from:/has:/before:/after:, e as versões em português) saem do
+// texto usado no destaque — o servidor é quem interpreta (ver
+// parseSearchQuery no messageController).
+const FILTER_TOKEN_RE = /(^|\s)(from|has|before|after|de|tem|antes|depois):\S+/gi;
+function textPart(q) { return q.replace(FILTER_TOKEN_RE, ' ').replace(/\s+/g, ' ').trim(); }
+function hasFilters(q) { FILTER_TOKEN_RE.lastIndex = 0; const r = FILTER_TOKEN_RE.test(q); FILTER_TOKEN_RE.lastIndex = 0; return r; }
 
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -93,6 +102,8 @@ export default function ChannelSearchPanel({ open, onClose, conversationId, chan
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [status, setStatus] = useState('idle'); // idle | loading | done | error
+  const [nextCursor, setNextCursor] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef(null);
   const seqRef = useRef(0);
@@ -100,7 +111,7 @@ export default function ChannelSearchPanel({ open, onClose, conversationId, chan
 
   // Trocou de sala: limpa tudo.
   useEffect(() => {
-    setQuery(''); setResults([]); setStatus('idle'); setActive(0);
+    setQuery(''); setResults([]); setStatus('idle'); setActive(0); setNextCursor(null);
   }, [conversationId, channelId]);
 
   // Abriu (ou Ctrl+F de novo com ela aberta): foca e seleciona o texto.
@@ -114,7 +125,7 @@ export default function ChannelSearchPanel({ open, onClose, conversationId, chan
   useEffect(() => {
     if (!open) return undefined;
     const q = query.trim();
-    if (q.length < MIN_CHARS) { setResults([]); setStatus('idle'); return undefined; }
+    if (q.length < MIN_CHARS && !hasFilters(q)) { setResults([]); setStatus('idle'); setNextCursor(null); return undefined; }
     setStatus('loading');
     const seq = ++seqRef.current;
     const t = setTimeout(() => {
@@ -122,6 +133,7 @@ export default function ChannelSearchPanel({ open, onClose, conversationId, chan
         .then((d) => {
           if (seq !== seqRef.current) return;
           setResults(d?.messages || []);
+          setNextCursor(d?.nextCursor || null);
           setActive(0);
           setStatus('done');
         })
@@ -130,7 +142,24 @@ export default function ChannelSearchPanel({ open, onClose, conversationId, chan
     return () => clearTimeout(t);
   }, [query, open, conversationId, channelId]);
 
-  useInListHighlight(listRef, query, open, messagesKey);
+  useInListHighlight(listRef, textPart(query), open, messagesKey);
+
+  const loadMore = () => {
+    if (!nextCursor || loadingMore) return;
+    const seq = seqRef.current;
+    setLoadingMore(true);
+    searchMessages({ conversationId, channelId, q: query.trim(), cursor: nextCursor })
+      .then((d) => {
+        if (seq !== seqRef.current) return;
+        setResults((prev) => {
+          const seen = new Set(prev.map((m) => m.id));
+          return [...prev, ...(d?.messages || []).filter((m) => !seen.has(m.id))];
+        });
+        setNextCursor(d?.nextCursor || null);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false));
+  };
 
   // Mantém o item ativo visível ao navegar com as setas.
   useEffect(() => {
@@ -151,8 +180,9 @@ export default function ChannelSearchPanel({ open, onClose, conversationId, chan
   };
 
   const q = query.trim();
+  const textQ = textPart(q);
   let hint = null;
-  if (q.length > 0 && q.length < MIN_CHARS) hint = HINT_MIN;
+  if (q.length > 0 && q.length < MIN_CHARS && !hasFilters(q)) hint = HINT_MIN;
   else if (status === 'loading' && results.length === 0) hint = HINT_LOADING;
   else if (status === 'error') hint = HINT_ERROR;
   else if (status === 'done' && results.length === 0) hint = HINT_EMPTY;
@@ -170,11 +200,12 @@ export default function ChannelSearchPanel({ open, onClose, conversationId, chan
           onKeyDown={onKeyDown}
         />
         {status === 'done' && results.length > 0 && (
-          <span className="chat-search-count">{results.length >= 50 ? '50+' : results.length}</span>
+          <span className="chat-search-count">{results.length}{nextCursor ? '+' : ''}</span>
         )}
         <button type="button" className="chat-search-close" onClick={onClose} aria-label={LABEL_CLOSE} title={LABEL_CLOSE}><ChatIcon name="close" size={14} /></button>
       </form>
       {hint && <div className="chat-search-hint">{hint}</div>}
+      {!q && <div className="chat-search-hint">{HINT_FILTERS}</div>}
       {results.length > 0 && (
         <ul className="chat-search-results" ref={resultsRef} role="listbox">
           {results.map((m, i) => (
@@ -191,11 +222,18 @@ export default function ChannelSearchPanel({ open, onClose, conversationId, chan
                     <b className="truncate">{m.author?.displayName}</b>
                     <span className="chat-search-item-time">{formatMessageTime(m.createdAt)}</span>
                   </span>
-                  <span className="chat-search-item-text"><Snippet text={m.content} query={q} /></span>
+                  <span className="chat-search-item-text"><Snippet text={m.content} query={textQ} /></span>
                 </span>
               </button>
             </li>
           ))}
+          {nextCursor && (
+            <li>
+              <button type="button" className="chat-search-item chat-search-more" disabled={loadingMore} onClick={loadMore}>
+                {loadingMore ? HINT_LOADING : LABEL_MORE}
+              </button>
+            </li>
+          )}
         </ul>
       )}
       {results.length > 0 && <div className="chat-search-keys">{LABEL_KEYS}</div>}

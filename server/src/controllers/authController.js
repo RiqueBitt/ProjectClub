@@ -26,14 +26,13 @@ const {
   hashToken,
   generateNumericCode,
   generateOpaqueToken,
+  generateRecoveryCode,
+  normalizeRecoveryCode,
 } = require('../services/tokens');
-const { sendVerificationCode, sendPasswordReset } = require('../services/email');
+const { sendVerificationCode, sendPasswordReset, sendNewLoginAlert } = require('../services/email');
 const { clearIfExpired } = require('../services/customStatus');
 const { maybePromoteToPlatformAdmin } = require('../services/adminBootstrap');
 const { grantDueAgeBadges } = require('../services/ageBadges');
-const { getEveryoneRole } = require('../services/authz');
-const { recordJoinAndCheck } = require('../services/antiraid');
-const { grantStarterHouse } = require('../services/starterHouse');
 
 // Shared by register and resetPassword — same floor either way, so it's
 // not possible to register with a real password then "reset" into a weak
@@ -168,14 +167,94 @@ const SELF_USER_FIELDS = {
   // Idem pra privacidade de pedidos de amizade — cada um só vê/edita a
   // própria configuração.
   friendRequestPrivacy: true,
+  // Pra tela de Configurações mostrar o cooldown de troca de @ antes
+  // mesmo da pessoa tentar (ver updateUsername em userController.js).
+  usernameChangedAt: true,
 };
 
-async function issueSession(res, user, userAgent, ipAddress) {
+// ---------------------------------------------------------------------
+// Sessões (refresh tokens) — motivos de revogação. Só um token revogado
+// por ROTAÇÃO normal que aparece de novo (fora da janelinha de corrida
+// abaixo) é tratado como possível roubo. Qualquer revogação EXPLÍCITA
+// (sair, encerrar sessão, trocar senha, ban...) só faz o refresh daquele
+// token falhar com 401 — antes elas não marcavam revokedAt e o próximo
+// refresh do aparelho encerrado caía no caminho de "roubo", derrubando
+// TODAS as sessões da conta (inclusive a de quem clicou em "encerrar").
+const REVOKE_REASONS = {
+  ROTATED: 'ROTATED',
+  LOGOUT: 'LOGOUT',
+  REVOKED: 'REVOKED',
+  PASSWORD_CHANGE: 'PASSWORD_CHANGE',
+  PASSWORD_RESET: 'PASSWORD_RESET',
+  ACCOUNT_DISABLED: 'ACCOUNT_DISABLED',
+  ADMIN: 'ADMIN',
+  THEFT: 'THEFT',
+};
+
+function revokeRefreshTokens(where, reason) {
+  return prisma.refreshToken.updateMany({
+    where: { ...where, revoked: false },
+    data: { revoked: true, revokedAt: new Date(), revokedReason: reason },
+  });
+}
+
+function currentRefreshHash(req) {
+  const raw = req.cookies?.refreshToken;
+  return raw ? hashToken(raw) : null;
+}
+
+// "Chrome no Windows", "Safari no iPhone", "App desktop"... — só pra
+// mostrar na lista de sessões e no e-mail de novo acesso. Heurística
+// simples de propósito (sem dependência nova).
+function describeDevice(userAgent) {
+  const ua = String(userAgent || '');
+  if (!ua) return 'Dispositivo desconhecido';
+  let browser = 'Navegador';
+  if (/Electron\//i.test(ua)) browser = 'App desktop';
+  else if (/Edg(e|A|iOS)?\//i.test(ua)) browser = 'Edge';
+  else if (/OPR\/|Opera/i.test(ua)) browser = 'Opera';
+  else if (/SamsungBrowser/i.test(ua)) browser = 'Samsung Internet';
+  else if (/Firefox\/|FxiOS/i.test(ua)) browser = 'Firefox';
+  else if (/Chrome\/|CriOS/i.test(ua)) browser = 'Chrome';
+  else if (/Safari\//i.test(ua)) browser = 'Safari';
+  let os = '';
+  if (/Android/i.test(ua)) os = 'Android';
+  else if (/iPhone/i.test(ua)) os = 'iPhone';
+  else if (/iPad/i.test(ua)) os = 'iPad';
+  else if (/Windows/i.test(ua)) os = 'Windows';
+  else if (/Mac OS X|Macintosh/i.test(ua)) os = 'macOS';
+  else if (/CrOS/i.test(ua)) os = 'ChromeOS';
+  else if (/Linux/i.test(ua)) os = 'Linux';
+  if (/ProjectClub|Capacitor|wv\)/i.test(ua) && os === 'Android') browser = 'App';
+  return os ? `${browser} no ${os}` : browser;
+}
+
+// IP mascarado pra lista de sessões — o suficiente pra pessoa reconhecer
+// "essa é minha rede de casa", sem expor o endereço inteiro na tela.
+function maskIp(ip) {
+  if (!ip) return null;
+  const clean = String(ip).replace(/^::ffff:/i, '');
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(clean)) {
+    const parts = clean.split('.');
+    return `${parts[0]}.${parts[1]}.x.x`;
+  }
+  if (clean.includes(':')) {
+    const groups = clean.split(':').filter(Boolean);
+    return `${groups.slice(0, 2).join(':')}:…`;
+  }
+  return null;
+}
+
+async function issueSession(res, user, userAgent, ipAddress, { sessionStartedAt } = {}) {
   const accessToken = signAccessToken(user);
   const { raw, hash, expiresAt } = generateRefreshToken();
-  await prisma.refreshToken.create({
-    data: { tokenHash: hash, userId: user.id, userAgent, ipAddress, expiresAt },
+  const created = await prisma.refreshToken.create({
+    data: {
+      tokenHash: hash, userId: user.id, userAgent, ipAddress, expiresAt,
+      sessionStartedAt: sessionStartedAt || new Date(), lastUsedAt: new Date(),
+    },
   });
+  res.locals.refreshTokenId = created.id;
   res.cookie('refreshToken', raw, {
     httpOnly: true,
     sameSite: 'lax',
@@ -187,104 +266,136 @@ async function issueSession(res, user, userAgent, ipAddress) {
   return accessToken;
 }
 
-async function register(req, res, next) {
+// SECURITY: o cadastro direto antigo (POST /api/auth/register) criava a
+// conta na hora, sem passar pela fila de aprovação da staff — qualquer um
+// com um script pulava o processo de inscrição inteiro. O cliente já usa
+// só o fluxo de inscrição (POST /api/applications, ver RegisterPage.jsx),
+// então essa rota agora só responde 410 (Gone) apontando pra ele.
+async function register(req, res) {
+  return res.status(410).json({
+    error: 'O cadastro direto foi desativado. Para entrar no Project Club, faça sua inscrição pela página "Fazer inscrição" — ela será analisada pela equipe.',
+    useApplications: true,
+  });
+}
+
+// Conta uma tentativa errada (senha OU código 2FA/recuperação) no
+// bloqueio por conta — 10 erros seguidos travam a conta por 15 minutos.
+// Antes só a senha errada contava: com a senha certa em mãos, dava pra
+// ficar chutando códigos 2FA à vontade (só o limitador por IP segurava).
+async function registerFailedLogin(user) {
+  // Incremento atômico — várias tentativas em paralelo não "perdem" erros.
+  const updated = await prisma.user.update({
+    where: { id: user.id },
+    data: { failedLoginAttempts: { increment: 1 } },
+    select: { failedLoginAttempts: true },
+  });
+  if (updated.failedLoginAttempts >= 10) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { loginLockedUntil: new Date(Date.now() + 15 * 60 * 1000) },
+    });
+  }
+}
+
+// Verifica um código TOTP com proteção contra reuso: o mesmo código (o
+// mesmo "passo" de 30s) só é aceito UMA vez. O passo aceito fica em
+// User.twoFactorLastUsedStep; o updateMany condicional garante isso até
+// com duas requisições simultâneas usando o mesmo código.
+async function verifyTotpOnce(user, code) {
+  if (!user.twoFactorSecret || typeof code !== 'string' || !/^\d{6}$/.test(code.trim())) return false;
+  const lastStep = user.twoFactorLastUsedStep;
+  // otplib v13: authenticator.check() virou verify({secret, token}),
+  // assíncrono e devolvendo { valid, timeStep } em vez de um boolean.
+  const result = await verify({
+    secret: user.twoFactorSecret, token: code.trim(), guardrails: legacyGuardrails,
+    ...(Number.isInteger(lastStep) ? { afterTimeStep: lastStep } : {}),
+  });
+  if (!result.valid) return false;
+  const step = result.timeStep;
+  if (!Number.isInteger(step)) return true;
+  const claimed = await prisma.user.updateMany({
+    where: {
+      id: user.id,
+      OR: [{ twoFactorLastUsedStep: null }, { twoFactorLastUsedStep: { lt: step } }],
+    },
+    data: { twoFactorLastUsedStep: step },
+  });
+  return claimed.count === 1;
+}
+
+// Código de recuperação (uso único). Marcado como usado de forma atômica
+// (updateMany com usedAt: null) — o mesmo código nunca entra duas vezes.
+async function consumeRecoveryCode(userId, input) {
+  const normalized = normalizeRecoveryCode(input);
+  if (!normalized) return false;
+  const codeHash = hashToken(normalized);
+  const claimed = await prisma.twoFactorRecoveryCode.updateMany({
+    where: { userId, codeHash, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+  return claimed.count === 1;
+}
+
+// Gera 10 códigos novos (apagando os antigos) e devolve os códigos em
+// texto puro — a ÚNICA vez que eles existem fora do hash.
+async function regenerateRecoveryCodes(userId) {
+  const codes = Array.from({ length: 10 }, () => generateRecoveryCode());
+  await prisma.$transaction([
+    prisma.twoFactorRecoveryCode.deleteMany({ where: { userId } }),
+    prisma.twoFactorRecoveryCode.createMany({
+      data: codes.map((code) => ({ userId, codeHash: hashToken(code) })),
+    }),
+  ]);
+  return codes;
+}
+
+// "Novo acesso à sua conta": só quando a conta já teve alguma sessão
+// antes (o primeiro login de todos não é "novo dispositivo", é o único)
+// e nenhuma sessão anterior bate com o mesmo navegador + IP.
+async function isNewDeviceLogin(userId, userAgent, ipAddress) {
   try {
-    const { email, username, password, displayName } = req.body;
-    if (!email || !username || !password) {
-      return res.status(400).json({ error: 'E-mail, usuário e senha são obrigatórios.' });
-    }
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'A senha deve ter pelo menos 8 caracteres.' });
-    }
-    if (!isPasswordStrongEnough(password)) {
-      return res.status(400).json({ error: 'A senha deve conter letras e números.' });
-    }
-
-    const existing = await prisma.user.findFirst({
-      where: { OR: [{ email: email.toLowerCase() }, { username }] },
+    const previous = await prisma.refreshToken.findMany({
+      where: { userId },
+      select: { userAgent: true, ipAddress: true },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
     });
-    if (existing) {
-      return res.status(409).json({ error: 'E-mail ou nome de usuário já cadastrado.' });
-    }
+    if (previous.length === 0) return false;
+    return !previous.some((s) => (s.userAgent || null) === (userAgent || null) && (s.ipAddress || null) === (ipAddress || null));
+  } catch {
+    return false;
+  }
+}
 
-    const passwordHash = await bcrypt.hash(password, 12);
-    const user = await prisma.user.create({
-      data: {
-        email: email.toLowerCase(),
-        username,
-        displayName: displayName || username,
-        passwordHash,
-        publicId: generatePublicId(),
-      },
-    });
-
-    // Toda conta nova entra automaticamente na comunidade (cargo @todos) —
-    // não existe mais "criar/entrar em servidor" separado.
-    const everyoneRole = await getEveryoneRole();
-    if (everyoneRole) {
-      await prisma.userRole.create({ data: { userId: user.id, roleId: everyoneRole.id } }).catch(() => {});
-    }
-    await grantStarterHouse(user.id);
-    // Conta nova já aparece na barra lateral/lista de membros de todo
-    // mundo na hora, sem precisar recarregar a página.
-    req.app.get('io')?.to('community').emit('community:update');
-    // Anti-raid: observa ondas de cadastro (ver services/antiraid.js) — não
-    // bloqueia o registro em si, só sinaliza/pune de forma assíncrona.
-    recordJoinAndCheck(req.app.get('io'), user.id).catch(() => {});
-
-    // Casa inicial de graça (adaptado do bot Robbie — fase 3): toda conta
-    // nova já ganha a casa mais barata do catálogo (preço 0) automaticamente.
-    // (desligado junto com o sistema de Casas — ver config/features.js)
-    if (require('../config/features').isFeatureEnabled('houses')) prisma.houseCatalog.findFirst({ where: { price: 0 }, orderBy: { createdAt: 'asc' } })
-      .then((starterHouse) => {
-        if (!starterHouse) return;
-        return prisma.userHouse.create({ data: { userId: user.id, houseId: starterHouse.id, isActive: true } });
-      })
-      .catch(() => {});
-
-    const code = generateNumericCode(6);
-    await prisma.emailVerificationCode.create({
-      data: { userId: user.id, code, expiresAt: new Date(Date.now() + 15 * 60 * 1000) },
-    });
-    // Best-effort: the account is already created and usable at this point
-    // (verification only gates a "verified" badge/features, not login — see
-    // requireAuth). A transient SMTP hiccup shouldn't turn into a 500 that
-    // leaves the user stuck on a half-created account they can't retry
-    // registering (email/username already taken). They can always hit
-    // "Reenviar código" on the verify-email screen once SMTP is healthy.
-    try {
-      await sendVerificationCode(user.email, code);
-    } catch (err) {
-      console.error(`[register] falha ao enviar e-mail de verificação para ${user.email}:`, err.message);
-    }
-
-    // Best-effort: the NEWCOMER badge is seeded by prisma/seed.js. If a
-    // deployment hasn't run the seed yet, this silently no-ops rather than
-    // failing the whole signup over a cosmetic badge.
-    const newcomerBadge = await prisma.badge.findUnique({ where: { key: 'NEWCOMER' } }).catch(() => null);
-    if (newcomerBadge) {
-      await prisma.userBadge.create({ data: { userId: user.id, badgeId: newcomerBadge.id } }).catch(() => {});
-    }
-
-    const accessToken = await issueSession(res, user, req.headers['user-agent'], req.ip);
-    const { passwordHash: _omit, twoFactorSecret: _omit2, ...publicUser } = user;
-    res.status(201).json({ user: publicUser, accessToken });
-  } catch (err) { next(err); }
+// Nunca bloqueia o login — erro de SMTP aqui só vai pro log.
+function sendNewLoginAlertInBackground(user, userAgent, ipAddress) {
+  sendNewLoginAlert(user.email, {
+    device: describeDevice(userAgent),
+    ip: ipAddress ? String(ipAddress).replace(/^::ffff:/i, '') : null,
+    when: new Date(),
+    appUrl: env.CLIENT_ORIGIN,
+  }).catch((err) => console.error('[login] falha ao enviar alerta de novo acesso:', err.message));
 }
 
 async function login(req, res, next) {
   try {
-    const { emailOrUsername, password, twoFactorCode } = req.body;
-    if (!emailOrUsername || !password) {
+    const { emailOrUsername, password, twoFactorCode, recoveryCode } = req.body || {};
+    // Tipos validados antes de qualquer uso — um JSON com
+    // emailOrUsername: {} (ou um array) estourava .toLowerCase() e virava
+    // erro 500 em vez de um 400 normal.
+    if (typeof emailOrUsername !== 'string' || typeof password !== 'string' || !emailOrUsername.trim() || !password) {
       return res.status(400).json({ error: 'Informe usuário/e-mail e senha.' });
     }
+    if ((twoFactorCode != null && typeof twoFactorCode !== 'string') || (recoveryCode != null && typeof recoveryCode !== 'string')) {
+      return res.status(400).json({ error: 'Código 2FA inválido.' });
+    }
+    const identifier = emailOrUsername.trim();
     // Item pedido: verificação de "não sou um robô" removida do login —
-    // não roda mais nem no front nem aqui no back (o registro continua
-    // com a verificação normal, só o login que não usa mais isso).
+    // não roda mais nem no front nem aqui no back.
 
     const user = await prisma.user.findFirst({
       where: {
-        OR: [{ email: emailOrUsername.toLowerCase() }, { username: emailOrUsername }],
+        OR: [{ email: identifier.toLowerCase() }, { username: identifier }],
       },
     });
 
@@ -304,20 +415,7 @@ async function login(req, res, next) {
     // accounts without ever needing a correct password.
     const valid = await bcrypt.compare(password, user?.passwordHash || DUMMY_PASSWORD_HASH);
     if (!user || !valid) {
-      if (user) {
-        const attempts = user.failedLoginAttempts + 1;
-        // 10 consecutive misses locks the account for 15 minutes. Doesn't
-        // reset on a correct-password-wrong-2FA-code attempt below — only
-        // a fully successful login clears it — since a wrong password is
-        // what actually matters for a credential-stuffing attempt.
-        await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            failedLoginAttempts: attempts,
-            loginLockedUntil: attempts >= 10 ? new Date(Date.now() + 15 * 60 * 1000) : undefined,
-          },
-        });
-      }
+      if (user) await registerFailedLogin(user);
       return res.status(401).json({ error: 'Credenciais inválidas.' });
     }
 
@@ -327,40 +425,81 @@ async function login(req, res, next) {
     if (user.suspendedUntil && new Date(user.suspendedUntil) > new Date()) {
       return res.status(403).json({ error: `Esta conta está suspensa até ${new Date(user.suspendedUntil).toLocaleString('pt-BR')}.`, suspendedUntil: user.suspendedUntil });
     }
+    // Conta desativada pela própria pessoa (Configurações -> "Excluir
+    // conta"). Antes o login passava e só o requireAuth barrava depois,
+    // deixando a pessoa numa tela quebrada sem explicação nenhuma.
+    if (user.accountDisabledAt) {
+      return res.status(403).json({
+        error: 'Esta conta foi desativada. Se você quer reativá-la, entre em contato com a equipe do Project Club.',
+        accountDisabled: true,
+      });
+    }
 
     if (user.twoFactorEnabled) {
-      if (!twoFactorCode) {
+      const hasTotp = typeof twoFactorCode === 'string' && twoFactorCode.trim();
+      const hasRecovery = typeof recoveryCode === 'string' && recoveryCode.trim();
+      if (!hasTotp && !hasRecovery) {
         return res.status(206).json({ requiresTwoFactor: true });
       }
-      // otplib v13 (atualizado — a v12 antiga estava depreciada):
-      // authenticator.check() virou verify({secret, token}), agora
-      // assíncrono e devolvendo { valid } em vez de um boolean direto.
-      const { valid: isValid } = await verify({ secret: user.twoFactorSecret, token: twoFactorCode, guardrails: legacyGuardrails });
-      if (!isValid) return res.status(401).json({ error: 'Código 2FA inválido.' });
+      const ok = hasRecovery
+        ? await consumeRecoveryCode(user.id, recoveryCode)
+        : await verifyTotpOnce(user, twoFactorCode);
+      if (!ok) {
+        await registerFailedLogin(user);
+        return res.status(401).json({ error: hasRecovery ? 'Código de recuperação inválido ou já usado.' : 'Código 2FA inválido.' });
+      }
     }
 
     await maybePromoteToPlatformAdmin(user);
     if (user.failedLoginAttempts > 0 || user.loginLockedUntil) {
       await prisma.user.update({ where: { id: user.id }, data: { failedLoginAttempts: 0, loginLockedUntil: null } });
     }
-    const accessToken = await issueSession(res, user, req.headers['user-agent'], req.ip);
+    const userAgent = req.headers['user-agent'];
+    // Checa "aparelho novo" ANTES de criar a sessão deste login (senão a
+    // própria sessão nova sempre "bate" consigo mesma).
+    const newDevice = await isNewDeviceLogin(user.id, userAgent, req.ip);
+    const accessToken = await issueSession(res, user, userAgent, req.ip);
+    if (newDevice) sendNewLoginAlertInBackground(user, userAgent, req.ip);
     const selfUser = await prisma.user.findUnique({ where: { id: user.id }, select: SELF_USER_FIELDS });
     res.json({ user: selfUser, accessToken });
   } catch (err) { next(err); }
 }
 
+// Janela curtíssima pra corrida de refresh: duas requisições quase
+// simultâneas com o MESMO cookie (duas abas abrindo juntas, o efeito
+// duplicado do React em dev) chegam antes do navegador guardar o cookie
+// novo da primeira resposta. Dentro dela, a segunda requisição recebe só
+// um access token novo da MESMA sessão que já substituiu essa — sem criar
+// sessão nova nem mexer no cookie (o navegador fica com o cookie que a
+// primeira resposta gravou).
+//
+// SECURITY: antes eram 5 minutos E cada reuso dentro dela criava uma
+// sessão novinha — ou seja, um refresh token roubado continuava gerando
+// sessões válidas por 5 minutos depois de já ter sido usado. Fora desses
+// 10s, reusar um token já rotacionado é tratado como roubo (derruba
+// todas as sessões da conta).
+const REFRESH_RACE_GRACE_MS = 10 * 1000;
+
+function isAccountBlocked(user) {
+  return !user
+    || user.isPlatformBanned
+    || !!user.accountDisabledAt
+    || (user.suspendedUntil && new Date(user.suspendedUntil) > new Date());
+}
+
 async function refresh(req, res, next) {
   try {
     const raw = req.cookies?.refreshToken;
+    const userAgent = req.headers['user-agent'];
     // Sem cookie de refresh (ou inválido mais abaixo): tenta o "lembrar
     // login" selado (iron-session) antes de mandar pra tela de login.
     const restoreFromKeep = async () => {
       const uid = await sessionKeep.readKeepCookie(req);
       if (!uid) return false;
       const user = await prisma.user.findUnique({ where: { id: uid } });
-      if (!user || user.isPlatformBanned || (user.suspendedUntil && user.suspendedUntil > new Date())) return false;
+      if (isAccountBlocked(user)) return false;
       await maybePromoteToPlatformAdmin(user);
-      const accessToken = await issueSession(res, user, req.headers['user-agent'], req.ip);
+      const accessToken = await issueSession(res, user, userAgent, req.ip);
       const selfUser = await prisma.user.findUnique({ where: { id: user.id }, select: SELF_USER_FIELDS });
       res.json({ user: selfUser, accessToken });
       return true;
@@ -371,75 +510,90 @@ async function refresh(req, res, next) {
     }
 
     const hash = hashToken(raw);
-    const stored = await prisma.refreshToken.findUnique({ where: { tokenHash: hash } });
+    let stored = await prisma.refreshToken.findUnique({ where: { tokenHash: hash } });
 
-    // Reuso de um token já rotacionado normalmente é sinal de roubo — mas
-    // um caso benigno acontece com frequência: duas requisições quase
-    // simultâneas usando o MESMO cookie (duas abas abrindo ao mesmo tempo,
-    // ou o efeito de montagem duplicado do React em desenvolvimento) —
-    // ambas chegam ao servidor antes do navegador processar o novo cookie
-    // da primeira resposta. Por isso, um reuso dentro de uma margem curta
-    // apenas emite uma sessão nova pro mesmo usuário, sem derrubar
-    // nada; só um reuso REALMENTE tardio (token replay de verdade) aciona
-    // a resposta nuclear de derrubar todas as sessões da conta.
-    //
-    // Item pedido: "manter a sessão do usuário ativa mesmo após
-    // atualizações... toda vez que o sistema é atualizado, todos
-    // acabam sendo desconectados" — aumentado de 10s pra 5 minutos
-    // como rede de segurança complementar ao graceful shutdown (ver
-    // index.js): o shutdown gracioso já evita cortar essa requisição
-    // no meio na maioria dos casos, mas se mesmo assim a resposta com
-    // o cookie novo não chegar até o cliente por qualquer outro motivo
-    // (rede instável no momento exato, aba fechada no meio, etc.), essa
-    // janela maior ainda deixa o token antigo (já revogado) funcionar
-    // como se fosse válido, restaurando a sessão automaticamente em
-    // vez de forçar login manual. 5 minutos é bem mais que suficiente
-    // pra cobrir isso sem abrir uma janela real de risco de segurança
-    // — ela só vale pra um token que JÁ foi emitido e usado uma vez
-    // por essa mesma conta, nunca pra um token desconhecido/roubado do
-    // zero.
-    const GRACE_MS = 5 * 60 * 1000;
+    if (stored && !stored.revoked && stored.expiresAt >= new Date()) {
+      const user = await prisma.user.findUnique({ where: { id: stored.userId } });
+      if (isAccountBlocked(user)) {
+        await revokeRefreshTokens({ id: stored.id }, REVOKE_REASONS.ADMIN);
+        res.clearCookie('refreshToken', { path: '/api/auth' });
+        sessionKeep.clearKeepCookie(res);
+        return res.status(401).json({ error: 'Sessão expirada.' });
+      }
+      // Rotação: só UMA requisição consegue "reivindicar" este token
+      // (updateMany condicional) — uma segunda simultânea cai no caminho
+      // de token já rotacionado logo abaixo, em vez de também ganhar uma
+      // sessão nova.
+      const claimed = await prisma.refreshToken.updateMany({
+        where: { id: stored.id, revoked: false },
+        data: { revoked: true, revokedAt: new Date(), revokedReason: REVOKE_REASONS.ROTATED, lastUsedAt: new Date() },
+      });
+      if (claimed.count === 1) {
+        await maybePromoteToPlatformAdmin(user);
+        const accessToken = await issueSession(res, user, userAgent, req.ip, {
+          sessionStartedAt: stored.sessionStartedAt || stored.createdAt,
+        });
+        await prisma.refreshToken.update({ where: { id: stored.id }, data: { replacedById: res.locals.refreshTokenId } }).catch(() => {});
+        const selfUser = await prisma.user.findUnique({ where: { id: user.id }, select: SELF_USER_FIELDS });
+        return res.json({ user: selfUser, accessToken });
+      }
+      // Perdeu a corrida: relê o estado (agora revogado/rotacionado).
+      stored = await prisma.refreshToken.findUnique({ where: { tokenHash: hash } });
+      // A outra requisição pode ainda não ter gravado replacedById — dá
+      // um instante pra ela terminar.
+      if (stored?.revoked && stored.revokedReason === REVOKE_REASONS.ROTATED && !stored.replacedById) {
+        await new Promise((r) => setTimeout(r, 300));
+        stored = await prisma.refreshToken.findUnique({ where: { tokenHash: hash } });
+      }
+    }
+
     if (stored?.revoked) {
-      const withinGrace = stored.revokedAt && (Date.now() - stored.revokedAt.getTime()) < GRACE_MS;
-      if (withinGrace) {
-        const user = await prisma.user.findUnique({ where: { id: stored.userId } });
-        if (user) {
-          await maybePromoteToPlatformAdmin(user);
-          const accessToken = await issueSession(res, user, req.headers['user-agent'], req.ip);
+      // Revogação EXPLÍCITA (sair, encerrar sessão, troca/redefinição de
+      // senha, ban...) ou linha antiga sem motivo registrado: só esta
+      // sessão acabou — nada de derrubar as outras.
+      // Apaga também o "lembrar login" deste aparelho — senão, no próximo
+      // refresh (já sem cookie de refresh), restoreFromKeep recriaria a
+      // sessão que a pessoa acabou de encerrar.
+      if (stored.revokedReason !== REVOKE_REASONS.ROTATED) {
+        res.clearCookie('refreshToken', { path: '/api/auth' });
+        sessionKeep.clearKeepCookie(res);
+        return res.status(401).json({ error: 'Sessão expirada.' });
+      }
+
+      const withinRace = stored.revokedAt
+        && (Date.now() - stored.revokedAt.getTime()) < REFRESH_RACE_GRACE_MS
+        && (stored.userAgent || null) === (userAgent || null);
+      if (withinRace && stored.replacedById) {
+        const replacement = await prisma.refreshToken.findUnique({ where: { id: stored.replacedById } });
+        const user = replacement && !replacement.revoked && replacement.expiresAt > new Date()
+          ? await prisma.user.findUnique({ where: { id: stored.userId } })
+          : null;
+        if (user && !isAccountBlocked(user)) {
+          const accessToken = signAccessToken(user);
           const selfUser = await prisma.user.findUnique({ where: { id: user.id }, select: SELF_USER_FIELDS });
           return res.json({ user: selfUser, accessToken });
         }
       }
-      await prisma.refreshToken.updateMany({ where: { userId: stored.userId, revoked: false }, data: { revoked: true, revokedAt: new Date() } });
-      // Reuso tardio = possível roubo: derruba também o "lembrar login".
+
+      // Reuso de token já rotacionado fora da janela de corrida = possível
+      // roubo: derruba TODAS as sessões da conta e o "lembrar login".
+      await revokeRefreshTokens({ userId: stored.userId }, REVOKE_REASONS.THEFT);
       await sessionKeep.markSessionsRevoked(stored.userId);
       sessionKeep.clearKeepCookie(res);
-      return res.status(401).json({ error: 'Sessão expirada.' });
-    }
-    if (!stored || stored.expiresAt < new Date()) {
-      if (await restoreFromKeep()) return;
+      res.clearCookie('refreshToken', { path: '/api/auth' });
+      console.warn(`[auth] reuso de refresh token rotacionado detectado (usuário ${stored.userId}) — todas as sessões foram encerradas.`);
       return res.status(401).json({ error: 'Sessão expirada.' });
     }
 
-    const user = await prisma.user.findUnique({ where: { id: stored.userId } });
-    if (!user) return res.status(401).json({ error: 'Usuário não encontrado.' });
-
-    // Rotate refresh token.
-    await prisma.refreshToken.update({ where: { id: stored.id }, data: { revoked: true, revokedAt: new Date() } });
-    await maybePromoteToPlatformAdmin(user);
-    const accessToken = await issueSession(res, user, req.headers['user-agent'], req.ip);
-    const selfUser = await prisma.user.findUnique({ where: { id: user.id }, select: SELF_USER_FIELDS });
-    res.json({ user: selfUser, accessToken });
+    if (await restoreFromKeep()) return;
+    return res.status(401).json({ error: 'Sessão expirada.' });
   } catch (err) { next(err); }
 }
 
 async function logout(req, res, next) {
   try {
-    const raw = req.cookies?.refreshToken;
-    if (raw) {
-      const hash = hashToken(raw);
-      await prisma.refreshToken.updateMany({ where: { tokenHash: hash }, data: { revoked: true } });
-    }
+    const hash = currentRefreshHash(req);
+    if (hash) await revokeRefreshTokens({ tokenHash: hash }, REVOKE_REASONS.LOGOUT);
     res.clearCookie('refreshToken', { path: '/api/auth' });
     sessionKeep.clearKeepCookie(res);
     res.json({ ok: true });
@@ -454,18 +608,28 @@ async function logout(req, res, next) {
 // whichever one matches the actual cookie making this very request (so the
 // UI can label it "este dispositivo" and refuse to let it be revoked from
 // its own list — that's what the logout button is for instead).
+// Inclui o nome do aparelho (derivado do userAgent), o IP mascarado e o
+// último uso — o IP completo nunca sai do servidor.
 async function listSessions(req, res, next) {
   try {
-    const raw = req.cookies?.refreshToken;
-    const currentHash = raw ? hashToken(raw) : null;
+    const currentHash = currentRefreshHash(req);
     const sessions = await prisma.refreshToken.findMany({
       where: { userId: req.user.id, revoked: false, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, userAgent: true, createdAt: true, tokenHash: true },
+      select: {
+        id: true, userAgent: true, ipAddress: true, createdAt: true, tokenHash: true,
+        lastUsedAt: true, sessionStartedAt: true,
+      },
     });
     res.json({
       sessions: sessions.map((s) => ({
-        id: s.id, userAgent: s.userAgent, createdAt: s.createdAt, isCurrent: s.tokenHash === currentHash,
+        id: s.id,
+        userAgent: s.userAgent,
+        device: describeDevice(s.userAgent),
+        ip: maskIp(s.ipAddress),
+        createdAt: s.sessionStartedAt || s.createdAt,
+        lastUsedAt: s.lastUsedAt || s.createdAt,
+        isCurrent: s.tokenHash === currentHash,
       })),
     });
   } catch (err) { next(err); }
@@ -479,12 +643,11 @@ async function listSessions(req, res, next) {
 async function revokeSession(req, res, next) {
   try {
     const { id } = req.params;
-    const raw = req.cookies?.refreshToken;
-    const currentHash = raw ? hashToken(raw) : null;
+    const currentHash = currentRefreshHash(req);
     const session = await prisma.refreshToken.findUnique({ where: { id } });
     if (!session || session.userId !== req.user.id) return res.status(404).json({ error: 'Sessão não encontrada.' });
     if (session.tokenHash === currentHash) return res.status(400).json({ error: 'Use "Sair" para encerrar a sessão atual.' });
-    await prisma.refreshToken.update({ where: { id }, data: { revoked: true } });
+    await revokeRefreshTokens({ id }, REVOKE_REASONS.REVOKED);
     res.json({ ok: true });
   } catch (err) { next(err); }
 }
@@ -495,12 +658,11 @@ async function revokeSession(req, res, next) {
 // end that one).
 async function revokeOtherSessions(req, res, next) {
   try {
-    const raw = req.cookies?.refreshToken;
-    const currentHash = raw ? hashToken(raw) : null;
-    await prisma.refreshToken.updateMany({
-      where: { userId: req.user.id, revoked: false, ...(currentHash ? { tokenHash: { not: currentHash } } : {}) },
-      data: { revoked: true },
-    });
+    const currentHash = currentRefreshHash(req);
+    await revokeRefreshTokens(
+      { userId: req.user.id, ...(currentHash ? { tokenHash: { not: currentHash } } : {}) },
+      REVOKE_REASONS.REVOKED,
+    );
     // Derruba o "lembrar login" dos outros aparelhos e renova o deste.
     await sessionKeep.markSessionsRevoked(req.user.id);
     await sessionKeep.setKeepCookie(res, req.user.id);
@@ -508,14 +670,25 @@ async function revokeOtherSessions(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Cria um código de verificação de e-mail novo, invalidando os anteriores
+// (só o último código enviado vale — "Reenviar código" não deixa vários
+// códigos válidos ao mesmo tempo, o que multiplicava as chances de chute).
+// Reaproveitado por applicationsController.js (código enviado na aprovação
+// da inscrição, com validade maior porque a pessoa pode demorar a entrar).
+async function createEmailVerificationCode(userId, ttlMs = 15 * 60 * 1000) {
+  const code = generateNumericCode(6);
+  await prisma.emailVerificationCode.deleteMany({ where: { userId } });
+  await prisma.emailVerificationCode.create({
+    data: { userId, code, expiresAt: new Date(Date.now() + ttlMs) },
+  });
+  return code;
+}
+
 async function sendVerification(req, res, next) {
   try {
     const user = req.user;
     if (user.emailVerified) return res.json({ ok: true, alreadyVerified: true });
-    const code = generateNumericCode(6);
-    await prisma.emailVerificationCode.create({
-      data: { userId: user.id, code, expiresAt: new Date(Date.now() + 15 * 60 * 1000) },
-    });
+    const code = await createEmailVerificationCode(user.id);
     try {
       await sendVerificationCode(user.email, code);
     } catch (err) {
@@ -527,30 +700,43 @@ async function sendVerification(req, res, next) {
 
 async function verifyEmail(req, res, next) {
   try {
-    const { code } = req.body;
+    const { code } = req.body || {};
     const user = req.user;
+    if (typeof code !== 'string' || !/^\d{6}$/.test(code.trim())) {
+      return res.status(400).json({ error: 'Código inválido ou expirado.' });
+    }
     const record = await prisma.emailVerificationCode.findFirst({
-      where: { userId: user.id, code, expiresAt: { gt: new Date() } },
+      where: { userId: user.id, code: code.trim(), expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
     });
     if (!record) return res.status(400).json({ error: 'Código inválido ou expirado.' });
 
-    await prisma.user.update({ where: { id: user.id }, data: { emailVerified: true } });
+    const updated = await prisma.user.update({ where: { id: user.id }, data: { emailVerified: true } });
     await prisma.emailVerificationCode.deleteMany({ where: { userId: user.id } });
+    // A promoção automática por PLATFORM_ADMIN_EMAIL só vale pra e-mail
+    // verificado (ver adminBootstrap.js) — confere aqui pra o dono não
+    // precisar sair e entrar de novo depois de confirmar o código.
+    await maybePromoteToPlatformAdmin(updated);
     res.json({ ok: true });
   } catch (err) { next(err); }
 }
 
 async function forgotPassword(req, res, next) {
   try {
-    const { email } = req.body;
-    const user = await prisma.user.findUnique({ where: { email: (email || '').toLowerCase() } });
+    const { email } = req.body || {};
+    if (typeof email !== 'string' || !email.trim()) return res.json({ ok: true });
+    const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
     // Always respond 200 to avoid user enumeration.
     if (!user) return res.json({ ok: true });
 
+    // SECURITY: só o hash (sha256) do token vai pro banco — quem ler a
+    // tabela (backup vazado, acesso indevido ao banco) não consegue usar
+    // os links de redefinição pendentes. Pedir um link novo invalida os
+    // anteriores ainda não usados.
     const token = generateOpaqueToken();
+    await prisma.passwordResetToken.updateMany({ where: { userId: user.id, used: false }, data: { used: true } });
     await prisma.passwordResetToken.create({
-      data: { userId: user.id, token, expiresAt: new Date(Date.now() + 60 * 60 * 1000) },
+      data: { userId: user.id, token: hashToken(token), expiresAt: new Date(Date.now() + 60 * 60 * 1000) },
     });
     const resetUrl = `${env.CLIENT_ORIGIN}/reset-password?token=${token}`;
     try {
@@ -564,80 +750,143 @@ async function forgotPassword(req, res, next) {
 
 async function resetPassword(req, res, next) {
   try {
-    const { token, newPassword } = req.body;
-    if (!token || !isPasswordStrongEnough(newPassword)) {
+    const { token, newPassword } = req.body || {};
+    if (typeof token !== 'string' || !token || !isPasswordStrongEnough(newPassword)) {
       return res.status(400).json({ error: 'A senha deve ter pelo menos 8 caracteres, com letras e números.' });
     }
-    const record = await prisma.passwordResetToken.findUnique({ where: { token } });
+    // Tokens são guardados como sha256 (ver forgotPassword). Links antigos
+    // (de antes dessa mudança, salvos em texto puro) simplesmente não batem
+    // mais — expiravam em 1h de qualquer forma; basta pedir um novo.
+    const record = await prisma.passwordResetToken.findUnique({ where: { token: hashToken(token) } });
     if (!record || record.used || record.expiresAt < new Date()) {
       return res.status(400).json({ error: 'Link inválido ou expirado.' });
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
     await prisma.$transaction([
-      prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),
-      prisma.passwordResetToken.update({ where: { id: record.id }, data: { used: true } }),
-      prisma.refreshToken.updateMany({ where: { userId: record.userId }, data: { revoked: true } }),
+      // Redefinir a senha também destrava a conta (quem provou ser dono do
+      // e-mail não precisa esperar o bloqueio por tentativas erradas) — e,
+      // pelo mesmo motivo (o link só chega a quem lê aquela caixa de
+      // e-mail), conta como e-mail verificado.
+      prisma.user.update({
+        where: { id: record.userId },
+        data: { passwordHash, failedLoginAttempts: 0, loginLockedUntil: null, emailVerified: true },
+      }),
+      // Este link e qualquer outro pendente da conta deixam de valer.
+      prisma.passwordResetToken.updateMany({ where: { userId: record.userId, used: false }, data: { used: true } }),
+      prisma.refreshToken.updateMany({
+        where: { userId: record.userId, revoked: false },
+        data: { revoked: true, revokedAt: new Date(), revokedReason: REVOKE_REASONS.PASSWORD_RESET },
+      }),
     ]);
     await sessionKeep.markSessionsRevoked(record.userId);
     res.json({ ok: true });
   } catch (err) { next(err); }
 }
 
+// Senha atual obrigatória em toda ação sensível do 2FA (configurar,
+// desativar, gerar códigos novos) — um access token sozinho (sessão
+// esquecida aberta, token vazado) não basta pra mexer no segundo fator.
+async function checkPassword(userId, password) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || typeof password !== 'string' || !password || !(await bcrypt.compare(password, user.passwordHash))) return null;
+  return user;
+}
+
 async function setup2FA(req, res, next) {
   try {
+    const { password } = req.body || {};
+    const user = await checkPassword(req.user.id, password);
+    if (!user) return res.status(401).json({ error: 'Senha incorreta.' });
+    // SECURITY: antes isso sobrescrevia o segredo mesmo com o 2FA já
+    // ativo — quem tivesse um access token conseguia trocar o segredo
+    // pro próprio app autenticador sem nunca provar o fator atual. Agora
+    // é preciso desativar primeiro (o que exige senha + código).
+    if (user.twoFactorEnabled) {
+      return res.status(409).json({ error: 'A autenticação em dois fatores já está ativa. Desative-a primeiro para configurar de novo.' });
+    }
     // otplib v13: authenticator.generateSecret()/.keyuri() viraram as
     // funções de nível superior generateSecret()/generateURI({...}) —
     // mesmo formato otpauth:// de sempre, só a forma de chamar mudou.
     const secret = generateSecret();
-    const otpauth = generateURI({ issuer: 'Project Club', label: req.user.email, secret });
+    const otpauth = generateURI({ issuer: 'Project Club', label: user.email, secret });
     const qrDataUrl = await qrcode.toDataURL(otpauth);
-    await prisma.user.update({ where: { id: req.user.id }, data: { twoFactorSecret: secret } });
+    await prisma.user.update({ where: { id: user.id }, data: { twoFactorSecret: secret, twoFactorLastUsedStep: null } });
     res.json({ secret, qrDataUrl });
   } catch (err) { next(err); }
 }
 
 async function confirm2FA(req, res, next) {
   try {
-    const { code } = req.body;
+    const { code } = req.body || {};
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (user.twoFactorEnabled) return res.status(409).json({ error: 'A autenticação em dois fatores já está ativa.' });
     if (!user.twoFactorSecret) return res.status(400).json({ error: 'Configure o 2FA primeiro.' });
-    const { valid } = await verify({ secret: user.twoFactorSecret, token: code, guardrails: legacyGuardrails });
-    if (!valid) return res.status(400).json({ error: 'Código inválido.' });
+    if (!(await verifyTotpOnce(user, code))) return res.status(400).json({ error: 'Código inválido.' });
     await prisma.user.update({ where: { id: user.id }, data: { twoFactorEnabled: true } });
-    res.json({ ok: true });
+    // Códigos de recuperação: mostrados UMA vez, agora, pro caso de a
+    // pessoa perder o celular com o app autenticador.
+    const recoveryCodes = await regenerateRecoveryCodes(user.id);
+    res.json({ ok: true, recoveryCodes });
   } catch (err) { next(err); }
 }
 
 // SECURITY: turning off the account's second factor is exactly the kind
 // of action that shouldn't be doable with *just* a short-lived access
-// token — someone who got hold of one (a leaked/stolen token, an
-// unattended logged-in session, etc.) shouldn't be able to permanently
-// strip 2FA protection without proving they know the account password,
-// same as every other major platform requires here.
+// token — exige a senha E um código válido (do app autenticador ou um
+// código de recuperação), provando posse dos dois fatores.
 async function disable2FA(req, res, next) {
   try {
-    const { password } = req.body || {};
-    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-    if (!password || !(await bcrypt.compare(password, user.passwordHash))) {
-      return res.status(401).json({ error: 'Senha incorreta.' });
+    const { password, code, recoveryCode } = req.body || {};
+    const user = await checkPassword(req.user.id, password);
+    if (!user) return res.status(401).json({ error: 'Senha incorreta.' });
+    if (!user.twoFactorEnabled) {
+      await prisma.user.update({ where: { id: user.id }, data: { twoFactorSecret: null, twoFactorLastUsedStep: null } });
+      return res.json({ ok: true });
     }
-    await prisma.user.update({
-      where: { id: req.user.id },
-      data: { twoFactorEnabled: false, twoFactorSecret: null },
-    });
+    const hasRecovery = typeof recoveryCode === 'string' && recoveryCode.trim();
+    const ok = hasRecovery ? await consumeRecoveryCode(user.id, recoveryCode) : await verifyTotpOnce(user, code);
+    if (!ok) {
+      return res.status(401).json({ error: hasRecovery ? 'Código de recuperação inválido ou já usado.' : 'Código 2FA inválido.' });
+    }
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: req.user.id },
+        data: { twoFactorEnabled: false, twoFactorSecret: null, twoFactorLastUsedStep: null },
+      }),
+      prisma.twoFactorRecoveryCode.deleteMany({ where: { userId: req.user.id } }),
+    ]);
     res.json({ ok: true });
   } catch (err) { next(err); }
 }
 
-// Item pedido: "repaginada completa em Configurações... melhorando,
-// adicionando" — a aba "Minha Conta" não tinha NENHUM jeito de trocar
-// a própria senha (só o fluxo de "esqueci minha senha" via e-mail
-// existia) — mesmo padrão de validação/hash de resetPassword acima,
-// só que confirmando com a senha ATUAL em vez de um token por e-mail.
-// Revoga as outras sessões depois (mesma prática de segurança de
-// resetPassword — se alguém mais tinha acesso, essa troca de senha
-// derruba esse acesso).
+// GET /auth/2fa/recovery-codes — só QUANTOS códigos ainda restam (os
+// códigos em si nunca mais aparecem depois de gerados).
+async function recoveryCodesStatus(req, res, next) {
+  try {
+    const remaining = await prisma.twoFactorRecoveryCode.count({ where: { userId: req.user.id, usedAt: null } });
+    res.json({ remaining, enabled: !!req.user.twoFactorEnabled });
+  } catch (err) { next(err); }
+}
+
+// POST /auth/2fa/recovery-codes — "Gerar novos códigos": invalida todos os
+// anteriores (usados ou não) e devolve 10 novos. Exige a senha.
+async function regenerateRecoveryCodesHandler(req, res, next) {
+  try {
+    const { password } = req.body || {};
+    const user = await checkPassword(req.user.id, password);
+    if (!user) return res.status(401).json({ error: 'Senha incorreta.' });
+    if (!user.twoFactorEnabled) return res.status(400).json({ error: 'Ative a autenticação em dois fatores primeiro.' });
+    const recoveryCodes = await regenerateRecoveryCodes(user.id);
+    res.json({ recoveryCodes });
+  } catch (err) { next(err); }
+}
+
+// Item pedido: "repaginada completa em Configurações..." — trocar a
+// própria senha confirmando com a senha ATUAL. Encerra todas as OUTRAS
+// sessões (se alguém mais tinha acesso com a senha antiga, perde agora),
+// mas mantém ESTA aberta: o cookie de refresh vem junto nesta rota
+// (/api/auth/...), então dá pra saber exatamente qual sessão é "esta".
 async function changePassword(req, res, next) {
   try {
     const { currentPassword, newPassword } = req.body || {};
@@ -645,26 +894,24 @@ async function changePassword(req, res, next) {
       return res.status(400).json({ error: 'A nova senha deve ter pelo menos 8 caracteres, com letras e números.' });
     }
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-    if (!currentPassword || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+    if (typeof currentPassword !== 'string' || !currentPassword || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
       return res.status(401).json({ error: 'Senha atual incorreta.' });
     }
     const passwordHash = await bcrypt.hash(newPassword, 12);
-    // BUG EVITADO: cheguei a tentar excluir só a sessão ATUAL da
-    // revogação (pra pessoa continuar logada depois de trocar a
-    // senha), mas requireAuth (middleware/auth.js) só valida o access
-    // token (um JWT sem estado) — nunca associa o request a um
-    // refreshTokenId específico, então não tem como saber QUAL sessão
-    // é "essa" com segurança aqui. Revoga todas, mesmo padrão que
-    // resetPassword já usa — a pessoa precisa entrar de novo depois,
-    // o que é o comportamento correto de qualquer forma (se alguém
-    // mais tinha acesso com a senha antiga, essa troca precisa
-    // derrubar esse acesso).
+    const currentHash = currentRefreshHash(req);
     await prisma.$transaction([
       prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
-      prisma.refreshToken.updateMany({ where: { userId: user.id }, data: { revoked: true } }),
+      prisma.refreshToken.updateMany({
+        where: { userId: user.id, revoked: false, ...(currentHash ? { tokenHash: { not: currentHash } } : {}) },
+        data: { revoked: true, revokedAt: new Date(), revokedReason: REVOKE_REASONS.PASSWORD_CHANGE },
+      }),
+      // Links de "esqueci minha senha" pendentes também deixam de valer.
+      prisma.passwordResetToken.updateMany({ where: { userId: user.id, used: false }, data: { used: true } }),
     ]);
+    // Derruba o "lembrar login" dos outros aparelhos e renova o deste.
     await sessionKeep.markSessionsRevoked(user.id);
-    res.json({ ok: true });
+    if (currentHash) await sessionKeep.setKeepCookie(res, user.id);
+    res.json({ ok: true, keptCurrentSession: !!currentHash });
   } catch (err) { next(err); }
 }
 
@@ -674,19 +921,23 @@ async function changePassword(req, res, next) {
 // pessoas que citam esse usuário continuam existindo normalmente).
 // Confirmado com senha, mesmo padrão de disable2FA acima. Revoga TODAS
 // as sessões (inclusive a atual, diferente de changePassword) — a
-// pessoa é desconectada na hora.
+// pessoa é desconectada na hora (inclusive os sockets abertos).
 async function deleteAccount(req, res, next) {
   try {
     const { password } = req.body || {};
-    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-    if (!password || !(await bcrypt.compare(password, user.passwordHash))) {
-      return res.status(401).json({ error: 'Senha incorreta.' });
-    }
+    const user = await checkPassword(req.user.id, password);
+    if (!user) return res.status(401).json({ error: 'Senha incorreta.' });
     await prisma.$transaction([
       prisma.user.update({ where: { id: user.id }, data: { accountDisabledAt: new Date() } }),
-      prisma.refreshToken.updateMany({ where: { userId: user.id }, data: { revoked: true } }),
+      prisma.refreshToken.updateMany({
+        where: { userId: user.id, revoked: false },
+        data: { revoked: true, revokedAt: new Date(), revokedReason: REVOKE_REASONS.ACCOUNT_DISABLED },
+      }),
     ]);
     await sessionKeep.markSessionsRevoked(user.id);
+    res.clearCookie('refreshToken', { path: '/api/auth' });
+    sessionKeep.clearKeepCookie(res);
+    req.app.get('io')?.kickUser?.(user.id, 'account:disabled', {});
     res.json({ ok: true });
   } catch (err) { next(err); }
 }
@@ -709,4 +960,6 @@ module.exports = {
   PUBLIC_USER_FIELDS, SELF_USER_FIELDS,
   isPasswordStrongEnough, generatePublicId,
   changePassword, deleteAccount,
+  recoveryCodesStatus, regenerateRecoveryCodesHandler,
+  createEmailVerificationCode, issueSession, REVOKE_REASONS, describeDevice, maskIp,
 };

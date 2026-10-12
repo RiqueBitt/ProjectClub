@@ -157,6 +157,36 @@ export function SocketProvider({ children }) {
     // visibilitychange, já que a aba nunca ficou tecnicamente "hidden").
     window.addEventListener('focus', notifyActivity);
 
+    // Menções já tratadas (a mesma menção pode chegar 2x: pelo
+    // 'message:new' da sala aberta E pelo 'mention:new' da sala pessoal).
+    const seenMentions = new Set();
+    const markMentionSeen = (id) => {
+      if (!id) return false;
+      if (seenMentions.has(id)) return true;
+      seenMentions.add(id);
+      if (seenMentions.size > 500) seenMentions.delete(seenMentions.values().next().value);
+      return false;
+    };
+    // Clicar na notificação leva até o canal E até a mensagem.
+    const goToMessage = ({ channelId, conversationId, messageId, createdAt }) => {
+      if (channelId) {
+        if (messageId) useStore.getState().setPendingJump({ roomKey: roomKeyFor({ channelId }), messageId, createdAt });
+        navigate(`/channels/${channelId}`);
+      } else if (conversationId) {
+        if (messageId) useStore.getState().setPendingJump({ roomKey: roomKeyFor({ conversationId }), messageId, createdAt });
+        navigate(`/conversations/${conversationId}`);
+      } else navigate('/');
+    };
+    const handleIncomingMention = ({ channelId, messageId, createdAt, authorName, preview, reply }) => {
+      const { activeChannelId } = useStore.getState();
+      const isOpen = activeChannelId === channelId && document.visibilityState === 'visible';
+      if (!isOpen) bumpChannelMention(channelId);
+      playSound('mention');
+      const verb = reply ? 'respondeu sua mensagem' : 'mencionou você';
+      notifyUser(`${authorName || 'Alguém'} ${verb}`, (preview || '').slice(0, 120), () => goToMessage({ channelId, messageId, createdAt }));
+      updateUnreadBadge(userId);
+    };
+
     socket.on('message:new', (message) => {
       addMessage(roomKeyFor(message), message);
       bumpRoomActivity(message);
@@ -166,32 +196,28 @@ export function SocketProvider({ children }) {
         if (message.channelId) {
           const { members } = useStore.getState();
           const me = members.find((m) => m.user.id === user.id);
-          if (messageMentionsUser(message, user.id, me?.roleIds || [])) {
-            bumpChannelMention(message.channelId);
-            wasMentioned = true;
-          }
+          if (messageMentionsUser(message, user.id, me?.roleIds || [])) wasMentioned = true;
         }
         const isReplyToMe = message.replyTo?.authorId === user.id || message.replyTo?.author?.id === user.id;
 
         const { activeConversationId } = useStore.getState();
         const isOpenConversation = message.conversationId && message.conversationId === activeConversationId;
-        const shouldPlaySound = message.channelId
-          ? (wasMentioned || isReplyToMe)
-          : !isOpenConversation;
-        if (shouldPlaySound) playSound(wasMentioned || isReplyToMe ? 'mention' : 'message');
 
-        if (wasMentioned || isReplyToMe) {
-          const authorName = message.author?.displayName || 'Alguém';
-          const verb = isReplyToMe && !wasMentioned ? 'respondeu sua mensagem' : 'mencionou você';
-          const preview = (message.content || '').slice(0, 120);
-          notifyUser(`${authorName} ${verb}`, preview, () => navigate(`/`));
+        if (message.channelId && (wasMentioned || isReplyToMe)) {
+          if (!markMentionSeen(message.id)) {
+            handleIncomingMention({
+              channelId: message.channelId, messageId: message.id, createdAt: message.createdAt,
+              authorName: message.author?.displayName, preview: message.content, reply: isReplyToMe && !wasMentioned,
+            });
+          }
         } else if (message.conversationId && !isOpenConversation) {
+          playSound('message');
           // Item pedido: notificação nativa pra mensagem direta (DM), não
           // só pra menção — igual Discord notifica qualquer DM nova,
           // mesmo sem @ nenhum, já que é sempre "pessoal" por definição.
           const authorName = message.author?.displayName || 'Alguém';
           const preview = (message.content || '').slice(0, 120) || '📎 Anexo';
-          notifyUser(authorName, preview, () => navigate(`/conversations/${message.conversationId}`));
+          notifyUser(authorName, preview, () => goToMessage({ conversationId: message.conversationId, messageId: message.id, createdAt: message.createdAt }));
         }
       }
       // Item pedido: bolinha de não lidas no ícone da bandeja/dock — só
@@ -200,6 +226,29 @@ export function SocketProvider({ children }) {
       // ícone do app via Electron (ver App.jsx/desktop main.js).
       updateUnreadBadge(userId);
     });
+    // Menção/resposta num canal que NÃO está aberto (o servidor manda pra
+    // sala pessoal — o socket só fica na sala do canal aberto).
+    socket.on('mention:new', (payload) => {
+      if (!payload?.channelId || payload.authorId === user.id || markMentionSeen(payload.messageId)) return;
+      handleIncomingMention(payload);
+    });
+    // @everyone/@here num canal público: só acende o canal (sem notificação
+    // individual pra não virar spam pra comunidade inteira).
+    socket.on('channel:ping', ({ channelId, messageId, authorId } = {}) => {
+      if (!channelId || authorId === user.id || markMentionSeen(messageId)) return;
+      const st = useStore.getState();
+      const exists = st.channels.some((c) => c.id === channelId) || st.categories.some((cat) => (cat.channels || []).some((c) => c.id === channelId));
+      if (!exists) return;
+      if (st.activeChannelId === channelId && document.visibilityState === 'visible') return;
+      bumpChannelMention(channelId);
+      updateUnreadBadge(userId);
+    });
+    // "Visto" numa DM 1:1 (a outra pessoa abriu a conversa).
+    socket.on('conversation:read', ({ conversationId, userId: readerId, lastReadAt } = {}) => {
+      if (!conversationId || readerId === user.id) return;
+      useStore.getState().setConversationOtherRead(conversationId, lastReadAt);
+    });
+
     socket.on('message:update', (message) => {
       updateMessage(roomKeyFor(message), message);
     });
@@ -217,7 +266,7 @@ export function SocketProvider({ children }) {
     // todo mundo toda vez que este socket conecta/reconecta — substitui o
     // mapa de presença inteiro, então corrige sozinho qualquer coisa que
     // tenha ficado desatualizada. Ver server/src/sockets/index.js.
-    socket.on('presence:sync', (list) => {
+    socket.on('presence:sync', (list, meta) => {
       // Uma única atualização da store com a lista inteira — antes era um
       // setPresence por pessoa (N cópias do mapa + N avisos pra todo
       // componente inscrito), travando a tela a cada conexão/reconexão
@@ -225,6 +274,21 @@ export function SocketProvider({ children }) {
       if (!Array.isArray(list)) return;
       useStore.setState((s) => {
         const next = { ...s.presence };
+        // Lista "completa" (servidor novo): só vem quem está online — quem
+        // ficou de fora está offline (corrige quem caiu enquanto este
+        // socket estava desconectado).
+        if (meta?.complete) {
+          const online = new Set(list.map((p) => p.userId));
+          Object.keys(next).forEach((uid) => {
+            if (!online.has(uid) && next[uid]?.status !== 'OFFLINE') next[uid] = { ...next[uid], status: 'OFFLINE' };
+          });
+          (s.members || []).forEach((m) => {
+            const uid = m.user?.id;
+            if (uid && !online.has(uid) && !next[uid] && m.user.status && m.user.status !== 'OFFLINE') {
+              next[uid] = { status: 'OFFLINE', customStatus: m.user.customStatus ?? null };
+            }
+          });
+        }
         list.forEach(({ userId: uid, status, customStatus }) => { next[uid] = { status, customStatus }; });
         return { presence: next };
       });
@@ -317,6 +381,20 @@ export function SocketProvider({ children }) {
       if (reason) msg += `\nMotivo: ${reason}`;
       alert(msg);
       window.location.reload();
+    });
+    // O servidor derruba o socket logo depois destes avisos (ver
+    // io.kickUser no servidor) — recarrega pra cair na tela de login,
+    // que mostra a mensagem certa.
+    socket.on('account:suspended', ({ suspendedUntil, reason } = {}) => {
+      let msg = 'Sua conta foi suspensa temporariamente';
+      if (suspendedUntil) msg += ` até ${new Date(suspendedUntil).toLocaleString('pt-BR')}`;
+      msg += '.';
+      if (reason) msg += `\nMotivo: ${reason}`;
+      alert(msg);
+      window.location.reload();
+    });
+    socket.on('account:disabled', () => {
+      logout();
     });
 
     socket.on('conversation:new', ({ conversation }) => {

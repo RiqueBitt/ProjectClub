@@ -1,4 +1,5 @@
 const express = require('express');
+const env = require('../config/env');
 
 // Item pedido: "com VPN as imagens (foto de perfil, banners, ícones de
 // Clube) acabam bugando e não aparecendo". Causa provável: hoje essas
@@ -88,12 +89,58 @@ const ALLOWED_HOSTS = [
   /(^|\.)akamaihd\.net$/i, // imagens antigas do Workshop
 ];
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_REDIRECTS = 3;
+
+// SEGURANÇA: no Backblaze, qualquer pessoa pode ter um balde público em
+// *.backblazeb2.com — sem isso o proxy servia arquivo de QUALQUER balde
+// (inclusive de terceiros) pelo nosso domínio. Quando o nome do nosso
+// balde está configurado, só ele passa: estilo caminho
+// (f00X.backblazeb2.com/file/<balde>/..., s3.<região>.backblazeb2.com/<balde>/...)
+// ou estilo host virtual (<balde>.s3.<região>.backblazeb2.com/...).
+function isOwnB2Bucket(u) {
+  const bucket = env.B2_BUCKET;
+  if (!bucket) return true; // sem configuração, mantém o comportamento antigo
+  const host = u.hostname.toLowerCase();
+  const b = bucket.toLowerCase();
+  if (host.startsWith(`${b}.`)) return true;
+  const parts = u.pathname.split('/').filter(Boolean);
+  if (parts[0] === 'file' && parts[1]?.toLowerCase() === b) return true;
+  return parts[0]?.toLowerCase() === b;
+}
 
 function isAllowedUrl(url) {
   try {
     const u = new URL(url);
-    return u.protocol === 'https:' && ALLOWED_HOSTS.some((re) => re.test(u.hostname));
+    if (u.protocol !== 'https:' || u.username || u.password || (u.port && u.port !== '443')) return false;
+    if (!ALLOWED_HOSTS.some((re) => re.test(u.hostname))) return false;
+    if (/(^|\.)backblazeb2\.com$/i.test(u.hostname) && !isOwnB2Bucket(u)) return false;
+    return true;
   } catch { return false; }
+}
+
+// SVG pode carregar <script> — servido pelo NOSSO domínio, viraria XSS.
+const BLOCKED_IMAGE_TYPES = /^image\/(svg\+xml|svg)\b/i;
+
+// Segue redirecionamento na mão: só pra outro endereço que TAMBÉM passa
+// em isAllowedUrl (antes o fetch seguia pra qualquer host).
+async function fetchFollowingAllowed(url) {
+  let current = url;
+  for (let i = 0; i <= MAX_REDIRECTS; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const res = await fetch(current, {
+      headers: { 'User-Agent': 'ProjectClub/1.0', Accept: 'image/*' },
+      redirect: 'manual',
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+      const next = new URL(res.headers.get('location'), current).toString();
+      if (!isAllowedUrl(next)) return { status: 403 };
+      current = next;
+      continue;
+    }
+    return { res };
+  }
+  return { status: 508 };
 }
 
 // Busca (ou pega do cache) e devolve { buffer, contentType } ou null.
@@ -101,10 +148,13 @@ async function loadImage(url) {
   evictExpired();
   const cached = cache.get(url);
   if (cached) return { ...cached, hit: true };
-  const upstream = await fetch(url, { headers: { 'User-Agent': 'ProjectClub/1.0', Accept: 'image/*' }, redirect: 'follow' });
+  const { res: upstream, status } = await fetchFollowingAllowed(url);
+  if (!upstream) return { status };
   if (!upstream.ok) return { status: upstream.status };
   const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
-  if (!/^image\//i.test(contentType)) return { status: 415 };
+  if (!/^image\//i.test(contentType) || BLOCKED_IMAGE_TYPES.test(contentType)) return { status: 415 };
+  const declared = Number(upstream.headers.get('content-length') || 0);
+  if (declared > MAX_IMAGE_BYTES) return { status: 413 };
   const buffer = Buffer.from(await upstream.arrayBuffer());
   if (buffer.length > MAX_IMAGE_BYTES) return { status: 413 };
   // Imagens gigantes não entram no cache — não vale gastar uma fatia
@@ -119,6 +169,10 @@ async function loadImage(url) {
 
 function sendImage(res, img) {
   res.setHeader('Content-Type', img.contentType);
+  // Defesa extra: nunca adivinhar o tipo e, se algo for aberto direto,
+  // nada roda (sem script, sem formulário, origem isolada).
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox");
   // A imagem não muda de conteúdo pra uma mesma URL.
   res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
   res.setHeader('X-Cache', img.hit ? 'HIT' : 'MISS');

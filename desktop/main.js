@@ -16,20 +16,201 @@ const OFFLINE_DIR = path.join(__dirname, 'offline');
 const OFFLINE_URL = 'pcapp://app/offline.html';
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
-const { startActivityDetection, stopActivityDetection } = require('./activityDetector');
-const projectMcManager = require('./projectMcManager');
+const security = require('./security');
+
+// Abertura mais rápida: os módulos pesados (detector de jogos com o banco de
+// processos, gerenciador de mods com os perfis de instalação, ProjectMC,
+// Steam, navegador com o bloqueador de anúncios) só são carregados na
+// primeira vez que algo usa de verdade — antes, todos eram lidos do disco e
+// executados antes mesmo da janela aparecer. Os handlers de IPC continuam
+// registrados logo no início (abaixo); só o módulo em si é que espera.
+function lazy(modulePath) {
+  let mod = null;
+  return () => { if (!mod) mod = require(modulePath); return mod; };
+}
+const activityDetector = lazy('./activityDetector');
+const projectMcManager = lazy('./projectMcManager');
 // Sistema de Mods (Apps → Mods) — detecção de Steam e instalação local de
 // mods (ver steamDetector.js/modsManager.js). Só o processo principal
 // mexe com disco/registro; o site fala com esses módulos só via IPC.
-const steamDetector = require('./steamDetector');
-const modsManager = require('./modsManager');
+const steamDetector = lazy('./steamDetector');
+const modsManager = lazy('./modsManager');
 // Navegador do Project Club (abas <webview> dentro do app): sessão isolada,
 // bloqueio de anúncios/rastreadores e privacidade ao estilo LibreWolf.
-const browserEngine = require('./browserEngine');
+const browserEngine = lazy('./browserEngine');
 
 // URL do site hospedado — trocar aqui se o domínio mudar um dia. Fica só
 // nesse único lugar de propósito.
 const APP_URL = process.env.PROJECT_CLUB_URL || 'https://projectclub.squareweb.app';
+// Página local confiável além do site: a cópia offline (pcapp://app/).
+security.configure({ appUrl: APP_URL, trustedLocalOrigins: ['pcapp://app'] });
+const { isAppUrl } = security;
+
+// ---------- IPC protegido ----------
+// Todo pedido do site passa por aqui: só é atendido se veio de um frame da
+// origem do Project Club (ou da cópia offline do app). Qualquer outra
+// página — outro domínio, iframe de terceiro, um link que escapou — recebe
+// "não autorizado" (handle) ou é ignorada (on).
+function secureHandle(channel, fn) {
+  ipcMain.handle(channel, (event, ...args) => {
+    if (!security.isTrustedEvent(event)) {
+      console.warn(`[segurança] IPC "${channel}" recusado de ${event?.senderFrame?.url || 'origem desconhecida'}`);
+      throw new Error('não autorizado');
+    }
+    return fn(event, ...args);
+  });
+}
+function secureOn(channel, fn) {
+  ipcMain.on(channel, (event, ...args) => {
+    if (!security.isTrustedEvent(event)) {
+      console.warn(`[segurança] IPC "${channel}" ignorado de ${event?.senderFrame?.url || 'origem desconhecida'}`);
+      return;
+    }
+    fn(event, ...args);
+  });
+}
+
+// ---------- Estado local do app (arquivo em userData) ----------
+// Pequeno JSON com o que o app de desktop precisa lembrar entre aberturas
+// sem depender da conta: se a inicialização automática já foi configurada
+// na primeira execução e as pastas de jogo escolhidas manualmente.
+const STATE_FILE = () => path.join(app.getPath('userData'), 'desktop-state.json');
+let localStateCache = null;
+function readLocalState() {
+  if (localStateCache) return localStateCache;
+  try { localStateCache = JSON.parse(fs.readFileSync(STATE_FILE(), 'utf8')) || {}; } catch { localStateCache = {}; }
+  if (typeof localStateCache !== 'object' || Array.isArray(localStateCache)) localStateCache = {};
+  return localStateCache;
+}
+function writeLocalState(patch) {
+  const next = { ...readLocalState(), ...patch };
+  localStateCache = next;
+  try {
+    fs.mkdirSync(path.dirname(STATE_FILE()), { recursive: true });
+    const tmp = `${STATE_FILE()}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(next, null, 2), 'utf8');
+    fs.renameSync(tmp, STATE_FILE());
+  } catch (err) {
+    console.warn('[estado] não deu pra salvar:', err.message);
+  }
+  return next;
+}
+
+// ---------- Links externos permitidos ----------
+// "open-external" só abre o que o site usa de verdade: páginas web, e-mail,
+// telefone e os dois atalhos da Steam (abrir jogo / página do Workshop).
+// Qualquer outro esquema (file:, ms-settings:, smb:, programas
+// registrados...) é recusado — antes, qualquer URL era repassada ao sistema.
+function isAllowedExternalUrl(raw) {
+  let u;
+  try { u = new URL(String(raw)); } catch { return false; }
+  if (u.protocol === 'http:' || u.protocol === 'https:') return !!u.hostname;
+  if (u.protocol === 'mailto:' || u.protocol === 'tel:') return true;
+  if (u.protocol === 'steam:') {
+    const rest = String(raw).slice('steam://'.length);
+    return /^run\/\d{1,10}\/?$/i.test(rest) || /^url\/CommunityFilePage\/\d{1,20}\/?$/i.test(rest);
+  }
+  return false;
+}
+
+// ---------- Pastas de jogo conhecidas (config de mods) ----------
+// mods:write-config-file só escreve dentro da pasta de config de um jogo que
+// o app conhece: detectado na Steam, escolhido pela pessoa no diálogo de
+// pastas, ou que já tem mods instalados pelo Project Club (manifesto).
+const knownGameDirs = new Set();
+const normDir = (p) => {
+  const r = path.resolve(String(p));
+  return process.platform === 'win32' ? r.toLowerCase() : r;
+};
+function rememberGameDir(p, persist) {
+  if (!p) return;
+  knownGameDirs.add(normDir(p));
+  if (persist) {
+    const list = Array.isArray(readLocalState().pickedGameDirs) ? readLocalState().pickedGameDirs : [];
+    if (!list.some((x) => normDir(x) === normDir(p))) writeLocalState({ pickedGameDirs: [...list, path.resolve(String(p))].slice(-200) });
+  }
+}
+function isKnownGameDir(p) {
+  if (typeof p !== 'string' || !p || !path.isAbsolute(p)) return false;
+  try { if (!fs.statSync(p).isDirectory()) return false; } catch { return false; }
+  const n = normDir(p);
+  if (knownGameDirs.has(n)) return true;
+  const picked = readLocalState().pickedGameDirs;
+  if (Array.isArray(picked) && picked.some((x) => normDir(x) === n)) { knownGameDirs.add(n); return true; }
+  try { if (modsManager().hasManifest(p)) { knownGameDirs.add(n); return true; } } catch { /* sem manifesto */ }
+  try {
+    const { games = [] } = steamDetector().detectInstalledSteamGames() || {};
+    for (const g of games) if (g?.installPath) knownGameDirs.add(normDir(g.installPath));
+  } catch { /* Steam indisponível */ }
+  return knownGameDirs.has(n);
+}
+
+// ---------- Links projectclub:// ----------
+// projectclub://invite/<código>   → sala de convite da Guerra das Cartas
+// projectclub://post/<id>         → /posts/<id>
+// projectclub://user/<id>         → /u/<id> (DeepLinkPage abre o perfil)
+// projectclub://channel/<id>      → /channels/<id>
+// Os ids são validados à risca (só letras, números e hífen) — nada do link
+// vai parar na URL sem passar por aqui.
+const DEEP_LINK_SCHEME = 'projectclub';
+const DEEP_ID_RE = /^[A-Za-z0-9-]{1,64}$/;
+const DEEP_INVITE_RE = /^[A-Za-z0-9]{3,12}$/;
+function parseDeepLink(raw) {
+  let u;
+  try { u = new URL(String(raw)); } catch { return null; }
+  if (u.protocol !== `${DEEP_LINK_SCHEME}:`) return null;
+  // projectclub://post/123 → host "post", pathname "/123" (e também aceita
+  // projectclub:///post/123 ou projectclub:post/123).
+  const parts = `${u.host}/${u.pathname}`.split('/').filter(Boolean).map((p) => { try { return decodeURIComponent(p); } catch { return ''; } });
+  if (parts.length !== 2) return null;
+  const [kind, id] = [parts[0].toLowerCase(), parts[1]];
+  if (kind === 'invite' && DEEP_INVITE_RE.test(id)) return `/cartas?sala=${encodeURIComponent(id.toUpperCase())}`;
+  if (!DEEP_ID_RE.test(id)) return null;
+  if (kind === 'post') return `/posts/${id}`;
+  if (kind === 'user') return `/u/${id}`;
+  if (kind === 'channel') return `/channels/${id}`;
+  return null;
+}
+const findDeepLinkArg = (argv) => (argv || []).find((a) => typeof a === 'string' && a.toLowerCase().startsWith(`${DEEP_LINK_SCHEME}:`));
+// Link que abriu o app (Windows/Linux: vem no argv) — vira a primeira página.
+let pendingDeepLinkRoute = parseDeepLink(findDeepLinkArg(process.argv));
+function openDeepLink(raw) {
+  const route = parseDeepLink(raw);
+  if (!route) { if (raw) console.warn('[link] projectclub:// inválido ignorado'); return; }
+  if (!mainWindow || mainWindow.isDestroyed()) { pendingDeepLinkRoute = route; return; }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+  if (offlineMode) return; // sem servidor: não tem pra onde ir
+  const wc = mainWindow.webContents;
+  if (isAppUrl(wc.getURL()) && !wc.isLoading()) {
+    // Navega dentro do site (React Router escuta popstate) sem recarregar —
+    // não derruba chamada de voz nem nada aberto. route é montada só a
+    // partir de ids validados, e vai como string JSON.
+    wc.executeJavaScript(`(function(r){window.history.pushState({}, '', r);window.dispatchEvent(new PopStateEvent('popstate',{state:{}}));})(${JSON.stringify(route)})`)
+      .catch(() => mainWindow.loadURL(new URL(route, APP_URL).toString()));
+  } else {
+    mainWindow.loadURL(new URL(route, APP_URL).toString());
+  }
+}
+function setDeepLinkHandler() {
+  try {
+    // Em desenvolvimento (electron .) precisa passar o caminho do script.
+    if (process.defaultApp && process.argv.length >= 2) app.setAsDefaultProtocolClient(DEEP_LINK_SCHEME, process.execPath, [path.resolve(process.argv[1])]);
+    else app.setAsDefaultProtocolClient(DEEP_LINK_SCHEME);
+  } catch (err) {
+    console.warn('[link] não deu pra registrar projectclub://:', err.message);
+  }
+}
+
+// Notificações do Windows: sem o AppUserModelID igual ao appId do instalador
+// (package.json → build.appId), o Windows não associa as notificações ao
+// atalho do Menu Iniciar e elas podem não aparecer (ou aparecer como
+// "electron.app.Electron").
+const APP_USER_MODEL_ID = (() => {
+  try { return require('./package.json').build.appId || 'com.projectclub.desktop'; } catch { return 'com.projectclub.desktop'; }
+})();
+if (process.platform === 'win32') app.setAppUserModelId(APP_USER_MODEL_ID);
 
 let mainWindow = null;
 let tray = null;
@@ -186,7 +367,7 @@ const BROWSER_ENABLED = false;
 function hardenYouTubeWebview(contents) {
   contents.on('will-attach-webview', (event, webPreferences, params) => {
     // Abas do navegador do Project Club: regras próprias (browserEngine.js).
-    if (BROWSER_ENABLED && browserEngine.onWillAttach(event, webPreferences, params)) return;
+    if (BROWSER_ENABLED && browserEngine().onWillAttach(event, webPreferences, params)) return;
     delete webPreferences.preload;
     webPreferences.nodeIntegration = false;
     webPreferences.nodeIntegrationInSubFrames = false;
@@ -198,7 +379,7 @@ function hardenYouTubeWebview(contents) {
     if (params.partition !== 'persist:youtube' || !okSrc) event.preventDefault();
   });
   contents.on('did-attach-webview', (_e, wc) => {
-    if (BROWSER_ENABLED && browserEngine.onDidAttach(wc)) return;
+    if (BROWSER_ENABLED && browserEngine().onDidAttach(wc)) return;
     const guard = (event, target) => { if (!isAllowedYouTubeUrl(target)) { event.preventDefault(); if (/^https?:/i.test(String(target))) shell.openExternal(target); } };
     wc.on('will-navigate', guard);
     wc.on('will-redirect', guard);
@@ -258,7 +439,14 @@ function queueNxmFromArgv(argv) {
 }
 // macOS entrega o link por evento, não por argumento.
 app.on('open-url', (event, url) => {
-  if (!String(url).toLowerCase().startsWith('nxm://')) return;
+  const lower = String(url).toLowerCase();
+  if (lower.startsWith(`${DEEP_LINK_SCHEME}:`)) {
+    event.preventDefault();
+    if (app.isReady()) openDeepLink(url);
+    else pendingDeepLinkRoute = parseDeepLink(url) || pendingDeepLinkRoute;
+    return;
+  }
+  if (!lower.startsWith('nxm://')) return;
   event.preventDefault();
   deliverNxmLink(parseNxmLink(url));
 });
@@ -301,15 +489,15 @@ function goOnline(win) {
 function watchOnline(win) {
   const wc = win.webContents;
   let readyOnce = false;
-  wc.on('dom-ready', () => { if (wc.getURL().startsWith(APP_URL)) readyOnce = true; });
+  wc.on('dom-ready', () => { if (isAppUrl(wc.getURL())) readyOnce = true; });
   // Sem conexão / DNS / recusado → modo offline.
   wc.on('did-fail-load', (_e, code, _desc, url, isMainFrame) => {
-    if (!isMainFrame || code === -3 || !String(url).startsWith(APP_URL)) return;
+    if (!isMainFrame || code === -3 || !isAppUrl(url)) return;
     goOffline(win, 'network');
   });
   // Servidor respondeu com erro (502/503 da hospedagem etc.).
   wc.on('did-navigate', (_e, url, httpCode) => {
-    if (String(url).startsWith(APP_URL) && httpCode >= 500) goOffline(win, 'server');
+    if (isAppUrl(url) && httpCode >= 500) goOffline(win, 'server');
   });
   // Servidor "pendurado": 15 s sem carregar e sem responder → offline.
   setTimeout(async () => {
@@ -317,7 +505,7 @@ function watchOnline(win) {
     if (!(await serverAlive())) goOffline(win, 'timeout');
   }, 15000);
   ipcMain.removeHandler('offline:retry');
-  ipcMain.handle('offline:retry', async (e) => {
+  secureHandle('offline:retry', async (e) => {
     if (e.sender !== wc) return false;
     if (await serverAlive()) { goOnline(win); return true; }
     return false;
@@ -330,6 +518,10 @@ if (!gotLock) {
 } else {
   app.on('second-instance', (_event, argv) => {
     queueNxmFromArgv(argv);
+    // projectclub:// clicado com o app já aberto (Windows/Linux): o sistema
+    // abre uma segunda cópia com o link no argv, que cai aqui.
+    const deepLink = findDeepLinkArg(argv);
+    if (deepLink) { openDeepLink(deepLink); return; }
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
@@ -368,10 +560,10 @@ if (!gotLock) {
     const shouldRun = desktopSettings.gameDetectionEnabled !== false;
     if (shouldRun && !activityDetectionRunning && activityCallback) {
       activityDetectionRunning = true;
-      startActivityDetection(activityCallback);
+      activityDetector().startActivityDetection(activityCallback);
     } else if (!shouldRun && activityDetectionRunning) {
       activityDetectionRunning = false;
-      stopActivityDetection();
+      activityDetector().stopActivityDetection();
       currentActivity = null;
       // Avisa o site que a atividade parou (senão o "jogando X" antigo
       // continuaria aparecendo pro resto da comunidade até expirar
@@ -492,7 +684,10 @@ if (!gotLock) {
       });
 
       let resolved = false;
-      const onChoice = (_event, sourceId) => {
+      // Só a própria janelinha do seletor pode responder (página local
+      // file:// — não passa pelo secureOn, que só aceita o site).
+      const onChoice = (event, sourceId) => {
+        if (picker.isDestroyed() || event.sender !== picker.webContents) return;
         finish(rawSources.find((s) => s.id === sourceId) || null);
       };
       const finish = (value) => {
@@ -672,16 +867,22 @@ if (!gotLock) {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        // O preload.js só usa contextBridge/ipcRenderer/webFrame e
+        // process.platform — tudo disponível com sandbox. Ligado: o
+        // renderer do site fica isolado do sistema como num navegador.
+        sandbox: true,
         // <webview> só pro "YouTube completo" do Assistir juntos (ver
         // hardenYouTubeWebview): só youtube.com, sem preload/node.
         webviewTag: true,
       },
     });
     hardenYouTubeWebview(mainWindow.webContents);
-    if (BROWSER_ENABLED) browserEngine.init(mainWindow);
+    if (BROWSER_ENABLED) browserEngine().init(mainWindow);
 
-    mainWindow.loadURL(APP_URL);
+    // Aberto por um link projectclub:// → já começa na página certa.
+    const startRoute = pendingDeepLinkRoute;
+    pendingDeepLinkRoute = null;
+    mainWindow.loadURL(startRoute ? new URL(startRoute, APP_URL).toString() : APP_URL);
     watchOnline(mainWindow);
 
     // Item pedido: "Rich Presence" (jogo/Spotify) — só começa a detectar
@@ -725,7 +926,7 @@ if (!gotLock) {
       else shell.openExternal(url);
     };
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-      if (!url.startsWith(APP_URL)) {
+      if (!isAppUrl(url)) {
         openExternalLink(url);
         return { action: 'deny' };
       }
@@ -733,7 +934,8 @@ if (!gotLock) {
     });
     // Link externo clicado sem target (navegaria a janela do app pra fora).
     mainWindow.webContents.on('will-navigate', (event, url) => {
-      if (url.startsWith(APP_URL)) return;
+      // A cópia offline (pcapp://app) também navega dentro dela mesma.
+      if (security.isTrustedUrl(url)) return;
       event.preventDefault();
       openExternalLink(url);
     });
@@ -756,7 +958,9 @@ if (!gotLock) {
   }
 
   function createTray() {
-    tray = new Tray(path.join(__dirname, 'build', 'icon.ico'));
+    // .ico só funciona de verdade na bandeja do Windows; Linux/macOS usam .png.
+    const trayIcon = process.platform === 'win32' ? 'icon.ico' : 'tray.png';
+    tray = new Tray(path.join(__dirname, 'build', trayIcon));
     tray.setToolTip('Project Club');
     const menu = Menu.buildFromTemplate([
       { label: 'Abrir Project Club', click: () => { mainWindow.show(); mainWindow.focus(); } },
@@ -783,7 +987,7 @@ if (!gotLock) {
   // e client/src/utils/nativeUpdateCheck.js. app.getVersion() lê direto
   // do package.json empacotado (o CI grava a versão certa ali antes de
   // gerar o instalador, ver .github/workflows/build-apps.yml).
-  ipcMain.handle('get-app-version', () => app.getVersion());
+  secureHandle('get-app-version', () => app.getVersion());
   // Item pedido: verificar todos os sistemas de Configurações e afins —
   // diagnóstico de "instalações duplicadas confundindo qual versão está
   // rodando de verdade". Mostra o caminho exato do executável em uso
@@ -792,29 +996,29 @@ if (!gotLock) {
   // (Program Files) ou "só para mim" (AppData\Local\Programs) quando
   // tiver as duas ao mesmo tempo — sem isso, não tinha como saber qual
   // das duas o atalho clicado realmente abre.
-  ipcMain.handle('get-app-install-path', () => app.getPath('exe'));
+  secureHandle('get-app-install-path', () => app.getPath('exe'));
   // Item pedido: "crie uma barra que não seja do Windows, de fechar
   // aba, minimizar, aumentar etc" — controles de janela pro TitleBar.jsx
   // customizado no React, já que sem frame nativo (frame: false acima)
   // não existe mais nenhum jeito padrão do sistema operacional de
   // minimizar/maximizar/fechar a janela.
-  ipcMain.handle('window-minimize', () => mainWindow?.minimize());
+  secureHandle('window-minimize', () => mainWindow?.minimize());
   // Arrastar a janela pela barra de título via JS — reserva pro caso de o
   // -webkit-app-region:drag não pegar (zoom da interface, camadas por cima).
-  ipcMain.on('window-move-by', (_e, dx, dy) => {
+  secureOn('window-move-by', (_e, dx, dy) => {
     if (!mainWindow || mainWindow.isMaximized() || mainWindow.isFullScreen()) return;
     const x = Number(dx) || 0; const y = Number(dy) || 0;
     if (!x && !y) return;
     const [wx, wy] = mainWindow.getPosition();
     mainWindow.setPosition(Math.round(wx + x), Math.round(wy + y));
   });
-  ipcMain.handle('window-maximize-toggle', () => {
+  secureHandle('window-maximize-toggle', () => {
     if (!mainWindow) return;
     if (mainWindow.isMaximized()) mainWindow.unmaximize();
     else mainWindow.maximize();
   });
-  ipcMain.handle('window-close', () => mainWindow?.close());
-  ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);
+  secureHandle('window-close', () => mainWindow?.close());
+  secureHandle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);
   // O React precisa saber quando o estado maximizado muda por OUTRO
   // caminho além do próprio botão (ex: duplo-clique na barra, atalho de
   // teclado do Windows tipo Win+Up, ou arrastar a janela pro topo da
@@ -828,11 +1032,19 @@ if (!gotLock) {
   // RootGate em App.jsx), então "navegar pra lá" dentro da própria janela
   // não funcionaria. shell.openExternal manda pro navegador padrão do
   // sistema, de verdade.
-  ipcMain.handle('open-external', (_event, url) => shell.openExternal(url));
+  // Só esquemas usados de verdade pelo site (ver isAllowedExternalUrl):
+  // http/https, mailto/tel e steam://run|url/CommunityFilePage.
+  secureHandle('open-external', (_event, url) => {
+    if (!isAllowedExternalUrl(url)) {
+      console.warn('[segurança] open-external recusado para um link não permitido');
+      return false;
+    }
+    return shell.openExternal(String(url));
+  });
   // Item pedido: clicar numa notificação nativa traz a janela de volta
   // pra frente (mesmo vindo da bandeja) — ver o onclick da notificação
   // em SocketContext.jsx.
-  ipcMain.handle('focus-window', () => {
+  secureHandle('focus-window', () => {
     if (!mainWindow) return;
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
@@ -845,7 +1057,7 @@ if (!gotLock) {
   // igual pedido, não um número). Fica só ligado/desligado — não some
   // sozinho, alguém precisa realmente ler as mensagens novas.
   const badgeIcon = nativeImage.createFromPath(path.join(__dirname, 'build', 'badge-dot.png'));
-  ipcMain.handle('set-unread-count', (_event, count) => {
+  secureHandle('set-unread-count', (_event, count) => {
     if (!mainWindow) return;
     mainWindow.setOverlayIcon(count > 0 ? badgeIcon : null, count > 0 ? `${count} não lida(s)` : '');
   });
@@ -859,18 +1071,18 @@ if (!gotLock) {
   // do módulo vem do próprio site (hoje só 'projectmc' existe) — não
   // precisa de nenhum handler NOVO quando um segundo jogo/app futuro
   // for adicionado ao catálogo MODULES, só uma nova entrada lá.
-  ipcMain.handle('projectmc:get-status', (_event, id) => projectMcManager.getStatus(id || 'projectmc'));
-  ipcMain.handle('projectmc:check-update', async (_event, id) => {
+  secureHandle('projectmc:get-status', (_event, id) => projectMcManager().getStatus(id || 'projectmc'));
+  secureHandle('projectmc:check-update', async (_event, id) => {
     try {
-      return await projectMcManager.checkForUpdate(id || 'projectmc');
+      return await projectMcManager().checkForUpdate(id || 'projectmc');
     } catch (err) {
       return { error: err.message };
     }
   });
-  ipcMain.handle('projectmc:install', async (event, id) => {
+  secureHandle('projectmc:install', async (event, id) => {
     const moduleId = id || 'projectmc';
     try {
-      const result = await projectMcManager.installOrUpdate(moduleId, (progress) => {
+      const result = await projectMcManager().installOrUpdate(moduleId, (progress) => {
         event.sender.send('projectmc:progress', { id: moduleId, ...progress });
       });
       return { success: true, ...result };
@@ -878,17 +1090,17 @@ if (!gotLock) {
       return { success: false, error: err.message };
     }
   });
-  ipcMain.handle('projectmc:launch', async (_event, id) => {
+  secureHandle('projectmc:launch', async (_event, id) => {
     try {
-      await projectMcManager.launch(id || 'projectmc');
+      await projectMcManager().launch(id || 'projectmc');
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
     }
   });
-  ipcMain.handle('projectmc:uninstall', async (_event, id) => {
+  secureHandle('projectmc:uninstall', async (_event, id) => {
     try {
-      await projectMcManager.uninstall(id || 'projectmc');
+      await projectMcManager().uninstall(id || 'projectmc');
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
@@ -900,9 +1112,11 @@ if (!gotLock) {
   // Steam — roda 100% localmente (steamDetector.js), o site só recebe o
   // resultado já pronto (AppID/nome/pasta), nunca lê registro/disco
   // diretamente.
-  ipcMain.handle('mods:detect-steam-games', () => {
+  secureHandle('mods:detect-steam-games', () => {
     try {
-      return { success: true, ...steamDetector.detectInstalledSteamGames() };
+      const result = steamDetector().detectInstalledSteamGames();
+      for (const g of result?.games || []) if (g?.installPath) rememberGameDir(g.installPath, false);
+      return { success: true, ...result };
     } catch (err) {
       return { success: false, error: err.message, steamFound: false, games: [] };
     }
@@ -910,22 +1124,25 @@ if (!gotLock) {
 
   // Item pedido 29: jogo não encontrado automaticamente — deixa a pessoa
   // escolher a pasta manualmente pelo diálogo nativo do Windows/Linux.
-  ipcMain.handle('mods:select-game-folder', async () => {
+  secureHandle('mods:select-game-folder', async () => {
     const result = await dialog.showOpenDialog(mainWindow || undefined, {
       title: 'Selecione a pasta do jogo',
       properties: ['openDirectory'],
     });
     if (result.canceled || !result.filePaths[0]) return { success: false, canceled: true };
-    if (!steamDetector.looksLikeGameFolder(result.filePaths[0])) return { success: false, error: 'Pasta inválida.' };
+    if (!steamDetector().looksLikeGameFolder(result.filePaths[0])) return { success: false, error: 'Pasta inválida.' };
+    // Escolhida pela própria pessoa no diálogo nativo: vira pasta de jogo
+    // conhecida (lembrada entre aberturas, ver isKnownGameDir).
+    rememberGameDir(result.filePaths[0], true);
     return { success: true, path: result.filePaths[0] };
   });
 
   // Item pedido 12: instalação automática — baixa da URL assinada que o
   // backend devolveu (ver server: POST /api/mods/.../download), instala
   // na pasta certa e nunca envia o arquivo de volta pro servidor.
-  ipcMain.handle('mods:install', async (event, payload) => {
+  secureHandle('mods:install', async (event, payload) => {
     try {
-      const result = await modsManager.installMod(payload, (progress) => {
+      const result = await modsManager().installMod(payload, (progress) => {
         event.sender.send('mods:progress', { modioModId: payload.modioModId, ...progress });
       });
       return { success: true, ...result };
@@ -944,9 +1161,9 @@ if (!gotLock) {
   // installThunderstorePackage lá, que sabe diferenciar o framework
   // BepInEx em si — isLoader: true, vai pra raiz do jogo — de um mod
   // comum, que vai pra BepInEx/plugins como qualquer outra fonte).
-  ipcMain.handle('mods:install-thunderstore', async (event, payload) => {
+  secureHandle('mods:install-thunderstore', async (event, payload) => {
     try {
-      const result = await modsManager.installThunderstorePackage(payload, (progress) => {
+      const result = await modsManager().installThunderstorePackage(payload, (progress) => {
         event.sender.send('mods:progress', { modioModId: payload.fullName, ...progress });
       });
       return { success: true, ...result };
@@ -955,19 +1172,19 @@ if (!gotLock) {
     }
   });
 
-  ipcMain.handle('mods:uninstall', (_event, payload) => {
+  secureHandle('mods:uninstall', (_event, payload) => {
     try {
-      return { success: true, ...modsManager.uninstallMod(payload) };
+      return { success: true, ...modsManager().uninstallMod(payload) };
     } catch (err) {
       return { success: false, error: err.message };
     }
   });
 
   // Aceita o caminho (formato antigo) ou { gameInstallPath, steamAppId }.
-  ipcMain.handle('mods:list-installed', (_event, arg) => {
+  secureHandle('mods:list-installed', (_event, arg) => {
     try {
       const { gameInstallPath, steamAppId } = typeof arg === 'string' ? { gameInstallPath: arg } : (arg || {});
-      return { success: true, ...modsManager.listInstalledMods(gameInstallPath, steamAppId) };
+      return { success: true, ...modsManager().listInstalledMods(gameInstallPath, steamAppId) };
     } catch (err) {
       return { success: false, error: err.message, enabled: [], disabled: [] };
     }
@@ -977,9 +1194,9 @@ if (!gotLock) {
   // varre as pastas de mods do perfil do jogo (só leitura, nunca move
   // nem apaga nada) e devolve detectados + instalados pelo Project Club,
   // junto com o estado do loader (BepInEx/MelonLoader/SMAPI...).
-  ipcMain.handle('mods:scan-installed', (_event, { gameInstallPath, steamAppId } = {}) => {
+  secureHandle('mods:scan-installed', (_event, { gameInstallPath, steamAppId } = {}) => {
     try {
-      return { success: true, ...modsManager.scanInstalled({ gameInstallPath, steamAppId }) };
+      return { success: true, ...modsManager().scanInstalled({ gameInstallPath, steamAppId }) };
     } catch (err) {
       return { success: false, error: err.message, items: [] };
     }
@@ -987,27 +1204,27 @@ if (!gotLock) {
 
   // "Como este jogo usa mods": loader, pastas, tipos de arquivo, avisos.
   // Nexus Mods / Vortex: quem abre os links nxm:// e links pendentes.
-  ipcMain.handle('nexus:get-link-handler', () => {
+  secureHandle('nexus:get-link-handler', () => {
     try { return { success: true, enabled: app.isDefaultProtocolClient('nxm') }; } catch (err) { return { success: false, error: err.message }; }
   });
-  ipcMain.handle('nexus:set-link-handler', (_event, enabled) => {
+  secureHandle('nexus:set-link-handler', (_event, enabled) => {
     try {
       const ok = setNxmHandler(!!enabled);
       return { success: ok !== false, enabled: app.isDefaultProtocolClient('nxm') };
     } catch (err) { return { success: false, error: err.message }; }
   });
-  ipcMain.handle('nexus:open-download', (_event, url) => {
+  secureHandle('nexus:open-download', (_event, url) => {
     try { return openDownloadWindow(String(url || '')); } catch (err) { return { success: false, error: err.message }; }
   });
   // "Sair da conta" da janela de download (apaga o login salvo).
-  ipcMain.handle('nexus:clear-download-login', async () => {
+  secureHandle('nexus:clear-download-login', async () => {
     try { await session.fromPartition(DOWNLOAD_PARTITION).clearStorageData(); return { success: true }; } catch (err) { return { success: false, error: err.message }; }
   });
-  ipcMain.handle('nexus:consume-pending', () => pendingNxmLinks.splice(0, pendingNxmLinks.length));
+  secureHandle('nexus:consume-pending', () => pendingNxmLinks.splice(0, pendingNxmLinks.length));
 
-  ipcMain.handle('mods:get-install-profile', (_event, { gameInstallPath, steamAppId } = {}) => {
+  secureHandle('mods:get-install-profile', (_event, { gameInstallPath, steamAppId } = {}) => {
     try {
-      return { success: true, profile: modsManager.getInstallProfile({ gameInstallPath, steamAppId }) };
+      return { success: true, profile: modsManager().getInstallProfile({ gameInstallPath, steamAppId }) };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -1016,17 +1233,17 @@ if (!gotLock) {
   // Item pedido 15: ativar/desativar um mod específico sem desinstalar,
   // e aplicar um perfil inteiro de uma vez (troca vários de uma vez —
   // usado pelo botão "Ativar este perfil"/"▶ Jogar com este perfil").
-  ipcMain.handle('mods:set-enabled', (_event, payload) => {
+  secureHandle('mods:set-enabled', (_event, payload) => {
     try {
-      return { success: true, ...modsManager.setModEnabled(payload) };
+      return { success: true, ...modsManager().setModEnabled(payload) };
     } catch (err) {
       return { success: false, error: err.message };
     }
   });
 
-  ipcMain.handle('mods:apply-profile', (_event, payload) => {
+  secureHandle('mods:apply-profile', (_event, payload) => {
     try {
-      return { success: true, ...modsManager.applyProfileMods(payload) };
+      return { success: true, ...modsManager().applyProfileMods(payload) };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -1037,9 +1254,9 @@ if (!gotLock) {
   // inscrição em si é feita pela própria Steam quando a pessoa clica
   // "Inscrever-se" (abre steam://url/CommunityFilePage/<id> via
   // openExternal, já existente — não precisa de handler novo pra isso).
-  ipcMain.handle('mods:list-workshop-items', (_event, { gameInstallPath, workshopAppId }) => {
+  secureHandle('mods:list-workshop-items', (_event, { gameInstallPath, workshopAppId }) => {
     try {
-      return { success: true, items: steamDetector.listInstalledWorkshopItems(gameInstallPath, workshopAppId) };
+      return { success: true, items: steamDetector().listInstalledWorkshopItems(gameInstallPath, workshopAppId) };
     } catch (err) {
       return { success: false, error: err.message, items: [] };
     }
@@ -1049,10 +1266,10 @@ if (!gotLock) {
   // pasta de mods do jogo no explorador de arquivos do sistema
   // (Explorer/Finder/Nautilus, o que a pessoa já usa normalmente),
   // pra quem quiser mexer nos arquivos na mão.
-  ipcMain.handle('mods:open-folder', (_event, arg) => {
+  secureHandle('mods:open-folder', (_event, arg) => {
     try {
       const { gameInstallPath, steamAppId } = typeof arg === 'string' ? { gameInstallPath: arg } : (arg || {});
-      const strategy = modsManager.detectInstallStrategy(gameInstallPath, steamAppId);
+      const strategy = modsManager().detectInstallStrategy(gameInstallPath, steamAppId);
       require('fs').mkdirSync(strategy.targetRoot, { recursive: true });
       shell.openPath(strategy.targetRoot);
       return { success: true };
@@ -1064,7 +1281,7 @@ if (!gotLock) {
   // Item pedido: "adicionar mods de um arquivo local" — abre o diálogo
   // nativo pra escolher um .zip/.dll do computador da pessoa, sem
   // precisar vir de nenhuma das fontes online.
-  ipcMain.handle('mods:pick-local-file', async () => {
+  secureHandle('mods:pick-local-file', async () => {
     const result = await dialog.showOpenDialog(mainWindow || undefined, {
       title: 'Selecione o arquivo do mod',
       properties: ['openFile'],
@@ -1079,9 +1296,9 @@ if (!gotLock) {
     return { success: true, path: result.filePaths[0], name: require('path').basename(result.filePaths[0]) };
   });
 
-  ipcMain.handle('mods:install-local', async (event, payload) => {
+  secureHandle('mods:install-local', async (event, payload) => {
     try {
-      const result = await modsManager.installLocalFile(payload, (progress) => {
+      const result = await modsManager().installLocalFile(payload, (progress) => {
         event.sender.send('mods:progress', { modioModId: payload.modioModId || 'local', ...progress });
       });
       return { success: true, ...result };
@@ -1090,28 +1307,36 @@ if (!gotLock) {
     }
   });
 
+  const UNKNOWN_GAME_DIR = 'Pasta do jogo não reconhecida. Selecione a pasta do jogo de novo em Jogos → Mods.';
   // Item pedido: "poder configurar mods" — lê/escreve os .cfg do
   // BepInEx/config como texto puro (ver modsManager.js pra entender
   // por que é assim, não como formulário).
-  ipcMain.handle('mods:list-config-files', (_event, gameInstallPath) => {
+  secureHandle('mods:list-config-files', (_event, gameInstallPath) => {
     try {
-      return { success: true, files: modsManager.listConfigFiles(gameInstallPath) };
+      return { success: true, files: modsManager().listConfigFiles(gameInstallPath) };
     } catch (err) {
       return { success: false, error: err.message, files: [] };
     }
   });
 
-  ipcMain.handle('mods:read-config-file', (_event, { gameInstallPath, filename }) => {
+  secureHandle('mods:read-config-file', (_event, { gameInstallPath, filename } = {}) => {
     try {
-      return { success: true, content: modsManager.readConfigFile(gameInstallPath, filename) };
+      if (!isKnownGameDir(gameInstallPath)) return { success: false, error: UNKNOWN_GAME_DIR };
+      return { success: true, content: modsManager().readConfigFile(gameInstallPath, filename) };
     } catch (err) {
       return { success: false, error: err.message };
     }
   });
 
-  ipcMain.handle('mods:write-config-file', (_event, { gameInstallPath, filename, content }) => {
+  // Escrita só dentro da pasta de config de um jogo conhecido, só .cfg que já
+  // existe lá (o editor só edita os arquivos listados) e com tamanho limitado.
+  secureHandle('mods:write-config-file', (_event, { gameInstallPath, filename, content } = {}) => {
     try {
-      return { success: true, ...modsManager.writeConfigFile(gameInstallPath, filename, content) };
+      if (!isKnownGameDir(gameInstallPath)) return { success: false, error: UNKNOWN_GAME_DIR };
+      if (typeof filename !== 'string' || typeof content !== 'string') return { success: false, error: 'Dados inválidos.' };
+      if (content.length > 5 * 1024 * 1024) return { success: false, error: 'Arquivo de configuração grande demais.' };
+      if (!modsManager().listConfigFiles(gameInstallPath).includes(filename)) return { success: false, error: 'Arquivo de configuração não encontrado.' };
+      return { success: true, ...modsManager().writeConfigFile(gameInstallPath, filename, content) };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -1119,25 +1344,25 @@ if (!gotLock) {
 
   // Item pedido: pasta própria do Project Club (não do jogo) onde os
   // modpacks ficam salvos como arquivo, independente do servidor.
-  ipcMain.handle('mods:save-modpack-local', (_event, payload) => {
+  secureHandle('mods:save-modpack-local', (_event, payload) => {
     try {
-      return { success: true, ...modsManager.saveModpackLocally(payload) };
+      return { success: true, ...modsManager().saveModpackLocally(payload) };
     } catch (err) {
       return { success: false, error: err.message };
     }
   });
 
-  ipcMain.handle('mods:list-local-modpacks', (_event, gameKey) => {
+  secureHandle('mods:list-local-modpacks', (_event, gameKey) => {
     try {
-      return { success: true, modpacks: modsManager.listLocalModpacks(gameKey) };
+      return { success: true, modpacks: modsManager().listLocalModpacks(gameKey) };
     } catch (err) {
       return { success: false, error: err.message, modpacks: [] };
     }
   });
 
-  ipcMain.handle('mods:delete-local-modpack', (_event, { gameKey, packName }) => {
+  secureHandle('mods:delete-local-modpack', (_event, { gameKey, packName }) => {
     try {
-      return { success: true, ...modsManager.deleteLocalModpack(gameKey, packName) };
+      return { success: true, ...modsManager().deleteLocalModpack(gameKey, packName) };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -1155,7 +1380,7 @@ if (!gotLock) {
   // via applyGameDetectionSetting. overlayEnabled/overlayNotifications
   // não precisam de nenhuma ação imediata aqui — só são lidos na hora
   // que showOverlayNotification é chamada.
-  ipcMain.on('settings:update', (_event, settings) => {
+  secureOn('settings:update', (_event, settings) => {
     if (!settings || typeof settings !== 'object') return;
     desktopSettings = { ...desktopSettings, ...settings };
     if (typeof settings.startWithSystem === 'boolean') {
@@ -1175,7 +1400,7 @@ if (!gotLock) {
   // showOverlayNotification decide sozinha se deve aparecer de
   // verdade (overlayEnabled + overlayNotifications ligados, E um jogo
   // de verdade detectado agora).
-  ipcMain.on('overlay:notify', (_event, payload) => {
+  secureOn('overlay:notify', (_event, payload) => {
     if (payload && typeof payload === 'object') showOverlayNotification(payload);
   });
 
@@ -1260,7 +1485,7 @@ if (!gotLock) {
 
   // Estado da atualização (pro botão verde da barra do app).
   const updateStatus = { current: app.getVersion(), available: false, downloaded: false, percent: 0, version: null };
-  ipcMain.handle('update:get-status', () => ({ ...updateStatus }));
+  secureHandle('update:get-status', () => ({ ...updateStatus }));
   // Clique no botão verde: se já baixou, fecha e instala (reabre sozinho);
   // senão, pede pra procurar/baixar agora e instala quando terminar.
   let installWhenReady = false;
@@ -1299,7 +1524,7 @@ if (!gotLock) {
     setImmediate(() => autoUpdater.quitAndInstall(true, true));
     return 'installing';
   }
-  ipcMain.handle('update:install', async () => {
+  secureHandle('update:install', async () => {
     const r = await installLatest();
     if (r === 'installing') return { success: true, installing: true };
     return { success: true, downloading: true };
@@ -1395,7 +1620,7 @@ if (!gotLock) {
     // está usando. Só módulos JÁ instalados são considerados (não faz
     // sentido "atualizar" algo que a pessoa nunca baixou); ver
     // checkAndUpdateInstalledModules em projectMcManager.js.
-    const checkModules = () => projectMcManager.checkAndUpdateInstalledModules().catch((err) => {
+    const checkModules = () => projectMcManager().checkAndUpdateInstalledModules().catch((err) => {
       console.error('[atualização de apps] falha ao verificar/atualizar:', err?.message || err);
     });
     setTimeout(checkModules, 20000);
@@ -1431,35 +1656,51 @@ if (!gotLock) {
     // liberado de verdade pro app, em NENHUMA rede, o que também explica
     // por que testar com o celular no wifi ou nos dados móveis dava
     // exatamente no mesmo resultado: o problema nunca esteve na rede.
-    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-      const allowed = ['media', 'microphone', 'camera', 'display-capture', 'notifications', 'fullscreen']; // fullscreen: player do YouTube na chamada
-      callback(allowed.includes(permission));
+    // Microfone/câmera/tela/notificações: SÓ pro site do Project Club (mesma
+    // origem de APP_URL). Iframes de terceiros e qualquer página que não seja
+    // o app nunca ganham acesso. Tela cheia continua liberada pra qualquer
+    // frame (player do YouTube na chamada) — não dá acesso a nada sensível.
+    const APP_ONLY_PERMISSIONS = ['media', 'microphone', 'camera', 'display-capture', 'notifications'];
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+      if (permission === 'fullscreen') { callback(true); return; }
+      const requestingUrl = details?.requestingUrl || webContents?.getURL?.() || '';
+      callback(APP_ONLY_PERMISSIONS.includes(permission) && isAppUrl(requestingUrl));
     });
     // Mesma liberação, mas pra checagem SÍNCRONA que alguns navegadores/
     // versões do Electron fazem antes mesmo de chegar no handler acima
     // (checkPermission, não requestPermission) — sem isso, em algumas
     // versões o pedido nem chega a acionar o handler de cima, e cai
     // direto numa negação silenciosa de qualquer jeito.
-    session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
-      const allowed = ['media', 'microphone', 'camera', 'display-capture', 'notifications', 'fullscreen']; // fullscreen: player do YouTube na chamada
-      return allowed.includes(permission);
+    session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
+      if (permission === 'fullscreen') return true;
+      return APP_ONLY_PERMISSIONS.includes(permission) && isAppUrl(requestingOrigin || webContents?.getURL?.() || '');
     });
 
     // "openAsHidden" é o que faz a inicialização automática cumprir o
     // pedido de "rodar em segundo plano sem precisar deixar uma janela
     // aberta" — abre direto minimizado na bandeja, não em cima de tudo.
     const startedAtLogin = app.getLoginItemSettings().wasOpenedAtLogin;
-    createWindow(startedAtLogin);
+    // Aberto por um link projectclub:// → mostra a janela mesmo vindo do login.
+    createWindow(startedAtLogin && !pendingDeepLinkRoute);
+    setDeepLinkHandler();
     createTray();
     setupAutoUpdater();
 
-    // Configura a inicialização automática já na primeira execução — a
+    // Configura a inicialização automática só na PRIMEIRA execução — a
     // pessoa não precisa achar isso em nenhum menu escondido. Isso é só
     // o valor PADRÃO até o primeiro settings:update chegar de verdade
     // da conta (ver ipcMain.on('settings:update') acima) — uma vez que
     // a pessoa mexer na configuração de verdade, aquele valor manda.
-    if (!app.getLoginItemSettings().openAtLogin) {
-      app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true });
+    // BUG CORRIGIDO: antes religava o openAtLogin em TODA abertura, então
+    // quem desligava "Iniciar com o Windows" (bandeja ou Gerenciador de
+    // Tarefas) via o app voltar a iniciar sozinho no dia seguinte. Agora
+    // fica gravado em desktop-state.json que a configuração inicial já foi
+    // feita, e daí em diante só a escolha da pessoa vale.
+    if (!readLocalState().autoStartInitialized) {
+      try {
+        if (!app.getLoginItemSettings().openAtLogin) app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true });
+      } catch (err) { console.warn('[inicialização] não deu pra configurar:', err.message); }
+      writeLocalState({ autoStartInitialized: true });
     }
 
     // Item pedido: atalho de teclado global (funciona mesmo com o app em
@@ -1487,5 +1728,5 @@ if (!gotLock) {
   });
 
   app.on('before-quit', () => { isQuitting = true; });
-  app.on('will-quit', () => { globalShortcut.unregisterAll(); stopActivityDetection(); });
+  app.on('will-quit', () => { globalShortcut.unregisterAll(); if (activityDetectionRunning) activityDetector().stopActivityDetection(); });
 }

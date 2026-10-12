@@ -106,7 +106,7 @@ async function applyAction(io, { userId, rule, reason }) {
         create: { userId, reason, moderatorId: 'system' },
       }).catch(() => {});
       await prisma.user.update({ where: { id: userId }, data: { isPlatformBanned: true, platformBanReason: reason } }).catch(() => {});
-      io?.notifyUser?.(userId, 'account:banned', { reason, automated: true });
+      io?.kickUser?.(userId, 'account:banned', { reason, automated: true });
     }
   }
   // 'DELETE' não precisa de ação extra além de não criar a mensagem + o log de auditoria acima.

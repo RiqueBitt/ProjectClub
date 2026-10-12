@@ -13,9 +13,12 @@ export const sendVerificationCode = () => api.post('/auth/verify-email/send').th
 export const confirmVerificationCode = (code) => api.post('/auth/verify-email/confirm', { code }).then((r) => r.data);
 export const forgotPassword = (email) => api.post('/auth/forgot-password', { email }).then((r) => r.data);
 export const resetPassword = (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }).then((r) => r.data);
-export const setup2FA = () => api.post('/auth/2fa/setup').then((r) => r.data);
+export const setup2FA = (password) => api.post('/auth/2fa/setup', { password }).then((r) => r.data);
 export const confirm2FA = (code) => api.post('/auth/2fa/confirm', { code }).then((r) => r.data);
-export const disable2FA = (password) => api.post('/auth/2fa/disable', { password }).then((r) => r.data);
+// Desativar exige senha + código do app autenticador OU um código de recuperação.
+export const disable2FA = (password, { code, recoveryCode } = {}) => api.post('/auth/2fa/disable', { password, code, recoveryCode }).then((r) => r.data);
+export const getRecoveryCodesStatus = () => api.get('/auth/2fa/recovery-codes').then((r) => r.data);
+export const regenerateRecoveryCodes = (password) => api.post('/auth/2fa/recovery-codes', { password }).then((r) => r.data);
 export const changePassword = (currentPassword, newPassword) => api.post('/auth/change-password', { currentPassword, newPassword }).then((r) => r.data);
 export const deleteAccount = (password) => api.post('/auth/delete-account', { password }).then((r) => r.data);
 export const listSessions = () => api.get('/auth/sessions').then((r) => r.data);
@@ -93,6 +96,10 @@ export const sendFriendRequest = (username) => api.post('/friends/request', { us
 export const respondFriendRequest = (id, action) => api.post(`/friends/${id}/respond`, { action }).then((r) => r.data);
 export const removeFriend = (id) => api.delete(`/friends/${id}`).then((r) => r.data);
 export const blockUser = (username) => api.post('/friends/block', { username }).then((r) => r.data);
+export const listBlockedUsers = () => api.get('/friends/blocked').then((r) => r.data);
+export const unblockUser = (userId) => api.delete(`/friends/block/${userId}`).then((r) => r.data);
+// Denúncia de perfil (botão "Denunciar" do modal de perfil).
+export const reportUserProfile = (userId, reason, details) => api.post(`/users/${userId}/report`, { reason, details }).then((r) => r.data);
 
 // --- Conversations / DMs ---
 export const listConversations = () => api.get('/conversations').then((r) => r.data);
@@ -105,11 +112,26 @@ export const uploadConversationIcon = (id, file) => {
   return api.post(`/conversations/${id}/icon`, fd).then((r) => r.data);
 };
 export const leaveConversation = (id) => api.delete(`/conversations/${id}/members/me`).then((r) => r.data);
+// Só o dono do grupo pode remover outra pessoa.
+export const removeConversationMember = (id, userId) => api.delete(`/conversations/${id}/members/${userId}`).then((r) => r.data);
 
 // --- Messages (shared by DMs and channels) ---
 export const listMessages = (params) => api.get('/messages', { params }).then((r) => r.data);
 export const searchMessages = (params) => api.get('/messages/search', { params }).then((r) => r.data);
-export const sendMessage = (formData) => api.post('/messages', formData).then((r) => r.data);
+// A sala vai também na query: o servidor checa permissão/spam ANTES de
+// receber os anexos (ver precheckCreateMessage no messageController).
+export const sendMessage = (formData) => {
+  const params = {};
+  const channelId = typeof formData?.get === 'function' ? formData.get('channelId') : null;
+  const conversationId = typeof formData?.get === 'function' ? formData.get('conversationId') : null;
+  if (channelId) params.channelId = channelId;
+  if (conversationId) params.conversationId = conversationId;
+  return api.post('/messages', formData, { params }).then((r) => r.data);
+};
+export const getMessageEdits = (id) => api.get(`/messages/${id}/edits`).then((r) => r.data);
+export const forwardMessage = (id, target) => api.post(`/messages/${id}/forward`, target).then((r) => r.data);
+export const unfurlLink = (url) => api.get('/unfurl', { params: { url } }).then((r) => r.data);
+export const getChannelStates = () => api.get('/community/channels/read-states').then((r) => r.data);
 export const createPoll = (payload) => api.post('/polls', payload).then((r) => r.data);
 export const votePoll = (pollId, optionIndex) => api.post(`/polls/${pollId}/vote`, { optionIndex }).then((r) => r.data);
 export const editMessage = (id, content) => api.patch(`/messages/${id}`, { content }).then((r) => r.data);

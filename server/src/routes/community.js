@@ -51,6 +51,7 @@ router.post('/channels/:id/icon', uploadImage.single('icon'), channelCtrl.upload
 router.post('/channels/reorder', channelCtrl.reorderChannels);
 router.delete('/channels/:id', channelCtrl.deleteChannel);
 router.post('/channels/:id/read', channelCtrl.markRead);
+router.get('/channels/read-states', channelCtrl.getChannelStates);
 router.get('/channels/:id/overwrites', channelCtrl.listChannelOverwrites);
 router.post('/channels/:id/overwrites', channelCtrl.setChannelOverwrite);
 router.delete('/channels/:id/overwrites/:overwriteId', channelCtrl.deleteChannelOverwrite);

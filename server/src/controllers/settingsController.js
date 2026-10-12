@@ -33,6 +33,7 @@ const FIELD_VALIDATORS = {
   friendRequestPrivacy: (v) => ['everyone', 'friends_of_friends', 'none'].includes(v),
   contentFilterLevel: (v) => ['off', 'moderate', 'high'].includes(v),
   spamFilterEnabled: (v) => typeof v === 'boolean',
+  showReadReceipts: (v) => typeof v === 'boolean',
 
   desktopNotifications: (v) => typeof v === 'boolean',
   emailNotifications: (v) => typeof v === 'boolean',

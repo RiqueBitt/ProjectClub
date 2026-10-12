@@ -61,6 +61,20 @@ async function sendMail({ to, subject, text, html }) {
 // app's brand color (--brand: #1877F2) on a plain white card since a dark
 // background is unreliable across clients (Outlook/Gmail dark-mode both
 // have a habit of inverting or clipping dark HTML emails unpredictably).
+// SECURITY: todo valor vindo de usuário (nome de exibição, motivo de
+// recusa escrito pela staff, URLs montadas com dados externos...) passa
+// por aqui antes de entrar no HTML do e-mail — sem isso, um displayName
+// tipo `<a href="https://phishing">clique</a>` virava HTML de verdade
+// dentro de um e-mail com a marca do Project Club.
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function emailLayout(bodyHtml) {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -103,21 +117,21 @@ function emailLayout(bodyHtml) {
 </html>`;
 }
 
-async function sendVerificationCode(to, code) {
+async function sendVerificationCode(to, code, { expiresIn = '15 minutos' } = {}) {
   const bodyHtml = `
     <p style="margin:0 0 8px; font-size:15px; color:#2e3338;">Olá! 👋</p>
     <p style="margin:0 0 24px; font-size:15px; color:#2e3338; line-height:1.5;">Use o código abaixo para confirmar seu e-mail e concluir seu cadastro no Project Club:</p>
     <div style="text-align:center; margin:0 0 24px;">
-      <span style="display:inline-block; font-family:'Courier New',monospace; font-size:32px; font-weight:700; letter-spacing:8px; color:#1877F2; background-color:#fff4ec; padding:16px 20px; border-radius:8px;">${code}</span>
+      <span style="display:inline-block; font-family:'Courier New',monospace; font-size:32px; font-weight:700; letter-spacing:8px; color:#1877F2; background-color:#fff4ec; padding:16px 20px; border-radius:8px;">${escapeHtml(code)}</span>
     </div>
-    <p style="margin:0; font-size:13px; color:#8a8f98; line-height:1.5;">Este código expira em 15 minutos. Se você não solicitou isso, pode ignorar este e-mail com segurança — sua conta continua protegida.</p>
+    <p style="margin:0; font-size:13px; color:#8a8f98; line-height:1.5;">Este código expira em ${escapeHtml(expiresIn)}. Se você não solicitou isso, pode ignorar este e-mail com segurança — sua conta continua protegida.</p>
   `;
   return sendMail({
     to,
     subject: 'Confirme seu e-mail — Project Club',
     text: `Seu código de verificação é: ${code}
 
-Este código expira em 15 minutos.
+Este código expira em ${expiresIn}.
 
 Se você não solicitou isso, ignore este e-mail.`,
     html: emailLayout(bodyHtml),
@@ -125,14 +139,15 @@ Se você não solicitou isso, ignore este e-mail.`,
 }
 
 async function sendPasswordReset(to, resetUrl) {
+  const safeUrl = escapeHtml(resetUrl);
   const bodyHtml = `
     <p style="margin:0 0 8px; font-size:15px; color:#2e3338;">Olá!</p>
     <p style="margin:0 0 24px; font-size:15px; color:#2e3338; line-height:1.5;">Recebemos um pedido para redefinir a senha da sua conta Project Club. Clique no botão abaixo para escolher uma nova senha:</p>
     <div style="text-align:center; margin:0 0 24px;">
-      <a href="${resetUrl}" style="display:inline-block; background:linear-gradient(135deg,#1877F2,#145DBF); color:#ffffff; text-decoration:none; font-weight:700; font-size:15px; padding:14px 36px; border-radius:8px;">Redefinir senha</a>
+      <a href="${safeUrl}" style="display:inline-block; background:linear-gradient(135deg,#1877F2,#145DBF); color:#ffffff; text-decoration:none; font-weight:700; font-size:15px; padding:14px 36px; border-radius:8px;">Redefinir senha</a>
     </div>
     <p style="margin:0 0 6px; font-size:13px; color:#8a8f98;">Ou copie e cole este link no navegador:</p>
-    <p style="margin:0 0 24px; font-size:13px; word-break:break-all;"><a href="${resetUrl}" style="color:#1877F2;">${resetUrl}</a></p>
+    <p style="margin:0 0 24px; font-size:13px; word-break:break-all;"><a href="${safeUrl}" style="color:#1877F2;">${safeUrl}</a></p>
     <p style="margin:0; font-size:13px; color:#8a8f98; line-height:1.5;">Este link expira em 1 hora. Se você não solicitou isso, ignore este e-mail — sua senha continua a mesma.</p>
   `;
   return sendMail({
@@ -146,11 +161,12 @@ Este link expira em 1 hora. Se você não solicitou isso, ignore este e-mail.`,
 }
 
 async function sendApplicationApproved(to, loginUrl) {
+  const safeUrl = escapeHtml(loginUrl);
   const bodyHtml = `
     <p style="margin:0 0 8px; font-size:15px; color:#2e3338;">Boas notícias! 🎉</p>
-    <p style="margin:0 0 24px; font-size:15px; color:#2e3338; line-height:1.5;">Sua inscrição no Project Club foi <b>aprovada</b>! Sua conta já está ativa — clique no botão abaixo pra fazer login com o e-mail e a senha que você cadastrou no formulário.</p>
+    <p style="margin:0 0 24px; font-size:15px; color:#2e3338; line-height:1.5;">Sua inscrição no Project Club foi <b>aprovada</b>! Sua conta já está ativa — clique no botão abaixo pra fazer login com o e-mail e a senha que você cadastrou no formulário. No primeiro acesso vamos pedir o código de verificação que enviamos para este e-mail (dá pra pedir um novo na própria tela).</p>
     <div style="text-align:center; margin:0 0 24px;">
-      <a href="${loginUrl}" style="display:inline-block; background:linear-gradient(135deg,#1877F2,#145DBF); color:#ffffff; text-decoration:none; font-weight:700; font-size:15px; padding:14px 36px; border-radius:8px;">Entrar no Project Club</a>
+      <a href="${safeUrl}" style="display:inline-block; background:linear-gradient(135deg,#1877F2,#145DBF); color:#ffffff; text-decoration:none; font-weight:700; font-size:15px; padding:14px 36px; border-radius:8px;">Entrar no Project Club</a>
     </div>
     <p style="margin:0; font-size:13px; color:#8a8f98; line-height:1.5;">Até já!</p>
   `;
@@ -166,7 +182,7 @@ async function sendApplicationRejected(to, reason) {
   const bodyHtml = `
     <p style="margin:0 0 8px; font-size:15px; color:#2e3338;">Olá,</p>
     <p style="margin:0 0 16px; font-size:15px; color:#2e3338; line-height:1.5;">Depois de analisar sua inscrição, não conseguimos aprovar sua entrada no Project Club desta vez.</p>
-    ${reason ? `<p style="margin:0 0 24px; font-size:14px; color:#2e3338; background-color:#f7f7f8; padding:14px 16px; border-radius:8px; line-height:1.5;">${reason}</p>` : ''}
+    ${reason ? `<p style="margin:0 0 24px; font-size:14px; color:#2e3338; background-color:#f7f7f8; padding:14px 16px; border-radius:8px; line-height:1.5;">${escapeHtml(reason)}</p>` : ''}
     <p style="margin:0; font-size:13px; color:#8a8f98; line-height:1.5;">Se quiser, você pode se inscrever novamente no futuro.</p>
   `;
   return sendMail({
@@ -177,7 +193,43 @@ async function sendApplicationRejected(to, reason) {
   });
 }
 
-module.exports = { sendMail, sendVerificationCode, sendPasswordReset, sendApplicationApproved, sendApplicationRejected, sendOfflineNotification };
+module.exports = {
+  sendMail, sendVerificationCode, sendPasswordReset, sendApplicationApproved, sendApplicationRejected,
+  sendOfflineNotification, sendNewLoginAlert, escapeHtml,
+};
+
+// Alerta de "Novo acesso à sua conta" — disparado no login quando não
+// existe nenhuma sessão anterior com o mesmo navegador + IP (ver
+// maybeSendNewLoginAlert em authController.js). Os valores aqui
+// (dispositivo, IP) vêm do request, então passam por escapeHtml.
+async function sendNewLoginAlert(to, { device, ip, when, appUrl }) {
+  const whenText = new Date(when || Date.now()).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const bodyHtml = `
+    <p style="margin:0 0 8px; font-size:15px; color:#2e3338;">Novo acesso à sua conta</p>
+    <p style="margin:0 0 16px; font-size:14px; color:#2e3338; line-height:1.5;">Detectamos um login na sua conta do Project Club a partir de um dispositivo ou rede que não reconhecemos:</p>
+    <p style="margin:0 0 24px; font-size:14px; color:#2e3338; background-color:#f7f7f8; padding:14px 16px; border-radius:8px; line-height:1.6;">
+      <b>Dispositivo:</b> ${escapeHtml(device || 'Desconhecido')}<br />
+      <b>IP:</b> ${escapeHtml(ip || 'Desconhecido')}<br />
+      <b>Quando:</b> ${escapeHtml(whenText)} (horário de Brasília)
+    </p>
+    <p style="margin:0 0 24px; font-size:14px; color:#2e3338; line-height:1.5;">Se foi você, pode ignorar este e-mail. Se <b>não</b> foi você, troque sua senha agora e encerre as outras sessões em Configurações &rsaquo; Segurança.</p>
+    <div style="text-align:center; margin:0 0 8px;">
+      <a href="${escapeHtml(appUrl)}" style="display:inline-block; background:linear-gradient(135deg,#1877F2,#145DBF); color:#ffffff; text-decoration:none; font-weight:700; font-size:15px; padding:14px 36px; border-radius:8px;">Abrir Project Club</a>
+    </div>
+  `;
+  return sendMail({
+    to,
+    subject: 'Novo acesso à sua conta — Project Club',
+    text: `Novo acesso à sua conta do Project Club.
+
+Dispositivo: ${device || 'Desconhecido'}
+IP: ${ip || 'Desconhecido'}
+Quando: ${whenText} (horário de Brasília)
+
+Se não foi você, troque sua senha e encerre as outras sessões em Configurações > Segurança: ${appUrl}`,
+    html: emailLayout(bodyHtml),
+  });
+}
 
 // Item pedido: verificar se todos os toggles de Configurações têm efeito
 // real. "Notificações por e-mail" já existia na tela, descrevendo
@@ -191,10 +243,10 @@ async function sendOfflineNotification(to, { type, actorName, appUrl }) {
   const isMention = type === 'mention';
   const heading = isMention ? `${actorName} mencionou você` : `${actorName} te enviou um pedido de amizade`;
   const bodyHtml = `
-    <p style="margin:0 0 8px; font-size:15px; color:#2e3338;">${heading}</p>
+    <p style="margin:0 0 8px; font-size:15px; color:#2e3338;">${escapeHtml(heading)}</p>
     <p style="margin:0 0 24px; font-size:14px; color:#8a8f98; line-height:1.5;">Você estava offline quando isso aconteceu — abra o Project Club pra ver.</p>
     <div style="text-align:center; margin:0 0 8px;">
-      <a href="${appUrl}" style="display:inline-block; background:linear-gradient(135deg,#1877F2,#145DBF); color:#ffffff; text-decoration:none; font-weight:700; font-size:15px; padding:14px 36px; border-radius:8px;">Abrir Project Club</a>
+      <a href="${escapeHtml(appUrl)}" style="display:inline-block; background:linear-gradient(135deg,#1877F2,#145DBF); color:#ffffff; text-decoration:none; font-weight:700; font-size:15px; padding:14px 36px; border-radius:8px;">Abrir Project Club</a>
     </div>
     <p style="margin:16px 0 0; font-size:12px; color:#8a8f98; line-height:1.5;">Pra parar de receber estes e-mails, desligue "Notificações por e-mail" nas Configurações da sua conta.</p>
   `;

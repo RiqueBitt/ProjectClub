@@ -8,9 +8,17 @@ const shortcutsCtrl = require('../controllers/shortcutsController');
 const { requireAuth } = require('../middleware/auth');
 const { uploadImage } = require('../middleware/upload');
 
+const rateLimit = require('express-rate-limit');
+const { createRateLimitStore } = require('../config/rateLimitStore');
+const reportCtrl = require('../controllers/reportController');
+
 const router = express.Router();
 
+// Denúncias de perfil — limite por IP pra ninguém inundar a fila da staff.
+const reportLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, store: createRateLimitStore('profile-report') });
+
 router.use(requireAuth);
+router.post('/:id/report', reportLimiter, reportCtrl.createProfileReport);
 router.patch('/me', ctrl.updateProfile);
 router.patch('/me/username', ctrl.updateUsername);
 router.post('/me/avatar', uploadImage.single('avatar'), ctrl.uploadAvatar);

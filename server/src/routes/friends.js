@@ -6,6 +6,8 @@ const router = express.Router();
 router.use(requireAuth);
 
 router.get('/', ctrl.listFriends);
+router.get('/blocked', ctrl.listBlocked);
+router.delete('/block/:userId', ctrl.unblockUser);
 router.post('/request', ctrl.sendRequest);
 router.post('/:id/respond', ctrl.respondRequest);
 router.delete('/:id', ctrl.removeFriend);

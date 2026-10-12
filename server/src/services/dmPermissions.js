@@ -13,8 +13,46 @@ const prisma = require('../config/prisma');
 // do perfil (ver hasFullProfileAccess em userController.js): o clã
 // (User.clanId) é o único conceito de "grupo" que o Project Club tem
 // hoje fora da amizade.
+// Bloqueio (Friendship com status BLOCKED) vale nos DOIS sentidos: nem
+// quem bloqueou manda DM pra pessoa bloqueada, nem o contrário — antes
+// só a privacidade de DM era checada, então alguém bloqueado ainda
+// conseguia abrir/mandar DM pra quem o bloqueou (com dmPrivacy
+// "everyone", o padrão).
+async function isBlockedBetween(userIdA, userIdB) {
+  if (!userIdA || !userIdB || userIdA === userIdB) return false;
+  const block = await prisma.friendship.findFirst({
+    where: {
+      status: 'BLOCKED',
+      OR: [
+        { requesterId: userIdA, addresseeId: userIdB },
+        { requesterId: userIdB, addresseeId: userIdA },
+      ],
+    },
+    select: { id: true },
+  });
+  return !!block;
+}
+
+// Mesma checagem de canSendDirectMessage, mas devolvendo o motivo da
+// recusa (pra mensagem de erro certa na tela): null = permitido,
+// 'blocked' | 'none' | 'friends'.
+async function getDirectMessageDenial(senderId, recipientId) {
+  if (senderId === recipientId) return null;
+  if (await isBlockedBetween(senderId, recipientId)) return 'blocked';
+  if (await canSendDirectMessage(senderId, recipientId)) return null;
+  const settings = await prisma.userSettings.findUnique({ where: { userId: recipientId }, select: { dmPrivacy: true } });
+  return (settings?.dmPrivacy || 'everyone') === 'none' ? 'none' : 'friends';
+}
+
+const DM_DENIAL_MESSAGES = {
+  blocked: 'Não é possível enviar mensagens para esta pessoa.',
+  none: 'Esta pessoa não está aceitando novas mensagens diretas.',
+  friends: 'Vocês precisam ser amigos para iniciar uma conversa direta.',
+};
+
 async function canSendDirectMessage(senderId, recipientId) {
   if (senderId === recipientId) return true;
+  if (await isBlockedBetween(senderId, recipientId)) return false;
   const settings = await prisma.userSettings.findUnique({ where: { userId: recipientId }, select: { dmPrivacy: true } });
   // BUG CORRIGIDO: o valor de reserva aqui (pra quando a pessoa nunca
   // abriu a tela de Configurações — settings vem null nesse caso)
@@ -48,4 +86,4 @@ async function canSendDirectMessage(senderId, recipientId) {
   return false;
 }
 
-module.exports = { canSendDirectMessage };
+module.exports = { canSendDirectMessage, isBlockedBetween, getDirectMessageDenial, DM_DENIAL_MESSAGES };

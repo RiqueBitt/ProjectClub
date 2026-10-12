@@ -24,6 +24,12 @@ function errorHandler(err, req, res, next) { // eslint-disable-line no-unused-va
     // never even reach that check.
     return res.status(413).json({ error: 'Arquivo muito grande para ser enviado.' });
   }
+  if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') {
+    return res.status(400).json({ error: 'Arquivos demais nesta mensagem (máximo 10).' });
+  }
+  if (err.code === 'LIMIT_FIELD_COUNT' || err.code === 'LIMIT_FIELD_VALUE' || err.code === 'LIMIT_PART_COUNT') {
+    return res.status(413).json({ error: 'Envio grande demais.' });
+  }
   // Every 4xx thrown in this codebase is a hand-written, already user-safe
   // string (e.g. "Credenciais inválidas.") — fine to show verbatim. A bare
   // 500, though, usually carries a raw driver/library error message (DB

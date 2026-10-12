@@ -82,7 +82,8 @@ import robloxConnIcon from '../../assets/icons/social-roblox.png';
 import xConnIcon from '../../assets/icons/social-x.png';
 import {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, removeIdCard,
-  setup2FA, confirm2FA, disable2FA, setLayoutStyle, setMyClanTag,
+  setup2FA, confirm2FA, disable2FA, getRecoveryCodesStatus, regenerateRecoveryCodes, setLayoutStyle, setMyClanTag,
+  listBlockedUsers, unblockUser,
   setEmojiStyle as setEmojiStyleApi,
   listSessions, revokeSession, revokeOtherSessions,
   createProfilePoll, listProfilePollsByAuthor, deleteProfilePoll,
@@ -309,11 +310,7 @@ export default function UserSettingsModal({ onClose }) {
   // quando clicado.
   const [fontMenuOpen, setFontMenuOpen] = useState(false);
   const [effectMenuOpen, setEffectMenuOpen] = useState(false);
-  const [twoFA, setTwoFA] = useState({ qrDataUrl: null, secret: null, code: '' });
   const [error, setError] = useState('');
-  // Erro do 2FA separado do erro do nome de usuário (antes era o mesmo
-  // estado e um aparecia na aba do outro).
-  const [twoFAError, setTwoFAError] = useState('');
   const [sessions, setSessions] = useState(null);
   const [sessionsError, setSessionsError] = useState('');
   const [revokingId, setRevokingId] = useState(null);
@@ -516,6 +513,10 @@ export default function UserSettingsModal({ onClose }) {
     trackSave(setEmojiStyleApi(s)).catch(() => {});
   };
 
+  const usernameChangedAtMs = user.usernameChangedAt ? new Date(user.usernameChangedAt).getTime() : 0;
+  const usernameCooldownUntil = usernameChangedAtMs && Date.now() - usernameChangedAtMs < 7 * 24 * 60 * 60 * 1000
+    ? new Date(usernameChangedAtMs + 7 * 24 * 60 * 60 * 1000)
+    : null;
   const saveUsername = async (value = username) => {
     setError('');
     try {
@@ -524,10 +525,19 @@ export default function UserSettingsModal({ onClose }) {
     } catch (err) { setError(err.response?.data?.error || 'Erro.'); }
   };
   // Nome de usuário salva sozinho ~1s depois de parar de digitar.
+  // Mesmas regras do servidor (utils/usernameRules.js) — inclusive o
+  // intervalo de 7 dias entre trocas, avisado aqui antes de tentar.
   useEffect(() => {
     const value = username.trim();
     if (value === user.username) { setError(''); return undefined; }
-    if (value.length < 3) { setError('O nome de usuário precisa ter pelo menos 3 caracteres.'); return undefined; }
+    if (!/^[a-zA-Z0-9_.]{3,32}$/.test(value)) {
+      setError('A ClubTag deve ter de 3 a 32 caracteres: letras, números, _ ou ponto.');
+      return undefined;
+    }
+    if (usernameCooldownUntil) {
+      setError(`Você só pode trocar sua ClubTag uma vez a cada 7 dias. Próxima troca liberada em ${usernameCooldownUntil.toLocaleString('pt-BR')}.`);
+      return undefined;
+    }
     const id = setTimeout(() => saveUsername(value), 1000);
     return () => clearTimeout(id);
   }, [username]);
@@ -676,41 +686,8 @@ export default function UserSettingsModal({ onClose }) {
     openBannerEditor(file, 'mini');
   };
 
-  const start2FA = async () => {
-    setTwoFAError('');
-    try {
-      const data = await setup2FA();
-      setTwoFA({ ...data, code: '' });
-    } catch (err) {
-      setTwoFAError(err.response?.data?.error || 'Não foi possível começar a configuração do 2FA.');
-    }
-  };
-
-  const confirm2FASubmit = async () => {
-    setTwoFAError('');
-    try {
-      await confirm2FA(twoFA.code);
-      setUser({ ...user, twoFactorEnabled: true });
-      setTwoFA({ qrDataUrl: null, secret: null, code: '' });
-    } catch (err) { setTwoFAError(err.response?.data?.error || 'Código inválido.'); }
-  };
-
-  const turnOff2FA = async () => {
-    // BUG CORRIGIDO ("não funciona no PC, no celular sim"): window.
-    // prompt() é desabilitado por completo no Electron (decisão de
-    // design oficial do próprio projeto — nunca vai ser suportado),
-    // então sempre devolvia null ali, e essa ação simplesmente
-    // desistia sem nenhum aviso. Trocado pelo modal próprio do app
-    // (usePromptDialog.jsx), que funciona em qualquer plataforma.
-    const password = await promptAsync('Digite sua senha para desativar o 2FA:');
-    if (!password) return;
-    try {
-      await disable2FA(password);
-      setUser({ ...user, twoFactorEnabled: false });
-    } catch (err) {
-      setTwoFAError(err.response?.data?.error || 'Senha incorreta.');
-    }
-  };
+  // 2FA (configurar/desativar/códigos de recuperação) mora no componente
+  // TwoFactorBlock, mais abaixo neste arquivo.
 
   // "Onde estou logado" — loaded lazily the first time the Security tab is
   // actually opened, not on every settings modal mount, since it's an extra
@@ -884,6 +861,8 @@ export default function UserSettingsModal({ onClose }) {
       await changePassword(pwForm.current, pwForm.next);
       setPwForm({ current: '', next: '', confirm: '' });
       setPwSuccess(true);
+      // O servidor encerrou as outras sessões — a lista já reflete isso.
+      setSessions((s) => s?.filter((sess) => sess.isCurrent));
     } catch (err) {
       setPwError(err.response?.data?.error || 'Não foi possível trocar a senha.');
     } finally {
@@ -1592,7 +1571,10 @@ export default function UserSettingsModal({ onClose }) {
               </div>
             </label>
             <FieldError>{error}</FieldError>
-            <p className="dim settings-autosave-hint">Salvo automaticamente 1 segundo depois de parar de digitar. Pelo menos 3 caracteres, sem espaços.</p>
+            <p className="dim settings-autosave-hint">
+              Salvo automaticamente 1 segundo depois de parar de digitar. De 3 a 32 caracteres: letras, números, _ ou ponto. Só dá pra trocar uma vez a cada 7 dias.
+              {usernameCooldownUntil && ` Próxima troca liberada em ${usernameCooldownUntil.toLocaleString('pt-BR')}.`}
+            </p>
           </div>
 
           <div className="settings-block danger-zone">
@@ -1642,58 +1624,7 @@ export default function UserSettingsModal({ onClose }) {
             onSubmit={submitChangePassword}
           />
 
-          <div className="settings-block">
-            <h4 className="settings-h4-row">
-              Verificação em duas etapas (2FA)
-              {user.twoFactorEnabled
-                ? <span className="settings-chip is-ok"><SIcon name="shield" size={12} /> Ativada</span>
-                : <span className="settings-chip">Desativada</span>}
-            </h4>
-            {user.twoFactorEnabled ? (
-              <>
-                <p className="dim">Ao entrar, além da senha, pedimos um código do seu app autenticador.</p>
-                <FieldError>{twoFAError}</FieldError>
-                <div className="settings-inline-actions">
-                  <button className="btn-danger" onClick={turnOff2FA}>Desativar 2FA</button>
-                </div>
-              </>
-            ) : twoFA.qrDataUrl ? (
-              <div className="settings-2fa-setup">
-                <img src={twoFA.qrDataUrl} alt="QR code pra configurar o 2FA" width={168} height={168} className="settings-2fa-qr" />
-                <div className="settings-2fa-steps">
-                  <ol>
-                    <li>Abra seu app autenticador (Google Authenticator, Authy…).</li>
-                    <li>Escaneie o QR code ou digite a chave abaixo.</li>
-                    <li>Digite o código de 6 dígitos que aparecer.</li>
-                  </ol>
-                  <div className="settings-2fa-secret">
-                    <code>{twoFA.secret}</code>
-                    <button type="button" className="settings-icon-btn" title="Copiar chave" aria-label="Copiar chave" onClick={() => navigator.clipboard?.writeText(twoFA.secret).then(() => useStore.getState().pushNotice('Chave copiada.')).catch(() => {})}>
-                      <SIcon name="copy" size={14} />
-                    </button>
-                  </div>
-                  <input
-                    className="settings-code-input" placeholder="000000" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
-                    aria-label="Código de 6 dígitos" value={twoFA.code}
-                    onChange={(e) => setTwoFA((st) => ({ ...st, code: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && twoFA.code.length === 6) confirm2FASubmit(); }}
-                  />
-                  <FieldError>{twoFAError}</FieldError>
-                  <div className="settings-inline-actions">
-                    <button className="btn-primary" disabled={twoFA.code.length !== 6} onClick={confirm2FASubmit}>Confirmar e ativar</button>
-                    <button type="button" className="btn-link" onClick={() => { setTwoFA({ qrDataUrl: null, secret: null, code: '' }); setTwoFAError(''); }}>Cancelar</button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <>
-                <p className="dim">Além da senha, pede um código do seu app autenticador (Google Authenticator, Authy…) toda vez que você entrar. Protege sua conta mesmo se alguém descobrir a senha.</p>
-                <div className="settings-inline-actions">
-                  <button className="btn-primary" onClick={start2FA}>Configurar 2FA</button>
-                </div>
-              </>
-            )}
-          </div>
+          <TwoFactorBlock user={user} setUser={setUser} />
 
           <div className="settings-block">
             <h4 className="settings-h4-row">Sessões ativas {sessions && <span className="settings-chip">{sessions.length}</span>}</h4>
@@ -1707,8 +1638,12 @@ export default function UserSettingsModal({ onClose }) {
                     <div key={s.id} className={`session-row ${s.isCurrent ? 'is-current' : ''}`}>
                       <span className="settings-row-icon" aria-hidden="true"><SIcon name="monitor" /></span>
                       <div className="session-row-info">
-                        <div>{describeSession(s.userAgent)}{s.isCurrent && <span className="session-current-badge">Este dispositivo</span>}</div>
-                        <div className="dim">Desde {new Date(s.createdAt).toLocaleString('pt-BR')}</div>
+                        <div>{s.device || describeSession(s.userAgent)}{s.isCurrent && <span className="session-current-badge">Este dispositivo</span>}</div>
+                        <div className="dim">
+                          {s.ip ? `IP ${s.ip} · ` : ''}
+                          Último uso {new Date(s.lastUsedAt || s.createdAt).toLocaleString('pt-BR')}
+                        </div>
+                        <div className="dim">Conectado desde {new Date(s.createdAt).toLocaleString('pt-BR')}</div>
                       </div>
                       {!s.isCurrent && (
                         <button className="btn-secondary" disabled={revokingId === s.id} onClick={() => doRevokeSession(s.id)}>
@@ -1726,6 +1661,8 @@ export default function UserSettingsModal({ onClose }) {
               </>
             )}
           </div>
+
+          <BlockedUsersBlock />
         </div>
       )}
 
@@ -1994,6 +1931,13 @@ export default function UserSettingsModal({ onClose }) {
                     { value: 'none', label: 'Ninguém', hint: 'Conversas que já existem continuam abertas.' },
                   ]}
                 />
+              </div>
+              <div className="settings-block settings-toggle-row">
+                <div>
+                  <h4>Mostrar confirmação de leitura</h4>
+                  <p className="dim">Mostra "Visto" nas conversas diretas quando a pessoa lê sua mensagem. Desligado, você também não vê o "Visto" dos outros.</p>
+                </div>
+                <Toggle on={userSettings.showReadReceipts !== false} onChange={(v) => updateUserSetting('showReadReceipts', v)} label="Mostrar confirmação de leitura" />
               </div>
               <div className="settings-block">
                 <h4>Filtrar conteúdo</h4>
@@ -2889,6 +2833,293 @@ function DesktopOnlyChip() {
   return <span className="settings-chip"><SIcon name="monitor" size={12} /> Só no app de computador</span>;
 }
 
+// Verificação em duas etapas (aba Senha e segurança). Toda ação sensível
+// pede a senha atual num campo de senha de verdade (não no prompt
+// genérico, que mostrava a senha em texto puro): configurar, desativar
+// (senha + código do app OU um código de recuperação) e gerar códigos de
+// recuperação novos. Os códigos de recuperação aparecem UMA vez só —
+// logo depois de ativar ou de gerar novos — com botões de copiar/baixar.
+function TwoFactorBlock({ user, setUser }) {
+  const [setup, setSetup] = useState(null); // { qrDataUrl, secret } durante a configuração
+  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [mode, setMode] = useState(null); // null | 'setup-password' | 'disable' | 'regenerate'
+  const [useRecovery, setUseRecovery] = useState(false);
+  const [recoveryInput, setRecoveryInput] = useState('');
+  const [freshCodes, setFreshCodes] = useState(null); // códigos recém-gerados (mostrados uma vez)
+  const [remaining, setRemaining] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (!user.twoFactorEnabled) { setRemaining(null); return; }
+    getRecoveryCodesStatus().then((d) => setRemaining(d.remaining)).catch(() => {});
+  }, [user.twoFactorEnabled]);
+
+  const reset = () => {
+    setMode(null); setPassword(''); setCode(''); setRecoveryInput(''); setUseRecovery(false); setErr('');
+  };
+  const apiErr = (e, fallback) => e?.response?.data?.error || fallback;
+
+  const startSetup = async () => {
+    setErr(''); setBusy(true);
+    try {
+      const data = await setup2FA(password);
+      setSetup(data);
+      setMode(null); setPassword(''); setCode('');
+    } catch (e) { setErr(apiErr(e, 'Não foi possível começar a configuração do 2FA.')); } finally { setBusy(false); }
+  };
+
+  const confirmSetup = async () => {
+    setErr(''); setBusy(true);
+    try {
+      const data = await confirm2FA(code);
+      setUser({ ...user, twoFactorEnabled: true });
+      setSetup(null); setCode('');
+      setFreshCodes(data.recoveryCodes || null);
+      setRemaining(data.recoveryCodes?.length ?? null);
+    } catch (e) { setErr(apiErr(e, 'Código inválido.')); } finally { setBusy(false); }
+  };
+
+  const submitDisable = async () => {
+    setErr(''); setBusy(true);
+    try {
+      await disable2FA(password, useRecovery ? { recoveryCode: recoveryInput } : { code });
+      setUser({ ...user, twoFactorEnabled: false });
+      setFreshCodes(null);
+      reset();
+    } catch (e) { setErr(apiErr(e, 'Não foi possível desativar o 2FA.')); } finally { setBusy(false); }
+  };
+
+  const submitRegenerate = async () => {
+    setErr(''); setBusy(true);
+    try {
+      const data = await regenerateRecoveryCodes(password);
+      setFreshCodes(data.recoveryCodes);
+      setRemaining(data.recoveryCodes.length);
+      reset();
+    } catch (e) { setErr(apiErr(e, 'Não foi possível gerar novos códigos.')); } finally { setBusy(false); }
+  };
+
+  const codesText = () => [
+    'Project Club — códigos de recuperação da verificação em duas etapas',
+    `Conta: @${user.username}`,
+    `Gerados em: ${new Date().toLocaleString('pt-BR')}`,
+    '',
+    'Cada código funciona UMA vez. Guarde num lugar seguro.',
+    '',
+    ...(freshCodes || []),
+    '',
+  ].join('\n');
+  const copyCodes = () => navigator.clipboard?.writeText((freshCodes || []).join('\n'))
+    .then(() => useStore.getState().pushNotice('Códigos copiados.')).catch(() => {});
+  const downloadCodes = () => {
+    const blob = new Blob([codesText()], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'projectclub-codigos-de-recuperacao.txt';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const passwordField = (
+    <label>SENHA ATUAL
+      <input
+        type="password" autoComplete="current-password" value={password} autoFocus
+        onChange={(e) => setPassword(e.target.value)}
+      />
+    </label>
+  );
+
+  return (
+    <div className="settings-block">
+      <h4 className="settings-h4-row">
+        Verificação em duas etapas (2FA)
+        {user.twoFactorEnabled
+          ? <span className="settings-chip is-ok"><SIcon name="shield" size={12} /> Ativada</span>
+          : <span className="settings-chip">Desativada</span>}
+      </h4>
+
+      {freshCodes && (
+        <div className="settings-recovery-codes" role="region" aria-label="Códigos de recuperação">
+          <p><strong>Seus códigos de recuperação</strong></p>
+          <p className="dim">
+            Se você perder o celular com o app autenticador, entre com um destes códigos no lugar do código de 6 dígitos.
+            Cada um funciona <b>uma vez só</b>. Guarde num lugar seguro — eles <b>não</b> vão aparecer de novo.
+          </p>
+          <ol className="settings-recovery-list">
+            {freshCodes.map((c) => <li key={c}><code>{c}</code></li>)}
+          </ol>
+          <div className="settings-inline-actions">
+            <button type="button" className="btn-secondary" onClick={copyCodes}><SIcon name="copy" size={14} /> Copiar</button>
+            <button type="button" className="btn-secondary" onClick={downloadCodes}>Baixar .txt</button>
+            <button type="button" className="btn-primary" onClick={() => setFreshCodes(null)}>Já guardei</button>
+          </div>
+        </div>
+      )}
+
+      {user.twoFactorEnabled ? (
+        <>
+          <p className="dim">Ao entrar, além da senha, pedimos um código do seu app autenticador.</p>
+          {remaining !== null && (
+            <p className="dim settings-field-hint">
+              Códigos de recuperação restantes: <b>{remaining}</b>
+              {remaining <= 2 && ' — gere novos antes que acabem.'}
+            </p>
+          )}
+
+          {mode === 'disable' && (
+            <div className="settings-2fa-form">
+              {passwordField}
+              {useRecovery ? (
+                <label>CÓDIGO DE RECUPERAÇÃO
+                  <input value={recoveryInput} placeholder="xxxxx-xxxxx" autoComplete="off" spellCheck={false} maxLength={14} onChange={(e) => setRecoveryInput(e.target.value)} />
+                </label>
+              ) : (
+                <label>CÓDIGO DO APP AUTENTICADOR
+                  <input
+                    className="settings-code-input" placeholder="000000" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+                    value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  />
+                </label>
+              )}
+              <button type="button" className="btn-link settings-inline-link" onClick={() => { setUseRecovery((v) => !v); setErr(''); }}>
+                {useRecovery ? 'Usar o código do app' : 'Sem acesso ao app? Usar código de recuperação'}
+              </button>
+              <FieldError>{err}</FieldError>
+              <div className="settings-inline-actions">
+                <button
+                  className="btn-danger"
+                  disabled={busy || !password || (useRecovery ? !recoveryInput.trim() : code.length !== 6)}
+                  onClick={submitDisable}
+                >
+                  {busy ? '...' : 'Confirmar e desativar'}
+                </button>
+                <button type="button" className="btn-link" onClick={reset}>Cancelar</button>
+              </div>
+            </div>
+          )}
+
+          {mode === 'regenerate' && (
+            <div className="settings-2fa-form">
+              <p className="dim">Os códigos antigos (usados ou não) deixam de funcionar na hora.</p>
+              {passwordField}
+              <FieldError>{err}</FieldError>
+              <div className="settings-inline-actions">
+                <button className="btn-primary" disabled={busy || !password} onClick={submitRegenerate}>
+                  {busy ? '...' : 'Gerar novos códigos'}
+                </button>
+                <button type="button" className="btn-link" onClick={reset}>Cancelar</button>
+              </div>
+            </div>
+          )}
+
+          {!mode && (
+            <div className="settings-inline-actions">
+              <button className="btn-secondary" onClick={() => { reset(); setMode('regenerate'); }}>Gerar novos códigos de recuperação</button>
+              <button className="btn-danger" onClick={() => { reset(); setMode('disable'); }}>Desativar 2FA</button>
+            </div>
+          )}
+        </>
+      ) : setup ? (
+        <div className="settings-2fa-setup">
+          <img src={setup.qrDataUrl} alt="QR code pra configurar o 2FA" width={168} height={168} className="settings-2fa-qr" />
+          <div className="settings-2fa-steps">
+            <ol>
+              <li>Abra seu app autenticador (Google Authenticator, Authy…).</li>
+              <li>Escaneie o QR code ou digite a chave abaixo.</li>
+              <li>Digite o código de 6 dígitos que aparecer.</li>
+            </ol>
+            <div className="settings-2fa-secret">
+              <code>{setup.secret}</code>
+              <button type="button" className="settings-icon-btn" title="Copiar chave" aria-label="Copiar chave" onClick={() => navigator.clipboard?.writeText(setup.secret).then(() => useStore.getState().pushNotice('Chave copiada.')).catch(() => {})}>
+                <SIcon name="copy" size={14} />
+              </button>
+            </div>
+            <input
+              className="settings-code-input" placeholder="000000" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+              aria-label="Código de 6 dígitos" value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onKeyDown={(e) => { if (e.key === 'Enter' && code.length === 6) confirmSetup(); }}
+            />
+            <FieldError>{err}</FieldError>
+            <div className="settings-inline-actions">
+              <button className="btn-primary" disabled={busy || code.length !== 6} onClick={confirmSetup}>Confirmar e ativar</button>
+              <button type="button" className="btn-link" onClick={() => { setSetup(null); setCode(''); setErr(''); }}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="dim">Além da senha, pede um código do seu app autenticador (Google Authenticator, Authy…) toda vez que você entrar. Protege sua conta mesmo se alguém descobrir a senha.</p>
+          {mode === 'setup-password' ? (
+            <div className="settings-2fa-form">
+              {passwordField}
+              <FieldError>{err}</FieldError>
+              <div className="settings-inline-actions">
+                <button className="btn-primary" disabled={busy || !password} onClick={startSetup}>{busy ? '...' : 'Continuar'}</button>
+                <button type="button" className="btn-link" onClick={reset}>Cancelar</button>
+              </div>
+            </div>
+          ) : (
+            <div className="settings-inline-actions">
+              <button className="btn-primary" onClick={() => { reset(); setMode('setup-password'); }}>Configurar 2FA</button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// "Lista de bloqueados" (aba Senha e segurança): quem VOCÊ bloqueou, com
+// botão de desbloquear. Nunca mostra quem bloqueou você.
+function BlockedUsersBlock() {
+  const [blocked, setBlocked] = useState(null);
+  const [err, setErr] = useState('');
+  const [busyId, setBusyId] = useState(null);
+
+  useEffect(() => {
+    listBlockedUsers().then((d) => setBlocked(d.blocked)).catch(() => setErr('Não foi possível carregar sua lista de bloqueados.'));
+  }, []);
+
+  const doUnblock = async (userId) => {
+    setErr(''); setBusyId(userId);
+    try {
+      await unblockUser(userId);
+      setBlocked((list) => list?.filter((b) => b.user?.id !== userId));
+    } catch (e) {
+      setErr(e?.response?.data?.error || 'Não foi possível desbloquear.');
+    } finally { setBusyId(null); }
+  };
+
+  return (
+    <div className="settings-block">
+      <h4 className="settings-h4-row">Lista de bloqueados {blocked && <span className="settings-chip">{blocked.length}</span>}</h4>
+      <p className="dim">Pessoas bloqueadas não podem te mandar mensagem direta, nem te colocar em grupos, nem te mandar pedido de amizade.</p>
+      <FieldError>{err}</FieldError>
+      {blocked === null && !err && <SettingsSkeleton rows={2} />}
+      {blocked && blocked.length === 0 && <p className="dim">Você não bloqueou ninguém.</p>}
+      {blocked && blocked.length > 0 && (
+        <div className="sessions-list">
+          {blocked.map((b) => (
+            <div key={b.id} className="session-row">
+              <UserAvatar user={b.user} size={32} />
+              <div className="session-row-info">
+                <div>{b.user?.displayName}</div>
+                <div className="dim">@{b.user?.username} · bloqueado em {new Date(b.blockedAt).toLocaleDateString('pt-BR')}</div>
+              </div>
+              <button className="btn-secondary" disabled={busyId === b.user?.id} onClick={() => doUnblock(b.user?.id)}>
+                {busyId === b.user?.id ? '...' : 'Desbloquear'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Trocar senha (aba Senha e segurança): mostrar/esconder, requisitos ao
 // vivo e aviso certo sobre as sessões (o servidor encerra TODAS).
 function PasswordChangeBlock({ pwForm, setPwForm, pwError, pwSuccess, pwSaving, onSubmit }) {
@@ -2916,7 +3147,7 @@ function PasswordChangeBlock({ pwForm, setPwForm, pwError, pwSuccess, pwSaving, 
       )}
       <label>CONFIRME A SENHA NOVA<input type={type} autoComplete="new-password" value={pwForm.confirm} aria-invalid={!!mismatch} onChange={set('confirm')} /></label>
       {mismatch && <FieldError>As duas senhas novas não são iguais.</FieldError>}
-      <p className="dim settings-field-hint">Por segurança, trocar a senha encerra todas as sessões abertas — inclusive esta, quando ela expirar. Depois é só entrar de novo com a senha nova.</p>
+      <p className="dim settings-field-hint">Por segurança, trocar a senha encerra todas as outras sessões abertas (outros aparelhos e navegadores). Este dispositivo continua conectado.</p>
       <FieldError>{pwError}</FieldError>
       {pwSuccess && <span className="settings-field-ok" role="status"><SIcon name="check" size={13} /> Senha alterada com sucesso.</span>}
       <div className="settings-inline-actions">

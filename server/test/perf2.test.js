@@ -42,6 +42,7 @@ test('bootstrap: só reenvia seções que mudaram e marca as que falharam', asyn
   stub('controllers/platformController.js', { getStatus: h({ maintenanceMode: false, disabledSystems: [] }) });
   stub('controllers/announcementController.js', { getActiveAnnouncement: async (req, res) => res.status(500).json({ error: 'boom' }) });
   stub('controllers/eventsController.js', { listEvents: h({ events: [] }) });
+  stub('controllers/channelController.js', { getChannelStates: h({ states: {} }) });
   const { getBootstrap } = require(src('controllers/bootstrapController.js'));
   const call = (query) => new Promise((resolve, reject) => {
     const res = { set() { return this; }, json: resolve };
@@ -49,7 +50,7 @@ test('bootstrap: só reenvia seções que mudaram e marca as que falharam', asyn
   });
 
   const first = await call({});
-  assert.equal(Object.keys(first.data).length, 15); // 16 seções - 1 que falhou
+  assert.equal(Object.keys(first.data).length, 16); // 17 seções - 1 que falhou
   assert.deepEqual(first.failed, { announcement: 500 });
   assert.deepEqual(first.data.emojiCollections, { collections: ['EMOJI'] });
   assert.deepEqual(first.data.stickerCollections, { collections: ['STICKER'] });
@@ -69,8 +70,14 @@ test('bootstrap: só reenvia seções que mudaram e marca as que falharam', asyn
 // ---------- leitura de canal ----------
 test('markRead: no máximo 1 gravação por pessoa+canal a cada 2s, sem perder a última', async () => {
   const writes = [];
-  stub('config/prisma.js', { channelReadState: { upsert: async (q) => { writes.push(q.update.lastReadAt); return {}; } } });
-  for (const rel of ['controllers/categoryController.js', 'services/authz.js', 'services/permissions.js', 'utils/channelNames.js']) {
+  stub('config/prisma.js', {
+    channelReadState: { upsert: async (q) => { writes.push(q.update.lastReadAt); return {}; } },
+    // markRead agora confere VIEW_CHANNEL na 1ª gravação da janela.
+    channel: { findUnique: async () => ({ id: 'c1', isPrivate: false, categoryId: null }) },
+  });
+  stub('services/authz.js', new Proxy({ getEffectivePermissions: async () => 1n }, { get: (t, k) => (k in t ? t[k] : () => {}) }));
+  stub('services/permissions.js', new Proxy({ has: () => true }, { get: (t, k) => (k in t ? t[k] : () => {}) }));
+  for (const rel of ['controllers/categoryController.js', 'utils/channelNames.js']) {
     if (!require.cache[src(rel)]) stub(rel, new Proxy({}, { get: () => () => {} }));
   }
   delete require.cache[src('controllers/channelController.js')];

@@ -1,14 +1,17 @@
 const fs = require('fs');
 const prisma = require('../config/prisma');
 const { PUBLIC_USER_FIELDS } = require('./authController');
-const { getEffectivePermissions } = require('../services/authz');
+const { getEffectivePermissions, channelHasRestrictions } = require('../services/authz');
 const { has } = require('../services/permissions');
 const automod = require('../services/automod');
 const dmAutomod = require('../services/dmAutomod');
 const { canSendDirectMessage } = require('../services/dmPermissions');
 const xpService = require('../services/xp');
-const { parseMentions } = require('../services/mentions');
+const { resolveMentions } = require('../services/mentions');
 const { maybeSendOfflineEmail } = require('../services/offlineEmailNotifier');
+const { discardUploadedFiles } = require('../middleware/upload');
+const { maskUserStatus } = require('../utils/presenceVisibility');
+const { isValidReactionEmoji } = require('../utils/reactionEmoji');
 
 // Discord-style cap: once a message already has this many *distinct* emoji
 // reacted to it, nobody can pile on a brand new one — you can still toggle
@@ -90,13 +93,22 @@ const MESSAGE_AUTHOR_OMIT = new Set([
   'youtubeUrl', 'steamUrl', 'robloxUrl', 'xUrl', 'accountXp', 'displayedAchievements', 'displayedAchievementsMini',
   'idCardUrl', 'relationshipPartnerId', 'profileSectionOrder', 'profileSectionOpacity', 'levelBarColor',
   'miniProfileColor', 'miniProfileButtonColor', 'customStatusExpiresAt', 'profileEffect',
+  // Status vem do mapa de presença (presence:sync/update) — e no autor da
+  // mensagem ele vazava "INVISIBLE" pra todo mundo.
+  'status',
 ]);
 const MESSAGE_AUTHOR_FIELDS = Object.fromEntries(Object.entries(PUBLIC_USER_FIELDS).filter(([k]) => !MESSAGE_AUTHOR_OMIT.has(k)));
+
+// Quem reagiu / votou: o cliente só usa id e nome (ver utils/reactions.js
+// e o PollCard em Message.jsx) — antes cada reação/voto levava o perfil
+// de mensagem inteiro da pessoa (decoração, fonte, clã...), multiplicado
+// por todas as reações de todas as mensagens da página.
+const MINI_USER_FIELDS = { id: true, username: true, displayName: true, avatarUrl: true };
 
 const messageInclude = {
   author: { select: MESSAGE_AUTHOR_FIELDS },
   attachments: true,
-  reactions: { include: { user: { select: MESSAGE_AUTHOR_FIELDS } } },
+  reactions: { select: { id: true, emoji: true, userId: true, createdAt: true, user: { select: MINI_USER_FIELDS } } },
   replyTo: { include: { author: { select: MESSAGE_AUTHOR_FIELDS } } },
   mentions: { select: { targetType: true, targetId: true } },
   // Vote rows are intentionally not scoped to just the current user here —
@@ -104,7 +116,7 @@ const messageInclude = {
   // and show who voted for what (see Message.jsx's PollCard), and tallies
   // the current user's own pick client-side by matching userId against
   // their own id.
-  poll: { include: { votes: { select: { userId: true, optionIndex: true, user: { select: MESSAGE_AUTHOR_FIELDS } } } } },
+  poll: { include: { votes: { select: { userId: true, optionIndex: true, user: { select: MINI_USER_FIELDS } } } } },
 };
 
 async function assertAccess(req, { conversationId, channelId }, requireSend = false) {
@@ -191,10 +203,30 @@ function roomFor({ conversationId, channelId }) {
   return conversationId ? `conversation:${conversationId}` : `channel:${channelId}`;
 }
 
+const THREAD_MAX_REPLIES = 500;
+
 async function listMessages(req, res, next) {
   try {
     const { conversationId, channelId, topLevelOnly, threadId } = req.query;
-    await assertAccess(req, { conversationId, channelId });
+    // SEGURANÇA: com threadId, o acesso era checado só contra o
+    // channelId/conversationId informado — qualquer um com acesso a UM
+    // canal podia ler o tópico de um canal PRIVADO só passando o id dele
+    // junto do canal público. Agora a sala vem da própria mensagem-raiz
+    // e precisa bater com a que foi informada.
+    let threadRoot = null;
+    if (threadId) {
+      threadRoot = await prisma.message.findUnique({
+        where: { id: String(threadId) },
+        select: { id: true, channelId: true, conversationId: true, deleted: true },
+      });
+      if (!threadRoot) return res.status(404).json({ error: 'Tópico não encontrado.' });
+      if ((channelId && threadRoot.channelId !== channelId) || (conversationId && threadRoot.conversationId !== conversationId)) {
+        return res.status(404).json({ error: 'Tópico não encontrado.' });
+      }
+      await assertAccess(req, { conversationId: threadRoot.conversationId, channelId: threadRoot.channelId });
+    } else {
+      await assertAccess(req, { conversationId, channelId });
+    }
     const myFilter = await prisma.userSettings.findUnique({ where: { userId: req.user.id }, select: { contentFilterLevel: true } });
     // BUG CORRIGIDO: o valor de reserva dizia 'off' (filtro
     // desativado), mas o padrão de verdade do schema é 'moderate'
@@ -203,27 +235,44 @@ async function listMessages(req, res, next) {
     // engano em vez de vir ativado no nível padrão.
     const filterLevel = myFilter?.contentFilterLevel || 'moderate';
 
-    if (threadId) {
-      // Whole thread: the root post + every reply to it (forum channels).
-      const messages = await prisma.message.findMany({
-        where: { OR: [{ id: threadId }, { replyToId: threadId }], deleted: false },
-        include: messageInclude,
-        orderBy: { createdAt: 'asc' },
-      });
-      return res.json({ messages: applyContentFilter(messages, filterLevel) });
+    if (threadRoot) {
+      // Tópico inteiro: a raiz + respostas (canais de fórum). Limitado às
+      // 500 respostas mais recentes — antes não tinha teto nenhum.
+      const [root, replies] = await Promise.all([
+        prisma.message.findUnique({ where: { id: threadRoot.id }, include: messageInclude }),
+        prisma.message.findMany({
+          where: { replyToId: threadRoot.id, deleted: false },
+          include: messageInclude,
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: THREAD_MAX_REPLIES,
+        }),
+      ]);
+      const messages = [root && !root.deleted ? root : null, ...replies.reverse()].filter(Boolean);
+      return res.json({ messages: applyContentFilter(messages, filterLevel), truncated: replies.length >= THREAD_MAX_REPLIES });
     }
 
+    // Cursor (createdAt, id): só a data empatava quando duas mensagens
+    // tinham o mesmo milissegundo (comum em rajadas/bots) e uma delas
+    // sumia na paginação. `beforeId` (opcional) desempata; sem ele,
+    // continua aceitando o cursor antigo só por data.
     const before = req.query.before ? new Date(req.query.before) : undefined;
+    const beforeId = typeof req.query.beforeId === 'string' ? req.query.beforeId : null;
+    let cursorWhere = {};
+    if (before && !Number.isNaN(before.getTime())) {
+      cursorWhere = beforeId
+        ? { OR: [{ createdAt: { lt: before } }, { createdAt: before, id: { lt: beforeId } }] }
+        : { createdAt: { lt: before } };
+    }
     const messages = await prisma.message.findMany({
       where: {
         conversationId: conversationId || undefined,
         channelId: channelId || undefined,
         deleted: false,
         ...(topLevelOnly === 'true' ? { replyToId: null } : {}),
-        ...(before ? { createdAt: { lt: before } } : {}),
+        ...cursorWhere,
       },
       include: messageInclude,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 50,
     });
     res.json({ messages: applyContentFilter(messages.reverse(), filterLevel) });
@@ -261,9 +310,85 @@ function fitVarchar(value, max = 191) {
   return str.slice(0, max - ext.length) + ext;
 }
 
-async function createMessage(req, res, next) {
+// Teto simples de anexos por pessoa (memória do processo): no máximo 60
+// arquivos a cada 10 minutos. Barra alguém despejando uploads em loop sem
+// atrapalhar quem manda um álbum de fotos de vez em quando.
+const UPLOAD_WINDOW_MS = 10 * 60 * 1000;
+const UPLOAD_MAX_FILES_PER_WINDOW = 60;
+const uploadCounters = new Map(); // userId -> { start, count }
+function checkUploadBudget(userId, files) {
+  const now = Date.now();
+  let entry = uploadCounters.get(userId);
+  if (!entry || now - entry.start > UPLOAD_WINDOW_MS) {
+    entry = { start: now, count: 0 };
+    uploadCounters.set(userId, entry);
+  }
+  if (entry.count + files > UPLOAD_MAX_FILES_PER_WINDOW) {
+    const e = new Error('Você enviou arquivos demais em pouco tempo. Espere alguns minutos.');
+    e.status = 429;
+    throw e;
+  }
+  entry.count += files;
+  if (uploadCounters.size > 5000) {
+    for (const [k, v] of uploadCounters) if (now - v.start > UPLOAD_WINDOW_MS) uploadCounters.delete(k);
+  }
+}
+
+function roomFromQuery(query) {
+  const conversationId = typeof query.conversationId === 'string' && query.conversationId ? query.conversationId : undefined;
+  const channelId = typeof query.channelId === 'string' && query.channelId ? query.channelId : undefined;
+  return { conversationId, channelId };
+}
+
+// SEGURANÇA/DESEMPENHO: roda ANTES do multer em POST /messages. O cliente
+// manda a sala também na query (?channelId= / ?conversationId=) — assim a
+// permissão de envio, silêncio temporário, modo lento e filtro de spam são
+// checados antes de qualquer byte de anexo ser recebido e enviado pro B2.
+// Sem a sala na query (cliente antigo em cache), segue o fluxo antigo:
+// checa depois e apaga os arquivos se recusar.
+async function precheckCreateMessage(req, res, next) {
   try {
-    const { conversationId, channelId, replyToId } = req.body;
+    const room = roomFromQuery(req.query);
+    if (!room.conversationId && !room.channelId) return next();
+    const access = await assertAccess(req, room, true);
+    if (!(access?.perms && has(access.perms, 'MANAGE_MESSAGES'))) {
+      await checkSpamLimits(req, room, null);
+    }
+    // Já estourou o teto de anexos? Recusa antes de receber mais arquivos.
+    const budget = uploadCounters.get(req.user.id);
+    if (budget && Date.now() - budget.start <= UPLOAD_WINDOW_MS && budget.count >= UPLOAD_MAX_FILES_PER_WINDOW
+      && /multipart\/form-data/i.test(req.headers['content-type'] || '')) {
+      return res.status(429).json({ error: 'Você enviou arquivos demais em pouco tempo. Espere alguns minutos.' });
+    }
+    req.precheckedRoom = room;
+    next();
+  } catch (err) { next(err); }
+}
+
+async function createMessage(req, res, next) {
+  let failed = true;
+  try {
+    failed = !(await createMessageInner(req, res));
+  } catch (err) {
+    if (req.files?.length) await discardUploadedFiles(req).catch(() => {});
+    return next(err);
+  }
+  if (failed && req.files?.length) discardUploadedFiles(req).catch(() => {});
+}
+
+// Devolve true quando a mensagem foi criada (os anexos passam a pertencer
+// a ela); qualquer outra saída faz o wrapper acima apagar os arquivos que
+// o multer já tinha enviado.
+async function createMessageInner(req, res) {
+  {
+    const { conversationId, channelId } = req.body;
+    const replyToId = req.body.replyToId || null;
+    if (req.precheckedRoom && (
+      (req.precheckedRoom.conversationId || undefined) !== (conversationId || undefined)
+      || (req.precheckedRoom.channelId || undefined) !== (channelId || undefined))) {
+      res.status(400).json({ error: 'Sala da mensagem não confere.' });
+      return false;
+    }
     const title = req.body.title ? (fitVarchar(String(req.body.title).trim()) || null) : req.body.title;
     let content = normalizeContent(req.body.content);
     const access = await assertAccess(req, { conversationId, channelId }, true);
@@ -273,8 +398,22 @@ async function createMessage(req, res, next) {
     // de qualquer processamento mais pesado (upload, automod, etc).
     // Moderadores de canal (MANAGE_MESSAGES) ficam de fora do limite,
     // mesmo raciocínio do Modo Lento acima.
+    // (Com a pré-checagem já feita antes do upload, só falta a parte de
+    // "mesma mensagem repetida", que depende do texto.)
     if (!(access?.perms && has(access.perms, 'MANAGE_MESSAGES'))) {
       await checkSpamLimits(req, { conversationId, channelId }, content || null);
+    }
+    if (req.files?.length) checkUploadBudget(req.user.id, req.files.length);
+
+    // A mensagem respondida precisa estar na MESMA sala — antes dava pra
+    // "responder" uma mensagem de um canal privado/DM alheia e o
+    // messageInclude devolvia o conteúdo dela (replyTo) pra todo mundo.
+    if (replyToId) {
+      const target = await prisma.message.findUnique({ where: { id: String(replyToId) }, select: { channelId: true, conversationId: true } });
+      if (!target || (target.channelId || null) !== (channelId || null) || (target.conversationId || null) !== (conversationId || null)) {
+        res.status(400).json({ error: 'A mensagem respondida não está nesta conversa.' });
+        return false;
+      }
     }
 
     // Embed builder (see EmbedBuilderModal.jsx) — arrives as a JSON string
@@ -337,7 +476,8 @@ async function createMessage(req, res, next) {
     }
 
     if (!content && !title && !embed && !stickerUrl && (!req.files || req.files.length === 0)) {
-      return res.status(400).json({ error: 'Mensagem vazia.' });
+      res.status(400).json({ error: 'Mensagem vazia.' });
+      return false;
     }
 
     // Multer's own limit (ver middleware/upload.js) — sem mais sistema de
@@ -348,12 +488,9 @@ async function createMessage(req, res, next) {
       const tooBig = req.files.find((f) => f.size > maxBytes);
       if (tooBig) {
         // Os arquivos já foram enviados pro B2 (ou disco) nesse ponto —
-        // o motor de armazenamento do multer sobe cada um assim que
-        // termina de receber, antes desse controller rodar — então
-        // "limpar" agora significa excluir de verdade (B2 + metadado no
-        // MySQL), não só apagar um arquivo temporário local.
-        for (const f of req.files) { await deleteFile(f.filename); }
-        return res.status(400).json({ error: `Arquivos têm limite de ${maxUploadMB}MB.` });
+        // o wrapper createMessage apaga todos ao ver o `false`.
+        res.status(400).json({ error: `Arquivos têm limite de ${maxUploadMB}MB.` });
+        return false;
       }
     }
 
@@ -392,7 +529,8 @@ async function createMessage(req, res, next) {
     // usual SEND_MESSAGES) — gated behind its own permission so a server can
     // let people chat without letting everyone spin up topics.
     if (access?.perms && title && replyToId && !has(access.perms, 'CREATE_TOPICS')) {
-      return res.status(403).json({ error: 'Você não tem permissão para criar tópicos neste canal.' });
+      res.status(403).json({ error: 'Você não tem permissão para criar tópicos neste canal.' });
+      return false;
     }
 
     if (access?.channel && content && !has(access.perms, 'MENTION_EVERYONE')) {
@@ -407,31 +545,27 @@ async function createMessage(req, res, next) {
       });
       if (trigger) {
         await automod.applyAction(io, { userId: req.user.id, rule: trigger.rule, reason: trigger.reason });
-        return res.status(400).json({ error: `Mensagem bloqueada pelo AutoMod: ${trigger.reason}`, automod: true });
+        res.status(400).json({ error: `Mensagem bloqueada pelo AutoMod: ${trigger.reason}`, automod: true });
+        return false;
       }
     }
 
     // Automod de DM (distinto do automod de canal acima) — convite de
     // outra plataforma NUNCA chega a ser enviado; ver services/dmAutomod.js.
     if (conversationId && dmAutomod.containsInviteLink(content)) {
-      return res.status(400).json({ error: 'Não é permitido enviar links de convite de outras plataformas nas mensagens diretas.' });
+      res.status(400).json({ error: 'Não é permitido enviar links de convite de outras plataformas nas mensagens diretas.' });
+      return false;
     }
 
     // Resolve @mentions contra os membros/cargos reais da comunidade, para
     // que as MessageMention fiquem precisas (não apenas texto batendo) —
     // alimenta o indicador de "não lido com menção" na lista de canais.
+    // Só os nomes que aparecem depois de "@" vão pro banco (ver
+    // services/mentions.js resolveMentions) — antes carregava TODOS os
+    // usuários + cargos a cada mensagem com "@".
     let mentionRows = [];
-    // Toda menção começa com "@" (ver services/mentions.js) — sem nenhum
-    // "@" no texto não tem o que procurar. Antes isso carregava TODOS os
-    // usuários + cargos do banco e montava uma regex por pessoa em TODA
-    // mensagem de canal, atrasando o envio à toa.
     if (access?.channel && content && content.includes('@')) {
-      const [members, roles] = await Promise.all([
-        prisma.user.findMany({ select: { id: true, displayName: true } }),
-        prisma.role.findMany(),
-      ]);
-      const memberList = members.map((m) => ({ id: m.id, displayName: m.displayName }));
-      mentionRows = parseMentions(content, { members: memberList, roles });
+      mentionRows = await resolveMentions(prisma, content);
     }
 
     const message = await prisma.message.create({
@@ -441,7 +575,7 @@ async function createMessage(req, res, next) {
         authorId: req.user.id,
         conversationId: conversationId || null,
         channelId: channelId || null,
-        replyToId: replyToId || null,
+        replyToId,
         embed: embed ? JSON.stringify(embed) : null,
         stickerUrl,
         quickReactions,
@@ -474,6 +608,15 @@ async function createMessage(req, res, next) {
     const outgoing = nonce ? { ...message, nonce } : message;
     io?.to(roomFor({ conversationId, channelId })).emit('message:new', outgoing);
     res.status(201).json({ message: outgoing });
+
+    // Menção/resposta em canal que a pessoa NÃO está olhando: message:new
+    // só vai pra sala do canal aberto, então quem foi mencionado em outro
+    // canal não ficava sabendo em tempo real. Aviso leve na sala pessoal.
+    if (access?.channel) {
+      notifyChannelMentions(io, { message, channel: access.channel, mentionRows }).catch((err) => {
+        console.error('[mention] falha ao avisar menções:', err.message);
+      });
+    }
 
     // Item pedido: "push notification de verdade no Android, mesmo com o
     // app fechado" — manda pra quem foi diretamente @mencionado (nunca
@@ -544,7 +687,14 @@ async function createMessage(req, res, next) {
           if (result?.levelUp) {
             io?.notifyUser?.(req.user.id, 'xp:levelup', result);
             prisma.user.findUnique({ where: { id: req.user.id }, select: PUBLIC_USER_FIELDS })
-              .then((u) => u && io?.to('community').emit('user:update', u))
+              .then((u) => {
+                if (!u || !io) return;
+                // "Invisível" só vai cru pra própria pessoa.
+                if (u.status === 'INVISIBLE') {
+                  io.to(`user:${u.id}`).emit('user:update', u);
+                  io.to('community').except(`user:${u.id}`).emit('user:update', maskUserStatus(u, null));
+                } else io.to('community').emit('user:update', u);
+              })
               .catch(() => {});
             require('../services/achievements').checkAndUnlock(req.user.id, io); // veterano / lenda_viva
           }
@@ -553,7 +703,57 @@ async function createMessage(req, res, next) {
     }
     // Missões (Economia): mensagem em canal conta pras missões de mensagens.
     if (channelId) require('../services/missions').track(req.user.id, 'MESSAGES', 1, io);
-  } catch (err) { next(err); }
+    return true;
+  }
+}
+
+// Teto de pessoas avisadas individualmente por mensagem (menção de cargo
+// grande); @everyone/@here nunca viram aviso individual — só um "ping" do
+// canal pra sala da comunidade, que cada cliente filtra pelo que vê.
+const MENTION_NOTIFY_CAP = 200;
+async function notifyChannelMentions(io, { message, channel, mentionRows }) {
+  if (!io) return;
+  const authorId = message.authorId;
+  const userIds = new Set();
+  const replyTargetId = message.replyTo?.authorId && message.replyTo.authorId !== authorId ? message.replyTo.authorId : null;
+  mentionRows.filter((m) => m.targetType === 'USER' && m.targetId).forEach((m) => userIds.add(m.targetId));
+  const roleIds = mentionRows.filter((m) => m.targetType === 'ROLE' && m.targetId).map((m) => m.targetId);
+  if (roleIds.length) {
+    const holders = await prisma.userRole.findMany({
+      where: { roleId: { in: roleIds } }, select: { userId: true }, distinct: ['userId'], take: MENTION_NOTIFY_CAP,
+    });
+    holders.forEach((h) => userIds.add(h.userId));
+  }
+  if (replyTargetId) userIds.add(replyTargetId);
+  userIds.delete(authorId);
+
+  const base = {
+    messageId: message.id,
+    channelId: channel.id,
+    channelName: channel.name,
+    authorId,
+    authorName: message.author?.displayName || 'Alguém',
+    preview: (message.content || '').slice(0, 140),
+    createdAt: message.createdAt,
+  };
+
+  // Canal com sobrescritas de permissão: só avisa quem pode VER o canal
+  // (nunca vaza nome/prévia de canal privado). Canal comum: todo mundo vê.
+  const restricted = await channelHasRestrictions(channel);
+  const targets = [...userIds].slice(0, MENTION_NOTIFY_CAP);
+  for (const uid of targets) {
+    if (restricted) {
+      // eslint-disable-next-line no-await-in-loop
+      const perms = await getEffectivePermissions(uid, channel.id, channel).catch(() => null);
+      if (!perms || !has(perms, 'VIEW_CHANNEL')) continue;
+    }
+    const isMention = mentionRows.some((m) => (m.targetType === 'USER' && m.targetId === uid)) || roleIds.length > 0;
+    io.to(`user:${uid}`).emit('mention:new', { ...base, reply: uid === replyTargetId && !isMention });
+  }
+
+  if (!restricted && mentionRows.some((m) => m.targetType === 'EVERYONE' || m.targetType === 'HERE')) {
+    io.to('community').emit('channel:ping', { channelId: channel.id, messageId: message.id, authorId, createdAt: message.createdAt });
+  }
 }
 
 // Sets/replaces the cover image on a forum post the caller authored (see
@@ -580,19 +780,173 @@ async function setPostIcon(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Editar passa pelas MESMAS regras do envio: acesso ao canal/DM ainda
+// válido, silêncio temporário, AutoMod, @everyone sem permissão vira
+// texto comum e as menções são recalculadas. Antes dava pra mandar algo
+// inofensivo e editar pra um texto que o AutoMod teria barrado, ou pra
+// um @everyone sem ter a permissão.
+const MAX_EDIT_HISTORY = 50;
 async function editMessage(req, res, next) {
   try {
     const { id } = req.params;
-    const content = normalizeContent(req.body.content);
-    const existing = await prisma.message.findUnique({ where: { id } });
-    if (!existing || existing.authorId !== req.user.id) return res.status(403).json({ error: 'Sem permissão.' });
-
-    const message = await prisma.message.update({
-      where: { id }, data: { content, edited: true }, include: messageInclude,
+    let content = normalizeContent(req.body?.content);
+    const existing = await prisma.message.findUnique({
+      where: { id },
+      include: { attachments: { select: { id: true } } },
     });
+    if (!existing || existing.deleted || existing.authorId !== req.user.id) return res.status(403).json({ error: 'Sem permissão.' });
+    if (!content && !existing.attachments.length && !existing.embed && !existing.stickerUrl && !existing.title) {
+      return res.status(400).json({ error: 'A mensagem não pode ficar vazia — apague-a em vez disso.' });
+    }
+    if ((content || null) === (existing.content || null)) {
+      const same = await prisma.message.findUnique({ where: { id }, include: messageInclude });
+      return res.json({ message: same });
+    }
+
+    const room = { conversationId: existing.conversationId, channelId: existing.channelId };
+    // requireSend: canal → SEND_MESSAGES + silêncio temporário (o modo
+    // lento não se aplica a edição); DM → ainda pode mandar mensagem.
+    let access;
+    if (room.channelId) {
+      const channel = await prisma.channel.findUnique({ where: { id: room.channelId } });
+      if (!channel) return res.status(404).json({ error: 'Canal não encontrado.' });
+      const perms = await getEffectivePermissions(req.user.id, channel.id, channel);
+      if (!has(perms, 'VIEW_CHANNEL') || !has(perms, 'SEND_MESSAGES')) {
+        return res.status(403).json({ error: 'Você não pode mais editar mensagens neste canal.' });
+      }
+      const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { timeoutUntil: true } });
+      if (me?.timeoutUntil && new Date(me.timeoutUntil) > new Date()) {
+        return res.status(403).json({ error: `Você está em silêncio temporário até ${new Date(me.timeoutUntil).toLocaleString('pt-BR')}.` });
+      }
+      access = { channel, perms };
+    } else {
+      access = await assertAccess(req, room, true);
+    }
+
     const io = req.app.get('io');
+    if (access?.channel) {
+      if (content && !has(access.perms, 'MENTION_EVERYONE')) content = stripUnauthorizedMentions(content);
+      const trigger = await automod.checkMessage({ channelId: access.channel.id, userId: req.user.id, content });
+      if (trigger) {
+        await automod.applyAction(io, { userId: req.user.id, rule: trigger.rule, reason: trigger.reason });
+        return res.status(400).json({ error: `Edição bloqueada pelo AutoMod: ${trigger.reason}`, automod: true });
+      }
+    }
+    if (room.conversationId && dmAutomod.containsInviteLink(content)) {
+      return res.status(400).json({ error: 'Não é permitido enviar links de convite de outras plataformas nas mensagens diretas.' });
+    }
+
+    const mentionRows = access?.channel && content && content.includes('@') ? await resolveMentions(prisma, content) : [];
+    const oldMentionKeys = new Set((await prisma.messageMention.findMany({ where: { messageId: id }, select: { targetType: true, targetId: true } }))
+      .map((m) => `${m.targetType}:${m.targetId}`));
+
+    const [, , , message] = await prisma.$transaction([
+      // Histórico: guarda o texto ANTERIOR (o atual vive na própria mensagem).
+      prisma.messageEdit.create({ data: { messageId: id, content: existing.content } }),
+      prisma.messageMention.deleteMany({ where: { messageId: id } }),
+      prisma.messageMention.createMany({ data: mentionRows.map((m) => ({ messageId: id, targetType: m.targetType, targetId: m.targetId })) }),
+      prisma.message.update({ where: { id }, data: { content, edited: true }, include: messageInclude }),
+    ]);
+    // Mantém só as últimas MAX_EDIT_HISTORY versões.
+    prisma.messageEdit.findMany({ where: { messageId: id }, orderBy: { editedAt: 'desc' }, skip: MAX_EDIT_HISTORY, select: { id: true } })
+      .then((old) => old.length && prisma.messageEdit.deleteMany({ where: { id: { in: old.map((o) => o.id) } } }))
+      .catch(() => {});
+
     io?.to(roomFor(existing)).emit('message:update', message);
     res.json({ message });
+
+    // Só quem passou a ser mencionado AGORA recebe aviso (editar não
+    // repete a notificação de quem já tinha sido mencionado).
+    if (access?.channel) {
+      const fresh = mentionRows.filter((m) => !oldMentionKeys.has(`${m.targetType}:${m.targetId}`));
+      if (fresh.length) {
+        notifyChannelMentions(io, { message: { ...message, replyTo: null }, channel: access.channel, mentionRows: fresh })
+          .catch((err) => console.error('[mention] falha ao avisar menções da edição:', err.message));
+      }
+    }
+  } catch (err) { next(err); }
+}
+
+// GET /messages/:id/edits — versões anteriores de uma mensagem (a mais
+// recente primeiro). Mesmo controle de acesso de ler a mensagem.
+async function listEdits(req, res, next) {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.message.findUnique({ where: { id }, select: { id: true, channelId: true, conversationId: true, deleted: true, content: true, updatedAt: true, edited: true } });
+    if (!existing || existing.deleted) return res.status(404).json({ error: 'Mensagem não encontrada.' });
+    await assertAccess(req, { conversationId: existing.conversationId, channelId: existing.channelId });
+    const edits = await prisma.messageEdit.findMany({
+      where: { messageId: id }, orderBy: { editedAt: 'desc' }, take: MAX_EDIT_HISTORY,
+      select: { id: true, content: true, editedAt: true },
+    });
+    res.json({ current: { content: existing.content, editedAt: existing.edited ? existing.updatedAt : null }, edits });
+  } catch (err) { next(err); }
+}
+
+// POST /messages/:id/forward { channelId | conversationId } — "Encaminhar".
+// Precisa poder VER a mensagem original e ENVIAR no destino. Cria uma
+// mensagem nova (autor = quem encaminhou) com o texto e as referências
+// dos anexos da original + metadados de onde veio (forwardedFrom).
+async function forwardMessage(req, res, next) {
+  try {
+    const { id } = req.params;
+    const target = roomFromQuery(req.body || {});
+    if (!!target.channelId === !!target.conversationId) return res.status(400).json({ error: 'Escolha um canal ou uma conversa.' });
+    const original = await prisma.message.findUnique({
+      where: { id },
+      include: { attachments: true, author: { select: { id: true, displayName: true } }, channel: { select: { id: true, name: true } } },
+    });
+    if (!original || original.deleted) return res.status(404).json({ error: 'Mensagem não encontrada.' });
+    await assertAccess(req, { conversationId: original.conversationId, channelId: original.channelId });
+    const access = await assertAccess(req, target, true);
+    if (!(access?.perms && has(access.perms, 'MANAGE_MESSAGES'))) await checkSpamLimits(req, target, null);
+    if (!original.content && !original.attachments.length && !original.stickerUrl && !original.embed) {
+      return res.status(400).json({ error: 'Essa mensagem não tem conteúdo para encaminhar.' });
+    }
+
+    let content = original.content || null;
+    // Encaminhar nunca vira menção em massa no destino.
+    if (content) content = stripUnauthorizedMentions(content);
+    const io = req.app.get('io');
+    if (access?.channel) {
+      const trigger = await automod.checkMessage({ channelId: access.channel.id, userId: req.user.id, content });
+      if (trigger) {
+        await automod.applyAction(io, { userId: req.user.id, rule: trigger.rule, reason: trigger.reason });
+        return res.status(400).json({ error: `Mensagem bloqueada pelo AutoMod: ${trigger.reason}`, automod: true });
+      }
+    }
+    if (target.conversationId && dmAutomod.containsInviteLink(content)) {
+      return res.status(400).json({ error: 'Não é permitido enviar links de convite de outras plataformas nas mensagens diretas.' });
+    }
+
+    const forwardedFrom = {
+      messageId: original.id,
+      authorId: original.authorId,
+      authorName: original.author?.displayName || 'Alguém',
+      channelId: original.channelId || null,
+      channelName: original.channel?.name || null,
+      conversationId: original.conversationId || null,
+      createdAt: original.createdAt,
+    };
+    const message = await prisma.message.create({
+      data: {
+        content,
+        authorId: req.user.id,
+        conversationId: target.conversationId || null,
+        channelId: target.channelId || null,
+        embed: original.embed || null,
+        stickerUrl: original.stickerUrl || null,
+        forwardedFrom: JSON.stringify(forwardedFrom),
+        attachments: {
+          create: original.attachments.map((a) => ({
+            url: a.url, filename: a.filename, mimeType: a.mimeType, size: a.size, isSpoiler: a.isSpoiler,
+          })),
+        },
+      },
+      include: messageInclude,
+    });
+    io?.to(roomFor(target)).emit('message:new', message);
+    res.status(201).json({ message });
   } catch (err) { next(err); }
 }
 
@@ -732,7 +1086,8 @@ async function toggleArchiveTopic(req, res, next) {
 async function react(req, res, next) {
   try {
     const { id } = req.params;
-    const { emoji } = req.body;
+    const { emoji } = req.body || {};
+    if (!isValidReactionEmoji(emoji)) return res.status(400).json({ error: 'Emoji inválido.' });
     const existing = await prisma.message.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Mensagem não encontrada.' });
 
@@ -777,30 +1132,88 @@ async function react(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Filtros da busca (estilo Discord), misturados ao texto livre:
+//   from:@nome  from:nome   has:file|image|link|video   before:AAAA-MM-DD   after:AAAA-MM-DD
+// O resto vira o texto procurado (LIKE). Paginação por cursor
+// (createdAt,id) de 25 em 25.
+const SEARCH_PAGE = 25;
+function parseSearchQuery(raw) {
+  const out = { text: '', from: null, has: new Set(), before: null, after: null };
+  const rest = [];
+  const tokens = String(raw || '').slice(0, 300).match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+  for (const tok of tokens) {
+    const m = tok.match(/^(from|has|before|after|de|tem|antes|depois):(.+)$/i);
+    if (!m) { rest.push(tok.replace(/^"|"$/g, '')); continue; }
+    const key = { de: 'from', tem: 'has', antes: 'before', depois: 'after' }[m[1].toLowerCase()] || m[1].toLowerCase();
+    const val = m[2].replace(/^"|"$/g, '');
+    if (key === 'from') out.from = val.replace(/^@/, '').slice(0, 64);
+    else if (key === 'has') {
+      const v = { arquivo: 'file', imagem: 'image', video: 'video', vídeo: 'video' }[val.toLowerCase()] || val.toLowerCase();
+      if (['file', 'image', 'link', 'video'].includes(v)) out.has.add(v);
+    } else {
+      const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(val) ? `${val}T00:00:00` : val);
+      if (!Number.isNaN(d.getTime())) out[key] = d;
+    }
+  }
+  out.text = rest.join(' ').trim();
+  return out;
+}
+
 async function searchMessages(req, res, next) {
   try {
     const { conversationId, channelId, q } = req.query;
     await assertAccess(req, { conversationId, channelId });
-    if (!q || q.trim().length < 2) return res.json({ messages: [] });
+    const parsed = parseSearchQuery(q);
+    const hasFilters = parsed.from || parsed.has.size || parsed.before || parsed.after;
+    if (!hasFilters && parsed.text.length < 2) return res.json({ messages: [], nextCursor: null });
+
+    const and = [];
+    if (parsed.text) and.push({ content: { contains: parsed.text } });
+    if (parsed.before) and.push({ createdAt: { lt: parsed.before } });
+    if (parsed.after) and.push({ createdAt: { gt: new Date(parsed.after.getTime() + 24 * 3600 * 1000 - 1) } });
+    if (parsed.from) {
+      const authors = await prisma.user.findMany({
+        where: { OR: [{ username: parsed.from }, { displayName: parsed.from }] }, select: { id: true }, take: 10,
+      });
+      if (!authors.length) return res.json({ messages: [], nextCursor: null });
+      and.push({ authorId: { in: authors.map((a) => a.id) } });
+    }
+    if (parsed.has.has('file')) and.push({ attachments: { some: {} } });
+    if (parsed.has.has('image')) and.push({ attachments: { some: { mimeType: { startsWith: 'image/' } } } });
+    if (parsed.has.has('video')) and.push({ attachments: { some: { mimeType: { startsWith: 'video/' } } } });
+    if (parsed.has.has('link')) and.push({ OR: [{ content: { contains: 'http://' } }, { content: { contains: 'https://' } }] });
+
+    // Cursor "createdAtISO|id" da página anterior.
+    const [cAt, cId] = typeof req.query.cursor === 'string' ? req.query.cursor.split('|') : [];
+    const cursorDate = cAt ? new Date(cAt) : null;
+    if (cursorDate && !Number.isNaN(cursorDate.getTime()) && cId) {
+      and.push({ OR: [{ createdAt: { lt: cursorDate } }, { createdAt: cursorDate, id: { lt: cId } }] });
+    }
 
     const myFilter = await prisma.userSettings.findUnique({ where: { userId: req.user.id }, select: { contentFilterLevel: true } });
-
-    const messages = await prisma.message.findMany({
+    const rows = await prisma.message.findMany({
       where: {
         conversationId: conversationId || undefined,
         channelId: channelId || undefined,
         deleted: false,
-        content: { contains: q },
+        AND: and,
       },
       include: messageInclude,
-      orderBy: { createdAt: 'desc' },
-      take: 50,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: SEARCH_PAGE + 1,
     });
-    res.json({ messages: applyContentFilter(messages, myFilter?.contentFilterLevel || 'moderate') });
+    const hasMore = rows.length > SEARCH_PAGE;
+    const messages = hasMore ? rows.slice(0, SEARCH_PAGE) : rows;
+    const last = messages[messages.length - 1];
+    res.json({
+      messages: applyContentFilter(messages, myFilter?.contentFilterLevel || 'moderate'),
+      nextCursor: hasMore && last ? `${new Date(last.createdAt).toISOString()}|${last.id}` : null,
+    });
   } catch (err) { next(err); }
 }
 
 module.exports = {
-  listMessages, listPinned, createMessage, setPostIcon, editMessage, deleteMessage, togglePin, react, searchMessages, toggleArchiveTopic,
-  messageInclude, assertAccess, roomFor,
+  listMessages, listPinned, createMessage, precheckCreateMessage, setPostIcon, editMessage, listEdits, forwardMessage,
+  deleteMessage, togglePin, react, searchMessages, toggleArchiveTopic,
+  messageInclude, assertAccess, roomFor, parseSearchQuery,
 };

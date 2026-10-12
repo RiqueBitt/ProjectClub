@@ -363,6 +363,15 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
 .pc-alert-info { background: rgba(61, 220, 132, 0.08); border: 1px solid rgba(61, 220, 132, 0.28); color: #a9f0c8; }
 .pc-auth-panel > .pc-alert + .pc-btn { margin-top: 16px; }
 
+/* Conta desativada / banida / suspensa — aviso mais destacado que um erro
+   comum de senha, com título e explicação. */
+.pc-account-notice {
+  display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: var(--a-radius);
+  background: rgba(255, 184, 77, 0.08); border: 1px solid rgba(255, 184, 77, 0.35);
+}
+.pc-account-notice strong { color: #ffd59a; font-size: 14.5px; }
+.pc-account-notice p { margin: 0; color: #e8dcc8; font-size: 13.5px; line-height: 1.45; }
+
 .pc-success { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
 .pc-success p { margin: 0; color: #d6dbe4; }
 .pc-success b { color: #fff; word-break: break-all; }

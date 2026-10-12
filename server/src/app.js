@@ -7,6 +7,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const { createRateLimitStore } = require('./config/rateLimitStore');
+const { verifyAccessToken } = require('./services/tokens');
 const env = require('./config/env');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 const { honeypotMiddleware, blockedIpGuard } = require('./middleware/honeypot');
@@ -230,10 +231,35 @@ function createApp() {
     store: createRateLimitStore('reads'),
     skip: (req) => req.method !== 'GET' || req.path.startsWith('/auth') || req.path === '/platform/status',
   }));
+  // Escritas: a chave é a CONTA quando dá pra identificar (token válido no
+  // Authorization) — antes era por IP, e uma casa/escola inteira dividia
+  // os mesmos 400. "Marcar como lido" (canal/DM) também não conta mais:
+  // é disparado sozinho ao abrir/rolar o chat e esgotava o limite à toa
+  // (o próprio markRead já agrupa as gravações no servidor).
+  const READ_MARK_RE = /^\/(conversations\/[^/]+\/read|community\/channels\/[^/]+\/read)$/;
+  const userOrIpKey = (req) => {
+    const header = req.headers.authorization || '';
+    if (header.startsWith('Bearer ')) {
+      try {
+        const payload = verifyAccessToken(header.slice(7));
+        if (payload?.sub) return `u:${payload.sub}`;
+      } catch { /* token inválido/expirado: cai pro IP */ }
+    }
+    return `ip:${req.ip}`;
+  };
+  // Teto próprio (bem folgado) só pros "marcar como lido".
+  app.use('/api', rateLimit({
+    windowMs: 15 * 60 * 1000, max: 3000, standardHeaders: false, legacyHeaders: false,
+    store: createRateLimitStore('readmarks'),
+    skip: (req) => !(req.method === 'POST' && READ_MARK_RE.test(req.path)),
+    keyGenerator: userOrIpKey,
+  }));
   app.use('/api', rateLimit({
     windowMs: 15 * 60 * 1000, max: 400, standardHeaders: true, legacyHeaders: false,
     store: createRateLimitStore('writes'),
-    skip: (req) => req.method === 'GET' || req.path.startsWith('/auth') || req.path === '/platform/status',
+    skip: (req) => req.method === 'GET' || req.path.startsWith('/auth') || req.path === '/platform/status'
+      || (req.method === 'POST' && READ_MARK_RE.test(req.path)),
+    keyGenerator: userOrIpKey,
   }));
 
   app.use('/uploads', express.static(path.resolve(__dirname, '../', env.UPLOAD_DIR), {
@@ -353,6 +379,7 @@ function createApp() {
   // substitui já eram públicas (qualquer um com o link já conseguia ver
   // a imagem direto), só ficou um passo a mais no meio agora.
   app.use('/api/proxy', imageProxyRoutes);
+  app.use('/api/unfurl', require('./routes/unfurl'));
   app.use('/api/updates', updatesRoutes);
   app.use('/api/events', eventsRoutes);
   // Avisos pessoais salvos e Galeria (curtidas/álbuns).

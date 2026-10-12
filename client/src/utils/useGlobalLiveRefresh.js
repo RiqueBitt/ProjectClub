@@ -43,7 +43,7 @@ export function useGlobalLiveRefresh() {
   // corpo. Status da plataforma, anúncio e eventos vêm junto (antes cada
   // um tinha o próprio relógio e a própria requisição).
   useLiveRefresh(async (ctx) => {
-    const r = await fetchSections(['community', 'me', 'conversations', 'friends', 'clan', 'status', 'announcement', 'events'], { accept: ctx.ok });
+    const r = await fetchSections(['community', 'channelStates', 'me', 'conversations', 'friends', 'clan', 'status', 'announcement', 'events'], { accept: ctx.ok });
     if (!ctx.ok()) return;
     // Só o que mudou no servidor desde a última vez (o resto já está no
     // store — reaplicar o valor antigo poderia desfazer algo que chegou

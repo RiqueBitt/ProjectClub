@@ -1,4 +1,5 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { lazyWithRetry as lazy } from './utils/lazyWithRetry';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import { SocketProvider } from './context/SocketContext.jsx';

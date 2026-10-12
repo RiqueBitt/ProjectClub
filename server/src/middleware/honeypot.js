@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { verifyAccessToken, hashToken } = require('../services/tokens');
 
 // Caminhos que uma pessoa de verdade usando o site NUNCA visita — só
 // scanners automatizados (bots que varrem a internet inteira procurando
@@ -79,35 +80,130 @@ function decoyResponse(kind, res) {
   }
 }
 
-// Depois de quantos hits em rotas-isca o IP já vira bloqueado — 1 hit já
-// é sinal forte o bastante (gente real nunca acessa essas URLs por
-// engano), mas mantém a contagem pra saber se é um scanner insistente.
-const BLOCK_AFTER_HITS = 1;
+// SECURITY (abuso do próprio honeypot): antes, UM único GET numa rota-isca
+// bloqueava o IP por 24h. Bastava alguém mandar no chat uma imagem
+// `<img src="/wp-login.php">` (ou um link) pra derrubar do site todo
+// mundo que abrisse a conversa — inclusive redes inteiras atrás do mesmo
+// IP (faculdade, operadora com CGNAT). Agora:
+//  - só bloqueia depois de BLOCK_AFTER_DISTINCT_PATHS rotas-isca
+//    DIFERENTES do mesmo IP dentro de HIT_WINDOW_MS (scanner de verdade
+//    varre várias; um embed malicioso repete sempre a mesma);
+//  - ignora (só devolve a isca, sem contar) requisições de navegador que
+//    não são navegação de página (Sec-Fetch-Dest: image, iframe, script...)
+//    — scanner não manda esses cabeçalhos;
+//  - ignora requisições de quem está logado (Authorization com JWT válido
+//    ou cookie de sessão válido).
+const BLOCK_AFTER_DISTINCT_PATHS = 3;
+const BLOCK_AFTER_HITS = BLOCK_AFTER_DISTINCT_PATHS; // mantido no export por compatibilidade
+const HIT_WINDOW_MS = 10 * 60 * 1000;
 const BLOCK_DURATION_MS = 24 * 60 * 60 * 1000; // 24h — some scanners tentam de novo depois
 
 function getClientIp(req) {
   return req.ip || req.socket?.remoteAddress || 'unknown';
 }
 
+// Cache em memória (TTL ~60s, tamanho limitado) da checagem de IP
+// bloqueado — antes era UMA consulta ao banco em TODA requisição do site.
+const BLOCK_CACHE_TTL_MS = 60 * 1000;
+const BLOCK_CACHE_MAX = 10000;
+const blockCache = new Map(); // ip -> { blockedUntil: number|null (null = não bloqueado; Infinity = sem expiração), cachedAt }
+
+function cacheSet(ip, blockedUntil) {
+  if (blockCache.has(ip)) blockCache.delete(ip); // reinsere no fim (ordem de uso — LRU simples)
+  blockCache.set(ip, { blockedUntil, cachedAt: Date.now() });
+  if (blockCache.size > BLOCK_CACHE_MAX) {
+    const oldest = blockCache.keys().next().value;
+    blockCache.delete(oldest);
+  }
+}
+
+function cacheGet(ip) {
+  const entry = blockCache.get(ip);
+  if (!entry) return undefined;
+  if (Date.now() - entry.cachedAt > BLOCK_CACHE_TTL_MS) {
+    blockCache.delete(ip);
+    return undefined;
+  }
+  blockCache.delete(ip);
+  blockCache.set(ip, entry);
+  return entry;
+}
+
+// Remove um IP do cache (ex: staff desbloqueou pelo painel) — o próximo
+// request volta a consultar o banco.
+function invalidateBlockedIpCache(ip) {
+  if (ip) blockCache.delete(ip);
+  else blockCache.clear();
+}
+
+function readCookie(req, name) {
+  const header = req.headers.cookie;
+  if (!header) return null;
+  const match = header.split(';').map((c) => c.trim()).find((c) => c.startsWith(`${name}=`));
+  if (!match) return null;
+  try { return decodeURIComponent(match.slice(name.length + 1)); } catch { return null; }
+}
+
+async function hasValidSession(req) {
+  const auth = req.headers.authorization || '';
+  if (auth.startsWith('Bearer ')) {
+    try {
+      verifyAccessToken(auth.slice(7));
+      return true;
+    } catch { /* token inválido — segue checando o cookie */ }
+  }
+  const raw = readCookie(req, 'refreshToken');
+  if (raw) {
+    const row = await prisma.refreshToken.findUnique({ where: { tokenHash: hashToken(raw) }, select: { revoked: true, expiresAt: true } }).catch(() => null);
+    if (row && !row.revoked && row.expiresAt > new Date()) return true;
+  }
+  return false;
+}
+
+// Navegador carregando a rota como recurso embutido (imagem, iframe,
+// script, prefetch...) — sinal de que foi OUTRA página que mandou o
+// navegador buscar isso, não alguém varrendo o site.
+function isEmbeddedBrowserFetch(req) {
+  const dest = String(req.headers['sec-fetch-dest'] || '').toLowerCase();
+  return !!dest && dest !== 'document';
+}
+
+async function recordHitAndMaybeBlock(req, ip) {
+  const userAgent = req.headers['user-agent'] || null;
+  if (isEmbeddedBrowserFetch(req)) return;
+  if (await hasValidSession(req)) return;
+
+  await prisma.honeypotHit.create({ data: { ip, path: req.path, method: req.method, userAgent } });
+  const recent = await prisma.honeypotHit.findMany({
+    where: { ip, createdAt: { gt: new Date(Date.now() - HIT_WINDOW_MS) } },
+    select: { path: true },
+    take: 200,
+  });
+  const distinctPaths = new Set(recent.map((h) => h.path.toLowerCase()));
+  if (distinctPaths.size < BLOCK_AFTER_DISTINCT_PATHS) return;
+
+  const expiresAt = new Date(Date.now() + BLOCK_DURATION_MS);
+  const reason = `Acessou ${distinctPaths.size} rotas-isca em ${Math.round(HIT_WINDOW_MS / 60000)} min (última: ${req.path})`.slice(0, 190);
+  await prisma.blockedIp.upsert({
+    where: { ip },
+    update: { hitCount: { increment: 1 }, reason, expiresAt },
+    create: { ip, reason, hitCount: distinctPaths.size, expiresAt },
+  });
+  cacheSet(ip, expiresAt.getTime());
+}
+
 // Middleware principal — checa se o caminho bate com alguma isca, loga o
-// hit, atualiza/cria o bloqueio do IP e devolve o conteúdo falso. Se o
-// caminho não bater com nenhuma isca, chama next() normalmente (não
-// atrapalha em nada o resto do app).
+// hit, conta pro bloqueio do IP e devolve o conteúdo falso. Se o caminho
+// não bater com nenhuma isca, chama next() normalmente (não atrapalha em
+// nada o resto do app).
 function honeypotMiddleware(req, res, next) {
   const match = HONEYPOT_PATTERNS.find((p) => p.re.test(req.path));
   if (!match) return next();
 
   const ip = getClientIp(req);
-  const userAgent = req.headers['user-agent'] || null;
-
   // Best-effort — não deixa a resposta esperar o banco nem falha se o
   // registro der erro (a prioridade é sempre devolver a isca na hora).
-  prisma.honeypotHit.create({ data: { ip, path: req.path, method: req.method, userAgent } }).catch(() => {});
-  prisma.blockedIp.upsert({
-    where: { ip },
-    update: { hitCount: { increment: 1 }, reason: `Acessou rota-isca: ${req.path}`, expiresAt: new Date(Date.now() + BLOCK_DURATION_MS) },
-    create: { ip, reason: `Acessou rota-isca: ${req.path}`, expiresAt: new Date(Date.now() + BLOCK_DURATION_MS) },
-  }).catch(() => {});
+  recordHitAndMaybeBlock(req, ip).catch(() => {});
 
   decoyResponse(match.kind, res);
 }
@@ -122,8 +218,14 @@ function honeypotMiddleware(req, res, next) {
 async function blockedIpGuard(req, res, next) {
   try {
     const ip = getClientIp(req);
-    const blocked = await prisma.blockedIp.findUnique({ where: { ip } });
-    if (blocked && (!blocked.expiresAt || blocked.expiresAt > new Date())) {
+    let entry = cacheGet(ip);
+    if (!entry) {
+      const blocked = await prisma.blockedIp.findUnique({ where: { ip }, select: { expiresAt: true } });
+      const blockedUntil = blocked ? (blocked.expiresAt ? blocked.expiresAt.getTime() : Infinity) : null;
+      cacheSet(ip, blockedUntil);
+      entry = { blockedUntil };
+    }
+    if (entry.blockedUntil && entry.blockedUntil > Date.now()) {
       res.status(503).type('text/html').send('<!DOCTYPE html><html><body><h1>503 Service Unavailable</h1><p>The server is temporarily unable to service your request.</p></body></html>');
       return;
     }
@@ -135,4 +237,9 @@ async function blockedIpGuard(req, res, next) {
   }
 }
 
-module.exports = { honeypotMiddleware, blockedIpGuard, BLOCK_AFTER_HITS };
+module.exports = {
+  honeypotMiddleware, blockedIpGuard, invalidateBlockedIpCache,
+  BLOCK_AFTER_HITS, BLOCK_AFTER_DISTINCT_PATHS, HIT_WINDOW_MS,
+  // exportados pra testes
+  isEmbeddedBrowserFetch,
+};
