@@ -187,7 +187,7 @@ test('Configurações → Segurança: contas conectadas (conectar/desconectar)',
       accounts = [];
       return json({ ok: true });
     }
-    if (p === '/api/auth/oauth/github/link') return json({ url: 'http://localhost:4173/oauth/retorno?vinculado=github' });
+    if (p === '/api/auth/oauth/github/link') return json({ url: '/oauth/retorno?vinculado=github' });
     return handler(route);
   });
   await page.route('**/socket.io/**', (r) => r.abort());
