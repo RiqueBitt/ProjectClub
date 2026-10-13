@@ -24,6 +24,10 @@
   width: 72px; height: 72px; border-radius: 22px; display: inline-flex; align-items: center; justify-content: center;
   background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--brand); margin-bottom: 4px;
 }
+.vc-lobby-custom-icon.custom-icon-img { width: 48px; height: 48px; border-radius: 14px; object-fit: cover; }
+.vc-lobby-custom-icon.custom-icon-emoji { font-size: 38px; line-height: 1; }
+.vc-head-custom-icon.custom-icon-img { width: 20px; height: 20px; border-radius: 6px; object-fit: cover; }
+.vc-head-custom-icon.custom-icon-emoji { font-size: 17px; line-height: 1; }
 .vc-lobby-card h2 { margin: 0; font-size: 22px; font-weight: 800; color: var(--header-primary); overflow-wrap: anywhere; }
 .vc-lobby-topic { margin: 0; font-size: 14px; color: var(--text-muted); }
 .vc-lobby-people { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 10px 0 4px; }

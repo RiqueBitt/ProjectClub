@@ -326,3 +326,6 @@
   color: #c98a00; background: rgba(240, 180, 40, 0.16);
   border: 1px solid rgba(240, 180, 40, 0.4);
 }
+
+.cb-chan-custom-icon.custom-icon-img { width: 16px; height: 16px; border-radius: 4px; object-fit: cover; flex: none; }
+.cb-chan-custom-icon.custom-icon-emoji { font-size: 14px; line-height: 1; flex: none; }

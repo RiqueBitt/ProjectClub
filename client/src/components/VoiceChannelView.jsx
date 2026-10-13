@@ -5,6 +5,7 @@ import { useStore } from '../store/useStore';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import ScreenShareModal from './modals/ScreenShareModal.jsx';
 import UserAvatar from './UserAvatar.jsx';
+import { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import { MicTest, MicSilentWarning, QualityDot } from './voice/VoiceExtras.jsx';
 import ScreenQualityMenu from './voice/ScreenQualityMenu.jsx';
@@ -66,7 +67,8 @@ function CallHeader({ channel, count, isStage, children }) {
   const elapsed = useElapsed(voice?.rosterStartedAt?.[channel.id]);
   return (
     <header className="vc-head">
-      <span className="vc-head-icon"><Icon name={isStage ? 'stage' : 'speaker'} size={18} /></span>
+      {/* Ícone personalizado do canal (emoji/imagem da staff) no lugar do genérico. */}
+      <span className="vc-head-icon">{hasCustomIcon(channel) ? <CustomIcon item={channel} className="vc-head-custom-icon" /> : <Icon name={isStage ? 'stage' : 'speaker'} size={18} />}</span>
       {/* O nome do canal já está no cabeçalho do chat logo acima. */}
       <p className="vc-head-text truncate">{channel.topic || (isStage ? 'Palco' : 'Canal de voz')}</p>
       <span className="vc-chip"><span className="vc-live" /> Ao vivo</span>
@@ -105,7 +107,7 @@ export default function VoiceChannelView({ channel }) {
     return (
       <div className="vc vc-lobby">
         <div className="vc-lobby-card">
-          <span className="vc-lobby-icon"><Icon name={isStage ? 'stage' : 'speaker'} size={30} /></span>
+          <span className="vc-lobby-icon">{hasCustomIcon(channel) ? <CustomIcon item={channel} className="vc-lobby-custom-icon" /> : <Icon name={isStage ? 'stage' : 'speaker'} size={30} />}</span>
           <h2>{channel.name}</h2>
           {channel.topic && <p className="vc-lobby-topic">{channel.topic}</p>}
 
