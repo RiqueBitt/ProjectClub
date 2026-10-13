@@ -30,7 +30,7 @@ async function loadCommunityShared() {
         id: true, publicId: true, username: true, displayName: true, avatarUrl: true, avatarDecoration: true,
         status: true, customStatus: true, customStatusEmoji: true, profileColor: true,
         profileNameFont: true, profileNameEffect: true, profileNameColor: true, profileNameColor2: true, profileNameColors: true,
-        accountLevel: true, tagEmoji: true, tagText: true, timeoutUntil: true, idCardUrl: true,
+        accountLevel: true, tagEmoji: true, tagText: true, timeoutUntil: true, idCardUrl: true, idCardFraming: true,
         roles: { select: { roleId: true } },
         clanTag: { select: { tag: true, clan: { select: { icon: true, iconColor: true } } } },
       },

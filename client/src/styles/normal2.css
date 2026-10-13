@@ -208,7 +208,7 @@ html.layout-n2-root.is-electron-app .profile-fullscreen-overlay {
   content: ''; position: absolute; inset: 0 0 0 30%; z-index: -1;
   background:
     linear-gradient(90deg, rgba(0, 0, 0, .15), rgba(0, 0, 0, .45)),
-    var(--id-card) center / cover no-repeat;
+    var(--id-card) var(--id-card-pos, center) / var(--id-card-size, cover) no-repeat;
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .35) 35%, #000 100%);
   mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .35) 35%, #000 100%);
   opacity: .9;

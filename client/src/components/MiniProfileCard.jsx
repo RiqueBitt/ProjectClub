@@ -357,17 +357,14 @@ export default function MiniProfileCard() {
                     banner" — 64 → 84 (ver mini-profile-improvements.css
                     pro tamanho do wrap/recuo pra cima em si). */}
                 <div className="mini-profile-avatar"><UserAvatar user={user} size={84} /></div>
-                {/* Item pedido: "escolher a cor de fundo da bolha que
-                    mostra os status (Preto/Cinza/Branco)" —
-                    statusBubbleColor sobrescreve a variável CSS que a
-                    borda da bolha usa (ver .mini-profile-presence-dot
-                    em mini-profile-improvements.css); sem escolha, cai
-                    no comportamento de sempre (acompanha o fundo do
-                    card). */}
+                {/* (Removido) A cor personalizada da bolha de status não é
+                    mais aplicada: a bolinha mostra só a cor real da
+                    presença e a borda acompanha o fundo do card, como
+                    padrão. statusBubbleColor continua no banco, mas não é
+                    mais consumido aqui. */}
                 <PresenceDot
                   status={presence[renderedUserId]?.status || user.status || 'OFFLINE'}
                   className="mini-profile-presence-dot"
-                  style={user.statusBubbleColor ? { '--status-bubble-border': user.statusBubbleColor } : undefined}
                 />
               </div>
               {/* BUG CORRIGIDO ("o status fica do lado da foto de

@@ -32,6 +32,31 @@ export function formatBannerFraming({ x, y, zoom }) {
   return `${Math.round(x * 10) / 10},${Math.round(y * 10) / 10},${Math.round(zoom * 100) / 100}`;
 }
 
+// Proporção do editor da "placa de identificação" (User.idCardUrl): ela
+// aparece como fundo de uma linha larga e baixa na lista de membros, então
+// uma moldura bem larga aproxima o que a pessoa vê no editor do que
+// aparece na linha. Reaproveita o mesmo formato "x,y,zoom" dos banners.
+export const ID_CARD_ASPECT = 16 / 3;
+
+// Enquadramento da placa aplicado no FUNDO (background-image) da linha de
+// membro. Diferente do banner (que é uma <img> com object-fit), aqui são
+// variáveis CSS que o background consome (ver .member-row.has-id-card em
+// global.css e o layout Normal 2.0 em normal2.css). Enquadramento padrão
+// (centralizado, zoom 1) devolve {} — assim as placas antigas continuam
+// EXATAMENTE como antes (center / cover), sem nenhuma mudança visual.
+export function idCardFramingVars(framing) {
+  const f = parseBannerFraming(framing);
+  const isDefault = Math.abs(f.x - 50) < 0.01 && Math.abs(f.y - 50) < 0.01 && f.zoom <= 1.001;
+  if (isDefault) return {};
+  return {
+    '--id-card-pos': `${f.x}% ${f.y}%`,
+    // zoom por cima do "cover": largura = zoom × largura da linha (altura
+    // automática, mantendo a proporção) — dá pra aproximar/afastar e
+    // mover o foco. zoom 1 continua em "cover".
+    '--id-card-size': f.zoom > 1.001 ? `${Math.round(f.zoom * 100)}%` : 'cover',
+  };
+}
+
 // Como aplicar o enquadramento numa <img> dentro de uma caixa com
 // overflow: hidden. object-fit: cover + object-position no ponto de
 // foco, e o zoom é um scale() com origem nesse MESMO ponto — assim o

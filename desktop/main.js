@@ -1583,7 +1583,19 @@ if (!gotLock) {
   // sem mostrar nada nunca, ver setupAutoUpdater abaixo.
 
   // Estado da atualização (pro botão verde da barra do app).
-  const updateStatus = { current: app.getVersion(), available: false, downloaded: false, percent: 0, version: null };
+  // `downloading` = há um download em andamento (mesmo que o
+  // 'download-progress' ainda não tenha chegado); `error` = última falha,
+  // pra barra conseguir mostrar um estado de erro em vez de fingir que
+  // ainda está em 0%.
+  const updateStatus = { current: app.getVersion(), available: false, downloaded: false, downloading: false, percent: 0, version: null, error: null };
+  // Avisa o renderer (barra do app) do estado atual. Definida aqui, no
+  // mesmo escopo de updateStatus, pra que tanto installLatest (abaixo)
+  // quanto setupAutoUpdater consigam emitir — antes só setupAutoUpdater
+  // tinha um sendUpdateStatus local, então um clique que começava o
+  // download não conseguia avisar a tela na hora.
+  const emitUpdateStatus = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update:status', { ...updateStatus });
+  };
   secureHandle('update:get-status', () => ({ ...updateStatus }));
   // Clique no botão verde: se já baixou, fecha e instala (reabre sozinho);
   // senão, pede pra procurar/baixar agora e instala quando terminar.
@@ -1603,21 +1615,43 @@ if (!gotLock) {
     return false;
   };
   let installing = false;
+  // Garante que um download realmente comece ao clicar, mesmo que o
+  // autoDownload não tenha disparado (ou esteja desligado) — sem isso o
+  // clique podia deixar a barra "presa" em 0% esperando um download que
+  // nunca começou. electron-updater ignora chamadas repetidas enquanto já
+  // está baixando, mas guardamos um flag mesmo assim pra não emitir ruído.
+  let downloadingNow = false;
+  function startDownload() {
+    installWhenReady = true;
+    updateStatus.downloaded = false;
+    updateStatus.downloading = true;
+    updateStatus.error = null;
+    emitUpdateStatus();
+    if (downloadingNow) return;
+    downloadingNow = true;
+    Promise.resolve()
+      .then(() => autoUpdater.downloadUpdate())
+      .catch((err) => {
+        // Já baixando (autoDownload) normalmente rejeita aqui — não é um
+        // erro de verdade; só registra. Um erro real cai no handler de
+        // 'error' do autoUpdater, que seta updateStatus.error.
+        console.error('[atualização] downloadUpdate:', err?.message || err);
+      });
+  }
   async function installLatest() {
     if (installing) return 'busy';
     try {
       const r = await autoUpdater.checkForUpdates();
       const latest = r?.updateInfo?.version;
       if (latest && newerVersion(latest, updateStatus.version || app.getVersion()) ) {
-        // Tem uma mais nova que a baixada: espera ela baixar e instala.
-        installWhenReady = true;
-        updateStatus.downloaded = false;
+        // Tem uma mais nova que a baixada: começa a baixar e instala quando terminar.
+        startDownload();
         return 'downloading';
       }
     } catch (err) {
       console.error('[atualização] não deu pra conferir a mais nova antes de instalar:', err?.message || err);
     }
-    if (!updateStatus.downloaded) { installWhenReady = true; return 'downloading'; }
+    if (!updateStatus.downloaded) { startDownload(); return 'downloading'; }
     installing = true;
     isQuitting = true;
     setImmediate(() => autoUpdater.quitAndInstall(true, true));
@@ -1655,23 +1689,25 @@ if (!gotLock) {
     // normalmente (autoInstallOnAppQuit), sem nunca precisar mostrar
     // nada nem interromper quem está usando.
     // Estado pro botão verde de atualizar da barra do app (TitleBar.jsx).
-    const sendUpdateStatus = () => {
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update:status', { ...updateStatus });
-    };
+    const sendUpdateStatus = emitUpdateStatus;
     autoUpdater.on('update-available', (info) => {
       console.log('[atualização] nova versão disponível, baixando em segundo plano:', info?.version);
-      Object.assign(updateStatus, { available: true, version: info?.version || null });
+      // autoDownload=true: o download já começou em segundo plano aqui.
+      Object.assign(updateStatus, { available: true, downloading: true, error: null, version: info?.version || null });
       sendUpdateStatus();
     });
     autoUpdater.on('download-progress', (p) => {
       updateStatus.percent = Math.round(p?.percent || 0);
+      updateStatus.downloading = true;
+      updateStatus.error = null;
       sendUpdateStatus();
     });
 
     autoUpdater.on('update-downloaded', (info) => {
       console.log('[atualização] baixada e pronta:', info?.version);
       updateReady = true;
-      Object.assign(updateStatus, { available: true, downloaded: true, percent: 100, version: info?.version || updateStatus.version });
+      downloadingNow = false;
+      Object.assign(updateStatus, { available: true, downloaded: true, downloading: false, percent: 100, error: null, version: info?.version || updateStatus.version });
       sendUpdateStatus();
       maybeInstallUpdate();
     });
@@ -1699,6 +1735,13 @@ if (!gotLock) {
     // tentativa automática resolve sozinha quando a conexão voltar.
     autoUpdater.on('error', (err) => {
       console.error('[atualização] falha ao verificar/baixar:', err?.message || err);
+      // Deixa a barra sair do estado "baixando" (senão ficaria presa numa
+      // porcentagem parada) e mostrar que algo deu errado — o clique
+      // seguinte tenta de novo.
+      downloadingNow = false;
+      updateStatus.downloading = false;
+      updateStatus.error = String(err?.message || err || 'falha na atualização');
+      sendUpdateStatus();
     });
 
     const check = () => autoUpdater.checkForUpdates().catch((err) => {

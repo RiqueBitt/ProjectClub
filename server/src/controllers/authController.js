@@ -96,6 +96,7 @@ const PUBLIC_USER_FIELDS = {
   // (MembersList.jsx), so it needs to be visible to everyone who can see
   // that member, not just the account owner.
   idCardUrl: true,
+  idCardFraming: true, // enquadramento da placa (ver schema.prisma)
   // Item pedido: status de relacionamento (estilo Orkut) — só o ID
   // aqui (não um objeto aninhado, pra não pesar as centenas de lugares
   // que já usam esse mesmo select) — o perfil completo (getUser, em

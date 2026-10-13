@@ -4,6 +4,8 @@ import { setAccessToken, setUnauthorizedHandler } from '../api/client';
 import { loginUser, logoutUser, registerUser, fetchMe } from '../api/endpoints';
 import { useStore } from '../store/useStore';
 import { clearBootCache } from '../utils/bootstrap';
+import { migrateZoomValue, markZoomMigrationDone, zoomMigrationDone, NEW_DEFAULT } from '../utils/zoomDefault';
+import { interfaceZoomSaver } from '../utils/zoomSave';
 
 const AuthContext = createContext(null);
 
@@ -68,7 +70,21 @@ export function AuthProvider({ children }) {
     // chat-zoom acima: o valor salvo na CONTA sincroniza pro estado
     // local sempre que a sessão é aplicada.
     if (data.user?.interfaceZoom) {
-      useStore.getState().setInterfaceZoom(data.user.interfaceZoom);
+      // Migração do padrão histórico 120% → 100% (uma vez): se a conta
+      // ainda tem o 1.2 "de padrão", troca por 1.0 e salva de volta, pra
+      // valer em todos os aparelhos. Quem escolheu outro zoom de propósito
+      // não é tocado. Depois disso o flag impede repetir (um 1.2 escolhido
+      // de propósito daqui pra frente é preservado). Ver utils/zoomDefault.js.
+      const accountZoom = data.user.interfaceZoom;
+      const migrated = migrateZoomValue(accountZoom);
+      if (!zoomMigrationDone()) {
+        if (migrated !== accountZoom) {
+          interfaceZoomSaver.known(accountZoom); // evita um PATCH redundante do valor antigo
+          interfaceZoomSaver.schedule(NEW_DEFAULT); // persiste 1.0 na conta
+        }
+        markZoomMigrationDone();
+      }
+      useStore.getState().setInterfaceZoom(migrated);
     }
   }, []);
 

@@ -1,9 +1,22 @@
 .mu-engine { position: fixed; width: 1px; height: 1px; left: -9999px; top: 0; opacity: 0; pointer-events: none; overflow: hidden; }
-.mu-overlay { position: fixed; inset: 0; z-index: 1500; background: rgba(0,0,0,.55); display: flex; align-items: flex-start; justify-content: center; padding: 64px 16px 16px; }
+/* BUG CORRIGIDO ("o X de fechar o YouTube Music some com o zoom da
+   interface diferente de 100%"): o X ficava por último no cabeçalho, mas
+   os vizinhos (logo, título, abas) não tinham como encolher — com o zoom
+   mudando a largura/quebra do conteúdo, eles empurravam o X pra fora do
+   painel, onde ele era cortado. A correção é no cabeçalho em si (posição
+   robusta, não cortada): os vizinhos encolhem (min-width:0 + reticências)
+   e o X fica fixo e sem encolher, sempre visível e clicável em qualquer
+   zoom. `overflow: auto` no overlay é a rede de segurança: se ainda assim
+   algo transbordar a área visível, dá pra rolar até o X (nunca some de
+   vez). */
+.mu-overlay { position: fixed; inset: 0; z-index: 1500; background: rgba(0,0,0,.55); display: flex; align-items: flex-start; justify-content: center; padding: 64px 16px 16px; overflow: auto; }
 .mu-panel { width: min(720px, 100%); max-height: calc(100dvh - 90px); display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 18px; background: var(--bg-secondary); border: 1px solid var(--lit-border-color, var(--border)); box-shadow: var(--lit-shadow, 0 18px 48px rgba(0,0,0,.6)); }
-.mu-head { display: flex; align-items: center; gap: 10px; color: var(--header-primary); }
+/* min-width:0 nos filhos que crescem (texto/abas) pra o X nunca ser
+   empurrado pra fora do cabeçalho; flex-shrink:0 (ver .mu-icon-btn)
+   garante o tamanho do X. */
+.mu-head { display: flex; align-items: center; gap: 10px; color: var(--header-primary); min-width: 0; }
 .mu-logo { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: #ff0033; color: #fff; }
-.mu-tabs { display: flex; gap: 4px; margin-left: 10px; flex: 1; }
+.mu-tabs { display: flex; gap: 4px; margin-left: 10px; flex: 1; min-width: 0; }
 .mu-tabs button, .mu-chips button { border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-normal); border-radius: 999px; padding: 6px 12px; font-weight: 700; font-size: 13px; cursor: pointer; }
 .mu-tabs button.on, .mu-chips button.on { background: var(--header-primary); color: var(--bg-primary); border-color: transparent; }
 .mu-search { display: flex; align-items: center; gap: 8px; padding: 0 12px; height: 42px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-muted); }
@@ -44,7 +57,8 @@
 @media (prefers-reduced-motion: reduce) { .mu-skel { animation: none; } }
 .top-search-bar-icon-btn.top-donate-btn { color: #ff4d6d; display: inline-grid; place-items: center; }
 .top-search-bar-icon-btn.is-music-on { color: #ff4d6d; }
-.mu-head-text { display: flex; flex-direction: column; line-height: 1.2; }
+.mu-head-text { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.mu-head-text strong, .mu-head-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mu-head-text small { color: var(--text-muted); font-size: 12px; }
 .mu-added { font-size: 12px; font-weight: 700; color: #3ba55d; }
 .mu-hint { margin: 0; font-size: 12px; color: var(--text-muted); text-align: center; }

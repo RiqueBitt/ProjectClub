@@ -66,6 +66,50 @@ function isNewer(remote, local) {
   return false; // iguais
 }
 
+// Baixa uma URL reportando progresso. Lê o corpo em streaming pra
+// conseguir mostrar a porcentagem (fetch().blob() não dá progresso
+// nenhum). onProgress recebe a porcentagem inteira (0–100) quando o
+// tamanho total é conhecido (Content-Length), ou null quando não é — aí
+// a barra fica indeterminada em vez de presa em 0%. Também cai pra
+// indeterminado se nada chegar nos primeiros segundos. Qualquer problema
+// com o streaming cai de volta pro .blob() simples (sem progresso).
+async function downloadWithProgress(url, onProgress) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`download falhou: ${res.status}`);
+  // Sem suporte a stream (navegador antigo/WebView): baixa de uma vez.
+  if (!res.body || typeof res.body.getReader !== 'function') return res.blob();
+
+  const total = Number(res.headers.get('content-length')) || 0;
+  const reader = res.body.getReader();
+  const chunks = [];
+  let received = 0;
+  let gotAny = false;
+  let lastPct = -1;
+  // Rede de segurança: se em 4s nenhum byte chegou, garante a barra
+  // indeterminada (evita um "0%" ou uma barra vazia parada).
+  const stallTimer = setTimeout(() => { if (!gotAny) onProgress(null); }, 4000);
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value && value.length) {
+        gotAny = true;
+        chunks.push(value);
+        received += value.length;
+        if (total > 0) {
+          const pct = Math.max(0, Math.min(100, Math.round((received / total) * 100)));
+          if (pct !== lastPct) { lastPct = pct; onProgress(pct); }
+        } else {
+          onProgress(null); // total desconhecido → indeterminado
+        }
+      }
+    }
+  } finally {
+    clearTimeout(stallTimer);
+  }
+  return new Blob(chunks);
+}
+
 // Item pedido: baixar e instalar o .apk sozinho, em vez de só abrir o
 // navegador. Usa @m430/capacitor-app-install — um plugin pequeno e
 // menos testado que os outros já usados neste projeto (sendo honesto
@@ -78,11 +122,21 @@ async function downloadAndInstallApk(version) {
     const { Filesystem, Directory } = await import('@capacitor/filesystem');
     const { AppInstallPlugin } = await import('@m430/capacitor-app-install');
 
-    useStore.getState().pushNotice(`⬇️ Baixando a atualização (${version})...`);
+    const store = useStore.getState();
+    const label = `⬇️ Baixando a atualização (${version})`;
+    // Começa JÁ indeterminado (barra animada), nunca um "0%" congelado: o
+    // download de .apk via fetch não garante eventos de progresso (o
+    // servidor pode não mandar Content-Length), então só mostramos uma
+    // porcentagem de verdade quando dá — senão fica a barra animada.
+    store.setDownloadProgress({ indeterminate: true }, label);
 
-    const res = await fetch(APK_DOWNLOAD_URL);
-    if (!res.ok) throw new Error(`download falhou: ${res.status}`);
-    const blob = await res.blob();
+    const blob = await downloadWithProgress(APK_DOWNLOAD_URL, (p) => {
+      // p = null quando não dá pra saber o total → mantém indeterminado.
+      if (p == null) store.setDownloadProgress({ indeterminate: true }, label);
+      else store.setDownloadProgress({ percent: p }, `${label} — ${p}%`);
+    });
+
+    store.setDownloadProgress({ indeterminate: true }, '📦 Preparando a instalação…');
     const base64 = await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result.split(',')[1]);
@@ -95,6 +149,8 @@ async function downloadAndInstallApk(version) {
       data: base64,
       directory: Directory.Cache,
     });
+
+    useStore.getState().clearDownloadProgress();
 
     const { granted } = await AppInstallPlugin.canInstallUnknownApps();
     if (!granted) {
@@ -113,6 +169,7 @@ async function downloadAndInstallApk(version) {
     await AppInstallPlugin.installApk({ filePath: written.uri });
   } catch (err) {
     console.error('[atualização] baixar/instalar automático falhou, caindo pro link manual:', err);
+    useStore.getState().clearDownloadProgress();
     useStore.getState().pushNotice(
       `🔄 Uma nova versão do app está disponível (${version}).`,
       { label: 'Baixar agora', onClick: () => openExternal(DOWNLOAD_PAGE_URL) },

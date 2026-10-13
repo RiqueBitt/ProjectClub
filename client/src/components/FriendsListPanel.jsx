@@ -7,6 +7,7 @@ import TagBadge from './TagBadge.jsx';
 import ClanTagBadge from './ClanTagBadge.jsx';
 import PresenceDot from './PresenceDot.jsx';
 import { proxyImage } from '../utils/imageProxy';
+import { idCardFramingVars } from './ProfileBanner.jsx';
 
 // Item pedido: preenche a coluna da direita (terceira coluna do layout —
 // mesmo espaço onde MembersList aparece num canal, e DMProfilePanel numa
@@ -40,7 +41,7 @@ export default function FriendsListPanel({ onToggle }) {
             <div
               key={f.id}
               className={`member-row ${u.idCardUrl ? 'has-id-card' : ''}`}
-              style={u.idCardUrl ? { backgroundImage: `linear-gradient(90deg, var(--bg-secondary) 15%, transparent), url(${proxyImage(u.idCardUrl)})` } : undefined}
+              style={u.idCardUrl ? { backgroundImage: `linear-gradient(90deg, var(--bg-secondary) 15%, transparent), url(${proxyImage(u.idCardUrl)})`, '--id-card': `url(${JSON.stringify(proxyImage(u.idCardUrl))})`, ...idCardFramingVars(u.idCardFraming) } : undefined}
               onClick={() => openDM(u.id)}
               title={`Conversar com ${u.displayName}`}
             >
