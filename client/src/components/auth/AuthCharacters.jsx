@@ -509,8 +509,53 @@ function handPose(c, pose, i) {
   if (pose === 'cover') return [ex - (c.coverIn || 0) * tilt, ey + 1 + (c.coverIn || 0), 14 * tilt, true];
   if (pose === 'up') return [c.up[i][0], c.up[i][1], 28 * tilt, true];
   if (pose === 'peek') return i === 0 ? [ex, ey, -18, true] : [c.chin[0], c.chin[1], 30, true];
+  // ---- poses dos "stunts" (cultura pop) ----
+  // dab: um braço cruza o rosto, o outro estica pro lado oposto.
+  if (pose === 'dab') return i === 0 ? [ex + 10, ey - 2, -40, true] : [c.up[1][0] + 10, c.up[1][1] - 12, 70, true];
+  // tchauzinho: mão direita no alto (a CSS balança), esquerda descansa.
+  if (pose === 'wave') return i === 1 ? [c.up[1][0], c.up[1][1] - 6, 18, true] : [rx, ry, 0, false];
+  // pensativo: mão no queixo.
+  if (pose === 'think') return i === 1 ? [c.chin[0] - 2, c.chin[1] + 3, 22, true] : [rx, ry, 0, false];
+  // coração: as duas mãos se encontram no peito.
+  if (pose === 'heart') return [c.cx + (i === 0 ? -5 : 5), ey + 18, i === 0 ? -40 : 40, true];
+  // mãozinhas pro alto (sayajin / comemoração / "flex").
+  if (pose === 'flex') return [c.up[i][0] + (i === 0 ? -4 : 4), c.up[i][1] - 10, 55 * tilt, true];
+  // facepalm: uma mão sobre o olho.
+  if (pose === 'facepalm') return i === 0 ? [ex + 2, ey - 1, -10, true] : [rx, ry, 0, false];
+  // continência.
+  if (pose === 'salute') return i === 1 ? [c.eyes[1].x + 6, ey - 8, -30, true] : [rx, ry, 0, false];
+  // apontando pra frente (pro formulário).
+  if (pose === 'point') return i === 1 ? [c.cx + c.w * 0.5, ey + 12, 90, true] : [rx, ry, 0, false];
   return [rx, ry, 0, false];
 }
+
+// ---------------------------- stunts ---------------------------------
+// Truques aleatórios no descanso: cada um tem um rosto (sobrescreve o humor
+// enquanto dura) e uma coreografia (Web Animations API no grupo 'hop',
+// no acessório e na aura). Nome em data-stunt pra inspeção/teste.
+const STUNTS = {
+  aura: { dur: 2600, face: { eyes: 'wide', brow: 'angry', mouth: 'grin', hands: 'flex', blush: 1 } },
+  dab: { dur: 1500, face: { eyes: 'closed', brow: 'soft', mouth: 'smirk', hands: 'dab' } },
+  floss: { dur: 2200, face: { eyes: 'open', brow: 'up', mouth: 'grin', hands: 'rest' } },
+  spin: { dur: 1400, face: { eyes: 'wide', brow: 'up', mouth: 'o', hands: 'rest' } },
+  moonwalk: { dur: 2000, face: { eyes: 'half', brow: 'sly', mouth: 'smirk', hands: 'rest' } },
+  wave: { dur: 1800, face: { eyes: 'open', brow: 'up', mouth: 'grin', hands: 'wave' } },
+  think: { dur: 2400, face: { eyes: 'half', brow: 'soft', mouth: 'flat', hands: 'think', look: 'away' } },
+  heart: { dur: 2000, face: { eyes: 'squeeze', brow: 'soft', mouth: 'smile', hands: 'heart', blush: 3 } },
+  bow: { dur: 1600, face: { eyes: 'closed', brow: 'soft', mouth: 'soft', hands: 'rest' } },
+  dance: { dur: 2400, face: { eyes: 'closed', brow: 'up', mouth: 'big', hands: 'flex' } },
+  shocked: { dur: 1400, face: { eyes: 'wide', brow: 'up', mouth: 'o', hands: 'up' } },
+  facepalm: { dur: 1800, face: { eyes: ['closed', 'half'], brow: 'cross', mouth: 'flat', hands: 'facepalm' } },
+  flex: { dur: 1800, face: { eyes: 'open', brow: 'angry', mouth: 'grin', hands: 'flex' } },
+  salute: { dur: 1500, face: { eyes: 'open', brow: 'soft', mouth: 'smile', hands: 'salute' } },
+  griddy: { dur: 2000, face: { eyes: 'squeeze', brow: 'up', mouth: 'grin', hands: 'rest' } },
+  point: { dur: 1600, face: { eyes: 'open', brow: 'sly', mouth: 'smirk', hands: 'point', look: 'form' } },
+  sleepy: { dur: 2600, face: { eyes: 'closed', brow: 'soft', mouth: 'soft', hands: 'rest', look: 'away' } },
+  jump: { dur: 1300, face: { eyes: 'wide', brow: 'up', mouth: 'big', hands: 'up' } },
+};
+const STUNT_NAMES = Object.keys(STUNTS);
+// Duplas: dois fazem juntos (tchau um pro outro, coração, dança).
+const DUET_STUNTS = ['wave', 'heart', 'dance', 'floss', 'griddy'];
 
 const Character = memo(function Character({ c, mood, index, reg, uid }) {
   const eyeStates = Array.isArray(mood.eyes) ? mood.eyes : [mood.eyes, mood.eyes];
@@ -526,9 +571,20 @@ const Character = memo(function Character({ c, mood, index, reg, uid }) {
       data-color={c.colorName}
       data-face={c.eye}
       data-acc={c.acc?.type || 'none'}
+      data-stunt={mood.stunt || undefined}
       style={{ '--i': index, '--r': c.r }}
     >
       <g ref={reg(c.id, 'hop')} className="pcc-hop">
+        {/* Aura (power-up de anime): some por padrão; o stunt 'aura' acende. */}
+        <g ref={reg(c.id, 'aura')} className="pcc-aura" style={{ opacity: 0, transformOrigin: `${c.cx}px ${FLOOR}px` }}>
+          <ellipse cx={c.cx} cy={(c.bodyTop + FLOOR) / 2} rx={c.w * 1.25} ry={(FLOOR - c.bodyTop) * 0.72 + 10} fill={`url(#${uid}-aura-${c.id})`} />
+          <g ref={reg(c.id, 'auraP')} className="pcc-aura-p">
+            {[-0.8, -0.35, 0.1, 0.5, 0.9].map((k, i) => (
+              <path key={i} d="M0 0 C-3 -8 3 -12 0 -20 C-2 -12 4 -8 0 0 Z" fill={c.top} opacity=".85"
+                transform={`translate(${c.cx + k * c.w * 0.95} ${FLOOR - 6 - (i % 2) * 10}) scale(${0.8 + (i % 3) * 0.25})`} />
+            ))}
+          </g>
+        </g>
         <g ref={reg(c.id, 'lean')}>
           <g className="pcc-breathe">
             <Accessory c={c} reg={reg} uid={uid} />
@@ -649,11 +705,17 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
   else if (focus.kind === 'password') mode = 'password';
   else if (focus.kind === 'text') mode = 'typing';
   const moodKey = react === 'pout' ? 'pout' : mode;
+  // Stunt em andamento: { [id]: nome } — só vale no descanso.
+  const [stunts, setStunts] = useState({});
   // Humores do papel + um toquezinho de rosto sorteado no descanso.
   const moods = {};
   for (const c of cast) {
     const base = MOODS[moodKey][c.id];
-    if (moodKey === 'idle') {
+    // Stunts valem no descanso E enquanto digita (o campo de login já vem
+    // focado, então "idle" puro quase não acontece); nunca na senha/erro.
+    if ((moodKey === 'idle' || moodKey === 'typing') && stunts[c.id] && STUNTS[stunts[c.id]]) {
+      moods[c.id] = { ...base, ...STUNTS[stunts[c.id]].face, stunt: stunts[c.id] };
+    } else if (moodKey === 'idle') {
       moods[c.id] = { ...base, mouth: c.idleMouth, brow: c.idleBrow };
     } else {
       moods[c.id] = base;
@@ -765,6 +827,125 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
     return () => timers.forEach(clearTimeout);
   }, [calm, blink, cast]);
 
+  // ---- Stunts (truques aleatórios): aura, dab, floss, spin, moonwalk... ----
+  const stunt = useCallback((c, name) => {
+    const def = STUNTS[name];
+    if (!def) return;
+    const { dur } = def;
+    const k = (frames, opts = {}, key = 'hop') => play(c.id, key, frames, { duration: dur, easing: 'ease-in-out', ...opts });
+    // .pcc-hop já gira/escala pela base (transform-origin 50% 100%).
+    const sx = (v) => v;
+    setStunts((st) => ({ ...st, [c.id]: name }));
+    switch (name) {
+      case 'aura': {
+        // Power-up: aura acende e pulsa, chamas sobem, corpo treme e se estufa.
+        k([{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'scale(1)', offset: 0.18 }, { opacity: .9, transform: 'scale(1.08)', offset: 0.5 }, { opacity: 1, transform: 'scale(1.02)', offset: 0.8 }, { opacity: 0, transform: 'scale(1.15)' }], {}, 'aura');
+        k([{ transform: 'translateY(0)' }, { transform: 'translateY(-26px)' }], { iterations: 4, duration: dur / 4, easing: 'linear' }, 'auraP');
+        const shake = []; for (let i = 0; i <= 24; i += 1) shake.push({ transform: sx(`translate(${i % 2 ? 1.6 : -1.6}px, 0) scale(${1 + Math.min(i, 12) * 0.006}, ${1 + Math.min(i, 12) * 0.004})`), offset: i / 24 });
+        k(shake, { easing: 'linear' });
+        k([{ transform: 'none' }, { transform: 'scale(1.2, .9)', offset: .3 }, { transform: 'scale(1.1, .95)', offset: .8 }, { transform: 'none' }], {}, 'shadow');
+        break;
+      }
+      case 'dab':
+        k([{ transform: sx('rotate(0)') }, { transform: sx('rotate(-16deg) translate(-6px, -4px)'), offset: 0.25, easing: 'cubic-bezier(.2,.9,.3,1.2)' }, { transform: sx('rotate(-16deg) translate(-6px, -4px)'), offset: 0.75 }, { transform: sx('rotate(0)') }]);
+        break;
+      case 'floss': {
+        const f = []; const n = 8;
+        for (let i = 0; i <= n; i += 1) f.push({ transform: sx(`skewX(${i % 2 ? -9 : 9}deg) translateX(${i % 2 ? 5 : -5}px)`), offset: i / n });
+        f[0].transform = sx('none'); f[n].transform = sx('none');
+        k(f, { easing: 'ease-in-out' });
+        break;
+      }
+      case 'spin':
+        // Gira em torno de si (vira de costas e volta): escala X vai a -1.
+        k([{ transform: sx('scaleX(1)') }, { transform: sx('scaleX(-1) translateY(-10px)'), offset: 0.3 }, { transform: sx('scaleX(1) translateY(-14px)'), offset: 0.55 }, { transform: sx('scaleX(-1)'), offset: 0.8 }, { transform: sx('scaleX(1)') }]);
+        k([{ transform: 'none' }, { transform: 'scale(.7, .8)', opacity: .5, offset: .5 }, { transform: 'none' }], {}, 'shadow');
+        break;
+      case 'moonwalk': {
+        const m = []; const n = 10;
+        for (let i = 0; i <= n; i += 1) m.push({ transform: sx(`translateX(${-28 * Math.sin((i / n) * Math.PI)}px) translateY(${i % 2 ? -3 : 0}px) rotate(${i % 2 ? -3 : 3}deg)`), offset: i / n });
+        k(m, { easing: 'linear' });
+        break;
+      }
+      case 'wave':
+        k([{ transform: sx('rotate(0)') }, { transform: sx('rotate(4deg)'), offset: 0.5 }, { transform: sx('rotate(0)') }]);
+        break;
+      case 'think':
+        k([{ transform: sx('rotate(0)') }, { transform: sx('rotate(-5deg) translateX(-3px)'), offset: 0.3 }, { transform: sx('rotate(-5deg) translateX(-3px)'), offset: 0.85 }, { transform: sx('rotate(0)') }]);
+        break;
+      case 'heart':
+        k([{ transform: sx('scale(1)') }, { transform: sx('scale(1.06, .96)'), offset: 0.3 }, { transform: sx('scale(.98, 1.03)'), offset: 0.55 }, { transform: sx('scale(1.04, .98)'), offset: 0.8 }, { transform: sx('scale(1)') }]);
+        break;
+      case 'bow':
+        k([{ transform: sx('rotate(0)') }, { transform: sx('rotate(22deg) translateY(2px) scale(1, .96)'), offset: 0.35, easing: 'cubic-bezier(.3,.7,.3,1)' }, { transform: sx('rotate(22deg) translateY(2px) scale(1, .96)'), offset: 0.7 }, { transform: sx('rotate(0)') }]);
+        break;
+      case 'dance': {
+        const d = []; const n = 12;
+        for (let i = 0; i <= n; i += 1) d.push({ transform: sx(`translateY(${i % 2 ? -8 : 0}px) rotate(${i % 4 < 2 ? -7 : 7}deg) scale(${i % 2 ? 1.03 : 1}, ${i % 2 ? .97 : 1})`), offset: i / n });
+        k(d);
+        wiggleAcc(c.id);
+        break;
+      }
+      case 'shocked':
+        hop(c, 18, 520, 0, 1.4);
+        k([{ transform: sx('translateX(0)') }, { transform: sx('translateX(-3px)'), offset: .5 }, { transform: sx('translateX(3px)'), offset: .6 }, { transform: sx('translateX(-2px)'), offset: .7 }, { transform: sx('translateX(0)') }], { delay: 520, duration: dur - 520 });
+        break;
+      case 'facepalm':
+        k([{ transform: sx('rotate(0)') }, { transform: sx('rotate(6deg) translateY(3px)'), offset: 0.3 }, { transform: sx('rotate(6deg) translateY(3px)'), offset: 0.8 }, { transform: sx('rotate(0)') }]);
+        break;
+      case 'flex':
+        k([{ transform: sx('scale(1)') }, { transform: sx('scale(1.1, .94)'), offset: 0.25, easing: 'cubic-bezier(.2,.9,.3,1.3)' }, { transform: sx('scale(1.08, .96)'), offset: 0.8 }, { transform: sx('scale(1)') }]);
+        break;
+      case 'salute':
+        k([{ transform: sx('none') }, { transform: sx('translateY(-4px) scale(1.02, 1.03)'), offset: 0.2 }, { transform: sx('translateY(-4px) scale(1.02, 1.03)'), offset: 0.8 }, { transform: sx('none') }]);
+        break;
+      case 'griddy': {
+        const g = []; const n = 10;
+        for (let i = 0; i <= n; i += 1) g.push({ transform: sx(`translateX(${i % 2 ? 7 : -7}px) translateY(${i % 2 ? -6 : 0}px) rotate(${i % 2 ? 5 : -5}deg)`), offset: i / n });
+        g[0].transform = sx('none'); g[n].transform = sx('none');
+        k(g, { easing: 'linear' });
+        break;
+      }
+      case 'point':
+        k([{ transform: sx('rotate(0)') }, { transform: sx('rotate(3deg) translateX(4px)'), offset: 0.3 }, { transform: sx('rotate(3deg) translateX(4px)'), offset: 0.8 }, { transform: sx('rotate(0)') }]);
+        break;
+      case 'sleepy':
+        k([{ transform: sx('rotate(0)') }, { transform: sx('rotate(-6deg) translateY(2px)'), offset: 0.4 }, { transform: sx('rotate(-6deg) translateY(2px)'), offset: 0.75 }, { transform: sx('rotate(0)') }]);
+        break;
+      case 'jump':
+        hop(c, 22, 700, 0, 1.3);
+        break;
+      default: break;
+    }
+    return setTimeout(() => setStunts((st) => (st[c.id] === name ? { ...st, [c.id]: null } : st)), dur);
+  }, [play, hop, wiggleAcc]);
+
+  // Agenda os stunts no descanso: sozinho (cada 5–9s) ou em dupla (às vezes).
+  useEffect(() => {
+    if (calm) return undefined;
+    const timers = new Set();
+    const later = (fn, ms) => { const t = setTimeout(() => { timers.delete(t); fn(); }, ms); timers.add(t); };
+    let lastName = null;
+    const act = () => {
+      if ((live.current.moodKey === 'idle' || live.current.moodKey === 'typing') && !document.hidden) {
+        const free = cast.filter((c) => !live.current.stunts?.[c.id]);
+        if (free.length) {
+          let name = pick(STUNT_NAMES);
+          if (name === lastName) name = pick(STUNT_NAMES);
+          lastName = name;
+          const a = pick(free);
+          const duet = DUET_STUNTS.includes(name) && free.length > 1 && Math.random() < 0.45;
+          timers.add(stunt(a, name));
+          if (duet) { const b = pick(free.filter((c) => c.id !== a.id)); later(() => timers.add(stunt(b, name)), 180); }
+        }
+      }
+      later(act, 5000 + Math.random() * 4000);
+    };
+    later(act, 3200);
+    return () => timers.forEach(clearTimeout);
+  }, [calm, cast, stunt]);
+  live.current.stunts = stunts;
+
   // Micro-ações quando estão parados: trocam olhares, piscam juntos,
   // pulinho, balançam o acessório, amassadinho.
   useEffect(() => {
@@ -844,7 +1025,8 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
       const formSide = Math.sign(form.x - (VB.x + VB.w / 2)) || 1;
       const out = {};
       cast.forEach((c) => {
-        const mood = MOODS[mk][c.id];
+        const stuntName = (mk === 'idle' || mk === 'typing') ? live.current.stunts?.[c.id] : null;
+        const mood = stuntName && STUNTS[stuntName] ? { ...MOODS[mk][c.id], ...STUNTS[stuntName].face } : MOODS[mk][c.id];
         const ex = (c.eyes[0].x + c.eyes[1].x) / 2;
         const ey = c.eyes[0].y;
         let look = mood.look;
@@ -955,6 +1137,11 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
         <defs>
           {cast.map((c) => (
             <g key={c.id}>
+              <radialGradient id={`${uid}-aura-${c.id}`} cx="50%" cy="60%" r="50%">
+                <stop offset="0" stopColor={c.top} stopOpacity=".55" />
+                <stop offset=".55" stopColor={c.base} stopOpacity=".28" />
+                <stop offset="1" stopColor={c.base} stopOpacity="0" />
+              </radialGradient>
               <linearGradient id={`${uid}-g-${c.id}`} gradientUnits="userSpaceOnUse" x1={c.cx - c.w * 0.3} y1={c.bodyTop} x2={c.cx + c.w * 0.3} y2={FLOOR}>
                 <stop offset="0" stopColor={c.top} />
                 <stop offset=".5" stopColor={c.base} />
