@@ -1,21 +1,30 @@
-import { memo, useCallback, useEffect, useId, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import '../../styles/auth-characters.css';
 
 // ---------------------------------------------------------------------
-// Turminha das telas de login/inscrição: quatro bichinhos que acompanham
+// Turminha das telas de login/inscrição: quatro bichinhos "2.5D" (volume
+// de brinquedo feito com luz suave, oclusão na base, brilho especular e
+// sombra de contato — tudo em SVG, só transform/opacity) que acompanham
 // o que a pessoa faz no formulário.
 //
-//   Lila  — pílula alta lilás com anteninha (a curiosa)
-//   Coral — quadradão fofinho de bochechas (o tímido)
-//   Menta — cúpula com topete de folhinhas (a tranquila)
-//   Mel   — bolinha amarela saltitante (o caçula)
+// A CADA carregamento eles nascem DIFERENTES: cada papel sorteia uma
+// forma de corpo, uma cor harmônica de uma paleta curada e um rostinho
+// (tipo de olho, sobrancelha, boca de descanso e um acessório). Dois
+// nunca repetem forma+cor. O sorteio fica exposto em data-variant/
+// data-shape/data-color/data-face/data-acc pra quem quiser inspecionar.
 //
-//   parado    → respiram, piscam (às vezes juntos), trocam olhares,
-//               a Lila mexe a antena, o Mel dá pulinhos…
+// Os PAPÉIS (curiosa, tranquila, tímido, caçula) continuam fixos — é o
+// que dá as relações e os comportamentos; só a APARÊNCIA é sorteada.
+//
+//   curiosa (Lila)  → espia com um olho quando a senha aparece, mexe o acessório
+//   tranquila(Menta)→ aperta os olhos sorrindo na senha
+//   tímido  (Coral) → tapa os olhos com as mãozinhas
+//   caçula  (Mel)   → dá pulinhos, tapa os olhos quase juntinho, olha feio pra Lila
+//
+//   parado    → respiram, piscam (às vezes juntos), trocam olhares…
 //   digitando → se inclinam pro campo e os olhos seguem o cursor do texto
-//   senha     → tapam os olhos com as mãozinhas / fecham os olhos sorrindo
-//   "mostrar" → com a senha à mostra, a Lila espia com um olho só
-//               (o Coral continua tapando e o Mel olha feio pra ela)
+//   senha     → tapam os olhos / fecham os olhos sorrindo
+//   "mostrar" → a Lila espia com um olho só (o caçula olha feio pra ela)
 //   erro      → susto (pulinho + tremida) e depois biquinho emburrado
 //   sucesso   → pulo de comemoração com brilhinhos
 //
@@ -24,8 +33,8 @@ import '../../styles/auth-characters.css';
 // re-render por quadro; o mouse fica numa ref). Pulos e tremidas usam a
 // Web Animations API; expressões trocam por atributos + transições CSS.
 // Só transform/opacity animam. prefers-reduced-motion e html[data-lite]
-// ("modo calmo") desligam tudo que se mexe sozinho: as expressões de
-// cada estado continuam, paradas, olhando pro formulário.
+// ("modo calmo") desligam tudo que se mexe sozinho. Como é 100% SVG, não
+// depende de WebGL: o mesmo desenho serve de base em qualquer navegador.
 // Puramente decorativo: aria-hidden.
 // ---------------------------------------------------------------------
 
@@ -33,61 +42,175 @@ const VB = { x: 38, y: 0, w: 416, h: 244 };
 const FLOOR = 228;
 const INK = '#1d1631';
 
-// Coordenadas no viewBox. Tudo que gira/escala é desenhado na origem
-// local e posicionado pelo grupo pai (assim o CSS usa origem 0 0).
-const CHARS = [
-  {
-    id: 'lila', cx: 191, w: 82,
-    top: '#cbc6ff', base: '#a39bff', mitt: '#ebe8ff', deep: '#7467e8', lid: '#a8a0ff', cheek: '#ff8cc6',
-    body: 'M150 214 V86 A41 41 0 0 1 232 86 V214 Q232 228 218 228 H164 Q150 228 150 214 Z',
-    bodyTop: 45,
-    eye: 'ball', eyes: [{ x: 174, y: 97 }, { x: 208, y: 97 }], r: 12, pr: 6.1, pMax: 5,
-    brow: 19, mouth: { x: 191, y: 125, s: 1 },
-    blush: [{ x: 161, y: 115 }, { x: 221, y: 115 }], blushR: [7, 4],
-    hand: 1, rest: [[158, 168], [224, 168]], up: [[149, 104], [233, 104]], chin: [216, 124],
-    lean: 6, k: 80, z: 0.6, face: 6, antenna: { x: 191, y: 46 },
-  },
-  {
-    id: 'menta', cx: 296, w: 148,
-    top: '#b4f3e0', base: '#74dcc1', mitt: '#dcfbf1', deep: '#3db497', cheek: '#ffa0b8',
-    body: 'M222 228 V184 C222 140 254 118 296 118 C338 118 370 140 370 184 V228 Z',
-    bodyTop: 118,
-    eye: 'dot', eyes: [{ x: 280, y: 164 }, { x: 313, y: 164 }], r: 6, pr: 5.4, pMax: 3.2,
-    brow: 14, mouth: { x: 296, y: 184, s: 0.95 },
-    blush: [{ x: 266, y: 181 }, { x: 327, y: 181 }], blushR: [8, 4.5],
-    hand: 1, rest: [[232, 206], [360, 206]], up: [[226, 160], [366, 160]], chin: [318, 196],
-    lean: 3.4, k: 55, z: 0.72, face: 7, tuft: { x: 296, y: 120 },
-  },
-  {
-    id: 'coral', cx: 116, w: 108,
-    top: '#ffc0b0', base: '#ff917b', mitt: '#ffe6de', deep: '#ec6853', cheek: '#ff5f86',
-    body: 'M62 158 Q62 128 92 128 H140 Q170 128 170 158 V214 Q170 228 156 228 H76 Q62 228 62 214 Z',
-    bodyTop: 128,
-    eye: 'bean', eyes: [{ x: 101, y: 168 }, { x: 132, y: 168 }], r: 7, pr: 7, pMax: 2.6,
-    brow: 17, mouth: { x: 116, y: 189, s: 1.05 },
-    blush: [{ x: 86, y: 187 }, { x: 147, y: 187 }], blushR: [9.5, 5.5],
-    hand: 1.05, rest: [[72, 204], [160, 204]], up: [[63, 150], [169, 150]], chin: [140, 198],
-    lean: 4.6, k: 120, z: 0.55, face: 6,
-  },
-  {
-    id: 'mel', cx: 396, w: 66,
-    top: '#fff0bf', base: '#ffd977', mitt: '#fffaea', deep: '#f0b443', lid: '#ffdd86', cheek: '#ff8a7a',
-    body: 'M363 211 C363 185 378 170 396 170 C414 170 429 185 429 211 C429 224 419 228 396 228 C373 228 363 224 363 211 Z',
-    bodyTop: 170,
-    eye: 'ball', eyes: [{ x: 386, y: 195 }, { x: 407, y: 195 }], r: 8.4, pr: 4.9, pMax: 3,
-    brow: 13, mouth: { x: 396, y: 211, s: 0.78 },
-    blush: [{ x: 376, y: 207 }, { x: 417, y: 207 }], blushR: [5, 3],
-    hand: 0.98, coverIn: 2.5, rest: [[372, 214], [420, 214]], up: [[364, 192], [428, 192]], chin: [410, 212],
-    lean: 8, k: 190, z: 0.42, face: 4, sprout: { x: 396, y: 171 },
-  },
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const r2 = (v) => Math.round(v * 100) / 100;
+
+// -------------------------- sorteio de visual ------------------------
+
+// HSL → hex (sem depender de nada; roda no navegador no 1º render).
+function hsl(h, s, l) {
+  const sn = s / 100; const ln = l / 100;
+  const k = (n) => (n + h / 30) % 12;
+  const a = sn * Math.min(ln, 1 - ln);
+  const f = (n) => ln - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  const to = (x) => Math.round(x * 255).toString(16).padStart(2, '0');
+  return `#${to(f(0))}${to(f(8))}${to(f(4))}`;
+}
+// Família de cor derivada de um matiz: claro em cima, sombra embaixo,
+// luvinha bem clara e bochecha quentinha. Curva fixa = sempre harmônico.
+function family(h) {
+  return {
+    hue: h,
+    top: hsl(h, 74, 85),
+    base: hsl(h, 67, 71),
+    deep: hsl(h, 60, 52),
+    mitt: hsl(h, 62, 94),
+    lid: hsl(h, 66, 80),
+    cheek: hsl((h * 0.12 + 344) % 360, 92, 73),
+  };
+}
+// Paleta curada (matizes de brinquedo/doçura) com rótulos pro data-color.
+const HUES = [
+  { h: 258, n: 'lilas' }, { h: 160, n: 'menta' }, { h: 8, n: 'coral' }, { h: 44, n: 'mel' },
+  { h: 205, n: 'ceu' }, { h: 328, n: 'chiclete' }, { h: 96, n: 'limao' }, { h: 24, n: 'tangerina' },
+  { h: 278, n: 'uva' }, { h: 184, n: 'agua' }, { h: 342, n: 'rosa' }, { h: 52, n: 'manteiga' },
 ];
-const BY_ID = Object.fromEntries(CHARS.map((c) => [c.id, c]));
-// Ordem de desenho (de trás pra frente).
-const DRAW = ['lila', 'menta', 'coral', 'mel'].map((id) => BY_ID[id]);
+
+const rand = (n) => Math.floor(Math.random() * n);
+const pick = (arr) => arr[rand(arr.length)];
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i -= 1) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+const hueDist = (a, b) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
+// Escolhe n matizes distintos e BEM espaçados (harmonia + nenhuma cor repetida).
+function pickHues(n) {
+  const pool = shuffle(HUES);
+  const out = [];
+  for (const c of pool) {
+    if (out.every((o) => hueDist(o.h, c.h) >= 30)) out.push(c);
+    if (out.length === n) break;
+  }
+  // Se o espaçamento não encheu (raro), completa com o que sobrou.
+  for (const c of pool) { if (out.length === n) break; if (!out.includes(c)) out.push(c); }
+  return out;
+}
+
+// --------- formas de corpo (silhueta + proporções do rosto) ----------
+// Cada forma desenha a silhueta DENTRO da caixa (cx, w, h, floor) e diz
+// onde ficam olhos/boca (proporções). Assim qualquer forma cabe em
+// qualquer papel, mantendo a composição (alturas variadas, sobreposição).
+const SHAPES = {
+  pilula(cx, w, h, floor) {
+    const top = floor - h; const hw = w / 2; const br = Math.min(hw, 16);
+    const body = `M${cx - hw} ${floor - br} V${top + hw} A${hw} ${hw} 0 0 1 ${cx + hw} ${top + hw} V${floor - br} Q${cx + hw} ${floor} ${cx + hw - br} ${floor} H${cx - hw + br} Q${cx - hw} ${floor} ${cx - hw} ${floor - br} Z`;
+    return { body, top, lay: { eyeYf: 0.34, gapf: 0.2, eyeRf: 0.15, mouthDyf: 0.3 } };
+  },
+  cupula(cx, w, h, floor) {
+    const top = floor - h; const hw = w / 2;
+    const body = `M${cx - hw} ${floor} V${top + h * 0.55} C${cx - hw} ${top + h * 0.16} ${cx - hw * 0.5} ${top} ${cx} ${top} C${cx + hw * 0.5} ${top} ${cx + hw} ${top + h * 0.16} ${cx + hw} ${top + h * 0.55} V${floor} Z`;
+    return { body, top, lay: { eyeYf: 0.52, gapf: 0.16, eyeRf: 0.085, mouthDyf: 0.17 } };
+  },
+  quadrado(cx, w, h, floor) {
+    const top = floor - h; const hw = w / 2; const tr = Math.min(hw * 0.55, 34); const brc = 14;
+    const body = `M${cx - hw} ${top + tr} Q${cx - hw} ${top} ${cx - hw + tr} ${top} H${cx + hw - tr} Q${cx + hw} ${top} ${cx + hw} ${top + tr} V${floor - brc} Q${cx + hw} ${floor} ${cx + hw - brc} ${floor} H${cx - hw + brc} Q${cx - hw} ${floor} ${cx - hw} ${floor - brc} Z`;
+    return { body, top, lay: { eyeYf: 0.42, gapf: 0.16, eyeRf: 0.075, mouthDyf: 0.2 } };
+  },
+  bolha(cx, w, h, floor) {
+    const top = floor - h; const hw = w / 2; const mid = top + h * 0.5;
+    const body = `M${cx - hw} ${mid} C${cx - hw} ${top + h * 0.16} ${cx - hw * 0.45} ${top} ${cx} ${top} C${cx + hw * 0.45} ${top} ${cx + hw} ${top + h * 0.16} ${cx + hw} ${mid} C${cx + hw} ${floor - h * 0.08} ${cx + hw * 0.55} ${floor} ${cx} ${floor} C${cx - hw * 0.55} ${floor} ${cx - hw} ${floor - h * 0.08} ${cx - hw} ${mid} Z`;
+    return { body, top, lay: { eyeYf: 0.46, gapf: 0.17, eyeRf: 0.12, mouthDyf: 0.22 } };
+  },
+  ovo(cx, w, h, floor) {
+    const top = floor - h; const hw = w / 2;
+    const body = `M${cx} ${top} C${cx + hw} ${top + h * 0.05} ${cx + hw} ${top + h * 0.52} ${cx + hw * 0.92} ${top + h * 0.72} C${cx + hw * 0.82} ${floor} ${cx + hw * 0.4} ${floor} ${cx} ${floor} C${cx - hw * 0.4} ${floor} ${cx - hw * 0.82} ${floor} ${cx - hw * 0.92} ${top + h * 0.72} C${cx - hw} ${top + h * 0.52} ${cx - hw} ${top + h * 0.05} ${cx} ${top} Z`;
+    return { body, top, lay: { eyeYf: 0.4, gapf: 0.16, eyeRf: 0.13, mouthDyf: 0.26 } };
+  },
+  feijao(cx, w, h, floor) {
+    const top = floor - h; const hw = w / 2; const r = hw;
+    const body = `M${cx - hw} ${top + r} a${hw} ${r} 0 0 1 ${w} 0 V${floor - r} a${hw} ${r} 0 0 1 ${-w} 0 Z`;
+    return { body, top, lay: { eyeYf: 0.4, gapf: 0.19, eyeRf: 0.14, mouthDyf: 0.28 } };
+  },
+};
+const SHAPE_NAMES = Object.keys(SHAPES);
+
+// --------------------------- rostos e acessórios ---------------------
+const EYE_TYPES = ['ball', 'dot', 'bean'];
+const IDLE_MOUTHS = ['smile', 'soft', 'cat', 'grin'];
+const IDLE_BROWS = ['soft', 'up', 'none'];
+const ACC_SWAY = ['antenna', 'sprout', 'horn'];   // balançam (vento)
+const ACC_BOUNCE = ['leaf', 'ears', 'bow'];        // dão um pulinho
+const isSway = (t) => ACC_SWAY.includes(t);
+
+// Geometria concreta de um corpo a partir da forma + caixa + tipo de olho.
+function geom(cx, w, h, floor, shapeName, eye) {
+  const s = SHAPES[shapeName](cx, w, h, floor);
+  const { lay } = s; const eyeY = s.top + h * lay.eyeYf;
+  const eyeDX = w * lay.gapf; const er = Math.max(5, w * lay.eyeRf);
+  let r; let pr; let pMax;
+  if (eye === 'ball') { r = er; pr = er * 0.5; pMax = clamp(er * 0.42, 2.6, 5); }
+  else if (eye === 'dot') { r = er * 0.72; pr = er * 0.7; pMax = clamp(er * 0.5, 2.4, 3.6); }
+  else { r = er * 0.72; pr = er * 0.74; pMax = clamp(er * 0.38, 2.2, 3.2); }
+  const eyes = [{ x: cx - eyeDX, y: eyeY }, { x: cx + eyeDX, y: eyeY }];
+  const mouthY = eyeY + w * lay.mouthDyf;
+  const blushDX = eyeDX + er * 1.0; const blushY = eyeY + er * 1.4;
+  return {
+    body: s.body, bodyTop: s.top, eye, eyes, r, pr, pMax,
+    brow: Math.max(12, er * 1.5),
+    mouth: { x: cx, y: mouthY, s: clamp(w / 110, 0.72, 1.12) },
+    blush: [{ x: cx - blushDX, y: blushY }, { x: cx + blushDX, y: blushY }],
+    blushR: [er * 0.78, er * 0.46],
+    rest: [[cx - w * 0.42, floor - 16], [cx + w * 0.42, floor - 16]],
+    up: [[cx - w * 0.52, eyeY - 4], [cx + w * 0.52, eyeY - 4]],
+    chin: [cx + eyeDX + er * 0.5, mouthY + 1],
+    eyeDX,
+  };
+}
+
+// Papéis fixos: personalidade de MOVIMENTO + caixa (posição/altura) +
+// marcas de comportamento. draw = ordem de desenho (trás → frente).
+const ROLES = [
+  { id: 'lila', cx: 191, w: 84, h: 130, k: 80, z: 0.6, lean: 6, face: 6 },
+  { id: 'menta', cx: 296, w: 150, h: 112, k: 55, z: 0.72, lean: 3.4, face: 7 },
+  { id: 'coral', cx: 116, w: 108, h: 100, k: 120, z: 0.55, lean: 4.6, face: 6 },
+  { id: 'mel', cx: 396, w: 66, h: 60, k: 190, z: 0.42, lean: 8, face: 4, baby: true },
+];
+
+// Sorteia o elenco inteiro de um carregamento. Papel = fixo; visual = sorteado.
+function makeCast() {
+  const shapes = shuffle(SHAPE_NAMES).slice(0, ROLES.length);
+  const hues = pickHues(ROLES.length);
+  // Acessórios: garante pelo menos um que balança e um que pula, pro
+  // ocioso ter o que animar; o resto é livre (inclusive "nenhum").
+  const accs = shuffle([pick(ACC_SWAY), pick(ACC_BOUNCE), pick([...ACC_SWAY, ...ACC_BOUNCE, 'none', 'none']), 'none']);
+  const cast = ROLES.map((role, i) => {
+    const shape = shapes[i % shapes.length];
+    const col = family(hues[i % hues.length].h);
+    const eye = pick(EYE_TYPES);
+    const g = geom(role.cx, role.w, role.h, FLOOR, shape, eye);
+    const accType = accs[i];
+    const acc = accType === 'none' ? null : { type: accType, x: role.cx, y: g.bodyTop + 2 };
+    return {
+      id: role.id, idx: i, cx: role.cx, w: role.w,
+      k: role.k, z: role.z, lean: role.lean, face: role.face,
+      coverIn: role.baby ? g.eyeDX * 0.42 : 0,
+      hand: clamp(role.w / 110, 0.85, 1.08),
+      ...col, ...g, acc,
+      shape, colorName: hues[i % hues.length].n,
+      idleMouth: pick(IDLE_MOUTHS), idleBrow: pick(IDLE_BROWS),
+      variant: `${shape}-${hues[i % hues.length].n}-${eye}-${accType}`,
+    };
+  });
+  const byId = Object.fromEntries(cast.map((c) => [c.id, c]));
+  const swayer = cast.find((c) => c.acc && isSway(c.acc.type));
+  const bouncer = cast.find((c) => c.acc && !isSway(c.acc.type));
+  return { cast, byId, swayerId: swayer?.id || null, bouncerId: bouncer?.id || null };
+}
 
 // Expressões: olhos (open | wide | half | closed | happy | squeeze — ou
 // um par, um por olho), boca, sobrancelha, mãos (rest | cover | up |
-// peek), bochecha (0–3) e pra onde olham.
+// peek), bochecha (0–3) e pra onde olham. Chaveadas por PAPEL.
 const E = (eyes, mouth, o = {}) => ({ eyes, mouth, brow: 'none', hands: 'rest', blush: 1, look: 'target', ...o });
 const MOODS = {
   idle: {
@@ -160,16 +283,13 @@ const BROWS = {
 };
 
 const SPARKLES = [
-  { x: 120, y: 98, s: 1.1, c: '#fff' }, { x: 196, y: 6, s: 0.9, c: '#ffd977' },
-  { x: 250, y: 58, s: 0.7, c: '#cbc6ff' }, { x: 340, y: 96, s: 1, c: '#b4f3e0' },
-  { x: 430, y: 148, s: 0.8, c: '#fff' }, { x: 66, y: 104, s: 0.7, c: '#ffc0b0' },
-  { x: 150, y: 40, s: 0.6, c: '#fff' }, { x: 384, y: 130, s: 0.6, c: '#ffd977' },
+  { x: 120, y: 98, s: 1.1 }, { x: 196, y: 6, s: 0.9 },
+  { x: 250, y: 58, s: 0.7 }, { x: 340, y: 96, s: 1 },
+  { x: 430, y: 148, s: 0.8 }, { x: 66, y: 104, s: 0.7 },
+  { x: 150, y: 40, s: 0.6 }, { x: 384, y: 130, s: 0.6 },
 ];
 const MITTEN = 'M-7.5 6 C-9.5 0 -9 -7.5 -3.5 -9.5 C1.5 -11 7.5 -8.5 8 -2 C8.5 4 5.5 8.5 0 8.5 C-3.5 8.5 -6.5 8 -7.5 6 Z';
 const SPARK = 'M0 -9 C1.2 -2.4 2.4 -1.2 9 0 C2.4 1.2 1.2 2.4 0 9 C-1.2 2.4 -2.4 1.2 -9 0 C-2.4 -1.2 -1.2 -2.4 0 -9 Z';
-
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const r2 = (v) => Math.round(v * 100) / 100;
 
 function prefersCalm() {
   if (typeof window === 'undefined') return true;
@@ -312,12 +432,80 @@ function Mouth({ c, kind }) {
   );
 }
 
+// Acessório sorteado, desenhado em volta da âncora (topo do corpo).
+function Accessory({ c, reg, uid }) {
+  const a = c.acc;
+  if (!a) return null;
+  let art = null;
+  if (a.type === 'antenna') {
+    art = (
+      <>
+        <path d="M0 1 C0 -9 4 -16 9 -27" fill="none" stroke={c.deep} strokeWidth="3.2" strokeLinecap="round" />
+        <circle cx="10" cy="-30" r="13" fill={`url(#${uid}-bulb)`} className="pcc-antenna-glow" />
+        <circle cx="10" cy="-30" r="6" fill="#ffd977" />
+        <circle cx="8" cy="-32" r="1.8" fill="#fff" opacity=".9" />
+      </>
+    );
+  } else if (a.type === 'sprout') {
+    art = (
+      <>
+        <path d="M0 2 C0 -6 2 -12 1 -20" fill="none" stroke={c.deep} strokeWidth="2.8" strokeLinecap="round" />
+        <path d="M1 -14 C-5 -16 -9 -12 -10 -8 C-4 -8 0 -10 1 -14 Z" fill={c.base} stroke={c.deep} strokeWidth="1.4" />
+        <path d="M1 -20 C-2 -26 1 -31 6 -32 C6 -26 4 -22 1 -20 Z" fill={c.top} stroke={c.deep} strokeWidth="1.4" />
+      </>
+    );
+  } else if (a.type === 'horn') {
+    art = (
+      <>
+        <path d="M-5.5 2 C-5 -11 -1 -21 2 -25 C5 -19 3 -7 3 2 Z" fill={c.top} stroke={c.deep} strokeWidth="1.6" strokeLinejoin="round" />
+        <path d="M-3 -3 H1.2 M-3 -10 H1.8" stroke={c.deep} strokeWidth="1.4" strokeLinecap="round" opacity=".55" />
+        <path d="M-3.4 2 C-3 -8 -1 -16 0 -20" fill="none" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" opacity=".45" />
+      </>
+    );
+  } else if (a.type === 'leaf') {
+    art = (
+      <>
+        <path d="M0 2 C-3 -8 -12 -14 -19 -12 C-15 -6 -9 -1 0 2 Z" fill={c.deep} />
+        <path d="M0 2 C1 -10 8 -19 16 -20 C14 -11 8 -3 0 2 Z" fill={c.base} stroke={c.deep} strokeWidth="1.5" />
+      </>
+    );
+  } else if (a.type === 'ears') {
+    art = (
+      <>
+        {[-1, 1].map((s) => (
+          <g key={s} transform={`translate(${s * 13} -2)`}>
+            <ellipse cx="0" cy="-10" rx="8" ry="13" transform={`rotate(${s * 16} 0 -10)`} fill={c.base} stroke={c.deep} strokeWidth="1.5" />
+            <ellipse cx="0" cy="-10" rx="3.6" ry="7" transform={`rotate(${s * 16} 0 -10)`} fill={c.cheek} opacity=".7" />
+          </g>
+        ))}
+      </>
+    );
+  } else if (a.type === 'bow') {
+    art = (
+      <>
+        <path d="M-2 -10 L-16 -17 L-16 -3 Z" fill={c.cheek} stroke={c.deep} strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M2 -10 L16 -17 L16 -3 Z" fill={c.cheek} stroke={c.deep} strokeWidth="1.5" strokeLinejoin="round" />
+        <circle cx="0" cy="-10" r="4.5" fill={c.deep} />
+        <ellipse cx="-1.5" cy="-11.5" rx="1.6" ry="1" fill="#fff" opacity=".6" />
+      </>
+    );
+  }
+  const sway = isSway(a.type);
+  return (
+    <g transform={`translate(${a.x} ${a.y})`}>
+      <g className={sway ? 'pcc-acc-sway' : undefined}>
+        <g ref={reg(c.id, 'acc')} className={`pcc-acc${sway ? '' : ' pcc-acc-bounce'}`}>{art}</g>
+      </g>
+    </g>
+  );
+}
+
 // Posição de cada mão em cada pose: [x, y, giro, visível].
 function handPose(c, pose, i) {
   const [ex, ey] = [c.eyes[i].x, c.eyes[i].y + 3];
   const [rx, ry] = c.rest[i];
   const tilt = i === 0 ? -1 : 1;
-  // Tapando: as patinhas se encostam um pouco pro meio (no Mel, quase juntas).
+  // Tapando: as patinhas se encostam um pouco pro meio (no caçula, quase juntas).
   if (pose === 'cover') return [ex - (c.coverIn || 0) * tilt, ey + 1 + (c.coverIn || 0), 14 * tilt, true];
   if (pose === 'up') return [c.up[i][0], c.up[i][1], 28 * tilt, true];
   if (pose === 'peek') return i === 0 ? [ex, ey, -18, true] : [c.chin[0], c.chin[1], 30, true];
@@ -333,47 +521,30 @@ const Character = memo(function Character({ c, mood, index, reg, uid }) {
       ref={reg(c.id, 'char')}
       className={`pcc-char pcc-${c.id}`}
       data-blush={mood.blush}
+      data-variant={c.variant}
+      data-shape={c.shape}
+      data-color={c.colorName}
+      data-face={c.eye}
+      data-acc={c.acc?.type || 'none'}
       style={{ '--i': index, '--r': c.r }}
     >
       <g ref={reg(c.id, 'hop')} className="pcc-hop">
         <g ref={reg(c.id, 'lean')}>
           <g className="pcc-breathe">
-            {c.antenna && (
-              <g transform={`translate(${c.antenna.x} ${c.antenna.y})`}>
-                <g className="pcc-antenna-sway">
-                  <g ref={reg(c.id, 'antenna')} className="pcc-antenna">
-                    <path d="M0 1 C0 -9 4 -16 9 -27" fill="none" stroke={c.deep} strokeWidth="3.2" strokeLinecap="round" />
-                    <circle cx="10" cy="-30" r="13" fill={`url(#${uid}-bulb)`} className="pcc-antenna-glow" />
-                    <circle cx="10" cy="-30" r="6" fill="#ffd977" />
-                    <circle cx="8" cy="-32" r="1.8" fill="#fff" opacity=".9" />
-                  </g>
-                </g>
-              </g>
-            )}
-            {c.tuft && (
-              <g transform={`translate(${c.tuft.x} ${c.tuft.y})`}>
-                <g ref={reg(c.id, 'tuft')} className="pcc-tuft">
-                  <path d="M0 2 C-3 -8 -12 -14 -19 -12 C-15 -6 -9 -1 0 2 Z" fill={c.deep} />
-                  <path d="M0 2 C1 -10 8 -19 16 -20 C14 -11 8 -3 0 2 Z" fill={c.base} stroke={c.deep} strokeWidth="1.5" />
-                </g>
-              </g>
-            )}
-            {c.sprout && (
-              <g transform={`translate(${c.sprout.x} ${c.sprout.y})`}>
-                <g ref={reg(c.id, 'tuft')} className="pcc-tuft">
-                  <path d="M0 1 C-1 -5 2 -9 6 -9 C8 -9 8 -6 6 -5" fill="none" stroke={c.deep} strokeWidth="2.6" strokeLinecap="round" />
-                </g>
-              </g>
-            )}
+            <Accessory c={c} reg={reg} uid={uid} />
 
             <path d={c.body} fill={`url(#${uid}-g-${c.id})`} />
             <g clipPath={`url(#${uid}-b-${c.id})`}>
               {/* sombra própria embaixo/à direita e brilho em cima/à esquerda */}
               <rect x={c.cx - c.w} y={c.bodyTop - 30} width={c.w * 2} height={FLOOR - c.bodyTop + 30} fill={`url(#${uid}-sv-${c.id})`} />
               <rect x={c.cx - c.w} y={c.bodyTop - 30} width={c.w * 2} height={FLOOR - c.bodyTop + 30} fill={`url(#${uid}-sh-${c.id})`} />
-              <ellipse cx={c.cx - c.w * 0.22} cy={c.bodyTop + 14} rx={c.w * 0.3} ry={Math.min(26, (FLOOR - c.bodyTop) * 0.16)} fill={`url(#${uid}-sheen)`} />
+              {/* oclusão suave na base (assenta no chão) */}
+              <rect x={c.cx - c.w} y={FLOOR - Math.min(42, (FLOOR - c.bodyTop) * 0.4)} width={c.w * 2} height="60" fill={`url(#${uid}-occ-${c.id})`} />
+              {/* brilho especular alto à esquerda (volume de brinquedo) */}
+              <ellipse cx={c.cx - c.w * 0.24} cy={c.bodyTop + (FLOOR - c.bodyTop) * 0.2} rx={c.w * 0.26} ry={Math.min(30, (FLOOR - c.bodyTop) * 0.2)} fill={`url(#${uid}-sheen)`} />
+              <ellipse cx={c.cx - c.w * 0.26} cy={c.bodyTop + (FLOOR - c.bodyTop) * 0.12} rx={c.w * 0.12} ry={Math.min(10, (FLOOR - c.bodyTop) * 0.08)} fill="#fff" opacity=".5" />
             </g>
-            <path d={c.body} fill="none" stroke="rgba(255,255,255,.28)" strokeWidth="1.2" className="pcc-rim" />
+            <path d={c.body} fill="none" stroke="rgba(255,255,255,.3)" strokeWidth="1.2" className="pcc-rim" />
 
             <g ref={reg(c.id, 'face')} className="pcc-face">
               <g className="pcc-blush">
@@ -433,6 +604,10 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
   const focus = useFormFocus(scope);
   const [react, setReact] = useState(null); // 'error' | 'pout' | 'success'
 
+  // Elenco sorteado UMA vez por montagem (= por carregamento de página).
+  const gen = useMemo(() => makeCast(), []);
+  const { cast, byId, swayerId, bouncerId } = gen;
+
   // Refs dos elementos de cada personagem (preenchidas pelo Character).
   const els = useRef({});
   const regCache = useRef({});
@@ -474,7 +649,16 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
   else if (focus.kind === 'password') mode = 'password';
   else if (focus.kind === 'text') mode = 'typing';
   const moodKey = react === 'pout' ? 'pout' : mode;
-  const moods = MOODS[moodKey];
+  // Humores do papel + um toquezinho de rosto sorteado no descanso.
+  const moods = {};
+  for (const c of cast) {
+    const base = MOODS[moodKey][c.id];
+    if (moodKey === 'idle') {
+      moods[c.id] = { ...base, mouth: c.idleMouth, brow: c.idleBrow };
+    } else {
+      moods[c.id] = base;
+    }
+  }
 
   // Tudo que o laço de animação lê fica numa ref (sem re-render por quadro).
   const live = useRef({ pointer: null, caret: null, moodKey, glance: null, form: null, formAt: 0 });
@@ -504,12 +688,27 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
       { transform: 'none', opacity: 1 },
     ], { duration: dur, delay, easing: 'ease-in-out' });
   }, [play]);
+  // Balança o acessório (antena/broto/chifre) ou dá pulinho (folha/orelha/laço).
+  const wiggleAcc = useCallback((id) => {
+    if (!id) return;
+    play(id, 'acc', [
+      { transform: 'rotate(0)' }, { transform: 'rotate(-14deg)', offset: 0.2 }, { transform: 'rotate(11deg)', offset: 0.45 },
+      { transform: 'rotate(-6deg)', offset: 0.7 }, { transform: 'rotate(2deg)', offset: 0.88 }, { transform: 'rotate(0)' },
+    ], { duration: 1000, easing: 'ease-in-out' });
+  }, [play]);
+  const bounceAcc = useCallback((id) => {
+    if (!id) return;
+    play(id, 'acc', [
+      { transform: 'none' }, { transform: 'translateY(-4px) scale(1.06)', offset: 0.3 }, { transform: 'translateY(1px) scale(.97)', offset: 0.6 },
+      { transform: 'none' },
+    ], { duration: 820, easing: 'ease-in-out' });
+  }, [play]);
 
   const reactKey = react ? `${react === 'pout' ? 'error' : react}-${reaction?.key ?? 0}` : null;
   useEffect(() => {
     if (calm || !reactKey) return;
     if (reactKey.startsWith('error')) {
-      CHARS.forEach((c, i) => {
+      cast.forEach((c, i) => {
         const h = c.id === 'mel' ? 16 : c.id === 'menta' ? 7 : 11;
         play(c.id, 'hop', [
           { transform: 'none', easing: 'cubic-bezier(.2,.9,.3,1)' },
@@ -526,17 +725,15 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
         ], { duration: 820, delay: i * 45 });
       });
     } else if (reactKey.startsWith('success')) {
-      CHARS.forEach((c, i) => {
+      cast.forEach((c, i) => {
         const h = { lila: 26, menta: 18, coral: 30, mel: 38 }[c.id];
         hop(c, h, 720, 40 + i * 65, 1.3);
         if (c.id === 'mel') hop(c, 20, 520, 40 + i * 65 + 720, 1);
       });
-      play('lila', 'antenna', [
-        { transform: 'rotate(0)' }, { transform: 'rotate(-16deg)', offset: 0.25 }, { transform: 'rotate(12deg)', offset: 0.5 },
-        { transform: 'rotate(-6deg)', offset: 0.75 }, { transform: 'rotate(0)' },
-      ], { duration: 900, delay: 400, easing: 'ease-in-out' });
+      if (swayerId) wiggleAcc(swayerId);
+      if (bouncerId) bounceAcc(bouncerId);
     }
-  }, [reactKey, calm, play, hop]);
+  }, [reactKey, calm, play, hop, cast, swayerId, bouncerId, wiggleAcc, bounceAcc]);
 
   // Ponteiro do mouse (só guarda; o laço lê). Desligado no modo calmo.
   useEffect(() => {
@@ -557,7 +754,7 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
     if (calm) return undefined;
     const timers = new Set();
     const later = (fn, ms) => { const t = setTimeout(() => { timers.delete(t); fn(); }, ms); timers.add(t); };
-    CHARS.forEach((c, i) => {
+    cast.forEach((c, i) => {
       const loop = () => later(() => {
         blink(c.id);
         if (Math.random() < 0.2) later(() => blink(c.id), 260); // piscada dupla
@@ -566,10 +763,10 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
       loop();
     });
     return () => timers.forEach(clearTimeout);
-  }, [calm, blink]);
+  }, [calm, blink, cast]);
 
   // Micro-ações quando estão parados: trocam olhares, piscam juntos,
-  // pulinho, antena, topete, amassadinho.
+  // pulinho, balançam o acessório, amassadinho.
   useEffect(() => {
     if (calm) return undefined;
     const timers = new Set();
@@ -578,25 +775,19 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
     let n = 0;
     const act = () => {
       if (live.current.moodKey === 'idle' && !document.hidden) {
-        const pick = (n++ % 2 === 0) ? 'glance' : ['hop', 'wiggle', 'tuft', 'squish', 'blink2'][Math.floor(Math.random() * 5)];
-        if (pick === 'glance') {
+        const pick2 = (n++ % 2 === 0) ? 'glance' : ['hop', 'wiggle', 'bounce', 'squish', 'blink2'][Math.floor(Math.random() * 5)];
+        if (pick2 === 'glance') {
           const [a, b] = PAIRS[Math.floor(Math.random() * PAIRS.length)];
           live.current.glance = { [a]: b, [b]: a, until: performance.now() + 1500 };
           later(() => { blink(a); blink(b); }, 900);
-        } else if (pick === 'hop') {
-          hop(BY_ID.mel, 14, 560);
-          later(() => hop(BY_ID.mel, 8, 460), 560);
-        } else if (pick === 'wiggle') {
-          play('lila', 'antenna', [
-            { transform: 'rotate(0)' }, { transform: 'rotate(-14deg)', offset: 0.2 }, { transform: 'rotate(11deg)', offset: 0.45 },
-            { transform: 'rotate(-6deg)', offset: 0.7 }, { transform: 'rotate(2deg)', offset: 0.88 }, { transform: 'rotate(0)' },
-          ], { duration: 1000, easing: 'ease-in-out' });
-        } else if (pick === 'tuft') {
-          play('menta', 'tuft', [
-            { transform: 'none' }, { transform: 'rotate(-12deg) scale(1.08)', offset: 0.25 }, { transform: 'rotate(9deg)', offset: 0.55 },
-            { transform: 'rotate(-3deg)', offset: 0.8 }, { transform: 'none' },
-          ], { duration: 900, easing: 'ease-in-out' });
-        } else if (pick === 'squish') {
+        } else if (pick2 === 'hop') {
+          hop(byId.mel, 14, 560);
+          later(() => hop(byId.mel, 8, 460), 560);
+        } else if (pick2 === 'wiggle') {
+          wiggleAcc(swayerId);
+        } else if (pick2 === 'bounce') {
+          bounceAcc(bouncerId);
+        } else if (pick2 === 'squish') {
           play('coral', 'hop', [
             { transform: 'none' }, { transform: 'scale(1.06, .93)', offset: 0.3 }, { transform: 'scale(.97, 1.04)', offset: 0.6 }, { transform: 'none' },
           ], { duration: 700, easing: 'ease-in-out' });
@@ -608,12 +799,12 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
     };
     later(act, 1800);
     return () => timers.forEach(clearTimeout);
-  }, [calm, blink, hop, play]);
+  }, [calm, blink, hop, play, byId, swayerId, bouncerId, wiggleAcc, bounceAcc]);
 
   // Laço de animação: molas pro olhar, rosto e inclinação.
   useEffect(() => {
     const sim = {};
-    CHARS.forEach((c) => { sim[c.id] = { lean: 0, lv: 0, fx: 0, fy: 0, fvx: 0, fvy: 0, px: 0, py: 0, w: '' }; });
+    cast.forEach((c) => { sim[c.id] = { lean: 0, lv: 0, fx: 0, fy: 0, fvx: 0, fvy: 0, px: 0, py: 0, w: '' }; });
     let raf = 0;
     let last = performance.now();
 
@@ -647,12 +838,12 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
       if (!r || r.width === 0) return null;
       const fp = formPoint(now);
       const form = fp ? toVb(r, fp) : { x: VB.x + VB.w + 200, y: 120 };
-      const pick = calm ? null : (L.caret || L.pointer);
-      const tgt = pick ? toVb(r, pick) : form;
+      const pickPt = calm ? null : (L.caret || L.pointer);
+      const tgt = pickPt ? toVb(r, pickPt) : form;
       const glance = L.glance && L.glance.until > now && mk === 'idle' ? L.glance : null;
       const formSide = Math.sign(form.x - (VB.x + VB.w / 2)) || 1;
       const out = {};
-      CHARS.forEach((c) => {
+      cast.forEach((c) => {
         const mood = MOODS[mk][c.id];
         const ex = (c.eyes[0].x + c.eyes[1].x) / 2;
         const ey = c.eyes[0].y;
@@ -669,7 +860,7 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
         } else if (look === 'front') {
           dx = 0; dy = 60; pScale = 0.35;
         } else if (look?.at) {
-          const o = BY_ID[look.at];
+          const o = byId[look.at];
           dx = (o.eyes[0].x + o.eyes[1].x) / 2 - ex; dy = o.eyes[0].y - ey;
           leanG = clamp(dx / 150, -1, 1) * c.lean * 0.6;
         }
@@ -705,7 +896,7 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
       last = now;
       const g = goals(now);
       if (g) {
-        CHARS.forEach((c) => {
+        cast.forEach((c) => {
           const s = sim[c.id]; const t = g[c.id];
           if (calm) {
             Object.assign(s, { lean: 0, fx: t.fx, fy: t.fy, px: t.px, py: t.py });
@@ -722,7 +913,9 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
           write(c, s);
         });
       }
-      if (!calm) raf = requestAnimationFrame(tick);
+      // Pausa quando a aba está escondida (economiza bateria/CPU).
+      if (!calm && !document.hidden) raf = requestAnimationFrame(tick);
+      else raf = 0;
     };
 
     if (calm) {
@@ -734,9 +927,12 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
       live.current.snap = snap;
       return () => { clearTimeout(t); window.removeEventListener('resize', snap); live.current.snap = null; };
     }
+    // Retoma o laço quando a aba volta a ficar visível.
+    const onVis = () => { if (!document.hidden && !raf) { last = performance.now(); raf = requestAnimationFrame(tick); } };
+    document.addEventListener('visibilitychange', onVis);
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [calm, scope, align]);
+    return () => { document.removeEventListener('visibilitychange', onVis); if (raf) cancelAnimationFrame(raf); };
+  }, [calm, scope, align, cast, byId]);
 
   // No modo calmo, reposiciona quando muda o estado.
   useEffect(() => { live.current.snap?.(); }, [moodKey, focus.caret?.x, focus.caret?.y]);
@@ -757,11 +953,11 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
         focusable="false"
       >
         <defs>
-          {CHARS.map((c) => (
+          {cast.map((c) => (
             <g key={c.id}>
-              <linearGradient id={`${uid}-g-${c.id}`} gradientUnits="userSpaceOnUse" x1="0" y1={c.bodyTop} x2="0" y2={FLOOR}>
+              <linearGradient id={`${uid}-g-${c.id}`} gradientUnits="userSpaceOnUse" x1={c.cx - c.w * 0.3} y1={c.bodyTop} x2={c.cx + c.w * 0.3} y2={FLOOR}>
                 <stop offset="0" stopColor={c.top} />
-                <stop offset=".55" stopColor={c.base} />
+                <stop offset=".5" stopColor={c.base} />
                 <stop offset="1" stopColor={c.base} />
               </linearGradient>
               {/* Luvinha mais clara que o corpo, pra ler como mão em cima do rosto. */}
@@ -770,19 +966,24 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
                 <stop offset="1" stopColor={c.top} />
               </linearGradient>
               <linearGradient id={`${uid}-sv-${c.id}`} gradientUnits="userSpaceOnUse" x1="0" y1={c.bodyTop} x2="0" y2={FLOOR}>
-                <stop offset=".45" stopColor={c.deep} stopOpacity="0" />
-                <stop offset="1" stopColor={c.deep} stopOpacity=".7" />
+                <stop offset=".4" stopColor={c.deep} stopOpacity="0" />
+                <stop offset="1" stopColor={c.deep} stopOpacity=".65" />
               </linearGradient>
               <linearGradient id={`${uid}-sh-${c.id}`} gradientUnits="userSpaceOnUse" x1={c.cx - c.w / 2} y1="0" x2={c.cx + c.w / 2} y2="0">
-                <stop offset=".55" stopColor={c.deep} stopOpacity="0" />
-                <stop offset="1" stopColor={c.deep} stopOpacity=".45" />
+                <stop offset=".5" stopColor={c.deep} stopOpacity="0" />
+                <stop offset="1" stopColor={c.deep} stopOpacity=".5" />
+              </linearGradient>
+              {/* Oclusão de contato: escurece o pezinho pra assentar no chão. */}
+              <linearGradient id={`${uid}-occ-${c.id}`} gradientUnits="userSpaceOnUse" x1="0" y1={FLOOR - 42} x2="0" y2={FLOOR}>
+                <stop offset="0" stopColor={c.deep} stopOpacity="0" />
+                <stop offset="1" stopColor={c.deep} stopOpacity=".5" />
               </linearGradient>
               <clipPath id={`${uid}-b-${c.id}`}><path d={c.body} /></clipPath>
               {c.eye === 'ball' && <clipPath id={`${uid}-eye-${c.id}`}><circle r={c.r + 0.3} /></clipPath>}
             </g>
           ))}
           <radialGradient id={`${uid}-sheen`}>
-            <stop offset="0" stopColor="#fff" stopOpacity=".5" />
+            <stop offset="0" stopColor="#fff" stopOpacity=".62" />
             <stop offset="1" stopColor="#fff" stopOpacity="0" />
           </radialGradient>
           <radialGradient id={`${uid}-shadow`}>
@@ -808,7 +1009,7 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
         <ellipse cx="246" cy={FLOOR - 64} rx="200" ry="100" fill={`url(#${uid}-glow)`} />
         <rect x={VB.x} y={FLOOR} width={VB.w} height="1" fill={`url(#${uid}-floor)`} />
         <ellipse cx="248" cy={FLOOR + 3} rx="210" ry="9" fill={`url(#${uid}-shadow)`} opacity=".55" />
-        {CHARS.map((c) => (
+        {cast.map((c) => (
           <g key={c.id} transform={`translate(${c.cx} ${FLOOR + 1.5})`}>
             <ellipse
               ref={reg(c.id, 'shadow')} className="pcc-shadow"
@@ -818,8 +1019,8 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
         ))}
 
         <g className="pcc-group">
-          {DRAW.map((c) => (
-            <Character key={c.id} c={c} index={CHARS.indexOf(c)} mood={moods[c.id]} reg={reg} uid={uid} />
+          {cast.map((c) => (
+            <Character key={c.id} c={c} index={c.idx} mood={moods[c.id]} reg={reg} uid={uid} />
           ))}
         </g>
 
@@ -827,7 +1028,7 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
           <g className="pcc-sparkles">
             {SPARKLES.map((s, i) => (
               <g key={i} transform={`translate(${s.x} ${s.y}) scale(${s.s})`}>
-                <path className="pcc-spark" d={SPARK} fill={s.c} style={{ '--i': i }} />
+                <path className="pcc-spark" d={SPARK} fill={cast[i % cast.length].top} style={{ '--i': i }} />
               </g>
             ))}
           </g>
