@@ -102,6 +102,10 @@
 .activity-badge .activity-badge-icon.is-capsule,
 .profile-modal-fullscreen .activity-badge .activity-badge-icon.is-capsule { width: 103px; height: 48px; border-radius: 8px; }
 .profile-modal-fullscreen .activity-badge .activity-badge-icon.is-capsule { width: 137px; height: 64px; }
+/* Capa vertical (600x900) da Steam: mesma altura da capa do álbum da
+   música (72px / 96px no perfil completo), na proporção 2:3. */
+.activity-badge .activity-badge-icon.is-cover { width: 48px; height: 72px; border-radius: 8px; }
+.profile-modal-fullscreen .activity-badge .activity-badge-icon.is-cover { width: 64px; height: 96px; border-radius: 10px; }
 
 /* ---------- Avisos de conquista / nível ---------- */
 .sx-toasts {

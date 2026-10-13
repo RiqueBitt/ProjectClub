@@ -4,7 +4,8 @@ import { useStore } from '../store/useStore';
 import { useSocket } from '../context/SocketContext.jsx';
 import { getActivityFeed, toggleActivityCheer } from '../api/social';
 import { useLiveRefresh, sameData } from '../utils/liveRefresh';
-import { activityArtUrl, ACTIVITY_VERB } from '../utils/activityArt';
+import { activityArtUrl, steamAppIdFromActivity, ACTIVITY_VERB } from '../utils/activityArt';
+import SteamGameCover from '../components/SteamGameCover.jsx';
 import { RARITY_COLOR, RARITY_LABEL } from '../utils/achievementRarity';
 import { requestOpenModpack } from './mods/modpackShared.js';
 import { proxyImage } from '../utils/imageProxy';
@@ -187,13 +188,17 @@ export default function AtividadePage() {
             <h2 className="sx-section-title"><span className="sx-live-dot" aria-hidden="true" /> Agora</h2>
             <div className="sx-now-row">
               {playing.map(({ user, activity }) => {
-                const art = activityArtUrl(activity);
-                const wide = art?.startsWith('/api/proxy/steam/');
+                const steamAppId = activity.type === 'game' ? steamAppIdFromActivity(activity) : null;
+                const art = steamAppId ? null : activityArtUrl(activity);
+                const empty = <span className="sx-now-art-empty"><Ico name={activity.type === 'spotify' ? 'music' : activity.type === 'app' ? 'app' : 'game'} size={26} /></span>;
                 return (
                   <button key={user.id} type="button" className="sx-now-card" onClick={() => useStore.getState().openProfile(user.id)}>
-                    <span className={`sx-now-art${wide ? ' is-wide' : ''}`}>
-                      {art ? <img src={art.startsWith('/') || art.startsWith('data:') ? art : proxyImage(art)} alt="" loading="lazy" />
-                        : <span className="sx-now-art-empty"><Ico name={activity.type === 'spotify' ? 'music' : activity.type === 'app' ? 'app' : 'game'} size={26} /></span>}
+                    {/* Jogo da Steam: arte oficial (faixa larga = header
+                        primeiro), com reserva a cada falha — SteamGameCover. */}
+                    <span className={`sx-now-art${steamAppId ? ' is-wide' : ''}`}>
+                      {steamAppId ? <SteamGameCover appId={steamAppId} prefer="wide" loading="lazy" fallback={empty} />
+                        : art ? <img src={art.startsWith('/') || art.startsWith('data:') ? art : proxyImage(art)} alt="" loading="lazy" />
+                        : empty}
                     </span>
                     <span className="sx-now-info">
                       <UserAvatar user={user} size={28} />

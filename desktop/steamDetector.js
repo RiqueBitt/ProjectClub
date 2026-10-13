@@ -241,4 +241,105 @@ function listInstalledWorkshopItems(gameInstallPath, workshopAppId) {
     .map((entry) => entry.name);
 }
 
-module.exports = { detectInstalledSteamGames, looksLikeGameFolder, findSteamInstall, listInstalledWorkshopItems };
+// ---------- Jogo da Steam rodando AGORA (Rich Presence) ----------
+// BUG CORRIGIDO ("Jogando <jogo>" sem capa pra jogos da Steam): a
+// atividade só sabia o AppID quando o executável estava na lista fixa
+// de gameDatabase.js — qualquer outro jogo da Steam não tinha AppID
+// nenhum, e sem AppID não existe capa. A própria Steam publica qual
+// jogo ela abriu: "RunningAppID" (registro do Windows em
+// HKCU\Software\Valve\Steam; no Linux, o mesmo valor fica em
+// ~/.steam/registry.vdf). 0 = nada rodando. O nome vem do
+// appmanifest_<appid>.acf já lido por detectInstalledSteamGames.
+const { execFile } = require('child_process');
+
+// Ferramentas da Steam que também aparecem como "rodando" (Proton,
+// Steam Linux Runtime, redistribuíveis) — nunca são o jogo em si.
+const STEAM_TOOL_APP_IDS = new Set([
+  228980, // Steamworks Common Redistributables
+  1070560, 1391110, 1628350, 4183110, // Steam Linux Runtime 1.0/2.0/3.0/4.0
+  1493710, 2348590, 2805730, 3658110, 1887720, 1580130, 1420170, 1245040, 1113280, 1054830, 996510, 961940, 930400, 858280, // Proton
+]);
+
+function normalizeAppId(raw) {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 && n < 100000000 && !STEAM_TOOL_APP_IDS.has(n) ? n : null;
+}
+
+// Saída de "reg query ... /v RunningAppID" → AppID (ou null).
+// Ex.: "    RunningAppID    REG_DWORD    0x2d8"
+function parseRunningAppIdFromReg(output) {
+  const m = String(output || '').match(/RunningAppID\s+REG_DWORD\s+(0x[0-9a-f]+|\d+)/i);
+  if (!m) return null;
+  return normalizeAppId(m[1].toLowerCase().startsWith('0x') ? parseInt(m[1], 16) : Number(m[1]));
+}
+
+// registry.vdf (Linux): Registry > HKCU > Software > Valve > Steam > RunningAppID
+// (a capitalização das chaves varia entre versões — busca sem diferenciar).
+function parseRunningAppIdFromRegistryVdf(text) {
+  let node;
+  try { node = parseVdf(String(text || '')); } catch { return null; }
+  for (const key of ['HKCU', 'Software', 'Valve', 'Steam']) {
+    if (!node || typeof node !== 'object') return null;
+    const found = Object.keys(node).find((k) => k.toLowerCase() === key.toLowerCase());
+    node = found ? node[found] : null;
+  }
+  if (!node || typeof node !== 'object') return null;
+  const k = Object.keys(node).find((x) => x.toLowerCase() === 'runningappid');
+  return k ? normalizeAppId(node[k]) : null;
+}
+
+function execFileText(cmd, args) {
+  return new Promise((resolve) => {
+    execFile(cmd, args, { encoding: 'utf8', windowsHide: true, timeout: 4000 }, (err, stdout) => resolve(err ? '' : stdout));
+  });
+}
+
+async function getRunningSteamAppId(platform = process.platform) {
+  try {
+    if (platform === 'win32') {
+      return parseRunningAppIdFromReg(await execFileText('reg', ['query', 'HKEY_CURRENT_USER\\Software\\Valve\\Steam', '/v', 'RunningAppID']));
+    }
+    if (platform === 'linux') {
+      const home = os.homedir();
+      const candidates = [
+        path.join(home, '.steam', 'registry.vdf'),
+        path.join(home, '.var', 'app', 'com.valvesoftware.Steam', '.steam', 'registry.vdf'),
+        path.join(home, 'snap', 'steam', 'common', '.steam', 'registry.vdf'),
+      ];
+      for (const file of candidates) {
+        if (!fs.existsSync(file)) continue;
+        // eslint-disable-next-line no-await-in-loop
+        const id = parseRunningAppIdFromRegistryVdf(await fs.promises.readFile(file, 'utf8'));
+        if (id) return id;
+      }
+    }
+  } catch { /* sem Steam / sem permissão — só não sabe */ }
+  return null;
+}
+
+// Nome do jogo pelo AppID, a partir dos manifestos instalados. A
+// varredura das bibliotecas só roda de novo a cada 10 minutos (ou quando
+// aparece um AppID que ainda não estava na lista — jogo recém-instalado).
+const NAME_CACHE_MS = 10 * 60 * 1000;
+let installedNames = null; // Map appId -> nome
+let installedNamesAt = 0;
+function installedGameName(appId) {
+  const now = Date.now();
+  const stale = !installedNames || now - installedNamesAt > NAME_CACHE_MS;
+  const missing = installedNames && !installedNames.has(appId) && now - installedNamesAt > 30 * 1000;
+  if (stale || missing) {
+    try {
+      const { games = [] } = detectInstalledSteamGames() || {};
+      installedNames = new Map(games.map((g) => [Number(g.steamAppId), g.name]));
+    } catch {
+      installedNames = installedNames || new Map();
+    }
+    installedNamesAt = now;
+  }
+  return installedNames.get(appId) || null;
+}
+
+module.exports = {
+  detectInstalledSteamGames, looksLikeGameFolder, findSteamInstall, listInstalledWorkshopItems,
+  getRunningSteamAppId, installedGameName, parseRunningAppIdFromReg, parseRunningAppIdFromRegistryVdf, parseVdf, STEAM_TOOL_APP_IDS,
+};

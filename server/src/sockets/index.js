@@ -9,6 +9,7 @@ const presenceStore = require('../services/presenceStore');
 const activityStore = require('../services/activityStore');
 const voiceStore = require('../services/voiceRoomStore');
 const gamePlaytime = require('../services/gamePlaytime');
+const { steamAppIdOf } = require('../utils/steamCover');
 const ytWatch = require('./ytWatch');
 const { visibleStatus, installSocketMasking } = require('../utils/presenceVisibility');
 const { createTokenBucket } = require('../utils/tokenBucket');
@@ -58,6 +59,9 @@ async function isRestrictedChannel(channelId) {
 function sameActivity(a, b) {
   if (!a || !b || a.type !== b.type || a.name !== b.name || (a.detail || null) !== (b.detail || null)
     || (a.imageUrl || null) !== (b.imageUrl || null) || (a.durationMs || null) !== (b.durationMs || null)) return false;
+  // AppID da Steam: só conta como mudança quando o aviso novo traz um
+  // (o guardado pode ter vindo da biblioteca de jogos — ver activity:update).
+  if (b.steamAppId && a.steamAppId !== b.steamAppId) return false;
   if (b.type !== 'spotify') return true;
   if (!Number.isFinite(a.progressMs) || !Number.isFinite(b.progressMs)) return a.progressMs === b.progressMs;
   const expected = a.progressMs + (b.startedAt - a.startedAt);
@@ -954,6 +958,9 @@ function initSockets(httpServer) {
           durationMs: Number.isFinite(activity.durationMs) ? activity.durationMs : undefined,
           progressMs: Number.isFinite(activity.progressMs) ? activity.progressMs : undefined,
         };
+        // Capa do jogo da Steam: o desktop manda o AppID (ou ele sai do
+        // link da arte, em versões antigas do app) — ver utils/steamCover.js.
+        if (clean.type === 'game') clean.steamAppId = steamAppIdOf(activity) || undefined;
         // Biblioteca de jogos: cada aviso é um batimento de tempo de jogo.
         // Só conta jogo (nunca Spotify/apps); playingGame = jogo rodando por
         // trás quando o que aparece é música/app (ver activityDetector.js).
@@ -968,6 +975,17 @@ function initSockets(httpServer) {
         if (prev && sameActivity(prev, clean)) {
           await activityStore.setActivity(userId, clean.type === 'spotify' ? clean : prev);
           return;
+        }
+        // Jogo sem AppID (fora da Steam ou app de desktop antigo): se a
+        // biblioteca de jogos da pessoa já descobriu o AppID desse jogo
+        // (gamePlaytime.fillSteamAppId, pelo nome), usa a mesma capa.
+        // Só roda quando a atividade MUDA (não a cada reconfirmação).
+        if (clean.type === 'game' && !clean.steamAppId && clean.name) {
+          const known = await prisma.gamePlaytime.findUnique({
+            where: { userId_gameKey: { userId, gameKey: gamePlaytime.gameKeyFor(clean.name) } },
+            select: { steamAppId: true },
+          }).catch(() => null);
+          if (known?.steamAppId) clean.steamAppId = known.steamAppId;
         }
         await activityStore.setActivity(userId, clean);
         await broadcastActivityChange(io, userId, clean);

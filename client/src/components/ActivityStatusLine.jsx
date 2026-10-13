@@ -1,5 +1,6 @@
 import { useStore } from '../store/useStore';
-import { activityArtUrl, ACTIVITY_VERB } from '../utils/activityArt';
+import { activityArtUrl, steamAppIdFromActivity, ACTIVITY_VERB } from '../utils/activityArt';
+import SteamGameCover from './SteamGameCover.jsx';
 import '../styles/socialx.css';
 
 // Linha curta "Jogando X" / "Ouvindo X" / "Usando X" (com a arte do
@@ -14,17 +15,20 @@ const PATHS = {
 export default function ActivityStatusLine({ userId }) {
   const activity = useStore((s) => s.activities[userId]);
   if (!activity?.name) return null;
-  const art = activityArtUrl(activity);
-  const wide = activity.type === 'game' && art?.startsWith('/api/proxy/steam/');
+  const steamAppId = activity.type === 'game' ? steamAppIdFromActivity(activity) : null;
+  const art = steamAppId ? null : activityArtUrl(activity);
+  const glyph = (
+    <span className="sx-status-glyph" aria-hidden="true">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={PATHS[activity.type] || PATHS.game} /></svg>
+    </span>
+  );
   return (
     <div className={`sx-status-line sx-status-${activity.type}`} title={`${ACTIVITY_VERB[activity.type] || 'Jogando'} ${activity.name}`}>
-      {art ? (
-        <img className={`sx-status-art${wide ? ' is-wide' : ''}`} src={art} alt="" />
-      ) : (
-        <span className="sx-status-glyph" aria-hidden="true">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={PATHS[activity.type] || PATHS.game} /></svg>
-        </span>
-      )}
+      {steamAppId ? (
+        <SteamGameCover appId={steamAppId} prefer="wide" className="sx-status-art is-wide" fallback={glyph} />
+      ) : art ? (
+        <img className="sx-status-art" src={art} alt="" />
+      ) : glyph}
       <span className="sx-status-text">
         {ACTIVITY_VERB[activity.type] || 'Jogando'} <b>{activity.name}</b>
         {activity.type === 'spotify' && activity.detail && <span className="sx-status-detail"> · {activity.detail}</span>}

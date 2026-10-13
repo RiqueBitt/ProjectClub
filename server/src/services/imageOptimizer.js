@@ -6,7 +6,7 @@
 // O que faz (só com imagens estáticas PNG/JPEG/WebP, nunca com vídeo/áudio):
 // - gira conforme a orientação da câmera (EXIF) e REMOVE os metadados
 //   (EXIF/GPS/modelo do celular) — privacidade + bytes;
-// - limita o tamanho por tipo de upload (avatar 512, banner 1920 de
+// - limita o tamanho por tipo de upload (avatar 512, banner 2400 de
 //   largura, chat/fotos 2560 no maior lado), sem nunca aumentar;
 // - converte pra WebP: JPEG em qualidade 90 (visualmente igual), PNG em
 //   modo "quase sem perda" (near-lossless, mantém transparência) ou sem
@@ -38,12 +38,39 @@ const LIMITS = {
   emoji: { side: 256 },
   sticker: { side: 512 },
   icon: { side: 512 },
-  banner: { width: 1920 },
+  // Banner: 2400 de largura = 2x da maior faixa onde ele aparece (cartão
+  // do perfil completo, até 1180px de largura) — nítido em tela retina.
+  banner: { width: 2400 },
   idCard: { width: 1920 },
   attachments: { side: 2560 },
   photo: { side: 2560 },
 };
 const DEFAULT_LIMIT = { side: 2560 };
+
+// Qualidade de saída por campo. Item pedido: "o banner do perfil grande
+// está ficando com qualidade muito ruim" — o banner já chega recortado e
+// exportado em alta qualidade pelo editor (ImageCropperModal.jsx); antes o
+// servidor recomprimia SEMPRE (JPEG → WebP q90 com cor em 4:2:0, ficando
+// com o menor arquivo), somando uma segunda perda por cima da primeira.
+// Agora, pra banner:
+//  - keepIfClean: se não precisa reduzir/girar/limpar metadado, o arquivo
+//    enviado fica como está (sem segunda compressão);
+//  - quando precisa recomprimir: WebP q92 com smartSubsample (cor mais
+//    fiel nas bordas) e JPEG q92 em 4:4:4 (cor sem subamostragem);
+//  - redução sempre com lanczos3 e nunca aumentando.
+const DEFAULT_QUALITY = { webp: 90, jpeg: 90, smartSubsample: false, chromaSubsampling: '4:2:0', keepIfClean: false };
+const QUALITY = {
+  banner: { webp: 92, jpeg: 92, smartSubsample: true, chromaSubsampling: '4:4:4', keepIfClean: true },
+  idCard: { webp: 92, jpeg: 92, smartSubsample: true, chromaSubsampling: '4:4:4', keepIfClean: false },
+};
+function qualityFor(field) {
+  return QUALITY[field] || DEFAULT_QUALITY;
+}
+// Banner em GIF animado continua animado; só passa a WebP animado se o GIF
+// (já reduzido) ainda for maior que o proxy de imagens aceita (8 MB) —
+// senão ele nem apareceria no perfil.
+const PROXY_MAX_BYTES = 8 * 1024 * 1024;
+const RESIZE_KERNEL = 'lanczos3';
 // Campos onde GIF animado pode virar WebP animado (o app não depende da
 // extensão .gif nesses lugares — usa o mimeType salvo do anexo).
 const GIF_TO_WEBP_FIELDS = new Set(['attachments', 'photo']);
@@ -58,8 +85,8 @@ function limitFor(field) {
 function resizeOptions(meta, limit) {
   const w = meta.width || 0;
   const h = (meta.pageHeight || meta.height) || 0;
-  if (limit.width) return w > limit.width ? { width: limit.width, withoutEnlargement: true } : null;
-  if (Math.max(w, h) > limit.side) return { width: limit.side, height: limit.side, fit: 'inside', withoutEnlargement: true };
+  if (limit.width) return w > limit.width ? { width: limit.width, withoutEnlargement: true, kernel: RESIZE_KERNEL } : null;
+  if (Math.max(w, h) > limit.side) return { width: limit.side, height: limit.side, fit: 'inside', withoutEnlargement: true, kernel: RESIZE_KERNEL };
   return null;
 }
 
@@ -132,6 +159,27 @@ async function processGifAvatar({ buffer, originalName, meta, base, crop, keep }
   return { buffer: out, mimeType: 'image/gif', originalName: replaceExt(originalName, '.gif'), changed: true };
 }
 
+// ---- Banner em GIF animado ----
+// Continua GIF animado (todos os quadros, tempos e loop). Só reduz se
+// passar da largura máxima; se mesmo assim ficar maior que o proxy aceita,
+// vira WebP animado (ainda animado, bem menor).
+async function processGifBanner({ buffer, originalName, meta, base, resize, keep }) {
+  let out = buffer;
+  let mime = 'image/gif';
+  if (resize) {
+    out = await base().resize(resize).gif({ loop: meta.loop ?? 0, effort: 7 }).toBuffer();
+    if (out.length >= buffer.length && buffer.length <= PROXY_MAX_BYTES) { out = buffer; }
+  }
+  if (out.length > PROXY_MAX_BYTES) {
+    let p = base();
+    if (resize) p = p.resize(resize);
+    const webp = await p.webp({ quality: 90, effort: 4, loop: meta.loop ?? 0, smartSubsample: true }).toBuffer();
+    if (webp.length < out.length) { out = webp; mime = 'image/webp'; }
+  }
+  if (out === buffer) return keep;
+  return { buffer: out, mimeType: mime, originalName: replaceExt(originalName, mime === 'image/webp' ? '.webp' : '.gif'), changed: true };
+}
+
 function replaceExt(name, ext) {
   const base = String(name || 'imagem').replace(/\.[^./\\]{1,8}$/, '');
   return `${base}${ext}`;
@@ -156,6 +204,7 @@ async function optimizeImage({ buffer, mimeType, originalName, field, crop }) {
     if (mimeType === 'image/gif') {
       // Avatar: recorta (enquadramento do editor) e reduz TODOS os quadros, continua GIF.
       if (field === 'avatar') return await processGifAvatar({ buffer, originalName, meta, base, crop, keep });
+      if (field === 'banner' && animated) return await processGifBanner({ buffer, originalName, meta, base, resize, keep });
       if (!animated || !GIF_TO_WEBP_FIELDS.has(field)) return keep;
       let p = base();
       if (resize) p = p.resize(resize);
@@ -172,6 +221,12 @@ async function optimizeImage({ buffer, mimeType, originalName, field, crop }) {
     // ---- WebP estático: só se precisa reduzir/girar/limpar metadado ----
     const mustProcess = !!resize || needsRotate || hasMeta;
     if (mimeType === 'image/webp' && !mustProcess) return keep;
+    const q = qualityFor(field);
+    // Banner já otimizado pelo editor (sem redução/giro/metadado pendente):
+    // não recomprime — cada recompressão com perda piora a imagem.
+    if (q.keepIfClean && !mustProcess && mimeType !== 'image/png') return keep;
+    const webpOpts = { quality: q.webp, effort: 4, ...(q.smartSubsample ? { smartSubsample: true } : {}) };
+    const jpegOpts = { quality: q.jpeg, mozjpeg: true, chromaSubsampling: q.chromaSubsampling };
 
     const pipeline = () => {
       let p = sharp(buffer, { limitInputPixels: MAX_INPUT_PIXELS, failOn: 'none' }).timeout({ seconds: TIMEOUT_SECONDS }).rotate();
@@ -188,17 +243,17 @@ async function optimizeImage({ buffer, mimeType, originalName, field, crop }) {
       const lossless = await pipeline().webp({ lossless: true, effort: 4 }).toBuffer();
       candidates.push({ buf: lossless, mime: 'image/webp', ext: '.webp' });
       if (lossless.length > buffer.length * 0.6) {
-        candidates.push({ buf: await pipeline().webp({ nearLossless: true, quality: 90, effort: 4 }).toBuffer(), mime: 'image/webp', ext: '.webp' });
+        candidates.push({ buf: await pipeline().webp({ nearLossless: true, quality: Math.max(90, q.webp), effort: 4 }).toBuffer(), mime: 'image/webp', ext: '.webp' });
       }
       // Precisa mexer (reduzir/girar) e WebP não ajudou: PNG recomprimido.
       if (mustProcess && Math.min(...candidates.map((c) => c.buf.length)) > buffer.length) {
         candidates.push({ buf: await pipeline().png({ compressionLevel: 9 }).toBuffer(), mime: 'image/png', ext: '.png' });
       }
     } else if (mimeType === 'image/jpeg') {
-      candidates.push({ buf: await pipeline().webp({ quality: 90, effort: 4 }).toBuffer(), mime: 'image/webp', ext: '.webp' });
-      if (mustProcess) candidates.push({ buf: await pipeline().jpeg({ quality: 90, mozjpeg: true }).toBuffer(), mime: 'image/jpeg', ext: '.jpg' });
+      candidates.push({ buf: await pipeline().webp(webpOpts).toBuffer(), mime: 'image/webp', ext: '.webp' });
+      if (mustProcess) candidates.push({ buf: await pipeline().jpeg(jpegOpts).toBuffer(), mime: 'image/jpeg', ext: '.jpg' });
     } else if (mimeType === 'image/webp') {
-      candidates.push({ buf: await pipeline().webp({ quality: 90, effort: 4 }).toBuffer(), mime: 'image/webp', ext: '.webp' });
+      candidates.push({ buf: await pipeline().webp(webpOpts).toBuffer(), mime: 'image/webp', ext: '.webp' });
     }
     if (!candidates.length) return keep;
     candidates.sort((a, b) => a.buf.length - b.buf.length);
@@ -222,4 +277,4 @@ async function optimizeImage({ buffer, mimeType, originalName, field, crop }) {
   }
 }
 
-module.exports = { optimizeImage, isAvailable: () => !!sharp, LIMITS, AVATAR_GIF_MAX_BYTES, framingRect, parseFraming };
+module.exports = { optimizeImage, isAvailable: () => !!sharp, LIMITS, QUALITY, qualityFor, AVATAR_GIF_MAX_BYTES, framingRect, parseFraming };
