@@ -1,7 +1,33 @@
-// Project Club: multiplayer externo (sledracing.ep8script.com) removido — só modo solo, offline.
-// "server" é um objeto vazio pra o resto do código continuar funcionando.
-var noop = function() { return server }
-var multiplayer = false, players = [], server = {connect:noop,emit:noop,on:noop,once:noop,off:noop}, startTimer = setInterval
+// Project Club: multiplayer hospedado no PRÓPRIO Project Club (namespace
+// /sled do Socket.IO, mesma origem — ver server/src/sockets/sledRacing.js).
+// O servidor externo original (ep8script) foi removido; agora a sala de
+// espera, a contagem de 15s e o repasse das jogadas rodam aqui. Se o
+// Socket.IO não carregar (sem rede), "server" vira um objeto vazio e o jogo
+// cai no modo solo, sem travar nada.
+var players = [], startTimer = setInterval
+var hasIO = (typeof io === "function")
+var multiplayer = hasIO
+var server = hasIO
+	? io("/sled", {
+		autoConnect: false,
+		reconnection: false,
+		timeout: 6000,
+		transports: ["websocket", "polling"],
+		// Nome de exibição vindo do Project Club (?name=), lido na hora de conectar.
+		auth: function(cb) { cb({ name: (typeof username !== "undefined" ? username : "") }) }
+	})
+	: { connect: function() {}, emit: function() {}, on: function() {}, once: function() {}, off: function() {} }
+
+// Não deu pra falar com o servidor (offline, ou demorou demais): joga sozinho.
+if(hasIO) {
+	server.on("connect_error", function() {
+		if(multiplayer && app.currentState() == "Lobby") {
+			multiplayer = false
+			$(".server-status .online").toggleClass("offline online")
+			Init()
+		}
+	})
+}
 
 // The room is updated - start the countdown if necessary
 function updateRoom(count) {

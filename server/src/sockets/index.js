@@ -13,6 +13,7 @@ const voiceUsage = require('../services/voiceUsage');
 const gamePlaytime = require('../services/gamePlaytime');
 const { steamAppIdOf } = require('../utils/steamCover');
 const ytWatch = require('./ytWatch');
+const { initSledRacing } = require('./sledRacing');
 const { visibleStatus, installSocketMasking } = require('../utils/presenceVisibility');
 const { createTokenBucket } = require('../utils/tokenBucket');
 
@@ -214,6 +215,11 @@ function initSockets(httpServer) {
   // Todo emit (broadcast, sala user:<id>, socket direto) mascara o status
   // INVISIBLE de quem não é o destinatário — ver presenceVisibility.js.
   installSocketMasking(io);
+
+  // Multiplayer da Corrida de Trenó (namespace próprio /sled, sem login —
+  // ver sledRacing.js). Isolado do socket principal: não roda a autenticação
+  // acima nem toca em presença/voz/chat.
+  initSledRacing(io);
 
   // SECURITY: antes só validava o JWT — uma conta banida, suspensa ou
   // desativada com um access token ainda dentro da validade continuava

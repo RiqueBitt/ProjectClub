@@ -4,7 +4,7 @@
   "games": {
     "beancounters": { "version": "1" },
     "pizzatron": { "version": "3", "notes": "Soltar ingrediente e espalhar o molho na pizza funciona no toque (posição do dedo em vez de :hover; frasco não engana mais o teste de área)." },
-    "sledracing": { "version": "1" },
+    "sledracing": { "version": "2", "notes": "Jogável no celular (toque direto: metade esquerda/direita vira). Multiplayer próprio do Project Club (sala de espera, contagem de 15s ao chegar o 2º, até 4 jogadores) com modo solo de reserva. Salva o recorde no fim e também se sair/fechar no meio." },
     "thinice": { "version": "1" },
     "astrobarrier": { "version": "1" },
     "cartsurfer": { "version": "1" },

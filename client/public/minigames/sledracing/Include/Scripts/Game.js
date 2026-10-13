@@ -129,6 +129,14 @@ function movePlayer($p) {
 		if(!$p.attr("finished")) {
 			$p.attr("finished", Date.now())
 			if($p.attr("me")) {
+				// Project Club: pontuação da corrida (antes nada era salvo no
+				// recorde). Terminar vale 1000 + bônus por rapidez (quanto mais
+				// rápido abaixo de 2 min, mais pontos). __pcScore guarda a
+				// pontuação atual pra salvar mesmo se a pessoa sair no meio.
+				var elapsed = (Date.now() - startTime) / 1000
+				var finalScore = 1000 + Math.max(0, Math.round((120 - elapsed) * 20))
+				window.__pcScore = finalScore
+				if(typeof pcReportScore === "function") pcReportScore(finalScore)
 				Finished()
 			}
 			else if($(".player[me]").attr("finished")) {
@@ -198,7 +206,14 @@ function movePlayer($p) {
 		pc = 100
 	}
 	$(".map-placement[player='"+$p.attr("player")+"']").css("width", pc+"%")
-	
+
+	// Project Club: pontuação ao vivo do jogador (progresso na descida, até
+	// 1000 ao chegar na linha). Fica guardada pra o Project Club salvar no
+	// recorde mesmo se a pessoa fechar/sair antes de terminar.
+	if($p.attr("me") && !$p.attr("finished")) {
+		window.__pcScore = Math.round(pc * 10)
+	}
+
 	// Update the absolute position
 	var currX = Number($p.attr("x")||2)
 	var LC = parseFloat($p.css("left")||0)

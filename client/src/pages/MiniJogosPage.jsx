@@ -113,7 +113,7 @@ function MiniJogoPlayer({ game, onClose }) {
   const { user } = useAuth();
   const wrapRef = useRef(null);
   const frameRef = useRef(null);
-  const { board, toast } = useMinijogoScores(game.slug);
+  const { board, toast, saveFinal } = useMinijogoScores(game.slug);
   const [showScores, setShowScores] = useState(false);
   const [muted, setMuted] = useState(readMuted);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -177,15 +177,40 @@ function MiniJogoPlayer({ game, onClose }) {
 
   // Sair: solta as teclas, para o som na hora (o iframe sai da página),
   // destrava a orientação, sai da tela cheia e volta pra lista.
+  // Lê o placar atual que o jogo expõe (window.__pcScore no frame do jogo) e
+  // salva no recorde. Usado ao sair e ao fechar a aba/app — assim quem para
+  // no meio não perde os pontos já feitos.
+  const flushScore = useCallback(() => {
+    try {
+      const w = gameWindow(frameRef.current);
+      const s = Number(w && w.__pcScore);
+      if (Number.isFinite(s) && s > 0) saveFinal(s);
+    } catch { /* outra origem / frame já fechado */ }
+  }, [saveFinal]);
+
   const exiting = useRef(false);
   const exitGame = useCallback(() => {
     if (exiting.current) return;
     exiting.current = true;
     input.releaseAll();
+    flushScore(); // salva o que fez antes de descartar o iframe
     try { const f = frameRef.current; if (f) f.src = 'about:blank'; } catch { /* ignora */ }
     exitGameMode(wrapRef.current);
     onClose();
-  }, [input, onClose]);
+  }, [input, onClose, flushScore]);
+
+  // Fechar a aba, trocar de app ou bloquear a tela também salva o placar atual
+  // (pagehide/ocultar a página — o 'beforeunload' não é confiável no celular).
+  useEffect(() => {
+    const onHide = () => flushScore();
+    const onVis = () => { if (document.visibilityState === 'hidden') flushScore(); };
+    window.addEventListener('pagehide', onHide);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [flushScore]);
 
   // Celular: abre em tela cheia e deitado (o toque que abriu o jogo ainda
   // vale como gesto). Ao fechar o player (Sair, voltar do Android/navegador),
