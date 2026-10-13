@@ -59,7 +59,11 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
           if (id.includes('/react-router-dom/') || id.includes('/react-router/')) return 'vendor-router';
-          if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('scheduler')) return 'vendor-react';
+          // react/react-dom/scheduler NÃO são separados num chunk próprio: o
+          // use-sync-external-store (zustand) faz require('react') em CommonJS,
+          // e um react em chunk separado quebrava o carregamento ("setting
+          // Children" / dep circular). Deixá-lo no "vendor" geral (sempre
+          // carregado no início de qualquer jeito) resolve, sem custo real.
           if (id.includes('socket.io-client') || id.includes('engine.io-client')) return 'vendor-socket';
           // Item pedido ("web demora pra carregar página"): o SDK do
           // Agora (chamada de voz) sozinho é responsável pela maior parte
