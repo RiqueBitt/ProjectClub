@@ -531,6 +531,7 @@ export const getVoiceJoin = (channelName, clientReady) =>
 export const getVoiceProviders = () => api.get('/voice/provider').then((r) => r.data);
 export const setVoiceOverride = (provider) => api.post('/voice/override', { provider: provider || null }).then((r) => r.data);
 export const toggleVoiceProvider = (id, disabled) => api.post(`/voice/provider/${id}/toggle`, { disabled: !!disabled }).then((r) => r.data);
+export const setVoiceUsage = (id, minutes) => api.post(`/voice/provider/${id}/usage`, { minutes: Number(minutes) }).then((r) => r.data);
 
 // --- Item pedido: sistemas estilo Orkut ---
 export const writeTestimonial = (targetId, text) => api.post(`/testimonials/${targetId}`, { text }).then((r) => r.data);

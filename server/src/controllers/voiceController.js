@@ -190,4 +190,25 @@ async function postToggle(req, res, next) {
   }
 }
 
-module.exports = { getJoin, getProviderStatus, postOverride, postToggle, assertRoomAccess, roomNameFor };
+// POST /api/voice/provider/:id/usage  { minutes }  (admin)
+// A staff informa o uso REAL do provedor neste mês (ex.: "a Agora já está em
+// 8500 min"). A partir daí o painel reflete isso e a cadeia troca sozinha
+// quando passar do limite — antes o nosso contador começava do zero e não
+// enxergava o que o provedor já tinha gastado.
+async function postUsage(req, res, next) {
+  try {
+    const { id } = req.params;
+    if (!providers.PROVIDERS[id]) return res.status(400).json({ error: 'Provedor inválido.' });
+    const minutes = Number(req.body && req.body.minutes);
+    if (!Number.isFinite(minutes) || minutes < 0) {
+      return res.status(400).json({ error: 'Informe os minutos (número ≥ 0).' });
+    }
+    await usage.setCurrentUsage(id, minutes);
+    const state = await currentDecision();
+    const panel = decision.buildPanel(state);
+    broadcastProviderChanged(req, panel.active);
+    res.json(panel);
+  } catch (err) { next(err); }
+}
+
+module.exports = { getJoin, getProviderStatus, postOverride, postToggle, postUsage, assertRoomAccess, roomNameFor };

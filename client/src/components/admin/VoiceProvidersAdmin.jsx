@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getVoiceProviders, setVoiceOverride, toggleVoiceProvider } from '../../api/endpoints';
+import { getVoiceProviders, setVoiceOverride, toggleVoiceProvider, setVoiceUsage } from '../../api/endpoints';
 
 // Painel da equipe — "Chamadas / Provedores de voz" (item pedido).
 // Mostra um cartão por provedor da cadeia (Agora → LiveKit → ... → Jitsi):
@@ -35,6 +35,7 @@ export default function VoiceProvidersAdmin() {
   const [panel, setPanel] = useState(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
+  const [usageInputs, setUsageInputs] = useState({});
   const timer = useRef(null);
 
   const load = useCallback(async () => {
@@ -59,6 +60,15 @@ export default function VoiceProvidersAdmin() {
   const doToggle = async (id, disabled) => {
     setBusy(`tg:${id}`);
     try { setPanel(await toggleVoiceProvider(id, disabled)); } catch (e) { setErr(e?.response?.data?.error || 'Falha ao ligar/desligar o provedor.'); } finally { setBusy(''); }
+  };
+  const doSetUsage = async (id) => {
+    const val = usageInputs[id];
+    if (val === '' || val == null || Number(val) < 0) return;
+    setBusy(`us:${id}`);
+    try {
+      setPanel(await setVoiceUsage(id, Number(val)));
+      setUsageInputs((s) => ({ ...s, [id]: '' }));
+    } catch (e) { setErr(e?.response?.data?.error || 'Falha ao definir o uso.'); } finally { setBusy(''); }
   };
 
   if (!panel) return <div className="voice-prov-admin"><p style={{ color: '#8aa0b4' }}>{err || 'Carregando provedores de voz…'}</p></div>;
@@ -101,6 +111,27 @@ export default function VoiceProvidersAdmin() {
               {p.unlimited ? 'Uso ilimitado (gratuito)' : `${(p.minutesUsed || 0).toLocaleString('pt-BR')} / ${(p.limit || 0).toLocaleString('pt-BR')} min (${p.percent || 0}%)`}
             </div>
             <UsageBar percent={p.percent} unlimited={p.unlimited} />
+            {!p.unlimited && (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, color: '#8aa0b4' }}>Uso real deste mês:</span>
+                <input
+                  type="number" min="0" inputMode="numeric"
+                  placeholder={`${p.minutesUsed || 0}`}
+                  value={usageInputs[p.id] ?? ''}
+                  onChange={(e) => setUsageInputs((s) => ({ ...s, [p.id]: e.target.value }))}
+                  style={{ width: 90, padding: '4px 6px', borderRadius: 6, border: '1px solid #3a4453', background: '#1a1f26', color: '#e6edf3', fontSize: 13 }}
+                />
+                <span style={{ fontSize: 12, color: '#8aa0b4' }}>min</span>
+                <button
+                  type="button" className="btn"
+                  onClick={() => doSetUsage(p.id)}
+                  disabled={busy === `us:${p.id}` || (usageInputs[p.id] ?? '') === ''}
+                  title="Informar quantos minutos este provedor já gastou no mês (ex.: o que aparece no painel da Agora). A cadeia passa a usar esse número pra trocar no limite."
+                >
+                  Definir
+                </button>
+              </div>
+            )}
             {p.gateMissing && p.gateEnv && (
               <div style={{ fontSize: 12, color: '#d97706', marginTop: 8 }}>Falta definir <code>{p.gateEnv}</code> no servidor.</div>
             )}

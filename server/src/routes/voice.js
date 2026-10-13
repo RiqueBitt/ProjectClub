@@ -15,5 +15,6 @@ router.get('/join', ctrl.getJoin);
 router.get('/provider', requirePlatformAdmin, ctrl.getProviderStatus);
 router.post('/override', requirePlatformAdmin, ctrl.postOverride);
 router.post('/provider/:id/toggle', requirePlatformAdmin, ctrl.postToggle);
+router.post('/provider/:id/usage', requirePlatformAdmin, ctrl.postUsage);
 
 module.exports = router;
