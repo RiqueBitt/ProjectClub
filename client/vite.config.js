@@ -82,9 +82,6 @@ export default defineConfig({
           // provedor que de fato for usado numa chamada, e quem só navega
           // pelo chat/feeds não paga por nenhum deles.
           if (id.includes('livekit-client')) return 'vendor-livekit';
-          if (id.includes('@stream-io/video-client')) return 'vendor-getstream';
-          if (id.includes('@daily-co/daily-js')) return 'vendor-daily';
-          if (id.includes('trtc-sdk-v5')) return 'vendor-trtc';
           // Lista de emojis (~400 KB): só baixa quando o seletor abre.
           if (id.includes('unicode-emoji-json')) return 'vendor-emoji';
           return 'vendor';
