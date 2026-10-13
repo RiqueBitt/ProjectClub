@@ -60,9 +60,8 @@ import PresenceDot from '../PresenceDot.jsx';
 import { usePromptDialog } from '../../utils/usePromptDialog.jsx';
 import { useStore } from '../../store/useStore';
 import { proxyImage } from '../../utils/imageProxy';
-import IdCardPreviewModal from './IdCardPreviewModal.jsx';
 import ImageCropperModal from './ImageCropperModal.jsx';
-import BannerImage, { PROFILE_BANNER_ASPECT, MINI_BANNER_ASPECT } from '../ProfileBanner.jsx';
+import BannerImage, { PROFILE_BANNER_ASPECT, MINI_BANNER_ASPECT, ID_CARD_ASPECT } from '../ProfileBanner.jsx';
 import { PENGUIN_COLORS, penguinAvatarUrl, isPenguinAvatarUrl } from '../PenguinAvatar.jsx';
 import PenguinAvatar from '../PenguinAvatar.jsx';
 import youtubeConnIcon from '../../assets/icons/social-youtube.png';
@@ -83,7 +82,7 @@ import robloxConnIcon from '../../assets/icons/social-roblox.png';
 import xConnIcon from '../../assets/icons/social-x.png';
 import { looksLikeGif, isGifByContent, GIF_AVATAR_MAX_MB } from '../../utils/gifDetect';
 import {
-  updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, removeIdCard,
+  updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, uploadIdCard, removeIdCard,
   setup2FA, confirm2FA, disable2FA, getRecoveryCodesStatus, regenerateRecoveryCodes, setLayoutStyle, setMyClanTag,
   listBlockedUsers, unblockUser,
   setEmojiStyle as setEmojiStyleApi,
@@ -284,7 +283,6 @@ export default function UserSettingsModal({ onClose }) {
       document.removeEventListener('touchstart', onDocDown);
     };
   }, [statusEmojiOpen]);
-  const [idCardFile, setIdCardFile] = useState(null);
 
   const removeIdCardNow = async () => {
     const { user: updated } = await removeIdCard();
@@ -299,9 +297,10 @@ export default function UserSettingsModal({ onClose }) {
     // Item pedido: "cores do mini perfil separadas do perfil grande"
     miniProfileColor: user.miniProfileColor || '',
     miniProfileButtonColor: user.miniProfileButtonColor || '',
-    // Item pedido: "escolher a cor de fundo da bolha que mostra os
-    // status (Preto/Cinza/Branco)".
-    statusBubbleColor: user.statusBubbleColor || '',
+    // (Removido) A cor personalizada da bolinha de status (statusBubbleColor)
+    // não é mais oferecida na interface — a bolinha mostra só a cor real
+    // da presença. A coluna no banco continua existindo (não é mais lida
+    // nem enviada daqui); ver schema.prisma e userController.js.
     profileNameFont: user.profileNameFont || 'NORMAL',
     profileNameEffect: user.profileNameEffect || 'SOLID',
     profileNameColor: user.profileNameColor || '#F2894D',
@@ -695,6 +694,47 @@ export default function UserSettingsModal({ onClose }) {
       title: 'Ajustar enquadramento',
       onConfirm: async (_file, framing) => {
         const { user: updated } = await updateProfile(isMini ? { miniProfileBannerFraming: framing } : { bannerFraming: framing });
+        setUser(updated);
+        setCropperState(null);
+      },
+    });
+  };
+
+  // Placa de identificação (User.idCardUrl): mesmo editor dos banners, pra
+  // a pessoa posicionar e dar zoom (arrastar + pinça/roda) na imagem antes
+  // de enviar. Imagem estática recorta no navegador; GIF envia o original
+  // + enquadramento ("x,y,zoom"), que a lista de membros aplica no fundo.
+  const openIdCardEditor = (file) => {
+    const gif = isGifFile(file);
+    if (gif && gifTooBig(file)) return;
+    setCropperState({
+      file,
+      mode: gif ? 'frame' : 'crop',
+      aspectRatio: ID_CARD_ASPECT,
+      shape: 'rect',
+      preview: 'banner',
+      title: 'Ajustar a placa de identificação',
+      onConfirm: async (outFile, framing) => {
+        const { user: updated } = await uploadIdCard(outFile, framing);
+        setUser(updated);
+        setCropperState(null);
+        useStore.getState().pushNotice(gif ? 'GIF aplicado!' : 'Placa atualizada!');
+      },
+    });
+  };
+  // Reposicionar a placa ATUAL sem reenviar a imagem — só salva o "x,y,zoom".
+  const adjustCurrentIdCard = () => {
+    if (!user.idCardUrl) return;
+    setCropperState({
+      src: proxyImage(user.idCardUrl),
+      mode: 'frame',
+      initialFraming: user.idCardFraming,
+      aspectRatio: ID_CARD_ASPECT,
+      shape: 'rect',
+      preview: 'banner',
+      title: 'Ajustar enquadramento da placa',
+      onConfirm: async (_file, framing) => {
+        const { user: updated } = await updateProfile({ idCardFraming: framing });
         setUser(updated);
         setCropperState(null);
       },
@@ -1327,9 +1367,12 @@ export default function UserSettingsModal({ onClose }) {
                 {user.idCardUrl ? 'Trocar imagem' : 'Escolher imagem ou GIF'}
                 <input
                   type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
-                  onChange={(e) => { const f = e.target.files[0]; if (f) setIdCardFile(f); e.target.value = ''; }}
+                  onChange={(e) => { const f = e.target.files[0]; if (f) openIdCardEditor(f); e.target.value = ''; }}
                 />
               </label>
+              {user.idCardUrl && (
+                <button type="button" className="btn-secondary" onClick={adjustCurrentIdCard}>Ajustar posição/zoom</button>
+              )}
               {user.idCardUrl && (
                 <button className="btn-link danger" onClick={removeIdCardNow}>Remover</button>
               )}
@@ -1396,32 +1439,11 @@ export default function UserSettingsModal({ onClose }) {
             </div>
           </div>
 
-          {/* Item pedido: "escolher a cor de fundo da bolha que mostra
-              os status (Preto/Cinza/Branco)" — 3 valores fixos (não é
-              uma cor livre — ver o motivo em userController.js), por
-              isso um seletor de opções em vez de um <input
-              type="color">, mesmo padrão visual do seletor de tema. */}
-          <div className="settings-block">
-            <h4>Cor de fundo da bolha de status</h4>
-            <p className="dim">A cor atrás do indicador de status (online, ausente, etc) no avatar do seu mini perfil.</p>
-            <div className="theme-options">
-              {[['#000000', 'Preto'], ['#80848E', 'Cinza'], ['#FFFFFF', 'Branco']].map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`theme-swatch ${form.statusBubbleColor === value ? 'active' : ''}`}
-                  aria-pressed={form.statusBubbleColor === value}
-                  onClick={() => setForm((f) => ({ ...f, statusBubbleColor: value }))}
-                >
-                  <span className="settings-bubble-sample" style={{ background: value }} aria-hidden="true"><i /></span>
-                  {label}
-                </button>
-              ))}
-            </div>
-            {form.statusBubbleColor && (
-              <button type="button" className="btn-link" onClick={() => setForm((f) => ({ ...f, statusBubbleColor: '' }))}>Usar cor padrão</button>
-            )}
-          </div>
+          {/* (Removido) O seletor de "cor de fundo da bolha de status"
+              saiu da interface: a bolinha de status mostra só a cor real
+              da presença (online/ausente/não perturbe/offline). A coluna
+              statusBubbleColor continua no banco, mas não é mais lida
+              nem gravada daqui. */}
           </div>
 
           <div className="settings-block">
@@ -2323,13 +2345,6 @@ export default function UserSettingsModal({ onClose }) {
         </div>
       </div>
     </Modal>
-    {idCardFile && (
-      <IdCardPreviewModal
-        file={idCardFile}
-        onClose={() => setIdCardFile(null)}
-        onSaved={(updated) => { setUser(updated); setIdCardFile(null); }}
-      />
-    )}
     {cropperState && (
       <ImageCropperModal
         file={cropperState.file}

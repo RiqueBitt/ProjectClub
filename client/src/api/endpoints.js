@@ -69,8 +69,10 @@ export const uploadMiniProfileBanner = (file, framing) => {
   fd.append('banner', file);
   return api.post('/users/me/mini-banner', fd).then((r) => r.data);
 };
-export const uploadIdCard = (file) => {
-  const fd = new FormData(); fd.append('idCard', file);
+export const uploadIdCard = (file, framing) => {
+  const fd = new FormData();
+  if (framing) fd.append('framing', framing); // enquadramento "x,y,zoom" da placa
+  fd.append('idCard', file);
   return api.post('/users/me/id-card', fd).then((r) => r.data);
 };
 export const removeIdCard = () => api.delete('/users/me/id-card').then((r) => r.data);

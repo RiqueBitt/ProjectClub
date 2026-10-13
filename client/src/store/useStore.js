@@ -211,10 +211,18 @@ export const useStore = create((set, get) => ({
   // Item pedido: "adicione nas configurações do usuário ele poder
   // aumentar ou diminuir o zoom quanto quiser" — zoom GERAL de toda a
   // interface, mesmo padrão do chatZoom acima (valor local primeiro,
-  // pra aplicar na hora antes da conta terminar de carregar). 1.2 é o
-  // padrão histórico do app (120%).
+  // pra aplicar na hora antes da conta terminar de carregar).
+  // BUG CORRIGIDO ("deveria começar em 100%, não 120%"): o padrão quando
+  // nunca foi escolhido agora é 1.0 (100%). Um valor 1.2 que ainda esteja
+  // guardado do padrão antigo é migrado pra 1.0 no boot (ver
+  // utils/zoomDefault.js + App.jsx/AuthContext).
   interfaceZoom: (() => {
-    try { return Number(localStorage.getItem('interfaceZoom')) || 1.2; } catch { return 1.2; }
+    try {
+      const raw = localStorage.getItem('interfaceZoom');
+      if (raw === null) return 1; // nunca escolheu → 100%
+      const n = Number(raw);
+      return Number.isFinite(n) && n > 0 ? n : 1;
+    } catch { return 1; }
   })(),
   // Item pedido: "sistema completo de configurações... salvamento
   // automático... interface muda imediatamente → frontend envia
@@ -499,6 +507,18 @@ export const useStore = create((set, get) => ({
 
   pushNotice: (message, action) => set((s) => ({ notices: [...s.notices, { id: `${Date.now()}-${Math.random()}`, message, action }] })),
   dismissNotice: (id) => set((s) => ({ notices: s.notices.filter((n) => n.id !== id) })),
+  // Aviso "fixo" com barra de progresso (usado pelo download do .apk no
+  // Android — ver utils/nativeUpdateCheck.js). Mantém sempre um único
+  // aviso com id fixo, que o NoticeToast NÃO fecha sozinho enquanto tem
+  // `progress`. progress = { percent } (determinado) ou { indeterminate:
+  // true } (sem tamanho conhecido/sem progresso ainda — barra animada,
+  // nunca um 0% congelado). clearDownloadProgress remove quando termina.
+  setDownloadProgress: (progress, message) => set((s) => {
+    const id = 'app-download-progress';
+    const rest = s.notices.filter((n) => n.id !== id);
+    return { notices: [...rest, { id, message, progress, kind: 'info' }] };
+  }),
+  clearDownloadProgress: () => set((s) => ({ notices: s.notices.filter((n) => n.id !== 'app-download-progress') })),
 
   // Item pedido: "quando abrir o perfil, feche a barra lateral do
   // usuário também" — mesmo padrão já usado em openMobileMembers

@@ -92,7 +92,7 @@ function applyContentFilter(messages, level) {
 const MESSAGE_AUTHOR_OMIT = new Set([
   'bio', 'pronouns', 'bannerUrl', 'miniProfileBannerUrl', 'bannerFraming', 'miniProfileBannerFraming',
   'youtubeUrl', 'steamUrl', 'robloxUrl', 'xUrl', 'accountXp', 'displayedAchievements', 'displayedAchievementsMini',
-  'idCardUrl', 'relationshipPartnerId', 'profileSectionOrder', 'profileSectionOpacity', 'levelBarColor',
+  'idCardUrl', 'idCardFraming', 'relationshipPartnerId', 'profileSectionOrder', 'profileSectionOpacity', 'levelBarColor',
   'miniProfileColor', 'miniProfileButtonColor', 'customStatusExpiresAt', 'profileEffect',
   // Status vem do mapa de presença (presence:sync/update) — e no autor da
   // mensagem ele vazava "INVISIBLE" pra todo mundo.

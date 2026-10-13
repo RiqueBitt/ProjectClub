@@ -28,6 +28,9 @@ export default function NoticeToast() {
   useEffect(() => {
     const scheduledIds = scheduledIdsRef.current;
     for (const n of notices) {
+      // Avisos com barra de progresso ficam na tela até o fluxo terminar
+      // (clearDownloadProgress), não fecham sozinhos no tempo normal.
+      if (n.progress) continue;
       if (scheduledIds.has(n.id)) continue;
       scheduledIds.add(n.id);
       setTimeout(() => { dismissNotice(n.id); scheduledIds.delete(n.id); }, 8000);
@@ -49,7 +52,20 @@ export default function NoticeToast() {
             <span className="nt-icon" aria-hidden="true">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={ICONS[kind]} /></svg>
             </span>
-            <span className="notice-toast-text">{n.message}</span>
+            <span className="notice-toast-text">
+              {n.message}
+              {n.progress && (
+                <span
+                  className={`nt-progress ${n.progress.indeterminate ? 'is-indeterminate' : ''}`}
+                  role="progressbar"
+                  aria-valuenow={n.progress.indeterminate ? undefined : Math.round(n.progress.percent || 0)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  <span className="nt-progress-fill" style={n.progress.indeterminate ? undefined : { width: `${Math.max(3, Math.min(100, Math.round(n.progress.percent || 0)))}%` }} />
+                </span>
+              )}
+            </span>
             {n.action && (
               <button
                 type="button"
