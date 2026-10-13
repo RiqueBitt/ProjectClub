@@ -33,6 +33,19 @@ function margin(env = process.env) {
 // pro Daily aparecer no painel como "configurado (falta DAILY_API_KEY)"
 // e ser PULADO na cadeia enquanto o dono não adiciona a chave da API.
 const PROVIDERS = {
+  // Servidor de mídia PRÓPRIO (item pedido: "crie o nosso próprio sistema"
+  // a partir do PDF — mediasoup + coturn, ver media-server/). Primeiro da
+  // cadeia e sem teto mensal: quando configurado (URL + segredo do servidor
+  // de mídia), é ele que atende; sem as variáveis fica "não configurado" e
+  // a cadeia segue pros provedores externos como antes.
+  projectclub: {
+    id: 'projectclub',
+    label: 'Project Club (servidor próprio)',
+    order: 0,
+    envVars: ['MEDIA_SERVER_URL', 'MEDIA_SERVER_SECRET'],
+    unlimited: true,
+    own: true,
+  },
   agora: {
     id: 'agora',
     label: 'Agora',
@@ -102,6 +115,16 @@ function getMeta(id) {
   return PROVIDERS[id] || null;
 }
 
+// "Modo reserva" = a chamada caiu num provedor DEPOIS do principal na cadeia
+// (estourou o limite / indisponível). O servidor próprio vem ANTES do
+// principal, então estar nele não é reserva — é o caminho preferido.
+function isReserve(id) {
+  const meta = PROVIDERS[id];
+  const primary = PROVIDERS[PRIMARY_PROVIDER];
+  if (!meta || !primary) return false;
+  return meta.order > primary.order;
+}
+
 // "configurado" = todas as variáveis obrigatórias existem (não-vazias).
 // O Jitsi é sempre configurado (não exige nenhuma).
 function isConfigured(id, env = process.env) {
@@ -150,6 +173,7 @@ module.exports = {
   PRIMARY_PROVIDER,
   margin,
   getMeta,
+  isReserve,
   isConfigured,
   isAvailable,
   getMonthlyLimit,

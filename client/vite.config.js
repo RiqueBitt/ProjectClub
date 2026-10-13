@@ -91,6 +91,7 @@ export default defineConfig({
           // provedor que de fato for usado numa chamada, e quem só navega
           // pelo chat/feeds não paga por nenhum deles.
           if (id.includes('livekit-client')) return 'vendor-livekit';
+          if (id.includes('mediasoup-client') || id.includes('/sdp-transform/') || id.includes('/h264-profile-level-id/')) return 'vendor-mediasoup';
           // Lista de emojis (~400 KB): só baixa quando o seletor abre.
           if (id.includes('unicode-emoji-json')) return 'vendor-emoji';
           return 'vendor';

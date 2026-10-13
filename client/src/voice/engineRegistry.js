@@ -11,6 +11,7 @@
 // getNode/join/setMicEnabled/setCamera/setScreen/dispose).
 import { JitsiEngine } from './jitsiEngine.js';
 import { createLiveKitEngine } from './livekitEngine.js';
+import { createMediasoupEngine } from './mediasoupEngine.js';
 import { createGetStreamEngine, createDailyEngine, createTRTCEngine } from './pendingEngines.js';
 import { CLIENT_READY, PROVIDER_ORDER, CLIENT_READY_PROVIDERS } from './providerDecision.js';
 
@@ -18,6 +19,8 @@ export { CLIENT_READY_PROVIDERS, PROVIDER_ORDER };
 
 // Factories que recebem (callbacks, creds) e devolvem um engine pronto.
 const FACTORIES = {
+  // Servidor de mídia PRÓPRIO (media-server/, mediasoup) — primeiro da cadeia.
+  projectclub: (callbacks) => createMediasoupEngine(callbacks),
   jitsi: (callbacks, creds) => new JitsiEngine({ domain: creds?.domain || 'meet.jit.si', callbacks }),
   livekit: (callbacks) => createLiveKitEngine(callbacks),
   getstream: (callbacks) => createGetStreamEngine(callbacks),

@@ -9,7 +9,7 @@
 
 // Ordem e rótulos espelhando o servidor (services/voiceProviders.js). O
 // servidor é a fonte da verdade; isto é só pra UI e pra escolher o engine.
-export const PROVIDER_ORDER = ['agora', 'livekit', 'getstream', 'daily', 'trtc', 'jitsi'];
+export const PROVIDER_ORDER = ['projectclub', 'agora', 'livekit', 'getstream', 'daily', 'trtc', 'jitsi'];
 export const PRIMARY_PROVIDER = 'agora';
 
 // Lista completa de provedores válidos (inclui os 6 da cadeia). Mantida
@@ -17,6 +17,7 @@ export const PRIMARY_PROVIDER = 'agora';
 export const PROVIDERS = PROVIDER_ORDER;
 
 export const PROVIDER_LABELS = {
+  projectclub: 'Project Club',
   agora: 'Agora',
   livekit: 'LiveKit',
   getstream: 'Stream',
@@ -32,6 +33,7 @@ export const PROVIDER_LABELS = {
 // (pendingEngines.js) — o cliente anuncia isso ao servidor (clientReady) e a
 // cadeia os pula automaticamente no navegador.
 export const CLIENT_READY = {
+  projectclub: true,
   agora: true,
   livekit: true,
   jitsi: true,
@@ -48,9 +50,13 @@ export function providerLabel(id) {
   return PROVIDER_LABELS[id] || id || '—';
 }
 
-// É "modo reserva" quando o ativo não é o primário (agora).
+// Provedores que NÃO são "reserva": o servidor próprio (vem antes do
+// primário na cadeia — é o caminho preferido) e o primário (agora).
+const NOT_RESERVE = new Set(['projectclub', PRIMARY_PROVIDER]);
+
+// É "modo reserva" quando o ativo veio DEPOIS do primário na cadeia.
 export function isReserveMode(provider) {
-  return !!provider && provider !== PRIMARY_PROVIDER;
+  return !!provider && !NOT_RESERVE.has(provider);
 }
 
 export function isClientReady(provider) {
@@ -71,8 +77,8 @@ export function normalizeProviderResponse(data) {
       : (typeof d.activeReason === 'string' ? d.activeReason : (provider === 'agora' ? 'ok' : 'reserva')),
     minutesUsed,
     limit,
-    fallbackActive: provider !== PRIMARY_PROVIDER,
-    reserveMode: typeof d.reserveMode === 'boolean' ? d.reserveMode : provider !== PRIMARY_PROVIDER,
+    fallbackActive: isReserveMode(provider),
+    reserveMode: typeof d.reserveMode === 'boolean' ? d.reserveMode : isReserveMode(provider),
   };
 }
 
@@ -101,6 +107,17 @@ export function readJoinResponse(data) {
     const j = d.jitsi && typeof d.jitsi === 'object' ? d.jitsi : null;
     const valid = j && typeof j.domain === 'string' && typeof j.room === 'string' && j.domain && j.room;
     return { ...base, jitsi: valid ? { domain: j.domain, room: j.room, jwt: j.jwt || null } : null };
+  }
+
+  if (base.provider === 'projectclub') {
+    const p = d.projectclub && typeof d.projectclub === 'object' ? d.projectclub : null;
+    const valid = p && typeof p.url === 'string' && typeof p.token === 'string' && p.url && p.token;
+    return {
+      ...base,
+      projectclub: valid
+        ? { url: p.url, token: p.token, room: p.room || null, identity: p.identity || null, iceServers: Array.isArray(p.iceServers) ? p.iceServers : [] }
+        : null,
+    };
   }
 
   if (base.provider === 'livekit') {
