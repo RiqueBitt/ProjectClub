@@ -367,6 +367,8 @@
   background: #f0b428; box-shadow: 0 0 0 3px rgba(240, 180, 40, 0.25);
   animation: vc-backup-pulse 2s ease-in-out infinite;
 }
+.vc-reconnect-note { color: #d0d4ff; background: rgba(88, 101, 242, 0.14); border-color: rgba(88, 101, 242, 0.4); }
+.vc-reconnect-note .vc-backup-dot { background: #7c87ff; box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.25); animation-duration: 1.2s; }
 @keyframes vc-backup-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 
 .vc-jitsi-stage { position: relative; flex: 1; min-height: 0; display: flex; }

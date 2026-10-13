@@ -88,7 +88,25 @@ export class LiveKitEngine {
       room.remoteParticipants.forEach((p) => cb.onRemoteSpeaking?.(p.identity, ids.has(p.identity)));
     });
 
+    // Reconexão: o SDK do LiveKit refaz a sessão sozinho; só espelhamos na
+    // UI (mesmos callbacks do engine próprio).
+    room.on(RoomEvent.Reconnecting, () => { if (!this.disposed) cb.onReconnecting?.(1, 'livekit'); });
+    room.on(RoomEvent.Reconnected, () => { if (!this.disposed) cb.onReconnected?.(); });
+    // Qualidade por participante (escala da UI: 1 excelente … 5 péssima).
+    room.on(RoomEvent.ConnectionQualityChanged, () => { if (!this.disposed) this._emitQuality(); });
+
     room.on(RoomEvent.Disconnected, () => { if (!this.disposed) cb.onLeft?.(); });
+  }
+
+  _emitQuality() {
+    if (!this.cb.onNetQuality || !this.room) return;
+    const { ConnectionQuality } = this.LK;
+    const map = { [ConnectionQuality.Excellent]: 1, [ConnectionQuality.Good]: 2, [ConnectionQuality.Poor]: 4, [ConnectionQuality.Lost]: 6 };
+    const out = {};
+    const put = (p) => { const q = map[p.connectionQuality]; if (q) out[p.identity] = q; };
+    put(this.room.localParticipant);
+    this.room.remoteParticipants.forEach(put);
+    this.cb.onNetQuality(out);
   }
 
   async join({ url, token, userId, startMuted = false } = {}) {
