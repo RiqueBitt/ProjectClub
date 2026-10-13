@@ -832,7 +832,7 @@ async function getHealth(req, res, next) {
     const { redis } = require('../config/redis');
     const io = req.app.get('io');
 
-    const [db, redisPing, onlineIds, statusRows, calls] = await Promise.all([
+    const [db, redisPing, onlineIds, statusRows, calls, voiceUsage, pushCounts] = await Promise.all([
       timed(() => prisma.$queryRaw`SELECT 1`),
       timed(() => redis.ping()),
       withTimeout(presenceStore.listOnlineUserIds(), 3000).catch(() => null),
@@ -850,6 +850,20 @@ async function getHealth(req, res, next) {
         }
         return out;
       })(), 3000).catch(() => null),
+      // Minutos de voz do mês por provedor (mesma fonte do painel de provedores).
+      withTimeout((async () => {
+        const providers = require('../services/voiceProviders');
+        const usage = await require('../services/voiceUsage').getAllUsage();
+        return providers.PROVIDER_ORDER.map((id) => {
+          const meta = providers.PROVIDERS[id] || {};
+          const limit = meta.unlimited ? null : providers.getDisplayLimit(id);
+          return { id, label: meta.label || id, minutes: Math.round(usage[id] || 0), limit, unlimited: !!meta.unlimited };
+        });
+      })(), 3000).catch(() => null),
+      withTimeout((async () => ({
+        android: await prisma.pushToken.count(),
+        web: await prisma.webPushSubscription.count().catch(() => 0),
+      }))(), 3000).catch(() => null),
     ]);
 
     const byStatus = Object.fromEntries(statusRows.map((r) => [r.status, r._count._all]));
@@ -868,6 +882,8 @@ async function getHealth(req, res, next) {
         engineClients: io?.engine?.clientsCount ?? null,
       },
       calls,
+      voiceUsage,
+      push: pushCounts,
       db,
       redis: { ...redisPing, status: redis.status },
       process: {
