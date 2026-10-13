@@ -26,6 +26,8 @@ async function getBackgroundMode() {
 }
 
 async function startCallForegroundService(channelName) {
+  // Atualização automática do app não recarrega a página no meio de uma call.
+  window.__pcInCall = true;
   try {
     const bm = await getBackgroundMode();
     if (!bm) return;
@@ -56,6 +58,7 @@ async function startCallForegroundService(channelName) {
 }
 
 async function stopCallForegroundService() {
+  window.__pcInCall = false;
   try {
     const bm = await getBackgroundMode();
     if (!bm) return;

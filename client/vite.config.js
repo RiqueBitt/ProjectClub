@@ -1,8 +1,35 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { execSync } from 'node:child_process';
+
+// Versão do CONTEÚDO (o site) — muda a cada build. O app Android abre o
+// site ao vivo, então é isso que diz "qual conteúdo está rodando" (ver
+// docs/android-updates.md). WEB_VERSION permite fixar de fora (CI).
+function webVersion() {
+  if (process.env.WEB_VERSION) return process.env.WEB_VERSION;
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  let stamp = `${d.getUTCFullYear()}.${p(d.getUTCMonth() + 1)}.${p(d.getUTCDate())}-${p(d.getUTCHours())}${p(d.getUTCMinutes())}`;
+  try {
+    const sha = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    if (/^[0-9a-f]{4,12}$/.test(sha)) stamp += `-${sha}`;
+  } catch { /* sem git (ex.: deploy por zip) — fica só a data */ }
+  return stamp;
+}
+const WEB_VERSION = webVersion();
+
+// Grava dist/version.json — o servidor lê pra responder GET /api/mobile/update.
+const versionFilePlugin = () => ({
+  name: 'pc-version-file',
+  apply: 'build',
+  generateBundle() {
+    this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ web: WEB_VERSION }) });
+  },
+});
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), versionFilePlugin()],
+  define: { __WEB_VERSION__: JSON.stringify(WEB_VERSION) },
   server: {
     port: 5173,
     proxy: {
