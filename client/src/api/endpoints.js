@@ -153,6 +153,10 @@ export const deleteMessage = (id, reason) => api.delete(`/messages/${id}`, { dat
 export const togglePinMessage = (id) => api.post(`/messages/${id}/pin`).then((r) => r.data);
 export const toggleArchiveTopic = (id) => api.post(`/messages/${id}/archive`).then((r) => r.data);
 export const reactToMessage = (id, emoji) => api.post(`/messages/${id}/react`, { emoji }).then((r) => r.data);
+// Quem reagiu com um emoji (menu do chip de reação) — paginado por cursor.
+export const getMessageReactors = (id, emoji, cursor) => api
+  .get(`/messages/${id}/reactions/${encodeURIComponent(emoji)}`, { params: cursor ? { cursor } : {} })
+  .then((r) => r.data);
 export const setMessagePostIcon = (id, file) => {
   const fd = new FormData(); fd.append('icon', file);
   return api.post(`/messages/${id}/icon`, fd).then((r) => r.data);
