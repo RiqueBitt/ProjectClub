@@ -3,6 +3,9 @@ import Modal from '../Modal.jsx';
 import UserAvatar from '../UserAvatar.jsx';
 import { bannerImageStyle, formatBannerFraming, parseBannerFraming } from '../ProfileBanner.jsx';
 import '../../styles/profile-banner.css';
+import {
+  BANNER_MAX_WIDTH, MINI_BANNER_MAX_WIDTH, cropExportFormat, cropOutputSize, drawHighQuality, isBannerAspect,
+} from '../../utils/bannerExport';
 
 // Item pedido: "quando for colocar uma foto/banner no perfil, abra um
 // menu pra você selecionar a área que você quer mostrar... tipo vai
@@ -42,13 +45,9 @@ import '../../styles/profile-banner.css';
 // WebP no canvas devolvem PNG, que também mantém).
 
 // Item pedido: "as imagens dos banners completos tão ficando com uma
-// qualidade muito baixa" — recortes bem mais largos que altos
-// (banners) saem com bastante largura pra continuar nítidos esticados
-// numa faixa larga/tela retina; avatares ficam no tamanho de antes.
-function outputWidthFor(aspectRatio, srcW) {
-  if (aspectRatio > 1.5) return Math.round(Math.min(1800, Math.max(1200, srcW)));
-  return Math.round(Math.min(800, Math.max(256, srcW)));
-}
+// qualidade muito baixa" — tamanho/formato/qualidade do recorte em
+// utils/bannerExport.js (banner até 2400px sem esticar, redução em
+// etapas, WebP 0.95); avatares ficam no tamanho de antes.
 
 // ---------- Tirar fundo preto (avatar) ----------
 // Item pedido: "remover o fundo preto das fotos de perfil que não têm
@@ -341,24 +340,22 @@ export default function ImageCropperModal({
   const cropToFile = () => new Promise((resolve, reject) => {
     const img = imgRef.current;
     if (!img || !natural) { reject(new Error('A imagem ainda não carregou.')); return; }
-    const { sx, sy, sw, sh } = sourceRect(natural.w, natural.h, aspectRatio, framingRef.current);
-    const outW = outputWidthFor(aspectRatio, sw);
+    const rect = sourceRect(natural.w, natural.h, aspectRatio, framingRef.current);
+    const banner = isBannerAspect(aspectRatio);
+    const { width, height } = cropOutputSize(aspectRatio, rect.sw, { maxWidth: preview === 'mini' ? MINI_BANNER_MAX_WIDTH : BANNER_MAX_WIDTH });
     const canvas = document.createElement('canvas');
-    canvas.width = outW;
-    canvas.height = Math.round(outW / aspectRatio);
-    const ctx = canvas.getContext('2d');
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-    // JPEG só se o original já era JPEG (não tinha transparência) e o
-    // fundo não foi tirado.
-    const wasJpeg = !(removeBg && cleanUrl) && file && /^image\/jpe?g$/i.test(file.type);
-    const type = wasJpeg ? 'image/jpeg' : 'image/webp';
+    canvas.width = width;
+    canvas.height = height;
+    drawHighQuality(img, rect, canvas);
+    // Banner: WebP 0.95. Avatar: JPEG só se o original já era JPEG (não
+    // tinha transparência) e o fundo não foi tirado.
+    const { type, quality } = cropExportFormat({ banner, originalType: file?.type, removedBackground: !!(removeBg && cleanUrl) });
     canvas.toBlob((blob) => {
       if (!blob) { reject(new Error('Não foi possível processar a imagem.')); return; }
       const ext = blob.type === 'image/jpeg' ? 'jpg' : blob.type === 'image/webp' ? 'webp' : 'png';
       const base = (file?.name || 'imagem').replace(/\.[^.]+$/, '');
       resolve(new File([blob], `${base}.${ext}`, { type: blob.type }));
-    }, type, 0.92);
+    }, type, quality);
   });
 
   const apply = async () => {

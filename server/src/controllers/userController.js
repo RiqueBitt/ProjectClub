@@ -235,6 +235,8 @@ async function updateProfile(req, res, next) {
     // Reajuste do enquadramento do banner atual, sem reenviar a imagem.
     if (req.body.bannerFraming !== undefined) data.bannerFraming = sanitizeBannerFraming(req.body.bannerFraming);
     if (req.body.miniProfileBannerFraming !== undefined) data.miniProfileBannerFraming = sanitizeBannerFraming(req.body.miniProfileBannerFraming);
+    // Enquadramento da placa de identificação (mesmo formato/validação do banner).
+    if (req.body.idCardFraming !== undefined) data.idCardFraming = sanitizeBannerFraming(req.body.idCardFraming);
     // Vitrine do perfil (UserProfileModal.jsx): jogos em destaque. Só
     // campos conhecidos e pequenos — nunca grava um objeto cru.
     if (req.body.profileShowcase !== undefined) data.profileShowcase = sanitizeProfileShowcase(req.body.profileShowcase);
@@ -411,8 +413,12 @@ async function uploadIdCard(req, res, next) {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
     const idCardUrl = req.file.url;
+    // Enquadramento opcional escolhido no editor ao enviar; ao trocar de
+    // imagem, zera o enquadramento antigo (volta pro centralizado) se não
+    // vier um novo, pra não aplicar um recorte de uma imagem diferente.
+    const idCardFraming = sanitizeBannerFraming(req.body?.framing);
     const user = await prisma.user.update({
-      where: { id: req.user.id }, data: { idCardUrl }, select: SELF_USER_FIELDS,
+      where: { id: req.user.id }, data: { idCardUrl, idCardFraming }, select: SELF_USER_FIELDS,
     });
     await broadcastUserUpdate(req, user);
     res.json({ user });
@@ -422,7 +428,7 @@ async function uploadIdCard(req, res, next) {
 async function removeIdCard(req, res, next) {
   try {
     const user = await prisma.user.update({
-      where: { id: req.user.id }, data: { idCardUrl: null }, select: SELF_USER_FIELDS,
+      where: { id: req.user.id }, data: { idCardUrl: null, idCardFraming: null }, select: SELF_USER_FIELDS,
     });
     await broadcastUserUpdate(req, user);
     res.json({ user });

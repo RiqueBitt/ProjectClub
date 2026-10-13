@@ -1431,9 +1431,12 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
    inline per-row (see MembersList.jsx) as a gradient-into-the-actual-image
    so the row's own background-color still shows near the avatar/name text
    for readability, fading into the full image toward the right edge. */
-.member-row.has-id-card { background-size: cover; background-position: center; }
+/* O enquadramento ("x,y,zoom") escolhido pela pessoa vem em variáveis CSS
+   inline (ver idCardFramingVars/MembersList.jsx); sem escolha, cai no
+   padrão de sempre (center / cover) — placas antigas ficam idênticas. */
+.member-row.has-id-card { background-size: var(--id-card-size, cover); background-position: var(--id-card-pos, center); }
 .member-row.has-id-card:hover { background-color: transparent; }
-.dm-profile-panel.has-id-card { background-size: cover; background-position: center top; }
+.dm-profile-panel.has-id-card { background-size: var(--id-card-size, cover); background-position: var(--id-card-pos, center top); }
 .member-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
 /* Item pedido: nome do usuário na lista de ONLINE "está muito fino" —
    herdava o peso padrão do navegador (400); um pouco mais forte deixa
@@ -2160,6 +2163,13 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .notice-toast-stack { position: fixed; bottom: 16px; right: 16px; z-index: 200; display: flex; flex-direction: column; gap: 8px; max-width: 360px; }
 .notice-toast { background: var(--bg-floating); border: 1px solid var(--border); border-left: 4px solid var(--yellow); border-radius: 6px; padding: 10px 12px; display: flex; align-items: flex-start; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); white-space: pre-line; font-size: 13px; }
 .notice-toast-text { flex: 1; }
+/* Barra de progresso do download (ex.: .apk no Android — ver NoticeToast.jsx).
+   Determinada = largura em %; indeterminada = faixa animada (nunca 0% parado). */
+.nt-progress { display: block; margin-top: 8px; height: 5px; border-radius: 999px; background: var(--bg-modifier-hover, rgba(255,255,255,.1)); overflow: hidden; }
+.nt-progress-fill { display: block; height: 100%; border-radius: 999px; background: var(--brand, #5865f2); transition: width .2s ease; }
+.nt-progress.is-indeterminate .nt-progress-fill { width: 40%; animation: nt-indeterminate 1.1s ease-in-out infinite; }
+@keyframes nt-indeterminate { 0% { transform: translateX(-120%); } 100% { transform: translateX(320%); } }
+@media (prefers-reduced-motion: reduce) { .nt-progress.is-indeterminate .nt-progress-fill { animation-duration: 2.2s; } }
 .notice-toast-action {
   flex-shrink: 0; background: var(--brand); color: #fff; font-size: 12px; font-weight: 700;
   padding: 5px 10px; border-radius: 5px; white-space: nowrap;
@@ -2293,15 +2303,15 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
      aumentar ou diminuir o zoom quanto quiser" — --global-zoom agora é
      DINÂMICA, controlada por JS (setInterfaceZoom em useStore.js),
      salva na conta (interfaceZoom, ver o backend) e sincronizada entre
-     dispositivos. 1.2 é só o valor inicial (o padrão histórico do
-     app), até o JS aplicar o valor de verdade da conta/localStorage.
+     dispositivos. 1 (100%) é só o valor inicial padrão, até o JS aplicar
+     o valor de verdade da conta/localStorage.
      Definida aqui, dentro do MESMO media query onde o zoom de fato se
      aplica — importante pra .app-shell (mais abaixo, fora desse media
      query) nunca "compensar" um zoom que não existe de verdade em
      telas menores que 901px: a variável só existe aqui dentro, então
      o fallback dela (1, sem compensação nenhuma) entra sozinho pra
      qualquer tela fora desse alcance. */
-  html { --global-zoom: 1.2; }
+  html { --global-zoom: 1; }
   /* App desktop (Electron) usa o zoom NATIVO do Chromium em vez desse
      CSS — ver window.electronAPI.setZoomFactor, chamado do lado do
      JS sempre que o valor muda ou quando o app abre. Sem isso, os
@@ -6461,9 +6471,24 @@ a.embed-card-title:hover { text-decoration: underline; }
 }
 .app-title-bar-btn--update:hover { background: color-mix(in srgb, #23a55a 22%, transparent); color: #2dc26b; }
 .app-title-bar-btn--update.is-working { cursor: progress; }
+/* Última tentativa falhou: âmbar/vermelho discreto, clique tenta de novo. */
+.app-title-bar-btn--update.has-error { color: #f0b232; }
+.app-title-bar-btn--update.has-error:hover { background: color-mix(in srgb, #f0b232 22%, transparent); color: #f7c94b; }
 .app-title-bar-update-pct { font-size: 10.5px; font-weight: 800; letter-spacing: -.2px; }
+/* Barra indeterminada (download sem progresso/em fase de preparo): rodinha
+   girando, pra nunca mostrar um "0%" congelado. */
+.app-title-bar-update-spin {
+  width: 13px; height: 13px; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color: currentColor; display: inline-block;
+  animation: app-update-spin .7s linear infinite;
+}
+@keyframes app-update-spin { to { transform: rotate(360deg); } }
 @keyframes app-update-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .app-title-bar-btn--update::after { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .app-title-bar-btn--update::after,
+  .app-title-bar-update-spin { animation: none; }
+}
 .app-title-bar-update-wrap { position: relative; display: flex; }
 .app-update-pop {
   position: absolute; top: 36px; right: 0; z-index: 2000; width: 320px; padding: 14px;

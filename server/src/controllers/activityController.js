@@ -1,5 +1,6 @@
 const prisma = require('../config/prisma');
 const activityStore = require('../services/activityStore');
+const { steamAppIdOf } = require('../utils/steamCover');
 
 // Página "Atividade": linha do tempo do que os AMIGOS andaram fazendo —
 // jogando agora (atividade detectada pelo app de desktop), posts novos no
@@ -39,17 +40,13 @@ function parseJson(raw) {
   try { return raw ? JSON.parse(raw) : {}; } catch { return {}; }
 }
 
-// Arte do jogo: o app de desktop manda o header antigo da Steam
-// (…/steam/apps/<appid>/header.jpg), que dá 404 em muitos jogos — troca
-// pelo proxy que descobre o arquivo certo.
-function steamAppIdFrom(url) {
-  const m = typeof url === 'string' && url.match(/\/steam\/apps\/(\d+)\//);
-  return m ? Number(m[1]) : null;
-}
-
+// Arte do jogo: AppID da Steam (vindo do desktop ou do link antigo do
+// header, que dá 404 em muitos jogos) — o site monta a capa a partir dele
+// (ver client/src/components/SteamGameCover.jsx); imageUrl continua sendo
+// o proxy que descobre o arquivo certo, pra quem ainda usa só esse campo.
 function cleanActivity(a) {
   if (!a) return null;
-  const appId = a.type === 'game' ? steamAppIdFrom(a.imageUrl) : null;
+  const appId = a.type === 'game' ? steamAppIdOf(a) : null;
   let imageUrl = appId ? `/api/proxy/steam/${appId}/header` : a.imageUrl || null;
   if (imageUrl && imageUrl.startsWith('data:') && imageUrl.length > 60000) imageUrl = null; // capa gigante não vai na lista
   return { type: a.type, name: a.name, detail: a.detail || null, imageUrl, steamAppId: appId, startedAt: a.startedAt || null };

@@ -60,9 +60,8 @@ import PresenceDot from '../PresenceDot.jsx';
 import { usePromptDialog } from '../../utils/usePromptDialog.jsx';
 import { useStore } from '../../store/useStore';
 import { proxyImage } from '../../utils/imageProxy';
-import IdCardPreviewModal from './IdCardPreviewModal.jsx';
 import ImageCropperModal from './ImageCropperModal.jsx';
-import BannerImage, { PROFILE_BANNER_ASPECT, MINI_BANNER_ASPECT } from '../ProfileBanner.jsx';
+import BannerImage, { PROFILE_BANNER_ASPECT, MINI_BANNER_ASPECT, ID_CARD_ASPECT } from '../ProfileBanner.jsx';
 import { PENGUIN_COLORS, penguinAvatarUrl, isPenguinAvatarUrl } from '../PenguinAvatar.jsx';
 import PenguinAvatar from '../PenguinAvatar.jsx';
 import youtubeConnIcon from '../../assets/icons/social-youtube.png';
@@ -79,11 +78,14 @@ import {
   getPreferredMicId, getPreferredSpeakerId, setPreferredSpeakerId,
   isOutputSelectionSupported, listAudioDevices,
 } from '../../utils/audioDevices';
+import { getVoicePrefs, setVoicePref, prettyKeyName } from '../../utils/voicePrefs';
+import { isSpeechRecognitionSupported } from '../voice/CallExtras.jsx';
 import robloxConnIcon from '../../assets/icons/social-roblox.png';
 import xConnIcon from '../../assets/icons/social-x.png';
 import { looksLikeGif, isGifByContent, GIF_AVATAR_MAX_MB } from '../../utils/gifDetect';
+import AndroidUpdateInfo from '../AndroidUpdateInfo';
 import {
-  updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, removeIdCard,
+  updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, uploadIdCard, removeIdCard,
   setup2FA, confirm2FA, disable2FA, getRecoveryCodesStatus, regenerateRecoveryCodes, setLayoutStyle, setMyClanTag,
   listBlockedUsers, unblockUser,
   setEmojiStyle as setEmojiStyleApi,
@@ -134,10 +136,10 @@ const TAB_KEYWORDS = {
   ACCOUNT_STATUS: 'status da conta punicoes avisos advertencias banimento',
   PRIVACY: 'privacidade dados mensagens dm direta filtro conteudo jogos quem pode ver atividade jogando ouvindo spotify',
   NOTIFICATIONS: 'notificacoes avisos sons som email alertas',
-  VOICE: 'voz video audio microfone saida fone alto-falante teste',
+  VOICE: 'voz video audio microfone saida fone alto-falante teste redutor ruido apertar pra falar push to talk legendas nivelar volume reacoes gravar',
   APPEARANCE: 'aparencia tema layout zoom emoji fundo cores interface',
   ACCESSIBILITY: 'acessibilidade movimento reduzido contraste fonte tamanho leitura',
-  SYSTEM: 'sistema atalhos teclado inicializacao bandeja iniciar com o windows',
+  SYSTEM: 'sistema atalhos teclado inicializacao bandeja iniciar com o windows versao atualizacao atualizar sobre apk',
   LANGUAGE: 'idioma lingua horario hora data formato',
   GAMES: 'jogos apps deteccao atividade overlay sobreposicao compartilhar registrados',
 };
@@ -151,7 +153,7 @@ const TAB_DESCRIPTION = {
   ACCOUNT_STATUS: 'Situação da sua conta e avisos recebidos.',
   PRIVACY: 'Quem pode ver seu perfil, seus jogos e falar com você.',
   NOTIFICATIONS: 'Quando e como o Project Club te avisa.',
-  VOICE: 'Microfone, saída de áudio e teste de voz.',
+  VOICE: 'Microfone, saída, redutor de ruído, apertar pra falar e legendas.',
   APPEARANCE: 'Tema, layout, zoom e estilo dos emojis.',
   ACCESSIBILITY: 'Movimento, contraste e leitura confortável.',
   SYSTEM: 'Atalhos e comportamento do aplicativo.',
@@ -284,7 +286,6 @@ export default function UserSettingsModal({ onClose }) {
       document.removeEventListener('touchstart', onDocDown);
     };
   }, [statusEmojiOpen]);
-  const [idCardFile, setIdCardFile] = useState(null);
 
   const removeIdCardNow = async () => {
     const { user: updated } = await removeIdCard();
@@ -299,9 +300,10 @@ export default function UserSettingsModal({ onClose }) {
     // Item pedido: "cores do mini perfil separadas do perfil grande"
     miniProfileColor: user.miniProfileColor || '',
     miniProfileButtonColor: user.miniProfileButtonColor || '',
-    // Item pedido: "escolher a cor de fundo da bolha que mostra os
-    // status (Preto/Cinza/Branco)".
-    statusBubbleColor: user.statusBubbleColor || '',
+    // (Removido) A cor personalizada da bolinha de status (statusBubbleColor)
+    // não é mais oferecida na interface — a bolinha mostra só a cor real
+    // da presença. A coluna no banco continua existindo (não é mais lida
+    // nem enviada daqui); ver schema.prisma e userController.js.
     profileNameFont: user.profileNameFont || 'NORMAL',
     profileNameEffect: user.profileNameEffect || 'SOLID',
     profileNameColor: user.profileNameColor || '#F2894D',
@@ -695,6 +697,47 @@ export default function UserSettingsModal({ onClose }) {
       title: 'Ajustar enquadramento',
       onConfirm: async (_file, framing) => {
         const { user: updated } = await updateProfile(isMini ? { miniProfileBannerFraming: framing } : { bannerFraming: framing });
+        setUser(updated);
+        setCropperState(null);
+      },
+    });
+  };
+
+  // Placa de identificação (User.idCardUrl): mesmo editor dos banners, pra
+  // a pessoa posicionar e dar zoom (arrastar + pinça/roda) na imagem antes
+  // de enviar. Imagem estática recorta no navegador; GIF envia o original
+  // + enquadramento ("x,y,zoom"), que a lista de membros aplica no fundo.
+  const openIdCardEditor = (file) => {
+    const gif = isGifFile(file);
+    if (gif && gifTooBig(file)) return;
+    setCropperState({
+      file,
+      mode: gif ? 'frame' : 'crop',
+      aspectRatio: ID_CARD_ASPECT,
+      shape: 'rect',
+      preview: 'banner',
+      title: 'Ajustar a placa de identificação',
+      onConfirm: async (outFile, framing) => {
+        const { user: updated } = await uploadIdCard(outFile, framing);
+        setUser(updated);
+        setCropperState(null);
+        useStore.getState().pushNotice(gif ? 'GIF aplicado!' : 'Placa atualizada!');
+      },
+    });
+  };
+  // Reposicionar a placa ATUAL sem reenviar a imagem — só salva o "x,y,zoom".
+  const adjustCurrentIdCard = () => {
+    if (!user.idCardUrl) return;
+    setCropperState({
+      src: proxyImage(user.idCardUrl),
+      mode: 'frame',
+      initialFraming: user.idCardFraming,
+      aspectRatio: ID_CARD_ASPECT,
+      shape: 'rect',
+      preview: 'banner',
+      title: 'Ajustar enquadramento da placa',
+      onConfirm: async (_file, framing) => {
+        const { user: updated } = await updateProfile({ idCardFraming: framing });
         setUser(updated);
         setCropperState(null);
       },
@@ -1327,9 +1370,12 @@ export default function UserSettingsModal({ onClose }) {
                 {user.idCardUrl ? 'Trocar imagem' : 'Escolher imagem ou GIF'}
                 <input
                   type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
-                  onChange={(e) => { const f = e.target.files[0]; if (f) setIdCardFile(f); e.target.value = ''; }}
+                  onChange={(e) => { const f = e.target.files[0]; if (f) openIdCardEditor(f); e.target.value = ''; }}
                 />
               </label>
+              {user.idCardUrl && (
+                <button type="button" className="btn-secondary" onClick={adjustCurrentIdCard}>Ajustar posição/zoom</button>
+              )}
               {user.idCardUrl && (
                 <button className="btn-link danger" onClick={removeIdCardNow}>Remover</button>
               )}
@@ -1396,32 +1442,11 @@ export default function UserSettingsModal({ onClose }) {
             </div>
           </div>
 
-          {/* Item pedido: "escolher a cor de fundo da bolha que mostra
-              os status (Preto/Cinza/Branco)" — 3 valores fixos (não é
-              uma cor livre — ver o motivo em userController.js), por
-              isso um seletor de opções em vez de um <input
-              type="color">, mesmo padrão visual do seletor de tema. */}
-          <div className="settings-block">
-            <h4>Cor de fundo da bolha de status</h4>
-            <p className="dim">A cor atrás do indicador de status (online, ausente, etc) no avatar do seu mini perfil.</p>
-            <div className="theme-options">
-              {[['#000000', 'Preto'], ['#80848E', 'Cinza'], ['#FFFFFF', 'Branco']].map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`theme-swatch ${form.statusBubbleColor === value ? 'active' : ''}`}
-                  aria-pressed={form.statusBubbleColor === value}
-                  onClick={() => setForm((f) => ({ ...f, statusBubbleColor: value }))}
-                >
-                  <span className="settings-bubble-sample" style={{ background: value }} aria-hidden="true"><i /></span>
-                  {label}
-                </button>
-              ))}
-            </div>
-            {form.statusBubbleColor && (
-              <button type="button" className="btn-link" onClick={() => setForm((f) => ({ ...f, statusBubbleColor: '' }))}>Usar cor padrão</button>
-            )}
-          </div>
+          {/* (Removido) O seletor de "cor de fundo da bolha de status"
+              saiu da interface: a bolinha de status mostra só a cor real
+              da presença (online/ausente/não perturbe/offline). A coluna
+              statusBubbleColor continua no banco, mas não é mais lida
+              nem gravada daqui. */}
           </div>
 
           <div className="settings-block">
@@ -2104,6 +2129,7 @@ export default function UserSettingsModal({ onClose }) {
         <div className="settings-grid">
           {!userSettings ? <SettingsSkeleton /> : (
             <>
+              <AndroidUpdateInfo />
               {appDiag && (
                 <div className="settings-block">
                   <h4>Sobre este aplicativo</h4>
@@ -2323,13 +2349,6 @@ export default function UserSettingsModal({ onClose }) {
         </div>
       </div>
     </Modal>
-    {idCardFile && (
-      <IdCardPreviewModal
-        file={idCardFile}
-        onClose={() => setIdCardFile(null)}
-        onSaved={(updated) => { setUser(updated); setIdCardFile(null); }}
-      />
-    )}
     {cropperState && (
       <ImageCropperModal
         file={cropperState.file}
@@ -2389,10 +2408,10 @@ function iconFor(t) {
 }
 
 // ============================================================
-// Voz e Áudio — escolher microfone/saída de áudio, testar o microfone com
-// um medidor de volume ao vivo. Sem redução de ruído nem qualquer
-// processamento automático de áudio (item pedido) — o microfone vai pro
-// ar exatamente como captado.
+// Voz e vídeo — escolher microfone/saída de áudio, testar o microfone com
+// um medidor de volume ao vivo, e as preferências self-service de chamada:
+// redutor de ruído (B), nivelar volume (E), apertar pra falar (F) e
+// legendas ao vivo (K). Tudo guardado no dispositivo (utils/voicePrefs.js).
 // ============================================================
 // Item pedido: "quero que abra um menu e mostre as fontes" — botão
 // compacto (mostra o nome da opção atual + um mini-preview) que abre
@@ -2562,6 +2581,26 @@ function VoiceSettingsTab() {
   const testStreamRef = useRef(null);
   const testCtxRef = useRef(null);
   const testRafRef = useRef(null);
+  // Preferências de voz guardadas no dispositivo (voicePrefs).
+  const [prefs, setPrefs] = useState(getVoicePrefs);
+  const [capturingKey, setCapturingKey] = useState(false);
+  const updatePref = (name, value) => {
+    setVoicePref(name, value);
+    setPrefs((p) => ({ ...p, [name]: value }));
+    if (name === 'noiseReduction') voice.setNoiseReduction?.(value);
+  };
+  // Captura da tecla do "apertar pra falar": escuta o próximo toque.
+  useEffect(() => {
+    if (!capturingKey) return undefined;
+    const onKey = (e) => {
+      e.preventDefault();
+      if (e.code === 'Escape') { setCapturingKey(false); return; }
+      updatePref('pushToTalkKey', e.code);
+      setCapturingKey(false);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [capturingKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refreshDevices = async () => {
     try {
@@ -2682,6 +2721,55 @@ function VoiceSettingsTab() {
           </label>
         </div>
       )}
+
+      {/* Redutor de ruído (B) */}
+      <div className="settings-block settings-toggle-row">
+        <div>
+          <h4>Redutor de ruído</h4>
+          <p className="dim">Remove ruído de fundo (ventilador, teclado, eco) e nivela o volume do seu microfone. Desligue se usa microfone de estúdio e prefere o som original.</p>
+        </div>
+        <Toggle on={prefs.noiseReduction} onChange={(v) => updatePref('noiseReduction', v)} label="Redutor de ruído" />
+      </div>
+
+      {/* Nivelar volume automático (E) */}
+      <div className="settings-block settings-toggle-row">
+        <div>
+          <h4>Nivelar volume automaticamente</h4>
+          <p className="dim">Aproxima o volume das pessoas: quem fala baixo fica mais audível e quem fala alto não estoura. Afeta só o que você ouve.</p>
+        </div>
+        <Toggle on={prefs.autoLevelVolume} onChange={(v) => updatePref('autoLevelVolume', v)} label="Nivelar volume automaticamente" />
+      </div>
+
+      {/* Apertar pra falar (F) */}
+      <div className="settings-block settings-toggle-row">
+        <div>
+          <h4>Apertar pra falar</h4>
+          <p className="dim">Seu microfone fica mudo e só vai ao ar enquanto você segura a tecla escolhida.</p>
+        </div>
+        <Toggle on={prefs.pushToTalkEnabled} onChange={(v) => updatePref('pushToTalkEnabled', v)} label="Apertar pra falar" />
+      </div>
+      {prefs.pushToTalkEnabled && (
+        <div className="settings-block">
+          <h4 className="settings-h4-row">Tecla do apertar pra falar <span className="settings-chip">{prettyKeyName(prefs.pushToTalkKey)}</span></h4>
+          <div className="settings-inline-actions">
+            <button type="button" className={capturingKey ? 'btn-danger' : 'btn-secondary'} onClick={() => setCapturingKey((v) => !v)}>
+              {capturingKey ? 'Pressione uma tecla… (Esc cancela)' : 'Trocar tecla'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Legendas ao vivo (K) */}
+      <div className="settings-block settings-toggle-row">
+        <div>
+          <h4>Legendas ao vivo (automáticas)</h4>
+          <p className="dim">
+            Mostra na tela, em tempo real, o que você fala (pt-BR), usando o reconhecimento de voz do navegador. São automáticas e podem conter erros.
+            {!isSpeechRecognitionSupported() && ' Seu navegador não suporta este recurso.'}
+          </p>
+        </div>
+        <Toggle on={prefs.captions} onChange={(v) => updatePref('captions', v)} label="Legendas ao vivo" disabled={!isSpeechRecognitionSupported()} />
+      </div>
     </div>
   );
 }

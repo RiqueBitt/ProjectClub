@@ -69,8 +69,10 @@ export const uploadMiniProfileBanner = (file, framing) => {
   fd.append('banner', file);
   return api.post('/users/me/mini-banner', fd).then((r) => r.data);
 };
-export const uploadIdCard = (file) => {
-  const fd = new FormData(); fd.append('idCard', file);
+export const uploadIdCard = (file, framing) => {
+  const fd = new FormData();
+  if (framing) fd.append('framing', framing); // enquadramento "x,y,zoom" da placa
+  fd.append('idCard', file);
   return api.post('/users/me/id-card', fd).then((r) => r.data);
 };
 export const removeIdCard = () => api.delete('/users/me/id-card').then((r) => r.data);
@@ -153,6 +155,10 @@ export const deleteMessage = (id, reason) => api.delete(`/messages/${id}`, { dat
 export const togglePinMessage = (id) => api.post(`/messages/${id}/pin`).then((r) => r.data);
 export const toggleArchiveTopic = (id) => api.post(`/messages/${id}/archive`).then((r) => r.data);
 export const reactToMessage = (id, emoji) => api.post(`/messages/${id}/react`, { emoji }).then((r) => r.data);
+// Quem reagiu com um emoji (menu do chip de reação) — paginado por cursor.
+export const getMessageReactors = (id, emoji, cursor) => api
+  .get(`/messages/${id}/reactions/${encodeURIComponent(emoji)}`, { params: cursor ? { cursor } : {} })
+  .then((r) => r.data);
 export const setMessagePostIcon = (id, file) => {
   const fd = new FormData(); fd.append('icon', file);
   return api.post(`/messages/${id}/icon`, fd).then((r) => r.data);
@@ -514,6 +520,13 @@ export const unregisterPushToken = (token) => api.post('/push/unregister', { tok
 
 // --- Agora.io (chamadas de voz) ---
 export const getAgoraToken = (channelName) => api.get('/agora/token', { params: { channelName } }).then((r) => r.data);
+
+// --- Provedor de voz (Agora normal ⇆ Jitsi reserva) ---
+// Qual provedor usar agora + quanto do mês já foi usado (observabilidade).
+export const getVoiceProvider = () => api.get('/voice/provider').then((r) => r.data);
+// Fluxo de entrada: checa acesso e devolve o provedor + credenciais dele
+// (token do Agora OU domínio/sala/jwt do Jitsi).
+export const getVoiceJoin = (channelName) => api.get('/voice/join', { params: { channelName } }).then((r) => r.data);
 
 // --- Item pedido: sistemas estilo Orkut ---
 export const writeTestimonial = (targetId, text) => api.post(`/testimonials/${targetId}`, { text }).then((r) => r.data);

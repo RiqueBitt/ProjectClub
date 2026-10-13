@@ -11,7 +11,8 @@ const { exec } = require('child_process');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
-const { matchProcessName } = require('./gameDatabase');
+const { matchProcessName, steamCoverUrl } = require('./gameDatabase');
+const steamDetector = require('./steamDetector');
 const { matchProcessName: matchAppProcessName } = require('./appDatabase');
 
 function run(cmd) {
@@ -57,12 +58,57 @@ async function detectGameOrApp(platform) {
   // rodava a cada 2s pra todo mundo, mesmo sem Spotify instalado.
   // Lista vazia = não conseguiu listar; aí consulta mesmo assim.
   const spotifyRunning = !processes.length || processes.some((p) => /^spotify(\.exe)?$/i.test(p));
+  // Steam aberta? Só aí vale perguntar qual jogo ela está rodando (ver
+  // resolveSteamGame abaixo) — sem a Steam, o RunningAppID pode estar
+  // "preso" de uma sessão que fechou sem limpar.
+  const steamRunning = processes.some((p) => /^steam(\.exe)?$/i.test(p) || /^steamwebhelper(\.exe)?$/i.test(p));
   for (const proc of processes) {
     if (!game) game = matchProcessName(proc, platKey);
     if (!appMatch) appMatch = matchAppProcessName(proc, platKey);
     if (game && appMatch) break; // achou os dois — não precisa continuar varrendo
   }
-  return { game, app: appMatch, spotifyRunning };
+  return { game, app: appMatch, spotifyRunning, steamRunning };
+}
+
+// ---------- AppID da Steam do jogo rodando ----------
+// BUG CORRIGIDO ("Jogando <jogo>" sem capa nos jogos da Steam): o AppID
+// só existia pros jogos da lista fixa (gameDatabase.js) — qualquer outro
+// jogo aberto pela Steam ficava sem AppID e, sem ele, sem capa. Agora
+// pergunta pra própria Steam qual AppID ela está rodando (RunningAppID) e
+// completa o jogo detectado (ou detecta um jogo que nem estava na lista).
+// A consulta (reg.exe / registry.vdf) é barata, mas mesmo assim fica em
+// cache por alguns segundos pra não rodar a cada verificação.
+const STEAM_QUERY_CACHE_MS = 6000;
+let steamQueryAt = 0;
+let steamQueryValue = null;
+async function runningSteamAppId(platform, steamRunning) {
+  if (!steamRunning) { steamQueryAt = 0; steamQueryValue = null; return null; }
+  const now = Date.now();
+  if (steamQueryAt && now - steamQueryAt < STEAM_QUERY_CACHE_MS) return steamQueryValue;
+  steamQueryAt = now;
+  steamQueryValue = await steamDetector.getRunningSteamAppId(platform).catch(() => null);
+  return steamQueryValue;
+}
+
+// Junta o que a lista fixa achou (por processo) com o que a Steam diz que
+// está rodando. Jogo fora da Steam (Valorant, LoL...) continua igual.
+function mergeSteamGame(game, runningAppId, nameForAppId) {
+  if (!runningAppId) return game;
+  // Jogo da lista fixa SEM AppID e sem arte própria (ex.: "Overwatch 2",
+  // que também está na Steam): a Steam diz qual é.
+  if (game && !game.steamAppId && !game.imageUrl) {
+    return { ...game, steamAppId: runningAppId, imageUrl: steamCoverUrl(runningAppId) };
+  }
+  // Jogo de fora da Steam com arte própria: mantém (pode ser outro jogo
+  // aberto ao mesmo tempo).
+  if (game && !game.steamAppId) return game;
+  // Mesmo AppID: nada a fazer. AppID diferente (ex.: hl2.exe é usado por
+  // TF2, Garry's Mod e Half-Life 2) ou jogo fora da lista: a Steam é a
+  // fonte certa — desde que dê pra saber o nome do jogo.
+  if (game && game.steamAppId === runningAppId) return game;
+  const name = nameForAppId(runningAppId);
+  if (!name) return game;
+  return { name, steamAppId: runningAppId, imageUrl: steamCoverUrl(runningAppId) };
 }
 
 // ---------- Detecção de Spotify (mídia tocando agora) ----------
@@ -261,7 +307,7 @@ let timer = null;
 
 function activityKey(activity) {
   if (!activity) return 'none';
-  return `${activity.type}:${activity.name}:${activity.detail || ''}:${activity.playingGame?.name || ''}`;
+  return `${activity.type}:${activity.name}:${activity.detail || ''}:${activity.steamAppId || ''}:${activity.playingGame?.name || ''}`;
 }
 
 function startActivityDetection(onChange) {
@@ -293,7 +339,9 @@ function startActivityDetection(onChange) {
     running = true;
     lastTickAt = now;
     try {
-      const { game, app, spotifyRunning } = await detectGameOrApp(platform);
+      const found = await detectGameOrApp(platform);
+      const { app, spotifyRunning } = found;
+      const game = mergeSteamGame(found.game, await runningSteamAppId(platform, found.steamRunning), steamDetector.installedGameName);
       spotifyOpen = !!spotifyRunning;
       let activity = null;
       // Item pedido: "prioridade app -> música -> jogos" (trocado da
@@ -305,13 +353,13 @@ function startActivityDetection(onChange) {
         if (spotify) {
           activity = { type: 'spotify', ...spotify, startedAt: Date.now() };
         } else if (game) {
-          activity = { type: 'game', name: game.name, imageUrl: game.imageUrl || undefined, startedAt: Date.now() };
+          activity = { type: 'game', name: game.name, steamAppId: game.steamAppId || undefined, imageUrl: game.imageUrl || undefined, startedAt: Date.now() };
         }
       }
       // Biblioteca de jogos: se o que aparece é música/app mas tem jogo
       // rodando por trás, avisa o jogo também (só pro tempo de jogo).
       if (activity && activity.type !== 'game' && game) {
-        activity.playingGame = { name: game.name, imageUrl: game.imageUrl || undefined };
+        activity.playingGame = { name: game.name, steamAppId: game.steamAppId || undefined, imageUrl: game.imageUrl || undefined };
       }
       const key = activityKey(activity);
       if (key !== lastSentKey || (activity && activity.type === 'spotify')) {
@@ -353,4 +401,4 @@ function stopActivityDetection() {
   lastSentKey = null;
 }
 
-module.exports = { startActivityDetection, stopActivityDetection };
+module.exports = { startActivityDetection, stopActivityDetection, mergeSteamGame };

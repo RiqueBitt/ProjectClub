@@ -31,10 +31,31 @@ function GetIngredient(name, mouse, game) {
 	}
 }
 
+// Project Club: o jogo original perguntava pro CSS se o mouse estava em cima
+// da pizza (".pizza-trigger:hover"). No toque não existe :hover — os eventos
+// de mouse "de mentira" que o sbd.js gera a partir do dedo não mexem nele —,
+// então soltar o ingrediente ou o molho na pizza nunca contava no celular.
+// Agora quem decide é a posição do dedo/mouse dentro da área da pizza, igual
+// no PC. Usamos a geometria do ".pizza-trigger" (e não elementFromPoint):
+// com o frasco na mão, a imagem ".bottle-squeezing" fica por cima do ponto do
+// dedo e enganava o elementFromPoint, então o molho nunca "pegava" no celular.
+function OverPizza(e) {
+	if(!e || typeof e.clientX != "number") return false
+	var pt = $(".pizza-trigger").get(0)
+	if(!pt) return false
+	var r = pt.getBoundingClientRect()
+	if(!r.width || !r.height) return false
+	// elipse inscrita no retângulo do gatilho (a pizza é redonda, igual ao
+	// :hover com border-radius:100% do jogo original)
+	var nx = (e.clientX-(r.left+r.right)/2)/(r.width/2)
+	var ny = (e.clientY-(r.top+r.bottom)/2)/(r.height/2)
+	return nx*nx+ny*ny <= 1
+}
+
 // Drop an ingredient
 function DropIngredient(i, e) {
 	var food = i.attr("food")
-	if($(".pizza-dough").length && $(".pizza-trigger:hover").length && !$(".pizza-splat").length && !completedOrder) {
+	if($(".pizza-dough").length && OverPizza(e) && !$(".pizza-splat").length && !completedOrder) {
 		// Put the ingredient on the pizza
 		if(food == "Cheese") {
 			$(".pizza-dough").append('<img class="cheese" src="Assets/Pizza/'+food+'.png">')

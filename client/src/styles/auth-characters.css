@@ -20,7 +20,7 @@
 
 /* Origem na própria coordenada local (0,0) de cada peça. */
 .pcc-eye, .pcc-eye-open, .pcc-blink, .pcc-pupil, .pcc-pupil-s, .pcc-lid, .pcc-eye-alt,
-.pcc-mouth, .pcc-brow, .pcc-hand, .pcc-antenna, .pcc-antenna-sway, .pcc-tuft, .pcc-shadow, .pcc-spark {
+.pcc-mouth, .pcc-brow, .pcc-hand, .pcc-acc, .pcc-acc-sway, .pcc-shadow, .pcc-spark {
   transform-box: view-box;
   transform-origin: 0 0;
 }
@@ -45,7 +45,12 @@
   50% { transform: scale(.985, 1.035); }
 }
 
-.pcc-antenna-sway { animation: pcc-sway 3.8s ease-in-out infinite; }
+/* Acessórios que balançam (antena/broto/chifre). Os que pulam (folha/
+   orelha/laço) ficam parados até uma micro-ação da Web Animations API. */
+.pcc-acc-sway { animation: pcc-sway 3.8s ease-in-out infinite; }
+.pcc-menta .pcc-acc-sway { animation-duration: 4.4s; animation-delay: -1.1s; }
+.pcc-coral .pcc-acc-sway { animation-duration: 3.3s; animation-delay: -.6s; }
+.pcc-mel .pcc-acc-sway { animation-duration: 3s; animation-delay: -.3s; }
 @keyframes pcc-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(4deg); } }
 .pcc-antenna-glow { animation: pcc-glow 2.8s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 50%; }
 @keyframes pcc-glow { 0%, 100% { opacity: .12; transform: scale(.9); } 50% { opacity: .32; transform: scale(1.2); } }

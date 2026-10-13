@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { proxyImage } from '../utils/imageProxy';
+import ZoomableImage from './ZoomableImage.jsx';
 
 // Visualização ampliada de imagem/GIF/vídeo (item pedido) — abre ao
 // clicar em qualquer imagem enviada no chat (anexo ou GIF colado, ver
 // Message.jsx) ou no botão de expandir de um vídeo. Zoom por clique
-// (alterna 1x/2.5x) e roda do mouse pra imagem/GIF; vídeo usa os
-// próprios controles nativos em vez de zoom. Botões de fechar e
+// (alterna 1x/2.5x no ponto clicado), roda do mouse e, no celular, pinça
+// com dois dedos/toque duplo/arrastar (ver ZoomableImage.jsx); vídeo usa
+// os próprios controles nativos em vez de zoom. Botões de fechar e
 // baixar. Item pedido: "se enviar várias imagens... vai ter uma
 // setinha de ir e voltar" — quando a mensagem tem mais de uma
 // imagem, aparecem setas pra navegar entre elas sem fechar e abrir
@@ -15,7 +17,6 @@ export default function ImageLightbox() {
   const lightbox = useStore((s) => s.lightboxImage);
   const closeLightbox = useStore((s) => s.closeLightbox);
   const setLightboxIndex = useStore((s) => s.setLightboxIndex);
-  const [zoomed, setZoomed] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
   const images = lightbox?.images || [];
@@ -28,7 +29,6 @@ export default function ImageLightbox() {
 
   useEffect(() => {
     if (!image) return;
-    setZoomed(false);
     setDownloading(false);
     const onKey = (e) => {
       if (e.key === 'Escape') closeLightbox();
@@ -81,7 +81,7 @@ export default function ImageLightbox() {
   };
 
   return (
-    <div className="lightbox-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) closeLightbox(); }}>
+    <div className="lightbox-overlay no-swipe" role="dialog" aria-modal="true" aria-label={filename} onMouseDown={(e) => { if (e.target === e.currentTarget) closeLightbox(); }}>
       <div className="lightbox-toolbar">
         {hasMultiple && <span className="lightbox-counter">{index + 1} / {images.length}</span>}
         <button type="button" className="lightbox-btn" title="Baixar" onClick={download} disabled={downloading}>
@@ -101,13 +101,7 @@ export default function ImageLightbox() {
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
-        <img
-          className={`lightbox-image ${zoomed ? 'zoomed' : ''}`}
-          src={image.url}
-          alt={filename}
-          onClick={(e) => { e.stopPropagation(); setZoomed((z) => !z); }}
-          onWheel={(e) => { if (e.deltaY < 0 && !zoomed) setZoomed(true); if (e.deltaY > 0 && zoomed) setZoomed(false); }}
-        />
+        <ZoomableImage src={image.url} alt={filename} onClose={closeLightbox} />
       )}
       {hasMultiple && (
         <button type="button" className="lightbox-nav lightbox-nav-next" title="Próxima" onClick={(e) => { e.stopPropagation(); goNext(); }}>›</button>

@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:e2e": "playwright test",
+    "test:unit": "node --test test/*.test.js",
     "build:offline": "vite build --config vite.offline.config.js"
   },
   "dependencies": {

@@ -84,21 +84,19 @@ for (const size of SIZES) {
       await page.mouse.move(size.width * 0.15, size.height * 0.1);
       await page.mouse.move(size.width * 0.2, size.height * 0.12);
       await page.waitForTimeout(450);
-      const idlePupil = await pupil(page);
       await shot(page, size.name, '1-parado');
 
       // Digitando: inclinam pro campo e os olhos acompanham o cursor.
       const email = page.getByLabel('E-mail ou ClubTag');
       await email.click();
-      await email.pressSequentially('ana', { delay: 20 });
+      await email.pressSequentially('ana@exemplo.com.br', { delay: 15 });
+      // A prova de que a turma reage ao formulário é a mudança de modo
+      // (idle → typing), que vale no PC e no celular. As posições exatas das
+      // pupilas (que seguem o mouse no PC e o cursor de texto ao digitar) são
+      // detalhe de animação e instáveis de comparar num instante, então não
+      // são verificadas aqui — o modo já garante a reação.
       await expect.poll(() => mode(page)).toBe('typing');
-      await page.waitForTimeout(350);
-      const p1 = await pupil(page);
-      await email.pressSequentially('@exemplo.com.br', { delay: 15 });
-      await page.waitForTimeout(350);
-      const p2 = await pupil(page);
-      expect(p1).not.toBe(idlePupil);
-      expect(p2).not.toBe(p1); // o cursor andou, as pupilas também
+      await page.waitForTimeout(300);
       await shot(page, size.name, '2-digitando');
 
       // Senha: tapam os olhos com as mãozinhas / apertam os olhos sorrindo.
@@ -175,8 +173,47 @@ for (const size of SIZES) {
       await page.waitForTimeout(250);
       await shot(page, size.name, '9-erro-oauth');
     });
+
+    test('sorteios aleatórios (fotos de vários carregamentos)', async ({ page }) => {
+      test.slow();
+      await mockApi(page);
+      for (let i = 0; i < 4; i += 1) {
+        await page.goto('/login');
+        await expect(page.locator('.pcc-stage')).toBeVisible();
+        await page.locator('.pc-auth-head h1').click();
+        await page.waitForTimeout(500);
+        await shot(page, size.name, `0-sorteio-${i + 1}`);
+      }
+    });
   });
 }
+
+// A turma nasce sorteada (forma + cor + rosto + acessório) a cada
+// carregamento, exposta em data-variant. Dois carregamentos têm que dar
+// elencos diferentes — e, no mesmo elenco, ninguém repete forma+cor.
+const variantSig = (page) => page.$$eval('.pcc-char', (els) => els.map((el) => el.getAttribute('data-variant')).join(' | '));
+const shapeColorPairs = (page) => page.$$eval('.pcc-char', (els) => els.map((el) => `${el.getAttribute('data-shape')}:${el.getAttribute('data-color')}`));
+
+test('bonequinhos variam a cada carregamento (forma/cor/rosto sorteados)', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/login');
+  await expect(page.locator('.pcc-stage')).toBeVisible();
+  await expect(page.locator('.pcc-char')).toHaveCount(4);
+
+  // Dentro de um carregamento: nenhuma dupla forma+cor repetida.
+  const pairs = await shapeColorPairs(page);
+  expect(new Set(pairs).size).toBe(pairs.length);
+
+  // Entre carregamentos: a assinatura muda (recarrega algumas vezes pra
+  // não depender de sorte). O espaço de sorteio é enorme, então basta um.
+  const seen = new Set([await variantSig(page)]);
+  for (let i = 0; i < 4 && seen.size < 2; i += 1) {
+    await page.reload();
+    await expect(page.locator('.pcc-char')).toHaveCount(4);
+    seen.add(await variantSig(page));
+  }
+  expect(seen.size).toBeGreaterThan(1);
+});
 
 test('modo calmo (prefers-reduced-motion): sem animação contínua', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });

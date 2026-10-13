@@ -10,6 +10,8 @@ import { MicTest, MicSilentWarning, QualityDot } from './voice/VoiceExtras.jsx';
 import ScreenQualityMenu from './voice/ScreenQualityMenu.jsx';
 import { useYouTubeWatch, YouTubeStage, YouTubePicker, ActivitiesButton, YouTubeToast } from './voice/YouTubeWatch.jsx';
 import { CallMusicPicker } from '../music/MusicPlayer.jsx';
+import { ReactionBar, ReactionsOverlay, RecordingBanner, RecordButton, LiveCaptions } from './voice/CallExtras.jsx';
+import { getVoicePref, setVoicePref, onVoicePrefsChange } from '../utils/voicePrefs';
 
 // ============================================================
 // Canal de voz — visual refeito.
@@ -59,7 +61,7 @@ function useElapsed(startedAt) {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
 }
 
-function CallHeader({ channel, count, isStage }) {
+function CallHeader({ channel, count, isStage, children }) {
   const voice = useVoice();
   const elapsed = useElapsed(voice?.rosterStartedAt?.[channel.id]);
   return (
@@ -70,6 +72,7 @@ function CallHeader({ channel, count, isStage }) {
       <span className="vc-chip"><span className="vc-live" /> Ao vivo</span>
       <span className="vc-chip"><Icon name="people" size={15} /> {count}</span>
       {elapsed && <span className="vc-chip vc-mono">{elapsed}</span>}
+      {children}
     </header>
   );
 }
@@ -87,6 +90,10 @@ export default function VoiceChannelView({ channel }) {
   const yt = useYouTubeWatch(inThisCall && !isStage ? channel.id : null);
   const [ytPicker, setYtPicker] = useState(false);
   const closeYtPicker = useCallback(() => setYtPicker(false), []);
+  // Modo da tela da chamada (H): 'auto' | 'grid' | 'focus'.
+  const [viewMode, setViewMode] = useState(() => getVoicePref('callViewMode') || 'auto');
+  useEffect(() => onVoicePrefsChange((p) => setViewMode(p.callViewMode || 'auto')), []);
+  const changeViewMode = useCallback((mode) => { setViewMode(mode); setVoicePref('callViewMode', mode); }, []);
 
   // ---------- Lobby (antes de entrar) ----------
   if (!inThisCall) {
@@ -142,13 +149,18 @@ export default function VoiceChannelView({ channel }) {
 
   // ---------- Dentro da chamada ----------
   const { participants, remoteCameraStreams, remoteScreenStreams, cameraOn, screenOn, muted, volumes, localSpeaking } = voice;
+  const onBackup = voice?.provider === 'jitsi';
   const allUserIds = [...new Set([user.id, ...Object.keys(participants)])];
 
   const screens = [
     ...Object.entries(remoteScreenStreams).map(([uid, stream]) => ({ key: `screen-${uid}`, uid, stream, mine: false })),
     ...(screenOn && voice.localScreenStream ? [{ key: 'screen-me', uid: user.id, stream: voice.localScreenStream, mine: true }] : []),
   ];
-  const spotlight = screens.length > 0 || yt.active;
+  // Item pedido H: alternar entre "grade" e "focar em quem apresenta".
+  // 'auto' (padrão) destaca sozinho quando alguém transmite; 'grid' força
+  // a grade; 'focus' sempre tenta destacar.
+  const hasPresenter = screens.length > 0 || yt.active;
+  const spotlight = hasPresenter && viewMode !== 'grid';
   const viewers = allUserIds.map((uid) => (uid === user.id ? user : memberFor(uid))).filter(Boolean);
 
   const tiles = allUserIds.map((uid) => {
@@ -169,9 +181,15 @@ export default function VoiceChannelView({ channel }) {
 
   return (
     <div className="vc">
-      <CallHeader channel={channel} count={allUserIds.length} />
-      <div className={`vc-stage${spotlight ? ' is-spotlight' : ''}`}>
-        {spotlight ? (
+      <CallHeader channel={channel} count={allUserIds.length}>
+        {!onBackup && hasPresenter && <ViewModeToggle mode={viewMode} onChange={changeViewMode} />}
+      </CallHeader>
+      <RecordingBanner voice={voice} meId={user.id} />
+      <BackupBanner voice={voice} />
+      <div className={`vc-stage${spotlight && !onBackup ? ' is-spotlight' : ''}`}>
+        {onBackup ? (
+          <JitsiStage voice={voice} />
+        ) : spotlight ? (
           <>
             <div className={`vc-screens vc-screens-${Math.min(screens.length + (yt.active ? 1 : 0), 2)}`}>
               {yt.active && <YouTubeStage yt={yt} viewers={viewers} onAdd={(kind) => setYtPicker(kind || 'youtube')} />}
@@ -198,12 +216,63 @@ export default function VoiceChannelView({ channel }) {
         ) : (
           <div className={`vc-grid vc-grid-${Math.min(allUserIds.length, 5)}`}>{tiles}</div>
         )}
+        {/* Camada dos emojis flutuantes (I). */}
+        <ReactionsOverlay voice={voice} memberFor={memberFor} meId={user.id} meName={user.displayName} />
+        {/* Legendas ao vivo do seu microfone (K). */}
+        <LiveCaptions active={inThisCall} />
       </div>
       <MicSilentWarning voice={voice} />
       <YouTubeToast yt={yt} />
       <VoiceCallControls voice={voice} micLocked={false} onActivity={(kind) => setYtPicker(kind || 'youtube')} />
       {ytPicker === 'music' && <CallMusicPicker yt={yt} onClose={closeYtPicker} />}
       {ytPicker && ytPicker !== 'music' && <YouTubePicker yt={yt} onClose={closeYtPicker} />}
+    </div>
+  );
+}
+
+// Aviso "Chamada em modo reserva" (Jitsi) — aparece quando o Agora passou
+// do limite mensal e a mídia caiu pro provedor reserva. Transparente de
+// propósito: a pessoa SABE que está no plano B. Ver docs/voice-fallback.md.
+function BackupBanner({ voice }) {
+  if (!voice?.fallbackActive) return null;
+  return (
+    <div className="vc-backup-note" role="status">
+      <span className="vc-backup-dot" aria-hidden="true" />
+      <span>Chamada em modo reserva{voice.reconnectingProvider ? ' · reconectando…' : ''}</span>
+    </div>
+  );
+}
+
+// Palco do modo reserva: "empresta" o iframe do Jitsi (que vive no contexto,
+// pra o áudio seguir tocando mesmo fora desta tela) e o mostra aqui enquanto
+// a tela da chamada está aberta. Devolve ao sair (detachJitsi).
+function JitsiStage({ voice }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (el) voice.attachJitsi?.(el);
+    return () => voice.detachJitsi?.();
+  }, [voice, voice.jitsiNode]);
+  return (
+    <div className="vc-jitsi-stage">
+      {voice.reconnectingProvider && (
+        <div className="vc-jitsi-reconnecting" role="status">Reconectando a chamada…</div>
+      )}
+      <div ref={ref} className="vc-jitsi-mount" />
+    </div>
+  );
+}
+
+// Alternador "Grade / Foco" (H). Aparece só quando há alguém transmitindo.
+function ViewModeToggle({ mode, onChange }) {
+  return (
+    <div className="ce-viewmode" role="group" aria-label="Modo de exibição">
+      <button type="button" className={mode !== 'grid' ? 'active' : ''} onClick={() => onChange('auto')} aria-pressed={mode !== 'grid'} title="Focar em quem apresenta">
+        <Icon name="screen" size={14} /> Foco
+      </button>
+      <button type="button" className={mode === 'grid' ? 'active' : ''} onClick={() => onChange('grid')} aria-pressed={mode === 'grid'} title="Ver todo mundo em grade">
+        <Icon name="people" size={14} /> Grade
+      </button>
     </div>
   );
 }
@@ -401,7 +470,9 @@ function VoiceCallControls({ voice, micLocked, onActivity }) {
         />
         {/* Transmitindo: troca 720p/1080p e 15/30/60 FPS sem parar. */}
         {screenOn && <ScreenQualityMenu voice={voice} className="vc-sqm" />}
+        {!micLocked && <ReactionBar voice={voice} />}
         {onActivity && <ActivitiesButton onPick={onActivity} />}
+        {!micLocked && <RecordButton voice={voice} />}
         <span className="vc-dock-sep" aria-hidden="true" />
         <button type="button" className="vc-ctrl vc-leave" onClick={voice.leaveChannel} aria-label="Sair da chamada" title="Sair da chamada">
           <Icon name="leave" size={22} />

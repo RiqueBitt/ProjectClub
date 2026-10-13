@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { useLiveRefresh } from '../utils/liveRefresh';
+import { updateDisplay } from '../utils/updateProgress';
 
 // "1.10.2" > "1.9.9"
 function isNewer(a, b) {
@@ -22,6 +23,9 @@ function UpdateButton() {
   const [status, setStatus] = useState(null); // estado vindo do app (versões novas)
   const [working, setWorking] = useState(false);
   const [askOld, setAskOld] = useState(false); // explicação pro app antigo
+  const [now, setNow] = useState(() => Date.now()); // relógio pra detectar progresso travado
+  const lastProgressRef = useRef(0); // ms da última mudança real de porcentagem
+  const lastPercentRef = useRef(-1);
 
   useEffect(() => {
     window.electronAPI?.getAppVersion?.().then(setCurrent).catch(() => {});
@@ -30,6 +34,28 @@ function UpdateButton() {
     return bridge.onStatus?.(setStatus);
   }, [bridge]);
 
+  // Marca QUANDO a porcentagem muda de verdade — é isso que diferencia
+  // "baixando devagar" de "travado em 0%" (ver updateProgress.js).
+  useEffect(() => {
+    const p = Number(status?.percent) || 0;
+    if (p !== lastPercentRef.current) { lastPercentRef.current = p; lastProgressRef.current = Date.now(); }
+  }, [status?.percent]);
+
+  // Enquanto está baixando, mantém um "relógio" andando pra reavaliar se o
+  // progresso travou (e então mostrar a barra indeterminada em vez de 0%).
+  const downloadingRaw = working && status && !status.downloaded && !status.error;
+  useEffect(() => {
+    if (!downloadingRaw) return undefined;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [downloadingRaw]);
+
+  // Saiu do estado "trabalhando" quando o app reporta erro: o clique
+  // seguinte tenta de novo (não deixa o botão preso em "progresso").
+  useEffect(() => {
+    if (status?.error && working) setWorking(false);
+  }, [status?.error]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const checkLatest = () => api.get('/system/desktop-latest').then((r) => setLatest(r.data?.version || null)).catch(() => {});
   useEffect(() => { checkLatest(); }, []);
   useLiveRefresh(checkLatest, { interval: 5 * 60 * 1000 });
@@ -37,16 +63,21 @@ function UpdateButton() {
 
   const hasUpdate = (status?.available) || (current && latest && isNewer(latest, current));
   if (!hasUpdate) return null;
-  const downloading = working && status && !status.downloaded;
+  const disp = updateDisplay({ status, working, lastProgressAt: lastProgressRef.current, now, stallMs: 4000 });
+  const downloading = disp.mode === 'downloading';
+  const hadError = !!status?.error;
   const label = status?.downloaded || !bridge
     ? `Atualizar para ${status?.version || latest || 'a versão nova'} (fecha e reabre o Project Club)`
-    : `Baixar e instalar ${status?.version || latest || 'a versão nova'}`;
+    : hadError
+      ? `A última tentativa falhou. Clique pra tentar baixar ${status?.version || latest || 'a versão nova'} de novo.`
+      : `Baixar e instalar ${status?.version || latest || 'a versão nova'}`;
 
   const INSTALLER_URL = 'https://github.com/RiqueBitt/ProjectClub/releases/latest/download/ProjectClub-Setup-Windows.exe';
 
   const run = async () => {
     if (working) return;
     if (!bridge) { setAskOld((v) => !v); return; } // app antigo: explica e oferece o instalador
+    lastProgressRef.current = 0; lastPercentRef.current = -1; setNow(Date.now());
     setWorking(true);
     const r = await bridge.install().catch(() => null);
     if (!r?.success) setWorking(false);
@@ -78,13 +109,22 @@ function UpdateButton() {
     )}
     <button
       type="button"
-      className={`app-title-bar-btn app-title-bar-btn--update ${working ? 'is-working' : ''}`}
+      className={`app-title-bar-btn app-title-bar-btn--update ${working ? 'is-working' : ''} ${hadError && !working ? 'has-error' : ''}`}
       aria-label={label}
-      title={downloading ? `Baixando atualização… ${status?.percent || 0}%` : label}
+      aria-busy={downloading}
+      title={downloading
+        ? (disp.indeterminate ? 'Baixando atualização…' : `Baixando atualização… ${disp.percent}%`)
+        : label}
       onClick={run}
     >
       {downloading ? (
-        <span className="app-title-bar-update-pct">{status?.percent || 0}%</span>
+        disp.indeterminate ? (
+          // Sem progresso ainda (ou travado): barra/rodinha animada em vez
+          // de um 0% congelado — mostra que algo está acontecendo.
+          <span className="app-title-bar-update-spin" aria-hidden="true" />
+        ) : (
+          <span className="app-title-bar-update-pct">{disp.percent}%</span>
+        )
       ) : (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />

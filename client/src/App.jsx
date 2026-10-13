@@ -14,6 +14,7 @@ import LoadingScreen from './components/LoadingScreen.jsx';
 import TitleBar from './components/TitleBar.jsx';
 import { CUSTOM_BACKGROUND_ENABLED } from './utils/featureFlags';
 import { useApplyAppearance } from './components/AppearanceRuntime.jsx';
+import { migrateZoomValue } from './utils/zoomDefault';
 
 import MainApp from './pages/MainApp.jsx';
 import { useLiveRefresh, sameData } from './utils/liveRefresh';
@@ -79,7 +80,10 @@ function ProtectedRoute({ children }) {
     // só setProperty direto) — é ela que decide entre zoom nativo
     // (Electron) ou CSS (navegador/Android), ver setInterfaceZoom em
     // useStore.js.
-    useStore.getState().setInterfaceZoom(useStore.getState().interfaceZoom);
+    // Aplica já migrando um 1.2 "de padrão antigo" pra 1.0 na pintura
+    // inicial (sem marcar o flag ainda — a conta, em AuthContext, é a
+    // fonte de verdade e finaliza a migração). Ver utils/zoomDefault.js.
+    useStore.getState().setInterfaceZoom(migrateZoomValue(useStore.getState().interfaceZoom));
   }, []);
 
   // Item pedido: "Movimento reduzido... desativar/reduzir animações,

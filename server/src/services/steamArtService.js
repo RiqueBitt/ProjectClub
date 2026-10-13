@@ -10,6 +10,8 @@ const { redis, cacheGetOrSet } = require('../config/redis');
 const KINDS = ['cover', 'hero', 'header'];
 const ASSET_BASE = 'https://shared.akamai.steamstatic.com/store_item_assets/';
 const LEGACY_BASE = 'https://cdn.akamai.steamstatic.com/steam/apps/';
+// Mesmo endereço "sem código" que o site tenta direto (utils/steamCover.js).
+const { STEAM_CDN } = require('../utils/steamCover');
 
 // Quais campos da loja e quais arquivos antigos tentar, em ordem.
 const PLAN = {
@@ -43,6 +45,7 @@ async function findUrl(appId, kind, loadImage, assets) {
   const candidates = [
     ...plan.assets.map((f) => assetUrl(assets, f)),
     ...plan.legacy.map((f) => `${LEGACY_BASE}${appId}/${f}`),
+    ...plan.legacy.map((f) => `${STEAM_CDN}${appId}/${f}`),
   ].filter(Boolean);
   for (const url of [...new Set(candidates)]) {
     try {

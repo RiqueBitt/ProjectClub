@@ -67,7 +67,9 @@ function normalizeGame(game) {
   const gameKey = gameKeyFor(name);
   if (!name || !gameKey) return null;
   const img = typeof game.imageUrl === 'string' && /^https?:\/\//.test(game.imageUrl) && game.imageUrl.length <= 500 ? game.imageUrl : null;
-  return { gameKey, name, steamAppId: steamAppIdFrom(game.imageUrl), iconUrl: img };
+  const direct = Number(game.steamAppId);
+  const steamAppId = Number.isInteger(direct) && direct > 0 && direct < 100000000 ? direct : steamAppIdFrom(game.imageUrl);
+  return { gameKey, name, steamAppId, iconUrl: img };
 }
 
 // Jogo sem App ID: descobre pelo nome (cacheado) e grava na linha da

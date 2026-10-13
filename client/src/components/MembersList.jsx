@@ -8,6 +8,7 @@ import { roleTextStyle, highestColoredRole } from '../utils/roleColor';
 import { nameStyleProps, hasCustomNameStyle, nameStyleClassName } from '../utils/nameStyle';
 import TagBadge from './TagBadge.jsx';
 import ClanTagBadge from './ClanTagBadge.jsx';
+import { idCardFramingVars } from './ProfileBanner.jsx';
 import ActivityIcon from './ActivityIcon.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import { createConversation, banMember, timeoutMember, warnMember } from '../api/endpoints';
@@ -126,7 +127,7 @@ function MemberGroup({ label, members, roles, dim, cargosEnabled }) {
         <div
           key={m.user.id}
           className={`member-row ${dim ? 'dim' : ''} ${m.user.idCardUrl ? 'has-id-card' : ''}`}
-          style={m.user.idCardUrl ? { backgroundImage: `linear-gradient(90deg, var(--bg-secondary) 15%, transparent), url(${m.user.idCardUrl})`, '--id-card': `url(${JSON.stringify(m.user.idCardUrl)})` } : undefined}
+          style={m.user.idCardUrl ? { backgroundImage: `linear-gradient(90deg, var(--bg-secondary) 15%, transparent), url(${m.user.idCardUrl})`, '--id-card': `url(${JSON.stringify(m.user.idCardUrl)})`, ...idCardFramingVars(m.user.idCardFraming) } : undefined}
           onContextMenu={(e) => onContextMenu(e, m)}
           onClick={(e) => useStore.getState().openMiniProfile(m.user.id, e.currentTarget.getBoundingClientRect(), 'left')}
         >

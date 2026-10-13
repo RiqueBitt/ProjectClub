@@ -97,45 +97,6 @@
   color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent);
 }
 .mj-credits { margin: 6px 0 0; font-size: 12px; color: var(--text-muted); text-align: center; }
-
-/* Player: cobre a área da página */
-.mj-player {
-  position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column;
-  background: #000; animation: mj-in .18s ease-out;
-}
-@keyframes mj-in { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: none; } }
-.mj-player-bar {
-  display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 10px; flex-shrink: 0;
-  background: var(--bg-secondary); border-bottom: var(--lit-border, 1px solid var(--border));
-}
-.mj-player-icon { width: 30px; height: 30px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
-.mj-player-title { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.mj-player-name { font-weight: 800; color: var(--header-primary); font-size: 15px; }
-.mj-player-controls {
-  display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-muted);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.mj-player-controls svg { flex-shrink: 0; }
-.mj-player-actions { display: flex; gap: 4px; flex-shrink: 0; }
-.mj-player-btn {
-  width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  background: transparent; border: 1px solid transparent; color: var(--text-normal); cursor: pointer;
-}
-.mj-player-btn:hover, .mj-player-btn:focus-visible { background: var(--bg-modifier-hover); border-color: var(--border); outline: none; }
-.mj-player-btn.is-on { color: var(--red); }
-.mj-player-stage { position: relative; flex: 1; min-height: 0; background: #000; }
-.mj-player-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: #000; }
-.mj-player-loading {
-  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; z-index: 1;
-  pointer-events: none;
-}
-.mj-player-loading img { width: 72px; height: 72px; border-radius: 16px; }
-.mj-player-spinner {
-  width: 26px; height: 26px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .15); border-top-color: var(--brand);
-  animation: mj-spin .8s linear infinite;
-}
-@keyframes mj-spin { to { transform: rotate(360deg); } }
-
 @media (max-width: 760px) {
   .mj-scroll { padding: 12px 12px 90px; }
   .mj-header { padding: 14px; gap: 12px; }
@@ -152,26 +113,6 @@
 @media (max-width: 480px) {
   .mj-featured { grid-template-columns: minmax(0, 1fr); }
 }
-/* Celular em pé: sugere girar (o jogo continua jogável por trás) */
-.mj-rotate-hint {
-  position: absolute; left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom, 0px)); z-index: 2;
-  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px; text-align: center;
-  border-radius: 14px; background: color-mix(in srgb, var(--bg-secondary) 92%, transparent);
-  border: 1px solid var(--border); color: var(--text-muted); font-size: 13px; pointer-events: none;
-  animation: mj-hint-fade 9s ease forwards;
-}
-.mj-rotate-hint svg { color: var(--brand); }
-.mj-rotate-hint strong { color: var(--header-primary); font-size: 15px; }
-/* Com controles embaixo do jogo: só um aviso pequeno logo abaixo dele */
-.mj-rotate-hint.is-compact {
-  left: 50%; right: auto; bottom: auto; top: calc(var(--mj-game-h, 50%) + 8px); transform: translateX(-50%);
-  flex-direction: row; gap: 6px; padding: 5px 12px; border-radius: 999px; font-size: 12px; white-space: nowrap;
-}
-.mj-rotate-hint.is-compact strong { font-size: 12px; }
-.mj-rotate-hint.is-compact span { display: none; }
-/* Tela cheia: o player ocupa a tela toda */
-.mj-player.is-fullscreen { position: fixed; }
-
 @media (prefers-reduced-motion: reduce) {
   .mj-player, .mj-card, .mj-card-banner img, .mj-card-play { animation: none; transition: none; }
   .mj-card:hover { transform: none; }
@@ -181,8 +122,6 @@
 
 /* Recordes */
 .mj-player-stage { position: relative; }
-.mj-scores-btn { width: auto; gap: 6px; padding: 0 10px; }
-.mj-scores-best { font-size: 12px; font-weight: 800; color: #f5c542; }
 .mj-scores { position: absolute; top: 12px; right: 12px; z-index: 5; width: min(320px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow: auto;
   background: var(--bg-secondary); border: 1px solid var(--lit-border-color, var(--border)); border-radius: 14px; box-shadow: var(--lit-shadow, 0 12px 32px rgba(0,0,0,.5)); padding: 12px; }
 .mj-scores-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; color: var(--header-primary); }
@@ -202,35 +141,188 @@
 @keyframes mj-toast-in { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @media (prefers-reduced-motion: reduce) { .mj-score-toast { animation: none; } }
 
-/* Celular: o jogo ocupa a tela inteira (sem barra de cima/baixo do app) e o
-   aviso de girar some quando os controles na tela estão abertos. */
-@media (max-width: 900px), (pointer: coarse) {
-  .mj-player { position: fixed; inset: 0; z-index: 2000; padding-top: env(safe-area-inset-top, 0px); }
-  .mj-player-bar { min-height: 44px; }
-}
-.mj-touch-hint { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); z-index: 6; max-width: min(92%, 520px); padding: 8px 14px; border-radius: 12px; background: rgba(0,0,0,.66); color: #fff; font-size: 13px; font-weight: 600; text-align: center; pointer-events: none; animation: mj-hint-fade 6s ease forwards; }
 @keyframes mj-hint-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
 .mj-row-orig, .mj-card-orig { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-left: 6px; }
+html.mj-playing, html.mj-playing body { overflow: hidden; overscroll-behavior: none; }
+
+/* =====================================================================
+   Player dos Mini-Jogos — visual "Club Penguin": barra azul com contorno
+   escuro, botões redondos gordinhos com brilho branco, Sair em pílula
+   vermelha no canto de cima à esquerda, e uma moldura de "céu de gelo"
+   (azul com flocos) em volta do jogo no lugar das faixas pretas.
+   O jogo fica do maior tamanho que cabe mantendo a proporção (o React
+   calcula — ver computeFit em MiniJogosPage.jsx), centralizado.
+   ===================================================================== */
+@font-face {
+  font-family: 'PC Burbank';
+  src: url('/minigames/pizzatron/Include/BurbankSmallBold.ttf') format('truetype');
+  font-display: swap;
+}
+.mj-player {
+  --cp-line: #0a3a78;       /* contorno azul-escuro */
+  --cp-deep: #08285a;
+  --cp-font: 'PC Burbank', 'Arial Rounded MT Bold', 'Trebuchet MS', system-ui, sans-serif;
+  position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column;
+  background: var(--cp-deep); animation: mj-in .18s ease-out;
+}
+@keyframes mj-in { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: none; } }
+.mj-player.is-fullscreen { position: fixed; }
+
+/* Barra de cima */
+.mj-player-bar {
+  position: relative; z-index: 8; display: flex; align-items: center; gap: 10px; height: 58px; padding: 0 12px; flex-shrink: 0;
+  background: linear-gradient(180deg, #2a86e0 0%, #1a66c2 52%, #1352a3 100%);
+  border-bottom: 3px solid var(--cp-line);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 3px 10px rgba(0, 0, 0, .25);
+}
+.mj-player-icon {
+  width: 34px; height: 34px; border-radius: 10px; object-fit: cover; flex-shrink: 0;
+  border: 2px solid #fff; box-shadow: 0 2px 0 var(--cp-line);
+}
+.mj-player-title { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.mj-player-name {
+  font-family: var(--cp-font); font-weight: 400; color: #fff; font-size: 20px; line-height: 1.1; letter-spacing: .3px;
+  text-shadow: 0 2px 0 var(--cp-line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mj-player-controls {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #d4ebff; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mj-player-controls svg { flex-shrink: 0; }
+.mj-player-actions { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+
+/* Botões redondos azuis (iguais aos do jogo) */
+.mj-player-btn {
+  width: 40px; height: 40px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  cursor: pointer; color: #fff; font: inherit;
+  background: radial-gradient(circle at 50% 26%, #b5e6ff 0%, #5cbaf7 36%, #2789df 72%, #1b6dc4 100%);
+  border: 2.5px solid var(--cp-line);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, .6), inset 0 -3px 0 rgba(10, 58, 120, .3), 0 3px 0 var(--cp-line), 0 5px 10px rgba(0, 0, 0, .22);
+  transition: transform .08s ease, filter .12s ease, box-shadow .08s ease;
+}
+.mj-player-btn svg { filter: drop-shadow(0 1.5px 0 rgba(10, 58, 120, .85)); }
+.mj-player-btn:hover, .mj-player-btn:focus-visible { filter: brightness(1.1) saturate(1.05); outline: none; }
+.mj-player-btn:focus-visible, .mj-exit:focus-visible { box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--cp-line); }
+.mj-player-btn:active { transform: translateY(2px); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .5), 0 1px 0 var(--cp-line); }
+/* Ligado (controles na tela, recordes abertos): amarelo-ouro */
+.mj-player-btn.is-active {
+  color: #6b3c00;
+  background: radial-gradient(circle at 50% 26%, #fff6c4 0%, #ffd84d 40%, #f5b116 78%, #e09a00 100%);
+  border-color: #8a5200; box-shadow: inset 0 2px 0 rgba(255, 255, 255, .7), 0 3px 0 #8a5200, 0 5px 10px rgba(0, 0, 0, .22);
+}
+.mj-player-btn.is-active svg { filter: none; }
+/* Mudo: cinza-azulado */
+.mj-player-btn.is-muted { background: radial-gradient(circle at 50% 26%, #eef3f8 0%, #b9c8d8 45%, #8299b2 100%); color: #fff; }
+.mj-scores-btn { width: auto; min-width: 40px; border-radius: 999px; padding: 0 10px; gap: 6px; }
+.mj-scores-best { font-family: var(--cp-font); font-size: 14px; color: #fff3b0; text-shadow: 0 1.5px 0 var(--cp-line); }
+
+/* Sair: pílula vermelha com X, sempre no canto de cima à esquerda */
+.mj-exit {
+  display: inline-flex; align-items: center; gap: 6px; height: 42px; padding: 0 17px 0 12px; border-radius: 999px; flex-shrink: 0; cursor: pointer;
+  font-family: var(--cp-font); font-size: 20px; font-weight: 400; line-height: 1; letter-spacing: .5px; color: #fff;
+  text-shadow: 0 2px 0 #7d1208;
+  background: linear-gradient(180deg, #ff9b84 0%, #f4533c 42%, #d23422 78%, #b8261a 100%);
+  border: 3px solid #7d1208;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, .55), inset 0 -3px 0 rgba(125, 18, 8, .25), 0 3px 0 #7d1208, 0 6px 12px rgba(0, 0, 0, .28);
+  transition: transform .08s ease, filter .12s ease, box-shadow .08s ease;
+}
+.mj-exit svg { filter: drop-shadow(0 1.5px 0 #7d1208); }
+.mj-exit:hover { filter: brightness(1.07); }
+.mj-exit:active { transform: translateY(2px); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .45), 0 1px 0 #7d1208; }
+
+/* Palco + moldura temática (no lugar das faixas pretas) */
+.mj-player-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--cp-deep); }
+.mj-letterbox {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(circle at 22% 30%, rgba(255, 255, 255, .26) 0 1.6px, transparent 2.6px) 0 0 / 46px 46px,
+    radial-gradient(circle at 68% 76%, rgba(255, 255, 255, .16) 0 1.2px, transparent 2.2px) 0 0 / 29px 29px,
+    radial-gradient(ellipse 85% 75% at 50% 38%, #3f9de8 0%, #2270c4 42%, #11468c 78%, #0a2f66 100%);
+}
+.mj-letterbox::after {
+  content: ''; position: absolute; left: -10%; right: -10%; bottom: 0; height: 22%;
+  background: radial-gradient(ellipse 60% 100% at 50% 100%, rgba(232, 246, 255, .5), rgba(232, 246, 255, .12) 55%, transparent 75%);
+}
+.mj-player-frame {
+  position: absolute; left: 0; top: 0; width: 100%; height: 100%; border: 0; display: block; z-index: 1;
+  background: #0a2347; box-shadow: 0 0 0 3px rgba(6, 34, 78, .9), 0 14px 40px rgba(0, 0, 0, .45);
+}
+.mj-player:not(.is-touch):not(.is-fullscreen) .mj-player-frame { border-radius: 10px; }
+.mj-player-loading {
+  position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+}
+.mj-player-loading img { width: 76px; height: 76px; border-radius: 18px; border: 3px solid #fff; box-shadow: 0 4px 0 var(--cp-line), 0 10px 24px rgba(0, 0, 0, .35); }
+.mj-player-spinner {
+  width: 28px; height: 28px; border-radius: 50%; border: 4px solid rgba(255, 255, 255, .25); border-top-color: #fff;
+  animation: mj-spin .8s linear infinite;
+}
+@keyframes mj-spin { to { transform: rotate(360deg); } }
+
+/* Avisos (balão branco com contorno azul) */
+.mj-touch-hint {
+  position: absolute; left: 50%; top: calc(var(--mj-game-y, 0px) + 10px); transform: translateX(-50%); z-index: 6; max-width: min(92%, 520px);
+  padding: 7px 14px; border-radius: 14px; background: rgba(255, 255, 255, .95); color: var(--cp-line);
+  border: 2.5px solid var(--cp-line); box-shadow: 0 3px 0 var(--cp-line);
+  font-size: 13px; font-weight: 700; text-align: center; pointer-events: none; animation: mj-hint-fade 6s ease forwards;
+}
+@keyframes mj-hint-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+/* Celular em pé: sugere girar (o jogo continua jogável por trás) */
+.mj-rotate-hint {
+  position: absolute; left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom, 0px)); z-index: 2;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px; text-align: center;
+  border-radius: 16px; background: rgba(255, 255, 255, .95); border: 3px solid var(--cp-line); box-shadow: 0 4px 0 var(--cp-line);
+  color: #24508a; font-size: 13px; pointer-events: none; animation: mj-hint-fade 9s ease forwards;
+}
+.mj-rotate-hint svg { color: #1a66c2; }
+.mj-rotate-hint strong { font-family: var(--cp-font); font-weight: 400; color: var(--cp-line); font-size: 18px; }
+/* Com controles embaixo do jogo: só um aviso pequeno logo abaixo dele */
+.mj-rotate-hint.is-compact {
+  left: 50%; right: auto; bottom: auto; top: calc(var(--mj-game-h, 50%) + 8px); transform: translateX(-50%);
+  flex-direction: row; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 12px; white-space: nowrap; border-width: 2px; box-shadow: 0 2px 0 var(--cp-line);
+}
+.mj-rotate-hint.is-compact strong { font-size: 14px; }
+.mj-rotate-hint.is-compact span { display: none; }
+
+/* Celular: o jogo ocupa a tela inteira (sem barra de cima/baixo do app) */
+@media (max-width: 900px), (pointer: coarse) {
+  .mj-player { position: fixed; inset: 0; z-index: 2000; padding-top: env(safe-area-inset-top, 0px); }
+}
 @media (pointer: coarse) {
   .mj-player-frame { touch-action: none; }
 }
-
-/* ---- Controles na tela (minijogos/touch) ---- */
-/* Botão "Controles na tela" na barra do player */
-.mj-player-btn.mj-touch-toggle.is-active { color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent); }
-/* Celular em pé com controles: o jogo encosta no topo e os controles ficam na faixa de baixo */
-.mj-player.has-controls.fit-below .mj-player-frame { bottom: auto; height: var(--mj-game-h, 100%); }
-.mj-player.has-controls.fit-below .mj-player-loading { bottom: auto; height: var(--mj-game-h, 100%); }
 /* Toque: nada de seleção, menu de toque longo, zoom de toque duplo ou rolagem */
 .mj-player.is-touch, .mj-player.is-touch .mj-player-stage { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
 .mj-player.is-touch .mj-player-bar { touch-action: manipulation; }
 .mj-player.is-touch { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
-/* Deitado no celular: barra de cima mais baixa pra sobrar altura pro jogo */
-@media (max-height: 500px) {
-  .mj-player.is-touch .mj-player-bar { height: 40px; min-height: 40px; gap: 6px; }
-  .mj-player.is-touch .mj-player-btn { width: 34px; height: 34px; }
-  .mj-player.is-touch .mj-player-icon { width: 24px; height: 24px; }
-  .mj-player.is-touch .mj-player-name { font-size: 14px; }
+/* Barra mais baixa no celular / telas pequenas */
+@media (max-width: 560px), (max-height: 500px) {
+  .mj-player-bar { height: 50px; gap: 7px; padding: 0 8px; }
+  .mj-player-btn { width: 36px; height: 36px; }
+  .mj-player-actions { gap: 5px; }
+  .mj-exit { height: 38px; font-size: 18px; padding: 0 14px 0 10px; }
+  .mj-player-name { font-size: 17px; }
 }
-.mj-player.is-touch .mj-touch-hint { top: 8px; font-size: 12px; padding: 6px 12px; }
-html.mj-playing, html.mj-playing body { overflow: hidden; overscroll-behavior: none; }
+@media (max-width: 480px) {
+  .mj-player-icon { display: none; }
+}
+
+/* Celular deitado com sobra dos lados ("imersivo"): sem barra — o jogo usa
+   a altura toda; Sair flutua na faixa da esquerda e os botões na da direita. */
+.mj-player.is-immersive { padding-top: 0; }
+.mj-player.is-immersive .mj-player-bar {
+  position: absolute; left: 0; right: 0; top: 0; height: auto; min-height: 0; z-index: 9; align-items: flex-start;
+  padding: max(10px, env(safe-area-inset-top, 0px)) max(8px, env(safe-area-inset-right, 0px)) 0 max(10px, env(safe-area-inset-left, 0px));
+  background: none; border: 0; box-shadow: none; pointer-events: none;
+}
+.mj-player.is-immersive .mj-player-bar > * { pointer-events: auto; }
+.mj-player.is-immersive .mj-player-icon, .mj-player.is-immersive .mj-player-title { display: none; }
+.mj-player.is-immersive .mj-player-actions {
+  margin-left: auto; flex-wrap: wrap; justify-content: center; align-content: flex-start;
+  width: max(84px, calc(var(--mjt-side, 120px) - 18px)); gap: 7px;
+}
+.mj-player.is-immersive .mj-player-btn { width: 36px; height: 36px; }
+.mj-player.is-immersive .mj-scores-btn .mj-scores-best { display: none; }
+.mj-player.is-immersive .mj-scores-btn { padding: 0; width: 36px; min-width: 36px; }
+.mj-player.is-immersive .mj-exit { height: 38px; font-size: 17px; padding: 0 12px 0 9px; gap: 4px; }
+.mj-player.is-immersive .mj-scores { right: calc(var(--mjt-side, 120px) + 6px); }

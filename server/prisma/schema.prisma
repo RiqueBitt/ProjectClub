@@ -49,6 +49,11 @@ model User {
   bannerFraming        String? @db.VarChar(32)
   miniProfileBannerFraming String? @db.VarChar(32)
   idCardUrl           String?
+  // Enquadramento ("x,y,zoom") da placa de identificação — mesmo formato
+  // de bannerFraming acima, aplicado no fundo da linha na lista de
+  // membros. Ausente = centralizado sem zoom (as placas antigas seguem
+  // funcionando igual). Ver client ProfileBanner.jsx/MembersList.jsx.
+  idCardFraming       String? @db.VarChar(32)
   // Item pedido: pingente escolhido da lista curada pela staff (ver
   // model Pendant acima) — null = nenhum escolhido. onDelete: SetNull
   // pra não travar a staff de remover um pingente do catálogo só
@@ -165,11 +170,14 @@ model User {
   // Item pedido: "adicione nas configurações do usuário ele poder
   // aumentar ou diminuir o zoom quanto quiser" — zoom GERAL de toda a
   // interface (diferente de chatZoom acima, que só afeta o chat).
-  // 1.2 = padrão histórico do app (120%), presente desde antes desse
-  // controle existir de verdade — mantido como valor inicial pra
-  // ninguém ter uma mudança de tamanho abrupta e inesperada na
-  // primeira vez que abrir o app depois dessa atualização.
-  interfaceZoom       Float     @default(1.2)
+  // BUG CORRIGIDO: o padrão era 1.2 (120%) — o padrão histórico do app —,
+  // mas a interface deve começar em 100% (1.0) quando ninguém escolheu
+  // nada. Contas que ainda tinham o 1.2 "de padrão" são migradas pra 1.0
+  // no cliente (ver client/src/utils/zoomDefault.js). OBS.: este @default
+  // só vale pra linhas NOVAS após um `prisma db push` — não rodei
+  // migração/deploy aqui (não mexo em deploy); as contas existentes são
+  // tratadas pela migração do cliente.
+  interfaceZoom       Float     @default(1.0)
   // Item pedido: "5 variantes de visual dos meus emoji, uma delas o
   // mesmo tema do Discord" — mesmo padrão de preferredTheme acima
   // (sincronizado entre localStorage e conta, ver setEmojiStyle no

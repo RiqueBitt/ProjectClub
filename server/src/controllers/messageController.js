@@ -92,7 +92,7 @@ function applyContentFilter(messages, level) {
 const MESSAGE_AUTHOR_OMIT = new Set([
   'bio', 'pronouns', 'bannerUrl', 'miniProfileBannerUrl', 'bannerFraming', 'miniProfileBannerFraming',
   'youtubeUrl', 'steamUrl', 'robloxUrl', 'xUrl', 'accountXp', 'displayedAchievements', 'displayedAchievementsMini',
-  'idCardUrl', 'relationshipPartnerId', 'profileSectionOrder', 'profileSectionOpacity', 'levelBarColor',
+  'idCardUrl', 'idCardFraming', 'relationshipPartnerId', 'profileSectionOrder', 'profileSectionOpacity', 'levelBarColor',
   'miniProfileColor', 'miniProfileButtonColor', 'customStatusExpiresAt', 'profileEffect',
   // Status vem do mapa de presença (presence:sync/update) — e no autor da
   // mensagem ele vazava "INVISIBLE" pra todo mundo.
@@ -1141,6 +1141,64 @@ async function react(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// "Quem reagiu" (menu do chip de reação): lista paginada de quem reagiu
+// com UM emoji numa mensagem. Mesma checagem de acesso de ler a mensagem
+// (canal com VIEW_CHANNEL, DM/grupo só pra membro) — sem isso dava pra
+// descobrir quem participa de um canal privado só pelo id da mensagem.
+// Cursor (createdAt,id) estável, do mais antigo pro mais novo (mesma
+// ordem que os chips/tooltip mostram).
+const REACTORS_PAGE = 50;
+const REACTORS_PAGE_MAX = 100;
+function parseReactorsCursor(raw) {
+  if (typeof raw !== 'string' || !raw) return null;
+  const sep = raw.indexOf('|');
+  if (sep <= 0) return null;
+  const at = new Date(raw.slice(0, sep));
+  const id = raw.slice(sep + 1);
+  if (Number.isNaN(at.getTime()) || !id || id.length > 64) return null;
+  return { at, id };
+}
+
+async function listReactors(req, res, next) {
+  try {
+    const { id } = req.params;
+    const emoji = req.params.emoji;
+    if (!isValidReactionEmoji(emoji)) return res.status(400).json({ error: 'Emoji inválido.' });
+    const existing = await prisma.message.findUnique({
+      where: { id: String(id) },
+      select: { id: true, conversationId: true, channelId: true, deleted: true },
+    });
+    if (!existing || existing.deleted) return res.status(404).json({ error: 'Mensagem não encontrada.' });
+    await assertAccess(req, { conversationId: existing.conversationId, channelId: existing.channelId });
+
+    const limitRaw = parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, REACTORS_PAGE_MAX) : REACTORS_PAGE;
+    const cursor = parseReactorsCursor(req.query.cursor);
+    const where = { messageId: existing.id, emoji };
+    const pageWhere = cursor
+      ? { ...where, OR: [{ createdAt: { gt: cursor.at } }, { createdAt: cursor.at, id: { gt: cursor.id } }] }
+      : where;
+    const [count, rows] = await Promise.all([
+      prisma.reaction.count({ where }),
+      prisma.reaction.findMany({
+        where: pageWhere,
+        select: { id: true, createdAt: true, user: { select: MINI_USER_FIELDS } },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        take: limit + 1,
+      }),
+    ]);
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const last = page[page.length - 1];
+    res.json({
+      emoji,
+      count,
+      users: page.filter((r) => r.user).map((r) => ({ ...r.user, reactedAt: r.createdAt })),
+      nextCursor: hasMore && last ? `${new Date(last.createdAt).toISOString()}|${last.id}` : null,
+    });
+  } catch (err) { next(err); }
+}
+
 // Filtros da busca (estilo Discord), misturados ao texto livre:
 //   from:@nome  from:nome   has:file|image|link|video   before:AAAA-MM-DD   after:AAAA-MM-DD
 // O resto vira o texto procurado (LIKE). Paginação por cursor
@@ -1223,6 +1281,6 @@ async function searchMessages(req, res, next) {
 
 module.exports = {
   listMessages, listPinned, createMessage, precheckCreateMessage, setPostIcon, editMessage, listEdits, forwardMessage,
-  deleteMessage, togglePin, react, searchMessages, toggleArchiveTopic,
+  deleteMessage, togglePin, react, listReactors, searchMessages, toggleArchiveTopic,
   messageInclude, assertAccess, roomFor, parseSearchQuery,
 };

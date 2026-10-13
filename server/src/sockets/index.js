@@ -8,7 +8,11 @@ const { messageInclude } = require('../controllers/messageController');
 const presenceStore = require('../services/presenceStore');
 const activityStore = require('../services/activityStore');
 const voiceStore = require('../services/voiceRoomStore');
+const voiceExtras = require('../services/voiceExtras');
+const voiceUsage = require('../services/voiceUsage');
+const { isConfigured: agoraConfigured } = require('../services/agoraToken');
 const gamePlaytime = require('../services/gamePlaytime');
+const { steamAppIdOf } = require('../utils/steamCover');
 const ytWatch = require('./ytWatch');
 const { visibleStatus, installSocketMasking } = require('../utils/presenceVisibility');
 const { createTokenBucket } = require('../utils/tokenBucket');
@@ -58,6 +62,9 @@ async function isRestrictedChannel(channelId) {
 function sameActivity(a, b) {
   if (!a || !b || a.type !== b.type || a.name !== b.name || (a.detail || null) !== (b.detail || null)
     || (a.imageUrl || null) !== (b.imageUrl || null) || (a.durationMs || null) !== (b.durationMs || null)) return false;
+  // AppID da Steam: só conta como mudança quando o aviso novo traz um
+  // (o guardado pode ter vindo da biblioteca de jogos — ver activity:update).
+  if (b.steamAppId && a.steamAppId !== b.steamAppId) return false;
   if (b.type !== 'spotify') return true;
   if (!Number.isFinite(a.progressMs) || !Number.isFinite(b.progressMs)) return a.progressMs === b.progressMs;
   const expected = a.progressMs + (b.startedAt - a.startedAt);
@@ -171,6 +178,14 @@ const IDLE_TO_OFFLINE_MS = 4 * 60 * 60 * 1000;
 // em andamento, agora vivem no Redis — ver services/voiceRoomStore.js —
 // não mais em Maps do processo, pra funcionar certo se a plataforma um
 // dia rodar em mais de uma instância.
+
+// Pedido de gravação com consentimento (N), por canal. Vive só na memória
+// do processo de propósito: é um estado curto (segundos) e efêmero —
+// enquanto todo mundo decide "aceito/recuso". Se a plataforma rodar em
+// várias instâncias um dia, isto deve migrar pro Redis como o resto; por
+// enquanto só começa de verdade DEPOIS que todos os presentes aceitaram,
+// e nunca grava nada escondido.
+const recordingRequests = new Map(); // channelId -> request (ver services/voiceExtras.js)
 
 function initSockets(httpServer) {
   const io = new Server(httpServer, {
@@ -448,6 +463,9 @@ function initSockets(httpServer) {
     const typingBucket = createTokenBucket({ capacity: 10, refillPerSec: 2 });
     const presenceBucket = createTokenBucket({ capacity: 5, refillPerSec: 0.2 });
     const signalBucket = createTokenBucket({ capacity: 300, refillPerSec: 60 });
+    // Reações rápidas na chamada (I): no máximo uma rajada de 5, repondo 1
+    // a cada ~0,8s — suficiente pra comemorar, longe o bastante de virar spam.
+    const reactionBucket = createTokenBucket({ capacity: 5, refillPerSec: 1.25 });
     socket.on('typing:start', async ({ conversationId, channelId } = {}) => {
       if (!typingBucket()) return;
       if (!(await canRelayTyping({ conversationId, channelId }))) return;
@@ -552,7 +570,11 @@ function initSockets(httpServer) {
           // pelo menos a ordem "quem entrou primeiro aparece pra quem
           // entrou depois" sempre se mantém, eliminando a janela de
           // corrida real que existia entre ler e escrever.
-          await voiceStore.setParticipant(channelId, userId, { socketId: socket.id, conversationId, muted: false, deafened: false, video: false, screenSharing: false, role: 'speaker' });
+          // Provedor de mídia desta entrada (Agora/Jitsi) — guardado junto
+          // pra, na saída, contar os minutos SÓ se foi Agora (ver leaveVoice
+          // e services/voiceUsage.js). joinedAt marca o início pra duração.
+          const dmProvider = (await voiceUsage.getDecision({ agoraConfigured: agoraConfigured() })).provider;
+          await voiceStore.setParticipant(channelId, userId, { socketId: socket.id, conversationId, muted: false, deafened: false, video: false, screenSharing: false, role: 'speaker', provider: dmProvider, joinedAt: Date.now() });
           socket.join(`voice:${channelId}`);
 
           const roomAfter = await voiceStore.getRoom(channelId);
@@ -711,10 +733,14 @@ function initSockets(httpServer) {
         // DEPOIS de já ter gravado a própria entrada no Redis, não antes,
         // eliminando a janela de corrida entre duas pessoas entrando quase
         // ao mesmo tempo (ver o comentário completo lá).
+        // Provedor de mídia desta entrada (Agora/Jitsi) + início, pra contar
+        // minutos de Agora na saída (ver leaveVoice e services/voiceUsage.js).
+        const joinProvider = (await voiceUsage.getDecision({ agoraConfigured: agoraConfigured() })).provider;
         await voiceStore.setParticipant(channelId, userId, {
           socketId: socket.id,
           muted: startMuted, deafened: false, video: false, screenSharing: false, role,
           lastActiveAt: Date.now(),
+          provider: joinProvider, joinedAt: Date.now(),
         });
         socket.join(`voice:${channelId}`);
 
@@ -925,6 +951,86 @@ function initSockets(httpServer) {
       target.emit('voice:speaking', { channelId, userId, speaking: !!speaking });
     });
 
+    // Reações rápidas (I): emoji flutuante que todos na chamada veem.
+    // Efêmero, não fica guardado em lugar nenhum — só retransmitido ao
+    // vivo pra sala. Validado (só a lista fixa de emojis) e com limite
+    // anti-spam por socket. Precisa estar MESMO na sala pra reagir.
+    socket.on('voice:reaction', async ({ channelId, emoji } = {}) => {
+      if (!voiceExtras.isValidReaction(emoji)) return;
+      if (!reactionBucket()) return;
+      if (!(await voiceStore.hasParticipant(channelId, userId))) return;
+      // Inclui o próprio remetente (io.to): a reação dele também flutua na
+      // tela dele, igual pros outros.
+      io.to(`voice:${channelId}`).emit('voice:reaction', { channelId, userId, emoji });
+    });
+
+    // ---------- Gravação com consentimento (N) ----------
+    // Só começa DEPOIS que todos os presentes aceitaram. Qualquer recusa
+    // cancela. Nunca grava escondido.
+    socket.on('voice:recording-request', async ({ channelId } = {}) => {
+      try {
+        if (!(await voiceStore.hasParticipant(channelId, userId))) return;
+        // Um pedido de cada vez por canal.
+        const active = recordingRequests.get(channelId);
+        if (active && (active.status === 'pending' || active.status === 'recording')) {
+          socket.emit('voice:recording-denied', { channelId, reason: 'Já existe uma gravação ou um pedido em andamento.' });
+          return;
+        }
+        const room = await voiceStore.getRoom(channelId);
+        const participantIds = Object.keys(room);
+        const me = await prisma.user.findUnique({ where: { id: userId }, select: { displayName: true } });
+        const request = voiceExtras.createRecordingRequest({
+          requesterId: userId, requesterName: me?.displayName || 'Alguém', participantIds,
+        });
+        // Sala só com uma pessoa: já pode gravar (só ela mesma).
+        if (voiceExtras.allAccepted(request)) {
+          request.status = 'recording';
+          recordingRequests.set(channelId, request);
+          io.to(`voice:${channelId}`).emit('voice:recording-started', { channelId, byUserId: userId, byName: request.requesterName });
+          return;
+        }
+        recordingRequests.set(channelId, request);
+        // Pede o consentimento visível pra todo mundo na sala.
+        io.to(`voice:${channelId}`).emit('voice:recording-prompt', {
+          channelId, requesterId: userId, requesterName: request.requesterName,
+        });
+      } catch (err) { console.error('[socket] voice:recording-request falhou:', err?.message || err); }
+    });
+
+    socket.on('voice:recording-consent', async ({ channelId, accepted } = {}) => {
+      try {
+        const active = recordingRequests.get(channelId);
+        if (!active || active.status !== 'pending') return;
+        if (!(await voiceStore.hasParticipant(channelId, userId))) return;
+        const next = voiceExtras.applyConsent(active, userId, !!accepted);
+        recordingRequests.set(channelId, next);
+        io.to(`voice:${channelId}`).emit('voice:recording-consent-update', {
+          channelId, userId, accepted: !!accepted,
+        });
+        if (next.status === 'recording') {
+          io.to(`voice:${channelId}`).emit('voice:recording-started', {
+            channelId, byUserId: next.requesterId, byName: next.requesterName,
+          });
+        } else if (next.status === 'denied') {
+          recordingRequests.delete(channelId);
+          io.to(`voice:${channelId}`).emit('voice:recording-denied', {
+            channelId, byUserId: userId, reason: 'Alguém não permitiu a gravação.',
+          });
+        }
+      } catch (err) { console.error('[socket] voice:recording-consent falhou:', err?.message || err); }
+    });
+
+    socket.on('voice:recording-stop', async ({ channelId } = {}) => {
+      try {
+        const active = recordingRequests.get(channelId);
+        if (!active) return;
+        // Só quem iniciou pode parar a própria gravação.
+        if (String(active.requesterId) !== String(userId)) return;
+        recordingRequests.delete(channelId);
+        io.to(`voice:${channelId}`).emit('voice:recording-stopped', { channelId, byUserId: userId });
+      } catch (err) { console.error('[socket] voice:recording-stop falhou:', err?.message || err); }
+    });
+
     // Item pedido: "Rich Presence" (jogo/Spotify) — só o app de desktop
     // (Electron) manda isso de verdade, já que só ele tem acesso ao
     // sistema operacional pra detectar isso (ver desktop/main.js). O
@@ -954,6 +1060,9 @@ function initSockets(httpServer) {
           durationMs: Number.isFinite(activity.durationMs) ? activity.durationMs : undefined,
           progressMs: Number.isFinite(activity.progressMs) ? activity.progressMs : undefined,
         };
+        // Capa do jogo da Steam: o desktop manda o AppID (ou ele sai do
+        // link da arte, em versões antigas do app) — ver utils/steamCover.js.
+        if (clean.type === 'game') clean.steamAppId = steamAppIdOf(activity) || undefined;
         // Biblioteca de jogos: cada aviso é um batimento de tempo de jogo.
         // Só conta jogo (nunca Spotify/apps); playingGame = jogo rodando por
         // trás quando o que aparece é música/app (ver activityDetector.js).
@@ -968,6 +1077,17 @@ function initSockets(httpServer) {
         if (prev && sameActivity(prev, clean)) {
           await activityStore.setActivity(userId, clean.type === 'spotify' ? clean : prev);
           return;
+        }
+        // Jogo sem AppID (fora da Steam ou app de desktop antigo): se a
+        // biblioteca de jogos da pessoa já descobriu o AppID desse jogo
+        // (gamePlaytime.fillSteamAppId, pelo nome), usa a mesma capa.
+        // Só roda quando a atividade MUDA (não a cada reconfirmação).
+        if (clean.type === 'game' && !clean.steamAppId && clean.name) {
+          const known = await prisma.gamePlaytime.findUnique({
+            where: { userId_gameKey: { userId, gameKey: gamePlaytime.gameKeyFor(clean.name) } },
+            select: { steamAppId: true },
+          }).catch(() => null);
+          if (known?.steamAppId) clean.steamAppId = known.steamAppId;
         }
         await activityStore.setActivity(userId, clean);
         await broadcastActivityChange(io, userId, clean);
@@ -1095,11 +1215,42 @@ function initSockets(httpServer) {
     const participant = await voiceStore.getParticipant(channelId, userId);
     if (!participant) return;
     const { conversationId } = participant;
+    // Contabilidade de uso do Agora: soma a duração (segundos) desta
+    // participação ao contador do mês — SÓ se ela estava no Agora (no Jitsi
+    // não gasta a cota do Agora). É o que faz o provedor voltar pro Agora
+    // sozinho na virada do mês. Best-effort: se faltar joinedAt (ex.: vaga
+    // adotada numa reconexão), só não conta esse trecho.
+    if (participant.provider === 'agora' && participant.joinedAt) {
+      const secs = Math.round((Date.now() - participant.joinedAt) / 1000);
+      if (secs > 0) voiceUsage.recordAgoraSeconds(secs).catch(() => {});
+    }
     const remaining = await voiceStore.removeParticipant(channelId, userId);
     if (socket) socket.leave(`voice:${channelId}`);
     else if (participant.socketId) io.in(participant.socketId).socketsLeave(`voice:${channelId}`);
     io.to(`voice:${channelId}`).emit('voice:user-left', { channelId, userId });
+    // Gravação com consentimento (N): se a pessoa saiu no meio de um
+    // pedido pendente, tira o voto dela — e se os que sobraram já tinham
+    // todos aceitado, a gravação começa (ou, se não sobrou ninguém, o
+    // pedido some). Se ela era quem estava gravando, para a gravação.
+    const rec = recordingRequests.get(channelId);
+    if (rec) {
+      if (rec.status === 'recording' && String(rec.requesterId) === String(userId)) {
+        recordingRequests.delete(channelId);
+        io.to(`voice:${channelId}`).emit('voice:recording-stopped', { channelId, byUserId: userId });
+      } else if (rec.status === 'pending') {
+        const next = voiceExtras.dropParticipant(rec, userId);
+        if (next.status === 'recording') {
+          recordingRequests.set(channelId, next);
+          io.to(`voice:${channelId}`).emit('voice:recording-started', { channelId, byUserId: next.requesterId, byName: next.requesterName });
+        } else if (next.status === 'cancelled') {
+          recordingRequests.delete(channelId);
+        } else {
+          recordingRequests.set(channelId, next);
+        }
+      }
+    }
     if (remaining === 0) {
+      recordingRequests.delete(channelId);
       await voiceStore.deleteRoom(channelId);
       ytWatch.clearIfEmpty(channelId);
       // Last person just left a DM call room — resolve its chat message

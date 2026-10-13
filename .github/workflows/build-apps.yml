@@ -7,8 +7,18 @@ on:
       - 'desktop/**'
       - 'client/android/**'
       - 'client/src/**'
+      # Mudanças na parte nativa do app Android (plugins, config, página
+      # offline embalada) também precisam gerar um .apk novo.
+      - 'client/package.json'
+      - 'client/capacitor.config.json'
+      - 'client/public/app-offline.html'
       - '.github/workflows/build-apps.yml'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force_native_update:
+        description: 'Android: obrigar todo mundo a instalar o .apk desta versão (minNativeVersion = esta versão)'
+        type: boolean
+        default: false
 
 jobs:
   # Item pedido: "versionamento semântico de verdade (v1.2.0), com
@@ -318,6 +328,35 @@ jobs:
           SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
           if [ -x "$SDKM" ]; then yes | "$SDKM" --licenses > /dev/null || true; fi
           ls "$SDK/platforms" || true
+      # Atualizações sem .apk novo (ver docs/android-updates.md): o app abre
+      # o site ao vivo, então só precisa de .apk novo quando a parte NATIVA
+      # muda. Calcula uma impressão digital dela (projeto Android + config do
+      # Capacitor + página offline embalada + plugins declarados no
+      # package.json) ANTES de qualquer passo que mexa nesses arquivos, e
+      # compara com a da release anterior: igual = minNativeVersion continua
+      # a anterior (ninguém precisa baixar .apk); diferente = esta versão.
+      - name: Impressão digital da parte nativa (android-native.json)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.compute-version.outputs.version }}
+          FORCE_NATIVE: ${{ github.event.inputs.force_native_update || 'false' }}
+        run: |
+          set -e
+          NATIVE_DEPS=$(node -e "const p=require('./client/package.json');const d={...p.dependencies,...p.devDependencies};console.log(Object.keys(d).filter(k=>/capacitor/i.test(k)).sort().map(k=>k+'@'+d[k]).join(','))")
+          FILES_HASH=$(git ls-files -z client/android client/capacitor.config.json client/public/app-offline.html | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+          NATIVE_HASH=$(printf '%s\n%s\n' "$FILES_HASH" "$NATIVE_DEPS" | sha256sum | cut -d' ' -f1)
+          echo "Plugins nativos: $NATIVE_DEPS"
+          echo "Impressão digital nativa: $NATIVE_HASH"
+          mkdir -p "$RUNNER_TEMP/prev-native"
+          PREV=""
+          for TAG in $(gh release list --repo "${{ github.repository }}" --exclude-drafts --limit 30 --json tagName -q '.[].tagName'); do
+            [ "$TAG" = "$VERSION" ] && continue
+            if gh release download "$TAG" --repo "${{ github.repository }}" --pattern android-native.json --dir "$RUNNER_TEMP/prev-native" --clobber >/dev/null 2>&1; then
+              PREV="$RUNNER_TEMP/prev-native/android-native.json"; echo "Release anterior com android-native.json: $TAG"; break
+            fi
+          done
+          python3 .github/scripts/android_native_manifest.py "$PREV" "$NATIVE_HASH" "$VERSION" "$FORCE_NATIVE" > "$RUNNER_TEMP/android-native.json"
+          cat "$RUNNER_TEMP/android-native.json"
       - name: Instalar dependências do client
         working-directory: client
         run: npm install
@@ -374,6 +413,9 @@ jobs:
               gh release create "$VERSION" --repo "$REPO" --title "$VERSION" \
                 --notes "Gerado automaticamente pelo GitHub Actions." --latest || true
             for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub.apk" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+            # Diz ao servidor (GET /api/mobile/update) se este .apk é
+            # obrigatório ou se os apps já instalados continuam servindo.
+            for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/android-native.json" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
           }
           export GH_TOKEN="$OWN_TOKEN"; publish "${{ github.repository }}"
 
