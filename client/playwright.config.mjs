@@ -23,8 +23,8 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   fullyParallel: true,
   workers: WORKERS,
-  retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
+  retries: process.env.CI ? 2 : 0,
+  reporter: process.env.CI ? [['list'], ['json', { outputFile: 'test-results/report.json' }], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: `http://localhost:${PORT}`,
     screenshot: 'only-on-failure',

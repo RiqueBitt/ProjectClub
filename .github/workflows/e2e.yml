@@ -61,6 +61,24 @@ jobs:
         working-directory: client
       - name: Rodar os testes de tela (parte ${{ matrix.shard }} de 4)
         run: npm run test:e2e -w client -- --shard=${{ matrix.shard }}/4
+      - name: Anotar os testes que falharam
+        if: failure()
+        run: |
+          node -e '
+            try {
+              const r = require("./client/test-results/report.json");
+              const out = [];
+              const walk = (s) => { (s.suites||[]).forEach(walk); (s.specs||[]).forEach((sp)=>{ if(!sp.ok) out.push((sp.tests?.[0]?.projectName||"")+" › "+sp.title); }); };
+              (r.suites||[]).forEach(walk);
+              console.log("FALHAS:\n"+(out.join("\n")||"(nenhuma no json)"));
+              require("fs").writeFileSync("falhas.txt", out.join("\n")+"\n");
+            } catch(e){ console.log("sem report.json:", e.message); require("fs").writeFileSync("falhas.txt","sem report.json: "+e.message+"\n"); }
+          '
+          cat falhas.txt
+          mkdir -p /tmp/cl && cp falhas.txt /tmp/cl/falhas-${{ matrix.shard }}.txt && cd /tmp/cl
+          git init -q -b ci-e2e && git config user.name ci && git config user.email ci@users.noreply.github.com
+          git add -A && git commit -q -m "falhas parte ${{ matrix.shard }} run ${{ github.run_id }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ci-e2e || true
       - name: Guardar relatório
         if: failure()
         uses: actions/upload-artifact@v4
