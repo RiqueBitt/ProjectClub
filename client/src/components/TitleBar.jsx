@@ -1,7 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { useLiveRefresh } from '../utils/liveRefresh';
 import { updateDisplay } from '../utils/updateProgress';
+import { proxyImage } from '../utils/imageProxy';
+import { listAppCatalog } from '../api/endpoints';
+import {
+  isProjectMcAvailable, getProjectMcStatus, installProjectMc,
+  launchProjectMc, onProjectMcProgress,
+} from '../utils/projectMc';
 
 // "1.10.2" > "1.9.9"
 function isNewer(a, b) {
@@ -159,6 +165,167 @@ export function startManualDrag(e) {
   window.addEventListener('mouseup', up);
 }
 
+// ---------------------------------------------------------------------
+// Lançador DISCRETO de apps na barra de título (item pedido).
+//
+// Naquele cantinho vazio da barra (à esquerda) ficam 4 ícones pequenos e
+// apagados — projectMC, CanvasProject, ForgeProject, GameProject — que
+// "passam batido". Uma setinha ao lado abre um menuzinho com o resto dos
+// apps do catálogo. Clicar num app ABRE ele (se já instalado) ou BAIXA na
+// hora (sem precisar abrir a aba Apps): enquanto baixa, o ícone ganha uma
+// BORDA VERDE animada e um indicador de download por cima.
+//
+// Usa a mesma ponte dos apps (window.electronAPI.projectMc, ver
+// utils/projectMc.js + JogosPage.jsx), então só aparece no app desktop.
+// ---------------------------------------------------------------------
+const TB_MAIN_APPS = ['projectmc', 'canvasproject', 'forgeproject', 'gameproject'];
+
+// A ponte (preload) registra o onProgress pra SEMPRE (não devolve um jeito
+// de remover). Como os ícones do menuzinho montam/desmontam ao abrir/fechar,
+// registrar um listener por ícone vazaria. Então registramos UM só listener
+// global e distribuímos por id; cada ícone se inscreve/desinscreve sozinho.
+const tbProgressSubs = new Map(); // id -> Set<fn>
+let tbProgressInit = false;
+function subscribeAppProgress(id, fn) {
+  if (!tbProgressInit) {
+    tbProgressInit = true;
+    onProjectMcProgress((data) => {
+      if (!data) return;
+      const subs = tbProgressSubs.get(data.id);
+      if (subs) subs.forEach((f) => { try { f(data); } catch { /* ignora */ } });
+    });
+  }
+  let set = tbProgressSubs.get(id);
+  if (!set) { set = new Set(); tbProgressSubs.set(id, set); }
+  set.add(fn);
+  return () => { set.delete(fn); };
+}
+
+// Estado leve de um app (instalado? baixando? progresso?) + a ação de
+// abrir/baixar. Espelha o useModuleState do JogosPage, enxuto pro ícone.
+function useAppLaunch(moduleId) {
+  const [status, setStatus] = useState(null);
+  const [progress, setProgress] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(() => {
+    if (!isProjectMcAvailable()) return;
+    getProjectMcStatus(moduleId).then(setStatus).catch(() => {});
+  }, [moduleId]);
+
+  useEffect(() => {
+    refresh();
+    const off = subscribeAppProgress(moduleId, (data) => {
+      if (data.phase === 'done') { setBusy(false); setProgress(null); refresh(); }
+      else { setBusy(true); setProgress(data); }
+    });
+    return off;
+  }, [moduleId, refresh]);
+
+  const activate = useCallback(async () => {
+    if (busy) return;
+    if (status?.installed) { launchProjectMc(moduleId).catch(() => {}); return; }
+    setBusy(true); setProgress({ phase: 'downloading', percent: 0 });
+    const r = await installProjectMc(moduleId).catch(() => null);
+    if (!r?.success) { setBusy(false); setProgress(null); }
+  }, [busy, status, moduleId]);
+
+  return { installed: !!status?.installed, busy, progress, activate };
+}
+
+function AppLauncherIcon({ item }) {
+  const { installed, busy, progress, activate } = useAppLaunch(item.moduleId);
+  const pct = Number(progress?.percent);
+  const showPct = busy && Number.isFinite(pct) && pct > 0;
+  const title = busy
+    ? `Baixando ${item.name}…${showPct ? ` ${Math.round(pct)}%` : ''}`
+    : installed ? `Abrir ${item.name}` : `Baixar e abrir ${item.name}`;
+  return (
+    <button
+      type="button"
+      className={`tb-app${installed ? ' is-installed' : ''}${busy ? ' is-downloading' : ''}`}
+      title={title}
+      aria-label={title}
+      aria-busy={busy || undefined}
+      onClick={activate}
+    >
+      <span className="tb-app-ic">
+        {item.iconUrl
+          ? <img src={proxyImage(item.iconUrl)} alt="" draggable="false" />
+          : <span className="tb-app-fallback">{(item.name || '?').trim().slice(0, 1).toUpperCase()}</span>}
+      </span>
+      {busy && (
+        <span className="tb-app-dl" aria-hidden="true">
+          {showPct
+            ? <span className="tb-app-dl-pct">{Math.round(pct)}</span>
+            : (
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+              </svg>
+            )}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function TitleBarAppLauncher() {
+  const [catalog, setCatalog] = useState(null);
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!isProjectMcAvailable()) { setCatalog([]); return; }
+    listAppCatalog().then((d) => setCatalog(d?.items || [])).catch(() => setCatalog([]));
+  }, []);
+
+  // Fecha o menuzinho ao clicar fora ou apertar Esc.
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => { if (!wrapRef.current?.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown, true);
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('mousedown', onDown, true);
+      document.removeEventListener('keydown', onKey, true);
+    };
+  }, [open]);
+
+  if (!catalog || catalog.length === 0) return null;
+  const byId = Object.fromEntries(catalog.map((c) => [c.moduleId, c]));
+  const main = TB_MAIN_APPS.map((id) => byId[id]).filter(Boolean);
+  const rest = catalog.filter((c) => !TB_MAIN_APPS.includes(c.moduleId));
+  if (main.length === 0 && rest.length === 0) return null;
+
+  return (
+    <div className="tb-apps" ref={wrapRef}>
+      {main.map((it) => <AppLauncherIcon key={it.moduleId} item={it} />)}
+      {rest.length > 0 && (
+        <div className="tb-apps-more">
+          <button
+            type="button"
+            className={`tb-apps-chevron${open ? ' is-open' : ''}`}
+            aria-label="Mais apps"
+            aria-expanded={open}
+            title="Mais apps"
+            onClick={() => setOpen((o) => !o)}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          {open && (
+            <div className="tb-apps-pop" role="menu">
+              {rest.map((it) => <AppLauncherIcon key={it.moduleId} item={it} />)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
   const isElectron = typeof window !== 'undefined' && !!window.electronAPI?.windowMinimize;
@@ -178,6 +345,7 @@ export default function TitleBar() {
 
   return (
     <div className="app-title-bar">
+      <TitleBarAppLauncher />
       <div className="app-title-bar-drag" onDoubleClick={() => window.electronAPI.windowMaximizeToggle()} onMouseDown={startManualDrag} />
       <div className="app-title-bar-controls">
         <UpdateButton />

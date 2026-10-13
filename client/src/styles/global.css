@@ -6504,3 +6504,65 @@ a.embed-card-title:hover { text-decoration: underline; }
 }
 .app-update-pop-btn.primary { background: #23a55a; border-color: transparent; color: #fff; }
 .app-update-pop-btn:hover { filter: brightness(1.08); }
+
+/* ---- Lançador discreto de apps na barra de título (ver TitleBar.jsx) ----
+   Ícones pequenos e apagados no cantinho esquerdo da barra; "acendem" ao
+   passar o mouse. Clicáveis mesmo na área de arrasto (no-drag). */
+.tb-apps {
+  display: flex; align-items: center; gap: 2px; padding: 0 4px 0 6px;
+  -webkit-app-region: no-drag;
+}
+.tb-app {
+  position: relative; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px;
+  background: transparent; cursor: pointer; display: grid; place-items: center; flex-shrink: 0;
+  opacity: .5; filter: grayscale(55%); transition: opacity .15s, filter .15s, background .15s, transform .12s;
+}
+.tb-app:hover { opacity: 1; filter: none; background: var(--bg-modifier-hover); }
+.tb-app:active { transform: scale(.92); }
+.tb-app.is-installed { opacity: .72; filter: grayscale(20%); }
+.tb-app.is-installed:hover { opacity: 1; filter: none; }
+.tb-app-ic, .tb-app-ic img { width: 18px; height: 18px; border-radius: 5px; display: block; object-fit: cover; }
+.tb-app-fallback {
+  width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--brand) 40%, var(--bg-primary));
+  color: #fff; font-size: 10px; font-weight: 800;
+}
+/* Baixando: borda verde animada em volta + selo de download por cima. */
+.tb-app.is-downloading {
+  opacity: 1; filter: none;
+  box-shadow: 0 0 0 1.5px #23a55a, 0 0 6px color-mix(in srgb, #23a55a 60%, transparent);
+  animation: tb-app-dl-pulse 1.1s ease-in-out infinite;
+}
+@keyframes tb-app-dl-pulse {
+  0%, 100% { box-shadow: 0 0 0 1.5px #23a55a, 0 0 5px color-mix(in srgb, #23a55a 45%, transparent); }
+  50% { box-shadow: 0 0 0 2px #2dc26b, 0 0 10px color-mix(in srgb, #2dc26b 75%, transparent); }
+}
+.tb-app-dl {
+  position: absolute; right: -3px; bottom: -3px; min-width: 12px; height: 12px; padding: 0 2px;
+  border-radius: 999px; background: #23a55a; color: #fff; display: grid; place-items: center;
+  box-shadow: 0 0 0 1.5px var(--bg-secondary);
+}
+.tb-app-dl-pct { font-size: 8px; font-weight: 800; line-height: 1; letter-spacing: -.4px; }
+.tb-app-dl svg { animation: app-update-pulse 1s ease-in-out infinite; }
+
+.tb-apps-more { position: relative; display: flex; align-items: center; }
+.tb-apps-chevron {
+  width: 16px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent;
+  color: var(--text-muted); cursor: pointer; display: grid; place-items: center;
+  opacity: .5; transition: opacity .15s, background .15s, transform .15s;
+}
+.tb-apps-chevron:hover { opacity: 1; background: var(--bg-modifier-hover); }
+.tb-apps-chevron.is-open { opacity: 1; transform: rotate(180deg); }
+.tb-apps-pop {
+  position: absolute; top: 30px; left: -4px; z-index: 2000;
+  display: flex; flex-wrap: wrap; gap: 4px; width: max-content; max-width: 184px; padding: 7px;
+  border-radius: 12px; border: 1px solid var(--border); background: var(--bg-secondary);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .45); -webkit-app-region: no-drag;
+}
+.tb-apps-pop .tb-app { width: 30px; height: 30px; opacity: .85; filter: grayscale(10%); }
+.tb-apps-pop .tb-app:hover { opacity: 1; filter: none; }
+.tb-apps-pop .tb-app-ic, .tb-apps-pop .tb-app-ic img, .tb-apps-pop .tb-app-fallback { width: 22px; height: 22px; }
+@media (prefers-reduced-motion: reduce) {
+  .tb-app.is-downloading { animation: none; }
+  .tb-app-dl svg { animation: none; }
+}
