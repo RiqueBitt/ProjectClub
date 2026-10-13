@@ -41,6 +41,16 @@ function usageRedisKey(provider, date = new Date()) {
   return `voiceusage:${monthKey(date)}:${provider}`;
 }
 
+// "Uso inicial" definido pela STAFF: o nosso contador começa do zero a cada
+// mês e NÃO sabe quanto o provedor (ex.: Agora) já gastou antes — então o
+// painel mostrava ~0% enquanto a Agora, na real, já estava a 80%+, e a
+// cadeia não trocava. Aqui a staff informa o uso real do mês; a partir daí o
+// total = base informada + o que a gente contar daqui pra frente, e a troca
+// automática passa a valer. Guardado numa chave por mês.
+function baselineRedisKey(provider, date = new Date()) {
+  return `voiceusage:base:${monthKey(date)}:${provider}`;
+}
+
 // Porcentagem usada (0–100, limitada), tratando limite infinito como 0%.
 function percentOf(used, limit) {
   if (!Number.isFinite(limit) || limit <= 0) return 0;
@@ -68,11 +78,48 @@ async function addMinutes(provider, minutes, date = new Date()) {
   }
 }
 
-async function getMinutes(provider, date = new Date()) {
+// Minutos CONTADOS pelo ticker (sem a base informada pela staff).
+async function getCountedMinutes(provider, date = new Date()) {
   try {
     const raw = await getRedis().get(usageRedisKey(provider, date));
     const n = parseInt(raw || '0', 10);
     return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function getBaseline(provider, date = new Date()) {
+  try {
+    const raw = await getRedis().get(baselineRedisKey(provider, date));
+    const n = parseInt(raw || '0', 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+// Uso TOTAL do provedor no mês = base informada pela staff + contado pelo
+// ticker. É esse número que o painel mostra e a decisão da cadeia usa.
+async function getMinutes(provider, date = new Date()) {
+  const [counted, base] = await Promise.all([
+    getCountedMinutes(provider, date), getBaseline(provider, date),
+  ]);
+  return counted + base;
+}
+
+// A staff diz "o provedor X já está em N minutos neste mês". Guardamos a
+// base de forma que o total (base + contado) fique igual a N agora, e
+// continue crescendo com as próximas chamadas.
+async function setCurrentUsage(provider, minutes, date = new Date()) {
+  if (!provider || !Number.isFinite(minutes) || minutes < 0) return 0;
+  try {
+    const counted = await getCountedMinutes(provider, date);
+    const base = Math.max(0, Math.round(minutes) - counted);
+    const key = baselineRedisKey(provider, date);
+    await getRedis().set(key, String(base));
+    await getRedis().expire(key, USAGE_TTL_SECONDS);
+    return counted + base;
   } catch {
     return 0;
   }
@@ -157,6 +204,9 @@ module.exports = {
   percentOf,
   isOverLimit,
   addMinutes,
+  getCountedMinutes,
+  getBaseline,
+  setCurrentUsage,
   getMinutes,
   getAllUsage,
   startProviderUsageTicker,
