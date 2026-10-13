@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  normalizeProviderResponse, shouldSwitchProvider, readJoinResponse,
+  normalizeProviderResponse, shouldSwitchProvider, readJoinResponse, isReserveMode,
 } from '../src/voice/providerDecision.js';
 import { mapJitsiEvent } from '../src/voice/jitsiMapping.js';
 
@@ -121,4 +121,22 @@ test('fluxo completo: eventos simulados do Jitsi produzem as ações certas', ()
     { kind: 'self-screen', on: true },
     { kind: 'left' },
   ]);
+});
+
+// ---- servidor de mídia PRÓPRIO (projectclub) ----
+test('readJoinResponse: extrai credenciais do servidor próprio (url+token obrigatórios, ICE opcional)', () => {
+  const r = readJoinResponse({ provider: 'projectclub', projectclub: { url: 'wss://m/ws', token: 't', room: 'pc_x', identity: 'u1', iceServers: [{ urls: ['stun:s'] }] } });
+  assert.equal(r.provider, 'projectclub');
+  assert.deepEqual(r.projectclub, { url: 'wss://m/ws', token: 't', room: 'pc_x', identity: 'u1', iceServers: [{ urls: ['stun:s'] }] });
+  assert.equal(r.reserveMode, false, 'servidor próprio NÃO é modo reserva');
+  assert.equal(r.fallbackActive, false);
+  const bad = readJoinResponse({ provider: 'projectclub', projectclub: { url: 'wss://m/ws' } });
+  assert.equal(bad.projectclub, null);
+});
+
+test('isReserveMode: próprio e agora não são reserva; livekit/jitsi são', () => {
+  assert.equal(isReserveMode('projectclub'), false);
+  assert.equal(isReserveMode('agora'), false);
+  assert.equal(isReserveMode('livekit'), true);
+  assert.equal(isReserveMode('jitsi'), true);
 });

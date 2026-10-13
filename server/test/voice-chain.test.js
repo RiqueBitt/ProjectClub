@@ -29,7 +29,7 @@ const FULL_ENV = {
 // ---------------- providers / config ----------------
 
 test('cadeia: ordem e primário corretos', () => {
-  assert.deepEqual(providers.PROVIDER_ORDER, ['agora', 'livekit', 'getstream', 'daily', 'trtc', 'jitsi']);
+  assert.deepEqual(providers.PROVIDER_ORDER, ['projectclub', 'agora', 'livekit', 'getstream', 'daily', 'trtc', 'jitsi']);
   assert.equal(providers.PRIMARY_PROVIDER, 'agora');
 });
 
@@ -124,7 +124,7 @@ test('painel: lista todos com status/percent e marca o ativo e o modo reserva', 
   const panel = decision.buildPanel({ usageByProvider: { agora: 500 }, env: FULL_ENV });
   assert.equal(panel.active, 'agora');
   assert.equal(panel.reserveMode, false);
-  assert.equal(panel.providers.length, 6);
+  assert.equal(panel.providers.length, 7);
   const agora = panel.providers.find((p) => p.id === 'agora');
   assert.equal(agora.active, true);
   assert.equal(agora.percent, 50);
@@ -213,4 +213,63 @@ test('token agora: usa o minter existente; sem envs → null', () => {
   assert.equal(tokens.mintAgora('v1', 'u1'), null);
   if (saved.id) process.env.AGORA_APP_ID = saved.id;
   if (saved.cert) process.env.AGORA_APP_CERTIFICATE = saved.cert;
+});
+
+// ---------------- servidor de mídia PRÓPRIO (projectclub) ----------------
+
+const OWN_ENV = {
+  ...FULL_ENV,
+  MEDIA_SERVER_URL: 'wss://media.example/ws', MEDIA_SERVER_SECRET: 'segredo-do-servidor-de-midia-123',
+  TURN_URLS: 'turn:media.example:3478?transport=udp,turn:media.example:3478?transport=tcp', TURN_SECRET: 'turnsecret',
+};
+
+test('próprio: sem MEDIA_SERVER_URL/SECRET não é configurado e a cadeia começa no agora', () => {
+  assert.equal(providers.isConfigured('projectclub', FULL_ENV), false);
+  const d = decision.decideProvider({ usageByProvider: {}, override: null, disabled: [], env: FULL_ENV });
+  assert.equal(d.provider, 'agora');
+});
+
+test('próprio: configurado → é o primeiro da cadeia, ilimitado, e NÃO é modo reserva', () => {
+  assert.equal(providers.isConfigured('projectclub', OWN_ENV), true);
+  assert.equal(providers.getMonthlyLimit('projectclub', OWN_ENV), Infinity);
+  const d = decision.decideProvider({ usageByProvider: { projectclub: 999999, agora: 0 }, override: null, disabled: [], env: OWN_ENV });
+  assert.equal(d.provider, 'projectclub');
+  assert.equal(providers.isReserve('projectclub'), false);
+  assert.equal(providers.isReserve('agora'), false);
+  assert.equal(providers.isReserve('livekit'), true);
+  const panel = decision.buildPanel({ usageByProvider: {}, override: null, disabled: [], env: OWN_ENV });
+  assert.equal(panel.active, 'projectclub');
+  assert.equal(panel.reserveMode, false);
+  assert.equal(panel.providers.find((p) => p.id === 'projectclub').unlimited, true);
+});
+
+test('próprio: desativado na cadeia → cai pro agora', () => {
+  const d = decision.decideProvider({ usageByProvider: {}, override: null, disabled: ['projectclub'], env: OWN_ENV });
+  assert.equal(d.provider, 'agora');
+});
+
+test('token próprio: JWT HS256 com sub/room/name e exp curto; url e ICE (STUN + TURN temporário)', () => {
+  const now = Date.now();
+  const c = tokens.mintProjectClub({ room: 'pc_abc', userId: 'u1', name: 'Ana' }, OWN_ENV, now);
+  assert.equal(c.url, 'wss://media.example/ws');
+  const payload = jwt.verify(c.token, OWN_ENV.MEDIA_SERVER_SECRET, { algorithms: ['HS256'] });
+  assert.equal(payload.sub, 'u1'); assert.equal(payload.room, 'pc_abc'); assert.equal(payload.name, 'Ana');
+  assert.equal(payload.exp - payload.iat, tokens.MEDIA_TOKEN_TTL_SECONDS);
+  // ICE: STUN público (sem STUN_URLS) + TURN com credencial HMAC-SHA1 do coturn
+  const turn = c.iceServers.find((s) => s.username);
+  assert.ok(turn && turn.urls.length === 2);
+  const [exp, uid] = turn.username.split(':');
+  assert.equal(uid, 'u1');
+  assert.equal(Number(exp), Math.floor(now / 1000) + 12 * 60 * 60);
+  const expected = require('crypto').createHmac('sha1', 'turnsecret').update(turn.username).digest('base64');
+  assert.equal(turn.credential, expected);
+  assert.ok(c.iceServers[0].urls[0].startsWith('stun:'));
+});
+
+test('token próprio: sem envs → null; sem TURN → só STUN', () => {
+  assert.equal(tokens.mintProjectClub({ room: 'r', userId: 'u' }, FULL_ENV), null);
+  const noTurn = { ...OWN_ENV, TURN_URLS: '', TURN_SECRET: '' };
+  const c = tokens.mintProjectClub({ room: 'r', userId: 'u' }, noTurn);
+  assert.equal(c.iceServers.length, 1);
+  assert.ok(!c.iceServers[0].username);
 });

@@ -89,9 +89,15 @@ async function getJoin(req, res, next) {
     const name = req.user.displayName || req.user.username || String(userId);
     const room = roomNameFor(channelName);
 
-    const payload = { provider, channelName, reserveMode: provider !== providers.PRIMARY_PROVIDER, activeReason: decided.reason };
+    const payload = { provider, channelName, reserveMode: providers.isReserve(provider), activeReason: decided.reason };
 
-    if (provider === 'agora') {
+    if (provider === 'projectclub') {
+      // Servidor de mídia próprio (media-server/): JWT pra sinalização +
+      // servidores ICE (STUN/TURN com credencial temporária).
+      const creds = tokens.mintProjectClub({ room, userId, name });
+      if (!creds) return fallbackJitsi(res, payload, channelName, userId, name);
+      payload.projectclub = creds;
+    } else if (provider === 'agora') {
       const creds = tokens.mintAgora(channelName, userId);
       if (!creds) return fallbackJitsi(res, payload, channelName, userId, name);
       payload.agora = creds;

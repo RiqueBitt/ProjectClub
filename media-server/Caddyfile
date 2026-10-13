@@ -1,0 +1,6 @@
+# TLS automático (Let's Encrypt) pro domínio do servidor de mídia e proxy
+# da sinalização WebSocket. O domínio vem de MEDIA_DOMAIN no .env.
+{$MEDIA_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:{$MEDIA_PORT:4443}
+}

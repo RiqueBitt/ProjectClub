@@ -114,7 +114,7 @@ function buildPanel({ usageByProvider = {}, override = null, disabled = [], env 
     overridden: decision.overridden,
     override: override || null,
     primary: providers.PRIMARY_PROVIDER,
-    reserveMode: decision.provider !== providers.PRIMARY_PROVIDER,
+    reserveMode: providers.isReserve(decision.provider),
     providers: list,
   };
 }
