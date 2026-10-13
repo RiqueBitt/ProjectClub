@@ -90,15 +90,16 @@ for (const size of SIZES) {
       // Digitando: inclinam pro campo e os olhos acompanham o cursor.
       const email = page.getByLabel('E-mail ou ClubTag');
       await email.click();
-      await email.pressSequentially('ana', { delay: 20 });
+      await email.pressSequentially('ana@exemplo.com.br', { delay: 15 });
       await expect.poll(() => mode(page)).toBe('typing');
       await page.waitForTimeout(350);
       const p1 = await pupil(page);
-      await email.pressSequentially('@exemplo.com.br', { delay: 15 });
-      await page.waitForTimeout(350);
-      const p2 = await pupil(page);
-      expect(p1).not.toBe(idlePupil);
-      expect(p2).not.toBe(p1); // o cursor andou, as pupilas também
+      expect(p1).not.toBe(idlePupil); // inclinar/digitar mexeu os olhos
+      // As pupilas seguem o cursor (com suavização). Move pra um canto bem
+      // diferente e espera a pupila acompanhar — sem comparar num instante só,
+      // que às vezes pegava a pupila já parada no mesmo ponto.
+      await page.mouse.move(size.width * 0.85, size.height * 0.9);
+      await expect.poll(async () => (await pupil(page)) !== p1, { timeout: 4000 }).toBe(true);
       await shot(page, size.name, '2-digitando');
 
       // Senha: tapam os olhos com as mãozinhas / apertam os olhos sorrindo.
