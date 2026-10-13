@@ -148,6 +148,9 @@ missions.startVoiceMinutesTicker(io);
 require('./services/voiceUsage').startProviderUsageTicker(io);
 // Lembrete de evento 15 min antes pra quem respondeu "Eu vou".
 require('./services/eventReminders').startEventReminders(io);
+// Mensagens agendadas e lembretes pessoais (jobs leves, claim atômico).
+require('./services/scheduledMessages').startScheduledMessages(io);
+require('./services/reminders').startReminders(io);
 // Faxina diária do banco (tokens vencidos, avisos lidos antigos, ErrorLog
 // velho...) — 5 min depois do boot e depois a cada 24h. Ver cleanupJobs.js.
 require('./services/cleanupJobs').startCleanupJobs();

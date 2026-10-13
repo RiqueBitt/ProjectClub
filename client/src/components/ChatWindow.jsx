@@ -22,6 +22,8 @@ import UserAvatar from './UserAvatar.jsx';
 import TopicThreadModal from './modals/TopicThreadModal.jsx';
 import PollComposerModal from './modals/PollComposerModal.jsx';
 import GroupSettingsModal from './modals/GroupSettingsModal.jsx';
+import ScheduleMessageModal from './modals/ScheduleMessageModal.jsx';
+import ScheduledMessagesChip from './ScheduledMessagesChip.jsx';
 import ConversationIcon from './ConversationIcon.jsx';
 import ChannelSwitcher from './ChannelSwitcher.jsx';
 import { DMSwitcher } from './DMQuick.jsx';
@@ -405,6 +407,9 @@ function ChatWindowInner({ conversationId, channelId }) {
     setPickerStyle({ position: 'fixed', bottom: `${bottom}px`, right: `${right}px`, left: 'auto', top: 'auto', transform: 'none', width: `${width}px`, maxWidth: `${width}px` });
   }, [emojiPickerOpen, uiLayout]);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  // "Enviar depois": modal de agendamento + token pra o chip recarregar.
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduledToken, setScheduledToken] = useState(0);
   const [mentionQuery, setMentionQuery] = useState(null); // null = not showing; '' or partial name otherwise
   const [mentionTrigger, setMentionTrigger] = useState('@'); // '@' | '$' (pessoas) | '#' (canais)
   const [mentionActive, setMentionActive] = useState(0);
@@ -1433,6 +1438,14 @@ function ChatWindowInner({ conversationId, channelId }) {
       )}
 
       <form className="message-input-bar chat-composer" ref={composerBarRef} onSubmit={onSubmit}>
+        <ScheduledMessagesChip channelId={channelId} conversationId={conversationId} refreshToken={scheduledToken} />
+        {scheduleOpen && (
+          <ScheduleMessageModal
+            content={content.trim()} channelId={channelId} conversationId={conversationId} replyToId={replyTo?.id}
+            onClose={() => setScheduleOpen(false)}
+            onScheduled={() => { setContent(''); setReplyTo(null); setScheduledToken((t) => t + 1); }}
+          />
+        )}
         {replyToVisible && (() => {
           // Prévia de quem/o que está sendo respondido: avatar, nome,
           // trecho do texto e miniatura (imagem/figurinha/GIF). Clicar leva
@@ -1573,6 +1586,9 @@ function ChatWindowInner({ conversationId, channelId }) {
                 <button type="button" onClick={() => { fileInputRef.current?.click(); setAttachMenuOpen(false); }}>
                   <ChatIcon name="file" size={16} /> Enviar arquivos
                 </button>
+                <button type="button" disabled={!content.trim()} title={content.trim() ? 'Agendar o envio desta mensagem' : 'Escreva a mensagem primeiro'} onClick={() => { setScheduleOpen(true); setAttachMenuOpen(false); }}>
+                  <ChatIcon name="clock" size={16} /> Enviar depois
+                </button>
                 {channel && hasPermission(myPerms, 'CREATE_POLLS') && (
                   <button type="button" onClick={() => { setPollComposerOpen(true); setAttachMenuOpen(false); }}>
                     <ChatIcon name="poll" size={16} /> Criar enquete
@@ -1654,7 +1670,7 @@ function ChatWindowInner({ conversationId, channelId }) {
               document.body,
             )}
           </div>
-          <button type="submit" className={`icon-btn send-btn chat-send-btn ${content.trim() || files.length ? 'ready' : ''}`} title="Enviar" aria-label="Enviar"><ChatIcon name="send" size={18} /></button>
+          <button type="submit" className={`icon-btn send-btn chat-send-btn ${content.trim() || files.length ? 'ready' : ''}`} title="Enviar (botão direito: enviar depois)" aria-label="Enviar" onContextMenu={(e) => { if (content.trim() && !files.length) { e.preventDefault(); setScheduleOpen(true); } }}><ChatIcon name="send" size={18} /></button>
         </div>
         {/* Linha reservada pro "digitando…" — altura fixa, não empurra nada. */}
         <div className="chat-typing" aria-live="polite">

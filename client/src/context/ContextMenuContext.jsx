@@ -29,6 +29,7 @@ const ICONS = {
   reply: <path d="M10 8 5 12.5 10 17M5.5 12.5H14a5 5 0 0 1 5 5V19" />,
   copy: <><rect x="8" y="8" width="12" height="12" rx="2.5" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></>,
   pin: <><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3z" /><path d="M12 15v6" /></>,
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></>,
   thread: <><path d="M4 6h11M4 11h7" /><path d="M14 13h6v5a2 2 0 0 1-2 2h-2l-2 2v-2a2 2 0 0 1 0 0z" /><path d="M4 16h5" /></>,
   edit: <><path d="M4 20h4L19 9a2.1 2.1 0 0 0-4-4L4 16z" /><path d="m13.5 6.5 4 4" /></>,
   flag: <><path d="M5 21V4" /><path d="M5 4h11l-2 4 2 4H5" /></>,

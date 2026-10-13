@@ -174,6 +174,9 @@ export function handler(route) {
   if (p === '/platform/status') return json({ disabledSystems: [], maintenance: false });
   if (p === '/clans/mine') return json(null);
   if (p === '/ui-layout') return json({});
+  if (p === '/messages/scheduled') return json({ scheduled: [] });
+  if (p === '/reminders') return json({ active: [], fired: [] });
+  if (p === '/push/web/public-key') return json({ enabled: false, publicKey: null });
   if (p === '/admin/stats') return json({ stats: { userCount: 1284, messageCount: 48213, bannedCount: 7, newUsersLast24h: 12, newUsersLast7d: 63, pendingApplications: 3, pendingReports: 1, pendingAutomodFlags: 0, pendingModReports: 2 } });
   if (p === '/admin/audit-log') return json({ logs: [
     { id: 'l1', action: 'APPLICATION_APPROVE', actor: { displayName: 'RiqueBitt' }, createdAt: new Date(now - 4 * 60000).toISOString() },

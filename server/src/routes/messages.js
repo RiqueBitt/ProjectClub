@@ -10,6 +10,12 @@ router.use(requireAuth);
 router.get('/', ctrl.listMessages);
 router.get('/search', ctrl.searchMessages);
 router.get('/pinned', ctrl.listPinned);
+// Mensagens agendadas (antes de /:id pra "scheduled" não virar id).
+const scheduled = require('../controllers/scheduledController');
+router.get('/scheduled', scheduled.listMine);
+router.post('/scheduled', scheduled.create);
+router.patch('/scheduled/:id', scheduled.update);
+router.delete('/scheduled/:id', scheduled.cancel);
 // precheckCreateMessage roda ANTES do multer: permissão/spam são checados
 // antes de qualquer anexo ser recebido e enviado pro storage.
 router.post('/', ctrl.precheckCreateMessage, uploadMessageAttachments.array('attachments', MESSAGE_MAX_FILES), ctrl.createMessage);

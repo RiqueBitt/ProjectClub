@@ -33,6 +33,7 @@ import { findInternalLinks } from '../utils/internalLinks';
 import { cssZoom } from '../utils/cssZoom';
 import { registerEditor, getRetry, clearRetry } from '../utils/chatComposerBus';
 import { EditedTag, ForwardedLabel, ForwardMessageModal, LinkPreview } from './MessageExtras.jsx';
+import ReminderModal from './modals/ReminderModal.jsx';
 
 // BUG CORRIGIDO: <img src={...avatarUrl}> quebrava (bloqueado pela CSP
 // img-src) quando o autor da mensagem respondida tem avatar de pinguim
@@ -267,6 +268,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
   const isFavoriteGif = isGifMessage && favoriteGifs.some((g) => g.gifId === message.content.trim());
 
   const [forwardOpen, setForwardOpen] = useState(false);
+  const [reminderOpen, setReminderOpen] = useState(false);
   const onContextMenu = (e) => {
     if (isPending) return;
     // Redesenho do menu: ícones SVG (ver ContextMenuContext.jsx) e seções
@@ -279,6 +281,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
     if (isOwn) items.push({ label: 'Editar', icon: 'edit', onClick: () => setEditing(true) });
     items.push({ label: 'Copiar texto', icon: 'copy', onClick: () => navigator.clipboard?.writeText(message.content || ''), disabled: !message.content });
     items.push({ label: 'Encaminhar', icon: 'reply', onClick: () => setForwardOpen(true) });
+    items.push({ label: 'Lembrar-me', icon: 'clock', onClick: () => setReminderOpen(true) });
     // Fixar só aparece pra quem pode (gerenciar mensagens no canal; em DM, todos).
     if (!isChannelMessage || canManageMessages) {
       items.push({ label: message.pinned ? 'Desafixar' : 'Fixar', icon: 'pin', onClick: () => togglePinMessage(message.id) });
@@ -523,6 +526,13 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
         {/* Prévia de link externo (Open Graph) — no máximo 1 por mensagem. */}
         {!editing && !message.contentFiltered && !message.embed && !isPending && <LinkPreview content={message.content} />}
         {forwardOpen && <ForwardMessageModal message={message} myUserId={user.id} onClose={() => setForwardOpen(false)} />}
+        {reminderOpen && (
+          <ReminderModal
+            message={message}
+            link={message.channelId ? `/channels/${message.channelId}` : message.conversationId ? `/conversations/${message.conversationId}` : null}
+            onClose={() => setReminderOpen(false)}
+          />
+        )}
 
         {message.poll && <PollCard poll={message.poll} myUserId={user.id} />}
 

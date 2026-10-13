@@ -21,13 +21,13 @@ const HINT_LOADING = 'Buscando…';
 const LABEL_ATTACHMENT = 'Anexo';
 const LABEL_KEYS = '↑↓ para escolher · Enter para ir · Esc para fechar';
 const HIGHLIGHT_NAME = 'chat-search-hit';
-const HINT_FILTERS = 'Filtros: from:@nome · has:file|image|link|video · before:AAAA-MM-DD · after:AAAA-MM-DD';
+const HINT_FILTERS = 'Filtros: de:@nome · tem:arquivo|imagem|link|video · antes:AAAA-MM-DD · depois:AAAA-MM-DD · em:#canal · fixada:';
 const LABEL_MORE = 'Carregar mais';
 
 // Filtros (from:/has:/before:/after:, e as versões em português) saem do
 // texto usado no destaque — o servidor é quem interpreta (ver
 // parseSearchQuery no messageController).
-const FILTER_TOKEN_RE = /(^|\s)(from|has|before|after|de|tem|antes|depois):\S+/gi;
+const FILTER_TOKEN_RE = /(^|\s)(from|has|before|after|in|pinned|de|tem|antes|depois|em|fixada|fixado):\S*/gi;
 function textPart(q) { return q.replace(FILTER_TOKEN_RE, ' ').replace(/\s+/g, ' ').trim(); }
 function hasFilters(q) { FILTER_TOKEN_RE.lastIndex = 0; const r = FILTER_TOKEN_RE.test(q); FILTER_TOKEN_RE.lastIndex = 0; return r; }
 
