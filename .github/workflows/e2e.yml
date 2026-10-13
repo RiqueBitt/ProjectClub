@@ -25,6 +25,8 @@ concurrency:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     timeout-minutes: 20
     # Os testes são divididos em 4 máquinas que rodam ao mesmo tempo.
     strategy:
