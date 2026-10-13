@@ -40,6 +40,59 @@ async function listProcessNames(platform) {
   return out.split('\n').map((l) => l.trim()).filter(Boolean);
 }
 
+// ---------- Janela aberta de verdade? ----------
+// BUG CORRIGIDO ("Jogando Roblox" com o Roblox só em segundo plano): o
+// processo existir não quer dizer que a pessoa está jogando — launchers,
+// atualizadores e apps minimizados na bandeja continuam rodando. Agora o
+// jogo só conta se tiver uma janela VISÍVEL e não minimizada. Windows:
+// PowerShell (MainWindowHandle + IsWindowVisible/IsIconic do user32).
+// Linux: wmctrl/xdotool quando existem; sem eles, não dá pra saber e o
+// comportamento antigo (só o processo) fica valendo. Só roda quando um
+// jogo foi encontrado, e o resultado vale por alguns segundos.
+const VISIBLE_CACHE_MS = 6000;
+let visibleAt = 0;
+let visibleSet = null; // Set de nomes (minúsculo, sem .exe) | null = não sabe
+const WIN_VISIBLE_PS_SCRIPT = `
+Add-Type -Namespace PcWin -Name U -MemberDefinition '[DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h); [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);'
+Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and [PcWin.U]::IsWindowVisible($_.MainWindowHandle) -and -not [PcWin.U]::IsIconic($_.MainWindowHandle) } | ForEach-Object { $_.ProcessName }
+`;
+let visibleScriptWritten = false;
+
+async function listVisibleWindowProcesses(platform) {
+  const now = Date.now();
+  if (now - visibleAt < VISIBLE_CACHE_MS) return visibleSet;
+  visibleAt = now;
+  try {
+    if (platform === 'win32') {
+      // Script em arquivo (igual ao do Spotify): sem briga de aspas com o cmd.
+      const scriptPath = path.join(os.tmpdir(), 'project-club-visible-windows.ps1');
+      if (!visibleScriptWritten || !fs.existsSync(scriptPath)) { fs.writeFileSync(scriptPath, WIN_VISIBLE_PS_SCRIPT, 'utf-8'); visibleScriptWritten = true; }
+      const out = await run(`powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${scriptPath}"`);
+      if (!out.trim()) { visibleSet = null; return null; }
+      visibleSet = new Set(out.split('\n').map((l) => l.trim().toLowerCase()).filter(Boolean));
+      return visibleSet;
+    }
+    // Linux: janelas mapeadas (wmctrl lista PID por janela; xdotool como reserva).
+    let pids = '';
+    const wm = await run('wmctrl -lp 2>/dev/null');
+    if (wm.trim()) pids = wm.split('\n').map((l) => l.trim().split(/\s+/)[2]).filter((x) => /^\d+$/.test(x)).join(' ');
+    else {
+      const xd = await run('xdotool search --onlyvisible --name "" getwindowpid %@ 2>/dev/null');
+      pids = xd.split('\n').map((l) => l.trim()).filter((x) => /^\d+$/.test(x)).join(' ');
+    }
+    if (!pids) { visibleSet = null; return null; }
+    const comm = await run(`ps -o comm= -p ${pids.split(' ').slice(0, 200).join(',')}`);
+    visibleSet = new Set(comm.split('\n').map((l) => l.trim().toLowerCase()).filter(Boolean));
+    return visibleSet;
+  } catch {
+    visibleSet = null;
+    return null;
+  }
+}
+
+// "RobloxPlayerBeta.exe" → "robloxplayerbeta" (como o PowerShell devolve).
+const baseName = (proc) => String(proc || '').toLowerCase().replace(/\.exe$/, '');
+
 // Busca as duas coisas (jogo E app) numa varredura só dos processos —
 // não faz sentido listar os processos do sistema duas vezes seguidas
 // só porque são dois bancos de dados diferentes. Quem decide a ordem
@@ -62,10 +115,16 @@ async function detectGameOrApp(platform) {
   // resolveSteamGame abaixo) — sem a Steam, o RunningAppID pode estar
   // "preso" de uma sessão que fechou sem limpar.
   const steamRunning = processes.some((p) => /^steam(\.exe)?$/i.test(p) || /^steamwebhelper(\.exe)?$/i.test(p));
+  let gameProc = null;
   for (const proc of processes) {
-    if (!game) game = matchProcessName(proc, platKey);
+    if (!game) { game = matchProcessName(proc, platKey); if (game) gameProc = proc; }
     if (!appMatch) appMatch = matchAppProcessName(proc, platKey);
     if (game && appMatch) break; // achou os dois — não precisa continuar varrendo
+  }
+  // Jogo em segundo plano (sem janela visível / minimizado) não conta.
+  if (game && gameProc) {
+    const visible = await listVisibleWindowProcesses(platform);
+    if (visible && !visible.has(baseName(gameProc))) game = null;
   }
   return { game, app: appMatch, spotifyRunning, steamRunning };
 }
