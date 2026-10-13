@@ -71,6 +71,16 @@ export default defineConfig({
           // pessoa parar de baixar esses ~500kB comprimidos toda vez que
           // só quer ver uma mensagem.
           if (id.includes('agora-rtc-sdk-ng')) return 'vendor-agora';
+          // Demais provedores da cadeia de voz (LiveKit, Stream, Daily,
+          // TRTC): cada SDK num pacote PRÓPRIO e carregado SÓ sob demanda
+          // (import() dinâmico em client/src/voice/*Engine.js). Assim eles
+          // NUNCA entram no bundle inicial — a cadeia só baixa o SDK do
+          // provedor que de fato for usado numa chamada, e quem só navega
+          // pelo chat/feeds não paga por nenhum deles.
+          if (id.includes('livekit-client')) return 'vendor-livekit';
+          if (id.includes('@stream-io/video-client')) return 'vendor-getstream';
+          if (id.includes('@daily-co/daily-js')) return 'vendor-daily';
+          if (id.includes('trtc-sdk-v5')) return 'vendor-trtc';
           // Lista de emojis (~400 KB): só baixa quando o seletor abre.
           if (id.includes('unicode-emoji-json')) return 'vendor-emoji';
           return 'vendor';

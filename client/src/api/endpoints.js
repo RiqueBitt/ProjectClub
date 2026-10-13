@@ -521,12 +521,16 @@ export const unregisterPushToken = (token) => api.post('/push/unregister', { tok
 // --- Agora.io (chamadas de voz) ---
 export const getAgoraToken = (channelName) => api.get('/agora/token', { params: { channelName } }).then((r) => r.data);
 
-// --- Provedor de voz (Agora normal ⇆ Jitsi reserva) ---
-// Qual provedor usar agora + quanto do mês já foi usado (observabilidade).
-export const getVoiceProvider = () => api.get('/voice/provider').then((r) => r.data);
-// Fluxo de entrada: checa acesso e devolve o provedor + credenciais dele
-// (token do Agora OU domínio/sala/jwt do Jitsi).
-export const getVoiceJoin = (channelName) => api.get('/voice/join', { params: { channelName } }).then((r) => r.data);
+// --- Cadeia de provedores de voz (Agora → LiveKit → ... → Jitsi) ---
+// Fluxo de entrada: checa acesso e devolve o provedor ATIVO + credenciais
+// dele. `clientReady` diz ao servidor quais provedores este navegador sabe
+// usar hoje (os demais a cadeia pula só para este join).
+export const getVoiceJoin = (channelName, clientReady) =>
+  api.get('/voice/join', { params: { channelName, clientReady: Array.isArray(clientReady) ? clientReady.join(',') : clientReady } }).then((r) => r.data);
+// Painel da staff (admin): status/uso de cada provedor da cadeia e controle.
+export const getVoiceProviders = () => api.get('/voice/provider').then((r) => r.data);
+export const setVoiceOverride = (provider) => api.post('/voice/override', { provider: provider || null }).then((r) => r.data);
+export const toggleVoiceProvider = (id, disabled) => api.post(`/voice/provider/${id}/toggle`, { disabled: !!disabled }).then((r) => r.data);
 
 // --- Item pedido: sistemas estilo Orkut ---
 export const writeTestimonial = (targetId, text) => api.post(`/testimonials/${targetId}`, { text }).then((r) => r.data);

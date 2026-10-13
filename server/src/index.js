@@ -141,6 +141,11 @@ missions.seedDefaultMissions().catch((err) => {
   console.error('\x1b[31m[missões]\x1b[0m seed falhou:', err.message);
 });
 missions.startVoiceMinutesTicker(io);
+// Cadeia de provedores de voz: a cada minuto soma os participantes ativos
+// ao provedor ATIVO daquele minuto (voiceusage:YYYY-MM:<provedor>), o que
+// permite a troca automática Agora → LiveKit → ... → Jitsi por limite
+// mensal gratuito (ver services/voiceUsage.js e services/voiceDecision.js).
+require('./services/voiceUsage').startProviderUsageTicker(io);
 // Lembrete de evento 15 min antes pra quem respondeu "Eu vou".
 require('./services/eventReminders').startEventReminders(io);
 // Faxina diária do banco (tokens vencidos, avisos lidos antigos, ErrorLog
