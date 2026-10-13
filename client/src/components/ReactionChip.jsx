@@ -309,9 +309,13 @@ export function ReactionUsersMenu({ messageId, emoji, count, mine, rows, trimmed
   useEffect(() => {
     const onDown = (e) => {
       if (menuRef.current?.contains(e.target)) return;
-      // O próprio toque longo que abriu não conta.
-      if (Date.now() - openedAt.current < 250) return;
       if (returnFocusEl?.contains(e.target)) return; // o chip fecha no próprio clique
+      // A trava de 250ms é só pro toque: o gesto de abrir (toque longo) pode
+      // emitir um touchstart logo depois e fecharia o menu na hora. No mouse
+      // não há esse gesto, então clicar fora fecha imediatamente (sem a trava
+      // o fechamento ficava instável — às vezes o clique chegava antes dos
+      // 250ms e o menu não fechava).
+      if (e.type === 'touchstart' && Date.now() - openedAt.current < 250) return;
       close(false);
     };
     const onKey = (e) => {
