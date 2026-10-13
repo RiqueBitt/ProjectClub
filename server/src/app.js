@@ -69,6 +69,7 @@ const achievementsRoutes = require('./routes/achievements');
 const systemRoutes = require('./routes/system');
 const pushRoutes = require('./routes/push');
 const agoraRoutes = require('./routes/agora');
+const voiceRoutes = require('./routes/voice');
 const imageProxyRoutes = require('./routes/imageProxy');
 const updatesRoutes = require('./routes/updates');
 const eventsRoutes = require('./routes/events');
@@ -133,6 +134,17 @@ function createApp() {
   //    different external hosts.
   // `crossOriginEmbedderPolicy` stays off for the same reason — this
   // legitimately embeds cross-origin media.
+  //
+  // Jitsi (provedor de voz RESERVA, ver services/jitsiProvider.js): quando
+  // o Agora passa do limite mensal, a chamada conecta por uma conferência
+  // embutida do Jitsi (IFrame External API). Pra isso o navegador precisa
+  // poder: BAIXAR o external_api.js do domínio do Jitsi (script-src) e
+  // EMBUTIR a página de reunião num iframe (frame-src). O domínio é
+  // configurável (JITSI_DOMAIN, padrão meet.jit.si) — liberamos o padrão e,
+  // se configurado outro, ele também. A mídia em si roda DENTRO do iframe
+  // (origem do próprio Jitsi), então não precisa de connect-src nosso.
+  const jitsiHost = (process.env.JITSI_DOMAIN || 'meet.jit.si').replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  const jitsiOrigins = [...new Set([`https://${jitsiHost}`, 'https://meet.jit.si', 'https://8x8.vc'])];
   app.use(helmet({
     crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: {
@@ -142,8 +154,8 @@ function createApp() {
         // servido em /ruffle) roda em WebAssembly. Só libera compilar WASM,
         // não libera eval() de JS.
         // YouTube "Assistir juntos" (chamada de voz): IFrame Player API.
-        scriptSrc: ["'self'", "'wasm-unsafe-eval'", 'https://www.youtube.com'],
-        scriptSrcElem: ["'self'", 'https://www.youtube.com'],
+        scriptSrc: ["'self'", "'wasm-unsafe-eval'", 'https://www.youtube.com', ...jitsiOrigins],
+        scriptSrcElem: ["'self'", 'https://www.youtube.com', ...jitsiOrigins],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         // Item pedido (migração pro Agora.io): o SDK deles roda parte do
         // processamento de áudio (cancelamento de eco etc) dentro de Web
@@ -177,7 +189,7 @@ function createApp() {
         // Navegador do Project Club no site (quando ligado em
         // config/features.js): páginas que PERMITEM ser abertas dentro de
         // outro site aparecem num iframe isolado. Desligado = só YouTube.
-        frameSrc: ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com', ...(isFeatureEnabled('browser') ? ['https:'] : [])],
+        frameSrc: ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com', ...jitsiOrigins, ...(isFeatureEnabled('browser') ? ['https:'] : [])],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         frameAncestors: ["'self'"],
@@ -393,6 +405,7 @@ function createApp() {
   app.use('/api/mobile', require('./routes/mobile'));
   app.use('/api/push', pushRoutes);
   app.use('/api/agora', agoraRoutes);
+  app.use('/api/voice', voiceRoutes);
   // Sem requireAuth de propósito — <img src="..."> do navegador nunca
   // manda o cabeçalho Authorization (só fetch/axios conseguem fazer
   // isso), então colocar autenticação aqui quebraria TODA imagem do

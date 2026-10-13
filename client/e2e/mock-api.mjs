@@ -131,6 +131,11 @@ export function handler(route) {
     { id: 'cm2', authorId: '5', author: { ...users[4], clanRole: 'ADMIN' }, content: 'falta só a torre leste', createdAt: new Date(now - 39 * 60000).toISOString() },
     { id: 'cm3', authorId: '1', author: { ...me, clanRole: 'OWNER' }, content: 'fechado! 21h na call do clube', createdAt: new Date(now - 10 * 60000).toISOString() },
   ] });
+  // Voz: por padrão o provedor é o Agora (o teste de modo reserva
+  // sobrescreve essas rotas pra devolver jitsi). Ver voice-fallback.spec.
+  if (p === '/voice/provider') return json({ provider: 'agora', reason: 'ok', minutesUsed: 10, limit: 10000 });
+  if (p === '/voice/join') return json({ provider: 'agora', reason: 'ok', minutesUsed: 10, limit: 10000, agora: { token: 'mock-token', appId: 'mock-app', uid: me.id } });
+  if (p === '/agora/token') return json({ token: 'mock-token', appId: 'mock-app', uid: me.id });
   if (p === '/auth/refresh') return json({ accessToken: 'x', user: me });
   if (p === '/community') return json({ categories, channels: [], members, roles, community: { name: 'Project Club', bannerUrl: banner, iconUrl: null } });
   { const m = p.match(/^\/messages\/([^/]+)\/reactions\/([^/]+)$/); if (m) {
