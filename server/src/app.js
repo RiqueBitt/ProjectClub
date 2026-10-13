@@ -458,6 +458,8 @@ function createApp() {
   const staticCacheHeader = (filePath) => {
     if (/[\\/]assets[\\/]/.test(filePath)) return 'public, max-age=31536000, immutable';
     if (filePath.endsWith('.html')) return 'no-cache';
+    // Service worker e manifest: o navegador precisa ver a versão nova logo.
+    if (/[\\/](sw\.js|manifest\.webmanifest)$/.test(filePath)) return 'no-cache';
     // Pacotes de emoji, sons e arquivos dos Mini-Jogos (menos os .html,
     // que caem no no-cache acima): nome fixo, mudam raramente — 1 dia.
     if (/[\\/](emoji-sets|sounds|minigames|ruffle)[\\/]/.test(filePath)) return 'public, max-age=86400';

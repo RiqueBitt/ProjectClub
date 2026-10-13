@@ -36,6 +36,8 @@ import settingsAccountStatusIcon from '../../assets/icons/document.png';
 import logoutIcon from '../../assets/icons/settings-logout.png';
 import emojiPickerIcon from '../../assets/icons/emoji-picker.png';
 import Modal from '../Modal.jsx';
+import { isWebPushSupported, getWebPushState, enableWebPush, disableWebPush } from '../../utils/webPush';
+import { getInstallState, onInstallStateChange, promptInstall } from '../../utils/pwaInstall';
 import EmojiPicker from '../EmojiPicker.jsx';
 import ClanIcon from '../ClanIcon.jsx';
 import UserAvatar from '../UserAvatar.jsx';
@@ -2080,6 +2082,7 @@ export default function UserSettingsModal({ onClose }) {
                 </div>
                 <Toggle on={userSettings.desktopNotifications} onChange={(v) => updateUserSetting('desktopNotifications', v)} label={TOGGLE_LABEL.desktopNotifications} />
               </div>
+              <WebPushRow />
               <div className="settings-block settings-toggle-row">
                 <div>
                   <h4>Notificações por e-mail</h4>
@@ -2130,6 +2133,7 @@ export default function UserSettingsModal({ onClose }) {
           {!userSettings ? <SettingsSkeleton /> : (
             <>
               <AndroidUpdateInfo />
+              <PwaInstallRow />
               {appDiag && (
                 <div className="settings-block">
                   <h4>Sobre este aplicativo</h4>
@@ -3352,6 +3356,66 @@ function ActivityVisibilityPicker({ value, onChange }) {
 
 // Aviso quando o navegador bloqueia notificações (antes a chave ficava
 // "ligada" sem efeito nenhum, sem explicar por quê) + botão de teste.
+// Notificações push do navegador/PWA (mesmo com o site fechado). Só aparece
+// onde o navegador suporta (não no desktop Electron nem no app Android, que
+// já têm o caminho próprio).
+function WebPushRow() {
+  const [state, setState] = useState(() => getWebPushState());
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  if (state === 'unsupported' || !isWebPushSupported()) return null;
+  const toggle = async (on) => {
+    if (busy) return;
+    setBusy(true); setErr('');
+    try {
+      if (on) {
+        const r = await enableWebPush();
+        if (!r.ok) {
+          setErr(r.reason === 'denied' ? 'O navegador está bloqueando as notificações deste site. Libere nas permissões do site (o cadeado ao lado do endereço).'
+            : r.reason === 'server' ? 'O servidor ainda não está com as notificações push ativadas.'
+              : r.reason === 'dismissed' ? '' : 'Não foi possível ativar agora. Tente de novo.');
+        }
+      } else {
+        await disableWebPush();
+      }
+    } finally {
+      setBusy(false);
+      setState(getWebPushState());
+    }
+  };
+  return (
+    <div className="settings-block settings-toggle-row">
+      <div>
+        <h4>Notificações push</h4>
+        <p className="dim">Receba aviso de mensagens, menções e chamadas <b>mesmo com o Project Club fechado</b>, pelo navegador ou pelo app instalado.</p>
+        {err && <FieldError>{err}</FieldError>}
+        {state === 'denied' && !err && <FieldError>O navegador está bloqueando as notificações deste site. Libere nas permissões do site (o cadeado ao lado do endereço).</FieldError>}
+      </div>
+      <Toggle on={state === 'on'} onChange={toggle} label="Notificações push" disabled={busy || state === 'denied'} />
+    </div>
+  );
+}
+
+// "Instalar como app" (PWA). Some quando já está instalado ou onde não dá.
+function PwaInstallRow() {
+  const [state, setState] = useState(() => getInstallState());
+  useEffect(() => onInstallStateChange(setState), []);
+  if (state === 'unsupported' || state === 'unavailable') return null;
+  return (
+    <div className="settings-block settings-toggle-row">
+      <div>
+        <h4>Instalar como aplicativo</h4>
+        {state === 'installed' && <p className="dim">O Project Club já está instalado neste aparelho.</p>}
+        {state === 'available' && <p className="dim">Abre em janela própria, mais rápido, e fica na sua tela inicial / menu iniciar — sem baixar nada.</p>}
+        {state === 'ios' && <p className="dim">No iPhone/iPad: toque em <b>Compartilhar</b> e depois em <b>Adicionar à Tela de Início</b>.</p>}
+      </div>
+      {state === 'available' && (
+        <button type="button" className="btn-primary" onClick={() => promptInstall().then(() => setState(getInstallState()))}>Instalar</button>
+      )}
+    </div>
+  );
+}
+
 function NotificationPermissionNote() {
   const supported = typeof window !== 'undefined' && 'Notification' in window;
   const [perm, setPerm] = useState(() => (supported ? Notification.permission : 'unsupported'));

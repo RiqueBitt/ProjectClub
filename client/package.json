@@ -8,7 +8,7 @@
     "build": "vite build && node scripts/precompress.cjs",
     "preview": "vite preview",
     "test:e2e": "playwright test",
-    "test:unit": "node --test test/*.test.js",
+    "test:unit": "node --test test/*.test.js test/*.test.cjs",
     "build:offline": "vite build --config vite.offline.config.js"
   },
   "dependencies": {

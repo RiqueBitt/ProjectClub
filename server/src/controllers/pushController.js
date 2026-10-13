@@ -40,4 +40,35 @@ async function unregisterToken(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { registerToken, unregisterToken };
+// ---- Web Push (navegador/PWA) ----
+const webPush = require('../services/webPush');
+
+// Chave pública VAPID: o navegador precisa dela pra criar a assinatura.
+// Pública mesmo — não é segredo.
+async function webPublicKey(req, res, next) {
+  try {
+    const key = await webPush.getPublicKey();
+    if (!key) return res.json({ enabled: false, publicKey: null });
+    res.json({ enabled: true, publicKey: key });
+  } catch (err) { next(err); }
+}
+
+async function webSubscribe(req, res, next) {
+  try {
+    const sub = req.body && req.body.subscription;
+    await webPush.saveSubscription(req.user.id, sub, req.headers['user-agent']);
+    res.status(201).json({ ok: true });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+}
+
+async function webUnsubscribe(req, res, next) {
+  try {
+    await webPush.removeSubscription(req.user.id, req.body && req.body.endpoint);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+}
+
+module.exports = { registerToken, unregisterToken, webPublicKey, webSubscribe, webUnsubscribe };
