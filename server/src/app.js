@@ -71,6 +71,7 @@ const pushRoutes = require('./routes/push');
 const agoraRoutes = require('./routes/agora');
 const voiceRoutes = require('./routes/voice');
 const imageProxyRoutes = require('./routes/imageProxy');
+const { servePrecompressed } = require('./middleware/precompressed');
 const updatesRoutes = require('./routes/updates');
 const eventsRoutes = require('./routes/events');
 const activityRoutes = require('./routes/activity');
@@ -215,7 +216,16 @@ function createApp() {
   }));
   app.use(cookieParser());
   app.use(express.json({ limit: '5mb' }));
-  app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+  // Otimização (item pedido): em produção não loga request de arquivo
+  // estático (assets com hash, uploads, emoji, sons, minijogos, polling do
+  // Socket.IO) nem respostas 304 (cache validado) — cada linha "combined"
+  // é escrita síncrona no stdout, e com muita gente isso vira I/O e CPU
+  // gastos à toa (eram a maioria absoluta das linhas). As requests da API
+  // continuam logadas iguais, que é o que serve pra depurar.
+  const LOG_SKIP = /^\/(assets|uploads|emoji-sets|sounds|minigames|ruffle|socket\.io|favicon\.ico|manifest\.webmanifest|robots\.txt|sw\.js)\b/;
+  app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev', {
+    skip: (req, res) => env.NODE_ENV === 'production' && (res.statusCode === 304 || LOG_SKIP.test(req.path)),
+  }));
 
   // Blanket ceiling across the whole API, on top of the tighter per-route
   // limiters (auth/login) applied below — mitigates scripted abuse/DoS
@@ -445,13 +455,26 @@ function createApp() {
   // por 1 ano sem nunca ficar desatualizados — o app (inclusive o de
   // desktop) não baixa de novo JS/CSS/imagens a cada abertura. O
   // index.html sempre revalida (no-cache), pra versão nova chegar na hora.
+  const staticCacheHeader = (filePath) => {
+    if (/[\\/]assets[\\/]/.test(filePath)) return 'public, max-age=31536000, immutable';
+    if (filePath.endsWith('.html')) return 'no-cache';
+    // Pacotes de emoji, sons e arquivos dos Mini-Jogos (menos os .html,
+    // que caem no no-cache acima): nome fixo, mudam raramente — 1 dia.
+    if (/[\\/](emoji-sets|sounds|minigames|ruffle)[\\/]/.test(filePath)) return 'public, max-age=86400';
+    return null;
+  };
+  // Otimização (item pedido): assets PRÉ-COMPRIMIDOS no build
+  // (client/scripts/precompress.js gera um .br e um .gz ao lado de cada
+  // js/css/svg/json/wasm). Em vez de o middleware `compression` gastar
+  // CPU gzipando o mesmo arquivo a cada request, entregamos o já
+  // comprimido direto do disco — brotli quando o navegador aceita (menor
+  // que gzip), gzip como reserva. Sem o arquivo .br/.gz, cai no
+  // express.static normal (e no gzip na hora) como antes.
+  app.use(servePrecompressed(clientDist, staticCacheHeader));
   app.use(express.static(clientDist, {
     setHeaders: (res, filePath) => {
-      if (/[\\/]assets[\\/]/.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      else if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
-      // Pacotes de emoji, sons e arquivos dos Mini-Jogos (menos os .html,
-      // que caem no no-cache acima): nome fixo, mudam raramente — 1 dia.
-      else if (/[\\/](emoji-sets|sounds|minigames|ruffle)[\\/]/.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=86400');
+      const cc = staticCacheHeader(filePath);
+      if (cc) res.setHeader('Cache-Control', cc);
     },
   }));
   app.get('*', (req, res, next) => {

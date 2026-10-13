@@ -45,7 +45,12 @@ const env = require('../config/env');
 // cada troca de arquivo, então uma imagem já em cache nunca fica
 // desatualizada de verdade — o TTL aqui é só uma rede de segurança
 // pra liberar memória de imagens que pararam de ser vistas).
-const CACHE_MAX_BYTES = 80 * 1024 * 1024; // 80MB de imagens guardadas ao mesmo tempo, no máximo
+// Otimização de memória (item pedido): 80MB → 48MB. O navegador já guarda
+// cada imagem por 1 ano (Cache-Control imutável), então este cache só
+// serve pra NÃO buscar de novo no upstream quando várias pessoas abrem a
+// mesma imagem ao mesmo tempo — 48MB cobre isso com folga e libera ~32MB
+// de heap pros usuários.
+const CACHE_MAX_BYTES = 48 * 1024 * 1024; // 48MB de imagens guardadas ao mesmo tempo, no máximo
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutos
 const cache = new Map(); // url -> { buffer, contentType, size, expiresAt }
 let cacheBytes = 0;
