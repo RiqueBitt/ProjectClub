@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useStore } from '../store/useStore';
 import { MINIJOGOS, MINIJOGOS_CATEGORIES, findMinijogo } from '../minijogos/catalog.js';
 import '../styles/minijogos.css';
-import { useMinijogoScores, ScoresPanel } from '../minijogos/MiniJogoScores.jsx';
+import { useMinijogoScores, ScoresPanel, WeeklyPrizesBanner } from '../minijogos/MiniJogoScores.jsx';
 import TouchControls from '../minijogos/touch/TouchControls.jsx';
 import { touchSchemeFor, hasOnScreenControls } from '../minijogos/touch/schemes.js';
 import { createGameInput, resumeGameAudio, focusGame, gameWindow } from '../minijogos/touch/gameInput.js';
@@ -113,7 +114,7 @@ function MiniJogoPlayer({ game, onClose }) {
   const { user } = useAuth();
   const wrapRef = useRef(null);
   const frameRef = useRef(null);
-  const { board, toast, saveFinal } = useMinijogoScores(game.slug);
+  const { board, weekly, toast, saveFinal } = useMinijogoScores(game.slug);
   const [showScores, setShowScores] = useState(false);
   const [muted, setMuted] = useState(readMuted);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -388,7 +389,7 @@ function MiniJogoPlayer({ game, onClose }) {
       </div>
       <div className="mj-player-stage" ref={stageRef}>
         <div className="mj-letterbox" aria-hidden="true" />
-        {showScores && <ScoresPanel board={board} onClose={() => setShowScores(false)} />}
+        {showScores && <ScoresPanel board={board} weekly={weekly} onClose={() => setShowScores(false)} />}
         {toast && (
           <div className="mj-score-toast" role="status"><strong>{toast.title}</strong><span>{toast.text}</span></div>
         )}
@@ -426,6 +427,7 @@ function MiniJogoPlayer({ game, onClose }) {
 }
 
 export default function MiniJogosPage() {
+  const { refreshUser } = useAuth();
   const [params, setParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState({});
@@ -459,6 +461,11 @@ export default function MiniJogosPage() {
               <p>Jogos rápidos que já vêm no Project Club. É só clicar e jogar.</p>
             </div>
           </header>
+
+          <WeeklyPrizesBanner
+            gameNames={Object.fromEntries(MINIJOGOS.map((g) => [g.slug, g.name]))}
+            onClaimed={(d) => { useStore.getState().pushNotice(`+${d.coins} moedas pelo ${d.rank}º lugar da semana!`); refreshUser?.().catch(() => {}); }}
+          />
 
           <label className="mj-search">
             <MjIcon name="search" />
