@@ -10,7 +10,6 @@ const activityStore = require('../services/activityStore');
 const voiceStore = require('../services/voiceRoomStore');
 const voiceExtras = require('../services/voiceExtras');
 const voiceUsage = require('../services/voiceUsage');
-const { isConfigured: agoraConfigured } = require('../services/agoraToken');
 const gamePlaytime = require('../services/gamePlaytime');
 const { steamAppIdOf } = require('../utils/steamCover');
 const ytWatch = require('./ytWatch');
@@ -573,7 +572,9 @@ function initSockets(httpServer) {
           // Provedor de mídia desta entrada (Agora/Jitsi) — guardado junto
           // pra, na saída, contar os minutos SÓ se foi Agora (ver leaveVoice
           // e services/voiceUsage.js). joinedAt marca o início pra duração.
-          const dmProvider = (await voiceUsage.getDecision({ agoraConfigured: agoraConfigured() })).provider;
+          // Cadeia de provedores: o provedor ATIVO agora (Agora → LiveKit →
+          // ... → Jitsi) é decidido no servidor (services/voiceDecision.js).
+          const dmProvider = await voiceUsage.resolveActiveProvider();
           await voiceStore.setParticipant(channelId, userId, { socketId: socket.id, conversationId, muted: false, deafened: false, video: false, screenSharing: false, role: 'speaker', provider: dmProvider, joinedAt: Date.now() });
           socket.join(`voice:${channelId}`);
 
@@ -734,8 +735,9 @@ function initSockets(httpServer) {
         // eliminando a janela de corrida entre duas pessoas entrando quase
         // ao mesmo tempo (ver o comentário completo lá).
         // Provedor de mídia desta entrada (Agora/Jitsi) + início, pra contar
-        // minutos de Agora na saída (ver leaveVoice e services/voiceUsage.js).
-        const joinProvider = (await voiceUsage.getDecision({ agoraConfigured: agoraConfigured() })).provider;
+        // minutos na saída (ver leaveVoice e services/voiceUsage.js). O
+        // provedor ativo vem da cadeia (services/voiceDecision.js).
+        const joinProvider = await voiceUsage.resolveActiveProvider();
         await voiceStore.setParticipant(channelId, userId, {
           socketId: socket.id,
           muted: startMuted, deafened: false, video: false, screenSharing: false, role,
@@ -1215,15 +1217,11 @@ function initSockets(httpServer) {
     const participant = await voiceStore.getParticipant(channelId, userId);
     if (!participant) return;
     const { conversationId } = participant;
-    // Contabilidade de uso do Agora: soma a duração (segundos) desta
-    // participação ao contador do mês — SÓ se ela estava no Agora (no Jitsi
-    // não gasta a cota do Agora). É o que faz o provedor voltar pro Agora
-    // sozinho na virada do mês. Best-effort: se faltar joinedAt (ex.: vaga
-    // adotada numa reconexão), só não conta esse trecho.
-    if (participant.provider === 'agora' && participant.joinedAt) {
-      const secs = Math.round((Date.now() - participant.joinedAt) / 1000);
-      if (secs > 0) voiceUsage.recordAgoraSeconds(secs).catch(() => {});
-    }
+    // Contabilidade de uso por PROVEDOR: agora é feita pelo ticker de
+    // minutos-participante (voiceUsage.startProviderUsageTicker, ligado no
+    // index.js), que a cada minuto soma as pessoas ativas ao provedor ATIVO
+    // daquele minuto — a métrica certa pros limites gratuitos de cada
+    // serviço (Agora/LiveKit/Daily/...). Não é mais contada aqui na saída.
     const remaining = await voiceStore.removeParticipant(channelId, userId);
     if (socket) socket.leave(`voice:${channelId}`);
     else if (participant.socketId) io.in(participant.socketId).socketsLeave(`voice:${channelId}`);

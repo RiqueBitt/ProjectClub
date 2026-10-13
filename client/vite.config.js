@@ -59,7 +59,11 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
           if (id.includes('/react-router-dom/') || id.includes('/react-router/')) return 'vendor-router';
-          if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('scheduler')) return 'vendor-react';
+          // react/react-dom/scheduler NÃO são separados num chunk próprio: o
+          // use-sync-external-store (zustand) faz require('react') em CommonJS,
+          // e um react em chunk separado quebrava o carregamento ("setting
+          // Children" / dep circular). Deixá-lo no "vendor" geral (sempre
+          // carregado no início de qualquer jeito) resolve, sem custo real.
           if (id.includes('socket.io-client') || id.includes('engine.io-client')) return 'vendor-socket';
           // Item pedido ("web demora pra carregar página"): o SDK do
           // Agora (chamada de voz) sozinho é responsável pela maior parte
@@ -71,6 +75,16 @@ export default defineConfig({
           // pessoa parar de baixar esses ~500kB comprimidos toda vez que
           // só quer ver uma mensagem.
           if (id.includes('agora-rtc-sdk-ng')) return 'vendor-agora';
+          // Demais provedores da cadeia de voz (LiveKit, Stream, Daily,
+          // TRTC): cada SDK num pacote PRÓPRIO e carregado SÓ sob demanda
+          // (import() dinâmico em client/src/voice/*Engine.js). Assim eles
+          // NUNCA entram no bundle inicial — a cadeia só baixa o SDK do
+          // provedor que de fato for usado numa chamada, e quem só navega
+          // pelo chat/feeds não paga por nenhum deles.
+          if (id.includes('livekit-client')) return 'vendor-livekit';
+          if (id.includes('@stream-io/video-client')) return 'vendor-getstream';
+          if (id.includes('@daily-co/daily-js')) return 'vendor-daily';
+          if (id.includes('trtc-sdk-v5')) return 'vendor-trtc';
           // Lista de emojis (~400 KB): só baixa quando o seletor abre.
           if (id.includes('unicode-emoji-json')) return 'vendor-emoji';
           return 'vendor';

@@ -1,107 +1,193 @@
-// Decisão de provedor de mídia (Agora ⇆ Jitsi) e emissão de credenciais
-// por provedor. Ver services/voiceUsage.js e services/jitsiProvider.js.
+// Cadeia de provedores de voz — controller (item pedido).
 //
-//  GET /api/voice/provider  -> { provider, reason, minutesUsed, limit }
-//      Só a decisão/observabilidade. Sem segredos. Usado pra:
-//        - o cliente decidir por qual provedor conectar;
-//        - o cliente, EM chamada, saber se precisa trocar na hora;
-//        - o painel/admin ver quanto do mês já foi usado.
-//
-//  GET /api/voice/join?channelName=<id>  -> { provider, agora?, jitsi? }
-//      Faz a MESMA checagem de acesso do /api/agora/token e, conforme o
-//      provedor escolhido, devolve o token do Agora OU as infos da sala do
-//      Jitsi (domínio + nome de sala com hash + jwt opcional). É o "fluxo
-//      de entrada" unificado que diz ao cliente com o que conectar.
+// Generaliza o antigo /api/agora/token: agora /api/voice/join DECIDE qual
+// provedor da cadeia está ativo (ver services/voiceDecision.js) e devolve
+// as credenciais SÓ daquele provedor, com as MESMAS checagens de acesso de
+// sempre (ver canal/DM/clã). O painel da staff lê /api/voice/provider e
+// controla a cadeia por /api/voice/override e /api/voice/provider/:id/toggle.
 const prisma = require('../config/prisma');
 const { getEffectivePermissions } = require('../services/authz');
 const { has } = require('../services/permissions');
-const { generateToken, isConfigured } = require('../services/agoraToken');
-const voiceUsage = require('../services/voiceUsage');
-const jitsiProvider = require('../services/jitsiProvider');
+const providers = require('../services/voiceProviders');
+const usage = require('../services/voiceUsage');
+const decision = require('../services/voiceDecision');
+const overrideStore = require('../services/voiceOverrideStore');
+const tokens = require('../services/voiceTokens');
 
-// Mesma regra de acesso do agoraController (canal de comunidade, voz de clã
-// ou chamada de DM). Devolve null se liberado, ou { status, error } se não.
-async function checkChannelAccess(req, clean) {
-  if (!clean || !clean.trim()) return { status: 400, error: 'Informe o canal.' };
-  clean = clean.trim();
-  if (clean.length > 128) return { status: 400, error: 'Canal inválido.' };
+// Mesma regra de acesso que o agoraController usava: clã (ser membro),
+// DM (ser da conversa), ou canal da comunidade (VER + CONNECT). Lança um
+// erro com .status pra virar a resposta HTTP certa.
+async function assertRoomAccess(req, channelName) {
+  const clean = String(channelName || '').trim();
+  if (!clean) { const e = new Error('Informe o canal.'); e.status = 400; throw e; }
+  if (clean.length > 128) { const e = new Error('Canal inválido.'); e.status = 400; throw e; }
 
   if (clean.startsWith('clan:')) {
     const clanId = clean.slice('clan:'.length);
-    if (req.user.clanId !== clanId) return { status: 403, error: 'Você não é membro deste clã.' };
+    if (req.user.clanId !== clanId) { const e = new Error('Você não é membro deste clã.'); e.status = 403; throw e; }
   } else if (clean.startsWith('dm:')) {
     const conversationId = clean.slice('dm:'.length);
     const member = await prisma.conversationMember.findUnique({
       where: { conversationId_userId: { conversationId, userId: req.user.id } },
     }).catch(() => null);
-    if (!member) return { status: 403, error: 'Você não faz parte desta conversa.' };
+    if (!member) { const e = new Error('Você não faz parte desta conversa.'); e.status = 403; throw e; }
   } else {
     const channel = await prisma.channel.findUnique({ where: { id: clean } });
-    if (!channel) return { status: 404, error: 'Canal de voz não encontrado.' };
+    if (!channel) { const e = new Error('Canal de voz não encontrado.'); e.status = 404; throw e; }
     const perms = await getEffectivePermissions(req.user.id, channel.id, channel);
     if (!has(perms, 'VIEW_CHANNEL') || !has(perms, 'CONNECT')) {
-      return { status: 403, error: 'Você não tem permissão para entrar neste canal.' };
+      const e = new Error('Você não tem permissão para entrar neste canal.'); e.status = 403; throw e;
     }
   }
-  return null;
+  return clean;
 }
 
-// Decisão atual (sem segredos). Nunca falha "feio": se algo der errado,
-// assume Agora como padrão seguro (contanto que esteja configurado).
+// Nome de sala determinístico e seguro pros provedores que exigem um id de
+// sala "limpo" (LiveKit/TRTC/GetStream/Daily). Todo mundo do mesmo canal
+// cai na mesma sala. Mantém o channelName original pro Agora/Jitsi (que já
+// aceitam o id cru, e é o que o resto do sistema sempre usou).
+function roomNameFor(channelName) {
+  // Sala indecifrável: no meet.jit.si público, quem souber o nome da sala
+  // entra na chamada. Então derivamos o nome de um HMAC com segredo do
+  // servidor — o mesmo canal sempre cai na mesma sala, mas ninguém de fora
+  // consegue adivinhar. (Os provedores com token não dependem disso, mas
+  // usar o mesmo id pra todos não tem custo.)
+  const secret = process.env.JITSI_ROOM_SALT || process.env.JWT_ACCESS_SECRET || 'projectclub';
+  const h = require('crypto').createHmac('sha256', secret).update(String(channelName)).digest('hex').slice(0, 24);
+  return `pc_${h}`;
+}
+
+// Decide o provedor ativo AGORA (global), lendo uso/override/desativados.
 async function currentDecision() {
-  try {
-    return await voiceUsage.getDecision({ agoraConfigured: isConfigured() });
-  } catch {
-    return voiceUsage.decideProvider({ minutesUsed: 0, limit: voiceUsage.limitFromEnv(), agoraConfigured: isConfigured() });
-  }
+  const [usageByProvider, override, disabled] = await Promise.all([
+    usage.getAllUsage(),
+    overrideStore.getOverride(),
+    overrideStore.getDisabled(),
+  ]);
+  return { usageByProvider, override, disabled };
 }
 
-async function getProvider(req, res, next) {
-  try {
-    const decision = await currentDecision();
-    res.json({
-      provider: decision.provider,
-      reason: decision.reason,
-      minutesUsed: decision.minutesUsed,
-      limit: decision.limit,
-      threshold: decision.threshold,
-    });
-  } catch (err) { next(err); }
-}
-
+// GET /api/voice/join?channelName=...
+// Devolve { provider, <creds do provedor> }.
 async function getJoin(req, res, next) {
   try {
-    const { channelName } = req.query;
-    const access = await checkChannelAccess(req, channelName);
-    if (access) return res.status(access.status).json({ error: access.error });
-    const clean = channelName.trim();
+    const channelName = await assertRoomAccess(req, req.query.channelName);
+    const state = await currentDecision();
+    // O cliente anuncia quais provedores o engine dele sabe usar hoje
+    // (clientReady=agora,livekit,jitsi). A cadeia PULA, só pra ESTE join,
+    // os que ele não suporta — sem mexer no status global do painel. Sem o
+    // parâmetro (ex.: cliente antigo/teste), não restringe nada.
+    const clientReady = String(req.query.clientReady || '').split(',').map((s) => s.trim()).filter(Boolean);
+    let disabled = state.disabled;
+    if (clientReady.length) {
+      const unsupported = providers.PROVIDER_ORDER.filter((id) => !clientReady.includes(id));
+      disabled = Array.from(new Set([...(disabled || []), ...unsupported]));
+    }
+    const decided = decision.decideProvider({ ...state, disabled });
+    const provider = decided.provider;
+    const userId = req.user.id;
+    const name = req.user.displayName || req.user.username || String(userId);
+    const room = roomNameFor(channelName);
 
-    const decision = await currentDecision();
-    const base = {
-      provider: decision.provider,
-      reason: decision.reason,
-      minutesUsed: decision.minutesUsed,
-      limit: decision.limit,
-    };
+    const payload = { provider, channelName, reserveMode: provider !== providers.PRIMARY_PROVIDER, activeReason: decided.reason };
 
-    if (decision.provider === 'agora') {
-      // Agora precisa estar configurado pra essa via existir.
-      if (!isConfigured()) {
-        // Sem Agora E sem forçar Jitsi explicitamente: a decisão já teria
-        // vindo 'jitsi' (agoraConfigured=false), então aqui é raro — mas
-        // por garantia, cai pro Jitsi em vez de 503.
-        const jitsi = jitsiProvider.roomInfo({ callId: clean, userId: req.user.id, displayName: req.user.displayName });
-        return res.json({ ...base, provider: 'jitsi', reason: 'agora-nao-configurado', jitsi });
+    if (provider === 'agora') {
+      const creds = tokens.mintAgora(channelName, userId);
+      if (!creds) return fallbackJitsi(res, payload, channelName, userId, name);
+      payload.agora = creds;
+      // Compatibilidade com o cliente antigo (campos no topo).
+      payload.token = creds.token;
+      payload.appId = creds.appId;
+      payload.uid = creds.uid;
+    } else if (provider === 'livekit') {
+      const creds = tokens.mintLiveKit({ room, identity: userId, name });
+      if (!creds) return fallbackJitsi(res, payload, channelName, userId, name);
+      payload.livekit = creds;
+    } else if (provider === 'getstream') {
+      const creds = tokens.mintGetStream({ userId, callId: room });
+      if (!creds) return fallbackJitsi(res, payload, channelName, userId, name);
+      payload.getstream = creds;
+    } else if (provider === 'daily') {
+      try {
+        const creds = await tokens.mintDaily({ roomName: null, userName: name });
+        if (!creds || creds.gated || !creds.token) return fallbackJitsi(res, payload, channelName, userId, name);
+        payload.daily = creds;
+      } catch (err) {
+        console.error('[voz] Daily mint falhou, caindo pro Jitsi:', err?.message || err);
+        return fallbackJitsi(res, payload, channelName, userId, name);
       }
-      const token = generateToken(clean, req.user.id);
-      return res.json({ ...base, agora: { token, appId: process.env.AGORA_APP_ID, uid: req.user.id } });
+    } else if (provider === 'trtc') {
+      const creds = tokens.mintTRTCUserSig({ userId, roomId: room });
+      if (!creds) return fallbackJitsi(res, payload, channelName, userId, name);
+      payload.trtc = creds;
+    } else {
+      return fallbackJitsi(res, payload, channelName, userId, name);
     }
 
-    // Jitsi (reserva): nome de sala com hash + jwt opcional. Nunca expõe
-    // o App Secret; o jwt só vem quando o domínio exige (envs presentes).
-    const jitsi = jitsiProvider.roomInfo({ callId: clean, userId: req.user.id, displayName: req.user.displayName });
-    return res.json({ ...base, jitsi });
+    return res.json(payload);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return next(err);
+  }
+}
+
+// Monta a resposta do Jitsi (fallback final). Usado tanto quando a cadeia
+// escolhe o Jitsi quanto quando o provedor escolhido falhou em mintar.
+function fallbackJitsi(res, payload, channelName, userId, name) {
+  const creds = tokens.mintJitsi({ room: payload.channelName ? roomNameFor(channelName) : channelName, userId, name });
+  return res.json({ ...payload, provider: 'jitsi', jitsi: creds, reserveMode: true });
+}
+
+// GET /api/voice/provider — painel da staff (sem segredo nenhum).
+async function getProviderStatus(req, res, next) {
+  try {
+    const state = await currentDecision();
+    const panel = decision.buildPanel(state);
+    res.json(panel);
   } catch (err) { next(err); }
 }
 
-module.exports = { getProvider, getJoin, checkChannelAccess };
+// Quando a decisão muda por ação da equipe, avisa quem está em chamada pra
+// MIGRAR de provedor sem sair da sala (re-join contínuo no cliente).
+function broadcastProviderChanged(req, active) {
+  try {
+    const io = req.app.get('io');
+    if (io) io.to('community').emit('voice:provider-changed', { active });
+  } catch { /* não é fatal — a reconciliação periódica resolve */ }
+}
+
+// POST /api/voice/override  { provider: 'livekit' | null }  (admin)
+async function postOverride(req, res, next) {
+  try {
+    const { provider } = req.body || {};
+    if (provider && !providers.PROVIDERS[provider]) {
+      return res.status(400).json({ error: 'Provedor inválido.' });
+    }
+    await overrideStore.setOverride(provider || null);
+    const state = await currentDecision();
+    const panel = decision.buildPanel(state);
+    broadcastProviderChanged(req, panel.active);
+    res.json(panel);
+  } catch (err) { next(err); }
+}
+
+// POST /api/voice/provider/:id/toggle  { disabled: true|false }  (admin)
+async function postToggle(req, res, next) {
+  try {
+    const { id } = req.params;
+    if (!providers.PROVIDERS[id]) return res.status(400).json({ error: 'Provedor inválido.' });
+    const disabled = !!(req.body && req.body.disabled);
+    await overrideStore.setDisabled(id, disabled);
+    const state = await currentDecision();
+    const panel = decision.buildPanel(state);
+    broadcastProviderChanged(req, panel.active);
+    res.json(panel);
+  } catch (err) {
+    if (err?.message && /fallback final|inválido/.test(err.message)) {
+      return res.status(400).json({ error: err.message });
+    }
+    next(err);
+  }
+}
+
+module.exports = { getJoin, getProviderStatus, postOverride, postToggle, assertRoomAccess, roomNameFor };

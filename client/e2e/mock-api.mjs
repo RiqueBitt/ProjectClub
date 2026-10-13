@@ -131,10 +131,24 @@ export function handler(route) {
     { id: 'cm2', authorId: '5', author: { ...users[4], clanRole: 'ADMIN' }, content: 'falta só a torre leste', createdAt: new Date(now - 39 * 60000).toISOString() },
     { id: 'cm3', authorId: '1', author: { ...me, clanRole: 'OWNER' }, content: 'fechado! 21h na call do clube', createdAt: new Date(now - 10 * 60000).toISOString() },
   ] });
-  // Voz: por padrão o provedor é o Agora (o teste de modo reserva
-  // sobrescreve essas rotas pra devolver jitsi). Ver voice-fallback.spec.
-  if (p === '/voice/provider') return json({ provider: 'agora', reason: 'ok', minutesUsed: 10, limit: 10000 });
-  if (p === '/voice/join') return json({ provider: 'agora', reason: 'ok', minutesUsed: 10, limit: 10000, agora: { token: 'mock-token', appId: 'mock-app', uid: me.id } });
+  // Cadeia de provedores de voz (painel da staff): ativo = livekit (modo
+  // reserva, o Agora esgotou), Daily sem a chave, TRTC não configurado.
+  // Ver VoiceProvidersAdmin.jsx e voice-providers.spec.
+  if (p === '/voice/provider') return json({
+    active: 'livekit', activeReason: 'chain', overridden: false, override: null,
+    primary: 'agora', reserveMode: true,
+    providers: [
+      { id: 'agora', label: 'Agora', order: 1, isPrimary: true, configured: true, enabled: true, available: true, disabled: false, active: false, gateEnv: null, gateMissing: false, minutesUsed: 10000, limit: 10000, unlimited: false, percent: 100, status: 'esgotado' },
+      { id: 'livekit', label: 'LiveKit', order: 2, isPrimary: false, configured: true, enabled: true, available: true, disabled: false, active: true, gateEnv: null, gateMissing: false, minutesUsed: 1200, limit: 5000, unlimited: false, percent: 24, status: 'ativo' },
+      { id: 'getstream', label: 'Stream (GetStream)', order: 3, isPrimary: false, configured: true, enabled: true, available: true, disabled: false, active: false, gateEnv: null, gateMissing: false, minutesUsed: 0, limit: 10000, unlimited: false, percent: 0, status: 'em_espera' },
+      { id: 'daily', label: 'Daily', order: 4, isPrimary: false, configured: true, enabled: false, available: false, disabled: false, active: false, gateEnv: 'DAILY_API_KEY', gateMissing: true, minutesUsed: 0, limit: 10000, unlimited: false, percent: 0, status: 'falta_chave' },
+      { id: 'trtc', label: 'TRTC (Tencent)', order: 5, isPrimary: false, configured: false, enabled: false, available: false, disabled: false, active: false, gateEnv: null, gateMissing: false, minutesUsed: 0, limit: 10000, unlimited: false, percent: 0, status: 'nao_configurado' },
+      { id: 'jitsi', label: 'Jitsi (meet.jit.si)', order: 6, isPrimary: false, configured: true, enabled: true, available: true, disabled: false, active: false, gateEnv: null, gateMissing: false, minutesUsed: 0, limit: null, unlimited: true, percent: 0, status: 'em_espera' },
+    ],
+  });
+  // Entrar numa chamada: por padrão o Agora (o teste de modo reserva
+  // sobrescreve /voice/join pra devolver jitsi). Ver voice-fallback.spec.
+  if (p === '/voice/join') return json({ provider: 'agora', channelName: 'v1', reserveMode: false, activeReason: 'primary', agora: { token: 'mock-token', appId: 'mock-app', uid: me.id }, token: 'mock-token', appId: 'mock-app', uid: me.id });
   if (p === '/agora/token') return json({ token: 'mock-token', appId: 'mock-app', uid: me.id });
   if (p === '/auth/refresh') return json({ accessToken: 'x', user: me });
   if (p === '/community') return json({ categories, channels: [], members, roles, community: { name: 'Project Club', bannerUrl: banner, iconUrl: null } });

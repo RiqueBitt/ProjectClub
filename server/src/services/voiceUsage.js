@@ -1,143 +1,164 @@
-// Contabilidade de uso do Agora + decisão de qual provedor de mídia usar
-// (Agora ⇆ Jitsi), para a troca automática quando o plano gratuito do
-// Agora (~10.000 minutos/mês) está quase no limite.
+// Contador mensal de minutos POR PROVEDOR de voz (item pedido).
 //
-// IDEIA GERAL
-//  - O plano gratuito do Agora dá ~10.000 minutos de canal por mês. Se
-//    estourar, as chamadas passariam a ser cobradas (ou parariam). Para
-//    nunca deixar a comunidade sem voz, quando o uso do MÊS CORRENTE chega
-//    perto do limite (margem de segurança padrão de 95%), o servidor passa
-//    a mandar o cliente conectar pelo Jitsi (IFrame External API, domínio
-//    público meet.jit.si por padrão) em vez do Agora — sem deslogar
-//    ninguém, só trocando a camada de MÍDIA.
-//  - A contagem é por MÊS CIVIL (chave YYYY-MM em UTC). Quando o mês vira,
-//    a chave muda sozinha, o contador do mês novo começa em zero e o
-//    provedor volta pro Agora automaticamente — sem nenhuma intervenção.
-//  - Só os minutos do AGORA contam contra o limite do Agora. Enquanto a
-//    comunidade estiver no Jitsi, o contador do Agora simplesmente para de
-//    crescer (ninguém está no Agora), então na virada do mês ele volta.
+// Antes a ideia era um contador único (só Agora); agora cada provedor da
+// cadeia tem o seu próprio, numa chave por mês: `voiceusage:YYYY-MM:<id>`.
+// O valor é a soma de MINUTOS-PARTICIPANTE do mês — a cada minuto,
+// somamos quantas pessoas estavam numa chamada (em salas com 2+ gente,
+// sem contar quem está ensurdecido), e esse total vai pro provedor que
+// está ATIVO naquele minuto. É exatamente como os serviços gerenciados
+// (Agora, LiveKit, Daily, etc) cobram o nível gratuito deles, então é a
+// métrica certa pra saber quando um estourou e passar pro próximo.
 //
-// NADA DE SEGREDO AQUI: este módulo nunca expõe App Certificate do Agora
-// nem o App Secret do Jitsi — só números de uso e o nome do provedor.
-//
-// As funções PURAS (monthKey, decideProvider, jitsiRoomName, limitFromEnv,
-// marginFromEnv) não tocam Redis e são testadas isoladamente
-// (server/test/voice-usage.test.js). O contador (recordAgoraSeconds /
-// getMinutesUsed) usa o Redis compartilhado e degrada em silêncio se o
-// Redis estiver fora do ar (a chamada continua funcionando, só a contagem
-// fica imprecisa naquele instante).
-const crypto = require('crypto');
-const { redis } = require('../config/redis');
+// Vive no Redis (rápido, com TTL automático). Se o Redis cair, a
+// contagem degrada graciosamente (volta 0 / não incrementa) sem nunca
+// derrubar nada — a voz continua funcionando, só a troca automática por
+// limite fica temporariamente "cega" (e o fallback final Jitsi está
+// sempre lá de qualquer jeito).
+const providers = require('./voiceProviders');
 
-// Limite mensal (minutos de canal) e margem de segurança — configuráveis
-// por variável de ambiente, com padrões sensatos. AGORA_MONTHLY_MINUTES
-// ~ 10000 (plano gratuito); a troca acontece ao atingir 95% disso.
-const DEFAULT_MONTHLY_MINUTES = 10000;
-const DEFAULT_SWITCH_MARGIN = 0.95;
-
-function limitFromEnv() {
-  const raw = parseInt(process.env.AGORA_MONTHLY_MINUTES || '', 10);
-  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_MONTHLY_MINUTES;
+// Redis carregado de forma preguiçosa: importar este módulo só pelas
+// funções PURAS (monthKey, percentOf, isOverLimit — usadas na decisão e
+// nos testes) não deve abrir conexão nenhuma com o Redis.
+function getRedis() {
+  return require('../config/redis').redis;
 }
 
-function marginFromEnv() {
-  const raw = parseFloat(process.env.AGORA_SWITCH_MARGIN || '');
-  // Só aceita uma margem plausível (entre 50% e 100%); fora disso usa o padrão.
-  return Number.isFinite(raw) && raw > 0.5 && raw <= 1 ? raw : DEFAULT_SWITCH_MARGIN;
-}
+// Guarda a chave do mês por ~70 dias — o suficiente pra consultar o mês
+// atual e o anterior, sem acumular chaves pra sempre.
+const USAGE_TTL_SECONDS = 70 * 24 * 60 * 60;
 
-// Chave do mês civil em UTC (YYYY-MM). Em UTC de propósito: a virada do mês
-// precisa ser determinística e igual em qualquer servidor/fuso.
+// --- Puros (testáveis sem Redis) ---
+
+// 'YYYY-MM' no fuso UTC (o "mês" do limite gratuito dos provedores é
+// sempre em UTC — evita virar o mês em hora diferente do que eles contam).
 function monthKey(date = new Date()) {
-  const d = date instanceof Date ? date : new Date(date);
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
   return `${y}-${m}`;
 }
 
-// Decisão PURA: dado o uso e o limite, devolve qual provedor usar. Não
-// toca rede. `agoraConfigured` = false força o Jitsi (não adianta mandar
-// pro Agora se ele nem tem credenciais no servidor).
-function decideProvider({ minutesUsed = 0, limit = DEFAULT_MONTHLY_MINUTES, margin = DEFAULT_SWITCH_MARGIN, agoraConfigured = true } = {}) {
-  const used = Number.isFinite(minutesUsed) && minutesUsed > 0 ? Math.round(minutesUsed) : 0;
-  const lim = Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_MONTHLY_MINUTES;
-  const marg = Number.isFinite(margin) && margin > 0 && margin <= 1 ? margin : DEFAULT_SWITCH_MARGIN;
-  const threshold = Math.floor(lim * marg);
-
-  if (!agoraConfigured) {
-    return { provider: 'jitsi', reason: 'agora-nao-configurado', minutesUsed: used, limit: lim, threshold };
-  }
-  if (used >= threshold) {
-    return { provider: 'jitsi', reason: 'limite-mensal-agora', minutesUsed: used, limit: lim, threshold };
-  }
-  return { provider: 'agora', reason: 'ok', minutesUsed: used, limit: lim, threshold };
+function usageRedisKey(provider, date = new Date()) {
+  return `voiceusage:${monthKey(date)}:${provider}`;
 }
 
-// Nome de sala do Jitsi: estável (mesma chamada → mesma sala) mas
-// IMPOSSÍVEL de adivinhar a partir do id do canal, porque o domínio
-// público do Jitsi (meet.jit.si) não tem autenticação — qualquer um que
-// soubesse o nome entraria. Por isso o nome é um hash SHA-256 do id da
-// chamada + um SALT secreto do servidor (nunca sai daqui). Prefixo fixo
-// só pra evitar colisão com salas de outras pessoas no domínio público.
-function jitsiRoomName(callId, salt) {
-  const base = `${callId}::${salt || ''}`;
-  const hash = crypto.createHash('sha256').update(base).digest('hex').slice(0, 40);
-  return `projectclub-${hash}`;
+// Porcentagem usada (0–100, limitada), tratando limite infinito como 0%.
+function percentOf(used, limit) {
+  if (!Number.isFinite(limit) || limit <= 0) return 0;
+  const pct = Math.round((used / limit) * 100);
+  return Math.max(0, Math.min(100, pct));
 }
 
-// ---------- Contador (Redis) ----------
-// Guarda SEGUNDOS acumulados de Agora no mês (inteiro, via INCRBY) e expira
-// a chave depois de ~75 dias pra limpar meses velhos sozinho.
-const USAGE_TTL_SECONDS = 75 * 24 * 60 * 60;
-const usageKey = (date) => `voice:usage:agora:${monthKey(date)}`;
+// Está ESTOURADO? (usou >= limite com margem). Infinito nunca estoura.
+function isOverLimit(used, limit) {
+  if (!Number.isFinite(limit)) return false;
+  return used >= limit;
+}
 
-async function recordAgoraSeconds(seconds, date = new Date()) {
-  const secs = Math.max(0, Math.round(Number(seconds) || 0));
-  if (secs === 0) return;
+// --- Redis ---
+
+async function addMinutes(provider, minutes, date = new Date()) {
+  if (!provider || !Number.isFinite(minutes) || minutes <= 0) return 0;
   try {
-    const key = usageKey(date);
-    await redis.incrby(key, secs);
-    await redis.expire(key, USAGE_TTL_SECONDS);
-  } catch { /* Redis fora do ar — contagem só fica imprecisa nesse instante */ }
+    const key = usageRedisKey(provider, date);
+    const total = await getRedis().incrby(key, Math.round(minutes));
+    await getRedis().expire(key, USAGE_TTL_SECONDS);
+    return total;
+  } catch {
+    return 0; // Redis fora do ar — não trava nada
+  }
 }
 
-async function getSecondsUsed(date = new Date()) {
+async function getMinutes(provider, date = new Date()) {
   try {
-    const raw = await redis.get(usageKey(date));
+    const raw = await getRedis().get(usageRedisKey(provider, date));
     const n = parseInt(raw || '0', 10);
-    return Number.isFinite(n) && n > 0 ? n : 0;
-  } catch { return 0; }
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
 }
 
-async function getMinutesUsed(date = new Date()) {
-  const secs = await getSecondsUsed(date);
-  return Math.round(secs / 60);
+// Mapa { id -> minutosUsados } de TODOS os provedores da cadeia no mês.
+async function getAllUsage(date = new Date()) {
+  const out = {};
+  await Promise.all(providers.PROVIDER_ORDER.map(async (id) => {
+    out[id] = await getMinutes(id, date);
+  }));
+  return out;
 }
 
-// Decisão COMPLETA (lê o contador do mês). `agoraConfigured` vem do
-// controlador (services/agoraToken.isConfigured) pra não duplicar a regra.
-async function getDecision({ agoraConfigured = true, date = new Date() } = {}) {
-  const minutesUsed = await getMinutesUsed(date);
-  return decideProvider({
-    minutesUsed,
-    limit: limitFromEnv(),
-    margin: marginFromEnv(),
-    agoraConfigured,
-  });
+// ---- Contador de minutos-participante por minuto (ticker) ----
+// Igual ao ticker de minutos das missões (services/missions.js), mas em
+// vez de dar XP por pessoa, soma o TOTAL de pessoas em chamada ao provedor
+// que está ATIVO naquele minuto. Assim `voiceusage:YYYY-MM:<ativo>` reflete
+// o consumo real do nível gratuito daquele provedor — a decisão da cadeia
+// (voiceDecision.js) usa esse número pra saber quando trocar.
+const USAGE_TICK_MS = 60 * 1000;
+let usageTimer = null;
+
+function startProviderUsageTicker(io) {
+  if (usageTimer) return usageTimer;
+  const voiceStore = require('./voiceRoomStore');
+  const overrideStore = require('./voiceOverrideStore');
+  const decision = require('./voiceDecision');
+  usageTimer = setInterval(async () => {
+    try {
+      // Conta participantes ativos (salas com 2+, sem ensurdecidos, com
+      // socket vivo) — mesmo critério do ticker de missões.
+      let active = 0;
+      for (const channelId of await voiceStore.getActiveRoomIds()) {
+        // eslint-disable-next-line no-await-in-loop
+        const room = await voiceStore.getRoom(channelId);
+        const entries = Object.entries(room);
+        if (entries.length < 2) continue;
+        for (const [, p] of entries) {
+          if (p?.deafened) continue;
+          if (io && (!p?.socketId || !io?.sockets?.sockets?.has?.(p.socketId))) continue;
+          active += 1;
+        }
+      }
+      if (active <= 0) return;
+      const [usageByProvider, override, disabled] = await Promise.all([
+        getAllUsage(), overrideStore.getOverride(), overrideStore.getDisabled(),
+      ]);
+      const decided = decision.decideProvider({ usageByProvider, override, disabled });
+      await addMinutes(decided.provider, active);
+    } catch (err) {
+      console.error('[voz] contagem de minutos por provedor falhou:', err?.message || err);
+    }
+  }, USAGE_TICK_MS);
+  usageTimer.unref?.();
+  return usageTimer;
+}
+
+// Resolve o provedor ATIVO agora (lendo uso + override + desativados do
+// Redis e caminhando pela cadeia). Usado pelo sockets/index.js pra guardar,
+// em cada participante, por qual provedor de mídia ele entrou — e degrada
+// gracioso pro primário/Jitsi se algo falhar (nunca derruba a entrada).
+// Lazy-require pra não criar ciclo de import no carregamento do módulo.
+async function resolveActiveProvider() {
+  try {
+    const overrideStore = require('./voiceOverrideStore');
+    const decision = require('./voiceDecision');
+    const [usageByProvider, override, disabled] = await Promise.all([
+      getAllUsage(), overrideStore.getOverride(), overrideStore.getDisabled(),
+    ]);
+    return decision.decideProvider({ usageByProvider, override, disabled }).provider;
+  } catch {
+    const providers = require('./voiceProviders');
+    return providers.PRIMARY_PROVIDER;
+  }
 }
 
 module.exports = {
-  // puras (testáveis sem rede)
+  USAGE_TTL_SECONDS,
   monthKey,
-  decideProvider,
-  jitsiRoomName,
-  limitFromEnv,
-  marginFromEnv,
-  DEFAULT_MONTHLY_MINUTES,
-  DEFAULT_SWITCH_MARGIN,
-  // contador / decisão (Redis)
-  recordAgoraSeconds,
-  getSecondsUsed,
-  getMinutesUsed,
-  getDecision,
+  usageRedisKey,
+  percentOf,
+  isOverLimit,
+  addMinutes,
+  getMinutes,
+  getAllUsage,
+  startProviderUsageTicker,
+  resolveActiveProvider,
 };
