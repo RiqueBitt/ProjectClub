@@ -1056,9 +1056,21 @@ for (const game of GAMES) {
   if (game.process.linux) BY_PROCESS_LINUX.set(game.process.linux.toLowerCase(), game);
 }
 
+// Capa vertical oficial (600x900) no CDN público da Steam. O site tenta
+// essa primeiro e, se a Steam não tiver (jogos com arte num endereço com
+// código no meio), cai sozinho pro header/proxy do servidor — ver
+// client/src/components/SteamGameCover.jsx. O "/steam/apps/<id>/" no
+// meio do link é o mesmo de antes, então versões antigas do site também
+// descobrem o AppID por ele.
+const STEAM_CDN = 'https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/';
+function steamCoverUrl(appId) {
+  const id = Number(appId);
+  return Number.isInteger(id) && id > 0 ? `${STEAM_CDN}${id}/library_600x900.jpg` : null;
+}
+
 function logoFor(game) {
   if (game.imageUrl) return game.imageUrl;
-  if (game.steamAppId) return `https://cdn.akamai.steamstatic.com/steam/apps/${game.steamAppId}/header.jpg`;
+  if (game.steamAppId) return steamCoverUrl(game.steamAppId);
   return null;
 }
 
@@ -1066,7 +1078,7 @@ function matchProcessName(processName, platform) {
   const table = platform === 'linux' ? BY_PROCESS_LINUX : BY_PROCESS_WIN;
   const game = table.get(processName.toLowerCase());
   if (!game) return null;
-  return { name: game.name, imageUrl: logoFor(game) };
+  return { name: game.name, steamAppId: game.steamAppId || null, imageUrl: logoFor(game) };
 }
 
-module.exports = { matchProcessName };
+module.exports = { matchProcessName, steamCoverUrl };

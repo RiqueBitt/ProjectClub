@@ -84,6 +84,8 @@ const ALLOWED_HOSTS = [
   /(^|\.)thunderstore\.io$/i,
   /(^|\.)nexusmods\.com$/i,
   /(^|\.)nexus-cdn\.com$/i,
+  // Artes da Steam: cdn./shared.akamai./shared.cloudflare.steamstatic.com
+  // (capa vertical/header da atividade "Jogando X" e da biblioteca).
   /(^|\.)steamstatic\.com$/i,
   /(^|\.)steamusercontent\.com$/i,
   /(^|\.)akamaihd\.net$/i, // imagens antigas do Workshop
@@ -217,3 +219,5 @@ router.get('/steam/:appId/:kind', async (req, res) => {
 });
 
 module.exports = router;
+// Pros testes (server/test/steam-cover.test.js): a mesma checagem da rota.
+module.exports.isAllowedUrl = isAllowedUrl;

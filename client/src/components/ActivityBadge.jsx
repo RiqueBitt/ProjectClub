@@ -4,6 +4,7 @@ import gameIcon from '../assets/icons/activity-game.png';
 import spotifyIcon from '../assets/icons/activity-spotify.png';
 import appIcon from '../assets/icons/activity-app.png';
 import { steamAppIdFromActivity } from '../utils/activityArt';
+import SteamGameCover from './SteamGameCover.jsx';
 import '../styles/socialx.css';
 
 // Item pedido: "Rich Presence" (jogo/Spotify/app aberto) — mostra o que
@@ -60,17 +61,25 @@ export default function ActivityBadge({ userId }) {
     const id = setInterval(() => forceTick((n) => n + 1), 1000);
     return () => clearInterval(id);
   }, [activity]);
+  // Formato da capa da Steam que está valendo ('cover' vertical, 'wide'
+  // horizontal, null = nenhuma carregou → ícone genérico).
+  const [steamShape, setSteamShape] = useState('cover');
 
   if (!activity) return null;
 
   if (activity.type === 'game' || activity.type === 'app') {
-    // Jogo da Steam: mostra a capa horizontal oficial (via proxy, que
-    // acha o arquivo certo) em vez do ícone pequeno.
+    // Jogo da Steam: capa vertical oficial no mesmo estilo da capa do
+    // álbum da música (ver SteamGameCover.jsx — tenta CDN da Steam, proxy
+    // e header, e cai no ícone genérico se nada carregar).
     const steamAppId = activity.type === 'game' ? steamAppIdFromActivity(activity) : null;
+    const fallbackIcon = <img src={ICON_BY_TYPE[activity.type]} alt="" className="activity-badge-icon-fallback" />;
+    const boxShape = steamAppId ? (steamShape === 'wide' ? ' is-capsule' : steamShape === 'cover' ? ' is-cover' : '') : '';
     return (
-      <div className={`activity-badge activity-badge-${activity.type}${steamAppId ? ' has-capsule' : ''}`}>
-        <div className={`activity-badge-icon${steamAppId ? ' is-capsule' : ''}`}>
-          {steamAppId ? <img src={`/api/proxy/steam/${steamAppId}/header`} alt="" /> : activity.imageUrl ? <img src={activity.imageUrl} alt="" /> : <img src={ICON_BY_TYPE[activity.type]} alt="" className="activity-badge-icon-fallback" />}
+      <div className={`activity-badge activity-badge-${activity.type}${steamAppId && steamShape ? ' has-capsule' : ''}`}>
+        <div className={`activity-badge-icon${boxShape}`}>
+          {steamAppId ? (
+            <SteamGameCover appId={steamAppId} className="activity-badge-cover" fallback={fallbackIcon} onShape={setSteamShape} />
+          ) : activity.imageUrl ? <img src={activity.imageUrl} alt="" /> : fallbackIcon}
         </div>
         <div className="activity-badge-text">
           <div className="activity-badge-title"><TitleGlyph type={activity.type} />{TITLE_BY_TYPE[activity.type]}</div>
