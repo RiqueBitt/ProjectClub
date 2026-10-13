@@ -44,7 +44,16 @@ export default defineConfig({
   ...(process.env.PW_E2E ? { preview: { proxy: {} } } : {}),
   build: {
     outDir: 'dist',
+    // O container de deploy (Square Cloud) tem pouca RAM e o build estourava
+    // a memória ("JavaScript heap out of memory") no passo que calcula o
+    // tamanho gzip de cada pacote. Esse cálculo é só informativo (aparece no
+    // log), então desligamos — é exatamente onde a memória estourava. Não
+    // muda o resultado do build, só evita o pico de memória.
+    reportCompressedSize: false,
     rollupOptions: {
+      // Menos arquivos processados ao mesmo tempo = pico de memória menor
+      // (importante no container pequeno do deploy).
+      maxParallelFileOps: 2,
       output: {
         // Splits third-party libraries into their own chunk(s), separate
         // from the app's own code — react/react-dom/react-router-dom
