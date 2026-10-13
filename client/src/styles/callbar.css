@@ -318,3 +318,11 @@
   .mcw { transition: none; }
   .call-bar.cb [data-tip]::after { transition: none; }
 }
+
+/* Modo reserva (Jitsi) na barra de chamada — ver docs/voice-fallback.md. */
+.cb-backup {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em;
+  padding: 2px 7px; border-radius: 999px; white-space: nowrap;
+  color: #c98a00; background: rgba(240, 180, 40, 0.16);
+  border: 1px solid rgba(240, 180, 40, 0.4);
+}

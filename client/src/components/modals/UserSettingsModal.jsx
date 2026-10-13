@@ -79,6 +79,8 @@ import {
   getPreferredMicId, getPreferredSpeakerId, setPreferredSpeakerId,
   isOutputSelectionSupported, listAudioDevices,
 } from '../../utils/audioDevices';
+import { getVoicePrefs, setVoicePref, prettyKeyName } from '../../utils/voicePrefs';
+import { isSpeechRecognitionSupported } from '../voice/CallExtras.jsx';
 import robloxConnIcon from '../../assets/icons/social-roblox.png';
 import xConnIcon from '../../assets/icons/social-x.png';
 import { looksLikeGif, isGifByContent, GIF_AVATAR_MAX_MB } from '../../utils/gifDetect';
@@ -134,7 +136,7 @@ const TAB_KEYWORDS = {
   ACCOUNT_STATUS: 'status da conta punicoes avisos advertencias banimento',
   PRIVACY: 'privacidade dados mensagens dm direta filtro conteudo jogos quem pode ver atividade jogando ouvindo spotify',
   NOTIFICATIONS: 'notificacoes avisos sons som email alertas',
-  VOICE: 'voz video audio microfone saida fone alto-falante teste',
+  VOICE: 'voz video audio microfone saida fone alto-falante teste redutor ruido apertar pra falar push to talk legendas nivelar volume reacoes gravar',
   APPEARANCE: 'aparencia tema layout zoom emoji fundo cores interface',
   ACCESSIBILITY: 'acessibilidade movimento reduzido contraste fonte tamanho leitura',
   SYSTEM: 'sistema atalhos teclado inicializacao bandeja iniciar com o windows',
@@ -151,7 +153,7 @@ const TAB_DESCRIPTION = {
   ACCOUNT_STATUS: 'Situação da sua conta e avisos recebidos.',
   PRIVACY: 'Quem pode ver seu perfil, seus jogos e falar com você.',
   NOTIFICATIONS: 'Quando e como o Project Club te avisa.',
-  VOICE: 'Microfone, saída de áudio e teste de voz.',
+  VOICE: 'Microfone, saída, redutor de ruído, apertar pra falar e legendas.',
   APPEARANCE: 'Tema, layout, zoom e estilo dos emojis.',
   ACCESSIBILITY: 'Movimento, contraste e leitura confortável.',
   SYSTEM: 'Atalhos e comportamento do aplicativo.',
@@ -2389,10 +2391,10 @@ function iconFor(t) {
 }
 
 // ============================================================
-// Voz e Áudio — escolher microfone/saída de áudio, testar o microfone com
-// um medidor de volume ao vivo. Sem redução de ruído nem qualquer
-// processamento automático de áudio (item pedido) — o microfone vai pro
-// ar exatamente como captado.
+// Voz e vídeo — escolher microfone/saída de áudio, testar o microfone com
+// um medidor de volume ao vivo, e as preferências self-service de chamada:
+// redutor de ruído (B), nivelar volume (E), apertar pra falar (F) e
+// legendas ao vivo (K). Tudo guardado no dispositivo (utils/voicePrefs.js).
 // ============================================================
 // Item pedido: "quero que abra um menu e mostre as fontes" — botão
 // compacto (mostra o nome da opção atual + um mini-preview) que abre
@@ -2562,6 +2564,26 @@ function VoiceSettingsTab() {
   const testStreamRef = useRef(null);
   const testCtxRef = useRef(null);
   const testRafRef = useRef(null);
+  // Preferências de voz guardadas no dispositivo (voicePrefs).
+  const [prefs, setPrefs] = useState(getVoicePrefs);
+  const [capturingKey, setCapturingKey] = useState(false);
+  const updatePref = (name, value) => {
+    setVoicePref(name, value);
+    setPrefs((p) => ({ ...p, [name]: value }));
+    if (name === 'noiseReduction') voice.setNoiseReduction?.(value);
+  };
+  // Captura da tecla do "apertar pra falar": escuta o próximo toque.
+  useEffect(() => {
+    if (!capturingKey) return undefined;
+    const onKey = (e) => {
+      e.preventDefault();
+      if (e.code === 'Escape') { setCapturingKey(false); return; }
+      updatePref('pushToTalkKey', e.code);
+      setCapturingKey(false);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [capturingKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refreshDevices = async () => {
     try {
@@ -2682,6 +2704,55 @@ function VoiceSettingsTab() {
           </label>
         </div>
       )}
+
+      {/* Redutor de ruído (B) */}
+      <div className="settings-block settings-toggle-row">
+        <div>
+          <h4>Redutor de ruído</h4>
+          <p className="dim">Remove ruído de fundo (ventilador, teclado, eco) e nivela o volume do seu microfone. Desligue se usa microfone de estúdio e prefere o som original.</p>
+        </div>
+        <Toggle on={prefs.noiseReduction} onChange={(v) => updatePref('noiseReduction', v)} label="Redutor de ruído" />
+      </div>
+
+      {/* Nivelar volume automático (E) */}
+      <div className="settings-block settings-toggle-row">
+        <div>
+          <h4>Nivelar volume automaticamente</h4>
+          <p className="dim">Aproxima o volume das pessoas: quem fala baixo fica mais audível e quem fala alto não estoura. Afeta só o que você ouve.</p>
+        </div>
+        <Toggle on={prefs.autoLevelVolume} onChange={(v) => updatePref('autoLevelVolume', v)} label="Nivelar volume automaticamente" />
+      </div>
+
+      {/* Apertar pra falar (F) */}
+      <div className="settings-block settings-toggle-row">
+        <div>
+          <h4>Apertar pra falar</h4>
+          <p className="dim">Seu microfone fica mudo e só vai ao ar enquanto você segura a tecla escolhida.</p>
+        </div>
+        <Toggle on={prefs.pushToTalkEnabled} onChange={(v) => updatePref('pushToTalkEnabled', v)} label="Apertar pra falar" />
+      </div>
+      {prefs.pushToTalkEnabled && (
+        <div className="settings-block">
+          <h4 className="settings-h4-row">Tecla do apertar pra falar <span className="settings-chip">{prettyKeyName(prefs.pushToTalkKey)}</span></h4>
+          <div className="settings-inline-actions">
+            <button type="button" className={capturingKey ? 'btn-danger' : 'btn-secondary'} onClick={() => setCapturingKey((v) => !v)}>
+              {capturingKey ? 'Pressione uma tecla… (Esc cancela)' : 'Trocar tecla'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Legendas ao vivo (K) */}
+      <div className="settings-block settings-toggle-row">
+        <div>
+          <h4>Legendas ao vivo (automáticas)</h4>
+          <p className="dim">
+            Mostra na tela, em tempo real, o que você fala (pt-BR), usando o reconhecimento de voz do navegador. São automáticas e podem conter erros.
+            {!isSpeechRecognitionSupported() && ' Seu navegador não suporta este recurso.'}
+          </p>
+        </div>
+        <Toggle on={prefs.captions} onChange={(v) => updatePref('captions', v)} label="Legendas ao vivo" disabled={!isSpeechRecognitionSupported()} />
+      </div>
     </div>
   );
 }

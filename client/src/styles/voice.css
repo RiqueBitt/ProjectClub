@@ -348,3 +348,33 @@
    entre as pessoas, pra não ficarem grudadas. */
 .voice-roster { gap: 5px; margin-top: 2px; margin-bottom: 8px; }
 .voice-roster-item { padding: 3px 0; gap: 8px; font-size: 12.5px; }
+
+/* ============================================================
+   Modo reserva (Jitsi) — ver client/src/voice/* e docs/voice-fallback.md.
+   Aparece só quando o Agora passou do limite mensal e a mídia caiu pro
+   provedor de backup. A conferência do Jitsi ocupa o palco; a nossa barra
+   de controles (mudo/câmera/tela/sair) continua dirigindo tudo por cima.
+   ============================================================ */
+.vc-backup-note {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 12px 8px; padding: 7px 12px;
+  border-radius: 10px; font-size: 13px; font-weight: 600;
+  color: #c98a00; background: rgba(240, 180, 40, 0.12);
+  border: 1px solid rgba(240, 180, 40, 0.35);
+}
+.vc-backup-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #f0b428; box-shadow: 0 0 0 3px rgba(240, 180, 40, 0.25);
+  animation: vc-backup-pulse 2s ease-in-out infinite;
+}
+@keyframes vc-backup-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+.vc-jitsi-stage { position: relative; flex: 1; min-height: 0; display: flex; }
+.vc-jitsi-mount { flex: 1; min-height: 360px; border-radius: 12px; overflow: hidden; background: #000; }
+.vc-jitsi-mount iframe { width: 100%; height: 100%; border: 0; display: block; }
+.vc-jitsi-frame { width: 100%; height: 100%; }
+.vc-jitsi-reconnecting {
+  position: absolute; z-index: 3; top: 12px; left: 50%; transform: translateX(-50%);
+  padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600;
+  color: #fff; background: rgba(0, 0, 0, 0.72); backdrop-filter: blur(4px);
+}

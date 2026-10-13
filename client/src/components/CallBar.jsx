@@ -7,7 +7,9 @@ import ScreenShareModal from './modals/ScreenShareModal.jsx';
 import CallIcon, { SignalBars, QUALITY_LABELS, signalTone } from './voice/CallIcons.jsx';
 import ScreenQualityMenu from './voice/ScreenQualityMenu.jsx';
 import MiniCallWindow from './voice/MiniCallWindow.jsx';
+import { RecordingConsentModal, RecordingCapture } from './voice/CallExtras.jsx';
 import { getPreferredSpeakerId, setPreferredSpeakerId, getPreferredMicId, isOutputSelectionSupported, onSpeakerPreferenceChange, listAudioDevices } from '../utils/audioDevices';
+import { getVoicePref, onVoicePrefsChange } from '../utils/voicePrefs';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import '../styles/callbar.css';
 
@@ -219,6 +221,13 @@ export default function CallBar() {
           <span className="cb-status-text truncate">{statusText}</span>
           {pingText && <span className="cb-ping">{pingText}</span>}
         </div>
+        {/* Modo reserva (Jitsi): avisa discretamente que a mídia está no
+            provedor de backup. Ver docs/voice-fallback.md. */}
+        {voice.fallbackActive && (
+          <span className="cb-backup" data-tip="Chamada em modo reserva (provedor de backup)" aria-label="Chamada em modo reserva">
+            {voice.reconnectingProvider ? 'Reconectando…' : 'Modo reserva'}
+          </span>
+        )}
         {elapsed && <span className="cb-time" aria-label="Tempo de chamada">{elapsed}</span>}
       </div>
 
@@ -270,6 +279,11 @@ export default function CallBar() {
       </div>
 
       <RemoteAudioSinks />
+      {/* Pedido de consentimento de gravação (N): precisa aparecer em
+          qualquer tela, por isso vive aqui na barra (sempre montada
+          durante a chamada), não só na tela do canal. */}
+      <RecordingConsentModal voice={voice} />
+      <RecordingCapture voice={voice} meId={user?.id} />
       {showScreenShareMenu && (
         <ScreenShareModal
           onClose={() => setShowScreenShareMenu(false)}
@@ -290,10 +304,15 @@ export default function CallBar() {
 function RemoteAudioSinks() {
   const voice = useVoice();
   const { remoteAudioStreams, deafened, volumes } = voice;
+  // Item pedido E ("auto nivelar volume"): quando ligado, cada voz passa
+  // por um compressor leve que aproxima os volumes — quem fala baixo fica
+  // mais audível e quem fala alto não estoura. Local-only (só no SEU áudio).
+  const [autoLevel, setAutoLevel] = useState(() => getVoicePref('autoLevelVolume') === true);
+  useEffect(() => onVoicePrefsChange((p) => setAutoLevel(p.autoLevelVolume === true)), []);
   return (
     <>
       {Object.entries(remoteAudioStreams).map(([userId, stream]) => (
-        <AudioSink key={userId} stream={stream} volume={deafened ? 0 : (volumes[userId] ?? 1)} />
+        <AudioSink key={userId} stream={stream} volume={deafened ? 0 : (volumes[userId] ?? 1)} autoLevel={autoLevel} />
       ))}
     </>
   );
@@ -322,7 +341,7 @@ function RemoteAudioSinks() {
 // headphones (nothing running purely in the browser can undo *acoustic*
 // feedback between two separate physical devices), but it stops the
 // runaway/rising-pitch/cutoff failure mode.
-function AudioSink({ stream, volume }) {
+function AudioSink({ stream, volume, autoLevel }) {
   const audioRef = useRef(null);
   const audioCtxRef = useRef(null);
   const gainRef = useRef(null);
@@ -363,7 +382,22 @@ function AudioSink({ stream, volume }) {
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(volume, ctx.currentTime);
     gainRef.current = gain;
-    source.connect(gain);
+    // Item pedido E ("auto nivelar volume"): compressor leve só quando a
+    // pessoa liga a opção. Sem ele (padrão), o áudio vai direto da fonte
+    // pro ganho, sem nenhuma coloração — igual a antes.
+    let leveler = null;
+    if (autoLevel) {
+      leveler = ctx.createDynamicsCompressor();
+      leveler.threshold.setValueAtTime(-30, ctx.currentTime);
+      leveler.knee.setValueAtTime(24, ctx.currentTime);
+      leveler.ratio.setValueAtTime(3, ctx.currentTime);
+      leveler.attack.setValueAtTime(0.01, ctx.currentTime);
+      leveler.release.setValueAtTime(0.25, ctx.currentTime);
+      source.connect(leveler);
+      leveler.connect(gain);
+    } else {
+      source.connect(gain);
+    }
     // Em vez de mandar direto pro alto-falante padrão (ctx.destination),
     // manda pra um <audio> escondido — só um elemento HTML de mídia
     // suporta escolher a saída de áudio (setSinkId), então é a única forma
@@ -434,7 +468,7 @@ function AudioSink({ stream, volume }) {
       unsubscribe();
       // BUG CORRIGIDO: aqui ainda citava o `compressor` (removido) — o erro
       // interrompia a limpeza e o ganho/destino ficavam conectados.
-      try { source.disconnect(); gain.disconnect(); destinationNode.disconnect(); } catch { /* already torn down */ }
+      try { source.disconnect(); leveler?.disconnect(); gain.disconnect(); destinationNode.disconnect(); } catch { /* already torn down */ }
       // Sem isso, o elemento <audio> escondido podia continuar tocando o
       // que já tinha em buffer mesmo depois do grafo WebAudio desconectado
       // — parar e limpar o srcObject explicitamente garante silêncio
@@ -447,7 +481,7 @@ function AudioSink({ stream, volume }) {
       ctx.close().catch(() => {});
       if (audioCtxRef.current === ctx) audioCtxRef.current = null;
     };
-  }, [stream]);
+  }, [stream, autoLevel]);
 
   useEffect(() => {
     if (gainRef.current) gainRef.current.gain.value = volume;

@@ -515,6 +515,13 @@ export const unregisterPushToken = (token) => api.post('/push/unregister', { tok
 // --- Agora.io (chamadas de voz) ---
 export const getAgoraToken = (channelName) => api.get('/agora/token', { params: { channelName } }).then((r) => r.data);
 
+// --- Provedor de voz (Agora normal ⇆ Jitsi reserva) ---
+// Qual provedor usar agora + quanto do mês já foi usado (observabilidade).
+export const getVoiceProvider = () => api.get('/voice/provider').then((r) => r.data);
+// Fluxo de entrada: checa acesso e devolve o provedor + credenciais dele
+// (token do Agora OU domínio/sala/jwt do Jitsi).
+export const getVoiceJoin = (channelName) => api.get('/voice/join', { params: { channelName } }).then((r) => r.data);
+
 // --- Item pedido: sistemas estilo Orkut ---
 export const writeTestimonial = (targetId, text) => api.post(`/testimonials/${targetId}`, { text }).then((r) => r.data);
 export const listApprovedTestimonials = (targetId, page = 1) => api.get(`/testimonials/${targetId}`, { params: { page } }).then((r) => r.data);
