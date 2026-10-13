@@ -24,11 +24,24 @@ const categories = [
   { id: 'c3', name: '🔊 Canais de Voz', position: 2, channels: [ch('v1', '☕ | Call ¹', 'VOICE'), ch('v2', '☕ | Call ²', 'VOICE')] },
 ];
 const msg = (id, author, content, minsAgo, extra = {}) => ({ id, authorId: author.id, author, content, createdAt: new Date(now - minsAgo * 60000).toISOString(), channelId: 'ch2', reactions: [], attachments: [], ...extra });
+// Reações: 👍 vem completo no payload; 🎉 vem "enxuto" (só uma amostra das
+// linhas + o total em reactionCounts) — o menu "quem reagiu" busca o resto
+// em GET /messages/:id/reactions/:emoji (paginado, ver REACTORS abaixo).
+const reactionRow = (emoji, u, i) => ({ id: `rx-${emoji}-${u.id}`, emoji, userId: u.id, createdAt: new Date(now - (60 - i) * 60000).toISOString(), user: { id: u.id, username: u.username, displayName: u.displayName, avatarUrl: u.avatarUrl } });
+export const REACTORS = [users[4], users[1], users[2], users[3], ...Array.from({ length: 10 }, (_, i) => U(String(20 + i), `Fã ${i + 1}`, { c1: '#2c5fd6', c2: '#111' }))];
+// Imagem grande pros testes do visualizador (pinça/zoom).
+const photo = svg(800, 600, `<defs><linearGradient id="p" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7a18"/><stop offset="1" stop-color="#2c5fd6"/></linearGradient></defs><rect width="800" height="600" fill="url(#p)"/><circle cx="400" cy="300" r="120" fill="#fff" opacity=".8"/>`);
 const messages = [
   msg('m1', me, 'teste teste', 60),
   msg('m2', users[4], 'alguém pra call hoje à noite?', 30),
-  msg('m3', me, 'bora! abro a sala de voz às 21h', 29),
-  msg('m4', users[1], 'Lembrete: o evento de figurinhas começa amanhã 🎉', 5),
+  msg('m3', me, 'bora! abro a sala de voz às 21h', 29, { attachments: [{ id: 'at1', url: photo, filename: 'foto.svg', mimeType: 'image/svg+xml' }] }),
+  msg('m4', users[1], 'Lembrete: o evento de figurinhas começa amanhã 🎉', 5, {
+    reactions: [
+      reactionRow('👍', me, 0), reactionRow('👍', users[4], 1),
+      ...REACTORS.slice(0, 3).map((u, i) => reactionRow('🎉', u, i + 2)),
+    ],
+    reactionCounts: { '🎉': REACTORS.length },
+  }),
 ];
 // GET /api/bootstrap (pacote de abertura, ver src/utils/bootstrap.js): monta
 // cada seção chamando este mesmo mock pela rota antiga.
@@ -120,6 +133,16 @@ export function handler(route) {
   ] });
   if (p === '/auth/refresh') return json({ accessToken: 'x', user: me });
   if (p === '/community') return json({ categories, channels: [], members, roles, community: { name: 'Project Club', bannerUrl: banner, iconUrl: null } });
+  { const m = p.match(/^\/messages\/([^/]+)\/reactions\/([^/]+)$/); if (m) {
+    const emoji = decodeURIComponent(m[2]);
+    const msgRow = messages.find((x) => x.id === m[1]);
+    if (!msgRow) return json({ error: 'Mensagem não encontrada.' }, 404);
+    const list = emoji === '🎉' ? REACTORS : msgRow.reactions.filter((r) => r.emoji === emoji).map((r) => r.user);
+    const PAGE = 6;
+    const start = Number(url.searchParams.get('cursor') || 0);
+    const page = list.slice(start, start + PAGE).map((u) => ({ id: u.id, username: u.username, displayName: u.displayName, avatarUrl: u.avatarUrl, reactedAt: new Date(now).toISOString() }));
+    return json({ emoji, count: list.length, users: page, nextCursor: start + PAGE < list.length ? String(start + PAGE) : null });
+  } }
   if (p === '/messages') return json({ messages: url.searchParams.get('channelId') === 'ch2' ? messages : [] });
   if (p === '/conversations') return json({ conversations: [] });
   if (p === '/friends') return json({ friendships: [] });

@@ -21,6 +21,7 @@ router.patch('/:id', ctrl.editMessage);
 router.delete('/:id', ctrl.deleteMessage);
 router.post('/:id/pin', ctrl.togglePin);
 router.post('/:id/react', ctrl.react);
+router.get('/:id/reactions/:emoji', ctrl.listReactors);
 router.post('/:id/archive', ctrl.toggleArchiveTopic);
 
 module.exports = router;

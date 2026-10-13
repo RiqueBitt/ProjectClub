@@ -9,19 +9,19 @@ import {
 } from '../api/endpoints';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import { renderRichContent, isEmojiOnlyMessage } from '../utils/richTextRender.jsx';
-import { groupReactions, MAX_DISTINCT_REACTIONS } from '../utils/reactions';
+import { groupReactions, reactorsByEmoji, MAX_DISTINCT_REACTIONS } from '../utils/reactions';
 import { roleTextStyle, highestColoredRole } from '../utils/roleColor';
 import { nameStyleProps, hasCustomNameStyle, nameStyleClassName } from '../utils/nameStyle';
 import { formatMessageTime, formatEmbedTime, formatTimeOnly } from '../utils/formatTime';
 import ChatIcon from './ChatIcons.jsx';
 import EmojiPicker from './EmojiPicker.jsx';
-import StyledEmoji from './StyledEmoji.jsx';
 import CustomAudioPlayer from './CustomAudioPlayer.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import TagBadge from './TagBadge.jsx';
 import PendantIcon from './PendantIcon.jsx';
 import ClanTagBadge from './ClanTagBadge.jsx';
 import UserAvatar from './UserAvatar.jsx';
+import ReactionChip from './ReactionChip.jsx';
 import pinIcon from '../assets/icons/pin.png';
 import micIcon from '../assets/icons/mic.png';
 import documentIcon from '../assets/icons/document.png';
@@ -362,7 +362,8 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
     setTimeout(() => el.classList.remove('chat-flash'), 1600);
   };
 
-  const groupedReactions = groupReactions(message.reactions, user.id);
+  const groupedReactions = groupReactions(message.reactions, user.id, message.reactionCounts);
+  const reactionRows = reactorsByEmoji(message.reactions);
   const atReactionLimit = groupedReactions.length >= MAX_DISTINCT_REACTIONS;
   const emojiMap = Object.fromEntries(usableEmojis.map((e) => [e.name, e.url]));
   const memberNames = members.map((m) => m.user.displayName);
@@ -570,15 +571,25 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
 
         {groupedReactions.length > 0 && (
           <div className="reactions">
-            {groupedReactions.map(([emoji, count, mine]) => (
-              <button key={emoji} className={`reaction-chip ${mine ? 'mine' : ''}`} onClick={() => react(emoji)}>
-                {emoji.startsWith(':') && emojiMap[emoji.slice(1, -1)] ? (
-                  <img className="inline-emoji" src={emojiMap[emoji.slice(1, -1)]} alt={emoji} />
-                ) : (
-                  <StyledEmoji emoji={emoji} size={16} />
-                )} {count}
-              </button>
-            ))}
+            {/* Clique reage/remove; clique direito, segurar o dedo ou a
+                tecla Menu abrem "quem reagiu" (ver ReactionChip.jsx). */}
+            {groupedReactions.map(([emoji, count, mine]) => {
+              const rows = reactionRows.get(emoji) || [];
+              return (
+                <ReactionChip
+                  key={emoji}
+                  messageId={message.id}
+                  emoji={emoji}
+                  count={count}
+                  mine={mine}
+                  rows={rows}
+                  trimmed={rows.length < count || rows.some((r) => !r.user)}
+                  emojiMap={emojiMap}
+                  onToggle={react}
+                  disabled={isPending}
+                />
+              );
+            })}
             {atReactionLimit && (
               <span className="reaction-limit-hint" title={`Limite de ${MAX_DISTINCT_REACTIONS} emojis diferentes por mensagem atingido`}>
                 limite atingido
