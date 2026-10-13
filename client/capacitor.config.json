@@ -4,7 +4,8 @@
   "webDir": "dist",
   "server": {
     "url": "https://projectclub.squareweb.app",
-    "cleartext": false
+    "cleartext": false,
+    "errorPath": "app-offline.html"
   },
   "android": {
     "allowMixedContent": false

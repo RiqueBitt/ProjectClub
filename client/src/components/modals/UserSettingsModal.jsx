@@ -81,6 +81,7 @@ import {
 import robloxConnIcon from '../../assets/icons/social-roblox.png';
 import xConnIcon from '../../assets/icons/social-x.png';
 import { looksLikeGif, isGifByContent, GIF_AVATAR_MAX_MB } from '../../utils/gifDetect';
+import AndroidUpdateInfo from '../AndroidUpdateInfo';
 import {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, uploadIdCard, removeIdCard,
   setup2FA, confirm2FA, disable2FA, getRecoveryCodesStatus, regenerateRecoveryCodes, setLayoutStyle, setMyClanTag,
@@ -136,7 +137,7 @@ const TAB_KEYWORDS = {
   VOICE: 'voz video audio microfone saida fone alto-falante teste',
   APPEARANCE: 'aparencia tema layout zoom emoji fundo cores interface',
   ACCESSIBILITY: 'acessibilidade movimento reduzido contraste fonte tamanho leitura',
-  SYSTEM: 'sistema atalhos teclado inicializacao bandeja iniciar com o windows',
+  SYSTEM: 'sistema atalhos teclado inicializacao bandeja iniciar com o windows versao atualizacao atualizar sobre apk',
   LANGUAGE: 'idioma lingua horario hora data formato',
   GAMES: 'jogos apps deteccao atividade overlay sobreposicao compartilhar registrados',
 };
@@ -2126,6 +2127,7 @@ export default function UserSettingsModal({ onClose }) {
         <div className="settings-grid">
           {!userSettings ? <SettingsSkeleton /> : (
             <>
+              <AndroidUpdateInfo />
               {appDiag && (
                 <div className="settings-block">
                   <h4>Sobre este aplicativo</h4>
