@@ -21,6 +21,19 @@ async function getRules() {
 
 const messageWindows = new Map(); // `${channelId}:${userId}` -> timestamps[]
 
+// Otimização de memória: antes cada par canal+usuário que já mandou uma
+// mensagem ficava no Map PRA SEMPRE (só o array era filtrado). Com muita
+// gente e muitos canais isso crescia sem parar. Agora uma varredura
+// periódica apaga as janelas já vazias (ninguém falou nos últimos 60s).
+const SWEEP_MS = 60 * 1000;
+const MAX_WINDOW_MS = 60 * 1000; // maior janela que alguém configura na prática
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, list] of messageWindows) {
+    if (!list.length || now - list[list.length - 1] > MAX_WINDOW_MS) messageWindows.delete(key);
+  }
+}, SWEEP_MS).unref?.();
+
 function recordMessageAndCheckRate(channelId, userId, { maxMessages = 5, windowSeconds = 10 } = {}) {
   const key = `${channelId}:${userId}`;
   const now = Date.now();

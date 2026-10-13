@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/precompress.cjs",
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "test:unit": "node --test test/*.test.js",

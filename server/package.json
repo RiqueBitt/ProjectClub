@@ -7,7 +7,7 @@
   "scripts": {
     "predev": "PRISMA_HIDE_UPDATE_MESSAGE=1 prisma db push --skip-generate",
     "dev": "node --watch src/index.js",
-    "start": "node scripts/write-certs-from-env.js && node scripts/wait-for-db.js && node src/index.js",
+    "start": "node scripts/write-certs-from-env.js && node scripts/wait-for-db.js && node --max-old-space-size=1100 --max-semi-space-size=32 src/index.js",
     "prisma:generate": "PRISMA_HIDE_UPDATE_MESSAGE=1 prisma generate",
     "prisma:push": "node scripts/write-certs-from-env.js && node scripts/prisma-push-with-retry.js",
     "prisma:seed": "node prisma/seed.js",

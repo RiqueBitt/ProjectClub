@@ -1,0 +1,52 @@
+name: Publicar branch de deploy (pré-compilado)
+
+# Otimização (item pedido): o build do cliente (`vite build`) NÃO roda mais
+# dentro do container de produção. A cada push na main, este workflow
+# compila aqui (máquina do GitHub, com RAM de sobra) e publica no branch
+# `deploy` o repositório inteiro + `client/dist` já pronto. A hospedagem
+# (Square Cloud) fica vinculada ao branch `deploy`: o `scripts/deploy.js`
+# vê o dist pronto, pula o build e só instala as dependências de
+# produção — sem o pico de ~1 GB de RAM / 96% de CPU a cada deploy.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-branch
+  cancel-in-progress: true
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Instalar dependências
+        run: npm ci --ignore-scripts
+      - name: Compilar o cliente (+ pré-compressão brotli/gzip)
+        run: npm run build -w client
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+      - name: Conferir o resultado
+        run: |
+          test -f client/dist/index.html
+          echo "dist: $(du -sh client/dist | cut -f1) · arquivos .br: $(find client/dist -name '*.br' | wc -l)"
+      - name: Publicar no branch deploy
+        run: |
+          git config user.name "projectclub-deploy[bot]"
+          git config user.email "deploy@users.noreply.github.com"
+          # Branch órfão com UM commit (sem histórico — leve pra hospedagem
+          # clonar): tudo que está na main + o dist compilado.
+          git checkout -q --orphan deploy-tmp
+          git add -A
+          git add -f client/dist
+          git commit -q -m "deploy: ${GITHUB_SHA::7} (pré-compilado pelo CI)"
+          git push -f origin deploy-tmp:deploy
+          echo "Publicado em deploy a partir de ${GITHUB_SHA::7}"
