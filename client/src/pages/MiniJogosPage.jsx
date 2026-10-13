@@ -6,7 +6,9 @@ import '../styles/minijogos.css';
 import { useMinijogoScores, ScoresPanel } from '../minijogos/MiniJogoScores.jsx';
 import TouchControls from '../minijogos/touch/TouchControls.jsx';
 import { touchSchemeFor, hasOnScreenControls } from '../minijogos/touch/schemes.js';
-import { createGameInput, resumeGameAudio, focusGame } from '../minijogos/touch/gameInput.js';
+import { createGameInput, resumeGameAudio, focusGame, gameWindow } from '../minijogos/touch/gameInput.js';
+import { enterGameMode, exitGameMode } from '../minijogos/orientation.js';
+import { loadMinigamesManifest, gameInfoFrom, withVersion, injectPatches } from '../minijogos/manifest.js';
 import { isTouchDevice, useTouchControlsPref } from '../minijogos/touch/detect.js';
 import { CardView } from '../cards/CardView.jsx';
 import { isFeatureEnabled } from '../utils/features';
@@ -52,15 +54,17 @@ function MjIcon({ name, size = 18 }) {
 const MUTE_KEY = 'minijogos:muted';
 // Celular/tablet/app Android (ver minijogos/touch/detect.js).
 const isCoarse = () => isTouchDevice();
-// No celular: tela cheia + paisagem travada (quando o navegador deixa).
-function goLandscape(el) {
-  if (!el) return;
-  const lock = () => { try { window.screen?.orientation?.lock?.('landscape').catch(() => {}); } catch { /* ignora */ } };
-  if (document.fullscreenElement === el) { lock(); return; }
-  try { el.requestFullscreen?.({ navigationUI: 'hide' }).then(lock).catch(() => {}); } catch { /* ignora */ }
+// Mudo: no PC fica salvo; no celular só vale na sessão (antes ficava salvo e
+// o jogo abria sempre mudo depois de alguém apertar o botão uma vez —
+// parecia "jogo sem som").
+function muteStore() {
+  try { return isCoarse() ? sessionStorage : localStorage; } catch { return null; }
 }
 function readMuted() {
-  try { return localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; }
+  try { return muteStore()?.getItem(MUTE_KEY) === '1'; } catch { return false; }
+}
+function saveMuted(v) {
+  try { muteStore()?.setItem(MUTE_KEY, v ? '1' : '0'); } catch { /* sem storage */ }
 }
 
 function normalize(s) {
@@ -80,6 +84,31 @@ function GameRow({ game, onOpen }) {
   );
 }
 
+// Encaixe do jogo: maior tamanho possível mantendo a proporção, centralizado
+// (sem cortar e sem barra de rolagem). O que sobra em volta é a "moldura"
+// temática (CSS), onde ficam os controles na tela quando cabem.
+const SIDE_MIN = 96; // faixa lateral mínima pros controles (deitado)
+const BELOW_MIN = 150; // faixa de baixo mínima pros controles (em pé)
+const IMMERSIVE_SIDE_MIN = 92; // faixa lateral mínima pra barra flutuante (Sair) no celular deitado
+
+function computeFit(W, H, aspect, { hasControls, pad = 0 }) {
+  const aw = Math.max(0, W - pad * 2); const ah = Math.max(0, H - pad * 2);
+  const gameW = Math.min(aw, ah * aspect); const gameH = Math.min(ah, aw / aspect);
+  const side = Math.floor((W - gameW) / 2);
+  const portrait = H > W;
+  let mode = 'overlay';
+  if (!portrait && side >= SIDE_MIN) mode = 'side';
+  else if (portrait && H - gameH >= BELOW_MIN) mode = 'below';
+  const below = Math.floor(H - gameH);
+  const x = Math.round((W - gameW) / 2);
+  // Em pé com controles embaixo: o jogo encosta em cima e os controles ficam na faixa de baixo.
+  const y = hasControls && mode === 'below' ? 0 : Math.round((H - gameH) / 2);
+  return {
+    mode, side, below, portrait, small: Math.min(W, H) < 340,
+    x, y, w: Math.floor(gameW), h: Math.floor(gameH),
+  };
+}
+
 function MiniJogoPlayer({ game, onClose }) {
   const { user } = useAuth();
   const wrapRef = useRef(null);
@@ -90,19 +119,33 @@ function MiniJogoPlayer({ game, onClose }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [info, setInfo] = useState(null); // { version, patches } do manifest.json
 
   // Controles na tela (celular): esquema do jogo + teclas "de mentira".
   const scheme = touchSchemeFor(game);
+  const aspect = scheme.aspect || 1.6;
   const hasControls = hasOnScreenControls(scheme);
   const [touchOn, toggleTouch, touchAuto] = useTouchControlsPref();
   const showControls = touchOn && hasControls;
   const touchUI = touchAuto || touchOn;
   const input = useMemo(() => createGameInput(() => frameRef.current), []);
   const stageRef = useRef(null);
-  const [fit, setFit] = useState({ mode: 'overlay', side: 0, below: 0, portrait: false, small: false });
+  const [fit, setFit] = useState(null);
+  // Celular deitado com sobra dos lados: sem barra em cima — o jogo usa a
+  // altura toda e o Sair/botões flutuam nas faixas laterais.
+  const [immersive, setImmersive] = useState(false);
 
   const playerName = user?.displayName || user?.username || '';
-  const src = `${game.path}${game.path.includes('?') ? '&' : '?'}name=${encodeURIComponent(playerName.slice(0, 19))}`;
+  const src = info
+    ? withVersion(`${game.path}${game.path.includes('?') ? '&' : '?'}name=${encodeURIComponent(playerName.slice(0, 19))}`, info.version)
+    : null;
+
+  // Versão/patches do jogo (manifest.json, lido sem cache uma vez por sessão).
+  useEffect(() => {
+    let alive = true;
+    loadMinigamesManifest().then((m) => { if (alive) setInfo(gameInfoFrom(m, game)); });
+    return () => { alive = false; };
+  }, [game]);
 
   // Repassa o mudo pro jogo (o shim dos jogos escuta essa mensagem).
   const sendMute = (value) => {
@@ -115,48 +158,80 @@ function MiniJogoPlayer({ game, onClose }) {
   const toggleMute = () => {
     setMuted((m) => {
       const next = !m;
-      try { localStorage.setItem(MUTE_KEY, next ? '1' : '0'); } catch { /* sem storage */ }
+      saveMuted(next);
       sendMute(next);
       return next;
     });
+    resumeGameAudio(frameRef.current);
   };
 
+  const orientation = game.orientation || scheme.orientation || 'landscape';
+  const selfExitFs = useRef(false);
   const toggleFullscreen = () => {
     const el = wrapRef.current;
     if (!el) return;
-    if (document.fullscreenElement === el) document.exitFullscreen().catch(() => {});
-    else if (isCoarse()) goLandscape(el);
+    if (document.fullscreenElement === el) { selfExitFs.current = true; exitGameMode(el); }
+    else if (isCoarse()) enterGameMode(el, { orientation });
     else el.requestFullscreen?.().catch(() => {});
   };
 
-  // Celular: abre em tela cheia na horizontal (o toque que abriu o jogo ainda vale).
-  useEffect(() => { if (isCoarse()) goLandscape(wrapRef.current); }, []);
+  // Sair: solta as teclas, para o som na hora (o iframe sai da página),
+  // destrava a orientação, sai da tela cheia e volta pra lista.
+  const exiting = useRef(false);
+  const exitGame = useCallback(() => {
+    if (exiting.current) return;
+    exiting.current = true;
+    input.releaseAll();
+    try { const f = frameRef.current; if (f) f.src = 'about:blank'; } catch { /* ignora */ }
+    exitGameMode(wrapRef.current);
+    onClose();
+  }, [input, onClose]);
 
-  // Onde cabem os controles: mede o palco e a área que o jogo ocupa (a
-  // proporção do jogo é fixa) — sobra nos lados (deitado) ou embaixo (em pé).
+  // Celular: abre em tela cheia e deitado (o toque que abriu o jogo ainda
+  // vale como gesto). Ao fechar o player (Sair, voltar do Android/navegador),
+  // destrava a orientação e sai da tela cheia.
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (isCoarse()) enterGameMode(el, { orientation });
+    return () => exitGameMode(el);
+  }, [orientation]);
+
+  // Barra flutuante (imersivo) — decide pelo tamanho do player inteiro.
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return undefined;
+    const check = () => {
+      const W = el.clientWidth; const H = el.clientHeight;
+      if (!W || !H) return;
+      const sideFull = (W - Math.min(W, H * aspect)) / 2;
+      setImmersive(touchUI && W > H && sideFull >= IMMERSIVE_SIDE_MIN);
+    };
+    check();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(check) : null;
+    ro?.observe(el);
+    window.addEventListener('orientationchange', check);
+    return () => { ro?.disconnect(); window.removeEventListener('orientationchange', check); };
+  }, [aspect, touchUI]);
+
+  // Onde fica o jogo e onde cabem os controles: mede o palco — sobra nos
+  // lados (deitado) ou embaixo (em pé). Refaz ao girar/redimensionar.
   useLayoutEffect(() => {
     const el = stageRef.current;
     if (!el) return undefined;
     const measure = () => {
       const W = el.clientWidth; const H = el.clientHeight;
       if (!W || !H) return;
-      const a = scheme.aspect || 1.6;
-      const gameW = Math.min(W, H * a); const gameH = Math.min(H, W / a);
-      const side = Math.floor((W - gameW) / 2);
-      const below = Math.floor(H - gameH);
-      const portrait = H > W;
-      let mode = 'overlay';
-      if (!portrait && side >= 118) mode = 'side';
-      else if (portrait && below >= 150) mode = 'below';
-      const next = { mode, side, below, portrait, small: Math.min(W, H) < 340, gameH: Math.floor(gameH) };
-      setFit((f) => (f.mode === next.mode && f.side === next.side && f.below === next.below && f.portrait === next.portrait && f.small === next.small && f.gameH === next.gameH ? f : next));
+      const pad = !touchUI && !document.fullscreenElement && W > 700 ? 6 : 0;
+      const next = computeFit(W, H, aspect, { hasControls: showControls, pad });
+      setFit((f) => (f && Object.keys(next).every((k) => f[k] === next[k]) ? f : next));
     };
     measure();
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
     ro?.observe(el);
     window.addEventListener('orientationchange', measure);
-    return () => { ro?.disconnect(); window.removeEventListener('orientationchange', measure); };
-  }, [scheme.aspect]);
+    document.addEventListener('fullscreenchange', measure);
+    return () => { ro?.disconnect(); window.removeEventListener('orientationchange', measure); document.removeEventListener('fullscreenchange', measure); };
+  }, [aspect, showControls, touchUI, immersive]);
 
   // Solta todas as teclas ao sair do app, trocar de aba ou fechar o jogo
   // (senão o pinguim continuaria andando sozinho).
@@ -182,20 +257,27 @@ function MiniJogoPlayer({ game, onClose }) {
     return () => root.classList.remove('mj-playing');
   }, []);
 
+  // Voltar do Android com o jogo em tela cheia: o sistema só sai da tela
+  // cheia (não navega). No celular isso conta como "sair do jogo" — a não
+  // ser que a saída tenha sido pelo botão de tela cheia da barra.
   useEffect(() => {
-    const onChange = () => setIsFullscreen(document.fullscreenElement === wrapRef.current);
-    document.addEventListener('fullscreenchange', onChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', onChange);
-      if (document.fullscreenElement === wrapRef.current) document.exitFullscreen().catch(() => {});
+    let was = false;
+    const onChange = () => {
+      const now = document.fullscreenElement === wrapRef.current;
+      setIsFullscreen(now);
+      if (was && !now && isCoarse() && !selfExitFs.current) exitGame();
+      selfExitFs.current = false;
+      was = now;
     };
-  }, []);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, [exitGame]);
 
   // Esc fecha o player (quando não está em tela cheia — aí o Esc do
   // navegador só sai da tela cheia, como esperado).
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape' && !document.fullscreenElement) onClose();
+      if (e.key === 'Escape' && !document.fullscreenElement) exitGame();
     };
     window.addEventListener('keydown', onKey);
     // Esc dentro do jogo (iframe da mesma origem) também fecha.
@@ -218,25 +300,36 @@ function MiniJogoPlayer({ game, onClose }) {
       window.removeEventListener('keydown', onKey);
       innerWins.forEach((w) => { try { w.removeEventListener('keydown', onKey); } catch { /* ignora */ } });
     };
-  }, [onClose, reloadKey]);
+  }, [exitGame, reloadKey]);
 
   const onFrameLoad = () => {
+    if (exiting.current) return;
     input.releaseAll();
     setLoaded(true);
     sendMute(muted);
+    injectPatches(gameWindow(frameRef.current), game, info);
     try { frameRef.current?.focus(); } catch { /* ignora */ }
   };
 
+  const mode = fit?.mode || 'overlay';
+  const frameStyle = fit ? { left: fit.x, top: fit.y, width: fit.w, height: fit.h } : undefined;
+  const stageVars = fit ? {
+    '--mjt-side': `${fit.side}px`, '--mjt-below': `${fit.below}px`, '--mj-game-h': `${fit.h}px`,
+    '--mj-game-x': `${fit.x}px`, '--mj-game-y': `${fit.y}px`, '--mj-game-w': `${fit.w}px`,
+  } : undefined;
+  const unlockAudio = () => resumeGameAudio(frameRef.current);
+
   return (
     <div
-      className={`mj-player${isFullscreen ? ' is-fullscreen' : ''}${touchUI ? ' is-touch' : ''}${fit.portrait ? ' is-portrait' : ' is-landscape'}${showControls ? ` has-controls fit-${fit.mode}` : ''}`}
-      ref={wrapRef} role="dialog" aria-label={game.name}
-      // Primeiro toque destrava o som do jogo (o navegador exige um gesto).
-      onPointerDownCapture={() => resumeGameAudio(frameRef.current)}
+      className={`mj-player${isFullscreen ? ' is-fullscreen' : ''}${touchUI ? ' is-touch' : ''}${immersive ? ' is-immersive' : ''}${fit?.portrait ? ' is-portrait' : ' is-landscape'}${showControls ? ` has-controls fit-${mode}` : ''}`}
+      ref={wrapRef} role="dialog" aria-label={game.name} data-testid="mj-player" style={stageVars}
+      // Toque nos controles/barra destrava o som do jogo (o navegador exige um gesto).
+      onPointerDownCapture={unlockAudio} onPointerUpCapture={unlockAudio}
     >
       <div className="mj-player-bar">
-        <button type="button" className="mj-player-btn" onClick={onClose} title="Voltar (Esc)" aria-label="Voltar">
-          <MjIcon name="back" />
+        <button type="button" className="mj-exit" onClick={exitGame} title="Sair do jogo (Esc)" data-testid="mj-exit">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+          <span>Sair</span>
         </button>
         <img className="mj-player-icon" src={game.icon} alt="" draggable="false" />
         <div className="mj-player-title">
@@ -253,14 +346,14 @@ function MiniJogoPlayer({ game, onClose }) {
               <MjIcon name="gamepad" />
             </button>
           )}
-          <button type="button" className={`mj-player-btn mj-scores-btn${showScores ? ' is-on' : ''}`} onClick={() => setShowScores((v) => !v)} title="Recordes" aria-label="Recordes" aria-pressed={showScores}>
+          <button type="button" className={`mj-player-btn mj-scores-btn${showScores ? ' is-active' : ''}`} onClick={() => setShowScores((v) => !v)} title="Recordes" aria-label="Recordes" aria-pressed={showScores}>
             <MjIcon name="trophy" />
             {board?.me?.best > 0 && <span className="mj-scores-best">{board.me.best.toLocaleString('pt-BR')}</span>}
           </button>
           <button type="button" className="mj-player-btn" onClick={() => { input.releaseAll(); setLoaded(false); setReloadKey((k) => k + 1); }} title="Reiniciar" aria-label="Reiniciar">
             <MjIcon name="reload" />
           </button>
-          <button type="button" className={`mj-player-btn${muted ? ' is-on' : ''}`} onClick={toggleMute} title={muted ? 'Ativar som' : 'Silenciar'} aria-label={muted ? 'Ativar som' : 'Silenciar'} aria-pressed={muted}>
+          <button type="button" className={`mj-player-btn${muted ? ' is-muted' : ''}`} onClick={toggleMute} title={muted ? 'Ativar som' : 'Silenciar'} aria-label={muted ? 'Ativar som' : 'Silenciar'} aria-pressed={muted} data-testid="mj-mute">
             <MjIcon name={muted ? 'mute' : 'volume'} />
           </button>
           <button type="button" className="mj-player-btn" onClick={toggleFullscreen} title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'} aria-label={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}>
@@ -268,34 +361,36 @@ function MiniJogoPlayer({ game, onClose }) {
           </button>
         </div>
       </div>
-      <div
-        className="mj-player-stage" ref={stageRef}
-        style={showControls ? { '--mjt-side': `${fit.side}px`, '--mjt-below': `${fit.below}px`, '--mj-game-h': `${fit.gameH}px` } : undefined}
-      >
+      <div className="mj-player-stage" ref={stageRef}>
+        <div className="mj-letterbox" aria-hidden="true" />
         {showScores && <ScoresPanel board={board} onClose={() => setShowScores(false)} />}
         {toast && (
           <div className="mj-score-toast" role="status"><strong>{toast.title}</strong><span>{toast.text}</span></div>
         )}
         {!loaded && (
-          <div className="mj-player-loading" aria-hidden="true">
+          <div className="mj-player-loading" aria-hidden="true" style={frameStyle}>
             <img src={game.icon} alt="" />
             <span className="mj-player-spinner" />
           </div>
         )}
-        <iframe
-          key={reloadKey}
-          ref={frameRef}
-          className="mj-player-frame"
-          src={src}
-          title={game.name}
-          allow="autoplay; fullscreen"
-          onLoad={onFrameLoad}
-        />
-        {showControls && <TouchControls scheme={scheme} input={input} fit={fit.mode} size={fit.small ? 'sm' : 'md'} />}
+        {src && fit && (
+          <iframe
+            key={reloadKey}
+            ref={frameRef}
+            className="mj-player-frame"
+            style={frameStyle}
+            src={src}
+            title={game.name}
+            allow="autoplay; fullscreen"
+            onLoad={onFrameLoad}
+            data-testid="mj-frame"
+          />
+        )}
+        {showControls && <TouchControls scheme={scheme} input={input} fit={mode} size={fit?.small ? 'sm' : 'md'} />}
         {loaded && touchUI && game.touch && <div className="mj-touch-hint" role="note">{game.touch}</div>}
-        {touchUI && fit.portrait && (
-          <div className={`mj-rotate-hint${showControls && fit.mode === 'below' ? ' is-compact' : ''}`} role="note">
-            <MjIcon name="rotate" size={showControls && fit.mode === 'below' ? 18 : 34} />
+        {touchUI && fit?.portrait && orientation !== 'portrait' && (
+          <div className={`mj-rotate-hint${showControls && mode === 'below' ? ' is-compact' : ''}`} role="note">
+            <MjIcon name="rotate" size={showControls && mode === 'below' ? 18 : 34} />
             <strong>Gire o celular</strong>
             <span>Os mini-jogos ficam maiores na horizontal. Dá pra jogar em pé também.</span>
           </div>

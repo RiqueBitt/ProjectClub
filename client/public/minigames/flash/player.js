@@ -14,6 +14,22 @@
   // Só aceita caminhos simples dentro desta pasta (sem "..", sem URL externa).
   if (!/^[A-Za-z0-9_\-/. ']+\.swf$/.test(swf) || swf.indexOf('..') !== -1 || swf.charAt(0) === '/') { fail(); return; }
 
+  // Guarda os AudioContext que o Ruffle criar (subclasse: instanceof continua
+  // valendo pro código do Ruffle). Precisa vir antes do load().
+  var pcAudioCtxs = [];
+  ['AudioContext', 'webkitAudioContext'].forEach(function (name) {
+    var Orig = window[name];
+    if (typeof Orig !== 'function') return;
+    try {
+      var Sub = class extends Orig { constructor(o) { super(o); pcAudioCtxs.push(this); } };
+      window[name] = Sub;
+    } catch (e) { /* ignora */ }
+  });
+
+  // Versão do jogo (manifest.json → ?v=): fura o cache do .swf principal.
+  var ver = params.get('v') || '';
+  if (ver && !/^[\w.\-]{1,40}$/.test(ver)) ver = '';
+
   var parentOrigin = location.origin;
   function toParent(msg) {
     try { if (window.parent && window.parent !== window) window.parent.postMessage(msg, parentOrigin); } catch (e) { /* ignora */ }
@@ -63,16 +79,32 @@
   };
 
   // Som: o navegador do celular só deixa o AudioContext tocar depois de um
-  // toque. O Project Club chama window.__pcResumeAudio() no primeiro toque
-  // (nos controles ou no jogo) e aqui também tentamos a cada toque/tecla.
-  function audioCtx() {
-    try { var inst = player.instance; return inst && inst.audio_context ? inst.audio_context() : null; } catch (e) { return null; }
-  }
+  // toque de verdade (touchend/pointerup/click — não no touchstart). Antes
+  // isso lia player.instance, que NÃO existe no elemento <ruffle-player> (a
+  // instância do Ruffle fica num campo privado) — ou seja, nunca destravava
+  // nada, e no celular o som dependia do Ruffle achar sozinho um "click".
+  // Agora pegamos o AudioContext do Ruffle na criação (ver pcAudioCtxs no
+  // começo do arquivo), retomamos e tocamos um buffer mudo no 1º toque. O
+  // Project Club também chama window.__pcResumeAudio() pelos controles.
+  var silentPlayed = false;
   window.__pcResumeAudio = function () {
-    var ctx = audioCtx();
-    try { if (ctx && ctx.state !== 'running' && ctx.resume) ctx.resume(); } catch (e) { /* ignora */ }
+    pcAudioCtxs.forEach(function (c) {
+      try {
+        if (c.state === 'closed') return;
+        if (c.state !== 'running') { var p = c.resume(); if (p && p.catch) p.catch(function () {}); }
+        if (!silentPlayed) {
+          var b = c.createBuffer(1, 1, 22050); var s = c.createBufferSource();
+          s.buffer = b; s.connect(c.destination); s.start(0);
+        }
+      } catch (e) { /* ignora */ }
+    });
+    if (pcAudioCtxs.length) silentPlayed = true;
+    applyMute();
   };
-  ['pointerdown', 'touchend', 'keydown'].forEach(function (t) {
+  window.__pcAudioState = function () {
+    return { contexts: pcAudioCtxs.map(function (c) { return c.state; }), bridge: false, playing: 0 };
+  };
+  ['touchend', 'pointerup', 'pointerdown', 'click', 'keydown'].forEach(function (t) {
     document.addEventListener(t, window.__pcResumeAudio, true);
   });
 
@@ -96,7 +128,7 @@
   });
 
   (typeof player.ruffle === "function" ? player.ruffle() : player).load({
-    url: swf,
+    url: ver ? swf + '?v=' + encodeURIComponent(ver) : swf,
     base: dir || './',
     autoplay: 'on',
     unmuteOverlay: 'hidden',
