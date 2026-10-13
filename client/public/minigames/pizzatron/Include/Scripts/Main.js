@@ -249,7 +249,8 @@ app.mainLoop(function() {
 			}
 			
 			// Using the bottle on the pizza
-			if($(".bottle-hitbox .pizza-trigger:hover").length) {
+			// Project Club: ponto do dedo/mouse em vez de :hover (ver OverPizza em Game.js)
+			if($(".bottle-squeezing").length && $(".game.bottle-hitbox").length && OverPizza(mousePos)) {
 				var sp = $(".sauce-pizza"), type = $(".bottle-squeezing").attr("type").toLowerCase(), other = sp.html().length && !$(".pizza-sauce[type='"+type+"']").length
 				if(!$(".full").length || other) {
 					var o = $(".pizza-dough").offset(), l = mousePos.pageX-o.left-20, t = mousePos.pageY-o.top+100
