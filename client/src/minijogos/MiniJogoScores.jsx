@@ -8,10 +8,22 @@ export function useMinijogoScores(slug) {
   const [board, setBoard] = useState(null);
   const [toast, setToast] = useState(null);
   const startRef = useRef(Date.now());
+  const sentRef = useRef(0); // maior placar já enviado nesta sessão (evita repetir)
 
   const load = useCallback(() => {
     api.get(`/minigames/${slug}/leaderboard`).then((r) => setBoard(r.data)).catch(() => {});
   }, [slug]);
+
+  // Salva o placar ATUAL do jogo (ex.: ao sair/fechar no meio da partida). O
+  // servidor guarda só o melhor, então reenviar é inofensivo; mesmo assim só
+  // mandamos se for maior que o último já enviado. Silencioso (sem toast),
+  // porque costuma rodar na saída, quando a tela já está fechando.
+  const saveFinal = useCallback((raw) => {
+    const score = Math.floor(Number(raw));
+    if (!Number.isFinite(score) || score <= 0 || score <= sentRef.current) return;
+    sentRef.current = score;
+    api.post(`/minigames/${slug}/score`, { score }).then(() => load()).catch(() => {});
+  }, [slug, load]);
 
   useEffect(() => {
     load();
@@ -22,6 +34,7 @@ export function useMinijogoScores(slug) {
       if (!d || d.type !== 'pc-minigame-score') return;
       const score = Math.floor(Number(d.score));
       if (!Number.isFinite(score) || score <= 0) return;
+      if (score > sentRef.current) sentRef.current = score;
       api.post(`/minigames/${slug}/score`, { score }).then((r) => {
         const res = r.data || {};
         setToast(res.isRecord
@@ -39,7 +52,7 @@ export function useMinijogoScores(slug) {
     };
   }, [slug, load]);
 
-  return { board, toast };
+  return { board, toast, saveFinal };
 }
 
 export function ScoresPanel({ board, onClose }) {

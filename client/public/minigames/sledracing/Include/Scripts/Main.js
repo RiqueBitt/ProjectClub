@@ -59,9 +59,9 @@ app.onLoad(function() {
 	preload(pre, function() {
 		// Wait a little bit longer
 		setTimeout(function() {
-			// Project Club: sem servidor externo — vai direto pro modo solo
+			// Project Club: tenta o multiplayer próprio (/sled). Sem rede/servidor,
+			// o Multiplayer.js cai sozinho no modo solo (connect_error/disconnect).
 			$(".loading-bar").css("width","0%")
-			multiplayer = false
 			Lobby()
 		}, 400)
 	}, function(percent) {
