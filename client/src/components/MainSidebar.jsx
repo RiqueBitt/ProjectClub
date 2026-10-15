@@ -79,7 +79,8 @@ export const ITEMS = [
   { to: '/progresso', icon: ranksIcon, isImg: true, labelKey: 'nav.progresso', match: (p) => p.startsWith('/progresso') || p.startsWith('/rank') || p.startsWith('/conquistas') },
   { to: '/tickets', icon: supportIcon, isImg: true, labelKey: 'nav.suporte', match: (p) => p.startsWith('/tickets') },
   // Navegador do Project Club: app para computador, app do celular e site.
-  { to: '/navegador', icon: BROWSER_NAV_ICON, isImg: true, labelKey: 'nav.navegador', label: 'Navegador', feature: 'browser', match: (p) => p.startsWith('/navegador') },
+  // titleBarOnly: abre pelo globo da barra de título (app de Windows/Linux), não pelos menus.
+  { to: '/navegador', icon: BROWSER_NAV_ICON, isImg: true, labelKey: 'nav.navegador', label: 'Navegador', feature: 'browser', titleBarOnly: true, match: (p) => p.startsWith('/navegador') },
   // Item pedido: "renomear o sistema atual de Clãs para Clubes...
   // remover completamente a categoria Clãs da interface" — item
   // próprio na barra removido; o sistema (renomeado pra "Clube")
@@ -99,7 +100,7 @@ export const STAFF_ITEM = { to: '/admin', icon: dashboardIcon, isImg: true, labe
 export function visibleNavItems(items, disabledSystems, user) {
   // Itens só do app desktop (ex.: Navegador) somem no site e em apps antigos.
   const hasBrowser = typeof window !== 'undefined' && window.electronAPI?.browser?.version >= 1;
-  const list = items.filter((i) => (!i.desktopOnly || hasBrowser) && (!i.feature || isFeatureEnabled(i.feature)));
+  const list = items.filter((i) => !i.titleBarOnly && (!i.desktopOnly || hasBrowser) && (!i.feature || isFeatureEnabled(i.feature)));
   if (user?.platformRole === 'ADMIN') return list;
   return list.filter((i) => !i.system || !(disabledSystems || []).includes(i.system));
 }

@@ -6562,6 +6562,15 @@ a.embed-card-title:hover { text-decoration: underline; }
 .tb-apps-pop .tb-app { width: 30px; height: 30px; opacity: .85; filter: grayscale(10%); }
 .tb-apps-pop .tb-app:hover { opacity: 1; filter: none; }
 .tb-apps-pop .tb-app-ic, .tb-apps-pop .tb-app-ic img, .tb-apps-pop .tb-app-fallback { width: 22px; height: 22px; }
+/* Globo do Navegador, logo depois da setinha (mesmo jeito discreto dos apps). */
+.tb-web {
+  width: 24px; height: 24px; padding: 0; margin-left: 2px; border: 0; border-radius: 6px; background: transparent;
+  color: var(--text-muted); cursor: pointer; display: grid; place-items: center; flex-shrink: 0;
+  opacity: .6; transition: opacity .15s, background .15s, color .15s, transform .12s;
+}
+.tb-web:hover { opacity: 1; color: var(--header-primary); background: var(--bg-modifier-hover); }
+.tb-web:active { transform: scale(.92); }
+.tb-web.is-active { opacity: 1; color: var(--brand); }
 @media (prefers-reduced-motion: reduce) {
   .tb-app.is-downloading { animation: none; }
   .tb-app-dl svg { animation: none; }

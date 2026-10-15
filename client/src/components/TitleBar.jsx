@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { isFeatureEnabled } from '../utils/features';
 import { api } from '../api/client';
 import { useLiveRefresh } from '../utils/liveRefresh';
 import { updateDisplay } from '../utils/updateProgress';
@@ -269,6 +271,29 @@ function AppLauncherIcon({ item }) {
   );
 }
 
+// Globo ao lado da setinha dos apps: abre o Navegador do Project Club.
+// Só existe no app de Windows/Linux (a barra de título só aparece lá).
+function TitleBarBrowserButton() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  if (!isFeatureEnabled('browser')) return null;
+  const active = location.pathname.startsWith('/navegador');
+  return (
+    <button
+      type="button"
+      className={`tb-web${active ? ' is-active' : ''}`}
+      title="Navegador"
+      aria-label="Abrir o navegador"
+      onClick={() => { if (!active) navigate('/navegador'); }}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3 12h18M12 3c2.6 2.6 3.8 5.7 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.7-3.8-9S9.4 5.6 12 3z" />
+      </svg>
+    </button>
+  );
+}
+
 function TitleBarAppLauncher() {
   const [catalog, setCatalog] = useState(null);
   const [open, setOpen] = useState(false);
@@ -292,11 +317,11 @@ function TitleBarAppLauncher() {
     };
   }, [open]);
 
-  if (!catalog || catalog.length === 0) return null;
+  if (!catalog || catalog.length === 0) return <div className="tb-apps"><TitleBarBrowserButton /></div>;
   const byId = Object.fromEntries(catalog.map((c) => [c.moduleId, c]));
   const main = TB_MAIN_APPS.map((id) => byId[id]).filter(Boolean);
   const rest = catalog.filter((c) => !TB_MAIN_APPS.includes(c.moduleId));
-  if (main.length === 0 && rest.length === 0) return null;
+  if (main.length === 0 && rest.length === 0) return <div className="tb-apps"><TitleBarBrowserButton /></div>;
 
   return (
     <div className="tb-apps" ref={wrapRef}>
@@ -322,6 +347,7 @@ function TitleBarAppLauncher() {
           )}
         </div>
       )}
+      <TitleBarBrowserButton />
     </div>
   );
 }
