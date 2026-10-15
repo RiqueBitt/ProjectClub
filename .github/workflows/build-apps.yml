@@ -362,7 +362,13 @@ jobs:
         run: npm install
       - name: Compilar o site (gera client/dist, que o app Android embala)
         working-directory: client
-        run: npm run build
+        # Sem os .gz/.br pré-comprimidos: o Gradle trata "x.js" + "x.js.gz"
+        # como recursos duplicados (era o que quebrava o build desde 13/10).
+        env:
+          SKIP_PRECOMPRESS: '1'
+        run: |
+          npm run build
+          find dist \( -name '*.gz' -o -name '*.br' \) -delete
       - name: Sincronizar com o projeto Android
         working-directory: client
         run: npx cap sync android
