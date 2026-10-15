@@ -1,5 +1,6 @@
 package com.projectclub.app;
 
+import android.webkit.CookieManager;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -33,6 +34,17 @@ public class GuardedWebViewClient extends BridgeWebViewClient {
         String desc = error == null ? "" : String.valueOf(error.getDescription());
         int code = error == null ? 0 : error.getErrorCode();
         guard.mainFrameFailed("rede " + code + " " + desc, String.valueOf(request.getUrl()));
+    }
+
+    // Página carregou (login/renovação podem ter trocado o cookie): grava já.
+    @Override
+    public void onPageFinished(WebView view, String url) {
+        super.onPageFinished(view, url);
+        try {
+            CookieManager.getInstance().flush();
+        } catch (Exception ignored) {
+            // sem WebView: nada a gravar
+        }
     }
 
     @Override

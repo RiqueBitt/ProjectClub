@@ -1,6 +1,7 @@
 package com.projectclub.app;
 
 import android.os.Bundle;
+import android.webkit.CookieManager;
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
 
@@ -35,8 +36,32 @@ public class MainActivity extends BridgeActivity {
     }
   }
 
+  // Grava os cookies (sessão/login) no disco ao sair da tela. O WebView só
+  // grava de tempos em tempos; fechar o app logo depois de a sessão ser
+  // renovada perdia o cookie novo e mandava pra tela de login.
+  @Override
+  public void onPause() {
+    flushCookies();
+    super.onPause();
+  }
+
+  @Override
+  public void onStop() {
+    flushCookies();
+    super.onStop();
+  }
+
+  private static void flushCookies() {
+    try {
+      CookieManager.getInstance().flush();
+    } catch (Exception ignored) {
+      // WebView indisponível: nada a gravar
+    }
+  }
+
   @Override
   public void onDestroy() {
+    flushCookies();
     if (connectionGuard != null) connectionGuard.shutdown();
     super.onDestroy();
   }
