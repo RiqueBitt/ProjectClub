@@ -29,6 +29,8 @@ android {
         versionName = appVersion
         buildConfigField("String", "BASE_URL", "\"https://projectclub.shardweb.app\"")
         buildConfigField("boolean", "HAS_FIREBASE", hasFirebase.toString())
+        // Busca de GIFs (KLIPY, a mesma do site). Vazio = só os GIFs favoritos.
+        buildConfigField("String", "KLIPY_KEY", "\"${System.getenv("KLIPY_KEY") ?: ""}\"")
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 

@@ -70,6 +70,7 @@ import com.projectclub.android.ui.common.PcTopBar
 import com.projectclub.android.ui.common.rememberShimmer
 import com.projectclub.android.ui.theme.Display
 import com.projectclub.android.ui.theme.PC
+import kotlinx.coroutines.launch
 
 /** Aba Comunidade: igual à lista de canais do site (banner, destaques, categorias com emoji). */
 @Composable
@@ -82,7 +83,19 @@ fun ChannelsTab(repo: Repository, actions: HomeActions) {
     Column(Modifier.fillMaxSize()) {
         PcTopBar("Comunidade", Icons.Outlined.ChatBubbleOutline)
         val c = community
-        if (c == null) { ChannelsSkeleton(); return@Column }
+        val loadError by repo.communityError.collectAsState()
+        if (c == null) {
+            val err = loadError
+            if (err != null) {
+                val scope = androidx.compose.runtime.rememberCoroutineScope()
+                com.projectclub.android.ui.common.EmptyState(
+                    Icons.Outlined.ChatBubbleOutline, "Não deu pra carregar os canais", err, Modifier.padding(top = 40.dp),
+                ) {
+                    com.projectclub.android.ui.common.GhostButton("Tentar de novo", { scope.launch { runCatching { repo.loadCommunity() }.onFailure { repo.report("community-retry", it) } } })
+                }
+            } else ChannelsSkeleton()
+            return@Column
+        }
 
         fun open(ch: Channel) = when {
             ch.isVoice -> actions.joinVoice(ch.id, ch.name)
@@ -110,7 +123,7 @@ fun ChannelsTab(repo: Repository, actions: HomeActions) {
             c.categories.sortedBy { it.position }.forEach { cat ->
                 val isCollapsed = collapsed[cat.id] == true
                 item(key = "cat-${cat.id}") {
-                    CategoryHeader(listOfNotNull(cat.iconEmoji, cat.name).joinToString(" "), isCollapsed) { collapsed[cat.id] = !isCollapsed }
+                    CategoryHeader(cat.name, cat.iconEmoji, cat.iconUrl, isCollapsed) { collapsed[cat.id] = !isCollapsed }
                 }
                 val list = cat.channels.sortedBy { it.position }
                 // Recolhida: continua mostrando os canais com novidade ou com gente na call (igual ao site).
@@ -161,12 +174,17 @@ private fun Featured(icon: ImageVector, label: String, color: Color, onClick: ()
 }
 
 @Composable
-private fun CategoryHeader(title: String, collapsed: Boolean, onToggle: () -> Unit) {
+private fun CategoryHeader(title: String, emoji: String?, iconUrl: String?, collapsed: Boolean, onToggle: () -> Unit) {
     val angle by animateFloatAsState(if (collapsed) -90f else 0f, label = "chev")
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(start = 18.dp, end = 14.dp, top = 20.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val url = Config.media(iconUrl)
+        when {
+            url != null -> { AsyncImage(url, null, contentScale = ContentScale.Crop, modifier = Modifier.size(18.dp).clip(RoundedCornerShape(5.dp))); Spacer(Modifier.width(8.dp)) }
+            !emoji.isNullOrBlank() -> { Text(emoji, fontSize = 15.sp); Spacer(Modifier.width(6.dp)) }
+        }
         Text(title, style = MaterialTheme.typography.titleSmall, color = PC.Muted, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         Icon(Icons.Outlined.KeyboardArrowDown, if (collapsed) "Abrir" else "Recolher", tint = PC.Muted, modifier = Modifier.size(20.dp).rotate(angle))
     }
@@ -191,8 +209,12 @@ private fun ChannelRow(ch: Channel, unread: Boolean, mentions: Int, inCall: List
                     .padding(horizontal = 10.dp, vertical = 11.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (!ch.iconEmoji.isNullOrBlank()) Text(ch.iconEmoji, fontSize = 18.sp, modifier = Modifier.width(26.dp))
-                else Icon(iconFor(ch), null, tint = PC.Faint, modifier = Modifier.size(22.dp))
+                val icon = Config.media(ch.iconUrl)
+                when {
+                    icon != null -> AsyncImage(icon, null, contentScale = ContentScale.Crop, modifier = Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)))
+                    !ch.iconEmoji.isNullOrBlank() -> Text(ch.iconEmoji, fontSize = 18.sp, modifier = Modifier.width(26.dp))
+                    else -> Icon(iconFor(ch), null, tint = PC.Faint, modifier = Modifier.size(22.dp))
+                }
                 Spacer(Modifier.width(12.dp))
                 Text(
                     ch.name, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,

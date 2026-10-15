@@ -60,6 +60,7 @@ data class Category(
     val name: String = "",
     val position: Int = 0,
     val iconEmoji: String? = null,
+    val iconUrl: String? = null,
     val channels: List<Channel> = emptyList(),
 )
 
@@ -228,3 +229,23 @@ data class VoiceParticipant(
     val screenSharing: Boolean = false,
     val role: String? = null,
 )
+
+/** Emoji personalizado da comunidade (usado no texto como :nome:). */
+@Serializable
+data class CustomEmoji(val id: String = "", val name: String = "", val url: String = "", val category: String? = null)
+
+@Serializable
+data class EmojisResponse(val emojis: List<CustomEmoji> = emptyList())
+
+/** Figurinha da comunidade (vai como mensagem própria). */
+@Serializable
+data class ServerSticker(val id: String = "", val name: String = "", val url: String = "")
+
+@Serializable
+data class StickersResponse(val stickers: List<ServerSticker> = emptyList())
+
+@Serializable
+data class FavoriteGif(val id: String = "", val gifId: String = "", val url: String = "", val preview: String? = null)
+
+@Serializable
+data class FavoriteGifsResponse(val gifs: List<FavoriteGif> = emptyList())

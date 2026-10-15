@@ -19,6 +19,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -96,13 +97,13 @@ fun shortTime(iso: String?): String {
     else t.format(DateTimeFormatter.ofPattern("dd/MM", Locale("pt", "BR")))
 }
 
-private val tokenRe = Regex("""(https?://[^\s<>]+)|(<#([A-Za-z0-9_-]{1,64})>)|(@[A-Za-z0-9_.]{2,32})|(\*\*([^*]+)\*\*)""")
+private val tokenRe = Regex("""(https?://[^\s<>]+)|(<#([A-Za-z0-9_-]{1,64})>)|(@[A-Za-z0-9_.]{2,32})|(\*\*([^*]+)\*\*)|(:([A-Za-z0-9_]{2,32}):)""")
 
 /**
  * Texto da mensagem com links clicáveis, menções (@nome) destacadas,
  * menção de canal (<#id> → #nome) e **negrito**.
  */
-fun richText(text: String, myUsername: String?, channelName: (String) -> String?): AnnotatedString = buildAnnotatedString {
+fun richText(text: String, myUsername: String?, emojis: Set<String> = emptySet(), channelName: (String) -> String?): AnnotatedString = buildAnnotatedString {
     var last = 0
     for (m in tokenRe.findAll(text)) {
         append(text.substring(last, m.range.first))
@@ -121,6 +122,11 @@ fun richText(text: String, myUsername: String?, channelName: (String) -> String?
                 withStyle(SpanStyle(color = PC.Brand, background = if (mine || everyone) PC.Mention else Color.Transparent, fontWeight = FontWeight.SemiBold)) { append(m.value) }
             }
             m.groups[5] != null -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(m.groups[6]!!.value) }
+            // Emoji da comunidade (:nome:) vira imagem no meio do texto.
+            m.groups[7] != null -> {
+                val name = m.groups[8]!!.value
+                if (name in emojis) appendInlineContent("emoji:$name", m.value) else append(m.value)
+            }
         }
         last = m.range.last + 1
     }

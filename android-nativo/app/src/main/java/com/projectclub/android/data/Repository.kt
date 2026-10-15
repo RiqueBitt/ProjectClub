@@ -217,19 +217,83 @@ class Repository(private val context: Context, val api: Api, private val scope: 
 
     suspend fun loadAll() {
         try {
-            val boot: Bootstrap = api.get("/api/bootstrap?only=community,conversations,friends,channelStates")
-            boot.data["community"]?.let { setCommunity(AppJson.decodeFromJsonElement(it)) }
-            boot.data["conversations"]?.let { setConversations(AppJson.decodeFromJsonElement<ConversationsResponse>(it).conversations) }
-            boot.data["friends"]?.let { setFriends(AppJson.decodeFromJsonElement<FriendsResponse>(it).friendships) }
-            boot.data["channelStates"]?.let { _channelStates.value = AppJson.decodeFromJsonElement<ChannelStatesResponse>(it).states }
-            if (boot.failed.containsKey("community")) loadCommunity()
-            if (boot.failed.containsKey("conversations")) loadConversations()
-        } catch (_: Exception) {
-            runCatching { loadCommunity() }
+            val boot: Bootstrap = api.get("/api/bootstrap?only=community,conversations,friends,channelStates,usableEmojis,stickers,favoriteGifs")
+            boot.data["community"]?.let { el -> runCatching { setCommunity(decodeCommunity(el)) }.onFailure { report("community", it) } }
+            boot.data["conversations"]?.let { el -> runCatching { setConversations(AppJson.decodeFromJsonElement<ConversationsResponse>(el).conversations) }.onFailure { report("conversations", it) } }
+            boot.data["friends"]?.let { el -> runCatching { setFriends(AppJson.decodeFromJsonElement<FriendsResponse>(el).friendships) }.onFailure { report("friends", it) } }
+            boot.data["channelStates"]?.let { el -> runCatching { _channelStates.value = AppJson.decodeFromJsonElement<ChannelStatesResponse>(el).states }.onFailure { report("channelStates", it) } }
+            boot.data["usableEmojis"]?.let { el -> runCatching { _emojis.value = AppJson.decodeFromJsonElement<EmojisResponse>(el).emojis } }
+            boot.data["stickers"]?.let { el -> runCatching { _stickers.value = AppJson.decodeFromJsonElement<StickersResponse>(el).stickers } }
+            boot.data["favoriteGifs"]?.let { el -> runCatching { _favoriteGifs.value = AppJson.decodeFromJsonElement<FavoriteGifsResponse>(el).gifs } }
+            if (_community.value == null) runCatching { loadCommunity() }.onFailure { report("community-get", it) }
+            if (boot.failed.containsKey("conversations")) runCatching { loadConversations() }
+        } catch (e: Exception) {
+            report("bootstrap", e)
+            runCatching { loadCommunity() }.onFailure { report("community-get", it) }
             runCatching { loadConversations() }
         }
         runCatching { loadNotices() }
         _loaded.value = true
+    }
+
+    /** Erro ao carregar a comunidade (a tela mostra e deixa tentar de novo). */
+    private val _communityError = MutableStateFlow<String?>(null)
+    val communityError: StateFlow<String?> = _communityError
+
+    private val _emojis = MutableStateFlow<List<CustomEmoji>>(emptyList())
+    val emojis: StateFlow<List<CustomEmoji>> = _emojis
+    private val _stickers = MutableStateFlow<List<ServerSticker>>(emptyList())
+    val stickers: StateFlow<List<ServerSticker>> = _stickers
+    private val _favoriteGifs = MutableStateFlow<List<FavoriteGif>>(emptyList())
+    val favoriteGifs: StateFlow<List<FavoriteGif>> = _favoriteGifs
+
+    suspend fun loadPickers() {
+        runCatching { _emojis.value = api.get<EmojisResponse>("/api/users/me/usable-emojis").emojis }
+        runCatching { _stickers.value = api.get<StickersResponse>("/api/community/stickers").stickers }
+        runCatching { _favoriteGifs.value = api.get<FavoriteGifsResponse>("/api/users/me/favorite-gifs").gifs }
+    }
+
+    /**
+     * Lê a comunidade item por item: um canal/membro com formato inesperado
+     * não derruba a lista inteira (antes, um único campo diferente deixava a
+     * aba Comunidade vazia para sempre).
+     */
+    private fun decodeCommunity(el: JsonElement): CommunityResponse {
+        val o = el.jsonObject
+        fun <T> items(arr: JsonElement?, what: String, decode: (JsonElement) -> T): List<T> =
+            (arr as? JsonArray).orEmpty().mapNotNull { item -> runCatching { decode(item) }.onFailure { report("community.$what", it) }.getOrNull() }
+        val channel = { e: JsonElement -> AppJson.decodeFromJsonElement<Channel>(e) }
+        val categories = items(o["categories"], "category") { e ->
+            val obj = e.jsonObject
+            val base = AppJson.decodeFromJsonElement<Category>(JsonObject(obj - "channels"))
+            base.copy(channels = items(obj["channels"], "channel", channel))
+        }
+        return CommunityResponse(
+            community = o["community"]?.let { runCatching { AppJson.decodeFromJsonElement<CommunityInfo>(it) }.getOrNull() },
+            categories = categories,
+            channels = items(o["channels"], "channel", channel),
+            members = items(o["members"], "member") { AppJson.decodeFromJsonElement<Member>(it) },
+        )
+    }
+
+    private val reported = java.util.Collections.synchronizedSet(HashSet<String>())
+
+    /** Manda o motivo exato de uma falha para o servidor (aparece nos logs da equipe). */
+    fun report(where: String, e: Throwable) {
+        val msg = (e.message ?: e.javaClass.simpleName).take(400)
+        _communityError.value = if (where.startsWith("community")) msg else _communityError.value
+        if (!reported.add(where + msg.take(60))) return
+        scope.launch {
+            runCatching {
+                api.postIgnore("/api/system/client-error", buildJsonObject {
+                    put("where", "android-nativo:$where")
+                    put("path", "/app")
+                    put("message", msg)
+                    put("stack", e.stackTraceToString().take(1500))
+                    put("version", com.projectclub.android.BuildConfig.VERSION_NAME)
+                })
+            }
+        }
     }
 
     /** Depois de reconectar: só o que pode ter mudado. */
@@ -238,7 +302,11 @@ class Repository(private val context: Context, val api: Api, private val scope: 
         runCatching { _channelStates.value = api.get<ChannelStatesResponse>("/api/community/channels/read-states").states }
     }
 
-    suspend fun loadCommunity() = setCommunity(api.get("/api/community"))
+    suspend fun loadCommunity() {
+        val el: JsonElement = api.get("/api/community")
+        setCommunity(decodeCommunity(el))
+        _communityError.value = null
+    }
     suspend fun loadConversations() = setConversations(api.get<ConversationsResponse>("/api/conversations").conversations)
     suspend fun loadFriends() = setFriends(api.get<FriendsResponse>("/api/friends").friendships)
     suspend fun loadNotices() {
@@ -317,6 +385,16 @@ class Repository(private val context: Context, val api: Api, private val scope: 
             mb.addFormDataPart("spoilerFlags", buildJsonArray { files.forEach { _ -> add(JsonPrimitive(false)) } }.toString())
             files.forEach { f -> mb.addFormDataPart("attachments", f.name, uriBody(f)) }
         }
+        val text = api.postBody("/api/messages?${room.query()}", mb.build())
+        return AppJson.decodeFromString(MessageResponse.serializer(), text).message
+    }
+
+    /** Figurinha: vai como mensagem própria (campo stickerUrl, igual ao site). */
+    suspend fun sendSticker(room: Room, stickerUrl: String, nonce: String = UUID.randomUUID().toString()): Message {
+        val mb = MultipartBody.Builder().setType(MultipartBody.FORM)
+        if (room.channelId != null) mb.addFormDataPart("channelId", room.channelId) else mb.addFormDataPart("conversationId", room.conversationId!!)
+        mb.addFormDataPart("stickerUrl", stickerUrl)
+        mb.addFormDataPart("nonce", nonce)
         val text = api.postBody("/api/messages?${room.query()}", mb.build())
         return AppJson.decodeFromString(MessageResponse.serializer(), text).message
     }
