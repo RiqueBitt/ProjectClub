@@ -1,0 +1,99 @@
+name: Android nativo
+
+# App Android nativo (android-nativo/): compila e roda os testes em todo PR
+# que mexe nele; na main, gera o APK assinado e publica na release fixa
+# "android-nativo" (link: .../releases/download/android-nativo/ProjectClub-Nativo.apk).
+on:
+  pull_request:
+    paths:
+      - 'android-nativo/**'
+      - '.github/workflows/android-nativo.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'android-nativo/**'
+      - '.github/workflows/android-nativo.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: android-nativo-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: android-nativo
+    env:
+      APP_VERSION: 1.0.${{ github.run_number }}
+      APP_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Usar o Android SDK do runner
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKM" ]; then yes | "$SDKM" --licenses > /dev/null || true; fi
+
+      # Notificações com o app fechado (Firebase): liga sozinho quando o
+      # segredo existir. Sem ele, o app avisa só enquanto está aberto/em 2º plano.
+      - name: Firebase (opcional)
+        env:
+          GS: ${{ secrets.GOOGLE_SERVICES_NATIVO_JSON_BASE64 }}
+        run: |
+          if [ -n "$GS" ]; then echo "$GS" | base64 -d > app/google-services.json; echo "Firebase ligado"; else echo "Sem Firebase (segredo GOOGLE_SERVICES_NATIVO_JSON_BASE64 não configurado)"; fi
+
+      - name: Compilar e testar
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew testDebugUnitTest assembleDebug --stacktrace 2>&1 | tee /tmp/gradle.log || {
+            grep -E "^e: |error:|What went wrong" -A3 /tmp/gradle.log | head -60
+            ERR=$(grep -m8 -E "^e: |What went wrong" -A2 /tmp/gradle.log | tr '\n' ' ' | cut -c1-3500)
+            echo "::error title=Android nativo não compilou::${ERR:-sem detalhe no log}"
+            exit 1
+          }
+
+      - name: APK de teste (debug)
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProjectClub-Nativo-debug
+          path: android-nativo/app/build/outputs/apk/debug/*.apk
+          retention-days: 7
+
+      - name: Gerar APK assinado
+        if: github.event_name != 'pull_request'
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$KS" | base64 -d > app/release.keystore
+          export ANDROID_KEYSTORE_PATH=release.keystore
+          ./gradlew assembleRelease --stacktrace
+          cp "$(find app/build/outputs/apk/release -name '*.apk' | head -n1)" "$RUNNER_TEMP/ProjectClub-Nativo.apk"
+
+      - name: Publicar na release "android-nativo"
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh release view android-nativo --repo "$REPO" >/dev/null 2>&1 || \
+            gh release create android-nativo --repo "$REPO" --title "Project Club Android (nativo)" --prerelease \
+              --notes "App Android nativo: chat, DMs, chamadas de voz, compartilhamento de tela e notificações. Atualizado a cada mudança na pasta android-nativo."
+          for i in 1 2 3; do gh release upload android-nativo "$RUNNER_TEMP/ProjectClub-Nativo.apk" --repo "$REPO" --clobber && break || sleep 10; done
+          gh release edit android-nativo --repo "$REPO" --notes "Versão $APP_VERSION — commit ${GITHUB_SHA::7}. Baixe o ProjectClub-Nativo.apk abaixo (instala ao lado do app antigo)."
