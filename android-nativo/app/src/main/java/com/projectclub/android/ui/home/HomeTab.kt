@@ -69,7 +69,7 @@ import java.time.LocalTime
 
 /** Aba Início: o mesmo resumo da página inicial do site. */
 @Composable
-fun HomeTab(repo: Repository, actions: HomeActions, goTab: (Tab) -> Unit) {
+fun HomeTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android.ui.nav.AppNav, goTab: (Tab) -> Unit) {
     val me by repo.me.collectAsState()
     val community by repo.community.collectAsState()
     val presence by repo.presence.collectAsState()
@@ -133,11 +133,11 @@ fun HomeTab(repo: Repository, actions: HomeActions, goTab: (Tab) -> Unit) {
                 QuickCard(Icons.Outlined.ChatBubbleOutline, "Conversar", firstChat?.let { "# ${it.name}" } ?: "Canais", Modifier.weight(1f)) {
                     if (firstChat != null) actions.openRoom(Room(channelId = firstChat.id)) else goTab(Tab.Community)
                 }
-                QuickCard(Icons.AutoMirrored.Outlined.Article, "Fórum", "Posts e temas", Modifier.weight(1f)) { actions.openWeb("/comunidades") }
+                QuickCard(Icons.AutoMirrored.Outlined.Article, "Fórum", "Posts e temas", Modifier.weight(1f)) { nav.forum() }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 QuickCard(Icons.Outlined.People, "Social", "Amigos e mensagens", Modifier.weight(1f)) { goTab(Tab.Social) }
-                QuickCard(Icons.Outlined.StarOutline, "Progresso", "Ranks e conquistas", Modifier.weight(1f)) { actions.openWeb("/progresso") }
+                QuickCard(Icons.Outlined.StarOutline, "Progresso", "Ranks e conquistas", Modifier.weight(1f)) { nav.progress(null) }
             }
 
             // Calls acontecendo agora
@@ -191,10 +191,10 @@ fun HomeTab(repo: Repository, actions: HomeActions, goTab: (Tab) -> Unit) {
             // Mais do Project Club
             SectionTitle(Icons.Outlined.StarOutline, "Explorar", PC.Yellow)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MiniTile(Icons.Outlined.LocalMall, "Loja", PC.Store, Modifier.weight(1f)) { actions.openWeb("/loja") }
-                MiniTile(Icons.Outlined.CalendarMonth, "Eventos", PC.Events, Modifier.weight(1f)) { actions.openWeb("/comunidade/eventos") }
-                MiniTile(Icons.Outlined.MonetizationOn, "Economia", PC.Purple, Modifier.weight(1f)) { actions.openWeb("/economia") }
-                MiniTile(Icons.Outlined.TaskAlt, "Missões", PC.Pink, Modifier.weight(1f)) { actions.openWeb("/missoes") }
+                MiniTile(Icons.Outlined.LocalMall, "Loja", PC.Store, Modifier.weight(1f)) { nav.store(null) }
+                MiniTile(Icons.Outlined.CalendarMonth, "Eventos", PC.Events, Modifier.weight(1f)) { nav.events() }
+                MiniTile(Icons.Outlined.MonetizationOn, "Economia", PC.Purple, Modifier.weight(1f)) { nav.economy() }
+                MiniTile(Icons.Outlined.TaskAlt, "Missões", PC.Pink, Modifier.weight(1f)) { nav.economy() }
             }
             Spacer(Modifier.height(8.dp))
         }

@@ -247,6 +247,9 @@ class Repository(private val context: Context, val api: Api, private val scope: 
         _unreadNotices.value = n.unread
     }
 
+    /** Depois de editar o perfil: atualiza o "eu" na hora (sem esperar o socket). */
+    fun updateMe(u: User) { remember(u); _me.value = u }
+
     /** Só pros testes de tela (capturas do visual): preenche o app com dados de exemplo. */
     @androidx.annotation.VisibleForTesting
     fun seedForScreenshots(

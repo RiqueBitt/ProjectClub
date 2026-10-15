@@ -26,6 +26,9 @@ import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.AdminPanelSettings
+import androidx.compose.material.icons.outlined.Campaign
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Groups
@@ -76,7 +79,7 @@ private data class Entry(val icon: ImageVector, val label: String, val color: Co
 
 /** Aba Você: perfil e tudo do Project Club que abre pelo site (já logado). */
 @Composable
-fun MoreTab(repo: Repository, actions: HomeActions) {
+fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android.ui.nav.AppNav) {
     val me by repo.me.collectAsState()
     val presence by repo.presence.collectAsState()
     val ctx = LocalContext.current
@@ -100,7 +103,7 @@ fun MoreTab(repo: Repository, actions: HomeActions) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             // Cartão do perfil (banner + avatar), como o mini perfil do site
             val shape = RoundedCornerShape(24.dp)
-            Column(Modifier.fillMaxWidth().clip(shape).background(PC.Surface).border(1.dp, PC.Line, shape).clickable { actions.openWeb("/profile") }) {
+            Column(Modifier.fillMaxWidth().clip(shape).background(PC.Surface).border(1.dp, PC.Line, shape).clickable { me?.id?.let(nav::profile) }) {
                 Box(Modifier.fillMaxWidth().height(136.dp)) {
                     Box(Modifier.fillMaxWidth().height(96.dp).background(profileBrush(me?.profileColor))) {
                         Config.media(me?.bannerUrl)?.let { AsyncImage(it, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
@@ -137,13 +140,16 @@ fun MoreTab(repo: Repository, actions: HomeActions) {
 
             // Conta
             PcCard(padding = PaddingValues(6.dp)) {
-                Line(Icons.Outlined.Person, "Meu perfil", PC.Brand) { actions.openWeb("/profile") }
+                Line(Icons.Outlined.Person, "Meu perfil", PC.Brand) { me?.id?.let(nav::profile) }
+                Line(Icons.Outlined.Edit, "Editar perfil", PC.Purple) { nav.editProfile() }
+                Line(Icons.Outlined.Campaign, "Anúncios", PC.Announce) { nav.announcements() }
+                Line(Icons.Outlined.PhotoLibrary, "Galeria", Color(0xFFF472B6)) { nav.gallery() }
                 Line(Icons.Outlined.SupportAgent, "Suporte", PC.Green) { actions.openWeb("/tickets") }
                 if (me?.platformRole == "ADMIN" || me?.platformRole == "MODERATOR") Line(Icons.Outlined.AdminPanelSettings, "Painel da equipe", PC.Yellow) { actions.openWeb("/admin") }
                 Line(Icons.Outlined.NotificationsActive, "Notificações do celular", PC.Pink) {
                     ctx.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName))
                 }
-                Line(Icons.Outlined.Language, "Abrir o site completo", PC.Muted) { actions.openWeb("/inicio") }
+                Line(Icons.Outlined.Language, "Abrir o site no navegador", PC.Muted) { nav.external("/inicio") }
                 HorizontalDivider(color = PC.Line, modifier = Modifier.padding(vertical = 4.dp))
                 Line(Icons.AutoMirrored.Outlined.Logout, "Sair da conta", PC.Red, danger = true) { confirmLogout = true }
             }

@@ -6,7 +6,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.webkit.CookieManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -65,7 +64,8 @@ import com.projectclub.android.ui.login.LoginScreen
 import com.projectclub.android.ui.theme.PC
 import com.projectclub.android.ui.theme.ProjectClubTheme
 import com.projectclub.android.ui.voice.VoiceScreen
-import com.projectclub.android.ui.web.WebScreen
+import com.projectclub.android.ui.nav.AppNavigator
+import com.projectclub.android.ui.nav.featureScreens
 import com.projectclub.android.voice.CallService
 import com.projectclub.android.voice.CallStatus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,6 +76,7 @@ class MainActivity : ComponentActivity() {
     /** Pedido vindo de notificação/intent, aplicado quando a navegação estiver pronta. */
     private val pending = MutableStateFlow<Intent?>(null)
     private var afterMicPermission: (() -> Unit)? = null
+    private var navRef: AppNavigator? = null
 
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         val next = afterMicPermission
@@ -95,11 +96,6 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         pending.value = intent
-    }
-
-    override fun onPause() {
-        CookieManager.getInstance().flush()
-        super.onPause()
     }
 
     /** Entra numa call (pede o microfone antes, se precisar). */
@@ -148,9 +144,18 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        val scope = androidx.compose.runtime.rememberCoroutineScope()
+        var homeTab by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
+        val appNav = remember(nav) {
+            AppNavigator(this, nav, app.repo, scope, onJoinVoice = { ch, title -> joinVoice(ch, title, nav) }) { t ->
+                homeTab = t
+                nav.popBackStack("home", inclusive = false)
+            }
+        }
+        navRef = appNav
         val actions = HomeActions(
-            openRoom = { r -> nav.navigate(if (r.isDm) "chat/dm/${r.conversationId}" else "chat/channel/${r.channelId}") },
-            openWeb = { p -> nav.navigate("web?path=${Uri.encode(p)}") },
+            openRoom = { r -> appNav.room(r) },
+            openWeb = { p -> appNav.link(p) },
             joinVoice = { ch, title -> joinVoice(ch, title, nav) },
             openCall = { nav.navigate("voice") { launchSingleTop = true } },
         )
@@ -172,7 +177,7 @@ class MainActivity : ComponentActivity() {
         }
 
         NavHost(nav, startDestination = "home") {
-            composable("home") { HomeScreen(app.repo, actions, callBar) }
+            composable("home") { HomeScreen(app.repo, actions, appNav, homeTab, { homeTab = it }, callBar) }
             composable("chat/channel/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { e ->
                 val id = e.arguments?.getString("id").orEmpty()
                 ChatScreen(app.repo, Room(channelId = id), onBack = { nav.popBackStack() }, onCall = actions.joinVoice, onOpenWeb = actions.openWeb)
@@ -181,10 +186,8 @@ class MainActivity : ComponentActivity() {
                 val id = e.arguments?.getString("id").orEmpty()
                 ChatScreen(app.repo, Room(conversationId = id), onBack = { nav.popBackStack() }, onCall = actions.joinVoice, onOpenWeb = actions.openWeb)
             }
-            composable("voice") { VoiceScreen(app.voice, app.repo, onBack = { nav.popBackStack() }, onOpenWeb = actions.openWeb) }
-            composable("web?path={path}", arguments = listOf(navArgument("path") { type = NavType.StringType; defaultValue = "/" })) { e ->
-                WebScreen(app.web, e.arguments?.getString("path") ?: "/", onBack = { nav.popBackStack() })
-            }
+            composable("voice") { VoiceScreen(app.voice, app.repo, onBack = { nav.popBackStack() }, onOpenWeb = appNav::external) }
+            featureScreens(app.repo, appNav)
         }
 
         incoming?.let { c ->
@@ -230,7 +233,7 @@ class MainActivity : ComponentActivity() {
             else -> when {
                 conversationId != null -> nav.navigate("chat/dm/$conversationId")
                 channelId != null -> nav.navigate("chat/channel/$channelId")
-                link != null -> nav.navigate("web?path=${Uri.encode(link)}")
+                link != null -> navRef?.link(link)
             }
         }
     }

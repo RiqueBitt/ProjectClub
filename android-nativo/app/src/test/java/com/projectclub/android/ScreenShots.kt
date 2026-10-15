@@ -47,6 +47,9 @@ import java.time.Instant
 class ScreenShots {
     private val ctx: Application get() = ApplicationProvider.getApplicationContext()
     private val actions = HomeActions({}, {}, { _, _ -> }, {})
+    private val nav = java.lang.reflect.Proxy.newProxyInstance(
+        com.projectclub.android.ui.nav.AppNav::class.java.classLoader, arrayOf(com.projectclub.android.ui.nav.AppNav::class.java),
+    ) { _, _, _ -> null } as com.projectclub.android.ui.nav.AppNav
 
     private fun ago(min: Long) = Instant.now().minusSeconds(min * 60).toString()
     private fun u(id: String, name: String, status: String = "ONLINE", color: String? = null) =
@@ -100,9 +103,9 @@ class ScreenShots {
 
     @Test fun login() { val r = repo(); shot("01-login") { LoginScreen(r, null) } }
     @Test fun loading() = shot("02-carregando") { LoadingScreen() }
-    @Test fun inicio() { val r = repo(); shot("03-inicio") { HomeScreen(r, actions, {}) } }
+    @Test fun inicio() { val r = repo(); shot("03-inicio") { HomeScreen(r, actions, nav, 0, {}, {}) } }
     @Test fun comunidade() { val r = repo(); shot("04-comunidade") { com.projectclub.android.ui.home.ChannelsTab(r, actions) } }
     @Test fun social() { val r = repo(); shot("05-social") { com.projectclub.android.ui.home.SocialTab(r, actions) } }
     @Test fun avisos() { val r = repo(); shot("06-avisos") { com.projectclub.android.ui.home.NoticesTab(r, actions) } }
-    @Test fun voce() { val r = repo(); shot("07-voce") { com.projectclub.android.ui.home.MoreTab(r, actions) } }
+    @Test fun voce() { val r = repo(); shot("07-voce") { com.projectclub.android.ui.home.MoreTab(r, actions, nav) } }
 }

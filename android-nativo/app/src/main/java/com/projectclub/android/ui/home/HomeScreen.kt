@@ -73,8 +73,10 @@ enum class Tab(val label: String, val icon: ImageVector?) {
 
 /** Tela principal: abas embaixo, igual à navegação do site no celular. */
 @Composable
-fun HomeScreen(repo: Repository, actions: HomeActions, callBar: @Composable () -> Unit) {
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+fun HomeScreen(
+    repo: Repository, actions: HomeActions, nav: com.projectclub.android.ui.nav.AppNav,
+    tab: Int, onTab: (Int) -> Unit, callBar: @Composable () -> Unit,
+) {
     val conversations by repo.conversations.collectAsState()
     val friends by repo.friends.collectAsState()
     val me by repo.me.collectAsState()
@@ -88,11 +90,11 @@ fun HomeScreen(repo: Repository, actions: HomeActions, callBar: @Composable () -
         Box(Modifier.weight(1f).fillMaxWidth()) {
             AnimatedContent(tab, label = "tab", transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(120)) }) { t ->
                 when (Tab.entries[t]) {
-                    Tab.Home -> HomeTab(repo, actions) { tab = it.ordinal }
+                    Tab.Home -> HomeTab(repo, actions, nav) { onTab(it.ordinal) }
                     Tab.Community -> ChannelsTab(repo, actions)
                     Tab.Social -> SocialTab(repo, actions)
                     Tab.Notices -> NoticesTab(repo, actions)
-                    Tab.You -> MoreTab(repo, actions)
+                    Tab.You -> MoreTab(repo, actions, nav)
                 }
             }
         }
@@ -108,7 +110,7 @@ fun HomeScreen(repo: Repository, actions: HomeActions, callBar: @Composable () -
                             if (t == Tab.You) Avatar(me, 28.dp, presence[me?.id] ?: "ONLINE")
                             else Icon(t.icon!!, t.label, modifier = Modifier.size(24.dp), tint = tint)
                         },
-                        onClick = { tab = t.ordinal },
+                        onClick = { onTab(t.ordinal) },
                     )
                 }
             }
