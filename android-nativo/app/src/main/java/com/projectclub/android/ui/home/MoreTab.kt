@@ -35,7 +35,6 @@ import androidx.compose.material.icons.outlined.LocalMall
 import androidx.compose.material.icons.outlined.MonetizationOn
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.SupportAgent
 import androidx.compose.material.icons.outlined.TaskAlt
@@ -94,7 +93,6 @@ fun MoreTab(repo: Repository, actions: HomeActions) {
         Entry(Icons.Outlined.Groups, "Clubes", Color(0xFFFB923C), "/clans"),
         Entry(Icons.Outlined.CalendarMonth, "Eventos", PC.Events, "/comunidade/eventos"),
         Entry(Icons.AutoMirrored.Outlined.Article, "Fórum", PC.Forum, "/comunidades"),
-        Entry(Icons.Outlined.PhotoLibrary, "Galeria", Color(0xFFF472B6), "/comunidade/galeria"),
     )
 
     Column(Modifier.fillMaxSize()) {
@@ -107,8 +105,8 @@ fun MoreTab(repo: Repository, actions: HomeActions) {
                     Box(Modifier.fillMaxWidth().height(96.dp).background(profileBrush(me?.profileColor))) {
                         Config.media(me?.bannerUrl)?.let { AsyncImage(it, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
                     }
-                    Box(Modifier.padding(start = 16.dp, top = 54.dp).clip(CircleShape).border(5.dp, PC.Surface, CircleShape)) {
-                        Avatar(me, 76.dp, presence[me?.id] ?: "ONLINE")
+                    Box(Modifier.padding(start = 16.dp, top = 50.dp).size(86.dp).clip(CircleShape).background(PC.Surface), contentAlignment = Alignment.Center) {
+                        Avatar(me, 74.dp, presence[me?.id] ?: "ONLINE")
                     }
                 }
                 Column(Modifier.padding(start = 18.dp, end = 18.dp, bottom = 18.dp, top = 6.dp)) {
