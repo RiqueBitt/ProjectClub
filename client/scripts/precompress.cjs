@@ -15,6 +15,11 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
+// Build do app Android (Capacitor embala o dist como assets): o Gradle vê
+// "arquivo.js" e "arquivo.js.gz" como recursos duplicados e quebra. Lá o
+// CI passa SKIP_PRECOMPRESS=1 (o APK já comprime tudo por conta própria).
+if (process.env.SKIP_PRECOMPRESS === '1') { console.log('[precompress] pulado (SKIP_PRECOMPRESS=1)'); process.exit(0); }
+
 const DIST = path.resolve(__dirname, '..', 'dist');
 const EXT = new Set(['.js', '.mjs', '.css', '.svg', '.json', '.wasm', '.txt', '.xml', '.map', '.html']);
 const MIN_BYTES = 1024;
