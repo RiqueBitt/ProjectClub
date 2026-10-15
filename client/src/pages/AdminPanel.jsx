@@ -65,6 +65,7 @@ import { BADGE_RARITIES, RARITY_LABEL, RARITY_COLOR, badgeHasImage } from '../ut
 import { proxyImage } from '../utils/imageProxy';
 import { isFeatureEnabled } from '../utils/features';
 import MissionsAdmin from '../components/admin/MissionsAdmin.jsx';
+import SupportersAdmin from '../components/admin/SupportersAdmin.jsx';
 import { StaffHealthTab, StaffUserSearchTab } from '../components/admin/StaffTools.jsx';
 import VoiceProvidersAdmin from '../components/admin/VoiceProvidersAdmin.jsx';
 import { CardsAdminCards, CardsAdminPacks, CardsAdminSettings, CardsAdminPlayers, CardsAdminTrades, CardsAdminMatches, CardsAdminStats, CardsAdminCampaign, CardsAdminTournaments, CardsAdminBoards } from '../cards/CardsAdmin.jsx';
@@ -130,6 +131,7 @@ const TABS = {
   appCatalog: { label: 'Apps', desc: 'Apps e launchers listados na área de Apps.' },
   economia: { label: 'Economia e missões', desc: 'Missões diárias/semanais, baús diários, moedas e recompensas.' },
   decoracoes: { label: 'Loja', desc: 'Molduras de avatar, efeitos de perfil e coleções vendidos na Loja.' },
+  apoio: { label: 'Gerenciamento de Apoio', desc: 'Conceda ou remova Assinante e Super Assinante, com motivo e histórico de quem mudou.' },
   casas: { label: 'Casas e móveis', desc: 'Casas, mapas, grupos e catálogo de móveis.' },
   album: { label: 'Álbum de figurinhas', desc: 'Páginas e espaços do álbum de figurinhas colecionáveis.' },
   modGames: { label: 'Jogos (mod.io)', desc: 'Jogos ligados ao mod.io.' },
@@ -171,7 +173,7 @@ const TAB_GROUPS = [
   { label: 'Moderação', icon: 'shield', tabs: ['reports', 'automodDm', 'moderacao', 'modReports', 'logs', 'honeypot'] },
   { label: 'Comunidade', icon: 'community', tabs: ['channels', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'gifMove'] },
   { label: 'Conteúdo', icon: 'content', tabs: ['feeds', 'updates', 'events', 'announcements', 'appCatalog'] },
-  { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'casas', 'album'] },
+  { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'apoio', 'casas', 'album'] },
   { label: 'Guerra das Cartas', icon: 'cards', tabs: ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
   { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
   { label: 'Sistema', icon: 'system', tabs: ['saude', 'provedoresVoz', 'sistema', 'maintenance', 'reload'] },
@@ -308,6 +310,7 @@ export default function AdminPanel() {
           {tab === 'album' && <AlbumLayoutTab />}
           {tab === 'economia' && <EconomyAdminTab />}
           {tab === 'decoracoes' && <ShopAdminTab />}
+          {tab === 'apoio' && <SupportersAdmin />}
           {tab === 'casas' && <HousesAdminTab />}
           {tab === 'sistema' && <SystemTab />}
           {tab === 'moderacao' && <ModerationTab />}

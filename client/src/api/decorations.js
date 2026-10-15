@@ -1,7 +1,8 @@
 import { api } from './client';
 
 export const listDecorations = () => api.get('/decorations').then((r) => r.data);
-export const buyDecoration = (id, currency) => api.post(`/decorations/${id}/buy`, { currency }).then((r) => r.data);
+// expectedPrice = preço que a pessoa confirmou; o servidor recusa (409) se o real for outro.
+export const buyDecoration = (id, currency, expectedPrice) => api.post(`/decorations/${id}/buy`, { currency, expectedPrice }).then((r) => r.data);
 export const equipDecoration = (id) => api.post('/decorations/equip', { id }).then((r) => r.data);
 export const adminListDecorations = () => api.get('/decorations/admin/all').then((r) => r.data);
 export const adminSaveDecoration = (id, fields, file) => {
@@ -14,9 +15,9 @@ export const adminDeleteDecoration = (id) => api.delete(`/decorations/admin/${id
 
 // Loja completa: molduras + efeitos de perfil + coleções.
 export const getShop = () => api.get('/decorations/shop').then((r) => r.data);
-export const buyEffect = (id, currency) => api.post(`/decorations/effects/${id}/buy`, { currency }).then((r) => r.data);
+export const buyEffect = (id, currency, expectedPrice) => api.post(`/decorations/effects/${id}/buy`, { currency, expectedPrice }).then((r) => r.data);
 export const equipEffect = (id) => api.post('/decorations/effects/equip', { id }).then((r) => r.data);
-export const buyCollection = (id, currency) => api.post(`/decorations/collections/${id}/buy`, { currency }).then((r) => r.data);
+export const buyCollection = (id, currency, expectedPrice) => api.post(`/decorations/collections/${id}/buy`, { currency, expectedPrice }).then((r) => r.data);
 
 const toForm = (fields, files) => {
   const fd = new FormData();

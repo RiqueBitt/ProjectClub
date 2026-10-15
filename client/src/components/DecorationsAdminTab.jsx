@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import { adminListDecorations, adminSaveDecoration, adminDeleteDecoration } from '../api/decorations';
+import ShopItemFlagsFields, { FLAGS_EMPTY, flagsFrom } from './shop/ShopItemFlagsFields.jsx';
 import '../styles/shop.css';
 
-const EMPTY = { name: '', priceCoins: '500', priceGems: '', scale: 1.2, offsetX: 0, offsetY: 0, active: true, sortOrder: 0, collectionId: '' };
+const EMPTY = { name: '', priceCoins: '500', priceGems: '', scale: 1.2, offsetX: 0, offsetY: 0, active: true, sortOrder: 0, collectionId: '', ...FLAGS_EMPTY };
 const errMsg = (e) => e?.response?.data?.error || 'Não deu certo, tente de novo.';
 
 // Painel da staff → Molduras: cria/edita molduras da Loja com prévia ao
@@ -34,6 +35,7 @@ export default function DecorationsAdminTab({ collections = [] }) {
     setForm({
       name: d.name, priceCoins: d.priceCoins ?? '', priceGems: d.priceGems ?? '', scale: d.scale,
       offsetX: d.offsetX, offsetY: d.offsetY, active: d.active, sortOrder: d.sortOrder, collectionId: d.collectionId || '',
+      ...flagsFrom(d),
     });
   };
   const pick = (e) => {
@@ -91,6 +93,7 @@ export default function DecorationsAdminTab({ collections = [] }) {
                 {collections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </label>
+            <ShopItemFlagsFields form={form} set={set} />
             <div className="deco-row">
               <label>Ordem na loja<input type="number" value={form.sortOrder} onChange={set('sortOrder')} /></label>
               <label className="deco-check"><input type="checkbox" checked={form.active} onChange={set('active')} /> À venda</label>
