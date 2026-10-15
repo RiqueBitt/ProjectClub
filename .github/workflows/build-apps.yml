@@ -6,6 +6,8 @@ on:
     paths:
       - 'desktop/**'
       - 'client/android/**'
+      # App Android nativo: é ele que sai como ProjectClub.apk.
+      - 'android-nativo/**'
       - 'client/src/**'
       # Mudanças na parte nativa do app Android (plugins, config, tela de
       # conexão nativa em client/android) também precisam gerar um .apk novo.
@@ -323,13 +325,11 @@ jobs:
           SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
           if [ -x "$SDKM" ]; then yes | "$SDKM" --licenses > /dev/null || true; fi
           ls "$SDK/platforms" || true
-      # Atualizações sem .apk novo (ver docs/android-updates.md): o app abre
-      # o site ao vivo, então só precisa de .apk novo quando a parte NATIVA
-      # muda. Calcula uma impressão digital dela (projeto Android + config do
-      # Capacitor + plugins declarados no
-      # package.json) ANTES de qualquer passo que mexa nesses arquivos, e
-      # compara com a da release anterior: igual = minNativeVersion continua
-      # a anterior (ninguém precisa baixar .apk); diferente = esta versão.
+      # O ProjectClub.apk oficial agora é o APP NATIVO (android-nativo/), com
+      # o mesmo pacote (com.projectclub.app) e a mesma chave do app antigo:
+      # quem tem o app antigo recebe o nativo como atualização normal.
+      # android-native.json: diz ao app antigo se ele precisa baixar este .apk
+      # (impressão digital do projeto nativo; mudou = atualização obrigatória).
       - name: Impressão digital da parte nativa (android-native.json)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -337,10 +337,7 @@ jobs:
           FORCE_NATIVE: ${{ github.event.inputs.force_native_update || 'false' }}
         run: |
           set -e
-          NATIVE_DEPS=$(node -e "const p=require('./client/package.json');const d={...p.dependencies,...p.devDependencies};console.log(Object.keys(d).filter(k=>/capacitor/i.test(k)).sort().map(k=>k+'@'+d[k]).join(','))")
-          FILES_HASH=$(git ls-files -z client/android client/capacitor.config.json | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
-          NATIVE_HASH=$(printf '%s\n%s\n' "$FILES_HASH" "$NATIVE_DEPS" | sha256sum | cut -d' ' -f1)
-          echo "Plugins nativos: $NATIVE_DEPS"
+          NATIVE_HASH=$(git ls-files -z android-nativo | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
           echo "Impressão digital nativa: $NATIVE_HASH"
           mkdir -p "$RUNNER_TEMP/prev-native"
           PREV=""
@@ -352,54 +349,30 @@ jobs:
           done
           python3 .github/scripts/android_native_manifest.py "$PREV" "$NATIVE_HASH" "$VERSION" "$FORCE_NATIVE" > "$RUNNER_TEMP/android-native.json"
           cat "$RUNNER_TEMP/android-native.json"
-      - name: Instalar dependências do client
-        working-directory: client
-        run: npm install
-      - name: Compilar o site (gera client/dist, que o app Android embala)
-        working-directory: client
-        # Sem os .gz/.br pré-comprimidos: o Gradle trata "x.js" + "x.js.gz"
-        # como recursos duplicados (era o que quebrava o build desde 13/10).
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Firebase (se já estiver configurado)
         env:
-          SKIP_PRECOMPRESS: '1'
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
         run: |
-          npm run build
-          find dist \( -name '*.gz' -o -name '*.br' \) -delete
-      - name: Sincronizar com o projeto Android
-        working-directory: client
-        run: npx cap sync android
-      # Push notification real (item pedido) só funciona com um projeto
-      # Firebase de verdade — enquanto o secret GOOGLE_SERVICES_JSON_BASE64
-      # não existir, esse passo não faz nada (condicional), e o Gradle já
-      # sabe pular o plugin do Google sozinho sem esse arquivo (ver o
-      # try/catch em client/android/app/build.gradle) — o build continua
-      # funcionando normal, só sem push, até isso ser configurado.
-      - name: Configurar Firebase (se já estiver disponível)
-        run: |
-          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" ]; then
-            echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > client/android/app/google-services.json
-            echo "google-services.json configurado — push notification ativo nesse build."
-          else
-            echo "GOOGLE_SERVICES_JSON_BASE64 não configurado ainda — build seguirá sem push notification."
-          fi
-      - name: Gravar a versão no app
-        run: |
-          sed -i 's/versionName "[^"]*"/versionName "${{ needs.compute-version.outputs.version }}"/' client/android/app/build.gradle
-      - name: Garantir que o gradlew é executável
-        run: chmod +x client/android/gradlew
+          if [ -n "$GS" ]; then echo "$GS" | base64 -d > android-nativo/app/google-services.json; echo "Firebase ligado"; else echo "Sem Firebase"; fi
       - name: Decodificar a chave de assinatura
-        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > client/android/app/release.keystore
-      - name: Gerar o .apk assinado
-        working-directory: client/android
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android-nativo/app/release.keystore
+      - name: Gerar o .apk assinado (app nativo)
+        working-directory: android-nativo
         env:
           ANDROID_KEYSTORE_PATH: release.keystore
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        # O log completo fica no GitHub; o motivo da falha também vira uma
-        # anotação do job (legível pela API, sem precisar baixar o log).
+          KLIPY_KEY: ${{ secrets.KLIPY_KEY }}
         run: |
           set -o pipefail
+          export APP_VERSION="${{ needs.compute-version.outputs.version }}"
+          # versionCode = minutos desde 1970: sempre maior que o do app antigo (1)
+          # e que o de qualquer build anterior do nativo.
+          export APP_VERSION_CODE=$(( $(date +%s) / 60 ))
+          chmod +x gradlew
           ./gradlew assembleRelease --stacktrace 2>&1 | tee /tmp/gradle.log || {
-            ERR=$(grep -m1 -A25 -E "What went wrong|error:|FAILURE|Exception" /tmp/gradle.log | tr '\n' ' ' | cut -c1-3500)
+            ERR=$(grep -m6 -E "^e: |What went wrong|Error:|error:" -A6 /tmp/gradle.log | tr '\n' ' ' | cut -c1-3500)
             echo "::error title=Android build falhou::${ERR:-sem detalhe no log}"
             exit 1
           }
@@ -408,7 +381,7 @@ jobs:
           OWN_TOKEN: ${{ github.token }}
         run: |
           set -e
-          APK_PATH=$(find client/android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          APK_PATH=$(find android-nativo/app/build/outputs/apk/release -name "*.apk" | head -n 1)
           cp "$APK_PATH" "$RUNNER_TEMP/ProjectClub.apk"
           # Publica neste repositório (lugar oficial dos downloads).
           publish() {

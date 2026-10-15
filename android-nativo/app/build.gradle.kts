@@ -20,9 +20,9 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        // Pacote próprio: instala ao lado do app atual (com.projectclub.app)
-        // enquanto o nativo cresce por fases.
-        applicationId = "com.projectclub.android"
+        // Mesmo pacote e mesma chave do app antigo (WebView): o .apk nativo
+        // ATUALIZA o app que as pessoas já têm, em vez de instalar outro.
+        applicationId = "com.projectclub.app"
         minSdk = 26
         targetSdk = 35
         versionCode = appVersionCode
