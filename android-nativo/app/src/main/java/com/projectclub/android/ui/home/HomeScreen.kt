@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.projectclub.android.data.ChatLogic
 import com.projectclub.android.data.Repository
 import com.projectclub.android.data.Room
@@ -85,8 +86,10 @@ fun HomeScreen(
     val unreadDms = conversations.count { ChatLogic.isConversationUnread(it, me?.id) }
     val pending = friends.count { it.status == "PENDING" && it.isIncoming }
 
-    Column(Modifier.fillMaxSize().background(PC.Bg)) {
-        Column(Modifier.background(PC.Bar).statusBarsPadding()) { callBar() }
+    // A barra de status é tratada UMA vez aqui (antes o topo de cada aba
+    // somava outra e sobrava um vão preto em cima do título).
+    Column(Modifier.fillMaxSize().background(PC.Bar).statusBarsPadding().background(PC.Bg)) {
+        Column(Modifier.background(PC.Bar)) { callBar() }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             AnimatedContent(tab, label = "tab", transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(120)) }) { t ->
                 when (Tab.entries[t]) {
@@ -127,13 +130,14 @@ private fun TabItem(t: Tab, selected: Boolean, badge: Int, modifier: Modifier, i
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Box(Modifier.size(width = 56.dp, height = 32.dp).clip(CircleShape).background(pill), contentAlignment = Alignment.Center) { icon(tint) }
+            Box(Modifier.size(width = 52.dp, height = 30.dp).clip(CircleShape).background(pill), contentAlignment = Alignment.Center) { icon(tint) }
             if (badge > 0) CountBadge(badge, Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-6).dp))
         }
         Spacer(Modifier.height(4.dp))
         Text(
-            t.label, style = MaterialTheme.typography.labelMedium,
+            t.label, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp, fontSize = 11.sp),
             color = if (selected) PC.Header else PC.Muted, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            maxLines = 1, softWrap = false,
         )
     }
 }

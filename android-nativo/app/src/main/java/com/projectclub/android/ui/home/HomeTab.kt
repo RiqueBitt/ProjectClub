@@ -219,15 +219,11 @@ private fun Stat(label: String, value: String?, modifier: Modifier) {
 
 @Composable
 private fun QuickCard(icon: ImageVector, title: String, subtitle: String, modifier: Modifier, onClick: () -> Unit) {
-    PcCard(modifier, onClick = onClick, padding = PaddingValues(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconTile(icon, PC.Brand, 42.dp)
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleSmall, color = PC.Header, maxLines = 1)
-                Text(subtitle, color = PC.Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
+    PcCard(modifier, onClick = onClick, padding = PaddingValues(14.dp)) {
+        IconTile(icon, PC.Brand, 40.dp)
+        Spacer(Modifier.height(10.dp))
+        Text(title, style = MaterialTheme.typography.titleSmall, color = PC.Header, maxLines = 1)
+        Text(subtitle, color = PC.Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

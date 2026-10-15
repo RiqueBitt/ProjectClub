@@ -77,7 +77,7 @@ class AppNavigator(
     override fun tickets() = go("tickets")
     override fun ticket(ticketId: String) = go("ticket/${enc(ticketId)}")
     override fun gallery() = go("gallery")
-    override fun settings() = onHome(4)
+    override fun settings() = go("settings")
 
     override fun link(pathOrUrl: String) {
         val raw = pathOrUrl.trim()
@@ -155,4 +155,5 @@ fun NavGraphBuilder.featureScreens(repo: Repository, nav: AppNav) {
     screen("tickets") { TicketsScreen(repo, nav) }
     screen("ticket/{id}", listOf("id")) { TicketScreen(repo, nav, it?.getString("id").orEmpty()) }
     screen("gallery") { GalleryScreen(repo, nav) }
+    screen("settings") { com.projectclub.android.ui.settings.SettingsScreen(repo, nav) }
 }

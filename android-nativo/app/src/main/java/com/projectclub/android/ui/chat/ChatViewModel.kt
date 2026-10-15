@@ -206,6 +206,26 @@ class ChatViewModel(private val repo: Repository, val room: Room) : ViewModel() 
         }
     }
 
+    /** Figurinha: mensagem própria, aparece na hora e o servidor confirma. */
+    fun sendSticker(url: String) {
+        val nonce = UUID.randomUUID().toString()
+        val me = repo.me.value
+        val local = Message(
+            id = LOCAL + nonce, authorId = me?.id, author = me,
+            channelId = room.channelId, conversationId = room.conversationId,
+            createdAt = Instant.now().toString(), nonce = nonce, stickerUrl = url,
+        )
+        _state.update { it.copy(messages = it.messages + local) }
+        viewModelScope.launch {
+            try {
+                val sent = repo.sendSticker(room, url, nonce)
+                _state.update { it.copy(messages = ChatLogic.merge(it.messages, listOf(sent.copy(nonce = nonce)))) }
+            } catch (e: Exception) {
+                _state.update { it.copy(messages = it.messages.filter { m -> m.id != local.id }, toast = e.message ?: "Não deu pra enviar a figurinha.") }
+            }
+        }
+    }
+
     fun react(m: Message, emoji: String) {
         if (m.id.startsWith(LOCAL)) return
         viewModelScope.launch {
