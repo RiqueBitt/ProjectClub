@@ -83,7 +83,7 @@ fun WebScreen(host: WebHost, path: String, onBack: () -> Unit) {
         containerColor = PC.Bg,
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = PC.Surface),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = PC.Bar),
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar") } },
                 title = { Text(if (booting) "Project Club" else title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 actions = { IconButton(onClick = { host.reload() }) { Icon(Icons.Filled.Refresh, "Recarregar") } },
@@ -99,9 +99,7 @@ fun WebScreen(host: WebHost, path: String, onBack: () -> Unit) {
             )
             // Capa enquanto o site inicia (só na 1ª vez): sem a tela "Carregando..." do site piscando.
             AnimatedVisibility(visible = booting && !offline, exit = fadeOut()) {
-                Box(Modifier.fillMaxSize().background(PC.Bg), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(Modifier.size(32.dp), strokeWidth = 3.dp, color = PC.Brand)
-                }
+                com.projectclub.android.ui.common.LoadingScreen("Abrindo...")
             }
             if (!booting && progress in 0.01f..0.99f) {
                 LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter), color = PC.Brand)

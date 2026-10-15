@@ -102,6 +102,10 @@ class Repository(private val context: Context, val api: Api, private val scope: 
     val openRoom = MutableStateFlow<String?>(null)
 
     /** Eventos que as telas usam (mensagens novas etc.) + avisos pra notificação. */
+    /** A primeira carga depois do login terminou (antes disso as telas mostram esqueletos). */
+    private val _loaded = MutableStateFlow(false)
+    val loaded: StateFlow<Boolean> = _loaded
+
     private val _alerts = MutableSharedFlow<Alert>(extraBufferCapacity = 64)
     val alerts: SharedFlow<Alert> = _alerts
 
@@ -196,6 +200,7 @@ class Repository(private val context: Context, val api: Api, private val scope: 
 
     private fun endLocalSession(message: String?) {
         messageCache.clear()
+        _loaded.value = false
         realtime.disconnect()
         api.setSession(null)
         api.cookies.clear()
@@ -224,6 +229,7 @@ class Repository(private val context: Context, val api: Api, private val scope: 
             runCatching { loadConversations() }
         }
         runCatching { loadNotices() }
+        _loaded.value = true
     }
 
     /** Depois de reconectar: só o que pode ter mudado. */
@@ -239,6 +245,21 @@ class Repository(private val context: Context, val api: Api, private val scope: 
         val n: NoticesResponse = api.get("/api/notices")
         _notices.value = n.notices
         _unreadNotices.value = n.unread
+    }
+
+    /** Só pros testes de tela (capturas do visual): preenche o app com dados de exemplo. */
+    @androidx.annotation.VisibleForTesting
+    fun seedForScreenshots(
+        me: User, community: CommunityResponse, conversations: List<Conversation>, friends: List<Friendship>,
+        notices: List<Notice>, presence: Map<String, String>, rosters: Map<String, List<VoiceParticipant>> = emptyMap(),
+        states: Map<String, ChannelState> = emptyMap(),
+    ) {
+        remember(me); _me.value = me
+        setCommunity(community); setConversations(conversations); setFriends(friends)
+        _notices.value = notices; _unreadNotices.value = notices.count { it.readAt == null }
+        _presence.value = presence; _voiceRosters.value = rosters; _channelStates.value = states
+        _session.value = SessionState.LoggedIn
+        _loaded.value = true
     }
 
     private fun setCommunity(c: CommunityResponse) {

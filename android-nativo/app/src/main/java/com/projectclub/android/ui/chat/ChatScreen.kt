@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -158,12 +159,17 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
         containerColor = PC.Bg,
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = PC.Surface),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = PC.Bar),
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar") } },
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (other != null) { Avatar(other, 32.dp, presence[other.id] ?: "OFFLINE"); Spacer(Modifier.width(10.dp)) }
-                        else if (channel != null) { Icon(Icons.Filled.Tag, null, tint = PC.Muted, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(6.dp)) }
+                        else if (channel != null) {
+                            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(PC.BrandSoft), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Filled.Tag, null, tint = PC.Brand, modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(Modifier.width(10.dp))
+                        }
                         Column {
                             Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
                             channel?.topic?.takeIf { it.isNotBlank() }?.let { Text(it, color = PC.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall) }
@@ -179,7 +185,7 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
         Column(Modifier.padding(pad).fillMaxSize().imePadding()) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when {
-                    state.loading && state.messages.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    state.loading && state.messages.isEmpty() -> com.projectclub.android.ui.common.ListSkeleton(9, 40.dp, Modifier.align(Alignment.BottomStart))
                     state.error != null -> Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(state.error!!, color = PC.Muted)
                         Button(onClick = vm::retry, modifier = Modifier.padding(top = 12.dp)) { Text("Tentar de novo") }
@@ -197,11 +203,24 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
                             )
                         }
                         if (state.loadingOlder) item { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp) } }
-                        if (state.reachedStart && state.messages.isNotEmpty()) item {
-                            Text(
-                                if (channel != null) "Este é o começo de #${channel.name}." else "Este é o começo da conversa com $title.",
-                                color = PC.Muted, modifier = Modifier.padding(16.dp),
-                            )
+                        if (state.reachedStart || (!state.loading && state.messages.isEmpty())) item {
+                            Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 12.dp)) {
+                                if (channel != null) {
+                                    Box(Modifier.size(64.dp).clip(RoundedCornerShape(20.dp)).background(PC.BrandSoft), contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Filled.Tag, null, tint = PC.Brand, modifier = Modifier.size(34.dp))
+                                    }
+                                } else Avatar(other, 72.dp)
+                                Spacer(Modifier.height(12.dp))
+                                Text(
+                                    if (channel != null) "Bem-vindo(a) a #${channel.name}" else title,
+                                    style = MaterialTheme.typography.headlineSmall, color = PC.Header,
+                                )
+                                Text(
+                                    if (channel != null) "Este é o início do canal #${channel.name}. Diga oi e comece a conversa!"
+                                    else "Este é o começo da sua conversa com $title.",
+                                    color = PC.Muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp),
+                                )
+                            }
                         }
                     }
                 }
@@ -403,7 +422,7 @@ private fun Composer(
     text: String, onText: (String) -> Unit, state: ChatState, roomName: String,
     onAttach: () -> Unit, onRemoveFile: (com.projectclub.android.data.PickedFile) -> Unit, onCancel: () -> Unit, onSend: () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().background(PC.Surface).navigationBarsPadding()) {
+    Column(Modifier.fillMaxWidth().background(PC.Bg).navigationBarsPadding().padding(horizontal = 10.dp, vertical = 8.dp).clip(RoundedCornerShape(26.dp)).background(PC.Surface).border(1.dp, PC.Line, RoundedCornerShape(26.dp))) {
         val banner = state.editing?.let { "Editando mensagem" } ?: state.replyTo?.let { "Respondendo a ${it.author?.name ?: "mensagem"}" }
         if (banner != null) Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(banner, color = PC.Muted, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
@@ -428,14 +447,19 @@ private fun Composer(
                 maxLines = 6,
                 shape = RoundedCornerShape(22.dp),
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = PC.Surface2, unfocusedContainerColor = PC.Surface2,
+                    focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
                     focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
                 ),
             )
             val canSend = text.isNotBlank() || state.files.isNotEmpty()
-            IconButton(onClick = onSend, enabled = canSend && !state.sending) {
-                if (state.sending) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                else Icon(Icons.AutoMirrored.Filled.Send, "Enviar", tint = if (canSend) PC.Brand else PC.Muted)
+            Box(
+                Modifier.padding(start = 4.dp, bottom = 2.dp).size(46.dp).clip(RoundedCornerShape(16.dp))
+                    .background(if (canSend) PC.Brand else PC.BrandSoft)
+                    .clickable(enabled = canSend && !state.sending, onClick = onSend),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (state.sending) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
+                else Icon(Icons.AutoMirrored.Filled.Send, "Enviar", tint = if (canSend) Color.White else PC.Brand.copy(alpha = 0.6f), modifier = Modifier.size(21.dp))
             }
         }
     }

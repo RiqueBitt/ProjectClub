@@ -6,3 +6,4 @@ app/google-services.json
 app/release.keystore
 *.iml
 .idea/
+app/screenshots/

@@ -60,6 +60,7 @@ class App : Application() {
 
         repo.beforeLogout = { pushToken?.let { repo.unregisterPushToken(it) } }
         appScope.launch { repo.restore() }
+        appScope.launch { com.projectclub.android.data.Updater.check() }
         appScope.launch { repo.alerts.collect(::onAlert) }
         // Saiu da conta: o site embutido sai junto.
         appScope.launch { repo.session.collect { if (it is SessionState.LoggedOut) web.reset() } }

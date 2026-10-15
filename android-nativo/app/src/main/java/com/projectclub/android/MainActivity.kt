@@ -116,7 +116,7 @@ class MainActivity : ComponentActivity() {
     private fun Root() {
         val session by app.repo.session.collectAsState()
         when (val s = session) {
-            SessionState.Loading -> Box(Modifier.fillMaxSize().background(PC.Bg), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            SessionState.Loading -> com.projectclub.android.ui.common.LoadingScreen()
             is SessionState.LoggedOut -> LoginScreen(app.repo, s.message)
             SessionState.LoggedIn -> LoggedIn()
         }
