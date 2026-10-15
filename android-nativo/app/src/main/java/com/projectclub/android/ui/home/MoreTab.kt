@@ -92,7 +92,7 @@ fun MoreTab(repo: Repository, actions: HomeActions) {
         Entry(Icons.Outlined.SportsEsports, "Minijogos", Color(0xFF22D3EE), "/minijogos"),
         Entry(Icons.Outlined.Groups, "Clubes", Color(0xFFFB923C), "/clans"),
         Entry(Icons.Outlined.CalendarMonth, "Eventos", PC.Events, "/comunidade/eventos"),
-        Entry(Icons.AutoMirrored.Outlined.Article, "Fórum", PC.Forum, "/comunidades"),
+        Entry(Icons.Outlined.Language, "Internet", PC.Forum, "/navegador"),
     )
 
     Column(Modifier.fillMaxSize()) {

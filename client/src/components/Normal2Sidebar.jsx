@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -7,6 +7,7 @@ import ChannelSidebar from './ChannelSidebar.jsx';
 import { ITEMS, STAFF_ITEM, visibleNavItems } from './MainSidebar.jsx';
 import { useFeaturedVisibility } from './FeaturedChannels.jsx';
 import { useClaimableMissions } from '../utils/missionBadge';
+import { isFeatureEnabled } from '../utils/features';
 
 // Layout "Normal 2.0": uma coluna só à esquerda, no estilo Discord —
 // banner da comunidade no topo, o menu principal em botões logo abaixo
@@ -17,7 +18,8 @@ import { useClaimableMissions } from '../utils/missionBadge';
 // O item "Comunidade" sai do menu: os canais já estão sempre à vista.
 // Usa a classe .main-sidebar, então no celular vira a mesma gaveta
 // lateral dos outros layouts, sem regra nova de toque/abrir/fechar.
-const N2_ITEMS = ITEMS.filter((i) => i.to !== '/');
+// O Navegador vira o botão de globo ao lado da setinha (não ocupa lugar na fileira).
+const N2_ITEMS = ITEMS.filter((i) => i.to !== '/' && i.to !== '/navegador');
 
 export function useBadges(user) {
   const myRoleIds = useMyRoleIds(user.id);
@@ -42,7 +44,10 @@ export function useBadges(user) {
 function N2Nav() {
   const { t } = useTranslation();
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuth();
+  const browserOn = isFeatureEnabled('browser');
+  const inBrowser = location.pathname.startsWith('/navegador');
   // Menu compacto (só ícones, numa fileira) — preferência deste navegador.
   const [compact, setCompact] = useState(() => {
     // Padrão agora é a fileira de ícones (pedido do dono); '0' = com nomes.
@@ -64,14 +69,32 @@ function N2Nav() {
 
   return (
     <div className={`n2-nav${compact ? ' is-compact' : ''}`}>
-      <button
-        type="button" className="n2-nav-toggle" onClick={toggle}
-        aria-label={compact ? 'Mostrar nomes do menu' : 'Menu compacto'} title={compact ? 'Mostrar nomes do menu' : 'Menu compacto'}
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-          <path d={compact ? 'm6 9 6 6 6-6' : 'm18 15-6-6-6 6'} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
+      <div className="n2-nav-tools">
+        <button
+          type="button" className="n2-nav-toggle" onClick={toggle}
+          aria-label={compact ? 'Mostrar nomes do menu' : 'Menu compacto'} title={compact ? 'Mostrar nomes do menu' : 'Menu compacto'}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+            <path d={compact ? 'm6 9 6 6 6-6' : 'm18 15-6-6-6 6'} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        {/* Globo: abre o Navegador do Project Club (internet dentro do app). */}
+        {browserOn && (
+          <button
+            type="button" className={`n2-nav-web${inBrowser ? ' active' : ''}`}
+            onClick={() => { useStore.getState().closeMobileChannelList?.(); navigate('/navegador'); }}
+            aria-label="Internet: abrir o navegador" title="Internet"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
+              <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M3 12h18M12 3c2.6 2.6 3.8 5.7 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.7-3.8-9S9.4 5.6 12 3z" />
+              </g>
+            </svg>
+            <span>Internet</span>
+          </button>
+        )}
+      </div>
       <nav className="n2-nav-list" aria-label="Menu principal">
         {items.map((item) => {
           const active = item.match(location.pathname);

@@ -45,7 +45,8 @@ function NewTabPage({ tab }) {
   const hour = new Date().getHours();
   const greet = hour < 5 ? 'Boa madrugada' : hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
   const pcLinks = [
-    { label: 'Filmes e Séries', icon: 'M4 4h16v16H4zM8 4v16M16 4v16M4 8h4M4 12h4M4 16h4M16 8h4M16 12h4M16 16h4', run: () => useCinema.getState().openApp() },
+    // Filmes e Séries só aparece se o sistema estiver ligado (utils/features.js).
+    ...(isFeatureEnabled('cinema') ? [{ label: 'Filmes e Séries', icon: 'M4 4h16v16H4zM8 4v16M16 4v16M4 8h4M4 12h4M4 16h4M16 8h4M16 12h4M16 16h4', run: () => useCinema.getState().openApp() }] : []),
     { label: 'YouTube', icon: B.yt, run: () => useYouTubeApp.getState().openApp() },
     { label: 'Música', icon: 'M9 18V5l11-2v13M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3zM20 16a3 3 0 1 1-3-3 3 3 0 0 1 3 3z', run: () => useMusic.getState().openPanel?.(true) },
     { label: 'Mini-jogos', icon: 'M6 11h4M8 9v4M15 12h.01M18 10h.01M17 6H7a5 5 0 0 0-5 5v1a4 4 0 0 0 7 2.6h6A4 4 0 0 0 22 12v-1a5 5 0 0 0-5-5z', run: () => navigate('/minijogos') },

@@ -6,7 +6,7 @@
 const FEATURES = Object.freeze({
   houses: false,   // Casas, móveis, mapas, galeria e recados das casas
   stickers: false, // Figurinhas colecionáveis: álbum e cápsulas (NÃO as figurinhas do chat)
-  browser: false,  // Navegador do Project Club: conferir páginas/sugestões (/api/browser)
+  browser: true,   // Navegador do Project Club: conferir páginas/sugestões (/api/browser)
   cinema: false,   // Filmes e Séries: Internet Archive (/api/archive) e catálogo/Pluto (/api/catalog)
   // Guerra das Cartas (jogo de cartas: /api/cards, salas, batalhas, convites,
   // trocas, mercado, torneios). DESATIVADO TEMPORARIAMENTE: as rotas

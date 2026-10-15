@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Gavel
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.LocalMall
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.MicOff
@@ -80,7 +81,12 @@ fun ChannelsTab(repo: Repository, actions: HomeActions) {
     val collapsed = remember { mutableStateMapOf<String, Boolean>() }
 
     Column(Modifier.fillMaxSize()) {
-        PcTopBar("Comunidade", Icons.Outlined.ChatBubbleOutline)
+        PcTopBar("Comunidade", Icons.Outlined.ChatBubbleOutline) {
+            // Globo: abre o Navegador do Project Club (internet dentro do app).
+            androidx.compose.material3.IconButton(onClick = { actions.openWeb("/navegador") }) {
+                Icon(Icons.Outlined.Language, "Internet", tint = PC.Text)
+            }
+        }
         val c = community
         if (c == null) { ChannelsSkeleton(); return@Column }
 
