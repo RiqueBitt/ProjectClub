@@ -393,7 +393,15 @@ jobs:
           ANDROID_KEYSTORE_PATH: release.keystore
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease --stacktrace
+        # O log completo fica no GitHub; o motivo da falha também vira uma
+        # anotação do job (legível pela API, sem precisar baixar o log).
+        run: |
+          set -o pipefail
+          ./gradlew assembleRelease --stacktrace 2>&1 | tee /tmp/gradle.log || {
+            ERR=$(grep -m1 -A25 -E "What went wrong|error:|FAILURE|Exception" /tmp/gradle.log | tr '\n' ' ' | cut -c1-3500)
+            echo "::error title=Android build falhou::${ERR:-sem detalhe no log}"
+            exit 1
+          }
       - name: Publicar na Release "latest"
         env:
           OWN_TOKEN: ${{ github.token }}
