@@ -300,18 +300,6 @@ html.layout-n2-root { --n2-sidebar-width: 292px; }
 .n2-sidebar .n2-nav-toggle {
   margin: 0; width: 44px; height: 22px; border-radius: 999px;
 }
-/* Botão "Internet" (globo) ao lado da setinha: abre o Navegador. */
-.n2-nav-web {
-  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px 0 7px; border-radius: 999px;
-  border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-muted);
-  font-size: 11.5px; font-weight: 700; cursor: pointer;
-  transition: color .12s ease, background-color .12s ease, border-color .12s ease;
-}
-.n2-nav-web:hover { color: var(--header-primary); background: var(--bg-modifier-hover); }
-.n2-nav-web.active { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 55%, transparent); background: color-mix(in srgb, var(--brand) 14%, var(--bg-primary)); }
-.n2-nav-web svg { flex-shrink: 0; }
-.n2-nav-web span { display: none; }
-.n2-sidebar .n2-nav-web span { display: inline; }
 .n2-sidebar .n2-nav-toggle svg { width: 14px; height: 14px; }
 .n2-sidebar .n2-nav.is-compact { padding-bottom: 4px; }
 .n2-sidebar .n2-nav.is-compact .n2-nav-list {
