@@ -4,8 +4,7 @@
   "webDir": "dist",
   "server": {
     "url": "https://projectclub.shardweb.app",
-    "cleartext": false,
-    "errorPath": "app-offline.html"
+    "cleartext": false
   },
   "android": {
     "allowMixedContent": false

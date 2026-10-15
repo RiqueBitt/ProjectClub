@@ -7,11 +7,10 @@ on:
       - 'desktop/**'
       - 'client/android/**'
       - 'client/src/**'
-      # Mudanças na parte nativa do app Android (plugins, config, página
-      # offline embalada) também precisam gerar um .apk novo.
+      # Mudanças na parte nativa do app Android (plugins, config, tela de
+      # conexão nativa em client/android) também precisam gerar um .apk novo.
       - 'client/package.json'
       - 'client/capacitor.config.json'
-      - 'client/public/app-offline.html'
       - '.github/workflows/build-apps.yml'
   workflow_dispatch:
     inputs:
@@ -93,15 +92,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # Modo offline: cópia do navegador que vai DENTRO do app (abre quando
-      # o servidor do Project Club não responde). Gerada a partir do site.
-      - name: Gerar a cópia offline do navegador
-        working-directory: .
-        shell: bash
-        run: |
-          npm install --ignore-scripts --no-audit --no-fund --workspace=client
-          npm run build:offline --workspace=client
-          test -f desktop/offline/offline.html
       - name: Instalar dependências
         run: npm install
       - name: Gravar a versão no app
@@ -216,15 +206,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # Modo offline: cópia do navegador que vai DENTRO do app (abre quando
-      # o servidor do Project Club não responde). Gerada a partir do site.
-      - name: Gerar a cópia offline do navegador
-        working-directory: .
-        shell: bash
-        run: |
-          npm install --ignore-scripts --no-audit --no-fund --workspace=client
-          npm run build:offline --workspace=client
-          test -f desktop/offline/offline.html
       - name: Instalar dependências
         run: npm install
       - name: Gravar a versão no app
@@ -331,7 +312,7 @@ jobs:
       # Atualizações sem .apk novo (ver docs/android-updates.md): o app abre
       # o site ao vivo, então só precisa de .apk novo quando a parte NATIVA
       # muda. Calcula uma impressão digital dela (projeto Android + config do
-      # Capacitor + página offline embalada + plugins declarados no
+      # Capacitor + plugins declarados no
       # package.json) ANTES de qualquer passo que mexa nesses arquivos, e
       # compara com a da release anterior: igual = minNativeVersion continua
       # a anterior (ninguém precisa baixar .apk); diferente = esta versão.
@@ -343,7 +324,7 @@ jobs:
         run: |
           set -e
           NATIVE_DEPS=$(node -e "const p=require('./client/package.json');const d={...p.dependencies,...p.devDependencies};console.log(Object.keys(d).filter(k=>/capacitor/i.test(k)).sort().map(k=>k+'@'+d[k]).join(','))")
-          FILES_HASH=$(git ls-files -z client/android client/capacitor.config.json client/public/app-offline.html | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+          FILES_HASH=$(git ls-files -z client/android client/capacitor.config.json | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
           NATIVE_HASH=$(printf '%s\n%s\n' "$FILES_HASH" "$NATIVE_DEPS" | sha256sum | cut -d' ' -f1)
           echo "Plugins nativos: $NATIVE_DEPS"
           echo "Impressão digital nativa: $NATIVE_HASH"

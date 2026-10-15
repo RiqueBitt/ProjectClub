@@ -2,13 +2,13 @@
 
 ## Resumo
 
-- O app Android **não embala o site**: ele abre `https://projectclub.squareweb.app`
+- O app Android **não embala o site**: ele abre `https://projectclub.shardweb.app`
   ao vivo (`server.url` em `client/capacitor.config.json`). Todo deploy do site
-  (Square Cloud) chega no celular sozinho, sem .apk novo.
+  (Shard Cloud) chega no celular sozinho, sem .apk novo.
 - Um **.apk novo só é necessário quando a parte nativa muda**: plugins do
   Capacitor (`client/package.json`), código Java/Manifest/Gradle
-  (`client/android/**`), `client/capacitor.config.json` ou a página offline
-  embalada (`client/public/app-offline.html`).
+  (`client/android/**`, inclusive a tela de conexão nativa) ou
+  `client/capacitor.config.json`.
 - O app só pede o .apk quando a versão nativa instalada é **mais velha que a
   `minNativeVersion`** publicada. Antes, toda release (inclusive as que só
   mudavam o site) pedia um .apk novo.
@@ -46,9 +46,17 @@ No app (`client/src/utils/nativeUpdateCheck.js`):
   **Nunca recarrega durante uma chamada de voz** (fica pra próxima vez).
 - **Configurações > Sistema > Sobre este aplicativo**: mostra
   "Versão do app (nativa) X · Conteúdo Y" e o botão **Procurar atualização**.
-- **Sem internet / servidor reiniciando**: o WebView mostra
-  `app-offline.html` (embalada no .apk via `server.errorPath`), que tenta de
-  novo sozinha quando a conexão volta.
+- **Sem internet / servidor fora**: a tela "Project Club · Conexão" é um app à
+  parte (`ConexaoActivity.java`, processo próprio `:conexao`, sem nada do site).
+  Quem decide abrir é o `ConnectionGuard.java`: quando a página principal falha,
+  ele confere a rede do aparelho e o `/api/health` do servidor. Respondeu → era
+  falso alarme, recarrega em silêncio (até 2x por minuto) e relata o motivo em
+  `/api/system/client-error` (`where: android-conexao`). Não respondeu → abre a
+  tela de conexão, que testa a cada 5 s e fecha sozinha quando o servidor volta.
+  O antigo `server.errorPath` (`app-offline.html`) foi removido: ele trocava a
+  tela a qualquer falha, sem conferir nada.
+- **Computador**: o mesmo, com a janela `desktop/connectionWindow.js`
+  (+ `desktop/conexao/`), no lugar da cópia do navegador que ia no instalador.
 
 ## Como as releases fluem (CI — `.github/workflows/build-apps.yml`)
 
@@ -56,7 +64,7 @@ No app (`client/src/utils/nativeUpdateCheck.js`):
 2. `build-android`, passo **"Impressão digital da parte nativa"**, antes de
    qualquer passo que altere arquivos:
    - sha256 dos arquivos versionados de `client/android/**`,
-     `client/capacitor.config.json`, `client/public/app-offline.html`
+     `client/capacitor.config.json`
      + a lista de plugins `*capacitor*` declarados no `client/package.json`;
    - baixa o `android-native.json` da release anterior mais recente que tiver um;
    - mesma impressão digital → `minNativeVersion` continua a anterior;
@@ -91,7 +99,7 @@ no GitHub (Releases → editar → trocar o arquivo) colocando o
 `android-native.json` a cada 30 min (ou na hora, reiniciando o servidor).
 
 **Ver o que o servidor está respondendo**:
-`https://projectclub.squareweb.app/api/mobile/update?native=v1.0.0&current=x`
+`https://projectclub.shardweb.app/api/mobile/update?native=v1.0.0&current=x`
 
 ## Primeira vez
 
@@ -117,4 +125,4 @@ Avaliado e descartado por enquanto:
   site ao vivo, os dois sempre andam juntos.
 - Ganho real do bundle seria abrir o app inteiro sem internet, mas o Project
   Club é um app online (chat, voz, feed): sem internet ele não faz nada útil.
-  A página offline embalada cobre esse caso com uma mensagem clara.
+  A tela de conexão nativa cobre esse caso com uma mensagem clara.

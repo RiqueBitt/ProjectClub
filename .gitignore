@@ -54,4 +54,3 @@ desktop/out/
 # Saídas dos testes de tela (Playwright)
 client/test-results/
 client/playwright-report/
-desktop/offline/
