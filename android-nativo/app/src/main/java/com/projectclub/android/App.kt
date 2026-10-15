@@ -10,6 +10,7 @@ import com.projectclub.android.data.Repository
 import com.projectclub.android.data.SessionState
 import com.projectclub.android.net.Api
 import com.projectclub.android.notify.Notifier
+import com.projectclub.android.ui.web.WebHost
 import com.projectclub.android.voice.VoiceManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +32,9 @@ class App : Application() {
         private set
     lateinit var voice: VoiceManager
         private set
+    /** O site (partes não nativas), carregado uma vez e reaproveitado. */
+    lateinit var web: WebHost
+        private set
 
     @Volatile private var pushToken: String? = null
 
@@ -46,16 +50,19 @@ class App : Application() {
         api = Api(this)
         repo = Repository(this, api, appScope)
         voice = VoiceManager(this, repo, appScope)
+        web = WebHost(this, api)
         Notifier.createChannels(this)
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onStart(owner: LifecycleOwner) { _isForeground.value = true; repo.realtime.connect() }
-            override fun onStop(owner: LifecycleOwner) { _isForeground.value = false }
+            override fun onStart(owner: LifecycleOwner) { _isForeground.value = true; repo.realtime.connect(); web.onAppForeground() }
+            override fun onStop(owner: LifecycleOwner) { _isForeground.value = false; web.onAppBackground() }
         })
 
         repo.beforeLogout = { pushToken?.let { repo.unregisterPushToken(it) } }
         appScope.launch { repo.restore() }
         appScope.launch { repo.alerts.collect(::onAlert) }
+        // Saiu da conta: o site embutido sai junto.
+        appScope.launch { repo.session.collect { if (it is SessionState.LoggedOut) web.reset() } }
         // "Estou mexendo no app": evita ficar Ausente sozinho enquanto usa.
         appScope.launch {
             while (isActive) {
@@ -67,7 +74,11 @@ class App : Application() {
 
     private fun onAlert(a: Alert) {
         when (a) {
-            Alert.SessionStarted -> registerPush()
+            Alert.SessionStarted -> {
+                registerPush()
+                // Deixa o site pronto em segundo plano: os menus abrem na hora.
+                appScope.launch { delay(3000); web.preload() }
+            }
             is Alert.DirectMessage -> {
                 val m = a.message
                 val conv = m.conversationId ?: return

@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
-import { lazyWithRetry as lazy } from '../utils/lazyWithRetry';
+import { lazyWithRetry as lazy, preloadPages } from '../utils/lazyWithRetry';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useSocket } from '../context/SocketContext.jsx';
@@ -362,6 +362,18 @@ export default function MainApp() {
   // socket cair depois (wi-fi oscilou, servidor reiniciou no deploy), a
   // interface continua na tela — antes ela era trocada inteira pelo
   // carregamento, o que desmontava tudo (rascunho, rolagem, chamada).
+  // Depois que o app abriu, baixa em segundo plano as seções mais usadas:
+  // abrir um menu pela 1ª vez não espera mais o pedaço da página chegar.
+  const isReady = connected || socketTimedOut;
+  useEffect(() => {
+    if (!isReady) return undefined;
+    return preloadPages([
+      InicioPage, LojaPage, ProfilePage, NotificationsPage, AmigosPage, EconomyPage, ProgressPage,
+      CommunityPage, CommunityEventsPage, CommunityGalleryPage, ClanPage, TicketsPage, MiniJogosPage,
+      AnunciosPage, AtividadePage, SearchPage, PostDetailPage, UserProfileModal, UserSettingsModal,
+    ]);
+  }, [isReady]);
+
   if (connected) everConnected.current = true;
   if (!connected && !socketTimedOut && !everConnected.current) return <LoadingScreen />;
 

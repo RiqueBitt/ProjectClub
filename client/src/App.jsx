@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { lazyWithRetry as lazy } from './utils/lazyWithRetry';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import { SocketProvider } from './context/SocketContext.jsx';
 import { VoiceProvider } from './context/VoiceContext.jsx';
@@ -263,6 +263,13 @@ function AppSkeletonScreen() {
 }
 
 export default function App() {
+  // O app Android nativo mostra o site num WebView só e troca de página
+  // por aqui (sem recarregar o site inteiro a cada menu).
+  const navigate = useNavigate();
+  useEffect(() => {
+    window.__pcNavigate = (to) => navigate(to);
+    return () => { delete window.__pcNavigate; };
+  }, [navigate]);
   const theme = useStore((s) => s.theme);
   const customBackground = useStore((s) => s.customBackground);
   // Personalizar layout: atributos/variáveis no <html> (ver utils/appearance.js).
