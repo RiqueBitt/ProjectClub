@@ -19,7 +19,8 @@ const DOWNLOADS_BASE = 'https://github.com/RiqueBitt/ProjectClub/releases/latest
 const DOWNLOADS = {
   windows: `${DOWNLOADS_BASE}/ProjectClub-Setup-Windows.exe`,
   linux: `${DOWNLOADS_BASE}/ProjectClub-Linux.AppImage`,
-  android: `${DOWNLOADS_BASE}/ProjectClub.apk`,
+  // App Android nativo (chamadas, compartilhar a tela e notificações de verdade).
+  android: 'https://github.com/RiqueBitt/ProjectClub/releases/download/android-nativo/ProjectClub-Nativo.apk',
 };
 
 const APPS = [

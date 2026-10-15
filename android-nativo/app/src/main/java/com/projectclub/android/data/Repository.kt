@@ -102,6 +102,10 @@ class Repository(private val context: Context, val api: Api, private val scope: 
     val openRoom = MutableStateFlow<String?>(null)
 
     /** Eventos que as telas usam (mensagens novas etc.) + avisos pra notificação. */
+    /** A primeira carga depois do login terminou (antes disso as telas mostram esqueletos). */
+    private val _loaded = MutableStateFlow(false)
+    val loaded: StateFlow<Boolean> = _loaded
+
     private val _alerts = MutableSharedFlow<Alert>(extraBufferCapacity = 64)
     val alerts: SharedFlow<Alert> = _alerts
 
@@ -196,6 +200,7 @@ class Repository(private val context: Context, val api: Api, private val scope: 
 
     private fun endLocalSession(message: String?) {
         messageCache.clear()
+        _loaded.value = false
         realtime.disconnect()
         api.setSession(null)
         api.cookies.clear()
@@ -224,6 +229,7 @@ class Repository(private val context: Context, val api: Api, private val scope: 
             runCatching { loadConversations() }
         }
         runCatching { loadNotices() }
+        _loaded.value = true
     }
 
     /** Depois de reconectar: só o que pode ter mudado. */
