@@ -32,6 +32,8 @@ jobs:
   # o app mostra pra quem tem uma versão mais antiga.
   compute-version:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       version: ${{ steps.v.outputs.version }}
       changelog_b64: ${{ steps.v.outputs.changelog_b64 }}
@@ -39,11 +41,23 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # precisa do histórico completo pra achar a última tag e os commits desde ela
+      # Limpeza: uma release errada ("vandroid-nativo...") virou a "mais
+      # recente" e quebrou os links de download do site (404). Some com ela.
+      - name: Remover release com versão inválida
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for t in $(gh release list --repo "${{ github.repository }}" --limit 50 --json tagName -q '.[].tagName' | grep -vE '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -v '^android-nativo$' || true); do
+            echo "Apagando release inválida: $t"
+            gh release delete "$t" --repo "${{ github.repository }}" --cleanup-tag -y || true
+          done
       - id: v
         shell: bash
         run: |
           set -e
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          # Só tags de versão (vX.Y.Z): a release fixa "android-nativo" (app nativo)
+          # também cria tag, e antes ela virava a "última versão" e quebrava tudo.
+          LAST_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || echo "")
           if [ -z "$LAST_TAG" ]; then
             LAST_TAG="v0.0.0"
             COMMITS=$(git log --pretty=format:"%s")
