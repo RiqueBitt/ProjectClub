@@ -39,7 +39,8 @@ module.exports = {
   JWT_ACCESS_SECRET: jwtAccessSecret,
   JWT_REFRESH_SECRET: jwtRefreshSecret,
   ACCESS_TOKEN_TTL: process.env.ACCESS_TOKEN_TTL || '15m',
-  REFRESH_TOKEN_TTL_DAYS: parseInt(process.env.REFRESH_TOKEN_TTL_DAYS || '30', 10),
+  // Sessão dura 90 dias SEM usar o app; cada uso renova o prazo.
+  REFRESH_TOKEN_TTL_DAYS: Math.max(90, parseInt(process.env.REFRESH_TOKEN_TTL_DAYS || '90', 10) || 90),
 
   // Segredo compartilhado só pro GitHub Actions publicar uma "Atualização"
   // automaticamente depois de gerar o .exe/.apk/.AppImage — não é login
