@@ -129,15 +129,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => ipcRenderer.removeListener('nexus:nxm-link', handler);
     },
   },
-  // Modo offline (servidor fora do ar → navegador embutido no app).
-  offline: {
-    retry: () => ipcRenderer.invoke('offline:retry'),
-    onOnline: (callback) => {
-      const handler = () => callback();
-      ipcRenderer.on('offline:online', handler);
-      return () => ipcRenderer.removeListener('offline:online', handler);
-    },
-  },
   // Navegador do Project Club (abas dentro do app). Ver browserEngine.js.
   browser: {
     version: 2,

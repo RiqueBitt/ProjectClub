@@ -8,8 +8,7 @@
     "build": "vite build && node scripts/precompress.cjs",
     "preview": "vite preview",
     "test:e2e": "playwright test",
-    "test:unit": "node --test test/*.test.js",
-    "build:offline": "vite build --config vite.offline.config.js"
+    "test:unit": "node --test test/*.test.js"
   },
   "dependencies": {
     "@anuradev/capacitor-background-mode": "^8.1.0",

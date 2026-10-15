@@ -4,16 +4,9 @@
 // ícone na bandeja do sistema, iniciar sozinho com o Windows, e continuar
 // rodando em segundo plano mesmo com a janela fechada — exatamente como
 // Discord/Slack fazem.
-const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage, session, desktopCapturer, screen, dialog, protocol, net } = require('electron');
+const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage, session, desktopCapturer, screen, dialog } = require('electron');
 const path = require('path');
-const { pathToFileURL } = require('url');
 
-// Modo offline: cópia do navegador dentro do app (pasta offline/, gerada por
-// `npm run build:offline -w client`), servida em pcapp://app/. Abre quando o
-// servidor do Project Club não responde — o navegador continua funcionando.
-protocol.registerSchemesAsPrivileged([{ scheme: 'pcapp', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: false } }]);
-const OFFLINE_DIR = path.join(__dirname, 'offline');
-const OFFLINE_URL = 'pcapp://app/offline.html';
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 
@@ -55,9 +48,22 @@ const browserEngine = lazy('./browserEngine');
 // URL do site hospedado — trocar aqui se o domínio mudar um dia. Fica só
 // nesse único lugar de propósito.
 const APP_URL = process.env.PROJECT_CLUB_URL || 'https://projectclub.shardweb.app';
-// Página local confiável além do site: a cópia offline (pcapp://app/).
-security.configure({ appUrl: APP_URL, trustedLocalOrigins: ['pcapp://app'] });
+security.configure({ appUrl: APP_URL });
 const { isAppUrl } = security;
+// Sem conexão: tela própria e separada do Project Club ("Project Club ·
+// Conexão" — connectionWindow.js), aberta só depois de confirmar que a
+// internet ou o servidor estão mesmo fora.
+const connectionGuard = require('./connectionWindow').createConnectionGuard({
+  appUrl: APP_URL, isAppUrl, icon: path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'tray.png'),
+});
+// Mostra o app: a janela do Project Club, ou a de conexão se o servidor estiver fora.
+function showApp() {
+  if (connectionGuard.show()) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
 
 // ---------- IPC protegido ----------
 // Todo pedido do site passa por aqui: só é atendido se veio de um frame da
@@ -191,10 +197,11 @@ function openDeepLink(raw) {
   const route = parseDeepLink(raw);
   if (!route) { if (raw) console.warn('[link] projectclub:// inválido ignorado'); return; }
   if (!mainWindow || mainWindow.isDestroyed()) { pendingDeepLinkRoute = route; return; }
+  // Sem servidor: guarda o destino pra quando voltar e mostra a tela de conexão.
+  if (connectionGuard.isActive()) { pendingDeepLinkRoute = route; connectionGuard.show(); return; }
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
-  if (offlineMode) return; // sem servidor: não tem pra onde ir
   const wc = mainWindow.webContents;
   if (isAppUrl(wc.getURL()) && !wc.isLoading()) {
     // Navega dentro do site (React Router escuta popstate) sem recarregar —
@@ -503,60 +510,6 @@ function setNxmHandler(enabled) {
 // Links que vieram junto com a abertura do app (Windows/Linux).
 for (const a of process.argv) if (typeof a === 'string' && a.toLowerCase().startsWith('nxm://')) { const l = parseNxmLink(a); if (l) pendingNxmLinks.push(l); }
 
-// ---------- Project Club fora do ar → navegador embutido ----------
-let offlineMode = false;
-let onlineTimer = null;
-const hasOfflineCopy = () => fs.existsSync(path.join(OFFLINE_DIR, 'offline.html'));
-async function serverAlive() {
-  try {
-    const r = await net.fetch(APP_URL, { method: 'GET', signal: AbortSignal.timeout(6000), headers: { 'cache-control': 'no-cache' } });
-    return r.status < 500;
-  } catch { return false; }
-}
-function goOffline(win, reason) {
-  if (offlineMode || !win || win.isDestroyed() || !hasOfflineCopy()) return;
-  offlineMode = true;
-  win.loadURL(`${OFFLINE_URL}?motivo=${encodeURIComponent(reason)}`);
-  // Fica checando o servidor; quando voltar, avisa (não tira a pessoa do que
-  // ela está fazendo — ela decide quando voltar).
-  clearInterval(onlineTimer);
-  onlineTimer = setInterval(async () => {
-    if (!offlineMode) { clearInterval(onlineTimer); return; }
-    if (await serverAlive()) { try { win.webContents.send('offline:online'); } catch { /* fechando */ } }
-  }, 20000);
-}
-function goOnline(win) {
-  if (!win || win.isDestroyed()) return;
-  offlineMode = false;
-  clearInterval(onlineTimer);
-  win.loadURL(APP_URL);
-}
-function watchOnline(win) {
-  const wc = win.webContents;
-  let readyOnce = false;
-  wc.on('dom-ready', () => { if (isAppUrl(wc.getURL())) readyOnce = true; });
-  // Sem conexão / DNS / recusado → modo offline.
-  wc.on('did-fail-load', (_e, code, _desc, url, isMainFrame) => {
-    if (!isMainFrame || code === -3 || !isAppUrl(url)) return;
-    goOffline(win, 'network');
-  });
-  // Servidor respondeu com erro (502/503 da hospedagem etc.).
-  wc.on('did-navigate', (_e, url, httpCode) => {
-    if (isAppUrl(url) && httpCode >= 500) goOffline(win, 'server');
-  });
-  // Servidor "pendurado": 15 s sem carregar e sem responder → offline.
-  setTimeout(async () => {
-    if (readyOnce || offlineMode || win.isDestroyed()) return;
-    if (!(await serverAlive())) goOffline(win, 'timeout');
-  }, 15000);
-  ipcMain.removeHandler('offline:retry');
-  secureHandle('offline:retry', async (e) => {
-    if (e.sender !== wc) return false;
-    if (await serverAlive()) { goOnline(win); return true; }
-    return false;
-  });
-}
-
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -567,11 +520,7 @@ if (!gotLock) {
     // abre uma segunda cópia com o link no argv, que cai aqui.
     const deepLink = findDeepLinkArg(argv);
     if (deepLink) { openDeepLink(deepLink); return; }
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
-    }
+    if (mainWindow) showApp();
   });
 
   // Item pedido: "Confirmar antes de sair... Pede confirmação ao
@@ -970,7 +919,7 @@ if (!gotLock) {
     const startRoute = pendingDeepLinkRoute;
     pendingDeepLinkRoute = null;
     mainWindow.loadURL(startRoute ? new URL(startRoute, APP_URL).toString() : APP_URL);
-    watchOnline(mainWindow);
+    connectionGuard.attach(mainWindow);
 
     // Item pedido: "Rich Presence" (jogo/Spotify) — só começa a detectar
     // depois que a janela terminar de carregar o site de verdade, senão
@@ -1026,7 +975,6 @@ if (!gotLock) {
     const handleOAuthNavigation = oauthWindow.attach(mainWindow, { isAppUrl, appUrl: APP_URL });
     // Link externo clicado sem target (navegaria a janela do app pra fora).
     mainWindow.webContents.on('will-navigate', (event, url) => {
-      // A cópia offline (pcapp://app) também navega dentro dela mesma.
       if (security.isTrustedUrl(url)) return;
       event.preventDefault();
       if (handleOAuthNavigation(url)) return;
@@ -1056,7 +1004,7 @@ if (!gotLock) {
     tray = new Tray(path.join(__dirname, 'build', trayIcon));
     tray.setToolTip('Project Club');
     const menu = Menu.buildFromTemplate([
-      { label: 'Abrir Project Club', click: () => { mainWindow.show(); mainWindow.focus(); } },
+      { label: 'Abrir Project Club', click: () => { showApp(); } },
       { type: 'separator' },
       {
         label: 'Iniciar com o Windows',
@@ -1071,7 +1019,7 @@ if (!gotLock) {
       { label: 'Sair', click: () => { confirmAndQuit(); } },
     ]);
     tray.setContextMenu(menu);
-    tray.on('click', () => { mainWindow.show(); mainWindow.focus(); });
+    tray.on('click', () => { showApp(); });
   }
 
   // Item pedido: o site (rodando dentro da janela) precisa saber "qual
@@ -1770,16 +1718,6 @@ if (!gotLock) {
   }
 
   app.whenReady().then(() => {
-    // Arquivos da cópia offline do navegador (sem sair da pasta offline/).
-    try {
-      protocol.handle('pcapp', (request) => {
-        const u = new URL(request.url);
-        const rel = decodeURIComponent(u.pathname).replace(/^\/+/, '') || 'offline.html';
-        const file = path.normalize(path.join(OFFLINE_DIR, rel));
-        if (!file.startsWith(OFFLINE_DIR + path.sep) || !fs.existsSync(file)) return new Response('Não encontrado', { status: 404 });
-        return net.fetch(pathToFileURL(file).toString());
-      });
-    } catch (err) { console.warn('[offline] protocolo indisponível:', err.message); }
     setupScreenShareHandler();
     setupDownloadHandler();
     // BUG CORRIGIDO — CAUSA RAIZ CONFIRMADA de "no PC eu falo e não sai

@@ -24,6 +24,17 @@
 
         </activity>
 
+        <!-- Tela de sem conexão como app à parte: processo próprio, sem nada
+             do site. Aberta pelo ConnectionGuard só depois de confirmar que a
+             internet ou o servidor estão mesmo fora (ver ConexaoActivity.java). -->
+        <activity
+            android:name=".ConexaoActivity"
+            android:process=":conexao"
+            android:label="Project Club · Conexão"
+            android:theme="@android:style/Theme.Material.NoActionBar"
+            android:excludeFromRecents="true"
+            android:exported="false" />
+
         <!-- Item pedido: compartilhamento de tela — declaração
              obrigatória do serviço em primeiro plano que faz a captura
              de verdade (ver ScreenCaptureService.java). -->
@@ -60,6 +71,8 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Guarda de conexão: saber se o aparelho tem rede (permissão comum, sem pedir nada). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.CAMERA" />
