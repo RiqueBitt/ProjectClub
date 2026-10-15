@@ -36,6 +36,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.EmojiEmotions
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.Reply
@@ -86,6 +87,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -149,6 +151,7 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
     val nearTop by remember { derivedStateOf { list.layoutInfo.visibleItemsInfo.lastOrNull()?.index?.let { it >= reversed.size - 6 } ?: false } }
     LaunchedEffect(nearTop) { if (nearTop) vm.loadOlder() }
 
+    var showPicker by remember { mutableStateOf(false) }
     LaunchedEffect(state.editing?.id) { state.editing?.let { text = it.content.orEmpty() } }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
@@ -233,9 +236,17 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
                 onRemoveFile = vm::removeFile,
                 onCancel = { vm.setReply(null); vm.setEditing(null); if (state.editing != null) text = "" },
                 onSend = { val t = text; text = ""; vm.send(t) { failed -> if (text.isBlank()) text = failed } },
+                onPicker = { showPicker = true },
             )
         }
     }
+
+    if (showPicker) PickerSheet(
+        repo, onDismiss = { showPicker = false },
+        onEmoji = { e -> text = if (text.isEmpty() || text.endsWith(" ")) text + e else "$text $e" },
+        onGif = { url -> showPicker = false; vm.send(url) { } },
+        onSticker = { url -> showPicker = false; vm.sendSticker(url) },
+    )
 
     menuFor?.let { m ->
         ModalBottomSheet(onDismissRequest = { menuFor = null }, containerColor = PC.Surface) {
@@ -317,10 +328,30 @@ private fun MessageItem(
             val content = m.content
             if (m.contentFiltered) Text("Mensagem escondida pelo seu filtro de conteúdo.", color = PC.Muted)
             else if (!content.isNullOrBlank()) {
-                Text(
-                    richText(content, myUsername) { id -> repo.channel(id)?.name },
-                    style = MaterialTheme.typography.bodyMedium, color = PC.Text,
-                )
+                val trimmed = content.trim()
+                val isGif = !trimmed.contains(' ') && trimmed.startsWith("http") &&
+                    (trimmed.substringBefore('?').let { it.endsWith(".gif") || it.endsWith(".webp") } || trimmed.contains("klipy.com") || trimmed.contains("tenor.com/"))
+                if (isGif) {
+                    AsyncImage(
+                        trimmed, "GIF", imageLoader = com.projectclub.android.ui.store.rememberAnimatedImageLoader(),
+                        contentScale = ContentScale.FillWidth,
+                        modifier = Modifier.padding(top = 4.dp).widthIn(max = 260.dp).clip(RoundedCornerShape(12.dp)),
+                    )
+                } else {
+                    val emojiList by repo.emojis.collectAsState()
+                    val byName = remember(emojiList) { emojiList.associateBy { it.name } }
+                    val inline = remember(byName, content) {
+                        byName.filterKeys { content.contains(":$it:") }.map { (name, e) ->
+                            "emoji:$name" to androidx.compose.foundation.text.InlineTextContent(
+                                androidx.compose.ui.text.Placeholder(22.sp, 22.sp, androidx.compose.ui.text.PlaceholderVerticalAlign.Center),
+                            ) { AsyncImage(Config.media(e.url), name, modifier = Modifier.fillMaxSize()) }
+                        }.toMap()
+                    }
+                    Text(
+                        richText(content, myUsername, byName.keys) { id -> repo.channel(id)?.name },
+                        style = MaterialTheme.typography.bodyMedium, color = PC.Text, inlineContent = inline,
+                    )
+                }
             }
             if (m.edited) Text("(editado)", color = PC.Muted, style = MaterialTheme.typography.labelSmall)
             m.stickerUrl?.let { AsyncImage(Config.media(it), "Figurinha", modifier = Modifier.padding(top = 4.dp).size(140.dp)) }
@@ -421,6 +452,7 @@ private fun TypingLine(names: List<String>) {
 private fun Composer(
     text: String, onText: (String) -> Unit, state: ChatState, roomName: String,
     onAttach: () -> Unit, onRemoveFile: (com.projectclub.android.data.PickedFile) -> Unit, onCancel: () -> Unit, onSend: () -> Unit,
+    onPicker: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().background(PC.Bg).navigationBarsPadding().padding(horizontal = 10.dp, vertical = 8.dp).clip(RoundedCornerShape(26.dp)).background(PC.Surface).border(1.dp, PC.Line, RoundedCornerShape(26.dp))) {
         val banner = state.editing?.let { "Editando mensagem" } ?: state.replyTo?.let { "Respondendo a ${it.author?.name ?: "mensagem"}" }
@@ -451,6 +483,8 @@ private fun Composer(
                     focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
                 ),
             )
+            // Emojis, GIFs e figurinhas (o mesmo seletor do PC).
+            if (state.editing == null) IconButton(onClick = onPicker) { Icon(Icons.Outlined.EmojiEmotions, "Emojis, GIFs e figurinhas", tint = PC.Muted) }
             val canSend = text.isNotBlank() || state.files.isNotEmpty()
             Box(
                 Modifier.padding(start = 4.dp, bottom = 2.dp).size(46.dp).clip(RoundedCornerShape(16.dp))

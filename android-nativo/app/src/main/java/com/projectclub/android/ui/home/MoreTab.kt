@@ -1,7 +1,6 @@
 package com.projectclub.android.ui.home
 
 import android.content.Intent
-import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +28,7 @@ import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material.icons.outlined.Campaign
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Groups
@@ -99,7 +99,9 @@ fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
     )
 
     Column(Modifier.fillMaxSize()) {
-        PcTopBar("Você", Icons.Outlined.Person)
+        PcTopBar("Você", Icons.Outlined.Person) {
+            androidx.compose.material3.IconButton(onClick = { nav.settings() }) { Icon(Icons.Outlined.Settings, "Configurações", tint = PC.Text) }
+        }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             // Cartão do perfil (banner + avatar), como o mini perfil do site
             val shape = RoundedCornerShape(24.dp)
@@ -142,12 +144,13 @@ fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
             PcCard(padding = PaddingValues(6.dp)) {
                 Line(Icons.Outlined.Person, "Meu perfil", PC.Brand) { me?.id?.let(nav::profile) }
                 Line(Icons.Outlined.Edit, "Editar perfil", PC.Purple) { nav.editProfile() }
+                Line(Icons.Outlined.Settings, "Configurações", PC.Brand) { nav.settings() }
                 Line(Icons.Outlined.Campaign, "Anúncios", PC.Announce) { nav.announcements() }
                 Line(Icons.Outlined.PhotoLibrary, "Galeria", Color(0xFFF472B6)) { nav.gallery() }
                 Line(Icons.Outlined.SupportAgent, "Suporte", PC.Green) { actions.openWeb("/tickets") }
                 if (me?.platformRole == "ADMIN" || me?.platformRole == "MODERATOR") Line(Icons.Outlined.AdminPanelSettings, "Painel da equipe", PC.Yellow) { actions.openWeb("/admin") }
                 Line(Icons.Outlined.NotificationsActive, "Notificações do celular", PC.Pink) {
-                    ctx.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName))
+                    ctx.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, ctx.packageName))
                 }
                 Line(Icons.Outlined.Language, "Abrir o site no navegador", PC.Muted) { nav.external("/inicio") }
                 HorizontalDivider(color = PC.Line, modifier = Modifier.padding(vertical = 4.dp))
