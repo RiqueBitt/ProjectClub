@@ -59,9 +59,9 @@ jobs:
         run: |
           chmod +x gradlew
           set -o pipefail
-          ./gradlew testDebugUnitTest assembleDebug --stacktrace 2>&1 | tee /tmp/gradle.log || {
+          ./gradlew testDebugUnitTest assembleDebug lintVitalRelease --stacktrace 2>&1 | tee /tmp/gradle.log || {
             grep -E "^e: |error:|What went wrong" -A3 /tmp/gradle.log | head -60
-            ERR=$(grep -m8 -E "^e: |What went wrong" -A2 /tmp/gradle.log | tr '\n' ' ' | cut -c1-3500)
+            ERR=$(grep -m8 -E "^e: |What went wrong|Error:" -A6 /tmp/gradle.log | tr '\n' ' ' | cut -c1-3500)
             echo "::error title=Android nativo não compilou::${ERR:-sem detalhe no log}"
             exit 1
           }
@@ -83,7 +83,12 @@ jobs:
         run: |
           echo "$KS" | base64 -d > app/release.keystore
           export ANDROID_KEYSTORE_PATH=release.keystore
-          ./gradlew assembleRelease --stacktrace
+          set -o pipefail
+          ./gradlew assembleRelease --stacktrace 2>&1 | tee /tmp/release.log || {
+            ERR=$(grep -m6 -E "^e: |What went wrong|Error:|error:" -A6 /tmp/release.log | tr '\n' ' ' | cut -c1-3500)
+            echo "::error title=APK assinado falhou::${ERR:-sem detalhe no log}"
+            exit 1
+          }
           cp "$(find app/build/outputs/apk/release -name '*.apk' | head -n1)" "$RUNNER_TEMP/ProjectClub-Nativo.apk"
 
       - name: Publicar na release "android-nativo"
