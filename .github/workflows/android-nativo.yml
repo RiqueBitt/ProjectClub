@@ -59,7 +59,7 @@ jobs:
         run: |
           chmod +x gradlew
           set -o pipefail
-          ./gradlew testDebugUnitTest assembleDebug lintVitalRelease --stacktrace 2>&1 | tee /tmp/gradle.log || {
+          ./gradlew testDebugUnitTest --tests '*LogicTest' --tests '*CodecTest' assembleDebug lintVitalRelease --stacktrace 2>&1 | tee /tmp/gradle.log || {
             grep -E "^e: |error:|What went wrong" -A3 /tmp/gradle.log | head -60
             ERR=$(grep -m8 -E "^e: |What went wrong|Error:" -A6 /tmp/gradle.log | tr '\n' ' ' | cut -c1-3500)
             echo "::error title=Android nativo não compilou::${ERR:-sem detalhe no log}"
@@ -107,3 +107,44 @@ jobs:
             for i in 1 2 3; do gh release upload android-nativo "$RUNNER_TEMP/$f" --repo "$REPO" --clobber && break || sleep 10; done
           done
           gh release edit android-nativo --repo "$REPO" --notes "Versão $APP_VERSION — commit ${GITHUB_SHA::7}. Baixe o ProjectClub-Nativo.apk abaixo (instala ao lado do app antigo)."
+
+  # Capturas das telas (Roborazzi) num branch à parte, pra conferir o visual
+  # sem precisar de celular. Não bloqueia o PR.
+  telas:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: android-nativo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Usar o Android SDK do runner
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+      - name: Capturar as telas
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew recordRoborazziDebug --tests '*ScreenShots' --stacktrace 2>&1 | tee /tmp/shots.log || {
+            ERR=$(grep -m6 -E "^e: |What went wrong|FAILED|Exception" -A6 /tmp/shots.log | tr '\n' ' ' | cut -c1-3500)
+            echo "::error title=Capturas falharam::${ERR:-sem detalhe}"
+            exit 1
+          }
+      - name: Publicar no branch android-shots
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p /tmp/shots && cp app/screenshots/*.png /tmp/shots/
+          cd /tmp/shots
+          git init -q -b android-shots
+          git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
+          git add -A && git commit -qm "Telas de ${HEAD_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" android-shots

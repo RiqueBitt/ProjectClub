@@ -247,6 +247,21 @@ class Repository(private val context: Context, val api: Api, private val scope: 
         _unreadNotices.value = n.unread
     }
 
+    /** Só pros testes de tela (capturas do visual): preenche o app com dados de exemplo. */
+    @androidx.annotation.VisibleForTesting
+    fun seedForScreenshots(
+        me: User, community: CommunityResponse, conversations: List<Conversation>, friends: List<Friendship>,
+        notices: List<Notice>, presence: Map<String, String>, rosters: Map<String, List<VoiceParticipant>> = emptyMap(),
+        states: Map<String, ChannelState> = emptyMap(),
+    ) {
+        remember(me); _me.value = me
+        setCommunity(community); setConversations(conversations); setFriends(friends)
+        _notices.value = notices; _unreadNotices.value = notices.count { it.readAt == null }
+        _presence.value = presence; _voiceRosters.value = rosters; _channelStates.value = states
+        _session.value = SessionState.LoggedIn
+        _loaded.value = true
+    }
+
     private fun setCommunity(c: CommunityResponse) {
         c.members.forEach { remember(it.user) }
         _community.value = c
