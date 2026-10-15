@@ -15,7 +15,7 @@ const env = require('../config/env');
 const { redis } = require('../config/redis');
 
 const COOKIE = 'pcKeep';
-const TTL_SECONDS = 60 * 24 * 60 * 60; // 60 dias
+const TTL_SECONDS = 90 * 24 * 60 * 60; // 90 dias (renova a cada uso)
 const PASSWORD = crypto.createHmac('sha256', String(env.JWT_REFRESH_SECRET)).update('pc-keep-session-v1').digest('hex');
 const revKey = (uid) => `sess:revoked-at:${uid}`;
 

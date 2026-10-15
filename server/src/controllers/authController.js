@@ -190,6 +190,9 @@ const REVOKE_REASONS = {
   ACCOUNT_DISABLED: 'ACCOUNT_DISABLED',
   ADMIN: 'ADMIN',
   THEFT: 'THEFT',
+  // Token novo que o aparelho nunca chegou a gravar (voltou com o anterior
+  // e a sessão foi recuperada a partir dele): morto de vez, sem "roubo".
+  ABANDONED: 'ABANDONED',
 };
 
 function revokeRefreshTokens(where, reason) {
@@ -582,6 +585,41 @@ async function refresh(req, res, next) {
           const accessToken = signAccessToken(user);
           const selfUser = await prisma.user.findUnique({ where: { id: user.id }, select: SELF_USER_FIELDS });
           return res.json({ user: selfUser, accessToken });
+        }
+      }
+
+      // Aparelho que PERDEU o cookie novo (app fechado antes de gravar o
+      // cookie no disco, internet caiu ou o servidor reiniciou num deploy
+      // bem no meio da renovação): ele volta com o token anterior, e o
+      // substituto NUNCA foi usado por ninguém. Isso não é roubo — é o
+      // mesmo aparelho. Recupera a sessão (o substituto não usado é
+      // invalidado, então só um dos dois continua valendo).
+      // Se o substituto JÁ foi usado, alguém tem o token novo: aí sim é
+      // tratado como roubo, logo abaixo.
+      if (stored.replacedById && (stored.userAgent || null) === (userAgent || null)) {
+        const replacement = await prisma.refreshToken.findUnique({ where: { id: stored.replacedById } });
+        const unusedReplacement = replacement && !replacement.revoked && replacement.expiresAt > new Date();
+        if (unusedReplacement) {
+          const user = await prisma.user.findUnique({ where: { id: stored.userId } });
+          if (user && !isAccountBlocked(user)) {
+            // Só quem ganhar esta troca recupera (duas abas ao mesmo tempo
+            // não geram duas sessões).
+            const claimed = await prisma.refreshToken.updateMany({
+              where: { id: replacement.id, revoked: false },
+              data: { revoked: true, revokedAt: new Date(), revokedReason: REVOKE_REASONS.ABANDONED },
+            });
+            if (claimed.count === 1) {
+              await maybePromoteToPlatformAdmin(user);
+              const accessToken = await issueSession(res, user, userAgent, req.ip, {
+                sessionStartedAt: replacement.sessionStartedAt || stored.sessionStartedAt || stored.createdAt,
+              });
+              // O anterior passa a apontar pro token novo de verdade.
+              await prisma.refreshToken.update({ where: { id: stored.id }, data: { replacedById: res.locals.refreshTokenId } }).catch(() => {});
+              console.warn(`[auth] sessão recuperada: o aparelho voltou com o cookie anterior (usuário ${stored.userId}).`);
+              const selfUser = await prisma.user.findUnique({ where: { id: user.id }, select: SELF_USER_FIELDS });
+              return res.json({ user: selfUser, accessToken });
+            }
+          }
         }
       }
 
