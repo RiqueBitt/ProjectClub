@@ -65,6 +65,7 @@ import com.projectclub.android.ui.common.PcTopBar
 import com.projectclub.android.ui.common.shortTime
 import com.projectclub.android.ui.theme.PC
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.put
 
 /** Aba Social: mensagens diretas e amigos, no visual da página Social do site. */
 @Composable
@@ -77,6 +78,8 @@ fun SocialTab(repo: Repository, actions: HomeActions) {
     var section by rememberSaveable { mutableIntStateOf(0) }
     var query by rememberSaveable { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var adding by remember { mutableStateOf(false) }
+    var addName by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { runCatching { repo.loadFriends() } }
 
@@ -146,20 +149,32 @@ fun SocialTab(repo: Repository, actions: HomeActions) {
                     }
                 }
             } else {
-                if (pending > 0) item {
-                    PcCard(onClick = { actions.openWeb("/dms") }, padding = PaddingValues(14.dp), border = PC.Red.copy(alpha = 0.35f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.PersonAdd, null, tint = PC.Red)
-                            Spacer(Modifier.width(12.dp))
-                            Text("$pending pedido${if (pending == 1) "" else "s"} de amizade", color = PC.Header, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                            CountBadge(pending)
+                val incoming = friends.filter { it.status == "PENDING" && it.isIncoming }
+                if (incoming.isNotEmpty()) {
+                    item(key = "req-t") { Text("Pedidos de amizade", style = MaterialTheme.typography.titleMedium, color = PC.Header) }
+                    items(incoming, key = { "req-" + it.id }) { f ->
+                        PcCard(padding = PaddingValues(12.dp), border = PC.Brand.copy(alpha = 0.35f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Avatar(f.user, 44.dp)
+                                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                                    Text(f.user.name, color = PC.Header, style = MaterialTheme.typography.titleSmall)
+                                    Text("@${f.user.username}", color = PC.Muted, style = MaterialTheme.typography.bodySmall)
+                                }
+                                listOf("accept" to "Aceitar", "decline" to "Recusar").forEach { (action, label) ->
+                                    androidx.compose.material3.TextButton(onClick = {
+                                        scope.launch {
+                                            try { repo.api.postIgnore("/api/friends/${f.id}/respond", kotlinx.serialization.json.buildJsonObject { put("action", action) }); repo.loadFriends() }
+                                            catch (e: Exception) { error = e.message }
+                                        }
+                                    }) { Text(label, color = if (action == "accept") PC.Green else PC.Muted) }
+                                }
+                            }
                         }
                     }
                 }
+                item(key = "add") { GhostButton("Adicionar amigo", { adding = true }, Modifier.fillMaxWidth(), icon = Icons.Outlined.PersonAdd) }
                 if (friendList.isEmpty()) item {
-                    EmptyState(Icons.Outlined.People, "Nenhum amigo por aqui", "Adicione amigos pelo site e eles aparecem aqui.") {
-                        GhostButton("Adicionar amigo", { actions.openWeb("/dms") }, icon = Icons.Outlined.PersonAdd)
-                    }
+                    EmptyState(Icons.Outlined.People, "Nenhum amigo por aqui", "Adicione amigos pelo nome de usuário.")
                 }
                 items(friendList, key = { "f-" + it.id }) { u ->
                     PcCard(onClick = { dm(u) }, padding = PaddingValues(12.dp)) {
@@ -179,6 +194,24 @@ fun SocialTab(repo: Repository, actions: HomeActions) {
             }
         }
     }
+    if (adding) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { adding = false },
+        containerColor = PC.Surface2,
+        title = { Text("Adicionar amigo") },
+        text = { PcField(addName, { addName = it.trim().removePrefix("@") }, "nome de usuário", label = "ClubTag / usuário", icon = Icons.Outlined.PersonAdd) },
+        confirmButton = {
+            androidx.compose.material3.TextButton(enabled = addName.isNotBlank(), onClick = {
+                scope.launch {
+                    try {
+                        repo.api.postIgnore("/api/friends/request", kotlinx.serialization.json.buildJsonObject { put("username", addName) })
+                        adding = false; addName = ""; repo.loadFriends()
+                        error = null
+                    } catch (e: Exception) { error = e.message ?: "Não deu pra enviar o pedido." ; adding = false }
+                }
+            }) { Text("Enviar pedido", color = PC.Brand) }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = { adding = false }) { Text("Cancelar", color = PC.Text) } },
+    )
 }
 
 private fun preview(repo: Repository, conv: Conversation, myId: String?): String {
