@@ -117,10 +117,7 @@ class MainActivity : ComponentActivity() {
         val session by app.repo.session.collectAsState()
         when (val s = session) {
             SessionState.Loading -> Box(Modifier.fillMaxSize().background(PC.Bg), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            is SessionState.LoggedOut -> {
-                LaunchedEffect(Unit) { CookieManager.getInstance().removeAllCookies(null) }
-                LoginScreen(app.repo, s.message)
-            }
+            is SessionState.LoggedOut -> LoginScreen(app.repo, s.message)
             SessionState.LoggedIn -> LoggedIn()
         }
     }
@@ -186,7 +183,7 @@ class MainActivity : ComponentActivity() {
             }
             composable("voice") { VoiceScreen(app.voice, app.repo, onBack = { nav.popBackStack() }, onOpenWeb = actions.openWeb) }
             composable("web?path={path}", arguments = listOf(navArgument("path") { type = NavType.StringType; defaultValue = "/" })) { e ->
-                WebScreen(app.api, e.arguments?.getString("path") ?: "/", onBack = { nav.popBackStack() })
+                WebScreen(app.web, e.arguments?.getString("path") ?: "/", onBack = { nav.popBackStack() })
             }
         }
 

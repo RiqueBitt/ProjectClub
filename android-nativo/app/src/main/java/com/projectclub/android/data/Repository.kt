@@ -118,6 +118,9 @@ class Repository(private val context: Context, val api: Api, private val scope: 
         }
     }
 
+    /** Últimas mensagens de cada conversa/canal aberto: reabrir mostra na hora (sem carregamento). */
+    val messageCache = java.util.concurrent.ConcurrentHashMap<String, List<Message>>()
+
     fun user(id: String?): User? = id?.let { synchronized(users) { users[it] } }
 
     private fun remember(u: User) = synchronized(users) {
@@ -192,6 +195,7 @@ class Repository(private val context: Context, val api: Api, private val scope: 
     }
 
     private fun endLocalSession(message: String?) {
+        messageCache.clear()
         realtime.disconnect()
         api.setSession(null)
         api.cookies.clear()

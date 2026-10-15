@@ -32,7 +32,7 @@ function checkModule(mod) {
 }
 
 export function lazyWithRetry(factory) {
-  return lazy(async () => {
+  const Comp = lazy(async () => {
     try {
       return checkModule(await factory());
     } catch (err) {
@@ -45,4 +45,26 @@ export function lazyWithRetry(factory) {
       }
     }
   });
+  // Baixa o pedaço da página antes de ela ser aberta (ver preloadPages):
+  // abrir o menu depois mostra a página na hora, sem o carregamento.
+  Comp.preload = () => factory().catch(() => {});
+  return Comp;
+}
+
+// Baixa, sem pressa e um de cada vez, as páginas que a pessoa ainda não
+// abriu — só quando o navegador está ocioso e a conexão não é de dados
+// limitados ("economia de dados" ligada / 2G).
+export function preloadPages(components) {
+  if (typeof window === 'undefined') return () => {};
+  const conn = navigator.connection;
+  if (conn && (conn.saveData || /(^|-)2g$/.test(conn.effectiveType || ''))) return () => {};
+  const queue = components.filter((c) => c && typeof c.preload === 'function');
+  let cancelled = false;
+  const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 300));
+  const next = () => {
+    if (cancelled || queue.length === 0) return;
+    idle(() => { if (!cancelled) queue.shift().preload().finally(next); });
+  };
+  const start = setTimeout(next, 2500); // depois que o app terminou de abrir
+  return () => { cancelled = true; clearTimeout(start); };
 }

@@ -39,7 +39,10 @@ data class ChatState(
 )
 
 class ChatViewModel(private val repo: Repository, val room: Room) : ViewModel() {
-    private val _state = MutableStateFlow(ChatState())
+    // Já tinha aberto antes: mostra o que tinha na hora e atualiza por trás.
+    private val _state = MutableStateFlow(
+        repo.messageCache[room.id].let { cached -> if (cached.isNullOrEmpty()) ChatState() else ChatState(messages = cached, loading = false) },
+    )
     val state: StateFlow<ChatState> = _state
     private var lastTypingSent = 0L
     private var stopTypingJob: Job? = null
@@ -47,6 +50,9 @@ class ChatViewModel(private val repo: Repository, val room: Room) : ViewModel() 
     init {
         join()
         viewModelScope.launch { loadLatest() }
+        viewModelScope.launch {
+            _state.collect { s -> s.messages.filter { !it.id.startsWith(LOCAL) }.takeLast(PAGE).takeIf { it.isNotEmpty() }?.let { repo.messageCache[room.id] = it } }
+        }
         viewModelScope.launch { repo.realtime.events.collect { onEvent(it.name, it.data) } }
         viewModelScope.launch {
             var first = true
@@ -73,7 +79,13 @@ class ChatViewModel(private val repo: Repository, val room: Room) : ViewModel() 
     private suspend fun loadLatest() {
         try {
             val page = repo.messages(room)
-            _state.update { it.copy(messages = ChatLogic.merge(it.messages, page), loading = false, error = null, reachedStart = it.reachedStart || (it.messages.isEmpty() && page.size < PAGE)) }
+            _state.update {
+                // Chegou mais coisa do que cabe numa página enquanto estava fora: a lista
+                // guardada teria um buraco no meio, então começa da página nova.
+                val gap = page.size >= PAGE && it.messages.isNotEmpty() && page.none { p -> it.messages.any { m -> m.id == p.id } }
+                val base = if (gap) emptyList() else it.messages
+                it.copy(messages = ChatLogic.merge(base, page), loading = false, error = null, reachedStart = if (gap) false else it.reachedStart || (it.messages.isEmpty() && page.size < PAGE))
+            }
             repo.markRead(room)
         } catch (e: Exception) {
             _state.update { it.copy(loading = false, error = if (it.messages.isEmpty()) (e.message ?: "Não deu pra carregar as mensagens.") else null) }
