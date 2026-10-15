@@ -388,7 +388,7 @@ export default function LandingPage() {
   const goLogin = () => navigate('/login');
   const goRegister = () => navigate('/register');
   const copyLink = async () => {
-    try { await navigator.clipboard.writeText('https://projectclub.squareweb.app'); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* sem área de transferência */ }
+    try { await navigator.clipboard.writeText('https://projectclub.shardweb.app'); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* sem área de transferência */ }
   };
 
   return (

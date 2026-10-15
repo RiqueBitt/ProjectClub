@@ -1,6 +1,6 @@
 // Atualizações do app Android (Capacitor) — ver docs/android-updates.md.
 //
-// O app Android NÃO embala o site: ele abre https://projectclub.squareweb.app
+// O app Android NÃO embala o site: ele abre https://projectclub.shardweb.app
 // direto (server.url em client/capacitor.config.json). Então todo deploy do
 // site já chega no celular sozinho, sem .apk novo. Um .apk novo só é
 // necessário quando a parte NATIVA muda (plugins do Capacitor, código Java,

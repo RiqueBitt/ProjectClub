@@ -5,7 +5,7 @@ import { isNewer } from './versionCompare';
 
 // Atualizações dos apps nativos — ver docs/android-updates.md.
 //
-// ANDROID: o app NÃO embala o site — ele abre https://projectclub.squareweb.app
+// ANDROID: o app NÃO embala o site — ele abre https://projectclub.shardweb.app
 // ao vivo (server.url em client/capacitor.config.json). Então o CONTEÚDO
 // (telas, correções, recursos novos) chega sozinho a cada deploy do site,
 // sem baixar .apk nenhum. Este arquivo:
@@ -23,7 +23,7 @@ import { isNewer } from './versionCompare';
 
 const RELEASES_URL = 'https://api.github.com/repos/RiqueBitt/ProjectClub/releases/latest';
 const APK_DOWNLOAD_URL = 'https://github.com/RiqueBitt/ProjectClub/releases/latest/download/ProjectClub.apk';
-const DOWNLOAD_PAGE_URL = 'https://projectclub.squareweb.app/#download';
+const DOWNLOAD_PAGE_URL = 'https://projectclub.shardweb.app/#download';
 const LAST_SEEN_KEY = 'pc_last_seen_native_version';
 const RESUME_CHECK_MIN_GAP_MS = 5 * 60 * 1000;
 

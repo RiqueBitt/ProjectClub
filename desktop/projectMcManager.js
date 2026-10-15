@@ -412,7 +412,7 @@ function pickAssetForPlatform(assets, mod) {
 // direto do PC esbarra no limite de 60 consultas por hora por IP e dá
 // HTTP 403. O GitHub direto fica só como plano B, e o resultado fica
 // guardado em memória por alguns minutos para não repetir a consulta.
-const RELEASES_SERVER = (process.env.PROJECT_CLUB_URL || 'https://projectclub.squareweb.app').replace(/\/$/, '');
+const RELEASES_SERVER = (process.env.PROJECT_CLUB_URL || 'https://projectclub.shardweb.app').replace(/\/$/, '');
 const RELEASES_TTL_MS = 5 * 60 * 1000;
 const releasesCache = new Map(); // manifestUrl -> { at, data }
 

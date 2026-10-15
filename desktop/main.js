@@ -54,7 +54,7 @@ const browserEngine = lazy('./browserEngine');
 
 // URL do site hospedado — trocar aqui se o domínio mudar um dia. Fica só
 // nesse único lugar de propósito.
-const APP_URL = process.env.PROJECT_CLUB_URL || 'https://projectclub.squareweb.app';
+const APP_URL = process.env.PROJECT_CLUB_URL || 'https://projectclub.shardweb.app';
 // Página local confiável além do site: a cópia offline (pcapp://app/).
 security.configure({ appUrl: APP_URL, trustedLocalOrigins: ['pcapp://app'] });
 const { isAppUrl } = security;
