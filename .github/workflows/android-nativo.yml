@@ -98,7 +98,7 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           gh release view android-nativo --repo "$REPO" >/dev/null 2>&1 || \
-            gh release create android-nativo --repo "$REPO" --title "Project Club Android (nativo)" --prerelease \
+            gh release create android-nativo --repo "$REPO" --title "Project Club Android (nativo)" --prerelease --latest=false \
               --notes "App Android nativo: chat, DMs, chamadas de voz, compartilhamento de tela e notificações. Atualizado a cada mudança na pasta android-nativo."
           # O app confere este arquivo ao abrir e avisa quando há versão nova.
           printf '{"versionCode":%s,"versionName":"%s","url":"https://github.com/%s/releases/download/android-nativo/ProjectClub-Nativo.apk"}' \
