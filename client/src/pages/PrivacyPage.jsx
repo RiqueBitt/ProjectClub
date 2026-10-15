@@ -22,7 +22,7 @@ import { Facts, Note } from './public/blogContent.jsx';
 // - terceiros: config/b2.js, agoraController, pushNotifications (FCM),
 //   youtube-nocookie (YouTubeWatch), Klipy (GifPicker), GitHub (releases),
 //   mod.io/Nexus/GameBanana/Thunderstore/Steam (services/*Service.js),
-//   Square Cloud (hospedagem, projectclub.squareweb.app);
+//   Shard Cloud (hospedagem, projectclub.shardweb.app);
 // - moderação: services/automod.js, dmAutomod.js, reportController.js,
 //   middleware/honeypot.js.
 

@@ -490,7 +490,7 @@ jobs:
           notes = open('/tmp/changelog.txt', encoding='utf-8').read().strip()
           body = json.dumps({'version': '${{ needs.compute-version.outputs.version }}', 'notes': notes}).encode()
           req = urllib.request.Request(
-              'https://projectclub.squareweb.app/api/system/publish-release',
+              'https://projectclub.shardweb.app/api/system/publish-release',
               data=body, method='POST',
               headers={'Content-Type': 'application/json', 'X-CI-Secret': '$CI_UPDATE_SECRET'},
           )

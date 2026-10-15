@@ -1,12 +1,14 @@
-name: Publicar branch de deploy (pré-compilado)
+name: Deploy na Shard Cloud (pré-compilado)
 
-# Otimização (item pedido): o build do cliente (`vite build`) NÃO roda mais
-# dentro do container de produção. A cada push na main, este workflow
-# compila aqui (máquina do GitHub, com RAM de sobra) e publica no branch
-# `deploy` o repositório inteiro + `client/dist` já pronto. A hospedagem
-# (Square Cloud) fica vinculada ao branch `deploy`: o `scripts/deploy.js`
-# vê o dist pronto, pula o build e só instala as dependências de
-# produção — sem o pico de ~1 GB de RAM / 96% de CPU a cada deploy.
+# A cada push na main: compila o cliente AQUI (máquina do GitHub) e manda o
+# projeto inteiro + `client/dist` pronto pra Shard Cloud pela API
+# (PUT /apps/{id}/file, zip multipart — a mesma rota do CLI oficial). O
+# `scripts/deploy.js` vê o dist pronto, pula o build e só instala as
+# dependências de produção. O branch `deploy` continua sendo publicado
+# (histórico/rollback e reserva pra outra hospedagem).
+#
+# Secrets necessários no repositório: SHARDCLOUD_API_KEY (Dashboard →
+# Config → Integrações) e SHARDCLOUD_APP_ID (UUID do app).
 on:
   push:
     branches: [main]
@@ -50,3 +52,21 @@ jobs:
           git commit -q -m "deploy: ${GITHUB_SHA::7} (pré-compilado pelo CI)"
           git push -f origin deploy-tmp:deploy
           echo "Publicado em deploy a partir de ${GITHUB_SHA::7}"
+      - name: Enviar pra Shard Cloud
+        if: ${{ secrets.SHARDCLOUD_API_KEY != '' && secrets.SHARDCLOUD_APP_ID != '' }}
+        env:
+          SHARDCLOUD_API_KEY: ${{ secrets.SHARDCLOUD_API_KEY }}
+          SHARDCLOUD_APP_ID: ${{ secrets.SHARDCLOUD_APP_ID }}
+        run: |
+          # Zip do que está no branch deploy (com dist), sem node_modules.
+          git ls-files -z | xargs -0 zip -q -X app.zip
+          printf 'DISPLAY_NAME=ProjectClub\nMAIN=server/src/index.js\nLANGUAGE=node\nMEMORY=6000\nVERSION=recommended\nSUBDOMAIN=projectclub\nCUSTOM_COMMAND=npm run deploy:start\n' > .shardcloud
+          zip -q app.zip .shardcloud
+          echo "zip: $(du -h app.zip | cut -f1)"
+          code=$(curl -sS -o /tmp/resp.txt -w '%{http_code}' -X PUT \
+            -H "Authorization: Bearer $SHARDCLOUD_API_KEY" \
+            -F "project=@app.zip;type=application/zip" \
+            "https://shardcloud.app/api/apps/$SHARDCLOUD_APP_ID/file")
+          cat /tmp/resp.txt; echo
+          test "$code" = "200" || test "$code" = "201" || { echo "Shard Cloud respondeu $code"; exit 1; }
+          echo "Deploy enviado pra Shard Cloud (${GITHUB_SHA::7})"
