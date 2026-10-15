@@ -24,6 +24,9 @@ jobs:
     permissions:
       contents: write
     timeout-minutes: 20
+    env:
+      SHARDCLOUD_API_KEY: ${{ secrets.SHARDCLOUD_API_KEY }}
+      SHARDCLOUD_APP_ID: ${{ secrets.SHARDCLOUD_APP_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -53,10 +56,7 @@ jobs:
           git push -f origin deploy-tmp:deploy
           echo "Publicado em deploy a partir de ${GITHUB_SHA::7}"
       - name: Enviar pra Shard Cloud
-        if: ${{ secrets.SHARDCLOUD_API_KEY != '' && secrets.SHARDCLOUD_APP_ID != '' }}
-        env:
-          SHARDCLOUD_API_KEY: ${{ secrets.SHARDCLOUD_API_KEY }}
-          SHARDCLOUD_APP_ID: ${{ secrets.SHARDCLOUD_APP_ID }}
+        if: ${{ env.SHARDCLOUD_API_KEY != '' && env.SHARDCLOUD_APP_ID != '' }}
         run: |
           # Zip do que está no branch deploy (com dist), sem node_modules.
           git ls-files -z | xargs -0 zip -q -X app.zip
