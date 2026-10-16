@@ -72,9 +72,21 @@ function ThemePreview({ def }) {
 
 function ColorThemes() {
   const p = useExtra();
-  const def = themeDef(p);
-  const custom = p.customTheme || EXTRA_DEFAULTS.customTheme;
-  const setCustom = (patch) => setExtra({ colorTheme: 'custom', customTheme: { ...custom, ...patch } });
+  const saved = p.customTheme || EXTRA_DEFAULTS.customTheme;
+  // Rascunho local do tema personalizado: arrastar o seletor de cor muda só
+  // a prévia (leve); o app inteiro só é repintado quando você para de
+  // mexer (antes cada movimento repintava tudo e travava a tela).
+  const [draft, setDraft] = useState(null);
+  const custom = draft || saved;
+  const commitTimer = useRef(null);
+  useEffect(() => () => clearTimeout(commitTimer.current), []);
+  const setCustom = (patch) => {
+    const next = { ...custom, ...patch };
+    setDraft(next);
+    clearTimeout(commitTimer.current);
+    commitTimer.current = setTimeout(() => { setExtra({ colorTheme: 'custom', customTheme: next }); setDraft(null); }, 450);
+  };
+  const def = p.colorTheme === 'custom' ? themeDef({ colorTheme: 'custom', customTheme: custom }) : themeDef(p);
   const swatch = (t) => `linear-gradient(${t.angle}deg, ${t.colors.join(', ')})`;
   return (
     <Panel id="xp-themes" title="Temas coloridos" hint="Pinte o Project Club inteiro com um degradê. Salvo na sua conta.">

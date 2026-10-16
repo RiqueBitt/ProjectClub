@@ -272,16 +272,22 @@ async function applyAppIcon(id) {
 }
 
 // ---------- Aplicar no <html> ----------
+let lastThemeKey = null;
 export function applyExtraPrefs(p) {
   const html = document.documentElement;
   const setAttr = (name, on, value = '1') => { if (on) html.setAttribute(name, value); else html.removeAttribute(name); };
 
   const def = themeDef(p);
-  if (def) {
+  // Só mexe nas variáveis de cor quando o tema muda de verdade (repintar o
+  // app inteiro é caro).
+  const themeKey = def ? JSON.stringify(def) : '';
+  if (themeKey === lastThemeKey) { /* tema igual: nada a fazer */ } else if (def) {
+    lastThemeKey = themeKey;
     const vars = themeVars(def);
     Object.entries(vars).forEach(([k, v]) => html.style.setProperty(k, v));
     setAttr('data-pc-ctheme', true, def.id);
   } else {
+    lastThemeKey = '';
     THEME_VAR_NAMES.forEach((k) => html.style.removeProperty(k));
     setAttr('data-pc-ctheme', false);
   }

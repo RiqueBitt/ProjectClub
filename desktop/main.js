@@ -94,6 +94,17 @@ function secureOn(channel, fn) {
 // sem depender da conta: se a inicialização automática já foi configurada
 // na primeira execução e as pastas de jogo escolhidas manualmente.
 const STATE_FILE = () => path.join(app.getPath('userData'), 'desktop-state.json');
+// Ícone alternativo escolhido em Configurações → Aparência: salvo em disco
+// pra já abrir com ele da próxima vez (janela, barra de tarefas e bandeja).
+const CUSTOM_ICON_FILE = () => path.join(app.getPath('userData'), 'app-icon.png');
+function customIconImage() {
+  try {
+    const f = CUSTOM_ICON_FILE();
+    if (!fs.existsSync(f)) return null;
+    const img = nativeImage.createFromPath(f);
+    return img.isEmpty() ? null : img;
+  } catch { return null; }
+}
 let localStateCache = null;
 function readLocalState() {
   if (localStateCache) return localStateCache;
@@ -835,6 +846,7 @@ if (!gotLock) {
 
   function createWindow(startHidden) {
     mainWindow = new BrowserWindow({
+      ...(customIconImage() ? { icon: customIconImage() } : {}),
       width: 1280,
       height: 800,
       minWidth: 900,
@@ -1001,7 +1013,8 @@ if (!gotLock) {
   function createTray() {
     // .ico só funciona de verdade na bandeja do Windows; Linux/macOS usam .png.
     const trayIcon = process.platform === 'win32' ? 'icon.ico' : 'tray.png';
-    tray = new Tray(path.join(__dirname, 'build', trayIcon));
+    const savedIcon = customIconImage();
+    tray = new Tray(savedIcon ? savedIcon.resize({ width: 32, height: 32 }) : path.join(__dirname, 'build', trayIcon));
     tray.setToolTip('Project Club');
     const menu = Menu.buildFromTemplate([
       { label: 'Abrir Project Club', click: () => { showApp(); } },
@@ -1107,17 +1120,20 @@ if (!gotLock) {
   // Ícone alternativo do app (Configurações → Aparência → Ícone do app).
   // Só aceita PNG em data URL de até ~1 MB; null volta pro ícone padrão.
   secureHandle('set-app-icon', (_event, dataUrl) => {
-    if (!mainWindow) return false;
     try {
       if (!dataUrl) {
+        try { fs.unlinkSync(CUSTOM_ICON_FILE()); } catch { /* não tinha */ }
         const def = nativeImage.createFromPath(path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png'));
-        if (!def.isEmpty()) mainWindow.setIcon(def);
+        if (!def.isEmpty()) mainWindow?.setIcon(def);
+        try { tray?.setImage(path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'tray.png')); } catch { /* sem bandeja */ }
         return true;
       }
       if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/png;base64,') || dataUrl.length > 1400000) return false;
       const img = nativeImage.createFromDataURL(dataUrl);
       if (img.isEmpty()) return false;
-      mainWindow.setIcon(img);
+      fs.writeFileSync(CUSTOM_ICON_FILE(), img.toPNG());
+      mainWindow?.setIcon(img);
+      try { tray?.setImage(img.resize({ width: 32, height: 32 })); } catch { /* sem bandeja */ }
       return true;
     } catch { return false; }
   });
