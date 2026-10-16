@@ -302,6 +302,7 @@ model User {
 
   refreshTokens        RefreshToken[]
   pushTokens           PushToken[]
+  webPushSubscriptions WebPushSubscription[]
   verificationCodes    EmailVerificationCode[]
   passwordResetTokens  PasswordResetToken[]
   twoFactorRecoveryCodes TwoFactorRecoveryCode[]
@@ -707,6 +708,36 @@ model PushToken {
   lastUsedAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// Assinaturas Web Push (navegador/PWA — Chrome, Edge, Firefox, Safari 16+):
+// o navegador entrega um endpoint + chaves por aparelho; o servidor assina
+// cada envio com a chave VAPID (ver services/webPush.js). Várias por
+// pessoa (celular, notebook...). Apagada sozinha quando o serviço de push
+// responde 404/410 (a pessoa revogou ou desinstalou).
+model WebPushSubscription {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint   String   @unique @db.VarChar(500)
+  p256dh     String   @db.VarChar(255)
+  auth       String   @db.VarChar(64)
+  userAgent  String?  @db.VarChar(255)
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Par de chaves VAPID gerado uma vez e guardado aqui, pra não depender de
+// configurar variável de ambiente (se VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY
+// existirem no ambiente, elas têm prioridade). Trocar a chave invalida
+// todas as assinaturas — por isso é persistida.
+model WebPushKeys {
+  id         String   @id @default("singleton")
+  publicKey  String   @db.VarChar(255)
+  privateKey String   @db.VarChar(255)
+  createdAt  DateTime @default(now())
 }
 
 model EmailVerificationCode {

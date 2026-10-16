@@ -36,6 +36,8 @@ function getFirebaseApp() {
 // tabela PushToken só cresceria pra sempre com lixo de gente que já
 // desinstalou o app.
 async function sendPushToUser(userId, { title, body, data } = {}) {
+  // Web Push (navegador/PWA) vai em paralelo e nunca depende do Firebase.
+  try { require('./webPush').sendWebPushToUser(userId, { title, body, data }).catch(() => {}); } catch { /* opcional */ }
   const app = getFirebaseApp();
   if (!app) return;
 
