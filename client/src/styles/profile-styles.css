@@ -14,7 +14,11 @@
    ===================================================================== */
 
 /* ---------- Base ---------- */
-.pstyle {
+/* Seletor triplo de propósito: o perfil com cor própria
+   (.profile-modal-accented / .mini-profile-accented) redefine fundo,
+   borda e cores de texto com 2 classes + !important — sem isso o estilo
+   perdia pra eles e o perfil ficava metade num visual, metade no outro. */
+.pstyle.pstyle.pstyle {
   --ps-accent2: var(--ps-accent);
   --header-primary: var(--ps-head);
   --text-normal: var(--ps-text);
@@ -24,7 +28,14 @@
   --pf-accent: var(--ps-accent);
   --pf-accent-soft: color-mix(in srgb, var(--ps-accent) 20%, transparent);
   --brand: var(--ps-accent);
-  background: var(--ps-bg) !important;
+  /* A cor/degradê de perfil da pessoa continua aparecendo: entra como um
+     brilho por cima do fundo do estilo (forte no topo, sumindo pra baixo). */
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--profile-accent-start, transparent) var(--ps-tint, 34%), transparent) 0%,
+      color-mix(in srgb, var(--profile-accent-end, var(--profile-accent-start, transparent)) var(--ps-tint-end, 16%), transparent) 45%,
+      transparent 75%),
+    var(--ps-bg) !important;
   background-attachment: local !important;
   border: var(--ps-border, 1px solid var(--ps-section-border)) !important;
   border-radius: var(--ps-card-radius, 16px) !important;
@@ -41,7 +52,7 @@
 /* Banner: filtro + desenho por cima (raios, céu, grade, papel...). */
 .pstyle .mini-profile-banner,
 .pstyle .profile-banner,
-.pstyle .shop-mock-banner { position: relative; overflow: hidden; filter: var(--ps-banner-filter, none); background-color: var(--ps-banner-bg, var(--ps-accent)) !important; }
+.pstyle .shop-mock-banner { position: relative; overflow: hidden; filter: var(--ps-banner-filter, none); background: var(--ps-banner-bg, linear-gradient(135deg, var(--profile-accent-start, var(--ps-accent)), var(--profile-accent-end, var(--ps-accent2)))) !important; }
 .pstyle .mini-profile-banner::after,
 .pstyle .profile-banner::after,
 .pstyle .shop-mock-banner::after {
@@ -213,7 +224,7 @@
   --ps-banner-filter: saturate(.95);
   --ps-label-prefix: '▸ '; --ps-label-color: #0a246a;
   --ps-scroll-thumb: #d4d0c8; --ps-scroll-track: repeating-conic-gradient(#c0c0c0 0 25%, #fff 0 50%) 0 0 / 2px 2px; --ps-scroll-radius: 0;
-  --ps-border: 2px solid; --ps-card-radius: 0;
+  --ps-border: 2px outset #efefef; --ps-card-radius: 0;
   --ps-shadow: 1px 1px 0 #000, 6px 6px 0 rgba(0, 0, 0, .25);
   --ps-top-display: flex; --ps-top-text: '🖥️  Propriedades do perfil'; --ps-top-h: 24px; --ps-top-pad: 0 70px 0 6px;
   --ps-top-font: 700 12px Tahoma, Verdana, sans-serif;
