@@ -1,3 +1,5 @@
+import { convertEmoticons } from '../utils/extraPrefs';
+import { setConversationInbox } from '../api/endpoints';
 import MiniJogosComposerButton from '../minijogos/MiniJogosComposerButton.jsx';
 import { Fragment, Suspense, memo, useEffect, useMemo, useRef, useState } from 'react';
 import { lazyWithRetry as lazy } from '../utils/lazyWithRetry';
@@ -194,6 +196,7 @@ export default function ChatWindow({ kind }) {
 
 function ChatWindowInner({ conversationId, channelId }) {
   const roomKey = roomKeyFor({ conversationId, channelId });
+  const navigate = useNavigate();
 
   const { user } = useAuth();
   const { socket } = useSocket();
@@ -441,6 +444,11 @@ function ChatWindowInner({ conversationId, channelId }) {
   const dmConvo = conversationId ? conversations.find((c) => c.id === conversationId) : null;
   const dmOther = dmConvo && !dmConvo.isGroup ? dmConvo.members.find((m) => m.id !== user.id) : null;
   const dmOtherPresence = useStore((s) => (dmOther ? s.presence[dmOther.id] : null));
+  const setInbox = (action) => {
+    const inbox = { accept: 'main', ignore: 'ignored', spam: 'spam' }[action];
+    useStore.getState().setConversations(useStore.getState().conversations.map((c) => (c.id === conversationId ? { ...c, inbox } : c)));
+    setConversationInbox(conversationId, action).catch(() => {});
+  };
   const myPerms = getMyCommunityPermissions(roles, members, user.id, user.platformRole);
   const canMentionEveryone = channel && hasPermission(myPerms, 'MENTION_EVERYONE');
   // Item pedido: "remova os cargos do menu que mostra as fotos" —
@@ -1065,7 +1073,8 @@ function ChatWindowInner({ conversationId, channelId }) {
   const onSubmit = async (e, retry = null) => {
     e.preventDefault();
     if (!retry && !content.trim() && files.length === 0) return;
-    const trimmedContent = retry ? retry.content : content.trim();
+    // Emoticons → emoji (Configurações → Aparência → Caixa de chat).
+    const trimmedContent = retry ? retry.content : convertEmoticons(content.trim());
     const pendingFiles = retry ? [] : files;
     const pendingReplyTo = retry ? retry.replyTo : replyTo;
 
@@ -1437,6 +1446,18 @@ function ChatWindowInner({ conversationId, channelId }) {
         </div>
       )}
 
+      {dmConvo && dmConvo.inbox && dmConvo.inbox !== 'main' && (
+        <div className={`dm-request-banner ${dmConvo.inbox === 'spam' ? 'spam' : ''}`} role="status">
+          <span>
+            {dmConvo.inbox === 'spam'
+              ? 'Essa conversa foi pro Spam. Cuidado com links e pedidos de dados.'
+              : `${dmOther?.displayName || 'Esta pessoa'} não é seu amigo e quer conversar. Responder ou aceitar move a conversa pras suas mensagens.`}
+          </span>
+          <button type="button" className="ok" onClick={() => setInbox('accept')}>{dmConvo.inbox === 'spam' ? 'Não é spam' : 'Aceitar'}</button>
+          {dmConvo.inbox === 'request' && <button type="button" onClick={() => setInbox('spam')}>Marcar spam</button>}
+          <button type="button" onClick={() => { setInbox('ignore'); navigate('/dms'); }}>Ignorar</button>
+        </div>
+      )}
       <form className="message-input-bar chat-composer" ref={composerBarRef} onSubmit={onSubmit}>
         <ScheduledMessagesChip channelId={channelId} conversationId={conversationId} refreshToken={scheduledToken} />
         {scheduleOpen && (

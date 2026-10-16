@@ -31,11 +31,13 @@ export default function FriendsPanel() {
   const blocked = friends.filter((f) => f.status === 'BLOCKED');
   const knownUsernames = new Set(friends.map((f) => f.user.username));
 
+  const [note, setNote] = useState('');
   const sendRequestTo = async (uname) => {
     setFeedback('');
     try {
-      await sendFriendRequest(uname);
+      await sendFriendRequest(uname, note.trim());
       setFeedback(`Pedido de amizade enviado para ${uname}.`);
+      setNote('');
       setUsername('');
       setSearchQuery('');
       setSearchResults([]);
@@ -124,6 +126,10 @@ export default function FriendsPanel() {
             </span>
             <button type="submit" className="fx-primary" disabled={!username.trim()}>Enviar pedido</button>
           </form>
+          <input
+            className="fx-note-input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200}
+            placeholder="Recado opcional junto com o pedido (ex.: Oi! Te vi na call de Minecraft)" aria-label="Recado do pedido"
+          />
           {feedback && <p className="fx-feedback" role="status">{feedback}</p>}
           {searchResults.length > 0 && (
             <ul className="fx-results">
@@ -170,6 +176,7 @@ export default function FriendsPanel() {
                       : f.status === 'BLOCKED' ? 'Bloqueado'
                         : (f.user.customStatus || STATUS_LABEL[f.liveStatus] || '')}
                   </span>
+                  {f.status === 'PENDING' && f.message && <span className="dm-friend-note">“{f.message}”</span>}
                 </span>
               </button>
               <div className="fx-actions">

@@ -78,6 +78,7 @@ async function listConversations(req, res, next) {
         members: c.members.map((cm) => maskUserStatus(cm.user, me)),
         lastMessage: last ? { ...last, attachmentCount: last._count?.attachments || 0, _count: undefined } : null,
         lastReadAt: m.lastReadAt,
+        inbox: m.inbox || 'main',
         otherReadAt: other && !off.has(me) && !off.has(other.userId) ? other.lastReadAt : null,
       };
     });

@@ -830,7 +830,12 @@ export function useMyRoleIds(myUserId) {
   });
 }
 
+// Conversa na caixa normal (fora de Solicitações/Spam/Ignoradas).
+export const isMainInbox = (c) => !c?.inbox || c.inbox === 'main';
+
 export function isConversationUnread(conversation, myUserId) {
+  // Solicitações e spam não acendem "não lida" (igual ao Discord).
+  if (!isMainInbox(conversation)) return false;
   const last = conversation.lastMessage;
   if (!last || last.authorId === myUserId) return false;
   if (!conversation.lastReadAt) return true;

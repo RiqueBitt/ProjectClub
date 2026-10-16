@@ -35,11 +35,15 @@ async function sendRequest(req, res, next) {
       }
     }
 
+    // Recado opcional (até 200 caracteres), sem quebras de linha extras.
+    const note = typeof req.body.message === 'string' ? req.body.message.replace(/\s+/g, ' ').trim().slice(0, 200) : '';
     const friendship = await prisma.friendship.create({
-      data: { requesterId: req.user.id, addresseeId: target.id, status: 'PENDING' },
+      data: { requesterId: req.user.id, addresseeId: target.id, status: 'PENDING', message: note || null },
     });
 
-    req.app.get('io')?.notifyUser?.(target.id, 'friend:request', { friendship, from: req.user });
+    const targetPrefs = await require('./settingsController').getExtraPrefs(target.id);
+    const shown = targetPrefs.friendReqMessages === false ? { ...friendship, message: null } : friendship;
+    req.app.get('io')?.notifyUser?.(target.id, 'friend:request', { friendship: shown, from: req.user });
     maybeSendOfflineEmail(target.id, { type: 'friend_request', actorName: req.user.displayName });
     res.status(201).json({ friendship });
   } catch (err) { next(err); }
@@ -173,9 +177,12 @@ async function listFriends(req, res, next) {
       orderBy: { updatedAt: 'desc' },
     });
 
+    // "Mostrar mensagens personalizadas" desligado: o recado não aparece.
+    const showNotes = (await require('./settingsController').getExtraPrefs(req.user.id)).friendReqMessages !== false;
     const shaped = friendships.map((f) => ({
       id: f.id,
       status: f.status,
+      message: f.status === 'PENDING' && (f.requesterId === req.user.id || showNotes) ? f.message || null : null,
       isIncoming: f.addresseeId === req.user.id,
       user: f.requesterId === req.user.id ? f.addressee : f.requester,
       createdAt: f.createdAt,

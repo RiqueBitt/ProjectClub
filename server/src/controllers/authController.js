@@ -476,8 +476,14 @@ async function completeLogin(req, res, user) {
   const newDevice = await isNewDeviceLogin(user.id, userAgent, req.ip);
   const accessToken = await issueSession(res, user, userAgent, req.ip);
   if (newDevice) sendNewLoginAlertInBackground(user, userAgent, req.ip);
+  // Conta desativada temporariamente pela própria pessoa: entrar reativa.
+  let reactivated = false;
+  if (user.selfDeactivatedAt) {
+    await prisma.user.update({ where: { id: user.id }, data: { selfDeactivatedAt: null } });
+    reactivated = true;
+  }
   const selfUser = await prisma.user.findUnique({ where: { id: user.id }, select: SELF_USER_FIELDS });
-  return { user: selfUser, accessToken };
+  return { user: selfUser, accessToken, ...(reactivated ? { reactivated: true } : {}) };
 }
 
 // Janela curtíssima pra corrida de refresh: duas requisições quase
@@ -1020,6 +1026,29 @@ async function deleteAccount(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// POST /auth/deactivate { password } — desativa a conta temporariamente:
+// sai de todos os aparelhos, some das buscas e ninguém consegue te mandar
+// DM; entrar de novo reativa na hora. Nada é apagado.
+async function deactivateAccount(req, res, next) {
+  try {
+    const { password } = req.body || {};
+    const user = await checkPassword(req.user.id, password);
+    if (!user) return res.status(401).json({ error: 'Senha incorreta.' });
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: user.id }, data: { selfDeactivatedAt: new Date(), status: 'OFFLINE' } }),
+      prisma.refreshToken.updateMany({
+        where: { userId: user.id, revoked: false },
+        data: { revoked: true, revokedAt: new Date(), revokedReason: REVOKE_REASONS.LOGOUT || 'LOGOUT' },
+      }),
+    ]);
+    await sessionKeep.markSessionsRevoked(user.id);
+    res.clearCookie('refreshToken', { path: '/api/auth' });
+    sessionKeep.clearKeepCookie(res);
+    req.app.get('io')?.kickUser?.(user.id, 'account:disabled', { temporary: true });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+}
+
 async function me(req, res, next) {
   try {
     let user = await prisma.user.findUnique({ where: { id: req.user.id }, select: SELF_USER_FIELDS });
@@ -1037,7 +1066,7 @@ module.exports = {
   listSessions, revokeSession, revokeOtherSessions, ensurePublicId,
   PUBLIC_USER_FIELDS, SELF_USER_FIELDS,
   isPasswordStrongEnough, generatePublicId,
-  changePassword, deleteAccount,
+  changePassword, deleteAccount, deactivateAccount,
   recoveryCodesStatus, regenerateRecoveryCodesHandler,
   createEmailVerificationCode, issueSession, REVOKE_REASONS, describeDevice, maskIp,
   completeLogin, verifyTotpOnce, consumeRecoveryCode, registerFailedLogin, isAccountBlocked,

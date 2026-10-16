@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext';
 import { useStore, roomKeyFor, messageMentionsUser, isChannelUnread, isConversationUnread } from '../store/useStore';
 import { listFriends, getCommunity, listUsableEmojis, listServerStickers, listAssetCollections } from '../api/endpoints';
 import { playSound } from '../utils/sounds';
+import { getExtra, streamerQuiet } from '../utils/extraPrefs';
 import { setupNativeActivity } from '../utils/nativeActivity';
 import { updateUnreadBadge } from '../utils/unreadBadge';
 import { sameData } from '../utils/liveRefresh';
@@ -31,8 +32,18 @@ const SocketContext = createContext(null);
 // (ver desktop/main.js) se deve aparecer de verdade por cima do jogo.
 // Sem efeito nenhum fora do app desktop (window.electronAPI não existe
 // no navegador comum/celular).
+// Caixa de cada conversa que chegou antes da própria conversa estar na lista.
+const pendingInbox = new Map();
+function isQuietConversation(conversationId) {
+  const c = useStore.getState().conversations.find((x) => x.id === conversationId);
+  const inbox = c?.inbox || pendingInbox.get(conversationId);
+  return !!inbox && inbox !== 'main';
+}
+
 function notifyUser(title, body, onClick) {
   useStore.getState().pushNotice(body ? `${title}: ${body}` : title);
+  // Modo streamer: nada de notificação do sistema/sobreposição na tela.
+  if (streamerQuiet('notify')) return;
   window.electronAPI?.showOverlayNotification?.({ title, body });
   const isHiddenOrUnfocused = typeof document !== 'undefined'
     && (document.visibilityState === 'hidden' || !document.hasFocus());
@@ -210,7 +221,9 @@ export function SocketProvider({ children }) {
               authorName: message.author?.displayName, preview: message.content, reply: isReplyToMe && !wasMentioned,
             });
           }
-        } else if (message.conversationId && !isOpenConversation) {
+        } else if (isOpenConversation && document.visibilityState === 'visible') {
+          playSound('messageActive', 0.3);
+        } else if (message.conversationId && !isOpenConversation && !isQuietConversation(message.conversationId)) {
           playSound('message');
           // Item pedido: notificação nativa pra mensagem direta (DM), não
           // só pra menção — igual Discord notifica qualquer DM nova,
@@ -257,7 +270,28 @@ export function SocketProvider({ children }) {
     });
 
     socket.on('presence:update', ({ userId, status, customStatus, mobile }) => {
+      // "Amigos ficam online" (Configurações → Notificações).
+      const st = useStore.getState();
+      const prev = st.presence?.[userId]?.status;
+      if (status && status !== 'OFFLINE' && (!prev || prev === 'OFFLINE') && userId !== user.id && getExtra().notifyFriendOnline) {
+        const f = st.friends.find((x) => x.status === 'ACCEPTED' && x.user?.id === userId);
+        if (f) notifyUser(`${f.user.displayName} ficou online`, '', () => navigate(`/u/${userId}`));
+      }
       setPresence(userId, { status, customStatus, mobile: !!mobile });
+    });
+    // Alguém reagiu a uma mensagem sua (o servidor já respeita a preferência).
+    socket.on('reaction:you', ({ emoji, by, preview, channelId, conversationId, messageId }) => {
+      playSound('notice', 0.35);
+      notifyUser(`${by?.displayName || 'Alguém'} reagiu com ${emoji}`, preview ? `"${preview}"` : '', () => goToMessage({ channelId, conversationId, messageId }));
+    });
+    socket.on('notice:new', () => playSound('notice', 0.4));
+    // Conversa mudou de caixa (Solicitações / Spam / aceita).
+    socket.on('conversation:inbox', ({ conversationId, inbox }) => {
+      const st = useStore.getState();
+      if (st.conversations.some((c) => c.id === conversationId)) {
+        st.setConversations(st.conversations.map((c) => (c.id === conversationId ? { ...c, inbox } : c)));
+      }
+      pendingInbox.set(conversationId, inbox);
     });
     // BUG CORRIGIDO: sem isso, o status de cada pessoa só chegava via
     // eventos incrementais (presence:update) — se um evento se perdesse
@@ -398,7 +432,8 @@ export function SocketProvider({ children }) {
     });
 
     socket.on('conversation:new', ({ conversation }) => {
-      useStore.getState().upsertConversation(conversation);
+      const known = conversation?.id && pendingInbox.get(conversation.id);
+      useStore.getState().upsertConversation(known ? { ...conversation, inbox: known } : conversation);
       // BUG CORRIGIDO ("DM nova só recebe mensagem recarregando"): o
       // servidor só coloca o socket nas salas das conversas que já
       // existiam na hora de conectar — numa conversa criada DEPOIS (alguém

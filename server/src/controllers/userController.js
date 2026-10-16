@@ -574,6 +574,7 @@ async function searchUsers(req, res, next) {
     const users = await prisma.user.findMany({
       where: {
         ...(includeSelf ? {} : { NOT: { id: req.user.id } }),
+        selfDeactivatedAt: null, // contas desativadas temporariamente não aparecem
         OR: [
           { username: { contains: q } },
           { displayName: { contains: q } },

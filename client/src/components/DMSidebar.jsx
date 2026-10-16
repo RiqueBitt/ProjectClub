@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useStore, isConversationUnread } from '../store/useStore';
+import { useStore, isConversationUnread, isMainInbox } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { leaveConversation } from '../api/endpoints';
 import PresenceDot from './PresenceDot.jsx';
@@ -17,7 +17,7 @@ export default function DMSidebar() {
   const navigate = useNavigate();
   const [newDMOpen, setNewDMOpen] = useState(false);
 
-  const sorted = [...conversations].sort((a, b) => {
+  const sorted = [...conversations].filter(isMainInbox).sort((a, b) => {
     const at = a.lastMessage?.createdAt || 0;
     const bt = b.lastMessage?.createdAt || 0;
     return new Date(bt) - new Date(at);

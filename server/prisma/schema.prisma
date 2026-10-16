@@ -856,6 +856,8 @@ model Friendship {
   addresseeId  String
   addressee    User     @relation("Addressee", fields: [addresseeId], references: [id], onDelete: Cascade)
   status       String   @default("PENDING")
+  // Recado opcional junto com o pedido de amizade.
+  message      String?  @db.VarChar(200)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -1080,6 +1082,11 @@ model ConversationMember {
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   joinedAt       DateTime     @default(now())
   lastReadAt     DateTime?
+  // Caixa da conversa pra ESTA pessoa: "main" (normal), "request"
+  // (solicitação de mensagem de quem não é amigo), "spam" ou "ignored"
+  // (escondida). Ver services/dmInbox.js.
+  inbox          String       @default("main") @db.VarChar(12)
+  inboxAcceptedAt DateTime?
 
   @@unique([conversationId, userId])
 }

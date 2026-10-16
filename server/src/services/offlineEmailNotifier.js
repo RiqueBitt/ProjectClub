@@ -18,8 +18,13 @@ async function maybeSendOfflineEmail(userId, payload) {
   try {
     const online = await presenceStore.isOnline(userId);
     if (online) return;
-    const settings = await prisma.userSettings.findUnique({ where: { userId }, select: { emailNotifications: true } });
+    const settings = await prisma.userSettings.findUnique({ where: { userId }, select: { emailNotifications: true, extraPrefs: true } });
     if (settings?.emailNotifications === false) return;
+    // E-mails por categoria (Configurações → Notificações → E-mails).
+    let extra = {};
+    try { extra = settings?.extraPrefs ? JSON.parse(settings.extraPrefs) : {}; } catch { extra = {}; }
+    const category = { mention: 'emailComms', dm: 'emailComms', friend_request: 'emailSocial' }[payload?.type] || 'emailComms';
+    if (extra[category] === false) return;
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
     if (!user?.email) return;
     await sendOfflineNotification(user.email, { ...payload, appUrl: env.CLIENT_ORIGIN });

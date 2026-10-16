@@ -1104,6 +1104,23 @@ if (!gotLock) {
   // igual pedido, não um número). Fica só ligado/desligado — não some
   // sozinho, alguém precisa realmente ler as mensagens novas.
   const badgeIcon = nativeImage.createFromPath(path.join(__dirname, 'build', 'badge-dot.png'));
+  // Ícone alternativo do app (Configurações → Aparência → Ícone do app).
+  // Só aceita PNG em data URL de até ~1 MB; null volta pro ícone padrão.
+  secureHandle('set-app-icon', (_event, dataUrl) => {
+    if (!mainWindow) return false;
+    try {
+      if (!dataUrl) {
+        const def = nativeImage.createFromPath(path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png'));
+        if (!def.isEmpty()) mainWindow.setIcon(def);
+        return true;
+      }
+      if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/png;base64,') || dataUrl.length > 1400000) return false;
+      const img = nativeImage.createFromDataURL(dataUrl);
+      if (img.isEmpty()) return false;
+      mainWindow.setIcon(img);
+      return true;
+    } catch { return false; }
+  });
   secureHandle('set-unread-count', (_event, count) => {
     if (!mainWindow) return;
     mainWindow.setOverlayIcon(count > 0 ? badgeIcon : null, count > 0 ? `${count} não lida(s)` : '');

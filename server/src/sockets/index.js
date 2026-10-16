@@ -930,6 +930,19 @@ function initSockets(httpServer) {
       io.to(target.socketId).emit('voice:signal', { channelId, from: userId, data });
     });
 
+    // Som de entrada (Configurações → Voz e vídeo): ao entrar numa call, a
+    // pessoa pode tocar um efeito curto pra todo mundo da sala. Só sons da
+    // lista fixa (sintetizados no cliente), no máximo 1 a cada 20s.
+    const ENTRY_SOUNDS = new Set(['tada', 'oi', 'fanfarra', 'moeda', 'portal', 'sino', 'buzina', 'pulo', 'magia', 'tambor']);
+    let lastEntrySound = 0;
+    socket.on('voice:entry-sound', async ({ channelId, sound } = {}) => {
+      if (!ENTRY_SOUNDS.has(sound) || typeof channelId !== 'string') return;
+      if (Date.now() - lastEntrySound < 20000) return;
+      if (!socket.rooms.has(`voice:${channelId}`)) return;
+      lastEntrySound = Date.now();
+      socket.to(`voice:${channelId}`).emit('voice:entry-sound', { channelId, userId, sound });
+    });
+
     socket.on('voice:state', async ({ channelId, muted, deafened, video, screenSharing }) => {
       const patch = {};
       if (muted !== undefined) patch.muted = !!muted;

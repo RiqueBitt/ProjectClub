@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { convName, lastPreview, timeAgo } from './DMQuick.jsx';
 import { useNavigate } from 'react-router-dom';
-import { useStore, isConversationUnread } from '../store/useStore';
+import { useStore, isConversationUnread, isMainInbox } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
-import { leaveConversation } from '../api/endpoints';
+import { leaveConversation, setConversationInbox } from '../api/endpoints';
 import PresenceDot from './PresenceDot.jsx';
 import NewDMModal from './modals/NewDMModal.jsx';
 import ConversationIcon from './ConversationIcon.jsx';
@@ -24,8 +24,19 @@ export default function DMConversationsList() {
   const navigate = useNavigate();
   const [newDMOpen, setNewDMOpen] = useState(false);
   const [filter, setFilter] = useState('');
+  // Caixas: Mensagens (normal), Solicitações e Spam (igual ao Discord).
+  const [box, setBox] = useState('main');
+  const requests = conversations.filter((c) => c.inbox === 'request');
+  const spam = conversations.filter((c) => c.inbox === 'spam');
+  const inBox = (c) => (box === 'main' ? isMainInbox(c) : c.inbox === box);
+  const act = async (e, c, action) => {
+    e.preventDefault(); e.stopPropagation();
+    const inbox = { accept: 'main', ignore: 'ignored', spam: 'spam' }[action];
+    useStore.getState().setConversations(useStore.getState().conversations.map((x) => (x.id === c.id ? { ...x, inbox } : x)));
+    setConversationInbox(c.id, action).catch(() => {});
+  };
 
-  const sorted = [...conversations].sort((a, b) => {
+  const sorted = [...conversations].filter(inBox).sort((a, b) => {
     const at = a.lastMessage?.createdAt || 0;
     const bt = b.lastMessage?.createdAt || 0;
     return new Date(bt) - new Date(at);
@@ -46,7 +57,22 @@ export default function DMConversationsList() {
         <input className="dm-conv-filter" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filtrar conversas…" aria-label="Filtrar conversas" />
         <button className="btn-secondary" onClick={() => setNewDMOpen(true)}>+ Nova conversa</button>
       </div>
-      {sorted.length === 0 && !filter && (
+      {(requests.length > 0 || spam.length > 0 || box !== 'main') && (
+        <div className="dm-boxes" role="tablist" aria-label="Caixas de mensagens">
+          <button type="button" role="tab" aria-selected={box === 'main'} className={box === 'main' ? 'on' : ''} onClick={() => setBox('main')}>Mensagens</button>
+          <button type="button" role="tab" aria-selected={box === 'request'} className={box === 'request' ? 'on' : ''} onClick={() => setBox('request')}>Solicitações{requests.length ? <em>{requests.length}</em> : null}</button>
+          <button type="button" role="tab" aria-selected={box === 'spam'} className={box === 'spam' ? 'on' : ''} onClick={() => setBox('spam')}>Spam{spam.length ? <em>{spam.length}</em> : null}</button>
+        </div>
+      )}
+      {box !== 'main' && (
+        <p className="dm-box-hint">
+          {box === 'request'
+            ? 'Mensagens de quem não é seu amigo. Elas não fazem barulho nem acendem notificação até você aceitar.'
+            : 'Mensagens que pareceram spam. Confira antes de responder — nunca clique em links estranhos.'}
+        </p>
+      )}
+      {box !== 'main' && sorted.length === 0 && <div className="friends-empty-state"><h3>{box === 'request' ? 'Nenhuma solicitação.' : 'Nada no spam.'}</h3></div>}
+      {box === 'main' && sorted.length === 0 && !filter && (
         <div className="friends-empty-state">
           <div className="friends-empty-state-icon"><SocialIcon name="chat" size={30} /></div>
           <h3>Nenhuma conversa ainda.</h3>
@@ -83,6 +109,13 @@ export default function DMConversationsList() {
               <span className="dm-item-time">{timeAgo(c.lastMessage?.createdAt)}</span>
               <TypingDots roomKey={`conversation:${c.id}`} myUserId={user.id} />
               {unread && <span className="unread-dot" />}
+              {box !== 'main' && (
+                <span className="dm-box-actions">
+                  <span role="button" tabIndex={0} className="ok" onClick={(e) => act(e, c, 'accept')} onKeyDown={(e) => { if (e.key === 'Enter') act(e, c, 'accept'); }}>{box === 'spam' ? 'Não é spam' : 'Aceitar'}</span>
+                  {box === 'request' && <span role="button" tabIndex={0} onClick={(e) => act(e, c, 'spam')} onKeyDown={(e) => { if (e.key === 'Enter') act(e, c, 'spam'); }}>Spam</span>}
+                  <span role="button" tabIndex={0} onClick={(e) => act(e, c, 'ignore')} onKeyDown={(e) => { if (e.key === 'Enter') act(e, c, 'ignore'); }}>Ignorar</span>
+                </span>
+              )}
               {c.isGroup && (
                 <button className="dm-item-leave" title="Sair do grupo" onClick={(e) => doLeave(e, c.id)}>
                   <img className="ui-icon-sm" src={cancelIcon} alt="x" />

@@ -108,7 +108,7 @@ export const deleteShortcut = (id) => api.delete(`/users/me/shortcuts/${id}`).th
 
 // --- Friends ---
 export const listFriends = () => api.get('/friends').then((r) => r.data);
-export const sendFriendRequest = (username) => api.post('/friends/request', { username }).then((r) => r.data);
+export const sendFriendRequest = (username, message) => api.post('/friends/request', { username, ...(message ? { message } : {}) }).then((r) => r.data);
 export const respondFriendRequest = (id, action) => api.post(`/friends/${id}/respond`, { action }).then((r) => r.data);
 export const removeFriend = (id) => api.delete(`/friends/${id}`).then((r) => r.data);
 export const blockUser = (username) => api.post('/friends/block', { username }).then((r) => r.data);
@@ -758,3 +758,5 @@ export const saveProfileWidgets = (widgets) => api.put('/users/me/widgets', { wi
 export const getMyWishlist = () => api.get('/users/me/wishlist').then((r) => r.data);
 export const toggleWishlistItem = (kind, id, on) => api.post('/users/me/wishlist', { kind, id, on }).then((r) => r.data);
 export const saveUserNote = (userId, text) => api.put(`/users/${userId}/note`, { text }).then((r) => r.data);
+export const deactivateAccount = (password) => api.post('/auth/deactivate', { password }).then((r) => r.data);
+export const setConversationInbox = (id, action) => api.patch(`/conversations/${id}/inbox`, { action }).then((r) => r.data);
