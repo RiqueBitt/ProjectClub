@@ -120,6 +120,7 @@ export function handler(route) {
   if (p === '/decorations/admin/items') return json({ items: [
     { id: 'st1', kind: 'STYLE', key: 'style:terror', name: 'Terror', data: { style: 'terror' }, priceCoins: 2500, priceGems: null, active: false, sortOrder: 0, stock: null, sold: 0, _count: { owners: 0 } },
     { id: 'st2', kind: 'STYLE', key: 'style:anime', name: 'Anime', data: { style: 'anime' }, priceCoins: 2500, priceGems: null, active: true, sortOrder: 1, stock: 50, sold: 3, _count: { owners: 3 } },
+    ...(process.env.MOCK_STYLES ? ["win2000", "anime", "terror", "bugado", "nostalgia", "cyberpunk", "vaporwave", "pixel", "oceano", "floresta", "galaxia", "sakura", "inverno", "lava", "realeza", "matrix", "caderno", "steampunk", "gotico", "arcade", "sunset", "candy", "aurora", "deserto", "halloween", "natal", "lofi", "holografico", "militar", "faroeste", "medieval", "cafe", "grafite", "marmore", "noir"].slice(2).map((k, i) => ({ id: 'sx' + i, kind: 'STYLE', key: 'style:' + k, name: k, data: { style: k }, priceCoins: 2500, priceGems: null, active: false, sortOrder: i + 2, stock: null, sold: 0, _count: { owners: 0 } })) : []),
   ], styleKeys: ['terror', 'anime'] });
   if (p === '/decorations/admin/catalog') return json({ items: [
     { id: 'st1', kind: 'style', name: 'Terror', active: false, stock: null, sold: 0, data: { style: 'terror' } },
