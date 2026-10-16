@@ -111,6 +111,12 @@ export function handler(route) {
   ] } });
 
   if (p === '/users/me/pendants') return json({ pendants: [] });
+  // Loja (sala branca). MOCK_TIER=SUBSCRIBER|SUPER simula o status de apoio:
+  // o preço final vem "do servidor" já com o desconto, como na API real.
+  if (p === '/supporters/admin/users') return json({ users: [{ ...users[4], supporterTier: 'SUPER' }, { ...users[1], supporterTier: 'SUBSCRIBER' }], totals: { SUPER: 1, SUBSCRIBER: 1 } });
+  if (p === '/supporters/admin/history') return json({ entries: [{ id: 'sa1', userId: '5', actorId: '1', fromTier: 'SUBSCRIBER', toTier: 'SUPER', reason: 'Apoio especial no evento de outubro', createdAt: new Date(now - 2 * 86400000).toISOString(), user: users[4], actor: me }], hasMore: false });
+  if (p.startsWith('/supporters/admin/')) return json({ ok: true, changed: true });
+  if (p === '/decorations/shop' || p === '/decorations/history' || /^\/decorations\/.+\/buy$/.test(p) || p === '/decorations/equip' || p === '/decorations/effects/equip') return shopMock(p, json);
   if (p === '/app-catalog') return json({ items: [
     { moduleId: 'projectmc', name: 'Project MC', version: '2.3.1', description: 'Launcher de Minecraft com modpacks da comunidade e login integrado.', bannerUrl: banner, iconUrl: av('#27ae60', '#145a32'), screenshots: [] },
     { moduleId: 'editor', name: 'Club Editor', version: '1.0.4', description: 'Editor de skins e mapas para os servidores do Club.', bannerUrl: null, iconUrl: av('#8e44ad', '#2c3e50'), screenshots: [] },
@@ -190,3 +196,54 @@ export function handler(route) {
   const E = []; return json({ polls: E, photos: E, posts: E, items: E, users: E, comments: E, visitors: E, visits: E, totalVisits: 0, today: E, upcoming: E, birthdays: E, albums: E, media: E, badges: E, pendants: E });
 }
 export const ME = me;
+
+// ---------- Loja ----------
+const ring = (c1, c2) => svg(128, 128, `<defs><linearGradient id="r" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><circle cx="64" cy="64" r="56" fill="none" stroke="url(#r)" stroke-width="10"/><circle cx="64" cy="10" r="9" fill="${c1}"/><circle cx="112" cy="84" r="6" fill="${c2}"/>`);
+const sparkle = (c) => svg(300, 400, `<g fill="${c}" opacity=".9"><path d="M60 60l8 20 20 8-20 8-8 20-8-20-20-8 20-8z"/><path d="M230 140l6 14 14 6-14 6-6 14-6-14-14-6 14-6z"/><path d="M120 300l10 24 24 10-24 10-10 24-10-24-24-10 24-10z"/><circle cx="250" cy="330" r="6"/><circle cx="40" cy="220" r="4"/></g>`);
+const shopBanner = (c1, c2, t) => svg(900, 360, `<defs><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><rect width="900" height="360" fill="url(#b)"/><g fill="#fff" opacity=".18"><circle cx="720" cy="90" r="120"/><circle cx="820" cy="300" r="70"/></g><text x="640" y="220" font-family="Impact,sans-serif" font-size="64" text-anchor="middle" fill="#fff" opacity=".85">${t}</text>`);
+const day = 86400000;
+const D = (id, name, c1, c2, extra = {}) => ({ id, name, imageUrl: ring(c1, c2), scale: 1.25, offsetX: 0, offsetY: 0, priceCoins: 300, priceGems: null, active: true, featured: false, exclusiveTier: null, discountEligible: true, description: null, collectionId: null, createdAt: new Date(now - 30 * day).toISOString(), popularity: 3, ...extra });
+const F = (id, name, c, extra = {}) => ({ id, name, imageUrl: sparkle(c), scale: 1, offsetX: 0, offsetY: 0, opacity: .9, duration: 4, mScale: 1, mOffsetX: 0, mOffsetY: 0, mOpacity: .9, mDuration: 4, priceCoins: 600, priceGems: 6, active: true, featured: false, exclusiveTier: null, discountEligible: true, description: null, collectionId: null, createdAt: new Date(now - 20 * day).toISOString(), popularity: 5, ...extra });
+const shopState = { owned: new Set(['d2']), equipped: 'd2', equippedFx: null };
+function shopMock(p, json) {
+  const tier = process.env.MOCK_TIER || 'NONE';
+  const disc = tier === 'NONE' ? 0 : 15;
+  const priced = (i) => {
+    const one = (base) => (base == null ? { base: null, discount: 0, final: null, source: null } : { base, discount: i.discountEligible ? disc : 0, final: i.discountEligible && disc ? base - Math.floor(base * disc / 100) : base, source: i.discountEligible && disc ? 'SUBSCRIBER' : null });
+    return { coins: one(i.priceCoins), gems: one(i.priceGems), discount: i.discountEligible ? disc : 0 };
+  };
+  const rank = { NONE: 0, SUBSCRIBER: 1, SUPER: 2 };
+  const shape = (i) => {
+    const via = i.exclusiveTier && rank[tier] >= rank[i.exclusiveTier];
+    const owned = shopState.owned.has(i.id) || !!via;
+    return { ...i, owned, ownedVia: shopState.owned.has(i.id) ? 'PURCHASE' : via ? 'SUPPORTER' : null, locked: !!i.exclusiveTier && !owned, pricing: i.exclusiveTier ? null : priced(i) };
+  };
+  const decorations = [
+    D('d1', 'Aurora Boreal', '#22d3ee', '#a855f7', { featured: true, description: 'Gradiente que lembra o céu do norte, com dois pontinhos de luz.', createdAt: new Date(now - 2 * day).toISOString(), popularity: 41, collectionId: 'c1' }),
+    D('d2', 'Clássica Azul', '#1f6feb', '#60a5fa', { priceCoins: 150, popularity: 88 }),
+    D('d3', 'Brasa', '#f97316', '#dc2626', { featured: true, priceCoins: 450, priceGems: 4, description: 'Para quem chega pegando fogo no chat.', popularity: 25, collectionId: 'c1' }),
+    D('d4', 'Menta', '#10b981', '#a7f3d0', { priceCoins: 1200, discountEligible: false, description: 'Edição limitada — fora do desconto de Assinante.', createdAt: new Date(now - 1 * day).toISOString() }),
+    D('dx1', 'Selo do Apoiador', '#7c3aed', '#c4b5fd', { priceCoins: null, exclusiveTier: 'SUBSCRIBER', description: 'Moldura exclusiva de quem apoia o Project Club.' }),
+    D('dx2', 'Coroa Dourada', '#f59e0b', '#fde68a', { priceCoins: null, exclusiveTier: 'SUPER', description: 'Só para Super Assinantes.' }),
+  ];
+  const effects = [
+    F('e1', 'Chuva de Estrelas', '#facc15', { featured: true, description: 'Estrelinhas douradas caindo pelo perfil.', createdAt: new Date(now - 3 * day).toISOString(), popularity: 63, collectionId: 'c1' }),
+    F('e2', 'Neblina Roxa', '#a855f7', { priceCoins: 900, priceGems: null, popularity: 12 }),
+    F('e3', 'Faíscas', '#38bdf8', { priceCoins: 0, priceGems: null, description: 'Grátis por tempo limitado.', createdAt: new Date(now - 1 * day).toISOString() }),
+    F('ex1', 'Brilho de Apoio', '#c084fc', { priceCoins: null, priceGems: null, exclusiveTier: 'SUBSCRIBER' }),
+  ];
+  if (p === '/decorations/shop') {
+    const col = { id: 'c1', name: 'Noite Elétrica', description: 'Molduras e efeitos com cores de neon para destacar seu perfil à noite.', bannerUrl: shopBanner('#1e1b4b', '#7c3aed', 'NOITE ELÉTRICA'), logoUrl: null, accentColor: '#7c3aed', active: true, featured: true, sortOrder: 0, bundlePriceCoins: 1100, bundlePriceGems: null, discountEligible: true, offer: { discount: 20, startsAt: null, endsAt: new Date(now + 2 * day).toISOString(), active: true }, createdAt: new Date(now - 5 * day).toISOString() };
+    col.pricing = { coins: (() => { const b = 1100; const viaOffer = Math.ceil(b * 0.8); const viaSub = disc ? b - Math.floor(b * disc / 100) : Infinity; return viaSub < viaOffer ? { base: b, discount: disc, final: viaSub, source: 'SUBSCRIBER' } : { base: b, discount: 20, final: viaOffer, source: 'OFFER' }; })(), gems: { base: null, discount: 0, final: null, source: null } };
+    const col2 = { id: 'c2', name: 'Verão no Club', description: 'Cores quentes para o seu perfil.', bannerUrl: shopBanner('#f97316', '#facc15', 'VERÃO'), accentColor: '#f97316', active: true, featured: true, bundlePriceCoins: null, bundlePriceGems: null, discountEligible: true, offer: null, pricing: {} };
+    return json({
+      decorations: decorations.map(shape), effects: effects.map(shape), collections: [col, col2],
+      coins: 2480, gems: 12, supporter: { tier, label: tier, discount: disc },
+      equippedId: shopState.equipped, equippedEffectId: shopState.equippedFx,
+    });
+  }
+  if (p === '/decorations/history') return json({ purchases: [{ id: 'h1', kind: 'SHOP', label: 'Loja: moldura Clássica Azul', coins: -150, gems: 0, createdAt: new Date(now - 4 * day).toISOString() }], received: [], hasMore: false });
+  const m = p.match(/^\/decorations\/(?:effects\/|collections\/)?([^/]+)\/buy$/);
+  if (m) { shopState.owned.add(m[1]); return json({ ok: true, paid: 0, coins: 2000, gems: 12 }); }
+  return json({ user: me });
+}

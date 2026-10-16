@@ -49,58 +49,131 @@ function shapeCollection(c, now = Date.now()) {
 
 const idFromJson = (raw) => { try { return raw ? JSON.parse(raw).id || null : null; } catch { return null; } };
 
-// GET /decorations/shop — tudo que a Loja mostra, numa chamada só.
+const sup = require('../services/supporters');
+const ledger = () => require('../services/economyLedger');
+const fail = (msg, status = 400, extra) => Object.assign(new Error(msg), { status, extra });
+const sendFail = (res, e) => res.status(e.status).json({ error: e.message, ...(e.extra || {}) });
+const noFunds = (currency) => fail(currency === 'gems' ? 'Gemas insuficientes.' : 'Moedas insuficientes.', 400, { code: 'INSUFFICIENT_FUNDS' });
+
+// Moldura e efeito usam o mesmo fluxo de compra; só mudam as tabelas.
+const KINDS = {
+  deco: {
+    label: 'moldura', item: 'avatarDecoration', own: 'userAvatarDecoration', fk: 'decorationId',
+    uniq: (userId, id) => ({ userId_decorationId: { userId, decorationId: id } }),
+  },
+  effect: {
+    label: 'efeito', item: 'profileEffect', own: 'userProfileEffect', fk: 'effectId',
+    uniq: (userId, id) => ({ userId_effectId: { userId, effectId: id } }),
+  },
+};
+const tierOf = async (db, userId) => sup.normalizeTier((await db.user.findUnique({ where: { id: userId }, select: { supporterTier: true } }))?.supporterTier);
+
+// "expectedPrice" é o preço que a pessoa CONFIRMOU na tela. Se o servidor
+// calcular outro (desconto acabou, staff mudou o preço...), não cobra:
+// devolve 409 com o preço novo pra ela confirmar de novo.
+function checkExpected(body, final) {
+  if (body?.expectedPrice === undefined || body?.expectedPrice === null || body?.expectedPrice === '') return;
+  const exp = Number(body.expectedPrice);
+  if (!Number.isFinite(exp) || exp !== final) throw fail('O preço mudou. Confira o valor novo e confirme de novo.', 409, { code: 'PRICE_CHANGED', price: final });
+}
+
+// GET /decorations/shop — tudo que a Loja mostra, numa chamada só, já com o
+// preço final de cada item calculado pro status de apoio de quem pede.
 async function shop(req, res, next) {
   try {
     const userId = req.user.id;
     const order = [{ sortOrder: 'asc' }, { createdAt: 'desc' }];
+    const count = { _count: { select: { owners: true } } };
     const [decorations, effects, collections, ownedD, ownedE, me] = await Promise.all([
-      prisma.avatarDecoration.findMany({ where: { active: true }, orderBy: order }),
-      prisma.profileEffect.findMany({ where: { active: true }, orderBy: order }),
+      prisma.avatarDecoration.findMany({ where: { active: true }, orderBy: order, include: count }),
+      prisma.profileEffect.findMany({ where: { active: true }, orderBy: order, include: count }),
       prisma.shopCollection.findMany({ where: { active: true }, orderBy: order }),
       prisma.userAvatarDecoration.findMany({ where: { userId }, select: { decorationId: true } }),
       prisma.userProfileEffect.findMany({ where: { userId }, select: { effectId: true } }),
-      prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true, avatarDecoration: true, profileEffect: true } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true, avatarDecoration: true, profileEffect: true, supporterTier: true } }),
     ]);
+    const tier = sup.normalizeTier(me?.supporterTier);
     const od = new Set(ownedD.map((o) => o.decorationId));
     const oe = new Set(ownedE.map((o) => o.effectId));
+    const shape = (it, ownedSet) => {
+      const { _count, ...rest } = it;
+      const exclusive = sup.exclusiveOf(it);
+      const viaTier = !!exclusive && sup.qualifiesFor(tier, exclusive);
+      return {
+        ...rest,
+        exclusiveTier: exclusive,
+        owned: ownedSet.has(it.id) || viaTier,
+        ownedVia: ownedSet.has(it.id) ? 'PURCHASE' : viaTier ? 'SUPPORTER' : null,
+        locked: !!exclusive && !viaTier && !ownedSet.has(it.id),
+        popularity: _count?.owners || 0,
+        pricing: exclusive ? null : sup.pricing(it, tier),
+      };
+    };
     res.json({
-      decorations: decorations.map((d) => ({ ...d, owned: od.has(d.id) })),
-      effects: effects.map((e) => ({ ...e, owned: oe.has(e.id) })),
-      collections: collections.map((c) => shapeCollection(c)),
+      decorations: decorations.map((d) => shape(d, od)),
+      effects: effects.map((e) => shape(e, oe)),
+      collections: collections.map((c) => {
+        const col = shapeCollection(c);
+        return { ...col, pricing: { coins: sup.bundlePriceFor(c, 'coins', tier, col.offer), gems: sup.bundlePriceFor(c, 'gems', tier, col.offer) } };
+      }),
       coins: me?.coins ?? 0, gems: me?.gems ?? 0,
+      supporter: sup.supporterInfo(tier),
       equippedId: idFromJson(me?.avatarDecoration),
       equippedEffectId: idFromJson(me?.profileEffect),
     });
   } catch (err) { next(err); }
 }
 
-const fail = (msg, status = 400) => Object.assign(new Error(msg), { status });
-
-async function buyEffect(req, res, next) {
+// Compra avulsa de moldura/efeito. Preço recalculado aqui, dentro da
+// transação, com o status de apoio lido do banco nesse momento.
+async function buyItem(kind, req, res, next) {
+  const K = KINDS[kind];
   try {
     const currency = req.body?.currency === 'gems' ? 'gems' : 'coins';
-    const fx = await prisma.profileEffect.findUnique({ where: { id: req.params.id } });
-    if (!fx || !fx.active) return res.status(404).json({ error: 'Efeito não encontrado.' });
-    const price = currency === 'gems' ? fx.priceGems : fx.priceCoins;
-    if (price === null || price === undefined) return res.status(400).json({ error: 'Esse efeito não é vendido nessa moeda.' });
+    const item = await prisma[K.item].findUnique({ where: { id: req.params.id } });
+    if (!item || !item.active) return res.status(404).json({ error: `${K.label[0].toUpperCase()}${K.label.slice(1)} não encontrado(a).` });
+    if (sup.exclusiveOf(item)) return res.status(403).json({ error: `Item exclusivo de ${sup.TIER_LABEL[sup.exclusiveOf(item)]} — não é vendido, é liberado pelo apoio.`, code: 'EXCLUSIVE' });
     const userId = req.user.id;
+    let price;
     try {
       await prisma.$transaction(async (tx) => {
-        const already = await tx.userProfileEffect.findUnique({ where: { userId_effectId: { userId, effectId: fx.id } } });
-        if (already) throw fail('Você já tem esse efeito.');
-        const r = await tx.user.updateMany({ where: { id: userId, [currency]: { gte: price } }, data: { [currency]: { decrement: price } } });
-        if (r.count === 0) throw fail(currency === 'gems' ? 'Gemas insuficientes.' : 'Moedas insuficientes.');
-        await tx.userProfileEffect.create({ data: { userId, effectId: fx.id } });
+        const p = sup.priceFor(item, currency, await tierOf(tx, userId));
+        if (p.final === null) throw fail(`Esse ${K.label} não é vendido nessa moeda.`);
+        checkExpected(req.body, p.final);
+        price = p;
+        const already = await tx[K.own].findUnique({ where: K.uniq(userId, item.id) });
+        if (already) throw fail(`Você já tem esse ${K.label}.`, 400, { code: 'ALREADY_OWNED' });
+        if (p.final > 0) {
+          // Desconta só se tiver saldo (condição no próprio update evita corrida).
+          const r = await tx.user.updateMany({ where: { id: userId, [currency]: { gte: p.final } }, data: { [currency]: { decrement: p.final } } });
+          if (r.count === 0) throw noFunds(currency);
+        }
+        // UNIQUE(userId, itemId): compra repetida em paralelo desfaz tudo.
+        await tx[K.own].create({ data: { userId, [K.fk]: item.id } });
       });
     } catch (e) {
-      if (e.status) return res.status(e.status).json({ error: e.message });
+      if (e.status) return sendFail(res, e);
+      if (e.code === 'P2002') return res.status(400).json({ error: `Você já tem esse ${K.label}.`, code: 'ALREADY_OWNED' });
       throw e;
     }
-    require('../services/economyLedger').recordTransaction(userId, { kind: 'SHOP', label: `Loja: efeito ${fx.name || ''}`.trim(), [currency]: -price });
+    const label = `Loja: ${K.label} ${item.name || ''}`.trim() + (price.discount ? ` (-${price.discount}% Assinante)` : '');
+    if (price.final > 0) ledger().recordTransaction(userId, { kind: 'SHOP', label, [currency]: -price.final });
     const me = await prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true } });
-    res.json({ ok: true, ...me });
+    res.json({ ok: true, paid: price.final, currency, base: price.base, discount: price.discount, ...me });
   } catch (err) { next(err); }
+}
+const buyEffect = (req, res, next) => buyItem('effect', req, res, next);
+const buyDecoration = (req, res, next) => buyItem('deco', req, res, next);
+
+// Pode usar = comprou OU é exclusivo e a categoria de apoio libera.
+async function usableItem(kind, userId, id) {
+  const K = KINDS[kind];
+  const own = await prisma[K.own].findUnique({ where: K.uniq(userId, id), include: { [kind === 'deco' ? 'decoration' : 'effect']: true } });
+  if (own) return own[kind === 'deco' ? 'decoration' : 'effect'];
+  const item = await prisma[K.item].findUnique({ where: { id } });
+  const req = sup.exclusiveOf(item);
+  if (item && item.active && req && sup.qualifiesFor(await tierOf(prisma, userId), req)) return item;
+  return null;
 }
 
 async function equipEffect(req, res, next) {
@@ -108,11 +181,9 @@ async function equipEffect(req, res, next) {
     const id = req.body?.id || null;
     let value = null;
     if (id) {
-      const own = await prisma.userProfileEffect.findUnique({
-        where: { userId_effectId: { userId: req.user.id, effectId: id } }, include: { effect: true },
-      });
-      if (!own) return res.status(403).json({ error: 'Você ainda não tem esse efeito.' });
-      value = effectJson(own.effect);
+      const fx = await usableItem('effect', req.user.id, String(id));
+      if (!fx) return res.status(403).json({ error: 'Você ainda não tem esse efeito.' });
+      value = effectJson(fx);
     }
     const user = await prisma.user.update({ where: { id: req.user.id }, data: { profileEffect: value }, select: SELF_USER_FIELDS });
     await broadcastUserUpdate(req, user);
@@ -120,8 +191,9 @@ async function equipEffect(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// Compra o pacote da coleção: tudo que a pessoa ainda não tem. Se o que
-// falta custar menos que o pacote (já tem parte), cobra o menor valor.
+// Compra o pacote da coleção: tudo que a pessoa ainda não tem (exclusivos
+// de apoio ficam de fora — não são vendidos). Se o que falta custar menos
+// que o pacote (já tem parte), cobra o menor valor.
 async function buyCollection(req, res, next) {
   try {
     const currency = req.body?.currency === 'gems' ? 'gems' : 'coins';
@@ -130,44 +202,49 @@ async function buyCollection(req, res, next) {
       include: { decorations: { where: { active: true } }, effects: { where: { active: true } } },
     });
     if (!col || !col.active) return res.status(404).json({ error: 'Coleção não encontrada.' });
-    const fullBundle = currency === 'gems' ? col.bundlePriceGems : col.bundlePriceCoins;
-    if (fullBundle === null || fullBundle === undefined) return res.status(400).json({ error: 'Essa coleção não vende pacote nessa moeda.' });
-    const bundle = discounted(fullBundle, offerOf(col)); // oferta por tempo limitado
     const userId = req.user.id;
-    const key = currency === 'gems' ? 'priceGems' : 'priceCoins';
-    let paid = 0;
+    const sellD = col.decorations.filter((d) => !sup.exclusiveOf(d));
+    const sellE = col.effects.filter((e) => !sup.exclusiveOf(e));
+    let paid = 0; let source = null;
     try {
       await prisma.$transaction(async (tx) => {
+        const tier = await tierOf(tx, userId);
+        const bundle = sup.bundlePriceFor(col, currency, tier, offerOf(col));
+        if (bundle.final === null) throw fail('Essa coleção não vende pacote nessa moeda.');
         const [od, oe] = await Promise.all([
-          tx.userAvatarDecoration.findMany({ where: { userId, decorationId: { in: col.decorations.map((d) => d.id) } }, select: { decorationId: true } }),
-          tx.userProfileEffect.findMany({ where: { userId, effectId: { in: col.effects.map((e) => e.id) } }, select: { effectId: true } }),
+          tx.userAvatarDecoration.findMany({ where: { userId, decorationId: { in: sellD.map((d) => d.id) } }, select: { decorationId: true } }),
+          tx.userProfileEffect.findMany({ where: { userId, effectId: { in: sellE.map((e) => e.id) } }, select: { effectId: true } }),
         ]);
         const hasD = new Set(od.map((o) => o.decorationId));
         const hasE = new Set(oe.map((o) => o.effectId));
-        const missD = col.decorations.filter((d) => !hasD.has(d.id));
-        const missE = col.effects.filter((e) => !hasE.has(e.id));
-        if (!missD.length && !missE.length) throw fail('Você já tem tudo dessa coleção.');
+        const missD = sellD.filter((d) => !hasD.has(d.id));
+        const missE = sellE.filter((e) => !hasE.has(e.id));
+        if (!missD.length && !missE.length) throw fail('Você já tem tudo dessa coleção.', 400, { code: 'ALREADY_OWNED' });
         const missing = [...missD, ...missE];
-        const allPriced = missing.every((i) => i[key] !== null && i[key] !== undefined);
-        const sum = missing.reduce((a, i) => a + (i[key] || 0), 0);
-        paid = allPriced ? Math.min(bundle, sum) : bundle;
+        const each = missing.map((i) => sup.priceFor(i, currency, tier).final);
+        const allPriced = each.every((v) => v !== null);
+        const sum = each.reduce((a, v) => a + (v || 0), 0);
+        paid = allPriced ? Math.min(bundle.final, sum) : bundle.final;
+        source = paid === bundle.final ? bundle.source : (tier !== 'NONE' ? 'SUBSCRIBER' : null);
+        checkExpected(req.body, paid);
         if (paid > 0) {
           const r = await tx.user.updateMany({ where: { id: userId, [currency]: { gte: paid } }, data: { [currency]: { decrement: paid } } });
-          if (r.count === 0) throw fail(currency === 'gems' ? 'Gemas insuficientes.' : 'Moedas insuficientes.');
+          if (r.count === 0) throw noFunds(currency);
         }
-        // Um INSERT por tabela (antes: um por item). Sem skipDuplicates de
-        // propósito: compra repetida em paralelo estoura a UNIQUE e desfaz a
-        // transação inteira (inclusive o débito) — ninguém paga duas vezes.
+        // Um INSERT por tabela. Sem skipDuplicates de propósito: compra
+        // repetida em paralelo estoura a UNIQUE e desfaz a transação inteira
+        // (inclusive o débito) — ninguém paga duas vezes.
         if (missD.length) await tx.userAvatarDecoration.createMany({ data: missD.map((d) => ({ userId, decorationId: d.id })) });
         if (missE.length) await tx.userProfileEffect.createMany({ data: missE.map((e) => ({ userId, effectId: e.id })) });
       });
     } catch (e) {
-      if (e.status) return res.status(e.status).json({ error: e.message });
+      if (e.status) return sendFail(res, e);
+      if (e.code === 'P2002') return res.status(409).json({ error: 'Compra já processada.', code: 'ALREADY_OWNED' });
       throw e;
     }
-    if (paid > 0) require('../services/economyLedger').recordTransaction(userId, { kind: 'SHOP', label: `Loja: coleção ${col.name || ''}`.trim(), [currency]: -paid });
+    if (paid > 0) ledger().recordTransaction(userId, { kind: 'SHOP', label: `Loja: coleção ${col.name || ''}`.trim() + (source === 'SUBSCRIBER' ? ' (desconto Assinante)' : ''), [currency]: -paid });
     const me = await prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true } });
-    res.json({ ok: true, paid, ...me });
+    res.json({ ok: true, paid, currency, ...me });
   } catch (err) { next(err); }
 }
 
@@ -197,6 +274,17 @@ function readEffect(b) {
   if (b.active !== undefined) data.active = bool(b.active);
   if (b.sortOrder !== undefined) data.sortOrder = parseInt(b.sortOrder, 10) || 0;
   if (b.collectionId !== undefined) data.collectionId = idOrNull(b.collectionId);
+  Object.assign(data, readShopFlags(b));
+  return data;
+}
+
+// Campos da sala branca, comuns a molduras e efeitos.
+function readShopFlags(b) {
+  const data = {};
+  if (b.featured !== undefined) data.featured = bool(b.featured);
+  if (b.discountEligible !== undefined) data.discountEligible = bool(b.discountEligible);
+  if (b.exclusiveTier !== undefined) data.exclusiveTier = b.exclusiveTier === 'SUBSCRIBER' || b.exclusiveTier === 'SUPER' ? b.exclusiveTier : null;
+  if (b.description !== undefined) data.description = String(b.description).trim().slice(0, 400) || null;
   return data;
 }
 
@@ -258,6 +346,7 @@ function readCollection(b) {
   if (b.accentColor !== undefined) data.accentColor = colorOrNull(b.accentColor);
   if (b.active !== undefined) data.active = bool(b.active);
   if (b.featured !== undefined) data.featured = bool(b.featured);
+  if (b.discountEligible !== undefined) data.discountEligible = bool(b.discountEligible);
   if (b.sortOrder !== undefined) data.sortOrder = parseInt(b.sortOrder, 10) || 0;
   if (b.bundlePriceCoins !== undefined) data.bundlePriceCoins = priceOrNull(b.bundlePriceCoins);
   if (b.bundlePriceGems !== undefined) data.bundlePriceGems = priceOrNull(b.bundlePriceGems);
@@ -345,8 +434,8 @@ async function giftItem(req, res, next) {
       ? await prisma.avatarDecoration.findUnique({ where: { id: String(req.body?.id || '') } })
       : await prisma.profileEffect.findUnique({ where: { id: String(req.body?.id || '') } });
     if (!item || !item.active) return res.status(404).json({ error: 'Item não encontrado.' });
-    const price = currency === 'gems' ? item.priceGems : item.priceCoins;
-    if (price === null || price === undefined) return res.status(400).json({ error: 'Esse item não é vendido nessa moeda.' });
+    if (sup.exclusiveOf(item)) return res.status(403).json({ error: 'Itens exclusivos de apoio não podem ser presenteados.', code: 'EXCLUSIVE' });
+    let price = null;
     const [sender, recipient] = await Promise.all([
       prisma.user.findUnique({ where: { id: fromId }, select: { displayName: true } }),
       prisma.user.findUnique({ where: { id: toUserId }, select: { id: true, displayName: true } }),
@@ -357,18 +446,26 @@ async function giftItem(req, res, next) {
         const already = kind === 'deco'
           ? await tx.userAvatarDecoration.findUnique({ where: { userId_decorationId: { userId: toUserId, decorationId: item.id } } })
           : await tx.userProfileEffect.findUnique({ where: { userId_effectId: { userId: toUserId, effectId: item.id } } });
-        if (already) throw fail(`${recipient.displayName} já tem esse item.`);
-        const r = await tx.user.updateMany({ where: { id: fromId, [currency]: { gte: price } }, data: { [currency]: { decrement: price } } });
-        if (r.count === 0) throw fail(currency === 'gems' ? 'Gemas insuficientes.' : 'Moedas insuficientes.');
+        if (already) throw fail(`${recipient.displayName} já tem esse item.`, 400, { code: 'ALREADY_OWNED' });
+        // Quem paga é quem dá: o desconto de Assinante dele vale aqui.
+        const p = sup.priceFor(item, currency, await tierOf(tx, fromId));
+        if (p.final === null) throw fail('Esse item não é vendido nessa moeda.');
+        checkExpected(req.body, p.final);
+        price = p.final;
+        if (price > 0) {
+          const r = await tx.user.updateMany({ where: { id: fromId, [currency]: { gte: price } }, data: { [currency]: { decrement: price } } });
+          if (r.count === 0) throw noFunds(currency);
+        }
         if (kind === 'deco') await tx.userAvatarDecoration.create({ data: { userId: toUserId, decorationId: item.id } });
         else await tx.userProfileEffect.create({ data: { userId: toUserId, effectId: item.id } });
       });
     } catch (e) {
-      if (e.status) return res.status(e.status).json({ error: e.message });
+      if (e.status) return sendFail(res, e);
+      if (e.code === 'P2002') return res.status(400).json({ error: `${recipient.displayName} já tem esse item.`, code: 'ALREADY_OWNED' });
       throw e;
     }
     const what = kind === 'deco' ? 'moldura' : 'efeito';
-    require('../services/economyLedger').recordTransaction(fromId, { kind: 'GIFT', label: `Presente para ${recipient.displayName}: ${what} ${item.name || ''}`.trim(), [currency]: -price });
+    if (price > 0) ledger().recordTransaction(fromId, { kind: 'GIFT', label: `Presente para ${recipient.displayName}: ${what} ${item.name || ''}`.trim(), [currency]: -price });
     await require('../services/notices').createNotice(req.app.get('io'), toUserId, {
       kind: 'GIFT',
       title: `${sender?.displayName || 'Um amigo'} te deu um presente`,
@@ -383,8 +480,8 @@ async function giftItem(req, res, next) {
 
 module.exports = {
   purchaseHistory, giftItem, offerOf,
-  shop, buyEffect, equipEffect, buyCollection,
+  shop, buyEffect, buyDecoration, equipEffect, buyCollection, usableItem, KINDS,
   adminListEffects, adminCreateEffect, adminUpdateEffect, adminRemoveEffect,
   adminListCollections, adminCreateCollection, adminUpdateCollection, adminRemoveCollection,
-  effectJson,
+  effectJson, readShopFlags,
 };

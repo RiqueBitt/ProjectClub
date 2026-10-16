@@ -63,6 +63,13 @@ const PATHS = {
   login: 'M14 4h5v16h-5M10 8l4 4-4 4M14 12H3',
   menu: 'M4 7h16M4 12h16M4 17h16',
   inbox: 'M4 13l2-8h12l2 8M4 13v6h16v-6M4 13h5l1 2h4l1-2h5',
+  crown: 'M3 8l4.5 4L12 5l4.5 7L21 8l-2 10H5L3 8ZM5 21h14',
+  eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12ZM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
+  sliders: 'M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4',
+  tag: 'M3 12V4h8l10 10-8 8L3 12ZM7.5 8.5h.01',
+  bag: 'M5 8h14l-1 12H6L5 8ZM9 8V6a3 3 0 0 1 6 0v2',
+  phone: 'M7 2h10v20H7zM11 18h2',
+  monitor: 'M3 4h18v12H3zM8 20h8M12 16v4',
 };
 
 export function Ico({ name, size = 18, strokeWidth = 1.8, className }) {

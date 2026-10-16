@@ -8,6 +8,7 @@ import {
   adminListEffects, adminSaveEffect, adminDeleteEffect,
   adminListCollections, adminSaveCollection, adminDeleteCollection,
 } from '../api/decorations';
+import ShopItemFlagsFields, { FLAGS_EMPTY, flagsFrom } from './shop/ShopItemFlagsFields.jsx';
 import '../styles/shop.css';
 import '../styles/contentx.css';
 
@@ -41,6 +42,7 @@ const FX_EMPTY = {
   name: '', priceCoins: '800', priceGems: '', collectionId: '', active: true, sortOrder: 0,
   scale: 1, offsetX: 0, offsetY: 0, opacity: 0.85, duration: 4,
   mScale: 1, mOffsetX: 0, mOffsetY: 0, mOpacity: 0.85, mDuration: 4,
+  ...FLAGS_EMPTY,
 };
 
 function EffectsAdmin({ collections }) {
@@ -69,6 +71,7 @@ function EffectsAdmin({ collections }) {
     const f = {};
     Object.keys(FX_EMPTY).forEach((k) => { f[k] = d[k] ?? FX_EMPTY[k]; });
     f.priceCoins = d.priceCoins ?? ''; f.priceGems = d.priceGems ?? ''; f.collectionId = d.collectionId || '';
+    Object.assign(f, flagsFrom(d));
     setForm(f);
   };
   const pick = (e) => {
@@ -155,6 +158,7 @@ function EffectsAdmin({ collections }) {
             <label>Posição vertical: {form[k('offsetY')]}%<input type="range" min="-100" max="100" step="1" value={form[k('offsetY')]} onChange={setNum(k('offsetY'))} /></label>
             <label>Opacidade: {Math.round(form[k('opacity')] * 100)}%<input type="range" min="0.1" max="1" step="0.01" value={form[k('opacity')]} onChange={setNum(k('opacity'))} /></label>
             <label>Duração na tela: {form[k('duration')]}s<input type="range" min="1" max="20" step="0.5" value={form[k('duration')]} onChange={setNum(k('duration'))} /></label>
+            <ShopItemFlagsFields form={form} set={set} />
             <div className="deco-row">
               <label>Ordem na loja<input type="number" value={form.sortOrder} onChange={set('sortOrder')} /></label>
               <label className="deco-check"><input type="checkbox" checked={form.active} onChange={set('active')} /> À venda</label>
@@ -212,7 +216,7 @@ function PhoneFrame({ children }) {
 }
 
 // ---------- Coleções ----------
-const COL_EMPTY = { name: '', description: '', accentColor: '#5865f2', active: true, featured: true, sortOrder: 0, bundlePriceCoins: '', bundlePriceGems: '', removeLogo: false, offerDiscount: '', offerStartsAt: '', offerEndsAt: '' };
+const COL_EMPTY = { name: '', description: '', accentColor: '#5865f2', active: true, featured: true, discountEligible: true, sortOrder: 0, bundlePriceCoins: '', bundlePriceGems: '', removeLogo: false, offerDiscount: '', offerStartsAt: '', offerEndsAt: '' };
 // Oferta por tempo limitado: o campo datetime-local é no horário de quem
 // edita; vai pro servidor em ISO (com fuso) pra não mudar de hora.
 const toLocalInput = (iso) => {
@@ -237,7 +241,7 @@ function CollectionsAdmin({ items, reload }) {
     if (!c) { setEditing('new'); setForm(COL_EMPTY); return; }
     setEditing(c.id);
     setForm({
-      name: c.name, description: c.description || '', accentColor: c.accentColor || '#5865f2', active: c.active, featured: c.featured,
+      name: c.name, description: c.description || '', accentColor: c.accentColor || '#5865f2', active: c.active, featured: c.featured, discountEligible: c.discountEligible !== false,
       sortOrder: c.sortOrder, bundlePriceCoins: c.bundlePriceCoins ?? '', bundlePriceGems: c.bundlePriceGems ?? '', removeLogo: false,
       offerDiscount: c.offerDiscount ?? '', offerStartsAt: toLocalInput(c.offerStartsAt), offerEndsAt: toLocalInput(c.offerEndsAt),
     });
@@ -306,6 +310,7 @@ function CollectionsAdmin({ items, reload }) {
               <label className="deco-check"><input type="checkbox" checked={form.active} onChange={set('active')} /> Visível na loja</label>
             </div>
             <label className="deco-check"><input type="checkbox" checked={form.featured} onChange={set('featured')} /> Mostrar no carrossel de Destaques</label>
+            <label className="deco-check"><input type="checkbox" checked={form.discountEligible} onChange={set('discountEligible')} /> Desconto de Assinante no pacote (não soma com a oferta: vale o maior)</label>
             <fieldset className="cxs-offer-admin">
               <legend>Oferta por tempo limitado</legend>
               <small className="shop-muted">Desconto no pacote da coleção entre o início e o fim. A loja mostra a contagem regressiva. Deixe o desconto vazio pra não ter oferta.</small>
