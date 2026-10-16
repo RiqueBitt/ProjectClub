@@ -1,4 +1,5 @@
 import { useLiveRefresh } from '../../utils/liveRefresh';
+import ProfileShopItems from '../shop/ProfileShopItems.jsx';
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
@@ -1515,6 +1516,7 @@ export default function UserSettingsModal({ onClose }) {
             </div>
           )}
 
+          <ProfileShopItems />
         </div>
       )}
 
