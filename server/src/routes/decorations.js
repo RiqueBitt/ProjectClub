@@ -32,7 +32,6 @@ router.post('/gift', shop.giftItem); // presentear um amigo
 const redeemCtrl = require('../controllers/redeemController');
 router.post('/redeem', redeemCtrl.redeem);
 router.get('/gifts-summary', redeemCtrl.giftsSummary);
-router.post('/credits/:id/buy', require('../services/supporterCredit').buyCredit);
 const bannerCtrl = require('../controllers/shopBannerController');
 router.get('/admin/banners', requirePlatformAdmin, bannerCtrl.list);
 router.post('/admin/banners', requirePlatformAdmin, uploadImage.single('image'), bannerCtrl.create);
