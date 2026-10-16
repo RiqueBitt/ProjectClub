@@ -1965,6 +1965,7 @@ export default function UserSettingsModal({ onClose }) {
         <div className="settings-grid">
           {!userSettings ? <SettingsSkeleton /> : (
             <>
+              <DataExportRow />
               <div className="settings-block">
                 <h4>Privacidade do perfil</h4>
                 <p className="dim">Quem pode ver os detalhes completos do seu perfil (bio, conexões, insígnias, recados…). Nome, foto e banner continuam visíveis pra todo mundo.</p>
@@ -3356,6 +3357,38 @@ function ActivityVisibilityPicker({ value, onChange }) {
 
 // Aviso quando o navegador bloqueia notificações (antes a chave ficava
 // "ligada" sem efeito nenhum, sem explicar por quê) + botão de teste.
+// LGPD: baixar todos os meus dados em JSON (conta, configurações, mensagens,
+// posts, extrato, amigos, jogos...). O arquivo vem do servidor com o token
+// da sessão (axios), não por link direto.
+function DataExportRow() {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const download = async () => {
+    if (busy) return;
+    setBusy(true); setErr('');
+    try {
+      const { api } = await import('../../api/client');
+      const res = await api.get('/auth/export-data', { responseType: 'blob' });
+      const name = (res.headers['content-disposition'] || '').match(/filename="([^"]+)"/)?.[1] || 'projectclub-dados.json';
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (e) {
+      setErr(e?.response?.status === 429 ? 'Muitas tentativas. Tente de novo em alguns minutos.' : 'Não foi possível gerar o arquivo agora.');
+    } finally { setBusy(false); }
+  };
+  return (
+    <div className="settings-block settings-toggle-row">
+      <div>
+        <h4>Baixar meus dados</h4>
+        <p className="dim">Um arquivo JSON com tudo que a sua conta tem: perfil, configurações, mensagens e posts que você escreveu, extrato da economia, amigos, jogos e conquistas. É o seu direito pela LGPD (portabilidade).</p>
+        {err && <FieldError>{err}</FieldError>}
+      </div>
+      <button type="button" className="btn-primary" disabled={busy} onClick={download}>{busy ? 'Gerando…' : 'Baixar (.json)'}</button>
+    </div>
+  );
+}
+
 // Notificações push do navegador/PWA (mesmo com o site fechado). Só aparece
 // onde o navegador suporta (não no desktop Electron nem no app Android, que
 // já têm o caminho próprio).

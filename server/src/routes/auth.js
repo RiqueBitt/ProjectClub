@@ -53,6 +53,8 @@ router.get('/2fa/recovery-codes', requireAuth, ctrl.recoveryCodesStatus);
 router.post('/2fa/recovery-codes', requireAuth, codeLimiter, ctrl.regenerateRecoveryCodesHandler);
 router.post('/change-password', requireAuth, authLimiter, ctrl.changePassword);
 router.post('/delete-account', requireAuth, authLimiter, ctrl.deleteAccount);
+// LGPD: baixar todos os meus dados (JSON). Limitado como as rotas sensíveis.
+router.get('/export-data', requireAuth, authLimiter, require('../controllers/dataExportController').exportData);
 router.get('/me', requireAuth, ctrl.me);
 
 // OAuth (ver controllers/oauthController.js e docs/oauth.md).
