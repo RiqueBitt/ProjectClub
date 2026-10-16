@@ -232,7 +232,7 @@ fun SettingsScreen(repo: Repository, nav: AppNav) {
             Section("Temas e ícone")
             PcCard(padding = PaddingValues(6.dp)) {
                 ColorThemePicker(repo, settings) { settings = it }
-                AppIconPicker()
+                AppIconPicker(repo, settings) { settings = it }
             }
 
             Section("Aparência e acessibilidade")

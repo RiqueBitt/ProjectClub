@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -234,7 +235,9 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
         toast("Desbloqueado(a).")
     }
 
-    Column(Modifier.fillMaxSize().background(PC.Bg)) {
+    val pageStyle = profileStyleOf(u?.profileStyle)
+    androidx.compose.runtime.CompositionLocalProvider(LocalPS provides pageStyle) {
+    Column(Modifier.fillMaxSize().background(PC.Bg).then(if (pageStyle != null) Modifier.background(pageStyle.bg) else Modifier)) {
         PcTopBar(
             title = u?.name ?: "Perfil",
             icon = Icons.Outlined.Person,
@@ -279,6 +282,8 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                 modifier = Modifier.fillMaxSize(),
             ) {
                 val status = presence[userId] ?: u.status ?: "OFFLINE"
+                // Enfeites do estilo (pétalas, neve, chuva...) por trás de tudo.
+                pageStyle?.let { StyleOverlay(it, Modifier.fillMaxSize()) }
                 LazyColumn(
                     Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 24.dp),
@@ -292,12 +297,12 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                                 val st = profileStyleOf(u.profileStyle)
                                 if (st != null) StyledButton(st, "Editar perfil", { nav.editProfile() }, Modifier.fillMaxWidth(), icon = Icons.Outlined.Edit)
                                 else PillButton("Editar perfil", { nav.editProfile() }, Modifier.fillMaxWidth(), icon = Icons.Outlined.Edit)
-                                GhostButton("Biblioteca de jogos", { nav.games("me") }, Modifier.fillMaxWidth(), icon = Icons.Outlined.SportsEsports)
+                                SGhost("Biblioteca de jogos", { nav.games("me") }, Modifier.fillMaxWidth(), icon = Icons.Outlined.SportsEsports)
                             } else {
                                 val st = profileStyleOf(u.profileStyle)
                                 if (st != null && !blocked) StyledButton(st, "Mensagem", { nav.dmWith(userId) }, Modifier.fillMaxWidth(), icon = Icons.Outlined.ChatBubbleOutline)
                                 else PillButton("Mensagem", { nav.dmWith(userId) }, Modifier.fillMaxWidth(), icon = Icons.Outlined.ChatBubbleOutline, enabled = !blocked)
-                                GhostButton("Jogos", { nav.games(userId) }, Modifier.fillMaxWidth(), icon = Icons.Outlined.SportsEsports)
+                                SGhost("Jogos", { nav.games(userId) }, Modifier.fillMaxWidth(), icon = Icons.Outlined.SportsEsports)
                                 Row(
                                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -340,7 +345,7 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                                         onUnblock = { unblock(u) },
                                     )
                                     if (!blocked) {
-                                        GhostButton(
+                                        SGhost(
                                             if (fan.isFan) "Seguindo" else "Seguir",
                                             {
                                                 act { fan = repo.api.post<ProfileFanStatus>("/api/fans/$userId/toggle") }
@@ -348,7 +353,7 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                                             icon = if (fan.isFan) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder,
                                             color = if (fan.isFan) PC.Pink else PC.Text,
                                         )
-                                        GhostButton(
+                                        SGhost(
                                             if (profile.myVote == 1) "Up dado" else "Dar Up",
                                             {
                                                 act {
@@ -374,13 +379,13 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                     item(key = "level") { LevelCard(u, profile.levelProgress) }
 
                     if (!isMe && profile.profileRestricted) item(key = "restricted") {
-                        PcCard(Modifier.padding(horizontal = 16.dp).fillMaxWidth(), padding = PaddingValues(14.dp), border = PC.LineStrong) {
+                        SCard(Modifier.padding(horizontal = 16.dp).fillMaxWidth(), PaddingValues(14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Outlined.Lock, null, tint = PC.Muted, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Outlined.Lock, null, tint = Sx.muted, modifier = Modifier.size(20.dp))
                                 Spacer(Modifier.width(12.dp))
                                 Text(
                                     "Esta pessoa limitou quem pode ver os detalhes completos do perfil — você está vendo só as informações públicas.",
-                                    color = PC.Muted, style = MaterialTheme.typography.bodySmall,
+                                    color = Sx.muted, style = MaterialTheme.typography.bodySmall, fontFamily = Sx.font,
                                 )
                             }
                         }
@@ -389,7 +394,7 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                     u.bio?.takeIf { it.isNotBlank() }?.let { bio ->
                         item(key = "bio") {
                             SectionCard("Sobre mim", Icons.Outlined.Person) {
-                                Text(bio, color = PC.Text, style = MaterialTheme.typography.bodyMedium)
+                                Text(bio, color = Sx.text, style = MaterialTheme.typography.bodyMedium, fontFamily = Sx.font)
                             }
                         }
                     }
@@ -421,11 +426,11 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                                     Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { nav.profile(partner.id) }.padding(vertical = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    Text("Namorando com", color = PC.Muted, style = MaterialTheme.typography.bodyMedium)
+                                    Text("Namorando com", color = Sx.muted, style = MaterialTheme.typography.bodyMedium, fontFamily = Sx.font)
                                     Spacer(Modifier.width(10.dp))
                                     Avatar(partner, 28.dp)
                                     Spacer(Modifier.width(8.dp))
-                                    Text(partner.name, color = PC.Header, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(partner.name, color = Sx.header, fontWeight = FontWeight.Bold, fontFamily = Sx.font, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }
@@ -441,7 +446,7 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                                     ) {
                                         Avatar(f, 52.dp)
                                         Spacer(Modifier.height(6.dp))
-                                        Text(f.name, color = PC.Text, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(f.name, color = Sx.text, style = MaterialTheme.typography.bodySmall, fontFamily = Sx.font, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
                             }
@@ -465,6 +470,8 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                 }
             }
         }
+    }
+
     }
 
     confirm?.let { c ->
@@ -510,7 +517,7 @@ private fun ProfileHeader(u: ProfileUser, status: String, birthday: Boolean) {
     // Estilo de perfil da Loja: o topo inteiro (banner, nome, status) muda.
     val st = profileStyleOf(u.profileStyle)
     val shopFont = rememberShopFont(u.profileFont)
-    Box(Modifier.fillMaxWidth().then(if (st != null) Modifier.clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)).background(st.bg) else Modifier)) {
+    Box(Modifier.fillMaxWidth()) {
     Column(Modifier.fillMaxWidth().then(if (st != null) Modifier.padding(bottom = 16.dp) else Modifier)) {
         st?.let { StyleTitleBar(it) }
         Box(Modifier.fillMaxWidth().height(206.dp)) {
@@ -585,7 +592,6 @@ private fun ProfileHeader(u: ProfileUser, status: String, birthday: Boolean) {
             }
         }
     }
-    st?.let { StyleOverlay(it, Modifier.matchParentSize().padding(top = 212.dp)) }
     }
 }
 
@@ -601,18 +607,18 @@ private fun FriendButtons(
 ) {
     when {
         friendship == null || friendship.status == "DECLINED" ->
-            GhostButton("Adicionar amigo", onAdd, icon = Icons.Outlined.PersonAdd, color = PC.Brand)
+            SGhost("Adicionar amigo", onAdd, icon = Icons.Outlined.PersonAdd, color = PC.Brand)
         friendship.status == "ACCEPTED" ->
-            GhostButton("Amigos", { onRemove(friendship) }, icon = Icons.Outlined.Check, color = PC.Green)
+            SGhost("Amigos", { onRemove(friendship) }, icon = Icons.Outlined.Check, color = PC.Green)
         friendship.status == "PENDING" && friendship.isIncoming -> {
-            GhostButton("Aceitar pedido", { onAccept(friendship) }, icon = Icons.Outlined.Check, color = PC.Green)
-            GhostButton("Recusar", { onDecline(friendship) }, icon = Icons.Outlined.Close, color = PC.Muted)
+            SGhost("Aceitar pedido", { onAccept(friendship) }, icon = Icons.Outlined.Check, color = PC.Green)
+            SGhost("Recusar", { onDecline(friendship) }, icon = Icons.Outlined.Close, color = PC.Muted)
         }
         friendship.status == "PENDING" ->
-            GhostButton("Pedido enviado", { onCancel(friendship) }, icon = Icons.Outlined.HourglassTop, color = PC.Muted)
+            SGhost("Pedido enviado", { onCancel(friendship) }, icon = Icons.Outlined.HourglassTop, color = PC.Muted)
         friendship.status == "BLOCKED" ->
-            GhostButton("Desbloquear", onUnblock, icon = Icons.Outlined.Block, color = PC.Red)
-        else -> GhostButton("Adicionar amigo", onAdd, icon = Icons.Outlined.PersonAdd, color = PC.Brand)
+            SGhost("Desbloquear", onUnblock, icon = Icons.Outlined.Block, color = PC.Red)
+        else -> SGhost("Adicionar amigo", onAdd, icon = Icons.Outlined.PersonAdd, color = PC.Brand)
     }
 }
 
@@ -635,16 +641,16 @@ private fun StatsRow(profile: ProfileData, fan: ProfileFanStatus, isMe: Boolean)
 @Composable
 private fun Stat(icon: ImageVector, value: String, label: String) {
     Row(
-        Modifier.clip(RoundedCornerShape(16.dp)).background(PC.Surface).padding(horizontal = 12.dp, vertical = 10.dp),
+        Modifier.sPanel(16.dp).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(PC.BrandSoft), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = PC.Brand, modifier = Modifier.size(17.dp))
+        Box(Modifier.size(32.dp).clip(RoundedCornerShape(Sx.inner(10.dp))).background(Sx.accent.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = Sx.accent, modifier = Modifier.size(17.dp))
         }
         Spacer(Modifier.width(10.dp))
         Column {
-            Text(value, color = PC.Header, style = MaterialTheme.typography.titleSmall)
-            Text(label, color = PC.Muted, style = MaterialTheme.typography.labelSmall)
+            Text(value, color = Sx.header, style = MaterialTheme.typography.titleSmall, fontFamily = Sx.font)
+            Text(label, color = Sx.muted, style = MaterialTheme.typography.labelSmall, fontFamily = Sx.font)
         }
     }
 }
@@ -652,21 +658,21 @@ private fun Stat(icon: ImageVector, value: String, label: String) {
 @Composable
 private fun LevelCard(u: ProfileUser, progress: Int) {
     val p = progress.coerceIn(0, 100)
-    val barColor = parseHex(u.levelBarColor) ?: PC.Brand
-    PcCard(Modifier.padding(horizontal = 16.dp).fillMaxWidth(), padding = PaddingValues(14.dp)) {
+    val barColor = parseHex(u.levelBarColor) ?: Sx.accent
+    SCard(Modifier.padding(horizontal = 16.dp).fillMaxWidth(), PaddingValues(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.Star, null, tint = PC.Yellow, modifier = Modifier.size(18.dp))
+            Icon(Icons.Outlined.Star, null, tint = if (LocalPS.current != null) Sx.accent else PC.Yellow, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text("Nível ${u.accountLevel ?: 1}", color = PC.Header, style = MaterialTheme.typography.titleSmall)
+            Text("Nível ${u.accountLevel ?: 1}", color = Sx.header, style = MaterialTheme.typography.titleSmall, fontFamily = Sx.font)
             u.accountXp?.let {
                 Spacer(Modifier.width(8.dp))
-                Text("· $it XP", color = PC.Muted, style = MaterialTheme.typography.bodySmall)
+                Text("· $it XP", color = Sx.muted, style = MaterialTheme.typography.bodySmall, fontFamily = Sx.font)
             }
             Spacer(Modifier.weight(1f))
-            Text("$p% para o próximo", color = PC.Muted, style = MaterialTheme.typography.bodySmall)
+            Text("$p% para o próximo", color = Sx.muted, style = MaterialTheme.typography.bodySmall, fontFamily = Sx.font)
         }
         Spacer(Modifier.height(10.dp))
-        Box(Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(PC.Surface3)) {
+        Box(Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(Sx.track)) {
             Box(Modifier.fillMaxWidth(p / 100f).fillMaxHeight().clip(CircleShape).background(barColor))
         }
     }
@@ -674,14 +680,14 @@ private fun LevelCard(u: ProfileUser, progress: Int) {
 
 @Composable
 private fun SectionCard(title: String, icon: ImageVector, count: Int? = null, content: @Composable ColumnScope.() -> Unit) {
-    PcCard(Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
+    SCard(Modifier.padding(horizontal = 16.dp).fillMaxWidth(), PaddingValues(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = PC.Muted, modifier = Modifier.size(18.dp))
+            Icon(icon, null, tint = if (LocalPS.current != null) Sx.accent else PC.Muted, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text(title.uppercase(), style = MaterialTheme.typography.labelSmall, color = PC.Muted)
+            Text(title.uppercase(), style = MaterialTheme.typography.labelSmall, color = Sx.muted, fontFamily = Sx.font)
             if (count != null && count > 0) {
                 Spacer(Modifier.width(6.dp))
-                Text(count.toString(), style = MaterialTheme.typography.labelSmall, color = PC.Faint)
+                Text(count.toString(), style = MaterialTheme.typography.labelSmall, color = Sx.faint, fontFamily = Sx.font)
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -692,7 +698,7 @@ private fun SectionCard(title: String, icon: ImageVector, count: Int? = null, co
 @Composable
 private fun BadgeIcon(iconUrl: String?, emoji: String, size: Int) {
     val url = Config.media(iconUrl)
-    Box(Modifier.size(size.dp).clip(CircleShape).background(PC.Surface2), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(size.dp).clip(CircleShape).background(Sx.track), contentAlignment = Alignment.Center) {
         if (url != null) {
             AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.size((size * 0.72f).dp))
         } else {
@@ -710,7 +716,7 @@ private fun IconTileLabel(name: String, iconUrl: String?, emoji: String, onClick
         BadgeIcon(iconUrl, emoji, 52)
         Spacer(Modifier.height(6.dp))
         Text(
-            name, color = PC.Text, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center,
+            name, color = Sx.text, style = MaterialTheme.typography.bodySmall, fontFamily = Sx.font, textAlign = TextAlign.Center,
             maxLines = 2, overflow = TextOverflow.Ellipsis,
         )
     }
@@ -728,14 +734,14 @@ private fun WallCard(
     SectionCard(title, icon, total) {
         when {
             items == null -> ListSkeleton(2, 36.dp, Modifier.padding(0.dp))
-            items.isEmpty() -> Text(emptyText, color = PC.Muted, style = MaterialTheme.typography.bodyMedium)
+            items.isEmpty() -> Text(emptyText, color = Sx.muted, style = MaterialTheme.typography.bodyMedium, fontFamily = Sx.font)
             else -> Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 items.take(WALL_PREVIEW).forEach { post -> WallItem(post, onAuthor) }
                 val more = maxOf(total, items.size) - WALL_PREVIEW
                 if (more > 0) {
                     Text(
                         "+ $more ${if (more == 1) "outro" else "outros"}",
-                        color = PC.Faint, style = MaterialTheme.typography.bodySmall,
+                        color = Sx.faint, style = MaterialTheme.typography.bodySmall, fontFamily = Sx.font,
                     )
                 }
             }
@@ -757,14 +763,14 @@ private fun WallItem(post: ProfileWallPost, onAuthor: (String) -> Unit) {
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    author?.name ?: "Alguém", color = PC.Header, style = MaterialTheme.typography.titleSmall,
+                    author?.name ?: "Alguém", color = Sx.header, style = MaterialTheme.typography.titleSmall, fontFamily = Sx.font,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(shortTime(post.createdAt), color = PC.Faint, style = MaterialTheme.typography.labelSmall)
+                Text(shortTime(post.createdAt), color = Sx.faint, style = MaterialTheme.typography.labelSmall, fontFamily = Sx.font)
             }
             Spacer(Modifier.height(2.dp))
-            Text(post.text, color = PC.Text, style = MaterialTheme.typography.bodyMedium)
+            Text(post.text, color = Sx.text, style = MaterialTheme.typography.bodyMedium, fontFamily = Sx.font)
         }
     }
 }
@@ -815,4 +821,79 @@ private fun joinedLabel(iso: String?): String? {
 internal fun parseHex(hex: String?): Color? {
     if (hex.isNullOrBlank() || !hex.startsWith("#")) return null
     return runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrNull()
+}
+
+
+// ---------------------------------------------------------------- estilo de perfil na página toda
+
+/** Estilo de perfil da Loja valendo pra página inteira (cartões, textos, botões). */
+internal val LocalPS = androidx.compose.runtime.staticCompositionLocalOf<PStyle?> { null }
+
+/** Cores/fonte do estilo atual, ou as do app quando não tem estilo. */
+private object Sx {
+    val header: Color @Composable get() = LocalPS.current?.header ?: PC.Header
+    val text: Color @Composable get() = LocalPS.current?.text ?: PC.Text
+    val muted: Color @Composable get() = LocalPS.current?.muted ?: PC.Muted
+    val faint: Color @Composable get() = LocalPS.current?.muted?.copy(alpha = 0.7f) ?: PC.Faint
+    val accent: Color @Composable get() = LocalPS.current?.accent ?: PC.Brand
+    val track: Color @Composable get() = LocalPS.current?.let { it.panelBorder.copy(alpha = 0.35f) } ?: PC.Surface3
+    val font: androidx.compose.ui.text.font.FontFamily? @Composable get() = LocalPS.current?.bodyFont
+    @Composable fun inner(d: androidx.compose.ui.unit.Dp) = LocalPS.current?.corner?.let { minOf(it, d) } ?: d
+}
+
+/** Painel no visual do estilo (cantos, cor e borda), ou o cartão normal do app. */
+@Composable
+private fun Modifier.sPanel(default: androidx.compose.ui.unit.Dp): Modifier {
+    val s = LocalPS.current ?: return this.clip(RoundedCornerShape(default)).background(PC.Surface)
+    val shape = RoundedCornerShape(s.corner)
+    return this.clip(shape).background(s.panel).border(if (s.key == "win2000") 2.dp else 1.dp, s.panelBorder, shape)
+}
+
+@Composable
+private fun SCard(modifier: Modifier, padding: PaddingValues, content: @Composable ColumnScope.() -> Unit) {
+    if (LocalPS.current == null) PcCard(modifier, padding = padding, content = content)
+    else Column(modifier.sPanel(20.dp).padding(padding), content = content)
+}
+
+/** Botão secundário no visual do estilo. */
+@Composable
+private fun SGhost(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, color: Color = PC.Text) {
+    val s = LocalPS.current ?: return GhostButton(text, onClick, modifier, icon = icon, color = color)
+    val fg = if (color == PC.Text) s.text else if (color == PC.Muted) s.muted else s.accent
+    val shape = RoundedCornerShape(s.buttonCorner)
+    Row(
+        modifier.heightIn(min = 44.dp).clip(shape).background(s.panel).border(1.dp, s.panelBorder, shape)
+            .clickable(onClick = onClick).padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (icon != null) { Icon(icon, null, tint = fg, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)) }
+        Text(text, color = fg, style = MaterialTheme.typography.labelLarge, fontFamily = s.bodyFont)
+    }
+}
+
+/** Perfil montado só com dados (sem rede) — usado nas capturas de tela do CI. */
+@Composable
+internal fun ProfileShowcase(profile: ProfileData, wall: List<ProfileWallPost>) {
+    val u = profile.user ?: return
+    val st = profileStyleOf(u.profileStyle)
+    androidx.compose.runtime.CompositionLocalProvider(LocalPS provides st) {
+        Box(Modifier.fillMaxSize().background(PC.Bg).then(if (st != null) Modifier.background(st.bg) else Modifier)) {
+            st?.let { StyleOverlay(it, Modifier.fillMaxSize()) }
+            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ProfileHeader(u, u.status ?: "ONLINE", false)
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (st != null) StyledButton(st, "Mensagem", {}, Modifier.fillMaxWidth(), icon = Icons.Outlined.ChatBubbleOutline)
+                    else PillButton("Mensagem", {}, Modifier.fillMaxWidth(), icon = Icons.Outlined.ChatBubbleOutline)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SGhost("Amigos", {}, icon = Icons.Outlined.Check, color = PC.Green)
+                        SGhost("Seguir", {}, icon = Icons.Outlined.FavoriteBorder)
+                    }
+                }
+                StatsRow(profile, ProfileFanStatus(12, false), false)
+                LevelCard(u, profile.levelProgress)
+                u.bio?.let { SectionCard("Sobre mim", Icons.Outlined.Person) { Text(it, color = Sx.text, style = MaterialTheme.typography.bodyMedium, fontFamily = Sx.font) } }
+                WallCard("Recados", Icons.Outlined.Forum, wall, wall.size, "Nenhum recado ainda.") {}
+            }
+        }
+    }
 }

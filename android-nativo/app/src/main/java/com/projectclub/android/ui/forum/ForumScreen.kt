@@ -118,7 +118,7 @@ fun ForumScreen(repo: Repository, nav: AppNav) {
             }
         }
         ExtendedFloatingActionButton(
-            onClick = { nav.newPost(null) }, containerColor = PC.Brand, contentColor = Color.White,
+            onClick = { nav.newPost(null) }, containerColor = PC.Brand, contentColor = PC.OnBrand,
             icon = { Icon(Icons.Outlined.Add, null) }, text = { Text("Novo post") },
             modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(16.dp),
         )

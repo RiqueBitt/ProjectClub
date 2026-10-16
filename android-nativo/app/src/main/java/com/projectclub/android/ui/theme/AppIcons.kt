@@ -30,27 +30,59 @@ val APP_ICONS = listOf(
 )
 
 object AppIcons {
+    private const val PREFS = "app_prefs"
+    private const val KEY_PENDING = "pendingAppIcon"
+
     private fun aliasOf(context: Context, id: String) =
         ComponentName(context, "com.projectclub.android." + if (id == "default") "LauncherDefault" else "Launcher_$id")
 
-    fun current(context: Context): String {
+    /** Ícone que está ligado na tela inicial agora. */
+    private fun applied(context: Context): String {
         val pm = context.packageManager
-        return APP_ICONS.firstOrNull { icon ->
-            val state = pm.getComponentEnabledSetting(aliasOf(context, icon.id))
-            if (icon.id == "default") state != PackageManager.COMPONENT_ENABLED_STATE_DISABLED && APP_ICONS.drop(1).none { other ->
-                pm.getComponentEnabledSetting(aliasOf(context, other.id)) == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-            } else state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-        }?.id ?: "default"
+        val on = APP_ICONS.drop(1).firstOrNull { pm.getComponentEnabledSetting(aliasOf(context, it.id)) == PackageManager.COMPONENT_ENABLED_STATE_ENABLED }
+        return on?.id ?: "default"
     }
 
-    /** Liga o ícone escolhido e desliga os outros (sem fechar o app). */
+    /** O escolhido (mesmo que ainda vá ser aplicado quando sair do app). */
+    fun current(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_PENDING, null)?.takeIf { id -> APP_ICONS.any { it.id == id } }
+            ?: applied(context)
+
+    /**
+     * Escolhe o ícone. A troca de verdade acontece quando você sai do app
+     * ([applyPending], chamado no App.onStop): trocar com o app aberto faz
+     * vários launchers (Samsung, Xiaomi, Motorola) fecharem o app ou não
+     * atualizarem a tela inicial.
+     */
     fun set(context: Context, id: String) {
         if (APP_ICONS.none { it.id == id }) return
-        val pm = context.packageManager
-        // Primeiro liga o novo (nunca fica sem nenhum ícone na tela inicial).
-        pm.setComponentEnabledSetting(aliasOf(context, id), PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
-        APP_ICONS.filter { it.id != id }.forEach {
-            pm.setComponentEnabledSetting(aliasOf(context, it.id), PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (id == applied(context)) p.edit().remove(KEY_PENDING).apply()
+        else p.edit().putString(KEY_PENDING, id).apply()
+    }
+
+    /** Aplica o ícone escolhido (app em segundo plano). */
+    fun applyPending(context: Context) {
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val id = p.getString(KEY_PENDING, null) ?: return
+        p.edit().remove(KEY_PENDING).apply()
+        if (APP_ICONS.none { it.id == id }) return
+        runCatching {
+            val pm = context.packageManager
+            // Primeiro liga o novo (nunca fica sem nenhum ícone), depois desliga os outros.
+            pm.setComponentEnabledSetting(aliasOf(context, id), PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
+            APP_ICONS.filter { it.id != id }.forEach {
+                val want = PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                if (pm.getComponentEnabledSetting(aliasOf(context, it.id)) != want || it.id == "default") {
+                    pm.setComponentEnabledSetting(aliasOf(context, it.id), want, PackageManager.DONT_KILL_APP)
+                }
+            }
         }
+    }
+
+    /** Ícone salvo na conta (extraPrefs.appIcon, o mesmo do site/PC). */
+    fun applyServer(context: Context, id: String?) {
+        if (id == null || APP_ICONS.none { it.id == id }) return
+        if (id != current(context)) set(context, id)
     }
 }

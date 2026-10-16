@@ -137,4 +137,45 @@ class ScreenShots {
         )
     }
     @Test fun voce() { val r = repo(); shot("07-voce") { com.projectclub.android.ui.home.MoreTab(r, actions, nav) } }
+
+    // ---- Estilos de perfil e temas coloridos
+    private fun profileOf(style: String?) = com.projectclub.android.data.ProfileData(
+        user = com.projectclub.android.data.ProfileUser(
+            id = "me", username = "riquebitt", displayName = "RiqueBitt", profileStyle = style, status = "ONLINE",
+            bio = "Criador do Project Club. Bora jogar? 🎮", customStatus = "Quem está marcando a call?", customStatusEmoji = "🎮",
+            platformRole = "ADMIN", accountLevel = 27, accountXp = 18450, createdAt = "2024-03-01T00:00:00Z", profileColor = "#7A1F1F",
+        ),
+        totalUps = 342, levelProgress = 64,
+    )
+    private val wall = listOf(
+        com.projectclub.android.data.ProfileWallPost("w1", "Valeu pela call ontem!", ago(90), lia),
+        com.projectclub.android.data.ProfileWallPost("w2", "Perfil ficou muito bom 🔥", ago(600), loritta),
+    )
+    private fun styleShot(key: String) = shot("perfil-$key") { com.projectclub.android.ui.profile.ProfileShowcase(profileOf(key), wall) }
+
+    @Test fun estilosA() { listOf("win2000", "anime", "terror", "bugado", "nostalgia", "cyberpunk", "vaporwave", "pixel", "oceano").forEach(::styleShot) }
+    @Test fun estilosB() { listOf("floresta", "galaxia", "sakura", "inverno", "lava", "realeza", "matrix", "caderno", "steampunk").forEach(::styleShot) }
+    @Test fun estilosC() { listOf("gotico", "arcade", "sunset", "candy", "aurora", "deserto", "halloween", "natal", "lofi").forEach(::styleShot) }
+    @Test fun estilosD() { listOf("holografico", "militar", "faroeste", "medieval", "cafe", "grafite", "marmore", "noir").forEach(::styleShot) }
+    @Test fun perfilSemEstilo() = shot("perfil-padrao") { com.projectclub.android.ui.profile.ProfileShowcase(profileOf(null), wall) }
+
+    private fun themed(id: String, block: () -> Unit) {
+        com.projectclub.android.ui.theme.ThemeStore.set(ctx, id)
+        try { block() } finally { com.projectclub.android.ui.theme.ThemeStore.set(ctx, "none") }
+    }
+    @Test fun temaInicio() { themed("hanami") { val r = repo(); shot("tema-hanami-inicio") { HomeScreen(r, actions, nav, 0, {}, {}) } } }
+    @Test fun temaVoce() { themed("citrico") { val r = repo(); shot("tema-citrico-voce") { com.projectclub.android.ui.home.MoreTab(r, actions, nav) } } }
+    @Test fun temaComunidade() { themed("aurora") { val r = repo(); shot("tema-aurora-comunidade") { com.projectclub.android.ui.home.ChannelsTab(r, actions) } } }
+    @Test fun temaConfig() {
+        themed("algodao") {
+            val r = repo()
+            shot("tema-algodao-config") {
+                androidx.compose.foundation.layout.Column(Modifier.fillMaxSize().background(PC.Bg)) {
+                    com.projectclub.android.ui.settings.ColorThemePicker(r, null) {}
+                    com.projectclub.android.ui.settings.AppIconPicker(r, null) {}
+                    com.projectclub.android.ui.common.PillButton("Botão principal", {})
+                }
+            }
+        }
+    }
 }

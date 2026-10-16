@@ -123,7 +123,7 @@ fun PillButton(
     color: Color = PC.Brand,
 ) {
     val bg = when { !enabled -> PC.Surface3; light -> Color.White; else -> color }
-    val fg = when { !enabled -> PC.Muted; light -> Color(0xFF0B0B0C); else -> Color.White }
+    val fg = when { !enabled -> PC.Muted; light -> Color(0xFF0B0B0C); color == PC.Brand -> PC.OnBrand; else -> Color.White }
     Row(
         modifier.heightIn(min = 52.dp).clip(CircleShape).background(bg)
             .clickable(enabled = enabled && !busy, onClick = onClick).padding(horizontal = 22.dp),
@@ -306,5 +306,5 @@ fun EmptyState(icon: ImageVector, title: String, text: String, modifier: Modifie
 @Composable
 fun HeroBox(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
     val shape = RoundedCornerShape(24.dp)
-    Box(modifier.clip(shape).background(PC.HeroGradient).border(1.dp, Color(0x332F6BD8), shape), content = content)
+    Box(modifier.clip(shape).background(PC.HeroGradient).border(1.dp, PC.HeroLine, shape), content = content)
 }

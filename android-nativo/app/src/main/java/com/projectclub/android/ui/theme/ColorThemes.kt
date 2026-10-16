@@ -53,6 +53,8 @@ data class Palette(
     val bg: Color, val bar: Color, val surface: Color, val surface2: Color, val surface3: Color,
     val line: Color, val lineStrong: Color, val brand: Color, val brandDark: Color, val brandSoft: Color,
     val mention: Color, val gradient: Brush?,
+    /** Faixas de destaque (cartão do Início, banners) nas cores do tema. */
+    val hero: Brush? = null, val banner: Brush? = null,
 ) {
     companion object {
         val Default = Palette(
@@ -79,6 +81,8 @@ fun paletteOf(t: ColorTheme): Palette {
         surface3 = shade(tone, k(0.34f)), line = shade(tone, k(0.3f)), lineStrong = shade(tone, k(0.45f)),
         brand = accent, brandDark = shade(accent, 0.82f), brandSoft = accent.copy(alpha = 0.15f), mention = accent.copy(alpha = 0.2f),
         gradient = grad,
+        hero = Brush.linearGradient(cols.map { shade(it, 0.55f + mix * 0.25f) }.let { if (it.size == 1) it + it else it }),
+        banner = Brush.verticalGradient(cols.map { shade(it, 0.7f + mix * 0.2f) }.let { if (it.size == 1) it + it else it }),
     )
 }
 

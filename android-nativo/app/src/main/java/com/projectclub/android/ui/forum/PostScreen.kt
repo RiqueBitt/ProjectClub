@@ -229,8 +229,8 @@ fun PostScreen(repo: Repository, nav: AppNav, postId: String) {
                                 .clickable(enabled = text.isNotBlank() && !sending) { send() },
                             contentAlignment = Alignment.Center,
                         ) {
-                            if (sending) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
-                            else Icon(Icons.AutoMirrored.Filled.Send, "Comentar", tint = Color.White, modifier = Modifier.size(19.dp))
+                            if (sending) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = PC.OnBrand)
+                            else Icon(Icons.AutoMirrored.Filled.Send, "Comentar", tint = if (text.isNotBlank()) PC.OnBrand else PC.Brand, modifier = Modifier.size(19.dp))
                         }
                     }
                 }

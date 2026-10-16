@@ -150,6 +150,9 @@ class MainActivity : ComponentActivity() {
                 val st = app.repo.api.get<kotlinx.serialization.json.JsonElement>("/api/users/me/settings")
                     .let { (it as kotlinx.serialization.json.JsonObject)["settings"] as? kotlinx.serialization.json.JsonObject }
                 com.projectclub.android.ui.theme.ThemeStore.applyServer(this@MainActivity, st?.get("extraPrefs") as? kotlinx.serialization.json.JsonObject)
+                val extra = st?.get("extraPrefs") as? kotlinx.serialization.json.JsonObject
+                val icon = (extra?.get("appIcon") as? kotlinx.serialization.json.JsonPrimitive)?.content
+                com.projectclub.android.ui.theme.AppIcons.applyServer(this@MainActivity, icon)
             }
         }
         LaunchedEffect(Unit) {

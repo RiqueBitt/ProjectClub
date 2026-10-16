@@ -539,8 +539,8 @@ private fun Composer(
                     .combinedClickable(enabled = canSend && !state.sending, onClick = onSend, onLongClick = { if (text.isNotBlank() && state.editing == null) onSchedule() }),
                 contentAlignment = Alignment.Center,
             ) {
-                if (state.sending) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
-                else Icon(Icons.AutoMirrored.Filled.Send, "Enviar", tint = if (canSend) Color.White else PC.Brand.copy(alpha = 0.6f), modifier = Modifier.size(21.dp))
+                if (state.sending) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = PC.OnBrand)
+                else Icon(Icons.AutoMirrored.Filled.Send, "Enviar", tint = if (canSend) PC.OnBrand else PC.Brand.copy(alpha = 0.6f), modifier = Modifier.size(21.dp))
             }
         }
     }

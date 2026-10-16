@@ -57,6 +57,7 @@ class App : Application() {
             }
             override fun onStop(owner: LifecycleOwner) {
                 _isForeground.value = false
+                com.projectclub.android.ui.theme.AppIcons.applyPending(this@App)
                 // Saiu do app: instala a atualização baixada sem perguntar nada
                 // (Android 12+), nunca no meio de uma chamada de voz.
                 val U = com.projectclub.android.data.Updater
