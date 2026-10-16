@@ -90,10 +90,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(true); setTurnScreenOn(true) }
         pending.value = intent
+        com.projectclub.android.data.AppPrefs.init(this)
         setContent {
             val mobileUsers by app.repo.mobileUsers.collectAsState()
+            val textScale by com.projectclub.android.data.AppPrefs.textScale.collectAsState()
+            val baseDensity = androidx.compose.ui.platform.LocalDensity.current
             ProjectClubTheme {
-                androidx.compose.runtime.CompositionLocalProvider(com.projectclub.android.ui.common.LocalMobileUsers provides mobileUsers) { Root() }
+                androidx.compose.runtime.CompositionLocalProvider(
+                    com.projectclub.android.ui.common.LocalMobileUsers provides mobileUsers,
+                    androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(baseDensity.density, baseDensity.fontScale * textScale),
+                ) { Root() }
             }
         }
     }

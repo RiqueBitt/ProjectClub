@@ -82,6 +82,7 @@ class AppNavigator(
     override fun settings() = go("settings")
     override fun activity() = go("activity")
     override fun search() = go("search")
+    override fun games(userId: String) = go("games/$userId")
 
     override fun link(pathOrUrl: String) {
         val raw = pathOrUrl.trim()
@@ -112,6 +113,7 @@ class AppNavigator(
             "tickets" -> tickets()
             "atividade" -> activity()
             "search" -> search()
+            "jogos" -> if (seg.getOrNull(1) == "biblioteca") games(seg.getOrNull(2) ?: "me") else external(uri.toString())
             "profile" -> repo.me.value?.id?.let(::fullProfile) ?: onHome(4)
             "u" -> seg.getOrNull(1)?.let(::fullProfile)
             else -> external(uri.toString())
@@ -164,4 +166,5 @@ fun NavGraphBuilder.featureScreens(repo: Repository, nav: AppNav) {
     screen("settings") { com.projectclub.android.ui.settings.SettingsScreen(repo, nav) }
     screen("activity") { com.projectclub.android.ui.activity.ActivityScreen(repo, nav) }
     screen("search") { com.projectclub.android.ui.activity.SearchScreen(repo, nav) }
+    screen("games/{id}", listOf("id")) { com.projectclub.android.ui.activity.GamesScreen(repo, nav, it?.getString("id").orEmpty()) }
 }

@@ -43,6 +43,7 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.SupportAgent
 import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.VideogameAsset
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -100,6 +101,7 @@ fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
         Entry(Icons.AutoMirrored.Outlined.Article, "Fórum", PC.Forum, "/comunidades"),
         Entry(Icons.Outlined.Bolt, "Atividade", PC.Green, "/atividade"),
         Entry(Icons.Outlined.Search, "Buscar", PC.Brand, "/search"),
+        Entry(Icons.Outlined.VideogameAsset, "Meus jogos", Color(0xFFA78BFA), "/jogos/biblioteca"),
         Entry(Icons.Outlined.SupportAgent, "Suporte", Color(0xFF34D399), "/tickets"),
     )
 

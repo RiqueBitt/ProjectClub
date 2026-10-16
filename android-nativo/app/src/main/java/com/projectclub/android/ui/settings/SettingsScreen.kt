@@ -33,10 +33,14 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -45,6 +49,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -60,7 +65,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.projectclub.android.BuildConfig
+import com.projectclub.android.data.AppPrefs
 import com.projectclub.android.data.MeResponse
+import com.projectclub.android.voice.VoicePrefs
 import com.projectclub.android.data.Repository
 import com.projectclub.android.ui.common.IconTile
 import com.projectclub.android.ui.common.PcCard
@@ -101,6 +108,11 @@ private val PROFILE_PRIVACY = listOf(Choice("everyone", "Todo mundo"), Choice("f
 private val DM_PRIVACY = listOf(Choice("everyone", "Todo mundo"), Choice("friends_groups", "Amigos e grupos"), Choice("friends", "Só amigos"), Choice("none", "Ninguém"))
 private val FRIEND_PRIVACY = listOf(Choice("everyone", "Todo mundo"), Choice("friends_of_friends", "Amigos de amigos"), Choice("none", "Ninguém"))
 private val FILTER = listOf(Choice("off", "Desligado"), Choice("moderate", "Moderado"), Choice("high", "Alto"))
+private val VISIBILITY = listOf(Choice("everyone", "Todo mundo"), Choice("friends_groups", "Amigos e grupos"), Choice("friends", "Só amigos"), Choice("none", "Ninguém"))
+private val GAMES_VISIBILITY = listOf(Choice("everyone", "Todo mundo"), Choice("friends", "Só amigos"), Choice("nobody", "Ninguém"))
+private val GAME_JOIN = listOf(Choice("everyone", "Todo mundo"), Choice("friends_groups", "Amigos e grupos"), Choice("friends", "Só amigos"), Choice("none", "Ninguém"))
+private val LANGUAGES = listOf(Choice("pt-BR", "Português (Brasil)"), Choice("en-US", "English (US)"), Choice("es-ES", "Español"))
+private val TIME_FORMAT = listOf(Choice("auto", "Automático"), Choice("24h", "24 horas (21:30)"), Choice("12h", "12 horas (9:30 PM)"))
 private val STATUS = listOf(Choice("ONLINE", "Online"), Choice("IDLE", "Ausente"), Choice("DND", "Não perturbe"), Choice("INVISIBLE", "Invisível"))
 
 /** Configurações da conta e do perfil (as mesmas do PC que fazem sentido no celular). */
@@ -169,6 +181,9 @@ fun SettingsScreen(repo: Repository, nav: AppNav) {
                 Line(Icons.Outlined.Lock, "Trocar senha", null, PC.Yellow) { dialog = "password" }
             }
 
+            Section("Status da conta")
+            AccountStatusCard(me)
+
             Section("Privacidade e segurança")
             PcCard(padding = PaddingValues(6.dp)) {
                 ChoiceLine("Quem vê meu perfil", "profilePrivacy", PROFILE_PRIVACY, str("profilePrivacy")) { choosing = it }
@@ -193,6 +208,55 @@ fun SettingsScreen(repo: Repository, nav: AppNav) {
                 Line(Icons.Outlined.NotificationsActive, "Notificações do celular", "Sons, vibração e tipos de aviso", PC.Pink) {
                     ctx.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, ctx.packageName))
                 }
+            }
+
+            Section("Voz e vídeo")
+            val voicePrefs = remember { VoicePrefs.get(ctx) }
+            PcCard(padding = PaddingValues(6.dp)) {
+                var out by remember { mutableFloatStateOf(voicePrefs.outputVolume.toFloat()) }
+                SliderLine("Volume de saída", "${out.toInt()}%", out, 0f..200f, { out = it }) {
+                    voicePrefs.outputVolume = out.toInt(); save("outputVolume", JsonPrimitive(minOf(100, out.toInt())))
+                }
+                var ns by remember { mutableStateOf(voicePrefs.noiseSuppression) }
+                var ec by remember { mutableStateOf(voicePrefs.echoCancellation) }
+                var ag by remember { mutableStateOf(voicePrefs.automaticGain) }
+                Toggle("Supressão de ruído", ns) { ns = it; voicePrefs.noiseSuppression = it; save("noiseSuppression", JsonPrimitive(it)) }
+                Toggle("Cancelamento de eco", ec) { ec = it; voicePrefs.echoCancellation = it; save("echoCancellation", JsonPrimitive(it)) }
+                Toggle("Ganho automático do microfone", ag) { ag = it; voicePrefs.automaticGain = it; save("automaticGain", JsonPrimitive(it)) }
+                Text(
+                    "O volume de cada pessoa você ajusta tocando nela durante a chamada. Ruído, eco e ganho valem a partir da próxima chamada.",
+                    color = PC.Faint, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+
+            Section("Aparência e acessibilidade")
+            PcCard(padding = PaddingValues(6.dp)) {
+                val scale by AppPrefs.textScale.collectAsState()
+                var ts by remember(scale) { mutableFloatStateOf(scale) }
+                SliderLine("Tamanho do texto", "${(ts * 100).toInt()}%", ts, 0.8f..1.5f, { ts = it }) {
+                    AppPrefs.setTextScale(ctx, ts); save("textScale", JsonPrimitive((Math.round(ts * 20) / 20.0)))
+                }
+                Text("Aa — assim fica o texto do app.", color = PC.Text, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                Toggle("Reduzir animações", bool("reducedMotion")) { save("reducedMotion", JsonPrimitive(it)) }
+                Toggle("Alto contraste", bool("highContrast")) { save("highContrast", JsonPrimitive(it)) }
+            }
+
+            Section("Idioma e horário")
+            PcCard(padding = PaddingValues(6.dp)) {
+                ChoiceLine("Idioma", "language", LANGUAGES, str("language") ?: "pt-BR") { choosing = it }
+                ChoiceLine("Formato de hora", "timeFormat", TIME_FORMAT, str("timeFormat") ?: "auto") { choosing = it }
+                if ((str("language") ?: "pt-BR") != "pt-BR") Text(
+                    "O idioma fica salvo na conta (vale no PC e no site). O app do celular por enquanto é só em português.",
+                    color = PC.Faint, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+
+            Section("Atividade e jogos")
+            PcCard(padding = PaddingValues(6.dp)) {
+                Toggle("Mostrar o que estou fazendo", bool("activitySharing")) { save("activitySharing", JsonPrimitive(it)) }
+                ChoiceLine("Quem vê minha atividade", "activityVisibility", VISIBILITY, str("activityVisibility")) { choosing = it }
+                ChoiceLine("Quem vê meus jogos", "gamesVisibility", GAMES_VISIBILITY, str("gamesVisibility")) { choosing = it }
+                ChoiceLine("Quem pode entrar no meu jogo", "gameJoinPrivacy", GAME_JOIN, str("gameJoinPrivacy")) { choosing = it }
             }
 
             Section("Aparelhos conectados")
@@ -344,5 +408,51 @@ private fun Toggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit)
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable { onChange(!checked) }.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = PC.Header, modifier = Modifier.weight(1f))
         Switch(checked, onChange, colors = SwitchDefaults.colors(checkedTrackColor = PC.Brand, uncheckedTrackColor = PC.Surface3, uncheckedBorderColor = PC.LineStrong))
+    }
+}
+
+@Composable
+private fun SliderLine(label: String, value: String, v: Float, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit, onDone: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, color = PC.Header, modifier = Modifier.weight(1f))
+            Text(value, color = PC.Brand, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+        }
+        Slider(
+            value = v, onValueChange = onChange, onValueChangeFinished = onDone, valueRange = range,
+            colors = SliderDefaults.colors(thumbColor = PC.Brand, activeTrackColor = PC.Brand, inactiveTrackColor = PC.Surface3),
+        )
+    }
+}
+
+/** Status da conta (igual ao PC): selo colorido + o que está valendo agora. */
+@Composable
+private fun AccountStatusCard(me: com.projectclub.android.data.User?) {
+    val now = java.time.Instant.now()
+    fun future(t: String?) = t?.let { runCatching { java.time.Instant.parse(it) }.getOrNull() }?.takeIf { it.isAfter(now) }
+    val suspended = future(me?.suspendedUntil)
+    val timeout = future(me?.timeoutUntil)
+    fun fmt(i: java.time.Instant) = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm").withZone(java.time.ZoneId.systemDefault()).format(i)
+    val (label, text, color) = when {
+        me?.accountDisabledAt != null -> Triple("Desativada", "A conta foi desativada.", PC.Red)
+        me?.isPlatformBanned == true -> Triple("Banida", me.platformBanReason?.let { "Motivo: $it" } ?: "A conta foi banida pela equipe.", PC.Red)
+        suspended != null -> Triple("Parcialmente limitada", "Suspensa até ${fmt(suspended)}.", PC.Yellow)
+        timeout != null -> Triple("Em silenciamento temporário", "Você não pode mandar mensagens até ${fmt(timeout)}.", PC.Yellow)
+        else -> Triple("Ativa", "Tudo certo com a sua conta. Nenhuma restrição.", PC.Green)
+    }
+    PcCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconTile(if (color == PC.Green) Icons.Outlined.VerifiedUser else Icons.Outlined.Shield, color, 40.dp, 22.dp)
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                Text(label, color = color, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                Text(text, color = PC.Muted, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        me?.createdAt?.let { c ->
+            runCatching { java.time.Instant.parse(c) }.getOrNull()?.let {
+                Spacer(Modifier.height(8.dp))
+                Text("Conta criada em ${java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy").withZone(java.time.ZoneId.systemDefault()).format(it)}", color = PC.Faint, style = MaterialTheme.typography.bodySmall)
+            }
+        }
     }
 }
