@@ -177,3 +177,23 @@ html[data-lite] .pcc-stage .pcc-spark { opacity: 1; }
   .pc-auth-showcase-chars .pc-showcase-title { font-size: clamp(64px, 6.2vw, 112px); margin-bottom: 12px; }
   .pc-auth-showcase-chars .pc-showcase-copy p { font-size: 15.5px; }
 }
+
+/* ---- stunts (truques aleatórios) ---- */
+.pcc-aura { pointer-events: none; mix-blend-mode: screen; }
+.pcc-aura-p path { filter: drop-shadow(0 0 3px rgba(255, 255, 255, .6)); }
+/* tchauzinho: a mão direita balança sozinha enquanto a pose durar */
+.pcc-hands[data-pose='wave'] .pcc-hand:nth-child(2) { animation: pcc-wave .55s ease-in-out infinite alternate; }
+@keyframes pcc-wave { from { rotate: -14deg; } to { rotate: 16deg; } }
+/* dedinho batendo no queixo */
+.pcc-hands[data-pose='think'] .pcc-hand:nth-child(2) { animation: pcc-tap .5s ease-in-out infinite alternate; }
+@keyframes pcc-tap { from { translate: 0 0; } to { translate: 0 -1.5px; } }
+/* coração: as mãos pulsam */
+.pcc-hands[data-pose='heart'] .pcc-hand { animation: pcc-heart .6s ease-in-out infinite alternate; }
+@keyframes pcc-heart { from { scale: 1; } to { scale: 1.12; } }
+/* sayajin/flex: tremidinha nas mãos */
+.pcc-hands[data-pose='flex'] .pcc-hand { animation: pcc-tremble .12s linear infinite alternate; }
+@keyframes pcc-tremble { from { translate: 0 0; } to { translate: .8px -.6px; } }
+@media (prefers-reduced-motion: reduce) {
+  .pcc-hands .pcc-hand { animation: none !important; }
+}
+html[data-lite] .pcc-hands .pcc-hand { animation: none !important; }
