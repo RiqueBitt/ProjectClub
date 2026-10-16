@@ -1,6 +1,9 @@
 const prisma = require('../config/prisma');
 const { safeUpsert } = require('../utils/prismaSafe');
 const { logSecurityEvent } = require('../services/securityLog');
+const {
+  sanitizeVoiceVolumes, sanitizeVoiceVolumesPatch, mergeVoiceVolumes, parseVoiceVolumes,
+} = require('../utils/voiceVolumes');
 
 // Item pedido: "Nunca aceitar userId do frontend pra decidir qual
 // usuário será alterado. O backend deve obter o usuário diretamente
@@ -80,6 +83,12 @@ const FIELD_VALIDATORS = {
   layoutPrefs: (v) => v === null || sanitizeLayoutPrefs(v) !== undefined,
   // Preferências extras (ver EXTRA_PREF_RULES) — também vira texto JSON.
   extraPrefs: (v) => v === null || sanitizeExtraPrefs(v) !== undefined,
+  // Volume por pessoa nas chamadas (ver utils/voiceVolumes.js). Mapa
+  // completo (substitui) ou null pra zerar tudo.
+  voiceVolumes: (v) => v === null || sanitizeVoiceVolumes(v) !== undefined,
+  // Patch parcial { userId: volume | null } — mesclado com o que já está
+  // salvo, pra dois aparelhos mudando volumes ao mesmo tempo não se apagarem.
+  voiceVolumesPatch: (v) => sanitizeVoiceVolumesPatch(v) !== undefined,
 };
 
 const isBool = (v) => typeof v === 'boolean';
@@ -139,6 +148,8 @@ const EXTRA_PREF_RULES = {
   emailUpdates: isBool,
   emailTips: isBool,
   // Voz e vídeo
+  // "Testar antes de entrar" (painel de pré-entrada da chamada).
+  preJoinCheck: isBool,
   inputProfile: oneOf('isolation', 'studio', 'custom'),
   sensitivityAuto: isBool,
   sensitivityDb: intIn(-100, 0),
@@ -215,7 +226,7 @@ function serializeSettings(settings) {
   if (settings.layoutPrefs) {
     try { layoutPrefs = JSON.parse(settings.layoutPrefs); } catch { layoutPrefs = null; }
   }
-  return { ...settings, layoutPrefs, extraPrefs: parseExtra(settings.extraPrefs) };
+  return { ...settings, layoutPrefs, extraPrefs: parseExtra(settings.extraPrefs), voiceVolumes: parseVoiceVolumes(settings.voiceVolumes) };
 }
 
 async function getOrCreateSettings(userId) {
@@ -238,18 +249,26 @@ async function updateSettings(req, res, next) {
   try {
     const data = {};
     const rejected = [];
+    let volumesPatch = null;
     for (const [key, value] of Object.entries(req.body || {})) {
       const validator = FIELD_VALIDATORS[key];
       if (!validator) { rejected.push(key); continue; } // campo desconhecido — nunca vira coluna nova sozinho
       if (!validator(value)) { rejected.push(key); continue; }
       if (key === 'layoutPrefs' && value !== null) data[key] = JSON.stringify(sanitizeLayoutPrefs(value));
       else if (key === 'extraPrefs' && value !== null) data[key] = JSON.stringify(sanitizeExtraPrefs(value));
+      else if (key === 'voiceVolumes') data[key] = value === null ? null : JSON.stringify(sanitizeVoiceVolumes(value));
+      else if (key === 'voiceVolumesPatch') volumesPatch = sanitizeVoiceVolumesPatch(value);
       else data[key] = value;
     }
-    if (Object.keys(data).length === 0) {
+    if (Object.keys(data).length === 0 && !volumesPatch) {
       return res.status(400).json({ error: 'Nenhuma configuração válida foi enviada.', rejected });
     }
-    await getOrCreateSettings(req.user.id);
+    const current = await getOrCreateSettings(req.user.id);
+    // Mapa completo no mesmo PATCH tem prioridade; o patch mescla por cima.
+    if (volumesPatch) {
+      const base = 'voiceVolumes' in data ? parseVoiceVolumes(data.voiceVolumes) : parseVoiceVolumes(current?.voiceVolumes);
+      data.voiceVolumes = JSON.stringify(mergeVoiceVolumes(base, volumesPatch));
+    }
     const settings = await prisma.userSettings.update({ where: { userId: req.user.id }, data });
     res.json({ settings: serializeSettings(settings), rejected: rejected.length ? rejected : undefined });
   } catch (err) { next(err); }

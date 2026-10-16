@@ -1,11 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from './AuthContext.jsx';
 import { useSocket } from './SocketContext.jsx';
 import { useStore } from '../store/useStore';
 import { playSound, playEntrySound } from '../utils/sounds';
 import { getExtra } from '../utils/extraPrefs';
-import { getPreferredMicId, setPreferredMicId } from '../utils/audioDevices';
-import { getVoiceJoin } from '../api/endpoints';
+import { getPreferredMicId, setPreferredMicId, getPreferredCameraId } from '../utils/audioDevices';
+import { getVoiceJoin, updateUserSettings } from '../api/endpoints';
+import { cleanLocalVolumes, mergeVolumesOnLogin, toServerPatch, capLocal } from '../utils/voiceVolumes';
+import { summarizeAgoraStats, pushSample } from '../voice/connectionStats.js';
 import { getVoicePref, onVoicePrefsChange, setVoicePref, makeReactionRateLimiter, isValidReaction } from '../utils/voicePrefs';
 import { buildScreenShareConfig, collectScreenPublishTracks } from '../utils/screenShareTracks';
 // Cadeia de provedores de mídia (servidor próprio → Agora → Stream) — ver
@@ -26,6 +28,9 @@ import { isReserveMode } from '../voice/providerDecision.js';
 // precisar de nenhum "if" espalhado pelo resto do arquivo.
 import { Capacitor } from '@capacitor/core';
 import { startAndroidScreenShare, stopAndroidScreenShare } from '../native/androidScreenShare';
+
+// "Testar antes de entrar" — só baixa o painel quando alguém vai entrar.
+const PreJoinPanel = lazy(() => import('../components/voice/PreJoinPanel.jsx'));
 
 let BackgroundModePlugin = null;
 async function getBackgroundMode() {
@@ -155,18 +160,26 @@ const QUALITY_PRESETS = {
 // que já faz a checagem de acesso e devolve qual provedor usar. Sempre um
 // token fresco na hora de entrar — nunca reaproveita um velho.
 
-// Volume individual por pessoa/transmissão (0 a 2 = 0% a 200%), lembrado
-// entre sessões. Chave = id do usuário.
+// Volume individual por pessoa/transmissão (0 a 2 = 0% a 200%). Fica salvo
+// NA CONTA (UserSettings.voiceVolumes, 0..200 — segue a pessoa entre PC,
+// site e celular); o localStorage é só o cache rápido deste aparelho, por
+// conta (trocar de conta no mesmo aparelho não mistura os volumes).
+// Chave = id do usuário ouvido.
 const VOLUMES_KEY = 'pc.voiceVolumes';
-function loadSavedVolumes() {
+const volumesKey = (meId) => (meId ? `${VOLUMES_KEY}:${meId}` : VOLUMES_KEY);
+function loadSavedVolumes(meId) {
   try {
-    const raw = JSON.parse(localStorage.getItem(VOLUMES_KEY) || '{}');
-    return raw && typeof raw === 'object' ? raw : {};
+    // Cache antigo (antes de ser por conta) vale como ponto de partida.
+    const raw = JSON.parse(localStorage.getItem(volumesKey(meId)) || localStorage.getItem(VOLUMES_KEY) || '{}');
+    return cleanLocalVolumes(raw);
   } catch { return {}; }
 }
-function saveVolumes(v) {
-  try { localStorage.setItem(VOLUMES_KEY, JSON.stringify(v)); } catch { /* sem storage — só não lembra */ }
+function saveVolumes(meId, v) {
+  try { localStorage.setItem(volumesKey(meId), JSON.stringify(v)); } catch { /* sem storage — só não lembra */ }
 }
+// Espera entre a última mudança de volume e o envio pra conta (arrastar o
+// controle gera dezenas de mudanças — sobe só uma vez no final).
+const VOLUME_SAVE_DEBOUNCE_MS = 1500;
 function dropKey(obj, key) {
   if (!(key in obj)) return obj;
   const n = { ...obj }; delete n[key]; return n;
@@ -256,7 +269,21 @@ export function VoiceProvider({ children }) {
   // esconder alguém que está na chamada de verdade só porque um evento
   // de socket se perdeu.
   const [mediaUids, setMediaUids] = useState({});
-  const [volumes, setVolumes] = useState(loadSavedVolumes);
+  const [volumes, setVolumes] = useState(() => loadSavedVolumes(user?.id));
+  // Mudanças de volume ainda não enviadas pra conta ({ userId: ganho }).
+  const pendingVolumesRef = useRef({});
+  const volumeSaveTimerRef = useRef(null);
+  const volumesMergedForRef = useRef(null);
+  // Ping dos últimos ~60s (painel "Qualidade da conexão"). Ref — não
+  // re-renderiza a cada amostra; o painel lê quando está aberto.
+  const pingHistoryRef = useRef([]);
+  const recordPing = useCallback((rtt) => {
+    if (Number.isFinite(rtt) && rtt > 0) pingHistoryRef.current = pushSample(pingHistoryRef.current, Math.round(rtt));
+  }, []);
+  // "Testar antes de entrar": canal escolhido esperando a pessoa confirmar.
+  const [preJoin, setPreJoin] = useState(null); // { serverId, channelId, channelName, channelType }
+  // Entrou pedindo câmera ligada: liga assim que a chamada aparecer.
+  const pendingCameraRef = useRef(null);
   const [roster, setRoster] = useState({});
   const [rosterStartedAt, setRosterStartedAt] = useState({});
   const [rosterSpeaking, setRosterSpeaking] = useState({});
@@ -454,6 +481,7 @@ export function VoiceProvider({ children }) {
       // re-renderizar por 1ms de diferença.
       try {
         const rtt = client.getRTCStats?.()?.RTT;
+        recordPing(rtt);
         if (Number.isFinite(rtt) && rtt > 0) {
           const r = Math.round(rtt / 5) * 5;
           setMyRtt((prev) => (prev === r ? prev : r));
@@ -463,7 +491,7 @@ export function VoiceProvider({ children }) {
 
     agoraClientRef.current = client;
     return client;
-  }, [socket, user?.id]);
+  }, [socket, user?.id, recordPing]);
 
   // Lista mostrada na tela = quem o servidor diz que está na sala + quem
   // está conectado na mídia mas o socket ainda não contou (evento perdido,
@@ -598,7 +626,7 @@ export function VoiceProvider({ children }) {
   // faixas por participante, que caem na MESMA grade/AudioSink do Agora
   // (identidade = nosso userId). `isSwitch` = troca no meio de uma chamada já
   // ativa (não toca som de entrada, não zera o cronômetro, preserva o mudo).
-  const connectEngine = useCallback(async ({ serverId, channelId, channelName, channelType, provider: prov, creds, isSwitch, quiet = false }) => {
+  const connectEngine = useCallback(async ({ serverId, channelId, channelName, channelType, provider: prov, creds, isSwitch, quiet = false, startMuted: wantMuted = false }) => {
     const okCreds = (prov === 'projectclub' && creds?.url && creds?.token)
       || (prov === 'getstream' && creds?.apiKey && creds?.token && creds?.callId);
     if (!creds || !okCreds) {
@@ -618,7 +646,7 @@ export function VoiceProvider({ children }) {
           return keys.length === Object.keys(prev).length && keys.every((k) => prev[k] === next[k]) ? prev : next;
         });
       },
-      onRtt: (rtt) => { const r = Math.round(rtt / 5) * 5; setMyRtt((prev) => (prev === r ? prev : r)); },
+      onRtt: (rtt) => { recordPing(rtt); const r = Math.round(rtt / 5) * 5; setMyRtt((prev) => (prev === r ? prev : r)); },
       // Fala: espelha no MEU anel verde e reemite pros outros pelo nosso
       // socket (igual ao Agora). No LiveKit também marca a fala dos outros.
       onLocalSpeaking: (speaking) => {
@@ -665,7 +693,7 @@ export function VoiceProvider({ children }) {
     setEngineLocalCameraStream(null);
     setEngineLocalScreenStream(null);
     try {
-      const startMuted = isSwitch ? mutedRef.current : false;
+      const startMuted = isSwitch ? mutedRef.current : !!wantMuted;
       {
         await engine.join({
           ...creds, userId: user?.id, displayName: user?.displayName, startMuted,
@@ -700,7 +728,7 @@ export function VoiceProvider({ children }) {
     // independe do provedor de mídia.
     socket?.emit('voice:join', { channelId });
     return true;
-  }, [socket, user?.id, user?.displayName, broadcastState, ensureJitsiHost, teardownEngine]);
+  }, [socket, user?.id, user?.displayName, broadcastState, ensureJitsiHost, teardownEngine, recordPing]);
   const connectEngineRef = useRef(connectEngine);
   useEffect(() => { connectEngineRef.current = connectEngine; }, [connectEngine]);
 
@@ -748,7 +776,22 @@ export function VoiceProvider({ children }) {
   const connectAgoraMediaRef = useRef(connectAgoraMedia);
   useEffect(() => { connectAgoraMediaRef.current = connectAgoraMedia; }, [connectAgoraMedia]);
 
-  const joinChannel = useCallback(async (serverId, channelId, channelName, channelType) => {
+  // Aplica as escolhas do "Testar antes de entrar" logo depois de conectar.
+  const applyJoinOptions = useCallback((channelId, opts = {}) => {
+    if (opts.startMuted) {
+      if (activeProviderRef.current === 'agora') localAudioTrackRef.current?.setEnabled(false);
+      setMuted(true);
+      socket?.emit('voice:state', { channelId, muted: true });
+    }
+    // A câmera liga pelo efeito que observa a chamada (precisa do provedor
+    // e do cliente já prontos no estado).
+    if (opts.startCamera) pendingCameraRef.current = channelId;
+  }, [socket]);
+
+  // Entra de verdade (sem o painel "Testar antes de entrar").
+  // opts.startMuted: entra com o microfone mudo; opts.startCamera: liga a
+  // câmera logo depois de conectar (escolhas do painel de pré-entrada).
+  const joinChannelNow = useCallback(async (serverId, channelId, channelName, channelType, opts = {}) => {
     if (callRef.current?.channelId === channelId) return;
     if (joiningChannelIdRef.current === channelId) return;
     joiningChannelIdRef.current = channelId;
@@ -785,7 +828,8 @@ export function VoiceProvider({ children }) {
 
         // ---- Provedores com engine próprio (servidor próprio, LiveKit, Jitsi...) ----
         if (creds.provider !== 'agora') {
-          const ok = await connectEngine({ serverId, channelId, channelName, channelType, provider: creds.provider, creds: creds[creds.provider], isSwitch: false, quiet: !last });
+          const ok = await connectEngine({ serverId, channelId, channelName, channelType, provider: creds.provider, creds: creds[creds.provider], isSwitch: false, quiet: !last, startMuted: !!opts.startMuted });
+          if (ok) applyJoinOptions(channelId, opts);
           if (ok || joiningChannelIdRef.current !== channelId) return;
           ready = ready.filter((p) => p !== creds.provider);
           continue;
@@ -851,6 +895,7 @@ export function VoiceProvider({ children }) {
             useStore.getState().pushNotice('Não foi possível enviar seu microfone. Tente silenciar e ativar de novo.');
           }
         }
+        applyJoinOptions(channelId, opts);
         return;
       }
       useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
@@ -858,15 +903,34 @@ export function VoiceProvider({ children }) {
       if (joiningChannelIdRef.current === channelId) joiningChannelIdRef.current = null;
       setJoiningChannelId((c) => (c === channelId ? null : c));
     }
-  }, [socket, connectMicrophone, setupAgoraClient, user?.id, connectEngine, teardownEngine]);
+  }, [socket, connectMicrophone, setupAgoraClient, user?.id, connectEngine, teardownEngine, applyJoinOptions]);
+
+  // Porta de entrada usada pela UI: se "Testar antes de entrar" estiver
+  // ligado (padrão), abre o painel de pré-entrada em vez de conectar na
+  // hora. Atender chamada e ser movido de sala (AFK) passam direto.
+  const joinChannel = useCallback((serverId, channelId, channelName, channelType, opts = {}) => {
+    if (callRef.current?.channelId === channelId) return undefined;
+    if (!opts.skipPreJoin && getExtra().preJoinCheck !== false) {
+      setPreJoin({ serverId, channelId, channelName, channelType });
+      return undefined;
+    }
+    return joinChannelNow(serverId, channelId, channelName, channelType, opts);
+  }, [joinChannelNow]);
+  const confirmPreJoin = useCallback(({ startMuted = false, startCamera = false } = {}) => {
+    const pj = preJoin;
+    setPreJoin(null);
+    if (!pj) return;
+    joinChannelNow(pj.serverId, pj.channelId, pj.channelName, pj.channelType, { startMuted, startCamera });
+  }, [preJoin, joinChannelNow]);
+  const cancelPreJoin = useCallback(() => setPreJoin(null), []);
 
   const answerIncomingCall = useCallback(() => {
     if (!incomingCall) return;
     const { conversationId, channelId } = incomingCall;
     const convo = useStore.getState().conversations.find((c) => c.id === conversationId);
     const name = convo ? (convo.isGroup ? convo.name : (convo.members.find((m) => m.id !== user?.id)?.displayName || 'Chamada')) : 'Chamada';
-    joinChannel(null, channelId, name, 'DM');
-  }, [incomingCall, joinChannel, user?.id]);
+    joinChannelNow(null, channelId, name, 'DM');
+  }, [incomingCall, joinChannelNow, user?.id]);
 
   const declineIncomingCall = useCallback(() => {
     if (!incomingCall) return;
@@ -888,6 +952,8 @@ export function VoiceProvider({ children }) {
     setReconnecting(null);
     setCallStartedAt(null);
     setScreenQuality(null);
+    pingHistoryRef.current = [];
+    pendingCameraRef.current = null;
     // Modo reserva: encerra a conferência do Jitsi (se era esse o provedor)
     // e volta o provedor pro padrão pra próxima chamada.
     teardownEngine();
@@ -1022,7 +1088,7 @@ export function VoiceProvider({ children }) {
     // MediaStream local, que guardamos pro auto-retrato. O estado `cameraOn`
     // volta pelo callback onSelfCamera.
     if (activeProviderRef.current !== 'agora') {
-      const stream = await mediaEngineRef.current?.setCamera(!cameraOn);
+      const stream = await mediaEngineRef.current?.setCamera(!cameraOn, { deviceId: getPreferredCameraId() || undefined });
       setEngineLocalCameraStream(stream || null);
       return;
     }
@@ -1038,7 +1104,10 @@ export function VoiceProvider({ children }) {
       return;
     }
     const AgoraRTC = await loadAgoraRTC();
-    const track = await AgoraRTC.createCameraVideoTrack({ encoderConfig: '360p' });
+    // Câmera escolhida (painel de pré-entrada); se sumiu, usa a padrão.
+    const cameraId = getPreferredCameraId();
+    const track = await AgoraRTC.createCameraVideoTrack({ encoderConfig: '360p', cameraId: cameraId || undefined })
+      .catch((err) => (cameraId ? AgoraRTC.createCameraVideoTrack({ encoderConfig: '360p' }) : Promise.reject(err)));
     cameraTrackRef.current = track;
     await client.publish([track]);
     setCameraOn(true);
@@ -1192,14 +1261,110 @@ export function VoiceProvider({ children }) {
 
   // Volume individual (0–2 = 0%–200%). Quem toca o áudio é o AudioSink
   // (CallBar.jsx), via GainNode — por isso passa de 100% sem distorcer
-  // o elemento <audio>. Lembrado por pessoa no localStorage.
-  const setParticipantVolume = useCallback((userId, volume) => {
-    const v = Math.min(2, Math.max(0, Number(volume) || 0));
-    setVolumes((s) => {
-      const next = { ...s, [userId]: v };
-      saveVolumes(next);
-      return next;
+  // o elemento <audio>. Salvo na conta (com cache local por aparelho).
+  const meIdRef = useRef(user?.id);
+  useEffect(() => { meIdRef.current = user?.id; }, [user?.id]);
+  const volumesRef = useRef(volumes);
+  useEffect(() => { volumesRef.current = volumes; saveVolumes(meIdRef.current, volumes); }, [volumes]);
+
+  // Envia pra conta só o que mudou ({ userId: 0..200 | null }); o servidor
+  // mescla com o que já está salvo (dois aparelhos não se apagam).
+  const flushVolumeSavesRef = useRef(null);
+  const flushVolumeSaves = useCallback(() => {
+    clearTimeout(volumeSaveTimerRef.current);
+    volumeSaveTimerRef.current = null;
+    const pending = pendingVolumesRef.current;
+    pendingVolumesRef.current = {};
+    const patch = toServerPatch(pending);
+    if (!Object.keys(patch).length) return;
+    updateUserSettings({ voiceVolumesPatch: patch }).then((res) => {
+      const vv = res?.settings?.voiceVolumes;
+      if (vv) useStore.setState((st) => (st.userSettings ? { userSettings: { ...st.userSettings, voiceVolumes: vv } } : {}));
+    }).catch((err) => {
+      // Sem rede/servidor fora: volta pra fila (sem passar por cima de
+      // mudanças mais novas) e tenta de novo. Recusa (4xx) não adianta repetir.
+      const status = err?.response?.status;
+      if (status && status < 500) return;
+      pendingVolumesRef.current = { ...pending, ...pendingVolumesRef.current };
+      if (!volumeSaveTimerRef.current) volumeSaveTimerRef.current = setTimeout(() => flushVolumeSavesRef.current?.(), 15000);
     });
+  }, []);
+  useEffect(() => { flushVolumeSavesRef.current = flushVolumeSaves; }, [flushVolumeSaves]);
+  const scheduleVolumeSave = useCallback(() => {
+    clearTimeout(volumeSaveTimerRef.current);
+    volumeSaveTimerRef.current = setTimeout(() => flushVolumeSavesRef.current?.(), VOLUME_SAVE_DEBOUNCE_MS);
+  }, []);
+  // Saindo da aba/fechando o app: manda o que ainda estava esperando.
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === 'hidden' && Object.keys(pendingVolumesRef.current).length) flushVolumeSavesRef.current?.(); };
+    document.addEventListener('visibilitychange', onHide);
+    return () => { document.removeEventListener('visibilitychange', onHide); clearTimeout(volumeSaveTimerRef.current); };
+  }, []);
+
+  // Trocou de conta neste aparelho: carrega o cache local dessa conta.
+  const volumesUserRef = useRef(user?.id);
+  useEffect(() => {
+    if (volumesUserRef.current === user?.id) return;
+    volumesUserRef.current = user?.id;
+    volumesMergedForRef.current = null;
+    pendingVolumesRef.current = {};
+    setVolumes(loadSavedVolumes(user?.id));
+  }, [user?.id]);
+
+  // Configurações da conta chegaram: mescla uma vez por conta (a conta
+  // vence; o que só existia neste aparelho sobe pra conta).
+  const serverVolumes = useStore((st) => st.userSettings?.voiceVolumes);
+  useEffect(() => {
+    if (!user?.id || !serverVolumes || typeof serverVolumes !== 'object') return;
+    if (volumesMergedForRef.current === user.id) return;
+    volumesMergedForRef.current = user.id;
+    const { merged, patch } = mergeVolumesOnLogin(volumesRef.current, serverVolumes);
+    setVolumes(merged);
+    const keys = Object.keys(patch);
+    if (keys.length) {
+      keys.forEach((k) => { pendingVolumesRef.current[k] = merged[k]; });
+      scheduleVolumeSave();
+    }
+  }, [user?.id, serverVolumes, scheduleVolumeSave]);
+
+  const setParticipantVolume = useCallback((userId, volume) => {
+    const id = String(userId);
+    const v = Math.min(2, Math.max(0, Number(volume) || 0));
+    // Quem mudou vai pro fim (mais recente) — o limite tira os mais antigos.
+    setVolumes((st) => capLocal({ ...dropKey(st, id), [id]: v }));
+    pendingVolumesRef.current[id] = v;
+    scheduleVolumeSave();
+  }, [scheduleVolumeSave]);
+
+  // Entrou com "câmera ligada" no painel de pré-entrada: liga assim que a
+  // chamada estiver de pé (provedor/cliente já no estado).
+  useEffect(() => {
+    if (!call?.channelId || pendingCameraRef.current !== call.channelId) return;
+    pendingCameraRef.current = null;
+    if (!cameraOn) toggleCamera();
+  }, [call?.channelId, cameraOn, toggleCamera]);
+
+  // Painel "Qualidade da conexão": leitura detalhada sob demanda, no mesmo
+  // formato pra qualquer provedor (ver voice/connectionStats.js). Provedor
+  // sem estatísticas devolve supported: false — a UI mostra o que tiver.
+  const getConnectionStats = useCallback(async () => {
+    const prov = activeProviderRef.current;
+    let snap = null;
+    try {
+      if (prov === 'agora') {
+        const c = agoraClientRef.current;
+        if (c) {
+          snap = summarizeAgoraStats({
+            rtc: c.getRTCStats?.(), localAudio: c.getLocalAudioStats?.(), remoteAudio: c.getRemoteAudioStats?.(),
+            localVideo: c.getLocalVideoStats?.(),
+            screenOn: localStateRef.current.screenSharing, cameraOn: localStateRef.current.video,
+          });
+        }
+      } else if (typeof mediaEngineRef.current?.getConnectionStats === 'function') {
+        snap = await mediaEngineRef.current.getConnectionStats();
+      }
+    } catch { snap = null; }
+    return { provider: prov, providerLabel: providerLabel(prov), supported: !!snap, server: null, ...(snap || {}) };
   }, []);
 
   const raiseHand = useCallback((raised = true) => {
@@ -1274,8 +1439,9 @@ export function VoiceProvider({ children }) {
   // a reentrada automática se perder.
   const deafenedRef = useRef(deafened);
   useEffect(() => { deafenedRef.current = deafened; }, [deafened]);
-  const joinChannelRef = useRef(joinChannel);
-  useEffect(() => { joinChannelRef.current = joinChannel; }, [joinChannel]);
+  // Movido de sala pelo servidor (AFK): entra direto, sem o painel.
+  const joinChannelRef = useRef(joinChannelNow);
+  useEffect(() => { joinChannelRef.current = joinChannelNow; }, [joinChannelNow]);
   const sawDisconnectRef = useRef(false);
 
   useEffect(() => {
@@ -1795,13 +1961,17 @@ export function VoiceProvider({ children }) {
       // LiveKit devolve o MediaStream local) nos demais provedores.
       localCameraStream: provider === 'agora' ? localCameraStream : engineLocalCameraStream,
       localScreenStream: provider === 'agora' ? localScreenStream : engineLocalScreenStream,
-      joinChannel, leaveChannel, toggleMute, toggleDeafen, toggleCamera, toggleScreenShare, setParticipantVolume,
+      joinChannel, joinChannelNow, leaveChannel, toggleMute, toggleDeafen, toggleCamera, toggleScreenShare, setParticipantVolume,
       raiseHand, setParticipantRole, stepDownFromStage,
       incomingCall, answerIncomingCall, declineIncomingCall,
       switchMicrophone,
       netQuality, getMicLastSoundAt: () => localSoundAtRef.current,
       getLocalAudioTrack: () => localAudioTrackRef.current,
       myRtt, callStartedAt, screenQuality, setScreenShareQuality,
+      // Painel "Qualidade da conexão" (CallBar).
+      getConnectionStats, getPingHistory: () => pingHistoryRef.current,
+      // "Testar antes de entrar".
+      preJoin, confirmPreJoin, cancelPreJoin,
       // Extras novos:
       reactions, sendReaction,
       recording, recordingPrompt, recordingConsents, requestRecording, respondRecording, stopRecording,
@@ -1819,6 +1989,18 @@ export function VoiceProvider({ children }) {
     }}
     >
       {children}
+      {preJoin && (
+        <Suspense fallback={null}>
+          <PreJoinPanel
+            key={preJoin.channelId}
+            channelName={preJoin.channelName}
+            inOtherCall={!!call}
+            otherCallName={call?.channelName}
+            onJoin={confirmPreJoin}
+            onCancel={cancelPreJoin}
+          />
+        </Suspense>
+      )}
     </VoiceContext.Provider>
   );
 }
