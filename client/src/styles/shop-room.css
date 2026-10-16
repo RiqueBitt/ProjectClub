@@ -1,60 +1,38 @@
 /* =====================================================================
-   Loja — "sala branca"
-   Fundo claro só dentro da Loja: as variáveis de tema são redefinidas
-   em .shop-room, então tudo que vive aqui dentro (cards, modais, avatar,
-   presentes, histórico, pacotes de cartas) fica claro, e o resto da
-   plataforma continua no tema que a pessoa escolheu.
+   Loja — layout próprio (menu à esquerda + vitrine), com as cores
+   derivadas do tema escolhido pela pessoa: escuro fica escuro, claro
+   fica claro.
    ===================================================================== */
 .shop-room {
-  color-scheme: light;
-  --room-bg: #f4f5f7;
-  --room-surface: #ffffff;
-  --room-sunken: #f0f2f5;
-  --room-line: #e3e6eb;
-  --room-line-strong: #cfd4dc;
-  --room-text: #14171f;
-  --room-muted: #5d6573;
-  --room-accent: #1f6feb;
-  --room-accent-ink: #1652b8;
-  --room-accent-soft: #e8f0fe;
-  --room-coins: #9a6200;
-  --room-coins-soft: #fff4d6;
-  --room-gems: #0a7493;
-  --room-gems-soft: #e0f4fa;
-  --room-ok: #137a3d;
-  --room-ok-soft: #e3f5ea;
-  --room-bad: #b42318;
-  --room-bad-soft: #fde8e6;
-  --room-sub: #6d28d9;      /* Assinante */
-  --room-sub-soft: #f1eafe;
-  --room-super: #a15c00;    /* Super Assinante */
-  --room-super-soft: #fff1d6;
-  --room-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .06);
-  --room-shadow-lg: 0 12px 32px -12px rgba(16, 24, 40, .22);
+  /* Segue o tema que a pessoa escolheu (escuro, claro, etc.). */
+  --room-bg: var(--bg-primary-solid, var(--bg-primary));
+  --room-surface: var(--bg-secondary);
+  --room-sunken: color-mix(in srgb, var(--bg-secondary) 70%, var(--bg-deepest, #000));
+  --room-line: var(--lit-border-color, var(--border));
+  --room-line-strong: color-mix(in srgb, var(--border) 60%, var(--text-muted));
+  --room-text: var(--header-primary);
+  --room-muted: var(--text-muted);
+  --room-accent: var(--brand);
+  --room-accent-ink: color-mix(in srgb, var(--brand) 70%, var(--header-primary));
+  --room-accent-soft: color-mix(in srgb, var(--brand) 16%, var(--bg-secondary));
+  --room-coins: #f5c542;
+  --room-coins-soft: color-mix(in srgb, #f5c542 14%, var(--bg-secondary));
+  --room-gems: #38c6e8;
+  --room-gems-soft: color-mix(in srgb, #38c6e8 14%, var(--bg-secondary));
+  --room-ok: var(--green, #23a55a);
+  --room-ok-soft: color-mix(in srgb, var(--green, #23a55a) 16%, var(--bg-secondary));
+  --room-bad: var(--red, #f23f43);
+  --room-bad-soft: color-mix(in srgb, var(--red, #f23f43) 16%, var(--bg-secondary));
+  --room-sub: #a78bfa;      /* Assinante */
+  --room-sub-soft: color-mix(in srgb, #8b5cf6 18%, var(--bg-secondary));
+  --room-super: #f5b400;    /* Super Assinante */
+  --room-super-soft: color-mix(in srgb, #f59e0b 18%, var(--bg-secondary));
+  --room-pink: #f472b6;
+  --room-pink-soft: color-mix(in srgb, #ec4899 18%, var(--bg-secondary));
+  --room-violet-soft: color-mix(in srgb, #8b5cf6 14%, var(--bg-secondary));
+  --room-shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 1px 3px rgba(0, 0, 0, .2);
+  --room-shadow-lg: 0 12px 32px -12px rgba(0, 0, 0, .6);
   --room-radius: 16px;
-
-  /* Tema do app, só aqui dentro. */
-  --bg-primary: var(--room-surface);
-  --bg-primary-solid: var(--room-surface);
-  --bg-secondary: var(--room-sunken);
-  --bg-elevated: var(--room-surface);
-  --bg-elevated-solid: var(--room-surface);
-  --bg-floating: var(--room-surface);
-  --bg-floating-solid: var(--room-surface);
-  --bg-modifier-hover: rgba(20, 23, 31, .05);
-  --header-primary: var(--room-text);
-  --header-secondary: var(--room-muted);
-  --text-normal: var(--room-text);
-  --text-muted: var(--room-muted);
-  --text-link: var(--room-accent);
-  --interactive-active: var(--room-text);
-  --brand: var(--room-accent);
-  --brand-hover: var(--room-accent-ink);
-  --border: var(--room-line);
-  --lit-border-color: var(--room-line);
-  --divider-strong: var(--room-line-strong);
-  --green: var(--room-ok);
-  --red: var(--room-bad);
   --shop-dark: var(--room-sunken);
   --shop-line: var(--room-line);
 
@@ -84,7 +62,7 @@
 .room-nav-item em { font-style: normal; font-size: 11px; font-weight: 750; color: var(--room-muted); background: var(--room-sunken); padding: 1px 7px; border-radius: 999px; }
 .room-nav-item:hover { background: var(--room-sunken); color: var(--room-text); }
 .room-nav-item.active { background: var(--room-accent-soft); color: var(--room-accent-ink); }
-.room-nav-item.active em { background: #fff; color: var(--room-accent-ink); }
+.room-nav-item.active em { background: var(--room-surface); color: var(--room-accent-ink); }
 
 .room-main { min-width: 0; min-height: 0; height: 100%; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .room-content { max-width: 1120px; margin: 0 auto; box-sizing: border-box; }
@@ -100,7 +78,7 @@
   background: var(--room-surface); border: 1px solid var(--room-line); color: var(--room-muted); box-shadow: var(--room-shadow); }
 .room-search:focus-within { border-color: var(--room-accent); box-shadow: 0 0 0 3px var(--room-accent-soft); }
 .room-search input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--room-text); font: inherit; font-size: 14px; outline: none; }
-.room-search input::placeholder { color: #8a92a0; }
+.room-search input::placeholder { color: var(--room-muted); }
 .room-search button { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 8px; background: var(--room-sunken); color: var(--room-muted); cursor: pointer; }
 .room-wallet { display: flex; gap: 8px; margin-left: auto; }
 .room-bal { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 13px; border-radius: 999px; font-weight: 800; font-size: 14px;
@@ -149,7 +127,7 @@
 .room-chip { height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--room-line); background: var(--room-surface); color: var(--room-text);
   font: inherit; font-size: 13.5px; font-weight: 650; cursor: pointer; transition: background .12s, border-color .12s; }
 .room-chip:hover { border-color: var(--room-line-strong); }
-.room-chip.on { background: var(--room-text); border-color: var(--room-text); color: #fff; }
+.room-chip.on { background: var(--room-accent); border-color: var(--room-accent); color: #fff; }
 .room-select select { height: 38px; padding: 0 34px 0 12px; border-radius: 10px; border: 1px solid var(--room-line-strong); background: var(--room-surface); color: var(--room-text);
   font: inherit; font-size: 14px; font-weight: 650; cursor: pointer; appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235d6573' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
@@ -165,9 +143,9 @@
 .room-card:hover { transform: translateY(-3px); box-shadow: var(--room-shadow-lg); border-color: var(--room-line-strong); }
 .room-card.is-on { border-color: var(--room-ok); box-shadow: 0 0 0 1px var(--room-ok), var(--room-shadow); }
 .room-card-art { position: relative; height: 178px; width: 100%; padding: 0; border: 0; cursor: pointer; display: grid; place-items: center; overflow: hidden;
-  background: radial-gradient(120% 90% at 50% 0%, #ffffff 0%, var(--room-sunken) 100%); border-bottom: 1px solid var(--room-line); }
-.room-card.k-effect .room-card-art { background: radial-gradient(120% 90% at 50% 0%, #f7f2ff 0%, #eceef5 100%); }
-.room-card.k-back .room-card-art { background: radial-gradient(120% 90% at 50% 10%, #f5f0ff 0%, #eae6f5 100%); }
+  background: radial-gradient(120% 90% at 50% 0%, var(--room-accent-soft) 0%, var(--room-sunken) 100%); border-bottom: 1px solid var(--room-line); }
+.room-card.k-effect .room-card-art { background: radial-gradient(120% 90% at 50% 0%, var(--room-violet-soft) 0%, var(--room-sunken) 100%); }
+.room-card.k-back .room-card-art { background: radial-gradient(120% 90% at 50% 10%, var(--room-violet-soft) 0%, var(--room-sunken) 100%); }
 .room-card.is-locked .room-card-art > :first-child { filter: saturate(.75); }
 .room-art-deco { display: grid; place-items: center; }
 .room-card-flags { position: absolute; top: 10px; left: 10px; display: flex; gap: 5px; flex-wrap: wrap; max-width: calc(100% - 20px); }
@@ -185,7 +163,7 @@
 .room-flag.new { background: var(--room-accent); color: #fff; }
 .room-flag.off { background: var(--room-ok); color: #fff; }
 .room-flag.excl.t-subscriber { background: var(--room-sub-soft); color: var(--room-sub); border: 1px solid color-mix(in srgb, var(--room-sub) 25%, transparent); }
-.room-flag.excl.t-super { background: linear-gradient(120deg, #fff4d6, #ffe2a8); color: var(--room-super); border: 1px solid color-mix(in srgb, var(--room-super) 28%, transparent); }
+.room-flag.excl.t-super { background: linear-gradient(120deg, var(--room-super-soft), color-mix(in srgb, #f59e0b 30%, var(--room-surface))); color: var(--room-super); border: 1px solid color-mix(in srgb, var(--room-super) 28%, transparent); }
 .room-state { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px; border-radius: 999px; font-size: 11.5px; font-weight: 800; white-space: nowrap; }
 .room-state.equipped { background: var(--room-ok); color: #fff; }
 .room-state.owned { background: var(--room-ok-soft); color: var(--room-ok); }
@@ -216,7 +194,7 @@
 .room-offer { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: 999px; background: #fff; color: #b42318; font-size: 12px; font-weight: 800; }
 .room-offer.soon { color: var(--room-muted); }
 .room-hero-plain { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 40px; border-radius: 22px; border: 1px solid var(--room-line);
-  background: radial-gradient(70% 140% at 100% 0%, var(--room-accent-soft), transparent 60%), radial-gradient(50% 120% at 0% 100%, #f3ecff, transparent 60%), var(--room-surface); box-shadow: var(--room-shadow); }
+  background: radial-gradient(70% 140% at 100% 0%, var(--room-accent-soft), transparent 60%), radial-gradient(50% 120% at 0% 100%, var(--room-violet-soft), transparent 60%), var(--room-surface); box-shadow: var(--room-shadow); }
 .room-hero-plain h1 { margin: 0; font-size: 34px; font-weight: 850; letter-spacing: -.8px; }
 .room-hero-plain p { margin: 0 0 6px; color: var(--room-muted); max-width: 560px; font-size: 15px; line-height: 1.55; }
 
@@ -225,10 +203,10 @@
 .room-supporter small { display: block; color: var(--room-muted); font-size: 12.5px; line-height: 1.4; }
 .room-supporter-ico { flex-shrink: 0; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; }
 .room-supporter.is-none .room-supporter-ico { background: var(--room-sunken); color: var(--room-muted); }
-.room-supporter.tier-subscriber { background: linear-gradient(120deg, var(--room-sub-soft), #fff 70%); border-color: color-mix(in srgb, var(--room-sub) 22%, transparent); }
+.room-supporter.tier-subscriber { background: linear-gradient(120deg, var(--room-sub-soft), var(--room-surface) 70%); border-color: color-mix(in srgb, var(--room-sub) 22%, transparent); }
 .room-supporter.tier-subscriber .room-supporter-ico { background: var(--room-sub); color: #fff; }
 .room-supporter.tier-subscriber strong { color: var(--room-sub); }
-.room-supporter.tier-super { background: linear-gradient(120deg, #fff1d6, #fff 70%); border-color: color-mix(in srgb, var(--room-super) 25%, transparent); }
+.room-supporter.tier-super { background: linear-gradient(120deg, var(--room-super-soft), var(--room-surface) 70%); border-color: color-mix(in srgb, var(--room-super) 25%, transparent); }
 .room-supporter.tier-super .room-supporter-ico { background: linear-gradient(140deg, #d48806, #f5b400); color: #fff; }
 .room-supporter.tier-super strong { color: var(--room-super); }
 .room-supporter.compact { padding: 12px; gap: 10px; }
@@ -241,8 +219,8 @@
 .room-cat strong { font-size: 15.5px; font-weight: 800; margin-top: 10px; }
 .room-cat small { color: var(--room-muted); font-size: 13px; font-weight: 600; }
 .room-cat-ico { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; background: var(--room-accent-soft); color: var(--room-accent-ink); }
-.room-cat.k-effect .room-cat-ico { background: #f1eafe; color: #6d28d9; }
-.room-cat.k-back .room-cat-ico { background: #fde8f1; color: #b4235f; }
+.room-cat.k-effect .room-cat-ico { background: var(--room-violet-soft); color: var(--room-sub); }
+.room-cat.k-back .room-cat-ico { background: var(--room-pink-soft); color: var(--room-pink); }
 
 /* ---------- Coleções ---------- */
 .room-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
@@ -280,7 +258,7 @@
 .room-close:hover { background: var(--room-sunken); }
 
 .room-detail { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
-.room-detail-preview { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 28px 22px 22px; background: radial-gradient(120% 80% at 50% 0%, #fff, var(--room-sunken)); border-right: 1px solid var(--room-line); }
+.room-detail-preview { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 28px 22px 22px; background: radial-gradient(120% 80% at 50% 0%, var(--room-accent-soft), var(--room-sunken)); border-right: 1px solid var(--room-line); }
 .room-detail-stage { width: 100%; min-height: 380px; display: grid; place-items: center; }
 .room-detail-stage.m-full { min-height: 0; }
 .room-detail-stage.m-full .shop-mock.wide { box-shadow: var(--room-shadow-lg); }
@@ -305,8 +283,8 @@
 .room-detail-badges:empty { display: none; }
 .room-detail-prices { width: 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
 .room-detail-price { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; border-radius: 14px; border: 1px solid var(--room-line); background: var(--room-surface); }
-.room-detail-price.coins { background: linear-gradient(90deg, var(--room-coins-soft), #fff 70%); }
-.room-detail-price.gems { background: linear-gradient(90deg, var(--room-gems-soft), #fff 70%); }
+.room-detail-price.coins { background: linear-gradient(90deg, var(--room-coins-soft), var(--room-surface) 70%); }
+.room-detail-price.gems { background: linear-gradient(90deg, var(--room-gems-soft), var(--room-surface) 70%); }
 .room-detail-price-cur { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 750; color: var(--room-muted); }
 .room-detail-price-val { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
 .room-detail-price-val b { font-size: 20px; font-weight: 850; }
@@ -339,7 +317,7 @@
 .room-gift { width: min(460px, 100%); padding: 26px; display: flex; flex-direction: column; gap: 12px; }
 .room-gift h2 { margin: 0; font-size: 21px; font-weight: 850; padding-right: 30px; }
 .room-gift .room-search { max-width: none; box-shadow: none; }
-.room-gift-ico { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; background: #fde8f1; color: #b4235f; }
+.room-gift-ico { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; background: var(--room-pink-soft); color: var(--room-pink); }
 .room-friends { list-style: none; margin: 0; padding: 4px; max-height: 220px; overflow-y: auto; border-radius: 12px; border: 1px solid var(--room-line); }
 .room-friends button { width: 100%; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 10px; border: 0; border-radius: 9px; background: transparent; color: var(--room-text); font: inherit; font-weight: 650; cursor: pointer; text-align: left; }
 .room-friends button span { flex: 1; min-width: 0; }
@@ -357,7 +335,7 @@
 .room-history strong { font-size: 14px; }
 .room-history small, .room-history time { color: var(--room-muted); font-size: 12.5px; }
 .room-history-ico { width: 36px; height: 36px; flex-shrink: 0; border-radius: 10px; display: grid; place-items: center; background: var(--room-accent-soft); color: var(--room-accent-ink); }
-.room-history-ico.gift { background: #fde8f1; color: #b4235f; }
+.room-history-ico.gift { background: var(--room-pink-soft); color: var(--room-pink); }
 .room-history-cost { display: flex; gap: 10px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .room-history-cost span { display: inline-flex; align-items: center; gap: 4px; }
 .room-history-cost .coins { color: var(--room-coins); }
@@ -367,9 +345,9 @@
 .room-empty strong { color: var(--room-text); font-size: 16px; }
 .room-empty .room-btn { margin-top: 8px; }
 .room-empty-ico { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--room-accent-soft); color: var(--room-accent-ink); margin-bottom: 4px; }
-.room-skel { border-radius: var(--room-radius); background: linear-gradient(90deg, #eceef2 0%, #f6f7f9 50%, #eceef2 100%); background-size: 200% 100%; animation: room-shimmer 1.2s linear infinite; }
+.room-skel { border-radius: var(--room-radius); background: linear-gradient(90deg, var(--room-sunken) 0%, var(--room-surface) 50%, var(--room-sunken) 100%); background-size: 200% 100%; animation: room-shimmer 1.2s linear infinite; }
 .room-toast { position: fixed; z-index: 420; left: 50%; bottom: 24px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; max-width: calc(100% - 32px);
-  padding: 12px 16px; border-radius: 12px; background: #14171f; color: #fff; font-size: 14px; font-weight: 650; box-shadow: 0 12px 32px -8px rgba(15, 19, 32, .45); animation: room-rise .2s ease; }
+  padding: 12px 16px; border-radius: 12px; background: var(--bg-floating-solid, #111214); color: var(--header-primary); border: 1px solid var(--room-line); font-size: 14px; font-weight: 650; box-shadow: 0 12px 32px -8px rgba(15, 19, 32, .45); animation: room-rise .2s ease; }
 .room-toast.ok svg { color: #6ee7a0; }
 .room-toast.bad { background: var(--room-bad); }
 .room-toast.info svg { color: #93c5fd; }

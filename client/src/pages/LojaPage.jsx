@@ -19,13 +19,13 @@ import '../styles/shop-room.css';
 import '../styles/contentx.css';
 import '../styles/cards.css';
 
-// Loja do Project Club — "sala branca".
+// Loja do Project Club.
 //
 // Organização inspirada nas lojas de comunidade (menu de categorias à
 // esquerda, vitrine com destaques/novidades/exclusivos, cards grandes e
-// detalhe sem sair da página), com a identidade do Project Club. O fundo
-// claro vale SÓ aqui dentro (.shop-room redefine as variáveis de tema
-// localmente); o resto da plataforma continua no tema escolhido.
+// detalhe sem sair da página), com a identidade do Project Club. As cores
+// vêm do tema que a pessoa escolheu (.shop-room deriva as suas variáveis
+// das variáveis de tema), então no escuro a Loja fica escura também.
 //
 // Tudo é real: o preço final (com desconto de Assinante) vem calculado do
 // servidor, a compra manda o preço que a pessoa confirmou e o servidor
