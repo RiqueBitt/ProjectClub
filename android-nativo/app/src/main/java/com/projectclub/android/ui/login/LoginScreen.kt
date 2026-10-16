@@ -157,7 +157,8 @@ fun LoginScreen(repo: Repository, notice: String?) {
                     field = focusField, caret = caret,
                     peek = showPassword && password.isNotEmpty(),
                     reaction = reaction, pointer = touch,
-                    modifier = Modifier.fillMaxSize(),
+                    // Só a metade direita: não encosta no "▶ PROJECT CLUB".
+                    modifier = Modifier.align(Alignment.BottomEnd).fillMaxWidth(0.56f).fillMaxSize(),
                 )
                 Text(
                     "▶  PROJECT CLUB", color = PC.Muted,
