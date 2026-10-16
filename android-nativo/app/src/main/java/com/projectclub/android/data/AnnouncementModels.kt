@@ -23,3 +23,17 @@ data class StaffAnnouncementsResponse(
     val announcements: List<StaffAnnouncement> = emptyList(),
     val canManage: Boolean = false,
 )
+
+/** Comunicado em tela cheia criado no Painel da Staff (/api/announcements/active). */
+@Serializable
+data class PlatformAnnouncement(
+    val id: String = "",
+    val title: String = "",
+    val description: String? = null,
+    val bannerUrl: String? = null,
+    val buttonLabel: String? = null,
+    val buttonUrl: String? = null,
+)
+
+@Serializable
+data class ActiveAnnouncementResponse(val announcement: PlatformAnnouncement? = null)
