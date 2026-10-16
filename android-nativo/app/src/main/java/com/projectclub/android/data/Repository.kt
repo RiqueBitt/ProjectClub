@@ -465,9 +465,8 @@ class Repository(private val context: Context, val api: Api, private val scope: 
         runCatching { api.postIgnore("/api/push/unregister", buildJsonObject { put("token", token) }) }
     }
 
-    /** [ready] = provedores que este app sabe usar (o Jitsi não tem versão nativa). */
-    suspend fun voiceJoin(channelName: String, ready: List<String> = listOf("projectclub", "agora")): VoiceJoinResponse =
-        api.get("/api/voice/join?channelName=${enc(channelName)}&clientReady=${ready.joinToString(",")}")
+    suspend fun voiceJoin(channelName: String): VoiceJoinResponse =
+        api.get("/api/voice/join?channelName=${enc(channelName)}&clientReady=projectclub,agora,jitsi")
 
     // ---------------- tempo real ----------------
 
