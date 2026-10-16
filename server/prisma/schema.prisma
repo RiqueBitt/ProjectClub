@@ -3790,4 +3790,19 @@ model SeasonPass {
 
   @@id([userId, seasonKey])
   @@index([seasonKey, points])
+
+// Chaves de acesso (passkeys / WebAuthn): entrar com digital, rosto ou PIN
+// do aparelho, sem senha. Ver controllers/passkeyController.js.
+model Passkey {
+  id           String    @id @default(uuid())
+  userId       String
+  credentialId String    @unique @db.VarChar(512)
+  publicKey    String    @db.Text // base64url
+  counter      Int       @default(0)
+  transports   String?   @db.VarChar(200)
+  name         String    @db.VarChar(60)
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  @@index([userId])
 }

@@ -1,4 +1,5 @@
 import { afterLogin } from '../utils/accountSwitch';
+import { isCancel, loginWithPasskey, passkeysSupported } from '../utils/passkeys';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import AuthLayout from './AuthLayout.jsx';
@@ -131,6 +132,20 @@ export default function LoginPage() {
     }
   };
 
+  // Chave de acesso (digital/rosto/PIN): sem senha e sem 2FA.
+  const passkeyLogin = async () => {
+    if (busy) return;
+    setError(''); setNotice(null); setBusy(true);
+    try {
+      const data = await loginWithPasskey();
+      applySession(data);
+      afterLogin(data.user);
+      celebrateAndGo();
+    } catch (err) {
+      if (!isCancel(err)) fail(apiError(err, 'Não deu pra entrar com a chave de acesso.'), accountNoticeFrom(err));
+    } finally { setBusy(false); }
+  };
+
   const toggleRecovery = () => {
     setUseRecovery((v) => !v);
     setError('');
@@ -221,6 +236,12 @@ export default function LoginPage() {
           </button>
         )}
 
+        {!needsTwoFactor && passkeysSupported() && (
+          <button type="button" className="btn-secondary auth-passkey-btn" disabled={busy || oauthArriving} onClick={passkeyLogin}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="8" cy="9" r="4" /><path d="M2 21v-1a6 6 0 0 1 10-4.5M15 13l6 6M18 16l2-2M16.5 17.5l1.5-1.5" /></svg>
+            Entrar com chave de acesso
+          </button>
+        )}
         {!needsTwoFactor && <OAuthButtons from="login" verb="Entrar com" position="bottom" disabled={busy || oauthArriving} />}
       </form>
     </AuthLayout>
