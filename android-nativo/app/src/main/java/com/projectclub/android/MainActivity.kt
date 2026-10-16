@@ -91,6 +91,7 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(true); setTurnScreenOn(true) }
         pending.value = intent
         com.projectclub.android.data.AppPrefs.init(this)
+        com.projectclub.android.ui.theme.ThemeStore.init(this)
         setContent {
             val mobileUsers by app.repo.mobileUsers.collectAsState()
             val textScale by com.projectclub.android.data.AppPrefs.textScale.collectAsState()
@@ -143,6 +144,14 @@ class MainActivity : ComponentActivity() {
             }
         }
         LaunchedEffect(Unit) { app.incomingCalls.collect { incoming = it } }
+        // Tema colorido salvo na conta (o mesmo do site/PC).
+        LaunchedEffect(Unit) {
+            runCatching {
+                val st = app.repo.api.get<kotlinx.serialization.json.JsonElement>("/api/users/me/settings")
+                    .let { (it as kotlinx.serialization.json.JsonObject)["settings"] as? kotlinx.serialization.json.JsonObject }
+                com.projectclub.android.ui.theme.ThemeStore.applyServer(this@MainActivity, st?.get("extraPrefs") as? kotlinx.serialization.json.JsonObject)
+            }
+        }
         LaunchedEffect(Unit) {
             app.repo.alerts.collect { a -> if (a is Alert.CallEnded && incoming?.conversationId == a.conversationId) incoming = null }
         }

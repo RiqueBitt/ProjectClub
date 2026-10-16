@@ -229,6 +229,12 @@ fun SettingsScreen(repo: Repository, nav: AppNav) {
                 )
             }
 
+            Section("Temas e ícone")
+            PcCard(padding = PaddingValues(6.dp)) {
+                ColorThemePicker(repo, settings) { settings = it }
+                AppIconPicker()
+            }
+
             Section("Aparência e acessibilidade")
             PcCard(padding = PaddingValues(6.dp)) {
                 val scale by AppPrefs.textScale.collectAsState()
