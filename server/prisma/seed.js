@@ -10,20 +10,23 @@ const { DEFAULT_EVERYONE_PERMISSIONS, toStringBits } = require('../src/services/
 const { isFeatureEnabled } = require('../src/config/features');
 const prisma = new PrismaClient();
 
+// Insígnias oficiais (só estas existem — as antigas foram removidas a pedido
+// do dono). Ícones desenhados em client/public/badges/<KEY>.png.
+const BADGE_ICON = (key) => `/badges/${key}.png`;
 const BADGES = [
-  { key: 'PLATFORM_OWNER', name: 'Dono da Plataforma', description: 'Fundador e responsável pela comunidade.', icon: '👑', rarity: 'LEGENDARY' },
-  { key: 'FOUNDER', name: 'Fundador', description: 'Uma das primeiras contas criadas na plataforma.', icon: '🌟', rarity: 'LEGENDARY' },
-  { key: 'NEWCOMER', name: 'Novo por aqui', description: 'Concedida automaticamente ao criar sua conta.', icon: '🌱', rarity: 'COMMON' },
-  { key: 'VERIFIED', name: 'Verificado', description: 'Conta com e-mail verificado.', icon: '✅', rarity: 'COMMON' },
-  { key: 'STAFF', name: 'Equipe', description: 'Membro da equipe da plataforma.', icon: '🛠️', rarity: 'EPIC' },
-  { key: 'BUG_HUNTER', name: 'Caçador de bugs', description: 'Ajudou a encontrar e reportar um bug.', icon: '🐛', rarity: 'RARE' },
-  { key: 'SUPPORTER', name: 'Apoiador', description: 'Concedida pela administração por apoiar a comunidade.', icon: '💜', rarity: 'RARE' },
-  { key: 'EVENT_WINNER', name: 'Vencedor de evento', description: 'Venceu um evento da comunidade.', icon: '🏆', rarity: 'EPIC' },
-  { key: 'BETA_TESTER', name: 'Beta Tester', description: 'Ajudou a testar a plataforma antes do lançamento.', icon: '🧪', rarity: 'RARE' },
-  { key: 'ARTIST', name: 'Artista', description: 'Contribuiu com arte para a comunidade.', icon: '🎨', rarity: 'RARE' },
-  { key: 'VETERAN', name: 'Veterano', description: 'Conta ativa há mais de um ano.', icon: '🎖️', rarity: 'RARE' },
-  { key: 'HELPER', name: 'Ajudante', description: 'Sempre disposto a ajudar outros usuários.', icon: '🤗', rarity: 'COMMON' },
+  { key: 'PLATFORM_OWNER', name: 'Dono', description: 'Dono e responsável pelo Project Club.', icon: '👑', iconUrl: BADGE_ICON('PLATFORM_OWNER'), rarity: 'LEGENDARY', priority: 1 },
+  { key: 'STAFF', name: 'Equipe', description: 'Faz parte da equipe do Project Club.', icon: '🛠️', iconUrl: BADGE_ICON('STAFF'), rarity: 'EPIC', priority: 2 },
+  { key: 'ADMIN', name: 'Admin', description: 'Administrador da plataforma.', icon: '🛡️', iconUrl: BADGE_ICON('ADMIN'), rarity: 'EPIC', priority: 3 },
+  { key: 'MODERATOR', name: 'Moderador', description: 'Cuida da comunidade e das regras.', icon: '🔨', iconUrl: BADGE_ICON('MODERATOR'), rarity: 'EPIC', priority: 4 },
+  { key: 'HELPER', name: 'Ajudante', description: 'Sempre disposto a ajudar outros usuários.', icon: '🤝', iconUrl: BADGE_ICON('HELPER'), rarity: 'RARE', priority: 5 },
+  { key: 'BUG_HUNTER_GOLD', name: 'Caçador de bugs dourado', description: 'Encontrou bugs importantes e ajudou muito a melhorar o Project Club.', icon: '🐞', iconUrl: BADGE_ICON('BUG_HUNTER_GOLD'), rarity: 'LEGENDARY', priority: 8 },
+  { key: 'BUG_HUNTER', name: 'Caçador de bugs', description: 'Ajudou a encontrar e reportar um bug.', icon: '🐛', iconUrl: BADGE_ICON('BUG_HUNTER'), rarity: 'RARE', priority: 9 },
+  { key: 'SUPPORTER', name: 'Apoiador', description: 'Concedida pela administração por apoiar a comunidade.', icon: '💗', iconUrl: BADGE_ICON('SUPPORTER'), rarity: 'RARE', priority: 10 },
+  { key: 'BETA_TESTER', name: 'Beta Tester', description: 'Ajudou a testar a plataforma antes do lançamento.', icon: '🧪', iconUrl: BADGE_ICON('BETA_TESTER'), rarity: 'RARE', priority: 11 },
+  { key: 'NEWCOMER', name: 'Novo por aqui', description: 'Concedida automaticamente ao criar sua conta.', icon: '🌱', iconUrl: BADGE_ICON('NEWCOMER'), rarity: 'COMMON', priority: 20 },
 ];
+// Removidas do catálogo (apagadas no deploy, junto com quem as tinha).
+const REMOVED_BADGES = ['FOUNDER', 'VERIFIED', 'EVENT_WINNER', 'ARTIST', 'VETERAN'];
 
 // BUG CORRIGIDO ("seed falhou no deploy com PrismaClientInitializationError
 // / Can't reach database server", logo depois de um `prisma db push` que
@@ -92,6 +95,7 @@ async function runOnce(key, fn) {
 
 async function seed() {
   await syncCatalog('Insígnias', prisma.badge, BADGES, 'key');
+  { const r = await prisma.badge.deleteMany({ where: { key: { in: REMOVED_BADGES } } }); if (r.count) changes.push(`Insígnias removidas: ${r.count}`); }
 
   // Configurações da plataforma/comunidade (singleton).
   if (!(await prisma.platformSettings.findUnique({ where: { id: 'singleton' } }))) {
