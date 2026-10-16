@@ -54,6 +54,7 @@ import com.projectclub.android.data.ChatLogic
 import com.projectclub.android.data.Repository
 import com.projectclub.android.data.Room
 import com.projectclub.android.data.Updater
+import kotlinx.coroutines.launch
 import com.projectclub.android.ui.common.Avatar
 import com.projectclub.android.ui.common.Bone
 import com.projectclub.android.ui.common.HeroBox
@@ -76,7 +77,8 @@ fun HomeTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
     val rosters by repo.voiceRosters.collectAsState()
     val conversations by repo.conversations.collectAsState()
     val loaded by repo.loaded.collectAsState()
-    val update by Updater.available.collectAsState()
+    val update by Updater.state.collectAsState()
+    val updateHidden by Updater.dismissed.collectAsState()
     val uri = LocalUriHandler.current
 
     val members = community?.members.orEmpty()
@@ -92,22 +94,9 @@ fun HomeTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            AnimatedVisibility(update != null) {
-                val u = update ?: return@AnimatedVisibility
-                PcCard(border = PC.Brand.copy(alpha = 0.5f), padding = PaddingValues(14.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconTile(Icons.Outlined.SystemUpdate, PC.Brand)
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("Nova versão do app", style = MaterialTheme.typography.titleSmall, color = PC.Header)
-                            Text("A ${u.versionName} já está disponível.", color = PC.Muted, style = MaterialTheme.typography.bodySmall)
-                        }
-                        IconButton(onClick = { Updater.dismiss() }) { Icon(Icons.Outlined.Close, "Agora não", tint = PC.Muted) }
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    PillButton("Baixar e instalar", { uri.openUri(u.url) }, Modifier.fillMaxWidth())
-                }
-            }
+            val showUpdate = !updateHidden && update !is com.projectclub.android.data.UpdateState.None &&
+                !(update is com.projectclub.android.data.UpdateState.Downloading)
+            AnimatedVisibility(showUpdate) { UpdateCard(update) }
 
             // Destaque azul: saudação + números da comunidade
             HeroBox(Modifier.fillMaxWidth()) {
@@ -255,3 +244,41 @@ internal fun AvatarStack(users: List<com.projectclub.android.data.User>, size: a
         }
     }
 }
+
+
+/** Aviso de atualização: baixa sozinho; instala sozinho ao sair do app (Android 12+). */
+@Composable
+private fun UpdateCard(st: com.projectclub.android.data.UpdateState) {
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val (title, text, button, action) = when (st) {
+        is com.projectclub.android.data.UpdateState.Ready -> when {
+            st.needsPermission -> Quad("Atualização ${st.release.versionName} pronta",
+                "Libere uma vez \"instalar apps\" pro Project Club e as próximas atualizações instalam sozinhas.",
+                "Liberar atualizações automáticas", { Updater.openPermissionSettings() })
+            Updater.canInstallSilently() -> Quad("Atualização ${st.release.versionName} pronta",
+                "Ela instala sozinha quando você sair do app. Ou instale agora (o app fecha e reabre na versão nova).",
+                "Instalar agora", { Updater.install(userAsked = true) })
+            else -> Quad("Atualização ${st.release.versionName} pronta", "Já foi baixada — é só confirmar.", "Instalar agora", { Updater.install(userAsked = true) })
+        }
+        is com.projectclub.android.data.UpdateState.Installing -> Quad("Instalando ${st.release.versionName}…", "O app vai fechar e já volta na versão nova.", null, null)
+        is com.projectclub.android.data.UpdateState.Failed -> Quad("Não deu pra atualizar", st.message, "Tentar de novo", { Updater.retry(); scope.launch { Updater.check(force = true) } })
+        else -> return
+    }
+    PcCard(border = PC.Brand.copy(alpha = 0.5f), padding = PaddingValues(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconTile(Icons.Outlined.SystemUpdate, PC.Brand)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, color = PC.Header)
+                Text(text, color = PC.Muted, style = MaterialTheme.typography.bodySmall)
+            }
+            IconButton(onClick = { Updater.dismiss() }) { Icon(Icons.Outlined.Close, "Agora não", tint = PC.Muted) }
+        }
+        if (button != null && action != null) {
+            Spacer(Modifier.height(10.dp))
+            PillButton(button, action, Modifier.fillMaxWidth())
+        }
+    }
+}
+
+private data class Quad(val a: String, val b: String, val c: String?, val d: (() -> Unit)?)
