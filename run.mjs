@@ -5,7 +5,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { chromium } from 'playwright';
+import { chromium, firefox } from 'playwright';
 
 const SECRET = process.env.MEDIA_SERVER_SECRET;
 const TURN_SECRET = process.env.TURN_SECRET;
@@ -35,7 +35,11 @@ const srv = http.createServer((req, res) => {
 });
 await new Promise((r) => srv.listen(8799, '127.0.0.1', r));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const browser = await chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
+const FF = process.env.BROWSER === 'firefox';
+const browser = FF
+  ? await firefox.launch({ firefoxUserPrefs: { 'media.navigator.streams.fake': true, 'media.navigator.permission.disabled': true, 'media.autoplay.default': 0 } })
+  : await chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
+console.log('navegador:', FF ? 'firefox' : 'chromium');
 const room = `pc_diag_${Date.now()}`;
 let ok = true;
 try {
