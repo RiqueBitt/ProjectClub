@@ -107,5 +107,34 @@ class ScreenShots {
     @Test fun comunidade() { val r = repo(); shot("04-comunidade") { com.projectclub.android.ui.home.ChannelsTab(r, actions) } }
     @Test fun social() { val r = repo(); shot("05-social") { com.projectclub.android.ui.home.SocialTab(r, actions) } }
     @Test fun avisos() { val r = repo(); shot("06-avisos") { com.projectclub.android.ui.home.NoticesTab(r, actions) } }
+    private val noop = com.projectclub.android.ui.voice.CallActions({}, {}, {}, {}, {}, {}, {})
+    private val fakeScreen: @Composable (String, Modifier) -> Unit = { _, m ->
+        Box(m.background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(androidx.compose.ui.graphics.Color(0xFF1B2A4A), androidx.compose.ui.graphics.Color(0xFF3A1F5C)))))
+    }
+    private fun call(status: com.projectclub.android.voice.CallStatus = com.projectclub.android.voice.CallStatus.Connected, muted: Boolean = false, speaking: Set<String> = emptySet(), video: Set<String> = emptySet(), error: String? = null) =
+        com.projectclub.android.voice.CallState(channelName = "v1", title = "☕ | Call", status = status, muted = muted, speaking = speaking, remoteVideo = video, error = error)
+    private val users = mapOf("u1" to lia, "u2" to loritta, "u3" to rio, "u4" to ana)
+
+    @Test fun chamadaSozinho() = shot("08-chamada-sozinho") {
+        com.projectclub.android.ui.voice.CallLayout(call(), me, emptyList(), { users[it] }, noop, fakeScreen)
+    }
+    @Test fun chamadaGrupo() = shot("09-chamada-grupo") {
+        com.projectclub.android.ui.voice.CallLayout(
+            call(muted = true, speaking = setOf("u1")), me,
+            listOf(VoiceParticipant("u1"), VoiceParticipant("u2", muted = true), VoiceParticipant("u3", deafened = true)), { users[it] }, noop, fakeScreen,
+        )
+    }
+    @Test fun chamadaTela() = shot("10-chamada-tela") {
+        com.projectclub.android.ui.voice.CallLayout(
+            call(speaking = setOf("u2"), video = setOf("u2")), me,
+            listOf(VoiceParticipant("u1"), VoiceParticipant("u2", screenSharing = true), VoiceParticipant("u3"), VoiceParticipant("u4", muted = true)), { users[it] }, noop, fakeScreen,
+        )
+    }
+    @Test fun chamadaConectando() = shot("11-chamada-conectando") {
+        com.projectclub.android.ui.voice.CallLayout(
+            call(status = com.projectclub.android.voice.CallStatus.Connecting, error = "O serviço de voz demorou pra responder. Tentando de novo…"), me,
+            listOf(VoiceParticipant("u1"), VoiceParticipant("u2")), { users[it] }, noop, fakeScreen,
+        )
+    }
     @Test fun voce() { val r = repo(); shot("07-voce") { com.projectclub.android.ui.home.MoreTab(r, actions, nav) } }
 }
