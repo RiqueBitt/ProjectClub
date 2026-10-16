@@ -90,7 +90,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(true); setTurnScreenOn(true) }
         pending.value = intent
-        setContent { ProjectClubTheme { Root() } }
+        setContent {
+            val mobileUsers by app.repo.mobileUsers.collectAsState()
+            ProjectClubTheme {
+                androidx.compose.runtime.CompositionLocalProvider(com.projectclub.android.ui.common.LocalMobileUsers provides mobileUsers) { Root() }
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -146,11 +151,16 @@ class MainActivity : ComponentActivity() {
 
         val scope = androidx.compose.runtime.rememberCoroutineScope()
         var homeTab by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
+        var miniUser by remember { mutableStateOf<String?>(null) }
         val appNav = remember(nav) {
-            AppNavigator(this, nav, app.repo, scope, onJoinVoice = { ch, title -> joinVoice(ch, title, nav) }) { t ->
-                homeTab = t
-                nav.popBackStack("home", inclusive = false)
-            }
+            AppNavigator(
+                this, nav, app.repo, scope, onJoinVoice = { ch, title -> joinVoice(ch, title, nav) },
+                onHome = { t ->
+                    homeTab = t
+                    nav.popBackStack("home", inclusive = false)
+                },
+                onMiniProfile = { miniUser = it },
+            )
         }
         navRef = appNav
         val actions = HomeActions(
@@ -176,6 +186,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        androidx.compose.runtime.CompositionLocalProvider(com.projectclub.android.ui.profile.LocalOpenUser provides { id: String -> miniUser = id }) {
         NavHost(nav, startDestination = "home") {
             composable("home") { HomeScreen(app.repo, actions, appNav, homeTab, { homeTab = it }, callBar) }
             composable("chat/channel/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { e ->
@@ -188,6 +199,16 @@ class MainActivity : ComponentActivity() {
             }
             composable("voice") { VoiceScreen(app.voice, app.repo, onBack = { nav.popBackStack() }, onOpenWeb = appNav::external) }
             featureScreens(app.repo, appNav)
+        }
+        }
+
+        miniUser?.let { id ->
+            com.projectclub.android.ui.profile.MiniProfileSheet(
+                app.repo, id,
+                onDismiss = { miniUser = null },
+                onFullProfile = { miniUser = null; appNav.fullProfile(it) },
+                onMessage = { miniUser = null; appNav.dmWith(it) },
+            )
         }
 
         incoming?.let { c ->

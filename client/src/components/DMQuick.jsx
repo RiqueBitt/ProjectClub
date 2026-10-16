@@ -61,7 +61,7 @@ function Avatar({ c, meId, size = 32 }) {
   return (
     <span className="dmq-av" style={{ width: size, height: size }}>
       {c.isGroup ? <ConversationIcon conversation={c} size="small" /> : <UserAvatar user={other || {}} size={size} />}
-      {status && <PresenceDot status={status} />}
+      {status && <PresenceDot status={status} userId={other?.id} />}
     </span>
   );
 }
@@ -169,7 +169,7 @@ export function QuickMessageBox() {
           {results.map((r, i) => (
             <button key={r.key} type="button" role="option" aria-selected={i === sel} className={`dmq-opt${i === sel ? ' is-sel' : ''}`} onMouseEnter={() => setSel(i)} onClick={() => pick(r)}>
               {r.kind === 'conv' ? <Avatar c={r.c} meId={user.id} /> : (
-                <span className="dmq-av" style={{ width: 32, height: 32 }}><UserAvatar user={r.u} size={32} /><PresenceDot status={presence[r.u.id]?.status || r.u.status} /></span>
+                <span className="dmq-av" style={{ width: 32, height: 32 }}><UserAvatar user={r.u} size={32} /><PresenceDot status={presence[r.u.id]?.status || r.u.status} userId={r.u.id} /></span>
               )}
               <span className="dmq-opt-text"><b data-no-translate>{r.name}</b><small data-no-translate>{r.sub}</small></span>
             </button>
@@ -205,7 +205,7 @@ export function RecentDMs() {
           <button key={it.key} type="button" className={`dmq-recent-item${unread ? ' is-unread' : ''}`} title={name}
             onClick={() => (it.c ? navigate(`/conversations/${it.c.id}`) : openDM(it.u.id))}>
             {it.c ? <Avatar c={it.c} meId={user.id} size={52} /> : (
-              <span className="dmq-av" style={{ width: 52, height: 52 }}><UserAvatar user={it.u} size={52} /><PresenceDot status={presence[it.u.id]?.status || it.u.status} /></span>
+              <span className="dmq-av" style={{ width: 52, height: 52 }}><UserAvatar user={it.u} size={52} /><PresenceDot status={presence[it.u.id]?.status || it.u.status} userId={it.u.id} /></span>
             )}
             {unread && <span className="dmq-unread" />}
             <span className="dmq-recent-name" data-no-translate>{name.split(' ')[0]}</span>

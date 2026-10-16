@@ -161,7 +161,7 @@ export default function FriendsPanel() {
               >
                 <span className="fx-avatar">
                   <UserAvatar user={f.user} size={44} />
-                  {f.liveStatus && f.status === 'ACCEPTED' && <PresenceDot status={f.liveStatus} />}
+                  {f.liveStatus && f.status === 'ACCEPTED' && <PresenceDot status={f.liveStatus} userId={f.user.id} />}
                 </span>
                 <span className="fx-names">
                   <strong className="truncate">{f.user.displayName}</strong>

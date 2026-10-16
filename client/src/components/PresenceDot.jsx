@@ -1,3 +1,4 @@
+import { useStore } from '../store/useStore';
 import { STATUS_COLOR, STATUS_LABEL } from '../utils/status';
 
 // Item pedido: "a bolinha amarela do ausente transforme numa bolinha
@@ -15,8 +16,26 @@ import { STATUS_COLOR, STATUS_LABEL } from '../utils/status';
 // --status-bubble-border, sem precisar de nenhuma prop nova
 // específica aqui — continua sendo o mesmo componente genérico de
 // sempre pra todos os outros 11 lugares que não passam nada.
-export default function PresenceDot({ status, className = '', large, title, style }) {
+//
+// "Está no celular": com `userId`, se a pessoa está Online e TODAS as
+// conexões dela são de celular (app Android ou site no celular — o
+// servidor manda `mobile` na presença), a bolinha vira um celular verde.
+export default function PresenceDot({ status, userId, className = '', large, title, style }) {
+  const mobile = useStore((s) => (userId ? !!s.presence[userId]?.mobile : false));
   const color = STATUS_COLOR[status] || STATUS_COLOR.OFFLINE;
+  if (mobile && status === 'ONLINE') {
+    return (
+      <span
+        className={`status-dot status-dot-mobile ${large ? 'large' : ''} ${className}`}
+        style={{ '--presence-color': color, ...style }}
+        title={title || 'Online no celular'}
+        role="img"
+        aria-label="Online no celular"
+      >
+        <svg viewBox="0 0 10 16" aria-hidden="true"><rect x="0.6" y="0.6" width="8.8" height="14.8" rx="2" fill="currentColor" /><rect x="2" y="2.4" width="6" height="9.2" rx="0.6" fill="var(--status-ring)" /><circle cx="5" cy="13.4" r="0.9" fill="var(--status-ring)" /></svg>
+      </span>
+    );
+  }
   return (
     <span
       className={`status-dot status-dot-${(status || 'offline').toLowerCase()} ${large ? 'large' : ''} ${className}`}

@@ -110,7 +110,7 @@ export default function DMProfilePanel({ onToggle }) {
               <div className="avatar xlarge">
                 <UserAvatar user={user} size={80} />
               </div>
-              <PresenceDot status={status} large title={STATUS_LABEL[status]} />
+              <PresenceDot status={status} userId={user.id} large title={STATUS_LABEL[status]} />
             </div>
 
             <h2 className="profile-display-name"><span className={nameStyleClassName(user, { fullEffect: true })} style={nameStyleProps(user, { fullEffect: true })}>{user.displayName}</span> <TagBadge user={user} /> <ClanTagBadge user={user} /></h2>

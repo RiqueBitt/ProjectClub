@@ -67,7 +67,7 @@ export default function DMSidebar() {
                     <UserAvatar user={other || { displayName: name }} size={32} />
                   </div>
                 )}
-                {status && <PresenceDot status={status} />}
+                {status && <PresenceDot status={status} userId={other?.id} />}
               </div>
               <span className="truncate">{name}</span>
               <TypingDots roomKey={`conversation:${c.id}`} myUserId={user.id} />

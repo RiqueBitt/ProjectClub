@@ -256,8 +256,8 @@ export function SocketProvider({ children }) {
       removeMessage(roomKeyFor(room), id);
     });
 
-    socket.on('presence:update', ({ userId, status, customStatus }) => {
-      setPresence(userId, { status, customStatus });
+    socket.on('presence:update', ({ userId, status, customStatus, mobile }) => {
+      setPresence(userId, { status, customStatus, mobile: !!mobile });
     });
     // BUG CORRIGIDO: sem isso, o status de cada pessoa só chegava via
     // eventos incrementais (presence:update) — se um evento se perdesse
@@ -289,7 +289,7 @@ export function SocketProvider({ children }) {
             }
           });
         }
-        list.forEach(({ userId: uid, status, customStatus }) => { next[uid] = { status, customStatus }; });
+        list.forEach(({ userId: uid, status, customStatus, mobile }) => { next[uid] = { status, customStatus, mobile: !!mobile }; });
         return { presence: next };
       });
     });

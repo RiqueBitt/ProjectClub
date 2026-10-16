@@ -6,6 +6,7 @@ const { getEffectivePermissions, channelHasRestrictions } = require('../services
 const { has } = require('../services/permissions');
 const { messageInclude } = require('../controllers/messageController');
 const presenceStore = require('../services/presenceStore');
+const devicePresence = require('../services/devicePresence');
 const activityStore = require('../services/activityStore');
 const voiceStore = require('../services/voiceRoomStore');
 const voiceExtras = require('../services/voiceExtras');
@@ -39,7 +40,10 @@ async function buildPresenceSnapshot(viewerId) {
   const rows = await prisma.user.findMany({
     where: { id: { in: [...ids] } }, select: { id: true, status: true, customStatus: true },
   });
-  return rows.map((u) => ({ userId: u.id, status: visibleStatus(u.status, u.id === viewerId), customStatus: u.customStatus }));
+  return rows.map((u) => {
+    const status = visibleStatus(u.status, u.id === viewerId);
+    return { userId: u.id, status, customStatus: u.customStatus, mobile: status !== 'OFFLINE' && devicePresence.onMobile(u.id) };
+  });
 }
 
 // Canal privado (ou com sobrescritas): a lista de quem está na voz não
@@ -276,6 +280,13 @@ function initSockets(httpServer) {
     // failing this one person's connection setup. Wrapped so a single bad
     // connection attempt (e.g. a DB hiccup) can't take the whole server
     // down; see also the process-level safety net in index.js.
+    // Celular ou PC? (pra mostrar o ícone de celular no lugar da bolinha)
+    const mobileChanged = devicePresence.add(userId, socket.id, devicePresence.isMobileUserAgent(socket.handshake?.headers?.['user-agent']));
+    socket.once('disconnect', () => {
+      if (devicePresence.remove(userId, socket.id)) {
+        presenceStore.isOnline(userId).then((on) => { if (on) broadcastPresence(io, userId); }).catch(() => {});
+      }
+    });
     try {
       await presenceReady;
       const socketCount = await presenceStore.addSocket(userId, socket.id);
@@ -334,6 +345,8 @@ function initSockets(httpServer) {
         if (user && (!user.status || user.status === 'OFFLINE')) {
           await prisma.user.update({ where: { id: userId }, data: { status: 'ONLINE' } });
         }
+        broadcastPresence(io, userId);
+      } else if (mobileChanged) {
         broadcastPresence(io, userId);
       }
 
@@ -1438,10 +1451,10 @@ function initSockets(httpServer) {
   // "Offline".
   function emitPresence(io, user) {
     if (!user) return;
-    const payload = { userId: user.id, status: user.status, customStatus: user.customStatus ?? null };
+    const payload = { userId: user.id, status: user.status, customStatus: user.customStatus ?? null, mobile: user.status !== 'OFFLINE' && devicePresence.onMobile(user.id) };
     if (user.status === 'INVISIBLE') {
       io.to(`user:${user.id}`).emit('presence:update', payload);
-      io.except(`user:${user.id}`).emit('presence:update', { ...payload, status: 'OFFLINE' });
+      io.except(`user:${user.id}`).emit('presence:update', { ...payload, status: 'OFFLINE', mobile: false });
     } else {
       io.emit('presence:update', payload);
     }

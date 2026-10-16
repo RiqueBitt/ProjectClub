@@ -133,7 +133,7 @@ function MemberGroup({ label, members, roles, dim, cargosEnabled }) {
         >
           <div className="avatar-wrap small">
             <UserAvatar user={m.user} size={32} />
-            <PresenceDot status={m.liveStatus || 'OFFLINE'} />
+            <PresenceDot status={m.liveStatus || 'OFFLINE'} userId={m.user.id} />
           </div>
           <div className="member-row-text">
             <span className={`truncate member-row-name ${hasCustomNameStyle(m.user) ? nameStyleClassName(m.user) : ''}`} style={hasCustomNameStyle(m.user) ? nameStyleProps(m.user) : roleTextStyle(cargosEnabled ? highestColoredRole(m, roles)?.color : null)}>

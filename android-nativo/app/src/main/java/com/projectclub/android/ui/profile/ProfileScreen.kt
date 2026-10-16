@@ -511,7 +511,7 @@ private fun ProfileHeader(u: ProfileUser, status: String, birthday: Boolean) {
                 ),
             ) {
                 if (bannerUrl != null) {
-                    AsyncImage(model = bannerUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    AsyncImage(model = bannerUrl, contentDescription = null, imageLoader = com.projectclub.android.ui.store.rememberAnimatedImageLoader(), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 }
                 Box(
                     Modifier.fillMaxWidth().height(60.dp).align(Alignment.BottomCenter)
@@ -524,6 +524,8 @@ private fun ProfileHeader(u: ProfileUser, status: String, birthday: Boolean) {
             ) {
                 Avatar(user, 102.dp, status)
             }
+            // Efeito de perfil da Loja tocando por cima do topo do perfil.
+            ProfileEffectOverlay(u.profileEffect, Modifier.matchParentSize())
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

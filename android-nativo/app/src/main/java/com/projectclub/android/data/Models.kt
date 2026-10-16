@@ -21,6 +21,8 @@ data class User(
     val displayName: String? = null,
     val avatarUrl: String? = null,
     val avatarDecoration: String? = null,
+    /** Efeito de perfil da Loja: JSON {id,url,d:{s,x,y,o,t},m:{...}}. */
+    val profileEffect: String? = null,
     val bannerUrl: String? = null,
     val bio: String? = null,
     val pronouns: String? = null,
