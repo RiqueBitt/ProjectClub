@@ -27,6 +27,10 @@ const ICONS = {
   id: <><rect x="3" y="5" width="18" height="14" rx="2.5" /><circle cx="9" cy="11" r="2" /><path d="M6 16a3 3 0 0 1 6 0M14.5 10h4M14.5 13.5h3" /></>,
   smilePlus: <><path d="M21 12a9 9 0 1 1-6.2-8.56" /><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01M19 2v6M16 5h6" /></>,
   reply: <path d="M10 8 5 12.5 10 17M5.5 12.5H14a5 5 0 0 1 5 5V19" />,
+  bookmark: <path d="M6 4h12v17l-6-4-6 4z" />,
+  bookmarkOff: <><path d="M6 4h12v17l-6-4-6 4z" /><path d="M4 4l16 16" /></>,
+  unread: <><circle cx="17" cy="7" r="3" /><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h7" /></>,
+  share: <><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" /><path d="M12 3v12M7 8l5-5 5 5" /></>,
   copy: <><rect x="8" y="8" width="12" height="12" rx="2.5" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></>,
   volume: <><path d="M11 5 6 9H3v6h3l5 4z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" /></>,
   pin: <><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3z" /><path d="M12 15v6" /></>,
@@ -246,7 +250,16 @@ function ContextMenuRender({ menuRef, items, x, y, sheet, onClose }) {
         {sheet && <div className="cm-grabber" aria-hidden="true" />}
         {sections.map((section, si) => (
           <div className="cm-section" role="group" key={si}>
-            {section.map((item, i) => (
+            {section.map((item, i) => (item.emojis ? (
+              // Reações rápidas (os emojis que você mais usa), num clique.
+              <div key={i} className="cm-emoji-row" role="group" aria-label="Reações rápidas">
+                {item.emojis.map((em) => (
+                  <button key={em} type="button" role="menuitem" className="cm-emoji" title={`Reagir com ${em}`}
+                    onClick={() => { item.onPick?.(em); onClose(); }}
+                  >{em}</button>
+                ))}
+              </div>
+            ) : (
               <button
                 key={i}
                 type="button"
@@ -259,7 +272,7 @@ function ContextMenuRender({ menuRef, items, x, y, sheet, onClose }) {
                 <MenuIcon name={iconFor(item)} />
                 <span className="cm-label">{item.label}</span>
               </button>
-            ))}
+            )))}
           </div>
         ))}
       </div>

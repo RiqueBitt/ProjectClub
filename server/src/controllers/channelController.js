@@ -168,6 +168,16 @@ function writeChannelRead(channelId, userId, at) {
     create: { channelId, userId, lastReadAt: at },
   });
 }
+// "Marcar como não lida": grava um horário ANTERIOR e cancela qualquer
+// gravação de "lido" que estava esperando a janela de 2s.
+async function forceChannelRead(channelId, userId, at) {
+  const key = `${userId}:${channelId}`;
+  const cur = readWrites.get(key);
+  if (cur?.timer) clearTimeout(cur.timer);
+  readWrites.delete(key);
+  return writeChannelRead(channelId, userId, at);
+}
+
 async function markRead(req, res, next) {
   try {
     const { id } = req.params;
@@ -416,6 +426,6 @@ async function listGallery(req, res, next) {
 
 module.exports = {
   uploadChannelIcon, listGallery,
-  createChannel, updateChannel, reorderChannels, deleteChannel, markRead, getChannelStates,
+  createChannel, updateChannel, reorderChannels, deleteChannel, markRead, getChannelStates, forceChannelRead,
   listChannelOverwrites, setChannelOverwrite, deleteChannelOverwrite,
 };

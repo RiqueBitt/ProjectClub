@@ -1,4 +1,5 @@
 import { setProfileStyleViewer } from '../utils/profileStyle';
+import { afterLogin } from '../utils/accountSwitch';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { setAccessToken, setUnauthorizedHandler, sharedRefresh } from '../api/client';
@@ -149,6 +150,7 @@ export function AuthProvider({ children }) {
     const data = await loginUser(payload);
     if (data.requiresTwoFactor) return { requiresTwoFactor: true };
     applySession(data);
+    afterLogin(data.user);
     return { ok: true };
   }, [applySession]);
 

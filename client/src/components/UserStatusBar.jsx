@@ -1,3 +1,4 @@
+import AccountSwitcher from './AccountSwitcher.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -144,6 +145,8 @@ export default function UserStatusBar() {
               )}
             </button>
           )}
+          <div className="usb-menu-sep" />
+          <AccountSwitcher user={user} onDone={() => setMenuOpen(false)} />
         </div>
       )}
       {customOpen && <CustomStatusModal user={user} onClose={() => setCustomOpen(false)} onSaved={setUser} />}

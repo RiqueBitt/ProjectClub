@@ -38,6 +38,7 @@ import { getProfileSummary } from '../../api/profileSummary';
 import { visibleProfileSectionOrder } from '../../utils/profileSections';
 import FeaturedModpackSection from '../FeaturedModpackSection.jsx';
 import ProfileGamesSection from '../games/ProfileGamesSection.jsx';
+import { lookQuery, shareProfile, IgnoreButton } from '../profile/ProfileActions.jsx';
 import { useProfileExtras, MuralCard, RecentActivityCard, StatBadgesCard, WishlistCard, NoteCard, MuralEditorModal } from '../profile/ProfileExtras.jsx';
 import '../../styles/profile.css';
 import '../../styles/profile-edit.css';
@@ -1409,6 +1410,13 @@ export default function UserProfileModal() {
                       <button className="btn-secondary" onClick={() => setReportOpen(true)} title="Denunciar este perfil para a equipe">
                         Denunciar
                       </button>
+                      {lookQuery(user) && (
+                        <button className="btn-secondary" title="Ver na Loja os itens que essa pessoa usa" onClick={() => { closeProfile(); navigate(`/loja?look=${encodeURIComponent(lookQuery(user))}&from=${encodeURIComponent(user.displayName)}`); }}>
+                          Adquira este visual
+                        </button>
+                      )}
+                      <button className="btn-secondary" title="Copiar o link do perfil" onClick={() => shareProfile(user)}>Compartilhar</button>
+                      <IgnoreButton user={user} />
                     </div>
                     {/* Botões de voto num grupo próprio (antes ficavam
                         espremidos ao lado dos botões grandes). */}

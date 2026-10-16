@@ -24,6 +24,7 @@
     "@vitejs/plugin-react": "^5.1.0",
     "agora-rtc-sdk-ng": "^4.24.7",
     "axios": "^1.7.7",
+    "highlight.js": "^11.10.0",
     "i18next": "^26.4.2",
     "livekit-client": "^2.15.9",
     "mediasoup-client": "^3.24.5",

@@ -125,9 +125,18 @@ async function shop(req, res, next) {
       prisma.userAvatarDecoration.findMany({ where: { userId }, select: { decorationId: true, serial: true, expiresAt: true } }),
       prisma.userProfileEffect.findMany({ where: { userId }, select: { effectId: true, serial: true, expiresAt: true } }),
       prisma.userShopItem.findMany({ where: { userId }, select: { itemId: true, serial: true, expiresAt: true } }),
-      prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true, avatarDecoration: true, profileEffect: true, profileFont: true, profileStyle: true, supporterTier: true } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true, avatarDecoration: true, profileEffect: true, profileFont: true, profileStyle: true, supporterTier: true, supporterUntil: true } }),
     ]);
     const tier = sup.normalizeTier(me?.supporterTier);
+    // "Em alta": quantas cópias saíram nos últimos 7 dias (compras, presentes, prêmios).
+    const weekAgo = new Date(Date.now() - 7 * 86400000);
+    const [trD, trE, trI, banners] = await Promise.all([
+      prisma.userAvatarDecoration.groupBy({ by: ['decorationId'], where: { createdAt: { gte: weekAgo } }, _count: { _all: true } }).catch(() => []),
+      prisma.userProfileEffect.groupBy({ by: ['effectId'], where: { createdAt: { gte: weekAgo } }, _count: { _all: true } }).catch(() => []),
+      prisma.userShopItem.groupBy({ by: ['itemId'], where: { createdAt: { gte: weekAgo } }, _count: { _all: true } }).catch(() => []),
+      prisma.shopBanner.findMany({ where: { active: true, OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }], take: 6 }).catch(() => []),
+    ]);
+    const trending = new Map([...trD.map((r) => [r.decorationId, r._count._all]), ...trE.map((r) => [r.effectId, r._count._all]), ...trI.map((r) => [r.itemId, r._count._all])]);
     const od = new Set(ownedD.map((o) => o.decorationId));
     const oe = new Set(ownedE.map((o) => o.effectId));
     const oi = new Set(ownedI.map((o) => o.itemId));
@@ -151,6 +160,8 @@ async function shop(req, res, next) {
         ownedVia: ownedSet.has(it.id) ? 'PURCHASE' : viaTier ? 'SUPPORTER' : null,
         locked: !!exclusive && !viaTier && !ownedSet.has(it.id),
         popularity: _count?.owners || 0,
+        trending: trending.get(it.id) || 0,
+        tags: it.tags ? String(it.tags).split(',').filter(Boolean) : [],
         pricing: exclusive ? null : sup.pricing(it, tier),
       };
     };
@@ -164,7 +175,9 @@ async function shop(req, res, next) {
         return { ...col, pricing: { coins: sup.bundlePriceFor(c, 'coins', tier, col.offer), gems: sup.bundlePriceFor(c, 'gems', tier, col.offer) } };
       }),
       coins: me?.coins ?? 0, gems: me?.gems ?? 0,
-      supporter: sup.supporterInfo(tier),
+      supporter: { ...sup.supporterInfo(tier), until: me?.supporterUntil || null },
+      banners,
+      credits: require('../services/supporterCredit').CREDITS,
       equippedId: idFromJson(me?.avatarDecoration),
       equippedEffectId: idFromJson(me?.profileEffect),
       equippedFontId: idFromJson(me?.profileFont),
@@ -386,8 +399,17 @@ function readShopFlags(b) {
     const n = parseInt(b.stock, 10);
     data.stock = Number.isFinite(n) && n > 0 ? Math.min(1000000, n) : null;
   }
+  // Filtros da Loja: tags de tema, cor principal e grupo de variantes.
+  if (b.tags !== undefined) {
+    const list = String(b.tags || '').split(',').map((t) => t.trim()).filter((t) => SHOP_TAGS.includes(t));
+    data.tags = list.length ? [...new Set(list)].join(',') : null;
+  }
+  if (b.color !== undefined) data.color = SHOP_COLORS.includes(b.color) ? b.color : null;
+  if (b.variantGroup !== undefined) data.variantGroup = String(b.variantGroup || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 64) || null;
   return data;
 }
+const SHOP_TAGS = ['anime', 'jogos', 'fofo', 'scifi', 'comida', 'fantasia', 'animais', 'natureza', 'filmes', 'dark', 'terror', 'esportes', 'musica', 'parceria'];
+const SHOP_COLORS = ['roxo', 'azul', 'verde', 'marrom', 'amarelo', 'laranja', 'vermelho', 'rosa', 'branco', 'preto'];
 
 async function syncEquippedEffect(req, fx) {
   const users = await prisma.user.findMany({ where: { profileEffect: { contains: `"id":"${fx.id}"` } }, select: { id: true } });
@@ -589,5 +611,5 @@ module.exports = {
   kindOf, findItem, isLimited, claimStock, fontJson, styleKeyOf, parseData,
   adminListEffects, adminCreateEffect, adminUpdateEffect, adminRemoveEffect,
   adminListCollections, adminCreateCollection, adminUpdateCollection, adminRemoveCollection,
-  effectJson, readShopFlags,
+  effectJson, readShopFlags, SHOP_TAGS, SHOP_COLORS,
 };

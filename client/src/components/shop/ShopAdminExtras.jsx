@@ -9,6 +9,7 @@ import {
   adminListShopItems, adminSaveShopItem, adminDeleteShopItem,
   adminShopCatalog, adminGrantItem, adminRevokeItem,
   adminListCodes, adminCreateCode, adminRemoveCode,
+  adminListBanners, adminSaveBanner, adminDeleteBanner,
 } from '../../api/decorations';
 import { nameStyleProps } from '../../utils/nameStyle';
 import { proxyImage } from '../../utils/imageProxy';
@@ -458,6 +459,73 @@ export function CodesAdmin() {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ---------- Banners promocionais da Loja ----------
+const BANNER_EMPTY = { title: '', subtitle: '', badge: 'Por tempo limitado', buttonLabel: 'Bora lá!', collectionId: '', accentColor: '#7c3aed', active: true, sortOrder: 0, endsAt: '' };
+function BannerEditor({ banner, collections, onSaved, onDelete }) {
+  const [f, setF] = useState(() => (banner ? {
+    ...BANNER_EMPTY, ...banner, collectionId: banner.collectionId || '', accentColor: banner.accentColor || '#7c3aed',
+    endsAt: banner.endsAt ? new Date(banner.endsAt).toISOString().slice(0, 16) : '',
+  } : BANNER_EMPTY));
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
+  const preview = file ? URL.createObjectURL(file) : banner?.imageUrl ? proxyImage(banner.imageUrl) : null;
+  const save = async (e) => {
+    e.preventDefault(); setBusy(true); setMsg('');
+    try {
+      const { id, createdAt, imageUrl, ...fields } = f;
+      const r = await adminSaveBanner(banner?.id, { ...fields, endsAt: f.endsAt || '' }, file);
+      setMsg('Salvo.'); setFile(null); onSaved(r.banner, !banner);
+      if (!banner) setF(BANNER_EMPTY);
+    } catch (err) { setMsg(errMsg(err)); }
+    setBusy(false);
+  };
+  return (
+    <div className="shopadm-banner">
+      <div className="shopadm-banner-art" style={{ backgroundImage: preview ? `url(${preview})` : undefined, boxShadow: `inset 0 -40px 40px -20px ${f.accentColor}` }}>{!preview && 'Sem arte'}</div>
+      <form onSubmit={save}>
+        <label>Título<input value={f.title} onChange={set('title')} maxLength={80} required /></label>
+        <label>Subtítulo<input value={f.subtitle || ''} onChange={set('subtitle')} maxLength={200} /></label>
+        <label>Selo<input value={f.badge || ''} onChange={set('badge')} maxLength={40} /></label>
+        <label>Texto do botão<input value={f.buttonLabel || ''} onChange={set('buttonLabel')} maxLength={30} /></label>
+        <label>Abre a coleção
+          <select value={f.collectionId} onChange={set('collectionId')}>
+            <option value="">Nenhuma</option>
+            {(collections || []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </label>
+        <label>Cor<input type="color" value={f.accentColor} onChange={set('accentColor')} /></label>
+        <label>Termina em (opcional)<input type="datetime-local" value={f.endsAt} onChange={set('endsAt')} /></label>
+        <label>Ordem<input type="number" value={f.sortOrder} onChange={set('sortOrder')} /></label>
+        <label>Arte (imagem larga)<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => setFile(e.target.files?.[0] || null)} /></label>
+        <label className="deco-check"><input type="checkbox" checked={!!f.active} onChange={set('active')} /> Ativo</label>
+        <button type="submit" className="shop-btn primary" disabled={busy}>{banner ? 'Salvar' : '+ Criar banner'}</button>
+        {banner && <button type="button" className="shop-btn danger" onClick={() => onDelete(banner)}>Apagar</button>}
+        {msg && <small className="shop-muted">{msg}</small>}
+      </form>
+    </div>
+  );
+}
+
+export function BannersAdmin({ collections }) {
+  const [list, setList] = useState(null);
+  useEffect(() => { adminListBanners().then((d) => setList(d.banners || [])).catch(() => setList([])); }, []);
+  const saved = (b, isNew) => setList((l) => (isNew ? [b, ...(l || [])] : (l || []).map((x) => (x.id === b.id ? b : x))));
+  const del = async (b) => {
+    if (!window.confirm(`Apagar o banner "${b.title}"?`)) return;
+    await adminDeleteBanner(b.id).catch(() => {});
+    setList((l) => l.filter((x) => x.id !== b.id));
+  };
+  return (
+    <div className="shopadm-banners">
+      <p className="shop-muted">Banners grandes no Início da Loja (até 6 ativos, na ordem escolhida). O botão abre a coleção escolhida.</p>
+      <BannerEditor collections={collections} onSaved={saved} onDelete={del} />
+      {!list ? <p className="shop-muted">Carregando…</p> : list.map((b) => <BannerEditor key={b.id} banner={b} collections={collections} onSaved={saved} onDelete={del} />)}
     </div>
   );
 }

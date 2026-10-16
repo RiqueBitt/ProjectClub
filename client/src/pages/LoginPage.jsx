@@ -1,3 +1,4 @@
+import { afterLogin } from '../utils/accountSwitch';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import AuthLayout from './AuthLayout.jsx';
@@ -103,6 +104,7 @@ export default function LoginPage() {
       if (oauth2FA) {
         const data = await completeOAuth2FA(codePayload());
         applySession(data);
+        afterLogin(data.user);
         celebrateAndGo();
         return;
       }

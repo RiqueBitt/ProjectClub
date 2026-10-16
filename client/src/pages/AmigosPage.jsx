@@ -4,6 +4,7 @@ import { QuickMessageBox, RecentDMs } from '../components/DMQuick.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useStore, isConversationUnread } from '../store/useStore';
 import FriendsPanel from '../components/FriendsPanel.jsx';
+import ActiveNowPanel from '../components/ActiveNowPanel.jsx';
 import DMConversationsList from '../components/DMConversationsList.jsx';
 import SocialIcon from '../components/SocialIcons.jsx';
 import ClansPage from './ClansPage.jsx';
@@ -78,7 +79,7 @@ export default function AmigosPage() {
       </header>
       {tab !== 'clubes' && <RecentDMs />}
       <div className={`social-content social-content-${tab}`}>
-        {tab === 'amigos' && <FriendsPanel />}
+        {tab === 'amigos' && <div className="fx-with-active"><FriendsPanel /><ActiveNowPanel /></div>}
         {tab === 'mensagens' && <DMConversationsList />}
         {tab === 'clubes' && <ClansPage />}
       </div>

@@ -1,3 +1,4 @@
+import DMExtraCards from './profile/DMExtraCards.jsx';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useStore } from '../store/useStore';
@@ -151,6 +152,8 @@ export default function DMProfilePanel({ onToggle }) {
             <PfCard icon="calendar" title="Membro desde">
               <div className="dmp-meta">{new Date(user.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
             </PfCard>
+
+            <DMExtraCards userId={user.id} />
 
             {data.badges?.length > 0 && (
               <PfCard icon="medal" title="Insígnias" count={data.badges.length}>

@@ -177,3 +177,7 @@
   .pxe-fav, .pxe-rot { flex-direction: column; }
   .pxe-fav .gl-capsule, .pxe-rot .gl-capsule { width: 100%; }
 }
+.dmx-games { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.dmx-game .gl-capsule { width: 100%; }
+.dmx-wish { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.dmx-wish .pxl-art { width: 100%; height: 64px; }

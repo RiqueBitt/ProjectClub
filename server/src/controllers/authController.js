@@ -674,6 +674,12 @@ async function refresh(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Usado ao trocar de conta: revoga a sessão do cookie atual (se houver).
+async function logoutCurrentSession(req) {
+  const hash = currentRefreshHash(req);
+  if (hash) await revokeRefreshTokens({ tokenHash: hash }, REVOKE_REASONS.LOGOUT);
+}
+
 async function logout(req, res, next) {
   try {
     const hash = currentRefreshHash(req);
@@ -864,6 +870,7 @@ async function resetPassword(req, res, next) {
       }),
     ]);
     await sessionKeep.markSessionsRevoked(record.userId);
+    await require('./accountSwitchController').revokeAllFor(record.userId); // contas salvas pra troca também saem
     res.json({ ok: true });
   } catch (err) { next(err); }
 }
@@ -994,6 +1001,7 @@ async function changePassword(req, res, next) {
     ]);
     // Derruba o "lembrar login" dos outros aparelhos e renova o deste.
     await sessionKeep.markSessionsRevoked(user.id);
+    await require('./accountSwitchController').revokeAllFor(user.id); // contas salvas pra troca também saem
     if (currentHash) await sessionKeep.setKeepCookie(res, user.id);
     res.json({ ok: true, keptCurrentSession: !!currentHash });
   } catch (err) { next(err); }
@@ -1019,6 +1027,7 @@ async function deleteAccount(req, res, next) {
       }),
     ]);
     await sessionKeep.markSessionsRevoked(user.id);
+    await require('./accountSwitchController').revokeAllFor(user.id); // contas salvas pra troca também saem
     res.clearCookie('refreshToken', { path: '/api/auth' });
     sessionKeep.clearKeepCookie(res);
     req.app.get('io')?.kickUser?.(user.id, 'account:disabled', {});
@@ -1066,7 +1075,7 @@ module.exports = {
   listSessions, revokeSession, revokeOtherSessions, ensurePublicId,
   PUBLIC_USER_FIELDS, SELF_USER_FIELDS,
   isPasswordStrongEnough, generatePublicId,
-  changePassword, deleteAccount, deactivateAccount,
+  changePassword, deleteAccount, deactivateAccount, logoutCurrentSession,
   recoveryCodesStatus, regenerateRecoveryCodesHandler,
   createEmailVerificationCode, issueSession, REVOKE_REASONS, describeDevice, maskIp,
   completeLogin, verifyTotpOnce, consumeRecoveryCode, registerFailedLogin, isAccountBlocked,

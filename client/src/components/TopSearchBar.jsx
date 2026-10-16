@@ -1,3 +1,4 @@
+import InboxPopover from './InboxPopover.jsx';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -39,6 +40,7 @@ function useSectionTitle() {
 
 export default function TopSearchBar() {
   const navigate = useNavigate();
+  const [inboxOpen, setInboxOpen] = useState(false);
   const layoutStyle = useStore((s) => s.layoutStyle);
   const sectionTitle = useSectionTitle();
   const { user } = useAuth();
@@ -138,6 +140,12 @@ export default function TopSearchBar() {
         <button type="button" className="top-search-bar-icon-btn" title="Atividade dos amigos" aria-label="Atividade dos amigos" onClick={() => navigate('/atividade')}>
           <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url("${ACTIVITY_NAV_ICON}")`, maskImage: `url("${ACTIVITY_NAV_ICON}")`, width: 19, height: 19 }} />
         </button>
+        <span className="top-inbox-wrap">
+          <button type="button" className={`top-search-bar-icon-btn top-inbox-btn${inboxOpen ? ' active' : ''}`} title="Caixa de Entrada" aria-label="Caixa de Entrada" aria-expanded={inboxOpen} onClick={() => setInboxOpen((v) => !v)}>
+            {svg('M3 13h5l2 3h4l2-3h5M5 5h14l2 8v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6z')}
+          </button>
+          {inboxOpen && <InboxPopover onClose={() => setInboxOpen(false)} />}
+        </span>
         <button type="button" className="top-search-bar-icon-btn" title="Notificações" onClick={() => navigate('/notifications')}>
           <span className="top-search-bar-icon-mask top-search-bar-notif-icon" style={{ WebkitMaskImage: `url(${notificationsIcon})`, maskImage: `url(${notificationsIcon})` }} />
           {notifBadge > 0 && <span className="top-search-bar-badge">{notifBadge > 99 ? '99+' : notifBadge}</span>}

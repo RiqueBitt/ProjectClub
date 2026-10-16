@@ -1,4 +1,6 @@
 import { getExtra } from '../utils/extraPrefs';
+import CodeFilePreview, { isCodeFile } from './CodeFilePreview.jsx';
+import { topReactions, recordReaction, useMsgExtras, toggleSaved, markUnreadFrom, copyMessageLink, toggleIgnore } from '../utils/messageExtras';
 import { useEffect, useRef, useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -49,7 +51,6 @@ function ReplyAvatarImg({ url }) {
 // Discord's own quick-react bar) — clicking one reacts immediately. The "+"
 // next to them opens the full picker (unicode search + this server's custom
 // emojis + custom emojis from other servers the user belongs to).
-const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮'];
 
 // Approximate width of the full emoji-picker popover on desktop — kept in
 // sync with `.reaction-picker` in global.css (`width: min(340px, 92vw)`),
@@ -66,8 +67,18 @@ const GIF_URL_RE = /\.gif(\?\S*)?$/i;
 // mesma mensagem passava a renderizar com menos hooks e o React
 // derrubava o chat inteiro. Agora a mensagem apagada é outro componente.
 function MessageComponent(props) {
+  // Autor ignorado (menu → Ignorar): a mensagem fica recolhida pra você.
+  const hidden = useMsgExtras((s) => s.ignored.has(props.message.authorId) && !s.revealed.has(props.message.id));
   if (props.message.deleted) {
     return <div className="message deleted-message"><em>Mensagem apagada</em></div>;
+  }
+  if (hidden) {
+    return (
+      <div className="message message-ignored">
+        <em>Mensagem de alguém que você ignora.</em>
+        <button type="button" className="btn-link" onClick={() => useMsgExtras.getState().reveal(props.message.id)}>Mostrar mesmo assim</button>
+      </div>
+    );
   }
   return <MessageBody {...props} />;
 }
@@ -115,6 +126,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
 
   const react = async (emoji) => {
     setShowEmojiPicker(false);
+    recordReaction(emoji);
     try {
       await reactToMessage(message.id, emoji);
     } catch (err) {
@@ -276,6 +288,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
     // separadas — ações na mensagem / pessoa / denúncia / apagar / moderação.
     // Mesmas ações e mesmas checagens de permissão de antes.
     const items = [
+      { emojis: topReactions(4), onPick: (em) => reactWithLimitCheck(em) },
       { label: 'Reagir', icon: 'smilePlus', onClick: () => setShowEmojiPicker((v) => !v) },
       { label: 'Responder', icon: 'reply', onClick: () => onReply(message) },
     ];
@@ -287,6 +300,10 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
     }
     items.push({ label: 'Encaminhar', icon: 'reply', onClick: () => setForwardOpen(true) });
     items.push({ label: 'Lembrar-me', icon: 'clock', onClick: () => setReminderOpen(true) });
+    const isSaved = useMsgExtras.getState().saved.has(message.id);
+    items.push({ label: isSaved ? 'Desfavoritar mensagem' : 'Favoritar mensagem', icon: isSaved ? 'bookmarkOff' : 'bookmark', onClick: () => toggleSaved(message) });
+    if (!isOwn) items.push({ label: 'Marcar como não lida', icon: 'unread', onClick: () => markUnreadFrom(message) });
+    items.push({ label: 'Copiar link da mensagem', icon: 'link', onClick: () => copyMessageLink(message) });
     // Fixar só aparece pra quem pode (gerenciar mensagens no canal; em DM, todos).
     if (!isChannelMessage || canManageMessages) {
       items.push({ label: message.pinned ? 'Desafixar' : 'Fixar', icon: 'pin', onClick: () => togglePinMessage(message.id) });
@@ -302,6 +319,10 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
     items.push(
       { divider: true },
       { label: 'Ver perfil', icon: 'user', onClick: () => useStore.getState().openProfile(message.authorId) },
+      ...(!isOwn && message.author ? [{
+        label: useMsgExtras.getState().ignored.has(message.authorId) ? 'Parar de ignorar' : 'Ignorar',
+        icon: 'eyeOff', onClick: () => toggleIgnore({ id: message.authorId, displayName: message.author.displayName }),
+      }] : []),
       { label: 'Copiar ID do usuário', icon: 'id', onClick: () => navigator.clipboard?.writeText(message.author?.publicId || message.authorId) },
     );
     // Item pedido: verificar se todos os toggles de Configurações têm
@@ -392,7 +413,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
           reagir, responder e "mais" (abre o mesmo menu do clique direito). */}
       {!isPending && (
         <div className="message-hover-actions">
-          {QUICK_EMOJIS.map((e) => (
+          {topReactions(3).map((e) => (
             <button key={e} type="button" className="message-hover-action quick-react" title={`Reagir com ${e}`} onClick={() => reactWithLimitCheck(e)}>
               {e}
             </button>
@@ -801,6 +822,8 @@ function Attachment({ attachment, allImages, imageIndex }) {
       </div>
     );
   }
+  // Arquivos de texto/código: prévia com cores de sintaxe (igual ao Discord).
+  if (isCodeFile(attachment)) return <CodeFilePreview attachment={attachment} />;
   if (attachment.mimeType.startsWith('audio/')) {
     return (
       <div className="attachment-audio">

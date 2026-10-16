@@ -62,7 +62,7 @@ async function adminSetTier(req, res, next) {
       changed = true;
       // Condicional no próprio update: duas pessoas da staff mexendo ao
       // mesmo tempo não sobrescrevem uma à outra sem perceber.
-      const r = await tx.user.updateMany({ where: { id: targetId, supporterTier: target.supporterTier }, data: { supporterTier: toTier } });
+      const r = await tx.user.updateMany({ where: { id: targetId, supporterTier: target.supporterTier }, data: { supporterTier: toTier, supporterUntil: null } }); // staff define apoio sem prazo
       if (r.count === 0) throw Object.assign(new Error('A categoria dessa pessoa acabou de mudar. Atualize e tente de novo.'), { status: 409 });
       await tx.supporterAuditLog.create({ data: { userId: targetId, actorId, fromTier, toTier, reason } });
 
