@@ -304,6 +304,7 @@ export const markChannelRead = (id) => api.post(`/community/channels/${id}/read`
 export const listChannelOverwrites = (id) => api.get(`/community/channels/${id}/overwrites`).then((r) => r.data);
 export const setChannelOverwrite = (id, payload) => api.post(`/community/channels/${id}/overwrites`, payload).then((r) => r.data);
 export const deleteChannelOverwrite = (id, overwriteId) => api.delete(`/community/channels/${id}/overwrites/${overwriteId}`).then((r) => r.data);
+export const syncChannelOverwrites = (id) => api.post(`/community/channels/${id}/overwrites/sync`).then((r) => r.data);
 // Ícone do canal (imagem pequena) — emoji/remover vão pelo updateChannel.
 export const uploadChannelIcon = (id, file) => {
   const fd = new FormData(); fd.append('icon', file);

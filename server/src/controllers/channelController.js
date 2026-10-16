@@ -340,6 +340,21 @@ async function deleteChannelOverwrite(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// POST /community/channels/:id/overwrites/sync — "Sincronizar agora" (igual
+// ao Discord): apaga as permissões próprias do canal, que volta a seguir só
+// as da categoria.
+async function syncChannelOverwrites(req, res, next) {
+  try {
+    const { id } = req.params;
+    await assertManageChannels(req.user.id);
+    const channel = await prisma.channel.findUnique({ where: { id } });
+    if (!channel) return res.status(404).json({ error: 'Canal não encontrado.' });
+    const { count } = await prisma.permissionOverwrite.deleteMany({ where: { channelId: id } });
+    req.app.get('io')?.to('community').emit('overwrite:update', { channelId: id });
+    res.json({ ok: true, removed: count });
+  } catch (err) { next(err); }
+}
+
 // POST /community/channels/:id/icon — imagem pequena como ícone do canal.
 async function uploadChannelIcon(req, res, next) {
   try {
@@ -427,5 +442,5 @@ async function listGallery(req, res, next) {
 module.exports = {
   uploadChannelIcon, listGallery,
   createChannel, updateChannel, reorderChannels, deleteChannel, markRead, getChannelStates, forceChannelRead,
-  listChannelOverwrites, setChannelOverwrite, deleteChannelOverwrite,
+  listChannelOverwrites, setChannelOverwrite, deleteChannelOverwrite, syncChannelOverwrites,
 };
