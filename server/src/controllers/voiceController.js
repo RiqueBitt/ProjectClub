@@ -84,6 +84,11 @@ async function getJoin(req, res, next) {
     if (/ProjectClub\/1\.27\.2 /.test(String(req.headers['user-agent'] || ''))) {
       clientReady = clientReady.filter((id) => id !== 'projectclub');
     }
+    // App Android nativo anuncia "jitsi", mas não tem Jitsi nativo (cairia
+    // em "não suportado"): pro servidor, ele só usa servidor próprio/Agora.
+    if (/ProjectClub\/\d/.test(String(req.headers['user-agent'] || '')) && clientReady.length) {
+      clientReady = clientReady.filter((id) => id !== 'jitsi');
+    }
     let disabled = state.disabled;
     if (clientReady.length) {
       const unsupported = providers.PROVIDER_ORDER.filter((id) => !clientReady.includes(id));
