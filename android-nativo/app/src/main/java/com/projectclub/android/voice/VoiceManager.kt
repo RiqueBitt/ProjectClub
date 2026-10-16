@@ -78,6 +78,8 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
         override fun onFailed(message: String) {
             main.post {
                 reportFailure("próprio: $message")
+                // Ainda entrando: tenta o próximo provedor da cadeia em vez de ficar mudo.
+                if (_state.value.status == CallStatus.Connecting && failover("projectclub")) return@post
                 _state.update { it.copy(error = message) }
             }
         }
@@ -145,6 +147,7 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
                     reason == Constants.CONNECTION_CHANGED_TOKEN_EXPIRED ||
                     reason == Constants.CONNECTION_CHANGED_BANNED_BY_SERVER
                 reportFailure("conexão falhou (motivo $reason)")
+                if (_state.value.status != CallStatus.Connected && _state.value.provider == "agora") { main.post { failover("agora") }; return }
                 _state.update {
                     it.copy(error = if (credencial) "O serviço de voz recusou a conexão (configuração do servidor de chamadas). A equipe já foi avisada."
                     else "A conexão da chamada caiu.")
@@ -185,13 +188,14 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
 
         override fun onTokenPrivilegeWillExpire(token: String?) {
             val ch = _state.value.channelName ?: return
-            scope.launch { runCatching { repo.voiceJoin(ch).agora?.token }.getOrNull()?.let { engine?.renewToken(it) } }
+            scope.launch { runCatching { repo.voiceJoin(ch, listOf("agora")).agora?.token }.getOrNull()?.let { engine?.renewToken(it) } }
         }
 
         override fun onError(err: Int) {
             Log.w(TAG, "erro da Agora: $err")
             if (err == Constants.ERR_INVALID_TOKEN || err == Constants.ERR_TOKEN_EXPIRED || err == Constants.ERR_INVALID_APP_ID) {
                 reportFailure("erro $err")
+                if (_state.value.status == CallStatus.Connecting) { main.post { failover("agora") }; return }
                 _state.update { it.copy(error = "O serviço de voz recusou a conexão (configuração do servidor de chamadas). A equipe já foi avisada.") }
             }
         }
@@ -220,13 +224,36 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
         return e
     }
 
+    /** Provedores que já falharam nesta entrada (não tenta de novo). */
+    private val failedProviders = mutableSetOf<String>()
+
+    /**
+     * O provedor [failed] não conectou: tenta o próximo da cadeia (servidor
+     * próprio ↔ Agora). Devolve false quando não sobrou nenhum pra tentar.
+     */
+    private fun failover(failed: String): Boolean {
+        val s = _state.value
+        val ch = s.channelName ?: return false
+        failedProviders += failed
+        val left = listOf("projectclub", "agora").filter { it !in failedProviders }
+        if (left.isEmpty()) return false
+        if (failed == "projectclub") own?.leave() else engine?.leaveChannel()
+        scope.launch { connect(ch, s.title, left) }
+        return true
+    }
+
     /** Entra numa call (canal de voz ou "dm:<conversa>"). */
     suspend fun join(channelName: String, title: String) {
         val cur = _state.value
         if (cur.channelName == channelName && cur.status != CallStatus.Idle) return
         if (cur.channelName != null) leave()
+        failedProviders.clear()
+        connect(channelName, title, listOf("projectclub", "agora"))
+    }
+
+    private suspend fun connect(channelName: String, title: String, ready: List<String>) {
         _state.value = CallState(channelName = channelName, title = title, status = CallStatus.Connecting)
-        val res = try { repo.voiceJoin(channelName) } catch (e: Exception) {
+        val res = try { repo.voiceJoin(channelName, ready) } catch (e: Exception) {
             _state.value = CallState(error = e.message ?: "Não deu pra entrar na chamada."); return
         }
         if (res.provider == "projectclub" && res.projectclub != null) {
@@ -265,6 +292,7 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
         val code = e.joinChannelWithUserAccount(creds.token, channelName, myId, opts)
         if (code < 0) {
             reportFailure("join devolveu $code")
+            if (failover("agora")) return
             CallService.stop(context)
             _state.value = CallState(error = "Não deu pra entrar na chamada (código $code).")
         }

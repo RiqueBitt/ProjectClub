@@ -90,7 +90,17 @@ async function getJoin(req, res, next) {
       disabled = Array.from(new Set([...(disabled || []), ...unsupported]));
     }
     const decided = decision.decideProvider({ ...state, disabled });
-    const provider = decided.provider;
+    let provider = decided.provider;
+    // Todo mundo da MESMA call no MESMO provedor: se já tem gente na sala
+    // num provedor que este aparelho também sabe usar (e que está ok), entra
+    // nele — senão o PC e o celular ficavam em "salas" diferentes e um não
+    // ouvia o outro (ex.: equipe trocou a cadeia no meio da call).
+    const sticky = await overrideStore.getRoomProvider(channelName);
+    if (sticky && sticky !== provider && providers.isAvailable(sticky) && !(disabled || []).includes(sticky)) {
+      const someoneIn = (await require('../services/voiceRoomStore').roomSize(channelName).catch(() => 0)) > 0;
+      if (someoneIn) provider = sticky;
+    }
+    overrideStore.setRoomProvider(channelName, provider);
     const userId = req.user.id;
     const name = req.user.displayName || req.user.username || String(userId);
     const room = roomNameFor(channelName);
