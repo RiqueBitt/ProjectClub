@@ -117,7 +117,7 @@ export default function EconomyPage({ initialTab = 'geral' }) {
   // Temporada do mês (passe de missões).
   const [season, setSeason] = useState(null);
   const [seasonBusy, setSeasonBusy] = useState('');
-  const refreshSeason = useCallback(() => getMissionSeason().then(setSeason).catch(() => {}), []);
+  const refreshSeason = useCallback(() => getMissionSeason().then((d) => setSeason(Array.isArray(d?.tiers) ? d : null)).catch(() => {}), []);
   useEffect(() => { refreshSeason(); }, [refreshSeason]);
   const seasonReady = season ? season.tiers.filter((t) => t.unlocked && (!t.claimedFree || (season.isSupporter && !t.claimedPlus))).length : 0;
   const claimSeason = async (level, track) => {
