@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -288,10 +289,14 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                     item(key = "actions") {
                         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             if (isMe) {
-                                PillButton("Editar perfil", { nav.editProfile() }, Modifier.fillMaxWidth(), icon = Icons.Outlined.Edit)
+                                val st = profileStyleOf(u.profileStyle)
+                                if (st != null) StyledButton(st, "Editar perfil", { nav.editProfile() }, Modifier.fillMaxWidth(), icon = Icons.Outlined.Edit)
+                                else PillButton("Editar perfil", { nav.editProfile() }, Modifier.fillMaxWidth(), icon = Icons.Outlined.Edit)
                                 GhostButton("Biblioteca de jogos", { nav.games("me") }, Modifier.fillMaxWidth(), icon = Icons.Outlined.SportsEsports)
                             } else {
-                                PillButton("Mensagem", { nav.dmWith(userId) }, Modifier.fillMaxWidth(), icon = Icons.Outlined.ChatBubbleOutline, enabled = !blocked)
+                                val st = profileStyleOf(u.profileStyle)
+                                if (st != null && !blocked) StyledButton(st, "Mensagem", { nav.dmWith(userId) }, Modifier.fillMaxWidth(), icon = Icons.Outlined.ChatBubbleOutline)
+                                else PillButton("Mensagem", { nav.dmWith(userId) }, Modifier.fillMaxWidth(), icon = Icons.Outlined.ChatBubbleOutline, enabled = !blocked)
                                 GhostButton("Jogos", { nav.games(userId) }, Modifier.fillMaxWidth(), icon = Icons.Outlined.SportsEsports)
                                 Row(
                                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -502,7 +507,12 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
 @Composable
 private fun ProfileHeader(u: ProfileUser, status: String, birthday: Boolean) {
     val user = remember(u) { u.toUser() }
-    Column(Modifier.fillMaxWidth()) {
+    // Estilo de perfil da Loja: o topo inteiro (banner, nome, status) muda.
+    val st = profileStyleOf(u.profileStyle)
+    val shopFont = rememberShopFont(u.profileFont)
+    Box(Modifier.fillMaxWidth().then(if (st != null) Modifier.clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)).background(st.bg) else Modifier)) {
+    Column(Modifier.fillMaxWidth().then(if (st != null) Modifier.padding(bottom = 16.dp) else Modifier)) {
+        st?.let { StyleTitleBar(it) }
         Box(Modifier.fillMaxWidth().height(206.dp)) {
             // Banner: imagem, ou a cor do perfil, ou o azul padrão.
             val bannerMod = Modifier.fillMaxWidth().height(150.dp)
@@ -514,15 +524,15 @@ private fun ProfileHeader(u: ProfileUser, status: String, birthday: Boolean) {
                 ),
             ) {
                 if (bannerUrl != null) {
-                    AsyncImage(model = bannerUrl, contentDescription = null, imageLoader = com.projectclub.android.ui.store.rememberAnimatedImageLoader(), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    AsyncImage(model = bannerUrl, contentDescription = null, imageLoader = com.projectclub.android.ui.store.rememberAnimatedImageLoader(), contentScale = ContentScale.Crop, colorFilter = st?.bannerFilter, modifier = Modifier.fillMaxSize())
                 }
                 Box(
                     Modifier.fillMaxWidth().height(60.dp).align(Alignment.BottomCenter)
-                        .background(Brush.verticalGradient(listOf(Color.Transparent, PC.Bg.copy(alpha = 0.7f)))),
+                        .background(Brush.verticalGradient(listOf(Color.Transparent, (st?.base ?: PC.Bg).copy(alpha = 0.7f)))),
                 )
             }
             Box(
-                Modifier.padding(start = 16.dp, top = 94.dp).size(112.dp).background(PC.Bg, CircleShape),
+                Modifier.padding(start = 16.dp, top = 94.dp).size(112.dp).background(st?.base ?: PC.Bg, if (st?.key == "win2000" || st?.key == "nostalgia") RoundedCornerShape(2.dp) else CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Avatar(user, 102.dp, status)
@@ -533,7 +543,7 @@ private fun ProfileHeader(u: ProfileUser, status: String, birthday: Boolean) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    u.name, style = MaterialTheme.typography.headlineSmall, color = PC.Header,
+                    u.name, style = nameTextStyle(MaterialTheme.typography.headlineSmall.copy(color = PC.Header), st, shopFont),
                     maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                 )
                 if (birthday) { Spacer(Modifier.width(8.dp)); Text("🎂", fontSize = 22.sp) }
@@ -542,7 +552,7 @@ private fun ProfileHeader(u: ProfileUser, status: String, birthday: Boolean) {
                 append("@").append(u.username ?: "")
                 u.pronouns?.takeIf { it.isNotBlank() }?.let { append(" · ").append(it) }
             }
-            Text(handle, color = PC.Muted, style = MaterialTheme.typography.bodyMedium)
+            Text(handle, color = st?.muted ?: PC.Muted, style = MaterialTheme.typography.bodyMedium, fontFamily = st?.bodyFont)
             Spacer(Modifier.height(10.dp))
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -559,7 +569,9 @@ private fun ProfileHeader(u: ProfileUser, status: String, birthday: Boolean) {
             if (!u.customStatus.isNullOrBlank() || !u.customStatusEmoji.isNullOrBlank()) {
                 Spacer(Modifier.height(10.dp))
                 Row(
-                    Modifier.clip(RoundedCornerShape(16.dp)).background(PC.Surface2).padding(horizontal = 14.dp, vertical = 9.dp),
+                    Modifier.clip(RoundedCornerShape(st?.corner ?: 16.dp)).background(st?.panel ?: PC.Surface2)
+                        .then(if (st != null) Modifier.border(1.dp, st.panelBorder, RoundedCornerShape(st.corner)) else Modifier)
+                        .padding(horizontal = 14.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     u.customStatusEmoji?.takeIf { it.isNotBlank() }?.let {
@@ -567,11 +579,13 @@ private fun ProfileHeader(u: ProfileUser, status: String, birthday: Boolean) {
                         Spacer(Modifier.width(8.dp))
                     }
                     u.customStatus?.takeIf { it.isNotBlank() }?.let {
-                        Text(it, color = PC.Text, style = MaterialTheme.typography.bodyMedium)
+                        Text(it, color = st?.text ?: PC.Text, style = MaterialTheme.typography.bodyMedium, fontFamily = st?.bodyFont)
                     }
                 }
             }
         }
+    }
+    st?.let { StyleOverlay(it, Modifier.matchParentSize()) }
     }
 }
 

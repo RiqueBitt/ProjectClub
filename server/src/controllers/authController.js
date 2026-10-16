@@ -81,6 +81,7 @@ async function ensurePublicId(userId, existingPublicId) {
 const PUBLIC_USER_FIELDS = {
   id: true, publicId: true, username: true, displayName: true, avatarUrl: true, avatarDecoration: true,
   profileEffect: true, // efeito de perfil da loja (perfil/miniperfil)
+  profileFont: true, profileStyle: true, // fonte do nome e estilo de perfil da Loja
   bannerUrl: true, miniProfileBannerUrl: true, bannerFraming: true, miniProfileBannerFraming: true, bio: true, pronouns: true, profileColor: true, status: true,
   customStatus: true, customStatusEmoji: true, customStatusExpiresAt: true,
   createdAt: true, platformRole: true,

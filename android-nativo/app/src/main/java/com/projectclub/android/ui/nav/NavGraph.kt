@@ -83,6 +83,7 @@ class AppNavigator(
     override fun activity() = go("activity")
     override fun search() = go("search")
     override fun games(userId: String) = go("games/$userId")
+    override fun trades() = go("trades")
 
     override fun link(pathOrUrl: String) {
         val raw = pathOrUrl.trim()
@@ -98,7 +99,7 @@ class AppNavigator(
             "conversations" -> seg.getOrNull(1)?.let { room(Room(conversationId = it)) } ?: onHome(2)
             "dms", "amigos" -> onHome(2)
             "notifications" -> onHome(3)
-            "loja" -> store(tab)
+            "loja" -> if (tab == "trocas") trades() else store(tab)
             "economia", "missoes" -> economy()
             "progresso" -> progress(tab)
             "rank" -> progress("ranks")
@@ -166,5 +167,6 @@ fun NavGraphBuilder.featureScreens(repo: Repository, nav: AppNav) {
     screen("settings") { com.projectclub.android.ui.settings.SettingsScreen(repo, nav) }
     screen("activity") { com.projectclub.android.ui.activity.ActivityScreen(repo, nav) }
     screen("search") { com.projectclub.android.ui.activity.SearchScreen(repo, nav) }
+    screen("trades") { com.projectclub.android.ui.store.TradesScreen(repo, nav) }
     screen("games/{id}", listOf("id")) { com.projectclub.android.ui.activity.GamesScreen(repo, nav, it?.getString("id").orEmpty()) }
 }

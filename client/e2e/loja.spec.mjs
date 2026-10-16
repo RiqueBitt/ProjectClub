@@ -23,15 +23,16 @@ test.beforeEach(async ({ page }) => {
 
 const shot = async (page, name, info) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${info.project.name}-${name}.png` }); };
 
-test('loja abre clara, com vitrine, filtros, detalhe e confirmação', async ({ page }, info) => {
+test('loja segue o tema, com vitrine, filtros, detalhe e confirmação', async ({ page }, info) => {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/loja');
   await expect(page.locator('.shop-room .room-card').first()).toBeVisible();
 
-  // Sala branca só na Loja: fundo claro aqui, tema escuro no resto.
+  // A Loja segue o tema escolhido: no tema escuro o fundo é escuro.
   const bg = await page.locator('.shop-room').evaluate((el) => getComputedStyle(el).backgroundColor);
-  expect(bg).toBe('rgb(244, 245, 247)');
+  const [r, g, b] = bg.match(/\d+/g).map(Number);
+  expect((r + g + b) / 3).toBeLessThan(80);
   expect(await page.evaluate(() => document.documentElement.dataset.theme || document.body.dataset.theme || '')).not.toBe('light');
 
   await expect(page.getByRole('heading', { name: 'Novidades' })).toBeVisible();

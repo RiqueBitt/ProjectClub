@@ -17,6 +17,7 @@ import PendantIcon from './PendantIcon.jsx';
 import { nameStyleProps, nameStyleClassName } from '../utils/nameStyle';
 import BannerImage from './ProfileBanner.jsx';
 import ProfileEffectOverlay from './ProfileEffectOverlay.jsx';
+import { profileStyleClass } from '../utils/profileStyle';
 import { cssZoom } from '../utils/cssZoom';
 
 // Quantos cargos mostrar no popup compacto (a bio é limitada por CSS a 3
@@ -314,7 +315,7 @@ export default function MiniProfileCard() {
   return (
     <div
       ref={cardRef}
-      className={`mini-profile-card ${user ? 'mini-profile-accented' : ''} ${closing ? 'mini-profile-closing' : ''}`}
+      className={`mini-profile-card ${user ? 'mini-profile-accented' : ''} ${closing ? 'mini-profile-closing' : ''}${profileStyleClass(user)}`}
       style={{
         position: 'fixed', top: pos?.top ?? -9999, left: pos?.left ?? -9999,
         visibility: pos ? 'visible' : 'hidden',

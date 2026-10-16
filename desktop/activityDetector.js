@@ -52,9 +52,14 @@ async function listProcessNames(platform) {
 const VISIBLE_CACHE_MS = 6000;
 let visibleAt = 0;
 let visibleSet = null; // Set de nomes (minúsculo, sem .exe) | null = não sabe
+// Alguma janela visível é de um jogo instalado pela Steam (pasta
+// steamapps/common)? Usado pra não contar o jogo que a Steam diz estar
+// rodando quando ele está só em segundo plano.
+let visibleSteamGame = false;
+const STEAM_GAME_PATH = /[\\/]steamapps[\\/]common[\\/]/i;
 const WIN_VISIBLE_PS_SCRIPT = `
 Add-Type -Namespace PcWin -Name U -MemberDefinition '[DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h); [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);'
-Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and [PcWin.U]::IsWindowVisible($_.MainWindowHandle) -and -not [PcWin.U]::IsIconic($_.MainWindowHandle) } | ForEach-Object { $_.ProcessName }
+Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and [PcWin.U]::IsWindowVisible($_.MainWindowHandle) -and -not [PcWin.U]::IsIconic($_.MainWindowHandle) } | ForEach-Object { $_.ProcessName + '|' + $_.Path }
 `;
 let visibleScriptWritten = false;
 
@@ -68,8 +73,10 @@ async function listVisibleWindowProcesses(platform) {
       const scriptPath = path.join(os.tmpdir(), 'project-club-visible-windows.ps1');
       if (!visibleScriptWritten || !fs.existsSync(scriptPath)) { fs.writeFileSync(scriptPath, WIN_VISIBLE_PS_SCRIPT, 'utf-8'); visibleScriptWritten = true; }
       const out = await run(`powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${scriptPath}"`);
-      if (!out.trim()) { visibleSet = null; return null; }
-      visibleSet = new Set(out.split('\n').map((l) => l.trim().toLowerCase()).filter(Boolean));
+      if (!out.trim()) { visibleSet = null; visibleSteamGame = false; return null; }
+      const rows = out.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => { const i = l.indexOf('|'); return i < 0 ? [l, ''] : [l.slice(0, i), l.slice(i + 1)]; });
+      visibleSet = new Set(rows.map(([n]) => n.toLowerCase()));
+      visibleSteamGame = rows.some(([, p]) => STEAM_GAME_PATH.test(p));
       return visibleSet;
     }
     // Linux: janelas mapeadas (wmctrl lista PID por janela; xdotool como reserva).
@@ -80,12 +87,15 @@ async function listVisibleWindowProcesses(platform) {
       const xd = await run('xdotool search --onlyvisible --name "" getwindowpid %@ 2>/dev/null');
       pids = xd.split('\n').map((l) => l.trim()).filter((x) => /^\d+$/.test(x)).join(' ');
     }
-    if (!pids) { visibleSet = null; return null; }
-    const comm = await run(`ps -o comm= -p ${pids.split(' ').slice(0, 200).join(',')}`);
+    if (!pids) { visibleSet = null; visibleSteamGame = false; return null; }
+    const list = pids.split(' ').slice(0, 200);
+    const comm = await run(`ps -o comm= -p ${list.join(',')}`);
     visibleSet = new Set(comm.split('\n').map((l) => l.trim().toLowerCase()).filter(Boolean));
+    visibleSteamGame = list.some((pid) => { try { return STEAM_GAME_PATH.test(fs.readlinkSync(`/proc/${pid}/exe`)); } catch { return false; } });
     return visibleSet;
   } catch {
     visibleSet = null;
+    visibleSteamGame = false;
     return null;
   }
 }
@@ -400,7 +410,18 @@ function startActivityDetection(onChange) {
     try {
       const found = await detectGameOrApp(platform);
       const { app, spotifyRunning } = found;
-      const game = mergeSteamGame(found.game, await runningSteamAppId(platform, found.steamRunning), steamDetector.installedGameName);
+      // BUG CORRIGIDO ("jogo em segundo plano contando como jogando"): a
+      // Steam continua dizendo qual jogo está rodando mesmo com ele
+      // minimizado/escondido — e isso recriava o jogo que o filtro de
+      // janela visível tinha acabado de tirar. Agora o AppID da Steam só
+      // vale se tiver uma janela visível de um jogo da Steam na tela (ou
+      // se não deu pra saber quais janelas estão abertas).
+      let steamAppId = await runningSteamAppId(platform, found.steamRunning);
+      if (steamAppId) {
+        const visible = await listVisibleWindowProcesses(platform);
+        if (visible && !visibleSteamGame && !(found.game && found.game.steamAppId === steamAppId)) steamAppId = null;
+      }
+      const game = mergeSteamGame(found.game, steamAppId, steamDetector.installedGameName);
       spotifyOpen = !!spotifyRunning;
       let activity = null;
       // Item pedido: "prioridade app -> música -> jogos" (trocado da

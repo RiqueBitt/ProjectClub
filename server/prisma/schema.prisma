@@ -299,6 +299,12 @@ model User {
   // Efeito de perfil equipado (loja) — JSON {id,url,d:{s,x,y,o,t},m:{...}}
   // copiado do ProfileEffect (d = computador, m = celular).
   profileEffect       String?   @db.Text
+  // Fonte do nome comprada na Loja (JSON {id, family, url}). Quando existe,
+  // vale no lugar de profileNameFont (as fontes grátis de sempre).
+  profileFont         String?   @db.Text
+  // Estilo de perfil da Loja (chave: win2000, anime, terror, bugado,
+  // nostalgia...) — muda o visual do perfil e do miniperfil inteiros.
+  profileStyle        String?   @db.VarChar(32)
   dailyStreak         Int       @default(0)
   lastDailyAt         DateTime?
 
@@ -2824,6 +2830,11 @@ model AvatarDecoration {
   exclusiveTier    String? @db.VarChar(16)
   discountEligible Boolean @default(true)
   description      String? @db.Text
+  // Item limitado (igual aos "limiteds" do Roblox): estoque total; null =
+  // ilimitado. Cada cópia vendida ganha um número de série (#1, #2...).
+  // Limitados podem ser trocados entre jogadores (ItemTrade).
+  stock            Int?
+  sold             Int     @default(0)
   owners     UserAvatarDecoration[]
   // Coleção da loja (opcional).
   collectionId String?
@@ -2837,6 +2848,7 @@ model UserAvatarDecoration {
   userId       String
   decorationId String
   decoration   AvatarDecoration @relation(fields: [decorationId], references: [id], onDelete: Cascade)
+  serial       Int?
   createdAt    DateTime         @default(now())
 
   @@unique([userId, decorationId])
@@ -2866,6 +2878,7 @@ model ShopCollection {
   createdAt        DateTime @default(now())
   decorations      AvatarDecoration[]
   effects          ProfileEffect[]
+  items            ShopItem[]
 }
 
 // Efeito de perfil: imagem animada transparente (GIF/WebP/APNG) que passa
@@ -2893,6 +2906,8 @@ model ProfileEffect {
   exclusiveTier    String? @db.VarChar(16)
   discountEligible Boolean @default(true)
   description      String? @db.Text
+  stock            Int?
+  sold             Int     @default(0)
   collectionId String?
   collection   ShopCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
   owners       UserProfileEffect[]
@@ -2905,10 +2920,73 @@ model UserProfileEffect {
   userId    String
   effectId  String
   effect    ProfileEffect @relation(fields: [effectId], references: [id], onDelete: Cascade)
+  serial    Int?
   createdAt DateTime      @default(now())
 
   @@unique([userId, effectId])
   @@index([effectId])
+}
+
+// Itens da Loja de tipos novos (mesmo fluxo de compra das molduras):
+// FONT  = fonte do nome no perfil (data: {family, url?} — família do Google
+//         Fonts ou arquivo de fonte enviado).
+// STYLE = estilo de perfil/miniperfil (data: {style: "win2000"...}).
+// "key" marca os itens embutidos (os 5 estilos), criados desativados pra
+// staff ativar, escolher coleção e preço no painel.
+model ShopItem {
+  id               String   @id @default(uuid())
+  kind             String   @db.VarChar(16)
+  key              String?  @unique @db.VarChar(64)
+  name             String
+  description      String?  @db.Text
+  previewUrl       String?  @db.Text
+  data             String?  @db.Text
+  priceCoins       Int?
+  priceGems        Int?
+  active           Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  featured         Boolean  @default(false)
+  exclusiveTier    String?  @db.VarChar(16)
+  discountEligible Boolean  @default(true)
+  stock            Int?
+  sold             Int      @default(0)
+  collectionId     String?
+  collection       ShopCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  owners           UserShopItem[]
+  createdAt        DateTime @default(now())
+
+  @@index([kind])
+  @@index([collectionId])
+}
+
+model UserShopItem {
+  id        String   @id @default(uuid())
+  userId    String
+  itemId    String
+  item      ShopItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  serial    Int?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, itemId])
+  @@index([itemId])
+}
+
+// Troca de itens limitados entre jogadores. offer = o que quem propõe dá;
+// request = o que pede em troca. Formato: {items:[{kind,id}], coins, gems}.
+// Na hora de aceitar, tudo é conferido de novo e trocado de uma vez só.
+model ItemTrade {
+  id          String    @id @default(uuid())
+  fromUserId  String
+  toUserId    String
+  status      String    @default("PENDING") @db.VarChar(16)
+  offer       String    @db.Text
+  request     String    @db.Text
+  message     String?   @db.VarChar(300)
+  createdAt   DateTime  @default(now())
+  respondedAt DateTime?
+
+  @@index([fromUserId, status])
+  @@index([toUserId, status])
 }
 
 // Histórico de concessões/remoções de Assinante e Super Assinante. actorId

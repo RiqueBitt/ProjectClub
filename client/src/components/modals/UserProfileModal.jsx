@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { profileStyleClass } from '../../utils/profileStyle';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useLiveRefresh, sameData } from '../../utils/liveRefresh';
@@ -1261,7 +1262,7 @@ export default function UserProfileModal() {
   return (
     <div className="modal-overlay profile-fullscreen-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) closeProfile(); }}>
       <div
-        className={`modal-box profile-modal-box profile-modal-fullscreen ${user ? 'profile-modal-accented' : ''}`}
+        className={`modal-box profile-modal-box profile-modal-fullscreen ${user ? 'profile-modal-accented' : ''}${profileStyleClass(user)}`}
         style={user ? {
           ...profileAccentVars(user.profileColor),
           // Item pedido: "opacidade das caixas das colunas" — 0-100

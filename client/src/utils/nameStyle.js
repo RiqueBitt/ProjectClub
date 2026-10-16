@@ -1,3 +1,4 @@
+import { shopFontFamily } from './shopFont';
 // Cosmetic display-name styling — font/color/effect the person picked in
 // Configurações > Meu Perfil (see schema.prisma's User.profileNameFont).
 // Applied wherever a display name shows (profile page, chat messages,
@@ -169,7 +170,9 @@ export function nameStyleClassName(user, { fullEffect = false } = {}) {
 }
 
 export function nameStyleProps(user, { fullEffect = false } = {}) {
-  const font = FONT_FAMILY[user?.profileNameFont] || undefined;
+  // Fonte comprada na Loja vale no lugar da fonte grátis escolhida.
+  const shopFont = shopFontFamily(user?.profileFont);
+  const font = shopFont || FONT_FAMILY[user?.profileNameFont] || undefined;
   const color = user?.profileNameColor || '#F2894D';
   const color2 = user?.profileNameColor2 || '#FFFFFF';
   const effect = user?.profileNameEffect || 'SOLID';
@@ -180,7 +183,7 @@ export function nameStyleProps(user, { fullEffect = false } = {}) {
   // essas partes bem pronunciadas). Line-height só um pouco maior dá
   // espaço de sobra sem afetar o alinhamento vertical em nenhum lugar
   // que já funcionava bem antes.
-  const scale = FONT_SIZE_SCALE[user?.profileNameFont];
+  const scale = shopFont ? undefined : FONT_SIZE_SCALE[user?.profileNameFont];
   const base = { fontFamily: font, ...(font ? { lineHeight: 1.3 } : {}), ...(scale ? { fontSize: `${scale}em` } : {}) };
 
   // Item pedido (revisado): "volta com as cores no nomes no chat" — a

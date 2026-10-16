@@ -88,52 +88,59 @@ fun MiniProfileSheet(
     val isMe = userId == me?.id
     val friendship = friends.firstOrNull { it.user.id == userId }
     val loader = rememberAnimatedImageLoader()
+    // Estilo de perfil e fonte do nome da Loja (null = visual padrão).
+    val st = profileStyleOf(u?.profileStyle)
+    val shopFont = rememberShopFont(u?.profileFont)
+    val panelShape = RoundedCornerShape(st?.corner ?: 16.dp)
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = PC.Surface, dragHandle = null) {
-        Box(Modifier.fillMaxWidth()) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = st?.base ?: PC.Surface, dragHandle = null) {
+        Box(Modifier.fillMaxWidth().then(if (st != null) Modifier.background(st.bg) else Modifier)) {
             Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
+                st?.let { StyleTitleBar(it) }
                 // Banner (imagem, ou a cor do perfil)
                 Box(Modifier.fillMaxWidth().height(118.dp).background(bannerBrush(u?.profileColor))) {
                     Config.media(u?.bannerUrl)?.let {
-                        AsyncImage(it, null, imageLoader = loader, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+                        AsyncImage(it, null, imageLoader = loader, contentScale = ContentScale.Crop, colorFilter = st?.bannerFilter, modifier = Modifier.matchParentSize())
                     }
                     Box(Modifier.align(Alignment.TopCenter).padding(top = 8.dp).size(width = 40.dp, height = 4.dp).clip(CircleShape).background(Color(0x99FFFFFF)))
                 }
                 Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp)) {
-                    Box(Modifier.offset(y = (-44).dp).size(96.dp).clip(CircleShape).background(PC.Surface), contentAlignment = Alignment.Center) {
+                    Box(Modifier.offset(y = (-44).dp).size(96.dp).clip(if (st?.key == "win2000" || st?.key == "nostalgia") RoundedCornerShape(2.dp) else CircleShape).background(if (st?.key == "nostalgia") Color.White else st?.base ?: PC.Surface), contentAlignment = Alignment.Center) {
                         Avatar(u, 82.dp, presence[userId] ?: if (isMe) "ONLINE" else "OFFLINE")
                     }
                 }
                 Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 0.dp).offset(y = (-34).dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(u?.name ?: "…", style = MaterialTheme.typography.headlineSmall, color = PC.Header, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        Text(u?.name ?: "…", style = nameTextStyle(MaterialTheme.typography.headlineSmall.copy(color = PC.Header), st, shopFont), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                         profile?.user?.tagEmoji?.let { Spacer(Modifier.width(6.dp)); Text(it) }
                     }
-                    Text(listOfNotNull(u?.username?.let { "@$it" }, u?.pronouns?.takeIf { it.isNotBlank() }).joinToString(" · "), color = PC.Muted, style = MaterialTheme.typography.bodyMedium)
+                    Text(listOfNotNull(u?.username?.let { "@$it" }, u?.pronouns?.takeIf { it.isNotBlank() }).joinToString(" · "), color = st?.muted ?: PC.Muted, style = MaterialTheme.typography.bodyMedium, fontFamily = st?.bodyFont)
                     u?.customStatus?.takeIf { it.isNotBlank() }?.let {
                         Spacer(Modifier.height(10.dp))
                         Text(
-                            listOfNotNull(u.customStatusEmoji, it).joinToString(" "), color = PC.Text,
-                            modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(PC.Surface2).padding(horizontal = 12.dp, vertical = 8.dp),
+                            listOfNotNull(u.customStatusEmoji, it).joinToString(" "), color = st?.text ?: PC.Text, fontFamily = st?.bodyFont,
+                            modifier = Modifier.clip(RoundedCornerShape(st?.corner ?: 12.dp)).background(st?.panel ?: PC.Surface2)
+                                .then(if (st != null) Modifier.border(1.dp, st.panelBorder, RoundedCornerShape(st.corner)) else Modifier)
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
                         )
                     }
                     Spacer(Modifier.height(12.dp))
-                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(PC.Surface2).border(1.dp, PC.Line, RoundedCornerShape(16.dp)).padding(14.dp)) {
+                    Column(Modifier.fillMaxWidth().clip(panelShape).background(st?.panel ?: PC.Surface2).border(if (st?.key == "anime") 2.dp else 1.dp, st?.panelBorder ?: PC.Line, panelShape).padding(14.dp)) {
                         if (profile == null && !failed) {
                             CircularProgressIndicator(Modifier.size(22.dp).align(Alignment.CenterHorizontally), strokeWidth = 2.dp, color = PC.Brand)
                         } else {
                             val bio = u?.bio?.takeIf { it.isNotBlank() }
-                            Text("SOBRE MIM", color = PC.Muted, style = MaterialTheme.typography.labelSmall)
+                            Text(if (st?.key == "anime") "✦ SOBRE MIM" else "SOBRE MIM", color = st?.header ?: PC.Muted, style = MaterialTheme.typography.labelSmall, fontFamily = st?.bodyFont)
                             Spacer(Modifier.height(4.dp))
-                            Text(bio ?: if (profile?.profileRestricted == true) "Perfil privado." else "Sem bio ainda.", color = if (bio != null) PC.Text else PC.Muted, maxLines = 6, overflow = TextOverflow.Ellipsis)
+                            Text(bio ?: if (profile?.profileRestricted == true) "Perfil privado." else "Sem bio ainda.", color = if (bio != null) st?.text ?: PC.Text else st?.muted ?: PC.Muted, fontFamily = st?.bodyFont, maxLines = 6, overflow = TextOverflow.Ellipsis)
                             val badges = profile?.badges.orEmpty()
                             if (badges.isNotEmpty()) {
                                 Spacer(Modifier.height(12.dp))
-                                Text("INSÍGNIAS", color = PC.Muted, style = MaterialTheme.typography.labelSmall)
+                                Text("INSÍGNIAS", color = st?.header ?: PC.Muted, style = MaterialTheme.typography.labelSmall, fontFamily = st?.bodyFont)
                                 Spacer(Modifier.height(6.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     badges.take(8).forEach { b ->
-                                        Box(Modifier.size(30.dp).clip(RoundedCornerShape(8.dp)).background(PC.Surface3), contentAlignment = Alignment.Center) {
+                                        Box(Modifier.size(30.dp).clip(RoundedCornerShape(st?.corner?.coerceAtMost(8.dp) ?: 8.dp)).background(st?.base ?: PC.Surface3), contentAlignment = Alignment.Center) {
                                             val img = Config.media(b.iconUrl)
                                             if (img != null) AsyncImage(img, b.name, imageLoader = loader, modifier = Modifier.size(22.dp))
                                             else Text(b.icon ?: "🏅")
@@ -143,30 +150,35 @@ fun MiniProfileSheet(
                             }
                             profile?.user?.accountLevel?.let { lvl ->
                                 Spacer(Modifier.height(10.dp))
-                                Text("Nível $lvl", color = PC.Brand, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                                Text("Nível $lvl", color = st?.accent ?: PC.Brand, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
-                    info?.let { Spacer(Modifier.height(8.dp)); Text(it, color = PC.Green, style = MaterialTheme.typography.bodySmall) }
+                    info?.let { Spacer(Modifier.height(8.dp)); Text(it, color = st?.accent ?: PC.Green, style = MaterialTheme.typography.bodySmall) }
                     Spacer(Modifier.height(14.dp))
                     if (!isMe) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            PillButton("Mensagem", { onMessage(userId) }, Modifier.weight(1f), icon = Icons.AutoMirrored.Outlined.Chat)
+                            if (st != null) StyledButton(st, "Mensagem", { onMessage(userId) }, Modifier.weight(1f), icon = Icons.AutoMirrored.Outlined.Chat)
+                            else PillButton("Mensagem", { onMessage(userId) }, Modifier.weight(1f), icon = Icons.AutoMirrored.Outlined.Chat)
                             if (friendship == null && u?.username != null) {
-                                GhostButton("Adicionar", {
+                                val add: () -> Unit = {
                                     scope.launch {
                                         runCatching { repo.api.postIgnore("/api/friends/request", buildJsonObject { put("username", u.username) }); repo.loadFriends() }
                                             .onSuccess { info = "Pedido de amizade enviado." }.onFailure { info = it.message }
                                     }
-                                }, Modifier.weight(1f), icon = Icons.Outlined.PersonAdd)
+                                }
+                                if (st != null) StyledButton(st, "Adicionar", add, Modifier.weight(1f), icon = Icons.Outlined.PersonAdd)
+                                else GhostButton("Adicionar", add, Modifier.weight(1f), icon = Icons.Outlined.PersonAdd)
                             }
                         }
                         Spacer(Modifier.height(10.dp))
                     }
-                    GhostButton("Ver perfil completo", { onFullProfile(userId) }, Modifier.fillMaxWidth(), icon = Icons.Outlined.Person)
+                    if (st != null) StyledButton(st, "Ver perfil completo", { onFullProfile(userId) }, Modifier.fillMaxWidth(), icon = Icons.Outlined.Person)
+                    else GhostButton("Ver perfil completo", { onFullProfile(userId) }, Modifier.fillMaxWidth(), icon = Icons.Outlined.Person)
                     Spacer(Modifier.height(4.dp))
                 }
             }
+            st?.let { StyleOverlay(it, Modifier.matchParentSize()) }
             ProfileEffectOverlay(u?.profileEffect, Modifier.matchParentSize())
         }
     }

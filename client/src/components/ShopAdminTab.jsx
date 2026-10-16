@@ -9,13 +9,14 @@ import {
   adminListCollections, adminSaveCollection, adminDeleteCollection,
 } from '../api/decorations';
 import ShopItemFlagsFields, { FLAGS_EMPTY, flagsFrom } from './shop/ShopItemFlagsFields.jsx';
+import { FontsAdmin, StylesAdmin, GrantItemsAdmin } from './shop/ShopAdminExtras.jsx';
 import '../styles/shop.css';
 import '../styles/contentx.css';
 
 const errMsg = (e) => e?.response?.data?.error || 'Não deu certo, tente de novo.';
 const priceText = (i) => [i.priceCoins != null && `${i.priceCoins} moedas`, i.priceGems != null && `${i.priceGems} gemas`].filter(Boolean).join(' · ') || 'Sem preço';
 
-// Painel da staff → Loja: sub-abas Molduras / Efeitos de perfil / Coleções.
+// Painel da staff → Loja: Molduras / Efeitos / Fontes / Estilos / Coleções / Dar item.
 export default function ShopAdminTab() {
   const [sub, setSub] = useState('molduras');
   const [collections, setCollections] = useState([]);
@@ -24,7 +25,7 @@ export default function ShopAdminTab() {
   return (
     <div className="deco-admin">
       <div className="shopadm-tabs" role="tablist">
-        {[['molduras', 'Molduras', 'frame'], ['efeitos', 'Efeitos de perfil', 'sparkles'], ['colecoes', 'Coleções', 'grid']].map(([id, label, icon]) => (
+        {[['molduras', 'Molduras', 'frame'], ['efeitos', 'Efeitos de perfil', 'sparkles'], ['fontes', 'Fontes do nome', 'font'], ['estilos', 'Estilos de perfil', 'palette'], ['colecoes', 'Coleções', 'grid'], ['dar', 'Dar item', 'gift']].map(([id, label, icon]) => (
           <button key={id} type="button" role="tab" aria-selected={sub === id} className={sub === id ? 'active' : ''} onClick={() => setSub(id)}>
             <Ico name={icon} size={15} /> {label}
           </button>
@@ -32,7 +33,10 @@ export default function ShopAdminTab() {
       </div>
       {sub === 'molduras' && <DecorationsAdminTab collections={collections} />}
       {sub === 'efeitos' && <EffectsAdmin collections={collections} />}
+      {sub === 'fontes' && <FontsAdmin collections={collections} />}
+      {sub === 'estilos' && <StylesAdmin collections={collections} />}
       {sub === 'colecoes' && <CollectionsAdmin items={collections} reload={loadCollections} />}
+      {sub === 'dar' && <GrantItemsAdmin />}
     </div>
   );
 }
@@ -347,7 +351,7 @@ function CollectionsAdmin({ items, reload }) {
                 <div className="txt"><strong>{c.name}</strong></div>
               </div>
               <div className="shop-card-info">
-                <small>{(c._count?.decorations || 0) + (c._count?.effects || 0)} itens{c.featured ? ' · em destaque' : ''}{c.active ? '' : ' · oculta'}</small>
+                <small>{(c._count?.decorations || 0) + (c._count?.effects || 0) + (c._count?.items || 0)} itens{c.featured ? ' · em destaque' : ''}{c.active ? '' : ' · oculta'}</small>
                 <div className="shop-prices">
                   <button type="button" className="shop-btn ghost" onClick={() => start(c)}>Editar</button>
                   <button type="button" className="shop-btn danger" onClick={() => remove(c)}>Excluir</button>
