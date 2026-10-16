@@ -524,7 +524,7 @@ export const unregisterPushToken = (token) => api.post('/push/unregister', { tok
 // --- Agora.io (chamadas de voz) ---
 export const getAgoraToken = (channelName) => api.get('/agora/token', { params: { channelName } }).then((r) => r.data);
 
-// --- Cadeia de provedores de voz (Agora → LiveKit → ... → Jitsi) ---
+// --- Cadeia de provedores de voz (servidor próprio → Agora → Stream) ---
 // Fluxo de entrada: checa acesso e devolve o provedor ATIVO + credenciais
 // dele. `clientReady` diz ao servidor quais provedores este navegador sabe
 // usar hoje (os demais a cadeia pula só para este join).

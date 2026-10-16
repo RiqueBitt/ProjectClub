@@ -8,7 +8,7 @@ import { getPreferredMicId, setPreferredMicId } from '../utils/audioDevices';
 import { getVoiceJoin } from '../api/endpoints';
 import { getVoicePref, onVoicePrefsChange, setVoicePref, makeReactionRateLimiter, isValidReaction } from '../utils/voicePrefs';
 import { buildScreenShareConfig, collectScreenPublishTracks } from '../utils/screenShareTracks';
-// Cadeia de provedores de mídia (Agora → LiveKit → ... → Jitsi) — ver
+// Cadeia de provedores de mídia (servidor próprio → Agora → Stream) — ver
 // client/src/voice/* e docs/voice-fallback.md. O caminho do Agora é embutido
 // aqui; os DEMAIS engines (LiveKit completo, Jitsi reserva, e os pendentes)
 // vêm do engineRegistry e só são baixados/instanciados quando a cadeia os
@@ -281,7 +281,7 @@ export function VoiceProvider({ children }) {
   // ancorado mesmo quando a tela da chamada não está montada (pra o áudio
   // continuar em segundo plano/janelinha). O VoiceChannelView "pega
   // emprestado" o nó enquanto está aberto (attachJitsi/detachJitsi).
-  const jitsiEngineRef = useRef(null);
+  const mediaEngineRef = useRef(null);
   const jitsiHostRef = useRef(null);
   const [jitsiNode, setJitsiNode] = useState(null);
   // Mídia LOCAL (câmera/tela) quando o provedor ativo é um engine de grade
@@ -350,13 +350,13 @@ export function VoiceProvider({ children }) {
   // VoiceChannelView chama isto pra trazer o iframe pra dentro do palco
   // visível enquanto a tela está aberta, e devolvê-lo ao host ao sair.
   const attachJitsi = useCallback((container) => {
-    const engine = jitsiEngineRef.current;
+    const engine = mediaEngineRef.current;
     if (!engine || !container) return;
     const node = engine.getNode();
     if (node && node.parentNode !== container) container.appendChild(node);
   }, []);
   const detachJitsi = useCallback(() => {
-    const engine = jitsiEngineRef.current;
+    const engine = mediaEngineRef.current;
     const host = jitsiHostRef.current;
     if (!engine || !host) return;
     const node = engine.getNode();
@@ -559,10 +559,10 @@ export function VoiceProvider({ children }) {
 
   // Desmonta o engine do Jitsi, se houver (sair da chamada ou trocar de
   // provedor). Seguro chamar mesmo quando não tem nenhum.
-  const teardownJitsi = useCallback(() => {
-    const engine = jitsiEngineRef.current;
+  const teardownEngine = useCallback(() => {
+    const engine = mediaEngineRef.current;
     if (!engine) return;
-    jitsiEngineRef.current = null;
+    mediaEngineRef.current = null;
     setJitsiNode(null);
     setEngineLocalCameraStream(null);
     setEngineLocalScreenStream(null);
@@ -599,14 +599,13 @@ export function VoiceProvider({ children }) {
   // (identidade = nosso userId). `isSwitch` = troca no meio de uma chamada já
   // ativa (não toca som de entrada, não zera o cronômetro, preserva o mudo).
   const connectEngine = useCallback(async ({ serverId, channelId, channelName, channelType, provider: prov, creds, isSwitch, quiet = false }) => {
-    const okCreds = (prov === 'jitsi' && creds?.domain && creds?.room)
-      || (prov === 'livekit' && creds?.url && creds?.token)
-      || (prov !== 'jitsi' && prov !== 'livekit'); // pendentes: o engine falha claro no join
+    const okCreds = (prov === 'projectclub' && creds?.url && creds?.token)
+      || (prov === 'getstream' && creds?.apiKey && creds?.token && creds?.callId);
     if (!creds || !okCreds) {
-      useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
+      if (!quiet) useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
       return false;
     }
-    teardownJitsi();
+    teardownEngine();
     const callbacks = {
       onLeft: () => { leaveChannelRef.current?.(); },
       onReconnecting: (attempt) => { setReconnecting({ attempt }); setNetQuality({}); },
@@ -656,7 +655,7 @@ export function VoiceProvider({ children }) {
       useStore.getState().pushNotice('Este provedor de voz ainda não está disponível neste aparelho.');
       return false;
     }
-    jitsiEngineRef.current = engine;
+    mediaEngineRef.current = engine;
     // Jitsi tem um nó de iframe que ancoramos no host persistente; LiveKit e
     // os demais não têm nó (getNode()=null) — a grade é a nossa.
     const node = engine.getNode?.();
@@ -667,11 +666,7 @@ export function VoiceProvider({ children }) {
     setEngineLocalScreenStream(null);
     try {
       const startMuted = isSwitch ? mutedRef.current : false;
-      if (prov === 'jitsi') {
-        await engine.join({ room: creds.room, jwt: creds.jwt, displayName: user?.displayName, startMuted });
-      } else if (prov === 'livekit') {
-        await engine.join({ url: creds.url, token: creds.token, userId: user?.id, displayName: user?.displayName, startMuted });
-      } else {
+      {
         await engine.join({
           ...creds, userId: user?.id, displayName: user?.displayName, startMuted,
           // Redutor de ruído (RNNoise) no engine próprio — mesma preferência
@@ -681,13 +676,13 @@ export function VoiceProvider({ children }) {
       }
     } catch (err) {
       console.error(`[voz] Falha ao conectar no provedor ${prov}:`, err);
-      if (jitsiEngineRef.current === engine) teardownJitsi();
+      if (mediaEngineRef.current === engine) teardownEngine();
       const msg = reportVoiceFailure(prov, err);
       if (!quiet) useStore.getState().pushNotice(msg);
       return false;
     }
     if (!isSwitch && joiningChannelIdRef.current !== channelId) {
-      if (jitsiEngineRef.current === engine) teardownJitsi();
+      if (mediaEngineRef.current === engine) teardownEngine();
       return false;
     }
     const next = { serverId, channelId, channelName, channelType };
@@ -705,7 +700,7 @@ export function VoiceProvider({ children }) {
     // independe do provedor de mídia.
     socket?.emit('voice:join', { channelId });
     return true;
-  }, [socket, user?.id, user?.displayName, broadcastState, ensureJitsiHost, teardownJitsi]);
+  }, [socket, user?.id, user?.displayName, broadcastState, ensureJitsiHost, teardownEngine]);
   const connectEngineRef = useRef(connectEngine);
   useEffect(() => { connectEngineRef.current = connectEngine; }, [connectEngine]);
 
@@ -762,7 +757,7 @@ export function VoiceProvider({ children }) {
       if (callRef.current) await leaveChannel();
 
       // Garante que não sobrou nenhum engine (Jitsi/LiveKit) vivo.
-      teardownJitsi();
+      teardownEngine();
 
       // Pergunta ao servidor QUAL provedor da cadeia usar + as credenciais
       // dele, já com a checagem de acesso do canal. `CLIENT_READY_PROVIDERS`
@@ -791,7 +786,7 @@ export function VoiceProvider({ children }) {
         // ---- Provedores com engine próprio (servidor próprio, LiveKit, Jitsi...) ----
         if (creds.provider !== 'agora') {
           const ok = await connectEngine({ serverId, channelId, channelName, channelType, provider: creds.provider, creds: creds[creds.provider], isSwitch: false, quiet: !last });
-          if (ok || joiningChannelIdRef.current !== channelId || creds.provider === 'jitsi') return;
+          if (ok || joiningChannelIdRef.current !== channelId) return;
           ready = ready.filter((p) => p !== creds.provider);
           continue;
         }
@@ -863,7 +858,7 @@ export function VoiceProvider({ children }) {
       if (joiningChannelIdRef.current === channelId) joiningChannelIdRef.current = null;
       setJoiningChannelId((c) => (c === channelId ? null : c));
     }
-  }, [socket, connectMicrophone, setupAgoraClient, user?.id, connectEngine, teardownJitsi]);
+  }, [socket, connectMicrophone, setupAgoraClient, user?.id, connectEngine, teardownEngine]);
 
   const answerIncomingCall = useCallback(() => {
     if (!incomingCall) return;
@@ -895,7 +890,7 @@ export function VoiceProvider({ children }) {
     setScreenQuality(null);
     // Modo reserva: encerra a conferência do Jitsi (se era esse o provedor)
     // e volta o provedor pro padrão pra próxima chamada.
-    teardownJitsi();
+    teardownEngine();
     setProvider('agora');
     setReconnectingProvider(false);
 
@@ -944,7 +939,7 @@ export function VoiceProvider({ children }) {
     try {
       if (client) await client.leave();
     } catch { /* já desconectado — ok */ }
-  }, [socket, teardownJitsi]);
+  }, [socket, teardownEngine]);
   useEffect(() => { leaveChannelRef.current = leaveChannel; }, [leaveChannel]);
 
   const toggleMute = useCallback(async () => {
@@ -959,7 +954,7 @@ export function VoiceProvider({ children }) {
     // pelo engine; o estado real volta pelo callback onSelfMute (que atualiza
     // `muted` + avisa os outros via socket).
     if (activeProviderRef.current !== 'agora') {
-      jitsiEngineRef.current?.setMicEnabled(mutedRef.current); // mutado agora => quero desmutar
+      mediaEngineRef.current?.setMicEnabled(mutedRef.current); // mutado agora => quero desmutar
       return;
     }
     if (muted && !localAudioTrackRef.current) {
@@ -996,7 +991,7 @@ export function VoiceProvider({ children }) {
       // zera pelo estado `deafened`) — degrada graciosamente pra "mutar o
       // próprio microfone", mantendo o estado coerente. Ver docs/voice-fallback.md.
       if (activeProviderRef.current !== 'agora') {
-        if (next) { jitsiEngineRef.current?.setMicEnabled(false); setMuted(true); }
+        if (next) { mediaEngineRef.current?.setMicEnabled(false); setMuted(true); }
         broadcastState({ deafened: next, muted: next ? true : muted });
         return next;
       }
@@ -1027,7 +1022,7 @@ export function VoiceProvider({ children }) {
     // MediaStream local, que guardamos pro auto-retrato. O estado `cameraOn`
     // volta pelo callback onSelfCamera.
     if (activeProviderRef.current !== 'agora') {
-      const stream = await jitsiEngineRef.current?.setCamera(!cameraOn);
+      const stream = await mediaEngineRef.current?.setCamera(!cameraOn);
       setEngineLocalCameraStream(stream || null);
       return;
     }
@@ -1067,7 +1062,7 @@ export function VoiceProvider({ children }) {
       // MediaStream local, guardado pro auto-retrato. O estado volta por
       // onSelfScreen.
       if (activeProviderRef.current !== 'agora') {
-        const stream = await jitsiEngineRef.current?.setScreen(!screenOn, options);
+        const stream = await mediaEngineRef.current?.setScreen(!screenOn, options);
         setEngineLocalScreenStream(stream || null);
         return;
       }
@@ -1227,7 +1222,7 @@ export function VoiceProvider({ children }) {
   const setNoiseReduction = useCallback(async (on) => {
     setVoicePref('noiseReduction', !!on);
     // Engine próprio (mediasoup): liga/desliga o RNNoise na hora.
-    const engine = jitsiEngineRef.current;
+    const engine = mediaEngineRef.current;
     if (engine && typeof engine.setNoiseSuppression === 'function') {
       try { await engine.setNoiseSuppression(!!on); } catch (err) { console.error('[voz] redutor de ruído:', err); }
       return;
@@ -1624,22 +1619,33 @@ export function VoiceProvider({ children }) {
       if (callRef.current?.channelId !== current.channelId) return;
       switchingRef.current = true;
       setReconnectingProvider(true);
+      const previous = activeProviderRef.current;
+      // Sobe a mídia de um provedor no MESMO canal (sem sair da sala).
+      const connectTo = async (prov, c) => (prov === 'agora'
+        ? connectAgoraMediaRef.current?.({ channelId: current.channelId, agora: c.agora, isSwitch: true })
+        : connectEngineRef.current?.({
+          serverId: current.serverId, channelId: current.channelId,
+          channelName: current.channelName, channelType: current.channelType,
+          provider: prov, creds: c[prov], isSwitch: true, quiet: true,
+        }));
       try {
         // Derruba a mídia atual (preserva sessão/socket/roster/UI).
-        if (activeProviderRef.current === 'agora') await teardownAgoraMedia();
-        else teardownJitsi();
+        if (previous === 'agora') await teardownAgoraMedia();
+        else teardownEngine();
         // Sobe o novo provedor.
-        let ok = false;
-        if (target === 'agora') {
-          ok = await connectAgoraMediaRef.current?.({ channelId: current.channelId, agora: creds.agora, isSwitch: true });
-        } else {
-          ok = await connectEngineRef.current?.({
-            serverId: current.serverId, channelId: current.channelId,
-            channelName: current.channelName, channelType: current.channelType,
-            provider: target, creds: creds[target], isSwitch: true,
-          });
-        }
-        if (ok && target !== PRIMARY_PROVIDER) {
+        let ok = !!(await connectTo(target, creds));
+        // Não conectou: tenta os outros da cadeia (começando pelo de antes),
+        // pra chamada nunca ficar muda no meio de uma troca.
+        if (!ok) {
+          const order = [previous, ...CLIENT_READY_PROVIDERS].filter((p, i, a) => p && p !== target && a.indexOf(p) === i);
+          for (const prov of order) {
+            if (callRef.current?.channelId !== current.channelId) break;
+            const again = await getVoiceJoin(current.channelId, [prov]).then(readJoinResponse).catch(() => null);
+            if (!again || again.provider !== prov) continue;
+            if (await connectTo(prov, again)) { ok = true; break; }
+          }
+          if (!ok) useStore.getState().pushNotice('A conexão de voz caiu e não deu pra reconectar. Saia e entre na chamada de novo.');
+        } else if (target !== PRIMARY_PROVIDER && target !== 'projectclub') {
           useStore.getState().pushNotice('A chamada trocou de provedor para continuar funcionando (modo reserva).');
         }
       } catch (err) {
@@ -1652,7 +1658,7 @@ export function VoiceProvider({ children }) {
     runSwapCheckRef.current = check;
     const iv = setInterval(check, POLL_MS);
     return () => { cancelled = true; runSwapCheckRef.current = null; clearInterval(iv); };
-  }, [callChannelId, teardownAgoraMedia, teardownJitsi]);
+  }, [callChannelId, teardownAgoraMedia, teardownEngine]);
 
   // Reação imediata ao aviso do servidor (a equipe mexeu na cadeia): refaz a
   // checagem na hora em vez de esperar o próximo poll.

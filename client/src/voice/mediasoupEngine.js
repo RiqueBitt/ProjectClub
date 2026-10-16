@@ -1,5 +1,5 @@
 // Engine do servidor de mídia PRÓPRIO do Project Club (media-server/,
-// mediasoup). Mesma "interface" do LiveKitEngine, então encaixa na MESMA
+// mediasoup). Mesma "interface" do engine do Stream, então encaixa na MESMA
 // grade/AudioSink do VoiceContext: entrega faixas por participante, e a
 // identidade na sala é o nosso userId (o servidor assina o JWT com
 // sub = userId, ver services/voiceTokens.js mintProjectClub).
@@ -32,9 +32,9 @@
 // setNoiseSuppression(on) liga/desliga na hora sem recriar a faixa.
 //
 // Carregado de forma preguiçosa (o SDK só baixa quando entra numa call por
-// este provedor), igual Agora/LiveKit — não entra no bundle inicial.
+// este provedor), igual Agora/Stream — não entra no bundle inicial.
 //
-// Callbacks (iguais ao LiveKitEngine, mais os de reconexão/qualidade):
+// Callbacks (iguais ao engine do Stream, mais os de reconexão/qualidade):
 //   onJoined(myId), onLeft()
 //   onReconnecting(attempt), onReconnected()
 //   onNetQuality({ uid: quality }), onRtt(ms)

@@ -137,16 +137,6 @@ function createApp() {
   // `crossOriginEmbedderPolicy` stays off for the same reason — this
   // legitimately embeds cross-origin media.
   //
-  // Jitsi (provedor de voz RESERVA, ver services/jitsiProvider.js): quando
-  // o Agora passa do limite mensal, a chamada conecta por uma conferência
-  // embutida do Jitsi (IFrame External API). Pra isso o navegador precisa
-  // poder: BAIXAR o external_api.js do domínio do Jitsi (script-src) e
-  // EMBUTIR a página de reunião num iframe (frame-src). O domínio é
-  // configurável (JITSI_DOMAIN, padrão meet.jit.si) — liberamos o padrão e,
-  // se configurado outro, ele também. A mídia em si roda DENTRO do iframe
-  // (origem do próprio Jitsi), então não precisa de connect-src nosso.
-  const jitsiHost = (process.env.JITSI_DOMAIN || 'meet.jit.si').replace(/^https?:\/\//, '').replace(/\/+$/, '');
-  const jitsiOrigins = [...new Set([`https://${jitsiHost}`, 'https://meet.jit.si', 'https://8x8.vc'])];
   app.use(helmet({
     crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: {
@@ -156,8 +146,8 @@ function createApp() {
         // servido em /ruffle) roda em WebAssembly. Só libera compilar WASM,
         // não libera eval() de JS.
         // YouTube "Assistir juntos" (chamada de voz): IFrame Player API.
-        scriptSrc: ["'self'", "'wasm-unsafe-eval'", 'https://www.youtube.com', ...jitsiOrigins],
-        scriptSrcElem: ["'self'", 'https://www.youtube.com', ...jitsiOrigins],
+        scriptSrc: ["'self'", "'wasm-unsafe-eval'", 'https://www.youtube.com'],
+        scriptSrcElem: ["'self'", 'https://www.youtube.com'],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         // Item pedido (migração pro Agora.io): o SDK deles roda parte do
         // processamento de áudio (cancelamento de eco etc) dentro de Web
@@ -186,12 +176,15 @@ function createApp() {
           // sinalização/relatório de qualidade via HTTPS; a mídia em si
           // (áudio) já passa pelos wss:/turn: genéricos logo abaixo.
           'https://*.agora.io', 'https://*.sd-rtn.com',
+          // Stream (GetStream Video): coordenador (video.stream-io-api.com),
+          // SFUs e o "location hint" (*.stream-io-video.com).
+          'https://*.stream-io-api.com', 'https://*.stream-io-video.com', 'https://*.getstream.io',
           'wss:', 'ws:', 'stun:', 'turn:', 'turns:',
         ],
         // Navegador do Project Club no site (quando ligado em
         // config/features.js): páginas que PERMITEM ser abertas dentro de
         // outro site aparecem num iframe isolado. Desligado = só YouTube.
-        frameSrc: ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com', ...jitsiOrigins, ...(isFeatureEnabled('browser') ? ['https:'] : [])],
+        frameSrc: ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com', ...(isFeatureEnabled('browser') ? ['https:'] : [])],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         frameAncestors: ["'self'"],

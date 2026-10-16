@@ -3,7 +3,7 @@ import { getVoiceProviders, setVoiceOverride, toggleVoiceProvider, setVoiceUsage
 import { CLIENT_READY } from '../../voice/providerDecision';
 
 // Painel da equipe — "Chamadas / Provedores de voz" (item pedido).
-// Mostra um cartão por provedor da cadeia (Agora → LiveKit → ... → Jitsi):
+// Mostra um cartão por provedor da cadeia (servidor próprio → Agora → Stream):
 // status, barra de uso "X / Y min (Z%)", qual está ativo, e os controles de
 // forçar um provedor (override), voltar ao automático e ligar/desligar um
 // provedor na cadeia. Atualiza sozinho a cada 10s lendo /api/voice/provider.
@@ -214,7 +214,8 @@ export default function VoiceProvidersAdmin() {
               >
                 Forçar ativo
               </button>
-              {p.id !== 'jitsi' && (
+              {(
+
                 <button
                   type="button" className="btn"
                   onClick={() => doToggle(p.id, !p.disabled)}
@@ -230,7 +231,7 @@ export default function VoiceProvidersAdmin() {
       </div>
       <p style={{ fontSize: 12, color: '#72767d', marginTop: 14 }}>
         A cadeia usa cada provedor até o limite mensal gratuito e passa pro próximo automaticamente, sem derrubar ninguém.
-        Forçar um provedor ignora o limite dele. O Jitsi é o último recurso e não pode ser desativado.
+        Forçar um provedor ignora o limite dele. Pelo menos um provedor precisa ficar ligado; trocar ou desativar move as salas na hora, sem derrubar ninguém.
       </p>
     </div>
   );

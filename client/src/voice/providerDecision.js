@@ -2,14 +2,14 @@
 // Sem React, sem rede — fácil de testar (client/test/voice-provider.test.mjs).
 //
 // O servidor decide qual provedor de mídia usar numa CADEIA ordenada
-// (Agora → LiveKit → Stream → Daily → TRTC → Jitsi), passando pro próximo
-// quando um estoura o limite mensal gratuito dele. O cliente só obedece —
+// (servidor próprio → Agora → Stream), passando pro próximo quando um
+// estoura o limite mensal gratuito dele ou não conecta. O cliente só obedece —
 // mas nunca confia cegamente: se vier algo estranho, assume 'agora' como
 // padrão seguro (o caminho já testado em produção).
 
 // Ordem e rótulos espelhando o servidor (services/voiceProviders.js). O
 // servidor é a fonte da verdade; isto é só pra UI e pra escolher o engine.
-export const PROVIDER_ORDER = ['projectclub', 'agora', 'livekit', 'getstream', 'daily', 'trtc', 'jitsi'];
+export const PROVIDER_ORDER = ['projectclub', 'agora', 'getstream'];
 export const PRIMARY_PROVIDER = 'agora';
 
 // Lista completa de provedores válidos (inclui os 6 da cadeia). Mantida
@@ -19,27 +19,17 @@ export const PROVIDERS = PROVIDER_ORDER;
 export const PROVIDER_LABELS = {
   projectclub: 'Project Club',
   agora: 'Agora',
-  livekit: 'LiveKit',
   getstream: 'Stream',
-  daily: 'Daily',
-  trtc: 'TRTC',
-  jitsi: 'Jitsi',
 };
 
 // Quais provedores têm um engine de CLIENTE completo e pronto hoje.
-// agora: embutido no VoiceContext. livekit: engine completo (livekitEngine.js).
-// jitsi: fallback final via IFrame API (jitsiEngine.js). getstream/daily/trtc:
-// servidor pronto (token mintado + painel), engine de cliente ainda PENDENTE
-// (pendingEngines.js) — o cliente anuncia isso ao servidor (clientReady) e a
-// cadeia os pula automaticamente no navegador.
+// agora: embutido no VoiceContext. projectclub/getstream: engines próprios
+// (mediasoupEngine.js / getstreamEngine.js).
+// O cliente anuncia isso ao servidor (clientReady).
 export const CLIENT_READY = {
   projectclub: true,
   agora: true,
-  livekit: true,
-  jitsi: true,
-  getstream: false,
-  daily: false,
-  trtc: false,
+  getstream: true,
 };
 
 // Provedores que o cliente anuncia ao servidor como suportados
@@ -92,7 +82,7 @@ export function shouldSwitchProvider(currentProvider, recommendedProvider) {
 
 // Extrai e VALIDA as credenciais do provedor escolhido de uma resposta de
 // /api/voice/join. Devolve a base normalizada + as credenciais sob a chave do
-// provedor (ex.: { provider:'livekit', livekit:{ url, token, ... } }).
+// provedor (ex.: { provider:'getstream', getstream:{ apiKey, token, callId } }).
 export function readJoinResponse(data) {
   const base = normalizeProviderResponse(data);
   const d = data && typeof data === 'object' ? data : {};
@@ -101,12 +91,6 @@ export function readJoinResponse(data) {
     const a = d.agora && typeof d.agora === 'object' ? d.agora : null;
     const valid = a && typeof a.token === 'string' && typeof a.appId === 'string' && a.token && a.appId;
     return { ...base, agora: valid ? { token: a.token, appId: a.appId, uid: a.uid } : null };
-  }
-
-  if (base.provider === 'jitsi') {
-    const j = d.jitsi && typeof d.jitsi === 'object' ? d.jitsi : null;
-    const valid = j && typeof j.domain === 'string' && typeof j.room === 'string' && j.domain && j.room;
-    return { ...base, jitsi: valid ? { domain: j.domain, room: j.room, jwt: j.jwt || null } : null };
   }
 
   if (base.provider === 'projectclub') {
@@ -120,14 +104,11 @@ export function readJoinResponse(data) {
     };
   }
 
-  if (base.provider === 'livekit') {
-    const l = d.livekit && typeof d.livekit === 'object' ? d.livekit : null;
-    const valid = l && typeof l.url === 'string' && typeof l.token === 'string' && l.url && l.token;
-    return { ...base, livekit: valid ? { url: l.url, token: l.token, room: l.room || null, identity: l.identity || null } : null };
+  if (base.provider === 'getstream') {
+    const g = d.getstream && typeof d.getstream === 'object' ? d.getstream : null;
+    const valid = g && typeof g.apiKey === 'string' && typeof g.token === 'string' && g.apiKey && g.token && g.callId;
+    return { ...base, getstream: valid ? { apiKey: g.apiKey, token: g.token, userId: g.userId || null, callId: String(g.callId) } : null };
   }
 
-  // Provedores pendentes no cliente (getstream/daily/trtc): repassa as
-  // credenciais cruas sob a chave do provedor (o engine pendente decide).
-  const raw = d[base.provider] && typeof d[base.provider] === 'object' ? d[base.provider] : null;
-  return { ...base, [base.provider]: raw };
+  return { ...base, [base.provider]: null };
 }
