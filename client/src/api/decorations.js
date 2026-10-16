@@ -37,3 +37,28 @@ export const adminSaveCollection = (id, fields, files) => {
   return (id ? api.patch(`/decorations/admin/collections/${id}`, fd) : api.post('/decorations/admin/collections', fd)).then((r) => r.data);
 };
 export const adminDeleteCollection = (id) => api.delete(`/decorations/admin/collections/${id}`).then((r) => r.data);
+
+// Fontes do nome e estilos de perfil.
+export const buyFont = (id, currency, expectedPrice) => api.post(`/decorations/fonts/${id}/buy`, { currency, expectedPrice }).then((r) => r.data);
+export const equipFont = (id) => api.post('/decorations/fonts/equip', { id }).then((r) => r.data);
+export const buyStyle = (id, currency, expectedPrice) => api.post(`/decorations/styles/${id}/buy`, { currency, expectedPrice }).then((r) => r.data);
+export const equipStyle = (id) => api.post('/decorations/styles/equip', { id }).then((r) => r.data);
+
+// Itens limitados e trocas.
+export const getLimiteds = (userId = 'me') => api.get(`/decorations/limiteds/${encodeURIComponent(userId)}`).then((r) => r.data);
+export const getTrades = () => api.get('/decorations/trades').then((r) => r.data);
+export const createTrade = (body) => api.post('/decorations/trades', body).then((r) => r.data);
+export const acceptTrade = (id) => api.post(`/decorations/trades/${id}/accept`).then((r) => r.data);
+export const declineTrade = (id) => api.post(`/decorations/trades/${id}/decline`).then((r) => r.data);
+export const cancelTrade = (id) => api.post(`/decorations/trades/${id}/cancel`).then((r) => r.data);
+
+// Staff: fontes/estilos, catálogo completo e dar/tirar itens.
+export const adminListShopItems = (kind) => api.get('/decorations/admin/items', { params: { kind } }).then((r) => r.data);
+export const adminSaveShopItem = (id, fields, files) => {
+  const fd = toForm(fields, files);
+  return (id ? api.patch(`/decorations/admin/items/${id}`, fd) : api.post('/decorations/admin/items', fd)).then((r) => r.data);
+};
+export const adminDeleteShopItem = (id) => api.delete(`/decorations/admin/items/${id}`).then((r) => r.data);
+export const adminShopCatalog = () => api.get('/decorations/admin/catalog').then((r) => r.data);
+export const adminGrantItem = (body) => api.post('/decorations/admin/grant', body).then((r) => r.data);
+export const adminRevokeItem = (body) => api.delete('/decorations/admin/grant', { data: body }).then((r) => r.data);

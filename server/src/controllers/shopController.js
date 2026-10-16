@@ -47,6 +47,10 @@ function shapeCollection(c, now = Date.now()) {
   };
 }
 
+// Fonte equipada fica copiada em User.profileFont: {id, family, url}.
+const parseData = (raw) => { try { return raw ? JSON.parse(raw) : {}; } catch { return {}; } };
+const fontJson = (it) => { const d = parseData(it.data); return JSON.stringify({ id: it.id, family: d.family || null, url: d.url || null }); };
+const styleKeyOf = (it) => parseData(it.data).style || it.key || null;
 const idFromJson = (raw) => { try { return raw ? JSON.parse(raw).id || null : null; } catch { return null; } };
 
 const sup = require('../services/supporters');
@@ -56,16 +60,45 @@ const sendFail = (res, e) => res.status(e.status).json({ error: e.message, ...(e
 const noFunds = (currency) => fail(currency === 'gems' ? 'Gemas insuficientes.' : 'Moedas insuficientes.', 400, { code: 'INSUFFICIENT_FUNDS' });
 
 // Moldura e efeito usam o mesmo fluxo de compra; só mudam as tabelas.
+// font/style vivem na tabela genérica ShopItem (type = ShopItem.kind).
 const KINDS = {
   deco: {
-    label: 'moldura', item: 'avatarDecoration', own: 'userAvatarDecoration', fk: 'decorationId',
+    label: 'moldura', item: 'avatarDecoration', own: 'userAvatarDecoration', fk: 'decorationId', rel: 'decoration',
     uniq: (userId, id) => ({ userId_decorationId: { userId, decorationId: id } }),
   },
   effect: {
-    label: 'efeito', item: 'profileEffect', own: 'userProfileEffect', fk: 'effectId',
+    label: 'efeito', item: 'profileEffect', own: 'userProfileEffect', fk: 'effectId', rel: 'effect',
     uniq: (userId, id) => ({ userId_effectId: { userId, effectId: id } }),
   },
+  font: {
+    label: 'fonte', item: 'shopItem', own: 'userShopItem', fk: 'itemId', rel: 'item', type: 'FONT',
+    uniq: (userId, id) => ({ userId_itemId: { userId, itemId: id } }),
+  },
+  style: {
+    label: 'estilo', item: 'shopItem', own: 'userShopItem', fk: 'itemId', rel: 'item', type: 'STYLE',
+    uniq: (userId, id) => ({ userId_itemId: { userId, itemId: id } }),
+  },
 };
+const kindOf = (v) => (Object.prototype.hasOwnProperty.call(KINDS, v) ? v : null);
+// Busca o item do tipo certo (font/style dividem a tabela ShopItem).
+async function findItem(db, kind, id) {
+  const K = KINDS[kind];
+  const item = await db[K.item].findUnique({ where: { id: String(id || '') } });
+  if (!item || (K.type && item.kind !== K.type)) return null;
+  return item;
+}
+const isLimited = (item) => item?.stock !== null && item?.stock !== undefined;
+
+// Item limitado: reserva uma cópia do estoque dentro da transação e devolve
+// o número de série dela (#1, #2...). Esgotado = erro 409.
+async function claimStock(tx, kind, item) {
+  if (!isLimited(item)) return null;
+  const K = KINDS[kind];
+  const r = await tx[K.item].updateMany({ where: { id: item.id, sold: { lt: item.stock } }, data: { sold: { increment: 1 } } });
+  if (r.count === 0) throw fail('Esgotado! Esse item limitado não tem mais estoque.', 409, { code: 'SOLD_OUT' });
+  const fresh = await tx[K.item].findUnique({ where: { id: item.id }, select: { sold: true } });
+  return fresh.sold;
+}
 const tierOf = async (db, userId) => sup.normalizeTier((await db.user.findUnique({ where: { id: userId }, select: { supporterTier: true } }))?.supporterTier);
 
 // "expectedPrice" é o preço que a pessoa CONFIRMOU na tela. Se o servidor
@@ -84,23 +117,32 @@ async function shop(req, res, next) {
     const userId = req.user.id;
     const order = [{ sortOrder: 'asc' }, { createdAt: 'desc' }];
     const count = { _count: { select: { owners: true } } };
-    const [decorations, effects, collections, ownedD, ownedE, me] = await Promise.all([
+    const [decorations, effects, shopItems, collections, ownedD, ownedE, ownedI, me] = await Promise.all([
       prisma.avatarDecoration.findMany({ where: { active: true }, orderBy: order, include: count }),
       prisma.profileEffect.findMany({ where: { active: true }, orderBy: order, include: count }),
+      prisma.shopItem.findMany({ where: { active: true }, orderBy: order, include: count }),
       prisma.shopCollection.findMany({ where: { active: true }, orderBy: order }),
-      prisma.userAvatarDecoration.findMany({ where: { userId }, select: { decorationId: true } }),
-      prisma.userProfileEffect.findMany({ where: { userId }, select: { effectId: true } }),
-      prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true, avatarDecoration: true, profileEffect: true, supporterTier: true } }),
+      prisma.userAvatarDecoration.findMany({ where: { userId }, select: { decorationId: true, serial: true } }),
+      prisma.userProfileEffect.findMany({ where: { userId }, select: { effectId: true, serial: true } }),
+      prisma.userShopItem.findMany({ where: { userId }, select: { itemId: true, serial: true } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true, avatarDecoration: true, profileEffect: true, profileFont: true, profileStyle: true, supporterTier: true } }),
     ]);
     const tier = sup.normalizeTier(me?.supporterTier);
     const od = new Set(ownedD.map((o) => o.decorationId));
     const oe = new Set(ownedE.map((o) => o.effectId));
+    const oi = new Set(ownedI.map((o) => o.itemId));
+    const serials = new Map([...ownedD.map((o) => [o.decorationId, o.serial]), ...ownedE.map((o) => [o.effectId, o.serial]), ...ownedI.map((o) => [o.itemId, o.serial])]);
     const shape = (it, ownedSet) => {
       const { _count, ...rest } = it;
       const exclusive = sup.exclusiveOf(it);
       const viaTier = !!exclusive && sup.qualifiesFor(tier, exclusive);
+      const limited = isLimited(it);
       return {
         ...rest,
+        ...(it.data !== undefined ? { data: parseData(it.data) } : {}),
+        limited,
+        remaining: limited ? Math.max(0, it.stock - it.sold) : null,
+        serial: serials.get(it.id) ?? null,
         exclusiveTier: exclusive,
         owned: ownedSet.has(it.id) || viaTier,
         ownedVia: ownedSet.has(it.id) ? 'PURCHASE' : viaTier ? 'SUPPORTER' : null,
@@ -112,6 +154,8 @@ async function shop(req, res, next) {
     res.json({
       decorations: decorations.map((d) => shape(d, od)),
       effects: effects.map((e) => shape(e, oe)),
+      fonts: shopItems.filter((i) => i.kind === 'FONT').map((i) => shape(i, oi)),
+      styles: shopItems.filter((i) => i.kind === 'STYLE').map((i) => shape(i, oi)),
       collections: collections.map((c) => {
         const col = shapeCollection(c);
         return { ...col, pricing: { coins: sup.bundlePriceFor(c, 'coins', tier, col.offer), gems: sup.bundlePriceFor(c, 'gems', tier, col.offer) } };
@@ -120,6 +164,8 @@ async function shop(req, res, next) {
       supporter: sup.supporterInfo(tier),
       equippedId: idFromJson(me?.avatarDecoration),
       equippedEffectId: idFromJson(me?.profileEffect),
+      equippedFontId: idFromJson(me?.profileFont),
+      equippedStyle: me?.profileStyle || null,
     });
   } catch (err) { next(err); }
 }
@@ -130,7 +176,7 @@ async function buyItem(kind, req, res, next) {
   const K = KINDS[kind];
   try {
     const currency = req.body?.currency === 'gems' ? 'gems' : 'coins';
-    const item = await prisma[K.item].findUnique({ where: { id: req.params.id } });
+    const item = await findItem(prisma, kind, req.params.id);
     if (!item || !item.active) return res.status(404).json({ error: `${K.label[0].toUpperCase()}${K.label.slice(1)} não encontrado(a).` });
     if (sup.exclusiveOf(item)) return res.status(403).json({ error: `Item exclusivo de ${sup.TIER_LABEL[sup.exclusiveOf(item)]} — não é vendido, é liberado pelo apoio.`, code: 'EXCLUSIVE' });
     const userId = req.user.id;
@@ -148,8 +194,10 @@ async function buyItem(kind, req, res, next) {
           const r = await tx.user.updateMany({ where: { id: userId, [currency]: { gte: p.final } }, data: { [currency]: { decrement: p.final } } });
           if (r.count === 0) throw noFunds(currency);
         }
-        // UNIQUE(userId, itemId): compra repetida em paralelo desfaz tudo.
-        await tx[K.own].create({ data: { userId, [K.fk]: item.id } });
+        // UNIQUE(userId, itemId): compra repetida em paralelo desfaz tudo
+        // (inclusive a cópia do estoque reservada pelo limitado).
+        const serial = await claimStock(tx, kind, item);
+        await tx[K.own].create({ data: { userId, [K.fk]: item.id, serial } });
       });
     } catch (e) {
       if (e.status) return sendFail(res, e);
@@ -164,13 +212,15 @@ async function buyItem(kind, req, res, next) {
 }
 const buyEffect = (req, res, next) => buyItem('effect', req, res, next);
 const buyDecoration = (req, res, next) => buyItem('deco', req, res, next);
+const buyFont = (req, res, next) => buyItem('font', req, res, next);
+const buyStyle = (req, res, next) => buyItem('style', req, res, next);
 
 // Pode usar = comprou OU é exclusivo e a categoria de apoio libera.
 async function usableItem(kind, userId, id) {
   const K = KINDS[kind];
-  const own = await prisma[K.own].findUnique({ where: K.uniq(userId, id), include: { [kind === 'deco' ? 'decoration' : 'effect']: true } });
-  if (own) return own[kind === 'deco' ? 'decoration' : 'effect'];
-  const item = await prisma[K.item].findUnique({ where: { id } });
+  const own = await prisma[K.own].findUnique({ where: K.uniq(userId, id), include: { [K.rel]: true } });
+  if (own && (!K.type || own[K.rel]?.kind === K.type)) return own[K.rel];
+  const item = await findItem(prisma, kind, id);
   const req = sup.exclusiveOf(item);
   if (item && item.active && req && sup.qualifiesFor(await tierOf(prisma, userId), req)) return item;
   return null;
@@ -191,6 +241,38 @@ async function equipEffect(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Fonte do nome (null = volta pra fonte grátis escolhida no perfil).
+async function equipFont(req, res, next) {
+  try {
+    const id = req.body?.id || null;
+    let value = null;
+    if (id) {
+      const it = await usableItem('font', req.user.id, String(id));
+      if (!it) return res.status(403).json({ error: 'Você ainda não tem essa fonte.' });
+      value = fontJson(it);
+    }
+    const user = await prisma.user.update({ where: { id: req.user.id }, data: { profileFont: value }, select: SELF_USER_FIELDS });
+    await broadcastUserUpdate(req, user);
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+// Estilo de perfil/miniperfil (null = visual padrão).
+async function equipStyle(req, res, next) {
+  try {
+    const id = req.body?.id || null;
+    let value = null;
+    if (id) {
+      const it = await usableItem('style', req.user.id, String(id));
+      if (!it) return res.status(403).json({ error: 'Você ainda não tem esse estilo.' });
+      value = styleKeyOf(it);
+    }
+    const user = await prisma.user.update({ where: { id: req.user.id }, data: { profileStyle: value }, select: SELF_USER_FIELDS });
+    await broadcastUserUpdate(req, user);
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
 // Compra o pacote da coleção: tudo que a pessoa ainda não tem (exclusivos
 // de apoio ficam de fora — não são vendidos). Se o que falta custar menos
 // que o pacote (já tem parte), cobra o menor valor.
@@ -199,28 +281,34 @@ async function buyCollection(req, res, next) {
     const currency = req.body?.currency === 'gems' ? 'gems' : 'coins';
     const col = await prisma.shopCollection.findUnique({
       where: { id: req.params.id },
-      include: { decorations: { where: { active: true } }, effects: { where: { active: true } } },
+      include: { decorations: { where: { active: true } }, effects: { where: { active: true } }, items: { where: { active: true } } },
     });
     if (!col || !col.active) return res.status(404).json({ error: 'Coleção não encontrada.' });
     const userId = req.user.id;
-    const sellD = col.decorations.filter((d) => !sup.exclusiveOf(d));
-    const sellE = col.effects.filter((e) => !sup.exclusiveOf(e));
+    // Limitados ficam fora do pacote: são vendidos um a um (com estoque).
+    const sellable = (i) => !sup.exclusiveOf(i) && !isLimited(i);
+    const sellD = col.decorations.filter(sellable);
+    const sellE = col.effects.filter(sellable);
+    const sellI = col.items.filter(sellable);
     let paid = 0; let source = null;
     try {
       await prisma.$transaction(async (tx) => {
         const tier = await tierOf(tx, userId);
         const bundle = sup.bundlePriceFor(col, currency, tier, offerOf(col));
         if (bundle.final === null) throw fail('Essa coleção não vende pacote nessa moeda.');
-        const [od, oe] = await Promise.all([
+        const [od, oe, oi] = await Promise.all([
           tx.userAvatarDecoration.findMany({ where: { userId, decorationId: { in: sellD.map((d) => d.id) } }, select: { decorationId: true } }),
           tx.userProfileEffect.findMany({ where: { userId, effectId: { in: sellE.map((e) => e.id) } }, select: { effectId: true } }),
+          tx.userShopItem.findMany({ where: { userId, itemId: { in: sellI.map((i) => i.id) } }, select: { itemId: true } }),
         ]);
         const hasD = new Set(od.map((o) => o.decorationId));
         const hasE = new Set(oe.map((o) => o.effectId));
+        const hasI = new Set(oi.map((o) => o.itemId));
         const missD = sellD.filter((d) => !hasD.has(d.id));
         const missE = sellE.filter((e) => !hasE.has(e.id));
-        if (!missD.length && !missE.length) throw fail('Você já tem tudo dessa coleção.', 400, { code: 'ALREADY_OWNED' });
-        const missing = [...missD, ...missE];
+        const missI = sellI.filter((i) => !hasI.has(i.id));
+        if (!missD.length && !missE.length && !missI.length) throw fail('Você já tem tudo dessa coleção.', 400, { code: 'ALREADY_OWNED' });
+        const missing = [...missD, ...missE, ...missI];
         const each = missing.map((i) => sup.priceFor(i, currency, tier).final);
         const allPriced = each.every((v) => v !== null);
         const sum = each.reduce((a, v) => a + (v || 0), 0);
@@ -236,6 +324,7 @@ async function buyCollection(req, res, next) {
         // (inclusive o débito) — ninguém paga duas vezes.
         if (missD.length) await tx.userAvatarDecoration.createMany({ data: missD.map((d) => ({ userId, decorationId: d.id })) });
         if (missE.length) await tx.userProfileEffect.createMany({ data: missE.map((e) => ({ userId, effectId: e.id })) });
+        if (missI.length) await tx.userShopItem.createMany({ data: missI.map((i) => ({ userId, itemId: i.id })) });
       });
     } catch (e) {
       if (e.status) return sendFail(res, e);
@@ -285,6 +374,11 @@ function readShopFlags(b) {
   if (b.discountEligible !== undefined) data.discountEligible = bool(b.discountEligible);
   if (b.exclusiveTier !== undefined) data.exclusiveTier = b.exclusiveTier === 'SUBSCRIBER' || b.exclusiveTier === 'SUPER' ? b.exclusiveTier : null;
   if (b.description !== undefined) data.description = String(b.description).trim().slice(0, 400) || null;
+  // Estoque de item limitado: vazio/0 = ilimitado.
+  if (b.stock !== undefined) {
+    const n = parseInt(b.stock, 10);
+    data.stock = Number.isFinite(n) && n > 0 ? Math.min(1000000, n) : null;
+  }
   return data;
 }
 
@@ -312,6 +406,10 @@ async function adminUpdateEffect(req, res, next) {
   try {
     const data = readEffect(req.body || {});
     if (req.file) data.imageUrl = req.file.url;
+    if (data.stock != null) {
+      const prev = await prisma.profileEffect.findUnique({ where: { id: req.params.id }, select: { sold: true } });
+      if (prev && data.stock < prev.sold) data.stock = prev.sold;
+    }
     const item = await prisma.profileEffect.update({ where: { id: req.params.id }, data });
     await syncEquippedEffect(req, item);
     res.json({ item });
@@ -333,7 +431,7 @@ async function adminListCollections(req, res, next) {
   try {
     const items = await prisma.shopCollection.findMany({
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
-      include: { _count: { select: { decorations: true, effects: true } } },
+      include: { _count: { select: { decorations: true, effects: true, items: true } } },
     });
     res.json({ items });
   } catch (err) { next(err); }
@@ -418,7 +516,7 @@ async function purchaseHistory(req, res, next) {
 // Quem dá paga com a própria moeda; o amigo ganha o item e um aviso.
 async function giftItem(req, res, next) {
   try {
-    const kind = req.body?.kind === 'effect' ? 'effect' : req.body?.kind === 'deco' ? 'deco' : null;
+    const kind = kindOf(req.body?.kind);
     const currency = req.body?.currency === 'gems' ? 'gems' : 'coins';
     const toUserId = String(req.body?.toUserId || '');
     const note = String(req.body?.note || '').trim().slice(0, 140);
@@ -430,9 +528,8 @@ async function giftItem(req, res, next) {
       select: { id: true },
     });
     if (!friendship) return res.status(403).json({ error: 'Você só pode presentear amigos.' });
-    const item = kind === 'deco'
-      ? await prisma.avatarDecoration.findUnique({ where: { id: String(req.body?.id || '') } })
-      : await prisma.profileEffect.findUnique({ where: { id: String(req.body?.id || '') } });
+    const K = KINDS[kind];
+    const item = await findItem(prisma, kind, req.body?.id);
     if (!item || !item.active) return res.status(404).json({ error: 'Item não encontrado.' });
     if (sup.exclusiveOf(item)) return res.status(403).json({ error: 'Itens exclusivos de apoio não podem ser presenteados.', code: 'EXCLUSIVE' });
     let price = null;
@@ -443,9 +540,7 @@ async function giftItem(req, res, next) {
     if (!recipient) return res.status(404).json({ error: 'Amigo não encontrado.' });
     try {
       await prisma.$transaction(async (tx) => {
-        const already = kind === 'deco'
-          ? await tx.userAvatarDecoration.findUnique({ where: { userId_decorationId: { userId: toUserId, decorationId: item.id } } })
-          : await tx.userProfileEffect.findUnique({ where: { userId_effectId: { userId: toUserId, effectId: item.id } } });
+        const already = await tx[K.own].findUnique({ where: K.uniq(toUserId, item.id) });
         if (already) throw fail(`${recipient.displayName} já tem esse item.`, 400, { code: 'ALREADY_OWNED' });
         // Quem paga é quem dá: o desconto de Assinante dele vale aqui.
         const p = sup.priceFor(item, currency, await tierOf(tx, fromId));
@@ -456,15 +551,15 @@ async function giftItem(req, res, next) {
           const r = await tx.user.updateMany({ where: { id: fromId, [currency]: { gte: price } }, data: { [currency]: { decrement: price } } });
           if (r.count === 0) throw noFunds(currency);
         }
-        if (kind === 'deco') await tx.userAvatarDecoration.create({ data: { userId: toUserId, decorationId: item.id } });
-        else await tx.userProfileEffect.create({ data: { userId: toUserId, effectId: item.id } });
+        const serial = await claimStock(tx, kind, item);
+        await tx[K.own].create({ data: { userId: toUserId, [K.fk]: item.id, serial } });
       });
     } catch (e) {
       if (e.status) return sendFail(res, e);
       if (e.code === 'P2002') return res.status(400).json({ error: `${recipient.displayName} já tem esse item.`, code: 'ALREADY_OWNED' });
       throw e;
     }
-    const what = kind === 'deco' ? 'moldura' : 'efeito';
+    const what = K.label;
     if (price > 0) ledger().recordTransaction(fromId, { kind: 'GIFT', label: `Presente para ${recipient.displayName}: ${what} ${item.name || ''}`.trim(), [currency]: -price });
     await require('../services/notices').createNotice(req.app.get('io'), toUserId, {
       kind: 'GIFT',
@@ -480,7 +575,8 @@ async function giftItem(req, res, next) {
 
 module.exports = {
   purchaseHistory, giftItem, offerOf,
-  shop, buyEffect, buyDecoration, equipEffect, buyCollection, usableItem, KINDS,
+  shop, buyEffect, buyDecoration, buyFont, buyStyle, equipEffect, equipFont, equipStyle, buyCollection, usableItem, KINDS,
+  kindOf, findItem, isLimited, claimStock, fontJson, styleKeyOf, parseData,
   adminListEffects, adminCreateEffect, adminUpdateEffect, adminRemoveEffect,
   adminListCollections, adminCreateCollection, adminUpdateCollection, adminRemoveCollection,
   effectJson, readShopFlags,

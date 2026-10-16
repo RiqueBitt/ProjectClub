@@ -340,3 +340,27 @@
 .sup-history-line strong { color: var(--header-primary); margin-right: 4px; }
 .sup-history p { margin: 0; color: var(--text-normal); font-size: 13px; }
 @media (max-width: 860px) { .sup-grid { grid-template-columns: 1fr; } }
+
+/* Painel: fontes, estilos e "Dar item". */
+.shopadm-font-preview { display: flex; flex-direction: column; gap: 8px; padding: 18px; border-radius: 14px; background: var(--shop-dark); border: 1px solid var(--shop-line); }
+.shopadm-font-preview strong { font-size: 30px; color: var(--header-primary); line-height: 1.3; }
+.shopadm-font-preview small { font-size: 16px; color: var(--text-muted); }
+.shopadm-font-card { display: grid; place-items: center; min-height: 120px; font-size: 26px; color: var(--header-primary); padding: 8px; text-align: center; }
+.shopadm-grant { display: flex; flex-direction: column; gap: 12px; }
+.shopadm-grant-cols { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; }
+.shopadm-grant-cols section { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 14px; background: var(--bg-secondary); border: 1px solid var(--shop-line); min-width: 0; }
+.shopadm-grant-cols h4 { margin: 0; color: var(--header-primary); }
+.shopadm-grant-cols input, .shopadm-grant-cols select { height: 36px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-normal); font: inherit; min-width: 0; flex: 1; }
+.shopadm-grant-cols label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-muted); }
+.shopadm-grant-list { display: flex; flex-direction: column; gap: 4px; max-height: 420px; overflow-y: auto; }
+.shopadm-grant-list button, .shopadm-grant-users button { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--text-normal); font: inherit; text-align: left; cursor: pointer; }
+.shopadm-grant-list button:hover, .shopadm-grant-users button:hover { background: var(--bg-modifier-hover, rgba(255,255,255,.04)); }
+.shopadm-grant-list button.on, .shopadm-grant-users button.on { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 12%, transparent); }
+.shopadm-grant-art { width: 44px; height: 44px; flex-shrink: 0; display: grid; place-items: center; border-radius: 10px; background: var(--shop-dark); overflow: hidden; font-size: 20px; color: var(--header-primary); }
+.shopadm-grant-art img { width: 100%; height: 100%; object-fit: contain; }
+.shopadm-grant-name { display: flex; flex-direction: column; min-width: 0; }
+.shopadm-grant-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shopadm-grant-name small, .shopadm-grant-users small { color: var(--text-muted); }
+.shopadm-grant-users { display: flex; flex-direction: column; gap: 4px; }
+.shopadm-grant-summary { padding: 10px 12px; border-radius: 10px; background: var(--shop-dark); color: var(--text-normal); font-size: 13.5px; }
+@media (max-width: 860px) { .shopadm-grant-cols { grid-template-columns: 1fr; } }

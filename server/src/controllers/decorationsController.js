@@ -107,6 +107,10 @@ async function adminUpdate(req, res, next) {
   try {
     const data = readFields(req.body || {});
     if (req.file) data.imageUrl = req.file.url;
+    if (data.stock != null) {
+      const prev = await prisma.avatarDecoration.findUnique({ where: { id: req.params.id }, select: { sold: true } });
+      if (prev && data.stock < prev.sold) data.stock = prev.sold;
+    }
     const item = await prisma.avatarDecoration.update({ where: { id: req.params.id }, data });
     await syncEquipped(req, item);
     res.json({ item });

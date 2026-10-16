@@ -1,0 +1,364 @@
+/* =====================================================================
+   Estilos de perfil da Loja (User.profileStyle)
+   Mudam o visual inteiro do perfil completo, do miniperfil e da prévia
+   da Loja: fundo, seções, botões, barras, abas, fontes e detalhes.
+   Contêineres: .profile-modal-box, .mini-profile-card e .shop-mock (a
+   prévia), sempre com a classe .pstyle + .pstyle-<chave>.
+
+   Cada estilo só define variáveis + alguns enfeites próprios; o bloco
+   "base" aplica as variáveis nos elementos do perfil.
+   ===================================================================== */
+
+/* ---------- Base (vale pra todos os estilos) ---------- */
+.pstyle {
+  --header-primary: var(--ps-head);
+  --text-normal: var(--ps-text);
+  --text-muted: var(--ps-muted);
+  --pf-card-bg: var(--ps-section-bg);
+  --pf-card-border: var(--ps-section-border);
+  --pf-accent: var(--ps-accent);
+  --pf-accent-soft: color-mix(in srgb, var(--ps-accent) 20%, transparent);
+  --brand: var(--ps-accent);
+  background: var(--ps-bg) !important;
+  border-color: var(--ps-section-border) !important;
+  color: var(--ps-text);
+  font-family: var(--ps-font);
+  isolation: isolate;
+}
+.pstyle .mini-profile-body,
+.pstyle .profile-modal-body { background: transparent !important; }
+.pstyle .mini-profile-banner,
+.pstyle .profile-banner,
+.pstyle .shop-mock-banner { filter: var(--ps-banner-filter, none); }
+
+.pstyle .mini-profile-name,
+.pstyle .profile-display-name,
+.pstyle .shop-mock-body strong { color: var(--ps-head); font-family: var(--ps-name-font, inherit); }
+.pstyle .mini-profile-handle,
+.pstyle .profile-username,
+.pstyle .shop-mock-body small { color: var(--ps-muted) !important; }
+
+.pstyle .mini-profile-section,
+.pstyle .pf-card,
+.pstyle .pf-onepage-section,
+.pstyle .profile-section-body,
+.pstyle .shop-mock-lines {
+  background: var(--ps-section-bg) !important;
+  border: var(--ps-section-borderw, 1px) var(--ps-section-borderstyle, solid) var(--ps-section-border) !important;
+  border-radius: var(--ps-radius) !important;
+  box-shadow: var(--ps-section-shadow, none);
+}
+.pstyle .mini-profile-section { padding: 10px 12px; margin-top: 10px; }
+.pstyle .mini-profile-section-label,
+.pstyle .pf-card-title,
+.pstyle .pf-onepage-title { color: var(--ps-head) !important; font-family: var(--ps-title-font, inherit); }
+
+.pstyle .btn-primary,
+.pstyle .btn-secondary,
+.pstyle .pf-btn,
+.pstyle .pf-send,
+.pstyle .pf-stat-btn,
+.pstyle .profile-role-add {
+  background: var(--ps-btn-bg) !important;
+  color: var(--ps-btn-text) !important;
+  border: var(--ps-btn-border) !important;
+  border-radius: var(--ps-btn-radius) !important;
+  box-shadow: var(--ps-btn-shadow, none) !important;
+  font-family: var(--ps-btn-font, inherit);
+  text-shadow: none;
+}
+.pstyle .btn-primary:hover,
+.pstyle .pf-btn:hover { filter: brightness(1.08); }
+.pstyle .btn-primary:active,
+.pstyle .pf-btn:active { box-shadow: var(--ps-btn-shadow-active, var(--ps-btn-shadow, none)) !important; }
+
+.pstyle .pf-tabs { background: var(--ps-section-bg); border-radius: var(--ps-radius); border: 1px solid var(--ps-section-border); }
+.pstyle .pf-tab { color: var(--ps-muted); border-radius: var(--ps-btn-radius); font-family: var(--ps-btn-font, inherit); }
+.pstyle .pf-tab.active,
+.pstyle .pf-tab[aria-selected='true'] { background: var(--ps-btn-bg); color: var(--ps-btn-text); }
+
+.pstyle .mini-profile-status-bubble,
+.pstyle .profile-custom-status-balloon {
+  background: var(--ps-section-bg) !important; color: var(--ps-text) !important;
+  border: 1px solid var(--ps-section-border) !important; border-radius: var(--ps-radius) !important;
+}
+.pstyle .mini-profile-badge,
+.pstyle .role-chip,
+.pstyle .profile-role-chip,
+.pstyle .mini-profile-level-badge,
+.pstyle .pf-stat,
+.pstyle .pf-tile {
+  background: var(--ps-chip-bg, var(--ps-section-bg)) !important;
+  border-color: var(--ps-section-border) !important;
+  color: var(--ps-text) !important;
+  border-radius: var(--ps-chip-radius, var(--ps-radius)) !important;
+}
+.pstyle .profile-level-progress-track { background: var(--ps-track-bg, rgba(0, 0, 0, .3)) !important; border-radius: var(--ps-bar-radius, 999px) !important; }
+.pstyle .profile-level-progress-fill { background: var(--ps-bar-fill, var(--ps-accent)) !important; border-radius: var(--ps-bar-radius, 999px) !important; }
+.pstyle .mini-profile-avatar,
+.pstyle .shop-mock-avatar { filter: var(--ps-avatar-filter, none); }
+.pstyle ::-webkit-scrollbar-thumb { background: var(--ps-scroll-thumb, var(--ps-section-border)); border-radius: var(--ps-scroll-radius, 8px); }
+.pstyle ::-webkit-scrollbar-track { background: var(--ps-scroll-track, transparent); }
+
+/* Camada de enfeite por cima de tudo (scanlines, brilhos, vinheta...). */
+.pstyle::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 30; border-radius: inherit;
+  background: var(--ps-overlay, none); mix-blend-mode: var(--ps-overlay-blend, normal);
+  animation: var(--ps-overlay-anim, none);
+}
+.mini-profile-card.pstyle,
+.shop-mock.pstyle { position: relative; }
+.mini-profile-card.pstyle { overflow-x: hidden; }
+
+/* ---------- Windows anos 2000 ---------- */
+.pstyle-win2000 {
+  --ps-bg: #d4d0c8;
+  --ps-text: #000;
+  --ps-muted: #3b3b3b;
+  --ps-head: #000;
+  --ps-accent: #0a246a;
+  --ps-font: Tahoma, 'MS Sans Serif', Verdana, Geneva, sans-serif;
+  --ps-name-font: Tahoma, Verdana, sans-serif;
+  --ps-section-bg: #fff;
+  --ps-section-border: #808080;
+  --ps-section-shadow: inset 1px 1px 0 #404040, inset -1px -1px 0 #fff;
+  --ps-radius: 0;
+  --ps-btn-bg: #d4d0c8;
+  --ps-btn-text: #000;
+  --ps-btn-border: 1px solid #000;
+  --ps-btn-radius: 0;
+  --ps-btn-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #404040, inset -2px -2px 0 #808080;
+  --ps-btn-shadow-active: inset 1px 1px 0 #404040, inset -1px -1px 0 #fff;
+  --ps-btn-font: Tahoma, Verdana, sans-serif;
+  --ps-chip-bg: #d4d0c8;
+  --ps-chip-radius: 0;
+  --ps-track-bg: #fff;
+  --ps-bar-fill: repeating-linear-gradient(90deg, #0a246a 0 9px, transparent 9px 11px);
+  --ps-bar-radius: 0;
+  --ps-scroll-thumb: #d4d0c8;
+  --ps-scroll-track: #e8e6e1;
+  --ps-scroll-radius: 0;
+  border: 2px solid !important;
+  border-color: #fff #404040 #404040 #fff !important;
+  border-radius: 0 !important;
+  box-shadow: 1px 1px 0 #000, 4px 4px 12px rgba(0, 0, 0, .45) !important;
+}
+/* Barra de título azul degradê com os três botõezinhos. */
+.pstyle-win2000::before {
+  content: 'Propriedades do perfil'; position: relative; z-index: 31; display: flex; align-items: center;
+  height: 22px; padding: 0 64px 0 8px; font: 700 12px Tahoma, Verdana, sans-serif; color: #fff;
+  background:
+    linear-gradient(#d4d0c8, #d4d0c8) right 4px top 4px / 14px 13px no-repeat,
+    linear-gradient(#d4d0c8, #d4d0c8) right 20px top 4px / 14px 13px no-repeat,
+    linear-gradient(#d4d0c8, #d4d0c8) right 36px top 4px / 14px 13px no-repeat,
+    linear-gradient(90deg, #0a246a, #a6caf0);
+}
+.pstyle-win2000 .mini-profile-banner,
+.pstyle-win2000 .profile-banner { border-radius: 0 !important; border-bottom: 2px groove #fff; }
+.pstyle-win2000 .mini-profile-avatar img,
+.pstyle-win2000 .mini-profile-avatar { border-radius: 0 !important; }
+.pstyle-win2000 .mini-profile-section-label { text-transform: none; font: 700 11px Tahoma, sans-serif; letter-spacing: 0; }
+.pstyle-win2000 .btn-primary:focus-visible { outline: 1px dotted #000; outline-offset: -5px; }
+
+/* ---------- Anime ---------- */
+.pstyle-anime {
+  --ps-bg:
+    radial-gradient(circle at 12% 18%, rgba(255, 255, 255, .9) 0 2px, transparent 3px),
+    radial-gradient(circle at 78% 30%, rgba(255, 255, 255, .8) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 40% 70%, rgba(255, 255, 255, .7) 0 2px, transparent 3px),
+    radial-gradient(circle at 88% 82%, rgba(255, 255, 255, .8) 0 1.5px, transparent 2.5px),
+    linear-gradient(160deg, #ffd1e8 0%, #e3d4ff 48%, #cfeeff 100%);
+  --ps-text: #4a2a5e;
+  --ps-muted: #8a6aa0;
+  --ps-head: #3a1650;
+  --ps-accent: #ff5fa8;
+  --ps-font: 'Fredoka One', 'Nunito', system-ui, sans-serif;
+  --ps-name-font: 'Fredoka One', system-ui, sans-serif;
+  --ps-section-bg: rgba(255, 255, 255, .62);
+  --ps-section-border: #ffb3d6;
+  --ps-section-borderstyle: dashed;
+  --ps-section-borderw: 2px;
+  --ps-section-shadow: 0 6px 18px -10px rgba(255, 95, 168, .55);
+  --ps-radius: 20px;
+  --ps-btn-bg: linear-gradient(90deg, #ff6fb1, #b07cff);
+  --ps-btn-text: #fff;
+  --ps-btn-border: 2px solid #fff;
+  --ps-btn-radius: 999px;
+  --ps-btn-shadow: 0 6px 16px -6px rgba(176, 124, 255, .9), inset 0 -3px 0 rgba(0, 0, 0, .12);
+  --ps-chip-bg: rgba(255, 255, 255, .75);
+  --ps-chip-radius: 999px;
+  --ps-track-bg: rgba(255, 255, 255, .7);
+  --ps-bar-fill: linear-gradient(90deg, #ff8ac0, #c79bff, #8fd3ff);
+  --ps-overlay:
+    radial-gradient(circle at 20% 12%, rgba(255, 255, 255, .95) 0 1px, transparent 2px),
+    radial-gradient(circle at 70% 55%, rgba(255, 255, 255, .9) 0 1px, transparent 2px),
+    radial-gradient(circle at 35% 88%, rgba(255, 255, 255, .9) 0 1.2px, transparent 2.2px);
+  --ps-overlay-anim: ps-twinkle 2.6s ease-in-out infinite;
+  --ps-scroll-thumb: #ffb3d6;
+  border: 2px solid #fff !important;
+  border-radius: 26px !important;
+}
+.pstyle-anime .mini-profile-name,
+.pstyle-anime .profile-display-name { text-shadow: 2px 2px 0 #fff, 0 0 14px rgba(255, 95, 168, .6); }
+.pstyle-anime .mini-profile-section-label::before,
+.pstyle-anime .pf-card-title::before { content: '✦ '; color: #ff5fa8; }
+.pstyle-anime .mini-profile-avatar { box-shadow: 0 0 0 4px #fff, 0 0 0 7px #ffb3d6; border-radius: 50%; }
+
+/* ---------- Terror ---------- */
+.pstyle-terror {
+  --ps-bg:
+    radial-gradient(120% 70% at 50% -10%, rgba(140, 0, 0, .55), transparent 60%),
+    radial-gradient(90% 90% at 50% 120%, rgba(60, 0, 0, .7), transparent 70%),
+    #070303;
+  --ps-text: #d9c9c9;
+  --ps-muted: #8f7373;
+  --ps-head: #f1d9d9;
+  --ps-accent: #b3001b;
+  --ps-font: Georgia, 'Times New Roman', serif;
+  --ps-name-font: 'Creepster', Georgia, serif;
+  --ps-title-font: 'Creepster', Georgia, serif;
+  --ps-section-bg: rgba(20, 0, 0, .72);
+  --ps-section-border: #5a0a0a;
+  --ps-section-shadow: inset 0 0 18px rgba(179, 0, 27, .25);
+  --ps-radius: 4px;
+  --ps-btn-bg: linear-gradient(#2a0000, #120000);
+  --ps-btn-text: #ff3b3b;
+  --ps-btn-border: 1px solid #8a0000;
+  --ps-btn-radius: 3px;
+  --ps-btn-shadow: 0 0 12px rgba(179, 0, 27, .45), inset 0 0 8px rgba(0, 0, 0, .8);
+  --ps-btn-font: 'Creepster', Georgia, serif;
+  --ps-chip-bg: rgba(40, 0, 0, .8);
+  --ps-track-bg: #1a0000;
+  --ps-bar-fill: linear-gradient(90deg, #4a0000, #b3001b);
+  --ps-banner-filter: grayscale(.6) contrast(1.2) brightness(.7) sepia(.3) hue-rotate(-20deg);
+  --ps-avatar-filter: grayscale(.35) contrast(1.15);
+  --ps-overlay: radial-gradient(80% 80% at 50% 50%, transparent 50%, rgba(0, 0, 0, .75));
+  --ps-overlay-anim: ps-flicker 6s steps(1) infinite;
+  --ps-scroll-thumb: #5a0a0a;
+  border: 1px solid #3a0000 !important;
+  box-shadow: 0 0 30px rgba(179, 0, 27, .35), 0 20px 50px rgba(0, 0, 0, .7) !important;
+}
+/* Sangue escorrendo do topo. */
+.pstyle-terror::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 26px; z-index: 31; pointer-events: none;
+  background:
+    radial-gradient(6px 14px at 8% 0, #8a0000 98%, transparent) ,
+    radial-gradient(5px 22px at 23% 0, #a10000 98%, transparent),
+    radial-gradient(7px 12px at 41% 0, #7a0000 98%, transparent),
+    radial-gradient(4px 26px at 58% 0, #9a0000 98%, transparent),
+    radial-gradient(6px 16px at 74% 0, #850000 98%, transparent),
+    radial-gradient(5px 20px at 91% 0, #a00000 98%, transparent),
+    linear-gradient(#8a0000, #8a0000) top / 100% 4px no-repeat;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .6));
+}
+.pstyle-terror .mini-profile-name,
+.pstyle-terror .profile-display-name { color: #e01b2f !important; text-shadow: 0 0 8px rgba(224, 27, 47, .7), 0 2px 0 #300; animation: ps-shiver 4s infinite; letter-spacing: .5px; }
+.pstyle-terror .mini-profile-section-label { letter-spacing: 1px; font-size: 13px; }
+
+/* ---------- Bugado ---------- */
+.pstyle-bugado {
+  --ps-bg: linear-gradient(180deg, #05060f, #0b0b1d 60%, #050510);
+  --ps-text: #c8fff4;
+  --ps-muted: #6fb6c9;
+  --ps-head: #ffffff;
+  --ps-accent: #00fff0;
+  --ps-font: 'Space Grotesk', ui-monospace, 'Courier New', monospace;
+  --ps-name-font: 'Orbitron', ui-monospace, monospace;
+  --ps-title-font: ui-monospace, 'Courier New', monospace;
+  --ps-section-bg: rgba(0, 255, 240, .05);
+  --ps-section-border: #00fff0;
+  --ps-section-borderstyle: dashed;
+  --ps-section-shadow: 3px 0 0 rgba(255, 0, 76, .55), -3px 0 0 rgba(0, 255, 240, .35);
+  --ps-radius: 0;
+  --ps-btn-bg: #05060f;
+  --ps-btn-text: #00fff0;
+  --ps-btn-border: 1px solid #00fff0;
+  --ps-btn-radius: 0;
+  --ps-btn-shadow: 3px 3px 0 #ff004c, -2px -2px 0 rgba(0, 255, 240, .5);
+  --ps-btn-shadow-active: -3px -3px 0 #ff004c, 2px 2px 0 rgba(0, 255, 240, .5);
+  --ps-btn-font: ui-monospace, 'Courier New', monospace;
+  --ps-chip-bg: rgba(255, 0, 76, .12);
+  --ps-chip-radius: 0;
+  --ps-track-bg: #10102a;
+  --ps-bar-fill: repeating-linear-gradient(90deg, #00fff0 0 6px, #ff004c 6px 8px);
+  --ps-bar-radius: 0;
+  --ps-banner-filter: saturate(1.6) hue-rotate(10deg) contrast(1.2);
+  --ps-overlay: repeating-linear-gradient(0deg, rgba(0, 0, 0, .28) 0 1px, transparent 1px 3px);
+  --ps-overlay-anim: ps-scan 7s linear infinite;
+  --ps-scroll-thumb: #ff004c;
+  --ps-scroll-radius: 0;
+  border: 1px solid #00fff0 !important;
+  border-radius: 0 !important;
+  box-shadow: 4px 0 0 rgba(255, 0, 76, .6), -4px 0 0 rgba(0, 255, 240, .4) !important;
+  animation: ps-jitter 5.5s infinite;
+}
+.pstyle-bugado .mini-profile-name,
+.pstyle-bugado .profile-display-name,
+.pstyle-bugado .shop-mock-body strong { text-shadow: 2px 0 #ff004c, -2px 0 #00fff0; animation: ps-glitch 3.2s infinite; }
+.pstyle-bugado .mini-profile-banner,
+.pstyle-bugado .profile-banner { animation: ps-slice 4.5s infinite; }
+.pstyle-bugado .mini-profile-section-label::after { content: '_'; animation: ps-blink 1s steps(1) infinite; }
+
+/* ---------- Nostalgia ---------- */
+.pstyle-nostalgia {
+  --ps-bg:
+    repeating-linear-gradient(0deg, rgba(120, 90, 50, .035) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 90% at 50% 40%, #f6ecd6 55%, #e3cfa6 100%);
+  --ps-text: #4b3621;
+  --ps-muted: #8a6d4c;
+  --ps-head: #3a2614;
+  --ps-accent: #a0522d;
+  --ps-font: 'Playfair Display', Georgia, serif;
+  --ps-name-font: 'Caveat', 'Playfair Display', cursive;
+  --ps-title-font: 'Caveat', Georgia, cursive;
+  --ps-section-bg: #fffaf0;
+  --ps-section-border: #d9c39b;
+  --ps-section-shadow: 2px 3px 0 rgba(120, 90, 50, .18);
+  --ps-radius: 3px;
+  --ps-btn-bg: linear-gradient(#a0623a, #7a4523);
+  --ps-btn-text: #fff6e3;
+  --ps-btn-border: 1px solid #5c3318;
+  --ps-btn-radius: 6px;
+  --ps-btn-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 2px 0 #4a2812;
+  --ps-chip-bg: #f2e3c2;
+  --ps-chip-radius: 3px;
+  --ps-track-bg: #e8d6b0;
+  --ps-bar-fill: linear-gradient(90deg, #c08552, #8b5a2b);
+  --ps-banner-filter: sepia(.85) contrast(1.05) brightness(.95);
+  --ps-avatar-filter: sepia(.45);
+  --ps-overlay: radial-gradient(90% 90% at 50% 50%, transparent 60%, rgba(90, 60, 20, .28));
+  --ps-scroll-thumb: #c9ab78;
+  border: 1px solid #c9ab78 !important;
+  border-radius: 6px !important;
+}
+/* Avatar de polaroid e fita adesiva nas seções. */
+.pstyle-nostalgia .mini-profile-avatar { background: #fff; padding: 4px 4px 12px; border-radius: 2px !important; transform: rotate(-3deg); box-shadow: 0 4px 10px rgba(60, 40, 10, .35); }
+.pstyle-nostalgia .mini-profile-avatar img { border-radius: 0 !important; }
+.pstyle-nostalgia .mini-profile-section,
+.pstyle-nostalgia .pf-card { position: relative; }
+.pstyle-nostalgia .mini-profile-section::before,
+.pstyle-nostalgia .pf-card::before {
+  content: ''; position: absolute; top: -7px; left: 50%; width: 54px; height: 14px; transform: translateX(-50%) rotate(-2deg);
+  background: rgba(240, 220, 160, .75); box-shadow: 0 1px 2px rgba(0, 0, 0, .12);
+}
+.pstyle-nostalgia .mini-profile-name,
+.pstyle-nostalgia .profile-display-name { font-size: 1.25em; }
+
+/* ---------- Animações ---------- */
+@keyframes ps-twinkle { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+@keyframes ps-flicker { 0%, 100% { opacity: 1; } 92% { opacity: 1; } 93% { opacity: .55; } 94% { opacity: 1; } 96% { opacity: .7; } }
+@keyframes ps-shiver { 0%, 94%, 100% { transform: none; } 95% { transform: translateX(-1px) skewX(-2deg); } 97% { transform: translateX(1px); } }
+@keyframes ps-scan { from { background-position: 0 0; } to { background-position: 0 120px; } }
+@keyframes ps-jitter { 0%, 96%, 100% { transform: none; filter: none; } 97% { transform: translate(2px, -1px); filter: hue-rotate(40deg); } 98% { transform: translate(-2px, 1px); } }
+@keyframes ps-glitch {
+  0%, 90%, 100% { clip-path: none; transform: none; }
+  91% { clip-path: inset(10% 0 55% 0); transform: translateX(-3px); }
+  93% { clip-path: inset(60% 0 8% 0); transform: translateX(3px); }
+  95% { clip-path: inset(35% 0 35% 0); transform: translateX(-1px); }
+}
+@keyframes ps-slice { 0%, 92%, 100% { clip-path: none; } 93% { clip-path: polygon(0 0, 100% 0, 100% 40%, 0 40%, 0 46%, 100% 46%, 100% 100%, 0 100%); transform: translateX(4px); } 95% { transform: none; } }
+@keyframes ps-blink { 50% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pstyle, .pstyle *, .pstyle::after { animation: none !important; }
+}

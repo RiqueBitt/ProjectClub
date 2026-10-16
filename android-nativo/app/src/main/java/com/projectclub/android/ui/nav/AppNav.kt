@@ -39,6 +39,7 @@ interface AppNav {
     fun activity()
     fun search()
     fun games(userId: String = "me")
+    fun trades()
 
     /** Endereço do site ("/loja", "/u/123", "/posts/abc"...): abre a tela nativa certa ou o Chrome. */
     fun link(pathOrUrl: String)

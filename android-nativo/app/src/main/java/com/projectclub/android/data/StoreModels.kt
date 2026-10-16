@@ -25,6 +25,15 @@ data class StoreDecoration(
     val collectionId: String? = null,
     val createdAt: String? = null,
     val owned: Boolean = false,
+    /** Item limitado: estoque, vendidos, quanto resta e o número da sua cópia. */
+    val limited: Boolean = false,
+    val stock: Int? = null,
+    val sold: Int = 0,
+    val remaining: Int? = null,
+    val serial: Int? = null,
+    val locked: Boolean = false,
+    val exclusiveTier: String? = null,
+    val description: String? = null,
 )
 
 @Serializable
@@ -48,6 +57,15 @@ data class StoreEffect(
     val collectionId: String? = null,
     val createdAt: String? = null,
     val owned: Boolean = false,
+    /** Item limitado: estoque, vendidos, quanto resta e o número da sua cópia. */
+    val limited: Boolean = false,
+    val stock: Int? = null,
+    val sold: Int = 0,
+    val remaining: Int? = null,
+    val serial: Int? = null,
+    val locked: Boolean = false,
+    val exclusiveTier: String? = null,
+    val description: String? = null,
 )
 
 /** Oferta por tempo limitado numa coleção (desconto % no pacote). */
@@ -78,6 +96,39 @@ data class StoreCollection(
     val createdAt: String? = null,
 )
 
+/** Fonte do nome / estilo de perfil (ShopItem). data: {family, url} ou {style}. */
+@Serializable
+data class StoreItemData(val family: String? = null, val url: String? = null, val source: String? = null, val style: String? = null)
+
+@Serializable
+data class StoreShopItem(
+    val id: String,
+    val kind: String = "",
+    val key: String? = null,
+    val name: String = "",
+    val previewUrl: String? = null,
+    val data: StoreItemData? = null,
+    val priceCoins: Int? = null,
+    val priceGems: Int? = null,
+    val sortOrder: Int = 0,
+    val collectionId: String? = null,
+    val createdAt: String? = null,
+    val owned: Boolean = false,
+    /** Item limitado: estoque, vendidos, quanto resta e o número da sua cópia. */
+    val limited: Boolean = false,
+    val stock: Int? = null,
+    val sold: Int = 0,
+    val remaining: Int? = null,
+    val serial: Int? = null,
+    val locked: Boolean = false,
+    val exclusiveTier: String? = null,
+    val description: String? = null,
+) {
+    val styleKey: String? get() = data?.style ?: key?.removePrefix("style:")
+    /** O mesmo JSON que fica em User.profileFont (pra prévia). */
+    val fontJson: String? get() = data?.family?.let { org.json.JSONObject().put("id", id).put("family", it).put("url", data.url ?: "").toString() }
+}
+
 @Serializable
 data class StoreShop(
     val decorations: List<StoreDecoration> = emptyList(),
@@ -87,6 +138,10 @@ data class StoreShop(
     val gems: Int = 0,
     val equippedId: String? = null,
     val equippedEffectId: String? = null,
+    val fonts: List<StoreShopItem> = emptyList(),
+    val styles: List<StoreShopItem> = emptyList(),
+    val equippedFontId: String? = null,
+    val equippedStyle: String? = null,
     /** Opcional: o servidor ainda não manda; se mandar, a tela mostra o selo de Assinante. */
     val subscriber: Boolean = false,
 )
@@ -99,3 +154,25 @@ data class StoreBuyResult(
     val gems: Int? = null,
     val paid: Int? = null,
 )
+
+// ---------- Trocas de itens limitados ----------
+@Serializable
+data class TradeItem(
+    val kind: String = "", val id: String = "", val name: String = "", val imageUrl: String? = null,
+    val data: StoreItemData? = null, val serial: Int? = null, val stock: Int? = null,
+)
+
+@Serializable
+data class TradeSide(val items: List<TradeItem> = emptyList(), val coins: Int = 0, val gems: Int = 0)
+
+@Serializable
+data class Trade(
+    val id: String, val status: String = "PENDING", val message: String? = null, val createdAt: String? = null,
+    val from: User? = null, val to: User? = null, val offer: TradeSide = TradeSide(), val request: TradeSide = TradeSide(),
+)
+
+@Serializable
+data class TradesResponse(val incoming: List<Trade> = emptyList(), val outgoing: List<Trade> = emptyList(), val history: List<Trade> = emptyList())
+
+@Serializable
+data class LimitedsResponse(val user: User? = null, val items: List<TradeItem> = emptyList())

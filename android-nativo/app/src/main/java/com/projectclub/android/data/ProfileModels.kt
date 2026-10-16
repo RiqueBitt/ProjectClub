@@ -22,6 +22,8 @@ data class ProfileUser(
     val avatarUrl: String? = null,
     val avatarDecoration: String? = null,
     val profileEffect: String? = null,
+    val profileFont: String? = null,
+    val profileStyle: String? = null,
     val bannerUrl: String? = null,
     val bio: String? = null,
     val pronouns: String? = null,
@@ -44,6 +46,7 @@ data class ProfileUser(
     fun toUser(): User = User(
         id = id, publicId = publicId, username = username, displayName = displayName,
         avatarUrl = avatarUrl, avatarDecoration = avatarDecoration, profileEffect = profileEffect, bannerUrl = bannerUrl,
+        profileFont = profileFont, profileStyle = profileStyle,
         bio = bio, pronouns = pronouns, status = status, customStatus = customStatus,
         customStatusEmoji = customStatusEmoji, profileColor = profileColor,
         platformRole = platformRole, accountLevel = accountLevel,

@@ -23,6 +23,10 @@ data class User(
     val avatarDecoration: String? = null,
     /** Efeito de perfil da Loja: JSON {id,url,d:{s,x,y,o,t},m:{...}}. */
     val profileEffect: String? = null,
+    /** Fonte do nome comprada na Loja: JSON {id, family, url}. */
+    val profileFont: String? = null,
+    /** Estilo de perfil da Loja (win2000, anime, terror, bugado, nostalgia). */
+    val profileStyle: String? = null,
     val bannerUrl: String? = null,
     val bio: String? = null,
     val pronouns: String? = null,

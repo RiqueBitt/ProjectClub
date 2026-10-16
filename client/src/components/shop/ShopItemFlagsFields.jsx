@@ -1,10 +1,12 @@
-// Campos da sala branca no editor da staff (molduras e efeitos):
-// descrição, destaque, exclusividade de apoio e desconto de Assinante.
+// Campos da vitrine no editor da staff (molduras, efeitos, fontes e estilos):
+// descrição, destaque, exclusividade de apoio, desconto de Assinante e
+// estoque de item limitado.
 // O servidor valida tudo de novo (ver shopController.readShopFlags).
-export const FLAGS_EMPTY = { description: '', featured: false, exclusiveTier: '', discountEligible: true };
+export const FLAGS_EMPTY = { description: '', featured: false, exclusiveTier: '', discountEligible: true, stock: '' };
 export const flagsFrom = (d) => ({
   description: d?.description || '', featured: !!d?.featured,
   exclusiveTier: d?.exclusiveTier || '', discountEligible: d?.discountEligible !== false,
+  stock: d?.stock ?? '', sold: d?.sold ?? 0,
 });
 
 export default function ShopItemFlagsFields({ form, set }) {
@@ -27,6 +29,15 @@ export default function ShopItemFlagsFields({ form, set }) {
         <label className="deco-check"><input type="checkbox" checked={form.featured} onChange={set('featured')} /> Em destaque na Loja</label>
         <label className="deco-check"><input type="checkbox" checked={form.discountEligible} onChange={set('discountEligible')} disabled={exclusive} /> Desconto de Assinante (15%)</label>
       </div>
+      <label>Item limitado — estoque total (vazio = ilimitado)
+        <input type="number" min="0" value={form.stock} onChange={set('stock')} placeholder="Ex.: 100 cópias" />
+      </label>
+      {String(form.stock || '') !== '' && Number(form.stock) > 0 && (
+        <small className="shop-muted">
+          Limitado: cada cópia vendida ganha um número (#1, #2…), fica fora dos pacotes de coleção e pode ser trocada entre jogadores.
+          {form.sold > 0 ? ` Já vendidas: ${form.sold} (o estoque não pode ficar abaixo disso).` : ''}
+        </small>
+      )}
     </fieldset>
   );
 }

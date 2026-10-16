@@ -90,6 +90,7 @@ async function adminSetTier(req, res, next) {
       }
     });
     if (changed) {
+      await require('../services/supporterBadges').syncSupporterBadges(targetId, toTier);
       const user = await prisma.user.findUnique({ where: { id: targetId }, select: SELF_USER_FIELDS });
       if (user) await broadcastUserUpdate(req, user).catch(() => {});
     }

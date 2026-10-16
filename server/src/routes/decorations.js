@@ -3,7 +3,8 @@ const ctrl = require('../controllers/decorationsController');
 const shop = require('../controllers/shopController');
 const { requireAuth } = require('../middleware/auth');
 const { requirePlatformAdmin } = require('../middleware/platformAdmin');
-const { uploadImage } = require('../middleware/upload');
+const { uploadImage, upload } = require('../middleware/upload');
+const extras = require('../controllers/shopExtrasController');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -13,6 +14,18 @@ router.get('/shop', shop.shop);
 router.post('/effects/equip', shop.equipEffect);
 router.post('/effects/:id/buy', shop.buyEffect);
 router.post('/collections/:id/buy', shop.buyCollection);
+// Fontes do nome e estilos de perfil (ShopItem).
+router.post('/fonts/equip', shop.equipFont);
+router.post('/fonts/:id/buy', shop.buyFont);
+router.post('/styles/equip', shop.equipStyle);
+router.post('/styles/:id/buy', shop.buyStyle);
+// Itens limitados e trocas entre jogadores.
+router.get('/limiteds/:userId', extras.listLimiteds);
+router.get('/trades', extras.listTrades);
+router.post('/trades', extras.createTrade);
+router.post('/trades/:id/accept', extras.acceptTrade);
+router.post('/trades/:id/decline', extras.declineTrade);
+router.post('/trades/:id/cancel', extras.cancelTrade);
 router.get('/history', shop.purchaseHistory); // compras + presentes
 router.post('/gift', shop.giftItem); // presentear um amigo
 const collectionFiles = uploadImage.fields([{ name: 'banner', maxCount: 1 }, { name: 'logo', maxCount: 1 }]);
@@ -24,6 +37,15 @@ router.get('/admin/collections', requirePlatformAdmin, shop.adminListCollections
 router.post('/admin/collections', requirePlatformAdmin, collectionFiles, shop.adminCreateCollection);
 router.patch('/admin/collections/:id', requirePlatformAdmin, collectionFiles, shop.adminUpdateCollection);
 router.delete('/admin/collections/:id', requirePlatformAdmin, shop.adminRemoveCollection);
+const itemFiles = upload.fields([{ name: 'preview', maxCount: 1 }, { name: 'font', maxCount: 1 }]);
+router.get('/admin/items', requirePlatformAdmin, extras.adminListItems);
+router.post('/admin/items', requirePlatformAdmin, itemFiles, extras.adminCreateItem);
+router.patch('/admin/items/:id', requirePlatformAdmin, itemFiles, extras.adminUpdateItem);
+router.delete('/admin/items/:id', requirePlatformAdmin, extras.adminRemoveItem);
+// Staff dá (ou tira) qualquer item da Loja de alguém.
+router.get('/admin/catalog', requirePlatformAdmin, extras.adminCatalog);
+router.post('/admin/grant', requirePlatformAdmin, extras.adminGrant);
+router.delete('/admin/grant', requirePlatformAdmin, extras.adminRevoke);
 router.post('/equip', ctrl.equip);
 router.get('/admin/all', requirePlatformAdmin, ctrl.adminList);
 router.post('/admin', requirePlatformAdmin, uploadImage.single('image'), ctrl.adminCreate);

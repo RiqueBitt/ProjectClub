@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -96,11 +97,31 @@ private data class ShopItem(
     val equipped: Boolean,
     val isNew: Boolean,
     val collectionId: String?,
-)
+    val limited: Boolean = false,
+    val stock: Int? = null,
+    val sold: Int = 0,
+    val remaining: Int? = null,
+    val serial: Int? = null,
+    val locked: Boolean = false,
+    val description: String? = null,
+    /** Fonte: JSON igual ao User.profileFont; estilo: a chave (win2000...). */
+    val fontJson: String? = null,
+    val styleKey: String? = null,
+) {
+    val soldOut: Boolean get() = limited && (remaining ?: 0) <= 0
+}
 
-private enum class Kind(val label: String) { Frame("Moldura"), Effect("Efeito de perfil") }
+private enum class Kind(val label: String, val buy: String, val equip: String) {
+    Frame("Moldura", "/api/decorations/%s/buy", "/api/decorations/equip"),
+    Effect("Efeito de perfil", "/api/decorations/effects/%s/buy", "/api/decorations/effects/equip"),
+    Font("Fonte do nome", "/api/decorations/fonts/%s/buy", "/api/decorations/fonts/equip"),
+    Style("Estilo de perfil", "/api/decorations/styles/%s/buy", "/api/decorations/styles/equip"),
+}
 
-private enum class StoreTab(val label: String) { All("Tudo"), Frames("Molduras"), Effects("Efeitos"), Collections("Coleções"), Mine("Meus itens") }
+private enum class StoreTab(val label: String) {
+    All("Tudo"), Frames("Molduras"), Effects("Efeitos"), Fonts("Fontes"), Styles("Estilos"), Limited("Limitados"),
+    Collections("Coleções"), Mine("Meus itens"), Trades("Trocas"),
+}
 
 /** Loja do Project Club: molduras, efeitos de perfil e coleções. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -113,7 +134,7 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
     var error by remember { mutableStateOf<String?>(null) }
     var refreshing by remember { mutableStateOf(false) }
     var tab by rememberSaveable {
-        mutableStateOf(when (initialTab) { "molduras" -> StoreTab.Frames; "efeitos" -> StoreTab.Effects; "colecoes" -> StoreTab.Collections; "meus" -> StoreTab.Mine; else -> StoreTab.All })
+        mutableStateOf(when (initialTab) { "molduras" -> StoreTab.Frames; "efeitos" -> StoreTab.Effects; "fontes" -> StoreTab.Fonts; "estilos" -> StoreTab.Styles; "limitados" -> StoreTab.Limited; "colecoes" -> StoreTab.Collections; "meus" -> StoreTab.Mine; "trocas" -> StoreTab.Trades; else -> StoreTab.All })
     }
     var query by rememberSaveable { mutableStateOf("") }
     var selected by remember { mutableStateOf<ShopItem?>(null) }
@@ -131,7 +152,7 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
     fun buy(item: ShopItem, gems: Boolean) = scope.launch {
         busy = true
         try {
-            val path = if (item.kind == Kind.Frame) "/api/decorations/${item.id}/buy" else "/api/decorations/effects/${item.id}/buy"
+            val path = item.kind.buy.format(item.id)
             repo.api.post<StoreBuyResult>(path, buildJsonObject { put("currency", if (gems) "gems" else "coins") })
             toast("Comprado! Já está no seu inventário.")
             load()
@@ -143,7 +164,7 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
     fun equip(item: ShopItem, on: Boolean) = scope.launch {
         busy = true
         try {
-            val path = if (item.kind == Kind.Frame) "/api/decorations/equip" else "/api/decorations/effects/equip"
+            val path = item.kind.equip
             repo.api.postIgnore(path, buildJsonObject { if (on) put("id", item.id) else put("id", JsonNull) })
             toast(if (on) "Equipado!" else "Removido do perfil.")
             load()
@@ -180,18 +201,32 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
                 val newCut = System.currentTimeMillis() - 14L * 86_400_000L
                 fun isNew(iso: String?) = com.projectclub.android.ui.common.instantOf(iso)?.toEpochMilli()?.let { it > newCut } == true
                 val frames = s.decorations.sortedBy { it.sortOrder }.map {
-                    ShopItem(it.id, Kind.Frame, it.name, it.imageUrl, it.priceCoins, it.priceGems, it.owned, it.id == s.equippedId, isNew(it.createdAt), it.collectionId)
+                    ShopItem(it.id, Kind.Frame, it.name, it.imageUrl, it.priceCoins, it.priceGems, it.owned, it.id == s.equippedId, isNew(it.createdAt), it.collectionId,
+                        it.limited, it.stock, it.sold, it.remaining, it.serial, it.locked, it.description)
                 }
                 val effects = s.effects.sortedBy { it.sortOrder }.map {
-                    ShopItem(it.id, Kind.Effect, it.name, it.imageUrl, it.priceCoins, it.priceGems, it.owned, it.id == s.equippedEffectId, isNew(it.createdAt), it.collectionId)
+                    ShopItem(it.id, Kind.Effect, it.name, it.imageUrl, it.priceCoins, it.priceGems, it.owned, it.id == s.equippedEffectId, isNew(it.createdAt), it.collectionId,
+                        it.limited, it.stock, it.sold, it.remaining, it.serial, it.locked, it.description)
                 }
+                val fonts = s.fonts.sortedBy { it.sortOrder }.map {
+                    ShopItem(it.id, Kind.Font, it.name, it.previewUrl, it.priceCoins, it.priceGems, it.owned, it.id == s.equippedFontId, isNew(it.createdAt), it.collectionId,
+                        it.limited, it.stock, it.sold, it.remaining, it.serial, it.locked, it.description, fontJson = it.fontJson)
+                }
+                val styles = s.styles.sortedBy { it.sortOrder }.map {
+                    ShopItem(it.id, Kind.Style, it.name, it.previewUrl, it.priceCoins, it.priceGems, it.owned, s.equippedStyle != null && it.styleKey == s.equippedStyle, isNew(it.createdAt), it.collectionId,
+                        it.limited, it.stock, it.sold, it.remaining, it.serial, it.locked, it.description, styleKey = it.styleKey)
+                }
+                val everything = frames + effects + fonts + styles
                 val q = query.trim()
                 val base = when (tab) {
-                    StoreTab.All -> frames + effects
+                    StoreTab.All -> everything
                     StoreTab.Frames -> frames
                     StoreTab.Effects -> effects
-                    StoreTab.Mine -> (frames + effects).filter { it.owned }
-                    StoreTab.Collections -> emptyList()
+                    StoreTab.Fonts -> fonts
+                    StoreTab.Styles -> styles
+                    StoreTab.Limited -> everything.filter { it.limited }
+                    StoreTab.Mine -> everything.filter { it.owned }
+                    StoreTab.Collections, StoreTab.Trades -> emptyList()
                 }
                 val items = base.filter { q.isEmpty() || it.name.contains(q, ignoreCase = true) }
                 PullToRefreshBox(refreshing, onRefresh = { scope.launch { refreshing = true; load(); refreshing = false } }, Modifier.fillMaxSize()) {
@@ -201,10 +236,12 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
                     ) {
                         item(span = { GridItemSpan(2) }) {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                StoreHero(s, frames.count { it.owned } + effects.count { it.owned })
+                                StoreHero(s, everything.count { it.owned })
                                 PcField(query, { query = it }, "Buscar na loja", icon = Icons.Outlined.Search)
                                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    StoreTab.entries.forEach { t -> TabPill(t.label, t == tab) { tab = t } }
+                                    StoreTab.entries.filter { t ->
+                                        when (t) { StoreTab.Fonts -> fonts.isNotEmpty(); StoreTab.Styles -> styles.isNotEmpty(); StoreTab.Limited -> everything.any { it.limited }; else -> true }
+                                    }.forEach { t -> TabPill(t.label, t == tab) { if (t == StoreTab.Trades) nav.trades() else tab = t } }
                                 }
                             }
                         }
@@ -297,8 +334,32 @@ private fun TabPill(text: String, on: Boolean, onClick: () -> Unit) {
 @Composable
 private fun ItemPreview(item: ShopItem, me: com.projectclub.android.data.User?, modifier: Modifier) {
     val loader = rememberAnimatedImageLoader()
-    Box(modifier.background(Brush.radialGradient(listOf(PC.Surface3, PC.Surface))), contentAlignment = Alignment.Center) {
-        if (item.kind == Kind.Frame) {
+    val st = if (item.kind == Kind.Style) com.projectclub.android.ui.profile.profileStyleOf(item.styleKey) else null
+    Box(modifier.background(st?.bg ?: Brush.radialGradient(listOf(PC.Surface3, PC.Surface))), contentAlignment = Alignment.Center) {
+        if (item.kind == Kind.Font) {
+            // Seu nome escrito com a fonte.
+            val f = com.projectclub.android.ui.profile.rememberShopFont(item.fontJson)
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(8.dp)) {
+                Text(me?.name ?: "Seu nome", color = PC.Header, fontFamily = f, fontSize = 24.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("Aa Bb Cc 123", color = PC.Muted, fontFamily = f, fontSize = 14.sp)
+            }
+        } else if (st != null) {
+            // Mini perfil no visual do estilo.
+            Column(Modifier.fillMaxSize()) {
+                com.projectclub.android.ui.profile.StyleTitleBar(st, "Perfil")
+                Box(Modifier.fillMaxWidth().weight(0.4f).background(Brush.linearGradient(listOf(st.accent, st.accent.copy(alpha = 0.4f)))))
+                Column(Modifier.fillMaxWidth().weight(0.6f).padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Avatar(me, 34.dp)
+                        Spacer(Modifier.width(6.dp))
+                        Text(me?.name ?: "Você", color = st.header, fontFamily = st.nameFont, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge.copy(shadow = st.nameShadow))
+                    }
+                    Box(Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(st.corner)).background(st.panel).border(1.dp, st.panelBorder, RoundedCornerShape(st.corner)))
+                    Box(Modifier.fillMaxWidth(0.6f).height(16.dp).clip(RoundedCornerShape(st.buttonCorner)).background(st.button).border(1.dp, st.buttonBorder, RoundedCornerShape(st.buttonCorner)))
+                }
+            }
+            com.projectclub.android.ui.profile.StyleOverlay(st, Modifier.matchParentSize())
+        } else if (item.kind == Kind.Frame) {
             // Moldura em volta do seu avatar, como fica no perfil.
             Avatar(me, 64.dp)
             AsyncImage(Config.media(item.imageUrl), item.name, imageLoader = loader, contentScale = ContentScale.Fit, modifier = Modifier.size(92.dp))
@@ -319,7 +380,10 @@ private fun ItemCard(item: ShopItem, me: com.projectclub.android.data.User?, onC
             Row(Modifier.align(Alignment.TopStart).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 when {
                     item.equipped -> Chip("Equipado", PC.Brand)
-                    item.owned -> Chip("Você tem", PC.Green)
+                    item.owned -> Chip(if (item.serial != null) "#${item.serial}" else "Você tem", PC.Green)
+                    item.soldOut -> Chip("Esgotado", PC.Muted)
+                    item.limited -> Chip("Limitado · ${item.remaining}", PC.Yellow)
+                    item.locked -> Chip("Apoio", PC.Purple)
                     item.isNew -> Chip("Novo", PC.Pink)
                 }
             }
@@ -332,7 +396,9 @@ private fun ItemCard(item: ShopItem, me: com.projectclub.android.data.User?, onC
                 Icon(Icons.Outlined.CheckCircle, null, tint = PC.Green, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
                 Text("No inventário", color = PC.Green, style = MaterialTheme.typography.labelMedium)
-            } else Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            } else if (item.soldOut) Text("Só por troca", color = PC.Muted, style = MaterialTheme.typography.labelMedium)
+            else if (item.locked) Text("Exclusivo de apoio", color = PC.Purple, style = MaterialTheme.typography.labelMedium)
+            else Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 item.coins?.let { CurrencyAmount(false, it) }
                 item.gems?.let { CurrencyAmount(true, it) }
             }
@@ -376,10 +442,32 @@ private fun ItemSheet(
             Column {
                 Text(item.name, style = MaterialTheme.typography.headlineSmall, color = PC.Header)
                 Text(item.kind.label + if (item.collectionId != null) " · faz parte de uma coleção" else "", color = PC.Muted)
+                item.description?.takeIf { it.isNotBlank() }?.let { Spacer(Modifier.height(6.dp)); Text(it, color = PC.Text, style = MaterialTheme.typography.bodyMedium) }
+            }
+            if (item.limited) {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0x22F5B400)).border(1.dp, Color(0x55F5B400), RoundedCornerShape(14.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        when {
+                            item.owned && item.serial != null -> "Item limitado · sua cópia é a #${item.serial}"
+                            item.soldOut -> "Item limitado · esgotado"
+                            else -> "Item limitado · restam ${item.remaining} de ${item.stock}"
+                        },
+                        color = PC.Yellow, fontWeight = FontWeight.Bold,
+                    )
+                    androidx.compose.material3.LinearProgressIndicator(
+                        progress = { (item.sold.toFloat() / (item.stock ?: 1).coerceAtLeast(1)).coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape), color = PC.Yellow, trackColor = PC.Surface3,
+                    )
+                    Text("Limitados podem ser trocados com outros jogadores na aba Trocas.", color = PC.Muted, style = MaterialTheme.typography.bodySmall)
+                }
             }
             if (item.owned) {
                 if (item.equipped) PillButton("Tirar do perfil", { onEquip(false) }, Modifier.fillMaxWidth(), busy = busy, color = PC.Surface3)
                 else PillButton("Equipar no perfil", { onEquip(true) }, Modifier.fillMaxWidth(), busy = busy)
+            } else if (item.soldOut) {
+                Text("Esgotou. Agora só dá pra conseguir trocando com quem tem.", color = PC.Muted)
+            } else if (item.locked) {
+                Text("Este item não é vendido: fica liberado para quem é Assinante/Super Assinante.", color = PC.Muted)
             } else {
                 val c = confirm
                 if (c == null) {

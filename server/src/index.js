@@ -116,6 +116,12 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 bootstrapPlatformAdmin().catch((err) => {
   console.error('\x1b[31m[admin-bootstrap]\x1b[0m falhou:', err.message);
 });
+require('./services/profileStyles').ensureBuiltinStyles().catch((err) => {
+  console.warn('[loja] estilos de perfil:', err.message);
+});
+require('./services/supporterBadges').backfillSupporterBadges().catch((err) => {
+  console.warn('[apoio] backfill das insígnias falhou:', err.message);
+});
 backfillPollTopicPermissions().catch((err) => {
   console.error('\x1b[31m[admin-bootstrap]\x1b[0m backfill de permissões falhou:', err.message);
 });

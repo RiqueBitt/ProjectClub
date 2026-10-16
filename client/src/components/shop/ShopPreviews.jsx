@@ -1,6 +1,8 @@
 import UserAvatar from '../UserAvatar.jsx';
+import { nameStyleProps } from '../../utils/nameStyle';
 import ProfileEffectOverlay from '../ProfileEffectOverlay.jsx';
 import { proxyImage } from '../../utils/imageProxy';
+import { profileStyleClass } from '../../utils/profileStyle';
 
 // Prévias usadas na Loja e no painel da staff.
 
@@ -15,19 +17,19 @@ export const effectValue = (e) => (e ? {
 
 // Mini perfil de mentira (banner + avatar + nome) com o efeito por cima.
 // size: 'card' (grade da loja), 'big' (detalhe), 'mini' (320px) ou 'phone'.
-export function MockProfile({ user, effect, deco, size = 'card', mobile, loop = true, wide = false }) {
+export function MockProfile({ user, effect, deco, style, size = 'card', mobile, loop = true, wide = false }) {
   const accent = user?.profileColor || 'var(--brand)';
   const banner = user?.miniProfileBannerUrl || user?.bannerUrl;
   const av = size === 'card' ? 54 : size === 'phone' ? 92 : 76;
   const shownUser = deco !== undefined ? { ...user, avatarDecoration: deco } : user;
   return (
-    <div className={`shop-mock shop-mock-${size}${wide ? ' wide' : ''}`} style={{ '--mock-accent': accent }}>
+    <div className={`shop-mock shop-mock-${size}${wide ? ' wide' : ''}${profileStyleClass(style === undefined ? user : style)}`} style={{ '--mock-accent': accent }}>
       <div className="shop-mock-banner">
         {banner && <img src={proxyImage(banner)} alt="" loading="lazy" decoding="async" />}
       </div>
       <div className="shop-mock-body">
         <div className="shop-mock-avatar"><UserAvatar user={shownUser} size={av} /></div>
-        <strong>{user?.displayName || 'Você'}</strong>
+        <strong style={nameStyleProps(user)}>{user?.displayName || 'Você'}</strong>
         <small>@{user?.username || 'usuario'}</small>
         <div className="shop-mock-lines"><span /><span /><span /></div>
       </div>
