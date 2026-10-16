@@ -14,6 +14,7 @@ const COLLECTION = {
   name: 'Nostalgia',
   description: 'Uma viagem de volta aos anos 2000: CD-ROM brilhando, janelas de erro, purpurina, protetor de tela e bate-papo com status "Disponível".',
   bannerUrl: `${BASE}/banner.webp`,
+  logoUrl: `${BASE}/logo.webp`,
   accentColor: '#2e9bea',
   active: true,
   featured: true,
