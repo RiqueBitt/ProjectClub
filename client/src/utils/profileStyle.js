@@ -38,6 +38,7 @@ export const PROFILE_STYLES = {
   grafite: "Grafite",
   marmore: "Mármore",
   noir: "Filme Noir",
+  mensageiro: "Mensageiro 2005",
 };
 
 // "Mostrar estilos de perfil dos outros" desligado (Configurações →

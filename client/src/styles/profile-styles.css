@@ -173,7 +173,7 @@
 
 /* Camadas que repetem em faixas (pétalas, neve, bolhas, brasas, código). */
 .pstyle-anime::after, .pstyle-oceano::after, .pstyle-sakura::after, .pstyle-inverno::after, .pstyle-lava::after,
-.pstyle-matrix::after, .pstyle-natal::after, .pstyle-holografico::after { background-size: var(--ps-overlay-size) !important; }
+.pstyle-matrix::after, .pstyle-natal::after, .pstyle-holografico::after, .pstyle-mensageiro::after { background-size: var(--ps-overlay-size) !important; }
 
 /* Faixa do topo (barra de título, fita, letreiro...). */
 .pstyle::before {
@@ -961,6 +961,55 @@
   --ps-top-display: flex; --ps-top-text: 'CASO Nº 1947 — ARQUIVO CONFIDENCIAL'; --ps-top-h: 22px; --ps-top-font: 400 13px 'Bebas Neue', sans-serif; --ps-top-color: #0b0b0b; --ps-top-bg: #e6e6e6; --ps-top-spacing: 3px;
 }
 
+/* 36) Mensageiro 2005 — janela de bate-papo dos anos 2000 (vidro azul) */
+.pstyle-mensageiro {
+  --ps-bg:
+    radial-gradient(140% 55% at 50% -8%, rgba(255, 255, 255, .95) 0 30%, transparent 62%),
+    radial-gradient(60% 30% at 85% 100%, rgba(120, 220, 90, .35), transparent 70%),
+    linear-gradient(180deg, #7cc4ff 0%, #cfebff 42%, #f4fbff 100%);
+  --ps-text: #16324f; --ps-muted: #4f7194; --ps-head: #0b4f9c; --ps-accent: #2e9bea; --ps-accent2: #39c21a;
+  --ps-font: 'Trebuchet MS', Tahoma, Verdana, system-ui, sans-serif;
+  --ps-name-font: 'Trebuchet MS', Tahoma, Verdana, sans-serif; --ps-name-color: #0b4f9c;
+  --ps-name-shadow: 0 1px 0 #fff, 0 0 10px rgba(255, 255, 255, .95);
+  --ps-name-anim: ps-nudge 9s ease-in-out infinite;
+  --ps-title-font: 'Trebuchet MS', Tahoma, Verdana, sans-serif;
+  --ps-section-bg: linear-gradient(180deg, rgba(255, 255, 255, .92), rgba(236, 247, 255, .86));
+  --ps-section-border: #8cc8f0; --ps-radius: 12px;
+  --ps-section-shadow: inset 0 1px 0 #fff, 0 4px 14px rgba(27, 111, 181, .18);
+  --ps-btn-bg: linear-gradient(180deg, #a9dcff 0%, #4fb3f5 48%, #1f86dc 52%, #1667b8 100%);
+  --ps-btn-text: #fff; --ps-btn-border: 1px solid #1a6fb5; --ps-btn-radius: 999px;
+  --ps-btn-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), 0 2px 6px rgba(27, 111, 181, .35);
+  --ps-btn-text-shadow: 0 1px 1px rgba(10, 60, 120, .55);
+  --ps-btn-font: 'Trebuchet MS', Tahoma, sans-serif;
+  --ps-chip-bg: linear-gradient(180deg, #ffffff, #e2f2ff); --ps-chip-radius: 999px;
+  --ps-bubble-bg: #fff; --ps-bubble-radius: 14px;
+  --ps-track-bg: #d6ebfa; --ps-bar-fill: linear-gradient(180deg, #b4f39a 0%, #5fd23a 50%, #39b51a 51%, #7ee05a 100%);
+  --ps-label-prefix: '● '; --ps-label-color: #0b4f9c;
+  --ps-scroll-thumb: linear-gradient(90deg, #8fd3ff, #3fa9f5);
+  --ps-border: 1px solid #5aa7e3; --ps-card-radius: 14px;
+  --ps-shadow: 0 0 0 1px rgba(255, 255, 255, .7) inset, 0 18px 46px rgba(16, 70, 140, .35);
+  --ps-overlay:
+    radial-gradient(circle at 12% 88%, rgba(255, 255, 255, .95) 0 1.5px, rgba(255, 255, 255, .3) 2px 6px, rgba(90, 170, 240, .55) 6.5px, transparent 7.5px),
+    radial-gradient(circle at 74% 70%, rgba(255, 255, 255, .95) 0 1px, rgba(255, 255, 255, .3) 1.5px 4px, rgba(90, 170, 240, .55) 4.5px, transparent 5.5px),
+    radial-gradient(circle at 46% 40%, rgba(255, 255, 255, .95) 0 2px, rgba(255, 255, 255, .3) 2.5px 8px, rgba(90, 170, 240, .5) 8.5px, transparent 9.5px),
+    radial-gradient(circle at 90% 20%, rgba(255, 255, 255, .95) 0 1px, rgba(255, 255, 255, .3) 1.5px 3.5px, rgba(90, 170, 240, .55) 4px, transparent 5px);
+  --ps-overlay-size: 100% 300px;
+  --ps-overlay-anim: ps-bubbles 14s linear infinite; --ps-overlay-opacity: .8;
+  --ps-top-display: flex; --ps-top-text: '●  Disponível  —  Mensageiro'; --ps-top-h: 26px; --ps-top-pad: 0 10px;
+  --ps-top-font: 700 12px 'Trebuchet MS', Tahoma, sans-serif; --ps-top-color: #fff;
+  --ps-top-bg: linear-gradient(180deg, rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 55%), linear-gradient(90deg, #2f7fd8, #5fb2f0 60%, #a9dcff);
+  --ps-top-border: 1px solid #1a6fb5;
+}
+.pstyle-mensageiro .mini-profile-name > span:first-child,
+.pstyle-mensageiro .profile-display-name > span:first-child { display: inline-block; }
+.pstyle-mensageiro::before { text-shadow: 0 1px 1px rgba(10, 60, 120, .6); }
+.pstyle-mensageiro .mini-profile-section-label,
+.pstyle-mensageiro .pf-card-title { font-weight: 700 !important; }
+.pstyle-mensageiro .mini-profile-section-label::before,
+.pstyle-mensageiro .pf-card-title::before { color: #39c21a; text-shadow: 0 0 6px rgba(57, 194, 26, .7); }
+.pstyle-mensageiro .mini-profile-status-bubble,
+.pstyle-mensageiro .profile-custom-status-balloon { box-shadow: 0 2px 8px rgba(27, 111, 181, .25); }
+
 /* ---------- Animações ---------- */
 @keyframes ps-twinkle { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 @keyframes ps-candle { 0%, 100% { opacity: 1; } 91% { opacity: 1; } 92% { opacity: .7; } 93% { opacity: 1; } 96% { opacity: .82; } }
@@ -994,6 +1043,8 @@
 }
 @keyframes ps-slice { 0%, 92%, 100% { transform: none; } 93% { transform: translateX(4px); } 95% { transform: translateX(-3px); } }
 @keyframes ps-blink { 50% { opacity: 0; } }
+/* "Chamar a atenção" do bate-papo: o nome treme rapidinho de vez em quando. */
+@keyframes ps-nudge { 0%, 93%, 100% { transform: none; } 94% { transform: translate(-3px, 1px); } 95% { transform: translate(3px, -1px); } 96% { transform: translate(-2px, -1px); } 97% { transform: translate(2px, 1px); } 98% { transform: translate(-1px, 0); } }
 
 @media (prefers-reduced-motion: reduce) {
   .pstyle, .pstyle *, .pstyle::before, .pstyle::after, .pstyle *::before, .pstyle *::after { animation: none !important; }

@@ -1,6 +1,6 @@
 const prisma = require('../config/prisma');
 
-// Estilos de perfil embutidos (35). Cada um muda o visual inteiro do perfil e
+// Estilos de perfil embutidos (36). Cada um muda o visual inteiro do perfil e
 // do miniperfil (cores, botões, barras, fontes, molduras dos cartões) — o
 // CSS fica em client/src/styles/profile-styles.css e o app nativo tem a
 // versão dele em ui/profile/ProfileStyles.kt.
@@ -43,6 +43,7 @@ const BUILTIN_STYLES = [
   { key: "grafite", name: "Grafite", description: "Muro de tijolos, spray neon e letra de pichação." },
   { key: "marmore", name: "Mármore", description: "Mármore branco com veios dourados, minimalista e elegante." },
   { key: "noir", name: "Filme Noir", description: "Preto e branco, grão de filme e luz entrando pela persiana." },
+  { key: "mensageiro", name: "Mensageiro 2005", description: "Janela de bate-papo dos anos 2000: azul brilhante de vidro, bolhas subindo, status \"Disponível\" e nome que dá uma chamada de atenção." },
 ];
 const STYLE_KEYS = BUILTIN_STYLES.map((s) => s.key);
 
