@@ -217,6 +217,9 @@ class MainActivity : ComponentActivity() {
         }
         }
 
+        // Comunicado do Painel da Staff (igual ao do site/PC).
+        com.projectclub.android.ui.announcements.PlatformAnnouncementDialog(app.repo) { appNav.link(it) }
+
         miniUser?.let { id ->
             com.projectclub.android.ui.profile.MiniProfileSheet(
                 app.repo, id,
