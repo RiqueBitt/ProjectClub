@@ -16,7 +16,7 @@ import dashboardIcon from '../assets/icons/nav-dashboard.png';
 // com o resto da interface" — mesmo padrão isImg:true dos outros
 // (mask-image via CSS, a cor de verdade vem de lá, não do PNG).
 import achievementsIcon from '../assets/icons/nav-achievements.png'; // eslint-disable-line no-unused-vars -- mantido: pode ser reaproveitado se algum dia a categoria Progresso ganhar submenu na própria sidebar
-import inicioIcon from '../assets/icons/nav-updates.png';
+import inicioIcon from '../assets/icons/nav-inicio.png';
 import { proxyImage } from '../utils/imageProxy';
 
 // Barra lateral principal única do app. A marca/logo agora mora na

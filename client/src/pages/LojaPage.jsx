@@ -694,7 +694,7 @@ function CollectionTiles({ collections, items, go, now }) {
         const n = items.filter((i) => i.collectionId === c.id).length;
         return (
           <button key={c.id} type="button" className="room-col" style={{ '--col-accent': c.accentColor || 'var(--room-accent)' }} onClick={() => go(`col:${c.id}`)}>
-            <span className="room-col-art">{c.bannerUrl ? <img src={proxyImage(c.bannerUrl)} alt="" loading="lazy" decoding="async" /> : <Ico name="grid" size={28} />}</span>
+            <span className="room-col-art">{c.bannerUrl ? <img src={proxyImage(c.bannerUrl)} alt="" decoding="async" /> : <Ico name="grid" size={28} />}{c.bannerUrl && c.logoUrl && <><span className="room-col-shade" /><img className="room-col-logo" src={proxyImage(c.logoUrl)} alt="" decoding="async" /></>}</span>
             <span className="room-col-info">
               <strong>{c.name}</strong>
               <small>{n} {n === 1 ? 'item' : 'itens'}</small>
@@ -723,11 +723,14 @@ function CollectionPage({ c, items, onBack, onBuy, ctx }) {
     <div className="room-stack">
       <button type="button" className="room-back" onClick={onBack}><Ico name="left" size={16} /> Coleções</button>
       <section className="room-colhero" style={{ '--col-accent': c.accentColor || 'var(--room-accent)' }}>
-        <div className="room-colhero-art">{c.bannerUrl && <img src={proxyImage(c.bannerUrl)} alt="" />}</div>
+        <div className="room-colhero-art">
+          {c.bannerUrl && <img src={proxyImage(c.bannerUrl)} alt="" />}
+          {c.bannerUrl && c.logoUrl && <><span className="room-colhero-artshade" /><img className="room-colhero-artlogo" src={proxyImage(c.logoUrl)} alt="" /></>}
+        </div>
         <div className="room-colhero-info">
           <span className="room-kicker">Coleção</span>
           <OfferBadge offer={c.offer} now={ctx.now} />
-          {c.logoUrl ? <img className="room-colhero-logo" src={proxyImage(c.logoUrl)} alt={c.name} /> : <h1>{c.name}</h1>}
+          <h1>{c.name}</h1>
           {c.description && <p>{c.description}</p>}
           {hasBundle && (
             missing.length === 0 ? <span className="room-state owned"><Ico name="check" size={14} strokeWidth={2.4} /> Você já tem tudo</span> : (

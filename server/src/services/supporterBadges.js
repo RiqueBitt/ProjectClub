@@ -6,8 +6,8 @@ const prisma = require('../config/prisma');
 // A staff pode trocar nome/ícone/imagem/prioridade no painel de insígnias;
 // aqui só garante que elas existem (sem sobrescrever o que foi editado).
 const BADGES = {
-  SUBSCRIBER: { key: 'SUPPORTER_SUBSCRIBER', name: 'Assinante', description: 'Apoia o Project Club como Assinante.', icon: '💜', rarity: 'EPIC', priority: 5 },
-  SUPER: { key: 'SUPPORTER_SUPER', name: 'Super Assinante', description: 'Apoia o Project Club como Super Assinante.', icon: '🌟', rarity: 'LEGENDARY', priority: 4 },
+  SUBSCRIBER: { key: 'SUPPORTER_SUBSCRIBER', name: 'Assinante', description: 'Apoia o Project Club como Assinante.', icon: '💜', iconUrl: '/badges/SUPPORTER_SUBSCRIBER.png', rarity: 'EPIC', priority: 7 },
+  SUPER: { key: 'SUPPORTER_SUPER', name: 'Super Assinante', description: 'Apoia o Project Club como Super Assinante.', icon: '🌟', iconUrl: '/badges/SUPPORTER_SUPER.png', rarity: 'LEGENDARY', priority: 6 },
 };
 const KEYS = Object.values(BADGES).map((b) => b.key);
 
