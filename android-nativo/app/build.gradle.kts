@@ -105,6 +105,7 @@ dependencies {
     // Servidor de mídia PRÓPRIO do Project Club (mediasoup no VPS): cliente
     // nativo do mediasoup + WebRTC (voz e transmissão de tela).
     implementation("io.github.crow-misia.libmediasoup-android:libmediasoup-android:0.21.0")
+    implementation("io.github.crow-misia.libwebrtc:libwebrtc-ktx:1.12.0")
 
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-messaging")
