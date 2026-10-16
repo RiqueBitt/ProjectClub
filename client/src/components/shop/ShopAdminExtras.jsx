@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import UserAvatar from '../UserAvatar.jsx';
 import { Ico } from '../PagesKit.jsx';
@@ -247,17 +247,20 @@ export function StylesAdmin({ collections }) {
 function QuickStyleEdit({ item, collections, onSaved, onError }) {
   const [f, setF] = useState(() => ({ priceCoins: item.priceCoins ?? '', priceGems: item.priceGems ?? '', collectionId: item.collectionId || '', stock: item.stock ?? '' }));
   const [busy, setBusy] = useState(false);
-  useEffect(() => { setF({ priceCoins: item.priceCoins ?? '', priceGems: item.priceGems ?? '', collectionId: item.collectionId || '', stock: item.stock ?? '' }); }, [item]);
-  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const fromItem = () => ({ priceCoins: item.priceCoins ?? '', priceGems: item.priceGems ?? '', collectionId: item.collectionId || '', stock: item.stock ?? '' });
+  // Só atualiza do servidor quando a pessoa não está no meio de uma edição.
+  const dirtyRef = useRef(false);
+  useEffect(() => { if (!dirtyRef.current) setF(fromItem()); }, [item]); // eslint-disable-line react-hooks/exhaustive-deps
+  const set = (k) => (e) => { dirtyRef.current = true; setF((s) => ({ ...s, [k]: e.target.value })); };
   const dirty = String(f.priceCoins) !== String(item.priceCoins ?? '') || String(f.priceGems) !== String(item.priceGems ?? '')
     || f.collectionId !== (item.collectionId || '') || String(f.stock) !== String(item.stock ?? '');
   const save = async () => {
     setBusy(true);
-    try { await adminSaveShopItem(item.id, f); onSaved(`"${item.name}" salvo.`); } catch (e) { onError(errMsg(e)); }
+    try { await adminSaveShopItem(item.id, f); dirtyRef.current = false; onSaved(`"${item.name}" salvo.`); } catch (e) { onError(errMsg(e)); }
     setBusy(false);
   };
   return (
-    <div className="shopadm-quick">
+    <div className="shopadm-quick" onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter' && dirty && !busy) save(); }}>
       <label><span><Ico name="coin" size={13} /> Moedas</span><input type="number" min="0" inputMode="numeric" value={f.priceCoins} onChange={set('priceCoins')} placeholder="não vende" /></label>
       <label><span><Ico name="gem" size={13} /> Gemas</span><input type="number" min="0" inputMode="numeric" value={f.priceGems} onChange={set('priceGems')} placeholder="não vende" /></label>
       <label className="wide"><span>Coleção</span>

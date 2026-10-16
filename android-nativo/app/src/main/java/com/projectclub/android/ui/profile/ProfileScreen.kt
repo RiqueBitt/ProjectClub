@@ -524,7 +524,7 @@ private fun ProfileHeader(u: ProfileUser, status: String, birthday: Boolean) {
                 ),
             ) {
                 if (bannerUrl != null) {
-                    AsyncImage(model = bannerUrl, contentDescription = null, imageLoader = com.projectclub.android.ui.store.rememberAnimatedImageLoader(), contentScale = ContentScale.Crop, colorFilter = st?.bannerFilter, modifier = Modifier.fillMaxSize())
+                    AsyncImage(model = bannerUrl, contentDescription = null, imageLoader = com.projectclub.android.ui.store.rememberAnimatedImageLoader(), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 }
                 Box(
                     Modifier.fillMaxWidth().height(60.dp).align(Alignment.BottomCenter)
@@ -532,7 +532,7 @@ private fun ProfileHeader(u: ProfileUser, status: String, birthday: Boolean) {
                 )
             }
             Box(
-                Modifier.padding(start = 16.dp, top = 94.dp).size(112.dp).background(st?.base ?: PC.Bg, if (st?.key == "win2000" || st?.key == "nostalgia") RoundedCornerShape(2.dp) else CircleShape),
+                Modifier.padding(start = 16.dp, top = 94.dp).size(112.dp).background(st?.base ?: PC.Bg, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Avatar(user, 102.dp, status)
@@ -585,7 +585,7 @@ private fun ProfileHeader(u: ProfileUser, status: String, birthday: Boolean) {
             }
         }
     }
-    st?.let { StyleOverlay(it, Modifier.matchParentSize()) }
+    st?.let { StyleOverlay(it, Modifier.matchParentSize().padding(top = 212.dp)) }
     }
 }
 

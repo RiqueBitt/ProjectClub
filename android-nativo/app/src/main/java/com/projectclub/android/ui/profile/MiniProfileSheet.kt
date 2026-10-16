@@ -100,12 +100,12 @@ fun MiniProfileSheet(
                 // Banner (imagem, ou a cor do perfil)
                 Box(Modifier.fillMaxWidth().height(118.dp).background(bannerBrush(u?.profileColor))) {
                     Config.media(u?.bannerUrl)?.let {
-                        AsyncImage(it, null, imageLoader = loader, contentScale = ContentScale.Crop, colorFilter = st?.bannerFilter, modifier = Modifier.matchParentSize())
+                        AsyncImage(it, null, imageLoader = loader, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
                     }
                     Box(Modifier.align(Alignment.TopCenter).padding(top = 8.dp).size(width = 40.dp, height = 4.dp).clip(CircleShape).background(Color(0x99FFFFFF)))
                 }
                 Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp)) {
-                    Box(Modifier.offset(y = (-44).dp).size(96.dp).clip(if (st?.key == "win2000" || st?.key == "nostalgia") RoundedCornerShape(2.dp) else CircleShape).background(if (st?.key == "nostalgia") Color.White else st?.base ?: PC.Surface), contentAlignment = Alignment.Center) {
+                    Box(Modifier.offset(y = (-44).dp).size(96.dp).clip(CircleShape).background(st?.base ?: PC.Surface), contentAlignment = Alignment.Center) {
                         Avatar(u, 82.dp, presence[userId] ?: if (isMe) "ONLINE" else "OFFLINE")
                     }
                 }
@@ -178,7 +178,7 @@ fun MiniProfileSheet(
                     Spacer(Modifier.height(4.dp))
                 }
             }
-            st?.let { StyleOverlay(it, Modifier.matchParentSize()) }
+            st?.let { StyleOverlay(it, Modifier.matchParentSize().padding(top = 176.dp)) }
             ProfileEffectOverlay(u?.profileEffect, Modifier.matchParentSize())
         }
     }

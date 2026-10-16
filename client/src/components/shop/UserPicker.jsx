@@ -63,7 +63,7 @@ export default function UserPicker({ value, onChange, includeSelf = false, place
         <input
           type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder}
           aria-label={placeholder} autoComplete="off" spellCheck={false} autoFocus={autoFocus}
-          onKeyDown={(e) => { if (e.key === 'Enter' && results[0]) { e.preventDefault(); onChange(results[0]); } }}
+          onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter' && results[0]) { e.preventDefault(); onChange(results[0]); } }}
         />
         {q && <button type="button" aria-label="Limpar" onClick={() => setQ('')}><Ico name="close" size={13} /></button>}
       </label>
