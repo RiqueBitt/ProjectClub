@@ -208,6 +208,8 @@ data class VoiceJoinResponse(
     val channelName: String? = null,
     val agora: AgoraCreds? = null,
     val jitsi: JitsiCreds? = null,
+    /** Servidor de mídia próprio: { url, token, room, identity, iceServers }. */
+    val projectclub: kotlinx.serialization.json.JsonObject? = null,
     val token: String? = null,
     val appId: String? = null,
 )

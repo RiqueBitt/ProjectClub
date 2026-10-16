@@ -201,7 +201,7 @@ private fun Tile(user: User?, speaking: Boolean, muted: Boolean, deafened: Boole
 @Composable
 private fun ScreenTile(voice: VoiceManager, userId: String, user: User?, modifier: Modifier) {
     Box(modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black)) {
-        AndroidView(factory = { c -> SurfaceView(c).also { voice.bindRemoteVideo(it, userId) } }, modifier = Modifier.fillMaxSize())
+        AndroidView(factory = { c -> voice.createVideoView(c).also { voice.bindRemoteVideo(it, userId) } }, modifier = Modifier.fillMaxSize())
         DisposableEffect(userId) { onDispose { voice.unbindRemoteVideo(userId) } }
         Text(
             "Tela de ${user?.name ?: "alguém"}", color = Color.White, style = MaterialTheme.typography.labelSmall,

@@ -145,6 +145,7 @@ missions.startVoiceMinutesTicker(io);
 // ao provedor ATIVO daquele minuto (voiceusage:YYYY-MM:<provedor>), o que
 // permite a troca automática Agora → LiveKit → ... → Jitsi por limite
 // mensal gratuito (ver services/voiceUsage.js e services/voiceDecision.js).
+require('./services/voiceCredentials').load();
 require('./services/voiceUsage').startProviderUsageTicker(io);
 // Lembrete de evento 15 min antes pra quem respondeu "Eu vou".
 require('./services/eventReminders').startEventReminders(io);

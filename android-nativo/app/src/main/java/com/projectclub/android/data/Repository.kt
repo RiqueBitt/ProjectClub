@@ -463,7 +463,7 @@ class Repository(private val context: Context, val api: Api, private val scope: 
     }
 
     suspend fun voiceJoin(channelName: String): VoiceJoinResponse =
-        api.get("/api/voice/join?channelName=${enc(channelName)}&clientReady=agora,jitsi")
+        api.get("/api/voice/join?channelName=${enc(channelName)}&clientReady=projectclub,agora,jitsi")
 
     // ---------------- tempo real ----------------
 
