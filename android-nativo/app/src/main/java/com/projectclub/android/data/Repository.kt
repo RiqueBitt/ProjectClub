@@ -182,10 +182,16 @@ class Repository(private val context: Context, val api: Api, private val scope: 
         LoginResult.Error("Sem conexão com o Project Club. Verifique sua internet.")
     }
 
-    private suspend fun startSession() {
+    /**
+     * Começa a sessão. O carregamento roda no escopo do PRÓPRIO app (não no
+     * da tela que chamou): antes ele rodava no escopo da tela de login, que
+     * sai da composição assim que entra — e o carregamento era cancelado no
+     * meio (a aba Comunidade ficava vazia depois do login).
+     */
+    private fun startSession() {
         _session.value = SessionState.LoggedIn
         realtime.connect()
-        loadAll()
+        scope.launch { loadAll() }
         _alerts.tryEmit(Alert.SessionStarted)
     }
 
@@ -227,6 +233,8 @@ class Repository(private val context: Context, val api: Api, private val scope: 
             boot.data["favoriteGifs"]?.let { el -> runCatching { _favoriteGifs.value = AppJson.decodeFromJsonElement<FavoriteGifsResponse>(el).gifs } }
             if (_community.value == null) runCatching { loadCommunity() }.onFailure { report("community-get", it) }
             if (boot.failed.containsKey("conversations")) runCatching { loadConversations() }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             report("bootstrap", e)
             runCatching { loadCommunity() }.onFailure { report("community-get", it) }
@@ -280,6 +288,7 @@ class Repository(private val context: Context, val api: Api, private val scope: 
 
     /** Manda o motivo exato de uma falha para o servidor (aparece nos logs da equipe). */
     fun report(where: String, e: Throwable) {
+        if (e is kotlinx.coroutines.CancellationException) return
         val msg = (e.message ?: e.javaClass.simpleName).take(400)
         _communityError.value = if (where.startsWith("community")) msg else _communityError.value
         if (!reported.add(where + msg.take(60))) return

@@ -18,7 +18,7 @@ function reset() {
   users = new Map([['u1', { id: 'u1', username: 'ana', displayName: 'Ana', platformRole: 'USER' }]]);
 }
 const byHash = (h) => [...tokens.values()].find((t) => t.tokenHash === h) || null;
-const matches = (t, where) => Object.entries(where).every(([k, v]) => t[k] === v);
+const matches = (t, where) => Object.entries(where).every(([k, v]) => (v && typeof v === 'object' && Array.isArray(v.in) ? v.in.includes(t[k]) : t[k] === v));
 const fake = {
   refreshToken: {
     findUnique: async ({ where }) => (where.tokenHash ? byHash(where.tokenHash) : tokens.get(where.id) || null),
@@ -58,9 +58,9 @@ function refresh(raw, userAgent = UA) {
     auth.refresh({ cookies: raw ? { refreshToken: raw } : {}, headers: { 'user-agent': userAgent }, ip: '1.2.3.4' }, res, reject);
   });
 }
-async function login() {
+async function login(ipAddress = null) {
   const raw = crypto.randomBytes(16).toString('hex');
-  await fake.refreshToken.create({ data: { tokenHash: hash(raw), userId: 'u1', userAgent: UA, expiresAt: new Date(Date.now() + 86400000), sessionStartedAt: new Date(), lastUsedAt: new Date() } });
+  await fake.refreshToken.create({ data: { tokenHash: hash(raw), userId: 'u1', userAgent: UA, ipAddress, expiresAt: new Date(Date.now() + 86400000), sessionStartedAt: new Date(), lastUsedAt: new Date() } });
   return raw;
 }
 // Simula o tempo passando (fora da janela de corrida de 10 s).
@@ -96,15 +96,30 @@ test('aparelho perdeu o cookie novo: volta com o anterior e a sessão é recuper
   assert.equal(usingB.status, 401);
 });
 
-test('substituto já usado por outro: continua sendo tratado como roubo', async () => {
+test('substituto já usado por outro: encerra SÓ essa sessão (os outros aparelhos continuam)', async () => {
+  const other = await login(); // outro aparelho logado na mesma conta
   const a = await login();
   const first = await refresh(a);
   await refresh(first.cookies.refreshToken); // alguém usou o B
   age();
   const r = await refresh(a);
   assert.equal(r.status, 401);
-  assert.equal(keep.revokedAll, true);
-  assert.ok([...tokens.values()].every((t) => t.revoked), 'todas as sessões encerradas');
+  assert.equal(keep.revokedAll, false, 'não derruba o "lembrar login" de todo mundo');
+  const live = [...tokens.values()].filter((t) => !t.revoked);
+  assert.deepEqual(live.map((t) => t.tokenHash), [hash(other)], 'só o outro aparelho continua logado');
+  const o = await refresh(other);
+  assert.equal(o.status, 200, 'o PC não é deslogado "do nada"');
+});
+
+test('renovação atrasada do MESMO aparelho (mesmo app e rede) não é roubo', async () => {
+  const a = await login('1.2.3.4');
+  const first = await refresh(a);
+  await refresh(first.cookies.refreshToken); // o app já renovou de novo
+  age(); // a requisição com o A chega bem atrasada
+  const r = await refresh(a);
+  assert.equal(r.status, 200);
+  assert.ok(r.body.accessToken);
+  assert.ok([...tokens.values()].some((t) => !t.revoked), 'a sessão continua viva');
 });
 
 test('cookie antigo vindo de outro aparelho não recupera nada', async () => {
@@ -113,7 +128,7 @@ test('cookie antigo vindo de outro aparelho não recupera nada', async () => {
   age();
   const r = await refresh(a, 'curl/8.0');
   assert.equal(r.status, 401);
-  assert.equal(keep.revokedAll, true);
+  assert.ok([...tokens.values()].every((t) => t.revoked), 'a sessão roubada foi encerrada');
 });
 
 test('logout continua valendo: cookie de sessão encerrada não volta', async () => {

@@ -101,7 +101,19 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
         override fun onConnectionStateChanged(state: Int, reason: Int) {
             if (state == Constants.CONNECTION_STATE_RECONNECTING) _state.update { it.copy(status = CallStatus.Reconnecting) }
             if (state == Constants.CONNECTION_STATE_CONNECTED) _state.update { it.copy(status = CallStatus.Connected) }
-            if (state == Constants.CONNECTION_STATE_FAILED) _state.update { it.copy(error = "A conexão da chamada caiu.") }
+            if (state == Constants.CONNECTION_STATE_FAILED) {
+                // Motivo vem do Agora (ex.: 8 = token inválido, 6 = App ID inválido,
+                // 3 = recusado pelo servidor). Manda pro log do servidor também.
+                val credencial = reason == Constants.CONNECTION_CHANGED_INVALID_TOKEN ||
+                    reason == Constants.CONNECTION_CHANGED_INVALID_APP_ID ||
+                    reason == Constants.CONNECTION_CHANGED_TOKEN_EXPIRED ||
+                    reason == Constants.CONNECTION_CHANGED_BANNED_BY_SERVER
+                reportFailure("conexão falhou (motivo $reason)")
+                _state.update {
+                    it.copy(error = if (credencial) "O serviço de voz recusou a conexão (configuração do servidor de chamadas). A equipe já foi avisada."
+                    else "A conexão da chamada caiu.")
+                }
+            }
         }
 
         override fun onUserJoined(uid: Int, elapsed: Int) {
@@ -141,10 +153,15 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
 
         override fun onError(err: Int) {
             Log.w(TAG, "erro da Agora: $err")
-            if (err == Constants.ERR_INVALID_TOKEN || err == Constants.ERR_TOKEN_EXPIRED) {
-                _state.update { it.copy(error = "Não deu pra entrar na chamada (credencial).") }
+            if (err == Constants.ERR_INVALID_TOKEN || err == Constants.ERR_TOKEN_EXPIRED || err == Constants.ERR_INVALID_APP_ID) {
+                reportFailure("erro $err")
+                _state.update { it.copy(error = "O serviço de voz recusou a conexão (configuração do servidor de chamadas). A equipe já foi avisada.") }
             }
         }
+    }
+
+    private fun reportFailure(what: String) {
+        repo.report("voz:agora", IllegalStateException("Agora: $what"))
     }
 
     private fun ensureEngine(appId: String): RtcEngine {
@@ -195,6 +212,7 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
         }
         val code = e.joinChannelWithUserAccount(creds.token, channelName, myId, opts)
         if (code < 0) {
+            reportFailure("join devolveu $code")
             CallService.stop(context)
             _state.value = CallState(error = "Não deu pra entrar na chamada (código $code).")
         }

@@ -2,11 +2,6 @@ package com.projectclub.android.ui.login
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -14,7 +9,6 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -63,10 +58,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -87,6 +79,9 @@ import com.projectclub.android.ui.common.PcLogo
 import com.projectclub.android.ui.common.PillButton
 import com.projectclub.android.ui.theme.Display
 import com.projectclub.android.ui.theme.PC
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.launch
 
 /** Login no mesmo estilo do site (título grande, bichinhos, campos com rótulo). */
@@ -99,6 +94,14 @@ fun LoginScreen(repo: Repository, notice: String?) {
     var showPassword by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf(notice) }
+    // Turminha: campo em foco, toque na tela e reações (erro/sucesso).
+    var focusField by remember { mutableStateOf(CritterField.None) }
+    var touch by remember { mutableStateOf<Offset?>(null) }
+    var reaction by remember { mutableStateOf<CritterReaction?>(null) }
+    fun focusOn(has: Boolean, kind: CritterField) {
+        if (has) focusField = kind else if (focusField == kind) focusField = CritterField.None
+    }
+    fun react(type: String) { reaction = CritterReaction(type, (reaction?.key ?: 0) + 1) }
     val scope = rememberCoroutineScope()
     val uri = LocalUriHandler.current
 
@@ -109,9 +112,9 @@ fun LoginScreen(repo: Repository, notice: String?) {
         busy = true; error = null
         scope.launch {
             when (val r = repo.login(identifier.trim(), password, if (needsCode) code.trim() else null)) {
-                LoginResult.Ok -> Unit
+                LoginResult.Ok -> react("success")
                 LoginResult.NeedsTwoFactor -> { needsCode = true; error = null }
-                is LoginResult.Error -> error = r.message
+                is LoginResult.Error -> { error = r.message; react("error") }
             }
             busy = false
         }
@@ -120,7 +123,16 @@ fun LoginScreen(repo: Repository, notice: String?) {
     Box(
         Modifier.fillMaxSize()
             .background(Brush.verticalGradient(listOf(Color(0xFF0A0B0E), PC.Bg, Color(0xFF0B0D12))))
-            .imePadding(),
+            .imePadding()
+            // Os olhos da turma seguem o dedo (só observa, não consome o toque).
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val ev = awaitPointerEvent(PointerEventPass.Initial)
+                        ev.changes.firstOrNull()?.let { ch -> touch = if (ch.pressed) ch.position else null }
+                    }
+                }
+            },
     ) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().navigationBarsPadding()
@@ -132,27 +144,42 @@ fun LoginScreen(repo: Repository, notice: String?) {
                 Spacer(Modifier.width(12.dp))
                 Text("Project Club", style = MaterialTheme.typography.titleLarge, color = PC.Header)
             }
-            Spacer(Modifier.height(56.dp))
+            Spacer(Modifier.height(20.dp))
 
-            // Título + bichinhos
-            Box(Modifier.fillMaxWidth()) {
-                Critters(Modifier.align(Alignment.TopEnd).padding(end = 4.dp).size(width = 190.dp, height = 82.dp))
-                Column(Modifier.padding(top = 70.dp)) {
-                    Text("▶  PROJECT CLUB", color = PC.Muted, style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 4.sp))
-                    Spacer(Modifier.height(10.dp))
-                    AnimatedContent(needsCode, label = "title") { code2fa ->
-                        Text(
-                            if (code2fa) "VERIFICAÇÃO EM DUAS ETAPAS" else "BEM-VINDO DE VOLTA",
-                            fontFamily = Display, fontSize = 58.sp, lineHeight = 54.sp, color = Color.White,
-                        )
-                    }
-                    Spacer(Modifier.height(10.dp))
+            // Título + turminha (a mesma da tela de entrar do site), em pé
+            // sobre a linha do "▶ PROJECT CLUB", no canto direito.
+            val caret = when (focusField) {
+                CritterField.Password -> password.length
+                CritterField.Text -> if (needsCode) code.length else identifier.length
+                CritterField.None -> 0
+            } * 0.035f
+            Row(Modifier.fillMaxWidth().height(124.dp), verticalAlignment = Alignment.Bottom) {
+                Text(
+                    "▶  PROJECT CLUB", color = PC.Muted, maxLines = 1, softWrap = false,
+                    style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 3.sp),
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                AuthCritters(
+                    field = focusField, caret = caret,
+                    peek = showPassword && password.isNotEmpty(),
+                    reaction = reaction, pointer = touch,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+            }
+            Column(Modifier.padding(top = 14.dp)) {
+                AnimatedContent(needsCode, label = "title") { code2fa ->
                     Text(
-                        if (needsCode) "Digite o código de 6 dígitos do seu app autenticador, ou um código de recuperação."
-                        else "Entre com seu e-mail ou ClubTag.",
-                        color = PC.Muted, style = MaterialTheme.typography.bodyLarge,
+                        if (code2fa) "VERIFICAÇÃO EM DUAS ETAPAS" else "BEM-VINDO DE VOLTA",
+                        fontFamily = Display, fontSize = 58.sp, lineHeight = 54.sp, color = Color.White,
                     )
                 }
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    if (needsCode) "Digite o código de 6 dígitos do seu app autenticador, ou um código de recuperação."
+                    else "Entre com seu e-mail ou ClubTag.",
+                    color = PC.Muted, style = MaterialTheme.typography.bodyLarge,
+                )
             }
             Spacer(Modifier.height(28.dp))
 
@@ -164,11 +191,13 @@ fun LoginScreen(repo: Repository, notice: String?) {
                     if (!code2fa) {
                         PcField(
                             identifier, { identifier = it; error = null }, "voce@exemplo.com",
+                            modifier = Modifier.onFocusChanged { f -> focusOn(f.hasFocus, CritterField.Text) },
                             label = "E-mail ou ClubTag", icon = Icons.Outlined.MailOutline, enabled = !busy,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
                         )
                         PcField(
                             password, { password = it; error = null }, "Sua senha",
+                            modifier = Modifier.onFocusChanged { f -> focusOn(f.hasFocus, CritterField.Password) },
                             label = "Senha", icon = Icons.Outlined.Lock, enabled = !busy,
                             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
@@ -190,6 +219,7 @@ fun LoginScreen(repo: Repository, notice: String?) {
                     } else {
                         PcField(
                             code, { code = it.take(16); error = null }, "000000",
+                            modifier = Modifier.onFocusChanged { f -> focusOn(f.hasFocus, CritterField.Text) },
                             label = "Código", icon = Icons.Outlined.Key, enabled = !busy,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(onDone = { submit() }),
@@ -241,56 +271,4 @@ fun LoginScreen(repo: Repository, notice: String?) {
             Spacer(Modifier.height(32.dp))
         }
     }
-}
-
-/** Os bichinhos do Project Club (os mesmos da tela de entrar do site), balançando de leve. */
-@Composable
-private fun Critters(modifier: Modifier) {
-    val t = rememberInfiniteTransition(label = "critters")
-    val a by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1600), RepeatMode.Reverse), label = "a")
-    val b by t.animateFloat(1f, 0f, infiniteRepeatable(tween(1900), RepeatMode.Reverse), label = "b")
-    Canvas(modifier) {
-        val u = size.height / 82f
-        fun dy(v: Float) = v * 3f * u
-        // azul (orelhas de coelho)
-        blob(Offset(10 * u, 30 * u + dy(a)), Size(56 * u, 50 * u), Color(0xFF4CC9E8), Color(0xFF8BE3F5))
-        drawOval(Color(0xFF4CC9E8), Offset(20 * u, 14 * u + dy(a)), Size(9 * u, 20 * u))
-        drawOval(Color(0xFF4CC9E8), Offset(40 * u, 12 * u + dy(a)), Size(9 * u, 20 * u))
-        drawOval(Color(0xFFF7A8C6), Offset(22.5f * u, 18 * u + dy(a)), Size(4 * u, 11 * u))
-        drawOval(Color(0xFFF7A8C6), Offset(42.5f * u, 16 * u + dy(a)), Size(4 * u, 11 * u))
-        face(Offset(38 * u, 52 * u + dy(a)), u, Color(0xFF14334A))
-        // verde (lacinho)
-        blob(Offset(56 * u, 8 * u + dy(b)), Size(42 * u, 72 * u), Color(0xFF5FD068), Color(0xFF9BEA8F))
-        drawCircle(Color(0xFFFF6B8A), 4 * u, Offset(70 * u, 8 * u + dy(b)))
-        drawCircle(Color(0xFFFF6B8A), 4 * u, Offset(82 * u, 8 * u + dy(b)))
-        face(Offset(77 * u, 40 * u + dy(b)), u * 0.9f, Color(0xFF1C3B20))
-        // rosa (grande)
-        blob(Offset(94 * u, 24 * u + dy(a * 0.6f)), Size(66 * u, 58 * u), Color(0xFFE85AA8), Color(0xFFFF9BCF))
-        face(Offset(127 * u, 52 * u + dy(a * 0.6f)), u * 1.15f, Color(0xFF4A1230))
-        // amarelo (pequeno com chifrinho)
-        val p = Path().apply {
-            moveTo(176 * u, 44 * u + dy(b)); lineTo(173 * u, 30 * u + dy(b)); lineTo(180 * u, 44 * u + dy(b)); close()
-        }
-        drawPath(p, Color(0xFFF5D06A))
-        blob(Offset(160 * u, 44 * u + dy(b)), Size(30 * u, 36 * u), Color(0xFFF2C14E), Color(0xFFFFE08A))
-        face(Offset(175 * u, 62 * u + dy(b)), u * 0.7f, Color(0xFF4A3300), surprised = true)
-    }
-}
-
-private fun DrawScope.blob(topLeft: Offset, size: Size, color: Color, light: Color) {
-    drawOval(Brush.radialGradient(listOf(light, color), center = Offset(topLeft.x + size.width * 0.35f, topLeft.y + size.height * 0.3f), radius = size.maxDimension * 0.8f), topLeft, size)
-    // sombra no chão
-    drawOval(Color(0x33000000), Offset(topLeft.x + size.width * 0.1f, topLeft.y + size.height - 3f), Size(size.width * 0.8f, 6f))
-}
-
-private fun DrawScope.face(c: Offset, s: Float, ink: Color, surprised: Boolean = false) {
-    val eye = 4.2f * s
-    drawCircle(Color.White, eye, Offset(c.x - 8 * s, c.y - 4 * s))
-    drawCircle(Color.White, eye, Offset(c.x + 8 * s, c.y - 4 * s))
-    drawCircle(ink, eye * 0.6f, Offset(c.x - 7 * s, c.y - 3.4f * s))
-    drawCircle(ink, eye * 0.6f, Offset(c.x + 9 * s, c.y - 3.4f * s))
-    drawCircle(Color(0x66FF7A9A), 3.2f * s, Offset(c.x - 14 * s, c.y + 3 * s))
-    drawCircle(Color(0x66FF7A9A), 3.2f * s, Offset(c.x + 14 * s, c.y + 3 * s))
-    if (surprised) drawCircle(ink, 2.2f * s, Offset(c.x, c.y + 5 * s))
-    else drawArc(ink, 20f, 140f, false, Offset(c.x - 4 * s, c.y + 1 * s), Size(8 * s, 6 * s), style = Stroke(1.6f * s, cap = StrokeCap.Round))
 }

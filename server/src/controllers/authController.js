@@ -491,7 +491,23 @@ async function completeLogin(req, res, user) {
 // sessões válidas por 5 minutos depois de já ter sido usado. Fora desses
 // 10s, reusar um token já rotacionado é tratado como roubo (derruba
 // todas as sessões da conta).
-const REFRESH_RACE_GRACE_MS = 10 * 1000;
+const REFRESH_RACE_GRACE_MS = 30 * 1000;
+
+// Segue a corrente de rotação (replacedById) a partir de um token e devolve
+// todos os elos — o último é o token "atual" daquela sessão/aparelho.
+async function refreshChain(startId, limit = 200) {
+  const chain = [];
+  let id = startId;
+  const seen = new Set();
+  while (id && !seen.has(id) && chain.length < limit) {
+    seen.add(id);
+    const row = await prisma.refreshToken.findUnique({ where: { id } });
+    if (!row) break;
+    chain.push(row);
+    id = row.replacedById;
+  }
+  return chain;
+}
 
 function isAccountBlocked(user) {
   return !user
@@ -573,12 +589,19 @@ async function refresh(req, res, next) {
         return res.status(401).json({ error: 'Sessão expirada.' });
       }
 
-      const withinRace = stored.revokedAt
-        && (Date.now() - stored.revokedAt.getTime()) < REFRESH_RACE_GRACE_MS
-        && (stored.userAgent || null) === (userAgent || null);
+      // Dentro da janela de corrida, vale a ponta ATUAL da corrente (o app
+      // pode ter renovado de novo enquanto esta requisição atrasada viajava).
+      // Fora da janela, uma requisição atrasada do MESMO aparelho (mesmo
+      // navegador/app e mesma rede) também não é roubo — é o app que
+      // disparou duas renovações e uma chegou atrasada.
+      const sameDevice = (stored.userAgent || null) === (userAgent || null)
+        && !!stored.ipAddress && stored.ipAddress === req.ip;
+      const withinRace = sameDevice || (stored.revokedAt
+        && (Date.now() - stored.revokedAt.getTime()) < REFRESH_RACE_GRACE_MS);
       if (withinRace && stored.replacedById) {
-        const replacement = await prisma.refreshToken.findUnique({ where: { id: stored.replacedById } });
-        const user = replacement && !replacement.revoked && replacement.expiresAt > new Date()
+        const chain = await refreshChain(stored.replacedById);
+        const head = chain[chain.length - 1];
+        const user = head && !head.revoked && head.expiresAt > new Date()
           ? await prisma.user.findUnique({ where: { id: stored.userId } })
           : null;
         if (user && !isAccountBlocked(user)) {
@@ -623,13 +646,18 @@ async function refresh(req, res, next) {
         }
       }
 
-      // Reuso de token já rotacionado fora da janela de corrida = possível
-      // roubo: derruba TODAS as sessões da conta e o "lembrar login".
-      await revokeRefreshTokens({ userId: stored.userId }, REVOKE_REASONS.THEFT);
-      await sessionKeep.markSessionsRevoked(stored.userId);
+      // Reuso de token já rotacionado fora da janela = possível roubo.
+      // Antes isso derrubava TODAS as sessões da conta — e um app com duas
+      // renovações atrasadas (ou o app antigo + o novo no mesmo celular)
+      // deslogava também o PC "do nada". Agora encerra só a sessão (a
+      // corrente de tokens) deste token: quem tinha o token roubado perde
+      // o acesso, e os outros aparelhos continuam logados.
+      const chain = await refreshChain(stored.id);
+      const ids = chain.map((t) => t.id);
+      if (ids.length) await revokeRefreshTokens({ id: { in: ids } }, REVOKE_REASONS.THEFT);
       sessionKeep.clearKeepCookie(res);
       res.clearCookie('refreshToken', { path: '/api/auth' });
-      console.warn(`[auth] reuso de refresh token rotacionado detectado (usuário ${stored.userId}) — todas as sessões foram encerradas.`);
+      console.warn(`[auth] reuso de refresh token rotacionado detectado (usuário ${stored.userId}) — só essa sessão (${ids.length} token(s)) foi encerrada.`);
       return res.status(401).json({ error: 'Sessão expirada.' });
     }
 

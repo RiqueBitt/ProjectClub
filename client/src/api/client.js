@@ -49,11 +49,17 @@ let refreshPromise = null;
 
 // Renova o access token reaproveitando o mesmo pedido em andamento (o
 // refresh token é rotacionado — dois pedidos ao mesmo tempo brigariam).
-export async function refreshAccessToken() {
+// Um único POST /auth/refresh por vez em toda a aba (interceptor, abertura
+// do app e renovações manuais compartilham a mesma promessa).
+export function sharedRefresh() {
   if (!refreshPromise) {
     refreshPromise = api.post('/auth/refresh').finally(() => { refreshPromise = null; });
   }
-  const { data } = await refreshPromise;
+  return refreshPromise;
+}
+
+export async function refreshAccessToken() {
+  const { data } = await sharedRefresh();
   if (data?.accessToken) setAccessToken(data.accessToken);
   return data?.accessToken || null;
 }
@@ -65,10 +71,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !original._retry && !original.url.includes('/auth/')) {
       original._retry = true;
       try {
-        if (!refreshPromise) {
-          refreshPromise = api.post('/auth/refresh').finally(() => { refreshPromise = null; });
-        }
-        const { data } = await refreshPromise;
+        const { data } = await sharedRefresh();
         setAccessToken(data.accessToken);
         original.headers.Authorization = `Bearer ${data.accessToken}`;
         return api(original);
