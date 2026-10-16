@@ -162,9 +162,15 @@ test.describe('foto de perfil em GIF', () => {
       await page.getByText(/^Perfil$/).first().click();
     }
     await expect(change).toBeVisible();
-    await change.click();
-    const chooser = page.waitForEvent('filechooser');
-    await page.getByRole('menuitem', { name: /Escolher nova foto/ }).click();
+    // Com a máquina do CI carregada, o primeiro clique às vezes cai antes
+    // do modal terminar de abrir e o menu não aparece: tenta de novo.
+    const pick = page.getByRole('menuitem', { name: /Escolher nova foto/ });
+    await expect(async () => {
+      if (!(await pick.isVisible().catch(() => false))) await change.click();
+      await expect(pick).toBeVisible({ timeout: 3000 });
+    }).toPass({ timeout: 30_000 });
+    const chooser = page.waitForEvent('filechooser', { timeout: 30_000 });
+    await pick.click();
     // Como vem da galeria do Android: sem tipo e sem extensão.
     await (await chooser).setFiles({ name: 'image-1234', mimeType: 'application/octet-stream', buffer: gifBuf });
     await expect(page.getByText(/GIF animado: a animação continua/)).toBeVisible();
