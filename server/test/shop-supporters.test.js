@@ -24,6 +24,7 @@ function reset() {
       ['dx', { id: 'dx', name: 'Moldura Apoiador', active: true, priceCoins: null, priceGems: null, discountEligible: true, exclusiveTier: 'SUBSCRIBER', imageUrl: 'x', scale: 1, offsetX: 0, offsetY: 0 }],
     ]),
     effects: new Map(),
+    cols: new Map([['cOculta', { id: 'cOculta', showInShop: false }], ['cLoja', { id: 'cLoja', showInShop: true }]]),
     ownD: new Map(), // `${userId}|${id}`
     audit: [],
     ledger: [],
@@ -50,6 +51,7 @@ const fake = {
   },
   avatarDecoration: { findUnique: async ({ where }) => db.decos.get(where.id) || null },
   profileEffect: { findUnique: async ({ where }) => db.effects.get(where.id) || null },
+  shopCollection: { findUnique: async ({ where }) => db.cols.get(where.id) || null },
   userAvatarDecoration: {
     findUnique: async ({ where, include }) => {
       const w = where.userId_decorationId; const row = db.ownD.get(key(w.userId, w.decorationId));
@@ -209,4 +211,17 @@ test('rotas de apoio exigem administrador da plataforma', () => {
   const admin = router.stack.filter((l) => l.route && l.route.path.startsWith('/admin'));
   assert.equal(admin.length, 3);
   for (const l of admin) assert.ok(l.route.stack.some((s) => s.handle === requirePlatformAdmin), `${l.route.path} sem checagem de admin`);
+});
+
+test('coleção fora da Loja: item dela não é vendido nem presenteado; coleção visível vende normal', async () => {
+  db.decos.set('dh', { id: 'dh', name: 'Oculta', active: true, priceCoins: 50, priceGems: null, discountEligible: true, exclusiveTier: null, imageUrl: 'x', scale: 1, offsetX: 0, offsetY: 0, collectionId: 'cOculta' });
+  db.decos.set('dv', { id: 'dv', name: 'Visível', active: true, priceCoins: 50, priceGems: null, discountEligible: true, exclusiveTier: null, imageUrl: 'x', scale: 1, offsetX: 0, offsetY: 0, collectionId: 'cLoja' });
+  const r = await call(shop.buyDecoration, { params: { id: 'dh' }, body: { currency: 'coins' } });
+  assert.equal(r.status, 403);
+  assert.equal(r.body.code, 'NOT_FOR_SALE');
+  assert.equal(db.users.get('u1').coins, 1000);
+  assert.ok(!db.ownD.has(key('u1', 'dh')));
+  const ok = await call(shop.buyDecoration, { params: { id: 'dv' }, body: { currency: 'coins' } });
+  assert.equal(ok.status, 200);
+  assert.ok(db.ownD.has(key('u1', 'dv')));
 });

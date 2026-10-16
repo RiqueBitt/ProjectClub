@@ -222,7 +222,7 @@ function PhoneFrame({ children }) {
 }
 
 // ---------- Coleções ----------
-const COL_EMPTY = { name: '', description: '', accentColor: '#5865f2', active: true, featured: true, discountEligible: true, sortOrder: 0, bundlePriceCoins: '', bundlePriceGems: '', removeLogo: false, offerDiscount: '', offerStartsAt: '', offerEndsAt: '' };
+const COL_EMPTY = { name: '', description: '', accentColor: '#5865f2', active: true, showInShop: true, featured: true, discountEligible: true, sortOrder: 0, bundlePriceCoins: '', bundlePriceGems: '', removeLogo: false, offerDiscount: '', offerStartsAt: '', offerEndsAt: '' };
 // Oferta por tempo limitado: o campo datetime-local é no horário de quem
 // edita; vai pro servidor em ISO (com fuso) pra não mudar de hora.
 const toLocalInput = (iso) => {
@@ -247,7 +247,7 @@ function CollectionsAdmin({ items, reload }) {
     if (!c) { setEditing('new'); setForm(COL_EMPTY); return; }
     setEditing(c.id);
     setForm({
-      name: c.name, description: c.description || '', accentColor: c.accentColor || '#5865f2', active: c.active, featured: c.featured, discountEligible: c.discountEligible !== false,
+      name: c.name, description: c.description || '', accentColor: c.accentColor || '#5865f2', active: c.active, showInShop: c.showInShop !== false, featured: c.featured, discountEligible: c.discountEligible !== false,
       sortOrder: c.sortOrder, bundlePriceCoins: c.bundlePriceCoins ?? '', bundlePriceGems: c.bundlePriceGems ?? '', removeLogo: false,
       offerDiscount: c.offerDiscount ?? '', offerStartsAt: toLocalInput(c.offerStartsAt), offerEndsAt: toLocalInput(c.offerEndsAt),
     });
@@ -313,8 +313,10 @@ function CollectionsAdmin({ items, reload }) {
             </div>
             <div className="deco-row">
               <label>Ordem<input type="number" value={form.sortOrder} onChange={set('sortOrder')} /></label>
-              <label className="deco-check"><input type="checkbox" checked={form.active} onChange={set('active')} /> Visível na loja</label>
+              <label className="deco-check"><input type="checkbox" checked={form.active} onChange={set('active')} /> Coleção ativa</label>
             </div>
+            <label className="deco-check" data-testid="col-show-in-shop"><input type="checkbox" checked={form.showInShop} onChange={set('showInShop')} /> Aparece na Loja</label>
+            {!form.showInShop && <small className="shop-muted">Coleção oculta: ela e os itens dela não aparecem nem são vendidos na Loja, mas quem já tem continua usando normalmente e a staff pode dar os itens (prêmios, missões, códigos).</small>}
             <label className="deco-check"><input type="checkbox" checked={form.featured} onChange={set('featured')} /> Mostrar no carrossel de Destaques</label>
             <label className="deco-check"><input type="checkbox" checked={form.discountEligible} onChange={set('discountEligible')} /> Desconto de Assinante no pacote (não soma com a oferta: vale o maior)</label>
             <fieldset className="cxs-offer-admin">
@@ -353,7 +355,7 @@ function CollectionsAdmin({ items, reload }) {
                 <div className="txt"><strong>{c.name}</strong></div>
               </div>
               <div className="shop-card-info">
-                <small>{(c._count?.decorations || 0) + (c._count?.effects || 0) + (c._count?.items || 0)} itens{c.featured ? ' · em destaque' : ''}{c.active ? '' : ' · oculta'}</small>
+                <small>{(c._count?.decorations || 0) + (c._count?.effects || 0) + (c._count?.items || 0)} itens{c.featured ? ' · em destaque' : ''}{c.active ? '' : ' · desativada'}{c.showInShop === false ? ' · fora da Loja' : ''}</small>
                 <div className="shop-prices">
                   <button type="button" className="shop-btn ghost" onClick={() => start(c)}>Editar</button>
                   <button type="button" className="shop-btn danger" onClick={() => remove(c)}>Excluir</button>
