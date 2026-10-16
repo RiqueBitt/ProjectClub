@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useVoice } from '../context/VoiceContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useStore } from '../store/useStore';
@@ -87,6 +88,15 @@ export default function VoiceChannelView({ channel }) {
 
   const inThisCall = voice?.call?.channelId === channel.id;
   const isStage = channel.type === 'STAGE';
+  // Veio do aviso "Evento começou! Entrar na call" (?entrar=1): entra sozinho.
+  const [params, setParams] = useSearchParams();
+  const autoJoin = params.get('entrar') === '1';
+  useEffect(() => {
+    if (!autoJoin || !voice) return;
+    if (!inThisCall) voice.joinChannel(null, channel.id, channel.name, channel.type);
+    const next = new URLSearchParams(params); next.delete('entrar'); setParams(next, { replace: true });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoJoin, channel.id]);
   const memberFor = (userId) => members.find((m) => m.user.id === userId)?.user;
   // YouTube "Assistir juntos" (só em canal de voz comum, dentro da chamada).
   const yt = useYouTubeWatch(inThisCall && !isStage ? channel.id : null);

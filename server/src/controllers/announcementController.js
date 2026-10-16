@@ -3,6 +3,17 @@ const { safeUpsert } = require('../utils/prismaSafe');
 
 const TARGET_TYPES = ['ALL', 'USER'];
 
+// "Agendar para": vazio = agora; precisa ser no futuro (até 1 ano). false = inválido.
+function parseSchedule(raw) {
+  if (raw == null || raw === '') return null;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return false;
+  const now = Date.now();
+  if (d.getTime() <= now + 30 * 1000) return null;
+  if (d.getTime() > now + 366 * 86400000) return false;
+  return d;
+}
+
 // POST /admin/announcements — creates the announcement itself; the banner
 // image (optional) is attached in a second request right after, same
 // "create, then decorate" two-step as a server template's icon or a
@@ -12,6 +23,8 @@ async function createAnnouncement(req, res, next) {
     const {
       title, description, buttonLabel, buttonUrl, targetType, targetUserId,
     } = req.body;
+    const publishAt = parseSchedule(req.body.publishAt);
+    if (publishAt === false) return res.status(400).json({ error: 'Data de agendamento inválida (precisa ser no futuro, até 1 ano).' });
     if (!title?.trim()) return res.status(400).json({ error: 'Título é obrigatório.' });
     if (!TARGET_TYPES.includes(targetType)) return res.status(400).json({ error: 'Público-alvo inválido.' });
     if (targetType === 'USER' && !targetUserId) return res.status(400).json({ error: 'Selecione um usuário.' });
@@ -25,6 +38,7 @@ async function createAnnouncement(req, res, next) {
         targetType,
         targetUserId: targetType === 'USER' ? targetUserId : null,
         createdById: req.user.id,
+        publishAt,
       },
     });
     res.status(201).json({ announcement });
@@ -77,6 +91,7 @@ async function getActiveAnnouncement(req, res, next) {
           { targetType: 'USER', targetUserId: req.user.id },
         ],
         dismissals: { none: { userId: req.user.id } },
+        AND: [{ OR: [{ publishAt: null }, { publishAt: { lte: new Date() } }] }],
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -97,5 +112,5 @@ async function dismissAnnouncement(req, res, next) {
 }
 
 module.exports = {
-  createAnnouncement, uploadAnnouncementBanner, listAnnouncements, getActiveAnnouncement, dismissAnnouncement,
+  parseSchedule, createAnnouncement, uploadAnnouncementBanner, listAnnouncements, getActiveAnnouncement, dismissAnnouncement,
 };

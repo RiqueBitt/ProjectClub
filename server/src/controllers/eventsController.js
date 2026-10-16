@@ -24,7 +24,10 @@ async function listEvents(req, res, next) {
         take: 50,
       });
       const summaries = await rsvpSummaries(list.map((e) => e.id), null);
-      return list.map((e) => ({ ...e, rsvp: summaries[e.id] }));
+      const vIds = [...new Set(list.map((e) => e.voiceChannelId).filter(Boolean))];
+      const chans = vIds.length ? await prisma.channel.findMany({ where: { id: { in: vIds } }, select: { id: true, name: true, type: true } }) : [];
+      const chBy = Object.fromEntries(chans.map((c) => [c.id, c]));
+      return list.map((e) => ({ ...e, voiceChannel: e.voiceChannelId ? chBy[e.voiceChannelId] || null : null, rsvp: summaries[e.id] }));
     });
     const ids = shared.map((e) => e.id);
     const mine = ids.length
@@ -94,11 +97,20 @@ async function setRsvp(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// "" / null = sem canal; um id = precisa ser um canal de voz que existe.
+async function readVoiceChannel(raw) {
+  if (raw == null || raw === '') return null;
+  const ch = await prisma.channel.findUnique({ where: { id: String(raw) }, select: { id: true, type: true } }).catch(() => null);
+  return ch && ['VOICE', 'STAGE'].includes(ch.type) ? ch.id : false;
+}
+
 async function createEvent(req, res, next) {
   try {
     if (!isStaff(req.user)) return res.status(403).json({ error: 'Só a staff pode criar eventos.' });
     const { title, description, startsAt, endsAt, status } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'Escreva um título.' });
+    const voiceChannelId = await readVoiceChannel(req.body.voiceChannelId);
+    if (voiceChannelId === false) return res.status(400).json({ error: 'Canal de voz inválido.' });
     if (!description?.trim()) return res.status(400).json({ error: 'Escreva uma descrição.' });
 
     const data = {
@@ -109,6 +121,7 @@ async function createEvent(req, res, next) {
     if (startsAt) { const d = new Date(startsAt); if (!isNaN(d.getTime())) data.startsAt = d; }
     if (endsAt) { const d = new Date(endsAt); if (!isNaN(d.getTime())) data.endsAt = d; }
     if (status && VALID_STATUS.includes(status)) data.status = status;
+    if (voiceChannelId) data.voiceChannelId = voiceChannelId;
 
     const event = await prisma.event.create({ data, include: { createdBy: { select: AUTHOR_FIELDS } } });
     req.app.get('io')?.to('community').emit('event:new', event);
@@ -136,12 +149,17 @@ async function updateEvent(req, res, next) {
     if (startsAt !== undefined) { const d = parseDate(startsAt); if (d === undefined) return res.status(400).json({ error: 'Data de início inválida.' }); data.startsAt = d; }
     if (endsAt !== undefined) { const d = parseDate(endsAt); if (d === undefined) return res.status(400).json({ error: 'Data de fim inválida.' }); data.endsAt = d; }
     if (status !== undefined && VALID_STATUS.includes(status)) data.status = status;
+    if (req.body.voiceChannelId !== undefined) {
+      const v = await readVoiceChannel(req.body.voiceChannelId);
+      if (v === false) return res.status(400).json({ error: 'Canal de voz inválido.' });
+      data.voiceChannelId = v;
+    }
 
     const before = data.startsAt !== undefined ? await prisma.event.findUnique({ where: { id }, select: { startsAt: true } }) : null;
     const event = await prisma.event.update({ where: { id }, data, include: { createdBy: { select: AUTHOR_FIELDS } } });
     // Horário mudou: o lembrete de 15 min vale de novo pro horário novo.
     if (before && String(before.startsAt || '') !== String(event.startsAt || '')) {
-      await prisma.eventRsvp.updateMany({ where: { eventId: id, remindedAt: { not: null } }, data: { remindedAt: null } }).catch(() => {});
+      await prisma.eventRsvp.updateMany({ where: { eventId: id }, data: { remindedAt: null, startNotifiedAt: null } }).catch(() => {});
     }
     req.app.get('io')?.to('community').emit('event:update', event);
     res.json({ event });

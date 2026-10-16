@@ -44,8 +44,37 @@ async function tick(io, now = Date.now()) {
         });
       }
     }
+    await startedTick(io, now);
   } catch (err) {
     console.error('[eventos] falha nos lembretes:', err?.message || err);
+  }
+}
+
+// "Começou!": evento com canal de voz que acabou de começar (até 5 min) →
+// aviso + push pra quem vai, com o atalho pra entrar na call.
+async function startedTick(io, now) {
+  const events = await prisma.event.findMany({
+    where: { status: { not: 'ENDED' }, voiceChannelId: { not: null }, startsAt: { gt: new Date(now - 5 * 60 * 1000), lte: new Date(now) } },
+    select: { id: true, title: true, voiceChannelId: true },
+    take: 20,
+  });
+  for (const ev of events) {
+    const ch = await prisma.channel.findUnique({ where: { id: ev.voiceChannelId }, select: { id: true, name: true } }).catch(() => null);
+    if (!ch) continue;
+    const pending = await prisma.eventRsvp.findMany({ where: { eventId: ev.id, status: 'GOING', startNotifiedAt: null }, select: { id: true, userId: true }, take: 1000 });
+    for (const r of pending) {
+      const claimed = await prisma.eventRsvp.updateMany({ where: { id: r.id, startNotifiedAt: null }, data: { startNotifiedAt: new Date(now) } });
+      if (claimed.count !== 1) continue;
+      await createNotice(io, r.userId, {
+        kind: 'EVENT_REMINDER',
+        title: `${ev.title} começou!`,
+        body: `Toque pra entrar na call ${ch.name}.`,
+        link: `/channels/${ch.id}?entrar=1`,
+        data: { eventId: ev.id, voiceChannelId: ch.id, voiceChannelName: ch.name, join: true },
+      });
+    }
+    // Começou: marca como Ativo (a página mostra "Ao vivo").
+    await prisma.event.updateMany({ where: { id: ev.id, status: 'UPCOMING' }, data: { status: 'ACTIVE' } }).catch(() => null);
   }
 }
 

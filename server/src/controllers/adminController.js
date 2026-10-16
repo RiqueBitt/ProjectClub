@@ -411,13 +411,75 @@ async function getStats(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// GET /admin/metrics — números da comunidade pro painel da staff.
+async function getMetrics(req, res, next) {
+  try {
+    const { dayKey } = require('../services/activeDays');
+    const DAY = 86400000;
+    const now = Date.now();
+    const days = Array.from({ length: 30 }, (_, i) => dayKey(new Date(now - (29 - i) * DAY)));
+    const since30 = new Date(now - 30 * DAY);
+    const safe = (p, fb) => p.catch(() => fb);
+    const [activeRows, wau, mau, signups, totals, ledger, shopRows, cohort] = await Promise.all([
+      safe(prisma.userActiveDay.groupBy({ by: ['day'], where: { day: { gte: days[0] } }, _count: { _all: true } }), []),
+      safe(prisma.userActiveDay.groupBy({ by: ['userId'], where: { day: { gte: days[23] } } }), []),
+      safe(prisma.userActiveDay.groupBy({ by: ['userId'], where: { day: { gte: days[0] } } }), []),
+      prisma.user.findMany({ where: { createdAt: { gte: since30 } }, select: { createdAt: true } }),
+      prisma.user.aggregate({ _sum: { gems: true, coins: true } }),
+      safe(prisma.economyTransaction.findMany({ where: { createdAt: { gte: since30 } }, select: { gems: true, coins: true } }), []),
+      safe(prisma.economyTransaction.groupBy({
+        by: ['label'], where: { kind: 'SHOP', createdAt: { gte: since30 } },
+        _count: { _all: true }, _sum: { coins: true, gems: true },
+        orderBy: { _count: { label: 'desc' } }, take: 10,
+      }), []),
+      // Retenção: quem entrou 8–14 dias atrás e voltou nos últimos 7 dias.
+      prisma.user.findMany({ where: { createdAt: { gte: new Date(now - 14 * DAY), lt: new Date(now - 7 * DAY) } }, select: { id: true } }),
+    ]);
+    const activeByDay = Object.fromEntries(activeRows.map((r) => [r.day, r._count._all]));
+    const signByDay = {};
+    signups.forEach((u) => { const k = dayKey(u.createdAt); signByDay[k] = (signByDay[k] || 0) + 1; });
+    let retained = 0;
+    if (cohort.length) {
+      const back = await safe(prisma.userActiveDay.groupBy({ by: ['userId'], where: { userId: { in: cohort.map((c) => c.id) }, day: { gte: days[23] } } }), []);
+      retained = back.length;
+    }
+    const sum = (arr, f) => arr.reduce((a, r) => a + (f(r) || 0), 0);
+    res.json({
+      series: days.map((d) => ({ day: d, active: activeByDay[d] || 0, signups: signByDay[d] || 0 })),
+      dau: activeByDay[days[29]] || 0, wau: wau.length, mau: mau.length,
+      retention: { cohort: cohort.length, retained, pct: cohort.length ? Math.round((retained / cohort.length) * 100) : null },
+      economy: {
+        gemsInCirculation: totals._sum.gems || 0, coinsInCirculation: totals._sum.coins || 0,
+        gemsEarned30d: sum(ledger, (r) => (r.gems > 0 ? r.gems : 0)), gemsSpent30d: -sum(ledger, (r) => (r.gems < 0 ? r.gems : 0)),
+        coinsEarned30d: sum(ledger, (r) => (r.coins > 0 ? r.coins : 0)), coinsSpent30d: -sum(ledger, (r) => (r.coins < 0 ? r.coins : 0)),
+      },
+      topShop: shopRows.map((r) => ({
+        name: String(r.label || '').replace(/^Loja:\s*/, ''), sales: r._count._all,
+        coins: -(r._sum.coins || 0), gems: -(r._sum.gems || 0),
+      })),
+    });
+  } catch (err) { next(err); }
+}
+
+// GET /admin/audit-log?q=&action=&before= — com filtro e "carregar mais".
 async function listAuditLog(req, res, next) {
   try {
-    const logs = await prisma.platformAuditLog.findMany({ orderBy: { createdAt: 'desc' }, take: 200 });
+    const where = {};
+    const action = String(req.query.action || '').trim().slice(0, 60);
+    if (action) where.action = { contains: action.toUpperCase() };
+    const q = String(req.query.q || '').trim().slice(0, 60);
+    if (q) {
+      const actors = await prisma.user.findMany({ where: { OR: [{ username: { contains: q } }, { displayName: { contains: q } }] }, select: { id: true }, take: 50 });
+      where.OR = [{ actorId: { in: actors.map((a) => a.id) } }, { targetId: q }, { reason: { contains: q } }];
+    }
+    const before = req.query.before ? new Date(req.query.before) : null;
+    if (before && !Number.isNaN(before.getTime())) where.createdAt = { lt: before };
+    const logs = await prisma.platformAuditLog.findMany({ where, orderBy: { createdAt: 'desc' }, take: 100 });
     const actorIds = [...new Set(logs.map((l) => l.actorId))];
     const actors = await prisma.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, displayName: true, username: true } });
     const actorMap = new Map(actors.map((a) => [a.id, a]));
     res.json({
+      hasMore: logs.length === 100,
       logs: logs.map((l) => ({ ...l, metadata: l.metadata ? JSON.parse(l.metadata) : null, actor: actorMap.get(l.actorId) || null })),
     });
   } catch (err) { next(err); }
@@ -1001,7 +1063,7 @@ module.exports = {
   getCommunitySettings, updateCommunitySettings, uploadCommunityIcon, uploadCommunityBanner,
   listUsers, updateUserAdmin, banUser, unbanUser, suspendUser, unsuspendUser, setPlatformRole,
   listBadges, grantBadge, revokeBadge, createBadgeType, updateBadgeType, deleteBadgeType, uploadBadgeIcon,
-  getStats, listAuditLog, setMaintenanceMode, getUserSecurityInfo,
+  getStats, getMetrics, listAuditLog, setMaintenanceMode, getUserSecurityInfo,
   setUserLevel, addUserXp, addUserCurrency,
   getSystemToggles, adminUpdateSystemToggles,
   listAutomodFlags, getFlaggedConversation, resolveAutomodFlag,

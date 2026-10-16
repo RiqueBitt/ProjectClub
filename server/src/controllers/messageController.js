@@ -558,6 +558,12 @@ async function createMessageInner(req, res) {
 
     // Automod de DM (distinto do automod de canal acima) — convite de
     // outra plataforma NUNCA chega a ser enviado; ver services/dmAutomod.js.
+    if (conversationId && automod.phishingReason(content)) {
+      const reason = automod.phishingReason(content);
+      await automod.applyAction(io, { userId: req.user.id, rule: { type: 'PHISHING', action: 'DELETE', config: {} }, reason });
+      res.status(400).json({ error: `Mensagem bloqueada: ${reason}`, automod: true });
+      return false;
+    }
     if (conversationId && dmAutomod.containsInviteLink(content)) {
       res.status(400).json({ error: 'Não é permitido enviar links de convite de outras plataformas nas mensagens diretas.' });
       return false;

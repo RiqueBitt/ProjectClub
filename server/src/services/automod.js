@@ -50,7 +50,38 @@ function extractLinks(content) {
   return content ? content.match(URL_RE) || [] : [];
 }
 
+// Golpes conhecidos (sempre ligado, sem precisar de regra): sites que imitam
+// Discord/Steam/Project Club pra roubar conta, "Nitro grátis", links com
+// endereço disfarçado (punycode) e IP no lugar do site.
+const OFFICIAL = ['discord.com', 'discord.gg', 'discordapp.com', 'discordapp.net', 'discord.media', 'discordstatus.com',
+  'steampowered.com', 'steamcommunity.com', 'steamstatic.com', 'steam-chat.com', 'shardweb.app'];
+// Erros de digitação de propósito (dlscord, steamcommunlty...) e iscas no nome
+// do site (discord-gift, steam-nitro-free...). Sites de verdade como
+// discord.js.org não caem aqui.
+const TYPO = /(d[l1|]sc[o0]rd|disc0rd|dlsc|d1sc|dicsord|discrod|discorcl|steamc[o0]mmun[l1|]ty|steamcommunlty|stearn(community|powered)|steampovvered|projectc[1|]ub)/i;
+const BAIT_BRAND = /(discord|steam|nitro|projectclub)/i;
+const BAIT_WORD = /(gift|nitro|free|promo|claim|airdrop|bonus|reward|gratis|presente)/i;
+const SCAM_TEXT = /(nitro\s*(gr[aá]tis|free|de\s*gra[cç]a)|free\s*nitro|gift\s*nitro|steam\s*gift|ganhe?\s*skins?\s*gr[aá]tis|airdrop)/i;
+function phishingReason(content) {
+  const links = extractLinks(content);
+  if (!links.length) return null;
+  for (const link of links) {
+    if (/\/\/([^/]*\.)?xn--/i.test(link)) return 'Link com endereço disfarçado (possível golpe).';
+    let host;
+    try { host = new URL(link).hostname.toLowerCase().replace(/^www\./, ''); } catch { continue; }
+    if (OFFICIAL.some((d) => host === d || host.endsWith(`.${d}`))) continue;
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return 'Link para um endereço IP (possível golpe).';
+    if (TYPO.test(host)) return 'Site que imita Discord/Steam/Project Club (golpe de roubo de conta).';
+    const name = host.split('.').slice(0, -1).join('.');
+    if (BAIT_BRAND.test(name) && BAIT_WORD.test(name)) return 'Site com isca de presente falso (golpe de roubo de conta).';
+  }
+  if (SCAM_TEXT.test(content || '')) return 'Mensagem com cara de golpe ("Nitro grátis"/presente falso com link).';
+  return null;
+}
+
 async function checkMessage({ channelId, userId, content }) {
+  const phish = phishingReason(content);
+  if (phish) return { rule: { type: 'PHISHING', action: 'DELETE', config: {} }, reason: phish };
   const rules = await getRules();
   const text = (content || '').toLowerCase();
 
@@ -125,4 +156,4 @@ async function applyAction(io, { userId, rule, reason }) {
   // 'DELETE' não precisa de ação extra além de não criar a mensagem + o log de auditoria acima.
 }
 
-module.exports = { checkMessage, applyAction, invalidateCache, extractLinks };
+module.exports = { checkMessage, applyAction, invalidateCache, extractLinks, phishingReason };

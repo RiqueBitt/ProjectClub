@@ -369,3 +369,9 @@ button.cxf-post-tag:not(:disabled):hover { background: color-mix(in srgb, var(--
   .cxm-bar span, .cxm-bar.is-ready span, .eco-mission.ready .eco-mission-claim,
   .cxl-bar-fill, .cxg-like.on svg, .cxg-album-card, .cxm-sum-card { animation: none !important; transition: none !important; }
 }
+
+/* Evento com canal de voz */
+.cev-join { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; padding: 9px 14px; border-radius: 999px; border: 0; cursor: pointer; font-weight: 700; color: #fff; background: #23a55a; }
+.cev-join:hover { filter: brightness(1.08); }
+.cev-join:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.cev-card.status-upcoming .cev-join { background: var(--bg-tertiary, #26282e); color: var(--text-normal, #dbdee1); }

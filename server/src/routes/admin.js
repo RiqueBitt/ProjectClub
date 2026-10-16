@@ -16,6 +16,7 @@ router.use(requireAuth, requirePlatformAdmin);
 
 router.get('/stats', ctrl.getStats);
 router.get('/audit-log', ctrl.listAuditLog);
+router.get('/metrics', ctrl.getMetrics);
 // Erros persistidos (servidor/telas/processo), agrupados — ver services/errorLog.js.
 router.get('/errors', require('../services/errorLog').listErrors);
 

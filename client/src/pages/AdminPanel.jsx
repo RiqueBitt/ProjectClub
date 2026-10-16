@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePromptDialog } from '../utils/usePromptDialog.jsx';
@@ -23,7 +23,7 @@ import {
   adminListBadges, adminGrantBadge, adminRevokeBadge, adminCreateBadge, adminUpdateBadge, adminDeleteBadge, adminUploadBadgeIcon,
   adminSetUserLevel, adminAddUserXp, adminAddUserCurrency,
   getPlatformStatus, adminSetMaintenanceMode,
-  adminCreateAnnouncement, adminUploadAnnouncementBanner, adminListAnnouncements,
+  adminCreateAnnouncement, adminUploadAnnouncementBanner, adminListAnnouncements, adminGetMetrics,
   adminGetAlbumLayout, adminUpdateAlbumSettings, adminUpsertAlbumSlot, adminAssignStickerPosition,
   adminListChests, adminCreateChest, adminUpdateChest, adminDeleteChest,
   adminListHouseCatalog, adminCreateHouse, adminUpdateHouse, adminDeleteHouse,
@@ -151,6 +151,7 @@ const TABS = {
   cartasCampanha: { label: 'Campanha', desc: 'Fases da campanha: história, bot, dificuldade, baralho e prêmios.' },
   cartasTorneios: { label: 'Torneios', desc: 'Crie torneios eliminatórios, acompanhe o chaveamento e premie o campeão.' },
   cartasFundos: { label: 'Fundos de batalha', desc: 'Crie e edite as mesas das batalhas: imagem de fundo, cena, escurecimento, cor e frequência.' },
+  numeros: { label: 'Números', desc: 'Ativos por dia, semana e mês, retenção, cadastros, gemas e moedas circulando e itens mais vendidos da Loja.' },
   saude: { label: 'Saúde', desc: 'Online agora, conexões, chamadas, erros recentes, banco, Redis e memória. Atualiza sozinho a cada 15s.' },
 };
 
@@ -176,7 +177,7 @@ const TAB_GROUPS = [
   { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'apoio', 'casas', 'album'] },
   { label: 'Guerra das Cartas', icon: 'cards', tabs: ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
   { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
-  { label: 'Sistema', icon: 'system', tabs: ['saude', 'provedoresVoz', 'sistema', 'maintenance', 'reload'] },
+  { label: 'Sistema', icon: 'system', tabs: ['numeros', 'saude', 'provedoresVoz', 'sistema', 'maintenance', 'reload'] },
 ].map((g) => ({ ...g, tabs: g.tabs.filter((t) => !HIDDEN_TABS.has(t)) })).filter((g) => g.tabs.length > 0);
 
 const groupOf = (tab) => TAB_GROUPS.find((g) => g.tabs.includes(tab));
@@ -305,6 +306,7 @@ export default function AdminPanel() {
           {tab === 'users' && <UsersTab />}
           {tab === 'badges' && <BadgesTab />}
           {tab === 'logs' && <LogsTab />}
+          {tab === 'numeros' && <MetricsTab />}
           {tab === 'maintenance' && <MaintenanceTab />}
           {tab === 'announcements' && <AnnouncementsTab />}
           {tab === 'album' && <AlbumLayoutTab />}
@@ -1465,6 +1467,11 @@ function EventsAdminTab() {
   const [description, setDescription] = useState('');
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
+  const [voiceChannelId, setVoiceChannelId] = useState('');
+  const categories = useStore((s) => s.categories);
+  const looseChannels = useStore((s) => s.channels);
+  const voiceChannels = [...(looseChannels || []), ...(categories || []).flatMap((c) => c.channels || [])]
+    .filter((c, i, arr) => ['VOICE', 'STAGE'].includes(c.type) && arr.findIndex((x) => x.id === c.id) === i);
   const [error, setError] = useState('');
   // Banner/ícone escolhidos já na criação — enviados logo após criar (precisam do id).
   const [newBanner, setNewBanner] = useState(null);
@@ -1484,11 +1491,11 @@ function EventsAdminTab() {
     if (startsAt && endsAt && new Date(endsAt) < new Date(startsAt)) { setError('O fim precisa ser depois do início.'); return; }
     setPublishing(true);
     try {
-      const { event: created } = await createEvent({ title, description, startsAt: toIso(startsAt), endsAt: toIso(endsAt) });
+      const { event: created } = await createEvent({ title, description, startsAt: toIso(startsAt), endsAt: toIso(endsAt), voiceChannelId: voiceChannelId || undefined });
       const failed = [];
       if (created?.id && newBanner) await uploadEventBanner(created.id, newBanner).catch(() => failed.push('banner'));
       if (created?.id && newIcon) await uploadEventIcon(created.id, newIcon).catch(() => failed.push('ícone'));
-      setTitle(''); setDescription(''); setStartsAt(''); setEndsAt(''); setNewBanner(null); setNewIcon(null);
+      setTitle(''); setDescription(''); setStartsAt(''); setEndsAt(''); setVoiceChannelId(''); setNewBanner(null); setNewIcon(null);
       if (failed.length) setError(`Evento criado, mas não deu pra enviar: ${failed.join(' e ')}. Use os botões na lista pra tentar de novo.`);
       refresh();
     } catch (err) { setError(err.response?.data?.error || 'Erro ao criar evento.'); }
@@ -1535,6 +1542,14 @@ function EventsAdminTab() {
           <label>INÍCIO (opcional)<input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></label>
           <label>FIM (opcional)<input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} /></label>
         </div>
+        <label>
+          CANAL DE VOZ (opcional)
+          <select value={voiceChannelId} onChange={(e) => setVoiceChannelId(e.target.value)}>
+            <option value="">Sem call</option>
+            {voiceChannels.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <span className="dim">Quem marcou "Eu vou" recebe "Começou! Entrar na call" na hora do início.</span>
+        </label>
         <div className="display-name-row">
           <label>BANNER (opcional){newBanner && <span className="dim"> · {newBanner.name}</span>}<input type="file" accept="image/*" onChange={(e) => setNewBanner(e.target.files[0] || null)} /></label>
           <label>ÍCONE (opcional){newIcon && <span className="dim"> · {newIcon.name}</span>}<input type="file" accept="image/*" onChange={(e) => setNewIcon(e.target.files[0] || null)} /></label>
@@ -1549,6 +1564,10 @@ function EventsAdminTab() {
               <div className="admin-user-row-name">{ev.title}</div>
               <div className="admin-user-row-meta dim">Criado por {ev.createdBy.displayName}</div>
             </div>
+            <select value={ev.voiceChannelId || ''} title="Canal de voz do evento" onChange={async (e) => { await updateEvent(ev.id, { voiceChannelId: e.target.value || null }); refresh(); }}>
+              <option value="">Sem call</option>
+              {voiceChannels.map((c) => <option key={c.id} value={c.id}>🔊 {c.name}</option>)}
+            </select>
             <select value={ev.status} onChange={(e) => changeStatus(ev.id, e.target.value)}>
               <option value="UPCOMING">Em breve</option>
               <option value="ACTIVE">Ativo</option>
@@ -1649,7 +1668,7 @@ function AnnouncementsTab() {
   const [userResults, setUserResults] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [form, setForm] = useState({
-    targetType: 'ALL', title: '', description: '', buttonLabel: '', buttonUrl: '',
+    targetType: 'ALL', title: '', description: '', buttonLabel: '', buttonUrl: '', publishAt: '',
   });
   const [bannerFile, setBannerFile] = useState(null);
   const [sending, setSending] = useState(false);
@@ -1677,10 +1696,11 @@ function AnnouncementsTab() {
     try {
       const { announcement } = await adminCreateAnnouncement({
         ...form, targetUserId: selectedUser?.id || undefined,
+        publishAt: form.publishAt ? new Date(form.publishAt).toISOString() : undefined,
       });
       if (bannerFile) await adminUploadAnnouncementBanner(announcement.id, bannerFile).catch(() => {});
-      setSent(true);
-      setForm({ targetType: 'ALL', title: '', description: '', buttonLabel: '', buttonUrl: '' });
+      setSent(form.publishAt ? 'Mensagem agendada!' : 'Mensagem enviada!');
+      setForm({ targetType: 'ALL', title: '', description: '', buttonLabel: '', buttonUrl: '', publishAt: '' });
       setSelectedUser(null);
       setBannerFile(null);
       adminListAnnouncements().then((d) => setHistory(d.announcements));
@@ -1743,9 +1763,15 @@ function AnnouncementsTab() {
           <label>Link do botão (opcional)<input value={form.buttonUrl} onChange={(e) => setForm((f) => ({ ...f, buttonUrl: e.target.value }))} placeholder="https://..." /></label>
         </div>
 
+        <label>
+          Agendar para (opcional)
+          <input type="datetime-local" value={form.publishAt} onChange={(e) => setForm((f) => ({ ...f, publishAt: e.target.value }))} />
+          <span className="dim">Vazio = envia agora. Com data, aparece pra todo mundo só a partir desse horário.</span>
+        </label>
+
         {error && <div className="auth-error">{error}</div>}
-        {sent && <div className="dim">Mensagem enviada!</div>}
-        <button className="btn-primary" disabled={sending} onClick={send}>{sending ? 'Enviando...' : 'Enviar mensagem'}</button>
+        {sent && <div className="dim">{sent}</div>}
+        <button className="btn-primary" disabled={sending} onClick={send}>{sending ? 'Enviando...' : (form.publishAt ? 'Agendar mensagem' : 'Enviar mensagem')}</button>
       </div>
 
       <div className="settings-block">
@@ -1758,7 +1784,11 @@ function AnnouncementsTab() {
                 <td>{a.title}</td>
                 <td className="dim">{a.targetType}</td>
                 <td className="dim">{a._count?.dismissals ?? 0}</td>
-                <td className="dim">{new Date(a.createdAt).toLocaleString('pt-BR')}</td>
+                <td className="dim">
+                  {a.publishAt && new Date(a.publishAt) > new Date()
+                    ? `Agendada: ${new Date(a.publishAt).toLocaleString('pt-BR')}`
+                    : new Date(a.publishAt || a.createdAt).toLocaleString('pt-BR')}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -2478,23 +2508,106 @@ function BadgesTab() {
 function LogsTab() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  useEffect(() => { adminListAuditLog().then((d) => setLogs(d.logs)).finally(() => setLoading(false)); }, []);
-
-  if (loading) return <div className="dim">Carregando...</div>;
-  if (logs.length === 0) return <div className="dim">Nenhuma ação administrativa registrada ainda.</div>;
+  const [hasMore, setHasMore] = useState(false);
+  const [q, setQ] = useState('');
+  const [action, setAction] = useState('');
+  const load = useCallback((more = false) => {
+    setLoading(true);
+    const before = more && logs.length ? logs[logs.length - 1].createdAt : undefined;
+    adminListAuditLog({ q: q || undefined, action: action || undefined, before })
+      .then((d) => { setLogs((cur) => (more ? [...cur, ...d.logs] : d.logs)); setHasMore(!!d.hasMore); })
+      .finally(() => setLoading(false));
+  }, [q, action, logs]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { const t = setTimeout(() => load(false), 300); return () => clearTimeout(t); }, [q, action]);
 
   return (
-    <ul className="audit-log-list">
-      {logs.map((l) => (
-        <li key={l.id} className="audit-log-entry">
-          <span className="audit-action">{l.action}</span>
-          <span className="dim"> por {l.actor?.displayName || l.actorId}</span>
-          {l.targetType && <span className="dim"> · alvo: {l.targetType} {l.targetId}</span>}
-          {l.reason && <span className="dim"> · motivo: {l.reason}</span>}
-          <div className="audit-meta">{new Date(l.createdAt).toLocaleString('pt-BR')}</div>
-        </li>
-      ))}
-    </ul>
+    <div className="audit-wrap">
+      <div className="audit-filters">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Quem fez, ID do alvo ou motivo…" />
+        <input value={action} onChange={(e) => setAction(e.target.value)} placeholder="Ação (ex.: BAN, CURRENCY)" />
+      </div>
+      {!loading && logs.length === 0 && <div className="dim">Nenhuma ação encontrada.</div>}
+      <ul className="audit-log-list">
+        {logs.map((l) => (
+          <li key={l.id} className="audit-log-entry">
+            <span className="audit-action">{l.action}</span>
+            <span className="dim"> por {l.actor?.displayName || l.actorId}</span>
+            {l.targetType && <span className="dim"> · alvo: {l.targetType} {l.targetId}</span>}
+            {l.reason && <span className="dim"> · motivo: {l.reason}</span>}
+            {l.metadata && <span className="dim"> · {Object.entries(l.metadata).slice(0, 4).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(', ')}</span>}
+            <div className="audit-meta">{new Date(l.createdAt).toLocaleString('pt-BR')}</div>
+          </li>
+        ))}
+      </ul>
+      {loading && <div className="dim">Carregando...</div>}
+      {hasMore && !loading && <button type="button" className="btn-secondary" onClick={() => load(true)}>Carregar mais</button>}
+    </div>
+  );
+}
+
+// Números da comunidade: ativos, retenção, economia e Loja.
+function MetricsTab() {
+  const [m, setM] = useState(null);
+  const [err, setErr] = useState('');
+  useEffect(() => { adminGetMetrics().then(setM).catch(() => setErr('Não deu pra carregar os números.')); }, []);
+  if (err) return <div className="auth-error">{err}</div>;
+  if (!m) return <div className="dim">Carregando...</div>;
+  const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
+  const max = Math.max(1, ...m.series.map((d) => d.active));
+  const maxS = Math.max(1, ...m.series.map((d) => d.signups));
+  const label = (d) => `${d.day.slice(8, 10)}/${d.day.slice(5, 7)}`;
+  return (
+    <div className="metrics">
+      <div className="metrics-cards">
+        <div className="metrics-card"><span>Ativos hoje</span><strong>{fmt(m.dau)}</strong></div>
+        <div className="metrics-card"><span>Ativos na semana</span><strong>{fmt(m.wau)}</strong></div>
+        <div className="metrics-card"><span>Ativos no mês</span><strong>{fmt(m.mau)}</strong></div>
+        <div className="metrics-card">
+          <span>Retenção (7 dias)</span>
+          <strong>{m.retention.pct == null ? '—' : `${m.retention.pct}%`}</strong>
+          <small>{m.retention.retained} de {m.retention.cohort} que entraram há 1–2 semanas voltaram</small>
+        </div>
+      </div>
+
+      <section className="metrics-block">
+        <h4>Pessoas ativas por dia (30 dias)</h4>
+        <div className="metrics-bars" role="img" aria-label="Ativos por dia nos últimos 30 dias">
+          {m.series.map((d) => (
+            <div key={d.day} className="metrics-bar" title={`${label(d)}: ${d.active} ativos`}>
+              <i style={{ height: `${(d.active / max) * 100}%` }} />
+            </div>
+          ))}
+        </div>
+        <div className="metrics-axis"><span>{label(m.series[0])}</span><span>{label(m.series[m.series.length - 1])}</span></div>
+      </section>
+
+      <section className="metrics-block">
+        <h4>Cadastros por dia</h4>
+        <div className="metrics-bars small" role="img" aria-label="Cadastros por dia nos últimos 30 dias">
+          {m.series.map((d) => (
+            <div key={d.day} className="metrics-bar alt" title={`${label(d)}: ${d.signups} cadastros`}>
+              <i style={{ height: `${(d.signups / maxS) * 100}%` }} />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="metrics-cards">
+        <div className="metrics-card"><span>Gemas circulando</span><strong>{fmt(m.economy.gemsInCirculation)}</strong><small>+{fmt(m.economy.gemsEarned30d)} ganhas · −{fmt(m.economy.gemsSpent30d)} gastas (30 dias)</small></div>
+        <div className="metrics-card"><span>Moedas circulando</span><strong>{fmt(m.economy.coinsInCirculation)}</strong><small>+{fmt(m.economy.coinsEarned30d)} ganhas · −{fmt(m.economy.coinsSpent30d)} gastas (30 dias)</small></div>
+      </div>
+
+      <section className="metrics-block">
+        <h4>Mais vendidos na Loja (30 dias)</h4>
+        {m.topShop.length === 0 ? <div className="dim">Nenhuma venda ainda.</div> : (
+          <table className="admin-table">
+            <thead><tr><th>Item</th><th>Vendas</th><th>Moedas</th><th>Gemas</th></tr></thead>
+            <tbody>{m.topShop.map((r) => <tr key={r.name}><td>{r.name}</td><td>{fmt(r.sales)}</td><td className="dim">{fmt(r.coins)}</td><td className="dim">{fmt(r.gems)}</td></tr>)}</tbody>
+          </table>
+        )}
+      </section>
+    </div>
   );
 }
 

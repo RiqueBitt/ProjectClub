@@ -165,3 +165,9 @@ require('./services/cleanupJobs').startCleanupJobs();
 require('./services/profileUpdates').startSocialJobs(io);
 // Itens da Loja com prazo (recompensa de missão) somem quando vencem.
 require('./services/shopTimed').startTimedSweeper(io);
+// Anúncios agendados (canal Anúncios) saem sozinhos na hora marcada.
+require('./controllers/staffAnnouncementsController').startScheduler(io);
+// Resumo da semana (segunda de manhã): menções, eventos e novidades da Loja.
+require('./services/weeklyDigest').startWeeklyDigest(io);
+// Monitor de status (página pública /status + alerta pra staff quando cai).
+require('./services/statusMonitor').startStatusMonitor(io);

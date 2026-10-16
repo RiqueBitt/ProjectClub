@@ -103,6 +103,7 @@ const EXTRA_PREF_RULES = {
   themeSync: isBool,
   themeOnProfiles: isBool,
   appIcon: isKey(24),
+  weeklyDigest: isBool,
   streamerMode: isBool,
   streamerHidePersonal: isBool,
   streamerHideLinks: isBool,

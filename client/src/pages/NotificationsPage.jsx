@@ -243,7 +243,7 @@ export default function NotificationsPage() {
     if (it.kind === 'notice') {
       const n = it.data;
       const icon = n.kind === 'GIFT' ? 'gift' : (n.kind === 'EVENT_REMINDER' || n.kind === 'REMINDER') ? 'reminder' : n.kind === 'SCHEDULED_FAILED' ? 'conversation' : 'notice';
-      const lead = n.kind === 'EVENT_REMINDER' ? 'Lembrete de evento' : n.kind === 'REMINDER' ? 'Lembrete' : n.kind === 'SCHEDULED_FAILED' ? 'Agendada' : n.kind === 'GIFT' ? 'Presente' : 'Aviso';
+      const lead = n.kind === 'EVENT_REMINDER' ? 'Lembrete de evento' : n.kind === 'REMINDER' ? 'Lembrete' : n.kind === 'SCHEDULED_FAILED' ? 'Agendada' : n.kind === 'GIFT' ? 'Presente' : n.kind === 'DIGEST' ? 'Resumo' : 'Aviso';
       return (
         <li key={it.key} className={`notifications-item nt-item clickable${n.readAt ? ' is-read' : ' unread'}`} data-kind={icon} onClick={() => openNotice(n)}>
           <NtIcon kind={icon} />

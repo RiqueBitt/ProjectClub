@@ -255,6 +255,7 @@ export function NotificationExtras() {
         <Field label="Alguém reage às minhas mensagens">
           <Seg label="Reações" value={p.notifyReactions || 'all'} onChange={(v) => setExtra({ notifyReactions: v })} options={[['all', 'Todas as mensagens'], ['dm', 'Só mensagens diretas'], ['none', 'Nunca']]} />
         </Field>
+        <Row title="Resumo da semana" hint="Toda segunda: menções que você perdeu, eventos da semana e novidades da Loja." on={p.weeklyDigest !== false} onChange={(v) => setExtra({ weeklyDigest: v })} />
         <Row title="Avisar meus amigos quando eu atualizar meu perfil" on={p.shareProfileUpdates !== false} onChange={(v) => setExtra({ shareProfileUpdates: v })} />
         <Row title="Indicador de mensagens não lidas no ícone do app" hint="Bolinha vermelha na barra de tarefas (PC) e número no ícone (Android)." on={p.unreadBadge !== false} onChange={(v) => setExtra({ unreadBadge: v })} />
       </Panel>
