@@ -305,6 +305,7 @@ model User {
   webPushSubscriptions WebPushSubscription[]
   scheduledMessages    ScheduledMessage[]
   reminders            Reminder[]
+  minigameWeeklyPrizes MinigameWeeklyPrize[]
   verificationCodes    EmailVerificationCode[]
   passwordResetTokens  PasswordResetToken[]
   twoFactorRecoveryCodes TwoFactorRecoveryCode[]
@@ -776,6 +777,26 @@ model Reminder {
 
   @@index([firedAt, dueAt])
   @@index([userId, firedAt])
+}
+
+// Prêmio do ranking SEMANAL dos Mini-Jogos (services/minigameWeekly.js):
+// ao fechar a semana, os 3 melhores de cada jogo ganham moedas; a linha é
+// criada uma vez (unique) e `claimedAt` marca o resgate.
+model MinigameWeeklyPrize {
+  id        String    @id @default(uuid())
+  weekKey   String    @db.VarChar(10) // "2026-W42"
+  game      String    @db.VarChar(40)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rank      Int
+  score     Int
+  coins     Int
+  claimedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([weekKey, game, userId])
+  @@index([userId, claimedAt])
+  @@index([weekKey, game])
 }
 
 model WebPushKeys {

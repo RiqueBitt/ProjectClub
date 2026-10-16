@@ -43,6 +43,18 @@ $("body").on("click", ".play-again", function() {
 	multiplayer = false
 	Init()
 	server.emit("solo_game")
+}).on("click", ".tourney", function() {
+	tournament.active = true
+	tournament.score = 0
+	$(".starting").remove()
+	$(".waiting div").text("Entrando no torneio…")
+	server.emit("tournament_join", username)
+}).on("click", ".leave-tourney", function() {
+	tournament.active = false
+	server.emit("tournament_leave")
+	// Volta pra fila normal.
+	server.emit("tag_verify", [], username)
+	$(".waiting div").text("Procurando partida...")
 })
 
 // Project Club: sem prompt() (não funciona no app desktop) e sem filtro
