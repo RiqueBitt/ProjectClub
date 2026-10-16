@@ -66,6 +66,8 @@ android {
     }
     packaging {
         resources { excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "META-INF/INDEX.LIST", "META-INF/DEPENDENCIES") }
+        // Agora e mediasoup podem trazer o mesmo runtime C++.
+        jniLibs { pickFirsts += setOf("lib/*/libc++_shared.so") }
     }
 }
 
@@ -100,6 +102,10 @@ dependencies {
     }
     // Voz e compartilhamento de tela (mesmo provedor do site em produção).
     implementation("io.agora.rtc:full-sdk:4.5.0")
+    // Servidor de mídia PRÓPRIO do Project Club (mediasoup no VPS): cliente
+    // nativo do mediasoup + WebRTC (voz e transmissão de tela).
+    implementation("io.github.crow-misia.libmediasoup-android:libmediasoup-android:0.21.0")
+    implementation("io.github.crow-misia.libwebrtc:libwebrtc-ktx:1.12.0")
 
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-messaging")

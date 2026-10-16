@@ -57,6 +57,27 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
     val state: StateFlow<CallState> = _state
 
     private var engine: RtcEngine? = null
+    /** Servidor de mídia PRÓPRIO (VPS do Project Club) — quando a cadeia escolhe "projectclub". */
+    private var own: MediasoupEngine? = null
+    private val usingOwn get() = _state.value.provider == "projectclub"
+    private val ownEvents = object : MediasoupEngine.Events {
+        override fun onConnected() {
+            main.post {
+                _state.update { it.copy(status = CallStatus.Connected, error = null) }
+                _state.value.channelName?.let { repo.realtime.emit("voice:join", JSONObject().put("channelId", it)) }
+                startSync()
+            }
+        }
+        override fun onFailed(message: String) {
+            main.post {
+                reportFailure("próprio: $message")
+                _state.update { it.copy(error = message) }
+            }
+        }
+        override fun onLeft() { main.post { if (usingOwn && _state.value.channelName != null) leave() } }
+        override fun onSpeaking(userIds: Set<String>) { main.post { if (userIds != _state.value.speaking) _state.update { it.copy(speaking = userIds) } } }
+        override fun onRemoteVideo(userIds: Set<String>) { main.post { _state.update { it.copy(remoteVideo = userIds) } } }
+    }
     private var engineAppId: String? = null
     private var projection: MediaProjection? = null
     private var syncJob: Job? = null
@@ -192,6 +213,20 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
         val res = try { repo.voiceJoin(channelName) } catch (e: Exception) {
             _state.value = CallState(error = e.message ?: "Não deu pra entrar na chamada."); return
         }
+        if (res.provider == "projectclub" && res.projectclub != null) {
+            val pc = res.projectclub
+            val url = pc["url"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
+            val token = pc["token"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
+            val myId = repo.me.value?.id
+            if (url != null && token != null && myId != null) {
+                _state.update { it.copy(provider = "projectclub") }
+                CallService.start(context, title)
+                val ice = MediasoupEngine.iceServers(runCatching { org.json.JSONObject(pc.toString()).optJSONArray("iceServers") }.getOrNull())
+                val e = own ?: MediasoupEngine(context, ownEvents).also { own = it }
+                e.join(OwnMediaCreds(url, token, ice), myId, startMuted = false)
+                return
+            }
+        }
         val creds = res.agora ?: if (res.provider == "agora" && res.token != null && res.appId != null)
             com.projectclub.android.data.AgoraCreds(res.token, res.appId) else null
         if (res.provider != "agora" || creds == null) {
@@ -200,6 +235,7 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
             return
         }
         val myId = repo.me.value?.id ?: return
+        _state.update { it.copy(provider = "agora") }
         val e = ensureEngine(creds.appId)
         CallService.start(context, title)
         val opts = ChannelMediaOptions().apply {
@@ -240,27 +276,50 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
 
     fun toggleMute() {
         val muted = !_state.value.muted
-        engine?.muteLocalAudioStream(muted || _state.value.deafened)
+        if (usingOwn) own?.setMuted(muted || _state.value.deafened)
+        else engine?.muteLocalAudioStream(muted || _state.value.deafened)
         _state.update { it.copy(muted = muted) }
         sendState()
     }
 
     fun toggleDeafen() {
         val deaf = !_state.value.deafened
-        engine?.muteAllRemoteAudioStreams(deaf)
-        engine?.muteLocalAudioStream(deaf || _state.value.muted)
+        if (usingOwn) { own?.setDeafened(deaf); own?.setMuted(deaf || _state.value.muted) }
+        else {
+            engine?.muteAllRemoteAudioStreams(deaf)
+            engine?.muteLocalAudioStream(deaf || _state.value.muted)
+        }
         _state.update { it.copy(deafened = deaf) }
         sendState()
     }
 
     fun toggleSpeaker() {
         val on = !_state.value.speakerOn
-        engine?.setEnableSpeakerphone(on)
+        if (usingOwn) own?.setSpeaker(on) else engine?.setEnableSpeakerphone(on)
         _state.update { it.copy(speakerOn = on) }
     }
 
     /** Recebe a autorização de captura (pedida na tela) já dentro do serviço. */
     fun startScreenShare(mp: MediaProjection) {
+        if (usingOwn) {
+            val o = own ?: run { mp.stop(); return }
+            projection?.stop()
+            projection = mp
+            mp.registerCallback(object : MediaProjection.Callback() {
+                override fun onStop() { main.post { if (_state.value.sharingScreen) stopScreenShare() } }
+            }, main)
+            o.startScreen(mp) { msg ->
+                main.post {
+                    _state.update { it.copy(sharingScreen = false, error = msg) }
+                    projection?.stop(); projection = null
+                    CallService.screenStopped(context)
+                    sendState()
+                }
+            }
+            _state.update { it.copy(sharingScreen = true, error = null) }
+            sendState()
+            return
+        }
         val e = engine ?: run { mp.stop(); return }
         projection?.stop()
         projection = mp
@@ -295,7 +354,8 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
     }
 
     fun stopScreenShare() {
-        engine?.let { e ->
+        if (usingOwn) own?.stopScreen()
+        else engine?.let { e ->
             e.stopScreenCapture()
             e.updateChannelMediaOptions(ChannelMediaOptions().apply { publishScreenCaptureVideo = false })
         }
@@ -308,12 +368,14 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
 
     /** Liga a tela compartilhada de alguém num SurfaceView. */
     fun bindRemoteVideo(view: SurfaceView, userId: String): Boolean {
+        if (usingOwn) return own?.bindRemoteVideo(view, userId) ?: false
         val uid = uidOf(userId) ?: return false
         engine?.setupRemoteVideo(VideoCanvas(view, VideoCanvas.RENDER_MODE_FIT, uid)) ?: return false
         return true
     }
 
     fun unbindRemoteVideo(userId: String) {
+        if (usingOwn) { own?.unbindRemoteVideo(userId); return }
         val uid = uidOf(userId) ?: return
         engine?.setupRemoteVideo(VideoCanvas(null, VideoCanvas.RENDER_MODE_FIT, uid))
     }
@@ -323,11 +385,15 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
         syncJob?.cancel()
         if (_state.value.sharingScreen) runCatching { stopScreenShare() }
         if (ch != null && notifyServer) repo.realtime.emit("voice:leave", JSONObject().put("channelId", ch))
-        engine?.leaveChannel()
+        if (usingOwn) own?.leave() else engine?.leaveChannel()
         uidToUser.clear()
         _state.value = CallState()
         CallService.stop(context)
     }
+
+    /** View pra mostrar a tela de alguém (o servidor próprio usa o renderizador do WebRTC). */
+    fun createVideoView(ctx: Context): SurfaceView =
+        if (usingOwn) own?.createVideoView(ctx) ?: SurfaceView(ctx) else SurfaceView(ctx)
 
     fun clearError() = _state.update { it.copy(error = null) }
 

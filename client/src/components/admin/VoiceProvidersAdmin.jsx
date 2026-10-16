@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getVoiceProviders, setVoiceOverride, toggleVoiceProvider, setVoiceUsage } from '../../api/endpoints';
+import { getVoiceProviders, setVoiceOverride, toggleVoiceProvider, setVoiceUsage, setVoiceProviderConfig } from '../../api/endpoints';
+import { CLIENT_READY } from '../../voice/providerDecision';
 
 // Painel da equipe — "Chamadas / Provedores de voz" (item pedido).
 // Mostra um cartão por provedor da cadeia (Agora → LiveKit → ... → Jitsi):
@@ -27,6 +28,69 @@ function UsageBar({ percent, unlimited }) {
   return (
     <div style={{ height: 8, borderRadius: 999, background: 'rgba(255,255,255,.08)', overflow: 'hidden' }}>
       <div style={{ width: unlimited ? '100%' : `${pct}%`, height: '100%', background: color, opacity: unlimited ? 0.35 : 1, transition: 'width .4s' }} />
+    </div>
+  );
+}
+
+// Chaves do provedor, editáveis aqui mesmo (salvas criptografadas no
+// servidor e aplicadas na hora — sem mexer na hospedagem). Segredos
+// aparecem só mascarados; campo vazio = não muda. "Limpar" volta pro valor
+// da hospedagem.
+function KeysEditor({ provider, onSaved }) {
+  const [open, setOpen] = useState(false);
+  const [vals, setVals] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+  const fields = provider.fields || [];
+  if (!fields.length) return null;
+  const changed = Object.keys(vals).length > 0;
+  const save = async (values) => {
+    setSaving(true); setMsg('');
+    try {
+      const panel = await setVoiceProviderConfig(provider.id, values);
+      setVals({}); setMsg('Salvo e aplicado.'); onSaved(panel);
+    } catch (e) {
+      setMsg(e?.response?.data?.error || 'Não foi possível salvar as chaves.');
+    } finally { setSaving(false); }
+  };
+  return (
+    <div style={{ marginTop: 10 }}>
+      <button type="button" className="btn" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        {open ? 'Fechar chaves' : 'Configurar chaves'}
+      </button>
+      {open && (
+        <form
+          style={{ display: 'grid', gap: 8, marginTop: 10 }}
+          onSubmit={(e) => { e.preventDefault(); if (changed) save(vals); }}
+          autoComplete="off"
+        >
+          {fields.map((f) => (
+            <label key={f.env} style={{ display: 'grid', gap: 4, fontSize: 12, color: '#b9c4d0' }}>
+              <span>
+                {f.label}
+                {f.set && <span style={{ color: '#3ba55d' }}> · definido{f.source === 'painel' ? ' pelo painel' : f.source === 'hospedagem' ? ' na hospedagem' : ''}</span>}
+              </span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type={f.secret ? 'password' : 'text'}
+                  autoComplete="off" spellCheck={false}
+                  placeholder={f.set ? (f.value || 'definido') : 'não definido'}
+                  value={vals[f.env] ?? ''}
+                  onChange={(e) => setVals((s) => ({ ...s, [f.env]: e.target.value }))}
+                  style={{ flex: 1, minWidth: 0, padding: '6px 8px', borderRadius: 6, border: '1px solid #3a4453', background: '#1a1f26', color: '#e6edf3', fontSize: 13 }}
+                />
+                {f.source === 'painel' && (
+                  <button type="button" className="btn" disabled={saving} onClick={() => save({ [f.env]: '' })} title="Volta pro valor da hospedagem">Limpar</button>
+                )}
+              </div>
+            </label>
+          ))}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button type="submit" className="btn" disabled={!changed || saving}>{saving ? 'Salvando…' : 'Salvar chaves'}</button>
+            {msg && <span style={{ fontSize: 12, color: msg.startsWith('Salvo') ? '#3ba55d' : '#ed4245' }}>{msg}</span>}
+          </div>
+        </form>
+      )}
     </div>
   );
 }
@@ -132,6 +196,12 @@ export default function VoiceProvidersAdmin() {
                 </button>
               </div>
             )}
+            {CLIENT_READY[p.id] === false && (
+              <div style={{ fontSize: 12, color: '#8aa0b4', marginTop: 8 }}>O site ainda não tem o player deste provedor — a cadeia pula ele nas chamadas.</div>
+            )}
+            {!p.configured && (p.fields || []).length > 0 && (
+              <div style={{ fontSize: 12, color: '#d97706', marginTop: 8 }}>Faltam as chaves — clique em “Configurar chaves”.</div>
+            )}
             {p.gateMissing && p.gateEnv && (
               <div style={{ fontSize: 12, color: '#d97706', marginTop: 8 }}>Falta definir <code>{p.gateEnv}</code> no servidor.</div>
             )}
@@ -140,7 +210,7 @@ export default function VoiceProvidersAdmin() {
                 type="button" className="btn"
                 onClick={() => doOverride(p.id)}
                 disabled={!p.enabled || p.active || busy === `ov:${p.id}`}
-                title={!p.enabled ? 'Provedor indisponível' : 'Forçar este provedor como ativo'}
+                title={!p.enabled ? (p.disabled ? 'Desativado da cadeia — reative primeiro' : 'Configure as chaves primeiro') : 'Forçar este provedor como ativo'}
               >
                 Forçar ativo
               </button>
@@ -154,6 +224,7 @@ export default function VoiceProvidersAdmin() {
                 </button>
               )}
             </div>
+            <KeysEditor provider={p} onSaved={setPanel} />
           </div>
         ))}
       </div>

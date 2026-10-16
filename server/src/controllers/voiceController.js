@@ -13,6 +13,7 @@ const usage = require('../services/voiceUsage');
 const decision = require('../services/voiceDecision');
 const overrideStore = require('../services/voiceOverrideStore');
 const tokens = require('../services/voiceTokens');
+const credentials = require('../services/voiceCredentials');
 
 // Mesma regra de acesso que o agoraController usava: clã (ser membro),
 // DM (ser da conversa), ou canal da comunidade (VER + CONNECT). Lança um
@@ -149,7 +150,7 @@ async function getProviderStatus(req, res, next) {
   try {
     const state = await currentDecision();
     const panel = decision.buildPanel(state);
-    res.json(panel);
+    res.json(withFields(panel));
   } catch (err) { next(err); }
 }
 
@@ -160,6 +161,38 @@ function broadcastProviderChanged(req, active) {
     const io = req.app.get('io');
     if (io) io.to('community').emit('voice:provider-changed', { active });
   } catch { /* não é fatal — a reconciliação periódica resolve */ }
+}
+
+// O painel recebe, junto, os campos de chave de cada provedor (mascarados).
+function withFields(panel) {
+  return { ...panel, providers: panel.providers.map((p) => ({ ...p, fields: credentials.describe(p.id) })) };
+}
+
+// GET /api/voice/provider/:id/config
+async function getConfig(req, res) {
+  const { id } = req.params;
+  if (!providers.PROVIDERS[id]) return res.status(400).json({ error: 'Provedor inválido.' });
+  res.json({ id, fields: credentials.describe(id) });
+}
+
+// POST /api/voice/provider/:id/config { values: { ENV: 'valor' | '' } }
+// Salva (criptografado), aplica na hora e devolve o painel atualizado.
+async function postConfig(req, res, next) {
+  try {
+    const { id } = req.params;
+    if (!providers.PROVIDERS[id]) return res.status(400).json({ error: 'Provedor inválido.' });
+    const values = req.body?.values;
+    if (!values || typeof values !== 'object' || Array.isArray(values)) return res.status(400).json({ error: 'Envie os valores das chaves.' });
+    await credentials.save(id, values);
+    console.log(`[voz] ${req.user?.username || req.user?.id} atualizou as chaves do provedor ${id} pelo painel.`);
+    const state = await currentDecision();
+    const panel = decision.buildPanel(state);
+    broadcastProviderChanged(req, panel.active);
+    res.json(withFields(panel));
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 }
 
 // POST /api/voice/override  { provider: 'livekit' | null }  (admin)
@@ -173,7 +206,7 @@ async function postOverride(req, res, next) {
     const state = await currentDecision();
     const panel = decision.buildPanel(state);
     broadcastProviderChanged(req, panel.active);
-    res.json(panel);
+    res.json(withFields(panel));
   } catch (err) { next(err); }
 }
 
@@ -187,7 +220,7 @@ async function postToggle(req, res, next) {
     const state = await currentDecision();
     const panel = decision.buildPanel(state);
     broadcastProviderChanged(req, panel.active);
-    res.json(panel);
+    res.json(withFields(panel));
   } catch (err) {
     if (err?.message && /fallback final|inválido/.test(err.message)) {
       return res.status(400).json({ error: err.message });
@@ -213,8 +246,8 @@ async function postUsage(req, res, next) {
     const state = await currentDecision();
     const panel = decision.buildPanel(state);
     broadcastProviderChanged(req, panel.active);
-    res.json(panel);
+    res.json(withFields(panel));
   } catch (err) { next(err); }
 }
 
-module.exports = { getJoin, getProviderStatus, postOverride, postToggle, postUsage, assertRoomAccess, roomNameFor };
+module.exports = { getJoin, getProviderStatus, postOverride, postToggle, postUsage, getConfig, postConfig, assertRoomAccess, roomNameFor };
