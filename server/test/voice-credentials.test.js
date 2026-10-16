@@ -20,15 +20,15 @@ const fakeRedis = {
 require.cache[path.resolve(__dirname, '../src/config/redis.js')] = { exports: { redis: fakeRedis }, loaded: true, id: 'redis' };
 
 process.env.AGORA_APP_ID = 'id-da-hospedagem';
-delete process.env.LIVEKIT_API_SECRET;
+delete process.env.GETSTREAM_API_SECRET;
 const creds = require('../src/services/voiceCredentials');
 
 test('salva criptografado, aplica na hora e mascara o segredo', async () => {
-  const fields = await creds.save('livekit', { LIVEKIT_URL: 'wss://x.livekit.cloud', LIVEKIT_API_KEY: 'key', LIVEKIT_API_SECRET: 'segredo-muito-secreto' });
-  assert.equal(process.env.LIVEKIT_API_SECRET, 'segredo-muito-secreto');
-  const stored = store.get('voice:credentials').get('LIVEKIT_API_SECRET');
+  const fields = await creds.save('getstream', { GETSTREAM_API_KEY: 'chave-publica', GETSTREAM_API_SECRET: 'segredo-muito-secreto' });
+  assert.equal(process.env.GETSTREAM_API_SECRET, 'segredo-muito-secreto');
+  const stored = store.get('voice:credentials').get('GETSTREAM_API_SECRET');
   assert.ok(!stored.includes('segredo'), 'não fica em texto puro no Redis');
-  const secret = fields.find((f) => f.env === 'LIVEKIT_API_SECRET');
+  const secret = fields.find((f) => f.env === 'GETSTREAM_API_SECRET');
   assert.equal(secret.value, '••••reto');
   assert.equal(secret.source, 'painel');
 });
@@ -41,13 +41,13 @@ test('campo apagado volta pro valor da hospedagem', async () => {
 });
 
 test('não aceita chave de outro provedor nem provedor inválido', async () => {
-  await creds.save('agora', { LIVEKIT_API_SECRET: 'x' });
-  assert.equal(process.env.LIVEKIT_API_SECRET, 'segredo-muito-secreto');
+  await creds.save('agora', { GETSTREAM_API_SECRET: 'x' });
+  assert.equal(process.env.GETSTREAM_API_SECRET, 'segredo-muito-secreto');
   await assert.rejects(() => creds.save('nada', {}), /inválido/);
 });
 
 test('recarrega do Redis na subida', async () => {
-  delete process.env.LIVEKIT_URL;
+  delete process.env.GETSTREAM_API_KEY;
   await creds.load();
-  assert.equal(process.env.LIVEKIT_URL, 'wss://x.livekit.cloud');
+  assert.equal(process.env.GETSTREAM_API_KEY, 'chave-publica');
 });

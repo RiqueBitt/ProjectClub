@@ -26,29 +26,9 @@ const FIELDS = {
     { env: 'AGORA_APP_CERTIFICATE', label: 'App Certificate (primário)', secret: true },
     { env: 'AGORA_MONTHLY_MINUTES', label: 'Minutos grátis por mês (opcional)' },
   ],
-  livekit: [
-    { env: 'LIVEKIT_URL', label: 'URL (wss://seu-projeto.livekit.cloud)' },
-    { env: 'LIVEKIT_API_KEY', label: 'API Key' },
-    { env: 'LIVEKIT_API_SECRET', label: 'API Secret', secret: true },
-    { env: 'LIVEKIT_MONTHLY_MINUTES', label: 'Minutos grátis por mês (opcional)' },
-  ],
   getstream: [
     { env: 'GETSTREAM_API_KEY', label: 'API Key' },
     { env: 'GETSTREAM_API_SECRET', label: 'API Secret', secret: true },
-  ],
-  daily: [
-    { env: 'DAILY_DOMAIN', label: 'Domínio (ex.: seu-time)' },
-    { env: 'DAILY_ROOM_URL', label: 'URL da sala' },
-    { env: 'DAILY_API_KEY', label: 'API Key', secret: true },
-  ],
-  trtc: [
-    { env: 'TRTC_SDK_APP_ID', label: 'SDKAppID' },
-    { env: 'TRTC_SECRET_KEY', label: 'Secret Key', secret: true },
-  ],
-  jitsi: [
-    { env: 'JITSI_DOMAIN', label: 'Domínio (padrão meet.jit.si; ex.: 8x8.vc)' },
-    { env: 'JITSI_APP_ID', label: 'App ID (JaaS, opcional)' },
-    { env: 'JITSI_APP_SECRET', label: 'Chave do JWT (JaaS, opcional)', secret: true },
   ],
 };
 

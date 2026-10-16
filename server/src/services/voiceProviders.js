@@ -1,4 +1,6 @@
-// Cadeia de provedores de voz (item pedido: transformar o fallback único
+// Cadeia de provedores de voz: servidor próprio → Agora → Stream (os outros
+// — LiveKit, Daily, TRTC e Jitsi — foram removidos a pedido do dono).
+// (Histórico: item pedido: transformar o fallback único
 // Agora→Jitsi numa CADEIA ordenada de provedores, cada um usado até
 // estourar o limite mensal gratuito dele, aí passa pro próximo
 // automaticamente — sem deslogar ninguém).
@@ -55,52 +57,13 @@ const PROVIDERS = {
     defaultLimit: 10000,
     isPrimary: true,
   },
-  livekit: {
-    id: 'livekit',
-    label: 'LiveKit',
-    order: 2,
-    envVars: ['LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET'],
-    limitEnv: 'LIVEKIT_MONTHLY_MINUTES',
-    defaultLimit: 5000,
-  },
   getstream: {
     id: 'getstream',
     label: 'Stream (GetStream)',
-    order: 3,
+    order: 2,
     envVars: ['GETSTREAM_API_KEY', 'GETSTREAM_API_SECRET'],
     limitEnv: 'GETSTREAM_MONTHLY_MINUTES',
     defaultLimit: 10000,
-  },
-  daily: {
-    id: 'daily',
-    label: 'Daily',
-    order: 4,
-    envVars: ['DAILY_DOMAIN', 'DAILY_ROOM_URL'],
-    // O dono ainda NÃO tem a DAILY_API_KEY (necessária pra mintar os
-    // tokens de reunião via REST do Daily). Enquanto ela não existir, o
-    // Daily fica "configurado (falta DAILY_API_KEY)" e é pulado na cadeia.
-    gateEnv: 'DAILY_API_KEY',
-    gateLabel: 'DAILY_API_KEY',
-    limitEnv: 'DAILY_MONTHLY_MINUTES',
-    defaultLimit: 10000,
-  },
-  trtc: {
-    id: 'trtc',
-    label: 'TRTC (Tencent)',
-    order: 5,
-    envVars: ['TRTC_SDK_APP_ID', 'TRTC_SECRET_KEY'],
-    limitEnv: 'TRTC_MONTHLY_MINUTES',
-    defaultLimit: 10000,
-  },
-  jitsi: {
-    id: 'jitsi',
-    label: 'Jitsi (meet.jit.si)',
-    order: 6,
-    // Fallback final e sempre gratuito — não exige segredo nenhum
-    // (meet.jit.si público). Por isso está SEMPRE disponível e sem teto.
-    envVars: [],
-    alwaysAvailable: true,
-    unlimited: true,
   },
 };
 

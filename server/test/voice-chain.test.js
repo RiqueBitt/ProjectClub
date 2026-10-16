@@ -1,11 +1,8 @@
-// Testes da cadeia de provedores de voz (item pedido): uso por provedor,
-// decisão/cadeia (abaixo/acima do limite, pular não configurado, override,
-// virada de mês) e a ESTRUTURA dos tokens (livekit/getstream/trtc/jitsi —
-// sem bater nos serviços ao vivo). `node --test`. Nada de Redis/rede aqui:
-// todas as funções testadas são puras e recebem env/uso por parâmetro.
+// Testes da cadeia de provedores de voz: servidor próprio → Agora → Stream.
+// Decisão (limite, override, desativar), painel e a ESTRUTURA dos tokens —
+// sem Redis nem rede: as funções testadas são puras.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const zlib = require('zlib');
 const jwt = require('jsonwebtoken');
 
 const providers = require('../src/services/voiceProviders');
@@ -13,38 +10,22 @@ const usage = require('../src/services/voiceUsage');
 const decision = require('../src/services/voiceDecision');
 const tokens = require('../src/services/voiceTokens');
 
-// Ambiente "tudo configurado" (menos o gate do Daily, de propósito).
 const FULL_ENV = {
   AGORA_APP_ID: 'a', AGORA_APP_CERTIFICATE: 'b',
-  LIVEKIT_URL: 'wss://lk.example', LIVEKIT_API_KEY: 'lk', LIVEKIT_API_SECRET: 'lksecret',
   GETSTREAM_API_KEY: 'gs', GETSTREAM_API_SECRET: 'gssecret',
-  DAILY_DOMAIN: 'club.daily.co', DAILY_ROOM_URL: 'https://club.daily.co/sala', // sem DAILY_API_KEY
-  TRTC_SDK_APP_ID: '140000000', TRTC_SECRET_KEY: 'trtcsecret',
-  // limites pequenos pra facilitar o teste de estouro
-  AGORA_MONTHLY_MINUTES: '1000', LIVEKIT_MONTHLY_MINUTES: '1000', GETSTREAM_MONTHLY_MINUTES: '1000',
-  DAILY_MONTHLY_MINUTES: '1000', TRTC_MONTHLY_MINUTES: '1000',
-  VOICE_USAGE_MARGIN: '1', // sem margem pra contas redondas no teste
+  AGORA_MONTHLY_MINUTES: '1000', GETSTREAM_MONTHLY_MINUTES: '1000',
+  VOICE_USAGE_MARGIN: '1',
 };
 
-// ---------------- providers / config ----------------
-
-test('cadeia: ordem e primário corretos', () => {
-  assert.deepEqual(providers.PROVIDER_ORDER, ['projectclub', 'agora', 'livekit', 'getstream', 'daily', 'trtc', 'jitsi']);
+test('cadeia: só servidor próprio, Agora e Stream, nessa ordem', () => {
+  assert.deepEqual(providers.PROVIDER_ORDER, ['projectclub', 'agora', 'getstream']);
   assert.equal(providers.PRIMARY_PROVIDER, 'agora');
 });
 
-test('configured x available: Daily configurado mas indisponível sem DAILY_API_KEY; com a chave fica disponível', () => {
-  assert.equal(providers.isConfigured('daily', FULL_ENV), true);
-  assert.equal(providers.isAvailable('daily', FULL_ENV), false); // falta o gate
-  const withKey = { ...FULL_ENV, DAILY_API_KEY: 'k' };
-  assert.equal(providers.isAvailable('daily', withKey), true);
-});
-
-test('provedor sem envs não é configurado; Jitsi é sempre disponível', () => {
-  assert.equal(providers.isConfigured('livekit', {}), false);
-  assert.equal(providers.isConfigured('jitsi', {}), true);
-  assert.equal(providers.isAvailable('jitsi', {}), true);
-  assert.equal(providers.getMonthlyLimit('jitsi', {}), Infinity);
+test('provedor sem envs não é configurado nem disponível', () => {
+  assert.equal(providers.isConfigured('getstream', {}), false);
+  assert.equal(providers.isAvailable('getstream', {}), false);
+  assert.equal(providers.isAvailable('getstream', FULL_ENV), true);
 });
 
 // ---------------- usage: puro + virada de mês ----------------
@@ -64,146 +45,66 @@ test('usage: percentOf e isOverLimit', () => {
   assert.equal(usage.isOverLimit(99999, Infinity), false);
 });
 
-// ---------------- decisão / cadeia ----------------
-
-test('decisão: tudo zerado → usa o primário (agora)', () => {
+test('decisão: tudo zerado → agora (primário)', () => {
   const d = decision.decideProvider({ usageByProvider: {}, env: FULL_ENV });
   assert.equal(d.provider, 'agora');
   assert.equal(d.reason, 'primary');
 });
 
-test('decisão: agora estourado → passa pro livekit (próximo da cadeia)', () => {
+test('decisão: agora estourado → stream', () => {
   const d = decision.decideProvider({ usageByProvider: { agora: 1000 }, env: FULL_ENV });
-  assert.equal(d.provider, 'livekit');
-  assert.equal(d.reason, 'chain');
+  assert.equal(d.provider, 'getstream');
 });
 
-test('decisão: agora+livekit+getstream estourados, Daily pulado (sem chave) → vai pro trtc', () => {
-  const d = decision.decideProvider({ usageByProvider: { agora: 1000, livekit: 1000, getstream: 1000 }, env: FULL_ENV });
-  assert.equal(d.provider, 'trtc'); // daily é pulado por falta do gate
+test('decisão: todos estourados → continua no primeiro disponível (nunca fica sem voz)', () => {
+  const d = decision.decideProvider({ usageByProvider: { agora: 1000, getstream: 1000 }, env: FULL_ENV });
+  assert.equal(d.provider, 'agora');
+  assert.equal(d.reason, 'over-limit');
 });
 
-test('decisão: todos estourados/indisponíveis → cai no Jitsi (fallback final)', () => {
-  const d = decision.decideProvider({ usageByProvider: { agora: 1000, livekit: 1000, getstream: 1000, trtc: 1000 }, env: FULL_ENV });
-  assert.equal(d.provider, 'jitsi'); // sempre disponível e ilimitado
+test('decisão: nada configurado → provider null', () => {
+  const d = decision.decideProvider({ usageByProvider: {}, env: {} });
+  assert.equal(d.provider, null);
+  assert.equal(d.reason, 'none');
 });
 
-test('decisão: sem NENHUM provedor configurado → fallback explícito pro Jitsi', () => {
-  const d = decision.decideProvider({ usageByProvider: {}, disabled: ['jitsi'], env: {} });
-  // Mesmo "desativando" o jitsi (que o store proíbe, mas a função pura
-  // aceita), a decisão nunca fica sem provedor: cai no fallback final.
-  assert.equal(d.provider, 'jitsi');
-  assert.equal(d.reason, 'fallback');
-});
-
-test('decisão: pula provedores NÃO configurados (só agora e jitsi no env)', () => {
-  const env = { AGORA_APP_ID: 'a', AGORA_APP_CERTIFICATE: 'b', AGORA_MONTHLY_MINUTES: '1000', VOICE_USAGE_MARGIN: '1' };
-  assert.equal(decision.decideProvider({ usageByProvider: {}, env }).provider, 'agora');
-  assert.equal(decision.decideProvider({ usageByProvider: { agora: 1000 }, env }).provider, 'jitsi');
-});
-
-test('override: força um provedor específico ignorando o limite', () => {
-  const d = decision.decideProvider({ usageByProvider: { agora: 0 }, override: 'trtc', env: FULL_ENV });
-  assert.equal(d.provider, 'trtc');
+test('override: força o stream ignorando o limite', () => {
+  const d = decision.decideProvider({ usageByProvider: { getstream: 5000 }, override: 'getstream', env: FULL_ENV });
+  assert.equal(d.provider, 'getstream');
   assert.equal(d.overridden, true);
-  assert.equal(d.reason, 'override');
 });
 
-test('override: apontando pra provedor indisponível é ignorado (segue automático)', () => {
-  const d = decision.decideProvider({ usageByProvider: {}, override: 'daily', env: FULL_ENV });
-  assert.equal(d.provider, 'agora'); // daily indisponível (sem chave) → ignora override
-  assert.equal(d.overridden, false);
+test('override: provedor removido/indisponível é ignorado', () => {
+  for (const o of ['jitsi', 'livekit', 'daily']) {
+    const d = decision.decideProvider({ usageByProvider: {}, override: o, env: FULL_ENV });
+    assert.equal(d.provider, 'agora');
+    assert.equal(d.overridden, false);
+  }
 });
 
-test('desativar manualmente: agora desativado → usa livekit mesmo sem estourar', () => {
+test('desativar: agora desativado → stream', () => {
   const d = decision.decideProvider({ usageByProvider: {}, disabled: ['agora'], env: FULL_ENV });
-  assert.equal(d.provider, 'livekit');
+  assert.equal(d.provider, 'getstream');
 });
 
-test('painel: lista todos com status/percent e marca o ativo e o modo reserva', () => {
+test('painel: 3 provedores, ativo e modo reserva', () => {
   const panel = decision.buildPanel({ usageByProvider: { agora: 500 }, env: FULL_ENV });
+  assert.equal(panel.providers.length, 3);
   assert.equal(panel.active, 'agora');
   assert.equal(panel.reserveMode, false);
-  assert.equal(panel.providers.length, 7);
-  const agora = panel.providers.find((p) => p.id === 'agora');
-  assert.equal(agora.active, true);
-  assert.equal(agora.percent, 50);
-  assert.equal(agora.status, 'ativo');
-  const daily = panel.providers.find((p) => p.id === 'daily');
-  assert.equal(daily.configured, true);
-  assert.equal(daily.enabled, false);
-  assert.equal(daily.status, 'falta_chave');
-  const jitsi = panel.providers.find((p) => p.id === 'jitsi');
-  assert.equal(jitsi.unlimited, true);
-  assert.equal(jitsi.limit, null);
+  assert.equal(panel.providers.find((p) => p.id === 'agora').percent, 50);
+  const p2 = decision.buildPanel({ usageByProvider: { agora: 1000 }, env: FULL_ENV });
+  assert.equal(p2.active, 'getstream');
+  assert.equal(p2.reserveMode, true);
+  assert.equal(p2.providers.find((p) => p.id === 'agora').status, 'esgotado');
 });
 
-test('painel: quando o ativo não é o primário, reserveMode = true', () => {
-  const panel = decision.buildPanel({ usageByProvider: { agora: 1000 }, env: FULL_ENV });
-  assert.equal(panel.active, 'livekit');
-  assert.equal(panel.reserveMode, true);
-  assert.equal(panel.providers.find((p) => p.id === 'livekit').status, 'ativo');
-  assert.equal(panel.providers.find((p) => p.id === 'agora').status, 'esgotado');
-});
-
-// ---------------- estrutura dos tokens ----------------
-
-test('token livekit: JWT HS256 com grant video.roomJoin e sala/identidade certas', () => {
-  const out = tokens.mintLiveKit({ room: 'pc_v1', identity: 'user-123', name: 'Rique' }, FULL_ENV);
-  assert.equal(out.url, 'wss://lk.example');
-  assert.equal(out.room, 'pc_v1');
-  const decoded = jwt.verify(out.token, FULL_ENV.LIVEKIT_API_SECRET);
-  assert.equal(decoded.sub, 'user-123');
-  assert.equal(decoded.iss, FULL_ENV.LIVEKIT_API_KEY);
-  assert.equal(decoded.video.room, 'pc_v1');
-  assert.equal(decoded.video.roomJoin, true);
-  assert.equal(decoded.video.canPublish, true);
-});
-
-test('token livekit: sem envs → null', () => {
-  assert.equal(tokens.mintLiveKit({ room: 'x', identity: 'y' }, {}), null);
-});
-
-test('token getstream: JWT HS256 com user_id', () => {
+test('token getstream: JWT HS256 com user_id; sem envs → null', () => {
   const out = tokens.mintGetStream({ userId: 'user-123', callId: 'pc_v1' }, FULL_ENV);
   assert.equal(out.apiKey, 'gs');
   assert.equal(out.callId, 'pc_v1');
-  const decoded = jwt.verify(out.token, FULL_ENV.GETSTREAM_API_SECRET);
-  assert.equal(decoded.user_id, 'user-123');
-});
-
-test('token trtc: UserSig decodifica (zlib) de volta pro objeto TLS assinado', () => {
-  const out = tokens.mintTRTCUserSig({ userId: 'user-123', roomId: 'pc_v1' }, FULL_ENV, 1_700_000_000_000);
-  assert.equal(out.sdkAppId, 140000000);
-  assert.equal(out.userId, 'user-123');
-  assert.ok(typeof out.userSig === 'string' && out.userSig.length > 0);
-  // desfaz o base64 "URL-safe" da Tencent e o deflate
-  const b64 = out.userSig.replace(/\*/g, '+').replace(/-/g, '/').replace(/_/g, '=');
-  const json = JSON.parse(zlib.inflateSync(Buffer.from(b64, 'base64')).toString('utf8'));
-  assert.equal(json['TLS.identifier'], 'user-123');
-  assert.equal(json['TLS.sdkappid'], 140000000);
-  assert.ok(json['TLS.sig']);
-  assert.equal(json['TLS.ver'], '2.0');
-});
-
-test('token trtc: sem secret → null', () => {
-  assert.equal(tokens.mintTRTCUserSig({ userId: 'x' }, { TRTC_SDK_APP_ID: '1' }), null);
-});
-
-test('token jitsi: sem segredo → jwt null, domínio meet.jit.si', () => {
-  const out = tokens.mintJitsi({ room: 'pc_v1', userId: 'user-123', name: 'Rique' }, {});
-  assert.equal(out.domain, 'meet.jit.si');
-  assert.equal(out.jwt, null);
-  assert.equal(out.room, 'pc_v1');
-});
-
-test('token jitsi: com JITSI_APP_ID/SECRET → JWT assinado com a sala no payload', () => {
-  const env = { JITSI_APP_ID: 'app', JITSI_APP_SECRET: 'sec', JITSI_DOMAIN: 'meet.example' };
-  const out = tokens.mintJitsi({ room: 'pc_v1', userId: 'u1', name: 'Rique' }, env);
-  assert.equal(out.domain, 'meet.example');
-  const decoded = jwt.verify(out.jwt, 'sec');
-  assert.equal(decoded.room, 'pc_v1');
-  assert.equal(decoded.aud, 'app');
+  assert.equal(jwt.verify(out.token, 'gssecret').user_id, 'user-123');
+  assert.equal(tokens.mintGetStream({ userId: 'u', callId: 'c' }, {}), null);
 });
 
 test('token agora: usa o minter existente; sem envs → null', () => {
@@ -236,7 +137,7 @@ test('próprio: configurado → é o primeiro da cadeia, ilimitado, e NÃO é mo
   assert.equal(d.provider, 'projectclub');
   assert.equal(providers.isReserve('projectclub'), false);
   assert.equal(providers.isReserve('agora'), false);
-  assert.equal(providers.isReserve('livekit'), true);
+  assert.equal(providers.isReserve('getstream'), true);
   const panel = decision.buildPanel({ usageByProvider: {}, override: null, disabled: [], env: OWN_ENV });
   assert.equal(panel.active, 'projectclub');
   assert.equal(panel.reserveMode, false);

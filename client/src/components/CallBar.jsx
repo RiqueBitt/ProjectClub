@@ -225,7 +225,7 @@ export default function CallBar() {
           <span className="cb-status-text truncate">{statusText}</span>
           {pingText && <span className="cb-ping">{pingText}</span>}
         </div>
-        {/* Modo reserva (Jitsi): avisa discretamente que a mídia está no
+        {/* Modo reserva (Stream): avisa discretamente que a mídia está no
             provedor de backup. Ver docs/voice-fallback.md. */}
         {voice.fallbackActive && (
           <span className="cb-backup" data-tip={`Chamada em modo reserva (provedor ${voice.providerLabel || 'de backup'})`} aria-label="Chamada em modo reserva">
