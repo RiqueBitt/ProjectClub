@@ -85,6 +85,24 @@ const VoiceContext = createContext(null);
 // nunca chegam a ser baixados. As chamadas seguintes reaproveitam a
 // mesma promise (nunca baixa duas vezes).
 let agoraRtcPromise = null;
+// Falha do provedor de voz: avisa o servidor (aparece nos logs como
+// [erro-de-tela] voz:<provedor>) e devolve a mensagem certa pra pessoa.
+// CAN_NOT_GET_GATEWAY_SERVER = o Agora recusou o projeto/credencial (conta
+// desativada, minutos acabaram ou certificado trocado) — não é a internet.
+function reportVoiceFailure(provider, err) {
+  const message = String(err?.message || err || '').slice(0, 400);
+  try {
+    fetch('/api/system/client-error', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+      body: JSON.stringify({ where: `voz:${provider}`, path: window.location.pathname, message, stack: String(err?.stack || '').slice(0, 800) }),
+    }).catch(() => {});
+  } catch { /* sem rede */ }
+  if (/CAN_NOT_GET_GATEWAY_SERVER|invalid vendor key|dynamic use static key|token/i.test(message)) {
+    return 'O serviço de voz recusou a conexão (configuração do servidor de chamadas). A equipe já foi avisada — tente mais tarde.';
+  }
+  return 'Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.';
+}
+
 function loadAgoraRTC() {
   if (!agoraRtcPromise) {
     agoraRtcPromise = import('agora-rtc-sdk-ng').then((mod) => mod.default);
@@ -627,7 +645,7 @@ export function VoiceProvider({ children }) {
     } catch (err) {
       console.error(`[voz] Falha ao conectar no provedor ${prov}:`, err);
       if (jitsiEngineRef.current === engine) teardownJitsi();
-      useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
+      useStore.getState().pushNotice(reportVoiceFailure(prov, err));
       return false;
     }
     if (!isSwitch && joiningChannelIdRef.current !== channelId) {
@@ -762,7 +780,7 @@ export function VoiceProvider({ children }) {
         client.removeAllListeners?.();
         client.leave().catch(() => {});
         if (agoraClientRef.current === client) agoraClientRef.current = null;
-        useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
+        useStore.getState().pushNotice(reportVoiceFailure('agora', err));
         return;
       }
       if (joiningChannelIdRef.current !== channelId) {

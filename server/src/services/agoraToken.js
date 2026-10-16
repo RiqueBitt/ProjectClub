@@ -27,15 +27,17 @@ function isConfigured() {
 // um UID numérico só pra isso.
 function generateToken(channelName, userId) {
   if (!isConfigured()) return null;
-  const now = Math.floor(Date.now() / 1000);
+  // agora-token 2.x: os prazos são EM SEGUNDOS A PARTIR DE AGORA (não um
+  // horário absoluto). Antes ia `agora + 24h` (~1,8 bilhão de segundos =
+  // dezenas de anos), acima do teto de 24h que o Agora aceita.
   return RtcTokenBuilder.buildTokenWithUserAccount(
     process.env.AGORA_APP_ID,
     process.env.AGORA_APP_CERTIFICATE,
     channelName,
     userId,
     RtcRole.PUBLISHER, // todo mundo pode falar E ouvir — o controle de quem PODE falar (ex: plateia de canal Palco) continua sendo regra nossa, do lado da aplicação, não do Agora
-    now + TOKEN_EXPIRE_SECONDS,
-    now + TOKEN_EXPIRE_SECONDS,
+    TOKEN_EXPIRE_SECONDS,
+    TOKEN_EXPIRE_SECONDS,
   );
 }
 

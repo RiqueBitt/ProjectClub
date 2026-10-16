@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
-import { setAccessToken, setUnauthorizedHandler } from '../api/client';
+import { setAccessToken, setUnauthorizedHandler, sharedRefresh } from '../api/client';
 import { loginUser, logoutUser, registerUser, fetchMe } from '../api/endpoints';
 import { useStore } from '../store/useStore';
 import { clearBootCache } from '../utils/bootstrap';
@@ -125,7 +125,7 @@ export function AuthProvider({ children }) {
     // outra falha (rede, 5xx, 429, página HTML da hospedagem) continua
     // tentando com espera crescente, sem limite, até o servidor voltar.
     const tryRestore = (attempt = 1) => {
-      api.post('/auth/refresh')
+      sharedRefresh()
         .then((res) => {
           if (!res.data?.accessToken) throw Object.assign(new Error('bad'), { transient: true });
           applySession(res.data); setLoading(false);
