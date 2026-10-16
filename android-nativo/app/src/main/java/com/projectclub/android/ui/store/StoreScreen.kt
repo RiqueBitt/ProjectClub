@@ -81,6 +81,8 @@ import com.projectclub.android.ui.common.rememberShimmer
 import com.projectclub.android.ui.nav.AppNav
 import com.projectclub.android.ui.theme.PC
 import kotlinx.coroutines.launch
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.filled.Favorite
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
