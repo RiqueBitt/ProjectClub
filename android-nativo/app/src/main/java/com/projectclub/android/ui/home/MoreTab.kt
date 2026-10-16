@@ -30,6 +30,8 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Language
@@ -96,6 +98,9 @@ fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
         Entry(Icons.Outlined.Groups, "Clubes", Color(0xFFFB923C), "/clans"),
         Entry(Icons.Outlined.CalendarMonth, "Eventos", PC.Events, "/comunidade/eventos"),
         Entry(Icons.AutoMirrored.Outlined.Article, "Fórum", PC.Forum, "/comunidades"),
+        Entry(Icons.Outlined.Bolt, "Atividade", PC.Green, "/atividade"),
+        Entry(Icons.Outlined.Search, "Buscar", PC.Brand, "/search"),
+        Entry(Icons.Outlined.SupportAgent, "Suporte", Color(0xFF34D399), "/tickets"),
     )
 
     Column(Modifier.fillMaxSize()) {
