@@ -9,7 +9,7 @@ import {
   adminListCollections, adminSaveCollection, adminDeleteCollection,
 } from '../api/decorations';
 import ShopItemFlagsFields, { FLAGS_EMPTY, flagsFrom } from './shop/ShopItemFlagsFields.jsx';
-import { FontsAdmin, StylesAdmin, GrantItemsAdmin, CodesAdmin } from './shop/ShopAdminExtras.jsx';
+import { FontsAdmin, StylesAdmin, GrantItemsAdmin, CodesAdmin, BannersAdmin } from './shop/ShopAdminExtras.jsx';
 import '../styles/shop.css';
 import '../styles/contentx.css';
 
@@ -25,7 +25,7 @@ export default function ShopAdminTab() {
   return (
     <div className="deco-admin">
       <div className="shopadm-tabs" role="tablist">
-        {[['molduras', 'Molduras', 'frame'], ['efeitos', 'Efeitos de perfil', 'sparkles'], ['fontes', 'Fontes do nome', 'font'], ['estilos', 'Estilos de perfil', 'palette'], ['colecoes', 'Coleções', 'grid'], ['dar', 'Dar item', 'gift'], ['codigos', 'Códigos', 'tag']].map(([id, label, icon]) => (
+        {[['molduras', 'Molduras', 'frame'], ['efeitos', 'Efeitos de perfil', 'sparkles'], ['fontes', 'Fontes do nome', 'font'], ['estilos', 'Estilos de perfil', 'palette'], ['colecoes', 'Coleções', 'grid'], ['banners', 'Banners', 'image'], ['dar', 'Dar item', 'gift'], ['codigos', 'Códigos', 'tag']].map(([id, label, icon]) => (
           <button key={id} type="button" role="tab" aria-selected={sub === id} className={sub === id ? 'active' : ''} onClick={() => setSub(id)}>
             <Ico name={icon} size={15} /> {label}
           </button>
@@ -38,6 +38,7 @@ export default function ShopAdminTab() {
       {sub === 'colecoes' && <CollectionsAdmin items={collections} reload={loadCollections} />}
       {sub === 'dar' && <GrantItemsAdmin />}
       {sub === 'codigos' && <CodesAdmin />}
+      {sub === 'banners' && <BannersAdmin collections={collections} />}
     </div>
   );
 }

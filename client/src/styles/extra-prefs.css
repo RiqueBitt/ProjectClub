@@ -121,3 +121,21 @@ html[data-pc-toggle-icons] .pc-switch.on::after { content: '✓'; color: #16a34a
 .xp-profile.on { border-color: var(--brand); }
 .xp-profile-dot { position: absolute; left: 12px; top: 14px; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--text-muted); }
 .xp-profile.on .xp-profile-dot { border-color: var(--brand); background: radial-gradient(circle, var(--brand) 45%, transparent 50%); }
+.message-ignored { display: flex; align-items: center; gap: 10px; padding: 4px 16px 4px 72px; color: var(--text-muted); font-size: 13px; }
+.message-ignored em { font-style: italic; }
+.acs { display: flex; flex-direction: column; gap: 4px; padding: 4px; }
+.acs-row { display: flex; align-items: center; gap: 6px; border-radius: 8px; }
+.acs-row.on { padding: 6px 8px; background: var(--bg-modifier-hover); }
+.acs-row span { display: flex; flex-direction: column; min-width: 0; flex: 1; text-align: left; }
+.acs-row b { color: var(--header-primary); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acs-row small { color: var(--text-muted); font-size: 11.5px; }
+.acs-pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.acs-pick:hover { background: var(--bg-modifier-hover); }
+.acs-pick em { font-style: normal; font-size: 11px; color: var(--text-muted); }
+.acs-x { width: 26px; height: 26px; border-radius: 6px; border: 0; background: none; color: var(--text-muted); cursor: pointer; }
+.acs-x:hover { color: var(--red); background: var(--bg-modifier-hover); }
+.acs-hint { padding: 2px 8px 4px; color: var(--text-muted); font-size: 11px; }
+.loading-screen-tip { max-width: 420px; margin-top: 18px; padding: 0 20px; display: flex; flex-direction: column; gap: 4px; text-align: center; animation: pcTipIn .5s ease .3s both; }
+.loading-screen-tip small { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--header-primary, #fff); }
+.loading-screen-tip span { font-size: 13.5px; color: var(--text-muted, #aaa); line-height: 1.45; }
+@keyframes pcTipIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

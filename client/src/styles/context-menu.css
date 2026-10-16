@@ -107,3 +107,8 @@
 html .context-menu.cm-v2:focus,
 html .context-menu.cm-v2:focus-visible { outline: none !important; }
 html .cm-v2 .cm-item:focus-visible { outline-offset: -2px; }
+
+/* Reações rápidas no topo do menu da mensagem. */
+.cm-emoji-row { display: flex; gap: 4px; padding: 4px 4px 6px; }
+.cm-emoji { flex: 1; height: 38px; border-radius: 10px; border: 0; background: var(--bg-elevated, rgba(255,255,255,.06)); font-size: 20px; cursor: pointer; line-height: 1; }
+.cm-emoji:hover, .cm-emoji:focus-visible { background: var(--brand); outline: none; transform: scale(1.04); }

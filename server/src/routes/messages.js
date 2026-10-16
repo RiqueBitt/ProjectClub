@@ -10,6 +10,11 @@ router.use(requireAuth);
 router.get('/', ctrl.listMessages);
 router.get('/search', ctrl.searchMessages);
 router.get('/pinned', ctrl.listPinned);
+// Favoritos, menções (Caixa de Entrada) e marcar como não lida.
+const extra = require('../controllers/messageExtrasController');
+router.get('/saved', extra.listSaved);
+router.get('/saved/ids', extra.savedIds);
+router.get('/mentions', extra.listMentions);
 // Mensagens agendadas (antes de /:id pra "scheduled" não virar id).
 const scheduled = require('../controllers/scheduledController');
 router.get('/scheduled', scheduled.listMine);
@@ -27,6 +32,8 @@ router.patch('/:id', ctrl.editMessage);
 router.delete('/:id', ctrl.deleteMessage);
 router.post('/:id/pin', ctrl.togglePin);
 router.post('/:id/react', ctrl.react);
+router.post('/:id/save', extra.toggleSave);
+router.post('/:id/unread', extra.markUnread);
 router.get('/:id/reactions/:emoji', ctrl.listReactors);
 router.post('/:id/archive', ctrl.toggleArchiveTopic);
 

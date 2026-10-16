@@ -1,3 +1,5 @@
+import { useMsgExtras } from '../utils/messageExtras';
+import { roomKeyFor } from '../store/useStore';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { lazyWithRetry as lazy, preloadPages } from '../utils/lazyWithRetry';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
@@ -153,6 +155,17 @@ export default function MainApp() {
   const userSettingsLanguage = useStore((s) => s.userSettings?.language);
   useEffect(() => { applyLanguage(userSettingsLanguage); }, [userSettingsLanguage]);
   const location = useLocation();
+  // Favoritos/ignorados (menu da mensagem) carregam uma vez.
+  useEffect(() => { useMsgExtras.getState().load(); }, []);
+  // Link de mensagem (?m=ID): pula até ela ao abrir o canal/conversa.
+  useEffect(() => {
+    const mid = new URLSearchParams(location.search).get('m');
+    if (!mid) return;
+    const ch = location.pathname.match(/^\/channels\/([^/?#]+)/);
+    const cv = location.pathname.match(/^\/conversations\/([^/?#]+)/);
+    if (ch) useStore.getState().setPendingJump({ roomKey: roomKeyFor({ channelId: ch[1] }), messageId: mid });
+    else if (cv) useStore.getState().setPendingJump({ roomKey: roomKeyFor({ conversationId: cv[1] }), messageId: mid });
+  }, [location.pathname, location.search]);
   const navigate = useNavigate();
   const { connected } = useSocket() || {};
   const touchStart = useRef(null);

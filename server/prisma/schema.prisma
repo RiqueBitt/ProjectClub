@@ -217,6 +217,9 @@ model User {
   // registro em SupporterAuditLog. Hierarquia apenas visual/benefícios —
   // não dá nenhuma permissão de staff. Ver services/supporters.js.
   supporterTier       String    @default("NONE") @db.VarChar(16)
+  // Apoio temporário comprado com gemas (crédito): até quando vale.
+  // null = apoio normal (definido pela staff, sem prazo).
+  supporterUntil      DateTime?
   // SECURITY: marca quando a conta foi promovida automaticamente a ADMIN
   // via PLATFORM_ADMIN_EMAIL (ver adminBootstrap.js). Preenchido = a
   // promoção automática já aconteceu uma vez e NÃO se repete — se outra
@@ -2852,6 +2855,11 @@ model AvatarDecoration {
   // Limitados podem ser trocados entre jogadores (ItemTrade).
   stock            Int?
   sold             Int     @default(0)
+  // Filtros da Loja: tags de tema ("anime,jogos"), cor principal e grupo
+  // de variantes (itens iguais em cores diferentes).
+  tags             String?  @db.VarChar(200)
+  color            String?  @db.VarChar(16)
+  variantGroup     String?  @db.VarChar(64)
   owners     UserAvatarDecoration[]
   // Coleção da loja (opcional).
   collectionId String?
@@ -2927,6 +2935,11 @@ model ProfileEffect {
   description      String? @db.Text
   stock            Int?
   sold             Int     @default(0)
+  // Filtros da Loja: tags de tema ("anime,jogos"), cor principal e grupo
+  // de variantes (itens iguais em cores diferentes).
+  tags             String?  @db.VarChar(200)
+  color            String?  @db.VarChar(16)
+  variantGroup     String?  @db.VarChar(64)
   collectionId String?
   collection   ShopCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
   owners       UserProfileEffect[]
@@ -2970,6 +2983,9 @@ model ShopItem {
   discountEligible Boolean  @default(true)
   stock            Int?
   sold             Int      @default(0)
+  tags             String?  @db.VarChar(200)
+  color            String?  @db.VarChar(16)
+  variantGroup     String?  @db.VarChar(64)
   collectionId     String?
   collection       ShopCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
   owners           UserShopItem[]
@@ -3128,6 +3144,58 @@ model RedeemCodeUse {
   createdAt DateTime   @default(now())
 
   @@unique([codeId, userId])
+  @@index([userId])
+}
+
+// Mensagens favoritadas (Caixa de Entrada → Favoritos).
+model SavedMessage {
+  id        String   @id @default(uuid())
+  userId    String
+  messageId String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, messageId])
+  @@index([userId, createdAt])
+}
+
+// Ignorar alguém: as mensagens da pessoa ficam escondidas pra quem ignorou
+// (mais leve que bloquear, e a pessoa não fica sabendo).
+model UserIgnore {
+  id        String   @id @default(uuid())
+  userId    String
+  targetId  String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, targetId])
+}
+
+// Banners promocionais da Loja (staff).
+model ShopBanner {
+  id           String   @id @default(uuid())
+  title        String   @db.VarChar(80)
+  subtitle     String?  @db.VarChar(200)
+  imageUrl     String?  @db.Text
+  badge        String?  @db.VarChar(40)
+  buttonLabel  String?  @db.VarChar(30)
+  collectionId String?
+  accentColor  String?  @db.VarChar(16)
+  active       Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  endsAt       DateTime?
+  createdAt    DateTime @default(now())
+}
+
+// "Trocar de conta" (igual ao Discord): cada aparelho guarda um token
+// próprio por conta salva; trocar emite uma sessão nova sem pedir a senha.
+model AccountSwitchToken {
+  id         String   @id @default(uuid())
+  userId     String
+  tokenHash  String   @unique
+  userAgent  String?  @db.VarChar(300)
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+  expiresAt  DateTime
+
   @@index([userId])
 }
 

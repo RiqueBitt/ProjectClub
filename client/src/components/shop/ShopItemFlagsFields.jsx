@@ -2,11 +2,22 @@
 // descrição, destaque, exclusividade de apoio, desconto de Assinante e
 // estoque de item limitado.
 // O servidor valida tudo de novo (ver shopController.readShopFlags).
-export const FLAGS_EMPTY = { description: '', featured: false, exclusiveTier: '', discountEligible: true, stock: '' };
+export const FLAGS_EMPTY = { description: '', featured: false, exclusiveTier: '', discountEligible: true, stock: '', tags: '', color: '', variantGroup: '' };
+// Filtros da Loja (iguais aos do servidor — shopController SHOP_TAGS/SHOP_COLORS).
+export const SHOP_TAGS = [
+  ['anime', 'Anime'], ['jogos', 'Jogos'], ['fofo', 'Fofo e aconchegante'], ['scifi', 'Ficção científica'], ['comida', 'Comida e bebidas'],
+  ['fantasia', 'Fantasia'], ['animais', 'Animais'], ['natureza', 'Natureza'], ['filmes', 'Filmes e TV'], ['dark', 'Dark e taciturno'],
+  ['terror', 'Terror'], ['esportes', 'Esportes'], ['musica', 'Música'], ['parceria', 'Parcerias'],
+];
+export const SHOP_COLORS = [
+  ['roxo', '#8b5cf6'], ['azul', '#3b82f6'], ['verde', '#22c55e'], ['marrom', '#92400e'], ['amarelo', '#eab308'],
+  ['laranja', '#f97316'], ['vermelho', '#ef4444'], ['rosa', '#ec4899'], ['branco', '#f4f4f5'], ['preto', '#18181b'],
+];
 export const flagsFrom = (d) => ({
   description: d?.description || '', featured: !!d?.featured,
   exclusiveTier: d?.exclusiveTier || '', discountEligible: d?.discountEligible !== false,
   stock: d?.stock ?? '', sold: d?.sold ?? 0,
+  tags: Array.isArray(d?.tags) ? d.tags.join(',') : d?.tags || '', color: d?.color || '', variantGroup: d?.variantGroup || '',
 });
 
 export default function ShopItemFlagsFields({ form, set }) {
@@ -38,6 +49,30 @@ export default function ShopItemFlagsFields({ form, set }) {
           {form.sold > 0 ? ` Já vendidas: ${form.sold} (o estoque não pode ficar abaixo disso).` : ''}
         </small>
       )}
+      <div className="shopadm-filters">
+        <span>Temas (filtro da Loja)</span>
+        <div className="shopadm-tagpick">
+          {SHOP_TAGS.map(([k, l]) => {
+            const list = String(form.tags || '').split(',').filter(Boolean);
+            const on = list.includes(k);
+            return (
+              <button key={k} type="button" className={on ? 'on' : ''} aria-pressed={on}
+                onClick={() => set('tags')({ target: { value: (on ? list.filter((x) => x !== k) : [...list, k]).join(',') } })}
+              >{l}</button>
+            );
+          })}
+        </div>
+        <span>Cor principal</span>
+        <div className="shopadm-colorpick">
+          <button type="button" className={!form.color ? 'on none' : 'none'} onClick={() => set('color')({ target: { value: '' } })} title="Sem cor">∅</button>
+          {SHOP_COLORS.map(([k, hex]) => (
+            <button key={k} type="button" className={form.color === k ? 'on' : ''} style={{ background: hex }} title={k} aria-label={k} onClick={() => set('color')({ target: { value: k } })} />
+          ))}
+        </div>
+        <label>Grupo de variantes (mesmo nome = o mesmo item em cores diferentes)
+          <input value={form.variantGroup || ''} onChange={set('variantGroup')} maxLength={64} placeholder="Ex.: lua-negra" />
+        </label>
+      </div>
     </fieldset>
   );
 }

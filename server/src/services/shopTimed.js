@@ -74,7 +74,10 @@ async function sweepExpired(io) {
 }
 
 function startTimedSweeper(io) {
-  const tick = () => sweepExpired(io).catch((e) => console.error('[loja] itens com prazo:', e?.message || e));
+  const tick = () => {
+    sweepExpired(io).catch((e) => console.error('[loja] itens com prazo:', e?.message || e));
+    require('./supporterCredit').expireCredits(io).catch((e) => console.error('[loja] crédito de apoio:', e?.message || e));
+  };
   setTimeout(tick, 60 * 1000);
   setInterval(tick, 10 * 60 * 1000).unref?.();
 }

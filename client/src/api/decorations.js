@@ -69,3 +69,10 @@ export const getGiftsSummary = () => api.get('/decorations/gifts-summary').then(
 export const adminListCodes = () => api.get('/decorations/admin/codes').then((r) => r.data);
 export const adminCreateCode = (payload) => api.post('/decorations/admin/codes', payload).then((r) => r.data);
 export const adminRemoveCode = (id) => api.delete(`/decorations/admin/codes/${id}`).then((r) => r.data);
+export const buySupporterCredit = (id) => api.post(`/decorations/credits/${id}/buy`).then((r) => r.data);
+export const adminListBanners = () => api.get('/decorations/admin/banners').then((r) => r.data);
+export const adminSaveBanner = (id, fields, file) => {
+  const fd = toForm(fields, { image: file });
+  return (id ? api.patch(`/decorations/admin/banners/${id}`, fd) : api.post('/decorations/admin/banners', fd)).then((r) => r.data);
+};
+export const adminDeleteBanner = (id) => api.delete(`/decorations/admin/banners/${id}`).then((r) => r.data);

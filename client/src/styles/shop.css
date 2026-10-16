@@ -407,3 +407,18 @@
 .shopadm-code.off { opacity: .55; }
 .shopadm-code-val { font: 800 14px ui-monospace, Menlo, Consolas, monospace; letter-spacing: .05em; color: var(--header-primary); background: var(--bg-primary); border: 1px dashed var(--border); border-radius: 8px; padding: 5px 10px; cursor: copy; }
 .shopadm-code-info { flex: 1; min-width: 200px; font-size: 13px; color: var(--text-muted); }
+.shopadm-filters { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; font-size: 13px; color: var(--text-muted); }
+.shopadm-tagpick { display: flex; flex-wrap: wrap; gap: 5px; }
+.shopadm-tagpick button { padding: 4px 9px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-normal); font: 600 12px inherit; cursor: pointer; }
+.shopadm-tagpick button.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.shopadm-colorpick { display: flex; flex-wrap: wrap; gap: 6px; }
+.shopadm-colorpick button { width: 26px; height: 26px; border-radius: 50%; border: 2px solid rgba(255,255,255,.2); cursor: pointer; }
+.shopadm-colorpick button.on { outline: 2px solid var(--brand); outline-offset: 2px; }
+.shopadm-colorpick button.none { background: var(--bg-primary); color: var(--text-muted); font-size: 12px; }
+.shopadm-banners { display: flex; flex-direction: column; gap: 12px; }
+.shopadm-banner { display: grid; grid-template-columns: 220px 1fr; gap: 12px; padding: 12px; border-radius: 14px; background: var(--bg-secondary); border: 1px solid var(--shop-line); }
+.shopadm-banner-art { height: 110px; border-radius: 10px; background: var(--shop-dark) center/cover no-repeat; display: grid; place-items: center; color: var(--text-muted); font-size: 12px; }
+.shopadm-banner form { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; align-items: end; }
+.shopadm-banner label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-muted); font-weight: 600; }
+.shopadm-banner input, .shopadm-banner select { height: 34px; padding: 0 9px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-normal); font: inherit; box-sizing: border-box; width: 100%; }
+@media (max-width: 720px) { .shopadm-banner { grid-template-columns: 1fr; } }

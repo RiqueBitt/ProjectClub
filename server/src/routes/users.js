@@ -69,10 +69,13 @@ const extrasCtrl = require('../controllers/profileExtrasController');
 router.put('/me/widgets', extrasCtrl.setWidgets);
 router.get('/me/wishlist', extrasCtrl.myWishlist);
 router.post('/me/wishlist', extrasCtrl.toggleWishlist);
+const msgExtra = require('../controllers/messageExtrasController');
+router.get('/me/ignored', msgExtra.listIgnored);
 router.get('/search', ctrl.searchUsers);
 router.get('/:id', ctrl.getUser);
 router.get('/:id/extras', extrasCtrl.getExtras);
 router.put('/:id/note', extrasCtrl.setNote);
+router.post('/:id/ignore', msgExtra.toggleIgnore);
 // Cabeçalho do perfil completo numa requisição só (ver profileSummaryController).
 router.get('/:id/summary', require('../controllers/profileSummaryController').getProfileSummary);
 router.post('/:id/vote', ctrl.voteProfile);
