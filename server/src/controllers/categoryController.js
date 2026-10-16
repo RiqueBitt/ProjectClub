@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { upsertOverwrite } = require('../services/overwrites');
 const { requireCommunityPermission } = require('../services/authz');
 const { toStringBits, PERMISSIONS } = require('../services/permissions');
 const { sanitizeName, sanitizeIconEmoji, resolveIconUrl, checkIconUpload } = require('../utils/channelNames');
@@ -104,6 +105,8 @@ async function setCategoryOverwrite(req, res, next) {
   try {
     const { id } = req.params;
     const { targetType, targetId, allow = [], deny = [] } = req.body;
+    if (!['ROLE', 'MEMBER'].includes(targetType) || !targetId) return res.status(400).json({ error: 'Escolha um cargo ou membro.' });
+    if (!Array.isArray(allow) || !Array.isArray(deny)) return res.status(400).json({ error: 'Permissões inválidas.' });
     await assertManageChannels(req.user.id);
     const category = await prisma.category.findUnique({ where: { id } });
     if (!category) return res.status(404).json({ error: 'Categoria não encontrada.' });
@@ -122,11 +125,7 @@ async function setCategoryOverwrite(req, res, next) {
       return res.status(403).json({ error: 'Você não pode conceder uma permissão que você mesmo não possui.' });
     }
 
-    const overwrite = await prisma.permissionOverwrite.upsert({
-      where: { channelId_categoryId_targetType_targetId: { channelId: null, categoryId: id, targetType, targetId } },
-      update: { allow: toStringBits(allowBits), deny: toStringBits(denyBits) },
-      create: { categoryId: id, targetType, targetId, allow: toStringBits(allowBits), deny: toStringBits(denyBits) },
-    });
+    const overwrite = await upsertOverwrite({ channelId: null, categoryId: id, targetType, targetId }, { allow: toStringBits(allowBits), deny: toStringBits(denyBits) });
     req.app.get('io')?.to('community').emit('overwrite:update', { categoryId: id });
     res.json({ overwrite });
   } catch (err) { next(err); }
