@@ -186,6 +186,7 @@ export default function VoiceChannelView({ channel }) {
       </CallHeader>
       <RecordingBanner voice={voice} meId={user.id} />
       <BackupBanner voice={voice} />
+      <ReconnectBanner voice={voice} />
       <div className={`vc-stage${spotlight && !onBackup ? ' is-spotlight' : ''}`}>
         {onBackup ? (
           <JitsiStage voice={voice} />
@@ -239,6 +240,20 @@ function BackupBanner({ voice }) {
     <div className="vc-backup-note" role="status">
       <span className="vc-backup-dot" aria-hidden="true" />
       <span>Chamada em modo reserva{voice.reconnectingProvider ? ' · reconectando…' : ''}</span>
+    </div>
+  );
+}
+
+// "Reconectando…": a conexão de mídia caiu (wi-fi, 4G, celular bloqueado) e
+// o engine está refazendo a sessão sozinho. A pessoa continua na sala; só
+// avisamos pra ela não achar que travou. Some sozinho quando volta.
+function ReconnectBanner({ voice }) {
+  const r = voice?.reconnecting;
+  if (!r) return null;
+  return (
+    <div className="vc-backup-note vc-reconnect-note" role="status" aria-live="polite">
+      <span className="vc-backup-dot" aria-hidden="true" />
+      <span>Reconectando a chamada…{r.attempt > 1 ? ` (tentativa ${r.attempt})` : ''}</span>
     </div>
   );
 }

@@ -228,6 +228,9 @@ export default function CallBar() {
             {voice.reconnectingProvider ? 'Reconectando…' : `Modo reserva${voice.providerLabel ? ` · ${voice.providerLabel}` : ''}`}
           </span>
         )}
+        {voice.reconnecting && (
+          <span className="cb-backup cb-reconnecting" role="status" aria-live="polite">Reconectando…</span>
+        )}
         {elapsed && <span className="cb-time" aria-label="Tempo de chamada">{elapsed}</span>}
       </div>
 
