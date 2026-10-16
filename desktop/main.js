@@ -1815,6 +1815,24 @@ if (!gotLock) {
       } catch (err) { console.warn('[inicialização] não deu pra configurar:', err.message); }
       writeLocalState({ autoStartInitialized: true });
     }
+    // Saiu de "Arquivos de Programas" pra instalação por usuário (sem aviso do
+    // Windows nas atualizações — ver build/installer.nsh): o "Iniciar com o
+    // Windows" apontava pro .exe antigo; passa pro novo, se estava ligado.
+    if (process.platform === 'win32') {
+      try {
+        const { execFileSync } = require('child_process');
+        const out = execFileSync('reg', ['query', 'HKCU\\Software\\ProjectClub', '/v', 'OldExe'], { encoding: 'utf8', windowsHide: true });
+        const m = out.match(/OldExe\s+REG_SZ\s+(.+)/);
+        const oldExe = m && m[1].trim();
+        if (oldExe && oldExe.toLowerCase() !== process.execPath.toLowerCase()) {
+          if (app.getLoginItemSettings({ path: oldExe }).openAtLogin) {
+            app.setLoginItemSettings({ openAtLogin: false, path: oldExe });
+            app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true });
+          }
+        }
+        execFileSync('reg', ['delete', 'HKCU\\Software\\ProjectClub', '/v', 'OldExe', '/f'], { windowsHide: true });
+      } catch { /* nada pra migrar */ }
+    }
 
     // Item pedido: atalho de teclado global (funciona mesmo com o app em
     // segundo plano/sem foco, diferente de um atalho comum) pra abrir o

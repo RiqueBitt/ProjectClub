@@ -50,14 +50,25 @@ class App : Application() {
         Notifier.createChannels(this)
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onStart(owner: LifecycleOwner) { _isForeground.value = true; repo.realtime.connect() }
-            override fun onStop(owner: LifecycleOwner) { _isForeground.value = false }
+            override fun onStart(owner: LifecycleOwner) {
+                _isForeground.value = true; repo.realtime.connect()
+                com.projectclub.android.data.Updater.refreshPermission()
+                appScope.launch { com.projectclub.android.data.Updater.check() }
+            }
+            override fun onStop(owner: LifecycleOwner) {
+                _isForeground.value = false
+                // Saiu do app: instala a atualização baixada sem perguntar nada
+                // (Android 12+), nunca no meio de uma chamada de voz.
+                val U = com.projectclub.android.data.Updater
+                if (U.state.value is com.projectclub.android.data.UpdateState.Ready && U.canInstallSilently() &&
+                    voice.state.value.status == com.projectclub.android.voice.CallStatus.Idle) U.install(userAsked = false)
+            }
         })
 
         repo.beforeLogout = { pushToken?.let { repo.unregisterPushToken(it) } }
         appScope.launch { repo.restore() }
         appScope.launch { runCatching { CrashReporter.sendPending(this@App) } }
-        appScope.launch { com.projectclub.android.data.Updater.check() }
+        com.projectclub.android.data.Updater.init(this)
         appScope.launch { repo.alerts.collect(::onAlert) }
         // "Estou mexendo no app": evita ficar Ausente sozinho enquanto usa.
         appScope.launch {
