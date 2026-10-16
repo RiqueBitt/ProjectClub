@@ -11,13 +11,12 @@ import android.view.Surface
 import android.view.SurfaceView
 import io.github.crow_misia.mediasoup.Consumer
 import io.github.crow_misia.mediasoup.Device
-import io.github.crow_misia.mediasoup.MediasoupClient
 import io.github.crow_misia.mediasoup.Producer
 import io.github.crow_misia.mediasoup.RecvTransport
 import io.github.crow_misia.mediasoup.SendTransport
 import io.github.crow_misia.mediasoup.Transport
-import io.github.crow_misia.webrtc.log.LogHandler
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -81,7 +80,13 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
     }
 
     private val worker = Executors.newSingleThreadExecutor { r -> Thread(r, "pc-mediasoup") }
-    private val scope = CoroutineScope(SupervisorJob() + worker.asCoroutineDispatcher())
+    // Nada que der errado aqui pode derrubar o app: qualquer erro (inclusive
+    // Error do código nativo, ex.: UnsatisfiedLinkError) vira aviso na tela.
+    private val crashGuard = CoroutineExceptionHandler { _, t ->
+        Log.e(TAG, "erro na chamada", t)
+        if (!closed) events.onFailed("Erro na chamada: ${t.message ?: t.javaClass.simpleName}")
+    }
+    private val scope = CoroutineScope(SupervisorJob() + worker.asCoroutineDispatcher() + crashGuard)
     private val http = OkHttpClient.Builder().pingInterval(20, TimeUnit.SECONDS).readTimeout(0, TimeUnit.MILLISECONDS).build()
 
     private var ws: WebSocket? = null
@@ -168,7 +173,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
             try {
                 doJoin(creds, startMuted)
                 events.onConnected()
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.w(TAG, "falha ao entrar", e)
                 if (!closed) events.onFailed("Não deu pra entrar na chamada: ${e.message ?: "erro"}")
             }
@@ -340,7 +345,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
                 track, listOf(enc), null, null, "{\"source\":\"screen\"}",
             )
             screenHelper = helper; screenSource = source; screenTrack = track; screenCapturer = cap
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w(TAG, "tela", e)
             onError("Não deu pra compartilhar a tela: ${e.message ?: "erro"}")
         }
@@ -435,11 +440,13 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
 
         @Synchronized fun initClient(app: Application) {
             if (initialized) return
-            MediasoupClient.initialize(app, object : LogHandler {
-                override fun log(priority: Int, tag: String?, t: Throwable?, message: String?, vararg args: Any?) {
-                    if (priority >= Log.WARN) Log.println(priority, tag ?: TAG, message ?: t?.message ?: "")
-                }
-            })
+            // Inicializa o WebRTC que vem DENTRO do libmediasoup (mesma versão
+            // do código nativo) — sem helpers de outras versões da biblioteca.
+            PeerConnectionFactory.initialize(
+                PeerConnectionFactory.InitializationOptions.builder(app)
+                    .setNativeLibraryName("mediasoupclient_so")
+                    .createInitializationOptions(),
+            )
             initialized = true
         }
 
