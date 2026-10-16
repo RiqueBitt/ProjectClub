@@ -115,3 +115,21 @@ data class EcoHistory(
     val transactions: List<EcoTransaction> = emptyList(),
     val hasMore: Boolean = false,
 )
+
+/** Temporada de missões (passe do mês) — GET /api/missions/season. */
+@kotlinx.serialization.Serializable
+data class SeasonReward(val coins: Int = 0, val gems: Int = 0)
+
+@kotlinx.serialization.Serializable
+data class SeasonTier(
+    val level: Int = 0, val unlocked: Boolean = false,
+    val free: SeasonReward = SeasonReward(), val plus: SeasonReward = SeasonReward(),
+    val claimedFree: Boolean = false, val claimedPlus: Boolean = false,
+)
+
+@kotlinx.serialization.Serializable
+data class SeasonInfo(
+    val key: String = "", val name: String = "", val endsAt: String? = null,
+    val points: Int = 0, val level: Int = 0, val maxLevel: Int = 30, val levelPoints: Int = 100,
+    val isSupporter: Boolean = false, val tiers: List<SeasonTier> = emptyList(),
+)

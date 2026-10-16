@@ -155,6 +155,10 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
     var confirm by remember { mutableStateOf<PendingConfirm?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
     var openBadge by remember { mutableStateOf<ProfileBadge?>(null) }
+    // Extras do perfil (igual ao site): lista de desejos (só amigos veem) e nota pessoal.
+    var wishlist by remember(userId) { mutableStateOf<List<WishItem>?>(null) }
+    var note by remember(userId) { mutableStateOf("") }
+    var noteDraft by remember(userId) { mutableStateOf<String?>(null) }
 
     fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
 
@@ -166,6 +170,11 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                 testimonials = try {
                     repo.api.get<ProfileTestimonialsResponse>("/api/testimonials/$userId")
                 } catch (e: CancellationException) { throw e } catch (_: Exception) { testimonials ?: ProfileTestimonialsResponse() }
+            }
+            launch {
+                runCatching { repo.api.get<ProfileExtrasResponse>("/api/users/$userId/extras") }.onSuccess { x ->
+                    wishlist = x.wishlist?.filterNotNull(); note = x.note
+                }
             }
             launch {
                 scraps = try {
@@ -448,6 +457,46 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                                         Spacer(Modifier.height(6.dp))
                                         Text(f.name, color = Sx.text, style = MaterialTheme.typography.bodySmall, fontFamily = Sx.font, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
+                                }
+                            }
+                        }
+                    }
+
+                    wishlist?.takeIf { it.isNotEmpty() }?.let { list ->
+                        item(key = "wishlist") {
+                            SectionCard("Lista de desejos", Icons.Outlined.FavoriteBorder, list.size) {
+                                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    list.forEach { w -> IconTileLabel(w.name, w.previewUrl, "🎁", onClick = { nav.store() }) }
+                                }
+                                if (!isMe) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Text("Toque num item pra abrir a Loja e dar de presente.", color = Sx.muted, style = MaterialTheme.typography.bodySmall, fontFamily = Sx.font)
+                                }
+                            }
+                        }
+                    }
+
+                    if (!isMe) item(key = "note") {
+                        SectionCard("Nota (só você vê)", Icons.Outlined.Edit) {
+                            val d = noteDraft
+                            if (d == null) {
+                                Text(
+                                    note.ifBlank { "Toque pra escrever uma nota sobre essa pessoa." },
+                                    color = if (note.isBlank()) Sx.muted else Sx.text, style = MaterialTheme.typography.bodyMedium, fontFamily = Sx.font,
+                                    modifier = Modifier.fillMaxWidth().clickable { noteDraft = note },
+                                )
+                            } else {
+                                androidx.compose.material3.OutlinedTextField(
+                                    d, { noteDraft = it.take(256) }, Modifier.fillMaxWidth(),
+                                    placeholder = { Text("Ex.: amigo do servidor de Minecraft") }, maxLines = 4,
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    SGhost("Salvar", {
+                                        val t = d.trim()
+                                        act { repo.api.put<kotlinx.serialization.json.JsonElement>("/api/users/$userId/note", buildJsonObject { put("text", t) }); note = t; noteDraft = null }
+                                    }, icon = Icons.Outlined.Check, color = PC.Green)
+                                    SGhost("Cancelar", { noteDraft = null }, color = PC.Muted)
                                 }
                             }
                         }
@@ -897,3 +946,10 @@ internal fun ProfileShowcase(profile: ProfileData, wall: List<ProfileWallPost>) 
         }
     }
 }
+
+
+@kotlinx.serialization.Serializable
+internal data class WishItem(val id: String = "", val name: String = "", val previewUrl: String? = null)
+
+@kotlinx.serialization.Serializable
+internal data class ProfileExtrasResponse(val wishlist: List<WishItem?>? = null, val note: String = "")

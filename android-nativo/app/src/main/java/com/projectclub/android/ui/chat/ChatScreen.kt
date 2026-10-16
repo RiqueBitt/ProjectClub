@@ -50,6 +50,9 @@ import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.MarkChatUnread
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Tag
@@ -284,6 +287,28 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
                         .onSuccess { toast(if (m.pinned) "Mensagem desafixada." else "Mensagem fixada.") }
                         .onFailure { toast(it.message ?: "Você não pode fixar aqui.") }
                 }
+            }
+            SheetItem(Icons.Filled.Bookmark, "Favoritar / desfavoritar") {
+                menuFor = null
+                scope.launch {
+                    runCatching { repo.api.post<kotlinx.serialization.json.JsonObject>("/api/messages/${m.id}/save") }
+                        .onSuccess { r -> toast(if ((r["saved"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true") "Favoritada. Veja em Você → Mensagens favoritas." else "Tirada dos favoritos.") }
+                        .onFailure { toast(it.message ?: "Não deu pra favoritar.") }
+                }
+            }
+            SheetItem(Icons.Filled.MarkChatUnread, "Marcar como não lida") {
+                menuFor = null
+                scope.launch {
+                    runCatching { repo.api.postIgnore("/api/messages/${m.id}/unread") }
+                        .onSuccess { toast("Marcada como não lida a partir desta mensagem.") }
+                        .onFailure { toast(it.message ?: "Não deu pra marcar.") }
+                }
+            }
+            SheetItem(Icons.Filled.Link, "Copiar link da mensagem") {
+                val path = if (room.channelId != null) "/channels/${room.channelId}" else "/conversations/${room.conversationId}"
+                (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("link", "${com.projectclub.android.Config.baseUrl}$path?m=${m.id}"))
+                menuFor = null
+                toast("Link copiado.")
             }
             if (!m.content.isNullOrBlank()) SheetItem(Icons.Filled.ContentCopy, "Copiar texto") {
                 (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("mensagem", m.content))

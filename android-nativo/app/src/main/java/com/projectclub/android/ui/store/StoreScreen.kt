@@ -81,6 +81,8 @@ import com.projectclub.android.ui.common.rememberShimmer
 import com.projectclub.android.ui.nav.AppNav
 import com.projectclub.android.ui.theme.PC
 import kotlinx.coroutines.launch
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.filled.Favorite
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -270,7 +272,7 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
     }
 
     selected?.let { item ->
-        ItemSheet(item, me, shop, busy, onDismiss = { selected = null }, onBuy = { gems -> buy(item, gems) }, onEquip = { on -> equip(item, on) })
+        ItemSheet(repo, item, me, shop, busy, onDismiss = { selected = null }, onBuy = { gems -> buy(item, gems) }, onEquip = { on -> equip(item, on) })
     }
     selectedCollection?.let { c ->
         val s = shop
@@ -432,6 +434,7 @@ private fun CollectionCard(c: StoreCollection, onClick: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ItemSheet(
+    repo: com.projectclub.android.data.Repository,
     item: ShopItem, me: com.projectclub.android.data.User?, shop: StoreShop?, busy: Boolean,
     onDismiss: () -> Unit, onBuy: (gems: Boolean) -> Unit, onEquip: (Boolean) -> Unit,
 ) {
@@ -461,6 +464,7 @@ private fun ItemSheet(
                     Text("Limitados podem ser trocados com outros jogadores na aba Trocas.", color = PC.Muted, style = MaterialTheme.typography.bodySmall)
                 }
             }
+            if (!item.owned) WishlistButton(repo, item)
             if (item.owned) {
                 if (item.equipped) PillButton("Tirar do perfil", { onEquip(false) }, Modifier.fillMaxWidth(), busy = busy, color = PC.Surface3)
                 else PillButton("Equipar no perfil", { onEquip(true) }, Modifier.fillMaxWidth(), busy = busy)
@@ -509,4 +513,40 @@ private fun StoreSkeleton() {
             }
         }
     }
+}
+
+
+/** "Lista de desejos" (igual ao site): amigos veem no seu perfil e podem te dar de presente. */
+@Composable
+private fun WishlistButton(repo: com.projectclub.android.data.Repository, item: ShopItem) {
+    val kind = when (item.kind) { Kind.Frame -> "deco"; Kind.Effect -> "effect"; Kind.Font -> "font"; Kind.Style -> "style" }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    var on by remember(item.id) { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(item.id) {
+        on = runCatching {
+            val r = repo.api.get<kotlinx.serialization.json.JsonObject>("/api/users/me/wishlist")
+            (r["wishlist"] as? kotlinx.serialization.json.JsonArray).orEmpty().any {
+                val o = it as? kotlinx.serialization.json.JsonObject
+                (o?.get("kind") as? kotlinx.serialization.json.JsonPrimitive)?.content == kind && (o["id"] as? kotlinx.serialization.json.JsonPrimitive)?.content == item.id
+            }
+        }.getOrDefault(false)
+    }
+    val cur = on ?: return
+    GhostButton(
+        if (cur) "Na sua lista de desejos" else "Adicionar à lista de desejos",
+        {
+            on = !cur
+            scope.launch {
+                runCatching {
+                    repo.api.postIgnore("/api/users/me/wishlist", kotlinx.serialization.json.buildJsonObject {
+                        put("kind", kotlinx.serialization.json.JsonPrimitive(kind)); put("id", kotlinx.serialization.json.JsonPrimitive(item.id)); put("on", kotlinx.serialization.json.JsonPrimitive(!cur))
+                    })
+                }.onFailure { on = cur; android.widget.Toast.makeText(ctx, it.message ?: "Não deu pra salvar.", android.widget.Toast.LENGTH_SHORT).show() }
+            }
+        },
+        Modifier.fillMaxWidth(),
+        icon = if (cur) androidx.compose.material.icons.Icons.Filled.Favorite else androidx.compose.material.icons.Icons.Outlined.FavoriteBorder,
+        color = if (cur) PC.Pink else PC.Text,
+    )
 }
