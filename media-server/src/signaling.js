@@ -83,7 +83,11 @@ function attach(httpServer) {
     }
 
     const peer = new rooms.Peer({ id: auth.userId, name: auth.name, socket });
-    try { room.addPeer(peer); } catch (err) {
+    try {
+      if (room.size >= config.maxPeersPerRoom) throw new Error('sala cheia');
+      await room.assignRouter(peer); // sala grande: escolhe o núcleo
+      room.addPeer(peer);
+    } catch (err) {
       send(socket, { event: 'error', data: { reason: err.message } });
       socket.close(4503, 'full');
       rooms.closeRoomIfEmpty(room.name);

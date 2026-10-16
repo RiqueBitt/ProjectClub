@@ -60,7 +60,17 @@ const CAMERA_ENCODINGS = [
   { scaleResolutionDownBy: 2, maxBitrate: 500_000, scalabilityMode: 'L1T3' },
   { scaleResolutionDownBy: 1, maxBitrate: 1_200_000, scalabilityMode: 'L1T3' },
 ];
-const SCREEN_ENCODINGS = [{ maxBitrate: 2_500_000 }];
+// Tela: qualidade escolhida em "Transmitir tela" (resolução + FPS) vira
+// tamanho de captura e teto de bitrate. 1080p60 ≈ 7 Mbps (jogos/vídeos).
+const SCREEN_PROFILES = {
+  '720p': { width: 1280, height: 720, bitrate: { 15: 1_200_000, 30: 2_000_000, 60: 3_500_000 } },
+  '1080p': { width: 1920, height: 1080, bitrate: { 15: 2_500_000, 30: 4_000_000, 60: 7_000_000 } },
+};
+export function screenProfile({ quality, frameRate } = {}) {
+  const prof = SCREEN_PROFILES[quality] || SCREEN_PROFILES['720p'];
+  const fps = [15, 30, 60].includes(Number(frameRate)) ? Number(frameRate) : 30;
+  return { width: prof.width, height: prof.height, fps, maxBitrate: prof.bitrate[fps], motion: fps >= 60 };
+}
 
 const REQUEST_TIMEOUT_MS = 15000;
 const STATS_INTERVAL_MS = 2000;
@@ -395,11 +405,12 @@ export class MediasoupEngine {
     return producer;
   }
 
-  async _produceScreen(vtrack, atrack) {
+  async _produceScreen(vtrack, atrack, prof = screenProfile()) {
     this.localTracks.screen = vtrack;
     this.producers.screen = await this.sendTransport.produce({
-      track: vtrack, encodings: SCREEN_ENCODINGS,
-      codecOptions: { videoGoogleStartBitrate: 1000 },
+      track: vtrack,
+      encodings: [{ maxBitrate: prof.maxBitrate, maxFramerate: prof.fps, priority: 'high', networkPriority: 'high' }],
+      codecOptions: { videoGoogleStartBitrate: Math.round(prof.maxBitrate / 2000) },
       appData: { source: 'screen' },
     });
     if (atrack && isLive(atrack)) {
@@ -542,12 +553,16 @@ export class MediasoupEngine {
     try {
       if (!on) { await this._closeProducer('screen'); await this._closeProducer('screenAudio'); this.cb.onSelfScreen?.(false); return null; }
       if (this.producers.screen) return new MediaStream([this.localTracks.screen]);
+      const prof = screenProfile(options);
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: { ideal: 30 } }, audio: options.audio !== false,
+        video: { width: { ideal: prof.width, max: prof.width }, height: { ideal: prof.height, max: prof.height }, frameRate: { ideal: prof.fps, max: prof.fps } },
+        audio: options.audio !== false,
       });
       const vtrack = stream.getVideoTracks()[0];
-      try { vtrack.contentHint = 'detail'; } catch { /* opcional */ }
-      await this._produceScreen(vtrack, stream.getAudioTracks()[0]);
+      // Jogos (60 FPS): prioriza fluidez; texto/slides: prioriza nitidez.
+      try { vtrack.contentHint = prof.motion ? 'motion' : 'detail'; } catch { /* opcional */ }
+      try { await vtrack.applyConstraints({ width: { max: prof.width }, height: { max: prof.height }, frameRate: { ideal: prof.fps, max: prof.fps } }); } catch { /* o navegador decide */ }
+      await this._produceScreen(vtrack, stream.getAudioTracks()[0], prof);
       // "Parar compartilhamento" pelo navegador.
       vtrack.addEventListener('ended', () => { this.setScreen(false); });
       this.cb.onSelfScreen?.(true);
