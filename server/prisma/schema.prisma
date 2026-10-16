@@ -303,6 +303,8 @@ model User {
   refreshTokens        RefreshToken[]
   pushTokens           PushToken[]
   webPushSubscriptions WebPushSubscription[]
+  scheduledMessages    ScheduledMessage[]
+  reminders            Reminder[]
   verificationCodes    EmailVerificationCode[]
   passwordResetTokens  PasswordResetToken[]
   twoFactorRecoveryCodes TwoFactorRecoveryCode[]
@@ -733,6 +735,49 @@ model WebPushSubscription {
 // configurar variável de ambiente (se VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY
 // existirem no ambiente, elas têm prioridade). Trocar a chave invalida
 // todas as assinaturas — por isso é persistida.
+// ---------- Mensagens agendadas ----------
+// "Enviar às 18h": fica aqui até a hora; o job (services/scheduledMessages.js)
+// envia pelo MESMO caminho do envio normal (permissões, automod, menções,
+// push) como se a pessoa tivesse apertado Enter naquela hora. Se ela perder
+// o acesso ao canal até lá, vira FAILED com o motivo.
+model ScheduledMessage {
+  id             String    @id @default(uuid())
+  authorId       String
+  author         User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  channelId      String?
+  conversationId String?
+  content        String    @db.Text
+  replyToId      String?
+  sendAt         DateTime
+  status         String    @default("PENDING") // PENDING | SENT | FAILED | CANCELLED
+  sentMessageId  String?
+  error          String?   @db.VarChar(300)
+  createdAt      DateTime  @default(now())
+  claimedAt      DateTime?
+
+  @@index([status, sendAt])
+  @@index([authorId, status])
+}
+
+// ---------- Lembretes ----------
+// "Me lembra disso em 2h": vira um aviso (UserNotice kind REMINDER) na hora
+// marcada, com link pra mensagem/página de origem. Entregue uma vez só
+// (claim atômico no job), igual ao lembrete de evento.
+model Reminder {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text      String    @db.VarChar(500)
+  link      String?   @db.VarChar(300)
+  messageId String?
+  dueAt     DateTime
+  firedAt   DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([firedAt, dueAt])
+  @@index([userId, firedAt])
+}
+
 model WebPushKeys {
   id         String   @id @default("singleton")
   publicKey  String   @db.VarChar(255)

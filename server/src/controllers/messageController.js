@@ -2,7 +2,7 @@ const fs = require('fs');
 const prisma = require('../config/prisma');
 const { createIgnoreDuplicate } = require('../utils/prismaSafe');
 const { PUBLIC_USER_FIELDS } = require('./authController');
-const { getEffectivePermissions, channelHasRestrictions } = require('../services/authz');
+const { getEffectivePermissions, getEffectivePermissionsForChannels, channelHasRestrictions } = require('../services/authz');
 const { has } = require('../services/permissions');
 const automod = require('../services/automod');
 const dmAutomod = require('../services/dmAutomod');
@@ -649,7 +649,12 @@ async function createMessageInner(req, res) {
         recipientIds.delete(req.user.id);
 
         await Promise.all([...recipientIds].map((uid) => sendPushToUser(uid, {
-          title: authorName, body: preview, data: { conversationId: conversationId || '', channelId: channelId || '' },
+          title: authorName, body: preview,
+          data: {
+            conversationId: conversationId || '', channelId: channelId || '',
+            link: conversationId ? `/conversations/${conversationId}` : `/channels/${channelId}`,
+            tag: conversationId ? `dm:${conversationId}` : `ch:${channelId}`,
+          },
         })));
 
         // Item pedido: verificar se todos os toggles de Configurações têm
@@ -1204,37 +1209,47 @@ async function listReactors(req, res, next) {
 // O resto vira o texto procurado (LIKE). Paginação por cursor
 // (createdAt,id) de 25 em 25.
 const SEARCH_PAGE = 25;
-function parseSearchQuery(raw) {
-  const out = { text: '', from: null, has: new Set(), before: null, after: null };
-  const rest = [];
-  const tokens = String(raw || '').slice(0, 300).match(/(?:[^\s"]+|"[^"]*")+/g) || [];
-  for (const tok of tokens) {
-    const m = tok.match(/^(from|has|before|after|de|tem|antes|depois):(.+)$/i);
-    if (!m) { rest.push(tok.replace(/^"|"$/g, '')); continue; }
-    const key = { de: 'from', tem: 'has', antes: 'before', depois: 'after' }[m[1].toLowerCase()] || m[1].toLowerCase();
-    const val = m[2].replace(/^"|"$/g, '');
-    if (key === 'from') out.from = val.replace(/^@/, '').slice(0, 64);
-    else if (key === 'has') {
-      const v = { arquivo: 'file', imagem: 'image', video: 'video', vídeo: 'video' }[val.toLowerCase()] || val.toLowerCase();
-      if (['file', 'image', 'link', 'video'].includes(v)) out.has.add(v);
-    } else {
-      const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(val) ? `${val}T00:00:00` : val);
-      if (!Number.isNaN(d.getTime())) out[key] = d;
-    }
-  }
-  out.text = rest.join(' ').trim();
-  return out;
-}
+const { parseSearchQuery } = require('../services/searchQuery');
 
 async function searchMessages(req, res, next) {
   try {
-    const { conversationId, channelId, q } = req.query;
-    await assertAccess(req, { conversationId, channelId });
+    const { q } = req.query;
+    let { conversationId, channelId } = req.query;
     const parsed = parseSearchQuery(q);
-    const hasFilters = parsed.from || parsed.has.size || parsed.before || parsed.after;
+    const hasFilters = parsed.from || parsed.has.size || parsed.before || parsed.after || parsed.in || parsed.pinned != null;
     if (!hasFilters && parsed.text.length < 2) return res.json({ messages: [], nextCursor: null });
 
+    // em:#canal — procura num canal pelo nome (vale dentro da busca global
+    // ou pra "pular" de canal a partir de outro).
+    if (parsed.in) {
+      const ch = await prisma.channel.findFirst({ where: { name: parsed.in, type: { notIn: ['VOICE', 'STAGE'] } }, select: { id: true } })
+        || await prisma.channel.findFirst({ where: { name: { contains: parsed.in } }, select: { id: true } });
+      if (!ch) return res.json({ messages: [], nextCursor: null });
+      channelId = ch.id; conversationId = undefined;
+    }
+
+    // Escopo: uma sala (checa acesso) OU busca GLOBAL — todos os canais que a
+    // pessoa pode ver + as conversas dela. Nunca vaza canal privado: a lista
+    // vem das permissões efetivas (mesma regra da barra lateral).
+    let scope;
+    if (conversationId || channelId) {
+      await assertAccess(req, { conversationId, channelId });
+      scope = { conversationId: conversationId || undefined, channelId: channelId || undefined };
+    } else {
+      const [channels, memberships] = await Promise.all([
+        prisma.channel.findMany({ where: { type: { notIn: ['VOICE', 'STAGE'] } }, select: { id: true, categoryId: true, isPrivate: true } }),
+        prisma.conversationMember.findMany({ where: { userId: req.user.id }, select: { conversationId: true } }),
+      ]);
+      const privates = channels.filter((c) => c.isPrivate);
+      const permMap = privates.length ? await getEffectivePermissionsForChannels(req.user.id, privates) : new Map();
+      const visible = channels.filter((c) => !c.isPrivate || has(permMap.get(c.id) || 0n, 'VIEW_CHANNEL')).map((c) => c.id);
+      const convs = memberships.map((m) => m.conversationId);
+      if (!visible.length && !convs.length) return res.json({ messages: [], nextCursor: null });
+      scope = { OR: [...(visible.length ? [{ channelId: { in: visible } }] : []), ...(convs.length ? [{ conversationId: { in: convs } }] : [])] };
+    }
+
     const and = [];
+    if (parsed.pinned != null) and.push({ pinned: parsed.pinned });
     if (parsed.text) and.push({ content: { contains: parsed.text } });
     if (parsed.before) and.push({ createdAt: { lt: parsed.before } });
     if (parsed.after) and.push({ createdAt: { gt: new Date(parsed.after.getTime() + 24 * 3600 * 1000 - 1) } });
@@ -1260,12 +1275,12 @@ async function searchMessages(req, res, next) {
     const myFilter = await prisma.userSettings.findUnique({ where: { userId: req.user.id }, select: { contentFilterLevel: true } });
     const rows = await prisma.message.findMany({
       where: {
-        conversationId: conversationId || undefined,
-        channelId: channelId || undefined,
+        ...scope,
         deleted: false,
         AND: and,
       },
-      include: messageInclude,
+      // Na busca global o resultado mostra "em #canal".
+      include: { ...messageInclude, channel: { select: { id: true, name: true, type: true } } },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: SEARCH_PAGE + 1,
     });
@@ -1282,5 +1297,5 @@ async function searchMessages(req, res, next) {
 module.exports = {
   listMessages, listPinned, createMessage, precheckCreateMessage, setPostIcon, editMessage, listEdits, forwardMessage,
   deleteMessage, togglePin, react, listReactors, searchMessages, toggleArchiveTopic,
-  messageInclude, assertAccess, roomFor, parseSearchQuery,
+  messageInclude, assertAccess, roomFor, parseSearchQuery, createMessageInner,
 };

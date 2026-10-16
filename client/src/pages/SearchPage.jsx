@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useStore } from '../store/useStore';
+import { useStore, roomKeyFor } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
-import { searchUsers, listPosts } from '../api/endpoints';
+import { searchUsers, listPosts, searchMessages } from '../api/endpoints';
 import UserAvatar from '../components/UserAvatar.jsx';
 import { Ico, PageHero, PillTabs, EmptyState, Skeleton } from '../components/PagesKit.jsx';
 import '../styles/search.css';
@@ -31,6 +31,7 @@ const TYPES = [
   { id: 'ALL', label: 'Tudo', icon: 'search' },
   { id: 'PEOPLE', label: 'Pessoas', icon: 'user' },
   { id: 'POSTS', label: 'Posts', icon: 'news' },
+  { id: 'MESSAGES', label: 'Mensagens', icon: 'chat' },
   { id: 'CHANNELS', label: 'Canais', icon: 'hash' },
   { id: 'CONVERSATIONS', label: 'Conversas', icon: 'mail' },
 ];
@@ -47,6 +48,11 @@ export default function SearchPage() {
   const [userResults, setUserResults] = useState([]);
   const [postResults, setPostResults] = useState([]);
   const [searchingPosts, setSearchingPosts] = useState(false);
+  // Busca GLOBAL de mensagens: todos os canais que a pessoa pode ver + as
+  // conversas dela (o servidor aplica as permissões). Aceita os mesmos
+  // filtros do painel do canal (de:, tem:, em:#canal, antes:, depois:, fixada:).
+  const [messageResults, setMessageResults] = useState([]);
+  const [searchingMessages, setSearchingMessages] = useState(false);
   const [searching, setSearching] = useState(false);
   const [type, setType] = useState('ALL');
   const categories = useStore((s) => s.categories);
@@ -90,7 +96,21 @@ export default function SearchPage() {
     searchDebounceRef.current = setTimeout(() => {
       runUserSearch(value);
       runPostSearch(value);
+      runMessageSearch(value);
     }, 300);
+  };
+
+  const runMessageSearch = async (value) => {
+    if (value.trim().length < 2) { setMessageResults([]); return; }
+    setSearchingMessages(true);
+    const { messages } = await searchMessages({ q: value.trim() }).catch(() => ({ messages: [] }));
+    setMessageResults(messages || []);
+    setSearchingMessages(false);
+  };
+  const openMessage = (m) => {
+    const room = m.channelId ? { channelId: m.channelId } : { conversationId: m.conversationId };
+    useStore.getState().setPendingJump({ roomKey: roomKeyFor(room), messageId: m.id, createdAt: m.createdAt });
+    navigate(m.channelId ? `/channels/${m.channelId}` : `/conversations/${m.conversationId}`);
   };
 
   const runUserSearch = async (value) => {
@@ -117,7 +137,7 @@ export default function SearchPage() {
   // navega pra /search?q=...) — dispara a busca de usuários na hora, em
   // vez de só preencher o campo e esperar a pessoa digitar de novo.
   useEffect(() => {
-    if (searchParams.get('q')) { runUserSearch(searchParams.get('q')); runPostSearch(searchParams.get('q')); }
+    if (searchParams.get('q')) { runUserSearch(searchParams.get('q')); runPostSearch(searchParams.get('q')); runMessageSearch(searchParams.get('q')); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -127,9 +147,9 @@ export default function SearchPage() {
   };
 
   const counts = {
-    PEOPLE: userResults.length, POSTS: postResults.length, CHANNELS: channelResults.length, CONVERSATIONS: conversationResults.length,
+    PEOPLE: userResults.length, POSTS: postResults.length, MESSAGES: messageResults.length, CHANNELS: channelResults.length, CONVERSATIONS: conversationResults.length,
   };
-  counts.ALL = counts.PEOPLE + counts.POSTS + counts.CHANNELS + counts.CONVERSATIONS;
+  counts.ALL = counts.PEOPLE + counts.POSTS + counts.MESSAGES + counts.CHANNELS + counts.CONVERSATIONS;
   const busy = searching || searchingPosts;
   const show = (t) => type === 'ALL' || type === t;
   const cut = (list) => (type === 'ALL' ? list.slice(0, PREVIEW) : list);
@@ -214,6 +234,21 @@ export default function SearchPage() {
                           {p.author?.displayName && <span>por {p.author.displayName}</span>}
                           {typeof p.commentCount === 'number' && <span><Ico name="chat" size={13} /> {p.commentCount}</span>}
                         </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </Section>
+
+              <Section id="MESSAGES" title="Mensagens" icon="chat" loading={searchingMessages} total={messageResults.length} emptyText="Nenhuma mensagem encontrada. Dica: de:@nome · em:#canal · tem:imagem · antes:AAAA-MM-DD">
+                <ul className="notifications-list sr-list">
+                  {cut(messageResults).map((m) => (
+                    <li key={m.id} className="notifications-item sr-item sr-post" onClick={() => openMessage(m)}>
+                      <span className="sr-item-icon"><UserAvatar user={m.author} size={28} /></span>
+                      <div className="sr-item-body">
+                        <strong className="sr-post-title truncate">{m.author?.displayName || 'Alguém'}{m.channel?.name ? ` em #${m.channel.name}` : m.conversationId ? ' em conversa' : ''}</strong>
+                        {m.content && <span className="sr-post-snippet"><Hl text={snippet(m.content, q)} q={q} /></span>}
+                        <span className="sr-meta"><span>{new Date(m.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>{m.attachments?.length > 0 && <span><Ico name="file" size={13} /> {m.attachments.length}</span>}</span>
                       </div>
                     </li>
                   ))}

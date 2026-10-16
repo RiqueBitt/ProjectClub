@@ -68,3 +68,6 @@
   .nt .pk-tab { padding: 0 8px; gap: 5px; }
   .nt .pk-tab svg { display: none; }
 }
+
+/* Lembretes marcados (cancelável) */
+.nt-reminders .pk-btn.ghost.small { padding: 4px 10px; font-size: 12px; background: transparent; }

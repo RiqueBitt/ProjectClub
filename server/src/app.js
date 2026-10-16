@@ -428,6 +428,7 @@ function createApp() {
   app.use('/api/events', eventsRoutes);
   // Avisos pessoais salvos e Galeria (curtidas/álbuns).
   app.use('/api/notices', require('./routes/notices'));
+  app.use('/api/reminders', require('./routes/reminders'));
   app.use('/api/gallery', require('./routes/gallery'));
   app.use('/api/activity', activityRoutes);
   app.use('/api/games', gamesLibraryRoutes);
