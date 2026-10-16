@@ -94,7 +94,7 @@ export function CatalogHome({ go, onOpen }) {
       ) : data.rows === null ? <div className="cine-hero is-skel" /> : <CatalogHero items={heroItems} onOpen={onOpen} />}
       {!data.tmdb && isStaff && data.rows !== null && (
         <div className="cine-notice is-staff" role="note">
-          <Ico d={P.spark} /> <span><strong>Staff:</strong> para liberar filmes e séries em português, os lançamentos dos cinemas e o “onde assistir” completo, crie uma chave grátis em <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">themoviedb.org</a> e coloque em <code>TMDB_API_KEY</code> no Square Cloud.</span>
+          <Ico d={P.spark} /> <span><strong>Staff:</strong> para liberar filmes e séries em português, os lançamentos dos cinemas e o “onde assistir” completo, crie uma chave grátis em <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">themoviedb.org</a> e coloque em <code>TMDB_API_KEY</code> na Shard Cloud.</span>
         </div>
       )}
       <Row title="Minha lista" items={myList} onOpen={onOpen} onRemove={(it) => toggleList(it)} />

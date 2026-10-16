@@ -15,7 +15,8 @@
 import { getPost, getModpack, getMod, getUserProfile, listEvents } from '../api/endpoints';
 import { useStore } from '../store/useStore';
 
-const KNOWN_HOSTS = [/(^|\.)projectclub\.squareweb\.app$/i, /^localhost(:\d+)?$/i, /^127\.0\.0\.1(:\d+)?$/];
+// shardweb = endereço atual; squareweb = endereço antigo (links velhos em mensagens).
+const KNOWN_HOSTS = [/(^|\.)projectclub\.shardweb\.app$/i, /(^|\.)projectclub\.squareweb\.app$/i, /^localhost(:\d+)?$/i, /^127\.0\.0\.1(:\d+)?$/];
 
 function isOwnHost(host) {
   if (typeof window !== 'undefined' && host === window.location.host) return true;
