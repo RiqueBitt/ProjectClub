@@ -100,9 +100,6 @@ private fun sepia(amount: Float): ColorFilter {
     return ColorFilter.colorMatrix(m)
 }
 
-    return ColorFilter.colorMatrix(m)
-}
-
 private fun c(hex: Long) = Color(hex)
 private fun v(vararg hex: Long) = Brush.verticalGradient(hex.map { Color(it) })
 private fun h(vararg hex: Long) = Brush.horizontalGradient(hex.map { Color(it) })
