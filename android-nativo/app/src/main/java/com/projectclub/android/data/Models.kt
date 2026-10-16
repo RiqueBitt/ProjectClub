@@ -34,6 +34,13 @@ data class User(
     val platformRole: String? = null,
     val accountLevel: Int? = null,
     val email: String? = null,
+    val createdAt: String? = null,
+    /** Status da conta (só vem no /auth/me, pra própria pessoa). */
+    val isPlatformBanned: Boolean? = null,
+    val platformBanReason: String? = null,
+    val suspendedUntil: String? = null,
+    val timeoutUntil: String? = null,
+    val accountDisabledAt: String? = null,
 ) {
     val name: String get() = displayName?.takeIf { it.isNotBlank() } ?: username ?: "Usuário"
 }

@@ -48,6 +48,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
@@ -107,6 +108,10 @@ class CallActions(
     val toggleScreen: () -> Unit,
     val leave: () -> Unit,
     val clearError: () -> Unit,
+    val react: (String) -> Unit = {},
+    val volumeOf: (String) -> Int = { 100 },
+    val setVolume: (String, Int) -> Unit = { _, _ -> },
+    val openProfile: (String) -> Unit = {},
 )
 
 @Composable
@@ -115,6 +120,7 @@ fun VoiceScreen(voice: VoiceManager, repo: Repository, onBack: () -> Unit, onOpe
     val rosters by repo.voiceRosters.collectAsState()
     val me by repo.me.collectAsState()
     val ctx = LocalContext.current
+    val openUser = com.projectclub.android.ui.profile.LocalOpenUser.current
 
     val shareLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         val data = r.data
@@ -157,6 +163,10 @@ fun VoiceScreen(voice: VoiceManager, repo: Repository, onBack: () -> Unit, onOpe
             },
             leave = { voice.leave(); onBack() },
             clearError = voice::clearError,
+            react = voice::sendReaction,
+            volumeOf = { voice.prefs.userVolume(it) },
+            setVolume = voice::setUserVolume,
+            openProfile = openUser,
         ),
         screen = { userId, modifier ->
             Box(modifier) {
@@ -185,6 +195,8 @@ fun CallLayout(
     val sharing = others.filter { it.screenSharing && state.remoteVideo.contains(it.userId) }
     var focused by rememberSaveable { mutableStateOf<String?>(null) }
     var fullscreen by rememberSaveable { mutableStateOf(false) }
+    var personSheet by remember { mutableStateOf<String?>(null) }
+    var picker by remember { mutableStateOf(false) }
     val big = focused?.let { f -> sharing.firstOrNull { it.userId == f } } ?: sharing.firstOrNull()
     LaunchedEffect(big == null) { if (big == null) fullscreen = false }
 
@@ -253,13 +265,14 @@ fun CallLayout(
                             LazyRow(
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
-                                items(people, key = { it.id }) { p -> MiniPerson(p, onClick = { if (p.sharing && !p.isMe) focused = p.id }) }
+                                items(people, key = { it.id }) { p -> MiniPerson(p, onClick = { if (p.sharing && !p.isMe && focused != p.id) focused = p.id else if (!p.isMe) personSheet = p.id }) }
                             }
                         }
                     }
                 } else {
-                    PeopleGrid(people)
+                    PeopleGrid(people) { if (!it.isMe) personSheet = it.id }
                 }
+                FloatingReactions(state.reactions, { id -> if (id == me?.id) me else userOf(id) }, Modifier.fillMaxSize())
                 if (state.status == CallStatus.Connecting || state.status == CallStatus.Reconnecting) {
                     Box(Modifier.fillMaxSize().background(Color(0x99050506)), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -271,8 +284,19 @@ fun CallLayout(
                 }
             }
 
-            if (!fullscreen) ControlDock(state, actions)
+            if (!fullscreen) {
+                AnimatedVisibility(picker, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut(), modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                    ReactionPicker { actions.react(it); picker = false }
+                }
+                ControlDock(state, actions, picker) { picker = !picker }
+            }
         }
+    }
+    personSheet?.let { id ->
+        CallPersonSheet(
+            userOf(id), id, actions.volumeOf(id), { actions.setVolume(id, it) },
+            onProfile = { personSheet = null; actions.openProfile(id) }, onDismiss = { personSheet = null },
+        )
     }
 }
 
@@ -334,7 +358,7 @@ private fun LiveDot(color: Color) {
 
 /** Grade de pessoas: 1 sozinho = grande no meio; 2–4 = cartões grandes; mais = grade compacta. */
 @Composable
-private fun PeopleGrid(people: List<Person>) {
+private fun PeopleGrid(people: List<Person>, onPerson: (Person) -> Unit) {
     if (people.size == 1) {
         Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
             BigAvatar(people[0], 132.dp)
@@ -353,20 +377,21 @@ private fun PeopleGrid(people: List<Person>) {
             horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
-            items(people, key = { it.id }) { p -> PersonCard(p, compact = columns == 3) }
+            items(people, key = { it.id }) { p -> PersonCard(p, compact = columns == 3) { onPerson(p) } }
         }
     }
 }
 
 @Composable
-private fun PersonCard(p: Person, compact: Boolean) {
+private fun PersonCard(p: Person, compact: Boolean, onClick: () -> Unit) {
     val border by animateColorAsState(if (p.speaking) PC.Green else Color.White.copy(alpha = 0.06f), tween(180), label = "b")
     val shape = RoundedCornerShape(22.dp)
     val accent = profileColor(p.user?.profileColor)
     Box(
         Modifier.fillMaxWidth().aspectRatio(if (compact) 0.86f else 0.95f).clip(shape)
             .background(Brush.verticalGradient(listOf(accent.copy(alpha = 0.28f), PC.Surface2.copy(alpha = 0.95f))))
-            .border(if (p.speaking) 2.5.dp else 1.dp, border, shape),
+            .border(if (p.speaking) 2.5.dp else 1.dp, border, shape)
+            .clickable(enabled = !p.isMe, onClick = onClick),
     ) {
         Column(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
             BigAvatar(p, if (compact) 64.dp else 84.dp)
@@ -448,7 +473,7 @@ private fun ScreenStage(
 
 /** Barra de controles embaixo (mesma ordem do PC: mic, fone, áudio, tela, sair). */
 @Composable
-private fun ControlDock(state: CallState, actions: CallActions) {
+private fun ControlDock(state: CallState, actions: CallActions, pickerOpen: Boolean, onReact: () -> Unit) {
     Row(
         Modifier.padding(horizontal = 12.dp, vertical = 10.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp))
             .background(Color(0xF2121318)).border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(28.dp))
@@ -457,11 +482,12 @@ private fun ControlDock(state: CallState, actions: CallActions) {
     ) {
         DockButton(if (state.muted) Icons.Filled.MicOff else Icons.Filled.Mic, if (state.muted) "Mudo" else "Microfone", danger = state.muted, onClick = actions.toggleMute)
         DockButton(if (state.deafened) Icons.Filled.HeadsetOff else Icons.Filled.Headset, if (state.deafened) "Sem som" else "Ouvir", danger = state.deafened, onClick = actions.toggleDeafen)
-        DockButton(if (state.speakerOn) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff, if (state.speakerOn) "Alto-falante" else "Fone", active = !state.speakerOn, onClick = actions.toggleSpeaker)
+        DockButton(if (state.speakerOn) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff, if (state.speakerOn) "Viva-voz" else "Fone", active = !state.speakerOn, onClick = actions.toggleSpeaker)
+        DockButton(Icons.Filled.EmojiEmotions, "Reagir", active = pickerOpen, onClick = onReact)
         DockButton(if (state.sharingScreen) Icons.Filled.StopScreenShare else Icons.Filled.ScreenShare, if (state.sharingScreen) "Parar tela" else "Tela", active = state.sharingScreen, onClick = actions.toggleScreen)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
-                Modifier.size(width = 64.dp, height = 50.dp).clip(RoundedCornerShape(18.dp)).background(PC.Red).clickable(onClick = actions.leave),
+                Modifier.size(width = 58.dp, height = 46.dp).clip(RoundedCornerShape(18.dp)).background(PC.Red).clickable(onClick = actions.leave),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Filled.CallEnd, "Sair da chamada", tint = Color.White, modifier = Modifier.size(26.dp)) }
             Spacer(Modifier.height(5.dp))
@@ -478,7 +504,7 @@ private fun DockButton(icon: ImageVector, label: String, active: Boolean = false
     val tint = when { danger -> PC.Red; active -> Color.Black; else -> PC.Header }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
-            Modifier.size(50.dp).clip(RoundedCornerShape(18.dp)).background(bg)
+            Modifier.size(46.dp).clip(RoundedCornerShape(16.dp)).background(bg)
                 .border(1.dp, if (danger) PC.Red.copy(alpha = 0.45f) else Color.Transparent, RoundedCornerShape(18.dp))
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,

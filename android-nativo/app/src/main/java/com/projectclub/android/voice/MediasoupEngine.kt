@@ -199,7 +199,14 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         recv = createRecv(dev)
 
         // Microfone (se entrou mudo, publica pausado — desmutar é instantâneo).
-        val src = factory!!.createAudioSource(MediaConstraints())
+        val prefs = VoicePrefs.get(context)
+        val src = factory!!.createAudioSource(MediaConstraints().apply {
+            fun opt(k: String, v: Boolean) = mandatory.add(MediaConstraints.KeyValuePair(k, v.toString()))
+            opt("googEchoCancellation", prefs.echoCancellation)
+            opt("googNoiseSuppression", prefs.noiseSuppression)
+            opt("googHighpassFilter", prefs.noiseSuppression)
+            opt("googAutoGainControl", prefs.automaticGain)
+        })
         micSource = src
         val track = factory!!.createAudioTrack("mic", src)
         micTrack = track
@@ -267,7 +274,10 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         val peer = info.optString("peerId", p.optString("peerId"))
         val source = appData.optString("source", if (kind == "audio") "mic" else "camera")
         consumers[consumer.id] = Remote(consumer, peer, source)
-        if (kind == "audio") (consumer.track as? AudioTrack)?.setEnabled(!deafened)
+        if (kind == "audio") (consumer.track as? AudioTrack)?.let { t ->
+            t.setEnabled(!deafened)
+            runCatching { t.setVolume(VoicePrefs.get(context).gainFor(peer)) }
+        }
         else { sinks[peer]?.let { s -> (consumer.track as? VideoTrack)?.addSink(s) }; publishVideo() }
         request("resumeConsumer", JSONObject().put("consumerId", consumer.id))
     }
@@ -311,6 +321,14 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         runCatching {
             if (muted) { p.pause(); request("pauseProducer", JSONObject().put("producerId", p.id)) }
             else { p.resume(); request("resumeProducer", JSONObject().put("producerId", p.id)) }
+        }
+    }
+
+    /** Reaplica os volumes (geral e de cada pessoa) nas trilhas que estão tocando. */
+    fun applyVolumes() = scope.launch {
+        val prefs = VoicePrefs.get(context)
+        consumers.values.filter { it.consumer.kind == "audio" }.forEach { r ->
+            runCatching { (r.consumer.track as? AudioTrack)?.setVolume(prefs.gainFor(r.peerId)) }
         }
     }
 

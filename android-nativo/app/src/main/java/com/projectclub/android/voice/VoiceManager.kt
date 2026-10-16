@@ -42,7 +42,14 @@ data class CallState(
     val remoteVideo: Set<String> = emptySet(),
     val error: String? = null,
     val provider: String? = null,
+    /** Reações flutuando agora (somem sozinhas em ~3 s). */
+    val reactions: List<CallReaction> = emptyList(),
 )
+
+data class CallReaction(val id: Long, val userId: String, val emoji: String)
+
+/** Os mesmos emojis rápidos do PC (o servidor só aceita estes). */
+val QUICK_REACTIONS = listOf("👍", "❤️", "😂", "🎉", "😮")
 
 /**
  * Chamadas de voz com o SDK NATIVO da Agora (o mesmo provedor que o site
@@ -92,6 +99,14 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
                 when (e.name) {
                     "voice:joined" -> if (e.data.toString().contains(ch)) sendState()
                     "voice:kicked-by-other-device" -> if (e.data.toString().contains(ch)) leave(notifyServer = false)
+                    "voice:reaction" -> {
+                        val o = e.data as? kotlinx.serialization.json.JsonObject ?: return@collect
+                        fun f(k: String) = (o[k] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                        if (f("channelId") != ch) return@collect
+                        val r = CallReaction(System.nanoTime(), f("userId") ?: return@collect, f("emoji") ?: return@collect)
+                        _state.update { it.copy(reactions = (it.reactions + r).takeLast(12)) }
+                        main.postDelayed({ _state.update { st -> st.copy(reactions = st.reactions.filter { it.id != r.id }) } }, 3200)
+                    }
                 }
             }
         }
@@ -144,6 +159,7 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
 
         override fun onUserInfoUpdated(uid: Int, userInfo: UserInfo?) {
             userInfo?.userAccount?.takeIf { it.isNotEmpty() }?.let { uidToUser[uid] = it }
+            main.post { applyVolumes() }
         }
 
         override fun onUserOffline(uid: Int, reason: Int) {
@@ -396,6 +412,30 @@ class VoiceManager(private val context: Context, private val repo: Repository, p
         if (usingOwn) own?.createVideoView(ctx) ?: SurfaceView(ctx) else SurfaceView(ctx)
 
     fun clearError() = _state.update { it.copy(error = null) }
+
+    val prefs: VoicePrefs = VoicePrefs.get(context)
+
+    /** Manda uma reação rápida pra todo mundo da chamada (inclusive você). */
+    fun sendReaction(emoji: String) {
+        val ch = _state.value.channelName ?: return
+        if (emoji !in QUICK_REACTIONS) return
+        repo.realtime.emit("voice:reaction", JSONObject().put("channelId", ch).put("emoji", emoji))
+    }
+
+    /** Volume de uma pessoa (0–200 %), só pra você. */
+    fun setUserVolume(userId: String, percent: Int) {
+        prefs.setUserVolume(userId, percent)
+    }
+
+    /** Aplica os volumes guardados no motor que estiver em uso. */
+    private fun applyVolumes() {
+        if (usingOwn) { own?.applyVolumes(); return }
+        val e = engine ?: return
+        runCatching { e.adjustPlaybackSignalVolume(prefs.outputVolume.coerceIn(0, 400)) }
+        uidToUser.forEach { (uid, userId) -> runCatching { e.adjustUserPlaybackSignalVolume(uid, prefs.userVolume(userId).coerceIn(0, 100)) } }
+    }
+
+    init { prefs.onChange { main.post { applyVolumes() } } }
 
     private companion object { const val TAG = "PCVoz" }
 }

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Favorite
@@ -288,8 +289,10 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             if (isMe) {
                                 PillButton("Editar perfil", { nav.editProfile() }, Modifier.fillMaxWidth(), icon = Icons.Outlined.Edit)
+                                GhostButton("Biblioteca de jogos", { nav.games("me") }, Modifier.fillMaxWidth(), icon = Icons.Outlined.SportsEsports)
                             } else {
                                 PillButton("Mensagem", { nav.dmWith(userId) }, Modifier.fillMaxWidth(), icon = Icons.Outlined.ChatBubbleOutline, enabled = !blocked)
+                                GhostButton("Jogos", { nav.games(userId) }, Modifier.fillMaxWidth(), icon = Icons.Outlined.SportsEsports)
                                 Row(
                                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
