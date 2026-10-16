@@ -63,7 +63,9 @@ test('botão direito no Enviar abre "Enviar depois"', async ({ page }) => {
   await expect(page.locator('.schedule-modal')).toBeVisible();
 });
 
-test('"Lembrar-me" no menu da mensagem cria o lembrete com link e id da mensagem', async ({ page }) => {
+test('"Lembrar-me" no menu da mensagem cria o lembrete com link e id da mensagem', async ({ page }, testInfo) => {
+  // Passar o mouse só existe no PC (no celular a vitrine/menu de hover não aparecem).
+  test.skip(testInfo.project.name === 'celular', 'interação de mouse — só no PC');
   const posted = [];
   await page.route('**/api/**', (route) => {
     const req = route.request(); const p = new URL(req.url()).pathname.replace(/^\/api/, '');

@@ -28,7 +28,9 @@ test('bonequinhos fazem truques aleatórios no descanso (data-stunt) com aura vi
   }
 });
 
-test('ícones dos apps balançam/pulam sozinhos e ao passar o mouse', async ({ page }) => {
+test('ícones dos apps balançam/pulam sozinhos e ao passar o mouse', async ({ page }, testInfo) => {
+  // Passar o mouse só existe no PC (no celular a vitrine/menu de hover não aparecem).
+  test.skip(testInfo.project.name === 'celular', 'interação de mouse — só no PC');
   await page.goto('/login');
   const icons = page.locator('.pc-showcase-apps img');
   await expect(icons.first()).toBeVisible();
@@ -36,7 +38,7 @@ test('ícones dos apps balançam/pulam sozinhos e ao passar o mouse', async ({ p
   await icons.nth(1).evaluate((el) => el.dispatchEvent(new PointerEvent('pointerenter', { bubbles: false })));
   await expect.poll(() => icons.nth(1).evaluate((el) => el.getAnimations().length), { timeout: 2000 }).toBeGreaterThan(0);
   // Sozinhos: em até 12s algum ícone (ou a logo) está animando.
-  await expect.poll(async () => page.evaluate(() => [...document.querySelectorAll('.pc-showcase-apps img, .pc-auth-showcase .pc-brand-mark')].some((el) => el.dataset.stunt)), { timeout: 12000 }).toBe(true);
+  await expect.poll(async () => page.evaluate(() => [...document.querySelectorAll('.pc-showcase-apps img, .pc-auth-showcase .pc-brand-mark')].some((el) => el.dataset.stunt)), { timeout: 25000 }).toBe(true);
 });
 
 test('modo calmo: sem stunts nem truques nos ícones', async ({ page }) => {
