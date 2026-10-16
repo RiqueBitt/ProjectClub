@@ -30,6 +30,7 @@ interface AppNav {
     fun events()
     fun event(eventId: String)
     fun announcements()
+    fun inbox(tab: Int = 0)
     fun clubs()
     fun club(clubId: String)
     fun tickets()

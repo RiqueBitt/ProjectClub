@@ -26,6 +26,8 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material.icons.outlined.Campaign
+import androidx.compose.material.icons.outlined.Bookmark
+import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Settings
@@ -152,6 +154,8 @@ fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
                 Line(Icons.Outlined.Person, "Meu perfil", PC.Brand) { me?.id?.let(nav::fullProfile) }
                 Line(Icons.Outlined.Edit, "Editar perfil", PC.Purple) { nav.editProfile() }
                 Line(Icons.Outlined.Settings, "Configurações", PC.Brand) { nav.settings() }
+                Line(Icons.Outlined.Inbox, "Caixa de entrada", PC.Brand) { nav.inbox() }
+                Line(Icons.Outlined.Bookmark, "Mensagens favoritas", PC.Yellow) { nav.inbox(1) }
                 Line(Icons.Outlined.Campaign, "Anúncios", PC.Announce) { nav.announcements() }
                 Line(Icons.Outlined.PhotoLibrary, "Galeria", Color(0xFFF472B6)) { nav.gallery() }
                 Line(Icons.Outlined.SupportAgent, "Suporte", PC.Green) { actions.openWeb("/tickets") }

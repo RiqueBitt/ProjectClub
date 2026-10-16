@@ -74,6 +74,7 @@ class AppNavigator(
     override fun events() = go("events")
     override fun event(eventId: String) = go("event/${enc(eventId)}")
     override fun announcements() = go("announcements")
+    override fun inbox(tab: Int) = go("inbox?tab=$tab")
     override fun clubs() = go("clubs")
     override fun club(clubId: String) = go("club/${enc(clubId)}")
     override fun tickets() = go("tickets")
@@ -114,6 +115,7 @@ class AppNavigator(
             "comunidade" -> when (seg.getOrNull(1)) { "galeria" -> gallery(); else -> events() }
             "eventos" -> seg.getOrNull(1)?.let(::event) ?: events()
             "anuncios" -> announcements()
+            "inbox", "caixa-de-entrada" -> inbox(if (tab == "favoritos") 1 else 0)
             "clans" -> clubs()
             "tickets" -> tickets()
             "atividade" -> activity()
@@ -163,6 +165,7 @@ fun NavGraphBuilder.featureScreens(repo: Repository, nav: AppNav) {
     screen("events") { EventsScreen(repo, nav) }
     screen("event/{id}", listOf("id")) { EventScreen(repo, nav, it?.getString("id").orEmpty()) }
     screen("announcements") { AnnouncementsScreen(repo, nav) }
+    screen("inbox?tab={tab}", listOf("tab")) { com.projectclub.android.ui.inbox.InboxScreen(repo, nav, it?.getString("tab")?.toIntOrNull() ?: 0) }
     screen("clubs") { ClubsScreen(repo, nav) }
     screen("club/{id}", listOf("id")) { ClubScreen(repo, nav, it?.getString("id").orEmpty()) }
     screen("tickets") { TicketsScreen(repo, nav) }

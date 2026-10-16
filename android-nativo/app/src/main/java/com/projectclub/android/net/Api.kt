@@ -143,6 +143,9 @@ class Api(context: Context) {
     suspend inline fun <reified T> patch(path: String, body: JsonElement? = null): T =
         AppJson.decodeFromString(call(Request.Builder().url(url(path)).patch(jsonBody(body)).build()))
 
+    suspend inline fun <reified T> put(path: String, body: JsonElement? = null): T =
+        AppJson.decodeFromString(call(Request.Builder().url(url(path)).put(jsonBody(body)).build()))
+
     suspend fun postIgnore(path: String, body: JsonElement? = null) {
         call(Request.Builder().url(url(path)).post(jsonBody(body)).build())
     }
