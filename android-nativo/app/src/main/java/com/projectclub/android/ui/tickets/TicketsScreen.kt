@@ -131,7 +131,7 @@ fun TicketsScreen(repo: Repository, nav: AppNav) {
             }
         }
         ExtendedFloatingActionButton(
-            onClick = { creating = true }, containerColor = PC.Brand, contentColor = Color.White,
+            onClick = { creating = true }, containerColor = PC.Brand, contentColor = PC.OnBrand,
             icon = { Icon(Icons.Outlined.Add, null) }, text = { Text("Novo chamado") },
             modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(16.dp),
         )
@@ -212,7 +212,7 @@ fun TicketScreen(repo: Repository, nav: AppNav, ticketId: String) {
                                 Modifier.widthIn(max = 300.dp).clip(RoundedCornerShape(18.dp)).background(if (mine) PC.BrandDark else PC.Surface2).padding(12.dp),
                             ) {
                                 if (!mine) Text(m.author?.name ?: "Equipe", color = PC.Brand, style = MaterialTheme.typography.labelMedium)
-                                Text(m.content, color = if (mine) Color.White else PC.Text, style = MaterialTheme.typography.bodyMedium)
+                                Text(m.content, color = if (mine) PC.OnBrand else PC.Text, style = MaterialTheme.typography.bodyMedium)
                                 Text(formatTime(m.createdAt), color = if (mine) Color(0xBBFFFFFF) else PC.Muted, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
                             }
                         }

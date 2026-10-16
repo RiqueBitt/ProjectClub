@@ -194,7 +194,7 @@ private fun TradeTile(i: TradeItem, on: Boolean, onClick: (() -> Unit)?) {
                 else -> Icon(Icons.Outlined.Star, null, tint = PC.Yellow)
             }
             if (on) Box(Modifier.align(Alignment.TopEnd).size(16.dp).clip(CircleShape).background(PC.Brand), contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.Check, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(11.dp))
+                Icon(Icons.Outlined.Check, null, tint = PC.OnBrand, modifier = Modifier.size(11.dp))
             }
         }
         Text(i.name, color = PC.Header, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

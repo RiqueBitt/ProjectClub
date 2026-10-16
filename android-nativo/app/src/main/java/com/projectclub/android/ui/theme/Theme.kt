@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -38,6 +39,8 @@ object PC {
     val Yellow = Color(0xFFF0B232)
     val Red = Color(0xFFF23F43)
     val Mention: Color get() = ThemeStore.palette.mention
+    /** Texto/ícone em cima da cor de destaque: escuro quando o destaque é claro (rosa, amarelo, menta...). */
+    val OnBrand: Color get() = if (ThemeStore.palette.brand.luminance() > 0.5f) Color(0xFF111114) else Color.White
 
     // Cores dos atalhos em destaque (iguais aos do site).
     val Announce = Color(0xFFEF4444)
@@ -47,9 +50,13 @@ object PC {
     val Purple = Color(0xFFA46BFF)
     val Pink = Color(0xFFFF4FA3)
 
-    /** Faixa azul dos destaques (banner da comunidade, cartão do Início). */
-    val HeroGradient = Brush.linearGradient(listOf(Color(0xFF0B1F45), Color(0xFF173E8C), Color(0xFF2F6BD8)))
-    val BannerGradient = Brush.verticalGradient(listOf(Color(0xFF1A3C8F), Color(0xFF2E6BE6), Color(0xFF6AA8FF)))
+    /** Faixa dos destaques (banner da comunidade, cartão do Início): azul, ou as cores do tema colorido. */
+    val HeroGradient: Brush get() = ThemeStore.palette.hero ?: DefaultHero
+    val BannerGradient: Brush get() = ThemeStore.palette.banner ?: DefaultBanner
+    /** Borda da faixa de destaque. */
+    val HeroLine: Color get() = ThemeStore.palette.brand.copy(alpha = 0.22f)
+    private val DefaultHero = Brush.linearGradient(listOf(Color(0xFF0B1F45), Color(0xFF173E8C), Color(0xFF2F6BD8)))
+    private val DefaultBanner = Brush.verticalGradient(listOf(Color(0xFF1A3C8F), Color(0xFF2E6BE6), Color(0xFF6AA8FF)))
 
     fun presence(status: String?): Color = when (status) {
         "ONLINE" -> Green
@@ -72,9 +79,9 @@ val Display = FontFamily(Font(R.font.bebas_neue, FontWeight.Normal))
 
 private fun scheme() = darkColorScheme(
     primary = PC.Brand,
-    onPrimary = Color.White,
+    onPrimary = PC.OnBrand,
     primaryContainer = PC.BrandDark,
-    onPrimaryContainer = Color.White,
+    onPrimaryContainer = PC.OnBrand,
     secondary = PC.Brand,
     secondaryContainer = PC.BrandSoft,
     onSecondaryContainer = PC.Brand,

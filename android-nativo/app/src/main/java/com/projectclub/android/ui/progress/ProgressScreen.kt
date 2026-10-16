@@ -369,11 +369,11 @@ private fun ProgressHero(me: User?, rank: ProgressRank?, rankError: String?, lev
                     Avatar(me, 78.dp, modifier = Modifier.align(Alignment.TopStart))
                     Box(
                         Modifier.align(Alignment.BottomEnd).heightIn(min = 30.dp).widthIn(min = 30.dp)
-                            .clip(CircleShape).background(PC.Brand).border(3.dp, Color(0xFF173E8C), CircleShape)
+                            .clip(CircleShape).background(PC.Brand).border(3.dp, PC.BrandDark, CircleShape)
                             .padding(horizontal = 6.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("$level", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                        Text("$level", color = PC.OnBrand, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
                     }
                 }
                 Spacer(Modifier.width(16.dp))

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.horizontalScroll
@@ -161,24 +162,30 @@ private fun CustomThemeDialog(start: ColorTheme, onDismiss: () -> Unit, onSave: 
 }
 
 @Composable
-fun AppIconPicker() {
+fun AppIconPicker(repo: Repository, settings: JsonObject?, onSettings: (JsonObject?) -> Unit) {
     val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
     var current by remember { mutableStateOf(AppIcons.current(ctx)) }
+    fun choose(icon: com.projectclub.android.ui.theme.AppIcon) {
+        AppIcons.set(ctx, icon.id); current = icon.id
+        Toast.makeText(ctx, "Ícone ${icon.name} escolhido. Ele aparece na tela inicial quando você sair do app.", Toast.LENGTH_LONG).show()
+        // Salva na conta também (o mesmo "Ícone do app" do site e do PC).
+        val extra = (settings?.get("extraPrefs") as? JsonObject)?.toMutableMap() ?: mutableMapOf()
+        extra["appIcon"] = kotlinx.serialization.json.JsonPrimitive(icon.id)
+        val next = JsonObject(extra)
+        onSettings(JsonObject((settings ?: JsonObject(emptyMap())) + ("extraPrefs" to next)))
+        scope.launch { runCatching { repo.api.patch<JsonElement>("/api/users/me/settings", JsonObject(mapOf("extraPrefs" to next))) } }
+    }
     Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Ícone do app", color = PC.Header, fontWeight = FontWeight.Bold)
-        Text("Muda o ícone do Project Club na tela inicial do celular (pode levar alguns segundos pra aparecer).", color = PC.Muted, style = MaterialTheme.typography.bodySmall)
+        Text("Muda o ícone do Project Club na tela inicial do celular. A troca acontece quando você sai do app (alguns celulares levam alguns segundos pra mostrar).", color = PC.Muted, style = MaterialTheme.typography.bodySmall)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             APP_ICONS.forEach { icon ->
                 val bmp = remember(icon.id) { ContextCompat.getDrawable(ctx, icon.res)?.toBitmap(144, 144)?.asImageBitmap() }
                 val on = current == icon.id
-                Column(Modifier.width(70.dp).clickable {
-                    if (!on) {
-                        AppIcons.set(ctx, icon.id); current = icon.id
-                        Toast.makeText(ctx, "Ícone trocado para ${icon.name}.", Toast.LENGTH_SHORT).show()
-                    }
-                }, horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.width(70.dp).clickable { if (!on) choose(icon) }, horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(Modifier.size(58.dp).clip(RoundedCornerShape(16.dp)).border(2.dp, if (on) PC.Brand else Color.Transparent, RoundedCornerShape(16.dp)).padding(3.dp)) {
-                        if (bmp != null) Image(bmp, icon.name, Modifier.clip(RoundedCornerShape(13.dp)))
+                        if (bmp != null) Image(bmp, icon.name, Modifier.fillMaxSize().clip(RoundedCornerShape(13.dp)))
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(icon.name, color = if (on) PC.Header else PC.Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

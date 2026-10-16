@@ -139,7 +139,7 @@ fun EditProfileScreen(repo: Repository, nav: AppNav) {
                     if (a != null) AsyncImage(a, null, contentScale = ContentScale.Crop, modifier = Modifier.size(82.dp).clip(CircleShape))
                     else Avatar(me, 82.dp)
                     Box(Modifier.align(Alignment.BottomEnd).size(28.dp).clip(CircleShape).background(PC.Brand), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.PhotoCamera, "Trocar foto", tint = Color.White, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Outlined.PhotoCamera, "Trocar foto", tint = PC.OnBrand, modifier = Modifier.size(16.dp))
                     }
                 }
             }
