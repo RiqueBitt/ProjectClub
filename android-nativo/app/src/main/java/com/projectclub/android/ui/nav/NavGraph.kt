@@ -80,6 +80,8 @@ class AppNavigator(
     override fun ticket(ticketId: String) = go("ticket/${enc(ticketId)}")
     override fun gallery() = go("gallery")
     override fun settings() = go("settings")
+    override fun activity() = go("activity")
+    override fun search() = go("search")
 
     override fun link(pathOrUrl: String) {
         val raw = pathOrUrl.trim()
@@ -108,6 +110,8 @@ class AppNavigator(
             "anuncios" -> announcements()
             "clans" -> clubs()
             "tickets" -> tickets()
+            "atividade" -> activity()
+            "search" -> search()
             "profile" -> repo.me.value?.id?.let(::fullProfile) ?: onHome(4)
             "u" -> seg.getOrNull(1)?.let(::fullProfile)
             else -> external(uri.toString())
@@ -158,4 +162,6 @@ fun NavGraphBuilder.featureScreens(repo: Repository, nav: AppNav) {
     screen("ticket/{id}", listOf("id")) { TicketScreen(repo, nav, it?.getString("id").orEmpty()) }
     screen("gallery") { GalleryScreen(repo, nav) }
     screen("settings") { com.projectclub.android.ui.settings.SettingsScreen(repo, nav) }
+    screen("activity") { com.projectclub.android.ui.activity.ActivityScreen(repo, nav) }
+    screen("search") { com.projectclub.android.ui.activity.SearchScreen(repo, nav) }
 }

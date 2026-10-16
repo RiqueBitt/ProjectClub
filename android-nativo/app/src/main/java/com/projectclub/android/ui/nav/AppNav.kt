@@ -36,6 +36,8 @@ interface AppNav {
     fun ticket(ticketId: String)
     fun gallery()
     fun settings()
+    fun activity()
+    fun search()
 
     /** Endereço do site ("/loja", "/u/123", "/posts/abc"...): abre a tela nativa certa ou o Chrome. */
     fun link(pathOrUrl: String)

@@ -41,6 +41,10 @@ import androidx.compose.material.icons.outlined.EmojiEmotions
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.Reply
+import androidx.compose.material.icons.automirrored.filled.Forward
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Call
@@ -140,7 +144,14 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
     var menuFor by remember { mutableStateOf<Message?>(null) }
     var confirmDelete by remember { mutableStateOf<Message?>(null) }
     var viewing by remember { mutableStateOf<String?>(null) }
+    var showPinned by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
+    var forwardFor by remember { mutableStateOf<Message?>(null) }
+    var remindFor by remember { mutableStateOf<Message?>(null) }
+    var scheduling by remember { mutableStateOf(false) }
+    val snack = remember { androidx.compose.material3.SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    fun toast(msg: String) { scope.launch { snack.showSnackbar(msg) } }
     val list = rememberLazyListState()
     val reversed = remember(state.messages) { state.messages.asReversed() }
 
@@ -161,6 +172,7 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
 
     Scaffold(
         containerColor = PC.Bg,
+        snackbarHost = { androidx.compose.material3.SnackbarHost(snack) },
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = PC.Bar),
@@ -181,6 +193,8 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showSearch = true }) { Icon(Icons.Filled.Search, "Buscar mensagens") }
+                    IconButton(onClick = { showPinned = true }) { Icon(Icons.Filled.PushPin, "Mensagens fixadas") }
                     if (room.conversationId != null) IconButton(onClick = { onCall("dm:${room.conversationId}", title) }) { Icon(Icons.Filled.Call, "Ligar") }
                 },
             )
@@ -238,6 +252,7 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
                 onCancel = { vm.setReply(null); vm.setEditing(null); if (state.editing != null) text = "" },
                 onSend = { val t = text; text = ""; vm.send(t) { failed -> if (text.isBlank()) text = failed } },
                 onPicker = { showPicker = true },
+                onSchedule = { scheduling = true },
             )
         }
     }
@@ -260,6 +275,16 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp), color = PC.Line)
             SheetItem(Icons.AutoMirrored.Filled.Reply, "Responder") { vm.setReply(m); menuFor = null }
+            SheetItem(Icons.AutoMirrored.Filled.Forward, "Encaminhar") { forwardFor = m; menuFor = null }
+            SheetItem(Icons.Filled.Alarm, "Lembrar-me") { remindFor = m; menuFor = null }
+            SheetItem(Icons.Filled.PushPin, if (m.pinned) "Desafixar" else "Fixar") {
+                menuFor = null
+                scope.launch {
+                    runCatching { repo.api.postIgnore("/api/messages/${m.id}/pin") }
+                        .onSuccess { toast(if (m.pinned) "Mensagem desafixada." else "Mensagem fixada.") }
+                        .onFailure { toast(it.message ?: "Você não pode fixar aqui.") }
+                }
+            }
             if (!m.content.isNullOrBlank()) SheetItem(Icons.Filled.ContentCopy, "Copiar texto") {
                 (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("mensagem", m.content))
                 menuFor = null
@@ -281,6 +306,19 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
         )
     }
     viewing?.let { url -> ImageViewer(url) { viewing = null } }
+    if (showPinned) PinnedSheet(repo, room) { showPinned = false }
+    if (showSearch) SearchSheet(repo, room) { showSearch = false }
+    forwardFor?.let { m -> ForwardSheet(repo, m, onDismiss = { forwardFor = null }) { msg -> forwardFor = null; toast(msg) } }
+    remindFor?.let { m ->
+        WhenDialog(repo, "Lembrar-me", "Lembrar", initialText = m.content?.take(180), textLabel = "Do que lembrar", onDismiss = { remindFor = null }) { whenText, _, t ->
+            createReminder(repo, m, room, whenText, t).also { if (it == null) { remindFor = null; toast("Lembrete criado. Você recebe um aviso na hora.") } }
+        }
+    }
+    if (scheduling) {
+        WhenDialog(repo, "Enviar depois", "Agendar", initialText = text, textLabel = "Mensagem", onDismiss = { scheduling = false }) { _, at, t ->
+            scheduleMessage(repo, room, t, at).also { if (it == null) { scheduling = false; text = ""; toast("Mensagem agendada.") } }
+        }
+    }
 }
 
 @Composable
@@ -454,11 +492,13 @@ private fun TypingLine(names: List<String>) {
     Text(text, color = PC.Muted, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Composer(
     text: String, onText: (String) -> Unit, state: ChatState, roomName: String,
     onAttach: () -> Unit, onRemoveFile: (com.projectclub.android.data.PickedFile) -> Unit, onCancel: () -> Unit, onSend: () -> Unit,
     onPicker: () -> Unit,
+    onSchedule: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxWidth().background(PC.Bg).navigationBarsPadding().padding(horizontal = 10.dp, vertical = 8.dp).clip(RoundedCornerShape(26.dp)).background(PC.Surface).border(1.dp, PC.Line, RoundedCornerShape(26.dp))) {
         val banner = state.editing?.let { "Editando mensagem" } ?: state.replyTo?.let { "Respondendo a ${it.author?.name ?: "mensagem"}" }
@@ -495,7 +535,8 @@ private fun Composer(
             Box(
                 Modifier.padding(start = 4.dp, bottom = 2.dp).size(46.dp).clip(RoundedCornerShape(16.dp))
                     .background(if (canSend) PC.Brand else PC.BrandSoft)
-                    .clickable(enabled = canSend && !state.sending, onClick = onSend),
+                    // Segurar o Enviar = "Enviar depois" (agendar), igual ao clique direito no PC.
+                    .combinedClickable(enabled = canSend && !state.sending, onClick = onSend, onLongClick = { if (text.isNotBlank() && state.editing == null) onSchedule() }),
                 contentAlignment = Alignment.Center,
             ) {
                 if (state.sending) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
