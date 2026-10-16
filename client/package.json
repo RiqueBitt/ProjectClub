@@ -21,6 +21,7 @@
     "@capawesome/capacitor-badge": "^8.0.2",
     "@jitsi/rnnoise-wasm": "^0.2.1",
     "@m430/capacitor-app-install": "^0.0.3",
+    "@simplewebauthn/browser": "13.3.0",
     "@vitejs/plugin-react": "^5.1.0",
     "agora-rtc-sdk-ng": "^4.24.7",
     "axios": "^1.7.7",
