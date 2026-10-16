@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -152,18 +153,18 @@ fun LoginScreen(repo: Repository, notice: String?) {
                 CritterField.Text -> if (needsCode) code.length else identifier.length
                 CritterField.None -> 0
             } * 0.035f
-            Box(Modifier.fillMaxWidth().height(124.dp)) {
+            Row(Modifier.fillMaxWidth().height(124.dp), verticalAlignment = Alignment.Bottom) {
+                Text(
+                    "▶  PROJECT CLUB", color = PC.Muted, maxLines = 1, softWrap = false,
+                    style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 3.sp),
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+                Spacer(Modifier.width(10.dp))
                 AuthCritters(
                     field = focusField, caret = caret,
                     peek = showPassword && password.isNotEmpty(),
                     reaction = reaction, pointer = touch,
-                    // Só a metade direita: não encosta no "▶ PROJECT CLUB".
-                    modifier = Modifier.align(Alignment.BottomEnd).fillMaxWidth(0.56f).fillMaxSize(),
-                )
-                Text(
-                    "▶  PROJECT CLUB", color = PC.Muted,
-                    style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 4.sp),
-                    modifier = Modifier.align(Alignment.BottomStart).padding(bottom = 4.dp),
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
             }
             Column(Modifier.padding(top = 14.dp)) {
