@@ -14,5 +14,7 @@ router.post('/:id/members', ctrl.addMember);
 router.delete('/:id/members/me', ctrl.leaveConversation);
 router.delete('/:id/members/:userId', ctrl.removeMember);
 router.post('/:id/read', ctrl.markRead);
+// Solicitações de mensagem / spam: aceitar, ignorar ou marcar como spam.
+router.patch('/:id/inbox', require('../services/dmInbox').setInbox);
 
 module.exports = router;

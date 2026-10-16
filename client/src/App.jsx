@@ -14,6 +14,7 @@ import LoadingScreen from './components/LoadingScreen.jsx';
 import TitleBar from './components/TitleBar.jsx';
 import { CUSTOM_BACKGROUND_ENABLED } from './utils/featureFlags';
 import { useApplyAppearance } from './components/AppearanceRuntime.jsx';
+import { useApplyExtraPrefs } from './components/ExtraPrefsRuntime.jsx';
 import { migrateZoomValue } from './utils/zoomDefault';
 
 import MainApp from './pages/MainApp.jsx';
@@ -274,6 +275,7 @@ export default function App() {
   const customBackground = useStore((s) => s.customBackground);
   // Personalizar layout: atributos/variáveis no <html> (ver utils/appearance.js).
   useApplyAppearance();
+  useApplyExtraPrefs();
 
   // Deterrent-only "no inspecting" measures: blocks the browser's own
   // right-click menu everywhere (custom context menus elsewhere in the app

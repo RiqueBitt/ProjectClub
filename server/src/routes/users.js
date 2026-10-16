@@ -64,8 +64,15 @@ router.get('/me/shortcuts', shortcutsCtrl.listMyShortcuts);
 // Item pedido: pingentes — catálogo público + escolha da própria conta.
 router.put('/me/shortcuts', shortcutsCtrl.setShortcut);
 router.delete('/me/shortcuts/:id', shortcutsCtrl.deleteShortcut);
+// Extras do perfil (Mural, Lista de desejos, Atividade, insígnias, nota).
+const extrasCtrl = require('../controllers/profileExtrasController');
+router.put('/me/widgets', extrasCtrl.setWidgets);
+router.get('/me/wishlist', extrasCtrl.myWishlist);
+router.post('/me/wishlist', extrasCtrl.toggleWishlist);
 router.get('/search', ctrl.searchUsers);
 router.get('/:id', ctrl.getUser);
+router.get('/:id/extras', extrasCtrl.getExtras);
+router.put('/:id/note', extrasCtrl.setNote);
 // Cabeçalho do perfil completo numa requisição só (ver profileSummaryController).
 router.get('/:id/summary', require('../controllers/profileSummaryController').getProfileSummary);
 router.post('/:id/vote', ctrl.voteProfile);

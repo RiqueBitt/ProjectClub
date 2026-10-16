@@ -1,3 +1,5 @@
+import { AppearanceExtras, AccessibilityMore, NotificationExtras, VoiceExtras, PrivacyExtras } from '../settings/ExtraSettings.jsx';
+import { setExtra, getExtra } from '../../utils/extraPrefs';
 import { useLiveRefresh } from '../../utils/liveRefresh';
 import ProfileShopItems from '../shop/ProfileShopItems.jsx';
 import { useState, useEffect, useRef } from 'react';
@@ -94,7 +96,7 @@ import {
   setEmojiStyle as setEmojiStyleApi,
   listSessions, revokeSession, revokeOtherSessions,
   createProfilePoll, listProfilePollsByAuthor, deleteProfilePoll,
-  changePassword, deleteAccount,
+  changePassword, deleteAccount, deactivateAccount,
   listRegisteredGames, addRegisteredGame, removeRegisteredGame,
   listMyShortcuts, setShortcut, deleteShortcut,
   uploadMyCustomPendant, removeMyCustomPendant,
@@ -947,6 +949,24 @@ export default function UserSettingsModal({ onClose }) {
 
   const [deleteError, setDeleteError] = useState('');
   const [deleting, setDeleting] = useState(false);
+  // Desativar temporariamente: entrar de novo reativa (nada é apagado).
+  const startDeactivate = async () => {
+    if (!(await confirmAsync('Desativar sua conta por um tempo? Você sai de todos os aparelhos, some das buscas e ninguém consegue te mandar mensagem. É só entrar de novo pra reativar.'))) return;
+    const password = await promptAsync('Digite sua senha pra confirmar:');
+    if (!password) return;
+    setDeleteError('');
+    setDeleting(true);
+    try {
+      await deactivateAccount(password);
+      await logout();
+      onClose();
+      navigate('/login');
+    } catch (err) {
+      setDeleteError(err.response?.data?.error || 'Senha incorreta.');
+      setDeleting(false);
+    }
+  };
+
   const startDeleteAccount = async () => {
     if (!(await confirmAsync('Tem certeza que quer desativar sua conta? Você é desconectado na hora e não consegue mais entrar com ela.'))) return;
     const password = await promptAsync('Digite sua senha pra confirmar:');
@@ -1618,7 +1638,7 @@ export default function UserSettingsModal({ onClose }) {
                   ? <span className="settings-chip is-ok"><SIcon name="check" size={12} /> Verificado</span>
                   : <span className="settings-chip is-warn"><SIcon name="alert" size={12} /> Não verificado</span>}
               </span>
-              <input value={user.email} disabled />
+              <input className="pc-sensitive" value={user.email} disabled />
             </label>
             <p className="dim settings-field-hint">O e-mail não pode ser trocado por aqui. Ele é usado pra entrar e recuperar a senha.</p>
             <label>
@@ -1646,7 +1666,16 @@ export default function UserSettingsModal({ onClose }) {
             </div>
             <div className="danger-zone-row">
               <div>
-                <div className="danger-zone-row-title">Desativar conta</div>
+                <div className="danger-zone-row-title">Desativar temporariamente</div>
+                <p className="dim">Sai de tudo e some das buscas, mas é só entrar de novo pra voltar. Nada é apagado.</p>
+              </div>
+              <button className="btn-secondary" disabled={deleting} onClick={startDeactivate}>
+                {deleting ? '...' : 'Desativar por um tempo'}
+              </button>
+            </div>
+            <div className="danger-zone-row">
+              <div>
+                <div className="danger-zone-row-title">Desativar de vez</div>
                 <p className="dim">Você é desconectado de tudo na hora e não consegue mais entrar com ela — nenhuma mensagem ou post antigo é apagado.</p>
               </div>
               <button className="btn-danger" disabled={deleting} onClick={startDeleteAccount}>
@@ -1750,6 +1779,7 @@ export default function UserSettingsModal({ onClose }) {
 
           {/* Personalizar layout (densidade, cantos, coluna, fonte, fundo animado, temas sazonais) */}
           <LayoutCustomizer />
+          <AppearanceExtras />
 
           {/* Item pedido: "sistema podendo mudar o zoom de 1,0 até
               2,0... pra melhor personalização" — só afeta o chat e a
@@ -1944,6 +1974,7 @@ export default function UserSettingsModal({ onClose }) {
           )}
           <ColorVisionSettings />
           <AccessibilityExtras />
+          <AccessibilityMore />
         </div>
       )}
 
@@ -2058,6 +2089,7 @@ export default function UserSettingsModal({ onClose }) {
                   ligado a ele. */}
             </>
           )}
+          <PrivacyExtras />
         </div>
       )}
 
@@ -2100,6 +2132,7 @@ export default function UserSettingsModal({ onClose }) {
                 </div>
                 <Toggle on={userSettings.notificationSounds} onChange={(v) => updateUserSetting('notificationSounds', v)} label={TOGGLE_LABEL.notificationSounds} />
               </div>
+              <NotificationExtras />
             </>
           )}
         </div>
@@ -2735,7 +2768,7 @@ function VoiceSettingsTab() {
           <h4>Redutor de ruído</h4>
           <p className="dim">Remove ruído de fundo (ventilador, teclado, eco) e nivela o volume do seu microfone. No servidor de voz próprio usa o RNNoise (rede neural, igual ao do Jitsi). Desligue se usa microfone de estúdio e prefere o som original.</p>
         </div>
-        <Toggle on={prefs.noiseReduction} onChange={(v) => updatePref('noiseReduction', v)} label="Redutor de ruído" />
+        <Toggle on={prefs.noiseReduction} onChange={(v) => { updatePref('noiseReduction', v); if (getExtra().inputProfile !== 'custom') setExtra({ inputProfile: 'custom' }); }} label="Redutor de ruído" />
       </div>
 
       {/* Nivelar volume automático (E) */}
@@ -2777,6 +2810,7 @@ function VoiceSettingsTab() {
         </div>
         <Toggle on={prefs.captions} onChange={(v) => updatePref('captions', v)} label="Legendas ao vivo" disabled={!isSpeechRecognitionSupported()} />
       </div>
+      <VoiceExtras prefs={prefs} updatePref={updatePref} />
     </div>
   );
 }

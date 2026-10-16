@@ -132,4 +132,4 @@ async function findAppIdByName(name, search = searchStore) {
   return job;
 }
 
-module.exports = { resolve, KINDS, findAppIdByName, normalizeGameName, _test: { byNameMemory } };
+module.exports = { resolve, KINDS, findAppIdByName, searchStore, normalizeGameName, _test: { byNameMemory } };

@@ -1,0 +1,123 @@
+/* Preferências extras (utils/extraPrefs.js) aplicadas no <html>. */
+
+/* Tema colorido: degradê de fundo atrás do app. As superfícies (--bg-*) já
+   vêm tingidas pelas variáveis inline no <html>. */
+html[data-pc-ctheme] body { background: var(--pc-ct-grad), var(--bg-deepest) !important; background-attachment: fixed !important; }
+html[data-pc-ctheme] #root { background: transparent; }
+
+/* Modo streamer: esconde dados pessoais (e-mail, conexões, notas). */
+html[data-pc-streamer-personal] .pc-sensitive,
+html[data-pc-streamer-personal] .pf-connections,
+html[data-pc-streamer-personal] .pxn-text {
+  filter: blur(7px) !important; user-select: none; pointer-events: none;
+}
+.pc-streamer-badge {
+  position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 9000;
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+  background: #7c3aed; color: #fff; font: 700 12px system-ui, sans-serif; box-shadow: 0 6px 18px rgba(0,0,0,.4);
+  cursor: pointer; border: 0;
+}
+.pc-streamer-badge:hover { background: #6d28d9; }
+
+/* Sublinhar links sempre. */
+html[data-pc-underline] .message-content a,
+html[data-pc-underline] .rich-text a,
+html[data-pc-underline] a.link { text-decoration: underline !important; }
+
+/* Esconder reações nas mensagens. */
+html[data-pc-noreactions] .message .reactions { display: none !important; }
+
+/* Esconder o botão de enviar (só com mouse; no celular ele continua). */
+@media (pointer: fine) {
+  html[data-pc-nosend] .send-btn { display: none !important; }
+}
+
+/* Espaço entre grupos de mensagens. */
+html[data-pc-group-gap] .message.with-author { margin-top: var(--pc-group-gap, 14px) !important; }
+
+/* Ícones nos interruptores (liga/desliga). */
+html[data-pc-toggle-icons] .toggle-switch::after,
+html[data-pc-toggle-icons] .pc-switch::after {
+  content: '✕'; display: grid; place-items: center; font: 900 10px/1 system-ui, sans-serif; color: #6b7280;
+}
+html[data-pc-toggle-icons] .toggle-switch.on::after,
+html[data-pc-toggle-icons] .pc-switch.on::after { content: '✓'; color: #16a34a; }
+
+/* ---------- Configurações (blocos novos) ---------- */
+.xp-panel { display: flex; flex-direction: column; gap: 14px; }
+.xp-themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
+.xp-theme {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px; border-radius: 14px;
+  background: transparent; border: 2px solid transparent; color: var(--header-secondary); font: 600 11.5px/1.2 inherit; cursor: pointer; text-align: center;
+}
+.xp-theme:hover { background: var(--bg-modifier-hover); }
+.xp-theme.on { border-color: var(--brand); color: var(--header-primary); }
+.xp-theme-swatch { width: 100%; aspect-ratio: 1.3; border-radius: 10px; position: relative; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+.xp-theme-swatch i { position: absolute; right: 6px; bottom: 6px; width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.8); }
+.xp-theme-swatch.none { background: repeating-conic-gradient(#1f2937 0 25%, #111827 0 50%) 0 0 / 16px 16px; display: grid; place-items: center; color: #9ca3af; font-size: 18px; }
+.xp-theme-swatch.custom { display: grid; place-items: center; color: #fff; font-size: 20px; }
+.xp-custom { display: grid; gap: 12px; padding: 14px; border-radius: 14px; background: var(--bg-secondary); border: 1px solid var(--border); }
+.xp-custom-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.xp-custom-row label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--text-muted); }
+.xp-color { position: relative; width: 40px; height: 40px; border-radius: 10px; overflow: hidden; border: 2px solid rgba(255,255,255,.18); }
+.xp-color input { position: absolute; inset: -6px; width: calc(100% + 12px); height: calc(100% + 12px); border: 0; padding: 0; cursor: pointer; }
+.xp-mini-btn { height: 32px; padding: 0 10px; border-radius: 8px; background: var(--bg-elevated); color: var(--header-secondary); font: 700 12px inherit; border: 0; cursor: pointer; }
+.xp-mini-btn:hover { color: var(--header-primary); }
+.xp-range { display: flex; align-items: center; gap: 10px; }
+.xp-range input[type=range] { flex: 1; }
+.xp-range output { min-width: 52px; text-align: right; font-weight: 800; color: var(--header-primary); font-size: 13px; }
+.xp-preview { border-radius: 14px; overflow: hidden; border: 1px solid var(--border); }
+.xp-preview-inner { display: grid; grid-template-columns: 70px 1fr; min-height: 110px; }
+.xp-preview-side { padding: 10px 8px; display: flex; flex-direction: column; gap: 6px; }
+.xp-preview-side span { height: 8px; border-radius: 4px; background: rgba(255,255,255,.14); }
+.xp-preview-side span.on { background: var(--pv-accent); }
+.xp-preview-chat { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.xp-preview-msg { display: flex; gap: 8px; align-items: center; }
+.xp-preview-msg b { width: 22px; height: 22px; border-radius: 50%; background: var(--pv-accent); flex: none; }
+.xp-preview-msg span { height: 8px; border-radius: 4px; background: rgba(255,255,255,.2); flex: 1; max-width: 70%; }
+.xp-preview-input { margin-top: auto; height: 22px; border-radius: 8px; }
+.xp-icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 10px; }
+.xp-icon { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px; border-radius: 14px; border: 2px solid transparent; background: transparent; color: var(--header-secondary); font: 600 11.5px inherit; cursor: pointer; }
+.xp-icon img, .xp-icon .xp-icon-ph { width: 54px; height: 54px; border-radius: 14px; }
+.xp-icon .xp-icon-ph { background: var(--bg-elevated); }
+.xp-icon.on { border-color: var(--brand); color: var(--header-primary); }
+.xp-sounds { display: grid; gap: 4px; }
+.xp-sound { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-radius: 8px; }
+.xp-sound:hover { background: var(--bg-modifier-hover); }
+.xp-sound span { flex: 1; font-size: 13.5px; color: var(--text-normal); }
+.xp-play { width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--bg-elevated); color: var(--header-primary); display: grid; place-items: center; cursor: pointer; }
+.xp-play:hover { background: var(--brand); color: #fff; }
+.xp-meter { position: relative; height: 14px; border-radius: 7px; background: var(--bg-deepest); overflow: hidden; border: 1px solid var(--border); }
+.xp-meter-fill { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #22c55e, #eab308 75%, #ef4444); transition: width .06s linear; }
+.xp-meter-fill.below { filter: grayscale(.85) brightness(.7); }
+.xp-meter-mark { position: absolute; top: -2px; bottom: -2px; width: 3px; border-radius: 2px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
+.xp-entry-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.xp-entry { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: var(--bg-elevated); border: 2px solid transparent; color: var(--header-secondary); font: 700 13px inherit; cursor: pointer; }
+.xp-entry.on { border-color: var(--brand); color: var(--header-primary); }
+.xp-entry svg { flex: none; }
+.pc-select { height: 36px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-deepest); color: var(--text-normal); font: inherit; min-width: 220px; }
+
+/* Caixas de DM: Mensagens / Solicitações / Spam. */
+.dm-boxes { display: flex; gap: 6px; padding: 0 0 8px; flex-wrap: wrap; }
+.dm-boxes button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 0; background: var(--bg-elevated); color: var(--header-secondary); font: 700 13px inherit; cursor: pointer; }
+.dm-boxes button.on { background: var(--brand); color: #fff; }
+.dm-boxes em { font-style: normal; font-size: 11px; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--red); color: #fff; }
+.dm-box-hint { margin: 0 0 8px; font-size: 12.5px; color: var(--text-muted); }
+.dm-box-actions { display: inline-flex; gap: 4px; margin-left: 6px; flex: none; }
+.dm-box-actions span { padding: 4px 8px; border-radius: 7px; font-size: 12px; font-weight: 700; background: var(--bg-elevated); color: var(--header-secondary); cursor: pointer; }
+.dm-box-actions span:hover { color: var(--header-primary); }
+.dm-box-actions span.ok { background: var(--green); color: #fff; }
+.dm-request-banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 12px; padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, var(--brand) 14%, var(--bg-secondary)); border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent); color: var(--text-normal); font-size: 13.5px; }
+.dm-request-banner.spam { background: color-mix(in srgb, var(--red) 14%, var(--bg-secondary)); border-color: color-mix(in srgb, var(--red) 40%, transparent); }
+.dm-request-banner > span { flex: 1; min-width: 200px; }
+.dm-request-banner button { padding: 6px 12px; border-radius: 8px; border: 0; font: 700 13px inherit; cursor: pointer; background: var(--bg-elevated); color: var(--header-primary); }
+.dm-request-banner button.ok { background: var(--green); color: #fff; }
+.dm-friend-note { display: block; margin-top: 4px; padding: 6px 10px; border-radius: 8px; background: var(--bg-elevated); color: var(--text-normal); font-size: 12.5px; font-style: italic; max-width: 100%; overflow-wrap: anywhere; }
+.fx-note-input { width: 100%; box-sizing: border-box; margin-top: 8px; height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-deepest); color: var(--text-normal); font: inherit; font-size: 13.5px; }
+.xp-profiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.xp-profile { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 12px 12px 12px 38px; border-radius: 12px; text-align: left; background: var(--bg-elevated); border: 2px solid transparent; color: var(--header-secondary); cursor: pointer; font: inherit; }
+.xp-profile strong { color: var(--header-primary); font-size: 14px; }
+.xp-profile small { font-size: 12px; line-height: 1.35; }
+.xp-profile.on { border-color: var(--brand); }
+.xp-profile-dot { position: absolute; left: 12px; top: 14px; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--text-muted); }
+.xp-profile.on .xp-profile-dot { border-color: var(--brand); background: radial-gradient(circle, var(--brand) 45%, transparent 50%); }

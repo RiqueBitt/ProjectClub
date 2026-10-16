@@ -53,6 +53,9 @@ const DM_DENIAL_MESSAGES = {
 async function canSendDirectMessage(senderId, recipientId) {
   if (senderId === recipientId) return true;
   if (await isBlockedBetween(senderId, recipientId)) return false;
+  // Conta desativada temporariamente: ninguém manda DM até ela voltar.
+  const target = await prisma.user.findUnique({ where: { id: recipientId }, select: { selfDeactivatedAt: true } });
+  if (target?.selfDeactivatedAt) return false;
   const settings = await prisma.userSettings.findUnique({ where: { userId: recipientId }, select: { dmPrivacy: true } });
   // BUG CORRIGIDO: o valor de reserva aqui (pra quando a pessoa nunca
   // abriu a tela de Configurações — settings vem null nesse caso)

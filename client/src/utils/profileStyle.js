@@ -40,7 +40,14 @@ export const PROFILE_STYLES = {
   noir: "Filme Noir",
 };
 
+// "Mostrar estilos de perfil dos outros" desligado (Configurações →
+// Aparência): perfis de outras pessoas abrem com o visual padrão.
+let myId = null;
+export function setProfileStyleViewer(id) { myId = id || null; }
+const plainOthers = () => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-pc-plain-profiles');
+
 export function profileStyleClass(styleOrUser) {
   const key = typeof styleOrUser === 'string' ? styleOrUser : styleOrUser?.profileStyle;
+  if (typeof styleOrUser === 'object' && styleOrUser?.id && styleOrUser.id !== myId && plainOthers()) return '';
   return key && PROFILE_STYLES[key] ? ` pstyle pstyle-${key}` : '';
 }

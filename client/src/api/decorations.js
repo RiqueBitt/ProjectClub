@@ -62,3 +62,10 @@ export const adminDeleteShopItem = (id) => api.delete(`/decorations/admin/items/
 export const adminShopCatalog = () => api.get('/decorations/admin/catalog').then((r) => r.data);
 export const adminGrantItem = (body) => api.post('/decorations/admin/grant', body).then((r) => r.data);
 export const adminRevokeItem = (body) => api.delete('/decorations/admin/grant', { data: body }).then((r) => r.data);
+
+// Códigos de resgate, insígnia de presentes e (staff) gerenciar códigos.
+export const redeemShopCode = (code) => api.post('/decorations/redeem', { code }).then((r) => r.data);
+export const getGiftsSummary = () => api.get('/decorations/gifts-summary').then((r) => r.data);
+export const adminListCodes = () => api.get('/decorations/admin/codes').then((r) => r.data);
+export const adminCreateCode = (payload) => api.post('/decorations/admin/codes', payload).then((r) => r.data);
+export const adminRemoveCode = (id) => api.delete(`/decorations/admin/codes/${id}`).then((r) => r.data);

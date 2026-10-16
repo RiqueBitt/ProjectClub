@@ -226,8 +226,16 @@ function serializeMission(m, row) {
     id: m.id, period: m.period, type: m.type, title: m.title, description: m.description,
     target: m.target, progress, completed: progress >= m.target, claimed: !!row?.claimedAt,
     rewardCoins: m.rewardCoins, rewardGems: m.rewardGems, rewardXp: m.rewardXp,
+    rewardItem: m.rewardItemKind && m.rewardItemId ? { kind: m.rewardItemKind, id: m.rewardItemId, days: m.rewardItemDays || null } : null,
     unit: MISSION_TYPES[m.type]?.unit || '',
   };
+}
+
+// Multiplicador de moedas das missões pra quem apoia (igual ao bônus do
+// Nitro nas recompensas de missão): Assinante 1,2x, Super Assinante 1,5x.
+const SUPPORTER_MULTIPLIER = { NONE: 1, SUBSCRIBER: 1.2, SUPER: 1.5 };
+function missionMultiplier(tier) {
+  return SUPPORTER_MULTIPLIER[tier] || 1;
 }
 
 async function listForUser(userId, now = new Date()) {
@@ -237,8 +245,22 @@ async function listForUser(userId, now = new Date()) {
     ? await prisma.userMissionProgress.findMany({ where: { userId, periodKey: { in: keys }, missionId: { in: missions.map((m) => m.id) } } })
     : [];
   const byMission = new Map(rows.map((r) => [`${r.missionId}|${r.periodKey}`, r]));
+  const me = await prisma.user.findUnique({ where: { id: userId }, select: { supporterTier: true } }).catch(() => null);
+  const multiplier = missionMultiplier(require('./supporters').normalizeTier(me?.supporterTier));
+  const list = missions.map((m) => serializeMission(m, byMission.get(`${m.id}|${periodKey(m.period, now)}`)));
+  // Nome/imagem do item de recompensa (se tiver).
+  const withItem = list.filter((m) => m.rewardItem);
+  if (withItem.length) {
+    const { findItem } = require('../controllers/shopController');
+    await Promise.all(withItem.map(async (m) => {
+      const it = await findItem(prisma, m.rewardItem.kind, m.rewardItem.id).catch(() => null);
+      if (!it) { m.rewardItem = null; return; }
+      m.rewardItem = { ...m.rewardItem, name: it.name, previewUrl: it.imageUrl || it.previewUrl || null };
+    }));
+  }
   return {
-    missions: missions.map((m) => serializeMission(m, byMission.get(`${m.id}|${periodKey(m.period, now)}`))),
+    missions: list.map((m) => ({ ...m, finalCoins: Math.round((m.rewardCoins || 0) * multiplier) })),
+    multiplier,
     resets: nextResets(now),
   };
 }
@@ -264,9 +286,11 @@ async function claim(userId, missionId, io = null) {
     });
     if (r.count === 0) throw httpError(400, 'Essa missão ainda não foi concluída ou já foi resgatada.');
 
-    const user = await tx.user.findUnique({ where: { id: userId }, select: { accountXp: true, accountLevel: true } });
+    const user = await tx.user.findUnique({ where: { id: userId }, select: { accountXp: true, accountLevel: true, supporterTier: true } });
+    const mult = missionMultiplier(require('./supporters').normalizeTier(user?.supporterTier));
+    const coins = Math.round((m.rewardCoins || 0) * mult);
     const data = {};
-    if (m.rewardCoins) data.coins = { increment: m.rewardCoins };
+    if (coins) data.coins = { increment: coins };
     if (m.rewardGems) data.gems = { increment: m.rewardGems };
     let levelUp = null;
     if (m.rewardXp > 0) {
@@ -276,16 +300,22 @@ async function claim(userId, missionId, io = null) {
       data.accountLevel = lvl.level;
       if (lvl.level > (user?.accountLevel || 1)) {
         levelUp = { levelUp: true, oldLevel: user?.accountLevel || 1, newLevel: lvl.level, newLevelName: lvl.name, coinsReward: lvl.coinsReward || 0 };
-        if (lvl.coinsReward > 0) data.coins = { increment: (m.rewardCoins || 0) + lvl.coinsReward };
+        if (lvl.coinsReward > 0) data.coins = { increment: coins + lvl.coinsReward };
       }
     }
     const balance = Object.keys(data).length
       ? await tx.user.update({ where: { id: userId }, data, select: { coins: true, gems: true, accountXp: true, accountLevel: true } })
       : await tx.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true, accountXp: true, accountLevel: true } });
-    return { balance, levelUp };
+    // Item da Loja como recompensa (com prazo opcional).
+    let item = null;
+    if (m.rewardItemKind && m.rewardItemId) {
+      const g = await require('./shopTimed').grantTimed(tx, userId, m.rewardItemKind, m.rewardItemId, m.rewardItemDays || null).catch(() => null);
+      if (g) item = { kind: m.rewardItemKind, id: g.item.id, name: g.item.name, expiresAt: g.expiresAt, already: !!g.already };
+    }
+    return { balance, levelUp, coins, mult, item };
   });
 
-  recordTransaction(userId, { kind: 'MISSION', label: `Missão: ${m.title}`, coins: m.rewardCoins, gems: m.rewardGems, xp: m.rewardXp });
+  recordTransaction(userId, { kind: 'MISSION', label: `Missão: ${m.title}${result.mult > 1 ? ` (bônus ${String(result.mult).replace('.', ',')}x de apoio)` : ''}`, coins: result.coins, gems: m.rewardGems, xp: m.rewardXp });
   // Missões da Arena também dão XP no passe da temporada.
   if (String(m.type || '').startsWith('CARDS_')) setImmediate(() => { require('../cards/progress').addPassXpFor(userId, 'mission').catch(() => {}); });
   if (result.levelUp) {
@@ -293,7 +323,7 @@ async function claim(userId, missionId, io = null) {
     io?.notifyUser?.(userId, 'xp:levelup', result.levelUp);
   }
   return {
-    reward: { coins: m.rewardCoins, gems: m.rewardGems, xp: m.rewardXp },
+    reward: { coins: result.coins, baseCoins: m.rewardCoins, multiplier: result.mult, gems: m.rewardGems, xp: m.rewardXp, item: result.item },
     balance: result.balance, levelUp: result.levelUp,
   };
 }
@@ -331,6 +361,7 @@ function startVoiceMinutesTicker(io) {
 }
 
 module.exports = {
+  missionMultiplier, SUPPORTER_MULTIPLIER,
   MISSION_TYPES, PERIODS, CLIENT_TRACKABLE, DEFAULT_MISSIONS,
   dayKey, weekKey, periodKey, nextResets,
   seedDefaultMissions, invalidateCache, getActiveMissions,

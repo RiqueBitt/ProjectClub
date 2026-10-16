@@ -1,3 +1,4 @@
+import { getExtra } from '../utils/extraPrefs';
 import { useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
 
@@ -33,7 +34,7 @@ export default function NoticeToast() {
       if (n.progress) continue;
       if (scheduledIds.has(n.id)) continue;
       scheduledIds.add(n.id);
-      setTimeout(() => { dismissNotice(n.id); scheduledIds.delete(n.id); }, 8000);
+      setTimeout(() => { dismissNotice(n.id); scheduledIds.delete(n.id); }, Math.max(8000, (getExtra().minToastSec || 0) * 1000));
     }
     // Limpa ids de notificações que já sumiram por outro motivo (fechadas
     // manualmente antes do timer disparar), pra não vazar memória.

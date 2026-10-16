@@ -34,3 +34,6 @@
   .ma-num input, .ma-row .ma-num input { width: 64px; }
   .ma-field select { max-width: 100%; }
 }
+.ma-item-reward { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: var(--bg-primary); }
+.ma-item-reward summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--header-secondary); }
+.ma-item-reward[open] summary { margin-bottom: 8px; }

@@ -2,7 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useAuth } from './AuthContext.jsx';
 import { useSocket } from './SocketContext.jsx';
 import { useStore } from '../store/useStore';
-import { playSound } from '../utils/sounds';
+import { playSound, playEntrySound } from '../utils/sounds';
+import { getExtra } from '../utils/extraPrefs';
 import { getPreferredMicId, setPreferredMicId } from '../utils/audioDevices';
 import { getVoiceJoin } from '../api/endpoints';
 import { getVoicePref, onVoicePrefsChange, setVoicePref, makeReactionRateLimiter, isValidReaction } from '../utils/voicePrefs';
@@ -186,6 +187,21 @@ export function VoiceProvider({ children }) {
   const [deafened, setDeafened] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [screenOn, setScreenOn] = useState(false);
+  const entrySoundSentRef = useRef(null);
+  // Sons de feedback (mutar, áudio, câmera, transmissão) — só durante a
+  // call e só quando o estado muda de verdade (não ao entrar/sair).
+  const fxPrevRef = useRef(null);
+  useEffect(() => {
+    const now = { id: call?.channelId || null, muted, deafened, cameraOn, screenOn };
+    const prev = fxPrevRef.current;
+    fxPrevRef.current = now;
+    if (!now.id) { entrySoundSentRef.current = null; return; }
+    if (!prev || prev.id !== now.id) return;
+    if (prev.deafened !== deafened) playSound(deafened ? 'deafen' : 'undeafen', 0.4);
+    else if (prev.muted !== muted) playSound(muted ? 'mute' : 'unmute', 0.4);
+    if (prev.cameraOn !== cameraOn) playSound(cameraOn ? 'camOn' : 'camOff', 0.4);
+    if (prev.screenOn !== screenOn) playSound(screenOn ? 'streamStart' : 'streamStop', 0.4);
+  }, [call?.channelId, muted, deafened, cameraOn, screenOn]);
   // Provedor de mídia ATIVO nesta chamada: 'agora' (normal) ou 'jitsi'
   // (reserva, quando o Agora está perto do limite mensal). Dirige a UI
   // ("Chamada em modo reserva") e para qual engine os botões falam.
@@ -1268,6 +1284,12 @@ export function VoiceProvider({ children }) {
 
     const onJoined = ({ channelId, participants: existing, myRole: role, sync }) => {
       if (callRef.current?.channelId !== channelId) return;
+      // Som de entrada escolhido em Configurações → Voz e vídeo (toca pra todos).
+      if (!sync && entrySoundSentRef.current !== channelId) {
+        entrySoundSentRef.current = channelId;
+        const entry = getExtra().joinSoundId;
+        if (entry) { socket.emit('voice:entry-sound', { channelId, sound: entry }); playEntrySound(entry); }
+      }
       const map = {};
       existing.forEach((p) => { map[p.userId] = p; });
       // Mantém o "falando" de quem já estava (o retrato do servidor não tem isso).
@@ -1292,10 +1314,12 @@ export function VoiceProvider({ children }) {
     };
     const onUserJoined = ({ channelId, userId, role }) => {
       if (callRef.current?.channelId !== channelId) return;
+      if (userId !== user?.id) playSound('userJoin', 0.4);
       setParticipants((s) => ({ ...s, [userId]: { muted: role === 'audience', deafened: false, video: false, screenSharing: false, role } }));
     };
     const onUserLeft = ({ channelId, userId }) => {
       if (callRef.current?.channelId !== channelId) return;
+      if (userId !== user?.id) playSound('userLeave', 0.4);
       setParticipants((s) => { const n = { ...s }; delete n[userId]; return n; });
     };
     const onState = ({ channelId, userId, ...state }) => {
@@ -1365,13 +1389,17 @@ export function VoiceProvider({ children }) {
       useStore.getState().pushNotice('Você entrou nesta chamada em outro dispositivo — saindo daqui.');
       leaveChannelRef.current?.();
     };
+    const onEntrySound = ({ channelId, sound }) => {
+      if (callRef.current?.channelId !== channelId || deafenedRef.current) return;
+      playEntrySound(sound);
+    };
     const onSoundboardPlay = ({ channelId, sound }) => {
       if (callRef.current?.channelId !== channelId || deafenedRef.current) return;
       try {
         const previous = soundboardAudiosRef.current[sound.id];
         if (previous) { previous.pause(); previous.src = ''; }
         const el = new Audio();
-        el.volume = 0.7;
+        el.volume = 0.7 * ((getExtra().sfxVolume ?? 100) / 100);
         el.preload = 'auto';
         const startFromZero = () => {
           try { el.currentTime = 0; } catch { /* not seekable yet, fine */ }
@@ -1400,6 +1428,12 @@ export function VoiceProvider({ children }) {
       // Quem pediu não precisa responder a si mesmo (já aceitou no servidor).
       if (String(requesterId) === String(user?.id)) {
         setRecordingConsents({ [String(user?.id)]: true });
+        return;
+      }
+      // "Permitir que minha voz seja gravada nos clipes" desligado: recusa sozinho.
+      if (getExtra().clipVoice === false) {
+        socket.emit('voice:recording-consent', { channelId, accepted: false });
+        useStore.getState().pushNotice(`${requesterName || 'Alguém'} pediu pra gravar a call — recusado automaticamente (sua voz não pode ser gravada, ver Configurações → Privacidade).`);
         return;
       }
       setRecordingPrompt({ requesterId, requesterName });
@@ -1457,13 +1491,14 @@ export function VoiceProvider({ children }) {
       socket.emit('voice:join', { channelId });
     };
 
-    const onSocketDisconnect = () => { sawDisconnectRef.current = true; };
+    const onSocketDisconnect = () => { sawDisconnectRef.current = true; if (callRef.current) playSound('disconnect', 0.4); };
     const onSocketConnect = () => {
       socket.emit('voice:rosters');
       if (!sawDisconnectRef.current) return;
       sawDisconnectRef.current = false;
       const current = callRef.current;
       if (!current) return;
+      playSound('reconnect', 0.4);
       socket.emit('voice:join', { channelId: current.channelId });
     };
 
@@ -1478,6 +1513,7 @@ export function VoiceProvider({ children }) {
     socket.on('voice:hand-raised', onHandRaised);
     socket.on('voice:role-update', onRoleUpdate);
     socket.on('soundboard:play', onSoundboardPlay);
+    socket.on('voice:entry-sound', onEntrySound);
     socket.on('voice:reaction', onReaction);
     socket.on('voice:recording-prompt', onRecordingPrompt);
     socket.on('voice:recording-consent-update', onRecordingConsentUpdate);
@@ -1507,6 +1543,7 @@ export function VoiceProvider({ children }) {
       socket.off('voice:hand-raised', onHandRaised);
       socket.off('voice:role-update', onRoleUpdate);
       socket.off('soundboard:play', onSoundboardPlay);
+      socket.off('voice:entry-sound', onEntrySound);
       socket.off('voice:reaction', onReaction);
       socket.off('voice:recording-prompt', onRecordingPrompt);
       socket.off('voice:recording-consent-update', onRecordingConsentUpdate);
@@ -1643,6 +1680,7 @@ export function VoiceProvider({ children }) {
       if (pttTalkingRef.current === on) return;
       pttTalkingRef.current = on;
       setPttTalking(on);
+      playSound(on ? 'pttActivate' : 'pttDeactivate', 0.3);
       track()?.setEnabled(on);
       // Os outros veem seu mudo refletir a tecla (igual a mutar/desmutar).
       socket?.emit('voice:state', { channelId: callChannelId, muted: !on });
@@ -1676,6 +1714,32 @@ export function VoiceProvider({ children }) {
       window.removeEventListener('blur', onBlur);
     };
   }, [pttEnabled, callChannelId, micMissing, socket, provider]);
+
+  // ---------- Sensibilidade de entrada (Configurações → Voz e vídeo) ----------
+  // Com "Determinar automaticamente" desligado, o microfone só vai ao ar
+  // quando o volume passa do limite escolhido (em dB); abaixo disso, a
+  // faixa fica em volume zero (com 300 ms de folga pra não cortar palavras).
+  useEffect(() => {
+    if (!callChannelId || provider !== 'agora') return undefined;
+    let open = true;
+    let quietSince = 0;
+    const setOpen = (on) => {
+      if (open === on) return;
+      open = on;
+      try { localAudioTrackRef.current?.setVolume?.(on ? 100 : 0); } catch { /* faixa fechando */ }
+    };
+    const timer = setInterval(() => {
+      const p = getExtra();
+      const tr = localAudioTrackRef.current;
+      if (!tr || p.sensitivityAuto !== false || pttTalkingRef.current) { setOpen(true); quietSince = 0; return; }
+      const level = Number(tr.getVolumeLevel?.() || 0);
+      const db = level > 0 ? 20 * Math.log10(level) : -100;
+      if (db >= (p.sensitivityDb ?? -60)) { quietSince = 0; setOpen(true); return; }
+      if (!quietSince) quietSince = Date.now();
+      if (Date.now() - quietSince > 300) setOpen(false);
+    }, 60);
+    return () => { clearInterval(timer); setOpen(true); };
+  }, [callChannelId, provider]);
 
   // ---------- Aviso "sua conexão está instável" (D) ----------
   // Só pra VOCÊ: quando a sua qualidade de rede (Agora, 0-6) fica ruim

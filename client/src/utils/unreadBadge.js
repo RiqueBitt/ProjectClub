@@ -1,4 +1,5 @@
 import { useStore, isChannelUnread, isConversationUnread } from '../store/useStore';
+import { getExtra } from './extraPrefs';
 
 // Item pedido: bolinha de não lidas no ícone do app (bandeja/taskbar no
 // Windows, ícone do launcher no Android) — mesma conta que já alimenta
@@ -16,7 +17,8 @@ export function updateUnreadBadge(userId) {
     const unreadChannels = allChannels.filter((ch) => isChannelUnread(ch, s.channelReadAt, userId)).length;
     const unreadConversations = s.conversations.filter((c) => isConversationUnread(c, userId)).length;
     const pendingIncoming = s.friends.filter((f) => f.status === 'PENDING' && f.isIncoming).length;
-    const total = unreadChannels + unreadConversations + pendingIncoming;
+    // Configurações → Notificações → "Indicador de mensagens não lidas".
+    const total = getExtra().unreadBadge === false ? 0 : unreadChannels + unreadConversations + pendingIncoming;
 
     // Desktop (Electron) — bolinha sobreposta no ícone da barra de
     // tarefas do Windows (setOverlayIcon), configurado em main.js.

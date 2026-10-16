@@ -1,3 +1,4 @@
+import { setProfileStyleViewer } from '../utils/profileStyle';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { setAccessToken, setUnauthorizedHandler, sharedRefresh } from '../api/client';
@@ -21,6 +22,7 @@ export function isAuthRejection(err) {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  useEffect(() => { setProfileStyleViewer(user?.id); }, [user?.id]);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   // Bug corrigido: em desenvolvimento (React.StrictMode), o efeito de
@@ -43,6 +45,7 @@ export function AuthProvider({ children }) {
   // continua lembrando, mesmo que o navegador não lembre mais.
   const applySession = useCallback((data) => {
     setUser(data.user);
+    if (data.reactivated) setTimeout(() => useStore.getState().pushNotice('Bem-vindo de volta! Sua conta foi reativada.'), 1200);
     setToken(data.accessToken);
     setAccessToken(data.accessToken);
     if (data.user?.preferredTheme) {

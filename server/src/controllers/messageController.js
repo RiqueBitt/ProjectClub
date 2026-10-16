@@ -612,6 +612,8 @@ async function createMessageInner(req, res) {
     // mesmo lugar, sem duplicar. Não é salvo no banco.
     const nonce = typeof req.body.nonce === 'string' && req.body.nonce.length <= 80 ? req.body.nonce : null;
     const outgoing = nonce ? { ...message, nonce } : message;
+    // Solicitações de mensagem / spam (DM com quem não é amigo).
+    const inboxOf = conversationId ? await require('../services/dmInbox').classifyIncoming(io, { conversationId, senderId: req.user.id, content }) : {};
     io?.to(roomFor({ conversationId, channelId })).emit('message:new', outgoing);
     res.status(201).json({ message: outgoing });
 
@@ -643,7 +645,8 @@ async function createMessageInner(req, res) {
           const otherMembers = await prisma.conversationMember.findMany({
             where: { conversationId, userId: { not: req.user.id } }, select: { userId: true },
           });
-          otherMembers.forEach((m) => recipientIds.add(m.userId));
+          // Quem está com a conversa em Solicitações/Spam não recebe push.
+          otherMembers.forEach((m) => { if (!inboxOf[m.userId] || inboxOf[m.userId] === 'main') recipientIds.add(m.userId); });
         }
         mentionRows.filter((m) => m.targetType === 'USER').forEach((m) => recipientIds.add(m.targetId));
         recipientIds.delete(req.user.id);
@@ -1137,6 +1140,18 @@ async function react(req, res, next) {
       // UNIQUE (P2002) e virava 500 — agora só não conta de novo.
       const created = await createIgnoreDuplicate(prisma.reaction, { data: { messageId: id, userId: req.user.id, emoji } });
       if (created) require('../services/missions').trackReaction(req.user.id, id, existing.authorId, req.app.get('io')); // missões de reação
+      // "Alguém reage às minhas mensagens" (Configurações → Notificações).
+      if (created && existing.authorId && existing.authorId !== req.user.id) {
+        (async () => {
+          const prefs = await require('./settingsController').getExtraPrefs(existing.authorId);
+          const mode = prefs.notifyReactions || 'all';
+          if (mode === 'none' || (mode === 'dm' && !existing.conversationId)) return;
+          req.app.get('io')?.notifyUser?.(existing.authorId, 'reaction:you', {
+            emoji, messageId: id, channelId: existing.channelId, conversationId: existing.conversationId,
+            by: { id: req.user.id, displayName: req.user.displayName }, preview: String(existing.content || '').slice(0, 80),
+          });
+        })().catch(() => {});
+      }
     }
 
     const message = await prisma.message.findUnique({ where: { id }, include: messageInclude });

@@ -212,3 +212,7 @@ button.eco-link { width: 100%; text-align: left; font: inherit; cursor: pointer;
 .eco-mission.compact.ready { flex-wrap: wrap; }
 .eco-mission.compact.ready .eco-mission-body { flex: 1 1 calc(100% - 52px); }
 .eco-mission.compact .eco-mission-claim { width: 100%; justify-content: center; height: 34px; }
+.eco-reward.item { color: var(--pink, #f472b6); background: color-mix(in srgb, #ec4899 16%, transparent); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eco-bonus { font-style: normal; font-size: 10px; font-weight: 800; margin-left: 4px; padding: 0 5px; border-radius: 999px; background: color-mix(in srgb, #a78bfa 30%, transparent); color: #c4b5fd; text-transform: uppercase; }
+.eco-mult { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; font-size: 13.5px; background: color-mix(in srgb, #8b5cf6 14%, var(--bg-secondary)); color: var(--header-primary); }
+.eco-mult svg { color: #a78bfa; }

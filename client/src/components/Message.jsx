@@ -1,3 +1,4 @@
+import { getExtra } from '../utils/extraPrefs';
 import { useEffect, useRef, useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -280,6 +281,10 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
     ];
     if (isOwn) items.push({ label: 'Editar', icon: 'edit', onClick: () => setEditing(true) });
     items.push({ label: 'Copiar texto', icon: 'copy', onClick: () => navigator.clipboard?.writeText(message.content || ''), disabled: !message.content });
+    // "Falar mensagem" (velocidade em Configurações → Acessibilidade).
+    if (message.content && typeof window !== 'undefined' && window.speechSynthesis) {
+      items.push({ label: 'Falar mensagem', icon: 'volume', onClick: () => speakMessage(message) });
+    }
     items.push({ label: 'Encaminhar', icon: 'reply', onClick: () => setForwardOpen(true) });
     items.push({ label: 'Lembrar-me', icon: 'clock', onClick: () => setReminderOpen(true) });
     // Fixar só aparece pra quem pode (gerenciar mensagens no canal; em DM, todos).
@@ -754,7 +759,7 @@ function Attachment({ attachment, allImages, imageIndex }) {
   // e ao clicar vai tirar a censura" — começa escondida (borrada) se
   // isSpoiler; uma vez revelada nesta sessão de visualização, fica
   // revelada (não borra de novo sozinha).
-  const [revealed, setRevealed] = useState(!attachment.isSpoiler);
+  const [revealed, setRevealed] = useState(!attachment.isSpoiler || getExtra().spoilers === 'always');
 
   if (attachment.mimeType.startsWith('image/')) {
     return (
@@ -835,4 +840,19 @@ function MessageLinkCards({ content }) {
   if (!enabled || !content || !content.includes('http')) return null;
   const links = findInternalLinks(content);
   return links.length ? <InternalLinkCards links={links} /> : null;
+}
+
+// Lê a mensagem em voz alta (pt-BR) na velocidade escolhida.
+function speakMessage(message) {
+  try {
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    const text = `${message.author?.displayName || 'Alguém'} disse: ${String(message.content || '').replace(/<a?:(\w+):\d+>/g, '$1').replace(/https?:\/\/\S+/g, 'link')}`;
+    const u = new SpeechSynthesisUtterance(text.slice(0, 1000));
+    u.lang = 'pt-BR';
+    u.rate = Number(getExtra().ttsRate) || 1;
+    const voice = synth.getVoices().find((v) => /^pt(-|_)BR/i.test(v.lang));
+    if (voice) u.voice = voice;
+    synth.speak(u);
+  } catch { /* sem voz no navegador */ }
 }

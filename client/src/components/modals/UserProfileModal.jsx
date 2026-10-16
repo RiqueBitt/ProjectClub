@@ -38,6 +38,7 @@ import { getProfileSummary } from '../../api/profileSummary';
 import { visibleProfileSectionOrder } from '../../utils/profileSections';
 import FeaturedModpackSection from '../FeaturedModpackSection.jsx';
 import ProfileGamesSection from '../games/ProfileGamesSection.jsx';
+import { useProfileExtras, MuralCard, RecentActivityCard, StatBadgesCard, WishlistCard, NoteCard, MuralEditorModal } from '../profile/ProfileExtras.jsx';
 import '../../styles/profile.css';
 import '../../styles/profile-edit.css';
 import BannerImage from '../ProfileBanner.jsx';
@@ -73,7 +74,9 @@ function PfEmpty({ icon, children, action }) {
 // sendo a que a pessoa escolheu em Configurações → Colunas.
 const PF_TABS = [
   { id: 'about', label: 'Sobre', icon: 'user' },
+  { id: 'mural', label: 'Mural', icon: 'grid' },
   { id: 'showcase', label: 'Vitrine', icon: 'star' },
+  { id: 'wishlist', label: 'Lista de desejos', icon: 'sparkle' },
   { id: 'connections', label: 'Conexões', icon: 'link' },
   { id: 'wall', label: 'Recados', icon: 'chat' },
   { id: 'badges', label: 'Insígnias', icon: 'medal' },
@@ -239,6 +242,10 @@ export default function UserProfileModal() {
   const [inlineError, setInlineError] = useState('');
   const [cropper, setCropper] = useState(null);
   const [showcaseOpen, setShowcaseOpen] = useState(false);
+  // Extras (Mural, Lista de desejos, Atividade recente, Estatísticas, Nota).
+  const [extras, setExtras] = useProfileExtras(userId);
+  const [muralOpen, setMuralOpen] = useState(false);
+  useEffect(() => { setMuralOpen(false); }, [userId]);
   useEffect(() => { setNameDraft(null); setBioDraft(null); setInlineError(''); setShowcaseOpen(false); }, [userId]);
   // Aba ativa do perfil (Sobre / Atividade / Conquistas / Recados) —
   // volta pra primeira sempre que abre outro perfil.
@@ -1243,7 +1250,14 @@ export default function UserProfileModal() {
 
   // Distribui as seções visíveis (na ordem escolhida) pelas abas.
   const visibleKeys = user ? visibleProfileSectionOrder(user.profileSectionOrder) : [];
-  const tabContent = { about: [], showcase: [], connections: [], wall: [], badges: [], achievements: [], activity: [] };
+  const tabContent = { about: [], mural: [], showcase: [], wishlist: [], connections: [], wall: [], badges: [], achievements: [], activity: [] };
+  if (user && extras && !extras.failed) {
+    const muralCard = <MuralCard user={user} extras={extras} isMe={isMe} onEdit={() => setMuralOpen(true)} />;
+    if (isMe || extras.widgets) tabContent.mural.push(['mural', muralCard]);
+    if (extras.wishlist && (isMe || extras.wishlist.length)) tabContent.wishlist.push(['wishlist', <WishlistCard user={user} extras={extras} isMe={isMe} setExtras={setExtras} />]);
+    if (extras.stats?.length) tabContent.badges.push(['stat_badges', <StatBadgesCard extras={extras} />]);
+    if (extras.activity && (isMe || extras.activity.length)) tabContent.activity.push(['recent_activity', <RecentActivityCard extras={extras} isMe={isMe} />]);
+  }
   if (user) {
     if (showcaseCard) tabContent.showcase.push(['showcase_games', showcaseCard]);
     if (cardsGameCard) tabContent.showcase.push(['cards_game', cardsGameCard]);
@@ -1254,6 +1268,7 @@ export default function UserProfileModal() {
       if (el && tab) tabContent[tab].push([key, el]);
     });
     if (birthdaysCard) tabContent.about.push(['birthdays', birthdaysCard]);
+    if (!isMe && extras && !extras.failed) tabContent.about.push(['note', <NoteCard userId={user.id} extras={extras} />]);
   }
   const sections = PF_TABS.filter((t) => tabContent[t.id].length > 0);
   const showMemberSince = visibleKeys.includes('member_since');
@@ -1534,6 +1549,13 @@ export default function UserProfileModal() {
                 />
               )}
 
+              {isMe && muralOpen && (
+                <MuralEditorModal
+                  extras={extras}
+                  onClose={() => setMuralOpen(false)}
+                  onSaved={(widgets) => setExtras((e) => ({ ...e, widgets }))}
+                />
+              )}
               {isMe && showcaseOpen && (
                 <ProfileShowcaseModal
                   user={user}

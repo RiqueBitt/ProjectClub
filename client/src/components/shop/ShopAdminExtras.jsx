@@ -8,6 +8,7 @@ import UserPicker from './UserPicker.jsx';
 import {
   adminListShopItems, adminSaveShopItem, adminDeleteShopItem,
   adminShopCatalog, adminGrantItem, adminRevokeItem,
+  adminListCodes, adminCreateCode, adminRemoveCode,
 } from '../../api/decorations';
 import { nameStyleProps } from '../../utils/nameStyle';
 import { proxyImage } from '../../utils/imageProxy';
@@ -364,3 +365,99 @@ export function GrantItemsAdmin() {
   );
 }
 
+
+// ---------- Seletor de item da Loja (códigos, recompensa de missão) ----------
+export function ShopItemSelect({ value, onChange, allowLimited = false }) {
+  const [catalog, setCatalog] = useState(null);
+  const [q, setQ] = useState('');
+  useEffect(() => { adminShopCatalog().then((d) => setCatalog(d.items || [])).catch(() => setCatalog([])); }, []);
+  const chosen = value && (catalog || []).find((i) => i.kind === value.kind && i.id === value.id);
+  const list = (catalog || []).filter((i) => (allowLimited || i.stock == null) && (!q.trim() || i.name.toLowerCase().includes(q.trim().toLowerCase()))).slice(0, 60);
+  return (
+    <div className="shopadm-itemsel">
+      {value ? (
+        <div className="shopadm-itemsel-chosen">
+          <b>{chosen?.name || 'Item'}</b> <small>{KIND_LABEL[value.kind]}</small>
+          <button type="button" className="shop-btn" onClick={() => onChange(null)}>Trocar</button>
+        </div>
+      ) : (
+        <>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar item da Loja (limitados não entram)" />
+          <div className="shopadm-itemsel-list">
+            {!catalog ? <small className="shop-muted">Carregando…</small> : list.map((i) => (
+              <button key={`${i.kind}:${i.id}`} type="button" onClick={() => onChange({ kind: i.kind, id: i.id })}>
+                <b>{i.name}</b> <small>{KIND_LABEL[i.kind]}{i.active ? '' : ' · desativado'}</small>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------- Códigos de resgate ----------
+const CODE_EMPTY = { code: '', note: '', rewardCoins: '', rewardGems: '', maxUses: '1', expiresAt: '', item: null, itemDays: '' };
+export function CodesAdmin() {
+  const [codes, setCodes] = useState(null);
+  const [form, setForm] = useState(CODE_EMPTY);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const load = () => adminListCodes().then((d) => setCodes(d.codes || [])).catch((e) => setMsg({ bad: true, text: errMsg(e) }));
+  useEffect(() => { load(); }, []);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const create = async (e) => {
+    e.preventDefault();
+    setBusy(true); setMsg(null);
+    try {
+      const r = await adminCreateCode({
+        code: form.code, note: form.note, rewardCoins: form.rewardCoins, rewardGems: form.rewardGems, maxUses: form.maxUses,
+        expiresAt: form.expiresAt || null, itemKind: form.item?.kind, itemId: form.item?.id, itemDays: form.itemDays,
+      });
+      setMsg({ text: `Código ${r.code.code} criado.` });
+      setForm(CODE_EMPTY);
+      load();
+    } catch (err) { setMsg({ bad: true, text: errMsg(err) }); }
+    setBusy(false);
+  };
+  const remove = async (c) => {
+    if (!window.confirm(`Apagar o código ${c.code}? Quem ainda não resgatou não vai conseguir mais.`)) return;
+    try { await adminRemoveCode(c.id); load(); } catch (err) { setMsg({ bad: true, text: errMsg(err) }); }
+  };
+  const copy = (c) => { try { navigator.clipboard.writeText(c.code); setMsg({ text: `${c.code} copiado.` }); } catch { /* sem área de transferência */ } };
+  return (
+    <div className="shopadm-codes">
+      <p className="shop-muted">Crie códigos pra eventos, sorteios e parcerias. Cada pessoa resgata uma vez em Loja → Presentes e códigos.</p>
+      {msg && <div className={`shop-notice${msg.bad ? ' bad' : ''}`}>{msg.text}</div>}
+      <form className="shopadm-codes-form" onSubmit={create}>
+        <label>Código (vazio = gerar)<input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} maxLength={40} placeholder="HALLOWEEN2026" /></label>
+        <label>Anotação<input value={form.note} onChange={set('note')} maxLength={120} placeholder="Ex.: sorteio no Discord" /></label>
+        <label>Moedas<input type="number" min="0" value={form.rewardCoins} onChange={set('rewardCoins')} /></label>
+        <label>Gemas<input type="number" min="0" value={form.rewardGems} onChange={set('rewardGems')} /></label>
+        <label>Usos no total<input type="number" min="1" value={form.maxUses} onChange={set('maxUses')} /></label>
+        <label>Vale até (opcional)<input type="datetime-local" value={form.expiresAt} onChange={set('expiresAt')} /></label>
+        <div className="shopadm-codes-item">
+          <span>Item da Loja (opcional)</span>
+          <ShopItemSelect value={form.item} onChange={(item) => setForm((f) => ({ ...f, item }))} />
+          {form.item && <label>Dias com o item (vazio = pra sempre)<input type="number" min="1" max="3650" value={form.itemDays} onChange={set('itemDays')} /></label>}
+        </div>
+        <button type="submit" className="shop-btn primary" disabled={busy}><Ico name="plus" size={15} /> {busy ? 'Criando…' : 'Criar código'}</button>
+      </form>
+      <div className="shopadm-codes-list">
+        {!codes ? <p className="shop-muted">Carregando…</p> : codes.length === 0 ? <p className="shop-muted">Nenhum código ainda.</p> : codes.map((c) => {
+          const expired = c.expiresAt && new Date(c.expiresAt) < new Date();
+          return (
+            <div key={c.id} className={`shopadm-code${expired || c.uses >= c.maxUses ? ' off' : ''}`}>
+              <button type="button" className="shopadm-code-val" onClick={() => copy(c)} title="Copiar">{c.code}</button>
+              <span className="shopadm-code-info">
+                {[c.rewardCoins && `${c.rewardCoins} moedas`, c.rewardGems && `${c.rewardGems} gemas`, c.itemId && `item${c.itemDays ? ` (${c.itemDays} dias)` : ''}`].filter(Boolean).join(' + ')}
+                {' · '}{c.uses}/{c.maxUses} usos{c.expiresAt ? ` · até ${new Date(c.expiresAt).toLocaleString('pt-BR')}` : ''}{c.note ? ` · ${c.note}` : ''}
+              </span>
+              <button type="button" className="shop-btn danger" onClick={() => remove(c)}>Apagar</button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

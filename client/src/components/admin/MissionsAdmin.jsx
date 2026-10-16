@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { adminListMissions, adminCreateMission, adminUpdateMission, adminDeleteMission } from '../../api/endpoints';
+import { ShopItemSelect } from '../shop/ShopAdminExtras.jsx';
 import '../../styles/missions-admin.css';
+import '../../styles/shop.css';
 
 // Admin → Economia → Missões: a staff cria, edita, liga/desliga e exclui
 // as missões diárias e semanais. Cada campo salva sozinho ao sair dele.
@@ -60,6 +62,7 @@ export default function MissionsAdmin() {
     <section className="ma">
       <h4>Missões diárias e semanais</h4>
       <p className="dim" style={{ fontSize: 13 }}>
+        Assinantes ganham 1,2x e Super Assinantes 1,5x das moedas de cada missão. Dá pra dar um item da Loja (com prazo) como recompensa.
         O progresso é contado sozinho pelo servidor (mensagens em canais, reações, minutos em call com outra pessoa, posts e comentários no Fórum, visita à Loja, baú diário).
         Diárias renovam à meia-noite e semanais na segunda-feira (horário de Brasília). Mudanças valem na hora para todo mundo.
       </p>
@@ -124,6 +127,14 @@ export default function MissionsAdmin() {
                 <NumberField label="XP" value={m.rewardXp} onCommit={(v) => update(m, { rewardXp: v })} />
                 <NumberField label="Ordem" value={m.position} onCommit={(v) => update(m, { position: v })} />
               </div>
+              <details className="ma-item-reward" open={!!m.rewardItemId}>
+                <summary>Item da Loja como recompensa{m.rewardItemId ? ' (ligado)' : ' (opcional)'}</summary>
+                <ShopItemSelect
+                  value={m.rewardItemId ? { kind: m.rewardItemKind, id: m.rewardItemId } : null}
+                  onChange={(it) => update(m, it ? { rewardItemKind: it.kind, rewardItemId: it.id } : { rewardItemKind: null, rewardItemId: null })}
+                />
+                {m.rewardItemId && <NumberField label="Dias com o item (0 = pra sempre)" value={m.rewardItemDays || 0} onCommit={(v) => update(m, { rewardItemDays: v || null })} />}
+              </details>
               <div className="ma-card-foot">
                 <label className="checkbox-row"><input type="checkbox" checked={m.enabled} onChange={(e) => update(m, { enabled: e.target.checked })} /> Ativa</label>
                 <button type="button" className="btn-link danger" onClick={() => remove(m)}>Excluir</button>
