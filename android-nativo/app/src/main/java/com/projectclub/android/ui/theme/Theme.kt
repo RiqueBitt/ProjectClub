@@ -18,24 +18,26 @@ import com.projectclub.android.R
 
 /** Cores do Project Club — as mesmas do tema escuro do site. */
 object PC {
-    val Bg = Color(0xFF060607)
-    val Bar = Color(0xFF000000)
-    val Surface = Color(0xFF0E0F12)
-    val Surface2 = Color(0xFF16171B)
-    val Surface3 = Color(0xFF1E1F24)
-    val Line = Color(0xFF1F2026)
-    val LineStrong = Color(0xFF2C2E35)
+    // Cores que mudam com o tema colorido (ver ColorThemes.kt). São lidas de
+    // um estado observável, então trocar o tema repinta o app na hora.
+    val Bg: Color get() = ThemeStore.palette.bg
+    val Bar: Color get() = ThemeStore.palette.bar
+    val Surface: Color get() = ThemeStore.palette.surface
+    val Surface2: Color get() = ThemeStore.palette.surface2
+    val Surface3: Color get() = ThemeStore.palette.surface3
+    val Line: Color get() = ThemeStore.palette.line
+    val LineStrong: Color get() = ThemeStore.palette.lineStrong
     val Header = Color(0xFFF2F3F5)
     val Text = Color(0xFFDBDEE1)
     val Muted = Color(0xFF8B8E94)
     val Faint = Color(0xFF5C5F66)
-    val Brand = Color(0xFF4C9FFF)
-    val BrandDark = Color(0xFF2E7FE0)
-    val BrandSoft = Color(0x264C9FFF)
+    val Brand: Color get() = ThemeStore.palette.brand
+    val BrandDark: Color get() = ThemeStore.palette.brandDark
+    val BrandSoft: Color get() = ThemeStore.palette.brandSoft
     val Green = Color(0xFF23A55A)
     val Yellow = Color(0xFFF0B232)
     val Red = Color(0xFFF23F43)
-    val Mention = Color(0x334C9FFF)
+    val Mention: Color get() = ThemeStore.palette.mention
 
     // Cores dos atalhos em destaque (iguais aos do site).
     val Announce = Color(0xFFEF4444)
@@ -68,7 +70,7 @@ val Inter = FontFamily(
 /** Fonte dos títulos grandes em maiúsculas (login, banners). */
 val Display = FontFamily(Font(R.font.bebas_neue, FontWeight.Normal))
 
-private val scheme = darkColorScheme(
+private fun scheme() = darkColorScheme(
     primary = PC.Brand,
     onPrimary = Color.White,
     primaryContainer = PC.BrandDark,
@@ -122,5 +124,5 @@ private val shapes = Shapes(
 
 @Composable
 fun ProjectClubTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = scheme, typography = type, shapes = shapes, content = content)
+    MaterialTheme(colorScheme = scheme(), typography = type, shapes = shapes, content = content)
 }
