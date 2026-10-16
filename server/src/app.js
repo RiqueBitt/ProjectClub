@@ -458,7 +458,7 @@ function createApp() {
     if (/[\\/](sw\.js|manifest\.webmanifest)$/.test(filePath)) return 'no-cache';
     // Pacotes de emoji, sons e arquivos dos Mini-Jogos (menos os .html,
     // que caem no no-cache acima): nome fixo, mudam raramente — 1 dia.
-    if (/[\\/](emoji-sets|sounds|minigames|ruffle)[\\/]/.test(filePath)) return 'public, max-age=86400';
+    if (/[\\/](emoji-sets|sounds|minigames|ruffle|loja)[\\/]/.test(filePath)) return 'public, max-age=86400';
     return null;
   };
   // Otimização (item pedido): assets PRÉ-COMPRIMIDOS no build

@@ -122,7 +122,7 @@ private fun ps(
 
 private fun saturation(x: Float) = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(x) })
 
-/** Os 35 estilos (mesmas chaves do PC). */
+/** Os 36 estilos (mesmas chaves do PC). */
 private val STYLES: Map<String, PStyle> = listOf(
     ps("win2000", v(0xFFD4D0C8, 0xFFD4D0C8), 0xFFD4D0C8, 0xFFFFFFFF, 0xFF808080, 0xFF000000, 0xFF000000, 0xFF404040, 0xFF0A246A,
         v(0xFFE4E1DA, 0xFFD4D0C8), 0xFF000000, 0xFF404040, 0, 0, titleBar = "🖥️  Propriedades do perfil", titleBg = h(0xFF0A246A, 0xFF3A6EA5, 0xFFA6CAF0)),
@@ -205,6 +205,9 @@ private val STYLES: Map<String, PStyle> = listOf(
     ps("noir", v(0xFF1A1A1A, 0xFF0B0B0B), 0xFF0B0B0B, 0x8C000000, 0xFF3A3A3A, 0xFFFFFFFF, 0xFFE6E6E6, 0xFF9A9A9A, 0xFFE6E6E6,
         v(0xFFE6E6E6, 0xFFE6E6E6), 0xFF0B0B0B, 0xFF0B0B0B, 0, 0, nameFont = SERIF, bodyFont = SERIF, bannerFilter = saturation(0f), overlay = "grain",
         titleBar = "CASO Nº 1947 — ARQUIVO CONFIDENCIAL", titleBg = h(0xFFE6E6E6, 0xFFE6E6E6), titleColor = 0xFF0B0B0B),
+    ps("mensageiro", v(0xFF7CC4FF, 0xFFCFEBFF, 0xFFF4FBFF), 0xFFDDF1FF, 0xD9FFFFFF, 0xFF8CC8F0, 0xFF0B4F9C, 0xFF16324F, 0xFF4F7194, 0xFF2E9BEA,
+        v(0xFFAEE2FF, 0xFF3FA9F5, 0xFF1B7FD6), 0xFFFFFFFF, 0xFF1A6FB5, 12, 50, nameShadow = sh(0xE6FFFFFF, 8f), overlay = "bubbles",
+        titleBar = "●  Disponível  —  Mensageiro", titleBg = h(0xFF2F7FD8, 0xFF5FB2F0, 0xFFA9DCFF)),
 ).associateBy { it.key }
 
 val PROFILE_STYLE_NAMES = mapOf(
@@ -214,7 +217,7 @@ val PROFILE_STYLE_NAMES = mapOf(
     "caderno" to "Caderno", "steampunk" to "Steampunk", "gotico" to "Gótico", "arcade" to "Arcade 80", "sunset" to "Pôr do Sol", "candy" to "Doceria",
     "aurora" to "Aurora Boreal", "deserto" to "Deserto", "halloween" to "Halloween", "natal" to "Natal", "lofi" to "Lo-fi Chill",
     "holografico" to "Holográfico", "militar" to "Tático", "faroeste" to "Faroeste", "medieval" to "Pergaminho", "cafe" to "Cafeteria",
-    "grafite" to "Grafite", "marmore" to "Mármore", "noir" to "Filme Noir",
+    "grafite" to "Grafite", "marmore" to "Mármore", "noir" to "Filme Noir", "mensageiro" to "Mensageiro 2005",
 )
 
 fun profileStyleOf(key: String?): PStyle? = key?.let { STYLES[it] }
