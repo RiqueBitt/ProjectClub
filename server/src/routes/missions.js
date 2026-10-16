@@ -10,6 +10,8 @@ router.use(requireAuth);
 
 router.get('/', requireSystemEnabled('economia'), ctrl.listMyMissions);
 router.post('/track', requireSystemEnabled('economia'), ctrl.trackClientEvent);
+router.get('/season', requireSystemEnabled('economia'), ctrl.getSeason);
+router.post('/season/claim', requireSystemEnabled('economia'), ctrl.claimSeason);
 router.post('/:id/claim', requireSystemEnabled('economia'), ctrl.claimMission);
 
 router.get('/admin/all', requirePlatformAdmin, ctrl.adminListMissions);

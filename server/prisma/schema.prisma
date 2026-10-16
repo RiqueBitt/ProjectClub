@@ -3778,6 +3778,20 @@ model StatusIncident {
   @@index([component, startedAt])
 }
 
+// Temporada de missões (passe do mês): pontos vêm das missões resgatadas.
+// Faixa grátis pra todo mundo + faixa extra de apoiador. Ver services/missionSeason.js.
+model SeasonPass {
+  userId      String
+  seasonKey   String   @db.VarChar(7) // AAAA-MM
+  points      Int      @default(0)
+  claimedFree String   @default("[]") @db.VarChar(400)
+  claimedPlus String   @default("[]") @db.VarChar(400)
+  updatedAt   DateTime @updatedAt
+
+  @@id([userId, seasonKey])
+  @@index([seasonKey, points])
+}
+
 // Chaves de acesso (passkeys / WebAuthn): entrar com digital, rosto ou PIN
 // do aparelho, sem senha. Ver controllers/passkeyController.js.
 model Passkey {
