@@ -563,11 +563,14 @@ async function setCustomStatus(req, res, next) {
 
 async function searchUsers(req, res, next) {
   try {
-    const q = (req.query.q || '').trim();
+    // "@fulano" também vale (o @ é só o jeito de escrever a ClubTag).
+    const q = String(req.query.q || '').trim().replace(/^@+/, '').trim();
     if (q.length < 2) return res.json({ users: [] });
+    // self=1: inclui a própria pessoa (ex.: staff dando um item pra si mesma).
+    const includeSelf = req.query.self === '1';
     const users = await prisma.user.findMany({
       where: {
-        NOT: { id: req.user.id },
+        ...(includeSelf ? {} : { NOT: { id: req.user.id } }),
         OR: [
           { username: { contains: q } },
           { displayName: { contains: q } },

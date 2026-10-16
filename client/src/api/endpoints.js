@@ -78,7 +78,7 @@ export const uploadIdCard = (file, framing) => {
 export const removeIdCard = () => api.delete('/users/me/id-card').then((r) => r.data);
 export const setStatus = (status) => api.patch('/users/me/status', { status }).then((r) => r.data);
 export const setCustomStatus = (payload) => api.patch('/users/me/custom-status', payload).then((r) => r.data);
-export const searchUsers = (q) => api.get('/users/search', { params: { q } }).then((r) => r.data);
+export const searchUsers = (q, opts = {}) => api.get('/users/search', { params: { q: String(q || '').replace(/^@+/, ''), ...(opts.self ? { self: 1 } : {}) } }).then((r) => r.data);
 // Mesmo perfil pedido por vários lugares ao mesmo tempo (miniperfil,
 // painel da DM, Início — todos no mesmo tique do refresh ao vivo) vira
 // UMA requisição só.
