@@ -43,6 +43,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        CrashReporter.install(this)
         api = Api(this)
         repo = Repository(this, api, appScope)
         voice = VoiceManager(this, repo, appScope)
@@ -55,6 +56,7 @@ class App : Application() {
 
         repo.beforeLogout = { pushToken?.let { repo.unregisterPushToken(it) } }
         appScope.launch { repo.restore() }
+        appScope.launch { runCatching { CrashReporter.sendPending(this@App) } }
         appScope.launch { com.projectclub.android.data.Updater.check() }
         appScope.launch { repo.alerts.collect(::onAlert) }
         // "Estou mexendo no app": evita ficar Ausente sozinho enquanto usa.
