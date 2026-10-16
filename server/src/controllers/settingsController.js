@@ -78,7 +78,107 @@ const FIELD_VALIDATORS = {
   // Personalizar layout — objeto pequeno; vira texto JSON no banco
   // (ver sanitizeLayoutPrefs abaixo). null volta pro padrão.
   layoutPrefs: (v) => v === null || sanitizeLayoutPrefs(v) !== undefined,
+  // Preferências extras (ver EXTRA_PREF_RULES) — também vira texto JSON.
+  extraPrefs: (v) => v === null || sanitizeExtraPrefs(v) !== undefined,
 };
+
+const isBool = (v) => typeof v === 'boolean';
+const oneOf = (...vals) => (v) => vals.includes(v);
+const intIn = (min, max) => (v) => Number.isInteger(v) && v >= min && v <= max;
+const isHex = (v) => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
+const isKey = (max = 32) => (v) => typeof v === 'string' && v.length <= max && /^[a-z0-9_-]+$/i.test(v);
+const keyList = (max = 40) => (v) => Array.isArray(v) && v.length <= max && v.every(isKey(32));
+// Sons que dá pra desligar um por um (Notificações / Voz e vídeo).
+const SOUND_KEYS = ['message', 'messageActive', 'mention', 'incomingCall', 'outgoingCall', 'mute', 'unmute', 'deafen', 'undeafen',
+  'join', 'leave', 'userJoin', 'userLeave', 'userMoved', 'camOn', 'camOff', 'streamStart', 'streamStop', 'streamUserJoin',
+  'streamUserLeave', 'pttActivate', 'pttDeactivate', 'disconnect', 'reconnect', 'friendRequest', 'notice'];
+
+// Cada chave conferida; o que não bate é descartado (nunca grava lixo).
+const EXTRA_PREF_RULES = {
+  // Aparência
+  colorTheme: (v) => v === 'none' || isKey(24)(v),
+  customTheme: (v) => v && typeof v === 'object' && !Array.isArray(v)
+    && Array.isArray(v.colors) && v.colors.length >= 1 && v.colors.length <= 5 && v.colors.every(isHex)
+    && intIn(0, 360)(v.angle) && isHex(v.accent) && intIn(0, 100)(v.mix),
+  themeSync: isBool,
+  themeOnProfiles: isBool,
+  appIcon: isKey(24),
+  streamerMode: isBool,
+  streamerHidePersonal: isBool,
+  streamerHideLinks: isBool,
+  streamerMuteSounds: isBool,
+  streamerMuteNotifs: isBool,
+  groupSpacing: oneOf(0, 4, 8, 16, 24),
+  spoilers: oneOf('click', 'always'),
+  showReactions: isBool,
+  emoticonsToEmoji: isBool,
+  showSendButton: isBool,
+  searchScope: oneOf('current', 'all'),
+  stickerSuggestions: isBool,
+  // Acessibilidade
+  underlineLinks: isBool,
+  minToastSec: oneOf(0, 3, 5, 10, 15, 20),
+  stickerAnim: oneOf('always', 'hover', 'never'),
+  gifFocusOnly: isBool,
+  animatedEmoji: isBool,
+  ttsRate: (v) => typeof v === 'number' && v >= 0.5 && v <= 2,
+  showAltText: isBool,
+  toggleIcons: isBool,
+  // Notificações
+  notifyFriendOnline: isBool,
+  notifyFriendAnniversary: isBool,
+  notifyFriendProfile: isBool,
+  shareProfileUpdates: isBool,
+  notifyReactions: oneOf('all', 'dm', 'none'),
+  soundPack: oneOf('auto', 'classic', 'halloween', 'natal', 'retro', 'suave'),
+  soundsOff: (v) => keyList(40)(v) && v.every((k) => SOUND_KEYS.includes(k)),
+  unreadBadge: isBool,
+  emailComms: isBool,
+  emailSocial: isBool,
+  emailUpdates: isBool,
+  emailTips: isBool,
+  // Voz e vídeo
+  inputProfile: oneOf('isolation', 'studio', 'custom'),
+  sensitivityAuto: isBool,
+  sensitivityDb: intIn(-100, 0),
+  joinSoundId: (v) => v === null || (typeof v === 'string' && v.length <= 64),
+  sfxVolume: intIn(0, 100),
+  streamPreview: isBool,
+  // Privacidade
+  spamFilter: oneOf('all', 'strangers', 'off'),
+  messageRequests: isBool,
+  friendReqMessages: isBool,
+  clipVoice: isBool,
+  gameJoinFriends: isBool,
+  gameJoinVoice: isBool,
+};
+function sanitizeExtraPrefs(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  const out = {};
+  for (const [key, rule] of Object.entries(EXTRA_PREF_RULES)) {
+    if (key in v && rule(v[key])) {
+      out[key] = key === 'customTheme'
+        ? { colors: v.customTheme.colors, angle: v.customTheme.angle, accent: v.customTheme.accent, mix: v.customTheme.mix }
+        : v[key];
+    }
+  }
+  return out;
+}
+const parseExtra = (raw) => { try { return raw ? JSON.parse(raw) || {} : {}; } catch { return {}; } };
+
+// Lê as preferências extras de alguém (usado no servidor pra avisos,
+// e-mails, filtro de spam...). Padrões ficam no chamador.
+async function getExtraPrefs(userId) {
+  const row = await prisma.userSettings.findUnique({ where: { userId }, select: { extraPrefs: true } }).catch(() => null);
+  return parseExtra(row?.extraPrefs);
+}
+async function getExtraPrefsMany(userIds) {
+  if (!userIds.length) return {};
+  const rows = await prisma.userSettings.findMany({ where: { userId: { in: userIds } }, select: { userId: true, extraPrefs: true } }).catch(() => []);
+  const out = {};
+  for (const r of rows) out[r.userId] = parseExtra(r.extraPrefs);
+  return out;
+}
 
 // Só as chaves conhecidas, cada uma conferida — nunca grava um objeto
 // cru vindo do frontend. Retorna undefined se não for um objeto.
@@ -114,7 +214,7 @@ function serializeSettings(settings) {
   if (settings.layoutPrefs) {
     try { layoutPrefs = JSON.parse(settings.layoutPrefs); } catch { layoutPrefs = null; }
   }
-  return { ...settings, layoutPrefs };
+  return { ...settings, layoutPrefs, extraPrefs: parseExtra(settings.extraPrefs) };
 }
 
 async function getOrCreateSettings(userId) {
@@ -141,7 +241,9 @@ async function updateSettings(req, res, next) {
       const validator = FIELD_VALIDATORS[key];
       if (!validator) { rejected.push(key); continue; } // campo desconhecido — nunca vira coluna nova sozinho
       if (!validator(value)) { rejected.push(key); continue; }
-      data[key] = key === 'layoutPrefs' && value !== null ? JSON.stringify(sanitizeLayoutPrefs(value)) : value;
+      if (key === 'layoutPrefs' && value !== null) data[key] = JSON.stringify(sanitizeLayoutPrefs(value));
+      else if (key === 'extraPrefs' && value !== null) data[key] = JSON.stringify(sanitizeExtraPrefs(value));
+      else data[key] = value;
     }
     if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: 'Nenhuma configuração válida foi enviada.', rejected });
@@ -161,4 +263,4 @@ async function resetSettings(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { getSettings, updateSettings, resetSettings };
+module.exports = { getSettings, updateSettings, resetSettings, getExtraPrefs, getExtraPrefsMany, sanitizeExtraPrefs, SOUND_KEYS };

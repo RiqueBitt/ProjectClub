@@ -413,6 +413,13 @@ model User {
   // Vitrine do perfil: jogos em destaque (JSON { games: [...] }, ver
   // sanitizeProfileShowcase em userController.js). null = nada escolhido.
   profileShowcase        String?                 @db.Text
+  // Mural do perfil (widgets): jogo favorito, jogos que gosto, em rotação,
+  // quero jogar — JSON validado em profileExtrasController.js.
+  profileWidgets         String?                 @db.Text
+  // Lista de desejos da Loja: [{ kind, id }] — só amigos veem.
+  profileWishlist        String?                 @db.Text
+  // Conta desativada pela própria pessoa (volta ao entrar de novo).
+  selfDeactivatedAt      DateTime?
 }
 
 // Item pedido: "pingentes... mini imagens que podem ser colocadas pelo
@@ -2320,6 +2327,9 @@ model UserSettings {
   // coluna, fonte, fundo animado, temas sazonais, fonte legível...) —
   // validado/limpo em settingsController.js. null = padrão.
   layoutPrefs String? @db.Text
+  // Preferências extras (temas coloridos, modo streamer, sons, avisos,
+  // e-mails por categoria, voz...) — JSON validado em settingsController.js.
+  extraPrefs  String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2849,6 +2859,8 @@ model UserAvatarDecoration {
   decorationId String
   decoration   AvatarDecoration @relation(fields: [decorationId], references: [id], onDelete: Cascade)
   serial       Int?
+  // Item com prazo (recompensa de missão): some sozinho quando vence.
+  expiresAt    DateTime?
   createdAt    DateTime         @default(now())
 
   @@unique([userId, decorationId])
@@ -2921,6 +2933,7 @@ model UserProfileEffect {
   effectId  String
   effect    ProfileEffect @relation(fields: [effectId], references: [id], onDelete: Cascade)
   serial    Int?
+  expiresAt DateTime?
   createdAt DateTime      @default(now())
 
   @@unique([userId, effectId])
@@ -2965,6 +2978,7 @@ model UserShopItem {
   itemId    String
   item      ShopItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
   serial    Int?
+  expiresAt DateTime?
   createdAt DateTime @default(now())
 
   @@unique([userId, itemId])
@@ -3018,6 +3032,11 @@ model Mission {
   rewardCoins Int      @default(0)
   rewardGems  Int      @default(0)
   rewardXp    Int      @default(0)
+  // Recompensa de item da Loja (moldura/efeito/fonte/estilo), opcional e
+  // com prazo em dias (null = pra sempre).
+  rewardItemKind String? @db.VarChar(16)
+  rewardItemId   String?
+  rewardItemDays Int?
   enabled     Boolean  @default(true)
   position    Int      @default(0)
   createdAt   DateTime @default(now())
@@ -3065,6 +3084,46 @@ model EconomyTransaction {
 // ============================================================
 
 // Aviso pessoal que fica salvo (lembrete de evento, presente recebido...).
+// Nota pessoal sobre alguém (só o dono vê).
+model UserNote {
+  id        String   @id @default(uuid())
+  ownerId   String
+  targetId  String
+  text      String   @db.VarChar(256)
+  updatedAt DateTime @updatedAt
+
+  @@unique([ownerId, targetId])
+}
+
+// Código de resgate criado pela staff (moedas, gemas e/ou um item da Loja).
+model RedeemCode {
+  id          String    @id @default(uuid())
+  code        String    @unique @db.VarChar(40)
+  note        String?   @db.VarChar(120)
+  rewardCoins Int       @default(0)
+  rewardGems  Int       @default(0)
+  itemKind    String?   @db.VarChar(16)
+  itemId      String?
+  itemDays    Int?
+  maxUses     Int       @default(1)
+  uses        Int       @default(0)
+  expiresAt   DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  redemptions RedeemCodeUse[]
+}
+
+model RedeemCodeUse {
+  id        String     @id @default(uuid())
+  codeId    String
+  code      RedeemCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
+  userId    String
+  createdAt DateTime   @default(now())
+
+  @@unique([codeId, userId])
+  @@index([userId])
+}
+
 model UserNotice {
   id        String    @id @default(uuid())
   userId    String

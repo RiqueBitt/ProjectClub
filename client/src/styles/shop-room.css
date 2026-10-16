@@ -503,3 +503,66 @@ button.trade-item:hover { border-color: var(--room-accent); }
   .trade-sides { grid-template-columns: 1fr; }
   .trade-arrow { transform: rotate(90deg); }
 }
+
+/* ---------- Lista de desejos (coração), prazo, presentes e códigos, planos ---------- */
+.room-card { position: relative; }
+.room-wish {
+  position: absolute; top: 136px; right: 10px; z-index: 3; width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center; border: 0; cursor: pointer;
+  background: rgba(0, 0, 0, .55); color: #fff; opacity: .85; transition: transform .15s var(--ease-smooth, ease), background .15s;
+}
+.room-wish:hover { transform: scale(1.08); opacity: 1; }
+.room-wish.on { background: var(--room-pink); color: #fff; opacity: 1; }
+.room-wish.on svg { fill: currentColor; }
+.room-wish-btn.on { border-color: var(--room-pink); color: var(--room-pink); }
+.room-wish-btn.on svg { fill: currentColor; }
+.room-card-flags + .room-card-state { z-index: 2; }
+.room-expiry {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700;
+  color: var(--room-muted); padding: 2px 8px; border-radius: 999px; background: var(--room-sunken); align-self: flex-start;
+}
+.room-expiry.soon { color: var(--room-bad); background: var(--room-bad-soft); }
+.room-ok { color: var(--room-ok); font-weight: 700; margin: 0; }
+.room-panel {
+  background: var(--room-surface); border: 1px solid var(--room-line); border-radius: var(--room-radius);
+  padding: 18px; display: flex; flex-direction: column; gap: 12px;
+}
+.room-redeem-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.room-redeem-head h2 { margin: 0; font-size: 17px; }
+.room-redeem-head p { margin: 2px 0 0; }
+.room-redeem-head > div { flex: 1; min-width: 200px; }
+.room-redeem-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.room-redeem-form input {
+  flex: 1; min-width: 200px; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--room-line);
+  background: var(--room-sunken); color: var(--room-text); font: 700 15px/1.2 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .06em;
+}
+.room-redeem-form input:focus { outline: none; border-color: var(--room-accent); }
+.room-redeem-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.room-giftbadge-count { font-weight: 800; font-size: 13px; color: var(--room-pink); }
+.room-gifttiers { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+.room-gifttiers li {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border-radius: 12px;
+  background: var(--room-sunken); text-align: center; opacity: .55; filter: grayscale(.8);
+}
+.room-gifttiers li.on { opacity: 1; filter: none; }
+.room-gifttiers strong { font-size: 13px; }
+.room-gifttiers small { font-size: 11px; color: var(--room-muted); }
+.room-gifttier-ico { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: #6b7280; }
+.room-gifttier-ico.lv2 { background: #22c55e; } .room-gifttier-ico.lv3 { background: #3b82f6; }
+.room-gifttier-ico.lv4 { background: #a855f7; } .room-gifttier-ico.lv5 { background: #f59e0b; }
+.room-gifttier-ico.lv6 { background: linear-gradient(135deg, #f43f5e, #f59e0b); }
+.room-plans-wrap { overflow-x: auto; border-radius: var(--room-radius); border: 1px solid var(--room-line); }
+.room-plans { width: 100%; border-collapse: collapse; min-width: 560px; background: var(--room-surface); }
+.room-plans th, .room-plans td { padding: 12px 14px; text-align: center; border-bottom: 1px solid var(--room-line); font-size: 13.5px; }
+.room-plans thead th { font-size: 14px; vertical-align: bottom; }
+.room-plans th[scope='row'], .room-plans thead th:first-child { text-align: left; font-weight: 600; color: var(--room-text); }
+.room-plans tr.grp th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--room-muted); background: var(--room-sunken); }
+.room-plans .mine { background: var(--room-accent-soft); }
+.room-plans td svg { color: var(--room-ok); }
+.room-plans thead small { display: block; font-size: 11px; color: var(--room-accent-ink); font-weight: 700; margin-top: 2px; }
+.room-plan-name { display: inline-flex; align-items: center; gap: 5px; font-weight: 800; }
+.room-plan-name.t-subscriber { color: var(--room-sub); }
+.room-plan-name.t-super { color: var(--room-super); }
+.room-plan-no { color: var(--room-muted); }
+
+@media (max-width: 640px) { .room-wish { top: 98px; } }

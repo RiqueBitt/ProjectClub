@@ -28,6 +28,13 @@ router.post('/trades/:id/decline', extras.declineTrade);
 router.post('/trades/:id/cancel', extras.cancelTrade);
 router.get('/history', shop.purchaseHistory); // compras + presentes
 router.post('/gift', shop.giftItem); // presentear um amigo
+// Códigos de resgate + insígnia de presentes.
+const redeemCtrl = require('../controllers/redeemController');
+router.post('/redeem', redeemCtrl.redeem);
+router.get('/gifts-summary', redeemCtrl.giftsSummary);
+router.get('/admin/codes', requirePlatformAdmin, redeemCtrl.adminList);
+router.post('/admin/codes', requirePlatformAdmin, redeemCtrl.adminCreate);
+router.delete('/admin/codes/:id', requirePlatformAdmin, redeemCtrl.adminRemove);
 const collectionFiles = uploadImage.fields([{ name: 'banner', maxCount: 1 }, { name: 'logo', maxCount: 1 }]);
 router.get('/admin/effects', requirePlatformAdmin, shop.adminListEffects);
 router.post('/admin/effects', requirePlatformAdmin, uploadImage.single('image'), shop.adminCreateEffect);

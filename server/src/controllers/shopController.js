@@ -122,9 +122,9 @@ async function shop(req, res, next) {
       prisma.profileEffect.findMany({ where: { active: true }, orderBy: order, include: count }),
       prisma.shopItem.findMany({ where: { active: true }, orderBy: order, include: count }),
       prisma.shopCollection.findMany({ where: { active: true }, orderBy: order }),
-      prisma.userAvatarDecoration.findMany({ where: { userId }, select: { decorationId: true, serial: true } }),
-      prisma.userProfileEffect.findMany({ where: { userId }, select: { effectId: true, serial: true } }),
-      prisma.userShopItem.findMany({ where: { userId }, select: { itemId: true, serial: true } }),
+      prisma.userAvatarDecoration.findMany({ where: { userId }, select: { decorationId: true, serial: true, expiresAt: true } }),
+      prisma.userProfileEffect.findMany({ where: { userId }, select: { effectId: true, serial: true, expiresAt: true } }),
+      prisma.userShopItem.findMany({ where: { userId }, select: { itemId: true, serial: true, expiresAt: true } }),
       prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true, avatarDecoration: true, profileEffect: true, profileFont: true, profileStyle: true, supporterTier: true } }),
     ]);
     const tier = sup.normalizeTier(me?.supporterTier);
@@ -132,6 +132,8 @@ async function shop(req, res, next) {
     const oe = new Set(ownedE.map((o) => o.effectId));
     const oi = new Set(ownedI.map((o) => o.itemId));
     const serials = new Map([...ownedD.map((o) => [o.decorationId, o.serial]), ...ownedE.map((o) => [o.effectId, o.serial]), ...ownedI.map((o) => [o.itemId, o.serial])]);
+    // Itens com prazo (recompensa de missão): a Loja mostra quando vencem.
+    const expires = new Map([...ownedD.map((o) => [o.decorationId, o.expiresAt]), ...ownedE.map((o) => [o.effectId, o.expiresAt]), ...ownedI.map((o) => [o.itemId, o.expiresAt])]);
     const shape = (it, ownedSet) => {
       const { _count, ...rest } = it;
       const exclusive = sup.exclusiveOf(it);
@@ -143,6 +145,7 @@ async function shop(req, res, next) {
         limited,
         remaining: limited ? Math.max(0, it.stock - it.sold) : null,
         serial: serials.get(it.id) ?? null,
+        expiresAt: expires.get(it.id) || null,
         exclusiveTier: exclusive,
         owned: ownedSet.has(it.id) || viaTier,
         ownedVia: ownedSet.has(it.id) ? 'PURCHASE' : viaTier ? 'SUPPORTER' : null,
@@ -188,7 +191,7 @@ async function buyItem(kind, req, res, next) {
         checkExpected(req.body, p.final);
         price = p;
         const already = await tx[K.own].findUnique({ where: K.uniq(userId, item.id) });
-        if (already) throw fail(`Você já tem esse ${K.label}.`, 400, { code: 'ALREADY_OWNED' });
+        if (already && !already.expiresAt) throw fail(`Você já tem esse ${K.label}.`, 400, { code: 'ALREADY_OWNED' });
         if (p.final > 0) {
           // Desconta só se tiver saldo (condição no próprio update evita corrida).
           const r = await tx.user.updateMany({ where: { id: userId, [currency]: { gte: p.final } }, data: { [currency]: { decrement: p.final } } });
@@ -196,8 +199,12 @@ async function buyItem(kind, req, res, next) {
         }
         // UNIQUE(userId, itemId): compra repetida em paralelo desfaz tudo
         // (inclusive a cópia do estoque reservada pelo limitado).
-        const serial = await claimStock(tx, kind, item);
-        await tx[K.own].create({ data: { userId, [K.fk]: item.id, serial } });
+        // Tinha só com prazo (missão)? Comprar deixa pra sempre.
+        if (already) await tx[K.own].update({ where: K.uniq(userId, item.id), data: { expiresAt: null } });
+        else {
+          const serial = await claimStock(tx, kind, item);
+          await tx[K.own].create({ data: { userId, [K.fk]: item.id, serial } });
+        }
       });
     } catch (e) {
       if (e.status) return sendFail(res, e);
@@ -541,7 +548,7 @@ async function giftItem(req, res, next) {
     try {
       await prisma.$transaction(async (tx) => {
         const already = await tx[K.own].findUnique({ where: K.uniq(toUserId, item.id) });
-        if (already) throw fail(`${recipient.displayName} já tem esse item.`, 400, { code: 'ALREADY_OWNED' });
+        if (already && !already.expiresAt) throw fail(`${recipient.displayName} já tem esse item.`, 400, { code: 'ALREADY_OWNED' });
         // Quem paga é quem dá: o desconto de Assinante dele vale aqui.
         const p = sup.priceFor(item, currency, await tierOf(tx, fromId));
         if (p.final === null) throw fail('Esse item não é vendido nessa moeda.');
@@ -551,8 +558,11 @@ async function giftItem(req, res, next) {
           const r = await tx.user.updateMany({ where: { id: fromId, [currency]: { gte: price } }, data: { [currency]: { decrement: price } } });
           if (r.count === 0) throw noFunds(currency);
         }
-        const serial = await claimStock(tx, kind, item);
-        await tx[K.own].create({ data: { userId: toUserId, [K.fk]: item.id, serial } });
+        if (already) await tx[K.own].update({ where: K.uniq(toUserId, item.id), data: { expiresAt: null } });
+        else {
+          const serial = await claimStock(tx, kind, item);
+          await tx[K.own].create({ data: { userId: toUserId, [K.fk]: item.id, serial } });
+        }
       });
     } catch (e) {
       if (e.status) return sendFail(res, e);

@@ -35,9 +35,18 @@ const HISTORY_ICON = { DAILY: 'chest', MISSION: 'bolt', SHOP: 'store', ADMIN: 's
 function RewardChips({ m }) {
   return (
     <span className="eco-rewards">
-      {m.rewardCoins > 0 && <span className="eco-reward coins"><Ico name="coin" size={13} strokeWidth={2} />{fmt(m.rewardCoins)}</span>}
+      {m.rewardCoins > 0 && (
+        <span className="eco-reward coins" title={m.finalCoins > m.rewardCoins ? `${fmt(m.rewardCoins)} + bônus de apoio` : undefined}>
+          <Ico name="coin" size={13} strokeWidth={2} />{fmt(m.finalCoins || m.rewardCoins)}{m.finalCoins > m.rewardCoins && <em className="eco-bonus">bônus</em>}
+        </span>
+      )}
       {m.rewardGems > 0 && <span className="eco-reward gems"><Ico name="gem" size={13} strokeWidth={2} />{fmt(m.rewardGems)}</span>}
       {m.rewardXp > 0 && <span className="eco-reward xp"><Ico name="star" size={13} strokeWidth={2} />{fmt(m.rewardXp)} XP</span>}
+      {m.rewardItem && (
+        <span className="eco-reward item" title={m.rewardItem.days ? `${m.rewardItem.name} por ${m.rewardItem.days} dias` : m.rewardItem.name}>
+          <Ico name="gift" size={13} strokeWidth={2} />{m.rewardItem.name}{m.rewardItem.days ? ` · ${m.rewardItem.days}d` : ''}
+        </span>
+      )}
     </span>
   );
 }
@@ -204,6 +213,8 @@ export default function EconomyPage({ initialTab = 'geral' }) {
       if (r.reward?.coins) parts.push(`+${fmt(r.reward.coins)} moedas`);
       if (r.reward?.gems) parts.push(`+${fmt(r.reward.gems)} gemas`);
       if (r.reward?.xp) parts.push(`+${fmt(r.reward.xp)} XP`);
+      if (r.reward?.item) parts.push(r.reward.item.already ? `"${r.reward.item.name}" (você já tinha)` : `"${r.reward.item.name}"${r.reward.item.expiresAt ? ` até ${new Date(r.reward.item.expiresAt).toLocaleDateString('pt-BR')}` : ''}`);
+      if (r.reward?.multiplier > 1) parts.push(`bônus ${String(r.reward.multiplier).replace('.', ',')}x de apoio`);
       pushNotice(`${m.title}: ${parts.join(', ') || 'resgatada'}${r.levelUp ? ` · Nível ${r.levelUp.newLevel}!` : ''}`);
       if (tab === 'historico') refreshHistory();
     } catch (err) {
@@ -366,6 +377,12 @@ export default function EconomyPage({ initialTab = 'geral' }) {
         {tab === 'missoes' && (
           !missionData ? <Skeleton rows={4} height={86} /> : (
             <div className="eco-missions">
+              <div className="eco-mult" role="note">
+                <Ico name="crown" size={16} />
+                {missionData.multiplier > 1
+                  ? <span>Bônus de apoio ativo: você ganha <b>{String(missionData.multiplier).replace('.', ',')}x</b> das moedas de cada missão.</span>
+                  : <span>Assinantes ganham <b>1,2x</b> e Super Assinantes <b>1,5x</b> das moedas das missões.</span>}
+              </div>
               <section>
                 <div className="eco-card-head">
                   <h2 className="pk-section-title"><Ico name="bolt" /> Diárias</h2>

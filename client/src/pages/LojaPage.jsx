@@ -4,7 +4,8 @@ import { useAuth } from '../context/AuthContext.jsx';
 import UserAvatar from '../components/UserAvatar.jsx';
 import { Ico } from '../components/PagesKit.jsx';
 import { MockProfile, decoValue, effectValue } from '../components/shop/ShopPreviews.jsx';
-import { getShop, buyDecoration, equipDecoration, buyEffect, equipEffect, buyCollection, buyFont, equipFont, buyStyle, equipStyle } from '../api/decorations';
+import { getShop, buyDecoration, equipDecoration, buyEffect, equipEffect, buyCollection, buyFont, equipFont, buyStyle, equipStyle, redeemShopCode, getGiftsSummary } from '../api/decorations';
+import { getMyWishlist, toggleWishlistItem } from '../api/endpoints';
 import ShopTrades from '../components/shop/ShopTrades.jsx';
 import { nameStyleProps } from '../utils/nameStyle';
 import { useLiveRefresh } from '../utils/liveRefresh';
@@ -55,12 +56,36 @@ const KIND = {
 const TIER_LABEL = { SUBSCRIBER: 'Assinante', SUPER: 'Super Assinante' };
 const RARITY_LABEL = { COMUM: 'Comum', INCOMUM: 'Incomum', RARA: 'Rara', EPICA: 'Épica', LENDARIA: 'Lendária', MITICA: 'Mítica' };
 const SORTS = [
+  { id: 'foryou', label: 'Para você' },
   { id: 'recent', label: 'Novidades' },
   { id: 'popular', label: 'Mais populares' },
   { id: 'cheap', label: 'Menor preço' },
   { id: 'expensive', label: 'Maior preço' },
   { id: 'name', label: 'Nome (A–Z)' },
+  { id: 'shuffle', label: 'Embaralhado' },
 ];
+// "Para você": pontua cada item pelo que a pessoa já tem/curte (mesma
+// coleção, mesmo tipo, lista de desejos, novidades) — nada de dado externo.
+function forYouScore(item, ctx) {
+  if (item.owned) return -100;
+  let score = 0;
+  const owned = ctx.ownedStats || {};
+  if (item.collectionId && owned.collections?.has(item.collectionId)) score += 6;
+  score += Math.min(4, owned.kinds?.[item.kind] || 0);
+  if (ctx.inWish?.(item)) score += 8;
+  if (item.limited && item.remaining > 0) score += 3;
+  if (item.featured) score += 2;
+  if (Date.now() - new Date(item.createdAt).getTime() < 14 * 86400000) score += 2;
+  score += Math.min(3, (item.popularity || 0) / 10);
+  if (item.locked) score -= 5;
+  return score;
+}
+// Embaralhar estável enquanto a semente não muda (botão "Embaralhar!").
+const seededRank = (id, seed) => {
+  let h = seed >>> 0;
+  for (let i = 0; i < id.length; i += 1) h = Math.imul(h ^ id.charCodeAt(i), 2654435761) >>> 0;
+  return h;
+};
 const AVAIL = [
   { id: 'all', label: 'Tudo' },
   { id: 'available', label: 'À venda' },
@@ -148,7 +173,12 @@ export default function LojaPage() {
   const [loadError, setLoadError] = useState('');
   const [section, setSection] = useState(() => (params.get('tab') === 'trocas' ? 'trades' : CARDS_WAR_ON && params.get('cat') === 'versos' ? 'back' : 'home'));
   const [query, setQuery] = useState('');
-  const [sort, setSort] = useState('recent');
+  const [sort, setSort] = useState('foryou');
+  const [shuffleSeed, setShuffleSeed] = useState(() => Math.floor(Math.random() * 1e9));
+  const [wish, setWish] = useState(() => new Set());
+  useEffect(() => {
+    getMyWishlist().then((d) => setWish(new Set((d.wishlist || []).map((w) => `${w.kind}:${w.id}`)))).catch(() => {});
+  }, []);
   const [avail, setAvail] = useState('all');
   const [currency, setCurrency] = useState('all');
   const [range, setRange] = useState('all');
@@ -232,7 +262,42 @@ export default function LojaPage() {
     setBusy('');
   };
 
-  const ctx = { user, data, supporter, busy, isEquipped, now, open: setDetail, equip, askBuy: (item, cur) => setConfirm({ item, currency: cur }), gift: setGiftFor };
+  const inWish = useCallback((i) => wish.has(`${i.kind}:${i.id}`), [wish]);
+  const toggleWish = async (item) => {
+    if (item.kind === 'back') return;
+    const key = `${item.kind}:${item.id}`;
+    const on = !wish.has(key);
+    setWish((w) => { const n = new Set(w); if (on) n.add(key); else n.delete(key); return n; });
+    try {
+      await toggleWishlistItem(item.kind, item.id, on);
+      flash(on ? `"${item.name}" na sua lista de desejos. Seus amigos podem ver e te presentear.` : `"${item.name}" saiu da lista de desejos.`, 'info');
+    } catch (e) {
+      setWish((w) => { const n = new Set(w); if (on) n.delete(key); else n.add(key); return n; });
+      flash(errMsg(e), 'bad');
+    }
+  };
+  const ownedStats = useMemo(() => {
+    const kinds = {}; const cols = new Set();
+    items.forEach((i) => { if (i.owned) { kinds[i.kind] = (kinds[i.kind] || 0) + 1; if (i.collectionId) cols.add(i.collectionId); } });
+    return { kinds, collections: cols };
+  }, [items]);
+  const ctx = {
+    user, data, supporter, busy, isEquipped, now, open: setDetail, equip, askBuy: (item, cur) => setConfirm({ item, currency: cur }), gift: setGiftFor,
+    inWish, toggleWish, ownedStats, shuffleSeed, reshuffle: () => { setSort('shuffle'); setShuffleSeed(Math.floor(Math.random() * 1e9)); },
+  };
+
+  // Link "Presentear" vindo da Lista de desejos de um amigo: /loja?gift=deco:ID&to=USER
+  const giftParam = params.get('gift');
+  const giftTo = params.get('to');
+  const giftHandled = useRef(false);
+  useEffect(() => {
+    if (!data || !giftParam || giftHandled.current) return;
+    giftHandled.current = true;
+    const [k, id] = giftParam.split(':');
+    const it = items.find((i) => i.kind === k && i.id === id);
+    if (it) setGiftFor({ ...it, presetTo: giftTo || null });
+    else flash('Esse item não está mais à venda.', 'info');
+  }, [data, giftParam, giftTo, items]);
 
   // ---- navegação ----
   const count = (k) => items.filter((i) => i.kind === k).length;
@@ -255,9 +320,12 @@ export default function LojaPage() {
     { group: 'Especiais', items: [
       ...(limiteds.length > 0 ? [{ id: 'limited', label: 'Limitados', icon: 'star', n: limiteds.filter((i) => i.remaining > 0).length }] : []),
       { id: 'exclusive', label: 'Exclusivos de apoio', icon: 'crown', n: exclusives.length },
+      { id: 'plans', label: 'Comparar planos', icon: 'star' },
     ] },
     { group: 'Você', items: [
       { id: 'owned', label: 'Meus itens', icon: 'inbox', n: ownedItems.length },
+      { id: 'wishlist', label: 'Lista de desejos', icon: 'heart', n: items.filter(inWish).length },
+      { id: 'gifts', label: 'Presentes e códigos', icon: 'gift' },
       { id: 'trades', label: 'Trocas', icon: 'swap' },
       { id: 'history', label: 'Histórico', icon: 'clock' },
     ] },
@@ -276,6 +344,9 @@ export default function LojaPage() {
   else if (KIND[section]) content = <Catalog title={KIND[section].plural} subtitle={KIND[section].blurb} list={items.filter((i) => i.kind === section)} {...{ query, sort, setSort, avail, setAvail, currency, setCurrency, range, setRange }} ctx={ctx} />;
   else if (section === 'exclusive') content = <ExclusivePage list={exclusives} ctx={ctx} />;
   else if (section === 'owned') content = <OwnedPage list={ownedItems} go={go} ctx={ctx} />;
+  else if (section === 'wishlist') content = <WishlistPage list={items.filter(inWish)} go={go} ctx={ctx} />;
+  else if (section === 'gifts') content = <GiftsPage go={go} onWallet={(w) => setData((d) => (d ? { ...d, coins: w.coins ?? d.coins, gems: w.gems ?? d.gems } : d))} reload={load} flash={flash} />;
+  else if (section === 'plans') content = <PlansPage supporter={supporter} />;
   else if (section === 'cards') content = <ShopCardsTab onWallet={(w) => setData((d) => (d ? { ...d, coins: w.coins, gems: w.gems } : d))} />;
   else content = <ShopHistory />;
 
@@ -496,6 +567,8 @@ function Catalog({ title, subtitle, list, query = '', sort, setSort, avail, setA
     }
     return true;
   }).sort((a, b) => {
+    if (sort === 'foryou') return forYouScore(b, ctx) - forYouScore(a, ctx) || new Date(b.createdAt) - new Date(a.createdAt);
+    if (sort === 'shuffle') return seededRank(`${a.kind}${a.id}`, ctx.shuffleSeed) - seededRank(`${b.kind}${b.id}`, ctx.shuffleSeed);
     if (sort === 'name') return a.name.localeCompare(b.name, 'pt-BR');
     if (sort === 'popular') return (b.popularity || 0) - (a.popularity || 0);
     if (sort === 'cheap') return comparePrice(a) - comparePrice(b);
@@ -524,6 +597,7 @@ function Catalog({ title, subtitle, list, query = '', sort, setSort, avail, setA
               {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
           </label>
+          <button type="button" className="room-btn ghost sm" onClick={ctx.reshuffle} title="Embaralhar os itens"><Ico name="swap" size={15} /> Embaralhar!</button>
         </div>
       </div>
       {filtersOpen && (
@@ -770,9 +844,17 @@ function ItemCard({ item, ctx }) {
         <span className="room-card-state"><StateBadge item={item} on={on} /></span>
         <span className="room-card-peek"><Ico name="eye" size={14} /> Pré-visualizar</span>
       </button>
+      {item.kind !== 'back' && !item.owned && !item.exclusiveTier && (
+        <button
+          type="button" className={`room-wish${ctx.inWish(item) ? ' on' : ''}`} onClick={() => ctx.toggleWish(item)}
+          aria-pressed={ctx.inWish(item)} aria-label={ctx.inWish(item) ? 'Tirar da lista de desejos' : 'Pôr na lista de desejos'}
+          title={ctx.inWish(item) ? 'Na sua lista de desejos' : 'Adicionar à lista de desejos'}
+        ><Ico name="heart" size={15} strokeWidth={2.2} /></button>
+      )}
       <div className="room-card-body">
         <small>{KIND[item.kind].label}{item.rarity && RARITY_LABEL[item.rarity] ? ` · ${RARITY_LABEL[item.rarity]}` : ''}</small>
         <h3 title={item.name}>{item.name}</h3>
+        {item.expiresAt && <ExpiryNote at={item.expiresAt} />}
         {item.description && <p className="room-card-desc">{item.description}</p>}
         <div className="room-card-foot">
           {item.owned ? (
@@ -844,6 +926,7 @@ function ItemDetail({ initial, items, collections, onClose, openCollection, ctx 
               <small>{fmt(item.sold)} de {fmt(item.stock)} cópias já têm dono. Itens limitados podem ser trocados com outros jogadores em <b>Trocas</b>.</small>
             </div>
           )}
+          {item.expiresAt && <ExpiryNote at={item.expiresAt} long />}
           <p>{item.description || KIND[item.kind].blurb}</p>
           {collection && <button type="button" className="room-link" onClick={() => openCollection(collection.id)}>Da coleção {collection.name} <Ico name="arrowRight" size={14} /></button>}
 
@@ -880,6 +963,11 @@ function ItemDetail({ initial, items, collections, onClose, openCollection, ctx 
             )}
             {item.kind !== 'back' && !item.exclusiveTier && currencies.length > 0 && !(item.limited && item.remaining <= 0) && (
               <button type="button" className="room-btn ghost lg" onClick={() => { onClose(); gift(item); }}><Ico name="gift" size={16} /> Presentear</button>
+            )}
+            {item.kind !== 'back' && !item.owned && !item.exclusiveTier && (
+              <button type="button" className={`room-btn ghost lg room-wish-btn${ctx.inWish(item) ? ' on' : ''}`} aria-pressed={ctx.inWish(item)} onClick={() => ctx.toggleWish(item)}>
+                <Ico name="heart" size={16} /> {ctx.inWish(item) ? 'Na lista de desejos' : 'Lista de desejos'}
+              </button>
             )}
           </div>
         </div>
@@ -954,7 +1042,7 @@ function GiftModal({ item, data, onClose, onDone }) {
   const accepted = useMemo(() => friends.filter((f) => f.status === 'ACCEPTED' && f.user).map((f) => f.user)
     .sort((a, b) => (a.displayName || '').localeCompare(b.displayName || '', 'pt-BR')), [friends]);
   const [q, setQ] = useState('');
-  const [toId, setToId] = useState(null);
+  const [toId, setToId] = useState(item.presetTo || null);
   const [currency, setCurrency] = useState(sellsIn(item)[0] || 'coins');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1105,4 +1193,162 @@ function Skeleton() {
 }
 function LoadFailed({ text, retry }) {
   return <Empty title="Não deu para abrir a loja" text={text} action={{ label: 'Tentar de novo', onClick: retry }} />;
+}
+
+// ---------- Itens com prazo (recompensa de missão / código) ----------
+function ExpiryNote({ at, long }) {
+  const ms = new Date(at).getTime() - Date.now();
+  const days = Math.max(0, Math.ceil(ms / 86400000));
+  const text = ms <= 0 ? 'Expirou' : days <= 1 ? `Expira em ${Math.max(1, Math.ceil(ms / 3600000))} h` : `Expira em ${days} dias`;
+  return (
+    <span className={`room-expiry${days <= 3 ? ' soon' : ''}`} title={new Date(at).toLocaleString('pt-BR')}>
+      <Ico name="clock" size={12} /> {text}{long ? ' — comprar deixa ele pra sempre.' : ''}
+    </span>
+  );
+}
+
+// ---------- Lista de desejos ----------
+function WishlistPage({ list, go, ctx }) {
+  return (
+    <div className="room-stack">
+      <div className="room-page-head">
+        <h1>Lista de desejos</h1>
+        <p>Os itens que você marcou com o coração. Seus amigos veem essa lista no seu perfil e podem te presentear.</p>
+      </div>
+      {list.length === 0
+        ? <Empty title="Sua lista está vazia" text="Toque no coração de qualquer item da Loja pra guardar aqui." action={{ label: 'Explorar a loja', onClick: () => go('home') }} />
+        : <div className="room-grid">{list.map((i) => <ItemCard key={`${i.kind}:${i.id}`} item={i} ctx={ctx} />)}</div>}
+    </div>
+  );
+}
+
+// ---------- Presentes e códigos (inventário de presentes) ----------
+function GiftsPage({ go, onWallet, reload, flash }) {
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [summary, setSummary] = useState(null);
+  useEffect(() => { getGiftsSummary().then(setSummary).catch(() => setSummary({ given: 0, received: 0, tiers: [] })); }, []);
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!code.trim()) return;
+    setBusy(true); setResult(null);
+    try {
+      const r = await redeemShopCode(code.trim());
+      onWallet(r);
+      const parts = [];
+      if (r.reward.coins) parts.push(`${fmt(r.reward.coins)} moedas`);
+      if (r.reward.gems) parts.push(`${fmt(r.reward.gems)} gemas`);
+      if (r.reward.item) parts.push(`"${r.reward.item.name}"${r.reward.item.expiresAt ? ` (até ${new Date(r.reward.item.expiresAt).toLocaleDateString('pt-BR')})` : ''}`);
+      setResult({ ok: true, text: `Código resgatado! Você ganhou ${parts.join(', ')}.` });
+      flash('Código resgatado!');
+      setCode('');
+      reload();
+    } catch (err) { setResult({ ok: false, text: errMsg(err) }); }
+    setBusy(false);
+  };
+  const next = summary?.tiers?.find((t) => !t.reached);
+  const pct = next ? Math.min(100, Math.round(((summary.given || 0) / next.need) * 100)) : 100;
+  return (
+    <div className="room-stack">
+      <div className="room-page-head"><h1>Presentes e códigos</h1><p>Resgate códigos que a equipe distribui e acompanhe sua insígnia de presentes.</p></div>
+
+      <section className="room-panel room-redeem">
+        <div className="room-redeem-head">
+          <span className="room-gift-ico"><Ico name="tag" size={20} /></span>
+          <div><h2>Resgatar código</h2><p className="room-muted">Recebeu um código em um evento, sorteio ou da equipe? Insira abaixo.</p></div>
+        </div>
+        <form className="room-redeem-form" onSubmit={submit}>
+          <input
+            value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={40} placeholder="PC-XXXX-XXXX"
+            aria-label="Código" autoComplete="off" spellCheck={false}
+          />
+          <button type="submit" className="room-btn primary" disabled={busy || !code.trim()}>{busy ? 'Resgatando…' : 'Resgatar'}</button>
+        </form>
+        {result && <p className={result.ok ? 'room-ok' : 'room-warn'} role="status">{result.text}</p>}
+      </section>
+
+      <section className="room-panel room-giftbadge">
+        <div className="room-redeem-head">
+          <span className="room-gift-ico"><Ico name="gift" size={20} /></span>
+          <div>
+            <h2>Insígnia de Presentes</h2>
+            <p className="room-muted">
+              {!summary ? 'Carregando…' : next
+                ? `Dê ${next.need - (summary.given || 0)} ${next.need - (summary.given || 0) === 1 ? 'presente' : 'presentes'} para desbloquear a insígnia ${next.name}!`
+                : 'Você chegou ao nível máximo. Lenda!'}
+            </p>
+          </div>
+          {summary && <span className="room-giftbadge-count">{summary.given}/{next?.need ?? summary.given} presentes</span>}
+        </div>
+        <div className="room-limited-bar"><span style={{ width: `${pct}%` }} /></div>
+        <ol className="room-gifttiers">
+          {(summary?.tiers || []).map((t) => (
+            <li key={t.level} className={t.reached ? 'on' : ''}>
+              <span className={`room-gifttier-ico lv${t.level}`}><Ico name="gift" size={16} /></span>
+              <strong>{t.name}</strong>
+              <small>Presenteou {t.need}x</small>
+            </li>
+          ))}
+        </ol>
+        <small className="room-muted">Sua insígnia aparece no seu perfil (Estatísticas) e sobe conforme você presenteia amigos. Presentes grátis não contam.</small>
+        <div className="room-redeem-actions">
+          <button type="button" className="room-btn primary" onClick={() => go('home')}><Ico name="gift" size={15} /> Enviar um presente</button>
+          <button type="button" className="room-btn ghost" onClick={() => go('history')}><Ico name="clock" size={15} /> Presentes enviados e recebidos</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// ---------- Comparar planos (apoio) ----------
+const PLAN_ROWS = [
+  { group: 'Exiba o seu estilo' },
+  { label: 'Insígnia de apoiador no perfil', v: [false, 'Assinante', 'Super Assinante'] },
+  { label: 'Itens exclusivos de Assinante', v: [false, true, true] },
+  { label: 'Itens exclusivos de Super Assinante', v: [false, false, true] },
+  { group: 'Loja e recompensas' },
+  { label: 'Desconto em itens elegíveis da Loja', v: [false, '15%', '15%'] },
+  { label: 'Bônus nas moedas das missões', v: [false, '1,2x', '1,5x'] },
+  { label: 'Presentear amigos e resgatar códigos', v: [true, true, true] },
+  { group: 'Personalização (grátis pra todo mundo)' },
+  { label: 'Temas coloridos e tema personalizado', v: [true, true, true] },
+  { label: 'Estilos de perfil, molduras e efeitos (comprando)', v: [true, true, true] },
+  { label: 'Mural do perfil e lista de desejos', v: [true, true, true] },
+];
+function PlansPage({ supporter }) {
+  const cur = supporter?.tier || 'NONE';
+  const cols = [['NONE', 'Membro'], ['SUBSCRIBER', 'Assinante'], ['SUPER', 'Super Assinante']];
+  const cell = (v) => (v === true ? <Ico name="check" size={16} strokeWidth={2.6} /> : v === false ? <span className="room-plan-no">—</span> : <b>{v}</b>);
+  return (
+    <div className="room-stack">
+      <div className="room-page-head"><h1>Compare os planos</h1><p>O que muda pra quem apoia o Project Club. Tudo que é personalização básica continua grátis.</p></div>
+      <div className="room-plans-wrap">
+        <table className="room-plans">
+          <thead>
+            <tr>
+              <th scope="col">Recursos</th>
+              {cols.map(([id, label]) => (
+                <th key={id} scope="col" className={cur === id ? 'mine' : ''}>
+                  <span className={`room-plan-name t-${id.toLowerCase()}`}>{id !== 'NONE' && <Ico name="crown" size={14} />} {label}</span>
+                  {cur === id && <small>Seu plano</small>}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {PLAN_ROWS.map((r) => (r.group ? (
+              <tr key={r.group} className="grp"><th colSpan={4} scope="colgroup">{r.group}</th></tr>
+            ) : (
+              <tr key={r.label}>
+                <th scope="row">{r.label}</th>
+                {r.v.map((v, i) => <td key={cols[i][0]} className={cur === cols[i][0] ? 'mine' : ''}>{cell(v)}</td>)}
+              </tr>
+            )))}
+          </tbody>
+        </table>
+      </div>
+      <p className="room-muted">Quer apoiar? Abra um ticket ou fale com a equipe — o status de apoio é liberado por eles.</p>
+    </div>
+  );
 }

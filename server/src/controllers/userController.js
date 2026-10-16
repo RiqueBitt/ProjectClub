@@ -242,6 +242,7 @@ async function updateProfile(req, res, next) {
     if (req.body.profileShowcase !== undefined) data.profileShowcase = sanitizeProfileShowcase(req.body.profileShowcase);
     const user = await prisma.user.update({ where: { id: req.user.id }, data, select: SELF_USER_FIELDS });
     await broadcastUserUpdate(req, user);
+    if (['bio', 'pronouns', 'displayName', 'profileShowcase', 'profileColor'].some((k) => data[k] !== undefined)) require('../services/profileUpdates').profileChanged(req, req.user.id).catch(() => {});
     res.json({ user });
   } catch (err) { next(err); }
 }
@@ -369,6 +370,7 @@ async function uploadAvatar(req, res, next) {
       where: { id: req.user.id }, data: { avatarUrl }, select: SELF_USER_FIELDS,
     });
     await broadcastUserUpdate(req, user);
+    require('../services/profileUpdates').profileChanged(req, req.user.id).catch(() => {});
     res.json({ user });
   } catch (err) { next(err); }
 }
@@ -384,6 +386,7 @@ async function uploadBanner(req, res, next) {
       where: { id: req.user.id }, data: { bannerUrl, bannerFraming }, select: SELF_USER_FIELDS,
     });
     await broadcastUserUpdate(req, user);
+    require('../services/profileUpdates').profileChanged(req, req.user.id).catch(() => {});
     res.json({ user });
   } catch (err) { next(err); }
 }
@@ -877,5 +880,5 @@ async function setDisplayedAchievements(req, res, next) {
 module.exports = {
   updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, uploadIdCard, removeIdCard,
   setStatus, setCustomStatus, searchUsers, getUser, setActiveTag, voteProfile, setPreferredTheme, setLayoutStyle, setEmojiStyle, setChatZoom, setInterfaceZoom,
-  setDisplayedAchievements, hasFullProfileAccess, sanitizeBannerFraming, broadcastUserUpdate,
+  setDisplayedAchievements, hasFullProfileAccess, hasActivityAccess, sanitizeBannerFraming, broadcastUserUpdate,
 };

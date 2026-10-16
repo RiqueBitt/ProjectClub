@@ -751,3 +751,10 @@ export const createReminder = (body) => api.post('/reminders', body).then((r) =>
 export const previewReminderWhen = (when) => api.post('/reminders/preview', { when, tzOffset: new Date().getTimezoneOffset() }).then((r) => r.data);
 export const listReminders = () => api.get('/reminders').then((r) => r.data);
 export const deleteReminder = (id) => api.delete(`/reminders/${id}`).then((r) => r.data);
+
+// --- Extras do perfil (Mural, Lista de desejos, Atividade, insígnias, nota) ---
+export const getProfileExtras = (userId) => api.get(`/users/${userId}/extras`).then((r) => r.data);
+export const saveProfileWidgets = (widgets) => api.put('/users/me/widgets', { widgets }).then((r) => r.data);
+export const getMyWishlist = () => api.get('/users/me/wishlist').then((r) => r.data);
+export const toggleWishlistItem = (kind, id, on) => api.post('/users/me/wishlist', { kind, id, on }).then((r) => r.data);
+export const saveUserNote = (userId, text) => api.put(`/users/${userId}/note`, { text }).then((r) => r.data);

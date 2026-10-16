@@ -57,7 +57,26 @@ function sanitize(body, { partial }) {
     if (!data.type) throw Object.assign(new Error('Escolha o tipo da missão.'), { status: 400 });
   }
   if (data.title !== undefined && !data.title) throw Object.assign(new Error('Dê um nome para a missão.'), { status: 400 });
+  // Item da Loja como recompensa (opcional, com prazo em dias).
+  if (body.rewardItemKind !== undefined || body.rewardItemId !== undefined) {
+    const kind = ['deco', 'effect', 'font', 'style'].includes(body.rewardItemKind) ? body.rewardItemKind : null;
+    const id = kind && body.rewardItemId ? String(body.rewardItemId).slice(0, 64) : null;
+    data.rewardItemKind = id ? kind : null;
+    data.rewardItemId = id;
+  }
+  if (body.rewardItemDays !== undefined) {
+    const n = parseInt(body.rewardItemDays, 10);
+    data.rewardItemDays = Number.isFinite(n) && n > 0 ? Math.min(365, n) : null;
+  }
   return data;
+}
+
+async function checkRewardItem(data) {
+  if (!data.rewardItemId) return;
+  const { findItem, isLimited } = require('./shopController');
+  const it = await findItem(prisma, data.rewardItemKind, data.rewardItemId);
+  if (!it) throw Object.assign(new Error('O item da recompensa não existe.'), { status: 400 });
+  if (isLimited(it)) throw Object.assign(new Error('Itens limitados (com estoque) não podem ser recompensa de missão.'), { status: 400 });
 }
 
 function changed(req) {
@@ -75,6 +94,7 @@ async function adminListMissions(req, res, next) {
 async function adminCreateMission(req, res, next) {
   try {
     const data = sanitize(req.body || {}, { partial: false });
+    await checkRewardItem(data);
     if (data.position === undefined) data.position = await prisma.mission.count();
     const mission = await prisma.mission.create({ data });
     changed(req);
@@ -88,6 +108,7 @@ async function adminCreateMission(req, res, next) {
 async function adminUpdateMission(req, res, next) {
   try {
     const data = sanitize(req.body || {}, { partial: true });
+    await checkRewardItem(data);
     const mission = await prisma.mission.update({ where: { id: req.params.id }, data });
     changed(req);
     res.json({ mission });

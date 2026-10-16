@@ -195,7 +195,8 @@ async function adminGrant(req, res, next) {
     try {
       await prisma.$transaction(async (tx) => {
         const already = await tx[K.own].findUnique({ where: K.uniq(userId, item.id) });
-        if (already) throw fail(`${target.displayName || target.username} já tem esse item.`, 400, { code: 'ALREADY_OWNED' });
+        if (already && !already.expiresAt) throw fail(`${target.displayName || target.username} já tem esse item.`, 400, { code: 'ALREADY_OWNED' });
+        if (already) { await tx[K.own].update({ where: { id: already.id }, data: { expiresAt: null } }); return; }
         try {
           serial = await claimStock(tx, kind, item);
         } catch (e) {
@@ -325,6 +326,7 @@ async function checkOwns(db, userId, items, who) {
     if (!isLimited(item)) throw fail(`"${item.name}" não é um item limitado — só limitados podem ser trocados.`);
     const own = await db[K.own].findUnique({ where: K.uniq(userId, id) });
     if (!own) throw fail(`${who} não tem mais "${item.name}".`, 409, { code: 'NOT_OWNED' });
+    if (own.expiresAt) throw fail(`"${item.name}" é um item com prazo (de missão) e não pode ser trocado.`, 409, { code: 'TEMPORARY' });
   }
 }
 
