@@ -3784,8 +3784,8 @@ model SeasonPass {
   userId      String
   seasonKey   String   @db.VarChar(7) // AAAA-MM
   points      Int      @default(0)
-  claimedFree String   @default("[]") @db.Text
-  claimedPlus String   @default("[]") @db.Text
+  claimedFree String   @default("[]") @db.VarChar(400)
+  claimedPlus String   @default("[]") @db.VarChar(400)
   updatedAt   DateTime @updatedAt
 
   @@id([userId, seasonKey])
