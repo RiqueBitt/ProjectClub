@@ -47,7 +47,7 @@ export default function FriendsListPanel({ onToggle }) {
             >
               <div className="avatar-wrap small">
                 <UserAvatar user={u} size={32} />
-                <PresenceDot status={status || 'OFFLINE'} />
+                <PresenceDot status={status || 'OFFLINE'} userId={u.id} />
               </div>
               <div className="member-row-text">
                 <span className="truncate">{u.displayName}</span>

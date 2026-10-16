@@ -1310,7 +1310,7 @@ export default function UserProfileModal() {
                       <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={pickAvatarFile} />
                     </label>
                   )}
-                  <PresenceDot status={status} large title={STATUS_LABEL[status]} />
+                  <PresenceDot status={status} userId={user.id} large title={STATUS_LABEL[status]} />
                 </div>
                 <div className="profile-ig-header-info">
                   {isMe && nameDraft !== null ? (

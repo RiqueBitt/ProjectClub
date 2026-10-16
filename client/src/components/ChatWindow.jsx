@@ -1301,7 +1301,7 @@ function ChatWindowInner({ conversationId, channelId }) {
             <div className="avatar small" style={{ background: dmOther.profileColor || '#F2894D' }}>
               {dmOther.avatarUrl ? <HeaderAvatarImg url={dmOther.avatarUrl} size={34} /> : title[0]?.toUpperCase()}
             </div>
-            <PresenceDot status={dmStatus} />
+            <PresenceDot status={dmStatus} userId={dmOther?.id} />
           </div>
         )}
         {dmConvo?.isGroup && (

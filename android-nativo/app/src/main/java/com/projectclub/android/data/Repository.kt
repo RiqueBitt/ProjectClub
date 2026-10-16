@@ -88,6 +88,9 @@ class Repository(private val context: Context, val api: Api, private val scope: 
 
     private val _presence = MutableStateFlow<Map<String, String>>(emptyMap())
     val presence: StateFlow<Map<String, String>> = _presence
+    /** Quem está online só pelo celular (a bolinha vira um celular). */
+    private val _mobileUsers = MutableStateFlow<Set<String>>(emptySet())
+    val mobileUsers: StateFlow<Set<String>> = _mobileUsers
 
     private val _notices = MutableStateFlow<List<Notice>>(emptyList())
     val notices: StateFlow<List<Notice>> = _notices
@@ -484,19 +487,20 @@ class Repository(private val context: Context, val api: Api, private val scope: 
             "presence:sync" -> {
                 val arr = (d as? JsonArray) ?: d?.jsonObject?.get("list") as? JsonArray
                 arr?.let { list ->
-                    _presence.value = list.mapNotNull { el ->
-                        val o = el as? JsonObject ?: return@mapNotNull null
-                        val id = str(o, "userId") ?: return@mapNotNull null
-                        id to (str(o, "status") ?: "ONLINE")
-                    }.toMap()
+                    val objs = list.mapNotNull { it as? JsonObject }
+                    _presence.value = objs.mapNotNull { o -> str(o, "userId")?.let { id -> id to (str(o, "status") ?: "ONLINE") } }.toMap()
+                    _mobileUsers.value = objs.filter { o -> (o["mobile"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true" }
+                        .mapNotNull { str(it, "userId") }.toSet()
                 }
             }
             "presence:update" -> {
                 val id = str(d, "userId") ?: return
                 val status = str(d, "status") ?: "OFFLINE"
                 _presence.update { if (status == "OFFLINE") it - id else it + (id to status) }
+                val mobile = ((d as? JsonObject)?.get("mobile") as? kotlinx.serialization.json.JsonPrimitive)?.content == "true"
+                _mobileUsers.update { if (mobile && status != "OFFLINE") it + id else it - id }
             }
-            "presence:reset" -> _presence.value = emptyMap()
+            "presence:reset" -> { _presence.value = emptyMap(); _mobileUsers.value = emptySet() }
             "user:update" -> decode<User>(d)?.let { u ->
                 remember(u)
                 if (u.id == _me.value?.id) _me.value = _me.value?.copy(displayName = u.displayName, avatarUrl = u.avatarUrl, status = u.status)

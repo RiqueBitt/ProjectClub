@@ -105,7 +105,7 @@ fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             // Cartão do perfil (banner + avatar), como o mini perfil do site
             val shape = RoundedCornerShape(24.dp)
-            Column(Modifier.fillMaxWidth().clip(shape).background(PC.Surface).border(1.dp, PC.Line, shape).clickable { me?.id?.let(nav::profile) }) {
+            Column(Modifier.fillMaxWidth().clip(shape).background(PC.Surface).border(1.dp, PC.Line, shape).clickable { me?.id?.let(nav::fullProfile) }) {
                 Box(Modifier.fillMaxWidth().height(136.dp)) {
                     Box(Modifier.fillMaxWidth().height(96.dp).background(profileBrush(me?.profileColor))) {
                         Config.media(me?.bannerUrl)?.let { AsyncImage(it, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
@@ -142,7 +142,7 @@ fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
 
             // Conta
             PcCard(padding = PaddingValues(6.dp)) {
-                Line(Icons.Outlined.Person, "Meu perfil", PC.Brand) { me?.id?.let(nav::profile) }
+                Line(Icons.Outlined.Person, "Meu perfil", PC.Brand) { me?.id?.let(nav::fullProfile) }
                 Line(Icons.Outlined.Edit, "Editar perfil", PC.Purple) { nav.editProfile() }
                 Line(Icons.Outlined.Settings, "Configurações", PC.Brand) { nav.settings() }
                 Line(Icons.Outlined.Campaign, "Anúncios", PC.Announce) { nav.announcements() }

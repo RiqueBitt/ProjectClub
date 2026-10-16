@@ -74,7 +74,7 @@ export default function DMConversationsList() {
                     <UserAvatar user={other || { displayName: name }} size={32} />
                   </div>
                 )}
-                {status && <PresenceDot status={status} />}
+                {status && <PresenceDot status={status} userId={other?.id} />}
               </div>
               <span className="dm-item-text">
                 <span className="truncate" data-no-translate>{name}</span>

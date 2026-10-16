@@ -47,6 +47,7 @@ class AppNavigator(
     private val scope: CoroutineScope,
     private val onJoinVoice: (String, String) -> Unit,
     private val onHome: (tab: Int) -> Unit,
+    private val onMiniProfile: (String) -> Unit = {},
 ) : AppNav {
     private fun go(route: String) = nav.navigate(route) { launchSingleTop = true }
     private fun enc(s: String) = Uri.encode(s)
@@ -60,7 +61,8 @@ class AppNavigator(
         }
     }
     override fun joinVoice(channelName: String, title: String) = onJoinVoice(channelName, title)
-    override fun profile(userId: String) = go("profile/${enc(userId)}")
+    override fun profile(userId: String) = onMiniProfile(userId)
+    override fun fullProfile(userId: String) = go("profile/${enc(userId)}")
     override fun editProfile() = go("profile-edit")
     override fun store(tab: String?) = go("store?tab=${enc(tab ?: "")}")
     override fun economy() = go("economy")
@@ -106,8 +108,8 @@ class AppNavigator(
             "anuncios" -> announcements()
             "clans" -> clubs()
             "tickets" -> tickets()
-            "profile" -> repo.me.value?.id?.let(::profile) ?: onHome(4)
-            "u" -> seg.getOrNull(1)?.let(::profile)
+            "profile" -> repo.me.value?.id?.let(::fullProfile) ?: onHome(4)
+            "u" -> seg.getOrNull(1)?.let(::fullProfile)
             else -> external(uri.toString())
         }
     }

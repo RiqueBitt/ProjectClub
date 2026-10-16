@@ -5,6 +5,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
@@ -38,10 +40,32 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+/** Moldura de avatar já lida do JSON salvo no usuário. */
+data class AvatarDeco(val url: String, val scale: Float, val x: Float, val y: Float)
+
+private val decoCache = java.util.concurrent.ConcurrentHashMap<String, AvatarDeco>()
+private val noDeco = AvatarDeco("", 1f, 0f, 0f)
+
+fun avatarDecorationOf(raw: String?): AvatarDeco? {
+    if (raw.isNullOrBlank()) return null
+    val d = decoCache.getOrPut(raw) {
+        runCatching {
+            val o = org.json.JSONObject(raw)
+            val url = o.optString("url")
+            if (url.isBlank()) noDeco
+            else AvatarDeco(url, o.optDouble("s", 1.2).toFloat().coerceIn(1f, 2f), o.optDouble("x", 0.0).toFloat(), o.optDouble("y", 0.0).toFloat())
+        }.getOrDefault(noDeco)
+    }
+    return d.takeIf { it.url.isNotBlank() }
+}
+
+/** Quem está online só pelo celular (vem do Repository.mobileUsers no MainActivity). */
+val LocalMobileUsers = androidx.compose.runtime.staticCompositionLocalOf<Set<String>> { emptySet() }
+
 /** Avatar redondo (com a bolinha de presença, se [status] vier). */
 @Composable
-fun Avatar(user: User?, size: Dp = 40.dp, status: String? = null, modifier: Modifier = Modifier) {
-    Box(modifier.size(size)) {
+fun Avatar(user: User?, size: Dp = 40.dp, status: String? = null, modifier: Modifier = Modifier, decoration: Boolean = true) {
+    Box(modifier.size(size), contentAlignment = Alignment.Center) {
         val url = Config.media(user?.avatarUrl)
         if (url != null) {
             AsyncImage(
@@ -60,9 +84,34 @@ fun Avatar(user: User?, size: Dp = 40.dp, status: String? = null, modifier: Modi
                 )
             }
         }
+        // Moldura da Loja (User.avatarDecoration = JSON {url, s, x, y}): por
+        // cima do avatar, maior que ele (s = escala) e deslocada (x/y em %).
+        if (decoration) avatarDecorationOf(user?.avatarDecoration)?.let { d ->
+            val decoSize = size * d.scale
+            AsyncImage(
+                model = Config.media(d.url), contentDescription = null,
+                imageLoader = com.projectclub.android.ui.store.rememberAnimatedImageLoader(),
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.requiredSize(decoSize).offset(decoSize * (d.x / 100f), decoSize * (d.y / 100f)),
+            )
+        }
         if (status != null) {
             val dot = (size.value * 0.32f).dp
-            Box(
+            val mobile = status == "ONLINE" && user?.id != null && user.id in LocalMobileUsers.current
+            if (mobile) {
+                // Online só pelo celular: um celularzinho verde no lugar da bolinha.
+                Box(
+                    Modifier.size(width = dot * 0.78f, height = dot * 1.15f).align(Alignment.BottomEnd).offset(1.dp, 1.dp)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(dot * 0.22f)).background(PC.Bg).padding(2.dp)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(dot * 0.16f)).background(PC.presence(status)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier.padding(start = dot * 0.12f, end = dot * 0.12f, top = dot * 0.14f, bottom = dot * 0.26f).fillMaxSize()
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(1.dp)).background(PC.Bg),
+                    )
+                }
+            } else Box(
                 Modifier.size(dot).align(Alignment.BottomEnd).offset(1.dp, 1.dp)
                     .clip(CircleShape).background(PC.presence(status)).border(2.dp, PC.Bg, CircleShape),
             )

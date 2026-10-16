@@ -364,6 +364,7 @@ export default function MiniProfileCard() {
                     mais consumido aqui. */}
                 <PresenceDot
                   status={presence[renderedUserId]?.status || user.status || 'OFFLINE'}
+                  userId={renderedUserId}
                   className="mini-profile-presence-dot"
                 />
               </div>

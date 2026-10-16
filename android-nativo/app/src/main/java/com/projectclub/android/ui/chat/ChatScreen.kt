@@ -10,6 +10,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
@@ -307,7 +308,9 @@ private fun MessageItem(
             .padding(start = 12.dp, end = 12.dp, top = if (header) 10.dp else 1.dp, bottom = 1.dp)
             .graphicsLayer { alpha = if (pending) 0.6f else 1f },
     ) {
-        if (header) Avatar(author, 40.dp) else Spacer(Modifier.width(40.dp))
+        val openUser = com.projectclub.android.ui.profile.LocalOpenUser.current
+        val authorId = author?.id ?: m.authorId
+        if (header) Avatar(author, 40.dp, modifier = Modifier.clip(CircleShape).clickable { authorId?.let(openUser) }) else Spacer(Modifier.width(40.dp))
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             m.replyTo?.let { r ->
@@ -321,7 +324,10 @@ private fun MessageItem(
                 }
             }
             if (header) Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(author?.name ?: "Usuário", fontWeight = FontWeight.Bold, color = nameColor(author?.profileNameColor, author?.id))
+                Text(
+                    author?.name ?: "Usuário", fontWeight = FontWeight.Bold, color = nameColor(author?.profileNameColor, author?.id),
+                    modifier = Modifier.clickable { authorId?.let(openUser) },
+                )
                 Spacer(Modifier.width(8.dp))
                 Text(formatTime(m.createdAt), color = PC.Muted, style = MaterialTheme.typography.labelSmall)
             }

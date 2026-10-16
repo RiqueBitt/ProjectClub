@@ -15,7 +15,10 @@ interface AppNav {
     fun joinVoice(channelName: String, title: String)
 
     // Telas nativas
+    /** Toque numa pessoa: abre o MINIPERFIL (folha). */
     fun profile(userId: String)
+    /** Perfil completo (tela inteira). */
+    fun fullProfile(userId: String)
     fun editProfile()
     fun store(tab: String? = null)
     fun economy()
