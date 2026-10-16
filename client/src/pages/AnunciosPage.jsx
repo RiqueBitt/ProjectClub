@@ -26,6 +26,9 @@ function Editor({ initial, onClose, onSaved }) {
   const [linkUrl, setLinkUrl] = useState(initial?.linkUrl || '');
   const [linkLabel, setLinkLabel] = useState(initial?.linkLabel || '');
   const [pinned, setPinned] = useState(!!initial?.pinned);
+  // datetime-local quer "AAAA-MM-DDTHH:MM" no horário local.
+  const toLocal = (iso) => { if (!iso) return ''; const d = new Date(iso); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
+  const [publishAt, setPublishAt] = useState(initial?.published === false ? toLocal(initial.publishAt) : '');
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(initial?.bannerUrl ? proxyImage(initial.bannerUrl) : '');
   const [removeBanner, setRemoveBanner] = useState(false);
@@ -45,6 +48,7 @@ function Editor({ initial, onClose, onSaved }) {
     const fd = new FormData();
     fd.append('title', title); fd.append('body', body); fd.append('linkUrl', linkUrl); fd.append('linkLabel', linkLabel);
     fd.append('pinned', String(pinned));
+    fd.append('publishAt', publishAt ? new Date(publishAt).toISOString() : '');
     if (removeBanner) fd.append('removeBanner', 'true');
     if (file) fd.append('banner', file);
     try {
@@ -73,10 +77,11 @@ function Editor({ initial, onClose, onSaved }) {
           <label>Texto do botão<input value={linkLabel} maxLength={60} onChange={(e) => setLinkLabel(e.target.value)} placeholder="Saiba mais" /></label>
         </div>
         <label className="an-check"><input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} /> Fixar no topo</label>
+        <label>Agendar para (opcional)<input type="datetime-local" value={publishAt} onChange={(e) => setPublishAt(e.target.value)} /></label>
         {error && <p className="an-error">{error}</p>}
         <div className="an-actions">
           <button type="button" className="an-btn ghost" onClick={onClose} disabled={saving}>Cancelar</button>
-          <button type="button" className="an-btn primary" onClick={save} disabled={saving}>{saving ? 'Publicando…' : (initial?.id ? 'Salvar' : 'Publicar')}</button>
+          <button type="button" className="an-btn primary" onClick={save} disabled={saving}>{saving ? 'Salvando…' : publishAt ? 'Agendar' : (initial?.id ? 'Salvar' : 'Publicar')}</button>
         </div>
       </div>
     </div>
@@ -134,6 +139,7 @@ export default function AnunciosPage() {
                 {a.bannerUrl && <img className="an-banner" src={proxyImage(a.bannerUrl)} alt="" loading="lazy" />}
                 <div className="an-body">
                   <div className="an-meta">
+                    {a.published === false && <span className="an-pin">Agendado · {new Date(a.publishAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>}
                     {a.pinned && <span className="an-pin"><Ico d={I.pin} size={13} /> Fixado</span>}
                     <UserAvatar user={a.author} size={22} />
                     <span className="an-author">{a.author?.displayName || 'Staff'}</span>

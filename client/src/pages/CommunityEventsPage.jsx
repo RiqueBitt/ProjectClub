@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useVoice } from '../context/VoiceContext.jsx';
 import { createEvent } from '../api/endpoints';
 import { useCommunityEvents } from '../utils/useCommunityEvents';
 import { FeaturedGlyph } from '../components/FeaturedChannels.jsx';
@@ -146,6 +147,8 @@ function relative(iso, now) {
 }
 
 function EventCard({ ev, now, highlighted, onRsvp }) {
+  const voice = useVoice();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef(null);
@@ -195,6 +198,15 @@ function EventCard({ ev, now, highlighted, onRsvp }) {
           <button type="button" className="cev-more" onClick={() => setOpen((v) => !v)}>{open ? 'Mostrar menos' : 'Ler mais'}</button>
         )}
         <EventRsvp event={ev} onChange={(rsvp) => onRsvp(ev.id, rsvp)} />
+        {ev.voiceChannel && ev.status !== 'ENDED' && (
+          <button
+            type="button" className="cev-join"
+            onClick={() => { voice?.joinChannel(null, ev.voiceChannel.id, ev.voiceChannel.name, ev.voiceChannel.type || 'VOICE'); navigate(`/channels/${ev.voiceChannel.id}`); }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" /></svg>
+            {ev.status === 'ACTIVE' ? `Entrar na call · ${ev.voiceChannel.name}` : `Call do evento: ${ev.voiceChannel.name}`}
+          </button>
+        )}
         {ev.rsvp?.mine === 'GOING' && ev.status === 'UPCOMING' && ev.startsAt && new Date(ev.startsAt).getTime() > now && (
           <div className="cxe-remind"><CalIcon d={ICON_BELL} size={14} /> Você recebe um lembrete 15 minutos antes.</div>
         )}

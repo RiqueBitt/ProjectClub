@@ -343,7 +343,8 @@ export const deleteAutoModRule = (id) => api.delete(`/community/automod/${id}`).
 
 // --- Platform admin ---
 export const adminGetStats = () => api.get('/admin/stats').then((r) => r.data);
-export const adminListAuditLog = () => api.get('/admin/audit-log').then((r) => r.data);
+export const adminListAuditLog = (params = {}) => api.get('/admin/audit-log', { params }).then((r) => r.data);
+export const adminGetMetrics = () => api.get('/admin/metrics').then((r) => r.data);
 export const adminListUsers = (q) => api.get('/admin/users', { params: q ? { q } : {} }).then((r) => r.data);
 export const adminUpdateUser = (id, payload) => api.patch(`/admin/users/${id}`, payload).then((r) => r.data);
 export const adminBanUser = (id, reason) => api.post(`/admin/users/${id}/ban`, { reason }).then((r) => r.data);

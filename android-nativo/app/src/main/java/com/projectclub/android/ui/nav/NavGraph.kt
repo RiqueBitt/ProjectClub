@@ -95,7 +95,11 @@ class AppNavigator(
         val tab = uri.getQueryParameter("tab")
         when (seg.firstOrNull()) {
             null, "inicio" -> onHome(0)
-            "channels" -> seg.getOrNull(1)?.let { room(Room(channelId = it)) } ?: onHome(1)
+            "channels" -> seg.getOrNull(1)?.let { id ->
+                // Canal de voz (ex.: aviso "Evento começou! Entrar na call"): entra na call.
+                val ch = repo.channel(id)
+                if (ch?.isVoice == true) onJoinVoice(id, ch.name) else room(Room(channelId = id))
+            } ?: onHome(1)
             "conversations" -> seg.getOrNull(1)?.let { room(Room(conversationId = it)) } ?: onHome(2)
             "dms", "amigos" -> onHome(2)
             "notifications" -> onHome(3)

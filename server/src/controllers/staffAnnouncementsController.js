@@ -20,7 +20,11 @@ async function withAuthors(rows) {
 
 async function list(req, res, next) {
   try {
-    const rows = await prisma.staffAnnouncement.findMany({ orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }], take: 60 });
+    const staff = isStaff(req.user);
+    const rows = await prisma.staffAnnouncement.findMany({
+      where: staff ? {} : { published: true },
+      orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }], take: 60,
+    });
     res.json({ announcements: await withAuthors(rows), canManage: isStaff(req.user) });
   } catch (err) { next(err); }
 }
@@ -35,6 +39,11 @@ function readBody(req) {
   if (b.pinned !== undefined) data.pinned = b.pinned === true || b.pinned === 'true';
   if (b.removeBanner === 'true' || b.removeBanner === true) data.bannerUrl = null;
   if (req.file?.url) data.bannerUrl = req.file.url;
+  if (b.publishAt !== undefined) {
+    const at = require('./announcementController').parseSchedule(b.publishAt);
+    if (at === false) data.publishAt = false;
+    else { data.publishAt = at; data.published = !at; }
+  }
   return data;
 }
 
@@ -44,6 +53,7 @@ async function create(req, res, next) {
     const data = readBody(req);
     if (!data.title) return res.status(400).json({ error: 'Escreva um título.' });
     if (!data.body) return res.status(400).json({ error: 'Escreva o texto do anúncio.' });
+    if (data.publishAt === false) return res.status(400).json({ error: 'Data de agendamento inválida (precisa ser no futuro, até 1 ano).' });
     const row = await prisma.staffAnnouncement.create({ data: { ...data, createdById: req.user.id } });
     const [item] = await withAuthors([row]);
     req.app.get('io')?.to('community').emit('announcements:update', { id: row.id });
@@ -56,6 +66,7 @@ async function update(req, res, next) {
     if (!isStaff(req.user)) return res.status(403).json({ error: 'Só a staff pode editar anúncios.' });
     const data = readBody(req);
     if (data.title === null) return res.status(400).json({ error: 'Escreva um título.' });
+    if (data.publishAt === false) return res.status(400).json({ error: 'Data de agendamento inválida (precisa ser no futuro, até 1 ano).' });
     const row = await prisma.staffAnnouncement.update({ where: { id: req.params.id }, data });
     const [item] = await withAuthors([row]);
     req.app.get('io')?.to('community').emit('announcements:update', { id: row.id });
@@ -75,4 +86,19 @@ async function remove(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { list, create, update, remove };
+// Publica os anúncios agendados quando chega a hora (a tela atualiza sozinha).
+async function publishDue(io) {
+  const due = await prisma.staffAnnouncement.findMany({ where: { published: false, publishAt: { lte: new Date() } }, select: { id: true } });
+  for (const { id } of due) {
+    await prisma.staffAnnouncement.update({ where: { id }, data: { published: true, createdAt: new Date() } }).catch(() => null);
+    io?.to('community').emit('announcements:update', { id });
+  }
+  return due.length;
+}
+function startScheduler(io) {
+  const tick = () => publishDue(io).catch((e) => console.error('[anúncios] agendados:', e?.message || e));
+  setTimeout(tick, 20 * 1000);
+  setInterval(tick, 60 * 1000).unref?.();
+}
+
+module.exports = { list, create, update, remove, publishDue, startScheduler };

@@ -549,6 +549,8 @@ model Event {
   startsAt    DateTime?
   endsAt      DateTime?
   status      String    @default("UPCOMING") // UPCOMING | ACTIVE | ENDED
+  // Canal de voz do evento: quem vai recebe "Começou! Entrar na call".
+  voiceChannelId String?
   createdById String
   createdBy   User      @relation(fields: [createdById], references: [id])
   createdAt   DateTime  @default(now())
@@ -568,6 +570,8 @@ model PlatformAnnouncement {
   createdById    String
   createdBy      User      @relation(fields: [createdById], references: [id])
   createdAt      DateTime  @default(now())
+  // Agendado: só aparece a partir desta hora (null = na hora).
+  publishAt      DateTime?
 
   dismissals AnnouncementDismissal[]
 }
@@ -2791,6 +2795,7 @@ model EventRsvp {
   userId    String
   status    String // GOING | MAYBE | NO
   // Lembrete de 15 min antes já enviado (idempotente; zera se o horário mudar).
+  startNotifiedAt DateTime?
   remindedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3317,8 +3322,12 @@ model StaffAnnouncement {
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  // Agendado: fica escondido até publishAt; o sweeper publica e avisa a tela.
+  publishAt   DateTime?
+  published   Boolean  @default(true)
 
   @@index([pinned, createdAt])
+  @@index([published, publishAt])
 }
 
 // ============================================================
@@ -3746,4 +3755,25 @@ model ErrorLog {
 
   @@index([lastSeen])
   @@index([source, lastSeen])
+}
+
+// Dias em que cada pessoa usou o app (painel de números da staff).
+model UserActiveDay {
+  userId String
+  day    String   @db.VarChar(10) // AAAA-MM-DD (horário de Brasília)
+  at     DateTime @default(now())
+
+  @@id([userId, day])
+  @@index([day])
+}
+
+// Quedas detectadas pelo monitor de status (página pública /status).
+model StatusIncident {
+  id        String    @id @default(uuid())
+  component String    @db.VarChar(32)
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  detail    String?   @db.VarChar(300)
+
+  @@index([component, startedAt])
 }

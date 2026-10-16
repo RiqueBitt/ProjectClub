@@ -52,6 +52,7 @@ async function requireAuth(req, res, next) {
     }
 
     req.user = user;
+    require('../services/activeDays').markActive(user.id);
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Token inválido ou expirado.' });

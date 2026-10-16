@@ -33,6 +33,7 @@ const OAuthReturnPage = lazy(() => import('./pages/OAuthReturnPage.jsx'));
 const LandingPage = lazy(() => import('./pages/LandingPage.jsx'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage.jsx'));
 const BlogPage = lazy(() => import('./pages/BlogPage.jsx'));
+const StatusPage = lazy(() => import('./pages/StatusPage.jsx'));
 const InterfaceEditorPage = lazy(() => import('./pages/InterfaceEditorPage.jsx'));
 
 // "Em reforma" (see adminController.setMaintenanceMode) only gates the
@@ -345,6 +346,7 @@ export default function App() {
           <Route path="/privacidade" element={<PrivacyPage />} />
           <Route path="/termos" element={<PrivacyPage />} />
           <Route path="/blog" element={<BlogPage />} />
+          <Route path="/status" element={<StatusPage />} />
           <Route
             path="/admin/interface-editor"
             element={
