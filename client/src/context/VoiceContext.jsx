@@ -598,7 +598,7 @@ export function VoiceProvider({ children }) {
   // faixas por participante, que caem na MESMA grade/AudioSink do Agora
   // (identidade = nosso userId). `isSwitch` = troca no meio de uma chamada já
   // ativa (não toca som de entrada, não zera o cronômetro, preserva o mudo).
-  const connectEngine = useCallback(async ({ serverId, channelId, channelName, channelType, provider: prov, creds, isSwitch }) => {
+  const connectEngine = useCallback(async ({ serverId, channelId, channelName, channelType, provider: prov, creds, isSwitch, quiet = false }) => {
     const okCreds = (prov === 'jitsi' && creds?.domain && creds?.room)
       || (prov === 'livekit' && creds?.url && creds?.token)
       || (prov !== 'jitsi' && prov !== 'livekit'); // pendentes: o engine falha claro no join
@@ -682,7 +682,8 @@ export function VoiceProvider({ children }) {
     } catch (err) {
       console.error(`[voz] Falha ao conectar no provedor ${prov}:`, err);
       if (jitsiEngineRef.current === engine) teardownJitsi();
-      useStore.getState().pushNotice(reportVoiceFailure(prov, err));
+      const msg = reportVoiceFailure(prov, err);
+      if (!quiet) useStore.getState().pushNotice(msg);
       return false;
     }
     if (!isSwitch && joiningChannelIdRef.current !== channelId) {
@@ -770,91 +771,94 @@ export function VoiceProvider({ children }) {
       // a cadeia escolher outro, o custo é desprezível). Item pedido original
       // ("delay pra entrar"): o download pesado do SDK continua começando cedo.
       loadAgoraRTC().catch(() => {});
-      const raw = await getVoiceJoin(channelId, CLIENT_READY_PROVIDERS).catch((err) => {
-        console.error('[voz] Falha ao consultar o provedor de voz:', err);
-        return null;
-      });
-      if (joiningChannelIdRef.current !== channelId) return;
-      const creds = raw ? readJoinResponse(raw) : null;
-      if (!creds) {
-        useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
-        return;
-      }
-
-      // ---- Provedores com engine próprio (LiveKit, Jitsi reserva, ...) ----
-      if (creds.provider !== 'agora') {
-        await connectEngine({ serverId, channelId, channelName, channelType, provider: creds.provider, creds: creds[creds.provider], isSwitch: false });
-        return;
-      }
-
-      // ---- Agora (normal) ----
-      const { token, appId } = creds.agora || {};
-      if (!token || !appId) {
-        useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
-        return;
-      }
-      setProvider('agora');
-      const client = await setupAgoraClient();
-      if (joiningChannelIdRef.current !== channelId) { client.removeAllListeners?.(); if (agoraClientRef.current === client) agoraClientRef.current = null; return; }
-
-      // Mesmo raciocínio de cima: entrar no canal (rede, Agora) e pedir
-      // acesso ao microfone (permissão do sistema/navegador) também são
-      // independentes — rodando junto em vez de um depois do outro,
-      // corta ainda mais o tempo total até a pessoa realmente estar na
-      // call.
-      let gotMic = false;
-      try {
-        [, gotMic] = await Promise.all([
-          client.join(appId, channelId, token, user.id),
-          connectMicrophone(),
-        ]);
-      } catch (err) {
-        // BUG CORRIGIDO: se o join do Agora falhava, o microfone que já
-        // tinha sido aberto ficava ligado (luz do mic acesa) e nada avisava.
-        console.error('[voz] Falha ao entrar no canal de mídia:', err);
-        localAudioTrackRef.current?.close();
-        localAudioTrackRef.current = null;
-        client.removeAllListeners?.();
-        client.leave().catch(() => {});
-        if (agoraClientRef.current === client) agoraClientRef.current = null;
-        useStore.getState().pushNotice(reportVoiceFailure('agora', err));
-        return;
-      }
-      if (joiningChannelIdRef.current !== channelId) {
-        // Desistiu no meio (clicou em outro canal): fecha o mic aberto.
-        localAudioTrackRef.current?.close();
-        localAudioTrackRef.current = null;
-        client.removeAllListeners?.();
-        await client.leave().catch(() => {});
-        return;
-      }
-
-      // Avisa o servidor e mostra a chamada assim que a mídia conectou —
-      // antes só acontecia depois de publicar o microfone, atrasando a
-      // entrada pra você e pros outros.
-      const next = { serverId, channelId, channelName, channelType };
-      setCall(next);
-      callRef.current = next;
-      setCallStartedAt(Date.now());
-      setMyRole('speaker');
-      socket?.emit('voice:join', { channelId });
-      playSound('callJoin');
-      startCallForegroundService(channelName);
-      setIncomingCall((c) => (c && c.channelId === channelId ? null : c));
-
-      if (!gotMic) {
-        useStore.getState().pushNotice('Microfone não encontrado. Você entrou no canal mudo — conecte um microfone e toque no botão de mudo para ativá-lo.');
-        setMicMissing(true);
-        setMuted(true);
-        socket?.emit('voice:state', { channelId, muted: true });
-      } else {
-        try {
-          await client.publish([localAudioTrackRef.current]);
-        } catch (err) {
-          console.error('[voz] Falha ao publicar o microfone:', err);
-          useStore.getState().pushNotice('Não foi possível enviar seu microfone. Tente silenciar e ativar de novo.');
+      // Failover automático: se o provedor escolhido não conectar (ex.: o
+      // Agora recusando com CAN_NOT_GET_GATEWAY_SERVER, servidor próprio
+      // fora), pede o PRÓXIMO da cadeia sem ele — a pessoa entra mesmo assim.
+      let ready = [...CLIENT_READY_PROVIDERS];
+      for (let attempt = 0; attempt < 4 && ready.length; attempt += 1) {
+        const last = attempt === 3 || ready.length === 1;
+        const raw = await getVoiceJoin(channelId, ready).catch((err) => {
+          console.error('[voz] Falha ao consultar o provedor de voz:', err);
+          return null;
+        });
+        if (joiningChannelIdRef.current !== channelId) return;
+        const creds = raw ? readJoinResponse(raw) : null;
+        if (!creds) {
+          useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
+          return;
         }
+
+        // ---- Provedores com engine próprio (servidor próprio, LiveKit, Jitsi...) ----
+        if (creds.provider !== 'agora') {
+          const ok = await connectEngine({ serverId, channelId, channelName, channelType, provider: creds.provider, creds: creds[creds.provider], isSwitch: false, quiet: !last });
+          if (ok || joiningChannelIdRef.current !== channelId || creds.provider === 'jitsi') return;
+          ready = ready.filter((p) => p !== creds.provider);
+          continue;
+        }
+
+        // ---- Agora ----
+        const { token, appId } = creds.agora || {};
+        if (!token || !appId) { ready = ready.filter((p) => p !== 'agora'); continue; }
+        setProvider('agora');
+        const client = await setupAgoraClient();
+        if (joiningChannelIdRef.current !== channelId) { client.removeAllListeners?.(); if (agoraClientRef.current === client) agoraClientRef.current = null; return; }
+
+        // Entrar no canal (rede) e pedir o microfone rodam juntos.
+        let gotMic = false;
+        try {
+          [, gotMic] = await Promise.all([
+            client.join(appId, channelId, token, user.id),
+            connectMicrophone(),
+          ]);
+        } catch (err) {
+          // Se o join falhar, fecha o mic aberto e tenta o próximo provedor.
+          console.error('[voz] Falha ao entrar no canal de mídia (Agora):', err);
+          localAudioTrackRef.current?.close();
+          localAudioTrackRef.current = null;
+          client.removeAllListeners?.();
+          client.leave().catch(() => {});
+          if (agoraClientRef.current === client) agoraClientRef.current = null;
+          const msg = reportVoiceFailure('agora', err);
+          if (last) { useStore.getState().pushNotice(msg); return; }
+          ready = ready.filter((p) => p !== 'agora');
+          continue;
+        }
+        if (joiningChannelIdRef.current !== channelId) {
+          // Desistiu no meio (clicou em outro canal): fecha o mic aberto.
+          localAudioTrackRef.current?.close();
+          localAudioTrackRef.current = null;
+          client.removeAllListeners?.();
+          await client.leave().catch(() => {});
+          return;
+        }
+
+        // Avisa o servidor e mostra a chamada assim que a mídia conectou.
+        const next = { serverId, channelId, channelName, channelType };
+        setCall(next);
+        callRef.current = next;
+        setCallStartedAt(Date.now());
+        setMyRole('speaker');
+        socket?.emit('voice:join', { channelId });
+        playSound('callJoin');
+        startCallForegroundService(channelName);
+        setIncomingCall((c) => (c && c.channelId === channelId ? null : c));
+
+        if (!gotMic) {
+          useStore.getState().pushNotice('Microfone não encontrado. Você entrou no canal mudo — conecte um microfone e toque no botão de mudo para ativá-lo.');
+          setMicMissing(true);
+          setMuted(true);
+          socket?.emit('voice:state', { channelId, muted: true });
+        } else {
+          try {
+            await client.publish([localAudioTrackRef.current]);
+          } catch (err) {
+            console.error('[voz] Falha ao publicar o microfone:', err);
+            useStore.getState().pushNotice('Não foi possível enviar seu microfone. Tente silenciar e ativar de novo.');
+          }
+        }
+        return;
       }
+      useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
     } finally {
       if (joiningChannelIdRef.current === channelId) joiningChannelIdRef.current = null;
       setJoiningChannelId((c) => (c === channelId ? null : c));

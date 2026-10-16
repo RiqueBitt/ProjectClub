@@ -14,6 +14,20 @@ const providers = require('./voiceProviders');
 
 const OVERRIDE_KEY = 'voice:override';
 const DISABLED_KEY = 'voice:disabled';
+// Provedor de cada sala em andamento ("todo mundo da mesma call no MESMO
+// provedor"). A "época" muda quando a equipe mexe na cadeia, invalidando
+// as escolhas antigas de uma vez.
+const EPOCH_KEY = 'voice:epoch';
+const ROOM_TTL = 6 * 3600;
+
+async function epoch() { try { return (await redis.get(EPOCH_KEY)) || '0'; } catch { return '0'; } }
+async function bumpEpoch() { try { await redis.incr(EPOCH_KEY); } catch { /* sem Redis: sem fixação */ } }
+async function getRoomProvider(room) {
+  try { return (await redis.get(`voice:roomprov:${await epoch()}:${room}`)) || null; } catch { return null; }
+}
+async function setRoomProvider(room, provider) {
+  try { await redis.set(`voice:roomprov:${await epoch()}:${room}`, provider, 'EX', ROOM_TTL); } catch { /* opcional */ }
+}
 
 async function getOverride() {
   try {
@@ -28,6 +42,7 @@ async function getOverride() {
 // provider = id válido pra forçar, ou null/'' pra voltar ao automático.
 async function setOverride(provider) {
   try {
+    await bumpEpoch();
     if (!provider) {
       await redis.del(OVERRIDE_KEY);
       return null;
@@ -65,6 +80,7 @@ async function setDisabled(provider, disabled) {
   if (provider === 'jitsi' && disabled) {
     throw new Error('O Jitsi é o fallback final e não pode ser desativado.');
   }
+  await bumpEpoch();
   try {
     if (disabled) await redis.sadd(DISABLED_KEY, provider);
     else await redis.srem(DISABLED_KEY, provider);
@@ -75,6 +91,9 @@ async function setDisabled(provider, disabled) {
 }
 
 module.exports = {
+  getRoomProvider,
+  setRoomProvider,
+  bumpEpoch,
   OVERRIDE_KEY,
   DISABLED_KEY,
   getOverride,
