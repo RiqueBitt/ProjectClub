@@ -3790,6 +3790,7 @@ model SeasonPass {
 
   @@id([userId, seasonKey])
   @@index([seasonKey, points])
+}
 
 // Chaves de acesso (passkeys / WebAuthn): entrar com digital, rosto ou PIN
 // do aparelho, sem senha. Ver controllers/passkeyController.js.
