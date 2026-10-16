@@ -6599,3 +6599,13 @@ a.embed-card-title:hover { text-decoration: underline; }
 .pk-list li div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .pk-list li .dim { font-size: 12px; }
 .auth-passkey-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; }
+
+/* Ver foto de perfil / banner em tamanho cheio (utils/viewProfileImage.js):
+   o avatar vira um botão e o banner ganha um botão invisível por cima. */
+.mini-profile-banner { position: relative; }
+.pf-image-view { cursor: zoom-in; padding: 0; margin: 0; border: 0; background: none; color: inherit; font: inherit; }
+.pf-image-view:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.pf-avatar-view { display: block; width: 100%; height: 100%; border-radius: 50%; line-height: 0; }
+.pf-avatar-view:hover { filter: brightness(.92); }
+.pf-banner-view { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; }
+.pf-banner-view:focus-visible { outline-offset: -3px; }

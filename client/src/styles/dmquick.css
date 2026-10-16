@@ -50,3 +50,10 @@
 .social-hero-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 @media (max-width: 760px) { .dmq-box { width: 100%; } .social-hero-actions { width: 100%; } }
 .dmq-input input, .dmq-input input:focus { border: 0 !important; box-shadow: none !important; outline: 0 !important; height: 100%; padding: 0 !important; background: transparent !important; }
+
+/* Conversas fixadas (Fixar conversa no menu de clique direito). */
+.dm-item-name-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.dm-item-name-row .truncate { min-width: 0; }
+.dm-pin-glyph { flex-shrink: 0; color: var(--text-muted); opacity: .85; transform: rotate(35deg); }
+.dm-item.pinned .dm-pin-glyph { color: var(--brand, var(--text-muted)); }
+.sidebar-section-label.dm-pinned-label { padding-top: 10px; letter-spacing: .02em; }

@@ -50,6 +50,8 @@ import { GameCapsule } from '../games/GameLibraryParts.jsx';
 import ProfileCards from '../../cards/ProfileCards.jsx';
 import { isFeatureEnabled } from '../../utils/features';
 import { PROFILE_BANNER_ASPECT } from '../ProfileBanner.jsx';
+import { canViewProfileImage, viewProfileImage } from '../../utils/viewProfileImage';
+import ReportDialog from './ReportDialog.jsx';
 import { updateProfile, uploadAvatar, uploadBanner, reportUserProfile } from '../../api/endpoints';
 
 // PfIcon/PfCard moveram pra profileParts.jsx (re-exportados aqui).
@@ -149,67 +151,17 @@ function PfLazySkeleton() {
   return <span className="pf-sk" style={{ height: 56, margin: '4px 0' }} aria-hidden="true" />;
 }
 
-// "Denunciar" perfil: motivo (lista fixa, mesma do servidor —
-// reportController.PROFILE_REPORT_REASONS) + detalhes opcionais (obrigatórios
-// em "Outro"). Vai pra mesma fila de denúncias da staff (Painel → Denúncias).
-const PROFILE_REPORT_REASONS = ['Spam', 'Assédio ou bullying', 'Conteúdo impróprio no perfil', 'Perfil falso / se passando por outra pessoa', 'Outro'];
-
+// "Denunciar" perfil: denúncia rápida (ReportDialog.jsx) — um clique no
+// motivo + detalhes opcionais. Vai pra mesma fila de denúncias da staff
+// (Painel → Denúncias).
 function ReportProfileDialog({ user, onClose }) {
-  const [reason, setReason] = useState('');
-  const [details, setDetails] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [done, setDone] = useState(false);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!reason || busy) return;
-    if (reason === 'Outro' && !details.trim()) { setError('Descreva o motivo da denúncia.'); return; }
-    setBusy(true); setError('');
-    try {
-      await reportUserProfile(user.id, reason, details.trim());
-      setDone(true);
-    } catch (err) {
-      setError(err?.response?.data?.error || 'Não foi possível enviar a denúncia.');
-    } finally { setBusy(false); }
-  };
-
-  return createPortal(
-    <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <form className="modal-box prompt-dialog-box" onSubmit={submit}>
-        {done ? (
-          <>
-            <p className="prompt-dialog-message">Denúncia enviada. A equipe vai analisar o perfil de @{user.username}. Obrigado por ajudar a manter a comunidade segura.</p>
-            <div className="modal-actions">
-              <button type="button" className="btn-primary" onClick={onClose} autoFocus>Fechar</button>
-            </div>
-          </>
-        ) : (
-          <>
-            <p className="prompt-dialog-message"><strong>Denunciar o perfil de {user.displayName}</strong> <span className="dim">@{user.username}</span></p>
-            <div className="report-profile-reasons" role="radiogroup" aria-label="Motivo da denúncia">
-              {PROFILE_REPORT_REASONS.map((r) => (
-                <label key={r} className="report-profile-reason">
-                  <input type="radio" name="report-reason" value={r} checked={reason === r} onChange={() => setReason(r)} />
-                  <span>{r}</span>
-                </label>
-              ))}
-            </div>
-            <textarea
-              value={details} maxLength={500} rows={3}
-              placeholder={reason === 'Outro' ? 'Conte o que aconteceu (obrigatório)' : 'Detalhes (opcional)'}
-              onChange={(e) => setDetails(e.target.value)}
-            />
-            {error && <div className="auth-error">{error}</div>}
-            <div className="modal-actions">
-              <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
-              <button type="submit" className="btn-danger" disabled={!reason || busy}>{busy ? 'Enviando…' : 'Enviar denúncia'}</button>
-            </div>
-          </>
-        )}
-      </form>
-    </div>,
-    document.body,
+  return (
+    <ReportDialog
+      title={`Denunciar o perfil de ${user.displayName}`}
+      subtitle={<>@{user.username}</>}
+      onSubmit={(category, details) => reportUserProfile(user.id, category, details)}
+      onClose={onClose}
+    />
   );
 }
 
@@ -1308,6 +1260,9 @@ export default function UserProfileModal() {
               <div className="profile-banner" style={{ background: user.bannerUrl ? undefined : 'transparent' }}>
                 {/* Enquadramento escolhido no editor de banner (ProfileBanner.jsx). */}
                 <BannerImage url={user.bannerUrl} framing={user.bannerFraming} />
+                {canViewProfileImage(user.bannerUrl) && (
+                  <button type="button" className="pf-image-view pf-banner-view" onClick={() => viewProfileImage(user.bannerUrl, `${user.username}-banner`)} aria-label="Ver banner em tamanho cheio" title="Ver banner" />
+                )}
                 {isMe && (
                   <label className="pfe-banner-edit" title="Trocar banner">
                     <PfIcon name="image" size={15} /> <span>Trocar banner</span>
@@ -1318,7 +1273,11 @@ export default function UserProfileModal() {
               <div className="profile-ig-header">
                 <div className="avatar-wrap large">
                   <div className="avatar xlarge">
-                    <UserAvatar user={user} size={112} />
+                    {!isMe && canViewProfileImage(user.avatarUrl) ? (
+                      <button type="button" className="pf-image-view pf-avatar-view" onClick={() => viewProfileImage(user.avatarUrl, `${user.username}-foto`)} aria-label="Ver foto de perfil em tamanho cheio" title="Ver foto de perfil">
+                        <UserAvatar user={user} size={112} />
+                      </button>
+                    ) : <UserAvatar user={user} size={112} />}
                   </div>
                   {isMe && (
                     <label className="pfe-avatar-edit" title="Trocar foto">
@@ -1484,6 +1443,15 @@ export default function UserProfileModal() {
                       <span className="pf-stat-text">
                         <b className="pf-stat-date">{(() => { const m = createdAt.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''); return `${m.charAt(0).toUpperCase()}${m.slice(1)} ${createdAt.getFullYear()}`; })()}</b>
                         <span>Entrou em</span>
+                      </span>
+                    </div>
+                  )}
+                  {!isMe && data.friendsSince && !Number.isNaN(new Date(data.friendsSince).getTime()) && (
+                    <div className="pf-stat" title={`Amigos desde ${new Date(data.friendsSince).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}`}>
+                      <span className="pf-stat-icon"><PfIcon name="heart" size={16} /></span>
+                      <span className="pf-stat-text">
+                        <b className="pf-stat-date">{new Date(data.friendsSince).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '')}</b>
+                        <span>Amigos desde</span>
                       </span>
                     </div>
                   )}

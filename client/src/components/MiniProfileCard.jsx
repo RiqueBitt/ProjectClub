@@ -16,6 +16,7 @@ import PresenceDot from './PresenceDot.jsx';
 import PendantIcon from './PendantIcon.jsx';
 import { nameStyleProps, nameStyleClassName } from '../utils/nameStyle';
 import BannerImage from './ProfileBanner.jsx';
+import { canViewProfileImage, viewProfileImage } from '../utils/viewProfileImage';
 import ProfileEffectOverlay from './ProfileEffectOverlay.jsx';
 import { profileStyleClass } from '../utils/profileStyle';
 import { cssZoom } from '../utils/cssZoom';
@@ -46,6 +47,8 @@ export default function MiniProfileCard() {
   const [user, setUser] = useState(null);
   const [badges, setBadges] = useState([]);
   const [mutualFriends, setMutualFriends] = useState([]);
+  // "Amigos desde ..." — o servidor só manda quando quem vê é amigo.
+  const [friendsSince, setFriendsSince] = useState(null);
   const cardRef = useRef(null);
   // Posição só fica pronta depois de medir a altura real do card (abaixo),
   // então começa escondido pra não "piscar" no canto errado antes de flipar.
@@ -96,10 +99,10 @@ export default function MiniProfileCard() {
     // sumir. Só limpa (e refaz a busca) quando um usuário NOVO é
     // aberto de verdade.
     if (!userId) return;
-    setUser(null); setBadges([]); setMutualFriends([]);
+    setUser(null); setBadges([]); setMutualFriends([]); setFriendsSince(null);
     getUserProfile(userId)
       .then((d) => {
-        setUser(d.user); setBadges(d.badges || []); setMutualFriends(d.mutualFriends || []);
+        setUser(d.user); setBadges(d.badges || []); setMutualFriends(d.mutualFriends || []); setFriendsSince(d.friendsSince || null);
         // Item pedido: "ActivityBadge igual tem no perfil" — mesmo
         // ajuste que já existia em UserProfileModal.jsx: sem isso, o
         // badge fica vazio até chegar algum aviso ao vivo pelo socket,
@@ -307,6 +310,7 @@ export default function MiniProfileCard() {
     if (!ctx.ok() || !d?.user) return;
     const keep = (setter, v) => setter((prev) => (sameData(prev, v) ? prev : v));
     keep(setUser, d.user); keep(setBadges, d.badges || []); keep(setMutualFriends, d.mutualFriends || []);
+    setFriendsSince(d.friendsSince || null);
     if (d.activity) useStore.getState().setActivity(userId, d.activity);
   }, { enabled: !!userId, key: userId, interval: 30000, realtimeInterval: 60000 });
 
@@ -348,6 +352,9 @@ export default function MiniProfileCard() {
               url={user.miniProfileBannerUrl || user.bannerUrl}
               framing={user.miniProfileBannerUrl ? user.miniProfileBannerFraming : user.bannerFraming}
             />
+            {canViewProfileImage(user.miniProfileBannerUrl || user.bannerUrl) && (
+              <button type="button" className="pf-image-view pf-banner-view" onClick={() => viewProfileImage(user.miniProfileBannerUrl || user.bannerUrl, `${user.username}-banner`)} aria-label="Ver banner em tamanho cheio" title="Ver banner" />
+            )}
           </div>
           <div className="mini-profile-body">
             <div className="mini-profile-avatar-row">
@@ -357,7 +364,13 @@ export default function MiniProfileCard() {
                     acima estilo discord pegando a foto na metade do
                     banner" — 64 → 84 (ver mini-profile-improvements.css
                     pro tamanho do wrap/recuo pra cima em si). */}
-                <div className="mini-profile-avatar"><UserAvatar user={user} size={84} /></div>
+                <div className="mini-profile-avatar">
+                  {canViewProfileImage(user.avatarUrl) ? (
+                    <button type="button" className="pf-image-view pf-avatar-view" onClick={() => viewProfileImage(user.avatarUrl, `${user.username}-foto`)} aria-label="Ver foto de perfil em tamanho cheio" title="Ver foto de perfil">
+                      <UserAvatar user={user} size={84} />
+                    </button>
+                  ) : <UserAvatar user={user} size={84} />}
+                </div>
                 {/* (Removido) A cor personalizada da bolha de status não é
                     mais aplicada: a bolinha mostra só a cor real da
                     presença e a borda acompanha o fundo do card, como
@@ -443,6 +456,12 @@ export default function MiniProfileCard() {
                     amigo em comum aleatório") — antes usava 🤝 fixo. */}
                 <UserAvatar user={randomMutualFriend} size={16} className="mini-profile-mutual-avatar" />
                 {' '}{mutualFriends.length} amigo{mutualFriends.length > 1 ? 's' : ''} em comum
+              </div>
+            )}
+
+            {friendsSince && !Number.isNaN(new Date(friendsSince).getTime()) && (
+              <div className="mini-profile-mutual-row dim mini-profile-friends-since">
+                Amigos desde {new Date(friendsSince).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
               </div>
             )}
 

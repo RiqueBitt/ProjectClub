@@ -79,6 +79,7 @@ async function listConversations(req, res, next) {
         lastMessage: last ? { ...last, attachmentCount: last._count?.attachments || 0, _count: undefined } : null,
         lastReadAt: m.lastReadAt,
         inbox: m.inbox || 'main',
+        pinnedAt: m.pinnedAt || null,
         otherReadAt: other && !off.has(me) && !off.has(other.userId) ? other.lastReadAt : null,
       };
     });
@@ -266,6 +267,42 @@ async function markRead(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// "Fixar conversa" (igual às DMs fixadas do Discord/WhatsApp): cada pessoa
+// fixa até MAX_PINNED conversas no topo da própria lista. Guardado na linha
+// de ConversationMember dela (pinnedAt), então sincroniza entre aparelhos —
+// os outros sockets da mesma conta recebem 'conversation:pin'.
+const MAX_PINNED_CONVERSATIONS = 10;
+
+// PATCH /conversations/:id/pin { pinned: boolean }
+async function setPinned(req, res, next) {
+  try {
+    const { id } = req.params;
+    if (typeof req.body?.pinned !== 'boolean') return res.status(400).json({ error: 'Informe se a conversa deve ficar fixada.' });
+    const pinned = req.body.pinned;
+    const membership = await prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId: id, userId: req.user.id } },
+      select: { id: true, pinnedAt: true },
+    });
+    if (!membership) return res.status(404).json({ error: 'Conversa não encontrada.' });
+
+    let pinnedAt = membership.pinnedAt;
+    if (pinned && !pinnedAt) {
+      const count = await prisma.conversationMember.count({ where: { userId: req.user.id, pinnedAt: { not: null } } });
+      if (count >= MAX_PINNED_CONVERSATIONS) {
+        return res.status(400).json({ error: `Você pode fixar no máximo ${MAX_PINNED_CONVERSATIONS} conversas.` });
+      }
+      pinnedAt = new Date();
+    } else if (!pinned) {
+      pinnedAt = null;
+    }
+    if (pinnedAt !== membership.pinnedAt) {
+      await prisma.conversationMember.update({ where: { id: membership.id }, data: { pinnedAt } });
+    }
+    req.app.get('io')?.notifyUser?.(req.user.id, 'conversation:pin', { conversationId: id, pinnedAt });
+    res.json({ conversationId: id, pinnedAt });
+  } catch (err) { next(err); }
+}
+
 // PATCH /conversations/:id — rename a group DM. Only groups have a name at
 // all (a 1:1 DM's "name" is always just the other person, computed
 // client-side), and only an actual member gets to rename it.
@@ -415,5 +452,5 @@ async function ensureDirectConversation(userIdA, userIdB) {
 
 module.exports = {
   listConversations, createConversation, addMember, markRead, ensureDirectConversation,
-  updateConversation, uploadIcon, leaveConversation, removeMember,
+  updateConversation, uploadIcon, leaveConversation, removeMember, setPinned, MAX_PINNED_CONVERSATIONS,
 };

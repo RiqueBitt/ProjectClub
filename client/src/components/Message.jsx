@@ -25,6 +25,7 @@ import PendantIcon from './PendantIcon.jsx';
 import ClanTagBadge from './ClanTagBadge.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import ReactionChip from './ReactionChip.jsx';
+import ReportDialog from './modals/ReportDialog.jsx';
 import pinIcon from '../assets/icons/pin.png';
 import micIcon from '../assets/icons/mic.png';
 import documentIcon from '../assets/icons/document.png';
@@ -232,19 +233,10 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
   };
 
   // Item pedido: "Formulário e aprovação manual" — denúncia manual de uma
-  // mensagem, direto do menu de ações dela. Motivo em prompt() simples,
-  // mesmo padrão já usado aqui pra "Advertir autor"/"Silenciar autor" —
-  // sem modal novo pra manter consistência com o resto do menu.
-  const reportThisMessage = async () => {
-    const reason = prompt('Por que você está denunciando esta mensagem?');
-    if (!reason || !reason.trim()) return;
-    try {
-      const result = await reportMessage(message.id, reason.trim());
-      useStore.getState().pushNotice(result.alreadyReported ? 'Você já denunciou esta mensagem — nossa equipe ainda vai revisar.' : 'Denúncia enviada. Nossa equipe vai revisar.');
-    } catch (err) {
-      useStore.getState().pushNotice(err.response?.data?.error || 'Não foi possível enviar a denúncia.');
-    }
-  };
+  // mensagem, direto do menu de ações dela. Agora é a denúncia rápida
+  // (ReportDialog.jsx): um clique no motivo + detalhes opcionais.
+  const [reportOpen, setReportOpen] = useState(false);
+  const reportThisMessage = () => setReportOpen(true);
 
   // Topics/threads reuse the same replyTo + title mechanism forum posts use
   // (see ForumChannelView.jsx) — a "topic" is just a titled reply to this
@@ -552,6 +544,19 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
         {/* Prévia de link externo (Open Graph) — no máximo 1 por mensagem. */}
         {!editing && !message.contentFiltered && !message.embed && !isPending && <LinkPreview content={message.content} />}
         {forwardOpen && <ForwardMessageModal message={message} myUserId={user.id} onClose={() => setForwardOpen(false)} />}
+        {reportOpen && (
+          <ReportDialog
+            title="Denunciar mensagem"
+            subtitle={(
+              <>
+                De <b>{message.author?.displayName || message.author?.username || 'alguém'}</b>
+                {(message.content || '').trim() && <span className="report-dlg-snippet">{message.content.length > 220 ? `${message.content.slice(0, 220)}…` : message.content}</span>}
+              </>
+            )}
+            onSubmit={(category, details) => reportMessage(message.id, category, details)}
+            onClose={() => setReportOpen(false)}
+          />
+        )}
         {reminderOpen && (
           <ReminderModal
             message={message}

@@ -63,6 +63,7 @@ router.post('/roles', roleCtrl.createRole);
 router.patch('/roles/:id', roleCtrl.updateRole);
 router.delete('/roles/:id', roleCtrl.deleteRole);
 router.post('/roles/reorder', roleCtrl.reorderRoles);
+router.post('/roles/:id/duplicate', roleCtrl.duplicateRole);
 router.post('/roles/:id/icon', uploadImage.single('icon'), roleCtrl.uploadIcon);
 router.post('/members/:userId/roles/:roleId', roleCtrl.assignRole);
 router.delete('/members/:userId/roles/:roleId', roleCtrl.unassignRole);

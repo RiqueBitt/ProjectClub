@@ -7,6 +7,7 @@ import PresenceDot from './PresenceDot.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import ConversationIcon from './ConversationIcon.jsx';
 import NewDMModal from './modals/NewDMModal.jsx';
+import { sortConversations } from '../utils/dmPins';
 import '../styles/dmquick.css';
 
 // Atalhos de DM: barra de conversas recentes (troca de DM com um clique),
@@ -21,7 +22,8 @@ export function convName(c, meId) {
 
 export function useSortedConversations() {
   const conversations = useStore((s) => s.conversations);
-  return useMemo(() => [...conversations].sort((a, b) => new Date(b.lastMessage?.createdAt || b.updatedAt || 0) - new Date(a.lastMessage?.createdAt || a.updatedAt || 0)), [conversations]);
+  // Fixadas primeiro (ver utils/dmPins.js), depois pela mais recente.
+  return useMemo(() => sortConversations(conversations), [conversations]);
 }
 
 export function useOpenDM() {

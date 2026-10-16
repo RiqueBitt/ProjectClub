@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { applyRemotePin } from '../utils/dmPins';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
@@ -293,6 +294,8 @@ export function SocketProvider({ children }) {
       }
       pendingInbox.set(conversationId, inbox);
     });
+    // Conversa fixada/desafixada pela mesma conta em outro aparelho.
+    socket.on('conversation:pin', applyRemotePin);
     // BUG CORRIGIDO: sem isso, o status de cada pessoa só chegava via
     // eventos incrementais (presence:update) — se um evento se perdesse
     // no caminho (reconexão, instabilidade), o status errado dela ficava

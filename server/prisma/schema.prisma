@@ -865,6 +865,10 @@ model Friendship {
   status       String   @default("PENDING")
   // Recado opcional junto com o pedido de amizade.
   message      String?  @db.VarChar(200)
+  // Quando o pedido foi aceito ("Amigos desde ..." no perfil). Amizades
+  // antigas ficam null — nesse caso vale updatedAt (a última mudança de
+  // status, que pra uma amizade aceita é o próprio aceite).
+  acceptedAt   DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -1094,6 +1098,10 @@ model ConversationMember {
   // (escondida). Ver services/dmInbox.js.
   inbox          String       @default("main") @db.VarChar(12)
   inboxAcceptedAt DateTime?
+  // "Fixar conversa": quando ESTA pessoa fixou a conversa no topo da
+  // lista de DMs (null = não fixada). Fica na conta, então vale em todo
+  // aparelho. Máximo de 10 fixadas por pessoa (ver conversationController).
+  pinnedAt       DateTime?
 
   @@unique([conversationId, userId])
 }
@@ -1389,6 +1397,10 @@ model Report {
   conversationId String?
   conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   channelId      String?
+  // Categoria escolhida nos botões rápidos da denúncia (spam, harassment,
+  // nsfw, scam, impersonation, other — ver REPORT_CATEGORIES em
+  // reportController.js). null em denúncias antigas.
+  category       String?   @db.VarChar(24)
   reason         String    @db.Text
   // Mesmo espírito do "snippet" de AutomodFlag — conteúdo da mensagem no
   // momento da denúncia, preservado aqui pra staff sempre ter o que foi

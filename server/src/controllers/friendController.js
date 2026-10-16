@@ -83,7 +83,8 @@ async function respondRequest(req, res, next) {
       where: { id },
       data: status === 'BLOCKED'
         ? { status, requesterId: req.user.id, addresseeId: friendship.requesterId }
-        : { status },
+        // acceptedAt alimenta o "Amigos desde ..." do perfil.
+        : { status, ...(status === 'ACCEPTED' ? { acceptedAt: new Date() } : {}) },
     });
     const io = req.app.get('io');
     io?.notifyUser?.(friendship.requesterId, 'friend:update', { friendship: updated });

@@ -115,7 +115,9 @@ export const blockUser = (username) => api.post('/friends/block', { username }).
 export const listBlockedUsers = () => api.get('/friends/blocked').then((r) => r.data);
 export const unblockUser = (userId) => api.delete(`/friends/block/${userId}`).then((r) => r.data);
 // Denúncia de perfil (botão "Denunciar" do modal de perfil).
-export const reportUserProfile = (userId, reason, details) => api.post(`/users/${userId}/report`, { reason, details }).then((r) => r.data);
+// Denúncia rápida: category é uma das chaves de REPORT_CATEGORIES (ver
+// components/modals/ReportDialog.jsx / server reportController.js).
+export const reportUserProfile = (userId, category, details) => api.post(`/users/${userId}/report`, { category, details }).then((r) => r.data);
 
 // --- Conversations / DMs ---
 export const listConversations = () => api.get('/conversations').then((r) => r.data);
@@ -319,6 +321,7 @@ export const listRoles = () => api.get('/community/roles').then((r) => r.data);
 export const createRole = (payload) => api.post('/community/roles', payload).then((r) => r.data);
 export const updateRole = (id, payload) => api.patch(`/community/roles/${id}`, payload).then((r) => r.data);
 export const deleteRole = (id) => api.delete(`/community/roles/${id}`).then((r) => r.data);
+export const duplicateRole = (id) => api.post(`/community/roles/${id}/duplicate`).then((r) => r.data);
 export const reorderRoles = (order) => api.post('/community/roles/reorder', { order }).then((r) => r.data);
 export const uploadRoleIcon = (id, file) => {
   const fd = new FormData(); fd.append('icon', file);
@@ -416,7 +419,7 @@ export const resetUiLayout = (device) => api.delete(`/ui-layout/${device}`).then
 export const adminListAutomodFlags = (status) => api.get('/admin/automod-flags', { params: status ? { status } : {} }).then((r) => r.data);
 export const adminGetFlaggedConversation = (id) => api.get(`/admin/automod-flags/${id}/conversation`).then((r) => r.data);
 export const adminResolveAutomodFlag = (id, status) => api.post(`/admin/automod-flags/${id}/resolve`, { status }).then((r) => r.data);
-export const reportMessage = (messageId, reason) => api.post('/messages/report', { messageId, reason }).then((r) => r.data);
+export const reportMessage = (messageId, category, details) => api.post('/messages/report', { messageId, category, details }).then((r) => r.data);
 export const adminListReports = (status) => api.get('/admin/reports', { params: status ? { status } : {} }).then((r) => r.data);
 export const adminGetReportedContext = (id) => api.get(`/admin/reports/${id}/context`).then((r) => r.data);
 export const adminResolveReport = (id, status) => api.post(`/admin/reports/${id}/resolve`, { status }).then((r) => r.data);
@@ -764,3 +767,4 @@ export const toggleWishlistItem = (kind, id, on) => api.post('/users/me/wishlist
 export const saveUserNote = (userId, text) => api.put(`/users/${userId}/note`, { text }).then((r) => r.data);
 export const deactivateAccount = (password) => api.post('/auth/deactivate', { password }).then((r) => r.data);
 export const setConversationInbox = (id, action) => api.patch(`/conversations/${id}/inbox`, { action }).then((r) => r.data);
+export const setConversationPinned = (id, pinned) => api.patch(`/conversations/${id}/pin`, { pinned }).then((r) => r.data);
