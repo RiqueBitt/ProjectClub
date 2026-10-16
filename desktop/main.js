@@ -47,7 +47,14 @@ const browserEngine = lazy('./browserEngine');
 
 // URL do site hospedado — trocar aqui se o domínio mudar um dia. Fica só
 // nesse único lugar de propósito.
-const APP_URL = process.env.PROJECT_CLUB_URL || 'https://projectclub.shardweb.app';
+// Endereço do site: Shard Cloud. A Square Cloud foi desativada — se alguma
+// configuração antiga ainda apontar pra ela, ignora e usa a Shard Cloud.
+const DEFAULT_APP_URL = 'https://projectclub.shardweb.app';
+const APP_URL = (() => {
+  const env = String(process.env.PROJECT_CLUB_URL || '').trim();
+  if (!env || /squareweb\.app|squarecloud/i.test(env)) return DEFAULT_APP_URL;
+  return env;
+})();
 security.configure({ appUrl: APP_URL });
 const { isAppUrl } = security;
 // Sem conexão: tela própria e separada do Project Club ("Project Club ·

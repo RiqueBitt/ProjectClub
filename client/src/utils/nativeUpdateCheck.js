@@ -21,7 +21,6 @@ import { isNewer } from './versionCompare';
 // WINDOWS/LINUX: electron-updater (desktop/main.js) já atualiza sozinho;
 // aqui é só um aviso de reforço.
 
-const RELEASES_URL = 'https://api.github.com/repos/RiqueBitt/ProjectClub/releases/latest';
 const APK_DOWNLOAD_URL = 'https://github.com/RiqueBitt/ProjectClub/releases/latest/download/ProjectClub.apk';
 const DOWNLOAD_PAGE_URL = 'https://projectclub.shardweb.app/#download';
 const LAST_SEEN_KEY = 'pc_last_seen_native_version';
@@ -208,30 +207,26 @@ export async function checkForNativeUpdate() {
       return;
     }
 
-    // Desktop (Electron): só um aviso de reforço — quem atualiza é o
-    // electron-updater. Primeiro pelo servidor (cópia das releases), GitHub
-    // como plano B.
-    let rel = null;
+    // Desktop (Electron): quem atualiza é o electron-updater (botão verde da
+    // barra). A versão que vale é a do latest.yml (/system/desktop-latest),
+    // NÃO a tag da release: deploy só do site gera tag nova mas reaproveita o
+    // mesmo instalador — comparar com a tag fazia o aviso aparecer sempre.
+    let latest = null;
     try {
-      const r = await fetch('/api/app-catalog/releases/ProjectClub', { cache: 'no-store' });
-      if (r.ok) {
-        const list = await r.json();
-        rel = (Array.isArray(list) ? list : []).find((x) => !x.prerelease && /^v?\d+\.\d+\.\d+$/.test(x.tag_name || '')) || null;
+      const r = await fetch('/api/system/desktop-latest', { cache: 'no-store' });
+      if (r.ok) latest = (await r.json())?.version || null;
+    } catch { /* sem rede: tenta na próxima abertura */ }
+    const key = 'pc_desktop_update_notice';
+    if (latest && isNewer(latest, localVersion)) {
+      // Avisa UMA vez por versão (antes repetia a cada abertura/recarga).
+      let seen = null;
+      try { seen = localStorage.getItem(key); } catch { /* sem storage */ }
+      if (seen !== latest) {
+        useStore.getState().pushNotice(`🔄 A versão ${latest} do app está disponível. Use o botão verde de atualizar no topo.`);
+        try { localStorage.setItem(key, latest); } catch { /* sem storage */ }
       }
-    } catch { /* segue para o GitHub */ }
-    if (!rel) {
-      const res = await fetch(RELEASES_URL, { cache: 'no-store' });
-      if (!res.ok) return;
-      rel = await res.json();
     }
-    const version = rel?.tag_name;
-    if (!version) return;
-    if (isNewer(version, localVersion)) {
-      useStore.getState().pushNotice(
-        `🔄 Uma nova versão do app está disponível (${version}). Ela é baixada automaticamente em segundo plano.`,
-      );
-    }
-    announceNativeVersionChange(localVersion, (rel?.body || '').trim());
+    announceNativeVersionChange(localVersion, '');
   } catch {
     // Nunca trava nem incomoda o resto do app (sem internet, GitHub fora etc).
   }

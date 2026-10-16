@@ -39,6 +39,9 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
       changelog_b64: ${{ steps.v.outputs.changelog_b64 }}
+      last_tag: ${{ steps.v.outputs.last_tag }}
+      desktop_changed: ${{ steps.v.outputs.desktop_changed }}
+      apps_changed: ${{ steps.v.outputs.apps_changed }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -93,6 +96,20 @@ jobs:
           CHANGELOG=$(echo "$COMMITS" | grep -v "^Merge " | sed 's/^/- /')
           if [ -z "$CHANGELOG" ]; then CHANGELOG="- Ajustes internos."; fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # App de PC/Linux só ganha versão nova quando o código DELE muda
+          # (desktop/). Ele só abre o site hospedado: mudança no site não
+          # precisa de instalador novo. Sem isso, cada deploy virava uma
+          # "atualização" e o botão Atualizar ficava em loop.
+          DESKTOP_CHANGED=true
+          if [ "$LAST_TAG" != "v0.0.0" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ] && git diff --quiet "$LAST_TAG" HEAD -- desktop/; then DESKTOP_CHANGED=false; fi
+          echo "Desktop mudou desde $LAST_TAG? $DESKTOP_CHANGED"
+          echo "last_tag=$LAST_TAG" >> "$GITHUB_OUTPUT"
+          echo "desktop_changed=$DESKTOP_CHANGED" >> "$GITHUB_OUTPUT"
+          # Post "Nova versão disponível" no site só quando algum APP mudou de
+          # verdade (PC/Linux ou Android nativo) — não a cada deploy do site.
+          APPS_CHANGED=$DESKTOP_CHANGED
+          if [ "$APPS_CHANGED" = "false" ] && ! git diff --quiet "$LAST_TAG" HEAD -- android-nativo/ client/android/; then APPS_CHANGED=true; fi
+          echo "apps_changed=$APPS_CHANGED" >> "$GITHUB_OUTPUT"
           echo "changelog_b64=$(echo "$CHANGELOG" | base64 -w 0)" >> "$GITHUB_OUTPUT"
 
   build-windows:
@@ -105,15 +122,45 @@ jobs:
         working-directory: desktop
     steps:
       - uses: actions/checkout@v4
+      # Desktop sem mudança: reaproveita o instalador da versão anterior
+      # (mesmo arquivo, mesmo latest.yml com a versão antiga) em vez de
+      # gerar outro — os apps instalados não veem "atualização" à toa.
+      - name: Reaproveitar o app da versão anterior (desktop sem mudança)
+        id: reuse
+        if: needs.compute-version.outputs.desktop_changed == 'false'
+        shell: bash
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          PREV="${{ needs.compute-version.outputs.last_tag }}"
+          VERSION="${{ needs.compute-version.outputs.version }}"
+          REPO="${{ github.repository }}"
+          mkdir -p "$RUNNER_TEMP/prev"
+          if ! gh release download "$PREV" --repo "$REPO" --dir "$RUNNER_TEMP/prev" -p 'ProjectClub-Setup-Windows.exe' -p 'ProjectClub-Setup-Windows.exe.blockmap' -p 'latest.yml' --clobber; then
+            echo "Versão anterior sem os arquivos; vai gerar de novo."; exit 0
+          fi
+          for f in ProjectClub-Setup-Windows.exe ProjectClub-Setup-Windows.exe.blockmap latest.yml; do [ -f "$RUNNER_TEMP/prev/$f" ] || { echo "Falta $f na $PREV; vai gerar de novo."; exit 0; }; done
+          gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
+            gh release create "$VERSION" --repo "$REPO" --title "$VERSION" --notes "Gerado automaticamente pelo GitHub Actions." --latest || true
+          for f in ProjectClub-Setup-Windows.exe ProjectClub-Setup-Windows.exe.blockmap latest.yml; do
+            for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/prev/$f" --repo "$REPO" --clobber && break || sleep 10; done
+          done
+          echo "ok=true" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
+        if: steps.reuse.outputs.ok != 'true'
         with:
           node-version: 22
       - name: Instalar dependências
+        if: steps.reuse.outputs.ok != 'true'
         run: npm install
       - name: Gravar a versão no app
+        if: steps.reuse.outputs.ok != 'true'
         shell: bash
         run: npm version "${{ needs.compute-version.outputs.version }}" --no-git-tag-version --allow-same-version
       - name: Gerar o instalador .exe
+        if: steps.reuse.outputs.ok != 'true'
         run: npm run build:win
       # Item pedido: sistema de atualização automática (electron-updater,
       # mesma biblioteca usada pelo GoldApple Launcher — confirmei pelo
@@ -131,6 +178,7 @@ jobs:
       # apontar pro nome fixo certo (o hash sha512 continua o mesmo —
       # é do CONTEÚDO do arquivo, não do nome dele).
       - name: Corrigir latest.yml pro nome fixo do instalador
+        if: steps.reuse.outputs.ok != 'true'
         shell: bash
         run: |
           set -e
@@ -172,6 +220,7 @@ jobs:
       # site. Agora o arquivo é copiado/renomeado de verdade ANTES de
       # subir, então o nome publicado é exatamente o que o site espera.
       - name: Publicar na Release "latest"
+        if: steps.reuse.outputs.ok != 'true'
         shell: bash
         env:
           OWN_TOKEN: ${{ github.token }}
@@ -219,14 +268,44 @@ jobs:
         working-directory: desktop
     steps:
       - uses: actions/checkout@v4
+      # Desktop sem mudança: reaproveita o instalador da versão anterior
+      # (mesmo arquivo, mesmo latest.yml com a versão antiga) em vez de
+      # gerar outro — os apps instalados não veem "atualização" à toa.
+      - name: Reaproveitar o app da versão anterior (desktop sem mudança)
+        id: reuse
+        if: needs.compute-version.outputs.desktop_changed == 'false'
+        shell: bash
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          PREV="${{ needs.compute-version.outputs.last_tag }}"
+          VERSION="${{ needs.compute-version.outputs.version }}"
+          REPO="${{ github.repository }}"
+          mkdir -p "$RUNNER_TEMP/prev"
+          if ! gh release download "$PREV" --repo "$REPO" --dir "$RUNNER_TEMP/prev" -p 'ProjectClub-Linux.AppImage' -p 'latest-linux.yml' --clobber; then
+            echo "Versão anterior sem os arquivos; vai gerar de novo."; exit 0
+          fi
+          for f in ProjectClub-Linux.AppImage latest-linux.yml; do [ -f "$RUNNER_TEMP/prev/$f" ] || { echo "Falta $f na $PREV; vai gerar de novo."; exit 0; }; done
+          gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
+            gh release create "$VERSION" --repo "$REPO" --title "$VERSION" --notes "Gerado automaticamente pelo GitHub Actions." --latest || true
+          for f in ProjectClub-Linux.AppImage latest-linux.yml; do
+            for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/prev/$f" --repo "$REPO" --clobber && break || sleep 10; done
+          done
+          echo "ok=true" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
+        if: steps.reuse.outputs.ok != 'true'
         with:
           node-version: 22
       - name: Instalar dependências
+        if: steps.reuse.outputs.ok != 'true'
         run: npm install
       - name: Gravar a versão no app
+        if: steps.reuse.outputs.ok != 'true'
         run: npm version "${{ needs.compute-version.outputs.version }}" --no-git-tag-version --allow-same-version
       - name: Gerar o AppImage
+        if: steps.reuse.outputs.ok != 'true'
         run: npm run build:linux
       # Mesmo raciocínio da correção feita no job do Windows: o
       # electron-builder gera o latest-linux.yml apontando pro nome
@@ -236,6 +315,7 @@ jobs:
       # electron-updater instalado nos apps das pessoas tentaria baixar
       # um arquivo com o nome errado.
       - name: Corrigir latest-linux.yml pro nome fixo do AppImage
+        if: steps.reuse.outputs.ok != 'true'
         run: |
           set -e
           pip install pyyaml --quiet
@@ -255,6 +335,7 @@ jobs:
           print('AppImage original era:', appimage_name)
           "
       - name: Publicar na Release "latest"
+        if: steps.reuse.outputs.ok != 'true'
         env:
           OWN_TOKEN: ${{ github.token }}
         run: |
@@ -464,6 +545,7 @@ jobs:
             --notes-file /tmp/changelog.txt || true
 
       - name: Avisar o site (Atualizações + verificação de versão nova)
+        if: needs.compute-version.outputs.apps_changed == 'true'
         env:
           CI_UPDATE_SECRET: ${{ secrets.CI_UPDATE_SECRET }}
         run: |

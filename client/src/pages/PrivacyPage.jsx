@@ -195,7 +195,7 @@ const SECTIONS = [
       <>
         <p className="wk-lead">Alguns serviços externos fazem parte do funcionamento. Cada um recebe só o necessário para a sua parte.</p>
         <Facts items={[
-          ['Square Cloud', 'Hospeda o site e o servidor do Project Club.'],
+          ['Shard Cloud', 'Hospeda o site e o servidor do Project Club.'],
           ['Backblaze B2', 'Guarda os arquivos enviados (fotos, banners, anexos). As imagens passam pelo nosso servidor antes de chegar a você, então o B2 não vê o seu IP.'],
           ['Agora', 'Transmite voz e tela das chamadas em tempo real. Nada é gravado.'],
           ['Firebase Cloud Messaging (Google)', 'Entrega as notificações do app de Android.'],

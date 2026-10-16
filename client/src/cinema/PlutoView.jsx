@@ -93,7 +93,7 @@ export default function PlutoView({ q, onOpen, mainRef, clearSearch }) {
         {isStaff && (
           <p className="pluto-off-staff">
             <strong>Staff:</strong> a lista do que está na Pluto TV vem do TMDB (dados do JustWatch). Crie uma chave grátis em{' '}
-            <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">themoviedb.org</a> e coloque em <code>TMDB_API_KEY</code> no Square Cloud.
+            <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">themoviedb.org</a> e coloque em <code>TMDB_API_KEY</code> na Shard Cloud.
           </p>
         )}
       </div>
