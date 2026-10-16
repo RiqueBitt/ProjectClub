@@ -1,4 +1,5 @@
 import { AppearanceExtras, AccessibilityMore, NotificationExtras, VoiceExtras, PrivacyExtras } from '../settings/ExtraSettings.jsx';
+import PasskeysBlock from '../settings/PasskeysBlock.jsx';
 import { setExtra, getExtra } from '../../utils/extraPrefs';
 import { useLiveRefresh } from '../../utils/liveRefresh';
 import ProfileShopItems from '../shop/ProfileShopItems.jsx';
@@ -137,7 +138,7 @@ const TAB_KEYWORDS = {
   PROFILE_CONTENT: 'conteudo enquete enquetes album fotos conquistas destaque',
   COLUMNS: 'colunas secoes ordem organizar perfil',
   ACCOUNT: 'conta email e-mail nome de usuario username desativar excluir apagar',
-  SECURITY: 'seguranca senha trocar senha 2fa dois fatores autenticacao sessoes dispositivos pedidos de amizade amigos',
+  SECURITY: 'seguranca senha chave de acesso passkey digital trocar senha 2fa dois fatores autenticacao sessoes dispositivos pedidos de amizade amigos',
   ACCOUNT_STATUS: 'status da conta punicoes avisos advertencias banimento',
   PRIVACY: 'privacidade dados mensagens dm direta filtro conteudo jogos quem pode ver atividade jogando ouvindo spotify',
   NOTIFICATIONS: 'notificacoes avisos sons som email alertas',
@@ -1712,6 +1713,8 @@ export default function UserSettingsModal({ onClose }) {
           />
 
           <TwoFactorBlock user={user} setUser={setUser} />
+
+          <PasskeysBlock />
 
           <ConnectedAccountsBlock />
 

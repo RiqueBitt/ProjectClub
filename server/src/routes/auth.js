@@ -73,6 +73,14 @@ router.delete('/oauth/accounts/:provider', requireAuth, authLimiter, oauthCtrl.u
 router.get('/oauth/:provider/start', oauthLimiter, oauthCtrl.start);
 router.post('/oauth/:provider/link', requireAuth, oauthLimiter, oauthCtrl.link);
 router.get('/oauth/:provider/callback', oauthLimiter, oauthCtrl.callback);
+// Chaves de acesso (passkeys) — ver controllers/passkeyController.js.
+const passkeyCtrl = require('../controllers/passkeyController');
+router.get('/passkeys', requireAuth, passkeyCtrl.list);
+router.post('/passkeys/register/options', requireAuth, authLimiter, passkeyCtrl.registerOptions);
+router.post('/passkeys/register/verify', requireAuth, authLimiter, passkeyCtrl.registerVerify);
+router.delete('/passkeys/:id', requireAuth, authLimiter, passkeyCtrl.remove);
+router.post('/passkeys/login/options', loginLimiter, passkeyCtrl.loginOptions);
+router.post('/passkeys/login/verify', loginLimiter, passkeyCtrl.loginVerify);
 router.get('/sessions', requireAuth, ctrl.listSessions);
 router.delete('/sessions/other', requireAuth, ctrl.revokeOtherSessions);
 router.delete('/sessions/:id', requireAuth, ctrl.revokeSession);
