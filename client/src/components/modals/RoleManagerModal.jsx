@@ -1,263 +1,371 @@
-import { useRef, useState } from 'react';
+// Gerenciador de cargos no estilo do Discord: lista à esquerda (busca,
+// arrastar para reordenar, contagem de membros) e, à direita, as abas
+// Exibição / Permissões / Gerenciar membros, com barra de "alterações não
+// salvas". Segue a hierarquia: quem não é administrador só mexe nos cargos
+// abaixo do seu cargo mais alto (o servidor também confere isso).
+import { useMemo, useState } from 'react';
 import Modal from '../Modal.jsx';
 import { useStore } from '../../store/useStore';
-import { createRole, updateRole, deleteRole, reorderRoles, uploadRoleIcon } from '../../api/endpoints';
-import { PERMISSIONS, PERMISSION_LABELS } from '../../utils/permissions';
+import { useAuth } from '../../context/AuthContext.jsx';
+import {
+  createRole, updateRole, deleteRole, reorderRoles, uploadRoleIcon, assignRole, unassignRole,
+} from '../../api/endpoints';
+import { PERMISSIONS, getMyCommunityPermissions } from '../../utils/permissions';
+import { ROLE_GROUPS, bits, hasBit } from '../../utils/permissionCatalog';
 import { isGradientColor, gradientStops, makeGradient } from '../../utils/roleColor';
-import { debounce } from '../../utils/debounce';
+import UserAvatar from '../UserAvatar.jsx';
+import { Switch, PermissionList, SearchBox, SaveBar, RoleDot } from '../permissions/PermUI.jsx';
 
-const GROUPS = [
-  { label: 'GERAL', keys: ['ADMINISTRATOR', 'MANAGE_COMMUNITY', 'MANAGE_ROLES', 'MANAGE_CHANNELS', 'MANAGE_EMOJIS', 'MANAGE_STICKERS', 'MANAGE_CLAN_ICONS', 'KICK_MEMBERS', 'BAN_MEMBERS', 'MODERATE_MEMBERS', 'CHANGE_NICKNAME', 'MANAGE_NICKNAMES', 'VIEW_AUDIT_LOG'] },
-  { label: 'TEXTO', keys: ['VIEW_CHANNEL', 'SEND_MESSAGES', 'MANAGE_MESSAGES', 'MENTION_EVERYONE', 'ATTACH_FILES', 'ADD_REACTIONS', 'USE_EXTERNAL_EMOJIS', 'CREATE_POLLS', 'CREATE_TOPICS', 'MANAGE_TOPICS'] },
-  { label: 'VOZ', keys: ['CONNECT', 'SPEAK', 'VIDEO', 'MUTE_MEMBERS', 'DEAFEN_MEMBERS', 'MOVE_MEMBERS', 'USE_SOUNDBOARD'] },
+const SWATCHES = [
+  '#1abc9c', '#2ecc71', '#3498db', '#9b59b6', '#e91e63', '#f1c40f', '#e67e22', '#e74c3c', '#95a5a6', '#607d8b',
+  '#11806a', '#1f8b4c', '#206694', '#71368a', '#ad1457', '#c27c0e', '#a84300', '#992d22', '#979c9f', '#546e7a',
 ];
+const DEFAULT_COLOR = '#99AAB5';
 
-// Editor de cargos da comunidade — refeito pra comunidade única (o
-// original vinha do EmberCord multi-servidor e dependia de um objeto
-// "server" que não existe mais aqui, além de um sistema de "impulsos"
-// que também foi removido; esta versão usa o store global e as rotas
-// reais de /community/roles).
-//
-// BUG CORRIGIDO ("editar/criar cargo tem delay"): a versão anterior, a
-// cada mudança (até marcar uma única permissão), fazia DUAS chamadas de
-// rede em sequência — salvar a mudança, DEPOIS buscar a comunidade
-// INTEIRA de novo (categorias+canais+membros+cargos) só pra atualizar a
-// tela. Pior: o aviso de socket que já chega quando o servidor confirma
-// a mudança TAMBÉM disparava essa mesma busca pesada por conta própria
-// (ver SocketContext.jsx) — ou seja, cada clique podia estar
-// recarregando tudo duas vezes. Agora usa o cargo que a própria resposta
-// da API já devolve pronto (upsertRole no estado local), sem buscar
-// nada a mais — a tela responde na hora.
+const draftOf = (r) => (r ? { name: r.name, color: r.color || DEFAULT_COLOR, hoist: !!r.hoist, mentionable: !!r.mentionable, permissions: String(r.permissions || '0') } : null);
+const sameDraft = (a, b) => !!a && !!b && a.name === b.name && a.color === b.color && a.hoist === b.hoist && a.mentionable === b.mentionable && a.permissions === b.permissions;
+const errMsg = (err, fallback) => err?.response?.data?.error || fallback;
+
 export default function RoleManagerModal({ onClose }) {
+  const { user } = useAuth();
   const roles = useStore((s) => s.roles);
+  const members = useStore((s) => s.members);
   const upsertRole = useStore((s) => s.upsertRole);
   const removeRoleFromStore = useStore((s) => s.removeRole);
-  const [selectedId, setSelectedId] = useState(roles?.[0]?.id || null);
-  const [dragId, setDragId] = useState(null);
-  const [savingField, setSavingField] = useState(null);
+  const setMembers = useStore((s) => s.setMembers);
 
-  const sortedRoles = [...(roles || [])].sort((a, b) => b.position - a.position);
-  const selected = sortedRoles.find((r) => r.id === selectedId) || sortedRoles[0];
-  const selectedPerms = selected ? BigInt(selected.permissions || '0') : 0n;
+  const sorted = useMemo(() => [...(roles || [])].sort((a, b) => (a.isDefault ? 1 : b.isDefault ? -1 : b.position - a.position)), [roles]);
+  const [selectedId, setSelectedId] = useState(() => sorted.find((r) => !r.isDefault)?.id || sorted[0]?.id || null);
+  const [tab, setTab] = useState('display');
+  const [listQuery, setListQuery] = useState('');
+  const [permSearch, setPermSearch] = useState('');
+  const [memberQuery, setMemberQuery] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [addQuery, setAddQuery] = useState('');
+  const [addPicked, setAddPicked] = useState([]);
+  const [draft, setDraft] = useState(null);
+  const [draftFor, setDraftFor] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [dragId, setDragId] = useState(null);
+  const [mobilePane, setMobilePane] = useState('list');
+
+  const selected = sorted.find((r) => r.id === selectedId) || sorted[0];
+  // Rascunho do cargo aberto (recomeça ao trocar de cargo).
+  const base = draftOf(selected);
+  const cur = draftFor === selected?.id && draft ? draft : base;
+  const dirty = !!selected && draftFor === selected.id && !!draft && !sameDraft(draft, base);
+  const edit = (patch) => { setError(''); setDraft({ ...cur, ...patch }); setDraftFor(selected.id); };
+
+  // Hierarquia (espelha getRoleCeiling no servidor).
+  const myPerms = getMyCommunityPermissions(roles, members, user?.id, user?.platformRole);
+  const isAdmin = user?.platformRole === 'ADMIN' || hasBit(myPerms, 'ADMINISTRATOR');
+  const myRoleIds = members.find((m) => m.user.id === user?.id)?.roleIds || [];
+  const ceiling = isAdmin ? Infinity : Math.max(0, ...roles.filter((r) => !r.isDefault && myRoleIds.includes(r.id)).map((r) => r.position));
+  const canEdit = (r) => !!r && (r.isDefault || r.position < ceiling);
+  const editable = canEdit(selected);
+  const canGrant = (k) => isAdmin || hasBit(myPerms, k);
+
+  const memberCount = (r) => (r.isDefault ? members.length : members.filter((m) => m.roleIds?.includes(r.id)).length);
+
+  const guardSwitch = () => {
+    if (dirty) { setError('Salve ou redefina as alterações antes de trocar de cargo.'); return false; }
+    return true;
+  };
+  const select = (id) => {
+    if (id === selected?.id) { setMobilePane('edit'); return; }
+    if (!guardSwitch()) return;
+    const r = sorted.find((x) => x.id === id);
+    setSelectedId(id); setDraft(null); setDraftFor(null); setError(''); setAdding(false);
+    if (r?.isDefault && tab === 'display') setTab('perms');
+    setMobilePane('edit');
+  };
 
   const addRole = async () => {
-    const { role } = await createRole({ name: 'novo cargo' });
-    upsertRole(role);
-    setSelectedId(role.id);
-  };
-
-  // Aplica a mudança de verdade — chama a API e, assim que a resposta
-  // chega (já com o cargo pronto), atualiza só ESSE cargo no estado
-  // local. field é só pra mostrar "Salvando..." no campo certo enquanto
-  // isso roda.
-  const patchRole = async (patch, field) => {
-    if (!selected || (selected.isDefault && patch.name)) delete patch.name;
-    if (field) setSavingField(field);
+    if (!guardSwitch()) return;
     try {
-      const { role } = await updateRole(selected.id, patch);
+      const { role } = await createRole({ name: 'novo cargo' });
       upsertRole(role);
-    } finally {
-      if (field) setSavingField((f) => (f === field ? null : f));
-    }
+      setSelectedId(role.id); setDraft(null); setDraftFor(null); setTab('display'); setMobilePane('edit');
+    } catch (err) { setError(errMsg(err, 'Não foi possível criar o cargo.')); }
   };
 
-  const debouncedPatchColor = useRef(
-    debounce((roleId, patch) => { updateRole(roleId, patch).then(({ role }) => upsertRole(role)); }, 300),
-  ).current;
+  const save = async () => {
+    if (!dirty) return;
+    const payload = {};
+    if (!selected.isDefault && cur.name.trim() !== selected.name) payload.name = cur.name.trim();
+    if (cur.color !== selected.color) payload.color = cur.color;
+    if (cur.hoist !== !!selected.hoist) payload.hoist = cur.hoist;
+    if (cur.mentionable !== !!selected.mentionable) payload.mentionable = cur.mentionable;
+    if (cur.permissions !== String(selected.permissions || '0')) payload.permissionsBits = cur.permissions;
+    if (payload.name === '') { setError('O cargo precisa de um nome.'); return; }
+    setSaving(true); setError('');
+    try {
+      const { role } = await updateRole(selected.id, payload);
+      upsertRole(role);
+      setDraft(null); setDraftFor(null);
+    } catch (err) { setError(errMsg(err, 'Não foi possível salvar o cargo.')); } finally { setSaving(false); }
+  };
+  const reset = () => { setDraft(null); setDraftFor(null); setError(''); };
 
-  const togglePermission = (key) => {
+  const togglePerm = (key, on) => {
     const bit = PERMISSIONS[key];
-    if (!bit) return;
-    const has = (selectedPerms & bit) !== 0n;
-    const next = has ? selectedPerms & ~bit : selectedPerms | bit;
-    updateRole(selected.id, { permissionsBits: next.toString() }).then(({ role }) => upsertRole(role));
+    const b = bits(cur.permissions);
+    edit({ permissions: (on ? b | bit : b & ~bit).toString() });
   };
 
-  const removeRole = async () => {
-    if (!confirm(`Excluir o cargo "${selected.name}"?`)) return;
-    await deleteRole(selected.id);
-    removeRoleFromStore(selected.id);
-    setSelectedId(null);
+  const remove = async () => {
+    if (!confirm(`Excluir o cargo "${selected.name}"? Isso não pode ser desfeito.`)) return;
+    try {
+      await deleteRole(selected.id);
+      removeRoleFromStore(selected.id);
+      setSelectedId(sorted.find((r) => r.id !== selected.id && !r.isDefault)?.id || null);
+      setDraft(null); setDraftFor(null); setMobilePane('list');
+    } catch (err) { setError(errMsg(err, 'Não foi possível excluir o cargo.')); }
   };
 
   const uploadIcon = async (e) => {
     const file = e.target.files[0];
-    if (!file || !selected) return;
-    setSavingField('icon');
-    try {
-      const { role } = await uploadRoleIcon(selected.id, file);
-      upsertRole(role);
-    } finally {
-      setSavingField((f) => (f === 'icon' ? null : f));
-    }
+    e.target.value = '';
+    if (!file) return;
+    try { const { role } = await uploadRoleIcon(selected.id, file); upsertRole(role); } catch (err) { setError(errMsg(err, 'Não foi possível enviar o ícone.')); }
+  };
+  const setEmojiIcon = async (icon) => {
+    try { const { role } = await updateRole(selected.id, { icon }); upsertRole(role); } catch (err) { setError(errMsg(err, 'Não foi possível mudar o ícone.')); }
   };
 
   const onDrop = async (targetId) => {
-    if (!dragId || dragId === targetId) return;
-    const nonDefault = sortedRoles.filter((r) => !r.isDefault);
-    const from = nonDefault.findIndex((r) => r.id === dragId);
-    const to = nonDefault.findIndex((r) => r.id === targetId);
+    const id = dragId; setDragId(null);
+    if (!id || id === targetId) return;
+    const list = sorted.filter((r) => !r.isDefault);
+    const from = list.findIndex((r) => r.id === id);
+    const to = list.findIndex((r) => r.id === targetId);
     if (from < 0 || to < 0) return;
-    const reordered = [...nonDefault];
-    const [moved] = reordered.splice(from, 1);
-    reordered.splice(to, 0, moved);
-    // Reordenar afeta a posição de VÁRIOS cargos de uma vez — o
-    // servidor só devolve a nova ordem de IDs (ver role:reorder no
-    // socket), então aqui sim vale reconstruir a posição de cada um
-    // localmente, na hora, em vez de esperar um recarregamento.
-    reordered.forEach((r, i) => upsertRole({ ...r, position: reordered.length - i }));
-    setDragId(null);
-    await reorderRoles(reordered.map((r) => r.id));
+    const next = [...list];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    const before = list;
+    next.forEach((r, i) => upsertRole({ ...r, position: next.length - i }));
+    try { await reorderRoles(next.map((r) => r.id)); } catch (err) {
+      before.forEach((r) => upsertRole(r));
+      setError(errMsg(err, 'Não foi possível reordenar.'));
+    }
   };
 
+  // Membros do cargo
+  const setMemberRole = async (userId, add) => {
+    try {
+      if (add) await assignRole(userId, selected.id); else await unassignRole(userId, selected.id);
+      setMembers(useStore.getState().members.map((m) => (m.user.id !== userId ? m : {
+        ...m, roleIds: add ? [...new Set([...(m.roleIds || []), selected.id])] : (m.roleIds || []).filter((x) => x !== selected.id),
+      })));
+    } catch (err) { setError(errMsg(err, 'Não foi possível alterar os membros do cargo.')); }
+  };
+  const confirmAdd = async () => {
+    for (const id of addPicked) await setMemberRole(id, true); // eslint-disable-line no-await-in-loop
+    setAdding(false); setAddPicked([]); setAddQuery('');
+  };
+
+  const closeModal = () => { if (dirty && !confirm('Você tem alterações não salvas. Sair mesmo assim?')) return; onClose(); };
+
+  const visibleRoles = sorted.filter((r) => !listQuery || (r.isDefault ? '@todos' : r.name).toLowerCase().includes(listQuery.toLowerCase()));
+  const nameOf = (m) => m.user.displayName || m.user.username || 'Membro';
+  const match = (m, q) => !q || `${m.user.displayName || ''} ${m.user.username || ''}`.toLowerCase().includes(q.toLowerCase());
+  const roleMembers = selected && !selected.isDefault ? members.filter((m) => m.roleIds?.includes(selected.id)) : [];
+
+  const tabs = selected?.isDefault
+    ? [['perms', 'Permissões']]
+    : [['display', 'Exibição'], ['perms', 'Permissões'], ['members', `Gerenciar membros (${roleMembers.length})`]];
+  const activeTab = tabs.some(([k]) => k === tab) ? tab : tabs[0][0];
+  const gradient = isGradientColor(cur?.color);
+
   return (
-    <Modal title="Cargos da comunidade" onClose={onClose} width="840px">
-      <div className="role-manager">
-        <div className="role-list-col">
-          <button className="btn-secondary" onClick={addRole}>+ Criar cargo</button>
-          <ul className="role-list">
-            {sortedRoles.map((r) => (
-              <li
-                key={r.id}
-                draggable={!r.isDefault}
-                onDragStart={() => setDragId(r.id)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => onDrop(r.id)}
-                className={`role-list-item ${selected?.id === r.id ? 'active' : ''}`}
-                onClick={() => setSelectedId(r.id)}
-              >
-                <span className="role-dot" style={{ background: r.color }} />
-                {r.icon && (r.icon.startsWith('/') ? <img src={r.icon} alt="" className="role-icon-preview" /> : <span>{r.icon}</span>)}
-                <span className="truncate">{r.isDefault ? '@todos' : r.name}</span>
-              </li>
-            ))}
+    <Modal title="Cargos" onClose={closeModal} width="980px" className="pm-modal">
+      <div className={`pm-roles pane-${mobilePane}`}>
+        <aside className="pm-roles-list">
+          <div className="pm-roles-list-head">
+            <SearchBox value={listQuery} onChange={setListQuery} placeholder="Buscar cargos" />
+            <button type="button" className="pm-icon-btn" onClick={addRole} title="Criar cargo" aria-label="Criar cargo">＋</button>
+          </div>
+          <p className="pm-hint small">Arraste para reordenar. Membros usam a cor do cargo mais alto.</p>
+          <ul>
+            {visibleRoles.map((r) => {
+              const locked = !canEdit(r);
+              return (
+                <li
+                  key={r.id}
+                  draggable={!r.isDefault && !locked && !listQuery}
+                  onDragStart={() => setDragId(r.id)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => onDrop(r.id)}
+                  className={dragId === r.id ? 'dragging' : ''}
+                >
+                  <button type="button" className={`pm-target ${selected?.id === r.id ? 'active' : ''}`} onClick={() => select(r.id)}>
+                    {!r.isDefault && !locked && <span className="pm-grip" aria-hidden>⋮⋮</span>}
+                    <RoleDot color={isGradientColor(r.color) ? gradientStops(r.color)[0] : r.color} />
+                    {r.icon && (r.icon.startsWith('/') ? <img src={r.icon} alt="" className="pm-role-icon" /> : <span className="pm-role-icon">{r.icon}</span>)}
+                    <span className="pm-truncate">{r.isDefault ? '@todos' : r.name}</span>
+                    {locked && <span title="Acima do seu cargo mais alto" aria-label="Bloqueado">🔒</span>}
+                    <span className="pm-count" title="Membros">👤 {memberCount(r)}</span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
-        </div>
+        </aside>
 
         {selected && (
-          <div className="role-edit-col">
-            <label>
-              NOME DO CARGO
-              <input
-                defaultValue={selected.isDefault ? '@todos' : selected.name}
-                disabled={selected.isDefault}
-                onBlur={(e) => patchRole({ name: e.target.value }, 'name')}
-                key={selected.id}
-              />
-            </label>
-            <div className="role-color-row">
-              <div className="role-color-pickers">
-                {isGradientColor(selected.color) ? (
-                  <>
-                    <label>
-                      COR (INÍCIO)
-                      <input
-                        type="color"
-                        defaultValue={gradientStops(selected.color)[0]}
-                        onChange={(e) => debouncedPatchColor(selected.id, { color: makeGradient(e.target.value, gradientStops(selected.color)[1]) })}
-                        key={`cg1-${selected.id}`}
-                      />
-                    </label>
-                    <label>
-                      COR (FIM)
-                      <input
-                        type="color"
-                        defaultValue={gradientStops(selected.color)[1]}
-                        onChange={(e) => debouncedPatchColor(selected.id, { color: makeGradient(gradientStops(selected.color)[0], e.target.value) })}
-                        key={`cg2-${selected.id}`}
-                      />
-                    </label>
-                  </>
-                ) : (
-                  <label>
-                    COR
-                    <input type="color" defaultValue={selected.color || '#99AAB5'} onChange={(e) => debouncedPatchColor(selected.id, { color: e.target.value })} key={`c-${selected.id}`} />
-                  </label>
-                )}
-                <label className="checkbox-row role-gradient-toggle">
-                  <input
-                    type="checkbox"
-                    checked={isGradientColor(selected.color)}
-                    onChange={(e) => {
-                      const [a, b] = gradientStops(selected.color);
-                      patchRole({ color: e.target.checked ? makeGradient(a, b) : a });
-                    }}
-                    key={`gt-${selected.id}`}
-                  />
-                  Degradê
-                </label>
-              </div>
-              {/* Item pedido: "melhore, tá meio confuso" — emoji e PNG
-                  são DUAS formas alternativas do MESMO ícone (só uma
-                  vale por vez, escolher uma substitui a outra), mas
-                  antes ficavam lado a lado sem deixar isso claro. Agora
-                  tem um rótulo "ou" entre eles, e uma prévia clara de
-                  qual dos dois está valendo agora. */}
-              <div className="role-icon-pickers">
-                <span className="role-icon-pickers-label">ÍCONE DO CARGO</span>
-                <div className="role-icon-pickers-row">
-                  <input
-                    defaultValue={selected.icon?.startsWith('/') ? '' : (selected.icon || '')}
-                    maxLength={4}
-                    placeholder="emoji"
-                    onBlur={(e) => patchRole({ icon: e.target.value }, 'icon')}
-                    key={`i-${selected.id}`}
-                  />
-                  <span className="role-icon-or">ou</span>
-                  <label className="btn-secondary role-icon-upload">
-                    {selected.icon?.startsWith('/') ? <img src={selected.icon} alt="" className="role-icon-preview" /> : 'Enviar imagem'}
-                    <input type="file" accept="image/png,image/gif,image/webp" hidden onChange={uploadIcon} key={`u-${selected.id}`} />
-                  </label>
-                  {/* Item pedido: "adicione poder remover o ícone do
-                      cargo PNG" — antes só dava pra ENVIAR uma imagem
-                      nova (que substituía a anterior), sem nenhum jeito
-                      de voltar a não ter ícone nenhum. */}
-                  {selected.icon?.startsWith('/') && (
-                    <button
-                      type="button"
-                      className="role-icon-remove"
-                      title="Remover ícone"
-                      onClick={() => patchRole({ icon: '' }, 'icon')}
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-                {savingField === 'icon' && <span className="role-field-saving">Salvando...</span>}
-              </div>
+          <section className="pm-roles-edit">
+            <div className="pm-roles-edit-head">
+              <button type="button" className="pm-back" onClick={() => { if (guardSwitch()) setMobilePane('list'); }}>‹ Cargos</button>
+              <h3>EDITAR CARGO — {selected.isDefault ? '@TODOS' : (cur.name || '').toUpperCase()}</h3>
             </div>
-            <label className="checkbox-row">
-              <input type="checkbox" defaultChecked={selected.hoist} onChange={(e) => patchRole({ hoist: e.target.checked })} key={`h-${selected.id}`} />
-              Exibir separadamente na lista de membros
-            </label>
-            <label className="checkbox-row">
-              <input type="checkbox" defaultChecked={selected.mentionable} onChange={(e) => patchRole({ mentionable: e.target.checked })} key={`m-${selected.id}`} />
-              Permitir menção a este cargo
-            </label>
+            {!editable && <div className="pm-sync">🔒 Este cargo está no nível do seu cargo mais alto ou acima — só dá para ver.</div>}
+            <nav className="pm-tabs">
+              {tabs.map(([k, l]) => <button type="button" key={k} className={activeTab === k ? 'active' : ''} onClick={() => setTab(k)}>{l}</button>)}
+            </nav>
 
-            <h3>Permissões</h3>
-            {GROUPS.map((g) => (
-              <div key={g.label} className="permission-group">
-                <div className="permission-group-label">{g.label}</div>
-                {g.keys.filter((key) => PERMISSIONS[key] !== undefined).map((key) => (
-                  <label key={key} className="checkbox-row">
-                    <input
-                      type="checkbox"
-                      checked={(selectedPerms & PERMISSIONS[key]) !== 0n}
-                      onChange={() => togglePermission(key)}
-                    />
-                    {PERMISSION_LABELS[key]}
-                  </label>
-                ))}
+            {activeTab === 'display' && (
+              <div className="pm-pane">
+                <label className="pm-field">
+                  <span>NOME DO CARGO <b className="pm-req">*</b></span>
+                  <input value={cur.name} maxLength={100} disabled={!editable} onChange={(e) => edit({ name: e.target.value })} />
+                </label>
+
+                <div className="pm-field">
+                  <span>COR DO CARGO</span>
+                  <p className="pm-row-desc">Os membros usam a cor do cargo mais alto que tiverem.</p>
+                  <div className="pm-colors">
+                    <button type="button" className={`pm-swatch big ${cur.color === DEFAULT_COLOR ? 'active' : ''}`} style={{ background: DEFAULT_COLOR }} onClick={() => edit({ color: DEFAULT_COLOR })} disabled={!editable} title="Padrão" />
+                    <label className={`pm-swatch big custom ${!SWATCHES.includes(cur.color) && cur.color !== DEFAULT_COLOR && !gradient ? 'active' : ''}`} style={{ background: gradient ? cur.color : (SWATCHES.includes(cur.color) ? undefined : cur.color) }} title="Cor personalizada">
+                      <input type="color" disabled={!editable} value={gradient ? gradientStops(cur.color)[0] : cur.color} onChange={(e) => edit({ color: gradient ? makeGradient(e.target.value, gradientStops(cur.color)[1]) : e.target.value })} />
+                      <span>✎</span>
+                    </label>
+                    <div className="pm-swatch-grid">
+                      {SWATCHES.map((c) => <button type="button" key={c} className={`pm-swatch ${cur.color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => edit({ color: c })} disabled={!editable} aria-label={c} />)}
+                    </div>
+                  </div>
+                  <div className="pm-row-head pm-gap">
+                    <span className="pm-row-name">Degradê</span>
+                    <Switch checked={gradient} disabled={!editable} label="Degradê" onChange={(on) => {
+                      const [a, b] = gradientStops(cur.color);
+                      edit({ color: on ? makeGradient(a, b) : a });
+                    }} />
+                  </div>
+                  {gradient && (
+                    <div className="pm-gradient">
+                      <label>Início <input type="color" disabled={!editable} value={gradientStops(cur.color)[0]} onChange={(e) => edit({ color: makeGradient(e.target.value, gradientStops(cur.color)[1]) })} /></label>
+                      <label>Fim <input type="color" disabled={!editable} value={gradientStops(cur.color)[1]} onChange={(e) => edit({ color: makeGradient(gradientStops(cur.color)[0], e.target.value) })} /></label>
+                    </div>
+                  )}
+                  <div className="pm-preview">
+                    <UserAvatar user={user} size={32} noDecoration />
+                    <span className="pm-preview-name" style={gradient ? { backgroundImage: cur.color, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' } : { color: cur.color }}>{user?.displayName || user?.username}</span>
+                    {selected.icon && (selected.icon.startsWith('/') ? <img src={selected.icon} alt="" className="pm-role-icon" /> : <span>{selected.icon}</span>)}
+                    <span className="pm-dim">prévia</span>
+                  </div>
+                </div>
+
+                <div className="pm-field">
+                  <span>ÍCONE DO CARGO</span>
+                  <p className="pm-row-desc">Um emoji ou uma imagem (PNG, GIF ou WebP). Aparece ao lado do nome do membro. Salva na hora.</p>
+                  <div className="pm-icon-row">
+                    <div className="pm-icon-box">{selected.icon ? (selected.icon.startsWith('/') ? <img src={selected.icon} alt="" /> : <span>{selected.icon}</span>) : <span className="pm-dim">—</span>}</div>
+                    <input className="pm-emoji-in" key={`e-${selected.id}-${selected.icon}`} defaultValue={selected.icon?.startsWith('/') ? '' : (selected.icon || '')} maxLength={8} placeholder="emoji" disabled={!editable} onBlur={(e) => { if (e.target.value !== (selected.icon?.startsWith('/') ? '' : (selected.icon || ''))) setEmojiIcon(e.target.value); }} />
+                    <label className={`btn-secondary ${!editable ? 'disabled' : ''}`}>
+                      Enviar imagem
+                      <input type="file" accept="image/png,image/gif,image/webp" hidden disabled={!editable} onChange={uploadIcon} />
+                    </label>
+                    {selected.icon && editable && <button type="button" className="btn-link danger" onClick={() => setEmojiIcon('')}>Remover ícone</button>}
+                  </div>
+                </div>
+
+                <div className="pm-card">
+                  <div className="pm-row-head">
+                    <span className="pm-row-name">Exibir membros com este cargo separadamente dos membros online</span>
+                    <Switch checked={cur.hoist} disabled={!editable} onChange={(v) => edit({ hoist: v })} label="Exibir separadamente" />
+                  </div>
+                </div>
+                <div className="pm-card">
+                  <div className="pm-row-head">
+                    <span className="pm-row-name">Permitir que qualquer um @mencione este cargo</span>
+                    <Switch checked={cur.mentionable} disabled={!editable} onChange={(v) => edit({ mentionable: v })} label="Permitir menção" />
+                  </div>
+                  <p className="pm-row-desc">Quem tem a permissão “Mencionar @everyone, @here e todos os cargos” sempre pode mencionar este cargo.</p>
+                </div>
+
+                {editable && <button type="button" className="btn-danger pm-delete" onClick={remove}>Excluir cargo</button>}
               </div>
-            ))}
-
-            {!selected.isDefault && (
-              <button className="btn-danger" onClick={removeRole}>Excluir cargo</button>
             )}
-          </div>
+
+            {activeTab === 'perms' && (
+              <div className="pm-pane">
+                <div className="pm-perm-tools">
+                  <SearchBox value={permSearch} onChange={setPermSearch} />
+                  <button type="button" className="btn-link" disabled={!editable || bits(cur.permissions) === 0n} onClick={() => edit({ permissions: '0' })}>Limpar permissões</button>
+                </div>
+                {selected.isDefault && <p className="pm-hint">Estas são as permissões padrão de <b>todos</b> os membros da comunidade.</p>}
+                <PermissionList
+                  groups={ROLE_GROUPS}
+                  search={permSearch}
+                  renderControl={(k) => (
+                    <Switch
+                      checked={hasBit(cur.permissions, k)}
+                      disabled={!editable || (!hasBit(cur.permissions, k) && !canGrant(k))}
+                      onChange={(on) => togglePerm(k, on)}
+                      label={k}
+                    />
+                  )}
+                  warnFor={(k) => (!canGrant(k) && !hasBit(cur.permissions, k) ? 'Você não pode dar uma permissão que você mesmo não tem.' : null)}
+                />
+              </div>
+            )}
+
+            {activeTab === 'members' && (
+              <div className="pm-pane">
+                <div className="pm-perm-tools">
+                  <SearchBox value={memberQuery} onChange={setMemberQuery} placeholder="Buscar membros" />
+                  {editable && <button type="button" className="pm-btn-brand" onClick={() => setAdding(true)}>Adicionar membros</button>}
+                </div>
+                {adding && (
+                  <div className="pm-add">
+                    <SearchBox value={addQuery} onChange={setAddQuery} placeholder="Buscar membros para adicionar" />
+                    <div className="pm-add-list">
+                      {members.filter((m) => !m.roleIds?.includes(selected.id) && match(m, addQuery)).slice(0, 50).map((m) => (
+                        <label key={m.user.id} className="pm-member">
+                          <input type="checkbox" checked={addPicked.includes(m.user.id)} onChange={(e) => setAddPicked((p) => (e.target.checked ? [...p, m.user.id] : p.filter((x) => x !== m.user.id)))} />
+                          <UserAvatar user={m.user} size={28} noDecoration />
+                          <span>{nameOf(m)}</span>
+                          {m.user.username && <span className="pm-dim">@{m.user.username}</span>}
+                        </label>
+                      ))}
+                    </div>
+                    <div className="pm-add-actions">
+                      <button type="button" className="btn-link" onClick={() => { setAdding(false); setAddPicked([]); }}>Cancelar</button>
+                      <button type="button" className="pm-btn-brand" disabled={!addPicked.length} onClick={confirmAdd}>Adicionar {addPicked.length || ''}</button>
+                    </div>
+                  </div>
+                )}
+                {roleMembers.length === 0 && !adding && <p className="pm-empty">Nenhum membro tem este cargo ainda.</p>}
+                <ul className="pm-members">
+                  {roleMembers.filter((m) => match(m, memberQuery)).map((m) => (
+                    <li key={m.user.id} className="pm-member">
+                      <UserAvatar user={m.user} size={28} noDecoration />
+                      <span>{nameOf(m)}</span>
+                      {m.user.username && <span className="pm-dim">@{m.user.username}</span>}
+                      {editable && <button type="button" className="pm-icon-btn small" title="Remover membro" aria-label={`Remover ${nameOf(m)}`} onClick={() => setMemberRole(m.user.id, false)}>✕</button>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
         )}
       </div>
+      <SaveBar show={dirty} saving={saving} error={error} onReset={reset} onSave={save} />
+      {!dirty && error && (
+        <div className="pm-savebar error"><span>{error}</span><button type="button" className="btn-link" onClick={() => setError('')}>OK</button></div>
+      )}
     </Modal>
   );
 }

@@ -54,6 +54,7 @@ router.post('/channels/:id/read', channelCtrl.markRead);
 router.get('/channels/read-states', channelCtrl.getChannelStates);
 router.get('/channels/:id/overwrites', channelCtrl.listChannelOverwrites);
 router.post('/channels/:id/overwrites', channelCtrl.setChannelOverwrite);
+router.post('/channels/:id/overwrites/sync', channelCtrl.syncChannelOverwrites);
 router.delete('/channels/:id/overwrites/:overwriteId', channelCtrl.deleteChannelOverwrite);
 
 // --- Cargos ---

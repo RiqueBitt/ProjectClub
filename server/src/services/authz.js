@@ -158,7 +158,25 @@ async function getEffectivePermissionsForChannels(userId, channels) {
   return out;
 }
 
+// Hierarquia de cargos (igual ao Discord): quem gerencia cargos só mexe
+// nos cargos ABAIXO do seu cargo mais alto. Devolve a posição desse teto —
+// Infinity pra ADMIN da plataforma e pra quem tem Administrador (bypass).
+async function getRoleCeiling(userId) {
+  const [user, userRoles, everyoneRole] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { platformRole: true } }),
+    prisma.userRole.findMany({ where: { userId }, include: { role: true } }),
+    getEveryoneRole(),
+  ]);
+  if (!user) return -Infinity;
+  if (user.platformRole === 'ADMIN') return Infinity;
+  const roles = userRoles.map((ur) => ur.role);
+  if (everyoneRole) roles.push(everyoneRole);
+  if (has(computeBasePermissions(roles), 'ADMINISTRATOR')) return Infinity;
+  return roles.filter((r) => !r.isDefault).reduce((max, r) => Math.max(max, r.position), 0);
+}
+
 module.exports = {
+  getRoleCeiling,
   getEffectivePermissionsForChannels,
   channelHasRestrictions,
   ForbiddenError,

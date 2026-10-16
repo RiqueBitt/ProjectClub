@@ -1,9 +1,16 @@
 const prisma = require('../config/prisma');
-const { requireCommunityPermission, getEffectivePermissions } = require('../services/authz');
+const { requireCommunityPermission, getEffectivePermissions, getRoleCeiling } = require('../services/authz');
 const { PERMISSIONS, toStringBits, toBits } = require('../services/permissions');
 
 function isGradientColorString(color) {
   return typeof color === 'string' && color.startsWith('linear-gradient(');
+}
+
+const ABOVE_MSG = 'Você só pode gerenciar cargos abaixo do seu cargo mais alto.';
+// Cargo editável por quem chamou? @todos (isDefault) sempre fica abaixo de todos.
+async function canTouch(userId, role) {
+  if (role.isDefault) return true;
+  return role.position < await getRoleCeiling(userId);
 }
 
 function shapeRole(role) {
@@ -23,10 +30,14 @@ async function createRole(req, res, next) {
     await requireCommunityPermission(req.user.id, 'MANAGE_ROLES');
     if (!name) return res.status(400).json({ error: 'Nome é obrigatório.' });
 
-    const count = await prisma.role.count();
-    const role = await prisma.role.create({
-      data: { name, position: count, permissions: '0' },
+    // Igual ao Discord: cargo novo nasce logo acima do @todos (embaixo de
+    // todos os outros), assim quem criou continua podendo editá-lo.
+    const role = await prisma.$transaction(async (tx) => {
+      await tx.role.updateMany({ where: { isDefault: false }, data: { position: { increment: 1 } } });
+      return tx.role.create({ data: { name: String(name).slice(0, 100), position: 1, permissions: '0', color: req.body.color || undefined } });
     });
+    const all = await prisma.role.findMany({ orderBy: { position: 'desc' }, select: { id: true, isDefault: true } });
+    req.app.get('io')?.to('community').emit('role:reorder', { order: all.filter((r) => !r.isDefault).map((r) => r.id) });
     req.app.get('io')?.to('community').emit('role:new', shapeRole(role));
     res.status(201).json({ role: shapeRole(role) });
   } catch (err) { next(err); }
@@ -39,9 +50,14 @@ async function updateRole(req, res, next) {
 
     const existing = await prisma.role.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Cargo não encontrado.' });
+    if (!await canTouch(req.user.id, existing)) return res.status(403).json({ error: ABOVE_MSG });
 
     const data = {};
-    if (req.body.name !== undefined && !existing.isDefault) data.name = req.body.name;
+    if (req.body.name !== undefined && !existing.isDefault) {
+      const name = String(req.body.name).trim().slice(0, 100);
+      if (!name) return res.status(400).json({ error: 'Nome é obrigatório.' });
+      data.name = name;
+    }
     if (req.body.color !== undefined) data.color = req.body.color;
     if (req.body.icon !== undefined) data.icon = req.body.icon;
     if (req.body.hoist !== undefined) data.hoist = !!req.body.hoist;
@@ -83,6 +99,7 @@ async function uploadIcon(req, res, next) {
     await requireCommunityPermission(req.user.id, 'MANAGE_ROLES');
     const existing = await prisma.role.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Cargo não encontrado.' });
+    if (!await canTouch(req.user.id, existing)) return res.status(403).json({ error: ABOVE_MSG });
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
 
     const role = await prisma.role.update({ where: { id }, data: { icon: req.file.url } });
@@ -97,6 +114,7 @@ async function deleteRole(req, res, next) {
     await requireCommunityPermission(req.user.id, 'MANAGE_ROLES');
     const existing = await prisma.role.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Cargo não encontrado.' });
+    if (!await canTouch(req.user.id, existing)) return res.status(403).json({ error: ABOVE_MSG });
     if (existing.isDefault) return res.status(400).json({ error: 'Não é possível excluir o cargo @todos.' });
 
     await prisma.role.delete({ where: { id } });
@@ -109,8 +127,15 @@ async function reorderRoles(req, res, next) {
   try {
     const { order } = req.body;
     await requireCommunityPermission(req.user.id, 'MANAGE_ROLES');
-    const ownedCount = await prisma.role.count({ where: { id: { in: order } } });
-    if (ownedCount !== order.length) return res.status(400).json({ error: 'Lista de reordenação inválida.' });
+    if (!Array.isArray(order) || new Set(order).size !== order.length) return res.status(400).json({ error: 'Lista de reordenação inválida.' });
+    const roles = await prisma.role.findMany({ where: { isDefault: false }, orderBy: { position: 'desc' } });
+    if (roles.length !== order.length || !roles.every((r) => order.includes(r.id))) {
+      return res.status(400).json({ error: 'Lista de reordenação inválida.' });
+    }
+    // Hierarquia: os cargos no seu nível ou acima continuam no topo, na mesma ordem.
+    const ceiling = await getRoleCeiling(req.user.id);
+    const locked = roles.filter((r) => r.position >= ceiling).map((r) => r.id);
+    if (locked.some((id, i) => order[i] !== id)) return res.status(403).json({ error: ABOVE_MSG });
     const total = order.length;
     await prisma.$transaction(
       order.map((id, index) => prisma.role.update({ where: { id }, data: { position: total - index } }))
@@ -128,6 +153,8 @@ async function assignRole(req, res, next) {
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
     const role = await prisma.role.findUnique({ where: { id: roleId } });
     if (!role) return res.status(404).json({ error: 'Cargo não encontrado.' });
+    if (role.isDefault) return res.status(400).json({ error: 'Todo mundo já tem o cargo @todos.' });
+    if (!await canTouch(req.user.id, role)) return res.status(403).json({ error: ABOVE_MSG });
 
     // SECURITY (escalação de privilégio vertical): mesmo com updateRole já
     // impedindo criar/editar um cargo com permissões acima das próprias
@@ -161,6 +188,8 @@ async function unassignRole(req, res, next) {
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
     const role = await prisma.role.findUnique({ where: { id: roleId } });
     if (!role) return res.status(404).json({ error: 'Cargo não encontrado.' });
+    if (role.isDefault) return res.status(400).json({ error: 'Todo mundo já tem o cargo @todos.' });
+    if (!await canTouch(req.user.id, role)) return res.status(403).json({ error: ABOVE_MSG });
 
     await prisma.userRole.deleteMany({ where: { userId, roleId } });
     req.app.get('io')?.to('community').emit('member:roles-update', { userId });
