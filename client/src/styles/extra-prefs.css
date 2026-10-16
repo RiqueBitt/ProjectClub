@@ -2,7 +2,7 @@
 
 /* Tema colorido: degradê de fundo atrás do app. As superfícies (--bg-*) já
    vêm tingidas pelas variáveis inline no <html>. */
-html[data-pc-ctheme] body { background: var(--pc-ct-grad), var(--bg-deepest) !important; background-attachment: fixed !important; }
+html[data-pc-ctheme] body { background: var(--pc-ct-grad), var(--bg-deepest) !important; }
 html[data-pc-ctheme] #root { background: transparent; }
 
 /* Modo streamer: esconde dados pessoais (e-mail, conexões, notas). */
