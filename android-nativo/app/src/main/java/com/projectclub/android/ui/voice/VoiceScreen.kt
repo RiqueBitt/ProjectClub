@@ -13,6 +13,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -191,7 +192,11 @@ fun CallLayout(
     var startedAt by remember(state.channelName) { mutableLongStateOf(0L) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(state.status) { if (state.status == CallStatus.Connected && startedAt == 0L) startedAt = System.currentTimeMillis() }
-    LaunchedEffect(startedAt) { while (startedAt > 0) { now = System.currentTimeMillis(); delay(1000) } }
+    // withInfiniteAnimationFrameMillis: nos testes de tela o relógio "infinito"
+    // é pausado (senão a captura nunca termina); no celular conta normal.
+    LaunchedEffect(startedAt) {
+        while (startedAt > 0) { withInfiniteAnimationFrameMillis { }; now = System.currentTimeMillis(); delay(1000) }
+    }
 
     val people = buildList {
         add(Person(me?.id ?: "me", me, isMe = true, speaking = state.speaking.contains("me") && !state.muted, muted = state.muted || state.deafened, deafened = state.deafened, sharing = state.sharingScreen))
