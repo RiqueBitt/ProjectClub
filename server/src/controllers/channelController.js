@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { upsertOverwrite } = require('../services/overwrites');
 const { safeUpsert } = require('../utils/prismaSafe');
 const { assertManageChannels } = require('./categoryController');
 const { getEveryoneRole, getEffectivePermissions, getEffectivePermissionsForChannels } = require('../services/authz');
@@ -103,17 +104,9 @@ async function updateChannel(req, res, next) {
         const denyView = toStringBits(PERMISSIONS.VIEW_CHANNEL);
         const allowView = toStringBits(PERMISSIONS.VIEW_CHANNEL);
         if (everyoneRole) {
-          await prisma.permissionOverwrite.upsert({
-            where: { channelId_categoryId_targetType_targetId: { channelId: id, categoryId: null, targetType: 'ROLE', targetId: everyoneRole.id } },
-            update: { deny: denyView },
-            create: { channelId: id, targetType: 'ROLE', targetId: everyoneRole.id, deny: denyView },
-          });
+          await upsertOverwrite({ channelId: id, categoryId: null, targetType: 'ROLE', targetId: everyoneRole.id }, { deny: denyView });
         }
-        await prisma.permissionOverwrite.upsert({
-          where: { channelId_categoryId_targetType_targetId: { channelId: id, categoryId: null, targetType: 'MEMBER', targetId: req.user.id } },
-          update: { allow: allowView },
-          create: { channelId: id, targetType: 'MEMBER', targetId: req.user.id, allow: allowView },
-        });
+        await upsertOverwrite({ channelId: id, categoryId: null, targetType: 'MEMBER', targetId: req.user.id }, { allow: allowView });
       } else if (!data.isPrivate && wasPrivate) {
         await prisma.permissionOverwrite.deleteMany({ where: { channelId: id } });
       }
@@ -295,6 +288,8 @@ async function setChannelOverwrite(req, res, next) {
   try {
     const { id } = req.params;
     const { targetType, targetId, allow = [], deny = [] } = req.body;
+    if (!['ROLE', 'MEMBER'].includes(targetType) || !targetId) return res.status(400).json({ error: 'Escolha um cargo ou membro.' });
+    if (!Array.isArray(allow) || !Array.isArray(deny)) return res.status(400).json({ error: 'Permissões inválidas.' });
     await assertManageChannels(req.user.id);
     const channel = await prisma.channel.findUnique({ where: { id } });
     if (!channel) return res.status(404).json({ error: 'Canal não encontrado.' });
@@ -316,11 +311,7 @@ async function setChannelOverwrite(req, res, next) {
       return res.status(403).json({ error: 'Você não pode conceder uma permissão que você mesmo não possui.' });
     }
 
-    const overwrite = await prisma.permissionOverwrite.upsert({
-      where: { channelId_categoryId_targetType_targetId: { channelId: id, categoryId: null, targetType, targetId } },
-      update: { allow: toStringBits(allowBits), deny: toStringBits(denyBits) },
-      create: { channelId: id, targetType, targetId, allow: toStringBits(allowBits), deny: toStringBits(denyBits) },
-    });
+    const overwrite = await upsertOverwrite({ channelId: id, categoryId: null, targetType, targetId }, { allow: toStringBits(allowBits), deny: toStringBits(denyBits) });
     req.app.get('io')?.to('community').emit('overwrite:update', { channelId: id });
     res.json({ overwrite });
   } catch (err) { next(err); }
