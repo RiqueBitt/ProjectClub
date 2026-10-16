@@ -40,7 +40,7 @@ test('nomes, fontes e pastas não se repetem', () => {
 test('as imagens de cada coleção existem no site', () => {
   const root = path.resolve(__dirname, '../../client/public/loja');
   for (const c of COLLECTIONS) {
-    const files = ['banner.webp', ...c.frames.map((_, i) => `moldura-${i + 1}.webp`), ...c.effects.map((_, i) => `efeito-${i + 1}.webp`)];
+    const files = ['banner.webp', 'logo.webp', ...c.frames.map((_, i) => `moldura-${i + 1}.webp`), ...c.effects.map((_, i) => `efeito-${i + 1}.webp`)];
     for (const f of files) assert.ok(fs.existsSync(path.join(root, c.slug, f)), `${c.slug}/${f}`);
   }
 });

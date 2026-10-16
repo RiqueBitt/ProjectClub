@@ -21,7 +21,7 @@ async function main() {
     const tags = c.slug.replace(/-/g, ' ');
     const double = c.styles.length > 1;
     const col = await upsertBy('shopCollection', { name: c.name }, {
-      name: c.name, description: c.description, bannerUrl: `${base}/banner.webp`, accentColor: c.accent,
+      name: c.name, description: c.description, bannerUrl: `${base}/banner.webp`, logoUrl: `${base}/logo.webp`, accentColor: c.accent,
       active: true, showInShop: true, featured: double, sortOrder: ci + 1,
       bundlePriceCoins: double ? PRICES.bundleDouble : PRICES.bundleSingle,
     });
