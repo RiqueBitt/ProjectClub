@@ -20,6 +20,19 @@ async function claimMission(req, res, next) {
   }
 }
 
+// Temporada de missões (passe do mês).
+async function getSeason(req, res, next) {
+  try { res.json(await require('../services/missionSeason').getForUser(req.user.id)); } catch (err) { next(err); }
+}
+async function claimSeason(req, res, next) {
+  try {
+    res.json(await require('../services/missionSeason').claim(req.user.id, req.body?.level, req.body?.track));
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+}
+
 // Eventos que só o cliente enxerga (ex: abrir a Loja). Lista fechada.
 async function trackClientEvent(req, res, next) {
   try {
@@ -131,6 +144,7 @@ async function adminDeleteMission(req, res, next) {
 }
 
 module.exports = {
+  getSeason, claimSeason,
   listMyMissions, claimMission, trackClientEvent,
   adminListMissions, adminCreateMission, adminUpdateMission, adminDeleteMission,
 };

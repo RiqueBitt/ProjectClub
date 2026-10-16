@@ -216,3 +216,27 @@ button.eco-link { width: 100%; text-align: left; font: inherit; cursor: pointer;
 .eco-bonus { font-style: normal; font-size: 10px; font-weight: 800; margin-left: 4px; padding: 0 5px; border-radius: 999px; background: color-mix(in srgb, #a78bfa 30%, transparent); color: #c4b5fd; text-transform: uppercase; }
 .eco-mult { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 12px; font-size: 13.5px; background: color-mix(in srgb, #8b5cf6 14%, var(--bg-secondary)); color: var(--header-primary); }
 .eco-mult svg { color: #a78bfa; }
+
+/* Temporada de missões (passe do mês) */
+.eco-season { display: flex; flex-direction: column; gap: 14px; }
+.eco-season-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+.eco-season-head h2 { margin: 0 0 4px; font-size: 22px; }
+.eco-season-level { display: flex; flex-direction: column; gap: 6px; min-width: 220px; flex: 0 1 320px; }
+.eco-season-level strong { font-size: 20px; }
+.eco-season-level strong small { font-size: 13px; color: var(--text-muted); margin-left: 2px; }
+.eco-season-bar { height: 10px; border-radius: 999px; background: var(--bg-tertiary, rgba(255,255,255,.08)); overflow: hidden; }
+.eco-season-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--brand), color-mix(in srgb, var(--brand) 60%, #f0b232)); }
+.eco-season-track { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 12px; scroll-snap-type: x proximity; }
+.eco-season-tier { flex: 0 0 132px; display: flex; flex-direction: column; gap: 8px; scroll-snap-align: start; }
+.eco-season-n { align-self: center; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; background: var(--bg-tertiary, #1e1f24); color: var(--text-muted); }
+.eco-season-tier.unlocked .eco-season-n { background: var(--brand); color: #fff; }
+.eco-season-tier.milestone .eco-season-n { box-shadow: 0 0 0 3px color-mix(in srgb, #f0b232 60%, transparent); }
+.eco-season-cell { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 8px; border-radius: 14px; background: var(--bg-secondary, #16171b); border: 1px solid var(--border, rgba(255,255,255,.08)); min-height: 96px; justify-content: space-between; }
+.eco-season-cell.plus { background: color-mix(in srgb, #f0b232 9%, var(--bg-secondary, #16171b)); border-color: color-mix(in srgb, #f0b232 30%, transparent); }
+.eco-season-cell.is-locked { opacity: .55; }
+.eco-season-cell.is-claimed { opacity: .7; }
+.eco-season-reward { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.eco-season-reward span { display: inline-flex; align-items: center; gap: 3px; }
+.eco-season-reward .gem { color: #c084fc; }
+.eco-season-done { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #3ecf7a; font-weight: 700; }
+.eco-season-lock { font-size: 12px; color: var(--text-muted); font-weight: 600; }

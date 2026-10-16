@@ -3777,3 +3777,17 @@ model StatusIncident {
 
   @@index([component, startedAt])
 }
+
+// Temporada de missões (passe do mês): pontos vêm das missões resgatadas.
+// Faixa grátis pra todo mundo + faixa extra de apoiador. Ver services/missionSeason.js.
+model SeasonPass {
+  userId      String
+  seasonKey   String   @db.VarChar(7) // AAAA-MM
+  points      Int      @default(0)
+  claimedFree String   @default("[]") @db.Text
+  claimedPlus String   @default("[]") @db.Text
+  updatedAt   DateTime @updatedAt
+
+  @@id([userId, seasonKey])
+  @@index([seasonKey, points])
+}

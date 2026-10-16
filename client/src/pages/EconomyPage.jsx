@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getMyEconomy, claimDaily, listChests, listMissions, claimMission, getEconomyHistory } from '../api/endpoints';
+import { getMyEconomy, claimDaily, listChests, listMissions, claimMission, getEconomyHistory, getMissionSeason, claimSeasonReward } from '../api/endpoints';
 import { useSocket } from '../context/SocketContext.jsx';
 import { EmptyState, Ico, PageHero, PillTabs, Skeleton, Toast, Unavailable } from '../components/PagesKit.jsx';
 import '../styles/economy.css';
@@ -114,6 +114,25 @@ export default function EconomyPage({ initialTab = 'geral' }) {
     refreshMissions();
   }, [refresh, refreshChests, refreshMissions]);
   useEffect(() => { if (tab === 'historico') refreshHistory(); }, [tab, refreshHistory]);
+  // Temporada do mês (passe de missões).
+  const [season, setSeason] = useState(null);
+  const [seasonBusy, setSeasonBusy] = useState('');
+  const refreshSeason = useCallback(() => getMissionSeason().then(setSeason).catch(() => {}), []);
+  useEffect(() => { refreshSeason(); }, [refreshSeason]);
+  const seasonReady = season ? season.tiers.filter((t) => t.unlocked && (!t.claimedFree || (season.isSupporter && !t.claimedPlus))).length : 0;
+  const claimSeason = async (level, track) => {
+    setSeasonBusy(`${level}:${track}`);
+    try {
+      const r = await claimSeasonReward(level, track);
+      setSeason((s) => s && { ...s, tiers: s.tiers.map((t) => (t.level === level ? { ...t, [track === 'free' ? 'claimedFree' : 'claimedPlus']: true } : t)) });
+      if (r.balance) setEco((e) => e && { ...e, coins: r.balance.coins, gems: r.balance.gems });
+      const parts = [];
+      if (r.reward?.coins) parts.push(`+${fmt(r.reward.coins)} moedas`);
+      if (r.reward?.gems) parts.push(`+${fmt(r.reward.gems)} gemas`);
+      pushNotice(`Nível ${level} da temporada: ${parts.join(', ')}`);
+    } catch (err) { pushNotice(err.response?.data?.error || 'Não deu pra resgatar.'); refreshSeason(); }
+    setSeasonBusy('');
+  };
 
   // Relógio das contagens regressivas (baú e reset das missões).
   useEffect(() => {
@@ -208,6 +227,7 @@ export default function EconomyPage({ initialTab = 'geral' }) {
     try {
       const r = await claimMission(m.id);
       setMissionData((cur) => cur && { ...cur, missions: cur.missions.map((x) => (x.id === m.id ? { ...x, claimed: true } : x)) });
+      refreshSeason();
       if (r.balance) setEco((e) => e && { ...e, coins: r.balance.coins, gems: r.balance.gems, accountLevel: r.balance.accountLevel, accountXp: r.balance.accountXp });
       const parts = [];
       if (r.reward?.coins) parts.push(`+${fmt(r.reward.coins)} moedas`);
@@ -215,6 +235,7 @@ export default function EconomyPage({ initialTab = 'geral' }) {
       if (r.reward?.xp) parts.push(`+${fmt(r.reward.xp)} XP`);
       if (r.reward?.item) parts.push(r.reward.item.already ? `"${r.reward.item.name}" (você já tinha)` : `"${r.reward.item.name}"${r.reward.item.expiresAt ? ` até ${new Date(r.reward.item.expiresAt).toLocaleDateString('pt-BR')}` : ''}`);
       if (r.reward?.multiplier > 1) parts.push(`bônus ${String(r.reward.multiplier).replace('.', ',')}x de apoio`);
+      if (r.reward?.seasonPoints) parts.push(`+${r.reward.seasonPoints} pontos de temporada`);
       pushNotice(`${m.title}: ${parts.join(', ') || 'resgatada'}${r.levelUp ? ` · Nível ${r.levelUp.newLevel}!` : ''}`);
       if (tab === 'historico') refreshHistory();
     } catch (err) {
@@ -238,6 +259,7 @@ export default function EconomyPage({ initialTab = 'geral' }) {
   const tabs = [
     { id: 'geral', label: 'Visão geral', icon: 'grid' },
     { id: 'missoes', label: 'Missões', icon: 'bolt', count: readyCount },
+    { id: 'temporada', label: 'Temporada', icon: 'crown', count: seasonReady || undefined },
     { id: 'historico', label: 'Histórico', icon: 'clock' },
   ];
 
@@ -398,6 +420,57 @@ export default function EconomyPage({ initialTab = 'geral' }) {
                 {missionList(weekly, 'A equipe ainda não criou missões semanais.')}
               </section>
               <p className="pk-muted eco-missions-note">O progresso conta sozinho: mensagens nos canais, reações em mensagens de outras pessoas, tempo em call com mais alguém, posts e comentários no Fórum. Horário de Brasília.</p>
+            </div>
+          )
+        )}
+
+        {tab === 'temporada' && (
+          !season ? <Skeleton rows={3} height={120} /> : (
+            <div className="eco-season">
+              <section className="pk-card eco-season-head">
+                <div>
+                  <h2>{season.name}</h2>
+                  <p className="pk-muted">Termina em {untilText(season.endsAt, now)} · missão diária dá <b>{season.pointsPerMission.daily}</b> pontos, semanal dá <b>{season.pointsPerMission.weekly}</b>.</p>
+                </div>
+                <div className="eco-season-level">
+                  <strong>Nível {season.level}<small>/{season.maxLevel}</small></strong>
+                  <div className="eco-season-bar" aria-label={`${season.points % season.levelPoints} de ${season.levelPoints} pontos para o próximo nível`}>
+                    <i style={{ width: `${season.level >= season.maxLevel ? 100 : ((season.points % season.levelPoints) / season.levelPoints) * 100}%` }} />
+                  </div>
+                  <small className="pk-muted">{fmt(season.points)} pontos{season.level < season.maxLevel ? ` · faltam ${season.levelPoints - (season.points % season.levelPoints)} pro nível ${season.level + 1}` : ' · nível máximo!'}</small>
+                </div>
+              </section>
+              {!season.isSupporter && (
+                <div className="eco-mult" role="note"><Ico name="crown" size={16} /><span>A <b>faixa de apoio</b> (mais moedas e gemas em todos os níveis) é para Assinantes.</span></div>
+              )}
+              <div className="eco-season-track">
+                {season.tiers.map((t) => {
+                  const cell = (track) => {
+                    const r = t[track];
+                    const claimed = track === 'free' ? t.claimedFree : t.claimedPlus;
+                    const locked = !t.unlocked || (track === 'plus' && !season.isSupporter);
+                    return (
+                      <div className={`eco-season-cell ${track}${claimed ? ' is-claimed' : ''}${locked ? ' is-locked' : ''}`}>
+                        <span className="eco-season-reward">
+                          {r.coins > 0 && <span><Ico name="coin" size={13} strokeWidth={2} />{fmt(r.coins)}</span>}
+                          {r.gems > 0 && <span className="gem"><Ico name="gem" size={13} strokeWidth={2} />{fmt(r.gems)}</span>}
+                        </span>
+                        {claimed ? <span className="eco-season-done"><Ico name="check" size={14} /> Resgatado</span>
+                          : locked ? <span className="eco-season-lock">{track === 'plus' && t.unlocked ? 'Assinante' : `Nível ${t.level}`}</span>
+                            : <button type="button" className="pk-btn sm primary" disabled={!!seasonBusy} onClick={() => claimSeason(t.level, track)}>{seasonBusy === `${t.level}:${track}` ? '…' : 'Resgatar'}</button>}
+                      </div>
+                    );
+                  };
+                  return (
+                    <div key={t.level} className={`eco-season-tier${t.level % 5 === 0 ? ' milestone' : ''}${t.unlocked ? ' unlocked' : ''}`}>
+                      <span className="eco-season-n">{t.level}</span>
+                      {cell('free')}
+                      {cell('plus')}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="pk-muted">Faixa de cima: grátis pra todo mundo. Faixa de baixo: apoio. Os pontos zeram quando a temporada muda; resgate antes de acabar.</p>
             </div>
           )
         )}

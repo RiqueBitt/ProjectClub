@@ -185,6 +185,8 @@ export const getEconomyHistory = (params = {}) => api.get('/economy/history', { 
 // Missões diárias/semanais (Economia)
 export const listMissions = () => api.get('/missions').then((r) => r.data);
 export const claimMission = (id) => api.post(`/missions/${id}/claim`).then((r) => r.data);
+export const getMissionSeason = () => api.get('/missions/season').then((r) => r.data);
+export const claimSeasonReward = (level, track) => api.post('/missions/season/claim', { level, track }).then((r) => r.data);
 export const trackMissionEvent = (type) => api.post('/missions/track', { type }).then((r) => r.data);
 export const adminListMissions = () => api.get('/missions/admin/all').then((r) => r.data);
 export const adminCreateMission = (payload) => api.post('/missions/admin', payload).then((r) => r.data);
