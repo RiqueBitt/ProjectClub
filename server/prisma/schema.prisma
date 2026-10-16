@@ -2898,6 +2898,10 @@ model ShopCollection {
   accentColor      String?
   active           Boolean  @default(true)
   featured         Boolean  @default(true)
+  // Aparece na Loja? false = coleção "oculta": nem ela nem os itens dela
+  // são vendidos/listados na Loja, mas tudo continua funcionando (quem já
+  // tem usa normalmente, a staff pode dar de prêmio, missões, códigos...).
+  showInShop       Boolean  @default(true)
   sortOrder        Int      @default(0)
   bundlePriceCoins Int?
   bundlePriceGems  Int?

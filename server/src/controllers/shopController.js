@@ -89,6 +89,14 @@ async function findItem(db, kind, id) {
 }
 const isLimited = (item) => item?.stock !== null && item?.stock !== undefined;
 
+// Item de coleção oculta (showInShop = false): não é vendido nem presenteado
+// pela Loja, mas quem já tem continua usando e a staff pode dar normalmente.
+async function hiddenFromShop(db, item) {
+  if (!item?.collectionId) return false;
+  const col = await db.shopCollection.findUnique({ where: { id: item.collectionId }, select: { showInShop: true } });
+  return !!col && col.showInShop === false;
+}
+
 // Item limitado: reserva uma cópia do estoque dentro da transação e devolve
 // o número de série dela (#1, #2...). Esgotado = erro 409.
 async function claimStock(tx, kind, item) {
@@ -117,17 +125,22 @@ async function shop(req, res, next) {
     const userId = req.user.id;
     const order = [{ sortOrder: 'asc' }, { createdAt: 'desc' }];
     const count = { _count: { select: { owners: true } } };
-    const [decorations, effects, shopItems, collections, ownedD, ownedE, ownedI, me] = await Promise.all([
+    const [decorations, effects, shopItems, allCollections, hiddenCols, ownedD, ownedE, ownedI, me] = await Promise.all([
       prisma.avatarDecoration.findMany({ where: { active: true }, orderBy: order, include: count }),
       prisma.profileEffect.findMany({ where: { active: true }, orderBy: order, include: count }),
       prisma.shopItem.findMany({ where: { active: true }, orderBy: order, include: count }),
       prisma.shopCollection.findMany({ where: { active: true }, orderBy: order }),
+      prisma.shopCollection.findMany({ where: { showInShop: false }, select: { id: true } }),
       prisma.userAvatarDecoration.findMany({ where: { userId }, select: { decorationId: true, serial: true, expiresAt: true } }),
       prisma.userProfileEffect.findMany({ where: { userId }, select: { effectId: true, serial: true, expiresAt: true } }),
       prisma.userShopItem.findMany({ where: { userId }, select: { itemId: true, serial: true, expiresAt: true } }),
       prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true, avatarDecoration: true, profileEffect: true, profileFont: true, profileStyle: true, supporterTier: true, supporterUntil: true } }),
     ]);
     const tier = sup.normalizeTier(me?.supporterTier);
+    // Coleções ocultas: fora da vitrine; os itens delas só aparecem pra quem
+    // já tem (pra continuar equipando), marcados com inShop: false.
+    const hiddenIds = new Set(hiddenCols.map((c) => c.id));
+    const collections = allCollections.filter((c) => !hiddenIds.has(c.id));
     // "Em alta": quantas cópias saíram nos últimos 7 dias (compras, presentes, prêmios).
     const weekAgo = new Date(Date.now() - 7 * 86400000);
     const [trD, trE, trI, banners] = await Promise.all([
@@ -163,13 +176,16 @@ async function shop(req, res, next) {
         trending: trending.get(it.id) || 0,
         tags: it.tags ? String(it.tags).split(',').filter(Boolean) : [],
         pricing: exclusive ? null : sup.pricing(it, tier),
+        inShop: !hiddenIds.has(it.collectionId),
       };
     };
+    // Itens de coleção oculta só voltam pra quem já tem (ou libera pelo apoio).
+    const visible = (list, ownedSet) => list.map((it) => shape(it, ownedSet)).filter((it) => it.inShop || it.owned);
     res.json({
-      decorations: decorations.map((d) => shape(d, od)),
-      effects: effects.map((e) => shape(e, oe)),
-      fonts: shopItems.filter((i) => i.kind === 'FONT').map((i) => shape(i, oi)),
-      styles: shopItems.filter((i) => i.kind === 'STYLE').map((i) => shape(i, oi)),
+      decorations: visible(decorations, od),
+      effects: visible(effects, oe),
+      fonts: visible(shopItems.filter((i) => i.kind === 'FONT'), oi),
+      styles: visible(shopItems.filter((i) => i.kind === 'STYLE'), oi),
       collections: collections.map((c) => {
         const col = shapeCollection(c);
         return { ...col, pricing: { coins: sup.bundlePriceFor(c, 'coins', tier, col.offer), gems: sup.bundlePriceFor(c, 'gems', tier, col.offer) } };
@@ -194,6 +210,7 @@ async function buyItem(kind, req, res, next) {
     const currency = req.body?.currency === 'gems' ? 'gems' : 'coins';
     const item = await findItem(prisma, kind, req.params.id);
     if (!item || !item.active) return res.status(404).json({ error: `${K.label[0].toUpperCase()}${K.label.slice(1)} não encontrado(a).` });
+    if (await hiddenFromShop(prisma, item)) return res.status(403).json({ error: 'Esse item não está à venda na Loja.', code: 'NOT_FOR_SALE' });
     if (sup.exclusiveOf(item)) return res.status(403).json({ error: `Item exclusivo de ${sup.TIER_LABEL[sup.exclusiveOf(item)]} — não é vendido, é liberado pelo apoio.`, code: 'EXCLUSIVE' });
     const userId = req.user.id;
     let price;
@@ -303,7 +320,7 @@ async function buyCollection(req, res, next) {
       where: { id: req.params.id },
       include: { decorations: { where: { active: true } }, effects: { where: { active: true } }, items: { where: { active: true } } },
     });
-    if (!col || !col.active) return res.status(404).json({ error: 'Coleção não encontrada.' });
+    if (!col || !col.active || col.showInShop === false) return res.status(404).json({ error: 'Coleção não encontrada.' });
     const userId = req.user.id;
     // Limitados ficam fora do pacote: são vendidos um a um (com estoque).
     const sellable = (i) => !sup.exclusiveOf(i) && !isLimited(i);
@@ -391,6 +408,7 @@ function readEffect(b) {
 function readShopFlags(b) {
   const data = {};
   if (b.featured !== undefined) data.featured = bool(b.featured);
+  if (b.showInShop !== undefined) data.showInShop = bool(b.showInShop);
   if (b.discountEligible !== undefined) data.discountEligible = bool(b.discountEligible);
   if (b.exclusiveTier !== undefined) data.exclusiveTier = b.exclusiveTier === 'SUBSCRIBER' || b.exclusiveTier === 'SUPER' ? b.exclusiveTier : null;
   if (b.description !== undefined) data.description = String(b.description).trim().slice(0, 400) || null;
@@ -560,6 +578,7 @@ async function giftItem(req, res, next) {
     const K = KINDS[kind];
     const item = await findItem(prisma, kind, req.body?.id);
     if (!item || !item.active) return res.status(404).json({ error: 'Item não encontrado.' });
+    if (await hiddenFromShop(prisma, item)) return res.status(403).json({ error: 'Esse item não está à venda na Loja.', code: 'NOT_FOR_SALE' });
     if (sup.exclusiveOf(item)) return res.status(403).json({ error: 'Itens exclusivos de apoio não podem ser presenteados.', code: 'EXCLUSIVE' });
     let price = null;
     const [sender, recipient] = await Promise.all([

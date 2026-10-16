@@ -608,6 +608,8 @@ function Catalog({ title, subtitle, list, query = '', sort, setSort, avail, setA
     if (q && !`${i.name} ${i.description || ''} ${KIND[i.kind].label}`.toLowerCase().includes(q)) return false;
     if (avail === 'available' && (i.owned || i.exclusiveTier || !sellsIn(i).length)) return false;
     if (avail === 'owned' && !i.owned) return false;
+    // Item de coleção oculta (fora da Loja): só aparece em "Meus itens"/"Equipados".
+    if (i.inShop === false && avail !== 'owned' && avail !== 'equipped') return false;
     if (avail === 'equipped' && !ctx.isEquipped(i)) return false;
     if (avail === 'exclusive' && !i.exclusiveTier) return false;
     if (currency !== 'all' && !priceOf(i, currency)) return false;
