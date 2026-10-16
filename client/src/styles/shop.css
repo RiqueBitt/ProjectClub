@@ -364,3 +364,26 @@
 .shopadm-grant-users { display: flex; flex-direction: column; gap: 4px; }
 .shopadm-grant-summary { padding: 10px 12px; border-radius: 10px; background: var(--shop-dark); color: var(--text-normal); font-size: 13.5px; }
 @media (max-width: 860px) { .shopadm-grant-cols { grid-template-columns: 1fr; } }
+
+/* Edição rápida nos cartões de estilo + seletor de pessoa. */
+.shopadm-quick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0 4px; align-items: end; }
+.shopadm-quick label { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; font-weight: 700; color: var(--text-muted); min-width: 0; }
+.shopadm-quick label span { display: inline-flex; align-items: center; gap: 4px; }
+.shopadm-quick .wide { grid-column: 1 / -1; }
+.shopadm-quick input, .shopadm-quick select { width: 100%; height: 34px; padding: 0 9px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-normal); font: inherit; font-size: 13.5px; box-sizing: border-box; }
+.shopadm-quick input:focus, .shopadm-quick select:focus { outline: 2px solid var(--brand); outline-offset: 0; border-color: var(--brand); }
+.shopadm-quick .shop-btn { height: 34px; }
+.user-picker { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.user-picker-field { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px; border-radius: 11px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-muted); cursor: text; }
+.user-picker-field:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 25%, transparent); }
+.user-picker-field input { flex: 1; min-width: 0; height: 100%; border: 0 !important; outline: none; background: transparent !important; color: var(--text-normal) !important; font: inherit; font-size: 14px; padding: 0 !important; -webkit-user-select: text; user-select: text; }
+.user-picker-field input::-webkit-search-cancel-button { display: none; }
+.user-picker-field button { display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 7px; background: var(--bg-secondary); color: var(--text-muted); cursor: pointer; }
+.user-picker-list { display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto; }
+.user-picker-list button, .user-picker-chosen { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--text-normal); font: inherit; text-align: left; cursor: pointer; }
+.user-picker-list button:hover { background: var(--bg-modifier-hover, rgba(255,255,255,.05)); }
+.user-picker-list small, .user-picker-chosen small { color: var(--text-muted); }
+.user-picker-chosen { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 12%, transparent); cursor: default; }
+.user-picker-chosen span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-picker-chosen button { height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-normal); font: inherit; font-size: 12.5px; cursor: pointer; }
+.user-picker-hint { padding: 4px 8px; color: var(--text-muted); font-size: 12.5px; }

@@ -4,7 +4,7 @@ import UserAvatar from '../UserAvatar.jsx';
 import { Ico } from '../PagesKit.jsx';
 import { MockProfile, decoValue } from './ShopPreviews.jsx';
 import ShopItemFlagsFields, { FLAGS_EMPTY, flagsFrom } from './ShopItemFlagsFields.jsx';
-import { searchUsers } from '../../api/endpoints';
+import UserPicker from './UserPicker.jsx';
 import {
   adminListShopItems, adminSaveShopItem, adminDeleteShopItem,
   adminShopCatalog, adminGrantItem, adminRevokeItem,
@@ -182,8 +182,13 @@ export function StylesAdmin({ collections }) {
     } catch (e) { setError(errMsg(e)); }
     setSaving(false);
   };
+  const [msg, setMsg] = useState('');
   const quickToggle = async (d) => {
-    try { await adminSaveShopItem(d.id, { active: !d.active }); await load(); } catch (e) { setError(errMsg(e)); }
+    try {
+      await adminSaveShopItem(d.id, { active: !d.active });
+      setMsg(d.active ? `"${d.name}" saiu da Loja.` : `"${d.name}" está à venda na Loja.`);
+      await load();
+    } catch (e) { setError(errMsg(e)); }
   };
 
   if (editing && current) {
@@ -216,7 +221,8 @@ export function StylesAdmin({ collections }) {
   return (
     <>
       {error && <div className="shop-notice bad">{error}</div>}
-      <p className="shop-muted">Os estilos começam desativados (não aparecem na Loja). Ative, escolha a coleção, o preço e, se quiser, deixe limitado.</p>
+      {msg && <div className="shop-notice">{msg}</div>}
+      <p className="shop-muted">Os estilos começam desativados (não aparecem na Loja). Mude o preço, a coleção e o estoque direto no cartão e clique em Salvar; depois em "Ativar na Loja".</p>
       {!items ? <p className="shop-muted">Carregando…</p> : (
         <div className="shop-grid">
           {items.map((d) => (
@@ -224,15 +230,45 @@ export function StylesAdmin({ collections }) {
               <div className="shop-card-art"><MockProfile user={user} style={styleKey(d)} /></div>
               <h3>{d.name}</h3>
               <small className="shop-muted">{priceText(d)} · {d._count?.owners || 0} donos{stockText(d)} · {d.active ? 'na Loja' : 'desativado'}</small>
+              <QuickStyleEdit item={d} collections={collections} onSaved={(m) => { setMsg(m); load(); }} onError={setError} />
               <div className="shop-prices">
-                <button type="button" className="shop-btn ghost" onClick={() => start(d)}>Editar</button>
-                <button type="button" className={`shop-btn ${d.active ? 'danger' : 'primary'}`} onClick={() => quickToggle(d)}>{d.active ? 'Desativar' : 'Ativar'}</button>
+                <button type="button" className="shop-btn ghost" onClick={() => start(d)}>Mais opções</button>
+                <button type="button" className={`shop-btn ${d.active ? 'danger' : 'primary'}`} onClick={() => quickToggle(d)}>{d.active ? 'Tirar da Loja' : 'Ativar na Loja'}</button>
               </div>
             </article>
           ))}
         </div>
       )}
     </>
+  );
+}
+
+// Edição rápida no próprio cartão: preço, coleção e estoque.
+function QuickStyleEdit({ item, collections, onSaved, onError }) {
+  const [f, setF] = useState(() => ({ priceCoins: item.priceCoins ?? '', priceGems: item.priceGems ?? '', collectionId: item.collectionId || '', stock: item.stock ?? '' }));
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { setF({ priceCoins: item.priceCoins ?? '', priceGems: item.priceGems ?? '', collectionId: item.collectionId || '', stock: item.stock ?? '' }); }, [item]);
+  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const dirty = String(f.priceCoins) !== String(item.priceCoins ?? '') || String(f.priceGems) !== String(item.priceGems ?? '')
+    || f.collectionId !== (item.collectionId || '') || String(f.stock) !== String(item.stock ?? '');
+  const save = async () => {
+    setBusy(true);
+    try { await adminSaveShopItem(item.id, f); onSaved(`"${item.name}" salvo.`); } catch (e) { onError(errMsg(e)); }
+    setBusy(false);
+  };
+  return (
+    <div className="shopadm-quick">
+      <label><span><Ico name="coin" size={13} /> Moedas</span><input type="number" min="0" inputMode="numeric" value={f.priceCoins} onChange={set('priceCoins')} placeholder="não vende" /></label>
+      <label><span><Ico name="gem" size={13} /> Gemas</span><input type="number" min="0" inputMode="numeric" value={f.priceGems} onChange={set('priceGems')} placeholder="não vende" /></label>
+      <label className="wide"><span>Coleção</span>
+        <select value={f.collectionId} onChange={set('collectionId')}>
+          <option value="">Nenhuma</option>
+          {collections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </label>
+      <label><span>Estoque</span><input type="number" min="0" inputMode="numeric" value={f.stock} onChange={set('stock')} placeholder="ilimitado" /></label>
+      <button type="button" className="shop-btn primary" disabled={!dirty || busy} onClick={save}>{busy ? 'Salvando…' : dirty ? 'Salvar' : 'Salvo'}</button>
+    </div>
   );
 }
 
@@ -252,21 +288,12 @@ export function GrantItemsAdmin() {
   const [kind, setKind] = useState('all');
   const [iq, setIq] = useState('');
   const [item, setItem] = useState(null);
-  const [q, setQ] = useState('');
-  const [results, setResults] = useState([]);
   const [target, setTarget] = useState(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
 
   useEffect(() => { adminShopCatalog().then((d) => setCatalog(d.items || [])).catch((e) => setMsg({ bad: true, text: errMsg(e) })); }, []);
-  useEffect(() => {
-    const term = q.trim();
-    if (term.length < 2) { setResults([]); return undefined; }
-    const t = setTimeout(() => { searchUsers(term).then((d) => setResults((d.users || []).slice(0, 8))).catch(() => {}); }, 280);
-    return () => clearTimeout(t);
-  }, [q]);
-
   const list = (catalog || []).filter((i) => (kind === 'all' || i.kind === kind) && (!iq.trim() || i.name.toLowerCase().includes(iq.trim().toLowerCase())));
   const soldOut = item && item.stock != null && item.sold >= item.stock;
 
@@ -318,14 +345,7 @@ export function GrantItemsAdmin() {
         </section>
         <section>
           <h4>2. Quem ganha</h4>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nome ou @ da pessoa" />
-          <div className="shopadm-grant-users">
-            {results.map((u) => (
-              <button key={u.id} type="button" className={target?.id === u.id ? 'on' : ''} onClick={() => setTarget(u)}>
-                <UserAvatar user={u} size={28} /> <span>{u.displayName} <small>@{u.username}</small></span>
-              </button>
-            ))}
-          </div>
+          <UserPicker value={target} onChange={setTarget} includeSelf />
           <label>Mensagem no aviso (opcional)<input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="Ex.: Prêmio do evento de Halloween" /></label>
           <div className="shopadm-grant-summary">
             {item && target ? <>Dar <b>{item.name}</b> ({KIND_LABEL[item.kind]}) para <b>{target.displayName}</b>{soldOut ? ' — esgotado, vai pedir confirmação' : ''}</> : 'Escolha o item e a pessoa.'}

@@ -3,7 +3,7 @@ import UserAvatar from '../UserAvatar.jsx';
 import { Ico } from '../PagesKit.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useSocket } from '../../context/SocketContext.jsx';
-import { searchUsers } from '../../api/endpoints';
+import UserPicker from './UserPicker.jsx';
 import { getTrades, getLimiteds, createTrade, acceptTrade, declineTrade, cancelTrade } from '../../api/decorations';
 import { proxyImage } from '../../utils/imageProxy';
 import { nameStyleProps } from '../../utils/nameStyle';
@@ -99,8 +99,6 @@ function TradeCard({ t, me, busy, act }) {
 
 // Monta uma proposta nova.
 function NewTrade({ onSent, flash }) {
-  const [q, setQ] = useState('');
-  const [results, setResults] = useState([]);
   const [target, setTarget] = useState(null);
   const [mine, setMine] = useState(null);
   const [theirs, setTheirs] = useState(null);
@@ -112,12 +110,6 @@ function NewTrade({ onSent, flash }) {
   const [error, setError] = useState('');
 
   useEffect(() => { getLimiteds('me').then((d) => setMine(d.items)).catch(() => setMine([])); }, []);
-  useEffect(() => {
-    const term = q.trim();
-    if (term.length < 2) { setResults([]); return undefined; }
-    const t = setTimeout(() => { searchUsers(term).then((d) => setResults((d.users || []).slice(0, 8))).catch(() => {}); }, 280);
-    return () => clearTimeout(t);
-  }, [q]);
   useEffect(() => {
     setTheirs(null); setWant(new Set());
     if (target) getLimiteds(target.id).then((d) => setTheirs(d.items)).catch(() => setTheirs([]));
@@ -152,19 +144,7 @@ function NewTrade({ onSent, flash }) {
   return (
     <div className="trade-builder">
       <div className="trade-pick-user">
-        <label className="room-search">
-          <Ico name="search" size={16} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Com quem você quer trocar? (nome ou @)" aria-label="Buscar pessoa" />
-        </label>
-        {results.length > 0 && (
-          <div className="trade-results">
-            {results.map((u) => (
-              <button key={u.id} type="button" className={target?.id === u.id ? 'on' : ''} onClick={() => setTarget(u)}>
-                <UserAvatar user={u} size={28} /> {u.displayName}
-              </button>
-            ))}
-          </div>
-        )}
+        <UserPicker value={target} onChange={setTarget} placeholder="Com quem você quer trocar? (nome ou @)" />
       </div>
       {target && (
         <>
@@ -234,7 +214,7 @@ export default function ShopTrades({ flash, onWallet, reload }) {
     ['history', 'Histórico'],
     ['new', 'Nova troca'],
   ], [data]);
-  const list = tab === 'new' ? null : data?.[tab];
+  const list = tab === 'new' ? null : (data?.[tab] || []);
 
   return (
     <div className="room-stack">

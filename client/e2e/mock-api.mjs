@@ -75,7 +75,7 @@ export function handler(route) {
   if (p === '/posts' || p === '/posts/featured') return json({ posts });
   if (p === '/communities') return json({ communities: clubs });
   if (p === '/platform/stats') return json({ memberCount: 1284, postCount: 316, messageCount: 48213 });
-  if (p === '/users/1') return json({ user: { ...me, accountLevel: 7 }, levelProgress: 64, badges: [], mutualFriends: [] });
+  if (p === '/users/1') return json({ user: { ...me, accountLevel: 7, ...(process.env.MOCK_PSTYLE ? { profileStyle: process.env.MOCK_PSTYLE, bio: 'Criador do Project Club. Bora jogar? 🎮', pronouns: 'ele/dele' } : {}) }, levelProgress: 64, badges: process.env.MOCK_PSTYLE ? [{ id: 'b1', name: 'Assinante', icon: '💜' }, { id: 'b2', name: 'Fundador', icon: '🌟' }] : [], mutualFriends: [] });
   if (p === '/updates') return json({ updates: [{ id: 'u1', title: 'Normal 2.0 chegou', version: 'v2.0', description: '- Novo layout padrão\n- Cores ajustáveis', createdAt: new Date(now - 86400000).toISOString() }, { id: 'u2', title: 'Painel da staff novo', version: 'v1.9', description: '- Visão geral com pendências', createdAt: new Date(now - 3 * 86400000).toISOString() }] });
   if (p === '/events') return json({ events: [{ id: 'e1', title: 'Evento de figurinhas', description: 'Colete figurinhas raras conversando nos canais e ganhe recompensas exclusivas.', status: 'ACTIVE', bannerUrl: banner, startsAt: new Date(now - 86400000).toISOString(), endsAt: new Date(now + 5 * 86400000).toISOString() }] });
   if (p === '/youtube/videos') return json({ videos: [1,2,3].map((i) => ({ videoId: 'v' + i, url: '#', title: 'Vídeo da comunidade #' + i, thumbnailUrl: banner })) });
@@ -116,6 +116,19 @@ export function handler(route) {
   if (p === '/supporters/admin/users') return json({ users: [{ ...users[4], supporterTier: 'SUPER' }, { ...users[1], supporterTier: 'SUBSCRIBER' }], totals: { SUPER: 1, SUBSCRIBER: 1 } });
   if (p === '/supporters/admin/history') return json({ entries: [{ id: 'sa1', userId: '5', actorId: '1', fromTier: 'SUBSCRIBER', toTier: 'SUPER', reason: 'Apoio especial no evento de outubro', createdAt: new Date(now - 2 * 86400000).toISOString(), user: users[4], actor: me }], hasMore: false });
   if (p.startsWith('/supporters/admin/')) return json({ ok: true, changed: true });
+  if (p === '/users/search') { const q = (url.searchParams.get('q') || '').replace(/^@+/, '').toLowerCase(); return json({ users: users.filter((u) => `${u.displayName} ${u.username}`.toLowerCase().includes(q)) }); }
+  if (p === '/decorations/admin/items') return json({ items: [
+    { id: 'st1', kind: 'STYLE', key: 'style:terror', name: 'Terror', data: { style: 'terror' }, priceCoins: 2500, priceGems: null, active: false, sortOrder: 0, stock: null, sold: 0, _count: { owners: 0 } },
+    { id: 'st2', kind: 'STYLE', key: 'style:anime', name: 'Anime', data: { style: 'anime' }, priceCoins: 2500, priceGems: null, active: true, sortOrder: 1, stock: 50, sold: 3, _count: { owners: 3 } },
+  ], styleKeys: ['terror', 'anime'] });
+  if (p === '/decorations/admin/catalog') return json({ items: [
+    { id: 'st1', kind: 'style', name: 'Terror', active: false, stock: null, sold: 0, data: { style: 'terror' } },
+    { id: 'd1', kind: 'deco', name: 'Coroa', active: true, stock: 10, sold: 2, imageUrl: null },
+  ] });
+  if (p === '/decorations/admin/collections') return json({ items: [] });
+  if (p === '/decorations/trades') return json({ incoming: [], outgoing: [], history: [] });
+  { const m = p.match(/^\/decorations\/limiteds\/(.+)$/); if (m) return json({ user: users.find((u) => u.id === m[1]) || me, items: [] }); }
+  if (p.startsWith('/decorations/admin/')) return json({ ok: true, item: {} });
   if (p === '/decorations/shop' || p === '/decorations/history' || /^\/decorations\/.+\/buy$/.test(p) || p === '/decorations/equip' || p === '/decorations/effects/equip') return shopMock(p, json);
   if (p === '/app-catalog') return json({ items: [
     { moduleId: 'projectmc', name: 'Project MC', version: '2.3.1', description: 'Launcher de Minecraft com modpacks da comunidade e login integrado.', bannerUrl: banner, iconUrl: av('#27ae60', '#145a32'), screenshots: [] },
@@ -238,6 +251,7 @@ function shopMock(p, json) {
     const col2 = { id: 'c2', name: 'Verão no Club', description: 'Cores quentes para o seu perfil.', bannerUrl: shopBanner('#f97316', '#facc15', 'VERÃO'), accentColor: '#f97316', active: true, featured: true, bundlePriceCoins: null, bundlePriceGems: null, discountEligible: true, offer: null, pricing: {} };
     return json({
       decorations: decorations.map(shape), effects: effects.map(shape), collections: [col, col2],
+      styles: process.env.MOCK_STYLES ? [["win2000", "Windows 2000"], ["anime", "Anime"], ["terror", "Terror"], ["bugado", "Bugado"], ["nostalgia", "Nostalgia"], ["cyberpunk", "Cyberpunk 2099"], ["vaporwave", "Vaporwave"], ["pixel", "8-bit"], ["oceano", "Oceano Profundo"], ["floresta", "Floresta Encantada"], ["galaxia", "Galáxia"], ["sakura", "Sakura"], ["inverno", "Inverno"], ["lava", "Vulcão"], ["realeza", "Realeza"], ["matrix", "Matrix"], ["caderno", "Caderno"], ["steampunk", "Steampunk"], ["gotico", "Gótico"], ["arcade", "Arcade 80"], ["sunset", "Pôr do Sol"], ["candy", "Doceria"], ["aurora", "Aurora Boreal"], ["deserto", "Deserto"], ["halloween", "Halloween"], ["natal", "Natal"], ["lofi", "Lo-fi Chill"], ["holografico", "Holográfico"], ["militar", "Tático"], ["faroeste", "Faroeste"], ["medieval", "Pergaminho"], ["cafe", "Cafeteria"], ["grafite", "Grafite"], ["marmore", "Mármore"], ["noir", "Filme Noir"]].map(([k, n], i) => ({ id: 'st-' + k, kind: 'STYLE', key: 'style:' + k, name: n, data: { style: k }, priceCoins: 2500, priceGems: null, active: true, sortOrder: i, stock: null, sold: 0, limited: false, remaining: null, owned: false, createdAt: new Date(now - 30 * day).toISOString(), popularity: 0, pricing: { coins: { base: 2500, final: 2500, discount: 0 } } })) : [],
       coins: 2480, gems: 12, supporter: { tier, label: tier, discount: disc },
       equippedId: shopState.equipped, equippedEffectId: shopState.equippedFx,
     });

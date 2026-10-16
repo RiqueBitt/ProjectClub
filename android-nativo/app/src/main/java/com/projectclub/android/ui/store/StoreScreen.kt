@@ -346,7 +346,7 @@ private fun ItemPreview(item: ShopItem, me: com.projectclub.android.data.User?, 
         } else if (st != null) {
             // Mini perfil no visual do estilo.
             Column(Modifier.fillMaxSize()) {
-                com.projectclub.android.ui.profile.StyleTitleBar(st, "Perfil")
+                com.projectclub.android.ui.profile.StyleTitleBar(st)
                 Box(Modifier.fillMaxWidth().weight(0.4f).background(Brush.linearGradient(listOf(st.accent, st.accent.copy(alpha = 0.4f)))))
                 Column(Modifier.fillMaxWidth().weight(0.6f).padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
