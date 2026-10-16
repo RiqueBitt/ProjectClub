@@ -10,6 +10,7 @@ import MiniCallWindow from './voice/MiniCallWindow.jsx';
 import { RecordingConsentModal, RecordingCapture } from './voice/CallExtras.jsx';
 import { getPreferredSpeakerId, setPreferredSpeakerId, getPreferredMicId, isOutputSelectionSupported, onSpeakerPreferenceChange, listAudioDevices } from '../utils/audioDevices';
 import { getVoicePref, onVoicePrefsChange } from '../utils/voicePrefs';
+import { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import '../styles/callbar.css';
 
@@ -171,6 +172,9 @@ export default function CallBar() {
   useEffect(() => { setMiniHidden(false); }, [callId]);
   useEffect(() => { if (onCallView) setMiniHidden(false); }, [onCallView]);
   const elapsed = useCallElapsed(voice?.callStartedAt);
+  // Canal da chamada (pro ícone personalizado) — hook antes do return.
+  const callChannelId = voice?.call?.channelId || null;
+  const callChannel = useStore((s) => (callChannelId ? (s.channels.find((c) => c.id === callChannelId) || s.categories.flatMap((cat) => cat.channels || []).find((c) => c.id === callChannelId) || null) : null));
   if (!voice?.call) return null;
 
   const { call, muted, micMissing, deafened, cameraOn, screenOn, participants, myRole } = voice;
@@ -228,16 +232,20 @@ export default function CallBar() {
             {voice.reconnectingProvider ? 'Reconectando…' : `Modo reserva${voice.providerLabel ? ` · ${voice.providerLabel}` : ''}`}
           </span>
         )}
+        {voice.reconnecting && (
+          <span className="cb-backup cb-reconnecting" role="status" aria-live="polite">Reconectando…</span>
+        )}
         {elapsed && <span className="cb-time" aria-label="Tempo de chamada">{elapsed}</span>}
       </div>
 
+      {/* Ícone personalizado do canal (emoji/imagem) também na barra da chamada. */}
       <div className="cb-chan-row">
         <button
           type="button" className="cb-chan" onClick={() => viewPath && navigate(viewPath)}
           disabled={!viewPath || onCallView} data-tip={onCallView ? undefined : 'Abrir a chamada'}
           aria-label={onCallView ? (call.channelName || 'Chamada') : 'Abrir a chamada'}
         >
-          <CallIcon name="speaker" size={14} />
+          {hasCustomIcon(callChannel) ? <CustomIcon item={callChannel} className="cb-chan-custom-icon" /> : <CallIcon name="speaker" size={14} />}
           <span className="truncate">{call.channelName}</span>
           {!onCallView && <CallIcon name="chevron" size={14} className="cb-chan-go" />}
         </button>

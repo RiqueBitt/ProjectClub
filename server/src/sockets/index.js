@@ -1624,4 +1624,4 @@ function initSockets(httpServer) {
   return io;
 }
 
-module.exports = { initSockets };
+module.exports = { initSockets, broadcastActivityChange, sameActivity };

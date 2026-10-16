@@ -739,3 +739,15 @@ export const getNexusMod = (domain, modId) => api.get(`/nexus/games/${domain}/mo
 export const getNexusDownload = (domain, modId, fileId, { key, expires } = {}) => api
   .get(`/nexus/games/${domain}/mods/${modId}/files/${fileId}/download`, { params: { key: key || undefined, expires: expires || undefined } })
   .then((r) => r.data);
+
+// ---- Mensagens agendadas ----
+export const scheduleMessage = (body) => api.post('/messages/scheduled', body).then((r) => r.data);
+export const listScheduledMessages = (params) => api.get('/messages/scheduled', { params }).then((r) => r.data);
+export const updateScheduledMessage = (id, body) => api.patch(`/messages/scheduled/${id}`, body).then((r) => r.data);
+export const cancelScheduledMessage = (id) => api.delete(`/messages/scheduled/${id}`).then((r) => r.data);
+
+// ---- Lembretes ----
+export const createReminder = (body) => api.post('/reminders', body).then((r) => r.data);
+export const previewReminderWhen = (when) => api.post('/reminders/preview', { when, tzOffset: new Date().getTimezoneOffset() }).then((r) => r.data);
+export const listReminders = () => api.get('/reminders').then((r) => r.data);
+export const deleteReminder = (id) => api.delete(`/reminders/${id}`).then((r) => r.data);

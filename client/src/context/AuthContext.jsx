@@ -156,6 +156,9 @@ export function AuthProvider({ children }) {
   }, [applySession]);
 
   const logout = useCallback(async () => {
+    // Antes de encerrar a sessão: este navegador para de receber push desta
+    // conta (a preferência "ligado" fica, pra reassinar no próximo login).
+    try { const m = await import('../utils/webPush'); await m.forgetWebPushForLogout(); } catch { /* ok */ }
     await logoutUser().catch(() => {});
     // Apaga a cópia local do pacote de abertura (conversas, amigos...) —
     // ver utils/bootstrap.js. Só ao sair de verdade: sessão expirada não

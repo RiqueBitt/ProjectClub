@@ -6,10 +6,14 @@ window.events = [];
 const pack = (x) => (x instanceof MediaStream ? { stream: true, active: x.active, tracks: x.getTracks().map((t) => t.kind) } : x);
 const log = (type, ...a) => window.events.push({ type, a: a.map(pack) });
 
-window.joinRoom = async ({ url, token, userId, startMuted = false }) => {
+window.joinRoom = async ({ url, token, userId, startMuted = false, noiseSuppression = false }) => {
   const engine = createMediasoupEngine({
     onJoined: (id) => log('joined', id),
     onLeft: () => log('left'),
+    onReconnecting: (n, why) => log('reconnecting', n, why),
+    onReconnected: () => log('reconnected'),
+    onNetQuality: (q) => log('netQuality', q),
+    onRtt: (ms) => log('rtt', ms),
     onLocalSpeaking: (b) => log('localSpeaking', b),
     onRemoteSpeaking: (u, b) => log('remoteSpeaking', u, b),
     onSelfMute: (b) => log('selfMute', b),
@@ -22,7 +26,7 @@ window.joinRoom = async ({ url, token, userId, startMuted = false }) => {
     onError: (e, i) => log('error', String((e && e.message) || e), i),
   });
   window.engine = engine;
-  await engine.join({ url, token, userId, iceServers: [], startMuted });
+  await engine.join({ url, token, userId, iceServers: [], startMuted, noiseSuppression });
   return true;
 };
 

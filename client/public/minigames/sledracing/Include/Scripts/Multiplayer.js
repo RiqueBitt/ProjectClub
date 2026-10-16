@@ -5,6 +5,8 @@
 // Socket.IO não carregar (sem rede), "server" vira um objeto vazio e o jogo
 // cai no modo solo, sem travar nada.
 var players = [], startTimer = setInterval
+// Torneio (chaveamento até 8): estado local — ver tournament_* abaixo.
+var tournament = { active: false, score: 0, stage: null }
 var hasIO = (typeof io === "function")
 var multiplayer = hasIO
 var server = hasIO
@@ -51,8 +53,59 @@ function updateRoom(count) {
 		}, 1000)
 		return
 	}
-	$(".waiting").append('<div class="starting"><span class="solo">Jogar sozinho</span></div>')
+	$(".waiting").append('<div class="starting"><span class="solo">Jogar sozinho</span><span class="tourney">Torneio (até 8)</span></div>')
 }
+
+// ---- Torneio ----
+function tournamentWaitingText(t) {
+	$(".starting").remove()
+	var txt = "Torneio: " + t.count + "/" + t.max + " inscritos"
+	if(t.seconds > 0) txt += " · começa em " + t.seconds + "s"
+	else if(t.count < t.min) txt += " · faltam " + (t.min - t.count) + " pra abrir a contagem"
+	$(".waiting div").text(txt)
+	$(".waiting").append('<div class="starting"><span class="leave-tourney">Sair do torneio</span></div>')
+}
+server.on("tournament_update", function(t) {
+	if(t && t.full) { $(".waiting div").text("Torneios lotados agora — tente de novo em instantes."); return }
+	if(app.currentState() == "Lobby") tournamentWaitingText(t)
+})
+// Nova corrida do torneio (bateria ou final): prepara a arena; o
+// game_connected + contagem chegam logo em seguida.
+server.on("tournament_stage", function(st) {
+	tournament.active = true
+	tournament.stage = st.stage
+	if(st.stage == "wait") {
+		$(".victory-screen .tournament-note").remove()
+		$(".victory-screen").append('<div class="tournament-note">'+st.label+'</div>')
+		return
+	}
+	if(app.currentState() != "Lobby") ResetArena()
+	$(".waiting div").text(st.label)
+	clearInterval(startTimer)
+})
+server.on("tournament_eliminated", function(e) {
+	tournament.active = false
+	$(".victory-screen .tournament-note").remove()
+	$(".victory-screen").append('<div class="tournament-note eliminated">Torneio: '+e.label+'</div>')
+	if(app.currentState() == "Lobby") { $(".waiting div").text("Torneio: " + e.label); $(".starting").remove(); $(".waiting").append('<div class="starting"><span class="solo">Jogar sozinho</span></div>') }
+})
+server.on("tournament_result", function(r) {
+	tournament.active = false
+	var html = '<div class="tournament-podium"><span class="header">Resultado do torneio</span>'
+	$.each(r.standings || [], function(i, p) {
+		html += '<span class="placement">' + p.place + 'º — ' + $("<p></p>").text(p.name).html() + (p.dnf ? ' (não terminou)' : '') + '</span>'
+	})
+	if(r.walkover) html += '<span class="placement">Vitória por W.O.</span>'
+	html += '<div class="play-again">Jogar de novo</div></div>'
+	$(".game").append(html)
+	// Campeão ganha bônus na pontuação da sessão.
+	var mine = (r.standings || []).filter(function(p) { return p.name == username })[0]
+	if(mine && mine.place == 1) {
+		tournament.score += 500
+		window.__pcScore = tournament.score
+		if(typeof pcReportScore === "function") pcReportScore(tournament.score)
+	}
+})
 
 // Connected to the server
 server.once("connect", function() {

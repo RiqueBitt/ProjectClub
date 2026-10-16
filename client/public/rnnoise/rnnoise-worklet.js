@@ -20,8 +20,6 @@ class RNNoiseProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     this.ready = false;
-    this.inputBuffer = new Float32Array(0);
-    this.outputBuffer = new Float32Array(0);
     this.enabled = true;
 
     this.port.onmessage = (e) => {
@@ -61,36 +59,39 @@ class RNNoiseProcessor extends AudioWorkletProcessor {
     for (let i = 0; i < FRAME_SIZE; i++) heap[inOffset + i] = frame[i] * 32768;
     module._rnnoise_process_frame(state, outputPtr, inputPtr);
     const outOffset = outputPtr / 4;
-    const result = new Float32Array(FRAME_SIZE);
+    const result = this.scratch;
     for (let i = 0; i < FRAME_SIZE; i++) result[i] = heap[outOffset + i] / 32768;
     return result;
   }
 
+  // Buffers FIXOS (sem alocar a cada bloco de 128 amostras — a thread de
+  // áudio não pode parar pra coletar lixo): acumula entrada até fechar um
+  // quadro de 480, processa, e vai entregando a saída conforme pedem.
   process(inputs, outputs) {
-    const input = inputs[0][0];
-    const output = outputs[0][0];
+    const input = inputs[0] && inputs[0][0];
+    const output = outputs[0] && outputs[0][0];
     if (!input || !output) return true;
-
-    const merged = new Float32Array(this.inputBuffer.length + input.length);
-    merged.set(this.inputBuffer);
-    merged.set(input, this.inputBuffer.length);
-    this.inputBuffer = merged;
-
-    while (this.inputBuffer.length >= FRAME_SIZE) {
-      const frame = this.inputBuffer.subarray(0, FRAME_SIZE);
-      const processed = this.processFrame(frame);
-      const combined = new Float32Array(this.outputBuffer.length + FRAME_SIZE);
-      combined.set(this.outputBuffer);
-      combined.set(processed, this.outputBuffer.length);
-      this.outputBuffer = combined;
-      this.inputBuffer = this.inputBuffer.subarray(FRAME_SIZE);
+    if (!this.inBuf) {
+      const cap = FRAME_SIZE * 4;
+      this.inBuf = new Float32Array(cap); this.inLen = 0;
+      this.outBuf = new Float32Array(cap); this.outLen = 0;
+      this.scratch = new Float32Array(FRAME_SIZE);
     }
+    // Sem processamento: passa direto, sem latência extra.
+    if (!this.ready || !this.enabled) { output.set(input); return true; }
 
-    if (this.outputBuffer.length >= output.length) {
-      output.set(this.outputBuffer.subarray(0, output.length));
-      this.outputBuffer = this.outputBuffer.subarray(output.length);
+    this.inBuf.set(input, this.inLen); this.inLen += input.length;
+    while (this.inLen >= FRAME_SIZE) {
+      const processed = this.processFrame(this.inBuf.subarray(0, FRAME_SIZE));
+      if (this.outLen + FRAME_SIZE <= this.outBuf.length) { this.outBuf.set(processed, this.outLen); this.outLen += FRAME_SIZE; }
+      this.inBuf.copyWithin(0, FRAME_SIZE, this.inLen); this.inLen -= FRAME_SIZE;
     }
-
+    if (this.outLen >= output.length) {
+      output.set(this.outBuf.subarray(0, output.length));
+      this.outBuf.copyWithin(0, output.length, this.outLen); this.outLen -= output.length;
+    } else {
+      output.fill(0); // ainda enchendo o primeiro quadro (~10ms)
+    }
     return true;
   }
 }

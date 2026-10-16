@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import logo from '../assets/icons/logo-project-club.png';
 import { ArrowLeftIcon } from '../components/auth/AuthIcons.jsx';
 import AuthCharacters from '../components/auth/AuthCharacters.jsx';
+import { useIconStunts, playIconStunt } from '../components/auth/iconStunts.js';
 
 const SHOWCASE_APPS = ['gameproject', 'photoproject', 'projectmc', 'hyproject', 'davinciproject', 'waveproject', 'texelproject', 'forgeproject', 'canvasproject'];
 const TICKER = ['Chat e voz', 'Fórum', 'Conquistas', 'Jogos', 'Imagem', 'Vídeo', 'Áudio', '3D'];
@@ -40,6 +41,7 @@ function useIsWide() {
 // characters: mostra a turminha (AuthCharacters). reaction: { type:
 // 'error' | 'success', key } pra eles reagirem ao resultado do formulário.
 export default function AuthLayout({ title, subtitle, children, footer, wide = false, showcase = true, characters = true, reaction = null }) {
+  const appsRef = useIconStunts();
   useEffect(() => {
     const html = document.documentElement;
     html.classList.add('auth-no-zoom');
@@ -82,9 +84,9 @@ export default function AuthLayout({ title, subtitle, children, footer, wide = f
             <p>Chat, voz, fórum, conquistas e nove programas de criação, numa conta só.</p>
           </div>
 
-          <div className="pc-showcase-apps">
+          <div className="pc-showcase-apps" ref={appsRef}>
             {SHOWCASE_APPS.map((id, i) => (
-              <img key={id} src={`/apps/${id}/icon.png`} alt="" style={{ '--i': i }} loading="lazy" />
+              <img key={id} src={`/apps/${id}/icon.png`} alt="" style={{ '--i': i }} loading="lazy" data-app={id} onPointerEnter={(e) => playIconStunt(e.currentTarget)} />
             ))}
           </div>
 

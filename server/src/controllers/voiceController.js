@@ -78,7 +78,12 @@ async function getJoin(req, res, next) {
     // (clientReady=agora,livekit,jitsi). A cadeia PULA, só pra ESTE join,
     // os que ele não suporta — sem mexer no status global do painel. Sem o
     // parâmetro (ex.: cliente antigo/teste), não restringe nada.
-    const clientReady = String(req.query.clientReady || '').split(',').map((s) => s.trim()).filter(Boolean);
+    let clientReady = String(req.query.clientReady || '').split(',').map((s) => s.trim()).filter(Boolean);
+    // App Android 1.27.2 fechava ao entrar pelo servidor próprio (corrigido
+    // na versão seguinte): pra ele, pula o servidor próprio.
+    if (/ProjectClub\/1\.27\.2 /.test(String(req.headers['user-agent'] || ''))) {
+      clientReady = clientReady.filter((id) => id !== 'projectclub');
+    }
     let disabled = state.disabled;
     if (clientReady.length) {
       const unsupported = providers.PROVIDER_ORDER.filter((id) => !clientReady.includes(id));

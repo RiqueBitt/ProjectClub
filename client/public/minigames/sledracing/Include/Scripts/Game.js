@@ -12,12 +12,31 @@ function Lobby() {
 			// Create the game arena
 			app.setState("Lobby")
 			$(".loading").addClass("in-game").removeClass("loading")
-			$(".game").html('<div class="victory-screen"><span class="header">Classificação</span><span class="placement first">1º <span class="player-name"><span class="name"></span> — <img class="timer" src="Assets/Timer.png"><span class="time"></span></span></span><span class="placement second">2º <span class="player-name"><span class="name"></span> — <img class="timer" src="Assets/Timer.png"><span class="time"></span></span></span><span class="placement third">3º <span class="player-name"><span class="name"></span> — <img class="timer" src="Assets/Timer.png"><span class="time"></span></span></span><span class="placement fourth">4º <span class="player-name"><span class="name"></span> — <img class="timer" src="Assets/Timer.png"><span class="time"></span></span></span><div class="play-again">Jogar de novo</div></div><div class="background"></div><img class="clouds" src="Assets/Clouds.png" style="left:255px"><img class="corner" src="Assets/MapCorner.png"><div class="map"><div class="map-bar"></div></div><div class="tiles"><img class="tile tile-start" src="Assets/HillTiles/Start.png"><img class="tile tile-0" src="Assets/HillTiles/0.png" style="left:485px;top:318px"><img class="tile tile-0" src="Assets/HillTiles/0.png" style="left:734px;top:467px"></div><div class="waiting"><div>Conectando...</div><img src="Assets/Loading.gif"></div><div class="server-status">Servidor: <span class="o'+(multiplayer?"n":"ff")+'line"></span></div>')
+			BuildArena()
 			
 			// Delay slightly and prompt for a username
 			setTimeout(promptUsername, 200)
 		}
 	},12)
+}
+
+
+// Project Club: monta a arena (tela de espera + pista vazia). Usado no
+// Lobby e, nos torneios, entre uma corrida e outra (ResetArena).
+function BuildArena() {
+	$(".game").html('<div class="victory-screen"><span class="header">Classificação</span><span class="placement first">1º <span class="player-name"><span class="name"></span> — <img class="timer" src="Assets/Timer.png"><span class="time"></span></span></span><span class="placement second">2º <span class="player-name"><span class="name"></span> — <img class="timer" src="Assets/Timer.png"><span class="time"></span></span></span><span class="placement third">3º <span class="player-name"><span class="name"></span> — <img class="timer" src="Assets/Timer.png"><span class="time"></span></span></span><span class="placement fourth">4º <span class="player-name"><span class="name"></span> — <img class="timer" src="Assets/Timer.png"><span class="time"></span></span></span><div class="play-again">Jogar de novo</div></div><div class="background"></div><img class="clouds" src="Assets/Clouds.png" style="left:255px"><img class="corner" src="Assets/MapCorner.png"><div class="map"><div class="map-bar"></div></div><div class="tiles"><img class="tile tile-start" src="Assets/HillTiles/Start.png"><img class="tile tile-0" src="Assets/HillTiles/0.png" style="left:485px;top:318px"><img class="tile tile-0" src="Assets/HillTiles/0.png" style="left:734px;top:467px"></div><div class="waiting"><div>Conectando...</div><img src="Assets/Loading.gif"></div><div class="server-status">Servidor: <span class="o'+(multiplayer?"n":"ff")+'line"></span></div>')
+}
+
+// Torneio: volta pra "esperando" sem recarregar a página (a próxima corrida
+// chega pelo servidor: tournament_stage → game_connected → contagem).
+function ResetArena() {
+	clearInterval(startTimer)
+	placement = 0
+	startTime = 0
+	window.__pcScore = window.__pcScore || 0
+	app.setState("Lobby")
+	BuildArena()
+	$(".waiting div").text("Torneio: preparando a próxima corrida…")
 }
 
 // Initialise the game
@@ -135,6 +154,13 @@ function movePlayer($p) {
 				// pontuação atual pra salvar mesmo se a pessoa sair no meio.
 				var elapsed = (Date.now() - startTime) / 1000
 				var finalScore = 1000 + Math.max(0, Math.round((120 - elapsed) * 20))
+				// Torneio: a pontuação da bateria/final soma à da sessão e o
+				// servidor é avisado da chegada (ordem de chegada decide quem passa).
+				if(typeof tournament !== "undefined" && tournament.active) {
+					if(multiplayer) server.emit("race_finished", { ms: Date.now() - startTime })
+					tournament.score += finalScore
+					finalScore = tournament.score
+				}
 				window.__pcScore = finalScore
 				if(typeof pcReportScore === "function") pcReportScore(finalScore)
 				Finished()

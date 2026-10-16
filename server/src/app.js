@@ -77,6 +77,7 @@ const eventsRoutes = require('./routes/events');
 const activityRoutes = require('./routes/activity');
 const gamesLibraryRoutes = require('./routes/games'); // biblioteca de jogos (tempo de jogo)
 const decorationsRoutes = require('./routes/decorations');
+const supportersRoutes = require('./routes/supporters');
 const youtubeRoutes = require('./routes/youtube');
 const { requireFeature, isFeatureEnabled } = require('./config/features');
 const archiveRoutes = require('./routes/archive');
@@ -428,10 +429,12 @@ function createApp() {
   app.use('/api/events', eventsRoutes);
   // Avisos pessoais salvos e Galeria (curtidas/álbuns).
   app.use('/api/notices', require('./routes/notices'));
+  app.use('/api/reminders', require('./routes/reminders'));
   app.use('/api/gallery', require('./routes/gallery'));
   app.use('/api/activity', activityRoutes);
   app.use('/api/games', gamesLibraryRoutes);
   app.use('/api/decorations', decorationsRoutes);
+  app.use('/api/supporters', supportersRoutes);
   app.use('/api/youtube', youtubeRoutes);
   // Filmes e Séries e Navegador: desligados no código (config/features.js),
   // respondem 404 sem carregar nada; o código fica guardado pra religar.
@@ -458,6 +461,8 @@ function createApp() {
   const staticCacheHeader = (filePath) => {
     if (/[\\/]assets[\\/]/.test(filePath)) return 'public, max-age=31536000, immutable';
     if (filePath.endsWith('.html')) return 'no-cache';
+    // Service worker e manifest: o navegador precisa ver a versão nova logo.
+    if (/[\\/](sw\.js|manifest\.webmanifest)$/.test(filePath)) return 'no-cache';
     // Pacotes de emoji, sons e arquivos dos Mini-Jogos (menos os .html,
     // que caem no no-cache acima): nome fixo, mudam raramente — 1 dia.
     if (/[\\/](emoji-sets|sounds|minigames|ruffle)[\\/]/.test(filePath)) return 'public, max-age=86400';

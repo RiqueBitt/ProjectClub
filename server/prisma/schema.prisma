@@ -212,6 +212,11 @@ model User {
   // phishing em tempo real) uma segunda vez dentro da validade dele.
   twoFactorLastUsedStep Int?
   platformRole        String    @default("USER")
+  // Apoio ao Project Club: NONE | SUBSCRIBER (Assinante) | SUPER (Super
+  // Assinante). Só a staff muda (Painel → Gerenciamento de Apoio), com
+  // registro em SupporterAuditLog. Hierarquia apenas visual/benefícios —
+  // não dá nenhuma permissão de staff. Ver services/supporters.js.
+  supporterTier       String    @default("NONE") @db.VarChar(16)
   // SECURITY: marca quando a conta foi promovida automaticamente a ADMIN
   // via PLATFORM_ADMIN_EMAIL (ver adminBootstrap.js). Preenchido = a
   // promoção automática já aconteceu uma vez e NÃO se repete — se outra
@@ -302,6 +307,10 @@ model User {
 
   refreshTokens        RefreshToken[]
   pushTokens           PushToken[]
+  webPushSubscriptions WebPushSubscription[]
+  scheduledMessages    ScheduledMessage[]
+  reminders            Reminder[]
+  minigameWeeklyPrizes MinigameWeeklyPrize[]
   verificationCodes    EmailVerificationCode[]
   passwordResetTokens  PasswordResetToken[]
   twoFactorRecoveryCodes TwoFactorRecoveryCode[]
@@ -707,6 +716,99 @@ model PushToken {
   lastUsedAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// Assinaturas Web Push (navegador/PWA — Chrome, Edge, Firefox, Safari 16+):
+// o navegador entrega um endpoint + chaves por aparelho; o servidor assina
+// cada envio com a chave VAPID (ver services/webPush.js). Várias por
+// pessoa (celular, notebook...). Apagada sozinha quando o serviço de push
+// responde 404/410 (a pessoa revogou ou desinstalou).
+model WebPushSubscription {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint   String   @unique @db.VarChar(500)
+  p256dh     String   @db.VarChar(255)
+  auth       String   @db.VarChar(64)
+  userAgent  String?  @db.VarChar(255)
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Par de chaves VAPID gerado uma vez e guardado aqui, pra não depender de
+// configurar variável de ambiente (se VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY
+// existirem no ambiente, elas têm prioridade). Trocar a chave invalida
+// todas as assinaturas — por isso é persistida.
+// ---------- Mensagens agendadas ----------
+// "Enviar às 18h": fica aqui até a hora; o job (services/scheduledMessages.js)
+// envia pelo MESMO caminho do envio normal (permissões, automod, menções,
+// push) como se a pessoa tivesse apertado Enter naquela hora. Se ela perder
+// o acesso ao canal até lá, vira FAILED com o motivo.
+model ScheduledMessage {
+  id             String    @id @default(uuid())
+  authorId       String
+  author         User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  channelId      String?
+  conversationId String?
+  content        String    @db.Text
+  replyToId      String?
+  sendAt         DateTime
+  status         String    @default("PENDING") // PENDING | SENT | FAILED | CANCELLED
+  sentMessageId  String?
+  error          String?   @db.VarChar(300)
+  createdAt      DateTime  @default(now())
+  claimedAt      DateTime?
+
+  @@index([status, sendAt])
+  @@index([authorId, status])
+}
+
+// ---------- Lembretes ----------
+// "Me lembra disso em 2h": vira um aviso (UserNotice kind REMINDER) na hora
+// marcada, com link pra mensagem/página de origem. Entregue uma vez só
+// (claim atômico no job), igual ao lembrete de evento.
+model Reminder {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text      String    @db.VarChar(500)
+  link      String?   @db.VarChar(300)
+  messageId String?
+  dueAt     DateTime
+  firedAt   DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([firedAt, dueAt])
+  @@index([userId, firedAt])
+}
+
+// Prêmio do ranking SEMANAL dos Mini-Jogos (services/minigameWeekly.js):
+// ao fechar a semana, os 3 melhores de cada jogo ganham moedas; a linha é
+// criada uma vez (unique) e `claimedAt` marca o resgate.
+model MinigameWeeklyPrize {
+  id        String    @id @default(uuid())
+  weekKey   String    @db.VarChar(10) // "2026-W42"
+  game      String    @db.VarChar(40)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rank      Int
+  score     Int
+  coins     Int
+  claimedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([weekKey, game, userId])
+  @@index([userId, claimedAt])
+  @@index([weekKey, game])
+}
+
+model WebPushKeys {
+  id         String   @id @default("singleton")
+  publicKey  String   @db.VarChar(255)
+  privateKey String   @db.VarChar(255)
+  createdAt  DateTime @default(now())
 }
 
 model EmailVerificationCode {
@@ -2715,6 +2817,13 @@ model AvatarDecoration {
   active     Boolean  @default(true)
   sortOrder  Int      @default(0)
   createdAt  DateTime @default(now())
+  // Loja (sala branca): destaque, exclusividade de apoio e desconto.
+  // exclusiveTier: null = qualquer um compra; SUBSCRIBER/SUPER = benefício
+  // da categoria (liberado sem compra enquanto o status durar).
+  featured         Boolean @default(false)
+  exclusiveTier    String? @db.VarChar(16)
+  discountEligible Boolean @default(true)
+  description      String? @db.Text
   owners     UserAvatarDecoration[]
   // Coleção da loja (opcional).
   collectionId String?
@@ -2752,6 +2861,8 @@ model ShopCollection {
   offerStartsAt    DateTime?
   offerEndsAt      DateTime?
   offerDiscount    Int?
+  // Desconto de Assinante vale no pacote? (false = excluído por config)
+  discountEligible Boolean  @default(true)
   createdAt        DateTime @default(now())
   decorations      AvatarDecoration[]
   effects          ProfileEffect[]
@@ -2778,6 +2889,10 @@ model ProfileEffect {
   active       Boolean  @default(true)
   sortOrder    Int      @default(0)
   createdAt    DateTime @default(now())
+  featured         Boolean @default(false)
+  exclusiveTier    String? @db.VarChar(16)
+  discountEligible Boolean @default(true)
+  description      String? @db.Text
   collectionId String?
   collection   ShopCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
   owners       UserProfileEffect[]
@@ -2794,6 +2909,21 @@ model UserProfileEffect {
 
   @@unique([userId, effectId])
   @@index([effectId])
+}
+
+// Histórico de concessões/remoções de Assinante e Super Assinante. actorId
+// vem sempre da sessão de quem fez (nunca do corpo da requisição).
+model SupporterAuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  actorId   String
+  fromTier  String   @db.VarChar(16)
+  toTier    String   @db.VarChar(16)
+  reason    String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }
 
 // --- Missões diárias/semanais + histórico da economia (round 5) ---

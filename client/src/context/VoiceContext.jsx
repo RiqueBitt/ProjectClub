@@ -15,6 +15,7 @@ import { buildScreenShareConfig, collectScreenPublishTracks } from '../utils/scr
 // o socket, o roster, as reações e o soundboard — só a camada de mídia troca.
 import { readJoinResponse, isClientReady, providerLabel, PRIMARY_PROVIDER } from '../voice/providerDecision.js';
 import { createEngine, CLIENT_READY_PROVIDERS } from '../voice/engineRegistry.js';
+import { isReserveMode } from '../voice/providerDecision.js';
 // Item pedido: "no .apk, se sair do app, continua na call em segundo
 // plano" — sem isso, o Android mata o áudio da chamada poucos segundos
 // depois de minimizar o app. Importado direto (não via window.Capacitor)
@@ -194,6 +195,10 @@ export function VoiceProvider({ children }) {
   // Troca de provedor no meio da chamada (Agora → Jitsi): mostra um aviso
   // curto "reconectando a chamada…" enquanto refaz a conexão, sem deslogar.
   const [reconnectingProvider, setReconnectingProvider] = useState(false);
+  // Reconexão automática do ENGINE (caiu o wi-fi, celular bloqueou): o
+  // engine refaz a sessão sozinho e avisa aqui — a UI mostra "reconectando"
+  // em vez de derrubar a pessoa da sala. { attempt } enquanto tenta; null ok.
+  const [reconnecting, setReconnecting] = useState(null);
   const [myRole, setMyRole] = useState('speaker');
   const [handsRaised, setHandsRaised] = useState({});
   const [participants, setParticipants] = useState({});
@@ -588,6 +593,17 @@ export function VoiceProvider({ children }) {
     teardownJitsi();
     const callbacks = {
       onLeft: () => { leaveChannelRef.current?.(); },
+      onReconnecting: (attempt) => { setReconnecting({ attempt }); setNetQuality({}); },
+      onReconnected: () => { setReconnecting(null); },
+      // Qualidade/ping vindos do engine (SFU próprio / LiveKit), na mesma
+      // escala que o Agora usa — cai nos mesmos pontinhos/barras da UI.
+      onNetQuality: (next) => {
+        setNetQuality((prev) => {
+          const keys = Object.keys(next);
+          return keys.length === Object.keys(prev).length && keys.every((k) => prev[k] === next[k]) ? prev : next;
+        });
+      },
+      onRtt: (rtt) => { const r = Math.round(rtt / 5) * 5; setMyRtt((prev) => (prev === r ? prev : r)); },
       // Fala: espelha no MEU anel verde e reemite pros outros pelo nosso
       // socket (igual ao Agora). No LiveKit também marca a fala dos outros.
       onLocalSpeaking: (speaking) => {
@@ -640,7 +656,12 @@ export function VoiceProvider({ children }) {
       } else if (prov === 'livekit') {
         await engine.join({ url: creds.url, token: creds.token, userId: user?.id, displayName: user?.displayName, startMuted });
       } else {
-        await engine.join({ ...creds, userId: user?.id, displayName: user?.displayName, startMuted });
+        await engine.join({
+          ...creds, userId: user?.id, displayName: user?.displayName, startMuted,
+          // Redutor de ruído (RNNoise) no engine próprio — mesma preferência
+          // que liga o ANS do Agora.
+          noiseSuppression: getVoicePref('noiseReduction') !== false,
+        });
       }
     } catch (err) {
       console.error(`[voz] Falha ao conectar no provedor ${prov}:`, err);
@@ -849,6 +870,7 @@ export function VoiceProvider({ children }) {
     if (syncTimerRef.current) { clearTimeout(syncTimerRef.current); syncTimerRef.current = null; }
     setNetQuality({});
     setMyRtt(null);
+    setReconnecting(null);
     setCallStartedAt(null);
     setScreenQuality(null);
     // Modo reserva: encerra a conferência do Jitsi (se era esse o provedor)
@@ -1184,6 +1206,12 @@ export function VoiceProvider({ children }) {
   // escolha pra valer na próxima vez.
   const setNoiseReduction = useCallback(async (on) => {
     setVoicePref('noiseReduction', !!on);
+    // Engine próprio (mediasoup): liga/desliga o RNNoise na hora.
+    const engine = jitsiEngineRef.current;
+    if (engine && typeof engine.setNoiseSuppression === 'function') {
+      try { await engine.setNoiseSuppression(!!on); } catch (err) { console.error('[voz] redutor de ruído:', err); }
+      return;
+    }
     const client = agoraClientRef.current;
     const old = localAudioTrackRef.current;
     if (!client || !old) return;
@@ -1708,7 +1736,10 @@ export function VoiceProvider({ children }) {
       // Provedor de mídia (Agora normal ⇆ Jitsi reserva):
       // Provedor de mídia ATIVO na cadeia (agora / livekit / jitsi / ...).
       // fallbackActive = qualquer provedor que não seja o primário (Agora).
-      provider, fallbackActive: provider !== 'agora', reconnectingProvider,
+      // fallbackActive = provedor depois do primário na cadeia (o servidor
+      // próprio e o Agora NÃO são reserva).
+      provider, fallbackActive: isReserveMode(provider), reconnectingProvider,
+      reconnecting,
       providerLabel: providerLabel(provider),
       jitsiNode, attachJitsi, detachJitsi,
     }}

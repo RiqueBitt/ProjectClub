@@ -5,6 +5,7 @@ import { useStore } from '../store/useStore';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import ScreenShareModal from './modals/ScreenShareModal.jsx';
 import UserAvatar from './UserAvatar.jsx';
+import { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import { MicTest, MicSilentWarning, QualityDot } from './voice/VoiceExtras.jsx';
 import ScreenQualityMenu from './voice/ScreenQualityMenu.jsx';
@@ -66,7 +67,8 @@ function CallHeader({ channel, count, isStage, children }) {
   const elapsed = useElapsed(voice?.rosterStartedAt?.[channel.id]);
   return (
     <header className="vc-head">
-      <span className="vc-head-icon"><Icon name={isStage ? 'stage' : 'speaker'} size={18} /></span>
+      {/* Ícone personalizado do canal (emoji/imagem da staff) no lugar do genérico. */}
+      <span className="vc-head-icon">{hasCustomIcon(channel) ? <CustomIcon item={channel} className="vc-head-custom-icon" /> : <Icon name={isStage ? 'stage' : 'speaker'} size={18} />}</span>
       {/* O nome do canal já está no cabeçalho do chat logo acima. */}
       <p className="vc-head-text truncate">{channel.topic || (isStage ? 'Palco' : 'Canal de voz')}</p>
       <span className="vc-chip"><span className="vc-live" /> Ao vivo</span>
@@ -105,7 +107,7 @@ export default function VoiceChannelView({ channel }) {
     return (
       <div className="vc vc-lobby">
         <div className="vc-lobby-card">
-          <span className="vc-lobby-icon"><Icon name={isStage ? 'stage' : 'speaker'} size={30} /></span>
+          <span className="vc-lobby-icon">{hasCustomIcon(channel) ? <CustomIcon item={channel} className="vc-lobby-custom-icon" /> : <Icon name={isStage ? 'stage' : 'speaker'} size={30} />}</span>
           <h2>{channel.name}</h2>
           {channel.topic && <p className="vc-lobby-topic">{channel.topic}</p>}
 
@@ -186,6 +188,7 @@ export default function VoiceChannelView({ channel }) {
       </CallHeader>
       <RecordingBanner voice={voice} meId={user.id} />
       <BackupBanner voice={voice} />
+      <ReconnectBanner voice={voice} />
       <div className={`vc-stage${spotlight && !onBackup ? ' is-spotlight' : ''}`}>
         {onBackup ? (
           <JitsiStage voice={voice} />
@@ -239,6 +242,20 @@ function BackupBanner({ voice }) {
     <div className="vc-backup-note" role="status">
       <span className="vc-backup-dot" aria-hidden="true" />
       <span>Chamada em modo reserva{voice.reconnectingProvider ? ' · reconectando…' : ''}</span>
+    </div>
+  );
+}
+
+// "Reconectando…": a conexão de mídia caiu (wi-fi, 4G, celular bloqueado) e
+// o engine está refazendo a sessão sozinho. A pessoa continua na sala; só
+// avisamos pra ela não achar que travou. Some sozinho quando volta.
+function ReconnectBanner({ voice }) {
+  const r = voice?.reconnecting;
+  if (!r) return null;
+  return (
+    <div className="vc-backup-note vc-reconnect-note" role="status" aria-live="polite">
+      <span className="vc-backup-dot" aria-hidden="true" />
+      <span>Reconectando a chamada…{r.attempt > 1 ? ` (tentativa ${r.attempt})` : ''}</span>
     </div>
   );
 }

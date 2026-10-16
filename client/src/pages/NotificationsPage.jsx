@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '../store/useStore';
+import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds, roomKeyFor } from '../store/useStore';
+import { listReminders, deleteReminder } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
   listPendingTestimonials, respondTestimonial, listPendingRelationships, respondRelationship,
@@ -45,6 +46,7 @@ const FILTERS = [
   { id: 'EVENTS', label: 'Eventos', icon: 'sparkles' },
   { id: 'MISSIONS', label: 'Missões', icon: 'trophy' },
   { id: 'SHOP', label: 'Loja', icon: 'store' },
+  { id: 'REMINDERS', label: 'Lembretes', icon: 'clock' },
 ];
 
 // Eventos/Loja/Missões não têm "lido" no servidor: guarda aqui, por
@@ -164,8 +166,26 @@ export default function NotificationsPage() {
       setNotices((list) => list.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)));
       readNotice(n.id).catch(() => {});
     }
+    // Lembrete criado a partir de uma mensagem: leva até ELA (não só o canal).
+    const mid = n.data?.messageId;
+    if (mid && n.link) {
+      const ch = n.link.match(/^\/channels\/([^/?#]+)/); const cv = n.link.match(/^\/conversations\/([^/?#]+)/);
+      if (ch) useStore.getState().setPendingJump({ roomKey: roomKeyFor({ channelId: ch[1] }), messageId: mid });
+      else if (cv) useStore.getState().setPendingJump({ roomKey: roomKeyFor({ conversationId: cv[1] }), messageId: mid });
+    }
     if (n.link) navigate(n.link);
   };
+
+  // Lembretes ativos (os que ainda vão disparar) — lista própria, dá pra cancelar.
+  const [reminders, setReminders] = useState([]);
+  useEffect(() => { listReminders().then((d) => setReminders(d?.active || [])).catch(() => {}); }, []);
+  useEffect(() => {
+    if (!socket) return undefined;
+    const refresh = () => listReminders().then((d) => setReminders(d?.active || [])).catch(() => {});
+    socket.on('reminder:fired', refresh);
+    return () => socket.off('reminder:fired', refresh);
+  }, [socket]);
+  const removeReminder = (id) => { deleteReminder(id).then(() => setReminders((l) => l.filter((r) => r.id !== id))).catch(() => {}); };
 
   const cutoff = Math.max(seen.at, Date.now() - RECENT_MS);
   const missionKey = (m) => `${m.id}|${extra.resets?.[m.period === 'WEEKLY' ? 'weekly' : 'daily'] || ''}`;
@@ -210,7 +230,7 @@ export default function NotificationsPage() {
     ...newEvents.map((e) => ({ kind: 'event', cat: 'EVENTS', key: `e-${e.id}`, at: e.createdAt, data: e })),
     ...readyMissions.map((m) => ({ kind: 'mission', cat: 'MISSIONS', key: `m-${m.id}`, at: new Date().toISOString(), data: m })),
     ...newShop.map((it) => ({ kind: 'shop', cat: 'SHOP', key: `s-${it.id}`, at: it.createdAt, data: it })),
-    ...recentNotices.map((n) => ({ kind: 'notice', cat: n.kind === 'EVENT_REMINDER' ? 'EVENTS' : n.kind === 'GIFT' ? 'SHOP' : 'OTHER', key: `n-${n.id}`, at: n.createdAt, data: n })),
+    ...recentNotices.map((n) => ({ kind: 'notice', cat: n.kind === 'EVENT_REMINDER' ? 'EVENTS' : n.kind === 'GIFT' ? 'SHOP' : n.kind === 'REMINDER' ? 'REMINDERS' : n.kind === 'SCHEDULED_FAILED' ? 'MESSAGES' : 'OTHER', key: `n-${n.id}`, at: n.createdAt, data: n })),
   ];
   const counts = { ALL: items.length };
   items.forEach((it) => { counts[it.cat] = (counts[it.cat] || 0) + 1; });
@@ -222,8 +242,8 @@ export default function NotificationsPage() {
   const renderItem = (it) => {
     if (it.kind === 'notice') {
       const n = it.data;
-      const icon = n.kind === 'GIFT' ? 'gift' : n.kind === 'EVENT_REMINDER' ? 'reminder' : 'notice';
-      const lead = n.kind === 'EVENT_REMINDER' ? 'Lembrete de evento' : n.kind === 'GIFT' ? 'Presente' : 'Aviso';
+      const icon = n.kind === 'GIFT' ? 'gift' : (n.kind === 'EVENT_REMINDER' || n.kind === 'REMINDER') ? 'reminder' : n.kind === 'SCHEDULED_FAILED' ? 'conversation' : 'notice';
+      const lead = n.kind === 'EVENT_REMINDER' ? 'Lembrete de evento' : n.kind === 'REMINDER' ? 'Lembrete' : n.kind === 'SCHEDULED_FAILED' ? 'Agendada' : n.kind === 'GIFT' ? 'Presente' : 'Aviso';
       return (
         <li key={it.key} className={`notifications-item nt-item clickable${n.readAt ? ' is-read' : ' unread'}`} data-kind={icon} onClick={() => openNotice(n)}>
           <NtIcon kind={icon} />
@@ -377,6 +397,24 @@ export default function NotificationsPage() {
 
         {!isEmpty && visible.length === 0 && (
           <EmptyState compact icon={FILTERS.find((f) => f.id === filter)?.icon} title="Nada por aqui" text="Nenhuma notificação neste filtro." />
+        )}
+
+        {reminders.length > 0 && (filter === 'ALL' || filter === 'REMINDERS') && (
+          <section className="notifications-section nt-group nt-reminders">
+            <h3>Lembretes marcados <span>{reminders.length}</span></h3>
+            <ul className="notifications-list nt-list">
+              {reminders.map((r) => (
+                <li key={r.id} className="notifications-item nt-item" data-kind="reminder">
+                  <NtIcon kind="reminder" />
+                  <div className="nt-body">
+                    <div className="nt-line"><span className="truncate"><strong>{r.text}</strong></span><time>{new Date(r.dueAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time></div>
+                    {r.link && <span className="nt-sub truncate">{r.link.startsWith('/channels/') ? 'No canal' : r.link.startsWith('/conversations/') ? 'Na conversa' : r.link}</span>}
+                  </div>
+                  <button type="button" className="pk-btn ghost small" onClick={() => removeReminder(r.id)} title="Cancelar lembrete">Cancelar</button>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
 
         {GROUPS.map((g) => {

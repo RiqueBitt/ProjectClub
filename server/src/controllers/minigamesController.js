@@ -1,6 +1,7 @@
 const prisma = require('../config/prisma');
 const { safeUpsert } = require('../utils/prismaSafe');
 const { PUBLIC_USER_FIELDS } = require('./authController');
+const weekly = require('../services/minigameWeekly');
 
 // Recordes dos Mini-Jogos (client/src/minijogos/catalog.js). O jogo roda num
 // iframe da mesma origem e manda o placar pro player, que posta aqui.
@@ -101,4 +102,42 @@ async function myStats(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { submitScore, registerPlay, leaderboard, myStats, GAMES };
+// GET /api/minigames/:slug/weekly — ranking DESTA semana + meu melhor + prêmios
+async function weeklyBoard(req, res, next) {
+  try {
+    const game = gameOf(req, res); if (!game) return;
+    const bounds = weekly.weekBounds();
+    const [rows, me] = await Promise.all([weekly.standings(game, bounds), weekly.myWeekly(game, req.user.id, bounds)]);
+    const users = rows.length ? await prisma.user.findMany({ where: { id: { in: rows.map((r) => r.userId) } }, select: PUBLIC_USER_FIELDS }) : [];
+    const byId = new Map(users.map((u) => [u.id, u]));
+    res.json({
+      game, week: bounds.key, startsAt: bounds.start, endsAt: bounds.end, prizes: weekly.PRIZES,
+      top: rows.filter((r) => byId.has(r.userId)).map((r) => ({ rank: r.rank, score: r.score, user: byId.get(r.userId), prize: weekly.PRIZES[r.rank - 1] || 0 })),
+      me,
+    });
+  } catch (err) { next(err); }
+}
+
+// GET /api/minigames/prizes — fecha a semana passada (se precisar) e lista
+// os meus prêmios ainda não resgatados.
+async function myPrizes(req, res, next) {
+  try {
+    const games = Object.keys(GAMES).filter((g) => GAMES[g] > 0);
+    await weekly.settlePreviousWeek(games);
+    const prizes = await weekly.myUnclaimedPrizes(req.user.id);
+    res.json({ prizes: prizes.map((p) => ({ id: p.id, week: p.weekKey, game: p.game, rank: p.rank, score: p.score, coins: p.coins })) });
+  } catch (err) { next(err); }
+}
+
+// POST /api/minigames/prizes/:id/claim
+async function claimPrize(req, res, next) {
+  try {
+    const prize = await weekly.claimPrize(req.user.id, String(req.params.id));
+    if (!prize) return res.status(404).json({ error: 'Prêmio não encontrado ou já resgatado.' });
+    const io = req.app.get('io');
+    io?.notifyUser?.(req.user.id, 'economy:changed', { coinsDelta: prize.coins });
+    res.json({ ok: true, coins: prize.coins, game: prize.game, rank: prize.rank, week: prize.weekKey });
+  } catch (err) { next(err); }
+}
+
+module.exports = { submitScore, registerPlay, leaderboard, myStats, weeklyBoard, myPrizes, claimPrize, GAMES };

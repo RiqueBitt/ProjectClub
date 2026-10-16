@@ -84,6 +84,7 @@ const PUBLIC_USER_FIELDS = {
   bannerUrl: true, miniProfileBannerUrl: true, bannerFraming: true, miniProfileBannerFraming: true, bio: true, pronouns: true, profileColor: true, status: true,
   customStatus: true, customStatusEmoji: true, customStatusExpiresAt: true,
   createdAt: true, platformRole: true,
+  supporterTier: true, // Assinante / Super Assinante (reconhecimento visual)
   tagEmoji: true, tagText: true,
   youtubeUrl: true, steamUrl: true, robloxUrl: true, xUrl: true,
   profileNameFont: true, profileNameEffect: true, profileNameColor: true, profileNameColor2: true, profileNameColors: true,

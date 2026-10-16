@@ -82,14 +82,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 );
 
-// One-time cleanup: an earlier build of this app registered a service
-// worker (/sw.js) that no longer exists. Anyone who visited before may
-// still have it installed, silently serving whatever it cached at install
-// time forever — including old, buggy layouts — regardless of how many
-// times the site is redeployed. This unregisters any such leftover worker
-// so the browser goes back to loading the real, current files.
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then((regs) => {
-    regs.forEach((reg) => reg.unregister());
-  }).catch(() => {});
-}
+// Service worker: SÓ pra notificações push (public/sw.js — não faz cache de
+// nada; uma versão antiga do app cacheava arquivos e servia layout velho pra
+// sempre). ensureServiceWorker remove qualquer worker antigo com outra URL
+// antes de registrar o atual. No desktop (Electron) e no app nativo não
+// registra nada.
+import('./utils/webPush.js').then((m) => m.ensureServiceWorker()).catch(() => {});

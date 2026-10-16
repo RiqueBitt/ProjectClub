@@ -30,3 +30,20 @@ Implementação do documento *"Sistema próprio de chamadas de voz, vídeo e com
 - Precisa do VPS (a Square Cloud não expõe UDP). Custo: banda de saída do VPS.
 - Criptografia é de **transporte** (DTLS-SRTP); o SFU vê os pacotes pra encaminhar (não é E2EE) — PDF seção 6.
 - Gravação não existe (nem era pedida); se um dia entrar, é uma decisão de produto/privacidade separada.
+
+## Rich presence pros apps do ecossistema
+
+Qualquer app (ProjectMC, CanvasProject, integrações) pode avisar o que a
+pessoa está fazendo, com o token da sessão dela:
+
+```
+POST /api/activity/presence   Authorization: Bearer <token>
+{ "type": "app", "name": "CanvasProject", "detail": "pintando retrato.kra", "imageUrl": "/apps/canvasproject/icon.png", "ttlSeconds": 60 }
+
+DELETE /api/activity/presence   (ao fechar)
+```
+
+Reenvie antes de `ttlSeconds` (padrão 60, máx. 300) pra manter; se o app
+fechar sem avisar, some sozinho. `type: "game"` também conta tempo de jogo
+na biblioteca. O app de desktop já detecta os apps do ecossistema pelo
+processo (ProjectMC.exe, CanvasProject.exe…) sem precisar disso.

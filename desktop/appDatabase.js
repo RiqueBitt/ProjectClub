@@ -9,6 +9,18 @@
 // marca de verdade, de licença aberta, com nomes de slug CONFIRMADOS
 // (não adivinhados) direto na lista oficial deles antes de usar aqui.
 const APPS = [
+  // Apps do PRÓPRIO ecossistema do Project Club (rich presence): aparecem
+  // como "Usando ProjectMC" etc. com o ícone do app (servido pelo site).
+  // Processo = exeName em projectMcManager.js MODULES.
+  { name: 'ProjectMC', process: { win: 'ProjectMC.exe', linux: 'ProjectMC.AppImage' }, imageUrl: '/apps/projectmc/icon.png', ecosystem: 'projectmc' },
+  { name: 'PhotoProject', process: { win: 'PhotoProject.exe', linux: 'PhotoProject.AppImage' }, imageUrl: '/apps/photoproject/icon.png', ecosystem: 'photoproject' },
+  { name: 'HyProject', process: { win: 'HyProject.exe', linux: 'HyProject.AppImage' }, imageUrl: '/apps/hyproject/icon.png', ecosystem: 'hyproject' },
+  { name: 'CutProject', process: { win: 'CutProject.exe', linux: 'CutProject.AppImage' }, imageUrl: '/apps/davinciproject/icon.png', ecosystem: 'davinciproject' },
+  { name: 'WaveProject', process: { win: 'WaveProject.exe', linux: 'WaveProject.AppImage' }, imageUrl: '/apps/waveproject/icon.png', ecosystem: 'waveproject' },
+  { name: 'TexelProject', process: { win: 'TexelProject.exe', linux: 'TexelProject.AppImage' }, imageUrl: '/apps/texelproject/icon.png', ecosystem: 'texelproject' },
+  { name: 'ForgeProject', process: { win: 'ForgeProject.exe', linux: 'ForgeProject.AppImage' }, imageUrl: '/apps/forgeproject/icon.png', ecosystem: 'forgeproject' },
+  { name: 'GameProject', process: { win: 'GameProject.exe', linux: 'GameProject.AppImage' }, imageUrl: '/apps/gameproject/icon.png', ecosystem: 'gameproject' },
+  { name: 'CanvasProject', process: { win: 'CanvasProject.exe', linux: 'CanvasProject.AppImage' }, imageUrl: '/apps/canvasproject/icon.png', ecosystem: 'canvasproject' },
   { name: 'Visual Studio Code', process: { win: 'Code.exe', linux: 'code' }, imageUrl: 'https://cdn.simpleicons.org/visualstudiocode' },
   { name: 'Visual Studio', process: { win: 'devenv.exe' }, imageUrl: 'https://cdn.simpleicons.org/visualstudio' },
   { name: 'IntelliJ IDEA', process: { win: 'idea64.exe', linux: 'idea' }, imageUrl: 'https://cdn.simpleicons.org/intellijidea' },

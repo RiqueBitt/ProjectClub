@@ -144,6 +144,26 @@ body:not(.frame) {
 	position: absolute;
 	width: 100%;
 }
+.tourney, .leave-tourney {
+	-webkit-text-stroke: 0.5px #7a4a00;
+	color: #ffb400;
+	cursor: pointer;
+	margin-left: 18px;
+}
+.leave-tourney { color: #ff6b6b; -webkit-text-stroke: 0.5px #5a0000; margin-left: 0; }
+.tournament-note {
+	color: #fff; font-size: 16px; margin-top: 10px; text-align: center;
+	background: rgba(0,0,0,.45); border-radius: 8px; padding: 6px 10px;
+}
+.tournament-note.eliminated { color: #ffb4b4; }
+.tournament-podium {
+	position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 50;
+	background: rgba(0,0,0,.72); color: #fff; display: flex; flex-direction: column;
+	align-items: center; justify-content: center; gap: 8px; font-size: 20px;
+}
+.tournament-podium .header { font-size: 30px; color: #ffd84a; margin-bottom: 8px; }
+.tournament-podium .placement { position: static; display: block; font-size: 20px; }
+.tournament-podium .play-again { margin-top: 14px; }
 .solo {
 	-webkit-text-stroke: 0.5px green;
 	color: green;

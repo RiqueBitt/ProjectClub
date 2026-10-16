@@ -24,6 +24,10 @@
   width: 72px; height: 72px; border-radius: 22px; display: inline-flex; align-items: center; justify-content: center;
   background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--brand); margin-bottom: 4px;
 }
+.vc-lobby-custom-icon.custom-icon-img { width: 48px; height: 48px; border-radius: 14px; object-fit: cover; }
+.vc-lobby-custom-icon.custom-icon-emoji { font-size: 38px; line-height: 1; }
+.vc-head-custom-icon.custom-icon-img { width: 20px; height: 20px; border-radius: 6px; object-fit: cover; }
+.vc-head-custom-icon.custom-icon-emoji { font-size: 17px; line-height: 1; }
 .vc-lobby-card h2 { margin: 0; font-size: 22px; font-weight: 800; color: var(--header-primary); overflow-wrap: anywhere; }
 .vc-lobby-topic { margin: 0; font-size: 14px; color: var(--text-muted); }
 .vc-lobby-people { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 10px 0 4px; }
@@ -367,6 +371,8 @@
   background: #f0b428; box-shadow: 0 0 0 3px rgba(240, 180, 40, 0.25);
   animation: vc-backup-pulse 2s ease-in-out infinite;
 }
+.vc-reconnect-note { color: #d0d4ff; background: rgba(88, 101, 242, 0.14); border-color: rgba(88, 101, 242, 0.4); }
+.vc-reconnect-note .vc-backup-dot { background: #7c87ff; box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.25); animation-duration: 1.2s; }
 @keyframes vc-backup-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 
 .vc-jitsi-stage { position: relative; flex: 1; min-height: 0; display: flex; }

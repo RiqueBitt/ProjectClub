@@ -60,10 +60,12 @@ await build({
   base: './',
   build: { outDir, emptyOutDir: true, target: 'esnext', minify: false },
 });
+// RNNoise (worklet + wasm) é servido estático em /rnnoise/, igual em produção.
+fs.cpSync(path.join(ROOT, 'client/public/rnnoise'), path.join(outDir, 'rnnoise'), { recursive: true });
 console.log('harness compilado');
 
 // 3) serve a página
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm' };
 const pageHttp = createServer((req, res) => {
   const p = path.join(outDir, req.url === '/' ? 'index.html' : req.url.split('?')[0]);
   if (!p.startsWith(outDir) || !fs.existsSync(p)) { res.writeHead(404); return res.end(); }
@@ -125,6 +127,41 @@ try {
   await waitFor(A, (ev) => ev.filter((e) => e.type === 'selfMute').at(-1)?.a[0] === true, 'Ana: onSelfMute(true)');
   await A.evaluate(() => window.engine.setMicEnabled(true));
   await waitFor(A, (ev) => ev.filter((e) => e.type === 'selfMute').at(-1)?.a[0] === false, 'Ana: onSelfMute(false)');
+
+  console.log('\n[7b] Qualidade da conexão e ping (getStats de verdade)');
+  await waitFor(A, (ev) => ev.some((e) => e.type === 'netQuality' && e.a[0].ana >= 1 && e.a[0].beto >= 1), 'Ana: onNetQuality com ela e o Beto (1..6)', 8000);
+  await waitFor(A, (ev) => ev.some((e) => e.type === 'rtt' && Number.isFinite(e.a[0]) && e.a[0] >= 0), 'Ana: onRtt(ms)', 8000);
+  const qA = (await A.evaluate(() => window.events)).filter((e) => e.type === 'netQuality').at(-1).a[0];
+  assert(qA.ana <= 2 && qA.beto <= 2, `em rede local a qualidade é excelente/boa (ana=${qA.ana}, beto=${qA.beto})`);
+
+  console.log('\n[7c] Queda da conexão → reconecta sozinho sem sair da sala');
+  const before = await B.evaluate(() => window.events.filter((e) => e.type === 'remoteAudio' && e.a[0] === 'ana').length);
+  // Simula a queda: o SERVIDOR mata o socket da Ana (como se o wi-fi tivesse caído).
+  for (const r of rooms.rooms.values()) { const p = r.peers.get('ana'); if (p) p.socket.terminate(); }
+  await waitFor(A, (ev) => ev.some((e) => e.type === 'reconnecting' && e.a[0] === 1), 'Ana: onReconnecting(1)');
+  await waitFor(A, (ev) => ev.some((e) => e.type === 'reconnected'), 'Ana: onReconnected()', 15000);
+  await waitFor(A, (ev) => ev.filter((e) => e.type === 'remoteAudio' && e.a[0] === 'beto').length >= 2, 'Ana volta a receber o áudio do Beto', 10000);
+  await waitFor(B, (ev) => ev.filter((e) => e.type === 'remoteAudio' && e.a[0] === 'ana').length > before, 'Beto volta a receber o áudio da Ana', 10000);
+  assert(!(await A.evaluate(() => window.events.some((e) => e.type === 'left'))), 'Ana NÃO foi derrubada (sem onLeft)');
+  await sleep(2000);
+  const txA2 = await A.evaluate(() => window.bytesSent());
+  assert(txA2 > 0, 'Ana envia RTP de novo depois de reconectar');
+
+  console.log('\n[7d] Redutor de ruído (RNNoise no AudioWorklet)');
+  const ctxC = await browser.newContext(); const C = await ctxC.newPage();
+  C.on('pageerror', (e) => console.error('[C pageerror]', e.message));
+  await C.goto(PAGE);
+  await C.evaluate(({ url, token, userId }) => window.joinRoom({ url, token, userId, noiseSuppression: true }), { url: WS, token: token('caio', 'Caio'), userId: 'caio' });
+  await waitFor(C, (ev) => ev.some((e) => e.type === 'selfMute' && e.a[0] === false), 'Caio: microfone publicado com o redutor');
+  const noiseOn = await C.evaluate(() => !!window.engine.noise && window.engine.localTracks.mic === window.engine.noise.track);
+  assert(noiseOn, 'a faixa publicada é a saída do RNNoise (não o mic cru)');
+  await waitFor(A, (ev) => ev.some((e) => e.type === 'remoteAudio' && e.a[0] === 'caio' && e.a[1].active), 'Ana recebe o áudio processado do Caio');
+  await sleep(2000);
+  const txC = await C.evaluate(() => window.bytesSent());
+  assert(txC > 0, 'Caio envia RTP com o redutor ligado');
+  await C.evaluate(() => window.engine.setNoiseSuppression(false));
+  await C.evaluate(() => window.engine.dispose());
+  await ctxC.close();
 
   console.log('\n[8] Beto sai → Ana limpa');
   await B.evaluate(() => window.engine.dispose());

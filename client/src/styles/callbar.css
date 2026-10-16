@@ -320,9 +320,14 @@
 }
 
 /* Modo reserva (Jitsi) na barra de chamada — ver docs/voice-fallback.md. */
+.cb-reconnecting { animation: cb-reconnect-pulse 1.2s ease-in-out infinite; }
+@keyframes cb-reconnect-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 .cb-backup {
   font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em;
   padding: 2px 7px; border-radius: 999px; white-space: nowrap;
   color: #c98a00; background: rgba(240, 180, 40, 0.16);
   border: 1px solid rgba(240, 180, 40, 0.4);
 }
+
+.cb-chan-custom-icon.custom-icon-img { width: 16px; height: 16px; border-radius: 4px; object-fit: cover; flex: none; }
+.cb-chan-custom-icon.custom-icon-emoji { font-size: 14px; line-height: 1; flex: none; }

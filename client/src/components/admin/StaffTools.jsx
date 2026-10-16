@@ -190,6 +190,22 @@ export function StaffHealthTab() {
             </div>
           </section>
 
+          {data.voiceUsage && (
+            <section className="sth-section">
+              <h2>Minutos de voz no mês</h2>
+              <div className="sth-statuses">
+                {data.voiceUsage.map((v) => (
+                  <div key={v.id} className="sth-status" title={v.unlimited ? 'Sem limite' : v.limit ? `Limite mensal: ${nf(v.limit)} min` : 'Limite não configurado'}>
+                    <span className="sth-status-dot" aria-hidden="true" style={{ background: v.limit && v.minutes >= v.limit ? '#ed4245' : v.limit && v.minutes >= v.limit * 0.8 ? '#f0b232' : '#3ba55d' }} />
+                    <span>{v.label}</span>
+                    <strong>{nf(v.minutes)}{v.limit ? ` / ${nf(v.limit)}` : v.unlimited ? ' · ilimitado' : ''}</strong>
+                  </div>
+                ))}
+              </div>
+              {data.push && <p className="sth-hint dim">Push: {nf(data.push.android)} aparelho(s) Android · {nf(data.push.web)} navegador(es)</p>}
+            </section>
+          )}
+
           <section className="sth-section">
             <h2>Status das contas</h2>
             <div className="sth-statuses">

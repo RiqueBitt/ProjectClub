@@ -35,6 +35,8 @@ import { startBoot, cachedBoot } from '../utils/bootstrap';
 import { applyBootData } from '../utils/applyBoot';
 import { checkForNativeUpdate } from '../utils/nativeUpdateCheck';
 import { setupPushNotifications } from '../utils/pushNotifications';
+import { setupWebPush, listenServiceWorkerMessages } from '../utils/webPush';
+import { setupPwaInstall, countVisit, setInstallSuggestHandler, promptInstall } from '../utils/pwaInstall';
 import { updateUnreadBadge } from '../utils/unreadBadge';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useGlobalLiveRefresh } from '../utils/useGlobalLiveRefresh';
@@ -251,12 +253,23 @@ export default function MainApp() {
     startBoot(user.id).then((r) => applyBootData(r.data)).catch(() => {});
     checkForNativeUpdate();
     setupPushNotifications();
+    // Web Push (navegador/PWA): reassina em silêncio quem já ligou; clique na
+    // notificação com o site aberto navega nesta aba.
+    setupWebPush();
+    const stopSwMessages = listenServiceWorkerMessages((link) => navigate(link));
+    // Instalar como app: captura o prompt do navegador e sugere uma vez
+    // (a partir do 3º uso) com o toast padrão.
+    setupPwaInstall();
+    countVisit();
+    setInstallSuggestHandler(() => {
+      useStore.getState().pushNotice('Instale o Project Club como app: abre mais rápido e fica na sua tela inicial.', { label: 'Instalar', onClick: () => { promptInstall(); } });
+    });
     // Perfil é o modal mais aberto: baixa o pacote dele quando o app já
     // está parado (não disputa com a abertura), pra abrir sem espera.
     const prefetch = () => { import('../components/modals/UserProfileModal.jsx').catch(() => {}); };
     const idle = window.requestIdleCallback ? (fn) => window.requestIdleCallback(fn, { timeout: 15000 }) : (fn) => setTimeout(fn, 8000);
     const prefetchTimer = setTimeout(() => idle(prefetch), 6000);
-    return () => clearTimeout(prefetchTimer);
+    return () => { clearTimeout(prefetchTimer); stopSwMessages(); setInstallSuggestHandler(null); };
   }, []);
 
   // Item pedido: bolinha de não lidas no ícone do app — em vez de

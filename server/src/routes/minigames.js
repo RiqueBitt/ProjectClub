@@ -14,6 +14,10 @@ const writeLimiter = rateLimit({
 });
 
 router.get('/me', ctrl.myStats);
+// Ranking semanal + prêmios (antes de /:slug pra "prizes" não virar slug).
+router.get('/prizes', ctrl.myPrizes);
+router.post('/prizes/:id/claim', writeLimiter, ctrl.claimPrize);
+router.get('/:slug/weekly', ctrl.weeklyBoard);
 router.get('/:slug/leaderboard', ctrl.leaderboard);
 router.post('/:slug/score', writeLimiter, ctrl.submitScore);
 router.post('/:slug/play', writeLimiter, ctrl.registerPlay);
