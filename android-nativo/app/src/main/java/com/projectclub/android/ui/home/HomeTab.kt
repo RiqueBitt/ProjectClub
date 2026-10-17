@@ -263,7 +263,9 @@ private fun UpdateCard(st: com.projectclub.android.data.UpdateState) {
         is com.projectclub.android.data.UpdateState.Installing -> Quad(
             if (st.percent != null) "Preparando ${st.release.versionName}… ${st.percent}%" else "Instalando ${st.release.versionName}…",
             "O app vai fechar e já volta na versão nova.", null, null)
-        is com.projectclub.android.data.UpdateState.Failed -> Quad("Não deu pra atualizar", st.message, "Tentar de novo", { Updater.retry(); scope.launch { Updater.check(force = true) } })
+        is com.projectclub.android.data.UpdateState.Failed -> if (st.manual)
+            Quad("Não deu pra atualizar", st.message, "Instalar pelo Android", { Updater.installManually() })
+        else Quad("Não deu pra atualizar", st.message, "Tentar de novo", { Updater.retry(); scope.launch { Updater.check(force = true) } })
         else -> return
     }
     PcCard(border = PC.Brand.copy(alpha = 0.5f), padding = PaddingValues(14.dp)) {
