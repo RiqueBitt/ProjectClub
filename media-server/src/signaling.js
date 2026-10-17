@@ -41,7 +41,9 @@ const { config } = require('./config');
 const rooms = require('./rooms');
 const perm = require('./permissions');
 
-const log = (...a) => console.log('[media]', ...a);
+// Hora em cada linha (o log do docker sem --timestamps não tem): dá pra
+// cruzar "saiu/entrou" com o que a pessoa relatou.
+const log = (...a) => console.log(new Date().toISOString(), '[media]', ...a);
 
 function verifyToken(token) {
   let payload;
@@ -550,12 +552,15 @@ function attach(httpServer) {
       }
     });
 
-    const cleanup = () => {
+    const cleanup = (code, why) => {
       peer.onTransportClosed = null;
       if (room.peers.get(peer.id) !== peer) { peer.close(); return; } // já substituído/removido
       room.removePeer(peer.id);
       broadcast(room, 'peerLeft', { peerId: peer.id });
-      log(`saiu: ${peer.id} de ${room.name} (${room.size} na sala)`);
+      // Código do fechamento: 1000/leave = saiu; 1001/1006 = rede/app caiu;
+      // terminate do batimento = não respondeu ao ping.
+      const reason = why ? String(why).slice(0, 40) : '';
+      log(`saiu: ${peer.id} de ${room.name} (${room.size} na sala) [${code ?? '?'}${reason ? ` ${reason}` : ''}${socket.pcTimedOut ? ' sem-batimento' : ''}, ${Math.round((Date.now() - peer.joinedAt) / 1000)}s]`);
       rooms.closeRoomIfEmpty(room.name);
     };
     socket.on('close', cleanup);
@@ -564,7 +569,7 @@ function attach(httpServer) {
   // Ping periódico; quem não responder em 2 ciclos cai.
   const beat = setInterval(() => {
     for (const s of wss.clients) {
-      if (s.isAlive === false) { try { s.terminate(); } catch { /* ok */ } continue; }
+      if (s.isAlive === false) { s.pcTimedOut = true; try { s.terminate(); } catch { /* ok */ } continue; }
       s.isAlive = false;
       try { s.ping(); } catch { /* ok */ }
     }

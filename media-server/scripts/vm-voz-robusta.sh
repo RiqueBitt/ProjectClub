@@ -73,6 +73,15 @@ net.core.wmem_max = 26214400
 net.core.rmem_default = 1048576
 net.core.wmem_default = 1048576
 net.core.netdev_max_backlog = 5000
+# Mínimo por socket UDP (o mediasoup abre poucos sockets, todos com rajada).
+net.ipv4.udp_rmem_min = 16384
+net.ipv4.udp_wmem_min = 16384
+# TCP (sinalização wss, TURN/TLS, ICE-TCP de quem não tem UDP): BBR + fq
+# segura a latência baixa mesmo com perda no 4G/wi-fi ruim.
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+net.ipv4.tcp_slow_start_after_idle = 0
+net.ipv4.tcp_notsent_lowat = 16384
 EOF
 sysctl --system >/dev/null
 echo "==> sysctl aplicado"
