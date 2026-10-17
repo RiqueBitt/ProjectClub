@@ -314,6 +314,12 @@ async function verifyTotpOnce(user, code) {
   // assíncrono e devolvendo { valid, timeStep } em vez de um boolean.
   const result = await verify({
     secret: user.twoFactorSecret, token: code.trim(), guardrails: legacyGuardrails,
+    // BUG CORRIGIDO ("não consigo logar, código do A2F não passa"): o otplib
+    // v13 aceita, por padrão, SÓ o código dos 30s atuais (tolerância 0; a v12
+    // aceitava a janela vizinha). Quem digita o código no fim da janela ou tem
+    // o relógio do celular uns segundos fora era recusado. Agora aceita o
+    // código anterior e o seguinte (±30s), como Google/Discord/GitHub.
+    epochTolerance: 30,
     ...(Number.isInteger(lastStep) ? { afterTimeStep: lastStep } : {}),
   });
   if (!result.valid) return false;
