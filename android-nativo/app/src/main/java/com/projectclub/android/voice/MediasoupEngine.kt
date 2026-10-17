@@ -91,7 +91,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         fun onReconnected()
         /**
          * Desistiu desta sessão. [providerBroken] = o servidor próprio não está
-         * servindo agora (vale trocar de provedor); false = só precisa de
+         * servindo agora (conta como falha e tenta de novo com espera); false = só precisa de
          * credenciais novas (token venceu).
          */
         fun onGaveUp(message: String, providerBroken: Boolean)

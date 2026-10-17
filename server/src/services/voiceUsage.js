@@ -1,12 +1,11 @@
 // Contador mensal de minutos POR PROVEDOR de voz (item pedido).
 //
-// Antes a ideia era um contador único (só Agora); agora cada provedor da
-// cadeia tem o seu próprio, numa chave por mês: `voiceusage:YYYY-MM:<id>`.
+// Cada provedor da cadeia tem o seu próprio contador, numa chave por mês: `voiceusage:YYYY-MM:<id>`.
 // O valor é a soma de MINUTOS-PARTICIPANTE do mês — a cada minuto,
 // somamos quantas pessoas estavam numa chamada (em salas com 2+ gente,
 // sem contar quem está ensurdecido), e esse total vai pro provedor que
 // está ATIVO naquele minuto. É exatamente como os serviços gerenciados
-// (Agora, LiveKit, Daily, etc) cobram o nível gratuito deles, então é a
+// (LiveKit, Daily, etc) cobram o nível gratuito deles, então é a
 // métrica certa pra saber quando um estourou e passar pro próximo.
 //
 // Vive no Redis (rápido, com TTL automático). Se o Redis cair, a
@@ -42,8 +41,8 @@ function usageRedisKey(provider, date = new Date()) {
 }
 
 // "Uso inicial" definido pela STAFF: o nosso contador começa do zero a cada
-// mês e NÃO sabe quanto o provedor (ex.: Agora) já gastou antes — então o
-// painel mostrava ~0% enquanto a Agora, na real, já estava a 80%+, e a
+// mês e NÃO sabe quanto o provedor (ex.: LiveKit) já gastou antes — então o
+// painel mostrava ~0% enquanto o provedor, na real, já estava a 80%+, e a
 // cadeia não trocava. Aqui a staff informa o uso real do mês; a partir daí o
 // total = base informada + o que a gente contar daqui pra frente, e a troca
 // automática passa a valer. Guardado numa chave por mês.

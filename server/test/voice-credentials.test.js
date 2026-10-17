@@ -19,7 +19,7 @@ const fakeRedis = {
 };
 require.cache[path.resolve(__dirname, '../src/config/redis.js')] = { exports: { redis: fakeRedis }, loaded: true, id: 'redis' };
 
-process.env.AGORA_APP_ID = 'id-da-hospedagem';
+process.env.TRTC_SDK_APP_ID = 'id-da-hospedagem';
 delete process.env.LIVEKIT_API_SECRET;
 const creds = require('../src/services/voiceCredentials');
 
@@ -34,16 +34,20 @@ test('salva criptografado, aplica na hora e mascara o segredo', async () => {
 });
 
 test('campo apagado volta pro valor da hospedagem', async () => {
-  await creds.save('agora', { AGORA_APP_ID: 'novo-id' });
-  assert.equal(process.env.AGORA_APP_ID, 'novo-id');
-  await creds.save('agora', { AGORA_APP_ID: '' });
-  assert.equal(process.env.AGORA_APP_ID, 'id-da-hospedagem');
+  await creds.save('trtc', { TRTC_SDK_APP_ID: 'novo-id' });
+  assert.equal(process.env.TRTC_SDK_APP_ID, 'novo-id');
+  await creds.save('trtc', { TRTC_SDK_APP_ID: '' });
+  assert.equal(process.env.TRTC_SDK_APP_ID, 'id-da-hospedagem');
 });
 
 test('não aceita chave de outro provedor nem provedor inválido', async () => {
-  await creds.save('agora', { LIVEKIT_API_SECRET: 'x' });
+  await creds.save('trtc', { LIVEKIT_API_SECRET: 'x' });
   assert.equal(process.env.LIVEKIT_API_SECRET, 'segredo-muito-secreto');
   await assert.rejects(() => creds.save('nada', {}), /inválido/);
+  // Agora e Stream (GetStream) foram removidos da plataforma.
+  await assert.rejects(() => creds.save('agora', { AGORA_APP_ID: 'x' }), /inválido/);
+  await assert.rejects(() => creds.save('getstream', { GETSTREAM_API_KEY: 'x' }), /inválido/);
+  assert.deepEqual(Object.keys(creds.FIELDS).sort(), ['daily', 'jitsi', 'livekit', 'projectclub', 'trtc']);
 });
 
 test('recarrega do Redis na subida', async () => {

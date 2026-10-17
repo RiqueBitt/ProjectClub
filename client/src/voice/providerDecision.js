@@ -2,42 +2,39 @@
 // Sem React, sem rede — fácil de testar (client/test/voice-provider.test.mjs).
 //
 // O servidor decide qual provedor de mídia usar numa CADEIA ordenada
-// (Agora → LiveKit → Stream → Daily → TRTC → Jitsi), passando pro próximo
-// quando um estoura o limite mensal gratuito dele. O cliente só obedece —
-// mas nunca confia cegamente: se vier algo estranho, assume 'agora' como
-// padrão seguro (o caminho já testado em produção).
+// (servidor próprio → LiveKit → Daily → TRTC → Jitsi), passando pro próximo
+// quando um cai ou estoura o limite mensal gratuito dele. O cliente só
+// obedece — mas nunca confia cegamente: se vier algo estranho (inclusive um
+// provedor que não existe mais, como os antigos Agora/Stream), assume
+// 'projectclub' (o servidor próprio) como padrão seguro.
 
 // Ordem e rótulos espelhando o servidor (services/voiceProviders.js). O
 // servidor é a fonte da verdade; isto é só pra UI e pra escolher o engine.
-export const PROVIDER_ORDER = ['projectclub', 'agora', 'livekit', 'getstream', 'daily', 'trtc', 'jitsi'];
-export const PRIMARY_PROVIDER = 'agora';
+export const PROVIDER_ORDER = ['projectclub', 'livekit', 'daily', 'trtc', 'jitsi'];
+export const PRIMARY_PROVIDER = 'projectclub';
 
-// Lista completa de provedores válidos (inclui os 6 da cadeia). Mantida
-// como `PROVIDERS` por compatibilidade com quem já importava daqui.
+// Lista completa de provedores válidos (os 5 da cadeia). Mantida como
+// `PROVIDERS` por compatibilidade com quem já importava daqui.
 export const PROVIDERS = PROVIDER_ORDER;
 
 export const PROVIDER_LABELS = {
   projectclub: 'Project Club',
-  agora: 'Agora',
   livekit: 'LiveKit',
-  getstream: 'Stream',
   daily: 'Daily',
   trtc: 'TRTC',
   jitsi: 'Jitsi',
 };
 
 // Quais provedores têm um engine de CLIENTE completo e pronto hoje.
-// agora: embutido no VoiceContext. livekit: engine completo (livekitEngine.js).
-// jitsi: fallback final via IFrame API (jitsiEngine.js). getstream/daily/trtc:
-// servidor pronto (token mintado + painel), engine de cliente ainda PENDENTE
-// (pendingEngines.js) — o cliente anuncia isso ao servidor (clientReady) e a
-// cadeia os pula automaticamente no navegador.
+// projectclub: servidor próprio (mediasoupEngine.js). livekit: engine
+// completo (livekitEngine.js). jitsi: fallback final via IFrame API
+// (jitsiEngine.js). daily/trtc: servidor pronto (token mintado + painel),
+// engine de cliente ainda PENDENTE (pendingEngines.js) — o cliente anuncia
+// isso ao servidor (clientReady) e a cadeia os pula automaticamente.
 export const CLIENT_READY = {
   projectclub: true,
-  agora: true,
   livekit: true,
   jitsi: true,
-  getstream: false,
   daily: false,
   trtc: false,
 };
@@ -50,13 +47,10 @@ export function providerLabel(id) {
   return PROVIDER_LABELS[id] || id || '—';
 }
 
-// Provedores que NÃO são "reserva": o servidor próprio (vem antes do
-// primário na cadeia — é o caminho preferido) e o primário (agora).
-const NOT_RESERVE = new Set(['projectclub', PRIMARY_PROVIDER]);
-
-// É "modo reserva" quando o ativo veio DEPOIS do primário na cadeia.
+// É "modo reserva" quando o ativo veio DEPOIS do primário (o servidor
+// próprio) na cadeia.
 export function isReserveMode(provider) {
-  return !!provider && !NOT_RESERVE.has(provider);
+  return !!provider && provider !== PRIMARY_PROVIDER;
 }
 
 export function isClientReady(provider) {
@@ -64,17 +58,18 @@ export function isClientReady(provider) {
 }
 
 // Normaliza a resposta de /api/voice/join (ou do antigo /api/voice/provider):
-// garante um provedor válido (senão agora), e carrega os campos de uso quando
-// vierem. `fallbackActive` = está em modo reserva (ativo != agora).
+// garante um provedor válido (senão o servidor próprio), e carrega os campos
+// de uso quando vierem. `fallbackActive` = está em modo reserva (ativo !=
+// servidor próprio).
 export function normalizeProviderResponse(data) {
   const d = data && typeof data === 'object' ? data : {};
-  const provider = PROVIDERS.includes(d.provider) ? d.provider : 'agora';
+  const provider = PROVIDERS.includes(d.provider) ? d.provider : PRIMARY_PROVIDER;
   const minutesUsed = Number.isFinite(d.minutesUsed) ? d.minutesUsed : 0;
   const limit = Number.isFinite(d.limit) && d.limit > 0 ? d.limit : null;
   return {
     provider,
     reason: typeof d.reason === 'string' ? d.reason
-      : (typeof d.activeReason === 'string' ? d.activeReason : (provider === 'agora' ? 'ok' : 'reserva')),
+      : (typeof d.activeReason === 'string' ? d.activeReason : (provider === PRIMARY_PROVIDER ? 'ok' : 'reserva')),
     minutesUsed,
     limit,
     fallbackActive: isReserveMode(provider),
@@ -96,12 +91,6 @@ export function shouldSwitchProvider(currentProvider, recommendedProvider) {
 export function readJoinResponse(data) {
   const base = normalizeProviderResponse(data);
   const d = data && typeof data === 'object' ? data : {};
-
-  if (base.provider === 'agora') {
-    const a = d.agora && typeof d.agora === 'object' ? d.agora : null;
-    const valid = a && typeof a.token === 'string' && typeof a.appId === 'string' && a.token && a.appId;
-    return { ...base, agora: valid ? { token: a.token, appId: a.appId, uid: a.uid } : null };
-  }
 
   if (base.provider === 'jitsi') {
     const j = d.jitsi && typeof d.jitsi === 'object' ? d.jitsi : null;
@@ -126,7 +115,7 @@ export function readJoinResponse(data) {
     return { ...base, livekit: valid ? { url: l.url, token: l.token, room: l.room || null, identity: l.identity || null } : null };
   }
 
-  // Provedores pendentes no cliente (getstream/daily/trtc): repassa as
+  // Provedores pendentes no cliente (daily/trtc): repassa as
   // credenciais cruas sob a chave do provedor (o engine pendente decide).
   const raw = d[base.provider] && typeof d[base.provider] === 'object' ? d[base.provider] : null;
   return { ...base, [base.provider]: raw };

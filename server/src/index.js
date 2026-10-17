@@ -149,8 +149,8 @@ missions.seedDefaultMissions().catch((err) => {
 missions.startVoiceMinutesTicker(io);
 // Cadeia de provedores de voz: a cada minuto soma os participantes ativos
 // ao provedor ATIVO daquele minuto (voiceusage:YYYY-MM:<provedor>), o que
-// permite a troca automática Agora → LiveKit → ... → Jitsi por limite
-// mensal gratuito (ver services/voiceUsage.js e services/voiceDecision.js).
+// permite a troca automática servidor próprio → LiveKit → ... → Jitsi por
+// limite mensal gratuito (ver services/voiceUsage.js e services/voiceDecision.js).
 require('./services/voiceCredentials').load();
 require('./services/voiceUsage').startProviderUsageTicker(io);
 // Lembrete de evento 15 min antes pra quem respondeu "Eu vou".

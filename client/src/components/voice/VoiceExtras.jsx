@@ -4,7 +4,7 @@ import '../../styles/voice-extras.css';
 
 // Extras do canal de voz: teste de microfone no lobby (antes de entrar),
 // aviso "microfone sem som" dentro da chamada e bolinha de qualidade da
-// conexão por pessoa (dados do Agora, via VoiceContext).
+// conexão por pessoa (dados do engine de mídia, via VoiceContext).
 
 const SILENT_WARN_MS = 10000;
 
@@ -113,7 +113,8 @@ export function MicTest({ stopSignal }) {
 }
 
 // ---------- Aviso "microfone sem som" (dentro da chamada) ----------
-// Liga quando o mic está ativo e o Agora não mede nenhum som há >10s.
+// Liga quando o mic está ativo e o medidor de nível (VoiceContext) não
+// mede nenhum som há >10s. Sem medidor (getMicLastSoundAt null), desligado.
 export function MicSilentWarning({ voice }) {
   const { muted, micMissing, call } = voice;
   const armedAtRef = useRef(Date.now());
@@ -147,7 +148,7 @@ export function MicSilentWarning({ voice }) {
 }
 
 // ---------- Qualidade da conexão ----------
-// Agora: 0 desconhecida, 1 excelente, 2 boa, 3 ok, 4 ruim, 5 muito ruim, 6 caiu.
+// Escala: 0 desconhecida, 1 excelente, 2 boa, 3 ok, 4 ruim, 5 muito ruim, 6 caiu.
 const QUALITY = {
   1: ['good', 'Conexão excelente'],
   2: ['good', 'Conexão boa'],

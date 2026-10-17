@@ -154,8 +154,7 @@ export function RecordingCapture({ voice, meId }) {
         try { ctx.createMediaStreamSource(stream).connect(dest); } catch { /* faixa já encerrada */ }
       };
       // Seu microfone.
-      const micTrack = voice.getLocalAudioTrack?.();
-      const micMedia = micTrack?.getMediaStreamTrack?.();
+      const micMedia = voice.getLocalMicTrack?.();
       if (micMedia) connectStream(new MediaStream([micMedia]));
       // Áudio de cada participante.
       Object.values(remoteAudioStreams || {}).forEach(connectStream);

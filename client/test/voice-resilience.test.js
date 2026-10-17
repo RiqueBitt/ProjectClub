@@ -27,9 +27,9 @@ test('classifyClose segue o contrato do media-server', () => {
 });
 
 test('failureCode extrai um código curto e seguro', () => {
-  const agora = new Error('AgoraRTCError CAN_NOT_GET_GATEWAY_SERVER: flag: 4096, message: AgoraRTCError CAN_NOT_GET_GATEWAY_SERVER: invalid token');
-  assert.equal(failureCode(agora), 'CAN_NOT_GET_GATEWAY_SERVER');
-  assert.equal(failureCode({ code: 'CAN_NOT_GET_GATEWAY_SERVER', message: 'x' }), 'CAN_NOT_GET_GATEWAY_SERVER');
+  const sdkErr = new Error('MediaError TOKEN_EXPIRED: o servidor recusou o token');
+  assert.equal(failureCode(sdkErr), 'TOKEN_EXPIRED');
+  assert.equal(failureCode({ code: 'JOIN_TIMEOUT', message: 'x' }), 'JOIN_TIMEOUT');
   assert.equal(failureCode(Object.assign(new Error('t'), { code: 'ICE_TIMEOUT' })), 'ICE_TIMEOUT');
   // DOMException tem code numérico: usa o nome.
   assert.equal(failureCode({ name: 'NotAllowedError', code: 0, message: 'Permission denied' }), 'NotAllowedError');
@@ -41,17 +41,17 @@ test('failureCode extrai um código curto e seguro', () => {
 
 test('withTimeout rejeita com code e não atrapalha quem resolve antes', async () => {
   assert.equal(await withTimeout(Promise.resolve(7), 50), 7);
-  await assert.rejects(withTimeout(new Promise(() => {}), 20, 'AGORA_JOIN_TIMEOUT'), (e) => e.code === 'AGORA_JOIN_TIMEOUT');
+  await assert.rejects(withTimeout(new Promise(() => {}), 20, 'JOIN_TIMEOUT'), (e) => e.code === 'JOIN_TIMEOUT');
   await assert.rejects(withTimeout(Promise.reject(new Error('falhou')), 50), /falhou/);
 });
 
 test('createFailureMemory tira quem falhou da lista por um tempo', () => {
   let now = 1000;
   const mem = createFailureMemory({ ttlMs: 10000, now: () => now });
-  const ready = ['projectclub', 'agora', 'livekit', 'jitsi'];
-  mem.mark('agora');
-  assert.deepEqual(mem.filter(ready), ['projectclub', 'livekit', 'jitsi']);
-  assert.equal(mem.has('agora'), true);
+  const ready = ['projectclub', 'livekit', 'jitsi'];
+  mem.mark('projectclub');
+  assert.deepEqual(mem.filter(ready), ['livekit', 'jitsi']);
+  assert.equal(mem.has('projectclub'), true);
   now += 10001;
   assert.deepEqual(mem.filter(ready), ready, 'expirou: volta a tentar');
   ready.forEach((p) => mem.mark(p));

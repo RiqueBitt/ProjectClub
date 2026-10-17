@@ -11,7 +11,7 @@ Implementação do documento *"Sistema próprio de chamadas de voz, vídeo e com
 | `server/src/services/voiceTokens.js` | `mintProjectClub`: JWT curto (HS256) por participante + servidores ICE (STUN + **TURN com credencial temporária**). |
 | `server/src/controllers/voiceController.js` | `/api/voice/join` devolve `{ provider:'projectclub', projectclub:{ url, token, room, identity, iceServers } }`. |
 | `client/src/voice/mediasoupEngine.js` | Engine de cliente (`mediasoup-client`, carregado sob demanda) — mesma interface do LiveKit: mic, câmera (simulcast 3 camadas), tela (+áudio), quem fala, por-usuário. |
-| `client/src/voice/providerDecision.js` / `engineRegistry.js` | Cadeia no cliente: `projectclub → agora → livekit → … → jitsi`; próprio **não** é "modo reserva". |
+| `client/src/voice/providerDecision.js` / `engineRegistry.js` | Cadeia no cliente: `projectclub → livekit → … → jitsi`; próprio é o **principal** (não é "modo reserva"). |
 
 ## Ligar em produção
 1. Subir o `media-server/` num VPS (ver `media-server/README.md`).

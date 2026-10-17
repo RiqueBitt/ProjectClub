@@ -164,11 +164,49 @@ try {
   await A.evaluate(() => window.engine.setCamera(false));
   await waitFor(B, (ev) => ev.some((e) => e.type === 'remoteRemove' && e.a[0] === 'ana' && e.a[1] === 'video'), 'Beto: onRemoteRemove(ana, video)');
 
+  console.log('\n[6b] Tela a partir de uma faixa pronta (captura nativa do app Android) + qualidade ao vivo');
+  const scr = await A.evaluate(async () => {
+    const c = document.createElement('canvas'); c.width = 640; c.height = 360;
+    const g = c.getContext('2d');
+    window.__scrTimer = setInterval(() => { g.fillStyle = `hsl(${Date.now() % 360},80%,50%)`; g.fillRect(0, 0, 640, 360); }, 50);
+    const track = c.captureStream(12).getVideoTracks()[0];
+    const stream = await window.engine.setScreen(true, { track, audio: false });
+    const q = await window.engine.setScreenQuality({ quality: '720p', frameRate: 15 });
+    return { ok: !!stream, same: window.engine.localTracks.screen === track, quality: q };
+  });
+  assert(scr.ok && scr.same, 'setScreen(true, { track }) publica a faixa pronta como tela');
+  assert(scr.quality === true, 'setScreenQuality troca resolução/fps ao vivo');
+  await waitFor(B, (ev) => ev.some((e) => e.type === 'remoteVideo' && e.a[0] === 'ana' && e.a[2] === 'screen' && e.a[1].active), 'Beto recebe a TELA da Ana');
+  await A.evaluate(async () => { await window.engine.setScreen(false); clearInterval(window.__scrTimer); });
+  await waitFor(A, (ev) => ev.filter((e) => e.type === 'selfScreen').at(-1)?.a[0] === false, 'Ana: onSelfScreen(false)');
+
   console.log('\n[7] Mudo / desmudo');
   await A.evaluate(() => window.engine.setMicEnabled(false));
   await waitFor(A, (ev) => ev.filter((e) => e.type === 'selfMute').at(-1)?.a[0] === true, 'Ana: onSelfMute(true)');
   await A.evaluate(() => window.engine.setMicEnabled(true));
   await waitFor(A, (ev) => ev.filter((e) => e.type === 'selfMute').at(-1)?.a[0] === false, 'Ana: onSelfMute(false)');
+
+  console.log('\n[7a] Portão do microfone (apertar-pra-falar): silêncio sem mudar o mudo');
+  const gate = await A.evaluate(async () => {
+    const e = window.engine;
+    const muteEvents = () => window.events.filter((x) => x.type === 'selfMute').length;
+    const m0 = muteEvents();
+    e.setMicGate(false);
+    const closed = e.localTracks.mic.enabled;
+    // Mudar e desmutar com o portão fechado: o resume() não pode reabrir a faixa.
+    await e.setMicEnabled(false);
+    await e.setMicEnabled(true);
+    const afterUnmute = e.localTracks.mic.enabled;
+    e.setMicGate(true);
+    const opened = e.localTracks.mic.enabled;
+    const raw = e.getLocalMicTrack({ raw: true });
+    return { closed, afterUnmute, opened, raw: !!raw && raw.readyState === 'live', muteDelta: muteEvents() - m0, paused: e.producers.mic.paused };
+  });
+  assert(gate.closed === false, 'portão fechado: faixa do mic desabilitada');
+  assert(gate.afterUnmute === false, 'desmutar com o portão fechado continua em silêncio');
+  assert(gate.opened === true && gate.paused === false, 'portão aberto: faixa volta e o producer está no ar');
+  assert(gate.raw, 'getLocalMicTrack({ raw: true }) devolve a captura viva (pro medidor de nível)');
+  assert(gate.muteDelta === 2, 'o portão não dispara onSelfMute (só o mudo/desmudo manual)');
 
   console.log('\n[7b] Qualidade da conexão e ping (getStats de verdade)');
   await waitFor(A, (ev) => ev.some((e) => e.type === 'netQuality' && e.a[0].ana >= 1 && e.a[0].beto >= 1), 'Ana: onNetQuality com ela e o Beto (1..6)', 8000);

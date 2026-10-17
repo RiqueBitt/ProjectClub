@@ -42,7 +42,7 @@
 //
 // QUALIDADE DA CONEXÃO: a cada 2s lê as estatísticas WebRTC reais (RTT do
 // par ICE, perda de pacotes de envio e de cada consumer) e entrega por
-// onNetQuality({ uid: 1..6 }) na MESMA escala que o Agora usa na UI
+// onNetQuality({ uid: 1..6 }) na escala que a UI usa
 // (1 excelente … 5 péssima, 6 sem conexão) e o ping por onRtt(ms). Também
 // guarda os bytes de áudio recebidos por pessoa (getInboundAudioBytes) — o
 // AudioSink usa pra perceber "bytes chegando mas nada tocando".
@@ -51,8 +51,18 @@
 // pelo RNNoise (voice/noiseSuppressor.js) antes de ser publicado;
 // setNoiseSuppression(on) liga/desliga na hora sem recriar a faixa.
 //
+// PORTÃO DO MICROFONE (apertar-pra-falar / sensibilidade de entrada):
+// setMicGate(aberto) manda silêncio enquanto fechado SEM mexer no "mudo" da
+// pessoa (o producer continua no ar; só a faixa fica desabilitada). Vale
+// também pra faixa nova depois de trocar de microfone/reconectar.
+//
+// TELA: setScreen(true, { quality, frameRate, audio, track }) — `track`
+// permite publicar uma faixa pronta (ex.: captura nativa do app Android) em
+// vez de chamar getDisplayMedia; setScreenQuality troca resolução/fps AO
+// VIVO (applyConstraints), sem parar a transmissão.
+//
 // Carregado de forma preguiçosa (o SDK só baixa quando entra numa call por
-// este provedor), igual Agora/LiveKit — não entra no bundle inicial. Falha
+// este provedor), igual o LiveKit — não entra no bundle inicial. Falha
 // no download do pedaço (deploy novo) tenta de novo e, por fim, recarrega
 // a página UMA vez (fora de call).
 //
@@ -70,6 +80,7 @@
 //   onError(err, info)
 import { createNoiseSuppressedTrack } from './noiseSuppressor.js';
 import { classifyClose, iceAction, importWithRetry, browserGuardedReload, micErrorReason } from './resilience.js';
+import { SCREEN_QUALITY_PRESETS } from '../utils/screenShareTracks.js';
 
 let msPromise = null;
 function loadMediasoup() {
@@ -150,6 +161,7 @@ export class MediasoupEngine {
     this.needsFreshToken = false;
     this.tokenRefreshes = 0;
     this.micMuted = false;
+    this.micGateOpen = true; // portão do apertar-pra-falar/sensibilidade
     this.micDeviceId = null;
     this.rawMic = null; // faixa crua do mic (o RNNoise publica outra)
     this.noise = null; // { track, setEnabled, dispose } do RNNoise
@@ -172,7 +184,7 @@ export class MediasoupEngine {
   getNode() { return null; }
 
   capabilities() {
-    return { camera: true, screen: true, perUserVolume: true, speakingIndicator: true, customGrid: true, netQuality: true, reconnect: true, noiseSuppression: true, iceRestart: true, receiveOnly: true };
+    return { camera: true, screen: true, perUserVolume: true, speakingIndicator: true, customGrid: true, netQuality: true, reconnect: true, noiseSuppression: true, iceRestart: true, receiveOnly: true, nativeScreenTrack: true };
   }
 
   // Bytes de áudio recebidos dessa pessoa (última leitura das estatísticas).
@@ -633,6 +645,7 @@ export class MediasoupEngine {
       if (sup) { this.noise = sup; track = sup.track; }
     }
     this.localTracks.mic = track;
+    track.enabled = this.micGateOpen;
     return track;
   }
 
@@ -926,7 +939,12 @@ export class MediasoupEngine {
         } else this.cb.onSelfMute?.(!enabled);
         return;
       }
-      if (enabled) { p.resume(); await this._request('resumeProducer', { producerId: p.id }); }
+      if (enabled) {
+        p.resume();
+        // resume() reabilita a faixa: reaplica o portão (apertar-pra-falar).
+        this._applyMicGate();
+        await this._request('resumeProducer', { producerId: p.id });
+      }
       else { p.pause(); await this._request('pauseProducer', { producerId: p.id }); }
       this.cb.onSelfMute?.(!enabled);
     } catch (err) { this.cb.onError?.(err, { where: 'setMicEnabled' }); }
@@ -957,16 +975,56 @@ export class MediasoupEngine {
     } catch (err) { this.cb.onError?.(err, { where: 'setCamera' }); return null; }
   }
 
+  // Portão do microfone: fechado = manda silêncio, sem mudar o mudo.
+  setMicGate(open) {
+    this.micGateOpen = !!open;
+    this._applyMicGate();
+  }
+
+  _applyMicGate() {
+    const t = this.localTracks.mic;
+    const p = this.producers.mic;
+    if (!t || (p && p.paused)) return; // pausado (mudo): a faixa já está desligada
+    try { t.enabled = this.micGateOpen; } catch { /* faixa encerrada */ }
+  }
+
+  // Faixa do microfone (MediaStreamTrack). raw=true devolve a captura crua
+  // (antes do RNNoise e do portão) — usada pra medir o nível de entrada.
+  getLocalMicTrack({ raw = false } = {}) {
+    const t = raw ? (this.rawMic || this.localTracks.mic) : this.localTracks.mic;
+    return isLive(t) ? t : null;
+  }
+
+  // Resolução/fps da tela AO VIVO, sem parar de transmitir.
+  async setScreenQuality({ quality, frameRate } = {}) {
+    const t = this.localTracks.screen;
+    const dims = SCREEN_QUALITY_PRESETS[quality];
+    if (!isLive(t) || !dims || typeof t.applyConstraints !== 'function') return false;
+    await t.applyConstraints({ width: { ideal: dims.width }, height: { ideal: dims.height }, frameRate: { ideal: frameRate || 30 } });
+    return true;
+  }
+
   async setScreen(on, options = {}) {
     try {
       if (!on) { await this._closeProducer('screen'); await this._closeProducer('screenAudio'); this.cb.onSelfScreen?.(false); return null; }
       if (this.producers.screen) return new MediaStream([this.localTracks.screen]);
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: { ideal: 30 } }, audio: options.audio !== false,
-      });
-      const vtrack = stream.getVideoTracks()[0];
+      const dims = SCREEN_QUALITY_PRESETS[options.quality] || SCREEN_QUALITY_PRESETS['1080p'];
+      const frameRate = [15, 30, 60].includes(options.frameRate) ? options.frameRate : 30;
+      let vtrack;
+      let atrack = null;
+      if (options.track) {
+        // Faixa pronta (captura nativa do app Android).
+        vtrack = options.track;
+      } else {
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { width: { ideal: dims.width }, height: { ideal: dims.height }, frameRate: { ideal: frameRate } },
+          audio: options.audio !== false,
+        });
+        vtrack = stream.getVideoTracks()[0];
+        atrack = stream.getAudioTracks()[0] || null;
+      }
       try { vtrack.contentHint = 'detail'; } catch { /* opcional */ }
-      await this._produceScreen(vtrack, stream.getAudioTracks()[0]);
+      await this._produceScreen(vtrack, atrack);
       // "Parar compartilhamento" pelo navegador.
       vtrack.addEventListener('ended', () => { this.setScreen(false); });
       this.cb.onSelfScreen?.(true);

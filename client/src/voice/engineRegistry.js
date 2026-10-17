@@ -4,15 +4,14 @@
 // (clientReady=...), pra cadeia pular no navegador os provedores cujo engine
 // ainda está pendente.
 //
-// O Agora NÃO está aqui: o caminho do Agora continua embutido no VoiceContext
-// (código consolidado e testado), e este registro cobre os DEMAIS provedores
-// da cadeia. O VoiceContext usa o caminho do Agora quando provider==='agora'
-// e este registro para os outros (todos com a MESMA interface de engine:
-// getNode/join/setMicEnabled/setCamera/setScreen/dispose).
+// TODA a mídia passa por aqui: o VoiceContext cria o engine do provedor
+// escolhido pela cadeia (servidor próprio, LiveKit, Jitsi, pendentes), todos
+// com a MESMA interface (getNode/join/setMicEnabled/setCamera/setScreen/
+// dispose).
 import { JitsiEngine } from './jitsiEngine.js';
 import { createLiveKitEngine } from './livekitEngine.js';
 import { createMediasoupEngine } from './mediasoupEngine.js';
-import { createGetStreamEngine, createDailyEngine, createTRTCEngine } from './pendingEngines.js';
+import { createDailyEngine, createTRTCEngine } from './pendingEngines.js';
 import { CLIENT_READY, PROVIDER_ORDER, CLIENT_READY_PROVIDERS } from './providerDecision.js';
 
 export { CLIENT_READY_PROVIDERS, PROVIDER_ORDER };
@@ -23,23 +22,22 @@ const FACTORIES = {
   projectclub: (callbacks) => createMediasoupEngine(callbacks),
   jitsi: (callbacks, creds) => new JitsiEngine({ domain: creds?.domain || 'meet.jit.si', callbacks }),
   livekit: (callbacks) => createLiveKitEngine(callbacks),
-  getstream: (callbacks) => createGetStreamEngine(callbacks),
   daily: (callbacks) => createDailyEngine(callbacks),
   trtc: (callbacks) => createTRTCEngine(callbacks),
 };
 
-// Tem um engine pra esse provedor? (agora é tratado à parte no VoiceContext.)
+// Tem um engine pra esse provedor?
 export function hasEngine(provider) {
-  return provider === 'agora' || !!FACTORIES[provider];
+  return !!FACTORIES[provider];
 }
 
 // O engine deste provedor usa faixas por participante na NOSSA grade
-// (livekit/agora) ou uma UI própria num iframe (jitsi)?
+// (servidor próprio/livekit) ou uma UI própria num iframe (jitsi)?
 export function usesCustomGrid(provider) {
   return provider !== 'jitsi';
 }
 
-// Cria o engine do provedor (menos agora). Devolve null pra agora/desconhecido.
+// Cria o engine do provedor. Devolve null pra provedor desconhecido.
 export function createEngine(provider, callbacks, creds) {
   const factory = FACTORIES[provider];
   return factory ? factory(callbacks, creds) : null;

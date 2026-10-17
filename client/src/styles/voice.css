@@ -355,8 +355,8 @@
 
 /* ============================================================
    Modo reserva (Jitsi) — ver client/src/voice/* e docs/voice-fallback.md.
-   Aparece só quando o Agora passou do limite mensal e a mídia caiu pro
-   provedor de backup. A conferência do Jitsi ocupa o palco; a nossa barra
+   Aparece só quando o servidor de mídia próprio não está disponível e a
+   mídia caiu pro provedor de backup. A conferência do Jitsi ocupa o palco; a nossa barra
    de controles (mudo/câmera/tela/sair) continua dirigindo tudo por cima.
    ============================================================ */
 .vc-backup-note {

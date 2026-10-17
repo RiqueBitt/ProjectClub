@@ -29,7 +29,7 @@ export function failureCode(err) {
   if (!err) return 'client';
   const raw = typeof err === 'string' ? err : '';
   const msg = String(err?.message || raw || '');
-  const known = msg.match(/CAN_NOT_GET_GATEWAY_SERVER|INVALID_VENDOR_KEY|DYNAMIC_USE_STATIC_KE?Y?|INVALID_TOKEN|TOKEN_EXPIRED|UID_CONFLICT|WS_ABORT|NETWORK_ERROR|OPERATION_ABORTED/);
+  const known = msg.match(/INVALID_TOKEN|TOKEN_EXPIRED|JOIN_TIMEOUT|ICE_FAILED|WS_ABORT|NETWORK_ERROR|OPERATION_ABORTED/);
   // DOMException tem `code` numérico (legado) — só vale código em texto.
   const own = err && typeof err === 'object' && typeof err.code === 'string' ? err.code : null;
   let code = own || (known && known[0]) || (err && typeof err === 'object' && err.name !== 'Error' ? err.name : null) || 'client';

@@ -1,7 +1,7 @@
 // Carrega o external_api.js do Jitsi sob demanda (lazy), do domínio
-// configurado pelo servidor. Igual ao SDK do Agora, só baixa quando alguém
-// REALMENTE cai no modo reserva — quem nunca usa voz (ou nunca estoura o
-// limite do Agora) jamais baixa nada do Jitsi.
+// configurado pelo servidor. Só baixa quando alguém REALMENTE cai no modo
+// reserva — quem nunca usa voz (ou nunca fica sem o servidor próprio)
+// jamais baixa nada do Jitsi.
 //
 // window.JitsiMeetExternalAPI é definido pelo script. Reaproveita a mesma
 // promise por domínio (nunca injeta o script duas vezes).

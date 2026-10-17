@@ -13,7 +13,7 @@
 const KEY = 'pc.voicePrefs';
 
 const DEFAULTS = {
-  noiseReduction: true,       // B — redutor de ruído (AEC/ANS/AGC do Agora)
+  noiseReduction: true,       // B — redutor de ruído (RNNoise no servidor próprio)
   autoLevelVolume: false,     // E — nivelar volume automático
   pushToTalkEnabled: false,   // F — apertar pra falar
   pushToTalkKey: 'Space',     // F — tecla (event.code)

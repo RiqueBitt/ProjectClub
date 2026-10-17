@@ -491,11 +491,11 @@ class Repository(private val context: Context, val api: Api, private val scope: 
     }
 
     /**
-     * Pergunta ao servidor qual provedor de voz usar (e as credenciais dele).
-     * [clientReady] = provedores que este aparelho aceita AGORA — tirar um que
-     * falhou faz a cadeia devolver o próximo (failover, igual ao site).
+     * Pede ao servidor as credenciais da call. O app só usa o servidor de
+     * mídia PRÓPRIO ([clientReady] = projectclub); se ele não estiver
+     * disponível, o servidor responde com a reserva da web (Jitsi).
      */
-    suspend fun voiceJoin(channelName: String, clientReady: List<String> = listOf("projectclub", "agora", "jitsi")): VoiceJoinResponse =
+    suspend fun voiceJoin(channelName: String, clientReady: List<String> = listOf("projectclub")): VoiceJoinResponse =
         api.get("/api/voice/join?channelName=${enc(channelName)}&clientReady=${enc(clientReady.joinToString(","))}")
 
     // ---------------- tempo real ----------------

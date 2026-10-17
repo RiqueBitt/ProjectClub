@@ -593,11 +593,10 @@ function initSockets(httpServer) {
           // pelo menos a ordem "quem entrou primeiro aparece pra quem
           // entrou depois" sempre se mantém, eliminando a janela de
           // corrida real que existia entre ler e escrever.
-          // Provedor de mídia desta entrada (Agora/Jitsi) — guardado junto
-          // pra, na saída, contar os minutos SÓ se foi Agora (ver leaveVoice
-          // e services/voiceUsage.js). joinedAt marca o início pra duração.
-          // Cadeia de provedores: o provedor ATIVO agora (Agora → LiveKit →
-          // ... → Jitsi) é decidido no servidor (services/voiceDecision.js).
+          // Provedor de mídia desta entrada — guardado junto pra contar os
+          // minutos no provedor certo (ver services/voiceUsage.js). joinedAt
+          // marca o início pra duração. O provedor ATIVO (servidor próprio →
+          // LiveKit → ... → Jitsi) é decidido no servidor (voiceDecision.js).
           const dmProvider = await voiceUsage.resolveActiveProvider(channelId);
           await voiceStore.setParticipant(channelId, userId, { socketId: socket.id, conversationId, muted: false, deafened: false, video: false, screenSharing: false, role: 'speaker', provider: dmProvider, joinedAt: Date.now() });
           socket.join(`voice:${channelId}`);
@@ -649,9 +648,9 @@ function initSockets(httpServer) {
         // BUG CORRIGIDO ("ninguém aparece na call do clã"): a voz do clã
         // usa o id sintético "clan:<id>" (ver ClanPage.jsx), que não existe
         // na tabela de canais — o findUnique abaixo voltava null e a
-        // entrada era ignorada em silêncio. O Agora conectava, mas o
+        // entrada era ignorada em silêncio. A mídia conectava, mas o
         // servidor nunca registrava ninguém, então a lista ficava vazia.
-        // Acesso: só membros do clã (mesma regra do agoraController).
+        // Acesso: só membros do clã (mesma regra do /api/voice/join).
         let channel;
         let perms = null;
         if (typeof channelId === 'string' && channelId.startsWith('clan:')) {
@@ -699,10 +698,10 @@ function initSockets(httpServer) {
           // dispositivo, socket novo), mas isso também cobria sem querer
           // "entrar de um APARELHO diferente", que precisa de um
           // tratamento diferente: o dispositivo ANTIGO continuava achando
-          // que estava conectado (Agora publicado, UI mostrando "na
-          // call"), mesmo o Agora já tendo derrubado a mídia dele por
-          // dentro (dois clientes com o MESMO usuário no mesmo canal não
-          // é permitido). Agora, só quando é de verdade um socket
+          // que estava conectado (mídia publicada, UI mostrando "na
+          // call"), mesmo o servidor de mídia já tendo derrubado a mídia
+          // dele por dentro (dois clientes com o MESMO usuário no mesmo
+          // canal não é permitido). Agora, só quando é de verdade um socket
           // DIFERENTE (não um simples refresh do mesmo), avisa
           // explicitamente o dispositivo antigo pra ele sair sozinho, de
           // forma limpa — em vez de ficar "preso" numa call morta.
@@ -758,7 +757,7 @@ function initSockets(httpServer) {
         // DEPOIS de já ter gravado a própria entrada no Redis, não antes,
         // eliminando a janela de corrida entre duas pessoas entrando quase
         // ao mesmo tempo (ver o comentário completo lá).
-        // Provedor de mídia desta entrada (Agora/Jitsi) + início, pra contar
+        // Provedor de mídia desta entrada + início, pra contar
         // minutos na saída (ver leaveVoice e services/voiceUsage.js). O
         // provedor ativo vem da cadeia (services/voiceDecision.js).
         const joinProvider = await voiceUsage.resolveActiveProvider(channelId);
@@ -1149,7 +1148,7 @@ function initSockets(httpServer) {
         // desktop aberto junto, um F5 em outra janela) tirava ela da
         // chamada — mesmo a chamada estando em OUTRA conexão. Agora só
         // conta a queda da conexão dona da vaga. (2) Uma queda rápida de
-        // rede (o socket.io reconecta em segundos, e o áudio do Agora
+        // rede (o socket.io reconecta em segundos, e o áudio da chamada
         // nem cai) removia a pessoa na hora e a fazia "piscar" pra todo
         // mundo. Agora espera VOICE_GRACE_MS: se ela reconectar (voice:join
         // ou voice:sync), o timer é cancelado e ninguém percebe nada.
@@ -1262,7 +1261,7 @@ function initSockets(httpServer) {
     // minutos-participante (voiceUsage.startProviderUsageTicker, ligado no
     // index.js), que a cada minuto soma as pessoas ativas ao provedor ATIVO
     // daquele minuto — a métrica certa pros limites gratuitos de cada
-    // serviço (Agora/LiveKit/Daily/...). Não é mais contada aqui na saída.
+    // serviço (LiveKit/Daily/...). Não é mais contada aqui na saída.
     const remaining = await voiceStore.removeParticipant(channelId, userId);
     if (socket) socket.leave(`voice:${channelId}`);
     else if (participant.socketId) io.in(participant.socketId).socketsLeave(`voice:${channelId}`);

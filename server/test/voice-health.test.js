@@ -51,11 +51,12 @@ require.cache[path.resolve(__dirname, '../src/config/prisma.js')] = { exports: {
 process.env.NODE_ENV = 'test';
 process.env.MEDIA_SERVER_URL = 'wss://media.example/ws';
 process.env.MEDIA_SERVER_SECRET = 'segredo-midia-0123456789';
-process.env.AGORA_APP_ID = 'a'.repeat(32);
-process.env.AGORA_APP_CERTIFICATE = 'b'.repeat(32);
+process.env.LIVEKIT_URL = 'wss://lk.example';
+process.env.LIVEKIT_API_KEY = 'lkkey';
+process.env.LIVEKIT_API_SECRET = 'lksecret-0123456789';
 process.env.TURN_URLS = 'turns:media.example:5349?transport=tcp,turn:media.example:3478?transport=tcp,turn:media.example:3478?transport=udp';
 process.env.TURN_SECRET = 'turnsecret';
-for (const k of ['LIVEKIT_URL', 'GETSTREAM_API_KEY', 'TRTC_SDK_APP_ID', 'DAILY_DOMAIN']) delete process.env[k];
+for (const k of ['TRTC_SDK_APP_ID', 'DAILY_DOMAIN', 'LIVEKIT_MONTHLY_MINUTES']) delete process.env[k];
 
 const voiceHealth = require('../src/services/voiceHealth');
 const decision = require('../src/services/voiceDecision');
@@ -73,7 +74,7 @@ test('disjuntor: uma pessoa sozinha falhando várias vezes NÃO desarma o proved
   const t = newTracker();
   for (let i = 0; i < 10; i += 1) {
     // eslint-disable-next-line no-await-in-loop
-    await t.recordFailure('agora', 'u1', 'CAN_NOT_GET_GATEWAY_SERVER');
+    await t.recordFailure('livekit', 'u1', 'ICE_FAILED');
     clock += 25000; // passa do limite de 1 falha/20s por pessoa
   }
   assert.deepEqual(await t.getUnhealthy(), []);
@@ -81,19 +82,19 @@ test('disjuntor: uma pessoa sozinha falhando várias vezes NÃO desarma o proved
 
 test('disjuntor: 2 pessoas diferentes em 5 min desarmam; o tempo de espera dobra a cada queda seguida e depois volta', async () => {
   const t = newTracker();
-  await t.recordFailure('agora', 'u1');
-  const r = await t.recordFailure('agora', 'u2');
+  await t.recordFailure('livekit', 'u1');
+  const r = await t.recordFailure('livekit', 'u2');
   assert.equal(r.tripped, true);
-  assert.deepEqual(await t.getUnhealthy(), ['agora']);
-  const d1 = await t.getDown('agora');
+  assert.deepEqual(await t.getUnhealthy(), ['livekit']);
+  const d1 = await t.getDown('livekit');
   assert.equal(d1.until - clock, 10 * 60000, '1ª queda: 10 min');
   clock += 10 * 60000 + 1;
   assert.deepEqual(await t.getUnhealthy(), [], 'passado o tempo, volta a ser tentado (meio-aberto)');
-  await t.recordFailure('agora', 'u3');
-  await t.recordFailure('agora', 'u4');
-  const d2 = await t.getDown('agora');
+  await t.recordFailure('livekit', 'u3');
+  await t.recordFailure('livekit', 'u4');
+  const d2 = await t.getDown('livekit');
   assert.equal(d2.until - clock, 20 * 60000, '2ª queda seguida: 20 min');
-  await t.reset('agora');
+  await t.reset('livekit');
   assert.deepEqual(await t.getUnhealthy(), [], 'a equipe pode zerar na hora');
 });
 
@@ -131,55 +132,57 @@ test('teste ativo do servidor próprio: 2 falhas seguidas do /health = fora do a
 test('Redis fora do ar: o disjuntor continua funcionando em memória', async () => {
   const broken = new Proxy({}, { get: () => async () => { throw new Error('redis caiu'); } });
   const t = voiceHealth.createTracker({ store: voiceHealth.fallbackStore(voiceHealth.redisStore(broken), voiceHealth.memoryStore(now)), now, env: {}, log: quietLog });
-  await t.recordFailure('agora', 'u1');
-  await t.recordFailure('agora', 'u2');
-  assert.deepEqual(await t.getUnhealthy(), ['agora']);
+  await t.recordFailure('livekit', 'u1');
+  await t.recordFailure('livekit', 'u2');
+  assert.deepEqual(await t.getUnhealthy(), ['livekit']);
 });
 
 // ---------------- decisão com saúde ----------------
 
-const ENV = { MEDIA_SERVER_URL: 'wss://m/ws', MEDIA_SERVER_SECRET: 's'.repeat(20), AGORA_APP_ID: 'a', AGORA_APP_CERTIFICATE: 'b' };
+const ENV = { MEDIA_SERVER_URL: 'wss://m/ws', MEDIA_SERVER_SECRET: 's'.repeat(20), LIVEKIT_URL: 'wss://lk', LIVEKIT_API_KEY: 'k', LIVEKIT_API_SECRET: 's' };
 
 test('decisão: provedor desarmado é pulado; override apontando pra ele cai no automático', () => {
-  assert.equal(decision.decideProvider({ env: ENV, unhealthy: ['projectclub'] }).provider, 'agora');
-  const d = decision.decideProvider({ env: ENV, override: 'agora', unhealthy: ['agora'] });
+  assert.equal(decision.decideProvider({ env: ENV, unhealthy: ['projectclub'] }).provider, 'livekit');
+  const d = decision.decideProvider({ env: ENV, override: 'livekit', unhealthy: ['livekit'] });
   assert.equal(d.provider, 'projectclub');
   assert.equal(d.overridden, false);
-  const panel = decision.buildPanel({ env: ENV, override: 'agora', unhealthy: ['agora'] });
+  const panel = decision.buildPanel({ env: ENV, override: 'livekit', unhealthy: ['livekit'] });
   assert.equal(panel.overrideIgnored, true);
-  assert.equal(panel.providers.find((p) => p.id === 'agora').status, 'instavel');
-  assert.equal(panel.providers.find((p) => p.id === 'agora').healthy, false);
+  assert.equal(panel.providers.find((p) => p.id === 'livekit').status, 'instavel');
+  assert.equal(panel.providers.find((p) => p.id === 'livekit').healthy, false);
 });
 
 test('decisão: tudo desarmado → usa o primeiro disponível ("degradado"), inclusive pra quem não tem Jitsi (app Android)', () => {
-  const all = ['projectclub', 'agora', 'jitsi'];
+  const all = ['projectclub', 'livekit', 'jitsi'];
   assert.equal(decision.decideProvider({ env: ENV, unhealthy: all }).provider, 'projectclub');
-  const android = decision.decideProvider({ env: ENV, unhealthy: ['projectclub', 'agora'], disabled: ['jitsi', 'livekit', 'getstream', 'daily', 'trtc'] });
+  const android = decision.decideProvider({ env: ENV, unhealthy: ['projectclub'], disabled: ['jitsi', 'livekit', 'daily', 'trtc'] });
   assert.equal(android.provider, 'projectclub');
   assert.equal(android.reason, 'degraded');
-  // Web (tem Jitsi): com os dois desarmados, cai no Jitsi saudável.
-  assert.equal(decision.decideProvider({ env: ENV, unhealthy: ['projectclub', 'agora'] }).provider, 'jitsi');
+  // Web (tem Jitsi): próprio e LiveKit desarmados → cai no Jitsi saudável.
+  assert.equal(decision.decideProvider({ env: ENV, unhealthy: ['projectclub', 'livekit'] }).provider, 'jitsi');
+  // Web: só o próprio desarmado → LiveKit (configurado) antes do Jitsi.
+  assert.equal(decision.decideProvider({ env: ENV, unhealthy: ['projectclub'] }).provider, 'livekit');
 });
 
 test('resolveRoomProvider: sala ativa num provedor bom → todo mundo entra nele', () => {
-  const r = decision.resolveRoomProvider({ decided: 'agora', globalProvider: 'agora', sticky: 'projectclub', active: true, stickyForRoom: true, stickyForMe: true });
+  const r = decision.resolveRoomProvider({ decided: 'livekit', globalProvider: 'livekit', sticky: 'projectclub', active: true, stickyForRoom: true, stickyForMe: true });
   assert.deepEqual(r, { provider: 'projectclub', write: false, migrate: false });
 });
 
 test('resolveRoomProvider: fixação ficou ruim (desarmada) → a sala migra junto', () => {
-  const r = decision.resolveRoomProvider({ decided: 'projectclub', globalProvider: 'projectclub', sticky: 'agora', active: true, stickyForRoom: false, stickyForMe: false });
+  const r = decision.resolveRoomProvider({ decided: 'projectclub', globalProvider: 'projectclub', sticky: 'livekit', active: true, stickyForRoom: false, stickyForMe: false });
   assert.deepEqual(r, { provider: 'projectclub', write: true, migrate: true });
 });
 
 test('resolveRoomProvider (bug de produção): aparelho que não usa o provedor da sala NÃO regrava a fixação dos outros', () => {
   // Sala no projectclub (escolha geral). Um app que pulou o projectclub cai
-  // no agora SOZINHO — a fixação continua projectclub pro próximo que entrar.
-  const r = decision.resolveRoomProvider({ decided: 'agora', globalProvider: 'projectclub', sticky: 'projectclub', active: true, stickyForRoom: true, stickyForMe: false });
-  assert.deepEqual(r, { provider: 'agora', write: false, migrate: false });
+  // no livekit SOZINHO — a fixação continua projectclub pro próximo que entrar.
+  const r = decision.resolveRoomProvider({ decided: 'livekit', globalProvider: 'projectclub', sticky: 'projectclub', active: true, stickyForRoom: true, stickyForMe: false });
+  assert.deepEqual(r, { provider: 'livekit', write: false, migrate: false });
 });
 
 test('resolveRoomProvider: sala vazia (fixação velha) → decide de novo e grava', () => {
-  const r = decision.resolveRoomProvider({ decided: 'projectclub', globalProvider: 'projectclub', sticky: 'agora', active: false, stickyForRoom: true, stickyForMe: true });
+  const r = decision.resolveRoomProvider({ decided: 'projectclub', globalProvider: 'projectclub', sticky: 'livekit', active: false, stickyForRoom: true, stickyForMe: true });
   assert.deepEqual(r, { provider: 'projectclub', write: true, migrate: false });
 });
 
@@ -217,31 +220,31 @@ const fakeIo = () => {
 const userA = { id: 'ua', clanId: 'c1', username: 'ana' };
 const userB = { id: 'ub', clanId: 'c1', username: 'beto' };
 const userC = { id: 'uc', clanId: 'c1', username: 'caio' };
-const WEB = 'projectclub,agora,jitsi';
+const WEB = 'projectclub,livekit,jitsi';
 const inRoom = (channel, ...ids) => { hashes.set(`voice:room:${channel}`, new Map(ids.map((id) => [id, '{}']))); };
 
-test('join: override "agora" + falha do Agora pra 2 pessoas → Agora desarmado, sala migra e TODO MUNDO cai no mesmo provedor', async () => {
+test('join: override "livekit" + falha do LiveKit pra 2 pessoas → LiveKit desarmado, sala migra e TODO MUNDO cai no mesmo provedor', async () => {
   const ctrl = require('../src/controllers/voiceController');
-  await overrideStore.setOverride('agora');
+  await overrideStore.setOverride('livekit');
   const io = fakeIo();
   const ch = 'clan:c1';
-  // Ana entra: override → agora.
+  // Ana entra: override → livekit.
   let r = await call(ctrl.getJoin, { user: userA, query: { channelName: ch, clientReady: WEB }, io });
-  assert.equal(r.body.provider, 'agora');
+  assert.equal(r.body.provider, 'livekit');
   inRoom(ch, 'ua');
-  // Beto entra: mesma sala → agora.
+  // Beto entra: mesma sala → livekit.
   r = await call(ctrl.getJoin, { user: userB, query: { channelName: ch, clientReady: WEB }, io });
-  assert.equal(r.body.provider, 'agora');
+  assert.equal(r.body.provider, 'livekit');
   inRoom(ch, 'ua', 'ub');
-  // O Agora falha pra Ana (CAN_NOT_GET_GATEWAY_SERVER): o cliente pede de novo SEM agora.
+  // O LiveKit falha pra Ana: o cliente pede de novo SEM livekit.
   clock += 3000;
   r = await call(ctrl.getJoin, { user: userA, query: { channelName: ch, clientReady: 'projectclub,jitsi' }, io });
   assert.equal(r.body.provider, 'projectclub');
   // …e o Beto também (2ª pessoa) — reporta pela rota nova.
   clock += 1000;
-  const rep = await call(ctrl.postReport, { user: userB, body: { provider: 'agora', code: 'CAN_NOT_GET_GATEWAY_SERVER' }, io });
+  const rep = await call(ctrl.postReport, { user: userB, body: { provider: 'livekit', code: 'ICE_FAILED' }, io });
   assert.equal(rep.body.providerDown, true);
-  // Agora desarmado: quem perguntar (inclusive o poll de quem está na sala) vai pro projectclub.
+  // LiveKit desarmado: quem perguntar (inclusive o poll de quem está na sala) vai pro projectclub.
   r = await call(ctrl.getJoin, { user: userB, query: { channelName: ch, clientReady: WEB }, io });
   assert.equal(r.body.provider, 'projectclub');
   assert.ok(io.emitted.some((e) => e.ev === 'voice:provider-changed'), 'avisou os clientes pra migrar');
@@ -249,12 +252,12 @@ test('join: override "agora" + falha do Agora pra 2 pessoas → Agora desarmado,
   r = await call(ctrl.getJoin, { user: userC, query: { channelName: ch, clientReady: WEB }, io });
   assert.equal(r.body.provider, 'projectclub');
   assert.equal(await overrideStore.getRoomProvider(ch), 'projectclub', 'fixação da sala nunca aponta pra provedor desarmado');
-  // Painel: agora instável, override ignorado.
+  // Painel: livekit instável, override ignorado.
   const panel = await call(ctrl.getProviderStatus, { user: userA, io });
   assert.equal(panel.body.active, 'projectclub');
   assert.equal(panel.body.overrideIgnored, true);
-  assert.equal(panel.body.providers.find((p) => p.id === 'agora').status, 'instavel');
-  await voiceHealth.tracker().reset('agora');
+  assert.equal(panel.body.providers.find((p) => p.id === 'livekit').status, 'instavel');
+  await voiceHealth.tracker().reset('livekit');
 });
 
 test('join: aparelho que não suporta o provedor da sala não "rouba" a fixação (antes: canal dividido)', async () => {
@@ -265,9 +268,9 @@ test('join: aparelho que não suporta o provedor da sala não "rouba" a fixaçã
   let r = await call(ctrl.getJoin, { user: userA, query: { channelName: ch, clientReady: WEB }, io });
   assert.equal(r.body.provider, 'projectclub');
   inRoom(ch, 'ua');
-  // App antigo sem servidor próprio.
-  r = await call(ctrl.getJoin, { user: userB, query: { channelName: ch, clientReady: 'agora' }, headers: {}, io });
-  assert.equal(r.body.provider, 'agora');
+  // Aparelho sem servidor próprio (só LiveKit).
+  r = await call(ctrl.getJoin, { user: userB, query: { channelName: ch, clientReady: 'livekit' }, headers: {}, io });
+  assert.equal(r.body.provider, 'livekit');
   inRoom(ch, 'ua', 'ub');
   // O próximo do navegador continua indo pro projectclub (onde a Ana está).
   r = await call(ctrl.getJoin, { user: userC, query: { channelName: ch, clientReady: WEB }, io });
@@ -280,7 +283,35 @@ test('join: duas pessoas entrando quase juntas numa sala vazia caem no mesmo pro
   await overrideStore.setOverride(null);
   const io = fakeIo();
   const ch = 'clan:c1';
-  await overrideStore.setRoomProvider(ch, 'agora'); // alguém acabou de entrar no agora (ainda não aparece na sala)
+  await overrideStore.setRoomProvider(ch, 'livekit'); // alguém acabou de entrar no livekit (ainda não aparece na sala)
   const r = await call(ctrl.getJoin, { user: userB, query: { channelName: ch, clientReady: WEB }, io });
-  assert.equal(r.body.provider, 'agora');
+  assert.equal(r.body.provider, 'livekit');
+});
+
+test('dados antigos no Redis: fixação/override/desativado "agora" ou "getstream" são ignorados com segurança', async () => {
+  const ctrl = require('../src/controllers/voiceController');
+  await overrideStore.setOverride(null);
+  const io = fakeIo();
+  const ch = 'clan:c1';
+  // Valores gravados antes da remoção dos provedores Agora/Stream.
+  kv.set('voice:override', { v: 'agora', exp: 0 });
+  sets.set('voice:disabled', new Set(['getstream', 'agora']));
+  kv.set(`voice:roomprov:${(await fakeRedis.get('voice:epoch')) || '0'}:${ch}`, { v: `getstream|${clock}`, exp: 0 });
+  inRoom(ch, 'ua');
+  assert.equal(await overrideStore.getOverride(), null);
+  assert.deepEqual(await overrideStore.getDisabled(), []);
+  assert.equal(await overrideStore.getRoomProvider(ch), null);
+  // App Android antigo ainda anuncia "agora": vai pro servidor próprio.
+  let r = await call(ctrl.getJoin, { user: userB, query: { channelName: ch, clientReady: 'projectclub,agora,jitsi' }, headers: { 'user-agent': 'ProjectClub/1.40.0 Android' }, io });
+  assert.equal(r.body.provider, 'projectclub');
+  assert.ok(r.body.projectclub && r.body.projectclub.token);
+  assert.equal(r.body.agora, undefined);
+  // Cliente que SÓ conhece agora/getstream (bem antigo): nunca recebe credencial deles.
+  r = await call(ctrl.getJoin, { user: userC, query: { channelName: 'clan:c1', clientReady: 'agora,getstream' }, io });
+  assert.ok(!['agora', 'getstream'].includes(r.body.provider));
+  // Relatório de falha / override / chaves de provedor removido → 400.
+  const rep = await call(ctrl.postReport, { user: userA, body: { provider: 'agora' }, io });
+  assert.equal(rep.status, 400);
+  const ov = await call(ctrl.postOverride, { user: userA, body: { provider: 'getstream' }, io });
+  assert.equal(ov.status, 400);
 });

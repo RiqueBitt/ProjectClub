@@ -6,9 +6,8 @@ import { registerPlugin } from '@capacitor/core';
 // intervalo curto), não um vídeo pronto. Esse arquivo é quem transforma
 // essas imagens numa faixa de vídeo de verdade: desenha cada uma num
 // <canvas> oculto e usa canvas.captureStream() — uma função padrão do
-// navegador, documentada oficialmente pelo Agora como jeito válido de
-// alimentar uma chamada com uma fonte de vídeo customizada (ver
-// AgoraRTC.createCustomVideoTrack em VoiceContext.jsx).
+// navegador; a faixa resultante é publicada pelo engine de mídia como a
+// tela (ver toggleScreenShare em VoiceContext.jsx).
 const ScreenShare = registerPlugin('ScreenShare');
 
 let canvas = null;
@@ -31,11 +30,11 @@ function ensureCanvas(width, height) {
 // tela" — pede a permissão do sistema (mostra o aviso nativo do
 // Android), e se concedida, começa a receber frames e desenhá-los no
 // canvas continuamente. Devolve a MediaStreamTrack pronta pra publicar
-// no Agora, ou null se a pessoa negou a permissão.
+// na chamada, ou null se a pessoa negou a permissão.
 //
 // Item pedido depois: "faça se possível como o Stoat ou o Discord" —
 // os padrões de fps/qualidade abaixo batem com os do lado nativo
-// (ScreenCaptureService.java), pesquisados a partir de como Agora/
+// (ScreenCaptureService.java), pesquisados a partir de como
 // Discord/Stoat costumam configurar compartilhamento de tela mobile
 // (~720p, entre 12-15fps é um bom equilíbrio pra essa arquitetura
 // específica).

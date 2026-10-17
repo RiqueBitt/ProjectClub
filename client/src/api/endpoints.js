@@ -536,10 +536,7 @@ export const listFeaturedPosts = () => api.get('/posts/featured').then((r) => r.
 export const registerPushToken = (token, platform) => api.post('/push/register', { token, platform }).then((r) => r.data);
 export const unregisterPushToken = (token) => api.post('/push/unregister', { token }).then((r) => r.data);
 
-// --- Agora.io (chamadas de voz) ---
-export const getAgoraToken = (channelName) => api.get('/agora/token', { params: { channelName } }).then((r) => r.data);
-
-// --- Cadeia de provedores de voz (Agora → LiveKit → ... → Jitsi) ---
+// --- Cadeia de provedores de voz (servidor próprio → LiveKit → ... → Jitsi) ---
 // Fluxo de entrada: checa acesso e devolve o provedor ATIVO + credenciais
 // dele. `clientReady` diz ao servidor quais provedores este navegador sabe
 // usar hoje (os demais a cadeia pula só para este join).

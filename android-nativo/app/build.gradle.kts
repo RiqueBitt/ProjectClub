@@ -66,13 +66,13 @@ android {
     }
     packaging {
         resources { excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "META-INF/INDEX.LIST", "META-INF/DEPENDENCIES") }
-        // Agora e mediasoup podem trazer o mesmo runtime C++.
+        // Bibliotecas nativas podem trazer o mesmo runtime C++.
         jniLibs {
             pickFirsts += setOf("lib/*/libc++_shared.so")
             // Celular com x86 praticamente não existe — fora do APK universal.
             excludes += setOf("lib/x86/**", "lib/x86_64/**")
-            // Bibliotecas nativas (Agora + WebRTC) COMPRIMIDAS dentro do APK:
-            // sem isso iam "cruas" e o APK passava de 160 MB. O Android
+            // Bibliotecas nativas (WebRTC/mediasoup) COMPRIMIDAS dentro do
+            // APK: sem isso iam "cruas" e o APK ficava bem maior. O Android
             // descompacta uma vez na instalação.
             useLegacyPackaging = true
         }
@@ -119,10 +119,8 @@ dependencies {
     implementation("io.socket:socket.io-client:2.1.1") {
         exclude(group = "org.json", module = "json") // o Android já tem org.json
     }
-    // Voz e compartilhamento de tela (mesmo provedor do site em produção).
-    implementation("io.agora.rtc:full-sdk:4.5.0")
-    // Servidor de mídia PRÓPRIO do Project Club (mediasoup no VPS): cliente
-    // nativo do mediasoup + WebRTC (voz e transmissão de tela).
+    // Voz e compartilhamento de tela: servidor de mídia PRÓPRIO do Project
+    // Club (mediasoup no VPS) — cliente nativo do mediasoup + WebRTC.
     implementation("io.github.crow-misia.libmediasoup-android:libmediasoup-android:0.21.0")
 
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))

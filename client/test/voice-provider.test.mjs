@@ -1,5 +1,5 @@
 // Testes unitários (node --test) da lógica PURA do modo reserva de voz:
-//  1. escolha/normalização do provedor (Agora ⇆ Jitsi);
+//  1. escolha/normalização do provedor (servidor próprio ⇆ reservas);
 //  2. tradução de eventos da External API do Jitsi pro estado da UI.
 // Sem React, sem rede, sem DOM — importa só os módulos puros.
 //
@@ -8,45 +8,50 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   normalizeProviderResponse, shouldSwitchProvider, readJoinResponse, isReserveMode,
+  PROVIDER_ORDER, PRIMARY_PROVIDER, CLIENT_READY_PROVIDERS, isClientReady,
 } from '../src/voice/providerDecision.js';
 import { mapJitsiEvent } from '../src/voice/jitsiMapping.js';
 
 // ---------- providerDecision ----------
-test('normalizeProviderResponse: aceita agora/jitsi e marca fallback', () => {
-  const a = normalizeProviderResponse({ provider: 'agora', minutesUsed: 10, limit: 10000, reason: 'ok' });
-  assert.equal(a.provider, 'agora');
+test('normalizeProviderResponse: aceita projectclub/jitsi e marca fallback', () => {
+  const a = normalizeProviderResponse({ provider: 'projectclub', reason: 'primary' });
+  assert.equal(a.provider, 'projectclub');
   assert.equal(a.fallbackActive, false);
-  const j = normalizeProviderResponse({ provider: 'jitsi', minutesUsed: 9900, limit: 10000, reason: 'limite-mensal-agora' });
+  const j = normalizeProviderResponse({ provider: 'jitsi', minutesUsed: 9900, limit: 10000, reason: 'fallback' });
   assert.equal(j.provider, 'jitsi');
   assert.equal(j.fallbackActive, true);
   assert.equal(j.minutesUsed, 9900);
 });
 
-test('normalizeProviderResponse: entrada inválida cai pro agora (padrão seguro)', () => {
-  for (const bad of [null, undefined, {}, { provider: 'foo' }, { provider: 5 }, 'x']) {
+test('normalizeProviderResponse: entrada inválida (ou provedor removido) cai pro servidor próprio', () => {
+  for (const bad of [null, undefined, {}, { provider: 'foo' }, { provider: 5 }, 'x', { provider: 'agora' }, { provider: 'getstream' }]) {
     const d = normalizeProviderResponse(bad);
-    assert.equal(d.provider, 'agora');
+    assert.equal(d.provider, 'projectclub');
     assert.equal(d.fallbackActive, false);
   }
 });
 
+test('cadeia do cliente: sem Agora/Stream; servidor próprio é o primário', () => {
+  assert.deepEqual(PROVIDER_ORDER, ['projectclub', 'livekit', 'daily', 'trtc', 'jitsi']);
+  assert.equal(PRIMARY_PROVIDER, 'projectclub');
+  assert.deepEqual(CLIENT_READY_PROVIDERS, ['projectclub', 'livekit', 'jitsi']);
+  assert.equal(isClientReady('agora'), false);
+  assert.equal(isClientReady('getstream'), false);
+});
+
 test('shouldSwitchProvider: só troca quando muda de verdade', () => {
-  assert.equal(shouldSwitchProvider('agora', 'jitsi'), true);
-  assert.equal(shouldSwitchProvider('agora', 'agora'), false);
+  assert.equal(shouldSwitchProvider('projectclub', 'jitsi'), true);
+  assert.equal(shouldSwitchProvider('projectclub', 'projectclub'), false);
   assert.equal(shouldSwitchProvider('jitsi', 'jitsi'), false);
-  assert.equal(shouldSwitchProvider('agora', 'invalido'), false);
+  assert.equal(shouldSwitchProvider('projectclub', 'invalido'), false);
+  assert.equal(shouldSwitchProvider('projectclub', 'agora'), false);
 });
 
-test('readJoinResponse: extrai credenciais do Agora quando válidas', () => {
-  const r = readJoinResponse({ provider: 'agora', agora: { token: 't', appId: 'app', uid: 'u1' }, minutesUsed: 5, limit: 100 });
-  assert.equal(r.provider, 'agora');
-  assert.deepEqual(r.agora, { token: 't', appId: 'app', uid: 'u1' });
-});
-
-test('readJoinResponse: Agora sem token vira agora com credencial nula', () => {
-  const r = readJoinResponse({ provider: 'agora', agora: { appId: 'app' } });
-  assert.equal(r.provider, 'agora');
-  assert.equal(r.agora, null);
+test('readJoinResponse: resposta antiga com provider "agora" nunca vira credencial do Agora', () => {
+  const r = readJoinResponse({ provider: 'agora', agora: { token: 't', appId: 'app', uid: 'u1' } });
+  assert.equal(r.provider, 'projectclub');
+  assert.equal(r.agora, undefined);
+  assert.equal(r.projectclub, null);
 });
 
 test('readJoinResponse: extrai sala do Jitsi (domínio+room obrigatórios, jwt opcional)', () => {
@@ -134,9 +139,8 @@ test('readJoinResponse: extrai credenciais do servidor próprio (url+token obrig
   assert.equal(bad.projectclub, null);
 });
 
-test('isReserveMode: próprio e agora não são reserva; livekit/jitsi são', () => {
+test('isReserveMode: só o servidor próprio não é reserva; livekit/jitsi são', () => {
   assert.equal(isReserveMode('projectclub'), false);
-  assert.equal(isReserveMode('agora'), false);
   assert.equal(isReserveMode('livekit'), true);
   assert.equal(isReserveMode('jitsi'), true);
 });

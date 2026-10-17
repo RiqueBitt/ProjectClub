@@ -1494,7 +1494,7 @@ if (!gotLock) {
   // Item pedido: "compartilhar tela não funciona no .exe" — o Electron
   // (diferente de um navegador comum) NÃO tem embutido o pedido nativo
   // de "escolher uma tela/janela pra compartilhar" — sem isso configurado
-  // aqui, getDisplayMedia() do site (usado pelo Agora) simplesmente nunca
+  // aqui, getDisplayMedia() do site (usado pelo engine de voz) simplesmente nunca
   // teria de onde escolher nada. session.setDisplayMediaRequestHandler é
   // o gancho oficial do Electron pra isso: sempre que o site pede
   // getDisplayMedia(), esse handler roda aqui no processo principal,

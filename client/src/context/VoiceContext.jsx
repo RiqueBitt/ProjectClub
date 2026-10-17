@@ -6,15 +6,15 @@ import { playSound, playEntrySound } from '../utils/sounds';
 import { getExtra } from '../utils/extraPrefs';
 import { getPreferredMicId, setPreferredMicId } from '../utils/audioDevices';
 import { getVoiceJoin, reportVoiceProvider } from '../api/endpoints';
-import { createFailureMemory, failureCode, importWithRetry, browserGuardedReload, withTimeout } from '../voice/resilience.js';
+import { createFailureMemory, failureCode, withTimeout } from '../voice/resilience.js';
 import { getVoicePref, onVoicePrefsChange, setVoicePref, makeReactionRateLimiter, isValidReaction } from '../utils/voicePrefs';
-import { buildScreenShareConfig, collectScreenPublishTracks } from '../utils/screenShareTracks';
-// Cadeia de provedores de mídia (Agora → LiveKit → ... → Jitsi) — ver
-// client/src/voice/* e docs/voice-fallback.md. O caminho do Agora é embutido
-// aqui; os DEMAIS engines (LiveKit completo, Jitsi reserva, e os pendentes)
-// vêm do engineRegistry e só são baixados/instanciados quando a cadeia os
-// escolhe. A troca ao vivo entre QUAISQUER dois provedores preserva a sessão,
-// o socket, o roster, as reações e o soundboard — só a camada de mídia troca.
+import { buildScreenShareConfig, SCREEN_QUALITY_PRESETS } from '../utils/screenShareTracks';
+// Cadeia de provedores de mídia (servidor próprio → LiveKit → ... → Jitsi) —
+// ver client/src/voice/* e docs/voice-fallback.md. TODA a mídia passa por um
+// ENGINE do engineRegistry (mediasoup próprio, LiveKit, Jitsi, pendentes),
+// baixado/instanciado só quando a cadeia o escolhe. A troca ao vivo entre
+// QUAISQUER dois provedores preserva a sessão, o socket, o roster, as reações
+// e o soundboard — só a camada de mídia troca.
 import { readJoinResponse, isClientReady, providerLabel } from '../voice/providerDecision.js';
 import { createEngine, CLIENT_READY_PROVIDERS } from '../voice/engineRegistry.js';
 import { isReserveMode } from '../voice/providerDecision.js';
@@ -53,8 +53,8 @@ async function startCallForegroundService(channelName) {
     // mesmo tempo: `allowMicrophoneInBackground` mantém o microfone
     // ativo, e `disableWebViewOptimization: true` engana o Android
     // fazendo ele achar que a tela do app CONTINUA visível mesmo
-    // minimizado — é isso que impede o JavaScript (e portanto o Agora,
-    // que roda inteiro dentro dele) de ser pausado.
+    // minimizado — é isso que impede o JavaScript (e portanto a mídia da
+    // chamada, que roda inteira dentro dele) de ser pausado.
     await bm.requestNotificationsPermission().catch(() => {});
     await bm.requestMicrophonePermission().catch(() => {});
     await bm.enable({
@@ -81,17 +81,10 @@ async function stopCallForegroundService() {
 
 const VoiceContext = createContext(null);
 
-// Item pedido ("site demora pra carregar"): o SDK do Agora só é
-// carregado de verdade na primeira vez que alguém entra numa chamada de
-// voz — não faz parte do carregamento inicial do site mais. Pra quem só
-// navega pelo chat/feeds sem nunca usar voz, esses ~500kB comprimidos
-// nunca chegam a ser baixados. As chamadas seguintes reaproveitam a
-// mesma promise (nunca baixa duas vezes).
-let agoraRtcPromise = null;
 // Falha do provedor de voz: avisa o servidor (aparece nos logs como
 // [erro-de-tela] voz:<provedor>) e devolve a mensagem certa pra pessoa.
-// CAN_NOT_GET_GATEWAY_SERVER = o Agora recusou o projeto/credencial (conta
-// desativada, minutos acabaram ou certificado trocado) — não é a internet.
+// Erro de token/credencial = o servidor de chamadas recusou a entrada (não é
+// a internet da pessoa).
 // Também avisa o disjuntor da cadeia (POST /api/voice/report): falhas de 2+
 // pessoas desarmam o provedor por um tempo e a cadeia pula ele pra todos.
 function reportVoiceFailure(provider, err, channelName) {
@@ -103,73 +96,23 @@ function reportVoiceFailure(provider, err, channelName) {
     }).catch(() => {});
   } catch { /* sem rede */ }
   try { reportVoiceProvider(provider, failureCode(err), channelName); } catch { /* aviso opcional */ }
-  if (/CAN_NOT_GET_GATEWAY_SERVER|invalid vendor key|dynamic use static key|token/i.test(message)) {
+  if (/token|unauthori[sz]ed|4401/i.test(message)) {
     return 'O serviço de voz recusou a conexão (configuração do servidor de chamadas). A equipe já foi avisada — tente mais tarde.';
   }
   return 'Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.';
 }
 
-// BUG CORRIGIDO ("Failed to fetch dynamically imported module" depois de um
-// deploy): a promise que falhou ficava guardada e nenhuma call pelo Agora
-// funcionava até recarregar. Agora tenta de novo, esquece a falha e, se o
-// arquivo sumiu de vez (versão nova no ar), recarrega UMA vez (fora de call).
-function loadAgoraRTC() {
-  if (!agoraRtcPromise) {
-    agoraRtcPromise = importWithRetry(() => import('agora-rtc-sdk-ng'), { onChunkFailure: browserGuardedReload })
-      .then((mod) => mod.default)
-      .catch((err) => { agoraRtcPromise = null; throw err; });
-  }
-  return agoraRtcPromise;
-}
-
 // Tempo máximo pra um provedor conectar antes de contar como falha e ir pro
-// próximo da cadeia (o Agora às vezes "pendura" tentando o gateway).
-const AGORA_JOIN_TIMEOUT_MS = 15000;
-// Servidor próprio: sinalização (≤10s) + recepção conectar (≤12s).
+// próximo da cadeia. Servidor próprio: sinalização (≤10s) + recepção
+// conectar (≤12s).
 const ENGINE_JOIN_TIMEOUT_MS = 25000;
 
-// Item pedido: "deixando mais rápido pra entrar em canais de voz,
-// principalmente no mobile" — sem isso, o download de ~1.5MB do SDK
-// só começava no exato momento em que a pessoa clicava pra entrar
-// numa call, e em rede móvel esse download sozinho já podia levar
-// vários segundos, antes mesmo de qualquer outro passo da conexão
-// começar. Chamado pela ÁREA de comunidade (CommunityPage.jsx, onde
-// os canais de voz aparecem — não o app inteiro, pra continuar sem
-// baixar nada à toa pra quem só usa Feeds/Perfil/etc), adianta esse
-// download em segundo plano, sem travar nada — quando a pessoa
-// realmente clicar pra entrar, é bem provável que o SDK já esteja
-// pronto (ou pelo menos bem adiantado), reduzindo o tempo de espera
-// percebido justamente na rede mais lenta, onde mais importa.
-export function preloadAgoraRTC() {
-  loadAgoraRTC().catch(() => {}); // silencioso — se falhar aqui, tenta de novo na hora de entrar mesmo
-}
-
-// MIGRAÇÃO PRA AGORA.IO (item pedido): depois de uma investigação bem
-// longa e com prova concreta (diagnóstico de SDP real — ver histórico),
-// ficou provado que a malha própria de WebRTC (peer-to-peer, com nosso
-// próprio TURN/STUN e sinalização por Socket.IO) tinha o outro lado de
-// uma conexão específica respondendo "recvonly" mesmo recebendo uma
-// oferta "sendrecv" — algo fora do nosso controle direto (lado do
-// cliente do outro participante). Em vez de continuar depurando às
-// cegas o próprio protocolo, a chamada de voz inteira agora usa o Agora
-// (um serviço de mídia GERENCIADO, com SFU deles, muito mais robusto
-// contra esse tipo de problema de rede/negociação do que uma malha P2P
-// artesanal) — não precisamos mais hospedar nem STUN nem TURN próprios.
-//
-// O que NÃO mudou: toda a parte de "quem está em qual sala", papéis
-// (palco/plateia), mão levantada, soundboard, chamada de DM tocando —
-// tudo isso continua sendo pura sinalização via Socket.IO
-// (server/src/sockets/index.js), sem nenhuma relação com o Agora. Só a
-// transmissão de mídia em si (áudio/câmera/tela) trocou de mecanismo.
-const QUALITY_PRESETS = {
-  '720p': { width: 1280, height: 720 },
-  '1080p': { width: 1920, height: 1080 },
-};
-
-// O token/credenciais do provedor (Agora OU Jitsi) são pedidos agora pelo
-// fluxo unificado /api/voice/join (ver getVoiceJoin + joinChannel abaixo),
-// que já faz a checagem de acesso e devolve qual provedor usar. Sempre um
-// token fresco na hora de entrar — nunca reaproveita um velho.
+// Toda a parte de "quem está em qual sala", papéis (palco/plateia), mão
+// levantada, soundboard e chamada de DM tocando é pura sinalização via
+// Socket.IO (server/src/sockets/index.js), independente do provedor de mídia.
+// As credenciais do provedor são pedidas pelo fluxo unificado /api/voice/join
+// (ver getVoiceJoin + joinChannel abaixo), que já faz a checagem de acesso e
+// devolve qual provedor usar — sempre um token fresco na hora de entrar.
 
 // Volume individual por pessoa/transmissão (0 a 2 = 0% a 200%), lembrado
 // entre sessões. Chave = id do usuário.
@@ -218,13 +161,13 @@ export function VoiceProvider({ children }) {
     if (prev.cameraOn !== cameraOn) playSound(cameraOn ? 'camOn' : 'camOff', 0.4);
     if (prev.screenOn !== screenOn) playSound(screenOn ? 'streamStart' : 'streamStop', 0.4);
   }, [call?.channelId, muted, deafened, cameraOn, screenOn]);
-  // Provedor de mídia ATIVO nesta chamada: 'agora' (normal) ou 'jitsi'
-  // (reserva, quando o Agora está perto do limite mensal). Dirige a UI
-  // ("Chamada em modo reserva") e para qual engine os botões falam.
-  const [provider, setProvider] = useState('agora');
-  const activeProviderRef = useRef('agora');
+  // Provedor de mídia ATIVO nesta chamada: 'projectclub' (servidor próprio,
+  // o normal) ou uma reserva da cadeia (livekit/jitsi/...). Dirige a UI
+  // ("Chamada em modo reserva").
+  const [provider, setProvider] = useState('projectclub');
+  const activeProviderRef = useRef('projectclub');
   useEffect(() => { activeProviderRef.current = provider; }, [provider]);
-  // Troca de provedor no meio da chamada (Agora → Jitsi): mostra um aviso
+  // Troca de provedor no meio da chamada: mostra um aviso
   // curto "reconectando a chamada…" enquanto refaz a conexão, sem deslogar.
   const [reconnectingProvider, setReconnectingProvider] = useState(false);
   // Reconexão automática do ENGINE (caiu o wi-fi, celular bloqueou): o
@@ -237,10 +180,13 @@ export function VoiceProvider({ children }) {
   const [localSpeaking, setLocalSpeaking] = useState(false);
   const localSpeakingRef = useRef(false);
   // Extras de voz: último instante com som no mic local (aviso "microfone
-  // sem som") e qualidade de rede por uid (Agora network-quality, 0-6).
+  // sem som") e qualidade de rede por uid (0-6, vinda do engine).
+  // `micMeterOn` = há um medidor de nível do microfone rodando (sem ele o
+  // aviso de "microfone sem som" não tem como saber e fica desligado).
   const localSoundAtRef = useRef(0);
+  const [micMeterOn, setMicMeterOn] = useState(false);
   const [netQuality, setNetQuality] = useState({});
-  // Barra de chamada: ping (RTT até o Agora, ms), hora em que EU entrei
+  // Barra de chamada: ping (RTT até o servidor de mídia, ms), hora em que EU entrei
   // (tempo de chamada) e qualidade atual da transmissão de tela.
   const [myRtt, setMyRtt] = useState(null);
   const [callStartedAt, setCallStartedAt] = useState(null);
@@ -260,7 +206,7 @@ export function VoiceProvider({ children }) {
   const pttTalkingRef = useRef(false);
   // BUG CORRIGIDO ("transmitindo mas aparece como câmera / não aparece
   // a tela"): antes, cada vídeo remoto era classificado UMA vez, no
-  // momento em que chegava do Agora, como "tela" ou "câmera" olhando o
+  // momento em que chegava do provedor, como "tela" ou "câmera" olhando o
   // estado do socket. Só que o aviso "estou transmitindo" (voice:state)
   // é enviado DEPOIS de publicar, então quase sempre o vídeo chegava
   // antes e era guardado como câmera pra sempre. Agora guarda um vídeo
@@ -268,7 +214,7 @@ export function VoiceProvider({ children }) {
   // então se corrige sozinho assim que o estado chega.
   const [remoteVideoStreams, setRemoteVideoStreams] = useState({});
   const [remoteAudioStreams, setRemoteAudioStreams] = useState({});
-  // Quem está conectado na mídia (Agora) agora — usado pra nunca
+  // Quem está conectado na mídia neste momento — usado pra nunca
   // esconder alguém que está na chamada de verdade só porque um evento
   // de socket se perdeu.
   const [mediaUids, setMediaUids] = useState({});
@@ -277,9 +223,6 @@ export function VoiceProvider({ children }) {
   const [rosterStartedAt, setRosterStartedAt] = useState({});
   const [rosterSpeaking, setRosterSpeaking] = useState({});
   const [incomingCall, setIncomingCall] = useState(null);
-  // Espelho de vídeo local pra expor no Provider (ver embaixo) sem
-  // precisar de mais um useState só pra isso.
-  const [, forceLocalVideoTick] = useState(0);
 
   const callRef = useRef(null);
   const joiningChannelIdRef = useRef(null);
@@ -300,26 +243,29 @@ export function VoiceProvider({ children }) {
   // próximo da cadeia) sem tirar a pessoa da sala — ver o efeito da troca.
   const requestMediaRecoveryRef = useRef(null);
 
-  const agoraClientRef = useRef(null);
-  // Engine do Jitsi (modo reserva) + "host" persistente onde o iframe fica
-  // ancorado mesmo quando a tela da chamada não está montada (pra o áudio
-  // continuar em segundo plano/janelinha). O VoiceChannelView "pega
-  // emprestado" o nó enquanto está aberto (attachJitsi/detachJitsi).
-  const jitsiEngineRef = useRef(null);
+  // Engine de mídia ATIVO (servidor próprio/LiveKit/Jitsi/...) + "host"
+  // persistente onde o iframe do Jitsi fica ancorado mesmo quando a tela da
+  // chamada não está montada (pra o áudio continuar em segundo plano/
+  // janelinha). O VoiceChannelView "pega emprestado" o nó enquanto está
+  // aberto (attachJitsi/detachJitsi).
+  const engineRef = useRef(null);
   const jitsiHostRef = useRef(null);
   const [jitsiNode, setJitsiNode] = useState(null);
-  // Mídia LOCAL (câmera/tela) quando o provedor ativo é um engine de grade
-  // própria SEM faixas do Agora (ex.: LiveKit) — o engine devolve o
-  // MediaStream local e guardamos aqui pra o auto-retrato aparecer na grade.
+  // Mídia LOCAL (câmera/tela): o engine devolve o MediaStream local e
+  // guardamos aqui pra o auto-retrato aparecer na grade.
   const [engineLocalCameraStream, setEngineLocalCameraStream] = useState(null);
   const [engineLocalScreenStream, setEngineLocalScreenStream] = useState(null);
-  const localAudioTrackRef = useRef(null);
-  const cameraTrackRef = useRef(null);
-  const screenTrackRef = useRef(null);
+  // Captura de tela nativa do app Android (Capacitor) em andamento.
   const androidScreenTrackRef = useRef(null);
-  const screenAudioTrackRef = useRef(null);
+  // Portão do microfone: apertar-pra-falar (ptt) e sensibilidade de entrada
+  // (sens). Aberto só quando os dois deixam — ver os efeitos lá embaixo.
+  const micGateRef = useRef({ ptt: true, sens: true });
+  const applyMicGate = useCallback(() => {
+    const g = micGateRef.current;
+    try { engineRef.current?.setMicGate?.(g.ptt && g.sens); } catch { /* engine sem portão */ }
+  }, []);
   // Item pedido: "bug de clique duplo" nos botões — mudo/câmera/tela são
-  // funções assíncronas (esperam o Agora responder); clicar rápido demais
+  // funções assíncronas (esperam o engine responder); clicar rápido demais
   // podia disparar a mesma ação duas vezes antes da primeira terminar,
   // criando/fechando a mesma faixa em cima da outra. Uma trava simples
   // por botão (ref, não estado — não precisa re-renderizar por causa
@@ -374,146 +320,18 @@ export function VoiceProvider({ children }) {
   // VoiceChannelView chama isto pra trazer o iframe pra dentro do palco
   // visível enquanto a tela está aberta, e devolvê-lo ao host ao sair.
   const attachJitsi = useCallback((container) => {
-    const engine = jitsiEngineRef.current;
+    const engine = engineRef.current;
     if (!engine || !container) return;
     const node = engine.getNode();
     if (node && node.parentNode !== container) container.appendChild(node);
   }, []);
   const detachJitsi = useCallback(() => {
-    const engine = jitsiEngineRef.current;
+    const engine = engineRef.current;
     const host = jitsiHostRef.current;
     if (!engine || !host) return;
     const node = engine.getNode();
     if (node && node.parentNode !== host) host.appendChild(node);
   }, []);
-
-  const setupAgoraClient = useCallback(async () => {
-    const AgoraRTC = await loadAgoraRTC();
-    const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-
-    // Alguém entrou na mídia. Se o socket ainda não contou, pede um
-    // retrato novo pro servidor (corrige "está na call e não aparece").
-    client.on('user-joined', (remoteUser) => {
-      const uid = String(remoteUser.uid);
-      setMediaUids((s) => (s[uid] ? s : { ...s, [uid]: true }));
-      if (!useStore.getState().voiceParticipantsSnapshot?.[uid]) requestSyncRef.current?.();
-    });
-
-    client.on('user-published', async (remoteUser, mediaType) => {
-      // Inscrição com novas tentativas (rede piscou bem na hora). Se nem assim
-      // der, o Agora não está servindo este aparelho: avisa e troca de provedor.
-      let subscribed = false;
-      let lastErr = null;
-      for (let i = 0; i < 3 && !subscribed; i += 1) {
-        if (agoraClientRef.current !== client) return;
-        try {
-          await client.subscribe(remoteUser, mediaType);
-          subscribed = true;
-        } catch (err) {
-          lastErr = err;
-          await new Promise((r) => { setTimeout(r, 800 * (i + 1)); });
-        }
-      }
-      if (!subscribed) {
-        console.error('[voz] Falha ao se inscrever na mídia de', remoteUser.uid, lastErr);
-        if (agoraClientRef.current === client && mediaType === 'audio') {
-          reportVoiceFailure('agora', lastErr, callRef.current?.channelId);
-          requestMediaRecoveryRef.current?.({ failed: 'agora' });
-        }
-        return;
-      }
-      if (agoraClientRef.current !== client) return; // cliente antigo (já saiu)
-      const uid = String(remoteUser.uid);
-      setMediaUids((s) => (s[uid] ? s : { ...s, [uid]: true }));
-      if (mediaType === 'audio') {
-        // BUG CORRIGIDO ("eco na voz"): o áudio estava sendo tocado DUAS
-        // VEZES ao mesmo tempo — uma vez aqui (remoteUser.audioTrack.
-        // play(), que o Agora toca sozinho por baixo dos panos criando
-        // um <audio> escondido) e outra vez pelo componente AudioSink
-        // (CallBar.jsx), que já pega essa mesma faixa via
-        // remoteAudioStreams e toca de novo com seu próprio controle de
-        // volume por pessoa. Duas reproduções da MESMA faixa, com
-        // latência levemente diferente uma da outra, é exatamente o que
-        // soa como eco. O AudioSink sozinho já é suficiente (e melhor —
-        // tem volume por pessoa e escolha de dispositivo de saída), then
-        // não chama mais .play() aqui.
-        const mediaStream = new MediaStream([remoteUser.audioTrack.getMediaStreamTrack()]);
-        setRemoteAudioStreams((s) => ({ ...s, [uid]: mediaStream }));
-      } else if (mediaType === 'video') {
-        const mediaStream = new MediaStream([remoteUser.videoTrack.getMediaStreamTrack()]);
-        setRemoteVideoStreams((s) => ({ ...s, [uid]: mediaStream }));
-      }
-    });
-
-    client.on('user-unpublished', (remoteUser, mediaType) => {
-      const uid = String(remoteUser.uid);
-      if (mediaType === 'audio') setRemoteAudioStreams((s) => dropKey(s, uid));
-      else if (mediaType === 'video') setRemoteVideoStreams((s) => dropKey(s, uid));
-    });
-
-    client.on('user-left', (remoteUser) => {
-      const uid = String(remoteUser.uid);
-      setRemoteAudioStreams((s) => dropKey(s, uid));
-      setRemoteVideoStreams((s) => dropKey(s, uid));
-      setMediaUids((s) => dropKey(s, uid));
-    });
-
-    // O Agora reconecta sozinho em quedas curtas; se DESISTIR (rede/servidor),
-    // refaz a mídia (mesmo provedor com token novo, ou o próximo da cadeia)
-    // em vez de deixar a pessoa numa call muda.
-    client.on('connection-state-change', (cur, _prev, reason) => {
-      if (agoraClientRef.current !== client || cur !== 'DISCONNECTED') return;
-      if (!reason || reason === 'LEAVE') return;
-      console.warn('[voz] Agora desconectou:', reason);
-      requestMediaRecoveryRef.current?.({ failed: reason === 'SERVER_ERROR' ? 'agora' : null, code: reason });
-    });
-
-    client.enableAudioVolumeIndicator();
-    client.on('volume-indicator', (list) => {
-      list.forEach(({ uid, level }) => {
-        const speaking = level > 15;
-        const uidStr = String(uid);
-        if (uidStr === String(user?.id)) {
-          if (level >= 1) localSoundAtRef.current = Date.now();
-          // Só avisa/re-renderiza quando muda (antes o emit ficava dentro
-          // do updater do setState, que o React pode rodar duas vezes).
-          if (localSpeakingRef.current !== speaking) {
-            localSpeakingRef.current = speaking;
-            setLocalSpeaking(speaking);
-            socket?.emit('voice:speaking', { channelId: callRef.current?.channelId, speaking });
-          }
-        } else {
-          setParticipants((s) => (s[uidStr] && !!s[uidStr].speaking !== speaking ? { ...s, [uidStr]: { ...s[uidStr], speaking } } : s));
-        }
-      });
-    });
-
-    // Qualidade da conexão (a cada ~2s): a minha + a dos outros. Só
-    // re-renderiza quando algum valor muda.
-    client.on('network-quality', (stats) => {
-      try {
-        const next = { [String(user?.id)]: Math.max(stats?.uplinkNetworkQuality || 0, stats?.downlinkNetworkQuality || 0) };
-        const remote = client.getRemoteNetworkQuality?.() || {};
-        Object.entries(remote).forEach(([uid, q]) => { next[String(uid)] = Math.max(q?.uplinkNetworkQuality || 0, q?.downlinkNetworkQuality || 0); });
-        setNetQuality((prev) => {
-          const keys = Object.keys(next);
-          return keys.length === Object.keys(prev).length && keys.every((k) => prev[k] === next[k]) ? prev : next;
-        });
-      } catch { /* versão do SDK sem isso — só não mostra */ }
-      // Ping (ida e volta até o servidor do Agora). Arredonda pra não
-      // re-renderizar por 1ms de diferença.
-      try {
-        const rtt = client.getRTCStats?.()?.RTT;
-        if (Number.isFinite(rtt) && rtt > 0) {
-          const r = Math.round(rtt / 5) * 5;
-          setMyRtt((prev) => (prev === r ? prev : r));
-        }
-      } catch { /* sem estatística — só não mostra o ping */ }
-    });
-
-    agoraClientRef.current = client;
-    return client;
-  }, [socket, user?.id]);
 
   // Lista mostrada na tela = quem o servidor diz que está na sala + quem
   // está conectado na mídia mas o socket ainda não contou (evento perdido,
@@ -542,117 +360,39 @@ export function VoiceProvider({ children }) {
     useStore.setState({ voiceParticipantsSnapshot: participants });
   }, [participants]);
 
-  const connectMicrophone = useCallback(async () => {
-    const AgoraRTC = await loadAgoraRTC();
-    const preferredId = getPreferredMicId();
-    // Item pedido B ("Redutor de ruído"): quando ligado (padrão), usa o
-    // processamento de áudio do Agora — AEC (cancela eco), ANS (suprime
-    // ruído de fundo: ventilador, teclado, chiado) e AGC (nivela o
-    // volume). Desligado, o microfone vai "cru", sem nenhum tratamento —
-    // útil pra quem usa microfone de estúdio/interface e prefere o som
-    // original. A escolha fica guardada por dispositivo (voicePrefs).
-    const denoise = getVoicePref('noiseReduction') !== false;
-    const baseConfig = {
-      AEC: denoise, ANS: denoise, AGC: denoise,
-      // Item pedido: "voz mais viva, melhorando o áudio" — high_quality
-      // já usava a maior taxa de bits disponível (128kbps), mas em
-      // MONO só. high_quality_stereo é o preset mais alto de verdade
-      // que o Agora oferece (192kbps, DOIS canais, 48kHz) — voz em
-      // estéreo soa muito mais presente/rica que mono, mesmo pra uma
-      // única pessoa falando (o microfone capta nuances espaciais
-      // sutis que o mono simplesmente descarta).
-      encoderConfig: 'high_quality_stereo',
-    };
-    try {
-      const track = await AgoraRTC.createMicrophoneAudioTrack({ microphoneId: preferredId || undefined, ...baseConfig });
-      localAudioTrackRef.current = track;
-      return true;
-    } catch (err) {
-      // Item pedido: "deixando o mais fácil possível... aproveitar
-      // [o microfone] ao entrar num canal de voz" — se o dispositivo
-      // SALVO como preferido não existir mais (a pessoa trocou de
-      // fone, formatou o driver mudou de ID, etc), a chamada acima
-      // falhava e a pessoa simplesmente não conseguia entrar com
-      // áudio nenhum — mesmo tendo um microfone perfeitamente
-      // funcional (só que outro) disponível no aparelho. Tenta de
-      // novo sem especificar nenhum, deixando o Agora escolher o
-      // padrão do sistema sozinho, em vez de desistir na primeira
-      // falha.
-      if (preferredId) {
-        console.warn('[voz] microfone preferido indisponível, usando o padrão do sistema:', err);
-        try {
-          const track = await AgoraRTC.createMicrophoneAudioTrack(baseConfig);
-          localAudioTrackRef.current = track;
-          return true;
-        } catch (fallbackErr) {
-          console.error('[voz] Não foi possível acessar nenhum microfone:', fallbackErr);
-        }
-      } else {
-        console.error('[voz] Não foi possível acessar o microfone:', err);
-      }
-      localAudioTrackRef.current = null;
-      return false;
-    }
-  }, []);
-
   const switchMicrophone = useCallback(async (deviceId) => {
     setPreferredMicId(deviceId);
-    // Engine próprio (servidor próprio): troca a faixa no producer.
-    const engine = jitsiEngineRef.current;
+    // Engine com troca de microfone (servidor próprio): troca a faixa no
+    // producer. Os demais pegam o novo microfone na próxima entrada.
+    const engine = engineRef.current;
     if (callRef.current && engine && typeof engine.setMicDevice === 'function') {
       try { return await engine.setMicDevice(deviceId); } catch { return false; }
     }
-    if (!callRef.current || !localAudioTrackRef.current) return true;
-    try {
-      await localAudioTrackRef.current.setDevice(deviceId);
-      return true;
-    } catch (err) {
-      console.error('[voz] não foi possível trocar de microfone:', err);
-      return false;
-    }
+    return true;
   }, []);
 
-  // Desmonta o engine do Jitsi, se houver (sair da chamada ou trocar de
+  // Desmonta o engine de mídia, se houver (sair da chamada ou trocar de
   // provedor). Seguro chamar mesmo quando não tem nenhum.
-  const teardownJitsi = useCallback(() => {
-    const engine = jitsiEngineRef.current;
+  const teardownEngine = useCallback(() => {
+    const engine = engineRef.current;
+    const hadAndroidScreen = !!androidScreenTrackRef.current;
+    androidScreenTrackRef.current = null;
+    if (hadAndroidScreen) stopAndroidScreenShare();
     if (!engine) return;
-    jitsiEngineRef.current = null;
+    engineRef.current = null;
     setJitsiNode(null);
     setEngineLocalCameraStream(null);
     setEngineLocalScreenStream(null);
     try { engine.dispose(); } catch { /* já foi */ }
   }, []);
 
-  // Encerra SÓ a mídia do Agora (faixas + cliente), SEM sair da sala no
-  // nosso servidor nem limpar a UI — usado na troca de provedor no meio da
-  // chamada (Agora → Jitsi), pra ninguém ser derrubado da sala/sessão.
-  const teardownAgoraMedia = useCallback(async () => {
-    const client = agoraClientRef.current;
-    const tracks = [localAudioTrackRef.current, cameraTrackRef.current, screenTrackRef.current, screenAudioTrackRef.current];
-    const hadAndroidScreen = !!androidScreenTrackRef.current;
-    localAudioTrackRef.current = null;
-    cameraTrackRef.current = null;
-    screenTrackRef.current = null;
-    screenAudioTrackRef.current = null;
-    androidScreenTrackRef.current = null;
-    agoraClientRef.current = null;
-    setRemoteAudioStreams({});
-    setRemoteVideoStreams({});
-    setMediaUids({});
-    client?.removeAllListeners?.();
-    tracks.forEach((t) => { try { t?.close(); } catch { /* já fechada */ } });
-    if (hadAndroidScreen) stopAndroidScreenShare();
-    try { if (client) await client.leave(); } catch { /* já desconectado */ }
-  }, []);
-
-  // ---------- Conectar por um ENGINE da cadeia (não-Agora) ----------
-  // Generaliza o antigo "conectar pelo Jitsi" pra QUALQUER provedor com
-  // engine (jitsi, livekit, e os pendentes). O Jitsi embute uma conferência
-  // num iframe (sem faixas pra nossa grade); o LiveKit é um SFU e entrega
-  // faixas por participante, que caem na MESMA grade/AudioSink do Agora
-  // (identidade = nosso userId). `isSwitch` = troca no meio de uma chamada já
-  // ativa (não toca som de entrada, não zera o cronômetro, preserva o mudo).
+  // ---------- Conectar por um ENGINE da cadeia ----------
+  // Vale pra QUALQUER provedor (servidor próprio, livekit, jitsi e os
+  // pendentes). O Jitsi embute uma conferência num iframe (sem faixas pra
+  // nossa grade); o servidor próprio e o LiveKit são SFUs e entregam faixas
+  // por participante, que caem na grade/AudioSink (identidade = nosso
+  // userId). `isSwitch` = troca no meio de uma chamada já ativa (não toca som
+  // de entrada, não zera o cronômetro, preserva o mudo).
   const connectEngine = useCallback(async ({ serverId, channelId, channelName, channelType, provider: prov, creds, isSwitch, quiet = false }) => {
     const okCreds = (prov === 'jitsi' && creds?.domain && creds?.room)
       || (prov === 'livekit' && creds?.url && creds?.token)
@@ -661,7 +401,7 @@ export function VoiceProvider({ children }) {
       useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
       return false;
     }
-    teardownJitsi();
+    teardownEngine();
     let engine = null;
     const callbacks = {
       // Engine saiu da sala por conta própria:
@@ -671,7 +411,7 @@ export function VoiceProvider({ children }) {
       //    refaz a mídia (credencial nova / próximo provedor) sem sair da sala;
       //  - resto (desligou pelo próprio Jitsi, expulso): sai.
       onLeft: (info) => {
-        if (jitsiEngineRef.current !== engine) return; // engine antigo
+        if (engineRef.current !== engine) return; // engine antigo
         const reason = info && info.reason;
         if (reason === 'replaced') {
           useStore.getState().pushNotice('Você entrou nesta call em outro aparelho');
@@ -679,7 +419,7 @@ export function VoiceProvider({ children }) {
           return;
         }
         if ((reason === 'token' || reason === 'gave-up' || reason === 'closed') && callRef.current) {
-          jitsiEngineRef.current = null;
+          engineRef.current = null;
           setRemoteAudioStreams({});
           setRemoteVideoStreams({});
           setReconnecting(null);
@@ -704,14 +444,14 @@ export function VoiceProvider({ children }) {
       // Envio/recepção que nunca conectou depois de entrar: o provedor não
       // serve pra esta rede → avisa e vai pro próximo da cadeia.
       onMediaFailed: ({ code } = {}) => {
-        if (jitsiEngineRef.current !== engine) return;
+        if (engineRef.current !== engine) return;
         reportVoiceFailure(prov, Object.assign(new Error(`mídia não conectou (${code})`), { code }), channelId);
         requestMediaRecoveryRef.current?.({ failed: prov, code });
       },
       onReconnecting: (attempt) => { setReconnecting({ attempt }); setNetQuality({}); },
       onReconnected: () => { setReconnecting(null); },
-      // Qualidade/ping vindos do engine (SFU próprio / LiveKit), na mesma
-      // escala que o Agora usa — cai nos mesmos pontinhos/barras da UI.
+      // Qualidade/ping vindos do engine (SFU próprio / LiveKit), na escala
+      // 0-6 da UI — cai nos mesmos pontinhos/barras.
       onNetQuality: (next) => {
         setNetQuality((prev) => {
           const keys = Object.keys(next);
@@ -720,8 +460,12 @@ export function VoiceProvider({ children }) {
       },
       onRtt: (rtt) => { const r = Math.round(rtt / 5) * 5; setMyRtt((prev) => (prev === r ? prev : r)); },
       // Fala: espelha no MEU anel verde e reemite pros outros pelo nosso
-      // socket (igual ao Agora). No LiveKit também marca a fala dos outros.
-      onLocalSpeaking: (speaking) => {
+      // socket. Com o portão do microfone fechado (apertar-pra-falar sem a
+      // tecla), não conta como falando.
+      onLocalSpeaking: (raw) => {
+        const g = micGateRef.current;
+        const speaking = !!raw && g.ptt && g.sens;
+        if (speaking) localSoundAtRef.current = Date.now();
         if (localSpeakingRef.current === speaking) return;
         localSpeakingRef.current = speaking;
         setLocalSpeaking(speaking);
@@ -735,7 +479,7 @@ export function VoiceProvider({ children }) {
       onSelfCamera: (on) => { setCameraOn(on); broadcastState({ video: on }); },
       onSelfScreen: (on) => { setScreenOn(on); broadcastState({ screenSharing: on }); },
       onError: (ev, payload) => { console.error('[voz] engine de voz reportou um erro:', ev, payload); },
-      // Faixas por participante (LiveKit/SFU) → mesma grade/AudioSink do Agora.
+      // Faixas por participante (servidor próprio/LiveKit) → grade/AudioSink.
       onMediaUser: (uid, present) => {
         const uidStr = String(uid);
         if (present) setMediaUids((s) => (s[uidStr] ? s : { ...s, [uidStr]: true }));
@@ -755,9 +499,11 @@ export function VoiceProvider({ children }) {
       useStore.getState().pushNotice('Este provedor de voz ainda não está disponível neste aparelho.');
       return false;
     }
-    jitsiEngineRef.current = engine;
-    // Jitsi tem um nó de iframe que ancoramos no host persistente; LiveKit e
-    // os demais não têm nó (getNode()=null) — a grade é a nossa.
+    engineRef.current = engine;
+    // Portão do microfone (apertar-pra-falar) vale desde o primeiro instante.
+    applyMicGate();
+    // Jitsi tem um nó de iframe que ancoramos no host persistente; os demais
+    // não têm nó (getNode()=null) — a grade é a nossa.
     const node = engine.getNode?.();
     if (node) { const host = ensureJitsiHost(); if (host) host.appendChild(node); }
     setJitsiNode(node || null);
@@ -774,8 +520,7 @@ export function VoiceProvider({ children }) {
       } else {
         await withTimeout(engine.join({
           ...creds, userId: user?.id, displayName: user?.displayName, startMuted,
-          // Redutor de ruído (RNNoise) no engine próprio — mesma preferência
-          // que liga o ANS do Agora.
+          // Redutor de ruído (RNNoise) no engine próprio.
           noiseSuppression: getVoicePref('noiseReduction') !== false,
           micDeviceId: getPreferredMicId() || null,
           // Token do servidor próprio venceu numa call longa (4401 expired):
@@ -790,14 +535,14 @@ export function VoiceProvider({ children }) {
       }
     } catch (err) {
       console.error(`[voz] Falha ao conectar no provedor ${prov}:`, err);
-      if (jitsiEngineRef.current === engine) teardownJitsi();
+      if (engineRef.current === engine) teardownEngine();
       else { try { engine.dispose(); } catch { /* ok */ } }
       const msg = reportVoiceFailure(prov, err, channelId);
       if (!quiet) useStore.getState().pushNotice(msg);
       return false;
     }
     if (!isSwitch && joiningChannelIdRef.current !== channelId) {
-      if (jitsiEngineRef.current === engine) teardownJitsi();
+      if (engineRef.current === engine) teardownEngine();
       return false;
     }
     const next = { serverId, channelId, channelName, channelType };
@@ -815,55 +560,9 @@ export function VoiceProvider({ children }) {
     // independe do provedor de mídia.
     socket?.emit('voice:join', { channelId });
     return true;
-  }, [socket, user?.id, user?.displayName, broadcastState, ensureJitsiHost, teardownJitsi, readyProviders]);
+  }, [socket, user?.id, user?.displayName, broadcastState, ensureJitsiHost, teardownEngine, readyProviders, applyMicGate]);
   const connectEngineRef = useRef(connectEngine);
   useEffect(() => { connectEngineRef.current = connectEngine; }, [connectEngine]);
-
-  // ---------- Subir a mídia do Agora numa chamada JÁ ativa (troca pra Agora) ----------
-  // Usado só na troca de provedor ao vivo quando a cadeia volta pro Agora
-  // (ex.: a equipe forçou o Agora, ou virou o mês). Não mexe na sessão/socket
-  // (a pessoa já está na sala), preserva o mudo atual e não zera o cronômetro.
-  const connectAgoraMedia = useCallback(async ({ channelId, agora, isSwitch = true }) => {
-    const { token, appId } = agora || {};
-    if (!token || !appId) return false;
-    let client;
-    try { client = await setupAgoraClient(); } catch (err) { reportVoiceFailure('agora', err, channelId); return false; }
-    let gotMic = false;
-    try {
-      [, gotMic] = await Promise.all([
-        withTimeout(client.join(appId, channelId, token, user.id), AGORA_JOIN_TIMEOUT_MS, 'AGORA_JOIN_TIMEOUT'),
-        connectMicrophone(),
-      ]);
-    } catch (err) {
-      console.error('[voz] Falha ao entrar no canal de mídia (troca pra Agora):', err);
-      try { localAudioTrackRef.current?.close(); } catch { /* ok */ }
-      localAudioTrackRef.current = null;
-      client.removeAllListeners?.();
-      client.leave().catch(() => {});
-      if (agoraClientRef.current === client) agoraClientRef.current = null;
-      reportVoiceFailure('agora', err, channelId);
-      return false;
-    }
-    setProvider('agora');
-    setJitsiNode(null);
-    if (!gotMic) {
-      setMicMissing(true);
-      setMuted(true);
-      socket?.emit('voice:state', { channelId, muted: true });
-      return true;
-    }
-    try {
-      await withTimeout(client.publish([localAudioTrackRef.current]), AGORA_JOIN_TIMEOUT_MS, 'AGORA_PUBLISH_TIMEOUT');
-      // Preserva o mudo que a pessoa tinha antes da troca.
-      if (mutedRef.current) localAudioTrackRef.current?.setEnabled(false);
-    } catch (err) {
-      console.error('[voz] Falha ao publicar o microfone (troca pra Agora):', err);
-    }
-    void isSwitch;
-    return true;
-  }, [socket, setupAgoraClient, connectMicrophone, user?.id]);
-  const connectAgoraMediaRef = useRef(connectAgoraMedia);
-  useEffect(() => { connectAgoraMediaRef.current = connectAgoraMedia; }, [connectAgoraMedia]);
 
   const joinChannel = useCallback(async (serverId, channelId, channelName, channelType) => {
     if (callRef.current?.channelId === channelId) return;
@@ -874,19 +573,17 @@ export function VoiceProvider({ children }) {
       if (callRef.current) await leaveChannel();
 
       // Garante que não sobrou nenhum engine (Jitsi/LiveKit) vivo.
-      teardownJitsi();
+      teardownEngine();
 
       // Pergunta ao servidor QUAL provedor da cadeia usar + as credenciais
       // dele, já com a checagem de acesso do canal. `CLIENT_READY_PROVIDERS`
       // diz quais este navegador sabe usar hoje (a cadeia pula os pendentes
-      // só pra este join). Em paralelo, adianta o SDK do Agora (cacheado; se
-      // a cadeia escolher outro, o custo é desprezível). Item pedido original
-      // ("delay pra entrar"): o download pesado do SDK continua começando cedo.
-      loadAgoraRTC().catch(() => {});
-      // Failover automático: se o provedor escolhido não conectar (ex.: o
-      // Agora recusando com CAN_NOT_GET_GATEWAY_SERVER, servidor próprio
-      // fora), pede o PRÓXIMO da cadeia sem ele — a pessoa entra mesmo assim.
-      // Provedores que falharam neste aparelho há pouco já saem da lista.
+      // só pra este join).
+      // Failover automático: se o provedor escolhido não conectar (ex.:
+      // servidor próprio fora do ar), pede o PRÓXIMO da cadeia sem ele
+      // (servidor próprio → LiveKit, se configurado → Jitsi) — a pessoa entra
+      // mesmo assim. Provedores que falharam neste aparelho há pouco já saem
+      // da lista.
       let ready = readyProviders();
       for (let attempt = 0; attempt < 4 && ready.length; attempt += 1) {
         const last = attempt === 3 || ready.length === 1;
@@ -914,117 +611,17 @@ export function VoiceProvider({ children }) {
           return;
         }
 
-        // ---- Provedores com engine próprio (servidor próprio, LiveKit, Jitsi...) ----
-        if (creds.provider !== 'agora') {
-          const ok = await connectEngine({ serverId, channelId, channelName, channelType, provider: creds.provider, creds: creds[creds.provider], isSwitch: false, quiet: !last });
-          if (ok || joiningChannelIdRef.current !== channelId || creds.provider === 'jitsi') return;
-          failureMemoryRef.current.mark(creds.provider);
-          ready = ready.filter((p) => p !== creds.provider);
-          continue;
-        }
-
-        // ---- Agora ----
-        const { token, appId } = creds.agora || {};
-        if (!token || !appId) { ready = ready.filter((p) => p !== 'agora'); continue; }
-        setProvider('agora');
-        let client;
-        try {
-          client = await setupAgoraClient();
-        } catch (err) {
-          // SDK não baixou (deploy novo / rede): próximo provedor.
-          console.error('[voz] SDK do Agora indisponível:', err);
-          reportVoiceFailure('agora', err, channelId);
-          failureMemoryRef.current.mark('agora');
-          if (last) { useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.'); return; }
-          ready = ready.filter((p) => p !== 'agora');
-          continue;
-        }
-        if (joiningChannelIdRef.current !== channelId) { client.removeAllListeners?.(); if (agoraClientRef.current === client) agoraClientRef.current = null; return; }
-
-        // Microfone em paralelo, mas SEM segurar a entrada: antes o join
-        // esperava o aviso de permissão do mic — com ele aberto, a pessoa não
-        // entrava nem ouvia ninguém.
-        const micPromise = connectMicrophone().catch(() => false);
-        const dropMic = () => {
-          micPromise.then(() => {
-            if (agoraClientRef.current === client || agoraClientRef.current === null) {
-              try { localAudioTrackRef.current?.close(); } catch { /* ok */ }
-              localAudioTrackRef.current = null;
-            }
-          });
-        };
-        try {
-          // CAN_NOT_GET_GATEWAY_SERVER às vezes chega só depois de muito tempo
-          // (ou nunca): tempo limite e vai pro próximo da cadeia.
-          await withTimeout(client.join(appId, channelId, token, user.id), AGORA_JOIN_TIMEOUT_MS, 'AGORA_JOIN_TIMEOUT');
-        } catch (err) {
-          console.error('[voz] Falha ao entrar no canal de mídia (Agora):', err);
-          client.removeAllListeners?.();
-          client.leave().catch(() => {});
-          if (agoraClientRef.current === client) agoraClientRef.current = null;
-          dropMic();
-          const msg = reportVoiceFailure('agora', err, channelId);
-          failureMemoryRef.current.mark('agora');
-          if (last) { useStore.getState().pushNotice(msg); return; }
-          ready = ready.filter((p) => p !== 'agora');
-          continue;
-        }
-        if (joiningChannelIdRef.current !== channelId) {
-          // Desistiu no meio (clicou em outro canal): fecha o mic aberto.
-          client.removeAllListeners?.();
-          if (agoraClientRef.current === client) agoraClientRef.current = null;
-          dropMic();
-          await client.leave().catch(() => {});
-          return;
-        }
-
-        // Avisa o servidor e mostra a chamada assim que a mídia conectou.
-        const next = { serverId, channelId, channelName, channelType };
-        setCall(next);
-        callRef.current = next;
-        setCallStartedAt(Date.now());
-        setMyRole('speaker');
-        socket?.emit('voice:join', { channelId });
-        playSound('callJoin');
-        startCallForegroundService(channelName);
-        setIncomingCall((c) => (c && c.channelId === channelId ? null : c));
-
-        // Publica o mic quando ele chegar (sem travar o "Entrando…").
-        micPromise.then(async (gotMic) => {
-          if (agoraClientRef.current !== client || callRef.current?.channelId !== channelId) {
-            // Saiu da call antes do mic chegar: não deixa o microfone aberto.
-            if (agoraClientRef.current === null || agoraClientRef.current === client) {
-              try { localAudioTrackRef.current?.close(); } catch { /* ok */ }
-              localAudioTrackRef.current = null;
-            }
-            return;
-          }
-          if (!gotMic) {
-            useStore.getState().pushNotice('Microfone não encontrado ou sem permissão. Você entrou no canal só ouvindo — conecte/libere um microfone e toque no botão de mudo para ativá-lo.');
-            setMicMissing(true);
-            setMuted(true);
-            socket?.emit('voice:state', { channelId, muted: true });
-            return;
-          }
-          try {
-            await withTimeout(client.publish([localAudioTrackRef.current]), AGORA_JOIN_TIMEOUT_MS, 'AGORA_PUBLISH_TIMEOUT');
-            if (mutedRef.current) localAudioTrackRef.current?.setEnabled(false);
-          } catch (err) {
-            if (agoraClientRef.current !== client) return;
-            console.error('[voz] Falha ao publicar o microfone:', err);
-            // Agora conectou mas não publica: conta como falha e troca de provedor.
-            reportVoiceFailure('agora', err, channelId);
-            requestMediaRecoveryRef.current?.({ failed: 'agora', code: failureCode(err) });
-          }
-        });
-        return;
+        const ok = await connectEngine({ serverId, channelId, channelName, channelType, provider: creds.provider, creds: creds[creds.provider], isSwitch: false, quiet: !last });
+        if (ok || joiningChannelIdRef.current !== channelId || creds.provider === 'jitsi') return;
+        failureMemoryRef.current.mark(creds.provider);
+        ready = ready.filter((p) => p !== creds.provider);
       }
       useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
     } finally {
       if (joiningChannelIdRef.current === channelId) joiningChannelIdRef.current = null;
       setJoiningChannelId((c) => (c === channelId ? null : c));
     }
-  }, [socket, connectMicrophone, setupAgoraClient, user?.id, connectEngine, teardownJitsi, readyProviders]);
+  }, [connectEngine, teardownEngine, readyProviders]);
 
   const answerIncomingCall = useCallback(() => {
     if (!incomingCall) return;
@@ -1054,27 +651,12 @@ export function VoiceProvider({ children }) {
     setReconnecting(null);
     setCallStartedAt(null);
     setScreenQuality(null);
-    // Modo reserva: encerra a conferência do Jitsi (se era esse o provedor)
-    // e volta o provedor pro padrão pra próxima chamada.
-    teardownJitsi();
-    setProvider('agora');
+    // Encerra a mídia do provedor atual (engine + captura nativa de tela) e
+    // volta o provedor pro padrão pra próxima chamada. A tela limpa na hora
+    // (sem esperar o provedor terminar de sair).
+    teardownEngine();
+    setProvider('projectclub');
     setReconnectingProvider(false);
-
-    // BUG CORRIGIDO ("demora pra sair" / "tela travada ao sair e entrar
-    // de novo"): a tela só limpava DEPOIS do Agora terminar de sair
-    // (pode levar 1–2s) e os listeners do cliente antigo continuavam
-    // vivos, podendo jogar vídeo/áudio velho na chamada nova. Agora
-    // limpa a tela na hora, desliga os listeners e encerra a mídia logo
-    // em seguida.
-    const client = agoraClientRef.current;
-    const tracks = [localAudioTrackRef.current, cameraTrackRef.current, screenTrackRef.current, screenAudioTrackRef.current];
-    const hadAndroidScreen = !!androidScreenTrackRef.current;
-    localAudioTrackRef.current = null;
-    cameraTrackRef.current = null;
-    screenTrackRef.current = null;
-    screenAudioTrackRef.current = null;
-    androidScreenTrackRef.current = null;
-    agoraClientRef.current = null;
 
     setCall(null);
     callRef.current = null;
@@ -1097,81 +679,31 @@ export function VoiceProvider({ children }) {
     setRecordingConsents({});
     pttTalkingRef.current = false;
     setPttTalking(false);
-    forceLocalVideoTick((n) => n + 1);
-
-    client?.removeAllListeners?.();
-    tracks.forEach((t) => { try { t?.close(); } catch { /* já fechada */ } });
-    if (hadAndroidScreen) stopAndroidScreenShare();
-    try {
-      if (client) await client.leave();
-    } catch { /* já desconectado — ok */ }
-  }, [socket, teardownJitsi]);
+  }, [socket, teardownEngine]);
   useEffect(() => { leaveChannelRef.current = leaveChannel; }, [leaveChannel]);
 
   const toggleMute = useCallback(async () => {
     if (toggleMuteBusyRef.current) return;
     toggleMuteBusyRef.current = true;
     try {
-    if (callRef.current?.channelType === 'STAGE' && myRole === 'audience') return;
-    // Modo reserva (Jitsi): o microfone vive dentro do iframe; só mandamos
-    // o comando e o estado real volta pelo evento audioMuteStatusChanged
-    // (que atualiza `muted` + avisa os outros via socket).
-    // Provedor com engine próprio (Jitsi/LiveKit): o microfone é controlado
-    // pelo engine; o estado real volta pelo callback onSelfMute (que atualiza
-    // `muted` + avisa os outros via socket).
-    if (activeProviderRef.current !== 'agora') {
-      jitsiEngineRef.current?.setMicEnabled(mutedRef.current); // mutado agora => quero desmutar
-      return;
-    }
-    if (muted && !localAudioTrackRef.current) {
-      const gotMic = await connectMicrophone();
-      if (!gotMic) {
-        useStore.getState().pushNotice('Ainda não encontrei um microfone. Conecte um e tente novamente.');
-        return;
-      }
-      await agoraClientRef.current?.publish([localAudioTrackRef.current]);
-      setMuted(false);
-      broadcastState({ muted: false });
-      return;
-    }
-    setMuted((prev) => {
-      const next = !prev;
-      localAudioTrackRef.current?.setEnabled(!next);
-      broadcastState({ muted: next });
-      return next;
-    });
+      if (callRef.current?.channelType === 'STAGE' && myRole === 'audience') return;
+      // O microfone é controlado pelo engine; o estado real volta pelo
+      // callback onSelfMute (que atualiza `muted` + avisa os outros via
+      // socket). Sem microfone ainda (negado/ausente ao entrar), o engine
+      // tenta de novo.
+      await engineRef.current?.setMicEnabled(mutedRef.current); // mutado agora => quero desmutar
     } finally {
       toggleMuteBusyRef.current = false;
     }
-  }, [broadcastState, myRole, muted, connectMicrophone]);
+  }, [myRole]);
 
   const toggleDeafen = useCallback(() => {
     setDeafened((prev) => {
       const next = !prev;
-      // Modo reserva (Jitsi): não dá pra silenciar o áudio que CHEGA pela
-      // External API (ele é tocado dentro do iframe) — degrada
-      // graciosamente para "mutar o próprio microfone", mantendo o estado
-      // coerente. Ver docs/voice-fallback.md.
-      // Engine próprio (Jitsi/LiveKit): não dá pra silenciar o áudio que
-      // CHEGA (ele é tocado pelo iframe no Jitsi; e no LiveKit o AudioSink já
-      // zera pelo estado `deafened`) — degrada graciosamente pra "mutar o
-      // próprio microfone", mantendo o estado coerente. Ver docs/voice-fallback.md.
-      if (activeProviderRef.current !== 'agora') {
-        if (next) { jitsiEngineRef.current?.setMicEnabled(false); setMuted(true); }
-        broadcastState({ deafened: next, muted: next ? true : muted });
-        return next;
-      }
-      if (next && localAudioTrackRef.current) {
-        localAudioTrackRef.current.setEnabled(false);
-        setMuted(true);
-      }
-      // BUG CORRIGIDO: aqui também tentava mexer na reprodução própria
-      // do Agora (.stop()/.play()), que não é mais usada — o AudioSink
-      // (CallBar.jsx) já silencia sozinho quando ensurdecido, através da
-      // prop volume={deafened ? 0 : ...}, lendo o mesmo estado
-      // `deafened` direto do contexto. Chamar .stop() aqui também podia
-      // interferir na MESMA faixa de mídia que o AudioSink depende (os
-      // dois vêm do mesmo getMediaStreamTrack()), então foi removido.
+      // O áudio que CHEGA já é zerado pelo AudioSink (CallBar.jsx) através do
+      // estado `deafened` (no Jitsi ele toca dentro do iframe). Ensurdecer
+      // também muta o próprio microfone, mantendo o estado coerente.
+      if (next) { engineRef.current?.setMicEnabled(false); setMuted(true); }
       broadcastState({ deafened: next, muted: next ? true : muted });
       return next;
     });
@@ -1181,172 +713,89 @@ export function VoiceProvider({ children }) {
     if (toggleCameraBusyRef.current) return;
     toggleCameraBusyRef.current = true;
     try {
-    // Modo reserva (Jitsi): câmera é comando do iframe; o estado volta pelo
-    // evento videoMuteStatusChanged.
-    // Engine próprio (Jitsi/LiveKit): a câmera é comando do engine. O Jitsi
-    // não devolve faixa pra nossa grade (null); o LiveKit devolve o
-    // MediaStream local, que guardamos pro auto-retrato. O estado `cameraOn`
-    // volta pelo callback onSelfCamera.
-    if (activeProviderRef.current !== 'agora') {
-      const stream = await jitsiEngineRef.current?.setCamera(!cameraOn);
+      // A câmera é comando do engine. O Jitsi não devolve faixa pra nossa
+      // grade (null); o servidor próprio/LiveKit devolvem o MediaStream
+      // local, que guardamos pro auto-retrato. O estado `cameraOn` volta
+      // pelo callback onSelfCamera.
+      const engine = engineRef.current;
+      if (!engine) return;
+      const stream = await engine.setCamera(!cameraOn);
       setEngineLocalCameraStream(stream || null);
-      return;
-    }
-    const client = agoraClientRef.current;
-    if (!client) return;
-    if (cameraOn) {
-      await client.unpublish([cameraTrackRef.current]).catch(() => {});
-      cameraTrackRef.current?.close();
-      cameraTrackRef.current = null;
-      setCameraOn(false);
-      broadcastState({ video: false });
-      forceLocalVideoTick((n) => n + 1);
-      return;
-    }
-    const AgoraRTC = await loadAgoraRTC();
-    const track = await AgoraRTC.createCameraVideoTrack({ encoderConfig: '360p' });
-    cameraTrackRef.current = track;
-    await client.publish([track]);
-    setCameraOn(true);
-    broadcastState({ video: true });
-    forceLocalVideoTick((n) => n + 1);
     } catch (err) {
       useStore.getState().pushNotice('Não foi possível acessar a câmera.');
     } finally {
       toggleCameraBusyRef.current = false;
     }
-  }, [cameraOn, broadcastState]);
+  }, [cameraOn]);
 
   const toggleScreenShare = useCallback(async (options = {}) => {
     if (toggleScreenShareBusyRef.current) return;
     toggleScreenShareBusyRef.current = true;
     try {
-      // Modo reserva (Jitsi): o próprio iframe faz a captura e mostra pros
-      // outros; só alternamos. O estado volta por screenSharingStatusChanged.
-      // Engine próprio (Jitsi/LiveKit): a captura é do engine. O Jitsi mostra
-      // pros outros pelo iframe (sem faixa local pra nós); o LiveKit devolve o
+      // A captura é do engine. O Jitsi mostra pros outros pelo iframe (sem
+      // faixa local pra nós); o servidor próprio/LiveKit devolvem o
       // MediaStream local, guardado pro auto-retrato. O estado volta por
       // onSelfScreen.
-      if (activeProviderRef.current !== 'agora') {
-        const stream = await jitsiEngineRef.current?.setScreen(!screenOn, options);
-        setEngineLocalScreenStream(stream || null);
-        return;
-      }
-      const client = agoraClientRef.current;
-      if (!client) return;
+      const engine = engineRef.current;
+      if (!engine) return;
       if (screenOn) {
-        const tracks = [screenTrackRef.current, screenAudioTrackRef.current].filter(Boolean);
-        await client.unpublish(tracks).catch(() => {});
-        screenTrackRef.current?.close();
-        screenAudioTrackRef.current?.close();
-        screenTrackRef.current = null;
-        screenAudioTrackRef.current = null;
-        // Item pedido: compartilhamento de tela no Android — se a
-        // faixa que estava no ar era a capturada pelo plugin nativo
-        // (não a padrão do navegador), também precisa avisar o lado
-        // Android pra parar a captura de verdade (serviço em primeiro
-        // plano, MediaProjection) — só despublicar do Agora não seria
-        // suficiente, a captura continuaria rodando escondida.
+        await engine.setScreen(false);
+        setEngineLocalScreenStream(null);
+        // Captura nativa do app Android: também para o serviço de captura
+        // (MediaProjection) — só tirar do ar não pararia a captura.
         if (androidScreenTrackRef.current) {
           stopAndroidScreenShare();
           androidScreenTrackRef.current = null;
         }
-        setScreenOn(false);
         setScreenQuality(null);
-        broadcastState({ screenSharing: false });
-        forceLocalVideoTick((n) => n + 1);
-        return;
-      }
-      const isNativeApp = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
-      if (isNativeApp) {
-        // Item pedido: "jeito mais fácil de fazer o celular
-        // compartilhar a tela" — plugin nativo (ScreenSharePlugin.java)
-        // entrega os pixels da tela como imagens; esse caminho as
-        // transforma numa faixa de vídeo de verdade via <canvas> (ver
-        // native/androidScreenShare.js) e publica ela como uma faixa
-        // CUSTOMIZADA do Agora — o mesmo mecanismo documentado
-        // oficialmente pelo Agora pra qualquer fonte de vídeo que não
-        // seja câmera/tela padrão do navegador.
-        try {
-          // Item pedido: "faça se possível como o Stoat ou o Discord"
-          // — 12fps/qualidade 65, pesquisado a partir de como esses
-          // apps configuram compartilhamento de tela mobile, e agora
-          // possível sem pesar mais que antes graças à resolução de
-          // captura reduzida (ver ScreenCaptureService.java, que
-          // manda os frames já em ~720p em vez da resolução nativa da
-          // tela — bem mais leve de comprimir, sobra margem pra mais
-          // fps sem sobrecarregar).
-          const mediaStreamTrack = await startAndroidScreenShare({ fps: 12, quality: 65 });
-          if (!mediaStreamTrack) return; // pessoa negou a permissão do sistema
-          const AgoraRTC = await loadAgoraRTC();
-          const customTrack = await AgoraRTC.createCustomVideoTrack({ mediaStreamTrack, frameRate: 6 });
-          screenTrackRef.current = customTrack;
-          androidScreenTrackRef.current = mediaStreamTrack;
-          await client.publish([customTrack]);
-          setScreenOn(true);
-          broadcastState({ screenSharing: true });
-          forceLocalVideoTick((n) => n + 1);
-        } catch (err) {
-          useStore.getState().pushNotice('Não foi possível compartilhar a tela.');
-          stopAndroidScreenShare();
-        }
         return;
       }
       // Item pedido C ("o compartilhamento NÃO pode levar a voz do mic"):
-      // o que entra na transmissão de tela é decidido por buildScreenShareConfig
-      // (ver utils/screenShareTracks.js) — a captura de tela (getDisplayMedia
-      // por baixo do createScreenVideoTrack) só pega vídeo da tela + ÁUDIO
-      // DO SISTEMA/ABA, nunca o microfone. A voz continua indo por uma
-      // faixa SEPARADA (localAudioTrackRef), publicada à parte.
+      // a captura de tela (getDisplayMedia) só entrega vídeo da tela + ÁUDIO
+      // DO SISTEMA/ABA, nunca o microfone — a voz continua indo pela faixa
+      // do microfone, publicada à parte pelo engine.
       const cfg = buildScreenShareConfig(options);
-      try {
-        const AgoraRTC = await loadAgoraRTC();
-        const result = await AgoraRTC.createScreenVideoTrack({
-          encoderConfig: cfg.encoderConfig,
-          // 'motion' prioriza fluidez (jogos/vídeo) sobre nitidez.
-          optimizationMode: cfg.optimizationMode,
-        }, cfg.audioParam);
-        const [screenTrack, screenAudioTrack] = Array.isArray(result) ? result : [result, null];
-        screenTrackRef.current = screenTrack;
-        screenAudioTrackRef.current = screenAudioTrack || null;
-        // collectScreenPublishTracks garante, por construção, que a faixa
-        // do microfone JAMAIS entra no conjunto compartilhado.
-        const toPublish = collectScreenPublishTracks(screenTrack, screenAudioTrack, localAudioTrackRef.current);
-        await client.publish(toPublish);
-        // BUG CORRIGIDO ("tela congelada pra quem assiste"): ao clicar em
-        // "Parar de compartilhar" na barra do navegador, isto chamava a
-        // versão ANTIGA da função (de quando screenOn ainda era false) —
-        // que tentava COMEÇAR outra transmissão em vez de parar, deixando
-        // a faixa encerrada publicada (último quadro congelado pros outros).
-        screenTrack.on('track-ended', () => { if (screenTrackRef.current === screenTrack) toggleScreenShareRef.current?.(); });
-        setScreenQuality({ quality: cfg.quality, frameRate: cfg.frameRate });
-        setScreenOn(true);
-        broadcastState({ screenSharing: true });
-        forceLocalVideoTick((n) => n + 1);
-      } catch (err) {
-        if (!(err?.message?.toLowerCase().includes('permission') || err?.code === 'PERMISSION_DENIED')) {
+      const isNativeApp = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
+      if (isNativeApp && engine.capabilities?.().nativeScreenTrack) {
+        // App Android (Capacitor): o plugin nativo (ScreenSharePlugin.java)
+        // entrega os quadros da tela e native/androidScreenShare.js vira uma
+        // faixa de vídeo de verdade (via <canvas>), publicada pelo engine.
+        // 12fps/qualidade 65 (captura já em ~720p, ver ScreenCaptureService).
+        try {
+          const mediaStreamTrack = await startAndroidScreenShare({ fps: 12, quality: 65 });
+          if (!mediaStreamTrack) return; // pessoa negou a permissão do sistema
+          androidScreenTrackRef.current = mediaStreamTrack;
+          const stream = await engine.setScreen(true, { track: mediaStreamTrack, audio: false });
+          if (!stream) throw new Error('engine não publicou a tela');
+          setEngineLocalScreenStream(stream);
+        } catch (err) {
           useStore.getState().pushNotice('Não foi possível compartilhar a tela.');
+          stopAndroidScreenShare();
+          androidScreenTrackRef.current = null;
         }
+        return;
       }
+      const stream = await engine.setScreen(true, { audio: cfg.withSystemAudio, quality: cfg.quality, frameRate: cfg.frameRate });
+      setEngineLocalScreenStream(stream || null);
+      if (stream) setScreenQuality({ quality: cfg.quality, frameRate: cfg.frameRate });
     } finally {
       toggleScreenShareBusyRef.current = false;
     }
-  }, [screenOn, broadcastState]);
-  // Trocar a qualidade da tela SEM parar a transmissão (setEncoderConfiguration
-  // do Agora na faixa que já está no ar). Também lembra a escolha pra próxima vez.
+  }, [screenOn]);
+  // Trocar a qualidade da tela SEM parar a transmissão (o engine aplica na
+  // faixa que já está no ar). Também lembra a escolha pra próxima vez.
   const setScreenShareQuality = useCallback(async ({ quality, frameRate }) => {
-    const dims = QUALITY_PRESETS[quality];
-    if (!dims || ![15, 30, 60].includes(frameRate)) return false;
+    if (!SCREEN_QUALITY_PRESETS[quality] || ![15, 30, 60].includes(frameRate)) return false;
     try {
       const saved = JSON.parse(localStorage.getItem('screenShareOptions') || 'null') || {};
       localStorage.setItem('screenShareOptions', JSON.stringify({ audio: true, ...saved, quality, frameRate }));
     } catch { /* sem storage */ }
-    const track = screenTrackRef.current;
-    if (!track || androidScreenTrackRef.current || typeof track.setEncoderConfiguration !== 'function') return false;
+    const engine = engineRef.current;
+    if (!engine || androidScreenTrackRef.current || typeof engine.setScreenQuality !== 'function') return false;
     try {
-      await track.setEncoderConfiguration({ width: dims.width, height: dims.height, frameRate });
-      setScreenQuality({ quality, frameRate });
-      return true;
+      const ok = await engine.setScreenQuality({ quality, frameRate });
+      if (ok) setScreenQuality({ quality, frameRate });
+      return !!ok;
     } catch (err) {
       console.error('[voz] não foi possível trocar a qualidade da tela:', err);
       useStore.getState().pushNotice('Não foi possível trocar a qualidade da transmissão agora.');
@@ -1382,33 +831,16 @@ export function VoiceProvider({ children }) {
   }, [socket]);
 
   // ---------- Redutor de ruído (B) ----------
-  // Troca a preferência e aplica na hora: recria a faixa do microfone com
-  // (ou sem) o processamento de áudio. Fora de uma chamada só guarda a
+  // Troca a preferência e, no engine próprio (mediasoup), liga/desliga o
+  // RNNoise na hora. Fora de uma chamada (ou em outro provedor) só guarda a
   // escolha pra valer na próxima vez.
   const setNoiseReduction = useCallback(async (on) => {
     setVoicePref('noiseReduction', !!on);
-    // Engine próprio (mediasoup): liga/desliga o RNNoise na hora.
-    const engine = jitsiEngineRef.current;
+    const engine = engineRef.current;
     if (engine && typeof engine.setNoiseSuppression === 'function') {
       try { await engine.setNoiseSuppression(!!on); } catch (err) { console.error('[voz] redutor de ruído:', err); }
-      return;
     }
-    const client = agoraClientRef.current;
-    const old = localAudioTrackRef.current;
-    if (!client || !old) return;
-    const wasEnabled = old.enabled !== false;
-    try {
-      await client.unpublish([old]).catch(() => {});
-      old.close();
-      localAudioTrackRef.current = null;
-      const ok = await connectMicrophone();
-      if (!ok) { setMicMissing(true); return; }
-      localAudioTrackRef.current.setEnabled(wasEnabled && !mutedRef.current);
-      await client.publish([localAudioTrackRef.current]);
-    } catch (err) {
-      console.error('[voz] não foi possível aplicar o redutor de ruído agora:', err);
-    }
-  }, [connectMicrophone]);
+  }, []);
 
   // ---------- Gravação com consentimento (N) ----------
   const requestRecording = useCallback(() => {
@@ -1471,8 +903,8 @@ export function VoiceProvider({ children }) {
       }
       if (role) {
         setMyRole(role);
-        if (role === 'audience' && localAudioTrackRef.current) {
-          localAudioTrackRef.current.setEnabled(false);
+        if (role === 'audience') {
+          engineRef.current?.setMicEnabled(false);
           setMuted(true);
         }
       }
@@ -1527,10 +959,10 @@ export function VoiceProvider({ children }) {
         setMyRole(role);
         setHandsRaised((s) => ({ ...s, [user.id]: false }));
         if (role === 'audience') {
-          localAudioTrackRef.current?.setEnabled(false);
+          engineRef.current?.setMicEnabled(false);
           setMuted(true);
         } else if (role === 'speaker' && !deafenedRef.current) {
-          localAudioTrackRef.current?.setEnabled(true);
+          engineRef.current?.setMicEnabled(true);
           setMuted(false);
         }
       }
@@ -1544,8 +976,8 @@ export function VoiceProvider({ children }) {
     // fica travado"): quando a MESMA conta entra nessa call de um
     // dispositivo diferente, o servidor avisa esse dispositivo aqui
     // (o mais antigo) explicitamente — sem isso, a mídia já teria sido
-    // derrubada por dentro pelo Agora (dois clientes com o mesmo
-    // usuário não são permitidos no mesmo canal), mas a TELA continuaria
+    // derrubada por dentro pelo servidor de mídia (dois clientes com o mesmo
+    // usuário não ficam no mesmo canal), mas a TELA continuaria
     // mostrando "você está na call" mesmo já sem áudio de verdade indo
     // ou vindo. Sai de forma limpa e avisa com clareza o motivo, em vez
     // de deixar a pessoa presa numa call morta sem saber por quê.
@@ -1748,9 +1180,9 @@ export function VoiceProvider({ children }) {
   }, [socket, callChannelId]);
 
   // ---------- Troca de provedor NO MEIO da chamada (QUALQUER → QUALQUER) ----------
-  // Generaliza a antiga troca Agora → Jitsi pra uma troca entre QUAISQUER dois
-  // provedores da cadeia, SEM te deslogar e SEM te tirar da sala: derruba só a
-  // mídia atual (Agora OU engine) e sobe a do novo provedor no MESMO canal,
+  // Troca entre QUAISQUER dois provedores da cadeia, SEM te deslogar e SEM te
+  // tirar da sala: derruba só a mídia atual (o engine) e sobe a do novo
+  // provedor no MESMO canal,
   // mantendo sessão, socket, roster, reações e soundboard montados. Um aviso
   // curto "Reconectando…" aparece no meio.
   //
@@ -1762,7 +1194,7 @@ export function VoiceProvider({ children }) {
   //  (c) um provedor cruzou o limite mensal no meio da chamada — pego por um
   //      poll leve de /api/voice/join (que já devolve o provedor decidido);
   //  (d) RECUPERAÇÃO: a mídia atual falhou (engine desistiu de reconectar,
-  //      Agora desconectou, envio/recepção nunca conectou) → `force`, e o
+  //      envio/recepção nunca conectou) → `force`, e o
   //      provedor que falhou fica de fora (`failed`). Se nenhum subir, aí sim
   //      a pessoa sai da call com um aviso — antes ficava numa call muda.
   // Se a troca falhar, tenta o próximo da cadeia (até 3), sem deixar a call
@@ -1817,23 +1249,18 @@ export function VoiceProvider({ children }) {
           setReconnectingProvider(true);
           if (!tornDown) {
             // Derruba a mídia atual (preserva sessão/socket/roster/UI).
-            if (activeProviderRef.current === 'agora') await teardownAgoraMedia();
-            else teardownJitsi();
+            teardownEngine();
             setRemoteAudioStreams({});
             setRemoteVideoStreams({});
             tornDown = true;
           }
           let ok = false;
           try {
-            if (target === 'agora') {
-              ok = await connectAgoraMediaRef.current?.({ channelId: current.channelId, agora: creds.agora, isSwitch: true });
-            } else {
-              ok = await connectEngineRef.current?.({
-                serverId: current.serverId, channelId: current.channelId,
-                channelName: current.channelName, channelType: current.channelType,
-                provider: target, creds: creds[target], isSwitch: true, quiet: true,
-              });
-            }
+            ok = await connectEngineRef.current?.({
+              serverId: current.serverId, channelId: current.channelId,
+              channelName: current.channelName, channelType: current.channelType,
+              provider: target, creds: creds[target], isSwitch: true, quiet: true,
+            });
           } catch (err) {
             console.error('[voz] Falha ao trocar de provedor no meio da chamada:', err);
             ok = false;
@@ -1866,9 +1293,9 @@ export function VoiceProvider({ children }) {
     if (pendingSwapRef.current && !switchingRef.current) setTimeout(flushPending, 0);
     const iv = setInterval(() => { check(); }, POLL_MS);
     return () => { cancelled = true; runSwapCheckRef.current = null; clearInterval(iv); };
-  }, [callChannelId, teardownAgoraMedia, teardownJitsi, readyProviders]);
+  }, [callChannelId, teardownEngine, readyProviders]);
 
-  // Recuperação da mídia (ver o efeito acima) — chamada pelos engines/Agora.
+  // Recuperação da mídia (ver o efeito acima) — chamada pelos engines.
   useEffect(() => {
     requestMediaRecoveryRef.current = (opts = {}) => {
       if (!callRef.current && !joiningChannelIdRef.current) return;
@@ -1903,35 +1330,37 @@ export function VoiceProvider({ children }) {
   useEffect(() => onVoicePrefsChange((p) => setPttEnabled(p.pushToTalkEnabled === true)), []);
 
   // Enquanto o "apertar pra falar" está ligado e você está numa chamada,
-  // o microfone fica mudo por padrão e só vai ao ar enquanto a tecla
-  // escolhida está pressionada. Ao desligar o modo, volta pro estado
-  // normal (ligado, a não ser que você tenha mutado na mão).
+  // o microfone fica fechado por padrão e só vai ao ar enquanto a tecla
+  // escolhida está pressionada (portão do engine — setMicGate). Ao desligar
+  // o modo, volta pro estado normal (aberto, a não ser que você tenha mutado
+  // na mão). Provedor sem portão (Jitsi/LiveKit): fica desligado.
   useEffect(() => {
     if (!callChannelId) return undefined;
-    // Apertar-pra-falar depende da faixa local do Agora; em qualquer outro
-    // provedor (engine próprio) o microfone é controlado pelo engine e não dá
-    // pra gatilhar por tecla com a mesma precisão — degrada graciosamente
-    // (fica desligado). Ver docs/voice-fallback.md.
-    if (provider !== 'agora') return undefined;
-    const track = () => localAudioTrackRef.current;
+    const supported = () => typeof engineRef.current?.setMicGate === 'function';
     const setTalking = (on) => {
       if (pttTalkingRef.current === on) return;
       pttTalkingRef.current = on;
       setPttTalking(on);
       playSound(on ? 'pttActivate' : 'pttDeactivate', 0.3);
-      track()?.setEnabled(on);
+      micGateRef.current.ptt = on;
+      applyMicGate();
       // Os outros veem seu mudo refletir a tecla (igual a mutar/desmutar).
-      socket?.emit('voice:state', { channelId: callChannelId, muted: !on });
+      socket?.emit('voice:state', { channelId: callChannelId, muted: !on || mutedRef.current });
       socket?.emit('voice:speaking', { channelId: callChannelId, speaking: false });
     };
-    if (!pttEnabled) {
-      // Saiu do modo: destrava o mic conforme o mudo manual atual.
+    if (!pttEnabled || !supported()) {
+      // Fora do modo: portão aberto (vale o mudo manual).
       if (pttTalkingRef.current) { pttTalkingRef.current = false; setPttTalking(false); }
-      if (track() && !micMissing) track().setEnabled(!mutedRef.current);
+      if (!micGateRef.current.ptt) {
+        micGateRef.current.ptt = true;
+        applyMicGate();
+        if (!mutedRef.current) socket?.emit('voice:state', { channelId: callChannelId, muted: false });
+      }
       return undefined;
     }
     // Entrou no modo: fecha o mic até segurar a tecla.
-    if (track()) track().setEnabled(false);
+    micGateRef.current.ptt = false;
+    applyMicGate();
     socket?.emit('voice:state', { channelId: callChannelId, muted: true });
 
     const key = getVoicePref('pushToTalkKey') || 'Space';
@@ -1951,36 +1380,83 @@ export function VoiceProvider({ children }) {
       window.removeEventListener('keyup', onUp);
       window.removeEventListener('blur', onBlur);
     };
-  }, [pttEnabled, callChannelId, micMissing, socket, provider]);
+  }, [pttEnabled, callChannelId, micMissing, socket, provider, applyMicGate]);
 
-  // ---------- Sensibilidade de entrada (Configurações → Voz e vídeo) ----------
-  // Com "Determinar automaticamente" desligado, o microfone só vai ao ar
-  // quando o volume passa do limite escolhido (em dB); abaixo disso, a
-  // faixa fica em volume zero (com 300 ms de folga pra não cortar palavras).
+  // ---------- Nível do microfone + sensibilidade de entrada ----------
+  // Mede o nível da captura CRUA do microfone (antes do portão) pra dois
+  // usos: o aviso "microfone sem som" (getMicLastSoundAt) e a sensibilidade
+  // manual de Configurações → Voz e vídeo — com "Determinar automaticamente"
+  // desligado, o microfone só vai ao ar quando o volume passa do limite
+  // escolhido (em dB); abaixo disso o portão fecha (com 300 ms de folga pra
+  // não cortar palavras). Só no engine com portão (servidor próprio); se o
+  // navegador não deixar o AudioContext rodar, o portão fica sempre aberto.
   useEffect(() => {
-    if (!callChannelId || provider !== 'agora') return undefined;
-    let open = true;
+    if (!callChannelId || provider !== 'projectclub') return undefined;
+    const AudioCtx = typeof window !== 'undefined' ? (window.AudioContext || window.webkitAudioContext) : null;
+    if (!AudioCtx) return undefined;
+    let ctx = null;
+    let analyser = null;
+    let source = null;
+    let meterTrack = null;
+    let sourceOf = null;
+    let buf = null;
     let quietSince = 0;
-    const setOpen = (on) => {
-      if (open === on) return;
-      open = on;
-      try { localAudioTrackRef.current?.setVolume?.(on ? 100 : 0); } catch { /* faixa fechando */ }
+    let meterOn = false;
+    const setSens = (on) => {
+      if (micGateRef.current.sens === on) return;
+      micGateRef.current.sens = on;
+      applyMicGate();
     };
+    const attach = (raw) => {
+      try { source?.disconnect(); } catch { /* ok */ }
+      try { meterTrack?.stop(); } catch { /* ok */ }
+      source = null; meterTrack = null; sourceOf = raw;
+      if (!raw) return;
+      // Clone: o portão/mudo desligam a faixa publicada, não esta.
+      meterTrack = raw.clone();
+      meterTrack.enabled = true;
+      source = ctx.createMediaStreamSource(new MediaStream([meterTrack]));
+      source.connect(analyser);
+    };
+    try {
+      ctx = new AudioCtx();
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = 1024;
+      buf = new Float32Array(analyser.fftSize);
+      ctx.resume?.().catch(() => {});
+    } catch { return undefined; }
     const timer = setInterval(() => {
+      const engine = engineRef.current;
+      const raw = engine?.getLocalMicTrack?.({ raw: true }) || null;
+      if (raw !== sourceOf) { try { attach(raw); } catch { sourceOf = raw; } }
+      const running = ctx.state === 'running' && !!source;
+      if (meterOn !== running) { meterOn = running; setMicMeterOn(running); }
+      if (!running) { setSens(true); quietSince = 0; return; }
+      analyser.getFloatTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i += 1) sum += buf[i] * buf[i];
+      const rms = Math.sqrt(sum / buf.length);
+      const db = rms > 0 ? 20 * Math.log10(rms) : -100;
+      if (db > -70) localSoundAtRef.current = Date.now();
       const p = getExtra();
-      const tr = localAudioTrackRef.current;
-      if (!tr || p.sensitivityAuto !== false || pttTalkingRef.current) { setOpen(true); quietSince = 0; return; }
-      const level = Number(tr.getVolumeLevel?.() || 0);
-      const db = level > 0 ? 20 * Math.log10(level) : -100;
-      if (db >= (p.sensitivityDb ?? -60)) { quietSince = 0; setOpen(true); return; }
+      if (p.sensitivityAuto !== false || pttTalkingRef.current) { setSens(true); quietSince = 0; return; }
+      if (db >= (p.sensitivityDb ?? -60)) { quietSince = 0; setSens(true); return; }
       if (!quietSince) quietSince = Date.now();
-      if (Date.now() - quietSince > 300) setOpen(false);
+      if (Date.now() - quietSince > 300) setSens(false);
     }, 60);
-    return () => { clearInterval(timer); setOpen(true); };
-  }, [callChannelId, provider]);
+    return () => {
+      clearInterval(timer);
+      try { source?.disconnect(); } catch { /* ok */ }
+      try { meterTrack?.stop(); } catch { /* ok */ }
+      try { ctx?.close(); } catch { /* ok */ }
+      setMicMeterOn(false);
+      micGateRef.current.sens = true;
+      applyMicGate();
+    };
+  }, [callChannelId, provider, applyMicGate]);
 
   // ---------- Aviso "sua conexão está instável" (D) ----------
-  // Só pra VOCÊ: quando a sua qualidade de rede (Agora, 0-6) fica ruim
+  // Só pra VOCÊ: quando a sua qualidade de rede (0-6) fica ruim
   // (>=4) por alguns segundos seguidos, mostra um aviso — no máximo uma
   // vez a cada 45s, pra não virar spam.
   const myNetQuality = netQuality[String(user?.id)] ?? 0;
@@ -2016,51 +1492,35 @@ export function VoiceProvider({ children }) {
   // chegando mas nada tocando" e pro diagnóstico). null = desconhecido.
   const getInboundAudioBytes = useCallback((uid) => {
     try {
-      if (activeProviderRef.current === 'agora') {
-        const stats = agoraClientRef.current?.getRemoteAudioStats?.();
-        const v = stats && stats[String(uid)] && stats[String(uid)].receiveBytes;
-        return Number.isFinite(v) ? v : null;
-      }
-      const v = jitsiEngineRef.current?.getInboundAudioBytes?.(uid);
+      const v = engineRef.current?.getInboundAudioBytes?.(uid);
       return Number.isFinite(v) ? v : null;
     } catch { return null; }
   }, []);
-
-  // BUG CORRIGIDO ("vídeo piscando/travando"): o MediaStream local era
-  // recriado a CADA renderização do contexto (várias por segundo com o
-  // indicador de fala), e cada objeto novo fazia o <video> reiniciar.
-  // Agora só muda quando a faixa muda de verdade.
-  const camTrack = cameraTrackRef.current;
-  const scrTrack = screenTrackRef.current;
-  const localCameraStream = useMemo(() => (camTrack ? new MediaStream([camTrack.getMediaStreamTrack()]) : null), [camTrack]);
-  const localScreenStream = useMemo(() => (scrTrack ? new MediaStream([scrTrack.getMediaStreamTrack()]) : null), [scrTrack]);
 
   return (
     <VoiceContext.Provider value={{
       call, muted, micMissing, deafened, cameraOn, screenOn, participants: shownParticipants, roster, rosterStartedAt, rosterSpeaking, myRole, handsRaised,
       localSpeaking, joiningChannelId,
       remoteCameraStreams, remoteScreenStreams, remoteAudioStreams, volumes, getInboundAudioBytes,
-      // Auto-retrato local: do Agora (faixa) quando ativo; do engine (ex.:
-      // LiveKit devolve o MediaStream local) nos demais provedores.
-      localCameraStream: provider === 'agora' ? localCameraStream : engineLocalCameraStream,
-      localScreenStream: provider === 'agora' ? localScreenStream : engineLocalScreenStream,
+      // Auto-retrato local (MediaStream devolvido pelo engine).
+      localCameraStream: engineLocalCameraStream,
+      localScreenStream: engineLocalScreenStream,
       joinChannel, leaveChannel, toggleMute, toggleDeafen, toggleCamera, toggleScreenShare, setParticipantVolume,
       raiseHand, setParticipantRole, stepDownFromStage,
       incomingCall, answerIncomingCall, declineIncomingCall,
       switchMicrophone,
-      netQuality, getMicLastSoundAt: () => localSoundAtRef.current,
-      getLocalAudioTrack: () => localAudioTrackRef.current,
+      // Sem medidor de nível rodando, null (o aviso "microfone sem som" fica desligado).
+      netQuality, getMicLastSoundAt: micMeterOn ? () => localSoundAtRef.current : null,
+      // Faixa do microfone (MediaStreamTrack) — pra gravação local da call.
+      getLocalMicTrack: () => engineRef.current?.getLocalMicTrack?.() || null,
       myRtt, callStartedAt, screenQuality, setScreenShareQuality,
       // Extras novos:
       reactions, sendReaction,
       recording, recordingPrompt, recordingConsents, requestRecording, respondRecording, stopRecording,
       pttEnabled, pttTalking,
       setNoiseReduction,
-      // Provedor de mídia (Agora normal ⇆ Jitsi reserva):
-      // Provedor de mídia ATIVO na cadeia (agora / livekit / jitsi / ...).
-      // fallbackActive = qualquer provedor que não seja o primário (Agora).
-      // fallbackActive = provedor depois do primário na cadeia (o servidor
-      // próprio e o Agora NÃO são reserva).
+      // Provedor de mídia ATIVO na cadeia (projectclub / livekit / jitsi / ...).
+      // fallbackActive = provedor depois do primário (servidor próprio).
       provider, fallbackActive: isReserveMode(provider), reconnectingProvider,
       reconnecting,
       providerLabel: providerLabel(provider),

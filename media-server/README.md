@@ -43,7 +43,7 @@ o Project Club (backend) continua dono das contas, salas e permissões; este ser
 
 Com `MEDIA_SERVER_URL` + `MEDIA_SERVER_SECRET` definidos, o provedor **"Project Club (próprio)"** aparece no painel
 *Sistema → Provedores de voz* como **ativo** (ele é o primeiro da cadeia e é ilimitado). Sem eles, aparece
-"não configurado" e a cadeia segue Agora → LiveKit → Jitsi, como antes.
+"não configurado" e a cadeia segue para as reservas: LiveKit (se configurado) → Jitsi.
 
 ## Como funciona
 

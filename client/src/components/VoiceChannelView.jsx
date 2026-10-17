@@ -243,8 +243,8 @@ export default function VoiceChannelView({ channel }) {
   );
 }
 
-// Aviso "Chamada em modo reserva" (Jitsi) — aparece quando o Agora passou
-// do limite mensal e a mídia caiu pro provedor reserva. Transparente de
+// Aviso "Chamada em modo reserva" — aparece quando o servidor de mídia
+// próprio não está disponível e a mídia caiu pro provedor reserva. Transparente de
 // propósito: a pessoa SABE que está no plano B. Ver docs/voice-fallback.md.
 function BackupBanner({ voice }) {
   if (!voice?.fallbackActive) return null;

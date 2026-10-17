@@ -34,7 +34,7 @@ export default function CallIcon({ name, size = 18, strokeWidth = 2, className =
   );
 }
 
-// Barrinhas de sinal (qualidade do Agora: 0 desconhecida, 1 excelente …
+// Barrinhas de sinal (qualidade da conexão: 0 desconhecida, 1 excelente …
 // 6 caiu). Cor e quantidade de barras acesas seguem a qualidade.
 const SIGNAL = {
   0: { bars: 0, tone: 'unknown' },

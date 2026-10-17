@@ -5,9 +5,9 @@ import {
 
 // Item pedido C: o compartilhamento de tela NÃO pode carregar a voz do
 // microfone — só o som do sistema/aba. Estes testes conferem a montagem
-// das faixas direto, sem navegador nem Agora de verdade.
+// das faixas direto, sem navegador nem engine de mídia de verdade.
 
-// Faixas de mentira com o mesmo formato das do Agora (getMediaStreamTrack).
+// Faixas de mentira com getMediaStreamTrack (formato de faixa de SDK).
 function fakeTrack(label) {
   const media = { kind: label.includes('audio') ? 'audio' : 'video', _label: label };
   return { _label: label, getMediaStreamTrack: () => media };

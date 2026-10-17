@@ -21,20 +21,11 @@ const FIELDS = {
     { env: 'TURN_URLS', label: 'Servidores TURN (opcional, separados por vírgula)' },
     { env: 'TURN_SECRET', label: 'Segredo do TURN (opcional)', secret: true },
   ],
-  agora: [
-    { env: 'AGORA_APP_ID', label: 'App ID' },
-    { env: 'AGORA_APP_CERTIFICATE', label: 'App Certificate (primário)', secret: true },
-    { env: 'AGORA_MONTHLY_MINUTES', label: 'Minutos grátis por mês (opcional)' },
-  ],
   livekit: [
     { env: 'LIVEKIT_URL', label: 'URL (wss://seu-projeto.livekit.cloud)' },
     { env: 'LIVEKIT_API_KEY', label: 'API Key' },
     { env: 'LIVEKIT_API_SECRET', label: 'API Secret', secret: true },
     { env: 'LIVEKIT_MONTHLY_MINUTES', label: 'Minutos grátis por mês (opcional)' },
-  ],
-  getstream: [
-    { env: 'GETSTREAM_API_KEY', label: 'API Key' },
-    { env: 'GETSTREAM_API_SECRET', label: 'API Secret', secret: true },
   ],
   daily: [
     { env: 'DAILY_DOMAIN', label: 'Domínio (ex.: seu-time)' },

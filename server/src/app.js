@@ -68,7 +68,6 @@ const postsRoutes = require('./routes/posts');
 const achievementsRoutes = require('./routes/achievements');
 const systemRoutes = require('./routes/system');
 const pushRoutes = require('./routes/push');
-const agoraRoutes = require('./routes/agora');
 const voiceRoutes = require('./routes/voice');
 const imageProxyRoutes = require('./routes/imageProxy');
 const { servePrecompressed } = require('./middleware/precompressed');
@@ -137,9 +136,9 @@ function createApp() {
   // `crossOriginEmbedderPolicy` stays off for the same reason — this
   // legitimately embeds cross-origin media.
   //
-  // Jitsi (provedor de voz RESERVA, ver services/jitsiProvider.js): quando
-  // o Agora passa do limite mensal, a chamada conecta por uma conferência
-  // embutida do Jitsi (IFrame External API). Pra isso o navegador precisa
+  // Jitsi (provedor de voz RESERVA final): quando o servidor de mídia
+  // próprio (e as outras reservas) não estão disponíveis, a chamada conecta
+  // por uma conferência embutida do Jitsi (IFrame External API). Pra isso o navegador precisa
   // poder: BAIXAR o external_api.js do domínio do Jitsi (script-src) e
   // EMBUTIR a página de reunião num iframe (frame-src). O domínio é
   // configurável (JITSI_DOMAIN, padrão meet.jit.si) — liberamos o padrão e,
@@ -159,11 +158,9 @@ function createApp() {
         scriptSrc: ["'self'", "'wasm-unsafe-eval'", 'https://www.youtube.com', ...jitsiOrigins],
         scriptSrcElem: ["'self'", 'https://www.youtube.com', ...jitsiOrigins],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-        // Item pedido (migração pro Agora.io): o SDK deles roda parte do
-        // processamento de áudio (cancelamento de eco etc) dentro de Web
-        // Workers, criados a partir de blob: — sem isso liberado
-        // explicitamente, o navegador bloqueia silenciosamente e a
-        // chamada nunca chega a conectar de verdade.
+        // SDKs de mídia (ex.: LiveKit) e o processamento de áudio rodam
+        // parte do trabalho em Web Workers criados a partir de blob: — sem
+        // isso liberado explicitamente, o navegador bloqueia em silêncio.
         workerSrc: ["'self'", 'blob:'],
         fontSrc: ["'self'", 'https://fonts.gstatic.com'],
         imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
@@ -182,10 +179,8 @@ function createApp() {
         // ouve/é ouvido por ninguém).
         connectSrc: [
           "'self'", 'https://api.klipy.com', 'https://fonts.googleapis.com',
-          // Agora.io (chamadas de voz) — domínios reais deles pra
-          // sinalização/relatório de qualidade via HTTPS; a mídia em si
-          // (áudio) já passa pelos wss:/turn: genéricos logo abaixo.
-          'https://*.agora.io', 'https://*.sd-rtn.com',
+          // Voz: sinalização por wss: (servidor de mídia próprio/LiveKit) e
+          // ICE (STUN/TURN) pelos esquemas genéricos logo abaixo.
           'wss:', 'ws:', 'stun:', 'turn:', 'turns:',
         ],
         // Navegador do Project Club no site (quando ligado em
@@ -415,7 +410,6 @@ function createApp() {
   // Atualizações do app Android (ver docs/android-updates.md).
   app.use('/api/mobile', require('./routes/mobile'));
   app.use('/api/push', pushRoutes);
-  app.use('/api/agora', agoraRoutes);
   app.use('/api/voice', voiceRoutes);
   // Sem requireAuth de propósito — <img src="..."> do navegador nunca
   // manda o cabeçalho Authorization (só fetch/axios conseguem fazer

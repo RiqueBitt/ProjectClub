@@ -1,5 +1,5 @@
 // Reprodução do áudio REMOTO da chamada (todos os provedores com faixas:
-// servidor próprio, Agora, LiveKit). Usado pelo AudioSink (CallBar.jsx) e
+// servidor próprio, LiveKit). Usado pelo AudioSink (CallBar.jsx) e
 // pela página-teste do e2e WebRTC (client/e2e/harness/mediasoup).
 //
 // BUG CORRIGIDO ("fala mas não ouve ninguém" no Electron 31 / Chrome 126 e

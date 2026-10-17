@@ -12,8 +12,7 @@ import android.os.Looper
 import android.util.Log
 
 /**
- * Áudio da chamada pelo servidor PRÓPRIO (o SDK da Agora já cuida disso
- * sozinho): modo de comunicação, foco de áudio e pra onde vai o som —
+ * Áudio da chamada pelo servidor PRÓPRIO: modo de comunicação, foco de áudio e pra onde vai o som —
  * viva-voz, fone do ouvido, fone com fio ou Bluetooth.
  *
  * Antes o modo de comunicação só era ligado na PRIMEIRA chamada (junto com a

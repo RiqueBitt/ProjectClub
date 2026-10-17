@@ -18,7 +18,7 @@ import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import '../styles/callbar.css';
 
 // Barra de chamada (rodapé da coluna de canais) — visual refeito: status
-// com sinal/ping do Agora, nome do canal clicável (abre a chamada), tempo
+// com sinal/ping do servidor de mídia, nome do canal clicável (abre a chamada), tempo
 // de chamada, botões de ícone com dica e estado (mudo/ensurdecido em
 // vermelho), menu de dispositivos e desligar. Também cuida da janelinha
 // flutuante quando você sai da tela da chamada.

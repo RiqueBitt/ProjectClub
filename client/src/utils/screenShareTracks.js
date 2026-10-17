@@ -1,12 +1,12 @@
 // Montagem das faixas do compartilhamento de tela — isolada aqui, sem
-// React nem Agora, pra poder ser testada direta (ver client/e2e/
+// React nem engine de mídia, pra poder ser testada direta (ver client/e2e/
 // screenshare-tracks.spec.mjs).
 //
 // Item pedido (C): "o compartilhamento de tela NÃO pode levar a voz do
 // microfone junto — só o som do sistema/aba". O jeito certo de garantir
 // isso é NUNCA misturar a faixa do microfone na captura de tela: a
-// captura de tela (getDisplayMedia, por baixo do createScreenVideoTrack
-// do Agora) só entrega vídeo da tela + ÁUDIO DO SISTEMA/ABA — ela não tem
+// captura de tela (getDisplayMedia, chamado pelo engine de mídia) só
+// entrega vídeo da tela + ÁUDIO DO SISTEMA/ABA — ela não tem
 // acesso nenhum ao microfone. A faixa do microfone é uma faixa
 // completamente separada, publicada à parte (a pessoa continua falando
 // normalmente pela voz). Estas funções deixam essa separação explícita e
@@ -19,11 +19,10 @@ export const SCREEN_QUALITY_PRESETS = {
 
 const ALLOWED_FPS = [15, 30, 60];
 
-// Argumentos puros passados pro AgoraRTC.createScreenVideoTrack. O
-// segundo valor (`audioParam`) é EXATAMENTE o que decide se o áudio do
-// SISTEMA/ABA entra junto — 'auto' captura o áudio da tela, 'disable' não
-// captura nenhum áudio. Em NENHUM dos casos o microfone é envolvido: o
-// getDisplayMedia por baixo não tem acesso a ele.
+// Configuração pura da captura de tela (resolução, fps e se o áudio do
+// SISTEMA/ABA entra junto — `withSystemAudio`; `audioParam` 'auto'/'disable'
+// é a mesma escolha em forma de texto). Em NENHUM dos casos o microfone é
+// envolvido: o getDisplayMedia não tem acesso a ele.
 export function buildScreenShareConfig(options = {}) {
   const quality = SCREEN_QUALITY_PRESETS[options.quality] ? options.quality : '1080p';
   const frameRate = ALLOWED_FPS.includes(options.frameRate) ? options.frameRate : 30;
@@ -31,9 +30,9 @@ export function buildScreenShareConfig(options = {}) {
   const withSystemAudio = options.audio !== false; // padrão: inclui som do sistema/aba
   return {
     encoderConfig: { width: dims.width, height: dims.height, frameRate },
-    // 'motion' prioriza fluidez (ver VoiceContext) — mantido aqui.
+    // 'motion' prioriza fluidez.
     optimizationMode: 'motion',
-    // O que vai como 2º argumento do createScreenVideoTrack:
+    // Áudio do sistema/aba: 'auto' captura, 'disable' não.
     audioParam: withSystemAudio ? 'auto' : 'disable',
     quality,
     frameRate,
@@ -43,7 +42,7 @@ export function buildScreenShareConfig(options = {}) {
 
 // A LISTA de faixas que vão ser publicadas num compartilhamento de tela.
 // Recebe a faixa de vídeo da tela e (opcionalmente) a faixa de áudio
-// do SISTEMA/ABA que o createScreenVideoTrack devolveu. Garante, por
+// do SISTEMA/ABA que a captura devolveu. Garante, por
 // construção, que a faixa do microfone (passada aqui só pra conferência)
 // NUNCA entra nessa lista.
 export function collectScreenPublishTracks(screenVideoTrack, screenSystemAudioTrack, localMicTrack) {

@@ -22,7 +22,6 @@
     "@aws-sdk/lib-storage": "^3.1111.0",
     "@prisma/client": "5.20.0",
     "@simplewebauthn/server": "13.3.3",
-    "agora-token": "^2.0.5",
     "bcryptjs": "^2.4.3",
     "compression": "^1.8.2",
     "cookie-parser": "^1.4.6",

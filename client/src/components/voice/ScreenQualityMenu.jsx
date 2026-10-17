@@ -4,7 +4,7 @@ import CallIcon from './CallIcons.jsx';
 
 // Qualidade da transmissão de tela, trocada AO VIVO (sem parar de
 // transmitir). Usa setScreenShareQuality do VoiceContext, que aplica a
-// configuração do encoder do Agora na faixa da tela e lembra a escolha.
+// resolução/fps na faixa da tela pelo engine e lembra a escolha.
 const RESOLUTIONS = ['720p', '1080p'];
 const FRAME_RATES = [15, 30, 60];
 

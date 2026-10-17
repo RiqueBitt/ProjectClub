@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import { handler, imageHandler } from './mock-api.mjs';
 
-// Modo reserva (Jitsi): quando /api/voice/provider responde "jitsi" (Agora
-// perto do limite mensal), entrar num canal de voz deve conectar pelo Jitsi
+// Modo reserva (Jitsi): quando /api/voice/join responde "jitsi" (servidor
+// de mídia próprio fora do ar), entrar num canal de voz deve conectar pelo Jitsi
 // e mostrar o aviso "Chamada em modo reserva" — sem deslogar ninguém.
 // Aqui o external_api.js do Jitsi é SIMULADO (stub), então o teste não
 // depende de rede nem de um iframe real. Salva captura em /tmp/claude-0/calls.
@@ -34,7 +34,7 @@ window.JitsiMeetExternalAPI = class {
 };
 `;
 
-const JITSI_PROVIDER = { provider: 'jitsi', reason: 'limite-mensal-agora', minutesUsed: 9900, limit: 10000 };
+const JITSI_PROVIDER = { provider: 'jitsi', reason: 'fallback', minutesUsed: 0, limit: null };
 const JITSI_JOIN = {
   ...JITSI_PROVIDER,
   jitsi: { domain: 'meet.jit.si', room: 'projectclub-teste-reserva', jwt: null },
