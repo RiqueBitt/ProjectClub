@@ -2378,6 +2378,10 @@ model UserSettings {
   // Preferências extras (temas coloridos, modo streamer, sons, avisos,
   // e-mails por categoria, voz...) — JSON validado em settingsController.js.
   extraPrefs  String? @db.Text
+  // Volume individual por pessoa nas chamadas: JSON { userId: 0..200 }
+  // (100 = padrão, não guardado; no máximo 500 pessoas). Segue a conta
+  // entre PC/site/celular — validado em utils/voiceVolumes.js.
+  voiceVolumes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

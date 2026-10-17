@@ -51,6 +51,7 @@ export const EXTRA_DEFAULTS = Object.freeze({
   emailSocial: true,
   emailUpdates: true,
   emailTips: true,
+  preJoinCheck: true,
   inputProfile: 'custom',
   sensitivityAuto: true,
   sensitivityDb: -60,

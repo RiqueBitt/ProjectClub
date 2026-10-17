@@ -11,6 +11,13 @@ export function setPreferredMicId(id) {
   if (id) localStorage.setItem(MIC_KEY, id); else localStorage.removeItem(MIC_KEY);
 }
 
+// Câmera escolhida (ex.: no "Testar antes de entrar") — também por aparelho.
+const CAMERA_KEY = 'voice.preferredCameraId';
+export function getPreferredCameraId() { try { return localStorage.getItem(CAMERA_KEY) || ''; } catch { return ''; } }
+export function setPreferredCameraId(id) {
+  try { if (id) localStorage.setItem(CAMERA_KEY, id); else localStorage.removeItem(CAMERA_KEY); } catch { /* sem storage */ }
+}
+
 export function getPreferredSpeakerId() { return localStorage.getItem(SPEAKER_KEY) || ''; }
 export function setPreferredSpeakerId(id) {
   if (id) localStorage.setItem(SPEAKER_KEY, id); else localStorage.removeItem(SPEAKER_KEY);

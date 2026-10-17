@@ -45,6 +45,7 @@
 //   onRemoteRemove(uid, 'audio'|'video'|'all')
 //   onError(err, info)
 import { createNoiseSuppressedTrack } from './noiseSuppressor.js';
+import { summarizeWebRtcStats, serverHost } from './connectionStats.js';
 
 let msPromise = null;
 function loadMediasoup() {
@@ -123,6 +124,7 @@ export class MediasoupEngine {
     this.disconnectedTimer = null;
     this.statsTimer = null;
     this.statsPrev = new Map(); // key -> { lost, received }
+    this.connStatsPrev = null; // contadores da última leitura do painel de conexão
   }
 
   getNode() { return null; }
@@ -510,6 +512,22 @@ export class MediasoupEngine {
     if (rtt != null) this.cb.onRtt?.(rtt);
   }
 
+  // Painel "Qualidade da conexão": leitura detalhada sob demanda (ping,
+  // perda, jitter, bitrate, codec, resolução/FPS da tela). As duas
+  // transports são PeerConnections separadas — junta as stats das duas.
+  async getConnectionStats() {
+    if (this.disposed || !this.sendTransport) return null;
+    const reports = [];
+    try { reports.push(await this.sendTransport.getStats()); } catch { /* sem stats */ }
+    try { if (this.recvTransport) reports.push(await this.recvTransport.getStats()); } catch { /* sem stats */ }
+    let screen = null;
+    const sp = this.producers.screen;
+    if (sp && !sp.closed) { try { screen = await sp.getStats(); } catch { /* ok */ } }
+    const { snapshot, counters } = summarizeWebRtcStats(reports, this.connStatsPrev, Date.now(), screen);
+    this.connStatsPrev = counters;
+    return { ...snapshot, server: serverHost(this.joinOpts?.url) };
+  }
+
   // ---------- controles ----------
   // enabled=true => quero FALAR. Espelha o estado real por onSelfMute.
   async setMicEnabled(enabled) {
@@ -536,11 +554,15 @@ export class MediasoupEngine {
     } catch (err) { this.cb.onError?.(err, { where: 'setNoiseSuppression' }); }
   }
 
-  async setCamera(on) {
+  // `deviceId`: câmera escolhida (ex.: no "Testar antes de entrar"). Vai
+  // como `ideal` — se ela sumiu, o navegador usa outra em vez de falhar.
+  async setCamera(on, { deviceId } = {}) {
     try {
       if (!on) { await this._closeProducer('camera'); this.cb.onSelfCamera?.(false); return null; }
       if (this.producers.camera) return new MediaStream([this.localTracks.camera]);
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }, audio: false });
+      const video = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } };
+      if (deviceId) video.deviceId = { ideal: deviceId };
+      const stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
       const track = stream.getVideoTracks()[0];
       await this._produceCamera(track);
       track.addEventListener('ended', () => { this._closeProducer('camera'); this.cb.onSelfCamera?.(false); });

@@ -1,6 +1,6 @@
 import { AppearanceExtras, AccessibilityMore, NotificationExtras, VoiceExtras, PrivacyExtras } from '../settings/ExtraSettings.jsx';
 import PasskeysBlock from '../settings/PasskeysBlock.jsx';
-import { setExtra, getExtra } from '../../utils/extraPrefs';
+import { setExtra, getExtra, useExtra } from '../../utils/extraPrefs';
 import { useLiveRefresh } from '../../utils/liveRefresh';
 import ProfileShopItems from '../shop/ProfileShopItems.jsx';
 import { useState, useEffect, useRef } from 'react';
@@ -2765,6 +2765,9 @@ function VoiceSettingsTab() {
         </div>
       )}
 
+      {/* Testar antes de entrar (painel de pré-entrada da chamada) */}
+      <PreJoinToggle />
+
       {/* Redutor de ruído (B) */}
       <div className="settings-block settings-toggle-row">
         <div>
@@ -2925,6 +2928,22 @@ function SIcon({ name, size = 15, strokeWidth = 2 }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="s-icon">
       <path d={S_ICONS[name]} />
     </svg>
+  );
+}
+
+// "Testar antes de entrar": painel com microfone/câmera/saída antes de
+// conectar numa chamada. Salvo na conta (extraPrefs.preJoinCheck) — é o
+// mesmo valor que o "Não mostrar de novo" do painel desliga.
+function PreJoinToggle() {
+  const on = useExtra('preJoinCheck') !== false;
+  return (
+    <div className="settings-block settings-toggle-row">
+      <div>
+        <h4>Testar antes de entrar</h4>
+        <p className="dim">Antes de entrar numa chamada, mostra um painel para escolher e testar o microfone (com medidor), a câmera (com prévia) e a saída de áudio, e decidir se entra mudo ou com a câmera ligada.</p>
+      </div>
+      <Toggle on={on} onChange={(v) => setExtra({ preJoinCheck: v })} label="Testar antes de entrar" />
+    </div>
   );
 }
 
