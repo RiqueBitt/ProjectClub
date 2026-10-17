@@ -36,6 +36,22 @@ object CrashReporter {
         }
     }
 
+    /** Trechos legíveis do tombstone (sinal, bibliotecas .so e funções da pilha). */
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.R)
+    private fun tombstoneHints(e: ApplicationExitInfo): String {
+        val bytes = e.traceInputStream?.use { it.readNBytes(256 * 1024) } ?: return ""
+        val out = LinkedHashSet<String>()
+        val sb = StringBuilder()
+        fun flush() {
+            val t = sb.toString(); sb.setLength(0)
+            if (t.length >= 5 && (t.contains(".so") || t.startsWith("SIG") || t.contains("Abort") || t.contains("abort") ||
+                    t.contains("::") || t.contains("Java_") || t.contains("signal") || t.contains("fault"))) out += t.take(160)
+        }
+        for (b in bytes) { val c = b.toInt() and 0xff; if (c in 32..126) sb.append(c.toChar()) else flush() }
+        flush()
+        return out.take(40).joinToString("\n")
+    }
+
     /** Manda (uma vez) o que fez o app fechar da última vez. */
     suspend fun sendPending(context: Context) = withContext(Dispatchers.IO) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -49,7 +65,11 @@ object CrashReporter {
                 .filter { it.timestamp > last && (it.reason == ApplicationExitInfo.REASON_CRASH_NATIVE || it.reason == ApplicationExitInfo.REASON_ANR) }
             exits.forEach { e ->
                 val kind = if (e.reason == ApplicationExitInfo.REASON_ANR) "travou (ANR)" else "queda nativa"
-                reports += "$kind: ${e.description ?: "sem descrição"}" to "pid ${e.pid} · ${e.timestamp}"
+                // Queda nativa: o Android guarda o "tombstone" (Android 12+). Ele é
+                // binário (protobuf), mas os nomes das bibliotecas/funções da pilha
+                // aparecem como texto — já dá pra saber onde quebrou.
+                val trace = runCatching { tombstoneHints(e) }.getOrNull().orEmpty()
+                reports += "$kind: ${e.description ?: "sem descrição"} (Android ${Build.VERSION.RELEASE}, ${Build.MANUFACTURER} ${Build.MODEL})" to "pid ${e.pid} · ${e.timestamp}\n$trace"
             }
             exits.maxOfOrNull { it.timestamp }?.let { prefs.edit().putLong("exitSeen", it).apply() }
         }
@@ -62,7 +82,7 @@ object CrashReporter {
                 .put("where", "android-nativo:fechou")
                 .put("path", "/app")
                 .put("message", message.take(400))
-                .put("stack", stack.take(1500))
+                .put("stack", stack.take(6000))
                 .put("version", BuildConfig.VERSION_NAME)
                 .toString().toRequestBody("application/json".toMediaType())
             ok = ok && runCatching {
