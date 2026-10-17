@@ -457,11 +457,14 @@ async function addCollectionItem(req, res, next) {
     const collection = await prisma.modCollection.findUnique({ where: { id: req.params.collectionId } });
     if (!collection) return res.status(404).json({ error: 'Coleção não encontrada.' });
     if (collection.authorId !== req.user.id) return res.status(403).json({ error: 'Sem permissão.' });
-    const { modioModId, modName } = req.body;
+    const { modioModId, modName } = req.body || {};
+    // Mesmo caso do upsertProfileItem: NaN no where = 500 do Prisma.
+    const modId = Number(modioModId);
+    if (!Number.isSafeInteger(modId) || modId <= 0) return res.status(400).json({ error: 'modioModId inválido.' });
     const item = await safeUpsert(prisma.modCollectionItem, {
-      where: { collectionId_modioModId: { collectionId: collection.id, modioModId: Number(modioModId) } },
+      where: { collectionId_modioModId: { collectionId: collection.id, modioModId: modId } },
       update: { ...(modName !== undefined ? { modName } : {}) },
-      create: { collectionId: collection.id, modioModId: Number(modioModId), modName: modName || null },
+      create: { collectionId: collection.id, modioModId: modId, modName: modName || null },
     });
     res.status(201).json({ item });
   } catch (err) { next(err); }
