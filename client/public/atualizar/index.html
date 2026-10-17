@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atualizar o Project Club</title>
+<meta name="description" content="Baixe a versão mais recente do app do Project Club.">
+<link rel="icon" href="/icon-192.png">
+<style>
+  :root { --bg:#04100f; --card:rgba(10,30,28,.85); --line:rgba(95,242,204,.22); --txt:#eafff9; --mut:#9cc9bd; --acc:#2ec4a0; --acc2:#5ff2cc; }
+  * { box-sizing:border-box; margin:0; padding:0 }
+  body { min-height:100vh; display:grid; place-items:center; padding:24px 16px; color:var(--txt);
+    font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background: radial-gradient(800px 420px at 70% 20%, rgba(46,196,160,.18), transparent 70%),
+                radial-gradient(600px 360px at 10% 100%, rgba(64,140,255,.12), transparent 70%), var(--bg); }
+  .card { width:100%; max-width:520px; padding:36px 28px; border-radius:22px; background:var(--card);
+    border:1px solid var(--line); box-shadow:0 30px 70px -25px rgba(0,0,0,.8); text-align:center }
+  .logo { width:76px; height:76px; border-radius:20px; margin:0 auto 18px; display:block; box-shadow:0 14px 34px -10px rgba(46,196,160,.6) }
+  h1 { font-size:26px; letter-spacing:-.01em; margin-bottom:8px }
+  p.sub { color:var(--mut); margin-bottom:26px }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:10px; width:100%; padding:16px 20px;
+    border:0; border-radius:14px; cursor:pointer; font:700 18px/1 inherit; color:#03221b; text-decoration:none;
+    background:linear-gradient(135deg,var(--acc2),var(--acc)); box-shadow:0 12px 30px -10px rgba(46,196,160,.7);
+    transition:transform .15s ease, box-shadow .15s ease }
+  .btn:hover { transform:translateY(-2px); box-shadow:0 16px 36px -10px rgba(46,196,160,.85) }
+  .btn:focus-visible { outline:3px solid #fff; outline-offset:3px }
+  .status { min-height:24px; margin-top:16px; color:var(--acc2); font-weight:600 }
+  .steps { text-align:left; margin-top:22px; padding:16px 18px; border-radius:14px; background:rgba(255,255,255,.03); border:1px solid rgba(95,242,204,.12); color:var(--mut); font-size:14.5px }
+  .steps ol { padding-left:20px } .steps li { margin:4px 0 }
+  .others { margin-top:20px; font-size:14px; color:var(--mut) }
+  .others a { color:var(--acc2); text-decoration:none; margin:0 6px; white-space:nowrap }
+  .others a:hover { text-decoration:underline }
+  .web { display:block; margin-top:14px; color:var(--mut); font-size:14px }
+  .web a { color:var(--txt) }
+  @media (prefers-reduced-motion: reduce) { .btn { transition:none } }
+</style>
+</head>
+<body>
+<main class="card">
+  <img class="logo" src="/icon-192.png" alt="">
+  <h1>Atualize o Project Club</h1>
+  <p class="sub">O endereço antigo foi desligado. A versão nova do app já se conecta no servidor novo — é só baixar e instalar por cima.</p>
+
+  <a id="go" class="btn" href="#" rel="noopener">⬇ Atualizar automaticamente</a>
+  <div id="status" class="status" role="status" aria-live="polite"></div>
+
+  <div class="steps">
+    <ol id="steps"></ol>
+  </div>
+
+  <div class="others">Outros sistemas:
+    <a href="https://github.com/RiqueBitt/ProjectClub/releases/latest/download/ProjectClub-Setup-Windows.exe">Windows</a>·
+    <a href="https://github.com/RiqueBitt/ProjectClub/releases/latest/download/ProjectClub-Linux.AppImage">Linux</a>·
+    <a href="https://github.com/RiqueBitt/ProjectClub/releases/latest/download/ProjectClub.apk">Android</a>
+  </div>
+  <span class="web">Ou use direto pelo navegador: <a href="/">projectclub.shardweb.app</a></span>
+</main>
+<script>
+(function () {
+  var base = 'https://github.com/RiqueBitt/ProjectClub/releases/latest/download/';
+  var ua = navigator.userAgent || '';
+  var plat = /Android/i.test(ua) ? 'android' : /Windows/i.test(ua) ? 'windows' : /Linux|X11/i.test(ua) ? 'linux' : /Mac/i.test(ua) ? 'mac' : 'windows';
+  var files = { windows: 'ProjectClub-Setup-Windows.exe', linux: 'ProjectClub-Linux.AppImage', android: 'ProjectClub.apk' };
+  var names = { windows: 'Windows', linux: 'Linux', android: 'Android', mac: 'Mac' };
+  var steps = {
+    windows: ['Clique em <b>Atualizar automaticamente</b> — o instalador baixa sozinho.', 'Feche o Project Club antigo (inclusive o ícone perto do relógio).', 'Abra o arquivo <b>ProjectClub-Setup-Windows.exe</b> baixado e pronto: ele instala por cima.'],
+    linux: ['Clique em <b>Atualizar automaticamente</b> — o AppImage baixa sozinho.', 'Feche o Project Club antigo.', 'Dê permissão de execução (<code>chmod +x ProjectClub-Linux.AppImage</code>) e abra.'],
+    android: ['Toque em <b>Atualizar automaticamente</b> — o APK baixa sozinho.', 'Abra o arquivo baixado e toque em <b>Instalar</b> (permita instalar deste navegador se pedir).'],
+    mac: ['Ainda não há app para Mac — use o Project Club pelo navegador no link abaixo.']
+  };
+  var go = document.getElementById('go'), st = document.getElementById('status');
+  document.getElementById('steps').innerHTML = steps[plat].map(function (s) { return '<li>' + s + '</li>'; }).join('');
+  if (plat === 'mac') { go.href = '/'; go.textContent = 'Abrir no navegador'; return; }
+  var url = base + files[plat];
+  go.href = url;
+  go.textContent = '⬇ Atualizar automaticamente (' + names[plat] + ')';
+  function start() { st.textContent = 'Baixando a versão mais recente para ' + names[plat] + '…'; window.location.href = url; }
+  go.addEventListener('click', function (e) { e.preventDefault(); start(); });
+  // Começa sozinho depois de um instante (o botão continua lá se o navegador bloquear).
+  setTimeout(start, 1500);
+})();
+</script>
+</body>
+</html>
