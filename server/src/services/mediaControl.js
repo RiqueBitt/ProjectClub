@@ -29,9 +29,10 @@ function controlUrl(env = process.env) {
 // Nome da sala no servidor de mídia pra um canal do Project Club. TEM que
 // ser igual ao voiceController.roomNameFor (o teste
 // server/test/voice-moderacao.test.js confere) — duplicado aqui pra este
-// serviço não depender do controller (que carrega prisma/cadeia inteira).
+// serviço não depender do controller (que carrega o prisma).
+// JITSI_ROOM_SALT é o nome antigo do sal (mantido pra não mudar as salas).
 function mediaRoomName(channelName, env = process.env) {
-  const secret = env.JITSI_ROOM_SALT || env.JWT_ACCESS_SECRET || 'projectclub';
+  const secret = env.VOICE_ROOM_SALT || env.JITSI_ROOM_SALT || env.JWT_ACCESS_SECRET || 'projectclub';
   const h = crypto.createHmac('sha256', secret).update(String(channelName)).digest('hex').slice(0, 24);
   return `pc_${h}`;
 }

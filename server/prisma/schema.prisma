@@ -2326,8 +2326,8 @@ model ClanInvite {
 // em vez de reaproveitar o Message da comunidade principal (que
 // carrega bem mais coisa junto — anexos, reações, respostas, enquetes,
 // menções — peso desnecessário pro escopo pedido aqui). O canal de voz
-// não precisa de um modelo próprio: reaproveita a cadeia de voz já
-// integrada (ver services/voiceProviders.js, /api/voice/join), usando
+// não precisa de um modelo próprio: reaproveita a voz já integrada
+// (servidor de mídia próprio, ver /api/voice/join), usando
 // "clan:<id do clã>" como nome da sala.
 model ClanMessage {
   id        String   @id @default(uuid())

@@ -150,12 +150,12 @@ missions.seedDefaultMissions().catch((err) => {
   console.error('\x1b[31m[missões]\x1b[0m seed falhou:', err.message);
 });
 missions.startVoiceMinutesTicker(io);
-// Cadeia de provedores de voz: a cada minuto soma os participantes ativos
-// ao provedor ATIVO daquele minuto (voiceusage:YYYY-MM:<provedor>), o que
-// permite a troca automática servidor próprio → LiveKit → ... → Jitsi por
-// limite mensal gratuito (ver services/voiceUsage.js e services/voiceDecision.js).
+// Voz (só o servidor de mídia próprio): aplica as chaves salvas pelo painel
+// da staff, conta os minutos do mês (telemetria do Painel de saúde) e apaga
+// as chaves antigas da cadeia de provedores que foi removida.
 require('./services/voiceCredentials').load();
-require('./services/voiceUsage').startProviderUsageTicker(io);
+require('./services/voiceUsage').startUsageTicker(io);
+require('./services/voiceLegacyCleanup').cleanupLegacyVoiceKeys();
 // Lembrete de evento 15 min antes pra quem respondeu "Eu vou".
 require('./services/eventReminders').startEventReminders(io);
 // Mensagens agendadas e lembretes pessoais (jobs leves, claim atômico).

@@ -1,45 +1,29 @@
-// Chaves dos provedores de voz configuráveis pelo PAINEL DA STAFF (sem
-// precisar mexer nas variáveis da hospedagem e reiniciar).
+// Chaves do servidor de voz PRÓPRIO (media-server/) configuráveis pelo
+// PAINEL DA STAFF ("Servidor de voz"), sem precisar mexer nas variáveis da
+// hospedagem e reiniciar.
 //
 // - Ficam no Redis CRIPTOGRAFADAS (AES-256-GCM, chave derivada do segredo
 //   do servidor) — nunca em texto puro, nunca devolvidas ao navegador
 //   (o painel só vê "definido" + os 4 últimos caracteres dos segredos).
 // - Valem por cima das variáveis de ambiente: o que a equipe salvar no
-//   painel é aplicado em process.env, que é de onde os minters de token
-//   (voiceTokens.js) e a cadeia (voiceProviders.js) já leem.
+//   painel é aplicado em process.env, que é de onde o minter de token
+//   (voiceTokens.js) já lê.
 // - Campo apagado no painel volta pro valor original da hospedagem.
+// - Chaves antigas de provedores removidos (LiveKit/Daily/TRTC/Jitsi) que
+//   ainda estejam no Redis são ignoradas na leitura.
 const crypto = require('crypto');
 const { redis } = require('../config/redis');
 
 const KEY = 'voice:credentials';
 
-// Campos editáveis por provedor. secret=true → nunca volta pro navegador.
+// Campos editáveis. secret=true → nunca volta pro navegador. (A chave
+// "projectclub" é mantida por compatibilidade com o formato antigo.)
 const FIELDS = {
   projectclub: [
     { env: 'MEDIA_SERVER_URL', label: 'URL do servidor de mídia (wss://…)' },
     { env: 'MEDIA_SERVER_SECRET', label: 'Segredo do servidor de mídia', secret: true },
     { env: 'TURN_URLS', label: 'Servidores TURN (opcional, separados por vírgula)' },
     { env: 'TURN_SECRET', label: 'Segredo do TURN (opcional)', secret: true },
-  ],
-  livekit: [
-    { env: 'LIVEKIT_URL', label: 'URL (wss://seu-projeto.livekit.cloud)' },
-    { env: 'LIVEKIT_API_KEY', label: 'API Key' },
-    { env: 'LIVEKIT_API_SECRET', label: 'API Secret', secret: true },
-    { env: 'LIVEKIT_MONTHLY_MINUTES', label: 'Minutos grátis por mês (opcional)' },
-  ],
-  daily: [
-    { env: 'DAILY_DOMAIN', label: 'Domínio (ex.: seu-time)' },
-    { env: 'DAILY_ROOM_URL', label: 'URL da sala' },
-    { env: 'DAILY_API_KEY', label: 'API Key', secret: true },
-  ],
-  trtc: [
-    { env: 'TRTC_SDK_APP_ID', label: 'SDKAppID' },
-    { env: 'TRTC_SECRET_KEY', label: 'Secret Key', secret: true },
-  ],
-  jitsi: [
-    { env: 'JITSI_DOMAIN', label: 'Domínio (padrão meet.jit.si; ex.: 8x8.vc)' },
-    { env: 'JITSI_APP_ID', label: 'App ID (JaaS, opcional)' },
-    { env: 'JITSI_APP_SECRET', label: 'Chave do JWT (JaaS, opcional)', secret: true },
   ],
 };
 
@@ -88,7 +72,7 @@ async function load() {
     saved = out;
     apply();
     const n = Object.keys(out).length;
-    if (n) console.log(`[voz] ${n} chave(s) de provedor de voz carregadas do painel da staff.`);
+    if (n) console.log(`[voz] ${n} chave(s) do servidor de voz carregadas do painel da staff.`);
   } catch (err) {
     console.warn('[voz] não deu pra carregar as chaves do painel:', err?.message || err);
   }
@@ -100,8 +84,8 @@ function mask(v) {
   return s.length <= 4 ? '••••' : `••••${s.slice(-4)}`;
 }
 
-// O que o painel mostra de um provedor (sem nunca expor segredos).
-function describe(provider) {
+// O que o painel mostra (sem nunca expor segredos).
+function describe(provider = 'projectclub') {
   return (FIELDS[provider] || []).map((f) => {
     const current = process.env[f.env];
     const fromPanel = saved[f.env] != null && String(saved[f.env]).trim() !== '';
@@ -118,9 +102,9 @@ function describe(provider) {
 
 // values: { ENV_NAME: 'novo valor' | '' (apaga = volta pro da hospedagem) }.
 // Campos ausentes não mudam.
-async function save(provider, values = {}) {
+async function save(provider = 'projectclub', values = {}) {
   const fields = FIELDS[provider];
-  if (!fields) { const e = new Error('Provedor inválido.'); e.status = 400; throw e; }
+  if (!fields) { const e = new Error('Configuração inválida.'); e.status = 400; throw e; }
   const allowed = new Set(fields.map((f) => f.env));
   const next = { ...saved };
   for (const [name, raw] of Object.entries(values || {})) {

@@ -20,17 +20,16 @@ async function timed(fn) {
 
 async function checkAll() {
   const { redis } = require('../config/redis');
-  const providers = require('./voiceProviders');
   const [db, rt] = await Promise.all([
     timed(() => prisma.$queryRaw`SELECT 1`),
     timed(() => redis.ping()),
   ]);
-  const voiceOk = providers.PROVIDER_ORDER.some((id) => providers.isAvailable(id));
+  const voiceOk = require('./voiceTokens').isConfigured();
   return {
     api: { ok: true, ms: 0 },
     database: db,
     realtime: rt,
-    voice: { ok: voiceOk, ms: null, error: voiceOk ? null : 'nenhum provedor de voz disponível' },
+    voice: { ok: voiceOk, ms: null, error: voiceOk ? null : 'servidor de voz não configurado (MEDIA_SERVER_URL/MEDIA_SERVER_SECRET)' },
   };
 }
 
