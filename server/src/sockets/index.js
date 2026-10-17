@@ -593,7 +593,7 @@ function initSockets(httpServer) {
           // e services/voiceUsage.js). joinedAt marca o início pra duração.
           // Cadeia de provedores: o provedor ATIVO agora (Agora → LiveKit →
           // ... → Jitsi) é decidido no servidor (services/voiceDecision.js).
-          const dmProvider = await voiceUsage.resolveActiveProvider();
+          const dmProvider = await voiceUsage.resolveActiveProvider(channelId);
           await voiceStore.setParticipant(channelId, userId, { socketId: socket.id, conversationId, muted: false, deafened: false, video: false, screenSharing: false, role: 'speaker', provider: dmProvider, joinedAt: Date.now() });
           socket.join(`voice:${channelId}`);
 
@@ -756,7 +756,7 @@ function initSockets(httpServer) {
         // Provedor de mídia desta entrada (Agora/Jitsi) + início, pra contar
         // minutos na saída (ver leaveVoice e services/voiceUsage.js). O
         // provedor ativo vem da cadeia (services/voiceDecision.js).
-        const joinProvider = await voiceUsage.resolveActiveProvider();
+        const joinProvider = await voiceUsage.resolveActiveProvider(channelId);
         await voiceStore.setParticipant(channelId, userId, {
           socketId: socket.id,
           muted: startMuted, deafened: false, video: false, screenSharing: false, role,

@@ -22,11 +22,29 @@ const ROOM_TTL = 6 * 3600;
 
 async function epoch() { try { return (await redis.get(EPOCH_KEY)) || '0'; } catch { return '0'; } }
 async function bumpEpoch() { try { await redis.incr(EPOCH_KEY); } catch { /* sem Redis: sem fixação */ } }
-async function getRoomProvider(room) {
-  try { return (await redis.get(`voice:roomprov:${await epoch()}:${room}`)) || null; } catch { return null; }
+// Valor gravado: "<provedor>|<quando>" (ms). O "quando" diz se a fixação é
+// recentíssima — alguém acabou de pedir /api/voice/join e ainda não aparece
+// na lista da sala; quem chegar nesses segundos vai pro MESMO provedor.
+// Valores antigos (só o id) continuam valendo.
+function parseRoomProvider(raw) {
+  if (!raw) return null;
+  const [provider, at] = String(raw).split('|');
+  if (!providers.PROVIDERS[provider]) return null;
+  return { provider, at: Number(at) || 0 };
 }
-async function setRoomProvider(room, provider) {
-  try { await redis.set(`voice:roomprov:${await epoch()}:${room}`, provider, 'EX', ROOM_TTL); } catch { /* opcional */ }
+async function getRoomProviderInfo(room) {
+  try { return parseRoomProvider(await redis.get(`voice:roomprov:${await epoch()}:${room}`)); } catch { return null; }
+}
+async function getRoomProvider(room) {
+  const info = await getRoomProviderInfo(room);
+  return info ? info.provider : null;
+}
+async function setRoomProvider(room, provider, now = Date.now()) {
+  try { await redis.set(`voice:roomprov:${await epoch()}:${room}`, `${provider}|${now}`, 'EX', ROOM_TTL); } catch { /* opcional */ }
+}
+// Renova o prazo sem mexer no valor (chamada longa não perde a fixação).
+async function touchRoomProvider(room) {
+  try { await redis.expire(`voice:roomprov:${await epoch()}:${room}`, ROOM_TTL); } catch { /* opcional */ }
 }
 
 async function getOverride() {
@@ -92,7 +110,10 @@ async function setDisabled(provider, disabled) {
 
 module.exports = {
   getRoomProvider,
+  getRoomProviderInfo,
+  parseRoomProvider,
   setRoomProvider,
+  touchRoomProvider,
   bumpEpoch,
   OVERRIDE_KEY,
   DISABLED_KEY,

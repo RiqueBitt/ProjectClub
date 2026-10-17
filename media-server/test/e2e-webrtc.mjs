@@ -163,6 +163,46 @@ try {
   await C.evaluate(() => window.engine.dispose());
   await ctxC.close();
 
+  console.log('\n[7e] Worker do mediasoup morre → servidor segue vivo, os dois reconectam e voltam a se ouvir');
+  {
+    const aBefore = await A.evaluate(() => window.events.filter((e) => e.type === 'remoteAudio' && e.a[0] === 'beto').length);
+    const bBefore = await B.evaluate(() => window.events.filter((e) => e.type === 'remoteAudio' && e.a[0] === 'ana').length);
+    const recA = await A.evaluate(() => window.events.filter((e) => e.type === 'reconnected').length);
+    const oldPid = rooms.aliveWorkers()[0].worker.pid;
+    process.kill(oldPid, 'SIGKILL');
+    await waitFor(A, (ev) => ev.filter((e) => e.type === 'reconnected').length > recA, 'Ana: reconectou depois da queda do worker', 20000);
+    await waitFor(A, (ev) => ev.filter((e) => e.type === 'remoteAudio' && e.a[0] === 'beto').length > aBefore, 'Ana volta a receber o áudio do Beto', 15000);
+    await waitFor(B, (ev) => ev.filter((e) => e.type === 'remoteAudio' && e.a[0] === 'ana').length > bBefore, 'Beto volta a receber o áudio da Ana', 15000);
+    assert(rooms.aliveWorkers().length === 1 && rooms.aliveWorkers()[0].worker.pid !== oldPid, 'worker novo no lugar do morto');
+    await sleep(2500);
+    const rx1 = await A.evaluate(() => window.bytesReceived());
+    await sleep(1500);
+    const rx2 = await A.evaluate(() => window.bytesReceived());
+    assert(rx2 > rx1, `RTP voltou a chegar pela sala nova (${rx1} → ${rx2} B)`);
+    assert(!(await A.evaluate(() => window.events.some((e) => e.type === 'left'))), 'Ana NÃO foi derrubada (sem onLeft)');
+  }
+
+  console.log('\n[7f] Mesma pessoa em 2 aparelhos → o antigo sai de vez, sem ping-pong');
+  {
+    const ctxD1 = await browser.newContext(); const D1 = await ctxD1.newPage();
+    const ctxD2 = await browser.newContext(); const D2 = await ctxD2.newPage();
+    await D1.goto(PAGE); await D2.goto(PAGE);
+    await D1.evaluate(({ url, token, userId }) => window.joinRoom({ url, token, userId }), { url: WS, token: token('duda', 'Duda'), userId: 'duda' });
+    await waitFor(D1, (ev) => ev.some((e) => e.type === 'joined'), 'Duda (aparelho 1) entrou');
+    const tokD2 = jwt.sign({ sub: 'duda', room: 'pc_e2e', name: 'Duda', jti: 'aparelho-2' }, SECRET, { algorithm: 'HS256', expiresIn: '10m' });
+    await D2.evaluate(({ url, token, userId }) => window.joinRoom({ url, token, userId }), { url: WS, token: tokD2, userId: 'duda' });
+    await waitFor(D2, (ev) => ev.some((e) => e.type === 'joined'), 'Duda (aparelho 2) entrou');
+    await waitFor(D1, (ev) => ev.some((e) => e.type === 'left'), 'aparelho 1 recebeu onLeft (substituído)');
+    await sleep(3000);
+    const peerDuda = rooms.rooms.get('pc_e2e')?.peers.get('duda');
+    assert(peerDuda && peerDuda.session === 'aparelho-2', 'a vaga continua com o aparelho 2 depois de 3s');
+    assert(!(await D2.evaluate(() => window.events.some((e) => e.type === 'left'))), 'aparelho 2 não foi derrubado');
+    await waitFor(A, (ev) => ev.some((e) => e.type === 'remoteAudio' && e.a[0] === 'duda' && e.a[1].active), 'Ana ouve a Duda (aparelho 2)');
+    await D2.evaluate(() => window.engine.dispose());
+    await ctxD1.close(); await ctxD2.close();
+    await waitFor(A, (ev) => ev.some((e) => e.type === 'mediaUser' && e.a[0] === 'duda' && e.a[1] === false), 'Duda saiu da sala');
+  }
+
   console.log('\n[8] Beto sai → Ana limpa');
   await B.evaluate(() => window.engine.dispose());
   await waitFor(A, (ev) => ev.some((e) => e.type === 'remoteRemove' && e.a[0] === 'beto' && e.a[1] === 'all'), 'Ana: onRemoteRemove(beto, all)');

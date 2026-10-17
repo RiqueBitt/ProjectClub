@@ -15,11 +15,14 @@ o Project Club (backend) continua dono das contas, salas e permissões; este ser
 2. **Firewall** (abra):
    - `80`, `443` TCP — Caddy (TLS + sinalização `wss://`)
    - `3478` UDP+TCP — coturn (STUN/TURN)
-   - `40000–40999` UDP+TCP — mediasoup (mídia)
-   - `49160–49200` UDP — coturn (relay)
+   - `5349` TCP — coturn (TURN sobre TLS, pra redes que só deixam TLS passar)
+   - `40000–40999` UDP+TCP — mediasoup (mídia; `40000+N` = WebRtcServer do worker N)
+   - `49152–49999` UDP — coturn (relay)
    ```bash
-   ufw allow 80,443/tcp && ufw allow 3478 && ufw allow 40000:40999/udp && ufw allow 40000:40999/tcp && ufw allow 49160:49200/udp
+   ufw allow 80,443/tcp && ufw allow 3478 && ufw allow 5349/tcp && ufw allow 40000:40999/udp && ufw allow 40000:40999/tcp && ufw allow 49152:49999/udp
    ```
+   Numa VM que já está no ar, o `scripts/vm-voz-robusta.sh` faz tudo isso (firewall,
+   buffers UDP, certificado do TURN/TLS, `.env`) de forma idempotente.
 3. **Configurar**:
    ```bash
    git clone <repo> && cd media-server
@@ -34,7 +37,7 @@ o Project Club (backend) continua dono das contas, salas e permissões; este ser
 |---|---|
 | `MEDIA_SERVER_URL` | `wss://media.seudominio.com/ws` |
 | `MEDIA_SERVER_SECRET` | o mesmo `MEDIA_SERVER_SECRET` do `.env` |
-| `TURN_URLS` | `turn:media.seudominio.com:3478?transport=udp,turn:media.seudominio.com:3478?transport=tcp` |
+| `TURN_URLS` | `turn:media.seudominio.com:3478?transport=udp,turn:media.seudominio.com:3478?transport=tcp,turns:media.seudominio.com:5349?transport=tcp` |
 | `TURN_SECRET` | o mesmo `TURN_SECRET` do `.env` |
 | `STUN_URLS` *(opcional)* | `stun:media.seudominio.com:3478` |
 
@@ -57,6 +60,15 @@ Com `MEDIA_SERVER_URL` + `MEDIA_SERVER_SECRET` definidos, o provedor **"Project 
 
 ## Operação
 
-- `GET /health` — status (público). `GET /stats` com header `x-media-secret` — salas e participantes.
-- Logs: `docker compose logs -f media`. Reinício automático se um worker morrer.
+- `GET /health` — status (público; **503** sem worker vivo). `GET /stats` com header `x-media-secret` — salas e participantes (`?deep=1`: ICE/DTLS e bytes por consumer).
+- Logs: `docker compose logs -f media`.
+- **Worker do mediasoup morreu**: as salas dele fecham com código `1012` (o cliente reconecta sozinho numa sala nova)
+  e um worker novo sobe no lugar — o processo NÃO cai. Só se morrerem mais de 5 em 1 minuto o processo sai e o docker reinicia.
+- **Mesma pessoa em 2 aparelhos**: o mais novo fica; a sessão antiga é recusada (`4409`) se tentar voltar com o mesmo token
+  e, se os dois ficarem trocando de lugar (>3 trocas/min), a troca é bloqueada por 30s — acaba o "saiu/entrou" em loop.
+- **Saúde no Project Club**: o backend testa `GET /health` a cada 30s; 2 falhas seguidas tiram o servidor próprio da cadeia
+  até ele voltar, e falhas reportadas por 2+ pessoas em 5 min desarmam qualquer provedor por 10 min (dobra a cada queda;
+  ver `server/src/services/voiceHealth.js`).
+- Códigos de fechamento da sinalização: `4401` token (detalhe `expired`/`invalid`), `4409` substituído (não reconectar),
+  `4429` muitas conexões, `4503` sala cheia/indisponível, `1012` reiniciando (reconectar), `1008` flood.
 - Dimensionamento: ~50 kbps por áudio, 300–1500 kbps por vídeo/tela **por ouvinte**. 10 pessoas em áudio ≈ 4,5 Mbps de saída.

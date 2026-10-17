@@ -1,6 +1,14 @@
-# TLS automático (Let's Encrypt) pro domínio do servidor de mídia e proxy
-# da sinalização WebSocket. O domínio vem de MEDIA_DOMAIN no .env.
+# TLS automático (Let's Encrypt/ZeroSSL) pro domínio do servidor de mídia e
+# proxy da sinalização WebSocket. O domínio vem de MEDIA_DOMAIN no .env.
 {$MEDIA_DOMAIN} {
-	encode zstd gzip
-	reverse_proxy 127.0.0.1:{$MEDIA_PORT:4443}
+	reverse_proxy 127.0.0.1:{$MEDIA_PORT:4443} {
+		# Recarregar a config do Caddy (ex.: renovação/ajuste) NÃO derruba as
+		# chamadas em andamento na hora: os WebSockets abertos ganham 5 min.
+		stream_close_delay 5m
+		# Servidor de mídia reiniciando (deploy/worker): segura a conexão nova
+		# por até 10s esperando ele voltar, em vez de responder 502 na hora —
+		# a reconexão automática do cliente entra de primeira.
+		lb_try_duration 10s
+		lb_try_interval 250ms
+	}
 }
