@@ -41,6 +41,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Chamada de voz começou/terminou: com chamada ativa o app não reduz a
   // prioridade da janela em segundo plano (áudio e timers em dia).
   setVoiceCallActive: (active) => ipcRenderer.send('voice:active', !!active),
+  // Som do PC na transmissão de tela, no Linux (PipeWire/venmic). Fluxo do
+  // site: `await supported()` → `await start()` → getUserMedia no
+  // dispositivo cujo rótulo contém 'vencord-screen-share' → `stop()` ao
+  // parar de transmitir. Ver docs/voz-discord-api.md ("Desktop: áudio da tela").
+  screenAudio: {
+    supported: () => ipcRenderer.invoke('screen-audio:supported').catch(() => false),
+    start: () => ipcRenderer.invoke('screen-audio:start'),
+    stop: () => ipcRenderer.invoke('screen-audio:stop'),
+    deviceLabel: 'vencord-screen-share',
+  },
   // Item pedido: "crie uma barra que não seja do Windows, de fechar
   // aba, minimizar, aumentar etc" — API exposta pro TitleBar.jsx.
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
