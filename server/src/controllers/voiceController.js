@@ -127,6 +127,10 @@ const STICKY_FRESH_MS = 90 * 1000;
 async function getJoin(req, res, next) {
   try {
     const channelName = await assertRoomAccess(req, req.query.channelName);
+    // Permissões de mídia (falar/vídeo/palco/mudo da moderação) que vão no
+    // token, e limite de usuários do canal (cheio → 403 'channel-full').
+    const joinPolicy = await require('../services/voiceJoinPolicy').evaluate(req.user, channelName);
+    if (joinPolicy.error) return res.status(joinPolicy.error.status).json({ error: joinPolicy.error.message, code: joinPolicy.error.code });
     const state = await currentDecision(req);
     // O cliente anuncia quais provedores o engine dele sabe usar hoje
     // (clientReady=projectclub,livekit,jitsi). A cadeia PULA, só pra ESTE join,
@@ -194,7 +198,7 @@ async function getJoin(req, res, next) {
     if (provider === 'projectclub') {
       // Servidor de mídia próprio (media-server/): JWT pra sinalização +
       // servidores ICE (STUN/TURN com credencial temporária).
-      const creds = tokens.mintProjectClub({ room, userId, name });
+      const creds = tokens.mintProjectClub({ room, userId, name, claims: joinPolicy.claims });
       if (!creds) return fallbackJitsi(res, payload, channelName, userId, name);
       payload.projectclub = creds;
     } else if (provider === 'livekit') {

@@ -3,7 +3,7 @@ const { Server } = require('socket.io');
 const { verifyAccessToken } = require('../services/tokens');
 const prisma = require('../config/prisma');
 const env = require('../config/env');
-const { getEffectivePermissions, channelHasRestrictions } = require('../services/authz');
+const { getEffectivePermissions, channelHasRestrictions, getRoleCeiling } = require('../services/authz');
 const { has } = require('../services/permissions');
 const { messageInclude } = require('../controllers/messageController');
 const presenceStore = require('../services/presenceStore');
@@ -18,6 +18,9 @@ const ytWatch = require('./ytWatch');
 const { initSledRacing } = require('./sledRacing');
 const { visibleStatus, installSocketMasking } = require('../utils/presenceVisibility');
 const { createTokenBucket } = require('../utils/tokenBucket');
+const mediaControl = require('../services/mediaControl');
+const voiceModeration = require('../services/voiceModeration');
+const { createSpeakingRelay } = require('../utils/speakingRelay');
 
 // Quem está online agora (Redis) — lido no máximo a cada 5s e
 // compartilhado entre conexões: depois de um deploy, centenas de sockets
@@ -526,7 +529,18 @@ function initSockets(httpServer) {
     // opaque SDP/ICE payloads between exact peers. No media ever touches
     // the server.
 
-    socket.on('voice:join', async ({ channelId }) => {
+    // Trava por pessoa+canal: dois voice:join iguais ao mesmo tempo (clique
+    // duplo, aba duplicada, reenvio de rede) rodam um DEPOIS do outro — o
+    // segundo cai na reconciliação (pessoa já na sala) e o voice:user-joined
+    // nunca sai duas vezes. Ver voiceRoomStore.withLock.
+    socket.on('voice:join', (payload) => {
+      const channelId = payload && payload.channelId;
+      if (typeof channelId !== 'string' || !channelId) return undefined;
+      return voiceStore.withLock(`join:${userId}:${channelId}`, () => handleVoiceJoin(payload))
+        .catch((err) => console.error('[socket] voice:join falhou:', err?.message || err));
+    });
+
+    const handleVoiceJoin = async ({ channelId }) => {
       try {
         // DM/group-DM calls: reuse this exact same voice room/mesh/signaling
         // machinery (it's already generic — id in, room Map out) instead of
@@ -563,7 +577,7 @@ function initSockets(httpServer) {
             const roomNow = await voiceStore.getRoom(channelId);
             const rosterForSelf = Object.entries(roomNow)
               .filter(([uid]) => uid !== userId)
-              .map(([uid, p]) => ({ userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role }));
+              .map(([uid, p]) => ({ userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role, serverMuted: !!p.serverMuted, serverDeafened: !!p.serverDeafened }));
             socket.emit('voice:joined', { channelId, participants: rosterForSelf, myRole: existingDmSelf.role || 'speaker' });
             return;
           }
@@ -605,7 +619,7 @@ function initSockets(httpServer) {
           const existingParticipants = Object.entries(roomAfter)
             .filter(([uid]) => uid !== userId)
             .map(([uid, p]) => ({
-              userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role,
+              userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role, serverMuted: !!p.serverMuted, serverDeafened: !!p.serverDeafened,
             }));
 
           socket.emit('voice:joined', { channelId, participants: existingParticipants, myRole: 'speaker' });
@@ -632,13 +646,20 @@ function initSockets(httpServer) {
                 io.to(sid).emit('dm-call:ringing', { conversationId, channelId, fromUserId: userId, callerName: caller?.displayName || 'Alguém' });
               });
             }));
+            // Ninguém atendeu em 60s: a chamada termina como perdida (igual
+            // ao Discord) e os dois lados são avisados (dm-call:missed).
+            scheduleDmRingTimeout(channelId, conversationId, messageId);
           } else {
+            // Atendeu num aparelho: os OUTROS aparelhos da mesma pessoa param
+            // de tocar na hora.
+            io.to(`user:${userId}`).emit('dm-call:answered', { conversationId, channelId, byUserId: userId });
             // Someone else joining an in-progress/ringing call counts as it
             // being answered — flip the embed from "está ligando..." to
             // "em andamento" once, the first time this happens.
             const state = await voiceStore.getDmCallState(channelId);
             if (state && !state.answered) {
               await voiceStore.updateDmCallState(channelId, { answered: true });
+              clearDmRingTimeout(channelId);
               updateCallMessage(io, { conversationId, messageId: state.messageId, description: 'Chamada em andamento', color: '#23a55a' }).catch(() => {});
             }
           }
@@ -714,19 +735,21 @@ function initSockets(httpServer) {
           const roomNow = await voiceStore.getRoom(channelId);
           const rosterForSelf = Object.entries(roomNow)
             .filter(([uid]) => uid !== userId)
-            .map(([uid, p]) => ({ userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role }));
+            .map(([uid, p]) => ({ userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role, serverMuted: !!p.serverMuted, serverDeafened: !!p.serverDeafened }));
           socket.emit('voice:joined', { channelId, participants: rosterForSelf, myRole: existingSelf.role || 'speaker' });
           return;
         }
 
-        const roomSizeBefore = await voiceStore.roomSize(channelId);
-        if (roomSizeBefore === 0) await voiceStore.setStartedAt(channelId, Date.now());
-
-        // See Channel.userLimit in schema.prisma — a entrada já tratada
-        // acima (reconciliação) nunca chega até aqui, então esse "cheio"
-        // só bloqueia gente genuinamente nova de verdade.
-        if (channel.userLimit && roomSizeBefore >= channel.userLimit) {
-          socket.emit('voice:join-denied', { channelId, reason: 'Este canal de voz está cheio.' });
+        // Limite de usuários (Channel.userLimit): a entrada já tratada acima
+        // (reconciliação) nunca chega até aqui, então o "cheio" só bloqueia
+        // gente nova de verdade. Quem tem MOVER MEMBROS fura o limite (igual
+        // ao Discord), e quem acabou de ser movido por um moderador também.
+        // A checagem que VALE é a atômica lá embaixo (addParticipantIfRoom);
+        // esta só evita sair do canal atual à toa quando já está cheio.
+        const limitBypass = has(perms, 'MOVE_MEMBERS') || await voiceStore.hasMoveTicket(userId, channelId);
+        const effectiveLimit = limitBypass ? 0 : (Number(channel.userLimit) || 0);
+        if (effectiveLimit && (await voiceStore.roomSize(channelId)) >= effectiveLimit) {
+          socket.emit('voice:join-denied', { channelId, reason: 'Canal cheio', code: 'channel-full' });
           return;
         }
 
@@ -761,26 +784,41 @@ function initSockets(httpServer) {
         // minutos na saída (ver leaveVoice e services/voiceUsage.js). O
         // provedor ativo vem da cadeia (services/voiceDecision.js).
         const joinProvider = await voiceUsage.resolveActiveProvider(channelId);
-        await voiceStore.setParticipant(channelId, userId, {
+        // Mudo/ensurdecer DA MODERAÇÃO valem em qualquer canal da comunidade
+        // até alguém tirar (ver voice:server-mute) — o servidor de mídia
+        // também recebe isso nas claims do token.
+        const mod = channelId.startsWith('clan:') ? { serverMuted: false, serverDeafened: false } : await voiceStore.getModState(userId);
+        const added = await voiceStore.addParticipantIfRoom(channelId, userId, {
           socketId: socket.id,
-          muted: startMuted, deafened: false, video: false, screenSharing: false, role,
+          muted: startMuted || mod.serverMuted || mod.serverDeafened, deafened: mod.serverDeafened, video: false, screenSharing: false, role,
+          serverMuted: mod.serverMuted, serverDeafened: mod.serverDeafened,
           lastActiveAt: Date.now(),
           provider: joinProvider, joinedAt: Date.now(),
-        });
+        }, effectiveLimit);
+        if (added.status === 'full') {
+          // Corrida: outra pessoa pegou o último lugar entre a checagem e a entrada.
+          socket.emit('voice:join-denied', { channelId, reason: 'Canal cheio', code: 'channel-full' });
+          return;
+        }
+        if (added.status === 'added' && added.size === 1) await voiceStore.setStartedAt(channelId, Date.now());
         socket.join(`voice:${channelId}`);
+        if (mod.serverMuted || mod.serverDeafened) {
+          io.to(`user:${userId}`).emit('voice:server-state', { channelId, serverMuted: mod.serverMuted, serverDeafened: mod.serverDeafened });
+        }
 
         const roomAfter = await voiceStore.getRoom(channelId);
         const existingParticipants = Object.entries(roomAfter)
           .filter(([uid]) => uid !== userId)
           .map(([uid, p]) => ({
-            userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role,
+            userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role, serverMuted: !!p.serverMuted, serverDeafened: !!p.serverDeafened,
           }));
 
         socket.emit('voice:joined', { channelId, participants: existingParticipants, myRole: role });
-        socket.to(`voice:${channelId}`).emit('voice:user-joined', { channelId, userId, role });
+        // Só avisa os outros quando a entrada é NOVA de verdade.
+        if (added.status === 'added') socket.to(`voice:${channelId}`).emit('voice:user-joined', { channelId, userId, role });
         await broadcastRoster(io, channelId);
       } catch (err) { console.error('[socket] voice:join falhou:', err?.message || err); }
-    });
+    };
 
     // Reconciliação periódica (cliente em chamada manda a cada ~20s e ao
     // voltar pra aba): o servidor é a fonte da verdade. Se a pessoa ainda
@@ -806,7 +844,7 @@ function initSockets(httpServer) {
         const roomNow = await voiceStore.getRoom(channelId);
         const list = Object.entries(roomNow)
           .filter(([uid]) => uid !== userId)
-          .map(([uid, p]) => ({ userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role }));
+          .map(([uid, p]) => ({ userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role, serverMuted: !!p.serverMuted, serverDeafened: !!p.serverDeafened }));
         socket.emit('voice:joined', { channelId, participants: list, myRole: self.role || 'speaker', sync: true });
         ytWatch.sendState(socket, channelId); // "Assistir juntos": estado atual do vídeo
       } catch (err) { console.error('[socket] voice:sync falhou:', err?.message || err); }
@@ -833,7 +871,7 @@ function initSockets(httpServer) {
           }
           const room = await voiceStore.getRoom(channelId);
           const participants = Object.entries(room).map(([uid, p]) => ({
-            userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role,
+            userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role, serverMuted: !!p.serverMuted, serverDeafened: !!p.serverDeafened,
           }));
           if (participants.length === 0) continue;
           out[channelId] = { participants, startedAt: (await voiceStore.getStartedAt(channelId)) || null };
@@ -879,7 +917,96 @@ function initSockets(httpServer) {
         const updated = await voiceStore.updateParticipant(channelId, targetUserId, { role: nextRole, muted: nextRole === 'audience' });
         io.to(`voice:${channelId}`).emit('voice:role-update', { channelId, userId: targetUserId, role: updated.role, muted: updated.muted });
         await broadcastRoster(io, channelId);
+        // O servidor de mídia aplica o papel: plateia não publica nada;
+        // palestrante fala/transmite conforme SPEAK/VIDEO dele no canal.
+        const ch = await prisma.channel.findUnique({ where: { id: channelId } }).catch(() => null);
+        const tPerms = ch ? await getEffectivePermissions(targetUserId, channelId, ch).catch(() => 0n) : 0n;
+        const speaker = nextRole === 'speaker';
+        mediaControl.sendControl({
+          channelId, peerId: targetUserId, action: 'set-perms',
+          perms: { role: nextRole, canSpeak: speaker && has(tPerms, 'SPEAK'), canVideo: speaker && has(tPerms, 'VIDEO') },
+        });
       } catch (err) { /* ignore malformed signaling */ }
+    });
+
+    // ---------- Moderação de voz do servidor (igual ao Discord) ----------
+    // Silenciar/Ensurdecer no servidor (MUTE_MEMBERS/DEAFEN_MEMBERS), Mover
+    // para… e Desconectar (MOVE_MEMBERS), respeitando a hierarquia de cargos
+    // (services/voiceModeration.js). Vale NA MÍDIA também (mediaControl →
+    // POST /control do servidor de mídia), não só na interface.
+    // `ack` opcional: ({ ok, error }).
+    const modBucket = createTokenBucket({ capacity: 10, refillPerSec: 2 });
+    const modDeps = { prisma, getEffectivePermissions, getRoleCeiling, voiceStore };
+    const modReply = (ack, body) => { if (typeof ack === 'function') { try { ack(body); } catch { /* ok */ } } };
+
+    async function applyServerModeration(channelId, targetId, patch) {
+      const mod = await voiceStore.setModState(targetId, patch);
+      const cur = await voiceStore.getParticipant(channelId, targetId);
+      const roomPatch = { serverMuted: mod.serverMuted, serverDeafened: mod.serverDeafened };
+      // Silenciado/ensurdecido pela moderação aparece mudo pra todo mundo;
+      // quando tira, o mudo próprio volta a valer (o cliente reenvia).
+      if (mod.serverMuted || mod.serverDeafened) roomPatch.muted = true;
+      if (mod.serverDeafened) roomPatch.deafened = true;
+      const updated = cur ? await voiceStore.updateParticipant(channelId, targetId, roomPatch) : null;
+      if (updated) {
+        io.to(`voice:${channelId}`).emit('voice:state', {
+          channelId, userId: targetId, muted: updated.muted, deafened: updated.deafened,
+          video: updated.video, screenSharing: updated.screenSharing,
+          serverMuted: !!updated.serverMuted, serverDeafened: !!updated.serverDeafened,
+        });
+        broadcastRoster(io, channelId).catch(() => {});
+      }
+      io.to(`user:${targetId}`).emit('voice:server-state', { channelId, serverMuted: mod.serverMuted, serverDeafened: mod.serverDeafened });
+      const order = mediaControl.moderationOrder(mod);
+      mediaControl.sendControl({ channelId, peerId: targetId, action: order.action, perms: order.perms });
+      return mod;
+    }
+
+    socket.on('voice:server-mute', async ({ channelId, userId: targetId, muted } = {}, ack) => {
+      try {
+        if (!modBucket()) return modReply(ack, { ok: false, error: 'Muitas ações seguidas — aguarde.' });
+        const auth = await voiceModeration.authorize({ actorId: userId, channelId, targetId, action: 'server-mute' }, modDeps);
+        if (!auth.ok) return modReply(ack, auth);
+        const mod = await applyServerModeration(channelId, targetId, { serverMuted: !!muted });
+        return modReply(ack, { ok: true, ...mod });
+      } catch (err) { console.error('[socket] voice:server-mute falhou:', err?.message || err); return modReply(ack, { ok: false, error: 'Falhou.' }); }
+    });
+
+    socket.on('voice:server-deafen', async ({ channelId, userId: targetId, deafened } = {}, ack) => {
+      try {
+        if (!modBucket()) return modReply(ack, { ok: false, error: 'Muitas ações seguidas — aguarde.' });
+        const auth = await voiceModeration.authorize({ actorId: userId, channelId, targetId, action: 'server-deafen' }, modDeps);
+        if (!auth.ok) return modReply(ack, auth);
+        const mod = await applyServerModeration(channelId, targetId, { serverDeafened: !!deafened });
+        return modReply(ack, { ok: true, ...mod });
+      } catch (err) { console.error('[socket] voice:server-deafen falhou:', err?.message || err); return modReply(ack, { ok: false, error: 'Falhou.' }); }
+    });
+
+    socket.on('voice:move', async ({ channelId, userId: targetId, toChannelId } = {}, ack) => {
+      try {
+        if (!modBucket()) return modReply(ack, { ok: false, error: 'Muitas ações seguidas — aguarde.' });
+        const auth = await voiceModeration.authorize({ actorId: userId, channelId, targetId, action: 'move', toChannelId }, modDeps);
+        if (!auth.ok) return modReply(ack, auth);
+        // Pode entrar no destino mesmo cheio (por 60s) e o cliente troca de
+        // canal sozinho; a sessão de mídia antiga é derrubada no servidor.
+        await voiceStore.grantMoveTicket(targetId, toChannelId);
+        io.to(`user:${targetId}`).emit('voice:force-move', { channelId: toChannelId, fromChannelId: channelId, byUserId: userId });
+        await leaveVoice(io, null, channelId, targetId);
+        mediaControl.sendControl({ channelId, peerId: targetId, action: 'kick', reason: 'moved' });
+        return modReply(ack, { ok: true });
+      } catch (err) { console.error('[socket] voice:move falhou:', err?.message || err); return modReply(ack, { ok: false, error: 'Falhou.' }); }
+    });
+
+    socket.on('voice:disconnect', async ({ channelId, userId: targetId } = {}, ack) => {
+      try {
+        if (!modBucket()) return modReply(ack, { ok: false, error: 'Muitas ações seguidas — aguarde.' });
+        const auth = await voiceModeration.authorize({ actorId: userId, channelId, targetId, action: 'disconnect' }, modDeps);
+        if (!auth.ok) return modReply(ack, auth);
+        io.to(`user:${targetId}`).emit('voice:force-disconnect', { channelId, byUserId: userId });
+        await leaveVoice(io, null, channelId, targetId);
+        mediaControl.sendControl({ channelId, peerId: targetId, action: 'kick', reason: 'disconnected' });
+        return modReply(ack, { ok: true });
+      } catch (err) { console.error('[socket] voice:disconnect falhou:', err?.message || err); return modReply(ack, { ok: false, error: 'Falhou.' }); }
     });
 
     // BUG CORRIGIDO ("entro pelo celular e o PC me derruba da call"): o
@@ -947,12 +1074,18 @@ function initSockets(httpServer) {
       socket.to(`voice:${channelId}`).emit('voice:entry-sound', { channelId, userId, sound });
     });
 
-    socket.on('voice:state', async ({ channelId, muted, deafened, video, screenSharing }) => {
+    socket.on('voice:state', async ({ channelId, muted, deafened, video, screenSharing } = {}) => {
       const patch = {};
       if (muted !== undefined) patch.muted = !!muted;
       if (deafened !== undefined) patch.deafened = !!deafened;
       if (video !== undefined) patch.video = !!video;
       if (screenSharing !== undefined) patch.screenSharing = !!screenSharing;
+      const current = await voiceStore.getParticipant(channelId, userId);
+      if (!current) return;
+      // Plateia do palco e quem foi silenciado/ensurdecido pela moderação
+      // não se desmutam só mandando muted:false (o servidor manda).
+      if (patch.muted === false && (current.role === 'audience' || current.serverMuted || current.serverDeafened)) delete patch.muted;
+      if (patch.deafened === false && current.serverDeafened) delete patch.deafened;
       const updated = await voiceStore.updateParticipant(channelId, userId, patch);
       if (!updated) return;
       // Bug fix: this used to be `io.to(...)`, which includes the sender —
@@ -965,6 +1098,7 @@ function initSockets(httpServer) {
       socket.to(`voice:${channelId}`).emit('voice:state', {
         channelId, userId, muted: updated.muted, deafened: updated.deafened,
         video: updated.video, screenSharing: updated.screenSharing,
+        serverMuted: !!updated.serverMuted, serverDeafened: !!updated.serverDeafened,
       });
       // BUG CORRIGIDO ("está transmitindo mas não aparece na prévia"):
       // mudo/câmera/tela nunca atualizavam a lista pública das salas
@@ -981,12 +1115,27 @@ function initSockets(httpServer) {
     // browsing text channels — drives the same indicator in the channel
     // sidebar's voice roster). `.to().to()` unions the two rooms so anyone
     // in both only gets the event once.
-    socket.on('voice:speaking', async ({ channelId, speaking }) => {
+    // Limite: só retransmite quando MUDA e no máximo ~4/s por canal (ver
+    // utils/speakingRelay.js) — o último valor nunca se perde.
+    const speakingRelays = new Map(); // channelId -> relay
+    socket.once('disconnect', () => { for (const r of speakingRelays.values()) r.dispose(); speakingRelays.clear(); });
+    socket.on('voice:speaking', async ({ channelId, speaking } = {}) => {
+      if (typeof channelId !== 'string' || !channelId) return;
       if (!(await voiceStore.hasParticipant(channelId, userId))) return;
-      // Só falar de fato conta como atividade pro AFK sweep abaixo.
-      if (speaking) await voiceStore.updateParticipant(channelId, userId, { lastActiveAt: Date.now() });
-      const target = socket.to(`voice:${channelId}`).to(rosterRoomFor(channelId));
-      target.emit('voice:speaking', { channelId, userId, speaking: !!speaking });
+      let relay = speakingRelays.get(channelId);
+      if (!relay) {
+        if (speakingRelays.size > 8) { for (const r of speakingRelays.values()) r.dispose(); speakingRelays.clear(); }
+        relay = createSpeakingRelay({
+          minIntervalMs: 250,
+          send: (value) => {
+            // Só falar de fato conta como atividade.
+            if (value) voiceStore.updateParticipant(channelId, userId, { lastActiveAt: Date.now() }).catch(() => {});
+            socket.to(`voice:${channelId}`).to(rosterRoomFor(channelId)).emit('voice:speaking', { channelId, userId, speaking: value });
+          },
+        });
+        speakingRelays.set(channelId, relay);
+      }
+      relay.push(!!speaking);
     });
 
     // Reações rápidas (I): emoji flutuante que todos na chamada veem.
@@ -1253,6 +1402,40 @@ function initSockets(httpServer) {
     } catch (err) { console.error('[socket] varredura de voz falhou:', err?.message || err); }
   }, 30 * 1000);
 
+  // ---------- Chamada de DM sem resposta (60s) ----------
+  // Igual ao Discord: tocou 60s e ninguém atendeu → termina como perdida,
+  // o embed vira "Chamada perdida" e os dois lados recebem dm-call:missed
+  // (o chamador sai da chamada; quem estava tocando para de tocar). Timer em
+  // memória (como os outros timers deste arquivo).
+  const DM_RING_TIMEOUT_MS = 60 * 1000;
+  const dmRingTimers = new Map(); // channelId -> timeout
+  function clearDmRingTimeout(channelId) {
+    const t = dmRingTimers.get(channelId);
+    if (t) { clearTimeout(t); dmRingTimers.delete(channelId); }
+  }
+  function scheduleDmRingTimeout(channelId, conversationId, messageId) {
+    clearDmRingTimeout(channelId);
+    const t = setTimeout(async () => {
+      dmRingTimers.delete(channelId);
+      try {
+        const state = await voiceStore.getDmCallState(channelId);
+        // Atendida, já resolvida, ou é OUTRA chamada (nova mensagem): nada a fazer.
+        if (!state || state.answered || state.resolved || state.messageId !== messageId) return;
+        await voiceStore.updateDmCallState(channelId, { resolved: true });
+        await updateCallMessage(io, { conversationId, messageId, description: 'Chamada perdida', color: '#ed4245' });
+        io.to(`conversation:${conversationId}`).emit('dm-call:missed', { conversationId, channelId });
+        const room = await voiceStore.getRoom(channelId);
+        for (const uid of Object.keys(room)) {
+          // eslint-disable-next-line no-await-in-loop
+          await leaveVoice(io, null, channelId, uid);
+          mediaControl.sendControl({ channelId, peerId: uid, action: 'kick', reason: 'missed' });
+        }
+      } catch (err) { console.error('[socket] fim da chamada sem resposta falhou:', err?.message || err); }
+    }, DM_RING_TIMEOUT_MS);
+    t.unref?.();
+    dmRingTimers.set(channelId, t);
+  }
+
   async function leaveVoice(io, socket, channelId, userId) {
     const participant = await voiceStore.getParticipant(channelId, userId);
     if (!participant) return;
@@ -1306,6 +1489,7 @@ function initSockets(httpServer) {
           updateCallMessage(io, { conversationId: conversationId || state.conversationId, messageId: state.messageId, description, color }).catch(() => {});
         }
         await voiceStore.clearDmCallState(channelId);
+        clearDmRingTimeout(channelId);
         io.to(`conversation:${conversationId}`).emit('dm-call:ended', { conversationId });
       }
     }
@@ -1352,7 +1536,7 @@ function initSockets(httpServer) {
   async function broadcastRoster(io, channelId) {
     const room = await voiceStore.getRoom(channelId);
     const participants = Object.entries(room).map(([uid, p]) => ({
-      userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role,
+      userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role, serverMuted: !!p.serverMuted, serverDeafened: !!p.serverDeafened,
     }));
     const startedAt = await voiceStore.getStartedAt(channelId);
     let target = rosterRoomFor(channelId);

@@ -197,13 +197,29 @@ function iceServersFor(userId, env = process.env, now = Date.now()) {
   return servers;
 }
 
-function mintProjectClub({ room, userId, name } = {}, env = process.env, now = Date.now()) {
+// Claims de PERMISSÃO de mídia (ver services/voiceJoinPolicy.js): o
+// servidor de mídia recusa publicar o microfone sem canSpeak, câmera/tela
+// sem canVideo, e mantém o mic pausado com serverMuted. Só entram campos
+// conhecidos e com o tipo certo; sem `claims`, o token sai como antes (o
+// servidor de mídia trata a ausência como "tudo permitido").
+function mediaClaims(claims) {
+  if (!claims || typeof claims !== 'object') return {};
+  const out = {};
+  for (const k of ['canSpeak', 'canVideo', 'serverMuted', 'serverDeafened']) {
+    if (typeof claims[k] === 'boolean') out[k] = claims[k];
+  }
+  if (claims.role === 'speaker' || claims.role === 'audience') out.role = claims.role;
+  return out;
+}
+
+function mintProjectClub({ room, userId, name, claims } = {}, env = process.env, now = Date.now()) {
   const url = String(env.MEDIA_SERVER_URL || '').trim();
   const secret = env.MEDIA_SERVER_SECRET;
   if (!url || !secret || !room || !userId) return null;
   const nowSec = Math.floor(now / 1000);
   const token = jwt.sign({
     sub: String(userId), room: String(room), name: String(name || userId).slice(0, 64),
+    ...mediaClaims(claims),
     jti: crypto.randomBytes(9).toString('base64url'),
     iat: nowSec, exp: nowSec + MEDIA_TOKEN_TTL_SECONDS,
   }, secret, { algorithm: 'HS256' });
@@ -214,6 +230,7 @@ module.exports = {
   TOKEN_TTL_SECONDS,
   MEDIA_TOKEN_TTL_SECONDS,
   mintProjectClub,
+  mediaClaims,
   turnCredentials,
   turnUrls,
   iceServersFor,
