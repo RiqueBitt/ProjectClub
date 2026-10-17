@@ -1,0 +1,89 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { execSync } from 'node:child_process';
+
+// Versão do CONTEÚDO (o site) — muda a cada build. O app Android abre o
+// site ao vivo, então é isso que diz "qual conteúdo está rodando" (ver
+// docs/android-updates.md). WEB_VERSION permite fixar de fora (CI).
+function webVersion() {
+  if (process.env.WEB_VERSION) return process.env.WEB_VERSION;
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  let stamp = `${d.getUTCFullYear()}.${p(d.getUTCMonth() + 1)}.${p(d.getUTCDate())}-${p(d.getUTCHours())}${p(d.getUTCMinutes())}`;
+  try {
+    const sha = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    if (/^[0-9a-f]{4,12}$/.test(sha)) stamp += `-${sha}`;
+  } catch { /* sem git (ex.: deploy por zip) — fica só a data */ }
+  return stamp;
+}
+const WEB_VERSION = webVersion();
+
+// Grava dist/version.json — o servidor lê pra responder GET /api/mobile/update.
+const versionFilePlugin = () => ({
+  name: 'pc-version-file',
+  apply: 'build',
+  generateBundle() {
+    this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ web: WEB_VERSION }) });
+  },
+});
+
+export default defineConfig({
+  plugins: [react(), versionFilePlugin()],
+  define: { __WEB_VERSION__: JSON.stringify(WEB_VERSION) },
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': 'http://localhost:3000',
+      '/uploads': 'http://localhost:3000',
+      '/socket.io': { target: 'http://localhost:3000', ws: true },
+    },
+  },
+  // Nos testes de tela (PW_E2E=1) não há servidor na porta 3000: sem o
+  // proxy, o preview não enche o log de "ws proxy error" a cada tentativa
+  // de reconexão do socket. Fora dos testes, continua igual ao server.
+  ...(process.env.PW_E2E ? { preview: { proxy: {} } } : {}),
+  build: {
+    outDir: 'dist',
+    // O container de deploy (Square Cloud) tem pouca RAM e o build estourava
+    // a memória ("JavaScript heap out of memory") no passo que calcula o
+    // tamanho gzip de cada pacote. Esse cálculo é só informativo (aparece no
+    // log), então desligamos — é exatamente onde a memória estourava. Não
+    // muda o resultado do build, só evita o pico de memória.
+    reportCompressedSize: false,
+    rollupOptions: {
+      // Menos arquivos processados ao mesmo tempo = pico de memória menor
+      // (importante no container pequeno do deploy).
+      maxParallelFileOps: 2,
+      output: {
+        // Splits third-party libraries into their own chunk(s), separate
+        // from the app's own code — react/react-dom/react-router-dom
+        // together (they change together, rarely on their own), and
+        // everything else third-party into a general vendor chunk. This is
+        // what actually fixes the ">500kB chunk" warning: the app's own
+        // code was never the bulk of that one huge bundle, the vendored
+        // libraries bundled inline with it were. Splitting also means a
+        // browser that already has the vendor chunk cached (unchanged
+        // dependencies) only needs to re-download the app chunk after a
+        // deploy, not everything.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('/react-router-dom/') || id.includes('/react-router/')) return 'vendor-router';
+          // react/react-dom/scheduler NÃO são separados num chunk próprio: o
+          // use-sync-external-store (zustand) faz require('react') em CommonJS,
+          // e um react em chunk separado quebrava o carregamento ("setting
+          // Children" / dep circular). Deixá-lo no "vendor" geral (sempre
+          // carregado no início de qualquer jeito) resolve, sem custo real.
+          if (id.includes('socket.io-client') || id.includes('engine.io-client')) return 'vendor-socket';
+          // SDK de voz (servidor próprio/mediasoup): pacote PRÓPRIO e
+          // carregado SÓ sob demanda (import() dinâmico em
+          // client/src/voice/mediasoupEngine.js). Assim ele NUNCA entra no
+          // bundle inicial — quem só navega pelo chat/feeds não paga por ele.
+          if (id.includes('mediasoup-client') || id.includes('/sdp-transform/') || id.includes('/h264-profile-level-id/')) return 'vendor-mediasoup';
+          // Lista de emojis (~400 KB): só baixa quando o seletor abre.
+          if (id.includes('unicode-emoji-json')) return 'vendor-emoji';
+          return 'vendor';
+        },
+      },
+    },
+  },
+});

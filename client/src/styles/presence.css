@@ -1,0 +1,170 @@
+/* ============================================================
+   Bolinha de status (PresenceDot) — repaginada.
+   Um anel fino na cor do fundo em volta (--status-ring) separa a
+   bolinha do avatar, e cada status tem um formato que se reconhece
+   mesmo sem cor:
+     Online      círculo cheio verde
+     Ausente     lua (círculo com um recorte no canto)
+     Não perturbe círculo vermelho com um traço
+     Offline/Invisível  anel cinza vazado
+   Os recortes usam a MESMA cor do anel, então ficam limpos em
+   qualquer lugar. Quem estiver em cima de outro fundo só troca
+   --status-ring.
+   ============================================================ */
+.status-dot {
+  --status-ring: var(--bg-secondary);
+  width: 12px; height: 12px; border: 3px solid var(--status-ring);
+  background: var(--presence-color);
+  box-sizing: content-box;
+}
+.status-dot-offline, .status-dot-invisible {
+  background: radial-gradient(circle, var(--status-ring) 0 32%, var(--presence-color) 35%);
+}
+.status-dot-idle {
+  background: radial-gradient(circle at 26% 26%, var(--status-ring) 0 34%, var(--presence-color) 37%);
+}
+.status-dot-dnd {
+  background:
+    linear-gradient(var(--status-ring), var(--status-ring)) center / 58% 24% no-repeat,
+    var(--presence-color);
+}
+.status-dot-online { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+
+.status-dot.large { width: 18px; height: 18px; border-width: 4px; }
+
+/* Onde a bolinha fica em cima de outro fundo */
+.member-row:hover .status-dot { --status-ring: var(--bg-modifier-hover-solid, var(--bg-secondary)); }
+.main-sidebar-profile-avatar .status-dot {
+  --status-ring: var(--bg-secondary); width: 10px; height: 10px; border: 2px solid var(--status-ring); box-shadow: none;
+}
+.fx-avatar .status-dot { box-shadow: none; --status-ring: var(--bg-secondary); }
+.dm-profile-panel .status-dot.large { width: 18px; height: 18px; border-width: 4px; }
+
+/* Miniperfil e perfil completo: anel escuro discreto (ou a cor que a
+   pessoa escolheu em "fundo da bolha"), bolinha proporcional ao avatar. */
+.mini-profile-presence-dot.status-dot {
+  --status-ring: var(--status-bubble-border, #1a1b1e);
+  width: 16px; height: 16px; border-width: 4px; bottom: 5px; right: 5px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .35);
+}
+.profile-modal-box .status-dot.large,
+.profile-fullscreen-overlay .status-dot.large {
+  --status-ring: var(--status-bubble-border, #1a1b1e);
+  width: 22px; height: 22px; border-width: 5px; box-shadow: 0 2px 8px rgba(0, 0, 0, .35);
+}
+.status-picker-dot.status-dot { --status-ring: var(--bg-secondary-alt, var(--bg-secondary)); }
+
+/* ============================================================
+   Nome maior no miniperfil e no perfil completo
+   ============================================================ */
+.mini-profile-name { font-size: 22px; line-height: 1.2; letter-spacing: -.2px; margin-top: 4px; }
+.mini-profile-name > span:first-child { overflow-wrap: anywhere; }
+.profile-ig-header-info .profile-display-name { font-size: 30px; line-height: 1.15; letter-spacing: -.4px; }
+.dm-profile-panel .profile-display-name { font-size: 20px; }
+@media (max-width: 600px) {
+  .profile-ig-header-info .profile-display-name { font-size: 25px; }
+  .mini-profile-name { font-size: 20px; }
+}
+.settings-upload-hint { font-size: 12px; align-self: center; }
+
+/* ============================================================
+   Pingente (imagem própria ao lado do nome)
+   ============================================================ */
+.pendant-icon { border-radius: 0; object-fit: contain; vertical-align: middle; flex-shrink: 0; image-rendering: auto; }
+.mini-profile-name .pendant-icon { width: 26px !important; height: 26px !important; }
+.profile-ig-header-info .pendant-icon { width: 32px !important; height: 32px !important; }
+
+.pendant-editor { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.pendant-editor-preview {
+  width: 84px; height: 84px; flex-shrink: 0; border-radius: 18px; display: flex; align-items: center; justify-content: center;
+  background:
+    repeating-conic-gradient(color-mix(in srgb, var(--text-muted) 14%, transparent) 0 25%, transparent 0 50%) 0 0 / 14px 14px,
+    var(--bg-primary);
+  border: 1px dashed var(--border); overflow: hidden;
+}
+.pendant-editor-preview img { width: 72px; height: 72px; object-fit: contain; }
+.pendant-editor-preview span { font-size: 30px; color: var(--text-muted); }
+.pendant-editor-side { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 8px; }
+.pendant-editor-sample { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; color: var(--header-primary); }
+.pendant-editor-actions { display: flex; align-items: center; gap: 10px; }
+.pendant-editor-upload { cursor: pointer; }
+.pendant-editor-upload.is-busy { opacity: .6; cursor: default; }
+.pendant-editor-error { font-size: 12.5px; color: var(--red); }
+
+/* Pingente no chat: a linha do nome alinhava pela linha de base do texto,
+   e uma imagem "senta" a borda de baixo nessa linha — o pingente ficava
+   mais alto que o nome (torto). Centraliza tudo na linha. */
+.message-meta { align-items: center; }
+.message-meta .pendant-icon { align-self: center; margin: -2px 0; }
+
+/* ============================================================
+   Avisos flutuantes (NoticeToast) — cartão com ícone e cor por tipo,
+   barrinha do tempo que falta e entrada suave.
+   ============================================================ */
+.notice-toast-stack { bottom: 20px; right: 20px; gap: 10px; max-width: 380px; z-index: 450; }
+.notice-toast {
+  --nt: var(--brand);
+  position: relative; overflow: hidden; align-items: center; gap: 10px;
+  padding: 12px 10px 12px 12px; border-radius: 14px; border: 1px solid var(--border); border-left: 0;
+  background: var(--bg-secondary); color: var(--text-normal); font-size: 13.5px; line-height: 1.4;
+  box-shadow: 0 16px 40px -14px rgba(0, 0, 0, .6);
+  animation: nt-in .22s cubic-bezier(.2, .8, .2, 1);
+}
+.notice-toast.nt-error { --nt: var(--red); }
+.notice-toast.nt-success { --nt: var(--green); }
+.nt-icon { width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--nt) 16%, transparent); color: var(--nt); }
+.notice-toast-text { color: var(--header-primary); font-weight: 500; }
+.notice-toast-action { border-radius: 9px; padding: 6px 12px; font-weight: 700; background: var(--brand); color: #fff; }
+.nt-close { width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); }
+.nt-close:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.nt-timer { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--nt); opacity: .7; transform-origin: left; animation: nt-timer 8s linear forwards; }
+@keyframes nt-in { from { opacity: 0; transform: translateY(10px) scale(.98); } }
+@keyframes nt-timer { to { transform: scaleX(0); } }
+@media (max-width: 600px) { .notice-toast-stack { left: 10px; right: 10px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); max-width: none; } }
+@media (prefers-reduced-motion: reduce) { .notice-toast { animation: none; } .nt-timer { display: none; } }
+
+/* ============================================================
+   Barra de navegação de baixo (MobileTabBar) — só no celular.
+   Ocupa a 4ª linha do grid do app (abaixo da barra de chamada).
+   ============================================================ */
+.mtb { display: none; }
+@media (max-width: 600px) {
+  .app-shell:has(> .mtb) { grid-template-rows: calc(var(--top-search-bar-height, 52px) + env(safe-area-inset-top, 0px) + 10px) 1fr auto auto; }
+  .mtb {
+    grid-column: 1 / -1; grid-row: 4; display: flex; justify-content: space-around; gap: 2px;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px)); z-index: 30;
+    background: color-mix(in srgb, var(--bg-secondary) 94%, transparent); backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border);
+  }
+  .mtb-item {
+    flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px 2px; border-radius: 12px;
+    color: var(--text-muted); font-size: 11px; font-weight: 600;
+  }
+  .mtb-item.active { color: var(--header-primary); }
+  .mtb-item.active .mtb-icon { background: color-mix(in srgb, var(--brand) 18%, transparent); color: var(--brand); }
+  .mtb-icon { position: relative; width: 52px; height: 30px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; transition: background-color .15s ease; }
+  .mtb-avatar > * { border-radius: 50%; }
+  .mtb-item.active .mtb-avatar > * { box-shadow: 0 0 0 2px var(--brand); }
+  .mtb-badge {
+    position: absolute; top: -2px; right: 6px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px;
+    display: inline-flex; align-items: center; justify-content: center; background: var(--red); color: #fff; font-size: 10.5px; font-weight: 800;
+    box-shadow: 0 0 0 2px var(--bg-secondary);
+  }
+  .mtb-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* "Online no celular": no lugar da bolinha, um celularzinho verde com o
+   mesmo anel em volta (o servidor manda `mobile` quando todas as conexões
+   da pessoa são de celular). */
+.status-dot.status-dot-mobile {
+  width: 10px; height: 15px; border-radius: 4px;
+  background: var(--status-ring); color: var(--presence-color);
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: none;
+}
+.status-dot.status-dot-mobile svg { width: 100%; height: 100%; display: block; }
+.status-dot.status-dot-mobile.large { width: 14px; height: 21px; border-radius: 5px; }
+.main-sidebar-profile-avatar .status-dot.status-dot-mobile { width: 8px; height: 12px; border-radius: 3px; }
+.mini-profile-presence-dot.status-dot.status-dot-mobile { width: 13px; height: 20px; border-radius: 5px; }
+.profile-modal-box .status-dot.status-dot-mobile.large,
+.profile-fullscreen-overlay .status-dot.status-dot-mobile.large { width: 17px; height: 26px; border-radius: 6px; }

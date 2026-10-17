@@ -1,0 +1,7 @@
+/* Efeito de perfil (Loja) — camada por cima do perfil, nunca recebe clique. */
+.pfx-layer { pointer-events: none; overflow: hidden; z-index: 6; }
+.pfx-box, .pfx-mini { position: absolute; inset: 0; border-radius: inherit; }
+/* Perfil completo: fica no overlay (irmão da caixa que rola), então não rola junto. */
+.pfx-full { position: absolute; inset: 0; z-index: 30; }
+.pfx-img { position: absolute; left: 50%; top: 50%; object-fit: contain; max-width: none; user-select: none; will-change: opacity; }
+@media (prefers-reduced-motion: reduce) { .pfx-img { transition: none !important; } }

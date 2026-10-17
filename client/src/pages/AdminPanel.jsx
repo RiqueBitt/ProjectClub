@@ -1,0 +1,3921 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import AchievementIcon from '../components/AchievementIcon.jsx';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext.jsx';
+import { usePromptDialog } from '../utils/usePromptDialog.jsx';
+import UserSecurityInfoModal from '../components/modals/UserSecurityInfoModal.jsx';
+import UserAvatar from '../components/UserAvatar.jsx';
+import ShopAdminTab from '../components/ShopAdminTab.jsx';
+import IconGlyph from '../components/IconGlyph.jsx';
+import editIcon from '../assets/icons/nav-edit.png';
+import confirmIcon from '../assets/icons/nav-confirm.png';
+import closeIcon from '../assets/icons/nav-close.png';
+import giftIcon from '../assets/icons/nav-gift.png';
+import { RARITY_LABEL as ACHIEVEMENT_RARITY_LABEL } from '../utils/achievementRarity';
+import Modal from '../components/Modal.jsx';
+import RoleManagerModal from '../components/modals/RoleManagerModal.jsx';
+import CreateChannelModal from '../components/modals/CreateChannelModal.jsx';
+import { useStore } from '../store/useStore';
+import { roleChipStyle } from '../utils/roleColor';
+import {
+  adminGetStats, adminListAuditLog,
+  adminListUsers, adminUpdateUser, adminBanUser, adminUnbanUser, adminSuspendUser, adminUnsuspendUser, adminSetPlatformRole,
+  adminListBadges, adminGrantBadge, adminRevokeBadge, adminCreateBadge, adminUpdateBadge, adminDeleteBadge, adminUploadBadgeIcon,
+  adminSetUserLevel, adminAddUserXp, adminAddUserCurrency,
+  getPlatformStatus, adminSetMaintenanceMode,
+  adminCreateAnnouncement, adminUploadAnnouncementBanner, adminListAnnouncements, adminGetMetrics,
+  adminGetAlbumLayout, adminUpdateAlbumSettings, adminUpsertAlbumSlot, adminAssignStickerPosition,
+  adminListChests, adminCreateChest, adminUpdateChest, adminDeleteChest,
+  adminListHouseCatalog, adminCreateHouse, adminUpdateHouse, adminDeleteHouse,
+  listMapBackgrounds, adminCreateMapBackground, adminUpdateMapBackground, adminDeleteMapBackground,
+  adminSetStarterHouse, adminClearStarterHouse, adminSetStarterMap, adminClearStarterMap,
+  adminListHouseGroups, adminSetHouseGroup, adminDeleteHouseGroup,
+  adminListFurnitureCatalog, adminCreateFurniture, adminUpdateFurniture, adminDeleteFurniture,
+  adminListFurnitureCategories, adminCreateFurnitureCategory,
+  getSystemToggles, adminUpdateSystemToggles,
+  adminListHouseComments, adminDeleteHouseCommentMod,
+  adminListApplications, approveApplication, rejectApplication,
+  adminListAutomodFlags, adminGetFlaggedConversation, adminResolveAutomodFlag,
+  adminListReports, adminGetReportedContext, adminResolveReport,
+  getCommunitySettings, deleteCommunity,
+  getCommunity,
+  adminListHoneypotHits, adminListBlockedIps, adminUnblockIp, adminReloadUserPresence, adminDeleteUserAccount,
+  adminListAchievements, adminCreateAchievement, adminUpdateAchievement, adminUploadAchievementIcon, adminDeleteAchievement,
+  listUpdates, createUpdate, updateUpdateEntry, deleteUpdateEntry,
+  listEvents, createEvent, updateEvent, deleteEvent, uploadEventBanner, uploadEventIcon,
+  createCategory, updateCategory, deleteCategory, reorderCategories,
+  createChannel, updateChannel, deleteChannel, reorderChannels,
+  getUiLayout, updateUiLayout,
+  adminListAppCatalog, adminCreateAppCatalogItem, adminUpdateAppCatalogItem, adminDeleteAppCatalogItem,
+  adminUploadAppCatalogBanner, adminUploadAppCatalogIcon,
+  adminAddAppScreenshot, adminDeleteAppScreenshot,
+  adminListClans, adminGetClan, adminListClanMessages, adminUpdateClan, adminDeleteClan,
+  adminListModGameMappings, adminCreateModGameMapping, adminUpdateModGameMapping, adminDeleteModGameMapping,
+  adminListModReports, adminResolveModReport,
+  adminListWorkshopGameMappings, adminCreateWorkshopGameMapping, adminUpdateWorkshopGameMapping, adminDeleteWorkshopGameMapping,
+  adminListGameBananaMappings, adminCreateGameBananaMapping, adminUpdateGameBananaMapping, adminDeleteGameBananaMapping,
+} from '../api/endpoints';
+import HouseIcon from '../components/HouseIcon.jsx';
+import DraggableResizableBox from '../components/admin/DraggableResizableBox.jsx';
+import EmojiManagerModal from '../components/modals/EmojiManagerModal.jsx';
+import StickerManagerModal from '../components/modals/StickerManagerModal.jsx';
+import ClanIconManagerModal from '../components/modals/ClanIconManagerModal.jsx';
+import ClanIcon from '../components/ClanIcon.jsx';
+import { BADGE_RARITIES, RARITY_LABEL, RARITY_COLOR, badgeHasImage } from '../utils/badgeRarity';
+import BadgeIcon from '../components/BadgeIcon.jsx';
+import { proxyImage } from '../utils/imageProxy';
+import { isFeatureEnabled } from '../utils/features';
+import MissionsAdmin from '../components/admin/MissionsAdmin.jsx';
+import SupportersAdmin from '../components/admin/SupportersAdmin.jsx';
+import { StaffHealthTab, StaffUserSearchTab } from '../components/admin/StaffTools.jsx';
+// Painel de saúde completo (erros agrupados, calls, servidor de mídia, backups).
+import StaffOpsPanel from '../components/admin/StaffOpsPanel.jsx';
+import VoiceServerAdmin from '../components/admin/VoiceServerAdmin.jsx';
+import { CardsAdminCards, CardsAdminPacks, CardsAdminSettings, CardsAdminPlayers, CardsAdminTrades, CardsAdminMatches, CardsAdminStats, CardsAdminCampaign, CardsAdminTournaments, CardsAdminBoards } from '../cards/CardsAdmin.jsx';
+
+// ============================================================
+// Painel da Equipe — shell redesenhado do zero.
+// Cada ferramenta (as *Tab abaixo) continua igual por dentro; aqui só
+// mudam a navegação, o cabeçalho e a visão geral. A aba aberta fica na
+// URL (?tab=...), então recarregar ou mandar o link abre no mesmo lugar.
+// ============================================================
+
+// Ícones SVG (traço, herdam a cor do texto) — sem emoji, que vira
+// quadrado vazio em Linux sem fonte de emoji.
+const ICON_PATHS = {
+  overview: 'M4 13h6V4H4v9Zm0 7h6v-5H4v5Zm10 0h6v-9h-6v9Zm0-16v5h6V4h-6Z',
+  people: 'M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM21 19v-1a4 4 0 0 0-3-3.87M15.5 4.13a3 3 0 0 1 0 5.74',
+  shield: 'M12 3 5 6v5.5c0 4.3 3 8 7 9.5 4-1.5 7-5.2 7-9.5V6l-7-3Z',
+  community: 'M4 6h16M4 12h16M4 18h10',
+  content: 'M5 4h14v16H5zM9 8h6M9 12h6M9 16h3',
+  economy: 'M12 3v18M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.6 4.5 3 4.5 1.3 4.5 3-2 3-4.5 3-4.5-1.3-4.5-3',
+  mods: 'M14.7 6.3a4 4 0 0 0-5.3 5.3L4 17v3h3l5.4-5.4a4 4 0 0 0 5.3-5.3l-2.5 2.5-2.5-2.5 2-3Z',
+  system: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.4-3a7.4 7.4 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-2-1.2L14.5 3h-5l-.4 2.6a7.5 7.5 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 2 1.2l.4 2.6h5l.4-2.6a7.5 7.5 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2Z',
+  search: 'm20 20-4.2-4.2M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z',
+  external: 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5',
+  menu: 'M4 6h16M4 12h16M4 18h16',
+  close: 'M6 6l12 12M18 6 6 18',
+  arrow: 'M9 6l6 6-6 6',
+  cards: 'M7 3h11a2 2 0 0 1 2 2v13M4 7h11a2 2 0 0 1 2 2v11H6a2 2 0 0 1-2-2z',
+};
+function StaffIcon({ name, size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={ICON_PATHS[name]} />
+    </svg>
+  );
+}
+
+// Nome e descrição de cada ferramenta (aparecem no cabeçalho da página).
+const TABS = {
+  overview: { label: 'Visão geral', desc: 'O que precisa da sua atenção agora e os números da comunidade.' },
+  inscricoes: { label: 'Inscrições', desc: 'Aprove ou recuse quem pediu para entrar no Project Club.' },
+  busca: { label: 'Busca rápida', desc: 'Ache qualquer conta por nome, @usuário, ID ou e-mail e veja a ficha completa com punições.' },
+  users: { label: 'Usuários', desc: 'Busque contas, ajuste cargos da plataforma, nível, moedas, banimentos e suspensões.' },
+  badges: { label: 'Insígnias', desc: 'Crie insígnias e conceda ou remova de membros.' },
+  roles: { label: 'Cargos', desc: 'Cargos da comunidade: cores, permissões e quem aparece separado na lista de membros.' },
+  reports: { label: 'Denúncias', desc: 'Mensagens e perfis denunciados pela comunidade.' },
+  automodDm: { label: 'Moderação de DMs', desc: 'Conversas privadas sinalizadas pelo filtro automático.' },
+  moderacao: { label: 'Recados', desc: 'Recados deixados nos murais das casas e perfis.' },
+  modReports: { label: 'Denúncias de mods', desc: 'Mods denunciados na área de Apps.' },
+  logs: { label: 'Registro de auditoria', desc: 'Tudo que a equipe fez na plataforma, do mais recente ao mais antigo.' },
+  honeypot: { label: 'Segurança', desc: 'Tentativas de acesso a rotas-isca e IPs bloqueados.' },
+  channels: { label: 'Canais e categorias', desc: 'Crie, edite e organize os canais da comunidade.' },
+  emojis: { label: 'Emojis', desc: 'Emojis personalizados da comunidade.' },
+  stickers: { label: 'Figurinhas do chat', desc: 'Figurinhas que os membros podem mandar no chat.' },
+  clubs: { label: 'Clubes', desc: 'Clubes criados pelos membros.' },
+  clanIcons: { label: 'Ícones de clube', desc: 'Ícones disponíveis para os clubes.' },
+  achievements: { label: 'Conquistas', desc: 'Conquistas, requisitos e raridades.' },
+  gifMove: { label: 'GIFa Move', desc: 'Posição e tamanho do GIF animado na tela da comunidade.' },
+  feeds: { label: 'Fórum', desc: 'Temas do Fórum: crie ou exclua.' },
+  updates: { label: 'Atualizações', desc: 'Notas de atualização que aparecem no Início.' },
+  events: { label: 'Eventos', desc: 'Eventos com banner, ícone e data.' },
+  announcements: { label: 'Comunicado', desc: 'Mensagem em tela cheia para todos os membros.' },
+  appCatalog: { label: 'Apps', desc: 'Apps e launchers listados na área de Apps.' },
+  economia: { label: 'Economia e missões', desc: 'Missões diárias/semanais, baús diários, moedas e recompensas.' },
+  decoracoes: { label: 'Loja', desc: 'Molduras de avatar, efeitos de perfil e coleções vendidos na Loja.' },
+  apoio: { label: 'Gerenciamento de Apoio', desc: 'Conceda ou remova Assinante e Super Assinante, com motivo e histórico de quem mudou.' },
+  casas: { label: 'Casas e móveis', desc: 'Casas, mapas, grupos e catálogo de móveis.' },
+  album: { label: 'Álbum de figurinhas', desc: 'Páginas e espaços do álbum de figurinhas colecionáveis.' },
+  modGames: { label: 'Jogos (mod.io)', desc: 'Jogos ligados ao mod.io.' },
+  workshopGames: { label: 'Steam Workshop', desc: 'Jogos ligados ao Steam Workshop.' },
+  gamebananaGames: { label: 'GameBanana', desc: 'Jogos ligados ao GameBanana.' },
+  sistema: { label: 'Sistemas', desc: 'Ligue ou desligue economia, ranks e outros sistemas.' },
+  servidorVoz: { label: 'Servidor de voz', desc: 'Servidor de mídia próprio das chamadas: status e chaves (URL, segredo e TURN).' },
+  maintenance: { label: 'Manutenção', desc: 'Coloca a plataforma "em reforma" para todos, menos a equipe.' },
+  reload: { label: 'Reload', desc: 'Recarrega a presença online de usuários.' },
+  cartasCartas: { label: 'Cartas', desc: 'Crie, edite e exclua cartas: imagem, nome, descrição, raridade, elemento, força e habilidades.' },
+  cartasPacotes: { label: 'Pacotes', desc: 'Pacotes vendidos na Guerra das Cartas: preço, quantas cartas, chances de cada raridade e quais cartas podem sair.' },
+  cartasRegras: { label: 'Regras e economia', desc: 'Regras das batalhas, recompensas em moedas, proteção contra farm, venda e evolução de cartas.' },
+  cartasJogadores: { label: 'Jogadores', desc: 'Veja a coleção e o histórico de um jogador, dê ou tire cartas, bloqueie ou zere estatísticas.' },
+  cartasTrocas: { label: 'Trocas', desc: 'Trocas de cartas entre jogadores. Cancele propostas pendentes suspeitas.' },
+  cartasPartidas: { label: 'Partidas', desc: 'Partidas em andamento e terminadas. Cancele partidas travadas.' },
+  cartasEstatisticas: { label: 'Estatísticas', desc: 'Uso e taxa de vitória de cada carta, moedas geradas e gastas por dia e vitórias contra bots — para equilibrar o jogo.' },
+  cartasCampanha: { label: 'Campanha', desc: 'Fases da campanha: história, bot, dificuldade, baralho e prêmios.' },
+  cartasTorneios: { label: 'Torneios', desc: 'Crie torneios eliminatórios, acompanhe o chaveamento e premie o campeão.' },
+  cartasFundos: { label: 'Fundos de batalha', desc: 'Crie e edite as mesas das batalhas: imagem de fundo, cena, escurecimento, cor e frequência.' },
+  numeros: { label: 'Números', desc: 'Ativos por dia, semana e mês, retenção, cadastros, gemas e moedas circulando e itens mais vendidos da Loja.' },
+  painelSaude: { label: 'Painel de saúde', desc: 'Tudo numa tela: erros agrupados, quem está em call, servidor de mídia, banco/Redis, versão publicada e backups do banco. Atualiza a cada 10s.' },
+  saude: { label: 'Saúde', desc: 'Online agora, conexões, chamadas, erros recentes, banco, Redis e memória. Atualiza sozinho a cada 15s.' },
+};
+
+// Contadores de pendências (vindos de /admin/stats) mostrados no menu.
+const TAB_PENDING_KEY = {
+  inscricoes: 'pendingApplications', reports: 'pendingReports',
+  automodDm: 'pendingAutomodFlags', modReports: 'pendingModReports',
+};
+
+// Ferramentas de sistemas desligados no código (utils/features.js) somem
+// do menu e a URL antiga cai na visão geral — nada é apagado.
+const HIDDEN_TABS = new Set([
+  ...(isFeatureEnabled('houses') ? [] : ['casas', 'moderacao']),
+  ...(isFeatureEnabled('stickers') ? [] : ['album']),
+  ...(isFeatureEnabled('cardsWar') ? [] : ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas']),
+]);
+
+const TAB_GROUPS = [
+  { label: 'Pessoas', icon: 'people', tabs: ['busca', 'inscricoes', 'users', 'badges', 'roles'] },
+  { label: 'Moderação', icon: 'shield', tabs: ['reports', 'automodDm', 'moderacao', 'modReports', 'logs', 'honeypot'] },
+  { label: 'Comunidade', icon: 'community', tabs: ['channels', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'gifMove'] },
+  { label: 'Conteúdo', icon: 'content', tabs: ['feeds', 'updates', 'events', 'announcements', 'appCatalog'] },
+  { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'apoio', 'casas', 'album'] },
+  { label: 'Guerra das Cartas', icon: 'cards', tabs: ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
+  { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
+  { label: 'Sistema', icon: 'system', tabs: ['numeros', 'painelSaude', 'saude', 'servidorVoz', 'sistema', 'maintenance', 'reload'] },
+].map((g) => ({ ...g, tabs: g.tabs.filter((t) => !HIDDEN_TABS.has(t)) })).filter((g) => g.tabs.length > 0);
+
+const groupOf = (tab) => TAB_GROUPS.find((g) => g.tabs.includes(tab));
+
+export default function AdminPanel() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const tab = TABS[params.get('tab')] && !HIDDEN_TABS.has(params.get('tab')) ? params.get('tab') : 'overview';
+  const [query, setQuery] = useState('');
+  const [navOpen, setNavOpen] = useState(false);
+  const [stats, setStats] = useState(null);
+  const searchRef = useRef(null);
+  const contentRef = useRef(null);
+
+  const loadStats = () => adminGetStats().then((d) => setStats(d.stats)).catch(() => {});
+  useEffect(() => { loadStats(); }, []);
+  // Atualiza os contadores ao trocar de ferramenta (ex.: depois de aprovar inscrições).
+  useEffect(() => { if (tab !== 'overview') loadStats(); }, [tab]);
+
+  // Ctrl/⌘+K foca a busca de ferramentas.
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setNavOpen(true); searchRef.current?.focus(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const selectTab = (t) => {
+    setParams(t === 'overview' ? {} : { tab: t });
+    setNavOpen(false);
+    setQuery('');
+    contentRef.current?.scrollTo({ top: 0 });
+  };
+
+  if (user.platformRole !== 'ADMIN') {
+    return (
+      <div className="staff staff-denied">
+        <StaffIcon name="shield" size={28} />
+        <p>Acesso restrito à equipe da plataforma.</p>
+      </div>
+    );
+  }
+
+  const q = query.trim().toLowerCase();
+  const groups = TAB_GROUPS
+    .map((g) => ({ ...g, tabs: q ? g.tabs.filter((t) => `${TABS[t].label} ${TABS[t].desc}`.toLowerCase().includes(q)) : g.tabs }))
+    .filter((g) => g.tabs.length > 0);
+  const pending = (t) => (stats && TAB_PENDING_KEY[t] ? stats[TAB_PENDING_KEY[t]] || 0 : 0);
+  const group = groupOf(tab);
+  const meta = TABS[tab];
+
+  return (
+    <div className={`staff${navOpen ? ' staff-nav-open' : ''}`}>
+      <aside className="staff-rail" aria-label="Ferramentas da equipe">
+        <div className="staff-rail-head">
+          <span className="staff-rail-mark"><StaffIcon name="shield" size={18} /></span>
+          <div className="staff-rail-title">
+            <strong>Painel da Equipe</strong>
+            <span>{user.displayName}</span>
+          </div>
+          <button type="button" className="staff-rail-close" onClick={() => setNavOpen(false)} aria-label="Fechar menu">
+            <StaffIcon name="close" size={18} />
+          </button>
+        </div>
+
+        <label className="staff-search">
+          <StaffIcon name="search" size={16} />
+          <input
+            ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar ferramenta" aria-label="Buscar ferramenta"
+            onKeyDown={(e) => { if (e.key === 'Enter' && groups[0]) selectTab(groups[0].tabs[0]); if (e.key === 'Escape') setQuery(''); }}
+          />
+          <kbd>Ctrl K</kbd>
+        </label>
+
+        <nav className="staff-nav">
+          {!q && (
+            <button type="button" className={`staff-nav-item staff-nav-home${tab === 'overview' ? ' active' : ''}`} onClick={() => selectTab('overview')}>
+              <StaffIcon name="overview" size={17} />
+              <span>Visão geral</span>
+            </button>
+          )}
+          {groups.map((g) => (
+            <div key={g.label} className="staff-nav-group">
+              <div className="staff-nav-group-label"><StaffIcon name={g.icon} size={14} /> {g.label}</div>
+              {g.tabs.map((t) => (
+                <button key={t} type="button" className={`staff-nav-item${tab === t ? ' active' : ''}`} onClick={() => selectTab(t)}>
+                  <span className="staff-nav-item-label">{TABS[t].label}</span>
+                  {pending(t) > 0 && <span className="staff-count" title="Pendentes">{pending(t)}</span>}
+                </button>
+              ))}
+            </div>
+          ))}
+          {q && groups.length === 0 && <p className="staff-empty">Nada encontrado para "{query}".</p>}
+        </nav>
+
+        <button type="button" className="staff-rail-link" onClick={() => navigate('/admin/interface-editor')}>
+          <span>Editor de Interface</span>
+          <StaffIcon name="external" size={15} />
+        </button>
+      </aside>
+
+      <div className="staff-backdrop" onClick={() => setNavOpen(false)} />
+
+      <main className="staff-main" ref={contentRef}>
+        <header className="staff-header">
+          <button type="button" className="staff-menu-btn" onClick={() => setNavOpen(true)} aria-label="Abrir ferramentas">
+            <StaffIcon name="menu" size={18} />
+          </button>
+          <div className="staff-header-text">
+            {group && (
+              <p className="staff-crumb">
+                {group.label} <StaffIcon name="arrow" size={12} />
+              </p>
+            )}
+            <h1>{meta.label}</h1>
+            <p className="staff-desc">{meta.desc}</p>
+          </div>
+        </header>
+
+        <div className={`staff-body staff-body-${tab}`}>
+          {tab === 'overview' && <OverviewTab stats={stats} onOpen={selectTab} onRefresh={loadStats} />}
+          {tab === 'inscricoes' && <ApplicationsTab />}
+          {tab === 'users' && <UsersTab />}
+          {tab === 'badges' && <BadgesTab />}
+          {tab === 'logs' && <LogsTab />}
+          {tab === 'numeros' && <MetricsTab />}
+          {tab === 'maintenance' && <MaintenanceTab />}
+          {tab === 'announcements' && <AnnouncementsTab />}
+          {tab === 'album' && <AlbumLayoutTab />}
+          {tab === 'economia' && <EconomyAdminTab />}
+          {tab === 'decoracoes' && <ShopAdminTab />}
+          {tab === 'apoio' && <SupportersAdmin />}
+          {tab === 'casas' && <HousesAdminTab />}
+          {tab === 'sistema' && <SystemTab />}
+          {tab === 'moderacao' && <ModerationTab />}
+          {tab === 'automodDm' && <AutomodDmTab />}
+          {tab === 'reports' && <ReportsTab />}
+          {tab === 'feeds' && <FeedsAdminTab />}
+          {tab === 'appCatalog' && <AppCatalogTab />}
+          {tab === 'modGames' && <ModGamesAdminTab />}
+          {tab === 'workshopGames' && <WorkshopGamesAdminTab />}
+          {tab === 'gamebananaGames' && <GameBananaGamesAdminTab />}
+          {tab === 'modReports' && <ModReportsAdminTab />}
+          {tab === 'roles' && <RolesAdminTab />}
+          {tab === 'channels' && <ChannelsAdminTab />}
+          {tab === 'gifMove' && <GifMoveAdminTab />}
+          {tab === 'emojis' && <EmojisAdminTab />}
+          {tab === 'stickers' && <StickersAdminTab />}
+          {tab === 'clanIcons' && <ClanIconsAdminTab />}
+          {tab === 'clubs' && <ClubsAdminTab />}
+          {tab === 'achievements' && <AchievementsAdminTab />}
+          {tab === 'updates' && <UpdatesAdminTab />}
+          {tab === 'events' && <EventsAdminTab />}
+          {tab === 'honeypot' && <HoneypotAdminTab />}
+          {tab === 'reload' && <ReloadAdminTab />}
+          {tab === 'saude' && <StaffHealthTab />}
+          {tab === 'painelSaude' && <StaffOpsPanel />}
+          {tab === 'servidorVoz' && <VoiceServerAdmin />}
+          {tab === 'busca' && <StaffUserSearchTab />}
+          {tab === 'cartasCartas' && <CardsAdminCards />}
+          {tab === 'cartasPacotes' && <CardsAdminPacks />}
+          {tab === 'cartasRegras' && <CardsAdminSettings />}
+          {tab === 'cartasJogadores' && <CardsAdminPlayers />}
+          {tab === 'cartasTrocas' && <CardsAdminTrades />}
+          {tab === 'cartasPartidas' && <CardsAdminMatches />}
+          {tab === 'cartasEstatisticas' && <CardsAdminStats />}
+          {tab === 'cartasCampanha' && <CardsAdminCampaign />}
+          {tab === 'cartasTorneios' && <CardsAdminTournaments />}
+          {tab === 'cartasFundos' && <CardsAdminBoards />}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// Visão geral: filas que precisam de ação primeiro, depois os números
+// da comunidade e a atividade recente da equipe.
+const QUEUES = [
+  { tab: 'inscricoes', key: 'pendingApplications', label: 'Inscrições', hint: 'aguardando aprovação' },
+  { tab: 'reports', key: 'pendingReports', label: 'Denúncias', hint: 'para analisar' },
+  { tab: 'automodDm', key: 'pendingAutomodFlags', label: 'DMs sinalizadas', hint: 'pelo filtro automático' },
+  { tab: 'modReports', key: 'pendingModReports', label: 'Mods denunciados', hint: 'para analisar' },
+];
+
+// Texto legível de cada ação registrada no log de auditoria.
+const ACTION_TEXT = {
+  APPLICATION_APPROVE: 'aprovou uma inscrição', APPLICATION_REJECT: 'recusou uma inscrição',
+  APP_CATALOG_CREATE: 'adicionou um app', APP_CATALOG_UPDATE: 'editou um app', APP_CATALOG_DELETE: 'removeu um app',
+  AUTOMOD_FLAG_RESOLVE: 'resolveu uma DM sinalizada', AUTOMOD_FLAG_REVIEW: 'analisou uma DM sinalizada', AUTOMOD_TRIGGER: 'filtro automático disparou',
+  AUTOMOD_RULE_CREATE: 'criou uma regra de filtro', AUTOMOD_RULE_UPDATE: 'editou uma regra de filtro', AUTOMOD_RULE_DELETE: 'removeu uma regra de filtro',
+  BADGE_GRANT: 'concedeu uma insígnia', BADGE_REVOKE: 'removeu uma insígnia',
+  BADGE_TYPE_CREATE: 'criou uma insígnia', BADGE_TYPE_UPDATE: 'editou uma insígnia', BADGE_TYPE_DELETE: 'excluiu uma insígnia',
+  CLAN_ADMIN_UPDATE: 'editou um clube', CLAN_ADMIN_DELETE: 'excluiu um clube', COMMUNITY_EDIT: 'editou a comunidade',
+  HONEYPOT_UNBLOCK_IP: 'desbloqueou um IP',
+  MEMBER_BAN: 'baniu um membro', MEMBER_UNBAN: 'desbaniu um membro', MEMBER_TIMEOUT: 'silenciou um membro',
+  MEMBER_TIMEOUT_REMOVE: 'tirou o silêncio de um membro', MEMBER_WARN: 'advertiu um membro', MEMBER_WARN_CLEAR: 'limpou advertências',
+  MESSAGE_DELETE: 'apagou uma mensagem',
+  PENDANT_CREATE: 'criou um pingente', PENDANT_UPDATE: 'editou um pingente', PENDANT_DELETE: 'excluiu um pingente',
+  RELOAD_USER_PRESENCE: 'recarregou a presença online', REPORT_RESOLVE: 'resolveu uma denúncia', REPORT_REVIEW: 'analisou uma denúncia',
+  SYSTEM_TOGGLE: 'ligou/desligou um sistema',
+  USER_ADD_CURRENCY: 'deu moedas a um usuário', USER_ADD_XP: 'deu XP a um usuário', USER_SET_LEVEL: 'mudou o nível de um usuário',
+  USER_BAN: 'baniu um usuário', USER_UNBAN: 'desbaniu um usuário', USER_SUSPEND: 'suspendeu um usuário', USER_UNSUSPEND: 'tirou a suspensão de um usuário',
+  USER_DELETE_ACCOUNT: 'excluiu uma conta', USER_EDIT: 'editou um usuário', USER_ROLE_CHANGE: 'mudou o cargo de um usuário',
+};
+const actionText = (a) => ACTION_TEXT[a] || String(a || '').replaceAll('_', ' ').toLowerCase();
+
+function relativeTime(date) {
+  const diff = (Date.now() - new Date(date).getTime()) / 1000;
+  if (diff < 60) return 'agora';
+  if (diff < 3600) return `há ${Math.floor(diff / 60)} min`;
+  if (diff < 86400) return `há ${Math.floor(diff / 3600)} h`;
+  return new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+}
+
+function OverviewTab({ stats, onOpen, onRefresh }) {
+  const [logs, setLogs] = useState(null);
+  useEffect(() => { adminListAuditLog().then((d) => setLogs(d.logs.slice(0, 8))).catch(() => setLogs([])); onRefresh(); }, []);
+  const fmt = (n) => (typeof n === 'number' ? n.toLocaleString('pt-BR') : '—');
+  const totalPending = stats ? QUEUES.reduce((sum, item) => sum + (stats[item.key] || 0), 0) : null;
+
+  return (
+    <div className="staff-overview">
+      <section className="staff-section">
+        <div className="staff-section-head">
+          <h2>Precisa de atenção</h2>
+          {totalPending === 0 && <span className="staff-ok">Tudo em dia</span>}
+        </div>
+        <div className="staff-queues">
+          {QUEUES.map((item) => {
+            const n = stats ? stats[item.key] || 0 : null;
+            return (
+              <button key={item.tab} type="button" className={`staff-queue${n ? ' has-items' : ''}`} onClick={() => onOpen(item.tab)}>
+                <span className="staff-queue-num">{n === null ? '—' : n}</span>
+                <span className="staff-queue-label">{item.label}</span>
+                <span className="staff-queue-hint">{item.hint}</span>
+                <span className="staff-queue-go"><StaffIcon name="arrow" size={16} /></span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="staff-section">
+        <div className="staff-section-head"><h2>Comunidade</h2></div>
+        <dl className="staff-metrics">
+          <div><dt>Membros</dt><dd>{fmt(stats?.userCount)}</dd></div>
+          <div><dt>Novos em 24h</dt><dd>{fmt(stats?.newUsersLast24h)}</dd></div>
+          <div><dt>Novos em 7 dias</dt><dd>{fmt(stats?.newUsersLast7d)}</dd></div>
+          <div><dt>Mensagens</dt><dd>{fmt(stats?.messageCount)}</dd></div>
+          <div><dt>Contas banidas</dt><dd>{fmt(stats?.bannedCount)}</dd></div>
+        </dl>
+      </section>
+
+      <section className="staff-section">
+        <div className="staff-section-head">
+          <h2>Atividade recente da equipe</h2>
+          <button type="button" className="staff-link" onClick={() => onOpen('logs')}>Ver tudo</button>
+        </div>
+        {logs === null && <p className="staff-empty">Carregando…</p>}
+        {logs?.length === 0 && <p className="staff-empty">Nenhuma ação registrada ainda.</p>}
+        {logs?.length > 0 && (
+          <ol className="staff-activity">
+            {logs.map((l) => (
+              <li key={l.id}>
+                <span className="staff-activity-who">{l.actor?.displayName || 'Sistema'}</span>
+                <span className="staff-activity-what">{actionText(l.action)}</span>
+                {l.reason && <span className="staff-activity-why">“{l.reason}”</span>}
+                <time dateTime={l.createdAt}>{relativeTime(l.createdAt)}</time>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function HoneypotAdminTab() {
+  const [hits, setHits] = useState(null);
+  const [blocked, setBlocked] = useState(null);
+  const [subTab, setSubTab] = useState('blocked');
+
+  const refresh = () => {
+    adminListBlockedIps().then((d) => setBlocked(d.blocked));
+    adminListHoneypotHits().then((d) => setHits(d.hits));
+  };
+  useEffect(() => { refresh(); }, []);
+
+  const unblock = async (ip) => {
+    await adminUnblockIp(ip);
+    setBlocked((list) => list.filter((b) => b.ip !== ip));
+  };
+
+  return (
+    <div>
+      <h2>🕸️ Segurança (Honeypot)</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        Rotas falsas (/wp-admin, /.env, /phpmyadmin e outras) que só scanners automatizados tentam acessar —
+        gente de verdade usando o site nunca bate nelas. Quem tenta é banido automaticamente e recebe dados falsos
+        em vez de qualquer informação real.
+      </p>
+      <div className="mod-tabs">
+        <button className={`mod-tab ${subTab === 'blocked' ? 'active' : ''}`} onClick={() => setSubTab('blocked')}>IPs bloqueados</button>
+        <button className={`mod-tab ${subTab === 'hits' ? 'active' : ''}`} onClick={() => setSubTab('hits')}>Histórico de tentativas</button>
+      </div>
+
+      {subTab === 'blocked' && (
+        blocked === null ? <p className="dim">Carregando...</p> : blocked.length === 0 ? (
+          <p className="dim">Nenhum IP bloqueado — nenhum scanner caiu na isca ainda.</p>
+        ) : (
+          <div className="admin-users-list">
+            {blocked.map((b) => (
+              <div key={b.id} className="admin-user-row">
+                <div className="admin-user-row-info">
+                  <div className="admin-user-row-name">{b.ip}</div>
+                  <div className="admin-user-row-meta dim">
+                    {b.reason} · {b.hitCount} tentativa{b.hitCount === 1 ? '' : 's'} · desde {new Date(b.createdAt).toLocaleString('pt-BR')}
+                  </div>
+                </div>
+                <button className="btn-secondary" onClick={() => unblock(b.ip)}>Desbloquear</button>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+
+      {subTab === 'hits' && (
+        hits === null ? <p className="dim">Carregando...</p> : hits.length === 0 ? (
+          <p className="dim">Nenhuma tentativa registrada ainda.</p>
+        ) : (
+          <div className="audit-log-list">
+            {hits.map((h) => (
+              <div key={h.id} className="audit-log-entry">
+                <span className="audit-action">{h.ip}</span> tentou <code>{h.method} {h.path}</code>
+                <div className="audit-meta">{h.userAgent || 'sem user-agent'} · {new Date(h.createdAt).toLocaleString('pt-BR')}</div>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+// "Reload" — força todo mundo a aparecer offline até recarregar a
+// página (ver presenceStore.clearAll() no backend pro porquê disso é
+// seguro: só mexe num cache temporário de presença, nunca em sessão,
+// token ou dado de conta). Útil depois de um deploy/restart, quando o
+// status de presença de quem já estava conectado pode ter ficado
+// dessincronizado.
+function ReloadAdminTab() {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+
+  const runReloadUser = async () => {
+    if (!confirm('Isso limpa e refaz a presença online de todo mundo. Ninguém é desconectado, nenhum dado é apagado. Continuar?')) return;
+    setBusy(true);
+    setError('');
+    setResult(null);
+    try {
+      const data = await adminReloadUserPresence();
+      setResult(data);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Não foi possível executar.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2>🔄 Reload</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        Ferramentas de sincronização — corrigem estados que podem ter ficado dessincronizados sem precisar mexer
+        conta por conta.
+      </p>
+      <div className="settings-block">
+        <h4>Reload User</h4>
+        <p className="dim">
+          Refaz a presença online de todo mundo de uma vez: limpa o que o servidor tinha guardado, registra de novo
+          quem está conectado agora e corrige o status salvo de quem não está. Ninguém é desconectado, nenhuma sessão
+          é encerrada, nenhum dado de conta é alterado.
+        </p>
+        <button className="btn-secondary" disabled={busy} onClick={runReloadUser}>
+          {busy ? 'Executando...' : 'Reload User'}
+        </button>
+        {result && <p className="dim" style={{ marginTop: 8 }}>Feito — {result.cleared} conexão(ões) de presença foram limpas.</p>}
+        {error && <div className="auth-error" style={{ marginTop: 8 }}>{error}</div>}
+      </div>
+    </div>
+  );
+}
+
+// Gestão de Cargos — a UI de verdade (RoleManagerModal.jsx) já existia e
+// já funcionava contra as rotas reais de /community/roles (criar, editar
+// permissões, cor, ícone, reordenar, excluir — tudo já validado na
+// auditoria de segurança anterior contra escalonamento de privilégio),
+// só nunca tinha um jeito de abrir ela: ela vivia dentro do
+// ChannelSidebar.jsx antigo, que não é mais renderizado em lugar nenhum
+// desde a troca pra MainSidebar. Esta aba só reconecta o botão — o modal
+// em si não precisou de nenhuma mudança.
+function RolesAdminTab() {
+  const roles = useStore((s) => s.roles);
+  const [managerOpen, setManagerOpen] = useState(false);
+  const realRoles = roles.filter((r) => !r.isDefault).sort((a, b) => b.position - a.position);
+
+  return (
+    <div>
+      <h2>🎭 Cargos da comunidade</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        Crie cargos, defina cor/ícone, escolha as permissões e a ordem de exibição. As mudanças salvam na hora e
+        aparecem pra todo mundo (mesmas rotas usadas pelo restante do app — nenhum dado fica só na tela).
+      </p>
+      <button className="btn-primary" onClick={() => setManagerOpen(true)}>Gerenciar cargos</button>
+
+      <div className="admin-users-list" style={{ marginTop: 16 }}>
+        {realRoles.length === 0 && <p className="dim">Nenhum cargo criado ainda (além do cargo padrão @todos).</p>}
+        {realRoles.map((r) => (
+          <div key={r.id} className="admin-user-row">
+            <span className="role-chip" style={roleChipStyle(r.color)}>{r.icon ? `${r.icon} ` : ''}{r.name}</span>
+            <span className="dim" style={{ marginLeft: 'auto' }}>posição {r.position}</span>
+          </div>
+        ))}
+      </div>
+
+      {managerOpen && <RoleManagerModal onClose={() => setManagerOpen(false)} />}
+    </div>
+  );
+}
+
+// Gestão de Canais e Categorias — mesma história do RolesAdminTab: o
+// Item pedido: "crie um novo sistema... GIFa Move... personalize
+// visualmente a posição e o tamanho do menu de GIFs... tanto no
+// desktop quanto no mobile". Investigação prévia: já existe um editor
+// visual de interface (InterfaceEditorPage.jsx + uiLayoutConfig no
+// banco), mas ele é baseado em GRID (não posição livre por pixel) —
+// não dá pra reaproveitar direto pro "arrastar/redimensionar livre"
+// pedido aqui. Reaproveitado só o PADRÃO arquitetural dele (config
+// por dispositivo na mesma tabela uiLayoutConfig, endpoint /ui-layout
+// já existente, sincroniza em tempo real) — sem duplicar
+// infraestrutura nova à toa.
+//
+// Os valores são salvos em PORCENTAGEM da tela (0-100), não pixels
+// fixos — a prévia aqui tem um tamanho de referência fixo (pra caber
+// bem no Painel), mas quem usa o app de verdade pode ter qualquer
+// resolução; porcentagem garante que a posição/tamanho escolhidos
+// aqui ficam proporcionalmente iguais em qualquer tela real, não só
+// na exata resolução do computador da staff.
+const GIF_MOVE_PREVIEW = {
+  desktop: { width: 900, height: 540 },
+  mobile: { width: 320, height: 600 },
+};
+const GIF_MOVE_DEFAULT_BOX = {
+  desktop: { left: 620, top: 340, width: 240, height: 160 },
+  mobile: { left: 20, top: 380, width: 280, height: 180 },
+};
+
+function pctToPreviewBox(pct, ref) {
+  if (!pct || typeof pct.left !== 'number') return GIF_MOVE_DEFAULT_BOX[ref === GIF_MOVE_PREVIEW.desktop ? 'desktop' : 'mobile'];
+  return {
+    left: Math.round((pct.left / 100) * ref.width),
+    top: Math.round((pct.top / 100) * ref.height),
+    width: Math.round((pct.width / 100) * ref.width),
+    height: Math.round((pct.height / 100) * ref.height),
+  };
+}
+function previewBoxToPct(box, ref) {
+  return {
+    left: +((box.left / ref.width) * 100).toFixed(2),
+    top: +((box.top / ref.height) * 100).toFixed(2),
+    width: +((box.width / ref.width) * 100).toFixed(2),
+    height: +((box.height / ref.height) * 100).toFixed(2),
+  };
+}
+
+// Item pedido: "no painel da staff não aparece pra criar as figurinhas
+// e os emojis personalizados" — já existiam (EmojiManagerModal.jsx/
+// StickerManagerModal.jsx), mas só acessíveis via um menu suspenso
+// pequeno na barra lateral do servidor, que exigia especificamente
+// a permissão de gerenciar CANAIS pra sequer aparecer (não a de
+// gerenciar emoji/figurinha) — um jeito fácil de nunca encontrar.
+// Adicionado aqui, no painel principal (onde cargos/canais/conquistas
+// já vivem), reaproveitando os MESMOS modais sem duplicar nada.
+function EmojisAdminTab() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <h2>😀 Emojis personalizados</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>Crie emojis próprios da comunidade — aceita GIF animado, não só imagem parada.</p>
+      <button className="btn-primary" onClick={() => setOpen(true)}>Gerenciar emojis</button>
+      {open && <EmojiManagerModal onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+function StickersAdminTab() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <h2>🏷️ Figurinhas</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>Crie figurinhas pra usar no chat — aceita GIF animado, não só imagem parada.</p>
+      <button className="btn-primary" onClick={() => setOpen(true)}>Gerenciar figurinhas</button>
+      {open && <StickerManagerModal onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+// Item pedido: "ícones personalizados [de clã]... criados através do
+// Painel da Staff" — mesmo padrão das duas abas acima.
+function ClanIconsAdminTab() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <h2>⚔️ Ícones de Clube</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>Crie ícones pra donos de clã escolherem ao criar ou editar o clã deles.</p>
+      <button className="btn-primary" onClick={() => setOpen(true)}>Gerenciar ícones de clã</button>
+      {open && <ClanIconManagerModal onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+const CLUB_PRIVACY_LABEL = { PUBLIC: 'Público', FRIENDS_ONLY: 'Exclusivo para amigos', INVITE_ONLY: 'Somente por convite' };
+
+// Item pedido: "adicione uma nova categoria chamada Clubes, onde será
+// exibida uma lista com todos os clubes criados pelos usuários... ao
+// clicar em um clube, a Staff poderá abrir uma visualização dele
+// dentro do próprio painel".
+function ClubsAdminTab() {
+  const [clans, setClans] = useState(null);
+  const [viewingId, setViewingId] = useState(null);
+
+  const refresh = () => adminListClans().then((d) => setClans(d.clans)).catch(() => {});
+  useEffect(() => { refresh(); }, []);
+
+  if (viewingId) return <AdminClanView id={viewingId} onBack={() => { setViewingId(null); refresh(); }} />;
+
+  return (
+    <div>
+      <h2>🏛️ Clubes</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>Todos os clubes criados pelos usuários — clique em um pra abrir a visualização administrativa.</p>
+      {!clans ? (
+        <p className="dim">Carregando...</p>
+      ) : clans.length === 0 ? (
+        <p className="dim">Nenhum clube criado ainda.</p>
+      ) : (
+        <div className="clans-grid">
+          {clans.map((clan) => (
+            <div key={clan.id} className="clan-card" style={{ cursor: 'pointer' }} onClick={() => setViewingId(clan.id)}>
+              <div className="clan-icon-preview"><ClanIcon icon={clan.icon} color={clan.iconColor} /></div>
+              <div className="clan-card-body">
+                <div className="clan-card-name">{clan.name} <span className="dim">({CLUB_PRIVACY_LABEL[clan.privacyType] || clan.privacyType})</span></div>
+                <div className="dim">{clan.memberCount} membro{clan.memberCount === 1 ? '' : 's'} — dono: {clan.owner?.displayName || '—'}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Item pedido: "abrir uma visualização dele dentro do próprio painel,
+// como se estivesse visualizando o clube por dentro. Porém, isso não
+// significa que o staff entrou no clube: será apenas um modo de
+// visualização administrativa... deixar claro visualmente que o
+// staff está apenas visualizando." Faz e não faz, ponto por ponto do
+// pedido:
+//   - Ver mensagens e conteúdo: sim (adminListClanMessages) — SEM
+//     campo de digitar (nenhuma rota de enviar como staff existe).
+//   - Ver canais/informações: sim (nome, descrição, membros, tags).
+//   - Entrar/participar de chamadas: nunca oferecido aqui — nenhum
+//     botão de entrar em canal de voz nessa tela, de propósito.
+//   - Editar configurações: sim (adminUpdateClan).
+//   - Excluir, mesmo de outro dono: sim (adminDeleteClan).
+function AdminClanView({ id, onBack }) {
+  const [clan, setClan] = useState(null);
+  const [messages, setMessages] = useState(null);
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState('');
+
+  useEffect(() => {
+    adminGetClan(id).then((d) => { setClan(d.clan); setForm({ name: d.clan.name, description: d.clan.description || '', privacyType: d.clan.privacyType }); }).catch(() => {});
+    adminListClanMessages(id).then((d) => setMessages(d.messages)).catch(() => {});
+  }, [id]);
+
+  const save = async () => {
+    setSaving(true); setSaveMsg('');
+    try {
+      const { clan: updated } = await adminUpdateClan(id, form);
+      setClan((c) => ({ ...c, ...updated }));
+      setSaveMsg('✓ Salvo');
+      setTimeout(() => setSaveMsg(''), 2000);
+    } catch (err) {
+      setSaveMsg(err.response?.data?.error || 'Não foi possível salvar.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const del = async () => {
+    const reason = prompt(`Excluir o clube "${clan?.name}"? Isso apaga todos os membros, mensagens e tags dele — não pode ser desfeito. Motivo (opcional, fica registrado no log):`);
+    if (reason === null) return; // cancelou o prompt
+    try {
+      await adminDeleteClan(id, reason || undefined);
+      onBack();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Não foi possível excluir o clube.');
+    }
+  };
+
+  if (!clan || !form) return <p className="dim">Carregando...</p>;
+
+  return (
+    <div>
+      <button className="btn-link" onClick={onBack} style={{ marginBottom: 12 }}>‹ Todos os clubes</button>
+
+      {/* Item pedido: "deixar claro visualmente que o staff está
+          apenas visualizando o clube como administrador, sem
+          realmente fazer parte dele ou aparecer como membro." */}
+      <div style={{ background: 'var(--yellow, #FEE75C)', color: '#111', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontWeight: 600, fontSize: 13 }}>
+        👁️ Modo visualização administrativa — você está vendo este clube como staff, não como membro. Você não pode enviar mensagens nem entrar em chamadas.
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        <ClanIcon icon={clan.icon} color={clan.iconColor} />
+        <div>
+          <h2 style={{ margin: 0 }}>{clan.name}</h2>
+          <p className="dim" style={{ margin: 0 }}>{clan.memberCount} membro{clan.memberCount === 1 ? '' : 's'} — {CLUB_PRIVACY_LABEL[clan.privacyType]}</p>
+        </div>
+      </div>
+
+      <div className="settings-block">
+        <h4>Editar configurações</h4>
+        <label>Nome<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} maxLength={40} /></label>
+        <label>Descrição<textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} maxLength={200} /></label>
+        <label>
+          Privacidade
+          <select value={form.privacyType} onChange={(e) => setForm({ ...form, privacyType: e.target.value })}>
+            <option value="PUBLIC">Público</option>
+            <option value="FRIENDS_ONLY">Exclusivo para amigos</option>
+            <option value="INVITE_ONLY">Somente por convite</option>
+          </select>
+        </label>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button className="btn-primary" onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Salvar alterações'}</button>
+          {saveMsg && <span className="dim">{saveMsg}</span>}
+        </div>
+        <button className="btn-danger" style={{ marginTop: 12 }} onClick={del}>Excluir clube</button>
+      </div>
+
+      <div className="permission-group-label" style={{ marginTop: 20 }}>MEMBROS</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+        {clan.members.map((m) => (
+          <span key={m.id} className="dim" style={{ background: 'var(--bg-elevated)', padding: '4px 10px', borderRadius: 20, fontSize: 12.5 }}>
+            {m.displayName} {m.clanRole === 'OWNER' && '👑'}
+          </span>
+        ))}
+      </div>
+
+      <div className="permission-group-label">MENSAGENS (somente leitura)</div>
+      <div style={{ maxHeight: 400, overflowY: 'auto', background: 'var(--bg-elevated)', borderRadius: 8, padding: 12 }}>
+        {!messages ? (
+          <p className="dim">Carregando...</p>
+        ) : messages.length === 0 ? (
+          <p className="dim">Nenhuma mensagem ainda.</p>
+        ) : (
+          messages.map((msg) => (
+            <div key={msg.id} style={{ marginBottom: 10, fontSize: 13.5 }}>
+              <strong>{msg.author.displayName}</strong> <span className="dim" style={{ fontSize: 11 }}>{new Date(msg.createdAt).toLocaleString('pt-BR')}</span>
+              <div>{msg.content}</div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function GifMoveAdminTab() {
+  const [step, setStep] = useState('desktop'); // 'desktop' | 'mobile'
+  const [layout, setLayout] = useState(null); // { PC: {left,top,width,height} em %, MOBILE: {...} }
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const desktopRef = useRef(null);
+  const mobileRef = useRef(null);
+
+  useEffect(() => {
+    getUiLayout().then((d) => setLayout({ PC: d.PC?.gifMenuLayout, MOBILE: d.MOBILE?.gifMenuLayout, _full: d })).catch(() => {});
+  }, []);
+
+  if (!layout) return <p className="dim">Carregando...</p>;
+
+  const desktopBox = pctToPreviewBox(layout.PC, GIF_MOVE_PREVIEW.desktop) || GIF_MOVE_DEFAULT_BOX.desktop;
+  const mobileBox = pctToPreviewBox(layout.MOBILE, GIF_MOVE_PREVIEW.mobile) || GIF_MOVE_DEFAULT_BOX.mobile;
+
+  const setDesktopBox = (box) => setLayout((l) => ({ ...l, PC: previewBoxToPct(box, GIF_MOVE_PREVIEW.desktop) }));
+  const setMobileBox = (box) => setLayout((l) => ({ ...l, MOBILE: previewBoxToPct(box, GIF_MOVE_PREVIEW.mobile) }));
+
+  const save = async () => {
+    setSaving(true); setSaved(false);
+    try {
+      // Item pedido: "a edição do desktop e do mobile seja
+      // independente" — cada updateUiLayout SOBRESCREVE toda a
+      // config daquele dispositivo de uma vez (ordem dos menus,
+      // largura da barra lateral, etc, não só o menu de GIFs) — por
+      // isso envia a config CHEIA de cada dispositivo (buscada ao
+      // abrir esta aba), só trocando o gifMenuLayout, pra não apagar
+      // as outras configurações que a staff já tinha salvo no Editor
+      // de Interface.
+      const fullPC = layout._full?.PC || {};
+      const fullMobile = layout._full?.MOBILE || {};
+      await updateUiLayout('PC', { ...fullPC, gifMenuLayout: layout.PC });
+      await updateUiLayout('MOBILE', { ...fullMobile, gifMenuLayout: layout.MOBILE });
+      setSaved(true);
+    } catch {
+      // silencioso — botão volta ao normal, staff pode tentar de novo
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="gif-move-tab">
+      <h2>🎯 GIFa Move</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        Arraste e redimensione a caixa abaixo pra escolher onde o menu de GIFs abre na comunidade —
+        independente pra desktop e mobile.
+      </p>
+
+      <div className="gif-move-steps">
+        <button type="button" className={`gif-move-step ${step === 'desktop' ? 'active' : ''}`} onClick={() => setStep('desktop')}>1. Desktop</button>
+        <button type="button" className={`gif-move-step ${step === 'mobile' ? 'active' : ''}`} onClick={() => setStep('mobile')}>2. Mobile</button>
+      </div>
+
+      {step === 'desktop' && (
+        <>
+          <div className="gif-move-preview-wrap">
+            <div className="gif-move-desktop-frame" ref={desktopRef} style={{ width: GIF_MOVE_PREVIEW.desktop.width, height: GIF_MOVE_PREVIEW.desktop.height }}>
+              <GifMoveCommunityMock />
+              <DraggableResizableBox value={desktopBox} onChange={setDesktopBox} containerRef={desktopRef} label="Menu de GIFs" />
+            </div>
+          </div>
+          <div className="gif-move-actions">
+            <button type="button" className="btn-primary" onClick={() => setStep('mobile')}>Prosseguir →</button>
+          </div>
+        </>
+      )}
+
+      {step === 'mobile' && (
+        <>
+          <div className="gif-move-preview-wrap">
+            <div className="gif-move-phone-shell">
+              <div className="gif-move-phone-frame" ref={mobileRef} style={{ width: GIF_MOVE_PREVIEW.mobile.width, height: GIF_MOVE_PREVIEW.mobile.height }}>
+                <GifMoveCommunityMock mobile />
+                <DraggableResizableBox value={mobileBox} onChange={setMobileBox} containerRef={mobileRef} label="Menu de GIFs" />
+              </div>
+            </div>
+          </div>
+          <div className="gif-move-actions">
+            <button type="button" className="btn-secondary" onClick={() => setStep('desktop')}>← Voltar</button>
+            <button type="button" className="btn-primary" disabled={saving} onClick={save}>
+              {saving ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
+        </>
+      )}
+      {saved && <p className="dim" style={{ color: 'var(--green)', marginTop: 8 }}>Salvo — já vale pra todo mundo na comunidade.</p>}
+    </div>
+  );
+}
+
+// Prévia simplificada da tela de comunidade, reaproveitando as MESMAS
+// classes CSS do app de verdade (não reinventa estilo à parte) — só
+// com conteúdo fixo/fake no lugar de dados reais, já que essa é só
+// uma referência visual pra staff posicionar o menu, não o app
+// funcionando de verdade.
+function GifMoveCommunityMock({ mobile }) {
+  return (
+    <div className={`gif-move-mock-shell ${mobile ? 'mobile' : ''}`}>
+      {!mobile && (
+        <div className="gif-move-mock-sidebar">
+          <div className="gif-move-mock-avatar" />
+          <div className="gif-move-mock-avatar" />
+          <div className="gif-move-mock-avatar" />
+        </div>
+      )}
+      <div className="gif-move-mock-main">
+        <div className="gif-move-mock-header"><div className="gif-move-mock-line" style={{ width: '35%' }} /></div>
+        <div className="gif-move-mock-messages">
+          {[60, 40, 75, 30].map((w, i) => (
+            <div key={i} className="gif-move-mock-message">
+              <div className="gif-move-mock-avatar-sm" />
+              <div className="gif-move-mock-line" style={{ width: `${w}%` }} />
+            </div>
+          ))}
+        </div>
+        <div className="gif-move-mock-composer">
+          <div className="gif-move-mock-composer-input" />
+          <div className="gif-move-mock-composer-btn">GIF</div>
+          <div className="gif-move-mock-composer-btn">☺</div>
+        </div>
+      </div>
+      {!mobile && (
+        <div className="gif-move-mock-members">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="gif-move-mock-member">
+              <div className="gif-move-mock-avatar-sm" />
+              <div className="gif-move-mock-line" style={{ width: '60%' }} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// backend (categoryController.js/channelController.js) e o modal de criar
+// canal (CreateChannelModal.jsx) já existiam prontos, só sem nenhum ponto
+// de entrada na interface atual. Reordenar aqui troca as POSIÇÕES reais
+// no banco (via reorderChannels/reorderCategories — a mesma rota
+// transacional já auditada), não é só uma ordem visual local.
+function ChannelsAdminTab() {
+  const categories = useStore((s) => s.categories);
+  const uncategorized = useStore((s) => s.channels);
+  const [creatingFor, setCreatingFor] = useState(undefined); // categoryId (ou null pra "sem categoria") — undefined = fechado
+  const [error, setError] = useState('');
+  const { promptAsync, confirmAsync, DialogElement } = usePromptDialog();
+  // Item pedido: "agrupe por categoria, não por assunto solto" — cria a
+  // estrutura sugerida inteira de uma vez (Início/Comunidade/Suporte/
+  // Voz, com os canais certos dentro de cada uma). Confere pelo nome
+  // antes de criar — clicar de novo não duplica o que já existe.
+  const [settingUp, setSettingUp] = useState(false);
+  const [setupLog, setSetupLog] = useState([]);
+
+  const sortedCategories = [...categories].sort((a, b) => a.position - b.position);
+
+  // BUG CORRIGIDO ("criar categoria não funciona" / "não dá pra excluir
+  // canal"): essas ações chamavam a API e ficavam esperando o evento de
+  // socket (category:new, channel:delete...) voltar pra atualizar a
+  // tela — igual o resto do app já faz. Só que aqui, sem NENHUM
+  // try/catch, qualquer erro (nome inválido, sessão expirada, etc.)
+  // ficava completamente silencioso: a pessoa clicava, nada acontecia
+  // na tela, e não tinha nenhuma mensagem dizendo por quê. Agora toda
+  // ação: (1) mostra o erro de verdade se falhar, e (2) já busca a
+  // comunidade atualizada e escreve direto no estado global assim que
+  // termina — mesmo padrão que CreateChannelModal.jsx já usava —, então
+  // a tela muda na hora, sem depender só do socket chegar de volta.
+  const refreshAfter = async (action) => {
+    setError('');
+    try {
+      await action();
+      const data = await getCommunity();
+      useStore.getState().setCommunityStructure({
+        categories: data.categories, channels: data.channels, members: data.members, roles: data.roles,
+      });
+    } catch (err) {
+      setError(err.response?.data?.error || 'Não foi possível concluir essa ação.');
+    }
+  };
+
+  const addCategory = async () => {
+    const name = await promptAsync('Nome da nova categoria:');
+    if (!name?.trim()) return;
+    refreshAfter(() => createCategory(name.trim()));
+  };
+
+  const renameCategory = async (cat) => {
+    const name = await promptAsync('Novo nome da categoria:', cat.name);
+    if (!name?.trim() || name === cat.name) return;
+    refreshAfter(() => updateCategory(cat.id, name.trim()));
+  };
+
+  const removeCategory = async (cat) => {
+    if (!(await confirmAsync(`Excluir a categoria "${cat.name}"? Os canais dela ficam sem categoria (não são apagados).`))) return;
+    refreshAfter(() => deleteCategory(cat.id));
+  };
+
+  const removeChannel = async (ch) => {
+    if (!(await confirmAsync(`Excluir o canal "${ch.name}"? Todas as mensagens dele são perdidas — isso não pode ser desfeito.`))) return;
+    refreshAfter(() => deleteChannel(ch.id));
+  };
+
+  // Item pedido: "adicione poder editar os canais já criados que estão
+  // em uma categoria" — o backend (updateChannel) já aceitava renomear
+  // desde sempre, só faltava esse botão pra chamar.
+  const renameChannel = async (ch) => {
+    const name = await promptAsync('Novo nome do canal:', ch.name);
+    if (!name?.trim() || name === ch.name) return;
+    refreshAfter(() => updateChannel(ch.id, { name: name.trim() }));
+  };
+
+  // Item pedido: "poder colocar um canal que está em outra categoria,
+  // ou não tem nenhuma, dentro de uma categoria" — o backend já
+  // aceitava mudar categoryId desde sempre (mesmo endpoint de
+  // renomear), só faltava essa interface pra escolher o destino.
+  const moveChannelToCategory = (ch, newCategoryId) => {
+    refreshAfter(() => updateChannel(ch.id, { categoryId: newCategoryId || null }));
+  };
+
+  const moveCategory = (index, direction) => {
+    const target = index + direction;
+    if (target < 0 || target >= sortedCategories.length) return;
+    const order = sortedCategories.map((c) => c.id);
+    [order[index], order[target]] = [order[target], order[index]];
+    refreshAfter(() => reorderCategories(order));
+  };
+
+  const moveChannel = (categoryId, list, index, direction) => {
+    const sorted = [...list].sort((a, b) => a.position - b.position);
+    const target = index + direction;
+    if (target < 0 || target >= sorted.length) return;
+    [sorted[index], sorted[target]] = [sorted[target], sorted[index]];
+    const order = sorted.map((ch, i) => ({ id: ch.id, categoryId: categoryId ?? null, position: i }));
+    refreshAfter(() => reorderChannels(order));
+  };
+
+  const runSuggestedSetup = async () => {
+    setSettingUp(true);
+    setSetupLog([]);
+    const existingCategoryNames = new Set(categories.map((c) => c.name.toLowerCase()));
+    const existingChannelNamesByCategory = new Map(
+      categories.map((c) => [c.name.toLowerCase(), new Set((c.channels || []).map((ch) => ch.name.toLowerCase()))])
+    );
+    const newLog = [];
+    for (const group of SUGGESTED_STRUCTURE) {
+      const key = group.category.toLowerCase();
+      let categoryId;
+      let existingChannelNames = existingChannelNamesByCategory.get(key);
+      if (existingCategoryNames.has(key)) {
+        newLog.push({ text: `Categoria "${group.category}" já existia — pulada.`, kind: 'skip' });
+      } else {
+        try {
+          const { category } = await createCategory(group.category);
+          categoryId = category.id;
+          existingChannelNames = new Set();
+          newLog.push({ text: `Categoria "${group.category}" criada.`, kind: 'ok' });
+        } catch (err) {
+          newLog.push({ text: `Erro criando categoria "${group.category}": ${err.response?.data?.error || 'falhou'}`, kind: 'error' });
+          setSetupLog([...newLog]);
+          continue;
+        }
+      }
+      for (const ch of group.channels) {
+        if (existingChannelNames?.has(ch.name.toLowerCase())) {
+          newLog.push({ text: `  #${ch.name} já existia — pulado.`, kind: 'skip' });
+          continue;
+        }
+        try {
+          await createChannel({ name: ch.name, type: ch.type, categoryId });
+          newLog.push({ text: `  ${ch.type === 'VOICE' ? '🔊' : '#'}${ch.name} criado.`, kind: 'ok' });
+        } catch (err) {
+          newLog.push({ text: `  Erro criando "${ch.name}": ${err.response?.data?.error || 'falhou'}`, kind: 'error' });
+        }
+      }
+      setSetupLog([...newLog]);
+    }
+    setSettingUp(false);
+    const data = await getCommunity();
+    useStore.getState().setCommunityStructure({
+      categories: data.categories, channels: data.channels, members: data.members, roles: data.roles,
+    });
+  };
+
+  const renderChannelRow = (categoryId, list, ch, i) => (
+    <div key={ch.id} className="admin-user-row">
+      <span className="dim" style={{ width: 18, textAlign: 'center' }}>{ch.type === 'VOICE' || ch.type === 'STAGE' ? '🔊' : '#'}</span>
+      <div className="admin-user-row-info"><div className="admin-user-row-name">{ch.name}</div></div>
+      <select
+        value={ch.categoryId || ''}
+        onChange={(e) => moveChannelToCategory(ch, e.target.value)}
+        title="Mover para outra categoria"
+      >
+        <option value="">Sem categoria</option>
+        {sortedCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </select>
+      <button className="btn-link" disabled={i === 0} onClick={() => moveChannel(categoryId, list, i, -1)}>▲</button>
+      <button className="btn-link" disabled={i === list.length - 1} onClick={() => moveChannel(categoryId, list, i, 1)}>▼</button>
+      <button className="btn-link" onClick={() => renameChannel(ch)}>Renomear</button>
+      <button className="btn-link danger" onClick={() => removeChannel(ch)}>Excluir</button>
+    </div>
+  );
+
+  return (
+    <div>
+      {DialogElement}
+      <h2># Canais e Categorias</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        Crie, exclua e reordene os canais e categorias da comunidade. A ordem aqui é a mesma que todo mundo vê na
+        barra lateral — mover um item já salva a posição real no banco.
+      </p>
+      {error && <div className="auth-error" style={{ marginBottom: 12 }}>{error}</div>}
+      <div className="admin-badges-toolbar">
+        <button className="btn-secondary" onClick={addCategory}>+ Nova categoria</button>
+        <button className="btn-secondary" onClick={() => setCreatingFor(null)}>+ Canal sem categoria</button>
+        <button className="btn-secondary" disabled={settingUp} onClick={runSuggestedSetup}>
+          {settingUp ? 'Criando...' : '🚀 Criar estrutura sugerida'}
+        </button>
+      </div>
+      {setupLog.length > 0 && (
+        <div className="admin-users-list" style={{ marginBottom: 14, fontFamily: 'monospace', fontSize: 13 }}>
+          {setupLog.map((entry, i) => (
+            <div key={i} className={`dim ${entry.kind === 'error' ? 'auth-error' : ''}`} style={{ padding: '2px 0' }}>
+              {entry.text}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {sortedCategories.map((cat, ci) => (
+        <div key={cat.id} className="settings-block" style={{ marginTop: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <b style={{ flex: 1 }}>{cat.name}</b>
+            <button className="btn-link" disabled={ci === 0} onClick={() => moveCategory(ci, -1)}>▲</button>
+            <button className="btn-link" disabled={ci === sortedCategories.length - 1} onClick={() => moveCategory(ci, 1)}>▼</button>
+            <button className="btn-link" onClick={() => renameCategory(cat)}>Renomear</button>
+            <button className="btn-link" onClick={() => setCreatingFor(cat.id)}>+ Canal</button>
+            <button className="btn-link danger" onClick={() => removeCategory(cat)}>Excluir</button>
+          </div>
+          <div style={{ marginTop: 8 }}>
+            {(cat.channels || []).length === 0 && <p className="dim" style={{ fontSize: 13 }}>Nenhum canal nesta categoria.</p>}
+            {[...(cat.channels || [])].sort((a, b) => a.position - b.position).map((ch, i, list) => renderChannelRow(cat.id, list, ch, i))}
+          </div>
+        </div>
+      ))}
+
+      <div className="settings-block" style={{ marginTop: 14 }}>
+        <b>Sem categoria</b>
+        <div style={{ marginTop: 8 }}>
+          {uncategorized.length === 0 && <p className="dim" style={{ fontSize: 13 }}>Nenhum canal solto.</p>}
+          {[...uncategorized].sort((a, b) => a.position - b.position).map((ch, i, list) => renderChannelRow(null, list, ch, i))}
+        </div>
+      </div>
+
+      {creatingFor !== undefined && (
+        <CreateChannelModal categoryId={creatingFor} onClose={() => setCreatingFor(undefined)} />
+      )}
+    </div>
+  );
+}
+
+// Gestão de Conquistas — o catálogo agora vive no banco (Achievement),
+// staff edita nome/descrição/raridade/meta/tipo de progresso e pode
+// trocar o ícone individual de cada uma (upload próprio sobrescreve o
+// ícone padrão de medalha usado no resto do app). Tudo em tempo real —
+// qualquer edição emite achievement:catalog-update (ver
+// achievementsController.js), então quem estiver na tela de Conquistas
+// vê a mudança na hora.
+function AchievementsAdminTab() {
+  const [achievements, setAchievements] = useState(null);
+  const [rarities, setRarities] = useState([]);
+  const [progressTypes, setProgressTypes] = useState([]);
+  const [editingId, setEditingId] = useState(null);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState('');
+
+  const refresh = () => adminListAchievements().then((d) => {
+    setAchievements(d.achievements);
+    setRarities(d.rarities);
+    setProgressTypes(d.progressTypes);
+  }).catch(() => setAchievements([]));
+  useEffect(() => { refresh(); }, []);
+
+  const remove = async (a) => {
+    if (!confirm(`Excluir a conquista "${a.name}"? Quem já desbloqueou mantém o histórico, mas ela some do catálogo.`)) return;
+    try {
+      await adminDeleteAchievement(a.id);
+      refresh();
+    } catch (err) { setError(err.response?.data?.error || 'Erro ao excluir.'); }
+  };
+
+  if (!achievements) return <p className="dim">Carregando...</p>;
+
+  return (
+    <div>
+      <h2>🏆 Conquistas</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        Crie, edite e defina a raridade das conquistas. O ícone padrão (medalha) é usado em qualquer uma sem ícone
+        próprio — dá pra trocar individualmente clicando em "Editar".
+      </p>
+      {error && <div className="auth-error" style={{ marginBottom: 12 }}>{error}</div>}
+      <button className="btn-secondary" style={{ marginBottom: 12 }} onClick={() => setCreating(true)}>+ Nova conquista</button>
+      {creating && (
+        <AchievementForm
+          progressTypes={progressTypes}
+          rarities={rarities}
+          onClose={() => setCreating(false)}
+          onSaved={() => { setCreating(false); refresh(); }}
+        />
+      )}
+      <div className="admin-users-list">
+        {achievements.map((a) => (
+          <div key={a.id}>
+            <div className="admin-user-row">
+              <AchievementIcon achievement={a} size={32} />
+              <div className="admin-user-row-info">
+                <div className="admin-user-row-name">{a.name} {!a.enabled && <span className="dim">(desativada)</span>}</div>
+                <div className="admin-user-row-meta dim">{ACHIEVEMENT_RARITY_LABEL[a.rarity]} · {a.progressType} · meta {a.target}</div>
+              </div>
+              <button className="btn-secondary" onClick={() => setEditingId(editingId === a.id ? null : a.id)}>Editar</button>
+              <button className="btn-danger" onClick={() => remove(a)}>Excluir</button>
+            </div>
+            {editingId === a.id && (
+              <AchievementForm
+                achievement={a}
+                progressTypes={progressTypes}
+                rarities={rarities}
+                onClose={() => setEditingId(null)}
+                onSaved={() => { setEditingId(null); refresh(); }}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AchievementForm({ achievement, progressTypes, rarities, onClose, onSaved }) {
+  const isEdit = !!achievement;
+  const [key, setKey] = useState(achievement?.key || '');
+  const [name, setName] = useState(achievement?.name || '');
+  const [description, setDescription] = useState(achievement?.description || '');
+  const [rarity, setRarity] = useState(achievement?.rarity || 'COMMON');
+  const [progressType, setProgressType] = useState(achievement?.progressType || progressTypes[0]);
+  const [target, setTarget] = useState(achievement?.target || 1);
+  const [enabled, setEnabled] = useState(achievement?.enabled ?? true);
+  const [iconFile, setIconFile] = useState(null);
+  const [error, setError] = useState('');
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError('');
+    try {
+      let id = achievement?.id;
+      if (isEdit) {
+        await adminUpdateAchievement(id, { name, description, rarity, progressType, target, enabled });
+      } else {
+        const { achievement: created } = await adminCreateAchievement({ key, name, description, rarity, progressType, target });
+        id = created.id;
+        // Já criada: falha no ícone não pode deixar o form em "criar" (daria 409 ao tentar de novo).
+        if (iconFile) {
+          try { await adminUploadAchievementIcon(id, iconFile); } catch (err) {
+            alert(`Conquista criada, mas o ícone não foi enviado (${err.response?.data?.error || 'erro no upload'}). Use "Editar" para enviar de novo.`);
+          }
+        }
+        onSaved();
+        return;
+      }
+      if (iconFile) await adminUploadAchievementIcon(id, iconFile);
+      onSaved();
+    } catch (err) { setError(err.response?.data?.error || 'Erro ao salvar.'); }
+  };
+
+  return (
+    <form onSubmit={submit} className="settings-block communities-inline-form">
+      {!isEdit && <label>CHAVE (identificador interno)<input value={key} onChange={(e) => setKey(e.target.value)} placeholder="ex: super_fa" required /></label>}
+      <label>NOME<input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} required /></label>
+      <label>DESCRIÇÃO<textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} maxLength={500} required /></label>
+      <label>RARIDADE
+        <select value={rarity} onChange={(e) => setRarity(e.target.value)}>
+          {rarities.map((r) => <option key={r} value={r}>{ACHIEVEMENT_RARITY_LABEL[r]}</option>)}
+        </select>
+      </label>
+      <label>TIPO DE PROGRESSO
+        <select value={progressType} onChange={(e) => setProgressType(e.target.value)}>
+          {progressTypes.map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
+      </label>
+      <label>META (valor pra desbloquear)<input type="number" min="1" value={target} onChange={(e) => setTarget(e.target.value)} required /></label>
+      <label className="checkbox-row"><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Ativa (aparece no catálogo)</label>
+      <label>ÍCONE (opcional — usa a medalha padrão se não escolher nenhum)
+        <input type="file" accept="image/*" onChange={(e) => setIconFile(e.target.files[0])} />
+      </label>
+      {error && <div className="auth-error">{error}</div>}
+      <div className="modal-actions">
+        <button type="button" className="btn-link" onClick={onClose}>Cancelar</button>
+        <button type="submit" className="btn-primary">Salvar</button>
+      </div>
+    </form>
+  );
+}
+
+// Gestão de Atualizações (changelog) — publica, aparece pra todo mundo em
+// tempo real (update:new via socket), staff pode excluir depois.
+// Item pedido: "número de atualiza vai pra v1.0, estilo de versão" +
+// "poder editar elas" + "adicione os - ** __ que deixa mais bonito".
+function UpdatesAdminTab() {
+  const [updates, setUpdates] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [version, setVersion] = useState('');
+  const [error, setError] = useState('');
+
+  const refresh = () => listUpdates().then((d) => setUpdates(d.updates));
+  useEffect(() => { refresh(); }, []);
+
+  // Sugere a próxima versão automaticamente com base na última
+  // publicada (v1.0 -> v1.1, e assim por diante) — só quando a pessoa
+  // ainda não começou a digitar uma versão própria, e só ao entrar em
+  // modo de CRIAR (não ao editar, onde já mostramos a versão real
+  // daquela entrada).
+  useEffect(() => {
+    if (editingId || !updates || version) return;
+    const last = updates[0]?.version;
+    const match = last?.match(/^v?(\d+)\.(\d+)$/i);
+    setVersion(match ? `v${match[1]}.${Number(match[2]) + 1}` : (updates.length === 0 ? 'v1.0' : ''));
+  }, [updates, editingId]);
+
+  const resetForm = () => { setEditingId(null); setTitle(''); setDescription(''); setVersion(''); setError(''); };
+
+  const startEdit = (u) => {
+    setEditingId(u.id); setTitle(u.title); setDescription(u.description); setVersion(u.version || '');
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError('');
+    try {
+      if (editingId) {
+        await updateUpdateEntry(editingId, { title, description, version });
+      } else {
+        await createUpdate({ title, description, version });
+      }
+      resetForm();
+      refresh();
+    } catch (err) { setError(err.response?.data?.error || 'Erro ao salvar.'); }
+  };
+
+  const remove = async (id) => {
+    if (!confirm('Excluir essa atualização?')) return;
+    await deleteUpdateEntry(id);
+    if (editingId === id) resetForm();
+    refresh();
+  };
+
+  if (!updates) return <p className="dim">Carregando...</p>;
+
+  return (
+    <div>
+      <h2>📰 Atualizações</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>Publique novidades e mudanças recentes — aparece pra todo mundo em tempo real.</p>
+      <form onSubmit={submit} className="settings-block communities-inline-form">
+        <div className="display-name-row">
+          <label style={{ flex: 1 }}>TÍTULO<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={150} required /></label>
+          <label style={{ maxWidth: 110 }}>VERSÃO<input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="v1.0" maxLength={30} /></label>
+        </div>
+        <label>
+          DESCRIÇÃO
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} maxLength={5000} required />
+        </label>
+        <p className="dim" style={{ fontSize: 12, marginTop: -4 }}>Dá pra usar **negrito**, __sublinhado__ e linhas começando com "- " pra fazer uma lista.</p>
+        {error && <div className="auth-error">{error}</div>}
+        <div className="modal-actions" style={{ justifyContent: 'flex-start', gap: 10 }}>
+          <button type="submit" className="btn-primary">{editingId ? 'Salvar edição' : 'Publicar'}</button>
+          {editingId && <button type="button" className="btn-secondary" onClick={resetForm}>Cancelar edição</button>}
+        </div>
+      </form>
+      <div className="admin-users-list" style={{ marginTop: 16 }}>
+        {updates.map((u) => (
+          <div key={u.id} className="admin-user-row">
+            <div className="admin-user-row-info">
+              <div className="admin-user-row-name">{u.title}{u.version ? ` · ${u.version}` : ''}</div>
+              <div className="admin-user-row-meta dim">{new Date(u.createdAt).toLocaleString('pt-BR')} · {u.createdBy.displayName}</div>
+            </div>
+            <button className="btn-secondary" onClick={() => startEdit(u)}>Editar</button>
+            <button className="btn-danger" onClick={() => remove(u.id)}>Excluir</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Item pedido: "sistema de eventos integrado ao painel da Staff —
+// somente usuários autorizados... poderão criar, editar ou excluir".
+// Mesmo padrão exato de UpdatesAdminTab acima, com mais campos: banner/
+// ícone (upload separado, precisa do evento já criado — mesmo padrão de
+// createPost + uploadPostImage), datas e status editável inline.
+function EventsAdminTab() {
+  const [events, setEvents] = useState(null);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [startsAt, setStartsAt] = useState('');
+  const [endsAt, setEndsAt] = useState('');
+  const [voiceChannelId, setVoiceChannelId] = useState('');
+  const categories = useStore((s) => s.categories);
+  const looseChannels = useStore((s) => s.channels);
+  const voiceChannels = [...(looseChannels || []), ...(categories || []).flatMap((c) => c.channels || [])]
+    .filter((c, i, arr) => ['VOICE', 'STAGE'].includes(c.type) && arr.findIndex((x) => x.id === c.id) === i);
+  const [error, setError] = useState('');
+  // Banner/ícone escolhidos já na criação — enviados logo após criar (precisam do id).
+  const [newBanner, setNewBanner] = useState(null);
+  const [newIcon, setNewIcon] = useState(null);
+  const [publishing, setPublishing] = useState(false);
+
+  const refresh = () => listEvents().then((d) => setEvents(d.events));
+  useEffect(() => { refresh(); }, []);
+
+  // datetime-local não tem fuso: converte no navegador pra ISO (senão o
+  // servidor interpretaria no fuso dele e o horário ficaria deslocado).
+  const toIso = (v) => { if (!v) return undefined; const d = new Date(v); return isNaN(d.getTime()) ? undefined : d.toISOString(); };
+
+  const publish = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (startsAt && endsAt && new Date(endsAt) < new Date(startsAt)) { setError('O fim precisa ser depois do início.'); return; }
+    setPublishing(true);
+    try {
+      const { event: created } = await createEvent({ title, description, startsAt: toIso(startsAt), endsAt: toIso(endsAt), voiceChannelId: voiceChannelId || undefined });
+      const failed = [];
+      if (created?.id && newBanner) await uploadEventBanner(created.id, newBanner).catch(() => failed.push('banner'));
+      if (created?.id && newIcon) await uploadEventIcon(created.id, newIcon).catch(() => failed.push('ícone'));
+      setTitle(''); setDescription(''); setStartsAt(''); setEndsAt(''); setVoiceChannelId(''); setNewBanner(null); setNewIcon(null);
+      if (failed.length) setError(`Evento criado, mas não deu pra enviar: ${failed.join(' e ')}. Use os botões na lista pra tentar de novo.`);
+      refresh();
+    } catch (err) { setError(err.response?.data?.error || 'Erro ao criar evento.'); }
+    finally { setPublishing(false); }
+  };
+
+  const changeStatus = async (id, status) => {
+    await updateEvent(id, { status });
+    refresh();
+  };
+
+  const onBanner = async (id, e) => {
+    const file = e.target.files[0]; if (!file) return;
+    setError('');
+    try { await uploadEventBanner(id, file); } catch (err) { setError(err.response?.data?.error || 'Não foi possível enviar o banner.'); }
+    e.target.value = '';
+    refresh();
+  };
+
+  const onIcon = async (id, e) => {
+    const file = e.target.files[0]; if (!file) return;
+    setError('');
+    try { await uploadEventIcon(id, file); } catch (err) { setError(err.response?.data?.error || 'Não foi possível enviar o ícone.'); }
+    e.target.value = '';
+    refresh();
+  };
+
+  const remove = async (id) => {
+    if (!confirm('Excluir esse evento?')) return;
+    await deleteEvent(id);
+    refresh();
+  };
+
+  if (!events) return <p className="dim">Carregando...</p>;
+
+  return (
+    <div>
+      <h2>🎉 Eventos</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>Crie e gerencie eventos — aparecem automaticamente na categoria Início pra todo mundo.</p>
+      <form onSubmit={publish} className="settings-block communities-inline-form">
+        <label>TÍTULO<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={150} required /></label>
+        <label>DESCRIÇÃO<textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} maxLength={5000} required /></label>
+        <div className="display-name-row">
+          <label>INÍCIO (opcional)<input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></label>
+          <label>FIM (opcional)<input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} /></label>
+        </div>
+        <label>
+          CANAL DE VOZ (opcional)
+          <select value={voiceChannelId} onChange={(e) => setVoiceChannelId(e.target.value)}>
+            <option value="">Sem call</option>
+            {voiceChannels.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <span className="dim">Quem marcou "Eu vou" recebe "Começou! Entrar na call" na hora do início.</span>
+        </label>
+        <div className="display-name-row">
+          <label>BANNER (opcional){newBanner && <span className="dim"> · {newBanner.name}</span>}<input type="file" accept="image/*" onChange={(e) => setNewBanner(e.target.files[0] || null)} /></label>
+          <label>ÍCONE (opcional){newIcon && <span className="dim"> · {newIcon.name}</span>}<input type="file" accept="image/*" onChange={(e) => setNewIcon(e.target.files[0] || null)} /></label>
+        </div>
+        {error && <div className="auth-error">{error}</div>}
+        <button type="submit" className="btn-primary" disabled={publishing}>{publishing ? 'Criando...' : 'Criar evento'}</button>
+      </form>
+      <div className="admin-users-list" style={{ marginTop: 16 }}>
+        {events.map((ev) => (
+          <div key={ev.id} className="admin-user-row">
+            <div className="admin-user-row-info">
+              <div className="admin-user-row-name">{ev.title}</div>
+              <div className="admin-user-row-meta dim">Criado por {ev.createdBy.displayName}</div>
+            </div>
+            <select value={ev.voiceChannelId || ''} title="Canal de voz do evento" onChange={async (e) => { await updateEvent(ev.id, { voiceChannelId: e.target.value || null }); refresh(); }}>
+              <option value="">Sem call</option>
+              {voiceChannels.map((c) => <option key={c.id} value={c.id}>🔊 {c.name}</option>)}
+            </select>
+            <select value={ev.status} onChange={(e) => changeStatus(ev.id, e.target.value)}>
+              <option value="UPCOMING">Em breve</option>
+              <option value="ACTIVE">Ativo</option>
+              <option value="ENDED">Encerrado</option>
+            </select>
+            <label className="btn-secondary">Banner<input type="file" accept="image/*" hidden onChange={(e) => onBanner(ev.id, e)} /></label>
+            <label className="btn-secondary">Ícone<input type="file" accept="image/*" hidden onChange={(e) => onIcon(ev.id, e)} /></label>
+            <button className="btn-danger" onClick={() => remove(ev.id)}>Excluir</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Item pedido: "agrupe por categoria, não por assunto solto" — em vez
+// de a staff precisar criar cada categoria/canal manualmente um por
+// um (a interface pra isso, herdada da versão antiga da navegação
+// principal, mora hoje em ChannelSidebar.jsx — pouco acessível na
+// prática desde a reorganização da barra lateral pra abas dentro do
+// Chat), esse botão cria a estrutura sugerida inteira de uma vez:
+// categorias + canais de texto/voz, na ordem certa. Confere pelo NOME
+// antes de criar (sem diferenciar maiúsculas) — clicar de novo depois
+// não duplica o que já existe, só preenche o que ainda falta.
+const SUGGESTED_STRUCTURE = [
+  { category: '📌 Início', channels: [{ name: 'anúncios', type: 'TEXT' }, { name: 'regras', type: 'TEXT' }, { name: 'boas-vindas', type: 'TEXT' }] },
+  { category: '💬 Comunidade', channels: [{ name: 'chat-geral', type: 'TEXT' }, { name: 'apresentações', type: 'TEXT' }, { name: 'memes', type: 'TEXT' }, { name: 'off-topic', type: 'TEXT' }] },
+  { category: '🔧 Suporte', channels: [{ name: 'dúvidas', type: 'TEXT' }, { name: 'bugs-e-sugestões', type: 'TEXT' }] },
+  { category: '🔊 Voz', channels: [{ name: 'Sala Geral', type: 'VOICE' }, { name: 'Sala de Jogos', type: 'VOICE' }, { name: 'AFK', type: 'VOICE' }] },
+];
+
+// Item pedido: "poder mudar nome de canais/categoria já criadas" +
+// "criar canais com letras maiúsculas" — a estrutura sugerida (acima)
+// cria com nomes fixos que eu escolhi (em minúsculo, por exemplo); o
+// backend em si nunca teve nenhuma restrição de maiúsculas — faltava
+// só um formulário livre (nome digitado pela própria staff, sem
+// forçar nada) e uma lista pra renomear o que já existe. Os
+// endpoints de renomear (updateChannel/updateCategory) já existiam
+// há um tempo, só nunca tinham UI que os usasse.
+
+// sido quem criou (poder de moderação da plataforma). Apagar remove
+// também todos os posts/comentários/votos dela em cascata (ver onDelete:
+// Cascade no schema.prisma).
+function FeedsAdminTab() {
+  const communities = useStore((s) => s.clubs);
+  const [deletingSlug, setDeletingSlug] = useState(null);
+
+  const remove = async (community) => {
+    if (!confirm(`Excluir o Tema "${community.name}"? Isso apaga todos os posts e comentários dele e não pode ser desfeito.`)) return;
+    setDeletingSlug(community.slug);
+    try {
+      await deleteCommunity(community.slug);
+      // Não precisa remover manualmente da lista — o evento de socket
+      // club:delete (ver SocketContext.jsx) já atualiza o estado global
+      // sozinho assim que o servidor confirma.
+    } catch (err) {
+      alert(err.response?.data?.error || 'Não foi possível excluir.');
+    } finally {
+      setDeletingSlug(null);
+    }
+  };
+
+  return (
+    <div>
+      <h2>Fórum (Temas)</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        Gerencie os Temas do Fórum — só a staff pode criar/editar/excluir (crie novos direto na página do Fórum,
+        no botão "+ Criar Tema"). Excluir remove os posts e comentários junto.
+      </p>
+      {communities.length === 0 ? (
+        <p className="dim">Nenhum Tema criado ainda.</p>
+      ) : (
+        <div className="admin-users-list">
+          {communities.map((c) => (
+            <div key={c.id} className="admin-user-row">
+              <span className="community-row-icon" style={{ width: 32, height: 32 }}>
+                {c.iconUrl ? <img src={proxyImage(c.iconUrl)} alt="" /> : '📌'}
+              </span>
+              <div className="admin-user-row-info">
+                <div className="admin-user-row-name">{c.name}</div>
+                <div className="admin-user-row-meta dim">
+                  {c.postCount} post{c.postCount === 1 ? '' : 's'} · {(c.categories || []).length} categoria{(c.categories || []).length === 1 ? '' : 's'} · criado por {c.createdBy.displayName}
+                </div>
+              </div>
+              <button className="btn-danger" disabled={deletingSlug === c.slug} onClick={() => remove(c)}>
+                {deletingSlug === c.slug ? 'Excluindo...' : 'Excluir'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AnnouncementsTab() {
+  const [userQuery, setUserQuery] = useState('');
+  const [userResults, setUserResults] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [form, setForm] = useState({
+    targetType: 'ALL', title: '', description: '', buttonLabel: '', buttonUrl: '', publishAt: '',
+  });
+  const [bannerFile, setBannerFile] = useState(null);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const [sent, setSent] = useState(false);
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    adminListAnnouncements().then((d) => setHistory(d.announcements));
+  }, []);
+
+  useEffect(() => {
+    if (userQuery.trim().length < 2) return setUserResults([]);
+    const t = setTimeout(() => {
+      adminListUsers(userQuery).then((d) => setUserResults(d.users));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [userQuery]);
+
+  const send = async () => {
+    setError('');
+    if (!form.title.trim()) return setError('Título é obrigatório.');
+    if (form.targetType === 'USER' && !selectedUser) return setError('Selecione um usuário.');
+    setSending(true);
+    try {
+      const { announcement } = await adminCreateAnnouncement({
+        ...form, targetUserId: selectedUser?.id || undefined,
+        publishAt: form.publishAt ? new Date(form.publishAt).toISOString() : undefined,
+      });
+      if (bannerFile) await adminUploadAnnouncementBanner(announcement.id, bannerFile).catch(() => {});
+      setSent(form.publishAt ? 'Mensagem agendada!' : 'Mensagem enviada!');
+      setForm({ targetType: 'ALL', title: '', description: '', buttonLabel: '', buttonUrl: '', publishAt: '' });
+      setSelectedUser(null);
+      setBannerFile(null);
+      adminListAnnouncements().then((d) => setHistory(d.announcements));
+      setTimeout(() => setSent(false), 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Não foi possível enviar a mensagem.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="settings-grid" style={{ maxWidth: 560 }}>
+      <div className="settings-block">
+        <h4>Enviar mensagem</h4>
+        <p className="dim">
+          Aparece como um aviso de tela cheia pra quem você escolher, com botão OK pra dispensar. Quem estiver offline
+          vê assim que voltar a entrar.
+        </p>
+
+        <label>
+          Público-alvo
+          <select value={form.targetType} onChange={(e) => setForm((f) => ({ ...f, targetType: e.target.value }))}>
+            <option value="ALL">Todos os usuários</option>
+            <option value="USER">Um usuário específico</option>
+          </select>
+        </label>
+
+        {form.targetType === 'USER' && (
+          <label>
+            Buscar usuário
+            <input value={userQuery} onChange={(e) => setUserQuery(e.target.value)} placeholder="Nome de usuário..." />
+            {selectedUser && <div className="dim">Selecionado: {selectedUser.displayName} (@{selectedUser.username})</div>}
+            {userResults.length > 0 && (
+              <ul className="user-search-results">
+                {userResults.map((u) => (
+                  <li key={u.id} onClick={() => { setSelectedUser(u); setUserResults([]); setUserQuery(''); }}>
+                    {u.displayName} <span className="dim">@{u.username}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </label>
+        )}
+
+        <label>
+          Título
+          <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} maxLength={100} />
+        </label>
+        <label>
+          Descrição (opcional)
+          <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} maxLength={1000} />
+        </label>
+        <label>
+          Banner (opcional)
+          <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={(e) => setBannerFile(e.target.files[0] || null)} />
+        </label>
+        <div className="display-name-row">
+          <label>Texto do botão (opcional)<input value={form.buttonLabel} onChange={(e) => setForm((f) => ({ ...f, buttonLabel: e.target.value }))} maxLength={40} /></label>
+          <label>Link do botão (opcional)<input value={form.buttonUrl} onChange={(e) => setForm((f) => ({ ...f, buttonUrl: e.target.value }))} placeholder="https://..." /></label>
+        </div>
+
+        <label>
+          Agendar para (opcional)
+          <input type="datetime-local" value={form.publishAt} onChange={(e) => setForm((f) => ({ ...f, publishAt: e.target.value }))} />
+          <span className="dim">Vazio = envia agora. Com data, aparece pra todo mundo só a partir desse horário.</span>
+        </label>
+
+        {error && <div className="auth-error">{error}</div>}
+        {sent && <div className="dim">{sent}</div>}
+        <button className="btn-primary" disabled={sending} onClick={send}>{sending ? 'Enviando...' : (form.publishAt ? 'Agendar mensagem' : 'Enviar mensagem')}</button>
+      </div>
+
+      <div className="settings-block">
+        <h4>Histórico</h4>
+        <table className="admin-table">
+          <thead><tr><th>Título</th><th>Alvo</th><th>Visualizações</th><th>Enviada em</th></tr></thead>
+          <tbody>
+            {history.map((a) => (
+              <tr key={a.id}>
+                <td>{a.title}</td>
+                <td className="dim">{a.targetType}</td>
+                <td className="dim">{a._count?.dismissals ?? 0}</td>
+                <td className="dim">
+                  {a.publishAt && new Date(a.publishAt) > new Date()
+                    ? `Agendada: ${new Date(a.publishAt).toLocaleString('pt-BR')}`
+                    : new Date(a.publishAt || a.createdAt).toLocaleString('pt-BR')}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AppCatalogTab() {
+  const [items, setItems] = useState([]);
+  const [form, setForm] = useState({ moduleId: '', name: '', description: '', sizeLabel: '' });
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState('');
+
+  const reload = () => adminListAppCatalog().then((d) => setItems(d.items));
+  useEffect(() => { reload(); }, []);
+
+  const create = async () => {
+    setError('');
+    if (!form.moduleId.trim() || !form.name.trim()) return setError('moduleId e nome são obrigatórios.');
+    setCreating(true);
+    try {
+      await adminCreateAppCatalogItem(form);
+      setForm({ moduleId: '', name: '', description: '', sizeLabel: '' });
+      reload();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Não foi possível criar o item.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  // BUG CORRIGIDO ("descrições dos apps não estão salvando"): essa
+  // função não tinha nenhum tratamento de erro — se a chamada PATCH
+  // falhasse por qualquer motivo (rede instável, sessão expirada,
+  // erro do servidor), a falha ficava completamente silenciosa: sem
+  // mensagem nenhuma, sem reload(), o campo simplesmente parecia "não
+  // ter salvo" (e realmente não tinha) na próxima vez que a pessoa
+  // olhasse a tela. Agora propaga o erro pra quem chamou mostrar de
+  // verdade (ver AppCatalogItemEditor abaixo).
+  const updateField = async (id, field, value) => {
+    await adminUpdateAppCatalogItem(id, { [field]: value });
+    reload();
+  };
+
+  return (
+    <div className="settings-grid" style={{ maxWidth: 640 }}>
+      <div className="settings-block">
+        <h4>Novo item do catálogo</h4>
+        <p className="dim">
+          moduleId precisa bater exatamente com o id usado do lado do app desktop (MODULES em desktop/projectMcManager.js) —
+          ex: "projectmc". Depois de criado, edite banner/ícone/descrição/espaço direto na lista abaixo.
+        </p>
+        <label>moduleId<input value={form.moduleId} onChange={(e) => setForm((f) => ({ ...f, moduleId: e.target.value }))} placeholder="projectmc" /></label>
+        <label>Nome<input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} maxLength={80} /></label>
+        <label>Descrição<textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} maxLength={500} /></label>
+        <label>Espaço necessário (texto livre)<input value={form.sizeLabel} onChange={(e) => setForm((f) => ({ ...f, sizeLabel: e.target.value }))} placeholder="~100 MB" maxLength={40} /></label>
+        {error && <div className="auth-error">{error}</div>}
+        <button className="btn-primary" disabled={creating} onClick={create}>{creating ? 'Criando...' : 'Criar item'}</button>
+      </div>
+
+      {items.map((item) => (
+        <AppCatalogItemEditor key={item.id} item={item} onChange={updateField} onReload={reload} />
+      ))}
+    </div>
+  );
+}
+
+function AppCatalogItemEditor({ item, onChange, onReload }) {
+  const [name, setName] = useState(item.name);
+  const [description, setDescription] = useState(item.description || '');
+  const [sizeLabel, setSizeLabel] = useState(item.sizeLabel || '');
+  // Item pedido: "adicione mais informações sobre cada app... versão,
+  // tamanho, requisitos... separe claramente os downloads para
+  // Windows e Linux" — mesmo padrão dos campos já existentes acima.
+  const [version, setVersion] = useState(item.version || '');
+  const [sizeLabelWin, setSizeLabelWin] = useState(item.sizeLabelWin || '');
+  const [sizeLabelLinux, setSizeLabelLinux] = useState(item.sizeLabelLinux || '');
+  const [requirementsWin, setRequirementsWin] = useState(item.requirementsWin || '');
+  const [requirementsLinux, setRequirementsLinux] = useState(item.requirementsLinux || '');
+  const [featuresText, setFeaturesText] = useState(item.featuresText || '');
+  // Item pedido: "as descrições dos apps não estão salvando" — causa
+  // real era updateField (acima) engolindo qualquer erro em silêncio,
+  // então um PATCH que falhasse (rede instável, sessão expirada, erro
+  // do servidor) nunca avisava ninguém — parecia só "não salvou".
+  // saveStatus dá feedback de verdade (Salvando.../Salvo!/deu erro),
+  // e um botão "Salvar" explícito por campo garante que dá pra tentar
+  // de novo sem depender só do campo perder o foco (onBlur) — que
+  // nunca dispara se a pessoa fechar a aba ou navegar pra outro lugar
+  // direto depois de digitar.
+  const [saveStatus, setSaveStatus] = useState({}); // { [field]: 'saving' | 'saved' | 'error' }
+  const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
+
+  const saveField = async (field, value) => {
+    setSaveStatus((s) => ({ ...s, [field]: { kind: 'saving' } }));
+    try {
+      await onChange(item.id, field, value);
+      setSaveStatus((s) => ({ ...s, [field]: { kind: 'saved' } }));
+      setTimeout(() => setSaveStatus((s) => (s[field]?.kind === 'saved' ? { ...s, [field]: null } : s)), 2000);
+    } catch (err) {
+      // Item pedido: "só a descrição do DaVinci Project dá erro ao
+      // salvar" — a mensagem genérica escondia a causa real (era um
+      // limite de tamanho no banco, já corrigido — ver schema.prisma).
+      // Mostrar o erro de verdade que o servidor manda agora ajuda a
+      // diagnosticar qualquer problema parecido no futuro na hora,
+      // sem precisar adivinhar.
+      const message = err.response?.data?.error || 'não foi possível salvar — tente de novo';
+      setSaveStatus((s) => ({ ...s, [field]: { kind: 'error', message } }));
+    }
+  };
+
+  const statusLabel = (field) => {
+    const status = saveStatus[field];
+    if (!status) return null;
+    if (status.kind === 'saving') return <span className="dim"> salvando...</span>;
+    if (status.kind === 'saved') return <span style={{ color: 'var(--green)' }}> ✓ salvo</span>;
+    if (status.kind === 'error') return <span style={{ color: 'var(--red)' }}> {status.message}</span>;
+    return null;
+  };
+
+  // Campo de texto simples com botão Salvar — o mesmo padrão se
+  // repete pra vários campos novos, então virou uma função em vez de
+  // copiar o bloco JSX inteiro toda vez.
+  const TextField = ({ label, field, value, setValue, textarea, maxLength }) => (
+    <label>
+      {label}
+      {textarea
+        ? <textarea value={value} onChange={(e) => setValue(e.target.value)} rows={3} maxLength={maxLength} />
+        : <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input value={value} onChange={(e) => setValue(e.target.value)} maxLength={maxLength} style={{ flex: 1 }} />
+          </div>}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
+        <button type="button" className="btn-secondary" disabled={value === (item[field] || '') || saveStatus[field]?.kind === 'saving'} onClick={() => saveField(field, value)}>Salvar</button>
+        {statusLabel(field)}
+      </div>
+    </label>
+  );
+
+  const del = async () => {
+    if (!confirm(`Remover "${item.name}" do catálogo? A staff pode criar de novo depois.`)) return;
+    try {
+      await adminDeleteAppCatalogItem(item.id);
+      onReload();
+    } catch {
+      alert('Não foi possível remover — tente de novo.');
+    }
+  };
+
+  const addScreenshot = async (file) => {
+    setUploadingScreenshot(true);
+    try {
+      await adminAddAppScreenshot(item.id, file);
+      onReload();
+    } catch {
+      alert('Não foi possível subir a screenshot — tente de novo.');
+    } finally {
+      setUploadingScreenshot(false);
+    }
+  };
+
+  const removeScreenshot = async (screenshotId) => {
+    try {
+      await adminDeleteAppScreenshot(screenshotId);
+      onReload();
+    } catch {
+      alert('Não foi possível remover a screenshot — tente de novo.');
+    }
+  };
+
+  return (
+    <div className="settings-block">
+      <h4>{item.name} <span className="dim">({item.moduleId})</span></h4>
+      <div className="display-name-row">
+        <label>
+          Banner (tela de detalhe, estilo Steam)
+          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => e.target.files[0] && adminUploadAppCatalogBanner(item.id, e.target.files[0]).then(onReload).catch(() => alert('Não foi possível subir o banner — tente de novo.'))} />
+          {item.bannerUrl && <img src={proxyImage(item.bannerUrl)} alt="" style={{ width: '100%', maxWidth: 280, borderRadius: 8, marginTop: 6 }} />}
+        </label>
+        <label>
+          Ícone (card da lista)
+          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => e.target.files[0] && adminUploadAppCatalogIcon(item.id, e.target.files[0]).then(onReload).catch(() => alert('Não foi possível subir o ícone — tente de novo.'))} />
+          {item.iconUrl && <img src={proxyImage(item.iconUrl)} alt="" style={{ width: 64, height: 64, borderRadius: 8, marginTop: 6, objectFit: 'cover' }} />}
+        </label>
+      </div>
+
+      {/* Item pedido: "screenshots... adicionadas, removidas e
+          editadas pelo painel da staff, sem precisar alterar o
+          código" */}
+      <label>
+        Screenshots (galeria mostrada na tela de detalhe do app)
+        <input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploadingScreenshot} onChange={(e) => e.target.files[0] && addScreenshot(e.target.files[0])} />
+        {uploadingScreenshot && <span className="dim"> enviando...</span>}
+      </label>
+      {item.screenshots?.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          {item.screenshots.map((s) => (
+            <div key={s.id} style={{ position: 'relative' }}>
+              <img src={proxyImage(s.imageUrl)} alt="" style={{ width: 120, height: 68, objectFit: 'cover', borderRadius: 6 }} />
+              <button
+                type="button"
+                className="icon-btn-small"
+                title="Remover screenshot"
+                onClick={() => removeScreenshot(s.id)}
+                style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,.7)' }}
+              >×</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <TextField label="Nome" field="name" value={name} setValue={setName} maxLength={80} />
+      <TextField label="Descrição" field="description" value={description} setValue={setDescription} textarea maxLength={500} />
+      <TextField label="Versão (ex: 1.4.0)" field="version" value={version} setValue={setVersion} maxLength={40} />
+      <TextField label="Recursos principais (um por linha)" field="featuresText" value={featuresText} setValue={setFeaturesText} textarea maxLength={2000} />
+
+      <h5 style={{ marginTop: 16, marginBottom: 4 }}>Windows</h5>
+      <TextField label="Espaço necessário (Windows)" field="sizeLabelWin" value={sizeLabelWin} setValue={setSizeLabelWin} maxLength={40} />
+      <TextField label="Requisitos (Windows)" field="requirementsWin" value={requirementsWin} setValue={setRequirementsWin} textarea maxLength={1000} />
+
+      <h5 style={{ marginTop: 16, marginBottom: 4 }}>Linux</h5>
+      <TextField label="Espaço necessário (Linux)" field="sizeLabelLinux" value={sizeLabelLinux} setValue={setSizeLabelLinux} maxLength={40} />
+      <TextField label="Requisitos (Linux)" field="requirementsLinux" value={requirementsLinux} setValue={setRequirementsLinux} textarea maxLength={1000} />
+
+      <label style={{ marginTop: 8, display: 'block' }}>
+        Espaço necessário (legado — usado só se Windows/Linux acima estiverem vazios)
+        <TextField label="" field="sizeLabel" value={sizeLabel} setValue={setSizeLabel} maxLength={40} />
+      </label>
+
+      <label className="settings-toggle-row" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+        <input type="checkbox" checked={item.enabled} onChange={(e) => onChange(item.id, 'enabled', e.target.checked).catch(() => alert('Não foi possível salvar — tente de novo.'))} />
+        Visível na aba Apps
+      </label>
+      <button className="btn-danger" onClick={del}>Remover</button>
+    </div>
+  );
+}
+
+function MaintenanceTab() {
+  const [status, setStatus] = useState(null);
+  const [message, setMessage] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const refresh = () => getPlatformStatus().then((d) => { setStatus(d); setMessage(d.maintenanceMessage || ''); });
+  useEffect(() => { refresh(); }, []);
+
+  const toggle = async () => {
+    setSaving(true);
+    try {
+      const d = await adminSetMaintenanceMode(!status.maintenanceMode, message);
+      setStatus(d);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!status) return <div className="dim">Carregando...</div>;
+
+  return (
+    <div className="settings-grid" style={{ maxWidth: 480 }}>
+      <div className="settings-block">
+        <h4>Modo "Em reforma"</h4>
+        <p className="dim">
+          Quando ativado, só a equipe (ADMIN/MODERATOR) consegue usar a plataforma normalmente — todo o resto vê uma
+          tela de manutenção. A equipe também vê essa tela primeiro, com um botão pra entrar mesmo assim.
+        </p>
+        <p>
+          Status atual: <b className={status.maintenanceMode ? 'text-danger' : ''}>{status.maintenanceMode ? 'Em manutenção' : 'Normal'}</b>
+        </p>
+        <label>
+          Mensagem exibida na tela de manutenção (opcional)
+          <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="Já estamos arrumando algumas coisas por aqui. Volte daqui a pouco!" />
+        </label>
+        <button className={status.maintenanceMode ? 'btn-secondary' : 'btn-danger'} disabled={saving} onClick={toggle}>
+          {saving ? 'Salvando...' : status.maintenanceMode ? 'Desativar manutenção' : 'Ativar manutenção'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function UsersTab() {
+  const { user: me } = useAuth();
+  const [users, setUsers] = useState([]);
+  const [q, setQ] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [badges, setBadges] = useState([]);
+  const [badgeMenuFor, setBadgeMenuFor] = useState(null);
+  const [actionsMenuFor, setActionsMenuFor] = useState(null);
+  const [securityInfoFor, setSecurityInfoFor] = useState(null);
+  const [deleteAccountFor, setDeleteAccountFor] = useState(null);
+
+  const refresh = async () => {
+    setLoading(true);
+    try { const { users } = await adminListUsers(q); setUsers(users); } finally { setLoading(false); }
+  };
+  useEffect(() => { const t = setTimeout(refresh, 250); return () => clearTimeout(t); }, [q]);
+  useEffect(() => { adminListBadges().then((d) => setBadges(d.badges)).catch(() => {}); }, []);
+
+  const editUser = async (u) => {
+    const displayName = prompt('Nome de exibição:', u.displayName);
+    if (!displayName) return;
+    await adminUpdateUser(u.id, { displayName });
+    await refresh();
+  };
+
+  const ban = async (u) => {
+    const reason = prompt(`Banir ${u.displayName} da plataforma. Motivo:`);
+    if (reason === null) return;
+    await adminBanUser(u.id, reason || undefined);
+    await refresh();
+  };
+
+  const unban = async (u) => { await adminUnbanUser(u.id); await refresh(); };
+
+  const suspend = async (u) => {
+    const hours = prompt('Suspender por quantas horas?', '24');
+    if (!hours) return;
+    const reason = prompt('Motivo (opcional):') || undefined;
+    await adminSuspendUser(u.id, Number(hours), reason);
+    await refresh();
+  };
+
+  const unsuspend = async (u) => { await adminUnsuspendUser(u.id); await refresh(); };
+
+  const changeRole = async (u, role) => { await adminSetPlatformRole(u.id, role); await refresh(); };
+
+  const toggleBadge = async (u, badgeId, has) => {
+    if (has) await adminRevokeBadge(u.id, badgeId); else await adminGrantBadge(u.id, badgeId);
+    await refresh();
+  };
+
+  const [economyModalFor, setEconomyModalFor] = useState(null);
+
+  return (
+    <div>
+      <input className="admin-search-input" placeholder="Buscar usuário..." value={q} onChange={(e) => setQ(e.target.value)} />
+      {loading ? <div className="dim">Carregando...</div> : (
+        <div className="admin-users-list">
+          {users.map((u) => {
+            const suspended = u.suspendedUntil && new Date(u.suspendedUntil) > new Date();
+            const statusLabel = u.isPlatformBanned ? 'Banido' : suspended ? 'Suspenso' : 'Ativo';
+            const statusClass = u.isPlatformBanned ? 'banned' : suspended ? 'suspended' : 'active';
+            const userBadges = badges.filter((b) => (u.badgeIds || []).includes(b.id));
+            return (
+              <div key={u.id} className="admin-user-row">
+                <UserAvatar user={u} size={40} />
+                <div className="admin-user-row-info">
+                  <div className="admin-user-row-name">
+                    {u.displayName} <span className="dim">@{u.username}</span>
+                    <span className={`admin-user-status-pill ${statusClass}`}>
+                      {statusLabel}{suspended && ` até ${new Date(u.suspendedUntil).toLocaleDateString('pt-BR')}`}
+                    </span>
+                  </div>
+                  <div className="admin-user-row-meta">
+                    <span className="dim">🏆 Nível {u.accountLevel || 1}</span>
+                    {userBadges.length > 0 && (
+                      <span className="admin-user-badge-chips">
+                        {userBadges.map((b) => (
+                          <span key={b.id} title={b.name}><BadgeIcon badge={b} size={18} /></span>
+                        ))}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <select className="admin-user-role-select" value={u.platformRole} onChange={(e) => changeRole(u, e.target.value)}>
+                  <option value="USER">Usuário</option>
+                  <option value="MODERATOR">Moderador</option>
+                  <option value="ADMIN">Administrador</option>
+                </select>
+
+                <span style={{ position: 'relative' }}>
+                  <button className="btn-secondary" onClick={() => { setActionsMenuFor(actionsMenuFor === u.id ? null : u.id); setBadgeMenuFor(null); }}>Ações ▾</button>
+                  {actionsMenuFor === u.id && (
+                    <div className="role-picker mod-action-menu">
+                      <button onClick={() => { editUser(u); setActionsMenuFor(null); }}><IconGlyph src={editIcon} size={14} /> Editar perfil</button>
+                      <button onClick={() => { setBadgeMenuFor(u.id); setActionsMenuFor(null); }}>🏅 Insígnias</button>
+                      <button onClick={() => { setEconomyModalFor(u); setActionsMenuFor(null); }}>💰 Nível, XP e moedas</button>
+                      <button onClick={() => { setSecurityInfoFor(u.id); setActionsMenuFor(null); }}>🔒 Informações confidenciais</button>
+                      <div className="dropdown-divider" />
+                      {u.isPlatformBanned ? (
+                        <button onClick={() => { unban(u); setActionsMenuFor(null); }}>Desbanir</button>
+                      ) : (
+                        <button className="danger" onClick={() => { ban(u); setActionsMenuFor(null); }}>Banir</button>
+                      )}
+                      {suspended ? (
+                        <button onClick={() => { unsuspend(u); setActionsMenuFor(null); }}>Reativar (cancelar suspensão)</button>
+                      ) : (
+                        <button className="danger" onClick={() => { suspend(u); setActionsMenuFor(null); }}>Suspender</button>
+                      )}
+                      {me.platformRole === 'ADMIN' && u.id !== me.id && (
+                        <>
+                          <div className="dropdown-divider" />
+                          <button className="danger" onClick={() => { setDeleteAccountFor(u); setActionsMenuFor(null); }}>🗑️ Excluir conta (irreversível)</button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </span>
+                <span style={{ position: 'relative' }}>
+                  {badgeMenuFor === u.id && (
+                    <div className="role-picker mod-action-menu">
+                      {badges.map((b) => {
+                        const has = (u.badgeIds || []).includes(b.id);
+                        return (
+                          <button key={b.id} className={has ? 'has-badge' : ''} onClick={() => toggleBadge(u, b.id, has)}>
+                            {has ? '✅' : '➕'} <BadgeIcon badge={b} size={18} /> {b.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {securityInfoFor && <UserSecurityInfoModal userId={securityInfoFor} onClose={() => setSecurityInfoFor(null)} />}
+      {economyModalFor && (
+        <UserEconomyModal
+          user={economyModalFor}
+          onClose={() => setEconomyModalFor(null)}
+          onSaved={refresh}
+        />
+      )}
+      {deleteAccountFor && (
+        <DeleteAccountConfirmModal
+          user={deleteAccountFor}
+          onClose={() => setDeleteAccountFor(null)}
+          onDeleted={() => { setDeleteAccountFor(null); refresh(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Confirmação forte pra excluir conta — a staff precisa DIGITAR o
+// @usuário exato (não é só clicar "confirmar"), igual GitHub/outras
+// plataformas fazem pra ações destrutivas de verdade. O backend também
+// valida esse mesmo texto de novo (nunca confia só na tela), então nem
+// uma chamada direta na API sem passar por aqui teria como pular essa
+// checagem.
+function DeleteAccountConfirmModal({ user, onClose, onDeleted }) {
+  const [confirmText, setConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setDeleting(true);
+    setError('');
+    try {
+      await adminDeleteUserAccount(user.id, confirmText);
+      onDeleted();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Não foi possível excluir.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <Modal title="Excluir conta — ação irreversível" onClose={onClose}>
+      <form onSubmit={submit} className="settings-grid">
+        <p>
+          Isso apaga <b>permanentemente</b> a conta de <b>{user.displayName}</b> (@{user.username}) — mensagens,
+          posts, comentários, conversas, amizades, conquistas, casas, figurinhas, tudo. Não tem como desfazer.
+        </p>
+        <p>Digite <code>{user.username}</code> pra confirmar:</p>
+        <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={user.username} autoFocus />
+        {error && <div className="auth-error">{error}</div>}
+        <div className="modal-actions">
+          <button type="button" className="btn-link" onClick={onClose}>Cancelar</button>
+          <button type="submit" className="btn-danger" disabled={deleting || confirmText !== user.username}>
+            {deleting ? 'Excluindo...' : 'Excluir permanentemente'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// Substitui os 4 prompt() separados (nível/XP/moedas/gemas) por um único
+// modal de verdade — mais fácil de usar e não trava o navegador com
+// caixinhas de diálogo feias uma atrás da outra.
+function UserEconomyModal({ user, onClose, onSaved }) {
+  const [level, setLevel] = useState(String(user.accountLevel || 1));
+  const [xpDelta, setXpDelta] = useState('0');
+  const [coinsDelta, setCoinsDelta] = useState('0');
+  const [gemsDelta, setGemsDelta] = useState('0');
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const newLevel = parseInt(level, 10);
+      if (newLevel && newLevel !== user.accountLevel) await adminSetUserLevel(user.id, newLevel);
+      if (parseInt(xpDelta, 10)) await adminAddUserXp(user.id, parseInt(xpDelta, 10));
+      if (parseInt(coinsDelta, 10) || parseInt(gemsDelta, 10)) {
+        await adminAddUserCurrency(user.id, { coins: parseInt(coinsDelta, 10) || 0, gems: parseInt(gemsDelta, 10) || 0 });
+      }
+      await onSaved();
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title={`Nível, XP e moedas — ${user.displayName}`} onClose={onClose} width="380px">
+      <div className="settings-grid">
+        <label>NÍVEL (1-200)<input type="number" min="1" max="200" value={level} onChange={(e) => setLevel(e.target.value)} /></label>
+        <label>ADICIONAR XP (negativo remove)<input type="number" value={xpDelta} onChange={(e) => setXpDelta(e.target.value)} /></label>
+        <label>ADICIONAR MOEDAS (negativo retira)<input type="number" value={coinsDelta} onChange={(e) => setCoinsDelta(e.target.value)} /></label>
+        <label>ADICIONAR GEMAS (negativo retira)<input type="number" value={gemsDelta} onChange={(e) => setGemsDelta(e.target.value)} /></label>
+        <button className="btn-primary" onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button>
+      </div>
+    </Modal>
+  );
+}
+
+const PROTECTED_BADGE_KEYS = new Set(['STAFF', 'PLATFORM_OWNER', 'NEWCOMER']);
+
+function BadgesTab() {
+  const [badges, setBadges] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null); // badge object being edited, or a blank draft for "new"
+  const [form, setForm] = useState({ key: '', name: '', description: '', icon: '', rarity: 'COMMON', ageYears: '', priority: '0' });
+  const [error, setError] = useState('');
+  const [uploadingIcon, setUploadingIcon] = useState(false);
+  // Imagem escolhida durante a criação — enviada logo após criar (precisa do id).
+  const [pendingIcon, setPendingIcon] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const refresh = () => { setLoading(true); adminListBadges().then((d) => setBadges(d.badges)).finally(() => setLoading(false)); };
+  useEffect(refresh, []);
+
+  const startCreate = () => { setEditing('new'); setPendingIcon(null); setForm({ key: '', name: '', description: '', icon: '', rarity: 'COMMON', ageYears: '', priority: '0' }); setError(''); };
+  const startEdit = (b) => { setEditing(b.id); setForm({ key: b.key, name: b.name, description: b.description || '', icon: b.icon, rarity: b.rarity || 'COMMON', ageYears: b.ageYears || '', priority: String(b.priority ?? 0) }); setError(''); };
+  const cancel = () => { setEditing(null); setPendingIcon(null); setError(''); };
+
+  const save = async () => {
+    setError('');
+    if (!form.name.trim()) { setError('Dê um nome para a insígnia.'); return; }
+    setSaving(true);
+    try {
+      if (editing === 'new') {
+        const created = await adminCreateBadge({ ...form, icon: form.icon.trim() || '🏅' });
+        if (pendingIcon && created?.badge?.id) {
+          try {
+            await adminUploadBadgeIcon(created.badge.id, pendingIcon);
+          } catch (err) {
+            // A insígnia já existe — mantém aberta em modo edição para tentar de novo.
+            setEditing(created.badge.id);
+            setPendingIcon(null);
+            setError(`Insígnia criada, mas a imagem não foi enviada: ${err.response?.data?.error || 'erro no upload'}. Escolha a imagem de novo.`);
+            refresh();
+            return;
+          }
+        }
+        setPendingIcon(null);
+      } else {
+        await adminUpdateBadge(editing, { name: form.name, description: form.description, icon: form.icon, rarity: form.rarity, ageYears: form.ageYears || null, priority: form.priority });
+      }
+      setEditing(null);
+      refresh();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Não foi possível salvar a insígnia.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onIconFile = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    // Na criação ainda não há id: guarda o arquivo e envia depois de criar.
+    if (editing === 'new') { setPendingIcon(file); return; }
+    setUploadingIcon(true);
+    try {
+      await adminUploadBadgeIcon(editing, file);
+      refresh();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Não foi possível enviar o ícone.');
+    } finally {
+      setUploadingIcon(false);
+    }
+  };
+
+  const removeIconImage = async () => {
+    setError('');
+    try {
+      await adminUpdateBadge(editing, { iconUrl: null });
+      refresh();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Não foi possível remover o ícone.');
+    }
+  };
+
+  const remove = async (b) => {
+    if (!confirm(`Excluir a insígnia "${b.name}"? Ela será removida de todos os perfis que a possuem.`)) return;
+    try { await adminDeleteBadge(b.id); refresh(); } catch (err) { alert(err.response?.data?.error || 'Não foi possível excluir.'); }
+  };
+
+  if (loading) return <div className="dim">Carregando...</div>;
+
+  return (
+    <div>
+      <div className="admin-badges-toolbar">
+        <button className="btn-primary" onClick={startCreate}>+ Nova insígnia</button>
+      </div>
+
+      {editing && (
+        <div className="admin-badge-form">
+          <label>
+            ÍCONE (emoji, usado se não houver imagem)
+            <input value={form.icon} maxLength={8} onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))} placeholder="🏅" />
+          </label>
+          {editing === 'new' && (
+            <label>
+              ÍCONE (imagem, opcional — tem prioridade sobre o emoji)
+              <div className="admin-badge-icon-upload">
+                <input key={pendingIcon ? 'com-imagem' : 'sem-imagem'} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={onIconFile} />
+                {pendingIcon && <button type="button" className="btn-link danger" onClick={() => setPendingIcon(null)}>Remover imagem</button>}
+              </div>
+            </label>
+          )}
+          {editing !== 'new' && (
+            <label>
+              ÍCONE (imagem, opcional — tem prioridade sobre o emoji)
+              <div className="admin-badge-icon-upload">
+                {badges.find((b) => b.id === editing) && badgeHasImage(badges.find((b) => b.id === editing)) && (
+                  <img className="admin-badge-icon-preview" src={proxyImage(badges.find((b) => b.id === editing).iconUrl)} alt="" />
+                )}
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={uploadingIcon} onChange={onIconFile} />
+                {badges.find((b) => b.id === editing) && badgeHasImage(badges.find((b) => b.id === editing)) && (
+                  <button type="button" className="btn-link danger" onClick={removeIconImage}>Remover imagem</button>
+                )}
+              </div>
+            </label>
+          )}
+          <label>
+            NOME
+            <input value={form.name} maxLength={40} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Nome da insígnia" />
+          </label>
+          {editing === 'new' && (
+            <label>
+              CHAVE (opcional — gerada a partir do nome se ficar vazia)
+              <input value={form.key} maxLength={40} onChange={(e) => setForm((f) => ({ ...f, key: e.target.value }))} placeholder="EX_MINHA_INSIGNIA" />
+            </label>
+          )}
+          <label>
+            DESCRIÇÃO (opcional)
+            <input value={form.description} maxLength={140} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+          </label>
+          <label>
+            RARIDADE
+            <select value={form.rarity} onChange={(e) => setForm((f) => ({ ...f, rarity: e.target.value }))}>
+              {BADGE_RARITIES.map((r) => <option key={r} value={r}>{RARITY_LABEL[r]}</option>)}
+            </select>
+          </label>
+          <label>
+            ANOS DE CONTA (opcional — concede automaticamente ao completar X anos)
+            <input
+              type="number" min="1" value={form.ageYears}
+              onChange={(e) => setForm((f) => ({ ...f, ageYears: e.target.value }))}
+              placeholder="Ex: 1 (deixe vazio se não for uma insígnia de idade)"
+            />
+          </label>
+          <label>
+            ORDEM DE EXIBIÇÃO (menor número aparece primeiro quando o usuário tem várias insígnias)
+            <input
+              type="number" value={form.priority}
+              onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
+              placeholder="0"
+            />
+          </label>
+          {error && <div className="auth-error">{error}</div>}
+          <div className="modal-actions">
+            <button className="btn-link" onClick={cancel}>Cancelar</button>
+            <button className="btn-primary" onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button>
+          </div>
+        </div>
+      )}
+
+      <div className="admin-badge-grid">
+        {badges.map((b) => (
+          <div key={b.id} className="admin-badge-card">
+            <div className="admin-badge-card-icon" style={{ '--rarity-color': RARITY_COLOR[b.rarity] || RARITY_COLOR.COMMON }}>
+              <BadgeIcon badge={b} size={26} />
+            </div>
+            <div className="admin-badge-card-info">
+              <div className="admin-badge-card-name-row">
+                <b>{b.name}</b>
+                <span className="badge-rarity-tag" style={{ color: RARITY_COLOR[b.rarity] || RARITY_COLOR.COMMON, borderColor: RARITY_COLOR[b.rarity] || RARITY_COLOR.COMMON }}>
+                  {RARITY_LABEL[b.rarity] || RARITY_LABEL.COMMON}
+                </span>
+              </div>
+              <div className="dim admin-badge-card-key">{b.key}</div>
+              {b.description && <p className="dim admin-badge-card-desc">{b.description}</p>}
+            </div>
+            <div className="admin-table-actions">
+              <button className="btn-link" onClick={() => startEdit(b)}>Editar</button>
+              {!PROTECTED_BADGE_KEYS.has(b.key) && (
+                <button className="btn-link danger" onClick={() => remove(b)}>Excluir</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LogsTab() {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [q, setQ] = useState('');
+  const [action, setAction] = useState('');
+  const load = useCallback((more = false) => {
+    setLoading(true);
+    const before = more && logs.length ? logs[logs.length - 1].createdAt : undefined;
+    adminListAuditLog({ q: q || undefined, action: action || undefined, before })
+      .then((d) => { setLogs((cur) => (more ? [...cur, ...d.logs] : d.logs)); setHasMore(!!d.hasMore); })
+      .finally(() => setLoading(false));
+  }, [q, action, logs]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { const t = setTimeout(() => load(false), 300); return () => clearTimeout(t); }, [q, action]);
+
+  return (
+    <div className="audit-wrap">
+      <div className="audit-filters">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Quem fez, ID do alvo ou motivo…" />
+        <input value={action} onChange={(e) => setAction(e.target.value)} placeholder="Ação (ex.: BAN, CURRENCY)" />
+      </div>
+      {!loading && logs.length === 0 && <div className="dim">Nenhuma ação encontrada.</div>}
+      <ul className="audit-log-list">
+        {logs.map((l) => (
+          <li key={l.id} className="audit-log-entry">
+            <span className="audit-action">{l.action}</span>
+            <span className="dim"> por {l.actor?.displayName || l.actorId}</span>
+            {l.targetType && <span className="dim"> · alvo: {l.targetType} {l.targetId}</span>}
+            {l.reason && <span className="dim"> · motivo: {l.reason}</span>}
+            {l.metadata && <span className="dim"> · {Object.entries(l.metadata).slice(0, 4).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(', ')}</span>}
+            <div className="audit-meta">{new Date(l.createdAt).toLocaleString('pt-BR')}</div>
+          </li>
+        ))}
+      </ul>
+      {loading && <div className="dim">Carregando...</div>}
+      {hasMore && !loading && <button type="button" className="btn-secondary" onClick={() => load(true)}>Carregar mais</button>}
+    </div>
+  );
+}
+
+// Números da comunidade: ativos, retenção, economia e Loja.
+function MetricsTab() {
+  const [m, setM] = useState(null);
+  const [err, setErr] = useState('');
+  useEffect(() => { adminGetMetrics().then(setM).catch(() => setErr('Não deu pra carregar os números.')); }, []);
+  if (err) return <div className="auth-error">{err}</div>;
+  if (!m) return <div className="dim">Carregando...</div>;
+  const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
+  const max = Math.max(1, ...m.series.map((d) => d.active));
+  const maxS = Math.max(1, ...m.series.map((d) => d.signups));
+  const label = (d) => `${d.day.slice(8, 10)}/${d.day.slice(5, 7)}`;
+  return (
+    <div className="metrics">
+      <div className="metrics-cards">
+        <div className="metrics-card"><span>Ativos hoje</span><strong>{fmt(m.dau)}</strong></div>
+        <div className="metrics-card"><span>Ativos na semana</span><strong>{fmt(m.wau)}</strong></div>
+        <div className="metrics-card"><span>Ativos no mês</span><strong>{fmt(m.mau)}</strong></div>
+        <div className="metrics-card">
+          <span>Retenção (7 dias)</span>
+          <strong>{m.retention.pct == null ? '—' : `${m.retention.pct}%`}</strong>
+          <small>{m.retention.retained} de {m.retention.cohort} que entraram há 1–2 semanas voltaram</small>
+        </div>
+      </div>
+
+      <section className="metrics-block">
+        <h4>Pessoas ativas por dia (30 dias)</h4>
+        <div className="metrics-bars" role="img" aria-label="Ativos por dia nos últimos 30 dias">
+          {m.series.map((d) => (
+            <div key={d.day} className="metrics-bar" title={`${label(d)}: ${d.active} ativos`}>
+              <i style={{ height: `${(d.active / max) * 100}%` }} />
+            </div>
+          ))}
+        </div>
+        <div className="metrics-axis"><span>{label(m.series[0])}</span><span>{label(m.series[m.series.length - 1])}</span></div>
+      </section>
+
+      <section className="metrics-block">
+        <h4>Cadastros por dia</h4>
+        <div className="metrics-bars small" role="img" aria-label="Cadastros por dia nos últimos 30 dias">
+          {m.series.map((d) => (
+            <div key={d.day} className="metrics-bar alt" title={`${label(d)}: ${d.signups} cadastros`}>
+              <i style={{ height: `${(d.signups / maxS) * 100}%` }} />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="metrics-cards">
+        <div className="metrics-card"><span>Gemas circulando</span><strong>{fmt(m.economy.gemsInCirculation)}</strong><small>+{fmt(m.economy.gemsEarned30d)} ganhas · −{fmt(m.economy.gemsSpent30d)} gastas (30 dias)</small></div>
+        <div className="metrics-card"><span>Moedas circulando</span><strong>{fmt(m.economy.coinsInCirculation)}</strong><small>+{fmt(m.economy.coinsEarned30d)} ganhas · −{fmt(m.economy.coinsSpent30d)} gastas (30 dias)</small></div>
+      </div>
+
+      <section className="metrics-block">
+        <h4>Mais vendidos na Loja (30 dias)</h4>
+        {m.topShop.length === 0 ? <div className="dim">Nenhuma venda ainda.</div> : (
+          <table className="admin-table">
+            <thead><tr><th>Item</th><th>Vendas</th><th>Moedas</th><th>Gemas</th></tr></thead>
+            <tbody>{m.topShop.map((r) => <tr key={r.name}><td>{r.name}</td><td>{fmt(r.sales)}</td><td className="dim">{fmt(r.coins)}</td><td className="dim">{fmt(r.gems)}</td></tr>)}</tbody>
+          </table>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// Editor visual do layout do álbum de figurinhas — fiel ao painel do bot
+// original (Painel > Imagens > Álbum): arrastar/redimensionar até 12
+// espaços numa tela de referência, liga/desliga cada um, define o fundo
+// (cor sólida ou imagem por URL), o número de páginas, e atribui qual
+// figurinha fica fixa em qual (página, espaço).
+function AlbumLayoutTab() {
+  const [layout, setLayout] = useState(null);
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [editPage, setEditPage] = useState(1);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const surfaceRef = useRef(null);
+  const dragRef = useRef(null);
+
+  const refresh = () => adminGetAlbumLayout().then(setLayout);
+  useEffect(() => { refresh(); }, []);
+
+  if (!layout) return <div className="dim">Carregando...</div>;
+  const { settings } = layout;
+
+  const enabledSlots = layout.slots.filter((s) => s.enabled);
+  const stickersOnPage = layout.stickers.filter((s) => s.assignedPage === editPage);
+  const slotsWithStickers = enabledSlots.map((slot) => ({
+    ...slot,
+    sticker: stickersOnPage.find((s) => s.assignedSlotKey === slot.slotKey) || null,
+  }));
+
+  const previewAlbum = { settings, slots: slotsWithStickers };
+
+  const saveSettings = async (patch) => {
+    const { settings: updated } = await adminUpdateAlbumSettings(patch);
+    setLayout((l) => ({ ...l, settings: updated }));
+  };
+
+  const toggleSlot = async (slotKey, enabled) => {
+    const { slot } = await adminUpsertAlbumSlot(slotKey, { enabled });
+    setLayout((l) => ({ ...l, slots: l.slots.map((s) => (s.slotKey === slotKey ? slot : s)) }));
+  };
+
+  const saveSlotGeometry = async (slotKey, geometry) => {
+    const { slot } = await adminUpsertAlbumSlot(slotKey, geometry);
+    setLayout((l) => ({ ...l, slots: l.slots.map((s) => (s.slotKey === slotKey ? slot : s)) }));
+  };
+
+  const onSlotMouseDown = (e, slot) => {
+    e.stopPropagation();
+    setSelectedSlot(slot.slotKey);
+    const rect = surfaceRef.current.getBoundingClientRect();
+    const { clientX, clientY } = e.touches ? e.touches[0] : e;
+    const scaleX = settings.width / rect.width;
+    const scaleY = settings.height / rect.height;
+    dragRef.current = {
+      slotKey: slot.slotKey, mode: 'move',
+      offsetX: (clientX - rect.left) * scaleX - slot.x,
+      offsetY: (clientY - rect.top) * scaleY - slot.y,
+    };
+  };
+
+  const onResizeMouseDown = (e, slot) => {
+    e.stopPropagation();
+    setSelectedSlot(slot.slotKey);
+    const { clientX, clientY } = e.touches ? e.touches[0] : e;
+    dragRef.current = { slotKey: slot.slotKey, mode: 'resize', startX: clientX, startY: clientY, startW: slot.width, startH: slot.height };
+  };
+
+  const onSurfaceMouseMove = (e) => {
+    if (!dragRef.current) return;
+    if (e.touches) e.preventDefault();
+    const rect = surfaceRef.current.getBoundingClientRect();
+    const { clientX, clientY } = e.touches ? e.touches[0] : e;
+    const scaleX = settings.width / rect.width;
+    const scaleY = settings.height / rect.height;
+    const { slotKey, mode } = dragRef.current;
+
+    if (mode === 'move') {
+      const x = Math.max(0, Math.round((clientX - rect.left) * scaleX - dragRef.current.offsetX));
+      const y = Math.max(0, Math.round((clientY - rect.top) * scaleY - dragRef.current.offsetY));
+      setLayout((l) => ({ ...l, slots: l.slots.map((s) => (s.slotKey === slotKey ? { ...s, x, y } : s)) }));
+    } else {
+      const dx = (clientX - dragRef.current.startX) * scaleX;
+      const dy = (clientY - dragRef.current.startY) * scaleY;
+      const width = Math.max(40, Math.round(dragRef.current.startW + dx));
+      const height = Math.max(40, Math.round(dragRef.current.startH + dy));
+      setLayout((l) => ({ ...l, slots: l.slots.map((s) => (s.slotKey === slotKey ? { ...s, width, height } : s)) }));
+    }
+  };
+
+  const onSurfaceMouseUp = () => {
+    if (!dragRef.current) return;
+    const slotKey = dragRef.current.slotKey;
+    dragRef.current = null;
+    const slot = layout.slots.find((s) => s.slotKey === slotKey);
+    if (slot) saveSlotGeometry(slotKey, { x: slot.x, y: slot.y, width: slot.width, height: slot.height });
+  };
+
+  const assignSticker = async (slotKey, stickerId) => {
+    setError('');
+    try {
+      if (stickerId) await adminAssignStickerPosition(stickerId, editPage, slotKey);
+      // Se já havia outra figurinha nesse espaço nessa página, desvincula ela.
+      const current = layout.stickers.find((s) => s.assignedPage === editPage && s.assignedSlotKey === slotKey);
+      if (current && current.id !== stickerId) await adminAssignStickerPosition(current.id, editPage, null);
+      await refresh();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Não foi possível atribuir.');
+    }
+  };
+
+  const selected = layout.slots.find((s) => s.slotKey === selectedSlot);
+
+  return (
+    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+      <div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+          <label>Página <input type="number" min={1} max={settings.totalPages} value={editPage} onChange={(e) => setEditPage(Math.max(1, parseInt(e.target.value, 10) || 1))} style={{ width: 60 }} /></label>
+          <span className="dim">de {settings.totalPages}</span>
+        </div>
+
+        <div
+          ref={surfaceRef}
+          onMouseMove={onSurfaceMouseMove}
+          onMouseUp={onSurfaceMouseUp}
+          onMouseLeave={onSurfaceMouseUp}
+          onTouchMove={onSurfaceMouseMove}
+          onTouchEnd={onSurfaceMouseUp}
+          onClick={() => setSelectedSlot(null)}
+          style={{ maxWidth: 640 }}
+        >
+          <div
+            className="album-surface admin-editing"
+            style={{
+              aspectRatio: `${settings.width} / ${settings.height}`,
+              backgroundColor: settings.backgroundColor,
+              backgroundImage: settings.backgroundImageUrl ? `url(${settings.backgroundImageUrl})` : undefined,
+              backgroundSize: 'cover', backgroundPosition: 'center',
+            }}
+          >
+            {slotsWithStickers.map((slot) => (
+              <div
+                key={slot.slotKey}
+                className={`album-slot editable ${selectedSlot === slot.slotKey ? 'selected' : ''}`}
+                style={{
+                  left: `${(slot.x / settings.width) * 100}%`, top: `${(slot.y / settings.height) * 100}%`,
+                  width: `${(slot.width / settings.width) * 100}%`, height: `${(slot.height / settings.height) * 100}%`,
+                }}
+                onMouseDown={(e) => onSlotMouseDown(e, slot)}
+                onTouchStart={(e) => onSlotMouseDown(e, slot)}
+              >
+                {slot.sticker ? <img src={slot.sticker.imageUrl} alt="" /> : <span className="dim">{slot.slotKey}</span>}
+                <span className="album-slot-resize-handle" onMouseDown={(e) => onResizeMouseDown(e, slot)} onTouchStart={(e) => onResizeMouseDown(e, slot)} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {selected && (
+          <div className="settings-block" style={{ marginTop: 10 }}>
+            <h4>{selected.slotKey}</h4>
+            <label>
+              Figurinha fixa nesta página/espaço
+              <select value={selected.sticker?.id || ''} onChange={(e) => assignSticker(selected.slotKey, e.target.value || null)}>
+                <option value="">Vazio</option>
+                {layout.stickers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </label>
+            {error && <div className="auth-error">{error}</div>}
+          </div>
+        )}
+      </div>
+
+      <div style={{ minWidth: 240 }}>
+        <div className="settings-block">
+          <h4>Fundo do álbum</h4>
+          <label>Cor <input type="color" defaultValue={settings.backgroundColor} onBlur={(e) => saveSettings({ backgroundColor: e.target.value })} /></label>
+          <label>Imagem de fundo (URL, opcional)
+            <input type="text" defaultValue={settings.backgroundImageUrl || ''} placeholder="https://..." onBlur={(e) => saveSettings({ backgroundImageUrl: e.target.value || null })} />
+          </label>
+          <label>Total de páginas
+            <input type="number" min={1} max={20} defaultValue={settings.totalPages} onBlur={(e) => saveSettings({ totalPages: parseInt(e.target.value, 10) || 1 })} style={{ width: 60 }} />
+          </label>
+          <label className="checkbox-row"><input type="checkbox" defaultChecked={settings.showNames} onChange={(e) => saveSettings({ showNames: e.target.checked })} /> Mostrar nome embaixo da figurinha</label>
+        </div>
+
+        <div className="settings-block">
+          <h4>Espaços (até 12)</h4>
+          {Array.from({ length: 12 }, (_, i) => `slot${i}`).map((key) => {
+            const slot = layout.slots.find((s) => s.slotKey === key);
+            const enabled = slot?.enabled ?? false;
+            return (
+              <label key={key} className="checkbox-row">
+                <input type="checkbox" checked={enabled} onChange={(e) => toggleSlot(key, e.target.checked)} /> {key}
+              </label>
+            );
+          })}
+        </div>
+
+        <p className="dim" style={{ fontSize: 12 }}>Arraste um espaço pra mover, puxe o cantinho ↘ pra redimensionar. As mudanças salvam sozinhas.</p>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Economia — empregos, baús diários, itens da loja (equivalente aos
+// comandos /edit_empregos, /edit_daily e à gestão de loja do bot Robbie).
+// ============================================================
+function EconomyAdminTab() {
+  const [chests, setChests] = useState(null);
+  const refresh = () => adminListChests().then((d) => setChests(d.chests));
+  useEffect(() => { refresh(); }, []);
+
+  const create = async () => {
+    const name = prompt('Nome do baú:');
+    if (!name) return;
+    await adminCreateChest({ name, chanceRegular: 0.1, coinsMin: 10, coinsMax: 20, ticketsMin: 0, ticketsMax: 0 });
+    refresh();
+  };
+
+  const update = async (chest, field, value) => {
+    await adminUpdateChest(chest.id, { [field]: value });
+    refresh();
+  };
+
+  const remove = async (chest) => {
+    if (!confirm(`Excluir o baú "${chest.name}"?`)) return;
+    await adminDeleteChest(chest.id);
+    refresh();
+  };
+
+  if (!chests) return <div className="dim">Carregando...</div>;
+
+  return (
+    <div>
+      <MissionsAdmin />
+      <h4><IconGlyph src={giftIcon} size={16} /> Baús diários</h4>
+      <p className="dim" style={{ fontSize: 13 }}>A soma das chances não precisa fechar em 100% — o restante cai no último baú da lista, igual ao bot original.</p>
+      <div className="admin-badges-toolbar"><button className="btn-secondary" onClick={create}>+ Novo baú</button></div>
+      <table className="admin-table">
+        <thead><tr><th>Imagem</th><th>Nome</th><th>Chance</th><th>Moedas</th><th>Tickets</th><th>Ativo</th><th></th></tr></thead>
+        <tbody>
+          {chests.map((c) => (
+            <tr key={c.id}>
+              <td>
+                {c.imageClosed && <img src={c.imageClosed} alt="" style={{ width: 32, height: 32, objectFit: 'contain', display: 'block', marginBottom: 4 }} />}
+                <input placeholder="link da imagem fechada" defaultValue={c.imageClosed || ''} onBlur={(e) => update(c, 'imageClosed', e.target.value)} style={{ width: 140, fontSize: 11 }} />
+                <input placeholder="link da imagem aberta" defaultValue={c.imageOpened || ''} onBlur={(e) => update(c, 'imageOpened', e.target.value)} style={{ width: 140, fontSize: 11, marginTop: 2 }} />
+              </td>
+              <td><input defaultValue={c.name} onBlur={(e) => update(c, 'name', e.target.value)} /></td>
+              <td><input type="number" step="0.01" style={{ width: 70 }} defaultValue={c.chanceRegular} onBlur={(e) => update(c, 'chanceRegular', parseFloat(e.target.value))} /></td>
+              <td>
+                <input type="number" style={{ width: 60 }} defaultValue={c.coinsMin} onBlur={(e) => update(c, 'coinsMin', parseInt(e.target.value, 10))} /> -
+                <input type="number" style={{ width: 60 }} defaultValue={c.coinsMax} onBlur={(e) => update(c, 'coinsMax', parseInt(e.target.value, 10))} />
+              </td>
+              <td>
+                <input type="number" style={{ width: 50 }} defaultValue={c.ticketsMin} onBlur={(e) => update(c, 'ticketsMin', parseInt(e.target.value, 10))} /> -
+                <input type="number" style={{ width: 50 }} defaultValue={c.ticketsMax} onBlur={(e) => update(c, 'ticketsMax', parseInt(e.target.value, 10))} />
+              </td>
+              <td><input type="checkbox" defaultChecked={c.enabled} onChange={(e) => update(c, 'enabled', e.target.checked)} /></td>
+              <td><button className="btn-link danger" onClick={() => remove(c)}>Excluir</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ============================================================
+// Casas e Móveis — catálogo (equivalente às telas /staff/config/casa e
+// /staff/config/moveis do bot Robbie).
+// ============================================================
+function HousesAdminTab() {
+  const [section, setSection] = useState('houses');
+  return (
+    <div>
+      <div className="mod-tabs">
+        <button className={`mod-tab ${section === 'houses' ? 'active' : ''}`} onClick={() => setSection('houses')}>🧊 Casas</button>
+        <button className={`mod-tab ${section === 'groups' ? 'active' : ''}`} onClick={() => setSection('groups')}>🏘️ Grupos</button>
+        <button className={`mod-tab ${section === 'furniture' ? 'active' : ''}`} onClick={() => setSection('furniture')}>🪑 Móveis</button>
+        <button className={`mod-tab ${section === 'maps' ? 'active' : ''}`} onClick={() => setSection('maps')}>🖼️ Fundos</button>
+      </div>
+      {section === 'houses' && <HouseCatalogSection />}
+      {section === 'groups' && <HouseGroupsSection />}
+      {section === 'furniture' && <FurnitureCatalogSection />}
+      {section === 'maps' && <MapBackgroundsSection />}
+    </div>
+  );
+}
+
+function HouseGroupsSection() {
+  const [groups, setGroups] = useState(null);
+  const refresh = () => adminListHouseGroups().then((d) => setGroups(d.groups));
+  useEffect(() => { refresh(); }, []);
+
+  const create = async () => {
+    const id = prompt('Número do grupo (1-1000):');
+    const n = parseInt(id, 10);
+    if (!n || n < 1 || n > 1000) return;
+    await adminSetHouseGroup(n, { x: 0, y: 0, width: 200, height: 200 });
+    refresh();
+  };
+
+  const update = async (g, field, value) => {
+    await adminSetHouseGroup(g.id, { x: g.x, y: g.y, width: g.width, height: g.height, [field]: value });
+    refresh();
+  };
+
+  const remove = async (g) => {
+    if (!confirm(`Excluir o grupo ${g.id}? Casas ligadas a ele ficam sem grupo.`)) return;
+    await adminDeleteHouseGroup(g.id);
+    refresh();
+  };
+
+  if (!groups) return <div className="dim">Carregando...</div>;
+
+  return (
+    <div>
+      <p className="dim" style={{ fontSize: 13 }}>Um grupo define onde (x, y) e de que tamanho (largura, altura) a imagem da casa aparece por cima do mapa — em pixels, considerando um mapa de referência de 1000×632. Mover ou redimensionar um grupo afeta TODAS as casas do catálogo ligadas a ele de uma vez.</p>
+      <div className="admin-badges-toolbar"><button className="btn-secondary" onClick={create}>+ Novo grupo</button></div>
+      <table className="admin-table">
+        <thead><tr><th>Grupo</th><th>X</th><th>Y</th><th>Largura</th><th>Altura</th><th>Casas</th><th></th></tr></thead>
+        <tbody>
+          {groups.map((g) => (
+            <tr key={g.id}>
+              <td><b>{g.id}</b></td>
+              <td><input type="number" style={{ width: 70 }} defaultValue={g.x} onBlur={(e) => update(g, 'x', parseInt(e.target.value, 10) || 0)} /></td>
+              <td><input type="number" style={{ width: 70 }} defaultValue={g.y} onBlur={(e) => update(g, 'y', parseInt(e.target.value, 10) || 0)} /></td>
+              <td><input type="number" style={{ width: 70 }} defaultValue={g.width} onBlur={(e) => update(g, 'width', parseInt(e.target.value, 10) || 0)} /></td>
+              <td><input type="number" style={{ width: 70 }} defaultValue={g.height} onBlur={(e) => update(g, 'height', parseInt(e.target.value, 10) || 0)} /></td>
+              <td className="dim" style={{ fontSize: 12 }}>{g.houses.map((h) => h.name).join(', ') || '—'}</td>
+              <td><button className="btn-link danger" onClick={() => remove(g)}>Excluir</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function MapBackgroundsSection() {
+  const [maps, setMaps] = useState(null);
+  const [starterMapId, setStarterMapId] = useState(null);
+  const [newFile, setNewFile] = useState(null);
+
+  const refresh = () => {
+    listMapBackgrounds().then((d) => setMaps(d.maps));
+    getCommunitySettings().then((d) => setStarterMapId(d.settings.starterMapId));
+  };
+  useEffect(() => { refresh(); }, []);
+
+  const create = async (e) => {
+    e.preventDefault();
+    if (!newFile) return alert('Escolha uma imagem primeiro.');
+    const id = prompt('ID único do fundo (ex.: cidade_noturna):');
+    if (!id) return;
+    const name = prompt('Nome:', id) || id;
+    const price = prompt('Preço em moedas (0 = grátis):', '50') || '50';
+    const fd = new FormData();
+    fd.append('image', newFile);
+    fd.append('id', id); fd.append('name', name); fd.append('price', price);
+    await adminCreateMapBackground(fd);
+    setNewFile(null);
+    refresh();
+  };
+
+  const rename = async (m) => {
+    const name = prompt('Novo nome:', m.name);
+    if (!name) return;
+    await adminUpdateMapBackground(m.id, { name });
+    refresh();
+  };
+
+  const changePrice = async (m, price) => {
+    await adminUpdateMapBackground(m.id, { price: parseInt(price, 10) || 0 });
+    refresh();
+  };
+
+  const changeStock = async (m, stock) => {
+    await adminUpdateMapBackground(m.id, { stock: stock === '' ? '' : parseInt(stock, 10) });
+    refresh();
+  };
+
+  const makeStarter = async (m) => { await adminSetStarterMap(m.id); refresh(); };
+  const clearStarter = async () => { await adminClearStarterMap(); refresh(); };
+
+  const remove = async (m) => {
+    if (!confirm(`Excluir o fundo "${m.name}"? Casas que usam ele voltam pra cor sólida padrão.`)) return;
+    await adminDeleteMapBackground(m.id);
+    refresh();
+  };
+
+  if (!maps) return <div className="dim">Carregando...</div>;
+
+  return (
+    <div>
+      <p className="dim" style={{ fontSize: 13 }}>Fundos que os membros podem escolher pra decorar a própria casa (aba Decorar → 🖼️ Fundo). Os 8 originais vêm do bot Robbie — dá pra cadastrar quantos mais quiser aqui. O "mapa inicial" é o que toda conta nova ganha de graça, se a casa inicial tiver grupo.</p>
+      <form onSubmit={create} className="admin-badges-toolbar" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input type="file" accept="image/*" onChange={(e) => setNewFile(e.target.files[0])} />
+        <button className="btn-secondary" type="submit">+ Novo fundo</button>
+      </form>
+      <div className="admin-badge-grid">
+        {maps.map((m) => (
+          <div key={m.id} className={`card ${starterMapId === m.id ? 'starter-marked' : ''}`} style={{ padding: 14 }}>
+            <img src={m.imageUrl} alt="" style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 8 }} />
+            <div style={{ fontWeight: 700, marginTop: 6 }}>{m.name} {starterMapId === m.id && <span className="dim" style={{ fontSize: 11 }}>· inicial</span>}</div>
+            <label>PREÇO (moedas)<input type="number" defaultValue={m.price} onBlur={(e) => changePrice(m, e.target.value)} /></label>
+            <label>ESTOQUE (vazio = ilimitado)<input type="number" defaultValue={m.stock ?? ''} placeholder="ilimitado" onBlur={(e) => changeStock(m, e.target.value)} /></label>
+            <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+              <button className="btn-link" onClick={() => rename(m)}>Renomear</button>
+              {starterMapId === m.id
+                ? <button className="btn-link" onClick={clearStarter}>Remover como inicial</button>
+                : <button className="btn-link" onClick={() => makeStarter(m)}>Definir como inicial</button>}
+              <button className="btn-link danger" onClick={() => remove(m)}>Excluir</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HouseCatalogSection() {
+  const [houses, setHouses] = useState(null);
+  const [starterHouseId, setStarterHouseId] = useState(null);
+  const [newFile, setNewFile] = useState(null);
+  const refresh = () => {
+    adminListHouseCatalog().then((d) => setHouses(d.houses));
+    getCommunitySettings().then((d) => setStarterHouseId(d.settings.starterHouseId));
+  };
+  useEffect(() => { refresh(); }, []);
+
+  const create = async (e) => {
+    e.preventDefault();
+    const id = prompt('ID único da casa (ex.: iglu_novo):');
+    if (!id) return;
+    const name = prompt('Nome:', id) || id;
+    const groupId = prompt('Número do grupo (1-1000, deixe vazio pra casa com fundo próprio):', '') || '';
+    if (newFile) {
+      const fd = new FormData();
+      fd.append('image', newFile);
+      fd.append('id', id); fd.append('name', name); fd.append('price', '0'); fd.append('backgroundColor', '#BFEFFF');
+      if (groupId) fd.append('groupId', groupId);
+      await adminCreateHouse(fd);
+      setNewFile(null);
+    } else {
+      await adminCreateHouse({ id, name, price: 0, backgroundColor: '#BFEFFF', groupId: groupId || undefined });
+    }
+    refresh();
+  };
+
+  const update = async (house, field, value) => {
+    await adminUpdateHouse(house.id, { [field]: value });
+    refresh();
+  };
+
+  const uploadImage = async (house, file) => {
+    const fd = new FormData();
+    fd.append('image', file);
+    await adminUpdateHouse(house.id, fd);
+    refresh();
+  };
+
+  const makeStarter = async (h) => { await adminSetStarterHouse(h.id); refresh(); };
+  const clearStarter = async () => { await adminClearStarterHouse(); refresh(); };
+
+  const remove = async (house) => {
+    if (!confirm(`Excluir a casa "${house.name}"? Isso também remove essa casa de quem já comprou ela (móveis colocados, curtidas e recados dela junto).`)) return;
+    await adminDeleteHouse(house.id);
+    refresh();
+  };
+
+  if (!houses) return <div className="dim">Carregando...</div>;
+
+  return (
+    <div>
+      <p className="dim" style={{ fontSize: 13 }}>Casas SEM grupo têm fundo próprio (imagem completa). Casas COM grupo só têm a "imagem da casa" (sprite, sem fundo) — o fundo real é o mapa que o usuário escolher, e a casa aparece por cima dele na posição do grupo (ver aba 🏘️ Grupos). A "casa inicial" é a que toda conta nova ganha de graça e ativa.</p>
+      <form onSubmit={create} className="admin-badges-toolbar" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input type="file" accept="image/*" onChange={(e) => setNewFile(e.target.files[0])} />
+        <button className="btn-secondary" type="submit">+ Nova casa</button>
+      </form>
+      <div className="admin-badge-grid">
+        {houses.map((h) => (
+          <div key={h.id} className={`card ${starterHouseId === h.id ? 'starter-marked' : ''}`} style={{ padding: 14 }}>
+            <div style={{ height: 90, borderRadius: 8, background: h.backgroundColor, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              {h.imageUrl ? <img src={h.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <HouseIcon color="#fff" size={40} />}
+            </div>
+            <label className="btn-secondary" style={{ marginTop: 6, textAlign: 'center', display: 'block', cursor: 'pointer' }}>
+              {h.imageUrl ? (h.groupId != null ? 'Trocar imagem da casa' : 'Trocar fundo') : (h.groupId != null ? 'Adicionar imagem da casa' : 'Adicionar fundo')}
+              <input type="file" accept="image/*" hidden onChange={(e) => e.target.files[0] && uploadImage(h, e.target.files[0])} />
+            </label>
+            <label>NOME<input defaultValue={h.name} onBlur={(e) => update(h, 'name', e.target.value)} /></label>
+            <label>PREÇO<input type="number" defaultValue={h.price} onBlur={(e) => update(h, 'price', parseInt(e.target.value, 10))} /></label>
+            <label>ESTOQUE (vazio = ilimitado)<input type="number" defaultValue={h.stock ?? ''} placeholder="ilimitado" onBlur={(e) => update(h, 'stock', e.target.value === '' ? '' : parseInt(e.target.value, 10))} /></label>
+            <label>GRUPO (vazio = fundo próprio)<input type="number" defaultValue={h.groupId ?? ''} placeholder="sem grupo" onBlur={(e) => update(h, 'groupId', e.target.value === '' ? '' : parseInt(e.target.value, 10))} /></label>
+            {h.groupId == null && <label>COR (usada se não tiver imagem)<input type="color" defaultValue={h.backgroundColor} onChange={(e) => update(h, 'backgroundColor', e.target.value)} /></label>}
+            <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+              {starterHouseId === h.id
+                ? <button className="btn-link" onClick={clearStarter}>Remover como inicial</button>
+                : <button className="btn-link" onClick={() => makeStarter(h)}>Definir como inicial</button>}
+              <button className="btn-link danger" onClick={() => remove(h)}>Excluir</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FurnitureCatalogSection() {
+  const [items, setItems] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [newFile, setNewFile] = useState(null);
+
+  const refresh = () => {
+    adminListFurnitureCatalog().then((d) => setItems(d.items));
+    adminListFurnitureCategories().then((d) => setCategories(d.categories));
+  };
+  useEffect(() => { refresh(); }, []);
+
+  const createCategory = async () => {
+    const id = prompt('ID único da categoria (ex.: eletronicos):');
+    if (!id) return;
+    const name = prompt('Nome:', id) || id;
+    await adminCreateFurnitureCategory({ id, name });
+    refresh();
+  };
+
+  const create = async (e) => {
+    e.preventDefault();
+    if (!newFile) return alert('Escolha uma imagem primeiro.');
+    const id = prompt('ID único do móvel:');
+    if (!id) return;
+    const name = prompt('Nome:', id) || id;
+    const categoryId = categories[0]?.id;
+    if (!categoryId) return alert('Crie uma categoria primeiro.');
+    const fd = new FormData();
+    fd.append('image', newFile);
+    fd.append('id', id); fd.append('name', name); fd.append('categoryId', categoryId);
+    fd.append('price', '10'); fd.append('width', '200'); fd.append('height', '200');
+    await adminCreateFurniture(fd);
+    setNewFile(null);
+    refresh();
+  };
+
+  const update = async (item, field, value) => {
+    await adminUpdateFurniture(item.id, { [field]: value });
+    refresh();
+  };
+
+  const remove = async (item) => {
+    if (!confirm(`Excluir o móvel "${item.name}"?`)) return;
+    await adminDeleteFurniture(item.id);
+    refresh();
+  };
+
+  if (!items) return <div className="dim">Carregando...</div>;
+
+  return (
+    <div>
+      <div className="admin-badges-toolbar" style={{ gap: 8 }}>
+        <button className="btn-secondary" onClick={createCategory}>+ Nova categoria</button>
+        <form onSubmit={create} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input type="file" accept="image/*" onChange={(e) => setNewFile(e.target.files[0])} />
+          <button className="btn-secondary" type="submit">+ Novo móvel</button>
+        </form>
+      </div>
+      <div className="admin-badge-grid">
+        {items.map((it) => (
+          <div key={it.id} className="card" style={{ padding: 14 }}>
+            <img src={it.imageUrl} alt="" style={{ width: '100%', height: 70, objectFit: 'contain' }} />
+            <label>NOME<input defaultValue={it.name} onBlur={(e) => update(it, 'name', e.target.value)} /></label>
+            <label>PREÇO<input type="number" defaultValue={it.price} onBlur={(e) => update(it, 'price', parseInt(e.target.value, 10))} /></label>
+            <label>CATEGORIA
+              <select defaultValue={it.categoryId} onChange={(e) => update(it, 'categoryId', e.target.value)}>
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
+            <button className="btn-link danger" onClick={() => remove(it)}>Excluir</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Sistema — liga/desliga sistemas inteiros da comunidade (adaptado do
+// "disabled_systems" e do modo manutenção do bot Robbie).
+// ============================================================
+function SystemTab() {
+  const [toggles, setToggles] = useState(null);
+  const refresh = () => getSystemToggles().then(setToggles);
+  useEffect(() => { refresh(); }, []);
+
+  const toggle = async (system, enabled) => {
+    await adminUpdateSystemToggles(system, enabled);
+    refresh();
+  };
+
+  if (!toggles) return <div className="dim">Carregando...</div>;
+
+  const LABELS = { economia: '💰 Economia', rank: '🏆 Rank', casas: '🧊 Casas e decoração', cartas: '🃏 Guerra das Cartas', cores_perfil: '🎨 Cores personalizadas para perfil', cargos: '🎖️ Cargos' };
+
+  return (
+    <div className="settings-grid">
+      <div className="settings-block">
+        <h4>Sistemas da comunidade</h4>
+        <p className="dim">Desativar um sistema bloqueia o acesso pra todo mundo (menos administradores) e mostra uma tela de indisponível.</p>
+        {toggles.availableSystems.filter((sys) => (sys !== 'casas' || isFeatureEnabled('houses')) && (sys !== 'figurinhas' || isFeatureEnabled('stickers')) && (sys !== 'cartas' || isFeatureEnabled('cardsWar'))).map((sys) => {
+          const enabled = !toggles.disabledSystems.includes(sys);
+          return (
+            <label key={sys} className="checkbox-row" style={{ fontSize: 14 }}>
+              <input type="checkbox" checked={enabled} onChange={(e) => toggle(sys, e.target.checked)} /> {LABELS[sys] || sys}
+            </label>
+          );
+        })}
+        {/* "Cores personalizadas para perfil" funciona diferente dos outros
+            (não bloqueia rota nenhuma nem mostra tela de indisponível) — só
+            esconde a opção de EDITAR a cor em Configurações → Meu perfil.
+            Cores já escolhidas por quem já tinha uma continuam aparecendo
+            normalmente pra todo mundo, ligado ou desligado. */}
+        <p className="dim" style={{ marginTop: 4 }}>
+          "Cores personalizadas para perfil" é diferente: desativar só esconde a opção de EDITAR a cor em Configurações → Meu perfil — cores já escolhidas continuam sendo exibidas normalmente.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Moderação de Recados — livro de visitas das casas (todos os recados da
+// comunidade num só lugar pra revisar/apagar).
+// ============================================================
+function ModerationTab() {
+  const [comments, setComments] = useState(null);
+  const refresh = () => adminListHouseComments().then((d) => setComments(d.comments));
+  useEffect(() => { refresh(); }, []);
+
+  const remove = async (comment) => {
+    if (!confirm('Apagar este recado?')) return;
+    await adminDeleteHouseCommentMod(comment.id);
+    refresh();
+  };
+
+  if (!comments) return <div className="dim">Carregando...</div>;
+  if (comments.length === 0) return <div className="dim">Nenhum recado ainda.</div>;
+
+  return (
+    <ul className="audit-log-list">
+      {comments.map((c) => (
+        <li key={c.id} className="audit-log-entry">
+          <b>{c.author?.displayName}</b> escreveu na casa de <b>{c.userHouse?.user?.displayName}</b>:
+          <div>{c.content}</div>
+          <div className="audit-meta">
+            {new Date(c.createdAt).toLocaleString('pt-BR')}
+            <button className="btn-link danger" style={{ marginLeft: 10 }} onClick={() => remove(c)}>Apagar</button>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// ============================================================
+// Inscrições — formulário de entrada com aprovação da staff. A conta só é
+// criada de verdade quando um admin aprova.
+// ============================================================
+function calcAge(birthDateStr) {
+  if (!birthDateStr) return null;
+  const b = new Date(birthDateStr);
+  const now = new Date();
+  let age = now.getFullYear() - b.getFullYear();
+  const m = now.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < b.getDate())) age--;
+  return age;
+}
+
+function ApplicationsTab() {
+  const [filter, setFilter] = useState('PENDING');
+  const [applications, setApplications] = useState(null);
+  const [busyId, setBusyId] = useState(null);
+
+  const refresh = () => adminListApplications(filter === 'ALL' ? undefined : filter).then((d) => setApplications(d.applications));
+  useEffect(() => { refresh(); }, [filter]);
+
+  const approve = async (app) => {
+    if (!confirm(`Aprovar a inscrição de "${app.username}"? A conta será criada e um e-mail será enviado.`)) return;
+    setBusyId(app.id);
+    try { await approveApplication(app.id); await refresh(); }
+    catch (err) { alert(err.response?.data?.error || 'Não foi possível aprovar.'); }
+    finally { setBusyId(null); }
+  };
+
+  const reject = async (app) => {
+    const reason = prompt('Motivo da rejeição (opcional, vai no e-mail da pessoa):') || '';
+    setBusyId(app.id);
+    try { await rejectApplication(app.id, reason); await refresh(); }
+    catch (err) { alert(err.response?.data?.error || 'Não foi possível rejeitar.'); }
+    finally { setBusyId(null); }
+  };
+
+  if (!applications) return <div className="dim">Carregando...</div>;
+
+  return (
+    <div>
+      <div className="theme-options" style={{ marginBottom: 12 }}>
+        {['PENDING', 'APPROVED', 'REJECTED', 'ALL'].map((f) => (
+          <button key={f} className={`theme-swatch ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>
+            {f === 'PENDING' ? 'Pendentes' : f === 'APPROVED' ? 'Aprovadas' : f === 'REJECTED' ? 'Rejeitadas' : 'Todas'}
+          </button>
+        ))}
+      </div>
+      {applications.length === 0 && <p className="dim">Nenhuma inscrição aqui.</p>}
+      <div className="ticket-list">
+        {applications.map((app) => (
+          <div key={app.id} className="settings-block">
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontWeight: 700 }}>{app.displayName} <span className="dim">@{app.username}</span></div>
+                <div className="dim" style={{ fontSize: 12 }}>{app.email} · {calcAge(app.birthDate) != null ? `${calcAge(app.birthDate)} anos` : 'inscrição antiga'} · {new Date(app.createdAt).toLocaleString('pt-BR')}</div>
+              </div>
+              <span className={`ticket-status-chip ${app.status === 'PENDING' ? 'open' : app.status === 'APPROVED' ? 'open' : 'closed'}`}>
+                {app.status === 'PENDING' ? 'Pendente' : app.status === 'APPROVED' ? 'Aprovada' : 'Rejeitada'}
+              </span>
+            </div>
+            <div className="application-answers">
+              <div><b>Como descobriu:</b> {app.answers.howFound}{app.answers.howFoundOther ? ` (${app.answers.howFoundOther})` : ''}</div>
+              <div><b>Interesses:</b> {app.answers.interests?.join(', ')}</div>
+              <div><b>É o quê:</b> {app.answers.roles?.join(', ')}</div>
+              <div><b>Nível de tecnologia:</b> {app.answers.techLevel}</div>
+              <div><b>Redes alternativas:</b> {app.answers.altSocials?.join(', ')}</div>
+              <div><b>Seria membro ativo:</b> {app.answers.activeMember}</div>
+              <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}><b>Motivo:</b> {app.answers.joinReason}</div>
+            </div>
+            {app.status === 'PENDING' && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button className="btn-primary" disabled={busyId === app.id} onClick={() => approve(app)}><IconGlyph src={confirmIcon} size={14} /> Aprovar</button>
+                <button className="btn-danger" disabled={busyId === app.id} onClick={() => reject(app)}><IconGlyph src={closeIcon} size={14} /> Rejeitar</button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Denúncias manuais — item pedido: "Formulário e aprovação manual". Mesmo
+// padrão de tela do AutomodDmTab abaixo, mas pra denúncia feita por um
+// usuário (qualquer motivo, não só palavra sinalizada) e cobrindo tanto
+// DM quanto canal público.
+function ReportsTab() {
+  const [reports, setReports] = useState([]);
+  const [filter, setFilter] = useState('PENDING');
+  const [loading, setLoading] = useState(true);
+  const [viewing, setViewing] = useState(null); // { report, messages } quando analisando um caso
+  const [busyId, setBusyId] = useState(null);
+
+  const refresh = () => {
+    setLoading(true);
+    adminListReports(filter === 'ALL' ? undefined : filter).then((d) => setReports(d.reports)).finally(() => setLoading(false));
+  };
+  useEffect(refresh, [filter]);
+
+  const openCase = async (report) => {
+    const data = await adminGetReportedContext(report.id);
+    setViewing(data);
+  };
+
+  const resolve = async (id, status) => {
+    setBusyId(id);
+    try {
+      await adminResolveReport(id, status);
+      setViewing(null);
+      refresh();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div>
+      <p className="dim" style={{ marginBottom: 12 }}>
+        Mensagens e perfis denunciados manualmente por usuários. Denúncia de DM tem o mesmo cuidado de
+        privacidade do automod (nenhum dos dois envolvidos sabe que você está analisando);
+        denúncia de canal público mostra o contexto ao redor normalmente.
+      </p>
+      <div className="theme-options" style={{ marginBottom: 12 }}>
+        {['PENDING', 'ACTIONED', 'DISMISSED', 'ALL'].map((f) => (
+          <button key={f} className={`theme-swatch ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>
+            {f === 'PENDING' ? 'Pendentes' : f === 'ACTIONED' ? 'Com ação' : f === 'DISMISSED' ? 'Ignoradas' : 'Todas'}
+          </button>
+        ))}
+      </div>
+      {!loading && reports.length === 0 && <p className="dim">Nenhuma denúncia aqui.</p>}
+      <div className="ticket-list">
+        {reports.map((r) => (
+          <div key={r.id} className="settings-block">
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontWeight: 700 }}>
+                  {r.reporter?.displayName} <span className="dim">@{r.reporter?.username}</span>
+                  {' denunciou '}
+                  {r.reportedUser?.displayName} <span className="dim">@{r.reportedUser?.username}</span>
+                </div>
+                <div className="dim" style={{ fontSize: 12 }}>
+                  {r.kind === 'PROFILE' ? 'Perfil' : r.conversationId ? 'Mensagem privada' : 'Mensagem de canal'} · {new Date(r.createdAt).toLocaleString('pt-BR')}
+                </div>
+              </div>
+              <span className={`ticket-status-chip ${r.status === 'PENDING' ? 'open' : 'closed'}`}>
+                {r.status === 'PENDING' ? 'Pendente' : r.status === 'ACTIONED' ? 'Com ação' : 'Ignorada'}
+              </span>
+            </div>
+            <div className="dim" style={{ marginTop: 8, fontSize: 13 }}>Motivo: {r.reason}</div>
+            <p style={{ marginTop: 4, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>"{r.snippet}"</p>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button className="btn-link" onClick={() => openCase(r)}>{r.kind === 'PROFILE' ? '🔍 Ver perfil' : '🔍 Analisar contexto'}</button>
+              {r.status === 'PENDING' && (
+                <button className="btn-link" disabled={busyId === r.id} onClick={() => resolve(r.id, 'DISMISSED')}>Ignorar</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {viewing && (
+        <Modal onClose={() => setViewing(null)} title={viewing.report.kind === 'PROFILE' ? 'Perfil denunciado' : viewing.report.conversationId ? 'Conversa completa (visualização de staff)' : 'Contexto do canal'}>
+          {viewing.report.kind === 'PROFILE' && (
+            <div className="settings-block" style={{ marginBottom: 8 }}>
+              {viewing.profile ? (
+                <>
+                  <div style={{ fontWeight: 700 }}>
+                    {viewing.profile.displayName} <span className="dim">@{viewing.profile.username}</span>
+                  </div>
+                  {viewing.profile.pronouns && <div className="dim" style={{ fontSize: 12 }}>{viewing.profile.pronouns}</div>}
+                  <p style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{viewing.profile.bio || <span className="dim">(sem bio)</span>}</p>
+                </>
+              ) : <p className="dim">Esta conta não existe mais.</p>}
+              <div className="dim" style={{ fontSize: 12, marginTop: 8 }}>No momento da denúncia:</div>
+              <p style={{ marginTop: 4, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>{viewing.report.snippet}</p>
+            </div>
+          )}
+          {viewing.report.conversationId && (
+            <div className="dim" style={{ fontSize: 12, marginBottom: 8 }}>
+              Nenhum dos dois usuários é notificado sobre essa visualização.
+            </div>
+          )}
+          <div className="automod-conversation-view">
+            {viewing.messages.map((m) => (
+              <div key={m.id} className="automod-conversation-msg">
+                <b>{m.author?.displayName}:</b> {m.content}
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button className="btn-danger" disabled={busyId === viewing.report.id} onClick={() => resolve(viewing.report.id, 'ACTIONED')}>
+              Marcar como "ação tomada" (banir/silenciar pelo menu de Usuários)
+            </button>
+            <button className="btn-link" disabled={busyId === viewing.report.id} onClick={() => resolve(viewing.report.id, 'DISMISSED')}>Ignorar</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// Automod de DM — lista de mensagens sinalizadas por palavra, com opção
+// de abrir a conversa inteira (visualização SECRETA — o autor nunca fica
+// sabendo que a staff está olhando, ver adminController.getFlaggedConversation).
+function AutomodDmTab() {
+  const [flags, setFlags] = useState([]);
+  const [filter, setFilter] = useState('PENDING');
+  const [loading, setLoading] = useState(true);
+  const [viewing, setViewing] = useState(null); // { flag, messages } quando analisando um caso
+  const [busyId, setBusyId] = useState(null);
+
+  const refresh = () => {
+    setLoading(true);
+    adminListAutomodFlags(filter === 'ALL' ? undefined : filter).then((d) => setFlags(d.flags)).finally(() => setLoading(false));
+  };
+  useEffect(refresh, [filter]);
+
+  const openCase = async (flag) => {
+    const data = await adminGetFlaggedConversation(flag.id);
+    setViewing(data);
+  };
+
+  const resolve = async (id, status) => {
+    setBusyId(id);
+    try {
+      await adminResolveAutomodFlag(id, status);
+      setViewing(null);
+      refresh();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div>
+      <p className="dim" style={{ marginBottom: 12 }}>
+        Mensagens diretas com palavras sinalizadas automaticamente. A mensagem já foi enviada
+        normalmente — os dois usuários não sabem que ela foi sinalizada nem que você está
+        analisando o caso. Abrir um caso mostra o histórico completo da conversa entre os dois.
+      </p>
+      <div className="theme-options" style={{ marginBottom: 12 }}>
+        {['PENDING', 'ACTIONED', 'DISMISSED', 'ALL'].map((f) => (
+          <button key={f} className={`theme-swatch ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>
+            {f === 'PENDING' ? 'Pendentes' : f === 'ACTIONED' ? 'Com ação' : f === 'DISMISSED' ? 'Ignoradas' : 'Todas'}
+          </button>
+        ))}
+      </div>
+      {!loading && flags.length === 0 && <p className="dim">Nenhuma sinalização aqui.</p>}
+      <div className="ticket-list">
+        {flags.map((f) => (
+          <div key={f.id} className="settings-block">
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontWeight: 700 }}>
+                  {f.sender?.displayName} <span className="dim">@{f.sender?.username}</span>
+                  {' → '}
+                  {f.recipient?.displayName} <span className="dim">@{f.recipient?.username}</span>
+                </div>
+                <div className="dim" style={{ fontSize: 12 }}>Palavra: <b>{f.matchedWord}</b> · {new Date(f.createdAt).toLocaleString('pt-BR')}</div>
+              </div>
+              <span className={`ticket-status-chip ${f.status === 'PENDING' ? 'open' : 'closed'}`}>
+                {f.status === 'PENDING' ? 'Pendente' : f.status === 'ACTIONED' ? 'Com ação' : 'Ignorada'}
+              </span>
+            </div>
+            <p style={{ marginTop: 8, fontStyle: 'italic' }}>"{f.snippet}"</p>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button className="btn-link" onClick={() => openCase(f)}>🔍 Analisar conversa</button>
+              {f.status === 'PENDING' && (
+                <button className="btn-link" disabled={busyId === f.id} onClick={() => resolve(f.id, 'DISMISSED')}>Ignorar</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {viewing && (
+        <Modal onClose={() => setViewing(null)} title="Conversa completa (visualização de staff)">
+          <div className="dim" style={{ fontSize: 12, marginBottom: 8 }}>
+            Nenhum dos dois usuários é notificado sobre essa visualização.
+          </div>
+          <div className="automod-conversation-view">
+            {viewing.messages.map((m) => (
+              <div key={m.id} className="automod-conversation-msg">
+                <b>{m.author?.displayName}:</b> {m.content}
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button className="btn-danger" disabled={busyId === viewing.flag.id} onClick={() => resolve(viewing.flag.id, 'ACTIONED')}>
+              Marcar como "ação tomada" (banir/silenciar pelo menu de Usuários)
+            </button>
+            <button className="btn-link" disabled={busyId === viewing.flag.id} onClick={() => resolve(viewing.flag.id, 'DISMISSED')}>Ignorar</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// Item pedido 5/6: mapeamento de qual AppID da Steam corresponde a qual
+// jogo no mod.io — sem uma entrada aqui, um jogo detectado localmente
+// nunca mostra suporte a mods pra ninguém (regra "não mostrar qualquer
+// jogo como compatível automaticamente"). Formulário simples de
+// cadastro (mesmo padrão de "criar, depois habilitar/desabilitar" já
+// usado em Badges/AppCatalog).
+function ModGamesAdminTab() {
+  const [mappings, setMappings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ steamAppId: '', modioGameId: '', modioNameId: '', displayName: '', iconUrl: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const refresh = () => {
+    setLoading(true);
+    adminListModGameMappings().then((d) => setMappings(d.mappings)).finally(() => setLoading(false));
+  };
+  useEffect(refresh, []);
+
+  const create = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!form.steamAppId || !form.modioGameId || !form.modioNameId.trim() || !form.displayName.trim()) {
+      setError('Preencha todos os campos obrigatórios.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await adminCreateModGameMapping(form);
+      setForm({ steamAppId: '', modioGameId: '', modioNameId: '', displayName: '', iconUrl: '' });
+      refresh();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erro ao criar mapeamento.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleEnabled = async (m) => {
+    await adminUpdateModGameMapping(m.id, { enabled: !m.enabled });
+    refresh();
+  };
+
+  const remove = async (m) => {
+    if (!confirm(`Remover o mapeamento de "${m.displayName}"? Ele deixa de aparecer em Mods pra todo mundo.`)) return;
+    await adminDeleteModGameMapping(m.id);
+    refresh();
+  };
+
+  return (
+    <div>
+      <h2>🧰 Mods — Jogos com suporte</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        Cada linha aqui diz "este AppID da Steam corresponde a este jogo no mod.io". Um jogo detectado na Steam de
+        alguém que NÃO estiver cadastrado aqui simplesmente não mostra suporte a mods pra essa pessoa — nunca inventa.
+        O ID do jogo no mod.io e o "name_id" (o slug usado nas URLs, tipo <code>lethalcompany</code>) ficam na página
+        do jogo no seu painel de desenvolvedor em mod.io.
+      </p>
+
+      <form className="admin-badge-form" onSubmit={create}>
+        <label>AppID da Steam<input type="number" value={form.steamAppId} onChange={(e) => setForm((f) => ({ ...f, steamAppId: e.target.value }))} placeholder="1966720" /></label>
+        <label>ID do jogo no mod.io<input type="number" value={form.modioGameId} onChange={(e) => setForm((f) => ({ ...f, modioGameId: e.target.value }))} placeholder="ex: 3213" /></label>
+        <label>Slug do jogo no mod.io (name_id)<input value={form.modioNameId} onChange={(e) => setForm((f) => ({ ...f, modioNameId: e.target.value }))} placeholder="lethalcompany" /></label>
+        <label>Nome exibido<input value={form.displayName} onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))} placeholder="Lethal Company" /></label>
+        <label>URL do ícone (opcional)<input value={form.iconUrl} onChange={(e) => setForm((f) => ({ ...f, iconUrl: e.target.value }))} placeholder="https://..." /></label>
+        {error && <p style={{ color: 'var(--red)', fontSize: 13 }}>{error}</p>}
+        <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Salvando...' : 'Cadastrar jogo'}</button>
+      </form>
+
+      {loading ? <p className="dim">Carregando...</p> : mappings.length === 0 ? (
+        <p className="dim">Nenhum jogo cadastrado ainda.</p>
+      ) : (
+        <table className="admin-table" style={{ marginTop: 20 }}>
+          <thead><tr><th>Jogo</th><th>AppID Steam</th><th>ID mod.io</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {mappings.map((m) => (
+              <tr key={m.id}>
+                <td>{m.displayName}</td>
+                <td>{m.steamAppId}</td>
+                <td>{m.modioGameId} ({m.modioNameId})</td>
+                <td>{m.enabled ? '✅ Ativo' : '⛔ Desativado'}</td>
+                <td className="admin-table-actions">
+                  <button className="btn-link" onClick={() => toggleEnabled(m)}>{m.enabled ? 'Desativar' : 'Ativar'}</button>
+                  <button className="btn-link" style={{ color: 'var(--red)' }} onClick={() => remove(m)}>Remover</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// Item pedido 24: fila de denúncias de mods — mesmo padrão visual já
+// usado em ReportsTab/AutomodDmTab (filtro por status, resolver com
+// ação tomada ou ignorar).
+function ModReportsAdminTab() {
+  const [reports, setReports] = useState([]);
+  const [filter, setFilter] = useState('PENDING');
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+
+  const refresh = () => {
+    setLoading(true);
+    adminListModReports(filter === 'ALL' ? undefined : filter).then((d) => setReports(d.reports)).finally(() => setLoading(false));
+  };
+  useEffect(refresh, [filter]);
+
+  const resolve = async (id, status) => {
+    setBusyId(id);
+    try { await adminResolveModReport(id, status); refresh(); } finally { setBusyId(null); }
+  };
+
+  return (
+    <div>
+      <h2>🧰 Mods — Denúncias</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        Denúncias enviadas pelos usuários sobre mods específicos (conteúdo impróprio, malware suspeito, etc). Isso não
+        remove o mod do mod.io — só ajuda a equipe a acompanhar problemas relatados.
+      </p>
+      <div className="theme-options" style={{ marginBottom: 12 }}>
+        {['PENDING', 'ACTIONED', 'DISMISSED', 'ALL'].map((f) => (
+          <button key={f} className={`theme-swatch ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>
+            {f === 'PENDING' ? 'Pendentes' : f === 'ACTIONED' ? 'Com ação' : f === 'DISMISSED' ? 'Ignoradas' : 'Todas'}
+          </button>
+        ))}
+      </div>
+      {loading ? <p className="dim">Carregando...</p> : reports.length === 0 ? (
+        <p className="dim">Nenhuma denúncia aqui.</p>
+      ) : (
+        <div className="ticket-list">
+          {reports.map((r) => (
+            <div key={r.id} className="settings-block">
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontWeight: 700 }}>Mod #{r.modioModId}</div>
+                  <div className="dim" style={{ fontSize: 12 }}>
+                    Denunciado por {r.reporter?.displayName} <span className="dim">@{r.reporter?.username}</span> · {new Date(r.createdAt).toLocaleString('pt-BR')}
+                  </div>
+                </div>
+                <span className={`ticket-status-chip ${r.status === 'PENDING' ? 'open' : 'closed'}`}>
+                  {r.status === 'PENDING' ? 'Pendente' : r.status === 'ACTIONED' ? 'Com ação' : 'Ignorada'}
+                </span>
+              </div>
+              <p style={{ marginTop: 8, fontSize: 13 }}>{r.reason}</p>
+              {r.status === 'PENDING' && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <button className="btn-danger" disabled={busyId === r.id} onClick={() => resolve(r.id, 'ACTIONED')}>Marcar como "ação tomada"</button>
+                  <button className="btn-link" disabled={busyId === r.id} onClick={() => resolve(r.id, 'DISMISSED')}>Ignorar</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Mesma ideia do ModGamesAdminTab, pro Steam Workshop (Terraria/
+// tModLoader, Payday 2, Payday 3, etc).
+function WorkshopGamesAdminTab() {
+  const [mappings, setMappings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ steamAppId: '', workshopAppId: '', displayName: '', iconUrl: '', note: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const refresh = () => {
+    setLoading(true);
+    adminListWorkshopGameMappings().then((d) => setMappings(d.mappings)).finally(() => setLoading(false));
+  };
+  useEffect(refresh, []);
+
+  const create = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!form.steamAppId || !form.workshopAppId || !form.displayName.trim()) {
+      setError('Preencha steamAppId, workshopAppId e o nome.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await adminCreateWorkshopGameMapping(form);
+      setForm({ steamAppId: '', workshopAppId: '', displayName: '', iconUrl: '', note: '' });
+      refresh();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erro ao criar mapeamento.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleEnabled = async (m) => {
+    await adminUpdateWorkshopGameMapping(m.id, { enabled: !m.enabled });
+    refresh();
+  };
+
+  const remove = async (m) => {
+    if (!confirm(`Remover o mapeamento de "${m.displayName}"?`)) return;
+    await adminDeleteWorkshopGameMapping(m.id);
+    refresh();
+  };
+
+  return (
+    <div>
+      <h2>🧰 Mods — Steam Workshop</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        steamAppId é o jogo detectado localmente na Steam da pessoa. workshopAppId é o AppID que de fato guarda os
+        itens do Workshop — na maioria dos jogos os dois são o mesmo número, mas em alguns casos são diferentes
+        (ex: Terraria clássico não lê Workshop nenhum sozinho — quem lê é o tModLoader, um app separado na Steam com
+        AppID 1281930; nesse caso cadastre steamAppId = AppID do tModLoader também, já que é ELE que a pessoa
+        precisa ter instalado e aberto pra usar mods).
+      </p>
+
+      <form className="admin-badge-form" onSubmit={create}>
+        <label>AppID da Steam (jogo detectado)<input type="number" value={form.steamAppId} onChange={(e) => setForm((f) => ({ ...f, steamAppId: e.target.value }))} placeholder="ex: 1281930 (tModLoader)" /></label>
+        <label>AppID do Workshop<input type="number" value={form.workshopAppId} onChange={(e) => setForm((f) => ({ ...f, workshopAppId: e.target.value }))} placeholder="normalmente igual ao de cima" /></label>
+        <label>Nome exibido<input value={form.displayName} onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))} placeholder="Terraria (tModLoader)" /></label>
+        <label>URL do ícone (opcional)<input value={form.iconUrl} onChange={(e) => setForm((f) => ({ ...f, iconUrl: e.target.value }))} placeholder="https://..." /></label>
+        <label>Aviso (opcional, aparece na tela do jogo)<input value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="ex: Instale o tModLoader pela Steam também." /></label>
+        {error && <p style={{ color: 'var(--red)', fontSize: 13 }}>{error}</p>}
+        <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Salvando...' : 'Cadastrar jogo'}</button>
+      </form>
+
+      {loading ? <p className="dim">Carregando...</p> : mappings.length === 0 ? (
+        <p className="dim">Nenhum jogo cadastrado ainda.</p>
+      ) : (
+        <table className="admin-table" style={{ marginTop: 20 }}>
+          <thead><tr><th>Jogo</th><th>AppID Steam</th><th>AppID Workshop</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {mappings.map((m) => (
+              <tr key={m.id}>
+                <td>{m.displayName}</td>
+                <td>{m.steamAppId}</td>
+                <td>{m.workshopAppId}</td>
+                <td>{m.enabled ? '✅ Ativo' : '⛔ Desativado'}</td>
+                <td className="admin-table-actions">
+                  <button className="btn-link" onClick={() => toggleEnabled(m)}>{m.enabled ? 'Desativar' : 'Ativar'}</button>
+                  <button className="btn-link" style={{ color: 'var(--red)' }} onClick={() => remove(m)}>Remover</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// Mesma ideia do ModGamesAdminTab/WorkshopGamesAdminTab, pro GameBanana.
+// gameBananaGameId é o ID numérico da URL do jogo lá (ex:
+// gamebanana.com/games/6 → id 6).
+function GameBananaGamesAdminTab() {
+  const [mappings, setMappings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ steamAppId: '', gameBananaGameId: '', displayName: '', iconUrl: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const refresh = () => {
+    setLoading(true);
+    adminListGameBananaMappings().then((d) => setMappings(d.mappings)).finally(() => setLoading(false));
+  };
+  useEffect(refresh, []);
+
+  const create = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!form.steamAppId || !form.gameBananaGameId || !form.displayName.trim()) {
+      setError('Preencha steamAppId, gameBananaGameId e o nome.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await adminCreateGameBananaMapping(form);
+      setForm({ steamAppId: '', gameBananaGameId: '', displayName: '', iconUrl: '' });
+      refresh();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erro ao criar mapeamento.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleEnabled = async (m) => {
+    await adminUpdateGameBananaMapping(m.id, { enabled: !m.enabled });
+    refresh();
+  };
+
+  const remove = async (m) => {
+    if (!confirm(`Remover o mapeamento de "${m.displayName}"?`)) return;
+    await adminDeleteGameBananaMapping(m.id);
+    refresh();
+  };
+
+  return (
+    <div>
+      <h2>🧰 Mods — GameBanana</h2>
+      <p className="dim" style={{ marginBottom: 16 }}>
+        gameBananaGameId é o número que aparece na URL do jogo no GameBanana (ex: gamebanana.com/games/6 → 6). API
+        semi-oficial deles, sem login/chave nenhuma — cobre vários jogos da Steam além de Minecraft/mod.io/Workshop
+        (Garry's Mod, GTA San Andreas, Half-Life, Left 4 Dead, etc).
+      </p>
+
+      <form className="admin-badge-form" onSubmit={create}>
+        <label>AppID da Steam<input type="number" value={form.steamAppId} onChange={(e) => setForm((f) => ({ ...f, steamAppId: e.target.value }))} placeholder="ex: 4000 (Garry's Mod)" /></label>
+        <label>ID do jogo no GameBanana<input type="number" value={form.gameBananaGameId} onChange={(e) => setForm((f) => ({ ...f, gameBananaGameId: e.target.value }))} placeholder="ex: 6" /></label>
+        <label>Nome exibido<input value={form.displayName} onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))} placeholder="Garry's Mod" /></label>
+        <label>URL do ícone (opcional)<input value={form.iconUrl} onChange={(e) => setForm((f) => ({ ...f, iconUrl: e.target.value }))} placeholder="https://..." /></label>
+        {error && <p style={{ color: 'var(--red)', fontSize: 13 }}>{error}</p>}
+        <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Salvando...' : 'Cadastrar jogo'}</button>
+      </form>
+
+      {loading ? <p className="dim">Carregando...</p> : mappings.length === 0 ? (
+        <p className="dim">Nenhum jogo cadastrado ainda.</p>
+      ) : (
+        <table className="admin-table" style={{ marginTop: 20 }}>
+          <thead><tr><th>Jogo</th><th>AppID Steam</th><th>ID GameBanana</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {mappings.map((m) => (
+              <tr key={m.id}>
+                <td>{m.displayName}</td>
+                <td>{m.steamAppId}</td>
+                <td>{m.gameBananaGameId}</td>
+                <td>{m.enabled ? '✅ Ativo' : '⛔ Desativado'}</td>
+                <td className="admin-table-actions">
+                  <button className="btn-link" onClick={() => toggleEnabled(m)}>{m.enabled ? 'Desativar' : 'Ativar'}</button>
+                  <button className="btn-link" style={{ color: 'var(--red)' }} onClick={() => remove(m)}>Remover</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}

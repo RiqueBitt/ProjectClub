@@ -1,0 +1,380 @@
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useElementHeight } from '../utils/useElementHeight';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext.jsx';
+import { useSocket } from '../context/SocketContext.jsx';
+import { useStore } from '../store/useStore';
+import UserAvatar from '../components/UserAvatar.jsx';
+import EmojiPicker from '../components/EmojiPicker.jsx';
+import emojiPickerIcon from '../assets/icons/emoji-picker.png';
+import {
+  getPost, deletePost, votePost,
+  listPostComments, addPostComment, votePostComment, deletePostComment,
+} from '../api/endpoints';
+import { proxyImage } from '../utils/imageProxy';
+import { FeedIcon, VotePill, timeAgo, postTagsOf, PostSkeletons } from './CommunitiesPage.jsx';
+import { pinPost } from '../api/contentx';
+import { useLiveRefresh } from '../utils/liveRefresh';
+import FeedPoll from '../components/FeedPoll.jsx';
+
+// Reconhece se um comentário é só um link de imagem/GIF (colado a mão ou
+// escolhido no seletor de GIF abaixo) pra renderizar como imagem em vez
+// de texto puro — comentários não têm campo de anexo próprio (são só
+// texto), então isso é o jeito mais simples de "mandar GIF" funcionar de
+// verdade sem precisar mudar o schema do banco.
+const IMAGE_URL_RE = /^https?:\/\/\S+\.(gif|png|jpe?g|webp)(\?\S*)?$/i;
+
+// NOVO (fusão com o Reddit clone — item 2): página de post individual,
+// com comentários aninhados (respostas de respostas, como o Reddit).
+export default function PostDetailPage({ postId } = {}) {
+  // Links bonitos: /forum/:ref já resolvido pro id (PostRoute); o servidor
+  // também aceita o slug, então o ref cru continua funcionando de reserva.
+  const params = useParams();
+  const id = postId ?? params.id ?? params.ref;
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { socket } = useSocket() || {};
+  // Item pedido: "menu fica em cima da barra de escrever" (mobile
+  // usa isso via CSS — --composer-height) — mede a altura real do
+  // formulário de comentário.
+  const [commentFormRef, commentFormHeight] = useElementHeight();
+  const [post, setPost] = useState(null);
+  const [comments, setComments] = useState(null);
+  const [newComment, setNewComment] = useState('');
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  // Item pedido: "o menu está muito pra esquerda e muito largo" — mede
+  // a posição real do botão que abriu o popover (mesmo padrão já usado
+  // em ChatWindow.jsx e no reaction picker de Message.jsx), em vez de
+  // tentar inferir onde uma coluna termina.
+  const commentEmojiBtnRef = useRef(null);
+  const [commentPickerStyle, setCommentPickerStyle] = useState(null);
+  useEffect(() => {
+    if (!emojiPickerOpen) { setCommentPickerStyle(null); return; }
+    if (window.matchMedia('(max-width: 600px)').matches) { setCommentPickerStyle(null); return; }
+    const btn = commentEmojiBtnRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const estimatedHeight = Math.min(window.innerHeight * 0.4, window.innerHeight - 24);
+    let bottom = window.innerHeight - rect.top + 8;
+    if (window.innerHeight - bottom - estimatedHeight < 8) bottom = Math.max(8, window.innerHeight - estimatedHeight - 8);
+    let right = window.innerWidth - rect.right;
+    const width = Math.min(380, window.innerWidth - 32);
+    if (window.innerWidth - right - width < 8) right = Math.max(8, window.innerWidth - width - 8);
+    setCommentPickerStyle({ position: 'fixed', bottom: `${bottom}px`, right: `${right}px`, left: 'auto', top: 'auto', transform: 'none', width: `${width}px`, maxWidth: `${width}px` });
+  }, [emojiPickerOpen]);
+
+  // BUG CORRIGIDO ("erro tipo post não encontrado" aparecendo à toa):
+  // qualquer falha na requisição (timeout, instabilidade de rede, erro
+  // 500 passageiro do servidor) caía no mesmo catch genérico que
+  // 404 de verdade — mostrando "Post não encontrado" mesmo quando o
+  // post existe normalmente, só um problema transitório impediu de
+  // carregar dessa vez. Agora só marca como "não encontrado" quando o
+  // servidor confirma 404 de verdade; qualquer outro erro tenta de
+  // novo sozinho (até 2 vezes, com um pequeno intervalo crescente) antes
+  // de desistir — a grande maioria das instabilidades passageiras nem
+  // chega a aparecer pra quem está usando.
+  const [postLoadError, setPostLoadError] = useState(null); // null | 'not-found' | 'network'
+  const refreshPost = (attempt = 0) => getPost(id).then((d) => { setPost(d.post); setPostLoadError(null); }).catch((err) => {
+    if (err.response?.status === 404) {
+      setPost(false);
+      setPostLoadError('not-found');
+      return;
+    }
+    if (attempt < 2) {
+      setTimeout(() => refreshPost(attempt + 1), 800 * (attempt + 1));
+      return;
+    }
+    setPost(false);
+    setPostLoadError('network');
+  });
+  const refreshComments = () => listPostComments(id).then((d) => setComments(d.comments));
+
+  useEffect(() => { refreshPost(); refreshComments(); }, [id]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const onVote = (data) => { if (data.postId === id) setPost((p) => (p ? { ...p, score: data.score } : p)); };
+    const onNewComment = (data) => { if (data.postId === id) refreshComments(); };
+    const onCommentVote = (data) => { if (data.postId === id) refreshComments(); };
+    const onCommentDelete = (data) => { if (data.postId === id) refreshComments(); };
+    // Alguém votou na enquete: busca de novo (o "meu voto" é por pessoa).
+    const onPoll = (data) => { if (data.postId === id) getPost(id).then((d) => setPost(d.post)).catch(() => {}); };
+    socket.on('post:poll', onPoll);
+    socket.on('post:vote', onVote);
+    socket.on('post:comment', onNewComment);
+    socket.on('post:comment-vote', onCommentVote);
+    socket.on('post:comment-delete', onCommentDelete);
+    return () => {
+      socket.off('post:poll', onPoll);
+      socket.off('post:vote', onVote);
+      socket.off('post:comment', onNewComment);
+      socket.off('post:comment-vote', onCommentVote);
+      socket.off('post:comment-delete', onCommentDelete);
+    };
+  }, [socket, id]);
+
+  // Tempo real (11s): post e comentários, sem apagar a resposta sendo
+  // digitada (cada comentário mantém o próprio estado pela key).
+  useLiveRefresh(async ({ put }) => {
+    await Promise.allSettled([
+      getPost(id).then((d) => put(setPost)(d.post)),
+      listPostComments(id).then((d) => put(setComments)(d.comments)),
+    ]);
+  }, { enabled: !!post, key: id });
+
+  const onVotePost = async (value) => {
+    const nextMyVote = post.myVote === value ? 0 : value;
+    const delta = nextMyVote - post.myVote;
+    setPost((p) => ({ ...p, myVote: nextMyVote, score: p.score + delta }));
+    try { await votePost(id, value); } catch { refreshPost(); }
+  };
+
+  const onDeletePost = async () => {
+    if (!confirm('Excluir este post?')) return;
+    await deletePost(id);
+    navigate('/comunidades');
+  };
+
+  const submitComment = async (e) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    await addPostComment(id, newComment.trim());
+    setNewComment('');
+    refreshComments();
+  };
+
+  const insertCommentEmoji = (text) => setNewComment((c) => `${c}${text}`);
+  const sendCommentGif = async (url) => {
+    await addPostComment(id, url);
+    refreshComments();
+  };
+
+  if (post === false) {
+    return (
+      <div className="post-detail-page">
+        <p className="dim">
+          {postLoadError === 'not-found'
+            ? 'Post não encontrado.'
+            : 'Não deu pra carregar esse post agora — pode ser uma instabilidade passageira na conexão.'}
+        </p>
+        {postLoadError === 'network' && (
+          <button type="button" className="btn-secondary" onClick={() => { setPost(null); refreshPost(); }}>Tentar de novo</button>
+        )}
+      </div>
+    );
+  }
+  if (!post) return <div className="post-detail-page"><PostSkeletons count={1} /></div>;
+
+  const isStaff = ['ADMIN', 'MODERATOR'].includes(user.platformRole);
+  const canDelete = post.authorId === user.id || isStaff;
+  const tags = postTagsOf(post);
+  // Staff: fixar no topo das listas do Fórum.
+  const togglePin = async () => {
+    const next = !post.pinnedAt;
+    setPost((p) => ({ ...p, pinnedAt: next ? new Date().toISOString() : null }));
+    try { await pinPost(post.id, next); } catch { refreshPost(); }
+  };
+
+  return (
+    <div className="post-detail-page">
+      <button className="feeds-back" onClick={() => navigate(-1)}>‹ Voltar</button>
+
+      <article className={`post-detail-card fp-detail${post.pinnedAt ? ' cxf-pinned' : ''}`}>
+        {post.pinnedAt && <span className="cxf-pin-flag"><FeedIcon name="pin" size={13} /> Fixado pela staff</span>}
+        <header className="fp-card-head">
+          <button type="button" className="fp-club" onClick={() => navigate(`/comunidades/${post.community.slug}`)}>
+            {post.community.iconUrl
+              ? <img src={proxyImage(post.community.iconUrl)} alt="" />
+              : <span className="fp-club-fallback">{post.community.name.slice(0, 1)}</span>}
+            {post.community.name}
+          </button>
+          {post.category && (
+            <span className="fp-cat">
+              {post.category.iconUrl && <img src={proxyImage(post.category.iconUrl)} alt="" />}
+              {post.category.name}
+            </span>
+          )}
+          <span className="fp-by">
+            <UserAvatar user={post.author} size={18} />
+            <span className="truncate">{post.author.displayName}</span>
+            {post.createdAt && <time dateTime={post.createdAt}>· {timeAgo(post.createdAt)}</time>}
+          </span>
+          {isStaff && (
+            <button type="button" className="btn-link cxf-detail-pin" onClick={togglePin} aria-pressed={!!post.pinnedAt}>
+              <FeedIcon name="pin" size={14} /> {post.pinnedAt ? 'Desafixar' : 'Fixar'}
+            </button>
+          )}
+          {canDelete && <button className="btn-link danger post-detail-delete" onClick={onDeletePost}>Excluir</button>}
+        </header>
+        <h1 className="fp-title fp-detail-title">{post.title}</h1>
+        {tags.length > 0 && (
+          <div className="cxf-post-tags">
+            {tags.map((t) => <span key={t} className="cxf-post-tag"><FeedIcon name="tag" size={11} /> {t}</span>)}
+          </div>
+        )}
+        {post.type === 'TEXT' && post.content && <p className="fp-detail-text">{post.content}</p>}
+        {post.type === 'IMAGE' && post.imageUrl && <div className="fp-media fp-detail-media"><img src={proxyImage(post.imageUrl)} alt="" /></div>}
+        {post.type === 'LINK' && <a className="fp-link" href={post.linkUrl} target="_blank" rel="noreferrer"><FeedIcon name="link" size={14} /> <span className="truncate">{post.linkUrl}</span></a>}
+        {post.poll && <FeedPoll postId={post.id} poll={post.poll} onChange={(poll) => setPost((p) => (p ? { ...p, poll } : p))} />}
+        <footer className="fp-actions">
+          <VotePill score={post.score} myVote={post.myVote} onVote={onVotePost} />
+          <span className="fp-action"><FeedIcon name="comment" /> {comments?.length ?? 0} <span className="fp-action-label">comentário{comments?.length === 1 ? '' : 's'}</span></span>
+        </footer>
+      </article>
+
+      <form onSubmit={submitComment} className="post-comment-form" ref={commentFormRef}>
+        <input value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Escreva um comentário..." maxLength={5000} />
+        <div className="composer-picker-anchor">
+          <button ref={commentEmojiBtnRef} type="button" className="icon-btn" title="Emoji" onClick={() => { setEmojiPickerOpen((v) => !v); }}><img className="ui-icon" src={emojiPickerIcon} alt="" /></button>
+          {emojiPickerOpen && createPortal(
+            <EmojiPicker
+              variant="composer-centered"
+              style={{ '--composer-height': `${commentFormHeight}px`, ...(commentPickerStyle || {}) }}
+              serverEmojis={useStore.getState().usableEmojis}
+              onPick={insertCommentEmoji}
+              onPickGif={sendCommentGif}
+              onClose={() => setEmojiPickerOpen(false)}
+            />,
+            document.body,
+          )}
+        </div>
+        <button type="submit" className="btn-primary">Comentar</button>
+      </form>
+
+      <div className="post-comment-tree">
+        {!comments ? (
+          <div className="cxf-comment-skel" aria-busy="true" aria-label="Carregando comentários">
+            {[0, 1, 2].map((i) => <span key={i} className="cxf-skel cxf-skel-line" style={{ width: `${80 - i * 15}%` }} />)}
+          </div>
+        ) : comments.length === 0 ? (
+          <div className="cxf-empty-inline">
+            <span className="cxf-empty-inline-icon"><FeedIcon name="comment" size={18} /></span>
+            <div><strong>Nenhum comentário ainda</strong><span>Seja o primeiro a comentar.</span></div>
+          </div>
+        ) : comments.map((c) => (
+          <CommentNode key={c.id} comment={c} postId={id} user={user} isStaff={isStaff} onChange={refreshComments} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CommentNode({ comment, postId, user, isStaff, onChange, depth = 0 }) {
+  const [replying, setReplying] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [replyEmojiOpen, setReplyEmojiOpen] = useState(false);
+  const [localVote, setLocalVote] = useState(comment.myVote);
+  const [localScore, setLocalScore] = useState(comment.score);
+  // Item pedido: "menu fica em cima da barra de escrever" (mobile
+  // usa isso via CSS — --composer-height) — mede a altura real do
+  // formulário de resposta.
+  const [replyFormRef, replyFormHeight] = useElementHeight();
+  // Item pedido: "o menu está muito pra esquerda e muito largo" —
+  // mede a posição real do botão que abriu o popover (mesmo padrão
+  // já usado em ChatWindow.jsx), em vez de tentar inferir onde uma
+  // coluna termina.
+  const replyEmojiBtnRef = useRef(null);
+  const [replyPickerStyle, setReplyPickerStyle] = useState(null);
+  useEffect(() => {
+    if (!replyEmojiOpen) { setReplyPickerStyle(null); return; }
+    if (window.matchMedia('(max-width: 600px)').matches) { setReplyPickerStyle(null); return; }
+    const btn = replyEmojiBtnRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const estimatedHeight = Math.min(window.innerHeight * 0.4, window.innerHeight - 24);
+    let bottom = window.innerHeight - rect.top + 8;
+    if (window.innerHeight - bottom - estimatedHeight < 8) bottom = Math.max(8, window.innerHeight - estimatedHeight - 8);
+    let right = window.innerWidth - rect.right;
+    const width = Math.min(380, window.innerWidth - 32);
+    if (window.innerWidth - right - width < 8) right = Math.max(8, window.innerWidth - width - 8);
+    setReplyPickerStyle({ position: 'fixed', bottom: `${bottom}px`, right: `${right}px`, left: 'auto', top: 'auto', transform: 'none', width: `${width}px`, maxWidth: `${width}px` });
+  }, [replyEmojiOpen]);
+
+  // Placar vindo de fora (socket/tempo real) atualiza o voto local.
+  useEffect(() => { setLocalVote(comment.myVote); setLocalScore(comment.score); }, [comment.myVote, comment.score]);
+
+  const vote = async (value) => {
+    const nextMyVote = localVote === value ? 0 : value;
+    const delta = nextMyVote - localVote;
+    setLocalVote(nextMyVote);
+    setLocalScore((s) => s + delta);
+    try { await votePostComment(comment.id, value); } catch { onChange(); }
+  };
+
+  const submitReply = async (e) => {
+    e.preventDefault();
+    if (!replyText.trim()) return;
+    await addPostComment(postId, replyText.trim(), comment.id);
+    setReplyText('');
+    setReplying(false);
+    onChange();
+  };
+  const insertReplyEmoji = (text) => setReplyText((t) => `${t}${text}`);
+  const sendReplyGif = async (url) => {
+    await addPostComment(postId, url, comment.id);
+    setReplying(false);
+    onChange();
+  };
+
+  const remove = async () => {
+    if (!confirm('Excluir este comentário?')) return;
+    await deletePostComment(comment.id);
+    onChange();
+  };
+
+  const canDelete = !comment.deleted && (comment.authorId === user.id || isStaff);
+
+  return (
+    <div className="post-comment-node" style={{ marginLeft: depth > 0 ? 22 : 0 }}>
+      <div className="post-comment-votes">
+        <button className={`post-vote-btn up small ${localVote === 1 ? 'active' : ''}`} onClick={() => vote(1)} disabled={comment.deleted} aria-label="Votar a favor"><FeedIcon name="up" size={14} filled={localVote === 1} /></button>
+        <span className="post-vote-score small">{localScore}</span>
+        <button className={`post-vote-btn down small ${localVote === -1 ? 'active' : ''}`} onClick={() => vote(-1)} disabled={comment.deleted} aria-label="Votar contra"><FeedIcon name="down" size={14} filled={localVote === -1} /></button>
+      </div>
+      <div className="post-comment-body">
+        <div className="post-comment-meta">
+          <UserAvatar user={comment.author} size={20} />
+          <span className="post-comment-author">{comment.author.displayName}</span>
+          <span className="dim">{new Date(comment.createdAt).toLocaleString('pt-BR')}</span>
+        </div>
+        {!comment.deleted && IMAGE_URL_RE.test(comment.content.trim())
+          ? <img className="post-comment-gif" src={comment.content.trim()} alt="" />
+          : <div className={`post-comment-content ${comment.deleted ? 'dim' : ''}`}>{comment.content}</div>}
+        {!comment.deleted && (
+          <div className="post-comment-actions">
+            <button className="btn-link" onClick={() => setReplying((v) => !v)}>Responder</button>
+            {canDelete && <button className="btn-link danger" onClick={remove}>Excluir</button>}
+          </div>
+        )}
+        {replying && (
+          <form onSubmit={submitReply} className="post-comment-form nested" ref={replyFormRef}>
+            <input value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="Escreva uma resposta..." maxLength={5000} autoFocus />
+            <div className="composer-picker-anchor">
+              <button ref={replyEmojiBtnRef} type="button" className="icon-btn" title="Emoji" onClick={() => { setReplyEmojiOpen((v) => !v); }}><img className="ui-icon" src={emojiPickerIcon} alt="" /></button>
+              {replyEmojiOpen && createPortal(
+                <EmojiPicker
+                  variant="composer-centered"
+                  style={{ '--composer-height': `${replyFormHeight}px`, ...(replyPickerStyle || {}) }}
+                  serverEmojis={useStore.getState().usableEmojis}
+                  onPick={insertReplyEmoji}
+                  onPickGif={sendReplyGif}
+                  onClose={() => setReplyEmojiOpen(false)}
+                />,
+                document.body,
+              )}
+            </div>
+            <button type="submit" className="btn-primary">Enviar</button>
+          </form>
+        )}
+        {comment.replies?.length > 0 && (
+          <div className="post-comment-replies">
+            {comment.replies.map((r) => (
+              <CommentNode key={r.id} comment={r} postId={postId} user={user} isStaff={isStaff} onChange={onChange} depth={depth + 1} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

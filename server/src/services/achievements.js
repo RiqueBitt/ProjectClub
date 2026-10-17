@@ -1,0 +1,167 @@
+const prisma = require('../config/prisma');
+const { ACHIEVEMENTS, DEPRECATED_KEYS } = require('../data/achievementsCatalog');
+
+// Roda UMA vez no boot do servidor (ver src/index.js) — cria no banco
+// qualquer conquista do catálogo seed que ainda não existe (por `key`).
+// Nunca sobrescreve uma que já existe, então uma edição da staff pelo
+// painel (nome, ícone, raridade, meta...) nunca é perdida só por causa
+// de um restart do servidor.
+async function seedAchievements() {
+  // Uma leitura só; cria apenas as que faltam (antes: um upsert por
+  // conquista a cada boot).
+  const have = await prisma.achievement.findMany({ select: { key: true } }).catch(() => null);
+  const haveKeys = new Set((have || []).map((a) => a.key));
+  for (const def of ACHIEVEMENTS) {
+    if (have && haveKeys.has(def.key)) continue;
+    await prisma.achievement.upsert({
+      where: { key: def.key },
+      update: {},
+      create: def,
+    }).catch(() => {});
+  }
+  // Desativa (não exclui — preserva o histórico de quem já desbloqueou)
+  // qualquer conquista de um deploy anterior que não faz mais parte do
+  // catálogo atual (ex: as de Casas/Figurinhas, sistemas desligados por
+  // padrão). Só mexe se ainda estiver marcada como enabled=true, pra não
+  // sobrescrever uma reativação manual que a staff tenha feito de
+  // propósito pelo painel.
+  await prisma.achievement.updateMany({
+    where: { key: { in: DEPRECATED_KEYS }, enabled: true },
+    data: { enabled: false },
+  }).catch(() => {});
+}
+
+// Progresso atual de um usuário num TIPO de condição — várias conquistas
+// podem compartilhar o mesmo progressType com metas (target) diferentes
+// (ex: "rico"/"magnata"/"bilionario" são todas COINS), então o cálculo
+// fica centralizado aqui em vez de repetido por conquista.
+async function getProgressByType(userId, progressType) {
+  switch (progressType) {
+    case 'HOUSES_OWNED':
+      return prisma.userHouse.count({ where: { userId } });
+    case 'FURNITURE_PLACED':
+      return prisma.placedFurniture.count({ where: { userHouse: { userId } } });
+    case 'HOUSE_LIKES_RECEIVED':
+      return prisma.houseLike.count({ where: { userHouse: { userId } } });
+    case 'HOUSE_COMMENTS_RECEIVED':
+      return prisma.houseComment.count({ where: { userHouse: { userId } } });
+    case 'HOUSE_COMMENTS_GIVEN':
+      return prisma.houseComment.count({ where: { authorId: userId } });
+    case 'COINS': {
+      const u = await prisma.user.findUnique({ where: { id: userId }, select: { coins: true } });
+      return u?.coins || 0;
+    }
+    case 'GEMS': {
+      const u = await prisma.user.findUnique({ where: { id: userId }, select: { gems: true } });
+      return u?.gems || 0;
+    }
+    case 'POSTS_CREATED':
+      return prisma.post.count({ where: { authorId: userId } });
+    case 'POST_UPS_RECEIVED':
+      return prisma.postVote.count({ where: { value: 1, post: { authorId: userId } } });
+    case 'COMMENTS_CREATED':
+      return prisma.postComment.count({ where: { authorId: userId } });
+    case 'COMMENT_UPS_RECEIVED':
+      return prisma.postCommentVote.count({ where: { value: 1, comment: { authorId: userId } } });
+    case 'PROFILE_UPS_RECEIVED':
+      return prisma.profileVote.count({ where: { toUserId: userId, value: 1 } });
+    case 'FRIENDS_COUNT':
+      return prisma.friendship.count({ where: { status: 'ACCEPTED', OR: [{ requesterId: userId }, { addresseeId: userId }] } });
+    case 'ACCOUNT_LEVEL': {
+      const u = await prisma.user.findUnique({ where: { id: userId }, select: { accountLevel: true } });
+      return u?.accountLevel || 1;
+    }
+    case 'DAILY_STREAK': {
+      const u = await prisma.user.findUnique({ where: { id: userId }, select: { dailyStreak: true } });
+      return u?.dailyStreak || 0;
+    }
+    // Item pedido: "adicione mais conquistas" — cobrindo sistemas que
+    // já existem no app e ainda não tinham conquista nenhuma (nada de
+    // casas/economia/figurinhas, como pedido antes).
+    case 'TESTIMONIALS_RECEIVED':
+      return prisma.testimonial.count({ where: { targetId: userId, status: 'APPROVED' } });
+    case 'SCRAPS_RECEIVED':
+      return prisma.scrap.count({ where: { targetId: userId } });
+    case 'FANS_COUNT':
+      return prisma.fan.count({ where: { targetId: userId } });
+    case 'PHOTOS_UPLOADED':
+      return prisma.photo.count({ where: { ownerId: userId } });
+    case 'EMOJIS_CREATED':
+      return prisma.emoji.count({ where: { createdById: userId } });
+    case 'MESSAGES_SENT':
+      return prisma.message.count({ where: { authorId: userId } });
+    case 'REACTIONS_GIVEN':
+      return prisma.reaction.count({ where: { userId } });
+    // Guerra das Cartas
+    case 'CARDS_WINS': {
+      const p = await prisma.cardPlayer.findUnique({ where: { userId } });
+      return p ? p.wins + p.pvpWins : 0;
+    }
+    case 'CARDS_PVP_WINS': {
+      const p = await prisma.cardPlayer.findUnique({ where: { userId } });
+      return p?.pvpWins || 0;
+    }
+    case 'CARDS_PACKS': {
+      const p = await prisma.cardPlayer.findUnique({ where: { userId } });
+      return p?.packsOpened || 0;
+    }
+    case 'CARDS_COLLECTION':
+      return prisma.userCard.count({ where: { userId, quantity: { gt: 0 } } });
+    case 'CARDS_FOILS':
+      return prisma.userCard.count({ where: { userId, foil: { gt: 0 } } });
+    case 'CARDS_CAMPAIGN': {
+      const p = await prisma.cardPlayer.findUnique({ where: { userId } });
+      return p?.campaignStage || 0;
+    }
+    case 'CARDS_FLAWLESS':
+    case 'CARDS_CLUTCH':
+    case 'CARDS_DUO_WINS':
+    case 'CARDS_DRAFT_BEST':
+    case 'CARDS_BOSS_DAMAGE': {
+      const p = await prisma.cardPlayer.findUnique({ where: { userId } });
+      const field = { CARDS_FLAWLESS: 'flawlessWins', CARDS_CLUTCH: 'clutchWins', CARDS_DUO_WINS: 'duoWins', CARDS_DRAFT_BEST: 'draftBest', CARDS_BOSS_DAMAGE: 'bossDamage' }[progressType];
+      return p?.[field] || 0;
+    }
+    case 'CARDS_GOLDEN':
+      return prisma.userCard.count({ where: { userId, golden: { gt: 0 } } });
+    default:
+      return 0;
+  }
+}
+
+// Mantido por compatibilidade com quem já chamava getProgress(userId, key)
+// — resolve a `key` pra conquista no banco e delega pro cálculo por tipo.
+async function getProgress(userId, achievementKey) {
+  const def = await prisma.achievement.findUnique({ where: { key: achievementKey } });
+  if (!def) return 0;
+  return getProgressByType(userId, def.progressType);
+}
+
+// `io` é opcional — quando presente, emite pra sala pessoal do usuário
+// (`user:<id>`) assim que uma conquista nova é desbloqueada, pra
+// aparecer na hora sem precisar recarregar a página.
+async function checkAndUnlock(userId, io = null) {
+  try {
+    const [defs, already] = await Promise.all([
+      prisma.achievement.findMany({ where: { enabled: true } }),
+      prisma.userAchievement.findMany({ where: { userId }, select: { achievementId: true } }),
+    ]);
+    const unlockedKeys = new Set(already.map((a) => a.achievementId));
+    const newlyUnlocked = [];
+
+    for (const def of defs) {
+      if (unlockedKeys.has(def.key)) continue;
+      const progress = await getProgressByType(userId, def.progressType);
+      if (progress >= def.target) {
+        await prisma.userAchievement.create({ data: { userId, achievementId: def.key } }).catch(() => {});
+        newlyUnlocked.push(def);
+        io?.to(`user:${userId}`).emit('achievement:unlocked', def);
+      }
+    }
+    return newlyUnlocked;
+  } catch {
+    return [];
+  }
+}
+
+module.exports = { seedAchievements, getProgress, getProgressByType, checkAndUnlock };

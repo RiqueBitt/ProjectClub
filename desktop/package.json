@@ -1,0 +1,67 @@
+{
+  "name": "project-club-desktop",
+  "version": "1.0.0",
+  "description": "Project Club — aplicativo de desktop (Windows) que conecta na versão hospedada do site, com ícone na bandeja e inicialização automática.",
+  "main": "main.js",
+  "author": "Project Club",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test \"test/**/*.test.js\"",
+    "build:win": "electron-builder --win --x64 --publish always",
+    "build:linux": "electron-builder --linux --x64 --publish always"
+  },
+  "devDependencies": {
+    "electron": "^44.9.0",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "@ghostery/adblocker-electron": "2.18.2",
+    "7zip-bin": "^5.2.0",
+    "electron-updater": "^6.3.4",
+    "extract-zip": "^2.0.1",
+    "uiohook-napi": "1.5.5"
+  },
+  "optionalDependencies": {
+    "@vencord/venmic": "7.2.3"
+  },
+  "overrides": {
+    "@ghostery/adblocker": "2.18.2",
+    "@ghostery/adblocker-content": "2.18.2",
+    "@ghostery/adblocker-electron-preload": "2.18.2",
+    "@ghostery/adblocker-extended-selectors": "2.18.2"
+  },
+  "build": {
+    "appId": "com.projectclub.desktop",
+    "productName": "Project Club",
+    "asar": true,
+    "files": ["main.js", "deepLinks.js", "preload.js", "screenPickerPreload.js", "security.js", "oauthWindow.js", "activityDetector.js", "gameDatabase.js", "appDatabase.js", "projectMcManager.js", "steamDetector.js", "modsManager.js", "modInstallProfiles.js", "modRouter.js", "modArchive.js", "browserEngine.js", "browserProfile.js", "browserGuestPreload.js", "connectionWindow.js", "conexaoPreload.js", "conexao/**/*", "build/**/*", "node_modules/@ghostery/**/*", "node_modules/@remusao/**/*", "node_modules/tldts-core/**/*", "node_modules/tldts-experimental/**/*", "node_modules/extract-zip/**/*", "node_modules/yauzl/**/*", "node_modules/get-stream/**/*", "node_modules/pump/**/*", "node_modules/mkdirp-classic/**/*", "node_modules/buffer-crc32/**/*", "node_modules/end-of-stream/**/*", "node_modules/fd-slicer/**/*", "node_modules/once/**/*", "node_modules/wrappy/**/*", "node_modules/7zip-bin/index.js", "node_modules/7zip-bin/package.json", "node_modules/7zip-bin/win/x64/**/*", "node_modules/7zip-bin/linux/x64/**/*", "screenAudio.js", "globalPtt.js", "node_modules/uiohook-napi/package.json", "node_modules/uiohook-napi/LICENSE", "node_modules/uiohook-napi/dist/**/*", "node_modules/uiohook-napi/prebuilds/**/*", "node_modules/node-gyp-build/**/*", "!node_modules/uiohook-napi/{src,libuiohook}/**/*", "!node_modules/uiohook-napi/binding.gyp", "node_modules/@vencord/venmic/package.json", "node_modules/@vencord/venmic/LICENSE", "node_modules/@vencord/venmic/lib/**/*", "node_modules/@vencord/venmic/prebuilds/**/*", "node_modules/pkg-prebuilds/**/*", "!node_modules/cmake-js/**/*", "!node_modules/node-addon-api/**/*", "!node_modules/node-api-headers/**/*", "!node_modules/@vencord/venmic/{src,include,cmake,addon,private}/**/*"],
+    "asarUnpack": ["node_modules/7zip-bin/**/*", "node_modules/@vencord/venmic/prebuilds/**/*", "node_modules/uiohook-napi/prebuilds/**/*"],
+    "npmRebuild": false,
+    "directories": { "output": "dist" },
+    "protocols": [{ "name": "Project Club", "schemes": ["projectclub"] }, { "name": "Nexus Mods (nxm)", "schemes": ["nxm"] }],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "differentialPackage": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Project Club",
+      "runAfterFinish": true
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "https://github.com/RiqueBitt/ProjectClub/releases/latest/download/"
+    },
+    "linux": {
+      "target": [{ "target": "AppImage", "arch": ["x64"] }],
+      "icon": "build/icon.png",
+      "category": "Network",
+      "synopsis": "Chat, voz e comunidade do Project Club"
+    }
+  }
+}

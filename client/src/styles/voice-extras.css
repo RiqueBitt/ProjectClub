@@ -1,0 +1,49 @@
+/* Extras do canal de voz: teste de mic, aviso de mic sem som, qualidade */
+.vx-mictest { margin-top: 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; max-width: 320px; margin-left: auto; margin-right: auto; }
+.vx-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: 10px;
+  border: 1px solid var(--lit-border-color, var(--border)); background: var(--bg-primary); color: var(--header-primary);
+  font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.vx-btn:hover:not(:disabled) { border-color: var(--brand); }
+.vx-btn:disabled { opacity: .6; cursor: default; }
+.vx-meter { width: 100%; height: 10px; border-radius: 999px; background: var(--bg-primary); border: 1px solid var(--border); overflow: hidden; }
+.vx-meter-fill { display: block; height: 100%; border-radius: inherit; background: var(--green, #3ba55d); transition: width 80ms linear; }
+.vx-mictest-hint { margin: 0; font-size: 12.5px; color: var(--text-muted); text-align: center; }
+.vx-mictest-hint.is-warn { color: var(--yellow, #f0b232); }
+
+.vx-silent {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: 96px; z-index: 6; max-width: min(520px, calc(100% - 24px));
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px 9px 14px; border-radius: 12px; font-size: 13px; color: var(--header-primary);
+  background: color-mix(in srgb, var(--bg-secondary) 92%, transparent); backdrop-filter: blur(12px);
+  border: 1px solid color-mix(in srgb, var(--yellow, #f0b232) 55%, transparent); box-shadow: 0 12px 30px -14px rgba(0, 0, 0, .6);
+}
+.vx-silent-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; background: var(--yellow, #f0b232); }
+.vx-silent-close { border: 0; background: transparent; color: var(--text-muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+.vx-silent-close:hover { color: var(--header-primary); background: var(--bg-modifier-hover); }
+
+.vx-q { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-left: 2px; }
+.vx-q-good { background: var(--green, #3ba55d); }
+.vx-q-ok { background: var(--yellow, #f0b232); }
+.vx-q-bad { background: var(--red, #ed4245); }
+
+/* Medidor ao vivo (configurações) e painel "Voz conectada". */
+.vx-live-meter { display: flex; flex-direction: column; gap: 6px; max-width: 420px; }
+.vx-meter-fill.is-gated { background: var(--text-muted, #949ba4); }
+.vx-conn { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--border); min-width: 220px; }
+.vx-conn-head { display: flex; align-items: center; gap: 8px; }
+.vx-conn-state.is-good { color: var(--green, #3ba55d); }
+.vx-conn-state.is-ok { color: var(--yellow, #f0b232); }
+.vx-conn-state.is-bad { color: var(--red, #ed4245); }
+.vx-conn-grid { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 13px; }
+.vx-conn-grid dt { color: var(--text-muted); }
+.vx-conn-grid dd { margin: 0; color: var(--header-primary); font-variant-numeric: tabular-nums; }
+.cb-conn-pop { position: absolute; bottom: calc(100% + 8px); left: 8px; z-index: 30; box-shadow: 0 14px 34px -16px rgba(0, 0, 0, .7); }
+.call-bar.cb .cb-status { cursor: pointer; }
+
+@media (max-width: 600px) {
+  .vx-silent { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); font-size: 12.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vx-meter-fill { transition: none; }
+}
