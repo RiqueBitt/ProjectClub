@@ -28,6 +28,9 @@
   --pf-accent: var(--ps-accent);
   --pf-accent-soft: color-mix(in srgb, var(--ps-accent) 20%, transparent);
   --brand: var(--ps-accent);
+  /* Textos secundários (legenda do mural etc.) seguem o estilo, não o tema. */
+  --header-secondary: var(--ps-muted);
+  --interactive-normal: var(--ps-text);
   /* A cor/degradê de perfil da pessoa continua aparecendo: entra como um
      brilho por cima do fundo do estilo (forte no topo, sumindo pra baixo). */
   background:
@@ -1003,8 +1006,8 @@
     radial-gradient(circle at 90% 20%, rgba(255, 255, 255, .95) 0 1px, rgba(255, 255, 255, .3) 1.5px 3.5px, rgba(90, 170, 240, .55) 4px, transparent 5px);
   --ps-overlay-size: 100% 300px;
   --ps-overlay-anim: ps-bubbles 14s linear infinite; --ps-overlay-opacity: .8;
-  --ps-top-display: flex; --ps-top-text: '●  Disponível  —  Mensageiro'; --ps-top-h: 26px; --ps-top-pad: 0 10px;
-  --ps-top-font: 700 12px 'Trebuchet MS', Tahoma, sans-serif; --ps-top-color: #fff;
+  --ps-top-display: flex; --ps-top-text: '●  Disponível  —  Mensageiro'; --ps-top-h: 30px; --ps-top-pad: 0 84px 0 14px;
+  --ps-top-font: 700 13px 'Trebuchet MS', Tahoma, sans-serif; --ps-top-color: #fff;
   --ps-top-bg: linear-gradient(180deg, rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 55%), linear-gradient(90deg, #2f7fd8, #5fb2f0 60%, #a9dcff);
   --ps-top-border: 1px solid #1a6fb5;
 }
@@ -1017,6 +1020,77 @@
 .pstyle-mensageiro .pf-card-title::before { color: #39c21a; text-shadow: 0 0 6px rgba(57, 194, 26, .7); }
 .pstyle-mensageiro .mini-profile-status-bubble,
 .pstyle-mensageiro .profile-custom-status-balloon { box-shadow: 0 2px 8px rgba(27, 111, 181, .25); }
+/* Insígnias/conquistas viravam ovais com o canto 999px dos chips. */
+.pstyle-mensageiro .pf-tile { border-radius: 14px !important; }
+
+/* =====================================================================
+   Acertos do perfil completo com estilo (revisão Windows 2000 / Mensageiro)
+   ===================================================================== */
+/* Barra de título fica presa no topo ao rolar (igual janela de verdade) e
+   o X / engrenagem do modal ficam DENTRO dela — antes ficavam por cima da
+   barra (Win2000 mostrava dois X) ou boiando em cima do conteúdo. */
+.profile-modal-fullscreen.pstyle::before { position: sticky; top: 0; z-index: 40; }
+.profile-modal-fullscreen.pstyle :is(.profile-modal-close, .profile-modal-edit) { z-index: 41; }
+.profile-modal-fullscreen:is(.pstyle-anime, .pstyle-arcade, .pstyle-bugado, .pstyle-cyberpunk, .pstyle-faroeste, .pstyle-matrix,
+  .pstyle-mensageiro, .pstyle-militar, .pstyle-noir, .pstyle-pixel, .pstyle-vaporwave) :is(.profile-modal-close, .profile-modal-edit) {
+  top: calc((var(--ps-top-h, 22px) - 22px) / 2); width: 22px; height: 22px; min-width: 0; padding: 0; border-radius: 6px;
+  background: rgba(0, 0, 0, .28); color: #fff;
+}
+.profile-modal-fullscreen:is(.pstyle-anime, .pstyle-arcade, .pstyle-bugado, .pstyle-cyberpunk, .pstyle-faroeste, .pstyle-matrix,
+  .pstyle-mensageiro, .pstyle-militar, .pstyle-noir, .pstyle-pixel, .pstyle-vaporwave) .profile-modal-close { right: 8px; }
+.profile-modal-fullscreen:is(.pstyle-anime, .pstyle-arcade, .pstyle-bugado, .pstyle-cyberpunk, .pstyle-faroeste, .pstyle-matrix,
+  .pstyle-mensageiro, .pstyle-militar, .pstyle-noir, .pstyle-pixel, .pstyle-vaporwave) .profile-modal-edit { right: 36px; }
+.profile-modal-fullscreen:is(.pstyle-anime, .pstyle-arcade, .pstyle-bugado, .pstyle-cyberpunk, .pstyle-faroeste, .pstyle-matrix,
+  .pstyle-mensageiro, .pstyle-militar, .pstyle-noir, .pstyle-pixel, .pstyle-vaporwave) :is(.profile-modal-close, .profile-modal-edit) :is(svg, img) { width: 14px; height: 14px; }
+.profile-modal-fullscreen.pstyle-mensageiro :is(.profile-modal-close, .profile-modal-edit) {
+  border-radius: 999px; border: 1px solid rgba(255, 255, 255, .7);
+  background: linear-gradient(180deg, #9fd4ff 0%, #4fa6ea 48%, #1f75cf 52%, #2a86dc 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 1px 3px rgba(10, 60, 120, .35);
+}
+.profile-modal-fullscreen.pstyle-mensageiro .profile-modal-close:hover { background: linear-gradient(180deg, #ffb3a8, #e2463a 55%, #b8261c); }
+/* Win2000: o X de verdade fica invisível exatamente em cima do ✕ desenhado
+   na barra (clicar no ✕ da "janela" fecha o perfil). A engrenagem vai pra
+   baixo da barra, no canto. */
+.profile-modal-fullscreen.pstyle-win2000 .profile-modal-close {
+  top: 3px; right: 3px; width: 18px; height: 16px; min-width: 0; padding: 0; border-radius: 0; opacity: 0;
+}
+.profile-modal-fullscreen.pstyle-win2000 .profile-modal-close:focus-visible { opacity: 1; background: transparent; outline: 1px dotted #fff; color: transparent; }
+.profile-modal-fullscreen.pstyle-win2000 .profile-modal-edit { top: calc(var(--ps-top-h) + 8px); right: 12px; border-radius: 0; background: #d4d0c8; color: #000; box-shadow: var(--ps-btn-shadow); }
+
+/* Cartão do topo segue o canto do estilo (Win2000 reto, nada de 20px). */
+.modal-overlay .modal-box.profile-modal-fullscreen.pstyle .profile-top-row { border-radius: var(--ps-card-radius, 20px); }
+/* Grupo de voto (like/dislike) no visual do estilo, não um quadrado branco. */
+.pstyle .profile-vote-group {
+  background: var(--ps-chip-bg, var(--ps-section-bg)) !important; border: 1px solid var(--ps-section-border);
+  border-radius: var(--ps-chip-radius, 8px);
+}
+/* Barra "Este é o seu perfil": texto escuro em fundo azul-marinho ficava ilegível. */
+.pstyle .pfe-ownbar {
+  background: var(--ps-section-bg) !important; box-shadow: var(--ps-section-shadow, none);
+  border: var(--ps-section-borderw, 1px) var(--ps-section-borderstyle, solid) var(--ps-section-border) !important;
+  border-radius: var(--ps-radius) !important;
+}
+.pstyle .pfe-ownbar-text { color: var(--ps-text) !important; }
+.pstyle .pfe-ownbar-icon { color: var(--ps-accent); background: color-mix(in srgb, var(--ps-accent) 16%, transparent); border-radius: var(--ps-chip-radius, 9px); }
+/* Texto do "Sobre" encostava na borda da caixinha. */
+.pstyle .pf-card .profile-section-body { padding: 10px 12px; }
+.pstyle-win2000 .pf-card .profile-section-body { padding: 4px 6px; }
+
+/* Win2000 — "group box" do perfil completo: o título entra no fluxo em cima
+   da borda. Com position:absolute (como no miniperfil) o Chrome não
+   conseguia dividir as colunas e jogava todos os cartões na metade esquerda. */
+.pstyle-win2000 .pf-card { padding-top: 16px; }
+.pstyle-win2000 .pf-card-head { margin: -25px 0 8px -4px; min-height: 0; gap: 6px; }
+.pstyle-win2000 .pf-card-icon { display: none; }
+.pstyle-win2000 .pf-card-title { position: static !important; font-size: 11px !important; line-height: 16px; }
+.pstyle-win2000 :is(.pf-card-action, .pf-card-count) { background: #fff; padding: 0 4px; font-size: 11px; }
+.pstyle-win2000 .pf-card-count { color: #000 !important; border-radius: 0 !important; padding: 0 2px !important; font-weight: 400; }
+.pstyle-win2000 .pf-card-count::before { content: '('; }
+.pstyle-win2000 .pf-card-count::after { content: ')'; }
+.pstyle-win2000 :is(.pf-composer input, .pf-composer textarea, textarea.pxn-text) {
+  background: #fff !important; color: #000 !important; border: 2px inset #d4d0c8 !important; border-radius: 0 !important;
+  font-family: Tahoma, Verdana, sans-serif;
+}
 
 /* ---------- Animações ---------- */
 @keyframes ps-twinkle { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
