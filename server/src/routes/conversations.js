@@ -14,6 +14,8 @@ router.post('/:id/members', ctrl.addMember);
 router.delete('/:id/members/me', ctrl.leaveConversation);
 router.delete('/:id/members/:userId', ctrl.removeMember);
 router.post('/:id/read', ctrl.markRead);
+// Fixar/desafixar a conversa no topo da lista de DMs (até 10, por conta).
+router.patch('/:id/pin', ctrl.setPinned);
 // Solicitações de mensagem / spam: aceitar, ignorar ou marcar como spam.
 router.patch('/:id/inbox', require('../services/dmInbox').setInbox);
 

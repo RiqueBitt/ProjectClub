@@ -738,6 +738,19 @@ async function getUser(req, res, next) {
       });
     })();
 
+    // "Amigos desde ...": só sai quando QUEM ESTÁ VENDO é amigo do dono do
+    // perfil (a busca é pela amizade entre os dois) — ninguém de fora
+    // descobre há quanto tempo duas outras pessoas são amigas.
+    const friendsSinceJob = id === req.user.id
+      ? Promise.resolve(null)
+      : prisma.friendship.findFirst({
+        where: {
+          status: 'ACCEPTED',
+          OR: [{ requesterId: req.user.id, addresseeId: id }, { requesterId: id, addresseeId: req.user.id }],
+        },
+        select: { acceptedAt: true, updatedAt: true, createdAt: true },
+      }).then((f) => (f ? (f.acceptedAt || f.updatedAt || f.createdAt) : null));
+
     const votesJob = Promise.all([
       prisma.profileVote.count({ where: { toUserId: id, value: 1 } }),
       prisma.profileVote.count({ where: { toUserId: id, value: -1 } }),
@@ -770,7 +783,8 @@ async function getUser(req, res, next) {
       relationshipPartner, isBirthdayToday, badgeRows, mutualFriends,
       [likeCount, dislikeCount, myVoteRow, postUpvotes, commentUpvotes],
       [displayedAchievements, displayedAchievementsMini],
-    ] = await Promise.all([partnerJob, birthdayJob, badgesJob, mutualJob, votesJob, achievementsJob]);
+      friendsSince,
+    ] = await Promise.all([partnerJob, birthdayJob, badgesJob, mutualJob, votesJob, achievementsJob, friendsSinceJob]);
 
     // awardedAt lives on the UserBadge join row (when THIS user unlocked it),
     // not on the Badge itself (which is shared across everyone who has it) —
@@ -802,7 +816,7 @@ async function getUser(req, res, next) {
       user: clearIfExpired(user), badges, mutualFriends,
       likeCount, dislikeCount, myVote: myVoteRow?.value || 0, levelProgress, totalUps,
       displayedAchievements, displayedAchievementsMini,
-      activity, relationshipPartner, isBirthdayToday, featuredItem,
+      activity, relationshipPartner, isBirthdayToday, featuredItem, friendsSince,
       // Item pedido: "Não mostrar informações administrativas
       // internas que não devam ser expostas ao usuário" (mesmo
       // espírito aqui) — sinaliza pro frontend que esse perfil está

@@ -473,10 +473,4 @@
 .modal-overlay .modal-box.profile-modal-fullscreen .pf { max-width: none; }
 .modal-overlay .modal-box.profile-modal-fullscreen .profile-top-row { max-width: none; }
 
-/* "Denunciar" perfil (ReportProfileDialog em UserProfileModal.jsx). O
-   .prompt-dialog-box deixa todo input com width:100% — aqui os radios
-   voltam ao tamanho normal. */
-.report-profile-reasons { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
-.report-profile-reason { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-normal); cursor: pointer; }
-.prompt-dialog-box .report-profile-reason input { width: auto; margin: 0; }
 .prompt-dialog-box textarea { width: 100%; box-sizing: border-box; resize: vertical; margin-bottom: 10px; }

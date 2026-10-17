@@ -123,6 +123,59 @@ async function deleteRole(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// POST /community/roles/:id/duplicate — "Duplicar cargo" (igual ao
+// Discord): cria "<nome> (cópia)" com a mesma cor, ícone, exibição
+// separada, menção e permissões, logo ABAIXO do original. Mesmas regras de
+// segurança do resto: MANAGE_ROLES, só cargos abaixo do seu cargo mais alto
+// e nunca copiar uma permissão que quem duplica não tem (senão duplicar
+// viraria um jeito de contornar o bloqueio de updateRole/assignRole).
+const COPY_SUFFIX = ' (cópia)';
+function copyName(name) {
+  const base = String(name || 'cargo');
+  return `${base.slice(0, 100 - COPY_SUFFIX.length)}${COPY_SUFFIX}`;
+}
+
+async function duplicateRole(req, res, next) {
+  try {
+    const { id } = req.params;
+    await requireCommunityPermission(req.user.id, 'MANAGE_ROLES');
+    const original = await prisma.role.findUnique({ where: { id } });
+    if (!original) return res.status(404).json({ error: 'Cargo não encontrado.' });
+    if (original.isDefault) return res.status(400).json({ error: 'Não é possível duplicar o cargo @todos.' });
+    if (!await canTouch(req.user.id, original)) return res.status(403).json({ error: ABOVE_MSG });
+
+    const callerBits = await getEffectivePermissions(req.user.id, null);
+    if ((toBits(original.permissions) & ~callerBits) !== 0n) {
+      return res.status(403).json({ error: 'Você não pode duplicar um cargo com permissões que você mesmo não possui.' });
+    }
+
+    // A cópia fica na posição do original e tudo dali pra cima (o original
+    // incluso) sobe 1 — a ordem relativa dos outros cargos não muda.
+    const role = await prisma.$transaction(async (tx) => {
+      await tx.role.updateMany({
+        where: { isDefault: false, position: { gte: original.position } },
+        data: { position: { increment: 1 } },
+      });
+      return tx.role.create({
+        data: {
+          name: copyName(original.name),
+          color: original.color,
+          icon: original.icon,
+          hoist: original.hoist,
+          mentionable: original.mentionable,
+          permissions: original.permissions,
+          position: original.position,
+        },
+      });
+    });
+    const all = await prisma.role.findMany({ orderBy: { position: 'desc' }, select: { id: true, isDefault: true } });
+    const io = req.app.get('io');
+    io?.to('community').emit('role:reorder', { order: all.filter((r) => !r.isDefault).map((r) => r.id) });
+    io?.to('community').emit('role:new', shapeRole(role));
+    res.status(201).json({ role: shapeRole(role) });
+  } catch (err) { next(err); }
+}
+
 async function reorderRoles(req, res, next) {
   try {
     const { order } = req.body;
@@ -197,4 +250,4 @@ async function unassignRole(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listRoles, createRole, updateRole, deleteRole, reorderRoles, assignRole, unassignRole, uploadIcon };
+module.exports = { listRoles, createRole, updateRole, deleteRole, duplicateRole, reorderRoles, assignRole, unassignRole, uploadIcon, copyName };
