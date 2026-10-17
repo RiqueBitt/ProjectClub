@@ -21,6 +21,7 @@ const { createTokenBucket } = require('../utils/tokenBucket');
 const mediaControl = require('../services/mediaControl');
 const voiceModeration = require('../services/voiceModeration');
 const { createSpeakingRelay } = require('../utils/speakingRelay');
+const voiceAfk = require('../services/voiceAfk');
 
 // Quem está online agora (Redis) — lido no máximo a cada 5s e
 // compartilhado entre conexões: depois de um deploy, centenas de sockets
@@ -736,7 +737,7 @@ function initSockets(httpServer) {
           const rosterForSelf = Object.entries(roomNow)
             .filter(([uid]) => uid !== userId)
             .map(([uid, p]) => ({ userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role, serverMuted: !!p.serverMuted, serverDeafened: !!p.serverDeafened }));
-          socket.emit('voice:joined', { channelId, participants: rosterForSelf, myRole: existingSelf.role || 'speaker' });
+          socket.emit('voice:joined', { channelId, participants: rosterForSelf, myRole: existingSelf.role || 'speaker', ...(existingSelf.afk ? { afk: true } : {}) });
           return;
         }
 
@@ -788,8 +789,13 @@ function initSockets(httpServer) {
         // até alguém tirar (ver voice:server-mute) — o servidor de mídia
         // também recebe isso nas claims do token.
         const mod = channelId.startsWith('clan:') ? { serverMuted: false, serverDeafened: false } : await voiceStore.getModState(userId);
+        // Canal AFK (services/voiceAfk.js): entra e fica mudo (o token de
+        // mídia também sai com canSpeak:false).
+        const inAfk = await voiceAfk.isAfkChannel(channelId).catch(() => false);
+        if (inAfk) startMuted = true;
         const added = await voiceStore.addParticipantIfRoom(channelId, userId, {
           socketId: socket.id,
+          ...(inAfk ? { afk: true } : {}),
           muted: startMuted || mod.serverMuted || mod.serverDeafened, deafened: mod.serverDeafened, video: false, screenSharing: false, role,
           serverMuted: mod.serverMuted, serverDeafened: mod.serverDeafened,
           ...(mod.serverMuted || mod.serverDeafened ? { preModMuted: !!startMuted, preModDeafened: false } : {}),
@@ -814,7 +820,7 @@ function initSockets(httpServer) {
             userId: uid, muted: p.muted, deafened: p.deafened, video: p.video, screenSharing: p.screenSharing, role: p.role, serverMuted: !!p.serverMuted, serverDeafened: !!p.serverDeafened,
           }));
 
-        socket.emit('voice:joined', { channelId, participants: existingParticipants, myRole: role });
+        socket.emit('voice:joined', { channelId, participants: existingParticipants, myRole: role, ...(inAfk ? { afk: true } : {}) });
         // Só avisa os outros quando a entrada é NOVA de verdade.
         if (added.status === 'added') socket.to(`voice:${channelId}`).emit('voice:user-joined', { channelId, userId, role });
         await broadcastRoster(io, channelId);
@@ -1102,7 +1108,7 @@ function initSockets(httpServer) {
       const modded = !!(current.serverMuted || current.serverDeafened);
       if (modded && patch.muted !== undefined && current.role !== 'audience') patch.preModMuted = patch.muted;
       if (current.serverDeafened && patch.deafened !== undefined) patch.preModDeafened = patch.deafened;
-      if (patch.muted === false && (current.role === 'audience' || modded)) delete patch.muted;
+      if (patch.muted === false && (current.role === 'audience' || modded || current.afk)) delete patch.muted;
       if (patch.deafened === false && current.serverDeafened) delete patch.deafened;
       const updated = await voiceStore.updateParticipant(channelId, userId, patch);
       if (!updated) return;
@@ -1864,10 +1870,24 @@ function initSockets(httpServer) {
     reconcilePresence().catch((err) => console.error('[socket] varredura de presença falhou:', err));
   }, PRESENCE_SWEEP_MS);
 
-  // AFK sweep: fase 2 (junto com o resto de voz/vídeo) — o conceito de
-  // "canal AFK" era configurado por servidor (Server.afkChannelId), que não
-  // existe mais nesse modelo de comunidade única. Desativado por enquanto;
-  // pode voltar como uma configuração global em PlatformSettings.
+  // Varredura AFK (igual ao Discord): a cada 30s, com trava no Redis (só
+  // uma instância roda por vez), move quem está parado na voz há mais que
+  // PlatformSettings.afkTimeoutSeconds pro PlatformSettings.afkChannelId.
+  // Definição de "parado" e quem fica de fora: services/voiceAfk.js.
+  // Mesmo caminho do "Mover para…" da moderação: ticket (fura limite),
+  // voice:afk-move pro cliente trocar de canal, sai da sala e derruba a
+  // sessão de mídia antiga ('moved').
+  const { redis: afkRedis } = require('../config/redis');
+  async function moveToAfk(targetId, fromChannelId, afkChannel) {
+    await voiceStore.grantMoveTicket(targetId, afkChannel.id);
+    io.to(`user:${targetId}`).emit('voice:afk-move', { channelId: afkChannel.id, channelName: afkChannel.name, fromChannelId });
+    await leaveVoice(io, null, fromChannelId, targetId);
+    mediaControl.sendControl({ channelId: fromChannelId, peerId: targetId, action: 'kick', reason: 'moved' });
+  }
+  setInterval(() => {
+    voiceAfk.runAfkSweep({ prisma, redis: afkRedis, voiceStore, getEffectivePermissions, has, moveToAfk })
+      .catch((err) => console.error('[socket] varredura AFK falhou:', err?.message || err));
+  }, voiceAfk.SWEEP_MS).unref?.();
 
   return io;
 }

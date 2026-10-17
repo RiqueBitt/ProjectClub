@@ -174,6 +174,8 @@ export function VoiceProvider({ children }) {
   const serverModRef = useRef(serverMod);
   // "Mover para…" de um moderador em andamento ({ to, at }).
   const forceMoveRef = useRef(null);
+  // Id do canal AFK em que estou (voice:joined com afk:true) — mudo forçado.
+  const afkChannelRef = useRef(null);
   // Entrada que falhou SEM ser culpa do provedor (canal cheio, abortada,
   // sem internet): não troca de provedor nem reporta falha.
   const joinStopRef = useRef(null);
@@ -817,6 +819,10 @@ export function VoiceProvider({ children }) {
     try {
       const wantUnmute = mutedRef.current; // mutado agora => quero desmutar
       if (wantUnmute && callRef.current?.channelType === 'STAGE' && myRole === 'audience') return;
+      if (wantUnmute && callRef.current && afkChannelRef.current === callRef.current.channelId) {
+        useStore.getState().pushNotice('No canal AFK ninguém fala — entre em outro canal de voz.');
+        return;
+      }
       if (wantUnmute && serverModRef.current.serverMuted) useStore.getState().pushNotice('Você foi silenciado no servidor por um moderador.');
       const engine = callRef.current ? engineRef.current : null;
       // Desmutar estando ensurdecido também desensurdece (igual ao Discord).
@@ -1090,8 +1096,17 @@ export function VoiceProvider({ children }) {
   useEffect(() => {
     if (!socket) return;
 
-    const onJoined = ({ channelId, participants: existing, myRole: role, sync }) => {
+    const onJoined = ({ channelId, participants: existing, myRole: role, sync, afk }) => {
       if (callRef.current?.channelId !== channelId) return;
+      // Canal AFK da comunidade: fica mudo enquanto estiver lá (o servidor
+      // também não deixa falar); ao sair volta o mudo de antes.
+      afkChannelRef.current = afk ? channelId : null;
+      if (afk && !mutedRef.current) {
+        roleMutedRef.current = true;
+        try { engineRef.current?.setMicEnabled(false); } catch { /* engine trocou */ }
+        mutedRef.current = true;
+        setMuted(true);
+      }
       // Som de entrada escolhido em Configurações → Voz e vídeo (toca pra todos).
       if (!sync && entrySoundSentRef.current !== channelId) {
         entrySoundSentRef.current = channelId;
@@ -1326,9 +1341,15 @@ export function VoiceProvider({ children }) {
         leaveChannelRef.current?.();
       }
     };
-    const onAfkMove = ({ channelId, channelName }) => {
-      if (!callRef.current) return;
-      joinChannelRef.current?.(callRef.current.serverId, channelId, channelName, 'VOICE');
+    // Varredura AFK do servidor (services/voiceAfk.js): parado na voz além do
+    // tempo configurado → vai pro canal AFK (mudo). Igual ao force-move: a
+    // sessão de mídia antiga cai com kicked/moved, ignorado por forceMoveRef.
+    const onAfkMove = ({ channelId, channelName, fromChannelId }) => {
+      const current = callRef.current;
+      if (!current || !channelId || (fromChannelId && current.channelId !== fromChannelId)) return;
+      forceMoveRef.current = { to: channelId, at: Date.now() };
+      useStore.getState().pushNotice(`Você foi movido para ${channelName || 'o canal AFK'} por inatividade.`);
+      joinChannelRef.current?.(current.serverId, channelId, channelName || 'AFK', 'VOICE');
     };
     // Retrato completo de todas as salas (pedido ao conectar) — substitui
     // o que tinha, então salas que esvaziaram enquanto estava offline somem.

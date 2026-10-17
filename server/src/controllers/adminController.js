@@ -35,9 +35,15 @@ async function updateCommunitySettings(req, res, next) {
     const allowed = ['communityName', 'communityIconUrl', 'communityBannerUrl', 'communityTagText', 'communityTagEmoji'];
     const data = {};
     for (const key of allowed) if (req.body[key] !== undefined) data[key] = req.body[key];
+    // Canal AFK + tempo (services/voiceAfk.js): validados à parte.
+    const voiceAfk = require('../services/voiceAfk');
+    const afk = await voiceAfk.validateAfkPatch(req.body || {}, { prisma });
+    if (afk.error) return res.status(400).json({ error: afk.error });
+    Object.assign(data, afk.data);
     const settings = await prisma.platformSettings.upsert({
       where: { id: 'singleton' }, update: data, create: { id: 'singleton', ...data },
     });
+    if (afk.data && Object.keys(afk.data).length) voiceAfk.invalidateAfkSettings();
     await logPlatformAction(req, { action: 'COMMUNITY_EDIT', targetType: 'PLATFORM', targetId: 'singleton', metadata: data });
     req.app.get('io')?.to('community').emit('community:update', settings);
     res.json({ settings });

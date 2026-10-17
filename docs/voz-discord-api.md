@@ -181,11 +181,30 @@ telefone.
 
 ## 6. AFK
 
-Não implementado: o modelo de dados não tem canal/tempo de AFK (o antigo
-`Server.afkChannelId` não existe na comunidade única). O cliente já escuta
-`voice:afk-move`; quando existir `afkChannelId`/`afkTimeout` (ex.: em
-PlatformSettings), basta uma varredura no `sockets/index.js` usando o
-`lastActiveAt` do participante (atualizado pelo `voice:speaking`).
+Configuração da comunidade (só staff — Configurações da comunidade → Canal
+AFK; `PATCH /api/admin/community`): `afkChannelId` (canal de VOZ ou `null` =
+desligado) e `afkTimeoutSeconds` (60, 300, 900, 1800 ou 3600; padrão 300).
+Colunas novas em `PlatformSettings` (aditivas — `prisma db push`).
+
+Varredura (`services/voiceAfk.js`, ligada no fim do `sockets/index.js`): a
+cada 30 s, com trava no Redis (`voice:afk:sweep-lock`, `SET NX PX 25s` —
+uma instância por rodada).
+
+- **Última atividade** = maior entre `lastActiveAt` (gravado ao entrar,
+  ao reconectar e em todo `voice:speaking` com `speaking:true` — o cliente
+  só manda isso quando realmente transmite voz: mudo, PTT solto e portão
+  fechado não contam) e `joinedAt`.
+- Movido quando `agora − última atividade ≥ afkTimeoutSeconds`.
+- Fora da varredura: o próprio canal AFK, `dm:`/`clan:`, canais de PALCO,
+  quem está com câmera/tela ligada e quem não tem CONNECT no canal AFK.
+- Movimento = mesmo caminho do "Mover para…": ticket de 60 s (fura o limite),
+  `voice:afk-move { channelId, channelName, fromChannelId }` pro usuário,
+  saída da sala e `kick`/`moved` no servidor de mídia. O cliente avisa
+  ("movido … por inatividade") e entra no AFK.
+- No canal AFK: token de mídia com `canSpeak:false`, participante com
+  `afk:true` e `muted:true`, `voice:state muted:false` ignorado,
+  `voice:joined` com `afk:true` (o cliente muta e bloqueia o desmutar). Ao
+  sair do AFK volta o mudo de antes.
 
 ## Desktop: áudio da tela
 

@@ -536,6 +536,11 @@ model PlatformSettings {
   // Canais em destaque no topo da lista (Eventos, Feed, Galeria) que a
   // staff escondeu — JSON array de chaves. Nulo = todos visíveis.
   hiddenFeaturedChannels String?
+  // Canal AFK (igual ao Discord): quem fica parado na voz por
+  // afkTimeoutSeconds (60/300/900/1800/3600) é movido pra esse canal de voz
+  // e fica mudo lá. Nulo = desligado. Ver services/voiceAfk.js.
+  afkChannelId       String?
+  afkTimeoutSeconds  Int     @default(300)
 }
 
 // Item pedido: "sistema de eventos integrado ao painel da Staff" — só

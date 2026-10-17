@@ -10,11 +10,9 @@ import MiniCallWindow from './voice/MiniCallWindow.jsx';
 import { RecordingConsentModal, RecordingCapture } from './voice/CallExtras.jsx';
 import { VoiceConnectionPanel } from './voice/VoiceExtras.jsx';
 import '../styles/voice-extras.css';
-import { api } from '../api/client';
 import { getPreferredSpeakerId, setPreferredSpeakerId, getPreferredMicId, isOutputSelectionSupported, onSpeakerPreferenceChange, listAudioDevices } from '../utils/audioDevices';
 import { getVoicePref, onVoicePrefsChange } from '../utils/voicePrefs';
 import { RemoteTrackPlayer, resolveOutputSink, setContextSink } from '../voice/audioPlayback.js';
-import { buildDiag, createOnceSet } from '../voice/playbackPlan.js';
 import { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import '../styles/callbar.css';
@@ -378,14 +376,13 @@ function RemoteAudioSinks() {
       try { md?.removeEventListener?.('devicechange', resolve); } catch { /* ok */ }
     };
   }, []);
-  const callKey = `${voice.call?.channelId || ''}|${voice.callStartedAt || ''}`;
   return (
     <>
       {Object.entries(remoteAudioStreams).map(([userId, stream]) => (
         <AudioSink
           key={userId} userId={userId} stream={stream}
           volume={deafened || voice.serverDeafened ? 0 : (volumes[userId] ?? 1)} autoLevel={autoLevel} sinkId={sinkId}
-          getInboundBytes={voice.getInboundAudioBytes} provider={voice.provider} callKey={callKey}
+          getInboundBytes={voice.getInboundAudioBytes}
         />
       ))}
       {/* Som da tela de cada pessoa: player próprio, com o "volume da
@@ -394,7 +391,7 @@ function RemoteAudioSinks() {
         <AudioSink
           key={`${userId}#tela`} userId={userId} stream={stream}
           volume={deafened || voice.serverDeafened ? 0 : (streamVolumes[userId] ?? 1)} autoLevel={false} sinkId={sinkId}
-          getInboundBytes={null} provider={voice.provider} callKey={`${callKey}#tela`}
+          getInboundBytes={null}
         />
       ))}
     </>
@@ -410,10 +407,6 @@ function noticeAutoplayBlocked() {
     useStore.getState().pushNotice('O navegador bloqueou a reprodução automática do áudio da chamada — toque ou clique em qualquer lugar da tela pra ativar o som.');
   } catch { /* ok */ }
 }
-
-// Diagnóstico "voz-diag": 1 por call por pessoa remota, compacto, com os
-// bytes RTP recebidos dela (prova se é rede ou reprodução).
-const diagOnce = createOnceSet();
 
 // Uma pessoa pode ter mais de uma faixa de áudio (microfone + áudio da tela):
 // cada uma no seu <audio>.
@@ -431,11 +424,11 @@ function AudioSink({ stream, ...rest }) {
   return tracks.map((t) => <TrackSink key={t.id} track={t} {...rest} />);
 }
 
-function TrackSink({ track, userId, volume, autoLevel, sinkId, getInboundBytes, provider, callKey }) {
+function TrackSink({ track, userId, volume, autoLevel, sinkId, getInboundBytes }) {
   const playerRef = useRef(null);
   // Valores mais recentes pra quem roda fora do render (timers do player).
   const latestRef = useRef({});
-  latestRef.current = { volume, autoLevel, sinkId, getInboundBytes, provider, callKey };
+  latestRef.current = { volume, autoLevel, sinkId, getInboundBytes };
 
   useEffect(() => {
     let player = null;
@@ -455,24 +448,7 @@ function TrackSink({ track, userId, volume, autoLevel, sinkId, getInboundBytes, 
     player.setVolume(l.volume);
     if (l.sinkId != null) player.setSinkId(l.sinkId);
 
-    const diagTimer = setTimeout(() => {
-      try {
-        const cur = latestRef.current;
-        if (!diagOnce.first(`${cur.callKey}|${userId}`)) return;
-        const st = player.state();
-        const info = buildDiag({
-          userId, provider: cur.provider, mode: st.mode, el: player.el, track,
-          ctxState: st.ctx, inboundBytes: cur.getInboundBytes?.(userId) ?? null,
-          sinkCustom: !!st.sinkId, ua: navigator.userAgent,
-        });
-        info.h = st.heals;
-        if (st.blocked) info.bl = 1;
-        api.post('/system/client-error', { where: 'voz-diag', path: window.location.pathname, message: JSON.stringify(info) }).catch(() => {});
-      } catch { /* diagnóstico nunca atrapalha */ }
-    }, 8000);
-
     return () => {
-      clearTimeout(diagTimer);
       if (playerRef.current === player) playerRef.current = null;
       try { player.dispose(); } catch { /* já desmontado */ }
     };
