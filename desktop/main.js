@@ -23,6 +23,10 @@ if (!process.env.PROJECT_CLUB_NO_SWITCHES) {
 }
 const security = require('./security');
 const oauthWindow = require('./oauthWindow');
+// Som do PC na transmissão de tela sem o eco da call (Windows:
+// loopbackWithoutChrome; Linux: microfone virtual do venmic). O venmic em si
+// só é carregado na primeira vez que o site pergunta — ver screenAudio.js.
+const screenAudio = require('./screenAudio');
 
 // Abertura mais rápida: os módulos pesados (detector de jogos com o banco de
 // processos, gerenciador de mods com os perfis de instalação, ProjectMC,
@@ -931,6 +935,12 @@ if (!gotLock) {
       if (audible) { audioPlaying = true; applyThrottling(); return; }
       audibleOffTimer = setTimeout(() => { audioPlaying = false; applyThrottling(); }, 30000);
     });
+    // Página recarregou/caiu no meio de uma transmissão: solta o microfone
+    // virtual do venmic (o site novo não sabe que ele estava ligado).
+    mainWindow.webContents.on('render-process-gone', () => screenAudio.stop());
+    mainWindow.webContents.on('did-start-navigation', (details) => {
+      if (details?.isMainFrame && !details?.isSameDocument) screenAudio.stop();
+    });
     hardenYouTubeWebview(mainWindow.webContents);
     if (BROWSER_ENABLED) browserEngine().init(mainWindow);
 
@@ -1056,6 +1066,12 @@ if (!gotLock) {
     voiceCallActive = !!active;
     applyThrottling();
   });
+  // Áudio da tela no Linux (venmic/PipeWire): o site pergunta se tem
+  // suporte, liga antes de pegar o microfone virtual com getUserMedia e
+  // desliga quando a transmissão acaba. Fora do Linux, supported = false.
+  secureHandle('screen-audio:supported', () => screenAudio.isSupported());
+  secureHandle('screen-audio:start', () => screenAudio.start(() => app.getAppMetrics()));
+  secureHandle('screen-audio:stop', () => screenAudio.stop());
   // Item pedido: verificar todos os sistemas de Configurações e afins —
   // diagnóstico de "instalações duplicadas confundindo qual versão está
   // rodando de verdade". Mostra o caminho exato do executável em uso
@@ -1502,8 +1518,8 @@ if (!gotLock) {
   // telinha própria de seleção com miniaturas (o seletor NATIVO do
   // sistema operacional só existe no macOS 15+, não ajuda no Windows/
   // Linux, que é o público real desse app), e devolve pro site a escolha
-  // feita. 'loopback' no áudio já captura o som do sistema de brinde no
-  // Windows, sem precisar de nada a mais.
+  // feita. O som do PC vai junto (Windows) sem o som da própria call —
+  // ver screenAudio.pickLoopbackAudio.
   //
   // Precisa ficar dentro do app.whenReady() — session.defaultSession só
   // fica disponível de verdade depois que o Electron termina de
@@ -1521,7 +1537,14 @@ if (!gotLock) {
         if (!chosen) { callback({}); return; } // pessoa cancelou — devolve vazio, o site trata como "cancelado" normalmente
         // Só manda o som do PC quando o site pediu áudio (a pessoa pode
         // desligar "Incluir som do computador" no menu de transmitir tela).
-        callback(request.audioRequested ? { video: chosen, audio: 'loopback' } : { video: chosen });
+        // Windows 10 22H2+: 'loopbackWithoutChrome' — som do PC SEM o som do
+        // próprio app (quem assiste não ouve a própria voz de volta); senão
+        // 'loopback'. Linux com venmic: só vídeo — o site junta o áudio do
+        // microfone virtual (electronAPI.screenAudio). Ver screenAudio.js.
+        const audio = request.audioRequested
+          ? screenAudio.pickLoopbackAudio({ linuxVirtualMic: process.platform === 'linux' && screenAudio.isSupported() })
+          : null;
+        callback(audio ? { video: chosen, audio } : { video: chosen });
       } catch (err) {
         console.error('[compartilhar tela] falhou:', err);
         callback({});
@@ -1907,5 +1930,5 @@ if (!gotLock) {
   });
 
   app.on('before-quit', () => { isQuitting = true; });
-  app.on('will-quit', () => { globalShortcut.unregisterAll(); if (activityDetectionRunning) activityDetector().stopActivityDetection(); });
+  app.on('will-quit', () => { screenAudio.stop(); globalShortcut.unregisterAll(); if (activityDetectionRunning) activityDetector().stopActivityDetection(); });
 }
