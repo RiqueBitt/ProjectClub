@@ -2935,7 +2935,7 @@ function SIcon({ name, size = 15, strokeWidth = 2 }) {
 // conectar numa chamada. Salvo na conta (extraPrefs.preJoinCheck) — é o
 // mesmo valor que o "Não mostrar de novo" do painel desliga.
 function PreJoinToggle() {
-  const on = useExtra('preJoinCheck') !== false;
+  const on = useExtra('preJoinCheck') === true;
   return (
     <div className="settings-block settings-toggle-row">
       <div>

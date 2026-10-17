@@ -467,7 +467,12 @@ function AudioSink({ stream, volume, autoLevel }) {
       tryPlay();
       const preferredSpeakerId = getPreferredSpeakerId();
       if (preferredSpeakerId && isOutputSelectionSupported()) {
-        audioRef.current.setSinkId(preferredSpeakerId).catch(() => {});
+        // Saída salva que não existe mais (fone desconectado, id de outro
+        // aparelho): volta pra saída padrão em vez de tocar em lugar nenhum.
+        audioRef.current.setSinkId(preferredSpeakerId).catch(() => {
+          try { setPreferredSpeakerId(''); } catch { /* ok */ }
+          audioRef.current?.setSinkId?.('').catch(() => {});
+        });
       }
     }
     // Autoplay-policy: a context created outside a direct click handler can

@@ -51,7 +51,7 @@ export const EXTRA_DEFAULTS = Object.freeze({
   emailSocial: true,
   emailUpdates: true,
   emailTips: true,
-  preJoinCheck: true,
+  preJoinCheck: false, // desligado por padrão: entrar na call volta a ser 1 clique
   inputProfile: 'custom',
   sensitivityAuto: true,
   sensitivityDb: -60,
