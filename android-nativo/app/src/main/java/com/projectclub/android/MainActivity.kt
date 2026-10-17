@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -90,6 +91,20 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(true); setTurnScreenOn(true) }
         pending.value = intent
+        // Confirmação "Atualizar este app?" do Android: abre daqui (Activity
+        // visível) — aberta pelo BroadcastReceiver era barrada no Android 14/15.
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                com.projectclub.android.data.Updater.confirm.collect { confirm ->
+                    if (confirm != null) {
+                        com.projectclub.android.data.Updater.consumeConfirm()
+                        runCatching { startActivity(confirm) }.onFailure {
+                            Toast.makeText(this@MainActivity, "O Android não abriu a tela de atualização. Tente de novo.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+        }
         com.projectclub.android.data.AppPrefs.init(this)
         com.projectclub.android.ui.theme.ThemeStore.init(this)
         setContent {
