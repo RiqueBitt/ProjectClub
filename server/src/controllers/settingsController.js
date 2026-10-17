@@ -1,6 +1,7 @@
 const prisma = require('../config/prisma');
 const { safeUpsert } = require('../utils/prismaSafe');
 const { logSecurityEvent } = require('../services/securityLog');
+const { parseHHMM, isValidTimeZone } = require('../services/notificationPrefs');
 
 // Item pedido: "Nunca aceitar userId do frontend pra decidir qual
 // usuário será alterado. O backend deve obter o usuário diretamente
@@ -134,6 +135,11 @@ const EXTRA_PREF_RULES = {
   soundPack: oneOf('auto', 'classic', 'halloween', 'natal', 'retro', 'suave'),
   soundsOff: (v) => keyList(40)(v) && v.every((k) => SOUND_KEYS.includes(k)),
   unreadBadge: isBool,
+  // Padrão de notificação dos canais (canal/categoria podem sobrescrever —
+  // ver services/notificationPrefs.js).
+  notifyLevel: oneOf('all', 'mentions', 'none'),
+  // "Não perturbe" agendado: { enabled, start, end, days, timezone }.
+  quietHours: (v) => sanitizeQuietHours(v) !== undefined,
   emailComms: isBool,
   emailSocial: isBool,
   emailUpdates: isBool,
@@ -153,14 +159,25 @@ const EXTRA_PREF_RULES = {
   gameJoinFriends: isBool,
   gameJoinVoice: isBool,
 };
+// Horário "HH:MM", dias 0 (domingo) a 6 sem repetir e fuso IANA válido
+// (o cliente manda o do Intl). Devolve uma cópia limpa ou undefined.
+function sanitizeQuietHours(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  if (typeof v.enabled !== 'boolean') return undefined;
+  if (parseHHMM(v.start) === null || parseHHMM(v.end) === null) return undefined;
+  if (!Array.isArray(v.days) || v.days.length > 7 || !v.days.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)) return undefined;
+  if (!isValidTimeZone(v.timezone)) return undefined;
+  return { enabled: v.enabled, start: v.start, end: v.end, days: [...new Set(v.days)].sort(), timezone: v.timezone };
+}
 function sanitizeExtraPrefs(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
   const out = {};
   for (const [key, rule] of Object.entries(EXTRA_PREF_RULES)) {
     if (key in v && rule(v[key])) {
-      out[key] = key === 'customTheme'
-        ? { colors: v.customTheme.colors, angle: v.customTheme.angle, accent: v.customTheme.accent, mix: v.customTheme.mix }
-        : v[key];
+      if (key === 'customTheme') {
+        out[key] = { colors: v.customTheme.colors, angle: v.customTheme.angle, accent: v.customTheme.accent, mix: v.customTheme.mix };
+      } else if (key === 'quietHours') out[key] = sanitizeQuietHours(v.quietHours);
+      else out[key] = v[key];
     }
   }
   return out;

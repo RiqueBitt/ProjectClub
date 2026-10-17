@@ -2,7 +2,9 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { lazyWithRetry as lazy } from '../utils/lazyWithRetry';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useStore, isChannelUnread } from '../store/useStore';
+import { useStore, isChannelUnread, channelNotifyPrefs } from '../store/useStore';
+import { notificationMenuItems } from '../utils/notificationPrefs';
+import { categoryKey, isOverrideMuted, muteRemainingLabel } from '../utils/notificationLevels';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useVoice } from '../context/VoiceContext.jsx';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
@@ -62,6 +64,17 @@ function VoiceChannelTimer({ startedAt }) {
   return <span className="voice-channel-timer" title="Tempo com alguém neste canal de voz">{label}</span>;
 }
 
+// Sininho cortado ao lado de canal/categoria silenciados; o title diz quanto falta.
+function MutedIcon({ title }) {
+  return (
+    <span className="channel-muted-icon" title={title} aria-label={title} role="img">
+      <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 16V11a6 6 0 0 1 9.5-4.9M18 11v5l2 2H8" /><path d="M10 21a2 2 0 0 0 4 0" /><path d="M3 3l18 18" />
+      </svg>
+    </span>
+  );
+}
+
 function buildSections(categories, channels) {
   return [
     { categoryId: null, name: null, channels },
@@ -106,6 +119,11 @@ export default function ChannelSidebar({
   const community = useStore((s) => s.community);
   const channelReadAt = useStore((s) => s.channelReadAt);
   const collapsed = useStore((s) => s.channelSidebarCollapsed);
+  // Notificações por canal/categoria: redesenha quando muda alguma
+  // configuração, um silêncio expira ou o padrão global muda.
+  const notificationOverrides = useStore((s) => s.notificationOverrides);
+  useStore((s) => s.notifTick);
+  useStore((s) => s.userSettings?.extraPrefs?.notifyLevel);
   const toggleChannelSidebar = useStore((s) => s.toggleChannelSidebar);
   const [menuOpen, setMenuOpen] = useState(false);
   usePopoverCoordination(menuOpen, () => setMenuOpen(false));
@@ -187,6 +205,21 @@ export default function ChannelSidebar({
       { label: 'Criar canal', icon: '#', onClick: () => setChannelModal({ open: true, categoryId: null }) },
       { label: 'Criar categoria', icon: '▾', onClick: addCategory },
     ]);
+  };
+
+  // Clique direito numa categoria: silenciar / notificações (+ gerenciar, pra staff).
+  const onCategoryContextMenu = (e, cat) => {
+    const items = [...notificationMenuItems('category', cat)];
+    if (canManage) {
+      items.push({ divider: true });
+      items.push({ label: 'Criar canal', icon: 'hash', onClick: () => setChannelModal({ open: true, categoryId: cat.id }) });
+      items.push({ label: 'Editar categoria', icon: 'gear', onClick: () => setEditCategory(cat) });
+    }
+    if (useStore.getState().userSettings?.developerMode) {
+      items.push({ divider: true });
+      items.push({ label: 'Copiar ID da categoria', icon: 'id', onClick: () => navigator.clipboard?.writeText(cat.id) });
+    }
+    openMenu(e, items);
   };
 
   const onCategoryDrop = async (targetCategoryId) => {
@@ -321,9 +354,10 @@ export default function ChannelSidebar({
             }}
           >
             <div
-              className={`category-label${collapsedCats.has(cat.id) ? ' is-collapsed' : ''}`}
+              className={`category-label${collapsedCats.has(cat.id) ? ' is-collapsed' : ''}${isOverrideMuted(notificationOverrides?.[categoryKey(cat.id)]) ? ' is-muted' : ''}`}
               onMouseEnter={(e) => showCatPreview(e, cat)}
               onMouseLeave={hideCatPreview}
+              onContextMenu={(e) => onCategoryContextMenu(e, cat)}
             >
               <button
                 type="button" className="category-toggle" aria-expanded={!collapsedCats.has(cat.id)}
@@ -331,6 +365,11 @@ export default function ChannelSidebar({
               >
                 {hasCustomIcon(cat) && <CustomIcon item={cat} className="category-custom-icon" />}
                 <span className="truncate">{sentenceCase ? cat.name : cat.name.toUpperCase()}</span>
+                {(() => {
+                  const o = notificationOverrides?.[categoryKey(cat.id)];
+                  if (!isOverrideMuted(o)) return null;
+                  return <MutedIcon title={`Categoria silenciada — ${muteRemainingLabel(o.mutedUntil, { forever: o.muteForever }).toLowerCase()}`} />;
+                })()}
                 {collapsedCats.has(cat.id) && (() => {
                   // Contador de canais com novidade (vermelho se tiver menção).
                   const unreadList = unreadInCategory(cat);
@@ -448,6 +487,9 @@ function ChannelGroup({
         onClick: () => navigator.clipboard?.writeText(`${window.location.origin}/channels/${ch.id}`),
       },
     ];
+    // Silenciar / "Todas as mensagens · Só @menções · Nada" (igual ao Discord).
+    items.push({ divider: true });
+    items.push(...notificationMenuItems('channel', ch));
     if (canManage) {
       items.push({ divider: true });
       items.push({ label: 'Editar canal', icon: <img className="ui-icon-sm" src={settingsIcon} alt="" />, onClick: () => onEdit(ch) });
@@ -476,6 +518,9 @@ function ChannelGroup({
     <>
       {channels.map((ch) => {
         const unread = isChannelUnread(ch, channelReadAt, myUserId, myRoleIds);
+        // Silenciado (no canal ou na categoria): fica cinza, sem bolinha de
+        // não lido; menções continuam contando, só que apagadas.
+        const notify = channelNotifyPrefs(ch);
         const isVoiceType = VOICE_TYPES.includes(ch.type);
         const rosterEntries = isVoiceType ? (voice?.roster?.[ch.id] || []) : [];
         const isDragging = dragChannelId === ch.id;
@@ -509,10 +554,10 @@ function ChannelGroup({
                 // original do reload de página inteira): só um clique
                 // simples chamando navigate() por dentro do app.
                 onClick={() => { if (ch.id !== activeChannelId) navigate(`/channels/${ch.id}`); }}
-                className={`sidebar-item channel-item ${ch.id === activeChannelId ? 'active' : ''} ${unread ? 'unread' : ''}`}
+                className={`sidebar-item channel-item ${ch.id === activeChannelId ? 'active' : ''} ${unread && !notify.muted ? 'unread' : ''} ${notify.muted ? 'is-muted' : ''}`}
               >
                 {ch.unreadMentions > 0 && (
-                  <span className="mention-badge" title={`${ch.unreadMentions} menção${ch.unreadMentions === 1 ? '' : 'ões'} não lida${ch.unreadMentions === 1 ? '' : 's'}`}>
+                  <span className={`mention-badge${notify.muted ? ' is-muted' : ''}`} title={`${ch.unreadMentions} menção${ch.unreadMentions === 1 ? '' : 'ões'} não lida${ch.unreadMentions === 1 ? '' : 's'}`}>
                     {ch.unreadMentions > 99 ? '99+' : ch.unreadMentions}
                   </span>
                 )}
@@ -528,7 +573,12 @@ function ChannelGroup({
                 )}
                 {ch.isPrivate && <span title="Canal privado"><img className="ui-icon-sm" src={lockIcon} alt="" /></span>}
                 {!isVoiceType && <TypingDots roomKey={`channel:${ch.id}`} myUserId={myUserId} />}
-                {!(ch.unreadMentions > 0) && unread && <span className="unread-dot" />}
+                {notify.muted && (
+                  <MutedIcon
+                    title={`${notify.mutedBy === 'category' ? 'Categoria silenciada' : 'Canal silenciado'} — ${muteRemainingLabel(notify.mutedUntil, { forever: notify.mutedForever }).toLowerCase()}`}
+                  />
+                )}
+                {!(ch.unreadMentions > 0) && unread && !notify.muted && <span className="unread-dot" />}
                 {canManage && (
                   <span className="channel-item-actions">
                     <button className="icon-btn-small" onClick={(e) => { e.stopPropagation(); onEdit(ch); }}><img className="ui-icon-sm" src={settingsIcon} alt="" /></button>

@@ -15,6 +15,7 @@ const extra = require('../controllers/messageExtrasController');
 router.get('/saved', extra.listSaved);
 router.get('/saved/ids', extra.savedIds);
 router.get('/mentions', extra.listMentions);
+router.get('/replies', extra.listReplies);
 // Mensagens agendadas (antes de /:id pra "scheduled" não virar id).
 const scheduled = require('../controllers/scheduledController');
 router.get('/scheduled', scheduled.listMine);

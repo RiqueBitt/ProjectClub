@@ -101,6 +101,26 @@ async function listMentions(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// GET /messages/replies?before=ISO — respostas de outras pessoas a
+// mensagens minhas (canais e DMs), aba "Respostas" da Caixa de Entrada.
+async function listReplies(req, res, next) {
+  try {
+    const me = req.user.id;
+    const before = req.query.before ? new Date(req.query.before) : null;
+    const timeFilter = before && !Number.isNaN(before.getTime()) ? { createdAt: { lt: before } } : {};
+    const msgs = await prisma.message.findMany({
+      where: {
+        deleted: false, authorId: { not: me }, ...timeFilter,
+        replyTo: { authorId: me },
+      },
+      include: messageInclude, orderBy: { createdAt: 'desc' }, take: 25,
+    });
+    const visible = [];
+    for (const m of msgs) if (await canSee(req, m)) visible.push(m);
+    res.json({ messages: await withContext(visible), hasMore: msgs.length === 25 });
+  } catch (err) { next(err); }
+}
+
 // ---------- Ignorar ----------
 // POST /users/:id/ignore { on? }
 async function toggleIgnore(req, res, next) {
@@ -130,4 +150,6 @@ async function listIgnored(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { toggleSave, listSaved, savedIds, markUnread, listMentions, toggleIgnore, listIgnored };
+module.exports = {
+  toggleSave, listSaved, savedIds, markUnread, listMentions, listReplies, toggleIgnore, listIgnored,
+};

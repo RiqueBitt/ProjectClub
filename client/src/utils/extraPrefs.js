@@ -6,6 +6,7 @@
 import { useStore } from '../store/useStore';
 import { updateUserSettings } from '../api/endpoints';
 import { trackSave } from './saveIndicator';
+import { browserTimeZone } from './notificationLevels';
 
 export const EXTRA_DEFAULTS = Object.freeze({
   colorTheme: 'none',
@@ -41,6 +42,10 @@ export const EXTRA_DEFAULTS = Object.freeze({
   soundPack: 'auto',
   soundsOff: [],
   unreadBadge: true,
+  // Padrão dos canais: 'all' | 'mentions' | 'none' (canal/categoria sobrescrevem).
+  notifyLevel: 'mentions',
+  // "Não perturbe" agendado — fuso do aparelho por padrão (servidor valida).
+  quietHours: { enabled: false, start: '23:00', end: '07:00', days: [0, 1, 2, 3, 4, 5, 6], timezone: browserTimeZone() },
   emailComms: true,
   emailSocial: true,
   emailUpdates: true,

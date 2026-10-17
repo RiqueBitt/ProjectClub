@@ -423,6 +423,7 @@ function createApp() {
   // Avisos pessoais salvos e Galeria (curtidas/álbuns).
   app.use('/api/notices', require('./routes/notices'));
   app.use('/api/reminders', require('./routes/reminders'));
+  app.use('/api/notification-overrides', require('./routes/notificationOverrides'));
   app.use('/api/gallery', require('./routes/gallery'));
   app.use('/api/activity', activityRoutes);
   app.use('/api/games', gamesLibraryRoutes);

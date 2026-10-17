@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { updateUserSettings } from '../api/endpoints';
 import { openPopover, closePopover, closeAllPopovers } from '../utils/popoverCoordinator';
 import { trackSave } from '../utils/saveIndicator';
+import { resolveChannelPrefs, channelKey, categoryKey } from '../utils/notificationLevels';
 import { loadLocalLayoutPrefs, normalizeLayoutPrefs, saveLocalLayoutPrefs, scheduleServerSave, loadFocusMode, saveFocusMode } from '../utils/appearance';
 
 // Função estável (comparada por identidade no coordenador de menus) que
@@ -71,6 +72,12 @@ export const useStore = create((set, get) => ({
   // Mesclado nos objetos de canal (ver withChannelStates) — é o que faz o
   // "não lido"/menções sobreviver a um F5.
   channelStates: {},
+  // Notificações por canal/categoria: targetKey ("ch:<id>" / "cat:<id>") ->
+  // { level, mutedUntil, muteForever }. Carregado/sincronizado por
+  // utils/notificationPrefs.js. notifTick muda quando um silêncio expira
+  // (força a lista de canais a redesenhar sem o cinza).
+  notificationOverrides: {},
+  notifTick: 0,
   setChannelStates: (states) => set((s) => {
     const next = states || {};
     const merge = (list) => withChannelStates(list, next, s.channelReadAt);
@@ -755,6 +762,17 @@ export const useStore = create((set, get) => ({
     };
   }),
 
+  // Mensagem nova num canal fechado com "Todas as mensagens" (evento
+  // 'channel:message'): marca a atividade pra ele aparecer como não lido.
+  bumpChannelActivity: ({ channelId, authorId, createdAt, messageId }) => set((s) => {
+    const lastMessage = { id: messageId, channelId, authorId, createdAt };
+    const patchChannel = (ch) => (ch.id === channelId ? { ...ch, lastMessage, lastMessageAt: createdAt } : ch);
+    return {
+      channels: s.channels.map(patchChannel),
+      categories: s.categories.map((cat) => ({ ...cat, channels: (cat.channels || []).map(patchChannel) })),
+    };
+  }),
+
   bumpRoomActivity: (message) => set((s) => {
     if (message.conversationId) {
       return {
@@ -853,17 +871,39 @@ export function isConversationUnread(conversation, myUserId) {
 // esta pessoa (@nome, @cargo dela, @todos ou @aqui) ou é uma resposta
 // direta a uma mensagem dela — mensagem normal, sem nenhum desses,
 // não acende nada pra mais ninguém.
+//
+// Notificações por canal: com "Todas as mensagens" (e sem silêncio),
+// qualquer mensagem nova de outra pessoa acende o canal, igual ao Discord.
 export function isChannelUnread(channel, channelReadAtMap, myUserId, myRoleIds = []) {
   // Menções pendentes vindas do servidor (sobrevive a recarregar a página)
   // ou contadas ao vivo pelo 'mention:new'.
   if (channel.unreadMentions > 0) return true;
+  const readAt = channelReadAtMap[channel.id] ?? channel.myReadAt;
+  const prefs = channelNotifyPrefs(channel);
+  if (prefs.level === 'ALL' && !prefs.muted) {
+    const last = channel.lastMessage;
+    const lastAt = last?.createdAt || channel.lastMessageAt;
+    if (lastAt && !(last && last.authorId === myUserId && last.createdAt === lastAt)) {
+      if (!readAt || new Date(lastAt) > new Date(readAt)) return true;
+    }
+  }
   const last = channel.lastMessage;
   if (!last || last.authorId === myUserId) return false;
   const repliedToMe = last.replyTo?.authorId === myUserId || last.replyTo?.author?.id === myUserId;
   if (!messageMentionsUser(last, myUserId, myRoleIds) && !repliedToMe) return false;
-  const readAt = channelReadAtMap[channel.id] ?? channel.myReadAt;
   if (!readAt) return true;
   return new Date(last.createdAt) > new Date(readAt);
+}
+
+// Nível/silêncio efetivos de um canal (canal → categoria → global).
+export function channelNotifyPrefs(channel, state = useStore.getState(), now = Date.now()) {
+  const overrides = state.notificationOverrides || {};
+  return resolveChannelPrefs({
+    globalLevel: state.userSettings?.extraPrefs?.notifyLevel,
+    channelOverride: channel?.id ? overrides[channelKey(channel.id)] : null,
+    categoryOverride: channel?.categoryId ? overrides[categoryKey(channel.categoryId)] : null,
+    now,
+  });
 }
 
 export function messageMentionsUser(message, myUserId, myRoleIds = []) {
