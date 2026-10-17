@@ -384,7 +384,7 @@ function RemoteAudioSinks() {
       {Object.entries(remoteAudioStreams).map(([userId, stream]) => (
         <AudioSink
           key={userId} userId={userId} stream={stream}
-          volume={deafened ? 0 : (volumes[userId] ?? 1)} autoLevel={autoLevel} sinkId={sinkId}
+          volume={deafened || voice.serverDeafened ? 0 : (volumes[userId] ?? 1)} autoLevel={autoLevel} sinkId={sinkId}
           getInboundBytes={voice.getInboundAudioBytes} provider={voice.provider} callKey={callKey}
         />
       ))}
@@ -393,7 +393,7 @@ function RemoteAudioSinks() {
       {Object.entries(remoteScreenAudioStreams).map(([userId, stream]) => (
         <AudioSink
           key={`${userId}#tela`} userId={userId} stream={stream}
-          volume={deafened ? 0 : (streamVolumes[userId] ?? 1)} autoLevel={false} sinkId={sinkId}
+          volume={deafened || voice.serverDeafened ? 0 : (streamVolumes[userId] ?? 1)} autoLevel={false} sinkId={sinkId}
           getInboundBytes={null} provider={voice.provider} callKey={`${callKey}#tela`}
         />
       ))}

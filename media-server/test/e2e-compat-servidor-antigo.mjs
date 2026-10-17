@@ -189,6 +189,18 @@ try {
   const d0 = await audioFrom(B, 'ana'); await sleep(1500); const d1 = await audioFrom(B, 'ana');
   assert(d1 > d0, `o áudio da Ana continua chegando no Beto (${d0} → ${d1} B)`);
 
+  console.log('\n[5] Mudo da moderação só pelo backend (servidor de mídia antigo não tem /control)');
+  await B.evaluate(() => window.engine.applyModeration({ serverMuted: true, serverDeafened: false }));
+  assert(await B.evaluate(() => window.engine.producers.mic.paused === true), 'Beto: mic pausado localmente pelo aviso do backend');
+  const blocked = await B.evaluate(async () => { await window.engine.setMicEnabled(true); return window.engine.producers.mic.paused; });
+  assert(blocked === true, 'Beto não consegue se desmutar enquanto silenciado');
+  await B.evaluate(() => window.engine.applyModeration({ serverMuted: false, serverDeafened: false }));
+  await sleep(500);
+  assert(await B.evaluate(() => window.engine.producers.mic.paused === false), 'liberou: mic do Beto volta');
+  assert(serverMic('beto')?.paused === false, 'mic do Beto tocando no servidor');
+  const e0 = await audioFrom(A, 'beto'); await sleep(2000); const e1 = await audioFrom(A, 'beto');
+  assert(e1 > e0, `Ana volta a ouvir o Beto (${e0} → ${e1} B)`);
+
   const errs = [...await A.evaluate(() => window.events), ...await B.evaluate(() => window.events)].filter((e) => e.type === 'error' || e.type === 'left');
   assert(errs.length === 0, `sem onError/onLeft (${JSON.stringify(errs)})`);
   await A.evaluate(() => window.engine.dispose());

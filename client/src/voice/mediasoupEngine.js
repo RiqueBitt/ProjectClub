@@ -950,6 +950,18 @@ export class MediasoupEngine {
     if (!quiet) this.cb.onServerState?.({ ...this.serverState });
   }
 
+  // Mudo/ensurdecer da moderação avisado pelo BACKEND (socket
+  // voice:server-state). Normalmente o servidor de mídia já aplicou e mandou
+  // serverState (aí não muda nada); servidor de mídia ANTIGO (sem /control)
+  // não manda — aqui garante ao menos o lado do cliente (mic pausado).
+  applyModeration({ serverMuted, serverDeafened } = {}) {
+    if (this.disposed) return;
+    const deaf = typeof serverDeafened === 'boolean' ? serverDeafened : this.serverState.serverDeafened;
+    const muted = (typeof serverMuted === 'boolean' ? serverMuted : this.serverState.serverMuted) || deaf;
+    if (muted === this.serverState.serverMuted && deaf === this.serverState.serverDeafened) return;
+    this._applyServerState({ ...this.serverState, serverMuted: muted, serverDeafened: deaf }, { quiet: true });
+  }
+
   // O servidor recusou desmutar (mudo da moderação / sem SPEAK): volta a
   // pausar aqui e avisa.
   _onResumeRefused(err) {

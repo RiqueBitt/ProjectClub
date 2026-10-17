@@ -1292,6 +1292,9 @@ export function VoiceProvider({ children }) {
     const onServerState = ({ channelId, serverMuted, serverDeafened }) => {
       if (callRef.current?.channelId !== channelId) return;
       applyServerModRef.current?.({ serverMuted: !!serverMuted, serverDeafened: !!serverDeafened });
+      // Também no motor: servidor de mídia ANTIGO (sem /control) não aplica
+      // nem avisa — assim o mic fica pausado aqui mesmo assim.
+      try { engineRef.current?.applyModeration?.({ serverMuted: !!serverMuted, serverDeafened: !!serverDeafened }); } catch { /* engine sem moderação */ }
     };
     const findChannel = (id) => {
       const s = useStore.getState();
