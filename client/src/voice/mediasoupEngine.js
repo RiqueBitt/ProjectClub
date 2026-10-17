@@ -95,6 +95,7 @@
 //   onTelemetry({ type, ... }), onError(err, info)
 // API nova documentada em docs/voz-discord-api.md.
 import { createMicPipeline } from './micPipeline.js';
+import { NOISE_MODELS } from './noiseModels.js';
 import { createMicGate, createSpeakingDetector, createThrottle, dbToLevel, GATE_DEFAULTS } from './micGate.js';
 import {
   classifyClose, iceAction, importWithRetry, browserGuardedReload, micErrorReason, diffPeers, mediaErrorInfo,
@@ -219,6 +220,8 @@ export class MediasoupEngine {
     this.rawMic = null; // faixa crua do mic
     this.pipeline = null; // pipeline único do mic (micPipeline.js)
     this.noiseEnabled = false;
+    // Modelo do redutor: 'rnnoise' (padrão) | 'dfn3' (alta qualidade, flag).
+    this.noiseModel = NOISE_MODELS.RNNOISE;
     this.inputGain = 1;
     this.gate = createMicGate();
     this.speakingDet = createSpeakingDetector();
@@ -458,7 +461,7 @@ export class MediasoupEngine {
   }
 
   // ---------- entrar ----------
-  async join({ url, token, userId, iceServers = [], startMuted = false, startDeafened = false, noiseSuppression = false, micDeviceId = null, refreshCredentials = null } = {}) {
+  async join({ url, token, userId, iceServers = [], startMuted = false, startDeafened = false, noiseSuppression = false, noiseModel = NOISE_MODELS.RNNOISE, micDeviceId = null, refreshCredentials = null } = {}) {
     await loadMediasoup();
     if (this.disposed) return;
     if (!url || !token) throw new Error('credenciais do servidor de mídia ausentes');
@@ -470,6 +473,7 @@ export class MediasoupEngine {
     this.deafened = !!startDeafened;
     this.micDeviceId = micDeviceId || null;
     this.noiseEnabled = !!noiseSuppression;
+    this.noiseModel = noiseModel === NOISE_MODELS.DFN3 ? NOISE_MODELS.DFN3 : NOISE_MODELS.RNNOISE;
     this._startNetWatch();
 
     try {
@@ -1000,6 +1004,9 @@ export class MediasoupEngine {
     let pipe = null;
     pipe = await createMicPipeline(raw, {
       noise: this.noiseEnabled,
+      noiseModel: this.noiseModel,
+      // Alta qualidade falhou/lenta → já voltou pro RNNoise; avisa o app.
+      onNoiseFallback: (reason) => { this.cb.onTelemetry?.({ type: 'noise-fallback', reason }); },
       // AudioContext suspenso/travado (iOS, sem gesto): manda o mic cru
       // direto, pra pessoa nunca ficar muda sem saber; e volta depois.
       onBypass: (track) => this._swapMicTrack(pipe, track, 'direct'),
@@ -1875,6 +1882,15 @@ export class MediasoupEngine {
   // Liga/desliga o RNNoise na hora (carrega no pipeline se ainda não
   // estava). O supressor do NAVEGADOR faz o papel inverso: ligado quando o
   // RNNoise não está processando (nunca os dois juntos, nunca nenhum).
+  // Modelo do redutor ao vivo ('rnnoise' | 'dfn3'). Devolve o que ficou
+  // rodando (pode voltar 'rnnoise' se o DeepFilterNet3 não carregar).
+  async setNoiseModel(model) {
+    this.noiseModel = model === NOISE_MODELS.DFN3 ? NOISE_MODELS.DFN3 : NOISE_MODELS.RNNOISE;
+    const pipe = this.pipeline;
+    if (!pipe || typeof pipe.setNoiseModel !== 'function') return null;
+    try { return await pipe.setNoiseModel(this.noiseModel); } catch (err) { this.cb.onError?.(err, { where: 'setNoiseModel' }); return null; }
+  }
+
   async setNoiseSuppression(on) {
     this.noiseEnabled = !!on;
     if (!on) this.gate.clearVad();

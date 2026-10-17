@@ -6,6 +6,13 @@
 #
 #   sudo DOMAIN=38-92-41-54.sslip.io PUBLIC_IP=38.92.41.54 bash vm-voz-robusta.sh
 #
+# TURN também na porta 443 (opcional, redes que só liberam a 443):
+#   sudo TURN_443=1 DOMAIN=38-92-41-54.sslip.io PUBLIC_IP=38.92.41.54 bash vm-voz-robusta.sh
+# → Caddy com caddy-l4 separa por SNI: turn-38-92-41-54.sslip.io → coturn
+#   (5349), resto → HTTPS. TURN_DOMAIN muda o nome (padrão: turn-<DOMAIN> no
+#   sslip.io/nip.io, turn.<DOMAIN> em domínio próprio — precisa de DNS A).
+#   TURN_443=0 desliga de novo. Sem TURN_443, nada muda nesse ponto.
+#
 # Faz backup de docker-compose.yml/Caddyfile/.env antes de mexer.
 set -euo pipefail
 
@@ -15,6 +22,13 @@ main() {
 DOMAIN="${DOMAIN:-38-92-41-54.sslip.io}"
 PUBLIC_IP="${PUBLIC_IP:-38.92.41.54}"
 BRANCH="${BRANCH:-voz-servidor-robusto}"
+TURN_443="${TURN_443:-}"
+if [ -z "${TURN_DOMAIN:-}" ]; then
+  case "$DOMAIN" in
+    *.sslip.io|*.nip.io) TURN_DOMAIN="turn-$DOMAIN" ;;
+    *) TURN_DOMAIN="turn.$DOMAIN" ;;
+  esac
+fi
 # Pasta do docker-compose (descobre pelo container que já está rodando).
 DIR="${DIR:-$(docker inspect media-server-media-1 --format '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' 2>/dev/null || true)}"
 if [ -z "$DIR" ] || [ ! -f "$DIR/docker-compose.yml" ]; then
@@ -89,20 +103,52 @@ set_env TURN_MIN_PORT 49152
 set_env TURN_MAX_PORT 49999
 grep -q '^MEDIA_PUBLIC_IP=' .env || set_env MEDIA_PUBLIC_IP "$PUBLIC_IP"
 grep -q '^MEDIA_DOMAIN=' .env || set_env MEDIA_DOMAIN "$DOMAIN"
+# TURN na 443 (opt-in): o docker compose lê COMPOSE_FILE do .env, então todo
+# "docker compose …" nesta pasta passa a usar o override com caddy-l4.
+del_env() { sed -i "/^$1=/d" .env; }
+if [ "$TURN_443" = "1" ]; then
+  [ -f docker-compose.turn443.yml ] && [ -f Caddyfile.turn443 ] || { echo "!! faltam docker-compose.turn443.yml/Caddyfile.turn443 (código antigo?)"; exit 1; }
+  if ! getent ahostsv4 "$TURN_DOMAIN" | grep -qw "$PUBLIC_IP"; then
+    echo "!! $TURN_DOMAIN não resolve pra $PUBLIC_IP — crie o DNS A antes (sslip.io/nip.io já resolvem sozinhos)."; exit 1
+  fi
+  set_env TURN_DOMAIN "$TURN_DOMAIN"
+  set_env COMPOSE_FILE docker-compose.yml:docker-compose.turn443.yml
+  echo "==> TURN na 443 LIGADO (SNI $TURN_DOMAIN → coturn 5349)"
+elif [ "$TURN_443" = "0" ]; then
+  del_env COMPOSE_FILE
+  del_env TURN_DOMAIN
+  echo "==> TURN na 443 desligado (Caddy padrão)"
+fi
+# Domínio do certificado que o coturn usa: o do TURN quando a 443 está ligada.
+CERT_DOMAIN="$DOMAIN"
+if grep -q '^COMPOSE_FILE=.*turn443' .env; then
+  TURN_DOMAIN="$(grep '^TURN_DOMAIN=' .env | cut -d= -f2-)"
+  CERT_DOMAIN="$TURN_DOMAIN"
+  TURN_443=1
+fi
 
 # ---------- 6) certificado do Caddy → coturn (TURN sobre TLS na 5349) ----------
 mkdir -p certs
+# Com TURN na 443 o Caddy (imagem nova) precisa estar de pé e ter emitido o
+# certificado do TURN_DOMAIN antes de copiar.
+if [ "$TURN_443" = "1" ]; then
+  docker compose up -d --build caddy
+  for i in $(seq 1 30); do
+    docker compose exec -T caddy sh -c "find /data/caddy/certificates -name '$CERT_DOMAIN.crt'" 2>/dev/null | grep -q . && break
+    sleep 2
+  done
+fi
 cat > /usr/local/bin/pc-turn-cert-sync <<EOF
 #!/usr/bin/env bash
 # Copia o certificado que o Caddy renova sozinho pro coturn e manda o coturn
 # recarregar (SIGUSR2 = reload_ssl_certs, sem derrubar as alocações).
 set -euo pipefail
 cd "$DIR"
-SRC=\$(docker compose exec -T caddy sh -c 'find /data/caddy/certificates -type d -name "$DOMAIN" | head -n1')
-[ -n "\$SRC" ] || { echo "certificado de $DOMAIN ainda não existe no Caddy"; exit 0; }
+SRC=\$(docker compose exec -T caddy sh -c 'find /data/caddy/certificates -type d -name "$CERT_DOMAIN" | head -n1')
+[ -n "\$SRC" ] || { echo "certificado de $CERT_DOMAIN ainda não existe no Caddy"; exit 0; }
 tmp=\$(mktemp -d)
-docker compose cp "caddy:\$SRC/$DOMAIN.crt" "\$tmp/turn.crt" >/dev/null
-docker compose cp "caddy:\$SRC/$DOMAIN.key" "\$tmp/turn.key" >/dev/null
+docker compose cp "caddy:\$SRC/$CERT_DOMAIN.crt" "\$tmp/turn.crt" >/dev/null
+docker compose cp "caddy:\$SRC/$CERT_DOMAIN.key" "\$tmp/turn.key" >/dev/null
 if ! cmp -s "\$tmp/turn.crt" certs/turn.crt 2>/dev/null; then
   install -m 0644 -o 65534 -g 65534 "\$tmp/turn.crt" certs/turn.crt
   install -m 0600 -o 65534 -g 65534 "\$tmp/turn.key" certs/turn.key
@@ -135,6 +181,10 @@ curl -fsS "https://$DOMAIN/health"; echo
 # ---------- 8) conferência ----------
 echo "==> portas escutando:"
 ss -lnptu | grep -E ':(443|3478|5349|4000[0-9]|4443)\b' || true
+if [ "$TURN_443" = "1" ]; then
+  echo "==> TURN na 443: handshake TLS com SNI $TURN_DOMAIN (tem que mostrar o certificado do TURN):"
+  timeout 8 openssl s_client -connect "$PUBLIC_IP:443" -servername "$TURN_DOMAIN" </dev/null 2>/dev/null | grep -E 'subject=|Verify return' || echo "   !! sem resposta — veja: docker compose logs caddy coturn"
+fi
 echo "==> coturn (erros):"
 docker compose logs --tail=80 coturn | grep -Ei 'error|cannot|fail' || echo "   nenhum"
 TS=$(( $(date +%s) + 3600 )); U="$TS:teste"
@@ -145,12 +195,19 @@ cat <<EOF
 Pronto. Teste o TURN no navegador (válido 1h):
   https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/
   URIs: turn:$DOMAIN:3478?transport=udp  turn:$DOMAIN:3478?transport=tcp  turns:$DOMAIN:5349?transport=tcp
+EOF
+if [ "$TURN_443" = "1" ]; then echo "        turns:$TURN_DOMAIN:443?transport=tcp"; fi
+cat <<EOF
   usuário: $U
   senha:   $P
   (tem que aparecer candidato "relay")
 
 No painel da staff (Sistema → Provedores de voz → Project Club → chaves), TURN_URLS:
-  turn:$DOMAIN:3478?transport=udp,turn:$DOMAIN:3478?transport=tcp,turns:$DOMAIN:5349?transport=tcp
 EOF
+if [ "$TURN_443" = "1" ]; then
+  echo "  turn:$DOMAIN:3478?transport=udp,turn:$DOMAIN:3478?transport=tcp,turns:$TURN_DOMAIN:443?transport=tcp,turns:$TURN_DOMAIN:5349?transport=tcp"
+else
+  echo "  turn:$DOMAIN:3478?transport=udp,turn:$DOMAIN:3478?transport=tcp,turns:$DOMAIN:5349?transport=tcp"
+fi
 }
 main "$@"

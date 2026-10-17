@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Modal from '../Modal.jsx';
 import { useStore } from '../../store/useStore';
 import { getCommunitySettings, updateCommunitySettings, uploadCommunityIcon, uploadCommunityBanner, updateFeaturedChannels } from '../../api/endpoints';
@@ -46,6 +46,52 @@ function FeaturedChannelsSettings() {
           );
         })}
       </div>
+      {error && <div className="auth-error">{error}</div>}
+    </div>
+  );
+}
+
+// Canal AFK (igual ao Discord): quem fica parado na voz pelo tempo
+// escolhido vai pra esse canal e fica mudo lá. Só staff (rota /admin).
+export const AFK_TIMEOUT_OPTIONS = [
+  { value: 60, label: '1 minuto' },
+  { value: 300, label: '5 minutos' },
+  { value: 900, label: '15 minutos' },
+  { value: 1800, label: '30 minutos' },
+  { value: 3600, label: '1 hora' },
+];
+function AfkSettings({ settings, onSaved }) {
+  const channels = useStore((s) => s.channels);
+  const categories = useStore((s) => s.categories);
+  const voiceChannels = useMemo(() => [...(channels || []), ...(categories || []).flatMap((c) => c.channels || [])]
+    .filter((c) => c && c.type === 'VOICE'), [channels, categories]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const save = async (patch) => {
+    setBusy(true); setError('');
+    try { await updateCommunitySettings(patch); await onSaved(); }
+    catch (err) { setError(err.response?.data?.error || 'Não foi possível salvar.'); }
+    finally { setBusy(false); }
+  };
+  const seen = new Set();
+  const unique = voiceChannels.filter((c) => (seen.has(c.id) ? false : seen.add(c.id)));
+  return (
+    <div className="afk-settings">
+      <h3>Canal AFK</h3>
+      <p className="dim">Quem ficar sem falar na voz pelo tempo escolhido é movido para este canal e fica mudo lá.</p>
+      <label>
+        CANAL AFK
+        <select value={settings.afkChannelId || ''} disabled={busy} onChange={(e) => save({ afkChannelId: e.target.value || null })}>
+          <option value="">Nenhum (desligado)</option>
+          {unique.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </label>
+      <label>
+        TEMPO SEM ATIVIDADE
+        <select value={settings.afkTimeoutSeconds || 300} disabled={busy || !settings.afkChannelId} onChange={(e) => save({ afkTimeoutSeconds: Number(e.target.value) })}>
+          {AFK_TIMEOUT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </label>
       {error && <div className="auth-error">{error}</div>}
     </div>
   );
@@ -116,6 +162,8 @@ export default function CommunitySettingsModal({ onClose }) {
               <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
             </label>
             <button className="btn-primary" onClick={saveName} disabled={saving}>{saving ? 'Salvando...' : 'Salvar nome'}</button>
+            <hr />
+            <AfkSettings settings={settings} onSaved={refresh} />
             <hr />
           </>
         )}

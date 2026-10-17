@@ -65,6 +65,9 @@ async function evaluate(user, channelName, deps = {}) {
     voiceStore.getModState ? voiceStore.getModState(user.id).catch(() => null) : null,
   ]);
   const claims = claimsFor({ perms, channel, participant, modState });
+  // Canal AFK da comunidade: ninguém fala lá (igual ao Discord).
+  const afk = deps.voiceAfk || require('./voiceAfk');
+  if (await afk.isAfkChannel(name, { prisma }).catch(() => false)) claims.canSpeak = false;
   if (Number(channel.userLimit) > 0 && !participant) {
     const bypass = has(perms, 'MOVE_MEMBERS')
       || (voiceStore.hasMoveTicket ? await voiceStore.hasMoveTicket(user.id, name).catch(() => false) : false);

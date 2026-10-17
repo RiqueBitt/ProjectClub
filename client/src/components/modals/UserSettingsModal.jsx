@@ -4,6 +4,7 @@ import { setExtra, getExtra, useExtra } from '../../utils/extraPrefs';
 import { useLiveRefresh } from '../../utils/liveRefresh';
 import ProfileShopItems from '../shop/ProfileShopItems.jsx';
 import { useState, useEffect, useRef } from 'react';
+import { currentHighQualityAvailability, NOISE_QUALITY } from '../../voice/noiseModels.js';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -2785,6 +2786,22 @@ function VoiceSettingsTab() {
         </div>
         <Toggle on={prefs.noiseReduction} onChange={(v) => { updatePref('noiseReduction', v); if (getExtra().inputProfile !== 'custom') setExtra({ inputProfile: 'custom' }); }} label="Redutor de ruído" />
       </div>
+      {/* Alta qualidade (DeepFilterNet3) — só aparece com a flag do build
+          (VITE_VOICE_DFN3_URL) e em aparelho que aguenta; ver voice/noiseModels.js. */}
+      {prefs.noiseReduction !== false && currentHighQualityAvailability().available && (
+        <div className="settings-block">
+          <h4>Qualidade do redutor</h4>
+          <p className="dim">Alta qualidade (DeepFilterNet3) limpa melhor vozes ao fundo e ruídos fortes, mas usa mais CPU. Se o aparelho não der conta, volta pro padrão sozinho.</p>
+          <select
+            value={prefs.noiseQuality === NOISE_QUALITY.HIGH ? NOISE_QUALITY.HIGH : NOISE_QUALITY.STANDARD}
+            onChange={(e) => { setVoicePref('noiseQuality', e.target.value); setPrefs((pp) => ({ ...pp, noiseQuality: e.target.value })); voice.setNoiseQuality?.(e.target.value); }}
+            aria-label="Qualidade do redutor de ruído"
+          >
+            <option value={NOISE_QUALITY.STANDARD}>Padrão (RNNoise)</option>
+            <option value={NOISE_QUALITY.HIGH}>Alta qualidade (DeepFilterNet3)</option>
+          </select>
+        </div>
+      )}
 
       {/* Nivelar volume automático (E) */}
       <div className="settings-block settings-toggle-row">
@@ -2811,6 +2828,12 @@ function VoiceSettingsTab() {
               {capturingKey ? 'Pressione uma tecla… (Esc cancela)' : 'Trocar tecla'}
             </button>
           </div>
+          {typeof window !== 'undefined' && window.electronAPI?.globalPtt && (
+            <p className="dim" style={{ marginTop: 8 }}>
+              No app de PC a tecla funciona também com o app em segundo plano (durante a chamada).
+              {window.electronAPI.platform === 'darwin' && ' No macOS é preciso permitir o Project Club em Ajustes do Sistema → Privacidade e Segurança → Acessibilidade.'}
+            </p>
+          )}
           {/* Folga ao soltar a tecla: o mic continua aberto esse tempo (não corta a última sílaba). */}
           <h4 className="settings-h4-row" style={{ marginTop: 14 }}>
             Atraso ao soltar a tecla <span className="settings-chip">{pttReleaseFromPrefs(prefs.pushToTalkReleaseMs)} ms</span>
