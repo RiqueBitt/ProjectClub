@@ -15,6 +15,7 @@ import { createConversation, banMember, timeoutMember, warnMember } from '../api
 import personIcon from '../assets/icons/person.png';
 import chatIcon from '../assets/icons/chat.png';
 import errorIcon from '../assets/icons/error.png';
+import ListSkeleton from './ListSkeleton.jsx';
 
 function highestRole(member, roles) {
   const mine = (roles || []).filter((r) => !r.isDefault && member.roleIds?.includes(r.id));
@@ -24,6 +25,7 @@ function highestRole(member, roles) {
 
 export default function MembersList({ onToggle }) {
   const members = useStore((s) => s.members);
+  const communityLoaded = useStore((s) => s.communityLoaded);
   const roles = useStore((s) => s.roles);
   const presence = useStore((s) => s.presence);
   // Item pedido: "desativar os cargos" — quando desativado, ninguém
@@ -55,6 +57,7 @@ export default function MembersList({ onToggle }) {
   return (
     <aside className="members-list">
       <button className="icon-btn members-collapse" onClick={onToggle}>›</button>
+      {!communityLoaded && members.length === 0 && <ListSkeleton variant="members" rows={9} label="Carregando membros…" />}
       {groups.map((g) => (
         <MemberGroup key={g.label} label={g.label} members={g.members} roles={roles} cargosEnabled={cargosEnabled} />
       ))}

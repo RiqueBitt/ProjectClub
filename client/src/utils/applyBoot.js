@@ -21,6 +21,9 @@ const LIST_SECTIONS = [
 export function applyBootData(data) {
   if (!data) return;
   const s = useStore.getState();
+  // Mesmo sem mudança nenhuma (lista vazia de verdade), a seção chegou:
+  // as listas trocam o esqueleto pelo conteúdo/"vazio".
+  s.markLoaded({ community: !!data.community, conversations: !!data.conversations?.conversations });
   // Estado de leitura dos canais primeiro — a estrutura da comunidade
   // logo abaixo já entra mesclada com ele.
   if (data.channelStates?.states && !sameData(s.channelStates, data.channelStates.states)) {

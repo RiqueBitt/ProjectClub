@@ -2,6 +2,7 @@
 // Notificações, Voz e vídeo, Privacidade). Tudo aplica na hora e salva na
 // conta (UserSettings.extraPrefs — ver utils/extraPrefs.js).
 import { useEffect, useRef, useState } from 'react';
+import { clearMessageCache } from '../../utils/messageCache';
 import {
   useExtra, setExtra, COLOR_THEMES, APP_ICONS, EXTRA_DEFAULTS, themeVars, themeDef, renderAppIcon,
 } from '../../utils/extraPrefs';
@@ -410,6 +411,14 @@ export function PrivacyExtras() {
       <Panel id="xp-requests" title="Mensagens diretas e pedidos de amizade">
         <Row title="Solicitações de mensagem" hint="Conversas novas de quem não é seu amigo chegam como solicitação: você aceita antes de responder." on={p.messageRequests !== false} onChange={(v) => setExtra({ messageRequests: v })} />
         <Row title="Mostrar mensagens personalizadas nos pedidos de amizade" hint="Quem te adiciona pode mandar um recado junto." on={p.friendReqMessages !== false} onChange={(v) => setExtra({ friendReqMessages: v })} />
+      </Panel>
+      <Panel id="xp-local-cache" title="Dados neste aparelho">
+        <Row
+          title="Guardar mensagens recentes neste aparelho"
+          hint="Abre canais e conversas na hora (e mostra as últimas mensagens mesmo sem internet). Desligar apaga a cópia salva. Sair da conta também apaga."
+          on={p.cacheMessages !== false}
+          onChange={(v) => { setExtra({ cacheMessages: v }); if (!v) clearMessageCache(); }}
+        />
       </Panel>
       <Panel id="xp-clips" title="Gravações de chamada">
         <Row title="Permitir que minha voz seja gravada nos clipes" hint="Desligado, pedidos de gravação na call são recusados automaticamente por você." on={p.clipVoice !== false} onChange={(v) => setExtra({ clipVoice: v })} />

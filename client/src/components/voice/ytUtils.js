@@ -18,6 +18,46 @@ export function parseYouTubeId(input) {
 
 export const thumb = (id) => `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
 
+// "t=1m30s", "t=90", "start=90" → segundos (0 quando não tem/é inválido).
+export function parseYouTubeStart(input) {
+  let u;
+  try { u = new URL(String(input || '')); } catch { return 0; }
+  const raw = u.searchParams.get('t') || u.searchParams.get('start') || (u.hash.match(/t=([^&]+)/)?.[1] ?? '');
+  if (!raw) return 0;
+  if (/^\d+$/.test(raw)) return Math.min(Number(raw), 86400);
+  const m = raw.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/);
+  if (!m || (!m[1] && !m[2] && !m[3])) return 0;
+  return Math.min((Number(m[1] || 0) * 3600) + (Number(m[2] || 0) * 60) + Number(m[3] || 0), 86400);
+}
+
+// Primeiro link de vídeo do YouTube num texto (youtube.com/watch,
+// youtu.be, /shorts, /live, m.youtube…). Devolve { id, url, start, isShort }
+// ou null.
+const LINK_RE = /\bhttps?:\/\/[^\s<>()"']+[^\s<>()"'.,;:!?)\]]/gi;
+export function findYouTubeLink(content) {
+  const text = String(content || '');
+  if (!/youtu/i.test(text)) return null;
+  for (const m of text.matchAll(LINK_RE)) {
+    const url = m[0];
+    let host = '';
+    try { host = new URL(url).hostname.replace(/^(www\.|m\.|music\.)/, '').toLowerCase(); } catch { continue; }
+    if (host !== 'youtube.com' && host !== 'youtu.be' && host !== 'youtube-nocookie.com') continue;
+    const id = parseYouTubeId(url);
+    if (!id) continue;
+    return { id, url, start: parseYouTubeStart(url), isShort: /\/shorts\//i.test(url) };
+  }
+  return null;
+}
+
+// Endereço do player embutido (sem cookies) que já começa tocando.
+export function youTubeEmbedUrl(id, { start = 0, origin = '', captions = false } = {}) {
+  const p = new URLSearchParams({ autoplay: '1', rel: '0', modestbranding: '1', playsinline: '1', hl: 'pt-BR', cc_lang_pref: 'pt' });
+  if (start > 0) p.set('start', String(Math.floor(start)));
+  if (captions) p.set('cc_load_policy', '1');
+  if (origin) p.set('origin', origin);
+  return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?${p.toString()}`;
+}
+
 // App desktop com <webview> liberado (main.js webviewTag) → mostra a aba "YouTube completo".
 export function canUseWebview() {
   if (typeof window === 'undefined' || !window.electronAPI) return false;

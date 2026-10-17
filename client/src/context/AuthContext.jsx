@@ -6,6 +6,7 @@ import { setAccessToken, setUnauthorizedHandler, sharedRefresh } from '../api/cl
 import { loginUser, logoutUser, registerUser, fetchMe } from '../api/endpoints';
 import { useStore } from '../store/useStore';
 import { clearBootCache } from '../utils/bootstrap';
+import { clearMessageCache } from '../utils/messageCache';
 import { migrateZoomValue, markZoomMigrationDone, zoomMigrationDone, NEW_DEFAULT } from '../utils/zoomDefault';
 import { interfaceZoomSaver } from '../utils/zoomSave';
 
@@ -169,6 +170,8 @@ export function AuthProvider({ children }) {
     // ver utils/bootstrap.js. Só ao sair de verdade: sessão expirada não
     // apaga (a mesma conta volta e abre instantâneo).
     clearBootCache();
+    // Cópia local das mensagens (IndexedDB — utils/messageCache.js) também.
+    clearMessageCache();
     clearSession();
   }, [clearSession]);
 

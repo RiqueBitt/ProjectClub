@@ -13,6 +13,7 @@ const { maybeSendOfflineEmail } = require('../services/offlineEmailNotifier');
 const { discardUploadedFiles } = require('../middleware/upload');
 const { maskUserStatus } = require('../utils/presenceVisibility');
 const { isValidReactionEmoji } = require('../utils/reactionEmoji');
+const { sharedIdempotency } = require('../services/messageIdempotency');
 
 // Discord-style cap: once a message already has this many *distinct* emoji
 // reacted to it, nobody can pile on a brand new one — you can still toggle
@@ -367,18 +368,53 @@ async function precheckCreateMessage(req, res, next) {
       return res.status(429).json({ error: 'Você enviou arquivos demais em pouco tempo. Espere alguns minutos.' });
     }
     req.precheckedRoom = room;
+    // Reenvio (fila offline do cliente) de uma mensagem que JÁ foi criada:
+    // o nonce também vem na query, então dá pra devolver a mensagem pronta
+    // antes de receber os anexos de novo.
+    const queryNonce = typeof req.query.nonce === 'string' ? req.query.nonce : null;
+    if (queryNonce) {
+      const existingId = await sharedIdempotency().lookup(req.user.id, queryNonce);
+      if (existingId && await respondDuplicate(req, res, existingId, queryNonce, room)) return;
+    }
     next();
   } catch (err) { next(err); }
 }
 
+// Devolve a mensagem já criada por este mesmo envio (mesmo nonce). Só se
+// ela for da pessoa, da mesma sala e não tiver sido apagada — senão
+// devolve false e o envio segue normal.
+async function respondDuplicate(req, res, messageId, nonce, room) {
+  const existing = await prisma.message.findUnique({ where: { id: String(messageId) }, include: messageInclude });
+  if (!existing || existing.deleted || existing.authorId !== req.user.id) return false;
+  if ((existing.channelId || null) !== (room.channelId || null) || (existing.conversationId || null) !== (room.conversationId || null)) return false;
+  res.status(200).json({ message: { ...existing, nonce }, duplicate: true });
+  return true;
+}
+
 async function createMessage(req, res, next) {
   let failed = true;
+  // Idempotência pelo nonce (ver services/messageIdempotency.js): um
+  // reenvio da mesma mensagem devolve a que já existe em vez de duplicar.
+  let claim = null;
   try {
+    const nonce = typeof req.body?.nonce === 'string' ? req.body.nonce : null;
+    const got = await sharedIdempotency().acquire(req.user.id, nonce);
+    if (got.existingId) {
+      const room = { conversationId: req.body.conversationId || undefined, channelId: req.body.channelId || undefined };
+      if (await respondDuplicate(req, res, got.existingId, nonce, room)) {
+        if (req.files?.length) discardUploadedFiles(req).catch(() => {});
+        return;
+      }
+    }
+    claim = got.claim || null;
+    req.idempotencyClaim = claim;
     failed = !(await createMessageInner(req, res));
   } catch (err) {
+    claim?.release();
     if (req.files?.length) await discardUploadedFiles(req).catch(() => {});
     return next(err);
   }
+  if (failed) claim?.release();
   if (failed && req.files?.length) discardUploadedFiles(req).catch(() => {});
 }
 
@@ -617,6 +653,8 @@ async function createMessageInner(req, res) {
     // resposta — o cliente usa pra trocar a mensagem otimista pela real no
     // mesmo lugar, sem duplicar. Não é salvo no banco.
     const nonce = typeof req.body.nonce === 'string' && req.body.nonce.length <= 80 ? req.body.nonce : null;
+    // Lembra (por alguns minutos) que este nonce já virou esta mensagem.
+    req.idempotencyClaim?.commit(message.id);
     const outgoing = nonce ? { ...message, nonce } : message;
     // Solicitações de mensagem / spam (DM com quem não é amigo).
     const inboxOf = conversationId ? await require('../services/dmInbox').classifyIncoming(io, { conversationId, senderId: req.user.id, content }) : {};
@@ -1230,7 +1268,7 @@ async function listReactors(req, res, next) {
 // O resto vira o texto procurado (LIKE). Paginação por cursor
 // (createdAt,id) de 25 em 25.
 const SEARCH_PAGE = 25;
-const { parseSearchQuery } = require('../services/searchQuery');
+const { parseSearchQuery, resolveChannelFilter } = require('../services/searchQuery');
 
 async function searchMessages(req, res, next) {
   try {
@@ -1240,13 +1278,27 @@ async function searchMessages(req, res, next) {
     const hasFilters = parsed.from || parsed.has.size || parsed.before || parsed.after || parsed.in || parsed.pinned != null;
     if (!hasFilters && parsed.text.length < 2) return res.json({ messages: [], nextCursor: null });
 
-    // em:#canal — procura num canal pelo nome (vale dentro da busca global
-    // ou pra "pular" de canal a partir de outro).
+    // Canais de texto que a pessoa pode ver (mesma regra da barra lateral)
+    // — calculado só quando precisa (busca global ou filtro in:/em:).
+    let visibleChannelsCache = null;
+    const visibleChannels = async () => {
+      if (visibleChannelsCache) return visibleChannelsCache;
+      const channels = await prisma.channel.findMany({ where: { type: { notIn: ['VOICE', 'STAGE'] } }, select: { id: true, name: true, categoryId: true, isPrivate: true } });
+      const privates = channels.filter((c) => c.isPrivate);
+      const permMap = privates.length ? await getEffectivePermissionsForChannels(req.user.id, privates) : new Map();
+      visibleChannelsCache = channels.filter((c) => !c.isPrivate || has(permMap.get(c.id) || 0n, 'VIEW_CHANNEL'));
+      return visibleChannelsCache;
+    };
+
+    // in:#canal / em:#canal — procura num canal pelo nome (vale dentro da
+    // busca global ou pra "pular" de canal a partir de outro). SEGURANÇA:
+    // só entre os canais que a pessoa pode ver — antes buscava em todos
+    // e um canal privado com o nome certo devolvia 403 (vazava que ele
+    // existe). Agora um canal invisível simplesmente "não existe" aqui.
     if (parsed.in) {
-      const ch = await prisma.channel.findFirst({ where: { name: parsed.in, type: { notIn: ['VOICE', 'STAGE'] } }, select: { id: true } })
-        || await prisma.channel.findFirst({ where: { name: { contains: parsed.in } }, select: { id: true } });
-      if (!ch) return res.json({ messages: [], nextCursor: null });
-      channelId = ch.id; conversationId = undefined;
+      const targetId = resolveChannelFilter(parsed.in, await visibleChannels());
+      if (!targetId) return res.json({ messages: [], nextCursor: null, inChannel: null });
+      channelId = targetId; conversationId = undefined;
     }
 
     // Escopo: uma sala (checa acesso) OU busca GLOBAL — todos os canais que a
@@ -1257,13 +1309,11 @@ async function searchMessages(req, res, next) {
       await assertAccess(req, { conversationId, channelId });
       scope = { conversationId: conversationId || undefined, channelId: channelId || undefined };
     } else {
-      const [channels, memberships] = await Promise.all([
-        prisma.channel.findMany({ where: { type: { notIn: ['VOICE', 'STAGE'] } }, select: { id: true, categoryId: true, isPrivate: true } }),
+      const [visibleList, memberships] = await Promise.all([
+        visibleChannels(),
         prisma.conversationMember.findMany({ where: { userId: req.user.id }, select: { conversationId: true } }),
       ]);
-      const privates = channels.filter((c) => c.isPrivate);
-      const permMap = privates.length ? await getEffectivePermissionsForChannels(req.user.id, privates) : new Map();
-      const visible = channels.filter((c) => !c.isPrivate || has(permMap.get(c.id) || 0n, 'VIEW_CHANNEL')).map((c) => c.id);
+      const visible = visibleList.map((c) => c.id);
       const convs = memberships.map((m) => m.conversationId);
       if (!visible.length && !convs.length) return res.json({ messages: [], nextCursor: null });
       scope = { OR: [...(visible.length ? [{ channelId: { in: visible } }] : []), ...(convs.length ? [{ conversationId: { in: convs } }] : [])] };

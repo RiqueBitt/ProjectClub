@@ -9,9 +9,11 @@ import ConversationIcon from './ConversationIcon.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import TypingDots from './TypingDots.jsx';
 import cancelIcon from '../assets/icons/cancel.png';
+import ListSkeleton from './ListSkeleton.jsx';
 
 export default function DMSidebar() {
   const conversations = useStore((s) => s.conversations);
+  const conversationsLoaded = useStore((s) => s.conversationsLoaded);
   const presence = useStore((s) => s.presence);
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -48,6 +50,7 @@ export default function DMSidebar() {
           <span>MENSAGENS DIRETAS</span>
           <button className="icon-btn-small" onClick={() => setNewDMOpen(true)}>+</button>
         </div>
+        {!conversationsLoaded && conversations.length === 0 && <ListSkeleton variant="dms" rows={6} label="Carregando conversas…" />}
         {sorted.map((c) => {
           const other = !c.isGroup ? c.members.find((m) => m.id !== user.id) : null;
           const name = c.isGroup ? (c.name || c.members.map((m) => m.displayName).join(', ')) : other?.displayName;

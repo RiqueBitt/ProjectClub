@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { searchMessages } from '../api/endpoints';
+import { useStore } from '../store/useStore';
+import { channelFilterQuery, completeChannelFilter, matchChannelsForFilter } from '../utils/searchFilters';
 import { formatMessageTime } from '../utils/formatTime';
 import UserAvatar from './UserAvatar.jsx';
 import ChatIcon from './ChatIcons.jsx';
@@ -21,13 +23,14 @@ const HINT_LOADING = 'Buscando…';
 const LABEL_ATTACHMENT = 'Anexo';
 const LABEL_KEYS = '↑↓ para escolher · Enter para ir · Esc para fechar';
 const HIGHLIGHT_NAME = 'chat-search-hit';
-const HINT_FILTERS = 'Filtros: de:@nome · tem:arquivo|imagem|link|video · antes:AAAA-MM-DD · depois:AAAA-MM-DD · em:#canal · fixada:';
+const HINT_FILTERS = 'Filtros: de:@nome · tem:arquivo|imagem|link|video · antes:AAAA-MM-DD · depois:AAAA-MM-DD · em:#canal (ou in:#canal) · fixada:';
+const LABEL_CHANNELS = 'Buscar no canal';
 const LABEL_MORE = 'Carregar mais';
 
 // Filtros (from:/has:/before:/after:, e as versões em português) saem do
 // texto usado no destaque — o servidor é quem interpreta (ver
 // parseSearchQuery no messageController).
-const FILTER_TOKEN_RE = /(^|\s)(from|has|before|after|in|pinned|de|tem|antes|depois|em|fixada|fixado):\S*/gi;
+const FILTER_TOKEN_RE = /(^|\s)(from|has|before|after|in|pinned|de|tem|antes|depois|em|fixada|fixado):(?:"[^"]*"?|\S*)/gi;
 function textPart(q) { return q.replace(FILTER_TOKEN_RE, ' ').replace(/\s+/g, ' ').trim(); }
 function hasFilters(q) { FILTER_TOKEN_RE.lastIndex = 0; const r = FILTER_TOKEN_RE.test(q); FILTER_TOKEN_RE.lastIndex = 0; return r; }
 
@@ -108,6 +111,22 @@ export default function ChannelSearchPanel({ open, onClose, conversationId, chan
   const inputRef = useRef(null);
   const seqRef = useRef(0);
   const resultsRef = useRef(null);
+  // em:#canal / in:#canal — sugere os canais (só os que a pessoa vê: a
+  // lista da barra lateral já vem filtrada pela permissão).
+  const categories = useStore((s) => s.categories);
+  const looseChannels = useStore((s) => s.channels);
+  const [suggestActive, setSuggestActive] = useState(0);
+  const channelQuery = channelFilterQuery(query);
+  const channelSuggestions = useMemo(() => {
+    if (channelQuery === null) return [];
+    const all = [...looseChannels, ...categories.flatMap((c) => (c.channels || []).map((ch) => ({ ...ch, _cat: c.name })))];
+    return matchChannelsForFilter(all, channelQuery, 6);
+  }, [channelQuery, looseChannels, categories]);
+  useEffect(() => { setSuggestActive(0); }, [channelQuery]);
+  const pickChannel = (ch) => {
+    setQuery((q) => completeChannelFilter(q, ch.name));
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
 
   // Trocou de sala: limpa tudo.
   useEffect(() => {
@@ -173,6 +192,11 @@ export default function ChannelSearchPanel({ open, onClose, conversationId, chan
 
   const onKeyDown = (e) => {
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); return; }
+    if (channelSuggestions.length) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSuggestActive((i) => (i + 1) % channelSuggestions.length); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setSuggestActive((i) => (i - 1 + channelSuggestions.length) % channelSuggestions.length); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickChannel(channelSuggestions[Math.min(suggestActive, channelSuggestions.length - 1)]); return; }
+    }
     if (!results.length) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => (i + 1) % results.length); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => (i - 1 + results.length) % results.length); }
@@ -204,6 +228,24 @@ export default function ChannelSearchPanel({ open, onClose, conversationId, chan
         )}
         <button type="button" className="chat-search-close" onClick={onClose} aria-label={LABEL_CLOSE} title={LABEL_CLOSE}><ChatIcon name="close" size={14} /></button>
       </form>
+      {channelSuggestions.length > 0 && (
+        <ul className="chat-search-channels" role="listbox" aria-label={LABEL_CHANNELS}>
+          {channelSuggestions.map((ch, i) => (
+            <li key={ch.id} role="option" aria-selected={i === suggestActive}>
+              <button
+                type="button" className={`chat-search-channel ${i === suggestActive ? 'is-active' : ''}`}
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setSuggestActive(i)}
+                onClick={() => pickChannel(ch)}
+              >
+                <ChatIcon name="hash" size={14} />
+                <span className="truncate">{ch.name}</span>
+                {ch._cat && <small className="truncate">{ch._cat}</small>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       {hint && <div className="chat-search-hint">{hint}</div>}
       {!q && <div className="chat-search-hint">{HINT_FILTERS}</div>}
       {results.length > 0 && (
@@ -220,6 +262,7 @@ export default function ChannelSearchPanel({ open, onClose, conversationId, chan
                 <span className="chat-search-item-body">
                   <span className="chat-search-item-meta">
                     <b className="truncate">{m.author?.displayName}</b>
+                    {m.channel && m.channel.id !== channelId && <span className="chat-search-item-channel truncate">#{m.channel.name}</span>}
                     <span className="chat-search-item-time">{formatMessageTime(m.createdAt)}</span>
                   </span>
                   <span className="chat-search-item-text"><Snippet text={m.content} query={textQ} /></span>

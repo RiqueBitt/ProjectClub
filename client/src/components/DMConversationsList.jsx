@@ -11,6 +11,7 @@ import UserAvatar from './UserAvatar.jsx';
 import TypingDots from './TypingDots.jsx';
 import SocialIcon from './SocialIcons.jsx';
 import cancelIcon from '../assets/icons/cancel.png';
+import ListSkeleton from './ListSkeleton.jsx';
 
 // Lista de conversas diretas (DMs/grupos) — vive dentro da área "Amigos"
 // (ver AmigosPage.jsx), na aba "Mensagens". É o mesmo conteúdo que antes
@@ -19,6 +20,8 @@ import cancelIcon from '../assets/icons/cancel.png';
 // fixa — a barra lateral principal (MainSidebar.jsx) é a única que sobra.
 export default function DMConversationsList() {
   const conversations = useStore((s) => s.conversations);
+  const conversationsLoaded = useStore((s) => s.conversationsLoaded);
+  const showSkeleton = !conversationsLoaded && conversations.length === 0;
   const presence = useStore((s) => s.presence);
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -72,7 +75,8 @@ export default function DMConversationsList() {
         </p>
       )}
       {box !== 'main' && sorted.length === 0 && <div className="friends-empty-state"><h3>{box === 'request' ? 'Nenhuma solicitação.' : 'Nada no spam.'}</h3></div>}
-      {box === 'main' && sorted.length === 0 && !filter && (
+      {showSkeleton && <ListSkeleton variant="dms" rows={6} label="Carregando conversas…" />}
+      {box === 'main' && sorted.length === 0 && !filter && !showSkeleton && (
         <div className="friends-empty-state">
           <div className="friends-empty-state-icon"><SocialIcon name="chat" size={30} /></div>
           <h3>Nenhuma conversa ainda.</h3>

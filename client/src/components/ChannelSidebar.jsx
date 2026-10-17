@@ -27,6 +27,7 @@ import linkIcon from '../assets/icons/link.png';
 import lockIcon from '../assets/icons/lock.png';
 import { proxyImage } from '../utils/imageProxy';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
+import ListSkeleton from './ListSkeleton.jsx';
 
 // Modais de staff/edição: cada um vira um pacote próprio, baixado só
 // quando é aberto (quase ninguém abre — não precisa estar no pacote inicial).
@@ -104,6 +105,7 @@ export default function ChannelSidebar({
   const members = useStore((s) => s.members);
   const roles = useStore((s) => s.roles);
   const community = useStore((s) => s.community);
+  const communityLoaded = useStore((s) => s.communityLoaded);
   const channelReadAt = useStore((s) => s.channelReadAt);
   const collapsed = useStore((s) => s.channelSidebarCollapsed);
   const toggleChannelSidebar = useStore((s) => s.toggleChannelSidebar);
@@ -280,6 +282,7 @@ export default function ChannelSidebar({
       <nav className="sidebar-list" onContextMenu={onListContextMenu}>
         {/* Canais em destaque (Eventos, Feed, Galeria) — sempre no topo. */}
         <FeaturedChannels canManage={canManage} />
+        {!communityLoaded && channels.length === 0 && categories.length === 0 && <ListSkeleton variant="channels" label="Carregando canais…" />}
         {channels.length > 0 && (
           <ChannelGroup
             channels={channels}

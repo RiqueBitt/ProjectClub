@@ -136,13 +136,24 @@ export const listMessages = (params) => api.get('/messages', { params }).then((r
 export const searchMessages = (params) => api.get('/messages/search', { params }).then((r) => r.data);
 // A sala vai também na query: o servidor checa permissão/spam ANTES de
 // receber os anexos (ver precheckCreateMessage no messageController).
-export const sendMessage = (formData) => {
+// O nonce também vai na query: num reenvio (fila offline) de uma mensagem
+// que já tinha sido criada, o servidor devolve a pronta sem receber os
+// anexos de novo. `opts`: onUploadProgress (barra de envio) e signal
+// (cancelar o upload).
+export const sendMessage = (formData, opts = {}) => {
   const params = {};
-  const channelId = typeof formData?.get === 'function' ? formData.get('channelId') : null;
-  const conversationId = typeof formData?.get === 'function' ? formData.get('conversationId') : null;
+  const get = (k) => (typeof formData?.get === 'function' ? formData.get(k) : null);
+  const channelId = get('channelId');
+  const conversationId = get('conversationId');
+  const nonce = get('nonce');
   if (channelId) params.channelId = channelId;
   if (conversationId) params.conversationId = conversationId;
-  return api.post('/messages', formData, { params }).then((r) => r.data);
+  if (nonce) params.nonce = nonce;
+  return api.post('/messages', formData, {
+    params,
+    ...(opts.onUploadProgress ? { onUploadProgress: opts.onUploadProgress } : {}),
+    ...(opts.signal ? { signal: opts.signal } : {}),
+  }).then((r) => r.data);
 };
 export const getMessageEdits = (id) => api.get(`/messages/${id}/edits`).then((r) => r.data);
 export const forwardMessage = (id, target) => api.post(`/messages/${id}/forward`, target).then((r) => r.data);

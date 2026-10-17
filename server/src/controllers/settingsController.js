@@ -101,6 +101,8 @@ const EXTRA_PREF_RULES = {
     && Array.isArray(v.colors) && v.colors.length >= 1 && v.colors.length <= 5 && v.colors.every(isHex)
     && intIn(0, 360)(v.angle) && isHex(v.accent) && intIn(0, 100)(v.mix),
   themeSync: isBool,
+  // Guardar as mensagens recentes no aparelho (abrir canal na hora).
+  cacheMessages: isBool,
   themeOnProfiles: isBool,
   appIcon: isKey(24),
   weeklyDigest: isBool,

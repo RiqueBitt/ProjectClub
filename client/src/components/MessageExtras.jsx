@@ -5,6 +5,7 @@ import { useStore } from '../store/useStore';
 import { getMessageEdits, forwardMessage, unfurlLink } from '../api/endpoints';
 import { findInternalLinks } from '../utils/internalLinks';
 import { formatEmbedTime } from '../utils/formatTime';
+import { findYouTubeLink, youTubeEmbedUrl, readCaptionsPref } from './voice/ytUtils';
 import '../styles/message-extras.css';
 
 // ---------------------------------------------------------------------
@@ -186,6 +187,75 @@ function firstPreviewableUrl(content) {
 
 export function LinkPreview({ content }) {
   const enabled = useStore((s) => s.userSettings?.showLinkPreviews !== false);
+  // Vídeo do YouTube vira o player leve (miniatura + play) em vez do cartão.
+  const yt = useMemo(() => (enabled ? findYouTubeLink(content) : null), [content, enabled]);
+  if (yt) return <YouTubeLite video={yt} />;
+  return <OpenGraphPreview content={content} enabled={enabled} />;
+}
+
+function loadPreview(url) {
+  if (!previewCache.has(url)) {
+    if (previewCache.size > 300) previewCache.delete(previewCache.keys().next().value);
+    previewCache.set(url, unfurlLink(url).then((d) => d?.preview || null).catch(() => null));
+  }
+  return previewCache.get(url);
+}
+
+// ---------------------------------------------------------------------
+// YouTube "leve": só a miniatura (i.ytimg.com) e um botão de play — nada
+// do YouTube carrega até a pessoa clicar. Aí troca pelo player sem cookies
+// (youtube-nocookie.com, liberado no frame-src da CSP do servidor) já
+// tocando. Shorts ficam em pé (9:16).
+// ---------------------------------------------------------------------
+function YouTubeLite({ video }) {
+  const [playing, setPlaying] = useState(false);
+  const [title, setTitle] = useState('');
+  const [thumbSrc, setThumbSrc] = useState(`https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`);
+  const ref = useRef(null);
+  useEffect(() => { setPlaying(false); setTitle(''); setThumbSrc(`https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`); }, [video.id]);
+  // Título pela prévia do servidor (mesmo cache dos cartões), só quando aparece na tela.
+  useEffect(() => {
+    let alive = true;
+    const el = ref.current;
+    const go = () => loadPreview(video.url).then((p) => { if (alive && p?.title) setTitle(p.title); });
+    if (!el || typeof IntersectionObserver === 'undefined') { go(); return () => { alive = false; }; }
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) { io.disconnect(); go(); }
+    }, { rootMargin: '200px' });
+    io.observe(el);
+    return () => { alive = false; io.disconnect(); };
+  }, [video.url]);
+
+  const label = title || 'Vídeo do YouTube';
+  return (
+    <div ref={ref} className={`yt-lite ${video.isShort ? 'is-short' : ''} ${playing ? 'is-playing' : ''}`}>
+      {playing ? (
+        <iframe
+          src={youTubeEmbedUrl(video.id, { start: video.start, origin: window.location.origin, captions: readCaptionsPref() })}
+          title={label}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      ) : (
+        <button type="button" className="yt-lite-poster" onClick={() => setPlaying(true)} aria-label={`Reproduzir: ${label}`}>
+          <img
+            src={thumbSrc} alt="" loading="lazy" referrerPolicy="no-referrer"
+            onError={() => { if (!thumbSrc.endsWith('/0.jpg')) setThumbSrc(`https://i.ytimg.com/vi/${video.id}/0.jpg`); }}
+          />
+          <span className="yt-lite-shade" aria-hidden="true" />
+          {title && <span className="yt-lite-title">{title}</span>}
+          <span className="yt-lite-play" aria-hidden="true">
+            <svg viewBox="0 0 68 48" width="68" height="48"><path d="M66.5 7.7a8.6 8.6 0 0 0-6-6C55.2.3 34 .3 34 .3S12.8.3 7.5 1.7a8.6 8.6 0 0 0-6 6C.1 13 .1 24 .1 24s0 11 1.4 16.3a8.6 8.6 0 0 0 6 6C12.8 47.7 34 47.7 34 47.7s21.2 0 26.5-1.4a8.6 8.6 0 0 0 6-6C67.9 35 67.9 24 67.9 24s0-11-1.4-16.3z" fill="#f00" /><path d="M45 24 27 14v20z" fill="#fff" /></svg>
+          </span>
+        </button>
+      )}
+      <a className="yt-lite-link" href={video.url} target="_blank" rel="noreferrer noopener">Abrir no YouTube</a>
+    </div>
+  );
+}
+
+function OpenGraphPreview({ content, enabled }) {
   const url = useMemo(() => (enabled ? firstPreviewableUrl(content) : null), [content, enabled]);
   const [preview, setPreview] = useState(null);
   const ref = useRef(null);
@@ -195,11 +265,7 @@ export function LinkPreview({ content }) {
     if (!url) return undefined;
     let alive = true;
     const load = () => {
-      if (!previewCache.has(url)) {
-        if (previewCache.size > 300) previewCache.delete(previewCache.keys().next().value);
-        previewCache.set(url, unfurlLink(url).then((d) => d?.preview || null).catch(() => null));
-      }
-      previewCache.get(url).then((p) => { if (alive) setPreview(p); });
+      loadPreview(url).then((p) => { if (alive) setPreview(p); });
     };
     // Só busca quando a mensagem aparece na tela.
     const el = ref.current;

@@ -11,6 +11,7 @@ export const EXTRA_DEFAULTS = Object.freeze({
   colorTheme: 'none',
   customTheme: { colors: ['#5b21b6', '#1e3a8a'], angle: 135, accent: '#8b5cf6', mix: 55 },
   themeSync: true,
+  cacheMessages: true,
   themeOnProfiles: true,
   appIcon: 'default',
   streamerMode: false,

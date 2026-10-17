@@ -53,6 +53,17 @@ export const useStore = create((set, get) => ({
   roles: [], // cargos globais da comunidade
   community: { name: 'Project Club', iconUrl: null, bannerUrl: null }, // nome/ícone/banner definidos pela staff
   conversations: [],
+  // Já chegou (do servidor ou da cópia local) a estrutura da comunidade /
+  // a lista de conversas? Enquanto não, as listas mostram esqueleto em vez
+  // de "vazio" (ver ListSkeleton.jsx).
+  communityLoaded: false,
+  conversationsLoaded: false,
+  markLoaded: (patch) => set((s) => {
+    const next = {};
+    if (patch.community && !s.communityLoaded) next.communityLoaded = true;
+    if (patch.conversations && !s.conversationsLoaded) next.conversationsLoaded = true;
+    return next;
+  }),
   friends: [],
   presence: {}, // userId -> { status, customStatus }
   // Item pedido: "Rich Presence" (jogo/Spotify) — userId -> activity
@@ -294,6 +305,7 @@ export const useStore = create((set, get) => ({
   mobileMembersOpen: false,
 
   setCommunityStructure: ({ categories, channels, members, roles, community }) => set((s) => ({
+    ...(categories || channels || members ? { communityLoaded: true } : {}),
     categories: categories
       ? categories.map((cat) => ({ ...cat, channels: withChannelStates(cat.channels || [], s.channelStates, s.channelReadAt) }))
       : s.categories,
@@ -367,7 +379,7 @@ export const useStore = create((set, get) => ({
   // Gaveta de canais no celular (gesto de deslizar da borda esquerda).
   openMobileChannelList: () => set({ mobileChannelListOpen: true, mobileSidebarOpen: true, mobileMembersOpen: false }),
 
-  setConversations: (conversations) => set({ conversations }),
+  setConversations: (conversations) => set({ conversations, conversationsLoaded: true }),
   upsertConversation: (conversation) => set((s) => ({
     conversations: s.conversations.some((c) => c.id === conversation.id)
       ? s.conversations.map((c) => (c.id === conversation.id ? { ...c, ...conversation } : c))
@@ -719,6 +731,17 @@ export const useStore = create((set, get) => ({
       )),
     },
   })),
+  // Muda só alguns campos de uma mensagem (estado de envio, progresso do
+  // upload…) sem trocar o resto. Sem a sala/mensagem, não faz nada.
+  patchMessage: (roomKey, id, patch) => set((s) => {
+    const list = s.messagesByRoom[roomKey];
+    if (!list) return {};
+    const idx = list.findIndex((m) => m.id === id);
+    if (idx < 0) return {};
+    const next = list.slice();
+    next[idx] = { ...list[idx], ...patch };
+    return { messagesByRoom: { ...s.messagesByRoom, [roomKey]: next } };
+  }),
   updateMessage: (roomKey, message) => set((s) => ({
     messagesByRoom: {
       ...s.messagesByRoom,
