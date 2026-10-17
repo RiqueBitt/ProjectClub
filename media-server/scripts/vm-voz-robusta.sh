@@ -202,7 +202,7 @@ cat <<EOF
   senha:   $P
   (tem que aparecer candidato "relay")
 
-No painel da staff (Sistema → Provedores de voz → Project Club → chaves), TURN_URLS:
+No painel da staff (Sistema → Servidor de voz), TURN_URLS:
 EOF
 if [ "$TURN_443" = "1" ]; then
   echo "  turn:$DOMAIN:3478?transport=udp,turn:$DOMAIN:3478?transport=tcp,turns:$TURN_DOMAIN:443?transport=tcp,turns:$TURN_DOMAIN:5349?transport=tcp"
