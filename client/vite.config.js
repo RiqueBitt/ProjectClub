@@ -74,18 +74,8 @@ export default defineConfig({
           // Children" / dep circular). Deixá-lo no "vendor" geral (sempre
           // carregado no início de qualquer jeito) resolve, sem custo real.
           if (id.includes('socket.io-client') || id.includes('engine.io-client')) return 'vendor-socket';
-          // Item pedido ("web demora pra carregar página"): o SDK do
-          // Agora (chamada de voz) sozinho é responsável pela maior parte
-          // do que virava um único pacote de quase 2MB antes — e ele
-          // NUNCA é necessário só pra navegar pelo chat/feeds/perfil. Ter
-          // ele num pacote PRÓPRIO (em vez de dentro do "vendor" geral)
-          // só ajuda se também for carregado sob demanda (ver import()
-          // dinâmico em VoiceContext.jsx) — os dois juntos é o que faz a
-          // pessoa parar de baixar esses ~500kB comprimidos toda vez que
-          // só quer ver uma mensagem.
-          if (id.includes('agora-rtc-sdk-ng')) return 'vendor-agora';
-          // Demais provedores da cadeia de voz (LiveKit, Stream, Daily,
-          // TRTC): cada SDK num pacote PRÓPRIO e carregado SÓ sob demanda
+          // Provedores da cadeia de voz (servidor próprio/mediasoup,
+          // LiveKit): cada SDK num pacote PRÓPRIO e carregado SÓ sob demanda
           // (import() dinâmico em client/src/voice/*Engine.js). Assim eles
           // NUNCA entram no bundle inicial — a cadeia só baixa o SDK do
           // provedor que de fato for usado numa chamada, e quem só navega

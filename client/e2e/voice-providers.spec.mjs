@@ -4,7 +4,7 @@ import { handler, imageHandler } from './mock-api.mjs';
 // Painel da staff "Provedores de voz" (item pedido): com /api/voice/provider
 // simulado (ativo = livekit, modo reserva), confere que o painel lista os
 // provedores da cadeia com barras de uso e mostra o aviso de "modo reserva"
-// quando o ativo não é o principal (agora).
+// quando o ativo não é o principal (o servidor próprio).
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     try {
@@ -28,14 +28,16 @@ test('painel lista os provedores de voz com barras de uso e aviso de modo reserv
   const panel = page.locator('[data-testid="voice-providers-admin"]');
   await expect(panel).toBeVisible({ timeout: 20_000 });
 
-  // Todos os 6 provedores da cadeia aparecem.
-  for (const id of ['agora', 'livekit', 'getstream', 'daily', 'trtc', 'jitsi']) {
+  // Os 5 provedores da cadeia aparecem (Agora e Stream foram removidos).
+  for (const id of ['projectclub', 'livekit', 'daily', 'trtc', 'jitsi']) {
     await expect(page.locator(`[data-testid="voice-provider-${id}"]`)).toBeVisible();
+  }
+  for (const id of ['agora', 'getstream']) {
+    await expect(page.locator(`[data-testid="voice-provider-${id}"]`)).toHaveCount(0);
   }
 
   // Barra de uso com "X / Y min (Z%)" (ex.: o LiveKit ativo em 24%).
   await expect(page.locator('[data-testid="voice-provider-livekit"]')).toContainText('/ 5.000 min (24%)');
-  await expect(page.locator('[data-testid="voice-provider-agora"]')).toContainText('(100%)');
   // Jitsi é ilimitado.
   await expect(page.locator('[data-testid="voice-provider-jitsi"]')).toContainText('ilimitado');
   // Daily configurado mas sem a chave.

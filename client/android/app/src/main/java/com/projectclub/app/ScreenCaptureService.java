@@ -39,8 +39,8 @@ import android.util.Base64;
 // Essa ordem é respeitada abaixo em onStartCommand().
 //
 // Item pedido ("jeito mais fácil"): em vez da abordagem gráfica de
-// baixo nível (OpenGL/EGL, como o próprio exemplo oficial do Agora
-// faz), esse serviço só entrega os PIXELS da tela como imagens JPEG
+// baixo nível (OpenGL/EGL, como os exemplos de SDKs de vídeo
+// fazem), esse serviço só entrega os PIXELS da tela como imagens JPEG
 // simples (via ImageReader — bem mais simples de implementar
 // corretamente do que renderização de superfície com OpenGL) — quem
 // transforma isso num vídeo de verdade é o lado JavaScript, desenhando
@@ -135,9 +135,9 @@ public class ScreenCaptureService extends Service {
     // repetidamente — desperdiça CPU/bateria/banda à toa, já que quem
     // assiste do outro lado nunca precisa de mais que ~720p pra ver
     // uma tela compartilhada com nitidez. Reduz proporcionalmente pra
-    // no máximo 720px no maior lado, mesma referência usada pela
-    // própria Agora (720p é o padrão deles pra compartilhamento de
-    // tela) e por guias técnicos de WebRTC pra Android.
+    // no máximo 720px no maior lado (720p é o padrão comum pra
+    // compartilhamento de tela) — referência de guias técnicos de
+    // WebRTC pra Android.
     int rawWidth = metrics.widthPixels;
     int rawHeight = metrics.heightPixels;
     int densityDpi = metrics.densityDpi;

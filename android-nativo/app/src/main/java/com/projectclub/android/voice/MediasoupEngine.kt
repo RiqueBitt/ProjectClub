@@ -1,10 +1,14 @@
 package com.projectclub.android.voice
 
 import android.app.Application
+import android.content.ComponentCallbacks
 import android.content.Context
+import android.content.res.Configuration
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.projection.MediaProjection
+import android.net.ConnectivityManager
+import android.net.Network
 import android.util.Log
 import android.view.Surface
 import android.view.SurfaceView
@@ -70,9 +74,20 @@ private class SignalClosed(val code: Int) : IllegalStateException("conexão com 
  * (client/src/voice/mediasoupEngine.js): { id, method, data } ↔ { id, ok, data }
  * e eventos { event, data }.
  *
- * Tudo do mediasoup roda numa thread só (o libmediasoupclient exige); os
- * callbacks onConnect/onProduce bloqueiam essa thread esperando a resposta
- * do servidor (é assim que a biblioteca funciona).
+ * Tudo do mediasoup roda numa thread só (o libmediasoupclient exige). Os
+ * pedidos à sinalização SUSPENDEM a corrotina (não travam a thread — eventos
+ * continuam chegando enquanto um pedido demora); só os callbacks síncronos
+ * onConnect/onProduce bloqueiam esperando a resposta (a biblioteca exige).
+ *
+ * Igual ao site (client/src/voice/mediasoupEngine.js):
+ *  - permissões do servidor de mídia (serverState): plateia do palco / sem
+ *    SPEAK / mudo da moderação mantêm o microfone pausado; sem VIDEO a tela
+ *    é fechada;
+ *  - mudo → o microfone é publicado JÁ PAUSADO (appData.paused);
+ *  - troca de rede (ConnectivityManager) → ICE restart na hora;
+ *  - "está falando" local (anel verde) a partir das amostras do microfone;
+ *  - ensurdecer pausa o áudio NO SERVIDOR (economia de banda);
+ *  - expulso (4403/kicked) não reconecta; 'flapping' = outro aparelho.
  *
  * Quedas (igual ao site, ver RECONNECT_DELAYS_MS):
  *  - transporte "disconnected" costuma voltar sozinho: espera um pouco;
@@ -91,14 +106,18 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         fun onReconnected()
         /**
          * Desistiu desta sessão. [providerBroken] = o servidor próprio não está
-         * servindo agora (vale trocar de provedor); false = só precisa de
+         * servindo agora (conta como falha e tenta de novo com espera); false = só precisa de
          * credenciais novas (token venceu).
          */
         fun onGaveUp(message: String, providerBroken: Boolean)
         /** Você entrou nesta call em outro aparelho (fechou com 4409). */
         fun onReplaced()
-        /** O servidor tirou você da sala. */
-        fun onLeft()
+        /** O servidor tirou você da sala ([reason]: 'kicked', 'moved', 'disconnected', 'missed'…). */
+        fun onLeft(reason: String)
+        /** Estado imposto pelo servidor de mídia (mudo/ensurdecer da moderação, palco). */
+        fun onServerState(serverMuted: Boolean, serverDeafened: Boolean, canSpeak: Boolean)
+        /** Você começou/parou de falar (medido no próprio microfone, com 300 ms de folga). */
+        fun onLocalSpeaking(speaking: Boolean)
         /** Aviso que não derruba a chamada (ex.: tela não compartilhou). */
         fun onWarning(message: String)
         /** A transmissão de tela parou sozinha (queda/reconexão). */
@@ -135,16 +154,30 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
 
     private var micSource: org.webrtc.AudioSource? = null
     private var micTrack: AudioTrack? = null
-    private var micProducer: Producer? = null
+    @Volatile private var micProducer: Producer? = null
+    /** O producer do microfone está pausado (controlado aqui — mudo/servidor). */
+    @Volatile private var micPaused = false
     private var screenProducer: Producer? = null
     private var screenSource: VideoSource? = null
     private var screenTrack: VideoTrack? = null
     private var screenCapturer: ProjectionCapturer? = null
     private var screenHelper: SurfaceTextureHelper? = null
+    /** Girou o aparelho no meio da transmissão: refaz a captura nas medidas novas. */
+    private var screenRotation: ComponentCallbacks? = null
 
     /** consumerId → consumidor (com dono e origem). */
     private class Remote(val consumer: Consumer, val producerId: String, val peerId: String, val source: String, val kind: String)
     private val consumers = ConcurrentHashMap<String, Remote>()
+    /** producerIds com consume em andamento (o pedido suspende — sem duplicar o consumidor). */
+    private val consuming: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    /**
+     * newProducer que chegou enquanto a sessão ainda montava (os pedidos
+     * suspendem, então eventos rodam no meio do doSession): guardado e
+     * assinado no fim — antes, com runBlocking, eles esperavam na fila; sem
+     * isso, quem publicasse nesse meio-tempo nunca seria ouvido. Só na thread
+     * do worker.
+     */
+    private val earlyProducers = ArrayList<JSONObject>()
     private val sinks = ConcurrentHashMap<String, SurfaceViewRenderer>()
 
     /** Cada join/leave muda a geração: callbacks de sessões antigas são ignorados. */
@@ -157,6 +190,16 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
     @Volatile private var micMuted = false
     @Volatile private var listenOnly = false
     @Volatile private var deafened = false
+    /** Estado imposto pelo servidor de mídia (claims do token + moderação). */
+    @Volatile private var canSpeak = true
+    @Volatile private var canVideo = true
+    @Volatile private var serverMuted = false
+    /** Anel verde local (amostras do microfone). */
+    @Volatile private var localSpeaking = false
+    @Volatile private var lastLoudAt = 0L
+    /** Troca de rede (wifi ↔ 4G) → ICE restart. */
+    private var netCallback: ConnectivityManager.NetworkCallback? = null
+    @Volatile private var sawFirstNetwork = false
 
     // Reconexão (só mexidos na thread do worker).
     /** Já passou mídia nesta chamada (algum transporte conectou). */
@@ -165,24 +208,40 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
     private var reconnectJob: Job? = null
     private var disconnectedJob: Job? = null
     private var iceRestarts = 0
-    /** O servidor de mídia sabe fazer "restartIce"? (o atual ainda não: cai na reconexão completa). */
+    /**
+     * O servidor de mídia sabe fazer "restartIce"? O media-server atual SABE
+     * (sinalização `restartIce` → credenciais ICE novas, sem refazer a
+     * sessão). Só vira false se um servidor ANTIGO responder "método
+     * desconhecido" — aí cai na reconexão completa.
+     */
     private var iceRestartSupported = true
 
     // ---------------- sinalização ----------------
 
-    private fun request(method: String, data: JSONObject = JSONObject()): JSONObject = runBlocking {
+    /**
+     * Pedido à sinalização SEM travar a thread do mediasoup: a corrotina
+     * suspende até a resposta. Antes era runBlocking — um pedido lento
+     * (consume, restartIce) segurava todos os eventos da chamada parados.
+     */
+    private suspend fun request(method: String, data: JSONObject = JSONObject()): JSONObject {
         val id = seq.incrementAndGet()
         val d = CompletableDeferred<JSONObject>()
         pending[id] = d
         val sent = ws?.send(JSONObject().put("id", id).put("method", method).put("data", data).toString()) ?: false
         if (!sent) { pending.remove(id); throw IllegalStateException("sinalização desconectada") }
         try {
-            withTimeout(15_000) { d.await() }
+            return withTimeout(15_000) { d.await() }
         } catch (e: TimeoutCancellationException) {
             // Vira erro comum: um CancellationException aqui sumiria em silêncio.
             throw IllegalStateException("o servidor de voz não respondeu ($method)")
         } finally { pending.remove(id) }
     }
+
+    /**
+     * Versão BLOQUEANTE — só pros callbacks síncronos do libmediasoupclient
+     * (onConnect/onProduce), que precisam da resposta antes de voltar.
+     */
+    private fun requestBlocking(method: String, data: JSONObject): JSONObject = runBlocking { request(method, data) }
 
     /** Um ouvinte por conexão: só a conexão ATUAL mexe na chamada. */
     private inner class SignalListener(private val g: Int, private val welcome: CompletableDeferred<JSONObject>) : WebSocketListener() {
@@ -233,6 +292,8 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         when (code) {
             4409 -> replaced()
             4401 -> giveUp("A sessão de voz expirou.", providerBroken = false)
+            // Expulso pela moderação: não reconecta.
+            4403 -> kickedOut("kicked")
             // Durante a entrada/reconexão quem trata é quem está tentando.
             else -> if (sessionUp) scheduleReconnect("sinalização caiu ($code)")
         }
@@ -248,6 +309,8 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         micMuted = startMuted
         this.listenOnly = listenOnly
         deafened = false
+        canSpeak = true; canVideo = true; serverMuted = false
+        watchNetwork()
         scope.launch {
             if (g != gen) return@launch
             reconnectAttempt = 0
@@ -262,29 +325,36 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
                 if (g != gen || closed) return@launch
                 teardownSession()
                 val code = (e as? SignalClosed)?.code
-                if (code == 4409) replaced()
-                else giveUp("Não deu pra entrar na chamada: ${e.message ?: "erro"}", providerBroken = code != 4401)
+                when (code) {
+                    4409 -> replaced()
+                    4403 -> kickedOut("kicked")
+                    // Token vencido, muitas tentativas ou sala cheia: não é o servidor quebrado.
+                    else -> giveUp("Não deu pra entrar na chamada: ${e.message ?: "erro"}", providerBroken = code != 4401 && code != 4429 && code != 4503)
+                }
             }
         }
     }
 
     /** Uma sessão completa: sinalização → Device → transportes → microfone → mídia dos outros. */
-    private fun doSession(g: Int) {
+    private suspend fun doSession(g: Int) {
         val c = creds ?: error("sem credenciais")
         ensureFactory()
         val f = factory ?: error("WebRTC não iniciou")
         val sep = if (c.url.contains("?")) "&" else "?"
+        earlyProducers.clear()
         val welcome = CompletableDeferred<JSONObject>()
         ws = http.newWebSocket(
             Request.Builder().url("${c.url}${sep}token=${URLEncoder.encode(c.token, "UTF-8")}").build(),
             SignalListener(g, welcome),
         )
         val w = try {
-            runBlocking { withTimeout(15_000) { welcome.await() } }
+            withTimeout(15_000) { welcome.await() }
         } catch (e: TimeoutCancellationException) {
             throw IllegalStateException("o servidor de voz não respondeu")
         }
         check(g == gen && !closed) { "chamada encerrada" }
+        // Permissões/moderação impostas pelo servidor (antes de publicar o mic).
+        w.optJSONObject("serverState")?.let { readServerState(it) }
 
         rtcConfig = PeerConnection.RTCConfiguration(c.iceServers).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
@@ -313,12 +383,21 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         }
         iceRestarts = 0
         sessionUp = true
+        // Publicados enquanto a sessão montava (ver earlyProducers).
+        val early = earlyProducers.toList()
+        earlyProducers.clear()
+        for (p in early) {
+            if (g != gen || closed) break
+            runCatching { consume(g, p) }.onFailure { Log.w(TAG, "consume", it) }
+        }
     }
 
-    private fun publishMic() {
+    private suspend fun publishMic() {
         val f = factory ?: return
         val st = send ?: return
         if (micProducer != null) return
+        // Plateia do palco / sem SPEAK: nem publica (o servidor recusaria).
+        if (!canSpeak) return
         val track = micTrack ?: run {
             val prefs = VoicePrefs.get(context)
             val src = f.createAudioSource(MediaConstraints().apply {
@@ -331,30 +410,40 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
             micSource = src
             f.createAudioTrack("mic", src).also { micTrack = it }
         }
-        track.setEnabled(true)
+        // Mudo (próprio ou da moderação): publica JÁ PAUSADO — a faixa sai
+        // desligada e o servidor cria o producer pausado (nada vaza).
+        val startPaused = micMuted || serverMuted
+        track.setEnabled(!startPaused)
+        // Prioridade ALTA (banda e rede) pra voz; sem escala (é áudio).
+        val enc = RtpParameters.Encoding(null, true, null).apply { networkPriority = 3; bitratePriority = 4.0 }
         val p = st.produce(
             object : Producer.Listener { override fun onTransportClose(producer: Producer) {} },
-            track, emptyList(), "{\"opusStereo\":false,\"opusDtx\":true,\"opusFec\":true}", null, "{\"source\":\"mic\"}",
+            // opusNack: o servidor retransmite pacote de voz perdido (junto do FEC).
+            track, listOf(enc), "{\"opusStereo\":false,\"opusDtx\":true,\"opusFec\":true,\"opusNack\":true,\"opusMaxAverageBitrate\":64000}", null,
+            "{\"source\":\"mic\",\"paused\":$startPaused}",
         )
         micProducer = p
-        if (micMuted) {
+        micPaused = false
+        if (startPaused) {
             p.pause()
+            micPaused = true
+            // Servidor antigo (sem appData.paused): pausa explícita.
             runCatching { request("pauseProducer", JSONObject().put("producerId", p.id)) }
         }
     }
 
-    private fun createSend(g: Int, dev: Device): SendTransport {
+    private suspend fun createSend(g: Int, dev: Device): SendTransport {
         val info = request("createTransport", JSONObject().put("direction", "send"))
         return dev.createSendTransport(
             object : SendTransport.Listener {
                 override fun onConnect(transport: Transport, dtlsParameters: String) {
-                    request("connectTransport", JSONObject().put("transportId", transport.id).put("dtlsParameters", JSONObject(dtlsParameters)))
+                    requestBlocking("connectTransport", JSONObject().put("transportId", transport.id).put("dtlsParameters", JSONObject(dtlsParameters)))
                 }
                 override fun onConnectionStateChange(transport: Transport, newState: String) {
                     scope.launch { onTransportState(g, transport, "envio", newState) }
                 }
                 override fun onProduce(transport: Transport, kind: String, rtpParameters: String, appData: String?): String {
-                    val r = request("produce", JSONObject().put("transportId", transport.id).put("kind", kind)
+                    val r = requestBlocking("produce", JSONObject().put("transportId", transport.id).put("kind", kind)
                         .put("rtpParameters", JSONObject(rtpParameters)).put("appData", appData?.let { JSONObject(it) } ?: JSONObject()))
                     return r.getString("producerId")
                 }
@@ -365,12 +454,12 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         )
     }
 
-    private fun createRecv(g: Int, dev: Device): RecvTransport {
+    private suspend fun createRecv(g: Int, dev: Device): RecvTransport {
         val info = request("createTransport", JSONObject().put("direction", "recv"))
         return dev.createRecvTransport(
             object : RecvTransport.Listener {
                 override fun onConnect(transport: Transport, dtlsParameters: String) {
-                    request("connectTransport", JSONObject().put("transportId", transport.id).put("dtlsParameters", JSONObject(dtlsParameters)))
+                    requestBlocking("connectTransport", JSONObject().put("transportId", transport.id).put("dtlsParameters", JSONObject(dtlsParameters)))
                 }
                 override fun onConnectionStateChange(transport: Transport, newState: String) {
                     scope.launch { onTransportState(g, transport, "recepção", newState) }
@@ -381,9 +470,14 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         )
     }
 
-    private fun consume(g: Int, p: JSONObject) {
+    private suspend fun consume(g: Int, p: JSONObject) {
         val producerId = p.optString("producerId").takeIf { it.isNotEmpty() } ?: return
         if (consumers.values.any { it.producerId == producerId }) return // já está tocando
+        if (!consuming.add(producerId)) return // já tem um consume em andamento
+        try { consumeNow(g, p, producerId) } finally { consuming.remove(producerId) }
+    }
+
+    private suspend fun consumeNow(g: Int, p: JSONObject, producerId: String) {
         val rt = recv ?: return
         val dev = device ?: return
         val info = request("consume", JSONObject().put("transportId", rt.id).put("producerId", producerId)
@@ -404,6 +498,8 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
             runCatching { t.setVolume(VoicePrefs.get(context).gainFor(peer)) }
         }
         else { sinks[peer]?.let { s -> (consumer.track as? VideoTrack)?.addSink(s) }; publishVideo() }
+        // Ensurdecido: o áudio continua pausado no servidor (nem chega aqui).
+        if (kind == "audio" && deafened) return
         // O servidor cria o consumidor PAUSADO (recomendação do mediasoup):
         // sem este resume ninguém é ouvido — tenta de novo uma vez se falhar.
         val resume = JSONObject().put("consumerId", consumer.id)
@@ -419,9 +515,12 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         runCatching { r.consumer.dispose() }
     }
 
-    private fun onEvent(g: Int, event: String, data: JSONObject) {
+    private suspend fun onEvent(g: Int, event: String, data: JSONObject) {
         when (event) {
-            "newProducer" -> if (sessionUp) runCatching { consume(g, data) }.onFailure { Log.w(TAG, "consume", it) }
+            "newProducer" -> {
+                if (sessionUp) runCatching { consume(g, data) }.onFailure { Log.w(TAG, "consume", it) }
+                else earlyProducers.add(data)
+            }
             "consumerClosed", "producerClosed" -> {
                 val byConsumer = data.optString("consumerId").takeIf { it.isNotEmpty() }
                 val byProducer = data.optString("producerId").takeIf { it.isNotEmpty() }
@@ -439,10 +538,11 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
                     .map { if (it == myId) "me" else it }.toSet()
                 events.onSpeaking(ids)
             }
-            "kicked" -> if (data.optString("reason") == "replaced") replaced() else {
-                closed = true
-                teardownSession()
-                events.onLeft()
+            "serverState" -> applyServerState(data)
+            // Outro aparelho (inclusive a troca em loop, 'flapping'): não reconecta.
+            "kicked" -> when (val reason = data.optString("reason")) {
+                "replaced", "flapping" -> replaced()
+                else -> kickedOut(reason.ifEmpty { "kicked" })
             }
         }
     }
@@ -458,7 +558,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         s == PeerConnection.IceConnectionState.CONNECTED || s == PeerConnection.IceConnectionState.COMPLETED
     }.getOrDefault(false)
 
-    private fun onTransportState(g: Int, t: Transport, dir: String, state: String) {
+    private suspend fun onTransportState(g: Int, t: Transport, dir: String, state: String) {
         if (g != gen || closed || !sessionUp) return
         if (t !== send && t !== recv) return // de uma sessão antiga
         when (state) {
@@ -510,7 +610,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
     }
 
     /** Primeiro um ICE restart (barato, não derruba nada); se não der, reconexão completa. */
-    private fun recoverTransport(g: Int, t: Transport, dir: String) {
+    private suspend fun recoverTransport(g: Int, t: Transport, dir: String) {
         if (!mediaUp) {
             // Nunca chegou a passar mídia nesta chamada (ex.: UDP bloqueado):
             // insistir no mesmo servidor só atrasa — deixa o VoiceManager trocar.
@@ -568,6 +668,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
                 teardownSession()
                 when ((e as? SignalClosed)?.code) {
                     4409 -> replaced()
+                    4403 -> kickedOut("kicked")
                     4401 -> giveUp("A sessão de voz expirou.", providerBroken = false)
                     else -> scheduleReconnect("tentativa ${attempt + 1} falhou")
                 }
@@ -591,6 +692,112 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         events.onReplaced()
     }
 
+    /** Tirado da sala pelo servidor (moderação, movido, ligação perdida): não reconecta. */
+    private fun kickedOut(reason: String) {
+        if (closed) return
+        closed = true
+        reconnectJob?.cancel(); reconnectJob = null
+        teardownSession()
+        events.onLeft(reason)
+    }
+
+    // ---------------- permissões / moderação ----------------
+
+    private fun readServerState(o: JSONObject) {
+        val audience = o.optString("role") == "audience"
+        canSpeak = o.optBoolean("canSpeak", true) && !audience
+        canVideo = o.optBoolean("canVideo", true) && !audience
+        serverMuted = o.optBoolean("serverMuted", false)
+    }
+
+    /**
+     * O servidor mudou o que eu posso (mudo/ensurdecer da moderação, palco,
+     * VIDEO): o servidor já pausou/fechou do lado dele — aqui só espelha e,
+     * quando libera, volta o microfone se EU não estava mudo.
+     */
+    private suspend fun applyServerState(o: JSONObject) {
+        readServerState(o)
+        val blocked = !canSpeak || serverMuted
+        val p = micProducer
+        if (p != null) {
+            if (blocked && !micPaused) { runCatching { p.pause() }; micPaused = true }
+            else if (!blocked && micPaused && !micMuted) {
+                runCatching { p.resume() }
+                micPaused = false
+                runCatching { request("resumeProducer", JSONObject().put("producerId", p.id)) }
+            }
+        } else if (!blocked && sessionUp && !listenOnly) {
+            // Virou palestrante no palco: agora pode publicar.
+            runCatching { publishMic() }.onFailure { Log.w(TAG, "microfone", it) }
+        }
+        val closedIds = o.optJSONArray("closedProducerIds")
+        val sp = screenProducer
+        if (sp != null && (!canVideo || (closedIds != null && (0 until closedIds.length()).any { closedIds.optString(it) == sp.id }))) {
+            stopScreenLocal()
+            events.onScreenStopped()
+        }
+        if (blocked && localSpeaking) { localSpeaking = false; events.onLocalSpeaking(false) }
+        events.onServerState(serverMuted, o.optBoolean("serverDeafened", false), canSpeak)
+    }
+
+    // ---------------- troca de rede ----------------
+
+    /** Troca de rede (wifi ↔ 4G): ICE restart na hora, sem esperar o ICE cair. */
+    private fun watchNetwork() {
+        if (netCallback != null) return
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        sawFirstNetwork = false
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                // O primeiro aviso é a rede ATUAL (logo ao registrar): só as trocas contam.
+                if (!sawFirstNetwork) { sawFirstNetwork = true; return }
+                scope.launch { onNetworkChanged() }
+            }
+        }
+        runCatching { cm.registerDefaultNetworkCallback(cb) }.onSuccess { netCallback = cb }
+            .onFailure { Log.w(TAG, "monitor de rede", it) }
+    }
+
+    private fun unwatchNetwork() {
+        val cb = netCallback ?: return
+        netCallback = null
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        runCatching { cm.unregisterNetworkCallback(cb) }
+    }
+
+    private suspend fun onNetworkChanged() {
+        val g = gen
+        if (closed || !sessionUp) return
+        if (ws == null) { scheduleReconnect("a rede mudou"); return }
+        Log.i(TAG, "a rede mudou: ICE restart nos transportes")
+        iceRestarts = 0
+        val transports = listOfNotNull(send?.let { it to "envio" }, recv?.let { it to "recepção" })
+        for ((t, dir) in transports) {
+            if (g != gen || closed || !sessionUp) return
+            val r = runCatching {
+                val res = request("restartIce", JSONObject().put("transportId", t.id))
+                val ice = res.optJSONObject("iceParameters") ?: error("sem iceParameters")
+                t.restartIce(ice.toString())
+            }
+            if (r.isFailure) { scheduleReconnect("ICE restart falhou depois de trocar de rede ($dir)"); return }
+        }
+    }
+
+    // ---------------- "está falando" local ----------------
+
+    /** Amostras do microfone (thread de áudio): anel verde local, com folga. */
+    private fun onMicSamples(data: ByteArray) {
+        if (closed || !sessionUp) return
+        val transmitting = !micMuted && !listenOnly && !serverMuted && canSpeak && micProducer != null && !micPaused
+        val now = System.currentTimeMillis()
+        if (transmitting && pcm16Db(data) >= SPEAKING_DB) lastLoudAt = now
+        val speaking = transmitting && now - lastLoudAt <= SPEAKING_HOLD_MS
+        if (speaking != localSpeaking) {
+            localSpeaking = speaking
+            events.onLocalSpeaking(speaking)
+        }
+    }
+
     /**
      * Derruba a sessão atual (sinalização, transportes, consumidores,
      * producers) mas GUARDA o microfone e a fábrica pra próxima.
@@ -611,6 +818,8 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         }
         micProducer?.let { p -> runCatching { p.close() }; runCatching { p.dispose() } }
         micProducer = null
+        micPaused = false
+        if (localSpeaking) { localSpeaking = false; events.onLocalSpeaking(false) }
         send?.let { t -> runCatching { t.close() }; runCatching { t.dispose() } }
         recv?.let { t -> runCatching { t.close() }; runCatching { t.dispose() } }
         send = null; recv = null
@@ -630,8 +839,18 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
             return@launch
         }
         runCatching {
-            if (muted) { p.pause(); request("pauseProducer", JSONObject().put("producerId", p.id)) }
-            else { p.resume(); request("resumeProducer", JSONObject().put("producerId", p.id)) }
+            if (muted) {
+                p.pause(); micPaused = true
+                request("pauseProducer", JSONObject().put("producerId", p.id))
+            } else if (!serverMuted && canSpeak) {
+                // Com mudo da moderação o "quero falar" fica guardado: o
+                // microfone só volta quando o servidor liberar (serverState).
+                p.resume(); micPaused = false
+                request("resumeProducer", JSONObject().put("producerId", p.id))
+            }
+        }.onFailure {
+            // Servidor recusou desmutar (forbidden:server-muted / sem SPEAK): volta a pausar.
+            if (it.message?.startsWith("forbidden:") == true) { runCatching { p.pause() }; micPaused = true }
         }
     }
 
@@ -652,9 +871,13 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         }
     }
 
+    /** Ensurdecer: silencia aqui E pede pro servidor parar de mandar o áudio (banda). */
     fun setDeafened(deaf: Boolean) = scope.launch {
         deafened = deaf
-        consumers.values.filter { it.kind == "audio" }.forEach { runCatching { (it.consumer.track as? AudioTrack)?.setEnabled(!deaf) } }
+        consumers.entries.filter { it.value.kind == "audio" }.forEach { (id, r) ->
+            runCatching { (r.consumer.track as? AudioTrack)?.setEnabled(!deaf) }
+            if (sessionUp) runCatching { request(if (deaf) "pauseConsumer" else "resumeConsumer", JSONObject().put("consumerId", id)) }
+        }
     }
 
     fun startScreen(mp: MediaProjection, onError: (String) -> Unit) = scope.launch {
@@ -666,18 +889,24 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
             val source = f.createVideoSource(true)
             val cap = ProjectionCapturer(mp)
             cap.initialize(helper, context, source.capturerObserver)
-            val dm = context.resources.displayMetrics
-            val scale = 1280f / maxOf(dm.widthPixels, dm.heightPixels)
-            val w = (dm.widthPixels * scale).toInt() and 1.inv()
-            val h = (dm.heightPixels * scale).toInt() and 1.inv()
-            cap.startCapture(w, h, 15)
+            // 1080p (lado maior 1920) a 30 fps, até 4 Mbps — igual ao preset
+            // "1080p/30" do site, num celular. O som interno do aparelho NÃO
+            // vai junto: capturar o áudio de reprodução (AudioPlaybackCapture)
+            // e publicar como faixa exige recompilar o libmediasoup-android
+            // com um AudioDeviceModule próprio — fica pra depois.
+            val (w, h) = screenCaptureSize(context.resources.configuration.orientation)
+            cap.startCapture(w, h, SCREEN_FPS)
             val track = f.createVideoTrack("screen", source)
             screenHelper = helper; screenSource = source; screenTrack = track; screenCapturer = cap
-            val enc = RtpParameters.Encoding(null, true, 1.0).apply { maxBitrateBps = 2_500_000 }
+            val enc = RtpParameters.Encoding(null, true, 1.0).apply {
+                maxBitrateBps = SCREEN_MAX_BITRATE
+                maxFramerate = SCREEN_FPS
+            }
             screenProducer = st.produce(
                 object : Producer.Listener { override fun onTransportClose(producer: Producer) {} },
                 track, listOf(enc), null, null, "{\"source\":\"screen\"}",
             )
+            watchScreenRotation()
         } catch (e: Throwable) {
             Log.w(TAG, "tela", e)
             stopScreenLocal()
@@ -687,7 +916,45 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
 
     fun stopScreen() = scope.launch { stopScreenNow() }
 
-    private fun stopScreenNow() {
+    /**
+     * Medidas da captura (pares, lado maior = 1920) pra orientação atual. As
+     * métricas da tela às vezes ainda não trocaram quando o aviso de rotação
+     * chega: a orientação nova decide qual lado é o maior.
+     */
+    private fun screenCaptureSize(orientation: Int): Pair<Int, Int> {
+        val dm = context.resources.displayMetrics
+        val big = maxOf(dm.widthPixels, dm.heightPixels).coerceAtLeast(1)
+        val small = minOf(dm.widthPixels, dm.heightPixels).coerceAtLeast(1)
+        val scale = SCREEN_MAX_SIDE.toFloat() / big
+        val long = (big * scale).toInt() and 1.inv()
+        val short = (small * scale).toInt() and 1.inv()
+        return if (orientation == Configuration.ORIENTATION_LANDSCAPE) Pair(long, short) else Pair(short, long)
+    }
+
+    /** Girou o aparelho: muda a captura pras medidas novas (sem parar a transmissão). */
+    private fun watchScreenRotation() {
+        unwatchScreenRotation()
+        val cb = object : ComponentCallbacks {
+            override fun onConfigurationChanged(newConfig: Configuration) {
+                scope.launch {
+                    val cap = screenCapturer ?: return@launch
+                    val (w, h) = screenCaptureSize(newConfig.orientation)
+                    runCatching { cap.changeCaptureFormat(w, h, SCREEN_FPS) }.onFailure { Log.w(TAG, "rotação da tela", it) }
+                }
+            }
+            @Deprecated("Deprecated in Java")
+            override fun onLowMemory() {}
+        }
+        screenRotation = cb
+        runCatching { context.registerComponentCallbacks(cb) }
+    }
+
+    private fun unwatchScreenRotation() {
+        screenRotation?.let { cb -> runCatching { context.unregisterComponentCallbacks(cb) } }
+        screenRotation = null
+    }
+
+    private suspend fun stopScreenNow() {
         screenProducer?.let { p ->
             if (sessionUp) runCatching { request("closeProducer", JSONObject().put("producerId", p.id)) }
         }
@@ -696,6 +963,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
 
     /** Para a captura e solta tudo da tela sem falar com o servidor. */
     private fun stopScreenLocal() {
+        unwatchScreenRotation()
         screenProducer?.let { p -> runCatching { p.close() }; runCatching { p.dispose() } }
         screenProducer = null
         runCatching { screenCapturer?.stopCapture() }
@@ -734,6 +1002,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
     fun leave() {
         gen++
         closed = true
+        unwatchNetwork()
         scope.launch {
             reconnectJob?.cancel(); reconnectJob = null
             runCatching { stopScreenNow() }
@@ -757,6 +1026,8 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         val a = JavaAudioDeviceModule.builder(context)
             .setUseHardwareAcousticEchoCanceler(true)
             .setUseHardwareNoiseSuppressor(true)
+            // Amostras do microfone → anel verde local instantâneo.
+            .setSamplesReadyCallback { samples -> runCatching { onMicSamples(samples.data) } }
             .createAudioDeviceModule()
         adm = a
         factory = PeerConnectionFactory.builder()
@@ -769,12 +1040,34 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
 
     companion object {
         private const val TAG = "PCMidia"
+        // Transmissão de tela: 1080p (lado maior), 30 fps, até 4 Mbps.
+        private const val SCREEN_MAX_SIDE = 1920
+        private const val SCREEN_FPS = 30
+        private const val SCREEN_MAX_BITRATE = 4_000_000
         /** Esperas entre tentativas de reconexão (as mesmas do site; ≈ 31 s antes de desistir). */
         private val RECONNECT_DELAYS_MS = longArrayOf(1000, 2000, 4000, 8000, 8000, 8000)
         private const val DISCONNECTED_GRACE_MS = 4000L
         private const val ICE_RESTART_GRACE_MS = 8000L
         private const val MEDIA_OPEN_TIMEOUT_MS = 15_000L
+        /** Anel verde local: nível mínimo (dBFS) e folga depois da última sílaba. */
+        private const val SPEAKING_DB = -50.0
+        private const val SPEAKING_HOLD_MS = 300L
         @Volatile private var initialized = false
+
+        /** Nível (dBFS) de PCM 16 bits little-endian. Silêncio = -100. */
+        fun pcm16Db(data: ByteArray): Double {
+            val n = data.size / 2
+            if (n == 0) return -100.0
+            var sum = 0.0
+            var i = 0
+            while (i + 1 < data.size) {
+                val s = ((data[i + 1].toInt() shl 8) or (data[i].toInt() and 0xff)).toShort().toDouble() / 32768.0
+                sum += s * s
+                i += 2
+            }
+            val rms = kotlin.math.sqrt(sum / n)
+            return if (rms > 0) maxOf(-100.0, 20 * kotlin.math.log10(rms)) else -100.0
+        }
 
         @Synchronized fun initClient(app: Application) {
             if (initialized) return
@@ -843,7 +1136,21 @@ private class ProjectionCapturer(private val projection: MediaProjection) : Vide
         observer?.onCapturerStopped()
     }
 
-    override fun changeCaptureFormat(width: Int, height: Int, framerate: Int) {}
+    /**
+     * Rotação: a textura e o VirtualDisplay mudam pras medidas novas (na
+     * thread do SurfaceTextureHelper, igual ao ScreenCapturerAndroid do WebRTC).
+     */
+    override fun changeCaptureFormat(width: Int, height: Int, framerate: Int) {
+        val h = helper ?: return
+        val ctx = context ?: return
+        val d = display ?: return
+        h.handler.post {
+            runCatching {
+                h.setTextureSize(width, height)
+                d.resize(width, height, ctx.resources.displayMetrics.densityDpi)
+            }
+        }
+    }
     override fun dispose() { runCatching { stopCapture() } }
     override fun isScreencast(): Boolean = true
 }

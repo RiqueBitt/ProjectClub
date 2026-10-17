@@ -9,7 +9,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useStore, roomKeyFor, isChannelUnread } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
-import { useVoice, preloadAgoraRTC } from '../context/VoiceContext.jsx';
+import { useVoice } from '../context/VoiceContext.jsx';
+import { preloadMediasoup } from '../voice/mediasoupEngine.js';
 import { resolveDesktopGifMenuStyle, resolveMobileGifMenuStyle } from '../utils/gifMenuLayout';
 import { cssZoom } from '../utils/cssZoom';
 import { mergeLatestMessages } from '../utils/messageMerge';
@@ -576,13 +577,13 @@ function ChatWindowInner({ conversationId, channelId }) {
 
   const isCallChannel = channel && (channel.type === 'VOICE' || channel.type === 'STAGE');
   // Item pedido: "deixando mais rápido pra entrar em canais de voz,
-  // principalmente no mobile" — adianta o download do SDK do Agora
-  // (~1.5MB, ~440KB comprimido) em segundo plano. Antes isso rodava em
+  // principalmente no mobile" — adianta o download do SDK de voz do
+  // servidor próprio (mediasoup-client) em segundo plano. Antes isso rodava em
   // QUALQUER chat aberto (todo mundo baixava o SDK de voz só por abrir o
   // app); agora só quando a pessoa abre um canal de voz/palco — onde ela
   // realmente vai entrar numa call. Entrar por outro lugar (ex.: ligar
   // numa DM) baixa na hora de entrar, como sempre.
-  useEffect(() => { if (isCallChannel) preloadAgoraRTC(); }, [isCallChannel]);
+  useEffect(() => { if (isCallChannel) preloadMediasoup(); }, [isCallChannel]);
   const isNonChatChannel = isCallChannel || channel?.type === 'RULES';
 
   // Não lidas: guarda a "última leitura" de quando a sala abriu (antes de

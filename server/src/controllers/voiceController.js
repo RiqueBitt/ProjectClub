@@ -1,7 +1,6 @@
 // Cadeia de provedores de voz — controller (item pedido).
 //
-// Generaliza o antigo /api/agora/token: agora /api/voice/join DECIDE qual
-// provedor da cadeia está ativo (ver services/voiceDecision.js) e devolve
+// /api/voice/join DECIDE qual provedor da cadeia está ativo (ver services/voiceDecision.js) e devolve
 // as credenciais SÓ daquele provedor, com as MESMAS checagens de acesso de
 // sempre (ver canal/DM/clã). O painel da staff lê /api/voice/provider e
 // controla a cadeia por /api/voice/override e /api/voice/provider/:id/toggle.
@@ -30,7 +29,7 @@ function health(req) {
   return t;
 }
 
-// Mesma regra de acesso que o agoraController usava: clã (ser membro),
+// Regra de acesso à sala: clã (ser membro),
 // DM (ser da conversa), ou canal da comunidade (VER + CONNECT). Lança um
 // erro com .status pra virar a resposta HTTP certa.
 async function assertRoomAccess(req, channelName) {
@@ -58,10 +57,8 @@ async function assertRoomAccess(req, channelName) {
   return clean;
 }
 
-// Nome de sala determinístico e seguro pros provedores que exigem um id de
-// sala "limpo" (LiveKit/TRTC/GetStream/Daily). Todo mundo do mesmo canal
-// cai na mesma sala. Mantém o channelName original pro Agora/Jitsi (que já
-// aceitam o id cru, e é o que o resto do sistema sempre usou).
+// Nome de sala determinístico e seguro pros provedores (servidor próprio,
+// LiveKit, TRTC, Daily, Jitsi). Todo mundo do mesmo canal cai na mesma sala.
 function roomNameFor(channelName) {
   // Sala indecifrável: no meet.jit.si público, quem souber o nome da sala
   // entra na chamada. Então derivamos o nome de um HMAC com segredo do
@@ -86,8 +83,8 @@ async function currentDecision(req) {
 
 // Failover do cliente detectado pelo servidor: a mesma pessoa pede /join do
 // MESMO canal de novo em poucos segundos, agora SEM o provedor que acabou de
-// receber (o cliente faz isso quando o provedor não conecta — ex.: Agora com
-// CAN_NOT_GET_GATEWAY_SERVER). Conta como falha daquele provedor, sem precisar
+// receber (o cliente faz isso quando o provedor não conecta — ex.: servidor
+// de mídia sem ICE). Conta como falha daquele provedor, sem precisar
 // de cliente novo.
 const LASTJOIN_TTL = 60;
 const lastJoinKey = (userId, channel) => `voice:lastjoin:${userId}:${channel}`;
@@ -130,9 +127,13 @@ const STICKY_FRESH_MS = 90 * 1000;
 async function getJoin(req, res, next) {
   try {
     const channelName = await assertRoomAccess(req, req.query.channelName);
+    // Permissões de mídia (falar/vídeo/palco/mudo da moderação) que vão no
+    // token, e limite de usuários do canal (cheio → 403 'channel-full').
+    const joinPolicy = await require('../services/voiceJoinPolicy').evaluate(req.user, channelName);
+    if (joinPolicy.error) return res.status(joinPolicy.error.status).json({ error: joinPolicy.error.message, code: joinPolicy.error.code });
     const state = await currentDecision(req);
     // O cliente anuncia quais provedores o engine dele sabe usar hoje
-    // (clientReady=agora,livekit,jitsi). A cadeia PULA, só pra ESTE join,
+    // (clientReady=projectclub,livekit,jitsi). A cadeia PULA, só pra ESTE join,
     // os que ele não suporta — sem mexer no status global do painel. Sem o
     // parâmetro (ex.: cliente antigo/teste), não restringe nada.
     let clientReady = String(req.query.clientReady || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -142,7 +143,7 @@ async function getJoin(req, res, next) {
       clientReady = clientReady.filter((id) => id !== 'projectclub');
     }
     // App Android nativo anuncia "jitsi", mas não tem Jitsi nativo (cairia
-    // em "não suportado"): pro servidor, ele só usa servidor próprio/Agora.
+    // em "não suportado"): pro servidor, ele só usa o servidor próprio.
     if (/ProjectClub\/\d/.test(String(req.headers['user-agent'] || '')) && clientReady.length) {
       clientReady = clientReady.filter((id) => id !== 'jitsi');
     }
@@ -197,25 +198,13 @@ async function getJoin(req, res, next) {
     if (provider === 'projectclub') {
       // Servidor de mídia próprio (media-server/): JWT pra sinalização +
       // servidores ICE (STUN/TURN com credencial temporária).
-      const creds = tokens.mintProjectClub({ room, userId, name });
+      const creds = tokens.mintProjectClub({ room, userId, name, claims: joinPolicy.claims });
       if (!creds) return fallbackJitsi(res, payload, channelName, userId, name);
       payload.projectclub = creds;
-    } else if (provider === 'agora') {
-      const creds = tokens.mintAgora(channelName, userId);
-      if (!creds) return fallbackJitsi(res, payload, channelName, userId, name);
-      payload.agora = creds;
-      // Compatibilidade com o cliente antigo (campos no topo).
-      payload.token = creds.token;
-      payload.appId = creds.appId;
-      payload.uid = creds.uid;
     } else if (provider === 'livekit') {
       const creds = tokens.mintLiveKit({ room, identity: userId, name });
       if (!creds) return fallbackJitsi(res, payload, channelName, userId, name);
       payload.livekit = creds;
-    } else if (provider === 'getstream') {
-      const creds = tokens.mintGetStream({ userId, callId: room });
-      if (!creds) return fallbackJitsi(res, payload, channelName, userId, name);
-      payload.getstream = creds;
     } else if (provider === 'daily') {
       try {
         const creds = await tokens.mintDaily({ roomName: null, userName: name });
@@ -334,8 +323,8 @@ async function postToggle(req, res, next) {
 }
 
 // POST /api/voice/provider/:id/usage  { minutes }  (admin)
-// A staff informa o uso REAL do provedor neste mês (ex.: "a Agora já está em
-// 8500 min"). A partir daí o painel reflete isso e a cadeia troca sozinha
+// A staff informa o uso REAL do provedor neste mês (ex.: "o LiveKit já está
+// em 4500 min"). A partir daí o painel reflete isso e a cadeia troca sozinha
 // quando passar do limite — antes o nosso contador começava do zero e não
 // enxergava o que o provedor já tinha gastado.
 async function postUsage(req, res, next) {
@@ -355,8 +344,8 @@ async function postUsage(req, res, next) {
 }
 
 // POST /api/voice/report  { provider, ok?: false, code?, channelName? }
-// O cliente avisa que um provedor NÃO conectou (ex.: Agora
-// CAN_NOT_GET_GATEWAY_SERVER, servidor próprio sem ICE). Falhas de pessoas
+// O cliente avisa que um provedor NÃO conectou (ex.: servidor próprio sem
+// ICE, LiveKit fora do ar). Falhas de pessoas
 // diferentes em poucos minutos desarmam o provedor (services/voiceHealth.js).
 // Qualquer usuário autenticado; limitado a 1 falha por pessoa/provedor a
 // cada ~20s, e uma pessoa sozinha nunca desarma nada.

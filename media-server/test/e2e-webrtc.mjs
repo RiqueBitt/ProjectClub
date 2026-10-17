@@ -164,11 +164,161 @@ try {
   await A.evaluate(() => window.engine.setCamera(false));
   await waitFor(B, (ev) => ev.some((e) => e.type === 'remoteRemove' && e.a[0] === 'ana' && e.a[1] === 'video'), 'Beto: onRemoteRemove(ana, video)');
 
+  console.log('\n[6b] Tela a partir de uma faixa pronta (captura nativa do app Android) + qualidade ao vivo');
+  const scr = await A.evaluate(async () => {
+    const c = document.createElement('canvas'); c.width = 640; c.height = 360;
+    const g = c.getContext('2d');
+    window.__scrTimer = setInterval(() => { g.fillStyle = `hsl(${Date.now() % 360},80%,50%)`; g.fillRect(0, 0, 640, 360); }, 50);
+    const track = c.captureStream(12).getVideoTracks()[0];
+    const stream = await window.engine.setScreen(true, { track, audio: false });
+    const q = await window.engine.setScreenQuality({ quality: '720p', frameRate: 15 });
+    return { ok: !!stream, same: window.engine.localTracks.screen === track, quality: q };
+  });
+  assert(scr.ok && scr.same, 'setScreen(true, { track }) publica a faixa pronta como tela');
+  assert(scr.quality === true, 'setScreenQuality troca resolução/fps ao vivo');
+  await waitFor(B, (ev) => ev.some((e) => e.type === 'remoteVideo' && e.a[0] === 'ana' && e.a[2] === 'screen' && e.a[1].active), 'Beto recebe a TELA da Ana');
+  await A.evaluate(async () => { await window.engine.setScreen(false); clearInterval(window.__scrTimer); });
+  await waitFor(A, (ev) => ev.filter((e) => e.type === 'selfScreen').at(-1)?.a[0] === false, 'Ana: onSelfScreen(false)');
+
+  console.log('\n[6c] Tela com presets + simulcast de 2 camadas + recepção sob medida + som da tela com volume SEPARADO');
+  {
+    const share = await A.evaluate(async () => {
+      const c = document.createElement('canvas'); c.width = 1280; c.height = 720;
+      const g = c.getContext('2d');
+      window.__scrTimer2 = setInterval(() => { g.fillStyle = `hsl(${Date.now() % 360},80%,50%)`; g.fillRect(0, 0, 1280, 720); g.fillStyle = '#fff'; g.fillText(String(Date.now()), 20, 40); }, 33);
+      const track = c.captureStream(30).getVideoTracks()[0];
+      // "Som do PC": um tom num MediaStreamDestination.
+      const ac = new AudioContext(); const osc = ac.createOscillator(); const dst = ac.createMediaStreamDestination();
+      osc.connect(dst); osc.start(); window.__scrAudioCtx = ac;
+      const audioTrack = dst.stream.getAudioTracks()[0];
+      const stream = await window.engine.setScreen(true, { track, audioTrack, quality: '1080p', frameRate: 30 });
+      const p = window.engine.producers.screen;
+      const enc = p.rtpSender.getParameters().encodings.map((e) => ({ maxBitrate: e.maxBitrate, maxFramerate: e.maxFramerate }));
+      return { ok: !!stream, hint: track.contentHint, enc, audio: !!window.engine.producers.screenAudio, q: window.engine.getScreenQuality() };
+    });
+    assert(share.ok && share.audio, 'Ana: tela + som da tela publicados');
+    assert(share.hint === 'motion', `30 fps → contentHint "motion" (${share.hint})`);
+    assert(share.enc.length === 2 && share.enc[0].maxBitrate === 1_250_000 && share.enc[1].maxBitrate === 5_000_000, `1080p/30: camadas 1,25M + 5M (${JSON.stringify(share.enc)})`);
+    assert(share.enc[0].maxFramerate === 15 && share.enc[1].maxFramerate === 30, 'camada baixa ≤15 fps, cheia 30 fps');
+    const anaScreen = () => [...(rooms.rooms.get('pc_e2e')?.peers.get('ana')?.producers.values() || [])].find((p) => p.appData.source === 'screen');
+    assert(anaScreen()?.type === 'simulcast' && anaScreen().rtpParameters.encodings.length === 2, `servidor: producer da tela em simulcast com 2 camadas (${anaScreen()?.type})`);
+    const live = await A.evaluate(async () => {
+      const ok = await window.engine.setScreenQuality({ quality: '720p', frameRate: 15 });
+      const p = window.engine.producers.screen;
+      const enc = p.rtpSender.getParameters().encodings.map((e) => ({ maxBitrate: e.maxBitrate, maxFramerate: e.maxFramerate }));
+      return { ok, hint: window.engine.localTracks.screen.contentHint, enc };
+    });
+    assert(live.ok && live.hint === 'detail', `ao vivo 720p/15: contentHint "detail" (${live.hint})`);
+    assert(live.enc[0].maxBitrate === 375_000 && live.enc[1].maxBitrate === 1_500_000 && live.enc[1].maxFramerate === 15, `ao vivo: camadas 375k + 1,5M a 15 fps (${JSON.stringify(live.enc)})`);
+
+    await waitFor(B, (ev) => ev.some((e) => e.type === 'remoteVideo' && e.a[0] === 'ana' && e.a[2] === 'screen' && e.a[1].active), 'Beto recebe a tela (simulcast) da Ana');
+    const betoScreenCons = () => [...(rooms.rooms.get('pc_e2e')?.peers.get('beto')?.consumers.values() || [])].find((c) => c.appData.source === 'screen' && !c.closed);
+    const waitSrv = async (fn, msg, timeout = 6000) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < timeout) { if (fn()) { console.log('  ✓', msg); return; } await sleep(100); }
+      throw new Error(`FALHOU (timeout): ${msg}`);
+    };
+    await waitSrv(() => betoScreenCons()?.priority === 200, 'consumer da tela com prioridade 200 (acima da câmera)');
+    assert(betoScreenCons().type === 'simulcast', 'consumer da tela é simulcast');
+    await B.evaluate(() => window.engine.setVideoViewport('ana', 'screen', { visible: true, height: 180 }, 'mini'));
+    await waitSrv(() => betoScreenCons()?.preferredLayers?.spatialLayer === 0, 'bloco pequeno (180px) → camada baixa');
+    await B.evaluate(() => window.engine.setVideoViewport('ana', 'screen', { visible: true, height: 720 }, 'grande'));
+    await waitSrv(() => betoScreenCons()?.preferredLayers?.spatialLayer === 1, 'bloco grande (720px) → camada alta');
+    await B.evaluate(() => { window.engine.setVideoViewport('ana', 'screen', { remove: true }, 'grande'); window.engine.setVideoViewport('ana', 'screen', { visible: false, height: 180 }, 'mini'); });
+    await waitSrv(() => betoScreenCons()?.paused === true, 'fora da tela → consumer PAUSADO no servidor (sem banda)');
+    await B.evaluate(() => window.engine.setVideoViewport('ana', 'screen', { visible: true, height: 600 }, 'mini'));
+    await waitSrv(() => betoScreenCons()?.paused === false && betoScreenCons()?.preferredLayers?.spatialLayer === 1, 'voltou a aparecer → retomado na camada alta');
+
+    // Som da tela separado da voz.
+    await waitFor(B, (ev) => ev.some((e) => e.type === 'remoteScreenAudio' && e.a[0] === 'ana' && e.a[1]?.active), 'Beto: onRemoteScreenAudio(ana) com o som da tela');
+    const lastVoice = (await B.evaluate(() => window.events)).filter((e) => e.type === 'remoteAudio' && e.a[0] === 'ana').at(-1);
+    assert(lastVoice && lastVoice.a[1].tracks.length === 1, `a voz da Ana continua num stream só com o MICROFONE (${lastVoice?.a[1].tracks.length} faixa)`);
+    const t0 = Date.now(); let pl = [];
+    while (Date.now() - t0 < 8000) { pl = await B.evaluate(() => window.playback('ana#tela')); if (pl.length && !pl[0].paused) break; await sleep(200); }
+    assert(pl.length === 1 && !pl[0].paused, 'som da tela tocando no player próprio');
+    await B.evaluate(() => window.setVolume('ana#tela', 0));
+    const sep = await B.evaluate(() => ({ tela: window.playback('ana#tela')[0], voz: window.playback('ana')[0] }));
+    assert(sep.tela.muted === true && sep.voz.muted === false && sep.voz.volume === 1, 'volume da transmissão em 0 NÃO muda o volume da voz');
+    await B.evaluate(() => window.setVolume('ana#tela', 1));
+
+    await A.evaluate(async () => { await window.engine.setScreen(false); clearInterval(window.__scrTimer2); window.__scrAudioCtx.close(); });
+    await waitFor(B, (ev) => ev.filter((e) => e.type === 'remoteScreenAudio' && e.a[0] === 'ana').at(-1)?.a[1] === null, 'parou de transmitir → onRemoteScreenAudio(ana, null)');
+    assert((await B.evaluate(() => window.playback('ana')))[0]?.paused === false, 'a voz da Ana continua tocando depois de parar a tela');
+  }
+
+  console.log('\n[6d] Painel "Voz conectada": ping e perda no envio');
+  {
+    const t0 = Date.now(); let st = null;
+    while (Date.now() - t0 < 6000) { st = await A.evaluate(() => window.connStats || null); if (st) break; await sleep(200); }
+    assert(st && st.connected === true && Number.isFinite(st.sendLoss) && st.sendLoss >= 0, `onConnectionStats(${JSON.stringify(st)})`);
+  }
+
   console.log('\n[7] Mudo / desmudo');
   await A.evaluate(() => window.engine.setMicEnabled(false));
   await waitFor(A, (ev) => ev.filter((e) => e.type === 'selfMute').at(-1)?.a[0] === true, 'Ana: onSelfMute(true)');
   await A.evaluate(() => window.engine.setMicEnabled(true));
   await waitFor(A, (ev) => ev.filter((e) => e.type === 'selfMute').at(-1)?.a[0] === false, 'Ana: onSelfMute(false)');
+
+  console.log('\n[7a] Portão do microfone (pipeline único: ganho 0/1 antes do envio) — silêncio sem mudar o mudo');
+  const gate = await A.evaluate(async () => {
+    const e = window.engine;
+    const sleepIn = (ms) => new Promise((r) => setTimeout(r, ms));
+    const muteEvents = () => window.events.filter((x) => x.type === 'selfMute').length;
+    const m0 = muteEvents();
+    const mode = e.getMicGateState().pipelineMode;
+    e.setMicGate(false);
+    await sleepIn(80);
+    const closed = e.getMicGateState();
+    // Mudar e desmutar com o portão fechado: continua em silêncio.
+    await e.setMicEnabled(false);
+    await e.setMicEnabled(true);
+    await sleepIn(80);
+    const afterUnmute = e.getMicGateState();
+    e.setMicGate(true);
+    await sleepIn(80);
+    const opened = e.getMicGateState();
+    const raw = e.getLocalMicTrack({ raw: true });
+    const sent = e.getLocalMicTrack();
+    return {
+      mode, closed, afterUnmute, opened, raw: !!raw && raw.readyState === 'live', processedIsSent: sent === e.localTracks.mic && sent !== raw,
+      muteDelta: muteEvents() - m0, paused: e.producers.mic.paused, trackEnabled: e.localTracks.mic.enabled,
+    };
+  });
+  assert(gate.mode === 'graph', `pipeline do mic rodando no Web Audio (${gate.mode})`);
+  assert(gate.closed.open === false && gate.closed.gateValue < 0.01, `portão fechado: ganho 0 (${gate.closed.gateValue})`);
+  assert(gate.afterUnmute.open === false && gate.afterUnmute.gateValue < 0.01, 'desmutar com o portão fechado continua em silêncio');
+  assert(gate.opened.open === true && gate.opened.gateValue > 0.99 && gate.paused === false && gate.trackEnabled, 'portão aberto: ganho 1, faixa ligada e o producer no ar');
+  assert(gate.raw, 'getLocalMicTrack({ raw: true }) devolve a captura viva');
+  assert(gate.processedIsSent, 'getLocalMicTrack() devolve a faixa PROCESSADA (a que vai pra call — gravação usa esta)');
+  assert(gate.muteDelta === 2, 'o portão não dispara onSelfMute (só o mudo/desmudo manual)');
+
+  console.log('\n[7a2] Apertar pra falar + medidor local');
+  const ptt = await A.evaluate(async () => {
+    const e = window.engine;
+    const sleepIn = (ms) => new Promise((r) => setTimeout(r, ms));
+    const levels0 = window.levels;
+    e.setPushToTalk(true);
+    await sleepIn(60);
+    const idle = e.getMicGateState();
+    e.setPttPressed(true);
+    await sleepIn(60);
+    const pressed = e.getMicGateState();
+    e.setPttPressed(false);
+    await sleepIn(80);
+    const inRelease = e.getMicGateState().open;
+    await sleepIn(250);
+    const released = e.getMicGateState();
+    e.setPushToTalk(false);
+    await sleepIn(60);
+    const off = e.getMicGateState();
+    return { idle, pressed, inRelease, released, off, levels: window.levels - levels0, meter: e.isMicMeterActive() };
+  });
+  assert(ptt.idle.mode === 'ptt' && ptt.idle.open === false && ptt.idle.gateValue < 0.01, 'PTT ligado: fechado sem a tecla');
+  assert(ptt.pressed.open === true && ptt.pressed.gateValue > 0.99, 'tecla apertada: abre');
+  assert(ptt.inRelease === true, 'continua aberto na folga depois de soltar (200ms)');
+  assert(ptt.released.open === false, 'fecha depois da folga');
+  assert(ptt.off.open === true && ptt.off.mode === 'open', 'PTT desligado: aberto de novo');
+  assert(ptt.meter && ptt.levels >= 2, `onLocalLevel chegando (~10/s) — ${ptt.levels} leituras`);
 
   console.log('\n[7b] Qualidade da conexão e ping (getStats de verdade)');
   await waitFor(A, (ev) => ev.some((e) => e.type === 'netQuality' && e.a[0].ana >= 1 && e.a[0].beto >= 1), 'Ana: onNetQuality com ela e o Beto (1..6)', 8000);
@@ -195,15 +345,74 @@ try {
   await C.goto(PAGE);
   await C.evaluate(({ url, token, userId }) => window.joinRoom({ url, token, userId, noiseSuppression: true }), { url: WS, token: token('caio', 'Caio'), userId: 'caio' });
   await waitFor(C, (ev) => ev.some((e) => e.type === 'selfMute' && e.a[0] === false), 'Caio: microfone publicado com o redutor');
-  const noiseOn = await C.evaluate(() => !!window.engine.noise && window.engine.localTracks.mic === window.engine.noise.track);
-  assert(noiseOn, 'a faixa publicada é a saída do RNNoise (não o mic cru)');
+  const noiseOn = await C.evaluate(async () => {
+    const e = window.engine;
+    for (let i = 0; i < 30 && !e.pipeline?.noiseActive; i += 1) await new Promise((r) => setTimeout(r, 100));
+    return !!e.pipeline?.noiseActive && e.localTracks.mic === e.pipeline.track && e.localTracks.mic !== e.rawMic;
+  });
+  assert(noiseOn, 'a faixa publicada é a saída do pipeline com RNNoise (não o mic cru)');
+  const vad = await C.evaluate(async () => {
+    const e = window.engine;
+    e.setInputSensitivity({ auto: true });
+    let st = e.getMicGateState();
+    for (let i = 0; i < 30 && !(st.vadP != null && st.vadAssisted); i += 1) { await new Promise((r) => setTimeout(r, 100)); st = e.getMicGateState(); }
+    const on = { vadP: st.vadP, vadAssisted: st.vadAssisted, thresholdDb: st.thresholdDb };
+    await e.setNoiseSuppression(false);
+    await new Promise((r) => setTimeout(r, 120));
+    const off = e.getMicGateState();
+    await e.setNoiseSuppression(true);
+    e.setInputSensitivity(null);
+    return { on, off: { vadP: off.vadP, vadAssisted: off.vadAssisted } };
+  });
+  assert(Number.isFinite(vad.on.vadP) && vad.on.vadAssisted === true && vad.on.thresholdDb <= -45, `VAD do RNNoise chegando no portão automático (${JSON.stringify(vad.on)})`);
+  assert(vad.off.vadP === null && vad.off.vadAssisted === false, 'RNNoise desligado: portão volta a ser só por nível');
   await waitFor(A, (ev) => ev.some((e) => e.type === 'remoteAudio' && e.a[0] === 'caio' && e.a[1].active), 'Ana recebe o áudio processado do Caio');
   await sleep(2000);
   const txC = await C.evaluate(() => window.bytesSent());
   assert(txC > 0, 'Caio envia RTP com o redutor ligado');
   await C.evaluate(() => window.engine.setNoiseSuppression(false));
+  assert(!(await C.evaluate(() => window.engine.pipeline.noiseActive)), 'RNNoise desligado no meio da call (mesma faixa)');
   await C.evaluate(() => window.engine.dispose());
   await ctxC.close();
+
+  console.log('\n[7d2] Entrou MUDO → microfone publicado JÁ PAUSADO no servidor (nada vaza)');
+  {
+    const ctxM = await browser.newContext(); const M = await ctxM.newPage();
+    M.on('pageerror', (e) => console.error('[M pageerror]', e.message));
+    await M.goto(PAGE);
+    await M.evaluate(({ url, token, userId }) => window.joinRoom({ url, token, userId, startMuted: true }), { url: WS, token: token('mudo', 'Mudo'), userId: 'mudo' });
+    await waitFor(M, (ev) => ev.some((e) => e.type === 'selfMute' && e.a[0] === true), 'Mudo: onSelfMute(true)');
+    const peerM = rooms.rooms.get('pc_e2e')?.peers.get('mudo');
+    const micM = peerM && [...peerM.producers.values()].find((p) => p.appData.source === 'mic');
+    assert(micM && micM.paused === true, 'producer do mic nasceu pausado no servidor');
+    await M.evaluate(() => window.engine.dispose());
+    await ctxM.close();
+  }
+
+  console.log('\n[7d3] Ensurdecer economiza banda: o servidor pausa o áudio que chega pro Beto');
+  {
+    const audioConsumers = () => [...(rooms.rooms.get('pc_e2e')?.peers.get('beto')?.consumers.values() || [])].filter((c) => c.kind === 'audio');
+    await B.evaluate(() => window.engine.setDeafened(true));
+    assert(audioConsumers().length > 0 && audioConsumers().every((c) => c.paused), 'consumers de áudio do Beto PAUSADOS no servidor');
+    await B.evaluate(() => window.engine.setDeafened(false));
+    assert(audioConsumers().every((c) => !c.paused), 'desensurdeceu: voltaram');
+  }
+
+  console.log('\n[7d4] Mudo da moderação (POST /control) vale NA MÍDIA');
+  {
+    const betoMic = () => [...(rooms.rooms.get('pc_e2e')?.peers.get('beto')?.producers.values() || [])].find((p) => p.appData.source === 'mic');
+    assert(betoMic() && !betoMic().paused, 'Beto falando antes');
+    await signaling.control({ room: 'pc_e2e', peerId: 'beto', action: 'pause-audio' });
+    await waitFor(B, (ev) => ev.some((e) => e.type === 'serverState' && e.a[0].serverMuted === true), 'Beto: onServerState({ serverMuted: true })');
+    assert(betoMic().paused, 'mic do Beto pausado no servidor');
+    await B.evaluate(() => window.engine.setMicEnabled(true));
+    assert(betoMic().paused, 'desmutar por conta própria NÃO fura o mudo da moderação');
+    assert(await B.evaluate(() => window.engine.producers.mic.paused), 'e o producer local fica pausado também');
+    await signaling.control({ room: 'pc_e2e', peerId: 'beto', action: 'resume-allowed' });
+    await waitFor(B, (ev) => ev.filter((e) => e.type === 'serverState').at(-1)?.a[0].serverMuted === false, 'Beto: liberado');
+    const t0 = Date.now(); while (Date.now() - t0 < 3000 && betoMic().paused) await sleep(100);
+    assert(!betoMic().paused, 'liberou: o mic do Beto (que não estava mudo) volta sozinho');
+  }
 
   console.log('\n[7e] Worker do mediasoup morre → servidor segue vivo, os dois reconectam e voltam a se ouvir');
   {

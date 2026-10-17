@@ -43,7 +43,7 @@ o Project Club (backend) continua dono das contas, salas e permissões; este ser
 
 Com `MEDIA_SERVER_URL` + `MEDIA_SERVER_SECRET` definidos, o provedor **"Project Club (próprio)"** aparece no painel
 *Sistema → Provedores de voz* como **ativo** (ele é o primeiro da cadeia e é ilimitado). Sem eles, aparece
-"não configurado" e a cadeia segue Agora → LiveKit → Jitsi, como antes.
+"não configurado" e a cadeia segue para as reservas: LiveKit (se configurado) → Jitsi.
 
 ## Como funciona
 
@@ -61,6 +61,13 @@ Com `MEDIA_SERVER_URL` + `MEDIA_SERVER_SECRET` definidos, o provedor **"Project 
 ## Operação
 
 - `GET /health` — status (público; **503** sem worker vivo). `GET /stats` com header `x-media-secret` — salas e participantes (`?deep=1`: ICE/DTLS e bytes por consumer).
+- `POST /control` com header `x-media-secret` — ordens do backend: `{ room, peerId, action, perms? }`, com
+  `action` = `pause-audio` (mudo da moderação; `perms.serverDeafened` também ensurdece) · `resume-allowed` (tira) ·
+  `set-perms` (`canSpeak`/`canVideo`/`role`/`serverMuted`/`serverDeafened`) · `kick` (fecha com `4403`).
+- **Permissões no servidor de mídia**: o JWT traz `canSpeak`, `canVideo`, `role` (`speaker`/`audience` do palco),
+  `serverMuted`, `serverDeafened`. `produce` do microfone sem `canSpeak` e de câmera/tela sem `canVideo` é recusado
+  (`forbidden:speak|video`); `resumeProducer` do mic com mudo da moderação é recusado (`forbidden:server-muted`).
+  Token antigo sem essas claims = tudo permitido.
 - Logs: `docker compose logs -f media`.
 - **Worker do mediasoup morreu**: as salas dele fecham com código `1012` (o cliente reconecta sozinho numa sala nova)
   e um worker novo sobe no lugar — o processo NÃO cai. Só se morrerem mais de 5 em 1 minuto o processo sai e o docker reinicia.

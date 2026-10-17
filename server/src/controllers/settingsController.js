@@ -161,6 +161,8 @@ const EXTRA_PREF_RULES = {
   inputProfile: oneOf('isolation', 'studio', 'custom'),
   sensitivityAuto: isBool,
   sensitivityDb: intIn(-100, 0),
+  // Volume de entrada do microfone (0–200%).
+  inputVolume: intIn(0, 200),
   joinSoundId: (v) => v === null || (typeof v === 'string' && v.length <= 64),
   sfxVolume: intIn(0, 100),
   streamPreview: isBool,

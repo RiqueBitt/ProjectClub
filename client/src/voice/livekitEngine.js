@@ -1,14 +1,13 @@
-// Engine LiveKit (segundo provedor completo da cadeia de voz). Mesma
-// "interface" conceitual que o caminho do Agora e o JitsiEngine no
-// VoiceContext: join, mute, câmera, tela. Diferente do Jitsi (que renderiza
+// Engine LiveKit (reserva completa da cadeia de voz). Mesma "interface" que o
+// mediasoupEngine e o JitsiEngine no VoiceContext: join, mute, câmera, tela. Diferente do Jitsi (que renderiza
 // a própria UI num iframe), o LiveKit é um SFU que entrega FAIXAS por
-// participante — então encaixa na MESMA grade/AudioSink do Agora, porque a
+// participante — então encaixa na MESMA grade/AudioSink do servidor próprio, porque a
 // identidade do participante no LiveKit é o nosso userId (o servidor assina
 // o token com sub = userId, ver services/voiceTokens.js). Reações,
 // soundboard e lista de participantes seguem pelo NOSSO socket.
 //
 // Carregado de forma preguiçosa (só baixa o SDK quando realmente entra numa
-// call pelo LiveKit), igual ao Agora — não entra no bundle inicial.
+// call pelo LiveKit) — não entra no bundle inicial.
 //
 // Callbacks (superset do JitsiEngine, pra alimentar a grade com faixas):
 //   onJoined(myId), onLeft()

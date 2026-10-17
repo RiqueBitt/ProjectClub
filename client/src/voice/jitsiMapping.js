@@ -1,5 +1,5 @@
 // Tradução PURA de eventos da Jitsi IFrame External API para "ações" que o
-// VoiceContext aplica no MESMO estado de UI que o Agora já alimenta
+// VoiceContext aplica no MESMO estado de UI que os outros engines alimentam
 // (falando, mudo, câmera, tela, participante entrou/saiu, saiu da chamada).
 // Sem DOM, sem React — testável com eventos simulados
 // (client/test/voice-provider.test.mjs).
@@ -28,7 +28,7 @@ export function mapJitsiEvent(event, payload = {}, ctx = {}) {
     case 'dominantSpeakerChanged':
       // payload: { id }. Só sabemos QUEM é o dominante — usamos pra espelhar
       // o MEU "falando". (Limitação aceita: indicador de fala por pessoa no
-      // Jitsi é mais grosseiro que o volume-indicator do Agora.)
+      // Jitsi é mais grosseiro que o dos SFUs.)
       return { kind: 'dominant', id: payload.id ?? null, isMe: !!myId && payload.id === myId };
 
     case 'audioMuteStatusChanged':

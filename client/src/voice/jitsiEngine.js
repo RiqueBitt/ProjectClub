@@ -1,5 +1,5 @@
-// Engine de mídia RESERVA (Jitsi) — mesma "interface" conceitual que o
-// caminho do Agora no VoiceContext: join, leave, mute, câmera, tela. Em vez
+// Engine de mídia RESERVA (Jitsi) — mesma "interface" dos outros engines
+// (mediasoupEngine/livekitEngine): join, leave, mute, câmera, tela. Em vez
 // de SFU + faixas locais, embute uma conferência do Jitsi (IFrame External
 // API) e TRADUZ os eventos dela pro mesmo estado de UI que o app já
 // renderiza (ver jitsiMapping.js).
@@ -8,7 +8,7 @@
 // iframe (o próprio iframe toca o áudio e mostra o grid). O que DEGRADA
 // (documentado em docs/voice-fallback.md): volume por pessoa, ensurdecer
 // (mutar quem chega), apertar-pra-falar e escolha de microfone pela nossa
-// UI — coisas que dependiam de faixas locais do Agora.
+// UI — coisas que dependem de faixas locais na nossa grade.
 //
 // O NÓ (getNode) é um <div> que o engine cria e mantém vivo
 // independentemente de qual tela React está montada — assim o áudio

@@ -9,19 +9,10 @@ import android.os.Looper
 import android.util.Log
 import android.view.SurfaceView
 import androidx.core.content.ContextCompat
-import com.projectclub.android.data.AgoraCreds
 import com.projectclub.android.data.Repository
 import com.projectclub.android.data.VoiceJoinResponse
 import com.projectclub.android.net.ApiException
 import com.projectclub.android.net.isTransientServer
-import io.agora.rtc2.ChannelMediaOptions
-import io.agora.rtc2.Constants
-import io.agora.rtc2.IRtcEngineEventHandler
-import io.agora.rtc2.RtcEngine
-import io.agora.rtc2.RtcEngineConfig
-import io.agora.rtc2.ScreenCaptureParameters
-import io.agora.rtc2.UserInfo
-import io.agora.rtc2.video.VideoCanvas
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,7 +26,6 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.json.JSONObject
-import java.util.concurrent.ConcurrentHashMap
 
 enum class CallStatus { Idle, Connecting, Connected, Reconnecting, Unsupported }
 
@@ -57,6 +47,9 @@ data class CallState(
     val reactions: List<CallReaction> = emptyList(),
     /** Entrou sem permissão de microfone: só ouve (desmutar pede a permissão). */
     val listenOnly: Boolean = false,
+    /** Silenciado/ensurdecido pela MODERAÇÃO (servidor) — separado do seu próprio mudo. */
+    val serverMuted: Boolean = false,
+    val serverDeafened: Boolean = false,
 )
 
 data class CallReaction(val id: Long, val userId: String, val emoji: String)
@@ -65,59 +58,61 @@ data class CallReaction(val id: Long, val userId: String, val emoji: String)
 val QUICK_REACTIONS = listOf("👍", "❤️", "😂", "🎉", "😮")
 
 /**
- * Chamadas de voz. O servidor (/api/voice/join) escolhe o provedor da cadeia
- * — servidor de mídia PRÓPRIO (mediasoup, ver MediasoupEngine) ou o SDK
- * nativo da Agora — e todo mundo da mesma call fica no mesmo provedor.
+ * Chamadas de voz. O app usa SÓ o servidor de mídia PRÓPRIO do Project Club
+ * (mediasoup no VPS, ver MediasoupEngine): /api/voice/join devolve as
+ * credenciais dele (o app anuncia clientReady=projectclub).
  * - Canal = o mesmo channelName do servidor (id do canal, "dm:<id>"...).
  * - Usuário = o id do usuário (string), igual ao site.
  * - Compartilhar tela = trilha de tela publicada no mesmo usuário; o roster
  *   do servidor (voice:state { screenSharing }) diz quem está compartilhando.
  *
- * Failover (igual ao site, VoiceContext.jsx): se o provedor escolhido não
- * conectar em alguns segundos (ex.: Agora com CAN_NOT_GET_GATEWAY_SERVER,
- * servidor próprio fora), pede ao servidor o PRÓXIMO da cadeia sem ele
- * (clientReady sem o que falhou) — a call nunca fica morta. Enquanto está
- * conectado, confere a cada minuto (e no aviso voice:provider-changed) se a
- * sala mudou de provedor, pra todo mundo terminar no mesmo.
+ * Falhas: se o servidor de mídia não conectar (ou cair e não voltar), o app
+ * tenta de novo sozinho com espera crescente (credencial nova a cada vez),
+ * mostrando "reconectando"; esgotadas as tentativas, sai da call com uma
+ * mensagem clara. Se o servidor mandar a reserva da web (Jitsi, que não tem
+ * versão no app), mostra "Chamada pelo site".
  *
  * Toda a lógica de estado roda na thread principal.
  */
 class VoiceManager(context: Context, private val repo: Repository, private val scope: CoroutineScope) {
-    /**
-     * Contexto da APLICAÇÃO, resolvido aqui fora. (Bug antigo: dentro de
-     * `RtcEngineConfig().apply { mContext = context.applicationContext }` o
-     * `context` era o getContext() DO PRÓPRIO CONFIG — ainda nulo — e não o
-     * nosso: NullPointerException toda vez que a call ia pela Agora.)
-     */
+    /** Contexto da APLICAÇÃO (a call vive mais que qualquer tela). */
     private val appContext: Context = context.applicationContext ?: context
 
     private val _state = MutableStateFlow(CallState())
     val state: StateFlow<CallState> = _state
 
-    private var engine: RtcEngine? = null
-    private var engineAppId: String? = null
-    /** Servidor de mídia PRÓPRIO (VPS do Project Club) — quando a cadeia escolhe "projectclub". */
+    /** Servidor de mídia PRÓPRIO (VPS do Project Club). */
     private var own: MediasoupEngine? = null
     private val usingOwn get() = _state.value.provider == PROVIDER_OWN
-    private val audio = CallAudio(appContext) { speaker -> _state.update { it.copy(speakerOn = speaker) } }
+    private val audio = CallAudio(
+        appContext,
+        onRouteChanged = { speaker -> _state.update { it.copy(speakerOn = speaker) } },
+        // Ligação do telefone (perdeu o foco de áudio): muta e volta depois.
+        onInterrupted = { on -> main.post { onAudioInterrupted(on) } },
+    )
+
+    /** Mudo/ensurdecido valem entre canais (igual ao Discord) — guardados aqui. */
+    private var keepMuted = false
+    private var keepDeafened = false
+    /** Mudo forçado pelo palco (plateia): não conta como "meu" mudo. */
+    private var roleMuted = false
+    /** Ligação do telefone em andamento: o mic da call fica mutado. */
+    private var interrupted = false
+    /** "Mover para…" de um moderador chegou (o servidor de mídia nos tira da sala antiga). */
+    private var forceMoveAt = 0L
+    /** Fala local (null = ainda sem medida: vale o detector do servidor). */
+    private var localMe: Boolean? = null
 
     private var projection: MediaProjection? = null
     private var syncJob: Job? = null
     private var connectJob: Job? = null
     private var watchdog: Job? = null
-    private var swapJob: Job? = null
-    private var swapping = false
-    private val uidToUser = ConcurrentHashMap<Int, String>()
     private val main = Handler(Looper.getMainLooper())
 
     /** Cada call (e cada saída) muda a sessão: o que chega atrasado de uma call antiga é ignorado. */
     @Volatile private var session = 0
-    /** Sessão em que a Agora entrou por último (os callbacks dela checam). */
-    @Volatile private var agoraSession = -1
-    /** Provedores que falharam NESTA call → quando (fica de fora por um tempo). */
-    private val failedAt = HashMap<String, Long>()
-    /** Algum provedor já falhou nesta call (aí "reserva sem versão no app" não é a resposta final). */
-    private var anyFailed = false
+    /** Falhas seguidas do servidor de mídia nesta call (zera quando conecta). */
+    private var ownFailures = 0
 
     private val ownEvents = object : MediasoupEngine.Events {
         private fun on(block: (Int) -> Unit) {
@@ -126,7 +121,7 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
         override fun onConnected() = on { onMediaConnected(it, PROVIDER_OWN) }
         override fun onReconnecting(attempt: Int) = on { s ->
             _state.update { it.copy(status = CallStatus.Reconnecting) }
-            // Rede de segurança: se a reconexão do próprio engine travar, troca de provedor.
+            // Rede de segurança: se a reconexão do próprio engine travar, conta como falha e recomeça.
             armWatchdog(s, PROVIDER_OWN, OWN_RECONNECT_TIMEOUT_MS)
         }
         override fun onReconnected() = on { onMediaConnected(it, PROVIDER_OWN) }
@@ -134,10 +129,33 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
             if (providerBroken) providerFailed(s, PROVIDER_OWN, message) else retryProvider(s)
         }
         override fun onReplaced() = on { replacedElsewhere() }
-        override fun onLeft() = on { leave(notifyServer = false) }
+        override fun onLeft(reason: String) = on { s ->
+            when (reason) {
+                // Movido por um moderador: o voice:force-move troca de canal. Se não vier, sai.
+                "moved" -> main.postDelayed({
+                    if (session == s && System.currentTimeMillis() - forceMoveAt > 8_000) leave(notifyServer = false)
+                }, 3_000)
+                "missed" -> { leave(notifyServer = false); _state.update { it.copy(error = "Ninguém atendeu a chamada.") } }
+                else -> { leave(notifyServer = false); _state.update { it.copy(error = "Você foi desconectado da chamada por um moderador.") } }
+            }
+        }
+        override fun onServerState(serverMuted: Boolean, serverDeafened: Boolean, canSpeak: Boolean) = on { applyServerMod(serverMuted, serverDeafened) }
+        override fun onLocalSpeaking(speaking: Boolean) = on {
+            localMe = speaking
+            val ch = _state.value.channelName ?: return@on
+            // Os outros veem o anel verde na hora (o servidor limita a ~4/s).
+            repo.realtime.emit("voice:speaking", JSONObject().put("channelId", ch).put("speaking", speaking))
+            val next = if (speaking) _state.value.speaking + "me" else _state.value.speaking - "me"
+            if (next != _state.value.speaking) _state.update { it.copy(speaking = next) }
+        }
         override fun onWarning(message: String) = on { _state.update { st -> st.copy(error = message) } }
         override fun onScreenStopped() = on { screenStoppedByEngine() }
-        override fun onSpeaking(userIds: Set<String>) = on { if (userIds != _state.value.speaking) _state.update { it.copy(speaking = userIds) } }
+        override fun onSpeaking(userIds: Set<String>) = on {
+            // O MEU anel vem do microfone (instantâneo); o do servidor só vale sem medida local.
+            val me = localMe ?: ("me" in userIds)
+            val merged = (userIds - "me") + (if (me) setOf("me") else emptySet())
+            if (merged != _state.value.speaking) _state.update { it.copy(speaking = merged) }
+        }
         override fun onRemoteVideo(userIds: Set<String>) = on { _state.update { it.copy(remoteVideo = userIds) } }
     }
 
@@ -153,8 +171,33 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
                     "voice:not-in-room" -> if (e.data.toString().contains(ch) && _state.value.status == CallStatus.Connected) {
                         repo.realtime.emit("voice:join", JSONObject().put("channelId", ch))
                     }
-                    // A equipe mexeu na cadeia: confere o provedor na hora.
-                    "voice:provider-changed" -> main.post { scope.launch(Dispatchers.Main.immediate) { swapCheck(session) } }
+                    // Palco: plateia muta (o servidor de mídia também não deixa falar).
+                    "voice:role-update" -> {
+                        val o = e.data as? JsonObject ?: return@collect
+                        fun f(k: String) = (o[k] as? JsonPrimitive)?.content
+                        if (f("channelId") != ch || f("userId") != repo.me.value?.id) return@collect
+                        main.post { onRoleUpdate(f("role") == "audience") }
+                    }
+                    // Moderação do servidor (Silenciar/Ensurdecer no servidor).
+                    "voice:server-state" -> {
+                        val o = e.data as? JsonObject ?: return@collect
+                        fun f(k: String) = (o[k] as? JsonPrimitive)?.content
+                        if (f("channelId") != ch) return@collect
+                        main.post { applyServerMod(f("serverMuted") == "true", f("serverDeafened") == "true") }
+                    }
+                    // "Mover para…": troca de canal sozinho.
+                    "voice:force-move" -> {
+                        val o = e.data as? JsonObject ?: return@collect
+                        fun f(k: String) = (o[k] as? JsonPrimitive)?.content
+                        val to = f("channelId") ?: return@collect
+                        val from = f("fromChannelId")
+                        if (from != null && from != ch) return@collect
+                        main.post { forceMove(to) }
+                    }
+                    "voice:force-disconnect" -> if (e.data.toString().contains(ch)) main.post {
+                        leave(notifyServer = false)
+                        _state.update { it.copy(error = "Você foi desconectado da chamada por um moderador.") }
+                    }
                     "voice:reaction" -> {
                         val o = e.data as? JsonObject ?: return@collect
                         fun f(k: String) = (o[k] as? JsonPrimitive)?.content
@@ -176,107 +219,6 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
         }
     }
 
-    fun userIdOf(uid: Int): String? = uidToUser[uid]
-    fun uidOf(userId: String): Int? = uidToUser.entries.firstOrNull { it.value == userId }?.key
-
-    // ---------------- Agora ----------------
-
-    private val handler = object : IRtcEngineEventHandler() {
-        private fun on(block: (Int) -> Unit) {
-            val s = agoraSession
-            main.post { if (session == s && _state.value.provider == PROVIDER_AGORA) block(s) }
-        }
-
-        override fun onJoinChannelSuccess(channel: String?, uid: Int, elapsed: Int) = on { onMediaConnected(it, PROVIDER_AGORA) }
-
-        override fun onRejoinChannelSuccess(channel: String?, uid: Int, elapsed: Int) = on {
-            watchdog?.cancel()
-            _state.update { st -> st.copy(status = CallStatus.Connected) }
-        }
-
-        override fun onConnectionStateChanged(state: Int, reason: Int) = on { s ->
-            when (state) {
-                Constants.CONNECTION_STATE_RECONNECTING -> {
-                    _state.update { it.copy(status = CallStatus.Reconnecting) }
-                    // A Agora tenta sozinha por muito tempo; passou disto, troca de provedor.
-                    armWatchdog(s, PROVIDER_AGORA, AGORA_RECONNECT_TIMEOUT_MS)
-                }
-                Constants.CONNECTION_STATE_CONNECTED -> {
-                    watchdog?.cancel()
-                    if (_state.value.status != CallStatus.Connecting) _state.update { it.copy(status = CallStatus.Connected) }
-                }
-                // Motivo vem da Agora (ex.: 8 = token inválido, 6 = App ID inválido,
-                // 3 = recusado pelo servidor): pede o próximo provedor ao servidor.
-                Constants.CONNECTION_STATE_FAILED -> providerFailed(s, PROVIDER_AGORA, "conexão falhou (motivo $reason)")
-                else -> Unit
-            }
-        }
-
-        override fun onUserJoined(uid: Int, elapsed: Int) {
-            val info = UserInfo()
-            if (engine?.getUserInfoByUid(uid, info) == 0 && !info.userAccount.isNullOrEmpty()) uidToUser[uid] = info.userAccount
-        }
-
-        override fun onUserInfoUpdated(uid: Int, userInfo: UserInfo?) {
-            userInfo?.userAccount?.takeIf { it.isNotEmpty() }?.let { uidToUser[uid] = it }
-            main.post { applyVolumes() }
-        }
-
-        override fun onUserOffline(uid: Int, reason: Int) {
-            val user = uidToUser[uid] ?: return
-            _state.update { it.copy(remoteVideo = it.remoteVideo - user, speaking = it.speaking - user) }
-        }
-
-        override fun onRemoteVideoStateChanged(uid: Int, state: Int, reason: Int, elapsed: Int) {
-            val user = uidToUser[uid] ?: run {
-                val info = UserInfo()
-                if (engine?.getUserInfoByUid(uid, info) == 0 && !info.userAccount.isNullOrEmpty()) { uidToUser[uid] = info.userAccount; info.userAccount } else null
-            } ?: return
-            val on = state == Constants.REMOTE_VIDEO_STATE_DECODING || state == Constants.REMOTE_VIDEO_STATE_STARTING
-            val off = state == Constants.REMOTE_VIDEO_STATE_STOPPED || state == Constants.REMOTE_VIDEO_STATE_FAILED
-            if (on) _state.update { it.copy(remoteVideo = it.remoteVideo + user) }
-            if (off) _state.update { it.copy(remoteVideo = it.remoteVideo - user) }
-        }
-
-        override fun onAudioVolumeIndication(speakers: Array<out IRtcEngineEventHandler.AudioVolumeInfo>?, totalVolume: Int) {
-            val now = speakers.orEmpty().filter { it.volume > 12 }.mapNotNull { s -> if (s.uid == 0) "me" else uidToUser[s.uid] }.toSet()
-            if (now != _state.value.speaking) _state.update { it.copy(speaking = now) }
-        }
-
-        override fun onTokenPrivilegeWillExpire(token: String?) {
-            val ch = _state.value.channelName ?: return
-            scope.launch {
-                runCatching { repo.voiceJoin(ch, listOf(PROVIDER_AGORA)).agora?.token }.getOrNull()?.let { t -> runCatching { engine?.renewToken(t) } }
-            }
-        }
-
-        override fun onError(err: Int) {
-            Log.w(TAG, "erro da Agora: $err")
-            if (err == Constants.ERR_INVALID_TOKEN || err == Constants.ERR_TOKEN_EXPIRED || err == Constants.ERR_INVALID_APP_ID) {
-                on { s -> providerFailed(s, PROVIDER_AGORA, "erro $err") }
-            }
-        }
-    }
-
-    private fun ensureEngine(appId: String): RtcEngine {
-        engine?.let { if (engineAppId == appId) return it else { runCatching { RtcEngine.destroy() }; engine = null } }
-        // NADA de `context` dentro de um apply {} do RtcEngineConfig: ver appContext.
-        val cfg = RtcEngineConfig()
-        cfg.mContext = appContext
-        cfg.mAppId = appId
-        cfg.mEventHandler = handler
-        cfg.mChannelProfile = Constants.CHANNEL_PROFILE_COMMUNICATION
-        cfg.mAudioScenario = Constants.AUDIO_SCENARIO_CHATROOM
-        val e = RtcEngine.create(cfg) ?: error("a Agora não iniciou")
-        e.enableAudio()
-        e.enableVideo() // só pra RECEBER telas compartilhadas; a câmera não é publicada
-        e.setDefaultAudioRoutetoSpeakerphone(true)
-        e.enableAudioVolumeIndication(400, 3, true)
-        engine = e
-        engineAppId = appId
-        return e
-    }
-
     // ---------------- entrar ----------------
 
     /** Entra numa call (canal de voz ou "dm:<conversa>"). [listenOnly] = sem permissão de microfone. */
@@ -289,9 +231,13 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
         if (cur.channelName == channelName && cur.status != CallStatus.Idle) return
         if (cur.channelName != null) leave()
         val s = ++session
-        failedAt.clear()
-        anyFailed = false
-        _state.value = CallState(channelName = channelName, title = title, status = CallStatus.Connecting, listenOnly = listenOnly, muted = listenOnly)
+        ownFailures = 0
+        localMe = null
+        // Mudo/ensurdecido continuam valendo no canal novo (startMuted = muted || deafened).
+        _state.value = CallState(
+            channelName = channelName, title = title, status = CallStatus.Connecting, listenOnly = listenOnly,
+            muted = listenOnly || keepMuted, deafened = keepDeafened,
+        )
         startService(title)
         connectJob?.cancel()
         connectJob = scope.launch(Dispatchers.Main.immediate) { connect(s) }
@@ -304,32 +250,25 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
         runCatching { CallService.start(appContext, title) }.onFailure { Log.w(TAG, "serviço da chamada", it) }
     }
 
-    /** Provedores que este aparelho sabe usar e que não falharam há pouco nesta call. */
-    private fun readyProviders(): List<String> {
-        val now = System.currentTimeMillis()
-        return SUPPORTED.filter { p -> failedAt[p]?.let { now - it < FAIL_COOLDOWN_MS } != true }
-    }
-
     /**
-     * Pergunta ao servidor qual provedor usar e entra nele. Erro de rede ou
-     * deploy (502/503/504): espera e tenta de novo, sem mensagem assustadora.
+     * Pergunta ao servidor as credenciais do servidor de mídia e entra.
+     * - Erro de rede ou deploy (502/503/504): espera e tenta de novo, sem
+     *   mensagem assustadora.
+     * - O servidor de mídia não conectou: tenta de novo com espera crescente
+     *   (OWN_RETRY_DELAYS_MS); esgotou, sai com uma mensagem clara.
      */
     private suspend fun connect(s: Int) {
         var netTries = 0
-        var rounds = 0
         while (session == s) {
             val ch = _state.value.channelName ?: return
-            val ready = readyProviders()
-            if (ready.isEmpty()) {
-                // Todos falharam: espera um pouco e recomeça a cadeia inteira.
-                rounds++
-                if (rounds > MAX_ROUNDS) { fail(s, "Não deu pra conectar na chamada agora. Tente de novo em instantes."); return }
-                failedAt.clear()
-                delay(3_000L * rounds)
-                continue
+            if (ownFailures > 0) {
+                if (ownFailures > OWN_RETRY_DELAYS_MS.size) { fail(s, OWN_DOWN_MESSAGE); return }
+                if (_state.value.status != CallStatus.Connecting) _state.update { it.copy(status = CallStatus.Reconnecting) }
+                delay(OWN_RETRY_DELAYS_MS[ownFailures - 1])
+                if (session != s) return
             }
             val res = try {
-                repo.voiceJoin(ch, ready + "jitsi")
+                repo.voiceJoin(ch)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -346,22 +285,19 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
             }
             if (session != s) return
             netTries = 0
-            when (startProvider(s, ch, res)) {
+            when (startProvider(s, res)) {
                 Start.Started -> return
-                Start.Failed -> continue // já marcou o que falhou: pede o próximo
+                Start.Failed -> continue // já contou a falha: tenta de novo depois da espera
                 Start.Unsupported -> {
-                    if (!anyFailed) {
-                        // Provedor reserva (Jitsi) ainda não tem versão nativa: abre pelo site.
+                    if (ownFailures == 0) {
+                        // O servidor mandou a reserva da web (Jitsi), que não tem versão no app: abre pelo site.
                         stopMedia()
                         _state.update { it.copy(status = CallStatus.Unsupported, provider = res.provider) }
                         runCatching { CallService.stop(appContext) }
                         return
                     }
-                    // Chegou na reserva porque os outros falharam: recomeça a cadeia daqui a pouco.
-                    rounds++
-                    if (rounds > MAX_ROUNDS) { fail(s, "Não deu pra conectar na chamada agora. Tente de novo em instantes."); return }
-                    failedAt.clear()
-                    delay(3_000L * rounds)
+                    // Chegou na reserva porque o servidor de mídia falhou: tenta ele de novo daqui a pouco.
+                    ownFailures++
                 }
             }
         }
@@ -369,7 +305,7 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
 
     private enum class Start { Started, Failed, Unsupported }
 
-    private fun startProvider(s: Int, ch: String, res: VoiceJoinResponse): Start {
+    private fun startProvider(s: Int, res: VoiceJoinResponse): Start {
         val st = _state.value
         val myId = repo.me.value?.id
         return when (res.provider) {
@@ -384,54 +320,24 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
                 val ice = MediasoupEngine.iceServers(runCatching { JSONObject(pc.toString()).optJSONArray("iceServers") }.getOrNull())
                 audio.start(_state.value.speakerOn)
                 val e = own ?: MediasoupEngine(appContext, ownEvents).also { own = it }
-                e.join(OwnMediaCreds(url, token, ice), myId, startMuted = st.muted || st.deafened, listenOnly = st.listenOnly || !hasMic())
+                e.join(OwnMediaCreds(url, token, ice), myId, startMuted = st.muted || st.deafened || interrupted, listenOnly = st.listenOnly || !hasMic())
                 if (st.deafened) e.setDeafened(true)
                 armWatchdog(s, PROVIDER_OWN, OWN_CONNECT_TIMEOUT_MS)
-                Start.Started
-            }
-            PROVIDER_AGORA -> {
-                val creds = res.agora ?: if (res.token != null && res.appId != null) AgoraCreds(res.token, res.appId) else null
-                if (creds == null || myId == null) { markFailed(PROVIDER_AGORA, "credenciais incompletas"); return Start.Failed }
-                stopMedia()
-                _state.update { it.copy(provider = PROVIDER_AGORA, status = if (it.status == CallStatus.Connected) CallStatus.Reconnecting else it.status) }
-                val e = try { ensureEngine(creds.appId) } catch (t: Throwable) {
-                    Log.w(TAG, "Agora não iniciou", t)
-                    markFailed(PROVIDER_AGORA, "motor não iniciou: ${t.message ?: t.javaClass.simpleName}")
-                    return Start.Failed
-                }
-                val speak = !st.listenOnly && hasMic()
-                agoraSession = s
-                val code = runCatching {
-                    e.enableLocalAudio(speak)
-                    e.muteLocalAudioStream(st.muted || st.deafened)
-                    e.muteAllRemoteAudioStreams(st.deafened)
-                    e.joinChannelWithUserAccount(creds.token, ch, myId, ChannelMediaOptions().apply {
-                        channelProfile = Constants.CHANNEL_PROFILE_COMMUNICATION
-                        clientRoleType = Constants.CLIENT_ROLE_BROADCASTER
-                        publishMicrophoneTrack = speak
-                        publishCameraTrack = false
-                        autoSubscribeAudio = true
-                        autoSubscribeVideo = true
-                    })
-                }.getOrElse { -1 }
-                if (code < 0) { markFailed(PROVIDER_AGORA, "join devolveu $code"); return Start.Failed }
-                armWatchdog(s, PROVIDER_AGORA, AGORA_CONNECT_TIMEOUT_MS)
                 Start.Started
             }
             else -> Start.Unsupported
         }
     }
 
-    /** A mídia conectou (primeira vez, reconexão ou troca de provedor). */
+    /** A mídia conectou (primeira vez ou reconexão). */
     private fun onMediaConnected(s: Int, provider: String) {
         if (session != s || _state.value.provider != provider) return
         watchdog?.cancel()
         _state.update { it.copy(status = CallStatus.Connected) }
+        ownFailures = 0
         _state.value.channelName?.let { repo.realtime.emit("voice:join", JSONObject().put("channelId", it)) }
-        if (provider == PROVIDER_AGORA) runCatching { engine?.setEnableSpeakerphone(_state.value.speakerOn) }
         sendState()
         startSync()
-        startSwapCheck(s)
         applyVolumes()
     }
 
@@ -447,19 +353,18 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
     }
 
     private fun markFailed(provider: String, why: String) {
-        failedAt[provider] = System.currentTimeMillis()
-        anyFailed = true
-        repo.report(if (provider == PROVIDER_AGORA) "voz:agora" else "voz:$provider", IllegalStateException("$provider: $why (trocando de provedor)"))
+        ownFailures++
+        repo.report("voz:$provider", IllegalStateException("$provider: $why (tentativa $ownFailures, tentando de novo)"))
     }
 
-    /** O provedor atual não serve: desliga ele e pede o próximo ao servidor. */
+    /** O servidor de mídia não conectou/caiu: desliga e tenta de novo (com espera). */
     private fun providerFailed(s: Int, provider: String, why: String) {
         if (session != s || _state.value.provider != provider) return
         markFailed(provider, why)
         restartConnect(s)
     }
 
-    /** Mesmo provedor, credenciais novas (ex.: token do servidor próprio venceu). */
+    /** Credenciais novas, sem contar falha (ex.: token do servidor próprio venceu). */
     private fun retryProvider(s: Int) {
         if (session != s) return
         restartConnect(s)
@@ -475,9 +380,11 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
         connectJob = scope.launch(Dispatchers.Main.immediate) { connect(s) }
     }
 
-    /** Desliga a mídia de qualquer provedor (a call em si continua). */
+    /** Desliga a mídia (a call em si continua). */
     private fun stopMedia() {
         watchdog?.cancel()
+        // O CallAudio.stop() abaixo solta o foco de áudio (e a marca de ligação).
+        interrupted = false
         if (_state.value.sharingScreen) {
             projection?.let { p -> runCatching { p.stop() } }
             projection = null
@@ -485,16 +392,14 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
             runCatching { CallService.screenStopped(appContext) }
         }
         own?.leave()
-        engine?.let { e -> runCatching { e.stopScreenCapture() }; runCatching { e.leaveChannel() } }
         audio.stop()
-        uidToUser.clear()
     }
 
     private fun fail(s: Int, message: String) {
         if (session != s) return
         session++
         stopMedia()
-        syncJob?.cancel(); swapJob?.cancel(); watchdog?.cancel()
+        syncJob?.cancel(); watchdog?.cancel()
         _state.value.channelName?.let { repo.realtime.emit("voice:leave", JSONObject().put("channelId", it)) }
         _state.value = CallState(error = message)
         runCatching { CallService.stop(appContext) }
@@ -505,43 +410,6 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
         if (_state.value.channelName == null) return
         leave(notifyServer = false)
         _state.value = CallState(error = "Você entrou nesta call em outro aparelho.")
-    }
-
-    // ---------------- troca de provedor no meio da call ----------------
-
-    private var swapSession = -1
-
-    private fun startSwapCheck(s: Int) {
-        if (swapJob?.isActive == true && swapSession == s) return
-        swapJob?.cancel()
-        swapSession = s
-        swapJob = scope.launch(Dispatchers.Main.immediate) {
-            while (isActive && session == s) {
-                delay(SWAP_POLL_MS)
-                swapCheck(s)
-            }
-        }
-    }
-
-    /**
-     * A sala mudou de provedor (a equipe trocou a cadeia ou alguém entrou por
-     * outro após uma falha)? Então este aparelho também troca — pra todo
-     * mundo da call terminar no MESMO provedor (igual ao site).
-     */
-    private suspend fun swapCheck(s: Int) {
-        val st = _state.value
-        val ch = st.channelName ?: return
-        val current = st.provider ?: return
-        if (session != s || st.status != CallStatus.Connected || swapping) return
-        val res = try { repo.voiceJoin(ch, readyProviders() + "jitsi") } catch (e: CancellationException) { throw e } catch (_: Exception) { return }
-        val now = _state.value
-        if (session != s || now.provider != current || now.status != CallStatus.Connected) return
-        if (res.provider == current || res.provider !in SUPPORTED) return
-        Log.i(TAG, "a sala trocou de provedor: $current → ${res.provider}")
-        swapping = true
-        try {
-            if (startProvider(s, ch, res) != Start.Started) restartConnect(s)
-        } finally { swapping = false }
     }
 
     // ---------------- controles ----------------
@@ -566,8 +434,71 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
         })
     }
 
+    /** Mudo efetivo do microfone (meu, ensurdecido ou ligação do telefone). */
+    private fun applyMicMute() {
+        val st = _state.value
+        if (usingOwn) own?.setMuted(st.muted || st.deafened || interrupted)
+    }
+
+    private fun onAudioInterrupted(on: Boolean) {
+        if (interrupted == on) return
+        interrupted = on
+        if (_state.value.channelName == null) return
+        applyMicMute()
+        // Os outros veem você mudo enquanto atende o telefone.
+        val ch = _state.value.channelName ?: return
+        repo.realtime.emit("voice:state", JSONObject().put("channelId", ch).put("muted", on || _state.value.muted || _state.value.deafened))
+    }
+
+    /** Palco: plateia não fala; promovido volta ao mudo que tinha. */
+    private fun onRoleUpdate(audience: Boolean) {
+        if (audience) {
+            if (!_state.value.muted) roleMuted = true
+            _state.update { it.copy(muted = true) }
+            applyMicMute()
+        } else if (roleMuted) {
+            roleMuted = false
+            _state.update { it.copy(muted = false) }
+            applyMicMute()
+        }
+        sendState()
+    }
+
+    private fun applyServerMod(serverMuted: Boolean, serverDeafened: Boolean) {
+        val st = _state.value
+        if (st.serverMuted == serverMuted && st.serverDeafened == serverDeafened) return
+        val msg = when {
+            serverDeafened && !st.serverDeafened -> "Você foi ensurdecido no servidor por um moderador."
+            serverMuted && !st.serverMuted -> "Você foi silenciado no servidor por um moderador."
+            !serverMuted && !serverDeafened -> "A moderação liberou seu microfone."
+            else -> null
+        }
+        _state.update { it.copy(serverMuted = serverMuted, serverDeafened = serverDeafened, error = msg ?: it.error) }
+    }
+
+    private fun forceMove(toChannelId: String) {
+        if (_state.value.channelName == null || toChannelId == _state.value.channelName) return
+        forceMoveAt = System.currentTimeMillis()
+        val name = repo.channel(toChannelId)?.name ?: "Canal de voz"
+        join(toChannelId, name, _state.value.listenOnly)
+        _state.update { it.copy(error = "Um moderador moveu você para $name.") }
+    }
+
     fun toggleMute() {
         val st = _state.value
+        if (st.muted && st.serverMuted) _state.update { it.copy(error = "Você foi silenciado no servidor por um moderador.") }
+        if (st.deafened) {
+            // Mexer no microfone estando ensurdecido desensurdece e desmuta (igual ao Discord).
+            if (st.serverDeafened) { _state.update { it.copy(error = "Você foi ensurdecido no servidor por um moderador.") }; return }
+            keepDeafened = false
+            keepMuted = st.listenOnly
+            roleMuted = false
+            if (usingOwn) own?.setDeafened(false)
+            _state.update { it.copy(deafened = false, muted = st.listenOnly) }
+            applyMicMute()
+            sendState()
+            return
+        }
         if (st.listenOnly && st.muted) {
             // Entrou só ouvindo: pra falar precisa da permissão do microfone.
             if (!hasMic()) {
@@ -578,93 +509,49 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
             // Serviço volta como "microfone" (o Android exige pra gravar em segundo plano).
             startService(st.title)
             if (usingOwn) own?.enableMic()
-            else engine?.let { e ->
-                runCatching {
-                    e.enableLocalAudio(true)
-                    e.updateChannelMediaOptions(ChannelMediaOptions().apply { publishMicrophoneTrack = true })
-                }
-            }
         }
         val muted = !_state.value.muted
-        if (usingOwn) own?.setMuted(muted || _state.value.deafened)
-        else engine?.let { e -> runCatching { e.muteLocalAudioStream(muted || _state.value.deafened) } }
+        keepMuted = muted
+        roleMuted = false
         _state.update { it.copy(muted = muted) }
+        applyMicMute()
         sendState()
     }
 
     fun toggleDeafen() {
         val deaf = !_state.value.deafened
-        if (usingOwn) { own?.setDeafened(deaf); own?.setMuted(deaf || _state.value.muted) }
-        else engine?.let { e ->
-            runCatching {
-                e.muteAllRemoteAudioStreams(deaf)
-                e.muteLocalAudioStream(deaf || _state.value.muted)
-            }
-        }
+        if (!deaf && _state.value.serverDeafened) { _state.update { it.copy(error = "Você foi ensurdecido no servidor por um moderador.") }; return }
+        keepDeafened = deaf
+        // O mudo de antes continua guardado em `muted`: desensurdecer volta pra ele.
+        if (usingOwn) own?.setDeafened(deaf)
         _state.update { it.copy(deafened = deaf) }
+        applyMicMute()
         sendState()
     }
 
     fun toggleSpeaker() {
         val on = !_state.value.speakerOn
-        if (usingOwn) audio.setSpeaker(on) else engine?.let { e -> runCatching { e.setEnableSpeakerphone(on) } }
+        audio.setSpeaker(on)
         _state.update { it.copy(speakerOn = on) }
     }
 
     /** Recebe a autorização de captura (pedida na tela) já dentro do serviço. */
     fun startScreenShare(mp: MediaProjection) {
         if (_state.value.status == CallStatus.Idle) { runCatching { mp.stop() }; return }
-        if (usingOwn) {
-            val o = own ?: run { mp.stop(); return }
-            projection?.stop()
-            projection = mp
-            mp.registerCallback(object : MediaProjection.Callback() {
-                override fun onStop() { main.post { if (_state.value.sharingScreen) stopScreenShare() } }
-            }, main)
-            o.startScreen(mp) { msg ->
-                main.post {
-                    _state.update { it.copy(sharingScreen = false, error = msg) }
-                    projection?.stop(); projection = null
-                    runCatching { CallService.screenStopped(appContext) }
-                    sendState()
-                }
-            }
-            _state.update { it.copy(sharingScreen = true, error = null) }
-            sendState()
-            return
-        }
-        val e = engine ?: run { mp.stop(); return }
+        val o = own?.takeIf { usingOwn } ?: run { runCatching { mp.stop() }; return }
         projection?.stop()
         projection = mp
         // Android 14+: precisa de um callback registrado antes de capturar.
         mp.registerCallback(object : MediaProjection.Callback() {
             override fun onStop() { main.post { if (_state.value.sharingScreen) stopScreenShare() } }
         }, main)
-        val code = runCatching {
-            e.setExternalMediaProjection(mp)
-            val params = ScreenCaptureParameters().apply {
-                captureVideo = true
-                captureAudio = false
-                videoCaptureParameters.width = 720
-                videoCaptureParameters.height = 1280
-                videoCaptureParameters.framerate = 15
-                videoCaptureParameters.bitrate = 1600
+        o.startScreen(mp) { msg ->
+            main.post {
+                _state.update { it.copy(sharingScreen = false, error = msg) }
+                projection?.stop(); projection = null
+                runCatching { CallService.screenStopped(appContext) }
+                sendState()
             }
-            e.startScreenCapture(params)
-        }.getOrElse { -1 }
-        if (code < 0) {
-            _state.update { it.copy(error = "Não deu pra compartilhar a tela (código $code).") }
-            runCatching { mp.stop() }; projection = null
-            runCatching { CallService.screenStopped(appContext) }
-            return
-        }
-        runCatching {
-            e.updateChannelMediaOptions(ChannelMediaOptions().apply {
-                publishScreenCaptureVideo = true
-                publishScreenCaptureAudio = false
-                publishCameraTrack = false
-                publishMicrophoneTrack = !_state.value.listenOnly && hasMic()
-            })
         }
         _state.update { it.copy(sharingScreen = true, error = null) }
         sendState()
@@ -672,12 +559,6 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
 
     fun stopScreenShare() {
         if (usingOwn) own?.stopScreen()
-        else engine?.let { e ->
-            runCatching {
-                e.stopScreenCapture()
-                e.updateChannelMediaOptions(ChannelMediaOptions().apply { publishScreenCaptureVideo = false })
-            }
-        }
         projection?.let { runCatching { it.stop() } }
         projection = null
         _state.update { it.copy(sharingScreen = false) }
@@ -696,23 +577,17 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
     }
 
     /** Liga a tela compartilhada de alguém num SurfaceView. */
-    fun bindRemoteVideo(view: SurfaceView, userId: String): Boolean {
-        if (usingOwn) return own?.bindRemoteVideo(view, userId) ?: false
-        val uid = uidOf(userId) ?: return false
-        engine?.setupRemoteVideo(VideoCanvas(view, VideoCanvas.RENDER_MODE_FIT, uid)) ?: return false
-        return true
-    }
+    fun bindRemoteVideo(view: SurfaceView, userId: String): Boolean =
+        if (usingOwn) own?.bindRemoteVideo(view, userId) ?: false else false
 
     fun unbindRemoteVideo(userId: String) {
-        if (usingOwn) { own?.unbindRemoteVideo(userId); return }
-        val uid = uidOf(userId) ?: return
-        runCatching { engine?.setupRemoteVideo(VideoCanvas(null, VideoCanvas.RENDER_MODE_FIT, uid)) }
+        if (usingOwn) own?.unbindRemoteVideo(userId)
     }
 
     fun leave(notifyServer: Boolean = true) {
         if (Looper.myLooper() != Looper.getMainLooper()) { main.post { leave(notifyServer) }; return }
         session++
-        connectJob?.cancel(); swapJob?.cancel(); watchdog?.cancel(); syncJob?.cancel()
+        connectJob?.cancel(); watchdog?.cancel(); syncJob?.cancel()
         val ch = _state.value.channelName
         if (_state.value.sharingScreen) runCatching { stopScreenShare() }
         if (ch != null && notifyServer) repo.realtime.emit("voice:leave", JSONObject().put("channelId", ch))
@@ -741,12 +616,9 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
         prefs.setUserVolume(userId, percent)
     }
 
-    /** Aplica os volumes guardados no motor que estiver em uso. */
+    /** Aplica os volumes guardados no servidor de mídia (se em uso). */
     private fun applyVolumes() {
-        if (usingOwn) { own?.applyVolumes(); return }
-        val e = engine ?: return
-        runCatching { e.adjustPlaybackSignalVolume(prefs.outputVolume.coerceIn(0, 400)) }
-        uidToUser.forEach { (uid, userId) -> runCatching { e.adjustUserPlaybackSignalVolume(uid, prefs.userVolume(userId).coerceIn(0, 100)) } }
+        if (usingOwn) own?.applyVolumes()
     }
 
     init { prefs.onChange { main.post { applyVolumes() } } }
@@ -754,19 +626,13 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
     private companion object {
         const val TAG = "PCVoz"
         const val PROVIDER_OWN = "projectclub"
-        const val PROVIDER_AGORA = "agora"
-        /** Provedores com versão nativa no app, na ordem da cadeia do servidor. */
-        val SUPPORTED = listOf(PROVIDER_OWN, PROVIDER_AGORA)
-        /** Tempo pra cada provedor conectar antes de pedir o próximo. */
+        /** Tempo pro servidor de mídia conectar (ou reconectar) antes de contar como falha. */
         const val OWN_CONNECT_TIMEOUT_MS = 20_000L
-        const val AGORA_CONNECT_TIMEOUT_MS = 15_000L
-        const val AGORA_RECONNECT_TIMEOUT_MS = 30_000L
         const val OWN_RECONNECT_TIMEOUT_MS = 90_000L
-        /** Um provedor que falhou fica de fora por este tempo (depois pode voltar). */
-        const val FAIL_COOLDOWN_MS = 5 * 60_000L
-        /** Voltas completas na cadeia antes de desistir. */
-        const val MAX_ROUNDS = 3
+        /** Espera antes de cada nova tentativa depois de uma falha do servidor de mídia. */
+        val OWN_RETRY_DELAYS_MS = longArrayOf(1_000, 3_000, 6_000, 12_000, 20_000)
+        const val OWN_DOWN_MESSAGE = "O servidor de voz do Project Club não está respondendo agora. Tente entrar de novo em alguns minutos."
+        /** Erro de rede/deploy ao pedir as credenciais: espera e tenta de novo. */
         val JOIN_RETRY_DELAYS_MS = longArrayOf(1_000, 2_000, 4_000, 8_000, 15_000, 15_000, 30_000, 30_000)
-        const val SWAP_POLL_MS = 60_000L
     }
 }

@@ -1,5 +1,5 @@
 // Project Club — app Android NATIVO (Kotlin + Jetpack Compose).
-// Fase 1: login, chat, DMs, voz + compartilhar tela (SDK nativo da Agora),
+// Fase 1: login, chat, DMs, voz + compartilhar tela (servidor de mídia próprio, mediasoup),
 // notificações. As demais telas abrem o site dentro do app até virarem nativas.
 plugins {
     id("com.android.application") version "8.13.0" apply false

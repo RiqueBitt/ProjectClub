@@ -27,6 +27,37 @@ export function isNoiseSuppressionSupported() {
     && typeof WebAssembly === 'object';
 }
 
+// Só o NÓ do RNNoise, dentro de um AudioContext que já existe (o pipeline
+// único do microfone — voice/micPipeline.js — usa assim: mic → RNNoise →
+// ganho → portão → envio, tudo num contexto só). O contexto tem que estar a
+// 48 kHz. Devolve { node, setEnabled } ou null se não der (aí o pipeline
+// segue sem o redutor). `onVad({ p, open, off })`: probabilidade de voz que o
+// RNNoise calcula (~20/s); `off` = redutor desligado (sem VAD).
+const loadedContexts = new WeakSet();
+export async function createNoiseNode(ctx, { enabled = true, onVad = null } = {}) {
+  if (!ctx || typeof window === 'undefined' || typeof window.AudioWorkletNode !== 'function' || !ctx.audioWorklet) return null;
+  try {
+    if (!loadedContexts.has(ctx)) { await ctx.audioWorklet.addModule(WORKLET_URL); loadedContexts.add(ctx); }
+    const node = new AudioWorkletNode(ctx, 'rnnoise-processor', {
+      numberOfInputs: 1, numberOfOutputs: 1, channelCount: 1, channelCountMode: 'explicit', outputChannelCount: [1],
+    });
+    node.port.onmessage = (e) => {
+      const d = e?.data;
+      if (d && d.type === 'vad' && typeof onVad === 'function') { try { onVad(d); } catch { /* ok */ } }
+    };
+    node.port.postMessage({ type: 'toggle', enabled: !!enabled });
+    return {
+      node,
+      setEnabled(on) { try { node.port.postMessage({ type: 'toggle', enabled: !!on }); } catch { /* ok */ } },
+    };
+  } catch (err) {
+    console.warn('[voz] redutor de ruído indisponível, seguindo sem ele:', err?.message || err);
+    return null;
+  }
+}
+
+export const NOISE_SAMPLE_RATE = SAMPLE_RATE;
+
 export async function createNoiseSuppressedTrack(rawTrack, { enabled = true } = {}) {
   if (!rawTrack || !isNoiseSuppressionSupported()) return null;
   let ctx = null;

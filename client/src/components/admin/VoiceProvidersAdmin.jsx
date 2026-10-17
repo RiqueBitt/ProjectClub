@@ -3,7 +3,7 @@ import { getVoiceProviders, setVoiceOverride, toggleVoiceProvider, setVoiceUsage
 import { CLIENT_READY } from '../../voice/providerDecision';
 
 // Painel da equipe — "Chamadas / Provedores de voz" (item pedido).
-// Mostra um cartão por provedor da cadeia (Agora → LiveKit → ... → Jitsi):
+// Mostra um cartão por provedor da cadeia (servidor próprio → LiveKit → ... → Jitsi):
 // status, barra de uso "X / Y min (Z%)", qual está ativo, e os controles de
 // forçar um provedor (override), voltar ao automático e ligar/desligar um
 // provedor na cadeia. Atualiza sozinho a cada 10s lendo /api/voice/provider.
@@ -197,7 +197,7 @@ export default function VoiceProvidersAdmin() {
                   type="button" className="btn"
                   onClick={() => doSetUsage(p.id)}
                   disabled={busy === `us:${p.id}` || (usageInputs[p.id] ?? '') === ''}
-                  title="Informar quantos minutos este provedor já gastou no mês (ex.: o que aparece no painel da Agora). A cadeia passa a usar esse número pra trocar no limite."
+                  title="Informar quantos minutos este provedor já gastou no mês (ex.: o que aparece no painel do LiveKit). A cadeia passa a usar esse número pra trocar no limite."
                 >
                   Definir
                 </button>

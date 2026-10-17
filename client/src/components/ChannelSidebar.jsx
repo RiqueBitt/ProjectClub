@@ -10,6 +10,7 @@ import { useVoice } from '../context/VoiceContext.jsx';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
 import { deleteCategory, reorderCategories, reorderChannels, markChannelRead } from '../api/endpoints';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
+import { buildVoiceModerationItems } from './voice/voiceModerationMenu';
 import CreateChannelModal from './modals/CreateChannelModal.jsx';
 import CreateCategoryModal from './modals/CreateCategoryModal.jsx';
 import FeaturedChannels from './FeaturedChannels.jsx';
@@ -322,6 +323,7 @@ export default function ChannelSidebar({
             categoryId={null}
             members={members}
             canManage={canManage}
+            myPerms={myPerms}
             onEdit={setEditChannel}
             channelReadAt={channelReadAt}
             myUserId={user.id}
@@ -399,6 +401,7 @@ export default function ChannelSidebar({
               categoryId={cat.id}
               members={members}
               canManage={canManage}
+              myPerms={myPerms}
               onEdit={setEditChannel}
               channelReadAt={channelReadAt}
               myUserId={user.id}
@@ -459,7 +462,7 @@ export default function ChannelSidebar({
 }
 
 function ChannelGroup({
-  channels, categoryId, members, canManage, onEdit, channelReadAt, myUserId,
+  channels, categoryId, members, canManage, myPerms, onEdit, channelReadAt, myUserId,
   dragChannelId, setDragChannelId, dragOverChannelId, setDragOverChannelId,
   dragOverPosition, setDragOverPosition, onChannelDrop,
   // BUG CORRIGIDO ("algo deu errado" / tela em branco ao abrir a
@@ -594,8 +597,13 @@ function ChannelGroup({
                 {rosterEntries.map((p) => {
                   const person = members.find((m) => m.user.id === p.userId)?.user;
                   const isSpeaking = !p.muted && (p.userId === myUserId ? !!voice?.localSpeaking : !!voice?.rosterSpeaking?.[ch.id]?.[p.userId]);
+                  // Moderação de voz (clique direito), só com a permissão.
+                  const modItems = buildVoiceModerationItems({ voice, channelId: ch.id, target: p, myPerms, myUserId });
                   return (
-                    <div key={p.userId} className={`voice-roster-item ${isSpeaking ? 'speaking' : ''}`}>
+                    <div
+                      key={p.userId} className={`voice-roster-item ${isSpeaking ? 'speaking' : ''}`}
+                      onContextMenu={modItems.length ? (e) => openMenu(e, modItems) : undefined}
+                    >
                       <div className="avatar tiny">
                         <UserAvatar user={person} size={20} />
                       </div>
@@ -604,6 +612,7 @@ function ChannelGroup({
                           atualiza quando a pessoa liga a tela ou a câmera. */}
                       {p.screenSharing && <span className="voice-roster-live" title="Transmitindo a tela"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v11H3zM8 20h8M12 16v4" /></svg>AO VIVO</span>}
                       {p.video && <svg className="voice-roster-ico" viewBox="0 0 24 24" aria-label="Câmera ligada" role="img"><path d="M3 7h12v10H3zM15 10l6-3v10l-6-3" /></svg>}
+                      {(p.serverMuted || p.serverDeafened) && <span className="voice-roster-servermod" title={p.serverDeafened ? 'Ensurdecido no servidor' : 'Silenciado no servidor'}>MOD</span>}
                       {p.deafened && <svg className="voice-roster-ico is-muted" viewBox="0 0 24 24" aria-label="Ensurdecido" role="img"><title>Ensurdecido</title><path d="M4 15v-3a8 8 0 0 1 12.7-6.5M20 12v3M3 14h5v7H5a2 2 0 0 1-2-2zM16 16v3a2 2 0 0 0 2 2h1M3 3l18 18" /></svg>}
                       {p.muted && !p.deafened && <svg className="voice-roster-ico is-muted" viewBox="0 0 24 24" aria-label="Mudo" role="img"><path d="M15 9.3V6a3 3 0 0 0-5.7-1.3M9 9v3a3 3 0 0 0 4.9 2.3M19 11a7 7 0 0 1-1.1 3.8M5 11a7 7 0 0 0 11 5.7M12 18v3M3 3l18 18" /></svg>}
                     </div>

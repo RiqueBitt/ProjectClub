@@ -210,21 +210,15 @@ data class AuthResponse(val user: User? = null, val accessToken: String? = null,
 data class MeResponse(val user: User)
 
 @Serializable
-data class AgoraCreds(val token: String, val appId: String, val uid: String? = null)
-
-@Serializable
 data class JitsiCreds(val domain: String? = null, val room: String? = null)
 
 @Serializable
 data class VoiceJoinResponse(
     val provider: String,
     val channelName: String? = null,
-    val agora: AgoraCreds? = null,
     val jitsi: JitsiCreds? = null,
     /** Servidor de mídia próprio: { url, token, room, identity, iceServers }. */
     val projectclub: kotlinx.serialization.json.JsonObject? = null,
-    val token: String? = null,
-    val appId: String? = null,
 )
 
 @Serializable

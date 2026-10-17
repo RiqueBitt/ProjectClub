@@ -119,17 +119,12 @@ module.exports = {
   // funcionando normalmente.
   STEAM_WEB_API_KEY: process.env.STEAM_WEB_API_KEY || '',
 
-  // ---------- Voz: Agora + reserva Jitsi (ver services/voiceUsage.js e
-  // services/jitsiProvider.js, docs/voice-fallback.md) ----------
-  // O plano gratuito do Agora dá ~10.000 minutos/mês. Quando o uso do mês
-  // chega perto do limite (margem padrão 95%), as chamadas passam a
-  // conectar pelo Jitsi (IFrame External API) automaticamente, sem deslogar
-  // ninguém — e voltam pro Agora sozinhas na virada do mês. Tudo OPCIONAL:
-  // sem nada configurado, usa Agora normal e cai pro meet.jit.si público
-  // (anônimo, sem segredos) quando precisa.
+  // ---------- Voz (ver services/voiceProviders.js, docs/voice-fallback.md)
+  // O principal é o servidor de mídia PRÓPRIO (MEDIA_SERVER_URL +
+  // MEDIA_SERVER_SECRET, ver media-server/). Se ele cair, a cadeia passa
+  // pelas reservas configuradas (LiveKit/Daily/TRTC) e por último pro Jitsi,
+  // sem deslogar ninguém. Tudo OPCIONAL para o Jitsi:
   //
-  // AGORA_MONTHLY_MINUTES  limite mensal de minutos de canal (padrão 10000).
-  // AGORA_SWITCH_MARGIN    fração do limite em que troca (padrão 0.95).
   // JITSI_DOMAIN           domínio do Jitsi (padrão meet.jit.si).
   // JITSI_APP_ID /         se preenchidos, o domínio exige JWT e o servidor
   //   JITSI_APP_SECRET     assina um; sem eles, usa o fluxo anônimo público.
@@ -137,6 +132,5 @@ module.exports = {
   //                        na falta, usa o próprio JWT_ACCESS_SECRET).
   // Esses valores são lidos direto de process.env pelos serviços de voz —
   // ficam aqui só documentados pra quem configura o deploy.
-  AGORA_MONTHLY_MINUTES: parseInt(process.env.AGORA_MONTHLY_MINUTES || '10000', 10),
   JITSI_DOMAIN: process.env.JITSI_DOMAIN || 'meet.jit.si',
 };

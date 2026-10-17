@@ -16,14 +16,13 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 // Item pedido: "o jeito mais fácil de conseguir fazer o celular
 // compartilhar a tela" — o caminho escolhido evita de propósito a parte
 // mais arriscada de uma implementação nativa "completa" (renderização
-// gráfica de baixo nível com OpenGL/EGL, do jeito que o próprio exemplo
-// oficial do Agora faz): aqui, esse plugin só entrega os PIXELS da tela
+// gráfica de baixo nível com OpenGL/EGL, do jeito que os exemplos de SDKs
+// de vídeo costumam fazer): aqui, esse plugin só entrega os PIXELS da tela
 // (como imagens JPEG, uma a cada intervalo curto) pro lado JavaScript —
 // é lá que a mágica de virar um vídeo de verdade acontece, desenhando
 // cada imagem recebida num <canvas> e usando canvas.captureStream()
-// (uma função padrão de navegador, documentada oficialmente pelo Agora
-// como forma válida de alimentar uma chamada com uma fonte de vídeo
-// customizada). Menos performático que a via 100% nativa/gráfica, mas
+// (uma função padrão de navegador — a faixa resultante é publicada na
+// chamada pelo engine de mídia como a tela). Menos performático que a via 100% nativa/gráfica, mas
 // MUITO mais simples de implementar corretamente sem poder testar num
 // aparelho real — o que é exatamente a troca que foi pedida.
 //

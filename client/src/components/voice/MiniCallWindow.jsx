@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { useStore } from '../../store/useStore';
 import UserAvatar from '../UserAvatar.jsx';
 import CallIcon from './CallIcons.jsx';
+import { useVideoViewport } from '../../voice/useVideoViewport';
 
 // Janelinha flutuante da chamada (estilo picture-in-picture): aparece
 // quando você está numa chamada e sai da tela dela. Mostra quem está
@@ -22,9 +23,11 @@ function saveCorner(c) {
   try { localStorage.setItem(CORNER_KEY, c); } catch { /* sem storage */ }
 }
 
-function MiniVideo({ stream }) {
+// Vídeo pequeno: avisa o engine (camada baixa do simulcast basta).
+function MiniVideo({ stream, uid = null, kind = 'camera', report = null }) {
   const ref = useRef(null);
   useEffect(() => { if (ref.current) ref.current.srcObject = stream; }, [stream]);
+  useVideoViewport(ref, { uid, kind, report, enabled: !!uid && !!stream });
   return <video ref={ref} autoPlay playsInline muted />;
 }
 
@@ -105,7 +108,7 @@ export default function MiniCallWindow({ voice, onBack, onHide }) {
       <div className="mcw-view" onDoubleClick={onBack}>
         {videoStream ? (
           <>
-            <MiniVideo stream={videoStream} />
+            <MiniVideo stream={videoStream} uid={videoOwner} kind={screenUid ? 'screen' : 'camera'} report={voice.reportVideoViewport} />
             <span className="mcw-badge">
               {screenUid ? <span className="mcw-live">AO VIVO</span> : <CallIcon name="camera" size={12} />}
               <span className="truncate">{ownerName}</span>

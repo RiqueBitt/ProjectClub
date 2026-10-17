@@ -45,6 +45,134 @@ async function updateParticipant(channelId, userId, patch) {
   return updated;
 }
 
+// ---------- Entrada atômica com limite de usuários ----------
+// Antes: lia o tamanho da sala, comparava com o limite e só DEPOIS gravava —
+// duas pessoas entrando juntas no último lugar passavam as duas. Agora o
+// "confere e grava" é um script Lua (atômico no Redis). Resultado:
+//   { status: 'added', size }  → entrou (size = tamanho DEPOIS de entrar)
+//   { status: 'exists', size } → já estava (reconciliação, nada gravado)
+//   { status: 'full', size }   → cheio (limit > 0 e size >= limit)
+// limit 0/null = sem limite (ex.: quem tem MOVER MEMBROS fura o limite).
+const ADD_IF_ROOM_LUA = `
+local exists = redis.call('HEXISTS', KEYS[1], ARGV[1])
+local size = redis.call('HLEN', KEYS[1])
+if exists == 1 then return {2, size} end
+local limit = tonumber(ARGV[3])
+if limit > 0 and size >= limit then return {0, size} end
+redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])
+redis.call('SADD', KEYS[2], ARGV[4])
+return {1, size + 1}
+`;
+
+// Regra pura (a mesma do Lua) — usada no caminho reserva e nos testes.
+function decideAdd({ exists, size, limit }) {
+  if (exists) return 'exists';
+  const max = Number(limit) > 0 ? Number(limit) : 0;
+  if (max > 0 && size >= max) return 'full';
+  return 'added';
+}
+
+async function addParticipantIfRoom(channelId, userId, state, limit = 0) {
+  const max = Number(limit) > 0 ? Math.floor(Number(limit)) : 0;
+  if (typeof redis.eval === 'function') {
+    try {
+      const [code, size] = await redis.eval(ADD_IF_ROOM_LUA, 2, roomKey(channelId), ACTIVE_ROOMS_KEY, userId, JSON.stringify(state), String(max), channelId);
+      return { status: code === 1 ? 'added' : code === 2 ? 'exists' : 'full', size: Number(size) };
+    } catch (err) {
+      // Redis sem EVAL (proxy/serviço que bloqueia scripts): cai pro caminho
+      // reserva abaixo, serializado por canal neste processo.
+      if (!/unknown command|NOSCRIPT|not allowed|ERR/i.test(String(err?.message))) throw err;
+    }
+  }
+  return withLocalLock(`room:${channelId}`, async () => {
+    const [exists, size] = await Promise.all([hasParticipant(channelId, userId), roomSize(channelId)]);
+    const status = decideAdd({ exists, size, limit: max });
+    if (status !== 'added') return { status, size };
+    await setParticipant(channelId, userId, state);
+    return { status, size: size + 1 };
+  });
+}
+
+// ---------- Travas ----------
+// Trava LOCAL (neste processo): fila de promessas por chave — quem chega
+// enquanto outro está dentro espera ele terminar.
+const localLocks = new Map(); // key -> Promise
+function withLocalLock(key, fn) {
+  const prev = localLocks.get(key) || Promise.resolve();
+  const run = prev.catch(() => {}).then(fn);
+  const tail = run.catch(() => {});
+  localLocks.set(key, tail);
+  tail.then(() => { if (localLocks.get(key) === tail) localLocks.delete(key); });
+  return run;
+}
+
+// Trava por pessoa+canal (e entre instâncias, pelo Redis com SET NX PX):
+// dois voice:join iguais ao mesmo tempo (clique duplo, aba duplicada,
+// reenvio) rodam UM DEPOIS DO OUTRO — o segundo vira só reconciliação e o
+// voice:user-joined não sai duas vezes. Redis fora do ar: vale só a trava
+// local (nunca bloqueia a entrada por causa da trava).
+const RELEASE_LUA = "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end";
+async function withLock(key, fn, { ttlMs = 8000, waitMs = 4000, stepMs = 40 } = {}) {
+  return withLocalLock(key, async () => {
+    const lockKey = `voice:lock:${key}`;
+    const token = `${process.pid}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+    let held = false;
+    const deadline = Date.now() + waitMs;
+    try {
+      while (!held) {
+        // eslint-disable-next-line no-await-in-loop
+        const r = await redis.set(lockKey, token, 'PX', ttlMs, 'NX');
+        if (r === 'OK') { held = true; break; }
+        if (Date.now() >= deadline) break; // outra instância travou demais: segue mesmo assim
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((res) => { setTimeout(res, stepMs); });
+      }
+    } catch { /* Redis fora: só a trava local */ }
+    try {
+      return await fn();
+    } finally {
+      if (held) {
+        try {
+          if (typeof redis.eval === 'function') await redis.eval(RELEASE_LUA, 1, lockKey, token);
+          else await redis.del(lockKey);
+        } catch { /* expira sozinha */ }
+      }
+    }
+  });
+}
+
+// ---------- Moderação de voz (mudo/ensurdecer DO SERVIDOR) ----------
+// Igual ao Discord: o mudo do servidor é da PESSOA na comunidade (vale em
+// qualquer canal até um moderador tirar), não só da sala atual.
+const modKey = (userId) => `voice:mod:${userId}`;
+async function getModState(userId) {
+  try {
+    const raw = await redis.get(modKey(userId));
+    const v = raw ? JSON.parse(raw) : {};
+    return { serverMuted: v.serverMuted === true, serverDeafened: v.serverDeafened === true };
+  } catch { return { serverMuted: false, serverDeafened: false }; }
+}
+async function setModState(userId, patch = {}) {
+  const cur = await getModState(userId);
+  const next = {
+    serverMuted: typeof patch.serverMuted === 'boolean' ? patch.serverMuted : cur.serverMuted,
+    serverDeafened: typeof patch.serverDeafened === 'boolean' ? patch.serverDeafened : cur.serverDeafened,
+  };
+  if (!next.serverMuted && !next.serverDeafened) await redis.del(modKey(userId));
+  else await redis.set(modKey(userId), JSON.stringify(next));
+  return next;
+}
+
+// "Mover para…": o moderador moveu a pessoa pra um canal — por 60s ela
+// pode entrar nele mesmo cheio (igual ao Discord).
+const moveTicketKey = (userId, channelId) => `voice:moveticket:${userId}:${channelId}`;
+async function grantMoveTicket(userId, channelId, ttlSec = 60) {
+  try { await redis.set(moveTicketKey(userId, channelId), '1', 'EX', ttlSec); } catch { /* opcional */ }
+}
+async function hasMoveTicket(userId, channelId) {
+  try { return !!(await redis.get(moveTicketKey(userId, channelId))); } catch { return false; }
+}
+
 async function removeParticipant(channelId, userId) {
   await redis.hdel(roomKey(channelId), userId);
   const size = await redis.hlen(roomKey(channelId));
@@ -149,4 +277,6 @@ module.exports = {
   getStartedAt, setStartedAt, clearStartedAt,
   getDmCallState, setDmCallState, updateDmCallState, clearDmCallState,
   clearAllRooms,
+  addParticipantIfRoom, decideAdd, withLock, withLocalLock,
+  getModState, setModState, grantMoveTicket, hasMoveTicket,
 };

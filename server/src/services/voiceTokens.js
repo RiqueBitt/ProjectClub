@@ -1,6 +1,6 @@
 // Geração dos tokens/credenciais de cada provedor da cadeia de voz
 // (item pedido). TUDO assinado aqui no servidor — os segredos
-// (LIVEKIT_API_SECRET, GETSTREAM_API_SECRET, TRTC_SECRET_KEY, etc) NUNCA
+// (MEDIA_SERVER_SECRET, LIVEKIT_API_SECRET, TRTC_SECRET_KEY, etc) NUNCA
 // vão pro cliente; só o token já pronto e de curta duração vai, na rota
 // /api/voice/join, e só pra quem tem acesso àquela sala.
 //
@@ -11,19 +11,10 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const zlib = require('zlib');
-const { generateToken: generateAgoraToken } = require('./agoraToken');
 
 // Validade padrão dos tokens de mídia (24h) — de sobra pra qualquer
 // chamada realista, nunca eterno.
 const TOKEN_TTL_SECONDS = 24 * 60 * 60;
-
-// ---------------- Agora ----------------
-// Reaproveita o minter que já existia (services/agoraToken.js).
-function mintAgora(channelName, userId, env = process.env) {
-  const token = generateAgoraToken(channelName, userId);
-  if (!token) return null;
-  return { token, appId: env.AGORA_APP_ID, uid: userId };
-}
 
 // ---------------- LiveKit ----------------
 // Access token do LiveKit = JWT HS256 assinado com o LIVEKIT_API_SECRET,
@@ -53,24 +44,6 @@ function mintLiveKit({ room, identity, name } = {}, env = process.env) {
   };
   const token = jwt.sign(payload, apiSecret, { algorithm: 'HS256' });
   return { url, token, room, identity };
-}
-
-// ---------------- Stream (GetStream) ----------------
-// User token do Stream = JWT HS256 { user_id } assinado com o
-// GETSTREAM_API_SECRET. O cliente usa junto com a GETSTREAM_API_KEY
-// (pública) pra se autenticar no Video SDK deles.
-function mintGetStream({ userId, callId } = {}, env = process.env) {
-  const apiKey = env.GETSTREAM_API_KEY;
-  const apiSecret = env.GETSTREAM_API_SECRET;
-  if (!apiKey || !apiSecret || !userId) return null;
-  const now = Math.floor(Date.now() / 1000);
-  const payload = {
-    user_id: String(userId),
-    iat: now,
-    exp: now + TOKEN_TTL_SECONDS,
-  };
-  const token = jwt.sign(payload, apiSecret, { algorithm: 'HS256' });
-  return { apiKey, token, userId: String(userId), callId: callId || null };
 }
 
 // ---------------- TRTC (Tencent) ----------------
@@ -224,13 +197,29 @@ function iceServersFor(userId, env = process.env, now = Date.now()) {
   return servers;
 }
 
-function mintProjectClub({ room, userId, name } = {}, env = process.env, now = Date.now()) {
+// Claims de PERMISSÃO de mídia (ver services/voiceJoinPolicy.js): o
+// servidor de mídia recusa publicar o microfone sem canSpeak, câmera/tela
+// sem canVideo, e mantém o mic pausado com serverMuted. Só entram campos
+// conhecidos e com o tipo certo; sem `claims`, o token sai como antes (o
+// servidor de mídia trata a ausência como "tudo permitido").
+function mediaClaims(claims) {
+  if (!claims || typeof claims !== 'object') return {};
+  const out = {};
+  for (const k of ['canSpeak', 'canVideo', 'serverMuted', 'serverDeafened']) {
+    if (typeof claims[k] === 'boolean') out[k] = claims[k];
+  }
+  if (claims.role === 'speaker' || claims.role === 'audience') out.role = claims.role;
+  return out;
+}
+
+function mintProjectClub({ room, userId, name, claims } = {}, env = process.env, now = Date.now()) {
   const url = String(env.MEDIA_SERVER_URL || '').trim();
   const secret = env.MEDIA_SERVER_SECRET;
   if (!url || !secret || !room || !userId) return null;
   const nowSec = Math.floor(now / 1000);
   const token = jwt.sign({
     sub: String(userId), room: String(room), name: String(name || userId).slice(0, 64),
+    ...mediaClaims(claims),
     jti: crypto.randomBytes(9).toString('base64url'),
     iat: nowSec, exp: nowSec + MEDIA_TOKEN_TTL_SECONDS,
   }, secret, { algorithm: 'HS256' });
@@ -241,12 +230,11 @@ module.exports = {
   TOKEN_TTL_SECONDS,
   MEDIA_TOKEN_TTL_SECONDS,
   mintProjectClub,
+  mediaClaims,
   turnCredentials,
   turnUrls,
   iceServersFor,
-  mintAgora,
   mintLiveKit,
-  mintGetStream,
   mintTRTCUserSig,
   mintJitsi,
   mintDaily,

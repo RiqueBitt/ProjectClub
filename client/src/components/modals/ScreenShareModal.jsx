@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import PageIcon from '../PageIcons.jsx';
+import { screenBitrate } from '../../voice/screenPresets.js';
 
 // Menu "Transmitir tela": escolhe o perfil (ou ajusta qualidade/FPS à mão)
 // e se o som do computador vai junto. Depois disso o seletor de tela/janela
@@ -15,8 +16,10 @@ const PRESETS = [
   { key: 'balanced', icon: 'scale', title: 'Equilibrado', hint: '720p, 30 FPS', quality: '720p', frameRate: 30 },
   { key: 'games', icon: 'gamepad', title: 'Jogos e vídeos', hint: '1080p, 60 FPS', quality: '1080p', frameRate: 60 },
 ];
-const QUALITIES = ['720p', '1080p'];
-const FPS = [15, 30, 60];
+// Tabela igual à do motor (voice/screenPresets.js): 720p/1080p/1440p ×
+// 5/15/30/60 FPS, cada combinação com o seu bitrate.
+const QUALITIES = ['720p', '1080p', '1440p'];
+const FPS = [5, 15, 30, 60];
 const STORAGE_KEY = 'screenShareOptions';
 
 function loadSaved() {
@@ -100,8 +103,8 @@ export default function ScreenShareModal({ onClose, onShare }) {
             <span className="ssm-switch" aria-hidden="true" />
           </label>
 
-          {opts.frameRate === 60 && opts.quality === '1080p' && (
-            <p className="ssm-note">1080p a 60 FPS usa bastante internet. Se travar para quem assiste, troque para 720p.</p>
+          {screenBitrate(opts.quality, opts.frameRate) >= 7_000_000 && (
+            <p className="ssm-note">{opts.quality} a {opts.frameRate} FPS usa bastante internet (até {(screenBitrate(opts.quality, opts.frameRate) / 1_000_000).toLocaleString('pt-BR')} Mbps). Se travar para quem assiste, troque para 720p ou menos FPS.</p>
           )}
         </div>
 

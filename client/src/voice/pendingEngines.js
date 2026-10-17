@@ -1,13 +1,13 @@
-// Engines PENDENTES da cadeia de voz: getstream, daily e trtc.
+// Engines PENDENTES da cadeia de voz: daily e trtc.
 //
 // O lado do SERVIDOR destes provedores está pronto (token/UserSig mintado em
 // services/voiceTokens.js e status no painel da staff). O engine de CLIENTE
 // ainda não está finalizado — por isso o cliente anuncia ao servidor
 // (clientReady em /api/voice/join) que NÃO sabe usá-los ainda, e a cadeia os
-// PULA automaticamente no navegador (continua indo agora → livekit → jitsi).
+// PULA automaticamente no navegador (segue servidor próprio → livekit → jitsi).
 //
-// Observação de BUILD: os SDKs destes três (@stream-io/video-client,
-// @daily-co/daily-js, trtc-sdk-v5) são grandes (o TRTC sozinho ~1,1MB) e
+// Observação de BUILD: os SDKs destes dois (@daily-co/daily-js,
+// trtc-sdk-v5) são grandes (o TRTC sozinho ~1,1MB) e
 // faziam o build do cliente estourar a memória no deploy. Como o engine
 // ainda é pendente e NUNCA é usado, não importamos (nem instalamos) esses
 // SDKs — assim eles não entram no build. Quando formos finalizar cada um,
@@ -40,6 +40,5 @@ class PendingEngine {
   dispose() {}
 }
 
-export function createGetStreamEngine(callbacks) { return new PendingEngine('getstream', callbacks); }
 export function createDailyEngine(callbacks) { return new PendingEngine('daily', callbacks); }
 export function createTRTCEngine(callbacks) { return new PendingEngine('trtc', callbacks); }

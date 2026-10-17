@@ -491,11 +491,11 @@ class Repository(private val context: Context, val api: Api, private val scope: 
     }
 
     /**
-     * Pergunta ao servidor qual provedor de voz usar (e as credenciais dele).
-     * [clientReady] = provedores que este aparelho aceita AGORA — tirar um que
-     * falhou faz a cadeia devolver o próximo (failover, igual ao site).
+     * Pede ao servidor as credenciais da call. O app só usa o servidor de
+     * mídia PRÓPRIO ([clientReady] = projectclub); se ele não estiver
+     * disponível, o servidor responde com a reserva da web (Jitsi).
      */
-    suspend fun voiceJoin(channelName: String, clientReady: List<String> = listOf("projectclub", "agora", "jitsi")): VoiceJoinResponse =
+    suspend fun voiceJoin(channelName: String, clientReady: List<String> = listOf("projectclub")): VoiceJoinResponse =
         api.get("/api/voice/join?channelName=${enc(channelName)}&clientReady=${enc(clientReady.joinToString(","))}")
 
     // ---------------- tempo real ----------------
@@ -570,7 +570,8 @@ class Repository(private val context: Context, val api: Api, private val scope: 
                 val conversationId = str(d, "conversationId") ?: return
                 _alerts.tryEmit(Alert.IncomingCall(conversationId, str(d, "channelId") ?: "dm:$conversationId", str(d, "fromUserId"), str(d, "callerName") ?: "Alguém"))
             }
-            "dm-call:ended", "dm-call:declined" -> str(d, "conversationId")?.let { _alerts.tryEmit(Alert.CallEnded(it)) }
+            // Atendeu em OUTRO aparelho / ninguém atendeu em 60s: para de tocar aqui.
+            "dm-call:ended", "dm-call:declined", "dm-call:answered", "dm-call:missed" -> str(d, "conversationId")?.let { _alerts.tryEmit(Alert.CallEnded(it)) }
             "account:banned", "account:suspended", "account:disabled", "account:deleted", "account:blocked" ->
                 scope.launch { endLocalSession("Sua conta não pode entrar agora.") }
         }

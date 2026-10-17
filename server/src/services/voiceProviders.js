@@ -1,7 +1,11 @@
-// Cadeia de provedores de voz (item pedido: transformar o fallback único
-// Agora→Jitsi numa CADEIA ordenada de provedores, cada um usado até
-// estourar o limite mensal gratuito dele, aí passa pro próximo
-// automaticamente — sem deslogar ninguém).
+// Cadeia de provedores de voz: uma CADEIA ordenada de provedores, cada um
+// usado até estourar o limite mensal gratuito dele (ou cair), aí passa pro
+// próximo automaticamente — sem deslogar ninguém. O PRINCIPAL é o servidor
+// de mídia próprio (projectclub, mediasoup); os externos que sobraram
+// (LiveKit/Daily/TRTC) só entram se configurados, e o Jitsi é a última rede
+// de segurança. (Agora e Stream/GetStream foram removidos da plataforma —
+// ids antigos guardados no Redis são ignorados por quem lê, ver
+// voiceOverrideStore.js.)
 //
 // Este arquivo é a FONTE DA VERDADE da cadeia: a ordem, o rótulo, quais
 // variáveis de ambiente cada um exige pra ser considerado "configurado",
@@ -33,11 +37,10 @@ function margin(env = process.env) {
 // pro Daily aparecer no painel como "configurado (falta DAILY_API_KEY)"
 // e ser PULADO na cadeia enquanto o dono não adiciona a chave da API.
 const PROVIDERS = {
-  // Servidor de mídia PRÓPRIO (item pedido: "crie o nosso próprio sistema"
-  // a partir do PDF — mediasoup + coturn, ver media-server/). Primeiro da
-  // cadeia e sem teto mensal: quando configurado (URL + segredo do servidor
-  // de mídia), é ele que atende; sem as variáveis fica "não configurado" e
-  // a cadeia segue pros provedores externos como antes.
+  // Servidor de mídia PRÓPRIO (mediasoup + coturn, ver media-server/).
+  // PRINCIPAL e primeiro da cadeia, sem teto mensal: quando configurado (URL
+  // + segredo do servidor de mídia), é ele que atende; sem as variáveis fica
+  // "não configurado" e a cadeia segue pros provedores de reserva.
   projectclub: {
     id: 'projectclub',
     label: 'Project Club (servidor próprio)',
@@ -45,36 +48,20 @@ const PROVIDERS = {
     envVars: ['MEDIA_SERVER_URL', 'MEDIA_SERVER_SECRET'],
     unlimited: true,
     own: true,
-  },
-  agora: {
-    id: 'agora',
-    label: 'Agora',
-    order: 1,
-    envVars: ['AGORA_APP_ID', 'AGORA_APP_CERTIFICATE'],
-    limitEnv: 'AGORA_MONTHLY_MINUTES',
-    defaultLimit: 10000,
     isPrimary: true,
   },
   livekit: {
     id: 'livekit',
     label: 'LiveKit',
-    order: 2,
+    order: 1,
     envVars: ['LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET'],
     limitEnv: 'LIVEKIT_MONTHLY_MINUTES',
     defaultLimit: 5000,
   },
-  getstream: {
-    id: 'getstream',
-    label: 'Stream (GetStream)',
-    order: 3,
-    envVars: ['GETSTREAM_API_KEY', 'GETSTREAM_API_SECRET'],
-    limitEnv: 'GETSTREAM_MONTHLY_MINUTES',
-    defaultLimit: 10000,
-  },
   daily: {
     id: 'daily',
     label: 'Daily',
-    order: 4,
+    order: 2,
     envVars: ['DAILY_DOMAIN', 'DAILY_ROOM_URL'],
     // O dono ainda NÃO tem a DAILY_API_KEY (necessária pra mintar os
     // tokens de reunião via REST do Daily). Enquanto ela não existir, o
@@ -87,7 +74,7 @@ const PROVIDERS = {
   trtc: {
     id: 'trtc',
     label: 'TRTC (Tencent)',
-    order: 5,
+    order: 3,
     envVars: ['TRTC_SDK_APP_ID', 'TRTC_SECRET_KEY'],
     limitEnv: 'TRTC_MONTHLY_MINUTES',
     defaultLimit: 10000,
@@ -95,7 +82,7 @@ const PROVIDERS = {
   jitsi: {
     id: 'jitsi',
     label: 'Jitsi (meet.jit.si)',
-    order: 6,
+    order: 4,
     // Fallback final e sempre gratuito — não exige segredo nenhum
     // (meet.jit.si público). Por isso está SEMPRE disponível e sem teto.
     envVars: [],
@@ -115,9 +102,8 @@ function getMeta(id) {
   return PROVIDERS[id] || null;
 }
 
-// "Modo reserva" = a chamada caiu num provedor DEPOIS do principal na cadeia
-// (estourou o limite / indisponível). O servidor próprio vem ANTES do
-// principal, então estar nele não é reserva — é o caminho preferido.
+// "Modo reserva" = a chamada caiu num provedor DEPOIS do principal (o
+// servidor próprio) na cadeia — ele estava indisponível/caído.
 function isReserve(id) {
   const meta = PROVIDERS[id];
   const primary = PROVIDERS[PRIMARY_PROVIDER];

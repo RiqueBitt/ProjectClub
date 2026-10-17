@@ -1,5 +1,5 @@
-// Saúde dos provedores de voz ("disjuntor"). Problema real: o Agora estava
-// configurado mas falhando em produção (CAN_NOT_GET_GATEWAY_SERVER) e a
+// Saúde dos provedores de voz ("disjuntor"). Problema real: um provedor
+// configurado mas falhando em produção (ex.: sem rota até o gateway) e a
 // cadeia continuava mandando gente pra ele — cada um ficava alguns segundos
 // tentando até o cliente desistir e pedir o próximo.
 //

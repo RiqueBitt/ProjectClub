@@ -20,6 +20,7 @@
 //    pra portas por transport se ele não subir.
 const mediasoup = require('mediasoup');
 const { config, transportPortRange, WEBRTC_SERVER_PORT_RESERVE } = require('./config');
+const perm = require('./permissions');
 
 const log = (...a) => console.log('[media]', ...a);
 
@@ -140,13 +141,18 @@ function pickWorker() {
 // ---------------- Salas ----------------
 const rooms = new Map(); // name -> Room
 const creating = new Map(); // name -> Promise<Room> (criação em andamento)
+// Producers de microfone pausados pela MODERAÇÃO (não pelo próprio cliente).
+const modPaused = new WeakSet();
 
 class Peer {
-  constructor({ id, name, socket, session }) {
+  constructor({ id, name, socket, session, perms }) {
     this.id = id;           // = userId do Project Club (identidade na grade)
     this.name = name;
     this.socket = socket;   // WebSocket da sinalização
     this.session = session || null; // jti do token (identifica a sessão/aparelho)
+    // Permissões de mídia (ver permissions.js): claims do token + ordens do
+    // backend (POST /control). Sem claims = tudo permitido.
+    this.perms = perms || perm.permsFromClaims({});
     this.transports = new Map(); // id -> WebRtcTransport
     this.producers = new Map();  // id -> Producer
     this.consumers = new Map();  // id -> Consumer
@@ -178,6 +184,11 @@ class Room {
     this.createdAt = Date.now();
     this.closed = false;
     this.onActiveSpeakers = null; // (peerIds[]) => void — ligado pela sinalização
+    // Detector de fala com "segura" (hold): peerId -> último instante em que
+    // o observer o ouviu acima do limiar. Só avisa quando o conjunto MUDA.
+    this._lastHeard = new Map();
+    this._activeKey = '';
+    this._speakTimer = null;
     this._wireAudioLevels();
     // Router fechado por fora (worker morreu → 'workerclose'): a sala inteira
     // morre junto e o pessoal reconecta numa sala nova.
@@ -188,16 +199,39 @@ class Room {
 
   _wireAudioLevels() {
     // Quem está falando (PDF 4.1 / UX): o observer entrega os producers de
-    // áudio com mais volume a cada intervalo; mapeamos pra peerId.
+    // áudio com mais volume a cada intervalo (200ms); mapeamos pra peerId.
+    // Com a "segura" (config.speakingHoldMs) a pessoa continua acesa um
+    // pouco depois da última sílaba — sem piscar entre palavras — e o aviso
+    // só sai quando o conjunto de quem fala MUDA (menos tráfego).
     this.audioLevelObserver.on('volumes', (volumes) => {
-      const ids = [];
+      const now = Date.now();
       for (const { producer } of volumes) {
         const peerId = producer.appData && producer.appData.peerId;
-        if (peerId && !ids.includes(peerId)) ids.push(peerId);
+        if (peerId) this._lastHeard.set(peerId, now);
       }
-      this.onActiveSpeakers?.(ids);
+      this._emitSpeakers(now);
     });
-    this.audioLevelObserver.on('silence', () => { this.onActiveSpeakers?.([]); });
+    this.audioLevelObserver.on('silence', () => { this._emitSpeakers(Date.now()); });
+  }
+
+  // Recalcula quem está falando (com a segura) e avisa se mudou. Agenda um
+  // novo cálculo pra quando a próxima segura vencer (o 'silence' do
+  // observer não repete enquanto continua tudo quieto).
+  _emitSpeakers(now) {
+    if (this.closed) return;
+    const { active, nextExpiry } = activeSpeakers(this._lastHeard, now, config.speakingHoldMs);
+    for (const id of [...this._lastHeard.keys()]) if (!active.includes(id)) this._lastHeard.delete(id);
+    const key = active.slice().sort().join('|');
+    if (key !== this._activeKey) {
+      this._activeKey = key;
+      this.onActiveSpeakers?.(active);
+    }
+    clearTimeout(this._speakTimer);
+    this._speakTimer = null;
+    if (nextExpiry != null) {
+      this._speakTimer = setTimeout(() => this._emitSpeakers(Date.now()), Math.max(20, nextExpiry - now + 5));
+      this._speakTimer.unref?.();
+    }
   }
 
   get size() { return this.peers.size; }
@@ -270,17 +304,36 @@ class Room {
     // Conta as publicações EM ANDAMENTO também: dois produce simultâneos
     // passavam juntos pela checagem do limite.
     if (peer.producers.size + peer.pendingProduce >= config.maxProducersPerPeer) throw new Error('limite de mídias publicadas por participante');
-    const source = typeof appData?.source === 'string' ? appData.source.slice(0, 32) : (kind === 'audio' ? 'mic' : 'camera');
+    const source = perm.normalizeSource(kind, appData?.source);
+    // Permissões NO SERVIDOR (SPEAK / VIDEO / palco): o cliente pode estar
+    // adulterado — sem permissão, a mídia nem chega a existir.
+    const hasScreen = [...peer.producers.values()].some((p) => p.appData?.source === 'screen' && !p.closed);
+    const denied = perm.checkProduce(peer.perms, { kind, source, hasScreen });
+    if (denied) throw perm.forbiddenError(denied);
+    // Nasce pausado: o cliente pediu (estava mudo — nada de "vazar" o
+    // começo da fala) ou o servidor manda (mudo da moderação).
+    const clientPaused = appData?.paused === true;
+    const forced = !clientPaused && perm.forcePausedOnProduce(peer.perms, { kind, source });
+    const paused = clientPaused || forced;
     peer.pendingProduce += 1;
     let producer;
     try {
-      producer = await transport.produce({ kind, rtpParameters, appData: { peerId: peer.id, source } });
+      producer = await transport.produce({
+        kind, rtpParameters, paused, appData: { peerId: peer.id, source },
+        // Vídeo: no máximo 1 pedido de quadro-chave por segundo pro
+        // publicador (vários ouvintes entrando/trocando de camada ao mesmo
+        // tempo não viram uma rajada de quadros-chave pesados).
+        ...(kind === 'video' ? { keyFrameRequestDelay: 1000 } : {}),
+      });
     } finally {
       peer.pendingProduce -= 1;
     }
     if (!this._alive(peer)) { try { producer.close(); } catch { /* ok */ } throw goneError(); }
     producer.observer.on('close', () => { peer.producers.delete(producer.id); });
     peer.producers.set(producer.id, producer);
+    // Pausado SÓ pela moderação (o cliente queria falar): volta sozinho quando
+    // a moderação liberar — cliente antigo não sabe do serverState.
+    if (forced) modPaused.add(producer);
     if (kind === 'audio' && source === 'mic') {
       // Só o microfone entra no detector de fala (não o áudio da tela).
       try { await this.audioLevelObserver.addProducer({ producerId: producer.id }); } catch { /* ok */ }
@@ -306,7 +359,12 @@ class Room {
     // local e manda resumeConsumer — evita perder os primeiros quadros.
     const consumer = await transport.consume({
       producerId, rtpCapabilities, paused: true,
-      appData: { peerId: ownerId, source: producer.appData.source },
+      // Áudio também retransmite pacote perdido (NACK do Opus — o cliente
+      // publica o mic com opusNack). Vídeo já retransmite por padrão.
+      ...(producer.kind === 'audio' ? { enableRtx: true } : {}),
+      // clientPaused: o cliente ainda não pediu o resume (ou pausou de
+      // propósito — ensurdecido, economia de banda).
+      appData: { peerId: ownerId, source: producer.appData.source, clientPaused: true },
     });
     if (!this._alive(peer)) { try { consumer.close(); } catch { /* ok */ } throw goneError(); }
     consumer.observer.on('close', () => { peer.consumers.delete(consumer.id); });
@@ -340,9 +398,25 @@ class Room {
       p.close();
       if (code) closeSocket(p.socket, code, reason || 'room_closed');
     }
+    clearTimeout(this._speakTimer); this._speakTimer = null;
     try { this.audioLevelObserver.close(); } catch { /* ok */ }
     try { this.router.close(); } catch { /* ok */ }
   }
+}
+
+// Quem conta como "falando" agora: ouvido há no máximo `holdMs`. Devolve
+// também quando a próxima segura vence (pra recalcular sem novo evento).
+function activeSpeakers(lastHeard, now, holdMs) {
+  const active = [];
+  let nextExpiry = null;
+  for (const [id, at] of lastHeard) {
+    const until = at + holdMs;
+    if (until >= now) {
+      active.push(id);
+      if (nextExpiry == null || until < nextExpiry) nextExpiry = until;
+    }
+  }
+  return { active, nextExpiry };
 }
 
 // Tira do mapa (só se ainda for ESTA sala com esse nome) e fecha.
@@ -425,5 +499,5 @@ function stats() {
 
 module.exports = {
   startWorkers, getOrCreateRoom, joinRoom, closeRoomIfEmpty, closeRoom, shutdown, rooms, stats,
-  workers, aliveWorkers, listeners, Peer, Room,
+  workers, aliveWorkers, listeners, Peer, Room, activeSpeakers, modPaused,
 };

@@ -5,7 +5,7 @@ pra fazer o que o app antigo (WebView) não conseguia:
 
 | | App antigo (WebView) | Nativo |
 |---|---|---|
-| Compartilhar a tela do celular numa call | ❌ | ✅ (MediaProjection + Agora) |
+| Compartilhar a tela do celular numa call | ❌ | ✅ (MediaProjection + servidor de mídia próprio) |
 | Notificação de DM/menção/aviso com o app em 2º plano | ❌ | ✅ |
 | Notificação com o app fechado | ❌ | ✅ quando o Firebase for configurado (abaixo) |
 | Chamada recebida em tela cheia (Atender/Recusar) | ❌ | ✅ |

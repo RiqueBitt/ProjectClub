@@ -30,7 +30,8 @@ window.audioElements = () => document.querySelectorAll('audio[data-voice-uid]').
 window.refreshCalls = 0;
 window.nextToken = null;
 
-window.joinRoom = async ({ url, token, userId, startMuted = false, noiseSuppression = false }) => {
+window.levels = 0;
+window.joinRoom = async ({ url, token, userId, startMuted = false, startDeafened = false, noiseSuppression = false }) => {
   const engine = createMediasoupEngine({
     onJoined: (id) => log('joined', id),
     onLeft: (info) => log('left', info || null),
@@ -49,12 +50,19 @@ window.joinRoom = async ({ url, token, userId, startMuted = false, noiseSuppress
     onMediaUser: (u, p) => log('mediaUser', u, p),
     onRemoteAudio: (u, s) => { log('remoteAudio', u, s); window.lastAudio = s; playStream(u, s); },
     onRemoteVideo: (u, s, k) => { log('remoteVideo', u, s, k); window.lastVideo = s; },
-    onRemoteRemove: (u, k) => { log('remoteRemove', u, k); if (k === 'audio' || k === 'all') stopStream(u); },
+    onRemoteRemove: (u, k) => { log('remoteRemove', u, k); if (k === 'audio' || k === 'all') stopStream(u); if (k === 'all') stopStream(`${u}#tela`); },
+    // Som da tela SEPARADO da voz (volume próprio): toca em players à parte.
+    onRemoteScreenAudio: (u, s) => { log('remoteScreenAudio', u, s); if (s) playStream(`${u}#tela`, s); else stopStream(`${u}#tela`); },
+    onConnectionStats: (st) => { window.connStats = st; },
     onError: (e, i) => log('error', String((e && e.message) || e), i),
+    onLocalLevel: () => { window.levels += 1; },
+    onServerState: (s) => log('serverState', s),
+    onTelemetry: (t) => log('telemetry', t),
+    onMediaError: (m) => log('mediaError', m),
   });
   window.engine = engine;
   await engine.join({
-    url, token, userId, iceServers: [], startMuted, noiseSuppression,
+    url, token, userId, iceServers: [], startMuted, startDeafened, noiseSuppression,
     refreshCredentials: async () => { window.refreshCalls += 1; return window.nextToken ? { token: window.nextToken } : null; },
   });
   return true;

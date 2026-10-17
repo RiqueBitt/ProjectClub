@@ -55,6 +55,7 @@ export const EXTRA_DEFAULTS = Object.freeze({
   inputProfile: 'custom',
   sensitivityAuto: true,
   sensitivityDb: -60,
+  inputVolume: 100, // volume de entrada do microfone (0–200%)
   joinSoundId: null,
   sfxVolume: 100,
   streamPreview: true,
