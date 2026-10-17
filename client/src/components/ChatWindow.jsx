@@ -1,3 +1,4 @@
+import UnreadCountBadge from './UnreadCountBadge.jsx';
 import { convertEmoticons } from '../utils/extraPrefs';
 import { setConversationInbox } from '../api/endpoints';
 import MiniJogosComposerButton from '../minijogos/MiniJogosComposerButton.jsx';
@@ -1896,10 +1897,7 @@ function ChatTitleOrCategoryChannels({ title, currentChannelId }) {
           >
             {hasCustomIcon(ch) ? <CustomIcon item={ch} className="channel-hash channel-custom-icon" /> : <ChannelTypeIcon type={ch.type} />}
             <span className="truncate">{ch.name}</span>
-            {ch.unreadMentions > 0 && (
-              <span className="mention-badge">{ch.unreadMentions > 99 ? '99+' : ch.unreadMentions}</span>
-            )}
-            {!(ch.unreadMentions > 0) && unread && <span className="unread-dot" />}
+            <UnreadCountBadge channel={ch} active={active} unread={unread} />
           </button>
         );
       })}

@@ -8,6 +8,7 @@ import { FeaturedGlyph } from '../components/FeaturedChannels.jsx';
 import { proxyImage } from '../utils/imageProxy';
 import '../styles/channels.css';
 import EventRsvp from '../components/EventRsvp.jsx';
+import { useMarkSectionSeen } from '../utils/sectionBadges';
 import '../styles/socialx.css';
 import '../styles/contentx.css';
 
@@ -266,6 +267,7 @@ function QuickCreate({ onClose, onCreated }) {
 
 export default function CommunityEventsPage() {
   const navigate = useNavigate();
+  useMarkSectionSeen('eventos'); // abriu Eventos: apaga a bolinha "novo"
   const { user } = useAuth();
   const isStaff = user?.platformRole === 'ADMIN' || user?.platformRole === 'MODERATOR';
   const { events, reload, patchEvent } = useCommunityEvents();

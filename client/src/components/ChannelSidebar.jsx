@@ -1,3 +1,4 @@
+import UnreadCountBadge from './UnreadCountBadge.jsx';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { lazyWithRetry as lazy } from '../utils/lazyWithRetry';
 import { createPortal } from 'react-dom';
@@ -165,7 +166,7 @@ export default function ChannelSidebar({
   const catPreviewTimer = useRef(null);
   const myRoleIdsForBadges = members.find((m) => m.user.id === user.id)?.roleIds || [];
   const unreadInCategory = (cat) => (cat.channels || []).filter((c) => (
-    c.id !== activeChannelId && (c.unreadMentions > 0 || isChannelUnread(c, channelReadAt, user.id, myRoleIdsForBadges))
+    c.id !== activeChannelId && (c.unreadMentions > 0 || c.unreadCount > 0 || isChannelUnread(c, channelReadAt, user.id, myRoleIdsForBadges))
   ));
   const showCatPreview = (e, cat) => {
     clearTimeout(catPreviewTimer.current);
@@ -438,7 +439,7 @@ export default function ChannelSidebar({
               >
                 <span className="category-preview-icon">{hasCustomIcon(c) ? <CustomIcon item={c} className="channel-custom-icon" /> : <NavIcon name={VOICE_TYPES.includes(c.type) ? 'voice' : 'hash'} size={15} />}</span>
                 <span className="truncate">{c.name}</span>
-                {c.unreadMentions > 0 ? <span className="mention-badge">{c.unreadMentions > 99 ? '99+' : c.unreadMentions}</span> : <span className="unread-dot" />}
+                <UnreadCountBadge channel={c} unread />
               </button>
             ))}
           </div>,
@@ -562,11 +563,6 @@ function ChannelGroup({
                 onClick={() => { if (ch.id !== activeChannelId) navigate(`/channels/${ch.id}`); }}
                 className={`sidebar-item channel-item ${ch.id === activeChannelId ? 'active' : ''} ${unread && !notify.muted ? 'unread' : ''} ${notify.muted ? 'is-muted' : ''}`}
               >
-                {ch.unreadMentions > 0 && (
-                  <span className={`mention-badge${notify.muted ? ' is-muted' : ''}`} title={`${ch.unreadMentions} menção${ch.unreadMentions === 1 ? '' : 'ões'} não lida${ch.unreadMentions === 1 ? '' : 's'}`}>
-                    {ch.unreadMentions > 99 ? '99+' : ch.unreadMentions}
-                  </span>
-                )}
                 <ChannelIcon channel={ch} />
                 <span className="truncate">{ch.name}</span>
                 {isVoiceType && ch.userLimit > 0 && (
@@ -584,7 +580,9 @@ function ChannelGroup({
                     title={`${notify.mutedBy === 'category' ? 'Categoria silenciada' : 'Canal silenciado'} — ${muteRemainingLabel(notify.mutedUntil, { forever: notify.mutedForever }).toLowerCase()}`}
                   />
                 )}
-                {!(ch.unreadMentions > 0) && unread && !notify.muted && <span className="unread-dot" />}
+                {/* Número vermelho de mensagens novas (com @ quando tem menção). */}
+                {!isVoiceType && <UnreadCountBadge channel={ch} active={ch.id === activeChannelId} muted={notify.muted} unread={unread} />}
+                {isVoiceType && ch.unreadMentions > 0 && <span className="unread-count-badge has-mention">@{ch.unreadMentions > 99 ? '99+' : ch.unreadMentions}</span>}
                 {canManage && (
                   <span className="channel-item-actions">
                     <button className="icon-btn-small" onClick={(e) => { e.stopPropagation(); onEdit(ch); }}><img className="ui-icon-sm" src={settingsIcon} alt="" /></button>

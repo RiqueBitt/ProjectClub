@@ -515,6 +515,11 @@ async function adminCreateCollection(req, res, next) {
     if (banner) data.bannerUrl = banner;
     if (logo) data.logoUrl = logo;
     const item = await prisma.shopCollection.create({ data });
+    // Coleção nova na Loja: bolinha "novo" pra todo mundo.
+    if (item.active !== false && item.showInShop !== false) {
+      require('../services/sectionBadges').touchSection('colecoes');
+      req.app.get('io')?.to('community').emit('section-badges:new', { section: 'colecoes' });
+    }
     res.status(201).json({ item });
   } catch (err) { next(err); }
 }

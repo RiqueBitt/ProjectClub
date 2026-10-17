@@ -10,6 +10,7 @@ import { getExtra, streamerQuiet } from '../utils/extraPrefs';
 import { canNotify, quietHoursActive, loadNotificationOverrides, applyOverrideUpdate } from '../utils/notificationPrefs';
 import { setupNativeActivity } from '../utils/nativeActivity';
 import { updateUnreadBadge } from '../utils/unreadBadge';
+import { wantsBroadcastNotify } from '../utils/broadcastNotify';
 import { sameData } from '../utils/liveRefresh';
 import { getAccessToken, refreshAccessToken } from '../api/client';
 
@@ -274,6 +275,28 @@ export function SocketProvider({ children }) {
         );
       }
       updateUnreadBadge(userId);
+    });
+    // Anúncio ou evento novo: notificação do PC/navegador (o push do celular
+    // sai do servidor). Respeita a chave em Configurações → Notificações.
+    socket.on('broadcast:notify', (p = {}) => {
+      if (!p.kind || (p.authorId && p.authorId === user.id)) return;
+      if (!wantsBroadcastNotify(getExtra(), p.kind)) return;
+      playSound('message');
+      notifyUser(p.title || 'Novidade', (p.body || '').slice(0, 140), () => navigate(p.link || (p.kind === 'event' ? '/comunidade/eventos' : '/anuncios')));
+    });
+    // Contador de não lidas: toda mensagem nova de canal público chega aqui
+    // (sem conteúdo) e soma +1 no canal, se ele não estiver aberto.
+    const seenActivity = new Set();
+    socket.on('channel:activity', ({ channelId, messageId, authorId, createdAt } = {}) => {
+      if (!channelId || authorId === user.id) return;
+      if (messageId) {
+        if (seenActivity.has(messageId)) return;
+        seenActivity.add(messageId);
+        if (seenActivity.size > 1000) seenActivity.delete(seenActivity.values().next().value);
+      }
+      const st = useStore.getState();
+      if (st.activeChannelId === channelId && document.visibilityState === 'visible') return;
+      st.bumpChannelUnread?.(channelId, createdAt);
     });
     // Configuração de notificação mudou em outro aparelho/aba.
     socket.on('notification-override:update', applyOverrideUpdate);

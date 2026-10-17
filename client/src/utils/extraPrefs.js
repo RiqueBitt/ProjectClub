@@ -43,6 +43,9 @@ export const EXTRA_DEFAULTS = Object.freeze({
   soundPack: 'auto',
   soundsOff: [],
   unreadBadge: true,
+  // Avisar quando sair anúncio / evento novo (push no celular + PC).
+  notifyAnnouncements: true,
+  notifyEvents: true,
   // Padrão dos canais: 'all' | 'mentions' | 'none' (canal/categoria sobrescrevem).
   notifyLevel: 'mentions',
   // "Não perturbe" agendado — fuso do aparelho por padrão (servidor valida).

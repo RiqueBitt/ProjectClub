@@ -769,7 +769,7 @@ export const useStore = create((set, get) => ({
   }),
 
   markChannelReadLocal: (channelId) => set((s) => {
-    const patchChannel = (ch) => (ch.id === channelId ? { ...ch, unreadMentions: 0 } : ch);
+    const patchChannel = (ch) => (ch.id === channelId ? { ...ch, unreadMentions: 0, unreadCount: 0 } : ch);
     return {
       channelReadAt: { ...s.channelReadAt, [channelId]: new Date().toISOString() },
       channels: s.channels.map(patchChannel),
@@ -783,6 +783,19 @@ export const useStore = create((set, get) => ({
       channels: s.channels.map(patchChannel),
       categories: s.categories.map((cat) => ({ ...cat, channels: (cat.channels || []).map(patchChannel) })),
     };
+  }),
+
+  // +1 no contador de não lidas de um canal fechado (evento 'channel:activity').
+  bumpChannelUnread: (channelId, createdAt) => set((s) => {
+    let hit = false;
+    const patchChannel = (ch) => {
+      if (ch.id !== channelId) return ch;
+      hit = true;
+      return { ...ch, unreadCount: (ch.unreadCount || 0) + 1, ...(createdAt ? { lastMessageAt: createdAt } : {}) };
+    };
+    const channels = s.channels.map(patchChannel);
+    const categories = s.categories.map((cat) => ({ ...cat, channels: (cat.channels || []).map(patchChannel) }));
+    return hit ? { channels, categories } : {};
   }),
 
   // Mensagem nova num canal fechado com "Todas as mensagens" (evento
@@ -848,9 +861,12 @@ export function withChannelStates(list, states, localReadAt = {}) {
     const local = localReadAt[ch.id];
     const readLocally = local && (!st.lastMentionAt || new Date(local) >= new Date(st.lastMentionAt));
     const unreadMentions = readLocally ? 0 : (st.unreadMentions || 0);
+    // Contador de não lidas: lido aqui depois da última mensagem = zero.
+    const readAllLocally = local && (!st.lastMessageAt || new Date(local) >= new Date(st.lastMessageAt));
+    const unreadCount = readAllLocally ? 0 : Math.max(st.unreadCount || 0, unreadMentions);
     if (ch.myReadAt === st.myReadAt && ch.lastMessageAt === st.lastMessageAt
-      && ch.unreadMentions === unreadMentions && ch.lastMentionAt === st.lastMentionAt) return ch;
-    return { ...ch, myReadAt: st.myReadAt, lastMessageAt: st.lastMessageAt, lastMentionAt: st.lastMentionAt, unreadMentions };
+      && ch.unreadMentions === unreadMentions && ch.lastMentionAt === st.lastMentionAt && ch.unreadCount === unreadCount) return ch;
+    return { ...ch, myReadAt: st.myReadAt, lastMessageAt: st.lastMessageAt, lastMentionAt: st.lastMentionAt, unreadMentions, unreadCount };
   });
 }
 

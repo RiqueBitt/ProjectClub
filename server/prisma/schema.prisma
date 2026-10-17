@@ -3870,3 +3870,14 @@ model Passkey {
 
   @@index([userId])
 }
+
+// Bolinha "novo" das seções (Anúncios, Eventos, Coleções da Loja...): quando
+// cada pessoa abriu a seção pela última vez. Sem @relation de propósito
+// (não mexe no model User). Ver services/sectionBadges.js.
+model SectionSeen {
+  userId  String
+  section String   @db.VarChar(32)
+  seenAt  DateTime @default(now())
+
+  @@id([userId, section])
+}

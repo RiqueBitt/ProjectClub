@@ -803,6 +803,9 @@ async function notifyChannelMentions(io, { message, channel, mentionRows, isEdit
   // Canal com sobrescritas de permissão: só avisa quem pode VER o canal
   // (nunca vaza nome/prévia de canal privado). Canal comum: todo mundo vê.
   const restricted = await channelHasRestrictions(channel);
+  // Contador de não lidas ao vivo: só canal sem restrição (privado nunca
+  // vaza) e só mensagem nova (editar não conta de novo).
+  if (!restricted && !isEdit) io.to('community').emit('channel:activity', require('../services/unreadCounts').activityPayload(message, channel.id));
   const canView = async (uid) => {
     if (!restricted) return true;
     const perms = await getEffectivePermissions(uid, channel.id, channel).catch(() => null);

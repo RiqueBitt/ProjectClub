@@ -57,6 +57,7 @@ async function create(req, res, next) {
     const row = await prisma.staffAnnouncement.create({ data: { ...data, createdById: req.user.id } });
     const [item] = await withAuthors([row]);
     req.app.get('io')?.to('community').emit('announcements:update', { id: row.id });
+    if (row.published) announceNew(req.app.get('io'), row);
     res.status(201).json({ announcement: item });
   } catch (err) { next(err); }
 }
@@ -86,12 +87,23 @@ async function remove(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Anúncio publicado: acende a bolinha "novo" e avisa todo mundo (push no
+// celular + notificação no PC), respeitando as preferências de cada um.
+function announceNew(io, row) {
+  require('../services/sectionBadges').touchSection('anuncios');
+  io?.to('community').emit('section-badges:new', { section: 'anuncios' });
+  require('../services/broadcastNotify').notifyBroadcastLater(io, {
+    kind: 'announcement', id: row.id, title: row.title, body: row.body, authorId: row.createdById,
+  });
+}
+
 // Publica os anúncios agendados quando chega a hora (a tela atualiza sozinha).
 async function publishDue(io) {
   const due = await prisma.staffAnnouncement.findMany({ where: { published: false, publishAt: { lte: new Date() } }, select: { id: true } });
   for (const { id } of due) {
-    await prisma.staffAnnouncement.update({ where: { id }, data: { published: true, createdAt: new Date() } }).catch(() => null);
+    const row = await prisma.staffAnnouncement.update({ where: { id }, data: { published: true, createdAt: new Date() } }).catch(() => null);
     io?.to('community').emit('announcements:update', { id });
+    if (row) announceNew(io, row);
   }
   return due.length;
 }

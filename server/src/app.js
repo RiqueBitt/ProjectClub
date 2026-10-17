@@ -439,6 +439,7 @@ function createApp() {
   app.use('/api/clans', clansRoutes);
   app.use('/api/minigames', minigamesRoutes);
   app.use('/api/anuncios', require('./routes/staffAnnouncements'));
+  app.use('/api/section-badges', require('./routes/sectionBadges'));
   // Guerra das Cartas: desligada temporariamente no código (config/features.js)
   // — 503 antes de carregar o router (nem a varredura de turnos liga).
   app.use('/api/cards', requireFeature('cardsWar', { status: 503, message: require('./config/features').CARDS_WAR_OFF_MSG }), require('./routes/cards'));

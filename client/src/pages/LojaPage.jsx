@@ -8,6 +8,7 @@ import { getShop, buyDecoration, equipDecoration, buyEffect, equipEffect, buyCol
 import { getMyWishlist, toggleWishlistItem } from '../api/endpoints';
 import { SHOP_TAGS, SHOP_COLORS } from '../components/shop/ShopItemFlagsFields.jsx';
 import ShopTryOn from '../components/shop/ShopTryOn.jsx';
+import { useSectionBadges, useMarkSectionSeen, sectionCount } from '../utils/sectionBadges';
 import ShopTrades from '../components/shop/ShopTrades.jsx';
 import { nameStyleProps } from '../utils/nameStyle';
 import { useLiveRefresh } from '../utils/liveRefresh';
@@ -195,6 +196,8 @@ export default function LojaPage() {
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
   const mainRef = useRef(null);
+  const sectionBadges = useSectionBadges();
+  useMarkSectionSeen('colecoes', section === 'collections' || section.startsWith('col:'));
 
   const load = useCallback(async (ctx) => {
     try {
@@ -322,6 +325,8 @@ export default function LojaPage() {
   }, [data, giftParam, giftTo, items]);
 
   // ---- navegação ----
+  // Coleções novas: bolinha vermelha em "Coleções" até a pessoa abrir.
+  const newCollections = sectionCount(sectionBadges, 'colecoes');
   const count = (k) => items.filter((i) => i.kind === k).length;
   const exclusives = items.filter((i) => i.exclusiveTier);
   const limiteds = items.filter((i) => i.limited);
@@ -395,6 +400,7 @@ export default function LojaPage() {
                     <button key={n.id} type="button" className={`room-nav-item${active ? ' active' : ''}`} aria-current={active ? 'page' : undefined} onClick={() => go(n.id)}>
                       <Ico name={n.icon} size={17} />
                       <span>{n.label}</span>
+                      {n.id === 'collections' && newCollections > 0 && !active && <span className="section-new-dot" title="Coleções novas" aria-label="Coleções novas" />}
                       {n.n > 0 && <em>{n.n}</em>}
                     </button>
                   );
