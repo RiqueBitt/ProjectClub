@@ -193,7 +193,6 @@ async function shop(req, res, next) {
       coins: me?.coins ?? 0, gems: me?.gems ?? 0,
       supporter: { ...sup.supporterInfo(tier), until: me?.supporterUntil || null },
       banners,
-      credits: require('../services/supporterCredit').CREDITS,
       equippedId: idFromJson(me?.avatarDecoration),
       equippedEffectId: idFromJson(me?.profileEffect),
       equippedFontId: idFromJson(me?.profileFont),

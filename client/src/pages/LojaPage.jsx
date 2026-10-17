@@ -6,7 +6,6 @@ import { Ico } from '../components/PagesKit.jsx';
 import { MockProfile, decoValue, effectValue } from '../components/shop/ShopPreviews.jsx';
 import { getShop, buyDecoration, equipDecoration, buyEffect, equipEffect, buyCollection, buyFont, equipFont, buyStyle, equipStyle, redeemShopCode, getGiftsSummary } from '../api/decorations';
 import { getMyWishlist, toggleWishlistItem } from '../api/endpoints';
-import { buySupporterCredit } from '../api/decorations';
 import { SHOP_TAGS, SHOP_COLORS } from '../components/shop/ShopItemFlagsFields.jsx';
 import ShopTryOn from '../components/shop/ShopTryOn.jsx';
 import ShopTrades from '../components/shop/ShopTrades.jsx';
@@ -371,8 +370,8 @@ export default function LojaPage() {
   else if (section === 'owned') content = <OwnedPage list={ownedItems} go={go} ctx={ctx} />;
   else if (section === 'wishlist') content = <WishlistPage list={items.filter(inWish)} go={go} ctx={ctx} />;
   else if (section === 'gifts') content = <GiftsPage go={go} onWallet={(w) => setData((d) => (d ? { ...d, coins: w.coins ?? d.coins, gems: w.gems ?? d.gems } : d))} reload={load} flash={flash} />;
-  else if (section === 'plans') content = <PlansPage supporter={supporter} credits={data.credits} gems={data.gems} onBought={(r) => { setData((d) => (d ? { ...d, gems: r.gems ?? d.gems } : d)); load(); flash('Crédito de Assinante ativado! Aproveite.'); }} />;
-  else if (section === 'gems') content = <GemsPage list={items.filter(gemOnly)} credits={data.credits} gems={data.gems} ctx={ctx} onBought={(r) => { setData((d) => (d ? { ...d, gems: r.gems ?? d.gems } : d)); load(); flash('Crédito de Assinante ativado! Aproveite.'); }} />;
+  else if (section === 'plans') content = <PlansPage supporter={supporter} />;
+  else if (section === 'gems') content = <GemsPage list={items.filter(gemOnly)} ctx={ctx} />;
   else if (section === 'tryon') content = <ShopTryOn items={items} user={user} data={data} ctx={ctx} />;
   else if (section === 'look') content = <LookPage look={lookParam} from={params.get('from')} items={items} ctx={ctx} />;
   else if (section === 'cards') content = <ShopCardsTab onWallet={(w) => setData((d) => (d ? { ...d, coins: w.coins, gems: w.gems } : d))} />;
@@ -1403,7 +1402,7 @@ const PLAN_ROWS = [
   { label: 'Estilos de perfil, molduras e efeitos (comprando)', v: [true, true, true] },
   { label: 'Mural do perfil e lista de desejos', v: [true, true, true] },
 ];
-function PlansPage({ supporter, credits, gems, onBought }) {
+function PlansPage({ supporter }) {
   const cur = supporter?.tier || 'NONE';
   const cols = [['NONE', 'Membro'], ['SUBSCRIBER', 'Assinante'], ['SUPER', 'Super Assinante']];
   const cell = (v) => (v === true ? <Ico name="check" size={16} strokeWidth={2.6} /> : v === false ? <span className="room-plan-no">—</span> : <b>{v}</b>);
@@ -1435,46 +1434,13 @@ function PlansPage({ supporter, credits, gems, onBought }) {
           </tbody>
         </table>
       </div>
-      <CreditCards credits={credits} gems={gems} supporter={supporter} onBought={onBought} />
-      <p className="room-muted">Quer apoiar de vez? Abra um ticket ou fale com a equipe — o apoio sem prazo é liberado por eles.</p>
+      <p className="room-muted">A assinatura é paga: pra assinar, abra um ticket ou fale com a equipe. Gemas são a moeda da plataforma e servem pra Loja, não pra assinatura.</p>
     </div>
   );
 }
 
-// ---------- Crédito de apoio (com gemas) ----------
-function CreditCards({ credits, gems, supporter, onBought }) {
-  const [busy, setBusy] = useState('');
-  const [err, setErr] = useState('');
-  if (!credits?.length) return null;
-  const permanent = supporter?.tier !== 'NONE' && !supporter?.until;
-  const buy = async (c) => {
-    if (!window.confirm(`Ativar "${c.name}" por ${c.priceGems} gemas?`)) return;
-    setBusy(c.id); setErr('');
-    try { onBought(await buySupporterCredit(c.id)); } catch (e) { setErr(errMsg(e)); }
-    setBusy('');
-  };
-  return (
-    <section className="room-section">
-      <SectionHead title="Crédito de Assinante" hint={supporter?.until ? `Seu crédito vale até ${new Date(supporter.until).toLocaleDateString('pt-BR')} — comprar mais soma os dias.` : 'Vire Assinante por alguns dias usando gemas.'} />
-      <div className="room-credits">
-        {credits.map((c) => (
-          <div key={c.id} className="room-credit">
-            <span className="room-credit-ico"><Ico name="crown" size={22} /></span>
-            <strong>{c.name}</strong>
-            <span className="room-bal gems"><Ico name="gem" size={15} /> {fmt(c.priceGems)}</span>
-            <button type="button" className="room-btn primary sm" disabled={!!busy || permanent || (gems ?? 0) < c.priceGems} onClick={() => buy(c)}>
-              {busy === c.id ? 'Ativando…' : permanent ? 'Você já apoia' : (gems ?? 0) < c.priceGems ? 'Gemas insuficientes' : 'Resgatar'}
-            </button>
-          </div>
-        ))}
-      </div>
-      {err && <p className="room-warn">{err}</p>}
-    </section>
-  );
-}
-
 // ---------- Exclusivos de gemas ----------
-function GemsPage({ list, credits, gems, ctx, onBought }) {
+function GemsPage({ list, ctx }) {
   return (
     <div className="room-stack">
       <section className="room-gems-hero">
@@ -1485,7 +1451,6 @@ function GemsPage({ list, credits, gems, ctx, onBought }) {
         </div>
         <span className="room-gems-orb"><Ico name="gem" size={54} /></span>
       </section>
-      <CreditCards credits={credits} gems={gems} supporter={ctx.supporter} onBought={onBought} />
       {list.length === 0 ? <Empty title="Nada por aqui ainda" text="A equipe ainda não colocou itens só de gemas." /> : <div className="room-grid">{list.map((i) => <ItemCard key={`${i.kind}:${i.id}`} item={i} ctx={ctx} />)}</div>}
     </div>
   );
