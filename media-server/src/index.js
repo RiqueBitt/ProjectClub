@@ -2,6 +2,9 @@
 //
 //   GET  /health            → { ok, uptime, ...stats }  (público; pro Caddy/monitor)
 //   GET  /stats             → stats detalhadas (exige header x-media-secret)
+//   POST /control           → ordens do backend (mudo/ensurdecer da moderação,
+//                             permissões, expulsar) — exige x-media-secret;
+//                             ver signaling.handleControlRequest
 //   WS   /ws?token=<jwt>    → sinalização (ver signaling.js)
 //
 // A mídia em si (RTP/ICE) NÃO passa por aqui: vai direto do cliente pros
@@ -43,6 +46,10 @@ const server = http.createServer((req, res) => {
     const ok = st.workers > 0 && !shuttingDown;
     res.writeHead(ok ? 200 : 503, { 'content-type': 'application/json', 'cache-control': 'no-store' });
     res.end(JSON.stringify({ ok, uptime: Math.round((Date.now() - startedAt) / 1000), ...st }));
+    return;
+  }
+  if (req.method === 'POST' && url.pathname === '/control') {
+    signaling.handleControlRequest(req, res, { secretOk });
     return;
   }
   if (req.method === 'GET' && url.pathname === '/stats') {

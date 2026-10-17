@@ -46,7 +46,9 @@ const config = {
   logLevel: env.MEDIA_LOG_LEVEL || 'warn',
 
   // Limites de proteção contra abuso (por sala / por participante).
-  maxPeersPerRoom: num(env.MEDIA_MAX_PEERS_PER_ROOM, 50),
+  // 99 = o maior limite de usuários que um canal de voz pode ter (igual ao
+  // Discord); o limite REAL de cada canal é checado no backend (getJoin).
+  maxPeersPerRoom: num(env.MEDIA_MAX_PEERS_PER_ROOM, 99),
   maxProducersPerPeer: num(env.MEDIA_MAX_PRODUCERS_PER_PEER, 4), // mic + câmera + tela + áudio da tela
   maxRooms: num(env.MEDIA_MAX_ROOMS, 500),
   // send + recv, com folga pra uma renegociação; cada transport sem
@@ -74,14 +76,23 @@ const config = {
   // Detector de fala (anel verde): limiar em dBov (0 = máximo, -127 =
   // silêncio). -60 pega fala normal sem acender com ruído de fundo.
   speakingThresholdDb: Math.max(-127, Math.min(0, num(env.MEDIA_SPEAKING_THRESHOLD, -60))),
-  speakingIntervalMs: Math.max(100, num(env.MEDIA_SPEAKING_INTERVAL_MS, 400)),
+  // 200ms: o anel acende quase na hora (o Discord fica nessa faixa). A
+  // "segura" (hold) mantém a pessoa como falando por um tempinho depois do
+  // último pacote alto — sem isso o anel piscava entre as palavras.
+  speakingIntervalMs: Math.max(100, num(env.MEDIA_SPEAKING_INTERVAL_MS, 200)),
+  speakingHoldMs: Math.max(0, num(env.MEDIA_SPEAKING_HOLD_MS, 400)),
 
   // Bitrate inicial de saída por transport (bps) — o BWE ajusta depois.
   initialAvailableOutgoingBitrate: num(env.MEDIA_INITIAL_BITRATE, 800000),
-  // Teto de bitrate de entrada por transport (bps): 0 = sem teto. 3 Mbps
-  // cobre mic + câmera simulcast + tela 1080p/15fps; quem precisar de mais
-  // (tela 60fps) sobe por env.
-  maxIncomingBitrate: num(env.MEDIA_MAX_INCOMING_BITRATE, 3000000),
+  // Teto de bitrate de entrada por transport (bps): 0 = sem teto. 5 Mbps
+  // cobre mic + câmera simulcast + tela 1080p/30fps (com 3 Mbps a tela em
+  // alta qualidade era estrangulada pelo BWE do servidor).
+  maxIncomingBitrate: num(env.MEDIA_MAX_INCOMING_BITRATE, 5000000),
+
+  // Controle backend → servidor de mídia (POST /control): tamanho máximo do
+  // corpo e por quanto tempo uma ordem (mudo do servidor, permissões) vale
+  // pra reconexões com um token ANTIGO (emitido antes da ordem).
+  controlOverrideTtlMs: num(env.MEDIA_CONTROL_OVERRIDE_TTL_MS, 8 * 60 * 60 * 1000),
 
   // Codecs oferecidos (prioridade de áudio: Opus — ver PDF, seção 4.1).
   mediaCodecs: [
