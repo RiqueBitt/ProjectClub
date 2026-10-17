@@ -120,6 +120,8 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
         override fun onConnected() = on { onMediaConnected(it, PROVIDER_OWN) }
         override fun onReconnecting(attempt: Int) = on { s ->
             _state.update { it.copy(status = CallStatus.Reconnecting) }
+            // Manda pra equipe o motivo (últimas linhas da caixa-preta da voz).
+            repo.report("voz:reconectando", IllegalStateException("reconectando (tentativa $attempt)\n${VoiceTrace.dump(12)}"))
             // Rede de segurança: se a reconexão do próprio engine travar, conta como falha e recomeça.
             armWatchdog(s, PROVIDER_OWN, OWN_RECONNECT_TIMEOUT_MS)
         }

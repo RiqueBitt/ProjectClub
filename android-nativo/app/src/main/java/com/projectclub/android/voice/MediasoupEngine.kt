@@ -99,6 +99,10 @@ private class SignalClosed(val code: Int) : IllegalStateException("conexão com 
  *    que pede credenciais novas / o próximo provedor ao servidor.
  */
 class MediasoupEngine(private val context: Context, private val events: Events) {
+    init { VoiceTrace.init(context) }
+    private fun trace(msg: String) = VoiceTrace.add(msg)
+    /** onProduce falhou (o erro não pode subir pro código nativo): guardado e jogado depois do produce(). */
+    @Volatile private var produceFailure: Throwable? = null
     interface Events {
         fun onConnected()
         /** Caiu e está tentando voltar sozinho. */
@@ -288,6 +292,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
     }
 
     private fun onSignalLost(g: Int, code: Int) {
+        trace("sinalização caiu ($code)")
         if (g != gen || closed) return
         when (code) {
             4409 -> replaced()
@@ -422,6 +427,11 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
             track, listOf(enc), "{\"opusStereo\":false,\"opusDtx\":true,\"opusFec\":true,\"opusNack\":true,\"opusMaxAverageBitrate\":64000}", null,
             "{\"source\":\"mic\",\"paused\":$startPaused}",
         )
+        produceFailure?.let { err ->
+            produceFailure = null
+            runCatching { p.close() }; runCatching { p.dispose() }
+            throw err
+        }
         micProducer = p
         micPaused = false
         if (startPaused) {
@@ -437,16 +447,29 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         return dev.createSendTransport(
             object : SendTransport.Listener {
                 override fun onConnect(transport: Transport, dtlsParameters: String) {
-                    requestBlocking("connectTransport", JSONObject().put("transportId", transport.id).put("dtlsParameters", JSONObject(dtlsParameters)))
+                    // NUNCA deixar exceção voltar pro código nativo (libmediasoupclient):
+                    // erro pendente dentro de um callback JNI derruba o app inteiro
+                    // ("queda nativa"). Se falhar, o transporte não conecta e a
+                    // reconexão normal cuida disso.
+                    runCatching {
+                        requestBlocking("connectTransport", JSONObject().put("transportId", transport.id).put("dtlsParameters", JSONObject(dtlsParameters)))
+                    }.onFailure { trace("connectTransport falhou: ${it.message}") }
                 }
                 override fun onConnectionStateChange(transport: Transport, newState: String) {
                     scope.launch { onTransportState(g, transport, "envio", newState) }
                 }
-                override fun onProduce(transport: Transport, kind: String, rtpParameters: String, appData: String?): String {
-                    val r = requestBlocking("produce", JSONObject().put("transportId", transport.id).put("kind", kind)
-                        .put("rtpParameters", JSONObject(rtpParameters)).put("appData", appData?.let { JSONObject(it) } ?: JSONObject()))
-                    return r.getString("producerId")
-                }
+                override fun onProduce(transport: Transport, kind: String, rtpParameters: String, appData: String?): String =
+                    runCatching {
+                        requestBlocking("produce", JSONObject().put("transportId", transport.id).put("kind", kind)
+                            .put("rtpParameters", JSONObject(rtpParameters)).put("appData", appData?.let { JSONObject(it) } ?: JSONObject()))
+                            .getString("producerId")
+                    }.getOrElse {
+                        // Mesmo motivo do onConnect: devolve um id falso e o erro
+                        // é jogado DEPOIS do produce(), já fora do código nativo.
+                        trace("produce ($kind) falhou: ${it.message}")
+                        produceFailure = it
+                        "pc-falhou-${System.nanoTime()}"
+                    }
                 override fun onProduceData(transport: Transport, sctpStreamParameters: String, label: String, protocol: String, appData: String?): String = ""
             },
             info.getString("id"), info.getJSONObject("iceParameters").toString(), info.getJSONArray("iceCandidates").toString(),
@@ -459,7 +482,13 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         return dev.createRecvTransport(
             object : RecvTransport.Listener {
                 override fun onConnect(transport: Transport, dtlsParameters: String) {
-                    requestBlocking("connectTransport", JSONObject().put("transportId", transport.id).put("dtlsParameters", JSONObject(dtlsParameters)))
+                    // NUNCA deixar exceção voltar pro código nativo (libmediasoupclient):
+                    // erro pendente dentro de um callback JNI derruba o app inteiro
+                    // ("queda nativa"). Se falhar, o transporte não conecta e a
+                    // reconexão normal cuida disso.
+                    runCatching {
+                        requestBlocking("connectTransport", JSONObject().put("transportId", transport.id).put("dtlsParameters", JSONObject(dtlsParameters)))
+                    }.onFailure { trace("connectTransport falhou: ${it.message}") }
                 }
                 override fun onConnectionStateChange(transport: Transport, newState: String) {
                     scope.launch { onTransportState(g, transport, "recepção", newState) }
@@ -512,7 +541,8 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         consumers.remove(id)
         if (r.kind == "video") sinks[r.peerId]?.let { s -> runCatching { (r.consumer.track as? VideoTrack)?.removeSink(s) } }
         runCatching { r.consumer.close() }
-        runCatching { r.consumer.dispose() }
+        // (mesmo motivo do teardownSession: libera depois, não no meio de um callback)
+        scope.launch { delay(DISPOSE_DELAY_MS); runCatching { r.consumer.dispose() } }
     }
 
     private suspend fun onEvent(g: Int, event: String, data: JSONObject) {
@@ -559,6 +589,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
     }.getOrDefault(false)
 
     private suspend fun onTransportState(g: Int, t: Transport, dir: String, state: String) {
+        trace("transporte $dir: $state")
         if (g != gen || closed || !sessionUp) return
         if (t !== send && t !== recv) return // de uma sessão antiga
         when (state) {
@@ -648,6 +679,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
             return
         }
         Log.w(TAG, "reconectando ($reason), tentativa ${attempt + 1}")
+        trace("reconectando ($reason), tentativa ${attempt + 1}")
         teardownSession()
         events.onReconnecting(attempt + 1)
         reconnectJob = scope.launch {
@@ -678,6 +710,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
 
     private fun giveUp(message: String, providerBroken: Boolean) {
         if (closed) return
+        trace("desistiu: $message")
         closed = true
         reconnectJob?.cancel(); reconnectJob = null
         teardownSession()
@@ -803,6 +836,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
      * producers) mas GUARDA o microfone e a fábrica pra próxima.
      */
     private fun teardownSession() {
+        trace("desmontando a sessão")
         sessionUp = false
         disconnectedJob?.cancel(); disconnectedJob = null
         val socket = ws
@@ -816,15 +850,29 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
             stopScreenLocal()
             events.onScreenStopped()
         }
-        micProducer?.let { p -> runCatching { p.close() }; runCatching { p.dispose() } }
+        val oldMic = micProducer
+        val oldSend = send
+        val oldRecv = recv
+        val oldDevice = device
         micProducer = null
         micPaused = false
         if (localSpeaking) { localSpeaking = false; events.onLocalSpeaking(false) }
-        send?.let { t -> runCatching { t.close() }; runCatching { t.dispose() } }
-        recv?.let { t -> runCatching { t.close() }; runCatching { t.dispose() } }
         send = null; recv = null
-        device?.let { d -> runCatching { d.dispose() } }
         device = null
+        // Fecha JÁ (para a mídia), mas só LIBERA a memória nativa um pouco
+        // depois: callbacks do WebRTC ainda em voo (estado do ICE, connect)
+        // usavam o objeto já liberado e derrubavam o app no meio da
+        // reconexão ("queda nativa").
+        runCatching { oldMic?.close() }
+        runCatching { oldSend?.close() }
+        runCatching { oldRecv?.close() }
+        scope.launch {
+            delay(DISPOSE_DELAY_MS)
+            runCatching { oldMic?.dispose() }
+            runCatching { oldSend?.dispose() }
+            runCatching { oldRecv?.dispose() }
+            runCatching { oldDevice?.dispose() }
+        }
         events.onSpeaking(emptySet())
     }
 
@@ -906,6 +954,12 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
                 object : Producer.Listener { override fun onTransportClose(producer: Producer) {} },
                 track, listOf(enc), null, null, "{\"source\":\"screen\"}",
             )
+            produceFailure?.let { err ->
+                produceFailure = null
+                screenProducer?.let { sp -> runCatching { sp.close() }; runCatching { sp.dispose() } }
+                screenProducer = null
+                throw err
+            }
             watchScreenRotation()
         } catch (e: Throwable) {
             Log.w(TAG, "tela", e)
@@ -1008,9 +1062,16 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
             runCatching { stopScreenNow() }
             runCatching { ws?.send(JSONObject().put("id", seq.incrementAndGet()).put("method", "leave").put("data", JSONObject()).toString()) }
             teardownSession()
-            runCatching { micTrack?.dispose() }
-            runCatching { micSource?.dispose() }
+            trace("saiu da chamada")
+            // A faixa do microfone só é liberada DEPOIS do producer/transporte
+            // (teardownSession libera esses com atraso) — antes a faixa sumia
+            // primeiro e o WebRTC ainda tentava usar.
+            val oldTrack = micTrack
+            val oldSource = micSource
             micTrack = null; micSource = null
+            delay(DISPOSE_DELAY_MS + 500)
+            runCatching { oldTrack?.dispose() }
+            runCatching { oldSource?.dispose() }
             // A fábrica/EGL ficam pra próxima chamada (criar de novo é caro).
         }
     }
@@ -1040,6 +1101,8 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
 
     companion object {
         private const val TAG = "PCMidia"
+        /** Espera antes de liberar objetos nativos já fechados (callbacks em voo). */
+        private const val DISPOSE_DELAY_MS = 1_500L
         // Transmissão de tela: 1080p (lado maior), 30 fps, até 4 Mbps.
         private const val SCREEN_MAX_SIDE = 1920
         private const val SCREEN_FPS = 30
