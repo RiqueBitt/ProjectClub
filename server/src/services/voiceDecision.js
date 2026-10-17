@@ -82,13 +82,8 @@ function decideProvider({ usageByProvider = {}, override = null, disabled = [], 
     }
   }
 
-  // 3) Todos acima do limite: usa o primeiro disponível mesmo assim (melhor
-  // passar um pouco do gratuito do que deixar a pessoa sem voz).
-  for (const c of ctxList) {
-    if (c.available && !c.disabled) return { provider: c.id, reason: 'over-limit', overridden: false };
-  }
-  // 4) Nenhum provedor configurado/liberado.
-  return { provider: null, reason: 'none', overridden: false };
+  // 3) Nada se qualificou → Jitsi (sempre disponível, ilimitado).
+  return { provider: 'jitsi', reason: 'fallback', overridden: false };
 }
 
 // Dados completos pro painel da staff (sem segredo nenhum).

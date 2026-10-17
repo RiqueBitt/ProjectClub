@@ -1,5 +1,5 @@
 // Engine do servidor de mídia PRÓPRIO do Project Club (media-server/,
-// mediasoup). Mesma "interface" do engine do Stream, então encaixa na MESMA
+// mediasoup). Mesma "interface" do LiveKitEngine, então encaixa na MESMA
 // grade/AudioSink do VoiceContext: entrega faixas por participante, e a
 // identidade na sala é o nosso userId (o servidor assina o JWT com
 // sub = userId, ver services/voiceTokens.js mintProjectClub).
@@ -32,9 +32,9 @@
 // setNoiseSuppression(on) liga/desliga na hora sem recriar a faixa.
 //
 // Carregado de forma preguiçosa (o SDK só baixa quando entra numa call por
-// este provedor), igual Agora/Stream — não entra no bundle inicial.
+// este provedor), igual Agora/LiveKit — não entra no bundle inicial.
 //
-// Callbacks (iguais ao engine do Stream, mais os de reconexão/qualidade):
+// Callbacks (iguais ao LiveKitEngine, mais os de reconexão/qualidade):
 //   onJoined(myId), onLeft()
 //   onReconnecting(attempt), onReconnected()
 //   onNetQuality({ uid: quality }), onRtt(ms)
@@ -45,7 +45,6 @@
 //   onRemoteRemove(uid, 'audio'|'video'|'all')
 //   onError(err, info)
 import { createNoiseSuppressedTrack } from './noiseSuppressor.js';
-import { summarizeWebRtcStats, serverHost } from './connectionStats.js';
 
 let msPromise = null;
 function loadMediasoup() {
@@ -61,17 +60,7 @@ const CAMERA_ENCODINGS = [
   { scaleResolutionDownBy: 2, maxBitrate: 500_000, scalabilityMode: 'L1T3' },
   { scaleResolutionDownBy: 1, maxBitrate: 1_200_000, scalabilityMode: 'L1T3' },
 ];
-// Tela: qualidade escolhida em "Transmitir tela" (resolução + FPS) vira
-// tamanho de captura e teto de bitrate. 1080p60 ≈ 7 Mbps (jogos/vídeos).
-const SCREEN_PROFILES = {
-  '720p': { width: 1280, height: 720, bitrate: { 15: 1_200_000, 30: 2_000_000, 60: 3_500_000 } },
-  '1080p': { width: 1920, height: 1080, bitrate: { 15: 2_500_000, 30: 4_000_000, 60: 7_000_000 } },
-};
-export function screenProfile({ quality, frameRate } = {}) {
-  const prof = SCREEN_PROFILES[quality] || SCREEN_PROFILES['720p'];
-  const fps = [15, 30, 60].includes(Number(frameRate)) ? Number(frameRate) : 30;
-  return { width: prof.width, height: prof.height, fps, maxBitrate: prof.bitrate[fps], motion: fps >= 60 };
-}
+const SCREEN_ENCODINGS = [{ maxBitrate: 2_500_000 }];
 
 const REQUEST_TIMEOUT_MS = 15000;
 const STATS_INTERVAL_MS = 2000;
@@ -124,7 +113,6 @@ export class MediasoupEngine {
     this.disconnectedTimer = null;
     this.statsTimer = null;
     this.statsPrev = new Map(); // key -> { lost, received }
-    this.connStatsPrev = null; // contadores da última leitura do painel de conexão
   }
 
   getNode() { return null; }
@@ -407,12 +395,11 @@ export class MediasoupEngine {
     return producer;
   }
 
-  async _produceScreen(vtrack, atrack, prof = screenProfile()) {
+  async _produceScreen(vtrack, atrack) {
     this.localTracks.screen = vtrack;
     this.producers.screen = await this.sendTransport.produce({
-      track: vtrack,
-      encodings: [{ maxBitrate: prof.maxBitrate, maxFramerate: prof.fps, priority: 'high', networkPriority: 'high' }],
-      codecOptions: { videoGoogleStartBitrate: Math.round(prof.maxBitrate / 2000) },
+      track: vtrack, encodings: SCREEN_ENCODINGS,
+      codecOptions: { videoGoogleStartBitrate: 1000 },
       appData: { source: 'screen' },
     });
     if (atrack && isLive(atrack)) {
@@ -512,22 +499,6 @@ export class MediasoupEngine {
     if (rtt != null) this.cb.onRtt?.(rtt);
   }
 
-  // Painel "Qualidade da conexão": leitura detalhada sob demanda (ping,
-  // perda, jitter, bitrate, codec, resolução/FPS da tela). As duas
-  // transports são PeerConnections separadas — junta as stats das duas.
-  async getConnectionStats() {
-    if (this.disposed || !this.sendTransport) return null;
-    const reports = [];
-    try { reports.push(await this.sendTransport.getStats()); } catch { /* sem stats */ }
-    try { if (this.recvTransport) reports.push(await this.recvTransport.getStats()); } catch { /* sem stats */ }
-    let screen = null;
-    const sp = this.producers.screen;
-    if (sp && !sp.closed) { try { screen = await sp.getStats(); } catch { /* ok */ } }
-    const { snapshot, counters } = summarizeWebRtcStats(reports, this.connStatsPrev, Date.now(), screen);
-    this.connStatsPrev = counters;
-    return { ...snapshot, server: serverHost(this.joinOpts?.url) };
-  }
-
   // ---------- controles ----------
   // enabled=true => quero FALAR. Espelha o estado real por onSelfMute.
   async setMicEnabled(enabled) {
@@ -554,15 +525,11 @@ export class MediasoupEngine {
     } catch (err) { this.cb.onError?.(err, { where: 'setNoiseSuppression' }); }
   }
 
-  // `deviceId`: câmera escolhida (ex.: no "Testar antes de entrar"). Vai
-  // como `ideal` — se ela sumiu, o navegador usa outra em vez de falhar.
-  async setCamera(on, { deviceId } = {}) {
+  async setCamera(on) {
     try {
       if (!on) { await this._closeProducer('camera'); this.cb.onSelfCamera?.(false); return null; }
       if (this.producers.camera) return new MediaStream([this.localTracks.camera]);
-      const video = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } };
-      if (deviceId) video.deviceId = { ideal: deviceId };
-      const stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }, audio: false });
       const track = stream.getVideoTracks()[0];
       await this._produceCamera(track);
       track.addEventListener('ended', () => { this._closeProducer('camera'); this.cb.onSelfCamera?.(false); });
@@ -575,16 +542,12 @@ export class MediasoupEngine {
     try {
       if (!on) { await this._closeProducer('screen'); await this._closeProducer('screenAudio'); this.cb.onSelfScreen?.(false); return null; }
       if (this.producers.screen) return new MediaStream([this.localTracks.screen]);
-      const prof = screenProfile(options);
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { width: { ideal: prof.width, max: prof.width }, height: { ideal: prof.height, max: prof.height }, frameRate: { ideal: prof.fps, max: prof.fps } },
-        audio: options.audio !== false,
+        video: { frameRate: { ideal: 30 } }, audio: options.audio !== false,
       });
       const vtrack = stream.getVideoTracks()[0];
-      // Jogos (60 FPS): prioriza fluidez; texto/slides: prioriza nitidez.
-      try { vtrack.contentHint = prof.motion ? 'motion' : 'detail'; } catch { /* opcional */ }
-      try { await vtrack.applyConstraints({ width: { max: prof.width }, height: { max: prof.height }, frameRate: { ideal: prof.fps, max: prof.fps } }); } catch { /* o navegador decide */ }
-      await this._produceScreen(vtrack, stream.getAudioTracks()[0], prof);
+      try { vtrack.contentHint = 'detail'; } catch { /* opcional */ }
+      await this._produceScreen(vtrack, stream.getAudioTracks()[0]);
       // "Parar compartilhamento" pelo navegador.
       vtrack.addEventListener('ended', () => { this.setScreen(false); });
       this.cb.onSelfScreen?.(true);

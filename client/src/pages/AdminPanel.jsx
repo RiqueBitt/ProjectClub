@@ -138,7 +138,7 @@ const TABS = {
   workshopGames: { label: 'Steam Workshop', desc: 'Jogos ligados ao Steam Workshop.' },
   gamebananaGames: { label: 'GameBanana', desc: 'Jogos ligados ao GameBanana.' },
   sistema: { label: 'Sistemas', desc: 'Ligue ou desligue economia, ranks e outros sistemas.' },
-  provedoresVoz: { label: 'Provedores de voz', desc: 'Cadeia de chamadas (servidor próprio → Agora → Stream): uso de cada um, qual está ativo e controle manual.' },
+  provedoresVoz: { label: 'Provedores de voz', desc: 'Cadeia de chamadas (Agora → LiveKit → ... → Jitsi): uso de cada um, qual está ativo e controle manual.' },
   maintenance: { label: 'Manutenção', desc: 'Coloca a plataforma "em reforma" para todos, menos a equipe.' },
   reload: { label: 'Reload', desc: 'Recarrega a presença online de usuários.' },
   cartasCartas: { label: 'Cartas', desc: 'Crie, edite e exclua cartas: imagem, nome, descrição, raridade, elemento, força e habilidades.' },
