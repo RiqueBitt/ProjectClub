@@ -637,7 +637,11 @@ private fun AchievementIcon(a: ProgressAchievement, size: Dp) {
                 .border(1.dp, color.copy(alpha = if (a.unlocked) 0.6f else 0.25f), RoundedCornerShape(size * 0.28f)),
             contentAlignment = Alignment.Center,
         ) {
-            if (!loaded) {
+            val spec = com.projectclub.android.ui.common.StrokeIcons.achievement(a.key, a.progressType, a.rarity, a.iconUrl)
+            if (spec != null) {
+                // Ícone de traço da conquista (mesmo estilo do site).
+                com.projectclub.android.ui.common.StrokeIconTile(spec.first, if (a.unlocked) spec.second else PC.Faint, size * 0.58f, tile = false)
+            } else if (!loaded) {
                 Icon(Icons.Outlined.MilitaryTech, null, tint = if (a.unlocked) color else PC.Faint, modifier = Modifier.size(size * 0.55f))
             }
             if (url != null) {

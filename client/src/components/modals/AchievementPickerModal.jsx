@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
+import AchievementIcon from '../AchievementIcon.jsx';
 import Modal from '../Modal.jsx';
 import { listAchievements, setDisplayedAchievements as saveDisplayed } from '../../api/endpoints';
-import defaultIcon from '../../assets/icons/nav-achievements.png';
 
 // Seletor de conquistas em destaque — perfil completo aceita até 6,
 // miniperfil até 4 (ver requisito). Só mostra conquistas JÁ
@@ -59,7 +59,7 @@ export default function AchievementPickerModal({ slot, currentIds, onClose, onSa
                 className={`achievement-picker-item ${isSelected ? 'selected' : ''}`}
                 onClick={() => toggle(a.key)}
               >
-                <img className="achievement-picker-icon" src={a.iconUrl || defaultIcon} alt="" />
+                <AchievementIcon achievement={a} size={32} className="achievement-picker-icon" />
                 <span className="truncate">{a.name}</span>
               </button>
             );

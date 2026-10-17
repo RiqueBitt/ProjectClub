@@ -1,5 +1,6 @@
 {
   "name": "project-club",
+  "license": "MIT",
   "version": "1.0.0",
   "private": true,
   "description": "Plataforma de comunicação em tempo real inspirada no Discord (monorepo: server + client)",

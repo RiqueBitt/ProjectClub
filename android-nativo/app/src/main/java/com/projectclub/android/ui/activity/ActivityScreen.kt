@@ -60,7 +60,7 @@ import kotlinx.serialization.json.put
 
 @Serializable data class FeedPost(val id: String = "", val title: String? = null, val excerpt: String? = null, val imageUrl: String? = null, val score: Int = 0, val commentCount: Int = 0)
 @Serializable data class FeedModpack(val id: String = "", val name: String = "", val gameName: String? = null, val coverUrl: String? = null, val downloadCount: Int = 0, val likeCount: Int = 0)
-@Serializable data class FeedAchievement(val name: String = "", val description: String? = null, val rarity: String? = null, val iconUrl: String? = null)
+@Serializable data class FeedAchievement(val key: String? = null, val name: String = "", val description: String? = null, val rarity: String? = null, val iconUrl: String? = null, val progressType: String? = null)
 @Serializable data class FeedLevel(val level: Int = 0, val levelName: String? = null)
 @Serializable data class FeedCheers(val count: Int = 0, val mine: Boolean = false, val users: List<User> = emptyList())
 @Serializable data class FeedItem(
@@ -197,7 +197,9 @@ private fun FeedCard(item: FeedItem, onUser: () -> Unit, onCheer: () -> Unit, on
             }
             "achievement" -> item.achievement?.let { a ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(PC.Surface2), contentAlignment = Alignment.Center) {
+                    val spec = com.projectclub.android.ui.common.StrokeIcons.achievement(a.key, a.progressType, a.rarity, a.iconUrl)
+                    if (spec != null) com.projectclub.android.ui.common.StrokeIconTile(spec.first, spec.second, 40.dp)
+                    else Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(PC.Surface2), contentAlignment = Alignment.Center) {
                         val img = Config.media(a.iconUrl)
                         if (img != null) AsyncImage(img, a.name, modifier = Modifier.size(30.dp)) else Text("🏆")
                     }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import AchievementIcon from '../components/AchievementIcon.jsx';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useSocket } from '../context/SocketContext.jsx';
@@ -326,7 +327,7 @@ function ActivityItem({ item, onCheer, navigate }) {
         {item.type === 'achievement' && (
           <div className="sx-item-body sx-ach">
             <span className="sx-ach-icon">
-              {item.achievement.iconUrl ? <img src={proxyImage(item.achievement.iconUrl)} alt="" /> : <Ico name="trophy" size={24} />}
+              <AchievementIcon achievement={item.achievement} size={24} tile={false} />
             </span>
             <span className="sx-ach-text">
               <span className="sx-post-title">{item.achievement.name}</span>

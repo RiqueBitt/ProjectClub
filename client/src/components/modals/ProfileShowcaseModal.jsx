@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import AchievementIcon from '../AchievementIcon.jsx';
 import Modal from '../Modal.jsx';
 import { listAchievements, setDisplayedAchievements, updateProfile } from '../../api/endpoints';
 import { getGameLibrary } from '../../api/games';
 import { getShop, equipDecoration, equipEffect } from '../../api/decorations';
 import { proxyImage } from '../../utils/imageProxy';
 import { GameCapsule } from '../games/GameLibraryParts.jsx';
-import defaultAchievementIcon from '../../assets/icons/nav-achievements.png';
 import { PfIcon } from './profileParts.jsx';
 import '../../styles/profile-edit.css';
 
@@ -134,7 +134,7 @@ export default function ProfileShowcaseModal({ user, displayedAchievements = [],
             <div className="pfv-grid">
               {achList.map((a) => (
                 <Picker key={a.key} selected={achSel.includes(a.key)} disabled={achSel.length >= MAX_ACH} onToggle={() => toggleAch(a.key)} title={a.description}>
-                  <img className="pfv-ach-icon" src={a.iconUrl ? proxyImage(a.iconUrl) : defaultAchievementIcon} alt="" />
+                  <AchievementIcon achievement={a} size={32} className="pfv-ach-icon" />
                   <span className="pfv-pick-name">{a.name}</span>
                 </Picker>
               ))}

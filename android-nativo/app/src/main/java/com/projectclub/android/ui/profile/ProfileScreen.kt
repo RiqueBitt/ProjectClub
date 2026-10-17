@@ -419,7 +419,7 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                         SectionCard("Insígnias", Icons.Outlined.MilitaryTech, profile.badges.size) {
                             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 profile.badges.forEach { b ->
-                                    IconTileLabel(b.name, b.iconUrl, b.icon ?: "🏅", onClick = { openBadge = b })
+                                    IconTileLabel(b.name, b.iconUrl, b.icon ?: "🏅", spec = com.projectclub.android.ui.common.StrokeIcons.badge(b.key, b.iconUrl, b.rarity), onClick = { openBadge = b })
                                 }
                             }
                         }
@@ -429,7 +429,7 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                         SectionCard("Conquistas", Icons.Outlined.EmojiEvents, profile.displayedAchievements.size) {
                             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 profile.displayedAchievements.forEach { a: ProfileAchievement ->
-                                    IconTileLabel(a.name, a.iconUrl, "🏆", onClick = { a.description?.takeIf { it.isNotBlank() }?.let { toast(it) } })
+                                    IconTileLabel(a.name, a.iconUrl, "🏆", spec = com.projectclub.android.ui.common.StrokeIcons.achievement(a.key, null, a.rarity, a.iconUrl), onClick = { a.description?.takeIf { it.isNotBlank() }?.let { toast(it) } })
                                 }
                             }
                         }
@@ -547,7 +547,7 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
         AlertDialog(
             onDismissRequest = { openBadge = null },
             containerColor = PC.Surface2,
-            icon = { BadgeIcon(b.iconUrl, b.icon ?: "🏅", 56) },
+            icon = { BadgeIcon(b.iconUrl, b.icon ?: "🏅", 56, com.projectclub.android.ui.common.StrokeIcons.badge(b.key, b.iconUrl, b.rarity)) },
             title = { Text(b.name, color = PC.Header, textAlign = TextAlign.Center) },
             text = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
@@ -752,7 +752,9 @@ private fun SectionCard(title: String, icon: ImageVector, count: Int? = null, co
 }
 
 @Composable
-private fun BadgeIcon(iconUrl: String?, emoji: String, size: Int) {
+private fun BadgeIcon(iconUrl: String?, emoji: String, size: Int, spec: Pair<String, androidx.compose.ui.graphics.Color>? = null) {
+    // Ícone de traço (mesmo estilo do site) quando a insígnia/conquista não tem imagem própria.
+    if (spec != null) { com.projectclub.android.ui.common.StrokeIconTile(spec.first, spec.second, size.dp); return }
     val url = Config.media(iconUrl)
     Box(Modifier.size(size.dp).clip(CircleShape).background(Sx.track), contentAlignment = Alignment.Center) {
         if (url != null) {
@@ -764,12 +766,12 @@ private fun BadgeIcon(iconUrl: String?, emoji: String, size: Int) {
 }
 
 @Composable
-private fun IconTileLabel(name: String, iconUrl: String?, emoji: String, onClick: () -> Unit) {
+private fun IconTileLabel(name: String, iconUrl: String?, emoji: String, spec: Pair<String, androidx.compose.ui.graphics.Color>? = null, onClick: () -> Unit) {
     Column(
         Modifier.width(76.dp).clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        BadgeIcon(iconUrl, emoji, 52)
+        BadgeIcon(iconUrl, emoji, 52, spec)
         Spacer(Modifier.height(6.dp))
         Text(
             name, color = Sx.text, style = MaterialTheme.typography.bodySmall, fontFamily = Sx.font, textAlign = TextAlign.Center,
