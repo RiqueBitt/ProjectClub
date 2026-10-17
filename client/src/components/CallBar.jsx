@@ -8,6 +8,7 @@ import CallIcon, { SignalBars, QUALITY_LABELS, signalTone } from './voice/CallIc
 import ScreenQualityMenu from './voice/ScreenQualityMenu.jsx';
 import MiniCallWindow from './voice/MiniCallWindow.jsx';
 import { RecordingConsentModal, RecordingCapture } from './voice/CallExtras.jsx';
+import { api } from '../api/client';
 import { getPreferredSpeakerId, setPreferredSpeakerId, getPreferredMicId, isOutputSelectionSupported, onSpeakerPreferenceChange, listAudioDevices } from '../utils/audioDevices';
 import { getVoicePref, onVoicePrefsChange } from '../utils/voicePrefs';
 import { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
@@ -496,7 +497,25 @@ function AudioSink({ stream, volume, autoLevel }) {
       }
     });
 
+    // Diagnóstico (temporário): 8 s depois de começar a tocar, manda pro
+    // servidor o estado real da reprodução deste áudio — pra achar por que
+    // alguém não ouve a call (fica no registro de erros da equipe).
+    const diagTimer = setTimeout(() => {
+      try {
+        const t = stream.getAudioTracks()[0];
+        const el = audioRef.current;
+        const info = {
+          track: t ? { state: t.readyState, muted: t.muted, enabled: t.enabled } : null,
+          ctx: ctx.state, sampleRate: ctx.sampleRate,
+          el: el ? { paused: el.paused, muted: el.muted, volume: el.volume, time: Math.round(el.currentTime), sink: el.sinkId || 'padrão', usingFallback: el.srcObject === stream } : null,
+          gain: gainRef.current?.gain.value, savedSpeaker: getPreferredSpeakerId() ? 'sim' : 'não',
+          ua: navigator.userAgent.slice(0, 120),
+        };
+        api.post('/system/client-error', { where: 'voz-diag', path: location.pathname, message: JSON.stringify(info) }).catch(() => {});
+      } catch { /* diagnóstico nunca atrapalha */ }
+    }, 8000);
     return () => {
+      clearTimeout(diagTimer);
       clearTimeout(fallbackTimer);
       try { unlockEl.pause(); unlockEl.srcObject = null; } catch { /* ok */ }
       retryCleanup?.();
