@@ -69,6 +69,7 @@ import { proxyImage } from '../utils/imageProxy';
 import { isFeatureEnabled } from '../utils/features';
 import MissionsAdmin from '../components/admin/MissionsAdmin.jsx';
 import SupportersAdmin from '../components/admin/SupportersAdmin.jsx';
+import DonationGoalAdmin from '../components/admin/DonationGoalAdmin.jsx';
 import { StaffHealthTab, StaffUserSearchTab } from '../components/admin/StaffTools.jsx';
 // Painel de saúde completo (erros agrupados, calls, servidor de mídia, backups).
 import StaffOpsPanel from '../components/admin/StaffOpsPanel.jsx';
@@ -137,6 +138,7 @@ const TABS = {
   appCatalog: { label: 'Apps', desc: 'Apps e launchers listados na área de Apps.' },
   economia: { label: 'Economia e missões', desc: 'Missões diárias/semanais, baús diários, moedas e recompensas.' },
   decoracoes: { label: 'Loja', desc: 'Molduras de avatar, efeitos de perfil e coleções vendidos na Loja.' },
+  metaDoacao: { label: 'Meta de doações', desc: 'A barrinha verde que todos veem no topo da barra lateral: defina a meta e adicione cada doação recebida.' },
   apoio: { label: 'Gerenciamento de Apoio', desc: 'Conceda ou remova Assinante e Super Assinante, com motivo e histórico de quem mudou.' },
   casas: { label: 'Casas e móveis', desc: 'Casas, mapas, grupos e catálogo de móveis.' },
   album: { label: 'Álbum de figurinhas', desc: 'Páginas e espaços do álbum de figurinhas colecionáveis.' },
@@ -181,7 +183,7 @@ const TAB_GROUPS = [
   { label: 'Moderação', icon: 'shield', tabs: ['reports', 'automodDm', 'moderacao', 'modReports', 'logs', 'honeypot'] },
   { label: 'Comunidade', icon: 'community', tabs: ['channels', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'gifMove'] },
   { label: 'Conteúdo', icon: 'content', tabs: ['feeds', 'updates', 'events', 'announcements', 'appCatalog'] },
-  { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'apoio', 'casas', 'album'] },
+  { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'apoio', 'metaDoacao', 'casas', 'album'] },
   { label: 'Guerra das Cartas', icon: 'cards', tabs: ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
   { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
   { label: 'Sistema', icon: 'system', tabs: ['numeros', 'painelSaude', 'saude', 'servidorVoz', 'sistema', 'maintenance', 'reload'] },
@@ -329,6 +331,7 @@ export default function AdminPanel() {
           {tab === 'economia' && <EconomyAdminTab />}
           {tab === 'decoracoes' && <ShopAdminTab />}
           {tab === 'apoio' && <SupportersAdmin />}
+          {tab === 'metaDoacao' && <DonationGoalAdmin />}
           {tab === 'casas' && <HousesAdminTab />}
           {tab === 'sistema' && <SystemTab />}
           {tab === 'moderacao' && <ModerationTab />}

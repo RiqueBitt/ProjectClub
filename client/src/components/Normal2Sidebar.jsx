@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import ChannelSidebar from './ChannelSidebar.jsx';
+import DonationGoalBar from './DonationGoalBar.jsx';
 import { ITEMS, STAFF_ITEM, visibleNavItems } from './MainSidebar.jsx';
 import { useFeaturedVisibility } from './FeaturedChannels.jsx';
 import { useClaimableMissions } from '../utils/missionBadge';
@@ -100,7 +101,7 @@ function N2Nav() {
 export default function Normal2Sidebar({ activeChannelId }) {
   return (
     <aside className="main-sidebar n2-sidebar">
-      <ChannelSidebar activeChannelId={activeChannelId} embedded sentenceCase topSlot={<N2Nav />} />
+      <ChannelSidebar activeChannelId={activeChannelId} embedded sentenceCase topSlot={<><DonationGoalBar /><N2Nav /></>} />
     </aside>
   );
 }
