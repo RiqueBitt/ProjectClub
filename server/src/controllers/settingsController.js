@@ -1,6 +1,10 @@
 const prisma = require('../config/prisma');
 const { safeUpsert } = require('../utils/prismaSafe');
 const { logSecurityEvent } = require('../services/securityLog');
+const { parseHHMM, isValidTimeZone } = require('../services/notificationPrefs');
+const {
+  sanitizeVoiceVolumes, sanitizeVoiceVolumesPatch, mergeVoiceVolumes, parseVoiceVolumes,
+} = require('../utils/voiceVolumes');
 
 // Item pedido: "Nunca aceitar userId do frontend pra decidir qual
 // usuário será alterado. O backend deve obter o usuário diretamente
@@ -80,6 +84,12 @@ const FIELD_VALIDATORS = {
   layoutPrefs: (v) => v === null || sanitizeLayoutPrefs(v) !== undefined,
   // Preferências extras (ver EXTRA_PREF_RULES) — também vira texto JSON.
   extraPrefs: (v) => v === null || sanitizeExtraPrefs(v) !== undefined,
+  // Volume por pessoa nas chamadas (ver utils/voiceVolumes.js). Mapa
+  // completo (substitui) ou null pra zerar tudo.
+  voiceVolumes: (v) => v === null || sanitizeVoiceVolumes(v) !== undefined,
+  // Patch parcial { userId: volume | null } — mesclado com o que já está
+  // salvo, pra dois aparelhos mudando volumes ao mesmo tempo não se apagarem.
+  voiceVolumesPatch: (v) => sanitizeVoiceVolumesPatch(v) !== undefined,
 };
 
 const isBool = (v) => typeof v === 'boolean';
@@ -101,6 +111,8 @@ const EXTRA_PREF_RULES = {
     && Array.isArray(v.colors) && v.colors.length >= 1 && v.colors.length <= 5 && v.colors.every(isHex)
     && intIn(0, 360)(v.angle) && isHex(v.accent) && intIn(0, 100)(v.mix),
   themeSync: isBool,
+  // Guardar as mensagens recentes no aparelho (abrir canal na hora).
+  cacheMessages: isBool,
   themeOnProfiles: isBool,
   appIcon: isKey(24),
   weeklyDigest: isBool,
@@ -134,11 +146,18 @@ const EXTRA_PREF_RULES = {
   soundPack: oneOf('auto', 'classic', 'halloween', 'natal', 'retro', 'suave'),
   soundsOff: (v) => keyList(40)(v) && v.every((k) => SOUND_KEYS.includes(k)),
   unreadBadge: isBool,
+  // Padrão de notificação dos canais (canal/categoria podem sobrescrever —
+  // ver services/notificationPrefs.js).
+  notifyLevel: oneOf('all', 'mentions', 'none'),
+  // "Não perturbe" agendado: { enabled, start, end, days, timezone }.
+  quietHours: (v) => sanitizeQuietHours(v) !== undefined,
   emailComms: isBool,
   emailSocial: isBool,
   emailUpdates: isBool,
   emailTips: isBool,
   // Voz e vídeo
+  // "Testar antes de entrar" (painel de pré-entrada da chamada).
+  preJoinCheck: isBool,
   inputProfile: oneOf('isolation', 'studio', 'custom'),
   sensitivityAuto: isBool,
   sensitivityDb: intIn(-100, 0),
@@ -153,14 +172,25 @@ const EXTRA_PREF_RULES = {
   gameJoinFriends: isBool,
   gameJoinVoice: isBool,
 };
+// Horário "HH:MM", dias 0 (domingo) a 6 sem repetir e fuso IANA válido
+// (o cliente manda o do Intl). Devolve uma cópia limpa ou undefined.
+function sanitizeQuietHours(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  if (typeof v.enabled !== 'boolean') return undefined;
+  if (parseHHMM(v.start) === null || parseHHMM(v.end) === null) return undefined;
+  if (!Array.isArray(v.days) || v.days.length > 7 || !v.days.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)) return undefined;
+  if (!isValidTimeZone(v.timezone)) return undefined;
+  return { enabled: v.enabled, start: v.start, end: v.end, days: [...new Set(v.days)].sort(), timezone: v.timezone };
+}
 function sanitizeExtraPrefs(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
   const out = {};
   for (const [key, rule] of Object.entries(EXTRA_PREF_RULES)) {
     if (key in v && rule(v[key])) {
-      out[key] = key === 'customTheme'
-        ? { colors: v.customTheme.colors, angle: v.customTheme.angle, accent: v.customTheme.accent, mix: v.customTheme.mix }
-        : v[key];
+      if (key === 'customTheme') {
+        out[key] = { colors: v.customTheme.colors, angle: v.customTheme.angle, accent: v.customTheme.accent, mix: v.customTheme.mix };
+      } else if (key === 'quietHours') out[key] = sanitizeQuietHours(v.quietHours);
+      else out[key] = v[key];
     }
   }
   return out;
@@ -215,7 +245,7 @@ function serializeSettings(settings) {
   if (settings.layoutPrefs) {
     try { layoutPrefs = JSON.parse(settings.layoutPrefs); } catch { layoutPrefs = null; }
   }
-  return { ...settings, layoutPrefs, extraPrefs: parseExtra(settings.extraPrefs) };
+  return { ...settings, layoutPrefs, extraPrefs: parseExtra(settings.extraPrefs), voiceVolumes: parseVoiceVolumes(settings.voiceVolumes) };
 }
 
 async function getOrCreateSettings(userId) {
@@ -238,18 +268,26 @@ async function updateSettings(req, res, next) {
   try {
     const data = {};
     const rejected = [];
+    let volumesPatch = null;
     for (const [key, value] of Object.entries(req.body || {})) {
       const validator = FIELD_VALIDATORS[key];
       if (!validator) { rejected.push(key); continue; } // campo desconhecido — nunca vira coluna nova sozinho
       if (!validator(value)) { rejected.push(key); continue; }
       if (key === 'layoutPrefs' && value !== null) data[key] = JSON.stringify(sanitizeLayoutPrefs(value));
       else if (key === 'extraPrefs' && value !== null) data[key] = JSON.stringify(sanitizeExtraPrefs(value));
+      else if (key === 'voiceVolumes') data[key] = value === null ? null : JSON.stringify(sanitizeVoiceVolumes(value));
+      else if (key === 'voiceVolumesPatch') volumesPatch = sanitizeVoiceVolumesPatch(value);
       else data[key] = value;
     }
-    if (Object.keys(data).length === 0) {
+    if (Object.keys(data).length === 0 && !volumesPatch) {
       return res.status(400).json({ error: 'Nenhuma configuração válida foi enviada.', rejected });
     }
-    await getOrCreateSettings(req.user.id);
+    const current = await getOrCreateSettings(req.user.id);
+    // Mapa completo no mesmo PATCH tem prioridade; o patch mescla por cima.
+    if (volumesPatch) {
+      const base = 'voiceVolumes' in data ? parseVoiceVolumes(data.voiceVolumes) : parseVoiceVolumes(current?.voiceVolumes);
+      data.voiceVolumes = JSON.stringify(mergeVoiceVolumes(base, volumesPatch));
+    }
     const settings = await prisma.userSettings.update({ where: { userId: req.user.id }, data });
     res.json({ settings: serializeSettings(settings), rejected: rejected.length ? rejected : undefined });
   } catch (err) { next(err); }

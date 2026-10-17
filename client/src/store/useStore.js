@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { updateUserSettings } from '../api/endpoints';
 import { openPopover, closePopover, closeAllPopovers } from '../utils/popoverCoordinator';
 import { trackSave } from '../utils/saveIndicator';
+import { resolveChannelPrefs, channelKey, categoryKey } from '../utils/notificationLevels';
 import { loadLocalLayoutPrefs, normalizeLayoutPrefs, saveLocalLayoutPrefs, scheduleServerSave, loadFocusMode, saveFocusMode } from '../utils/appearance';
 
 // Função estável (comparada por identidade no coordenador de menus) que
@@ -53,6 +54,17 @@ export const useStore = create((set, get) => ({
   roles: [], // cargos globais da comunidade
   community: { name: 'Project Club', iconUrl: null, bannerUrl: null }, // nome/ícone/banner definidos pela staff
   conversations: [],
+  // Já chegou (do servidor ou da cópia local) a estrutura da comunidade /
+  // a lista de conversas? Enquanto não, as listas mostram esqueleto em vez
+  // de "vazio" (ver ListSkeleton.jsx).
+  communityLoaded: false,
+  conversationsLoaded: false,
+  markLoaded: (patch) => set((s) => {
+    const next = {};
+    if (patch.community && !s.communityLoaded) next.communityLoaded = true;
+    if (patch.conversations && !s.conversationsLoaded) next.conversationsLoaded = true;
+    return next;
+  }),
   friends: [],
   presence: {}, // userId -> { status, customStatus }
   // Item pedido: "Rich Presence" (jogo/Spotify) — userId -> activity
@@ -71,6 +83,12 @@ export const useStore = create((set, get) => ({
   // Mesclado nos objetos de canal (ver withChannelStates) — é o que faz o
   // "não lido"/menções sobreviver a um F5.
   channelStates: {},
+  // Notificações por canal/categoria: targetKey ("ch:<id>" / "cat:<id>") ->
+  // { level, mutedUntil, muteForever }. Carregado/sincronizado por
+  // utils/notificationPrefs.js. notifTick muda quando um silêncio expira
+  // (força a lista de canais a redesenhar sem o cinza).
+  notificationOverrides: {},
+  notifTick: 0,
   setChannelStates: (states) => set((s) => {
     const next = states || {};
     const merge = (list) => withChannelStates(list, next, s.channelReadAt);
@@ -294,6 +312,7 @@ export const useStore = create((set, get) => ({
   mobileMembersOpen: false,
 
   setCommunityStructure: ({ categories, channels, members, roles, community }) => set((s) => ({
+    ...(categories || channels || members ? { communityLoaded: true } : {}),
     categories: categories
       ? categories.map((cat) => ({ ...cat, channels: withChannelStates(cat.channels || [], s.channelStates, s.channelReadAt) }))
       : s.categories,
@@ -367,7 +386,7 @@ export const useStore = create((set, get) => ({
   // Gaveta de canais no celular (gesto de deslizar da borda esquerda).
   openMobileChannelList: () => set({ mobileChannelListOpen: true, mobileSidebarOpen: true, mobileMembersOpen: false }),
 
-  setConversations: (conversations) => set({ conversations }),
+  setConversations: (conversations) => set({ conversations, conversationsLoaded: true }),
   upsertConversation: (conversation) => set((s) => ({
     conversations: s.conversations.some((c) => c.id === conversation.id)
       ? s.conversations.map((c) => (c.id === conversation.id ? { ...c, ...conversation } : c))
@@ -719,6 +738,17 @@ export const useStore = create((set, get) => ({
       )),
     },
   })),
+  // Muda só alguns campos de uma mensagem (estado de envio, progresso do
+  // upload…) sem trocar o resto. Sem a sala/mensagem, não faz nada.
+  patchMessage: (roomKey, id, patch) => set((s) => {
+    const list = s.messagesByRoom[roomKey];
+    if (!list) return {};
+    const idx = list.findIndex((m) => m.id === id);
+    if (idx < 0) return {};
+    const next = list.slice();
+    next[idx] = { ...list[idx], ...patch };
+    return { messagesByRoom: { ...s.messagesByRoom, [roomKey]: next } };
+  }),
   updateMessage: (roomKey, message) => set((s) => ({
     messagesByRoom: {
       ...s.messagesByRoom,
@@ -749,6 +779,17 @@ export const useStore = create((set, get) => ({
 
   bumpChannelMention: (channelId) => set((s) => {
     const patchChannel = (ch) => (ch.id === channelId ? { ...ch, unreadMentions: (ch.unreadMentions || 0) + 1 } : ch);
+    return {
+      channels: s.channels.map(patchChannel),
+      categories: s.categories.map((cat) => ({ ...cat, channels: (cat.channels || []).map(patchChannel) })),
+    };
+  }),
+
+  // Mensagem nova num canal fechado com "Todas as mensagens" (evento
+  // 'channel:message'): marca a atividade pra ele aparecer como não lido.
+  bumpChannelActivity: ({ channelId, authorId, createdAt, messageId }) => set((s) => {
+    const lastMessage = { id: messageId, channelId, authorId, createdAt };
+    const patchChannel = (ch) => (ch.id === channelId ? { ...ch, lastMessage, lastMessageAt: createdAt } : ch);
     return {
       channels: s.channels.map(patchChannel),
       categories: s.categories.map((cat) => ({ ...cat, channels: (cat.channels || []).map(patchChannel) })),
@@ -853,17 +894,39 @@ export function isConversationUnread(conversation, myUserId) {
 // esta pessoa (@nome, @cargo dela, @todos ou @aqui) ou é uma resposta
 // direta a uma mensagem dela — mensagem normal, sem nenhum desses,
 // não acende nada pra mais ninguém.
+//
+// Notificações por canal: com "Todas as mensagens" (e sem silêncio),
+// qualquer mensagem nova de outra pessoa acende o canal, igual ao Discord.
 export function isChannelUnread(channel, channelReadAtMap, myUserId, myRoleIds = []) {
   // Menções pendentes vindas do servidor (sobrevive a recarregar a página)
   // ou contadas ao vivo pelo 'mention:new'.
   if (channel.unreadMentions > 0) return true;
+  const readAt = channelReadAtMap[channel.id] ?? channel.myReadAt;
+  const prefs = channelNotifyPrefs(channel);
+  if (prefs.level === 'ALL' && !prefs.muted) {
+    const last = channel.lastMessage;
+    const lastAt = last?.createdAt || channel.lastMessageAt;
+    if (lastAt && !(last && last.authorId === myUserId && last.createdAt === lastAt)) {
+      if (!readAt || new Date(lastAt) > new Date(readAt)) return true;
+    }
+  }
   const last = channel.lastMessage;
   if (!last || last.authorId === myUserId) return false;
   const repliedToMe = last.replyTo?.authorId === myUserId || last.replyTo?.author?.id === myUserId;
   if (!messageMentionsUser(last, myUserId, myRoleIds) && !repliedToMe) return false;
-  const readAt = channelReadAtMap[channel.id] ?? channel.myReadAt;
   if (!readAt) return true;
   return new Date(last.createdAt) > new Date(readAt);
+}
+
+// Nível/silêncio efetivos de um canal (canal → categoria → global).
+export function channelNotifyPrefs(channel, state = useStore.getState(), now = Date.now()) {
+  const overrides = state.notificationOverrides || {};
+  return resolveChannelPrefs({
+    globalLevel: state.userSettings?.extraPrefs?.notifyLevel,
+    channelOverride: channel?.id ? overrides[channelKey(channel.id)] : null,
+    categoryOverride: channel?.categoryId ? overrides[categoryKey(channel.categoryId)] : null,
+    now,
+  });
 }
 
 export function messageMentionsUser(message, myUserId, myRoleIds = []) {

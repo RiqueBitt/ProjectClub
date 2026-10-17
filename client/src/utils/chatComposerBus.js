@@ -1,7 +1,8 @@
 // Ponte pequena entre o compositor do chat (ChatWindow) e cada mensagem
 // (Message), sem passar props por várias camadas:
 //  - Seta pra cima no compositor vazio abre a edição da sua última mensagem.
-//  - Mensagem que falhou ao enviar guarda aqui como "tentar de novo".
+//  - Mensagem que falhou ao enviar guarda aqui como "tentar de novo"
+//    (e o "cancelar" do upload em andamento).
 //  - Rascunho por canal/conversa (localStorage).
 
 const editors = new Map(); // messageId -> abre a edição
@@ -23,6 +24,11 @@ export function setRetry(id, fn) {
 }
 export function getRetry(id) { return retries.get(id) || null; }
 export function clearRetry(id) { retries.delete(id); }
+
+const cancels = new Map(); // id da mensagem otimista -> cancelar o upload em andamento
+export function setCancel(id, fn) { cancels.set(id, fn); }
+export function getCancel(id) { return cancels.get(id) || null; }
+export function clearCancel(id) { cancels.delete(id); }
 
 const DRAFT_PREFIX = 'chat-draft:';
 export function loadDraft(roomKey) {

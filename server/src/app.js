@@ -423,6 +423,7 @@ function createApp() {
   // Avisos pessoais salvos e Galeria (curtidas/álbuns).
   app.use('/api/notices', require('./routes/notices'));
   app.use('/api/reminders', require('./routes/reminders'));
+  app.use('/api/notification-overrides', require('./routes/notificationOverrides'));
   app.use('/api/gallery', require('./routes/gallery'));
   app.use('/api/activity', activityRoutes);
   app.use('/api/games', gamesLibraryRoutes);
@@ -454,6 +455,9 @@ function createApp() {
   const staticCacheHeader = (filePath) => {
     if (/[\\/]assets[\\/]/.test(filePath)) return 'public, max-age=31536000, immutable';
     if (filePath.endsWith('.html')) return 'no-cache';
+    // version.json: o site pergunta de tempos em tempos "tem versão nova?"
+    // (aviso "Nova versão disponível") — nunca pode vir de cache.
+    if (/[\\/]version\.json$/.test(filePath)) return 'no-store, max-age=0';
     // Service worker e manifest: o navegador precisa ver a versão nova logo.
     if (/[\\/](sw\.js|manifest\.webmanifest)$/.test(filePath)) return 'no-cache';
     // Pacotes de emoji, sons e arquivos dos Mini-Jogos (menos os .html,

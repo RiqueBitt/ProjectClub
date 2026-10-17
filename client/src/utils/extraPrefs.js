@@ -6,11 +6,13 @@
 import { useStore } from '../store/useStore';
 import { updateUserSettings } from '../api/endpoints';
 import { trackSave } from './saveIndicator';
+import { browserTimeZone } from './notificationLevels';
 
 export const EXTRA_DEFAULTS = Object.freeze({
   colorTheme: 'none',
   customTheme: { colors: ['#5b21b6', '#1e3a8a'], angle: 135, accent: '#8b5cf6', mix: 55 },
   themeSync: true,
+  cacheMessages: true,
   themeOnProfiles: true,
   appIcon: 'default',
   streamerMode: false,
@@ -41,10 +43,15 @@ export const EXTRA_DEFAULTS = Object.freeze({
   soundPack: 'auto',
   soundsOff: [],
   unreadBadge: true,
+  // Padrão dos canais: 'all' | 'mentions' | 'none' (canal/categoria sobrescrevem).
+  notifyLevel: 'mentions',
+  // "Não perturbe" agendado — fuso do aparelho por padrão (servidor valida).
+  quietHours: { enabled: false, start: '23:00', end: '07:00', days: [0, 1, 2, 3, 4, 5, 6], timezone: browserTimeZone() },
   emailComms: true,
   emailSocial: true,
   emailUpdates: true,
   emailTips: true,
+  preJoinCheck: true,
   inputProfile: 'custom',
   sensitivityAuto: true,
   sensitivityDb: -60,

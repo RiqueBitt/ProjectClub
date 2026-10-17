@@ -25,6 +25,7 @@ import PendantIcon from './PendantIcon.jsx';
 import ClanTagBadge from './ClanTagBadge.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import ReactionChip from './ReactionChip.jsx';
+import ReportDialog from './modals/ReportDialog.jsx';
 import pinIcon from '../assets/icons/pin.png';
 import micIcon from '../assets/icons/mic.png';
 import documentIcon from '../assets/icons/document.png';
@@ -34,7 +35,8 @@ import { proxyImage } from '../utils/imageProxy';
 import { InternalLinkCards } from './InternalLinkCard.jsx';
 import { findInternalLinks } from '../utils/internalLinks';
 import { cssZoom } from '../utils/cssZoom';
-import { registerEditor, getRetry, clearRetry } from '../utils/chatComposerBus';
+import { registerEditor, getRetry, getCancel } from '../utils/chatComposerBus';
+import { discardOptimistic } from '../utils/messageSender';
 import { EditedTag, ForwardedLabel, ForwardMessageModal, LinkPreview } from './MessageExtras.jsx';
 import ReminderModal from './modals/ReminderModal.jsx';
 
@@ -232,19 +234,10 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
   };
 
   // Item pedido: "Formulário e aprovação manual" — denúncia manual de uma
-  // mensagem, direto do menu de ações dela. Motivo em prompt() simples,
-  // mesmo padrão já usado aqui pra "Advertir autor"/"Silenciar autor" —
-  // sem modal novo pra manter consistência com o resto do menu.
-  const reportThisMessage = async () => {
-    const reason = prompt('Por que você está denunciando esta mensagem?');
-    if (!reason || !reason.trim()) return;
-    try {
-      const result = await reportMessage(message.id, reason.trim());
-      useStore.getState().pushNotice(result.alreadyReported ? 'Você já denunciou esta mensagem — nossa equipe ainda vai revisar.' : 'Denúncia enviada. Nossa equipe vai revisar.');
-    } catch (err) {
-      useStore.getState().pushNotice(err.response?.data?.error || 'Não foi possível enviar a denúncia.');
-    }
-  };
+  // mensagem, direto do menu de ações dela. Agora é a denúncia rápida
+  // (ReportDialog.jsx): um clique no motivo + detalhes opcionais.
+  const [reportOpen, setReportOpen] = useState(false);
+  const reportThisMessage = () => setReportOpen(true);
 
   // Topics/threads reuse the same replyTo + title mechanism forum posts use
   // (see ForumChannelView.jsx) — a "topic" is just a titled reply to this
@@ -405,7 +398,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
 
   return (
     <div
-      className={`message ${showAuthor ? 'with-author' : ''} ${message.replyTo ? 'has-reply' : ''} ${message.pinned ? 'pinned' : ''} ${message.pending ? 'pending' : ''} ${message.failed ? 'failed' : ''} ${highlighted ? 'mentioned' : ''} ${message._animateIn ? 'message-animate-in' : ''}`}
+      className={`message ${showAuthor ? 'with-author' : ''} ${message.replyTo ? 'has-reply' : ''} ${message.pinned ? 'pinned' : ''} ${message.pending ? 'pending' : ''} ${message.failed ? 'failed' : ''} ${message.queued && !message.failed ? 'queued' : ''} ${highlighted ? 'mentioned' : ''} ${message._animateIn ? 'message-animate-in' : ''}`}
       data-message-id={message.id}
       onContextMenu={onContextMenu}
     >
@@ -478,6 +471,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
             <span className="message-time" title={formatTime(message.createdAt)}>{formatTimeOnly(message.createdAt)}</span>
             {message.pinned && <span className="pin-badge"><img className="ui-icon-sm" src={pinIcon} alt="" /> fixada</span>}
             {message.pending && <span className="pending-badge">enviando…</span>}
+            {message.queued && !message.failed && <span className="pending-badge queued-badge">na fila</span>}
             {message.failed && <span className="failed-badge">falhou ao enviar</span>}
           </div>
         )}
@@ -537,13 +531,29 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
         )}
 
 
+        {/* Envio com anexos: progresso real do upload + cancelar. */}
+        {message.pending && message.upload && <UploadProgressRow message={message} />}
+
+        {/* Sem conexão: fica na fila e sai sozinha quando a conexão voltar
+            (utils/sendQueue.js). "Tentar de novo" tenta a fila agora. */}
+        {message.queued && !message.failed && (
+          <div className="message-failed-row message-queued-row" role="status">
+            <span className="message-queued-dot" aria-hidden="true" />
+            <span>Enviando quando a conexão voltar…</span>
+            {getRetry(message.id) && (
+              <button type="button" className="message-failed-btn" onClick={() => getRetry(message.id)?.()}>Tentar de novo</button>
+            )}
+            <button type="button" className="message-failed-btn ghost" onClick={() => discardOptimistic(roomKeyFor({ conversationId: message.conversationId, channelId: message.channelId }), message.id)}>Descartar</button>
+          </div>
+        )}
+
         {message.failed && (
           <div className="message-failed-row" role="alert">
             <span>Não foi enviada.</span>
             {getRetry(message.id) && (
               <button type="button" className="message-failed-btn" onClick={() => getRetry(message.id)?.()}>Tentar de novo</button>
             )}
-            <button type="button" className="message-failed-btn ghost" onClick={() => { clearRetry(message.id); useStore.getState().removeMessage(roomKeyFor({ conversationId: message.conversationId, channelId: message.channelId }), message.id); }}>Descartar</button>
+            <button type="button" className="message-failed-btn ghost" onClick={() => discardOptimistic(roomKeyFor({ conversationId: message.conversationId, channelId: message.channelId }), message.id)}>Descartar</button>
           </div>
         )}
 
@@ -552,6 +562,19 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
         {/* Prévia de link externo (Open Graph) — no máximo 1 por mensagem. */}
         {!editing && !message.contentFiltered && !message.embed && !isPending && <LinkPreview content={message.content} />}
         {forwardOpen && <ForwardMessageModal message={message} myUserId={user.id} onClose={() => setForwardOpen(false)} />}
+        {reportOpen && (
+          <ReportDialog
+            title="Denunciar mensagem"
+            subtitle={(
+              <>
+                De <b>{message.author?.displayName || message.author?.username || 'alguém'}</b>
+                {(message.content || '').trim() && <span className="report-dlg-snippet">{message.content.length > 220 ? `${message.content.slice(0, 220)}…` : message.content}</span>}
+              </>
+            )}
+            onSubmit={(category, details) => reportMessage(message.id, category, details)}
+            onClose={() => setReportOpen(false)}
+          />
+        )}
         {reminderOpen && (
           <ReminderModal
             message={message}
@@ -855,6 +878,35 @@ function formatTime(iso) {
 // passa já são referências estáveis entre renders (ver comentário de
 // EMPTY_TOPICS em ChatWindow.jsx).
 export default memo(MessageComponent);
+
+// Barra de progresso do upload (mensagem com anexos ainda subindo).
+function UploadProgressRow({ message }) {
+  const pct = message.upload?.pct;
+  const count = message.uploadCount || 1;
+  const known = typeof pct === 'number';
+  const roomKey = roomKeyFor({ conversationId: message.conversationId, channelId: message.channelId });
+  const cancel = getCancel(message.id);
+  const mb = (n) => `${(n / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`;
+  return (
+    <div className="message-upload-row" role="progressbar" aria-label="Enviando anexos" aria-valuemin={0} aria-valuemax={100} aria-valuenow={known ? pct : undefined}>
+      <div className="message-upload-info">
+        <span>{pct === 100 ? 'Processando…' : `Enviando ${count} arquivo${count === 1 ? '' : 's'}`}</span>
+        <span className="message-upload-pct">
+          {known && message.upload?.total ? `${mb(message.upload.loaded || 0)} de ${mb(message.upload.total)} · ` : ''}
+          {known ? `${pct}%` : ''}
+        </span>
+        {cancel && pct !== 100 && (
+          <button type="button" className="message-upload-cancel" title="Cancelar envio" aria-label="Cancelar envio" onClick={() => discardOptimistic(roomKey, message.id)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        )}
+      </div>
+      <div className={`message-upload-bar ${known ? '' : 'is-indeterminate'}`}>
+        <span style={known ? { width: `${pct}%` } : undefined} />
+      </div>
+    </div>
+  );
+}
 
 // Prévia dos links internos da mensagem — some se a pessoa desligou
 // "Mostrar prévia de links" nas configurações.

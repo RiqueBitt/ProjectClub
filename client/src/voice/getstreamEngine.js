@@ -7,6 +7,8 @@
 // O SDK (@stream-io/video-client) é carregado só quando o Stream é usado
 // (import dinâmico) — não pesa no carregamento do site.
 
+import { summarizeWebRtcStats, screenFromStats } from './connectionStats.js';
+
 // Tipos de faixa do SFU do Stream (SfuModels.TrackType).
 const TT = { AUDIO: 1, VIDEO: 2, SCREEN_SHARE: 3, SCREEN_SHARE_AUDIO: 4 };
 const CALL_TYPE = 'default';
@@ -28,6 +30,8 @@ export class GetStreamEngine {
     // Estado por pessoa (userId → o que já avisamos pra UI).
     this.known = new Map(); // userId -> { sessionId, audio, video, screen, speaking }
     this.micEnabled = true;
+    this.screenOn = false;
+    this.connStatsPrev = null; // contadores da última leitura do painel de conexão
   }
 
   getNode() { return null; }
@@ -140,10 +144,11 @@ export class GetStreamEngine {
 
   async setNoiseSuppression() { /* o Stream tem o próprio filtro do navegador */ }
 
-  async setCamera(on) {
+  async setCamera(on, { deviceId } = {}) {
     if (!this.call) return null;
     try {
       if (!on) { await this.call.camera.disable(); this.cb.onSelfCamera?.(false); return null; }
+      if (deviceId) { try { await this.call.camera.select(deviceId); } catch { /* câmera sumiu — usa a padrão */ } }
       await this.call.camera.enable();
       this.cb.onSelfCamera?.(true);
       return this.call.camera.state.mediaStream || null;
@@ -153,14 +158,40 @@ export class GetStreamEngine {
   async setScreen(on, options = {}) {
     if (!this.call) return null;
     try {
-      if (!on) { await this.call.screenShare.disable(); this.cb.onSelfScreen?.(false); return null; }
+      if (!on) { this.screenOn = false; await this.call.screenShare.disable(); this.cb.onSelfScreen?.(false); return null; }
       try { if (options.audio === false) this.call.screenShare.disableScreenShareAudio?.(); else this.call.screenShare.enableScreenShareAudio?.(); } catch { /* ok */ }
       await this.call.screenShare.enable();
+      this.screenOn = true;
       const stream = this.call.screenShare.state.mediaStream || null;
       stream?.getVideoTracks?.()[0]?.addEventListener('ended', () => { this.setScreen(false); });
       this.cb.onSelfScreen?.(true);
       return stream;
     } catch (err) { this.cb.onError?.(err, { where: 'setScreen' }); return null; }
+  }
+
+  // Painel "Qualidade da conexão": o SDK do Stream já junta as stats a cada
+  // poucos segundos (callStatsReport). Usa as stats WebRTC cruas quando
+  // vierem (mesmo cálculo do servidor próprio); senão, as agregadas.
+  async getConnectionStats() {
+    const report = this.call?.state?.callStatsReport;
+    if (!report) return null;
+    const raw = [report.publisherRawStats, report.subscriberRawStats].filter(Boolean);
+    const server = report.datacenter || null;
+    if (raw.length) {
+      const { snapshot, counters } = summarizeWebRtcStats(raw, this.connStatsPrev, Date.now(), this.screenOn ? report.publisherRawStats : null);
+      this.connStatsPrev = counters;
+      return { ...snapshot, server };
+    }
+    const pub = report.publisherAudioStats || report.publisherStats || {};
+    const ok = (v) => (Number.isFinite(v) && v > 0 ? Math.round(v) : null);
+    return {
+      rttMs: ok(pub.averageRoundTripTimeInMs),
+      jitterMs: ok(pub.averageJitterInMs),
+      lossPct: null, outKbps: null, inKbps: null,
+      audioCodec: pub.codec || null, videoCodec: report.publisherStats?.codec || null,
+      screen: this.screenOn ? screenFromStats(report.publisherRawStats) : null,
+      server,
+    };
   }
 
   _leaveQuietly() {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import { listReminders, deleteReminder, markChannelRead, markConversationRead } from '../api/endpoints';
+import { listReminders, deleteReminder, markChannelRead, markConversationRead, listReplies } from '../api/endpoints';
 import { useStore, isChannelUnread, isConversationUnread, roomKeyFor } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import UserAvatar from './UserAvatar.jsx';
@@ -9,9 +9,10 @@ import { Ico } from './PagesKit.jsx';
 import { toggleSaved, useMsgExtras } from '../utils/messageExtras';
 import '../styles/inbox.css';
 
-// Caixa de Entrada (igual ao 📥 do Discord): Não lidas, Menções, Favoritos e
-// Lembretes, num painel que abre no topo sem sair da tela.
-const TABS = [['unread', 'Não lidas'], ['mentions', 'Menções'], ['saved', 'Favoritos'], ['reminders', 'Lembretes']];
+// Caixa de Entrada (igual ao 📥 do Discord): Não lidas, Menções, Respostas
+// (respostas a mensagens suas), Favoritos e Lembretes, num painel que abre
+// no topo sem sair da tela.
+const TABS = [['unread', 'Não lidas'], ['mentions', 'Menções'], ['replies', 'Respostas'], ['saved', 'Favoritos'], ['reminders', 'Lembretes']];
 const when = (iso) => {
   const d = new Date(iso);
   const diff = (Date.now() - d.getTime()) / 60000;
@@ -20,12 +21,16 @@ const when = (iso) => {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 };
 
-function MessageRow({ m, onOpen, action }) {
+function MessageRow({ m, onOpen, action, showReplyTo = false }) {
   const preview = (m.content || '').slice(0, 220) || (m.attachments?.length ? `📎 ${m.attachments.length} anexo(s)` : '…');
+  const original = showReplyTo && m.replyTo ? ((m.replyTo.content || '').slice(0, 90) || 'sua mensagem') : null;
   return (
     <li className="ibx-msg">
       <button type="button" className="ibx-msg-main" onClick={() => onOpen(m)}>
         <span className="ibx-where">{m.channelName ? `# ${m.channelName}` : 'Mensagem direta'} · {when(m.createdAt)}</span>
+        {original && (
+          <span className="ibx-reply-to"><Ico name="reply" size={13} /><span className="truncate">Respondendo a você: “{original}”</span></span>
+        )}
         <span className="ibx-msg-head"><UserAvatar user={m.author} size={24} /><b>{m.author?.displayName || 'Alguém'}</b></span>
         <span className="ibx-msg-text">{preview}</span>
       </button>
@@ -56,6 +61,7 @@ export default function InboxPopover({ onClose }) {
 
   const load = (t) => {
     if (t === 'mentions') api.get('/messages/mentions').then((r) => setData((d) => ({ ...d, mentions: r.data.messages || [] }))).catch(() => setData((d) => ({ ...d, mentions: [] })));
+    if (t === 'replies') listReplies().then((r) => setData((d) => ({ ...d, replies: r.messages || [] }))).catch(() => setData((d) => ({ ...d, replies: [] })));
     if (t === 'saved') api.get('/messages/saved').then((r) => setData((d) => ({ ...d, saved: r.data.messages || [] }))).catch(() => setData((d) => ({ ...d, saved: [] })));
     if (t === 'reminders') listReminders().then((r) => setData((d) => ({ ...d, reminders: r?.active || [] }))).catch(() => setData((d) => ({ ...d, reminders: [] })));
   };
@@ -114,6 +120,9 @@ export default function InboxPopover({ onClose }) {
         )}
         {tab === 'mentions' && (!data.mentions ? <Loading /> : data.mentions.length === 0 ? <Empty icon="at" text="Ninguém te mencionou ainda." /> : (
           <ul className="ibx-list">{data.mentions.map((m) => <MessageRow key={m.id} m={m} onOpen={open} />)}</ul>
+        ))}
+        {tab === 'replies' && (!data.replies ? <Loading /> : data.replies.length === 0 ? <Empty icon="reply" text="Ninguém respondeu suas mensagens ainda." /> : (
+          <ul className="ibx-list">{data.replies.map((m) => <MessageRow key={m.id} m={m} onOpen={open} showReplyTo />)}</ul>
         ))}
         {tab === 'saved' && (!data.saved ? <Loading /> : data.saved.length === 0 ? <Empty icon="star" text="Clique com o botão direito numa mensagem → Favoritar mensagem pra guardar aqui." /> : (
           <ul className="ibx-list">

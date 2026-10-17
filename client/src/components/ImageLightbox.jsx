@@ -84,6 +84,9 @@ export default function ImageLightbox() {
     <div className="lightbox-overlay no-swipe" role="dialog" aria-modal="true" aria-label={filename} onMouseDown={(e) => { if (e.target === e.currentTarget) closeLightbox(); }}>
       <div className="lightbox-toolbar">
         {hasMultiple && <span className="lightbox-counter">{index + 1} / {images.length}</span>}
+        {/^(https?:\/\/|\/(?!\/))/i.test(image.url) ? (
+          <a className="lightbox-btn" href={proxyImage(image.url)} target="_blank" rel="noopener noreferrer" title="Abrir o arquivo original numa aba nova">↗ Abrir original</a>
+        ) : null}
         <button type="button" className="lightbox-btn" title="Baixar" onClick={download} disabled={downloading}>
           {downloading ? '⬇ Baixando...' : '⬇ Baixar'}
         </button>

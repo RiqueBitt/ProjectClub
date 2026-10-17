@@ -8,7 +8,7 @@ import Modal from '../Modal.jsx';
 import { useStore } from '../../store/useStore';
 import { useAuth } from '../../context/AuthContext.jsx';
 import {
-  createRole, updateRole, deleteRole, reorderRoles, uploadRoleIcon, assignRole, unassignRole,
+  createRole, updateRole, deleteRole, duplicateRole, reorderRoles, uploadRoleIcon, assignRole, unassignRole,
 } from '../../api/endpoints';
 import { PERMISSIONS, getMyCommunityPermissions } from '../../utils/permissions';
 import { ROLE_GROUPS, bits, hasBit } from '../../utils/permissionCatalog';
@@ -122,6 +122,26 @@ export default function RoleManagerModal({ onClose }) {
       setSelectedId(sorted.find((r) => r.id !== selected.id && !r.isDefault)?.id || null);
       setDraft(null); setDraftFor(null); setMobilePane('list');
     } catch (err) { setError(errMsg(err, 'Não foi possível excluir o cargo.')); }
+  };
+
+  // "Duplicar cargo": cópia com tudo igual (cor, ícone, exibição, menção e
+  // permissões), logo abaixo do original. O servidor confere hierarquia e
+  // permissões de novo; aqui o botão só some quando já se sabe que não dá.
+  const [duplicating, setDuplicating] = useState(false);
+  const canDuplicate = !!selected && !selected.isDefault && editable
+    && (isAdmin || (bits(selected.permissions) & ~bits(myPerms)) === 0n);
+  const duplicate = async () => {
+    if (duplicating || !guardSwitch()) return;
+    setDuplicating(true); setError('');
+    try {
+      const { role } = await duplicateRole(selected.id);
+      // Mesmo deslocamento que o servidor fez: do original pra cima, +1.
+      useStore.getState().roles
+        .filter((r) => !r.isDefault && r.id !== role.id && r.position >= role.position)
+        .forEach((r) => upsertRole({ ...r, position: r.position + 1 }));
+      upsertRole(role);
+      setSelectedId(role.id); setDraft(null); setDraftFor(null); setTab('display'); setMobilePane('edit');
+    } catch (err) { setError(errMsg(err, 'Não foi possível duplicar o cargo.')); } finally { setDuplicating(false); }
   };
 
   const uploadIcon = async (e) => {
@@ -294,7 +314,16 @@ export default function RoleManagerModal({ onClose }) {
                   <p className="pm-row-desc">Quem tem a permissão “Mencionar @everyone, @here e todos os cargos” sempre pode mencionar este cargo.</p>
                 </div>
 
-                {editable && <button type="button" className="btn-danger pm-delete" onClick={remove}>Excluir cargo</button>}
+                {editable && (
+                  <div className="pm-role-actions">
+                    {canDuplicate && (
+                      <button type="button" className="btn-secondary" onClick={duplicate} disabled={duplicating} title="Cria uma cópia com a mesma cor, ícone e permissões, logo abaixo deste cargo">
+                        {duplicating ? 'Duplicando…' : 'Duplicar cargo'}
+                      </button>
+                    )}
+                    <button type="button" className="btn-danger" onClick={remove}>Excluir cargo</button>
+                  </div>
+                )}
               </div>
             )}
 

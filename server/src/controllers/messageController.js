@@ -9,10 +9,12 @@ const dmAutomod = require('../services/dmAutomod');
 const { canSendDirectMessage } = require('../services/dmPermissions');
 const xpService = require('../services/xp');
 const { resolveMentions } = require('../services/mentions');
+const notificationPrefs = require('../services/notificationPrefs');
 const { maybeSendOfflineEmail } = require('../services/offlineEmailNotifier');
 const { discardUploadedFiles } = require('../middleware/upload');
 const { maskUserStatus } = require('../utils/presenceVisibility');
 const { isValidReactionEmoji } = require('../utils/reactionEmoji');
+const { sharedIdempotency } = require('../services/messageIdempotency');
 
 // Discord-style cap: once a message already has this many *distinct* emoji
 // reacted to it, nobody can pile on a brand new one — you can still toggle
@@ -367,18 +369,53 @@ async function precheckCreateMessage(req, res, next) {
       return res.status(429).json({ error: 'Você enviou arquivos demais em pouco tempo. Espere alguns minutos.' });
     }
     req.precheckedRoom = room;
+    // Reenvio (fila offline do cliente) de uma mensagem que JÁ foi criada:
+    // o nonce também vem na query, então dá pra devolver a mensagem pronta
+    // antes de receber os anexos de novo.
+    const queryNonce = typeof req.query.nonce === 'string' ? req.query.nonce : null;
+    if (queryNonce) {
+      const existingId = await sharedIdempotency().lookup(req.user.id, queryNonce);
+      if (existingId && await respondDuplicate(req, res, existingId, queryNonce, room)) return;
+    }
     next();
   } catch (err) { next(err); }
 }
 
+// Devolve a mensagem já criada por este mesmo envio (mesmo nonce). Só se
+// ela for da pessoa, da mesma sala e não tiver sido apagada — senão
+// devolve false e o envio segue normal.
+async function respondDuplicate(req, res, messageId, nonce, room) {
+  const existing = await prisma.message.findUnique({ where: { id: String(messageId) }, include: messageInclude });
+  if (!existing || existing.deleted || existing.authorId !== req.user.id) return false;
+  if ((existing.channelId || null) !== (room.channelId || null) || (existing.conversationId || null) !== (room.conversationId || null)) return false;
+  res.status(200).json({ message: { ...existing, nonce }, duplicate: true });
+  return true;
+}
+
 async function createMessage(req, res, next) {
   let failed = true;
+  // Idempotência pelo nonce (ver services/messageIdempotency.js): um
+  // reenvio da mesma mensagem devolve a que já existe em vez de duplicar.
+  let claim = null;
   try {
+    const nonce = typeof req.body?.nonce === 'string' ? req.body.nonce : null;
+    const got = await sharedIdempotency().acquire(req.user.id, nonce);
+    if (got.existingId) {
+      const room = { conversationId: req.body.conversationId || undefined, channelId: req.body.channelId || undefined };
+      if (await respondDuplicate(req, res, got.existingId, nonce, room)) {
+        if (req.files?.length) discardUploadedFiles(req).catch(() => {});
+        return;
+      }
+    }
+    claim = got.claim || null;
+    req.idempotencyClaim = claim;
     failed = !(await createMessageInner(req, res));
   } catch (err) {
+    claim?.release();
     if (req.files?.length) await discardUploadedFiles(req).catch(() => {});
     return next(err);
   }
+  if (failed) claim?.release();
   if (failed && req.files?.length) discardUploadedFiles(req).catch(() => {});
 }
 
@@ -617,6 +654,8 @@ async function createMessageInner(req, res) {
     // resposta — o cliente usa pra trocar a mensagem otimista pela real no
     // mesmo lugar, sem duplicar. Não é salvo no banco.
     const nonce = typeof req.body.nonce === 'string' && req.body.nonce.length <= 80 ? req.body.nonce : null;
+    // Lembra (por alguns minutos) que este nonce já virou esta mensagem.
+    req.idempotencyClaim?.commit(message.id);
     const outgoing = nonce ? { ...message, nonce } : message;
     // Solicitações de mensagem / spam (DM com quem não é amigo).
     const inboxOf = conversationId ? await require('../services/dmInbox').classifyIncoming(io, { conversationId, senderId: req.user.id, content }) : {};
@@ -646,6 +685,9 @@ async function createMessageInner(req, res) {
         const preview = (content || '').slice(0, 120) || (req.files?.length ? '📎 Anexo' : stickerUrl ? '🏷️ Figurinha' : 'Nova mensagem');
         const authorName = req.user.displayName || 'Alguém';
 
+        // Push de canal (menções, respostas e "Todas as mensagens") sai de
+        // notifyChannelMentions, que já sabe quem pode ver o canal. Aqui
+        // fica só o de DM.
         const recipientIds = new Set();
         if (conversationId) {
           const otherMembers = await prisma.conversationMember.findMany({
@@ -654,15 +696,16 @@ async function createMessageInner(req, res) {
           // Quem está com a conversa em Solicitações/Spam não recebe push.
           otherMembers.forEach((m) => { if (!inboxOf[m.userId] || inboxOf[m.userId] === 'main') recipientIds.add(m.userId); });
         }
-        mentionRows.filter((m) => m.targetType === 'USER').forEach((m) => recipientIds.add(m.targetId));
         recipientIds.delete(req.user.id);
+        // "Não perturbe" agendado de cada pessoa (ver services/notificationPrefs.js).
+        const dmTargets = await notificationPrefs.filterNotifiable([...recipientIds], {});
 
-        await Promise.all([...recipientIds].map((uid) => sendPushToUser(uid, {
+        await Promise.all(dmTargets.map((uid) => sendPushToUser(uid, {
           title: authorName, body: preview,
           data: {
-            conversationId: conversationId || '', channelId: channelId || '',
-            link: conversationId ? `/conversations/${conversationId}` : `/channels/${channelId}`,
-            tag: conversationId ? `dm:${conversationId}` : `ch:${channelId}`,
+            conversationId: conversationId || '', channelId: '',
+            link: `/conversations/${conversationId}`,
+            tag: `dm:${conversationId}`,
           },
         })));
 
@@ -731,7 +774,7 @@ async function createMessageInner(req, res) {
 // grande); @everyone/@here nunca viram aviso individual — só um "ping" do
 // canal pra sala da comunidade, que cada cliente filtra pelo que vê.
 const MENTION_NOTIFY_CAP = 200;
-async function notifyChannelMentions(io, { message, channel, mentionRows }) {
+async function notifyChannelMentions(io, { message, channel, mentionRows, isEdit = false }) {
   if (!io) return;
   const authorId = message.authorId;
   const userIds = new Set();
@@ -760,19 +803,54 @@ async function notifyChannelMentions(io, { message, channel, mentionRows }) {
   // Canal com sobrescritas de permissão: só avisa quem pode VER o canal
   // (nunca vaza nome/prévia de canal privado). Canal comum: todo mundo vê.
   const restricted = await channelHasRestrictions(channel);
+  const canView = async (uid) => {
+    if (!restricted) return true;
+    const perms = await getEffectivePermissions(uid, channel.id, channel).catch(() => null);
+    return !!perms && has(perms, 'VIEW_CHANNEL');
+  };
   const targets = [...userIds].slice(0, MENTION_NOTIFY_CAP);
+  const visibleTargets = [];
   for (const uid of targets) {
-    if (restricted) {
-      // eslint-disable-next-line no-await-in-loop
-      const perms = await getEffectivePermissions(uid, channel.id, channel).catch(() => null);
-      if (!perms || !has(perms, 'VIEW_CHANNEL')) continue;
-    }
+    // eslint-disable-next-line no-await-in-loop
+    if (!(await canView(uid))) continue;
+    visibleTargets.push(uid);
     const isMention = mentionRows.some((m) => (m.targetType === 'USER' && m.targetId === uid)) || roleIds.length > 0;
+    // O contador de menções sempre acende (mesmo silenciado, igual ao
+    // Discord); som/notificação o cliente decide com as preferências dele.
     io.to(`user:${uid}`).emit('mention:new', { ...base, reply: uid === replyTargetId && !isMention });
   }
 
   if (!restricted && mentionRows.some((m) => m.targetType === 'EVERYONE' || m.targetType === 'HERE')) {
     io.to('community').emit('channel:ping', { channelId: channel.id, messageId: message.id, authorId, createdAt: message.createdAt });
+  }
+
+  // Push: @menção direta ou resposta (nunca menção de cargo/@todos — viraria
+  // spam), respeitando nível/silêncio do canal e "Não perturbe" de cada um.
+  const { sendPushToUser } = require('../services/pushNotifications');
+  const pushPreview = base.preview.slice(0, 120)
+    || (message.attachments?.length ? '📎 Anexo' : message.stickerUrl ? '🏷️ Figurinha' : 'Nova mensagem');
+  const pushData = { conversationId: '', channelId: channel.id, link: `/channels/${channel.id}`, tag: `ch:${channel.id}` };
+  const directIds = new Set(mentionRows.filter((m) => m.targetType === 'USER' && m.targetId).map((m) => m.targetId));
+  if (replyTargetId) directIds.add(replyTargetId);
+  const mentionPush = await notificationPrefs.filterNotifiable(
+    visibleTargets.filter((uid) => directIds.has(uid)), { channel, kind: 'mention' },
+  );
+  await Promise.all(mentionPush.map((uid) => sendPushToUser(uid, {
+    title: `${base.authorName} em #${channel.name}`, body: pushPreview, data: pushData,
+  }).catch(() => {})));
+
+  // "Todas as mensagens": quem escolheu ser avisado de tudo neste canal
+  // (canal, categoria ou padrão global) e ainda não foi avisado acima.
+  // Editar uma mensagem nunca avisa de novo.
+  if (isEdit) return;
+  const everyMessage = await notificationPrefs.allMessageRecipients(channel, {
+    excludeIds: [authorId, ...userIds], cap: MENTION_NOTIFY_CAP,
+  });
+  for (const uid of everyMessage) {
+    // eslint-disable-next-line no-await-in-loop
+    if (!(await canView(uid))) continue;
+    io.to(`user:${uid}`).emit('channel:message', base);
+    sendPushToUser(uid, { title: `${base.authorName} em #${channel.name}`, body: pushPreview, data: pushData }).catch(() => {});
   }
 }
 
@@ -880,7 +958,7 @@ async function editMessage(req, res, next) {
     if (access?.channel) {
       const fresh = mentionRows.filter((m) => !oldMentionKeys.has(`${m.targetType}:${m.targetId}`));
       if (fresh.length) {
-        notifyChannelMentions(io, { message: { ...message, replyTo: null }, channel: access.channel, mentionRows: fresh })
+        notifyChannelMentions(io, { message: { ...message, replyTo: null }, channel: access.channel, mentionRows: fresh, isEdit: true })
           .catch((err) => console.error('[mention] falha ao avisar menções da edição:', err.message));
       }
     }
@@ -1230,7 +1308,7 @@ async function listReactors(req, res, next) {
 // O resto vira o texto procurado (LIKE). Paginação por cursor
 // (createdAt,id) de 25 em 25.
 const SEARCH_PAGE = 25;
-const { parseSearchQuery } = require('../services/searchQuery');
+const { parseSearchQuery, resolveChannelFilter } = require('../services/searchQuery');
 
 async function searchMessages(req, res, next) {
   try {
@@ -1240,13 +1318,27 @@ async function searchMessages(req, res, next) {
     const hasFilters = parsed.from || parsed.has.size || parsed.before || parsed.after || parsed.in || parsed.pinned != null;
     if (!hasFilters && parsed.text.length < 2) return res.json({ messages: [], nextCursor: null });
 
-    // em:#canal — procura num canal pelo nome (vale dentro da busca global
-    // ou pra "pular" de canal a partir de outro).
+    // Canais de texto que a pessoa pode ver (mesma regra da barra lateral)
+    // — calculado só quando precisa (busca global ou filtro in:/em:).
+    let visibleChannelsCache = null;
+    const visibleChannels = async () => {
+      if (visibleChannelsCache) return visibleChannelsCache;
+      const channels = await prisma.channel.findMany({ where: { type: { notIn: ['VOICE', 'STAGE'] } }, select: { id: true, name: true, categoryId: true, isPrivate: true } });
+      const privates = channels.filter((c) => c.isPrivate);
+      const permMap = privates.length ? await getEffectivePermissionsForChannels(req.user.id, privates) : new Map();
+      visibleChannelsCache = channels.filter((c) => !c.isPrivate || has(permMap.get(c.id) || 0n, 'VIEW_CHANNEL'));
+      return visibleChannelsCache;
+    };
+
+    // in:#canal / em:#canal — procura num canal pelo nome (vale dentro da
+    // busca global ou pra "pular" de canal a partir de outro). SEGURANÇA:
+    // só entre os canais que a pessoa pode ver — antes buscava em todos
+    // e um canal privado com o nome certo devolvia 403 (vazava que ele
+    // existe). Agora um canal invisível simplesmente "não existe" aqui.
     if (parsed.in) {
-      const ch = await prisma.channel.findFirst({ where: { name: parsed.in, type: { notIn: ['VOICE', 'STAGE'] } }, select: { id: true } })
-        || await prisma.channel.findFirst({ where: { name: { contains: parsed.in } }, select: { id: true } });
-      if (!ch) return res.json({ messages: [], nextCursor: null });
-      channelId = ch.id; conversationId = undefined;
+      const targetId = resolveChannelFilter(parsed.in, await visibleChannels());
+      if (!targetId) return res.json({ messages: [], nextCursor: null, inChannel: null });
+      channelId = targetId; conversationId = undefined;
     }
 
     // Escopo: uma sala (checa acesso) OU busca GLOBAL — todos os canais que a
@@ -1257,13 +1349,11 @@ async function searchMessages(req, res, next) {
       await assertAccess(req, { conversationId, channelId });
       scope = { conversationId: conversationId || undefined, channelId: channelId || undefined };
     } else {
-      const [channels, memberships] = await Promise.all([
-        prisma.channel.findMany({ where: { type: { notIn: ['VOICE', 'STAGE'] } }, select: { id: true, categoryId: true, isPrivate: true } }),
+      const [visibleList, memberships] = await Promise.all([
+        visibleChannels(),
         prisma.conversationMember.findMany({ where: { userId: req.user.id }, select: { conversationId: true } }),
       ]);
-      const privates = channels.filter((c) => c.isPrivate);
-      const permMap = privates.length ? await getEffectivePermissionsForChannels(req.user.id, privates) : new Map();
-      const visible = channels.filter((c) => !c.isPrivate || has(permMap.get(c.id) || 0n, 'VIEW_CHANNEL')).map((c) => c.id);
+      const visible = visibleList.map((c) => c.id);
       const convs = memberships.map((m) => m.conversationId);
       if (!visible.length && !convs.length) return res.json({ messages: [], nextCursor: null });
       scope = { OR: [...(visible.length ? [{ channelId: { in: visible } }] : []), ...(convs.length ? [{ conversationId: { in: convs } }] : [])] };

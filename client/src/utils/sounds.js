@@ -12,6 +12,7 @@
 // - modo streamer pode silenciar tudo.
 import { useStore } from '../store/useStore';
 import { getExtra, streamerQuiet } from './extraPrefs';
+import { isQuietHoursActive } from './notificationLevels';
 
 const SOUND_FILES = {
   join: '/sounds/call-join.wav',
@@ -183,6 +184,8 @@ export function soundAllowed(key) {
   if (NOTIFY_KEYS.has(key)) {
     const settings = useStore.getState().userSettings;
     if (settings && settings.notificationSounds === false) return false;
+    // "Não perturbe" agendado: sons de notificação ficam quietos.
+    if (isQuietHoursActive(prefs.quietHours)) return false;
   }
   return true;
 }

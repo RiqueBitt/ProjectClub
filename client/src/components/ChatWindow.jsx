@@ -13,7 +13,11 @@ import { useVoice, preloadAgoraRTC } from '../context/VoiceContext.jsx';
 import { resolveDesktopGifMenuStyle, resolveMobileGifMenuStyle } from '../utils/gifMenuLayout';
 import { cssZoom } from '../utils/cssZoom';
 import { mergeLatestMessages } from '../utils/messageMerge';
-import { listMessages, sendMessage } from '../api/endpoints';
+import { listMessages } from '../api/endpoints';
+import { deliverMessage } from '../utils/messageSender';
+import { loadCachedRoom, saveCachedRoom, forgetCachedRoom } from '../utils/messageCache';
+import { useSwipeToReply } from '../utils/useSwipeToReply';
+import { compressImageFile, isCompressibleType, COMPRESS_MIN_BYTES } from '../utils/imageCompress';
 import { queueRead } from '../utils/readMarker';
 import Message from './Message.jsx';
 import ErrorBoundary from './ErrorBoundary.jsx';
@@ -43,9 +47,10 @@ import NavIcon from './NavIcons.jsx';
 import ChannelSearchPanel from './ChannelSearchPanel.jsx';
 import { SeenReceipt } from './MessageExtras.jsx';
 import ImageCropModal, { canCropFile } from './ImageCropModal.jsx';
-import { requestEdit, setRetry, clearRetry, loadDraft, saveDraft } from '../utils/chatComposerBus';
+import { requestEdit, loadDraft, saveDraft } from '../utils/chatComposerBus';
 import '../styles/chat.css';
 import '../styles/nav.css';
+import '../styles/speed.css';
 // Tela de canal de voz: pacote próprio, baixado só ao abrir um canal de voz.
 const VoiceChannelView = lazy(() => import('./VoiceChannelView.jsx'));
 
@@ -250,7 +255,29 @@ function ChatWindowInner({ conversationId, channelId }) {
   const markChannelReadLocal = useStore((s) => s.markChannelReadLocal);
 
   const [content, setContent] = useState(() => loadDraft(roomKey));
+  // Anexos na bandeja: { id, file (original), spoiler, compressed (File
+  // menor, quando valeu a pena), saved (bytes economizados), compressing }.
   const [files, setFiles] = useState([]);
+  // "Enviar original" na bandeja: pula a compressão das fotos desta vez.
+  const [sendOriginal, setSendOriginal] = useState(false);
+  // id do anexo -> { source: File, promise } da compressão em andamento.
+  const compressJobsRef = useRef(new Map());
+  const newFileEntry = (file) => ({
+    id: `f-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    file, spoiler: false, compressed: null, saved: 0, compressing: isCompressibleType(file.type),
+  });
+  // Começa a comprimir a foto em segundo plano (sem travar a digitação).
+  const startCompression = (entry) => {
+    if (!entry.compressing) return entry;
+    const source = entry.file;
+    const promise = compressImageFile(source).then(({ file, saved }) => {
+      setFiles((list) => list.map((x) => (x.id === entry.id && x.file === source ? { ...x, compressed: file, saved, compressing: false } : x)));
+      return file;
+    });
+    compressJobsRef.current.set(entry.id, { source, promise });
+    if (compressJobsRef.current.size > 40) compressJobsRef.current.delete(compressJobsRef.current.keys().next().value);
+    return entry;
+  };
   // Rascunho por canal/conversa: troca de sala salva o texto da anterior
   // e carrega o da nova; enquanto digita, salva com um pequeno atraso.
   const contentRef = useRef(content);
@@ -291,11 +318,25 @@ function ChatWindowInner({ conversationId, channelId }) {
   // da lista (evita vazar memória segurando imagem que ninguém vê
   // mais).
   const [filePreviews, setFilePreviews] = useState([]);
+  // Uma URL por ARQUIVO (não por render): a bandeja muda quando a
+  // compressão de uma foto termina, e recriar as URLs fazia as miniaturas piscarem.
+  const previewUrlsRef = useRef(new Map()); // File -> object URL
   useEffect(() => {
-    const urls = filesVisible.map((f) => (f.file.type.startsWith('image/') || f.file.type.startsWith('video/') ? URL.createObjectURL(f.file) : null));
+    const map = previewUrlsRef.current;
+    const live = new Set();
+    const urls = filesVisible.map((f) => {
+      if (!(f.file.type.startsWith('image/') || f.file.type.startsWith('video/'))) return null;
+      live.add(f.file);
+      if (!map.has(f.file)) map.set(f.file, URL.createObjectURL(f.file));
+      return map.get(f.file);
+    });
+    map.forEach((url, file) => { if (!live.has(file)) { URL.revokeObjectURL(url); map.delete(file); } });
     setFilePreviews(urls);
-    return () => { urls.forEach((u) => u && URL.revokeObjectURL(u)); };
   }, [filesVisible]);
+  useEffect(() => () => {
+    previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    previewUrlsRef.current.clear();
+  }, []);
   const [replyBarLeaving, setReplyBarLeaving] = useState(false);
   const [filesBarLeaving, setFilesBarLeaving] = useState(false);
   useEffect(() => {
@@ -426,6 +467,8 @@ function ChatWindowInner({ conversationId, channelId }) {
   // Esqueleto enquanto a primeira página carrega (em vez da tela vazia
   // piscando "início do canal" antes das mensagens chegarem).
   const [initialLoading, setInitialLoading] = useState(true);
+  // A página nova não veio (sem conexão) e a tela mostra a cópia local.
+  const [cacheStale, setCacheStale] = useState(false);
   const currentRoomRef = useRef(roomKey);
   currentRoomRef.current = roomKey;
   // Sala cuja 1ª página já chegou (ver a entrada na sala do socket).
@@ -573,8 +616,19 @@ function ChatWindowInner({ conversationId, channelId }) {
     setRoomMessages(roomKey, []);
     setHasMoreOlder(true);
     setInitialLoading(true);
+    setCacheStale(false);
     initialLoadDoneRef.current = null;
     const loadingKey = roomKey;
+    // Abertura instantânea: mostra na hora a cópia local das últimas
+    // mensagens desta sala (IndexedDB — utils/messageCache.js) enquanto a
+    // página nova chega; quando ela chega, mergeLatestMessages corrige o
+    // que mudou (apagadas, editadas, novas).
+    loadCachedRoom(user.id, loadingKey).then((cached) => {
+      if (!cached || currentRoomRef.current !== loadingKey || initialLoadDoneRef.current === loadingKey) return;
+      const current = useStore.getState().messagesByRoom[loadingKey] || [];
+      const ids = new Set(cached.map((m) => m.id));
+      setRoomMessages(loadingKey, [...cached, ...current.filter((m) => !ids.has(m.id))]);
+    }).catch(() => {});
     listMessages({ conversationId, channelId }).then((d) => {
       if (currentRoomRef.current === loadingKey) initialLoadDoneRef.current = loadingKey;
       // Mesmo lote de render que as mensagens — senão o "início do canal"
@@ -587,6 +641,17 @@ function ChatWindowInner({ conversationId, channelId }) {
       const current = useStore.getState().messagesByRoom[roomKey] || [];
       setRoomMessages(roomKey, mergeLatestMessages(current, d.messages).messages);
       if (d.messages.length < 50) setHasMoreOlder(false);
+    }).catch((err) => {
+      if (currentRoomRef.current !== loadingKey) return;
+      const status = err?.response?.status;
+      // Sem acesso (saiu do grupo, canal ficou privado): nada da cópia local fica na tela.
+      if (status === 403 || status === 404) {
+        forgetCachedRoom(user.id, loadingKey);
+        setRoomMessages(loadingKey, (useStore.getState().messagesByRoom[loadingKey] || []).filter((m) => String(m.id).startsWith('temp-')));
+        return;
+      }
+      // Sem conexão: se a cópia local está na tela, avisa que pode estar desatualizada.
+      if ((useStore.getState().messagesByRoom[loadingKey] || []).length) setCacheStale(true);
     }).finally(() => {
       // Só some o esqueleto se ainda estamos na mesma sala.
       if (currentRoomRef.current === loadingKey) setInitialLoading(false);
@@ -620,6 +685,8 @@ function ChatWindowInner({ conversationId, channelId }) {
         const { messages: merged, gap } = mergeLatestMessages(current, d.messages);
         if (merged !== current) setRoomMessages(key, merged);
         if (gap) setHasMoreOlder(true);
+        initialLoadDoneRef.current = key;
+        setCacheStale(false);
       }).catch(() => {});
     };
     // A entrada na sala é assíncrona no servidor (checa permissão) — se a
@@ -665,6 +732,14 @@ function ChatWindowInner({ conversationId, channelId }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, roomKey, isNonChatChannel]);
+
+  // Mantém a cópia local (IndexedDB) das últimas mensagens desta sala —
+  // só depois que a página do servidor chegou (nunca regrava a cópia
+  // velha por cima). Gravação com atraso e em série (messageCache.js).
+  useEffect(() => {
+    if (isNonChatChannel || !messages.length || initialLoadDoneRef.current !== roomKey) return;
+    saveCachedRoom(user.id, roomKey, messages);
+  }, [messages, roomKey, isNonChatChannel, user.id]);
 
   // Clicou numa notificação de menção: leva até a mensagem depois que a
   // 1ª página do canal carregar (ver SocketContext → pendingJump).
@@ -902,9 +977,12 @@ function ChatWindowInner({ conversationId, channelId }) {
   // Shared by both attach buttons (and the audio recorder below) — rejects
   // anything over the size limit right away instead of letting it upload
   // and fail on the server after the fact.
+  // Foto grande que dá pra comprimir não é recusada aqui: a compressão
+  // (utils/imageCompress.js) normalmente a traz bem pra baixo do limite.
+  const overLimit = (f) => f.size > MAX_UPLOAD_BYTES && !(isCompressibleType(f.type) && f.size <= MAX_UPLOAD_BYTES * 4);
   const addFiles = (incoming) => {
-    const tooBig = incoming.filter((f) => f.size > MAX_UPLOAD_BYTES);
-    let ok = incoming.filter((f) => f.size <= MAX_UPLOAD_BYTES);
+    const tooBig = incoming.filter(overLimit);
+    let ok = incoming.filter((f) => !overLimit(f));
     if (tooBig.length > 0) {
       useStore.getState().pushNotice(
         tooBig.length === 1
@@ -924,7 +1002,10 @@ function ChatWindowInner({ conversationId, channelId }) {
     // Item pedido: "o ícone de olho vai marcar imagem com spoiler" —
     // cada arquivo já entra com spoiler: false por padrão; o botão de
     // olho na miniatura (ver JSX abaixo) alterna isso depois.
-    if (ok.length > 0) setFiles((f) => [...f, ...ok.map((file) => ({ file, spoiler: false }))]);
+    if (ok.length > 0) {
+      const entries = ok.map((file) => startCompression(newFileEntry(file)));
+      setFiles((f) => [...f, ...entries]);
+    }
   };
 
   // --- Voice message recording ---
@@ -1027,13 +1108,8 @@ function ChatWindowInner({ conversationId, channelId }) {
     const optimistic = makeOptimisticMessage({ content: url });
     fd.append('nonce', optimistic.nonce);
     useStore.getState().addMessage(roomKey, optimistic);
-    try {
-      const { message } = await sendMessage(fd);
-      useStore.getState().resolveOptimisticMessage(roomKey, optimistic.id, message);
-    } catch (err) {
-      setRetry(optimistic.id, () => { useStore.getState().removeMessage(roomKey, optimistic.id); clearRetry(optimistic.id); sendGif(url); });
-      useStore.getState().failOptimisticMessage(roomKey, optimistic.id);
-    }
+    // Falhou por falta de conexão: entra na fila offline (mesmo nonce).
+    deliverMessage({ roomKey, optimisticId: optimistic.id, buildForm: () => fd });
   };
 
   // A sticker isn't inserted as text like an emoji shortcode — it's sent as
@@ -1060,67 +1136,71 @@ function ChatWindowInner({ conversationId, channelId }) {
     const optimistic = makeOptimisticMessage({ content: null, stickerUrl: sticker.url });
     fd.append('nonce', optimistic.nonce);
     useStore.getState().addMessage(roomKey, optimistic);
-    try {
-      const { message } = await sendMessage(fd);
-      useStore.getState().resolveOptimisticMessage(roomKey, optimistic.id, message);
-    } catch (err) {
-      setRetry(optimistic.id, () => { useStore.getState().removeMessage(roomKey, optimistic.id); clearRetry(optimistic.id); sendSticker(sticker); });
-      useStore.getState().failOptimisticMessage(roomKey, optimistic.id);
-    }
+    deliverMessage({ roomKey, optimisticId: optimistic.id, buildForm: () => fd });
   };
 
-  // retry: { content, replyTo } de uma mensagem que falhou ("Tentar de novo").
-  const onSubmit = async (e, retry = null) => {
+  // Envia o que está no compositor. Falhas: ver utils/messageSender.js —
+  // sem conexão vai pra fila offline (reenvio sozinho, mesmo nonce); recusa
+  // do servidor mostra "Tentar de novo" (agora também pra anexos: os
+  // arquivos ficam guardados na memória até enviar ou descartar).
+  const onSubmit = async (e) => {
     e.preventDefault();
-    if (!retry && !content.trim() && files.length === 0) return;
+    if (!content.trim() && files.length === 0) return;
     // Emoticons → emoji (Configurações → Aparência → Caixa de chat).
-    const trimmedContent = retry ? retry.content : convertEmoticons(content.trim());
-    const pendingFiles = retry ? [] : files;
-    const pendingReplyTo = retry ? retry.replyTo : replyTo;
+    const trimmedContent = convertEmoticons(content.trim());
+    const pendingFiles = files;
+    const pendingReplyTo = replyTo;
+    const keepOriginal = sendOriginal;
+    // Compressões ainda em andamento (foto recém-anexada): o envio espera.
+    const jobs = pendingFiles.map((f) => compressJobsRef.current.get(f.id));
 
-    const fd = new FormData();
-    if (conversationId) fd.append('conversationId', conversationId);
-    if (channelId) fd.append('channelId', channelId);
-    if (trimmedContent) fd.append('content', trimmedContent);
-    if (pendingReplyTo) fd.append('replyToId', pendingReplyTo.id);
-    pendingFiles.forEach((f) => fd.append('attachments', f.file));
-    if (pendingFiles.some((f) => f.spoiler)) fd.append('spoilerFlags', JSON.stringify(pendingFiles.map((f) => f.spoiler)));
-
-    if (!retry) {
-      setContent('');
-      setFiles([]);
-      setReplyTo(null);
-    }
+    setContent('');
+    setFiles([]);
+    setReplyTo(null);
+    setSendOriginal(false);
     isTypingRef.current = false;
     clearTimeout(typingTimeoutRef.current);
     socket?.emit('typing:stop', { conversationId, channelId });
 
-    // Attachments still need to upload, so there's nothing real to show yet
-    // for those — but text sends instantly, which is the common case.
     const optimistic = makeOptimisticMessage({
-      content: trimmedContent || (pendingFiles.length ? `Enviando ${pendingFiles.length} arquivo(s)...` : null),
+      content: trimmedContent || null,
       replyToId: pendingReplyTo?.id || null,
       replyTo: pendingReplyTo || null,
+      ...(pendingFiles.length ? { upload: { pct: 0 }, uploadCount: pendingFiles.length } : {}),
     });
-    fd.append('nonce', optimistic.nonce);
     useStore.getState().addMessage(roomKey, optimistic);
 
-    try {
-      const { message } = await sendMessage(fd);
-      useStore.getState().resolveOptimisticMessage(roomKey, optimistic.id, message);
-    } catch (err) {
-      // Só texto dá pra reenviar (arquivos não ficam guardados).
-      if (trimmedContent && pendingFiles.length === 0) {
-        setRetry(optimistic.id, () => {
-          useStore.getState().removeMessage(roomKey, optimistic.id);
-          clearRetry(optimistic.id);
-          onSubmit({ preventDefault: () => {} }, { content: trimmedContent, replyTo: pendingReplyTo });
-        });
+    // Os arquivos finais (comprimidos ou originais) são resolvidos uma vez
+    // só e reaproveitados nas novas tentativas.
+    let finalFiles = null;
+    const buildForm = async () => {
+      if (!finalFiles) {
+        finalFiles = await Promise.all(pendingFiles.map(async (f, i) => {
+          if (keepOriginal) return f.file;
+          if (f.compressed) return f.compressed;
+          const job = jobs[i];
+          if (job && job.source === f.file) return (await job.promise) || f.file;
+          return f.file;
+        }));
       }
-      useStore.getState().failOptimisticMessage(roomKey, optimistic.id);
-      const serverMsg = err?.response?.data?.error;
-      if (serverMsg) useStore.getState().pushNotice(serverMsg);
-    }
+      const tooBig = finalFiles.find((file) => file.size > MAX_UPLOAD_BYTES);
+      if (tooBig) {
+        // Formato de erro do servidor (4xx) — vira "falhou" com o aviso, nunca fila.
+        const err = new Error('arquivo grande demais');
+        err.response = { status: 413, data: { error: `"${tooBig.name}" continua maior que ${MAX_UPLOAD_MB}MB.` } };
+        throw err;
+      }
+      const fd = new FormData();
+      if (conversationId) fd.append('conversationId', conversationId);
+      if (channelId) fd.append('channelId', channelId);
+      if (trimmedContent) fd.append('content', trimmedContent);
+      if (pendingReplyTo) fd.append('replyToId', pendingReplyTo.id);
+      finalFiles.forEach((file) => fd.append('attachments', file));
+      if (pendingFiles.some((f) => f.spoiler)) fd.append('spoilerFlags', JSON.stringify(pendingFiles.map((f) => f.spoiler)));
+      fd.append('nonce', optimistic.nonce);
+      return fd;
+    };
+    deliverMessage({ roomKey, optimisticId: optimistic.id, buildForm, trackUpload: pendingFiles.length > 0 });
   };
 
 
@@ -1169,6 +1249,13 @@ function ChatWindowInner({ conversationId, channelId }) {
     // setReplyTo/setOpenTopic são setters estáveis do useState.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, firstUnreadId, topicsByParent]);
+
+  // Celular: arrastar uma mensagem pra direita responde a ela (ver
+  // utils/useSwipeToReply.js — convive com a gaveta e a rolagem).
+  useSwipeToReply(chatListRef, (messageId) => {
+    const msg = (useStore.getState().messagesByRoom[roomKey] || []).find((m) => m.id === messageId);
+    if (msg && !msg.deleted) setReplyTo(msg);
+  }, !isNonChatChannel);
 
   // Arrastar arquivos pra janela e Ctrl+V em qualquer lugar do canal
   // (não só dentro do campo de texto) anexam direto, sem clicar no clipe.
@@ -1375,6 +1462,11 @@ function ChatWindowInner({ conversationId, channelId }) {
       <div className="message-list" ref={chatListRef}>
         {loadingOlder && <div className="message-list-loading-older dim">Carregando mensagens antigas...</div>}
         {initialLoading && messages.length === 0 && <ChatSkeleton />}
+        {cacheStale && (
+          <div className="chat-cache-stale" role="status">
+            <ChatIcon name="clock" size={13} /> Sem conexão — mostrando as mensagens salvas neste aparelho.
+          </div>
+        )}
         {!initialLoading && !hasMoreOlder && (
           <ChatIntro channel={channel} dmOther={dmOther} dmConvo={dmConvo} title={title} />
         )}
@@ -1432,8 +1524,9 @@ function ChatWindowInner({ conversationId, channelId }) {
           file={files[cropIndex].file}
           onCancel={() => setCropIndex(null)}
           onApply={(cropped) => {
-            const idxToReplace = cropIndex;
-            setFiles((list) => list.map((x, idx) => (idx === idxToReplace ? { ...x, file: cropped } : x)));
+            const target = files[cropIndex];
+            const replaced = startCompression({ ...target, file: cropped, compressed: null, saved: 0, compressing: isCompressibleType(cropped.type) });
+            setFiles((list) => list.map((x) => (x.id === target.id ? replaced : x)));
             setCropIndex(null);
             inputRef.current?.focus();
           }}
@@ -1504,12 +1597,17 @@ function ChatWindowInner({ conversationId, channelId }) {
                 algo que não é imagem. */}
             {filesVisible.map((f, i) => {
               const isImage = f.file.type.startsWith('image/');
+              // Tamanho que vai subir de verdade (já comprimido, se valeu a pena).
+              const willCompress = !sendOriginal && !!f.compressed;
+              const sizeLabel = f.compressing && !sendOriginal && f.file.size > COMPRESS_MIN_BYTES ? 'Otimizando…'
+                : willCompress ? `${formatFileSize(f.compressed.size)} · −${formatFileSize(f.saved)}`
+                  : formatFileSize(f.file.size);
               const isVideo = f.file.type.startsWith('video/');
               const toggleSpoiler = () => setFiles(files.map((x, idx) => (idx === i ? { ...x, spoiler: !x.spoiler } : x)));
               const remove = () => setFiles(files.filter((_, idx) => idx !== i));
               if (!isImage && !isVideo) {
                 return (
-                  <span key={i} className="chip chat-pending-chip">
+                  <span key={f.id || i} className="chip chat-pending-chip">
                     <ChatIcon name="file" size={14} />
                     <span className="truncate">{f.file.name}</span>
                     <span className="chat-pending-size">{formatFileSize(f.file.size)}</span>
@@ -1518,7 +1616,7 @@ function ChatWindowInner({ conversationId, channelId }) {
                 );
               }
               return (
-                <div key={i} className={`pending-file-thumb ${f.spoiler ? 'is-spoiler' : ''}`}>
+                <div key={f.id || i} className={`pending-file-thumb ${f.spoiler ? 'is-spoiler' : ''}`}>
                   <div className="pending-file-media">
                     {filePreviews[i] && (isImage
                       ? <img src={filePreviews[i]} alt="" />
@@ -1542,10 +1640,20 @@ function ChatWindowInner({ conversationId, channelId }) {
                   </div>
                   {f.spoiler && <span className="pending-file-spoiler-tag">Spoiler</span>}
                   <span className="pending-file-thumb-name truncate" title={f.file.name}>{f.file.name}</span>
-                  <span className="pending-file-thumb-size">{formatFileSize(f.file.size)}</span>
+                  <span className={`pending-file-thumb-size ${willCompress ? 'is-saved' : ''}`} title={willCompress ? `Foto otimizada: de ${formatFileSize(f.file.size)} para ${formatFileSize(f.compressed.size)}` : undefined}>{sizeLabel}</span>
                 </div>
               );
             })}
+            {filesVisible.some((f) => f.compressed || (f.compressing && f.file.size > COMPRESS_MIN_BYTES)) && (() => {
+              const savedTotal = filesVisible.reduce((n, f) => n + (f.compressed ? f.saved : 0), 0);
+              return (
+                <label className={`pending-files-original ${sendOriginal ? 'on' : ''}`} title="Sem marcar, fotos grandes são reduzidas (até 2560px) pra enviar mais rápido">
+                  <input type="checkbox" checked={sendOriginal} onChange={(e) => setSendOriginal(e.target.checked)} />
+                  <span>Enviar original</span>
+                  {!sendOriginal && savedTotal > 0 && <small>economiza {formatFileSize(savedTotal)}</small>}
+                </label>
+              );
+            })()}
           </div>
         )}
         {mentionQuery !== null && mentionCandidates.length > 0 && (

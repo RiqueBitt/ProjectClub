@@ -2,11 +2,17 @@
 // Notificações, Voz e vídeo, Privacidade). Tudo aplica na hora e salva na
 // conta (UserSettings.extraPrefs — ver utils/extraPrefs.js).
 import { useEffect, useRef, useState } from 'react';
+import { clearMessageCache } from '../../utils/messageCache';
 import {
   useExtra, setExtra, COLOR_THEMES, APP_ICONS, EXTRA_DEFAULTS, themeVars, themeDef, renderAppIcon,
 } from '../../utils/extraPrefs';
 import { SOUND_EVENTS, SOUND_PACKS, previewSound, currentPack, ENTRY_SOUNDS, playEntrySound } from '../../utils/sounds';
 import { getPreferredMicId } from '../../utils/audioDevices';
+import { useStore } from '../../store/useStore';
+import {
+  browserTimeZone, isQuietHoursActive, parseHHMM, isOverrideMuted, normalizeLevel, muteRemainingLabel, LEVEL_LABELS,
+} from '../../utils/notificationLevels';
+import { unmuteTarget, setTargetLevel } from '../../utils/notificationPrefs';
 import '../../styles/appearance.css';
 import '../../styles/extra-prefs.css';
 
@@ -243,11 +249,120 @@ function SoundList({ group }) {
   );
 }
 
+// ---------- Notificações por canal + "Não perturbe" agendado ----------
+const WEEK = [[0, 'Dom'], [1, 'Seg'], [2, 'Ter'], [3, 'Qua'], [4, 'Qui'], [5, 'Sex'], [6, 'Sáb']];
+const WEEK_FULL = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+
+// Relógio que anda sozinho (pra "Ativo agora" e "Faltam X min" não ficarem parados).
+function useMinuteClock() {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
+  return now;
+}
+
+function QuietHoursPanel() {
+  const p = useExtra();
+  const now = useMinuteClock();
+  const deviceTz = browserTimeZone();
+  const qh = { ...EXTRA_DEFAULTS.quietHours, ...(p.quietHours || {}) };
+  const update = (patch) => setExtra({ quietHours: { ...qh, ...patch, timezone: patch.timezone || qh.timezone || deviceTz } });
+  const toggleDay = (d) => update({ days: qh.days.includes(d) ? qh.days.filter((x) => x !== d) : [...qh.days, d].sort() });
+  const active = isQuietHoursActive(qh, now);
+  const overnight = (parseHHMM(qh.start) ?? 0) > (parseHHMM(qh.end) ?? 0);
+  let summary = 'Escolha pelo menos um dia.';
+  if (qh.days.length === 7) summary = 'Todos os dias';
+  else if (qh.days.length) summary = qh.days.map((d) => WEEK_FULL[d]).join(', ');
+  return (
+    <Panel
+      id="xp-quiet" title="Não perturbe agendado"
+      hint="Nesse horário nada de notificação no desktop, push no celular ou som. As mensagens continuam chegando normalmente."
+    >
+      <Row
+        title="Ativar horário silencioso"
+        hint={qh.enabled ? (active ? 'Ativo agora.' : 'Aguardando o próximo horário.') : 'Desligado.'}
+        on={qh.enabled} onChange={(v) => update({ enabled: v })}
+      />
+      <div className={`xp-quiet-grid${qh.enabled ? '' : ' is-off'}`}>
+        <Field label="Começa às">
+          <input type="time" className="xp-time" value={qh.start} onChange={(e) => e.target.value && update({ start: e.target.value })} aria-label="Início do horário silencioso" />
+        </Field>
+        <Field label={overnight ? 'Termina às (dia seguinte)' : 'Termina às'}>
+          <input type="time" className="xp-time" value={qh.end} onChange={(e) => e.target.value && update({ end: e.target.value })} aria-label="Fim do horário silencioso" />
+        </Field>
+      </div>
+      <Field label="Dias">
+        <div className="xp-days" role="group" aria-label="Dias da semana">
+          {WEEK.map(([d, l]) => (
+            <button key={d} type="button" aria-pressed={qh.days.includes(d)} className={`xp-day${qh.days.includes(d) ? ' on' : ''}`} onClick={() => toggleDay(d)} title={WEEK_FULL[d]}>{l}</button>
+          ))}
+        </div>
+      </Field>
+      <p className="xp-quiet-note dim">
+        {summary}{qh.start === qh.end ? ' (o dia inteiro)' : ''}. Fuso horário: <b>{qh.timezone || deviceTz}</b>
+        {qh.timezone && qh.timezone !== deviceTz && (
+          <> · <button type="button" className="xp-link-btn" onClick={() => update({ timezone: deviceTz })}>Usar o deste aparelho ({deviceTz})</button></>
+        )}
+      </p>
+    </Panel>
+  );
+}
+
+// Lista do que está silenciado agora, com o tempo que falta e "Reativar".
+function MutedTargetsPanel() {
+  const overrides = useStore((s) => s.notificationOverrides);
+  const categories = useStore((s) => s.categories);
+  const channels = useStore((s) => s.channels);
+  const now = useMinuteClock();
+  const allChannels = [...channels, ...categories.flatMap((c) => c.channels || [])];
+  const rows = Object.values(overrides || {})
+    .filter((o) => isOverrideMuted(o, now) || normalizeLevel(o.level))
+    .map((o) => {
+      const isCat = o.targetKey.startsWith('cat:');
+      const id = o.targetKey.slice(isCat ? 4 : 3);
+      const target = isCat ? categories.find((c) => c.id === id) : allChannels.find((c) => c.id === id);
+      return { o, id, isCat, name: target?.name };
+    })
+    .filter((r) => r.name);
+  return (
+    <Panel id="xp-muted" title="Canais e categorias" hint="Clique com o botão direito num canal ou categoria pra silenciar ou mudar as notificações dele.">
+      {rows.length === 0 ? <p className="dim xp-quiet-note">Nenhum canal ou categoria com configuração própria.</p> : (
+        <ul className="xp-muted-list">
+          {rows.map(({ o, id, isCat, name }) => {
+            const muted = isOverrideMuted(o, now);
+            const level = normalizeLevel(o.level);
+            const type = isCat ? 'category' : 'channel';
+            return (
+              <li key={o.targetKey}>
+                <span className="xp-muted-name">{isCat ? <b>{name}</b> : <># {name}</>}{isCat && <small> (categoria)</small>}</span>
+                <span className="xp-muted-info dim">
+                  {[muted ? `Silenciado · ${muteRemainingLabel(o.mutedUntil, { forever: o.muteForever, now }).toLowerCase()}` : null, level ? LEVEL_LABELS[level] : null].filter(Boolean).join(' · ')}
+                </span>
+                {muted && <button type="button" className="xp-mini-btn" onClick={() => unmuteTarget(type, id)}>Reativar</button>}
+                {level && <button type="button" className="xp-mini-btn" onClick={() => setTargetLevel(type, id, null)}>Usar padrão</button>}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
 export function NotificationExtras() {
   const p = useExtra();
   const [showSounds, setShowSounds] = useState(false);
   return (
     <>
+      <Panel id="xp-channels" title="Mensagens nos canais" hint="Padrão pra todos os canais. Uma categoria ou um canal podem ter o seu próprio (o do canal vale mais que o da categoria).">
+        <Field label="Notificar">
+          <Seg label="Padrão de notificação dos canais" value={p.notifyLevel || 'mentions'} onChange={(v) => setExtra({ notifyLevel: v })} options={[['all', 'Todas as mensagens'], ['mentions', 'Só @menções'], ['none', 'Nada']]} />
+        </Field>
+      </Panel>
+      <MutedTargetsPanel />
+      <QuietHoursPanel />
       <Panel id="xp-notify" title="Notifique-me quando…">
         <Row title="Amigos ficam online" on={!!p.notifyFriendOnline} onChange={(v) => setExtra({ notifyFriendOnline: v })} />
         <Row title="Um amigo e eu chegamos a um aniversário de amizade" on={p.notifyFriendAnniversary !== false} onChange={(v) => setExtra({ notifyFriendAnniversary: v })} />
@@ -410,6 +525,14 @@ export function PrivacyExtras() {
       <Panel id="xp-requests" title="Mensagens diretas e pedidos de amizade">
         <Row title="Solicitações de mensagem" hint="Conversas novas de quem não é seu amigo chegam como solicitação: você aceita antes de responder." on={p.messageRequests !== false} onChange={(v) => setExtra({ messageRequests: v })} />
         <Row title="Mostrar mensagens personalizadas nos pedidos de amizade" hint="Quem te adiciona pode mandar um recado junto." on={p.friendReqMessages !== false} onChange={(v) => setExtra({ friendReqMessages: v })} />
+      </Panel>
+      <Panel id="xp-local-cache" title="Dados neste aparelho">
+        <Row
+          title="Guardar mensagens recentes neste aparelho"
+          hint="Abre canais e conversas na hora (e mostra as últimas mensagens mesmo sem internet). Desligar apaga a cópia salva. Sair da conta também apaga."
+          on={p.cacheMessages !== false}
+          onChange={(v) => { setExtra({ cacheMessages: v }); if (!v) clearMessageCache(); }}
+        />
       </Panel>
       <Panel id="xp-clips" title="Gravações de chamada">
         <Row title="Permitir que minha voz seja gravada nos clipes" hint="Desligado, pedidos de gravação na call são recusados automaticamente por você." on={p.clipVoice !== false} onChange={(v) => setExtra({ clipVoice: v })} />

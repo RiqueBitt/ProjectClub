@@ -21,6 +21,8 @@ import CallBar from '../components/CallBar.jsx';
 import MobileTabBar from '../components/MobileTabBar.jsx';
 import IncomingCallBanner from '../components/IncomingCallBanner.jsx';
 import NoticeToast from '../components/NoticeToast.jsx';
+import UpdateAvailableBanner from '../components/UpdateAvailableBanner.jsx';
+import { startSendQueue } from '../utils/sendQueue';
 import CelebrationToasts from '../components/CelebrationToasts.jsx';
 import WelcomePane from '../components/WelcomePane.jsx';
 import ErrorBoundary from '../components/ErrorBoundary.jsx';
@@ -167,7 +169,12 @@ export default function MainApp() {
     else if (cv) useStore.getState().setPendingJump({ roomKey: roomKeyFor({ conversationId: cv[1] }), messageId: mid });
   }, [location.pathname, location.search]);
   const navigate = useNavigate();
-  const { connected } = useSocket() || {};
+  const { connected, socket } = useSocket() || {};
+  // Fila offline do chat: mensagens que falharam por falta de conexão são
+  // reenviadas sozinhas (na ordem) quando a conexão volta — ver
+  // utils/sendQueue.js. Fica aqui (e não no chat) pra continuar valendo
+  // mesmo depois de trocar de tela.
+  useEffect(() => startSendQueue(socket), [socket]);
   const touchStart = useRef(null);
   // Item pedido: "a barra que mostra os canais e categorias tem que
   // ficar do lado da barra de comunidade sempre, e quando clicar em
@@ -526,6 +533,7 @@ export default function MainApp() {
       <PanelSlot panelId="callbar"><CallBar /></PanelSlot>
       <MobileTabBar />
       <NoticeToast />
+      <UpdateAvailableBanner />
       <CelebrationToasts />
       {/* BUG CORRIGIDO ("erro ao abrir o perfil quebra a tela toda"):
           o perfil é o modal que mais mudou nas últimas respostas (o

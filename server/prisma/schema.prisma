@@ -276,6 +276,8 @@ model User {
   // nova (ver getOrCreateSettings em settingsController.js).
   settings            UserSettings?
   shortcuts           UserShortcut[]
+  // Notificações por canal/categoria (ver model NotificationOverride).
+  notificationOverrides NotificationOverride[]
   connectedAccounts   ConnectedAccount[]
   registeredGames     RegisteredGame[]
   gamePlaytimes       GamePlaytime[]
@@ -865,6 +867,10 @@ model Friendship {
   status       String   @default("PENDING")
   // Recado opcional junto com o pedido de amizade.
   message      String?  @db.VarChar(200)
+  // Quando o pedido foi aceito ("Amigos desde ..." no perfil). Amizades
+  // antigas ficam null — nesse caso vale updatedAt (a última mudança de
+  // status, que pra uma amizade aceita é o próprio aceite).
+  acceptedAt   DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -1094,6 +1100,10 @@ model ConversationMember {
   // (escondida). Ver services/dmInbox.js.
   inbox          String       @default("main") @db.VarChar(12)
   inboxAcceptedAt DateTime?
+  // "Fixar conversa": quando ESTA pessoa fixou a conversa no topo da
+  // lista de DMs (null = não fixada). Fica na conta, então vale em todo
+  // aparelho. Máximo de 10 fixadas por pessoa (ver conversationController).
+  pinnedAt       DateTime?
 
   @@unique([conversationId, userId])
 }
@@ -1135,6 +1145,7 @@ model Category {
 
   channels   Channel[]
   overwrites PermissionOverwrite[]
+  notificationOverrides NotificationOverride[]
 }
 
 model Channel {
@@ -1160,6 +1171,7 @@ model Channel {
   messages   Message[]
   readStates ChannelReadState[]
   overwrites PermissionOverwrite[]
+  notificationOverrides NotificationOverride[]
 }
 
 model PermissionOverwrite {
@@ -1174,6 +1186,36 @@ model PermissionOverwrite {
   deny       String    @default("0")
 
   @@unique([channelId, categoryId, targetType, targetId])
+}
+
+// Notificações por canal/categoria (igual ao Discord): nível próprio
+// ("Todas as mensagens" / "Só @menções" / "Nada" — null = herda) e
+// silenciar por um tempo ou até reativar. Canal sobrescreve categoria,
+// categoria sobrescreve o padrão global (UserSettings.extraPrefs.notifyLevel).
+// Lógica de resolução em services/notificationPrefs.js.
+//
+// targetKey ("ch:<id>" ou "cat:<id>") é o que garante UMA linha por
+// pessoa+alvo: um @@unique com channelId/categoryId anuláveis não seria
+// respeitado pelo MySQL (NULL nunca colide) nem aceito pelo upsert do Prisma.
+model NotificationOverride {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetKey   String    @db.VarChar(64)
+  channelId   String?
+  channel     Channel?  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  level       String?   @db.VarChar(16) // ALL | MENTIONS | NONE — null = herda
+  mutedUntil  DateTime?
+  muteForever Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+
+  @@unique([userId, targetKey])
+  @@index([targetKey, level])
+  @@index([channelId])
+  @@index([categoryId])
 }
 
 model ChannelReadState {
@@ -1389,6 +1431,10 @@ model Report {
   conversationId String?
   conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   channelId      String?
+  // Categoria escolhida nos botões rápidos da denúncia (spam, harassment,
+  // nsfw, scam, impersonation, other — ver REPORT_CATEGORIES em
+  // reportController.js). null em denúncias antigas.
+  category       String?   @db.VarChar(24)
   reason         String    @db.Text
   // Mesmo espírito do "snippet" de AutomodFlag — conteúdo da mensagem no
   // momento da denúncia, preservado aqui pra staff sempre ter o que foi
@@ -2344,6 +2390,10 @@ model UserSettings {
   // Preferências extras (temas coloridos, modo streamer, sons, avisos,
   // e-mails por categoria, voz...) — JSON validado em settingsController.js.
   extraPrefs  String? @db.Text
+  // Volume individual por pessoa nas chamadas: JSON { userId: 0..200 }
+  // (100 = padrão, não guardado; no máximo 500 pessoas). Segue a conta
+  // entre PC/site/celular — validado em utils/voiceVolumes.js.
+  voiceVolumes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

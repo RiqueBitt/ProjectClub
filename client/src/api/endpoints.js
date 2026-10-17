@@ -115,7 +115,9 @@ export const blockUser = (username) => api.post('/friends/block', { username }).
 export const listBlockedUsers = () => api.get('/friends/blocked').then((r) => r.data);
 export const unblockUser = (userId) => api.delete(`/friends/block/${userId}`).then((r) => r.data);
 // Denúncia de perfil (botão "Denunciar" do modal de perfil).
-export const reportUserProfile = (userId, reason, details) => api.post(`/users/${userId}/report`, { reason, details }).then((r) => r.data);
+// Denúncia rápida: category é uma das chaves de REPORT_CATEGORIES (ver
+// components/modals/ReportDialog.jsx / server reportController.js).
+export const reportUserProfile = (userId, category, details) => api.post(`/users/${userId}/report`, { category, details }).then((r) => r.data);
 
 // --- Conversations / DMs ---
 export const listConversations = () => api.get('/conversations').then((r) => r.data);
@@ -136,13 +138,24 @@ export const listMessages = (params) => api.get('/messages', { params }).then((r
 export const searchMessages = (params) => api.get('/messages/search', { params }).then((r) => r.data);
 // A sala vai também na query: o servidor checa permissão/spam ANTES de
 // receber os anexos (ver precheckCreateMessage no messageController).
-export const sendMessage = (formData) => {
+// O nonce também vai na query: num reenvio (fila offline) de uma mensagem
+// que já tinha sido criada, o servidor devolve a pronta sem receber os
+// anexos de novo. `opts`: onUploadProgress (barra de envio) e signal
+// (cancelar o upload).
+export const sendMessage = (formData, opts = {}) => {
   const params = {};
-  const channelId = typeof formData?.get === 'function' ? formData.get('channelId') : null;
-  const conversationId = typeof formData?.get === 'function' ? formData.get('conversationId') : null;
+  const get = (k) => (typeof formData?.get === 'function' ? formData.get(k) : null);
+  const channelId = get('channelId');
+  const conversationId = get('conversationId');
+  const nonce = get('nonce');
   if (channelId) params.channelId = channelId;
   if (conversationId) params.conversationId = conversationId;
-  return api.post('/messages', formData, { params }).then((r) => r.data);
+  if (nonce) params.nonce = nonce;
+  return api.post('/messages', formData, {
+    params,
+    ...(opts.onUploadProgress ? { onUploadProgress: opts.onUploadProgress } : {}),
+    ...(opts.signal ? { signal: opts.signal } : {}),
+  }).then((r) => r.data);
 };
 export const getMessageEdits = (id) => api.get(`/messages/${id}/edits`).then((r) => r.data);
 export const forwardMessage = (id, target) => api.post(`/messages/${id}/forward`, target).then((r) => r.data);
@@ -319,6 +332,7 @@ export const listRoles = () => api.get('/community/roles').then((r) => r.data);
 export const createRole = (payload) => api.post('/community/roles', payload).then((r) => r.data);
 export const updateRole = (id, payload) => api.patch(`/community/roles/${id}`, payload).then((r) => r.data);
 export const deleteRole = (id) => api.delete(`/community/roles/${id}`).then((r) => r.data);
+export const duplicateRole = (id) => api.post(`/community/roles/${id}/duplicate`).then((r) => r.data);
 export const reorderRoles = (order) => api.post('/community/roles/reorder', { order }).then((r) => r.data);
 export const uploadRoleIcon = (id, file) => {
   const fd = new FormData(); fd.append('icon', file);
@@ -416,7 +430,7 @@ export const resetUiLayout = (device) => api.delete(`/ui-layout/${device}`).then
 export const adminListAutomodFlags = (status) => api.get('/admin/automod-flags', { params: status ? { status } : {} }).then((r) => r.data);
 export const adminGetFlaggedConversation = (id) => api.get(`/admin/automod-flags/${id}/conversation`).then((r) => r.data);
 export const adminResolveAutomodFlag = (id, status) => api.post(`/admin/automod-flags/${id}/resolve`, { status }).then((r) => r.data);
-export const reportMessage = (messageId, reason) => api.post('/messages/report', { messageId, reason }).then((r) => r.data);
+export const reportMessage = (messageId, category, details) => api.post('/messages/report', { messageId, category, details }).then((r) => r.data);
 export const adminListReports = (status) => api.get('/admin/reports', { params: status ? { status } : {} }).then((r) => r.data);
 export const adminGetReportedContext = (id) => api.get(`/admin/reports/${id}/context`).then((r) => r.data);
 export const adminResolveReport = (id, status) => api.post(`/admin/reports/${id}/resolve`, { status }).then((r) => r.data);
@@ -756,6 +770,13 @@ export const previewReminderWhen = (when) => api.post('/reminders/preview', { wh
 export const listReminders = () => api.get('/reminders').then((r) => r.data);
 export const deleteReminder = (id) => api.delete(`/reminders/${id}`).then((r) => r.data);
 
+// ---- Notificações por canal/categoria (silenciar + nível) ----
+export const listNotificationOverrides = () => api.get('/notification-overrides').then((r) => r.data);
+// type: 'channel' | 'category'; body: { level?, mute? } (ver notificationOverrideController.js)
+export const updateNotificationOverride = (type, id, body) => api.put(`/notification-overrides/${type}/${id}`, body).then((r) => r.data);
+// Caixa de Entrada → Respostas (respostas a mensagens minhas).
+export const listReplies = (params) => api.get('/messages/replies', { params }).then((r) => r.data);
+
 // --- Extras do perfil (Mural, Lista de desejos, Atividade, insígnias, nota) ---
 export const getProfileExtras = (userId) => api.get(`/users/${userId}/extras`).then((r) => r.data);
 export const saveProfileWidgets = (widgets) => api.put('/users/me/widgets', { widgets }).then((r) => r.data);
@@ -764,3 +785,4 @@ export const toggleWishlistItem = (kind, id, on) => api.post('/users/me/wishlist
 export const saveUserNote = (userId, text) => api.put(`/users/${userId}/note`, { text }).then((r) => r.data);
 export const deactivateAccount = (password) => api.post('/auth/deactivate', { password }).then((r) => r.data);
 export const setConversationInbox = (id, action) => api.patch(`/conversations/${id}/inbox`, { action }).then((r) => r.data);
+export const setConversationPinned = (id, pinned) => api.patch(`/conversations/${id}/pin`, { pinned }).then((r) => r.data);
