@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { TABLER_ICONS } from '../utils/tablerIcons';
 import AchievementIcon from '../components/AchievementIcon.jsx';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -19,7 +21,7 @@ import { useStore } from '../store/useStore';
 import { roleChipStyle } from '../utils/roleColor';
 import {
   adminGetStats, adminListAuditLog,
-  adminListUsers, adminUpdateUser, adminBanUser, adminUnbanUser, adminSuspendUser, adminUnsuspendUser, adminSetPlatformRole,
+  adminListUsers, adminListUsersPage, adminUpdateUser, adminBanUser, adminUnbanUser, adminSuspendUser, adminUnsuspendUser, adminSetPlatformRole,
   adminListBadges, adminGrantBadge, adminRevokeBadge, adminCreateBadge, adminUpdateBadge, adminDeleteBadge, adminUploadBadgeIcon,
   adminSetUserLevel, adminAddUserXp, adminAddUserCurrency,
   getPlatformStatus, adminSetMaintenanceMode,
@@ -2075,23 +2077,127 @@ function MaintenanceTab() {
   );
 }
 
+// Ícones de traço (Tabler, MIT) do menu de ações da aba Usuários.
+const UT_ICONS = {
+  edit: ['M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4', 'M13.5 6.5l4 4'],
+  award: TABLER_ICONS.award,
+  coins: TABLER_ICONS.coins,
+  lock: ['M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6z', 'M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0', 'M8 11v-4a4 4 0 1 1 8 0v4'],
+  ban: ['M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0', 'M5.7 5.7l12.6 12.6'],
+  pause: ['M20.942 13.018a9 9 0 1 0 -7.909 7.922', 'M12 7v5l2 2', 'M17 17v5', 'M21 17v5'],
+  check: ['M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0', 'M6 21v-2a4 4 0 0 1 4 -4h4', 'M15 19l2 2l4 -4'],
+  trash: ['M4 7l16 0', 'M10 11l0 6', 'M14 11l0 6', 'M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12', 'M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3'],
+  dots: ['M4 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0', 'M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0', 'M18 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0'],
+  left: ['M15 6l-6 6l6 6'],
+  right: ['M9 6l6 6l-6 6'],
+};
+function UtIcon({ name, size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {(UT_ICONS[name] || []).map((d, i) => <path key={i} d={d} />)}
+    </svg>
+  );
+}
+
+// Menu flutuante preso ao botão: abre alinhado pela DIREITA do botão (antes
+// abria pra direita e saía da tela), vira pra cima quando não cabe embaixo,
+// fecha com clique fora, Esc, rolagem ou redimensionar.
+function UtPopover({ anchor, onClose, children, className = '' }) {
+  const ref = useRef(null);
+  const [pos, setPos] = useState(null);
+  useEffect(() => {
+    const place = () => {
+      if (!anchor || !ref.current) return;
+      const r = anchor.getBoundingClientRect();
+      const m = ref.current.getBoundingClientRect();
+      const gap = 6;
+      const below = window.innerHeight - r.bottom;
+      const top = below >= m.height + gap || r.top < m.height + gap ? Math.min(r.bottom + gap, window.innerHeight - m.height - 8) : r.top - m.height - gap;
+      const left = Math.min(Math.max(8, r.right - m.width), window.innerWidth - m.width - 8);
+      setPos({ top: Math.max(8, top), left });
+    };
+    place();
+    const onDown = (e) => { if (!ref.current?.contains(e.target) && !anchor?.contains(e.target)) onClose(); };
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const onScroll = (e) => { if (!ref.current?.contains(e.target)) onClose(); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onClose);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onClose);
+    };
+  }, [anchor, onClose]);
+  return createPortal(
+    <div ref={ref} role="menu" className={`ut-menu ${className}`} style={pos ? { top: pos.top, left: pos.left } : { top: -9999, left: -9999 }}>
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
+const UT_FILTERS = [
+  { id: '', label: 'Todos' },
+  { id: 'staff', label: 'Equipe' },
+  { id: 'suspended', label: 'Suspensos' },
+  { id: 'banned', label: 'Banidos' },
+];
+const UT_PAGE_SIZE = 25;
+
+function utPageList(page, pages) {
+  const out = [];
+  for (let p = 1; p <= pages; p++) {
+    if (p === 1 || p === pages || Math.abs(p - page) <= 1) out.push(p);
+    else if (out[out.length - 1] !== '…') out.push('…');
+  }
+  return out;
+}
+
 function UsersTab() {
   const { user: me } = useAuth();
   const [users, setUsers] = useState([]);
   const [q, setQ] = useState('');
+  const [status, setStatus] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [badges, setBadges] = useState([]);
-  const [badgeMenuFor, setBadgeMenuFor] = useState(null);
-  const [actionsMenuFor, setActionsMenuFor] = useState(null);
+  const [menu, setMenu] = useState(null); // { kind: 'actions'|'badges', userId, anchor }
   const [securityInfoFor, setSecurityInfoFor] = useState(null);
   const [deleteAccountFor, setDeleteAccountFor] = useState(null);
+  const [economyModalFor, setEconomyModalFor] = useState(null);
+  const listTop = useRef(null);
+  const reqId = useRef(0);
 
-  const refresh = async () => {
+  const pages = Math.max(1, Math.ceil(total / UT_PAGE_SIZE));
+
+  const refresh = useCallback(async () => {
+    const id = ++reqId.current;
     setLoading(true);
-    try { const { users } = await adminListUsers(q); setUsers(users); } finally { setLoading(false); }
-  };
-  useEffect(() => { const t = setTimeout(refresh, 250); return () => clearTimeout(t); }, [q]);
+    try {
+      const d = await adminListUsersPage({ q: q || undefined, status: status || undefined, page, pageSize: UT_PAGE_SIZE });
+      if (id !== reqId.current) return;
+      setUsers(d.users || []);
+      setTotal(d.total ?? (d.users || []).length);
+    } finally { if (id === reqId.current) setLoading(false); }
+  }, [q, status, page]);
+  useEffect(() => { const t = setTimeout(refresh, q ? 250 : 0); return () => clearTimeout(t); }, [refresh, q]);
+  useEffect(() => { setPage(1); }, [q, status]);
   useEffect(() => { adminListBadges().then((d) => setBadges(d.badges)).catch(() => {}); }, []);
+
+  const goTo = (p) => {
+    setPage(Math.min(pages, Math.max(1, p)));
+    listTop.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const openMenu = (kind, u, e) => {
+    const anchor = e.currentTarget;
+    setMenu((m) => (m && m.kind === kind && m.userId === u.id ? null : { kind, userId: u.id, anchor }));
+  };
+  const run = (fn) => () => { setMenu(null); fn(); };
 
   const editUser = async (u) => {
     const displayName = prompt('Nome de exibição:', u.displayName);
@@ -2099,16 +2205,13 @@ function UsersTab() {
     await adminUpdateUser(u.id, { displayName });
     await refresh();
   };
-
   const ban = async (u) => {
     const reason = prompt(`Banir ${u.displayName} da plataforma. Motivo:`);
     if (reason === null) return;
     await adminBanUser(u.id, reason || undefined);
     await refresh();
   };
-
   const unban = async (u) => { await adminUnbanUser(u.id); await refresh(); };
-
   const suspend = async (u) => {
     const hours = prompt('Suspender por quantas horas?', '24');
     if (!hours) return;
@@ -2116,103 +2219,122 @@ function UsersTab() {
     await adminSuspendUser(u.id, Number(hours), reason);
     await refresh();
   };
-
   const unsuspend = async (u) => { await adminUnsuspendUser(u.id); await refresh(); };
-
   const changeRole = async (u, role) => { await adminSetPlatformRole(u.id, role); await refresh(); };
-
   const toggleBadge = async (u, badgeId, has) => {
     if (has) await adminRevokeBadge(u.id, badgeId); else await adminGrantBadge(u.id, badgeId);
     await refresh();
   };
 
-  const [economyModalFor, setEconomyModalFor] = useState(null);
+  const menuUser = menu && users.find((x) => x.id === menu.userId);
+  const menuSuspended = menuUser?.suspendedUntil && new Date(menuUser.suspendedUntil) > new Date();
+  const from = total ? (page - 1) * UT_PAGE_SIZE + 1 : 0;
+  const to = Math.min(total, page * UT_PAGE_SIZE);
 
   return (
-    <div>
-      <input className="admin-search-input" placeholder="Buscar usuário..." value={q} onChange={(e) => setQ(e.target.value)} />
-      {loading ? <div className="dim">Carregando...</div> : (
-        <div className="admin-users-list">
-          {users.map((u) => {
-            const suspended = u.suspendedUntil && new Date(u.suspendedUntil) > new Date();
-            const statusLabel = u.isPlatformBanned ? 'Banido' : suspended ? 'Suspenso' : 'Ativo';
-            const statusClass = u.isPlatformBanned ? 'banned' : suspended ? 'suspended' : 'active';
-            const userBadges = badges.filter((b) => (u.badgeIds || []).includes(b.id));
-            return (
-              <div key={u.id} className="admin-user-row">
-                <UserAvatar user={u} size={40} />
-                <div className="admin-user-row-info">
-                  <div className="admin-user-row-name">
-                    {u.displayName} <span className="dim">@{u.username}</span>
-                    <span className={`admin-user-status-pill ${statusClass}`}>
-                      {statusLabel}{suspended && ` até ${new Date(u.suspendedUntil).toLocaleDateString('pt-BR')}`}
-                    </span>
-                  </div>
-                  <div className="admin-user-row-meta">
-                    <span className="dim">🏆 Nível {u.accountLevel || 1}</span>
-                    {userBadges.length > 0 && (
-                      <span className="admin-user-badge-chips">
-                        {userBadges.map((b) => (
-                          <span key={b.id} title={b.name}><BadgeIcon badge={b} size={18} /></span>
-                        ))}
-                      </span>
-                    )}
-                  </div>
+    <div className="ut">
+      <div className="ut-toolbar" ref={listTop}>
+        <input className="admin-search-input ut-search" placeholder="Buscar por nome, @usuário ou e-mail..." value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="ut-filters" role="tablist" aria-label="Filtrar usuários">
+          {UT_FILTERS.map((f) => (
+            <button key={f.id || 'all'} type="button" role="tab" aria-selected={status === f.id} className={`ut-chip${status === f.id ? ' active' : ''}`} onClick={() => setStatus(f.id)}>{f.label}</button>
+          ))}
+        </div>
+      </div>
+      <div className="ut-summary dim">
+        {loading && !users.length ? 'Carregando…' : total ? `Mostrando ${from}–${to} de ${total.toLocaleString('pt-BR')} usuários` : 'Nenhum usuário encontrado.'}
+      </div>
+
+      <div className={`admin-users-list${loading ? ' ut-loading' : ''}`}>
+        {users.map((u) => {
+          const suspended = u.suspendedUntil && new Date(u.suspendedUntil) > new Date();
+          const statusLabel = u.isPlatformBanned ? 'Banido' : suspended ? 'Suspenso' : 'Ativo';
+          const statusClass = u.isPlatformBanned ? 'banned' : suspended ? 'suspended' : 'active';
+          const userBadges = badges.filter((b) => (u.badgeIds || []).includes(b.id));
+          const open = menu?.userId === u.id;
+          return (
+            <div key={u.id} className={`admin-user-row${open ? ' ut-row-open' : ''}`}>
+              <UserAvatar user={u} size={40} />
+              <div className="admin-user-row-info">
+                <div className="admin-user-row-name">
+                  {u.displayName} <span className="dim">@{u.username}</span>
+                  <span className={`admin-user-status-pill ${statusClass}`}>
+                    {statusLabel}{suspended && ` até ${new Date(u.suspendedUntil).toLocaleDateString('pt-BR')}`}
+                  </span>
                 </div>
-
-                <select className="admin-user-role-select" value={u.platformRole} onChange={(e) => changeRole(u, e.target.value)}>
-                  <option value="USER">Usuário</option>
-                  <option value="MODERATOR">Moderador</option>
-                  <option value="ADMIN">Administrador</option>
-                </select>
-
-                <span style={{ position: 'relative' }}>
-                  <button className="btn-secondary" onClick={() => { setActionsMenuFor(actionsMenuFor === u.id ? null : u.id); setBadgeMenuFor(null); }}>Ações ▾</button>
-                  {actionsMenuFor === u.id && (
-                    <div className="role-picker mod-action-menu">
-                      <button onClick={() => { editUser(u); setActionsMenuFor(null); }}><IconGlyph src={editIcon} size={14} /> Editar perfil</button>
-                      <button onClick={() => { setBadgeMenuFor(u.id); setActionsMenuFor(null); }}>🏅 Insígnias</button>
-                      <button onClick={() => { setEconomyModalFor(u); setActionsMenuFor(null); }}>💰 Nível, XP e moedas</button>
-                      <button onClick={() => { setSecurityInfoFor(u.id); setActionsMenuFor(null); }}>🔒 Informações confidenciais</button>
-                      <div className="dropdown-divider" />
-                      {u.isPlatformBanned ? (
-                        <button onClick={() => { unban(u); setActionsMenuFor(null); }}>Desbanir</button>
-                      ) : (
-                        <button className="danger" onClick={() => { ban(u); setActionsMenuFor(null); }}>Banir</button>
-                      )}
-                      {suspended ? (
-                        <button onClick={() => { unsuspend(u); setActionsMenuFor(null); }}>Reativar (cancelar suspensão)</button>
-                      ) : (
-                        <button className="danger" onClick={() => { suspend(u); setActionsMenuFor(null); }}>Suspender</button>
-                      )}
-                      {me.platformRole === 'ADMIN' && u.id !== me.id && (
-                        <>
-                          <div className="dropdown-divider" />
-                          <button className="danger" onClick={() => { setDeleteAccountFor(u); setActionsMenuFor(null); }}>🗑️ Excluir conta (irreversível)</button>
-                        </>
-                      )}
-                    </div>
+                <div className="admin-user-row-meta">
+                  <span className="dim">🏆 Nível {u.accountLevel || 1}</span>
+                  {userBadges.length > 0 && (
+                    <span className="admin-user-badge-chips">
+                      {userBadges.map((b) => (
+                        <span key={b.id} title={b.name}><BadgeIcon badge={b} size={18} /></span>
+                      ))}
+                    </span>
                   )}
-                </span>
-                <span style={{ position: 'relative' }}>
-                  {badgeMenuFor === u.id && (
-                    <div className="role-picker mod-action-menu">
-                      {badges.map((b) => {
-                        const has = (u.badgeIds || []).includes(b.id);
-                        return (
-                          <button key={b.id} className={has ? 'has-badge' : ''} onClick={() => toggleBadge(u, b.id, has)}>
-                            {has ? '✅' : '➕'} <BadgeIcon badge={b} size={18} /> {b.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </span>
+                </div>
               </div>
+
+              <select className="admin-user-role-select" value={u.platformRole} onChange={(e) => changeRole(u, e.target.value)} aria-label={`Cargo de ${u.displayName}`}>
+                <option value="USER">Usuário</option>
+                <option value="MODERATOR">Moderador</option>
+                <option value="ADMIN">Administrador</option>
+              </select>
+
+              <button type="button" className="btn-secondary ut-actions-btn" aria-haspopup="menu" aria-expanded={open && menu.kind === 'actions'} onClick={(e) => openMenu('actions', u, e)}>
+                Ações <UtIcon name="dots" size={16} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {pages > 1 && (
+        <nav className="ut-pager" aria-label="Páginas">
+          <button type="button" className="ut-page" disabled={page <= 1} onClick={() => goTo(page - 1)} aria-label="Página anterior"><UtIcon name="left" /></button>
+          {utPageList(page, pages).map((p, i) => (p === '…'
+            ? <span key={`e${i}`} className="ut-page-gap">…</span>
+            : <button key={p} type="button" className={`ut-page${p === page ? ' active' : ''}`} aria-current={p === page ? 'page' : undefined} onClick={() => goTo(p)}>{p}</button>))}
+          <button type="button" className="ut-page" disabled={page >= pages} onClick={() => goTo(page + 1)} aria-label="Próxima página"><UtIcon name="right" /></button>
+        </nav>
+      )}
+
+      {menu && menuUser && menu.kind === 'actions' && (
+        <UtPopover anchor={menu.anchor} onClose={closeMenu}>
+          <div className="ut-menu-head">{menuUser.displayName} <span className="dim">@{menuUser.username}</span></div>
+          <button role="menuitem" onClick={run(() => editUser(menuUser))}><UtIcon name="edit" /> Editar nome</button>
+          <button role="menuitem" onClick={(e) => setMenu({ kind: 'badges', userId: menuUser.id, anchor: menu.anchor })}><UtIcon name="award" /> Insígnias</button>
+          <button role="menuitem" onClick={run(() => setEconomyModalFor(menuUser))}><UtIcon name="coins" /> Nível, XP e moedas</button>
+          <button role="menuitem" onClick={run(() => setSecurityInfoFor(menuUser.id))}><UtIcon name="lock" /> Informações confidenciais</button>
+          <div className="ut-menu-sep" />
+          {menuUser.isPlatformBanned
+            ? <button role="menuitem" onClick={run(() => unban(menuUser))}><UtIcon name="check" /> Desbanir</button>
+            : <button role="menuitem" className="danger" onClick={run(() => ban(menuUser))}><UtIcon name="ban" /> Banir</button>}
+          {menuSuspended
+            ? <button role="menuitem" onClick={run(() => unsuspend(menuUser))}><UtIcon name="check" /> Cancelar suspensão</button>
+            : <button role="menuitem" className="danger" onClick={run(() => suspend(menuUser))}><UtIcon name="pause" /> Suspender</button>}
+          {me.platformRole === 'ADMIN' && menuUser.id !== me.id && (
+            <>
+              <div className="ut-menu-sep" />
+              <button role="menuitem" className="danger" onClick={run(() => setDeleteAccountFor(menuUser))}><UtIcon name="trash" /> Excluir conta</button>
+            </>
+          )}
+        </UtPopover>
+      )}
+      {menu && menuUser && menu.kind === 'badges' && (
+        <UtPopover anchor={menu.anchor} onClose={closeMenu} className="ut-menu-badges">
+          <div className="ut-menu-head">Insígnias de {menuUser.displayName}</div>
+          {badges.length === 0 && <div className="dim ut-menu-empty">Nenhuma insígnia criada.</div>}
+          {badges.map((b) => {
+            const has = (menuUser.badgeIds || []).includes(b.id);
+            return (
+              <button key={b.id} role="menuitemcheckbox" aria-checked={has} className={has ? 'has-badge' : ''} onClick={() => toggleBadge(menuUser, b.id, has)}>
+                <span className={`ut-check${has ? ' on' : ''}`} aria-hidden="true" /> <BadgeIcon badge={b} size={18} /> {b.name}
+              </button>
             );
           })}
-        </div>
+        </UtPopover>
       )}
+
       {securityInfoFor && <UserSecurityInfoModal userId={securityInfoFor} onClose={() => setSecurityInfoFor(null)} />}
       {economyModalFor && (
         <UserEconomyModal

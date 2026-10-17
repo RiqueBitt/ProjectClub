@@ -138,18 +138,33 @@ async function adminUpdateSystemToggles(req, res, next) {
 async function listUsers(req, res, next) {
   try {
     const q = (req.query.q || '').trim();
-    const users = await prisma.user.findMany({
-      where: q ? { OR: [{ username: { contains: q } }, { displayName: { contains: q } }, { email: { contains: q } }] } : undefined,
-      select: { ...ADMIN_USER_FIELDS, badges: { select: { badgeId: true } } },
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    });
+    // Paginado (aba Usuários do painel): ?page=1&pageSize=25&status=banned|suspended|staff.
+    // Sem ?page continua devolvendo os 200 mais novos (busca rápida de outras telas).
+    const paged = req.query.page !== undefined;
+    const pageSize = Math.min(100, Math.max(5, parseInt(req.query.pageSize, 10) || 25));
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const and = [];
+    if (q) and.push({ OR: [{ username: { contains: q } }, { displayName: { contains: q } }, { email: { contains: q } }] });
+    const status = String(req.query.status || '');
+    if (status === 'banned') and.push({ isPlatformBanned: true });
+    else if (status === 'suspended') and.push({ suspendedUntil: { gt: new Date() } });
+    else if (status === 'staff') and.push({ platformRole: { in: ['MODERATOR', 'ADMIN'] } });
+    const where = and.length ? { AND: and } : undefined;
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        select: { ...ADMIN_USER_FIELDS, badges: { select: { badgeId: true } } },
+        orderBy: { createdAt: 'desc' },
+        ...(paged ? { skip: (page - 1) * pageSize, take: pageSize } : { take: 200 }),
+      }),
+      paged ? prisma.user.count({ where }) : Promise.resolve(null),
+    ]);
     // Flatten to a plain array of badge ids per user — the client only
     // needs to know *which* badges someone has (to show a checkmark / let
     // the "Insígnias" menu below toggle grant vs revoke correctly), not
     // the join-table rows themselves.
     const shaped = users.map((u) => ({ ...u, badgeIds: u.badges.map((b) => b.badgeId), badges: undefined }));
-    res.json({ users: shaped });
+    res.json(paged ? { users: shaped, total, page, pageSize } : { users: shaped });
   } catch (err) { next(err); }
 }
 
