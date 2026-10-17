@@ -63,6 +63,7 @@ class App : Application(), coil.ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         CrashReporter.install(this)
+        com.projectclub.android.voice.VoiceTrace.init(this)
         // Antes de tudo que possa usar o Updater (o observador do ciclo de vida chama ele).
         com.projectclub.android.data.Updater.init(this)
         api = Api(this)

@@ -22,13 +22,21 @@ import java.util.concurrent.TimeUnit
 object CrashReporter {
     private const val PREFS = "pc_crash"
 
+    /** Fechamentos que valem investigar (não conta o usuário fechando/forçando parar). */
+    private val REPORTED_REASONS = setOf(
+        ApplicationExitInfo.REASON_CRASH_NATIVE, ApplicationExitInfo.REASON_ANR, ApplicationExitInfo.REASON_CRASH,
+        ApplicationExitInfo.REASON_LOW_MEMORY, ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE,
+        ApplicationExitInfo.REASON_SIGNALED, ApplicationExitInfo.REASON_INITIALIZATION_FAILURE,
+    )
+
     fun install(context: Context) {
         val app = context.applicationContext
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
             runCatching {
                 app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-                    .putString("stack", "${thread.name}: ${error.stackTraceToString()}".take(4000))
+                    .putString("stack", ("${thread.name}: ${error.stackTraceToString()}".take(3000) + "\n--- voz ---\n" +
+                        runCatching { com.projectclub.android.voice.VoiceTrace.dump(20) }.getOrDefault("")).take(4500))
                     .putString("message", (error.message ?: error.javaClass.name).take(400))
                     .commit()
             }
@@ -62,14 +70,27 @@ object CrashReporter {
             val am = context.getSystemService(ActivityManager::class.java)
             val last = prefs.getLong("exitSeen", 0L)
             val exits = am.getHistoricalProcessExitReasons(context.packageName, 0, 5)
-                .filter { it.timestamp > last && (it.reason == ApplicationExitInfo.REASON_CRASH_NATIVE || it.reason == ApplicationExitInfo.REASON_ANR) }
+                .filter { it.timestamp > last && it.reason in REPORTED_REASONS }
             exits.forEach { e ->
-                val kind = if (e.reason == ApplicationExitInfo.REASON_ANR) "travou (ANR)" else "queda nativa"
+                val kind = when (e.reason) {
+                    ApplicationExitInfo.REASON_ANR -> "travou (ANR)"
+                    ApplicationExitInfo.REASON_CRASH_NATIVE -> "queda nativa"
+                    ApplicationExitInfo.REASON_CRASH -> "erro Java"
+                    ApplicationExitInfo.REASON_LOW_MEMORY -> "fechado por falta de memória"
+                    ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "fechado por uso excessivo"
+                    ApplicationExitInfo.REASON_SIGNALED -> "fechado pelo sistema (sinal ${e.status})"
+                    ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "falha ao iniciar"
+                    else -> "fechou (motivo ${e.reason})"
+                }
                 // Queda nativa: o Android guarda o "tombstone" (Android 12+). Ele é
                 // binário (protobuf), mas os nomes das bibliotecas/funções da pilha
                 // aparecem como texto — já dá pra saber onde quebrou.
                 val trace = runCatching { tombstoneHints(e) }.getOrNull().orEmpty()
-                reports += "$kind: ${e.description ?: "sem descrição"} (Android ${Build.VERSION.RELEASE}, ${Build.MANUFACTURER} ${Build.MODEL})" to "pid ${e.pid} · ${e.timestamp}\n$trace"
+                // "Caixa-preta" da chamada: o que a voz fazia logo antes de fechar.
+                val voz = runCatching { com.projectclub.android.voice.VoiceTrace.dump(25) }.getOrDefault("")
+                val mem = "pss ${e.pss / 1024} MB · rss ${e.rss / 1024} MB · importância ${e.importance}"
+                reports += "$kind: ${e.description ?: "sem descrição"} (Android ${Build.VERSION.RELEASE}, ${Build.MANUFACTURER} ${Build.MODEL})" to
+                    "pid ${e.pid} · ${e.timestamp} · $mem\n$trace\n--- voz ---\n$voz"
             }
             exits.maxOfOrNull { it.timestamp }?.let { prefs.edit().putLong("exitSeen", it).apply() }
         }
