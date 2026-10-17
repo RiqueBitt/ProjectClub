@@ -297,6 +297,9 @@ function scheduleDeferredStartup() {
 // Ligado por padrão (economiza CPU com a janela escondida); desligado
 // enquanto tem chamada de voz (aviso do site) ou som tocando.
 let voiceCallActive = false;
+// Atualização forçada temporária (ver maybeInstallUpdate): vale até
+// domingo, 19/10/2026, 23:59 (horário de Brasília). Depois disso, nada muda.
+const FORCE_UPDATE_UNTIL = Date.parse('2026-10-20T02:59:59Z');
 let audioPlaying = false;
 function applyThrottling() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -1791,6 +1794,11 @@ if (!gotLock) {
       try { idle = require('electron').powerMonitor.getSystemIdleTime(); } catch { /* sem powerMonitor */ }
       // Tocando áudio = provavelmente numa chamada: espera.
       const audible = !!win && win.webContents.isCurrentlyAudible();
+      // TEMPORÁRIO (pedido do dono, migração Square → Shard Cloud): até
+      // FORCE_UPDATE_UNTIL a atualização baixada é aplicada na hora, mesmo
+      // com o app aberto — só espera se estiver numa chamada de voz ou
+      // tocando áudio. Depois dessa data volta a regra normal abaixo.
+      if (Date.now() < FORCE_UPDATE_UNTIL && !voiceCallActive && !audible) { installLatest(); return; }
       if (hidden && !audible && idle > 300) installLatest();
     }
     setInterval(maybeInstallUpdate, 60 * 1000);
