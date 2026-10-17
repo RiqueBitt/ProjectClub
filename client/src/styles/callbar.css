@@ -319,7 +319,7 @@
   .call-bar.cb [data-tip]::after { transition: none; }
 }
 
-/* Modo reserva (Jitsi) na barra de chamada — ver docs/voice-fallback.md. */
+/* "Reconectando…" na barra de chamada. */
 .cb-reconnecting { animation: cb-reconnect-pulse 1.2s ease-in-out infinite; }
 @keyframes cb-reconnect-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 .cb-backup {

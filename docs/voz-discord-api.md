@@ -110,10 +110,10 @@ auditável), `@lofcz/deepfilternet-web` (fork de uma pessoa, 1 versão, wasm de
 ### Erros do `join()`
 
 `err.code` + `err.providerFailure === false` quando **não** é culpa do
-provedor: `channel-full` (mostrar "Canal cheio"), `aborted` (dispose no
+servidor de voz: `channel-full` (mostrar "Canal cheio"), `aborted` (dispose no
 meio), `offline`, `kicked`, `replaced`, `rate-limited`. Use
 `isProviderFailure(err)` (`voice/resilience.js`) antes de reportar
-(`/api/voice/report`) ou trocar de provedor.
+(`/api/voice/report`, só telemetria) ou refazer a mídia.
 
 ### Rede
 
@@ -136,8 +136,8 @@ vivo, e "Atraso ao soltar a tecla" do apertar-pra-falar
 (`RemoteAudioSinks` da `CallBar`) com `voice.streamVolumes[uid]` (0–2,
 `localStorage['pc.voiceStreamVolumes']`), alterado por
 `voice.setStreamVolume(uid, v)` — o controle "Volume da transmissão" no bloco
-da tela. Provedor que não separa (Jitsi/LiveKit): o controle continua mexendo
-no volume da pessoa, como antes. A gravação local inclui o som das telas.
+da tela. Sem faixa separada de som da tela: o controle continua mexendo
+no volume da pessoa. A gravação local inclui o som das telas.
 
 ## 2. Socket.IO (backend → cliente)
 

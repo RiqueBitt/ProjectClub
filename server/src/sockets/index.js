@@ -617,11 +617,9 @@ function initSockets(httpServer) {
           // pelo menos a ordem "quem entrou primeiro aparece pra quem
           // entrou depois" sempre se mantém, eliminando a janela de
           // corrida real que existia entre ler e escrever.
-          // Provedor de mídia desta entrada — guardado junto pra contar os
-          // minutos no provedor certo (ver services/voiceUsage.js). joinedAt
-          // marca o início pra duração. O provedor ATIVO (servidor próprio →
-          // LiveKit → ... → Jitsi) é decidido no servidor (voiceDecision.js).
-          const dmProvider = await voiceUsage.resolveActiveProvider(channelId);
+          // Provedor de mídia desta entrada (sempre o servidor próprio) e
+          // início (joinedAt) pra duração.
+          const dmProvider = voiceUsage.PROVIDER;
           await voiceStore.setParticipant(channelId, userId, { socketId: socket.id, conversationId, muted: false, deafened: false, video: false, screenSharing: false, role: 'speaker', provider: dmProvider, joinedAt: Date.now() });
           socket.join(`voice:${channelId}`);
 
@@ -790,10 +788,8 @@ function initSockets(httpServer) {
         // DEPOIS de já ter gravado a própria entrada no Redis, não antes,
         // eliminando a janela de corrida entre duas pessoas entrando quase
         // ao mesmo tempo (ver o comentário completo lá).
-        // Provedor de mídia desta entrada + início, pra contar
-        // minutos na saída (ver leaveVoice e services/voiceUsage.js). O
-        // provedor ativo vem da cadeia (services/voiceDecision.js).
-        const joinProvider = await voiceUsage.resolveActiveProvider(channelId);
+        // Provedor de mídia desta entrada (sempre o servidor próprio) + início.
+        const joinProvider = voiceUsage.PROVIDER;
         // Mudo/ensurdecer DA MODERAÇÃO valem em qualquer canal da comunidade
         // até alguém tirar (ver voice:server-mute) — o servidor de mídia
         // também recebe isso nas claims do token.
@@ -1474,11 +1470,8 @@ function initSockets(httpServer) {
     const participant = await voiceStore.getParticipant(channelId, userId);
     if (!participant) return;
     const { conversationId } = participant;
-    // Contabilidade de uso por PROVEDOR: agora é feita pelo ticker de
-    // minutos-participante (voiceUsage.startProviderUsageTicker, ligado no
-    // index.js), que a cada minuto soma as pessoas ativas ao provedor ATIVO
-    // daquele minuto — a métrica certa pros limites gratuitos de cada
-    // serviço (LiveKit/Daily/...). Não é mais contada aqui na saída.
+    // Minutos de voz: contados pelo ticker de minutos-participante
+    // (voiceUsage.startUsageTicker, ligado no index.js), não aqui na saída.
     const remaining = await voiceStore.removeParticipant(channelId, userId);
     if (socket) socket.leave(`voice:${channelId}`);
     else if (participant.socketId) io.in(participant.socketId).socketsLeave(`voice:${channelId}`);

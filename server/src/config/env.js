@@ -119,18 +119,11 @@ module.exports = {
   // funcionando normalmente.
   STEAM_WEB_API_KEY: process.env.STEAM_WEB_API_KEY || '',
 
-  // ---------- Voz (ver services/voiceProviders.js, docs/voice-fallback.md)
-  // O principal é o servidor de mídia PRÓPRIO (MEDIA_SERVER_URL +
-  // MEDIA_SERVER_SECRET, ver media-server/). Se ele cair, a cadeia passa
-  // pelas reservas configuradas (LiveKit/Daily/TRTC) e por último pro Jitsi,
-  // sem deslogar ninguém. Tudo OPCIONAL para o Jitsi:
-  //
-  // JITSI_DOMAIN           domínio do Jitsi (padrão meet.jit.si).
-  // JITSI_APP_ID /         se preenchidos, o domínio exige JWT e o servidor
-  //   JITSI_APP_SECRET     assina um; sem eles, usa o fluxo anônimo público.
-  // JITSI_ROOM_SALT        segredo pra embaralhar o nome da sala (opcional;
-  //                        na falta, usa o próprio JWT_ACCESS_SECRET).
-  // Esses valores são lidos direto de process.env pelos serviços de voz —
-  // ficam aqui só documentados pra quem configura o deploy.
-  JITSI_DOMAIN: process.env.JITSI_DOMAIN || 'meet.jit.si',
+  // ---------- Voz (ver docs/voz-propria.md)
+  // Só o servidor de mídia PRÓPRIO (media-server/, mediasoup + coturn):
+  // MEDIA_SERVER_URL + MEDIA_SERVER_SECRET (obrigatórios pra voz), e
+  // TURN_URLS/TURN_SECRET/STUN_URLS (opcionais). VOICE_ROOM_SALT (ou o nome
+  // antigo JITSI_ROOM_SALT) embaralha o nome das salas; na falta, usa o
+  // JWT_ACCESS_SECRET. Lidos direto de process.env pelos serviços de voz
+  // (podem ser sobrescritos pelo painel da staff "Servidor de voz").
 };

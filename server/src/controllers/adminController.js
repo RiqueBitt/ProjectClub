@@ -923,15 +923,11 @@ async function getHealth(req, res, next) {
         }
         return out;
       })(), 3000).catch(() => null),
-      // Minutos de voz do mês por provedor (mesma fonte do painel de provedores).
+      // Minutos de voz do mês no servidor de voz próprio.
       withTimeout((async () => {
-        const providers = require('../services/voiceProviders');
-        const usage = await require('../services/voiceUsage').getAllUsage();
-        return providers.PROVIDER_ORDER.map((id) => {
-          const meta = providers.PROVIDERS[id] || {};
-          const limit = meta.unlimited ? null : providers.getDisplayLimit(id);
-          return { id, label: meta.label || id, minutes: Math.round(usage[id] || 0), limit, unlimited: !!meta.unlimited };
-        });
+        const usage = require('../services/voiceUsage');
+        const minutes = await usage.getMinutes();
+        return [{ id: usage.PROVIDER, label: 'Servidor de voz próprio', minutes: Math.round(minutes || 0), limit: null, unlimited: true }];
       })(), 3000).catch(() => null),
       withTimeout((async () => ({
         android: await prisma.pushToken.count(),

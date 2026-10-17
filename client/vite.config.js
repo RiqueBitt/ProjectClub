@@ -74,13 +74,10 @@ export default defineConfig({
           // Children" / dep circular). Deixá-lo no "vendor" geral (sempre
           // carregado no início de qualquer jeito) resolve, sem custo real.
           if (id.includes('socket.io-client') || id.includes('engine.io-client')) return 'vendor-socket';
-          // Provedores da cadeia de voz (servidor próprio/mediasoup,
-          // LiveKit): cada SDK num pacote PRÓPRIO e carregado SÓ sob demanda
-          // (import() dinâmico em client/src/voice/*Engine.js). Assim eles
-          // NUNCA entram no bundle inicial — a cadeia só baixa o SDK do
-          // provedor que de fato for usado numa chamada, e quem só navega
-          // pelo chat/feeds não paga por nenhum deles.
-          if (id.includes('livekit-client')) return 'vendor-livekit';
+          // SDK de voz (servidor próprio/mediasoup): pacote PRÓPRIO e
+          // carregado SÓ sob demanda (import() dinâmico em
+          // client/src/voice/mediasoupEngine.js). Assim ele NUNCA entra no
+          // bundle inicial — quem só navega pelo chat/feeds não paga por ele.
           if (id.includes('mediasoup-client') || id.includes('/sdp-transform/') || id.includes('/h264-profile-level-id/')) return 'vendor-mediasoup';
           // Lista de emojis (~400 KB): só baixa quando o seletor abre.
           if (id.includes('unicode-emoji-json')) return 'vendor-emoji';

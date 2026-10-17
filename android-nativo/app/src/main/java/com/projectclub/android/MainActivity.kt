@@ -259,7 +259,7 @@ class MainActivity : ComponentActivity() {
                 val id = e.arguments?.getString("id").orEmpty()
                 ChatScreen(app.repo, Room(conversationId = id), onBack = { nav.popBackStack() }, onCall = actions.joinVoice, onOpenWeb = actions.openWeb)
             }
-            composable("voice") { VoiceScreen(app.voice, app.repo, onBack = { nav.popBackStack() }, onOpenWeb = appNav::external) }
+            composable("voice") { VoiceScreen(app.voice, app.repo, onBack = { nav.popBackStack() }) }
             featureScreens(app.repo, appNav)
         }
         }

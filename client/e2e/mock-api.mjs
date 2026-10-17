@@ -171,23 +171,17 @@ export function handler(route) {
     { id: 'cm2', authorId: '5', author: { ...users[4], clanRole: 'ADMIN' }, content: 'falta só a torre leste', createdAt: new Date(now - 39 * 60000).toISOString() },
     { id: 'cm3', authorId: '1', author: { ...me, clanRole: 'OWNER' }, content: 'fechado! 21h na call do clube', createdAt: new Date(now - 10 * 60000).toISOString() },
   ] });
-  // Cadeia de provedores de voz (painel da staff): ativo = livekit (modo
-  // reserva, o servidor próprio está instável), Daily sem a chave, TRTC não
-  // configurado.
-  // Ver VoiceProvidersAdmin.jsx e voice-providers.spec.
-  if (p === '/voice/provider') return json({
-    active: 'livekit', activeReason: 'chain', overridden: false, override: null,
-    primary: 'projectclub', reserveMode: true,
-    providers: [
-      { id: 'projectclub', label: 'Project Club (servidor próprio)', order: 0, isPrimary: true, configured: true, enabled: true, available: true, disabled: false, healthy: false, active: false, gateEnv: null, gateMissing: false, minutesUsed: 0, limit: null, unlimited: true, percent: 0, status: 'instavel' },
-      { id: 'livekit', label: 'LiveKit', order: 1, isPrimary: false, configured: true, enabled: true, available: true, disabled: false, active: true, gateEnv: null, gateMissing: false, minutesUsed: 1200, limit: 5000, unlimited: false, percent: 24, status: 'ativo' },
-      { id: 'daily', label: 'Daily', order: 2, isPrimary: false, configured: true, enabled: false, available: false, disabled: false, active: false, gateEnv: 'DAILY_API_KEY', gateMissing: true, minutesUsed: 0, limit: 10000, unlimited: false, percent: 0, status: 'falta_chave' },
-      { id: 'trtc', label: 'TRTC (Tencent)', order: 3, isPrimary: false, configured: false, enabled: false, available: false, disabled: false, active: false, gateEnv: null, gateMissing: false, minutesUsed: 0, limit: 10000, unlimited: false, percent: 0, status: 'nao_configurado' },
-      { id: 'jitsi', label: 'Jitsi (meet.jit.si)', order: 4, isPrimary: false, configured: true, enabled: true, available: true, disabled: false, active: false, gateEnv: null, gateMissing: false, minutesUsed: 0, limit: null, unlimited: true, percent: 0, status: 'em_espera' },
+  // Painel da staff "Servidor de voz" (VoiceServerAdmin.jsx, voice-server.spec).
+  if (p === '/voice/server') return json({
+    provider: 'projectclub', label: 'Project Club (servidor próprio)', configured: true,
+    fields: [
+      { env: 'MEDIA_SERVER_URL', label: 'URL do servidor de mídia (wss://…)', secret: false, set: true, source: 'hospedagem', value: 'wss://mock-media.invalid/ws' },
+      { env: 'MEDIA_SERVER_SECRET', label: 'Segredo do servidor de mídia', secret: true, set: true, source: 'hospedagem', value: '••••1234' },
+      { env: 'TURN_URLS', label: 'Servidores TURN (opcional, separados por vírgula)', secret: false, set: false, source: null, value: '' },
+      { env: 'TURN_SECRET', label: 'Segredo do TURN (opcional)', secret: true, set: false, source: null, value: '' },
     ],
   });
-  // Entrar numa chamada: por padrão o servidor próprio (o teste de modo
-  // reserva sobrescreve /voice/join pra devolver jitsi). Ver voice-fallback.spec.
+  // Entrar numa chamada: sempre o servidor de voz próprio.
   if (p === '/voice/join') return json({ provider: 'projectclub', channelName: 'v1', reserveMode: false, activeReason: 'primary', projectclub: { url: 'wss://mock-media.invalid/ws', token: 'mock-token', room: 'pc_v1', identity: me.id, iceServers: [] } });
   if (p === '/auth/refresh') return json({ accessToken: 'x', user: me });
   if (p === '/community') return json({ categories, channels: [], members, roles, community: { name: 'Project Club', bannerUrl: banner, iconUrl: null } });

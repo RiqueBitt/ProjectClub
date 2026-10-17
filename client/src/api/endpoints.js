@@ -538,23 +538,18 @@ export const listFeaturedPosts = () => api.get('/posts/featured').then((r) => r.
 export const registerPushToken = (token, platform) => api.post('/push/register', { token, platform }).then((r) => r.data);
 export const unregisterPushToken = (token) => api.post('/push/unregister', { token }).then((r) => r.data);
 
-// --- Cadeia de provedores de voz (servidor próprio → LiveKit → ... → Jitsi) ---
-// Fluxo de entrada: checa acesso e devolve o provedor ATIVO + credenciais
-// dele. `clientReady` diz ao servidor quais provedores este navegador sabe
-// usar hoje (os demais a cadeia pula só para este join).
-export const getVoiceJoin = (channelName, clientReady) =>
-  api.get('/voice/join', { params: { channelName, clientReady: Array.isArray(clientReady) ? clientReady.join(',') : clientReady } }).then((r) => r.data);
-// Provedor que não conectou neste aparelho (alimenta o disjuntor da cadeia —
-// server/src/services/voiceHealth.js). Nunca lança: é só um aviso.
-export const reportVoiceProvider = (provider, code, channelName) =>
-  api.post('/voice/report', { provider, code, channelName }).then((r) => r.data).catch(() => null);
-// Painel da staff (admin): status/uso de cada provedor da cadeia e controle.
-export const getVoiceProviders = () => api.get('/voice/provider').then((r) => r.data);
-export const setVoiceOverride = (provider) => api.post('/voice/override', { provider: provider || null }).then((r) => r.data);
-export const toggleVoiceProvider = (id, disabled) => api.post(`/voice/provider/${id}/toggle`, { disabled: !!disabled }).then((r) => r.data);
-export const setVoiceProviderConfig = (id, values) => api.post(`/voice/provider/${id}/config`, { values }).then((r) => r.data);
-export const resetVoiceHealth = (id) => api.post(`/voice/provider/${id}/health/reset`).then((r) => r.data);
-export const setVoiceUsage = (id, minutes) => api.post(`/voice/provider/${id}/usage`, { minutes: Number(minutes) }).then((r) => r.data);
+// --- Voz (servidor de mídia próprio) ---
+// Entrada: checa acesso e devolve as credenciais do servidor de voz
+// ({ provider:'projectclub', projectclub:{ url, token, ... } }).
+export const getVoiceJoin = (channelName) =>
+  api.get('/voice/join', { params: { channelName } }).then((r) => r.data);
+// Telemetria: não conseguiu conectar no servidor de voz (só vai pro log do
+// servidor). Nunca lança: é só um aviso.
+export const reportVoiceConnectFailure = (code, channelName) =>
+  api.post('/voice/report', { provider: 'projectclub', code, channelName }).then((r) => r.data).catch(() => null);
+// Painel da staff "Servidor de voz" (admin): status + chaves do servidor próprio.
+export const getVoiceServer = () => api.get('/voice/server').then((r) => r.data);
+export const setVoiceServerConfig = (values) => api.post('/voice/server/config', { values }).then((r) => r.data);
 
 // --- Item pedido: sistemas estilo Orkut ---
 export const writeTestimonial = (targetId, text) => api.post(`/testimonials/${targetId}`, { text }).then((r) => r.data);

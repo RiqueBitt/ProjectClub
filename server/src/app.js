@@ -136,16 +136,8 @@ function createApp() {
   // `crossOriginEmbedderPolicy` stays off for the same reason — this
   // legitimately embeds cross-origin media.
   //
-  // Jitsi (provedor de voz RESERVA final): quando o servidor de mídia
-  // próprio (e as outras reservas) não estão disponíveis, a chamada conecta
-  // por uma conferência embutida do Jitsi (IFrame External API). Pra isso o navegador precisa
-  // poder: BAIXAR o external_api.js do domínio do Jitsi (script-src) e
-  // EMBUTIR a página de reunião num iframe (frame-src). O domínio é
-  // configurável (JITSI_DOMAIN, padrão meet.jit.si) — liberamos o padrão e,
-  // se configurado outro, ele também. A mídia em si roda DENTRO do iframe
-  // (origem do próprio Jitsi), então não precisa de connect-src nosso.
-  const jitsiHost = (process.env.JITSI_DOMAIN || 'meet.jit.si').replace(/^https?:\/\//, '').replace(/\/+$/, '');
-  const jitsiOrigins = [...new Set([`https://${jitsiHost}`, 'https://meet.jit.si', 'https://8x8.vc'])];
+  // Voz: só o servidor de mídia próprio (wss: + STUN/TURN no connect-src).
+  // Nenhum domínio de provedor de voz externo é liberado.
   app.use(helmet({
     crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: {
@@ -155,10 +147,10 @@ function createApp() {
         // servido em /ruffle) roda em WebAssembly. Só libera compilar WASM,
         // não libera eval() de JS.
         // YouTube "Assistir juntos" (chamada de voz): IFrame Player API.
-        scriptSrc: ["'self'", "'wasm-unsafe-eval'", 'https://www.youtube.com', ...jitsiOrigins],
-        scriptSrcElem: ["'self'", 'https://www.youtube.com', ...jitsiOrigins],
+        scriptSrc: ["'self'", "'wasm-unsafe-eval'", 'https://www.youtube.com'],
+        scriptSrcElem: ["'self'", 'https://www.youtube.com'],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-        // SDKs de mídia (ex.: LiveKit) e o processamento de áudio rodam
+        // O processamento de áudio (supressão de ruído) roda
         // parte do trabalho em Web Workers criados a partir de blob: — sem
         // isso liberado explicitamente, o navegador bloqueia em silêncio.
         workerSrc: ["'self'", 'blob:'],
@@ -179,14 +171,14 @@ function createApp() {
         // ouve/é ouvido por ninguém).
         connectSrc: [
           "'self'", 'https://api.klipy.com', 'https://fonts.googleapis.com',
-          // Voz: sinalização por wss: (servidor de mídia próprio/LiveKit) e
+          // Voz: sinalização por wss: (servidor de mídia próprio) e
           // ICE (STUN/TURN) pelos esquemas genéricos logo abaixo.
           'wss:', 'ws:', 'stun:', 'turn:', 'turns:',
         ],
         // Navegador do Project Club no site (quando ligado em
         // config/features.js): páginas que PERMITEM ser abertas dentro de
         // outro site aparecem num iframe isolado. Desligado = só YouTube.
-        frameSrc: ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com', ...jitsiOrigins, ...(isFeatureEnabled('browser') ? ['https:'] : [])],
+        frameSrc: ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com', ...(isFeatureEnabled('browser') ? ['https:'] : [])],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         frameAncestors: ["'self'"],

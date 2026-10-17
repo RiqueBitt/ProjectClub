@@ -54,7 +54,7 @@ certificado pro coturn (que passa a usá-lo também na 5349).
 ```bash
 sudo BRANCH=main TURN_443=1 DOMAIN=38-92-41-54.sslip.io PUBLIC_IP=38.92.41.54 bash scripts/vm-voz-robusta.sh
 ```
-Depois, no painel da staff (Provedores de voz → Project Club → chaves), `TURN_URLS`:
+Depois, no painel da staff (Sistema → Servidor de voz), `TURN_URLS`:
 `turn:38-92-41-54.sslip.io:3478?transport=udp,turn:38-92-41-54.sslip.io:3478?transport=tcp,turns:turn-38-92-41-54.sslip.io:443?transport=tcp,turns:turn-38-92-41-54.sslip.io:5349?transport=tcp`
 (o `turns:` precisa usar o `TURN_DOMAIN`: o certificado do coturn passa a ser o dele).
 Teste: `openssl s_client -connect 38.92.41.54:443 -servername turn-38-92-41-54.sslip.io` mostra o
@@ -74,9 +74,9 @@ por usuário, então seguem valendo); ao ligar/desligar o Caddy é recriado (as 
 | `TURN_SECRET` | o mesmo `TURN_SECRET` do `.env` |
 | `STUN_URLS` *(opcional)* | `stun:media.seudominio.com:3478` |
 
-Com `MEDIA_SERVER_URL` + `MEDIA_SERVER_SECRET` definidos, o provedor **"Project Club (próprio)"** aparece no painel
-*Sistema → Provedores de voz* como **ativo** (ele é o primeiro da cadeia e é ilimitado). Sem eles, aparece
-"não configurado" e a cadeia segue para as reservas: LiveKit (se configurado) → Jitsi.
+Com `MEDIA_SERVER_URL` + `MEDIA_SERVER_SECRET` definidos, o painel *Sistema → Servidor de voz* mostra
+**configurado**. É o ÚNICO servidor de voz da plataforma (não existe mais cadeia de provedores de reserva):
+sem essas variáveis não há voz — `/api/voice/join` responde `503` (`code: "voice-unavailable"`).
 
 ## Como funciona
 
@@ -106,9 +106,8 @@ Com `MEDIA_SERVER_URL` + `MEDIA_SERVER_SECRET` definidos, o provedor **"Project 
   e um worker novo sobe no lugar — o processo NÃO cai. Só se morrerem mais de 5 em 1 minuto o processo sai e o docker reinicia.
 - **Mesma pessoa em 2 aparelhos**: o mais novo fica; a sessão antiga é recusada (`4409`) se tentar voltar com o mesmo token
   e, se os dois ficarem trocando de lugar (>3 trocas/min), a troca é bloqueada por 30s — acaba o "saiu/entrou" em loop.
-- **Saúde no Project Club**: o backend testa `GET /health` a cada 30s; 2 falhas seguidas tiram o servidor próprio da cadeia
-  até ele voltar, e falhas reportadas por 2+ pessoas em 5 min desarmam qualquer provedor por 10 min (dobra a cada queda;
-  ver `server/src/services/voiceHealth.js`).
+- **Falha no cliente**: quando a mídia cai e não volta sozinha, o cliente refaz a conexão com credencial nova no mesmo
+  canal (sem tirar a pessoa da sala) e avisa `POST /api/voice/report` — só telemetria (vai pro log do backend).
 - Códigos de fechamento da sinalização: `4401` token (detalhe `expired`/`invalid`), `4409` substituído (não reconectar),
   `4429` muitas conexões, `4503` sala cheia/indisponível, `1012` reiniciando (reconectar), `1008` flood.
 - Dimensionamento: ~50 kbps por áudio, 300–1500 kbps por vídeo/tela **por ouvinte**. 10 pessoas em áudio ≈ 4,5 Mbps de saída.

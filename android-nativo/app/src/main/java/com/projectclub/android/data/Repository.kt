@@ -748,13 +748,9 @@ class Repository(private val context: Context, val api: Api, private val scope: 
         runCatching { api.postIgnore("/api/push/unregister", buildJsonObject { put("token", token) }) }
     }
 
-    /**
-     * Pede ao servidor as credenciais da call. O app só usa o servidor de
-     * mídia PRÓPRIO ([clientReady] = projectclub); se ele não estiver
-     * disponível, o servidor responde com a reserva da web (Jitsi).
-     */
-    suspend fun voiceJoin(channelName: String, clientReady: List<String> = listOf("projectclub")): VoiceJoinResponse =
-        api.get("/api/voice/join?channelName=${enc(channelName)}&clientReady=${enc(clientReady.joinToString(","))}")
+    /** Pede ao servidor as credenciais da call (servidor de mídia próprio). */
+    suspend fun voiceJoin(channelName: String): VoiceJoinResponse =
+        api.get("/api/voice/join?channelName=${enc(channelName)}")
 
     // ---------------- tempo real ----------------
 

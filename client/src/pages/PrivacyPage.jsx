@@ -19,7 +19,7 @@ import { Facts, Note } from './public/blogContent.jsx';
 //   limpeza automática de dados antigos: se uma for criada, atualize a
 //   seção "Quanto tempo guardamos";
 // - exclusão: deleteAccount() só DESATIVA (accountDisabledAt);
-// - terceiros: config/b2.js, voiceProviders (Jitsi/LiveKit, só reserva), pushNotifications (FCM),
+// - terceiros: config/b2.js, pushNotifications (FCM),
 //   youtube-nocookie (YouTubeWatch), Klipy (GifPicker), GitHub (releases),
 //   mod.io/Nexus/GameBanana/Thunderstore/Steam (services/*Service.js),
 //   Shard Cloud (hospedagem, projectclub.shardweb.app);
@@ -197,7 +197,7 @@ const SECTIONS = [
         <Facts items={[
           ['Shard Cloud', 'Hospeda o site e o servidor do Project Club.'],
           ['Backblaze B2', 'Guarda os arquivos enviados (fotos, banners, anexos). As imagens passam pelo nosso servidor antes de chegar a você, então o B2 não vê o seu IP.'],
-          ['Chamadas de voz', 'Voz e tela das chamadas passam pelo servidor de mídia do próprio Project Club. Se ele estiver fora do ar, a chamada pode usar um provedor reserva (LiveKit ou Jitsi). Nada é gravado.'],
+          ['Chamadas de voz', 'Voz e tela das chamadas passam pelo servidor de mídia do próprio Project Club (nenhum provedor de voz externo). Nada é gravado.'],
           ['Firebase Cloud Messaging (Google)', 'Entrega as notificações do app de Android.'],
           ['YouTube', 'Vídeos assistidos juntos nas chamadas, o player de música e os vídeos do canal na página Início do app.'],
           ['Klipy', 'Busca de GIFs: o termo que você digita na busca de GIFs vai para eles.'],
