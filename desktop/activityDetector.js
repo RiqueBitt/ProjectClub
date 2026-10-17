@@ -126,15 +126,20 @@ async function detectGameOrApp(platform) {
   // "preso" de uma sessão que fechou sem limpar.
   const steamRunning = processes.some((p) => /^steam(\.exe)?$/i.test(p) || /^steamwebhelper(\.exe)?$/i.test(p));
   let gameProc = null;
+  let appProc = null;
   for (const proc of processes) {
     if (!game) { game = matchProcessName(proc, platKey); if (game) gameProc = proc; }
-    if (!appMatch) appMatch = matchAppProcessName(proc, platKey);
+    if (!appMatch) { appMatch = matchAppProcessName(proc, platKey); if (appMatch) appProc = proc; }
     if (game && appMatch) break; // achou os dois — não precisa continuar varrendo
   }
   // Jogo em segundo plano (sem janela visível / minimizado) não conta.
-  if (game && gameProc) {
+  // BUG CORRIGIDO ("aparece que estou usando o HyProject mas ele nem está
+  // aberto"): apps (inclusive os do ecossistema, que ficam na bandeja ou
+  // com o atualizador rodando) também só contam com janela visível.
+  if ((game && gameProc) || (appMatch && appProc)) {
     const visible = await listVisibleWindowProcesses(platform);
-    if (visible && !visible.has(baseName(gameProc))) game = null;
+    if (visible && game && !visible.has(baseName(gameProc))) game = null;
+    if (visible && appMatch && !visible.has(baseName(appProc))) appMatch = null;
   }
   return { game, app: appMatch, spotifyRunning, steamRunning };
 }

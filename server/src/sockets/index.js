@@ -1412,7 +1412,7 @@ function initSockets(httpServer) {
         if (!(await presenceStore.isOnline(userId))) return; // já desconectou nesse meio tempo
         const user = await prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
         if (user?.status === 'ONLINE') {
-          await prisma.user.update({ where: { id: userId }, data: { status: 'IDLE' } });
+          await prisma.user.update({ where: { id: userId }, data: { status: 'IDLE', autoIdle: true } });
           autoIdledUsers.add(userId);
           broadcastPresence(io, userId);
           scheduleAutoOfflineTimer(io, userId);
@@ -1426,16 +1426,23 @@ function initSockets(httpServer) {
   // relógio de 15min e, se a pessoa tinha sido marcada Ausente (ou depois
   // Offline, pela ausência prolongada de 4h) sozinha por este mesmo
   // mecanismo — não por escolha própria —, volta pra Online.
+  // BUG CORRIGIDO ("fico ausente e, quando mando mensagem/abro menu, não
+  // volta pro online"): quem foi posto Ausente sozinho ficava marcado só
+  // na memória (autoIdledUsers) — qualquer reinício do servidor (todo
+  // deploy) apagava isso, e a pessoa ficava presa em Ausente até trocar na
+  // mão. Agora a marca também fica no banco (User.autoIdle).
   async function markActive(io, userId) {
     scheduleIdleTimer(io, userId);
     clearAutoOfflineTimer(userId);
-    if (!autoIdledUsers.has(userId)) return;
-    autoIdledUsers.delete(userId);
+    const inMemory = autoIdledUsers.delete(userId);
     try {
-      const user = await prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
-      if (user?.status === 'IDLE' || user?.status === 'OFFLINE') {
-        await prisma.user.update({ where: { id: userId }, data: { status: 'ONLINE' } });
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { status: true, autoIdle: true } });
+      if (!user || (!inMemory && !user.autoIdle)) return;
+      if (user.status === 'IDLE' || user.status === 'OFFLINE') {
+        await prisma.user.update({ where: { id: userId }, data: { status: 'ONLINE', autoIdle: false } });
         broadcastPresence(io, userId);
+      } else if (user.autoIdle) {
+        await prisma.user.update({ where: { id: userId }, data: { autoIdle: false } });
       }
     } catch (err) { console.error('[socket] falha ao voltar de ausência automática:', err); }
   }
@@ -1445,6 +1452,7 @@ function initSockets(httpServer) {
   // PATCH /users/me/status): a escolha manual sempre vence o automático.
   function onManualStatusChange(userId, status) {
     autoIdledUsers.delete(userId);
+    prisma.user.update({ where: { id: userId }, data: { autoIdle: false } }).catch(() => {});
     clearAutoOfflineTimer(userId);
     if (status === 'ONLINE') {
       // Escolher "Online" na mão também conta como atividade.
