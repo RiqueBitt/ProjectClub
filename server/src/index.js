@@ -169,5 +169,9 @@ require('./services/shopTimed').startTimedSweeper(io);
 require('./controllers/staffAnnouncementsController').startScheduler(io);
 // Resumo da semana (segunda de manhã): menções, eventos e novidades da Loja.
 require('./services/weeklyDigest').startWeeklyDigest(io);
+// Status personalizado vencido some sozinho pra todo mundo (1x por minuto)
+// e tópicos parados há muito tempo são arquivados (a cada 30 min).
+require('./services/customStatus').startCustomStatusSweep(io);
+require('./services/threads').startThreadArchiveJob(io);
 // Monitor de status (página pública /status + alerta pra staff quando cai).
 require('./services/statusMonitor').startStatusMonitor(io);

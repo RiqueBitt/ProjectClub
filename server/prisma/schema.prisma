@@ -20,6 +20,9 @@
 
 generator client {
   provider = "prisma-client-js"
+  // fullTextIndex: permite o @@fulltext([content]) em Message (busca de
+  // mensagens com MATCH ... AGAINST — ver services/messageSearch.js).
+  previewFeatures = ["fullTextIndex"]
 }
 
 datasource db {
@@ -428,6 +431,9 @@ model User {
   profileWishlist        String?                 @db.Text
   // Conta desativada pela própria pessoa (volta ao entrar de novo).
   selfDeactivatedAt      DateTime?
+
+  // Varredura de status personalizado vencido (services/customStatus.js).
+  @@index([customStatusExpiresAt])
 }
 
 // Item pedido: "pingentes... mini imagens que podem ser colocadas pelo
@@ -1344,6 +1350,19 @@ model Message {
   // channelName, conversationId, messageId, createdAt } da original.
   forwardedFrom String? @db.Text
 
+  // Tópicos (threads) a partir de uma mensagem: a RAIZ do tópico é a
+  // mensagem com título que responde à mensagem-mãe (replyToId + title,
+  // ver "Criar tópico"). As respostas DENTRO do tópico apontam pra raiz
+  // por threadId e não aparecem na lista principal do canal. Os campos
+  // thread* abaixo só são usados na raiz (contador, última resposta e
+  // arquivamento automático por inatividade — ver services/threads.js).
+  threadId          String?
+  isThread          Boolean   @default(false)
+  threadReplyCount  Int       @default(0)
+  threadLastReplyAt DateTime?
+  threadLastReplyId String?
+  threadArchivedAt  DateTime?
+
   edits MessageEdit[]
 
   automodFlags AutomodFlag[]
@@ -1365,6 +1384,12 @@ model Message {
   @@index([authorId, createdAt])
   // Modo lento: última mensagem da pessoa NESTE canal.
   @@index([channelId, authorId, createdAt])
+  // Respostas de um tópico (painel do tópico) em ordem de data.
+  @@index([threadId, createdAt])
+  // Varredura de arquivamento automático (só raízes de tópico).
+  @@index([isThread, threadLastReplyAt])
+  // Busca de mensagens por texto (MATCH ... AGAINST em modo booleano).
+  @@fulltext([content])
 }
 
 // Histórico de edições: o conteúdo ANTERIOR de uma mensagem, gravado a

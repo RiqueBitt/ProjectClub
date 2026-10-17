@@ -13,6 +13,7 @@ import SocialIcon from './SocialIcons.jsx';
 import cancelIcon from '../assets/icons/cancel.png';
 import ListSkeleton from './ListSkeleton.jsx';
 import PinGlyph from './PinGlyph.jsx';
+import StatusEmoji from './StatusEmoji.jsx';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
 import { sortConversations, conversationMenuItems } from '../utils/dmPins';
 
@@ -64,6 +65,10 @@ export default function DMConversationsList() {
     const other = !c.isGroup ? c.members.find((m) => m.id !== user.id) : null;
     const name = c.isGroup ? (c.name || c.members.map((m) => m.displayName).join(', ')) : other?.displayName;
     const status = other ? (presence[other.id]?.status || other.status) : null;
+    // Status personalizado da outra pessoa (presença = tempo real).
+    const pres = other ? presence[other.id] : null;
+    const customText = other ? (pres && pres.customStatus !== undefined ? pres.customStatus : other.customStatus) : null;
+    const customEmoji = other ? (pres && pres.customStatusEmoji !== undefined ? pres.customStatusEmoji : other.customStatusEmoji) : null;
     const unread = isConversationUnread(c, user.id);
     return (
       <button
@@ -85,6 +90,11 @@ export default function DMConversationsList() {
         </div>
         <span className="dm-item-text">
           <span className="dm-item-name-row"><span className="truncate" data-no-translate>{name}</span>{c.pinnedAt && <PinGlyph />}</span>
+          {(customText || customEmoji) && (
+            <span className="dm-item-custom-status truncate" title={customText || undefined} data-no-translate>
+              {customEmoji && <StatusEmoji emoji={customEmoji} className="dm-item-status-emoji" />}{customText ? ` ${customText}` : ''}
+            </span>
+          )}
           <span className="dm-item-preview" data-no-translate>{lastPreview(c, user.id)}</span>
         </span>
         <span className="dm-item-time">{timeAgo(c.lastMessage?.createdAt)}</span>

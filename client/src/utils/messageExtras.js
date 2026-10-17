@@ -62,7 +62,7 @@ export async function toggleSaved(message) {
   useMsgExtras.setState({ saved: next });
   try {
     await api.post(`/messages/${message.id}/save`, { on });
-    useStore.getState().pushNotice(on ? 'Mensagem favoritada. Veja na Caixa de Entrada → Favoritos.' : 'Mensagem tirada dos favoritos.');
+    useStore.getState().pushNotice(on ? 'Mensagem salva pra depois. Veja na Caixa de Entrada (topo) → Salvos.' : 'Mensagem removida dos salvos.');
   } catch (e) {
     const back = new Set(useMsgExtras.getState().saved); if (on) back.delete(message.id); else back.add(message.id);
     useMsgExtras.setState({ saved: back });

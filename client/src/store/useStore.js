@@ -5,6 +5,7 @@ import { openPopover, closePopover, closeAllPopovers } from '../utils/popoverCoo
 import { trackSave } from '../utils/saveIndicator';
 import { resolveChannelPrefs, channelKey, categoryKey } from '../utils/notificationLevels';
 import { loadLocalLayoutPrefs, normalizeLayoutPrefs, saveLocalLayoutPrefs, scheduleServerSave, loadFocusMode, saveFocusMode } from '../utils/appearance';
+import { mergeThreadSummary } from '../utils/chatFeatures';
 
 // Função estável (comparada por identidade no coordenador de menus) que
 // fecha o miniperfil quando outro menu flutuante abre.
@@ -102,6 +103,14 @@ export const useStore = create((set, get) => ({
   // mensagem assim que a 1ª página carregar. { roomKey, messageId, createdAt }
   pendingJump: null,
   setPendingJump: (pendingJump) => set({ pendingJump }),
+  // Painel do tópico aberto à direita do chat: { id, channelId, root? }.
+  // As respostas ficam em messagesByRoom['thread:<id>'] (ver roomKeyFor).
+  openThread: null,
+  setOpenThread: (openThread) => set({ openThread }),
+  // Notificação de tópico clicada com o canal ainda fechado: o ChatWindow
+  // abre o painel quando o canal carregar. { channelId, threadId }
+  pendingThread: null,
+  setPendingThread: (pendingThread) => set({ pendingThread }),
   // "Visto" (DM 1:1): a outra pessoa leu até aqui.
   setConversationOtherRead: (conversationId, lastReadAt) => set((s) => ({
     conversations: s.conversations.map((c) => (c.id === conversationId ? { ...c, otherReadAt: lastReadAt } : c)),
@@ -752,7 +761,7 @@ export const useStore = create((set, get) => ({
   updateMessage: (roomKey, message) => set((s) => ({
     messagesByRoom: {
       ...s.messagesByRoom,
-      [roomKey]: (s.messagesByRoom[roomKey] || []).map((m) => (m.id === message.id ? message : m)),
+      [roomKey]: (s.messagesByRoom[roomKey] || []).map((m) => (m.id === message.id ? mergeThreadSummary(m, message) : m)),
     },
   })),
   removeMessage: (roomKey, id) => set((s) => ({
@@ -854,7 +863,10 @@ export function withChannelStates(list, states, localReadAt = {}) {
   });
 }
 
-export function roomKeyFor({ conversationId, channelId }) {
+export function roomKeyFor({ conversationId, channelId, threadId }) {
+  // Resposta de tópico vive na "sala" do tópico (painel à direita), nunca
+  // na lista principal do canal.
+  if (threadId) return `thread:${threadId}`;
   return conversationId ? `conversation:${conversationId}` : `channel:${channelId}`;
 }
 

@@ -1682,7 +1682,13 @@ function initSockets(httpServer) {
   // "Offline".
   function emitPresence(io, user) {
     if (!user) return;
-    const payload = { userId: user.id, status: user.status, customStatus: user.customStatus ?? null, mobile: user.status !== 'OFFLINE' && devicePresence.onMobile(user.id) };
+    const payload = {
+      userId: user.id, status: user.status, customStatus: user.customStatus ?? null,
+      // Emoji do status personalizado (undefined = este evento não sabe;
+      // o cliente mantém o que já tinha).
+      ...(user.customStatusEmoji !== undefined ? { customStatusEmoji: user.customStatusEmoji ?? null } : {}),
+      mobile: user.status !== 'OFFLINE' && devicePresence.onMobile(user.id),
+    };
     if (user.status === 'INVISIBLE') {
       io.to(`user:${user.id}`).emit('presence:update', payload);
       io.except(`user:${user.id}`).emit('presence:update', { ...payload, status: 'OFFLINE', mobile: false });
