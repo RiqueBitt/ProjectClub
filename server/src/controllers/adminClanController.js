@@ -1,10 +1,12 @@
 const prisma = require('../config/prisma');
+const { auditReason, auditMetadata } = require('../utils/auditFields');
 
 function logPlatformAction(req, { action, targetType, targetId, reason, metadata }) {
   return prisma.platformAuditLog.create({
     data: {
-      actorId: req.user.id, action, targetType, targetId, reason,
-      metadata: metadata ? JSON.stringify(metadata) : null,
+      actorId: req.user.id, action, targetType, targetId,
+      reason: auditReason(reason), // VARCHAR(191): corta em vez de dar 500 (ver utils/auditFields.js)
+      metadata: auditMetadata(metadata),
     },
   });
 }

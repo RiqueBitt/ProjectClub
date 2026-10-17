@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { noteMutationStart, noteMutationEnd } from '../utils/liveRefresh';
+import { retryDuringRestart, noteServerBack } from '../utils/serverRestart';
 
 let accessToken = null;
 let onUnauthorized = null;
@@ -68,7 +69,9 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
-    if (error.response?.status === 401 && !original._retry && !original.url.includes('/auth/')) {
+    // `config` pode faltar (erro antes de montar o pedido) — sem o `?.` isso
+    // virava "Cannot read properties of undefined" em vez do erro real.
+    if (error.response?.status === 401 && original && !original._retry && !String(original.url || '').includes('/auth/')) {
       original._retry = true;
       try {
         const { data } = await sharedRefresh();
@@ -87,4 +90,13 @@ api.interceptors.response.use(
     }
     return Promise.reject(error);
   }
+);
+
+// Deploy/reinício do servidor (502/503/504 do proxy ou conexão caída):
+// leituras tentam de novo sozinhas com espera crescente em vez de cada tela
+// mostrar erro na hora — ver utils/serverRestart.js. Qualquer resposta boa
+// avisa que o servidor voltou (o aviso de "Nova versão" confere na hora).
+api.interceptors.response.use(
+  (res) => { noteServerBack(); return res; },
+  (error) => retryDuringRestart(error, api),
 );

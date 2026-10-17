@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { auditMetadata } = require('../utils/auditFields');
 const { SELF_USER_FIELDS } = require('./authController');
 const { broadcastUserUpdate } = require('./userController');
 const shop = require('./shopController');
@@ -30,7 +31,7 @@ const FAMILY_RE = /^[A-Za-z0-9][A-Za-z0-9 ]{1,59}$/;
 
 function logStaff(req, action, targetId, metadata) {
   return prisma.platformAuditLog.create({
-    data: { actorId: req.user.id, action, targetType: 'USER', targetId, metadata: metadata ? JSON.stringify(metadata) : null },
+    data: { actorId: req.user.id, action, targetType: 'USER', targetId, metadata: auditMetadata(metadata) },
   }).catch(() => null);
 }
 

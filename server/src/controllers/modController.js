@@ -358,15 +358,23 @@ async function upsertProfileItem(req, res, next) {
       return res.json({ item });
     }
 
+    // modioModId é Int no banco: um texto qualquer virava NaN e o Prisma
+    // recusava a consulta (erro 500) em vez de um aviso de dado inválido.
+    const modId = Number(modioModId);
+    if (!Number.isSafeInteger(modId) || modId <= 0) return res.status(400).json({ error: 'modioModId inválido.' });
+    const rawFileId = modioModfileId === undefined || modioModfileId === null || modioModfileId === '' ? 0 : Number(modioModfileId);
+    if (!Number.isSafeInteger(rawFileId)) return res.status(400).json({ error: 'modioModfileId inválido.' });
+    const fileId = rawFileId > 0 ? rawFileId : null; // 0/vazio = sem versão específica (igual antes)
+
     const item = await safeUpsert(prisma.modProfileItem, {
-      where: { profileId_modioModId: { profileId: profile.id, modioModId: Number(modioModId) } },
+      where: { profileId_modioModId: { profileId: profile.id, modioModId: modId } },
       update: {
-        ...(modioModfileId !== undefined ? { modioModfileId: Number(modioModfileId) } : {}),
+        ...(modioModfileId !== undefined ? { modioModfileId: fileId } : {}),
         ...(modName !== undefined ? { modName } : {}),
         ...(version !== undefined ? { version } : {}),
         ...(enabled !== undefined ? { enabled: !!enabled } : {}),
       },
-      create: { profileId: profile.id, modioModId: Number(modioModId), modioModfileId: modioModfileId ? Number(modioModfileId) : null, modName: modName || null, version: version || null, enabled: enabled !== false },
+      create: { profileId: profile.id, modioModId: modId, modioModfileId: fileId, modName: modName || null, version: version || null, enabled: enabled !== false },
     });
     res.json({ item });
   } catch (err) { next(err); }

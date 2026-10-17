@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { auditReason, auditMetadata } = require('../utils/auditFields');
 const sessionKeep = require('../services/sessionKeep');
 const { SELF_USER_FIELDS } = require('./authController');
 
@@ -7,8 +8,9 @@ const ADMIN_USER_FIELDS = { ...SELF_USER_FIELDS, isPlatformBanned: true, platfor
 function logPlatformAction(req, { action, targetType, targetId, reason, metadata }) {
   return prisma.platformAuditLog.create({
     data: {
-      actorId: req.user.id, action, targetType, targetId, reason,
-      metadata: metadata ? JSON.stringify(metadata) : null,
+      actorId: req.user.id, action, targetType, targetId,
+      reason: auditReason(reason), // VARCHAR(191): corta em vez de dar 500 (ver utils/auditFields.js)
+      metadata: auditMetadata(metadata),
     },
   });
 }
@@ -169,9 +171,9 @@ async function updateUserAdmin(req, res, next) {
 async function banUser(req, res, next) {
   try {
     const { id } = req.params;
-    const { reason } = req.body;
+    const reason = auditReason(req.body?.reason); // platformBanReason é VARCHAR(191)
     const user = await prisma.user.update({
-      where: { id }, data: { isPlatformBanned: true, platformBanReason: reason || null }, select: ADMIN_USER_FIELDS,
+      where: { id }, data: { isPlatformBanned: true, platformBanReason: reason }, select: ADMIN_USER_FIELDS,
     });
     await prisma.refreshToken.updateMany({ where: { userId: id, revoked: false }, data: { revoked: true, revokedAt: new Date(), revokedReason: 'ADMIN' } });
     await sessionKeep.markSessionsRevoked(id);
@@ -196,8 +198,11 @@ async function unbanUser(req, res, next) {
 async function suspendUser(req, res, next) {
   try {
     const { id } = req.params;
-    const { hours, reason } = req.body;
-    const suspendedUntil = new Date(Date.now() + (Number(hours) || 24) * 60 * 60 * 1000);
+    const { hours } = req.body || {};
+    const reason = auditReason(req.body?.reason);
+    // Horas fora da faixa (negativo, 1e12...) davam uma data inválida → 500.
+    const h = Math.min(Math.max(Number(hours) || 24, 1), 24 * 365 * 10);
+    const suspendedUntil = new Date(Date.now() + h * 60 * 60 * 1000);
     const user = await prisma.user.update({ where: { id }, data: { suspendedUntil }, select: ADMIN_USER_FIELDS });
     await prisma.refreshToken.updateMany({ where: { userId: id, revoked: false }, data: { revoked: true, revokedAt: new Date(), revokedReason: 'ADMIN' } });
     await sessionKeep.markSessionsRevoked(id);

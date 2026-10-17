@@ -658,7 +658,7 @@ model PlatformAuditLog {
   targetType String?
   targetId   String?
   reason     String?
-  metadata   String?
+  metadata   String?  @db.Text // JSON livre (links de ícone/banner etc.) — passava de 191 e derrubava a ação com 500
   createdAt  DateTime @default(now())
 }
 
@@ -1470,7 +1470,10 @@ model Poll {
   messageId String   @unique
   message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   question  String
-  options   String
+  // JSON com até 7 opções de até 80 caracteres — não cabe em VARCHAR(191)
+  // (String sem @db.* no MySQL): enquete com opções longas dava erro 500.
+  // VARCHAR → TEXT é uma conversão segura pro `db push` (sem perda de dados).
+  options   String   @db.Text
   expiresAt DateTime
   createdAt DateTime @default(now())
 
@@ -1556,7 +1559,7 @@ model AuditLogEntry {
   targetType String?
   targetId   String?
   reason     String?
-  metadata   String?
+  metadata   String?  @db.Text // JSON livre (links de ícone/banner etc.) — passava de 191 e derrubava a ação com 500
   createdAt  DateTime @default(now())
 
   // perf: consultas frequentes (where + orderBy) desse modelo
@@ -1976,8 +1979,11 @@ model MembershipApplication {
 // membros — separadamente pra PC e pra Mobile, aplicado pra todo mundo). ---
 model UiLayoutConfig {
   device            String  @id // "PC" | "MOBILE"
-  railOrder         String  @default("[]") // JSON array com a ordem das seções (ex: ["/","/dms","/economia",...])
-  railHidden        String  @default("[]") // JSON array das seções escondidas
+  // Campos JSON em TEXT (sem @default: o MySQL não aceita valor padrão em
+  // TEXT; o controller sempre grava os quatro). Em VARCHAR(191) a posição
+  // de 4+ painéis já estourava o limite e o Editor de Interface dava 500.
+  railOrder         String  @db.Text // JSON array com a ordem das seções (ex: ["/","/dms","/economia",...])
+  railHidden        String  @db.Text // JSON array das seções escondidas
   sidebarWidth      Int     @default(280)
   membersWidth      Int     @default(240)
   membersDefaultOpen Boolean @default(true)
@@ -1985,14 +1991,14 @@ model UiLayoutConfig {
   // etc) dentro da grade do app — staff arrasta no Editor de Interface,
   // vale pra TODO MUNDO assim que salva. JSON: { panelId: { gridColumn,
   // gridRow } } — painel sem entrada aqui usa a posição padrão do CSS.
-  panelPositions    String  @default("{}")
+  panelPositions    String  @db.Text
   // Item pedido: "GIFa Move" — posição/tamanho customizados do menu de
   // GIFs, definidos visualmente pela staff no Painel (arrastar +
   // redimensionar por alças, independente por dispositivo). JSON:
   // { left, top, width, height } em pixels (desktop) — vazio "{}" usa
   // o cálculo automático padrão que já existia (perto do botão que
   // abriu o menu).
-  gifMenuLayout     String  @default("{}")
+  gifMenuLayout     String  @db.Text
   updatedAt         DateTime @updatedAt
 }
 

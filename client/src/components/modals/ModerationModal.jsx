@@ -153,7 +153,7 @@ function WarningsTab() {
             </ul>
           )}
         </div>
-        <input placeholder="Motivo da advertência" value={reason} onChange={(e) => setReason(e.target.value)} />
+        <input placeholder="Motivo da advertência" value={reason} maxLength={191} onChange={(e) => setReason(e.target.value)} />
         <button className="btn-secondary" onClick={addWarning} disabled={!targetId || !reason.trim()}>Advertir</button>
       </div>
 

@@ -1,7 +1,7 @@
 import { getExtra } from '../utils/extraPrefs';
 import CodeFilePreview, { isCodeFile } from './CodeFilePreview.jsx';
 import { topReactions, recordReaction, useMsgExtras, toggleSaved, markUnreadFrom, copyMessageLink, toggleIgnore } from '../utils/messageExtras';
-import { useEffect, useRef, useState, memo } from 'react';
+import { useEffect, useMemo, useRef, useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
@@ -741,7 +741,11 @@ function EmbedCard({ embed }) {
 
 function PollCard({ poll, myUserId }) {
   const [showVoters, setShowVoters] = useState(null); // option index currently expanded, or null
-  const options = JSON.parse(poll.options);
+  // JSON vindo do servidor: se vier quebrado, mostra a enquete sem opções em
+  // vez de derrubar a conversa inteira (erro de render → ErrorBoundary).
+  const options = useMemo(() => {
+    try { const list = JSON.parse(poll.options); return Array.isArray(list) ? list : []; } catch { return []; }
+  }, [poll.options]);
   const votes = poll.votes || [];
   const totalVotes = votes.length;
   const myVote = votes.find((v) => v.userId === myUserId)?.optionIndex;

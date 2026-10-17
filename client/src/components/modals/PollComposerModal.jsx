@@ -49,7 +49,7 @@ export default function PollComposerModal({ channelId, conversationId, onClose }
       <form className="settings-grid poll-composer" onSubmit={submit}>
         <label>
           TÍTULO
-          <input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Sobre o que é a enquete?" autoFocus />
+          <input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Sobre o que é a enquete?" maxLength={180} autoFocus />
         </label>
 
         <label>OPÇÕES (até {MAX_OPTIONS})</label>

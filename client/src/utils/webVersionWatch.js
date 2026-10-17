@@ -9,6 +9,8 @@
 // Desktop (Electron) e Android têm o próprio atualizador (ver
 // nativeUpdateCheck.js) — lá isso não roda.
 
+import { BACK_EVENT } from './serverRestart.js';
+
 export const POLL_MS = 5 * 60 * 1000;
 const MIN_GAP_MS = 60 * 1000; // foco/visibilidade não pergunta mais que 1x por minuto
 const DISMISS_KEY = 'pc-update-dismissed';
@@ -64,7 +66,16 @@ export function watchWebVersion({ loaded, onNewVersion, pollMs = POLL_MS }) {
   };
   const timer = setInterval(check, pollMs);
   const onVisible = () => { if (document.visibilityState === 'visible') check(); };
+  // O servidor acabou de voltar de um reinício (deploy — ver
+  // serverRestart.js): é bem provável que tenha versão nova. Confere logo,
+  // sem esperar o próximo ciclo de 5 min (ignora o intervalo mínimo).
+  let backTimer = null;
+  const onServerBack = () => {
+    clearTimeout(backTimer);
+    backTimer = setTimeout(() => { lastCheck = 0; check(); }, 3000);
+  };
   window.addEventListener('focus', check);
+  window.addEventListener(BACK_EVENT, onServerBack);
   document.addEventListener('visibilitychange', onVisible);
   // Primeira checagem depois que o app já abriu (não disputa com a abertura).
   const first = setTimeout(check, 30 * 1000);
@@ -72,7 +83,9 @@ export function watchWebVersion({ loaded, onNewVersion, pollMs = POLL_MS }) {
     stopped = true;
     clearInterval(timer);
     clearTimeout(first);
+    clearTimeout(backTimer);
     window.removeEventListener('focus', check);
+    window.removeEventListener(BACK_EVENT, onServerBack);
     document.removeEventListener('visibilitychange', onVisible);
   };
 }
