@@ -12,16 +12,69 @@
 // Fechamento do WebSocket do servidor de mídia → ação.
 //   'replaced'      → entrou em outro aparelho (4409 / kicked replaced|flapping): NÃO reconecta
 //   'refresh-token' → 4401 (token vencido/recusado): pede token novo e reconecta
-//   'give-up'       → 1008 (abuso) ou expulso: não adianta tentar
-//   'reconnect'     → todo o resto (1006 queda, 1012 servidor reiniciando, 4429, 4503…)
+//   'give-up'       → 1008 (abuso), 4403 ou expulso pela moderação: não adianta tentar
+//   'full'          → 4503 "sala cheia": NÃO reconecta (código de erro 'channel-full'
+//                     — o app mostra "Canal cheio" e NÃO conta como falha do provedor)
+//   'backoff'       → 4429 (muitas tentativas): tenta de novo com espera, sem
+//                     contar como falha do provedor
+//   'reconnect'     → todo o resto (1006 queda, 1012 servidor reiniciando, 4503 indisponível…)
 export function classifyClose({ code, detail, kicked } = {}) {
   const k = kicked == null ? '' : String(kicked);
   if (code === 4409 || k === 'replaced' || k === 'flapping') return 'replaced';
   if (k) return 'give-up';
   if (code === 4401) return 'refresh-token';
-  if (code === 1008) return 'give-up';
-  void detail;
+  if (code === 1008 || code === 4403) return 'give-up';
+  if (code === 4503 && /sala cheia/i.test(String(detail || ''))) return 'full';
+  if (code === 4429) return 'backoff';
   return 'reconnect';
+}
+
+// Erro/saída que NÃO é falha do provedor (não vai pro disjuntor /api/voice/report
+// nem faz trocar de provedor): canal cheio, entrada abortada/descartada (a
+// pessoa saiu/trocou de canal no meio), sem internet, expulso, outro aparelho,
+// sem permissão. `err` pode ser um Error (err.code) ou o info do onLeft.
+const NOT_PROVIDER_FAILURE = new Set(['channel-full', 'aborted', 'disposed', 'offline', 'kicked', 'replaced', 'forbidden', 'rate-limited']);
+export function isProviderFailure(err) {
+  if (!err) return false;
+  if (err.providerFailure === false) return false;
+  if (err.providerFailure === true) return true;
+  const code = String(err.code || err.reason || '');
+  if (NOT_PROVIDER_FAILURE.has(code)) return false;
+  if (err.network === true) return false;
+  return true;
+}
+
+// Reconexão com sessão NOVA: quem estava na sala antes e não está mais no
+// `welcome` saiu enquanto estávamos fora (o peerLeft dele se perdeu) — some
+// da grade. `known`: Set/array de peerIds; `welcomePeers`: [{ id }].
+export function diffPeers(known, welcomePeers) {
+  const now = new Set((welcomePeers || []).map((p) => String(p && p.id != null ? p.id : p)));
+  const before = new Set([...(known || [])].map(String));
+  return {
+    removed: [...before].filter((id) => !now.has(id)),
+    added: [...now].filter((id) => !before.has(id)),
+  };
+}
+
+// Erro de câmera/tela → { reason (pt-BR, pra toast), cancelled }. Fechar o
+// seletor de tela (NotAllowedError no getDisplayMedia) é "cancelado": sem
+// aviso nenhum.
+export function mediaErrorInfo(err, kind = 'camera') {
+  const name = err?.name || '';
+  const msg = String(err?.message || '');
+  if (/^forbidden:video/.test(msg)) {
+    return { reason: kind === 'screen' ? 'Você não tem permissão para transmitir neste canal.' : 'Você não tem permissão para usar vídeo neste canal.', cancelled: false, code: 'forbidden' };
+  }
+  if (kind === 'screen') {
+    if (name === 'NotAllowedError' || name === 'AbortError') return { reason: null, cancelled: true, code: 'cancelled' };
+    if (name === 'NotReadableError') return { reason: 'Não foi possível capturar a tela agora — tente de novo.', cancelled: false, code: 'busy' };
+    if (name === 'NotSupportedError' || name === 'TypeError') return { reason: 'Este navegador não suporta compartilhar a tela.', cancelled: false, code: 'unsupported' };
+    return { reason: 'Não foi possível compartilhar a tela.', cancelled: false, code: 'error' };
+  }
+  if (name === 'NotAllowedError' || name === 'SecurityError' || name === 'PermissionDeniedError') return { reason: 'Sem permissão para a câmera — libere a câmera no navegador.', cancelled: false, code: 'denied' };
+  if (name === 'NotFoundError' || name === 'OverconstrainedError' || name === 'DevicesNotFoundError') return { reason: 'Nenhuma câmera encontrada.', cancelled: false, code: 'missing' };
+  if (name === 'NotReadableError' || name === 'TrackStartError') return { reason: 'A câmera está sendo usada por outro programa.', cancelled: false, code: 'busy' };
+  return { reason: 'Não foi possível ligar a câmera.', cancelled: false, code: 'error' };
 }
 
 // Código curto e seguro (o servidor aceita [\w:.-], até 60) pra /api/voice/report.

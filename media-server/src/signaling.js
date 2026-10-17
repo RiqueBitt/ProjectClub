@@ -8,7 +8,7 @@
 //          produce{transportId,kind,rtpParameters,appData{source,paused}} · closeProducer{producerId}
 //          pauseProducer{producerId} · resumeProducer{producerId}
 //          consume{transportId,producerId,rtpCapabilities} · resumeConsumer{consumerId}
-//          pauseConsumer{consumerId} (ensurdecido: economiza banda)
+//          pauseConsumer{consumerId} (ensurdecido: economiza banda) · closeConsumer{consumerId}
 //          restartIce{transportId} → { iceParameters } · leave · ping
 // Eventos: welcome · peerJoined · peerLeft · newProducer · producerClosed
 //          producerPaused · producerResumed · activeSpeakers · consumerClosed
@@ -475,6 +475,14 @@ function attach(httpServer) {
             // moderação tenha ensurdecido a pessoa (áudio fica pausado).
             await applyConsumerPause(peer, c);
             reply(true, { paused: c.paused });
+            return;
+          }
+          case 'closeConsumer': {
+            // O cliente vai recriar um consumer que travou (resume nunca
+            // respondeu): fecha o antigo pra não ficar pendurado.
+            const c = peer.consumers.get(String(data.consumerId));
+            if (c) { try { c.close(); } catch { /* já */ } }
+            reply(true, {});
             return;
           }
           case 'pauseConsumer': {

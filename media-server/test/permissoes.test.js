@@ -259,6 +259,8 @@ test('set-perms sem VIDEO fecha a câmera que estava no ar; ensurdecer pausa o �
   assert.equal(sc.paused, false);
   const r3 = await b.request('pauseConsumer', { consumerId: cons.consumerId });
   assert.equal(r3.paused, true);
+  await b.request('closeConsumer', { consumerId: cons.consumerId });
+  assert.equal(rooms.rooms.get('perm5').peers.get('u-ouvinte').consumers.has(cons.consumerId), false, 'closeConsumer fecha o consumer travado');
   // Sem VIDEO: a câmera da u-cam é fechada.
   await postControl({ room: 'perm5', peerId: 'u-cam', action: 'set-perms', perms: { canVideo: false } });
   const st = await a.waitEvent('serverState');

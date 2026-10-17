@@ -186,27 +186,66 @@ try {
   await A.evaluate(() => window.engine.setMicEnabled(true));
   await waitFor(A, (ev) => ev.filter((e) => e.type === 'selfMute').at(-1)?.a[0] === false, 'Ana: onSelfMute(false)');
 
-  console.log('\n[7a] Portão do microfone (apertar-pra-falar): silêncio sem mudar o mudo');
+  console.log('\n[7a] Portão do microfone (pipeline único: ganho 0/1 antes do envio) — silêncio sem mudar o mudo');
   const gate = await A.evaluate(async () => {
     const e = window.engine;
+    const sleepIn = (ms) => new Promise((r) => setTimeout(r, ms));
     const muteEvents = () => window.events.filter((x) => x.type === 'selfMute').length;
     const m0 = muteEvents();
+    const mode = e.getMicGateState().pipelineMode;
     e.setMicGate(false);
-    const closed = e.localTracks.mic.enabled;
-    // Mudar e desmutar com o portão fechado: o resume() não pode reabrir a faixa.
+    await sleepIn(80);
+    const closed = e.getMicGateState();
+    // Mudar e desmutar com o portão fechado: continua em silêncio.
     await e.setMicEnabled(false);
     await e.setMicEnabled(true);
-    const afterUnmute = e.localTracks.mic.enabled;
+    await sleepIn(80);
+    const afterUnmute = e.getMicGateState();
     e.setMicGate(true);
-    const opened = e.localTracks.mic.enabled;
+    await sleepIn(80);
+    const opened = e.getMicGateState();
     const raw = e.getLocalMicTrack({ raw: true });
-    return { closed, afterUnmute, opened, raw: !!raw && raw.readyState === 'live', muteDelta: muteEvents() - m0, paused: e.producers.mic.paused };
+    const sent = e.getLocalMicTrack();
+    return {
+      mode, closed, afterUnmute, opened, raw: !!raw && raw.readyState === 'live', processedIsSent: sent === e.localTracks.mic && sent !== raw,
+      muteDelta: muteEvents() - m0, paused: e.producers.mic.paused, trackEnabled: e.localTracks.mic.enabled,
+    };
   });
-  assert(gate.closed === false, 'portão fechado: faixa do mic desabilitada');
-  assert(gate.afterUnmute === false, 'desmutar com o portão fechado continua em silêncio');
-  assert(gate.opened === true && gate.paused === false, 'portão aberto: faixa volta e o producer está no ar');
-  assert(gate.raw, 'getLocalMicTrack({ raw: true }) devolve a captura viva (pro medidor de nível)');
+  assert(gate.mode === 'graph', `pipeline do mic rodando no Web Audio (${gate.mode})`);
+  assert(gate.closed.open === false && gate.closed.gateValue < 0.01, `portão fechado: ganho 0 (${gate.closed.gateValue})`);
+  assert(gate.afterUnmute.open === false && gate.afterUnmute.gateValue < 0.01, 'desmutar com o portão fechado continua em silêncio');
+  assert(gate.opened.open === true && gate.opened.gateValue > 0.99 && gate.paused === false && gate.trackEnabled, 'portão aberto: ganho 1, faixa ligada e o producer no ar');
+  assert(gate.raw, 'getLocalMicTrack({ raw: true }) devolve a captura viva');
+  assert(gate.processedIsSent, 'getLocalMicTrack() devolve a faixa PROCESSADA (a que vai pra call — gravação usa esta)');
   assert(gate.muteDelta === 2, 'o portão não dispara onSelfMute (só o mudo/desmudo manual)');
+
+  console.log('\n[7a2] Apertar pra falar + medidor local');
+  const ptt = await A.evaluate(async () => {
+    const e = window.engine;
+    const sleepIn = (ms) => new Promise((r) => setTimeout(r, ms));
+    const levels0 = window.levels;
+    e.setPushToTalk(true);
+    await sleepIn(60);
+    const idle = e.getMicGateState();
+    e.setPttPressed(true);
+    await sleepIn(60);
+    const pressed = e.getMicGateState();
+    e.setPttPressed(false);
+    await sleepIn(80);
+    const inRelease = e.getMicGateState().open;
+    await sleepIn(250);
+    const released = e.getMicGateState();
+    e.setPushToTalk(false);
+    await sleepIn(60);
+    const off = e.getMicGateState();
+    return { idle, pressed, inRelease, released, off, levels: window.levels - levels0, meter: e.isMicMeterActive() };
+  });
+  assert(ptt.idle.mode === 'ptt' && ptt.idle.open === false && ptt.idle.gateValue < 0.01, 'PTT ligado: fechado sem a tecla');
+  assert(ptt.pressed.open === true && ptt.pressed.gateValue > 0.99, 'tecla apertada: abre');
+  assert(ptt.inRelease === true, 'continua aberto na folga depois de soltar (200ms)');
+  assert(ptt.released.open === false, 'fecha depois da folga');
+  assert(ptt.off.open === true && ptt.off.mode === 'open', 'PTT desligado: aberto de novo');
+  assert(ptt.meter && ptt.levels >= 2, `onLocalLevel chegando (~10/s) — ${ptt.levels} leituras`);
 
   console.log('\n[7b] Qualidade da conexão e ping (getStats de verdade)');
   await waitFor(A, (ev) => ev.some((e) => e.type === 'netQuality' && e.a[0].ana >= 1 && e.a[0].beto >= 1), 'Ana: onNetQuality com ela e o Beto (1..6)', 8000);
@@ -233,15 +272,59 @@ try {
   await C.goto(PAGE);
   await C.evaluate(({ url, token, userId }) => window.joinRoom({ url, token, userId, noiseSuppression: true }), { url: WS, token: token('caio', 'Caio'), userId: 'caio' });
   await waitFor(C, (ev) => ev.some((e) => e.type === 'selfMute' && e.a[0] === false), 'Caio: microfone publicado com o redutor');
-  const noiseOn = await C.evaluate(() => !!window.engine.noise && window.engine.localTracks.mic === window.engine.noise.track);
-  assert(noiseOn, 'a faixa publicada é a saída do RNNoise (não o mic cru)');
+  const noiseOn = await C.evaluate(async () => {
+    const e = window.engine;
+    for (let i = 0; i < 30 && !e.pipeline?.noiseActive; i += 1) await new Promise((r) => setTimeout(r, 100));
+    return !!e.pipeline?.noiseActive && e.localTracks.mic === e.pipeline.track && e.localTracks.mic !== e.rawMic;
+  });
+  assert(noiseOn, 'a faixa publicada é a saída do pipeline com RNNoise (não o mic cru)');
   await waitFor(A, (ev) => ev.some((e) => e.type === 'remoteAudio' && e.a[0] === 'caio' && e.a[1].active), 'Ana recebe o áudio processado do Caio');
   await sleep(2000);
   const txC = await C.evaluate(() => window.bytesSent());
   assert(txC > 0, 'Caio envia RTP com o redutor ligado');
   await C.evaluate(() => window.engine.setNoiseSuppression(false));
+  assert(!(await C.evaluate(() => window.engine.pipeline.noiseActive)), 'RNNoise desligado no meio da call (mesma faixa)');
   await C.evaluate(() => window.engine.dispose());
   await ctxC.close();
+
+  console.log('\n[7d2] Entrou MUDO → microfone publicado JÁ PAUSADO no servidor (nada vaza)');
+  {
+    const ctxM = await browser.newContext(); const M = await ctxM.newPage();
+    M.on('pageerror', (e) => console.error('[M pageerror]', e.message));
+    await M.goto(PAGE);
+    await M.evaluate(({ url, token, userId }) => window.joinRoom({ url, token, userId, startMuted: true }), { url: WS, token: token('mudo', 'Mudo'), userId: 'mudo' });
+    await waitFor(M, (ev) => ev.some((e) => e.type === 'selfMute' && e.a[0] === true), 'Mudo: onSelfMute(true)');
+    const peerM = rooms.rooms.get('pc_e2e')?.peers.get('mudo');
+    const micM = peerM && [...peerM.producers.values()].find((p) => p.appData.source === 'mic');
+    assert(micM && micM.paused === true, 'producer do mic nasceu pausado no servidor');
+    await M.evaluate(() => window.engine.dispose());
+    await ctxM.close();
+  }
+
+  console.log('\n[7d3] Ensurdecer economiza banda: o servidor pausa o áudio que chega pro Beto');
+  {
+    const audioConsumers = () => [...(rooms.rooms.get('pc_e2e')?.peers.get('beto')?.consumers.values() || [])].filter((c) => c.kind === 'audio');
+    await B.evaluate(() => window.engine.setDeafened(true));
+    assert(audioConsumers().length > 0 && audioConsumers().every((c) => c.paused), 'consumers de áudio do Beto PAUSADOS no servidor');
+    await B.evaluate(() => window.engine.setDeafened(false));
+    assert(audioConsumers().every((c) => !c.paused), 'desensurdeceu: voltaram');
+  }
+
+  console.log('\n[7d4] Mudo da moderação (POST /control) vale NA MÍDIA');
+  {
+    const betoMic = () => [...(rooms.rooms.get('pc_e2e')?.peers.get('beto')?.producers.values() || [])].find((p) => p.appData.source === 'mic');
+    assert(betoMic() && !betoMic().paused, 'Beto falando antes');
+    await signaling.control({ room: 'pc_e2e', peerId: 'beto', action: 'pause-audio' });
+    await waitFor(B, (ev) => ev.some((e) => e.type === 'serverState' && e.a[0].serverMuted === true), 'Beto: onServerState({ serverMuted: true })');
+    assert(betoMic().paused, 'mic do Beto pausado no servidor');
+    await B.evaluate(() => window.engine.setMicEnabled(true));
+    assert(betoMic().paused, 'desmutar por conta própria NÃO fura o mudo da moderação');
+    assert(await B.evaluate(() => window.engine.producers.mic.paused), 'e o producer local fica pausado também');
+    await signaling.control({ room: 'pc_e2e', peerId: 'beto', action: 'resume-allowed' });
+    await waitFor(B, (ev) => ev.filter((e) => e.type === 'serverState').at(-1)?.a[0].serverMuted === false, 'Beto: liberado');
+    const t0 = Date.now(); while (Date.now() - t0 < 3000 && betoMic().paused) await sleep(100);
+    assert(!betoMic().paused, 'liberou: o mic do Beto (que não estava mudo) volta sozinho');
+  }
 
   console.log('\n[7e] Worker do mediasoup morre → servidor segue vivo, os dois reconectam e voltam a se ouvir');
   {

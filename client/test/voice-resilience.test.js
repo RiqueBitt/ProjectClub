@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   classifyClose, failureCode, withTimeout, createFailureMemory, importWithRetry, guardedReload, iceAction, isChunkError, micErrorReason,
+  diffPeers, mediaErrorInfo, isProviderFailure,
 } from '../src/voice/resilience.js';
 
 test('classifyClose segue o contrato do media-server', () => {
@@ -18,8 +19,15 @@ test('classifyClose segue o contrato do media-server', () => {
   // Servidor reiniciando a sala / queda de rede / limites: reconecta.
   assert.equal(classifyClose({ code: 1012 }), 'reconnect');
   assert.equal(classifyClose({ code: 1006 }), 'reconnect');
-  assert.equal(classifyClose({ code: 4429 }), 'reconnect');
   assert.equal(classifyClose({ code: 4503 }), 'reconnect');
+  assert.equal(classifyClose({ code: 4503, detail: 'sala indisponível, tente de novo' }), 'reconnect');
+  // Sala cheia: NÃO reconecta (o app mostra "Canal cheio").
+  assert.equal(classifyClose({ code: 4503, detail: 'sala cheia' }), 'full');
+  // Muitas tentativas: espera e tenta de novo, sem contar como falha do provedor.
+  assert.equal(classifyClose({ code: 4429 }), 'backoff');
+  // Expulso pela moderação (4403): não volta.
+  assert.equal(classifyClose({ code: 4403 }), 'give-up');
+  assert.equal(classifyClose({ code: 4403, kicked: 'moved' }), 'give-up');
   // Abuso / expulso por outro motivo: desiste.
   assert.equal(classifyClose({ code: 1008 }), 'give-up');
   assert.equal(classifyClose({ code: 1000, kicked: 'banido' }), 'give-up');
@@ -110,4 +118,35 @@ test('micErrorReason separa negado / ocupado / ausente', () => {
   assert.equal(micErrorReason({ name: 'NotFoundError' }), 'missing');
   assert.equal(micErrorReason({ name: 'OverconstrainedError' }), 'missing');
   assert.equal(micErrorReason(new Error('limite de mídias')), null);
+});
+
+test('diffPeers: reconexão com sessão nova tira quem saiu enquanto estávamos fora', () => {
+  const r = diffPeers(new Set(['a', 'b', 'c']), [{ id: 'b' }, { id: 'd' }]);
+  assert.deepEqual(r.removed.sort(), ['a', 'c']);
+  assert.deepEqual(r.added, ['d']);
+  assert.deepEqual(diffPeers([], []), { removed: [], added: [] });
+  assert.deepEqual(diffPeers(['x'], undefined).removed, ['x'], 'welcome sem peers = todo mundo saiu');
+});
+
+test('mediaErrorInfo: mensagens amigáveis e seletor de tela fechado = cancelado (sem aviso)', () => {
+  const err = (name, message = '') => Object.assign(new Error(message), { name });
+  assert.deepEqual(mediaErrorInfo(err('NotAllowedError'), 'screen'), { reason: null, cancelled: true, code: 'cancelled' });
+  assert.match(mediaErrorInfo(err('NotAllowedError'), 'camera').reason, /permissão para a câmera/);
+  assert.equal(mediaErrorInfo(err('NotAllowedError'), 'camera').cancelled, false);
+  assert.match(mediaErrorInfo(err('NotFoundError'), 'camera').reason, /Nenhuma câmera/);
+  assert.match(mediaErrorInfo(err('NotReadableError'), 'camera').reason, /outro programa/);
+  assert.match(mediaErrorInfo(new Error('forbidden:video — x'), 'camera').reason, /permissão para usar vídeo/);
+  assert.match(mediaErrorInfo(new Error('forbidden:video — x'), 'screen').reason, /permissão para transmitir/);
+  assert.match(mediaErrorInfo(new Error('qualquer'), 'screen').reason, /compartilhar a tela/);
+});
+
+test('isProviderFailure: cheio/abortado/offline/expulso/limite não são culpa do provedor', () => {
+  for (const code of ['channel-full', 'aborted', 'disposed', 'offline', 'kicked', 'replaced', 'rate-limited']) {
+    assert.equal(isProviderFailure({ code }), false, code);
+  }
+  assert.equal(isProviderFailure({ reason: 'gave-up', network: true }), false, 'caiu por falta de internet');
+  assert.equal(isProviderFailure({ reason: 'gave-up', providerFailure: true }), true);
+  assert.equal(isProviderFailure(Object.assign(new Error('x'), { code: 'ICE_TIMEOUT' })), true);
+  assert.equal(isProviderFailure(Object.assign(new Error('x'), { code: 'WS_1006', providerFailure: false })), false);
+  assert.equal(isProviderFailure(null), false);
 });

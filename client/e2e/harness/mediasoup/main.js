@@ -30,7 +30,8 @@ window.audioElements = () => document.querySelectorAll('audio[data-voice-uid]').
 window.refreshCalls = 0;
 window.nextToken = null;
 
-window.joinRoom = async ({ url, token, userId, startMuted = false, noiseSuppression = false }) => {
+window.levels = 0;
+window.joinRoom = async ({ url, token, userId, startMuted = false, startDeafened = false, noiseSuppression = false }) => {
   const engine = createMediasoupEngine({
     onJoined: (id) => log('joined', id),
     onLeft: (info) => log('left', info || null),
@@ -51,10 +52,14 @@ window.joinRoom = async ({ url, token, userId, startMuted = false, noiseSuppress
     onRemoteVideo: (u, s, k) => { log('remoteVideo', u, s, k); window.lastVideo = s; },
     onRemoteRemove: (u, k) => { log('remoteRemove', u, k); if (k === 'audio' || k === 'all') stopStream(u); },
     onError: (e, i) => log('error', String((e && e.message) || e), i),
+    onLocalLevel: () => { window.levels += 1; },
+    onServerState: (s) => log('serverState', s),
+    onTelemetry: (t) => log('telemetry', t),
+    onMediaError: (m) => log('mediaError', m),
   });
   window.engine = engine;
   await engine.join({
-    url, token, userId, iceServers: [], startMuted, noiseSuppression,
+    url, token, userId, iceServers: [], startMuted, startDeafened, noiseSuppression,
     refreshCredentials: async () => { window.refreshCalls += 1; return window.nextToken ? { token: window.nextToken } : null; },
   });
   return true;
