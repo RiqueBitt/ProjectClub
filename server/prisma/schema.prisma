@@ -2187,7 +2187,8 @@ model FileAsset {
   @@index([ownerId])
 }
 
-// ============================================================
+// =====================================================}
+
 // Item pedido: "sistema completo chamado Clans" — comunidades
 // pequenas dentro da plataforma, cada usuário em no máximo um clã
 // por vez (ver User.clanId acima). Modelos próprios, dedicados, em
@@ -3905,4 +3906,41 @@ model SectionSeen {
   seenAt  DateTime @default(now())
 
   @@id([userId, section])
+=======
+// Primeiros passos (checklist de boas-vindas) + tour. Uma linha por pessoa
+// por passo: completedAt = o servidor confirmou que o passo foi feito
+// (conferido no banco ou por evento do próprio servidor, nunca pelo
+// cliente); claimedAt = a recompensa já foi paga (uma vez só, garantido
+// pelo updateMany com claimedAt: null). Passos especiais sem recompensa:
+// TOUR (tour visto) e DISMISS (checklist escondido). Ver services/onboarding.js.
+model UserOnboardingStep {
+  userId      String
+  step        String    @db.VarChar(32)
+  completedAt DateTime?
+  claimedAt   DateTime?
+  coins       Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@id([userId, step])
+}
+
+// Backups automáticos do banco (job diário + botão no painel da staff).
+// Só o histórico/estado; o arquivo fica no S3 compatível (BACKUP_S3_*) ou
+// em BACKUP_DIR. Ver services/dbBackup.js.
+model DbBackup {
+  id         String    @id @default(uuid())
+  status     String    @db.VarChar(16) // RUNNING | OK | FAILED
+  trigger    String    @db.VarChar(16) // SCHEDULE | MANUAL
+  method     String?   @db.VarChar(16) // mysqldump | node
+  location   String?   @db.VarChar(512)
+  fileName   String?   @db.VarChar(255)
+  sizeBytes  BigInt?
+  tables     Int?
+  rows       BigInt?
+  error      String?   @db.Text
+  startedBy  String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([startedAt])
 }

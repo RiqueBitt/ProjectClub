@@ -25,6 +25,9 @@ desktop/out/
 # Arquivos enviados por usuários (armazenamento local, não faz sentido versionar)
 server/uploads/
 
+# Backups do banco gravados em disco (services/dbBackup.js) — dados reais
+server/backups/
+
 # Logs
 npm-debug.log*
 *.log

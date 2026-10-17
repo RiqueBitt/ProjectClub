@@ -55,7 +55,7 @@ export default function MembersList({ onToggle }) {
   const restOnline = online.filter((m) => !used.has(m.user.id));
 
   return (
-    <aside className="members-list">
+    <aside className="members-list" aria-label="Membros">
       <button className="icon-btn members-collapse" onClick={onToggle}>›</button>
       {!communityLoaded && members.length === 0 && <ListSkeleton variant="members" rows={9} label="Carregando membros…" />}
       {groups.map((g) => (

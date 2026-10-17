@@ -161,6 +161,8 @@ require('./services/reminders').startReminders(io);
 // Faxina diária do banco (tokens vencidos, avisos lidos antigos, ErrorLog
 // velho...) — 5 min depois do boot e depois a cada 24h. Ver cleanupJobs.js.
 require('./services/cleanupJobs').startCleanupJobs();
+// Backup diário do banco (BACKUP_HOUR, padrão 4h de Brasília) — ver dbBackup.js.
+require('./services/dbBackup').startBackupScheduler(io);
 // Avisos sociais: aniversário de amizade (1x por dia).
 require('./services/profileUpdates').startSocialJobs(io);
 // Itens da Loja com prazo (recompensa de missão) somem quando vencem.

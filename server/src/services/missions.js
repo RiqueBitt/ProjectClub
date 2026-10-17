@@ -161,6 +161,8 @@ async function isDone(key) {
 async function track(userId, type, amount = 1, io = null) {
   try {
     if (!userId || !MISSION_TYPES[type] || !(amount > 0)) return;
+    // Primeiros passos: avisa o checklist (a conferência é no resgate).
+    if (type === 'MESSAGES' || type === 'REACTIONS') require('./onboarding').nudge(userId, type === 'MESSAGES' ? 'FIRST_MESSAGE' : 'REACT', io);
     const missions = (await getActiveMissions()).filter((m) => m.type === type);
     if (missions.length === 0) return;
     const now = new Date();

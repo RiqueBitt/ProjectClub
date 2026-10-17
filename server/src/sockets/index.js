@@ -803,6 +803,7 @@ function initSockets(httpServer) {
         }
         if (added.status === 'added' && added.size === 1) await voiceStore.setStartedAt(channelId, Date.now());
         socket.join(`voice:${channelId}`);
+        if (added.status === 'added') require('../services/onboarding').markEvent(userId, 'JOIN_VOICE', io); // primeiros passos
         if (mod.serverMuted || mod.serverDeafened) {
           io.to(`user:${userId}`).emit('voice:server-state', { channelId, serverMuted: mod.serverMuted, serverDeafened: mod.serverDeafened });
         }

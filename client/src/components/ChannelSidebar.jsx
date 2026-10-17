@@ -314,7 +314,7 @@ export default function ChannelSidebar({
 
       {topSlot}
 
-      <nav className="sidebar-list" onContextMenu={onListContextMenu}>
+      <nav className="sidebar-list" aria-label="Canais" onContextMenu={onListContextMenu}>
         {/* Canais em destaque (Eventos, Feed, Galeria) — sempre no topo. */}
         <FeaturedChannels canManage={canManage} />
         {!communityLoaded && channels.length === 0 && categories.length === 0 && <ListSkeleton variant="channels" label="Carregando canais…" />}
@@ -391,8 +391,8 @@ export default function ChannelSidebar({
               </button>
               {canManage && (
                 <span className="category-actions">
-                  <button className="icon-btn-small" title="Criar canal nesta categoria" onClick={() => setChannelModal({ open: true, categoryId: cat.id })}><img className="ui-icon-sm" src={plusIcon} alt="+" /></button>
-                  <button className="icon-btn-small" title="Editar categoria" onClick={() => setEditCategory(cat)}><img className="ui-icon-sm" src={settingsIcon} alt="" /></button>
+                  <button className="icon-btn-small" title="Criar canal nesta categoria" aria-label={`Criar canal em ${cat.name}`} onClick={() => setChannelModal({ open: true, categoryId: cat.id })}><img className="ui-icon-sm" src={plusIcon} alt="" /></button>
+                  <button className="icon-btn-small" title="Editar categoria" aria-label={`Editar categoria ${cat.name}`} onClick={() => setEditCategory(cat)}><img className="ui-icon-sm" src={settingsIcon} alt="" /></button>
                   <button className="icon-btn-small" title="Excluir categoria" onClick={() => removeCategory(cat.id)}><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button>
                 </span>
               )}
@@ -561,6 +561,8 @@ function ChannelGroup({
                 // original do reload de página inteira): só um clique
                 // simples chamando navigate() por dentro do app.
                 onClick={() => { if (ch.id !== activeChannelId) navigate(`/channels/${ch.id}`); }}
+                data-channel-id={ch.id} data-channel-type={ch.type}
+                aria-current={ch.id === activeChannelId ? 'page' : undefined}
                 className={`sidebar-item channel-item ${ch.id === activeChannelId ? 'active' : ''} ${unread && !notify.muted ? 'unread' : ''} ${notify.muted ? 'is-muted' : ''}`}
               >
                 <ChannelIcon channel={ch} />
