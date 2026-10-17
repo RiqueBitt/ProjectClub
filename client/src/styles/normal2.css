@@ -317,22 +317,8 @@ html.layout-n2-root { --n2-sidebar-width: 292px; }
 /* ============================================================
    Revisão de layout (barra lateral mais leve)
    - Banner da comunidade mais baixo: ocupava ~1/5 da altura da coluna.
-   - Anúncios/Eventos/Fórum/Loja no mesmo visual dos canais, só com o
-     ícone colorido (antes cada um era uma caixa colorida com borda e
-     disputava atenção com os chats).
+   (Anúncios/Eventos/Fórum/Loja continuam com as caixinhas coloridas.)
    ============================================================ */
 @media (min-width: 601px) {
   .n2-sidebar .sidebar-banner-img { max-height: 128px; }
 }
-.n2-sidebar .featured-channels { gap: 1px; padding-bottom: 8px; }
-.n2-sidebar .sidebar-item.featured-channel {
-  background: transparent; box-shadow: none; color: var(--channels-default, var(--text-muted)); font-weight: 600;
-}
-.n2-sidebar .sidebar-item.featured-channel:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
-.n2-sidebar .sidebar-item.featured-channel.active {
-  background: color-mix(in srgb, var(--fc) 14%, transparent); box-shadow: none; color: var(--header-primary);
-}
-.n2-sidebar .sidebar-item.featured-channel::after { opacity: 0; }
-.n2-sidebar .sidebar-item.featured-channel.active::after { opacity: 1; }
-.n2-sidebar .featured-channel-icon { background: transparent; width: 20px; height: 20px; }
-.n2-sidebar .featured-channel-icon svg { width: 16px; height: 16px; }
