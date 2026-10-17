@@ -22,7 +22,7 @@ const mediasoup = require('mediasoup');
 const { config, transportPortRange, WEBRTC_SERVER_PORT_RESERVE } = require('./config');
 const perm = require('./permissions');
 
-const log = (...a) => console.log('[media]', ...a);
+const log = (...a) => console.log(new Date().toISOString(), '[media]', ...a);
 
 // Fecha o WebSocket de um participante sem nunca lançar.
 function closeSocket(socket, code, reason) {

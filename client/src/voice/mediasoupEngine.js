@@ -145,9 +145,13 @@ const REQUEST_TIMEOUT_MS = 15000;
 // Sem `welcome` nesse tempo, a conexão conta como falha (antes esperava pra sempre).
 const CONNECT_TIMEOUT_MS = 10000;
 const STATS_INTERVAL_MS = 2000;
-// Batimento da sinalização: ping a cada 5s, 3s de prazo.
+// Batimento da sinalização: ping a cada 5s, 4s de prazo. Só refaz a sessão
+// depois de 2 pings perdidos SEGUIDOS — antes UM ping atrasado (4G/wi-fi
+// oscilando por 3s) derrubava a chamada inteira e mostrava "reconectando"
+// mesmo com o áudio passando normalmente.
 const KEEPALIVE_MS = 5000;
-const PING_TIMEOUT_MS = 3000;
+const PING_TIMEOUT_MS = 4000;
+const PING_MISSES_TO_RECONNECT = 2;
 // O relógio pulou mais que isso entre dois batimentos → o PC dormiu.
 const SLEEP_JUMP_MS = 15000;
 // Sem internet: confere de novo de tempos em tempos (o evento `online` às
@@ -753,6 +757,7 @@ export class MediasoupEngine {
 
   _startKeepalive() {
     this._stopKeepalive();
+    this._pingMisses = 0;
     this.lastBeatAt = Date.now();
     this.keepaliveTimer = setInterval(() => { this._beat(); }, KEEPALIVE_MS);
   }
@@ -778,8 +783,16 @@ export class MediasoupEngine {
     this._pinging = true;
     try {
       await this._request('ping', {}, PING_TIMEOUT_MS);
+      this._pingMisses = 0;
     } catch {
-      if (!this.disposed && !this.leaving && !this.reconnecting) this._scheduleReconnect('sinalização sem resposta (ping)', { immediate: true });
+      this._pingMisses = (this._pingMisses || 0) + 1;
+      // A mídia ainda passando (transport conectado) e foi só 1 ping: espera o próximo.
+      const mediaOk = this.sendTransport?.connectionState === 'connected' || this.recvTransport?.connectionState === 'connected';
+      const socketDead = !this.ws || this.ws.readyState !== WebSocket.OPEN;
+      if (!this.disposed && !this.leaving && !this.reconnecting && (socketDead || this._pingMisses >= PING_MISSES_TO_RECONNECT || !mediaOk)) {
+        this._pingMisses = 0;
+        this._scheduleReconnect('sinalização sem resposta (ping)', { immediate: true });
+      }
     } finally {
       this._pinging = false;
     }
