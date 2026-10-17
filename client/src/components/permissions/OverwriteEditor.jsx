@@ -11,6 +11,7 @@ import {
 } from '../../api/endpoints';
 import { overwriteGroups, overwriteToState, stateToLists, hasBit } from '../../utils/permissionCatalog';
 import UserAvatar from '../UserAvatar.jsx';
+import UiIcon from '../UiIcon.jsx';
 import { Switch, TriState, PermissionList, SearchBox, SaveBar, RoleDot } from './PermUI.jsx';
 
 const API = {
@@ -199,7 +200,7 @@ export default function OverwriteEditor({ kind, targetId, channelType, category,
       {kind === 'channel' && onPrivateChange && (
         <div className="pm-card">
           <div className="pm-row-head">
-            <span className="pm-row-name">🔒 Canal privado</span>
+            <span className="pm-row-name"><UiIcon name="lock" size={14} /> Canal privado</span>
             <Switch checked={isPrivate} onChange={onPrivateChange} label="Canal privado" />
           </div>
           <p className="pm-row-desc">Só membros e cargos adicionados abaixo (com “Ver canais” permitido) e administradores vão poder ver este canal.</p>

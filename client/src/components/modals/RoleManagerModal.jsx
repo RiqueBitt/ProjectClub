@@ -14,6 +14,7 @@ import { PERMISSIONS, getMyCommunityPermissions } from '../../utils/permissions'
 import { ROLE_GROUPS, bits, hasBit } from '../../utils/permissionCatalog';
 import { isGradientColor, gradientStops, makeGradient } from '../../utils/roleColor';
 import UserAvatar from '../UserAvatar.jsx';
+import UiIcon from '../UiIcon.jsx';
 import { Switch, PermissionList, SearchBox, SaveBar, RoleDot } from '../permissions/PermUI.jsx';
 
 const SWATCHES = [
@@ -240,7 +241,7 @@ export default function RoleManagerModal({ onClose }) {
               <button type="button" className="pm-back" onClick={() => { if (guardSwitch()) setMobilePane('list'); }}>‹ Cargos</button>
               <h3>EDITAR CARGO — {selected.isDefault ? '@TODOS' : (cur.name || '').toUpperCase()}</h3>
             </div>
-            {!editable && <div className="pm-sync">🔒 Este cargo está no nível do seu cargo mais alto ou acima — só dá para ver.</div>}
+            {!editable && <div className="pm-sync"><UiIcon name="lock" size={14} /> Este cargo está no nível do seu cargo mais alto ou acima — só dá para ver.</div>}
             <nav className="pm-tabs">
               {tabs.map(([k, l]) => <button type="button" key={k} className={activeTab === k ? 'active' : ''} onClick={() => setTab(k)}>{l}</button>)}
             </nav>

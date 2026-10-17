@@ -6671,3 +6671,9 @@ a.embed-card-title:hover { text-decoration: underline; }
   .top-search-bar-actions .qs-trigger,
   .top-search-bar-actions .pc-focus-btn { display: none; }
 }
+/* Ícones de interface em traço (components/UiIcon.jsx). Classe própria pra
+   não herdar o tamanho fixo de .ui-icon (que é dos PNGs). */
+.ui-stroke-icon { display: inline-block; flex-shrink: 0; vertical-align: -0.18em; }
+h2 > .ui-stroke-icon:first-child, h3 > .ui-stroke-icon:first-child, h4 > .ui-stroke-icon:first-child { margin-right: 4px; color: var(--text-muted); }
+.ui-icon-text { display: inline-flex; align-items: center; gap: 6px; }
+.mod-tab:has(> .ui-stroke-icon), .btn-link:has(> .ui-stroke-icon) { display: inline-flex; align-items: center; gap: 6px; }
