@@ -2782,7 +2782,7 @@ function VoiceSettingsTab() {
       <div className="settings-block settings-toggle-row">
         <div>
           <h4>Redutor de ruído</h4>
-          <p className="dim">Remove ruído de fundo (ventilador, teclado, eco) e nivela o volume do seu microfone. No servidor de voz próprio usa o RNNoise (rede neural, igual ao do Jitsi). Desligue se usa microfone de estúdio e prefere o som original.</p>
+          <p className="dim">Remove ruído de fundo (ventilador, teclado, eco) e nivela o volume do seu microfone. No servidor de voz próprio usa o RNNoise (rede neural). Desligue se usa microfone de estúdio e prefere o som original.</p>
         </div>
         <Toggle on={prefs.noiseReduction} onChange={(v) => { updatePref('noiseReduction', v); if (getExtra().inputProfile !== 'custom') setExtra({ inputProfile: 'custom' }); }} label="Redutor de ruído" />
       </div>

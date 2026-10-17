@@ -3,9 +3,7 @@
 //   - classifyClose: o que fazer quando o servidor de mídia fecha o WebSocket
 //     (contrato do media-server/src/signaling.js);
 //   - failureCode: código curto do erro pra POST /api/voice/report;
-//   - withTimeout: provedor que "trava" sem responder conta como falha;
-//   - createFailureMemory: provedores que falharam NESTE aparelho ficam fora
-//     da lista clientReady por um tempo (o poll de troca não volta pra eles);
+//   - withTimeout: servidor de voz que "trava" sem responder conta como falha;
 //   - importWithRetry: import() de SDK que falhou (deploy novo trocou o nome
 //     do arquivo) tenta de novo e, por fim, pede UM recarregamento.
 
@@ -29,8 +27,8 @@ export function classifyClose({ code, detail, kicked } = {}) {
   return 'reconnect';
 }
 
-// Erro/saída que NÃO é falha do provedor (não vai pro disjuntor /api/voice/report
-// nem faz trocar de provedor): canal cheio, entrada abortada/descartada (a
+// Erro/saída que NÃO é falha do servidor de voz (não vai pra telemetria
+// /api/voice/report nem dispara a recuperação da mídia): canal cheio, entrada abortada/descartada (a
 // pessoa saiu/trocou de canal no meio), sem internet, expulso, outro aparelho,
 // sem permissão. `err` pode ser um Error (err.code) ou o info do onLeft.
 const NOT_PROVIDER_FAILURE = new Set(['channel-full', 'aborted', 'disposed', 'offline', 'kicked', 'replaced', 'forbidden', 'rate-limited']);
@@ -101,25 +99,6 @@ export function withTimeout(promise, ms, code = 'TIMEOUT') {
     }, ms);
   });
   return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
-}
-
-// Memória local de provedores que falharam neste aparelho.
-export function createFailureMemory({ ttlMs = 10 * 60 * 1000, now = () => Date.now() } = {}) {
-  const failedAt = new Map();
-  const prune = () => { const t = now(); for (const [p, at] of failedAt) if (t - at >= ttlMs) failedAt.delete(p); };
-  return {
-    mark(provider) { if (provider) failedAt.set(String(provider), now()); },
-    clear(provider) { if (provider) failedAt.delete(String(provider)); else failedAt.clear(); },
-    has(provider) { prune(); return failedAt.has(String(provider)); },
-    excluded() { prune(); return [...failedAt.keys()]; },
-    // Lista "clientReady" sem os que falharam. Se TODOS falharam, devolve a
-    // lista original (melhor tentar de novo do que não ter provedor nenhum).
-    filter(list) {
-      prune();
-      const out = (list || []).filter((p) => !failedAt.has(p));
-      return out.length ? out : [...(list || [])];
-    },
-  };
 }
 
 export const CHUNK_ERROR_RE = /dynamically imported module|Importing a module script failed|error loading dynamically imported|Failed to fetch dynamically|ChunkLoadError|Loading chunk [\w-]+ failed/i;

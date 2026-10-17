@@ -368,10 +368,8 @@
 .voice-roster-item { padding: 3px 0; gap: 8px; font-size: 12.5px; }
 
 /* ============================================================
-   Modo reserva (Jitsi) — ver client/src/voice/* e docs/voice-fallback.md.
-   Aparece só quando o servidor de mídia próprio não está disponível e a
-   mídia caiu pro provedor de backup. A conferência do Jitsi ocupa o palco; a nossa barra
-   de controles (mudo/câmera/tela/sair) continua dirigindo tudo por cima.
+   Aviso "Reconectando a chamada…" (a mídia caiu e está sendo refeita no
+   servidor de voz próprio, sem tirar a pessoa da sala).
    ============================================================ */
 .vc-backup-note {
   display: flex; align-items: center; gap: 8px;
@@ -388,13 +386,3 @@
 .vc-reconnect-note { color: #d0d4ff; background: rgba(88, 101, 242, 0.14); border-color: rgba(88, 101, 242, 0.4); }
 .vc-reconnect-note .vc-backup-dot { background: #7c87ff; box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.25); animation-duration: 1.2s; }
 @keyframes vc-backup-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
-
-.vc-jitsi-stage { position: relative; flex: 1; min-height: 0; display: flex; }
-.vc-jitsi-mount { flex: 1; min-height: 360px; border-radius: 12px; overflow: hidden; background: #000; }
-.vc-jitsi-mount iframe { width: 100%; height: 100%; border: 0; display: block; }
-.vc-jitsi-frame { width: 100%; height: 100%; }
-.vc-jitsi-reconnecting {
-  position: absolute; z-index: 3; top: 12px; left: 50%; transform: translateX(-50%);
-  padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600;
-  color: #fff; background: rgba(0, 0, 0, 0.72); backdrop-filter: blur(4px);
-}

@@ -248,14 +248,7 @@ export default function CallBar() {
           </div>
           {showConn && <VoiceConnectionPanel voice={voice} className="cb-conn-pop" />}
         </div>
-        {/* Modo reserva (Jitsi): avisa discretamente que a mídia está no
-            provedor de backup. Ver docs/voice-fallback.md. */}
-        {voice.fallbackActive && (
-          <span className="cb-backup" data-tip={`Chamada em modo reserva (provedor ${voice.providerLabel || 'de backup'})`} aria-label="Chamada em modo reserva">
-            {voice.reconnectingProvider ? 'Reconectando…' : `Modo reserva${voice.providerLabel ? ` · ${voice.providerLabel}` : ''}`}
-          </span>
-        )}
-        {voice.reconnecting && (
+        {(voice.reconnecting || voice.reconnectingProvider) && (
           <span className="cb-backup cb-reconnecting" role="status" aria-live="polite">Reconectando…</span>
         )}
         {elapsed && <span className="cb-time" aria-label="Tempo de chamada">{elapsed}</span>}

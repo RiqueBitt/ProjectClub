@@ -1,5 +1,5 @@
 // Engine do servidor de mídia PRÓPRIO do Project Club (media-server/,
-// mediasoup). Mesma "interface" do LiveKitEngine, então encaixa na MESMA
+// mediasoup) — o único engine de mídia da voz. Encaixa na
 // grade/AudioSink do VoiceContext: entrega faixas por participante, e a
 // identidade na sala é o nosso userId (o servidor assina o JWT com
 // sub = userId, ver services/voiceTokens.js mintProjectClub).

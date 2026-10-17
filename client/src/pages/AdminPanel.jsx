@@ -70,7 +70,7 @@ import SupportersAdmin from '../components/admin/SupportersAdmin.jsx';
 import { StaffHealthTab, StaffUserSearchTab } from '../components/admin/StaffTools.jsx';
 // Painel de saúde completo (erros agrupados, calls, servidor de mídia, backups).
 import StaffOpsPanel from '../components/admin/StaffOpsPanel.jsx';
-import VoiceProvidersAdmin from '../components/admin/VoiceProvidersAdmin.jsx';
+import VoiceServerAdmin from '../components/admin/VoiceServerAdmin.jsx';
 import { CardsAdminCards, CardsAdminPacks, CardsAdminSettings, CardsAdminPlayers, CardsAdminTrades, CardsAdminMatches, CardsAdminStats, CardsAdminCampaign, CardsAdminTournaments, CardsAdminBoards } from '../cards/CardsAdmin.jsx';
 
 // ============================================================
@@ -141,7 +141,7 @@ const TABS = {
   workshopGames: { label: 'Steam Workshop', desc: 'Jogos ligados ao Steam Workshop.' },
   gamebananaGames: { label: 'GameBanana', desc: 'Jogos ligados ao GameBanana.' },
   sistema: { label: 'Sistemas', desc: 'Ligue ou desligue economia, ranks e outros sistemas.' },
-  provedoresVoz: { label: 'Provedores de voz', desc: 'Cadeia de chamadas (servidor próprio → LiveKit → ... → Jitsi): uso de cada um, qual está ativo e controle manual.' },
+  servidorVoz: { label: 'Servidor de voz', desc: 'Servidor de mídia próprio das chamadas: status e chaves (URL, segredo e TURN).' },
   maintenance: { label: 'Manutenção', desc: 'Coloca a plataforma "em reforma" para todos, menos a equipe.' },
   reload: { label: 'Reload', desc: 'Recarrega a presença online de usuários.' },
   cartasCartas: { label: 'Cartas', desc: 'Crie, edite e exclua cartas: imagem, nome, descrição, raridade, elemento, força e habilidades.' },
@@ -181,7 +181,7 @@ const TAB_GROUPS = [
   { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'apoio', 'casas', 'album'] },
   { label: 'Guerra das Cartas', icon: 'cards', tabs: ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
   { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
-  { label: 'Sistema', icon: 'system', tabs: ['numeros', 'painelSaude', 'saude', 'provedoresVoz', 'sistema', 'maintenance', 'reload'] },
+  { label: 'Sistema', icon: 'system', tabs: ['numeros', 'painelSaude', 'saude', 'servidorVoz', 'sistema', 'maintenance', 'reload'] },
 ].map((g) => ({ ...g, tabs: g.tabs.filter((t) => !HIDDEN_TABS.has(t)) })).filter((g) => g.tabs.length > 0);
 
 const groupOf = (tab) => TAB_GROUPS.find((g) => g.tabs.includes(tab));
@@ -342,7 +342,7 @@ export default function AdminPanel() {
           {tab === 'reload' && <ReloadAdminTab />}
           {tab === 'saude' && <StaffHealthTab />}
           {tab === 'painelSaude' && <StaffOpsPanel />}
-          {tab === 'provedoresVoz' && <VoiceProvidersAdmin />}
+          {tab === 'servidorVoz' && <VoiceServerAdmin />}
           {tab === 'busca' && <StaffUserSearchTab />}
           {tab === 'cartasCartas' && <CardsAdminCards />}
           {tab === 'cartasPacotes' && <CardsAdminPacks />}

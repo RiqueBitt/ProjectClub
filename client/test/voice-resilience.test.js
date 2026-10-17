@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  classifyClose, failureCode, withTimeout, createFailureMemory, importWithRetry, guardedReload, iceAction, isChunkError, micErrorReason,
+  classifyClose, failureCode, withTimeout, importWithRetry, guardedReload, iceAction, isChunkError, micErrorReason,
   diffPeers, mediaErrorInfo, isProviderFailure,
 } from '../src/voice/resilience.js';
 
@@ -51,21 +51,6 @@ test('withTimeout rejeita com code e não atrapalha quem resolve antes', async (
   assert.equal(await withTimeout(Promise.resolve(7), 50), 7);
   await assert.rejects(withTimeout(new Promise(() => {}), 20, 'JOIN_TIMEOUT'), (e) => e.code === 'JOIN_TIMEOUT');
   await assert.rejects(withTimeout(Promise.reject(new Error('falhou')), 50), /falhou/);
-});
-
-test('createFailureMemory tira quem falhou da lista por um tempo', () => {
-  let now = 1000;
-  const mem = createFailureMemory({ ttlMs: 10000, now: () => now });
-  const ready = ['projectclub', 'livekit', 'jitsi'];
-  mem.mark('projectclub');
-  assert.deepEqual(mem.filter(ready), ['livekit', 'jitsi']);
-  assert.equal(mem.has('projectclub'), true);
-  now += 10001;
-  assert.deepEqual(mem.filter(ready), ready, 'expirou: volta a tentar');
-  ready.forEach((p) => mem.mark(p));
-  assert.deepEqual(mem.filter(ready), ready, 'todos falharam: tenta tudo de novo (nunca lista vazia)');
-  mem.clear();
-  assert.deepEqual(mem.excluded(), []);
 });
 
 test('importWithRetry: tenta de novo e só pede recarregar em erro de chunk', async () => {

@@ -168,7 +168,6 @@ export default function VoiceChannelView({ channel }) {
   // só aparece com a permissão — o servidor confere de novo.
   const modPerms = getMyCommunityPermissions(roles, members, user.id, user.platformRole);
   const modItemsFor = (uid, st) => buildVoiceModerationItems({ voice, channelId: channel.id, target: { userId: uid, ...(st || {}) }, myPerms: modPerms, myUserId: user.id });
-  const onBackup = voice?.provider === 'jitsi';
   const allUserIds = [...new Set([user.id, ...Object.keys(participants)])];
 
   const screens = [
@@ -204,15 +203,12 @@ export default function VoiceChannelView({ channel }) {
   return (
     <div className="vc">
       <CallHeader channel={channel} count={allUserIds.length}>
-        {!onBackup && hasPresenter && <ViewModeToggle mode={viewMode} onChange={changeViewMode} />}
+        {hasPresenter && <ViewModeToggle mode={viewMode} onChange={changeViewMode} />}
       </CallHeader>
       <RecordingBanner voice={voice} meId={user.id} />
-      <BackupBanner voice={voice} />
       <ReconnectBanner voice={voice} />
-      <div className={`vc-stage${spotlight && !onBackup ? ' is-spotlight' : ''}`}>
-        {onBackup ? (
-          <JitsiStage voice={voice} />
-        ) : spotlight ? (
+      <div className={`vc-stage${spotlight ? ' is-spotlight' : ''}`}>
+        {spotlight ? (
           <>
             <div className={`vc-screens vc-screens-${Math.min(screens.length + (yt.active ? 1 : 0), 2)}`}>
               {yt.active && <YouTubeStage yt={yt} viewers={viewers} onAdd={(kind) => setYtPicker(kind || 'youtube')} />}
@@ -222,8 +218,8 @@ export default function VoiceChannelView({ channel }) {
                   <VideoTile stream={s.stream} muted allowFullscreen={!s.mine} uid={s.mine ? null : s.uid} kind="screen" report={voice.reportVideoViewport} />
                   <span className="vc-label"><Icon name="screen" size={14} /> {s.mine ? 'Sua tela' : (memberFor(s.uid)?.displayName || 'Tela')}</span>
                   {/* Volume desta transmissão (0–200%): o SOM DA TELA tem volume
-                      próprio, separado da voz (igual ao Discord). Provedor que
-                      manda tudo junto: vale o volume da pessoa, como antes. */}
+                      próprio, separado da voz (igual ao Discord). Sem faixa
+                      de som da tela: vale o volume da pessoa. */}
                   {!s.mine && (voice.remoteScreenAudioStreams?.[s.uid] ? (
                     <VolumeControl
                       className="vc-vol-stream"
@@ -263,54 +259,17 @@ export default function VoiceChannelView({ channel }) {
   );
 }
 
-// Aviso "Chamada em modo reserva" — aparece quando o servidor de mídia
-// próprio não está disponível e a mídia caiu pro provedor reserva. Transparente de
-// propósito: a pessoa SABE que está no plano B. Ver docs/voice-fallback.md.
-function BackupBanner({ voice }) {
-  if (!voice?.fallbackActive) return null;
-  return (
-    <div className="vc-backup-note" role="status">
-      <span className="vc-backup-dot" aria-hidden="true" />
-      <span>Chamada em modo reserva{voice.reconnectingProvider ? ' · reconectando…' : ''}</span>
-    </div>
-  );
-}
-
 // "Reconectando…": a conexão de mídia caiu (wi-fi, 4G, celular bloqueado) e
-// o engine está refazendo a sessão sozinho. A pessoa continua na sala; só
-// avisamos pra ela não achar que travou. Some sozinho quando volta.
+// o engine está refazendo a sessão sozinho (ou a mídia está sendo refeita com
+// credencial nova). A pessoa continua na sala; só avisamos pra ela não achar
+// que travou. Some sozinho quando volta.
 function ReconnectBanner({ voice }) {
-  const r = voice?.reconnecting;
+  const r = voice?.reconnecting || (voice?.reconnectingProvider ? { attempt: 1 } : null);
   if (!r) return null;
   return (
     <div className="vc-backup-note vc-reconnect-note" role="status" aria-live="polite">
       <span className="vc-backup-dot" aria-hidden="true" />
       <span>Reconectando a chamada…{r.attempt > 1 ? ` (tentativa ${r.attempt})` : ''}</span>
-    </div>
-  );
-}
-
-// Palco do modo reserva: "empresta" o iframe do Jitsi (que vive no contexto,
-// pra o áudio seguir tocando mesmo fora desta tela) e o mostra aqui enquanto
-// a tela da chamada está aberta. Devolve ao sair (detachJitsi).
-// BUG CORRIGIDO: o efeito dependia do objeto `voice` inteiro, que muda a cada
-// render do contexto (várias por segundo com o indicador de fala) — o iframe
-// era tirado e recolocado no DOM toda hora (mover um iframe o RECARREGA).
-// Agora só reancora quando o nó muda; as funções attach/detach são estáveis.
-function JitsiStage({ voice }) {
-  const ref = useRef(null);
-  const { attachJitsi, detachJitsi, jitsiNode } = voice;
-  useEffect(() => {
-    const el = ref.current;
-    try { if (el) attachJitsi?.(el); } catch { /* nó saindo */ }
-    return () => { try { detachJitsi?.(); } catch { /* desmontando */ } };
-  }, [attachJitsi, detachJitsi, jitsiNode]);
-  return (
-    <div className="vc-jitsi-stage">
-      {voice.reconnectingProvider && (
-        <div className="vc-jitsi-reconnecting" role="status">Reconectando a chamada…</div>
-      )}
-      <div ref={ref} className="vc-jitsi-mount" />
     </div>
   );
 }

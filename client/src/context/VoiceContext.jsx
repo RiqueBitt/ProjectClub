@@ -5,19 +5,15 @@ import { useStore } from '../store/useStore';
 import { playSound, playEntrySound } from '../utils/sounds';
 import { getExtra, useExtra } from '../utils/extraPrefs';
 import { getPreferredMicId, setPreferredMicId } from '../utils/audioDevices';
-import { getVoiceJoin, reportVoiceProvider } from '../api/endpoints';
-import { createFailureMemory, failureCode, withTimeout, isProviderFailure } from '../voice/resilience.js';
+import { getVoiceJoin, reportVoiceConnectFailure } from '../api/endpoints';
+import { failureCode, withTimeout, isProviderFailure } from '../voice/resilience.js';
 import { getVoicePref, onVoicePrefsChange, setVoicePref, makeReactionRateLimiter, isValidReaction, micInputGainFromPrefs, pttReleaseFromPrefs } from '../utils/voicePrefs';
 import { buildScreenShareConfig, SCREEN_QUALITY_PRESETS, ALLOWED_FPS } from '../utils/screenShareTracks';
-// Cadeia de provedores de mídia (servidor próprio → LiveKit → ... → Jitsi) —
-// ver client/src/voice/* e docs/voice-fallback.md. TODA a mídia passa por um
-// ENGINE do engineRegistry (mediasoup próprio, LiveKit, Jitsi, pendentes),
-// baixado/instanciado só quando a cadeia o escolhe. A troca ao vivo entre
-// QUAISQUER dois provedores preserva a sessão, o socket, o roster, as reações
-// e o soundboard — só a camada de mídia troca.
-import { readJoinResponse, isClientReady, providerLabel } from '../voice/providerDecision.js';
-import { createEngine, CLIENT_READY_PROVIDERS } from '../voice/engineRegistry.js';
-import { isReserveMode } from '../voice/providerDecision.js';
+// Mídia: SÓ o servidor de mídia próprio (media-server/, mediasoup) — ver
+// client/src/voice/* e docs/voz-propria.md. Quando a mídia cai e não volta
+// sozinha, ela é refeita com credencial nova no MESMO canal, preservando a
+// sessão, o socket, o roster, as reações e o soundboard.
+import { createEngine, readJoinResponse, VOICE_PROVIDER } from '../voice/engineRegistry.js';
 import { pickNoiseModel, currentHighQualityAvailability, NOISE_QUALITY, NOISE_MODELS } from '../voice/noiseModels.js';
 // Item pedido: "no .apk, se sair do app, continua na call em segundo
 // plano" — sem isso, o Android mata o áudio da chamada poucos segundos
@@ -86,12 +82,10 @@ async function stopCallForegroundService() {
 
 const VoiceContext = createContext(null);
 
-// Falha do provedor de voz: avisa o servidor (aparece nos logs como
-// [erro-de-tela] voz:<provedor>) e devolve a mensagem certa pra pessoa.
-// Erro de token/credencial = o servidor de chamadas recusou a entrada (não é
-// a internet da pessoa).
-// Também avisa o disjuntor da cadeia (POST /api/voice/report): falhas de 2+
-// pessoas desarmam o provedor por um tempo e a cadeia pula ele pra todos.
+// Falha do servidor de voz: avisa o servidor (aparece nos logs como
+// [erro-de-tela] voz:projectclub e na telemetria POST /api/voice/report) e
+// devolve a mensagem certa pra pessoa. Erro de token/credencial = o servidor
+// de chamadas recusou a entrada (não é a internet da pessoa).
 function reportVoiceFailure(provider, err, channelName) {
   const message = String(err?.message || err || '').slice(0, 400);
   try {
@@ -100,16 +94,15 @@ function reportVoiceFailure(provider, err, channelName) {
       body: JSON.stringify({ where: `voz:${provider}`, path: window.location.pathname, message, stack: String(err?.stack || '').slice(0, 800) }),
     }).catch(() => {});
   } catch { /* sem rede */ }
-  try { reportVoiceProvider(provider, failureCode(err), channelName); } catch { /* aviso opcional */ }
+  try { reportVoiceConnectFailure(failureCode(err), channelName); } catch { /* aviso opcional */ }
   if (/token|unauthori[sz]ed|4401/i.test(message)) {
     return 'O serviço de voz recusou a conexão (configuração do servidor de chamadas). A equipe já foi avisada — tente mais tarde.';
   }
   return 'Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.';
 }
 
-// Tempo máximo pra um provedor conectar antes de contar como falha e ir pro
-// próximo da cadeia. Servidor próprio: sinalização (≤10s) + recepção
-// conectar (≤12s).
+// Tempo máximo pro servidor de voz conectar antes de contar como falha:
+// sinalização (≤10s) + recepção conectar (≤12s).
 const ENGINE_JOIN_TIMEOUT_MS = 25000;
 
 // Toda a parte de "quem está em qual sala", papéis (palco/plateia), mão
@@ -201,14 +194,11 @@ export function VoiceProvider({ children }) {
     if (prev.cameraOn !== cameraOn) playSound(cameraOn ? 'camOn' : 'camOff', 0.4);
     if (prev.screenOn !== screenOn) playSound(screenOn ? 'streamStart' : 'streamStop', 0.4);
   }, [call?.channelId, muted, deafened, cameraOn, screenOn]);
-  // Provedor de mídia ATIVO nesta chamada: 'projectclub' (servidor próprio,
-  // o normal) ou uma reserva da cadeia (livekit/jitsi/...). Dirige a UI
-  // ("Chamada em modo reserva").
-  const [provider, setProvider] = useState('projectclub');
-  const activeProviderRef = useRef('projectclub');
-  useEffect(() => { activeProviderRef.current = provider; }, [provider]);
-  // Troca de provedor no meio da chamada: mostra um aviso
-  // curto "reconectando a chamada…" enquanto refaz a conexão, sem deslogar.
+  // Provedor de mídia: sempre o servidor próprio (mantido no contexto por
+  // compatibilidade com quem lê `voice.provider`).
+  const provider = VOICE_PROVIDER;
+  // Mídia sendo refeita no meio da chamada (credencial nova, mesmo canal):
+  // mostra "reconectando a chamada…" sem deslogar.
   const [reconnectingProvider, setReconnectingProvider] = useState(false);
   // Reconexão automática do ENGINE (caiu o wi-fi, celular bloqueou): o
   // engine refaz a sessão sozinho e avisa aqui — a UI mostra "reconectando"
@@ -279,23 +269,12 @@ export function VoiceProvider({ children }) {
   const [joiningChannelId, setJoiningChannelId] = useState(null);
   const leaveChannelRef = useRef(null);
   const soundboardAudiosRef = useRef({});
-  // Provedores que falharam NESTE aparelho (10 min): ficam fora do
-  // clientReady — nem o join nem o poll de troca voltam pra eles.
-  const failureMemoryRef = useRef(null);
-  if (!failureMemoryRef.current) failureMemoryRef.current = createFailureMemory();
-  const readyProviders = useCallback(() => failureMemoryRef.current.filter(CLIENT_READY_PROVIDERS), []);
-  // Refaz a mídia da call atual (mesmo provedor com credencial nova, ou o
-  // próximo da cadeia) sem tirar a pessoa da sala — ver o efeito da troca.
+  // Refaz a mídia da call atual (credencial nova do servidor próprio) sem
+  // tirar a pessoa da sala — ver o efeito de recuperação.
   const requestMediaRecoveryRef = useRef(null);
 
-  // Engine de mídia ATIVO (servidor próprio/LiveKit/Jitsi/...) + "host"
-  // persistente onde o iframe do Jitsi fica ancorado mesmo quando a tela da
-  // chamada não está montada (pra o áudio continuar em segundo plano/
-  // janelinha). O VoiceChannelView "pega emprestado" o nó enquanto está
-  // aberto (attachJitsi/detachJitsi).
+  // Engine de mídia ATIVO (servidor próprio).
   const engineRef = useRef(null);
-  const jitsiHostRef = useRef(null);
-  const [jitsiNode, setJitsiNode] = useState(null);
   // Mídia LOCAL (câmera/tela): o engine devolve o MediaStream local e
   // guardamos aqui pra o auto-retrato aparecer na grade.
   const [engineLocalCameraStream, setEngineLocalCameraStream] = useState(null);
@@ -304,8 +283,7 @@ export function VoiceProvider({ children }) {
   const androidScreenTrackRef = useRef(null);
   // Portão do microfone: apertar-pra-falar e sensibilidade de entrada vivem
   // NO ENGINE (voice/micGate.js + micPipeline.js — um pipeline de áudio só);
-  // aqui só passamos as preferências. Engine sem portão (Jitsi/LiveKit):
-  // ignora.
+  // aqui só passamos as preferências.
   const applyEngineMicConfig = useCallback((engine = engineRef.current) => {
     if (!engine) return;
     const p = getExtra();
@@ -364,41 +342,6 @@ export function VoiceProvider({ children }) {
     socket.emit('voice:state', { channelId: callRef.current.channelId, ...patch });
   }, [socket]);
 
-  // ---------- Modo reserva (Jitsi): host persistente + anexar/soltar ----------
-  // Um <div> fixo e fora da tela guarda o iframe do Jitsi enquanto nenhuma
-  // tela de chamada está mostrando — assim o áudio nunca para só porque a
-  // pessoa navegou pra outra aba do app. Não usa display:none (alguns
-  // navegadores pausam a mídia); fica posicionado fora da área visível.
-  const ensureJitsiHost = useCallback(() => {
-    if (jitsiHostRef.current || typeof document === 'undefined') return jitsiHostRef.current;
-    const host = document.createElement('div');
-    host.setAttribute('data-jitsi-host', '');
-    host.style.position = 'fixed';
-    host.style.left = '-99999px';
-    host.style.top = '0';
-    host.style.width = '320px';
-    host.style.height = '240px';
-    host.style.pointerEvents = 'none';
-    document.body.appendChild(host);
-    jitsiHostRef.current = host;
-    return host;
-  }, []);
-  // VoiceChannelView chama isto pra trazer o iframe pra dentro do palco
-  // visível enquanto a tela está aberta, e devolvê-lo ao host ao sair.
-  const attachJitsi = useCallback((container) => {
-    const engine = engineRef.current;
-    if (!engine || !container) return;
-    const node = engine.getNode();
-    if (node && node.parentNode !== container) container.appendChild(node);
-  }, []);
-  const detachJitsi = useCallback(() => {
-    const engine = engineRef.current;
-    const host = jitsiHostRef.current;
-    if (!engine || !host) return;
-    const node = engine.getNode();
-    if (node && node.parentNode !== host) host.appendChild(node);
-  }, []);
-
   // Lista mostrada na tela = quem o servidor diz que está na sala + quem
   // está conectado na mídia mas o socket ainda não contou (evento perdido,
   // reconexão no meio). Assim ninguém "some" estando na chamada.
@@ -437,8 +380,8 @@ export function VoiceProvider({ children }) {
     return true;
   }, []);
 
-  // Desmonta o engine de mídia, se houver (sair da chamada ou trocar de
-  // provedor). Seguro chamar mesmo quando não tem nenhum.
+  // Desmonta o engine de mídia, se houver (sair da chamada ou refazer a
+  // mídia). Seguro chamar mesmo quando não tem nenhum.
   const teardownEngine = useCallback(() => {
     const engine = engineRef.current;
     const hadAndroidScreen = !!androidScreenTrackRef.current;
@@ -446,25 +389,20 @@ export function VoiceProvider({ children }) {
     if (hadAndroidScreen) stopAndroidScreenShare();
     if (!engine) return;
     engineRef.current = null;
-    setJitsiNode(null);
     setEngineLocalCameraStream(null);
     setEngineLocalScreenStream(null);
     if (micMeterOnRef.current) { micMeterOnRef.current = false; setMicMeterOn(false); }
     try { engine.dispose(); } catch { /* já foi */ }
   }, []);
 
-  // ---------- Conectar por um ENGINE da cadeia ----------
-  // Vale pra QUALQUER provedor (servidor próprio, livekit, jitsi e os
-  // pendentes). O Jitsi embute uma conferência num iframe (sem faixas pra
-  // nossa grade); o servidor próprio e o LiveKit são SFUs e entregam faixas
-  // por participante, que caem na grade/AudioSink (identidade = nosso
-  // userId). `isSwitch` = troca no meio de uma chamada já ativa (não toca som
-  // de entrada, não zera o cronômetro, preserva o mudo).
-  const connectEngine = useCallback(async ({ serverId, channelId, channelName, channelType, provider: prov, creds, isSwitch, quiet = false }) => {
-    const okCreds = (prov === 'jitsi' && creds?.domain && creds?.room)
-      || (prov === 'livekit' && creds?.url && creds?.token)
-      || (prov !== 'jitsi' && prov !== 'livekit'); // pendentes: o engine falha claro no join
-    if (!creds || !okCreds) {
+  // ---------- Conectar no servidor de mídia próprio ----------
+  // O servidor próprio é um SFU e entrega faixas por participante, que caem
+  // na grade/AudioSink (identidade = nosso userId). `isSwitch` = mídia refeita
+  // no meio de uma chamada já ativa (não toca som de entrada, não zera o
+  // cronômetro, preserva o mudo).
+  const connectEngine = useCallback(async ({ serverId, channelId, channelName, channelType, creds, isSwitch, quiet = false }) => {
+    const prov = VOICE_PROVIDER;
+    if (!creds || !creds.url || !creds.token) {
       useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
       return false;
     }
@@ -475,8 +413,8 @@ export function VoiceProvider({ children }) {
       //  - 'replaced': entrou nesta call em outro aparelho → sai daqui, sem
       //    reconectar (senão um aparelho derruba o outro em loop);
       //  - 'token'/'gave-up'/'closed': a mídia caiu e não voltou sozinha →
-      //    refaz a mídia (credencial nova / próximo provedor) sem sair da sala;
-      //  - resto (desligou pelo próprio Jitsi, expulso): sai.
+      //    refaz a mídia (credencial nova) sem sair da sala;
+      //  - resto: sai.
       onLeft: (info) => {
         if (engineRef.current !== engine) return; // engine antigo
         const reason = info && info.reason;
@@ -513,11 +451,10 @@ export function VoiceProvider({ children }) {
           setRemoteScreenAudioStreams({});
           setRemoteVideoStreams({});
           setReconnecting(null);
-          // Caiu por falta de internet / limite de tentativas: NÃO é falha do
-          // provedor (não marca nem reporta) — só refaz a mídia.
-          const providerFault = reason === 'gave-up' && isProviderFailure(info);
-          if (!providerFault && reason === 'gave-up' && info?.network) useStore.getState().pushNotice('Sua internet caiu — reconectando a chamada…');
-          requestMediaRecoveryRef.current?.({ failed: providerFault ? prov : null, code: reason, mediaGone: true });
+          // Caiu por falta de internet: avisa — e refaz a mídia.
+          const serverFault = reason === 'gave-up' && isProviderFailure(info);
+          if (!serverFault && reason === 'gave-up' && info?.network) useStore.getState().pushNotice('Sua internet caiu — reconectando a chamada…');
+          requestMediaRecoveryRef.current?.({ code: reason, mediaGone: true });
           return;
         }
         leaveChannelRef.current?.();
@@ -535,16 +472,16 @@ export function VoiceProvider({ children }) {
         useStore.getState().pushNotice(msg);
       },
       onMicRecovered: () => { setMicMissing(false); },
-      // Envio/recepção que nunca conectou depois de entrar: o provedor não
-      // serve pra esta rede → avisa e vai pro próximo da cadeia.
+      // Envio/recepção que nunca conectou depois de entrar: avisa a
+      // telemetria e refaz a mídia com credencial nova.
       onMediaFailed: ({ code } = {}) => {
         if (engineRef.current !== engine) return;
         reportVoiceFailure(prov, Object.assign(new Error(`mídia não conectou (${code})`), { code }), channelId);
-        requestMediaRecoveryRef.current?.({ failed: prov, code });
+        requestMediaRecoveryRef.current?.({ code });
       },
       onReconnecting: (attempt, why) => { setReconnecting({ attempt, offline: why === 'sem internet' || (typeof navigator !== 'undefined' && navigator.onLine === false) }); setNetQuality({}); },
       onReconnected: () => { setReconnecting(null); },
-      // Qualidade/ping vindos do engine (SFU próprio / LiveKit), na escala
+      // Qualidade/ping vindos do engine (SFU próprio), na escala
       // 0-6 da UI — cai nos mesmos pontinhos/barras.
       onNetQuality: (next) => {
         setNetQuality((prev) => {
@@ -589,7 +526,7 @@ export function VoiceProvider({ children }) {
       onSelfCamera: (on) => { setCameraOn(on); broadcastState({ video: on }); },
       onSelfScreen: (on) => { setScreenOn(on); broadcastState({ screenSharing: on }); },
       onError: (ev, payload) => { console.error('[voz] engine de voz reportou um erro:', ev, payload); },
-      // Faixas por participante (servidor próprio/LiveKit) → grade/AudioSink.
+      // Faixas por participante (servidor próprio) → grade/AudioSink.
       onMediaUser: (uid, present) => {
         const uidStr = String(uid);
         if (present) setMediaUids((s) => (s[uidStr] ? s : { ...s, [uidStr]: true }));
@@ -606,19 +543,10 @@ export function VoiceProvider({ children }) {
         if (kind === 'all') { setMediaUids((s) => dropKey(s, uidStr)); setRemoteScreenAudioStreams((s) => dropKey(s, uidStr)); }
       },
     };
-    engine = createEngine(prov, callbacks, creds);
-    if (!engine) {
-      useStore.getState().pushNotice('Este provedor de voz ainda não está disponível neste aparelho.');
-      return false;
-    }
+    engine = createEngine(callbacks);
     engineRef.current = engine;
     // Apertar-pra-falar e sensibilidade valem desde o primeiro instante.
     applyEngineMicConfig(engine);
-    // Jitsi tem um nó de iframe que ancoramos no host persistente; os demais
-    // não têm nó (getNode()=null) — a grade é a nossa.
-    const node = engine.getNode?.();
-    if (node) { const host = ensureJitsiHost(); if (host) host.appendChild(node); }
-    setJitsiNode(node || null);
     // Zera o auto-retrato local do engine anterior.
     setEngineLocalCameraStream(null);
     setEngineLocalScreenStream(null);
@@ -626,36 +554,27 @@ export function VoiceProvider({ children }) {
     try {
       // Mudo/ensurdecido continuam valendo ao trocar de canal (igual ao Discord).
       const startMuted = mutedRef.current || deafenedRef.current;
-      if (prov === 'jitsi') {
-        // Jitsi é a reserva final: sem tempo limite (o iframe demora mais).
-        await engine.join({ room: creds.room, jwt: creds.jwt, displayName: user?.displayName, startMuted });
-      } else if (prov === 'livekit') {
-        await withTimeout(engine.join({ url: creds.url, token: creds.token, userId: user?.id, displayName: user?.displayName, startMuted }), ENGINE_JOIN_TIMEOUT_MS, 'JOIN_TIMEOUT');
-      } else {
-        await withTimeout(engine.join({
-          ...creds, userId: user?.id, displayName: user?.displayName, startMuted,
-          // Ensurdecido: o servidor nem manda o áudio dos outros (economia de banda).
-          startDeafened: deafenedRef.current,
-          // Redutor de ruído (RNNoise) no engine próprio.
-          noiseSuppression: getVoicePref('noiseReduction') !== false,
-          noiseModel: pickNoiseModel({ quality: getVoicePref('noiseQuality'), availability: currentHighQualityAvailability() }),
-          micDeviceId: getPreferredMicId() || null,
-          // Token do servidor próprio venceu numa call longa (4401 expired):
-          // pede um novo pelo mesmo /api/voice/join. Se a sala mudou de
-          // provedor nesse meio-tempo, não renova (a troca cuida disso).
-          refreshCredentials: async () => {
-            const raw = await getVoiceJoin(channelId, readyProviders());
-            const fresh = raw ? readJoinResponse(raw) : null;
-            return fresh && fresh.provider === prov ? fresh[prov] : null;
-          },
-        }), ENGINE_JOIN_TIMEOUT_MS, 'JOIN_TIMEOUT');
-      }
+      await withTimeout(engine.join({
+        ...creds, userId: user?.id, displayName: user?.displayName, startMuted,
+        // Ensurdecido: o servidor nem manda o áudio dos outros (economia de banda).
+        startDeafened: deafenedRef.current,
+        // Redutor de ruído (RNNoise) no engine próprio.
+        noiseSuppression: getVoicePref('noiseReduction') !== false,
+        noiseModel: pickNoiseModel({ quality: getVoicePref('noiseQuality'), availability: currentHighQualityAvailability() }),
+        micDeviceId: getPreferredMicId() || null,
+        // Token do servidor próprio venceu numa call longa (4401 expired):
+        // pede um novo pelo mesmo /api/voice/join.
+        refreshCredentials: async () => {
+          const raw = await getVoiceJoin(channelId);
+          return raw ? readJoinResponse(raw) : null;
+        },
+      }), ENGINE_JOIN_TIMEOUT_MS, 'JOIN_TIMEOUT');
     } catch (err) {
-      console.error(`[voz] Falha ao conectar no provedor ${prov}:`, err);
+      console.error('[voz] Falha ao conectar no servidor de voz:', err);
       if (engineRef.current === engine) teardownEngine();
       else { try { engine.dispose(); } catch { /* ok */ } }
       // Canal cheio / entrada abortada / sem internet / expulso: NÃO é falha
-      // do provedor — não reporta nem pula pro próximo da cadeia.
+      // do servidor de voz — não reporta.
       if (!isProviderFailure(err)) {
         joinStopRef.current = err?.code || 'aborted';
         if (err?.code === 'channel-full') useStore.getState().pushNotice('Canal cheio');
@@ -674,7 +593,6 @@ export function VoiceProvider({ children }) {
     const next = { serverId, channelId, channelName, channelType };
     setCall(next);
     callRef.current = next;
-    setProvider(prov);
     if (!isSwitch) {
       setCallStartedAt(Date.now());
       setMyRole('speaker');
@@ -686,7 +604,7 @@ export function VoiceProvider({ children }) {
     // independe do provedor de mídia.
     socket?.emit('voice:join', { channelId });
     return true;
-  }, [socket, user?.id, user?.displayName, broadcastState, ensureJitsiHost, teardownEngine, readyProviders, applyEngineMicConfig, applyServerMod]);
+  }, [socket, user?.id, user?.displayName, broadcastState, teardownEngine, applyEngineMicConfig, applyServerMod]);
   const connectEngineRef = useRef(connectEngine);
   useEffect(() => { connectEngineRef.current = connectEngine; }, [connectEngine]);
 
@@ -698,58 +616,41 @@ export function VoiceProvider({ children }) {
     try {
       if (callRef.current) await leaveChannel();
 
-      // Garante que não sobrou nenhum engine (Jitsi/LiveKit) vivo.
+      // Garante que não sobrou nenhum engine vivo.
       teardownEngine();
 
-      // Pergunta ao servidor QUAL provedor da cadeia usar + as credenciais
-      // dele, já com a checagem de acesso do canal. `CLIENT_READY_PROVIDERS`
-      // diz quais este navegador sabe usar hoje (a cadeia pula os pendentes
-      // só pra este join).
-      // Failover automático: se o provedor escolhido não conectar (ex.:
-      // servidor próprio fora do ar), pede o PRÓXIMO da cadeia sem ele
-      // (servidor próprio → LiveKit, se configurado → Jitsi) — a pessoa entra
-      // mesmo assim. Provedores que falharam neste aparelho há pouco já saem
-      // da lista.
-      let ready = readyProviders();
-      for (let attempt = 0; attempt < 4 && ready.length; attempt += 1) {
-        const last = attempt === 3 || ready.length === 1;
-        let raw = null;
-        let serverMsg = null;
-        for (let i = 0; i < 2; i += 1) {
-          let fatal = false;
-          // eslint-disable-next-line no-await-in-loop
-          raw = await getVoiceJoin(channelId, ready).catch((err) => {
-            console.error('[voz] Falha ao consultar o provedor de voz:', err);
-            // 4xx (sem acesso, canal sumiu): não adianta repetir.
-            if (err?.response?.status && err.response.status < 500) {
-              fatal = true;
-              serverMsg = typeof err.response.data?.error === 'string' ? err.response.data.error : null;
-            }
-            return null;
-          });
-          if (raw || fatal || joiningChannelIdRef.current !== channelId) break;
-          await new Promise((r) => { setTimeout(r, 1000); });
-        }
-        if (joiningChannelIdRef.current !== channelId) return;
-        const creds = raw ? readJoinResponse(raw) : null;
-        if (!creds) {
-          useStore.getState().pushNotice(serverMsg || 'Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
-          return;
-        }
-
-        const ok = await connectEngine({ serverId, channelId, channelName, channelType, provider: creds.provider, creds: creds[creds.provider], isSwitch: false, quiet: !last });
-        if (ok || joiningChannelIdRef.current !== channelId || creds.provider === 'jitsi') return;
-        // Canal cheio / abortada / sem internet: o aviso já saiu; não troca de provedor.
-        if (joinStopRef.current) return;
-        failureMemoryRef.current.mark(creds.provider);
-        ready = ready.filter((p) => p !== creds.provider);
+      // Pede ao servidor as credenciais do servidor de voz, já com a checagem
+      // de acesso do canal. Erro de rede/5xx: tenta mais uma vez.
+      let raw = null;
+      let serverMsg = null;
+      for (let i = 0; i < 2; i += 1) {
+        let fatal = false;
+        // eslint-disable-next-line no-await-in-loop
+        raw = await getVoiceJoin(channelId).catch((err) => {
+          console.error('[voz] Falha ao pedir a entrada no servidor de voz:', err);
+          // 4xx (sem acesso, canal sumiu): não adianta repetir.
+          if (err?.response?.status && err.response.status < 500) {
+            fatal = true;
+          }
+          if (typeof err?.response?.data?.error === 'string') serverMsg = err.response.data.error;
+          return null;
+        });
+        if (raw || fatal || joiningChannelIdRef.current !== channelId) break;
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => { setTimeout(r, 1000); });
       }
-      useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
+      if (joiningChannelIdRef.current !== channelId) return;
+      const creds = raw ? readJoinResponse(raw) : null;
+      if (!creds) {
+        useStore.getState().pushNotice(serverMsg || 'Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
+        return;
+      }
+      await connectEngine({ serverId, channelId, channelName, channelType, creds, isSwitch: false });
     } finally {
       if (joiningChannelIdRef.current === channelId) joiningChannelIdRef.current = null;
       setJoiningChannelId((c) => (c === channelId ? null : c));
     }
-  }, [connectEngine, teardownEngine, readyProviders]);
+  }, [connectEngine, teardownEngine]);
 
   const answerIncomingCall = useCallback(() => {
     if (!incomingCall) return;
@@ -780,11 +681,9 @@ export function VoiceProvider({ children }) {
     setReconnecting(null);
     setCallStartedAt(null);
     setScreenQuality(null);
-    // Encerra a mídia do provedor atual (engine + captura nativa de tela) e
-    // volta o provedor pro padrão pra próxima chamada. A tela limpa na hora
-    // (sem esperar o provedor terminar de sair).
+    // Encerra a mídia (engine + captura nativa de tela). A tela limpa na hora
+    // (sem esperar o servidor de mídia terminar de sair).
     teardownEngine();
-    setProvider('projectclub');
     setReconnectingProvider(false);
 
     setCall(null);
@@ -876,9 +775,8 @@ export function VoiceProvider({ children }) {
     if (toggleCameraBusyRef.current) return;
     toggleCameraBusyRef.current = true;
     try {
-      // A câmera é comando do engine. O Jitsi não devolve faixa pra nossa
-      // grade (null); o servidor próprio/LiveKit devolvem o MediaStream
-      // local, que guardamos pro auto-retrato. O estado `cameraOn` volta
+      // A câmera é comando do engine. O servidor próprio devolve o
+      // MediaStream local, que guardamos pro auto-retrato. O estado `cameraOn` volta
       // pelo callback onSelfCamera.
       const engine = engineRef.current;
       if (!engine) return;
@@ -895,8 +793,7 @@ export function VoiceProvider({ children }) {
     if (toggleScreenShareBusyRef.current) return;
     toggleScreenShareBusyRef.current = true;
     try {
-      // A captura é do engine. O Jitsi mostra pros outros pelo iframe (sem
-      // faixa local pra nós); o servidor próprio/LiveKit devolvem o
+      // A captura é do engine. O servidor próprio devolve o
       // MediaStream local, guardado pro auto-retrato. O estado volta por
       // onSelfScreen.
       const engine = engineRef.current;
@@ -980,9 +877,8 @@ export function VoiceProvider({ children }) {
       return next;
     });
   }, []);
-  // Volume do SOM DA TELA de uma pessoa (0–2), separado da voz. Provedor
-  // que não separa (Jitsi/LiveKit): o som da tela vem junto da voz e segue o
-  // volume da pessoa.
+  // Volume do SOM DA TELA de uma pessoa (0–2), separado da voz (o
+  // servidor próprio manda o som da tela numa faixa separada).
   const setStreamVolume = useCallback((userId, volume) => {
     const v = Math.min(2, Math.max(0, Number(volume) || 0));
     setStreamVolumes((s) => {
@@ -1485,52 +1381,33 @@ export function VoiceProvider({ children }) {
     };
   }, [socket, callChannelId]);
 
-  // ---------- Troca de provedor NO MEIO da chamada (QUALQUER → QUALQUER) ----------
-  // Troca entre QUAISQUER dois provedores da cadeia, SEM te deslogar e SEM te
-  // tirar da sala: derruba só a mídia atual (o engine) e sobe a do novo
-  // provedor no MESMO canal,
-  // mantendo sessão, socket, roster, reações e soundboard montados. Um aviso
-  // curto "Reconectando…" aparece no meio.
-  //
-  // Dispara em quatro casos:
-  //  (a) a equipe mudou a cadeia no painel / o disjuntor desarmou um provedor
-  //      (voice:provider-changed pra comunidade) — troca IMEDIATA;
-  //  (b) a sala migrou de provedor (voice:provider-changed com channelId da
-  //      MINHA call) — todo mundo da call termina no MESMO provedor;
-  //  (c) um provedor cruzou o limite mensal no meio da chamada — pego por um
-  //      poll leve de /api/voice/join (que já devolve o provedor decidido);
-  //  (d) RECUPERAÇÃO: a mídia atual falhou (engine desistiu de reconectar,
-  //      envio/recepção nunca conectou) → `force`, e o
-  //      provedor que falhou fica de fora (`failed`). Se nenhum subir, aí sim
-  //      a pessoa sai da call com um aviso — antes ficava numa call muda.
-  // Se a troca falhar, tenta o próximo da cadeia (até 3), sem deixar a call
-  // sem mídia: antes, uma troca que falhava derrubava a mídia atual e não
-  // subia nada no lugar.
+  // ---------- Recuperação da mídia NO MEIO da chamada ----------
+  // Quando a mídia do servidor próprio cai e não volta sozinha (engine
+  // desistiu de reconectar, token recusado, envio/recepção nunca conectou),
+  // refaz SÓ a mídia no MESMO canal com credencial nova de /api/voice/join —
+  // sem te deslogar e sem te tirar da sala (sessão, socket, roster, reações e
+  // soundboard continuam montados). Um aviso curto "Reconectando…" aparece no
+  // meio. Até 3 tentativas; se nenhuma subir, aí sim a pessoa sai da call com
+  // um aviso (antes ficava numa call muda).
   const switchingRef = useRef(false);
   const pendingSwapRef = useRef(null);
   const runSwapCheckRef = useRef(null);
   useEffect(() => {
     if (!callChannelId) return undefined;
     let cancelled = false;
-    const POLL_MS = 60000;
     const flushPending = () => {
       const p = pendingSwapRef.current;
       if (!p || cancelled) return;
       pendingSwapRef.current = null;
       runSwapCheckRef.current?.(p);
     };
-    const check = async (opts = {}) => {
+    const recover = async (opts = {}) => {
       if (cancelled) return;
-      let force = !!opts.force;
-      if (opts.failed) {
-        failureMemoryRef.current.mark(opts.failed);
-        force = true;
-      }
       if (switchingRef.current || joiningChannelIdRef.current) {
-        // Já trocando/entrando: guarda o pedido (força prevalece) pra depois.
+        // Já refazendo/entrando: guarda o pedido pra depois.
         const prev = pendingSwapRef.current;
-        pendingSwapRef.current = { force: force || !!prev?.force, mediaGone: !!opts.mediaGone || !!prev?.mediaGone };
-        // Trocando: o fim da troca roda o pendente. Entrando: tenta de novo já já.
+        pendingSwapRef.current = { mediaGone: !!opts.mediaGone || !!prev?.mediaGone };
+        // Refazendo: o fim roda o pendente. Entrando: tenta de novo já já.
         if (!switchingRef.current) setTimeout(flushPending, 1000);
         return;
       }
@@ -1538,20 +1415,14 @@ export function VoiceProvider({ children }) {
       if (!current || current.channelId !== callChannelId) return;
       switchingRef.current = true;
       let tornDown = !!opts.mediaGone;
-      let switched = false;
-      const before = activeProviderRef.current;
+      let recovered = false;
       try {
         for (let attempt = 0; attempt < 3; attempt += 1) {
           let raw;
-          try { raw = await getVoiceJoin(current.channelId, readyProviders()); } catch { raw = null; }
+          try { raw = await getVoiceJoin(current.channelId); } catch { raw = null; }
           if (cancelled || callRef.current?.channelId !== current.channelId) return;
           const creds = raw ? readJoinResponse(raw) : null;
-          if (!creds) { if (!force) return; await new Promise((r) => { setTimeout(r, 1500); }); continue; }
-          const target = creds.provider;
-          // O servidor não deveria mandar um provedor que o cliente não sabe usar
-          // (mandamos clientReady), mas por garantia ignoramos se vier.
-          if (!isClientReady(target)) { if (!tornDown) return; break; }
-          if (!force && target === activeProviderRef.current) return; // nada mudou
+          if (!creds) { await new Promise((r) => { setTimeout(r, 1500); }); continue; }
           setReconnectingProvider(true);
           if (!tornDown) {
             // Derruba a mídia atual (preserva sessão/socket/roster/UI).
@@ -1566,10 +1437,10 @@ export function VoiceProvider({ children }) {
             ok = await connectEngineRef.current?.({
               serverId: current.serverId, channelId: current.channelId,
               channelName: current.channelName, channelType: current.channelType,
-              provider: target, creds: creds[target], isSwitch: true, quiet: true,
+              creds, isSwitch: true, quiet: true,
             });
           } catch (err) {
-            console.error('[voz] Falha ao trocar de provedor no meio da chamada:', err);
+            console.error('[voz] Falha ao refazer a mídia no meio da chamada:', err);
             ok = false;
           }
           if (cancelled) return;
@@ -1577,25 +1448,16 @@ export function VoiceProvider({ children }) {
             const why = joinStopRef.current;
             joinStopRef.current = null;
             // Canal cheio / expulso: sai. Sem internet / abortada / limite:
-            // não marca o provedor como ruim — espera e tenta de novo.
+            // espera e tenta de novo.
             if (why === 'channel-full' || why === 'kicked' || why === 'replaced') { tornDown = false; leaveChannelRef.current?.(); return; }
             await new Promise((r) => { setTimeout(r, 3000); });
             if (cancelled || callRef.current?.channelId !== current.channelId) return;
-            force = true;
             continue;
           }
-          if (ok) {
-            switched = true;
-            if (isReserveMode(target) && target !== before) {
-              useStore.getState().pushNotice('A chamada trocou de provedor para continuar funcionando (modo reserva).');
-            }
-            break;
-          }
-          // Esse também não subiu: fora da lista e tenta o próximo da cadeia.
-          failureMemoryRef.current.mark(target);
-          force = true;
+          if (ok) { recovered = true; break; }
+          await new Promise((r) => { setTimeout(r, 1500); });
         }
-        if (!switched && tornDown && !cancelled && callRef.current?.channelId === current.channelId) {
+        if (!recovered && tornDown && !cancelled && callRef.current?.channelId === current.channelId) {
           useStore.getState().pushNotice('A chamada caiu e não foi possível reconectar. Entre de novo no canal.');
           leaveChannelRef.current?.();
         }
@@ -1605,42 +1467,24 @@ export function VoiceProvider({ children }) {
         if (pendingSwapRef.current && !cancelled) setTimeout(flushPending, 0);
       }
     };
-    runSwapCheckRef.current = check;
+    runSwapCheckRef.current = recover;
     // Pedido de recuperação que chegou antes deste efeito montar (logo
     // depois de entrar): roda agora.
     if (pendingSwapRef.current && !switchingRef.current) setTimeout(flushPending, 0);
-    const iv = setInterval(() => { check(); }, POLL_MS);
-    return () => { cancelled = true; runSwapCheckRef.current = null; clearInterval(iv); };
-  }, [callChannelId, teardownEngine, readyProviders]);
+    return () => { cancelled = true; runSwapCheckRef.current = null; };
+  }, [callChannelId, teardownEngine]);
 
   // Recuperação da mídia (ver o efeito acima) — chamada pelos engines.
   useEffect(() => {
     requestMediaRecoveryRef.current = (opts = {}) => {
       if (!callRef.current && !joiningChannelIdRef.current) return;
-      if (opts.failed) failureMemoryRef.current.mark(opts.failed);
       const run = runSwapCheckRef.current;
-      if (run) { run({ ...opts, force: true }); return; }
+      if (run) { run(opts); return; }
       const prev = pendingSwapRef.current;
-      pendingSwapRef.current = { force: true, mediaGone: !!opts.mediaGone || !!prev?.mediaGone };
+      pendingSwapRef.current = { mediaGone: !!opts.mediaGone || !!prev?.mediaGone };
     };
     return () => { requestMediaRecoveryRef.current = null; };
   }, []);
-
-  // Reação imediata ao aviso do servidor: refaz a checagem na hora em vez de
-  // esperar o próximo poll. Aviso de OUTRA sala (channelId diferente) não
-  // mexe na minha call.
-  useEffect(() => {
-    if (!socket) return undefined;
-    const onProviderChanged = (payload) => {
-      const cid = payload && payload.channelId;
-      if (cid && cid !== callRef.current?.channelId) return;
-      // A sala migrou (todo mundo da call no MESMO provedor) ou a cadeia
-      // mudou: o /join diz o provedor certo e a checagem troca se mudou.
-      runSwapCheckRef.current?.({});
-    };
-    socket.on('voice:provider-changed', onProviderChanged);
-    return () => { socket.off('voice:provider-changed', onProviderChanged); };
-  }, [socket]);
 
   // ---------- Apertar pra falar (F) ----------
   // Mantém pttEnabled em sincronia com a preferência salva (pode mudar
@@ -1656,7 +1500,7 @@ export function VoiceProvider({ children }) {
   // o microfone fica fechado por padrão e só vai ao ar enquanto a tecla
   // escolhida está pressionada (portão do engine — setMicGate). Ao desligar
   // o modo, volta pro estado normal (aberto, a não ser que você tenha mutado
-  // na mão). Provedor sem portão (Jitsi/LiveKit): fica desligado.
+  // na mão).
   // Preferências de sensibilidade (Configurações → Voz e vídeo) — reativas.
   const sensitivityAuto = useExtra('sensitivityAuto');
   const sensitivityDb = useExtra('sensitivityDb');
@@ -1670,7 +1514,7 @@ export function VoiceProvider({ children }) {
 
   // Tecla do apertar-pra-falar: o portão (com 200ms de folga ao soltar) é do
   // engine (setPushToTalk/setPttPressed). Aqui: teclado, som e o "mudo" que
-  // os outros veem. Engine sem PTT (Jitsi/LiveKit): fica desligado.
+  // os outros veem.
   useEffect(() => {
     if (!callChannelId) return undefined;
     const supported = () => typeof engineRef.current?.setPttPressed === 'function';
@@ -1769,8 +1613,6 @@ export function VoiceProvider({ children }) {
       }
     } catch { /* desmontando */ }
     try { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); } catch { /* ok */ }
-    try { jitsiHostRef.current?.parentNode?.removeChild(jitsiHostRef.current); } catch { /* ok */ }
-    jitsiHostRef.current = null;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Painel "Voz conectada": estado em texto, ping e perda no envio.
@@ -1822,12 +1664,10 @@ export function VoiceProvider({ children }) {
       pttEnabled, pttTalking,
       setNoiseReduction,
       setNoiseQuality,
-      // Provedor de mídia ATIVO na cadeia (projectclub / livekit / jitsi / ...).
-      // fallbackActive = provedor depois do primário (servidor próprio).
-      provider, fallbackActive: isReserveMode(provider), reconnectingProvider,
+      // Provedor de mídia: sempre o servidor próprio ('projectclub').
+      // reconnectingProvider = refazendo a mídia no meio da chamada.
+      provider, reconnectingProvider,
       reconnecting,
-      providerLabel: providerLabel(provider),
-      jitsiNode, attachJitsi, detachJitsi,
     }}
     >
       {children}

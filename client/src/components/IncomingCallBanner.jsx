@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useVoice } from '../context/VoiceContext.jsx';
 import { useStore } from '../store/useStore';
 import phoneIcon from '../assets/icons/phone.png';
-import callEndIcon from '../assets/icons/nav-hangup-jitsi.png';
+import callEndIcon from '../assets/icons/nav-hangup-call.png';
 import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from './PenguinAvatar.jsx';
 
 // BUG CORRIGIDO: <img src={caller.avatarUrl}> quebrava (bloqueado pela CSP
