@@ -47,6 +47,9 @@ data class CallState(
     val reactions: List<CallReaction> = emptyList(),
     /** Entrou sem permissão de microfone: só ouve (desmutar pede a permissão). */
     val listenOnly: Boolean = false,
+    /** Silenciado/ensurdecido pela MODERAÇÃO (servidor) — separado do seu próprio mudo. */
+    val serverMuted: Boolean = false,
+    val serverDeafened: Boolean = false,
 )
 
 data class CallReaction(val id: Long, val userId: String, val emoji: String)
@@ -81,7 +84,24 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
     /** Servidor de mídia PRÓPRIO (VPS do Project Club). */
     private var own: MediasoupEngine? = null
     private val usingOwn get() = _state.value.provider == PROVIDER_OWN
-    private val audio = CallAudio(appContext) { speaker -> _state.update { it.copy(speakerOn = speaker) } }
+    private val audio = CallAudio(
+        appContext,
+        onRouteChanged = { speaker -> _state.update { it.copy(speakerOn = speaker) } },
+        // Ligação do telefone (perdeu o foco de áudio): muta e volta depois.
+        onInterrupted = { on -> main.post { onAudioInterrupted(on) } },
+    )
+
+    /** Mudo/ensurdecido valem entre canais (igual ao Discord) — guardados aqui. */
+    private var keepMuted = false
+    private var keepDeafened = false
+    /** Mudo forçado pelo palco (plateia): não conta como "meu" mudo. */
+    private var roleMuted = false
+    /** Ligação do telefone em andamento: o mic da call fica mutado. */
+    private var interrupted = false
+    /** "Mover para…" de um moderador chegou (o servidor de mídia nos tira da sala antiga). */
+    private var forceMoveAt = 0L
+    /** Fala local (null = ainda sem medida: vale o detector do servidor). */
+    private var localMe: Boolean? = null
 
     private var projection: MediaProjection? = null
     private var syncJob: Job? = null
@@ -109,10 +129,33 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
             if (providerBroken) providerFailed(s, PROVIDER_OWN, message) else retryProvider(s)
         }
         override fun onReplaced() = on { replacedElsewhere() }
-        override fun onLeft() = on { leave(notifyServer = false) }
+        override fun onLeft(reason: String) = on { s ->
+            when (reason) {
+                // Movido por um moderador: o voice:force-move troca de canal. Se não vier, sai.
+                "moved" -> main.postDelayed({
+                    if (session == s && System.currentTimeMillis() - forceMoveAt > 8_000) leave(notifyServer = false)
+                }, 3_000)
+                "missed" -> { leave(notifyServer = false); _state.update { it.copy(error = "Ninguém atendeu a chamada.") } }
+                else -> { leave(notifyServer = false); _state.update { it.copy(error = "Você foi desconectado da chamada por um moderador.") } }
+            }
+        }
+        override fun onServerState(serverMuted: Boolean, serverDeafened: Boolean, canSpeak: Boolean) = on { applyServerMod(serverMuted, serverDeafened) }
+        override fun onLocalSpeaking(speaking: Boolean) = on {
+            localMe = speaking
+            val ch = _state.value.channelName ?: return@on
+            // Os outros veem o anel verde na hora (o servidor limita a ~4/s).
+            repo.realtime.emit("voice:speaking", JSONObject().put("channelId", ch).put("speaking", speaking))
+            val next = if (speaking) _state.value.speaking + "me" else _state.value.speaking - "me"
+            if (next != _state.value.speaking) _state.update { it.copy(speaking = next) }
+        }
         override fun onWarning(message: String) = on { _state.update { st -> st.copy(error = message) } }
         override fun onScreenStopped() = on { screenStoppedByEngine() }
-        override fun onSpeaking(userIds: Set<String>) = on { if (userIds != _state.value.speaking) _state.update { it.copy(speaking = userIds) } }
+        override fun onSpeaking(userIds: Set<String>) = on {
+            // O MEU anel vem do microfone (instantâneo); o do servidor só vale sem medida local.
+            val me = localMe ?: ("me" in userIds)
+            val merged = (userIds - "me") + (if (me) setOf("me") else emptySet())
+            if (merged != _state.value.speaking) _state.update { it.copy(speaking = merged) }
+        }
         override fun onRemoteVideo(userIds: Set<String>) = on { _state.update { it.copy(remoteVideo = userIds) } }
     }
 
@@ -127,6 +170,33 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
                     // O servidor não me acha na sala (caí e a tolerância passou): entra de novo.
                     "voice:not-in-room" -> if (e.data.toString().contains(ch) && _state.value.status == CallStatus.Connected) {
                         repo.realtime.emit("voice:join", JSONObject().put("channelId", ch))
+                    }
+                    // Palco: plateia muta (o servidor de mídia também não deixa falar).
+                    "voice:role-update" -> {
+                        val o = e.data as? JsonObject ?: return@collect
+                        fun f(k: String) = (o[k] as? JsonPrimitive)?.content
+                        if (f("channelId") != ch || f("userId") != repo.me.value?.id) return@collect
+                        main.post { onRoleUpdate(f("role") == "audience") }
+                    }
+                    // Moderação do servidor (Silenciar/Ensurdecer no servidor).
+                    "voice:server-state" -> {
+                        val o = e.data as? JsonObject ?: return@collect
+                        fun f(k: String) = (o[k] as? JsonPrimitive)?.content
+                        if (f("channelId") != ch) return@collect
+                        main.post { applyServerMod(f("serverMuted") == "true", f("serverDeafened") == "true") }
+                    }
+                    // "Mover para…": troca de canal sozinho.
+                    "voice:force-move" -> {
+                        val o = e.data as? JsonObject ?: return@collect
+                        fun f(k: String) = (o[k] as? JsonPrimitive)?.content
+                        val to = f("channelId") ?: return@collect
+                        val from = f("fromChannelId")
+                        if (from != null && from != ch) return@collect
+                        main.post { forceMove(to) }
+                    }
+                    "voice:force-disconnect" -> if (e.data.toString().contains(ch)) main.post {
+                        leave(notifyServer = false)
+                        _state.update { it.copy(error = "Você foi desconectado da chamada por um moderador.") }
                     }
                     "voice:reaction" -> {
                         val o = e.data as? JsonObject ?: return@collect
@@ -162,7 +232,12 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
         if (cur.channelName != null) leave()
         val s = ++session
         ownFailures = 0
-        _state.value = CallState(channelName = channelName, title = title, status = CallStatus.Connecting, listenOnly = listenOnly, muted = listenOnly)
+        localMe = null
+        // Mudo/ensurdecido continuam valendo no canal novo (startMuted = muted || deafened).
+        _state.value = CallState(
+            channelName = channelName, title = title, status = CallStatus.Connecting, listenOnly = listenOnly,
+            muted = listenOnly || keepMuted, deafened = keepDeafened,
+        )
         startService(title)
         connectJob?.cancel()
         connectJob = scope.launch(Dispatchers.Main.immediate) { connect(s) }
@@ -245,7 +320,7 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
                 val ice = MediasoupEngine.iceServers(runCatching { JSONObject(pc.toString()).optJSONArray("iceServers") }.getOrNull())
                 audio.start(_state.value.speakerOn)
                 val e = own ?: MediasoupEngine(appContext, ownEvents).also { own = it }
-                e.join(OwnMediaCreds(url, token, ice), myId, startMuted = st.muted || st.deafened, listenOnly = st.listenOnly || !hasMic())
+                e.join(OwnMediaCreds(url, token, ice), myId, startMuted = st.muted || st.deafened || interrupted, listenOnly = st.listenOnly || !hasMic())
                 if (st.deafened) e.setDeafened(true)
                 armWatchdog(s, PROVIDER_OWN, OWN_CONNECT_TIMEOUT_MS)
                 Start.Started
@@ -308,6 +383,8 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
     /** Desliga a mídia (a call em si continua). */
     private fun stopMedia() {
         watchdog?.cancel()
+        // O CallAudio.stop() abaixo solta o foco de áudio (e a marca de ligação).
+        interrupted = false
         if (_state.value.sharingScreen) {
             projection?.let { p -> runCatching { p.stop() } }
             projection = null
@@ -357,8 +434,71 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
         })
     }
 
+    /** Mudo efetivo do microfone (meu, ensurdecido ou ligação do telefone). */
+    private fun applyMicMute() {
+        val st = _state.value
+        if (usingOwn) own?.setMuted(st.muted || st.deafened || interrupted)
+    }
+
+    private fun onAudioInterrupted(on: Boolean) {
+        if (interrupted == on) return
+        interrupted = on
+        if (_state.value.channelName == null) return
+        applyMicMute()
+        // Os outros veem você mudo enquanto atende o telefone.
+        val ch = _state.value.channelName ?: return
+        repo.realtime.emit("voice:state", JSONObject().put("channelId", ch).put("muted", on || _state.value.muted || _state.value.deafened))
+    }
+
+    /** Palco: plateia não fala; promovido volta ao mudo que tinha. */
+    private fun onRoleUpdate(audience: Boolean) {
+        if (audience) {
+            if (!_state.value.muted) roleMuted = true
+            _state.update { it.copy(muted = true) }
+            applyMicMute()
+        } else if (roleMuted) {
+            roleMuted = false
+            _state.update { it.copy(muted = false) }
+            applyMicMute()
+        }
+        sendState()
+    }
+
+    private fun applyServerMod(serverMuted: Boolean, serverDeafened: Boolean) {
+        val st = _state.value
+        if (st.serverMuted == serverMuted && st.serverDeafened == serverDeafened) return
+        val msg = when {
+            serverDeafened && !st.serverDeafened -> "Você foi ensurdecido no servidor por um moderador."
+            serverMuted && !st.serverMuted -> "Você foi silenciado no servidor por um moderador."
+            !serverMuted && !serverDeafened -> "A moderação liberou seu microfone."
+            else -> null
+        }
+        _state.update { it.copy(serverMuted = serverMuted, serverDeafened = serverDeafened, error = msg ?: it.error) }
+    }
+
+    private fun forceMove(toChannelId: String) {
+        if (_state.value.channelName == null || toChannelId == _state.value.channelName) return
+        forceMoveAt = System.currentTimeMillis()
+        val name = repo.channel(toChannelId)?.name ?: "Canal de voz"
+        join(toChannelId, name, _state.value.listenOnly)
+        _state.update { it.copy(error = "Um moderador moveu você para $name.") }
+    }
+
     fun toggleMute() {
         val st = _state.value
+        if (st.muted && st.serverMuted) _state.update { it.copy(error = "Você foi silenciado no servidor por um moderador.") }
+        if (st.deafened) {
+            // Mexer no microfone estando ensurdecido desensurdece e desmuta (igual ao Discord).
+            if (st.serverDeafened) { _state.update { it.copy(error = "Você foi ensurdecido no servidor por um moderador.") }; return }
+            keepDeafened = false
+            keepMuted = st.listenOnly
+            roleMuted = false
+            if (usingOwn) own?.setDeafened(false)
+            _state.update { it.copy(deafened = false, muted = st.listenOnly) }
+            applyMicMute()
+            sendState()
+            return
+        }
         if (st.listenOnly && st.muted) {
             // Entrou só ouvindo: pra falar precisa da permissão do microfone.
             if (!hasMic()) {
@@ -371,15 +511,21 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
             if (usingOwn) own?.enableMic()
         }
         val muted = !_state.value.muted
-        if (usingOwn) own?.setMuted(muted || _state.value.deafened)
+        keepMuted = muted
+        roleMuted = false
         _state.update { it.copy(muted = muted) }
+        applyMicMute()
         sendState()
     }
 
     fun toggleDeafen() {
         val deaf = !_state.value.deafened
-        if (usingOwn) { own?.setDeafened(deaf); own?.setMuted(deaf || _state.value.muted) }
+        if (!deaf && _state.value.serverDeafened) { _state.update { it.copy(error = "Você foi ensurdecido no servidor por um moderador.") }; return }
+        keepDeafened = deaf
+        // O mudo de antes continua guardado em `muted`: desensurdecer volta pra ele.
+        if (usingOwn) own?.setDeafened(deaf)
         _state.update { it.copy(deafened = deaf) }
+        applyMicMute()
         sendState()
     }
 

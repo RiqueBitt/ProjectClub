@@ -22,7 +22,15 @@ import android.util.Log
  *
  * Tudo aqui roda na thread principal.
  */
-class CallAudio(context: Context, private val onRouteChanged: (speaker: Boolean) -> Unit) {
+class CallAudio(
+    context: Context,
+    private val onRouteChanged: (speaker: Boolean) -> Unit,
+    /**
+     * Outro app pegou o áudio (ligação do telefone, alarme, assistente):
+     * true = mutar o microfone da call; false = pode voltar ao normal.
+     */
+    private val onInterrupted: (interrupted: Boolean) -> Unit = {},
+) {
     private val am = context.applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val main = Handler(Looper.getMainLooper())
     private var active = false
@@ -30,10 +38,24 @@ class CallAudio(context: Context, private val onRouteChanged: (speaker: Boolean)
     private var savedMode = AudioManager.MODE_NORMAL
     private var focus: AudioFocusRequest? = null
     private var scoOn = false
+    /** Perdemos o foco (ligação do telefone…): o mic da call está mutado por isso. */
+    private var interrupted = false
 
     private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
-        // Voltou o foco (ex.: depois de uma ligação do telefone): reaplica a rota.
-        if (change == AudioManager.AUDIOFOCUS_GAIN && active) applyRoute()
+        if (!active) return@OnAudioFocusChangeListener
+        when (change) {
+            // Ligação do telefone / outro app de chamada: muta o microfone da
+            // call (senão quem está na call ouve a sua ligação) até o foco voltar.
+            AudioManager.AUDIOFOCUS_LOSS, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                if (!interrupted) { interrupted = true; onInterrupted(true) }
+            }
+            // Voltou o foco (ex.: depois de uma ligação): reaplica a rota e o mic.
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                applyRoute()
+                if (interrupted) { interrupted = false; onInterrupted(false) }
+            }
+            else -> Unit // LOSS_TRANSIENT_CAN_DUCK: notificação curta, segue normal
+        }
     }
 
     private val devices = object : AudioDeviceCallback() {
@@ -75,6 +97,7 @@ class CallAudio(context: Context, private val onRouteChanged: (speaker: Boolean)
     fun stop() {
         if (!active) return
         active = false
+        interrupted = false
         runCatching { am.unregisterAudioDeviceCallback(devices) }
         if (Build.VERSION.SDK_INT >= 31) runCatching { am.clearCommunicationDevice() }
         else {

@@ -570,7 +570,8 @@ class Repository(private val context: Context, val api: Api, private val scope: 
                 val conversationId = str(d, "conversationId") ?: return
                 _alerts.tryEmit(Alert.IncomingCall(conversationId, str(d, "channelId") ?: "dm:$conversationId", str(d, "fromUserId"), str(d, "callerName") ?: "Alguém"))
             }
-            "dm-call:ended", "dm-call:declined" -> str(d, "conversationId")?.let { _alerts.tryEmit(Alert.CallEnded(it)) }
+            // Atendeu em OUTRO aparelho / ninguém atendeu em 60s: para de tocar aqui.
+            "dm-call:ended", "dm-call:declined", "dm-call:answered", "dm-call:missed" -> str(d, "conversationId")?.let { _alerts.tryEmit(Alert.CallEnded(it)) }
             "account:banned", "account:suspended", "account:disabled", "account:deleted", "account:blocked" ->
                 scope.launch { endLocalSession("Sua conta não pode entrar agora.") }
         }
