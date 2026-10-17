@@ -375,6 +375,13 @@ function AudioSink({ stream, volume, autoLevel }) {
     }
     const ctx = new AudioCtx();
     audioCtxRef.current = ctx;
+    // Chromium/Electron: o áudio REMOTO do WebRTC só "anda" pro Web Audio se
+    // o stream também estiver tocando num elemento de mídia (bug antigo do
+    // Chrome). Toca o original num <audio> mudo só pra destravar.
+    const unlockEl = new Audio();
+    unlockEl.muted = true;
+    unlockEl.srcObject = stream;
+    unlockEl.play().catch(() => {});
     const source = ctx.createMediaStreamSource(stream);
     // BUG CORRIGIDO ("voz sai fraca/desanimada"): o limitador de dinâmica
     // (DynamicsCompressor) que existia aqui foi criado na época da malha
@@ -437,6 +444,13 @@ function AudioSink({ stream, volume, autoLevel }) {
         useStore.getState().pushNotice('O navegador bloqueou a reprodução automática do áudio da chamada — toque ou clique em qualquer lugar da tela pra ativar o som.');
         const retry = () => {
           ctx.resume().catch(() => {});
+    // Plano B: se o Web Audio não começou a rodar em 2 s (política de
+    // autoplay, driver de som), toca o stream direto no <audio> — sem o
+    // ajuste de volume acima de 100%, mas com som.
+    const fallbackTimer = setTimeout(() => {
+      if (ctx.state === 'running' || !audioRef.current) return;
+      try { audioRef.current.srcObject = stream; audioRef.current.volume = Math.min(1, gainRef.current?.gain.value ?? 1); audioRef.current.play().catch(() => {}); } catch { /* ok */ }
+    }, 2000);
           audioRef.current?.play().then(() => { retryCleanup?.(); retryCleanup = null; }).catch(() => {});
         };
         document.addEventListener('click', retry);
@@ -453,6 +467,17 @@ function AudioSink({ stream, volume, autoLevel }) {
       audioRef.current.srcObject = destinationNode.stream;
       tryPlay();
       const preferredSpeakerId = getPreferredSpeakerId();
+      // Saída salva que não existe mais neste aparelho (fone desconectado,
+      // id de outro navegador): esquece e usa a padrão — antes o som ia pra
+      // "lugar nenhum" e a pessoa não ouvia a call.
+      if (preferredSpeakerId && navigator.mediaDevices?.enumerateDevices) {
+        navigator.mediaDevices.enumerateDevices().then((list) => {
+          if (!list.some((d) => d.kind === 'audiooutput' && d.deviceId === preferredSpeakerId)) {
+            try { localStorage.removeItem('voice.preferredSpeakerId'); } catch { /* ok */ }
+            audioRef.current?.setSinkId?.('').catch(() => {});
+          }
+        }).catch(() => {});
+      }
       if (preferredSpeakerId && isOutputSelectionSupported()) {
         audioRef.current.setSinkId(preferredSpeakerId).catch(() => {});
       }
@@ -472,6 +497,8 @@ function AudioSink({ stream, volume, autoLevel }) {
     });
 
     return () => {
+      clearTimeout(fallbackTimer);
+      try { unlockEl.pause(); unlockEl.srcObject = null; } catch { /* ok */ }
       retryCleanup?.();
       unsubscribe();
       // BUG CORRIGIDO: aqui ainda citava o `compressor` (removido) — o erro

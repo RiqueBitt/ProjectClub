@@ -29,12 +29,35 @@ const server = http.createServer((req, res) => {
   }
   if (req.method === 'GET' && url.pathname === '/stats') {
     if (req.headers['x-media-secret'] !== config.secret) { res.writeHead(401); res.end(); return; }
-    const detail = [];
-    for (const r of rooms.rooms.values()) {
-      detail.push({ room: r.name, peers: [...r.peers.values()].map((p) => ({ id: p.id, name: p.name, producers: p.producers.size, consumers: p.consumers.size })) });
-    }
-    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-    res.end(JSON.stringify({ ...rooms.stats(), rooms: detail }));
+    // ?deep=1: estado de cada transporte (ICE/DTLS) e bytes enviados por
+    // consumer — diagnóstico de "eu falo mas não escuto".
+    const deep = url.searchParams.get('deep') === '1';
+    (async () => {
+      const detail = [];
+      for (const r of rooms.rooms.values()) {
+        const peers = [];
+        for (const p of r.peers.values()) {
+          const row = { id: p.id, name: p.name, producers: p.producers.size, consumers: p.consumers.size };
+          if (deep) {
+            row.transports = [...p.transports.values()].map((t) => ({ id: t.id.slice(0, 6), ice: t.iceState, dtls: t.dtlsState, tuple: t.iceSelectedTuple ? `${t.iceSelectedTuple.protocol}:${t.iceSelectedTuple.remoteIp}` : null, dir: t.appData?.direction }));
+            row.consumersDetail = [];
+            for (const c of p.consumers.values()) {
+              let bytes = null; try { const st = await c.getStats(); bytes = st.find((x) => x.type === 'outbound-rtp')?.byteCount ?? null; } catch { /* ok */ }
+              row.consumersDetail.push({ kind: c.kind, of: c.appData?.peerId, paused: c.paused, producerPaused: c.producerPaused, score: c.score?.score, bytes });
+            }
+            row.producersDetail = [];
+            for (const pr of p.producers.values()) {
+              let bytes = null; try { const st = await pr.getStats(); bytes = st[0]?.byteCount ?? null; } catch { /* ok */ }
+              row.producersDetail.push({ kind: pr.kind, paused: pr.paused, bytes });
+            }
+          }
+          peers.push(row);
+        }
+        detail.push({ room: r.name, peers });
+      }
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify({ ...rooms.stats(), rooms: detail }));
+    })().catch((err) => { res.writeHead(500); res.end(String(err?.message || err)); });
     return;
   }
   res.writeHead(404, { 'content-type': 'text/plain' });
