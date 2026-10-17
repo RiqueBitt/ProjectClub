@@ -2187,8 +2187,7 @@ model FileAsset {
   @@index([ownerId])
 }
 
-// =====================================================}
-
+// ============================================================
 // Item pedido: "sistema completo chamado Clans" — comunidades
 // pequenas dentro da plataforma, cada usuário em no máximo um clã
 // por vez (ver User.clanId acima). Modelos próprios, dedicados, em
@@ -3906,7 +3905,8 @@ model SectionSeen {
   seenAt  DateTime @default(now())
 
   @@id([userId, section])
-=======
+}
+
 // Primeiros passos (checklist de boas-vindas) + tour. Uma linha por pessoa
 // por passo: completedAt = o servidor confirmou que o passo foi feito
 // (conferido no banco ou por evento do próprio servidor, nunca pelo
