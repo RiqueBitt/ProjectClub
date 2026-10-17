@@ -11,6 +11,8 @@ import { RecordingConsentModal, RecordingCapture } from './voice/CallExtras.jsx'
 import { api } from '../api/client';
 import { getPreferredSpeakerId, setPreferredSpeakerId, getPreferredMicId, isOutputSelectionSupported, onSpeakerPreferenceChange, listAudioDevices } from '../utils/audioDevices';
 import { getVoicePref, onVoicePrefsChange } from '../utils/voicePrefs';
+import { RemoteTrackPlayer, resolveOutputSink, setContextSink } from '../voice/audioPlayback.js';
+import { buildDiag, createOnceSet } from '../voice/playbackPlan.js';
 import { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import '../styles/callbar.css';
@@ -306,10 +308,14 @@ export default function CallBar() {
   );
 }
 
-// Invisible <audio> elements that actually play back every remote peer's
-// mic — kept mounted at the app-shell level (not inside the per-channel
-// voice view) so audio keeps flowing even while you're browsing text
-// channels or other servers during the call.
+// <audio> invisíveis que tocam o microfone de cada pessoa da chamada —
+// montados na barra (sempre presente durante a call), não na tela do canal,
+// pra o áudio seguir tocando enquanto você navega pelo app.
+//
+// Reprodução: voice/audioPlayback.js (RemoteTrackPlayer) — um <audio> por
+// faixa remota como caminho principal; Web Audio só pra >100% / auto nivelar
+// com o AudioContext rodando; auto-cura e nova tentativa no próximo gesto.
+// Volume por pessoa, ensurdecer e saída escolhida continuam valendo.
 function RemoteAudioSinks() {
   const voice = useVoice();
   const { remoteAudioStreams, deafened, volumes } = voice;
@@ -318,232 +324,131 @@ function RemoteAudioSinks() {
   // mais audível e quem fala alto não estoura. Local-only (só no SEU áudio).
   const [autoLevel, setAutoLevel] = useState(() => getVoicePref('autoLevelVolume') === true);
   useEffect(() => onVoicePrefsChange((p) => setAutoLevel(p.autoLevelVolume === true)), []);
+  // Saída de áudio escolhida, conferida contra os aparelhos de verdade:
+  // null = não dá pra saber (sem permissão) → não mexe.
+  const [sinkId, setSinkId] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const resolve = async () => {
+      let saved = '';
+      try { saved = getPreferredSpeakerId(); } catch { /* sem storage */ }
+      if (!isOutputSelectionSupported()) { if (alive) setSinkId(null); return; }
+      const r = await resolveOutputSink(saved);
+      if (!alive) return;
+      if (r.stale) {
+        // Saída salva que não existe mais neste aparelho (fone desconectado,
+        // id de outro navegador): esquece e usa a padrão — antes o som ia pra
+        // "lugar nenhum" e a pessoa não ouvia a call.
+        try { localStorage.removeItem('voice.preferredSpeakerId'); } catch { /* ok */ }
+      }
+      setSinkId(r.sinkId);
+      if (r.sinkId != null) setContextSink(r.sinkId);
+    };
+    resolve();
+    // Troca de saída em tempo real (menu/configurações) e fone plugado/tirado.
+    const unsubscribe = onSpeakerPreferenceChange(() => { resolve(); });
+    const md = navigator.mediaDevices;
+    try { md?.addEventListener?.('devicechange', resolve); } catch { /* ok */ }
+    return () => {
+      alive = false;
+      try { unsubscribe(); } catch { /* ok */ }
+      try { md?.removeEventListener?.('devicechange', resolve); } catch { /* ok */ }
+    };
+  }, []);
+  const callKey = `${voice.call?.channelId || ''}|${voice.callStartedAt || ''}`;
   return (
     <>
       {Object.entries(remoteAudioStreams).map(([userId, stream]) => (
-        <AudioSink key={userId} stream={stream} volume={deafened ? 0 : (volumes[userId] ?? 1)} autoLevel={autoLevel} />
+        <AudioSink
+          key={userId} userId={userId} stream={stream}
+          volume={deafened ? 0 : (volumes[userId] ?? 1)} autoLevel={autoLevel} sinkId={sinkId}
+          getInboundBytes={voice.getInboundAudioBytes} provider={voice.provider} callKey={callKey}
+        />
       ))}
     </>
   );
 }
 
-// Echo/feedback remover for remote playback.
-//
-// The "eco que vai afinando até ficar fino e travar" report is a classic
-// acoustic feedback runaway: mic -> speaker -> picked up by mic again ->
-// sent back -> played again, each pass a little louder than the last (this
-// is *acoustic* feedback through the air, not something getUserMedia's own
-// echoCancellation can fully catch — that flag cancels echo the browser can
-// correlate with audio IT is playing on ITS OWN output, it can't reach
-// across the room to a different physical device/speaker). Left unchecked,
-// each pass also pushes further into clipping, and clipping harmonics are
-// what make a runaway loop sound like it's rising in pitch right before it
-// cuts out.
-//
-// Instead of feeding the remote stream straight to an <audio> element, it's
-// routed through a small Web Audio graph:
-//   MediaStreamAudioSourceNode -> DynamicsCompressorNode (hard limiter) -> GainNode -> destination
-// The compressor is the actual "echo remover" here: it hard-caps how loud
-// the output can get, so a feedback loop's per-pass amplification has
-// nowhere to grow — it gets squashed back down every time round, instead of
-// climbing until it clips and cuts out. This doesn't replace using
-// headphones (nothing running purely in the browser can undo *acoustic*
-// feedback between two separate physical devices), but it stops the
-// runaway/rising-pitch/cutoff failure mode.
-function AudioSink({ stream, volume, autoLevel }) {
-  const audioRef = useRef(null);
-  const audioCtxRef = useRef(null);
-  const gainRef = useRef(null);
+// Aviso de autoplay bloqueado: no máximo 1 a cada 30s (antes era 1 por pessoa).
+let lastBlockedNoticeAt = 0;
+function noticeAutoplayBlocked() {
+  if (Date.now() - lastBlockedNoticeAt < 30000) return;
+  lastBlockedNoticeAt = Date.now();
+  try {
+    useStore.getState().pushNotice('O navegador bloqueou a reprodução automática do áudio da chamada — toque ou clique em qualquer lugar da tela pra ativar o som.');
+  } catch { /* ok */ }
+}
+
+// Diagnóstico "voz-diag": 1 por call por pessoa remota, compacto, com os
+// bytes RTP recebidos dela (prova se é rede ou reprodução).
+const diagOnce = createOnceSet();
+
+// Uma pessoa pode ter mais de uma faixa de áudio (microfone + áudio da tela):
+// cada uma no seu <audio>.
+function AudioSink({ stream, ...rest }) {
+  const [tracks, setTracks] = useState(() => (stream ? stream.getAudioTracks() : []));
+  useEffect(() => {
+    if (!stream) { setTracks([]); return undefined; }
+    const update = () => setTracks(stream.getAudioTracks());
+    update();
+    try { stream.addEventListener('addtrack', update); stream.addEventListener('removetrack', update); } catch { /* ok */ }
+    return () => {
+      try { stream.removeEventListener('addtrack', update); stream.removeEventListener('removetrack', update); } catch { /* ok */ }
+    };
+  }, [stream]);
+  return tracks.map((t) => <TrackSink key={t.id} track={t} {...rest} />);
+}
+
+function TrackSink({ track, userId, volume, autoLevel, sinkId, getInboundBytes, provider, callKey }) {
+  const playerRef = useRef(null);
+  // Valores mais recentes pra quem roda fora do render (timers do player).
+  const latestRef = useRef({});
+  latestRef.current = { volume, autoLevel, sinkId, getInboundBytes, provider, callKey };
 
   useEffect(() => {
-    if (!stream) return undefined;
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) {
-      // No Web Audio support at all — fall back to plain playback rather
-      // than silence, even without the limiter.
-      // BUG CORRIGIDO: faltava chamar .play() aqui — só definir srcObject
-      // num <audio> sem o atributo autoplay NUNCA começa a tocar sozinho.
-      // Esse caminho (só usado em navegadores raros sem AudioContext) IA
-      // pro DOM certinho mas nunca produzia som nenhum, com o mesmo
-      // silêncio sem erro visível do bug de cima.
-      if (audioRef.current) {
-        audioRef.current.srcObject = stream;
-        audioRef.current.play().catch(() => {
-          useStore.getState().pushNotice('O navegador bloqueou a reprodução automática do áudio da chamada — toque ou clique em qualquer lugar da tela pra ativar o som.');
-        });
-      }
+    let player = null;
+    try {
+      player = new RemoteTrackPlayer({
+        track, userId,
+        getInboundBytes: () => latestRef.current.getInboundBytes?.(userId) ?? null,
+        onBlocked: noticeAutoplayBlocked,
+      });
+    } catch (err) {
+      console.error('[voz] não foi possível tocar o áudio de', userId, err);
       return undefined;
     }
-    const ctx = new AudioCtx();
-    audioCtxRef.current = ctx;
-    // Chromium/Electron: o áudio REMOTO do WebRTC só "anda" pro Web Audio se
-    // o stream também estiver tocando num elemento de mídia (bug antigo do
-    // Chrome). Toca o original num <audio> mudo só pra destravar.
-    const unlockEl = new Audio();
-    unlockEl.muted = true;
-    unlockEl.srcObject = stream;
-    unlockEl.play().catch(() => {});
-    const source = ctx.createMediaStreamSource(stream);
-    // BUG CORRIGIDO ("voz sai fraca/desanimada"): o limitador de dinâmica
-    // (DynamicsCompressor) que existia aqui foi criado na época da malha
-    // própria de WebRTC, pra evitar um loop de eco que ia se
-    // realimentando e ficando cada vez mais alto até travar — um risco
-    // real numa topologia peer-to-peer. Migrado pro Agora (SFU
-    // centralizado, com cancelamento de eco de verdade cuidado pela
-    // própria infraestrutura deles), esse risco específico não existe
-    // mais — mas o compressor continuava ativo, achatando a dinâmica de
-    // QUALQUER fala normal (não só picos de eco), o que é exatamente o
-    // que deixa uma voz soando "morta"/sem vida. Sem ele, a faixa de
-    // áudio vai direto da fonte pro ganho, sem coloração nenhuma no meio.
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(volume, ctx.currentTime);
-    gainRef.current = gain;
-    // Item pedido E ("auto nivelar volume"): compressor leve só quando a
-    // pessoa liga a opção. Sem ele (padrão), o áudio vai direto da fonte
-    // pro ganho, sem nenhuma coloração — igual a antes.
-    let leveler = null;
-    if (autoLevel) {
-      leveler = ctx.createDynamicsCompressor();
-      leveler.threshold.setValueAtTime(-30, ctx.currentTime);
-      leveler.knee.setValueAtTime(24, ctx.currentTime);
-      leveler.ratio.setValueAtTime(3, ctx.currentTime);
-      leveler.attack.setValueAtTime(0.01, ctx.currentTime);
-      leveler.release.setValueAtTime(0.25, ctx.currentTime);
-      source.connect(leveler);
-      leveler.connect(gain);
-    } else {
-      source.connect(gain);
-    }
-    // Em vez de mandar direto pro alto-falante padrão (ctx.destination),
-    // manda pra um <audio> escondido — só um elemento HTML de mídia
-    // suporta escolher a saída de áudio (setSinkId), então é a única forma
-    // de deixar o usuário escolher fones/caixa de som numa chamada e ainda
-    // manter o limitador de eco/volume por cima.
-    const destinationNode = ctx.createMediaStreamDestination();
-    gain.connect(destinationNode);
-    // BUG CORRIGIDO ("não sai áudio nenhum, no PC ou no celular"): esse
-    // .play() tinha um .catch(() => {}) que ENGOLIA silenciosamente
-    // qualquer falha — e navegadores (principalmente celular, mas às
-    // vezes PC também) bloqueiam reprodução automática de áudio se
-    // considerarem que já passou tempo/eventos demais desde o último
-    // gesto de verdade da pessoa (clicar em "Entrar no canal" conta,
-    // mas até esse áudio remoto chegar — depois de toda a negociação
-    // WebRTC/ICE — esse gesto já pode ter "expirado" na visão do
-    // navegador). Resultado: a chamada conecta perfeitamente (o outro
-    // lado aparece na tela, o ícone de "falando" pisca certinho), mas
-    // NENHUM som sai — sem erro nenhum visível em lugar nenhum, porque o
-    // catch vazio escondia exatamente esse erro. Agora, se o play()
-    // falhar, um aviso real aparece pra pessoa E a reprodução é
-    // tentada de novo automaticamente assim que ela interagir com a
-    // página de qualquer jeito (clique/toque/tecla) — sem precisar
-    // sair e entrar de novo no canal pra "destravar" o áudio.
-    let retryCleanup = null;
-    const tryPlay = () => {
-      if (!audioRef.current) return;
-      audioRef.current.play().catch(() => {
-        if (retryCleanup) return; // já tem uma tentativa de retry armada
-        useStore.getState().pushNotice('O navegador bloqueou a reprodução automática do áudio da chamada — toque ou clique em qualquer lugar da tela pra ativar o som.');
-        const retry = () => {
-          ctx.resume().catch(() => {});
-          audioRef.current?.play().then(() => { retryCleanup?.(); retryCleanup = null; }).catch(() => {});
-        };
-        document.addEventListener('click', retry);
-        document.addEventListener('touchend', retry);
-        document.addEventListener('keydown', retry);
-        retryCleanup = () => {
-          document.removeEventListener('click', retry);
-          document.removeEventListener('touchend', retry);
-          document.removeEventListener('keydown', retry);
-        };
-      });
-    };
-    if (audioRef.current) {
-      audioRef.current.srcObject = destinationNode.stream;
-      tryPlay();
-      const preferredSpeakerId = getPreferredSpeakerId();
-      // Saída salva que não existe mais neste aparelho (fone desconectado,
-      // id de outro navegador): esquece e usa a padrão — antes o som ia pra
-      // "lugar nenhum" e a pessoa não ouvia a call.
-      if (preferredSpeakerId && navigator.mediaDevices?.enumerateDevices) {
-        navigator.mediaDevices.enumerateDevices().then((list) => {
-          if (!list.some((d) => d.kind === 'audiooutput' && d.deviceId === preferredSpeakerId)) {
-            try { localStorage.removeItem('voice.preferredSpeakerId'); } catch { /* ok */ }
-            audioRef.current?.setSinkId?.('').catch(() => {});
-          }
-        }).catch(() => {});
-      }
-      if (preferredSpeakerId && isOutputSelectionSupported()) {
-        audioRef.current.setSinkId(preferredSpeakerId).catch(() => {});
-      }
-    }
-    // Autoplay-policy: a context created outside a direct click handler can
-    // start 'suspended'. Joining a call always starts from a button click,
-    // so this should already be allowed, but resume() defensively in case
-    // it isn't (e.g. a peer's audio arriving slightly after that gesture).
-    ctx.resume().catch(() => {});
-    // Plano B: se o Web Audio não começou a rodar em 2 s (política de
-    // autoplay, driver de som), toca o stream direto no <audio> — sem o
-    // ajuste de volume acima de 100%, mas com som.
-    const fallbackTimer = setTimeout(() => {
-      if (ctx.state === 'running' || !audioRef.current) return;
-      try { audioRef.current.srcObject = stream; audioRef.current.volume = Math.min(1, gainRef.current?.gain.value ?? 1); audioRef.current.play().catch(() => {}); } catch { /* ok */ }
-    }, 2000);
+    playerRef.current = player;
+    const l = latestRef.current;
+    player.setAutoLevel(l.autoLevel);
+    player.setVolume(l.volume);
+    if (l.sinkId != null) player.setSinkId(l.sinkId);
 
-    // Troca de saída de áudio em tempo real (menu de configurações) — sem
-    // isso, teria que sair e voltar da chamada pra aplicar a escolha.
-    const unsubscribe = onSpeakerPreferenceChange((speakerId) => {
-      if (audioRef.current && isOutputSelectionSupported()) {
-        audioRef.current.setSinkId(speakerId || '').catch(() => {});
-      }
-    });
-
-    // Diagnóstico (temporário): 8 s depois de começar a tocar, manda pro
-    // servidor o estado real da reprodução deste áudio — pra achar por que
-    // alguém não ouve a call (fica no registro de erros da equipe).
     const diagTimer = setTimeout(() => {
       try {
-        const t = stream.getAudioTracks()[0];
-        const el = audioRef.current;
-        const info = {
-          track: t ? { state: t.readyState, muted: t.muted, enabled: t.enabled } : null,
-          ctx: ctx.state, sampleRate: ctx.sampleRate,
-          el: el ? { paused: el.paused, muted: el.muted, volume: el.volume, time: Math.round(el.currentTime), sink: el.sinkId || 'padrão', usingFallback: el.srcObject === stream } : null,
-          gain: gainRef.current?.gain.value, savedSpeaker: getPreferredSpeakerId() ? 'sim' : 'não',
-          ua: navigator.userAgent.slice(0, 120),
-        };
-        api.post('/system/client-error', { where: 'voz-diag', path: location.pathname, message: JSON.stringify(info) }).catch(() => {});
+        const cur = latestRef.current;
+        if (!diagOnce.first(`${cur.callKey}|${userId}`)) return;
+        const st = player.state();
+        const info = buildDiag({
+          userId, provider: cur.provider, mode: st.mode, el: player.el, track,
+          ctxState: st.ctx, inboundBytes: cur.getInboundBytes?.(userId) ?? null,
+          sinkCustom: !!st.sinkId, ua: navigator.userAgent,
+        });
+        info.h = st.heals;
+        if (st.blocked) info.bl = 1;
+        api.post('/system/client-error', { where: 'voz-diag', path: window.location.pathname, message: JSON.stringify(info) }).catch(() => {});
       } catch { /* diagnóstico nunca atrapalha */ }
     }, 8000);
+
     return () => {
       clearTimeout(diagTimer);
-      clearTimeout(fallbackTimer);
-      try { unlockEl.pause(); unlockEl.srcObject = null; } catch { /* ok */ }
-      retryCleanup?.();
-      unsubscribe();
-      // BUG CORRIGIDO: aqui ainda citava o `compressor` (removido) — o erro
-      // interrompia a limpeza e o ganho/destino ficavam conectados.
-      try { source.disconnect(); leveler?.disconnect(); gain.disconnect(); destinationNode.disconnect(); } catch { /* already torn down */ }
-      // Sem isso, o elemento <audio> escondido podia continuar tocando o
-      // que já tinha em buffer mesmo depois do grafo WebAudio desconectado
-      // — parar e limpar o srcObject explicitamente garante silêncio
-      // imediato assim que a chamada com essa pessoa termina.
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.srcObject = null;
-      }
-      destinationNode.stream.getTracks().forEach((t) => t.stop());
-      ctx.close().catch(() => {});
-      if (audioCtxRef.current === ctx) audioCtxRef.current = null;
+      if (playerRef.current === player) playerRef.current = null;
+      try { player.dispose(); } catch { /* já desmontado */ }
     };
-  }, [stream, autoLevel]);
+  }, [track, userId]);
 
-  useEffect(() => {
-    if (gainRef.current) gainRef.current.gain.value = volume;
-    else if (audioRef.current) audioRef.current.volume = Math.min(1, volume); // no-Web-Audio fallback path (<audio> não passa de 100%)
-  }, [volume]);
+  useEffect(() => { try { playerRef.current?.setVolume(volume); } catch { /* ok */ } }, [volume]);
+  useEffect(() => { try { playerRef.current?.setAutoLevel(autoLevel); } catch { /* ok */ } }, [autoLevel]);
+  useEffect(() => { try { if (sinkId != null) playerRef.current?.setSinkId(sinkId); } catch { /* ok */ } }, [sinkId]);
 
-  // Kept mounted (hidden) purely so autoplay-permission behavior for this
-  // tab doesn't change from before; actual playback happens through the
-  // AudioContext graph above once Web Audio is available.
-  return <audio ref={audioRef} hidden />;
+  return null;
 }

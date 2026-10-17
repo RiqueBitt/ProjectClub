@@ -545,11 +545,16 @@ export const getAgoraToken = (channelName) => api.get('/agora/token', { params: 
 // usar hoje (os demais a cadeia pula só para este join).
 export const getVoiceJoin = (channelName, clientReady) =>
   api.get('/voice/join', { params: { channelName, clientReady: Array.isArray(clientReady) ? clientReady.join(',') : clientReady } }).then((r) => r.data);
+// Provedor que não conectou neste aparelho (alimenta o disjuntor da cadeia —
+// server/src/services/voiceHealth.js). Nunca lança: é só um aviso.
+export const reportVoiceProvider = (provider, code, channelName) =>
+  api.post('/voice/report', { provider, code, channelName }).then((r) => r.data).catch(() => null);
 // Painel da staff (admin): status/uso de cada provedor da cadeia e controle.
 export const getVoiceProviders = () => api.get('/voice/provider').then((r) => r.data);
 export const setVoiceOverride = (provider) => api.post('/voice/override', { provider: provider || null }).then((r) => r.data);
 export const toggleVoiceProvider = (id, disabled) => api.post(`/voice/provider/${id}/toggle`, { disabled: !!disabled }).then((r) => r.data);
 export const setVoiceProviderConfig = (id, values) => api.post(`/voice/provider/${id}/config`, { values }).then((r) => r.data);
+export const resetVoiceHealth = (id) => api.post(`/voice/provider/${id}/health/reset`).then((r) => r.data);
 export const setVoiceUsage = (id, minutes) => api.post(`/voice/provider/${id}/usage`, { minutes: Number(minutes) }).then((r) => r.data);
 
 // --- Item pedido: sistemas estilo Orkut ---

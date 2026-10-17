@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getVoiceProviders, setVoiceOverride, toggleVoiceProvider, setVoiceUsage, setVoiceProviderConfig } from '../../api/endpoints';
+import { getVoiceProviders, setVoiceOverride, toggleVoiceProvider, setVoiceUsage, setVoiceProviderConfig, resetVoiceHealth } from '../../api/endpoints';
 import { CLIENT_READY } from '../../voice/providerDecision';
 
 // Painel da equipe — "Chamadas / Provedores de voz" (item pedido).
@@ -12,6 +12,9 @@ const STATUS = {
   ativo: { label: 'ativo', color: '#3ba55d', bg: 'rgba(59,165,93,.15)' },
   em_espera: { label: 'em espera', color: '#8aa0b4', bg: 'rgba(138,160,180,.15)' },
   esgotado: { label: 'esgotado', color: '#e0a106', bg: 'rgba(224,161,6,.15)' },
+  // Disjuntor de saúde (server/src/services/voiceHealth.js): falhas de 2+
+  // pessoas em poucos minutos — a cadeia pula até o provedor voltar.
+  instavel: { label: 'Instável', color: '#f04747', bg: 'rgba(240,71,71,.15)' },
   falta_chave: { label: 'configurado (falta chave)', color: '#d97706', bg: 'rgba(217,119,6,.15)' },
   nao_configurado: { label: 'não configurado', color: '#72767d', bg: 'rgba(114,118,125,.12)' },
   desativado: { label: 'desativado', color: '#ed4245', bg: 'rgba(237,66,69,.15)' },
@@ -125,6 +128,10 @@ export default function VoiceProvidersAdmin() {
     setBusy(`tg:${id}`);
     try { setPanel(await toggleVoiceProvider(id, disabled)); } catch (e) { setErr(e?.response?.data?.error || 'Falha ao ligar/desligar o provedor.'); } finally { setBusy(''); }
   };
+  const doHealthReset = async (id) => {
+    setBusy(`hr:${id}`);
+    try { setPanel(await resetVoiceHealth(id)); } catch (e) { setErr(e?.response?.data?.error || 'Falha ao zerar a saúde do provedor.'); } finally { setBusy(''); }
+  };
   const doSetUsage = async (id) => {
     const val = usageInputs[id];
     if (val === '' || val == null || Number(val) < 0) return;
@@ -214,6 +221,16 @@ export default function VoiceProvidersAdmin() {
               >
                 Forçar ativo
               </button>
+              {p.status === 'instavel' && (
+                <button
+                  type="button" className="btn"
+                  onClick={() => doHealthReset(p.id)}
+                  disabled={busy === `hr:${p.id}`}
+                  title="Zera o disjuntor de saúde: a cadeia volta a usar este provedor já"
+                >
+                  Tentar de novo agora
+                </button>
+              )}
               {p.id !== 'jitsi' && (
                 <button
                   type="button" className="btn"

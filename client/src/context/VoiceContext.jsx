@@ -5,7 +5,8 @@ import { useStore } from '../store/useStore';
 import { playSound, playEntrySound } from '../utils/sounds';
 import { getExtra } from '../utils/extraPrefs';
 import { getPreferredMicId, setPreferredMicId } from '../utils/audioDevices';
-import { getVoiceJoin } from '../api/endpoints';
+import { getVoiceJoin, reportVoiceProvider } from '../api/endpoints';
+import { createFailureMemory, failureCode, importWithRetry, browserGuardedReload, withTimeout } from '../voice/resilience.js';
 import { getVoicePref, onVoicePrefsChange, setVoicePref, makeReactionRateLimiter, isValidReaction } from '../utils/voicePrefs';
 import { buildScreenShareConfig, collectScreenPublishTracks } from '../utils/screenShareTracks';
 // Cadeia de provedores de mídia (Agora → LiveKit → ... → Jitsi) — ver
@@ -14,7 +15,7 @@ import { buildScreenShareConfig, collectScreenPublishTracks } from '../utils/scr
 // vêm do engineRegistry e só são baixados/instanciados quando a cadeia os
 // escolhe. A troca ao vivo entre QUAISQUER dois provedores preserva a sessão,
 // o socket, o roster, as reações e o soundboard — só a camada de mídia troca.
-import { readJoinResponse, isClientReady, providerLabel, PRIMARY_PROVIDER } from '../voice/providerDecision.js';
+import { readJoinResponse, isClientReady, providerLabel } from '../voice/providerDecision.js';
 import { createEngine, CLIENT_READY_PROVIDERS } from '../voice/engineRegistry.js';
 import { isReserveMode } from '../voice/providerDecision.js';
 // Item pedido: "no .apk, se sair do app, continua na call em segundo
@@ -91,7 +92,9 @@ let agoraRtcPromise = null;
 // [erro-de-tela] voz:<provedor>) e devolve a mensagem certa pra pessoa.
 // CAN_NOT_GET_GATEWAY_SERVER = o Agora recusou o projeto/credencial (conta
 // desativada, minutos acabaram ou certificado trocado) — não é a internet.
-function reportVoiceFailure(provider, err) {
+// Também avisa o disjuntor da cadeia (POST /api/voice/report): falhas de 2+
+// pessoas desarmam o provedor por um tempo e a cadeia pula ele pra todos.
+function reportVoiceFailure(provider, err, channelName) {
   const message = String(err?.message || err || '').slice(0, 400);
   try {
     fetch('/api/system/client-error', {
@@ -99,18 +102,31 @@ function reportVoiceFailure(provider, err) {
       body: JSON.stringify({ where: `voz:${provider}`, path: window.location.pathname, message, stack: String(err?.stack || '').slice(0, 800) }),
     }).catch(() => {});
   } catch { /* sem rede */ }
+  try { reportVoiceProvider(provider, failureCode(err), channelName); } catch { /* aviso opcional */ }
   if (/CAN_NOT_GET_GATEWAY_SERVER|invalid vendor key|dynamic use static key|token/i.test(message)) {
     return 'O serviço de voz recusou a conexão (configuração do servidor de chamadas). A equipe já foi avisada — tente mais tarde.';
   }
   return 'Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.';
 }
 
+// BUG CORRIGIDO ("Failed to fetch dynamically imported module" depois de um
+// deploy): a promise que falhou ficava guardada e nenhuma call pelo Agora
+// funcionava até recarregar. Agora tenta de novo, esquece a falha e, se o
+// arquivo sumiu de vez (versão nova no ar), recarrega UMA vez (fora de call).
 function loadAgoraRTC() {
   if (!agoraRtcPromise) {
-    agoraRtcPromise = import('agora-rtc-sdk-ng').then((mod) => mod.default);
+    agoraRtcPromise = importWithRetry(() => import('agora-rtc-sdk-ng'), { onChunkFailure: browserGuardedReload })
+      .then((mod) => mod.default)
+      .catch((err) => { agoraRtcPromise = null; throw err; });
   }
   return agoraRtcPromise;
 }
+
+// Tempo máximo pra um provedor conectar antes de contar como falha e ir pro
+// próximo da cadeia (o Agora às vezes "pendura" tentando o gateway).
+const AGORA_JOIN_TIMEOUT_MS = 15000;
+// Servidor próprio: sinalização (≤10s) + recepção conectar (≤12s).
+const ENGINE_JOIN_TIMEOUT_MS = 25000;
 
 // Item pedido: "deixando mais rápido pra entrar em canais de voz,
 // principalmente no mobile" — sem isso, o download de ~1.5MB do SDK
@@ -275,6 +291,14 @@ export function VoiceProvider({ children }) {
   const [joiningChannelId, setJoiningChannelId] = useState(null);
   const leaveChannelRef = useRef(null);
   const soundboardAudiosRef = useRef({});
+  // Provedores que falharam NESTE aparelho (10 min): ficam fora do
+  // clientReady — nem o join nem o poll de troca voltam pra eles.
+  const failureMemoryRef = useRef(null);
+  if (!failureMemoryRef.current) failureMemoryRef.current = createFailureMemory();
+  const readyProviders = useCallback(() => failureMemoryRef.current.filter(CLIENT_READY_PROVIDERS), []);
+  // Refaz a mídia da call atual (mesmo provedor com credencial nova, ou o
+  // próximo da cadeia) sem tirar a pessoa da sala — ver o efeito da troca.
+  const requestMediaRecoveryRef = useRef(null);
 
   const agoraClientRef = useRef(null);
   // Engine do Jitsi (modo reserva) + "host" persistente onde o iframe fica
@@ -376,10 +400,26 @@ export function VoiceProvider({ children }) {
     });
 
     client.on('user-published', async (remoteUser, mediaType) => {
-      try {
-        await client.subscribe(remoteUser, mediaType);
-      } catch (err) {
-        console.error('[voz] Falha ao se inscrever na mídia de', remoteUser.uid, err);
+      // Inscrição com novas tentativas (rede piscou bem na hora). Se nem assim
+      // der, o Agora não está servindo este aparelho: avisa e troca de provedor.
+      let subscribed = false;
+      let lastErr = null;
+      for (let i = 0; i < 3 && !subscribed; i += 1) {
+        if (agoraClientRef.current !== client) return;
+        try {
+          await client.subscribe(remoteUser, mediaType);
+          subscribed = true;
+        } catch (err) {
+          lastErr = err;
+          await new Promise((r) => { setTimeout(r, 800 * (i + 1)); });
+        }
+      }
+      if (!subscribed) {
+        console.error('[voz] Falha ao se inscrever na mídia de', remoteUser.uid, lastErr);
+        if (agoraClientRef.current === client && mediaType === 'audio') {
+          reportVoiceFailure('agora', lastErr, callRef.current?.channelId);
+          requestMediaRecoveryRef.current?.({ failed: 'agora' });
+        }
         return;
       }
       if (agoraClientRef.current !== client) return; // cliente antigo (já saiu)
@@ -416,6 +456,16 @@ export function VoiceProvider({ children }) {
       setRemoteAudioStreams((s) => dropKey(s, uid));
       setRemoteVideoStreams((s) => dropKey(s, uid));
       setMediaUids((s) => dropKey(s, uid));
+    });
+
+    // O Agora reconecta sozinho em quedas curtas; se DESISTIR (rede/servidor),
+    // refaz a mídia (mesmo provedor com token novo, ou o próximo da cadeia)
+    // em vez de deixar a pessoa numa call muda.
+    client.on('connection-state-change', (cur, _prev, reason) => {
+      if (agoraClientRef.current !== client || cur !== 'DISCONNECTED') return;
+      if (!reason || reason === 'LEAVE') return;
+      console.warn('[voz] Agora desconectou:', reason);
+      requestMediaRecoveryRef.current?.({ failed: reason === 'SERVER_ERROR' ? 'agora' : null, code: reason });
     });
 
     client.enableAudioVolumeIndicator();
@@ -547,6 +597,11 @@ export function VoiceProvider({ children }) {
 
   const switchMicrophone = useCallback(async (deviceId) => {
     setPreferredMicId(deviceId);
+    // Engine próprio (servidor próprio): troca a faixa no producer.
+    const engine = jitsiEngineRef.current;
+    if (callRef.current && engine && typeof engine.setMicDevice === 'function') {
+      try { return await engine.setMicDevice(deviceId); } catch { return false; }
+    }
     if (!callRef.current || !localAudioTrackRef.current) return true;
     try {
       await localAudioTrackRef.current.setDevice(deviceId);
@@ -607,8 +662,52 @@ export function VoiceProvider({ children }) {
       return false;
     }
     teardownJitsi();
+    let engine = null;
     const callbacks = {
-      onLeft: () => { leaveChannelRef.current?.(); },
+      // Engine saiu da sala por conta própria:
+      //  - 'replaced': entrou nesta call em outro aparelho → sai daqui, sem
+      //    reconectar (senão um aparelho derruba o outro em loop);
+      //  - 'token'/'gave-up'/'closed': a mídia caiu e não voltou sozinha →
+      //    refaz a mídia (credencial nova / próximo provedor) sem sair da sala;
+      //  - resto (desligou pelo próprio Jitsi, expulso): sai.
+      onLeft: (info) => {
+        if (jitsiEngineRef.current !== engine) return; // engine antigo
+        const reason = info && info.reason;
+        if (reason === 'replaced') {
+          useStore.getState().pushNotice('Você entrou nesta call em outro aparelho');
+          leaveChannelRef.current?.();
+          return;
+        }
+        if ((reason === 'token' || reason === 'gave-up' || reason === 'closed') && callRef.current) {
+          jitsiEngineRef.current = null;
+          setRemoteAudioStreams({});
+          setRemoteVideoStreams({});
+          setReconnecting(null);
+          requestMediaRecoveryRef.current?.({ failed: reason === 'gave-up' ? prov : null, code: reason, mediaGone: true });
+          return;
+        }
+        leaveChannelRef.current?.();
+      },
+      // Mic negado/ausente: entra só ouvindo (os outros continuam audíveis).
+      onMicUnavailable: ({ reason } = {}) => {
+        setMicMissing(true);
+        setMuted(true);
+        broadcastState({ muted: true });
+        const msg = reason === 'denied'
+          ? 'Sem permissão para o microfone — você entrou só ouvindo. Libere o microfone no navegador e toque no botão de mudo.'
+          : reason === 'busy'
+            ? 'O microfone está sendo usado por outro programa — você entrou só ouvindo. Feche o outro programa e toque no botão de mudo.'
+            : 'Microfone não encontrado. Você entrou no canal mudo — conecte um microfone e toque no botão de mudo para ativá-lo.';
+        useStore.getState().pushNotice(msg);
+      },
+      onMicRecovered: () => { setMicMissing(false); },
+      // Envio/recepção que nunca conectou depois de entrar: o provedor não
+      // serve pra esta rede → avisa e vai pro próximo da cadeia.
+      onMediaFailed: ({ code } = {}) => {
+        if (jitsiEngineRef.current !== engine) return;
+        reportVoiceFailure(prov, Object.assign(new Error(`mídia não conectou (${code})`), { code }), channelId);
+        requestMediaRecoveryRef.current?.({ failed: prov, code });
+      },
       onReconnecting: (attempt) => { setReconnecting({ attempt }); setNetQuality({}); },
       onReconnected: () => { setReconnecting(null); },
       // Qualidade/ping vindos do engine (SFU próprio / LiveKit), na mesma
@@ -632,7 +731,7 @@ export function VoiceProvider({ children }) {
         const uidStr = String(uid);
         setParticipants((s) => (s[uidStr] && !!s[uidStr].speaking !== speaking ? { ...s, [uidStr]: { ...s[uidStr], speaking } } : s));
       },
-      onSelfMute: (m) => { setMuted(m); broadcastState({ muted: m }); },
+      onSelfMute: (m) => { setMuted(m); if (!m) setMicMissing(false); broadcastState({ muted: m }); },
       onSelfCamera: (on) => { setCameraOn(on); broadcastState({ video: on }); },
       onSelfScreen: (on) => { setScreenOn(on); broadcastState({ screenSharing: on }); },
       onError: (ev, payload) => { console.error('[voz] engine de voz reportou um erro:', ev, payload); },
@@ -651,7 +750,7 @@ export function VoiceProvider({ children }) {
         if (kind === 'all') setMediaUids((s) => dropKey(s, uidStr));
       },
     };
-    const engine = createEngine(prov, callbacks, creds);
+    engine = createEngine(prov, callbacks, creds);
     if (!engine) {
       useStore.getState().pushNotice('Este provedor de voz ainda não está disponível neste aparelho.');
       return false;
@@ -668,21 +767,32 @@ export function VoiceProvider({ children }) {
     try {
       const startMuted = isSwitch ? mutedRef.current : false;
       if (prov === 'jitsi') {
+        // Jitsi é a reserva final: sem tempo limite (o iframe demora mais).
         await engine.join({ room: creds.room, jwt: creds.jwt, displayName: user?.displayName, startMuted });
       } else if (prov === 'livekit') {
-        await engine.join({ url: creds.url, token: creds.token, userId: user?.id, displayName: user?.displayName, startMuted });
+        await withTimeout(engine.join({ url: creds.url, token: creds.token, userId: user?.id, displayName: user?.displayName, startMuted }), ENGINE_JOIN_TIMEOUT_MS, 'JOIN_TIMEOUT');
       } else {
-        await engine.join({
+        await withTimeout(engine.join({
           ...creds, userId: user?.id, displayName: user?.displayName, startMuted,
           // Redutor de ruído (RNNoise) no engine próprio — mesma preferência
           // que liga o ANS do Agora.
           noiseSuppression: getVoicePref('noiseReduction') !== false,
-        });
+          micDeviceId: getPreferredMicId() || null,
+          // Token do servidor próprio venceu numa call longa (4401 expired):
+          // pede um novo pelo mesmo /api/voice/join. Se a sala mudou de
+          // provedor nesse meio-tempo, não renova (a troca cuida disso).
+          refreshCredentials: async () => {
+            const raw = await getVoiceJoin(channelId, readyProviders());
+            const fresh = raw ? readJoinResponse(raw) : null;
+            return fresh && fresh.provider === prov ? fresh[prov] : null;
+          },
+        }), ENGINE_JOIN_TIMEOUT_MS, 'JOIN_TIMEOUT');
       }
     } catch (err) {
       console.error(`[voz] Falha ao conectar no provedor ${prov}:`, err);
       if (jitsiEngineRef.current === engine) teardownJitsi();
-      const msg = reportVoiceFailure(prov, err);
+      else { try { engine.dispose(); } catch { /* ok */ } }
+      const msg = reportVoiceFailure(prov, err, channelId);
       if (!quiet) useStore.getState().pushNotice(msg);
       return false;
     }
@@ -705,7 +815,7 @@ export function VoiceProvider({ children }) {
     // independe do provedor de mídia.
     socket?.emit('voice:join', { channelId });
     return true;
-  }, [socket, user?.id, user?.displayName, broadcastState, ensureJitsiHost, teardownJitsi]);
+  }, [socket, user?.id, user?.displayName, broadcastState, ensureJitsiHost, teardownJitsi, readyProviders]);
   const connectEngineRef = useRef(connectEngine);
   useEffect(() => { connectEngineRef.current = connectEngine; }, [connectEngine]);
 
@@ -716,20 +826,22 @@ export function VoiceProvider({ children }) {
   const connectAgoraMedia = useCallback(async ({ channelId, agora, isSwitch = true }) => {
     const { token, appId } = agora || {};
     if (!token || !appId) return false;
-    const client = await setupAgoraClient();
+    let client;
+    try { client = await setupAgoraClient(); } catch (err) { reportVoiceFailure('agora', err, channelId); return false; }
     let gotMic = false;
     try {
       [, gotMic] = await Promise.all([
-        client.join(appId, channelId, token, user.id),
+        withTimeout(client.join(appId, channelId, token, user.id), AGORA_JOIN_TIMEOUT_MS, 'AGORA_JOIN_TIMEOUT'),
         connectMicrophone(),
       ]);
     } catch (err) {
       console.error('[voz] Falha ao entrar no canal de mídia (troca pra Agora):', err);
-      localAudioTrackRef.current?.close();
+      try { localAudioTrackRef.current?.close(); } catch { /* ok */ }
       localAudioTrackRef.current = null;
       client.removeAllListeners?.();
       client.leave().catch(() => {});
       if (agoraClientRef.current === client) agoraClientRef.current = null;
+      reportVoiceFailure('agora', err, channelId);
       return false;
     }
     setProvider('agora');
@@ -741,9 +853,9 @@ export function VoiceProvider({ children }) {
       return true;
     }
     try {
-      await client.publish([localAudioTrackRef.current]);
+      await withTimeout(client.publish([localAudioTrackRef.current]), AGORA_JOIN_TIMEOUT_MS, 'AGORA_PUBLISH_TIMEOUT');
       // Preserva o mudo que a pessoa tinha antes da troca.
-      if (mutedRef.current) localAudioTrackRef.current.setEnabled(false);
+      if (mutedRef.current) localAudioTrackRef.current?.setEnabled(false);
     } catch (err) {
       console.error('[voz] Falha ao publicar o microfone (troca pra Agora):', err);
     }
@@ -774,17 +886,31 @@ export function VoiceProvider({ children }) {
       // Failover automático: se o provedor escolhido não conectar (ex.: o
       // Agora recusando com CAN_NOT_GET_GATEWAY_SERVER, servidor próprio
       // fora), pede o PRÓXIMO da cadeia sem ele — a pessoa entra mesmo assim.
-      let ready = [...CLIENT_READY_PROVIDERS];
+      // Provedores que falharam neste aparelho há pouco já saem da lista.
+      let ready = readyProviders();
       for (let attempt = 0; attempt < 4 && ready.length; attempt += 1) {
         const last = attempt === 3 || ready.length === 1;
-        const raw = await getVoiceJoin(channelId, ready).catch((err) => {
-          console.error('[voz] Falha ao consultar o provedor de voz:', err);
-          return null;
-        });
+        let raw = null;
+        let serverMsg = null;
+        for (let i = 0; i < 2; i += 1) {
+          let fatal = false;
+          // eslint-disable-next-line no-await-in-loop
+          raw = await getVoiceJoin(channelId, ready).catch((err) => {
+            console.error('[voz] Falha ao consultar o provedor de voz:', err);
+            // 4xx (sem acesso, canal sumiu): não adianta repetir.
+            if (err?.response?.status && err.response.status < 500) {
+              fatal = true;
+              serverMsg = typeof err.response.data?.error === 'string' ? err.response.data.error : null;
+            }
+            return null;
+          });
+          if (raw || fatal || joiningChannelIdRef.current !== channelId) break;
+          await new Promise((r) => { setTimeout(r, 1000); });
+        }
         if (joiningChannelIdRef.current !== channelId) return;
         const creds = raw ? readJoinResponse(raw) : null;
         if (!creds) {
-          useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
+          useStore.getState().pushNotice(serverMsg || 'Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
           return;
         }
 
@@ -792,6 +918,7 @@ export function VoiceProvider({ children }) {
         if (creds.provider !== 'agora') {
           const ok = await connectEngine({ serverId, channelId, channelName, channelType, provider: creds.provider, creds: creds[creds.provider], isSwitch: false, quiet: !last });
           if (ok || joiningChannelIdRef.current !== channelId || creds.provider === 'jitsi') return;
+          failureMemoryRef.current.mark(creds.provider);
           ready = ready.filter((p) => p !== creds.provider);
           continue;
         }
@@ -800,34 +927,53 @@ export function VoiceProvider({ children }) {
         const { token, appId } = creds.agora || {};
         if (!token || !appId) { ready = ready.filter((p) => p !== 'agora'); continue; }
         setProvider('agora');
-        const client = await setupAgoraClient();
+        let client;
+        try {
+          client = await setupAgoraClient();
+        } catch (err) {
+          // SDK não baixou (deploy novo / rede): próximo provedor.
+          console.error('[voz] SDK do Agora indisponível:', err);
+          reportVoiceFailure('agora', err, channelId);
+          failureMemoryRef.current.mark('agora');
+          if (last) { useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.'); return; }
+          ready = ready.filter((p) => p !== 'agora');
+          continue;
+        }
         if (joiningChannelIdRef.current !== channelId) { client.removeAllListeners?.(); if (agoraClientRef.current === client) agoraClientRef.current = null; return; }
 
-        // Entrar no canal (rede) e pedir o microfone rodam juntos.
-        let gotMic = false;
+        // Microfone em paralelo, mas SEM segurar a entrada: antes o join
+        // esperava o aviso de permissão do mic — com ele aberto, a pessoa não
+        // entrava nem ouvia ninguém.
+        const micPromise = connectMicrophone().catch(() => false);
+        const dropMic = () => {
+          micPromise.then(() => {
+            if (agoraClientRef.current === client || agoraClientRef.current === null) {
+              try { localAudioTrackRef.current?.close(); } catch { /* ok */ }
+              localAudioTrackRef.current = null;
+            }
+          });
+        };
         try {
-          [, gotMic] = await Promise.all([
-            client.join(appId, channelId, token, user.id),
-            connectMicrophone(),
-          ]);
+          // CAN_NOT_GET_GATEWAY_SERVER às vezes chega só depois de muito tempo
+          // (ou nunca): tempo limite e vai pro próximo da cadeia.
+          await withTimeout(client.join(appId, channelId, token, user.id), AGORA_JOIN_TIMEOUT_MS, 'AGORA_JOIN_TIMEOUT');
         } catch (err) {
-          // Se o join falhar, fecha o mic aberto e tenta o próximo provedor.
           console.error('[voz] Falha ao entrar no canal de mídia (Agora):', err);
-          localAudioTrackRef.current?.close();
-          localAudioTrackRef.current = null;
           client.removeAllListeners?.();
           client.leave().catch(() => {});
           if (agoraClientRef.current === client) agoraClientRef.current = null;
-          const msg = reportVoiceFailure('agora', err);
+          dropMic();
+          const msg = reportVoiceFailure('agora', err, channelId);
+          failureMemoryRef.current.mark('agora');
           if (last) { useStore.getState().pushNotice(msg); return; }
           ready = ready.filter((p) => p !== 'agora');
           continue;
         }
         if (joiningChannelIdRef.current !== channelId) {
           // Desistiu no meio (clicou em outro canal): fecha o mic aberto.
-          localAudioTrackRef.current?.close();
-          localAudioTrackRef.current = null;
           client.removeAllListeners?.();
+          if (agoraClientRef.current === client) agoraClientRef.current = null;
+          dropMic();
           await client.leave().catch(() => {});
           return;
         }
@@ -843,19 +989,34 @@ export function VoiceProvider({ children }) {
         startCallForegroundService(channelName);
         setIncomingCall((c) => (c && c.channelId === channelId ? null : c));
 
-        if (!gotMic) {
-          useStore.getState().pushNotice('Microfone não encontrado. Você entrou no canal mudo — conecte um microfone e toque no botão de mudo para ativá-lo.');
-          setMicMissing(true);
-          setMuted(true);
-          socket?.emit('voice:state', { channelId, muted: true });
-        } else {
-          try {
-            await client.publish([localAudioTrackRef.current]);
-          } catch (err) {
-            console.error('[voz] Falha ao publicar o microfone:', err);
-            useStore.getState().pushNotice('Não foi possível enviar seu microfone. Tente silenciar e ativar de novo.');
+        // Publica o mic quando ele chegar (sem travar o "Entrando…").
+        micPromise.then(async (gotMic) => {
+          if (agoraClientRef.current !== client || callRef.current?.channelId !== channelId) {
+            // Saiu da call antes do mic chegar: não deixa o microfone aberto.
+            if (agoraClientRef.current === null || agoraClientRef.current === client) {
+              try { localAudioTrackRef.current?.close(); } catch { /* ok */ }
+              localAudioTrackRef.current = null;
+            }
+            return;
           }
-        }
+          if (!gotMic) {
+            useStore.getState().pushNotice('Microfone não encontrado ou sem permissão. Você entrou no canal só ouvindo — conecte/libere um microfone e toque no botão de mudo para ativá-lo.');
+            setMicMissing(true);
+            setMuted(true);
+            socket?.emit('voice:state', { channelId, muted: true });
+            return;
+          }
+          try {
+            await withTimeout(client.publish([localAudioTrackRef.current]), AGORA_JOIN_TIMEOUT_MS, 'AGORA_PUBLISH_TIMEOUT');
+            if (mutedRef.current) localAudioTrackRef.current?.setEnabled(false);
+          } catch (err) {
+            if (agoraClientRef.current !== client) return;
+            console.error('[voz] Falha ao publicar o microfone:', err);
+            // Agora conectou mas não publica: conta como falha e troca de provedor.
+            reportVoiceFailure('agora', err, channelId);
+            requestMediaRecoveryRef.current?.({ failed: 'agora', code: failureCode(err) });
+          }
+        });
         return;
       }
       useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
@@ -863,7 +1024,7 @@ export function VoiceProvider({ children }) {
       if (joiningChannelIdRef.current === channelId) joiningChannelIdRef.current = null;
       setJoiningChannelId((c) => (c === channelId ? null : c));
     }
-  }, [socket, connectMicrophone, setupAgoraClient, user?.id, connectEngine, teardownJitsi]);
+  }, [socket, connectMicrophone, setupAgoraClient, user?.id, connectEngine, teardownJitsi, readyProviders]);
 
   const answerIncomingCall = useCallback(() => {
     if (!incomingCall) return;
@@ -885,7 +1046,7 @@ export function VoiceProvider({ children }) {
     socket?.emit('voice:leave', { channelId: current.channelId });
     playSound('callLeave');
     stopCallForegroundService();
-    Object.values(soundboardAudiosRef.current).forEach((el) => { el.pause(); el.src = ''; });
+    Object.values(soundboardAudiosRef.current).forEach((el) => { try { el.pause(); el.src = ''; } catch { /* ok */ } });
     soundboardAudiosRef.current = {};
     if (syncTimerRef.current) { clearTimeout(syncTimerRef.current); syncTimerRef.current = null; }
     setNetQuality({});
@@ -1593,72 +1754,145 @@ export function VoiceProvider({ children }) {
   // mantendo sessão, socket, roster, reações e soundboard montados. Um aviso
   // curto "Reconectando…" aparece no meio.
   //
-  // Dispara em dois casos:
-  //  (a) a equipe mudou a cadeia no painel (evento de socket voice:provider-changed)
-  //      — troca IMEDIATA; e
-  //  (b) um provedor cruzou o limite mensal no meio da chamada — pego por um
-  //      poll leve de /api/voice/join (que já devolve o provedor decidido).
-  // Best-effort: se a troca ao vivo falhar, a chamada atual continua no
-  // provedor de antes e a próxima já entra no provedor certo.
+  // Dispara em quatro casos:
+  //  (a) a equipe mudou a cadeia no painel / o disjuntor desarmou um provedor
+  //      (voice:provider-changed pra comunidade) — troca IMEDIATA;
+  //  (b) a sala migrou de provedor (voice:provider-changed com channelId da
+  //      MINHA call) — todo mundo da call termina no MESMO provedor;
+  //  (c) um provedor cruzou o limite mensal no meio da chamada — pego por um
+  //      poll leve de /api/voice/join (que já devolve o provedor decidido);
+  //  (d) RECUPERAÇÃO: a mídia atual falhou (engine desistiu de reconectar,
+  //      Agora desconectou, envio/recepção nunca conectou) → `force`, e o
+  //      provedor que falhou fica de fora (`failed`). Se nenhum subir, aí sim
+  //      a pessoa sai da call com um aviso — antes ficava numa call muda.
+  // Se a troca falhar, tenta o próximo da cadeia (até 3), sem deixar a call
+  // sem mídia: antes, uma troca que falhava derrubava a mídia atual e não
+  // subia nada no lugar.
   const switchingRef = useRef(false);
+  const pendingSwapRef = useRef(null);
   const runSwapCheckRef = useRef(null);
   useEffect(() => {
     if (!callChannelId) return undefined;
     let cancelled = false;
     const POLL_MS = 60000;
-    const check = async () => {
-      if (cancelled || switchingRef.current) return;
-      if (joiningChannelIdRef.current) return; // entrando agora: espera
+    const flushPending = () => {
+      const p = pendingSwapRef.current;
+      if (!p || cancelled) return;
+      pendingSwapRef.current = null;
+      runSwapCheckRef.current?.(p);
+    };
+    const check = async (opts = {}) => {
+      if (cancelled) return;
+      let force = !!opts.force;
+      if (opts.failed) {
+        failureMemoryRef.current.mark(opts.failed);
+        force = true;
+      }
+      if (switchingRef.current || joiningChannelIdRef.current) {
+        // Já trocando/entrando: guarda o pedido (força prevalece) pra depois.
+        const prev = pendingSwapRef.current;
+        pendingSwapRef.current = { force: force || !!prev?.force, mediaGone: !!opts.mediaGone || !!prev?.mediaGone };
+        // Trocando: o fim da troca roda o pendente. Entrando: tenta de novo já já.
+        if (!switchingRef.current) setTimeout(flushPending, 1000);
+        return;
+      }
       const current = callRef.current;
       if (!current || current.channelId !== callChannelId) return;
-      let raw;
-      try { raw = await getVoiceJoin(current.channelId, CLIENT_READY_PROVIDERS); } catch { return; }
-      if (cancelled) return;
-      const creds = raw ? readJoinResponse(raw) : null;
-      if (!creds) return;
-      const target = creds.provider;
-      // O servidor não deveria mandar um provedor que o cliente não sabe usar
-      // (mandamos clientReady), mas por garantia ignoramos se vier.
-      if (!isClientReady(target)) return;
-      if (target === activeProviderRef.current) return; // nada mudou
-      if (callRef.current?.channelId !== current.channelId) return;
       switchingRef.current = true;
-      setReconnectingProvider(true);
+      let tornDown = !!opts.mediaGone;
+      let switched = false;
+      const before = activeProviderRef.current;
       try {
-        // Derruba a mídia atual (preserva sessão/socket/roster/UI).
-        if (activeProviderRef.current === 'agora') await teardownAgoraMedia();
-        else teardownJitsi();
-        // Sobe o novo provedor.
-        let ok = false;
-        if (target === 'agora') {
-          ok = await connectAgoraMediaRef.current?.({ channelId: current.channelId, agora: creds.agora, isSwitch: true });
-        } else {
-          ok = await connectEngineRef.current?.({
-            serverId: current.serverId, channelId: current.channelId,
-            channelName: current.channelName, channelType: current.channelType,
-            provider: target, creds: creds[target], isSwitch: true,
-          });
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          let raw;
+          try { raw = await getVoiceJoin(current.channelId, readyProviders()); } catch { raw = null; }
+          if (cancelled || callRef.current?.channelId !== current.channelId) return;
+          const creds = raw ? readJoinResponse(raw) : null;
+          if (!creds) { if (!force) return; await new Promise((r) => { setTimeout(r, 1500); }); continue; }
+          const target = creds.provider;
+          // O servidor não deveria mandar um provedor que o cliente não sabe usar
+          // (mandamos clientReady), mas por garantia ignoramos se vier.
+          if (!isClientReady(target)) { if (!tornDown) return; break; }
+          if (!force && target === activeProviderRef.current) return; // nada mudou
+          setReconnectingProvider(true);
+          if (!tornDown) {
+            // Derruba a mídia atual (preserva sessão/socket/roster/UI).
+            if (activeProviderRef.current === 'agora') await teardownAgoraMedia();
+            else teardownJitsi();
+            setRemoteAudioStreams({});
+            setRemoteVideoStreams({});
+            tornDown = true;
+          }
+          let ok = false;
+          try {
+            if (target === 'agora') {
+              ok = await connectAgoraMediaRef.current?.({ channelId: current.channelId, agora: creds.agora, isSwitch: true });
+            } else {
+              ok = await connectEngineRef.current?.({
+                serverId: current.serverId, channelId: current.channelId,
+                channelName: current.channelName, channelType: current.channelType,
+                provider: target, creds: creds[target], isSwitch: true, quiet: true,
+              });
+            }
+          } catch (err) {
+            console.error('[voz] Falha ao trocar de provedor no meio da chamada:', err);
+            ok = false;
+          }
+          if (cancelled) return;
+          if (ok) {
+            switched = true;
+            if (isReserveMode(target) && target !== before) {
+              useStore.getState().pushNotice('A chamada trocou de provedor para continuar funcionando (modo reserva).');
+            }
+            break;
+          }
+          // Esse também não subiu: fora da lista e tenta o próximo da cadeia.
+          failureMemoryRef.current.mark(target);
+          force = true;
         }
-        if (ok && target !== PRIMARY_PROVIDER) {
-          useStore.getState().pushNotice('A chamada trocou de provedor para continuar funcionando (modo reserva).');
+        if (!switched && tornDown && !cancelled && callRef.current?.channelId === current.channelId) {
+          useStore.getState().pushNotice('A chamada caiu e não foi possível reconectar. Entre de novo no canal.');
+          leaveChannelRef.current?.();
         }
-      } catch (err) {
-        console.error('[voz] Falha ao trocar de provedor no meio da chamada:', err);
       } finally {
         if (!cancelled) setReconnectingProvider(false);
         switchingRef.current = false;
+        if (pendingSwapRef.current && !cancelled) setTimeout(flushPending, 0);
       }
     };
     runSwapCheckRef.current = check;
-    const iv = setInterval(check, POLL_MS);
+    // Pedido de recuperação que chegou antes deste efeito montar (logo
+    // depois de entrar): roda agora.
+    if (pendingSwapRef.current && !switchingRef.current) setTimeout(flushPending, 0);
+    const iv = setInterval(() => { check(); }, POLL_MS);
     return () => { cancelled = true; runSwapCheckRef.current = null; clearInterval(iv); };
-  }, [callChannelId, teardownAgoraMedia, teardownJitsi]);
+  }, [callChannelId, teardownAgoraMedia, teardownJitsi, readyProviders]);
 
-  // Reação imediata ao aviso do servidor (a equipe mexeu na cadeia): refaz a
-  // checagem na hora em vez de esperar o próximo poll.
+  // Recuperação da mídia (ver o efeito acima) — chamada pelos engines/Agora.
+  useEffect(() => {
+    requestMediaRecoveryRef.current = (opts = {}) => {
+      if (!callRef.current && !joiningChannelIdRef.current) return;
+      if (opts.failed) failureMemoryRef.current.mark(opts.failed);
+      const run = runSwapCheckRef.current;
+      if (run) { run({ ...opts, force: true }); return; }
+      const prev = pendingSwapRef.current;
+      pendingSwapRef.current = { force: true, mediaGone: !!opts.mediaGone || !!prev?.mediaGone };
+    };
+    return () => { requestMediaRecoveryRef.current = null; };
+  }, []);
+
+  // Reação imediata ao aviso do servidor: refaz a checagem na hora em vez de
+  // esperar o próximo poll. Aviso de OUTRA sala (channelId diferente) não
+  // mexe na minha call.
   useEffect(() => {
     if (!socket) return undefined;
-    const onProviderChanged = () => { runSwapCheckRef.current?.(); };
+    const onProviderChanged = (payload) => {
+      const cid = payload && payload.channelId;
+      if (cid && cid !== callRef.current?.channelId) return;
+      // A sala migrou (todo mundo da call no MESMO provedor) ou a cadeia
+      // mudou: o /join diz o provedor certo e a checagem troca se mudou.
+      runSwapCheckRef.current?.({});
+    };
     socket.on('voice:provider-changed', onProviderChanged);
     return () => { socket.off('voice:provider-changed', onProviderChanged); };
   }, [socket]);
@@ -1764,12 +1998,33 @@ export function VoiceProvider({ children }) {
     }
   }, [myNetQuality, callChannelId]);
 
+  // Desmontagem: NADA aqui pode lançar (um erro na limpeza do React deixa
+  // mídia/elementos vivos). leaveChannel é assíncrona: a rejeição é engolida.
   useEffect(() => () => {
-    if (callRef.current) leaveChannel();
-    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    try {
+      if (callRef.current) {
+        const p = (leaveChannelRef.current || leaveChannel)();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      }
+    } catch { /* desmontando */ }
+    try { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); } catch { /* ok */ }
     try { jitsiHostRef.current?.parentNode?.removeChild(jitsiHostRef.current); } catch { /* ok */ }
     jitsiHostRef.current = null;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Bytes de áudio recebidos de uma pessoa (pro AudioSink perceber "bytes
+  // chegando mas nada tocando" e pro diagnóstico). null = desconhecido.
+  const getInboundAudioBytes = useCallback((uid) => {
+    try {
+      if (activeProviderRef.current === 'agora') {
+        const stats = agoraClientRef.current?.getRemoteAudioStats?.();
+        const v = stats && stats[String(uid)] && stats[String(uid)].receiveBytes;
+        return Number.isFinite(v) ? v : null;
+      }
+      const v = jitsiEngineRef.current?.getInboundAudioBytes?.(uid);
+      return Number.isFinite(v) ? v : null;
+    } catch { return null; }
+  }, []);
 
   // BUG CORRIGIDO ("vídeo piscando/travando"): o MediaStream local era
   // recriado a CADA renderização do contexto (várias por segundo com o
@@ -1784,7 +2039,7 @@ export function VoiceProvider({ children }) {
     <VoiceContext.Provider value={{
       call, muted, micMissing, deafened, cameraOn, screenOn, participants: shownParticipants, roster, rosterStartedAt, rosterSpeaking, myRole, handsRaised,
       localSpeaking, joiningChannelId,
-      remoteCameraStreams, remoteScreenStreams, remoteAudioStreams, volumes,
+      remoteCameraStreams, remoteScreenStreams, remoteAudioStreams, volumes, getInboundAudioBytes,
       // Auto-retrato local: do Agora (faixa) quando ativo; do engine (ex.:
       // LiveKit devolve o MediaStream local) nos demais provedores.
       localCameraStream: provider === 'agora' ? localCameraStream : engineLocalCameraStream,
