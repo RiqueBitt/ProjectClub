@@ -1,14 +1,17 @@
 package com.projectclub.android.voice
 
+import android.Manifest
 import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -58,12 +61,24 @@ class CallService : Service() {
     }
 
     private fun foreground() {
+        // Tipo "microfone" só com a permissão dada (Android 14+ derruba o app
+        // com SecurityException sem ela). Entrou só pra ouvir: "reprodução".
+        val mic = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            var t = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            var t = if (mic) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
             if (sharing) t = t or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
             t
         } else 0
-        ServiceCompat.startForeground(this, Notifier.ID_ONGOING_CALL, notification(), type)
+        try {
+            ServiceCompat.startForeground(this, Notifier.ID_ONGOING_CALL, notification(), type)
+        } catch (e: Exception) {
+            // Recusado (ex.: tipo de tela sem a autorização, app em segundo plano
+            // no Android 12+): tenta o tipo mais simples; se nem isso, sai sem derrubar o app.
+            Log.w("PCChamada", "startForeground recusado ($type)", e)
+            val simple = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK else 0
+            runCatching { ServiceCompat.startForeground(this, Notifier.ID_ONGOING_CALL, notification(), simple) }
+                .onFailure { stopSelf() }
+        }
     }
 
     private fun notification(): Notification {

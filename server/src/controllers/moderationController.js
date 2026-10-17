@@ -3,6 +3,9 @@ const { requireCommunityPermission, getEffectivePermissions, ForbiddenError } = 
 const { has } = require('../services/permissions');
 const { logAction, shapeAuditEntry } = require('../services/audit');
 const { PUBLIC_USER_FIELDS } = require('./authController');
+// Motivo digitado pela moderação: Ban/Warning.reason são VARCHAR(191) —
+// texto maior (ou um valor que não é texto) dava erro 500. Ver auditFields.js.
+const { auditReason } = require('../utils/auditFields');
 
 async function withUsers(records) {
   const ids = [...new Set(records.map((r) => r.userId))];
@@ -31,7 +34,8 @@ async function listBans(req, res, next) {
 async function banMember(req, res, next) {
   try {
     const { userId } = req.params;
-    const { reason, deleteRecentMessages } = req.body || {};
+    const { deleteRecentMessages } = req.body || {};
+    const reason = auditReason(req.body?.reason);
     const target = await prisma.user.findUnique({ where: { id: userId } });
     if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
     if (target.platformRole === 'ADMIN') return res.status(400).json({ error: 'Não é possível banir um administrador.' });
@@ -82,7 +86,8 @@ async function unbanMember(req, res, next) {
 async function timeoutMember(req, res, next) {
   try {
     const { userId } = req.params;
-    const { minutes, reason } = req.body || {};
+    const { minutes } = req.body || {};
+    const reason = auditReason(req.body?.reason);
     const mins = Math.min(Math.max(parseInt(minutes, 10) || 0, 1), 28 * 24 * 60);
     const target = await prisma.user.findUnique({ where: { id: userId } });
     if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
@@ -124,15 +129,15 @@ async function listWarnings(req, res, next) {
 async function warnMember(req, res, next) {
   try {
     const { userId } = req.params;
-    const { reason } = req.body || {};
-    if (!reason || !reason.trim()) return res.status(400).json({ error: 'Informe um motivo para a advertência.' });
+    const reason = auditReason(req.body?.reason);
+    if (!reason) return res.status(400).json({ error: 'Informe um motivo para a advertência.' });
     await requireCommunityPermission(req.user.id, 'MODERATE_MEMBERS');
 
     const warning = await prisma.warning.create({
-      data: { userId, reason: reason.trim(), moderatorId: req.user.id },
+      data: { userId, reason, moderatorId: req.user.id },
     });
     const io = req.app.get('io');
-    io?.notifyUser?.(userId, 'moderation:warning', { reason: reason.trim() });
+    io?.notifyUser?.(userId, 'moderation:warning', { reason });
     await logAction(io, { actorId: req.user.id, action: 'MEMBER_WARN', targetType: 'MEMBER', targetId: userId, reason });
     res.status(201).json({ warning });
   } catch (err) { next(err); }

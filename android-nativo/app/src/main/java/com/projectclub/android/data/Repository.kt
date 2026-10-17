@@ -6,6 +6,8 @@ import android.provider.OpenableColumns
 import com.projectclub.android.net.Api
 import com.projectclub.android.net.ApiException
 import com.projectclub.android.net.RefreshResult
+import com.projectclub.android.net.isCancellation
+import com.projectclub.android.net.isTransientServer
 import com.projectclub.android.realtime.RtEvent
 import com.projectclub.android.realtime.Realtime
 import kotlinx.coroutines.CoroutineScope
@@ -239,12 +241,29 @@ class Repository(private val context: Context, val api: Api, private val scope: 
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            report("bootstrap", e)
+            report("bootstrap", e) // (report ignora cancelamento e 502/503/504)
             runCatching { loadCommunity() }.onFailure { report("community-get", it) }
             runCatching { loadConversations() }
         }
         runCatching { loadNotices() }
         _loaded.value = true
+        // Servidor atualizando (deploy, ~1 min): tenta de novo sozinho, com
+        // espera crescente, sem mensagem assustadora nem recarregar tudo em loop.
+        if (_community.value == null) scheduleReload()
+    }
+
+    @Volatile private var reloadJob: kotlinx.coroutines.Job? = null
+
+    private fun scheduleReload() {
+        if (reloadJob?.isActive == true) return
+        reloadJob = scope.launch {
+            for (wait in longArrayOf(4_000, 8_000, 15_000, 30_000, 30_000, 60_000)) {
+                delay(wait)
+                if (_session.value != SessionState.LoggedIn || _community.value != null) return@launch
+                val ok = runCatching { loadCommunity() }.onFailure { if (!it.isTransientServer()) report("community-retry", it) }.isSuccess
+                if (ok) { runCatching { loadConversations() }; return@launch }
+            }
+        }
     }
 
     /** Erro ao carregar a comunidade (a tela mostra e deixa tentar de novo). */
@@ -291,9 +310,13 @@ class Repository(private val context: Context, val api: Api, private val scope: 
 
     /** Manda o motivo exato de uma falha para o servidor (aparece nos logs da equipe). */
     fun report(where: String, e: Throwable) {
-        if (e is kotlinx.coroutines.CancellationException) return
+        // Cancelamento (tela fechou, escopo saiu da composição) não é erro.
+        if (e.isCancellation()) return
         val msg = (e.message ?: e.javaClass.simpleName).take(400)
         _communityError.value = if (where.startsWith("community")) msg else _communityError.value
+        // 502/503/504 = site sendo atualizado: a tela mostra o aviso calmo e o
+        // app tenta de novo sozinho; não vai pros logs como erro.
+        if (e.isTransientServer()) return
         if (!reported.add(where + msg.take(60))) return
         scope.launch {
             runCatching {
@@ -310,6 +333,8 @@ class Repository(private val context: Context, val api: Api, private val scope: 
 
     /** Depois de reconectar: só o que pode ter mudado. */
     private suspend fun refreshLight() {
+        // Voltou depois de uma queda/deploy e a comunidade nunca carregou: carrega agora.
+        if (_community.value == null) runCatching { loadCommunity() }.onFailure { report("community-get", it) }
         runCatching { loadConversations() }
         runCatching { _channelStates.value = api.get<ChannelStatesResponse>("/api/community/channels/read-states").states }
     }
@@ -465,8 +490,13 @@ class Repository(private val context: Context, val api: Api, private val scope: 
         runCatching { api.postIgnore("/api/push/unregister", buildJsonObject { put("token", token) }) }
     }
 
-    suspend fun voiceJoin(channelName: String): VoiceJoinResponse =
-        api.get("/api/voice/join?channelName=${enc(channelName)}&clientReady=projectclub,agora,jitsi")
+    /**
+     * Pergunta ao servidor qual provedor de voz usar (e as credenciais dele).
+     * [clientReady] = provedores que este aparelho aceita AGORA — tirar um que
+     * falhou faz a cadeia devolver o próximo (failover, igual ao site).
+     */
+    suspend fun voiceJoin(channelName: String, clientReady: List<String> = listOf("projectclub", "agora", "jitsi")): VoiceJoinResponse =
+        api.get("/api/voice/join?channelName=${enc(channelName)}&clientReady=${enc(clientReady.joinToString(","))}")
 
     // ---------------- tempo real ----------------
 

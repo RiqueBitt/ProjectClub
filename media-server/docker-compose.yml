@@ -4,8 +4,14 @@
 # Portas que precisam estar ABERTAS no firewall do VPS:
 #   80, 443 TCP            (Caddy: TLS + sinalização wss)
 #   3478 UDP+TCP           (coturn STUN/TURN)
-#   40000-40999 UDP+TCP    (mediasoup: mídia RTP/ICE)
-#   49160-49200 UDP        (coturn: relay)
+#   5349 TCP               (coturn TURN sobre TLS — redes que só deixam TLS passar)
+#   40000-40999 UDP+TCP    (mediasoup: WebRtcServer em 40000+N e reserva por transport)
+#   49152-49999 UDP        (coturn: relay)
+x-logging: &logging
+  # Sem rotação, os logs do docker enchem o disco de uma VM pequena.
+  driver: json-file
+  options: { max-size: "20m", max-file: "5" }
+
 services:
   media:
     build: .
@@ -15,6 +21,11 @@ services:
     environment:
       MEDIA_PORT: ${MEDIA_PORT:-4443}
       MEDIA_HOST: 127.0.0.1     # só o Caddy (mesma máquina) fala com a sinalização
+    # Tempo pro SIGTERM avisar os clientes (1012 → reconectam) antes do kill.
+    stop_grace_period: 15s
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }
+    logging: *logging
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+(process.env.MEDIA_PORT||4443)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
@@ -26,21 +37,37 @@ services:
     restart: unless-stopped
     network_mode: host
     env_file: .env
+    logging: *logging
+    volumes:
+      # Certificado pro TURN sobre TLS (5349). Copiado do Caddy pelo script da
+      # VM (scripts/vm-voz-robusta.sh); sem ele o TLS fica desligado.
+      - ./certs:/etc/coturn/certs:ro
+    # Segurança (guia do coturn / Enable Security): o TURN daqui só existe pra
+    # alcançar o NOSSO SFU — então só deixa retransmitir pro IP do servidor de
+    # mídia (allowed-peer-ip) e nega todo o resto (rede interna, loopback,
+    # Redis/SSH da VM...). Sem relay TCP (navegador não usa) e com cotas.
     command: >
       -n --log-file=stdout
       --listening-port=3478
       --realm=${MEDIA_DOMAIN}
       --external-ip=${MEDIA_PUBLIC_IP}
-      --min-port=49160 --max-port=49200
+      --min-port=${TURN_MIN_PORT:-49152} --max-port=${TURN_MAX_PORT:-49999}
       --use-auth-secret --static-auth-secret=${TURN_SECRET}
-      --fingerprint --no-multicast-peers --no-cli
+      --fingerprint --no-multicast-peers --no-cli --no-tcp-relay
+      --no-rfc5780 --no-stun-backward-compatibility --no-software-attribute
+      --stale-nonce=600 --user-quota=12 --total-quota=1200
+      --denied-peer-ip=0.0.0.0-255.255.255.255
+      --denied-peer-ip=::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+      --allowed-peer-ip=${MEDIA_PUBLIC_IP}
       --no-tlsv1 --no-tlsv1_1
+      ${TURN_TLS_ARGS:-}
 
   caddy:
     image: caddy:2
     restart: unless-stopped
     network_mode: host
     env_file: .env
+    logging: *logging
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

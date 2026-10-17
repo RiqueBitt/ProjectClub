@@ -181,16 +181,30 @@ async function mintDaily({ roomName, userName } = {}, env = process.env) {
 //
 // JWT curto (HS256 com MEDIA_SERVER_SECRET) que o servidor de mídia aceita
 // na conexão wss://.../ws?token=... — carrega só quem é (sub = userId), em
-// qual sala, e o nome de exibição. 2h: uma chamada longa não cai por token
-// vencido (o token só é checado ao CONECTAR), e um token vazado vale pouco.
-const MEDIA_TOKEN_TTL_SECONDS = 2 * 60 * 60;
+// qual sala, o nome de exibição e um `jti` (id da sessão: o servidor de mídia
+// usa pra diferenciar "o MESMO aparelho reconectando" de "OUTRO aparelho da
+// mesma pessoa" e acabar com o ping-pong entre os dois).
+// 8h: o token também é usado nas RECONEXÕES (queda de wi-fi no meio da call)
+// — com 2h, quem caísse depois de 2h de chamada era recusado (4401) e saía.
+// Continua valendo só pra aquela sala e aquela pessoa.
+const MEDIA_TOKEN_TTL_SECONDS = 8 * 60 * 60;
 
 // Credenciais TURN temporárias no esquema do coturn `use-auth-secret`
 // (TURN REST API): usuário = "<expira>:<userId>", senha = base64(HMAC-SHA1
 // (TURN_SECRET, usuário)). Nunca sai um segredo permanente pro navegador.
+// URLs TURN válidas, sem repetição, na ordem: UDP → TCP → TLS (turns:). O
+// navegador tenta todas; UDP primeiro é o caminho com menos latência, TCP/TLS
+// (porta 443/5349) salvam quem está atrás de firewall corporativo/escolar.
+function turnUrls(env = process.env) {
+  const all = [env.TURN_URLS, env.TURNS_URLS].map((v) => String(v || '')).join(',')
+    .split(',').map((u) => u.trim()).filter((u) => /^turns?:[^\s]+$/i.test(u));
+  const rank = (u) => (/^turns:/i.test(u) ? 2 : /transport=tcp/i.test(u) ? 1 : 0);
+  return [...new Set(all)].sort((a, b) => rank(a) - rank(b));
+}
+
 function turnCredentials(userId, env = process.env, now = Date.now()) {
   const secret = env.TURN_SECRET;
-  const urls = String(env.TURN_URLS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const urls = turnUrls(env);
   if (!secret || !urls.length) return null;
   const ttl = Number(env.TURN_TTL_SECONDS) > 0 ? Number(env.TURN_TTL_SECONDS) : 12 * 60 * 60;
   const username = `${Math.floor(now / 1000) + ttl}:${userId}`;
@@ -217,6 +231,7 @@ function mintProjectClub({ room, userId, name } = {}, env = process.env, now = D
   const nowSec = Math.floor(now / 1000);
   const token = jwt.sign({
     sub: String(userId), room: String(room), name: String(name || userId).slice(0, 64),
+    jti: crypto.randomBytes(9).toString('base64url'),
     iat: nowSec, exp: nowSec + MEDIA_TOKEN_TTL_SECONDS,
   }, secret, { algorithm: 'HS256' });
   return { url, token, room: String(room), identity: String(userId), iceServers: iceServersFor(userId, env, now) };
@@ -227,6 +242,7 @@ module.exports = {
   MEDIA_TOKEN_TTL_SECONDS,
   mintProjectClub,
   turnCredentials,
+  turnUrls,
   iceServersFor,
   mintAgora,
   mintLiveKit,

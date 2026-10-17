@@ -402,6 +402,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 .error-boundary-icon { font-size: 40px; }
 .error-boundary-card h1 { font-size: 18px; margin: 0; }
 .error-boundary-card p { color: var(--text-muted); margin: 0; }
+.error-boundary-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .error-boundary-inline {
   display: flex; align-items: center; justify-content: center; gap: 10px; padding: 24px;
   color: var(--text-muted); font-size: 14px; flex: 1;

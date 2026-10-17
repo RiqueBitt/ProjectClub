@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
-import ErrorBoundary from './components/ErrorBoundary.jsx';
+import { RouteErrorBoundary } from './components/ErrorBoundary.jsx';
 import './styles/global.css';
 // Correção de responsividade mobile da barra lateral de Configurações —
 // mantida em arquivo próprio (ver o comentário completo no topo do
@@ -74,9 +74,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         nunca mais desmonta a sessão em memória enquanto isso. */}
     <BrowserRouter>
       <AuthProvider>
-        <ErrorBoundary>
+        <RouteErrorBoundary>
           <App />
-        </ErrorBoundary>
+        </RouteErrorBoundary>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>

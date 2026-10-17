@@ -6,9 +6,10 @@ const MIC_KEY = 'voice.preferredMicId';
 const SPEAKER_KEY = 'voice.preferredSpeakerId';
 const SPEAKER_CHANGE_EVENT = 'voice:speaker-changed';
 
-export function getPreferredMicId() { return localStorage.getItem(MIC_KEY) || ''; }
+// localStorage pode lançar (modo anônimo, storage bloqueado) — igual à câmera.
+export function getPreferredMicId() { try { return localStorage.getItem(MIC_KEY) || ''; } catch { return ''; } }
 export function setPreferredMicId(id) {
-  if (id) localStorage.setItem(MIC_KEY, id); else localStorage.removeItem(MIC_KEY);
+  try { if (id) localStorage.setItem(MIC_KEY, id); else localStorage.removeItem(MIC_KEY); } catch { /* sem storage */ }
 }
 
 // Câmera escolhida (ex.: no "Testar antes de entrar") — também por aparelho.
@@ -18,9 +19,9 @@ export function setPreferredCameraId(id) {
   try { if (id) localStorage.setItem(CAMERA_KEY, id); else localStorage.removeItem(CAMERA_KEY); } catch { /* sem storage */ }
 }
 
-export function getPreferredSpeakerId() { return localStorage.getItem(SPEAKER_KEY) || ''; }
+export function getPreferredSpeakerId() { try { return localStorage.getItem(SPEAKER_KEY) || ''; } catch { return ''; } }
 export function setPreferredSpeakerId(id) {
-  if (id) localStorage.setItem(SPEAKER_KEY, id); else localStorage.removeItem(SPEAKER_KEY);
+  try { if (id) localStorage.setItem(SPEAKER_KEY, id); else localStorage.removeItem(SPEAKER_KEY); } catch { /* sem storage */ }
   window.dispatchEvent(new CustomEvent(SPEAKER_CHANGE_EVENT, { detail: id || '' }));
 }
 export function onSpeakerPreferenceChange(handler) {

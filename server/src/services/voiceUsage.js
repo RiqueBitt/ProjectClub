@@ -152,24 +152,40 @@ function startProviderUsageTicker(io) {
     try {
       // Conta participantes ativos (salas com 2+, sem ensurdecidos, com
       // socket vivo) — mesmo critério do ticker de missões.
-      let active = 0;
+      // Conta por SALA no provedor em que ela está de verdade (a fixação de
+      // /api/voice/join); sem fixação, no ativo da cadeia. Antes somava tudo
+      // no ativo global — com salas em provedores diferentes, os minutos
+      // iam pro provedor errado (e podiam "esgotar" quem nem estava em uso).
+      const perRoom = [];
       for (const channelId of await voiceStore.getActiveRoomIds()) {
         // eslint-disable-next-line no-await-in-loop
         const room = await voiceStore.getRoom(channelId);
         const entries = Object.entries(room);
         if (entries.length < 2) continue;
+        let n = 0;
         for (const [, p] of entries) {
           if (p?.deafened) continue;
           if (io && (!p?.socketId || !io?.sockets?.sockets?.has?.(p.socketId))) continue;
-          active += 1;
+          n += 1;
         }
+        if (n > 0) perRoom.push({ channelId, n });
       }
-      if (active <= 0) return;
+      if (!perRoom.length) return;
+      const unhealthy = await require('./voiceHealth').tracker().getUnhealthy().catch(() => []);
       const [usageByProvider, override, disabled] = await Promise.all([
         getAllUsage(), overrideStore.getOverride(), overrideStore.getDisabled(),
       ]);
-      const decided = decision.decideProvider({ usageByProvider, override, disabled });
-      await addMinutes(decided.provider, active);
+      const globalProvider = decision.decideProvider({ usageByProvider, override, disabled, unhealthy }).provider;
+      const byProvider = {};
+      for (const { channelId, n } of perRoom) {
+        // eslint-disable-next-line no-await-in-loop
+        const prov = (await overrideStore.getRoomProvider(channelId)) || globalProvider;
+        byProvider[prov] = (byProvider[prov] || 0) + n;
+      }
+      for (const [prov, n] of Object.entries(byProvider)) {
+        // eslint-disable-next-line no-await-in-loop
+        await addMinutes(prov, n);
+      }
     } catch (err) {
       console.error('[voz] contagem de minutos por provedor falhou:', err?.message || err);
     }
@@ -183,14 +199,22 @@ function startProviderUsageTicker(io) {
 // em cada participante, por qual provedor de mídia ele entrou — e degrada
 // gracioso pro primário/Jitsi se algo falhar (nunca derruba a entrada).
 // Lazy-require pra não criar ciclo de import no carregamento do módulo.
-async function resolveActiveProvider() {
+// Com `channelId`, prefere o provedor FIXADO naquela sala (é nele que a
+// pessoa realmente está — /api/voice/join) pra contar os minutos no lugar
+// certo; sem fixação, a decisão global da cadeia (com a saúde dos provedores).
+async function resolveActiveProvider(channelId) {
   try {
     const overrideStore = require('./voiceOverrideStore');
     const decision = require('./voiceDecision');
+    if (channelId) {
+      const sticky = await overrideStore.getRoomProvider(channelId);
+      if (sticky) return sticky;
+    }
+    const unhealthy = await require('./voiceHealth').tracker().getUnhealthy().catch(() => []);
     const [usageByProvider, override, disabled] = await Promise.all([
       getAllUsage(), overrideStore.getOverride(), overrideStore.getDisabled(),
     ]);
-    return decision.decideProvider({ usageByProvider, override, disabled }).provider;
+    return decision.decideProvider({ usageByProvider, override, disabled, unhealthy }).provider;
   } catch {
     const providers = require('./voiceProviders');
     return providers.PRIMARY_PROVIDER;

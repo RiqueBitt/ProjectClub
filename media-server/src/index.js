@@ -8,6 +8,7 @@
 // workers do mediasoup nas portas UDP/TCP MEDIA_RTC_MIN_PORT..MAX_PORT, no
 // IP público MEDIA_PUBLIC_IP. Este processo só faz sinalização e controle.
 const http = require('http');
+const crypto = require('crypto');
 const { config, validate } = require('./config');
 const rooms = require('./rooms');
 const signaling = require('./signaling');
@@ -19,16 +20,33 @@ if (errors.length) {
 }
 
 const startedAt = Date.now();
+let shuttingDown = false;
+
+// Comparação em tempo constante (não vaza o segredo por tempo de resposta).
+function secretOk(given) {
+  const a = Buffer.from(String(given || ''));
+  const b = Buffer.from(config.secret);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+// Promessa rejeitada sem catch NÃO derruba mais o processo (o padrão do Node
+// ≥ 15 é encerrar): registra e segue — uma chamada com erro não pode levar
+// as outras salas junto.
+process.on('unhandledRejection', (err) => { console.error('[media] promessa rejeitada sem tratamento:', err); });
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   if (req.method === 'GET' && url.pathname === '/health') {
-    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-    res.end(JSON.stringify({ ok: true, uptime: Math.round((Date.now() - startedAt) / 1000), ...rooms.stats() }));
+    // 503 sem nenhum worker vivo: o healthcheck do docker e o backend do
+    // Project Club (que testa esta rota) param de mandar gente pra cá.
+    const st = rooms.stats();
+    const ok = st.workers > 0 && !shuttingDown;
+    res.writeHead(ok ? 200 : 503, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(JSON.stringify({ ok, uptime: Math.round((Date.now() - startedAt) / 1000), ...st }));
     return;
   }
   if (req.method === 'GET' && url.pathname === '/stats') {
-    if (req.headers['x-media-secret'] !== config.secret) { res.writeHead(401); res.end(); return; }
+    if (!secretOk(req.headers['x-media-secret'])) { res.writeHead(401); res.end(); return; }
     // ?deep=1: estado de cada transporte (ICE/DTLS) e bytes enviados por
     // consumer — diagnóstico de "eu falo mas não escuto".
     const deep = url.searchParams.get('deep') === '1';
@@ -64,19 +82,25 @@ const server = http.createServer((req, res) => {
   res.end('Project Club media server');
 });
 
+let wss = null;
 (async () => {
   await rooms.startWorkers();
-  signaling.attach(server);
+  wss = signaling.attach(server);
   server.listen(config.port, config.host, () => {
     console.log(`[media] sinalização em http://${config.host}:${config.port}/ws · IP público anunciado: ${config.publicIp}`);
   });
 })().catch((err) => { console.error('[media] falha ao iniciar:', err); process.exit(1); });
 
-// Encerramento limpo (docker stop / systemd): fecha salas e sai.
+// Encerramento limpo (docker stop / systemd): fecha as salas avisando os
+// clientes com 1012 (reconectam assim que o servidor voltar, em vez de
+// esperar o batimento perceber) e sai.
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     console.log(`[media] ${sig} — encerrando`);
-    for (const r of rooms.rooms.values()) { try { r.close(); } catch { /* ok */ } }
+    try { rooms.shutdown(); } catch { /* ok */ }
+    if (wss) { for (const s of wss.clients) { try { s.close(1012, 'shutdown'); } catch { /* ok */ } } }
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 2000).unref();
   });

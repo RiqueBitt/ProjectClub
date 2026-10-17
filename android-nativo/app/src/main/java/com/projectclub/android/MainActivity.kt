@@ -79,10 +79,18 @@ class MainActivity : ComponentActivity() {
     private var afterMicPermission: (() -> Unit)? = null
     private var navRef: AppNavigator? = null
 
+    private var afterMicDenied: (() -> Unit)? = null
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         val next = afterMicPermission
+        val denied = afterMicDenied
         afterMicPermission = null
-        if (ok) next?.invoke() else Toast.makeText(this, "Sem o microfone não dá pra entrar na chamada.", Toast.LENGTH_LONG).show()
+        afterMicDenied = null
+        if (ok) next?.invoke()
+        else {
+            // Sem o microfone ainda dá pra OUVIR a call (modo só ouvindo).
+            Toast.makeText(this, "Você entrou só pra ouvir. Para falar, permita o microfone.", Toast.LENGTH_LONG).show()
+            denied?.invoke()
+        }
     }
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
@@ -127,12 +135,19 @@ class MainActivity : ComponentActivity() {
 
     /** Entra numa call (pede o microfone antes, se precisar). */
     private fun joinVoice(channelName: String, title: String, nav: NavHostController) {
-        val go = {
-            lifecycleScope.launch { app.voice.join(channelName, title) }
-            nav.navigate("voice") { launchSingleTop = true }
+        // A call roda no escopo do app (não no da tela): girar o celular ou
+        // fechar a tela não cancela a entrada no meio.
+        val go = { listenOnly: Boolean ->
+            app.voice.start(channelName, title, listenOnly)
+            runCatching { nav.navigate("voice") { launchSingleTop = true } }
+            Unit
         }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) go()
-        else { afterMicPermission = { go() }; micPermission.launch(Manifest.permission.RECORD_AUDIO) }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) go(false)
+        else {
+            afterMicPermission = { go(false) }
+            afterMicDenied = { go(true) }
+            micPermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
     }
 
     @Composable
@@ -159,6 +174,11 @@ class MainActivity : ComponentActivity() {
             }
         }
         LaunchedEffect(Unit) { app.incomingCalls.collect { incoming = it } }
+        // Em chamada, os botões de volume mexem no volume DA CHAMADA (não no de mídia).
+        LaunchedEffect(call.status) {
+            volumeControlStream = if (call.status == CallStatus.Idle) android.media.AudioManager.USE_DEFAULT_STREAM_TYPE
+            else android.media.AudioManager.STREAM_VOICE_CALL
+        }
         // Tema colorido salvo na conta (o mesmo do site/PC).
         LaunchedEffect(Unit) {
             runCatching {

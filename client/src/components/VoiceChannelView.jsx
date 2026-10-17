@@ -273,13 +273,18 @@ function ReconnectBanner({ voice }) {
 // Palco do modo reserva: "empresta" o iframe do Jitsi (que vive no contexto,
 // pra o áudio seguir tocando mesmo fora desta tela) e o mostra aqui enquanto
 // a tela da chamada está aberta. Devolve ao sair (detachJitsi).
+// BUG CORRIGIDO: o efeito dependia do objeto `voice` inteiro, que muda a cada
+// render do contexto (várias por segundo com o indicador de fala) — o iframe
+// era tirado e recolocado no DOM toda hora (mover um iframe o RECARREGA).
+// Agora só reancora quando o nó muda; as funções attach/detach são estáveis.
 function JitsiStage({ voice }) {
   const ref = useRef(null);
+  const { attachJitsi, detachJitsi, jitsiNode } = voice;
   useEffect(() => {
     const el = ref.current;
-    if (el) voice.attachJitsi?.(el);
-    return () => voice.detachJitsi?.();
-  }, [voice, voice.jitsiNode]);
+    try { if (el) attachJitsi?.(el); } catch { /* nó saindo */ }
+    return () => { try { detachJitsi?.(); } catch { /* desmontando */ } };
+  }, [attachJitsi, detachJitsi, jitsiNode]);
   return (
     <div className="vc-jitsi-stage">
       {voice.reconnectingProvider && (
