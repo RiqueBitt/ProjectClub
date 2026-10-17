@@ -9,13 +9,13 @@ import '../styles/donation-goal.css';
 // (Início, Social...). A staff define a meta e lança as doações no Painel
 // (Comunidade → Meta de doações); atualiza ao vivo pra todo mundo.
 export default function DonationGoalBar() {
-  const socket = useSocket();
+  const { socket } = useSocket() || {};
   const [goal, setGoal] = useState(null);
   const [open, setOpen] = useState(false);
 
   useEffect(() => { getDonationGoal().then(setGoal).catch(() => {}); }, []);
   useEffect(() => {
-    if (!socket) return undefined;
+    if (!socket?.on) return undefined;
     const onUpdate = (g) => setGoal(g);
     socket.on('donation-goal:update', onUpdate);
     return () => socket.off('donation-goal:update', onUpdate);
