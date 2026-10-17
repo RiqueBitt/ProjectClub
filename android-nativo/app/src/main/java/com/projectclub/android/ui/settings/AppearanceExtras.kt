@@ -167,7 +167,7 @@ fun AppIconPicker(repo: Repository, settings: JsonObject?, onSettings: (JsonObje
     val scope = rememberCoroutineScope()
     var current by remember { mutableStateOf(AppIcons.current(ctx)) }
     fun choose(icon: com.projectclub.android.ui.theme.AppIcon) {
-        AppIcons.set(ctx, icon.id); current = icon.id
+        AppIcons.choose(ctx, icon.id); current = icon.id
         Toast.makeText(ctx, "Ícone ${icon.name} escolhido. Ele aparece na tela inicial quando você sair do app.", Toast.LENGTH_LONG).show()
         // Salva na conta também (o mesmo "Ícone do app" do site e do PC).
         val extra = (settings?.get("extraPrefs") as? JsonObject)?.toMutableMap() ?: mutableMapOf()

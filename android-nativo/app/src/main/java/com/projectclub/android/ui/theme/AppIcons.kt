@@ -32,6 +32,7 @@ val APP_ICONS = listOf(
 object AppIcons {
     private const val PREFS = "app_prefs"
     private const val KEY_PENDING = "pendingAppIcon"
+    private const val KEY_LOCAL_AT = "appIconChosenAt"
 
     private fun aliasOf(context: Context, id: String) =
         ComponentName(context, "com.projectclub.android." + if (id == "default") "LauncherDefault" else "Launcher_$id")
@@ -61,12 +62,17 @@ object AppIcons {
         else p.edit().putString(KEY_PENDING, id).apply()
     }
 
+    /** Escolha feita AQUI no celular (marca a hora pra o valor da conta não desfazer). */
+    fun choose(context: Context, id: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putLong(KEY_LOCAL_AT, System.currentTimeMillis()).apply()
+        set(context, id)
+    }
+
     /** Aplica o ícone escolhido (app em segundo plano). */
     fun applyPending(context: Context) {
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val id = p.getString(KEY_PENDING, null) ?: return
-        p.edit().remove(KEY_PENDING).apply()
-        if (APP_ICONS.none { it.id == id }) return
+        if (APP_ICONS.none { it.id == id }) { p.edit().remove(KEY_PENDING).apply(); return }
         runCatching {
             val pm = context.packageManager
             // Primeiro liga o novo (nunca fica sem nenhum ícone), depois desliga os outros.
@@ -77,12 +83,22 @@ object AppIcons {
                     pm.setComponentEnabledSetting(aliasOf(context, it.id), want, PackageManager.DONT_KILL_APP)
                 }
             }
+        }.onSuccess {
+            // Só esquece o pendente depois de aplicar (antes apagava primeiro e,
+            // se a troca falhasse, a escolha sumia sem aviso).
+            p.edit().remove(KEY_PENDING).apply()
         }
     }
 
     /** Ícone salvo na conta (extraPrefs.appIcon, o mesmo do site/PC). */
     fun applyServer(context: Context, id: String?) {
         if (id == null || APP_ICONS.none { it.id == id }) return
+        // BUG CORRIGIDO ("troco o ícone e ele não muda"): ao reabrir/recriar a
+        // tela, o valor da conta (ainda o antigo, antes do salvamento chegar)
+        // desfazia a escolha feita no celular. Escolha local recente vence.
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val chosenAt = p.getLong(KEY_LOCAL_AT, 0L)
+        if (System.currentTimeMillis() - chosenAt < 10 * 60_000L) return
         if (id != current(context)) set(context, id)
     }
 }
