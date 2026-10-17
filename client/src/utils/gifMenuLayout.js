@@ -1,3 +1,4 @@
+import { cssZoom } from './cssZoom';
 // Item pedido: "GIFa Move" — a staff pode definir uma posição/tamanho
 // FIXOS pro menu de GIFs (Painel da Staff -> GIFa Move), independente
 // pra desktop e mobile. Essa função decide, na hora de abrir o menu,
@@ -21,9 +22,13 @@
 // tela, empurrando parte do menu pra fora (exigindo arrastar a
 // página pro lado pra ver o resto). clampBoxToViewport garante que a
 // caixa final SEMPRE cabe inteira na tela, em qualquer proporção.
+// Tudo em pixels CSS: com o zoom da interface (ex.: 1.13 no PC) left/top de
+// um elemento fixo são multiplicados pelo zoom — sem dividir aqui o menu
+// abria deslocado pra direita/baixo e saía da tela.
+const viewport = () => { const z = cssZoom() || 1; return { vw: window.innerWidth / z, vh: window.innerHeight / z }; };
+
 function clampBoxToViewport({ left, top, width, height }) {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
+  const { vw, vh } = viewport();
   const clampedWidth = Math.min(width, vw - 16);
   const clampedHeight = Math.min(height, vh - 16);
   const clampedLeft = Math.min(Math.max(left, 8), vw - clampedWidth - 8);
@@ -38,10 +43,10 @@ export function hasCustomGifMenuLayout(layout) {
 export function resolveDesktopGifMenuStyle(gifMenuLayout) {
   if (!hasCustomGifMenuLayout(gifMenuLayout)) return null; // sinal pro caller usar o cálculo automático de sempre
   const raw = {
-    left: (gifMenuLayout.left / 100) * window.innerWidth,
-    top: (gifMenuLayout.top / 100) * window.innerHeight,
-    width: (gifMenuLayout.width / 100) * window.innerWidth,
-    height: (gifMenuLayout.height / 100) * window.innerHeight,
+    left: (gifMenuLayout.left / 100) * viewport().vw,
+    top: (gifMenuLayout.top / 100) * viewport().vh,
+    width: (gifMenuLayout.width / 100) * viewport().vw,
+    height: (gifMenuLayout.height / 100) * viewport().vh,
   };
   const { left, top, width, height } = clampBoxToViewport(raw);
   return {
@@ -60,10 +65,10 @@ export function resolveDesktopGifMenuStyle(gifMenuLayout) {
 export function resolveMobileGifMenuStyle(gifMenuLayout) {
   if (!hasCustomGifMenuLayout(gifMenuLayout)) return null;
   const raw = {
-    left: (gifMenuLayout.left / 100) * window.innerWidth,
-    top: (gifMenuLayout.top / 100) * window.innerHeight,
-    width: (gifMenuLayout.width / 100) * window.innerWidth,
-    height: (gifMenuLayout.height / 100) * window.innerHeight,
+    left: (gifMenuLayout.left / 100) * viewport().vw,
+    top: (gifMenuLayout.top / 100) * viewport().vh,
+    width: (gifMenuLayout.width / 100) * viewport().vw,
+    height: (gifMenuLayout.height / 100) * viewport().vh,
   };
   const { left, top, width, height } = clampBoxToViewport(raw);
   return {

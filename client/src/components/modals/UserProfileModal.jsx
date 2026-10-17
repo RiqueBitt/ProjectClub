@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import AchievementIcon from '../AchievementIcon.jsx';
+import UiIcon from '../UiIcon.jsx';
 import { profileStyleClass } from '../../utils/profileStyle';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -1507,7 +1508,7 @@ export default function UserProfileModal() {
                         <span className="profile-scrap-item-text">{s.text}</span>
                       </div>
                       {(s.authorId === me.id || isMe) && (
-                        <button className="profile-scrap-item-remove" title="Apagar recado" onClick={() => { removeScrap(s.id); setScrapListOpen(false); }}>✕</button>
+                        <button className="profile-scrap-item-remove" title="Apagar recado" onClick={() => { removeScrap(s.id); setScrapListOpen(false); }}><UiIcon name="x" size={14} /></button>
                       )}
                     </div>
                   )}

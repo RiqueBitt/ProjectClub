@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { TABLER_ICONS } from '../utils/tablerIcons';
 import AchievementIcon from '../components/AchievementIcon.jsx';
+import UiIcon from '../components/UiIcon.jsx';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePromptDialog } from '../utils/usePromptDialog.jsx';
@@ -97,6 +97,7 @@ const ICON_PATHS = {
   external: 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5',
   menu: 'M4 6h16M4 12h16M4 18h16',
   close: 'M6 6l12 12M18 6 6 18',
+  back: 'M5 12h14M5 12l6 6M5 12l6-6',
   arrow: 'M9 6l6 6-6 6',
   cards: 'M7 3h11a2 2 0 0 1 2 2v13M4 7h11a2 2 0 0 1 2 2v11H6a2 2 0 0 1-2-2z',
 };
@@ -191,6 +192,12 @@ const groupOf = (tab) => TAB_GROUPS.find((g) => g.tabs.includes(tab));
 export default function AdminPanel() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  // Painel em tela cheia no PC: a barra lateral do app some enquanto o
+  // painel está aberto (sobra espaço pras tabelas); "Voltar ao chat" no topo.
+  useEffect(() => {
+    document.documentElement.classList.add('pc-staff-open');
+    return () => document.documentElement.classList.remove('pc-staff-open');
+  }, []);
   const [params, setParams] = useSearchParams();
   const tab = TABS[params.get('tab')] && !HIDDEN_TABS.has(params.get('tab')) ? params.get('tab') : 'overview';
   const [query, setQuery] = useState('');
@@ -246,6 +253,9 @@ export default function AdminPanel() {
             <strong>Painel da Equipe</strong>
             <span>{user.displayName}</span>
           </div>
+          <button type="button" className="staff-rail-back" onClick={() => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/'))} data-tip="Voltar ao chat" aria-label="Voltar ao chat">
+            <StaffIcon name="back" size={18} />
+          </button>
           <button type="button" className="staff-rail-close" onClick={() => setNavOpen(false)} aria-label="Fechar menu">
             <StaffIcon name="close" size={18} />
           </button>
@@ -482,7 +492,7 @@ function HoneypotAdminTab() {
 
   return (
     <div>
-      <h2>🕸️ Segurança (Honeypot)</h2>
+      <h2><UiIcon name="shield" size={20} /> Segurança (Honeypot)</h2>
       <p className="dim" style={{ marginBottom: 16 }}>
         Rotas falsas (/wp-admin, /.env, /phpmyadmin e outras) que só scanners automatizados tentam acessar —
         gente de verdade usando o site nunca bate nelas. Quem tenta é banido automaticamente e recebe dados falsos
@@ -559,7 +569,7 @@ function ReloadAdminTab() {
 
   return (
     <div>
-      <h2>🔄 Reload</h2>
+      <h2><UiIcon name="refresh" size={20} /> Reload</h2>
       <p className="dim" style={{ marginBottom: 16 }}>
         Ferramentas de sincronização — corrigem estados que podem ter ficado dessincronizados sem precisar mexer
         conta por conta.
@@ -596,7 +606,7 @@ function RolesAdminTab() {
 
   return (
     <div>
-      <h2>🎭 Cargos da comunidade</h2>
+      <h2><UiIcon name="military-rank" size={20} /> Cargos da comunidade</h2>
       <p className="dim" style={{ marginBottom: 16 }}>
         Crie cargos, defina cor/ícone, escolha as permissões e a ordem de exibição. As mudanças salvam na hora e
         aparecem pra todo mundo (mesmas rotas usadas pelo restante do app — nenhum dado fica só na tela).
@@ -675,7 +685,7 @@ function EmojisAdminTab() {
   const [open, setOpen] = useState(false);
   return (
     <div>
-      <h2>😀 Emojis personalizados</h2>
+      <h2><UiIcon name="mood-happy" size={20} /> Emojis personalizados</h2>
       <p className="dim" style={{ marginBottom: 16 }}>Crie emojis próprios da comunidade — aceita GIF animado, não só imagem parada.</p>
       <button className="btn-primary" onClick={() => setOpen(true)}>Gerenciar emojis</button>
       {open && <EmojiManagerModal onClose={() => setOpen(false)} />}
@@ -687,7 +697,7 @@ function StickersAdminTab() {
   const [open, setOpen] = useState(false);
   return (
     <div>
-      <h2>🏷️ Figurinhas</h2>
+      <h2><UiIcon name="sticker" size={20} /> Figurinhas</h2>
       <p className="dim" style={{ marginBottom: 16 }}>Crie figurinhas pra usar no chat — aceita GIF animado, não só imagem parada.</p>
       <button className="btn-primary" onClick={() => setOpen(true)}>Gerenciar figurinhas</button>
       {open && <StickerManagerModal onClose={() => setOpen(false)} />}
@@ -701,7 +711,7 @@ function ClanIconsAdminTab() {
   const [open, setOpen] = useState(false);
   return (
     <div>
-      <h2>⚔️ Ícones de Clube</h2>
+      <h2><UiIcon name="swords" size={20} /> Ícones de Clube</h2>
       <p className="dim" style={{ marginBottom: 16 }}>Crie ícones pra donos de clã escolherem ao criar ou editar o clã deles.</p>
       <button className="btn-primary" onClick={() => setOpen(true)}>Gerenciar ícones de clã</button>
       {open && <ClanIconManagerModal onClose={() => setOpen(false)} />}
@@ -726,7 +736,7 @@ function ClubsAdminTab() {
 
   return (
     <div>
-      <h2>🏛️ Clubes</h2>
+      <h2><UiIcon name="users-group" size={20} /> Clubes</h2>
       <p className="dim" style={{ marginBottom: 16 }}>Todos os clubes criados pelos usuários — clique em um pra abrir a visualização administrativa.</p>
       {!clans ? (
         <p className="dim">Carregando...</p>
@@ -809,7 +819,7 @@ function AdminClanView({ id, onBack }) {
           apenas visualizando o clube como administrador, sem
           realmente fazer parte dele ou aparecer como membro." */}
       <div style={{ background: 'var(--yellow, #FEE75C)', color: '#111', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontWeight: 600, fontSize: 13 }}>
-        👁️ Modo visualização administrativa — você está vendo este clube como staff, não como membro. Você não pode enviar mensagens nem entrar em chamadas.
+        <UiIcon name="eye" /> Modo visualização administrativa — você está vendo este clube como staff, não como membro. Você não pode enviar mensagens nem entrar em chamadas.
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
@@ -843,7 +853,7 @@ function AdminClanView({ id, onBack }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
         {clan.members.map((m) => (
           <span key={m.id} className="dim" style={{ background: 'var(--bg-elevated)', padding: '4px 10px', borderRadius: 20, fontSize: 12.5 }}>
-            {m.displayName} {m.clanRole === 'OWNER' && '👑'}
+            {m.displayName} {m.clanRole === 'OWNER' && <UiIcon name="crown" size={14} title="Dono" />}
           </span>
         ))}
       </div>
@@ -912,7 +922,7 @@ function GifMoveAdminTab() {
 
   return (
     <div className="gif-move-tab">
-      <h2>🎯 GIFa Move</h2>
+      <h2><UiIcon name="target" size={20} /> GIFa Move</h2>
       <p className="dim" style={{ marginBottom: 16 }}>
         Arraste e redimensione a caixa abaixo pra escolher onde o menu de GIFs abre na comunidade —
         independente pra desktop e mobile.
@@ -932,7 +942,7 @@ function GifMoveAdminTab() {
             </div>
           </div>
           <div className="gif-move-actions">
-            <button type="button" className="btn-primary" onClick={() => setStep('mobile')}>Prosseguir →</button>
+            <button type="button" className="btn-primary" onClick={() => setStep('mobile')}>Prosseguir <UiIcon name="arrow-right" /></button>
           </div>
         </>
       )}
@@ -948,7 +958,7 @@ function GifMoveAdminTab() {
             </div>
           </div>
           <div className="gif-move-actions">
-            <button type="button" className="btn-secondary" onClick={() => setStep('desktop')}>← Voltar</button>
+            <button type="button" className="btn-secondary" onClick={() => setStep('desktop')}><UiIcon name="arrow-left" /> Voltar</button>
             <button type="button" className="btn-primary" disabled={saving} onClick={save}>
               {saving ? 'Salvando...' : 'Salvar'}
             </button>
@@ -1154,7 +1164,7 @@ function ChannelsAdminTab() {
 
   const renderChannelRow = (categoryId, list, ch, i) => (
     <div key={ch.id} className="admin-user-row">
-      <span className="dim" style={{ width: 18, textAlign: 'center' }}>{ch.type === 'VOICE' || ch.type === 'STAGE' ? '🔊' : '#'}</span>
+      <span className="dim" style={{ width: 18, textAlign: 'center' }}><UiIcon name={ch.type === 'VOICE' || ch.type === 'STAGE' ? 'volume' : 'hash'} /></span>
       <div className="admin-user-row-info"><div className="admin-user-row-name">{ch.name}</div></div>
       <select
         value={ch.categoryId || ''}
@@ -1184,7 +1194,7 @@ function ChannelsAdminTab() {
         <button className="btn-secondary" onClick={addCategory}>+ Nova categoria</button>
         <button className="btn-secondary" onClick={() => setCreatingFor(null)}>+ Canal sem categoria</button>
         <button className="btn-secondary" disabled={settingUp} onClick={runSuggestedSetup}>
-          {settingUp ? 'Criando...' : '🚀 Criar estrutura sugerida'}
+          {settingUp ? 'Criando...' : <><UiIcon name="rocket" /> Criar estrutura sugerida</>}
         </button>
       </div>
       {setupLog.length > 0 && (
@@ -1263,7 +1273,7 @@ function AchievementsAdminTab() {
 
   return (
     <div>
-      <h2>🏆 Conquistas</h2>
+      <h2><UiIcon name="trophy" size={20} /> Conquistas</h2>
       <p className="dim" style={{ marginBottom: 16 }}>
         Crie, edite e defina a raridade das conquistas. O ícone padrão (medalha) é usado em qualquer uma sem ícone
         próprio — dá pra trocar individualmente clicando em "Editar".
@@ -1429,7 +1439,7 @@ function UpdatesAdminTab() {
 
   return (
     <div>
-      <h2>📰 Atualizações</h2>
+      <h2><UiIcon name="news" size={20} /> Atualizações</h2>
       <p className="dim" style={{ marginBottom: 16 }}>Publique novidades e mudanças recentes — aparece pra todo mundo em tempo real.</p>
       <form onSubmit={submit} className="settings-block communities-inline-form">
         <div className="display-name-row">
@@ -1540,7 +1550,7 @@ function EventsAdminTab() {
 
   return (
     <div>
-      <h2>🎉 Eventos</h2>
+      <h2><UiIcon name="confetti" size={20} /> Eventos</h2>
       <p className="dim" style={{ marginBottom: 16 }}>Crie e gerencie eventos — aparecem automaticamente na categoria Início pra todo mundo.</p>
       <form onSubmit={publish} className="settings-block communities-inline-form">
         <label>TÍTULO<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={150} required /></label>
@@ -1651,7 +1661,7 @@ function FeedsAdminTab() {
           {communities.map((c) => (
             <div key={c.id} className="admin-user-row">
               <span className="community-row-icon" style={{ width: 32, height: 32 }}>
-                {c.iconUrl ? <img src={proxyImage(c.iconUrl)} alt="" /> : '📌'}
+                {c.iconUrl ? <img src={proxyImage(c.iconUrl)} alt="" /> : <UiIcon name="pin" size={18} />}
               </span>
               <div className="admin-user-row-info">
                 <div className="admin-user-row-name">{c.name}</div>
@@ -1912,7 +1922,7 @@ function AppCatalogItemEditor({ item, onChange, onReload }) {
     const status = saveStatus[field];
     if (!status) return null;
     if (status.kind === 'saving') return <span className="dim"> salvando...</span>;
-    if (status.kind === 'saved') return <span style={{ color: 'var(--green)' }}> ✓ salvo</span>;
+    if (status.kind === 'saved') return <span style={{ color: 'var(--green)' }}> <UiIcon name="check" size={14} /> salvo</span>;
     if (status.kind === 'error') return <span style={{ color: 'var(--red)' }}> {status.message}</span>;
     return null;
   };
@@ -2077,27 +2087,6 @@ function MaintenanceTab() {
   );
 }
 
-// Ícones de traço (Tabler, MIT) do menu de ações da aba Usuários.
-const UT_ICONS = {
-  edit: ['M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4', 'M13.5 6.5l4 4'],
-  award: TABLER_ICONS.award,
-  coins: TABLER_ICONS.coins,
-  lock: ['M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6z', 'M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0', 'M8 11v-4a4 4 0 1 1 8 0v4'],
-  ban: ['M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0', 'M5.7 5.7l12.6 12.6'],
-  pause: ['M20.942 13.018a9 9 0 1 0 -7.909 7.922', 'M12 7v5l2 2', 'M17 17v5', 'M21 17v5'],
-  check: ['M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0', 'M6 21v-2a4 4 0 0 1 4 -4h4', 'M15 19l2 2l4 -4'],
-  trash: ['M4 7l16 0', 'M10 11l0 6', 'M14 11l0 6', 'M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12', 'M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3'],
-  dots: ['M4 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0', 'M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0', 'M18 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0'],
-  left: ['M15 6l-6 6l6 6'],
-  right: ['M9 6l6 6l-6 6'],
-};
-function UtIcon({ name, size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {(UT_ICONS[name] || []).map((d, i) => <path key={i} d={d} />)}
-    </svg>
-  );
-}
 
 // Menu flutuante preso ao botão: abre alinhado pela DIREITA do botão (antes
 // abria pra direita e saía da tela), vira pra cima quando não cabe embaixo,
@@ -2263,7 +2252,7 @@ function UsersTab() {
                   </span>
                 </div>
                 <div className="admin-user-row-meta">
-                  <span className="dim">🏆 Nível {u.accountLevel || 1}</span>
+                  <span className="dim ui-icon-text"><UiIcon name="trophy" size={14} /> Nível {u.accountLevel || 1}</span>
                   {userBadges.length > 0 && (
                     <span className="admin-user-badge-chips">
                       {userBadges.map((b) => (
@@ -2281,7 +2270,7 @@ function UsersTab() {
               </select>
 
               <button type="button" className="btn-secondary ut-actions-btn" aria-haspopup="menu" aria-expanded={open && menu.kind === 'actions'} onClick={(e) => openMenu('actions', u, e)}>
-                Ações <UtIcon name="dots" size={16} />
+                Ações <UiIcon name="dots" size={16} />
               </button>
             </div>
           );
@@ -2290,32 +2279,32 @@ function UsersTab() {
 
       {pages > 1 && (
         <nav className="ut-pager" aria-label="Páginas">
-          <button type="button" className="ut-page" disabled={page <= 1} onClick={() => goTo(page - 1)} aria-label="Página anterior"><UtIcon name="left" /></button>
+          <button type="button" className="ut-page" disabled={page <= 1} onClick={() => goTo(page - 1)} aria-label="Página anterior"><UiIcon name="chevron-left" /></button>
           {utPageList(page, pages).map((p, i) => (p === '…'
             ? <span key={`e${i}`} className="ut-page-gap">…</span>
             : <button key={p} type="button" className={`ut-page${p === page ? ' active' : ''}`} aria-current={p === page ? 'page' : undefined} onClick={() => goTo(p)}>{p}</button>))}
-          <button type="button" className="ut-page" disabled={page >= pages} onClick={() => goTo(page + 1)} aria-label="Próxima página"><UtIcon name="right" /></button>
+          <button type="button" className="ut-page" disabled={page >= pages} onClick={() => goTo(page + 1)} aria-label="Próxima página"><UiIcon name="chevron-right" /></button>
         </nav>
       )}
 
       {menu && menuUser && menu.kind === 'actions' && (
         <UtPopover anchor={menu.anchor} onClose={closeMenu}>
           <div className="ut-menu-head">{menuUser.displayName} <span className="dim">@{menuUser.username}</span></div>
-          <button role="menuitem" onClick={run(() => editUser(menuUser))}><UtIcon name="edit" /> Editar nome</button>
-          <button role="menuitem" onClick={(e) => setMenu({ kind: 'badges', userId: menuUser.id, anchor: menu.anchor })}><UtIcon name="award" /> Insígnias</button>
-          <button role="menuitem" onClick={run(() => setEconomyModalFor(menuUser))}><UtIcon name="coins" /> Nível, XP e moedas</button>
-          <button role="menuitem" onClick={run(() => setSecurityInfoFor(menuUser.id))}><UtIcon name="lock" /> Informações confidenciais</button>
+          <button role="menuitem" onClick={run(() => editUser(menuUser))}><UiIcon name="pencil" /> Editar nome</button>
+          <button role="menuitem" onClick={(e) => setMenu({ kind: 'badges', userId: menuUser.id, anchor: menu.anchor })}><UiIcon name="award" /> Insígnias</button>
+          <button role="menuitem" onClick={run(() => setEconomyModalFor(menuUser))}><UiIcon name="coins" /> Nível, XP e moedas</button>
+          <button role="menuitem" onClick={run(() => setSecurityInfoFor(menuUser.id))}><UiIcon name="lock" /> Informações confidenciais</button>
           <div className="ut-menu-sep" />
           {menuUser.isPlatformBanned
-            ? <button role="menuitem" onClick={run(() => unban(menuUser))}><UtIcon name="check" /> Desbanir</button>
-            : <button role="menuitem" className="danger" onClick={run(() => ban(menuUser))}><UtIcon name="ban" /> Banir</button>}
+            ? <button role="menuitem" onClick={run(() => unban(menuUser))}><UiIcon name="user-check" /> Desbanir</button>
+            : <button role="menuitem" className="danger" onClick={run(() => ban(menuUser))}><UiIcon name="ban" /> Banir</button>}
           {menuSuspended
-            ? <button role="menuitem" onClick={run(() => unsuspend(menuUser))}><UtIcon name="check" /> Cancelar suspensão</button>
-            : <button role="menuitem" className="danger" onClick={run(() => suspend(menuUser))}><UtIcon name="pause" /> Suspender</button>}
+            ? <button role="menuitem" onClick={run(() => unsuspend(menuUser))}><UiIcon name="user-check" /> Cancelar suspensão</button>
+            : <button role="menuitem" className="danger" onClick={run(() => suspend(menuUser))}><UiIcon name="clock-pause" /> Suspender</button>}
           {me.platformRole === 'ADMIN' && menuUser.id !== me.id && (
             <>
               <div className="ut-menu-sep" />
-              <button role="menuitem" className="danger" onClick={run(() => setDeleteAccountFor(menuUser))}><UtIcon name="trash" /> Excluir conta</button>
+              <button role="menuitem" className="danger" onClick={run(() => setDeleteAccountFor(menuUser))}><UiIcon name="trash" /> Excluir conta</button>
             </>
           )}
         </UtPopover>
@@ -3014,10 +3003,10 @@ function HousesAdminTab() {
   return (
     <div>
       <div className="mod-tabs">
-        <button className={`mod-tab ${section === 'houses' ? 'active' : ''}`} onClick={() => setSection('houses')}>🧊 Casas</button>
-        <button className={`mod-tab ${section === 'groups' ? 'active' : ''}`} onClick={() => setSection('groups')}>🏘️ Grupos</button>
-        <button className={`mod-tab ${section === 'furniture' ? 'active' : ''}`} onClick={() => setSection('furniture')}>🪑 Móveis</button>
-        <button className={`mod-tab ${section === 'maps' ? 'active' : ''}`} onClick={() => setSection('maps')}>🖼️ Fundos</button>
+        <button className={`mod-tab ${section === 'houses' ? 'active' : ''}`} onClick={() => setSection('houses')}><UiIcon name="home" /> Casas</button>
+        <button className={`mod-tab ${section === 'groups' ? 'active' : ''}`} onClick={() => setSection('groups')}><UiIcon name="users-group" /> Grupos</button>
+        <button className={`mod-tab ${section === 'furniture' ? 'active' : ''}`} onClick={() => setSection('furniture')}><UiIcon name="armchair" /> Móveis</button>
+        <button className={`mod-tab ${section === 'maps' ? 'active' : ''}`} onClick={() => setSection('maps')}><UiIcon name="photo" /> Fundos</button>
       </div>
       {section === 'houses' && <HouseCatalogSection />}
       {section === 'groups' && <HouseGroupsSection />}
@@ -3339,7 +3328,7 @@ function SystemTab() {
 
   if (!toggles) return <div className="dim">Carregando...</div>;
 
-  const LABELS = { economia: '💰 Economia', rank: '🏆 Rank', casas: '🧊 Casas e decoração', cartas: '🃏 Guerra das Cartas', cores_perfil: '🎨 Cores personalizadas para perfil', cargos: '🎖️ Cargos' };
+  const LABELS = { economia: ['coins', 'Economia'], rank: ['trophy', 'Rank'], casas: ['home', 'Casas e decoração'], cartas: ['cards', 'Guerra das Cartas'], cores_perfil: ['palette', 'Cores personalizadas para perfil'], cargos: ['military-rank', 'Cargos'] };
 
   return (
     <div className="settings-grid">
@@ -3350,7 +3339,7 @@ function SystemTab() {
           const enabled = !toggles.disabledSystems.includes(sys);
           return (
             <label key={sys} className="checkbox-row" style={{ fontSize: 14 }}>
-              <input type="checkbox" checked={enabled} onChange={(e) => toggle(sys, e.target.checked)} /> {LABELS[sys] || sys}
+              <input type="checkbox" checked={enabled} onChange={(e) => toggle(sys, e.target.checked)} /> {LABELS[sys] ? <><UiIcon name={LABELS[sys][0]} /> {LABELS[sys][1]}</> : sys}
             </label>
           );
         })}
@@ -3554,7 +3543,7 @@ function ReportsTab() {
             <div className="dim" style={{ marginTop: 8, fontSize: 13 }}>Motivo: {r.reason}</div>
             <p style={{ marginTop: 4, fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>"{r.snippet}"</p>
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button className="btn-link" onClick={() => openCase(r)}>{r.kind === 'PROFILE' ? '🔍 Ver perfil' : '🔍 Analisar contexto'}</button>
+              <button className="btn-link" onClick={() => openCase(r)}><UiIcon name="search" /> {r.kind === 'PROFILE' ? 'Ver perfil' : 'Analisar contexto'}</button>
               {r.status === 'PENDING' && (
                 <button className="btn-link" disabled={busyId === r.id} onClick={() => resolve(r.id, 'DISMISSED')}>Ignorar</button>
               )}
@@ -3669,7 +3658,7 @@ function AutomodDmTab() {
             </div>
             <p style={{ marginTop: 8, fontStyle: 'italic' }}>"{f.snippet}"</p>
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button className="btn-link" onClick={() => openCase(f)}>🔍 Analisar conversa</button>
+              <button className="btn-link" onClick={() => openCase(f)}><UiIcon name="search" /> Analisar conversa</button>
               {f.status === 'PENDING' && (
                 <button className="btn-link" disabled={busyId === f.id} onClick={() => resolve(f.id, 'DISMISSED')}>Ignorar</button>
               )}
@@ -3753,7 +3742,7 @@ function ModGamesAdminTab() {
 
   return (
     <div>
-      <h2>🧰 Mods — Jogos com suporte</h2>
+      <h2><UiIcon name="tool" size={20} /> Mods — Jogos com suporte</h2>
       <p className="dim" style={{ marginBottom: 16 }}>
         Cada linha aqui diz "este AppID da Steam corresponde a este jogo no mod.io". Um jogo detectado na Steam de
         alguém que NÃO estiver cadastrado aqui simplesmente não mostra suporte a mods pra essa pessoa — nunca inventa.
@@ -3782,7 +3771,7 @@ function ModGamesAdminTab() {
                 <td>{m.displayName}</td>
                 <td>{m.steamAppId}</td>
                 <td>{m.modioGameId} ({m.modioNameId})</td>
-                <td>{m.enabled ? '✅ Ativo' : '⛔ Desativado'}</td>
+                <td>{m.enabled ? <span className="ui-icon-text" style={{ color: 'var(--green)' }}><UiIcon name="circle-check" /> Ativo</span> : <span className="ui-icon-text dim"><UiIcon name="ban" /> Desativado</span>}</td>
                 <td className="admin-table-actions">
                   <button className="btn-link" onClick={() => toggleEnabled(m)}>{m.enabled ? 'Desativar' : 'Ativar'}</button>
                   <button className="btn-link" style={{ color: 'var(--red)' }} onClick={() => remove(m)}>Remover</button>
@@ -3818,7 +3807,7 @@ function ModReportsAdminTab() {
 
   return (
     <div>
-      <h2>🧰 Mods — Denúncias</h2>
+      <h2><UiIcon name="tool" size={20} /> Mods — Denúncias</h2>
       <p className="dim" style={{ marginBottom: 16 }}>
         Denúncias enviadas pelos usuários sobre mods específicos (conteúdo impróprio, malware suspeito, etc). Isso não
         remove o mod do mod.io — só ajuda a equipe a acompanhar problemas relatados.
@@ -3909,7 +3898,7 @@ function WorkshopGamesAdminTab() {
 
   return (
     <div>
-      <h2>🧰 Mods — Steam Workshop</h2>
+      <h2><UiIcon name="tool" size={20} /> Mods — Steam Workshop</h2>
       <p className="dim" style={{ marginBottom: 16 }}>
         steamAppId é o jogo detectado localmente na Steam da pessoa. workshopAppId é o AppID que de fato guarda os
         itens do Workshop — na maioria dos jogos os dois são o mesmo número, mas em alguns casos são diferentes
@@ -3939,7 +3928,7 @@ function WorkshopGamesAdminTab() {
                 <td>{m.displayName}</td>
                 <td>{m.steamAppId}</td>
                 <td>{m.workshopAppId}</td>
-                <td>{m.enabled ? '✅ Ativo' : '⛔ Desativado'}</td>
+                <td>{m.enabled ? <span className="ui-icon-text" style={{ color: 'var(--green)' }}><UiIcon name="circle-check" /> Ativo</span> : <span className="ui-icon-text dim"><UiIcon name="ban" /> Desativado</span>}</td>
                 <td className="admin-table-actions">
                   <button className="btn-link" onClick={() => toggleEnabled(m)}>{m.enabled ? 'Desativar' : 'Ativar'}</button>
                   <button className="btn-link" style={{ color: 'var(--red)' }} onClick={() => remove(m)}>Remover</button>
@@ -4001,7 +3990,7 @@ function GameBananaGamesAdminTab() {
 
   return (
     <div>
-      <h2>🧰 Mods — GameBanana</h2>
+      <h2><UiIcon name="tool" size={20} /> Mods — GameBanana</h2>
       <p className="dim" style={{ marginBottom: 16 }}>
         gameBananaGameId é o número que aparece na URL do jogo no GameBanana (ex: gamebanana.com/games/6 → 6). API
         semi-oficial deles, sem login/chave nenhuma — cobre vários jogos da Steam além de Minecraft/mod.io/Workshop
@@ -4028,7 +4017,7 @@ function GameBananaGamesAdminTab() {
                 <td>{m.displayName}</td>
                 <td>{m.steamAppId}</td>
                 <td>{m.gameBananaGameId}</td>
-                <td>{m.enabled ? '✅ Ativo' : '⛔ Desativado'}</td>
+                <td>{m.enabled ? <span className="ui-icon-text" style={{ color: 'var(--green)' }}><UiIcon name="circle-check" /> Ativo</span> : <span className="ui-icon-text dim"><UiIcon name="ban" /> Desativado</span>}</td>
                 <td className="admin-table-actions">
                   <button className="btn-link" onClick={() => toggleEnabled(m)}>{m.enabled ? 'Desativar' : 'Ativar'}</button>
                   <button className="btn-link" style={{ color: 'var(--red)' }} onClick={() => remove(m)}>Remover</button>

@@ -82,7 +82,7 @@ function N2Nav() {
           const label = t(item.labelKey, item.label);
           return (
             <NavLink
-              key={item.to} to={item.to} title={compact ? label : undefined}
+              key={item.to} to={item.to} aria-label={compact ? label : undefined} data-tip={compact ? label : undefined}
               className={`n2-nav-item${active ? ' active' : ''}`}
               onClick={() => useStore.getState().closeMobileChannelList()}
             >

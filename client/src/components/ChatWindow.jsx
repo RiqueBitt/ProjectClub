@@ -2,7 +2,7 @@ import UnreadCountBadge from './UnreadCountBadge.jsx';
 import { convertEmoticons } from '../utils/extraPrefs';
 import { setConversationInbox } from '../api/endpoints';
 import MiniJogosComposerButton from '../minijogos/MiniJogosComposerButton.jsx';
-import { Fragment, Suspense, memo, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, Suspense, memo, useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
 import { lazyWithRetry as lazy } from '../utils/lazyWithRetry';
 import { useElementHeight } from '../utils/useElementHeight';
 import { createPortal } from 'react-dom';
@@ -425,7 +425,10 @@ function ChatWindowInner({ conversationId, channelId }) {
   const [pickerStyle, setPickerStyle] = useState(null);
   const PICKER_WIDTH = 380;
   const PICKER_HEIGHT_VH = 40;
-  useEffect(() => {
+  // useLayoutEffect (não useEffect): a posição é calculada ANTES da tela
+  // pintar. Com useEffect o seletor aparecia primeiro na posição padrão do
+  // CSS (meio/canto) e só depois "pulava" pro lugar certo.
+  useLayoutEffect(() => {
     if (!emojiPickerOpen) { setPickerStyle(null); return; }
     if (window.matchMedia('(max-width: 600px)').matches) {
       // Item pedido: "GIFa Move... deve funcionar corretamente...
