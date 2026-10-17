@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import AchievementIcon from '../AchievementIcon.jsx';
 import { profileStyleClass } from '../../utils/profileStyle';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -21,7 +22,6 @@ import ActivityIcon from '../ActivityIcon.jsx';
 import BadgeListModal from './BadgeListModal.jsx';
 import PaginatedListModal from './PaginatedListModal.jsx';
 import PhotoAlbumModal from './PhotoAlbumModal.jsx';
-import defaultAchievementIcon from '../../assets/icons/nav-achievements.png';
 import BadgeIcon from '../BadgeIcon.jsx';
 import { nameStyleProps, nameStyleClassName } from '../../utils/nameStyle';
 import cancelIcon from '../../assets/icons/close-x.png';
@@ -739,7 +739,7 @@ export default function UserProfileModal() {
               {data.displayedAchievements.map((a) => (
                 <div key={a.id} className="pf-tile" title={a.description}>
                   <span className="pf-tile-icon">
-                    <img src={a.iconUrl ? proxyImage(a.iconUrl) : defaultAchievementIcon} alt="" />
+                    <AchievementIcon achievement={a} size={30} tile={false} />
                   </span>
                   <span className="pf-tile-name">{a.name}</span>
                 </div>

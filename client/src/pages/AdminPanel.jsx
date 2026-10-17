@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import AchievementIcon from '../components/AchievementIcon.jsx';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePromptDialog } from '../utils/usePromptDialog.jsx';
@@ -10,7 +11,6 @@ import editIcon from '../assets/icons/nav-edit.png';
 import confirmIcon from '../assets/icons/nav-confirm.png';
 import closeIcon from '../assets/icons/nav-close.png';
 import giftIcon from '../assets/icons/nav-gift.png';
-import achievementsDefaultIconUrl from '../assets/icons/nav-achievements.png';
 import { RARITY_LABEL as ACHIEVEMENT_RARITY_LABEL } from '../utils/achievementRarity';
 import Modal from '../components/Modal.jsx';
 import RoleManagerModal from '../components/modals/RoleManagerModal.jsx';
@@ -1280,7 +1280,7 @@ function AchievementsAdminTab() {
         {achievements.map((a) => (
           <div key={a.id}>
             <div className="admin-user-row">
-              <img src={proxyImage(a.iconUrl) || achievementsDefaultIconUrl} alt="" style={{ width: 32, height: 32 }} />
+              <AchievementIcon achievement={a} size={32} />
               <div className="admin-user-row-info">
                 <div className="admin-user-row-name">{a.name} {!a.enabled && <span className="dim">(desativada)</span>}</div>
                 <div className="admin-user-row-meta dim">{ACHIEVEMENT_RARITY_LABEL[a.rarity]} · {a.progressType} · meta {a.target}</div>

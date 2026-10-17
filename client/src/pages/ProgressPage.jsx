@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import AchievementIcon from '../components/AchievementIcon.jsx';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
@@ -8,8 +9,6 @@ import PageIcon from '../components/PageIcons.jsx';
 import { LEVEL_REWARDS } from '../utils/levelRewards';
 import { RARITY_LABEL, RARITY_COLOR } from '../utils/achievementRarity';
 import { categoryFor, CATEGORY_ORDER } from '../utils/achievementCategory';
-import { proxyImage } from '../utils/imageProxy';
-import defaultAchievementIcon from '../assets/icons/nav-achievements.png';
 import '../styles/progress.css';
 import { useLiveRefresh } from '../utils/liveRefresh';
 
@@ -264,7 +263,7 @@ function Achievements({ achievements }) {
               return (
                 <article key={a.id} className={`pg-ach-card${a.unlocked ? ' done' : ''}`} style={{ '--rarity': RARITY_COLOR[a.rarity] }}>
                   <div className="pg-ach-icon">
-                    <img src={proxyImage(a.iconUrl) || defaultAchievementIcon} alt="" loading="lazy" />
+                    <AchievementIcon achievement={a} size={44} locked={!a.unlocked} />
                     {!a.unlocked && <span className="pg-ach-lock"><PageIcon name="lock" size={12} strokeWidth={2.2} /></span>}
                   </div>
                   <div className="pg-ach-body">

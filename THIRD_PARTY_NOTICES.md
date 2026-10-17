@@ -12,3 +12,5 @@ venmic — https://github.com/Vencord/venmic — MPL-2.0 (usado sem modificaçõ
 uiohook-napi — https://github.com/SnosMe/uiohook-napi — MIT; inclui libuiohook — https://github.com/kwhat/libuiohook — LGPL-3.0-or-later (app de PC, apertar-pra-falar global; binário N-API sem modificações, arquivo .node separado em app.asar.unpacked e substituível; código-fonte nos links acima)
 Mumble (BSD-3-Clause), Galene (MIT) — referências
 Inspiração (ideias, sem código copiado): Vesktop/Equibop (GPL-3.0), Element Call, Spacebar, Revolt vortex (AGPL-3.0), Janus (GPL-3.0), eduMEET (MIT).
+
+Tabler Icons — https://github.com/tabler/tabler-icons — MIT (ícones das insígnias e conquistas, site e app Android)
