@@ -7,6 +7,11 @@ const { messageInclude, assertAccess, roomFor } = require('./messageController')
 const DURATION_HOURS = { '1h': 1, '4h': 4, '16h': 16, '24h': 24, '3d': 72, '1w': 168 };
 const MIN_OPTIONS = 2;
 const MAX_OPTIONS = 7;
+// Limites de tamanho (mesmos do PollComposerModal.jsx). O título vira o
+// `title` da mensagem, que é VARCHAR(191) no MySQL — passar disso dava
+// erro 500 ("value too long for the column") em vez de um aviso claro.
+const MAX_QUESTION_CHARS = 180;
+const MAX_OPTION_CHARS = 80;
 
 // A poll is a Message (so it shows up in the normal channel feed, gets
 // real-time delivery via the same `message:new` socket event as any other
@@ -21,10 +26,14 @@ async function createPoll(req, res, next) {
     }
 
     const cleanOptions = (Array.isArray(options) ? options : [])
-      .map((o) => (typeof o === 'string' ? o.trim() : ''))
+      .map((o) => (typeof o === 'string' ? o.trim().slice(0, MAX_OPTION_CHARS) : ''))
       .filter(Boolean);
 
-    if (!question || !question.trim()) return res.status(400).json({ error: 'A enquete precisa de um título.' });
+    // `question` vem do corpo da requisição: sem conferir o tipo, um número
+    // ou objeto quebrava em question.trim() (TypeError → 500).
+    const cleanQuestion = typeof question === 'string' ? question.trim() : '';
+    if (!cleanQuestion) return res.status(400).json({ error: 'A enquete precisa de um título.' });
+    if (cleanQuestion.length > MAX_QUESTION_CHARS) return res.status(400).json({ error: `O título da enquete pode ter no máximo ${MAX_QUESTION_CHARS} caracteres.` });
     if (cleanOptions.length < MIN_OPTIONS) return res.status(400).json({ error: `A enquete precisa de pelo menos ${MIN_OPTIONS} opções.` });
     if (cleanOptions.length > MAX_OPTIONS) return res.status(400).json({ error: `A enquete pode ter no máximo ${MAX_OPTIONS} opções.` });
 
@@ -34,13 +43,13 @@ async function createPoll(req, res, next) {
     const io = req.app.get('io');
     const message = await prisma.message.create({
       data: {
-        title: question.trim(),
+        title: cleanQuestion,
         authorId: req.user.id,
         conversationId: conversationId || null,
         channelId: channelId || null,
         poll: {
           create: {
-            question: question.trim(),
+            question: cleanQuestion,
             options: JSON.stringify(cleanOptions),
             expiresAt: new Date(Date.now() + hours * 60 * 60 * 1000),
           },
@@ -54,6 +63,16 @@ async function createPoll(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Opções gravadas como JSON. Uma linha corrompida não pode virar erro 500.
+function parseOptions(raw) {
+  try {
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
 // Single-choice: voting again just overwrites your previous pick (upsert on
 // the pollId+userId unique constraint) rather than adding a second vote.
 async function votePoll(req, res, next) {
@@ -63,14 +82,15 @@ async function votePoll(req, res, next) {
 
     const poll = await prisma.poll.findUnique({ where: { id }, include: { message: true } });
     if (!poll) return res.status(404).json({ error: 'Enquete não encontrada.' });
+    // Confere o acesso ANTES de qualquer outra resposta — senão quem não
+    // vê o canal ainda descobria se a enquete existia/estava encerrada.
+    await assertAccess(req, { conversationId: poll.message.conversationId, channelId: poll.message.channelId }, true);
     if (new Date(poll.expiresAt) <= new Date()) return res.status(400).json({ error: 'Esta enquete já foi encerrada.' });
 
-    const options = JSON.parse(poll.options);
+    const options = parseOptions(poll.options);
     if (!Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex >= options.length) {
       return res.status(400).json({ error: 'Opção inválida.' });
     }
-
-    await assertAccess(req, { conversationId: poll.message.conversationId, channelId: poll.message.channelId }, true);
 
     await safeUpsert(prisma.pollVote, {
       where: { pollId_userId: { pollId: id, userId: req.user.id } },
@@ -85,4 +105,4 @@ async function votePoll(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { createPoll, votePoll, DURATION_HOURS };
+module.exports = { createPoll, votePoll, DURATION_HOURS, MAX_QUESTION_CHARS, MAX_OPTION_CHARS };

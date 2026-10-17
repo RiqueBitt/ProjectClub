@@ -1,3 +1,4 @@
+const { guardSocket } = require('./guardHandler');
 const { Server } = require('socket.io');
 const { verifyAccessToken } = require('../services/tokens');
 const prisma = require('../config/prisma');
@@ -266,6 +267,10 @@ function initSockets(httpServer) {
   ]);
 
   io.on('connection', async (socket) => {
+    // Todo socket.on/once desta conexão passa a ter rede de segurança: um
+    // handler que lança (ou rejeita) fica registrado com o nome do evento
+    // em vez de virar unhandledRejection anônimo — ver guardHandler.js.
+    guardSocket(socket);
     const userId = socket.userId;
     // Reconexão rápida: cancela já (antes de qualquer await) o "marcar
     // offline" atrasado da conexão anterior — ver OFFLINE_GRACE_MS.
@@ -1181,9 +1186,13 @@ function initSockets(httpServer) {
           if (pendingOfflineTimers.has(userId)) clearTimeout(pendingOfflineTimers.get(userId));
           const timer = setTimeout(async () => {
             pendingOfflineTimers.delete(userId);
-            if (await presenceStore.isOnline(userId)) return; // reconnected in the meantime after all
-            await prisma.user.update({ where: { id: userId }, data: { status: 'OFFLINE' } }).catch(() => {});
-            broadcastPresence(io, userId);
+            // Callback de timer: sem try, um Redis fora do ar em isOnline()
+            // virava unhandledRejection (nada mais pega esse erro).
+            try {
+              if (await presenceStore.isOnline(userId)) return; // reconnected in the meantime after all
+              await prisma.user.update({ where: { id: userId }, data: { status: 'OFFLINE' } }).catch(() => {});
+              broadcastPresence(io, userId);
+            } catch (err) { console.error('[socket] marcar offline falhou:', err?.message || err); }
           }, OFFLINE_GRACE_MS);
           pendingOfflineTimers.set(userId, timer);
         }
@@ -1480,9 +1489,13 @@ function initSockets(httpServer) {
       io.emit('presence:update', payload);
     }
   }
+  // Chamado "solto" (sem await) em vários lugares: sem o try, uma falha
+  // passageira do banco aqui virava unhandledRejection a cada chamada.
   async function broadcastPresence(io, userId) {
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, status: true, customStatus: true } });
-    emitPresence(io, user);
+    try {
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, status: true, customStatus: true } });
+      if (user) emitPresence(io, user);
+    } catch (err) { console.error('[presença] broadcast falhou:', err?.message || err); }
   }
 
   function roomFor({ conversationId, channelId }) {

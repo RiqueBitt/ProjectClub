@@ -254,8 +254,12 @@ export default function MainApp() {
   // quebrando esses links.
   useEffect(() => {
     if (location.pathname !== '/') return;
-    if (sessionStorage.getItem('inicio-redirect-done')) return;
-    sessionStorage.setItem('inicio-redirect-done', '1');
+    // sessionStorage pode lançar (aba anônima/bloqueado, WebView sem
+    // storage) — erro dentro de um efeito derruba a tela inteira.
+    try {
+      if (sessionStorage.getItem('inicio-redirect-done')) return;
+      sessionStorage.setItem('inicio-redirect-done', '1');
+    } catch { /* sem storage: só redireciona (pode repetir nesta aba) */ }
     // "Reabrir onde parei" (Personalizar layout) volta pra última página.
     const resumePath = useStore.getState().layoutPrefs.resumeLastPage ? lastRememberedPath() : null;
     navigate(resumePath || '/inicio', { replace: true });

@@ -1,5 +1,22 @@
 import { Component } from 'react';
+import { useLocation } from 'react-router-dom';
 import { isChunkLoadError, reloadForNewVersion } from '../utils/lazyWithRetry';
+
+// Versão do site no relatório de erro (definida pelo Vite — vite.config.js).
+// eslint-disable-next-line no-undef
+const WEB_VERSION = typeof __WEB_VERSION__ !== 'undefined' ? __WEB_VERSION__ : '';
+
+// Recuperação automática da tela inteira ("[tela]" no relatório): muitos
+// travamentos são passageiros (um dado que chegou incompleto por um
+// instante, a sessão sendo renovada...). Na 1ª queda tenta montar de novo
+// sozinho depois de um instante; se cair de novo logo em seguida, para e
+// deixa a pessoa decidir (Tentar de novo / Recarregar) — nunca entra em loop.
+// Doc do React: https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary
+export const AUTO_RETRY_DELAY_MS = 1500;
+export const AUTO_RETRY_WINDOW_MS = 30000;
+export function shouldAutoRetry(lastAutoRetryAt, now = Date.now()) {
+  return !lastAutoRetryAt || now - lastAutoRetryAt > AUTO_RETRY_WINDOW_MS;
+}
 
 // Bug fix: "the page goes totally black after some hours, have to refresh"
 // — this app had no error boundary anywhere, so ANY uncaught error during
@@ -20,12 +37,22 @@ import { isChunkLoadError, reloadForNewVersion } from '../utils/lazyWithRetry';
 export default class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false };
-    this.reset = () => this.setState({ hasError: false });
+    this.state = { hasError: false, autoRetrying: false };
+    this.lastAutoRetryAt = 0;
+    this.autoRetryTimer = null;
+    this.reset = () => {
+      clearTimeout(this.autoRetryTimer);
+      this.autoRetryTimer = null;
+      this.setState({ hasError: false, autoRetrying: false });
+    };
+  }
+
+  componentWillUnmount() {
+    clearTimeout(this.autoRetryTimer);
   }
 
   static getDerivedStateFromError() {
-    return { hasError: true };
+    return { hasError: true, autoRetrying: false };
   }
 
   componentDidCatch(error, info) {
@@ -47,10 +74,17 @@ export default class ErrorBoundary extends Component {
           message: String(error?.message || error),
           stack: String(error?.stack || '').slice(0, 1500),
           componentStack: String(info?.componentStack || '').slice(0, 1500),
-          version: navigator.userAgent.match(/project-club-desktop\/[\d.]+/)?.[0] || '',
+          version: navigator.userAgent.match(/project-club-desktop\/[\d.]+/)?.[0] || WEB_VERSION,
         }),
       }).catch(() => {});
     } catch { /* sem rede */ }
+    // Tela inteira: tenta se recuperar sozinha uma vez (ver shouldAutoRetry).
+    if (!this.props.compact && shouldAutoRetry(this.lastAutoRetryAt)) {
+      this.lastAutoRetryAt = Date.now();
+      clearTimeout(this.autoRetryTimer);
+      this.autoRetryTimer = setTimeout(this.reset, AUTO_RETRY_DELAY_MS);
+      this.setState({ autoRetrying: true });
+    }
   }
 
   // BUG CORRIGIDO ("só algumas partes voltam ao normal, outras ficam
@@ -76,12 +110,24 @@ export default class ErrorBoundary extends Component {
           <div className="error-boundary-card">
             <div className="error-boundary-icon">⚠️</div>
             <h1>Algo deu errado</h1>
-            <p>Essa tela travou de um jeito inesperado. Recarregar a página deve resolver.</p>
-            <button className="btn-primary" onClick={() => window.location.reload()}>Recarregar</button>
+            {/* "Tentar de novo" remonta só a tela, sem recarregar a página
+                (a sessão fica em memória); "Recarregar" é o F5 de sempre. */}
+            <p>{this.state.autoRetrying ? 'Essa tela travou de um jeito inesperado. Tentando abrir de novo…' : 'Essa tela travou de um jeito inesperado. Tente de novo — se continuar, recarregue a página.'}</p>
+            <div className="error-boundary-actions">
+              <button className="btn-primary" onClick={this.reset}>Tentar de novo</button>
+              <button className="btn-secondary" onClick={() => window.location.reload()}>Recarregar</button>
+            </div>
           </div>
         </div>
       );
     }
     return this.props.children;
   }
+}
+
+// Boundary global (main.jsx): também volta a tentar quando a página muda
+// (botão Voltar do navegador/celular), em vez de ficar presa no aviso.
+export function RouteErrorBoundary({ children }) {
+  const location = useLocation();
+  return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>;
 }

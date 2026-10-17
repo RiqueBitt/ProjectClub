@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../config/prisma');
+const { auditReason, auditMetadata } = require('../utils/auditFields');
 const env = require('../config/env');
 const { sendApplicationApproved, sendApplicationRejected, sendVerificationCode } = require('../services/email');
 const { getEveryoneRole } = require('../services/authz');
@@ -13,8 +14,9 @@ const {
 function logPlatformAction(req, { action, targetType, targetId, reason, metadata }) {
   return prisma.platformAuditLog.create({
     data: {
-      actorId: req.user.id, action, targetType, targetId, reason,
-      metadata: metadata ? JSON.stringify(metadata) : null,
+      actorId: req.user.id, action, targetType, targetId,
+      reason: auditReason(reason), // VARCHAR(191): corta em vez de dar 500 (ver utils/auditFields.js)
+      metadata: auditMetadata(metadata),
     },
   }).catch((e) => console.warn('[auditoria]', e.message));
 }
