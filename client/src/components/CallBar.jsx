@@ -445,13 +445,6 @@ function AudioSink({ stream, volume, autoLevel }) {
         useStore.getState().pushNotice('O navegador bloqueou a reprodução automática do áudio da chamada — toque ou clique em qualquer lugar da tela pra ativar o som.');
         const retry = () => {
           ctx.resume().catch(() => {});
-    // Plano B: se o Web Audio não começou a rodar em 2 s (política de
-    // autoplay, driver de som), toca o stream direto no <audio> — sem o
-    // ajuste de volume acima de 100%, mas com som.
-    const fallbackTimer = setTimeout(() => {
-      if (ctx.state === 'running' || !audioRef.current) return;
-      try { audioRef.current.srcObject = stream; audioRef.current.volume = Math.min(1, gainRef.current?.gain.value ?? 1); audioRef.current.play().catch(() => {}); } catch { /* ok */ }
-    }, 2000);
           audioRef.current?.play().then(() => { retryCleanup?.(); retryCleanup = null; }).catch(() => {});
         };
         document.addEventListener('click', retry);
@@ -488,6 +481,13 @@ function AudioSink({ stream, volume, autoLevel }) {
     // so this should already be allowed, but resume() defensively in case
     // it isn't (e.g. a peer's audio arriving slightly after that gesture).
     ctx.resume().catch(() => {});
+    // Plano B: se o Web Audio não começou a rodar em 2 s (política de
+    // autoplay, driver de som), toca o stream direto no <audio> — sem o
+    // ajuste de volume acima de 100%, mas com som.
+    const fallbackTimer = setTimeout(() => {
+      if (ctx.state === 'running' || !audioRef.current) return;
+      try { audioRef.current.srcObject = stream; audioRef.current.volume = Math.min(1, gainRef.current?.gain.value ?? 1); audioRef.current.play().catch(() => {}); } catch { /* ok */ }
+    }, 2000);
 
     // Troca de saída de áudio em tempo real (menu de configurações) — sem
     // isso, teria que sair e voltar da chamada pra aplicar a escolha.
