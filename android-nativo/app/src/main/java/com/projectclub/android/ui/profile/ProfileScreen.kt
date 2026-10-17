@@ -191,6 +191,8 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                     s.fan?.let { fan = it }
                     error = null
                     notFound = false
+                    // Último perfil visto: aparece no modo offline.
+                    repo.saveCached("profile:$userId", ProfileSummary.serializer(), s)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -198,7 +200,12 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                 if (e.status == 404) notFound = true
                 if (data == null) error = e.message ?: "Não deu pra carregar o perfil." else toast(e.message ?: "Não deu pra atualizar.")
             } catch (e: Exception) {
-                if (data == null) error = "Sem conexão com o Project Club." else toast("Sem conexão com o Project Club.")
+                val saved = if (data == null) repo.loadCached("profile:$userId", ProfileSummary.serializer()) else null
+                when {
+                    saved?.profile?.user != null -> { data = saved.profile; saved.fan?.let { fan = it }; error = null }
+                    data == null -> error = "Sem conexão com o Project Club."
+                    else -> toast("Sem conexão com o Project Club.")
+                }
             }
         }
         refreshing = false

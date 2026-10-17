@@ -60,6 +60,7 @@ import com.projectclub.android.ui.nav.AppNav
 import com.projectclub.android.ui.theme.PC
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.serialization.builtins.ListSerializer
 
 /** Fórum (/comunidades do site): temas no topo e o feed de posts. */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -76,9 +77,19 @@ fun ForumScreen(repo: Repository, nav: AppNav) {
     suspend fun load() {
         try {
             if (communities == null) communities = runCatching { ForumApi.communities(repo) }.getOrNull()
-            posts = ForumApi.posts(repo, sort)
+            val fresh = ForumApi.posts(repo, sort)
+            posts = fresh
             error = null
-        } catch (e: Exception) { if (posts == null) error = errorText(e) }
+            // Último feed carregado: aparece no modo offline.
+            repo.saveCached("feed:forum:$sort", ListSerializer(ForumPost.serializer()), fresh.take(50))
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (posts == null) {
+                val saved = repo.loadCached("feed:forum:$sort", ListSerializer(ForumPost.serializer()))
+                if (saved != null) posts = saved else error = errorText(e)
+            }
+        }
     }
     LaunchedEffect(sort) { load() }
 

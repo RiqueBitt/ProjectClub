@@ -24,7 +24,17 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** Dono das peças do app (servidor, tempo real, voz) e das notificações. */
-class App : Application() {
+class App : Application(), coil.ImageLoaderFactory {
+    /**
+     * ImageLoader padrão do Coil (AsyncImage sem imageLoader): cache em disco
+     * com teto (ImageCaches) e SEM revalidar pelos cabeçalhos HTTP — sem isso
+     * uma imagem "velha" no cache não aparecia offline (o Coil ia na rede).
+     */
+    override fun newImageLoader(): coil.ImageLoader = coil.ImageLoader.Builder(this)
+        .diskCache { com.projectclub.android.data.offline.ImageCaches.disk(this) }
+        .respectCacheHeaders(false)
+        .build()
+
     /**
      * Escopo do app. Um erro inesperado numa tarefa de fundo NÃO pode fechar o
      * app (sem este handler, qualquer exceção solta num launch derrubava tudo):
