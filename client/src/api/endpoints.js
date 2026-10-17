@@ -167,6 +167,8 @@ export const editMessage = (id, content) => api.patch(`/messages/${id}`, { conte
 export const deleteMessage = (id, reason) => api.delete(`/messages/${id}`, { data: { reason } }).then((r) => r.data);
 export const togglePinMessage = (id) => api.post(`/messages/${id}/pin`).then((r) => r.data);
 export const toggleArchiveTopic = (id) => api.post(`/messages/${id}/archive`).then((r) => r.data);
+// Tópicos de um canal (ativos primeiro, depois arquivados).
+export const listThreads = (channelId) => api.get('/messages/threads', { params: { channelId } }).then((r) => r.data);
 export const reactToMessage = (id, emoji) => api.post(`/messages/${id}/react`, { emoji }).then((r) => r.data);
 // Quem reagiu com um emoji (menu do chip de reação) — paginado por cursor.
 export const getMessageReactors = (id, emoji, cursor) => api

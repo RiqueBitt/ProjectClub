@@ -5,20 +5,28 @@ import EmojiPicker from '../EmojiPicker.jsx';
 import { usePopoverCoordination } from '../../utils/popoverCoordinator';
 import { useStore } from '../../store/useStore';
 import { setCustomStatus } from '../../api/endpoints';
+import { STATUS_DURATIONS, statusExpiryPayload, describeStatusExpiry } from '../../utils/chatFeatures';
+import StatusEmoji from '../StatusEmoji.jsx';
 
 const QUICK_EMOJIS = ['💬', '🎮', '🎧', '📚', '💻', '😴', '🍕', '☕', '🚀', '❤️'];
-const DURATIONS = [
-  { label: 'Não limpar', value: null },
-  { label: '30 minutos', value: 30 },
-  { label: '1 hora', value: 60 },
-  { label: '4 horas', value: 240 },
-  { label: 'Hoje (24 horas)', value: 1440 },
+// Sugestões de um clique (emoji + texto), igual ao Discord.
+const PRESETS = [
+  { emoji: '📅', text: 'Em reunião', duration: '1h' },
+  { emoji: '🎮', text: 'Jogando', duration: '4h' },
+  { emoji: '📚', text: 'Estudando', duration: '4h' },
+  { emoji: '🍕', text: 'Almoçando', duration: '30m' },
+  { emoji: '🤒', text: 'Doente', duration: 'today' },
+  { emoji: '🏖️', text: 'De férias', duration: 'never' },
 ];
 
 export default function CustomStatusModal({ user, onClose, onSaved }) {
   const [text, setText] = useState(user.customStatus || '');
   const [emoji, setEmoji] = useState(user.customStatusEmoji || '');
-  const [duration, setDuration] = useState(null);
+  // Opção de expiração (STATUS_DURATIONS): 30m, 1h, 4h, hoje, nunca.
+  const [duration, setDuration] = useState('today');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const currentExpiry = describeStatusExpiry(user.customStatusExpiresAt);
   const [pickerOpen, setPickerOpen] = useState(false);
   usePopoverCoordination(pickerOpen, () => setPickerOpen(false));
   const [pickerStyle, setPickerStyle] = useState(null);
@@ -67,17 +75,27 @@ export default function CustomStatusModal({ user, onClose, onSaved }) {
     };
   }, [pickerOpen]);
 
-  const save = async () => {
-    const { user: updated } = await setCustomStatus({ text: text || null, emoji: emoji || null, durationMinutes: duration });
-    onSaved(updated);
-    onClose();
+  const run = async (payload) => {
+    setSaving(true);
+    setError('');
+    try {
+      const { user: updated } = await setCustomStatus(payload);
+      onSaved(updated);
+      onClose();
+    } catch (err) {
+      setError(err?.response?.data?.error || 'Não deu pra salvar o status. Tente de novo.');
+      setSaving(false);
+    }
   };
-
-  const clear = async () => {
-    const { user: updated } = await setCustomStatus({ text: null, emoji: null, durationMinutes: null });
-    onSaved(updated);
-    onClose();
-  };
+  const save = () => run({ text: text.trim() || null, emoji: emoji || null, ...statusExpiryPayload(duration) });
+  const clear = () => run({ text: null, emoji: null, durationMinutes: null });
+  const applyPreset = (p) => { setEmoji(p.emoji); setText(p.text); setDuration(p.duration); };
+  const hasStatus = !!(text.trim() || emoji);
+  const previewExpiresAt = (() => {
+    const p = statusExpiryPayload(duration);
+    if (p.expiresAt) return p.expiresAt;
+    return p.durationMinutes ? new Date(Date.now() + p.durationMinutes * 60000).toISOString() : null;
+  })();
 
   return (
     <Modal title="Definir status personalizado" onClose={onClose} width="420px">
@@ -111,18 +129,46 @@ export default function CustomStatusModal({ user, onClose, onSaved }) {
           />
         </div>
 
-        <label>
-          LIMPAR STATUS APÓS
-          <select value={duration ?? ''} onChange={(e) => setDuration(e.target.value ? Number(e.target.value) : null)}>
-            {DURATIONS.map((d) => (
-              <option key={d.label} value={d.value ?? ''}>{d.label}</option>
+        {!text && !emoji && (
+          <div className="custom-status-presets" aria-label="Sugestões">
+            {PRESETS.map((p) => (
+              <button key={p.text} type="button" className="custom-status-preset" onClick={() => applyPreset(p)}>
+                <span aria-hidden="true">{p.emoji}</span> {p.text}
+              </button>
             ))}
-          </select>
-        </label>
+          </div>
+        )}
+
+        <fieldset className="custom-status-durations">
+          <legend>Limpar status após</legend>
+          <div className="custom-status-chips" role="radiogroup" aria-label="Limpar status após">
+            {STATUS_DURATIONS.map((d) => (
+              <button
+                key={d.id} type="button" role="radio" aria-checked={duration === d.id}
+                className={`custom-status-chip ${duration === d.id ? 'on' : ''}`}
+                onClick={() => setDuration(d.id)}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        {hasStatus && (
+          <div className="custom-status-preview" aria-live="polite">
+            <span className="custom-status-preview-label">Prévia</span>
+            <span className="custom-status-preview-bubble">
+              {emoji && <StatusEmoji emoji={emoji} />} {text.trim() || <i>sem texto</i>}
+            </span>
+            <small>{describeStatusExpiry(previewExpiresAt) || 'Fica até você limpar'}</small>
+          </div>
+        )}
+        {currentExpiry && <p className="custom-status-current">Status atual: {currentExpiry.toLowerCase()}.</p>}
+        {error && <p className="form-error" role="alert">{error}</p>}
 
         <div className="modal-actions">
-          <button className="btn-link" onClick={clear}>Limpar status</button>
-          <button className="btn-primary" onClick={save}>Salvar</button>
+          <button className="btn-link" onClick={clear} disabled={saving}>Limpar status</button>
+          <button className="btn-primary" onClick={save} disabled={saving || !hasStatus}>{saving ? 'Salvando…' : 'Salvar'}</button>
         </div>
       </div>
     </Modal>

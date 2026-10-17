@@ -1,7 +1,7 @@
 const prisma = require('../config/prisma');
 const { safeUpsert } = require('../utils/prismaSafe');
 const { PUBLIC_USER_FIELDS, SELF_USER_FIELDS, ensurePublicId } = require('./authController');
-const { clearIfExpired } = require('../services/customStatus');
+const { clearIfExpired, computeStatusExpiry } = require('../services/customStatus');
 const { validateUsername, USERNAME_CHANGE_COOLDOWN_MS } = require('../utils/usernameRules');
 const activityStore = require('../services/activityStore');
 const { getFeaturedForProfile } = require('./modpackController');
@@ -552,14 +552,26 @@ async function setStatus(req, res, next) {
 // minutes from "now" (null/0 = doesn't expire on its own).
 async function setCustomStatus(req, res, next) {
   try {
-    const { text, emoji, durationMinutes } = req.body;
+    const { text, emoji, durationMinutes, expiresAt } = req.body || {};
+    const cleanText = text ? String(text).trim().slice(0, 128) : '';
+    const cleanEmoji = emoji ? String(emoji).trim().slice(0, 32) : '';
+    // Expiração: duração em minutos (30, 60, 240...) ou o horário exato
+    // (expiresAt — "Hoje" = fim do dia no fuso de quem escolheu).
+    const expiry = computeStatusExpiry({ durationMinutes, expiresAt });
+    if (expiry.error) return res.status(400).json({ error: expiry.error });
+    const empty = !cleanText && !cleanEmoji;
     const data = {
-      customStatus: text ? String(text).slice(0, 128) : null,
-      customStatusEmoji: emoji ? String(emoji).slice(0, 32) : null,
-      customStatusExpiresAt: durationMinutes ? new Date(Date.now() + Number(durationMinutes) * 60 * 1000) : null,
+      customStatus: cleanText || null,
+      customStatusEmoji: cleanEmoji || null,
+      customStatusExpiresAt: empty ? null : expiry.expiresAt,
     };
     const user = await prisma.user.update({ where: { id: req.user.id }, data, select: SELF_USER_FIELDS });
     req.app.get('io')?.emitPresenceUpdate?.(user);
+    // Lista de membros, autores de mensagens e as outras abas da pessoa
+    // atualizam na hora (presence:update só leva o texto).
+    await broadcastUserUpdate(req, {
+      id: user.id, customStatus: user.customStatus, customStatusEmoji: user.customStatusEmoji, customStatusExpiresAt: user.customStatusExpiresAt,
+    });
     res.json({ user });
   } catch (err) { next(err); }
 }

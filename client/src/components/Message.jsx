@@ -8,7 +8,7 @@ import { useContextMenu } from '../context/ContextMenuContext.jsx';
 import { useStore, messageMentionsUser, roomKeyFor } from '../store/useStore';
 import {
   editMessage, deleteMessage, togglePinMessage, reactToMessage,
-  warnMember, timeoutMember, addFavoriteGif, removeFavoriteGif, sendMessage, votePoll, reportMessage,
+  warnMember, timeoutMember, addFavoriteGif, removeFavoriteGif, votePoll, reportMessage,
 } from '../api/endpoints';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import { renderRichContent, isEmojiOnlyMessage } from '../utils/richTextRender.jsx';
@@ -39,6 +39,9 @@ import { registerEditor, getRetry, getCancel } from '../utils/chatComposerBus';
 import { discardOptimistic } from '../utils/messageSender';
 import { EditedTag, ForwardedLabel, ForwardMessageModal, LinkPreview } from './MessageExtras.jsx';
 import ReminderModal from './modals/ReminderModal.jsx';
+import CreateThreadModal from './modals/CreateThreadModal.jsx';
+import { SystemMessageRow, ThreadStarterRow, ThreadCard } from './ChatFeatureBits.jsx';
+import { parseSystemMessage, isThreadRoot } from '../utils/chatFeatures';
 
 // BUG CORRIGIDO: <img src={...avatarUrl}> quebrava (bloqueado pela CSP
 // img-src) quando o autor da mensagem respondida tem avatar de pinguim
@@ -74,6 +77,13 @@ function MessageComponent(props) {
   if (props.message.deleted) {
     return <div className="message deleted-message"><em>Mensagem apagada</em></div>;
   }
+  // Aviso do sistema ("Fulano fixou uma mensagem.").
+  const system = parseSystemMessage(props.message.embed);
+  if (system) return <SystemMessageRow message={props.message} system={system} />;
+  // Raiz de tópico na lista do canal: linha "criou um tópico" + cartão.
+  if (!props.inThread && isThreadRoot(props.message)) {
+    return <ThreadStarterRow message={props.message} onOpenTopic={props.onOpenTopic} />;
+  }
   if (hidden) {
     return (
       <div className="message message-ignored">
@@ -85,7 +95,7 @@ function MessageComponent(props) {
   return <MessageBody {...props} />;
 }
 
-function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic }) {
+function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic, inThread = false }) {
   const { user } = useAuth();
   const { openMenu } = useContextMenu();
   const members = useStore((s) => s.members);
@@ -246,15 +256,10 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
   // currently-loaded message whose replyToId points here) since the new
   // message arrives over the socket like any other and gets picked up by
   // that same computation — no manual refresh needed.
-  const createTopic = async () => {
-    const title = prompt('Título do tópico:');
-    if (!title || !title.trim()) return;
-    const fd = new FormData();
-    fd.append('channelId', message.channelId);
-    fd.append('replyToId', message.id);
-    fd.append('title', title.trim());
-    await sendMessage(fd);
-  };
+  // Agora abre um modal (nome + 1ª mensagem) e, ao criar, o painel do
+  // tópico à direita.
+  const [createThreadOpen, setCreateThreadOpen] = useState(false);
+  const createTopic = () => setCreateThreadOpen(true);
 
   // Permissões globais da comunidade — só relevantes em mensagens de canal
   // (DMs não têm conceito de moderação/menção de cargo).
@@ -294,14 +299,15 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
     items.push({ label: 'Encaminhar', icon: 'reply', onClick: () => setForwardOpen(true) });
     items.push({ label: 'Lembrar-me', icon: 'clock', onClick: () => setReminderOpen(true) });
     const isSaved = useMsgExtras.getState().saved.has(message.id);
-    items.push({ label: isSaved ? 'Desfavoritar mensagem' : 'Favoritar mensagem', icon: isSaved ? 'bookmarkOff' : 'bookmark', onClick: () => toggleSaved(message) });
+    items.push({ label: isSaved ? 'Remover dos salvos' : 'Salvar para depois', icon: isSaved ? 'bookmarkOff' : 'bookmark', onClick: () => toggleSaved(message) });
     if (!isOwn) items.push({ label: 'Marcar como não lida', icon: 'unread', onClick: () => markUnreadFrom(message) });
     items.push({ label: 'Copiar link da mensagem', icon: 'link', onClick: () => copyMessageLink(message) });
     // Fixar só aparece pra quem pode (gerenciar mensagens no canal; em DM, todos).
     if (!isChannelMessage || canManageMessages) {
       items.push({ label: message.pinned ? 'Desafixar' : 'Fixar', icon: 'pin', onClick: () => togglePinMessage(message.id) });
     }
-    if (message.channelId && hasPermission(myPerms, 'CREATE_TOPICS')) items.push({ label: 'Criar tópico', icon: 'thread', onClick: createTopic });
+    // Sem tópico dentro de tópico (nem a partir de uma resposta de tópico).
+    if (message.channelId && !inThread && !message.threadId && hasPermission(myPerms, 'CREATE_TOPICS')) items.push({ label: 'Criar tópico', icon: 'thread', onClick: createTopic });
     if (isGifMessage) {
       items.push({
         label: isFavoriteGif ? 'Remover dos favoritos' : 'Adicionar aos favoritos',
@@ -562,6 +568,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
         {/* Prévia de link externo (Open Graph) — no máximo 1 por mensagem. */}
         {!editing && !message.contentFiltered && !message.embed && !isPending && <LinkPreview content={message.content} />}
         {forwardOpen && <ForwardMessageModal message={message} myUserId={user.id} onClose={() => setForwardOpen(false)} />}
+        {createThreadOpen && <CreateThreadModal message={message} onClose={() => setCreateThreadOpen(false)} />}
         {reportOpen && (
           <ReportDialog
             title="Denunciar mensagem"
@@ -619,12 +626,8 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic })
         )}
 
         {topics.length > 0 && (
-          <div className="topic-pills">
-            {topics.map((t) => (
-              <button key={t.id} className={`topic-pill ${t.archived ? 'archived' : ''}`} onClick={() => onOpenTopic?.(t)}>
-                {t.archived ? '🗄' : '🧵'} {t.title}
-              </button>
-            ))}
+          <div className="topic-pills thread-cards">
+            {topics.map((t) => <ThreadCard key={t.id} thread={t} onOpen={onOpenTopic} compact />)}
           </div>
         )}
 

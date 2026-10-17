@@ -10,9 +10,9 @@ import { toggleSaved, useMsgExtras } from '../utils/messageExtras';
 import '../styles/inbox.css';
 
 // Caixa de Entrada (igual ao 📥 do Discord): Não lidas, Menções, Respostas
-// (respostas a mensagens suas), Favoritos e Lembretes, num painel que abre
-// no topo sem sair da tela.
-const TABS = [['unread', 'Não lidas'], ['mentions', 'Menções'], ['replies', 'Respostas'], ['saved', 'Favoritos'], ['reminders', 'Lembretes']];
+// (respostas a mensagens suas), Salvos ("Salvar para depois") e Lembretes,
+// num painel que abre no topo sem sair da tela.
+const TABS = [['unread', 'Não lidas'], ['mentions', 'Menções'], ['replies', 'Respostas'], ['saved', 'Salvos'], ['reminders', 'Lembretes']];
 const when = (iso) => {
   const d = new Date(iso);
   const diff = (Date.now() - d.getTime()) / 60000;
@@ -124,12 +124,12 @@ export default function InboxPopover({ onClose }) {
         {tab === 'replies' && (!data.replies ? <Loading /> : data.replies.length === 0 ? <Empty icon="reply" text="Ninguém respondeu suas mensagens ainda." /> : (
           <ul className="ibx-list">{data.replies.map((m) => <MessageRow key={m.id} m={m} onOpen={open} showReplyTo />)}</ul>
         ))}
-        {tab === 'saved' && (!data.saved ? <Loading /> : data.saved.length === 0 ? <Empty icon="star" text="Clique com o botão direito numa mensagem → Favoritar mensagem pra guardar aqui." /> : (
+        {tab === 'saved' && (!data.saved ? <Loading /> : data.saved.length === 0 ? <Empty icon="star" text="Clique com o botão direito numa mensagem → Salvar para depois pra guardar aqui." /> : (
           <ul className="ibx-list">
             {data.saved.map((m) => (
               <MessageRow
                 key={m.id} m={m} onOpen={open}
-                action={<button type="button" className="ibx-mini" title="Tirar dos favoritos" aria-label="Tirar dos favoritos" onClick={() => { toggleSaved(m); setData((d) => ({ ...d, saved: d.saved.filter((x) => x.id !== m.id) })); }}><Ico name="close" size={13} /></button>}
+                action={<button type="button" className="ibx-mini" title="Remover dos salvos" aria-label="Remover dos salvos" onClick={() => { toggleSaved(m); setData((d) => ({ ...d, saved: d.saved.filter((x) => x.id !== m.id) })); }}><Ico name="close" size={13} /></button>}
               />
             ))}
           </ul>

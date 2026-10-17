@@ -8,7 +8,18 @@ const router = express.Router();
 router.use(requireAuth);
 
 router.get('/', ctrl.listMessages);
-router.get('/search', ctrl.searchMessages);
+// Busca: teto próprio por conta (cada busca pode varrer bastante coisa).
+const rateLimit = require('express-rate-limit');
+const { createRateLimitStore } = require('../config/rateLimitStore');
+const searchLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false,
+  keyGenerator: (req) => `u:${req.user?.id || req.ip}`,
+  store: createRateLimitStore('message-search'),
+  message: { error: 'Muitas buscas seguidas. Espere alguns segundos.' },
+});
+router.get('/search', searchLimiter, ctrl.searchMessages);
+// Tópicos ativos/arquivados de um canal (painel "Tópicos").
+router.get('/threads', ctrl.listThreads);
 router.get('/pinned', ctrl.listPinned);
 // Favoritos, menções (Caixa de Entrada) e marcar como não lida.
 const extra = require('../controllers/messageExtrasController');

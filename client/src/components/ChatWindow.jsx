@@ -27,7 +27,10 @@ import RulesChannelView from './RulesChannelView.jsx';
 import EmojiPicker from './EmojiPicker.jsx';
 import RichMessageInput from './RichMessageInput.jsx';
 import UserAvatar from './UserAvatar.jsx';
-import TopicThreadModal from './modals/TopicThreadModal.jsx';
+import ThreadPanel, { ThreadsButton } from './ThreadPanel.jsx';
+import StatusEmoji from './StatusEmoji.jsx';
+import MessageContextModal from './modals/MessageContextModal.jsx';
+import { windowReachesLoaded } from '../utils/chatFeatures';
 import PollComposerModal from './modals/PollComposerModal.jsx';
 import GroupSettingsModal from './modals/GroupSettingsModal.jsx';
 import ScheduleMessageModal from './modals/ScheduleMessageModal.jsx';
@@ -374,7 +377,15 @@ function ChatWindowInner({ conversationId, channelId }) {
   const [pickerTab, setPickerTab] = useState(null);
   const emojiPickerOpen = pickerTab !== null;
   usePopoverCoordination(emojiPickerOpen, () => setPickerTab(null));
-  const [openTopic, setOpenTopic] = useState(null);
+  // Tópico aberto no painel à direita (estado global: dá pra abrir de
+  // qualquer lugar — menu da mensagem, notificação, lista de tópicos).
+  const openThread = useStore((s) => s.openThread);
+  const setOpenTopic = (t) => {
+    if (!t) { useStore.getState().setOpenThread(null); return; }
+    useStore.getState().setOpenThread({ id: t.id, channelId: t.channelId || channelId, root: t });
+  };
+  // "Pular pra mensagem" antiga demais pra costurar na lista: modal de contexto.
+  const [contextView, setContextView] = useState(null);
   const [pollComposerOpen, setPollComposerOpen] = useState(false);
 
   // BUG CORRIGIDO ("o menu está muito pra esquerda e muito largo"):
@@ -597,6 +608,18 @@ function ChatWindowInner({ conversationId, channelId }) {
   const [pinsOpen, setPinsOpen] = useState(false);
   const { pins, loading: pinsLoading, setPins } = usePinnedMessages({ conversationId, channelId, enabled: !isNonChatChannel });
   useEffect(() => { setPinsOpen(false); }, [roomKey]);
+  // Aviso "Fulano fixou uma mensagem" → "Ver todas as fixadas".
+  useEffect(() => {
+    const open = () => setPinsOpen(true);
+    window.addEventListener('pc:open-pins', open);
+    return () => window.removeEventListener('pc:open-pins', open);
+  }, []);
+  // Trocou de canal: fecha o painel de tópico de outro canal e o contexto.
+  useEffect(() => {
+    setContextView(null);
+    const ot = useStore.getState().openThread;
+    if (ot && ot.channelId !== channelId) useStore.getState().setOpenThread(null);
+  }, [roomKey, channelId]);
 
   useEffect(() => {
     if (isNonChatChannel) return;
@@ -751,6 +774,14 @@ function ChatWindowInner({ conversationId, channelId }) {
     jumpToMessage({ id: pendingJump.messageId, createdAt: pendingJump.createdAt });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingJump, roomKey, initialLoading]);
+
+  // Notificação de resposta em tópico: abre o painel quando o canal carregar.
+  const pendingThread = useStore((s) => s.pendingThread);
+  useEffect(() => {
+    if (!pendingThread || pendingThread.channelId !== channelId || initialLoading) return;
+    useStore.getState().setPendingThread(null);
+    useStore.getState().setOpenThread({ id: pendingThread.threadId, channelId });
+  }, [pendingThread, channelId, initialLoading]);
 
   // Loads an older page (see the existing `before` cursor support already
   // in messageController.listMessages on the server — this used to just
@@ -913,12 +944,20 @@ function ChatWindowInner({ conversationId, channelId }) {
     stickToBottomRef.current = true;
     scrollListToBottom(chatListRef.current, scrollBehavior());
   };
-  // Leva até uma mensagem (ex.: fixada), carregando páginas antigas se preciso.
+  // Leva até uma mensagem (busca, fixada, notificação, link). Primeiro
+  // tenta algumas páginas antigas; se ainda não achou, pede a janela em
+  // volta dela (GET /messages?around=) e costura na lista quando encosta
+  // no que já está carregado (sem buraco) — senão mostra o contexto num
+  // modal. Resposta de tópico abre o painel do tópico.
   const jumpToMessage = async (target) => {
     const find = () => chatListRef.current?.querySelector(`.message[data-message-id="${target.id}"]`);
     stickToBottomRef.current = false;
+    if (target.threadId && channelId) {
+      setOpenTopic({ id: target.threadId, channelId });
+      return;
+    }
     let el = find();
-    for (let guard = 0; !el && guard < 8; guard += 1) {
+    for (let guard = 0; !el && guard < 3; guard += 1) {
       const cur = useStore.getState().messagesByRoom[roomKey] || [];
       if (cur.length === 0 || new Date(cur[0].createdAt) <= new Date(target.createdAt)) break;
       let d;
@@ -929,6 +968,38 @@ function ChatWindowInner({ conversationId, channelId }) {
       useStore.getState().prependRoomMessages(roomKey, d.messages);
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       el = find();
+    }
+    if (!el && !isNonChatChannel) {
+      let d = null;
+      try { d = await listMessages({ conversationId, channelId, around: target.id }); } catch { d = null; }
+      if (currentRoomRef.current !== roomKey) return;
+      if (d?.threadId && channelId) { setOpenTopic({ id: d.threadId, channelId }); return; }
+      if (d?.messages?.length) {
+        const win = [...d.messages];
+        let loaded = useStore.getState().messagesByRoom[roomKey] || [];
+        let reached = !d.hasMoreNewer || windowReachesLoaded(win, loaded);
+        // Busca as páginas entre a janela e a lista carregada (até 10).
+        for (let i = 0; !reached && i < 10; i += 1) {
+          const last = win[win.length - 1];
+          let page;
+          try { page = await listMessages({ conversationId, channelId, after: last.createdAt, afterId: last.id }); } catch { break; }
+          if (currentRoomRef.current !== roomKey) return;
+          win.push(...(page.messages || []));
+          loaded = useStore.getState().messagesByRoom[roomKey] || [];
+          reached = !page.hasMoreNewer || !page.messages?.length || windowReachesLoaded(win, loaded);
+        }
+        if (reached) {
+          const oldestLoaded = loaded[0];
+          const older = oldestLoaded ? win.filter((m) => new Date(m.createdAt) < new Date(oldestLoaded.createdAt)) : win;
+          if (older.length) useStore.getState().prependRoomMessages(roomKey, older);
+          setHasMoreOlder(!!d.hasMoreOlder);
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          el = find();
+        } else {
+          setContextView({ messages: d.messages, targetId: target.id });
+          return;
+        }
+      }
     }
     if (!el) { useStore.getState().pushNotice('Não deu pra encontrar essa mensagem no histórico.'); return; }
     el.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
@@ -1374,6 +1445,10 @@ function ChatWindowInner({ conversationId, channelId }) {
 
   const dmStatus = dmOther ? (dmOtherPresence?.status || dmOther.status || 'OFFLINE') : null;
   const dmCustomStatus = dmOther ? (dmOtherPresence?.customStatus ?? dmOther.customStatus) : null;
+  // Emoji do status: o da presença (atualizado em tempo real) quando ela sabe.
+  const dmCustomEmoji = dmOther
+    ? (dmOtherPresence && dmOtherPresence.customStatusEmoji !== undefined ? dmOtherPresence.customStatusEmoji : dmOther.customStatusEmoji)
+    : null;
   // Quem está digitando, pelo nome (cai em "Alguém" se não achar).
   const typingOthers = typingUserIds.filter((id) => id !== user.id);
   const typingNames = typingOthers.map((id) => (
@@ -1411,7 +1486,7 @@ function ChatWindowInner({ conversationId, channelId }) {
           {dmOther && (
             <span className="chat-header-sub truncate">
               <span className={`chat-header-status status-${dmStatus.toLowerCase()}`}>{STATUS_LABEL[dmStatus] || 'Offline'}</span>
-              {dmCustomStatus && <> · {dmCustomStatus}</>}
+              {(dmCustomStatus || dmCustomEmoji) && <> · {dmCustomEmoji && <StatusEmoji emoji={dmCustomEmoji} className="chat-header-status-emoji" />}{dmCustomEmoji && dmCustomStatus ? ' ' : ''}{dmCustomStatus}</>}
             </span>
           )}
           {dmConvo?.isGroup && <span className="chat-header-sub truncate">{dmConvo.members.length} membros</span>}
@@ -1424,6 +1499,7 @@ function ChatWindowInner({ conversationId, channelId }) {
             onJump={jumpToMessage}
             onUnpinned={(id) => setPins((prev) => prev.filter((x) => x.id !== id))}
           />
+          {channelId && (!channel?.type || channel.type === 'TEXT') && <ThreadsButton channelId={channelId} />}
           <button className={`icon-btn chat-header-btn ${searchOpen ? 'on' : ''}`} onClick={() => setSearchOpen((v) => !v)} title="Buscar mensagens (Ctrl+F)" aria-label="Buscar mensagens"><ChatIcon name="search" /></button>
           {conversationId && (
             <button
@@ -1503,11 +1579,22 @@ function ChatWindowInner({ conversationId, channelId }) {
         ) : null}
       </div>
 
-      {openTopic && (
-        <TopicThreadModal
+      {openThread && channel && openThread.channelId === channelId && (
+        <ThreadPanel
+          key={openThread.id}
           channel={channel}
-          rootMessage={messages.find((m) => m.id === openTopic.id) || openTopic}
+          threadId={openThread.id}
+          initialRoot={openThread.root || null}
           onClose={() => setOpenTopic(null)}
+          onJumpToParent={(parent) => jumpToMessage(parent)}
+        />
+      )}
+      {contextView && (
+        <MessageContextModal
+          messages={contextView.messages}
+          targetId={contextView.targetId}
+          onClose={() => setContextView(null)}
+          onOpenTopic={setOpenTopic}
         />
       )}
       {pollComposerOpen && (
