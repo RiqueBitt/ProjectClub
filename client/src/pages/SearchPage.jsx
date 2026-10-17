@@ -6,6 +6,7 @@ import { searchUsers, listPosts, searchMessages } from '../api/endpoints';
 import UserAvatar from '../components/UserAvatar.jsx';
 import { Ico, PageHero, PillTabs, EmptyState, Skeleton } from '../components/PagesKit.jsx';
 import '../styles/search.css';
+import { roomPath, postPath, channelPath, conversationPath } from '../utils/prettyLinks';
 
 // Destaca o trecho buscado dentro do texto (sem diferenciar maiúsculas).
 function Hl({ text, q }) {
@@ -110,7 +111,7 @@ export default function SearchPage() {
   const openMessage = (m) => {
     const room = m.channelId ? { channelId: m.channelId } : { conversationId: m.conversationId };
     useStore.getState().setPendingJump({ roomKey: roomKeyFor(room), messageId: m.id, createdAt: m.createdAt });
-    navigate(m.channelId ? `/channels/${m.channelId}` : `/conversations/${m.conversationId}`);
+    navigate(roomPath(m));
   };
 
   const runUserSearch = async (value) => {
@@ -224,7 +225,7 @@ export default function SearchPage() {
               <Section id="POSTS" title="Posts" icon="news" loading={searchingPosts} total={postResults.length} emptyText="Nenhum post encontrado.">
                 <ul className="notifications-list sr-list">
                   {cut(postResults).map((p) => (
-                    <li key={p.id} className="notifications-item sr-item sr-post" onClick={() => navigate(`/posts/${p.id}`)}>
+                    <li key={p.id} className="notifications-item sr-item sr-post" onClick={() => navigate(postPath(p))}>
                       <span className="sr-item-icon"><Ico name="news" size={18} /></span>
                       <div className="sr-item-body">
                         <strong className="sr-post-title"><Hl text={p.title} q={q} /></strong>
@@ -258,7 +259,7 @@ export default function SearchPage() {
               <Section id="CHANNELS" title="Canais" icon="hash" total={channelResults.length} emptyText="Nenhum canal encontrado.">
                 <ul className="notifications-list sr-list">
                   {cut(channelResults).map((c) => (
-                    <li key={c.id} className="notifications-item sr-item" onClick={() => navigate(`/channels/${c.id}`)}>
+                    <li key={c.id} className="notifications-item sr-item" onClick={() => navigate(channelPath(c))}>
                       <span className="sr-item-icon"><Ico name={c.type === 'VOICE' ? 'volume' : 'hash'} size={18} /></span>
                       <div className="sr-item-body">
                         <strong className="truncate"><Hl text={c.name} q={q} /></strong>
@@ -275,7 +276,7 @@ export default function SearchPage() {
                   {cut(conversationResults).map((c) => {
                     const { name, other } = convName(c);
                     return (
-                      <li key={c.id} className="notifications-item sr-item" onClick={() => navigate(`/conversations/${c.id}`)}>
+                      <li key={c.id} className="notifications-item sr-item" onClick={() => navigate(conversationPath(c))}>
                         {other ? <UserAvatar user={other} size={40} /> : <span className="sr-item-icon"><Ico name="users" size={18} /></span>}
                         <div className="sr-item-body">
                           <strong className="truncate"><Hl text={name} q={q} /></strong>

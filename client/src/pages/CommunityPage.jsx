@@ -13,6 +13,7 @@ import { PostCard, CreatePostForm, FeedIcon, TagFilter, PostSkeletons, usePinTog
 import { updateClubTags } from '../api/contentx';
 import { proxyImage } from '../utils/imageProxy';
 import { useLiveRefresh } from '../utils/liveRefresh';
+import { postPath } from '../utils/prettyLinks';
 
 // Página de UM Tema — lê direto do estado global (useStore.clubs), que já
 // é mantido em tempo real via socket (club:new/update/delete e
@@ -120,7 +121,7 @@ export default function CommunityPage() {
         ) : (
           <div className="post-card-list">
             {posts.map((post) => (
-              <PostCard key={post.id} post={post} onVote={onVote} onPin={isStaff ? onPin : undefined} onTag={setTag} onOpen={() => navigate(`/posts/${post.id}`)} />
+              <PostCard key={post.id} post={post} onVote={onVote} onPin={isStaff ? onPin : undefined} onTag={setTag} onOpen={() => navigate(postPath(post))} />
             ))}
           </div>
         )}

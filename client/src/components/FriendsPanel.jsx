@@ -9,6 +9,7 @@ import UserAvatar from './UserAvatar.jsx';
 import SocialIcon from './SocialIcons.jsx';
 import { STATUS_LABEL } from '../utils/status';
 import PresenceDot from './PresenceDot.jsx';
+import { conversationPath } from '../utils/prettyLinks';
 
 const TABS = ['ONLINE', 'ALL', 'PENDING', 'BLOCKED', 'ADD'];
 
@@ -87,7 +88,7 @@ export default function FriendsPanel() {
   const openDM = async (userId) => {
     try {
       const { conversation } = await createConversation([userId]);
-      navigate(`/conversations/${conversation.id}`);
+      navigate(conversationPath(conversation));
     } catch { /* sem DM: a pessoa pode ter bloqueado DMs */ }
   };
 

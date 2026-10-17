@@ -69,6 +69,9 @@ httpServer.listen(env.PORT, () => {
   checkB2().catch(() => {});
   // Textos antigos salvos no banco com o nome "Arena de Cartas".
   require('./services/renameCardGame').renameCardGame();
+  // Links bonitos: preenche o slug de canais/eventos/posts/grupos que
+  // ainda não têm (idempotente — só mexe em quem está sem).
+  require('./services/slugs').backfillSlugs().catch((err) => console.warn('[slugs] backfill falhou:', err?.message));
   // Apps do ecossistema (WaveProject, TexelProject...) na aba Apps.
   { const apps = require('./services/builtinApps'); apps.seedBuiltinApps().then(() => apps.rebrandLegacyApps()).then(() => apps.applyAppPages()); }
 });

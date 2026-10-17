@@ -1,4 +1,5 @@
 import { setProfileStyleViewer } from '../utils/profileStyle';
+import { setPrettyLinksMe } from '../utils/prettyLinks';
 import { afterLogin } from '../utils/accountSwitch';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
@@ -25,6 +26,9 @@ export function isAuthRejection(err) {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   useEffect(() => { setProfileStyleViewer(user?.id); }, [user?.id]);
+  // Links bonitos (/dm/<@>): quem é "eu" numa DM 1:1. Direto no render
+  // (idempotente) pra já valer na primeira pintura das rotas filhas.
+  setPrettyLinksMe(user?.id);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   // Bug corrigido: em desenvolvimento (React.StrictMode), o efeito de

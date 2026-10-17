@@ -5,6 +5,7 @@ import { searchUsers, createConversation, uploadConversationIcon } from '../../a
 import UserAvatar from '../UserAvatar.jsx';
 import { useStore } from '../../store/useStore';
 import cancelIcon from '../../assets/icons/cancel.png';
+import { conversationPath } from '../../utils/prettyLinks';
 
 export default function NewDMModal({ onClose }) {
   const [query, setQuery] = useState('');
@@ -55,7 +56,7 @@ export default function NewDMModal({ onClose }) {
       }
       upsertConversation(final);
       onClose();
-      navigate(`/conversations/${final.id}`);
+      navigate(conversationPath(final));
     } catch (err) {
       setError(err.response?.data?.error || 'Não foi possível criar a conversa.');
       setCreating(false);

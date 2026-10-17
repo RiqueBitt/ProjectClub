@@ -6,6 +6,7 @@ const { getEveryoneRole, getEffectivePermissions, getEffectivePermissionsForChan
 const { Prisma } = require('@prisma/client');
 const { toStringBits, PERMISSIONS, has } = require('../services/permissions');
 const { sanitizeName, sanitizeIconEmoji, resolveIconUrl, checkIconUpload } = require('../utils/channelNames');
+const { assignSlugSafe } = require('../services/slugs');
 
 const VALID_TYPES = ['TEXT', 'VOICE', 'ANNOUNCEMENT', 'STAGE', 'RULES'];
 function clampUserLimit(value) {
@@ -51,6 +52,8 @@ async function createChannel(req, res, next) {
         iconUrl: iconEmoji ? null : (iconUrl || null),
       },
     });
+    // Link bonito (/canal/<nome>), único na comunidade (-2, -3 se repetir).
+    channel.slug = (await assignSlugSafe('channel', channel.id, channel.name, { current: null })) || channel.slug || null;
 
     if (channel.isPrivate) {
       const everyoneRole = await getEveryoneRole();
@@ -113,6 +116,10 @@ async function updateChannel(req, res, next) {
     }
 
     const channel = await prisma.channel.update({ where: { id }, data });
+    // Renomeou: link bonito novo (o antigo continua abrindo — SlugHistory).
+    if (data.name !== undefined || !channel.slug) {
+      channel.slug = (await assignSlugSafe('channel', channel.id, channel.name, { current: existing.slug ?? null })) || channel.slug || null;
+    }
     req.app.get('io')?.to('community').emit('channel:update', { id: channel.id });
     res.json({ channel });
   } catch (err) { next(err); }

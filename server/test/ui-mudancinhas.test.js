@@ -193,7 +193,7 @@ test('evento novo: link do evento, chave própria, e envio em lotes', async () =
   assert.equal(r.pushed, many.length - 1, 'só quem desligou eventos fica de fora');
   const one = deps.sent.find((s) => s.uid === 'u2');
   assert.equal(one.payload.title, 'Novo evento: Torneio');
-  assert.equal(one.payload.data.link, '/eventos/e%209');
+  assert.equal(one.payload.data.link, '/evento/e%209');
 });
 
 test('wantsBroadcast: ligado por padrão; tipo desconhecido nunca avisa', () => {

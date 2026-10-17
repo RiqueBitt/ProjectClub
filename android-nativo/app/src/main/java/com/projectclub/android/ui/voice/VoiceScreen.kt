@@ -137,7 +137,8 @@ fun VoiceScreen(voice: VoiceManager, repo: Repository, onBack: () -> Unit, onOpe
         return
     }
     if (s.status == CallStatus.Unsupported) {
-        val webPath = if (channelName.startsWith("dm:")) "/conversations/${channelName.removePrefix("dm:")}" else "/channels/$channelName"
+        // Link bonito (/dm/<@>, /canal/<nome>).
+        val webPath = if (channelName.startsWith("dm:")) repo.conversationPath(channelName.removePrefix("dm:")) else repo.channelPath(channelName)
         CallMessage(
             title = "Chamada pelo site",
             text = "As chamadas estão no servidor de reserva agora, que ainda não tem versão no app. Dá pra entrar por esta conversa no site.",

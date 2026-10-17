@@ -18,6 +18,7 @@ import dashboardIcon from '../assets/icons/nav-dashboard.png';
 import achievementsIcon from '../assets/icons/nav-achievements.png'; // eslint-disable-line no-unused-vars -- mantido: pode ser reaproveitado se algum dia a categoria Progresso ganhar submenu na própria sidebar
 import inicioIcon from '../assets/icons/nav-inicio.png';
 import { proxyImage } from '../utils/imageProxy';
+import { isChannelPath, isPostPath, isDmPath } from '../utils/prettyLinks';
 
 // Barra lateral principal única do app. A marca/logo agora mora na
 // TopSearchBar.jsx (barra de topo estilo Reddit) — esta barra só tem a
@@ -45,12 +46,12 @@ export const ITEMS = [
   // pra Início ser "tecnicamente" a rota raiz; sendo o primeiro item
   // da lista já atende ao pedido.
   { to: '/inicio', icon: inicioIcon, isImg: true, labelKey: 'nav.inicio', match: (p) => p === '/inicio' },
-  { to: '/', icon: topicIcon, isImg: true, labelKey: 'nav.comunidade', match: (p) => p === '/' || p.startsWith('/channels/') },
+  { to: '/', icon: topicIcon, isImg: true, labelKey: 'nav.comunidade', match: (p) => p === '/' || isChannelPath(p) },
   // Item pedido: "mude o feed para cima e o amigos para baixo" — ordem
   // invertida (Feeds vem antes de Amigos agora).
-  { to: '/comunidades', icon: feedIcon, isImg: true, labelKey: 'nav.feeds', match: (p) => p === '/comunidades' || p.startsWith('/posts/') },
+  { to: '/comunidades', icon: feedIcon, isImg: true, labelKey: 'nav.feeds', match: (p) => p === '/comunidades' || isPostPath(p) },
   // (removido do menu a pedido do dono — rota continua existindo)
-  { to: '/dms', icon: friendsIcon, isImg: true, labelKey: 'nav.amigos', match: (p) => p === '/dms' || p.startsWith('/conversations/') || p.startsWith('/clans') },
+  { to: '/dms', icon: friendsIcon, isImg: true, labelKey: 'nav.amigos', match: (p) => p === '/dms' || isDmPath(p) || p.startsWith('/clans') },
   // Item pedido originalmente: "crie uma nova categoria chamada Jogos,
   // posicionada logo abaixo da categoria Amigos" — item único levando
   // pra /jogos (ver JogosPage.jsx), mesmo padrão que o resto desta

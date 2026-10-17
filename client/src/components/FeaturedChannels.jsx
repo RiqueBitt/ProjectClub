@@ -7,6 +7,7 @@ import { useCommunityEvents } from '../utils/useCommunityEvents';
 import { useSectionBadges, sectionCount, badgeLabel } from '../utils/sectionBadges';
 import '../styles/channels.css';
 import '../styles/socialx.css';
+import { isPostPath } from '../utils/prettyLinks';
 
 // Canais em destaque, fixos no topo da lista de canais da comunidade
 // (Eventos, Fórum, Galeria e Loja — "Em breve"):
@@ -55,7 +56,7 @@ export const FEATURED = [
   {
     // Chave 'feed' mantida (banco/rotas); na tela o nome é "Fórum".
     key: 'feed', label: 'Fórum', icon: 'forum', to: '/comunidades',
-    hint: 'Posts e Temas da comunidade', match: (p) => p === '/comunidades' || p.startsWith('/comunidades/') || p.startsWith('/posts/'),
+    hint: 'Posts e Temas da comunidade', match: (p) => p === '/comunidades' || p.startsWith('/comunidades/') || isPostPath(p),
   },
   // Galeria saiu da lista (a página /comunidade/galeria continua existindo).
   {

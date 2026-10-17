@@ -6,6 +6,7 @@ import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import { isFeatureEnabled } from '../utils/features';
 import ChannelSidebar from './ChannelSidebar.jsx';
 import DMSidebar from './DMSidebar.jsx';
+import { isChannelPath, isDmPath } from '../utils/prettyLinks';
 
 const ITEMS = [
   { to: '/', icon: '💬', label: 'Canais', dropdown: 'channels' },
@@ -30,8 +31,8 @@ const ITEMS = [
 // (ChannelSidebar/DMSidebar renderizada via rota, ver MainApp.jsx) já
 // abre do lado, exatamente como funcionava antes.
 function isItemActive(item, pathname) {
-  if (item.to === '/') return pathname === '/' || pathname.startsWith('/channels/');
-  if (item.to === '/dms') return pathname === '/dms' || pathname.startsWith('/conversations/');
+  if (item.to === '/') return pathname === '/' || isChannelPath(pathname);
+  if (item.to === '/dms') return pathname === '/dms' || isDmPath(pathname);
   return pathname === item.to || pathname.startsWith(`${item.to}/`);
 }
 

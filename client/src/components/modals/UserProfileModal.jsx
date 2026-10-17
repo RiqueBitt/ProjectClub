@@ -57,6 +57,7 @@ import { updateProfile, uploadAvatar, uploadBanner, reportUserProfile } from '..
 // PfIcon/PfCard moveram pra profileParts.jsx (re-exportados aqui).
 import { PfIcon, PfCard } from './profileParts.jsx';
 import { looksLikeGif, isGifByContent, GIF_AVATAR_MAX_MB } from '../../utils/gifDetect';
+import { conversationPath, postPath } from '../../utils/prettyLinks';
 export { PfIcon, PfCard };
 
 // Estado vazio pequeno, dentro de um card.
@@ -543,7 +544,7 @@ export default function UserProfileModal() {
     try {
       const { conversation } = await createConversation([userId]);
       closeProfile();
-      navigate(`/conversations/${conversation.id}`);
+      navigate(conversationPath(conversation));
     } catch (err) {
       // Privacidade de DM / bloqueio: o servidor recusa com uma mensagem
       // pronta — antes isso virava um erro silencioso no console.
@@ -842,7 +843,7 @@ export default function UserProfileModal() {
               <button
                 key={post.id}
                 className="pf-post"
-                onClick={() => { closeProfile(); navigate(`/posts/${post.id}`); }}
+                onClick={() => { closeProfile(); navigate(postPath(post)); }}
               >
                 <span className="pf-post-score"><PfIcon name="up" size={12} strokeWidth={2.4} />{post.score}</span>
                 <span className="pf-post-info">

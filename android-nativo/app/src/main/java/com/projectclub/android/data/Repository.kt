@@ -610,6 +610,46 @@ class Repository(private val context: Context, val api: Api, private val scope: 
 
     fun conversation(id: String): Conversation? = _conversations.value.firstOrNull { it.id == id }
 
+    // ---------------- links bonitos (/canal/<nome>, /dm/<@>, /perfil/<@>) ----------------
+
+    /** Canal pelo id OU pelo nome do link (slug). */
+    fun channelByRef(ref: String): Channel? {
+        val c = _community.value ?: return null
+        val all = c.channels + c.categories.flatMap { it.channels }
+        return all.firstOrNull { it.id == ref } ?: all.firstOrNull { it.slug?.equals(ref, ignoreCase = true) == true }
+    }
+
+    /** Conversa pelo id, pelo nome do grupo (slug) ou pelo @ da outra pessoa (DM 1:1). */
+    fun conversationByRef(ref: String): Conversation? {
+        val myId = _me.value?.id
+        val list = _conversations.value
+        return list.firstOrNull { it.id == ref }
+            ?: list.firstOrNull { it.isGroup && it.slug?.equals(ref, ignoreCase = true) == true }
+            ?: list.firstOrNull { conv -> !conv.isGroup && conv.members.firstOrNull { it.id != myId }?.username?.equals(ref, ignoreCase = true) == true }
+    }
+
+    /** Pessoa da comunidade pelo id ou pelo @. */
+    fun memberByRef(ref: String): User? {
+        val users = _community.value?.members.orEmpty().map { it.user }
+        return users.firstOrNull { it.id == ref } ?: users.firstOrNull { it.username?.equals(ref, ignoreCase = true) == true }
+    }
+
+    fun channelPath(channelId: String): String = "/canal/" + Uri.encode(channel(channelId)?.slug ?: channelId)
+
+    fun conversationPath(conversationId: String): String {
+        val conv = conversation(conversationId) ?: return "/dm/" + Uri.encode(conversationId)
+        if (conv.isGroup) return "/dm/" + Uri.encode(conv.slug ?: conv.id)
+        val other = conv.members.firstOrNull { it.id != _me.value?.id }?.username
+        return "/dm/" + Uri.encode(other?.lowercase() ?: conv.id)
+    }
+
+    fun roomPath(room: Room): String =
+        room.channelId?.let { channelPath(it) } ?: room.conversationId?.let { conversationPath(it) } ?: "/"
+
+    /** Pergunta ao servidor o id de um endereço bonito (mesma regra de acesso dos ids). */
+    suspend fun resolveLink(path: String): ResolvedLink? =
+        runCatching { api.get<LinkResolveResponse>("/api/links/resolve?path=" + Uri.encode(path)).link }.getOrNull()
+
     fun conversationTitle(conv: Conversation): String {
         if (!conv.name.isNullOrBlank()) return conv.name
         val myId = _me.value?.id

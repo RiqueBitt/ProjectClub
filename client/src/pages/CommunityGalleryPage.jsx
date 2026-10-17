@@ -15,6 +15,7 @@ import {
   addToGalleryAlbum, removeFromGalleryAlbum,
 } from '../api/contentx';
 import '../styles/contentx.css';
+import { channelPath, postPath } from '../utils/prettyLinks';
 
 // Ícones locais (traço) da Galeria nova: curtir, álbum, ordenar.
 const GI = {
@@ -280,12 +281,12 @@ function GalleryMedia({ onAddToAlbum }) {
                     <span className="truncate">{item.author?.displayName || 'Alguém'}</span>
                   </span>
                   {item.source === 'channel' && item.channel ? (
-                    <button type="button" className="cgal-where" onClick={() => navigate(`/channels/${item.channel.id}`)} title={`Abrir ${item.channel.name}`}>
+                    <button type="button" className="cgal-where" onClick={() => navigate(channelPath(item.channel))} title={`Abrir ${item.channel.name}`}>
                       <ChannelIcon channel={item.channel} className="cgal-where-icon" />
                       <span className="truncate">{item.channel.name}</span>
                     </button>
                   ) : item.source === 'post' ? (
-                    <button type="button" className="cgal-where" onClick={() => navigate(`/posts/${item.postId}`)} title={item.title}>
+                    <button type="button" className="cgal-where" onClick={() => navigate(postPath(item.post || item.postId))} title={item.title}>
                       <FeaturedGlyph name="feed" size={13} />
                       <span className="truncate">{item.club?.name || 'Fórum'}</span>
                     </button>

@@ -5,15 +5,20 @@
 //
 // Formatos aceitos (no próprio domínio do app, no domínio público ou em
 // localhost):
-//   /posts/<id>                 post do Feed
+//   /forum/<slug>               post do Feed (antigo /posts/<id>)
 //   /modpack/<id>               modpack público
 //   /mod/<jogoId>/<modId>       mod
+//   /perfil/<@usuário>          perfil (antigo /u/<id>)
+//   /evento/<slug>              evento (antigo /eventos/<id>)
+//   /canal/<slug>               canal (antigo /channels/<id>)
 //   /u/<userId>                 perfil
 //   /eventos/<id>               evento (também /comunidade/eventos?evento=<id>)
 //   /channels/<id>              canal
 //   /comunidades/<slug>         Tema do Feed
 import { getPost, getModpack, getMod, getUserProfile, listEvents } from '../api/endpoints';
 import { useStore } from '../store/useStore';
+import { findChannel, findMemberUser, channelPathFrom, eventPath, postPath } from './prettyPaths';
+import { resolveLinkRemote } from './prettyLinks';
 
 // shardweb = endereço atual; squareweb = endereço antigo (links velhos em mensagens).
 const KNOWN_HOSTS = [/(^|\.)projectclub\.shardweb\.app$/i, /(^|\.)projectclub\.squareweb\.app$/i, /^localhost(:\d+)?$/i, /^127\.0\.0\.1(:\d+)?$/];
@@ -32,18 +37,21 @@ export function parseInternalLink(raw) {
   const path = `${u.pathname}${u.search}`;
   const id = parts[1];
   switch (parts[0]) {
-    case 'posts': return id ? { kind: 'post', id, path } : null;
+    case 'posts':
+    case 'forum': return id ? { kind: 'post', id, path } : null;
     case 'modpack':
     case 'modpacks': return id ? { kind: 'modpack', id, path } : null;
     case 'mod': return id && parts[2] ? { kind: 'mod', id: parts[2], extra: id, path } : null;
     case 'u':
     case 'perfil': return id ? { kind: 'user', id, path } : null;
-    case 'eventos': return id ? { kind: 'event', id, path } : null;
+    case 'eventos':
+    case 'evento': return id ? { kind: 'event', id, path } : null;
     case 'comunidade': {
       const ev = parts[1] === 'eventos' && u.searchParams.get('evento');
       return ev ? { kind: 'event', id: ev, path } : null;
     }
-    case 'channels': return id ? { kind: 'channel', id, path } : null;
+    case 'channels':
+    case 'canal': return id ? { kind: 'channel', id, path } : null;
     case 'comunidades': return id ? { kind: 'club', id, path } : null;
     case 'cartas': {
       const sala = u.searchParams.get('sala');
@@ -82,8 +90,16 @@ export function openInternalPath(path) {
 
 // Abre um link interno já reconhecido: perfil vira o modal de perfil,
 // modpack abre direto no gerenciador de mods; o resto navega.
+// /perfil/<@usuário> (ou id antigo) → id da pessoa.
+async function userIdFor(ref) {
+  const local = findMemberUser(useStore.getState(), ref);
+  if (local) return local.id;
+  const link = await resolveLinkRemote(`/perfil/${encodeURIComponent(ref)}`);
+  return link?.kind === 'user' ? link.id : ref;
+}
+
 export function openInternalLink(link) {
-  if (link.kind === 'user') { useStore.getState().openProfile(link.id); return; }
+  if (link.kind === 'user') { userIdFor(link.id).then((id) => useStore.getState().openProfile(id)); return; }
   if (link.kind === 'modpack') { openInternalPath(`/modpack/${encodeURIComponent(link.id)}`); return; }
   openInternalPath(link.path);
 }
@@ -129,7 +145,7 @@ async function resolve(link) {
         imageShape: post.type === 'IMAGE' ? 'wide' : 'square',
         meta: [post.community?.name, `${post.score} ups`, `${post.commentCount} comentário${post.commentCount === 1 ? '' : 's'}`].filter(Boolean),
         author: post.author,
-        action: 'Abrir', path: `/posts/${post.id}`,
+        action: 'Abrir', path: postPath(post),
       };
     }
     case 'modpack': {
@@ -154,7 +170,7 @@ async function resolve(link) {
       };
     }
     case 'user': {
-      const d = await getUserProfile(link.id);
+      const d = await getUserProfile(await userIdFor(link.id));
       const u = d.user;
       return {
         kind: 'user', label: 'Perfil', title: u.displayName,
@@ -166,7 +182,7 @@ async function resolve(link) {
     }
     case 'event': {
       const { events } = await listEvents();
-      const ev = (events || []).find((e) => e.id === link.id);
+      const ev = (events || []).find((e) => e.id === link.id || (e.slug && e.slug === String(link.id).toLowerCase()));
       if (!ev) return null;
       const when = ev.startsAt ? new Date(ev.startsAt).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : null;
       const going = ev.rsvp?.counts?.GOING || 0;
@@ -176,13 +192,12 @@ async function resolve(link) {
         image: ev.bannerUrl || ev.iconUrl || null, imageShape: ev.bannerUrl ? 'wide' : 'square',
         meta: [when, going ? `${going} vão` : null].filter(Boolean),
         live: ev.status === 'ACTIVE',
-        action: 'Abrir', path: `/comunidade/eventos?evento=${ev.id}`,
+        action: 'Abrir', path: eventPath(ev),
       };
     }
     case 'channel': {
       const s = useStore.getState();
-      const all = [...(s.channels || []), ...(s.categories || []).flatMap((c) => c.channels || [])];
-      const ch = all.find((c) => c.id === link.id);
+      const ch = findChannel(s, link.id); // id ou nome do link (/canal/<nome>)
       if (!ch) return null;
       const cat = (s.categories || []).find((c) => (c.channels || []).some((x) => x.id === ch.id));
       return {
@@ -190,7 +205,7 @@ async function resolve(link) {
         text: stripText(ch.topic || ch.description, 110),
         image: ch.iconUrl || null, imageShape: 'square',
         meta: [cat?.name].filter(Boolean),
-        action: 'Abrir', path: `/channels/${ch.id}`,
+        action: 'Abrir', path: channelPathFrom(s, ch),
       };
     }
     case 'club': {

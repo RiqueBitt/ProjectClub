@@ -312,7 +312,7 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
                 }
             }
             SheetItem(Icons.Filled.Link, "Copiar link da mensagem") {
-                val path = if (room.channelId != null) "/channels/${room.channelId}" else "/conversations/${room.conversationId}"
+                val path = repo.roomPath(room) // link bonito (/canal/<nome>, /dm/<@>)
                 (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("link", "${com.projectclub.android.Config.baseUrl}$path?m=${m.id}"))
                 menuFor = null
                 toast("Link copiado.")

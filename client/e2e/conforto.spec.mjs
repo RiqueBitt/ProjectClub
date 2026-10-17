@@ -134,9 +134,9 @@ test('atalhos: Ctrl+/ abre a lista, Esc fecha; Alt+↓ vai pro próximo canal', 
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await page.keyboard.press('Alt+ArrowDown');
-  await expect(page).toHaveURL(/\/channels\/ch3$/);
+  await expect(page).toHaveURL(/\/canal\/comandos$/); // link bonito (era /channels/ch3)
   await page.keyboard.press('Alt+ArrowUp');
-  await expect(page).toHaveURL(/\/channels\/ch2$/);
+  await expect(page).toHaveURL(/\/canal\/chat-geral$/);
 });
 
 test('acessibilidade: botões de ícone com nome e foco visível no teclado', async ({ page, isMobile }) => {

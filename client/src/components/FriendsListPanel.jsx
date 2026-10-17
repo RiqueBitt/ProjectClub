@@ -8,6 +8,7 @@ import ClanTagBadge from './ClanTagBadge.jsx';
 import PresenceDot from './PresenceDot.jsx';
 import { proxyImage } from '../utils/imageProxy';
 import { idCardFramingVars } from './ProfileBanner.jsx';
+import { conversationPath } from '../utils/prettyLinks';
 
 // Item pedido: preenche a coluna da direita (terceira coluna do layout —
 // mesmo espaço onde MembersList aparece num canal, e DMProfilePanel numa
@@ -25,7 +26,7 @@ export default function FriendsListPanel({ onToggle }) {
 
   const openDM = async (userId) => {
     const { conversation } = await createConversation([userId]);
-    navigate(`/conversations/${conversation.id}`);
+    navigate(conversationPath(conversation));
   };
 
   return (

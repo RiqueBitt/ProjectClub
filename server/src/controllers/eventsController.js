@@ -124,12 +124,15 @@ async function createEvent(req, res, next) {
     if (voiceChannelId) data.voiceChannelId = voiceChannelId;
 
     const event = await prisma.event.create({ data, include: { createdBy: { select: AUTHOR_FIELDS } } });
+    // Link bonito (/evento/<titulo>), com -2, -3 só se o título repetir.
+    event.slug = (await require('../services/slugs').assignSlugSafe('event', event.id, event.title, { current: null })) || event.slug || null;
     req.app.get('io')?.to('community').emit('event:new', event);
     // Bolinha "novo" em Eventos + aviso pra todo mundo (push/PC).
     require('../services/sectionBadges').touchSection('eventos');
     req.app.get('io')?.to('community').emit('section-badges:new', { section: 'eventos' });
     require('../services/broadcastNotify').notifyBroadcastLater(req.app.get('io'), {
       kind: 'event', id: event.id, title: event.title, body: event.description, authorId: req.user.id,
+      link: require('../services/linkResolver').eventPath(event),
     });
     res.status(201).json({ event });
   } catch (err) { next(err); }
@@ -162,7 +165,12 @@ async function updateEvent(req, res, next) {
     }
 
     const before = data.startsAt !== undefined ? await prisma.event.findUnique({ where: { id }, select: { startsAt: true } }) : null;
+    const prevSlug = data.title !== undefined ? (await prisma.event.findUnique({ where: { id }, select: { slug: true } }).catch(() => null))?.slug ?? null : undefined;
     const event = await prisma.event.update({ where: { id }, data, include: { createdBy: { select: AUTHOR_FIELDS } } });
+    // Título mudou: link bonito novo (o antigo continua abrindo — SlugHistory).
+    if (prevSlug !== undefined || !event.slug) {
+      event.slug = (await require('../services/slugs').assignSlugSafe('event', event.id, event.title, { current: prevSlug ?? event.slug ?? null })) || event.slug || null;
+    }
     // Horário mudou: o lembrete de 15 min vale de novo pro horário novo.
     if (before && String(before.startsAt || '') !== String(event.startsAt || '')) {
       await prisma.eventRsvp.updateMany({ where: { eventId: id }, data: { remindedAt: null, startNotifiedAt: null } }).catch(() => {});

@@ -42,6 +42,7 @@ import ReminderModal from './modals/ReminderModal.jsx';
 import CreateThreadModal from './modals/CreateThreadModal.jsx';
 import { SystemMessageRow, ThreadStarterRow, ThreadCard } from './ChatFeatureBits.jsx';
 import { parseSystemMessage, isThreadRoot } from '../utils/chatFeatures';
+import { roomPath } from '../utils/prettyLinks';
 
 // BUG CORRIGIDO: <img src={...avatarUrl}> quebrava (bloqueado pela CSP
 // img-src) quando o autor da mensagem respondida tem avatar de pinguim
@@ -585,7 +586,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic, i
         {reminderOpen && (
           <ReminderModal
             message={message}
-            link={message.channelId ? `/channels/${message.channelId}` : message.conversationId ? `/conversations/${message.conversationId}` : null}
+            link={message.channelId || message.conversationId ? roomPath(message) : null}
             onClose={() => setReminderOpen(false)}
           />
         )}

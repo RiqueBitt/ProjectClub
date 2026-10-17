@@ -6,6 +6,7 @@ const AUTHOR_FIELDS = { id: true, displayName: true, avatarUrl: true, avatarDeco
 const COMMUNITY_FIELDS = { id: true, slug: true, name: true, iconUrl: true };
 const POST_INCLUDE = { author: { select: AUTHOR_FIELDS }, community: { select: COMMUNITY_FIELDS }, category: true };
 const { shapePoll } = require('./profilePollController');
+const { assignSlugSafe, findBySlugOrId } = require('../services/slugs');
 
 // Enquete opcional do post — reaproveita o modelo/formato das enquetes do
 // perfil (ProfilePoll com postId). Junta numa consulta só pra lista toda.
@@ -133,6 +134,8 @@ async function createPost(req, res, next) {
       },
       include: POST_INCLUDE,
     });
+    // Link bonito (/forum/<titulo>), com -2, -3 só se o título repetir.
+    post.slug = (await assignSlugSafe('post', post.id, post.title, { current: null })) || post.slug || null;
     // Postar já conta como voto positivo automático do próprio autor,
     // igual ao Reddit — sem isso o post nasceria com score 0 mesmo tendo
     // um voto "implícito" do autor.
@@ -157,7 +160,9 @@ async function createPost(req, res, next) {
 
 async function getPost(req, res, next) {
   try {
-    const { id } = req.params;
+    // Aceita o id OU o link bonito (/forum/<slug>, inclusive slug antigo).
+    const found = await findBySlugOrId('post', req.params.id, { select: { id: true } }).catch(() => null);
+    const id = found?.id || req.params.id;
     const post = await prisma.post.findUnique({
       where: { id },
       include: POST_INCLUDE,

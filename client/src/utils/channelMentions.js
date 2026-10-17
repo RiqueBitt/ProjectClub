@@ -1,4 +1,5 @@
 import { useStore } from '../store/useStore';
+import { channelPath } from './prettyLinks';
 
 // Menção de canal: o texto salvo é o token "<#idDoCanal>" (não muda se o
 // canal for renomeado); na tela vira um chip "#nome" clicável.
@@ -18,6 +19,6 @@ export function channelMentionToken(channel) {
 // Abre o canal (texto) ou a tela do canal de voz (de onde se entra na call).
 export function openChannelMention(id) {
   if (typeof window === 'undefined') return;
-  window.history.pushState({}, '', `/channels/${id}`);
+  window.history.pushState({}, '', channelPath(id));
   window.dispatchEvent(new PopStateEvent('popstate'));
 }

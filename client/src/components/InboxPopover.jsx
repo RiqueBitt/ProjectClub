@@ -8,6 +8,7 @@ import UserAvatar from './UserAvatar.jsx';
 import { Ico } from './PagesKit.jsx';
 import { toggleSaved, useMsgExtras } from '../utils/messageExtras';
 import '../styles/inbox.css';
+import { roomPath, conversationPath, channelPath } from '../utils/prettyLinks';
 
 // Caixa de Entrada (igual ao 📥 do Discord): Não lidas, Menções, Respostas
 // (respostas a mensagens suas), Salvos ("Salvar para depois") e Lembretes,
@@ -70,7 +71,7 @@ export default function InboxPopover({ onClose }) {
   const open = (m) => {
     const roomKey = roomKeyFor({ channelId: m.channelId, conversationId: m.conversationId });
     useStore.getState().setPendingJump({ roomKey, messageId: m.id, createdAt: m.createdAt });
-    navigate(m.channelId ? `/channels/${m.channelId}` : `/conversations/${m.conversationId}`);
+    navigate(roomPath(m));
     onClose();
   };
 
@@ -101,7 +102,7 @@ export default function InboxPopover({ onClose }) {
             <ul className="ibx-list">
               {unreadCv.map((c) => (
                 <li key={c.id} className="ibx-room">
-                  <button type="button" onClick={() => { navigate(`/conversations/${c.id}`); onClose(); }}>
+                  <button type="button" onClick={() => { navigate(conversationPath(c)); onClose(); }}>
                     <Ico name="chat" size={16} /><b>{convName(c)}</b><span>{(c.lastMessage?.content || 'Nova mensagem').slice(0, 80)}</span>
                   </button>
                   <button type="button" className="ibx-mini" title="Marcar como lida" aria-label="Marcar como lida" onClick={() => readConv(c)}><Ico name="check" size={14} /></button>
@@ -109,7 +110,7 @@ export default function InboxPopover({ onClose }) {
               ))}
               {unreadCh.map((ch) => (
                 <li key={ch.id} className="ibx-room">
-                  <button type="button" onClick={() => { navigate(`/channels/${ch.id}`); onClose(); }}>
+                  <button type="button" onClick={() => { navigate(channelPath(ch)); onClose(); }}>
                     <Ico name="hash" size={16} /><b>{ch.name}</b>{ch.unreadMentions > 0 && <em className="ibx-at">@{ch.unreadMentions}</em>}
                   </button>
                   <button type="button" className="ibx-mini" title="Marcar como lido" aria-label="Marcar como lido" onClick={() => readChannel(ch)}><Ico name="check" size={14} /></button>

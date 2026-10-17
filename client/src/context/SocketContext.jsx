@@ -13,6 +13,7 @@ import { updateUnreadBadge } from '../utils/unreadBadge';
 import { wantsBroadcastNotify } from '../utils/broadcastNotify';
 import { sameData } from '../utils/liveRefresh';
 import { getAccessToken, refreshAccessToken } from '../api/client';
+import { channelPath, conversationPath, userPath } from '../utils/prettyLinks';
 
 const SocketContext = createContext(null);
 
@@ -191,10 +192,10 @@ export function SocketProvider({ children }) {
     const goToMessage = ({ channelId, conversationId, messageId, createdAt }) => {
       if (channelId) {
         if (messageId) useStore.getState().setPendingJump({ roomKey: roomKeyFor({ channelId }), messageId, createdAt });
-        navigate(`/channels/${channelId}`);
+        navigate(channelPath(channelId));
       } else if (conversationId) {
         if (messageId) useStore.getState().setPendingJump({ roomKey: roomKeyFor({ conversationId }), messageId, createdAt });
-        navigate(`/conversations/${conversationId}`);
+        navigate(conversationPath(conversationId));
       } else navigate('/');
     };
     const handleIncomingMention = ({ channelId, messageId, createdAt, authorName, preview, reply }) => {
@@ -340,7 +341,7 @@ export function SocketProvider({ children }) {
         (p.preview || '').slice(0, 120),
         () => {
           useStore.getState().setPendingThread({ channelId: p.channelId, threadId: p.threadId });
-          navigate(`/channels/${p.channelId}`);
+          navigate(channelPath(p.channelId));
         },
       );
     });
@@ -360,7 +361,7 @@ export function SocketProvider({ children }) {
       const prev = st.presence?.[userId]?.status;
       if (status && status !== 'OFFLINE' && (!prev || prev === 'OFFLINE') && userId !== user.id && getExtra().notifyFriendOnline) {
         const f = st.friends.find((x) => x.status === 'ACCEPTED' && x.user?.id === userId);
-        if (f) notifyUser(`${f.user.displayName} ficou online`, '', () => navigate(`/u/${userId}`));
+        if (f) notifyUser(`${f.user.displayName} ficou online`, '', () => navigate(userPath(f.user)));
       }
       // customStatusEmoji só vem quando o servidor sabe (status
       // personalizado mudou/venceu) — senão mantém o que já tinha.

@@ -16,6 +16,7 @@ import { RemoteTrackPlayer, resolveOutputSink, setContextSink } from '../voice/a
 import { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import '../styles/callbar.css';
+import { conversationPath, channelPath } from '../utils/prettyLinks';
 
 // Barra de chamada (rodapé da coluna de canais) — visual refeito: status
 // com sinal/ping do servidor de mídia, nome do canal clicável (abre a chamada), tempo
@@ -27,9 +28,9 @@ import '../styles/callbar.css';
 function callViewPath(call) {
   if (!call?.channelId) return null;
   const id = String(call.channelId);
-  if (id.startsWith('dm:')) return `/conversations/${id.slice(3)}`;
+  if (id.startsWith('dm:')) return conversationPath(id.slice(3));
   if (id.startsWith('clan:')) return '/clans/mine';
-  return `/channels/${id}`;
+  return channelPath(id);
 }
 
 // Tempo desde que você entrou (mm:ss ou h:mm:ss).

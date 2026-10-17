@@ -1,6 +1,6 @@
 import DMExtraCards from './profile/DMExtraCards.jsx';
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useRouteRoom } from '../utils/prettyLinks';
 import { useStore } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getUserProfile } from '../api/endpoints';
@@ -36,7 +36,8 @@ import { useLiveRefresh } from '../utils/liveRefresh';
 // has no single "other person" to show a profile for, so it renders
 // nothing (the toggle button still exists, it just has nothing to open).
 export default function DMProfilePanel({ onToggle }) {
-  const { conversationId } = useParams();
+  // /dm/<@> ou /dm/grupo-<nome> (links bonitos) → id da conversa.
+  const conversationId = useRouteRoom()?.conversationId;
   const { user: me } = useAuth();
   const conversations = useStore((s) => s.conversations);
   const conversation = conversations.find((c) => c.id === conversationId);

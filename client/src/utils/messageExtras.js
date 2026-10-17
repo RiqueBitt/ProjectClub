@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { api } from '../api/client';
 import { useStore } from '../store/useStore';
+import { roomPath } from './prettyLinks';
 
 // ---------- Reações recentes ----------
 const RECENT_KEY = 'pc-recent-reactions';
@@ -103,7 +104,7 @@ export async function markUnreadFrom(message) {
 
 export function messageLink(message) {
   const base = window.location.origin.startsWith('http') ? window.location.origin : 'https://projectclub.shardweb.app';
-  const room = message.channelId ? `/channels/${message.channelId}` : `/conversations/${message.conversationId}`;
+  const room = roomPath(message);
   return `${base}${room}?m=${encodeURIComponent(message.id)}`;
 }
 export async function copyMessageLink(message) {

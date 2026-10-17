@@ -323,8 +323,10 @@ const SCROLL_KEY = 'pc-scroll-positions';
 export function rememberPath(path) {
   if (!path || path === '/') return;
   try { localStorage.setItem(LAST_PATH_KEY, path); } catch { /* ignora */ }
-  if (path.startsWith('/channels/')) {
-    try { sessionStorage.setItem(LAST_CHANNEL_KEY, path.slice('/channels/'.length)); } catch { /* ignora */ }
+  // /canal/<nome> (link bonito) ou o antigo /channels/<id>: guarda o nome/id.
+  const m = path.match(/^\/(?:canal|channels)\/([^/?#]+)/);
+  if (m) {
+    try { sessionStorage.setItem(LAST_CHANNEL_KEY, decodeURIComponent(m[1])); } catch { /* ignora */ }
   }
 }
 export function lastRememberedPath() {

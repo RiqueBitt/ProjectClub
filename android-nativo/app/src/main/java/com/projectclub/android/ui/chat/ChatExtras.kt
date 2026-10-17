@@ -247,7 +247,7 @@ fun WhenDialog(
 
 /** "Lembrar-me" de uma mensagem. Devolve null se deu certo (ou a mensagem de erro). */
 suspend fun createReminder(repo: Repository, message: Message, room: Room, whenText: String, text: String): String? = runCatching {
-    val link = if (room.channelId != null) "/channels/${room.channelId}" else "/conversations/${room.conversationId}"
+    val link = repo.roomPath(room) // link bonito (/canal/<nome>, /dm/<@>)
     repo.api.postIgnore("/api/reminders", buildJsonObject {
         put("text", text.ifBlank { message.content?.take(180) ?: "Mensagem" })
         put("when", whenText); put("tzOffset", tzOffsetMinutes())

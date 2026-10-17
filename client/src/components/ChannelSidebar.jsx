@@ -2,7 +2,7 @@ import UnreadCountBadge from './UnreadCountBadge.jsx';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { lazyWithRetry as lazy } from '../utils/lazyWithRetry';
 import { createPortal } from 'react-dom';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useStore, isChannelUnread, channelNotifyPrefs } from '../store/useStore';
 import { notificationMenuItems } from '../utils/notificationPrefs';
 import { categoryKey, isOverrideMuted, muteRemainingLabel } from '../utils/notificationLevels';
@@ -32,6 +32,7 @@ import lockIcon from '../assets/icons/lock.png';
 import { proxyImage } from '../utils/imageProxy';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import ListSkeleton from './ListSkeleton.jsx';
+import { channelPath, absoluteUrl, useRouteRoom } from '../utils/prettyLinks';
 
 // Modais de staff/edição: cada um vira um pacote próprio, baixado só
 // quando é aberto (quase ninguém abre — não precisa estar no pacote inicial).
@@ -142,7 +143,8 @@ export default function ChannelSidebar({
   // clique, antes de qualquer efeito posterior, se o canal clicado já é
   // o canal ativo (nenhuma navegação de verdade acontece, então nenhum
   // som/carregamento é disparado de novo).
-  const { channelId: paramsChannelId } = useParams();
+  // /canal/<nome> → id (links bonitos); antes vinha do useParams.
+  const paramsChannelId = useRouteRoom()?.channelId;
   const activeChannelId = propActiveChannelId ?? paramsChannelId;
 
   const [channelModal, setChannelModal] = useState({ open: false, categoryId: null });
@@ -435,7 +437,7 @@ export default function ChannelSidebar({
             {list.slice(0, 8).map((c) => (
               <button
                 key={c.id} type="button" className="category-preview-item"
-                onClick={() => { setCatPreview(null); navigate(`/channels/${c.id}`); }}
+                onClick={() => { setCatPreview(null); navigate(channelPath(c)); }}
               >
                 <span className="category-preview-icon">{hasCustomIcon(c) ? <CustomIcon item={c} className="channel-custom-icon" /> : <NavIcon name={VOICE_TYPES.includes(c.type) ? 'voice' : 'hash'} size={15} />}</span>
                 <span className="truncate">{c.name}</span>
@@ -491,7 +493,7 @@ function ChannelGroup({
       },
       {
         label: 'Copiar link do canal', icon: <img className="ui-icon-sm" src={linkIcon} alt="" />,
-        onClick: () => navigator.clipboard?.writeText(`${window.location.origin}/channels/${ch.id}`),
+        onClick: () => navigator.clipboard?.writeText(absoluteUrl(channelPath(ch))),
       },
     ];
     // Silenciar / "Todas as mensagens · Só @menções · Nada" (igual ao Discord).
@@ -560,7 +562,7 @@ function ChannelGroup({
                 // tentar tratar como link nativo (que foi a causa
                 // original do reload de página inteira): só um clique
                 // simples chamando navigate() por dentro do app.
-                onClick={() => { if (ch.id !== activeChannelId) navigate(`/channels/${ch.id}`); }}
+                onClick={() => { if (ch.id !== activeChannelId) navigate(channelPath(ch)); }}
                 data-channel-id={ch.id} data-channel-type={ch.type}
                 aria-current={ch.id === activeChannelId ? 'page' : undefined}
                 className={`sidebar-item channel-item ${ch.id === activeChannelId ? 'active' : ''} ${unread && !notify.muted ? 'unread' : ''} ${notify.muted ? 'is-muted' : ''}`}

@@ -13,6 +13,7 @@ import ListSkeleton from './ListSkeleton.jsx';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
 import { sortConversations, conversationMenuItems } from '../utils/dmPins';
 import PinGlyph from './PinGlyph.jsx';
+import { conversationPath } from '../utils/prettyLinks';
 
 export default function DMSidebar() {
   const conversations = useStore((s) => s.conversations);
@@ -48,7 +49,7 @@ export default function DMSidebar() {
     return (
       <NavLink
         key={c.id}
-        to={`/conversations/${c.id}`}
+        to={conversationPath(c)}
         className={({ isActive }) => `sidebar-item dm-item ${isActive ? 'active' : ''} ${unread ? 'unread' : ''} ${c.pinnedAt ? 'pinned' : ''}`}
         onContextMenu={(e) => openMenu(e, conversationMenuItems(c))}
       >

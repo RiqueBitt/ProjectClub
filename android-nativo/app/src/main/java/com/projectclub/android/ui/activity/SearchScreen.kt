@@ -100,7 +100,7 @@ fun SearchScreen(repo: Repository, nav: AppNav) {
                 item { Header("Canais") }
                 items(channels, key = { "c" + it.id }) { c ->
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { if (c.isChat) nav.room(Room(channelId = c.id)) else nav.link("/channels/${c.id}") }.padding(10.dp),
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { if (c.isChat) nav.room(Room(channelId = c.id)) else nav.link("/canal/" + android.net.Uri.encode(c.slug ?: c.id)) }.padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(Icons.Outlined.Tag, null, tint = PC.Muted)
