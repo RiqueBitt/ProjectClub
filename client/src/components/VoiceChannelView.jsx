@@ -14,6 +14,8 @@ import { useYouTubeWatch, YouTubeStage, YouTubePicker, ActivitiesButton, YouTube
 import { CallMusicPicker } from '../music/MusicPlayer.jsx';
 import { ReactionBar, ReactionsOverlay, RecordingBanner, RecordButton, LiveCaptions } from './voice/CallExtras.jsx';
 import { getVoicePref, setVoicePref, onVoicePrefsChange } from '../utils/voicePrefs';
+import { useContextMenu } from '../context/ContextMenuContext.jsx';
+import { buildVoiceModerationItems } from './voice/voiceModerationMenu';
 
 // ============================================================
 // Canal de voz — visual refeito.
@@ -161,6 +163,10 @@ export default function VoiceChannelView({ channel }) {
 
   // ---------- Dentro da chamada ----------
   const { participants, remoteCameraStreams, remoteScreenStreams, cameraOn, screenOn, muted, volumes, localSpeaking } = voice;
+  // Moderação (Silenciar/Ensurdecer no servidor, Mover para…, Desconectar):
+  // só aparece com a permissão — o servidor confere de novo.
+  const modPerms = getMyCommunityPermissions(roles, members, user.id, user.platformRole);
+  const modItemsFor = (uid, st) => buildVoiceModerationItems({ voice, channelId: channel.id, target: { userId: uid, ...(st || {}) }, myPerms: modPerms, myUserId: user.id });
   const onBackup = voice?.provider === 'jitsi';
   const allUserIds = [...new Set([user.id, ...Object.keys(participants)])];
 
@@ -178,7 +184,9 @@ export default function VoiceChannelView({ channel }) {
   const tiles = allUserIds.map((uid) => {
     const isMe = uid === user.id;
     const person = isMe ? user : memberFor(uid);
-    const state = isMe ? { muted, video: cameraOn, screenSharing: screenOn, speaking: localSpeaking } : (participants[uid] || {});
+    const state = isMe
+      ? { muted, video: cameraOn, screenSharing: screenOn, speaking: localSpeaking, serverMuted: voice.serverMuted, serverDeafened: voice.serverDeafened }
+      : (participants[uid] || {});
     return (
       <PersonTile
         key={uid} uid={uid} person={person} isMe={isMe} state={state}
@@ -187,6 +195,7 @@ export default function VoiceChannelView({ channel }) {
         volume={volumes[uid] ?? 1}
         onVolume={(v) => voice.setParticipantVolume(uid, v)}
         quality={voice.netQuality?.[uid]}
+        menuItems={modItemsFor(uid, state)}
       />
     );
   });
@@ -348,12 +357,16 @@ function VolumeControl({ name, volume, onVolume, className = '', label = 'Volume
   );
 }
 
-function PersonTile({ uid, person, isMe, state, connecting, cameraStream, volume, onVolume, extra, quality }) {
+function PersonTile({ uid, person, isMe, state, connecting, cameraStream, volume, onVolume, extra, quality, menuItems }) {
   const color = person?.profileColor || 'var(--brand)';
+  const { openMenu } = useContextMenu();
+  const hasMenu = Array.isArray(menuItems) && menuItems.length > 0;
+  const modState = state.serverDeafened ? 'Ensurdecido no servidor' : state.serverMuted ? 'Silenciado no servidor' : null;
   return (
     <div
       className={`vc-tile${state.speaking && !state.muted ? ' is-speaking' : ''}${cameraStream ? ' has-video' : ''}${connecting ? ' is-connecting' : ''}`}
       style={{ '--tile-color': color }}
+      onContextMenu={hasMenu ? (e) => openMenu(e, menuItems) : undefined}
     >
       {cameraStream && !connecting ? (
         <VideoTile stream={cameraStream} muted={isMe} />
@@ -365,13 +378,24 @@ function PersonTile({ uid, person, isMe, state, connecting, cameraStream, volume
       {connecting && <span className="vc-tile-connecting">Conectando…</span>}
 
       <span className="vc-label">
-        {state.muted ? <span className="vc-label-muted"><Icon name="micOff" size={14} /></span> : null}
+        {modState ? (
+          <span className="vc-label-muted vc-label-servermuted" title={modState} aria-label={modState}><Icon name="micOff" size={14} /></span>
+        ) : state.muted ? <span className="vc-label-muted"><Icon name="micOff" size={14} /></span> : null}
         <span className="truncate">{person?.displayName || uid}{isMe ? ' (você)' : ''}</span>
         {state.screenSharing && <Icon name="screen" size={14} />}
         {!connecting && <QualityDot quality={quality} />}
       </span>
 
       {extra}
+
+      {hasMenu && (
+        <button
+          type="button" className="vc-tile-mod" title="Moderação" aria-label={`Moderação de ${person?.displayName || 'participante'}`}
+          onClick={(e) => openMenu(e, menuItems)}
+        >
+          ⋯
+        </button>
+      )}
 
       {!isMe && !connecting && (
         <VolumeControl name={person?.displayName || 'participante'} volume={volume} onVolume={onVolume} />
@@ -404,10 +428,11 @@ function StageView({ roles, members, channel, memberFor }) {
           {speakers.map((uid) => {
             const isMe = uid === user.id;
             const person = isMe ? user : memberFor(uid);
-            const state = isMe ? { muted, video: cameraOn, speaking: localSpeaking } : (participants[uid] || {});
+            const state = isMe ? { muted, video: cameraOn, speaking: localSpeaking, serverMuted: voice.serverMuted, serverDeafened: voice.serverDeafened } : (participants[uid] || {});
             return (
               <PersonTile
                 key={uid} uid={uid} person={person} isMe={isMe} state={state} connecting={false}
+                menuItems={buildVoiceModerationItems({ voice, channelId: channel.id, target: { userId: uid, ...state }, myPerms, myUserId: user.id })}
                 cameraStream={isMe ? voice.localCameraStream : remoteCameraStreams[uid]}
                 volume={volumes[uid] ?? 1} onVolume={(v) => voice.setParticipantVolume(uid, v)}
                 quality={voice.netQuality?.[uid]}

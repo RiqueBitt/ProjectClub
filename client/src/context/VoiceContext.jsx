@@ -3,10 +3,10 @@ import { useAuth } from './AuthContext.jsx';
 import { useSocket } from './SocketContext.jsx';
 import { useStore } from '../store/useStore';
 import { playSound, playEntrySound } from '../utils/sounds';
-import { getExtra } from '../utils/extraPrefs';
+import { getExtra, useExtra } from '../utils/extraPrefs';
 import { getPreferredMicId, setPreferredMicId } from '../utils/audioDevices';
 import { getVoiceJoin, reportVoiceProvider } from '../api/endpoints';
-import { createFailureMemory, failureCode, withTimeout } from '../voice/resilience.js';
+import { createFailureMemory, failureCode, withTimeout, isProviderFailure } from '../voice/resilience.js';
 import { getVoicePref, onVoicePrefsChange, setVoicePref, makeReactionRateLimiter, isValidReaction } from '../utils/voicePrefs';
 import { buildScreenShareConfig, SCREEN_QUALITY_PRESETS } from '../utils/screenShareTracks';
 // Cadeia de provedores de mídia (servidor próprio → LiveKit → ... → Jitsi) —
@@ -41,6 +41,9 @@ async function getBackgroundMode() {
 async function startCallForegroundService(channelName) {
   // Atualização automática do app não recarrega a página no meio de uma call.
   window.__pcInCall = true;
+  // App de PC (Electron): avisa que há chamada — o processo principal não
+  // deixa o sistema suspender/estrangular a janela no meio da call.
+  try { window.electronAPI?.setVoiceCallActive?.(true); } catch { /* fora do Electron */ }
   try {
     const bm = await getBackgroundMode();
     if (!bm) return;
@@ -72,6 +75,7 @@ async function startCallForegroundService(channelName) {
 
 async function stopCallForegroundService() {
   window.__pcInCall = false;
+  try { window.electronAPI?.setVoiceCallActive?.(false); } catch { /* fora do Electron */ }
   try {
     const bm = await getBackgroundMode();
     if (!bm) return;
@@ -143,7 +147,28 @@ export function VoiceProvider({ children }) {
   useEffect(() => { mutedRef.current = muted; }, [muted]);
 
   const [micMissing, setMicMissing] = useState(false);
+  const micMissingRef = useRef(false);
+  useEffect(() => { micMissingRef.current = micMissing; }, [micMissing]);
   const [deafened, setDeafened] = useState(false);
+  // Ref do ensurdecer (lida por listeners/callbacks sem re-registrar nada).
+  const deafenedRef = useRef(false);
+  useEffect(() => { deafenedRef.current = deafened; }, [deafened]);
+  // Mudo de antes de ensurdecer: desensurdecer volta pra ele (igual ao Discord).
+  const mutedBeforeDeafenRef = useRef(false);
+  // Mudo FORÇADO pelo palco (plateia): não vale pro próximo canal.
+  const roleMutedRef = useRef(false);
+  // Mudo/ensurdecer DA MODERAÇÃO (servidor), separado do meu próprio mudo.
+  const [serverMod, setServerMod] = useState({ serverMuted: false, serverDeafened: false });
+  const serverModRef = useRef(serverMod);
+  // "Mover para…" de um moderador em andamento ({ to, at }).
+  const forceMoveRef = useRef(null);
+  // Entrada que falhou SEM ser culpa do provedor (canal cheio, abortada,
+  // sem internet): não troca de provedor nem reporta falha.
+  const joinStopRef = useRef(null);
+  // Nível do microfone (~10/s, vindo do engine) pra quem quiser desenhar
+  // um medidor — por assinatura, sem re-renderizar o contexto inteiro.
+  const micLevelListenersRef = useRef(new Set());
+  const micMeterOnRef = useRef(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [screenOn, setScreenOn] = useState(false);
   const entrySoundSentRef = useRef(null);
@@ -257,12 +282,32 @@ export function VoiceProvider({ children }) {
   const [engineLocalScreenStream, setEngineLocalScreenStream] = useState(null);
   // Captura de tela nativa do app Android (Capacitor) em andamento.
   const androidScreenTrackRef = useRef(null);
-  // Portão do microfone: apertar-pra-falar (ptt) e sensibilidade de entrada
-  // (sens). Aberto só quando os dois deixam — ver os efeitos lá embaixo.
-  const micGateRef = useRef({ ptt: true, sens: true });
-  const applyMicGate = useCallback(() => {
-    const g = micGateRef.current;
-    try { engineRef.current?.setMicGate?.(g.ptt && g.sens); } catch { /* engine sem portão */ }
+  // Portão do microfone: apertar-pra-falar e sensibilidade de entrada vivem
+  // NO ENGINE (voice/micGate.js + micPipeline.js — um pipeline de áudio só);
+  // aqui só passamos as preferências. Engine sem portão (Jitsi/LiveKit):
+  // ignora.
+  const applyEngineMicConfig = useCallback((engine = engineRef.current) => {
+    if (!engine) return;
+    const p = getExtra();
+    try { engine.setPushToTalk?.(getVoicePref('pushToTalkEnabled') === true, { releaseDelayMs: 200 }); } catch { /* engine sem PTT */ }
+    try {
+      engine.setInputSensitivity?.(p.sensitivityAuto === false ? { auto: false, db: Number.isFinite(p.sensitivityDb) ? p.sensitivityDb : -60 } : { auto: true });
+    } catch { /* engine sem sensibilidade */ }
+  }, []);
+  // Mudo/ensurdecer da moderação (servidor): atualiza a tela e avisa.
+  const applyServerMod = useCallback((next = {}) => {
+    const prev = serverModRef.current;
+    const merged = {
+      serverMuted: typeof next.serverMuted === 'boolean' ? next.serverMuted : prev.serverMuted,
+      serverDeafened: typeof next.serverDeafened === 'boolean' ? next.serverDeafened : prev.serverDeafened,
+    };
+    if (merged.serverMuted === prev.serverMuted && merged.serverDeafened === prev.serverDeafened) return;
+    serverModRef.current = merged;
+    setServerMod(merged);
+    if (!callRef.current) return;
+    if (merged.serverDeafened && !prev.serverDeafened) useStore.getState().pushNotice('Você foi ensurdecido no servidor por um moderador.');
+    else if (merged.serverMuted && !prev.serverMuted) useStore.getState().pushNotice('Você foi silenciado no servidor por um moderador.');
+    else if (!merged.serverMuted && !merged.serverDeafened) useStore.getState().pushNotice('A moderação liberou seu microfone.');
   }, []);
   // Item pedido: "bug de clique duplo" nos botões — mudo/câmera/tela são
   // funções assíncronas (esperam o engine responder); clicar rápido demais
@@ -383,6 +428,7 @@ export function VoiceProvider({ children }) {
     setJitsiNode(null);
     setEngineLocalCameraStream(null);
     setEngineLocalScreenStream(null);
+    if (micMeterOnRef.current) { micMeterOnRef.current = false; setMicMeterOn(false); }
     try { engine.dispose(); } catch { /* já foi */ }
   }, []);
 
@@ -418,12 +464,38 @@ export function VoiceProvider({ children }) {
           leaveChannelRef.current?.();
           return;
         }
+        if (reason === 'full') {
+          useStore.getState().pushNotice('Canal cheio');
+          leaveChannelRef.current?.();
+          return;
+        }
+        if (reason === 'kicked') {
+          const detail = info?.detail;
+          // Movido por um moderador: o voice:force-move (socket) troca de
+          // canal. Se ele não chegar logo, sai.
+          if (detail === 'moved') {
+            setTimeout(() => {
+              const fm = forceMoveRef.current;
+              if (fm && Date.now() - fm.at < 8000) return;
+              if (engineRef.current === engine || !engineRef.current) leaveChannelRef.current?.();
+            }, 3000);
+            return;
+          }
+          if (detail === 'missed') { leaveChannelRef.current?.(); return; }
+          useStore.getState().pushNotice('Você foi desconectado da chamada por um moderador.');
+          leaveChannelRef.current?.();
+          return;
+        }
         if ((reason === 'token' || reason === 'gave-up' || reason === 'closed') && callRef.current) {
           engineRef.current = null;
           setRemoteAudioStreams({});
           setRemoteVideoStreams({});
           setReconnecting(null);
-          requestMediaRecoveryRef.current?.({ failed: reason === 'gave-up' ? prov : null, code: reason, mediaGone: true });
+          // Caiu por falta de internet / limite de tentativas: NÃO é falha do
+          // provedor (não marca nem reporta) — só refaz a mídia.
+          const providerFault = reason === 'gave-up' && isProviderFailure(info);
+          if (!providerFault && reason === 'gave-up' && info?.network) useStore.getState().pushNotice('Sua internet caiu — reconectando a chamada…');
+          requestMediaRecoveryRef.current?.({ failed: providerFault ? prov : null, code: reason, mediaGone: true });
           return;
         }
         leaveChannelRef.current?.();
@@ -460,11 +532,10 @@ export function VoiceProvider({ children }) {
       },
       onRtt: (rtt) => { const r = Math.round(rtt / 5) * 5; setMyRtt((prev) => (prev === r ? prev : r)); },
       // Fala: espelha no MEU anel verde e reemite pros outros pelo nosso
-      // socket. Com o portão do microfone fechado (apertar-pra-falar sem a
-      // tecla), não conta como falando.
+      // socket. O engine próprio já desconta mudo/portão fechado
+      // (apertar-pra-falar sem a tecla, abaixo da sensibilidade).
       onLocalSpeaking: (raw) => {
-        const g = micGateRef.current;
-        const speaking = !!raw && g.ptt && g.sens;
+        const speaking = !!raw;
         if (speaking) localSoundAtRef.current = Date.now();
         if (localSpeakingRef.current === speaking) return;
         localSpeakingRef.current = speaking;
@@ -475,7 +546,19 @@ export function VoiceProvider({ children }) {
         const uidStr = String(uid);
         setParticipants((s) => (s[uidStr] && !!s[uidStr].speaking !== speaking ? { ...s, [uidStr]: { ...s[uidStr], speaking } } : s));
       },
-      onSelfMute: (m) => { setMuted(m); if (!m) setMicMissing(false); broadcastState({ muted: m }); },
+      onSelfMute: (m) => { mutedRef.current = m; setMuted(m); if (!m) setMicMissing(false); broadcastState({ muted: m }); },
+      // Nível do microfone (engine próprio): liga o aviso "microfone sem som"
+      // e alimenta quem assinou (subscribeMicLevel).
+      onLocalLevel: (level, info) => {
+        if (info && info.db > -70) localSoundAtRef.current = Date.now();
+        if (!micMeterOnRef.current) { micMeterOnRef.current = true; setMicMeterOn(true); }
+        micLevelListenersRef.current.forEach((fn) => { try { fn(level, info); } catch { /* ok */ } });
+      },
+      // Estado imposto pelo servidor de mídia (mudo/ensurdecer da moderação).
+      onServerState: (st) => { if (st) applyServerMod({ serverMuted: !!st.serverMuted, serverDeafened: !!st.serverDeafened }); },
+      // Erro de câmera/tela com mensagem amigável (seletor fechado = nada).
+      onMediaError: ({ reason, cancelled } = {}) => { if (!cancelled && reason) useStore.getState().pushNotice(reason); },
+      onTelemetry: (t) => { console.info('[voz] telemetria do engine:', t); },
       onSelfCamera: (on) => { setCameraOn(on); broadcastState({ video: on }); },
       onSelfScreen: (on) => { setScreenOn(on); broadcastState({ screenSharing: on }); },
       onError: (ev, payload) => { console.error('[voz] engine de voz reportou um erro:', ev, payload); },
@@ -500,8 +583,8 @@ export function VoiceProvider({ children }) {
       return false;
     }
     engineRef.current = engine;
-    // Portão do microfone (apertar-pra-falar) vale desde o primeiro instante.
-    applyMicGate();
+    // Apertar-pra-falar e sensibilidade valem desde o primeiro instante.
+    applyEngineMicConfig(engine);
     // Jitsi tem um nó de iframe que ancoramos no host persistente; os demais
     // não têm nó (getNode()=null) — a grade é a nossa.
     const node = engine.getNode?.();
@@ -510,8 +593,10 @@ export function VoiceProvider({ children }) {
     // Zera o auto-retrato local do engine anterior.
     setEngineLocalCameraStream(null);
     setEngineLocalScreenStream(null);
+    joinStopRef.current = null;
     try {
-      const startMuted = isSwitch ? mutedRef.current : false;
+      // Mudo/ensurdecido continuam valendo ao trocar de canal (igual ao Discord).
+      const startMuted = mutedRef.current || deafenedRef.current;
       if (prov === 'jitsi') {
         // Jitsi é a reserva final: sem tempo limite (o iframe demora mais).
         await engine.join({ room: creds.room, jwt: creds.jwt, displayName: user?.displayName, startMuted });
@@ -520,6 +605,8 @@ export function VoiceProvider({ children }) {
       } else {
         await withTimeout(engine.join({
           ...creds, userId: user?.id, displayName: user?.displayName, startMuted,
+          // Ensurdecido: o servidor nem manda o áudio dos outros (economia de banda).
+          startDeafened: deafenedRef.current,
           // Redutor de ruído (RNNoise) no engine próprio.
           noiseSuppression: getVoicePref('noiseReduction') !== false,
           micDeviceId: getPreferredMicId() || null,
@@ -537,6 +624,15 @@ export function VoiceProvider({ children }) {
       console.error(`[voz] Falha ao conectar no provedor ${prov}:`, err);
       if (engineRef.current === engine) teardownEngine();
       else { try { engine.dispose(); } catch { /* ok */ } }
+      // Canal cheio / entrada abortada / sem internet / expulso: NÃO é falha
+      // do provedor — não reporta nem pula pro próximo da cadeia.
+      if (!isProviderFailure(err)) {
+        joinStopRef.current = err?.code || 'aborted';
+        if (err?.code === 'channel-full') useStore.getState().pushNotice('Canal cheio');
+        else if (err?.code === 'offline') useStore.getState().pushNotice('Sem internet — conecte-se e tente entrar de novo.');
+        else if (err?.code === 'rate-limited') useStore.getState().pushNotice('Muitas tentativas seguidas — aguarde alguns segundos e tente de novo.');
+        return false;
+      }
       const msg = reportVoiceFailure(prov, err, channelId);
       if (!quiet) useStore.getState().pushNotice(msg);
       return false;
@@ -560,7 +656,7 @@ export function VoiceProvider({ children }) {
     // independe do provedor de mídia.
     socket?.emit('voice:join', { channelId });
     return true;
-  }, [socket, user?.id, user?.displayName, broadcastState, ensureJitsiHost, teardownEngine, readyProviders, applyMicGate]);
+  }, [socket, user?.id, user?.displayName, broadcastState, ensureJitsiHost, teardownEngine, readyProviders, applyEngineMicConfig, applyServerMod]);
   const connectEngineRef = useRef(connectEngine);
   useEffect(() => { connectEngineRef.current = connectEngine; }, [connectEngine]);
 
@@ -613,6 +709,8 @@ export function VoiceProvider({ children }) {
 
         const ok = await connectEngine({ serverId, channelId, channelName, channelType, provider: creds.provider, creds: creds[creds.provider], isSwitch: false, quiet: !last });
         if (ok || joiningChannelIdRef.current !== channelId || creds.provider === 'jitsi') return;
+        // Canal cheio / abortada / sem internet: o aviso já saiu; não troca de provedor.
+        if (joinStopRef.current) return;
         failureMemoryRef.current.mark(creds.provider);
         ready = ready.filter((p) => p !== creds.provider);
       }
@@ -662,8 +760,11 @@ export function VoiceProvider({ children }) {
     callRef.current = null;
     setParticipants({});
     setHandsRaised({});
-    setMuted(false);
-    setDeafened(false);
+    // Mudo/ensurdecido PERSISTEM entre canais (igual ao Discord). Só o mudo
+    // forçado (plateia do palco / sem microfone) não vai junto.
+    if (roleMutedRef.current || micMissingRef.current) { roleMutedRef.current = false; mutedRef.current = false; setMuted(false); }
+    serverModRef.current = { serverMuted: false, serverDeafened: false };
+    setServerMod(serverModRef.current);
     setCameraOn(false);
     setScreenOn(false);
     setMyRole('speaker');
@@ -686,28 +787,54 @@ export function VoiceProvider({ children }) {
     if (toggleMuteBusyRef.current) return;
     toggleMuteBusyRef.current = true;
     try {
-      if (callRef.current?.channelType === 'STAGE' && myRole === 'audience') return;
+      const wantUnmute = mutedRef.current; // mutado agora => quero desmutar
+      if (wantUnmute && callRef.current?.channelType === 'STAGE' && myRole === 'audience') return;
+      if (wantUnmute && serverModRef.current.serverMuted) useStore.getState().pushNotice('Você foi silenciado no servidor por um moderador.');
+      const engine = callRef.current ? engineRef.current : null;
+      // Desmutar estando ensurdecido também desensurdece (igual ao Discord).
+      if (wantUnmute && deafenedRef.current) {
+        if (serverModRef.current.serverDeafened) { useStore.getState().pushNotice('Você foi ensurdecido no servidor por um moderador.'); return; }
+        deafenedRef.current = false;
+        mutedBeforeDeafenRef.current = false;
+        setDeafened(false);
+        try { await engine?.setDeafened?.(false); } catch { /* engine sem ensurdecer no servidor */ }
+        broadcastState({ deafened: false });
+      }
+      // Fora de uma chamada: só guarda a escolha (vale na próxima entrada).
+      if (!engine) { mutedRef.current = !wantUnmute; setMuted(!wantUnmute); return; }
       // O microfone é controlado pelo engine; o estado real volta pelo
       // callback onSelfMute (que atualiza `muted` + avisa os outros via
-      // socket). Sem microfone ainda (negado/ausente ao entrar), o engine
-      // tenta de novo.
-      await engineRef.current?.setMicEnabled(mutedRef.current); // mutado agora => quero desmutar
+      // socket). A trava só solta DEPOIS do engine responder (clique duplo).
+      await engine.setMicEnabled(wantUnmute);
     } finally {
       toggleMuteBusyRef.current = false;
     }
-  }, [myRole]);
+  }, [myRole, broadcastState]);
 
-  const toggleDeafen = useCallback(() => {
-    setDeafened((prev) => {
-      const next = !prev;
-      // O áudio que CHEGA já é zerado pelo AudioSink (CallBar.jsx) através do
-      // estado `deafened` (no Jitsi ele toca dentro do iframe). Ensurdecer
-      // também muta o próprio microfone, mantendo o estado coerente.
-      if (next) { engineRef.current?.setMicEnabled(false); setMuted(true); }
-      broadcastState({ deafened: next, muted: next ? true : muted });
-      return next;
-    });
-  }, [broadcastState, muted]);
+  const toggleDeafenBusyRef = useRef(false);
+  const toggleDeafen = useCallback(async () => {
+    if (toggleDeafenBusyRef.current) return;
+    toggleDeafenBusyRef.current = true;
+    try {
+      const next = !deafenedRef.current;
+      if (!next && serverModRef.current.serverDeafened) { useStore.getState().pushNotice('Você foi ensurdecido no servidor por um moderador.'); return; }
+      const engine = callRef.current ? engineRef.current : null;
+      // Ensurdecer guarda o mudo de antes; desensurdecer volta pra ele.
+      if (next) mutedBeforeDeafenRef.current = mutedRef.current;
+      const nextMuted = next ? true : mutedBeforeDeafenRef.current;
+      deafenedRef.current = next;
+      setDeafened(next);
+      // O áudio que CHEGA é zerado pelo AudioSink (estado `deafened`); o
+      // engine próprio também pede pro servidor parar de mandar (banda).
+      try { await engine?.setDeafened?.(next); } catch { /* engine sem ensurdecer no servidor */ }
+      if (engine && nextMuted !== mutedRef.current) await engine.setMicEnabled(!nextMuted);
+      mutedRef.current = nextMuted;
+      setMuted(nextMuted);
+      broadcastState({ deafened: next, muted: nextMuted });
+    } finally {
+      toggleDeafenBusyRef.current = false;
+    }
+  }, [broadcastState]);
 
   const toggleCamera = useCallback(async () => {
     if (toggleCameraBusyRef.current) return;
@@ -766,10 +893,11 @@ export function VoiceProvider({ children }) {
           if (!mediaStreamTrack) return; // pessoa negou a permissão do sistema
           androidScreenTrackRef.current = mediaStreamTrack;
           const stream = await engine.setScreen(true, { track: mediaStreamTrack, audio: false });
-          if (!stream) throw new Error('engine não publicou a tela');
+          if (!stream) throw Object.assign(new Error('engine não publicou a tela'), { notified: true });
           setEngineLocalScreenStream(stream);
         } catch (err) {
-          useStore.getState().pushNotice('Não foi possível compartilhar a tela.');
+          // O engine próprio já avisou o motivo (onMediaError).
+          if (!err?.notified) useStore.getState().pushNotice('Não foi possível compartilhar a tela.');
           stopAndroidScreenShare();
           androidScreenTrackRef.current = null;
         }
@@ -865,13 +993,52 @@ export function VoiceProvider({ children }) {
 
   const stepDownFromStage = useCallback(() => setParticipantRole(user?.id, 'audience'), [setParticipantRole, user?.id]);
 
+  // ---------- Moderação de voz do servidor (igual ao Discord) ----------
+  // O servidor confere a permissão (no canal) e a hierarquia de cargos e
+  // aplica NA MÍDIA também; aqui só manda e mostra o erro, se houver.
+  const runModeration = useCallback((event, payload) => new Promise((resolve) => {
+    if (!socket?.connected) { useStore.getState().pushNotice('Sem conexão com o servidor.'); resolve({ ok: false }); return; }
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      useStore.getState().pushNotice('O servidor não respondeu — tente de novo.');
+      resolve({ ok: false });
+    }, 8000);
+    socket.emit(event, payload, (r) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      if (!r?.ok) useStore.getState().pushNotice(r?.error || 'Não foi possível concluir a ação.');
+      resolve(r || { ok: false });
+    });
+  }), [socket]);
+  const serverMuteMember = useCallback((targetUserId, mutedFlag, channelId = callRef.current?.channelId) => (
+    runModeration('voice:server-mute', { channelId, userId: targetUserId, muted: !!mutedFlag })
+  ), [runModeration]);
+  const serverDeafenMember = useCallback((targetUserId, deafFlag, channelId = callRef.current?.channelId) => (
+    runModeration('voice:server-deafen', { channelId, userId: targetUserId, deafened: !!deafFlag })
+  ), [runModeration]);
+  const moveMember = useCallback((targetUserId, toChannelId, channelId = callRef.current?.channelId) => (
+    runModeration('voice:move', { channelId, userId: targetUserId, toChannelId })
+  ), [runModeration]);
+  const disconnectMember = useCallback((targetUserId, channelId = callRef.current?.channelId) => (
+    runModeration('voice:disconnect', { channelId, userId: targetUserId })
+  ), [runModeration]);
+  // Medidor do microfone por assinatura (fn(level0a1, { db, gateOpen, transmitting })).
+  const subscribeMicLevel = useCallback((fn) => {
+    if (typeof fn !== 'function') return () => {};
+    micLevelListenersRef.current.add(fn);
+    return () => { micLevelListenersRef.current.delete(fn); };
+  }, []);
+
   // Refs pros listeners abaixo: antes o efeito dependia de `deafened` e
   // `joinChannel`, então TODOS os listeners eram removidos e recolocados a
   // cada ensurdecer/desensurdecer — e a marca "caiu a conexão" (usada pra
   // reentrar sozinho na chamada ao reconectar) era zerada junto, fazendo
   // a reentrada automática se perder.
-  const deafenedRef = useRef(deafened);
-  useEffect(() => { deafenedRef.current = deafened; }, [deafened]);
+  const applyServerModRef = useRef(applyServerMod);
+  useEffect(() => { applyServerModRef.current = applyServerMod; }, [applyServerMod]);
   const joinChannelRef = useRef(joinChannel);
   useEffect(() => { joinChannelRef.current = joinChannel; }, [joinChannel]);
   const sawDisconnectRef = useRef(false);
@@ -904,7 +1071,9 @@ export function VoiceProvider({ children }) {
       if (role) {
         setMyRole(role);
         if (role === 'audience') {
+          if (!mutedRef.current) roleMutedRef.current = true;
           engineRef.current?.setMicEnabled(false);
+          mutedRef.current = true;
           setMuted(true);
         }
       }
@@ -959,10 +1128,14 @@ export function VoiceProvider({ children }) {
         setMyRole(role);
         setHandsRaised((s) => ({ ...s, [user.id]: false }));
         if (role === 'audience') {
+          if (!mutedRef.current) roleMutedRef.current = true;
           engineRef.current?.setMicEnabled(false);
+          mutedRef.current = true;
           setMuted(true);
         } else if (role === 'speaker' && !deafenedRef.current) {
+          roleMutedRef.current = false;
           engineRef.current?.setMicEnabled(true);
+          mutedRef.current = false;
           setMuted(false);
         }
       }
@@ -1069,6 +1242,41 @@ export function VoiceProvider({ children }) {
     const onDmCallEnded = ({ conversationId }) => {
       setIncomingCall((c) => (c && c.conversationId === conversationId ? null : c));
     };
+    // Moderação do servidor (ver server/src/sockets/index.js).
+    const onServerState = ({ channelId, serverMuted, serverDeafened }) => {
+      if (callRef.current?.channelId !== channelId) return;
+      applyServerModRef.current?.({ serverMuted: !!serverMuted, serverDeafened: !!serverDeafened });
+    };
+    const findChannel = (id) => {
+      const s = useStore.getState();
+      return [...(s.channels || []), ...(s.categories || []).flatMap((c) => c.channels || [])].find((c) => c && c.id === id) || null;
+    };
+    const onForceMove = ({ channelId: toId, fromChannelId }) => {
+      const current = callRef.current;
+      if (!current || !toId || (fromChannelId && current.channelId !== fromChannelId)) return;
+      forceMoveRef.current = { to: toId, at: Date.now() };
+      const ch = findChannel(toId);
+      useStore.getState().pushNotice(`Um moderador moveu você para ${ch?.name || 'outro canal'}.`);
+      joinChannelRef.current?.(current.serverId, toId, ch?.name || 'Canal de voz', ch?.type || 'VOICE');
+    };
+    const onForceDisconnect = ({ channelId }) => {
+      if (callRef.current?.channelId !== channelId) return;
+      useStore.getState().pushNotice('Você foi desconectado da chamada por um moderador.');
+      leaveChannelRef.current?.();
+    };
+    // Atendeu em OUTRO aparelho: este para de tocar.
+    const onDmCallAnswered = ({ conversationId }) => {
+      setIncomingCall((c) => (c && c.conversationId === conversationId ? null : c));
+    };
+    // 60s sem resposta: a chamada termina como perdida (os dois lados).
+    const onDmCallMissed = ({ conversationId, channelId }) => {
+      setIncomingCall((c) => (c && c.conversationId === conversationId ? null : c));
+      const cid = channelId || `dm:${conversationId}`;
+      if (callRef.current?.channelId === cid) {
+        useStore.getState().pushNotice('Ninguém atendeu a chamada.');
+        leaveChannelRef.current?.();
+      }
+    };
     const onAfkMove = ({ channelId, channelName }) => {
       if (!callRef.current) return;
       joinChannelRef.current?.(callRef.current.serverId, channelId, channelName, 'VOICE');
@@ -1121,6 +1329,11 @@ export function VoiceProvider({ children }) {
     socket.on('dm-call:declined', onDmCallDeclined);
     socket.on('dm-call:ended', onDmCallEnded);
     socket.on('voice:afk-move', onAfkMove);
+    socket.on('voice:server-state', onServerState);
+    socket.on('voice:force-move', onForceMove);
+    socket.on('voice:force-disconnect', onForceDisconnect);
+    socket.on('dm-call:answered', onDmCallAnswered);
+    socket.on('dm-call:missed', onDmCallMissed);
     socket.on('voice:rosters', onRosters);
     socket.on('voice:not-in-room', onNotInRoom);
     socket.on('connect', onSocketConnect);
@@ -1151,6 +1364,11 @@ export function VoiceProvider({ children }) {
       socket.off('dm-call:declined', onDmCallDeclined);
       socket.off('dm-call:ended', onDmCallEnded);
       socket.off('voice:afk-move', onAfkMove);
+      socket.off('voice:server-state', onServerState);
+      socket.off('voice:force-move', onForceMove);
+      socket.off('voice:force-disconnect', onForceDisconnect);
+      socket.off('dm-call:answered', onDmCallAnswered);
+      socket.off('dm-call:missed', onDmCallMissed);
       socket.off('voice:rosters', onRosters);
       socket.off('voice:not-in-room', onNotInRoom);
       socket.off('connect', onSocketConnect);
@@ -1266,6 +1484,17 @@ export function VoiceProvider({ children }) {
             ok = false;
           }
           if (cancelled) return;
+          if (!ok && joinStopRef.current) {
+            const why = joinStopRef.current;
+            joinStopRef.current = null;
+            // Canal cheio / expulso: sai. Sem internet / abortada / limite:
+            // não marca o provedor como ruim — espera e tenta de novo.
+            if (why === 'channel-full' || why === 'kicked' || why === 'replaced') { tornDown = false; leaveChannelRef.current?.(); return; }
+            await new Promise((r) => { setTimeout(r, 3000); });
+            if (cancelled || callRef.current?.channelId !== current.channelId) return;
+            force = true;
+            continue;
+          }
           if (ok) {
             switched = true;
             if (isReserveMode(target) && target !== before) {
@@ -1334,33 +1563,41 @@ export function VoiceProvider({ children }) {
   // escolhida está pressionada (portão do engine — setMicGate). Ao desligar
   // o modo, volta pro estado normal (aberto, a não ser que você tenha mutado
   // na mão). Provedor sem portão (Jitsi/LiveKit): fica desligado.
+  // Preferências de sensibilidade (Configurações → Voz e vídeo) — reativas.
+  const sensitivityAuto = useExtra('sensitivityAuto');
+  const sensitivityDb = useExtra('sensitivityDb');
+  useEffect(() => {
+    if (!callChannelId) return;
+    applyEngineMicConfig();
+  }, [callChannelId, provider, pttEnabled, sensitivityAuto, sensitivityDb, applyEngineMicConfig]);
+
+  // Tecla do apertar-pra-falar: o portão (com 200ms de folga ao soltar) é do
+  // engine (setPushToTalk/setPttPressed). Aqui: teclado, som e o "mudo" que
+  // os outros veem. Engine sem PTT (Jitsi/LiveKit): fica desligado.
   useEffect(() => {
     if (!callChannelId) return undefined;
-    const supported = () => typeof engineRef.current?.setMicGate === 'function';
+    const supported = () => typeof engineRef.current?.setPttPressed === 'function';
     const setTalking = (on) => {
       if (pttTalkingRef.current === on) return;
       pttTalkingRef.current = on;
       setPttTalking(on);
       playSound(on ? 'pttActivate' : 'pttDeactivate', 0.3);
-      micGateRef.current.ptt = on;
-      applyMicGate();
+      try { engineRef.current?.setPttPressed?.(on); } catch { /* engine trocou */ }
       // Os outros veem seu mudo refletir a tecla (igual a mutar/desmutar).
       socket?.emit('voice:state', { channelId: callChannelId, muted: !on || mutedRef.current });
-      socket?.emit('voice:speaking', { channelId: callChannelId, speaking: false });
+      if (!on) socket?.emit('voice:speaking', { channelId: callChannelId, speaking: false });
     };
     if (!pttEnabled || !supported()) {
-      // Fora do modo: portão aberto (vale o mudo manual).
-      if (pttTalkingRef.current) { pttTalkingRef.current = false; setPttTalking(false); }
-      if (!micGateRef.current.ptt) {
-        micGateRef.current.ptt = true;
-        applyMicGate();
+      // Fora do modo: vale o mudo manual.
+      if (pttTalkingRef.current) {
+        pttTalkingRef.current = false;
+        setPttTalking(false);
         if (!mutedRef.current) socket?.emit('voice:state', { channelId: callChannelId, muted: false });
       }
       return undefined;
     }
-    // Entrou no modo: fecha o mic até segurar a tecla.
-    micGateRef.current.ptt = false;
-    applyMicGate();
+    // Entrou no modo: o engine fecha o mic até segurar a tecla.
+    try { engineRef.current?.setPttPressed?.(false); } catch { /* ok */ }
     socket?.emit('voice:state', { channelId: callChannelId, muted: true });
 
     const key = getVoicePref('pushToTalkKey') || 'Space';
@@ -1380,80 +1617,14 @@ export function VoiceProvider({ children }) {
       window.removeEventListener('keyup', onUp);
       window.removeEventListener('blur', onBlur);
     };
-  }, [pttEnabled, callChannelId, micMissing, socket, provider, applyMicGate]);
+  }, [pttEnabled, callChannelId, micMissing, socket, provider]);
 
   // ---------- Nível do microfone + sensibilidade de entrada ----------
-  // Mede o nível da captura CRUA do microfone (antes do portão) pra dois
-  // usos: o aviso "microfone sem som" (getMicLastSoundAt) e a sensibilidade
-  // manual de Configurações → Voz e vídeo — com "Determinar automaticamente"
-  // desligado, o microfone só vai ao ar quando o volume passa do limite
-  // escolhido (em dB); abaixo disso o portão fecha (com 300 ms de folga pra
-  // não cortar palavras). Só no engine com portão (servidor próprio); se o
-  // navegador não deixar o AudioContext rodar, o portão fica sempre aberto.
-  useEffect(() => {
-    if (!callChannelId || provider !== 'projectclub') return undefined;
-    const AudioCtx = typeof window !== 'undefined' ? (window.AudioContext || window.webkitAudioContext) : null;
-    if (!AudioCtx) return undefined;
-    let ctx = null;
-    let analyser = null;
-    let source = null;
-    let meterTrack = null;
-    let sourceOf = null;
-    let buf = null;
-    let quietSince = 0;
-    let meterOn = false;
-    const setSens = (on) => {
-      if (micGateRef.current.sens === on) return;
-      micGateRef.current.sens = on;
-      applyMicGate();
-    };
-    const attach = (raw) => {
-      try { source?.disconnect(); } catch { /* ok */ }
-      try { meterTrack?.stop(); } catch { /* ok */ }
-      source = null; meterTrack = null; sourceOf = raw;
-      if (!raw) return;
-      // Clone: o portão/mudo desligam a faixa publicada, não esta.
-      meterTrack = raw.clone();
-      meterTrack.enabled = true;
-      source = ctx.createMediaStreamSource(new MediaStream([meterTrack]));
-      source.connect(analyser);
-    };
-    try {
-      ctx = new AudioCtx();
-      analyser = ctx.createAnalyser();
-      analyser.fftSize = 1024;
-      buf = new Float32Array(analyser.fftSize);
-      ctx.resume?.().catch(() => {});
-    } catch { return undefined; }
-    const timer = setInterval(() => {
-      const engine = engineRef.current;
-      const raw = engine?.getLocalMicTrack?.({ raw: true }) || null;
-      if (raw !== sourceOf) { try { attach(raw); } catch { sourceOf = raw; } }
-      const running = ctx.state === 'running' && !!source;
-      if (meterOn !== running) { meterOn = running; setMicMeterOn(running); }
-      if (!running) { setSens(true); quietSince = 0; return; }
-      analyser.getFloatTimeDomainData(buf);
-      let sum = 0;
-      for (let i = 0; i < buf.length; i += 1) sum += buf[i] * buf[i];
-      const rms = Math.sqrt(sum / buf.length);
-      const db = rms > 0 ? 20 * Math.log10(rms) : -100;
-      if (db > -70) localSoundAtRef.current = Date.now();
-      const p = getExtra();
-      if (p.sensitivityAuto !== false || pttTalkingRef.current) { setSens(true); quietSince = 0; return; }
-      if (db >= (p.sensitivityDb ?? -60)) { quietSince = 0; setSens(true); return; }
-      if (!quietSince) quietSince = Date.now();
-      if (Date.now() - quietSince > 300) setSens(false);
-    }, 60);
-    return () => {
-      clearInterval(timer);
-      try { source?.disconnect(); } catch { /* ok */ }
-      try { meterTrack?.stop(); } catch { /* ok */ }
-      try { ctx?.close(); } catch { /* ok */ }
-      setMicMeterOn(false);
-      micGateRef.current.sens = true;
-      applyMicGate();
-    };
-  }, [callChannelId, provider, applyMicGate]);
+  // Medidos NO ENGINE (pipeline único do mic, voice/micPipeline.js): ele
+  // manda onLocalLevel (~10/s) — que liga o aviso "microfone sem som"
+  // (getMicLastSoundAt) — e aplica a sensibilidade escolhida
+  // (applyEngineMicConfig). Se o navegador não deixar o Web Audio rodar, o
+  // portão por voz fica sempre aberto (nunca muda a pessoa sem saber).
 
   // ---------- Aviso "sua conexão está instável" (D) ----------
   // Só pra VOCÊ: quando a sua qualidade de rede (0-6) fica ruim
@@ -1500,6 +1671,10 @@ export function VoiceProvider({ children }) {
   return (
     <VoiceContext.Provider value={{
       call, muted, micMissing, deafened, cameraOn, screenOn, participants: shownParticipants, roster, rosterStartedAt, rosterSpeaking, myRole, handsRaised,
+      // Mudo/ensurdecer da moderação (servidor) e as ações de moderação.
+      serverMuted: serverMod.serverMuted, serverDeafened: serverMod.serverDeafened,
+      serverMuteMember, serverDeafenMember, moveMember, disconnectMember,
+      subscribeMicLevel,
       localSpeaking, joiningChannelId,
       remoteCameraStreams, remoteScreenStreams, remoteAudioStreams, volumes, getInboundAudioBytes,
       // Auto-retrato local (MediaStream devolvido pelo engine).

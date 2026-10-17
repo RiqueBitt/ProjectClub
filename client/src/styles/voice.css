@@ -100,6 +100,16 @@
   background: rgba(0, 0, 0, .55); backdrop-filter: blur(6px); color: #fff; font-size: 13px; font-weight: 600;
 }
 .vc-label-muted { display: inline-flex; color: #ff8a8d; }
+/* Silenciado/ensurdecido pela moderação (servidor): vermelho cheio. */
+.vc-label-servermuted { color: #fff; background: var(--red, #ed4245); border-radius: 6px; padding: 2px; }
+/* Botão "⋯" de moderação (Silenciar/Ensurdecer no servidor, Mover, Desconectar). */
+.vc-tile-mod {
+  position: absolute; top: 10px; left: 10px; width: 30px; height: 28px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, .55); color: #fff; font-size: 18px; line-height: 1; opacity: 0; transition: opacity .12s ease;
+}
+.vc-tile:hover .vc-tile-mod, .vc-tile-mod:focus-visible { opacity: 1; }
+@media (hover: none) { .vc-tile-mod { opacity: 1; } }
 
 .vc-vol { position: absolute; right: 10px; bottom: 10px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .vc-vol-btn {
@@ -306,6 +316,10 @@
 .voice-roster-live {
   flex-shrink: 0; margin-left: auto; padding: 1px 5px; border-radius: 5px;
   background: var(--red, #ed4245); color: #fff; font-size: 9.5px; font-weight: 800; letter-spacing: .3px; line-height: 14px;
+}
+.voice-roster-servermod {
+  flex-shrink: 0; padding: 1px 4px; border-radius: 5px; background: var(--red, #ed4245); color: #fff;
+  font-size: 9px; font-weight: 800; letter-spacing: .3px; line-height: 13px;
 }
 .voice-roster-ico {
   flex-shrink: 0; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2;
