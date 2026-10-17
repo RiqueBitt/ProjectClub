@@ -3392,7 +3392,10 @@ button.profile-ig-stat:hover b { text-decoration: underline; }
      that modal's own overlay — invisible and unable to receive clicks at
      all, which looked exactly like the "+" button doing nothing. Needs to
      always be able to sit above any modal it might be opened from. */
-  z-index: 400; animation: context-menu-in .1s ease-out;
+  /* popup-in-up (não context-menu-in): aquela animação é dos menus
+     CENTRALIZADOS (translate -50%,-50%) e fazia o seletor nascer no meio
+     da tela e "pular" pro lugar certo. Este abre ancorado na barra de baixo. */
+  z-index: 400; animation: popup-in-up .12s ease-out; transform-origin: bottom right;
 }
 .sheet-drag-handle { display: none; }
 .emoji-picker-tabs { display: flex; border-bottom: 1px solid var(--border); }

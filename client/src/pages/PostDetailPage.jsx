@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useElementHeight } from '../utils/useElementHeight';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -49,7 +49,7 @@ export default function PostDetailPage({ postId } = {}) {
   // tentar inferir onde uma coluna termina.
   const commentEmojiBtnRef = useRef(null);
   const [commentPickerStyle, setCommentPickerStyle] = useState(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!emojiPickerOpen) { setCommentPickerStyle(null); return; }
     if (window.matchMedia('(max-width: 600px)').matches) { setCommentPickerStyle(null); return; }
     const btn = commentEmojiBtnRef.current;
@@ -276,7 +276,7 @@ function CommentNode({ comment, postId, user, isStaff, onChange, depth = 0 }) {
   // coluna termina.
   const replyEmojiBtnRef = useRef(null);
   const [replyPickerStyle, setReplyPickerStyle] = useState(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!replyEmojiOpen) { setReplyPickerStyle(null); return; }
     if (window.matchMedia('(max-width: 600px)').matches) { setReplyPickerStyle(null); return; }
     const btn = replyEmojiBtnRef.current;
