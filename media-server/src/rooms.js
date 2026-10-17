@@ -249,17 +249,27 @@ class Room {
   }
 }
 
+// BUG CORRIGIDO ("um não escuta o outro"): duas pessoas entrando ao mesmo
+// tempo numa sala vazia criavam DUAS salas (a criação espera o Router) — a
+// segunda substituía a primeira no mapa e cada uma ficava sozinha numa sala
+// diferente. Agora quem chega durante a criação espera a mesma promessa.
+const creating = new Map(); // name -> Promise<Room>
 async function getOrCreateRoom(name) {
-  let room = rooms.get(name);
-  if (room) return room;
+  const existing = rooms.get(name);
+  if (existing) return existing;
+  if (creating.has(name)) return creating.get(name);
   if (rooms.size >= config.maxRooms) throw new Error('limite de salas atingido');
-  const worker = leastLoadedWorker() || pickWorker();
-  const router = await createRouterOn(worker);
-  const audioLevelObserver = await router.createAudioLevelObserver({ maxEntries: 8, threshold: config.speakingThresholdDb, interval: config.speakingIntervalMs });
-  room = new Room(name, router, audioLevelObserver, worker);
-  rooms.set(name, room);
-  log(`sala criada: ${name} (worker pid ${worker.pid})`);
-  return room;
+  const p = (async () => {
+    const worker = leastLoadedWorker() || pickWorker();
+    const router = await createRouterOn(worker);
+    const audioLevelObserver = await router.createAudioLevelObserver({ maxEntries: 8, threshold: config.speakingThresholdDb, interval: config.speakingIntervalMs });
+    const room = new Room(name, router, audioLevelObserver, worker);
+    rooms.set(name, room);
+    log(`sala criada: ${name} (worker pid ${worker.pid})`);
+    return room;
+  })();
+  creating.set(name, p);
+  try { return await p; } finally { creating.delete(name); }
 }
 
 function closeRoomIfEmpty(name) {

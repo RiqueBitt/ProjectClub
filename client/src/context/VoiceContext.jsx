@@ -910,7 +910,7 @@ export function VoiceProvider({ children }) {
   // hora. Atender chamada e ser movido de sala (AFK) passam direto.
   const joinChannel = useCallback((serverId, channelId, channelName, channelType, opts = {}) => {
     if (callRef.current?.channelId === channelId) return undefined;
-    if (!opts.skipPreJoin && getExtra().preJoinCheck !== false) {
+    if (!opts.skipPreJoin && getExtra().preJoinCheck === true) {
       setPreJoin({ serverId, channelId, channelName, channelType });
       return undefined;
     }

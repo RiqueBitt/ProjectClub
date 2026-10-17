@@ -45,7 +45,7 @@ const config = {
   speakingIntervalMs: Math.max(100, num(env.MEDIA_SPEAKING_INTERVAL_MS, 400)),
 
   // Bitrate inicial de saída por transport (bps) — o BWE ajusta depois.
-  initialAvailableOutgoingBitrate: num(env.MEDIA_INITIAL_BITRATE, 1500000),
+  initialAvailableOutgoingBitrate: num(env.MEDIA_INITIAL_BITRATE, 800000),
   // Teto de bitrate de entrada por transport (bps): 0 = sem teto.
   // 10 Mbps: cabe a tela em 1080p60 (~8 Mbps) + microfone + câmera.
   maxIncomingBitrate: num(env.MEDIA_MAX_INCOMING_BITRATE, 10000000),

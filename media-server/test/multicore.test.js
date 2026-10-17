@@ -66,3 +66,9 @@ test('quem sai libera o lugar no núcleo; sala vazia fecha os dois Routers', asy
   assert.equal(rooms.rooms.size, 0);
   assert.equal(rooms.stats().routers, 0);
 });
+
+test('duas pessoas criando a mesma sala ao mesmo tempo caem na MESMA sala', async () => {
+  const [r1, r2] = await Promise.all([rooms.getOrCreateRoom('corrida'), rooms.getOrCreateRoom('corrida')]);
+  assert.equal(r1, r2);
+  rooms.closeRoomIfEmpty('corrida');
+});
