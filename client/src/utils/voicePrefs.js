@@ -20,6 +20,7 @@ const DEFAULTS = {
   captions: false,            // K — legendas ao vivo (pt-BR)
   callViewMode: 'auto',       // H — 'auto' | 'grid' | 'focus'
   pushToTalkReleaseMs: 200,   // F — folga depois de soltar a tecla (ms)
+  noiseQuality: 'standard',   // B — 'standard' (RNNoise) | 'high' (DeepFilterNet3, só com a flag)
 };
 
 let cache = null;

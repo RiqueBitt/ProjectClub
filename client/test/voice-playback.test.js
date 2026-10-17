@@ -3,7 +3,7 @@
 // saída de áudio salva × aparelhos reais, auto-cura e diagnóstico compacto.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { planPlayback, pickSinkId, healActions, createOnceSet, buildDiag, clampVolume } from '../src/voice/playbackPlan.js';
+import { planPlayback, pickSinkId, healActions, clampVolume } from '../src/voice/playbackPlan.js';
 
 test('planPlayback: 100% ou menos é SEMPRE o <audio> direto', () => {
   for (const ctxState of [null, 'suspended', 'running']) {
@@ -66,25 +66,4 @@ test('healActions: bytes chegando + elemento pausado → toca de novo', () => {
   assert.deepEqual(healActions({ mode: 'webaudio', ctxState: 'suspended', bytesDelta: 10 }), ['resume-ctx', 'to-element']);
   assert.deepEqual(healActions({ mode: 'webaudio', ctxState: 'running', bytesDelta: 10 }), []);
   assert.deepEqual(healActions({ trackLive: false, paused: true }), [], 'faixa encerrada: nada a curar');
-});
-
-test('diagnóstico: uma vez por chave e compacto', () => {
-  const once = createOnceSet();
-  assert.equal(once.first('call1|u1'), true);
-  assert.equal(once.first('call1|u1'), false);
-  assert.equal(once.first('call1|u2'), true);
-  assert.equal(once.first('call2|u1'), true);
-  const d = buildDiag({
-    userId: 'u1', provider: 'projectclub', mode: 'element',
-    el: { paused: false, muted: false, volume: 1, currentTime: 12.6, readyState: 4 },
-    track: { readyState: 'live', muted: false, enabled: true },
-    ctxState: null, inboundBytes: 40960, sinkCustom: true, ua: 'Mozilla/5.0 '.repeat(20),
-  });
-  assert.deepEqual(d.el, { p: 0, mu: 0, v: 100, t: 13, rs: 4 });
-  assert.deepEqual(d.tr, { s: 'live', mu: 0, en: 1 });
-  assert.equal(d.b, 40960);
-  assert.equal(d.sk, 1);
-  assert.ok(d.ua.length <= 90);
-  assert.ok(JSON.stringify(d).length < 300, 'cabe numa linha de log');
-  assert.equal(buildDiag({ userId: 'x', inboundBytes: NaN }).b, null);
 });

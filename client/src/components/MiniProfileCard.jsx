@@ -4,7 +4,7 @@ import { getUserProfile } from '../api/endpoints';
 import { useLiveRefresh, sameData } from '../utils/liveRefresh';
 import { roleChipStyle } from '../utils/roleColor';
 import { profileAccentVars } from '../utils/profileAccent';
-import { badgeHasImage } from '../utils/badgeRarity';
+import BadgeIcon from './BadgeIcon.jsx';
 import { renderRichContent } from '../utils/richTextRender.jsx';
 import UserAvatar from './UserAvatar.jsx';
 import ActivityBadge from './ActivityBadge.jsx';
@@ -410,7 +410,7 @@ export default function MiniProfileCard() {
               <div className="mini-profile-badges-row">
                 {badges.map((b) => (
                   <span key={b.id} className="mini-profile-badge" title={`${b.name}${b.description ? ' — ' + b.description : ''}`}>
-                    {badgeHasImage(b) ? <img className="mini-profile-badge-img" src={proxyImage(b.iconUrl)} alt="" /> : b.icon}
+                    <BadgeIcon badge={b} size={20} />
                   </span>
                 ))}
               </div>

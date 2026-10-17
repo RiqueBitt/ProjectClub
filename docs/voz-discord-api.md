@@ -80,6 +80,33 @@ Bitrate da camada CHEIA (bps) por resolução × fps:
   vale o portão antigo, só por nível.
 - Rampa do portão: abre em 8 ms, fecha em 30 ms (sem estalo).
 
+### Redutor "alta qualidade" (DeepFilterNet3) — atrás de flag
+
+Encanamento pronto, **desligado**: não achamos um build WASM do
+DeepFilterNet3 (MIT/Apache-2.0) que seja ao mesmo tempo confiável, pequeno e
+hospedável por nós. O que existe no npm (out/2026): `deepfilternet3-noise-filter`
+(baixa wasm + modelo do CDN `cdn.mezon.ai` em tempo de execução — terceiro, não
+auditável), `@lofcz/deepfilternet-web` (fork de uma pessoa, 1 versão, wasm de
+34 MB) e `@workadventure/noise-suppression` (152 MB). Nenhum é do autor
+(Rikorose/DeepFilterNet).
+
+- `voice/noiseModels.js`: flag de build `VITE_VOICE_DFN3_URL` (pasta NOSSA com
+  `dfn3-worklet.js` + wasm + modelo). Sem ela a opção nem aparece.
+  `highQualityAvailability` (flag, ≥ 4 núcleos, WASM SIMD), `pickNoiseModel`,
+  vigia de CPU (`perf.load ≥ 0,8` em 3 relatórios seguidos → RNNoise) e
+  `createDfnNode` (contrato do worklet no topo do arquivo: `init`/`toggle` →
+  `ready`/`error`/`vad`/`perf`; 6 s pra ficar pronto).
+- `micPipeline`: `noiseModel: 'rnnoise'|'dfn3'`, `setNoiseModel()` ao vivo,
+  `noiseModel` (getter), `onNoiseFallback(reason)` (`load`/`slow`) — volta pro
+  RNNoise sozinho.
+- Engine: `join({ noiseModel })`, `setNoiseModel(model)` → modelo que ficou
+  rodando; telemetria `noise-fallback`.
+- App: `voicePrefs.noiseQuality` (`standard`|`high`), `voice.setNoiseQuality()`,
+  seletor "Qualidade do redutor" em Voz e vídeo (só com a flag e aparelho apto).
+- Pra ligar: compilar o `libDF` oficial (`wasm-pack`, feature `wasm`) +
+  `DeepFilterNet3_onnx.tar.gz`, escrever o worklet seguindo o contrato,
+  publicar em `client/public/dfn3/` e buildar com `VITE_VOICE_DFN3_URL=/dfn3`.
+
 ### Erros do `join()`
 
 `err.code` + `err.providerFailure === false` quando **não** é culpa do
@@ -164,6 +191,24 @@ entrar (junto do serviço de chamada) e `(false)` ao sair — o processo
 principal (`desktop/main.js`) usa isso pra não deixar o sistema suspender/
 estrangular a janela no meio da call.
 
+### Apertar-pra-falar global (app fora de foco)
+
+`desktop/globalPtt.js` + `uiohook-napi` (carregado sob demanda, prebuilds
+N-API em `app.asar.unpacked`). API do preload:
+`window.electronAPI.globalPtt.configure({ enabled, code, prompt? })` →
+`{ ok, reason? }` (`reason`: `accessibility` — macOS sem permissão de
+Acessibilidade, `unavailable` — binário não carregou, `unsupported-key`,
+`error`); `onDown(cb)` / `onUp(cb)` (devolvem a função pra parar de ouvir).
+
+- O `VoiceContext` liga com a tecla (`voicePrefs.pushToTalkKey`,
+  `KeyboardEvent.code`) quando há chamada + PTT ligado, e desliga ao sair /
+  desligar o PTT / trocar de tecla (reconfigura na hora).
+- O gancho só roda nesse intervalo; só a tecla configurada sai do processo
+  principal (`ptt:down`/`ptt:up`). Com a janela em foco o down global é
+  ignorado (o teclado do site manda); o up sempre sai se o down foi global.
+- Sem o binário / sem permissão: o PTT continua funcionando com o app em
+  foco (aviso uma vez).
+
 ## 5. Android nativo
 
 `MediasoupEngine.kt` segue o mesmo protocolo: `serverState`, mic publicado
@@ -174,18 +219,77 @@ servidor antigo cai na reconexão completa), fala local pelas amostras do mic
 aparelho muda a captura na hora (`changeCaptureFormat` → textura +
 `VirtualDisplay.resize`). **Sem som interno** na transmissão do Android:
 capturar o áudio de reprodução (AudioPlaybackCapture) e publicar como faixa
-exige recompilar o libmediasoup-android com um AudioDeviceModule próprio. `VoiceManager.kt` trata
+exige recompilar o libmediasoup-android (ver "Som interno na transmissão"
+abaixo). `VoiceManager.kt` trata
 `voice:role-update`, `voice:server-state`, `voice:force-move`,
 `voice:force-disconnect`; `CallAudio.kt` muta o mic durante ligação do
 telefone.
 
+### Som interno na transmissão (Android 10+) — investigação, NÃO implementado
+
+Pergunta: dá pra mandar o áudio do `AudioPlaybackCapture` como um 2º producer
+com o `libmediasoup-android` 0.21.0 (crow-misia) **sem recompilar nada nativo**?
+Resposta: **não de forma suportada**. Detalhes:
+
+1. O 0.21.0 usa o WebRTC **M130 sem mudanças no áudio**
+   (`VERSIONS`: `WEBRTC_VERSION=130.6723.2.0`, binário de
+   `crow-misia/libwebrtc-bin`, cujos patches são só de build).
+2. No WebRTC nativo a faixa de áudio LOCAL não carrega amostras: quem grava é
+   o `AudioDeviceModule` da `PeerConnectionFactory`, e TODAS as faixas locais
+   daquela fábrica mandam o mesmo áudio. Uma 2ª faixa na mesma fábrica = o mic
+   de novo.
+3. O `JavaAudioDeviceModule` do upstream cria o `AudioRecord` por dentro (só
+   aceita `setAudioSource(int)`); não há como passar um `AudioRecord` montado
+   com `AudioPlaybackCaptureConfiguration`, nem callback que ALTERE o buffer
+   (`setSamplesReadyCallback` só observa). O `setAudioBufferCallback` que o
+   LiveKit usa pra misturar o som da tela existe só no fork `webrtc-sdk/webrtc`.
+4. Caminhos possíveis (todos fora do escopo "sem recompilar"):
+   - **Recompilar o libmediasoup-android** contra o `webrtc-sdk/webrtc`
+     (tem `AudioBufferCallback`): 2ª `PeerConnectionFactory` + 2º `Device` +
+     2º send transport (o servidor de mídia já aceita vários transports por
+     peer) cujo ADM troca o buffer do "mic" pelo PCM do `AudioPlaybackCapture`
+     (48 kHz, estéreo, sem AEC/NS — `setUseHardware*=false`), produzido com
+     `appData { source: 'screen-audio' }` como no web.
+   - **ADM próprio em C++** (`webrtc::AudioDeviceModule` com
+     `AudioTransport::RecordedDataIsAvailable` alimentado por JNI) — também
+     exige build nativo.
+   - Reflexão no campo privado `audioRecord` do `WebRtcAudioRecord` depois do
+     `startRecording` — funciona em teoria, mas quebra com R8/atualização do
+     WebRTC e não tem como testar aqui: **descartado**.
+5. Misturar no microfone (como o LiveKit) não serve aqui: o AEC/NS do aparelho
+   cancela/destrói o som do jogo e quem assiste não teria volume separado.
+
+Próximo passo recomendado: build do libmediasoup-android 0.21.x apontando o
+`get-deps.sh` pro AAR do `webrtc-sdk` (M125+) e então o toggle "Som do
+aparelho" na transmissão (Android 10+, `RECORD_AUDIO` + MediaProjection já
+concedido).
+
 ## 6. AFK
 
-Não implementado: o modelo de dados não tem canal/tempo de AFK (o antigo
-`Server.afkChannelId` não existe na comunidade única). O cliente já escuta
-`voice:afk-move`; quando existir `afkChannelId`/`afkTimeout` (ex.: em
-PlatformSettings), basta uma varredura no `sockets/index.js` usando o
-`lastActiveAt` do participante (atualizado pelo `voice:speaking`).
+Configuração da comunidade (só staff — Configurações da comunidade → Canal
+AFK; `PATCH /api/admin/community`): `afkChannelId` (canal de VOZ ou `null` =
+desligado) e `afkTimeoutSeconds` (60, 300, 900, 1800 ou 3600; padrão 300).
+Colunas novas em `PlatformSettings` (aditivas — `prisma db push`).
+
+Varredura (`services/voiceAfk.js`, ligada no fim do `sockets/index.js`): a
+cada 30 s, com trava no Redis (`voice:afk:sweep-lock`, `SET NX PX 25s` —
+uma instância por rodada).
+
+- **Última atividade** = maior entre `lastActiveAt` (gravado ao entrar,
+  ao reconectar e em todo `voice:speaking` com `speaking:true` — o cliente
+  só manda isso quando realmente transmite voz: mudo, PTT solto e portão
+  fechado não contam) e `joinedAt`.
+- Movido quando `agora − última atividade ≥ afkTimeoutSeconds`.
+- Fora da varredura: o próprio canal AFK, `dm:`/`clan:`, canais de PALCO,
+  quem está com câmera/tela ligada e quem não tem CONNECT no canal AFK.
+- Movimento = mesmo caminho do "Mover para…": ticket de 60 s (fura o limite),
+  `voice:afk-move { channelId, channelName, fromChannelId }` pro usuário,
+  saída da sala e `kick`/`moved` no servidor de mídia. O cliente avisa
+  ("movido … por inatividade") e entra no AFK.
+- No canal AFK: token de mídia com `canSpeak:false`, participante com
+  `afk:true` e `muted:true`, `voice:state muted:false` ignorado,
+  `voice:joined` com `afk:true` (o cliente muta e bloqueia o desmutar). Ao
+  sair do AFK volta o mudo de antes.
 
 ## Desktop: áudio da tela
 

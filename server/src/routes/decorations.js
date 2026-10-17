@@ -32,7 +32,8 @@ router.post('/gift', shop.giftItem); // presentear um amigo
 const redeemCtrl = require('../controllers/redeemController');
 router.post('/redeem', redeemCtrl.redeem);
 router.get('/gifts-summary', redeemCtrl.giftsSummary);
-router.post('/credits/:id/buy', require('../services/supporterCredit').buyCredit);
+// Assinatura é só paga: a antiga compra com gemas responde 410 (sem débito).
+router.post('/credits/:id/buy', require('../services/supporterCredit').rejectGemSubscription);
 const bannerCtrl = require('../controllers/shopBannerController');
 router.get('/admin/banners', requirePlatformAdmin, bannerCtrl.list);
 router.post('/admin/banners', requirePlatformAdmin, uploadImage.single('image'), bannerCtrl.create);

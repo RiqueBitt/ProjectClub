@@ -31,6 +31,39 @@ o Project Club (backend) continua dono das contas, salas e permissões; este ser
    Gere os segredos com `openssl rand -hex 32` (um pra `MEDIA_SERVER_SECRET`, outro pra `TURN_SECRET`).
 4. **Subir**: `docker compose up -d --build` — e conferir: `curl https://media.seudominio.com/health`
 
+## TURN na porta 443 (opcional — `TURN_443=1`)
+
+Redes que só deixam passar a 443 (empresa, escola, hotel) bloqueiam 3478/5349. Com esse modo o Caddy
+olha o **SNI** do TLS na 443 **antes** de decifrar (módulo [caddy-l4](https://github.com/mholt/caddy-l4),
+Apache-2.0, imagem própria em `caddy-l4/Dockerfile` via `xcaddy` — Caddy 2.11.4 + caddy-l4 v0.1.2):
+
+- SNI = `TURN_DOMAIN` (ex.: `turn-38-92-41-54.sslip.io`) → TLS repassado intacto pro coturn (`127.0.0.1:5349`);
+- qualquer outro → HTTPS de sempre (sinalização `wss://`), com o IP real do cliente.
+
+Arquivos: `docker-compose.turn443.yml` (override: troca a imagem do Caddy e monta `Caddyfile.turn443`,
+que importa o `Caddyfile` normal) — só vale com `COMPOSE_FILE=docker-compose.yml:docker-compose.turn443.yml`
+e `TURN_DOMAIN=…` no `.env`. Sem isso nada muda.
+
+**Domínio do TURN**: precisa de um nome próprio apontando pro mesmo IP (o SNI é o que separa).
+Com sslip.io não precisa criar nada: `turn-38-92-41-54.sslip.io` já resolve pra `38.92.41.54`.
+Em domínio próprio: DNS A `turn.seudominio.com` → IP da VM. O Caddy emite o certificado desse nome
+por **HTTP-01** (porta 80 aberta; TLS-ALPN fica desligado pra ele) e o `pc-turn-cert-sync` copia esse
+certificado pro coturn (que passa a usá-lo também na 5349).
+
+**Ligar na VM** (o script faz tudo: `.env`, build da imagem, certificado, teste do handshake):
+```bash
+sudo BRANCH=main TURN_443=1 DOMAIN=38-92-41-54.sslip.io PUBLIC_IP=38.92.41.54 bash scripts/vm-voz-robusta.sh
+```
+Depois, no painel da staff (Provedores de voz → Project Club → chaves), `TURN_URLS`:
+`turn:38-92-41-54.sslip.io:3478?transport=udp,turn:38-92-41-54.sslip.io:3478?transport=tcp,turns:turn-38-92-41-54.sslip.io:443?transport=tcp,turns:turn-38-92-41-54.sslip.io:5349?transport=tcp`
+(o `turns:` precisa usar o `TURN_DOMAIN`: o certificado do coturn passa a ser o dele).
+Teste: `openssl s_client -connect 38.92.41.54:443 -servername turn-38-92-41-54.sslip.io` mostra o
+certificado do TURN; o trickle-ice com `turns:turn-38-92-41-54.sslip.io:443?transport=tcp` dá candidato `relay`.
+
+**Desligar**: `sudo TURN_443=0 … bash scripts/vm-voz-robusta.sh` (tira `COMPOSE_FILE`/`TURN_DOMAIN` do `.env`
+e volta o Caddy oficial). Observações: o coturn vê as conexões da 443 vindo de `127.0.0.1` (as cotas são
+por usuário, então seguem valendo); ao ligar/desligar o Caddy é recriado (as chamadas reconectam sozinhas).
+
 ## Ligando no Project Club (variáveis de ambiente do app na Square Cloud)
 
 | Variável | Valor |

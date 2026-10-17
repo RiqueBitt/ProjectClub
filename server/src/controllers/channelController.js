@@ -232,7 +232,7 @@ async function getChannelStates(req, res, next) {
     const [reads, lasts, myRoles, me] = await Promise.all([
       prisma.channelReadState.findMany({ where: { userId, channelId: { in: visible } }, select: { channelId: true, lastReadAt: true } }),
       // MAX(createdAt) por canal — usa o índice (channelId, createdAt).
-      prisma.message.groupBy({ by: ['channelId'], where: { channelId: { in: visible }, deleted: false }, _max: { createdAt: true } }),
+      prisma.message.groupBy({ by: ['channelId'], where: { channelId: { in: visible }, deleted: false, threadId: null }, _max: { createdAt: true } }),
       prisma.userRole.findMany({ where: { userId }, select: { roleId: true } }),
       prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } }),
     ]);
@@ -259,15 +259,12 @@ async function getChannelStates(req, res, next) {
         AND ((mm.targetType = 'USER' AND mm.targetId = ${userId}) OR mm.targetType IN ('EVERYONE', 'HERE') ${roleClause})
       GROUP BY m.channelId`;
 
-    const states = {};
-    visible.forEach((id) => { states[id] = { lastMessageAt: null, myReadAt: null, unreadMentions: 0, lastMentionAt: null }; });
-    reads.forEach((r) => { if (states[r.channelId]) states[r.channelId].myReadAt = r.lastReadAt; });
-    lasts.forEach((l) => { if (l.channelId && states[l.channelId]) states[l.channelId].lastMessageAt = l._max.createdAt; });
-    mentionRows.forEach((r) => {
-      if (!states[r.channelId]) return;
-      states[r.channelId].unreadMentions = Number(r.cnt) || 0;
-      states[r.channelId].lastMentionAt = r.lastAt;
-    });
+    // Quantas mensagens não lidas em cada canal (bolinha vermelha com número).
+    const unreadCounts = require('../services/unreadCounts');
+    const unreadRows = await unreadCounts.countUnreadByChannel(prisma, {
+      userId, channelIds: visible, floor: unreadCounts.unreadFloor(me?.createdAt),
+    }).catch(() => []);
+    const states = unreadCounts.mergeChannelStates({ visible, reads, lasts, mentionRows, unreadRows });
     res.set('Cache-Control', 'private, no-cache');
     res.json({ states });
   } catch (err) { next(err); }

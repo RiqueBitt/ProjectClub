@@ -104,6 +104,9 @@ private object AnimatedImages {
                 if (Build.VERSION.SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory())
             }
             .crossfade(true)
+            // Mesmo cache em disco do loader padrão (modo offline: GIFs/avatares salvos aparecem sem internet).
+            .diskCache { com.projectclub.android.data.offline.ImageCaches.disk(context.applicationContext) }
+            .respectCacheHeaders(false)
             .build()
             .also { loader = it }
     }

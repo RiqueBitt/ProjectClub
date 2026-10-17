@@ -20,6 +20,9 @@
 
 generator client {
   provider = "prisma-client-js"
+  // fullTextIndex: permite o @@fulltext([content]) em Message (busca de
+  // mensagens com MATCH ... AGAINST — ver services/messageSearch.js).
+  previewFeatures = ["fullTextIndex"]
 }
 
 datasource db {
@@ -428,6 +431,9 @@ model User {
   profileWishlist        String?                 @db.Text
   // Conta desativada pela própria pessoa (volta ao entrar de novo).
   selfDeactivatedAt      DateTime?
+
+  // Varredura de status personalizado vencido (services/customStatus.js).
+  @@index([customStatusExpiresAt])
 }
 
 // Item pedido: "pingentes... mini imagens que podem ser colocadas pelo
@@ -536,6 +542,11 @@ model PlatformSettings {
   // Canais em destaque no topo da lista (Eventos, Feed, Galeria) que a
   // staff escondeu — JSON array de chaves. Nulo = todos visíveis.
   hiddenFeaturedChannels String?
+  // Canal AFK (igual ao Discord): quem fica parado na voz por
+  // afkTimeoutSeconds (60/300/900/1800/3600) é movido pra esse canal de voz
+  // e fica mudo lá. Nulo = desligado. Ver services/voiceAfk.js.
+  afkChannelId       String?
+  afkTimeoutSeconds  Int     @default(300)
 }
 
 // Item pedido: "sistema de eventos integrado ao painel da Staff" — só
@@ -1344,6 +1355,19 @@ model Message {
   // channelName, conversationId, messageId, createdAt } da original.
   forwardedFrom String? @db.Text
 
+  // Tópicos (threads) a partir de uma mensagem: a RAIZ do tópico é a
+  // mensagem com título que responde à mensagem-mãe (replyToId + title,
+  // ver "Criar tópico"). As respostas DENTRO do tópico apontam pra raiz
+  // por threadId e não aparecem na lista principal do canal. Os campos
+  // thread* abaixo só são usados na raiz (contador, última resposta e
+  // arquivamento automático por inatividade — ver services/threads.js).
+  threadId          String?
+  isThread          Boolean   @default(false)
+  threadReplyCount  Int       @default(0)
+  threadLastReplyAt DateTime?
+  threadLastReplyId String?
+  threadArchivedAt  DateTime?
+
   edits MessageEdit[]
 
   automodFlags AutomodFlag[]
@@ -1365,6 +1389,12 @@ model Message {
   @@index([authorId, createdAt])
   // Modo lento: última mensagem da pessoa NESTE canal.
   @@index([channelId, authorId, createdAt])
+  // Respostas de um tópico (painel do tópico) em ordem de data.
+  @@index([threadId, createdAt])
+  // Varredura de arquivamento automático (só raízes de tópico).
+  @@index([isThread, threadLastReplyAt])
+  // Busca de mensagens por texto (MATCH ... AGAINST em modo booleano).
+  @@fulltext([content])
 }
 
 // Histórico de edições: o conteúdo ANTERIOR de uma mensagem, gravado a
@@ -3869,4 +3899,53 @@ model Passkey {
   lastUsedAt   DateTime?
 
   @@index([userId])
+}
+
+// Bolinha "novo" das seções (Anúncios, Eventos, Coleções da Loja...): quando
+// cada pessoa abriu a seção pela última vez. Sem @relation de propósito
+// (não mexe no model User). Ver services/sectionBadges.js.
+model SectionSeen {
+  userId  String
+  section String   @db.VarChar(32)
+  seenAt  DateTime @default(now())
+
+  @@id([userId, section])
+}
+
+// Primeiros passos (checklist de boas-vindas) + tour. Uma linha por pessoa
+// por passo: completedAt = o servidor confirmou que o passo foi feito
+// (conferido no banco ou por evento do próprio servidor, nunca pelo
+// cliente); claimedAt = a recompensa já foi paga (uma vez só, garantido
+// pelo updateMany com claimedAt: null). Passos especiais sem recompensa:
+// TOUR (tour visto) e DISMISS (checklist escondido). Ver services/onboarding.js.
+model UserOnboardingStep {
+  userId      String
+  step        String    @db.VarChar(32)
+  completedAt DateTime?
+  claimedAt   DateTime?
+  coins       Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@id([userId, step])
+}
+
+// Backups automáticos do banco (job diário + botão no painel da staff).
+// Só o histórico/estado; o arquivo fica no S3 compatível (BACKUP_S3_*) ou
+// em BACKUP_DIR. Ver services/dbBackup.js.
+model DbBackup {
+  id         String    @id @default(uuid())
+  status     String    @db.VarChar(16) // RUNNING | OK | FAILED
+  trigger    String    @db.VarChar(16) // SCHEDULE | MANUAL
+  method     String?   @db.VarChar(16) // mysqldump | node
+  location   String?   @db.VarChar(512)
+  fileName   String?   @db.VarChar(255)
+  sizeBytes  BigInt?
+  tables     Int?
+  rows       BigInt?
+  error      String?   @db.Text
+  startedBy  String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([startedAt])
 }

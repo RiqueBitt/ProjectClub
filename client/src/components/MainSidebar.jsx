@@ -208,7 +208,7 @@ export default function MainSidebar() {
         {mainSidebarCollapsed ? '›' : '‹'}
       </button>
       <div className="main-sidebar-scroll">
-        <nav className="main-sidebar-nav">
+        <nav className="main-sidebar-nav" aria-label="Menu principal">
           {navItems.map((item) => {
             const active = item.match(location.pathname);
             const badge = badgeFor(item.to);

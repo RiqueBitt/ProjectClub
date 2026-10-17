@@ -4,6 +4,7 @@ import { isFeatureEnabled } from '../utils/features';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
 import { updateFeaturedChannels } from '../api/endpoints';
 import { useCommunityEvents } from '../utils/useCommunityEvents';
+import { useSectionBadges, sectionCount, badgeLabel } from '../utils/sectionBadges';
 import '../styles/channels.css';
 import '../styles/socialx.css';
 
@@ -75,6 +76,7 @@ export default function FeaturedChannels({ canManage }) {
   const { openMenu } = useContextMenu();
   const isVisible = useFeaturedVisibility();
   const { events } = useCommunityEvents();
+  const sectionBadges = useSectionBadges();
   const disabledSystems = useStore((st) => st.disabledSystems) || [];
   const items = FEATURED.filter((f) => isVisible(f.key) && !(f.key === 'arena' && disabledSystems.includes('cartas') && !canManage));
   if (items.length === 0) return null;
@@ -106,7 +108,15 @@ export default function FeaturedChannels({ canManage }) {
   const renderItem = (item) => {
     const active = item.match(location.pathname);
     let badge = null;
-    if (item.key === 'eventos' && live > 0) badge = <span className="featured-channel-live" title={`${live} evento${live === 1 ? '' : 's'} acontecendo agora`}>Ao vivo</span>;
+    // Bolinha vermelha "novo": anúncio/evento/coleção que saiu depois da
+    // última vez que a pessoa abriu a seção (some ao abrir).
+    const newKey = { anuncios: 'anuncios', eventos: 'eventos', loja: 'colecoes' }[item.key];
+    const fresh = newKey && !active ? sectionCount(sectionBadges, newKey) : 0;
+    const what = { anuncios: ['anúncio novo', 'anúncios novos'], eventos: ['evento novo', 'eventos novos'], colecoes: ['coleção nova na Loja', 'coleções novas na Loja'] }[newKey] || [];
+    const newBadge = fresh > 0 ? <span className="section-new-badge" title={`${fresh} ${fresh === 1 ? what[0] : what[1]}`} aria-label={`${fresh} ${fresh === 1 ? what[0] : what[1]}`}>{badgeLabel(fresh)}</span> : null;
+    if (newBadge && item.key !== 'eventos') badge = newBadge;
+    else if (newBadge && !(live > 0)) badge = newBadge;
+    else if (item.key === 'eventos' && live > 0) badge = <span className="featured-channel-live" title={`${live} evento${live === 1 ? '' : 's'} acontecendo agora`}>Ao vivo</span>;
     else if (item.key === 'eventos' && upcoming > 0) badge = <span className="featured-channel-count" title={`${upcoming} evento${upcoming === 1 ? '' : 's'} em breve`}>{upcoming}</span>;
     else if (item.soon) badge = <span className="featured-channel-soon">Em breve</span>;
     else if (item.tag && !active) badge = <span className="featured-channel-tag">{item.tag}</span>;

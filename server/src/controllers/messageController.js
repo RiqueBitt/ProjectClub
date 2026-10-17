@@ -15,6 +15,8 @@ const { discardUploadedFiles } = require('../middleware/upload');
 const { maskUserStatus } = require('../utils/presenceVisibility');
 const { isValidReactionEmoji } = require('../utils/reactionEmoji');
 const { sharedIdempotency } = require('../services/messageIdempotency');
+const threadsService = require('../services/threads');
+const { buildPinSystemEmbed, isSystemMessage } = require('../utils/systemMessage');
 
 // Discord-style cap: once a message already has this many *distinct* emoji
 // reacted to it, nobody can pile on a brand new one — you can still toggle
@@ -207,6 +209,7 @@ function roomFor({ conversationId, channelId }) {
 }
 
 const THREAD_MAX_REPLIES = 500;
+const AROUND_HALF = 25;
 
 async function listMessages(req, res, next) {
   try {
@@ -244,19 +247,79 @@ async function listMessages(req, res, next) {
     const filterLevel = myFilter?.contentFilterLevel || 'moderate';
 
     if (threadRoot) {
-      // Tópico inteiro: a raiz + respostas (canais de fórum). Limitado às
-      // 500 respostas mais recentes — antes não tinha teto nenhum.
+      // Tópico inteiro: a raiz + respostas (canais de fórum e tópicos de
+      // canal de texto). Respostas novas de tópico vêm por threadId; as
+      // antigas (e as do fórum) por replyToId = raiz. Limitado às 500
+      // respostas mais recentes.
       const [root, replies] = await Promise.all([
         prisma.message.findUnique({ where: { id: threadRoot.id }, include: messageInclude }),
         prisma.message.findMany({
-          where: { replyToId: threadRoot.id, deleted: false },
+          where: { OR: [{ threadId: threadRoot.id }, { replyToId: threadRoot.id, threadId: null }], deleted: false },
           include: messageInclude,
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: THREAD_MAX_REPLIES,
         }),
       ]);
       const messages = [root && !root.deleted ? root : null, ...replies.reverse()].filter(Boolean);
-      return res.json({ messages: applyContentFilter(messages, filterLevel), truncated: replies.length >= THREAD_MAX_REPLIES });
+      return res.json({ messages: applyContentFilter(await threadsService.attachThreadSummaries(messages), filterLevel), truncated: replies.length >= THREAD_MAX_REPLIES });
+    }
+
+    // Lista principal: respostas de tópico ficam só no painel do tópico.
+    const roomWhere = {
+      conversationId: conversationId || undefined,
+      channelId: channelId || undefined,
+      deleted: false,
+      threadId: null,
+      ...(topLevelOnly === 'true' ? { replyToId: null } : {}),
+    };
+
+    // "Pular para a mensagem" (busca, fixadas, link): janela em volta da
+    // mensagem-alvo — 25 antes e 25 depois — pra mostrar o contexto mesmo
+    // quando ela é antiga demais pra estar carregada.
+    if (typeof req.query.around === 'string' && req.query.around) {
+      const target = await prisma.message.findUnique({
+        where: { id: req.query.around },
+        select: { id: true, createdAt: true, channelId: true, conversationId: true, threadId: true, deleted: true },
+      });
+      if (!target || target.deleted || (target.channelId || null) !== (channelId || null) || (target.conversationId || null) !== (conversationId || null)) {
+        return res.status(404).json({ error: 'Mensagem não encontrada.' });
+      }
+      // Resposta de tópico: o cliente abre o painel do tópico.
+      if (target.threadId) return res.json({ messages: [], threadId: target.threadId, targetId: target.id });
+      const half = AROUND_HALF;
+      const [olderRows, target2, newerRows] = await Promise.all([
+        prisma.message.findMany({
+          where: { ...roomWhere, OR: [{ createdAt: { lt: target.createdAt } }, { createdAt: target.createdAt, id: { lt: target.id } }] },
+          include: messageInclude, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: half + 1,
+        }),
+        prisma.message.findUnique({ where: { id: target.id }, include: messageInclude }),
+        prisma.message.findMany({
+          where: { ...roomWhere, OR: [{ createdAt: { gt: target.createdAt } }, { createdAt: target.createdAt, id: { gt: target.id } }] },
+          include: messageInclude, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: half + 1,
+        }),
+      ]);
+      const hasMoreOlder = olderRows.length > half;
+      const hasMoreNewer = newerRows.length > half;
+      const windowRows = [...olderRows.slice(0, half).reverse(), target2, ...newerRows.slice(0, half)].filter(Boolean);
+      return res.json({
+        messages: applyContentFilter(await threadsService.attachThreadSummaries(windowRows), filterLevel),
+        targetId: target.id, hasMoreOlder, hasMoreNewer,
+      });
+    }
+
+    // Mensagens MAIS NOVAS que um cursor (rolar pra baixo na janela de
+    // contexto aberta pelo "around").
+    const after = req.query.after ? new Date(req.query.after) : undefined;
+    if (after && !Number.isNaN(after.getTime())) {
+      const afterId = typeof req.query.afterId === 'string' ? req.query.afterId : null;
+      const rows = await prisma.message.findMany({
+        where: { ...roomWhere, ...(afterId ? { OR: [{ createdAt: { gt: after } }, { createdAt: after, id: { gt: afterId } }] } : { createdAt: { gt: after } }) },
+        include: messageInclude,
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        take: 51,
+      });
+      const hasMoreNewer = rows.length > 50;
+      return res.json({ messages: applyContentFilter(await threadsService.attachThreadSummaries(rows.slice(0, 50)), filterLevel), hasMoreNewer });
     }
 
     // Cursor (createdAt, id): só a data empatava quando duas mensagens
@@ -272,18 +335,12 @@ async function listMessages(req, res, next) {
         : { createdAt: { lt: before } };
     }
     const messages = await prisma.message.findMany({
-      where: {
-        conversationId: conversationId || undefined,
-        channelId: channelId || undefined,
-        deleted: false,
-        ...(topLevelOnly === 'true' ? { replyToId: null } : {}),
-        ...cursorWhere,
-      },
+      where: { ...roomWhere, ...cursorWhere },
       include: messageInclude,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 50,
     });
-    res.json({ messages: applyContentFilter(messages.reverse(), filterLevel) });
+    res.json({ messages: applyContentFilter(await threadsService.attachThreadSummaries(messages.reverse()), filterLevel) });
   } catch (err) { next(err); }
 }
 
@@ -426,6 +483,8 @@ async function createMessageInner(req, res) {
   {
     const { conversationId, channelId } = req.body;
     const replyToId = req.body.replyToId || null;
+    // Resposta dentro de um tópico (painel do tópico): id da raiz.
+    const threadId = typeof req.body.threadId === 'string' && req.body.threadId ? req.body.threadId.slice(0, 64) : null;
     if (req.precheckedRoom && (
       (req.precheckedRoom.conversationId || undefined) !== (conversationId || undefined)
       || (req.precheckedRoom.channelId || undefined) !== (channelId || undefined))) {
@@ -451,10 +510,31 @@ async function createMessageInner(req, res) {
     // A mensagem respondida precisa estar na MESMA sala — antes dava pra
     // "responder" uma mensagem de um canal privado/DM alheia e o
     // messageInclude devolvia o conteúdo dela (replyTo) pra todo mundo.
+    // Tópico: só em canal, a raiz precisa ser deste canal e não estar
+    // trancada pela moderação (arquivado por inatividade reabre sozinho).
+    let threadRoot = null;
+    if (threadId) {
+      if (!channelId) { res.status(400).json({ error: 'Tópicos só existem em canais.' }); return false; }
+      if (req.body.title) { res.status(400).json({ error: 'Não dá pra criar um tópico dentro de outro tópico.' }); return false; }
+      const resolved = await threadsService.resolveThreadForReply(threadId, { channelId });
+      if (!resolved.root) { res.status(resolved.status || 404).json({ error: resolved.error || 'Tópico não encontrado.' }); return false; }
+      threadRoot = resolved.root;
+    }
     if (replyToId) {
-      const target = await prisma.message.findUnique({ where: { id: String(replyToId) }, select: { channelId: true, conversationId: true } });
+      const target = await prisma.message.findUnique({ where: { id: String(replyToId) }, select: { id: true, channelId: true, conversationId: true, threadId: true } });
       if (!target || (target.channelId || null) !== (channelId || null) || (target.conversationId || null) !== (conversationId || null)) {
         res.status(400).json({ error: 'A mensagem respondida não está nesta conversa.' });
+        return false;
+      }
+      // Dentro do tópico só dá pra responder mensagens do próprio tópico.
+      if (threadRoot && target.id !== threadRoot.id && target.threadId !== threadRoot.id) {
+        res.status(400).json({ error: 'A mensagem respondida não está neste tópico.' });
+        return false;
+      }
+      // Fora do painel do tópico, não dá pra "responder" (nem abrir outro
+      // tópico a partir de) uma mensagem que mora dentro de um tópico.
+      if (!threadRoot && target.threadId) {
+        res.status(400).json({ error: 'Essa mensagem está dentro de um tópico — responda por lá.' });
         return false;
       }
     }
@@ -625,6 +705,10 @@ async function createMessageInner(req, res) {
         conversationId: conversationId || null,
         channelId: channelId || null,
         replyToId,
+        threadId: threadRoot ? threadRoot.id : null,
+        // Raiz de tópico nova (título + resposta, em canal): já nasce com o
+        // resumo zerado e entra na varredura de arquivamento automático.
+        ...(title && replyToId && channelId && !threadRoot ? { isThread: true, threadLastReplyAt: new Date() } : {}),
         embed: embed ? JSON.stringify(embed) : null,
         stickerUrl,
         quickReactions,
@@ -666,8 +750,14 @@ async function createMessageInner(req, res) {
     // só vai pra sala do canal aberto, então quem foi mencionado em outro
     // canal não ficava sabendo em tempo real. Aviso leve na sala pessoal.
     if (access?.channel) {
-      notifyChannelMentions(io, { message, channel: access.channel, mentionRows }).catch((err) => {
+      notifyChannelMentions(io, { message, channel: access.channel, mentionRows, inThread: !!threadRoot }).catch((err) => {
         console.error('[mention] falha ao avisar menções:', err.message);
+      });
+    }
+    // Resposta no tópico: contador/prévia na raiz + aviso pra quem participa.
+    if (threadRoot) {
+      threadsService.afterThreadReply(io, { root: threadRoot, message, channel: access?.channel }).catch((err) => {
+        console.error('[tópico] falha ao atualizar o tópico:', err?.message || err);
       });
     }
 
@@ -774,7 +864,7 @@ async function createMessageInner(req, res) {
 // grande); @everyone/@here nunca viram aviso individual — só um "ping" do
 // canal pra sala da comunidade, que cada cliente filtra pelo que vê.
 const MENTION_NOTIFY_CAP = 200;
-async function notifyChannelMentions(io, { message, channel, mentionRows, isEdit = false }) {
+async function notifyChannelMentions(io, { message, channel, mentionRows, isEdit = false, inThread = false }) {
   if (!io) return;
   const authorId = message.authorId;
   const userIds = new Set();
@@ -803,6 +893,9 @@ async function notifyChannelMentions(io, { message, channel, mentionRows, isEdit
   // Canal com sobrescritas de permissão: só avisa quem pode VER o canal
   // (nunca vaza nome/prévia de canal privado). Canal comum: todo mundo vê.
   const restricted = await channelHasRestrictions(channel);
+  // Contador de não lidas ao vivo: só canal sem restrição (privado nunca
+  // vaza) e só mensagem nova (editar não conta de novo).
+  if (!restricted && !isEdit && !inThread) io.to('community').emit('channel:activity', require('../services/unreadCounts').activityPayload(message, channel.id));
   const canView = async (uid) => {
     if (!restricted) return true;
     const perms = await getEffectivePermissions(uid, channel.id, channel).catch(() => null);
@@ -841,8 +934,9 @@ async function notifyChannelMentions(io, { message, channel, mentionRows, isEdit
 
   // "Todas as mensagens": quem escolheu ser avisado de tudo neste canal
   // (canal, categoria ou padrão global) e ainda não foi avisado acima.
-  // Editar uma mensagem nunca avisa de novo.
-  if (isEdit) return;
+  // Editar uma mensagem nunca avisa de novo. Resposta de tópico também não
+  // (quem participa do tópico é avisado por services/threads.js).
+  if (isEdit || inThread) return;
   const everyMessage = await notificationPrefs.allMessageRecipients(channel, {
     excludeIds: [authorId, ...userIds], cap: MENTION_NOTIFY_CAP,
   });
@@ -893,6 +987,7 @@ async function editMessage(req, res, next) {
       include: { attachments: { select: { id: true } } },
     });
     if (!existing || existing.deleted || existing.authorId !== req.user.id) return res.status(403).json({ error: 'Sem permissão.' });
+    if (isSystemMessage(existing)) return res.status(400).json({ error: 'Mensagens do sistema não podem ser editadas.' });
     if (!content && !existing.attachments.length && !existing.embed && !existing.stickerUrl && !existing.title) {
       return res.status(400).json({ error: 'A mensagem não pode ficar vazia — apague-a em vez disso.' });
     }
@@ -1076,9 +1171,17 @@ async function deleteMessage(req, res, next) {
       }
     }
 
+    if (existing.deleted) return res.json({ ok: true, moderated });
     await prisma.message.update({ where: { id }, data: { deleted: true, content: null } });
     const io = req.app.get('io');
-    io?.to(roomFor(existing)).emit('message:delete', { id, conversationId: existing.conversationId, channelId: existing.channelId });
+    io?.to(roomFor(existing)).emit('message:delete', { id, conversationId: existing.conversationId, channelId: existing.channelId, threadId: existing.threadId || null });
+    // Resposta de tópico apagada: desconta do contador da raiz.
+    if (existing.threadId) {
+      prisma.message.updateMany({ where: { id: existing.threadId, threadReplyCount: { gt: 0 } }, data: { threadReplyCount: { decrement: 1 } } })
+        .then(() => threadsService.loadRootForBroadcast(existing.threadId))
+        .then((root) => { if (root) io?.to(roomFor(existing)).emit('message:update', root); })
+        .catch(() => {});
+    }
     res.json({ ok: true, moderated });
   } catch (err) { next(err); }
 }
@@ -1093,12 +1196,14 @@ async function togglePin(req, res, next) {
   try {
     const { id } = req.params;
     const existing = await prisma.message.findUnique({ where: { id } });
-    if (!existing) return res.status(404).json({ error: 'Mensagem não encontrada.' });
+    if (!existing || existing.deleted) return res.status(404).json({ error: 'Mensagem não encontrada.' });
 
     if (existing.channelId) {
       const channel = await prisma.channel.findUnique({ where: { id: existing.channelId } });
       const perms = channel && await getEffectivePermissions(req.user.id, channel.id, channel);
-      if (!perms || !has(perms, 'MANAGE_MESSAGES')) return res.status(403).json({ error: 'Sem permissão.' });
+      // Sem ver o canal = "não existe" (não confirma que a mensagem existe).
+      if (!perms || !has(perms, 'VIEW_CHANNEL')) return res.status(404).json({ error: 'Mensagem não encontrada.' });
+      if (!has(perms, 'MANAGE_MESSAGES')) return res.status(403).json({ error: 'Sem permissão.' });
     } else if (existing.conversationId) {
       const member = await prisma.conversationMember.findUnique({
         where: { conversationId_userId: { conversationId: existing.conversationId, userId: req.user.id } },
@@ -1107,6 +1212,7 @@ async function togglePin(req, res, next) {
     } else {
       return res.status(403).json({ error: 'Sem permissão.' });
     }
+    if (isSystemMessage(existing)) return res.status(400).json({ error: 'Mensagens do sistema não podem ser fixadas.' });
 
     const nowPinned = !existing.pinned;
     const message = await prisma.message.update({
@@ -1123,7 +1229,24 @@ async function togglePin(req, res, next) {
       id, pinned: nowPinned, conversationId: existing.conversationId, channelId: existing.channelId, byUserId: req.user.id,
       message,
     });
-    res.json({ message });
+    // Aviso no chat (igual Discord): "Fulano fixou uma mensagem." — só ao
+    // fixar, nunca ao desafixar. Falha aqui nunca desfaz a fixação.
+    let systemMessage = null;
+    if (nowPinned) {
+      try {
+        systemMessage = await prisma.message.create({
+          data: {
+            authorId: req.user.id,
+            channelId: existing.channelId || null,
+            conversationId: existing.conversationId || null,
+            embed: buildPinSystemEmbed({ actorName: req.user.displayName, targetId: id }),
+          },
+          include: messageInclude,
+        });
+        io?.to(roomFor(existing)).emit('message:new', systemMessage);
+      } catch (err) { console.error('[fixar] aviso no chat falhou:', err?.message || err); }
+    }
+    res.json({ message, systemMessage });
   } catch (err) { next(err); }
 }
 
@@ -1148,6 +1271,27 @@ async function listPinned(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Tópicos de um canal de texto (painel "Tópicos" do cabeçalho): ativos
+// primeiro (última resposta mais recente), depois os arquivados. Mesmo
+// controle de acesso de listMessages (VIEW_CHANNEL).
+async function listThreads(req, res, next) {
+  try {
+    const { channelId } = req.query;
+    if (!channelId) return res.status(400).json({ error: 'channelId é obrigatório.' });
+    await assertAccess(req, { channelId: String(channelId) });
+    const rows = await prisma.message.findMany({
+      where: { channelId: String(channelId), isThread: true, deleted: false },
+      include: messageInclude,
+      orderBy: [{ threadLastReplyAt: 'desc' }, { createdAt: 'desc' }],
+      take: 50,
+    });
+    const withSummary = await threadsService.attachThreadSummaries(rows);
+    const active = withSummary.filter((m) => !m.archived && !m.threadArchivedAt);
+    const archived = withSummary.filter((m) => m.archived || m.threadArchivedAt);
+    res.json({ threads: [...active, ...archived] });
+  } catch (err) { next(err); }
+}
+
 // Only a server admin/moderator (MANAGE_MESSAGES — the same permission that
 // already gates deleting other people's messages) can archive a topic, not
 // whoever started it — matches the user's "admin do servidor pode arquivar"
@@ -1166,9 +1310,17 @@ async function toggleArchiveTopic(req, res, next) {
     const perms = channel && await getEffectivePermissions(req.user.id, channel.id, channel);
     if (!perms || !has(perms, 'MANAGE_MESSAGES')) return res.status(403).json({ error: 'Sem permissão.' });
 
-    const message = await prisma.message.update({
-      where: { id }, data: { archived: !existing.archived }, include: messageInclude,
+    // Reabrir vale tanto pro trancado pela moderação quanto pro arquivado
+    // sozinho por inatividade (threadArchivedAt).
+    const reopening = existing.archived || !!existing.threadArchivedAt;
+    const updated = await prisma.message.update({
+      where: { id },
+      data: reopening
+        ? { archived: false, threadArchivedAt: null, isThread: true, threadLastReplyAt: new Date() }
+        : { archived: true },
+      include: messageInclude,
     });
+    const [message] = await threadsService.attachThreadSummaries([updated]);
     const io = req.app.get('io');
     io?.to(roomFor(existing)).emit('message:update', message);
     res.json({ message });
@@ -1309,6 +1461,7 @@ async function listReactors(req, res, next) {
 // (createdAt,id) de 25 em 25.
 const SEARCH_PAGE = 25;
 const { parseSearchQuery, resolveChannelFilter } = require('../services/searchQuery');
+const { fulltextCandidateIds } = require('../services/messageSearch');
 
 async function searchMessages(req, res, next) {
   try {
@@ -1324,9 +1477,12 @@ async function searchMessages(req, res, next) {
     const visibleChannels = async () => {
       if (visibleChannelsCache) return visibleChannelsCache;
       const channels = await prisma.channel.findMany({ where: { type: { notIn: ['VOICE', 'STAGE'] } }, select: { id: true, name: true, categoryId: true, isPrivate: true } });
-      const privates = channels.filter((c) => c.isPrivate);
-      const permMap = privates.length ? await getEffectivePermissionsForChannels(req.user.id, privates) : new Map();
-      visibleChannelsCache = channels.filter((c) => !c.isPrivate || has(permMap.get(c.id) || 0n, 'VIEW_CHANNEL'));
+      // SEGURANÇA: VIEW_CHANNEL é checado em TODOS os canais (não só nos
+      // marcados como privados) — um canal "público" com sobrescrita
+      // negando ver pra um cargo também não pode aparecer na busca. Uma
+      // consulta só de sobrescritas pra lista inteira.
+      const permMap = channels.length ? await getEffectivePermissionsForChannels(req.user.id, channels) : new Map();
+      visibleChannelsCache = channels.filter((c) => has(permMap.get(c.id) || 0n, 'VIEW_CHANNEL'));
       return visibleChannelsCache;
     };
 
@@ -1345,9 +1501,13 @@ async function searchMessages(req, res, next) {
     // pessoa pode ver + as conversas dela. Nunca vaza canal privado: a lista
     // vem das permissões efetivas (mesma regra da barra lateral).
     let scope;
+    let scopeChannelIds = [];
+    let scopeConversationIds = [];
     if (conversationId || channelId) {
       await assertAccess(req, { conversationId, channelId });
       scope = { conversationId: conversationId || undefined, channelId: channelId || undefined };
+      if (channelId) scopeChannelIds = [String(channelId)];
+      else scopeConversationIds = [String(conversationId)];
     } else {
       const [visibleList, memberships] = await Promise.all([
         visibleChannels(),
@@ -1356,6 +1516,8 @@ async function searchMessages(req, res, next) {
       const visible = visibleList.map((c) => c.id);
       const convs = memberships.map((m) => m.conversationId);
       if (!visible.length && !convs.length) return res.json({ messages: [], nextCursor: null });
+      scopeChannelIds = visible;
+      scopeConversationIds = convs;
       scope = { OR: [...(visible.length ? [{ channelId: { in: visible } }] : []), ...(convs.length ? [{ conversationId: { in: convs } }] : [])] };
     }
 
@@ -1379,8 +1541,20 @@ async function searchMessages(req, res, next) {
     // Cursor "createdAtISO|id" da página anterior.
     const [cAt, cId] = typeof req.query.cursor === 'string' ? req.query.cursor.split('|') : [];
     const cursorDate = cAt ? new Date(cAt) : null;
-    if (cursorDate && !Number.isNaN(cursorDate.getTime()) && cId) {
+    const validCursor = cursorDate && !Number.isNaN(cursorDate.getTime()) && cId;
+    if (validCursor) {
       and.push({ OR: [{ createdAt: { lt: cursorDate } }, { createdAt: cursorDate, id: { lt: cId } }] });
+    }
+    // Índice FULLTEXT: pré-filtra os candidatos (dentro do mesmo escopo
+    // visível) — ver services/messageSearch.js. null = segue só no LIKE.
+    if (parsed.text) {
+      const candidateIds = await fulltextCandidateIds(prisma, {
+        text: parsed.text,
+        channelIds: scopeChannelIds,
+        conversationIds: scopeConversationIds,
+        cursor: validCursor ? { date: cursorDate, id: cId } : null,
+      });
+      if (candidateIds) and.push({ id: { in: candidateIds } });
     }
 
     const myFilter = await prisma.userSettings.findUnique({ where: { userId: req.user.id }, select: { contentFilterLevel: true } });
@@ -1406,7 +1580,7 @@ async function searchMessages(req, res, next) {
 }
 
 module.exports = {
-  listMessages, listPinned, createMessage, precheckCreateMessage, setPostIcon, editMessage, listEdits, forwardMessage,
+  listMessages, listPinned, listThreads, createMessage, precheckCreateMessage, setPostIcon, editMessage, listEdits, forwardMessage,
   deleteMessage, togglePin, react, listReactors, searchMessages, toggleArchiveTopic,
   messageInclude, assertAccess, roomFor, parseSearchQuery, createMessageInner,
 };

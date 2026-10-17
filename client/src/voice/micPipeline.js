@@ -16,6 +16,7 @@
 // pra trocar a faixa do producer — a pessoa nunca fica muda sem saber. Se o
 // contexto voltar a rodar, onRestore(track) devolve a faixa processada.
 import { createNoiseNode, NOISE_SAMPLE_RATE } from './noiseSuppressor.js';
+import { createDfnNode, NOISE_MODELS } from './noiseModels.js';
 import { rmsToDb } from './micGate.js';
 
 // Rampas do portão (sem estalo): abre rápido (não come o começo da sílaba),
@@ -31,7 +32,10 @@ function audioContextClass() {
 
 // Cria o pipeline pra uma faixa crua. Nunca lança: sem Web Audio, devolve
 // um pipeline "direto" (a própria faixa, portão por enabled).
-export async function createMicPipeline(rawTrack, { noise = false, onBypass = null, onRestore = null, onVad = null, log = console } = {}) {
+// `noiseModel`: 'rnnoise' (padrão) | 'dfn3' (alta qualidade, atrás de flag —
+// voice/noiseModels.js). DeepFilterNet3 que falha ao carregar ou deixa a CPU
+// no limite volta pro RNNoise sozinho (`onNoiseFallback(reason)`).
+export async function createMicPipeline(rawTrack, { noise = false, noiseModel = NOISE_MODELS.RNNOISE, dfnBaseUrl = undefined, onNoiseFallback = null, onBypass = null, onRestore = null, onVad = null, log = console } = {}) {
   const Ctx = audioContextClass();
   let ctx = null;
   let source = null; let noiseNode = null; let inputGain = null; let gateGain = null; let analyser = null; let dest = null;
@@ -40,6 +44,8 @@ export async function createMicPipeline(rawTrack, { noise = false, onBypass = nu
   let mode = 'direct';
   let gateOpen = true;
   let noiseWanted = !!noise;
+  let modelWanted = noiseModel === NOISE_MODELS.DFN3 ? NOISE_MODELS.DFN3 : NOISE_MODELS.RNNOISE;
+  let dfnFailed = false;
   let disposed = false;
   let suspendTimer = null;
   let buf = null;
@@ -56,6 +62,32 @@ export async function createMicPipeline(rawTrack, { noise = false, onBypass = nu
     try { source.disconnect(); } catch { /* ok */ }
     try { noiseNode?.node.disconnect(); } catch { /* ok */ }
     if (noiseNode) { source.connect(noiseNode.node); noiseNode.node.connect(inputGain); } else source.connect(inputGain);
+  };
+  const modelOf = (n) => (n ? (n.model || NOISE_MODELS.RNNOISE) : null);
+  // Troca o nó do redutor no grafo (o antigo sai; a faixa enviada é a mesma).
+  const swapNoiseNode = (next) => {
+    const old = noiseNode;
+    noiseNode = next;
+    try { wire(); } catch { /* ok */ }
+    if (old && old !== next) { try { old.node.disconnect(); old.node.port?.close?.(); } catch { /* ok */ } }
+  };
+  // DeepFilterNet3 lento: volta pro RNNoise sem derrubar nada.
+  const fallbackToRnnoise = async (reason) => {
+    dfnFailed = true;
+    try { onNoiseFallback?.(reason); } catch { /* ok */ }
+    if (disposed || !ctx || modelOf(noiseNode) !== NOISE_MODELS.DFN3) return;
+    const n = await createNoiseNode(ctx, { enabled: noiseWanted, onVad });
+    if (disposed) return;
+    swapNoiseNode(n);
+  };
+  const makeNoiseNode = async () => {
+    if (modelWanted === NOISE_MODELS.DFN3 && !dfnFailed) {
+      const n = await createDfnNode(ctx, { baseUrl: dfnBaseUrl, enabled: true, onVad, onSlow: () => { fallbackToRnnoise('slow'); }, log });
+      if (n) return n;
+      dfnFailed = true;
+      try { onNoiseFallback?.('load'); } catch { /* ok */ }
+    }
+    return createNoiseNode(ctx, { enabled: true, onVad });
   };
 
   const goDirect = (why) => {
@@ -101,7 +133,7 @@ export async function createMicPipeline(rawTrack, { noise = false, onBypass = nu
       inputGain.connect(gateGain);
       inputGain.connect(analyser);
       gateGain.connect(dest);
-      if (noiseWanted && ctx.sampleRate === NOISE_SAMPLE_RATE) noiseNode = await createNoiseNode(ctx, { enabled: true, onVad });
+      if (noiseWanted && ctx.sampleRate === NOISE_SAMPLE_RATE) noiseNode = await makeNoiseNode();
       wire();
       processed = dest.stream.getAudioTracks()[0] || null;
       if (!processed) throw new Error('sem faixa de saída');
@@ -130,6 +162,8 @@ export async function createMicPipeline(rawTrack, { noise = false, onBypass = nu
     get track() { return mode === 'graph' ? processed : directTrack(); },
     get mode() { return mode; },
     get noiseActive() { return mode === 'graph' && !!noiseNode && noiseWanted; },
+    // Modelo do redutor rodando agora: 'rnnoise' | 'dfn3' | null.
+    get noiseModel() { return modelOf(noiseNode); },
     get gateOpen() { return gateOpen; },
     // Portão: rampa curta no grafo; enabled no modo direto.
     setGate(open) {
@@ -155,11 +189,23 @@ export async function createMicPipeline(rawTrack, { noise = false, onBypass = nu
       if (!ctx) return false;
       if (noiseNode) { noiseNode.setEnabled(noiseWanted); return true; }
       if (!noiseWanted || ctx.sampleRate !== NOISE_SAMPLE_RATE) return false;
-      const n = await createNoiseNode(ctx, { enabled: true, onVad });
+      const n = await makeNoiseNode();
       if (!n || disposed) return false;
       noiseNode = n;
       try { wire(); } catch { /* ok */ }
       return true;
+    },
+    // Troca o modelo ('rnnoise' | 'dfn3') ao vivo. Escolher 'dfn3' de novo
+    // depois de uma falha tenta outra vez. Devolve o modelo em uso.
+    async setNoiseModel(model) {
+      modelWanted = model === NOISE_MODELS.DFN3 ? NOISE_MODELS.DFN3 : NOISE_MODELS.RNNOISE;
+      if (modelWanted === NOISE_MODELS.DFN3) dfnFailed = false;
+      if (!ctx || !noiseWanted || ctx.sampleRate !== NOISE_SAMPLE_RATE) return modelOf(noiseNode);
+      if (modelOf(noiseNode) === modelWanted) return modelWanted;
+      const n = await makeNoiseNode();
+      if (disposed || !n) return modelOf(noiseNode);
+      swapNoiseNode(n);
+      return modelOf(noiseNode);
     },
     // Nível (dBFS) do sinal antes do portão; null = sem medida (modo direto).
     readLevelDb() {

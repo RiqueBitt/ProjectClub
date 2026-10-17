@@ -146,6 +146,9 @@ const EXTRA_PREF_RULES = {
   soundPack: oneOf('auto', 'classic', 'halloween', 'natal', 'retro', 'suave'),
   soundsOff: (v) => keyList(40)(v) && v.every((k) => SOUND_KEYS.includes(k)),
   unreadBadge: isBool,
+  // Avisar (push/PC) quando sair anúncio ou evento novo (services/broadcastNotify.js).
+  notifyAnnouncements: isBool,
+  notifyEvents: isBool,
   // Padrão de notificação dos canais (canal/categoria podem sobrescrever —
   // ver services/notificationPrefs.js).
   notifyLevel: oneOf('all', 'mentions', 'none'),

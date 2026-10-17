@@ -263,4 +263,5 @@ module.exports = {
   channelStatesFor,
   filterNotifiable,
   allMessageRecipients,
+  loadExtraPrefs,
 };

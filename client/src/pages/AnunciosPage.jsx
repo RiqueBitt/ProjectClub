@@ -5,6 +5,7 @@ import UserAvatar from '../components/UserAvatar.jsx';
 import { proxyImage } from '../utils/imageProxy';
 import RichText from '../components/AnunciosRichText.jsx';
 import '../styles/anuncios.css';
+import { useMarkSectionSeen } from '../utils/sectionBadges';
 
 const fmtDate = (d) => new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -90,6 +91,7 @@ function Editor({ initial, onClose, onSaved }) {
 
 export default function AnunciosPage() {
   const socket = useSocket()?.socket || null;
+  useMarkSectionSeen('anuncios'); // abriu Anúncios: apaga a bolinha "novo"
   const [data, setData] = useState(null);
   const [editing, setEditing] = useState(null);
 

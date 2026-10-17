@@ -1,3 +1,4 @@
+import UnreadCountBadge from './UnreadCountBadge.jsx';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { lazyWithRetry as lazy } from '../utils/lazyWithRetry';
 import { createPortal } from 'react-dom';
@@ -165,7 +166,7 @@ export default function ChannelSidebar({
   const catPreviewTimer = useRef(null);
   const myRoleIdsForBadges = members.find((m) => m.user.id === user.id)?.roleIds || [];
   const unreadInCategory = (cat) => (cat.channels || []).filter((c) => (
-    c.id !== activeChannelId && (c.unreadMentions > 0 || isChannelUnread(c, channelReadAt, user.id, myRoleIdsForBadges))
+    c.id !== activeChannelId && (c.unreadMentions > 0 || c.unreadCount > 0 || isChannelUnread(c, channelReadAt, user.id, myRoleIdsForBadges))
   ));
   const showCatPreview = (e, cat) => {
     clearTimeout(catPreviewTimer.current);
@@ -313,7 +314,7 @@ export default function ChannelSidebar({
 
       {topSlot}
 
-      <nav className="sidebar-list" onContextMenu={onListContextMenu}>
+      <nav className="sidebar-list" aria-label="Canais" onContextMenu={onListContextMenu}>
         {/* Canais em destaque (Eventos, Feed, Galeria) — sempre no topo. */}
         <FeaturedChannels canManage={canManage} />
         {!communityLoaded && channels.length === 0 && categories.length === 0 && <ListSkeleton variant="channels" label="Carregando canais…" />}
@@ -390,8 +391,8 @@ export default function ChannelSidebar({
               </button>
               {canManage && (
                 <span className="category-actions">
-                  <button className="icon-btn-small" title="Criar canal nesta categoria" onClick={() => setChannelModal({ open: true, categoryId: cat.id })}><img className="ui-icon-sm" src={plusIcon} alt="+" /></button>
-                  <button className="icon-btn-small" title="Editar categoria" onClick={() => setEditCategory(cat)}><img className="ui-icon-sm" src={settingsIcon} alt="" /></button>
+                  <button className="icon-btn-small" title="Criar canal nesta categoria" aria-label={`Criar canal em ${cat.name}`} onClick={() => setChannelModal({ open: true, categoryId: cat.id })}><img className="ui-icon-sm" src={plusIcon} alt="" /></button>
+                  <button className="icon-btn-small" title="Editar categoria" aria-label={`Editar categoria ${cat.name}`} onClick={() => setEditCategory(cat)}><img className="ui-icon-sm" src={settingsIcon} alt="" /></button>
                   <button className="icon-btn-small" title="Excluir categoria" onClick={() => removeCategory(cat.id)}><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button>
                 </span>
               )}
@@ -438,7 +439,7 @@ export default function ChannelSidebar({
               >
                 <span className="category-preview-icon">{hasCustomIcon(c) ? <CustomIcon item={c} className="channel-custom-icon" /> : <NavIcon name={VOICE_TYPES.includes(c.type) ? 'voice' : 'hash'} size={15} />}</span>
                 <span className="truncate">{c.name}</span>
-                {c.unreadMentions > 0 ? <span className="mention-badge">{c.unreadMentions > 99 ? '99+' : c.unreadMentions}</span> : <span className="unread-dot" />}
+                <UnreadCountBadge channel={c} unread />
               </button>
             ))}
           </div>,
@@ -560,13 +561,10 @@ function ChannelGroup({
                 // original do reload de página inteira): só um clique
                 // simples chamando navigate() por dentro do app.
                 onClick={() => { if (ch.id !== activeChannelId) navigate(`/channels/${ch.id}`); }}
+                data-channel-id={ch.id} data-channel-type={ch.type}
+                aria-current={ch.id === activeChannelId ? 'page' : undefined}
                 className={`sidebar-item channel-item ${ch.id === activeChannelId ? 'active' : ''} ${unread && !notify.muted ? 'unread' : ''} ${notify.muted ? 'is-muted' : ''}`}
               >
-                {ch.unreadMentions > 0 && (
-                  <span className={`mention-badge${notify.muted ? ' is-muted' : ''}`} title={`${ch.unreadMentions} menção${ch.unreadMentions === 1 ? '' : 'ões'} não lida${ch.unreadMentions === 1 ? '' : 's'}`}>
-                    {ch.unreadMentions > 99 ? '99+' : ch.unreadMentions}
-                  </span>
-                )}
                 <ChannelIcon channel={ch} />
                 <span className="truncate">{ch.name}</span>
                 {isVoiceType && ch.userLimit > 0 && (
@@ -584,7 +582,9 @@ function ChannelGroup({
                     title={`${notify.mutedBy === 'category' ? 'Categoria silenciada' : 'Canal silenciado'} — ${muteRemainingLabel(notify.mutedUntil, { forever: notify.mutedForever }).toLowerCase()}`}
                   />
                 )}
-                {!(ch.unreadMentions > 0) && unread && !notify.muted && <span className="unread-dot" />}
+                {/* Número vermelho de mensagens novas (com @ quando tem menção). */}
+                {!isVoiceType && <UnreadCountBadge channel={ch} active={ch.id === activeChannelId} muted={notify.muted} unread={unread} />}
+                {isVoiceType && ch.unreadMentions > 0 && <span className="unread-count-badge has-mention">@{ch.unreadMentions > 99 ? '99+' : ch.unreadMentions}</span>}
                 {canManage && (
                   <span className="channel-item-actions">
                     <button className="icon-btn-small" onClick={(e) => { e.stopPropagation(); onEdit(ch); }}><img className="ui-icon-sm" src={settingsIcon} alt="" /></button>

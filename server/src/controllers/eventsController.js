@@ -125,6 +125,12 @@ async function createEvent(req, res, next) {
 
     const event = await prisma.event.create({ data, include: { createdBy: { select: AUTHOR_FIELDS } } });
     req.app.get('io')?.to('community').emit('event:new', event);
+    // Bolinha "novo" em Eventos + aviso pra todo mundo (push/PC).
+    require('../services/sectionBadges').touchSection('eventos');
+    req.app.get('io')?.to('community').emit('section-badges:new', { section: 'eventos' });
+    require('../services/broadcastNotify').notifyBroadcastLater(req.app.get('io'), {
+      kind: 'event', id: event.id, title: event.title, body: event.description, authorId: req.user.id,
+    });
     res.status(201).json({ event });
   } catch (err) { next(err); }
 }

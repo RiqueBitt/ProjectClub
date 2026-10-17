@@ -474,3 +474,31 @@
 .modal-overlay .modal-box.profile-modal-fullscreen .profile-top-row { max-width: none; }
 
 .prompt-dialog-box textarea { width: 100%; box-sizing: border-box; resize: vertical; margin-bottom: 10px; }
+
+/* Insígnias no topo do perfil completo (até 4, canto superior direito). */
+.pfx-head-side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 0; }
+.pfx-head-side .pfx-head-activity { padding-top: 0; }
+.pfx-head-side .pfx-head-badges + .pfx-head-activity:empty { display: none; }
+.pfx-head-side > .pfx-head-badges:first-child { margin-top: 14px; }
+.pfx-head-side > .pfx-head-activity:first-child { padding-top: 16px; }
+.pfx-head-badges { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: nowrap; }
+.pfx-head-badge {
+  display: inline-grid; place-items: center; padding: 0; border: 0; background: none; cursor: pointer;
+  border-radius: 10px; transition: transform .12s ease;
+}
+.pfx-head-badge:hover { transform: translateY(-1px) scale(1.06); }
+.pfx-head-badge:focus-visible { outline: 2px solid var(--brand-500, #5865f2); outline-offset: 2px; }
+.pfx-head-badge.more {
+  width: 30px; height: 30px; font: 700 12px/1 system-ui, sans-serif; color: var(--text-normal, #dbdee1);
+  background: rgba(255, 255, 255, .08);
+}
+@media (max-width: 900px) {
+  .pfx-head-side { grid-column: 1 / -1; align-items: stretch; }
+  .pfx-head-side .pfx-head-activity { grid-column: auto; }
+}
+@media (max-width: 720px) {
+  .modal-overlay .modal-box.profile-modal-fullscreen .profile-top-row .profile-ig-header { position: relative; }
+  .pfx-head-side > .pfx-head-badges:first-child { position: absolute; top: 10px; right: 14px; margin: 0; }
+  .pfx-head-badge .badge-ico-tile { width: 26px !important; height: 26px !important; }
+  .pfx-head-badge.more { width: 26px; height: 26px; }
+}

@@ -61,28 +61,3 @@ export function healActions({ trackLive = true, srcOk = true, paused = false, mo
   }
   return out;
 }
-
-// "Uma vez por chave" (diagnóstico: 1 por call por pessoa).
-export function createOnceSet(max = 300) {
-  const seen = new Set();
-  return {
-    first(key) {
-      if (seen.has(key)) return false;
-      if (seen.size >= max) seen.clear();
-      seen.add(key);
-      return true;
-    },
-  };
-}
-
-// Diagnóstico compacto (voz-diag) — cabe numa linha de log.
-export function buildDiag({ userId, provider, mode, el, track, ctxState, inboundBytes, sinkCustom, ua } = {}) {
-  const d = { u: String(userId ?? '?').slice(0, 40), p: provider || null, m: mode || null };
-  if (el) d.el = { p: el.paused ? 1 : 0, mu: el.muted ? 1 : 0, v: Math.round((el.volume ?? 1) * 100), t: Math.round(el.currentTime || 0), rs: el.readyState ?? null };
-  if (track) d.tr = { s: track.readyState === 'live' ? 'live' : String(track.readyState || '?'), mu: track.muted ? 1 : 0, en: track.enabled === false ? 0 : 1 };
-  d.ctx = ctxState || null;
-  d.b = Number.isFinite(inboundBytes) ? inboundBytes : null;
-  d.sk = sinkCustom ? 1 : 0;
-  if (ua) d.ua = String(ua).slice(0, 90);
-  return d;
-}

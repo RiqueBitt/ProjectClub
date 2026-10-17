@@ -21,7 +21,7 @@ import robloxIcon from '../assets/icons/social-roblox.png';
 import xIcon from '../assets/icons/social-x.png';
 import { proxyImage } from '../utils/imageProxy';
 import { nameStyleProps, nameStyleClassName } from '../utils/nameStyle';
-import { badgeHasImage } from '../utils/badgeRarity';
+import BadgeIcon from './BadgeIcon.jsx';
 import { PfIcon, PfCard } from './modals/profileParts.jsx';
 import '../styles/profile.css';
 import BannerImage from './ProfileBanner.jsx';
@@ -160,7 +160,7 @@ export default function DMProfilePanel({ onToggle }) {
                 <div className="dmp-icons">
                   {data.badges.map((b) => (
                     <span key={b.id} className="dmp-icon" title={`${b.name}${b.description ? ' — ' + b.description : ''}`}>
-                      {badgeHasImage(b) ? <img src={proxyImage(b.iconUrl)} alt="" /> : b.icon}
+                      <BadgeIcon badge={b} size={24} />
                     </span>
                   ))}
                 </div>

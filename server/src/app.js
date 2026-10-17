@@ -439,11 +439,15 @@ function createApp() {
   app.use('/api/clans', clansRoutes);
   app.use('/api/minigames', minigamesRoutes);
   app.use('/api/anuncios', require('./routes/staffAnnouncements'));
+  app.use('/api/section-badges', require('./routes/sectionBadges'));
   // Guerra das Cartas: desligada temporariamente no código (config/features.js)
   // — 503 antes de carregar o router (nem a varredura de turnos liga).
   app.use('/api/cards', requireFeature('cardsWar', { status: 503, message: require('./config/features').CARDS_WAR_OFF_MSG }), require('./routes/cards'));
   // Pacote de abertura (várias seções numa requisição só) — ver bootstrapController.
   app.get('/api/bootstrap', require('./middleware/auth').requireAuth, require('./controllers/bootstrapController').getBootstrap);
+  // Primeiros passos (checklist com moedas + tour) e painel de saúde/backup da staff.
+  app.use('/api/onboarding', require('./routes/onboarding'));
+  app.use('/api/staff-ops', require('./routes/staffOps'));
 
   // In production, serve the built React client from a single process
   // (this is what SquareCloud runs — one MAIN process, one port).

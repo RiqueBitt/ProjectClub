@@ -127,6 +127,7 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
     val me by repo.me.collectAsState()
     val presence by repo.presence.collectAsState()
     val conversations by repo.conversations.collectAsState()
+    val offline by repo.offline.collectAsState()
     val ctx = LocalContext.current
     val channel = room.channelId?.let { repo.channel(it) }
     val conv = room.conversationId?.let { id -> conversations.firstOrNull { it.id == id } }
@@ -218,7 +219,13 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
                                 m = m, repo = repo, myId = me?.id, myUsername = me?.username,
                                 header = ChatLogic.startsGroup(prev, m),
                                 pending = m.id.startsWith(ChatViewModel.LOCAL),
-                                onLongPress = { if (!m.id.startsWith(ChatViewModel.LOCAL)) menuFor = m },
+                                status = if (m.id.startsWith(ChatViewModel.LOCAL) && m.nonce in state.queued) {
+                                    if (offline) "🕓 pendente — sai quando a conexão voltar · segure para cancelar" else "enviando…"
+                                } else null,
+                                onLongPress = {
+                                    if (!m.id.startsWith(ChatViewModel.LOCAL)) menuFor = m
+                                    else if (m.nonce in state.queued) confirmDelete = m
+                                },
                                 onReact = { e -> vm.react(m, e) },
                                 onImage = { viewing = it },
                             )
@@ -321,7 +328,16 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
             Spacer(Modifier.navigationBarsPadding().padding(bottom = 12.dp))
         }
     }
-    confirmDelete?.let { m ->
+    confirmDelete?.takeIf { it.id.startsWith(ChatViewModel.LOCAL) }?.let { m ->
+        AlertDialog(
+            onDismissRequest = { confirmDelete = null },
+            title = { Text("Cancelar envio?") },
+            text = { Text("Esta mensagem ainda não saiu (está pendente). Ela não será enviada.") },
+            confirmButton = { TextButton(onClick = { vm.cancelPending(m); confirmDelete = null }) { Text("Cancelar envio", color = PC.Red) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Manter") } },
+        )
+    }
+    confirmDelete?.takeIf { !it.id.startsWith(ChatViewModel.LOCAL) }?.let { m ->
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
             title = { Text("Apagar mensagem?") },
@@ -360,6 +376,8 @@ private fun SheetItem(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
 private fun MessageItem(
     m: Message, repo: Repository, myId: String?, myUsername: String?, header: Boolean, pending: Boolean,
     onLongPress: () -> Unit, onReact: (String) -> Unit, onImage: (String) -> Unit,
+    /** "pendente" (fila offline) / "enviando…" embaixo da mensagem. */
+    status: String? = null,
 ) {
     val author = m.author ?: repo.user(m.authorId)
     val uri = LocalUriHandler.current
@@ -423,6 +441,7 @@ private fun MessageItem(
                 }
             }
             if (m.edited) Text("(editado)", color = PC.Muted, style = MaterialTheme.typography.labelSmall)
+            status?.let { Text(it, color = PC.Yellow, style = MaterialTheme.typography.labelSmall) }
             m.stickerUrl?.let { AsyncImage(Config.media(it), "Figurinha", modifier = Modifier.padding(top = 4.dp).size(140.dp)) }
             m.embed?.let { EmbedCard(it) }
             val images = m.attachments.filter { it.isImage && !it.isSpoiler }

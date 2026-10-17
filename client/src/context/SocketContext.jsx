@@ -10,6 +10,7 @@ import { getExtra, streamerQuiet } from '../utils/extraPrefs';
 import { canNotify, quietHoursActive, loadNotificationOverrides, applyOverrideUpdate } from '../utils/notificationPrefs';
 import { setupNativeActivity } from '../utils/nativeActivity';
 import { updateUnreadBadge } from '../utils/unreadBadge';
+import { wantsBroadcastNotify } from '../utils/broadcastNotify';
 import { sameData } from '../utils/liveRefresh';
 import { getAccessToken, refreshAccessToken } from '../api/client';
 
@@ -212,7 +213,9 @@ export function SocketProvider({ children }) {
 
     socket.on('message:new', (message) => {
       addMessage(roomKeyFor(message), message);
-      bumpRoomActivity(message);
+      // Resposta de tópico não acende o canal (quem participa recebe o
+      // 'thread:reply' próprio, logo abaixo).
+      if (!message.threadId) bumpRoomActivity(message);
 
       if (message.authorId !== user.id) {
         let wasMentioned = false;
@@ -275,6 +278,28 @@ export function SocketProvider({ children }) {
       }
       updateUnreadBadge(userId);
     });
+    // Anúncio ou evento novo: notificação do PC/navegador (o push do celular
+    // sai do servidor). Respeita a chave em Configurações → Notificações.
+    socket.on('broadcast:notify', (p = {}) => {
+      if (!p.kind || (p.authorId && p.authorId === user.id)) return;
+      if (!wantsBroadcastNotify(getExtra(), p.kind)) return;
+      playSound('message');
+      notifyUser(p.title || 'Novidade', (p.body || '').slice(0, 140), () => navigate(p.link || (p.kind === 'event' ? '/comunidade/eventos' : '/anuncios')));
+    });
+    // Contador de não lidas: toda mensagem nova de canal público chega aqui
+    // (sem conteúdo) e soma +1 no canal, se ele não estiver aberto.
+    const seenActivity = new Set();
+    socket.on('channel:activity', ({ channelId, messageId, authorId, createdAt } = {}) => {
+      if (!channelId || authorId === user.id) return;
+      if (messageId) {
+        if (seenActivity.has(messageId)) return;
+        seenActivity.add(messageId);
+        if (seenActivity.size > 1000) seenActivity.delete(seenActivity.values().next().value);
+      }
+      const st = useStore.getState();
+      if (st.activeChannelId === channelId && document.visibilityState === 'visible') return;
+      st.bumpChannelUnread?.(channelId, createdAt);
+    });
     // Configuração de notificação mudou em outro aparelho/aba.
     socket.on('notification-override:update', applyOverrideUpdate);
     // @everyone/@here num canal público: só acende o canal (sem notificação
@@ -301,7 +326,35 @@ export function SocketProvider({ children }) {
       removeMessage(roomKeyFor(room), id);
     });
 
-    socket.on('presence:update', ({ userId, status, customStatus, mobile }) => {
+    // Nova resposta num tópico em que a pessoa participa (servidor já
+    // filtrou quem ainda vê o canal). Com o painel desse tópico aberto e
+    // visível, não avisa.
+    socket.on('thread:reply', (p = {}) => {
+      if (!p.threadId || p.authorId === user.id || markMentionSeen(p.messageId)) return;
+      const st = useStore.getState();
+      if (st.openThread?.id === p.threadId && document.visibilityState === 'visible') return;
+      if (!canNotify({ kind: 'mention', channelId: p.channelId })) return;
+      playSound('mention');
+      notifyUser(
+        `${p.authorName || 'Alguém'} respondeu no tópico “${p.threadName || 'tópico'}”`,
+        (p.preview || '').slice(0, 120),
+        () => {
+          useStore.getState().setPendingThread({ channelId: p.channelId, threadId: p.threadId });
+          navigate(`/channels/${p.channelId}`);
+        },
+      );
+    });
+    // Tópico arquivado sozinho por inatividade.
+    socket.on('thread:archived', ({ id, channelId, threadArchivedAt } = {}) => {
+      if (!id) return;
+      const st = useStore.getState();
+      const key = roomKeyFor({ channelId });
+      const root = (st.messagesByRoom[key] || []).find((m) => m.id === id);
+      if (root) updateMessage(key, { ...root, threadArchivedAt });
+      if (st.openThread?.id === id) st.setOpenThread({ ...st.openThread, root: { ...(st.openThread.root || {}), ...(root || {}), threadArchivedAt } });
+    });
+
+    socket.on('presence:update', ({ userId, status, customStatus, customStatusEmoji, mobile }) => {
       // "Amigos ficam online" (Configurações → Notificações).
       const st = useStore.getState();
       const prev = st.presence?.[userId]?.status;
@@ -309,7 +362,10 @@ export function SocketProvider({ children }) {
         const f = st.friends.find((x) => x.status === 'ACCEPTED' && x.user?.id === userId);
         if (f) notifyUser(`${f.user.displayName} ficou online`, '', () => navigate(`/u/${userId}`));
       }
-      setPresence(userId, { status, customStatus, mobile: !!mobile });
+      // customStatusEmoji só vem quando o servidor sabe (status
+      // personalizado mudou/venceu) — senão mantém o que já tinha.
+      const prevEmoji = st.presence?.[userId]?.customStatusEmoji;
+      setPresence(userId, { status, customStatus, customStatusEmoji: customStatusEmoji !== undefined ? customStatusEmoji : prevEmoji, mobile: !!mobile });
     });
     // Alguém reagiu a uma mensagem sua (o servidor já respeita a preferência).
     socket.on('reaction:you', ({ emoji, by, preview, channelId, conversationId, messageId }) => {

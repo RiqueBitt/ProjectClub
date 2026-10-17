@@ -415,3 +415,32 @@ button.mention-chip.channel-mention-chip:hover { background: color-mix(in srgb, 
 .mj-composer-game img { width: 48px; height: 48px; border-radius: 12px; object-fit: cover; }
 .mj-composer-game span { font-size: 11px; line-height: 1.2; text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 @media (max-width: 600px) { .mj-composer-pop { position: fixed; left: 8px; right: 8px; bottom: 80px; width: auto; } }
+
+/* Número vermelho de mensagens novas no canal (igual ao Discord); com
+   menção ganha "@" e um anel pra se destacar. */
+.unread-count-badge {
+  margin-left: auto; margin-right: 4px; flex-shrink: 0;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 1px;
+  background: var(--red, #f23f43); color: #fff;
+  font: 700 11px/1 var(--font-primary, system-ui), sans-serif; font-variant-numeric: tabular-nums;
+  animation: reaction-pop .25s cubic-bezier(.34, 1.56, .64, 1);
+}
+.unread-count-badge.has-mention { box-shadow: 0 0 0 2px color-mix(in srgb, var(--red, #f23f43) 35%, transparent); }
+.sidebar-item.channel-item .channel-muted-icon + .unread-count-badge { margin-left: 4px; }
+.category-preview-item .unread-count-badge { margin: 0 4px 0 auto; }
+.channel-tab .unread-count-badge { margin-left: 6px; margin-right: 0; }
+@media (prefers-reduced-motion: reduce) { .unread-count-badge { animation: none; } }
+
+/* "Novo" em Anúncios / Eventos / Loja (coleções). */
+.section-new-badge {
+  margin-left: auto; flex-shrink: 0; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--red, #f23f43); color: #fff; font: 700 11px/1 var(--font-primary, system-ui), sans-serif;
+  animation: reaction-pop .25s cubic-bezier(.34, 1.56, .64, 1);
+}
+.section-new-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red, #f23f43);
+  margin-left: 6px; flex-shrink: 0; box-shadow: 0 0 0 2px color-mix(in srgb, var(--red, #f23f43) 30%, transparent);
+}
+@media (prefers-reduced-motion: reduce) { .section-new-badge { animation: none; } }

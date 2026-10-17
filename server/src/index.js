@@ -161,6 +161,8 @@ require('./services/reminders').startReminders(io);
 // Faxina diária do banco (tokens vencidos, avisos lidos antigos, ErrorLog
 // velho...) — 5 min depois do boot e depois a cada 24h. Ver cleanupJobs.js.
 require('./services/cleanupJobs').startCleanupJobs();
+// Backup diário do banco (BACKUP_HOUR, padrão 4h de Brasília) — ver dbBackup.js.
+require('./services/dbBackup').startBackupScheduler(io);
 // Avisos sociais: aniversário de amizade (1x por dia).
 require('./services/profileUpdates').startSocialJobs(io);
 // Itens da Loja com prazo (recompensa de missão) somem quando vencem.
@@ -169,5 +171,9 @@ require('./services/shopTimed').startTimedSweeper(io);
 require('./controllers/staffAnnouncementsController').startScheduler(io);
 // Resumo da semana (segunda de manhã): menções, eventos e novidades da Loja.
 require('./services/weeklyDigest').startWeeklyDigest(io);
+// Status personalizado vencido some sozinho pra todo mundo (1x por minuto)
+// e tópicos parados há muito tempo são arquivados (a cada 30 min).
+require('./services/customStatus').startCustomStatusSweep(io);
+require('./services/threads').startThreadArchiveJob(io);
 // Monitor de status (página pública /status + alerta pra staff quando cai).
 require('./services/statusMonitor').startStatusMonitor(io);

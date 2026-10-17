@@ -1,3 +1,4 @@
+import UnreadCountBadge from './UnreadCountBadge.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore, isChannelUnread, useMyRoleIds } from '../store/useStore';
@@ -138,10 +139,7 @@ export default function ChannelSwitcher({ currentChannelId }) {
             >
               <ChannelIcon channel={ch} />
               <span className="truncate">{ch.name}</span>
-              {ch.unreadMentions > 0 && (
-                <span className="mention-badge">{ch.unreadMentions > 99 ? '99+' : ch.unreadMentions}</span>
-              )}
-              {!(ch.unreadMentions > 0) && unread && <span className="unread-dot" />}
+              <UnreadCountBadge channel={ch} active={active} unread={unread} />
             </button>
           );
         })}
