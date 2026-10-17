@@ -11,6 +11,7 @@ import com.projectclub.android.data.SessionState
 import com.projectclub.android.net.Api
 import com.projectclub.android.notify.Notifier
 import com.projectclub.android.voice.VoiceManager
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -24,7 +25,15 @@ import kotlinx.coroutines.launch
 
 /** Dono das peças do app (servidor, tempo real, voz) e das notificações. */
 class App : Application() {
-    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    /**
+     * Escopo do app. Um erro inesperado numa tarefa de fundo NÃO pode fechar o
+     * app (sem este handler, qualquer exceção solta num launch derrubava tudo):
+     * vira relato pro servidor e a tarefa morre sozinha.
+     */
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, t ->
+        android.util.Log.e("PCApp", "erro numa tarefa de fundo", t)
+        if (::repo.isInitialized) repo.report("tarefa", t)
+    })
     lateinit var api: Api
         private set
     lateinit var repo: Repository
@@ -44,6 +53,8 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         CrashReporter.install(this)
+        // Antes de tudo que possa usar o Updater (o observador do ciclo de vida chama ele).
+        com.projectclub.android.data.Updater.init(this)
         api = Api(this)
         repo = Repository(this, api, appScope)
         voice = VoiceManager(this, repo, appScope)
@@ -69,7 +80,6 @@ class App : Application() {
         repo.beforeLogout = { pushToken?.let { repo.unregisterPushToken(it) } }
         appScope.launch { repo.restore() }
         appScope.launch { runCatching { CrashReporter.sendPending(this@App) } }
-        com.projectclub.android.data.Updater.init(this)
         appScope.launch { repo.alerts.collect(::onAlert) }
         // "Estou mexendo no app": evita ficar Ausente sozinho enquanto usa.
         appScope.launch {
