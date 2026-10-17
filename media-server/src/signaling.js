@@ -8,7 +8,9 @@
 //          produce{transportId,kind,rtpParameters,appData{source,paused}} · closeProducer{producerId}
 //          pauseProducer{producerId} · resumeProducer{producerId}
 //          consume{transportId,producerId,rtpCapabilities} · resumeConsumer{consumerId}
-//          pauseConsumer{consumerId} (ensurdecido: economiza banda) · closeConsumer{consumerId}
+//          pauseConsumer{consumerId} (ensurdecido / vídeo fora da tela: economiza banda) · closeConsumer{consumerId}
+//          setConsumerPreferredLayers{consumerId,spatialLayer,temporalLayer?} (camada do simulcast pelo tamanho do vídeo)
+//          setConsumerPriority{consumerId,priority 1..255} (tela recebe mais banda que a câmera)
 //          restartIce{transportId} → { iceParameters } · leave · ping
 // Eventos: welcome · peerJoined · peerLeft · newProducer · producerClosed
 //          producerPaused · producerResumed · activeSpeakers · consumerClosed
@@ -493,6 +495,35 @@ function attach(httpServer) {
             c.appData.clientPaused = true;
             await applyConsumerPause(peer, c);
             reply(true, { paused: c.paused });
+            return;
+          }
+          case 'setConsumerPreferredLayers': {
+            // Recepção sob medida: o cliente mostra o vídeo pequeno → pede a
+            // camada baixa do simulcast (menos banda); grande → a alta.
+            const c = peer.consumers.get(String(data.consumerId));
+            if (!c) throw new Error('consumer não encontrado');
+            const spatialLayer = Math.max(0, Math.min(15, Math.floor(Number(data.spatialLayer))));
+            if (!Number.isFinite(spatialLayer)) throw new Error('spatialLayer inválido');
+            // Consumer "simple" (sem simulcast/SVC) não tem camadas: nada a fazer.
+            if (c.kind !== 'video' || c.type === 'simple' || c.type === 'pipe') { reply(true, { applied: false }); return; }
+            const layers = { spatialLayer };
+            if (data.temporalLayer != null) {
+              const tl = Math.floor(Number(data.temporalLayer));
+              if (Number.isFinite(tl)) layers.temporalLayer = Math.max(0, Math.min(15, tl));
+            }
+            await c.setPreferredLayers(layers);
+            reply(true, { applied: true, preferredLayers: c.preferredLayers || null });
+            return;
+          }
+          case 'setConsumerPriority': {
+            // Prioridade na divisão da banda de saída (1..255): a tela vale
+            // mais que a câmera quando a banda aperta.
+            const c = peer.consumers.get(String(data.consumerId));
+            if (!c) throw new Error('consumer não encontrado');
+            const priority = Math.floor(Number(data.priority));
+            if (!Number.isFinite(priority) || priority < 1 || priority > 255) throw new Error('prioridade inválida (1..255)');
+            await c.setPriority(priority);
+            reply(true, { priority: c.priority });
             return;
           }
           case 'leave': {

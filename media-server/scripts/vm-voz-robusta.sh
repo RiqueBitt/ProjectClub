@@ -84,7 +84,7 @@ set_env() { # set_env CHAVE VALOR  (troca se existe, acrescenta se não)
   if grep -q "^$1=" .env; then sed -i "s|^$1=.*|$1=$2|" .env; else echo "$1=$2" >> .env; fi
 }
 set_env MEDIA_WEBRTC_SERVER 1
-set_env MEDIA_MAX_INCOMING_BITRATE 5000000
+set_env MEDIA_MAX_INCOMING_BITRATE 12000000
 set_env TURN_MIN_PORT 49152
 set_env TURN_MAX_PORT 49999
 grep -q '^MEDIA_PUBLIC_IP=' .env || set_env MEDIA_PUBLIC_IP "$PUBLIC_IP"

@@ -314,7 +314,13 @@ class Room {
     peer.pendingProduce += 1;
     let producer;
     try {
-      producer = await transport.produce({ kind, rtpParameters, paused, appData: { peerId: peer.id, source } });
+      producer = await transport.produce({
+        kind, rtpParameters, paused, appData: { peerId: peer.id, source },
+        // Vídeo: no máximo 1 pedido de quadro-chave por segundo pro
+        // publicador (vários ouvintes entrando/trocando de camada ao mesmo
+        // tempo não viram uma rajada de quadros-chave pesados).
+        ...(kind === 'video' ? { keyFrameRequestDelay: 1000 } : {}),
+      });
     } finally {
       peer.pendingProduce -= 1;
     }
@@ -346,6 +352,9 @@ class Room {
     // local e manda resumeConsumer — evita perder os primeiros quadros.
     const consumer = await transport.consume({
       producerId, rtpCapabilities, paused: true,
+      // Áudio também retransmite pacote perdido (NACK do Opus — o cliente
+      // publica o mic com opusNack). Vídeo já retransmite por padrão.
+      ...(producer.kind === 'audio' ? { enableRtx: true } : {}),
       // clientPaused: o cliente ainda não pediu o resume (ou pausou de
       // propósito — ensurdecido, economia de banda).
       appData: { peerId: ownerId, source: producer.appData.source, clientPaused: true },

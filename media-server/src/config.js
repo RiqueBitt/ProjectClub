@@ -84,10 +84,11 @@ const config = {
 
   // Bitrate inicial de saída por transport (bps) — o BWE ajusta depois.
   initialAvailableOutgoingBitrate: num(env.MEDIA_INITIAL_BITRATE, 800000),
-  // Teto de bitrate de entrada por transport (bps): 0 = sem teto. 5 Mbps
-  // cobre mic + câmera simulcast + tela 1080p/30fps (com 3 Mbps a tela em
-  // alta qualidade era estrangulada pelo BWE do servidor).
-  maxIncomingBitrate: num(env.MEDIA_MAX_INCOMING_BITRATE, 5000000),
+  // Teto de bitrate de entrada por transport (bps): 0 = sem teto. 12 Mbps
+  // cobre mic + câmera simulcast + tela 1440p/60fps (10 Mbps na camada cheia
+  // + a camada baixa do simulcast da tela). Com 5 Mbps a tela nos presets
+  // altos era estrangulada pelo BWE do servidor.
+  maxIncomingBitrate: num(env.MEDIA_MAX_INCOMING_BITRATE, 12_000_000),
 
   // Controle backend → servidor de mídia (POST /control): tamanho máximo do
   // corpo e por quanto tempo uma ordem (mudo do servidor, permissões) vale
@@ -102,7 +103,11 @@ const config = {
       // pacotes e menos tráfego no silêncio.
       parameters: { useinbandfec: 1, usedtx: 1 },
     },
+    // VP8 primeiro: é o que câmera e tela usam (simulcast). VP9 (perfil 0)
+    // fica disponível pra quem pedir explicitamente; H264 continua de reserva
+    // (Safari/aparelhos com só codificador de hardware).
     { kind: 'video', mimeType: 'video/VP8', clockRate: 90000, parameters: { 'x-google-start-bitrate': 600 } },
+    { kind: 'video', mimeType: 'video/VP9', clockRate: 90000, parameters: { 'profile-id': 0, 'x-google-start-bitrate': 600 } },
     {
       kind: 'video', mimeType: 'video/H264', clockRate: 90000,
       parameters: { 'packetization-mode': 1, 'profile-level-id': '42e01f', 'level-asymmetry-allowed': 1, 'x-google-start-bitrate': 600 },

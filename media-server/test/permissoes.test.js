@@ -305,3 +305,46 @@ test('ordem do backend vale pra reconexão com token ANTIGO (mudo não some ao r
   b.close();
   await sleep(100);
 });
+
+test('recepção sob medida: setConsumerPreferredLayers (simulcast) e setConsumerPriority; VP9 no roteador', async () => {
+  const a = await joinWithSend('u-tela', 'perm8', {});
+  const b = await joinWithSend('u-assiste', 'perm8', {});
+  // Tela com 2 camadas de simulcast (rtpParameters à mão).
+  const s1 = ++ssrcSeq; const s2 = ++ssrcSeq;
+  const screen = await a.request('produce', {
+    transportId: a.send.id, kind: 'video', appData: { source: 'screen' },
+    rtpParameters: {
+      mid: `s${s1}`, codecs: [{ mimeType: 'video/VP8', payloadType: 96, clockRate: 90000, parameters: {}, rtcpFeedback: [] }],
+      headerExtensions: [], encodings: [{ ssrc: s1, scalabilityMode: 'L1T3' }, { ssrc: s2, scalabilityMode: 'L1T3' }], rtcp: { cname: `s${s1}`, reducedSize: true },
+    },
+  });
+  const mic = await a.produceMic();
+  const recv = await b.request('createTransport', { direction: 'recv' });
+  const router = rooms.rooms.get('perm8').router;
+  assert.ok(router.rtpCapabilities.codecs.some((c) => c.mimeType === 'video/VP9'), 'VP9 oferecido pelo roteador');
+  assert.equal(router.rtpCapabilities.codecs.filter((c) => c.kind === 'video' && !/rtx/i.test(c.mimeType))[0].mimeType, 'video/VP8', 'VP8 continua o preferido');
+  assert.ok(router.rtpCapabilities.codecs.some((c) => c.mimeType === 'video/H264'), 'H264 continua lá');
+  const caps = router.rtpCapabilities;
+  const cons = await b.request('consume', { transportId: recv.id, producerId: screen.producerId, rtpCapabilities: caps });
+  const sc = rooms.rooms.get('perm8').peers.get('u-assiste').consumers.get(cons.consumerId);
+  assert.equal(sc.type, 'simulcast');
+  const r1 = await b.request('setConsumerPreferredLayers', { consumerId: cons.consumerId, spatialLayer: 0, temporalLayer: 2 });
+  assert.equal(r1.applied, true);
+  assert.equal(sc.preferredLayers.spatialLayer, 0);
+  await b.request('setConsumerPreferredLayers', { consumerId: cons.consumerId, spatialLayer: 1 });
+  assert.equal(sc.preferredLayers.spatialLayer, 1);
+  const r2 = await b.request('setConsumerPriority', { consumerId: cons.consumerId, priority: 200 });
+  assert.equal(r2.priority, 200);
+  assert.equal(sc.priority, 200);
+  await assert.rejects(b.request('setConsumerPriority', { consumerId: cons.consumerId, priority: 999 }), /prioridade inválida/);
+  await assert.rejects(b.request('setConsumerPreferredLayers', { consumerId: 'nada', spatialLayer: 0 }), /consumer não encontrado/);
+  // Áudio: consumer "simple" — pedir camada não quebra nada.
+  const ca = await b.request('consume', { transportId: recv.id, producerId: mic.producerId, rtpCapabilities: caps });
+  const r3 = await b.request('setConsumerPreferredLayers', { consumerId: ca.consumerId, spatialLayer: 1 });
+  assert.equal(r3.applied, false);
+  // Fora da tela: pauseConsumer/resumeConsumer valem pro vídeo também.
+  assert.equal((await b.request('pauseConsumer', { consumerId: cons.consumerId })).paused, true);
+  assert.equal((await b.request('resumeConsumer', { consumerId: cons.consumerId })).paused, false);
+  a.close(); b.close();
+  await sleep(100);
+});
