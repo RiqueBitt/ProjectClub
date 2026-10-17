@@ -43,7 +43,8 @@ Estrutura:
 net/        Api (OkHttp + renovação de sessão), cookies persistentes
 realtime/   Socket.io
 data/       Modelos, Repository (estado do app), ChatLogic (regras puras, testadas)
-voice/      VoiceManager (Agora), CallService (serviço da call / tela)
+voice/      VoiceManager (cadeia de provedores + failover), MediasoupEngine (servidor próprio),
+            CallAudio (foco/rota do áudio), CallService (serviço da call / tela)
 notify/     Notifier, PushService (Firebase), ações de chamada
 ui/         Telas em Compose
 ```

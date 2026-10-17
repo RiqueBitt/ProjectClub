@@ -4,7 +4,9 @@ import android.content.Context
 import com.projectclub.android.Config
 import com.projectclub.android.data.AppJson
 import com.projectclub.android.data.AuthResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -24,6 +26,23 @@ class ApiException(val status: Int, message: String, val json: JsonObject? = nul
     val isAuthRejection: Boolean get() = (status == 401 || status == 403) && json != null
     val code: String? get() = json?.get("code")?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
 }
+
+/**
+ * Cancelamento normal de corrotina (a tela saiu, o escopo acabou...) — não é
+ * erro e nunca deve ir pros logs. Olha também as causas: às vezes o
+ * cancelamento chega embrulhado (ex.: "The coroutine scope left the
+ * composition" dentro de outra exceção) ou vira o IOException "Canceled" do
+ * OkHttp quando a chamada é cancelada no meio.
+ */
+fun Throwable.isCancellation(): Boolean = generateSequence(this) { it.cause }.take(8).any {
+    it is CancellationException || (it is IOException && it !is ApiException && it.message == "Canceled")
+}
+
+/**
+ * Falha passageira do servidor: 502/503/504 (deploy do site, ~1 min).
+ * Tenta de novo com espera; não é erro pra relatar nem pra assustar ninguém.
+ */
+fun Throwable.isTransientServer(): Boolean = this is ApiException && status in Api.TRANSIENT_CODES
 
 sealed interface RefreshResult {
     data class Ok(val auth: AuthResponse) : RefreshResult
@@ -125,12 +144,28 @@ class Api(context: Context) {
         }
     }
 
-    /** Executa e devolve o corpo. Lança ApiException fora de 2xx. */
-    suspend fun call(req: Request): String = withContext(Dispatchers.IO) {
-        http.newCall(req).execute().use { r ->
-            val text = r.body?.string().orEmpty()
-            if (!r.isSuccessful) throw errorOf(r.code, text)
-            text
+    /**
+     * Executa e devolve o corpo. Lança ApiException fora de 2xx.
+     * GET com 502/503/504 (deploy do site) tenta de novo sozinho, com espera
+     * crescente (e respeitando o Retry-After) — só GET, que pode repetir sem
+     * efeito colateral.
+     */
+    suspend fun call(req: Request): String = withContext(Dispatchers.IO) { execute(req) }
+
+    private suspend fun execute(req: Request): String {
+        var attempt = 0
+        while (true) {
+            var wait = 0L
+            http.newCall(req).execute().use { r ->
+                val text = r.body?.string().orEmpty()
+                if (r.isSuccessful) return text
+                val retry = req.method == "GET" && r.code in TRANSIENT_CODES && attempt < GET_RETRIES
+                if (!retry) throw errorOf(r.code, text)
+                val hinted = r.header("Retry-After")?.trim()?.toLongOrNull()?.times(1000)
+                wait = (hinted ?: (1500L shl attempt)).coerceIn(500L, 8_000L)
+            }
+            attempt++
+            delay(wait)
         }
     }
 
@@ -162,6 +197,9 @@ class Api(context: Context) {
 
     companion object {
         const val RETRY_HEADER = "X-PC-Retry"
+        /** Respostas de "servidor reiniciando/atualizando" (proxy na frente do site). */
+        val TRANSIENT_CODES = setOf(502, 503, 504)
+        private const val GET_RETRIES = 2
         val JSON_TYPE = "application/json; charset=utf-8".toMediaType()
         private val EMPTY_JSON = "{}".toRequestBody(JSON_TYPE)
 
@@ -170,6 +208,7 @@ class Api(context: Context) {
             val msg = json?.get("error")?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
                 ?: when (code) {
                     429 -> "Muitas tentativas. Espere um pouco."
+                    502, 503, 504 -> "O Project Club está sendo atualizado. Tente de novo em instantes."
                     in 500..599 -> "O servidor não respondeu agora. Tente de novo."
                     else -> "Não deu certo (erro $code)."
                 }
