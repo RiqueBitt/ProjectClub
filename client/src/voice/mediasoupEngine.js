@@ -279,11 +279,23 @@ export class MediasoupEngine {
 
   // ---------- sinalização ----------
   _request(method, data = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
+    // Servidor de mídia ANTIGO (atualizado à parte na VM) sem um método novo
+    // (pauseConsumer, setConsumerPreferredLayers, setConsumerPriority,
+    // closeConsumer…): depois da 1ª recusa, nem pede mais — sem gastar o
+    // limite de mensagens da sinalização com pedido que nunca vai dar certo.
+    if (this._unsupported?.has(method)) return Promise.reject(new Error(`método desconhecido: ${method}`));
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) { reject(new Error('sinalização desconectada')); return; }
       const id = ++this.seq;
       const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`timeout em ${method}`)); }, timeoutMs);
-      this.pending.set(id, { resolve, reject, timer });
+      this.pending.set(id, {
+        resolve,
+        reject: (err) => {
+          if (/^método desconhecido/.test(String(err?.message))) { if (!this._unsupported) this._unsupported = new Set(); this._unsupported.add(method); }
+          reject(err);
+        },
+        timer,
+      });
       try { this.ws.send(JSON.stringify({ id, method, data })); } catch (err) { clearTimeout(timer); this.pending.delete(id); reject(err); }
     });
   }
@@ -387,6 +399,9 @@ export class MediasoupEngine {
         this._forgetPeer(String(data.peerId));
         break;
       case 'newProducer':
+        // Chegou entre o welcome e a criação do transport de recepção: guarda
+        // e assina junto com os do welcome (senão essa pessoa nunca era ouvida).
+        if (!this.recvTransport) { if (this._earlyProducers) this._earlyProducers.push(data); break; }
         this._consume(data).catch((err) => cb.onError?.(err, { where: 'consume' }));
         break;
       case 'producerClosed':
@@ -486,6 +501,9 @@ export class MediasoupEngine {
   // + mídia local. Usada no join e em cada reconexão.
   async _session({ first }) {
     const { Device } = await loadMediasoup();
+    // Sessão nova pode ser num servidor de mídia já atualizado: esquece as recusas.
+    this._unsupported = null;
+    this._earlyProducers = [];
     const welcome = await this._connect(this.joinOpts.url, this.joinOpts.token);
     if (this.disposed) { this._closeAll(); return; }
     if (welcome.serverState) this._applyServerState(welcome.serverState, { quiet: true });
@@ -511,7 +529,9 @@ export class MediasoupEngine {
 
     // Mídia que os outros já publicavam — PRIMEIRO e sem esperar o microfone
     // (o aviso de permissão do mic pode ficar aberto; ouvir não depende dele).
-    const consumes = (welcome.producers || []).map((prod) => this._consume(prod).catch((err) => this.cb.onError?.(err, { where: 'consumeExisting' })));
+    const early = this._earlyProducers || [];
+    this._earlyProducers = null;
+    const consumes = [...(welcome.producers || []), ...early].map((prod) => this._consume(prod).catch((err) => this.cb.onError?.(err, { where: 'consumeExisting' })));
 
     // Microfone em paralelo. Negado/ausente → entra só ouvindo.
     this._publishMic().catch((err) => this._onMicError(err));

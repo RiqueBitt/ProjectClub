@@ -8,7 +8,7 @@
     "start": "node src/index.js",
     "dev": "MEDIA_LOG_LEVEL=debug node --watch src/index.js",
     "test": "node --test test/*.test.js",
-    "test:e2e": "node test/e2e-webrtc.mjs"
+    "test:e2e": "node test/e2e-webrtc.mjs && node test/e2e-compat-servidor-antigo.mjs"
   },
   "dependencies": {
     "jsonwebtoken": "^9.0.2",

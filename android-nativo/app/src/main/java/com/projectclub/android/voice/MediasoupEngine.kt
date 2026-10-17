@@ -168,6 +168,16 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
     /** consumerId → consumidor (com dono e origem). */
     private class Remote(val consumer: Consumer, val producerId: String, val peerId: String, val source: String, val kind: String)
     private val consumers = ConcurrentHashMap<String, Remote>()
+    /** producerIds com consume em andamento (o pedido suspende — sem duplicar o consumidor). */
+    private val consuming: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    /**
+     * newProducer que chegou enquanto a sessão ainda montava (os pedidos
+     * suspendem, então eventos rodam no meio do doSession): guardado e
+     * assinado no fim — antes, com runBlocking, eles esperavam na fila; sem
+     * isso, quem publicasse nesse meio-tempo nunca seria ouvido. Só na thread
+     * do worker.
+     */
+    private val earlyProducers = ArrayList<JSONObject>()
     private val sinks = ConcurrentHashMap<String, SurfaceViewRenderer>()
 
     /** Cada join/leave muda a geração: callbacks de sessões antigas são ignorados. */
@@ -331,6 +341,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         ensureFactory()
         val f = factory ?: error("WebRTC não iniciou")
         val sep = if (c.url.contains("?")) "&" else "?"
+        earlyProducers.clear()
         val welcome = CompletableDeferred<JSONObject>()
         ws = http.newWebSocket(
             Request.Builder().url("${c.url}${sep}token=${URLEncoder.encode(c.token, "UTF-8")}").build(),
@@ -372,6 +383,13 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         }
         iceRestarts = 0
         sessionUp = true
+        // Publicados enquanto a sessão montava (ver earlyProducers).
+        val early = earlyProducers.toList()
+        earlyProducers.clear()
+        for (p in early) {
+            if (g != gen || closed) break
+            runCatching { consume(g, p) }.onFailure { Log.w(TAG, "consume", it) }
+        }
     }
 
     private suspend fun publishMic() {
@@ -455,6 +473,11 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
     private suspend fun consume(g: Int, p: JSONObject) {
         val producerId = p.optString("producerId").takeIf { it.isNotEmpty() } ?: return
         if (consumers.values.any { it.producerId == producerId }) return // já está tocando
+        if (!consuming.add(producerId)) return // já tem um consume em andamento
+        try { consumeNow(g, p, producerId) } finally { consuming.remove(producerId) }
+    }
+
+    private suspend fun consumeNow(g: Int, p: JSONObject, producerId: String) {
         val rt = recv ?: return
         val dev = device ?: return
         val info = request("consume", JSONObject().put("transportId", rt.id).put("producerId", producerId)
@@ -494,7 +517,10 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
 
     private suspend fun onEvent(g: Int, event: String, data: JSONObject) {
         when (event) {
-            "newProducer" -> if (sessionUp) runCatching { consume(g, data) }.onFailure { Log.w(TAG, "consume", it) }
+            "newProducer" -> {
+                if (sessionUp) runCatching { consume(g, data) }.onFailure { Log.w(TAG, "consume", it) }
+                else earlyProducers.add(data)
+            }
             "consumerClosed", "producerClosed" -> {
                 val byConsumer = data.optString("consumerId").takeIf { it.isNotEmpty() }
                 val byProducer = data.optString("producerId").takeIf { it.isNotEmpty() }

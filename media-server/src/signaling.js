@@ -173,9 +173,18 @@ async function applyPeerPerms(room, peer) {
     if (p.closed) continue;
     const source = p.appData?.source;
     if (perm.isMicSource(p.kind, source)) {
-      if ((!peer.perms.canSpeak || peer.perms.serverMuted) && !p.paused) {
+      const blocked = !peer.perms.canSpeak || peer.perms.serverMuted;
+      if (blocked && !p.paused) {
         try { await p.pause(); } catch { /* fechou no meio */ }
+        rooms.modPaused.add(p);
         broadcast(room, 'producerPaused', { peerId: peer.id, producerId: p.id }, peer.id);
+      } else if (!blocked && p.paused && rooms.modPaused.has(p)) {
+        // A moderação liberou e a pessoa queria falar (não se mutou nesse
+        // meio-tempo): retoma aqui — o cliente ANTIGO não conhece o
+        // serverState e ficaria mudo pra sempre sem saber.
+        rooms.modPaused.delete(p);
+        try { await p.resume(); } catch { /* fechou no meio */ }
+        if (!p.closed && !p.paused) broadcast(room, 'producerResumed', { peerId: peer.id, producerId: p.id }, peer.id);
       }
     } else if (!peer.perms.canVideo) {
       try { p.close(); } catch { /* já */ }
@@ -438,6 +447,7 @@ function attach(httpServer) {
           case 'pauseProducer': {
             const p = peer.producers.get(String(data.producerId));
             if (!p) throw new Error('producer não encontrado');
+            rooms.modPaused.delete(p); // a pessoa se mutou: não retoma sozinho
             await p.pause();
             broadcast(room, 'producerPaused', { peerId: peer.id, producerId: p.id }, peer.id);
             reply(true, {});
@@ -449,6 +459,7 @@ function attach(httpServer) {
             // Mudo da moderação / sem SPEAK / plateia do palco: não desmuta.
             const denied = perm.checkResume(peer.perms, { kind: p.kind, source: p.appData?.source });
             if (denied) throw perm.forbiddenError(denied);
+            rooms.modPaused.delete(p);
             await p.resume();
             broadcast(room, 'producerResumed', { peerId: peer.id, producerId: p.id }, peer.id);
             reply(true, {});

@@ -1134,6 +1134,8 @@ export function VoiceProvider({ children }) {
     };
     const onState = ({ channelId, userId, ...state }) => {
       if (callRef.current?.channelId !== channelId) return;
+      // O meu próprio estado vem do local (senão vira um bloco fantasma meu).
+      if (String(userId) === String(user?.id)) return;
       setParticipants((s) => ({ ...s, [userId]: { ...s[userId], ...state } }));
     };
     const onSpeaking = ({ channelId, userId, speaking }) => {

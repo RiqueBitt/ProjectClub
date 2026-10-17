@@ -141,6 +141,8 @@ function pickWorker() {
 // ---------------- Salas ----------------
 const rooms = new Map(); // name -> Room
 const creating = new Map(); // name -> Promise<Room> (criação em andamento)
+// Producers de microfone pausados pela MODERAÇÃO (não pelo próprio cliente).
+const modPaused = new WeakSet();
 
 class Peer {
   constructor({ id, name, socket, session, perms }) {
@@ -310,7 +312,9 @@ class Room {
     if (denied) throw perm.forbiddenError(denied);
     // Nasce pausado: o cliente pediu (estava mudo — nada de "vazar" o
     // começo da fala) ou o servidor manda (mudo da moderação).
-    const paused = appData?.paused === true || perm.forcePausedOnProduce(peer.perms, { kind, source });
+    const clientPaused = appData?.paused === true;
+    const forced = !clientPaused && perm.forcePausedOnProduce(peer.perms, { kind, source });
+    const paused = clientPaused || forced;
     peer.pendingProduce += 1;
     let producer;
     try {
@@ -327,6 +331,9 @@ class Room {
     if (!this._alive(peer)) { try { producer.close(); } catch { /* ok */ } throw goneError(); }
     producer.observer.on('close', () => { peer.producers.delete(producer.id); });
     peer.producers.set(producer.id, producer);
+    // Pausado SÓ pela moderação (o cliente queria falar): volta sozinho quando
+    // a moderação liberar — cliente antigo não sabe do serverState.
+    if (forced) modPaused.add(producer);
     if (kind === 'audio' && source === 'mic') {
       // Só o microfone entra no detector de fala (não o áudio da tela).
       try { await this.audioLevelObserver.addProducer({ producerId: producer.id }); } catch { /* ok */ }
@@ -492,5 +499,5 @@ function stats() {
 
 module.exports = {
   startWorkers, getOrCreateRoom, joinRoom, closeRoomIfEmpty, closeRoom, shutdown, rooms, stats,
-  workers, aliveWorkers, listeners, Peer, Room, activeSpeakers,
+  workers, aliveWorkers, listeners, Peer, Room, activeSpeakers, modPaused,
 };

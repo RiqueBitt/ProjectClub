@@ -236,6 +236,38 @@ test('mudo da moderação (pause-audio) pausa o mic no servidor, avisa a pessoa 
   await sleep(100);
 });
 
+test('cliente ANTIGO (não conhece serverState): moderação libera → o mic volta sozinho; quem se mutou no meio continua mudo', async () => {
+  const a = await joinWithSend('u-velho', 'perm4b', {});
+  const b = await joinWithSend('u-ouve', 'perm4b', {});
+  const { producerId } = await a.produceMic();
+  await b.waitEvent('newProducer');
+  await postControl({ room: 'perm4b', peerId: 'u-velho', action: 'pause-audio' });
+  await b.waitEvent('producerPaused');
+  assert.equal(serverProducer('perm4b', 'u-velho', producerId).paused, true);
+  await postControl({ room: 'perm4b', peerId: 'u-velho', action: 'resume-allowed' });
+  const resumed = await b.waitEvent('producerResumed');
+  assert.equal(resumed.producerId, producerId);
+  assert.equal(serverProducer('perm4b', 'u-velho', producerId).paused, false, 'sem resumeProducer do cliente, o mic volta');
+  // Silenciado de novo e a pessoa se muta no meio: a liberação NÃO a desmuta.
+  await postControl({ room: 'perm4b', peerId: 'u-velho', action: 'pause-audio' });
+  await a.request('pauseProducer', { producerId });
+  await postControl({ room: 'perm4b', peerId: 'u-velho', action: 'resume-allowed' });
+  assert.equal(serverProducer('perm4b', 'u-velho', producerId).paused, true, 'mudo próprio continua valendo');
+  // Token com serverMuted e cliente antigo (sem appData.paused): liberou → volta.
+  const c = await joinWithSend('u-velho2', 'perm4b', { serverMuted: true });
+  const p3 = await c.produceMic();
+  assert.equal(serverProducer('perm4b', 'u-velho2', p3.producerId).paused, true);
+  await postControl({ room: 'perm4b', peerId: 'u-velho2', action: 'resume-allowed' });
+  assert.equal(serverProducer('perm4b', 'u-velho2', p3.producerId).paused, false);
+  // Cliente novo que entrou mudo (appData.paused) NÃO é desmutado pela liberação.
+  const d = await joinWithSend('u-novo-mudo', 'perm4b', { serverMuted: true });
+  const p4 = await d.produceMic({ paused: true });
+  await postControl({ room: 'perm4b', peerId: 'u-novo-mudo', action: 'resume-allowed' });
+  assert.equal(serverProducer('perm4b', 'u-novo-mudo', p4.producerId).paused, true);
+  for (const x of [a, b, c, d]) x.close();
+  await sleep(100);
+});
+
 test('set-perms sem VIDEO fecha a câmera que estava no ar; ensurdecer pausa o áudio recebido', async () => {
   const a = await joinWithSend('u-cam', 'perm5', {});
   const b = await joinWithSend('u-ouvinte', 'perm5', {});

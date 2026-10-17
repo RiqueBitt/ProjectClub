@@ -792,6 +792,7 @@ function initSockets(httpServer) {
           socketId: socket.id,
           muted: startMuted || mod.serverMuted || mod.serverDeafened, deafened: mod.serverDeafened, video: false, screenSharing: false, role,
           serverMuted: mod.serverMuted, serverDeafened: mod.serverDeafened,
+          ...(mod.serverMuted || mod.serverDeafened ? { preModMuted: !!startMuted, preModDeafened: false } : {}),
           lastActiveAt: Date.now(),
           provider: joinProvider, joinedAt: Date.now(),
         }, effectiveLimit);
@@ -944,12 +945,24 @@ function initSockets(httpServer) {
       const cur = await voiceStore.getParticipant(channelId, targetId);
       const roomPatch = { serverMuted: mod.serverMuted, serverDeafened: mod.serverDeafened };
       // Silenciado/ensurdecido pela moderação aparece mudo pra todo mundo;
-      // quando tira, o mudo próprio volta a valer (o cliente reenvia).
-      if (mod.serverMuted || mod.serverDeafened) roomPatch.muted = true;
+      // quando tira, volta o mudo/ensurdecer PRÓPRIO (guardado em preMod*, que
+      // o voice:state atualiza enquanto a moderação vale) — senão a pessoa
+      // continuava aparecendo muda pros outros falando normalmente (e o
+      // cliente antigo nem sabe que foi silenciado pra reenviar o estado).
+      const wasMod = !!(cur && (cur.serverMuted || cur.serverDeafened));
+      const isMod = !!(mod.serverMuted || mod.serverDeafened);
+      if (cur && isMod && !wasMod) { roomPatch.preModMuted = !!cur.muted; roomPatch.preModDeafened = !!cur.deafened; }
+      if (isMod) roomPatch.muted = true;
+      else if (cur && wasMod) roomPatch.muted = typeof cur.preModMuted === 'boolean' ? cur.preModMuted : !!cur.muted;
       if (mod.serverDeafened) roomPatch.deafened = true;
+      else if (cur && cur.serverDeafened) roomPatch.deafened = typeof cur.preModDeafened === 'boolean' ? cur.preModDeafened : false;
       const updated = cur ? await voiceStore.updateParticipant(channelId, targetId, roomPatch) : null;
       if (updated) {
-        io.to(`voice:${channelId}`).emit('voice:state', {
+        // Menos o socket da própria pessoa (ela recebe voice:server-state): o
+        // cliente trata voice:state como "outro participante" e desenhava um
+        // bloco fantasma de si mesmo.
+        const target = updated.socketId ? io.to(`voice:${channelId}`).except(updated.socketId) : io.to(`voice:${channelId}`);
+        target.emit('voice:state', {
           channelId, userId: targetId, muted: updated.muted, deafened: updated.deafened,
           video: updated.video, screenSharing: updated.screenSharing,
           serverMuted: !!updated.serverMuted, serverDeafened: !!updated.serverDeafened,
@@ -1084,7 +1097,12 @@ function initSockets(httpServer) {
       if (!current) return;
       // Plateia do palco e quem foi silenciado/ensurdecido pela moderação
       // não se desmutam só mandando muted:false (o servidor manda).
-      if (patch.muted === false && (current.role === 'audience' || current.serverMuted || current.serverDeafened)) delete patch.muted;
+      // O que a pessoa escolheu nesse meio-tempo fica guardado (preMod*) e
+      // volta a valer quando a moderação liberar (applyServerModeration).
+      const modded = !!(current.serverMuted || current.serverDeafened);
+      if (modded && patch.muted !== undefined && current.role !== 'audience') patch.preModMuted = patch.muted;
+      if (current.serverDeafened && patch.deafened !== undefined) patch.preModDeafened = patch.deafened;
+      if (patch.muted === false && (current.role === 'audience' || modded)) delete patch.muted;
       if (patch.deafened === false && current.serverDeafened) delete patch.deafened;
       const updated = await voiceStore.updateParticipant(channelId, userId, patch);
       if (!updated) return;
