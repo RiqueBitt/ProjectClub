@@ -107,13 +107,20 @@ const MELODIES = {
   reconnect: [N(392, 0.08), N(587, 0.14, 0.09)],
 };
 // Cada pacote muda timbre, oitava e "efeito".
+// BUG CORRIGIDO ("os efeitos estão robóticos e agudos demais"): antes eram
+// ondas puras com ataque de 12 ms, notas até 1,5 kHz e — em outubro — o
+// pacote do Dia das Bruxas com onda dente-de-serra (a mais áspera). Agora:
+// uma oitava abaixo, ataque mais macio, cauda suave, um harmônico leve pra
+// soar "de verdade" (tipo marimba/sininho) e um filtro passa-baixa que corta
+// o chiado agudo. Nenhuma nota passa de ~1,2 kHz.
 const PACKS = {
-  classic: { wave: 'sine', mult: 1, gain: 0.22 },
-  suave: { wave: 'sine', mult: 0.5, gain: 0.16, slow: 1.4 },
-  retro: { wave: 'square', mult: 1, gain: 0.08 },
-  halloween: { wave: 'sawtooth', mult: 0.5, gain: 0.09, minor: true, vibrato: 7 },
-  natal: { wave: 'triangle', mult: 2, gain: 0.2, bell: true },
+  classic: { wave: 'sine', mult: 0.5, gain: 0.2, attack: 0.016, release: 0.2, lowpass: 2200, harm: 0.16 },
+  suave: { wave: 'sine', mult: 0.5, gain: 0.15, slow: 1.35, attack: 0.03, release: 0.32, lowpass: 1500, harm: 0.08 },
+  retro: { wave: 'square', mult: 0.5, gain: 0.045, attack: 0.008, release: 0.08, lowpass: 1700 },
+  halloween: { wave: 'triangle', mult: 0.5, gain: 0.17, minor: true, vibrato: 5, vibDepth: 0.012, attack: 0.025, release: 0.28, lowpass: 1300, harm: 0.1 },
+  natal: { wave: 'sine', mult: 1, gain: 0.15, bell: true, attack: 0.01, release: 0.5, lowpass: 2600 },
 };
+const MAX_FREQ = 1200; // acima disso fica estridente: desce uma oitava
 
 let ctx = null;
 function audioCtx() {
@@ -134,37 +141,46 @@ function synth(key, packId, volume, customNotes) {
   const now = ac.currentTime + 0.01;
   const master = ac.createGain();
   master.gain.value = volume;
-  master.connect(ac.destination);
+  // Passa-baixa suave: tira a aspereza (sem deixar abafado).
+  const lp = ac.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = pk.lowpass || 2200;
+  lp.Q.value = 0.5;
+  master.connect(lp);
+  lp.connect(ac.destination);
+  const attack = pk.attack || 0.016;
+  const release = pk.release || 0.2;
   notes.forEach(([f0, d0, t0]) => {
     const slow = pk.slow || 1;
     const t = now + t0 * slow;
     const d = d0 * slow;
     let f = f0 * pk.mult;
     if (pk.minor) f *= 0.944; // meio tom abaixo: soa "assombrado"
-    const osc = ac.createOscillator();
-    const g = ac.createGain();
-    osc.type = pk.wave;
-    osc.frequency.setValueAtTime(f, t);
-    if (pk.vibrato) {
-      const lfo = ac.createOscillator();
-      const lg = ac.createGain();
-      lfo.frequency.value = pk.vibrato; lg.gain.value = f * 0.03;
-      lfo.connect(lg); lg.connect(osc.frequency);
-      lfo.start(t); lfo.stop(t + d + 0.3);
-    }
-    const tail = pk.bell ? 0.6 : 0.08;
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(pk.gain, t + 0.012);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + d + tail);
-    osc.connect(g); g.connect(master);
-    osc.start(t); osc.stop(t + d + tail + 0.05);
-    if (pk.bell) { // harmônico de sino
-      const o2 = ac.createOscillator(); const g2 = ac.createGain();
-      o2.type = 'sine'; o2.frequency.setValueAtTime(f * 2.76, t);
-      g2.gain.setValueAtTime(0.0001, t); g2.gain.exponentialRampToValueAtTime(pk.gain * 0.35, t + 0.01);
-      g2.gain.exponentialRampToValueAtTime(0.0001, t + d + tail * 0.7);
-      o2.connect(g2); g2.connect(master); o2.start(t); o2.stop(t + d + tail);
-    }
+    while (f > MAX_FREQ) f /= 2;
+    const end = t + d + release;
+    const voice = (type, freq, level) => {
+      const osc = ac.createOscillator();
+      const g = ac.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t);
+      if (pk.vibrato) {
+        const lfo = ac.createOscillator();
+        const lg = ac.createGain();
+        lfo.frequency.value = pk.vibrato; lg.gain.value = freq * (pk.vibDepth || 0.012);
+        lfo.connect(lg); lg.connect(osc.frequency);
+        lfo.start(t); lfo.stop(end + 0.05);
+      }
+      // Envelope macio: sobe em rampa linear e morre em curva natural.
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(level, t + attack);
+      g.gain.setValueAtTime(level, t + Math.max(attack, d * 0.4));
+      g.gain.exponentialRampToValueAtTime(0.0001, end);
+      osc.connect(g); g.connect(master);
+      osc.start(t); osc.stop(end + 0.05);
+    };
+    voice(pk.wave, f, pk.gain);
+    if (pk.harm) voice('sine', f * 2, pk.gain * pk.harm); // corpo: um pouco do 2º harmônico
+    if (pk.bell) voice('sine', f * 2.76, pk.gain * 0.22); // brilho de sininho, baixinho
   });
 }
 
@@ -172,6 +188,17 @@ function playFile(src, volume) {
   try {
     const el = new Audio(src);
     el.volume = Math.max(0, Math.min(1, volume));
+    // Os arquivos também passam por um passa-baixa leve (menos agudo).
+    const ac = audioCtx();
+    // Só com o áudio já liberado; senão o arquivo tocaria mudo.
+    if (ac && ac.state === 'running' && ac.createMediaElementSource) {
+      try {
+        const node = ac.createMediaElementSource(el);
+        const lp = ac.createBiquadFilter();
+        lp.type = 'lowpass'; lp.frequency.value = 3200; lp.Q.value = 0.5;
+        node.connect(lp); lp.connect(ac.destination);
+      } catch { /* sem WebAudio: toca direto */ }
+    }
     el.play().catch(() => {});
   } catch { /* som é só enfeite */ }
 }
