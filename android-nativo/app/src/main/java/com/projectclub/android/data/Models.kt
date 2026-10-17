@@ -225,14 +225,11 @@ data class AuthResponse(val user: User? = null, val accessToken: String? = null,
 @Serializable
 data class MeResponse(val user: User)
 
-@Serializable
-data class JitsiCreds(val domain: String? = null, val room: String? = null)
-
+/** Resposta de /api/voice/join: sempre o servidor de mídia próprio ("projectclub"). */
 @Serializable
 data class VoiceJoinResponse(
-    val provider: String,
+    val provider: String = "projectclub",
     val channelName: String? = null,
-    val jitsi: JitsiCreds? = null,
     /** Servidor de mídia próprio: { url, token, room, identity, iceServers }. */
     val projectclub: kotlinx.serialization.json.JsonObject? = null,
 )

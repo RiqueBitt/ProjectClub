@@ -27,7 +27,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.json.JSONObject
 
-enum class CallStatus { Idle, Connecting, Connected, Reconnecting, Unsupported }
+enum class CallStatus { Idle, Connecting, Connected, Reconnecting }
 
 data class CallState(
     val channelName: String? = null,
@@ -60,7 +60,7 @@ val QUICK_REACTIONS = listOf("👍", "❤️", "😂", "🎉", "😮")
 /**
  * Chamadas de voz. O app usa SÓ o servidor de mídia PRÓPRIO do Project Club
  * (mediasoup no VPS, ver MediasoupEngine): /api/voice/join devolve as
- * credenciais dele (o app anuncia clientReady=projectclub).
+ * credenciais dele.
  * - Canal = o mesmo channelName do servidor (id do canal, "dm:<id>"...).
  * - Usuário = o id do usuário (string), igual ao site.
  * - Compartilhar tela = trilha de tela publicada no mesmo usuário; o roster
@@ -69,8 +69,7 @@ val QUICK_REACTIONS = listOf("👍", "❤️", "😂", "🎉", "😮")
  * Falhas: se o servidor de mídia não conectar (ou cair e não voltar), o app
  * tenta de novo sozinho com espera crescente (credencial nova a cada vez),
  * mostrando "reconectando"; esgotadas as tentativas, sai da call com uma
- * mensagem clara. Se o servidor mandar a reserva da web (Jitsi, que não tem
- * versão no app), mostra "Chamada pelo site".
+ * mensagem clara.
  *
  * Toda a lógica de estado roda na thread principal.
  */
@@ -285,48 +284,32 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
             }
             if (session != s) return
             netTries = 0
-            when (startProvider(s, res)) {
-                Start.Started -> return
-                Start.Failed -> continue // já contou a falha: tenta de novo depois da espera
-                Start.Unsupported -> {
-                    if (ownFailures == 0) {
-                        // O servidor mandou a reserva da web (Jitsi), que não tem versão no app: abre pelo site.
-                        stopMedia()
-                        _state.update { it.copy(status = CallStatus.Unsupported, provider = res.provider) }
-                        runCatching { CallService.stop(appContext) }
-                        return
-                    }
-                    // Chegou na reserva porque o servidor de mídia falhou: tenta ele de novo daqui a pouco.
-                    ownFailures++
-                }
-            }
+            if (startOwn(s, res)) return
+            // Credenciais inválidas: já contou a falha — tenta de novo depois da espera.
         }
     }
 
-    private enum class Start { Started, Failed, Unsupported }
-
-    private fun startProvider(s: Int, res: VoiceJoinResponse): Start {
+    /** Sobe a mídia no servidor próprio. false = credenciais inválidas (conta como falha). */
+    private fun startOwn(s: Int, res: VoiceJoinResponse): Boolean {
         val st = _state.value
         val myId = repo.me.value?.id
-        return when (res.provider) {
-            PROVIDER_OWN -> {
-                val pc = res.projectclub
-                fun str(k: String) = (pc?.get(k) as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
-                val url = str("url")
-                val token = str("token")
-                if (pc == null || url == null || token == null || myId == null) { markFailed(PROVIDER_OWN, "credenciais incompletas"); return Start.Failed }
-                stopMedia()
-                _state.update { it.copy(provider = PROVIDER_OWN, status = if (it.status == CallStatus.Connected) CallStatus.Reconnecting else it.status) }
-                val ice = MediasoupEngine.iceServers(runCatching { JSONObject(pc.toString()).optJSONArray("iceServers") }.getOrNull())
-                audio.start(_state.value.speakerOn)
-                val e = own ?: MediasoupEngine(appContext, ownEvents).also { own = it }
-                e.join(OwnMediaCreds(url, token, ice), myId, startMuted = st.muted || st.deafened || interrupted, listenOnly = st.listenOnly || !hasMic())
-                if (st.deafened) e.setDeafened(true)
-                armWatchdog(s, PROVIDER_OWN, OWN_CONNECT_TIMEOUT_MS)
-                Start.Started
-            }
-            else -> Start.Unsupported
+        val pc = res.projectclub
+        fun str(k: String) = (pc?.get(k) as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
+        val url = str("url")
+        val token = str("token")
+        if (res.provider != PROVIDER_OWN || pc == null || url == null || token == null || myId == null) {
+            markFailed(PROVIDER_OWN, "credenciais incompletas")
+            return false
         }
+        stopMedia()
+        _state.update { it.copy(provider = PROVIDER_OWN, status = if (it.status == CallStatus.Connected) CallStatus.Reconnecting else it.status) }
+        val ice = MediasoupEngine.iceServers(runCatching { JSONObject(pc.toString()).optJSONArray("iceServers") }.getOrNull())
+        audio.start(_state.value.speakerOn)
+        val e = own ?: MediasoupEngine(appContext, ownEvents).also { own = it }
+        e.join(OwnMediaCreds(url, token, ice), myId, startMuted = st.muted || st.deafened || interrupted, listenOnly = st.listenOnly || !hasMic())
+        if (st.deafened) e.setDeafened(true)
+        armWatchdog(s, PROVIDER_OWN, OWN_CONNECT_TIMEOUT_MS)
+        return true
     }
 
     /** A mídia conectou (primeira vez ou reconexão). */

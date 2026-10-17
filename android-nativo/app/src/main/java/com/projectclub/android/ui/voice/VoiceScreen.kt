@@ -115,7 +115,7 @@ class CallActions(
 )
 
 @Composable
-fun VoiceScreen(voice: VoiceManager, repo: Repository, onBack: () -> Unit, onOpenWeb: (String) -> Unit) {
+fun VoiceScreen(voice: VoiceManager, repo: Repository, onBack: () -> Unit) {
     val s by voice.state.collectAsState()
     val rosters by repo.voiceRosters.collectAsState()
     val me by repo.me.collectAsState()
@@ -136,18 +136,6 @@ fun VoiceScreen(voice: VoiceManager, repo: Repository, onBack: () -> Unit, onOpe
         )
         return
     }
-    if (s.status == CallStatus.Unsupported) {
-        // Link bonito (/dm/<@>, /canal/<nome>).
-        val webPath = if (channelName.startsWith("dm:")) repo.conversationPath(channelName.removePrefix("dm:")) else repo.channelPath(channelName)
-        CallMessage(
-            title = "Chamada pelo site",
-            text = "As chamadas estão no servidor de reserva agora, que ainda não tem versão no app. Dá pra entrar por esta conversa no site.",
-            primary = "Entrar pelo site" to { voice.leave(notifyServer = false); onOpenWeb(webPath) },
-            secondary = "Voltar" to { voice.leave(notifyServer = false); onBack() },
-        )
-        return
-    }
-
     CallLayout(
         state = s,
         me = me,
@@ -515,7 +503,7 @@ private fun DockButton(icon: ImageVector, label: String, active: Boolean = false
     }
 }
 
-/** Tela simples de aviso (sem chamada / chamada só pelo site). */
+/** Tela simples de aviso (sem chamada). */
 @Composable
 private fun CallMessage(title: String, text: String, primary: Pair<String, () -> Unit>, secondary: Pair<String, () -> Unit>? = null) {
     Column(
