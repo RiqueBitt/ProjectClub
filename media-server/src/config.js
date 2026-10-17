@@ -36,8 +36,6 @@ const config = {
   maxPeersPerRoom: num(env.MEDIA_MAX_PEERS_PER_ROOM, 50),
   maxProducersPerPeer: num(env.MEDIA_MAX_PRODUCERS_PER_PEER, 4), // mic + câmera + tela + áudio da tela
   maxRooms: num(env.MEDIA_MAX_ROOMS, 500),
-  // A partir de quantas pessoas a sala passa a usar mais de um núcleo.
-  splitAt: Math.max(2, num(env.MEDIA_SPLIT_AT, 10)),
 
   // Detector de fala (anel verde): limiar em dBov (0 = máximo, -127 =
   // silêncio). -60 pega fala normal sem acender com ruído de fundo.
@@ -47,8 +45,7 @@ const config = {
   // Bitrate inicial de saída por transport (bps) — o BWE ajusta depois.
   initialAvailableOutgoingBitrate: num(env.MEDIA_INITIAL_BITRATE, 800000),
   // Teto de bitrate de entrada por transport (bps): 0 = sem teto.
-  // 10 Mbps: cabe a tela em 1080p60 (~8 Mbps) + microfone + câmera.
-  maxIncomingBitrate: num(env.MEDIA_MAX_INCOMING_BITRATE, 10000000),
+  maxIncomingBitrate: num(env.MEDIA_MAX_INCOMING_BITRATE, 3000000),
 
   // Codecs oferecidos (prioridade de áudio: Opus — ver PDF, seção 4.1).
   mediaCodecs: [

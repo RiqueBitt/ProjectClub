@@ -161,6 +161,7 @@ export default function VoiceChannelView({ channel }) {
 
   // ---------- Dentro da chamada ----------
   const { participants, remoteCameraStreams, remoteScreenStreams, cameraOn, screenOn, muted, volumes, localSpeaking } = voice;
+  const onBackup = voice?.provider === 'jitsi';
   const allUserIds = [...new Set([user.id, ...Object.keys(participants)])];
 
   const screens = [
@@ -193,13 +194,15 @@ export default function VoiceChannelView({ channel }) {
   return (
     <div className="vc">
       <CallHeader channel={channel} count={allUserIds.length}>
-        {hasPresenter && <ViewModeToggle mode={viewMode} onChange={changeViewMode} />}
+        {!onBackup && hasPresenter && <ViewModeToggle mode={viewMode} onChange={changeViewMode} />}
       </CallHeader>
       <RecordingBanner voice={voice} meId={user.id} />
       <BackupBanner voice={voice} />
       <ReconnectBanner voice={voice} />
-      <div className={`vc-stage${spotlight ? ' is-spotlight' : ''}`}>
-        {spotlight ? (
+      <div className={`vc-stage${spotlight && !onBackup ? ' is-spotlight' : ''}`}>
+        {onBackup ? (
+          <JitsiStage voice={voice} />
+        ) : spotlight ? (
           <>
             <div className={`vc-screens vc-screens-${Math.min(screens.length + (yt.active ? 1 : 0), 2)}`}>
               {yt.active && <YouTubeStage yt={yt} viewers={viewers} onAdd={(kind) => setYtPicker(kind || 'youtube')} />}
@@ -240,8 +243,9 @@ export default function VoiceChannelView({ channel }) {
   );
 }
 
-// Aviso "Chamada em modo reserva" — aparece quando a chamada está no Stream
-// (servidor próprio e Agora indisponíveis/no limite).
+// Aviso "Chamada em modo reserva" (Jitsi) — aparece quando o Agora passou
+// do limite mensal e a mídia caiu pro provedor reserva. Transparente de
+// propósito: a pessoa SABE que está no plano B. Ver docs/voice-fallback.md.
 function BackupBanner({ voice }) {
   if (!voice?.fallbackActive) return null;
   return (
@@ -262,6 +266,26 @@ function ReconnectBanner({ voice }) {
     <div className="vc-backup-note vc-reconnect-note" role="status" aria-live="polite">
       <span className="vc-backup-dot" aria-hidden="true" />
       <span>Reconectando a chamada…{r.attempt > 1 ? ` (tentativa ${r.attempt})` : ''}</span>
+    </div>
+  );
+}
+
+// Palco do modo reserva: "empresta" o iframe do Jitsi (que vive no contexto,
+// pra o áudio seguir tocando mesmo fora desta tela) e o mostra aqui enquanto
+// a tela da chamada está aberta. Devolve ao sair (detachJitsi).
+function JitsiStage({ voice }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (el) voice.attachJitsi?.(el);
+    return () => voice.detachJitsi?.();
+  }, [voice, voice.jitsiNode]);
+  return (
+    <div className="vc-jitsi-stage">
+      {voice.reconnectingProvider && (
+        <div className="vc-jitsi-reconnecting" role="status">Reconectando a chamada…</div>
+      )}
+      <div ref={ref} className="vc-jitsi-mount" />
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { handler, imageHandler } from './mock-api.mjs';
 
 // Painel da staff "Provedores de voz" (item pedido): com /api/voice/provider
-// simulado (ativo = getstream, modo reserva), confere que o painel lista os
+// simulado (ativo = livekit, modo reserva), confere que o painel lista os
 // provedores da cadeia com barras de uso e mostra o aviso de "modo reserva"
 // quando o ativo não é o principal (agora).
 test.beforeEach(async ({ page }) => {
@@ -28,20 +28,22 @@ test('painel lista os provedores de voz com barras de uso e aviso de modo reserv
   const panel = page.locator('[data-testid="voice-providers-admin"]');
   await expect(panel).toBeVisible({ timeout: 20_000 });
 
-  // Os 3 provedores da cadeia aparecem (e nenhum dos removidos).
-  for (const id of ['projectclub', 'agora', 'getstream']) {
+  // Todos os 6 provedores da cadeia aparecem.
+  for (const id of ['agora', 'livekit', 'getstream', 'daily', 'trtc', 'jitsi']) {
     await expect(page.locator(`[data-testid="voice-provider-${id}"]`)).toBeVisible();
   }
-  for (const id of ['livekit', 'daily', 'trtc', 'jitsi']) {
-    await expect(page.locator(`[data-testid="voice-provider-${id}"]`)).toHaveCount(0);
-  }
-  await expect(page.locator('[data-testid="voice-provider-getstream"]')).toContainText('/ 5.000 min (24%)');
-  await expect(page.locator('[data-testid="voice-provider-agora"]')).toContainText('(100%)');
-  await expect(page.locator('[data-testid="voice-provider-projectclub"]')).toContainText('ilimitado');
 
-  // Aviso de "modo reserva" no topo (ativo = Stream, não é o principal).
+  // Barra de uso com "X / Y min (Z%)" (ex.: o LiveKit ativo em 24%).
+  await expect(page.locator('[data-testid="voice-provider-livekit"]')).toContainText('/ 5.000 min (24%)');
+  await expect(page.locator('[data-testid="voice-provider-agora"]')).toContainText('(100%)');
+  // Jitsi é ilimitado.
+  await expect(page.locator('[data-testid="voice-provider-jitsi"]')).toContainText('ilimitado');
+  // Daily configurado mas sem a chave.
+  await expect(page.locator('[data-testid="voice-provider-daily"]')).toContainText('DAILY_API_KEY');
+
+  // Aviso de "modo reserva" no topo (ativo = livekit, não é o principal).
   await expect(panel).toContainText('modo reserva');
-  await expect(panel).toContainText('Stream');
+  await expect(panel).toContainText('LiveKit');
 
   expect(errors, 'erros de JavaScript na página').toEqual([]);
 });

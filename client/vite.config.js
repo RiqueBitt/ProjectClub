@@ -84,15 +84,13 @@ export default defineConfig({
           // pessoa parar de baixar esses ~500kB comprimidos toda vez que
           // só quer ver uma mensagem.
           if (id.includes('agora-rtc-sdk-ng')) return 'vendor-agora';
-          // Demais provedores da cadeia de voz (servidor próprio e Stream): cada SDK num pacote PRÓPRIO e carregado SÓ sob demanda
+          // Demais provedores da cadeia de voz (LiveKit, Stream, Daily,
+          // TRTC): cada SDK num pacote PRÓPRIO e carregado SÓ sob demanda
           // (import() dinâmico em client/src/voice/*Engine.js). Assim eles
           // NUNCA entram no bundle inicial — a cadeia só baixa o SDK do
           // provedor que de fato for usado numa chamada, e quem só navega
           // pelo chat/feeds não paga por nenhum deles.
-          // SDK do Stream e as dependências só dele (nunca no bundle inicial;
-          // se caíssem no "vendor" geral, o vendor passaria a importar o
-          // pacote do mediasoup por causa do sdp-transform e o site quebrava).
-          if (/\/node_modules\/(@stream-io|@protobuf-ts|rxjs|ua-parser-js|webrtc-adapter|sdp)\//.test(id)) return 'vendor-getstream';
+          if (id.includes('livekit-client')) return 'vendor-livekit';
           if (id.includes('mediasoup-client') || id.includes('/sdp-transform/') || id.includes('/h264-profile-level-id/')) return 'vendor-mediasoup';
           // Lista de emojis (~400 KB): só baixa quando o seletor abre.
           if (id.includes('unicode-emoji-json')) return 'vendor-emoji';

@@ -7,7 +7,6 @@ import ScreenShareModal from './modals/ScreenShareModal.jsx';
 import CallIcon, { SignalBars, QUALITY_LABELS, signalTone } from './voice/CallIcons.jsx';
 import ScreenQualityMenu from './voice/ScreenQualityMenu.jsx';
 import MiniCallWindow from './voice/MiniCallWindow.jsx';
-import ConnectionPanel from './voice/ConnectionPanel.jsx';
 import { RecordingConsentModal, RecordingCapture } from './voice/CallExtras.jsx';
 import { getPreferredSpeakerId, setPreferredSpeakerId, getPreferredMicId, isOutputSelectionSupported, onSpeakerPreferenceChange, listAudioDevices } from '../utils/audioDevices';
 import { getVoicePref, onVoicePrefsChange } from '../utils/voicePrefs';
@@ -164,17 +163,13 @@ export default function CallBar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showScreenShareMenu, setShowScreenShareMenu] = useState(false);
-  // Painel "Qualidade da conexão" (clique no sinal).
-  const [connOpen, setConnOpen] = useState(false);
-  const statusRef = useRef(null);
-  usePopoverCoordination(connOpen, () => setConnOpen(false));
   // Janelinha flutuante escondida pela pessoa: volta na próxima chamada
   // ou depois de abrir a tela da chamada de novo.
   const [miniHidden, setMiniHidden] = useState(false);
   const callId = voice?.call?.channelId;
   const viewPath = callViewPath(voice?.call);
   const onCallView = !!viewPath && location.pathname === viewPath;
-  useEffect(() => { setMiniHidden(false); setConnOpen(false); }, [callId]);
+  useEffect(() => { setMiniHidden(false); }, [callId]);
   useEffect(() => { if (onCallView) setMiniHidden(false); }, [onCallView]);
   const elapsed = useCallElapsed(voice?.callStartedAt);
   // Canal da chamada (pro ícone personalizado) — hook antes do return.
@@ -225,17 +220,12 @@ export default function CallBar() {
       <div className="cb-inner">
       <div className="cb-info">
       <div className="cb-head">
-        <button
-          type="button" ref={statusRef} className={`cb-status${connOpen ? ' is-open' : ''}`}
-          data-tip={connOpen ? undefined : `${signalTip} · clique para detalhes`}
-          aria-label={`${signalTip}. Ver detalhes da conexão`} aria-haspopup="dialog" aria-expanded={connOpen}
-          onClick={() => setConnOpen((v) => !v)}
-        >
+        <div className="cb-status" data-tip={signalTip} tabIndex={0} aria-label={signalTip}>
           <SignalBars quality={myQuality} />
           <span className="cb-status-text truncate">{statusText}</span>
           {pingText && <span className="cb-ping">{pingText}</span>}
-        </button>
-        {/* Modo reserva (Stream): avisa discretamente que a mídia está no
+        </div>
+        {/* Modo reserva (Jitsi): avisa discretamente que a mídia está no
             provedor de backup. Ver docs/voice-fallback.md. */}
         {voice.fallbackActive && (
           <span className="cb-backup" data-tip={`Chamada em modo reserva (provedor ${voice.providerLabel || 'de backup'})`} aria-label="Chamada em modo reserva">
@@ -296,9 +286,6 @@ export default function CallBar() {
       </div>
       </div>
 
-      {connOpen && (
-        <ConnectionPanel voice={voice} quality={myQuality} anchorRef={statusRef} onClose={() => setConnOpen(false)} />
-      )}
       <RemoteAudioSinks />
       {/* Pedido de consentimento de gravação (N): precisa aparecer em
           qualquer tela, por isso vive aqui na barra (sempre montada
@@ -467,12 +454,7 @@ function AudioSink({ stream, volume, autoLevel }) {
       tryPlay();
       const preferredSpeakerId = getPreferredSpeakerId();
       if (preferredSpeakerId && isOutputSelectionSupported()) {
-        // Saída salva que não existe mais (fone desconectado, id de outro
-        // aparelho): volta pra saída padrão em vez de tocar em lugar nenhum.
-        audioRef.current.setSinkId(preferredSpeakerId).catch(() => {
-          try { setPreferredSpeakerId(''); } catch { /* ok */ }
-          audioRef.current?.setSinkId?.('').catch(() => {});
-        });
+        audioRef.current.setSinkId(preferredSpeakerId).catch(() => {});
       }
     }
     // Autoplay-policy: a context created outside a direct click handler can

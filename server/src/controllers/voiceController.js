@@ -44,8 +44,8 @@ async function assertRoomAccess(req, channelName) {
 }
 
 // Nome de sala determinístico e seguro pros provedores que exigem um id de
-// sala "limpo" (servidor próprio/Stream). Todo mundo do mesmo canal
-// cai na mesma sala. Mantém o channelName original pro Agora (que já
+// sala "limpo" (LiveKit/TRTC/GetStream/Daily). Todo mundo do mesmo canal
+// cai na mesma sala. Mantém o channelName original pro Agora/Jitsi (que já
 // aceitam o id cru, e é o que o resto do sistema sempre usou).
 function roomNameFor(channelName) {
   // Sala indecifrável: no meet.jit.si público, quem souber o nome da sala
@@ -75,7 +75,7 @@ async function getJoin(req, res, next) {
     const channelName = await assertRoomAccess(req, req.query.channelName);
     const state = await currentDecision();
     // O cliente anuncia quais provedores o engine dele sabe usar hoje
-    // (clientReady=projectclub,agora,getstream). A cadeia PULA, só pra ESTE join,
+    // (clientReady=agora,livekit,jitsi). A cadeia PULA, só pra ESTE join,
     // os que ele não suporta — sem mexer no status global do painel. Sem o
     // parâmetro (ex.: cliente antigo/teste), não restringe nada.
     let clientReady = String(req.query.clientReady || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -84,61 +84,85 @@ async function getJoin(req, res, next) {
     if (/ProjectClub\/1\.27\.2 /.test(String(req.headers['user-agent'] || ''))) {
       clientReady = clientReady.filter((id) => id !== 'projectclub');
     }
+    // App Android nativo anuncia "jitsi", mas não tem Jitsi nativo (cairia
+    // em "não suportado"): pro servidor, ele só usa servidor próprio/Agora.
+    if (/ProjectClub\/\d/.test(String(req.headers['user-agent'] || '')) && clientReady.length) {
+      clientReady = clientReady.filter((id) => id !== 'jitsi');
+    }
     let disabled = state.disabled;
     if (clientReady.length) {
       const unsupported = providers.PROVIDER_ORDER.filter((id) => !clientReady.includes(id));
       disabled = Array.from(new Set([...(disabled || []), ...unsupported]));
     }
+    const decided = decision.decideProvider({ ...state, disabled });
+    let provider = decided.provider;
+    // Todo mundo da MESMA call no MESMO provedor: se já tem gente na sala
+    // num provedor que este aparelho também sabe usar (e que está ok), entra
+    // nele — senão o PC e o celular ficavam em "salas" diferentes e um não
+    // ouvia o outro (ex.: equipe trocou a cadeia no meio da call).
+    const sticky = await overrideStore.getRoomProvider(channelName);
+    if (sticky && sticky !== provider && providers.isAvailable(sticky) && !(disabled || []).includes(sticky)) {
+      const someoneIn = (await require('../services/voiceRoomStore').roomSize(channelName).catch(() => 0)) > 0;
+      if (someoneIn) provider = sticky;
+    }
+    overrideStore.setRoomProvider(channelName, provider);
     const userId = req.user.id;
     const name = req.user.displayName || req.user.username || String(userId);
     const room = roomNameFor(channelName);
 
-    // Credenciais de cada provedor (null = não deu pra gerar → tenta o próximo).
-    const mint = (prov) => {
-      if (prov === 'projectclub') return tokens.mintProjectClub({ room, userId, name });
-      if (prov === 'agora') return tokens.mintAgora(channelName, userId);
-      if (prov === 'getstream') return tokens.mintGetStream({ userId, callId: room });
-      return null;
-    };
+    const payload = { provider, channelName, reserveMode: providers.isReserve(provider), activeReason: decided.reason };
 
-    let decided = decision.decideProvider({ ...state, disabled });
-    let provider = decided.provider;
-    // Todo mundo da MESMA call no MESMO provedor: se já tem gente na sala
-    // num provedor que este aparelho também sabe usar (e que está ok), entra
-    // nele — senão o PC e o celular ficavam em "salas" diferentes.
-    const sticky = await overrideStore.getRoomProvider(channelName);
-    if (sticky && sticky !== provider && providers.PROVIDERS[sticky] && providers.isAvailable(sticky) && !(disabled || []).includes(sticky)) {
-      const someoneIn = (await require('../services/voiceRoomStore').roomSize(channelName).catch(() => 0)) > 0;
-      if (someoneIn) { provider = sticky; decided = { ...decided, reason: 'room' }; }
-    }
-
-    // Gera as credenciais; se um provedor falhar, segue a cadeia sem ele.
-    let creds = provider ? mint(provider) : null;
-    const tried = new Set();
-    while (provider && !creds) {
-      console.warn(`[voz] não deu pra gerar credencial do ${provider}; tentando o próximo da cadeia.`);
-      tried.add(provider);
-      decided = decision.decideProvider({ ...state, disabled: [...(disabled || []), ...tried] });
-      provider = decided.provider;
-      creds = provider ? mint(provider) : null;
-    }
-    if (!provider || !creds) {
-      return res.status(503).json({ error: 'Nenhum servidor de voz disponível agora. Tente de novo em instantes.', noProvider: true });
-    }
-    overrideStore.setRoomProvider(channelName, provider);
-
-    const payload = { provider, channelName, reserveMode: providers.isReserve(provider), activeReason: decided.reason, [provider]: creds };
-    if (provider === 'agora') {
+    if (provider === 'projectclub') {
+      // Servidor de mídia próprio (media-server/): JWT pra sinalização +
+      // servidores ICE (STUN/TURN com credencial temporária).
+      const creds = tokens.mintProjectClub({ room, userId, name });
+      if (!creds) return fallbackJitsi(res, payload, channelName, userId, name);
+      payload.projectclub = creds;
+    } else if (provider === 'agora') {
+      const creds = tokens.mintAgora(channelName, userId);
+      if (!creds) return fallbackJitsi(res, payload, channelName, userId, name);
+      payload.agora = creds;
       // Compatibilidade com o cliente antigo (campos no topo).
       payload.token = creds.token;
       payload.appId = creds.appId;
       payload.uid = creds.uid;
+    } else if (provider === 'livekit') {
+      const creds = tokens.mintLiveKit({ room, identity: userId, name });
+      if (!creds) return fallbackJitsi(res, payload, channelName, userId, name);
+      payload.livekit = creds;
+    } else if (provider === 'getstream') {
+      const creds = tokens.mintGetStream({ userId, callId: room });
+      if (!creds) return fallbackJitsi(res, payload, channelName, userId, name);
+      payload.getstream = creds;
+    } else if (provider === 'daily') {
+      try {
+        const creds = await tokens.mintDaily({ roomName: null, userName: name });
+        if (!creds || creds.gated || !creds.token) return fallbackJitsi(res, payload, channelName, userId, name);
+        payload.daily = creds;
+      } catch (err) {
+        console.error('[voz] Daily mint falhou, caindo pro Jitsi:', err?.message || err);
+        return fallbackJitsi(res, payload, channelName, userId, name);
+      }
+    } else if (provider === 'trtc') {
+      const creds = tokens.mintTRTCUserSig({ userId, roomId: room });
+      if (!creds) return fallbackJitsi(res, payload, channelName, userId, name);
+      payload.trtc = creds;
+    } else {
+      return fallbackJitsi(res, payload, channelName, userId, name);
     }
+
     return res.json(payload);
   } catch (err) {
     if (err.status) return res.status(err.status).json({ error: err.message });
     return next(err);
   }
+}
+
+// Monta a resposta do Jitsi (fallback final). Usado tanto quando a cadeia
+// escolhe o Jitsi quanto quando o provedor escolhido falhou em mintar.
+function fallbackJitsi(res, payload, channelName, userId, name) {
+  const creds = tokens.mintJitsi({ room: payload.channelName ? roomNameFor(channelName) : channelName, userId, name });
+  return res.json({ ...payload, provider: 'jitsi', jitsi: creds, reserveMode: true });
 }
 
 // GET /api/voice/provider — painel da staff (sem segredo nenhum).
@@ -191,7 +215,7 @@ async function postConfig(req, res, next) {
   }
 }
 
-// POST /api/voice/override  { provider: 'getstream' | null }  (admin)
+// POST /api/voice/override  { provider: 'livekit' | null }  (admin)
 async function postOverride(req, res, next) {
   try {
     const { provider } = req.body || {};
@@ -218,7 +242,7 @@ async function postToggle(req, res, next) {
     broadcastProviderChanged(req, panel.active);
     res.json(withFields(panel));
   } catch (err) {
-    if (err?.message && /último|inválido/.test(err.message)) {
+    if (err?.message && /fallback final|inválido/.test(err.message)) {
       return res.status(400).json({ error: err.message });
     }
     next(err);

@@ -73,15 +73,12 @@ async function isDisabled(provider) {
   }
 }
 
-// Liga/desliga um provedor na cadeia. O ÚLTIMO ligado NUNCA pode
+// Liga/desliga um provedor na cadeia. O Jitsi (fallback final) NUNCA pode
 // ser desativado — ele é a última rede de segurança gratuita.
 async function setDisabled(provider, disabled) {
   if (!providers.PROVIDERS[provider]) throw new Error('provedor inválido');
-  // Nunca deixa a cadeia sem nenhum provedor ligado.
-  if (disabled) {
-    const left = providers.PROVIDER_ORDER.filter((id) => id !== provider);
-    const off = new Set(await getDisabled());
-    if (!left.some((id) => !off.has(id))) throw new Error('Pelo menos um provedor precisa continuar ligado (não é possível desativar o último).');
+  if (provider === 'jitsi' && disabled) {
+    throw new Error('O Jitsi é o fallback final e não pode ser desativado.');
   }
   await bumpEpoch();
   try {
