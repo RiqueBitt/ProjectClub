@@ -1620,35 +1620,76 @@ if (!gotLock) {
     Promise.resolve()
       .then(() => autoUpdater.downloadUpdate())
       .catch((err) => {
-        // Já baixando (autoDownload) normalmente rejeita aqui — não é um
-        // erro de verdade; só registra. Um erro real cai no handler de
-        // 'error' do autoUpdater, que seta updateStatus.error.
-        console.error('[atualização] downloadUpdate:', err?.message || err);
+        const msg = String(err?.message || err || '');
+        console.error('[atualização] downloadUpdate:', msg);
+        // "já está baixando" não é erro de verdade; o resto é (antes a
+        // barra ficava girando pra sempre).
+        if (/already|em andamento|in progress/i.test(msg)) return;
+        failUpdate(`O download não começou (${msg || 'erro desconhecido'}).`);
       });
   }
+  // Linux fora de AppImage (ex.: extraído à mão) não tem como se
+  // atualizar sozinho — o electron-updater só troca o próprio .AppImage.
+  const canSelfUpdate = () => process.platform !== 'linux' || !!process.env.APPIMAGE;
+  const withTimeout = (p, ms, what) => Promise.race([
+    p, new Promise((_, rej) => setTimeout(() => rej(new Error(`${what} demorou demais`)), ms)),
+  ]);
+  function failUpdate(msg) {
+    installing = false;
+    downloadingNow = false;
+    installWhenReady = false;
+    Object.assign(updateStatus, { downloading: false, error: msg });
+    emitUpdateStatus();
+  }
+  // BUG CORRIGIDO ("clico no botão de atualizar e não acontece nada"):
+  //  - se a conferência/instalação falhava, o erro sumia só no log e o
+  //    flag `installing` ficava preso: todo clique seguinte voltava "busy"
+  //    sem fazer nada;
+  //  - downloadUpdate() sem uma conferência válida antes rejeitava em
+  //    silêncio e a barra ficava "baixando" pra sempre;
+  //  - o fechamento pra instalar podia ser barrado pela janela (bandeja /
+  //    confirmar ao sair).
+  // Agora toda falha vira `error` no status (a barra mostra e oferece o
+  // instalador manual) e nada fica preso.
   async function installLatest() {
     if (installing) return 'busy';
+    if (!canSelfUpdate()) { failUpdate('Esta instalação não se atualiza sozinha — baixe a versão nova.'); return 'manual'; }
+    let latest = null;
     try {
-      const r = await autoUpdater.checkForUpdates();
-      const latest = r?.updateInfo?.version;
-      if (latest && newerVersion(latest, updateStatus.version || app.getVersion()) ) {
-        // Tem uma mais nova que a baixada: começa a baixar e instala quando terminar.
-        startDownload();
-        return 'downloading';
-      }
+      const r = await withTimeout(autoUpdater.checkForUpdates(), 20000, 'a conferência da versão nova');
+      latest = r?.updateInfo?.version || null;
+      if (latest) updateStatus.available = newerVersion(latest, app.getVersion()) || updateStatus.available;
     } catch (err) {
       console.error('[atualização] não deu pra conferir a mais nova antes de instalar:', err?.message || err);
+      if (!updateStatus.downloaded) { failUpdate(`Não deu pra falar com o servidor de atualizações (${err?.message || 'sem conexão'}).`); return 'error'; }
+    }
+    if (latest && !newerVersion(latest, app.getVersion()) && !updateStatus.downloaded) {
+      failUpdate('Você já está na versão mais nova publicada.');
+      return 'uptodate';
+    }
+    if (latest && updateStatus.downloaded && newerVersion(latest, updateStatus.version || app.getVersion())) {
+      // Tem uma mais nova que a baixada: baixa essa e instala quando terminar.
+      startDownload();
+      return 'downloading';
     }
     if (!updateStatus.downloaded) { startDownload(); return 'downloading'; }
     installing = true;
     isQuitting = true;
-    setImmediate(() => autoUpdater.quitAndInstall(true, true));
+    // Nada pode segurar o fechamento: bandeja e "confirmar ao sair" ficam de fora.
+    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.removeAllListeners('close'); } catch { /* ok */ }
+    try { if (tray) { tray.destroy(); tray = null; } } catch { /* ok */ }
+    setImmediate(() => {
+      try { autoUpdater.quitAndInstall(true, true); } catch (err) { failUpdate(`Não deu pra abrir o instalador (${err?.message || err}).`); }
+    });
+    // Se em 20s o app ainda estiver aberto, o instalador não rodou.
+    setTimeout(() => { if (installing) { isQuitting = false; failUpdate('O instalador não abriu. Baixe a versão nova pelo botão abaixo.'); } }, 20000);
     return 'installing';
   }
   secureHandle('update:install', async () => {
     const r = await installLatest();
     if (r === 'installing') return { success: true, installing: true };
-    return { success: true, downloading: true };
+    if (r === 'downloading' || r === 'busy') return { success: true, downloading: true };
+    return { success: false, reason: r, error: updateStatus.error };
   });
   autoUpdater.on('update-downloaded', () => {
     if (!installWhenReady) return;

@@ -31,6 +31,7 @@ function UpdateButton() {
   const [status, setStatus] = useState(null); // estado vindo do app (versões novas)
   const [working, setWorking] = useState(false);
   const [askOld, setAskOld] = useState(false); // explicação pro app antigo
+  const [failMsg, setFailMsg] = useState(''); // por que a atualização pelo botão falhou
   const [now, setNow] = useState(() => Date.now()); // relógio pra detectar progresso travado
   const lastProgressRef = useRef(0); // ms da última mudança real de porcentagem
   const lastPercentRef = useRef(-1);
@@ -61,8 +62,16 @@ function UpdateButton() {
   // Saiu do estado "trabalhando" quando o app reporta erro: o clique
   // seguinte tenta de novo (não deixa o botão preso em "progresso").
   useEffect(() => {
-    if (status?.error && working) setWorking(false);
+    if (status?.error && working) { setWorking(false); setFailMsg(status.error); }
   }, [status?.error]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clicou e em 45s nada andou (0%, sem baixar): oferece o instalador
+  // manual sem cancelar a tentativa — antes ficava só girando.
+  useEffect(() => {
+    if (!working || status?.downloaded || (Number(status?.percent) || 0) > 0) return undefined;
+    const t = setTimeout(() => setFailMsg('A atualização está demorando pra começar.'), 45000);
+    return () => clearTimeout(t);
+  }, [working, status?.downloaded, status?.percent]);
 
   const checkLatest = () => api.get('/system/desktop-latest').then((r) => setLatest(r.data?.version || null)).catch(() => {});
   useEffect(() => { checkLatest(); }, []);
@@ -80,15 +89,21 @@ function UpdateButton() {
       ? `A última tentativa falhou. Clique pra tentar baixar ${status?.version || latest || 'a versão nova'} de novo.`
       : `Baixar e instalar ${status?.version || latest || 'a versão nova'}`;
 
-  const INSTALLER_URL = 'https://github.com/RiqueBitt/ProjectClub/releases/latest/download/ProjectClub-Setup-Windows.exe';
+  const isLinux = /linux/i.test(navigator.userAgent) && !/android/i.test(navigator.userAgent);
+  const INSTALLER_URL = isLinux
+    ? 'https://github.com/RiqueBitt/ProjectClub/releases/latest/download/ProjectClub-Linux.AppImage'
+    : 'https://github.com/RiqueBitt/ProjectClub/releases/latest/download/ProjectClub-Setup-Windows.exe';
 
   const run = async () => {
     if (working) return;
     if (!bridge) { setAskOld((v) => !v); return; } // app antigo: explica e oferece o instalador
     lastProgressRef.current = 0; lastPercentRef.current = -1; setNow(Date.now());
     setWorking(true);
-    const r = await bridge.install().catch(() => null);
-    if (!r?.success) setWorking(false);
+    setFailMsg('');
+    const r = await bridge.install().catch((err) => ({ success: false, error: err?.message }));
+    // Antes uma falha aqui só parava o "trabalhando" e parecia que o botão
+    // não fazia nada. Agora sempre mostra o motivo + o instalador manual.
+    if (!r?.success) { setWorking(false); setFailMsg(r?.error || 'Não deu pra atualizar por aqui.'); }
   };
 
   // App antigo (sem atualização por clique): ele só sabe instalar o que já
@@ -105,6 +120,17 @@ function UpdateButton() {
 
   return (
     <div className="app-title-bar-update-wrap">
+    {failMsg && !askOld && (
+      <div className="app-update-pop" role="alertdialog" aria-label="A atualização não funcionou">
+        <strong>Não deu pra atualizar pelo botão</strong>
+        <p>{failMsg} Baixe a versão {status?.version || latest || 'nova'} e abra o arquivo: {isLinux ? 'substitua o .AppImage antigo pelo novo (dê permissão de execução).' : 'ele fecha o Project Club, instala e abre de novo.'}</p>
+        <div className="app-update-pop-actions">
+          <button type="button" className="app-update-pop-btn primary" onClick={() => { window.electronAPI?.openExternal?.(INSTALLER_URL); setFailMsg(''); }}>{isLinux ? 'Baixar AppImage' : 'Baixar instalador'}</button>
+          <button type="button" className="app-update-pop-btn" onClick={() => { setFailMsg(''); run(); }}>Tentar de novo</button>
+          <button type="button" className="app-update-pop-btn" onClick={() => setFailMsg('')}>Fechar</button>
+        </div>
+      </div>
+    )}
     {askOld && (
       <div className="app-update-pop" role="dialog" aria-label="Atualizar o Project Club">
         <strong>Atualizar para a {latest || 'versão nova'}</strong>
