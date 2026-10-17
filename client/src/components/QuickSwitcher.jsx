@@ -11,6 +11,7 @@ import NavIcon from './NavIcons.jsx';
 import { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
 import '../styles/nav.css';
 import { isFeatureEnabled } from '../utils/features';
+import { channelPath, conversationPath } from '../utils/prettyLinks';
 
 // Ctrl+K / Cmd+K quick-jump palette - search across every channel in the
 // server you're currently in, plus every DM/group conversation, and jump
@@ -150,7 +151,7 @@ export default function QuickSwitcher() {
         icon: hasCustomIcon(c) ? <CustomIcon item={c} className="qs-custom-icon" /> : <NavIcon name={isVoice ? 'voice' : 'hash'} size={17} />,
         unread: !isVoice && isChannelUnread(c, channelReadAt, user.id, myRoleIds),
         mentions: c.unreadMentions || 0,
-        go: () => navigate(`/channels/${c.id}`),
+        go: () => navigate(channelPath(c)),
       });
     }));
 
@@ -165,7 +166,7 @@ export default function QuickSwitcher() {
         status: other ? (presence[other.id]?.status || other.status) : null,
         icon: c.isGroup ? <NavIcon name="chat" size={17} /> : null,
         unread: isConversationUnread(c, user.id),
-        go: () => navigate(`/conversations/${c.id}`),
+        go: () => navigate(conversationPath(c)),
       });
     });
 

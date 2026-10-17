@@ -4,6 +4,7 @@ import { useStore } from '../../store/useStore';
 import { useLiveRefresh } from '../../utils/liveRefresh';
 import { getGameLibrary } from '../../api/games';
 import { GlIcon, GameRow, LockedLibrary, EmptyLibrary, formatHoursShort } from './GameLibraryParts.jsx';
+import { libraryPath } from '../../utils/prettyLinks';
 
 // Seção "Jogos" do perfil completo (UserProfileModal): totais, jogando
 // agora e os jogos mais recentes; "Ver biblioteca" abre a página inteira.
@@ -29,7 +30,7 @@ export default function ProfileGamesSection({ userId }) {
 
   const openLibrary = () => {
     closeProfile();
-    navigate(data.isMe ? '/jogos/biblioteca' : `/jogos/biblioteca/${userId}`);
+    navigate(data.isMe ? '/jogos/biblioteca' : libraryPath(userId));
   };
   const recent = (data.recent || []).slice(0, 3);
 

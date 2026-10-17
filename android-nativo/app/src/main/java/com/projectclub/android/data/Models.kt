@@ -61,6 +61,8 @@ data class Channel(
     val iconEmoji: String? = null,
     val iconUrl: String? = null,
     val slowModeSeconds: Int? = null,
+    /** Nome do link bonito (/canal/<slug>); null em servidor antigo. */
+    val slug: String? = null,
 ) {
     val isVoice: Boolean get() = type == "VOICE" || type == "STAGE"
     /** Canais que o app nativo abre como chat (o resto abre no site). */
@@ -110,7 +112,21 @@ data class Conversation(
     val members: List<User> = emptyList(),
     val lastMessage: LastMessage? = null,
     val lastReadAt: String? = null,
+    /** Link bonito do grupo (/dm/grupo-<nome>); DM 1:1 usa o @ da pessoa. */
+    val slug: String? = null,
 )
+
+/** GET /api/links/resolve?path=/canal/chat-geral (links bonitos → id). */
+@Serializable
+data class ResolvedLink(
+    val kind: String = "",
+    val id: String? = null,
+    val userId: String? = null,
+    val path: String? = null,
+)
+
+@Serializable
+data class LinkResolveResponse(val link: ResolvedLink? = null)
 
 @Serializable
 data class ConversationsResponse(val conversations: List<Conversation> = emptyList())

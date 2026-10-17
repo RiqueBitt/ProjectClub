@@ -5,6 +5,7 @@ import { useStore, isChannelUnread, useMyRoleIds } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import ChannelIcon from './ChannelIcon.jsx';
+import { channelPath } from '../utils/prettyLinks';
 
 // Navegação entre os chats disponíveis, fica bem onde antes aparecia o
 // dropdown com nome/descrição do canal (ver ChatWindow.jsx).
@@ -101,7 +102,7 @@ export default function ChannelSwitcher({ currentChannelId }) {
 
   const go = (id) => {
     setOpenCategoryId(null);
-    if (id !== currentChannelId) navigate(`/channels/${id}`);
+    if (id !== currentChannelId) navigate(channelPath(id));
   };
 
   const scrollBy = (delta) => scrollRef.current?.scrollBy({ left: delta, behavior: 'smooth' });

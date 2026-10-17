@@ -9,6 +9,7 @@ import ConversationIcon from './ConversationIcon.jsx';
 import NewDMModal from './modals/NewDMModal.jsx';
 import { sortConversations } from '../utils/dmPins';
 import '../styles/dmquick.css';
+import { conversationPath } from '../utils/prettyLinks';
 
 // Atalhos de DM: barra de conversas recentes (troca de DM com um clique),
 // caixa "Enviar mensagem para…" e helpers compartilhados.
@@ -30,10 +31,10 @@ export function useOpenDM() {
   const navigate = useNavigate();
   return async (userId) => {
     const existing = useStore.getState().conversations.find((c) => !c.isGroup && c.members.some((m) => m.id === userId));
-    if (existing) { navigate(`/conversations/${existing.id}`); return; }
+    if (existing) { navigate(conversationPath(existing)); return; }
     try {
       const { conversation } = await createConversation([userId]);
-      navigate(`/conversations/${conversation.id}`);
+      navigate(conversationPath(conversation));
     } catch { /* a pessoa pode ter bloqueado DMs */ }
   };
 }
@@ -93,7 +94,7 @@ export function DMSwitcher({ currentId }) {
             <button
               key={c.id} ref={on ? curRef : null} type="button"
               className={`dmq-chip${on ? ' is-on' : ''}${unread ? ' is-unread' : ''}`}
-              onClick={() => navigate(`/conversations/${c.id}`)} title={convName(c, user.id)}
+              onClick={() => navigate(conversationPath(c))} title={convName(c, user.id)}
             >
               <Avatar c={c} meId={user.id} size={22} />
               <span className="dmq-chip-name" data-no-translate>{convName(c, user.id)}</span>
@@ -146,7 +147,7 @@ export function QuickMessageBox() {
 
   const pick = (r) => {
     setOpen(false); setQ('');
-    if (r.kind === 'conv') navigate(`/conversations/${r.c.id}`); else openDM(r.u.id);
+    if (r.kind === 'conv') navigate(conversationPath(r.c)); else openDM(r.u.id);
   };
 
   return (
@@ -205,7 +206,7 @@ export function RecentDMs() {
         const name = it.c ? convName(it.c, user.id) : it.u.displayName;
         return (
           <button key={it.key} type="button" className={`dmq-recent-item${unread ? ' is-unread' : ''}`} title={name}
-            onClick={() => (it.c ? navigate(`/conversations/${it.c.id}`) : openDM(it.u.id))}>
+            onClick={() => (it.c ? navigate(conversationPath(it.c)) : openDM(it.u.id))}>
             {it.c ? <Avatar c={it.c} meId={user.id} size={52} /> : (
               <span className="dmq-av" style={{ width: 52, height: 52 }}><UserAvatar user={it.u} size={52} /><PresenceDot status={presence[it.u.id]?.status || it.u.status} userId={it.u.id} /></span>
             )}

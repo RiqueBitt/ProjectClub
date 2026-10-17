@@ -105,7 +105,10 @@ fun EventScreen(repo: Repository, nav: AppNav, eventId: String) {
     suspend fun load() {
         loading = true
         try {
-            val found = repo.api.get<CommunityEventsResponse>("/api/events").events.firstOrNull { it.id == eventId }
+            // Links bonitos: chega o id ou o nome do link (/evento/<slug>).
+            val found = repo.api.get<CommunityEventsResponse>("/api/events").events.let { list ->
+                list.firstOrNull { it.id == eventId } ?: list.firstOrNull { it.slug?.equals(eventId, ignoreCase = true) == true }
+            }
             event = found
             error = if (found == null) "Esse evento não existe mais ou foi removido." else null
         } catch (e: Exception) {
@@ -142,7 +145,7 @@ fun EventScreen(repo: Repository, nav: AppNav, eventId: String) {
 
     fun share() {
         val ev = event ?: return
-        val link = "${Config.baseUrl}/eventos/${ev.id}"
+        val link = "${Config.baseUrl}/evento/" + android.net.Uri.encode(ev.slug ?: ev.id)
         val send = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_SUBJECT, ev.title)

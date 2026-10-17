@@ -15,6 +15,7 @@ import { useLiveRefresh, sameData } from '../utils/liveRefresh';
 import { bootSection, onBootSection, bootstrapActive } from '../utils/bootstrap';
 import ArenaPromo from '../cards/ArenaPromo.jsx';
 import { isFeatureEnabled } from '../utils/features';
+import { channelPath, postPath } from '../utils/prettyLinks';
 
 const EVENT_STATUS_LABEL = { UPCOMING: 'Em breve', ACTIVE: 'Ativo', ENDED: 'Encerrado' };
 // Item pedido: mostra só os 4 vídeos mais recentes do canal.
@@ -241,7 +242,7 @@ export default function InicioPage() {
 
   const disabledSystems = useStore((st) => st.disabledSystems) || [];
   const shortcuts = [
-    firstText && { icon: 'chat', label: 'Conversar', hint: `#${firstText.name}`, to: `/channels/${firstText.id}` },
+    firstText && { icon: 'chat', label: 'Conversar', hint: `#${firstText.name}`, to: channelPath(firstText) },
     { icon: 'feed', label: 'Fórum', hint: 'Posts e temas', to: '/comunidades' },
     { icon: 'social', label: 'Social', hint: 'Amigos e mensagens', to: '/dms' },
     { icon: 'star', label: 'Progresso', hint: 'Ranks e conquistas', to: '/progresso' },
@@ -327,7 +328,7 @@ export default function InicioPage() {
             {featuredPosts?.length > 0 && (
               <div className="home-posts">
                 {featuredPosts.map((post) => (
-                  <PostCard key={post.id} post={post} onVote={onVotePost} onOpen={() => navigate(`/posts/${post.id}`)} />
+                  <PostCard key={post.id} post={post} onVote={onVotePost} onOpen={() => navigate(postPath(post))} />
                 ))}
               </div>
             )}
@@ -354,7 +355,7 @@ export default function InicioPage() {
           <Section icon="voice" title="Em chamada agora" className="home-card">
             {liveCalls.length === 0 && <Empty>Ninguém em chamada. Entre numa sala e chame o pessoal.</Empty>}
             {liveCalls.map(({ channel, people }) => (
-              <button key={channel.id} type="button" className="home-call" onClick={() => navigate(`/channels/${channel.id}`)}>
+              <button key={channel.id} type="button" className="home-call" onClick={() => navigate(channelPath(channel))}>
                 <span className="home-call-name"><span className="home-live-dot" /> <span className="truncate">{channel.name}</span></span>
                 <span className="home-avatars">
                   {people.slice(0, 5).map((p) => <UserAvatar key={p.id} user={p} size={26} />)}

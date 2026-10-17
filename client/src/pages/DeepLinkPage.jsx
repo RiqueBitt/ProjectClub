@@ -3,10 +3,13 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { getModpack } from '../api/endpoints';
 import { requestOpenModpack } from './mods/modpackShared.js';
+import { findMemberUser } from '../utils/prettyPaths';
+import { resolveLinkRemote } from '../utils/prettyLinks';
 import '../styles/socialx.css';
 
-// Endereços curtos compartilháveis (/u/<id>, /modpack/<id>, /mod/<jogo>/<mod>,
-// /eventos/<id>) — só redirecionam pro lugar certo do app.
+// Endereços curtos compartilháveis (/perfil/<@> — antigo /u/<id> —,
+// /modpack/<id>, /mod/<jogo>/<mod>, /eventos/<id>) — só redirecionam pro
+// lugar certo do app.
 export default function DeepLinkPage({ kind }) {
   const params = useParams();
   const navigate = useNavigate();
@@ -21,12 +24,15 @@ export default function DeepLinkPage({ kind }) {
     };
     if (kind === 'user') {
       // O app fecha o perfil quando a rota muda — então volta primeiro e
-      // abre o perfil logo depois.
-      const id = params.id;
-      back();
-      setTimeout(() => useStore.getState().openProfile(id), 200);
+      // abre o perfil logo depois. /perfil/<@usuário> (ou o id antigo).
+      const ref = params.id;
+      const open = (id) => { if (!alive) return; back(); setTimeout(() => useStore.getState().openProfile(id), 200); };
+      const local = findMemberUser(useStore.getState(), ref);
+      if (local) open(local.id);
+      else resolveLinkRemote(location.pathname).then((link) => open(link?.kind === 'user' ? link.id : ref));
     } else if (kind === 'event') {
-      navigate(`/comunidade/eventos?evento=${encodeURIComponent(params.id)}`, { replace: true });
+      // Endereço antigo (/eventos/<id>) → /evento/<id>, que troca pelo nome.
+      navigate(`/evento/${encodeURIComponent(params.id)}${location.search}`, { replace: true });
     } else if (kind === 'mod') {
       navigate('/jogos/mods', { replace: true });
     } else if (kind === 'modpack') {

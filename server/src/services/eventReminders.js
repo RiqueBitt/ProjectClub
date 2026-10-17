@@ -19,7 +19,7 @@ async function tick(io, now = Date.now()) {
         // começou não recebe lembrete atrasado).
         startsAt: { gt: new Date(now), lte: new Date(now + LEAD_MS) },
       },
-      select: { id: true, title: true, startsAt: true },
+      select: { id: true, title: true, slug: true, startsAt: true },
       take: 50,
     });
     for (const ev of events) {
@@ -39,7 +39,7 @@ async function tick(io, now = Date.now()) {
           kind: 'EVENT_REMINDER',
           title: ev.title,
           body: minutes === 1 ? 'Começa em 1 minuto.' : `Começa em ${minutes} minutos.`,
-          link: `/eventos/${ev.id}`,
+          link: require('./linkResolver').eventPath(ev),
           data: { eventId: ev.id, startsAt: ev.startsAt },
         });
       }
@@ -55,11 +55,11 @@ async function tick(io, now = Date.now()) {
 async function startedTick(io, now) {
   const events = await prisma.event.findMany({
     where: { status: { not: 'ENDED' }, voiceChannelId: { not: null }, startsAt: { gt: new Date(now - 5 * 60 * 1000), lte: new Date(now) } },
-    select: { id: true, title: true, voiceChannelId: true },
+    select: { id: true, title: true, slug: true, voiceChannelId: true },
     take: 20,
   });
   for (const ev of events) {
-    const ch = await prisma.channel.findUnique({ where: { id: ev.voiceChannelId }, select: { id: true, name: true } }).catch(() => null);
+    const ch = await prisma.channel.findUnique({ where: { id: ev.voiceChannelId }, select: { id: true, name: true, slug: true } }).catch(() => null);
     if (!ch) continue;
     const pending = await prisma.eventRsvp.findMany({ where: { eventId: ev.id, status: 'GOING', startNotifiedAt: null }, select: { id: true, userId: true }, take: 1000 });
     for (const r of pending) {
@@ -69,7 +69,7 @@ async function startedTick(io, now) {
         kind: 'EVENT_REMINDER',
         title: `${ev.title} começou!`,
         body: `Toque pra entrar na call ${ch.name}.`,
-        link: `/channels/${ch.id}?entrar=1`,
+        link: `${require('./linkResolver').channelPath(ch)}?entrar=1`,
         data: { eventId: ev.id, voiceChannelId: ch.id, voiceChannelName: ch.name, join: true },
       });
     }

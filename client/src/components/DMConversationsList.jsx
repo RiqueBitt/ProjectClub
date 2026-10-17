@@ -16,6 +16,7 @@ import PinGlyph from './PinGlyph.jsx';
 import StatusEmoji from './StatusEmoji.jsx';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
 import { sortConversations, conversationMenuItems } from '../utils/dmPins';
+import { conversationPath } from '../utils/prettyLinks';
 
 // Lista de conversas diretas (DMs/grupos) — vive dentro da área "Amigos"
 // (ver AmigosPage.jsx), na aba "Mensagens". É o mesmo conteúdo que antes
@@ -74,7 +75,7 @@ export default function DMConversationsList() {
       <button
         type="button"
         key={c.id}
-        onClick={() => navigate(`/conversations/${c.id}`)}
+        onClick={() => navigate(conversationPath(c))}
         className={`sidebar-item dm-item ${unread ? 'unread' : ''} ${c.pinnedAt ? 'pinned' : ''}`}
         onContextMenu={box === 'main' ? (e) => openMenu(e, conversationMenuItems(c)) : undefined}
       >

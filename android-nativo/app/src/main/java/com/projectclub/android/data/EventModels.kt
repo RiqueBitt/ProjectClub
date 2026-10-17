@@ -17,6 +17,8 @@ data class CommunityEvent(
     val createdBy: User? = null,
     val createdAt: String? = null,
     val rsvp: EventRsvpSummary? = null,
+    /** Link bonito (/evento/<slug>). */
+    val slug: String? = null,
 )
 
 @Serializable

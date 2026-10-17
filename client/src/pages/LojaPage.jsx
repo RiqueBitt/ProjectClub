@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { slugify } from '../utils/prettyPaths';
 import { useAuth } from '../context/AuthContext.jsx';
 import UserAvatar from '../components/UserAvatar.jsx';
 import { Ico } from '../components/PagesKit.jsx';
@@ -294,7 +295,8 @@ export default function LojaPage() {
     user, data, supporter, busy, isEquipped, now, open: setDetail, equip, askBuy: (item, cur) => setConfirm({ item, currency: cur }), gift: setGiftFor,
     inWish, toggleWish, ownedStats, shuffleSeed, colorF, setColorF, tagF, setTagF,
     variantsOf: (i) => (i.variantGroup ? items.filter((x) => x.kind === i.kind && x.variantGroup === i.variantGroup) : []),
-    share: (i) => { try { navigator.clipboard.writeText(`${window.location.origin}/loja?item=${i.kind}:${i.id}`); flash('Link do item copiado.', 'info'); } catch { /* sem área de transferência */ } }, reshuffle: () => { setSort('shuffle'); setShuffleSeed(Math.floor(Math.random() * 1e9)); },
+    // Link bonito: /loja?item=deco:nome-do-item (o id antigo continua valendo).
+    share: (i) => { try { navigator.clipboard.writeText(`${window.location.origin}/loja?item=${i.kind}:${slugify(i.name) || i.id}`); flash('Link do item copiado.', 'info'); } catch { /* sem área de transferência */ } }, reshuffle: () => { setSort('shuffle'); setShuffleSeed(Math.floor(Math.random() * 1e9)); },
   };
 
   // Link de item compartilhado: /loja?item=deco:ID
@@ -304,9 +306,16 @@ export default function LojaPage() {
     if (!data || !itemParam || itemHandled.current) return;
     itemHandled.current = true;
     const [k, id] = itemParam.split(':');
-    const it = items.find((i) => i.kind === k && i.id === id);
+    const it = items.find((i) => i.kind === k && i.id === id) || items.find((i) => i.kind === k && slugify(i.name) === id);
     if (it) setDetail(it); else flash('Esse item não está mais na Loja.', 'info');
   }, [data, itemParam, items]);
+  // Link bonito de coleção: /loja/colecao/<nome> (ou o id).
+  const { colecao: colRef } = useParams();
+  useEffect(() => {
+    if (!data || !colRef) return;
+    const c = collections.find((x) => x.id === colRef || slugify(x.name) === colRef);
+    if (c) setSection(`col:${c.id}`);
+  }, [data, colRef, collections]);
   // "Adquira este visual" (perfil de alguém): /loja?look=deco:ID,style:KEY&from=Nome
   const lookParam = params.get('look');
   useEffect(() => { if (lookParam) setSection('look'); }, [lookParam]);
@@ -319,7 +328,7 @@ export default function LojaPage() {
     if (!data || !giftParam || giftHandled.current) return;
     giftHandled.current = true;
     const [k, id] = giftParam.split(':');
-    const it = items.find((i) => i.kind === k && i.id === id);
+    const it = items.find((i) => i.kind === k && i.id === id) || items.find((i) => i.kind === k && slugify(i.name) === id);
     if (it) setGiftFor({ ...it, presetTo: giftTo || null });
     else flash('Esse item não está mais à venda.', 'info');
   }, [data, giftParam, giftTo, items]);

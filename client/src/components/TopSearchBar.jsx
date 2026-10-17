@@ -15,6 +15,7 @@ import { QuickSwitcherButton } from './QuickSwitcher.jsx';
 export const DONATE_URL = 'https://livepix.gg/projectclubr';
 const svg = (d) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
 import { startManualDrag } from './TitleBar.jsx';
+import { isChannelPath, isDmPath } from '../utils/prettyLinks';
 
 // Barra de topo — logo + busca + atalhos + notificações + Configurações.
 // (Criar post, foto de perfil, YouTube, Música e Filmes saíram daqui a
@@ -27,11 +28,11 @@ function useSectionTitle() {
   const { pathname } = useLocation();
   // No chat, o nome do canal já aparece no cabeçalho do próprio chat;
   // aqui fica a seção (Comunidade), como no topo do Discord.
-  if (pathname === '/' || pathname.startsWith('/channels/')) {
+  if (pathname === '/' || isChannelPath(pathname)) {
     const item = ITEMS.find((i) => i.to === '/');
     return { icon: item.icon, label: t(item.labelKey) };
   }
-  if (pathname.startsWith('/conversations/')) return { label: t('nav.amigos') };
+  if (isDmPath(pathname)) return { label: t('nav.amigos') };
   if (pathname === '/notifications') return { label: 'Notificações' };
   if (pathname === '/search') return { label: 'Busca' };
   const item = [...ITEMS, STAFF_ITEM].find((i) => i.to !== '/' && i.match(pathname));

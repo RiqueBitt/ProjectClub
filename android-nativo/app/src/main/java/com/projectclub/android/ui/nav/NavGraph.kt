@@ -86,6 +86,48 @@ class AppNavigator(
     override fun games(userId: String) = go("games/$userId")
     override fun trades() = go("trades")
 
+    // ---- links bonitos (/canal/<nome>, /dm/<@>, /perfil/<@>, /evento/<nome>, /forum/<nome>) ----
+    // O ref pode ser o nome do link OU o id antigo. Primeiro procura no que
+    // já está carregado; senão pergunta ao servidor (mesma regra de acesso
+    // dos ids); sem resposta, tenta o próprio ref como id (comportamento antigo).
+    private val uuidRe = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+    private fun resolveThen(path: String, ref: String, open: (String) -> Unit) {
+        if (uuidRe.matches(ref)) { open(ref); return }
+        scope.launch { open(repo.resolveLink(path)?.id ?: ref) }
+    }
+
+    private fun openChannelId(id: String) {
+        // Canal de voz (ex.: aviso "Evento começou! Entrar na call"): entra na call.
+        val ch = repo.channel(id)
+        if (ch?.isVoice == true) onJoinVoice(id, ch.name) else room(Room(channelId = id))
+    }
+
+    private fun openChannelRef(ref: String) {
+        val local = repo.channelByRef(ref)
+        if (local != null) { openChannelId(local.id); return }
+        resolveThen("/canal/" + enc(ref), ref) { openChannelId(it) }
+    }
+
+    private fun openConversationRef(ref: String) {
+        val local = repo.conversationByRef(ref)
+        if (local != null) { room(Room(conversationId = local.id)); return }
+        scope.launch {
+            val link = repo.resolveLink("/dm/" + enc(ref))
+            val convId = link?.id
+            val otherId = link?.userId
+            if (convId != null) room(Room(conversationId = convId))
+            else if (otherId != null) dmWith(otherId) // ainda não tinham conversa: abre uma DM nova
+            else room(Room(conversationId = ref))
+        }
+    }
+
+    private fun openUserRef(ref: String, then: (String) -> Unit) {
+        val local = repo.memberByRef(ref)
+        if (local != null) { then(local.id); return }
+        resolveThen("/perfil/" + enc(ref), ref, then)
+    }
+
     override fun link(pathOrUrl: String) {
         val raw = pathOrUrl.trim()
         if (raw.isEmpty()) return
@@ -96,12 +138,8 @@ class AppNavigator(
         val tab = uri.getQueryParameter("tab")
         when (seg.firstOrNull()) {
             null, "inicio" -> onHome(0)
-            "channels" -> seg.getOrNull(1)?.let { id ->
-                // Canal de voz (ex.: aviso "Evento começou! Entrar na call"): entra na call.
-                val ch = repo.channel(id)
-                if (ch?.isVoice == true) onJoinVoice(id, ch.name) else room(Room(channelId = id))
-            } ?: onHome(1)
-            "conversations" -> seg.getOrNull(1)?.let { room(Room(conversationId = it)) } ?: onHome(2)
+            "canal", "channels" -> seg.getOrNull(1)?.let { openChannelRef(it) } ?: onHome(1)
+            "dm", "conversations" -> seg.getOrNull(1)?.let { openConversationRef(it) } ?: onHome(2)
             "dms", "amigos" -> onHome(2)
             "notifications" -> onHome(3)
             "loja" -> if (tab == "trocas") trades() else store(tab)
@@ -109,20 +147,22 @@ class AppNavigator(
             "progresso" -> progress(tab)
             "rank" -> progress("ranks")
             "conquistas" -> progress("conquistas")
-            "forum" -> forum()
+            "forum", "posts" -> seg.getOrNull(1)?.let { ref -> resolveThen("/forum/" + enc(ref), ref) { post(it) } } ?: forum()
             "comunidades" -> seg.getOrNull(1)?.let(::forumCommunity) ?: forum()
-            "posts" -> seg.getOrNull(1)?.let(::post) ?: forum()
             "comunidade" -> when (seg.getOrNull(1)) { "galeria" -> gallery(); else -> events() }
-            "eventos" -> seg.getOrNull(1)?.let(::event) ?: events()
+            "evento", "eventos" -> seg.getOrNull(1)?.let { ref -> resolveThen("/evento/" + enc(ref), ref) { event(it) } } ?: events()
             "anuncios" -> announcements()
             "inbox", "caixa-de-entrada" -> inbox(if (tab == "favoritos") 1 else 0)
             "clans" -> clubs()
             "tickets" -> tickets()
             "atividade" -> activity()
             "search" -> search()
-            "jogos" -> if (seg.getOrNull(1) == "biblioteca") games(seg.getOrNull(2) ?: "me") else external(uri.toString())
+            "jogos" -> if (seg.getOrNull(1) == "biblioteca") {
+                val ref = seg.getOrNull(2)
+                if (ref == null) games("me") else openUserRef(ref) { games(it) }
+            } else external(uri.toString())
             "profile" -> repo.me.value?.id?.let(::fullProfile) ?: onHome(4)
-            "u" -> seg.getOrNull(1)?.let(::fullProfile)
+            "perfil", "u" -> seg.getOrNull(1)?.let { ref -> openUserRef(ref) { fullProfile(it) } }
             else -> external(uri.toString())
         }
     }

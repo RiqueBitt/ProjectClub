@@ -27,8 +27,11 @@ const IMAGE_URL_RE = /^https?:\/\/\S+\.(gif|png|jpe?g|webp)(\?\S*)?$/i;
 
 // NOVO (fusão com o Reddit clone — item 2): página de post individual,
 // com comentários aninhados (respostas de respostas, como o Reddit).
-export default function PostDetailPage() {
-  const { id } = useParams();
+export default function PostDetailPage({ postId } = {}) {
+  // Links bonitos: /forum/:ref já resolvido pro id (PostRoute); o servidor
+  // também aceita o slug, então o ref cru continua funcionando de reserva.
+  const params = useParams();
+  const id = postId ?? params.id ?? params.ref;
   const navigate = useNavigate();
   const { user } = useAuth();
   const { socket } = useSocket() || {};

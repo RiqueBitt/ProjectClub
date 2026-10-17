@@ -5,6 +5,7 @@ import { useSocket } from '../../context/SocketContext.jsx';
 import { getOnboarding, claimOnboardingStep, setOnboardingMeta } from '../../api/conforto';
 import { enableWebPush } from '../../utils/webPush';
 import { CoinIcon } from '../CurrencyIcon.jsx';
+import { channelPath } from '../../utils/prettyLinks';
 
 // "Primeiros passos": cartão flutuante (recolhível) com os passos de quem
 // acabou de chegar. Quem confere se o passo foi feito e paga as moedas é o
@@ -122,7 +123,7 @@ export default function FirstStepsWidget({ data, setData, hidden }) {
       case 'voice': {
         const all = [...(s.channels || []), ...(s.categories || []).flatMap((c) => c.channels || [])];
         const vc = all.find((c) => c.type === 'VOICE');
-        if (vc) navigate(`/channels/${vc.id}`);
+        if (vc) navigate(channelPath(vc));
         else s.pushNotice('Nenhum canal de voz disponível agora.');
         break;
       }

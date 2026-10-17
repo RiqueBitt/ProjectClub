@@ -202,30 +202,16 @@ function isKnownGameDir(p) {
 
 // ---------- Links projectclub:// ----------
 // projectclub://invite/<código>   → sala de convite da Guerra das Cartas
-// projectclub://post/<id>         → /posts/<id>
-// projectclub://user/<id>         → /u/<id> (DeepLinkPage abre o perfil)
-// projectclub://channel/<id>      → /channels/<id>
-// Os ids são validados à risca (só letras, números e hífen) — nada do link
-// vai parar na URL sem passar por aqui.
-const DEEP_LINK_SCHEME = 'projectclub';
-const DEEP_ID_RE = /^[A-Za-z0-9-]{1,64}$/;
-const DEEP_INVITE_RE = /^[A-Za-z0-9]{3,12}$/;
-function parseDeepLink(raw) {
-  let u;
-  try { u = new URL(String(raw)); } catch { return null; }
-  if (u.protocol !== `${DEEP_LINK_SCHEME}:`) return null;
-  // projectclub://post/123 → host "post", pathname "/123" (e também aceita
-  // projectclub:///post/123 ou projectclub:post/123).
-  const parts = `${u.host}/${u.pathname}`.split('/').filter(Boolean).map((p) => { try { return decodeURIComponent(p); } catch { return ''; } });
-  if (parts.length !== 2) return null;
-  const [kind, id] = [parts[0].toLowerCase(), parts[1]];
-  if (kind === 'invite' && DEEP_INVITE_RE.test(id)) return `/cartas?sala=${encodeURIComponent(id.toUpperCase())}`;
-  if (!DEEP_ID_RE.test(id)) return null;
-  if (kind === 'post') return `/posts/${id}`;
-  if (kind === 'user') return `/u/${id}`;
-  if (kind === 'channel') return `/channels/${id}`;
-  return null;
-}
+// Links bonitos (aceitam o nome do link OU o id antigo — o site resolve e
+// troca pelo endereço bonito, com a mesma regra de acesso):
+// projectclub://canal/<nome>      → /canal/<nome>      (também channel/<id>)
+// projectclub://dm/<@usuário>     → /dm/<@usuário>     (também conversation/<id>)
+// projectclub://perfil/<@usuário> → /perfil/<@usuário> (também user/<id>)
+// projectclub://forum/<titulo>    → /forum/<titulo>    (também post/<id>)
+// projectclub://evento/<titulo>   → /evento/<titulo>   (também event/<id>)
+// O nome/id é validado à risca (letras, números, hífen, _ e ponto, sem ser
+// só pontos) — nada do link vai parar na URL sem passar por aqui.
+const { DEEP_LINK_SCHEME, parseDeepLink } = require('./deepLinks');
 const findDeepLinkArg = (argv) => (argv || []).find((a) => typeof a === 'string' && a.toLowerCase().startsWith(`${DEEP_LINK_SCHEME}:`));
 // Link que abriu o app (Windows/Linux: vem no argv) — vira a primeira página.
 let pendingDeepLinkRoute = parseDeepLink(findDeepLinkArg(process.argv));

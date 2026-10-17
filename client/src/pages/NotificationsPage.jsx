@@ -15,6 +15,7 @@ import { Ico, PageHero, PillTabs, EmptyState } from '../components/PagesKit.jsx'
 import '../styles/notifications.css';
 import { listNotices, readAllNotices, readNotice } from '../api/contentx';
 import { useSocket } from '../context/SocketContext.jsx';
+import { eventPath, channelPath, conversationPath, isChannelPath, isDmPath } from '../utils/prettyLinks';
 
 // Agrupa por dia: Hoje / Ontem / Antes (sem data também cai em "Antes").
 function dayGroup(date) {
@@ -304,7 +305,7 @@ export default function NotificationsPage() {
     if (it.kind === 'event') {
       const e = it.data;
       return (
-        <li key={it.key} className="notifications-item nt-item unread clickable" data-kind="event" onClick={() => navigate(`/eventos/${e.id}`)}>
+        <li key={it.key} className="notifications-item nt-item unread clickable" data-kind="event" onClick={() => navigate(eventPath(e))}>
           <NtIcon kind="event" />
           <div className="nt-body">
             <div className="nt-line"><span className="truncate">{e.status === 'ACTIVE' ? 'Evento acontecendo: ' : 'Novo evento: '}<strong>{e.title}</strong></span><time>{when(e.createdAt)}</time></div>
@@ -345,7 +346,7 @@ export default function NotificationsPage() {
       const ch = it.data;
       const last = ch.lastMessage;
       return (
-        <li key={it.key} className="notifications-item nt-item unread clickable" data-kind="channel" onClick={() => navigate(`/channels/${ch.id}`)}>
+        <li key={it.key} className="notifications-item nt-item unread clickable" data-kind="channel" onClick={() => navigate(channelPath(ch))}>
           <NtIcon kind="channel" user={last?.author} />
           <div className="nt-body">
             <div className="nt-line">
@@ -362,7 +363,7 @@ export default function NotificationsPage() {
     const { name, other } = convName(c);
     const last = c.lastMessage;
     return (
-      <li key={it.key} className="notifications-item nt-item unread clickable" data-kind="conversation" onClick={() => navigate(`/conversations/${c.id}`)}>
+      <li key={it.key} className="notifications-item nt-item unread clickable" data-kind="conversation" onClick={() => navigate(conversationPath(c))}>
         <NtIcon kind="conversation" user={other} />
         <div className="nt-body">
           <div className="nt-line"><span className="truncate"><strong>{name}</strong>{c.isGroup ? ' · grupo' : ''}</span><time>{when(last?.createdAt)}</time></div>
@@ -408,7 +409,7 @@ export default function NotificationsPage() {
                   <NtIcon kind="reminder" />
                   <div className="nt-body">
                     <div className="nt-line"><span className="truncate"><strong>{r.text}</strong></span><time>{new Date(r.dueAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time></div>
-                    {r.link && <span className="nt-sub truncate">{r.link.startsWith('/channels/') ? 'No canal' : r.link.startsWith('/conversations/') ? 'Na conversa' : r.link}</span>}
+                    {r.link && <span className="nt-sub truncate">{isChannelPath(r.link) ? 'No canal' : isDmPath(r.link) ? 'Na conversa' : r.link}</span>}
                   </div>
                   <button type="button" className="pk-btn ghost small" onClick={() => removeReminder(r.id)} title="Cancelar lembrete">Cancelar</button>
                 </li>

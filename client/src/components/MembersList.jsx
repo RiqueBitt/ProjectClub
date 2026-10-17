@@ -16,6 +16,7 @@ import personIcon from '../assets/icons/person.png';
 import chatIcon from '../assets/icons/chat.png';
 import errorIcon from '../assets/icons/error.png';
 import ListSkeleton from './ListSkeleton.jsx';
+import { conversationPath } from '../utils/prettyLinks';
 
 function highestRole(member, roles) {
   const mine = (roles || []).filter((r) => !r.isDefault && member.roleIds?.includes(r.id));
@@ -81,7 +82,7 @@ function MemberGroup({ label, members, roles, dim, cargosEnabled }) {
 
   const openDM = async (userId) => {
     const { conversation } = await createConversation([userId]);
-    navigate(`/conversations/${conversation.id}`);
+    navigate(conversationPath(conversation));
   };
 
   const openAddRole = (userId) => useStore.getState().openProfileAddRole(userId);

@@ -13,6 +13,7 @@ import {
   SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX, rememberPath, saveScrollPosition, readScrollPosition,
 } from '../utils/appearance';
 import '../styles/appearance.css';
+import { isChannelPath, isDmPath } from '../utils/prettyLinks';
 
 // Ícones locais (traço, mesmo estilo de PageIcons.jsx).
 const ICONS = {
@@ -284,7 +285,7 @@ function SidebarResizeHandle() {
 }
 
 // ---------- Memória de rolagem por página ----------
-const isChatPath = (p) => p.startsWith('/channels/') || p.startsWith('/conversations/');
+const isChatPath = (p) => isChannelPath(p) || isDmPath(p);
 
 function mainScroller() {
   const main = document.querySelector('.app-shell .app-main');

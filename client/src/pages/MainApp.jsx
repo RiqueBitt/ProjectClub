@@ -12,7 +12,6 @@ import MainSidebar from '../components/MainSidebar.jsx';
 import Normal2Sidebar from '../components/Normal2Sidebar.jsx';
 import ChannelSidebar from '../components/ChannelSidebar.jsx';
 import TopSearchBar from '../components/TopSearchBar.jsx';
-import ChatWindow from '../components/ChatWindow.jsx';
 import MembersList from '../components/MembersList.jsx';
 import PanelSlot from '../components/PanelSlot.jsx';
 import DMProfilePanel from '../components/DMProfilePanel.jsx';
@@ -51,6 +50,8 @@ import AppShellExtras from '../components/AppearanceRuntime.jsx';
 import { StreamerBadge } from '../components/ExtraPrefsRuntime.jsx';
 import { lastRememberedPath, lastRememberedChannelId } from '../utils/appearance';
 import { isFeatureEnabled } from '../utils/features';
+import { ChannelRoute, DmRoute, PostRoute, LibraryRoute } from '../components/PrettyRoutes.jsx';
+import { channelPath, isChannelPath, roomFromCurrentPath, useRouteRoom } from '../utils/prettyLinks';
 
 // BUG CORRIGIDO ("web mais rápido e otimizado"): todas essas páginas de
 // seção (Amigos, Perfil, Notificações, Busca, Painel da staff, Economia,
@@ -162,14 +163,17 @@ export default function MainApp() {
   // Favoritos/ignorados (menu da mensagem) carregam uma vez.
   useEffect(() => { useMsgExtras.getState().load(); }, []);
   // Link de mensagem (?m=ID): pula até ela ao abrir o canal/conversa.
+  // /canal/<nome> e /dm/<@> (e os antigos /channels/<id>...) → id de verdade
+  // (re-roda quando o canal/conversa termina de carregar).
+  const jumpRoom = useRouteRoom();
+  const jumpRoomKey = jumpRoom?.channelId || jumpRoom?.conversationId || '';
   useEffect(() => {
     const mid = new URLSearchParams(location.search).get('m');
     if (!mid) return;
-    const ch = location.pathname.match(/^\/channels\/([^/?#]+)/);
-    const cv = location.pathname.match(/^\/conversations\/([^/?#]+)/);
-    if (ch) useStore.getState().setPendingJump({ roomKey: roomKeyFor({ channelId: ch[1] }), messageId: mid });
-    else if (cv) useStore.getState().setPendingJump({ roomKey: roomKeyFor({ conversationId: cv[1] }), messageId: mid });
-  }, [location.pathname, location.search]);
+    const room = roomFromCurrentPath(location.pathname);
+    if (room?.channelId) useStore.getState().setPendingJump({ roomKey: roomKeyFor({ channelId: room.channelId }), messageId: mid });
+    else if (room?.conversationId) useStore.getState().setPendingJump({ roomKey: roomKeyFor({ conversationId: room.conversationId }), messageId: mid });
+  }, [location.pathname, location.search, jumpRoomKey]);
   const navigate = useNavigate();
   const { connected, socket } = useSocket() || {};
   // Fila offline do chat: mensagens que falharam por falta de conexão são
@@ -194,7 +198,7 @@ export default function MainApp() {
   // ativa no layout Discord que nunca deixava a seta expandir de
   // volta.
   const mainSidebarCollapsed = useStore((s) => s.mainSidebarCollapsed);
-  const isInComunidade = location.pathname === '/' || location.pathname.startsWith('/channels/') || location.pathname.startsWith('/comunidade/');
+  const isInComunidade = location.pathname === '/' || isChannelPath(location.pathname) || location.pathname.startsWith('/comunidade/') || location.pathname.startsWith('/evento/');
   const showDiscordChannelSidebar = layoutStyle === 'discord' && isInComunidade;
   // Layout "Normal 2.0" (padrão): canais sempre visíveis numa coluna só
   // com o menu (Normal2Sidebar.jsx).
@@ -215,8 +219,9 @@ export default function MainApp() {
   // ("the hamburger is how you get back to the channel list once the
   // drawer auto-closes on navigation"). Fecha sozinho ao trocar de
   // canal (clicar num canal dentro da lista já navega).
-  const hasChannelOpen = location.pathname.startsWith('/channels/');
-  const currentChannelIdFromUrl = hasChannelOpen ? location.pathname.slice('/channels/'.length) : null;
+  const hasChannelOpen = isChannelPath(location.pathname);
+  // /canal/<nome> → id do canal (pelo que já está carregado).
+  const currentChannelIdFromUrl = hasChannelOpen ? (jumpRoom?.channelId || null) : null;
   const mobileChannelListOpen = useStore((s) => s.mobileChannelListOpen);
   const closeMobileChannelList = useStore((s) => s.closeMobileChannelList);
   useEffect(() => { closeMobileChannelList(); }, [location.pathname]);
@@ -498,13 +503,20 @@ export default function MainApp() {
                 <Route path="/clans/mine" element={<ClanPage />} />
                 <Route path="/comunidades" element={<CommunitiesPage />} />
                 <Route path="/comunidades/:slug" element={<CommunityPage />} />
-                <Route path="/posts/:id" element={<PostDetailPage />} />
+                {/* Links bonitos: /forum/<titulo> (antigo /posts/<id>, que troca sozinho). */}
+                <Route path="/forum/:ref" element={<PostRoute Page={PostDetailPage} />} />
+                <Route path="/posts/:ref" element={<PostRoute legacy Page={PostDetailPage} />} />
                 <Route path="/inicio" element={<InicioPage />} />
                 <Route path="/comunidade/eventos" element={<CommunityEventsPage />} />
+                {/* /evento/<titulo>: a página de Eventos já aberta nele (antigo /eventos/<id>). */}
+                <Route path="/evento/:ref" element={<CommunityEventsPage />} />
+                <Route path="/eventos" element={<Navigate to="/comunidade/eventos" replace />} />
                 <Route path="/atividade" element={<AtividadePage />} />
                 <Route path="/loja" element={<LojaPage />} />
+                <Route path="/loja/colecao/:colecao" element={<LojaPage />} />
                 <Route path="/anuncios" element={<AnunciosPage />} />
                 <Route path="/forum" element={<Navigate to="/comunidades" replace />} />
+                <Route path="/perfil/:id" element={<DeepLinkPage kind="user" />} />
                 <Route path="/u/:id" element={<DeepLinkPage kind="user" />} />
                 <Route path="/modpack/:id" element={<DeepLinkPage kind="modpack" />} />
                 <Route path="/mod/:game/:id" element={<DeepLinkPage kind="mod" />} />
@@ -514,12 +526,16 @@ export default function MainApp() {
                 <Route path="/jogos" element={<JogosPage />} />
                 <Route path="/jogos/mods" element={<ModsPage />} />
                 <Route path="/jogos/biblioteca" element={<GameLibraryPage />} />
-                <Route path="/jogos/biblioteca/:userId" element={<GameLibraryPage />} />
+                <Route path="/jogos/biblioteca/:ref" element={<LibraryRoute Page={GameLibraryPage} />} />
                 <Route path="/minijogos" element={<MiniJogosPage />} />
                 {/* Navegador do Project Club (desligado em utils/features.js). */}
                 <Route path="/navegador" element={BROWSER_ON ? <BrowserPage /> : <Navigate to="/" replace />} />
-                <Route path="/conversations/:conversationId" element={<ChatWindow kind="conversation" />} />
-                <Route path="/channels/:channelId" element={<ChatWindow kind="channel" />} />
+                {/* Links bonitos: /dm/<@> ou /dm/grupo-<nome> e /canal/<nome>. Os
+                    antigos (com id) continuam abrindo e trocam pelo bonito. */}
+                <Route path="/dm/:ref" element={<DmRoute />} />
+                <Route path="/conversations/:ref" element={<DmRoute legacy />} />
+                <Route path="/canal/:ref" element={<ChannelRoute />} />
+                <Route path="/channels/:ref" element={<ChannelRoute legacy />} />
               </Routes>
             </ErrorBoundary>
           </Suspense>
@@ -530,8 +546,10 @@ export default function MainApp() {
 
       <Routes>
         <Route path="/" element={membersOpen ? <PanelSlot panelId="membersList"><MembersList onToggle={() => setMembersOpen(false)} /></PanelSlot> : <button type="button" className="members-reopen-btn" title="Mostrar painel lateral" aria-label="Mostrar painel lateral" onClick={() => setMembersOpen(true)}>‹</button>} />
-        <Route path="/channels/:channelId" element={membersOpen ? <PanelSlot panelId="membersList"><MembersList onToggle={() => setMembersOpen(false)} /></PanelSlot> : <button type="button" className="members-reopen-btn" title="Mostrar painel lateral" aria-label="Mostrar painel lateral" onClick={() => setMembersOpen(true)}>‹</button>} />
-        <Route path="/conversations/:conversationId" element={dmProfileOpen ? <PanelSlot panelId="membersList"><DMProfilePanel onToggle={() => setDmProfileOpen(false)} /></PanelSlot> : null} />
+        <Route path="/canal/:ref" element={membersOpen ? <PanelSlot panelId="membersList"><MembersList onToggle={() => setMembersOpen(false)} /></PanelSlot> : <button type="button" className="members-reopen-btn" title="Mostrar painel lateral" aria-label="Mostrar painel lateral" onClick={() => setMembersOpen(true)}>‹</button>} />
+        <Route path="/channels/:ref" element={membersOpen ? <PanelSlot panelId="membersList"><MembersList onToggle={() => setMembersOpen(false)} /></PanelSlot> : <button type="button" className="members-reopen-btn" title="Mostrar painel lateral" aria-label="Mostrar painel lateral" onClick={() => setMembersOpen(true)}>‹</button>} />
+        <Route path="/dm/:ref" element={dmProfileOpen ? <PanelSlot panelId="membersList"><DMProfilePanel onToggle={() => setDmProfileOpen(false)} /></PanelSlot> : null} />
+        <Route path="/conversations/:ref" element={dmProfileOpen ? <PanelSlot panelId="membersList"><DMProfilePanel onToggle={() => setDmProfileOpen(false)} /></PanelSlot> : null} />
         <Route path="/dms" element={membersOpen ? <PanelSlot panelId="membersList"><FriendsListPanel onToggle={() => setMembersOpen(false)} /></PanelSlot> : <button type="button" className="members-reopen-btn" title="Mostrar painel lateral" aria-label="Mostrar painel lateral" onClick={() => setMembersOpen(true)}>‹</button>} />
       </Routes>
 
@@ -584,9 +602,10 @@ function CommunityDefaultChannel() {
     const geral = all.find((c) => c.name?.trim().toLowerCase() === 'geral');
     // Volta pro último canal aberto nesta sessão, se ele ainda existir.
     const lastId = lastRememberedChannelId();
-    const remembered = lastId ? all.find((c) => String(c.id) === lastId) : null;
+    // (guardado como o nome do link — /canal/<nome> — ou o id antigo)
+    const remembered = lastId ? all.find((c) => String(c.id) === lastId || (c.slug && c.slug === lastId)) : null;
     const firstChannel = remembered || geral || categories.flatMap((c) => c.channels || [])[0] || channels[0];
-    if (firstChannel) navigate(`/channels/${firstChannel.id}`, { replace: true });
+    if (firstChannel) navigate(channelPath(firstChannel), { replace: true });
   }, [categories, channels]);
 
   return <WelcomePane />;

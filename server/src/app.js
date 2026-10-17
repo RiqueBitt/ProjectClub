@@ -421,6 +421,8 @@ function createApp() {
   app.use('/api/unfurl', require('./routes/unfurl'));
   app.use('/api/updates', updatesRoutes);
   app.use('/api/events', eventsRoutes);
+  // Links bonitos (/canal/<nome>, /perfil/<@>...): resolve endereço → id.
+  app.use('/api/links', require('./routes/links'));
   // Avisos pessoais salvos e Galeria (curtidas/álbuns).
   app.use('/api/notices', require('./routes/notices'));
   app.use('/api/reminders', require('./routes/reminders'));

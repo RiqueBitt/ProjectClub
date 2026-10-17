@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { eventPath } from '../utils/prettyPaths';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useVoice } from '../context/VoiceContext.jsx';
 import { createEvent } from '../api/endpoints';
@@ -11,6 +12,7 @@ import EventRsvp from '../components/EventRsvp.jsx';
 import { useMarkSectionSeen } from '../utils/sectionBadges';
 import '../styles/socialx.css';
 import '../styles/contentx.css';
+import { channelPath } from '../utils/prettyLinks';
 
 // Visão: lista (abas por situação) ou calendário do mês. Lembra a escolha.
 const VIEW_KEY = 'eventsView';
@@ -158,7 +160,7 @@ function EventCard({ ev, now, highlighted, onRsvp }) {
     if (highlighted) ref.current?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }, [highlighted]);
   const copyLink = () => {
-    navigator.clipboard?.writeText(`${window.location.origin}/eventos/${ev.id}`)
+    navigator.clipboard?.writeText(`${window.location.origin}${eventPath(ev)}`)
       .then(() => { setCopied(true); setTimeout(() => setCopied(false), 1600); })
       .catch(() => {});
   };
@@ -202,7 +204,7 @@ function EventCard({ ev, now, highlighted, onRsvp }) {
         {ev.voiceChannel && ev.status !== 'ENDED' && (
           <button
             type="button" className="cev-join"
-            onClick={() => { voice?.joinChannel(null, ev.voiceChannel.id, ev.voiceChannel.name, ev.voiceChannel.type || 'VOICE'); navigate(`/channels/${ev.voiceChannel.id}`); }}
+            onClick={() => { voice?.joinChannel(null, ev.voiceChannel.id, ev.voiceChannel.name, ev.voiceChannel.type || 'VOICE'); navigate(channelPath(ev.voiceChannel)); }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" /></svg>
             {ev.status === 'ACTIVE' ? `Entrar na call · ${ev.voiceChannel.name}` : `Call do evento: ${ev.voiceChannel.name}`}
@@ -272,7 +274,18 @@ export default function CommunityEventsPage() {
   const isStaff = user?.platformRole === 'ADMIN' || user?.platformRole === 'MODERATOR';
   const { events, reload, patchEvent } = useCommunityEvents();
   const [params] = useSearchParams();
-  const focusId = params.get('evento');
+  // Links bonitos: /evento/<slug> (ou o id antigo, ou ?evento=<id>).
+  const { ref: focusRef } = useParams();
+  const location = useLocation();
+  const focusKey = focusRef || params.get('evento');
+  const focusEvent = focusKey ? (events || []).find((e) => e.id === focusKey || (e.slug && e.slug === String(focusKey).toLowerCase())) : null;
+  const focusId = focusEvent?.id || focusKey;
+  // Abriu pelo id ou por um nome antigo: troca pelo endereço bonito.
+  useEffect(() => {
+    if (!focusRef || !focusEvent) return;
+    const want = eventPath(focusEvent);
+    if (want !== location.pathname) navigate(want, { replace: true });
+  }, [focusRef, focusEvent?.id, focusEvent?.slug]); // eslint-disable-line react-hooks/exhaustive-deps
   const [tab, setTab] = useState(null);
   const [creating, setCreating] = useState(false);
   const [view, setViewState] = useState(() => { try { return localStorage.getItem(VIEW_KEY) === 'calendar' ? 'calendar' : 'list'; } catch { return 'list'; } });

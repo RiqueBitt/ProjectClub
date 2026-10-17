@@ -70,7 +70,9 @@ async function notifyBroadcast(io, { kind, id, title, body, authorId = null, lin
   const k = KINDS[kind];
   if (!k) return { pushed: 0, skipped: 0 };
   const text = shapeText(kind, { title, body });
-  const target = link || (kind === 'event' && id ? `/eventos/${encodeURIComponent(id)}` : k.link);
+  // Link bonito (/evento/<slug>) vem de quem chama; sem ele, /evento/<id>
+  // também abre (o site resolve o id e troca pro endereço bonito).
+  const target = link || (kind === 'event' && id ? `/evento/${encodeURIComponent(id)}` : k.link);
   io?.to?.('community')?.emit?.('broadcast:notify', { kind, id, ...text, link: target, authorId });
 
   const now = Date.now();

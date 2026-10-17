@@ -6,6 +6,7 @@ import UserAvatar from './UserAvatar.jsx';
 import ActivityStatusLine from './ActivityStatusLine.jsx';
 import { Ico } from './PagesKit.jsx';
 import '../styles/active-now.css';
+import { channelPath } from '../utils/prettyLinks';
 
 // "Ativo agora" (igual à coluna da página de Amigos do Discord): amigos
 // jogando, ouvindo ou numa call — com botão pra entrar na call junto.
@@ -55,7 +56,7 @@ export default function ActiveNowPanel() {
             <div className="anp-voice">
               <Ico name="volume" size={15} />
               <span><b>{v.channel.name}</b><small>{v.count} {v.count === 1 ? 'pessoa' : 'pessoas'} na call</small></span>
-              <button type="button" onClick={() => { voice?.joinChannel(null, v.channel.id, v.channel.name, v.channel.type || 'VOICE'); navigate(`/channels/${v.channel.id}`); }}>Entrar</button>
+              <button type="button" onClick={() => { voice?.joinChannel(null, v.channel.id, v.channel.name, v.channel.type || 'VOICE'); navigate(channelPath(v.channel)); }}>Entrar</button>
             </div>
           )}
         </div>

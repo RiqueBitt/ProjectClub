@@ -17,7 +17,9 @@ const roles = [
   { id: 'r2', name: 'Bots', hoist: true, position: 2, color: '#7aa2ff', permissions: '0' },
 ];
 const members = users.map((u) => ({ user: u, roleIds: u.id === '1' ? ['r1'] : u.isBot ? ['r2'] : [] }));
-const ch = (id, name, type = 'TEXT', extra = {}) => ({ id, name, type, position: 0, lastMessageAt: null, ...extra });
+// slug = link bonito (/canal/chat-geral), igual ao servidor (services/slugs.js).
+const slug = (s) => String(s).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+const ch = (id, name, type = 'TEXT', extra = {}) => ({ id, name, type, position: 0, lastMessageAt: null, slug: slug(name), ...extra });
 const categories = [
   { id: 'c1', name: 'ℹ️ • Informações', position: 0, channels: [ch('ch1', '📣 | Anúncios')] },
   { id: 'c2', name: '🌐 Comunidade', position: 1, channels: [ch('ch2', '🌎 | chat geral'), ch('ch3', '🔧 | comandos'), ch('ch4', '📸 | mídias')] },
@@ -63,6 +65,12 @@ export function handler(route) {
   const p = url.pathname.replace(/^\/api/, '');
   const json = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
   if (p === '/bootstrap') return bootstrapMock(route, url);
+  // Links bonitos: /canal/<nome> ou o antigo /channels/<id> → canal.
+  if (p === '/links/resolve') {
+    const m = (url.searchParams.get('path') || '').match(/^\/(?:canal|channels)\/([^/?#]+)/);
+    const c = m && categories.flatMap((k) => k.channels).find((x) => x.id === m[1] || x.slug === m[1]);
+    return c ? json({ link: { kind: 'channel', id: c.id, slug: c.slug, name: c.name, path: `/canal/${c.slug}` } }) : json({ error: 'Link não encontrado.' }, 404);
+  }
   { const m = p.match(/^\/users\/([^/]+)\/summary$/); if (m) return json({ profile: subRequest('/users/' + m[1]), fan: subRequest('/fans/' + m[1]), traits: subRequest('/traits/' + m[1]), polls: subRequest('/profile-polls/author/' + m[1]) }); }
 
   const clubs = [{ id: 'k1', slug: 'minecraft', name: 'Minecraft', description: 'Builds, seeds e servidores', iconUrl: null, memberCount: 182, postCount: 40 }, { id: 'k2', slug: 'setup', name: 'Setups', description: 'Mostre seu setup', iconUrl: av('#ff7a18','#7a1f00'), memberCount: 95, postCount: 12 }];

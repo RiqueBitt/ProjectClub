@@ -91,7 +91,7 @@ test('"Lembrar-me" no menu da mensagem cria o lembrete com link e id da mensagem
   await expect(page.locator('.schedule-modal')).toHaveCount(0);
   expect(posted).toHaveLength(1);
   expect(posted[0].when).toBe('em 2h');
-  expect(posted[0].link).toBe('/channels/ch2');
+  expect(posted[0].link).toBe('/canal/chat-geral'); // link bonito (era /channels/ch2)
   expect(posted[0].messageId).toBeTruthy();
   await expect(page.locator('.notice-toast-stack')).toContainText('Vou te lembrar');
 });

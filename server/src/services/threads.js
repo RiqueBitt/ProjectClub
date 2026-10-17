@@ -144,7 +144,7 @@ async function notifyThreadParticipants(io, { root, message, channel }) {
     await Promise.all(pushIds.map((uid) => sendPushToUser(uid, {
       title: `${payload.authorName} em 🧵 ${root.title}`,
       body: payload.preview.slice(0, 120),
-      data: { conversationId: '', channelId: channel.id, link: `/channels/${channel.id}`, tag: `thread:${root.id}` },
+      data: { conversationId: '', channelId: channel.id, link: require('./linkResolver').channelPath(channel), tag: `thread:${root.id}` },
     }).catch(() => {})));
   } catch { /* push opcional */ }
   return visible;

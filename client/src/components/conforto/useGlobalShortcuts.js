@@ -4,6 +4,7 @@ import { useStore } from '../../store/useStore';
 import { useVoice } from '../../context/VoiceContext.jsx';
 import { queueRead } from '../../utils/readMarker';
 import { matchShortcut, findFrom, isEditableTarget } from './shortcuts';
+import { channelPath } from '../../utils/prettyLinks';
 
 // Atalhos globais NOVOS (os antigos continuam com os donos de antes —
 // ver shortcuts.js). Escuta em captura no window pra que Alt+↑/↓ não
@@ -60,7 +61,7 @@ export function useGlobalShortcuts({ onOpenShortcuts, shortcutsOpen, onCloseShor
         const idx = findFrom(list, current, dir, (b) => !unreadOnly || b.classList.contains('unread') || !!b.querySelector('.mention-badge'));
         if (idx >= 0) {
           const id = list[idx].getAttribute('data-channel-id');
-          if (id) st.navigate(`/channels/${id}`); else list[idx].click();
+          if (id) st.navigate(channelPath(id)); else list[idx].click();
           try { list[idx].scrollIntoView({ block: 'nearest' }); } catch { /* ok */ }
         }
         return;

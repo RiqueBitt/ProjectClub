@@ -790,11 +790,16 @@ async function createMessageInner(req, res) {
         // "Não perturbe" agendado de cada pessoa (ver services/notificationPrefs.js).
         const dmTargets = await notificationPrefs.filterNotifiable([...recipientIds], {});
 
+        // Link bonito: DM 1:1 → /dm/<@ de quem mandou>; grupo → /dm/grupo-<nome>.
+        const convMeta = dmTargets.length
+          ? await prisma.conversation.findUnique({ where: { id: conversationId }, select: { id: true, isGroup: true, slug: true } }).catch(() => null)
+          : null;
+        const dmLink = require('../services/linkResolver').conversationPath(convMeta || { id: conversationId, isGroup: true }, { otherUsername: req.user.username });
         await Promise.all(dmTargets.map((uid) => sendPushToUser(uid, {
           title: authorName, body: preview,
           data: {
             conversationId: conversationId || '', channelId: '',
-            link: `/conversations/${conversationId}`,
+            link: dmLink,
             tag: `dm:${conversationId}`,
           },
         })));
@@ -922,7 +927,7 @@ async function notifyChannelMentions(io, { message, channel, mentionRows, isEdit
   const { sendPushToUser } = require('../services/pushNotifications');
   const pushPreview = base.preview.slice(0, 120)
     || (message.attachments?.length ? '📎 Anexo' : message.stickerUrl ? '🏷️ Figurinha' : 'Nova mensagem');
-  const pushData = { conversationId: '', channelId: channel.id, link: `/channels/${channel.id}`, tag: `ch:${channel.id}` };
+  const pushData = { conversationId: '', channelId: channel.id, link: require('../services/linkResolver').channelPath(channel), tag: `ch:${channel.id}` };
   const directIds = new Set(mentionRows.filter((m) => m.targetType === 'USER' && m.targetId).map((m) => m.targetId));
   if (replyTargetId) directIds.add(replyTargetId);
   const mentionPush = await notificationPrefs.filterNotifiable(

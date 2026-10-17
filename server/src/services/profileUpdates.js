@@ -28,7 +28,7 @@ async function profileChanged(req, userId) {
   const mine = await getExtraPrefs(userId);
   if (mine.shareProfileUpdates === false) return;
   const [user, friends] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { displayName: true, avatarUrl: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true, displayName: true, avatarUrl: true } }),
     friendIdsOf(userId),
   ]);
   if (!user || !friends.length) return;
@@ -38,7 +38,7 @@ async function profileChanged(req, userId) {
     if (prefs[fid]?.notifyFriendProfile === false) continue;
     await createNotice(io, fid, {
       kind: 'FRIEND_PROFILE', title: `${user.displayName} atualizou o perfil`,
-      body: 'Dá uma olhada no que mudou.', link: `/u/${userId}`, data: { userId },
+      body: 'Dá uma olhada no que mudou.', link: require('./linkResolver').userPath(user), data: { userId },
     });
   }
 }
@@ -61,10 +61,11 @@ async function runFriendAnniversaries(io) {
   const { getExtraPrefsMany } = require('../controllers/settingsController');
   const [prefs, users, already] = await Promise.all([
     getExtraPrefsMany(ids),
-    prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, displayName: true } }),
+    prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, username: true, displayName: true } }),
     prisma.userNotice.findMany({ where: { kind: 'FRIEND_ANNIV', createdAt: { gte: new Date(Date.now() - 20 * 3600 * 1000) } }, select: { userId: true, data: true } }),
   ]);
   const name = Object.fromEntries(users.map((u) => [u.id, u.displayName]));
+  const byId = Object.fromEntries(users.map((u) => [u.id, u]));
   const sent = new Set(already.map((n) => `${n.userId}|${(() => { try { return JSON.parse(n.data).friendshipId; } catch { return ''; } })()}`));
   for (const f of today) {
     const years = now.getUTCFullYear() - spDay(new Date(f.updatedAt)).getUTCFullYear();
@@ -73,7 +74,7 @@ async function runFriendAnniversaries(io) {
       await createNotice(io, me, {
         kind: 'FRIEND_ANNIV',
         title: `${years} ${years === 1 ? 'ano' : 'anos'} de amizade com ${name[other] || 'um amigo'}! 🎉`,
-        body: 'Que tal mandar um oi pra comemorar?', link: `/u/${other}`, data: { friendshipId: f.id, userId: other, years },
+        body: 'Que tal mandar um oi pra comemorar?', link: require('./linkResolver').userPath(byId[other] || { id: other }), data: { friendshipId: f.id, userId: other, years },
       });
     }
   }

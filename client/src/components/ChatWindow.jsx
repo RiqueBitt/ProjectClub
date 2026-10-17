@@ -56,6 +56,7 @@ import { requestEdit, loadDraft, saveDraft } from '../utils/chatComposerBus';
 import '../styles/chat.css';
 import '../styles/nav.css';
 import '../styles/speed.css';
+import { channelPath } from '../utils/prettyLinks';
 // Tela de canal de voz: pacote próprio, baixado só ao abrir um canal de voz.
 const VoiceChannelView = lazy(() => import('./VoiceChannelView.jsx'));
 
@@ -197,10 +198,12 @@ function scrollListToBottom(list, behavior) {
 // de verdade (ChatWindowInner, com memo) recebe só os ids prontos e fica
 // imune a esses re-renders do pai (antes: 1 re-render do chat inteiro
 // por evento de presença/digitando, inclusive enquanto a pessoa digitava).
-export default function ChatWindow({ kind }) {
+// Links bonitos: as rotas /canal/:ref e /dm/:ref já resolvem o nome pro id
+// e passam pronto (ver PrettyRoutes.jsx); useParams fica de reserva.
+export default function ChatWindow({ kind, channelId: propChannelId, conversationId: propConversationId }) {
   const params = useParams();
-  const conversationId = kind === 'conversation' ? params.conversationId : null;
-  const channelId = kind === 'channel' ? params.channelId : null;
+  const conversationId = kind === 'conversation' ? (propConversationId ?? params.conversationId) : null;
+  const channelId = kind === 'channel' ? (propChannelId ?? params.channelId) : null;
   return <ChatWindowMemo conversationId={conversationId || null} channelId={channelId || null} />;
 }
 
@@ -1980,7 +1983,7 @@ function ChatTitleOrCategoryChannels({ title, currentChannelId }) {
           <button
             type="button" key={ch.id}
             className={`chat-title-category-channel ${active ? 'active' : ''} ${unread ? 'unread' : ''}`}
-            onClick={() => { setOpenCategoryId(null); if (ch.id !== currentChannelId) navigate(`/channels/${ch.id}`); }}
+            onClick={() => { setOpenCategoryId(null); if (ch.id !== currentChannelId) navigate(channelPath(ch)); }}
           >
             {hasCustomIcon(ch) ? <CustomIcon item={ch} className="channel-hash channel-custom-icon" /> : <ChannelTypeIcon type={ch.type} />}
             <span className="truncate">{ch.name}</span>

@@ -12,6 +12,7 @@ import { requestOpenModpack } from './mods/modpackShared.js';
 import { proxyImage } from '../utils/imageProxy';
 import UserAvatar from '../components/UserAvatar.jsx';
 import '../styles/socialx.css';
+import { postPath } from '../utils/prettyLinks';
 
 // Página "Atividade": linha do tempo dos amigos (jogando agora, posts no
 // Feed, modpacks, conquistas e níveis). Atualiza sozinha (live refresh +
@@ -295,7 +296,7 @@ function ActivityItem({ item, onCheer, navigate }) {
         </header>
 
         {item.type === 'post' && (
-          <button type="button" className="sx-item-body sx-post" onClick={() => navigate(`/posts/${item.post.id}`)}>
+          <button type="button" className="sx-item-body sx-post" onClick={() => navigate(postPath(item.post))}>
             {item.post.type === 'IMAGE' && item.post.imageUrl && <img className="sx-post-img" src={proxyImage(item.post.imageUrl)} alt="" loading="lazy" />}
             <span className="sx-post-text">
               <span className="sx-post-title">{item.post.title}</span>

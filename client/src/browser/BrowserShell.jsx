@@ -8,6 +8,7 @@ import { sendMessage } from '../api/endpoints';
 import Modal from '../components/Modal.jsx';
 import { feat } from './platform';
 import '../styles/browser.css';
+import { isChannelPath, isDmPath, conversationPath, channelPath } from '../utils/prettyLinks';
 
 // ============================================================
 // Navegador fundido ao Project Club:
@@ -16,7 +17,7 @@ import '../styles/browser.css';
 //  - links do app abrindo em abas; compartilhar página com amigos/canais.
 // ============================================================
 
-const isChatPath = (p) => p === '/' || p.startsWith('/channels/') || p.startsWith('/conversations/') || p === '/dms';
+const isChatPath = (p) => p === '/' || isChannelPath(p) || isDmPath(p) || p === '/dms';
 
 // Página /navegador (seção do app).
 export function BrowserPage() {
@@ -148,7 +149,7 @@ function ShareModal() {
             <p>Enviado para <strong data-no-translate>{sent.name}</strong>.</p>
             <div className="modal-actions">
               <button type="button" className="btn-link" onClick={close}>Fechar</button>
-              <button type="button" className="btn-primary" onClick={() => { close(); navigate(sent.kind === 'dm' ? `/conversations/${sent.id}` : `/channels/${sent.id}`); }}>Ir para a conversa</button>
+              <button type="button" className="btn-primary" onClick={() => { close(); navigate(sent.kind === 'dm' ? conversationPath(sent.id) : channelPath(sent.id)); }}>Ir para a conversa</button>
             </div>
           </div>
         ) : (

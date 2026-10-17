@@ -100,7 +100,7 @@ fun ChannelsTab(repo: Repository, actions: HomeActions) {
         fun open(ch: Channel) = when {
             ch.isVoice -> actions.joinVoice(ch.id, ch.name)
             ch.isChat -> actions.openRoom(Room(channelId = ch.id))
-            else -> actions.openWeb("/channels/${ch.id}")
+            else -> actions.openWeb("/canal/" + android.net.Uri.encode(ch.slug ?: ch.id))
         }
         @Composable
         fun row(ch: Channel) = ChannelRow(

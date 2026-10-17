@@ -101,8 +101,10 @@ const SORTS = {
   recent: { label: 'Mais recentes', fn: (a, b) => new Date(b.lastPlayedAt) - new Date(a.lastPlayedAt) },
 };
 
-export default function GameLibraryPage() {
-  const { userId: paramId } = useParams();
+export default function GameLibraryPage({ userId: propUserId } = {}) {
+  // /jogos/biblioteca/:ref (@ ou id) chega já resolvido (LibraryRoute).
+  const params = useParams();
+  const paramId = propUserId ?? params.userId;
   const navigate = useNavigate();
   const openSettings = useStore((s) => s.openSettings);
   const openProfile = useStore((s) => s.openProfile);

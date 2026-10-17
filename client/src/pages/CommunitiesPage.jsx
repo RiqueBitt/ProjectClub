@@ -13,6 +13,7 @@ import { useLiveRefresh } from '../utils/liveRefresh';
 import FeedPoll from '../components/FeedPoll.jsx';
 import { pinPost } from '../api/contentx';
 import '../styles/contentx.css';
+import { postPath, absoluteUrl } from '../utils/prettyLinks';
 
 // Tags podem chegar como array (lista do Fórum) ou texto JSON (outras telas).
 export function postTagsOf(post) {
@@ -146,7 +147,7 @@ export default function CommunitiesPage() {
         ) : (
           <div className="post-card-list">
             {posts.map((post) => (
-              <PostCard key={post.id} post={post} onVote={onVote} onPin={isStaff ? onPin : undefined} onTag={setTag} onOpen={() => navigate(`/posts/${post.id}`)} />
+              <PostCard key={post.id} post={post} onVote={onVote} onPin={isStaff ? onPin : undefined} onTag={setTag} onOpen={() => navigate(postPath(post))} />
             ))}
           </div>
         )}
@@ -229,7 +230,7 @@ export function PostCard({ post, onVote, onOpen, onPin, onTag }) {
   const [copied, setCopied] = useState(false);
   const share = (e) => {
     e.stopPropagation();
-    navigator.clipboard?.writeText(`${window.location.origin}/posts/${post.id}`).then(() => {
+    navigator.clipboard?.writeText(absoluteUrl(postPath(post))).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     }).catch(() => {});

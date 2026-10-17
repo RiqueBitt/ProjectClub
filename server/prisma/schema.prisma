@@ -570,8 +570,12 @@ model Event {
   createdById String
   createdBy   User      @relation(fields: [createdById], references: [id])
   createdAt   DateTime  @default(now())
+  // Link bonito (/evento/noite-de-jogos) — ver services/slugs.js.
+  slug        String?   @db.VarChar(100)
 
   rsvps EventRsvp[] // presença confirmada ("Eu vou" / "Talvez" / "Não vou")
+
+  @@index([slug])
 }
 
 model PlatformAnnouncement {
@@ -1094,11 +1098,16 @@ model Conversation {
   // grupos antigos (nesses, o membro mais antigo conta como dono).
   ownerId   String?
   createdAt DateTime @default(now())
+  // Link bonito de GRUPO (/dm/grupo-amigos) — DM 1:1 usa o @ da outra
+  // pessoa (/dm/fulano) e fica sem slug. Ver services/slugs.js.
+  slug      String?  @db.VarChar(100)
 
   members  ConversationMember[]
   messages Message[]
   automodFlags AutomodFlag[]
   reports Report[]
+
+  @@index([slug])
 }
 
 model ConversationMember {
@@ -1181,11 +1190,16 @@ model Channel {
   iconEmoji       String?
   iconUrl         String?
   updatedAt       DateTime  @default(now()) @updatedAt
+  // Link bonito (/canal/chat-geral) — ver services/slugs.js. Sem @unique de
+  // propósito (unique novo trava o prisma db push); a unicidade é no código.
+  slug            String?   @db.VarChar(100)
 
   messages   Message[]
   readStates ChannelReadState[]
   overwrites PermissionOverwrite[]
   notificationOverrides NotificationOverride[]
+
+  @@index([slug])
 }
 
 model PermissionOverwrite {
@@ -2109,6 +2123,8 @@ model Post {
   pinnedAt     DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+  // Link bonito (/forum/como-instalar-mods) — ver services/slugs.js.
+  slug         String?      @db.VarChar(100)
 
   votes    PostVote[]
   comments PostComment[]
@@ -2123,6 +2139,7 @@ model Post {
 
   // perf: consultas frequentes (where + orderBy) desse modelo
   @@index([authorId, createdAt])
+  @@index([slug])
 }
 
 model PostVote {
@@ -3313,6 +3330,20 @@ model UserNotice {
   // perf: consultas frequentes (where + orderBy) desse modelo
   @@index([userId, readAt])
   @@index([createdAt])
+}
+
+// Links bonitos: slug antigo (antes de renomear) → registro atual, pra links
+// velhos continuarem abrindo. kind = channel | event | post | conversation.
+// Tabela nova, então o @@unique aqui não trava o prisma db push.
+model SlugHistory {
+  id        String   @id @default(uuid())
+  kind      String   @db.VarChar(16)
+  slug      String   @db.VarChar(100)
+  targetId  String
+  createdAt DateTime @default(now())
+
+  @@unique([kind, slug])
+  @@index([targetId])
 }
 
 // Curtida numa mídia da Galeria. itemKey = "a:<attachmentId>" ou "p:<postId>".

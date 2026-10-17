@@ -66,7 +66,8 @@ async function deliverOne(io, row, deps) {
     await createNotice(io, row.authorId, {
       kind: 'SCHEDULED_FAILED', title: 'Mensagem agendada não enviada',
       body: `${String(error).slice(0, 200)} — "${row.content.slice(0, 80)}"`,
-      link: row.channelId ? `/channels/${row.channelId}` : `/conversations/${row.conversationId}`,
+      // /canal/<id> e /dm/<id> abrem e o site troca pelo endereço bonito.
+      link: row.channelId ? `/canal/${row.channelId}` : `/dm/${row.conversationId}`,
     });
   }
 }

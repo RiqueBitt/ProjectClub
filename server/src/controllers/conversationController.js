@@ -73,6 +73,8 @@ async function listConversations(req, res, next) {
         id: c.id,
         isGroup: c.isGroup,
         name: c.name,
+        // Link bonito do grupo (/dm/grupo-<nome>); DM 1:1 usa o @ da pessoa.
+        slug: c.isGroup ? (c.slug || null) : null,
         icon: c.icon,
         ownerId: c.isGroup ? (c.ownerId || c.members[0]?.userId || null) : null,
         members: c.members.map((cm) => maskUserStatus(cm.user, me)),
@@ -144,6 +146,7 @@ async function createConversation(req, res, next) {
         members: { create: memberIds.map((userId) => ({ userId })) },
       },
     });
+    if (isGroup) await require('../services/slugs').assignSlugSafe('conversation', conversation.id, conversation.name, { current: null });
     const hydrated = await hydrate(conversation.id);
     // Without this, everyone except the person who clicked "start
     // conversation" would only see the new DM/group after a page refresh —
@@ -167,6 +170,7 @@ async function hydrate(id) {
     id: conversation.id,
     isGroup: conversation.isGroup,
     name: conversation.name,
+    slug: conversation.isGroup ? (conversation.slug || null) : null,
     icon: conversation.icon,
     ownerId: conversation.isGroup ? (conversation.ownerId || conversation.members[0]?.userId || null) : null,
     members: conversation.members.map((cm) => maskUserStatus(cm.user, null)),
@@ -319,6 +323,8 @@ async function updateConversation(req, res, next) {
     if (typeof name !== 'string' || !name.trim()) return res.status(400).json({ error: 'Nome inválido.' });
 
     await prisma.conversation.update({ where: { id }, data: { name: name.trim().slice(0, 100) } });
+    // Link bonito novo; o antigo continua abrindo (SlugHistory).
+    await require('../services/slugs').assignSlugSafe('conversation', id, name.trim().slice(0, 100), { current: conversation.slug ?? null });
     const hydrated = await hydrate(id);
     const io = req.app.get('io');
     hydrated.members.forEach((m) => io?.notifyUser?.(m.id, 'conversation:new', { conversation: hydrated }));
