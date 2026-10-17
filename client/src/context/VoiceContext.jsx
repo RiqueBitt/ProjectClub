@@ -18,6 +18,7 @@ import { buildScreenShareConfig, SCREEN_QUALITY_PRESETS, ALLOWED_FPS } from '../
 import { readJoinResponse, isClientReady, providerLabel } from '../voice/providerDecision.js';
 import { createEngine, CLIENT_READY_PROVIDERS } from '../voice/engineRegistry.js';
 import { isReserveMode } from '../voice/providerDecision.js';
+import { pickNoiseModel, currentHighQualityAvailability, NOISE_QUALITY, NOISE_MODELS } from '../voice/noiseModels.js';
 // Item pedido: "no .apk, se sair do app, continua na call em segundo
 // plano" — sem isso, o Android mata o áudio da chamada poucos segundos
 // depois de minimizar o app. Importado direto (não via window.Capacitor)
@@ -637,6 +638,7 @@ export function VoiceProvider({ children }) {
           startDeafened: deafenedRef.current,
           // Redutor de ruído (RNNoise) no engine próprio.
           noiseSuppression: getVoicePref('noiseReduction') !== false,
+          noiseModel: pickNoiseModel({ quality: getVoicePref('noiseQuality'), availability: currentHighQualityAvailability() }),
           micDeviceId: getPreferredMicId() || null,
           // Token do servidor próprio venceu numa call longa (4401 expired):
           // pede um novo pelo mesmo /api/voice/join. Se a sala mudou de
@@ -1018,6 +1020,22 @@ export function VoiceProvider({ children }) {
     if (engine && typeof engine.setNoiseSuppression === 'function') {
       try { await engine.setNoiseSuppression(!!on); } catch (err) { console.error('[voz] redutor de ruído:', err); }
     }
+  }, []);
+
+  // Qualidade do redutor ('standard' = RNNoise | 'high' = DeepFilterNet3,
+  // só com a flag VITE_VOICE_DFN3_URL — voice/noiseModels.js). Carrega na
+  // hora quando escolhido; falhou/CPU lenta → RNNoise sozinho.
+  const setNoiseQuality = useCallback(async (quality) => {
+    const q = quality === NOISE_QUALITY.HIGH ? NOISE_QUALITY.HIGH : NOISE_QUALITY.STANDARD;
+    setVoicePref('noiseQuality', q);
+    const engine = engineRef.current;
+    if (!engine || typeof engine.setNoiseModel !== 'function') return null;
+    const model = pickNoiseModel({ quality: q, availability: currentHighQualityAvailability() });
+    const running = await engine.setNoiseModel(model);
+    if (q === NOISE_QUALITY.HIGH && running && running !== NOISE_MODELS.DFN3) {
+      useStore.getState().pushNotice('O redutor de alta qualidade não rodou neste aparelho — usando o padrão.');
+    }
+    return running;
   }, []);
 
   // ---------- Gravação com consentimento (N) ----------
@@ -1803,6 +1821,7 @@ export function VoiceProvider({ children }) {
       recording, recordingPrompt, recordingConsents, requestRecording, respondRecording, stopRecording,
       pttEnabled, pttTalking,
       setNoiseReduction,
+      setNoiseQuality,
       // Provedor de mídia ATIVO na cadeia (projectclub / livekit / jitsi / ...).
       // fallbackActive = provedor depois do primário (servidor próprio).
       provider, fallbackActive: isReserveMode(provider), reconnectingProvider,
