@@ -114,6 +114,18 @@ test('mesma pessoa de novo substitui a sessão antiga (identidade única por usu
   a2.close();
 });
 
+test('restartIce devolve credenciais ICE novas do transport (e erro pra transport alheio)', async () => {
+  const a = await connect(tokenFor('u1', 'sala-ice', 'Ana'));
+  await a.waitEvent('welcome');
+  const send = await a.request('createTransport', { direction: 'send' });
+  const r = await a.request('restartIce', { transportId: send.id });
+  assert.ok(r.iceParameters && r.iceParameters.usernameFragment && r.iceParameters.password);
+  assert.notEqual(r.iceParameters.usernameFragment, send.iceParameters.usernameFragment, 'ufrag novo');
+  assert.notEqual(r.iceParameters.password, send.iceParameters.password, 'senha nova');
+  await assert.rejects(a.request('restartIce', { transportId: 'nao-existe' }), /transport não encontrado/);
+  a.close();
+});
+
 test('método desconhecido e transport inexistente respondem erro sem derrubar', async () => {
   const a = await connect(tokenFor('u1', 'sala4', 'Ana'));
   await a.waitEvent('welcome');

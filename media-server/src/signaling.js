@@ -8,7 +8,7 @@
 //          produce{transportId,kind,rtpParameters,appData} · closeProducer{producerId}
 //          pauseProducer{producerId} · resumeProducer{producerId}
 //          consume{transportId,producerId,rtpCapabilities} · resumeConsumer{consumerId}
-//          leave · ping
+//          restartIce{transportId} → { iceParameters } · leave · ping
 // Eventos: welcome · peerJoined · peerLeft · newProducer · producerClosed
 //          producerPaused · producerResumed · activeSpeakers · consumerClosed
 //          consumerPaused · consumerResumed · transportClosed · kicked · error
@@ -263,6 +263,16 @@ function attach(httpServer) {
             if (!tr) throw new Error('transport não encontrado');
             await tr.connect({ dtlsParameters: data.dtlsParameters });
             reply(true, {});
+            return;
+          }
+          case 'restartIce': {
+            // Rede do cliente mudou/caiu (transport 'disconnected'/'failed'):
+            // credenciais ICE novas do lado do servidor; o cliente aplica com
+            // transport.restartIce({ iceParameters }) — sem refazer a sessão.
+            const tr = peer.transports.get(String(data.transportId));
+            if (!tr) throw new Error('transport não encontrado');
+            const iceParameters = await tr.restartIce();
+            reply(true, { iceParameters });
             return;
           }
           case 'produce': {

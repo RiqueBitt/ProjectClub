@@ -5,6 +5,11 @@
 //   - bytes RTP realmente trafegam pelo SFU (inbound/outbound-rtp > 0)
 //   - câmera ligada numa aparece como vídeo na outra
 //   - mudo/desmudo espelha o estado; quem sai some da outra
+//   - o áudio remoto TOCA de verdade num <audio> próprio (caminho principal do
+//     app, voice/audioPlayback.js), com reforço por Web Audio, mudo e auto-cura
+//   - microfone negado → entra só ouvindo e ouve os outros
+//   - ICE restart (restartIce) sem refazer a sessão; token vencido (4401) é
+//     renovado na reconexão; autoplay bloqueado toca no 1º clique
 // Rodar na raiz do repo:  node media-server/test/e2e-webrtc.mjs
 import { createServer } from 'http';
 import { createRequire } from 'module';
@@ -109,6 +114,43 @@ try {
   assert(txA > 0 && txB > 0, 'os dois ENVIAM RTP (outbound-rtp > 0)');
   assert(rxA > 0 && rxB > 0, 'os dois RECEBEM RTP pelo SFU (inbound-rtp > 0)');
 
+  console.log('\n[3b] Reprodução: o áudio do Beto TOCA num <audio> próprio na Ana (caminho principal)');
+  {
+    const okPlaying = async (page, uid, msg, timeout = 10000) => {
+      const t0 = Date.now(); let st = null;
+      while (Date.now() - t0 < timeout) {
+        st = await page.evaluate((u) => window.playback(u), uid);
+        if (st.length && st.every((s) => !s.paused && s.trackLive)) { console.log('  ✓', msg); return st; }
+        await sleep(200);
+      }
+      throw new Error(`FALHOU (timeout): ${msg} ${JSON.stringify(st)}`);
+    };
+    const st = await okPlaying(A, 'beto', 'Ana: <audio> do Beto tocando (paused=false, faixa viva)');
+    assert(st[0].mode === 'element' && st[0].muted === false && st[0].volume === 1, `modo elemento, sem mudo, volume 100% (${JSON.stringify(st[0])})`);
+    const t1 = (await A.evaluate(() => window.playback('beto')))[0].currentTime;
+    await sleep(1500);
+    const t2 = (await A.evaluate(() => window.playback('beto')))[0].currentTime;
+    assert(t2 > t1, `o tempo do <audio> anda (${t1.toFixed(2)} → ${t2.toFixed(2)})`);
+    assert((await A.evaluate(() => window.audioElements())) >= 1, 'elemento <audio data-voice-uid> no DOM');
+    await A.evaluate(() => window.setVolume('beto', 1.6));
+    const boosted = (await A.evaluate(() => window.playback('beto')))[0];
+    assert(boosted.mode === 'webaudio' && boosted.muted === true && !boosted.paused && boosted.ctx === 'running', `volume 160% → Web Audio com o contexto rodando, elemento mudo mas tocando (${JSON.stringify(boosted)})`);
+    await A.evaluate(() => window.setVolume('beto', 0));
+    const silent = (await A.evaluate(() => window.playback('beto')))[0];
+    assert(silent.mode === 'element' && silent.muted === true, 'volume 0 (ensurdecer) → elemento mudo');
+    await A.evaluate(() => window.setVolume('beto', 1));
+    const back = (await A.evaluate(() => window.playback('beto')))[0];
+    assert(back.mode === 'element' && back.muted === false && !back.paused, 'volume 100% → volta pro elemento, com som');
+    const bytesB = await A.evaluate(() => window.engine.getInboundAudioBytes('beto'));
+    assert(bytesB > 0, `getInboundAudioBytes(beto) = ${bytesB} B (auto-cura/diagnóstico)`);
+    // Auto-cura: algo pausou o <audio> (troca de saída, extensão, SO) com os
+    // bytes chegando → o player volta a tocar sozinho.
+    await A.evaluate(() => document.querySelector('audio[data-voice-uid="beto"]').pause());
+    const t0 = Date.now(); let healed = null;
+    while (Date.now() - t0 < 8000) { healed = (await A.evaluate(() => window.playback('beto')))[0]; if (!healed.paused && healed.heals > 0) break; await sleep(250); }
+    assert(healed && !healed.paused && healed.heals > 0, `<audio> pausado por fora volta a tocar sozinho (heals=${healed?.heals})`);
+  }
+
   console.log('\n[4] Quem está falando (AudioLevelObserver)');
   await waitFor(A, (ev) => ev.some((e) => e.type === 'remoteSpeaking' && e.a[0] === 'beto' && e.a[1] === true) || ev.some((e) => e.type === 'localSpeaking' && e.a[0] === true), 'indicador de fala chega (local ou remoto)', 10000);
 
@@ -192,7 +234,7 @@ try {
     const tokD2 = jwt.sign({ sub: 'duda', room: 'pc_e2e', name: 'Duda', jti: 'aparelho-2' }, SECRET, { algorithm: 'HS256', expiresIn: '10m' });
     await D2.evaluate(({ url, token, userId }) => window.joinRoom({ url, token, userId }), { url: WS, token: tokD2, userId: 'duda' });
     await waitFor(D2, (ev) => ev.some((e) => e.type === 'joined'), 'Duda (aparelho 2) entrou');
-    await waitFor(D1, (ev) => ev.some((e) => e.type === 'left'), 'aparelho 1 recebeu onLeft (substituído)');
+    await waitFor(D1, (ev) => ev.some((e) => e.type === 'left' && e.a[0]?.reason === 'replaced'), 'aparelho 1 recebeu onLeft({ reason: "replaced" }) e não reconecta');
     await sleep(3000);
     const peerDuda = rooms.rooms.get('pc_e2e')?.peers.get('duda');
     assert(peerDuda && peerDuda.session === 'aparelho-2', 'a vaga continua com o aparelho 2 depois de 3s');
@@ -203,10 +245,107 @@ try {
     await waitFor(A, (ev) => ev.some((e) => e.type === 'mediaUser' && e.a[0] === 'duda' && e.a[1] === false), 'Duda saiu da sala');
   }
 
+  console.log('\n[7g] Microfone NEGADO → entra só ouvindo e ouve os outros');
+  {
+    const ctxE = await browser.newContext();
+    await ctxE.addInitScript(() => {
+      const md = navigator.mediaDevices;
+      const orig = md.getUserMedia.bind(md);
+      md.getUserMedia = (c) => (c && c.audio ? Promise.reject(new DOMException('Permission denied', 'NotAllowedError')) : orig(c));
+    });
+    const E = await ctxE.newPage();
+    E.on('pageerror', (e) => console.error('[E pageerror]', e.message));
+    await E.goto(PAGE);
+    await E.evaluate(({ url, token, userId }) => window.joinRoom({ url, token, userId }), { url: WS, token: token('eva', 'Eva'), userId: 'eva' });
+    await waitFor(E, (ev) => ev.some((e) => e.type === 'joined'), 'Eva entrou mesmo sem microfone');
+    await waitFor(E, (ev) => ev.some((e) => e.type === 'micUnavailable' && e.a[0].reason === 'denied'), 'Eva: onMicUnavailable({ reason: "denied" })');
+    await waitFor(E, (ev) => ev.some((e) => e.type === 'remoteAudio' && e.a[0] === 'ana' && e.a[1].active), 'Eva recebe o áudio da Ana');
+    const t0 = Date.now(); let st = [];
+    while (Date.now() - t0 < 10000) { st = await E.evaluate(() => window.playback('ana')); if (st.length && !st[0].paused) break; await sleep(200); }
+    assert(st.length && !st[0].paused && st[0].trackLive, `Eva: <audio> da Ana tocando (${JSON.stringify(st[0])})`);
+    await sleep(2000);
+    const rxE = await E.evaluate(() => window.bytesReceived());
+    assert(rxE > 0, `Eva recebe RTP (${rxE} B) sem publicar nada`);
+    assert((await E.evaluate(() => window.engine.producers.mic)) === null, 'Eva não tem producer de microfone');
+    assert(!(await E.evaluate(() => window.events.some((e) => e.type === 'left' || e.type === 'error'))), 'Eva: sem onLeft/onError');
+    await E.evaluate(() => window.engine.dispose());
+    await ctxE.close();
+  }
+
+  console.log('\n[7h] ICE restart (restartIce) no transport de recepção da Ana — sem reconectar a sessão');
+  {
+    const recBefore = await A.evaluate(() => window.events.filter((e) => e.type === 'reconnecting').length);
+    const recvIdOld = await A.evaluate(() => window.engine.recvTransport.id);
+    await A.evaluate(() => window.engine._restartIce(window.engine.recvTransport, 'recv'));
+    const t0 = Date.now(); let state = '';
+    while (Date.now() - t0 < 10000) { state = await A.evaluate(() => window.engine.recvTransport?.connectionState); if (state === 'connected') break; await sleep(200); }
+    assert(state === 'connected', 'transport de recepção conectado depois do ICE restart');
+    assert((await A.evaluate(() => window.engine.recvTransport.id)) === recvIdOld, 'mesmo transport (não refez a sessão)');
+    const rx1 = await A.evaluate(() => window.bytesReceived());
+    await sleep(1500);
+    const rx2 = await A.evaluate(() => window.bytesReceived());
+    assert(rx2 > rx1, `RTP continua chegando depois do ICE restart (${rx1} → ${rx2} B)`);
+    const recAfter = await A.evaluate(() => window.events.filter((e) => e.type === 'reconnecting').length);
+    assert(recAfter === recBefore, 'nenhuma reconexão completa foi necessária');
+  }
+
+  console.log('\n[7i] Token vencido (4401 expired) na reconexão → pede token novo e volta');
+  {
+    const ctxG = await browser.newContext(); const G = await ctxG.newPage();
+    G.on('pageerror', (e) => console.error('[G pageerror]', e.message));
+    await G.goto(PAGE);
+    await G.evaluate(({ url, token, userId }) => window.joinRoom({ url, token, userId }), { url: WS, token: token('gabi', 'Gabi'), userId: 'gabi' });
+    await waitFor(G, (ev) => ev.some((e) => e.type === 'joined'), 'Gabi entrou');
+    const expired = jwt.sign({ sub: 'gabi', room: 'pc_e2e', name: 'Gabi', exp: Math.floor(Date.now() / 1000) - 600 }, SECRET, { algorithm: 'HS256' });
+    const fresh = jwt.sign({ sub: 'gabi', room: 'pc_e2e', name: 'Gabi', jti: 'renovado' }, SECRET, { algorithm: 'HS256', expiresIn: '10m' });
+    await G.evaluate(({ expired, fresh }) => { window.engine.joinOpts.token = expired; window.nextToken = fresh; }, { expired, fresh });
+    for (const r of rooms.rooms.values()) { const p = r.peers.get('gabi'); if (p) p.socket.terminate(); }
+    await waitFor(G, (ev) => ev.some((e) => e.type === 'reconnecting'), 'Gabi: reconectando');
+    await waitFor(G, (ev) => ev.some((e) => e.type === 'reconnected'), 'Gabi: reconectou com o token novo', 20000);
+    assert((await G.evaluate(() => window.refreshCalls)) === 1, 'refreshCredentials chamado 1 vez');
+    assert(rooms.rooms.get('pc_e2e')?.peers.get('gabi')?.session === 'renovado', 'servidor aceitou a sessão do token novo');
+    assert(!(await G.evaluate(() => window.events.some((e) => e.type === 'left'))), 'Gabi NÃO foi derrubada');
+    await G.evaluate(() => window.engine.dispose());
+    await ctxG.close();
+  }
+
+  console.log('\n[7j] Autoplay bloqueado (simulado) → avisa e toca sozinho no 1º clique de verdade');
+  {
+    // O Playwright dá "ativação de usuário" a todo evaluate(), então a política
+    // real do Chrome nunca bloqueia aqui. Simula o navegador que bloqueia:
+    // play() recusa com NotAllowedError até um pointerdown CONFIÁVEL (isTrusted).
+    const ctxH = await browser.newContext();
+    await ctxH.addInitScript(() => {
+      let unlocked = false;
+      document.addEventListener('pointerdown', (e) => { if (e.isTrusted) unlocked = true; }, true);
+      const orig = HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play = function play() {
+        if (!unlocked) return Promise.reject(new DOMException("play() failed because the user didn't interact with the document first.", 'NotAllowedError'));
+        return orig.call(this);
+      };
+      Object.defineProperty(HTMLMediaElement.prototype, 'autoplay', { configurable: true, get() { return false; }, set() { /* ignora */ } });
+    });
+    const H = await ctxH.newPage();
+    H.on('pageerror', (e) => console.error('[H pageerror]', e.message));
+    await H.goto(PAGE);
+    await H.evaluate(({ url, token, userId }) => window.joinRoom({ url, token, userId }), { url: WS, token: token('hugo', 'Hugo'), userId: 'hugo' });
+    await waitFor(H, (ev) => ev.some((e) => e.type === 'remoteAudio' && e.a[0] === 'ana'), 'Hugo recebe o áudio da Ana');
+    await waitFor(H, (ev) => ev.some((e) => e.type === 'playBlocked' && e.a[0] === 'ana'), 'onBlocked avisou (o app mostra "toque pra ativar o som")');
+    const before = (await H.evaluate(() => window.playback('ana')))[0];
+    assert(before && before.paused && before.blocked, `bloqueado: paused=${before?.paused} blocked=${before?.blocked}`);
+    await H.mouse.click(5, 5);
+    const t0 = Date.now(); let st = before;
+    while (Date.now() - t0 < 8000) { st = (await H.evaluate(() => window.playback('ana')))[0]; if (st && !st.paused && !st.blocked) break; await sleep(200); }
+    assert(st && !st.paused && !st.blocked, `Hugo: <audio> da Ana tocando depois do clique (${JSON.stringify(st)})`);
+    await H.evaluate(() => window.engine.dispose());
+    await ctxH.close();
+  }
+
   console.log('\n[8] Beto sai → Ana limpa');
   await B.evaluate(() => window.engine.dispose());
   await waitFor(A, (ev) => ev.some((e) => e.type === 'remoteRemove' && e.a[0] === 'beto' && e.a[1] === 'all'), 'Ana: onRemoteRemove(beto, all)');
   await waitFor(A, (ev) => ev.some((e) => e.type === 'mediaUser' && e.a[0] === 'beto' && e.a[1] === false), 'Ana: Beto saiu da sala');
+  assert((await A.evaluate(() => document.querySelectorAll('audio[data-voice-uid="beto"]').length)) === 0, 'Ana: <audio> do Beto removido (sem elemento órfão tocando)');
   const errsA = (await A.evaluate(() => window.events)).filter((e) => e.type === 'error');
   assert(errsA.length === 0, `sem onError na Ana (${JSON.stringify(errsA)})`);
   await A.evaluate(() => window.engine.dispose());

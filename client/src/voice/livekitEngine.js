@@ -19,9 +19,15 @@
 //   onRemoteRemove(uid, 'audio'|'video'|'all')
 //   onError(err, info)
 
+import { importWithRetry, browserGuardedReload, micErrorReason } from './resilience.js';
+
 let lkPromise = null;
 function loadLiveKit() {
-  if (!lkPromise) lkPromise = import('livekit-client');
+  // Falha no download (deploy novo) não fica guardada: tenta de novo.
+  if (!lkPromise) {
+    lkPromise = importWithRetry(() => import('livekit-client'), { onChunkFailure: browserGuardedReload })
+      .catch((err) => { lkPromise = null; throw err; });
+  }
   return lkPromise;
 }
 export function preloadLiveKit() { loadLiveKit().catch(() => {}); }
@@ -64,15 +70,14 @@ export class LiveKitEngine {
       const uid = participant.identity;
       cb.onMediaUser?.(uid, true);
       try {
-        const stream = new MediaStream([track.mediaStreamTrack]);
-        if (track.kind === 'audio') cb.onRemoteAudio?.(uid, stream);
-        else if (track.kind === 'video') cb.onRemoteVideo?.(uid, stream, this._kindOf(pub));
+        if (track.kind === 'audio') this._emitPeerAudio(participant);
+        else if (track.kind === 'video') cb.onRemoteVideo?.(uid, new MediaStream([track.mediaStreamTrack]), this._kindOf(pub));
       } catch (err) { cb.onError?.(err, { where: 'trackSubscribed' }); }
     });
 
     room.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
       const uid = participant.identity;
-      if (track.kind === 'audio') cb.onRemoteRemove?.(uid, 'audio');
+      if (track.kind === 'audio') this._emitPeerAudio(participant, track);
       else if (track.kind === 'video') cb.onRemoteRemove?.(uid, 'video');
     });
 
@@ -95,8 +100,34 @@ export class LiveKitEngine {
     // Qualidade por participante (escala da UI: 1 excelente … 5 péssima).
     room.on(RoomEvent.ConnectionQualityChanged, () => { if (!this.disposed) this._emitQuality(); });
 
-    room.on(RoomEvent.Disconnected, () => { if (!this.disposed) cb.onLeft?.(); });
+    // Desconectou de vez (o SDK já tentou reconectar): mesma aba em outro
+    // aparelho → 'replaced' (não volta); removido/sala apagada → 'kicked';
+    // queda que o SDK não recuperou → 'gave-up' (o VoiceContext refaz a mídia).
+    room.on(RoomEvent.Disconnected, (reason) => {
+      if (this.disposed) return;
+      const R = this.LK.DisconnectReason || {};
+      if (reason === R.CLIENT_INITIATED) return;
+      const why = reason === R.DUPLICATE_IDENTITY ? 'replaced'
+        : (reason === R.PARTICIPANT_REMOVED || reason === R.ROOM_DELETED) ? 'kicked' : 'gave-up';
+      cb.onLeft?.({ reason: why });
+    });
   }
+
+  // Todas as faixas de áudio da pessoa (mic + áudio da tela) num stream só —
+  // antes o áudio da tela SUBSTITUÍA o microfone na grade.
+  _emitPeerAudio(participant, removedTrack = null) {
+    const tracks = [];
+    try {
+      participant.trackPublications.forEach((pub) => {
+        const t = pub.track;
+        if (pub.kind === 'audio' && pub.isSubscribed && t && t !== removedTrack && t.mediaStreamTrack) tracks.push(t.mediaStreamTrack);
+      });
+    } catch { /* participante saindo */ }
+    if (tracks.length) this.cb.onRemoteAudio?.(participant.identity, new MediaStream(tracks));
+    else this.cb.onRemoteRemove?.(participant.identity, 'audio');
+  }
+
+  getInboundAudioBytes() { return null; }
 
   _emitQuality() {
     if (!this.cb.onNetQuality || !this.room) return;
@@ -120,21 +151,28 @@ export class LiveKitEngine {
     if (this.disposed) { try { await this.room.disconnect(); } catch { /* ok */ } return; }
     this.cb.onJoined?.(this.myId);
     // Publica o microfone (a não ser que tenha entrado mudo).
+    // Mic negado/ausente: segue na sala só ouvindo.
     try {
       await this.room.localParticipant.setMicrophoneEnabled(!startMuted);
-    } catch (err) { this.cb.onError?.(err, { where: 'enableMic' }); }
+    } catch (err) {
+      const reason = micErrorReason(err);
+      this.cb.onSelfMute?.(true);
+      if (reason && this.cb.onMicUnavailable) this.cb.onMicUnavailable({ reason, error: err });
+      else this.cb.onError?.(err, { where: 'enableMic' });
+    }
     // Conta quem já estava na sala antes de eu entrar + faixas existentes.
     this.room.remoteParticipants.forEach((p) => {
       this.cb.onMediaUser?.(p.identity, true);
+      let hasAudio = false;
       p.trackPublications.forEach((pub) => {
         if (pub.isSubscribed && pub.track) {
           try {
-            const stream = new MediaStream([pub.track.mediaStreamTrack]);
-            if (pub.kind === 'audio') this.cb.onRemoteAudio?.(p.identity, stream);
-            else if (pub.kind === 'video') this.cb.onRemoteVideo?.(p.identity, stream, this._kindOf(pub));
+            if (pub.kind === 'audio') hasAudio = true;
+            else if (pub.kind === 'video') this.cb.onRemoteVideo?.(p.identity, new MediaStream([pub.track.mediaStreamTrack]), this._kindOf(pub));
           } catch { /* faixa não pronta — chega pelo TrackSubscribed */ }
         }
       });
+      if (hasAudio) { try { this._emitPeerAudio(p); } catch { /* chega pelo TrackSubscribed */ } }
     });
   }
 
