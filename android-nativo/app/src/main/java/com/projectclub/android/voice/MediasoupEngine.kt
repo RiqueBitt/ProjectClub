@@ -1,7 +1,9 @@
 package com.projectclub.android.voice
 
 import android.app.Application
+import android.content.ComponentCallbacks
 import android.content.Context
+import android.content.res.Configuration
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.projection.MediaProjection
@@ -160,6 +162,8 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
     private var screenTrack: VideoTrack? = null
     private var screenCapturer: ProjectionCapturer? = null
     private var screenHelper: SurfaceTextureHelper? = null
+    /** Girou o aparelho no meio da transmissão: refaz a captura nas medidas novas. */
+    private var screenRotation: ComponentCallbacks? = null
 
     /** consumerId → consumidor (com dono e origem). */
     private class Remote(val consumer: Consumer, val producerId: String, val peerId: String, val source: String, val kind: String)
@@ -194,7 +198,12 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
     private var reconnectJob: Job? = null
     private var disconnectedJob: Job? = null
     private var iceRestarts = 0
-    /** O servidor de mídia sabe fazer "restartIce"? (o atual ainda não: cai na reconexão completa). */
+    /**
+     * O servidor de mídia sabe fazer "restartIce"? O media-server atual SABE
+     * (sinalização `restartIce` → credenciais ICE novas, sem refazer a
+     * sessão). Só vira false se um servidor ANTIGO responder "método
+     * desconhecido" — aí cai na reconexão completa.
+     */
     private var iceRestartSupported = true
 
     // ---------------- sinalização ----------------
@@ -391,7 +400,8 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         val enc = RtpParameters.Encoding(null, true, null).apply { networkPriority = 3; bitratePriority = 4.0 }
         val p = st.produce(
             object : Producer.Listener { override fun onTransportClose(producer: Producer) {} },
-            track, listOf(enc), "{\"opusStereo\":false,\"opusDtx\":true,\"opusFec\":true,\"opusMaxAverageBitrate\":64000}", null,
+            // opusNack: o servidor retransmite pacote de voz perdido (junto do FEC).
+            track, listOf(enc), "{\"opusStereo\":false,\"opusDtx\":true,\"opusFec\":true,\"opusNack\":true,\"opusMaxAverageBitrate\":64000}", null,
             "{\"source\":\"mic\",\"paused\":$startPaused}",
         )
         micProducer = p
@@ -853,18 +863,24 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
             val source = f.createVideoSource(true)
             val cap = ProjectionCapturer(mp)
             cap.initialize(helper, context, source.capturerObserver)
-            val dm = context.resources.displayMetrics
-            val scale = 1280f / maxOf(dm.widthPixels, dm.heightPixels)
-            val w = (dm.widthPixels * scale).toInt() and 1.inv()
-            val h = (dm.heightPixels * scale).toInt() and 1.inv()
-            cap.startCapture(w, h, 15)
+            // 1080p (lado maior 1920) a 30 fps, até 4 Mbps — igual ao preset
+            // "1080p/30" do site, num celular. O som interno do aparelho NÃO
+            // vai junto: capturar o áudio de reprodução (AudioPlaybackCapture)
+            // e publicar como faixa exige recompilar o libmediasoup-android
+            // com um AudioDeviceModule próprio — fica pra depois.
+            val (w, h) = screenCaptureSize(context.resources.configuration.orientation)
+            cap.startCapture(w, h, SCREEN_FPS)
             val track = f.createVideoTrack("screen", source)
             screenHelper = helper; screenSource = source; screenTrack = track; screenCapturer = cap
-            val enc = RtpParameters.Encoding(null, true, 1.0).apply { maxBitrateBps = 2_500_000 }
+            val enc = RtpParameters.Encoding(null, true, 1.0).apply {
+                maxBitrateBps = SCREEN_MAX_BITRATE
+                maxFramerate = SCREEN_FPS
+            }
             screenProducer = st.produce(
                 object : Producer.Listener { override fun onTransportClose(producer: Producer) {} },
                 track, listOf(enc), null, null, "{\"source\":\"screen\"}",
             )
+            watchScreenRotation()
         } catch (e: Throwable) {
             Log.w(TAG, "tela", e)
             stopScreenLocal()
@@ -873,6 +889,44 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
     }
 
     fun stopScreen() = scope.launch { stopScreenNow() }
+
+    /**
+     * Medidas da captura (pares, lado maior = 1920) pra orientação atual. As
+     * métricas da tela às vezes ainda não trocaram quando o aviso de rotação
+     * chega: a orientação nova decide qual lado é o maior.
+     */
+    private fun screenCaptureSize(orientation: Int): Pair<Int, Int> {
+        val dm = context.resources.displayMetrics
+        val big = maxOf(dm.widthPixels, dm.heightPixels).coerceAtLeast(1)
+        val small = minOf(dm.widthPixels, dm.heightPixels).coerceAtLeast(1)
+        val scale = SCREEN_MAX_SIDE.toFloat() / big
+        val long = (big * scale).toInt() and 1.inv()
+        val short = (small * scale).toInt() and 1.inv()
+        return if (orientation == Configuration.ORIENTATION_LANDSCAPE) Pair(long, short) else Pair(short, long)
+    }
+
+    /** Girou o aparelho: muda a captura pras medidas novas (sem parar a transmissão). */
+    private fun watchScreenRotation() {
+        unwatchScreenRotation()
+        val cb = object : ComponentCallbacks {
+            override fun onConfigurationChanged(newConfig: Configuration) {
+                scope.launch {
+                    val cap = screenCapturer ?: return@launch
+                    val (w, h) = screenCaptureSize(newConfig.orientation)
+                    runCatching { cap.changeCaptureFormat(w, h, SCREEN_FPS) }.onFailure { Log.w(TAG, "rotação da tela", it) }
+                }
+            }
+            @Deprecated("Deprecated in Java")
+            override fun onLowMemory() {}
+        }
+        screenRotation = cb
+        runCatching { context.registerComponentCallbacks(cb) }
+    }
+
+    private fun unwatchScreenRotation() {
+        screenRotation?.let { cb -> runCatching { context.unregisterComponentCallbacks(cb) } }
+        screenRotation = null
+    }
 
     private suspend fun stopScreenNow() {
         screenProducer?.let { p ->
@@ -883,6 +937,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
 
     /** Para a captura e solta tudo da tela sem falar com o servidor. */
     private fun stopScreenLocal() {
+        unwatchScreenRotation()
         screenProducer?.let { p -> runCatching { p.close() }; runCatching { p.dispose() } }
         screenProducer = null
         runCatching { screenCapturer?.stopCapture() }
@@ -959,6 +1014,10 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
 
     companion object {
         private const val TAG = "PCMidia"
+        // Transmissão de tela: 1080p (lado maior), 30 fps, até 4 Mbps.
+        private const val SCREEN_MAX_SIDE = 1920
+        private const val SCREEN_FPS = 30
+        private const val SCREEN_MAX_BITRATE = 4_000_000
         /** Esperas entre tentativas de reconexão (as mesmas do site; ≈ 31 s antes de desistir). */
         private val RECONNECT_DELAYS_MS = longArrayOf(1000, 2000, 4000, 8000, 8000, 8000)
         private const val DISCONNECTED_GRACE_MS = 4000L
@@ -1051,7 +1110,21 @@ private class ProjectionCapturer(private val projection: MediaProjection) : Vide
         observer?.onCapturerStopped()
     }
 
-    override fun changeCaptureFormat(width: Int, height: Int, framerate: Int) {}
+    /**
+     * Rotação: a textura e o VirtualDisplay mudam pras medidas novas (na
+     * thread do SurfaceTextureHelper, igual ao ScreenCapturerAndroid do WebRTC).
+     */
+    override fun changeCaptureFormat(width: Int, height: Int, framerate: Int) {
+        val h = helper ?: return
+        val ctx = context ?: return
+        val d = display ?: return
+        h.handler.post {
+            runCatching {
+                h.setTextureSize(width, height)
+                d.resize(width, height, ctx.resources.displayMetrics.densityDpi)
+            }
+        }
+    }
     override fun dispose() { runCatching { stopCapture() } }
     override fun isScreencast(): Boolean = true
 }

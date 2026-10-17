@@ -11,29 +11,74 @@ manter (e pra quem for mexer no Android/PC).
 | Método | O que faz | Quem chama no VoiceContext |
 |---|---|---|
 | `join({ ..., startMuted, startDeafened })` | Entra já mudo (mic publicado **pausado**) e/ou ensurdecido (o servidor nem manda o áudio dos outros). | `connectEngine`: `startMuted = muted \|\| deafened`, `startDeafened = deafened` (persistem entre canais). |
-| `setPushToTalk(on, { releaseDelayMs = 200 })` | Liga o apertar-pra-falar: portão fechado até `setPttPressed(true)`. | `applyEngineMicConfig` (preferência `pushToTalkEnabled`). |
+| `setPushToTalk(on, { releaseDelayMs = 200 })` | Liga o apertar-pra-falar: portão fechado até `setPttPressed(true)`. | `applyEngineMicConfig` (preferências `pushToTalkEnabled` e `pushToTalkReleaseMs` — "Atraso ao soltar a tecla", 0–1000 ms). |
 | `setPttPressed(bool)` | Tecla apertada/solta. Solta → continua aberto `releaseDelayMs`. | Efeito da tecla do PTT (keydown/keyup/blur). |
-| `setInputSensitivity({ auto, db } \| null)` | Detecção de voz: fecha o portão 250 ms abaixo do limite. `auto:true` = piso de ruído adaptativo; `{auto:false, db}` = limite manual; `null` = sempre aberto. | `applyEngineMicConfig` (`sensitivityAuto`/`sensitivityDb` das Configurações). |
+| `setInputSensitivity({ auto, db } \| null)` | Detecção de voz: fecha o portão 250 ms abaixo do limite. `auto:true` = piso de ruído adaptativo (+ VAD do RNNoise, ver abaixo); `{auto:false, db}` = limite manual (só nível); `null` = sempre aberto. | `applyEngineMicConfig` (`sensitivityAuto`/`sensitivityDb` das Configurações). |
 | `setMicGate(open)` | Portão MANUAL (soma com PTT/sensibilidade). | Não usado pelo app hoje (fica pra telas como "teste de mic"). |
-| `setInputGain(0..4)` | Ganho de entrada no pipeline. | Ainda sem preferência na UI. |
-| `getMicGateState()` | `{ open, mode:'open'\|'ptt'\|'vad', thresholdDb, floorDb, pipelineMode:'graph'\|'direct', gateValue }` (diagnóstico/testes). | — |
+| `setInputGain(0..4)` | Ganho de entrada no pipeline. | `applyEngineMicConfig`: preferência `inputVolume` (0–200 %, Configurações → Voz e vídeo → Volume de entrada) ÷ 100. |
+| `getMicGateState()` | `{ open, mode:'open'\|'ptt'\|'vad', thresholdDb, floorDb, vadP, vadAssisted, pipelineMode:'graph'\|'direct', gateValue }` (diagnóstico/testes). | — |
 | `isMicMeterActive()` / `getMicLastSoundAt()` | Medidor do mic rodando / último instante com som. | Aviso "microfone sem som". |
 | `getLocalMicTrack({ raw })` | Padrão: faixa **processada** (a que vai pra call — use pra gravar). `raw:true`: captura crua. | `getLocalMicTrack` do contexto (gravação). |
 | `setDeafened(bool)` | Pausa/retoma o áudio recebido **no servidor** (economia de banda). | `toggleDeafen` / `toggleMute` (desmutar ensurdecido desensurdece). |
 | `setNoiseSuppression(on)` | Liga/desliga RNNoise ao vivo; o supressor do navegador faz o inverso (`applyConstraints`). | `setNoiseReduction`. |
-| `setCamera(on, { detailed })` / `setScreen(on, { quality, width, height, frameRate, maxBitrate, audio, track, detailed })` | Legado: devolve `MediaStream \| null`. Com `detailed:true`: `{ ok, stream, reason, cancelled, code }`. Erro também sai em `onMediaError`. | `toggleCamera` / `toggleScreenShare` (legado + toast pelo callback). |
-| `setScreenQuality('720p' \| { quality, width, height, frameRate, maxBitrate })` | Muda resolução/fps (`applyConstraints`) e bitrate (`setRtpEncodingParameters`) ao vivo. | `setScreenShareQuality`. |
+| `setCamera(on, { detailed })` / `setScreen(on, { quality, frameRate, width, height, maxBitrate, audio, track, audioTrack, detailed })` | Legado: devolve `MediaStream \| null`. Com `detailed:true`: `{ ok, stream, reason, cancelled, code }`. Erro também sai em `onMediaError`. `quality`: `720p`/`1080p`/`1440p`; `frameRate`: 5/15/30/60 (tabela abaixo). `audioTrack`: faixa de áudio pronta (testes/app nativo). | `toggleCamera` / `toggleScreenShare` (legado + toast pelo callback). |
+| `setScreenQuality('720p' \| { quality, frameRate, width, height, maxBitrate })` | Muda AO VIVO: captura (`applyConstraints`), `contentHint` e bitrate/fps de cada camada do simulcast + `degradationPreference` (`RTCRtpSender.setParameters`; sem acesso ao sender, `setRtpEncodingParameters`). | `setScreenShareQuality` (menu de qualidade da barra/da chamada; a escolha fica em `localStorage.screenShareOptions`). |
+| `getScreenQuality()` | Preset atual `{ quality, frameRate, maxBitrate? }`. | — |
+| `setVideoViewport(uid, 'screen'\|'camera', { visible, height } \| { remove: true }, viewId?)` | Recepção sob medida: vídeo escondido/fora da tela (ou `document.hidden`) fica **pausado no servidor**; visível → camada do simulcast pela altura × `devicePixelRatio` (≥ 540 px → alta; câmera ≥ 270 → média). Vários blocos do mesmo vídeo (`viewId`): vale o maior visível. Sem nenhum bloco informado: como antes (camada alta, sem pausar). | `reportVideoViewport` ← `voice/useVideoViewport.js` (IntersectionObserver + ResizeObserver) nos blocos de vídeo (`VideoTile` da chamada e `MiniVideo` da janelinha). |
 
 ### Callbacks novos
 
 | Callback | Quando |
 |---|---|
-| `onLocalLevel(level0a1, { db, gateOpen, transmitting })` | ~10/s enquanto o medidor roda. O contexto repassa por `subscribeMicLevel(fn)`. |
+| `onLocalLevel(level0a1, { db, gateOpen, transmitting })` | ~10/s enquanto o medidor roda. O contexto repassa por `subscribeMicLevel(fn)` (medidor ao vivo em Configurações → Voz e vídeo → Volume de entrada). |
+| `onRemoteScreenAudio(uid, MediaStream \| null)` | Som da TELA da pessoa, separado da voz (`onRemoteAudio` passa a trazer só o microfone). Sem esse callback, o motor junta tudo no `onRemoteAudio` (comportamento antigo). |
+| `onConnectionStats({ rtt, sendLoss, connected })` | A cada 2 s: ping e perda no envio (o que o servidor relata sobre o que você manda). |
 | `onLocalSpeaking(bool)` | Agora vem do Analyser local (instantâneo, 300 ms de segura); sem Web Audio, vale o `activeSpeakers` do servidor. Já desconta mudo/portão fechado. |
 | `onServerState({ canSpeak, canVideo, role, serverMuted, serverDeafened })` | Permissões/moderação impostas pelo servidor de mídia. |
 | `onMediaError({ kind:'camera'\|'screen', reason, cancelled, code })` | Erro amigável em pt-BR; `cancelled` = fechou o seletor de tela (sem aviso). |
 | `onTelemetry({ type })` | `consumer-recreate`, `consumer-resume-failed`, `mic-bypass`, `mic-restored`, `default-mic-changed`. |
 | `onLeft({ reason, network?, code?, detail?, providerFailure? })` | `reason`: `replaced` · `kicked` (`detail`: `moved`, `disconnected`, `missed`, `moderator`) · `full` (`code:'channel-full'`) · `gave-up` (`network:true` = foi a internet, **não** reportar o provedor) · `token` · `closed`. |
+
+### Tela: presets, simulcast e contentHint (`voice/screenPresets.js`)
+
+Bitrate da camada CHEIA (bps) por resolução × fps:
+
+| | 5 fps | 15 fps | 30 fps | 60 fps |
+|---|---|---|---|---|
+| 720p | 0,8 M | 1,5 M | 2 M | 3,5 M |
+| 1080p | 1,5 M | 2,5 M | 5 M | 8 M |
+| 1440p | 2,5 M | 4 M | 7 M | 10 M |
+
+- Simulcast de **2 camadas VP8** (`L1T3`): baixa = metade da resolução,
+  ≤ 15 fps, `max(300 k, bitrate/4)`; cheia = bitrate da tabela no fps do preset.
+- `contentHint` (regra do lib-jitsi-meet): ≤ 15 fps → `'detail'` +
+  `degradationPreference: 'maintain-resolution'`; ≥ 30 fps → `'motion'` +
+  `'maintain-framerate'`.
+- `getDisplayMedia`: `systemAudio:'include'` (quando pede som),
+  `selfBrowserSurface:'exclude'`, `surfaceSwitching:'include'`, áudio sem
+  cancelamento de eco/supressor/ganho automático e `restrictOwnAudio:true`.
+  Navegador que recusa as opções novas (TypeError) cai no pedido simples.
+- Som da tela publicado com Opus estéreo, sem DTX, com FEC, 128 kbps.
+- Recepção: consumer da tela com prioridade 200, câmera 100
+  (`setConsumerPriority`).
+
+### Microfone: Opus e VAD do RNNoise
+
+- Mic: `opusDtx`, `opusFec`, `opusNack` (o servidor retransmite com
+  `enableRtx` nos consumers de áudio), 64 kbps, `zeroRtpOnPause` (mudo não
+  manda nem silêncio).
+- O worklet (`public/rnnoise/rnnoise-worklet.js`) usa a probabilidade de voz
+  que o `rnnoise_process_frame` devolve e manda `{ type:'vad', p, open }`
+  ~20/s (`open` já com 200 ms de segura; `{ off:true }` quando o redutor
+  desliga).
+- Portão AUTOMÁTICO com VAD (`voice/micGate.js`), conservador — voz baixa
+  nunca é cortada: abre se `p ≥ 0,5` **ou** o nível passou do limite; fecha
+  só com os dois baixos por > 300 ms. Com VAD o limite automático nunca
+  passa de −45 dB; o piso de ruído não sobe durante a fala e sobe mais rápido
+  com ruído (teclado/respiração). O anel verde local acende na hora com o VAD.
+- RNNoise desligado / sem mensagem do VAD há 500 ms / sensibilidade manual:
+  vale o portão antigo, só por nível.
+- Rampa do portão: abre em 8 ms, fecha em 30 ms (sem estalo).
 
 ### Erros do `join()`
 
@@ -48,6 +93,24 @@ meio), `offline`, `kicked`, `replaced`, `rate-limited`. Use
 Ping a cada 5 s (3 s de prazo) → sessão nova na hora. `online` /
 `navigator.connection` `change` → ICE restart imediato nos dois transports.
 Sem internet ou depois de o PC dormir: não desiste, espera o `online`.
+
+### Painel "Voz conectada" e configurações
+
+`voice.connectionInfo` = `{ state: 'connecting'|'connected'|'reconnecting'|'offline', label: 'Conectando'|'Conectado'|'Reconectando'|'Sem internet', ping, sendLoss }`.
+Aparece clicando no status da barra de chamada (`CallBar`) e em
+Configurações → Voz e vídeo (durante a chamada). Na mesma aba: "Volume de
+entrada" (0–200 %, `extraPrefs.inputVolume`, salvo na conta) com o medidor ao
+vivo, e "Atraso ao soltar a tecla" do apertar-pra-falar
+(`voicePrefs.pushToTalkReleaseMs`).
+
+### Volume da transmissão (som da tela)
+
+`voice.remoteScreenAudioStreams[uid]` toca num player próprio
+(`RemoteAudioSinks` da `CallBar`) com `voice.streamVolumes[uid]` (0–2,
+`localStorage['pc.voiceStreamVolumes']`), alterado por
+`voice.setStreamVolume(uid, v)` — o controle "Volume da transmissão" no bloco
+da tela. Provedor que não separa (Jitsi/LiveKit): o controle continua mexendo
+no volume da pessoa, como antes. A gravação local inclui o som das telas.
 
 ## 2. Socket.IO (backend → cliente)
 
@@ -70,6 +133,20 @@ lista de voz da barra lateral — `components/voice/voiceModerationMenu.js`).
 `voice:roster`/`voice:state`/`voice:joined` trazem `serverMuted` e
 `serverDeafened` por participante.
 
+## 2b. Sinalização do servidor de mídia (novidades)
+
+- `setConsumerPreferredLayers { consumerId, spatialLayer, temporalLayer? }` →
+  `{ applied, preferredLayers }` (consumer sem simulcast: `applied:false`).
+- `setConsumerPriority { consumerId, priority 1..255 }` → `{ priority }`.
+- `pauseConsumer`/`resumeConsumer` valem também pro vídeo fora da tela.
+- Producers de vídeo com `keyFrameRequestDelay: 1000`; consumers de áudio com
+  `enableRtx: true`.
+- Roteador: Opus, **VP8** (preferido), **VP9 perfil 0**, H264.
+- `MEDIA_MAX_INCOMING_BITRATE` padrão **12 Mbps** (tela 1440p/60 + simulcast;
+  também em `media-server/scripts/vm-voz-robusta.sh`).
+- TURN: `TURN_URLS`/`TURNS_URLS` aceitam `turns:host:443?transport=tcp`
+  (ordem UDP → TCP → TLS no `iceServers` do token — `services/voiceTokens.js`).
+
 ## 3. Backend → servidor de mídia
 
 `server/src/services/mediaControl.js` → `POST <MEDIA_SERVER_URL>/control`
@@ -90,8 +167,14 @@ estrangular a janela no meio da call.
 ## 5. Android nativo
 
 `MediasoupEngine.kt` segue o mesmo protocolo: `serverState`, mic publicado
-pausado, ICE restart na troca de rede, fala local pelas amostras do mic
-(`voice:speaking`), 4403 = expulso. `VoiceManager.kt` trata
+pausado, ICE restart na troca de rede (o servidor tem `restartIce`; só um
+servidor antigo cai na reconexão completa), fala local pelas amostras do mic
+(`voice:speaking`), 4403 = expulso. Mic com `opusNack` e 64 kbps. Tela em
+1080p (lado maior 1920) a 30 fps, até 4 Mbps (`maxFramerate` 30); girar o
+aparelho muda a captura na hora (`changeCaptureFormat` → textura +
+`VirtualDisplay.resize`). **Sem som interno** na transmissão do Android:
+capturar o áudio de reprodução (AudioPlaybackCapture) e publicar como faixa
+exige recompilar o libmediasoup-android com um AudioDeviceModule próprio. `VoiceManager.kt` trata
 `voice:role-update`, `voice:server-state`, `voice:force-move`,
 `voice:force-disconnect`; `CallAudio.kt` muta o mic durante ligação do
 telefone.
@@ -140,7 +223,10 @@ API exposta pelo preload (`window.electronAPI.screenAudio`):
 - `stop(): Promise<{ ok: true }>` — desfaz as ligações e remove o microfone virtual.
 - `deviceLabel: 'vencord-screen-share'` — texto a procurar no rótulo do dispositivo.
 
-Passo a passo no site (motor de voz, ao começar a transmitir a tela):
+**O motor (`mediasoupEngine.js` → `setScreen` / `_venmicAudioTrack`) já faz
+tudo isso sozinho** — só entra quando `supported()` é `true`, a captura veio
+sem áudio e a pessoa pediu o som do PC; web/Windows/macOS seguem o caminho de
+sempre. Passo a passo (referência):
 
 1. `const display = await navigator.mediaDevices.getDisplayMedia({ video: …, audio: true })`
    (no Linux com venmic ele volta sem trilha de áudio — normal).
