@@ -9,5 +9,6 @@ lib-jitsi-meet — https://github.com/jitsi/lib-jitsi-meet — Apache-2.0 (conte
 web-noise-suppressor — https://github.com/sapphi-red/web-noise-suppressor — MIT (máquina de estados do noise gate)
 coturn — BSD-3-Clause; Caddy — Apache-2.0; Electron — MIT
 venmic — https://github.com/Vencord/venmic — MPL-2.0 (usado sem modificações)
+uiohook-napi — https://github.com/SnosMe/uiohook-napi — MIT; inclui libuiohook — https://github.com/kwhat/libuiohook — LGPL-3.0-or-later (app de PC, apertar-pra-falar global; binário N-API sem modificações, arquivo .node separado em app.asar.unpacked e substituível; código-fonte nos links acima)
 Mumble (BSD-3-Clause), Galene (MIT) — referências
 Inspiração (ideias, sem código copiado): Vesktop/Equibop (GPL-3.0), Element Call, Spacebar, Revolt vortex (AGPL-3.0), Janus (GPL-3.0), eduMEET (MIT).

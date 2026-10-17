@@ -2802,6 +2802,12 @@ function VoiceSettingsTab() {
               {capturingKey ? 'Pressione uma tecla… (Esc cancela)' : 'Trocar tecla'}
             </button>
           </div>
+          {typeof window !== 'undefined' && window.electronAPI?.globalPtt && (
+            <p className="dim" style={{ marginTop: 8 }}>
+              No app de PC a tecla funciona também com o app em segundo plano (durante a chamada).
+              {window.electronAPI.platform === 'darwin' && ' No macOS é preciso permitir o Project Club em Ajustes do Sistema → Privacidade e Segurança → Acessibilidade.'}
+            </p>
+          )}
           {/* Folga ao soltar a tecla: o mic continua aberto esse tempo (não corta a última sílaba). */}
           <h4 className="settings-h4-row" style={{ marginTop: 14 }}>
             Atraso ao soltar a tecla <span className="settings-chip">{pttReleaseFromPrefs(prefs.pushToTalkReleaseMs)} ms</span>

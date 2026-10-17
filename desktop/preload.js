@@ -51,6 +51,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     stop: () => ipcRenderer.invoke('screen-audio:stop'),
     deviceLabel: 'vencord-screen-share',
   },
+  // Apertar-pra-falar global (app fora de foco) — ver desktop/globalPtt.js.
+  // configure({ enabled, code: KeyboardEvent.code, prompt? }) → { ok, reason? }
+  // (reason: 'accessibility' no macOS sem permissão, 'unavailable',
+  // 'unsupported-key', 'error'). onDown/onUp devolvem a função pra parar.
+  globalPtt: {
+    configure: (opts) => ipcRenderer.invoke('ptt:configure', opts || {}).catch(() => ({ ok: false, reason: 'error' })),
+    onDown: (cb) => { const h = () => { try { cb(); } catch { /* ok */ } }; ipcRenderer.on('ptt:down', h); return () => ipcRenderer.removeListener('ptt:down', h); },
+    onUp: (cb) => { const h = () => { try { cb(); } catch { /* ok */ } }; ipcRenderer.on('ptt:up', h); return () => ipcRenderer.removeListener('ptt:up', h); },
+  },
   // Item pedido: "crie uma barra que não seja do Windows, de fechar
   // aba, minimizar, aumentar etc" — API exposta pro TitleBar.jsx.
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),

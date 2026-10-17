@@ -27,6 +27,13 @@ const oauthWindow = require('./oauthWindow');
 // loopbackWithoutChrome; Linux: microfone virtual do venmic). O venmic em si
 // só é carregado na primeira vez que o site pergunta — ver screenAudio.js.
 const screenAudio = require('./screenAudio');
+// Apertar-pra-falar global (app fora de foco): uiohook-napi carregado só
+// quando o site liga o PTT numa chamada — ver globalPtt.js.
+const globalPtt = require('./globalPtt').createGlobalPtt({
+  send: (channel) => { try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel); } catch { /* janela fechando */ } },
+  isFocused: () => { try { return !!(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()); } catch { return false; } },
+  systemPreferences: (() => { try { return require('electron').systemPreferences; } catch { return null; } })(),
+});
 
 // Abertura mais rápida: os módulos pesados (detector de jogos com o banco de
 // processos, gerenciador de mods com os perfis de instalação, ProjectMC,
@@ -937,9 +944,9 @@ if (!gotLock) {
     });
     // Página recarregou/caiu no meio de uma transmissão: solta o microfone
     // virtual do venmic (o site novo não sabe que ele estava ligado).
-    mainWindow.webContents.on('render-process-gone', () => screenAudio.stop());
+    mainWindow.webContents.on('render-process-gone', () => { screenAudio.stop(); globalPtt.configure({ enabled: false }); });
     mainWindow.webContents.on('did-start-navigation', (details) => {
-      if (details?.isMainFrame && !details?.isSameDocument) screenAudio.stop();
+      if (details?.isMainFrame && !details?.isSameDocument) { screenAudio.stop(); globalPtt.configure({ enabled: false }); }
     });
     hardenYouTubeWebview(mainWindow.webContents);
     if (BROWSER_ENABLED) browserEngine().init(mainWindow);
@@ -1072,6 +1079,12 @@ if (!gotLock) {
   secureHandle('screen-audio:supported', () => screenAudio.isSupported());
   secureHandle('screen-audio:start', () => screenAudio.start(() => app.getAppMetrics()));
   secureHandle('screen-audio:stop', () => screenAudio.stop());
+  // Apertar-pra-falar global: o site liga (chamada + PTT ligado) com a tecla
+  // (KeyboardEvent.code) e desliga ao sair/desligar. Resposta { ok, reason? }.
+  secureHandle('ptt:configure', (_e, opts) => {
+    const o = opts && typeof opts === 'object' ? opts : {};
+    return globalPtt.configure({ enabled: !!o.enabled, code: typeof o.code === 'string' ? o.code.slice(0, 32) : '', prompt: !!o.prompt });
+  });
   // Item pedido: verificar todos os sistemas de Configurações e afins —
   // diagnóstico de "instalações duplicadas confundindo qual versão está
   // rodando de verdade". Mostra o caminho exato do executável em uso
@@ -1930,5 +1943,5 @@ if (!gotLock) {
   });
 
   app.on('before-quit', () => { isQuitting = true; });
-  app.on('will-quit', () => { screenAudio.stop(); globalShortcut.unregisterAll(); if (activityDetectionRunning) activityDetector().stopActivityDetection(); });
+  app.on('will-quit', () => { screenAudio.stop(); globalPtt.stop(); globalShortcut.unregisterAll(); if (activityDetectionRunning) activityDetector().stopActivityDetection(); });
 }

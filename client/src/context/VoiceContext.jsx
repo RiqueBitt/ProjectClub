@@ -1628,6 +1628,11 @@ export function VoiceProvider({ children }) {
   // Mantém pttEnabled em sincronia com a preferência salva (pode mudar
   // nas Configurações enquanto a chamada está aberta).
   useEffect(() => onVoicePrefsChange((p) => setPttEnabled(p.pushToTalkEnabled === true)), []);
+  // Tecla escolhida (KeyboardEvent.code) — reativa: trocar nas Configurações
+  // vale na hora, inclusive pro apertar-pra-falar global do app de PC.
+  const [pttKey, setPttKey] = useState(() => getVoicePref('pushToTalkKey') || 'Space');
+  useEffect(() => onVoicePrefsChange((p) => setPttKey(p.pushToTalkKey || 'Space')), []);
+  const pttGlobalNoticeRef = useRef(false);
 
   // Enquanto o "apertar pra falar" está ligado e você está numa chamada,
   // o microfone fica fechado por padrão e só vai ao ar enquanto a tecla
@@ -1674,7 +1679,7 @@ export function VoiceProvider({ children }) {
     try { engineRef.current?.setPttPressed?.(false); } catch { /* ok */ }
     socket?.emit('voice:state', { channelId: callChannelId, muted: true });
 
-    const key = getVoicePref('pushToTalkKey') || 'Space';
+    const key = pttKey || 'Space';
     const isTypingTarget = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
     const onDown = (e) => {
       if (e.repeat || e.code !== key || isTypingTarget(e.target) || micMissing) return;
@@ -1686,12 +1691,29 @@ export function VoiceProvider({ children }) {
     window.addEventListener('keydown', onDown);
     window.addEventListener('keyup', onUp);
     window.addEventListener('blur', onBlur);
+    // App de PC (Electron): a mesma tecla funciona com o app FORA de foco
+    // (desktop/globalPtt.js → ptt:down/ptt:up). Com o app em foco quem manda
+    // é o teclado acima; o processo principal nem envia o down nesse caso.
+    const gptt = typeof window !== 'undefined' ? window.electronAPI?.globalPtt : null;
+    const offGlobal = [];
+    if (gptt?.configure) {
+      offGlobal.push(gptt.onDown?.(() => { if (!micMissing) setTalking(true); }));
+      offGlobal.push(gptt.onUp?.(() => setTalking(false)));
+      gptt.configure({ enabled: true, code: key, prompt: !pttGlobalNoticeRef.current }).then((r) => {
+        if (r?.ok || pttGlobalNoticeRef.current) return;
+        pttGlobalNoticeRef.current = true;
+        if (r?.reason === 'accessibility') useStore.getState().pushNotice('Para o apertar-pra-falar funcionar com o app em segundo plano, permita o Project Club em Ajustes do Sistema → Privacidade e Segurança → Acessibilidade.');
+        else if (r?.reason === 'unsupported-key') useStore.getState().pushNotice('Essa tecla só funciona com o app em foco. Escolha outra para usar o apertar-pra-falar em segundo plano.');
+      }).catch(() => {});
+    }
     return () => {
       window.removeEventListener('keydown', onDown);
       window.removeEventListener('keyup', onUp);
       window.removeEventListener('blur', onBlur);
+      offGlobal.forEach((off) => { try { off?.(); } catch { /* ok */ } });
+      if (gptt?.configure) gptt.configure({ enabled: false }).catch(() => {});
     };
-  }, [pttEnabled, callChannelId, micMissing, socket, provider]);
+  }, [pttEnabled, pttKey, callChannelId, micMissing, socket, provider]);
 
   // ---------- Nível do microfone + sensibilidade de entrada ----------
   // Medidos NO ENGINE (pipeline único do mic, voice/micPipeline.js): ele

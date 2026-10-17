@@ -164,6 +164,24 @@ entrar (junto do serviço de chamada) e `(false)` ao sair — o processo
 principal (`desktop/main.js`) usa isso pra não deixar o sistema suspender/
 estrangular a janela no meio da call.
 
+### Apertar-pra-falar global (app fora de foco)
+
+`desktop/globalPtt.js` + `uiohook-napi` (carregado sob demanda, prebuilds
+N-API em `app.asar.unpacked`). API do preload:
+`window.electronAPI.globalPtt.configure({ enabled, code, prompt? })` →
+`{ ok, reason? }` (`reason`: `accessibility` — macOS sem permissão de
+Acessibilidade, `unavailable` — binário não carregou, `unsupported-key`,
+`error`); `onDown(cb)` / `onUp(cb)` (devolvem a função pra parar de ouvir).
+
+- O `VoiceContext` liga com a tecla (`voicePrefs.pushToTalkKey`,
+  `KeyboardEvent.code`) quando há chamada + PTT ligado, e desliga ao sair /
+  desligar o PTT / trocar de tecla (reconfigura na hora).
+- O gancho só roda nesse intervalo; só a tecla configurada sai do processo
+  principal (`ptt:down`/`ptt:up`). Com a janela em foco o down global é
+  ignorado (o teclado do site manda); o up sempre sai se o down foi global.
+- Sem o binário / sem permissão: o PTT continua funcionando com o app em
+  foco (aviso uma vez).
+
 ## 5. Android nativo
 
 `MediasoupEngine.kt` segue o mesmo protocolo: `serverState`, mic publicado
