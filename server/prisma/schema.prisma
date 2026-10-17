@@ -201,6 +201,9 @@ model User {
   accountXp           Int       @default(0)
   lastXpMessageAt     DateTime? // cooldown anti-farm do ganho de XP por mensagem
   status              String    @default("OFFLINE")
+  // "Ausente" posto pelo próprio sistema (inatividade), não escolhido na
+  // mão — sobrevive a reinícios do servidor (antes vivia só na memória).
+  autoIdle            Boolean   @default(false)
   customStatus        String?
   customStatusEmoji   String?
   customStatusExpiresAt DateTime?

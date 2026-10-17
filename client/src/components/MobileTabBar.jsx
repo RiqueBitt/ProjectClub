@@ -8,8 +8,8 @@ import { useBadges } from './Normal2Sidebar.jsx';
 // Início, Comunidade, Social, Avisos e Você a um toque. Some dentro de
 // um chat/conversa pra deixar espaço pra caixa de mensagem e o teclado.
 const PATHS = {
-  // Início: panela (ícone de cozinha, pedido do dono).
-  home: 'M2 12h20M20 12v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8m0-4 16-4m-11.14 2.78-.45-1.81a2 2 0 0 1 1.45-2.43l1.94-.48a2 2 0 0 1 2.43 1.46l.45 1.8',
+  // Início: casinha (pedido do dono).
+  home: 'M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
   chat: 'M4 5h16v11H8l-4 4V5Z',
   friends: 'M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM21 19v-1a4 4 0 0 0-3-3.87M15.5 4.13a3 3 0 0 1 0 5.74',
   bell: 'M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0',
