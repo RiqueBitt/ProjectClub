@@ -9,6 +9,7 @@ const dmAutomod = require('../services/dmAutomod');
 const { canSendDirectMessage } = require('../services/dmPermissions');
 const xpService = require('../services/xp');
 const { resolveMentions } = require('../services/mentions');
+const notificationPrefs = require('../services/notificationPrefs');
 const { maybeSendOfflineEmail } = require('../services/offlineEmailNotifier');
 const { discardUploadedFiles } = require('../middleware/upload');
 const { maskUserStatus } = require('../utils/presenceVisibility');
@@ -684,6 +685,9 @@ async function createMessageInner(req, res) {
         const preview = (content || '').slice(0, 120) || (req.files?.length ? '📎 Anexo' : stickerUrl ? '🏷️ Figurinha' : 'Nova mensagem');
         const authorName = req.user.displayName || 'Alguém';
 
+        // Push de canal (menções, respostas e "Todas as mensagens") sai de
+        // notifyChannelMentions, que já sabe quem pode ver o canal. Aqui
+        // fica só o de DM.
         const recipientIds = new Set();
         if (conversationId) {
           const otherMembers = await prisma.conversationMember.findMany({
@@ -692,15 +696,16 @@ async function createMessageInner(req, res) {
           // Quem está com a conversa em Solicitações/Spam não recebe push.
           otherMembers.forEach((m) => { if (!inboxOf[m.userId] || inboxOf[m.userId] === 'main') recipientIds.add(m.userId); });
         }
-        mentionRows.filter((m) => m.targetType === 'USER').forEach((m) => recipientIds.add(m.targetId));
         recipientIds.delete(req.user.id);
+        // "Não perturbe" agendado de cada pessoa (ver services/notificationPrefs.js).
+        const dmTargets = await notificationPrefs.filterNotifiable([...recipientIds], {});
 
-        await Promise.all([...recipientIds].map((uid) => sendPushToUser(uid, {
+        await Promise.all(dmTargets.map((uid) => sendPushToUser(uid, {
           title: authorName, body: preview,
           data: {
-            conversationId: conversationId || '', channelId: channelId || '',
-            link: conversationId ? `/conversations/${conversationId}` : `/channels/${channelId}`,
-            tag: conversationId ? `dm:${conversationId}` : `ch:${channelId}`,
+            conversationId: conversationId || '', channelId: '',
+            link: `/conversations/${conversationId}`,
+            tag: `dm:${conversationId}`,
           },
         })));
 
@@ -769,7 +774,7 @@ async function createMessageInner(req, res) {
 // grande); @everyone/@here nunca viram aviso individual — só um "ping" do
 // canal pra sala da comunidade, que cada cliente filtra pelo que vê.
 const MENTION_NOTIFY_CAP = 200;
-async function notifyChannelMentions(io, { message, channel, mentionRows }) {
+async function notifyChannelMentions(io, { message, channel, mentionRows, isEdit = false }) {
   if (!io) return;
   const authorId = message.authorId;
   const userIds = new Set();
@@ -798,19 +803,54 @@ async function notifyChannelMentions(io, { message, channel, mentionRows }) {
   // Canal com sobrescritas de permissão: só avisa quem pode VER o canal
   // (nunca vaza nome/prévia de canal privado). Canal comum: todo mundo vê.
   const restricted = await channelHasRestrictions(channel);
+  const canView = async (uid) => {
+    if (!restricted) return true;
+    const perms = await getEffectivePermissions(uid, channel.id, channel).catch(() => null);
+    return !!perms && has(perms, 'VIEW_CHANNEL');
+  };
   const targets = [...userIds].slice(0, MENTION_NOTIFY_CAP);
+  const visibleTargets = [];
   for (const uid of targets) {
-    if (restricted) {
-      // eslint-disable-next-line no-await-in-loop
-      const perms = await getEffectivePermissions(uid, channel.id, channel).catch(() => null);
-      if (!perms || !has(perms, 'VIEW_CHANNEL')) continue;
-    }
+    // eslint-disable-next-line no-await-in-loop
+    if (!(await canView(uid))) continue;
+    visibleTargets.push(uid);
     const isMention = mentionRows.some((m) => (m.targetType === 'USER' && m.targetId === uid)) || roleIds.length > 0;
+    // O contador de menções sempre acende (mesmo silenciado, igual ao
+    // Discord); som/notificação o cliente decide com as preferências dele.
     io.to(`user:${uid}`).emit('mention:new', { ...base, reply: uid === replyTargetId && !isMention });
   }
 
   if (!restricted && mentionRows.some((m) => m.targetType === 'EVERYONE' || m.targetType === 'HERE')) {
     io.to('community').emit('channel:ping', { channelId: channel.id, messageId: message.id, authorId, createdAt: message.createdAt });
+  }
+
+  // Push: @menção direta ou resposta (nunca menção de cargo/@todos — viraria
+  // spam), respeitando nível/silêncio do canal e "Não perturbe" de cada um.
+  const { sendPushToUser } = require('../services/pushNotifications');
+  const pushPreview = base.preview.slice(0, 120)
+    || (message.attachments?.length ? '📎 Anexo' : message.stickerUrl ? '🏷️ Figurinha' : 'Nova mensagem');
+  const pushData = { conversationId: '', channelId: channel.id, link: `/channels/${channel.id}`, tag: `ch:${channel.id}` };
+  const directIds = new Set(mentionRows.filter((m) => m.targetType === 'USER' && m.targetId).map((m) => m.targetId));
+  if (replyTargetId) directIds.add(replyTargetId);
+  const mentionPush = await notificationPrefs.filterNotifiable(
+    visibleTargets.filter((uid) => directIds.has(uid)), { channel, kind: 'mention' },
+  );
+  await Promise.all(mentionPush.map((uid) => sendPushToUser(uid, {
+    title: `${base.authorName} em #${channel.name}`, body: pushPreview, data: pushData,
+  }).catch(() => {})));
+
+  // "Todas as mensagens": quem escolheu ser avisado de tudo neste canal
+  // (canal, categoria ou padrão global) e ainda não foi avisado acima.
+  // Editar uma mensagem nunca avisa de novo.
+  if (isEdit) return;
+  const everyMessage = await notificationPrefs.allMessageRecipients(channel, {
+    excludeIds: [authorId, ...userIds], cap: MENTION_NOTIFY_CAP,
+  });
+  for (const uid of everyMessage) {
+    // eslint-disable-next-line no-await-in-loop
+    if (!(await canView(uid))) continue;
+    io.to(`user:${uid}`).emit('channel:message', base);
+    sendPushToUser(uid, { title: `${base.authorName} em #${channel.name}`, body: pushPreview, data: pushData }).catch(() => {});
   }
 }
 
@@ -918,7 +958,7 @@ async function editMessage(req, res, next) {
     if (access?.channel) {
       const fresh = mentionRows.filter((m) => !oldMentionKeys.has(`${m.targetType}:${m.targetId}`));
       if (fresh.length) {
-        notifyChannelMentions(io, { message: { ...message, replyTo: null }, channel: access.channel, mentionRows: fresh })
+        notifyChannelMentions(io, { message: { ...message, replyTo: null }, channel: access.channel, mentionRows: fresh, isEdit: true })
           .catch((err) => console.error('[mention] falha ao avisar menções da edição:', err.message));
       }
     }

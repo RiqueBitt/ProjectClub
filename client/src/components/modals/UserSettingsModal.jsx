@@ -2104,10 +2104,10 @@ export default function UserSettingsModal({ onClose }) {
           seção 18 do documento) não entraram nesta parte — aqui só
           os três controles globais que já existem prontos no
           UserSettings (desktopNotifications, emailNotifications,
-          notificationSounds). Silenciar por servidor/canal individual
-          precisa de uma tabela própria (algo como
-          ChannelNotificationOverride) que ainda não existe — fica
-          para uma próxima parte. */}
+          notificationSounds). Silenciar/nível por canal e categoria
+          (tabela NotificationOverride, menu de clique direito na lista
+          de canais), o padrão dos canais e o "Não perturbe" agendado
+          ficam em NotificationExtras (settings/ExtraSettings.jsx). */}
       {tab === 'NOTIFICATIONS' && (
         <div className="settings-grid">
           {!userSettings ? <SettingsSkeleton /> : (

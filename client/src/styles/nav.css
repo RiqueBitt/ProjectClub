@@ -205,6 +205,18 @@
 .category-preview-item .mention-badge { position: static; margin: 0; }
 .category-preview-item .unread-dot { position: static; margin: 0 4px 0 0; }
 
+/* ---------- Canal/categoria silenciados (igual ao Discord: cinza) ---------- */
+.sidebar-item.channel-item.is-muted:not(.active) { opacity: .45; }
+.sidebar-item.channel-item.is-muted:not(.active):hover { opacity: .7; }
+.mention-badge.is-muted { filter: grayscale(1); opacity: .7; }
+.category-label.is-muted .category-toggle { opacity: .55; }
+.channel-muted-icon {
+  flex-shrink: 0; display: inline-flex; align-items: center; color: var(--text-muted);
+  margin-left: auto; margin-right: 2px;
+}
+.category-toggle .channel-muted-icon { margin-left: 4px; }
+.sidebar-item.channel-item .channel-muted-icon + .unread-dot { margin-left: 4px; }
+
 /* ---------- Mensagens fixadas ---------- */
 .chat-window .pins-btn { position: relative; }
 .pins-btn-count {

@@ -8,8 +8,14 @@ const ContextMenuContext = createContext(null);
 // One shared context-menu instance for the whole app (Discord-web style
 // right-click menus). Callers get `openMenu(event, items)` where `items` is
 // an array of either:
-//   { label, onClick, danger?, disabled?, icon? }
+//   { label, onClick, danger?, disabled?, icon?, hint?, checked? }
+//   { label, submenu: [...itens], icon?, hint? }   <- abre um submenu
 //   { divider: true }
+// `hint` é uma segunda linha pequena (ex.: "Faltam 42 min"); `checked`
+// mostra o item como opção marcada (true) ou desmarcada (false) — usado
+// em escolhas tipo "Todas as mensagens / Só @menções / Nada".
+// Submenu: no computador abre ao lado (passar o mouse, clicar ou seta →);
+// no celular a folha troca pros itens do submenu, com "Voltar" no topo.
 // `icon` pode ser o nome de um ícone do mapa abaixo ('reply', 'trash'...);
 // emoji/imagem antigos de quem ainda não foi atualizado são trocados por um
 // ícone SVG deduzido do texto do item (ver iconFor).
@@ -52,6 +58,8 @@ const ICONS = {
   tag: <><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z" /><path d="M7.5 7.5h.01" /></>,
   hammer: <><path d="m14 6 4 4M3 21l8.5-8.5" /><path d="m9.5 7.5 5-5 7 7-5 5z" /></>,
   dot: <circle cx="12" cy="12" r="2" />,
+  bell: <><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z" /><path d="M10 21a2 2 0 0 0 4 0" /></>,
+  back: <path d="m15 6-6 6 6 6" />,
 };
 
 // Ícone deduzido do texto do item — cobre menus de outras telas que ainda
@@ -126,8 +134,10 @@ export function ContextMenuProvider({ children }) {
 
   useEffect(() => {
     if (!state) return undefined;
+    // Submenus ficam fora do menuRef (painel irmão) — vale qualquer .context-menu.
+    const insideMenu = (t) => !!t?.closest?.('.context-menu');
     const onDocClick = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) closeMenu();
+      if (menuRef.current && !insideMenu(e.target)) closeMenu();
     };
     const onKey = (e) => {
       if (e.key !== 'Escape') return;
@@ -138,7 +148,7 @@ export function ContextMenuProvider({ children }) {
     };
     // Rolar a página por trás fecha; rolar DENTRO do próprio menu (lista
     // longa de moderação) não.
-    const onScroll = (e) => { if (!menuRef.current?.contains(e.target)) closeMenu(); };
+    const onScroll = (e) => { if (!insideMenu(e.target)) closeMenu(); };
     const onResize = () => closeMenu();
     document.addEventListener('mousedown', onDocClick);
     document.addEventListener('touchstart', onDocClick);
@@ -162,12 +172,12 @@ export function ContextMenuProvider({ children }) {
   );
 }
 
-function ContextMenuRender({ menuRef, items, x, y, sheet, onClose }) {
+// Posição presa dentro da tela. Menu principal: junto do ponto do clique.
+// Submenu (`anchorRect`): ao lado do item pai, virando pra esquerda se não couber.
+function useClampedPosition(ref, { x, y, anchorRect, sheet }) {
   const [pos, setPos] = useState(null);
-
-  // Posição presa dentro da tela (só no modo "no ponto do clique").
   useLayoutEffect(() => {
-    const el = menuRef.current;
+    const el = ref.current;
     if (!el || sheet) return;
     const z = cssZoom();
     const margin = 8;
@@ -175,22 +185,171 @@ function ContextMenuRender({ menuRef, items, x, y, sheet, onClose }) {
     const vh = window.innerHeight / z;
     const w = el.offsetWidth;
     const h = el.offsetHeight;
-    const px = x / z;
-    const py = y / z;
-    let left = px + 2;
-    let top = py + 2;
-    if (left + w > vw - margin) left = Math.max(margin, px - w - 2);
-    if (top + h > vh - margin) {
-      // Não cabe embaixo: abre pra cima; se nem assim couber, encosta no
-      // fim da tela (fica o mais perto possível do clique).
-      const above = py - h - 2;
-      top = above >= margin ? above : Math.max(margin, vh - margin - h);
+    let left;
+    let top;
+    let originX = 'left';
+    let originY = 'top';
+    if (anchorRect) {
+      const r = { left: anchorRect.left / z, right: anchorRect.right / z, top: anchorRect.top / z };
+      left = r.right + 2;
+      if (left + w > vw - margin) { left = Math.max(margin, r.left - w - 2); originX = 'right'; }
+      top = r.top - 6;
+      if (top + h > vh - margin) { top = Math.max(margin, vh - margin - h); originY = 'bottom'; }
+    } else {
+      const px = x / z;
+      const py = y / z;
+      left = px + 2;
+      top = py + 2;
+      if (left + w > vw - margin) left = Math.max(margin, px - w - 2);
+      if (top + h > vh - margin) {
+        // Não cabe embaixo: abre pra cima; se nem assim couber, encosta no
+        // fim da tela (fica o mais perto possível do clique).
+        const above = py - h - 2;
+        top = above >= margin ? above : Math.max(margin, vh - margin - h);
+      }
+      originX = left < px ? 'right' : 'left';
+      originY = top < py ? 'bottom' : 'top';
     }
     left = Math.min(Math.max(margin, left), Math.max(margin, vw - margin - w));
     top = Math.max(margin, top);
-    const maxHeight = vh - margin * 2;
-    setPos({ left, top, maxHeight, originX: left < px ? 'right' : 'left', originY: top < py ? 'bottom' : 'top' });
-  }, [menuRef, x, y, sheet]);
+    setPos({ left, top, maxHeight: vh - margin * 2, originX, originY });
+  }, [ref, x, y, anchorRect, sheet]);
+  return pos;
+}
+
+// Agrupa em seções (cada divisor fecha uma) e descarta divisores sobrando.
+function toSections(items) {
+  const sections = [];
+  let cur = [];
+  items.forEach((item) => {
+    if (item.divider) { if (cur.length) sections.push(cur); cur = []; } else cur.push(item);
+  });
+  if (cur.length) sections.push(cur);
+  return sections;
+}
+
+// Setas/Home/End/Tab entre os itens de um painel (← volta do submenu).
+function navKeyDown(e, panel, { onLeft } = {}) {
+  const list = [...(panel?.querySelectorAll('.cm-item:not(:disabled)') || [])];
+  if (!list.length) return;
+  const idx = list.indexOf(document.activeElement);
+  let next = null;
+  if (e.key === 'ArrowDown') next = list[(idx + 1) % list.length];
+  else if (e.key === 'ArrowUp') next = list[idx <= 0 ? list.length - 1 : idx - 1];
+  else if (e.key === 'Home') next = list[0];
+  else if (e.key === 'End') next = list[list.length - 1];
+  else if (e.key === 'Tab') next = e.shiftKey ? list[idx <= 0 ? list.length - 1 : idx - 1] : list[(idx + 1) % list.length];
+  else if ((e.key === 'Enter' || e.key === ' ') && idx < 0) next = list[0];
+  else if (e.key === 'ArrowLeft' && onLeft) { e.preventDefault(); e.stopPropagation(); onLeft(); return; }
+  if (next) {
+    e.preventDefault();
+    next.focus({ preventScroll: false });
+  }
+}
+
+const Chevron = () => (
+  <svg className="cm-chevron" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+function MenuSections({ items, onClose, onOpenSub, onHoverPlain, openSubKey, prefix = '' }) {
+  return toSections(items).map((section, si) => (
+    <div className="cm-section" role="group" key={si}>
+      {section.map((item, i) => {
+        const key = `${prefix}${si}:${i}`;
+        if (item.emojis) {
+          // Reações rápidas (os emojis que você mais usa), num clique.
+          return (
+            <div key={key} className="cm-emoji-row" role="group" aria-label="Reações rápidas">
+              {item.emojis.map((em) => (
+                <button key={em} type="button" role="menuitem" className="cm-emoji" title={`Reagir com ${em}`}
+                  onClick={() => { item.onPick?.(em); onClose(); }}
+                >{em}</button>
+              ))}
+            </div>
+          );
+        }
+        const hasSub = Array.isArray(item.submenu) && item.submenu.length > 0;
+        const isRadio = typeof item.checked === 'boolean';
+        const subOpen = hasSub && openSubKey === key;
+        return (
+          <button
+            key={key}
+            type="button"
+            role={isRadio ? 'menuitemradio' : 'menuitem'}
+            aria-checked={isRadio ? item.checked : undefined}
+            aria-haspopup={hasSub ? 'menu' : undefined}
+            aria-expanded={hasSub ? subOpen : undefined}
+            className={`cm-item context-menu-item ${item.danger ? 'danger' : ''} ${subOpen ? 'is-open' : ''}`}
+            disabled={item.disabled}
+            onMouseEnter={(e) => {
+              if (item.disabled) return;
+              e.currentTarget.focus({ preventScroll: true });
+              if (hasSub) onOpenSub?.(key, item, e.currentTarget, false);
+              else onHoverPlain?.();
+            }}
+            onKeyDown={(e) => {
+              if (hasSub && (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                e.stopPropagation();
+                onOpenSub?.(key, item, e.currentTarget, true);
+              }
+            }}
+            onClick={(e) => {
+              if (hasSub) { onOpenSub?.(key, item, e.currentTarget, e.detail === 0); return; }
+              item.onClick?.();
+              onClose();
+            }}
+          >
+            {isRadio
+              ? <span className={`cm-radio${item.checked ? ' on' : ''}`} aria-hidden="true" />
+              : <MenuIcon name={iconFor(item)} />}
+            <span className="cm-text">
+              <span className="cm-label">{item.label}</span>
+              {item.hint && <span className="cm-hint">{item.hint}</span>}
+            </span>
+            {hasSub && <Chevron />}
+          </button>
+        );
+      })}
+    </div>
+  ));
+}
+
+function SubmenuPanel({ items, anchorRect, focusFirst, onClose, onBack }) {
+  const ref = useRef(null);
+  const pos = useClampedPosition(ref, { anchorRect, sheet: false });
+  useEffect(() => {
+    if (pos && focusFirst) ref.current?.querySelector('.cm-item:not(:disabled)')?.focus({ preventScroll: true });
+  }, [pos, focusFirst]);
+  return (
+    <div
+      ref={ref}
+      className="context-menu cm-v2 cm-anchored cm-submenu"
+      role="menu"
+      tabIndex={-1}
+      style={{
+        left: pos?.left ?? -9999,
+        top: pos?.top ?? -9999,
+        maxHeight: pos?.maxHeight,
+        visibility: pos ? 'visible' : 'hidden',
+        transformOrigin: pos ? `${pos.originY} ${pos.originX}` : undefined,
+      }}
+      onKeyDown={(e) => navKeyDown(e, ref.current, { onLeft: onBack })}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <MenuSections items={items} onClose={onClose} prefix="sub-" />
+    </div>
+  );
+}
+
+function ContextMenuRender({ menuRef, items, x, y, sheet, onClose }) {
+  const pos = useClampedPosition(menuRef, { x, y, sheet });
+  // Submenu aberto no computador: { key, items, rect, focusFirst, el }.
+  const [sub, setSub] = useState(null);
+  // Celular: pilha de submenus (a folha mostra o último, com "Voltar").
+  const [stack, setStack] = useState([]);
 
   // Foco no menu assim que ele está visível (setas já funcionam de cara) —
   // elemento com visibility:hidden (antes de medir a posição) não recebe foco.
@@ -199,31 +358,20 @@ function ContextMenuRender({ menuRef, items, x, y, sheet, onClose }) {
     if (ready) menuRef.current?.focus({ preventScroll: true });
   }, [menuRef, ready]);
 
-  const enabledButtons = () => [...(menuRef.current?.querySelectorAll('.cm-item:not(:disabled)') || [])];
-  const onKeyDown = (e) => {
-    const list = enabledButtons();
-    if (!list.length) return;
-    const idx = list.indexOf(document.activeElement);
-    let next = null;
-    if (e.key === 'ArrowDown') next = list[(idx + 1) % list.length];
-    else if (e.key === 'ArrowUp') next = list[idx <= 0 ? list.length - 1 : idx - 1];
-    else if (e.key === 'Home') next = list[0];
-    else if (e.key === 'End') next = list[list.length - 1];
-    else if (e.key === 'Tab') next = e.shiftKey ? list[idx <= 0 ? list.length - 1 : idx - 1] : list[(idx + 1) % list.length];
-    else if ((e.key === 'Enter' || e.key === ' ') && idx < 0) next = list[0];
-    if (next) {
-      e.preventDefault();
-      next.focus({ preventScroll: false });
-    }
+  const openSub = (key, item, el, focusFirst) => {
+    if (sheet) { setStack((st) => [...st, { label: item.label, items: item.submenu }]); return; }
+    setSub((cur) => (cur && cur.key === key && !focusFirst
+      ? cur
+      : { key, items: item.submenu, rect: el.getBoundingClientRect(), focusFirst, el }));
+  };
+  const closeSub = () => {
+    const el = sub?.el;
+    setSub(null);
+    if (el && document.contains(el)) el.focus({ preventScroll: true });
   };
 
-  // Agrupa em seções (cada divisor fecha uma) e descarta divisores sobrando.
-  const sections = [];
-  let cur = [];
-  items.forEach((item) => {
-    if (item.divider) { if (cur.length) sections.push(cur); cur = []; } else cur.push(item);
-  });
-  if (cur.length) sections.push(cur);
+  const current = sheet && stack.length ? stack[stack.length - 1] : null;
+  const shownItems = current ? current.items : items;
 
   const style = sheet ? undefined : {
     left: pos?.left ?? -9999,
@@ -244,38 +392,30 @@ function ContextMenuRender({ menuRef, items, x, y, sheet, onClose }) {
         role="menu"
         tabIndex={-1}
         style={style}
-        onKeyDown={onKeyDown}
+        onKeyDown={(e) => navKeyDown(e, menuRef.current)}
         onContextMenu={(e) => e.preventDefault()}
       >
         {sheet && <div className="cm-grabber" aria-hidden="true" />}
-        {sections.map((section, si) => (
-          <div className="cm-section" role="group" key={si}>
-            {section.map((item, i) => (item.emojis ? (
-              // Reações rápidas (os emojis que você mais usa), num clique.
-              <div key={i} className="cm-emoji-row" role="group" aria-label="Reações rápidas">
-                {item.emojis.map((em) => (
-                  <button key={em} type="button" role="menuitem" className="cm-emoji" title={`Reagir com ${em}`}
-                    onClick={() => { item.onPick?.(em); onClose(); }}
-                  >{em}</button>
-                ))}
-              </div>
-            ) : (
-              <button
-                key={i}
-                type="button"
-                role="menuitem"
-                className={`cm-item context-menu-item ${item.danger ? 'danger' : ''}`}
-                disabled={item.disabled}
-                onMouseEnter={(e) => { if (!item.disabled) e.currentTarget.focus({ preventScroll: true }); }}
-                onClick={() => { item.onClick?.(); onClose(); }}
-              >
-                <MenuIcon name={iconFor(item)} />
-                <span className="cm-label">{item.label}</span>
-              </button>
-            )))}
+        {current && (
+          <div className="cm-section">
+            <button type="button" className="cm-item cm-back" onClick={() => setStack((st) => st.slice(0, -1))}>
+              <MenuIcon name="back" />
+              <span className="cm-text"><span className="cm-label">{current.label}</span></span>
+            </button>
           </div>
-        ))}
+        )}
+        <MenuSections
+          key={stack.length}
+          items={shownItems}
+          onClose={onClose}
+          onOpenSub={openSub}
+          onHoverPlain={() => setSub(null)}
+          openSubKey={sub?.key}
+        />
       </div>
+      {!sheet && sub && (
+        <SubmenuPanel key={sub.key} items={sub.items} anchorRect={sub.rect} focusFirst={sub.focusFirst} onClose={onClose} onBack={closeSub} />
+      )}
     </>
   );
 }

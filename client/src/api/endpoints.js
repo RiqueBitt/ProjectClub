@@ -767,6 +767,13 @@ export const previewReminderWhen = (when) => api.post('/reminders/preview', { wh
 export const listReminders = () => api.get('/reminders').then((r) => r.data);
 export const deleteReminder = (id) => api.delete(`/reminders/${id}`).then((r) => r.data);
 
+// ---- Notificações por canal/categoria (silenciar + nível) ----
+export const listNotificationOverrides = () => api.get('/notification-overrides').then((r) => r.data);
+// type: 'channel' | 'category'; body: { level?, mute? } (ver notificationOverrideController.js)
+export const updateNotificationOverride = (type, id, body) => api.put(`/notification-overrides/${type}/${id}`, body).then((r) => r.data);
+// Caixa de Entrada → Respostas (respostas a mensagens minhas).
+export const listReplies = (params) => api.get('/messages/replies', { params }).then((r) => r.data);
+
 // --- Extras do perfil (Mural, Lista de desejos, Atividade, insígnias, nota) ---
 export const getProfileExtras = (userId) => api.get(`/users/${userId}/extras`).then((r) => r.data);
 export const saveProfileWidgets = (widgets) => api.put('/users/me/widgets', { widgets }).then((r) => r.data);

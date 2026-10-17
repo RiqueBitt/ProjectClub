@@ -276,6 +276,8 @@ model User {
   // nova (ver getOrCreateSettings em settingsController.js).
   settings            UserSettings?
   shortcuts           UserShortcut[]
+  // Notificações por canal/categoria (ver model NotificationOverride).
+  notificationOverrides NotificationOverride[]
   connectedAccounts   ConnectedAccount[]
   registeredGames     RegisteredGame[]
   gamePlaytimes       GamePlaytime[]
@@ -1135,6 +1137,7 @@ model Category {
 
   channels   Channel[]
   overwrites PermissionOverwrite[]
+  notificationOverrides NotificationOverride[]
 }
 
 model Channel {
@@ -1160,6 +1163,7 @@ model Channel {
   messages   Message[]
   readStates ChannelReadState[]
   overwrites PermissionOverwrite[]
+  notificationOverrides NotificationOverride[]
 }
 
 model PermissionOverwrite {
@@ -1174,6 +1178,36 @@ model PermissionOverwrite {
   deny       String    @default("0")
 
   @@unique([channelId, categoryId, targetType, targetId])
+}
+
+// Notificações por canal/categoria (igual ao Discord): nível próprio
+// ("Todas as mensagens" / "Só @menções" / "Nada" — null = herda) e
+// silenciar por um tempo ou até reativar. Canal sobrescreve categoria,
+// categoria sobrescreve o padrão global (UserSettings.extraPrefs.notifyLevel).
+// Lógica de resolução em services/notificationPrefs.js.
+//
+// targetKey ("ch:<id>" ou "cat:<id>") é o que garante UMA linha por
+// pessoa+alvo: um @@unique com channelId/categoryId anuláveis não seria
+// respeitado pelo MySQL (NULL nunca colide) nem aceito pelo upsert do Prisma.
+model NotificationOverride {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetKey   String    @db.VarChar(64)
+  channelId   String?
+  channel     Channel?  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  level       String?   @db.VarChar(16) // ALL | MENTIONS | NONE — null = herda
+  mutedUntil  DateTime?
+  muteForever Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+
+  @@unique([userId, targetKey])
+  @@index([targetKey, level])
+  @@index([channelId])
+  @@index([categoryId])
 }
 
 model ChannelReadState {

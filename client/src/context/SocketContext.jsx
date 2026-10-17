@@ -6,6 +6,7 @@ import { useStore, roomKeyFor, messageMentionsUser, isChannelUnread, isConversat
 import { listFriends, getCommunity, listUsableEmojis, listServerStickers, listAssetCollections } from '../api/endpoints';
 import { playSound } from '../utils/sounds';
 import { getExtra, streamerQuiet } from '../utils/extraPrefs';
+import { canNotify, quietHoursActive, loadNotificationOverrides, applyOverrideUpdate } from '../utils/notificationPrefs';
 import { setupNativeActivity } from '../utils/nativeActivity';
 import { updateUnreadBadge } from '../utils/unreadBadge';
 import { sameData } from '../utils/liveRefresh';
@@ -44,6 +45,9 @@ function notifyUser(title, body, onClick) {
   useStore.getState().pushNotice(body ? `${title}: ${body}` : title);
   // Modo streamer: nada de notificação do sistema/sobreposição na tela.
   if (streamerQuiet('notify')) return;
+  // "Não perturbe" agendado (Configurações → Notificações): nada de
+  // notificação do sistema nem sobreposição dentro da janela de horário.
+  if (quietHoursActive()) return;
   window.electronAPI?.showOverlayNotification?.({ title, body });
   const isHiddenOrUnfocused = typeof document !== 'undefined'
     && (document.visibilityState === 'hidden' || !document.hasFocus());
@@ -125,6 +129,9 @@ export function SocketProvider({ children }) {
     socket.on('connect', () => {
       authRetries = 0;
       setConnected(true);
+      // Silenciados/níveis por canal (recarrega a cada reconexão — pode ter
+      // mudado em outro aparelho enquanto estava sem conexão).
+      loadNotificationOverrides();
       if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
         Notification.requestPermission().catch(() => {});
       }
@@ -192,9 +199,13 @@ export function SocketProvider({ children }) {
       const { activeChannelId } = useStore.getState();
       const isOpen = activeChannelId === channelId && document.visibilityState === 'visible';
       if (!isOpen) bumpChannelMention(channelId);
-      playSound('mention');
-      const verb = reply ? 'respondeu sua mensagem' : 'mencionou você';
-      notifyUser(`${authorName || 'Alguém'} ${verb}`, (preview || '').slice(0, 120), () => goToMessage({ channelId, messageId, createdAt }));
+      // Canal silenciado / "Nada" / "Não perturbe": o contador acende, mas
+      // sem som nem notificação (igual ao Discord).
+      if (canNotify({ kind: 'mention', channelId })) {
+        playSound('mention');
+        const verb = reply ? 'respondeu sua mensagem' : 'mencionou você';
+        notifyUser(`${authorName || 'Alguém'} ${verb}`, (preview || '').slice(0, 120), () => goToMessage({ channelId, messageId, createdAt }));
+      }
       updateUnreadBadge(userId);
     };
 
@@ -223,7 +234,7 @@ export function SocketProvider({ children }) {
           }
         } else if (isOpenConversation && document.visibilityState === 'visible') {
           playSound('messageActive', 0.3);
-        } else if (message.conversationId && !isOpenConversation && !isQuietConversation(message.conversationId)) {
+        } else if (message.conversationId && !isOpenConversation && !isQuietConversation(message.conversationId) && canNotify({ kind: 'dm' })) {
           playSound('message');
           // Item pedido: notificação nativa pra mensagem direta (DM), não
           // só pra menção — igual Discord notifica qualquer DM nova,
@@ -245,6 +256,26 @@ export function SocketProvider({ children }) {
       if (!payload?.channelId || payload.authorId === user.id || markMentionSeen(payload.messageId)) return;
       handleIncomingMention(payload);
     });
+    // Canal com "Todas as mensagens" (no canal, na categoria ou como padrão):
+    // o servidor avisa cada mensagem nova mesmo com o canal fechado.
+    socket.on('channel:message', (payload) => {
+      if (!payload?.channelId || payload.authorId === user.id || markMentionSeen(payload.messageId)) return;
+      const st = useStore.getState();
+      const isOpen = st.activeChannelId === payload.channelId && document.visibilityState === 'visible';
+      if (isOpen) return;
+      st.bumpChannelActivity(payload);
+      if (canNotify({ kind: 'message', channelId: payload.channelId })) {
+        playSound('message');
+        notifyUser(
+          `${payload.authorName || 'Alguém'} em #${payload.channelName || 'canal'}`,
+          (payload.preview || '').slice(0, 120) || 'Nova mensagem',
+          () => goToMessage(payload),
+        );
+      }
+      updateUnreadBadge(userId);
+    });
+    // Configuração de notificação mudou em outro aparelho/aba.
+    socket.on('notification-override:update', applyOverrideUpdate);
     // @everyone/@here num canal público: só acende o canal (sem notificação
     // individual pra não virar spam pra comunidade inteira).
     socket.on('channel:ping', ({ channelId, messageId, authorId } = {}) => {
