@@ -97,6 +97,7 @@ const ICON_PATHS = {
   external: 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5',
   menu: 'M4 6h16M4 12h16M4 18h16',
   close: 'M6 6l12 12M18 6 6 18',
+  back: 'M5 12h14M5 12l6 6M5 12l6-6',
   arrow: 'M9 6l6 6-6 6',
   cards: 'M7 3h11a2 2 0 0 1 2 2v13M4 7h11a2 2 0 0 1 2 2v11H6a2 2 0 0 1-2-2z',
 };
@@ -191,6 +192,12 @@ const groupOf = (tab) => TAB_GROUPS.find((g) => g.tabs.includes(tab));
 export default function AdminPanel() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  // Painel em tela cheia no PC: a barra lateral do app some enquanto o
+  // painel está aberto (sobra espaço pras tabelas); "Voltar ao chat" no topo.
+  useEffect(() => {
+    document.documentElement.classList.add('pc-staff-open');
+    return () => document.documentElement.classList.remove('pc-staff-open');
+  }, []);
   const [params, setParams] = useSearchParams();
   const tab = TABS[params.get('tab')] && !HIDDEN_TABS.has(params.get('tab')) ? params.get('tab') : 'overview';
   const [query, setQuery] = useState('');
@@ -246,6 +253,9 @@ export default function AdminPanel() {
             <strong>Painel da Equipe</strong>
             <span>{user.displayName}</span>
           </div>
+          <button type="button" className="staff-rail-back" onClick={() => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/'))} data-tip="Voltar ao chat" aria-label="Voltar ao chat">
+            <StaffIcon name="back" size={18} />
+          </button>
           <button type="button" className="staff-rail-close" onClick={() => setNavOpen(false)} aria-label="Fechar menu">
             <StaffIcon name="close" size={18} />
           </button>

@@ -47,6 +47,8 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useGlobalLiveRefresh } from '../utils/useGlobalLiveRefresh';
 import { useMobileGestures } from '../utils/useMobileGestures';
 import AppShellExtras from '../components/AppearanceRuntime.jsx';
+import HoverTip from '../components/HoverTip.jsx';
+import '../styles/tokens.css';
 import { StreamerBadge } from '../components/ExtraPrefsRuntime.jsx';
 import { lastRememberedPath, lastRememberedChannelId } from '../utils/appearance';
 import { isFeatureEnabled } from '../utils/features';
@@ -429,6 +431,7 @@ export default function MainApp() {
       onTouchEnd={onTouchEnd}
     >
       <AppShellExtras />
+      <HoverTip />
       <StreamerBadge />
       <div className="mobile-sidebar-backdrop" onClick={() => { closeMobileMembers(); closeMobileSidebar(); }} />
       <TopSearchBar />

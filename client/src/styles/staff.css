@@ -248,3 +248,20 @@
 .settings-modal-content input:focus, .settings-modal-content textarea:focus, .settings-modal-content select:focus {
   border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); outline: none;
 }
+
+/* Painel em tela cheia no PC: some a barra lateral do app enquanto o painel
+   está aberto (antes eram 3 colunas lado a lado e as tabelas ficavam
+   espremidas). "Voltar ao chat" no topo do menu da equipe. */
+.staff-rail-back {
+  display: inline-flex; align-items: center; justify-content: center; margin-left: auto; flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: 8px; color: var(--text-muted);
+}
+.staff-rail-back:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.staff-rail-back + .staff-rail-close { margin-left: 4px; }
+@media (min-width: 901px) {
+  html.pc-staff-open .app-shell > .main-sidebar { display: none; }
+  html.pc-staff-open .app-shell.app-shell { --n2-sidebar-width: 0px; --main-sidebar-width: 0px; }
+}
+@media (max-width: 900px) {
+  .staff-rail-back { display: none; }
+}
