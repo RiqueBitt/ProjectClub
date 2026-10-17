@@ -29,6 +29,22 @@
         android:theme="@style/Theme.ProjectClub">
 
         <receiver android:name=".data.UpdateResultReceiver" android:exported="false" />
+        <!-- Avisa "atualizado — toque para abrir" (o Android fecha o app ao se atualizar). -->
+        <receiver android:name=".data.AppUpdatedReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <!-- Plano B da atualização: entrega o .apk baixado ao instalador clássico. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
 
         <activity
             android:name=".MainActivity"

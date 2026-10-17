@@ -12,6 +12,9 @@ import com.projectclub.android.BuildConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import androidx.core.content.FileProvider
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,7 +49,8 @@ sealed interface UpdateState {
     /** Baixada. [needsPermission] = falta liberar "instalar apps desconhecidos" pro Project Club. */
     data class Ready(val release: AppRelease, val needsPermission: Boolean) : UpdateState
     data class Installing(val release: AppRelease, val percent: Int? = null) : UpdateState
-    data class Failed(val release: AppRelease, val message: String) : UpdateState
+    /** [manual] = dá pra tentar pelo instalador clássico do Android (abre o .apk). */
+    data class Failed(val release: AppRelease, val message: String, val manual: Boolean = false) : UpdateState
 }
 
 /**
@@ -230,6 +234,44 @@ object Updater {
         }
     }
 
+    /**
+     * BUG CORRIGIDO ("toco em Atualizar na janela do Android e nada acontece"):
+     * depois da confirmação o aviso voltava pra "Instalar agora" enquanto o
+     * Android instalava (ou falhava) sem mostrar nada. Agora fica em
+     * "Instalando…" e, se em 2 min não vier resposta, mostra o erro com a
+     * opção de instalar pelo instalador clássico do Android.
+     */
+    private var watchdog: Job? = null
+    private fun startWatchdog(r: AppRelease) {
+        watchdog?.cancel()
+        watchdog = scope.launch {
+            delay(120_000)
+            val st = _state.value
+            if (st is UpdateState.Installing && st.release.versionCode == r.versionCode) {
+                _state.value = UpdateState.Failed(r, "A instalação não terminou. Toque em \"Instalar pelo Android\".", manual = apkFile(r).exists())
+            }
+        }
+    }
+
+    /** Plano B: abre o .apk baixado no instalador clássico do Android. */
+    fun installManually() {
+        val r = when (val st = _state.value) {
+            is UpdateState.Failed -> st.release
+            is UpdateState.Ready -> st.release
+            else -> return
+        }
+        val file = apkFile(r)
+        if (!file.exists()) { retry(); scope.launch { check(force = true) }; return }
+        if (!canInstall()) { openPermissionSettings(); return }
+        runCatching {
+            val uri = FileProvider.getUriForFile(app, "${app.packageName}.updates", file)
+            val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            _state.value = UpdateState.Ready(r, needsPermission = false)
+            _confirm.value = view // a MainActivity abre (Activity visível)
+        }.onFailure { _state.value = UpdateState.Failed(r, "Não deu pra abrir o instalador (${it.message ?: "erro"}).", manual = false) }
+    }
+
     fun openPermissionSettings() {
         if (Build.VERSION.SDK_INT < 26) return
         runCatching {
@@ -249,7 +291,7 @@ object Updater {
 
     internal fun onResult(intent: Intent) {
         val st = _state.value
-        val r = (st as? UpdateState.Installing)?.release ?: (st as? UpdateState.Ready)?.release ?: return
+        val r = (st as? UpdateState.Installing)?.release ?: (st as? UpdateState.Ready)?.release ?: (st as? UpdateState.Failed)?.release ?: return
         when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                 // O sistema quer confirmação. Só abre se a pessoa pediu; senão
@@ -259,18 +301,38 @@ object Updater {
                 if (intent.getBooleanExtra("userAsked", false) && confirm != null) {
                     // Quem abre é a MainActivity (ver confirm) — abrir daqui era barrado.
                     _confirm.value = confirm
+                    // Depois de "Atualizar" o Android instala em segundo plano:
+                    // continua "Instalando…" (antes voltava pra "Instalar agora").
+                    _state.value = UpdateState.Installing(r, null)
+                    startWatchdog(r)
+                } else {
+                    _state.value = UpdateState.Ready(r, needsPermission = false)
                 }
-                _state.value = UpdateState.Ready(r, needsPermission = false)
             }
-            PackageInstaller.STATUS_SUCCESS -> _state.value = UpdateState.None
-            PackageInstaller.STATUS_FAILURE_ABORTED -> _state.value = UpdateState.Ready(r, needsPermission = !canInstall())
+            PackageInstaller.STATUS_SUCCESS -> { watchdog?.cancel(); _state.value = UpdateState.None }
+            PackageInstaller.STATUS_FAILURE_ABORTED -> { watchdog?.cancel(); _state.value = UpdateState.Ready(r, needsPermission = !canInstall()) }
+            PackageInstaller.STATUS_FAILURE_CONFLICT, PackageInstaller.STATUS_FAILURE_INCOMPATIBLE -> {
+                watchdog?.cancel()
+                // Assinatura diferente (app instalado de outra origem) ou versão
+                // incompatível: o Android nunca deixa atualizar por cima.
+                _state.value = UpdateState.Failed(r, "O app instalado não aceita esta atualização (assinatura diferente). Desinstale e instale de novo pelo site: projectclub.shardweb.app/atualizar", manual = false)
+            }
             else -> {
+                watchdog?.cancel()
                 val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "o Android recusou a instalação"
-                // Arquivo ruim/conflito: apaga pra baixar de novo na próxima.
-                apkFile(r).delete()
-                _state.value = UpdateState.Failed(r, msg)
+                val ok = runCatching { verify(apkFile(r), r) }.getOrDefault(false)
+                if (!ok) apkFile(r).delete() // arquivo ruim: baixa de novo na próxima
+                _state.value = UpdateState.Failed(r, "$msg. Toque em \"Instalar pelo Android\".", manual = ok)
             }
         }
+    }
+}
+
+/** O Android fecha o app ao atualizar: avisa que terminou (toque abre o app). */
+class AppUpdatedReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        runCatching { com.projectclub.android.notify.Notifier.appUpdated(context, BuildConfig.VERSION_NAME) }
     }
 }
 

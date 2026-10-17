@@ -76,6 +76,21 @@ object Notifier {
         try { NotificationManagerCompat.from(ctx).notify(id, n) } catch (_: SecurityException) { /* sem permissão */ }
     }
 
+    /** Depois de se atualizar o Android fecha o app: avisa e abre com um toque. */
+    fun appUpdated(ctx: Context, versionName: String) {
+        createChannels(ctx)
+        val id = 7101
+        val n = NotificationCompat.Builder(ctx, CH_NOTICES)
+            .setSmallIcon(R.drawable.ic_stat_pc)
+            .setContentTitle("Project Club atualizado")
+            .setContentText("Versão $versionName instalada. Toque para abrir.")
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .setContentIntent(openIntent(ctx, id) { })
+            .build()
+        post(ctx, id, n)
+    }
+
     fun message(ctx: Context, conversationId: String, title: String, text: String) {
         val id = conversationId.hashCode()
         val n = NotificationCompat.Builder(ctx, CH_MESSAGES)
