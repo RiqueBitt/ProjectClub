@@ -27,6 +27,20 @@
 .vx-q-ok { background: var(--yellow, #f0b232); }
 .vx-q-bad { background: var(--red, #ed4245); }
 
+/* Medidor ao vivo (configurações) e painel "Voz conectada". */
+.vx-live-meter { display: flex; flex-direction: column; gap: 6px; max-width: 420px; }
+.vx-meter-fill.is-gated { background: var(--text-muted, #949ba4); }
+.vx-conn { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--border); min-width: 220px; }
+.vx-conn-head { display: flex; align-items: center; gap: 8px; }
+.vx-conn-state.is-good { color: var(--green, #3ba55d); }
+.vx-conn-state.is-ok { color: var(--yellow, #f0b232); }
+.vx-conn-state.is-bad { color: var(--red, #ed4245); }
+.vx-conn-grid { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 13px; }
+.vx-conn-grid dt { color: var(--text-muted); }
+.vx-conn-grid dd { margin: 0; color: var(--header-primary); font-variant-numeric: tabular-nums; }
+.cb-conn-pop { position: absolute; bottom: calc(100% + 8px); left: 8px; z-index: 30; box-shadow: 0 14px 34px -16px rgba(0, 0, 0, .7); }
+.call-bar.cb .cb-status { cursor: pointer; }
+
 @media (max-width: 600px) {
   .vx-silent { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); font-size: 12.5px; }
 }

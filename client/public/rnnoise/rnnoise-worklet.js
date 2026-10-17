@@ -15,6 +15,13 @@ import createRNNWasmModuleSync from './rnnoise-sync.js';
 // completo antes de processar, e outro pra devolver o resultado aos
 // poucos conforme o AudioWorklet for pedindo mais.
 const FRAME_SIZE = 480;
+// VAD (detecção de voz): o rnnoise_process_frame devolve a probabilidade de
+// ter voz no quadro (0..1). Mandamos pra thread principal ~20 vezes por
+// segundo (a cada 5 quadros de 10ms, com o MAIOR valor do intervalo) junto
+// com um "aberto" que já tem 200ms de segura (não corta o fim das palavras).
+const VAD_EVERY_FRAMES = 5;
+const VAD_OPEN_PROB = 0.5;
+const VAD_HANGOVER_FRAMES = 20; // 200ms
 
 class RNNoiseProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -22,8 +29,16 @@ class RNNoiseProcessor extends AudioWorkletProcessor {
     this.ready = false;
     this.enabled = true;
 
+    this.vadMax = 0;
+    this.vadFrames = 0;
+    this.framesSinceVoice = Infinity;
     this.port.onmessage = (e) => {
-      if (e.data?.type === 'toggle') this.enabled = !!e.data.enabled;
+      if (e.data?.type === 'toggle') {
+        const was = this.enabled;
+        this.enabled = !!e.data.enabled;
+        // Desligou: avisa que não tem mais VAD (o portão volta a ser só por nível).
+        if (was && !this.enabled) { try { this.port.postMessage({ type: 'vad', p: -1, open: false, off: true }); } catch { /* ok */ } }
+      }
     };
 
     // BUG CORRIGIDO: "(intermediate value)().then is not a function" — o
@@ -57,11 +72,26 @@ class RNNoiseProcessor extends AudioWorkletProcessor {
     const heap = module.HEAPF32;
     const inOffset = inputPtr / 4;
     for (let i = 0; i < FRAME_SIZE; i++) heap[inOffset + i] = frame[i] * 32768;
-    module._rnnoise_process_frame(state, outputPtr, inputPtr);
+    const vad = module._rnnoise_process_frame(state, outputPtr, inputPtr);
+    this.trackVad(vad);
     const outOffset = outputPtr / 4;
     const result = this.scratch;
     for (let i = 0; i < FRAME_SIZE; i++) result[i] = heap[outOffset + i] / 32768;
     return result;
+  }
+
+  // Junta a probabilidade de voz de 5 quadros (50ms) e manda o maior valor.
+  trackVad(p) {
+    const v = Number.isFinite(p) ? p : 0;
+    if (v >= VAD_OPEN_PROB) this.framesSinceVoice = 0;
+    else if (this.framesSinceVoice !== Infinity) this.framesSinceVoice += 1;
+    if (v > this.vadMax) this.vadMax = v;
+    this.vadFrames += 1;
+    if (this.vadFrames < VAD_EVERY_FRAMES) return;
+    const open = this.framesSinceVoice <= VAD_HANGOVER_FRAMES;
+    try { this.port.postMessage({ type: 'vad', p: Math.round(this.vadMax * 1000) / 1000, open }); } catch { /* ok */ }
+    this.vadMax = 0;
+    this.vadFrames = 0;
   }
 
   // Buffers FIXOS (sem alocar a cada bloco de 128 amostras — a thread de

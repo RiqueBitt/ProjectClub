@@ -137,6 +137,7 @@ export function RecordingCapture({ voice, meId }) {
   const rec = voice?.recording;
   const mine = rec && String(rec.byUserId) === String(meId);
   const remoteAudioStreams = voice?.remoteAudioStreams;
+  const remoteScreenAudioStreams = voice?.remoteScreenAudioStreams;
   const recorderRef = useRef(null);
   const ctxRef = useRef(null);
 
@@ -158,6 +159,8 @@ export function RecordingCapture({ voice, meId }) {
       if (micMedia) connectStream(new MediaStream([micMedia]));
       // Áudio de cada participante.
       Object.values(remoteAudioStreams || {}).forEach(connectStream);
+      // Som das telas transmitidas (vem separado da voz).
+      Object.values(remoteScreenAudioStreams || {}).forEach(connectStream);
 
       const rec2 = new MediaRecorder(dest.stream, { mimeType: 'audio/webm' });
       rec2.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
@@ -184,7 +187,7 @@ export function RecordingCapture({ voice, meId }) {
       void stopped;
     };
   // Recria se entrar mais gente com áudio durante a gravação (pra captar todos).
-  }, [mine, remoteAudioStreams]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mine, remoteAudioStreams, remoteScreenAudioStreams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;
 }

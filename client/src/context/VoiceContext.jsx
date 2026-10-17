@@ -7,8 +7,8 @@ import { getExtra, useExtra } from '../utils/extraPrefs';
 import { getPreferredMicId, setPreferredMicId } from '../utils/audioDevices';
 import { getVoiceJoin, reportVoiceProvider } from '../api/endpoints';
 import { createFailureMemory, failureCode, withTimeout, isProviderFailure } from '../voice/resilience.js';
-import { getVoicePref, onVoicePrefsChange, setVoicePref, makeReactionRateLimiter, isValidReaction } from '../utils/voicePrefs';
-import { buildScreenShareConfig, SCREEN_QUALITY_PRESETS } from '../utils/screenShareTracks';
+import { getVoicePref, onVoicePrefsChange, setVoicePref, makeReactionRateLimiter, isValidReaction, micInputGainFromPrefs, pttReleaseFromPrefs } from '../utils/voicePrefs';
+import { buildScreenShareConfig, SCREEN_QUALITY_PRESETS, ALLOWED_FPS } from '../utils/screenShareTracks';
 // Cadeia de provedores de mídia (servidor próprio → LiveKit → ... → Jitsi) —
 // ver client/src/voice/* e docs/voice-fallback.md. TODA a mídia passa por um
 // ENGINE do engineRegistry (mediasoup próprio, LiveKit, Jitsi, pendentes),
@@ -130,6 +130,18 @@ function loadSavedVolumes() {
 function saveVolumes(v) {
   try { localStorage.setItem(VOLUMES_KEY, JSON.stringify(v)); } catch { /* sem storage — só não lembra */ }
 }
+// Volume do SOM DA TELA de cada pessoa (separado da voz, igual ao "volume da
+// transmissão" do Discord), também lembrado por pessoa.
+const STREAM_VOLUMES_KEY = 'pc.voiceStreamVolumes';
+function loadSavedStreamVolumes() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STREAM_VOLUMES_KEY) || '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch { return {}; }
+}
+function saveStreamVolumes(v) {
+  try { localStorage.setItem(STREAM_VOLUMES_KEY, JSON.stringify(v)); } catch { /* sem storage — só não lembra */ }
+}
 function dropKey(obj, key) {
   if (!(key in obj)) return obj;
   const n = { ...obj }; delete n[key]; return n;
@@ -239,11 +251,16 @@ export function VoiceProvider({ children }) {
   // então se corrige sozinho assim que o estado chega.
   const [remoteVideoStreams, setRemoteVideoStreams] = useState({});
   const [remoteAudioStreams, setRemoteAudioStreams] = useState({});
+  // Som da tela de cada pessoa, separado da voz (engine próprio).
+  const [remoteScreenAudioStreams, setRemoteScreenAudioStreams] = useState({});
+  // Painel "Voz conectada": ping (ms) e perda no envio (0..1) do engine.
+  const [connStats, setConnStats] = useState(null);
   // Quem está conectado na mídia neste momento — usado pra nunca
   // esconder alguém que está na chamada de verdade só porque um evento
   // de socket se perdeu.
   const [mediaUids, setMediaUids] = useState({});
   const [volumes, setVolumes] = useState(loadSavedVolumes);
+  const [streamVolumes, setStreamVolumes] = useState(loadSavedStreamVolumes);
   const [roster, setRoster] = useState({});
   const [rosterStartedAt, setRosterStartedAt] = useState({});
   const [rosterSpeaking, setRosterSpeaking] = useState({});
@@ -289,7 +306,8 @@ export function VoiceProvider({ children }) {
   const applyEngineMicConfig = useCallback((engine = engineRef.current) => {
     if (!engine) return;
     const p = getExtra();
-    try { engine.setPushToTalk?.(getVoicePref('pushToTalkEnabled') === true, { releaseDelayMs: 200 }); } catch { /* engine sem PTT */ }
+    try { engine.setPushToTalk?.(getVoicePref('pushToTalkEnabled') === true, { releaseDelayMs: pttReleaseFromPrefs(getVoicePref('pushToTalkReleaseMs')) }); } catch { /* engine sem PTT */ }
+    try { engine.setInputGain?.(micInputGainFromPrefs(p)); } catch { /* engine sem ganho */ }
     try {
       engine.setInputSensitivity?.(p.sensitivityAuto === false ? { auto: false, db: Number.isFinite(p.sensitivityDb) ? p.sensitivityDb : -60 } : { auto: true });
     } catch { /* engine sem sensibilidade */ }
@@ -489,6 +507,7 @@ export function VoiceProvider({ children }) {
         if ((reason === 'token' || reason === 'gave-up' || reason === 'closed') && callRef.current) {
           engineRef.current = null;
           setRemoteAudioStreams({});
+          setRemoteScreenAudioStreams({});
           setRemoteVideoStreams({});
           setReconnecting(null);
           // Caiu por falta de internet / limite de tentativas: NÃO é falha do
@@ -520,7 +539,7 @@ export function VoiceProvider({ children }) {
         reportVoiceFailure(prov, Object.assign(new Error(`mídia não conectou (${code})`), { code }), channelId);
         requestMediaRecoveryRef.current?.({ failed: prov, code });
       },
-      onReconnecting: (attempt) => { setReconnecting({ attempt }); setNetQuality({}); },
+      onReconnecting: (attempt, why) => { setReconnecting({ attempt, offline: why === 'sem internet' || (typeof navigator !== 'undefined' && navigator.onLine === false) }); setNetQuality({}); },
       onReconnected: () => { setReconnecting(null); },
       // Qualidade/ping vindos do engine (SFU próprio / LiveKit), na escala
       // 0-6 da UI — cai nos mesmos pontinhos/barras.
@@ -531,6 +550,11 @@ export function VoiceProvider({ children }) {
         });
       },
       onRtt: (rtt) => { const r = Math.round(rtt / 5) * 5; setMyRtt((prev) => (prev === r ? prev : r)); },
+      // Perda no envio pro painel "Voz conectada" (arredondada: sem render à toa).
+      onConnectionStats: ({ sendLoss } = {}) => {
+        const loss = Number.isFinite(sendLoss) ? Math.round(sendLoss * 1000) / 1000 : null;
+        setConnStats((prev) => (prev && prev.sendLoss === loss ? prev : { sendLoss: loss }));
+      },
       // Fala: espelha no MEU anel verde e reemite pros outros pelo nosso
       // socket. O engine próprio já desconta mudo/portão fechado
       // (apertar-pra-falar sem a tecla, abaixo da sensibilidade).
@@ -569,12 +593,14 @@ export function VoiceProvider({ children }) {
         else setMediaUids((s) => dropKey(s, uidStr));
       },
       onRemoteAudio: (uid, stream) => setRemoteAudioStreams((s) => ({ ...s, [String(uid)]: stream })),
+      // Som da tela separado (volume próprio); null = parou.
+      onRemoteScreenAudio: (uid, stream) => setRemoteScreenAudioStreams((s) => (stream ? { ...s, [String(uid)]: stream } : dropKey(s, String(uid)))),
       onRemoteVideo: (uid, stream) => setRemoteVideoStreams((s) => ({ ...s, [String(uid)]: stream })),
       onRemoteRemove: (uid, kind) => {
         const uidStr = String(uid);
         if (kind === 'audio' || kind === 'all') setRemoteAudioStreams((s) => dropKey(s, uidStr));
         if (kind === 'video' || kind === 'all') setRemoteVideoStreams((s) => dropKey(s, uidStr));
-        if (kind === 'all') setMediaUids((s) => dropKey(s, uidStr));
+        if (kind === 'all') { setMediaUids((s) => dropKey(s, uidStr)); setRemoteScreenAudioStreams((s) => dropKey(s, uidStr)); }
       },
     };
     engine = createEngine(prov, callbacks, creds);
@@ -746,6 +772,7 @@ export function VoiceProvider({ children }) {
     if (syncTimerRef.current) { clearTimeout(syncTimerRef.current); syncTimerRef.current = null; }
     setNetQuality({});
     setMyRtt(null);
+    setConnStats(null);
     setReconnecting(null);
     setCallStartedAt(null);
     setScreenQuality(null);
@@ -770,6 +797,7 @@ export function VoiceProvider({ children }) {
     setMyRole('speaker');
     setMicMissing(false);
     setRemoteAudioStreams({});
+    setRemoteScreenAudioStreams({});
     setRemoteVideoStreams({});
     setMediaUids({});
     localSpeakingRef.current = false;
@@ -913,7 +941,7 @@ export function VoiceProvider({ children }) {
   // Trocar a qualidade da tela SEM parar a transmissão (o engine aplica na
   // faixa que já está no ar). Também lembra a escolha pra próxima vez.
   const setScreenShareQuality = useCallback(async ({ quality, frameRate }) => {
-    if (!SCREEN_QUALITY_PRESETS[quality] || ![15, 30, 60].includes(frameRate)) return false;
+    if (!SCREEN_QUALITY_PRESETS[quality] || !ALLOWED_FPS.includes(frameRate)) return false;
     try {
       const saved = JSON.parse(localStorage.getItem('screenShareOptions') || 'null') || {};
       localStorage.setItem('screenShareOptions', JSON.stringify({ audio: true, ...saved, quality, frameRate }));
@@ -943,6 +971,22 @@ export function VoiceProvider({ children }) {
       saveVolumes(next);
       return next;
     });
+  }, []);
+  // Volume do SOM DA TELA de uma pessoa (0–2), separado da voz. Provedor
+  // que não separa (Jitsi/LiveKit): o som da tela vem junto da voz e segue o
+  // volume da pessoa.
+  const setStreamVolume = useCallback((userId, volume) => {
+    const v = Math.min(2, Math.max(0, Number(volume) || 0));
+    setStreamVolumes((s) => {
+      const next = { ...s, [userId]: v };
+      saveStreamVolumes(next);
+      return next;
+    });
+  }, []);
+  // Onde cada vídeo remoto aparece (bloco visível? altura?) → o engine pausa
+  // o que ninguém vê e escolhe a camada do simulcast pelo tamanho.
+  const reportVideoViewport = useCallback((uid, kind, viewId, view) => {
+    try { engineRef.current?.setVideoViewport?.(String(uid), kind, view, viewId); } catch { /* engine sem isso */ }
   }, []);
 
   const raiseHand = useCallback((raised = true) => {
@@ -1469,6 +1513,7 @@ export function VoiceProvider({ children }) {
             // Derruba a mídia atual (preserva sessão/socket/roster/UI).
             teardownEngine();
             setRemoteAudioStreams({});
+            setRemoteScreenAudioStreams({});
             setRemoteVideoStreams({});
             tornDown = true;
           }
@@ -1566,10 +1611,13 @@ export function VoiceProvider({ children }) {
   // Preferências de sensibilidade (Configurações → Voz e vídeo) — reativas.
   const sensitivityAuto = useExtra('sensitivityAuto');
   const sensitivityDb = useExtra('sensitivityDb');
+  const inputVolume = useExtra('inputVolume');
+  const [pttReleaseMs, setPttReleaseMs] = useState(() => pttReleaseFromPrefs(getVoicePref('pushToTalkReleaseMs')));
+  useEffect(() => onVoicePrefsChange((p) => setPttReleaseMs(pttReleaseFromPrefs(p.pushToTalkReleaseMs))), []);
   useEffect(() => {
     if (!callChannelId) return;
     applyEngineMicConfig();
-  }, [callChannelId, provider, pttEnabled, sensitivityAuto, sensitivityDb, applyEngineMicConfig]);
+  }, [callChannelId, provider, pttEnabled, sensitivityAuto, sensitivityDb, inputVolume, pttReleaseMs, applyEngineMicConfig]);
 
   // Tecla do apertar-pra-falar: o portão (com 200ms de folga ao soltar) é do
   // engine (setPushToTalk/setPttPressed). Aqui: teclado, som e o "mudo" que
@@ -1659,6 +1707,16 @@ export function VoiceProvider({ children }) {
     jitsiHostRef.current = null;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Painel "Voz conectada": estado em texto, ping e perda no envio.
+  const connectionInfo = useMemo(() => {
+    if (!call && !joiningChannelId) return null;
+    let state = 'connected';
+    if (reconnecting) state = reconnecting.offline ? 'offline' : 'reconnecting';
+    else if (!call || reconnectingProvider) state = 'connecting';
+    const LABELS = { connecting: 'Conectando', connected: 'Conectado', reconnecting: 'Reconectando', offline: 'Sem internet' };
+    return { state, label: LABELS[state], ping: myRtt, sendLoss: connStats?.sendLoss ?? null, provider };
+  }, [call, joiningChannelId, reconnecting, reconnectingProvider, myRtt, connStats, provider]);
+
   // Bytes de áudio recebidos de uma pessoa (pro AudioSink perceber "bytes
   // chegando mas nada tocando" e pro diagnóstico). null = desconhecido.
   const getInboundAudioBytes = useCallback((uid) => {
@@ -1677,6 +1735,9 @@ export function VoiceProvider({ children }) {
       subscribeMicLevel,
       localSpeaking, joiningChannelId,
       remoteCameraStreams, remoteScreenStreams, remoteAudioStreams, volumes, getInboundAudioBytes,
+      // Som da tela separado da voz + volume próprio por pessoa.
+      remoteScreenAudioStreams, streamVolumes, setStreamVolume,
+      reportVideoViewport, connectionInfo,
       // Auto-retrato local (MediaStream devolvido pelo engine).
       localCameraStream: engineLocalCameraStream,
       localScreenStream: engineLocalScreenStream,

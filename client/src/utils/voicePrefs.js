@@ -19,6 +19,7 @@ const DEFAULTS = {
   pushToTalkKey: 'Space',     // F — tecla (event.code)
   captions: false,            // K — legendas ao vivo (pt-BR)
   callViewMode: 'auto',       // H — 'auto' | 'grid' | 'focus'
+  pushToTalkReleaseMs: 200,   // F — folga depois de soltar a tecla (ms)
 };
 
 let cache = null;
@@ -85,4 +86,17 @@ export function prettyKeyName(code) {
   if (code.startsWith('Arrow')) return `Seta ${({ Up: 'cima', Down: 'baixo', Left: 'esquerda', Right: 'direita' })[code.slice(5)] || ''}`.trim();
   const map = { ControlLeft: 'Ctrl', ControlRight: 'Ctrl (dir.)', ShiftLeft: 'Shift', ShiftRight: 'Shift (dir.)', AltLeft: 'Alt', AltRight: 'Alt (dir.)' };
   return map[code] || code;
+}
+
+// ---------- Microfone no engine ----------
+// Volume de entrada (preferência `inputVolume`, 0–200%) → ganho 0..2.
+export function micInputGainFromPrefs(extra = {}) {
+  const pct = Number(extra?.inputVolume);
+  return Number.isFinite(pct) ? Math.max(0, Math.min(200, pct)) / 100 : 1;
+}
+
+// Folga do apertar-pra-falar ao soltar a tecla (0–2000 ms, padrão 200).
+export function pttReleaseFromPrefs(value) {
+  const ms = Number(value);
+  return value != null && Number.isFinite(ms) ? Math.max(0, Math.min(2000, Math.round(ms))) : 200;
 }

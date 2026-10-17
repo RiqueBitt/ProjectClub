@@ -162,3 +162,58 @@ export function QualityDot({ quality }) {
   if (!q) return null;
   return <span className={`vx-q vx-q-${q[0]}`} title={q[1]} aria-label={q[1]} role="img" />;
 }
+
+// ---------- Medidor do microfone AO VIVO (dentro da chamada) ----------
+// Lê o nível que o engine mede no pipeline do mic (subscribeMicLevel,
+// ~10/s): o mesmo sinal que vai pra call, depois do redutor e do volume de
+// entrada. Verde = transmitindo; cinza = o portão está fechado (abaixo da
+// sensibilidade / apertar-pra-falar solto).
+export function LiveMicMeter({ voice }) {
+  const [level, setLevel] = useState(0);
+  const [open, setOpen] = useState(true);
+  const subscribe = voice?.subscribeMicLevel;
+  useEffect(() => {
+    if (typeof subscribe !== 'function') return undefined;
+    return subscribe((lv, info) => {
+      setLevel(Math.max(0, Math.min(1, Number(lv) || 0)));
+      setOpen(info ? !!info.transmitting : true);
+    });
+  }, [subscribe]);
+  return (
+    <div className="vx-live-meter">
+      <div className="vx-meter" role="meter" aria-label="Nível do microfone na chamada" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(level * 100)}>
+        <span className={`vx-meter-fill${open ? '' : ' is-gated'}`} style={{ width: `${Math.round(level * 100)}%` }} />
+      </div>
+      <small className="dim">{open ? 'Transmitindo' : 'Microfone fechado (abaixo da sensibilidade ou tecla solta)'}</small>
+    </div>
+  );
+}
+
+// ---------- Painel "Voz conectada" ----------
+// Estado da conexão em texto (Conectando / Conectado / Reconectando / Sem
+// internet), ping até o servidor de mídia e perda de pacotes no ENVIO
+// (o que o servidor relata sobre o que você manda).
+export function lossText(loss) {
+  if (loss == null || !Number.isFinite(loss)) return '—';
+  const pct = loss * 100;
+  return `${pct < 10 ? pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : Math.round(pct)}%`;
+}
+
+export function VoiceConnectionPanel({ voice, className = '' }) {
+  const info = voice?.connectionInfo;
+  if (!info) return null;
+  const tone = info.state === 'connected' ? 'good' : info.state === 'connecting' ? 'ok' : 'bad';
+  return (
+    <div className={`vx-conn ${className}`} role="status" aria-live="polite">
+      <div className="vx-conn-head">
+        <span className={`vx-q vx-q-${tone}`} aria-hidden="true" />
+        <strong className={`vx-conn-state is-${tone}`}>{info.state === 'connected' ? 'Voz conectada' : info.label}</strong>
+      </div>
+      <dl className="vx-conn-grid">
+        <dt>Estado</dt><dd>{info.label}</dd>
+        <dt>Ping</dt><dd>{info.ping != null ? `${info.ping} ms` : '—'}</dd>
+        <dt>Perda no envio</dt><dd>{lossText(info.sendLoss)}</dd>
+      </dl>
+    </div>
+  );
+}

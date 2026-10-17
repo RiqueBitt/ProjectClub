@@ -61,6 +61,22 @@ test('Voz e vídeo mostra os novos controles e guarda as escolhas', async ({ pag
   await expect.poll(async () => {
     return page.evaluate(() => JSON.parse(localStorage.getItem('pc.voicePrefs') || '{}').pushToTalkEnabled);
   }).toBe(true);
+  // Atraso ao soltar a tecla (folga do PTT) também é guardado.
+  const release = page.getByRole('slider', { name: /Atraso ao soltar a tecla/ });
+  await expect(release).toHaveValue('200');
+  await release.fill('400');
+  await expect.poll(async () => {
+    return page.evaluate(() => JSON.parse(localStorage.getItem('pc.voicePrefs') || '{}').pushToTalkReleaseMs);
+  }).toBe(400);
+
+  // Volume de entrada do microfone (0–200%).
+  const inputVol = page.getByRole('slider', { name: 'Volume de entrada do microfone' });
+  await expect(inputVol).toHaveValue('100');
+  await inputVol.fill('150');
+  await expect(page.getByRole('region', { name: 'Volume de entrada' }).locator('output')).toHaveText('150%');
+  await expect.poll(async () => {
+    return page.evaluate(() => JSON.parse(localStorage.getItem('pc-extra-prefs') || '{}').inputVolume);
+  }).toBe(150);
 
   // Nivelar volume guarda autoLevelVolume:true.
   const auto = page.getByRole('switch', { name: 'Nivelar volume automaticamente' });

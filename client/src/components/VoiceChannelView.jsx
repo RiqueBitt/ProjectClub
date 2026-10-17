@@ -16,6 +16,7 @@ import { ReactionBar, ReactionsOverlay, RecordingBanner, RecordButton, LiveCapti
 import { getVoicePref, setVoicePref, onVoicePrefsChange } from '../utils/voicePrefs';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
 import { buildVoiceModerationItems } from './voice/voiceModerationMenu';
+import { useVideoViewport } from '../voice/useVideoViewport';
 
 // ============================================================
 // Canal de voz — visual refeito.
@@ -218,10 +219,20 @@ export default function VoiceChannelView({ channel }) {
               {screens.map((s) => (
                 <div key={s.key} className="vc-screen">
                   {/* Sem tela cheia na própria tela: evita o "espelho infinito". */}
-                  <VideoTile stream={s.stream} muted allowFullscreen={!s.mine} />
+                  <VideoTile stream={s.stream} muted allowFullscreen={!s.mine} uid={s.mine ? null : s.uid} kind="screen" report={voice.reportVideoViewport} />
                   <span className="vc-label"><Icon name="screen" size={14} /> {s.mine ? 'Sua tela' : (memberFor(s.uid)?.displayName || 'Tela')}</span>
-                  {/* Volume individual desta transmissão (0–200%). */}
-                  {!s.mine && (
+                  {/* Volume desta transmissão (0–200%): o SOM DA TELA tem volume
+                      próprio, separado da voz (igual ao Discord). Provedor que
+                      manda tudo junto: vale o volume da pessoa, como antes. */}
+                  {!s.mine && (voice.remoteScreenAudioStreams?.[s.uid] ? (
+                    <VolumeControl
+                      className="vc-vol-stream"
+                      name={memberFor(s.uid)?.displayName || 'transmissão'}
+                      volume={voice.streamVolumes?.[s.uid] ?? 1}
+                      onVolume={(v) => voice.setStreamVolume(s.uid, v)}
+                      label="Volume da transmissão"
+                    />
+                  ) : (
                     <VolumeControl
                       className="vc-vol-stream"
                       name={memberFor(s.uid)?.displayName || 'transmissão'}
@@ -229,7 +240,7 @@ export default function VoiceChannelView({ channel }) {
                       onVolume={(v) => voice.setParticipantVolume(s.uid, v)}
                       label="Volume da transmissão"
                     />
-                  )}
+                  ))}
                 </div>
               ))}
             </div>
@@ -359,6 +370,7 @@ function VolumeControl({ name, volume, onVolume, className = '', label = 'Volume
 
 function PersonTile({ uid, person, isMe, state, connecting, cameraStream, volume, onVolume, extra, quality, menuItems }) {
   const color = person?.profileColor || 'var(--brand)';
+  const report = useVoice()?.reportVideoViewport;
   const { openMenu } = useContextMenu();
   const hasMenu = Array.isArray(menuItems) && menuItems.length > 0;
   const modState = state.serverDeafened ? 'Ensurdecido no servidor' : state.serverMuted ? 'Silenciado no servidor' : null;
@@ -369,7 +381,7 @@ function PersonTile({ uid, person, isMe, state, connecting, cameraStream, volume
       onContextMenu={hasMenu ? (e) => openMenu(e, menuItems) : undefined}
     >
       {cameraStream && !connecting ? (
-        <VideoTile stream={cameraStream} muted={isMe} />
+        <VideoTile stream={cameraStream} muted={isMe} uid={isMe ? null : uid} kind="camera" report={report} />
       ) : (
         <div className="vc-tile-avatar">
           <UserAvatar user={person || { displayName: uid }} size={84} />
@@ -546,10 +558,13 @@ function VoiceCallControls({ voice, micLocked, onActivity }) {
   );
 }
 
-function VideoTile({ stream, muted, allowFullscreen }) {
+// uid/kind/report: vídeo REMOTO — conta pro engine se está visível e o
+// tamanho (pausa o que ninguém vê; camada do simulcast pelo tamanho).
+function VideoTile({ stream, muted, allowFullscreen, uid = null, kind = 'camera', report = null }) {
   const ref = useRef(null);
   const wrapRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  useVideoViewport(wrapRef, { uid, kind, report, enabled: !!uid && !!stream });
 
   useEffect(() => {
     if (ref.current) ref.current.srcObject = stream;

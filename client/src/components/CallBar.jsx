@@ -8,6 +8,8 @@ import CallIcon, { SignalBars, QUALITY_LABELS, signalTone } from './voice/CallIc
 import ScreenQualityMenu from './voice/ScreenQualityMenu.jsx';
 import MiniCallWindow from './voice/MiniCallWindow.jsx';
 import { RecordingConsentModal, RecordingCapture } from './voice/CallExtras.jsx';
+import { VoiceConnectionPanel } from './voice/VoiceExtras.jsx';
+import '../styles/voice-extras.css';
 import { api } from '../api/client';
 import { getPreferredSpeakerId, setPreferredSpeakerId, getPreferredMicId, isOutputSelectionSupported, onSpeakerPreferenceChange, listAudioDevices } from '../utils/audioDevices';
 import { getVoicePref, onVoicePrefsChange } from '../utils/voicePrefs';
@@ -166,6 +168,18 @@ export default function CallBar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showScreenShareMenu, setShowScreenShareMenu] = useState(false);
+  // Painel "Voz conectada" (clique no status): estado, ping e perda no envio.
+  const [showConn, setShowConn] = useState(false);
+  usePopoverCoordination(showConn, () => setShowConn(false));
+  const connWrapRef = useRef(null);
+  useEffect(() => {
+    if (!showConn) return undefined;
+    const onDown = (e) => { if (!connWrapRef.current?.contains(e.target)) setShowConn(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setShowConn(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [showConn]);
   // Janelinha flutuante escondida pela pessoa: volta na próxima chamada
   // ou depois de abrir a tela da chamada de novo.
   const [miniHidden, setMiniHidden] = useState(false);
@@ -223,10 +237,17 @@ export default function CallBar() {
       <div className="cb-inner">
       <div className="cb-info">
       <div className="cb-head">
-        <div className="cb-status" data-tip={signalTip} tabIndex={0} aria-label={signalTip}>
-          <SignalBars quality={myQuality} />
-          <span className="cb-status-text truncate">{statusText}</span>
-          {pingText && <span className="cb-ping">{pingText}</span>}
+        <div ref={connWrapRef} style={{ display: 'contents' }}>
+          <div
+            className="cb-status" data-tip={showConn ? undefined : signalTip} tabIndex={0} aria-label={signalTip} role="button"
+            aria-expanded={showConn} onClick={() => setShowConn((v) => !v)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowConn((v) => !v); } }}
+          >
+            <SignalBars quality={myQuality} />
+            <span className="cb-status-text truncate">{voice.reconnecting ? (voice.connectionInfo?.label || 'Reconectando') : statusText}</span>
+            {pingText && <span className="cb-ping">{pingText}</span>}
+          </div>
+          {showConn && <VoiceConnectionPanel voice={voice} className="cb-conn-pop" />}
         </div>
         {/* Modo reserva (Jitsi): avisa discretamente que a mídia está no
             provedor de backup. Ver docs/voice-fallback.md. */}
@@ -319,6 +340,8 @@ export default function CallBar() {
 function RemoteAudioSinks() {
   const voice = useVoice();
   const { remoteAudioStreams, deafened, volumes } = voice;
+  const remoteScreenAudioStreams = voice.remoteScreenAudioStreams || {};
+  const streamVolumes = voice.streamVolumes || {};
   // Item pedido E ("auto nivelar volume"): quando ligado, cada voz passa
   // por um compressor leve que aproxima os volumes — quem fala baixo fica
   // mais audível e quem fala alto não estoura. Local-only (só no SEU áudio).
@@ -363,6 +386,15 @@ function RemoteAudioSinks() {
           key={userId} userId={userId} stream={stream}
           volume={deafened ? 0 : (volumes[userId] ?? 1)} autoLevel={autoLevel} sinkId={sinkId}
           getInboundBytes={voice.getInboundAudioBytes} provider={voice.provider} callKey={callKey}
+        />
+      ))}
+      {/* Som da tela de cada pessoa: player próprio, com o "volume da
+          transmissão" (separado do volume da voz). */}
+      {Object.entries(remoteScreenAudioStreams).map(([userId, stream]) => (
+        <AudioSink
+          key={`${userId}#tela`} userId={userId} stream={stream}
+          volume={deafened ? 0 : (streamVolumes[userId] ?? 1)} autoLevel={false} sinkId={sinkId}
+          getInboundBytes={null} provider={voice.provider} callKey={`${callKey}#tela`}
         />
       ))}
     </>

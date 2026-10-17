@@ -18,7 +18,10 @@
 import { createNoiseNode, NOISE_SAMPLE_RATE } from './noiseSuppressor.js';
 import { rmsToDb } from './micGate.js';
 
-const GATE_RAMP_S = 0.012;      // rampa do portão (evita estalo)
+// Rampas do portão (sem estalo): abre rápido (não come o começo da sílaba),
+// fecha devagarinho (sem "clique" no fim da fala).
+const GATE_OPEN_RAMP_S = 0.008;
+const GATE_CLOSE_RAMP_S = 0.03;
 const RESUME_GRACE_MS = 1500;   // contexto suspenso por mais que isso → modo direto
 
 function audioContextClass() {
@@ -28,7 +31,7 @@ function audioContextClass() {
 
 // Cria o pipeline pra uma faixa crua. Nunca lança: sem Web Audio, devolve
 // um pipeline "direto" (a própria faixa, portão por enabled).
-export async function createMicPipeline(rawTrack, { noise = false, onBypass = null, onRestore = null, log = console } = {}) {
+export async function createMicPipeline(rawTrack, { noise = false, onBypass = null, onRestore = null, onVad = null, log = console } = {}) {
   const Ctx = audioContextClass();
   let ctx = null;
   let source = null; let noiseNode = null; let inputGain = null; let gateGain = null; let analyser = null; let dest = null;
@@ -98,7 +101,7 @@ export async function createMicPipeline(rawTrack, { noise = false, onBypass = nu
       inputGain.connect(gateGain);
       inputGain.connect(analyser);
       gateGain.connect(dest);
-      if (noiseWanted && ctx.sampleRate === NOISE_SAMPLE_RATE) noiseNode = await createNoiseNode(ctx, { enabled: true });
+      if (noiseWanted && ctx.sampleRate === NOISE_SAMPLE_RATE) noiseNode = await createNoiseNode(ctx, { enabled: true, onVad });
       wire();
       processed = dest.stream.getAudioTracks()[0] || null;
       if (!processed) throw new Error('sem faixa de saída');
@@ -136,7 +139,7 @@ export async function createMicPipeline(rawTrack, { noise = false, onBypass = nu
           const t = ctx.currentTime;
           gateGain.gain.cancelScheduledValues(t);
           gateGain.gain.setValueAtTime(gateGain.gain.value, t);
-          gateGain.gain.linearRampToValueAtTime(gateOpen ? 1 : 0, t + GATE_RAMP_S);
+          gateGain.gain.linearRampToValueAtTime(gateOpen ? 1 : 0, t + (gateOpen ? GATE_OPEN_RAMP_S : GATE_CLOSE_RAMP_S));
         } catch { try { gateGain.gain.value = gateOpen ? 1 : 0; } catch { /* ok */ } }
       }
       if (direct && mode === 'direct') direct.enabled = gateOpen;
@@ -152,7 +155,7 @@ export async function createMicPipeline(rawTrack, { noise = false, onBypass = nu
       if (!ctx) return false;
       if (noiseNode) { noiseNode.setEnabled(noiseWanted); return true; }
       if (!noiseWanted || ctx.sampleRate !== NOISE_SAMPLE_RATE) return false;
-      const n = await createNoiseNode(ctx, { enabled: true });
+      const n = await createNoiseNode(ctx, { enabled: true, onVad });
       if (!n || disposed) return false;
       noiseNode = n;
       try { wire(); } catch { /* ok */ }

@@ -85,8 +85,13 @@
 //   onMicUnavailable({ reason: 'denied'|'missing'|'busy', error }), onMicRecovered()
 //   onMediaFailed({ code }), onMediaError({ kind, reason, cancelled, code })
 //   onMediaUser(uid, present)
-//   onRemoteAudio(uid, MediaStream), onRemoteVideo(uid, MediaStream, kind)
+//   onRemoteAudio(uid, MediaStream)          (só o MICROFONE da pessoa)
+//   onRemoteScreenAudio(uid, MediaStream|null) (só o SOM DA TELA — volume
+//          separado, igual ao "volume da transmissão" do Discord; sem esse
+//          callback o som da tela vai junto no onRemoteAudio, como antes)
+//   onRemoteVideo(uid, MediaStream, kind)
 //   onRemoteRemove(uid, 'audio'|'video'|'all')
+//   onConnectionStats({ rtt, sendLoss, connected })  (~a cada 2s)
 //   onTelemetry({ type, ... }), onError(err, info)
 // API nova documentada em docs/voz-discord-api.md.
 import { createMicPipeline } from './micPipeline.js';
@@ -95,6 +100,10 @@ import {
   classifyClose, iceAction, importWithRetry, browserGuardedReload, micErrorReason, diffPeers, mediaErrorInfo,
 } from './resilience.js';
 import { SCREEN_QUALITY_PRESETS } from '../utils/screenShareTracks.js';
+import {
+  normalizeScreenPreset, screenEncodings, screenContentHint, screenVideoConstraints, displayMediaOptions,
+  spatialLayersOf, viewportDecision, CONSUMER_PRIORITY,
+} from './screenPresets.js';
 
 let msPromise = null;
 function loadMediasoup() {
@@ -110,17 +119,26 @@ function loadMediasoup() {
 export function preloadMediasoup() { loadMediasoup().catch(() => {}); }
 
 // Camadas de simulcast da câmera: o SFU escolhe por ouvinte conforme a banda
-// (PDF 4.4). Tela: uma camada só, priorizando nitidez.
+// (PDF 4.4). Tela: 2 camadas (ver voice/screenPresets.js — tabela de
+// presets, camada baixa pra miniatura e camada cheia).
 const CAMERA_ENCODINGS = [
   { scaleResolutionDownBy: 4, maxBitrate: 150_000, scalabilityMode: 'L1T3' },
   { scaleResolutionDownBy: 2, maxBitrate: 500_000, scalabilityMode: 'L1T3' },
   { scaleResolutionDownBy: 1, maxBitrate: 1_200_000, scalabilityMode: 'L1T3' },
 ];
-const SCREEN_DEFAULT_BITRATE = 2_500_000;
 // Microfone: prioridade ALTA na fila do navegador e na rede (DSCP) — a voz
 // passa na frente da câmera/tela quando a banda aperta (igual ao Discord).
 const MIC_ENCODINGS = [{ priority: 'high', networkPriority: 'high' }];
-const MIC_CODEC_OPTIONS = { opusStereo: false, opusDtx: true, opusFec: true, opusMaxAverageBitrate: 64000 };
+// opusNack: o servidor retransmite pacote de voz perdido (consumer com
+// enableRtx) — junto com o FEC, a voz aguenta perda de rede.
+const MIC_CODEC_OPTIONS = { opusStereo: false, opusDtx: true, opusFec: true, opusNack: true, opusMaxAverageBitrate: 64000 };
+// Som da tela (música/jogo/vídeo): estéreo, sem DTX (silêncio de música não
+// é silêncio de voz), FEC e 128 kbps.
+const SCREEN_AUDIO_CODEC_OPTIONS = { opusStereo: true, opusDtx: false, opusFec: true, opusMaxAverageBitrate: 128000 };
+// Linux (app de PC): nome do microfone virtual do venmic com o som do PC.
+const VENMIC_LABEL = 'vencord-screen-share';
+const VENMIC_POLL_MS = 150;
+const VENMIC_WAIT_MS = 2000;
 
 const REQUEST_TIMEOUT_MS = 15000;
 // Sem `welcome` nesse tempo, a conexão conta como falha (antes esperava pra sempre).
@@ -235,6 +253,11 @@ export class MediasoupEngine {
     this._netWatching = false;
     this._deviceTimer = null;
     this._recreated = new Set(); // producerIds cujo consumer já foi recriado uma vez
+    // Tela: preset atual ({ quality, frameRate, maxBitrate? }).
+    this.screenOpts = normalizeScreenPreset({});
+    this._venmicActive = false; // microfone virtual do venmic ligado (Linux/app de PC)
+    // Recepção sob medida: `${uid}|${kind}` -> Map(viewId -> { visible, height }).
+    this.viewports = new Map();
   }
 
   getNode() { return null; }
@@ -244,6 +267,7 @@ export class MediasoupEngine {
       camera: true, screen: true, perUserVolume: true, speakingIndicator: true, customGrid: true, netQuality: true, reconnect: true,
       noiseSuppression: true, iceRestart: true, receiveOnly: true, nativeScreenTrack: true,
       pushToTalk: true, inputSensitivity: true, localLevel: true, serverModeration: true, deafenSavesBandwidth: true,
+      screenPresets: true, screenSimulcast: true, videoViewport: true, separateScreenAudio: true, inputGain: true, vad: true,
     };
   }
 
@@ -382,7 +406,7 @@ export class MediasoupEngine {
       }
       case 'consumerResumed': {
         const c = this._findConsumer(data.consumerId);
-        if (c && !c.consumer.closed && !(c.kind === 'audio' && this.deafened)) { try { c.consumer.resume(); } catch { /* ok */ } }
+        if (c && !c.consumer.closed && !(c.kind === 'audio' && this.deafened) && !c.viewPaused) { try { c.consumer.resume(); } catch { /* ok */ } }
         break;
       }
       // DTLS do meu transport falhou/fechou NO SERVIDOR: não tem ICE restart
@@ -662,6 +686,10 @@ export class MediasoupEngine {
     try { window.addEventListener('online', this._onOnline); window.addEventListener('offline', this._onOffline); } catch { /* ok */ }
     try { navigator.connection?.addEventListener?.('change', this._onConnChange); } catch { /* ok */ }
     try { navigator.mediaDevices?.addEventListener?.('devicechange', this._onDeviceChange); } catch { /* ok */ }
+    // Aba/janela escondida: pausa o vídeo recebido (economia de banda);
+    // voltou: retoma na camada certa.
+    this._onVisibility = () => { this._applyAllViewports(); };
+    try { document.addEventListener('visibilitychange', this._onVisibility); } catch { /* ok */ }
   }
 
   _stopNetWatch() {
@@ -670,6 +698,7 @@ export class MediasoupEngine {
     try { window.removeEventListener('online', this._onOnline); window.removeEventListener('offline', this._onOffline); } catch { /* ok */ }
     try { navigator.connection?.removeEventListener?.('change', this._onConnChange); } catch { /* ok */ }
     try { navigator.mediaDevices?.removeEventListener?.('devicechange', this._onDeviceChange); } catch { /* ok */ }
+    try { document.removeEventListener('visibilitychange', this._onVisibility); } catch { /* ok */ }
     clearTimeout(this._deviceTimer);
   }
 
@@ -943,6 +972,8 @@ export class MediasoupEngine {
       // direto, pra pessoa nunca ficar muda sem saber; e volta depois.
       onBypass: (track) => this._swapMicTrack(pipe, track, 'direct'),
       onRestore: (track) => this._swapMicTrack(pipe, track, 'graph'),
+      // VAD do RNNoise (~20/s): ajuda o portão automático e acende o anel na hora.
+      onVad: (d) => { if (pipe && pipe === this.pipeline) this._onVad(d); },
     });
     if (this.disposed || this.rawMic !== raw) { pipe.dispose(); throw new Error('engine encerrado'); }
     this.pipeline = pipe;
@@ -1002,6 +1033,8 @@ export class MediasoupEngine {
           track,
           encodings: MIC_ENCODINGS,
           codecOptions: MIC_CODEC_OPTIONS,
+          // Pausado (mudo) não manda NEM o silêncio: sem RTP nenhum.
+          zeroRtpOnPause: true,
           // A faixa é do pipeline (sobrevive à reconexão): o producer não a para.
           stopTracks: false,
           appData: { source: 'mic', paused: startPaused },
@@ -1197,6 +1230,19 @@ export class MediasoupEngine {
   isMicMeterActive() { return this.analysisActive; }
   getMicLastSoundAt() { return this.lastSoundAt; }
 
+  // Mensagem do VAD do RNNoise: { p, open, off }.
+  _onVad(d = {}) {
+    if (this.disposed) return;
+    const now = Date.now();
+    if (d.off || !(Number(d.p) >= 0)) { this.gate.clearVad(); this._tickGate(now); return; }
+    this.gate.setVad(Number(d.p), !!d.open, now);
+    this._tickGate(now);
+    // Anel verde instantâneo: não espera o próximo tique do medidor.
+    if (!this.analysisActive) return;
+    const sp = this.speakingDet.update({ db: this.lastLevelDb, transmitting: this._transmitting(), now, vad: this.gate.vadVoice(now) === true });
+    if (sp.changed) { this.lastLocalSpeaking = sp.speaking; this.cb.onLocalSpeaking?.(sp.speaking); }
+  }
+
   _transmitting() {
     const p = this.producers.mic;
     return !!p && !p.closed && !p.paused && !this.micMuted && !this._serverBlocksMic() && this._gateIsOpen();
@@ -1227,7 +1273,7 @@ export class MediasoupEngine {
     if (!active) return;
     if (db > -70) this.lastSoundAt = now;
     const transmitting = this._transmitting();
-    const sp = this.speakingDet.update({ db, transmitting, now });
+    const sp = this.speakingDet.update({ db, transmitting, now, vad: this.gate.vadVoice(now) === true });
     if (sp.changed) { this.lastLocalSpeaking = sp.speaking; this.cb.onLocalSpeaking?.(sp.speaking); }
     if (this.cb.onLocalLevel && this.levelThrottle(now)) {
       try { this.cb.onLocalLevel(dbToLevel(db), { db, gateOpen: this._gateIsOpen(), transmitting }); } catch { /* ok */ }
@@ -1251,18 +1297,113 @@ export class MediasoupEngine {
   async _produceScreen(vtrack, atrack) {
     if (!this.sendTransport) throw new Error('sem transport de envio');
     this.localTracks.screen = vtrack;
+    this._applyScreenHint(vtrack);
+    // Simulcast de 2 camadas (VP8, L1T3): quem vê em miniatura recebe a
+    // camada baixa; quem vê grande, a cheia (o servidor escolhe por ouvinte).
     this.producers.screen = await this.sendTransport.produce({
-      track: vtrack, encodings: [{ maxBitrate: this.screenMaxBitrate || SCREEN_DEFAULT_BITRATE }],
+      track: vtrack, encodings: screenEncodings(this.screenOpts),
       codecOptions: { videoGoogleStartBitrate: 1000 },
       stopTracks: false,
       appData: { source: 'screen' },
     });
+    await this._applyScreenSender();
     if (atrack && isLive(atrack)) {
       this.localTracks.screenAudio = atrack;
       this.producers.screenAudio = await this.sendTransport.produce({
-        track: atrack, codecOptions: { opusStereo: true, opusDtx: false }, stopTracks: false, appData: { source: 'screenAudio' },
+        track: atrack, codecOptions: SCREEN_AUDIO_CODEC_OPTIONS, stopTracks: false, appData: { source: 'screenAudio' },
       });
     }
+  }
+
+  // contentHint pelo fps (regra do Jitsi): ≤15 fps = texto ('detail'), 30+ = movimento.
+  _applyScreenHint(track) {
+    try { track.contentHint = screenContentHint(this.screenOpts.frameRate).contentHint; } catch { /* opcional */ }
+  }
+
+  // Ajusta o RTCRtpSender da tela pro preset atual: bitrate/fps de cada
+  // camada e a preferência de degradação (nitidez × fluidez). Sem acesso ao
+  // sender (navegador antigo): só o bitrate, pelo producer.
+  async _applyScreenSender() {
+    const p = this.producers.screen;
+    if (!p || p.closed) return false;
+    const encs = screenEncodings(this.screenOpts);
+    const { degradationPreference } = screenContentHint(this.screenOpts.frameRate);
+    // Camada baixa primeiro, cheia por último (mesma ordem do produce); se o
+    // sender tiver menos camadas, ficam as de cima.
+    const fill = (list) => {
+      const shift = Math.max(0, encs.length - list.length);
+      list.forEach((enc, i) => {
+        const want = encs[Math.min(i + shift, encs.length - 1)];
+        enc.maxBitrate = want.maxBitrate;
+        enc.maxFramerate = want.maxFramerate;
+      });
+    };
+    const sender = p.rtpSender;
+    if (sender && typeof sender.getParameters === 'function' && typeof sender.setParameters === 'function') {
+      try {
+        const params = sender.getParameters();
+        fill(params.encodings || []);
+        params.degradationPreference = degradationPreference;
+        await sender.setParameters(params);
+        return true;
+      } catch {
+        // Alguns navegadores recusam degradationPreference: tenta sem.
+        try {
+          const params = sender.getParameters();
+          fill(params.encodings || []);
+          await sender.setParameters(params);
+          return true;
+        } catch { /* cai no caminho do producer */ }
+      }
+    }
+    if (typeof p.setRtpEncodingParameters === 'function') {
+      try { await p.setRtpEncodingParameters({ maxBitrate: encs[encs.length - 1].maxBitrate }); return true; } catch { /* ok */ }
+    }
+    return false;
+  }
+
+  // Linux (app de PC com venmic): o getDisplayMedia volta sem áudio e o som
+  // do PC (menos o da própria call) vem por um microfone virtual. Devolve a
+  // faixa de áudio ou null (segue só com vídeo). Ver docs/voz-discord-api.md.
+  async _venmicAudioTrack() {
+    const api = typeof window !== 'undefined' ? window.electronAPI?.screenAudio : null;
+    if (!api || typeof api.supported !== 'function' || typeof api.start !== 'function') return null;
+    let ok = false;
+    try { ok = !!(await api.supported()); } catch { ok = false; }
+    if (!ok || this.disposed) return null;
+    let r = null;
+    try { r = await api.start(); } catch (err) { r = { ok: false, error: err }; }
+    if (!r || !r.ok) return null;
+    this._venmicActive = true;
+    const label = String(api.deviceLabel || VENMIC_LABEL);
+    let device = null;
+    // O nó só aparece depois do start(): procura a cada 150ms por até ~2s.
+    for (let waited = 0; !device && waited <= VENMIC_WAIT_MS; waited += VENMIC_POLL_MS) {
+      try {
+        const list = await navigator.mediaDevices.enumerateDevices();
+        device = list.find((d) => d.kind === 'audioinput' && String(d.label || '').includes(label)) || null;
+      } catch { device = null; }
+      if (!device) await sleep(VENMIC_POLL_MS);
+    }
+    if (!device || this.disposed) { await this._stopVenmic(); return null; }
+    try {
+      const mic = await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: { exact: device.deviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        video: false,
+      });
+      const t = mic.getAudioTracks()[0] || null;
+      if (!t) await this._stopVenmic();
+      return t;
+    } catch {
+      await this._stopVenmic();
+      return null;
+    }
+  }
+
+  async _stopVenmic() {
+    if (!this._venmicActive) return;
+    this._venmicActive = false;
+    try { await window.electronAPI?.screenAudio?.stop?.(); } catch { /* ok */ }
   }
 
   // Resultado de câmera/tela: legado (MediaStream | null) ou detalhado.
@@ -1293,57 +1434,81 @@ export class MediasoupEngine {
     }
   }
 
+  // Preset da tela a partir das opções (quality/frameRate/maxBitrate).
+  _screenPresetFrom(options = {}, base = this.screenOpts) {
+    const p = normalizeScreenPreset({
+      quality: options.quality || base?.quality,
+      frameRate: Number.isFinite(options.frameRate) && options.frameRate > 0 ? options.frameRate : base?.frameRate,
+    });
+    const maxBitrate = Number.isFinite(options.maxBitrate) && options.maxBitrate > 0 ? options.maxBitrate : undefined;
+    return maxBitrate ? { ...p, maxBitrate } : p;
+  }
+
   // Constraints da captura de tela: preset (quality) ou width/height
   // explícitos, e fps.
   _screenConstraints(options = {}) {
-    const preset = SCREEN_QUALITY_PRESETS[options.quality] || SCREEN_QUALITY_PRESETS['1080p'];
-    const width = Number.isFinite(options.width) && options.width > 0 ? options.width : preset.width;
-    const height = Number.isFinite(options.height) && options.height > 0 ? options.height : preset.height;
-    const frameRate = Number.isFinite(options.frameRate) && options.frameRate > 0 ? Math.min(60, options.frameRate) : 30;
-    return { width: { ideal: width }, height: { ideal: height }, frameRate: { ideal: frameRate } };
+    const p = this._screenPresetFrom(options, { quality: '1080p', frameRate: 30 });
+    return screenVideoConstraints({ ...p, width: options.width, height: options.height });
   }
 
   // Resolução/fps/bitrate da tela AO VIVO, sem parar de transmitir. Aceita
-  // o nome do preset ('720p'/'1080p') ou { quality, width, height,
-  // frameRate, maxBitrate }.
+  // o nome do preset ('720p'/'1080p'/'1440p') ou { quality, frameRate,
+  // width, height, maxBitrate }. Muda a captura (applyConstraints), o
+  // contentHint e o bitrate/fps de cada camada (setParameters).
   async setScreenQuality(arg = {}) {
     const opts = typeof arg === 'string' ? { quality: arg } : (arg || {});
     const t = this.localTracks.screen;
     if (!isLive(t)) return false;
+    if (opts.quality && !SCREEN_QUALITY_PRESETS[opts.quality] && !opts.width) return false;
+    const next = this._screenPresetFrom(opts, this.screenOpts);
+    this.screenOpts = next;
     let ok = false;
     if (typeof t.applyConstraints === 'function' && (opts.quality || opts.width || opts.height || opts.frameRate)) {
-      if (opts.quality && !SCREEN_QUALITY_PRESETS[opts.quality] && !opts.width) return false;
-      try { await t.applyConstraints(this._screenConstraints(opts)); ok = true; } catch { ok = false; }
+      try { await t.applyConstraints(screenVideoConstraints({ ...next, width: opts.width, height: opts.height })); ok = true; } catch { ok = false; }
     }
-    if (Number.isFinite(opts.maxBitrate) && opts.maxBitrate > 0) {
-      this.screenMaxBitrate = opts.maxBitrate;
-      const p = this.producers.screen;
-      if (p && !p.closed && typeof p.setRtpEncodingParameters === 'function') {
-        try { await p.setRtpEncodingParameters({ maxBitrate: opts.maxBitrate }); ok = true; } catch { /* ok */ }
-      }
-    }
+    this._applyScreenHint(t);
+    if (await this._applyScreenSender()) ok = true;
     return ok;
   }
 
+  // Preset atual da tela ({ quality, frameRate, maxBitrate? }).
+  getScreenQuality() { return { ...this.screenOpts }; }
+
+  // Opções: { quality: '720p'|'1080p'|'1440p', frameRate: 5|15|30|60,
+  // width, height, maxBitrate, audio (som do PC/aba, padrão true), track
+  // (faixa de vídeo pronta — Android), audioTrack (faixa de áudio pronta),
+  // detailed }.
   async setScreen(on, options = {}) {
     const detailed = !!options.detailed;
     const ok = (stream) => (detailed ? { ok: true, stream } : stream);
-    let vtrack = null; let atrack = null; let own = false;
+    let vtrack = null; let atrack = null; let own = false; let ownAudio = false;
     try {
-      if (!on) { await this._closeProducer('screen'); await this._closeProducer('screenAudio'); this.cb.onSelfScreen?.(false); return ok(null); }
+      if (!on) { await this._closeProducer('screen'); await this._closeProducer('screenAudio'); await this._stopVenmic(); this.cb.onSelfScreen?.(false); return ok(null); }
       if (this.producers.screen) return ok(new MediaStream([this.localTracks.screen]));
       if (!this.serverState.canVideo) throw new Error('forbidden:video — sem permissão para transmitir neste canal');
-      this.screenMaxBitrate = Number.isFinite(options.maxBitrate) && options.maxBitrate > 0 ? options.maxBitrate : SCREEN_DEFAULT_BITRATE;
+      this.screenOpts = this._screenPresetFrom(options, { quality: '1080p', frameRate: 30 });
+      const wantAudio = options.audio !== false;
       if (options.track) {
         // Faixa pronta (captura nativa do app Android).
         vtrack = options.track;
+        if (options.audioTrack && isLive(options.audioTrack)) atrack = options.audioTrack;
       } else {
         own = true;
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: this._screenConstraints(options), audio: options.audio !== false });
+        const md = navigator.mediaDevices;
+        let stream;
+        try {
+          stream = await md.getDisplayMedia(displayMediaOptions({ ...this.screenOpts, width: options.width, height: options.height, audio: wantAudio }));
+        } catch (err) {
+          // Navegador que não entende as opções novas (TypeError): o pedido simples de antes.
+          if (err?.name !== 'TypeError') throw err;
+          stream = await md.getDisplayMedia({ video: this._screenConstraints(options), audio: wantAudio });
+        }
         vtrack = stream.getVideoTracks()[0];
         atrack = stream.getAudioTracks()[0] || null;
+        if (!atrack && options.audioTrack && isLive(options.audioTrack)) atrack = options.audioTrack;
+        // Linux no app de PC: som do PC pelo microfone virtual do venmic.
+        if (!atrack && wantAudio) { atrack = await this._venmicAudioTrack(); ownAudio = !!atrack; }
       }
-      try { vtrack.contentHint = 'detail'; } catch { /* opcional */ }
       await this._produceScreen(vtrack, atrack);
       // "Parar compartilhamento" pelo navegador.
       vtrack.addEventListener('ended', () => { this.setScreen(false); });
@@ -1352,7 +1517,10 @@ export class MediasoupEngine {
     } catch (err) {
       // Não deixa captura rodando escondida se a publicação falhou.
       if (own) { try { vtrack?.stop(); } catch { /* ok */ } try { atrack?.stop(); } catch { /* ok */ } }
+      if (ownAudio) { try { atrack?.stop(); } catch { /* ok */ } }
+      await this._stopVenmic();
       if (this.producers.screen) this._closeProducerLocal('screen');
+      if (this.producers.screenAudio) this._closeProducerLocal('screenAudio');
       if (this.localTracks.screen === vtrack) this.localTracks.screen = null;
       if (this.localTracks.screenAudio === atrack) this.localTracks.screenAudio = null;
       return this._mediaFailure(err, 'screen', detailed);
@@ -1360,18 +1528,23 @@ export class MediasoupEngine {
   }
 
   // ---------- áudio recebido ----------
-  // Todas as faixas de ÁUDIO vivas da pessoa (mic + áudio da tela) num
-  // stream só. BUG CORRIGIDO: o áudio da tela substituía o do microfone na
-  // grade (um stream por pessoa) — quem transmitia com som ficava sem voz,
-  // e ao parar a transmissão a voz sumia de vez até reconectar.
+  // Microfone e som da tela da pessoa saem SEPARADOS (onRemoteAudio /
+  // onRemoteScreenAudio) — cada um com o seu volume, igual ao "volume da
+  // transmissão" do Discord. App sem onRemoteScreenAudio: tudo junto no
+  // onRemoteAudio, como antes. (BUG antigo corrigido: o áudio da tela
+  // substituía o do microfone na grade.)
   _emitPeerAudio(uid) {
-    const tracks = [];
+    const mic = []; const screen = [];
     for (const c of this.consumers.values()) {
-      if (c.peerId === uid && c.kind === 'audio' && !c.consumer.closed && c.consumer.track) tracks.push(c.consumer.track);
+      if (c.peerId !== uid || c.kind !== 'audio' || c.consumer.closed || !c.consumer.track) continue;
+      if (c.source === 'screenAudio') screen.push(c.consumer.track); else mic.push(c.consumer.track);
     }
+    const separate = typeof this.cb.onRemoteScreenAudio === 'function';
+    const voice = separate ? mic : [...mic, ...screen];
     try {
-      if (tracks.length) this.cb.onRemoteAudio?.(uid, new MediaStream(tracks));
+      if (voice.length) this.cb.onRemoteAudio?.(uid, new MediaStream(voice));
       else this.cb.onRemoteRemove?.(uid, 'audio');
+      if (separate) this.cb.onRemoteScreenAudio(uid, screen.length ? new MediaStream(screen) : null);
     } catch (err) { this.cb.onError?.(err, { where: 'remoteTrack' }); }
   }
 
@@ -1382,6 +1555,72 @@ export class MediasoupEngine {
     try { c.consumer.close(); } catch { /* ok */ }
     if (c.kind === 'audio') this._emitPeerAudio(c.peerId);
     else this.cb.onRemoteRemove?.(c.peerId, 'video');
+  }
+
+  // ---------- recepção sob medida (vídeo) ----------
+  // O app conta onde cada vídeo aparece: setVideoViewport(uid, 'screen'|
+  // 'camera', { visible, height }, viewId?). Vídeo escondido/fora da tela
+  // (ou a aba escondida) → pausado no servidor (sem banda); visível → camada
+  // pelo tamanho (altura × devicePixelRatio ≥ 540 → alta). Vários blocos do
+  // mesmo vídeo: usa o maior visível. `{ remove: true }` tira o bloco.
+  setVideoViewport(uid, kind, view = {}, viewId = 'default') {
+    const key = `${String(uid)}|${kind === 'screen' ? 'screen' : 'camera'}`;
+    let views = this.viewports.get(key);
+    if (view && view.remove) {
+      if (views) { views.delete(String(viewId)); if (!views.size) this.viewports.delete(key); }
+    } else {
+      if (!views) { views = new Map(); this.viewports.set(key, views); }
+      views.set(String(viewId), { visible: view?.visible !== false, height: Number(view?.height) || 0 });
+    }
+    for (const [cid, c] of this.consumers) {
+      if (c.kind === 'video' && c.peerId === String(uid)) this._applyViewport(cid);
+    }
+  }
+
+  _viewsFor(c) {
+    const own = this.viewports.get(`${c.peerId}|${c.source === 'screen' ? 'screen' : 'camera'}`);
+    if (own && own.size) return [...own.values()];
+    // A grade pode ter classificado tela/câmera diferente por um instante:
+    // com UM vídeo só dessa pessoa, vale o que foi informado pro outro tipo.
+    const videos = [...this.consumers.values()].filter((x) => x.kind === 'video' && x.peerId === c.peerId && !x.consumer.closed);
+    if (videos.length === 1) {
+      const other = this.viewports.get(`${c.peerId}|${c.source === 'screen' ? 'camera' : 'screen'}`);
+      if (other && other.size) return [...other.values()];
+    }
+    return [];
+  }
+
+  _viewportFor(c) {
+    const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+    const dpr = typeof window !== 'undefined' && window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
+    return viewportDecision({ views: this._viewsFor(c), documentHidden: hidden, dpr, spatialLayers: c.spatialLayers || 1 });
+  }
+
+  _applyViewport(cid) {
+    const c = this.consumers.get(cid);
+    if (!c || c.kind !== 'video' || c.consumer.closed || this.disposed) return;
+    const d = this._viewportFor(c);
+    if (d.paused) {
+      if (!c.viewPaused) {
+        c.viewPaused = true;
+        try { c.consumer.pause(); } catch { /* ok */ }
+        this._request('pauseConsumer', { consumerId: cid }).catch(() => {});
+      }
+      return;
+    }
+    if (c.viewPaused) {
+      c.viewPaused = false;
+      try { c.consumer.resume(); } catch { /* ok */ }
+      this._request('resumeConsumer', { consumerId: cid }).catch(() => {});
+    }
+    if ((c.spatialLayers || 1) > 1 && d.spatialLayer != null && d.spatialLayer !== c.spatialLayer) {
+      c.spatialLayer = d.spatialLayer;
+      this._request('setConsumerPreferredLayers', { consumerId: cid, spatialLayer: d.spatialLayer }).catch(() => { c.spatialLayer = null; });
+    }
+  }
+
+  _applyAllViewports() {
+    for (const [cid, c] of this.consumers) if (c.kind === 'video') this._applyViewport(cid);
   }
 
   async _consume({ producerId, peerId, kind, appData }) {
@@ -1401,7 +1640,14 @@ export class MediasoupEngine {
       });
       if (this.disposed || this.recvTransport !== transport) { try { consumer.close(); } catch { /* ok */ } return; }
       const source = (info.appData && info.appData.source) || (appData && appData.source) || (kind === 'audio' ? 'mic' : 'camera');
-      this.consumers.set(consumer.id, { consumer, peerId: uid, kind: consumer.kind, source });
+      const entry = { consumer, peerId: uid, kind: consumer.kind, source };
+      if (consumer.kind === 'video') {
+        // Simulcast: quantas camadas dá pra escolher (tela 2, câmera 3).
+        entry.spatialLayers = spatialLayersOf(info.rtpParameters);
+        entry.spatialLayer = null;
+        entry.viewPaused = false;
+      }
+      this.consumers.set(consumer.id, entry);
       // Limpeza: transport fechou / faixa encerrada por fora.
       consumer.on('transportclose', () => { this.consumers.delete(consumer.id); });
       consumer.on('trackended', () => { this._dropConsumer(consumer.id); });
@@ -1414,6 +1660,17 @@ export class MediasoupEngine {
       this._watchFirstConnect(transport, 'RECV');
       // Ensurdecido: o áudio continua pausado no servidor (nem chega aqui).
       if (consumer.kind === 'audio' && this.deafened) { try { consumer.pause(); } catch { /* ok */ } return; }
+      if (consumer.kind === 'video') {
+        // Tela recebe mais banda que a câmera quando aperta.
+        this._request('setConsumerPriority', { consumerId: consumer.id, priority: source === 'screen' ? CONSUMER_PRIORITY.screen : CONSUMER_PRIORITY.camera }).catch(() => {});
+        // Vídeo que ninguém está vendo (bloco fora da tela / aba escondida):
+        // fica pausado no servidor até aparecer.
+        const d = this._viewportFor(entry);
+        if (d.paused) { entry.viewPaused = true; try { consumer.pause(); } catch { /* ok */ } return; }
+        await this._resumeConsumer(consumer);
+        this._applyViewport(consumer.id);
+        return;
+      }
       await this._resumeConsumer(consumer);
     } catch (err) {
       // Sessão derrubada no meio (reconexão/saída) ou a mídia acabou antes do
@@ -1543,6 +1800,9 @@ export class MediasoupEngine {
     for (const [uid, loss] of perPeer) quality[uid] = qualityFrom({ loss, rtt: 0, connected: true });
     this.cb.onNetQuality?.(quality);
     if (rtt != null) this.cb.onRtt?.(rtt);
+    // Painel "Voz conectada": ping e perda no ENVIO (o que o servidor
+    // relata sobre o que eu mando).
+    try { this.cb.onConnectionStats?.({ rtt, sendLoss: myLoss, connected }); } catch { /* ok */ }
   }
 
   // ---------- controles ----------
@@ -1585,6 +1845,7 @@ export class MediasoupEngine {
   // RNNoise não está processando (nunca os dois juntos, nunca nenhum).
   async setNoiseSuppression(on) {
     this.noiseEnabled = !!on;
+    if (!on) this.gate.clearVad();
     const pipe = this.pipeline;
     if (!pipe) return;
     try {
@@ -1607,6 +1868,7 @@ export class MediasoupEngine {
     this.producers[key] = null; this.localTracks[key] = null;
     if (t) { try { t.stop(); } catch { /* ok */ } }
     if (p) { try { p.close(); } catch { /* ok */ } }
+    if (key === 'screenAudio') this._stopVenmic().catch(() => {});
   }
 
   async _closeProducer(key) {
@@ -1614,6 +1876,7 @@ export class MediasoupEngine {
     const t = this.localTracks[key];
     this.producers[key] = null; this.localTracks[key] = null;
     if (key === 'mic') { this._disposePipeline(); this.rawMic = null; this._stopAnalysis(); }
+    if (key === 'screenAudio') this._stopVenmic().catch(() => {});
     if (t) { try { t.stop(); } catch { /* ok */ } }
     if (!p) return;
     try { p.close(); } catch { /* ok */ }
@@ -1639,6 +1902,7 @@ export class MediasoupEngine {
       this.producers[key] = null; this.localTracks[key] = null;
     }
     this._disposePipeline();
+    this._stopVenmic().catch(() => {});
     if (this.rawMic) { try { this.rawMic.stop(); } catch { /* ok */ } this.rawMic = null; }
     for (const c of this.consumers.values()) { try { c.consumer.close(); } catch { /* ok */ } }
     this.consumers.clear();

@@ -84,7 +84,7 @@ import {
   getPreferredMicId, getPreferredSpeakerId, setPreferredSpeakerId,
   isOutputSelectionSupported, listAudioDevices,
 } from '../../utils/audioDevices';
-import { getVoicePrefs, setVoicePref, prettyKeyName } from '../../utils/voicePrefs';
+import { getVoicePrefs, setVoicePref, prettyKeyName, pttReleaseFromPrefs } from '../../utils/voicePrefs';
 import { isSpeechRecognitionSupported } from '../voice/CallExtras.jsx';
 import robloxConnIcon from '../../assets/icons/social-roblox.png';
 import xConnIcon from '../../assets/icons/social-x.png';
@@ -2802,6 +2802,16 @@ function VoiceSettingsTab() {
               {capturingKey ? 'Pressione uma tecla… (Esc cancela)' : 'Trocar tecla'}
             </button>
           </div>
+          {/* Folga ao soltar a tecla: o mic continua aberto esse tempo (não corta a última sílaba). */}
+          <h4 className="settings-h4-row" style={{ marginTop: 14 }}>
+            Atraso ao soltar a tecla <span className="settings-chip">{pttReleaseFromPrefs(prefs.pushToTalkReleaseMs)} ms</span>
+          </h4>
+          <p className="dim">Quanto tempo o microfone continua aberto depois de soltar a tecla.</p>
+          <input
+            type="range" min="0" max="1000" step="20" value={pttReleaseFromPrefs(prefs.pushToTalkReleaseMs)}
+            onChange={(e) => updatePref('pushToTalkReleaseMs', Number(e.target.value))}
+            aria-label="Atraso ao soltar a tecla do apertar pra falar (ms)" style={{ width: '100%', maxWidth: 360 }}
+          />
         </div>
       )}
 

@@ -8,6 +8,8 @@ import {
 } from '../../utils/extraPrefs';
 import { SOUND_EVENTS, SOUND_PACKS, previewSound, currentPack, ENTRY_SOUNDS, playEntrySound } from '../../utils/sounds';
 import { getPreferredMicId } from '../../utils/audioDevices';
+import { useVoice } from '../../context/VoiceContext.jsx';
+import { LiveMicMeter, VoiceConnectionPanel } from '../voice/VoiceExtras.jsx';
 import { useStore } from '../../store/useStore';
 import {
   browserTimeZone, isQuietHoursActive, parseHHMM, isOverrideMuted, normalizeLevel, muteRemainingLabel, LEVEL_LABELS,
@@ -442,6 +444,9 @@ function SensitivityMeter({ threshold }) {
 
 export function VoiceExtras({ prefs, updatePref }) {
   const p = useExtra();
+  const voice = useVoice();
+  const inCall = !!voice?.call;
+  const inputVolume = Number.isFinite(p.inputVolume) ? p.inputVolume : 100;
   const profile = p.inputProfile || 'custom';
   const pickProfile = (v) => {
     setExtra({ inputProfile: v });
@@ -454,7 +459,8 @@ export function VoiceExtras({ prefs, updatePref }) {
     updatePref?.('autoLevelVolume', false);
     updatePref?.('pushToTalkEnabled', false);
     updatePref?.('captions', false);
-    setExtra({ inputProfile: 'custom', sensitivityAuto: true, sensitivityDb: -60, sfxVolume: 100, joinSoundId: null, soundsOff: (p.soundsOff || []).filter((k) => !SOUND_EVENTS.some((e) => e.key === k && e.group === 'call')) });
+    updatePref?.('pushToTalkReleaseMs', 200);
+    setExtra({ inputProfile: 'custom', sensitivityAuto: true, sensitivityDb: -60, inputVolume: 100, sfxVolume: 100, joinSoundId: null, soundsOff: (p.soundsOff || []).filter((k) => !SOUND_EVENTS.some((e) => e.key === k && e.group === 'call')) });
   };
   return (
     <>
@@ -473,6 +479,20 @@ export function VoiceExtras({ prefs, updatePref }) {
           ))}
         </div>
         {prefs && profile !== 'custom' && <small className="dim">Redutor de ruído: {prefs.noiseReduction ? 'ligado' : 'desligado'} (mudar à mão volta pro Personalizado).</small>}
+      </Panel>
+      {inCall && (
+        <Panel id="xp-conn" title="Voz conectada" hint="Estado da sua conexão de voz agora: ping até o servidor de mídia e perda de pacotes no envio.">
+          <VoiceConnectionPanel voice={voice} />
+        </Panel>
+      )}
+      <Panel id="xp-input-volume" title="Volume de entrada" hint="Aumenta ou diminui o volume do seu microfone pra todo mundo da chamada.">
+        <div className="xp-range">
+          <input type="range" min="0" max="200" step="5" value={inputVolume} onChange={(e) => setExtra({ inputVolume: Number(e.target.value) })} aria-label="Volume de entrada do microfone" />
+          <output>{inputVolume}%</output>
+        </div>
+        {inCall && typeof voice?.subscribeMicLevel === 'function'
+          ? <LiveMicMeter voice={voice} />
+          : <small className="dim">Entre numa chamada pra ver o nível do microfone ao vivo.</small>}
       </Panel>
       <Panel id="xp-sens" title="Sensibilidade de entrada" hint="Controla quanto som precisa ter pra seu microfone transmitir.">
         <Row title="Determinar automaticamente" on={p.sensitivityAuto !== false} onChange={(v) => setExtra({ sensitivityAuto: v })} />

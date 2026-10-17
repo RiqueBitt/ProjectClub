@@ -12,6 +12,15 @@
 //   - Sem PTT e sem sensibilidade configurada: portão sempre aberto.
 //   - Sem medida de nível (navegador não deixou o Web Audio rodar): o
 //     portão por voz fica ABERTO — nunca deixa a pessoa muda sem saber.
+//   - Com o RNNoise ligado, o worklet manda a PROBABILIDADE DE VOZ (VAD) de
+//     cada quadro (~20/s). No modo AUTOMÁTICO ela ajuda o portão, de forma
+//     CONSERVADORA (voz baixa nunca é cortada): abre se VAD >= 0,5 OU o
+//     nível passou do limite; só fecha quando os DOIS ficam baixos por mais
+//     de 300ms. O VAD também segura o piso de ruído (não sobe durante a
+//     fala; sobe mais rápido com teclado/respiração) e acende o anel verde
+//     na hora. Sem VAD (RNNoise desligado / sem mensagem há 500ms): volta o
+//     portão antigo, só por nível. No modo MANUAL (limite em dB escolhido
+//     pela pessoa) vale só o nível, como antes.
 
 export const GATE_DEFAULTS = Object.freeze({
   holdMs: 250,          // abaixo do limite por mais que isso → fecha
@@ -22,6 +31,12 @@ export const GATE_DEFAULTS = Object.freeze({
   autoMaxDb: -35,       // …nem acima disso (voz normal fica entre -40 e -15)
   speakingDb: -55,      // anel verde: nível mínimo pra contar como fala
   speakingHoldMs: 300,  // anel verde: continua aceso depois da última sílaba
+  vadOpenProb: 0.5,     // VAD: probabilidade de voz que já conta como fala
+  vadQuietProb: 0.2,    // VAD: abaixo disso é ruído (teclado, respiração)
+  vadHoldMs: 300,       // VAD + nível baixos por mais que isso → fecha
+  vadStaleMs: 500,      // sem mensagem do VAD há mais que isso → ignora o VAD
+  vadAutoMaxDb: -45,    // com VAD, o limite automático nunca passa disso (voz baixa passa)
+  vadNoiseRiseDbPerSec: 6, // piso sobe mais rápido quando o VAD diz "não é voz"
 });
 
 // RMS de amostras float (-1..1) → dBFS. Silêncio absoluto = -100.
@@ -44,10 +59,11 @@ export function dbToLevel(db) {
 export function createNoiseFloor({ initialDb = -60, fallPerTick = 0.3, riseDbPerSec = 1.5 } = {}) {
   let floor = initialDb;
   return {
-    update(db, dtMs = 40) {
+    // `rise` (dB/s) troca a subida padrão nesta leitura (0 = não sobe).
+    update(db, dtMs = 40, rise = riseDbPerSec) {
       if (!Number.isFinite(db)) return floor;
       if (db < floor) floor += (db - floor) * fallPerTick;
-      else floor = Math.min(db, floor + (riseDbPerSec * dtMs) / 1000);
+      else floor = Math.min(db, floor + (rise * dtMs) / 1000);
       return floor;
     },
     get value() { return floor; },
@@ -56,10 +72,11 @@ export function createNoiseFloor({ initialDb = -60, fallPerTick = 0.3, riseDbPer
 }
 
 // Limite efetivo da detecção de voz.
-export function vadThreshold({ auto, db, floorDb }, opts = GATE_DEFAULTS) {
+export function vadThreshold({ auto, db, floorDb, withVad = false }, opts = GATE_DEFAULTS) {
   if (!auto) return Number.isFinite(db) ? db : opts.defaultDb;
   const base = Number.isFinite(floorDb) ? floorDb + opts.autoMarginDb : opts.defaultDb;
-  return Math.max(opts.autoMinDb, Math.min(opts.autoMaxDb, base));
+  const max = withVad ? Math.min(opts.autoMaxDb, opts.vadAutoMaxDb ?? opts.autoMaxDb) : opts.autoMaxDb;
+  return Math.max(opts.autoMinDb, Math.min(max, base));
 }
 
 // Portão. `update(db, now)` devolve { open, changed }. db = null → sem medida.
@@ -73,13 +90,27 @@ export function createMicGate(options = {}) {
   let lastAboveAt = -Infinity;
   let lastUpdateAt = null;
   let open = true;
+  // Última leitura do VAD do RNNoise: probabilidade 0..1, "aberto" (com a
+  // segura de 200ms do worklet) e quando chegou.
+  let vadP = null;
+  let vadFlag = false;
+  let vadAt = -Infinity;
   const floor = createNoiseFloor({ initialDb: opts.defaultDb });
+
+  const vadFresh = (now) => vadP != null && now - vadAt <= opts.vadStaleMs;
+  const vadSaysVoice = () => vadFlag || (vadP != null && vadP >= opts.vadOpenProb);
 
   const compute = (db, now) => {
     if (ptt) return pressed || now - releasedAt < opts.pttReleaseMs;
     if (!vad) return true;
     if (db == null || !Number.isFinite(db)) return true; // sem medida: aberto
-    const threshold = vadThreshold({ auto: sens.auto, db: sens.db, floorDb: floor.value }, opts);
+    const withVad = sens.auto && vadFresh(now);
+    const threshold = vadThreshold({ auto: sens.auto, db: sens.db, floorDb: floor.value, withVad }, opts);
+    if (withVad) {
+      // Conservador: qualquer um dos dois (VAD ou nível) mantém aberto.
+      if (vadSaysVoice() || db >= threshold) { lastAboveAt = now; return true; }
+      return now - lastAboveAt <= opts.vadHoldMs;
+    }
     if (db >= threshold) { lastAboveAt = now; return true; }
     return now - lastAboveAt <= opts.holdMs;
   };
@@ -87,7 +118,14 @@ export function createMicGate(options = {}) {
   const step = (db, now) => {
     if (vad && sens.auto && db != null && Number.isFinite(db)) {
       const dt = lastUpdateAt == null ? 40 : Math.max(1, Math.min(1000, now - lastUpdateAt));
-      floor.update(db, dt);
+      let rise;
+      if (vadFresh(now)) {
+        // Falando: o piso NÃO sobe (a voz nunca "vira" ruído de fundo).
+        // Ruído claro (teclado, respiração): sobe mais rápido.
+        if (vadSaysVoice()) rise = 0;
+        else if (vadP < opts.vadQuietProb) rise = opts.vadNoiseRiseDbPerSec;
+      }
+      floor.update(db, dt, rise);
     }
     lastUpdateAt = now;
     const next = compute(db, now);
@@ -117,14 +155,28 @@ export function createMicGate(options = {}) {
       sens = { auto: cfg.auto !== false, db: Number.isFinite(cfg.db) ? cfg.db : opts.defaultDb };
       if (sens.auto) floor.reset(opts.defaultDb);
     },
+    // Leitura do VAD do RNNoise (p = probabilidade de voz 0..1; open = já
+    // com a segura do worklet). Recalcula o portão na hora (anel instantâneo).
+    setVad(p, flag, now) {
+      const n = Number(p);
+      if (!Number.isFinite(n) || n < 0) { vadP = null; vadFlag = false; vadAt = -Infinity; return; }
+      vadP = Math.min(1, n);
+      vadFlag = !!flag;
+      vadAt = now;
+    },
+    // RNNoise desligado: esquece o VAD (volta o portão só por nível).
+    clearVad() { vadP = null; vadFlag = false; vadAt = -Infinity; },
+    // O VAD está valendo agora? (voz detectada = true/false; sem VAD = null)
+    vadVoice(now) { return vadFresh(now) ? vadSaysVoice() : null; },
     // Quando o portão do PTT fecha sozinho (fim da folga depois de soltar).
     releaseDeadline() { return ptt && !pressed && Number.isFinite(releasedAt) ? releasedAt + opts.pttReleaseMs : null; },
     get open() { return open; },
     state() {
+      const withVad = vad && sens.auto && lastUpdateAt != null && vadFresh(lastUpdateAt);
       return {
         open, mode: ptt ? 'ptt' : vad ? 'vad' : 'open', pressed,
-        thresholdDb: vad ? vadThreshold({ auto: sens.auto, db: sens.db, floorDb: floor.value }, opts) : null,
-        floorDb: floor.value, auto: sens.auto,
+        thresholdDb: vad ? vadThreshold({ auto: sens.auto, db: sens.db, floorDb: floor.value, withVad }, opts) : null,
+        floorDb: floor.value, auto: sens.auto, vadP, vadAssisted: !!withVad,
       };
     },
   };
@@ -137,8 +189,10 @@ export function createSpeakingDetector({ thresholdDb = GATE_DEFAULTS.speakingDb,
   let lastLoudAt = -Infinity;
   let speaking = false;
   return {
-    update({ db, transmitting, now }) {
-      if (transmitting && Number.isFinite(db) && db >= thresholdDb) lastLoudAt = now;
+    // `vad` (opcional): o VAD do RNNoise diz que é voz — acende na hora
+    // mesmo com o nível baixo.
+    update({ db, transmitting, now, vad = false }) {
+      if (transmitting && ((Number.isFinite(db) && db >= thresholdDb) || vad === true)) lastLoudAt = now;
       const next = !!transmitting && now - lastLoudAt <= holdMs;
       const changed = next !== speaking;
       speaking = next;

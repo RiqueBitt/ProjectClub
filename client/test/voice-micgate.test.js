@@ -101,3 +101,89 @@ test('rmsToDb, dbToLevel e o limite de frequência', () => {
   const th = createThrottle(100);
   assert.equal(th(0), true); assert.equal(th(50), false); assert.equal(th(100), true); assert.equal(th(150), false);
 });
+
+// ---------- VAD do RNNoise no portão automático ----------
+// Alimenta o portão como o engine faz: VAD a cada 50ms e nível a cada 40ms.
+function feed(g, { from, to, db, p, open = p >= 0.5 }) {
+  let last = null;
+  for (let t = from; t < to; t += 10) {
+    if (t % 50 === 0 && p != null) g.setVad(p, open, t);
+    if (t % 40 === 0) last = g.update(db, t);
+  }
+  return last;
+}
+
+test('VAD conservador: voz BAIXA (abaixo do limite por nível) passa porque o VAD diz que é voz', () => {
+  const g = createMicGate();
+  g.setSensitivity({ auto: true });
+  // Ruído de fundo em -55 dB por 2s: o limite fica perto de -45.
+  feed(g, { from: 0, to: 2000, db: -55, p: 0.05 });
+  assert.equal(g.state().vadAssisted, true);
+  assert.ok(g.state().thresholdDb <= GATE_DEFAULTS.vadAutoMaxDb, `com VAD o limite nunca passa de ${GATE_DEFAULTS.vadAutoMaxDb} dB`);
+  assert.equal(g.update(-55, 2000).open, false, 'ruído: fechado');
+  // Voz baixinha (-58 dB, abaixo do ruído medido!) mas o VAD reconhece: abre.
+  g.setVad(0.9, true, 2010);
+  assert.equal(g.update(-58, 2020).open, true, 'VAD >= 0,5 abre mesmo com nível baixo');
+});
+
+test('VAD: só fecha quando VAD e nível ficam baixos por mais de 300ms (sem cortar fim de palavra)', () => {
+  const g = createMicGate();
+  g.setSensitivity({ auto: true });
+  feed(g, { from: 0, to: 1000, db: -70, p: 0.02 });
+  g.setVad(0.95, true, 1000);
+  assert.equal(g.update(-30, 1000).open, true);
+  // Fim da fala: VAD e nível baixos.
+  g.setVad(0.05, false, 1050);
+  assert.equal(g.update(-75, 1100).open, true, '100ms depois: aberto');
+  g.setVad(0.05, false, 1250);
+  assert.equal(g.update(-75, 1300).open, true, '300ms exatos: ainda aberto');
+  g.setVad(0.05, false, 1300);
+  const r = g.update(-75, 1301);
+  assert.equal(r.open, false); assert.equal(r.changed, true);
+  // Nível alto SEM VAD (ex.: bater na mesa) ainda abre — conservador.
+  g.setVad(0.1, false, 1400);
+  assert.equal(g.update(-20, 1400).open, true, 'nível acima do limite abre mesmo sem VAD');
+});
+
+test('VAD: o flag "open" do worklet (segura de 200ms) mantém aberto mesmo com p caindo', () => {
+  const g = createMicGate();
+  g.setSensitivity({ auto: true });
+  feed(g, { from: 0, to: 600, db: -80, p: 0.01 });
+  g.setVad(0.2, true, 600);
+  assert.equal(g.update(-80, 600).open, true);
+  assert.equal(g.vadVoice(600), true);
+});
+
+test('VAD: piso não sobe durante a fala e sobe mais rápido com ruído (teclado/respiração)', () => {
+  const g1 = createMicGate(); g1.setSensitivity({ auto: true });
+  const g2 = createMicGate(); g2.setSensitivity({ auto: true });
+  feed(g1, { from: 0, to: 2000, db: -40, p: 0.9 }); // falando o tempo todo
+  feed(g2, { from: 0, to: 2000, db: -40, p: 0.05 }); // ruído alto, sem voz
+  assert.ok(g1.state().floorDb <= -59.9, `falando: piso parado (${g1.state().floorDb.toFixed(1)})`);
+  assert.ok(g2.state().floorDb > -50, `ruído: piso subiu rápido (${g2.state().floorDb.toFixed(1)})`);
+});
+
+test('VAD velho (RNNoise desligado / sem mensagem há 500ms) ou clearVad → volta o portão antigo, só por nível', () => {
+  const g = createMicGate();
+  g.setSensitivity({ auto: false, db: -50 });
+  g.setVad(0.99, true, 0);
+  assert.equal(g.update(-80, 0).open, false, 'modo MANUAL: o VAD não abre (vale o limite escolhido)');
+  const a = createMicGate();
+  a.setSensitivity({ auto: true });
+  a.setVad(0.99, true, 0);
+  assert.equal(a.update(-90, 10).open, true);
+  assert.equal(a.vadVoice(600), null, 'passou de 500ms sem mensagem: VAD ignorado');
+  assert.equal(a.update(-90, 700).open, false, 'sem VAD fresco, fecha pelo nível (250ms)');
+  a.setVad(0.99, true, 800);
+  a.clearVad();
+  assert.equal(a.state().vadP, null);
+  assert.equal(a.update(-90, 810).open, false);
+  a.setVad(-1, false, 900); // mensagem "off" do worklet
+  assert.equal(a.vadVoice(900), null);
+});
+
+test('anel verde local acende na hora com o VAD (mesmo com nível baixo)', () => {
+  const d = createSpeakingDetector();
+  assert.equal(d.update({ db: -80, transmitting: true, now: 0, vad: true }).speaking, true);
+  assert.equal(d.update({ db: -80, transmitting: false, now: 10, vad: true }).speaking, false, 'sem transmitir: apagado');
+});

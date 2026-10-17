@@ -12,12 +12,15 @@
 // normalmente pela voz). Estas funções deixam essa separação explícita e
 // verificável.
 
+// Resoluções e fps da tela: a tabela completa (com bitrate por preset) fica
+// em voice/screenPresets.js.
 export const SCREEN_QUALITY_PRESETS = {
   '720p': { width: 1280, height: 720 },
   '1080p': { width: 1920, height: 1080 },
+  '1440p': { width: 2560, height: 1440 },
 };
 
-const ALLOWED_FPS = [15, 30, 60];
+export const ALLOWED_FPS = [5, 15, 30, 60];
 
 // Configuração pura da captura de tela (resolução, fps e se o áudio do
 // SISTEMA/ABA entra junto — `withSystemAudio`; `audioParam` 'auto'/'disable'
