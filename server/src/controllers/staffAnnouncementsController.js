@@ -101,8 +101,12 @@ function announceNew(io, row) {
 async function publishDue(io) {
   const due = await prisma.staffAnnouncement.findMany({ where: { published: false, publishAt: { lte: new Date() } }, select: { id: true } });
   for (const { id } of due) {
-    const row = await prisma.staffAnnouncement.update({ where: { id }, data: { published: true, createdAt: new Date() } }).catch(() => null);
+    // updateMany com published:false: com mais de uma instância rodando o
+    // agendador, só a que publicou de fato avisa (sem push duplicado).
+    const r = await prisma.staffAnnouncement.updateMany({ where: { id, published: false }, data: { published: true, createdAt: new Date() } }).catch(() => null);
+    if (!r?.count) continue;
     io?.to('community').emit('announcements:update', { id });
+    const row = await prisma.staffAnnouncement.findUnique({ where: { id } }).catch(() => null);
     if (row) announceNew(io, row);
   }
   return due.length;

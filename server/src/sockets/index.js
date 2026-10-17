@@ -521,6 +521,15 @@ function initSockets(httpServer) {
     // reinicia o relógio de 15min e desfaz um "Ausente" automático.
     socket.on('presence:activity', () => {
       markActive(io, userId).catch((err) => console.error('[socket] presence:activity falhou:', err));
+      // AFK da voz: mexer no app (mouse/teclado/toque, já limitado a 1x/min
+      // no cliente) também conta como atividade — quem só está ouvindo e
+      // usando o app não é movido pro canal AFK (igual ao Discord, que olha
+      // a ociosidade do computador e não só a fala).
+      for (const room of socket.rooms) {
+        if (typeof room === 'string' && room.startsWith('voice:')) {
+          voiceStore.updateParticipant(room.slice(6), userId, { lastActiveAt: Date.now() }).catch(() => {});
+        }
+      }
     });
 
     // --- Voice / video call signaling (mesh WebRTC — every peer connects

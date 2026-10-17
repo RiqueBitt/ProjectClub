@@ -22,6 +22,7 @@ async function countUnreadByChannel(prisma, { userId, channelIds, floor }, Prism
     LEFT JOIN ChannelReadState r ON r.channelId = m.channelId AND r.userId = ${userId}
     WHERE m.channelId IN (${Prisma.join(channelIds)})
       AND m.deleted = false
+      AND m.threadId IS NULL
       AND m.authorId <> ${userId}
       AND m.createdAt > ${floor}
       AND (r.lastReadAt IS NULL OR m.createdAt > r.lastReadAt)

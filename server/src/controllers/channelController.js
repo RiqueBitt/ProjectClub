@@ -232,7 +232,7 @@ async function getChannelStates(req, res, next) {
     const [reads, lasts, myRoles, me] = await Promise.all([
       prisma.channelReadState.findMany({ where: { userId, channelId: { in: visible } }, select: { channelId: true, lastReadAt: true } }),
       // MAX(createdAt) por canal — usa o índice (channelId, createdAt).
-      prisma.message.groupBy({ by: ['channelId'], where: { channelId: { in: visible }, deleted: false }, _max: { createdAt: true } }),
+      prisma.message.groupBy({ by: ['channelId'], where: { channelId: { in: visible }, deleted: false, threadId: null }, _max: { createdAt: true } }),
       prisma.userRole.findMany({ where: { userId }, select: { roleId: true } }),
       prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } }),
     ]);
