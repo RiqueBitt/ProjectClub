@@ -31,7 +31,7 @@ android {
         buildConfigField("boolean", "HAS_FIREBASE", hasFirebase.toString())
         // Busca de GIFs (KLIPY, a mesma do site). Vazio = só os GIFs favoritos.
         buildConfigField("String", "KLIPY_KEY", "\"${System.getenv("KLIPY_KEY") ?: ""}\"")
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        // ABIs: ver splits abaixo (o AGP não aceita ndk.abiFilters junto com splits).
     }
 
     signingConfigs {
@@ -67,7 +67,26 @@ android {
     packaging {
         resources { excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "META-INF/INDEX.LIST", "META-INF/DEPENDENCIES") }
         // Agora e mediasoup podem trazer o mesmo runtime C++.
-        jniLibs { pickFirsts += setOf("lib/*/libc++_shared.so") }
+        jniLibs {
+            pickFirsts += setOf("lib/*/libc++_shared.so")
+            // Celular com x86 praticamente não existe — fora do APK universal.
+            excludes += setOf("lib/x86/**", "lib/x86_64/**")
+            // Bibliotecas nativas (Agora + WebRTC) COMPRIMIDAS dentro do APK:
+            // sem isso iam "cruas" e o APK passava de 160 MB. O Android
+            // descompacta uma vez na instalação.
+            useLegacyPackaging = true
+        }
+    }
+
+    // Um APK por processador (o app de atualização baixa só o do celular) +
+    // o universal (todos), que continua sendo o do site/release oficial.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = true
+        }
     }
 }
 

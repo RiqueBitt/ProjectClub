@@ -93,7 +93,13 @@ jobs:
             echo "::error title=APK assinado falhou::${ERR:-sem detalhe no log}"
             exit 1
           }
-          cp "$(find app/build/outputs/apk/release -name '*.apk' | head -n1)" "$RUNNER_TEMP/ProjectClub-Nativo.apk"
+          # Universal (todos os processadores) + um APK por processador, bem
+          # menor — o app baixa só o do celular dele (ver Updater.kt).
+          OUT=app/build/outputs/apk/release
+          cp "$(find $OUT -name '*universal*.apk' | head -n1)" "$RUNNER_TEMP/ProjectClub-Nativo.apk"
+          cp "$(find $OUT -name '*arm64-v8a*.apk' | head -n1)" "$RUNNER_TEMP/ProjectClub-Nativo-arm64-v8a.apk"
+          cp "$(find $OUT -name '*armeabi-v7a*.apk' | head -n1)" "$RUNNER_TEMP/ProjectClub-Nativo-armeabi-v7a.apk"
+          ls -la "$RUNNER_TEMP"/ProjectClub-Nativo*.apk
 
       - name: Publicar na release "android-nativo"
         if: github.event_name != 'pull_request'
@@ -106,11 +112,19 @@ jobs:
               --notes "App Android nativo: chat, DMs, chamadas de voz, compartilhamento de tela e notificações. Atualizado a cada mudança na pasta android-nativo."
           # O app confere este arquivo ao abrir e avisa quando há versão nova.
           # sha256 + tamanho: o app confere o arquivo antes de instalar sozinho.
+          BASE="https://github.com/$REPO/releases/download/android-nativo"
+          entry() { f="$RUNNER_TEMP/$1"; printf '{"url":"%s/%s","sha256":"%s","size":%s}' "$BASE" "$1" "$(sha256sum "$f" | cut -d' ' -f1)" "$(stat -c%s "$f")"; }
           SHA=$(sha256sum "$RUNNER_TEMP/ProjectClub-Nativo.apk" | cut -d' ' -f1)
           SIZE=$(stat -c%s "$RUNNER_TEMP/ProjectClub-Nativo.apk")
-          printf '{"versionCode":%s,"versionName":"%s","url":"https://github.com/%s/releases/download/android-nativo/ProjectClub-Nativo.apk","sha256":"%s","size":%s}' \
-            "$APP_VERSION_CODE" "$APP_VERSION" "$REPO" "$SHA" "$SIZE" > "$RUNNER_TEMP/android-nativo.json"
-          for f in ProjectClub-Nativo.apk android-nativo.json; do
+          # Os APKs vão ANTES do .json: o app nunca vê uma versão cujo arquivo
+          # ainda não terminou de subir (o SHA não bateria).
+          for f in ProjectClub-Nativo.apk ProjectClub-Nativo-arm64-v8a.apk ProjectClub-Nativo-armeabi-v7a.apk; do
+            for i in 1 2 3; do gh release upload android-nativo "$RUNNER_TEMP/$f" --repo "$REPO" --clobber && break || sleep 10; done
+          done
+          printf '{"versionCode":%s,"versionName":"%s","url":"%s/ProjectClub-Nativo.apk","sha256":"%s","size":%s,"abis":{"arm64-v8a":%s,"armeabi-v7a":%s}}' \
+            "$APP_VERSION_CODE" "$APP_VERSION" "$BASE" "$SHA" "$SIZE" "$(entry ProjectClub-Nativo-arm64-v8a.apk)" "$(entry ProjectClub-Nativo-armeabi-v7a.apk)" > "$RUNNER_TEMP/android-nativo.json"
+          cat "$RUNNER_TEMP/android-nativo.json"
+          for f in android-nativo.json; do
             for i in 1 2 3; do gh release upload android-nativo "$RUNNER_TEMP/$f" --repo "$REPO" --clobber && break || sleep 10; done
           done
           gh release edit android-nativo --repo "$REPO" --notes "Versão $APP_VERSION — commit ${GITHUB_SHA::7}. O mesmo app sai como ProjectClub.apk nas versões oficiais (vX.Y.Z)."

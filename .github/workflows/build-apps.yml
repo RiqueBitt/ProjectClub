@@ -462,7 +462,9 @@ jobs:
           OWN_TOKEN: ${{ github.token }}
         run: |
           set -e
-          APK_PATH=$(find android-nativo/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          # Com APK por processador (splits), o oficial é o universal.
+          APK_PATH=$(find android-nativo/app/build/outputs/apk/release -name "*universal*.apk" | head -n 1)
+          [ -n "$APK_PATH" ] || APK_PATH=$(find android-nativo/app/build/outputs/apk/release -name "*.apk" | head -n 1)
           cp "$APK_PATH" "$RUNNER_TEMP/ProjectClub.apk"
           # Publica neste repositório (lugar oficial dos downloads).
           publish() {

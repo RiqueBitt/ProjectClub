@@ -260,7 +260,9 @@ private fun UpdateCard(st: com.projectclub.android.data.UpdateState) {
                 "Instalar agora", { Updater.install(userAsked = true) })
             else -> Quad("Atualização ${st.release.versionName} pronta", "Já foi baixada — é só confirmar.", "Instalar agora", { Updater.install(userAsked = true) })
         }
-        is com.projectclub.android.data.UpdateState.Installing -> Quad("Instalando ${st.release.versionName}…", "O app vai fechar e já volta na versão nova.", null, null)
+        is com.projectclub.android.data.UpdateState.Installing -> Quad(
+            if (st.percent != null) "Preparando ${st.release.versionName}… ${st.percent}%" else "Instalando ${st.release.versionName}…",
+            "O app vai fechar e já volta na versão nova.", null, null)
         is com.projectclub.android.data.UpdateState.Failed -> Quad("Não deu pra atualizar", st.message, "Tentar de novo", { Updater.retry(); scope.launch { Updater.check(force = true) } })
         else -> return
     }
