@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import Modal from '../Modal.jsx';
-import { BADGE_RARITIES, RARITY_LABEL, RARITY_COLOR, badgeHasImage } from '../../utils/badgeRarity';
-import { proxyImage } from '../../utils/imageProxy';
+import { BADGE_RARITIES, RARITY_LABEL, RARITY_COLOR } from '../../utils/badgeRarity';
+import BadgeIcon from '../BadgeIcon.jsx';
 import '../../styles/badges.css';
 
 function formatAwardedAt(dateStr, long = false) {
@@ -40,9 +40,7 @@ function BIcon({ name, size = 15 }) {
 }
 
 function BadgeArt({ badge, size }) {
-  return badgeHasImage(badge)
-    ? <img src={proxyImage(badge.iconUrl)} alt="" width={size} height={size} />
-    : <span className="bdg-glyph" style={{ fontSize: Math.round(size * 0.72) }}>{badge.icon}</span>;
+  return <BadgeIcon badge={badge} size={size} />;
 }
 
 // Abre ao clicar em qualquer insígnia do perfil (UserProfileModal.jsx) —

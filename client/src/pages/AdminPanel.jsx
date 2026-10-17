@@ -62,6 +62,7 @@ import StickerManagerModal from '../components/modals/StickerManagerModal.jsx';
 import ClanIconManagerModal from '../components/modals/ClanIconManagerModal.jsx';
 import ClanIcon from '../components/ClanIcon.jsx';
 import { BADGE_RARITIES, RARITY_LABEL, RARITY_COLOR, badgeHasImage } from '../utils/badgeRarity';
+import BadgeIcon from '../components/BadgeIcon.jsx';
 import { proxyImage } from '../utils/imageProxy';
 import { isFeatureEnabled } from '../utils/features';
 import MissionsAdmin from '../components/admin/MissionsAdmin.jsx';
@@ -2148,7 +2149,7 @@ function UsersTab() {
                     {userBadges.length > 0 && (
                       <span className="admin-user-badge-chips">
                         {userBadges.map((b) => (
-                          <span key={b.id} title={b.name}>{badgeHasImage(b) ? <img className="admin-badge-icon-preview" src={proxyImage(b.iconUrl)} alt="" /> : b.icon}</span>
+                          <span key={b.id} title={b.name}><BadgeIcon badge={b} size={18} /></span>
                         ))}
                       </span>
                     )}
@@ -2196,7 +2197,7 @@ function UsersTab() {
                         const has = (u.badgeIds || []).includes(b.id);
                         return (
                           <button key={b.id} className={has ? 'has-badge' : ''} onClick={() => toggleBadge(u, b.id, has)}>
-                            {has ? '✅' : '➕'} {badgeHasImage(b) ? <img className="admin-badge-icon-preview" src={proxyImage(b.iconUrl)} alt="" /> : b.icon} {b.name}
+                            {has ? '✅' : '➕'} <BadgeIcon badge={b} size={18} /> {b.name}
                           </button>
                         );
                       })}
@@ -2480,7 +2481,7 @@ function BadgesTab() {
         {badges.map((b) => (
           <div key={b.id} className="admin-badge-card">
             <div className="admin-badge-card-icon" style={{ '--rarity-color': RARITY_COLOR[b.rarity] || RARITY_COLOR.COMMON }}>
-              {badgeHasImage(b) ? <img src={proxyImage(b.iconUrl)} alt="" /> : <span>{b.icon}</span>}
+              <BadgeIcon badge={b} size={26} />
             </div>
             <div className="admin-badge-card-info">
               <div className="admin-badge-card-name-row">

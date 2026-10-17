@@ -29,7 +29,7 @@ const UNICODE_COLLECTION_KEY = 'unicode-default';
 const KLIPY_KEY = import.meta.env.VITE_KLIPY_KEY || '';
 const KLIPY_CLIENT = 'embercord';
 
-export default function EmojiPicker({ serverEmojis = [], serverStickers = [], onPick, onPickSticker, onPickGif, onClose, style, variant = 'composer', defaultHeightVh, initialTab = 'emojis' }) {
+export default function EmojiPicker({ serverEmojis = [], serverStickers = [], onPick, onPickSticker, onPickGif, onClose, style, variant = 'composer', defaultHeightVh, initialTab = 'emojis', onTabChange }) {
   const { heightVh, dragHandlers } = useSheetDrag(onClose, defaultHeightVh);
   // Fecha com Esc ou clicando fora. O fechar-por-fora espera o clique
   // terminar (setTimeout): se o clique foi no próprio botão que abre o
@@ -67,6 +67,8 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
   // mesmo rail), Figurinhas, GIFs.
   const [tab, setTab] = useState(initialTab);
   const [query, setQuery] = useState('');
+  // Avisa quem abriu (barra de mensagem) qual aba ficou por último.
+  useEffect(() => { onTabChange?.(tab); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
   const emojiScrollRef = useRef(null);
   const stickerScrollRef = useRef(null);
   const catSectionRefs = useRef({});

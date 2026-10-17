@@ -216,26 +216,34 @@
   --ps-shadow: 1px 1px 0 #000, 6px 6px 0 rgba(0, 0, 0, .25);
   --ps-top-display: flex; --ps-top-text: '🖥️  Propriedades do perfil'; --ps-top-h: 24px; --ps-top-pad: 0 70px 0 6px;
   --ps-top-font: 700 12px Tahoma, Verdana, sans-serif;
+  /* Os botõezinhos _ □ ✕ e os desenhos de dentro ficam TODOS na própria
+     barra de título (antes os desenhos iam numa camada do perfil inteiro e
+     saíam pra fora das caixinhas quando o perfil tinha espaçamento em cima,
+     no PC e no celular). Medidas relativas à barra (24px de altura). */
   --ps-top-bg:
-    linear-gradient(#d4d0c8, #d4d0c8) right 4px top 5px / 16px 14px no-repeat,
-    linear-gradient(#d4d0c8, #d4d0c8) right 22px top 5px / 16px 14px no-repeat,
-    linear-gradient(#d4d0c8, #d4d0c8) right 38px top 5px / 16px 14px no-repeat,
+    /* ✕ */
+    linear-gradient(45deg, transparent 43%, #000 43% 57%, transparent 57%) right 8px top 8px / 8px 8px no-repeat,
+    linear-gradient(-45deg, transparent 43%, #000 43% 57%, transparent 57%) right 8px top 8px / 8px 8px no-repeat,
+    /* □ */
+    linear-gradient(#000, #000) right 26px top 8px / 8px 2px no-repeat,
+    linear-gradient(#000, #000) right 26px top 15px / 8px 1px no-repeat,
+    linear-gradient(#000, #000) right 26px top 8px / 1px 8px no-repeat,
+    linear-gradient(#000, #000) right 33px top 8px / 1px 8px no-repeat,
+    /* _ */
+    linear-gradient(#000, #000) right 43px top 14px / 6px 2px no-repeat,
+    /* caixinhas em relevo (cinza por cima, sombra escura embaixo/direita) */
+    linear-gradient(#d4d0c8, #d4d0c8) right 5px top 5px / 15px 13px no-repeat,
+    linear-gradient(#d4d0c8, #d4d0c8) right 23px top 5px / 15px 13px no-repeat,
+    linear-gradient(#d4d0c8, #d4d0c8) right 39px top 5px / 15px 13px no-repeat,
+    linear-gradient(#404040, #404040) right 4px top 5px / 16px 14px no-repeat,
+    linear-gradient(#404040, #404040) right 22px top 5px / 16px 14px no-repeat,
+    linear-gradient(#404040, #404040) right 38px top 5px / 16px 14px no-repeat,
     linear-gradient(90deg, #0a246a, #3a6ea5 55%, #a6caf0);
   border-color: #fff #404040 #404040 #fff !important;
 }
-/* Botõezinhos ✕ □ _ desenhados na barra azul. */
-.pstyle-win2000::after {
-  --ps-overlay:
-    linear-gradient(#000, #000) right 9px top 10px / 6px 2px no-repeat,
-    linear-gradient(45deg, transparent 45%, #000 45% 58%, transparent 58%) right 8px top 8px / 8px 8px no-repeat,
-    linear-gradient(-45deg, transparent 45%, #000 45% 58%, transparent 58%) right 8px top 8px / 8px 8px no-repeat,
-    linear-gradient(#000, #000) right 26px top 8px / 8px 1px no-repeat,
-    linear-gradient(#000, #000) right 26px top 8px / 1px 8px no-repeat,
-    linear-gradient(#000, #000) right 26px top 15px / 8px 1px no-repeat,
-    linear-gradient(#000, #000) right 33px top 8px / 1px 8px no-repeat,
-    linear-gradient(#000, #000) right 41px top 15px / 7px 2px no-repeat;
-  background: var(--ps-overlay);
-}
+/* A barra de título fica sempre dentro do cartão (sem vazar no celular). */
+.pstyle-win2000::before { width: 100%; max-width: 100%; min-width: 0; }
+.pstyle-win2000::after { background: none !important; }
 .pstyle-win2000 .mini-profile-section { padding-top: 14px; margin-top: 16px; }
 /* "Group box": título encaixado na borda, igual às caixas do Windows. */
 .pstyle-win2000 .mini-profile-section-label,

@@ -386,9 +386,8 @@ function ChatWindowInner({ conversationId, channelId }) {
   // e calcula a posição em JS, passando um style pronto — muito mais
   // direto e confiável do que tentar inferir onde uma coluna termina.
   const emojiBtnRef = useRef(null);
-  const gifBtnRef = useRef(null);
-  const stickerBtnRef = useRef(null);
-  const pickerBtnRefs = { emojis: emojiBtnRef, gifs: gifBtnRef, stickers: stickerBtnRef };
+  // Emojis/Figurinhas/GIFs ficam num botão só — todas as abas ancoram nele.
+  const pickerBtnRefs = { emojis: emojiBtnRef, gifs: emojiBtnRef, stickers: emojiBtnRef };
   const uiLayout = useStore((s) => s.uiLayout);
   // Item pedido: "sistema de figurinhas" — EmojiPicker já tinha essa
   // prop pronta pra receber (com a aba "Figurinhas" toda desenhada),
@@ -1776,11 +1775,9 @@ function ChatWindowInner({ conversationId, channelId }) {
             }}
           />
           <div className="composer-picker-anchor">
-            <button ref={gifBtnRef} type="button" className={`icon-btn chat-composer-btn chat-gif-btn ${pickerTab === 'gifs' ? 'on' : ''}`} title="GIF" onClick={() => setPickerTab((t) => (t === 'gifs' ? null : 'gifs'))}><span>GIF</span></button>
-            <button ref={stickerBtnRef} type="button" className={`icon-btn chat-composer-btn ${pickerTab === 'stickers' ? 'on' : ''}`} title="Figurinhas" aria-label="Figurinhas" onClick={() => setPickerTab((t) => (t === 'stickers' ? null : 'stickers'))}>
-              <ChatIcon name="sticker" />
-            </button>
-            <button ref={emojiBtnRef} type="button" className={`icon-btn chat-composer-btn ${pickerTab === 'emojis' ? 'on' : ''}`} title="Emoji" aria-label="Emoji" onClick={() => setPickerTab((t) => (t === 'emojis' ? null : 'emojis'))}>
+            {/* Um botão só pra Emojis, Figurinhas e GIFs (igual ao celular):
+                abre o seletor com abas, na última aba usada. */}
+            <button ref={emojiBtnRef} type="button" className={`icon-btn chat-composer-btn chat-media-picker-btn ${emojiPickerOpen ? 'on' : ''}`} title="Emojis, figurinhas e GIFs" aria-label="Emojis, figurinhas e GIFs" aria-haspopup="dialog" aria-expanded={emojiPickerOpen} onClick={() => setPickerTab((t) => (t ? null : readLastPickerTab()))}>
               <ChatIcon name="smile" />
             </button>
             <MiniJogosComposerButton />
@@ -1795,6 +1792,7 @@ function ChatWindowInner({ conversationId, channelId }) {
                 onPick={insertText}
                 onPickSticker={sendSticker}
                 onPickGif={sendGif}
+                onTabChange={saveLastPickerTab}
                 onClose={() => setPickerTab(null)}
               />,
               document.body,
@@ -1814,6 +1812,17 @@ function ChatWindowInner({ conversationId, channelId }) {
       </form>
     </section>
   );
+}
+
+// Última aba do seletor de emoji/figurinha/GIF (só conveniência local).
+const PICKER_TAB_KEY = 'pc.composerPickerTab';
+const PICKER_TABS = ['emojis', 'stickers', 'gifs'];
+function readLastPickerTab() {
+  try { const t = localStorage.getItem(PICKER_TAB_KEY); return PICKER_TABS.includes(t) ? t : 'emojis'; } catch { return 'emojis'; }
+}
+function saveLastPickerTab(t) {
+  if (!PICKER_TABS.includes(t)) return;
+  try { localStorage.setItem(PICKER_TAB_KEY, t); } catch { /* sem armazenamento: tudo bem */ }
 }
 
 const ChatWindowMemo = memo(ChatWindowInner);

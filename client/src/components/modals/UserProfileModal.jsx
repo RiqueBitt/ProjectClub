@@ -22,7 +22,7 @@ import BadgeListModal from './BadgeListModal.jsx';
 import PaginatedListModal from './PaginatedListModal.jsx';
 import PhotoAlbumModal from './PhotoAlbumModal.jsx';
 import defaultAchievementIcon from '../../assets/icons/nav-achievements.png';
-import { badgeHasImage } from '../../utils/badgeRarity';
+import BadgeIcon from '../BadgeIcon.jsx';
 import { nameStyleProps, nameStyleClassName } from '../../utils/nameStyle';
 import cancelIcon from '../../assets/icons/close-x.png';
 import settingsIcon from '../../assets/icons/settings.png';
@@ -1142,7 +1142,7 @@ export default function UserProfileModal() {
             onClick={() => setBadgeListOpen(b.id)}
           >
             <span className="pf-tile-icon">
-              {badgeHasImage(b) ? <img src={proxyImage(b.iconUrl)} alt="" /> : b.icon}
+              <BadgeIcon badge={b} size={30} />
             </span>
             <span className="pf-tile-name">{b.name}</span>
           </button>
@@ -1335,8 +1335,23 @@ export default function UserProfileModal() {
                     </div>
                   </div>
                 </div>
-                <div className="pfx-head-activity">
-                  <ActivityBadge userId={user.id} />
+                <div className="pfx-head-side">
+                  {/* Até 4 insígnias no canto de cima, perto do nome. */}
+                  {data.badges?.length > 0 && (
+                    <div className="pfx-head-badges" role="list" aria-label="Insígnias">
+                      {data.badges.slice(0, 4).map((b) => (
+                        <button type="button" role="listitem" key={b.id} className="pfx-head-badge" title={b.description ? `${b.name} — ${b.description}` : b.name} aria-label={b.name} onClick={() => setBadgeListOpen(b.id)}>
+                          <BadgeIcon badge={b} size={30} tile />
+                        </button>
+                      ))}
+                      {data.badges.length > 4 && (
+                        <button type="button" className="pfx-head-badge more" title="Ver todas as insígnias" onClick={() => setBadgeListOpen(true)}>+{data.badges.length - 4}</button>
+                      )}
+                    </div>
+                  )}
+                  <div className="pfx-head-activity">
+                    <ActivityBadge userId={user.id} />
+                  </div>
                 </div>
               </div>
             </div>
