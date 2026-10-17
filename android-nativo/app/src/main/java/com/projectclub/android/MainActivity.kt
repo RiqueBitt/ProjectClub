@@ -153,10 +153,19 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Root() {
         val session by app.repo.session.collectAsState()
-        when (val s = session) {
-            SessionState.Loading -> com.projectclub.android.ui.common.LoadingScreen()
-            is SessionState.LoggedOut -> LoginScreen(app.repo, s.message)
-            SessionState.LoggedIn -> LoggedIn()
+        val offline by app.repo.offline.collectAsState()
+        val queued by app.repo.queue.items.collectAsState()
+        // Faixa de "sem conexão" por cima de tudo (modo offline: o app mostra o que foi salvo).
+        com.projectclub.android.ui.common.OfflineFrame(
+            offline = offline,
+            text = if (session == SessionState.LoggedIn) "Sem conexão — mostrando o que foi salvo" else "Sem conexão com a internet",
+            pending = if (session == SessionState.LoggedIn) queued.size else 0,
+        ) {
+            when (val s = session) {
+                SessionState.Loading -> com.projectclub.android.ui.common.LoadingScreen()
+                is SessionState.LoggedOut -> LoginScreen(app.repo, s.message)
+                SessionState.LoggedIn -> LoggedIn()
+            }
         }
     }
 

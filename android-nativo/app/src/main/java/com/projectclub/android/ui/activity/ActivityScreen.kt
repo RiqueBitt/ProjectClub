@@ -84,7 +84,13 @@ fun ActivityScreen(repo: Repository, nav: AppNav) {
     val scope = rememberCoroutineScope()
     val openUser = LocalOpenUser.current
     LaunchedEffect(Unit) {
-        runCatching { repo.api.get<ActivityFeed>("/api/activity/feed") }.onSuccess { feed = it }.onFailure { error = it.message ?: "Não deu pra carregar." }
+        runCatching { repo.api.get<ActivityFeed>("/api/activity/feed") }
+            .onSuccess { feed = it; repo.saveCached("feed:activity", ActivityFeed.serializer(), it.copy(nextBefore = null)) }
+            .onFailure { e ->
+                // Sem conexão: mostra o último feed carregado (se tiver).
+                val saved = if (e is kotlinx.coroutines.CancellationException) null else repo.loadCached("feed:activity", ActivityFeed.serializer())
+                if (saved != null) feed = saved else error = e.message ?: "Não deu pra carregar."
+            }
     }
     fun more() {
         val before = feed?.nextBefore ?: return

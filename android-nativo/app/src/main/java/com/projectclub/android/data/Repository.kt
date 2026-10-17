@@ -3,7 +3,14 @@ package com.projectclub.android.data
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import com.projectclub.android.data.offline.OfflineCache
+import com.projectclub.android.data.offline.OfflineLogic
+import com.projectclub.android.data.offline.OfflineSnapshot
+import com.projectclub.android.data.offline.PendingMessage
+import com.projectclub.android.data.offline.PendingQueue
+import com.projectclub.android.data.offline.QueueResult
 import com.projectclub.android.net.Api
+import com.projectclub.android.net.Connectivity
 import com.projectclub.android.net.ApiException
 import com.projectclub.android.net.RefreshResult
 import com.projectclub.android.net.isCancellation
@@ -17,7 +24,19 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
@@ -69,6 +88,35 @@ data class PickedFile(val uri: Uri, val name: String, val mime: String, val size
  */
 class Repository(private val context: Context, val api: Api, private val scope: CoroutineScope) {
     val realtime = Realtime(api, scope)
+
+    // ---------------- modo offline ----------------
+
+    /** Tem internet (rede padrão do aparelho, validada)? */
+    val connectivity = Connectivity(context)
+    /** Últimas conversas, perfil, feed e a "foto" do app, no disco (com teto de tamanho). */
+    val offlineCache = OfflineCache(java.io.File(context.filesDir, "offline"))
+    /** Mensagens escritas sem internet, esperando pra sair (sobrevive ao app fechado). */
+    val queue = PendingQueue(java.io.File(context.filesDir, "offline_queue.json"))
+
+    /** Abriu sem internet e mostra o que estava salvo (a sessão ainda não foi renovada). */
+    private val _cachedSession = MutableStateFlow(false)
+    val cachedSession: StateFlow<Boolean> = _cachedSession
+
+    /** "Sem conexão — mostrando o que foi salvo": sem rede (e sem o tempo real) ou sessão do cache. */
+    val offline: StateFlow<Boolean> = combine(connectivity.online, realtime.connected, _cachedSession) { net, rt, cached ->
+        cached || !(net || rt)
+    }.stateIn(scope, SharingStarted.Eagerly, !connectivity.online.value)
+
+    /** O que aconteceu com as mensagens que saíram da fila (nonce → enviada/recusada). Só as últimas. */
+    private val _queueResults = MutableStateFlow<Map<String, QueueResult>>(emptyMap())
+    val queueResults: StateFlow<Map<String, QueueResult>> = _queueResults
+
+    // (declarados aqui em cima: as tarefas do init podem usar antes do construtor terminar)
+    private val flushMutex = Mutex()
+    @Volatile private var retryJob: kotlinx.coroutines.Job? = null
+    @Volatile private var flushAgain = false
+    private val roomSaveJobs = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Job>()
+    private val recentLock = Any()
 
     private val _session = MutableStateFlow<SessionState>(SessionState.Loading)
     val session: StateFlow<SessionState> = _session
@@ -123,7 +171,16 @@ class Repository(private val context: Context, val api: Api, private val scope: 
         api.onRefreshed = { auth -> auth.user?.let { u -> _me.value = u; remember(u) } }
         scope.launch { realtime.events.collect { handle(it) } }
         scope.launch {
-            realtime.connected.collect { up -> if (up && _session.value == SessionState.LoggedIn) refreshLight() }
+            realtime.connected.collect { up -> if (up && _session.value == SessionState.LoggedIn) { refreshLight(); flushQueue() } }
+        }
+        // A internet voltou: manda o que ficou pendente.
+        scope.launch { connectivity.online.collect { up -> if (up) flushQueue() } }
+        // Guarda a "foto" do app no disco a cada mudança (espera assentar antes de gravar).
+        scope.launch {
+            merge(_me, _community, _conversations, _friends, _channelStates, _notices).collectLatest {
+                delay(2_500)
+                saveSnapshot()
+            }
         }
     }
 
@@ -148,16 +205,169 @@ class Repository(private val context: Context, val api: Api, private val scope: 
         if (api.cookies.find("refreshToken") == null && api.cookies.find("pcKeep") == null) {
             _session.value = SessionState.LoggedOut(); return
         }
+        // Sem internet: abre na hora com o que estava salvo (e segue tentando renovar por trás).
+        var hydrated = if (!connectivity.online.value) hydrateFromCache() else false
         var attempt = 0
         while (true) {
             when (val r = api.refresh()) {
                 is RefreshResult.Ok -> { r.auth.user?.let { _me.value = it; remember(it) }; startSession(); return }
-                RefreshResult.Rejected -> { _session.value = SessionState.LoggedOut(); return }
+                RefreshResult.Rejected -> { _cachedSession.value = false; _session.value = SessionState.LoggedOut(); return }
                 RefreshResult.Transient -> {
+                    if (!hydrated) hydrated = hydrateFromCache()
                     attempt++
-                    delay(minOf(10_000L, attempt * 1500L))
+                    // Espera um pouco — ou menos, se a internet voltar antes.
+                    withTimeoutOrNull(minOf(10_000L, attempt * 1500L)) { connectivity.online.drop(1).first { it } }
                 }
             }
+        }
+    }
+
+    /** Mostra o app com a última "foto" salva (sem rede). Devolve false se não tem nada salvo. */
+    private suspend fun hydrateFromCache(): Boolean {
+        val snap = withContext(Dispatchers.IO) {
+            offlineCache.get(KEY_SNAPSHOT)?.let { runCatching { AppJson.decodeFromString(OfflineSnapshot.serializer(), it) }.getOrNull() }
+        } ?: return false
+        val me = snap.me ?: return false
+        if (_session.value == SessionState.LoggedIn) return true
+        snap.users.forEach(::remember)
+        remember(me)
+        _me.value = me
+        snap.community?.let(::setCommunity)
+        setConversations(snap.conversations)
+        setFriends(snap.friends)
+        _channelStates.value = snap.channelStates
+        _notices.value = snap.notices
+        _unreadNotices.value = snap.unreadNotices
+        _cachedSession.value = true
+        _loaded.value = true
+        _session.value = SessionState.LoggedIn
+        return true
+    }
+
+    private suspend fun saveSnapshot() {
+        if (_session.value != SessionState.LoggedIn) return
+        val me = _me.value ?: return
+        val known = synchronized(users) { users.values.toList() }.takeLast(2_000)
+        val snap = OfflineSnapshot(
+            me = me, community = _community.value, conversations = _conversations.value, friends = _friends.value,
+            channelStates = _channelStates.value, notices = _notices.value.take(50), unreadNotices = _unreadNotices.value,
+            users = known, savedAt = System.currentTimeMillis(),
+        )
+        withContext(Dispatchers.IO) {
+            runCatching { offlineCache.put(KEY_SNAPSHOT, AppJson.encodeToString(OfflineSnapshot.serializer(), snap)) }
+        }
+    }
+
+    /** Guarda qualquer coisa (perfil, feed...) pro modo offline. */
+    fun <T> saveCached(key: String, serializer: KSerializer<T>, value: T) {
+        if (_session.value != SessionState.LoggedIn) return
+        scope.launch(Dispatchers.IO) { runCatching { offlineCache.put(key, AppJson.encodeToString(serializer, value)) } }
+    }
+
+    /** Lê o que foi guardado com [saveCached] (null se não tem). */
+    suspend fun <T> loadCached(key: String, serializer: KSerializer<T>): T? = withContext(Dispatchers.IO) {
+        offlineCache.get(key)?.let { runCatching { AppJson.decodeFromString(serializer, it) }.getOrNull() }
+    }
+
+    /**
+     * Mensagens de uma sala aberta: ficam na memória (reabrir é instantâneo)
+     * e, com uma pequena espera, no disco (as últimas 100) pro modo offline.
+     */
+    fun cacheRoomMessages(room: Room, list: List<Message>) {
+        val confirmed = OfflineLogic.forDisk(list)
+        if (confirmed.isEmpty() || room.id.isEmpty()) return
+        messageCache[room.id] = confirmed
+        if (_session.value != SessionState.LoggedIn) return
+        roomSaveJobs.remove(room.id)?.cancel()
+        roomSaveJobs[room.id] = scope.launch(Dispatchers.IO) {
+            delay(1_500)
+            runCatching {
+                offlineCache.put(roomKey(room.id), AppJson.encodeToString(MESSAGES, confirmed))
+                touchRecentRoom(room.id)
+            }
+        }
+    }
+
+    /** Mensagens salvas de uma sala visitada antes (memória ou disco; null se não tem). */
+    suspend fun cachedRoomMessages(room: Room): List<Message>? {
+        messageCache[room.id]?.takeIf { it.isNotEmpty() }?.let { return it }
+        return loadCached(roomKey(room.id), MESSAGES)?.takeIf { it.isNotEmpty() }
+    }
+
+    private fun touchRecentRoom(roomId: String) {
+        synchronized(recentLock) {
+            val current = offlineCache.get(KEY_RECENT_ROOMS)
+                ?.let { runCatching { AppJson.decodeFromString(ROOM_IDS, it) }.getOrNull() }.orEmpty()
+            val (next, dropped) = OfflineLogic.touchRecent(current, roomId)
+            dropped.forEach { offlineCache.remove(roomKey(it)) }
+            offlineCache.put(KEY_RECENT_ROOMS, AppJson.encodeToString(ROOM_IDS, next))
+        }
+    }
+
+    private fun roomKey(roomId: String) = "room:$roomId"
+
+    // ---------------- fila de envio offline ----------------
+
+    /** Põe a mensagem na fila e tenta mandar já (se tiver internet). */
+    fun enqueue(p: PendingMessage) {
+        queue.add(p)
+        flushQueue()
+    }
+
+    /** Desiste de uma mensagem pendente (ainda não enviada). */
+    fun cancelPending(nonce: String) = queue.remove(nonce)
+
+    /** Manda as pendentes, em ordem. Para na primeira falha de rede (tenta de novo depois). */
+    fun flushQueue() {
+        if (queue.items.value.isEmpty()) return
+        scope.launch {
+            // Já tem um envio rodando: ele passa de novo pela fila no fim (pega a mensagem nova).
+            if (!flushMutex.tryLock()) { flushAgain = true; return@launch }
+            try {
+                do { flushAgain = false; flushLocked() } while (flushAgain)
+            } finally { flushMutex.unlock() }
+        }
+    }
+
+    private suspend fun flushLocked() {
+        while (true) {
+            if (_session.value != SessionState.LoggedIn || _cachedSession.value || api.accessToken == null) return
+            val p = queue.ordered().firstOrNull() ?: return
+            val room = Room(channelId = p.channelId, conversationId = p.conversationId)
+            try {
+                val sent = if (p.stickerUrl != null) sendSticker(room, p.stickerUrl, p.nonce)
+                else send(room, p.content, p.replyToId, emptyList(), p.nonce)
+                // O resultado antes de sair da fila: a tela troca a "pendente" pela enviada sem piscar.
+                recordResult(p.nonce, QueueResult.Sent(sent.copy(nonce = p.nonce)))
+                queue.remove(p.nonce)
+            } catch (e: Exception) {
+                if (e.isCancellation()) throw e
+                if (OfflineLogic.isRetryable(e)) {
+                    queue.markFailed(p.nonce, e.message)
+                    flushAgain = false
+                    scheduleRetry(p.attempts + 1)
+                    return
+                }
+                recordResult(p.nonce, QueueResult.Dropped(p, (e as? ApiException)?.message ?: "A mensagem não pôde ser enviada."))
+                queue.remove(p.nonce)
+            }
+        }
+    }
+
+    private fun recordResult(nonce: String, r: QueueResult) = _queueResults.update { m ->
+        val next = LinkedHashMap(m)
+        next.remove(nonce)
+        next[nonce] = r
+        while (next.size > 50) next.remove(next.keys.first())
+        next
+    }
+
+    /** Internet "ligada" mas o envio falhou (servidor reiniciando...): tenta de novo com espera crescente. */
+    private fun scheduleRetry(attempts: Int) {
+        if (retryJob?.isActive == true) return
+        retryJob = scope.launch {
+            delay(OfflineLogic.backoffMs(attempts))
+            if (connectivity.online.value || realtime.connected.value) flushQueue()
         }
     }
 
@@ -194,9 +404,10 @@ class Repository(private val context: Context, val api: Api, private val scope: 
      * meio (a aba Comunidade ficava vazia depois do login).
      */
     private fun startSession() {
+        _cachedSession.value = false
         _session.value = SessionState.LoggedIn
         realtime.connect()
-        scope.launch { loadAll() }
+        scope.launch { loadAll(); flushQueue() }
         _alerts.tryEmit(Alert.SessionStarted)
     }
 
@@ -211,6 +422,13 @@ class Repository(private val context: Context, val api: Api, private val scope: 
 
     private fun endLocalSession(message: String?) {
         messageCache.clear()
+        // Saiu da conta: nada dela fica salvo no aparelho (nem a fila de envio).
+        _cachedSession.value = false
+        roomSaveJobs.values.forEach { it.cancel() }
+        roomSaveJobs.clear()
+        scope.launch(Dispatchers.IO) { runCatching { offlineCache.clear() } }
+        queue.clear()
+        _queueResults.value = emptyMap()
         _loaded.value = false
         realtime.disconnect()
         api.setSession(null)
@@ -607,6 +825,13 @@ class Repository(private val context: Context, val api: Api, private val scope: 
         (el as? JsonObject)?.get(key)?.let { (it as? JsonPrimitive)?.contentOrNull }
 
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
+
+    private companion object {
+        const val KEY_SNAPSHOT = "snapshot"
+        const val KEY_RECENT_ROOMS = "recent-rooms"
+        val MESSAGES = ListSerializer(Message.serializer())
+        val ROOM_IDS = ListSerializer(String.serializer())
+    }
 
     private fun uriBody(f: PickedFile): RequestBody = object : RequestBody() {
         override fun contentType() = f.mime.toMediaTypeOrNull()
