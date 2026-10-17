@@ -424,6 +424,7 @@ function createApp() {
   app.use('/api/games', gamesLibraryRoutes);
   app.use('/api/decorations', decorationsRoutes);
   app.use('/api/supporters', supportersRoutes);
+  app.use('/api/donation-goal', require('./routes/donationGoal'));
   app.use('/api/youtube', youtubeRoutes);
   // Filmes e Séries e Navegador: desligados no código (config/features.js),
   // respondem 404 sem carregar nada; o código fica guardado pra religar.

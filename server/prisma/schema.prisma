@@ -3980,3 +3980,28 @@ model DbBackup {
 
   @@index([startedAt])
 }
+
+// --- Meta de doações (barrinha verde no topo da barra lateral) ---
+// Uma meta só (singleton). Valores em CENTAVOS pra não ter erro de
+// arredondamento. A staff define a meta e lança cada doação recebida.
+model DonationGoal {
+  id          String   @id @default("singleton")
+  enabled     Boolean  @default(false)
+  title       String   @default("Meta do mês") @db.VarChar(80)
+  description String?  @db.VarChar(200)
+  target      Int      @default(0)
+  raised      Int      @default(0)
+  showDonors  Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+}
+
+model DonationEntry {
+  id        String   @id @default(uuid())
+  amount    Int
+  donorName String?  @db.VarChar(60)
+  note      String?  @db.VarChar(200)
+  actorId   String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

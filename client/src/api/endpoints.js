@@ -366,6 +366,12 @@ export const adminListAuditLog = (params = {}) => api.get('/admin/audit-log', { 
 export const adminGetMetrics = () => api.get('/admin/metrics').then((r) => r.data);
 export const adminListUsers = (q) => api.get('/admin/users', { params: q ? { q } : {} }).then((r) => r.data);
 export const adminListUsersPage = (params) => api.get('/admin/users', { params }).then((r) => r.data);
+// Meta de doações (barrinha verde da barra lateral)
+export const getDonationGoal = () => api.get('/donation-goal').then((r) => r.data);
+export const updateDonationGoal = (payload) => api.put('/donation-goal', payload).then((r) => r.data);
+export const listDonationEntries = () => api.get('/donation-goal/entries').then((r) => r.data);
+export const addDonationEntry = (payload) => api.post('/donation-goal/entries', payload).then((r) => r.data);
+export const removeDonationEntry = (id) => api.delete(`/donation-goal/entries/${id}`).then((r) => r.data);
 export const adminUpdateUser = (id, payload) => api.patch(`/admin/users/${id}`, payload).then((r) => r.data);
 export const adminBanUser = (id, reason) => api.post(`/admin/users/${id}/ban`, { reason }).then((r) => r.data);
 export const adminUnbanUser = (id) => api.delete(`/admin/users/${id}/ban`).then((r) => r.data);
