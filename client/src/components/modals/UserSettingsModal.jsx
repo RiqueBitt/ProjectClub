@@ -145,7 +145,7 @@ const TAB_KEYWORDS = {
   VOICE: 'voz video audio microfone saida fone alto-falante teste redutor ruido apertar pra falar push to talk legendas nivelar volume reacoes gravar',
   APPEARANCE: 'aparencia tema layout zoom emoji fundo cores interface',
   ACCESSIBILITY: 'acessibilidade movimento reduzido contraste fonte tamanho leitura',
-  SYSTEM: 'sistema atalhos teclado inicializacao bandeja iniciar com o windows versao atualizacao atualizar sobre apk',
+  SYSTEM: 'sistema ajuda tour boas-vindas atalhos teclado inicializacao bandeja iniciar com o windows versao atualizacao atualizar sobre apk',
   LANGUAGE: 'idioma lingua horario hora data formato',
   GAMES: 'jogos apps deteccao atividade overlay sobreposicao compartilhar registrados',
 };
@@ -2233,6 +2233,15 @@ export default function UserSettingsModal({ onClose }) {
                   já está sendo utilizado.'" — backend novo (ver
                   shortcutsController.js), a mensagem de conflito vem
                   direto da resposta de erro da API. */}
+              {/* Ajuda: tour de boas-vindas e lista de atalhos (ver components/conforto). */}
+              <div className="settings-block">
+                <h4>Ajuda</h4>
+                <p className="dim">Reveja o passeio pela interface ou consulte os atalhos de teclado (Ctrl + / em qualquer tela).</p>
+                <div className="birthday-picker-row">
+                  <button type="button" className="btn-secondary" onClick={() => window.dispatchEvent(new CustomEvent('pc:open-tour'))}>Rever o tour de boas-vindas</button>
+                  <button type="button" className="btn-secondary" onClick={() => window.dispatchEvent(new CustomEvent('pc:open-shortcuts'))}>Ver atalhos de teclado</button>
+                </div>
+              </div>
               <div className="settings-block">
                 <h4>Atalhos personalizados</h4>
                 <p className="dim">Dê um nome pra ação e aperte as teclas no campo da combinação (Backspace limpa). Uma combinação só pode ser usada por uma ação.</p>

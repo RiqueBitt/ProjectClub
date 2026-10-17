@@ -67,6 +67,8 @@ import { isFeatureEnabled } from '../utils/features';
 import MissionsAdmin from '../components/admin/MissionsAdmin.jsx';
 import SupportersAdmin from '../components/admin/SupportersAdmin.jsx';
 import { StaffHealthTab, StaffUserSearchTab } from '../components/admin/StaffTools.jsx';
+// Painel de saúde completo (erros agrupados, calls, servidor de mídia, backups).
+import StaffOpsPanel from '../components/admin/StaffOpsPanel.jsx';
 import VoiceProvidersAdmin from '../components/admin/VoiceProvidersAdmin.jsx';
 import { CardsAdminCards, CardsAdminPacks, CardsAdminSettings, CardsAdminPlayers, CardsAdminTrades, CardsAdminMatches, CardsAdminStats, CardsAdminCampaign, CardsAdminTournaments, CardsAdminBoards } from '../cards/CardsAdmin.jsx';
 
@@ -152,6 +154,7 @@ const TABS = {
   cartasTorneios: { label: 'Torneios', desc: 'Crie torneios eliminatórios, acompanhe o chaveamento e premie o campeão.' },
   cartasFundos: { label: 'Fundos de batalha', desc: 'Crie e edite as mesas das batalhas: imagem de fundo, cena, escurecimento, cor e frequência.' },
   numeros: { label: 'Números', desc: 'Ativos por dia, semana e mês, retenção, cadastros, gemas e moedas circulando e itens mais vendidos da Loja.' },
+  painelSaude: { label: 'Painel de saúde', desc: 'Tudo numa tela: erros agrupados, quem está em call, servidor de mídia, banco/Redis, versão publicada e backups do banco. Atualiza a cada 10s.' },
   saude: { label: 'Saúde', desc: 'Online agora, conexões, chamadas, erros recentes, banco, Redis e memória. Atualiza sozinho a cada 15s.' },
 };
 
@@ -177,7 +180,7 @@ const TAB_GROUPS = [
   { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'apoio', 'casas', 'album'] },
   { label: 'Guerra das Cartas', icon: 'cards', tabs: ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
   { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
-  { label: 'Sistema', icon: 'system', tabs: ['numeros', 'saude', 'provedoresVoz', 'sistema', 'maintenance', 'reload'] },
+  { label: 'Sistema', icon: 'system', tabs: ['numeros', 'painelSaude', 'saude', 'provedoresVoz', 'sistema', 'maintenance', 'reload'] },
 ].map((g) => ({ ...g, tabs: g.tabs.filter((t) => !HIDDEN_TABS.has(t)) })).filter((g) => g.tabs.length > 0);
 
 const groupOf = (tab) => TAB_GROUPS.find((g) => g.tabs.includes(tab));
@@ -337,6 +340,7 @@ export default function AdminPanel() {
           {tab === 'honeypot' && <HoneypotAdminTab />}
           {tab === 'reload' && <ReloadAdminTab />}
           {tab === 'saude' && <StaffHealthTab />}
+          {tab === 'painelSaude' && <StaffOpsPanel />}
           {tab === 'provedoresVoz' && <VoiceProvidersAdmin />}
           {tab === 'busca' && <StaffUserSearchTab />}
           {tab === 'cartasCartas' && <CardsAdminCards />}

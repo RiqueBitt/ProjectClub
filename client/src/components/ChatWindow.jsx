@@ -1460,7 +1460,7 @@ function ChatWindowInner({ conversationId, channelId }) {
         <TicketChannelBanner ticket={channel.ticket} />
       )}
 
-      <div className="message-list" ref={chatListRef}>
+      <div className="message-list" ref={chatListRef} role="log" aria-label="Mensagens" aria-live="off">
         {loadingOlder && <div className="message-list-loading-older dim">Carregando mensagens antigas...</div>}
         {initialLoading && messages.length === 0 && <ChatSkeleton />}
         {cacheStale && (

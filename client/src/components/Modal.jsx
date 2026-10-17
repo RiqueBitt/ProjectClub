@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import cancelIcon from '../assets/icons/close-x.png';
 
 export default function Modal({ title, onClose, children, width, className, overlayClassName }) {
@@ -16,12 +17,13 @@ export default function Modal({ title, onClose, children, width, className, over
   // propagation here keeps touch gestures inside the modal from ever
   // reaching that global listener.
   const stopTouch = (e) => e.stopPropagation();
+  const titleId = useId();
   return (
     <div className={`modal-overlay ${overlayClassName || ''}`} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className={`modal-box ${className || ''}`} style={width ? { '--modal-width': width } : undefined} onTouchStart={stopTouch} onTouchEnd={stopTouch}>
+      <div className={`modal-box ${className || ''}`} role="dialog" aria-modal="true" aria-labelledby={title ? titleId : undefined} style={width ? { '--modal-width': width } : undefined} onTouchStart={stopTouch} onTouchEnd={stopTouch}>
         <div className="modal-header">
-          <h2>{title}</h2>
-          <button className="icon-btn" onClick={onClose}><img className="ui-icon" src={cancelIcon} alt="x" /></button>
+          <h2 id={titleId}>{title}</h2>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar"><img className="ui-icon" src={cancelIcon} alt="" /></button>
         </div>
         <div className="modal-body">{children}</div>
       </div>

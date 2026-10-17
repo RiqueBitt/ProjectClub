@@ -31,6 +31,8 @@ import LinkConfirmModal from '../components/modals/LinkConfirmModal.jsx';
 import ImageLightbox from '../components/ImageLightbox.jsx';
 import AnnouncementOverlay from '../components/AnnouncementOverlay.jsx';
 import QuickSwitcher from '../components/QuickSwitcher.jsx';
+// Tour de boas-vindas, Primeiros passos, atalhos de teclado e acessibilidade.
+import ConfortoLayer from '../components/conforto/ConfortoLayer.jsx';
 import { MusicEngine, MusicPanel, MiniMusicBar } from '../music/MusicPlayer.jsx';
 import YouTubeApp, { YouTubeHost } from '../youtube/YouTubeApp.jsx';
 import { DesktopLinkFallback } from '../utils/desktopLinks.jsx';
@@ -556,6 +558,7 @@ export default function MainApp() {
       {settingsModalOpen && <Suspense fallback={null}><UserSettingsModal onClose={closeSettings} /></Suspense>}
       <AnnouncementOverlay />
       <QuickSwitcher />
+      <ConfortoLayer />
       <MusicEngine />
       <MusicPanel />
       <MiniMusicBar />

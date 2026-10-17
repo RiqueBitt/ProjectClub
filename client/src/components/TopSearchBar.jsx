@@ -108,7 +108,7 @@ export default function TopSearchBar() {
       >
         {mobileChannelListOpen ? '✕' : '☰'}
       </button>
-      <button type="button" className="top-search-bar-brand" onClick={() => navigate('/')}>
+      <button type="button" className="top-search-bar-brand" onClick={() => navigate('/')} aria-label="Project Club: ir para a comunidade">
         <img className="top-search-bar-logo" src={logoIcon} alt="" />
         <span className="top-search-bar-brand-name">Project Club</span>
       </button>
@@ -128,6 +128,7 @@ export default function TopSearchBar() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Buscar em Project Club"
+            aria-label="Buscar em Project Club"
           />
         </div>
       </form>
@@ -146,13 +147,13 @@ export default function TopSearchBar() {
           </button>
           {inboxOpen && <InboxPopover onClose={() => setInboxOpen(false)} />}
         </span>
-        <button type="button" className="top-search-bar-icon-btn" title="Notificações" onClick={() => navigate('/notifications')}>
+        <button type="button" className="top-search-bar-icon-btn" title="Notificações" aria-label={notifBadge > 0 ? `Notificações (${notifBadge > 99 ? 'mais de 99' : notifBadge} novas)` : 'Notificações'} onClick={() => navigate('/notifications')}>
           <span className="top-search-bar-icon-mask top-search-bar-notif-icon" style={{ WebkitMaskImage: `url(${notificationsIcon})`, maskImage: `url(${notificationsIcon})` }} />
           {notifBadge > 0 && <span className="top-search-bar-badge">{notifBadge > 99 ? '99+' : notifBadge}</span>}
         </button>
         {/* Item pedido: engrenagem de Configurações, do lado do sino de
             notificações, no cabeçalho. */}
-        <button type="button" className="top-search-bar-icon-btn" title="Configurações" onClick={() => useStore.getState().openSettings()}>
+        <button type="button" className="top-search-bar-icon-btn" title="Configurações" aria-label="Configurações" onClick={() => useStore.getState().openSettings()}>
           <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url(${settingsIcon})`, maskImage: `url(${settingsIcon})`, width: 18, height: 18 }} />
         </button>
 
