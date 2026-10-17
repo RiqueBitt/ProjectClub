@@ -411,6 +411,17 @@
   color: var(--pf-accent, var(--text-muted)); border-bottom: 1px solid var(--pf-card-border, var(--border));
 }
 .pf-onepage-section .pf-grid.single { max-width: none; }
+/* Seção com um cartão só: o título do cartão repetia o da seção
+   ("SOBRE" + "Sobre", "CONEXÕES" + "Conexões"). Fica só o da seção; o
+   cabeçalho do cartão só aparece se tiver ação (Editar, Ver detalhes...). */
+.pf-onepage-section .pf-grid.single .pf-card-head > :is(.pf-card-icon, .pf-card-title, .pf-card-count) { display: none; }
+.pf-onepage-section .pf-grid.single .pf-card-head { min-height: 0; margin-bottom: 6px; }
+.pf-onepage-section .pf-grid.single .pf-card-head:not(:has(.pf-card-action, .pf-link, button)) { display: none; }
+/* Botões de ação do perfil completo: usam a largura toda e quebram linha
+   inteira em vez de quebrar o texto ("Adquira / este / visual"). */
+.profile-modal-fullscreen .pf .profile-ig-actions-row { max-width: 1180px; }
+.profile-modal-fullscreen .profile-ig-actions { flex-wrap: wrap; }
+.profile-modal-fullscreen .profile-ig-actions :is(.btn-primary, .btn-secondary) { flex: 1 1 auto; white-space: nowrap; }
 
 /* ============================================================
    Rodada 5 — cabeçalho do perfil completo em "cartão herói":
