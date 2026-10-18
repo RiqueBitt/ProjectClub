@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore';
 import { useSheetDrag } from '../utils/useSheetDrag';
 import emojiGroups from 'unicode-emoji-json/data-by-group.json';
 import StyledEmoji from './StyledEmoji.jsx';
+import PersonalStickersSection from './PersonalStickersSection.jsx';
 import { addFavoriteGif, removeFavoriteGif } from '../api/endpoints';
 import starIcon from '../assets/icons/star.png';
 
@@ -117,7 +118,6 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
     }
     return others;
   }, [usableStickers, serverStickers]);
-  const hasStickers = serverStickers.length > 0 || Object.keys(externalStickerGrouped).length > 0;
 
   const q = query.trim().toLowerCase();
 
@@ -208,7 +208,9 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
       <div className="sheet-drag-handle" {...dragHandlers} />
       <div className="emoji-picker-tabs">
         <button className={tab === 'emojis' ? 'active' : ''} onClick={() => { setTab('emojis'); setQuery(''); }}>Emojis</button>
-        {hasStickers && onPickSticker && <button className={tab === 'stickers' ? 'active' : ''} onClick={() => { setTab('stickers'); setQuery(''); }}>Figurinhas</button>}
+        {/* Aba sempre visível quando dá pra mandar figurinha: mesmo sem
+            figurinha da comunidade, tem a seção "Minhas figurinhas". */}
+        {onPickSticker && <button className={tab === 'stickers' ? 'active' : ''} onClick={() => { setTab('stickers'); setQuery(''); }}>Figurinhas</button>}
         {onPickGif && <button className={tab === 'gifs' ? 'active' : ''} onClick={() => { setTab('gifs'); setQuery(''); setActiveGifCategory(null); }}>GIFs</button>}
       </div>
       {tab === 'gifs' && !showGifMural && (
@@ -317,6 +319,8 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
               </div>
             )}
             <div className="emoji-picker-unicode-scroll" ref={stickerScrollRef}>
+              {/* Pacote de figurinhas personalizadas (Assinante/Super) — no topo. */}
+              <PersonalStickersSection query={query} onPickSticker={onPickSticker} onClose={onClose} />
               {stickerGroups.map((g) => {
                 const filtered = q ? g.list.filter((s) => s.name.toLowerCase().includes(q)) : g.list;
                 if (filtered.length === 0) return null;

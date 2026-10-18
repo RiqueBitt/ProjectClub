@@ -240,3 +240,10 @@ button.eco-link { width: 100%; text-align: left; font: inherit; cursor: pointer;
 .eco-season-reward .gem { color: #c084fc; }
 .eco-season-done { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #3ecf7a; font-weight: 700; }
 .eco-season-lock { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+
+/* Passe do clube: botão dourado (exclusivo de Assinantes). */
+.pk-tab.pk-tab-gold { color: #3a2a00; background: linear-gradient(135deg, #ffe08a, #f5b400 60%, #d99a00); border: 1px solid rgba(245, 180, 0, .6); font-weight: 800; }
+.pk-tab.pk-tab-gold svg { color: #5a4100; }
+.pk-tab.pk-tab-gold:hover { filter: brightness(1.06); color: #3a2a00; }
+.pk-tab.pk-tab-gold.active { color: #3a2a00; background: linear-gradient(135deg, #fff0b8, #ffc933 60%, #f5b400); box-shadow: 0 0 0 2px rgba(245, 180, 0, .45), 0 4px 12px -4px rgba(245, 180, 0, .7); }
+.pk-tab.pk-tab-gold .pk-tab-count { background: #3a2a00; color: #ffd451; }

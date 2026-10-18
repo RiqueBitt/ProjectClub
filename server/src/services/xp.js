@@ -27,10 +27,11 @@ async function awardMessageXp(userId, content) {
   if (meaningful.length < MIN_LENGTH) return null;
   if (meaningful.split(' ').filter(Boolean).length < MIN_WORDS) return null;
 
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { accountXp: true, accountLevel: true, lastXpMessageAt: true } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { accountXp: true, accountLevel: true, lastXpMessageAt: true, supporterTier: true } });
   if (user.lastXpMessageAt && Date.now() - user.lastXpMessageAt.getTime() < MESSAGE_COOLDOWN_MS) return null;
 
-  const xpGain = Math.floor(Math.random() * (XP_MAX - XP_MIN + 1)) + XP_MIN;
+  // Bônus de XP de Assinante (+5%) / Super Assinante (+15%).
+  const xpGain = require('./supporters').withXpBonus(Math.floor(Math.random() * (XP_MAX - XP_MIN + 1)) + XP_MIN, user.supporterTier);
   const newXp = user.accountXp + xpGain;
   const newLevelData = calculateLevel(newXp);
   const oldLevel = user.accountLevel;

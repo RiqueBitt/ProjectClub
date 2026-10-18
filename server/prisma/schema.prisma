@@ -4005,3 +4005,16 @@ model DonationEntry {
 
   @@index([createdAt])
 }
+
+// Pacote de figurinhas personalizadas (Assinante: 5, Super Assinante: 15).
+// Só a dona/o dono usa no chat. Independente de User de propósito: quando a
+// assinatura acaba as figurinhas ficam guardadas, só deixam de ser usáveis.
+model PersonalSticker {
+  id        String   @id @default(uuid())
+  ownerId   String
+  name      String   @db.VarChar(32)
+  url       String   @db.VarChar(500)
+  createdAt DateTime @default(now())
+
+  @@index([ownerId])
+}

@@ -296,7 +296,8 @@ async function claim(userId, missionId, io = null) {
     if (m.rewardGems) data.gems = { increment: m.rewardGems };
     let levelUp = null;
     if (m.rewardXp > 0) {
-      const newXp = (user?.accountXp || 0) + m.rewardXp;
+      // Bônus de XP de Assinante / Super Assinante.
+      const newXp = (user?.accountXp || 0) + require('./supporters').withXpBonus(m.rewardXp, user?.supporterTier);
       const lvl = calculateLevel(newXp);
       data.accountXp = newXp;
       data.accountLevel = lvl.level;

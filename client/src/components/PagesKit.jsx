@@ -111,7 +111,7 @@ export function PillTabs({ tabs, value, onChange, label, className = '' }) {
       {tabs.map((t) => (
         <button
           key={t.id} type="button" role="tab" aria-selected={value === t.id}
-          className={`pk-tab ${value === t.id ? 'active' : ''}`} onClick={() => onChange(t.id)}
+          className={`pk-tab ${value === t.id ? 'active' : ''}${t.className ? ` ${t.className}` : ''}`} onClick={() => onChange(t.id)}
         >
           {t.icon && <Ico name={t.icon} size={17} />}
           <span>{t.label}</span>

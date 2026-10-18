@@ -45,7 +45,6 @@ const EQUIP = { deco: equipDecoration, effect: equipEffect, font: equipFont, sty
 const styleKey = (i) => i?.data?.style || (i?.key || '').replace(/^style:/, '') || null;
 const fontValue = (i) => (i?.data?.family ? JSON.stringify({ id: i.id, family: i.data.family, url: i.data.url || null }) : null);
 
-const gemOnly = (i) => i.priceGems != null && i.priceCoins == null && !i.exclusiveTier && i.kind !== 'back';
 const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
 const errOf = (e) => e?.response?.data || {};
 const errMsg = (e) => errOf(e).error || 'Não deu certo, tente de novo.';
@@ -177,7 +176,7 @@ export default function LojaPage() {
   const [params] = useSearchParams();
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState('');
-  const [section, setSection] = useState(() => (params.get('tab') === 'trocas' ? 'trades' : CARDS_WAR_ON && params.get('cat') === 'versos' ? 'back' : 'home'));
+  const [section, setSection] = useState(() => (params.get('secao') === 'assinatura' ? 'plans' : params.get('tab') === 'trocas' ? 'trades' : CARDS_WAR_ON && params.get('cat') === 'versos' ? 'back' : 'home'));
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('foryou');
   const [shuffleSeed, setShuffleSeed] = useState(() => Math.floor(Math.random() * 1e9));
@@ -292,7 +291,7 @@ export default function LojaPage() {
     return { kinds, collections: cols };
   }, [items]);
   const ctx = {
-    user, data, supporter, busy, isEquipped, now, open: setDetail, equip, askBuy: (item, cur) => setConfirm({ item, currency: cur }), gift: setGiftFor,
+    user, data, supporter, busy, isEquipped, now, open: setDetail, equip, goPlans: () => { setDetail(null); go('plans'); }, askBuy: (item, cur) => setConfirm({ item, currency: cur }), gift: setGiftFor,
     inWish, toggleWish, ownedStats, shuffleSeed, colorF, setColorF, tagF, setTagF,
     variantsOf: (i) => (i.variantGroup ? items.filter((x) => x.kind === i.kind && x.variantGroup === i.variantGroup) : []),
     // Link bonito: /loja?item=deco:nome-do-item (o id antigo continua valendo).
@@ -353,12 +352,13 @@ export default function LojaPage() {
       ...(count('style') > 0 ? [{ id: 'style', label: KIND.style.plural, icon: 'palette', n: count('style') }] : []),
       ...(CARDS_WAR_ON && count('back') > 0 ? [{ id: 'back', label: KIND.back.plural, icon: 'cards', n: count('back') }] : []),
       ...(CARDS_WAR_ON ? [{ id: 'cards', label: 'Pacotes de cartas', icon: 'bag' }] : []),
+      // Cartas: seção reservada (vazia por enquanto).
+      { id: 'cartas', label: 'Cartas', icon: 'cards' },
     ] },
-    { group: 'Especiais', items: [
+    // Exclusivos: a coroa no título marca o que é dos assinantes.
+    { group: 'Exclusivos', crown: true, items: [
+      { id: 'exclusive', label: 'Loja exclusiva', icon: 'crown', n: exclusives.length },
       ...(limiteds.length > 0 ? [{ id: 'limited', label: 'Limitados', icon: 'star', n: limiteds.filter((i) => i.remaining > 0).length }] : []),
-      { id: 'exclusive', label: 'Exclusivos de apoio', icon: 'crown', n: exclusives.length },
-      { id: 'gems', label: 'Exclusivos de gemas', icon: 'gem', n: items.filter(gemOnly).length },
-      { id: 'plans', label: 'Comparar planos', icon: 'star' },
     ] },
     { group: 'Você', items: [
       { id: 'owned', label: 'Meus itens', icon: 'inbox', n: ownedItems.length },
@@ -385,7 +385,7 @@ export default function LojaPage() {
   else if (section === 'wishlist') content = <WishlistPage list={items.filter(inWish)} go={go} ctx={ctx} />;
   else if (section === 'gifts') content = <GiftsPage go={go} onWallet={(w) => setData((d) => (d ? { ...d, coins: w.coins ?? d.coins, gems: w.gems ?? d.gems } : d))} reload={load} flash={flash} />;
   else if (section === 'plans') content = <PlansPage supporter={supporter} />;
-  else if (section === 'gems') content = <GemsPage list={items.filter(gemOnly)} ctx={ctx} />;
+  else if (section === 'cartas') content = <CardsSoonPage />;
   else if (section === 'tryon') content = <ShopTryOn items={items} user={user} data={data} ctx={ctx} />;
   else if (section === 'look') content = <LookPage look={lookParam} from={params.get('from')} items={items} ctx={ctx} />;
   else if (section === 'cards') content = <ShopCardsTab onWallet={(w) => setData((d) => (d ? { ...d, coins: w.coins, gems: w.gems } : d))} />;
@@ -400,9 +400,15 @@ export default function LojaPage() {
             <div><strong>Loja</strong><small>Project Club</small></div>
           </div>
           <nav className="room-nav-scroll">
+            {/* Assinatura sempre no topo, em destaque dourado. */}
+            <button type="button" className={`room-nav-sub${!searching && section === 'plans' ? ' active' : ''}`} aria-current={!searching && section === 'plans' ? 'page' : undefined} onClick={() => go('plans')}>
+              <Ico name="crown" size={17} />
+              <span>Assinatura</span>
+              {supporter?.tier && supporter.tier !== 'NONE' && <em>{TIER_LABEL[supporter.tier]}</em>}
+            </button>
             {nav.map((g) => (
               <div key={g.group} className="room-nav-group">
-                <span className="room-nav-label">{g.group}</span>
+                <span className={`room-nav-label${g.crown ? ' with-crown' : ''}`}>{g.group}{g.crown && <Ico name="crown" size={12} strokeWidth={2.2} />}</span>
                 {g.items.map((n) => {
                   const active = !searching && (section === n.id || (n.id === 'collections' && !!collection));
                   return (
@@ -417,7 +423,7 @@ export default function LojaPage() {
               </div>
             ))}
           </nav>
-          <SupporterCard supporter={supporter} compact />
+          <SupporterCard supporter={supporter} compact onPlans={() => go('plans')} />
         </aside>
 
         <main className="room-main" ref={mainRef}>
@@ -455,17 +461,17 @@ export default function LojaPage() {
 }
 
 // ---------- Apoio ----------
-function SupporterCard({ supporter, compact }) {
+function SupporterCard({ supporter, compact, onPlans }) {
   const tier = supporter?.tier || 'NONE';
   if (tier === 'NONE') {
     return (
-      <div className={`room-supporter is-none${compact ? ' compact' : ''}`}>
+      <button type="button" className={`room-supporter is-none${compact ? ' compact' : ''}`} onClick={onPlans} disabled={!onPlans}>
         <span className="room-supporter-ico"><Ico name="crown" size={16} /></span>
         <div>
-          <strong>Apoie o Project Club</strong>
-          <small>Assinantes têm 15% de desconto em itens elegíveis e itens exclusivos.</small>
+          <strong>Seja Assinante</strong>
+          <small>Desconto na Loja, bônus de XP, passe do clube e a loja exclusiva. A partir de R$ 13,50/mês.</small>
         </div>
-      </div>
+      </button>
     );
   }
   return (
@@ -473,7 +479,7 @@ function SupporterCard({ supporter, compact }) {
       <span className="room-supporter-ico"><Ico name="crown" size={16} /></span>
       <div>
         <strong>{TIER_LABEL[tier]}</strong>
-        <small>{supporter.discount}% de desconto aplicado automaticamente nos itens elegíveis.</small>
+        <small>{supporter.discount}% de desconto na Loja e +{supporter.xpBonus ?? (tier === 'SUPER' ? 15 : 5)}% de XP, aplicados automaticamente.</small>
       </div>
     </div>
   );
@@ -520,7 +526,7 @@ function Home({ items, collections, go, ctx }) {
         const colItems = items.filter((i) => i.collectionId === c.id).slice(0, 8);
         return colItems.length > 0 && <Shelf key={c.id} title={c.name} list={colItems} onMore={() => go(`col:${c.id}`)} moreLabel={`Página da loja – ${c.name}`} ctx={ctx} />;
       })}
-      {exclusives.length > 0 && <Shelf title="Exclusivos de apoio" hint="Liberados para Assinantes e Super Assinantes" list={exclusives} onMore={() => go('exclusive')} ctx={ctx} />}
+      {exclusives.length > 0 && <Shelf title="Loja exclusiva" hint="Liberados para Assinantes e Super Assinantes" list={exclusives} onMore={() => go('exclusive')} ctx={ctx} />}
       {collections.length > 0 && (
         <section className="room-section">
           <SectionHead title="Coleções" onMore={() => go('collections')} />
@@ -779,10 +785,10 @@ function ExclusivePage({ list, ctx }) {
   return (
     <div className="room-stack">
       <div className="room-page-head">
-        <h1>Exclusivos de apoio</h1>
+        <h1 className="room-title-crown"><Ico name="crown" size={22} strokeWidth={2.2} /> Loja exclusiva</h1>
         <p>Itens que não são vendidos: ficam liberados enquanto você for Assinante ou Super Assinante. Super Assinantes também têm acesso aos itens de Assinante.</p>
       </div>
-      <SupporterCard supporter={ctx.supporter} />
+      <SupporterCard supporter={ctx.supporter} onPlans={ctx.goPlans} />
       {list.length === 0 ? <Empty title="Nenhum exclusivo ainda" text="A equipe ainda não publicou itens exclusivos." /> : (
         <>
           {['SUPER', 'SUBSCRIBER'].map((t) => {
@@ -904,7 +910,7 @@ function LimitedFlag({ item, big }) {
 function StateBadge({ item, on }) {
   if (on) return <span className="room-state equipped"><Ico name="check" size={12} strokeWidth={2.6} /> Equipado</span>;
   if (item.owned) return <span className="room-state owned">{item.ownedVia === 'SUPPORTER' ? 'Liberado' : 'Adquirido'}</span>;
-  if (item.locked) return <span className="room-state locked"><Ico name="lock" size={12} strokeWidth={2.2} /> Bloqueado</span>;
+  if (item.locked) return <span className="room-state locked"><Ico name="crown" size={12} strokeWidth={2.2} /> Exclusivo</span>;
   return null;
 }
 
@@ -957,7 +963,9 @@ function ItemCard({ item: base, ctx }) {
               <button type="button" className={`room-btn sm ${on ? 'ghost' : 'primary'}`} disabled={busy !== ''} onClick={() => equip(item, !on)}>{on ? 'Tirar' : 'Usar'}</button>
             )
           ) : item.locked ? (
-            <span className="room-muted"><Ico name="lock" size={13} /> Só para {TIER_LABEL[item.exclusiveTier]}</span>
+            <button type="button" className="room-btn sm excl-btn" onClick={() => ctx.goPlans()} title={`Exclusivo para ${TIER_LABEL[item.exclusiveTier]} — ver Assinatura`}>
+              <Ico name="crown" size={13} strokeWidth={2.2} /> Exclusivo
+            </button>
           ) : item.limited && item.remaining <= 0 ? (
             <span className="room-muted"><Ico name="swap" size={13} /> Esgotado — só por troca</span>
           ) : (
@@ -1038,21 +1046,22 @@ function ItemDetail({ initial, items, collections, onClose, openCollection, ctx 
                     <span className="room-detail-price-val">
                       {p.final !== p.base && <s>{fmt(p.base)}</s>}
                       <b>{p.final === 0 ? 'Grátis' : fmt(p.final)}</b>
-                      {p.final !== p.base && <em>-{p.discount}% Assinante</em>}
+                      {p.final !== p.base && <em>-{p.discount}% {TIER_LABEL[supporter.tier] || 'Assinante'}</em>}
                     </span>
                     <button type="button" className="room-btn primary" disabled={busy !== ''} onClick={() => askBuy(item, cur)}>Comprar</button>
                   </div>
                 );
               })}
               {supporter.tier === 'NONE' && item.discountEligible !== false && item.kind !== 'back' && !item.limited && (
-                <small className="room-muted">Assinantes pagam 15% a menos neste item.</small>
+                <small className="room-muted">Assinantes pagam 10% a menos neste item (Super Assinantes, 20%).</small>
               )}
             </div>
           )}
           {item.locked && (
             <div className="room-locked-box">
-              <Ico name="lock" size={18} />
-              <span>Este item não é vendido. Ele fica liberado automaticamente para quem é {TIER_LABEL[item.exclusiveTier]}{item.exclusiveTier === 'SUBSCRIBER' ? ' ou Super Assinante' : ''}.</span>
+              <Ico name="crown" size={18} />
+              <span>Este item é exclusivo e não é vendido: fica liberado automaticamente para quem é {TIER_LABEL[item.exclusiveTier]}{item.exclusiveTier === 'SUBSCRIBER' ? ' ou Super Assinante' : ''}.</span>
+              <button type="button" className="room-btn excl-btn" onClick={() => ctx.goPlans()}><Ico name="crown" size={15} strokeWidth={2.2} /> Exclusivo — ver Assinatura</button>
             </div>
           )}
           <div className="room-detail-actions">
@@ -1402,71 +1411,77 @@ function GiftsPage({ go, onWallet, reload, flash }) {
   );
 }
 
-// ---------- Comparar planos (apoio) ----------
-const PLAN_ROWS = [
-  { group: 'Exiba o seu estilo' },
-  { label: 'Insígnia de apoiador no perfil', v: [false, 'Assinante', 'Super Assinante'] },
-  { label: 'Itens exclusivos de Assinante', v: [false, true, true] },
-  { label: 'Itens exclusivos de Super Assinante', v: [false, false, true] },
-  { group: 'Loja e recompensas' },
-  { label: 'Desconto em itens elegíveis da Loja', v: [false, '15%', '15%'] },
-  { label: 'Bônus nas moedas das missões', v: [false, '1,2x', '1,5x'] },
-  { label: 'Presentear amigos e resgatar códigos', v: [true, true, true] },
-  { group: 'Personalização (grátis pra todo mundo)' },
-  { label: 'Temas coloridos e tema personalizado', v: [true, true, true] },
-  { label: 'Estilos de perfil, molduras e efeitos (comprando)', v: [true, true, true] },
-  { label: 'Mural do perfil e lista de desejos', v: [true, true, true] },
+// ---------- Assinatura ----------
+const PLANS = [
+  {
+    id: 'SUBSCRIBER', name: 'Assinante', price: '13,50',
+    perks: [
+      '10% de desconto em todos os itens da Loja',
+      '5% de bônus de XP',
+      ['Acesso ao ', 'passe do clube'],
+      ['Acesso à ', 'loja exclusiva'],
+      'Pacote de 5 figurinhas personalizadas',
+      ['Insígnia exclusiva de ', 'Assinante'],
+      ['Decoração exclusiva de ', 'Assinante'],
+      'Destaque na lista de membros',
+    ],
+  },
+  {
+    id: 'SUPER', name: 'Super Assinante', price: '20,50', note: 'Todas as vantagens de Assinante +',
+    perks: [
+      '20% de desconto em todos os itens da Loja',
+      '15% de bônus de XP',
+      'Pacote de 15 figurinhas personalizadas',
+      ['Insígnia exclusiva de ', 'Super Assinante'],
+      ['Decoração exclusiva de ', 'Super Assinante'],
+    ],
+  },
 ];
 function PlansPage({ supporter }) {
   const cur = supporter?.tier || 'NONE';
-  const cols = [['NONE', 'Membro'], ['SUBSCRIBER', 'Assinante'], ['SUPER', 'Super Assinante']];
-  const cell = (v) => (v === true ? <Ico name="check" size={16} strokeWidth={2.6} /> : v === false ? <span className="room-plan-no">—</span> : <b>{v}</b>);
   return (
     <div className="room-stack">
-      <div className="room-page-head"><h1>Compare os planos</h1><p>O que muda pra quem apoia o Project Club. Tudo que é personalização básica continua grátis.</p></div>
-      <div className="room-plans-wrap">
-        <table className="room-plans">
-          <thead>
-            <tr>
-              <th scope="col">Recursos</th>
-              {cols.map(([id, label]) => (
-                <th key={id} scope="col" className={cur === id ? 'mine' : ''}>
-                  <span className={`room-plan-name t-${id.toLowerCase()}`}>{id !== 'NONE' && <Ico name="crown" size={14} />} {label}</span>
-                  {cur === id && <small>Seu plano</small>}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {PLAN_ROWS.map((r) => (r.group ? (
-              <tr key={r.group} className="grp"><th colSpan={4} scope="colgroup">{r.group}</th></tr>
-            ) : (
-              <tr key={r.label}>
-                <th scope="row">{r.label}</th>
-                {r.v.map((v, i) => <td key={cols[i][0]} className={cur === cols[i][0] ? 'mine' : ''}>{cell(v)}</td>)}
-              </tr>
-            )))}
-          </tbody>
-        </table>
+      <div className="room-page-head">
+        <h1 className="room-title-crown"><Ico name="crown" size={22} strokeWidth={2.2} /> Assinatura</h1>
+        <p>Apoie o Project Club e ganhe vantagens na comunidade. Tudo que é personalização básica continua grátis pra todo mundo.</p>
       </div>
-      <p className="room-muted">A assinatura é paga: pra assinar, abra um ticket ou fale com a equipe. Gemas são a moeda da plataforma e servem pra Loja, não pra assinatura.</p>
+      <div className="room-subs">
+        {PLANS.map((p) => {
+          const mine = cur === p.id;
+          return (
+            <section key={p.id} className={`room-sub t-${p.id.toLowerCase()}${mine ? ' mine' : ''}`} aria-label={p.name}>
+              <header>
+                <span className="room-sub-ico"><Ico name="crown" size={20} strokeWidth={2.2} /></span>
+                <div>
+                  <h2>{p.name}</h2>
+                  <p className="room-sub-price"><b>R$ {p.price}</b> <small>/mês</small></p>
+                </div>
+                {mine && <span className="room-sub-mine">Seu plano</span>}
+              </header>
+              {p.note && <p className="room-sub-note">{p.note}</p>}
+              <ul>
+                {p.perks.map((perk) => (
+                  <li key={Array.isArray(perk) ? perk.join('') : perk}>
+                    <Ico name="check" size={15} strokeWidth={2.6} />
+                    <span>{Array.isArray(perk) ? <>{perk[0]}<strong>{perk[1]}</strong></> : perk}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          );
+        })}
+      </div>
+      <p className="room-muted">Para assinar, abra um ticket ou fale com a equipe — a assinatura é paga em reais (Pix). Gemas são a moeda da plataforma e servem para a Loja, não para a assinatura.</p>
     </div>
   );
 }
 
-// ---------- Exclusivos de gemas ----------
-function GemsPage({ list, ctx }) {
+// ---------- Cartas (em breve) ----------
+function CardsSoonPage() {
   return (
     <div className="room-stack">
-      <section className="room-gems-hero">
-        <div>
-          <h1>Exclusivos de gemas</h1>
-          <p>Itens que só saem por gemas. Ganhe gemas nas missões semanais, no baú e em eventos.</p>
-          <a className="room-btn ghost" href="/missoes"><Ico name="bolt" size={15} /> Ir pras missões</a>
-        </div>
-        <span className="room-gems-orb"><Ico name="gem" size={54} /></span>
-      </section>
-      {list.length === 0 ? <Empty title="Nada por aqui ainda" text="A equipe ainda não colocou itens só de gemas." /> : <div className="room-grid">{list.map((i) => <ItemCard key={`${i.kind}:${i.id}`} item={i} ctx={ctx} />)}</div>}
+      <div className="room-page-head"><h1>Cartas</h1><p>Cartas colecionáveis do Project Club.</p></div>
+      <Empty title="Em breve" text="Esta seção ainda não tem itens. Volte depois!" />
     </div>
   );
 }

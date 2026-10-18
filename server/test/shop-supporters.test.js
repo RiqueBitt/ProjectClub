@@ -1,4 +1,4 @@
-// Loja + Apoio: preço calculado no servidor, desconto de Assinante (15%)
+// Loja + Apoio: preço calculado no servidor, desconto (Assinante 10%, Super 20%)
 // que não acumula, exclusivos liberados pelo status (sem virar posse),
 // confirmação de preço, saldo insuficiente, compra única e Gerenciamento
 // de Apoio com auditoria. Usa um prisma falso em memória.
@@ -96,11 +96,11 @@ function call(handler, { user = 'u1', params = {}, body = {}, query = {} } = {})
 beforeEach(reset);
 
 // ---------- regra de preço ----------
-test('desconto de 15% só para Assinante e Super (herda), arredondando o desconto pra baixo', () => {
+test('desconto: Assinante 10%, Super 20%, arredondando o desconto pra baixo', () => {
   const item = { priceCoins: 199, priceGems: null, discountEligible: true };
   assert.equal(sup.priceFor(item, 'coins', 'NONE').final, 199);
-  assert.equal(sup.priceFor(item, 'coins', 'SUBSCRIBER').final, 199 - 29);
-  assert.equal(sup.priceFor(item, 'coins', 'SUPER').final, 170);
+  assert.equal(sup.priceFor(item, 'coins', 'SUBSCRIBER').final, 199 - 19);
+  assert.equal(sup.priceFor(item, 'coins', 'SUPER').final, 199 - 39);
   assert.equal(sup.priceFor(item, 'gems', 'SUPER').final, null);
   assert.equal(sup.priceFor({ ...item, discountEligible: false }, 'coins', 'SUPER').final, 199);
   assert.equal(sup.priceFor(item, 'coins', 'HACKER').final, 199, 'categoria desconhecida = sem benefício');
@@ -108,9 +108,10 @@ test('desconto de 15% só para Assinante e Super (herda), arredondando o descont
 
 test('coleção em oferta: vale o maior desconto, nunca os dois juntos', () => {
   const col = { bundlePriceCoins: 1000, discountEligible: true };
-  const offer10 = { active: true, discount: 10 };
+  const offer5 = { active: true, discount: 5 };
   const offer40 = { active: true, discount: 40 };
-  assert.deepEqual(sup.bundlePriceFor(col, 'coins', 'SUBSCRIBER', offer10), { base: 1000, discount: 15, final: 850, source: 'SUBSCRIBER' });
+  assert.deepEqual(sup.bundlePriceFor(col, 'coins', 'SUBSCRIBER', offer5), { base: 1000, discount: 10, final: 900, source: 'SUBSCRIBER' });
+  assert.deepEqual(sup.bundlePriceFor(col, 'coins', 'SUPER', offer5), { base: 1000, discount: 20, final: 800, source: 'SUBSCRIBER' });
   assert.deepEqual(sup.bundlePriceFor(col, 'coins', 'SUBSCRIBER', offer40), { base: 1000, discount: 40, final: 600, source: 'OFFER' });
   assert.equal(sup.bundlePriceFor(col, 'coins', 'NONE', null).final, 1000);
 });
@@ -125,10 +126,10 @@ test('exclusivos: Super libera itens de Assinante, Assinante não libera itens d
 test('Assinante paga o preço com desconto calculado no servidor (ignora preço mandado pelo cliente pra cobrar)', async () => {
   const r = await call(shop.buyDecoration, { user: 'u2', params: { id: 'd1' }, body: { currency: 'coins', price: 1 } });
   assert.equal(r.status, 200);
-  assert.equal(r.body.paid, 170);
-  assert.equal(db.users.get('u2').coins, 830);
+  assert.equal(r.body.paid, 180);
+  assert.equal(db.users.get('u2').coins, 820);
   assert.ok(db.ownD.has(key('u2', 'd1')));
-  assert.match(db.ledger[0].label, /-15% Assinante/);
+  assert.match(db.ledger[0].label, /-10% Assinante/);
 });
 
 test('item fora do desconto custa cheio mesmo pra Super', async () => {
@@ -137,9 +138,9 @@ test('item fora do desconto custa cheio mesmo pra Super', async () => {
 });
 
 test('preço confirmado diferente do real: não cobra e devolve o preço novo', async () => {
-  // A pessoa confirmou 170 (era Assinante), mas perdeu o status antes de comprar.
+  // A pessoa confirmou 180 (era Assinante), mas perdeu o status antes de comprar.
   db.users.get('u2').supporterTier = 'NONE';
-  const r = await call(shop.buyDecoration, { user: 'u2', params: { id: 'd1' }, body: { currency: 'coins', expectedPrice: 170 } });
+  const r = await call(shop.buyDecoration, { user: 'u2', params: { id: 'd1' }, body: { currency: 'coins', expectedPrice: 180 } });
   assert.equal(r.status, 409);
   assert.equal(r.body.code, 'PRICE_CHANGED');
   assert.equal(r.body.price, 200);
@@ -224,4 +225,12 @@ test('coleção fora da Loja: item dela não é vendido nem presenteado; coleç�
   const ok = await call(shop.buyDecoration, { params: { id: 'dv' }, body: { currency: 'coins' } });
   assert.equal(ok.status, 200);
   assert.ok(db.ownD.has(key('u1', 'dv')));
+});
+
+test('bônus de XP: Assinante +5%, Super +15%, nunca menos que o base', () => {
+  assert.equal(sup.withXpBonus(100, 'NONE'), 100);
+  assert.equal(sup.withXpBonus(100, 'SUBSCRIBER'), 105);
+  assert.equal(sup.withXpBonus(100, 'SUPER'), 115);
+  assert.equal(sup.withXpBonus(30, 'SUBSCRIBER'), 31);
+  assert.equal(sup.withXpBonus(10, 'HACKER'), 10);
 });
