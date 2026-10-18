@@ -613,3 +613,54 @@ button.trade-item:hover { border-color: var(--room-accent); }
 .tryon-item-name { font-size: 12.5px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tryon-item small { font-size: 11px; color: var(--room-muted); }
 @media (max-width: 900px) { .tryon { grid-template-columns: 1fr; } .tryon-stage { position: static; } }
+
+/* ---------- Assinatura (dourado) e Exclusivos ---------- */
+.room-nav-sub {
+  display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px; border-radius: 10px; cursor: pointer; flex-shrink: 0;
+  font: inherit; font-size: 14px; font-weight: 800; text-align: left; color: #3a2a00;
+  border: 1px solid color-mix(in srgb, var(--room-super) 60%, transparent);
+  background: linear-gradient(135deg, #ffe08a, #f5b400 55%, #d99a00); box-shadow: 0 6px 16px -8px rgba(245, 180, 0, .8);
+  transition: filter .12s, transform .12s;
+}
+.room-nav-sub span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.room-nav-sub em { font-style: normal; font-size: 10.5px; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: rgba(255, 255, 255, .55); color: #5a4100; }
+.room-nav-sub:hover { filter: brightness(1.06); }
+.room-nav-sub.active { box-shadow: 0 0 0 2px color-mix(in srgb, var(--room-super) 45%, transparent), 0 6px 16px -8px rgba(245, 180, 0, .8); }
+.room-nav-label.with-crown { display: inline-flex; align-items: center; gap: 5px; }
+.room-nav-label.with-crown svg { color: var(--room-super); }
+.room-title-crown { display: inline-flex; align-items: center; gap: 10px; }
+.room-title-crown svg { color: var(--room-super); }
+button.room-supporter { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+button.room-supporter.is-none { border-color: color-mix(in srgb, var(--room-super) 40%, transparent); background: linear-gradient(120deg, var(--room-super-soft, rgba(245, 180, 0, .12)), var(--room-surface) 70%); }
+button.room-supporter.is-none .room-supporter-ico { background: var(--room-super); color: #3a2a00; }
+button.room-supporter.is-none:hover { filter: brightness(1.05); }
+.room-btn.excl-btn {
+  display: inline-flex; align-items: center; gap: 6px; color: #3a2a00; border: 1px solid color-mix(in srgb, var(--room-super) 60%, transparent);
+  background: linear-gradient(135deg, #ffe08a, #f5b400);
+}
+.room-btn.excl-btn:hover { filter: brightness(1.06); }
+.room-locked-box .room-btn.excl-btn { margin-top: 10px; }
+
+.room-subs { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.room-sub { position: relative; padding: 20px; border-radius: 18px; border: 1px solid var(--room-line); background: var(--room-surface); display: flex; flex-direction: column; gap: 12px; }
+.room-sub header { display: flex; align-items: center; gap: 12px; }
+.room-sub h2 { margin: 0; font-size: 18px; font-weight: 850; }
+.room-sub-ico { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0; }
+.room-sub-price { margin: 2px 0 0; }
+.room-sub-price b { font-size: 22px; font-weight: 900; }
+.room-sub-price small { color: var(--room-muted); font-weight: 650; }
+.room-sub-mine { margin-left: auto; font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: var(--room-sunken); }
+.room-sub-note { margin: 0; font-size: 13px; font-weight: 750; color: var(--room-muted); }
+.room-sub ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.room-sub li { display: flex; gap: 9px; align-items: flex-start; font-size: 14px; line-height: 1.35; }
+.room-sub li svg { flex-shrink: 0; margin-top: 2px; }
+.room-sub.t-subscriber { border-color: color-mix(in srgb, var(--room-sub) 35%, transparent); background: linear-gradient(160deg, var(--room-sub-soft), var(--room-surface) 55%); }
+.room-sub.t-subscriber .room-sub-ico { background: var(--room-sub); color: #fff; }
+.room-sub.t-subscriber li svg, .room-sub.t-subscriber h2 { color: var(--room-sub); }
+.room-sub.t-super { border-color: color-mix(in srgb, var(--room-super) 45%, transparent); background: linear-gradient(160deg, var(--room-super-soft, rgba(245, 180, 0, .14)), var(--room-surface) 55%); }
+.room-sub.t-super .room-sub-ico { background: linear-gradient(135deg, #ffe08a, #f5b400); color: #3a2a00; }
+.room-sub.t-super li svg, .room-sub.t-super h2 { color: var(--room-super); }
+.room-sub.mine { box-shadow: 0 0 0 2px currentColor inset; }
+@media (max-width: 900px) {
+  .room-nav-sub { height: 36px; border-radius: 999px; }
+}

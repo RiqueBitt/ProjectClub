@@ -78,9 +78,11 @@ async function claim(userId, level, track) {
   const result = await prisma.$transaction(async (tx) => {
     const row = await tx.seasonPass.findUnique({ where: { userId_seasonKey: { userId, seasonKey: s.key } } });
     if (!row || levelOf(row.points) < lv) throw fail(400, 'Você ainda não chegou nesse nível.');
-    if (track === 'plus') {
+    // O passe do clube é exclusivo de Assinantes (as duas faixas). Os pontos
+    // continuam somando pra todo mundo — quem assinar resgata o que já tem.
+    {
       const u = await tx.user.findUnique({ where: { id: userId }, select: { supporterTier: true } });
-      if (require('./supporters').normalizeTier(u?.supporterTier) === 'NONE') throw fail(403, 'A faixa de apoio é para Assinantes.');
+      if (require('./supporters').normalizeTier(u?.supporterTier) === 'NONE') throw fail(403, 'O passe do clube é para Assinantes.');
     }
     const field = track === 'free' ? 'claimedFree' : 'claimedPlus';
     const list = parse(row[field]);

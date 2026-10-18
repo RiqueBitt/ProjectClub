@@ -130,7 +130,7 @@ function MemberGroup({ label, members, roles, dim, cargosEnabled }) {
       {members.map((m) => (
         <div
           key={m.user.id}
-          className={`member-row ${dim ? 'dim' : ''} ${m.user.idCardUrl ? 'has-id-card' : ''}`}
+          className={`member-row ${dim ? 'dim' : ''} ${m.user.idCardUrl ? 'has-id-card' : ''}${m.user.supporterTier === 'SUPER' ? ' is-supporter tier-super' : m.user.supporterTier === 'SUBSCRIBER' ? ' is-supporter tier-sub' : ''}`}
           style={m.user.idCardUrl ? { backgroundImage: `linear-gradient(90deg, var(--bg-secondary) 15%, transparent), url(${m.user.idCardUrl})`, '--id-card': `url(${JSON.stringify(m.user.idCardUrl)})`, ...idCardFramingVars(m.user.idCardFraming) } : undefined}
           onContextMenu={(e) => onContextMenu(e, m)}
           onClick={(e) => useStore.getState().openMiniProfile(m.user.id, e.currentTarget.getBoundingClientRect(), 'left')}
@@ -140,6 +140,7 @@ function MemberGroup({ label, members, roles, dim, cargosEnabled }) {
             <PresenceDot status={m.liveStatus || 'OFFLINE'} userId={m.user.id} />
           </div>
           <div className="member-row-text">
+            <span className="member-row-nameline">
             <span className={`truncate member-row-name ${hasCustomNameStyle(m.user) ? nameStyleClassName(m.user) : ''}`} style={hasCustomNameStyle(m.user) ? nameStyleProps(m.user) : roleTextStyle(cargosEnabled ? highestColoredRole(m, roles)?.color : null)}>
               {/* BUG CORRIGIDO ("ícone de cargo do lado do nome"): se o
                   ícone do cargo for uma IMAGEM enviada (caminho tipo
@@ -150,6 +151,13 @@ function MemberGroup({ label, members, roles, dim, cargosEnabled }) {
                   cargos. */}
               {m.role?.icon && (m.role.icon.startsWith('/') ? <img src={m.role.icon} alt="" className="role-icon-inline" /> : <span>{m.role.icon} </span>)}
               {m.user.displayName}
+            </span>
+            {/* Destaque de Assinante / Super Assinante na lista de membros. */}
+            {(m.user.supporterTier === 'SUBSCRIBER' || m.user.supporterTier === 'SUPER') && (
+              <span className="member-supporter-crown" title={m.user.supporterTier === 'SUPER' ? 'Super Assinante' : 'Assinante'} aria-label={m.user.supporterTier === 'SUPER' ? 'Super Assinante' : 'Assinante'}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 12H5L3 7z" /></svg>
+              </span>
+            )}
             </span>
             <span className="member-row-status truncate">
               <ActivityIcon userId={m.user.id} customStatusEmoji={m.user.customStatusEmoji} customStatus={m.user.customStatus} />

@@ -77,6 +77,7 @@ const activityRoutes = require('./routes/activity');
 const gamesLibraryRoutes = require('./routes/games'); // biblioteca de jogos (tempo de jogo)
 const decorationsRoutes = require('./routes/decorations');
 const supportersRoutes = require('./routes/supporters');
+const personalStickersRoutes = require('./routes/personalStickers'); // figurinhas pessoais (Assinante/Super)
 const youtubeRoutes = require('./routes/youtube');
 const { requireFeature, isFeatureEnabled } = require('./config/features');
 const archiveRoutes = require('./routes/archive');
@@ -424,6 +425,7 @@ function createApp() {
   app.use('/api/games', gamesLibraryRoutes);
   app.use('/api/decorations', decorationsRoutes);
   app.use('/api/supporters', supportersRoutes);
+  app.use('/api/personal-stickers', personalStickersRoutes);
   app.use('/api/donation-goal', require('./routes/donationGoal'));
   app.use('/api/youtube', youtubeRoutes);
   // Filmes e Séries e Navegador: desligados no código (config/features.js),

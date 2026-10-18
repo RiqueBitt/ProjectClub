@@ -266,6 +266,16 @@ export const createServerSticker = (file, name, collectionId) => {
 };
 export const deleteServerSticker = (id) => api.delete(`/community/stickers/${id}`).then((r) => r.data);
 export const updateServerSticker = (id, payload) => api.patch(`/community/stickers/${id}`, payload).then((r) => r.data);
+// Pacote de figurinhas personalizadas (Assinante: 5, Super Assinante: 15) —
+// só a própria pessoa usa. GET devolve { stickers, hidden, limit, tier }.
+export const listPersonalStickers = () => api.get('/personal-stickers').then((r) => r.data);
+export const uploadPersonalSticker = (file, name) => {
+  const fd = new FormData();
+  fd.append('sticker', file);
+  if (name) fd.append('name', name);
+  return api.post('/personal-stickers', fd).then((r) => r.data);
+};
+export const deletePersonalSticker = (id) => api.delete(`/personal-stickers/${id}`).then((r) => r.data);
 // Item pedido: "sistema de coleções de emoji personalizado e figurinha"
 // — kind é 'EMOJI' ou 'STICKER'.
 export const listAssetCollections = (kind) => api.get(`/community/collections/${kind}`).then((r) => r.data);

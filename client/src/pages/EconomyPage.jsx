@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { getMyEconomy, claimDaily, listChests, listMissions, claimMission, getEconomyHistory, getMissionSeason, claimSeasonReward } from '../api/endpoints';
 import { useSocket } from '../context/SocketContext.jsx';
 import { EmptyState, Ico, PageHero, PillTabs, Skeleton, Toast, Unavailable } from '../components/PagesKit.jsx';
@@ -115,10 +115,13 @@ export default function EconomyPage({ initialTab = 'geral' }) {
   }, [refresh, refreshChests, refreshMissions]);
   useEffect(() => { if (tab === 'historico') refreshHistory(); }, [tab, refreshHistory]);
   // Temporada do mês (passe de missões).
+  const navigate = useNavigate();
   const [season, setSeason] = useState(null);
   const [seasonBusy, setSeasonBusy] = useState('');
   const refreshSeason = useCallback(() => getMissionSeason().then((d) => setSeason(Array.isArray(d?.tiers) ? d : null)).catch(() => {}), []);
   useEffect(() => { refreshSeason(); }, [refreshSeason]);
+  // Link direto pro passe sem ser Assinante: manda pra Assinatura.
+  useEffect(() => { if (tab === 'temporada' && season && !season.isSupporter) navigate('/loja?secao=assinatura', { replace: true }); }, [tab, season, navigate]);
   const seasonReady = season ? season.tiers.filter((t) => t.unlocked && (!t.claimedFree || (season.isSupporter && !t.claimedPlus))).length : 0;
   const claimSeason = async (level, track) => {
     setSeasonBusy(`${level}:${track}`);
@@ -259,7 +262,9 @@ export default function EconomyPage({ initialTab = 'geral' }) {
   const tabs = [
     { id: 'geral', label: 'Visão geral', icon: 'grid' },
     { id: 'missoes', label: 'Missões', icon: 'bolt', count: readyCount },
-    { id: 'temporada', label: 'Temporada', icon: 'crown', count: seasonReady || undefined },
+    // Passe do clube: exclusivo de Assinantes (botão dourado). Quem não assina
+    // vai direto pra Loja → Assinatura.
+    { id: 'temporada', label: 'Passe do clube', icon: 'crown', count: season?.isSupporter ? (seasonReady || undefined) : undefined, className: 'pk-tab-gold' },
     { id: 'historico', label: 'Histórico', icon: 'clock' },
   ];
 
@@ -292,7 +297,10 @@ export default function EconomyPage({ initialTab = 'geral' }) {
           )}
         />
 
-        <PillTabs tabs={tabs} value={tab} onChange={setTab} label="Seções da Economia" className="eco-tabs" />
+        <PillTabs
+          tabs={tabs} value={tab} label="Seções da Economia" className="eco-tabs"
+          onChange={(id) => { if (id === 'temporada' && season && !season.isSupporter) navigate('/loja?secao=assinatura'); else setTab(id); }}
+        />
 
         {tab === 'geral' && (
           <>

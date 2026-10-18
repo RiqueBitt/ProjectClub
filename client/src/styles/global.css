@@ -6677,3 +6677,13 @@ a.embed-card-title:hover { text-decoration: underline; }
 h2 > .ui-stroke-icon:first-child, h3 > .ui-stroke-icon:first-child, h4 > .ui-stroke-icon:first-child { margin-right: 4px; color: var(--text-muted); }
 .ui-icon-text { display: inline-flex; align-items: center; gap: 6px; }
 .mod-tab:has(> .ui-stroke-icon), .btn-link:has(> .ui-stroke-icon) { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Destaque de Assinante / Super Assinante na lista de membros. */
+.member-row-nameline { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.member-row-nameline .member-row-name { min-width: 0; }
+.member-supporter-crown { flex-shrink: 0; display: inline-flex; color: #a78bfa; filter: drop-shadow(0 0 4px rgba(167, 139, 250, .55)); }
+.member-row.tier-super .member-supporter-crown { color: #f5b400; filter: drop-shadow(0 0 4px rgba(245, 180, 0, .6)); }
+.member-row.is-supporter:not(.has-id-card) { background: linear-gradient(90deg, rgba(167, 139, 250, .12), transparent 70%); }
+.member-row.tier-super.is-supporter:not(.has-id-card) { background: linear-gradient(90deg, rgba(245, 180, 0, .14), transparent 70%); }
+.member-row.is-supporter:not(.has-id-card):hover { background: linear-gradient(90deg, rgba(167, 139, 250, .2), var(--bg-modifier-hover) 70%); }
+.member-row.tier-super.is-supporter:not(.has-id-card):hover { background: linear-gradient(90deg, rgba(245, 180, 0, .22), var(--bg-modifier-hover) 70%); }
