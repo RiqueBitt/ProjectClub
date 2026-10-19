@@ -664,3 +664,9 @@ button.room-supporter.is-none:hover { filter: brightness(1.05); }
 @media (max-width: 900px) {
   .room-nav-sub { height: 36px; border-radius: 999px; }
 }
+.room-sub ul { flex: 1; }
+.room-sub-cta { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; margin-top: 4px; border-radius: 12px;
+  font-size: 15px; font-weight: 850; text-decoration: none; transition: filter .12s, transform .12s; }
+.room-sub-cta:hover { filter: brightness(1.07); transform: translateY(-1px); }
+.room-sub.t-subscriber .room-sub-cta { background: var(--room-sub); color: #fff; box-shadow: 0 8px 18px -10px var(--room-sub); }
+.room-sub.t-super .room-sub-cta { background: linear-gradient(135deg, #ffe08a, #f5b400 60%, #d99a00); color: #3a2a00; box-shadow: 0 8px 18px -10px rgba(245, 180, 0, .9); }
