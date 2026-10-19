@@ -1414,7 +1414,7 @@ function GiftsPage({ go, onWallet, reload, flash }) {
 // ---------- Assinatura ----------
 const PLANS = [
   {
-    id: 'SUBSCRIBER', name: 'Assinante', price: '13,50',
+    id: 'SUBSCRIBER', name: 'Assinante', price: '13,50', url: 'https://livepix.gg/projectclubr/assinante',
     perks: [
       '10% de desconto em todos os itens da Loja',
       '5% de bônus de XP',
@@ -1427,7 +1427,7 @@ const PLANS = [
     ],
   },
   {
-    id: 'SUPER', name: 'Super Assinante', price: '20,50', note: 'Todas as vantagens de Assinante +',
+    id: 'SUPER', name: 'Super Assinante', price: '20,50', url: 'https://livepix.gg/projectclubr/super-assinante', note: 'Todas as vantagens de Assinante +',
     perks: [
       '20% de desconto em todos os itens da Loja',
       '15% de bônus de XP',
@@ -1467,11 +1467,14 @@ function PlansPage({ supporter }) {
                   </li>
                 ))}
               </ul>
+              <a className="room-sub-cta" href={p.url} target="_blank" rel="noopener noreferrer">
+                <Ico name="crown" size={16} strokeWidth={2.2} /> {mine ? 'Renovar' : 'Assinar'} {p.name}
+              </a>
             </section>
           );
         })}
       </div>
-      <p className="room-muted">Para assinar, abra um ticket ou fale com a equipe — a assinatura é paga em reais (Pix). Gemas são a moeda da plataforma e servem para a Loja, não para a assinatura.</p>
+      <p className="room-muted">Para assinar, clique no botão do plano: o pagamento é feito pelo LivePix (Pix). Depois de pagar, a equipe libera as vantagens na sua conta. Gemas são a moeda da plataforma e servem para a Loja, não para a assinatura.</p>
     </div>
   );
 }
