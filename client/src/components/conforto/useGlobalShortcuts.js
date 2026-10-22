@@ -4,7 +4,7 @@ import { useStore } from '../../store/useStore';
 import { useVoice } from '../../context/VoiceContext.jsx';
 import { queueRead } from '../../utils/readMarker';
 import { matchShortcut, findFrom, isEditableTarget } from './shortcuts';
-import { channelPath } from '../../utils/prettyLinks';
+import { channelPath, roomFromCurrentPath } from '../../utils/prettyLinks';
 
 // Atalhos globais NOVOS (os antigos continuam com os donos de antes —
 // ver shortcuts.js). Escuta em captura no window pra que Alt+↑/↓ não
@@ -53,7 +53,10 @@ export function useGlobalShortcuts({ onOpenShortcuts, shortcutsOpen, onCloseShor
         e.stopPropagation();
         // Canal atual pela URL (atualiza na hora; a classe .active só no
         // próximo render — apertar rápido duas vezes pulava um canal).
-        const openId = (window.location.pathname.match(/^\/channels\/([^/?#]+)/) || [])[1];
+        // BUG CORRIGIDO: só entendia o endereço antigo (/channels/<id>); com
+        // os links bonitos (/canal/<nome>) o canal atual "sumia" e Alt+↑
+        // pulava pro primeiro canal da lista.
+        const openId = roomFromCurrentPath(window.location.pathname)?.channelId || null;
         let current = openId ? list.findIndex((b) => b.getAttribute('data-channel-id') === openId) : -1;
         if (current < 0) current = list.findIndex((b) => b.classList.contains('active'));
         const dir = action.startsWith('prev') ? -1 : 1;
@@ -75,11 +78,11 @@ export function useGlobalShortcuts({ onOpenShortcuts, shortcutsOpen, onCloseShor
         if (s.quickSwitcherOpen || s.focusMode) return;
         if (document.querySelector('[role="menu"], [role="listbox"], .emoji-picker-panel')) return;
         if (isEditableTarget(e.target) && !e.target.closest?.('.chat-window')) return;
-        const ch = st.pathname.match(/^\/channels\/([^/?#]+)/);
-        const cv = st.pathname.match(/^\/conversations\/([^/?#]+)/);
+        // Entende os links bonitos (/canal/…, /dm/…) além dos antigos.
+        const room = roomFromCurrentPath(st.pathname) || {};
         const now = new Date().toISOString();
-        if (ch) { queueRead('channel', ch[1], now); s.markChannelReadLocal?.(ch[1]); }
-        else if (cv) { queueRead('conversation', cv[1], now); s.markConversationReadLocal?.(cv[1]); }
+        if (room.channelId) { queueRead('channel', room.channelId, now); s.markChannelReadLocal?.(room.channelId); }
+        else if (room.conversationId) { queueRead('conversation', room.conversationId, now); s.markConversationReadLocal?.(room.conversationId); }
       }
     };
     // Captura pra Alt+setas; Esc em bolha (precisa ver o defaultPrevented

@@ -11,15 +11,13 @@ const read = (rel) => fs.readFileSync(path.join(SRC, rel), 'utf8');
 
 // ---------- GIFs ----------
 test('GIFs: resposta da KLIPY vira {id, preview, full} e descarta itens sem GIF', () => {
-  process.env.DATABASE_URL = process.env.DATABASE_URL || 'mysql://u:p@localhost:3306/db';
-  let gif;
-  try { gif = require('../src/controllers/gifController'); } catch (err) {
-    // Sem o cliente Prisma gerado (ambiente de teste sem binários): confere pelo código.
-    const src = read('controllers/gifController.js');
-    assert.match(src, /media_formats\?\.tinygif\?\.url/);
-    return;
-  }
-  const out = gif._mapResults({ results: [
+  // Lido do código (sem carregar o controller: ele abre Prisma e Redis de
+  // verdade, e uma conexão aberta deixaria o `node --test` pendurado no CI).
+  const src = read('controllers/gifController.js');
+  const fnSrc = src.match(/function mapResults\(data\) \{[\s\S]*?\n\}/)[0];
+  // eslint-disable-next-line no-new-func
+  const mapResults = new Function(`${fnSrc}; return mapResults;`)();
+  const out = mapResults({ results: [
     { id: '1', media_formats: { gif: { url: 'https://static.klipy.com/a.gif' }, tinygif: { url: 'https://static.klipy.com/a-t.gif' } } },
     { id: '2', media_formats: { tinygif: { url: 'https://static.klipy.com/b-t.gif' } } },
     { id: '3', media_formats: { gif: { url: 'https://static.klipy.com/c.gif' } } },
@@ -28,7 +26,7 @@ test('GIFs: resposta da KLIPY vira {id, preview, full} e descarta itens sem GIF'
     { id: '1', preview: 'https://static.klipy.com/a-t.gif', full: 'https://static.klipy.com/a.gif' },
     { id: '3', preview: 'https://static.klipy.com/c.gif', full: 'https://static.klipy.com/c.gif' },
   ]);
-  assert.deepEqual(gif._mapResults(null), []);
+  assert.deepEqual(mapResults(null), []);
 });
 
 test('GIFs: a chave fica no servidor, aceita KLIPY_KEY ou VITE_KLIPY_KEY e nunca é logada', () => {
