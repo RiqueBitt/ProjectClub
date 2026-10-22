@@ -122,8 +122,10 @@ export default function FeaturedChannels({ canManage }) {
     const what = { anuncios: ['novidade', 'novidades'], loja: ['coleção nova na Loja', 'coleções novas na Loja'] }[item.key] || ['novidade', 'novidades'];
     const newBadge = fresh > 0 ? <span className="section-new-badge" title={`${fresh} ${fresh === 1 ? what[0] : what[1]}`} aria-label={`${fresh} ${fresh === 1 ? what[0] : what[1]}`}>{badgeLabel(fresh)}</span> : null;
     const hasEvents = (item.merges || []).includes('eventos');
-    if (hasEvents && live > 0) badge = <span className="featured-channel-live" title={`${live} evento${live === 1 ? '' : 's'} acontecendo agora`}>Ao vivo</span>;
-    else if (newBadge) badge = newBadge;
+    // Novidade não vista primeiro (some ao abrir); depois "Ao vivo"; depois
+    // a contagem de eventos em breve.
+    if (newBadge) badge = newBadge;
+    else if (hasEvents && live > 0) badge = <span className="featured-channel-live" title={`${live} evento${live === 1 ? '' : 's'} acontecendo agora`}>Ao vivo</span>;
     else if (hasEvents && upcoming > 0) badge = <span className="featured-channel-count" title={`${upcoming} evento${upcoming === 1 ? '' : 's'} em breve`}>{upcoming}</span>;
     else if (item.soon) badge = <span className="featured-channel-soon">Em breve</span>;
     else if (item.tag && !active) badge = <span className="featured-channel-tag">{item.tag}</span>;
