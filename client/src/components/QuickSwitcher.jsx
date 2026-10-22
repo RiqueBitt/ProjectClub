@@ -162,7 +162,10 @@ export function useQuickSearch(query, { active = true, onDone } = {}) {
   const remote = useRemotePeople(query, active);
 
   // Todos os itens pesquisáveis, cada um com uma chave estável (pros recentes).
+  // Fechada (barra do topo sem foco, modal fechado) não monta nada: a lista
+  // mudaria a cada atualização de presença/canal sem ninguém olhando.
   const allItems = useMemo(() => {
+    if (!active) return [];
     const items = [];
     const isStaff = user?.platformRole === 'ADMIN' || user?.platformRole === 'MODERATOR';
     const sections = [{ name: null, channels }, ...categories.map((c) => ({ name: c.name, channels: c.channels || [] }))];
@@ -220,7 +223,7 @@ export function useQuickSearch(query, { active = true, onDone } = {}) {
       items.push({ key: `settings:${id}`, kind: 'settings', label, sub: 'Configurações', keywords: `configurações ajustes ${kw}`, icon: <NavIcon name="gear" size={17} />, go: () => openSettingsAt(label) });
     });
     return items;
-  }, [categories, channels, conversations, members, friends, presence, channelReadAt, myRoleIds, voice?.roster, user, navigate, t]);
+  }, [active, categories, channels, conversations, members, friends, presence, channelReadAt, myRoleIds, voice?.roster, user, navigate, t]);
 
   const groups = useMemo(() => {
     let raw = query.trim();
@@ -365,9 +368,15 @@ export function QuickResults({ groups, flat, activeIndex, setActiveIndex, choose
 }
 
 // Teclas comuns aos dois campos (↑ ↓ Tab Enter).
-export function quickSearchKeys(e, { flat, activeIndex, setActiveIndex, choose, onEnterNone }) {
-  if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey && flat.length)) { e.preventDefault(); setActiveIndex((i) => (flat.length ? (i + 1) % flat.length : -1)); return true; }
-  if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey && flat.length)) { e.preventDefault(); setActiveIndex((i) => (flat.length ? (i <= 0 ? flat.length - 1 : i - 1) : -1)); return true; }
+// tabNavigates: só no modal (ali o Tab percorre os resultados). Na barra do
+// topo o Tab precisa sair do campo normalmente, senão quem usa teclado fica
+// preso nela.
+export function quickSearchKeys(e, { flat, activeIndex, setActiveIndex, choose, onEnterNone, tabNavigates = true }) {
+  // Enter/setas durante composição de texto (acentos via IME) não navegam.
+  if (e.nativeEvent?.isComposing || e.isComposing) return false;
+  const tab = tabNavigates && e.key === 'Tab' && flat.length;
+  if (e.key === 'ArrowDown' || (tab && !e.shiftKey)) { e.preventDefault(); setActiveIndex((i) => (flat.length ? (i + 1) % flat.length : -1)); return true; }
+  if (e.key === 'ArrowUp' || (tab && e.shiftKey)) { e.preventDefault(); setActiveIndex((i) => (flat.length ? (i <= 0 ? flat.length - 1 : i - 1) : -1)); return true; }
   if (e.key === 'Enter') {
     e.preventDefault();
     if (flat[activeIndex]) choose(flat[activeIndex]);
@@ -454,21 +463,5 @@ export default function QuickSwitcher() {
       </div>
     </div>,
     document.body,
-  );
-}
-
-// Botão pequeno pra abrir a busca rápida (barra do topo).
-export function QuickSwitcherButton({ className = '' }) {
-  const setOpen = useStore((s) => s.setQuickSwitcherOpen);
-  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '');
-  return (
-    <button
-      type="button" className={`qs-trigger ${className}`} onClick={() => setOpen(true)}
-      title={`Busca rápida (${isMac ? '⌘' : 'Ctrl'}+K)`} aria-label="Busca rápida"
-    >
-      <NavIcon name="command" size={15} />
-      <span className="qs-trigger-label">Ir para…</span>
-      <kbd className="qs-trigger-kbd">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
-    </button>
   );
 }

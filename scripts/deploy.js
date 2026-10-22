@@ -87,7 +87,7 @@ async function main() {
     const lockPath = path.join(ROOT, 'package-lock.json');
     const hasLock = fs.existsSync(lockPath);
     const stamp = path.join(ROOT, 'node_modules', '.pc-lockhash');
-    const lockHash = hasLock ? require('crypto').createHash('sha256').update(fs.readFileSync(lockPath)).update(process.version).digest('hex') : null;
+    const lockHash = hasLock ? require('crypto').createHash('sha256').update(fs.readFileSync(lockPath)).update(`${process.version}|${process.platform}|${process.arch}`).digest('hex') : null;
     let installed = null;
     try { installed = fs.readFileSync(stamp, 'utf8').trim(); } catch { /* primeira vez */ }
     if (lockHash && installed === lockHash && fs.existsSync(path.join(ROOT, 'node_modules', '@prisma', 'client'))) {
@@ -109,15 +109,22 @@ async function main() {
   const serverArgs = [
     `--max-old-space-size=${serverHeap}`,
     '--max-semi-space-size=32',
-    // Se o processo morrer por falta de memória, deixa um relatório em
+    // Se o V8 morrer por falta de heap, deixa um relatório em
     // server/reports/ (pilha + uso de memória) em vez de sumir sem log.
+    // (Não cobre o kernel matando o container por falta de RAM — esse caso
+    // aparece nos avisos "[métricas] ATENÇÃO" de runtimeMetrics.js.)
+    // --report-exclude-env: o relatório NÃO grava as variáveis de ambiente
+    // (senhas do banco, chaves) em disco.
     '--report-on-fatalerror',
+    '--report-exclude-env',
     `--report-directory=${path.join(SERVER_DIR, 'reports')}`,
     path.join('src', 'index.js'),
   ];
   // Mesmos passos (e mesma pasta) do "npm start -w server".
   await run('node', [path.join('scripts', 'write-certs-from-env.js')], {}, SERVER_DIR);
   await run('node', [path.join('scripts', 'wait-for-db.js')], {}, SERVER_DIR);
+  // O Node não cria a pasta do relatório sozinho.
+  try { fs.mkdirSync(path.join(SERVER_DIR, 'reports'), { recursive: true }); } catch { /* sem permissão: só fica sem relatório */ }
   if (warmup) await warmup.close();
   console.log(`\n[deploy] $ node ${serverArgs.join(' ')}`);
   const child = require('child_process').spawn('node', serverArgs, { stdio: 'inherit', cwd: SERVER_DIR, env: process.env });

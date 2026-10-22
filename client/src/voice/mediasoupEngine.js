@@ -519,7 +519,15 @@ export class MediasoupEngine {
 
     // Os dois transports em paralelo (antes um esperava o outro: uma ida e
     // volta a mais ao servidor de mídia em toda entrada/reconexão).
-    [this.sendTransport, this.recvTransport] = await Promise.all([this._createTransport('send'), this._createTransport('recv')]);
+    // Se um falhar, o outro (já criado) é fechado — senão a RTCPeerConnection
+    // dele ficava aberta, órfã, a cada tentativa que falhava.
+    const [sendR, recvR] = await Promise.allSettled([this._createTransport('send'), this._createTransport('recv')]);
+    if (sendR.status === 'rejected' || recvR.status === 'rejected') {
+      for (const r of [sendR, recvR]) if (r.status === 'fulfilled') { try { r.value.close(); } catch { /* ok */ } }
+      throw (sendR.status === 'rejected' ? sendR.reason : recvR.reason);
+    }
+    this.sendTransport = sendR.value;
+    this.recvTransport = recvR.value;
     if (this.disposed) { this._closeAll(); return; }
 
     if (first) this.cb.onJoined?.(this.myId);

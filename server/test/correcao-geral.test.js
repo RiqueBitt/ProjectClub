@@ -76,7 +76,7 @@ test('voz: tolerância de queda consulta o servidor de mídia antes de tirar da 
   // voice:sync serializado com o voice:join (mesma trava)
   assert.match(src, /socket\.on\('voice:sync'[\s\S]{0,200}withLock\(`join:\$\{userId\}:\$\{channelId\}`/);
   // só expulsa se a dona da vaga for uma conexão MAIS NOVA
-  assert.match(src, /ownerIssued > mineIssued/);
+  assert.match(src, /socket\.rooms\.has\(`voice:\$\{channelId\}`\) \|\| ownerIssued > mineIssued/);
   // "está falando" de canal restrito não vai pra comunidade inteira
   assert.match(src, /publicRoster \? socket\.to\(`voice:\$\{channelId\}`\)\.to\(rosterRoomFor\(channelId\)\) : socket\.to\(`voice:\$\{channelId\}`\)/);
 });

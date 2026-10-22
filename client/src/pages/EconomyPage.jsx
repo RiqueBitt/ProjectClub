@@ -86,7 +86,12 @@ function MissionCard({ m, onClaim, busy, compact }) {
 // Hub da Economia: saldo, baú diário, missões, histórico e atalhos.
 export default function EconomyPage({ initialTab = 'geral' }) {
   const { socket } = useSocket();
-  const [tab, setTab] = useState(initialTab);
+  // ?aba=temporada|historico|missoes|geral — usado pela barra de abas da
+  // Loja (HubTabs) pra voltar direto pra aba certa da Economia.
+  const [searchParams] = useSearchParams();
+  const abaParam = searchParams.get('aba');
+  const validAba = ['geral', 'missoes', 'temporada', 'historico'].includes(abaParam) ? abaParam : null;
+  const [tab, setTab] = useState(() => validAba || initialTab);
   const [eco, setEco] = useState(null);
   const [chests, setChests] = useState([]);
   const [missionData, setMissionData] = useState(null); // { missions, resets }
@@ -99,13 +104,7 @@ export default function EconomyPage({ initialTab = 'geral' }) {
   const [claimingId, setClaimingId] = useState(null);
   const [now, setNow] = useState(() => Date.now());
 
-  // ?aba=temporada|historico|missoes|geral — usado pela barra de abas da
-  // Loja (HubTabs) pra voltar direto pra aba certa da Economia.
-  const [searchParams] = useSearchParams();
-  const abaParam = searchParams.get('aba');
-  useEffect(() => {
-    setTab(['geral', 'missoes', 'temporada', 'historico'].includes(abaParam) ? abaParam : initialTab);
-  }, [initialTab, abaParam]);
+  useEffect(() => { setTab(validAba || initialTab); }, [initialTab, validAba]);
 
   const refresh = useCallback(() => getMyEconomy().then(setEco).catch((err) => {
     if (err?.response?.status === 503) setUnavailable(true);

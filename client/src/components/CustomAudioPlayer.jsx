@@ -47,22 +47,23 @@ export default function CustomAudioPlayer({ src, compact = false }) {
     const audio = audioRef.current;
     if (!audio) return undefined;
     setPlaying(false); setCurrentTime(0); setDuration(0); setLoaded(false); setFailed(false);
-    let probing = false;
     const setRealDuration = () => {
       if (Number.isFinite(audio.duration) && audio.duration > 0) { setDuration(audio.duration); setLoaded(true); return true; }
       return false;
     };
     const onLoaded = () => {
       if (setRealDuration()) return;
-      // WebM sem duração: pula pro "fim" e o navegador calcula a real.
-      probing = true;
-      try { audio.currentTime = 1e101; } catch { probing = false; }
+      // WebM sem duração: pula pro "fim" e o navegador calcula a real. Só
+      // quando a pessoa der play (não ao aparecer na tela): o pulo baixa o
+      // arquivo inteiro, e no celular isso gastava dados à toa.
+      setLoaded(true);
     };
-    const onDurationChange = () => {
-      if (!setRealDuration()) return;
-      if (probing) { probing = false; try { audio.currentTime = 0; } catch { /* ok */ } setCurrentTime(0); }
+    const onDurationChange = () => { setRealDuration(); };
+    // Enquanto mede a duração (pulo pro fim), não mexe na barra.
+    const onTime = () => {
+      if (draggingRef.current || !Number.isFinite(audio.duration)) return;
+      setCurrentTime(audio.currentTime || 0);
     };
-    const onTime = () => { if (!probing && !draggingRef.current) setCurrentTime(audio.currentTime || 0); };
     const onPlay = () => {
       if (currentlyPlaying && currentlyPlaying !== audio) { try { currentlyPlaying.pause(); } catch { /* ok */ } }
       currentlyPlaying = audio;
@@ -90,10 +91,35 @@ export default function CustomAudioPlayer({ src, compact = false }) {
     };
   }, [src]);
 
-  const toggle = () => {
+  const probeRef = useRef(null);
+  const probeDuration = () => {
+    const audio = audioRef.current;
+    if (!audio || Number.isFinite(audio.duration)) return Promise.resolve();
+    if (probeRef.current) return probeRef.current;
+    probeRef.current = new Promise((resolve) => {
+      const done = () => {
+        audio.removeEventListener('durationchange', onChange);
+        clearTimeout(timer);
+        if (Number.isFinite(audio.duration) && audio.duration > 0) setDuration(audio.duration);
+        try { audio.currentTime = 0; } catch { /* ok */ }
+        setCurrentTime(0);
+        resolve();
+      };
+      const onChange = () => { if (Number.isFinite(audio.duration)) done(); };
+      // Navegador que nunca informa a duração: desiste em 3s e toca assim mesmo.
+      const timer = setTimeout(done, 3000);
+      audio.addEventListener('durationchange', onChange);
+      try { audio.currentTime = 1e101; } catch { done(); }
+    });
+    return probeRef.current;
+  };
+  useEffect(() => { probeRef.current = null; }, [src]);
+
+  const toggle = async () => {
     const audio = audioRef.current;
     if (!audio || failed) return;
     if (!audio.paused) { audio.pause(); return; }
+    await probeDuration();
     const p = audio.play();
     if (p && typeof p.catch === 'function') p.catch((err) => { if (err?.name !== 'AbortError') setPlaying(false); });
   };

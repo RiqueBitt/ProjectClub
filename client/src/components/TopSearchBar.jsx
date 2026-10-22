@@ -165,10 +165,15 @@ export default function TopSearchBar() {
             value={q}
             onChange={(e) => { setQ(e.target.value); setSearchOpen(true); }}
             onFocus={() => setSearchOpen(true)}
+            // Perdeu o foco pra fora da busca (Tab, Ctrl+K, clique em outro
+            // campo): fecha o menu. Clique num resultado não tira o foco
+            // (onMouseDown com preventDefault em QuickResults).
+            onBlur={(e) => { if (!formRef.current?.contains(e.relatedTarget)) closeSearch(); }}
             onKeyDown={(e) => {
               if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeSearch(); e.currentTarget.blur(); return; }
               if (!searchOpen) setSearchOpen(true);
-              quickSearchKeys(e, { flat: qsFlat, activeIndex, setActiveIndex, choose: qsChoose, onEnterNone: goFullSearch });
+              if (e.key === 'Tab') { closeSearch(); return; }
+              quickSearchKeys(e, { flat: qsFlat, activeIndex, setActiveIndex, choose: qsChoose, onEnterNone: goFullSearch, tabNavigates: false });
             }}
             placeholder="Buscar em Project Club"
             aria-label="Buscar em Project Club"

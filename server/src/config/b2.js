@@ -84,7 +84,7 @@ function getB2ReadClient() {
       requestChecksumCalculation: 'WHEN_REQUIRED',
       responseChecksumValidation: 'WHEN_REQUIRED',
       requestHandler: new NodeHttpHandler({
-        httpsAgent: new HttpsAgent({ keepAlive: true, maxSockets: 50, maxFreeSockets: 10 }),
+        httpsAgent: new HttpsAgent({ keepAlive: true, keepAliveMsecs: 15000, maxSockets: 50, maxFreeSockets: 10, timeout: 30000 }),
         connectionTimeout: 5000,
         requestTimeout: 30000,
       }),

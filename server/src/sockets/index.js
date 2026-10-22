@@ -903,12 +903,14 @@ function initSockets(httpServer) {
           // mesmo aparelho): só espera o voice:join de reconciliação.
           const alive = await io.in(self.socketId).fetchSockets().catch(() => []);
           if (alive.length > 0) {
-            // Exceção: se a dona é uma conexão MAIS NOVA que esta, quem está
-            // velho aqui é este socket (outro aparelho entrou depois e o
-            // aviso de expulsão se perdeu) — aí sim sai.
+            // Exceção: este socket JÁ esteve na sala (entrou por ele) e a vaga
+            // passou pra outro — outro aparelho entrou depois e o aviso de
+            // expulsão se perdeu: aí sim sai. Uma conexão nova de reconexão
+            // ainda não está na sala dela (salas são por socket). Também sai
+            // se a dona for uma conexão mais nova que esta.
             const ownerIssued = alive[0]?.handshake?.issued || 0;
             const mineIssued = socket.handshake?.issued || 0;
-            if (ownerIssued > mineIssued) socket.emit('voice:kicked-by-other-device', { channelId });
+            if (socket.rooms.has(`voice:${channelId}`) || ownerIssued > mineIssued) socket.emit('voice:kicked-by-other-device', { channelId });
             return;
           }
           await voiceStore.updateParticipant(channelId, userId, { socketId: socket.id });
@@ -1101,6 +1103,7 @@ function initSockets(httpServer) {
     // Agora só sai de verdade quem é o dono atual da vaga.
     socket.on('voice:leave', async ({ channelId } = {}) => {
       try {
+        speakingMemberCheck.delete(channelId); // saiu: para de retransmitir "falando" na hora
         const p = await voiceStore.getParticipant(channelId, userId);
         if (p && p.socketId && p.socketId !== socket.id) {
           const owner = await io.in(p.socketId).fetchSockets().catch(() => []);
@@ -1213,24 +1216,38 @@ function initSockets(httpServer) {
     // "Ainda está na sala?" — conferido no Redis no máximo a cada 5s por
     // canal (antes era uma leitura do Redis a CADA pacote de "falando").
     const speakingMemberCheck = new Map(); // channelId -> { at, ok }
+    const speakingPublicRoster = new Map(); // channelId -> Promise<boolean>
     socket.on('voice:speaking', async ({ channelId, speaking } = {}) => {
       if (typeof channelId !== 'string' || !channelId) return;
-      const chk = speakingMemberCheck.get(channelId);
+      // Mesma promessa compartilhada (ordem preservada) — ver abaixo.
+      let chk = speakingMemberCheck.get(channelId);
       if (!chk || Date.now() - chk.at > 5000) {
-        const ok = await voiceStore.hasParticipant(channelId, userId).catch(() => false);
         if (speakingMemberCheck.size > 8) speakingMemberCheck.clear();
-        speakingMemberCheck.set(channelId, { at: Date.now(), ok });
-        if (!ok) return;
-      } else if (!chk.ok) return;
+        chk = { at: Date.now(), ok: voiceStore.hasParticipant(channelId, userId).catch(() => false) };
+        speakingMemberCheck.set(channelId, chk);
+      }
+      if (!(await chk.ok)) return;
+      // Canal privado/restrito: o "está falando" vai só pra quem está na
+      // chamada — antes ia pra comunidade inteira e vazava quem estava
+      // falando num canal que a pessoa nem enxerga (o roster já respeitava
+      // isso, o speaking não). Calculado ANTES de olhar o mapa de relays: com
+      // um await entre "tem relay?" e "guarda o relay", dois pacotes seguidos
+      // criavam dois relays e o "parou de falar" podia sair antes do
+      // "falando" (anel verde preso aceso).
+      // A MESMA promessa pra todos os pacotes do canal: assim eles continuam
+      // na ordem em que chegaram (cada await resolve na fila, em ordem).
+      let pr = speakingPublicRoster.get(channelId);
+      if (!pr) {
+        pr = (channelId.startsWith('dm:') || channelId.startsWith('clan:'))
+          ? Promise.resolve(true)
+          : isRestrictedChannel(channelId).then((r) => !r, () => false);
+        if (speakingPublicRoster.size > 8) speakingPublicRoster.clear();
+        speakingPublicRoster.set(channelId, pr);
+      }
+      const publicRoster = await pr;
       let relay = speakingRelays.get(channelId);
       if (!relay) {
         if (speakingRelays.size > 8) { for (const r of speakingRelays.values()) r.dispose(); speakingRelays.clear(); }
-        // Canal privado/restrito: o "está falando" vai só pra quem está na
-        // chamada — antes ia pra comunidade inteira e vazava quem estava
-        // falando num canal que a pessoa nem enxerga (o roster já respeitava
-        // isso, o speaking não).
-        const publicRoster = channelId.startsWith('dm:') || channelId.startsWith('clan:')
-          || !(await isRestrictedChannel(channelId).catch(() => true));
         relay = createSpeakingRelay({
           minIntervalMs: 250,
           send: (value) => {
