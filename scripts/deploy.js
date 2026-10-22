@@ -33,7 +33,11 @@ const prebuilt = fs.existsSync(DIST_INDEX);
 const containerMb = Number(process.env.SQUARECLOUD_MEMORY || process.env.MEMORY || process.env.CONTAINER_MEMORY_MB || 1560);
 // Heap do servidor: ~70% do container (sobra pro buffers nativos, sharp,
 // sockets e o próprio sistema). Heap do build: ~75% (roda sozinho).
-const serverHeap = Math.max(512, Math.floor(containerMb * 0.70));
+// 60% (antes 70%): o V8 deixa o heap crescer "preguiçosamente" até perto do
+// teto, e tudo que fica FORA do heap (buffers de upload, sharp, zlib, buffers
+// de saída do socket.io) somava por cima — perto do limite do container o
+// kernel mata o processo sem log nenhum (só aparece o reinício).
+const serverHeap = Math.max(512, Math.floor(containerMb * 0.60));
 const buildHeap = Math.max(700, Math.floor(containerMb * 0.75));
 
 const SERVER_DIR = path.join(ROOT, 'server');
@@ -76,8 +80,22 @@ async function main() {
   if (prebuilt) {
     // Só produção: sem Playwright/Capacitor CLI do cliente. `npm ci` é mais
     // rápido e determinístico que `npm install` quando há package-lock.
-    const hasLock = fs.existsSync(path.join(ROOT, 'package-lock.json'));
-    await run('npm', [hasLock ? 'ci' : 'install', '--omit=dev', '--no-audit', '--no-fund']);
+    // Reinício sem mudança de dependências (crash, restart manual, a
+    // hospedagem reciclando o container) NÃO reinstala tudo de novo: o
+    // `npm ci` apaga e recria o node_modules inteiro (~20s de CPU/disco
+    // pesados) bem na hora em que todo mundo está reconectando.
+    const lockPath = path.join(ROOT, 'package-lock.json');
+    const hasLock = fs.existsSync(lockPath);
+    const stamp = path.join(ROOT, 'node_modules', '.pc-lockhash');
+    const lockHash = hasLock ? require('crypto').createHash('sha256').update(fs.readFileSync(lockPath)).update(process.version).digest('hex') : null;
+    let installed = null;
+    try { installed = fs.readFileSync(stamp, 'utf8').trim(); } catch { /* primeira vez */ }
+    if (lockHash && installed === lockHash && fs.existsSync(path.join(ROOT, 'node_modules', '@prisma', 'client'))) {
+      console.log('[deploy] dependências já instaladas para este package-lock (pulando npm ci)');
+    } else {
+      await run('npm', [hasLock ? 'ci' : 'install', '--omit=dev', '--no-audit', '--no-fund']);
+      if (lockHash) { try { fs.writeFileSync(stamp, lockHash); } catch { /* sem permissão: instala de novo na próxima */ } }
+    }
   } else {
     await run('npm', ['install', '--no-audit', '--no-fund']);
     await run('npm', ['run', 'build', '-w', 'client'], { NODE_OPTIONS: `--max-old-space-size=${buildHeap}` });
@@ -91,6 +109,10 @@ async function main() {
   const serverArgs = [
     `--max-old-space-size=${serverHeap}`,
     '--max-semi-space-size=32',
+    // Se o processo morrer por falta de memória, deixa um relatório em
+    // server/reports/ (pilha + uso de memória) em vez de sumir sem log.
+    '--report-on-fatalerror',
+    `--report-directory=${path.join(SERVER_DIR, 'reports')}`,
     path.join('src', 'index.js'),
   ];
   // Mesmos passos (e mesma pasta) do "npm start -w server".

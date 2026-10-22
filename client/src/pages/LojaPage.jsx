@@ -25,6 +25,7 @@ import '../styles/shop.css';
 import '../styles/shop-room.css';
 import '../styles/contentx.css';
 import '../styles/cards.css';
+import HubTabs, { ECONOMY_HUB_TABS } from '../components/HubTabs.jsx';
 
 // Loja do Project Club.
 //
@@ -392,7 +393,11 @@ export default function LojaPage() {
   else content = <ShopHistory />;
 
   return (
-    <div className="shop-scroll shop-room">
+    <div className="shop-scroll shop-room has-hub">
+      {/* Economia + Loja: mesma área, mesma barra de abas (a Loja fica à
+          esquerda do Passe). Moedas/gemas/inventário/compras seguem nas
+          rotas de sempre e são validados no servidor. */}
+      <HubTabs tabs={ECONOMY_HUB_TABS} value="loja" label="Economia e Loja" />
       <div className="room-layout">
         <aside className="room-nav" aria-label="Categorias da loja">
           <div className="room-brand">

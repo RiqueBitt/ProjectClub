@@ -70,6 +70,29 @@ async function sendControl({ room, channelId, peerId, action, perms, reason } = 
   }
 }
 
+// "A pessoa ainda está com mídia viva nesta sala?" (GET /peer, só leitura).
+// Devolve true/false, ou null quando não dá pra saber (servidor de mídia não
+// configurado, fora do ar, tempo esgotado) — quem chama decide o padrão.
+async function isPeerAlive({ channelId, peerId } = {}, { env = process.env, fetchImpl = globalThis.fetch, timeoutMs = 2500 } = {}) {
+  try {
+    const base = controlUrl(env);
+    const secret = env.MEDIA_SERVER_SECRET;
+    if (!base || !secret || typeof fetchImpl !== 'function' || !channelId || !peerId) return null;
+    const u = new URL(base);
+    u.pathname = '/peer';
+    u.searchParams.set('room', mediaRoomName(channelId, env));
+    u.searchParams.set('peerId', String(peerId));
+    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = setTimeout(() => { try { ctrl?.abort(); } catch { /* ok */ } }, timeoutMs);
+    try {
+      const r = await fetchImpl(u.toString(), { headers: { 'x-media-secret': secret }, signal: ctrl?.signal });
+      if (!r.ok) return null; // servidor de mídia antigo (sem /peer) → 404
+      const data = await r.json();
+      return !!(data && data.found && data.alive);
+    } finally { clearTimeout(timer); }
+  } catch { return null; }
+}
+
 // Estado de moderação → ordem pro servidor de mídia. Ensurdecer do servidor
 // também silencia (igual ao Discord: quem foi ensurdecido não fala).
 function moderationOrder({ serverMuted = false, serverDeafened = false } = {}) {
@@ -78,4 +101,5 @@ function moderationOrder({ serverMuted = false, serverDeafened = false } = {}) {
   return { action: 'resume-allowed', perms };
 }
 
-module.exports = { sendControl, controlUrl, mediaRoomName, moderationOrder, ACTIONS };
+module.exports = {
+  isPeerAlive, sendControl, controlUrl, mediaRoomName, moderationOrder, ACTIONS };

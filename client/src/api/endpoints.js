@@ -78,7 +78,7 @@ export const uploadIdCard = (file, framing) => {
 export const removeIdCard = () => api.delete('/users/me/id-card').then((r) => r.data);
 export const setStatus = (status) => api.patch('/users/me/status', { status }).then((r) => r.data);
 export const setCustomStatus = (payload) => api.patch('/users/me/custom-status', payload).then((r) => r.data);
-export const searchUsers = (q, opts = {}) => api.get('/users/search', { params: { q: String(q || '').replace(/^@+/, ''), ...(opts.self ? { self: 1 } : {}) } }).then((r) => r.data);
+export const searchUsers = (q, opts = {}) => api.get('/users/search', { params: { q: String(q || '').replace(/^@+/, ''), ...(opts.self ? { self: 1 } : {}) }, ...(opts.signal ? { signal: opts.signal } : {}) }).then((r) => r.data);
 // Mesmo perfil pedido por vários lugares ao mesmo tempo (miniperfil,
 // painel da DM, Início — todos no mesmo tique do refresh ao vivo) vira
 // UMA requisição só.
@@ -94,6 +94,9 @@ export const listUsableEmojis = () => api.get('/users/me/usable-emojis').then((r
 export const listFavoriteGifs = () => api.get('/users/me/favorite-gifs').then((r) => r.data);
 export const addFavoriteGif = (gif) => api.post('/users/me/favorite-gifs', gif).then((r) => r.data);
 export const removeFavoriteGif = (gifId) => api.delete(`/users/me/favorite-gifs/${encodeURIComponent(gifId)}`).then((r) => r.data);
+// Busca de GIFs pelo servidor (a chave da KLIPY fica só lá).
+export const searchGifsApi = (q, { signal, limit = 24 } = {}) => api.get('/gifs/search', { params: { q, limit }, signal }).then((r) => r.data);
+export const listGifCategories = () => api.get('/gifs/categories').then((r) => r.data);
 // Item pedido: "Jogos adicionados... Cada jogo deve possuir um
 // identificador interno" — mesmo padrão de favorite-gifs acima.
 export const listRegisteredGames = () => api.get('/users/me/games').then((r) => r.data);
@@ -135,7 +138,7 @@ export const removeConversationMember = (id, userId) => api.delete(`/conversatio
 
 // --- Messages (shared by DMs and channels) ---
 export const listMessages = (params) => api.get('/messages', { params }).then((r) => r.data);
-export const searchMessages = (params) => api.get('/messages/search', { params }).then((r) => r.data);
+export const searchMessages = (params, opts = {}) => api.get('/messages/search', { params, ...(opts.signal ? { signal: opts.signal } : {}) }).then((r) => r.data);
 // A sala vai também na query: o servidor checa permissão/spam ANTES de
 // receber os anexos (ver precheckCreateMessage no messageController).
 // O nonce também vai na query: num reenvio (fila offline) de uma mensagem
@@ -480,7 +483,7 @@ export const uploadClubCategoryImage = (id, kind, file) => {
 };
 export const deleteClubCategory = (id) => api.delete(`/communities/categories/${id}`).then((r) => r.data);
 
-export const listPosts = (params) => api.get('/posts', { params }).then((r) => r.data);
+export const listPosts = (params, opts = {}) => api.get('/posts', { params, ...(opts.signal ? { signal: opts.signal } : {}) }).then((r) => r.data);
 export const createPost = (payload) => api.post('/posts', payload).then((r) => r.data);
 export const uploadPostImage = (file) => {
   const fd = new FormData(); fd.append('image', file);

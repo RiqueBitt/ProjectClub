@@ -1,13 +1,37 @@
-/* Molduras: quem envolve o avatar com recorte redondo (overflow:hidden +
-   border-radius) cortaria as bordas da moldura — libera o recorte só
-   quando dentro tem uma moldura. A foto continua redonda (ela mesma
-   tem o próprio recorte). */
-:has(> .avatar-deco-wrap) { overflow: visible !important; }
-.mini-profile-avatar:has(> .avatar-deco-wrap),
-.avatar:has(> .avatar-deco-wrap) { border-color: transparent !important; background: transparent !important; box-shadow: none !important; }
+/* Molduras de avatar (decorações da Loja)
+   ---------------------------------------------------------------------
+   As camadas (foto embaixo, moldura em cima) são resolvidas DENTRO do
+   UserAvatar (.avatar-deco-wrap com isolation:isolate; foto z 0; moldura
+   z 2). O que sobra pra resolver aqui é o RECORTE: a moldura é maior que a
+   foto e "vaza" em volta, então nenhuma caixa redonda em volta do avatar
+   pode cortá-la.
+
+   BUG CORRIGIDO ("as decorações voltaram a ficar atrás da foto e
+   cortadas"): a regra antiga só liberava o recorte do PAI DIRETO
+   (:has(> .avatar-deco-wrap)). Quando o avatar ganhou o botão "ver foto"
+   (.pf-avatar-view) por fora, quem recortava passou a ser o AVÔ
+   (.mini-profile-avatar no miniperfil, .avatar.xlarge no perfil completo)
+   — a moldura era cortada no círculo e a borda grossa do círculo ficava
+   por cima dela, parecendo "atrás da foto". Só o dono do perfil via certo
+   (pra ele não existe o botão). Agora vale para QUALQUER caixa de avatar
+   conhecida que tenha uma moldura em qualquer nível dentro dela. */
+:has(> .avatar-deco-wrap),
+:is(.avatar, .avatar-wrap, .mini-profile-avatar, .pf-avatar-view, .vc-tile-avatar, .usb-avatar, .mtb-avatar, .shop-mock-avatar, .dmp-head .avatar-wrap):has(.avatar-deco-wrap) {
+  overflow: visible !important;
+}
+/* A borda/fundo redondos dessas caixas desenhavam um anel POR CIMA da
+   moldura; com moldura, a própria moldura faz esse papel. */
+:is(.avatar, .mini-profile-avatar, .pf-avatar-view, .shop-mock-avatar):has(.avatar-deco-wrap) {
+  border-color: transparent !important; background: transparent !important; box-shadow: none !important;
+}
+/* "Ver foto" escurece no hover via filter — isso criaria um contexto de
+   empilhamento novo; com moldura, o efeito vai só na foto. */
+.pf-avatar-view:has(.avatar-deco-wrap):hover { filter: none; }
+.pf-avatar-view:has(.avatar-deco-wrap):hover .avatar-deco-wrap > .avatar { filter: brightness(.92); }
+
+.avatar-deco-wrap { isolation: isolate; }
 .avatar-deco-wrap .avatar-decoration { animation: avatar-deco-in .35s ease-out both; }
 @keyframes avatar-deco-in { from { opacity: 0; transform: scale(.92); } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .avatar-deco-wrap .avatar-decoration { animation: none; } }
-/* Bolinha de status (online/ausente/offline) por cima da moldura. */
-:has(> .avatar-deco-wrap) > :not(.avatar-deco-wrap) { z-index: 3; }
-.avatar-deco-wrap { isolation: isolate; }
+/* Bolinha de status (online/ausente/…) sempre por cima da moldura. */
+:is(.avatar-wrap, .mini-profile-avatar-wrap, .vc-tile-avatar, .usb-avatar, .mtb-avatar, .qs-avatar):has(.avatar-deco-wrap) > .status-dot { z-index: 3; }

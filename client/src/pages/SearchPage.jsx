@@ -101,10 +101,22 @@ export default function SearchPage() {
     }, 300);
   };
 
+  // Cada tipo de busca cancela a anterior (AbortController): uma resposta
+  // lenta de um termo antigo nunca sobrescreve a do termo novo.
+  const abortRefs = useRef({});
+  const fresh = (kind) => {
+    abortRefs.current[kind]?.abort();
+    const ctrl = new AbortController();
+    abortRefs.current[kind] = ctrl;
+    return ctrl;
+  };
+  useEffect(() => () => Object.values(abortRefs.current).forEach((c) => c.abort()), []);
   const runMessageSearch = async (value) => {
-    if (value.trim().length < 2) { setMessageResults([]); return; }
+    const ctrl = fresh('messages');
+    if (value.trim().length < 2) { setMessageResults([]); setSearchingMessages(false); return; }
     setSearchingMessages(true);
-    const { messages } = await searchMessages({ q: value.trim() }).catch(() => ({ messages: [] }));
+    const { messages } = await searchMessages({ q: value.trim() }, { signal: ctrl.signal }).catch(() => ({ messages: [] }));
+    if (ctrl.signal.aborted) return;
     setMessageResults(messages || []);
     setSearchingMessages(false);
   };
@@ -115,9 +127,11 @@ export default function SearchPage() {
   };
 
   const runUserSearch = async (value) => {
-    if (value.trim().length < 2) { setUserResults([]); return; }
+    const ctrl = fresh('users');
+    if (value.trim().length < 2) { setUserResults([]); setSearching(false); return; }
     setSearching(true);
-    const { users } = await searchUsers(value.trim()).catch(() => ({ users: [] }));
+    const { users } = await searchUsers(value.trim(), { signal: ctrl.signal }).catch(() => ({ users: [] }));
+    if (ctrl.signal.aborted) return;
     setUserResults(users);
     setSearching(false);
   };
@@ -127,9 +141,11 @@ export default function SearchPage() {
   // digitado como filtro (ver o parâmetro `q` novo em
   // postsController.listPosts).
   const runPostSearch = async (value) => {
-    if (value.trim().length < 2) { setPostResults([]); return; }
+    const ctrl = fresh('posts');
+    if (value.trim().length < 2) { setPostResults([]); setSearchingPosts(false); return; }
     setSearchingPosts(true);
-    const { posts } = await listPosts({ q: value.trim(), sort: 'new' }).catch(() => ({ posts: [] }));
+    const { posts } = await listPosts({ q: value.trim(), sort: 'new' }, { signal: ctrl.signal }).catch(() => ({ posts: [] }));
+    if (ctrl.signal.aborted) return;
     setPostResults(posts);
     setSearchingPosts(false);
   };
@@ -137,10 +153,16 @@ export default function SearchPage() {
   // Chega já preenchida quando vem da busca do topo (TopSearchBar.jsx,
   // navega pra /search?q=...) — dispara a busca de usuários na hora, em
   // vez de só preencher o campo e esperar a pessoa digitar de novo.
+  // Acompanha o ?q= (não só na montagem): a busca do topo pode mandar um
+  // termo novo estando já nesta página.
+  const urlQ = searchParams.get('q') || '';
   useEffect(() => {
-    if (searchParams.get('q')) { runUserSearch(searchParams.get('q')); runPostSearch(searchParams.get('q')); runMessageSearch(searchParams.get('q')); }
+    if (!urlQ) return;
+    clearTimeout(searchDebounceRef.current);
+    setQuery(urlQ);
+    runUserSearch(urlQ); runPostSearch(urlQ); runMessageSearch(urlQ);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [urlQ]);
 
   const convName = (c) => {
     const other = !c.isGroup ? c.members.find((m) => m.id !== user.id) : null;

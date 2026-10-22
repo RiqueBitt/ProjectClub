@@ -12,6 +12,7 @@ import { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
 import '../styles/nav.css';
 import { isFeatureEnabled } from '../utils/features';
 import { channelPath, conversationPath } from '../utils/prettyLinks';
+import { searchUsers } from '../api/endpoints';
 
 // Ctrl+K / Cmd+K quick-jump palette - search across every channel in the
 // server you're currently in, plus every DM/group conversation, and jump
@@ -40,15 +41,17 @@ const PAGES = [
   { path: '/tickets', label: 'Suporte', keywords: 'ajuda tickets denúncia' },
   { path: '/notifications', label: 'Notificações', keywords: 'avisos sino' },
   { path: '/search', label: 'Busca', keywords: 'procurar pesquisar' },
-  { path: '/comunidade/eventos', label: 'Eventos', keywords: 'agenda calendário' },
+  { path: '/anuncios', label: 'Anúncios e Eventos', keywords: 'anúncios avisos novidades staff' },
+  { path: '/comunidade/eventos', label: 'Anúncios e Eventos › Eventos', keywords: 'eventos agenda calendário' },
   { path: '/comunidade/galeria', label: 'Galeria', keywords: 'fotos imagens mídia' },
-  { path: '/economia', label: 'Economia', keywords: 'moedas gemas carteira baú diário histórico' },
-  { path: '/missoes', label: 'Missões', keywords: 'missões tarefas diárias semanais recompensas' },
-  { path: '/loja', label: 'Loja', keywords: 'loja molduras efeitos comprar' },
+  { path: '/economia', label: 'Economia e Loja', keywords: 'economia moedas gemas carteira baú diário histórico' },
+  { path: '/missoes', label: 'Economia e Loja › Missões', keywords: 'missões tarefas diárias semanais recompensas' },
+  { path: '/loja', label: 'Economia e Loja › Loja', keywords: 'loja molduras efeitos comprar decorações fontes' },
+  { path: '/economia?aba=temporada', label: 'Economia e Loja › Passe do clube', keywords: 'passe temporada assinante' },
   // Casas/Figurinhas desligadas no código (utils/features.js).
   ...(isFeatureEnabled('houses') ? [{ path: '/casas', label: 'Casas', keywords: 'casa' }] : []),
   ...(isFeatureEnabled('cardsWar') ? [{ path: '/cartas', label: 'Guerra das Cartas', keywords: 'cartas jogo de cartas pacotes baralho duelo figurinhas tcg' }] : []),
-  { path: '/admin', label: 'Painel da staff', keywords: 'admin moderação', staff: true },
+  { path: '/admin', label: 'Painel da staff', keywords: 'admin moderação', staff: true, adminOnly: true },
 ];
 
 const SETTINGS_TABS = [
@@ -99,11 +102,49 @@ function openSettingsAt(label) {
   setTimeout(tick, 60);
 }
 
-export default function QuickSwitcher() {
-  const open = useStore((s) => s.quickSwitcherOpen);
-  const setOpen = useStore((s) => s.setQuickSwitcherOpen);
-  const [query, setQuery] = useState('');
-  const [activeIndex, setActiveIndex] = useState(0);
+// ---------------------------------------------------------------------
+// Busca unificada. Antes existiam DOIS sistemas: esta busca rápida (modal
+// do Ctrl+K, local) e a barra "Buscar em Project Club" do topo (só mandava
+// pra /search). Agora é um motor só (useQuickSearch) com duas
+// apresentações:
+//  - a barra do topo (TopSearchBar.jsx): resultados rápidos num menu logo
+//    abaixo do campo, Ctrl+K foca ela;
+//  - este modal em tela cheia, usado no celular (onde a barra do topo não
+//    cabe) e quando o layout atual esconde a barra.
+// As duas terminam em "Ver todos os resultados", que abre /search.
+// ---------------------------------------------------------------------
+
+// Pessoas da plataforma inteira (não só quem está carregado no store):
+// espera parar de digitar (300 ms), cancela a busca anterior e guarda as
+// últimas respostas — digitar "joa" → "joao" → apagar não refaz pedido.
+const remotePeopleCache = new Map();
+function useRemotePeople(rawQuery, enabled) {
+  const [state, setState] = useState({ q: '', users: [], loading: false });
+  useEffect(() => {
+    const q = rawQuery.trim().replace(/^@+/, '');
+    if (!enabled || q.length < 2 || /^[#!>]/.test(rawQuery.trim())) { setState({ q: '', users: [], loading: false }); return undefined; }
+    const key = q.toLowerCase();
+    if (remotePeopleCache.has(key)) { setState({ q: key, users: remotePeopleCache.get(key), loading: false }); return undefined; }
+    let cancelled = false;
+    const ctrl = new AbortController();
+    setState((st) => ({ ...st, loading: true }));
+    const timer = setTimeout(() => {
+      searchUsers(q, { signal: ctrl.signal })
+        .then(({ users }) => {
+          if (cancelled) return;
+          const list = (users || []).slice(0, 8);
+          remotePeopleCache.set(key, list);
+          if (remotePeopleCache.size > 60) remotePeopleCache.delete(remotePeopleCache.keys().next().value);
+          setState({ q: key, users: list, loading: false });
+        })
+        .catch(() => { if (!cancelled) setState({ q: key, users: [], loading: false }); });
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); ctrl.abort(); };
+  }, [rawQuery, enabled]);
+  return state;
+}
+
+export function useQuickSearch(query, { active = true, onDone } = {}) {
   const categories = useStore((s) => s.categories);
   const channels = useStore((s) => s.channels);
   const conversations = useStore((s) => s.conversations);
@@ -116,24 +157,9 @@ export default function QuickSwitcher() {
   const voice = useVoice();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const listRef = useRef(null);
   const [recentKeys, setRecentKeys] = useState(() => readRecent(user.id));
-
-  useEffect(() => {
-    const onKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setOpen((v) => !v);
-      }
-      if (e.key === 'Escape' && useStore.getState().quickSwitcherOpen) setOpen(false);
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [setOpen]);
-
-  useEffect(() => {
-    if (open) { setQuery(''); setActiveIndex(0); setRecentKeys(readRecent(user.id)); }
-  }, [open, user.id]);
+  useEffect(() => { if (active) setRecentKeys(readRecent(user.id)); }, [active, user.id]);
+  const remote = useRemotePeople(query, active);
 
   // Todos os itens pesquisáveis, cada um com uma chave estável (pros recentes).
   const allItems = useMemo(() => {
@@ -186,7 +212,7 @@ export default function QuickSwitcher() {
       });
     });
 
-    PAGES.filter((p) => !p.staff || isStaff).forEach((p) => {
+    PAGES.filter((p) => (!p.staff || isStaff) && (!p.adminOnly || user?.platformRole === 'ADMIN')).forEach((p) => {
       items.push({ key: `page:${p.path}`, kind: 'page', label: p.label, sub: 'Página', keywords: p.keywords, icon: <NavIcon name="page" size={17} />, go: () => navigate(p.path) });
     });
     SETTINGS_TABS.forEach(([id, kw]) => {
@@ -236,97 +262,188 @@ export default function QuickSwitcher() {
       .sort((a, b) => b.best - a.best);
   }, [query, allItems, recentKeys]);
 
-  const flat = useMemo(() => groups.flatMap((g) => g.items), [groups]);
+  // + pessoas achadas no servidor que não estão entre as locais, e a
+  // linha final "Ver todos os resultados" (Pessoas, Posts, Mensagens...).
+  const fullGroups = useMemo(() => {
+    const raw = query.trim();
+    if (!raw) return groups;
+    const out = [...groups];
+    if (!/^[#!>]/.test(raw) && remote.users.length) {
+      const known = new Set(allItems.filter((it) => it.kind === 'user').map((it) => it.key));
+      const extra = remote.users
+        .filter((u) => u.id !== user.id && !known.has(`user:${u.id}`))
+        .slice(0, 5)
+        .map((u) => ({
+          key: `user:${u.id}`, kind: 'user', label: u.displayName || u.username, sub: `@${u.username}`,
+          avatarUser: u, status: presence[u.id]?.status || u.status || 'OFFLINE',
+          go: () => useStore.getState().openProfile(u.id),
+        }));
+      if (extra.length) out.push({ heading: 'Mais pessoas', items: extra });
+    }
+    const term = raw.replace(/^[#!@>]\s*/, '');
+    if (term) {
+      out.push({ heading: 'Busca completa', items: [{
+        key: `search:${term}`, kind: 'search', label: `Ver todos os resultados para "${term}"`, sub: 'Pessoas, posts, mensagens, canais e conversas',
+        icon: <NavIcon name="search" size={17} />, noRecent: true,
+        go: () => navigate(`/search?q=${encodeURIComponent(term)}`),
+      }] });
+    }
+    return out;
+  }, [groups, query, remote.users, allItems, user.id, presence, navigate]);
+
+  const flat = useMemo(() => fullGroups.flatMap((g) => g.items), [fullGroups]);
+
+  const choose = (item) => {
+    if (!item) return;
+    if (!item.noRecent) {
+      const next = [item.key, ...recentKeys.filter((k) => k !== item.key)].slice(0, 12);
+      writeRecent(user.id, next);
+      setRecentKeys(next);
+    }
+    onDone?.();
+    useStore.getState().closeMobileChannelList?.();
+    item.go();
+  };
+
+  return { groups: fullGroups, flat, choose, loadingRemote: remote.loading };
+}
+
+// Lista de resultados (a mesma no menu da barra do topo e no modal).
+export function QuickResults({ groups, flat, activeIndex, setActiveIndex, choose, listRef, idPrefix = 'qs', emptyHint = true, className = '' }) {
+  return (
+    <div className={`qs-results ${className}`} id={`${idPrefix}-results`} role="listbox" ref={listRef}>
+      {flat.length === 0 && emptyHint && (
+        <div className="qs-empty">
+          <span className="qs-empty-icon"><NavIcon name="search" size={22} /></span>
+          <strong>Nada encontrado</strong>
+          <span>Tente outro nome — ou use # canais, @ pessoas, ! voz, &gt; páginas.</span>
+        </div>
+      )}
+      {groups.map((group) => (
+        <div key={group.heading} className="qs-group" role="group" aria-label={group.heading}>
+          <div className="qs-group-label">
+            {group.heading === 'Recentes' && <NavIcon name="clock" size={12} />}
+            {group.heading}
+          </div>
+          {group.items.map((item) => {
+            const index = flat.indexOf(item);
+            return (
+              <button
+                type="button"
+                key={item.key}
+                id={`${idPrefix}-${item.key}`}
+                role="option"
+                tabIndex={-1}
+                aria-selected={index === activeIndex}
+                className={`qs-item qs-kind-${item.kind} ${index === activeIndex ? 'active' : ''} ${item.unread ? 'is-unread' : ''}`}
+                onMouseMove={() => { if (index !== activeIndex) setActiveIndex(index); }}
+                onMouseDown={(e) => e.preventDefault() /* não tira o foco do campo antes do clique */}
+                onClick={() => choose(item)}
+              >
+                <span className="qs-item-icon">
+                  {item.avatarUser ? (
+                    <span className="qs-avatar">
+                      <UserAvatar user={item.avatarUser} size={26} />
+                      {item.status && <PresenceDot status={item.status} />}
+                    </span>
+                  ) : item.icon}
+                </span>
+                <span className="qs-item-text">
+                  <span className="qs-item-label truncate">{item.label}</span>
+                  {item.sub && <span className="qs-item-sub truncate">{item.sub}</span>}
+                </span>
+                {item.mentions > 0 && <span className="qs-badge">{item.mentions > 99 ? '99+' : item.mentions}</span>}
+                {!(item.mentions > 0) && item.unread && <span className="qs-dot" aria-label="Não lida" />}
+                <span className="qs-item-enter" aria-hidden="true"><NavIcon name="enter" size={14} /></span>
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Teclas comuns aos dois campos (↑ ↓ Tab Enter).
+export function quickSearchKeys(e, { flat, activeIndex, setActiveIndex, choose, onEnterNone }) {
+  if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey && flat.length)) { e.preventDefault(); setActiveIndex((i) => (flat.length ? (i + 1) % flat.length : -1)); return true; }
+  if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey && flat.length)) { e.preventDefault(); setActiveIndex((i) => (flat.length ? (i <= 0 ? flat.length - 1 : i - 1) : -1)); return true; }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (flat[activeIndex]) choose(flat[activeIndex]);
+    else onEnterNone?.();
+    return true;
+  }
+  return false;
+}
+
+// Ctrl+K / ⌘K: foca a barra do topo quando ela está visível; senão (celular,
+// layout que esconde a barra) abre o modal. Um ouvinte só, montado com o
+// modal (MainApp.jsx).
+function focusTopSearch() {
+  const input = document.querySelector('.top-search-bar-input');
+  if (!input || input.offsetParent === null || input.getClientRects().length === 0) return false;
+  input.focus();
+  input.select();
+  return true;
+}
+
+export default function QuickSwitcher() {
+  const open = useStore((s) => s.quickSwitcherOpen);
+  const setOpen = useStore((s) => s.setQuickSwitcherOpen);
+  const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
+  const listRef = useRef(null);
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        if (useStore.getState().quickSwitcherOpen) { setOpen(false); return; }
+        if (document.activeElement?.classList?.contains('top-search-bar-input')) { document.activeElement.blur(); return; }
+        if (!focusTopSearch()) setOpen(true);
+      }
+      if (e.key === 'Escape' && useStore.getState().quickSwitcherOpen) setOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [setOpen]);
+
+  useEffect(() => {
+    if (open) { setQuery(''); setActiveIndex(0); }
+  }, [open]);
+
+  const { groups, flat, choose } = useQuickSearch(query, { active: open, onDone: () => setOpen(false) });
 
   useEffect(() => {
     const el = listRef.current?.querySelector('.qs-item.active');
     el?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex, open]);
 
-  const choose = (item) => {
-    if (!item) return;
-    const next = [item.key, ...recentKeys.filter((k) => k !== item.key)].slice(0, 12);
-    writeRecent(user.id, next);
-    setRecentKeys(next);
-    setOpen(false);
-    useStore.getState().closeMobileChannelList?.();
-    item.go();
-  };
-
-  const onKeyDownInput = (e) => {
-    if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) { e.preventDefault(); setActiveIndex((i) => (flat.length ? (i + 1) % flat.length : 0)); }
-    if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) { e.preventDefault(); setActiveIndex((i) => (flat.length ? (i - 1 + flat.length) % flat.length : 0)); }
-    if (e.key === 'Enter') { e.preventDefault(); choose(flat[activeIndex]); }
-  };
-
+  const navigate = useNavigate();
   if (!open) return null;
 
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '');
+  const goFull = () => { const q = query.trim(); setOpen(false); navigate(q ? `/search?q=${encodeURIComponent(q)}` : '/search'); };
 
   return createPortal(
     <div className="qs-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
-      <div className="qs-box" role="dialog" aria-modal="true" aria-label="Busca rápida">
+      <div className="qs-box" role="dialog" aria-modal="true" aria-label="Buscar em Project Club">
         <div className="qs-input-row">
           <NavIcon name="search" size={18} className="qs-input-icon" />
           <input
             autoFocus
             className="qs-input"
-            placeholder="Para onde você quer ir?"
+            placeholder="Buscar em Project Club"
             value={query}
             onChange={(e) => { setQuery(e.target.value); setActiveIndex(0); }}
-            onKeyDown={onKeyDownInput}
+            onKeyDown={(e) => quickSearchKeys(e, { flat, activeIndex, setActiveIndex, choose, onEnterNone: goFull })}
+            enterKeyHint="search"
             role="combobox" aria-expanded="true" aria-controls="qs-results" aria-activedescendant={flat[activeIndex] ? `qs-${flat[activeIndex].key}` : undefined}
           />
           <button type="button" className="qs-close" onClick={() => setOpen(false)} aria-label="Fechar"><NavIcon name="close" size={16} /></button>
         </div>
-        <div className="qs-results" id="qs-results" role="listbox" ref={listRef}>
-          {flat.length === 0 && (
-            <div className="qs-empty">
-              <span className="qs-empty-icon"><NavIcon name="search" size={22} /></span>
-              <strong>Nada encontrado</strong>
-              <span>Tente outro nome — ou use # canais, @ pessoas, ! voz, &gt; páginas.</span>
-            </div>
-          )}
-          {groups.map((group) => (
-            <div key={group.heading} className="qs-group" role="group" aria-label={group.heading}>
-              <div className="qs-group-label">
-                {group.heading === 'Recentes' && <NavIcon name="clock" size={12} />}
-                {group.heading}
-              </div>
-              {group.items.map((item) => {
-                const index = flat.indexOf(item);
-                return (
-                  <button
-                    type="button"
-                    key={item.key}
-                    id={`qs-${item.key}`}
-                    role="option"
-                    aria-selected={index === activeIndex}
-                    className={`qs-item qs-kind-${item.kind} ${index === activeIndex ? 'active' : ''} ${item.unread ? 'is-unread' : ''}`}
-                    onMouseMove={() => { if (index !== activeIndex) setActiveIndex(index); }}
-                    onClick={() => choose(item)}
-                  >
-                    <span className="qs-item-icon">
-                      {item.avatarUser ? (
-                        <span className="qs-avatar">
-                          <UserAvatar user={item.avatarUser} size={26} />
-                          {item.status && <PresenceDot status={item.status} />}
-                        </span>
-                      ) : item.icon}
-                    </span>
-                    <span className="qs-item-text">
-                      <span className="qs-item-label truncate">{item.label}</span>
-                      {item.sub && <span className="qs-item-sub truncate">{item.sub}</span>}
-                    </span>
-                    {item.mentions > 0 && <span className="qs-badge">{item.mentions > 99 ? '99+' : item.mentions}</span>}
-                    {!(item.mentions > 0) && item.unread && <span className="qs-dot" aria-label="Não lida" />}
-                    <span className="qs-item-enter" aria-hidden="true"><NavIcon name="enter" size={14} /></span>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
+        <QuickResults groups={groups} flat={flat} activeIndex={activeIndex} setActiveIndex={setActiveIndex} choose={choose} listRef={listRef} />
         <div className="qs-footer">
           <span><kbd>↑</kbd><kbd>↓</kbd> navegar</span>
           <span><kbd>Enter</kbd> abrir</span>

@@ -107,6 +107,7 @@ const CommunityEventsPage = lazy(() => import('./CommunityEventsPage.jsx'));
 const AtividadePage = lazy(() => import('./AtividadePage.jsx'));
 const LojaPage = lazy(() => import('./LojaPage.jsx'));
 const AnunciosPage = lazy(() => import('./AnunciosPage.jsx'));
+const AnunciosEventosPage = lazy(() => import('./AnunciosEventosPage.jsx'));
 const DeepLinkPage = lazy(() => import('./DeepLinkPage.jsx'));
 const CommunityGalleryPage = lazy(() => import('./CommunityGalleryPage.jsx'));
 // Item pedido: "crie uma nova categoria chamada Jogos" — mesmo padrão
@@ -417,7 +418,7 @@ export default function MainApp() {
     return preloadPages([
       InicioPage, LojaPage, ProfilePage, NotificationsPage, AmigosPage, EconomyPage, ProgressPage,
       CommunityPage, CommunityEventsPage, CommunityGalleryPage, ClanPage, TicketsPage, MiniJogosPage,
-      AnunciosPage, AtividadePage, SearchPage, PostDetailPage, UserProfileModal, UserSettingsModal,
+      AnunciosPage, AnunciosEventosPage, AtividadePage, SearchPage, PostDetailPage, UserProfileModal, UserSettingsModal,
     ]);
   }, [isReady]);
 
@@ -510,14 +511,16 @@ export default function MainApp() {
                 <Route path="/forum/:ref" element={<PostRoute Page={PostDetailPage} />} />
                 <Route path="/posts/:ref" element={<PostRoute legacy Page={PostDetailPage} />} />
                 <Route path="/inicio" element={<InicioPage />} />
-                <Route path="/comunidade/eventos" element={<CommunityEventsPage />} />
+                <Route path="/comunidade/eventos" element={<AnunciosEventosPage tab="eventos" />} />
                 {/* /evento/<titulo>: a página de Eventos já aberta nele (antigo /eventos/<id>). */}
-                <Route path="/evento/:ref" element={<CommunityEventsPage />} />
+                <Route path="/evento/:ref" element={<AnunciosEventosPage tab="eventos" />} />
                 <Route path="/eventos" element={<Navigate to="/comunidade/eventos" replace />} />
                 <Route path="/atividade" element={<AtividadePage />} />
                 <Route path="/loja" element={<LojaPage />} />
                 <Route path="/loja/colecao/:colecao" element={<LojaPage />} />
-                <Route path="/anuncios" element={<AnunciosPage />} />
+                {/* Anúncios e Eventos: canal unificado (ver AnunciosEventosPage.jsx). */}
+                <Route path="/anuncios" element={<AnunciosEventosPage tab="anuncios" />} />
+                <Route path="/anuncios-e-eventos" element={<Navigate to="/anuncios" replace />} />
                 <Route path="/forum" element={<Navigate to="/comunidades" replace />} />
                 <Route path="/perfil/:id" element={<DeepLinkPage kind="user" />} />
                 <Route path="/u/:id" element={<DeepLinkPage kind="user" />} />

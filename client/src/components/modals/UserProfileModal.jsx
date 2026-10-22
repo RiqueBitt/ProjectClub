@@ -40,7 +40,7 @@ import { visibleProfileSectionOrder } from '../../utils/profileSections';
 import FeaturedModpackSection from '../FeaturedModpackSection.jsx';
 import ProfileGamesSection from '../games/ProfileGamesSection.jsx';
 import { lookQuery, shareProfile, IgnoreButton } from '../profile/ProfileActions.jsx';
-import { useProfileExtras, MuralCard, RecentActivityCard, StatBadgesCard, WishlistCard, NoteCard, MuralEditorModal } from '../profile/ProfileExtras.jsx';
+import { useProfileExtras, MuralCard, RecentActivityCard, StatBadgesCard, WishlistCard, MuralEditorModal } from '../profile/ProfileExtras.jsx';
 import '../../styles/profile.css';
 import '../../styles/profile-edit.css';
 import BannerImage from '../ProfileBanner.jsx';
@@ -92,7 +92,10 @@ const PF_SECTION_TAB = {
   about: 'about', roles: 'about', connections: 'connections', mutual_friends: 'about', relationship: 'about', traits: 'about', member_since: 'about',
   community_activity: 'activity', polls: 'activity', album: 'activity', featured_modpack: 'activity',
   achievements: 'achievements',
-  scraps: 'wall', testimonials: 'wall', visitors: 'wall',
+  // Recados ficam na aba Sobre, no lugar onde aparecia a Nota (pedido:
+  // "remova as notas da aba Sobre e coloque os recados no lugar") — ver o
+  // push explícito no fim de tabContent.about mais abaixo.
+  scraps: 'about', testimonials: 'wall', visitors: 'wall',
 };
 
 // Rendered once at the app root (see MainApp.jsx) and driven entirely by
@@ -1218,12 +1221,16 @@ export default function UserProfileModal() {
     if (cardsGameCard) tabContent.showcase.push(['cards_game', cardsGameCard]);
     if (badgesCard) tabContent.badges.push(['badges', badgesCard]);
     visibleKeys.forEach((key) => {
+      if (key === 'scraps') return; // vai pro fim da aba Sobre (abaixo)
       const el = SECTION_ELEMENTS[key];
       const tab = PF_SECTION_TAB[key];
       if (el && tab) tabContent[tab].push([key, el]);
     });
     if (birthdaysCard) tabContent.about.push(['birthdays', birthdaysCard]);
-    if (!isMe && extras && !extras.failed) tabContent.about.push(['note', <NoteCard userId={user.id} extras={extras} />]);
+    // A Nota privada (NoteCard) saiu da aba Sobre a pedido — os dados
+    // continuam no banco (UserNote) e a API /users/:id/note segue igual.
+    // No lugar dela entram os Recados (se a pessoa não os escondeu).
+    if (visibleKeys.includes('scraps') && SECTION_ELEMENTS.scraps) tabContent.about.push(['scraps', SECTION_ELEMENTS.scraps]);
   }
   const sections = PF_TABS.filter((t) => tabContent[t.id].length > 0);
   const showMemberSince = visibleKeys.includes('member_since');
@@ -1274,12 +1281,14 @@ export default function UserProfileModal() {
               </div>
               <div className="profile-ig-header">
                 <div className="avatar-wrap large">
+                  {/* 116 = caixa de 128px menos a borda de 6px dos dois lados
+                      (antes 112: sobrava um vão de 2px em volta da foto). */}
                   <div className="avatar xlarge">
                     {!isMe && canViewProfileImage(user.avatarUrl) ? (
                       <button type="button" className="pf-image-view pf-avatar-view" onClick={() => viewProfileImage(user.avatarUrl, `${user.username}-foto`)} aria-label="Ver foto de perfil em tamanho cheio" title="Ver foto de perfil">
-                        <UserAvatar user={user} size={112} />
+                        <UserAvatar user={user} size={116} />
                       </button>
-                    ) : <UserAvatar user={user} size={112} />}
+                    ) : <UserAvatar user={user} size={116} />}
                   </div>
                   {isMe && (
                     <label className="pfe-avatar-edit" title="Trocar foto">

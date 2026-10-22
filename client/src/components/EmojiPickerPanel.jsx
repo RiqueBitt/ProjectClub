@@ -4,7 +4,7 @@ import { useSheetDrag } from '../utils/useSheetDrag';
 import emojiGroups from 'unicode-emoji-json/data-by-group.json';
 import StyledEmoji from './StyledEmoji.jsx';
 import PersonalStickersSection from './PersonalStickersSection.jsx';
-import { addFavoriteGif, removeFavoriteGif } from '../api/endpoints';
+import { addFavoriteGif, removeFavoriteGif, searchGifsApi, listGifCategories } from '../api/endpoints';
 import starIcon from '../assets/icons/star.png';
 
 // Item pedido: "coloque os emojis personalizados dentro do menu de
@@ -18,17 +18,11 @@ import starIcon from '../assets/icons/star.png';
 const UNICODE_ALL = emojiGroups.flatMap((g) => g.emojis.map((e) => ({ emoji: e.emoji, name: e.name })));
 const UNICODE_COLLECTION_KEY = 'unicode-default';
 
-// Google shut down the Tenor GIF API for good on 2026-06-30 (announced
-// 2026-01-13) — every request to tenor.googleapis.com now fails, which is
-// why the old picker used to show nothing at all. KLIPY is the closest
-// drop-in replacement: same request/response shape as Tenor's v2 API, just
-// a different host and your own (free) API key instead of a shared demo
-// key. Get a free key at https://partner.klipy.com/ and put it in
-// client/.env as VITE_KLIPY_KEY=... (see client/.env.example). Restart
-// `npm run dev` (or rebuild) after adding it — Vite only reads env vars at
-// startup/build time.
-const KLIPY_KEY = import.meta.env.VITE_KLIPY_KEY || '';
-const KLIPY_CLIENT = 'embercord';
+// Google desligou a API do Tenor em 2026-06-30; a busca usa a KLIPY (mesmo
+// formato do Tenor v2). A chave fica SÓ no servidor: o navegador chama
+// /api/gifs/* (ver server/src/controllers/gifController.js). Antes a chave
+// vinha de VITE_KLIPY_KEY, embutida na compilação — e o build de produção
+// (CI) não tinha essa variável, então os GIFs nunca funcionavam no site.
 
 export default function EmojiPicker({ serverEmojis = [], serverStickers = [], onPick, onPickSticker, onPickGif, onClose, style, variant = 'composer', defaultHeightVh, initialTab = 'emojis', onTabChange }) {
   const { heightVh, dragHandlers } = useSheetDrag(onClose, defaultHeightVh);
@@ -135,36 +129,35 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
   const removeFavoriteGifLocal = useStore((s) => s.removeFavoriteGifLocal);
   const favoriteGifIds = new Set(favoriteGifs.map((g) => g.gifId));
 
+  // Só a resposta da busca mais recente vale: cada busca cancela a anterior
+  // (sem isso, uma resposta lenta de "ga" podia sobrescrever a de "gato").
+  const gifAbortRef = useRef(null);
+  useEffect(() => () => gifAbortRef.current?.abort(), []);
   const searchGifs = async (term) => {
-    if (!KLIPY_KEY) { setGifLoading(false); setGifFailed('unconfigured'); setGifResults([]); return; }
+    gifAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    gifAbortRef.current = ctrl;
     setGifLoading(true);
     setGifFailed(false);
     try {
-      const endpoint = term.trim()
-        ? `https://api.klipy.com/v2/search?q=${encodeURIComponent(term)}&key=${KLIPY_KEY}&client_key=${KLIPY_CLIENT}&limit=24&media_filter=gif`
-        : `https://api.klipy.com/v2/featured?key=${KLIPY_KEY}&client_key=${KLIPY_CLIENT}&limit=24&media_filter=gif`;
-      const res = await fetch(endpoint);
-      if (!res.ok) throw new Error('klipy request failed');
-      const data = await res.json();
-      setGifResults((data.results || []).map((r) => ({
-        id: r.id,
-        preview: r.media_formats?.tinygif?.url || r.media_formats?.gif?.url,
-        full: r.media_formats?.gif?.url,
-      })).filter((g) => g.full));
-    } catch {
-      setGifFailed(true);
+      const data = await searchGifsApi(term.trim(), { signal: ctrl.signal });
+      if (ctrl.signal.aborted) return;
+      setGifResults((data.results || []).filter((g) => g.full));
+    } catch (err) {
+      if (ctrl.signal.aborted || err?.code === 'ERR_CANCELED') return;
+      setGifFailed(err?.response?.data?.code === 'unconfigured' ? 'unconfigured' : true);
       setGifResults([]);
     } finally {
-      setGifLoading(false);
+      if (gifAbortRef.current === ctrl) setGifLoading(false);
     }
   };
 
   useEffect(() => {
-    if (!KLIPY_KEY) { setGifCategories([]); return; }
-    fetch(`https://api.klipy.com/v2/categories?key=${KLIPY_KEY}&client_key=${KLIPY_CLIENT}&media_filter=gif`)
-      .then((r) => (r.ok ? r.json() : { tags: [] }))
-      .then((data) => setGifCategories((data.tags || []).slice(0, 12)))
-      .catch(() => setGifCategories([]));
+    let alive = true;
+    listGifCategories()
+      .then((data) => { if (alive) setGifCategories((data.tags || []).slice(0, 12)); })
+      .catch(() => { if (alive) setGifCategories([]); });
+    return () => { alive = false; };
   }, []);
 
   useEffect(() => { if (tab === 'gifs' && gifSubTab === 'search' && !activeGifCategory) searchGifs(''); }, [tab, gifSubTab]);
@@ -231,7 +224,6 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
         value={query}
         onChange={(e) => onSearchChange(e.target.value)}
         autoFocus={window.innerWidth > 600}
-        disabled={tab === 'gifs' && gifFailed === 'unconfigured'}
       />
       <div className="emoji-picker-body">
         {tab === 'emojis' && (
@@ -385,8 +377,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
               {gifSubTab === 'search' && !gifLoading && gifFailed === 'unconfigured' && (
                 <div className="dim gif-picker-message">
                   Busca de GIFs ainda não configurada.<br />
-                  Crie uma chave gratuita em <b>partner.klipy.com</b> e adicione como
-                  <code> VITE_KLIPY_KEY </code> em <code>client/.env</code>.
+                  A staff precisa definir <code>KLIPY_KEY</code> nas variáveis do servidor.
                 </div>
               )}
               {gifSubTab === 'search' && !gifLoading && gifFailed === true && <div className="dim">Não foi possível carregar GIFs agora. Tente novamente mais tarde.</div>}

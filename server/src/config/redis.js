@@ -50,17 +50,30 @@ redis.on('error', (err) => {
 redis.on('connect', () => console.log('[redis] conectado'));
 
 // ---------- Cache genérico (consultas caras, TTL curto) ----------
+// Cálculos em andamento por chave: com o cache vazio (expirou ou foi
+// invalidado), N requisições simultâneas faziam N vezes a mesma consulta
+// cara ao banco ("cache stampede" — ex.: a lista de membros logo depois de
+// alguém editar o perfil, com todo mundo no live refresh). Agora a primeira
+// calcula e as outras esperam o mesmo resultado.
+const inflight = new Map();
 async function cacheGetOrSet(key, ttlSeconds, compute) {
   try {
     const cached = await redis.get(`cache:${key}`);
     if (cached !== null) return JSON.parse(cached);
   } catch { /* Redis fora do ar — cai pro compute() direto, sem cache */ }
 
-  const fresh = await compute();
-  try {
-    await redis.set(`cache:${key}`, JSON.stringify(fresh), 'EX', ttlSeconds);
-  } catch { /* não trava a resposta só porque não conseguiu cachear */ }
-  return fresh;
+  // Quem espera recebe uma cópia (mesma forma de um acerto de cache), pra
+  // ninguém mexer no objeto do outro.
+  if (inflight.has(key)) return inflight.get(key).then((v) => (v === undefined ? v : JSON.parse(JSON.stringify(v))));
+  const p = (async () => {
+    const fresh = await compute();
+    try {
+      await redis.set(`cache:${key}`, JSON.stringify(fresh), 'EX', ttlSeconds);
+    } catch { /* não trava a resposta só porque não conseguiu cachear */ }
+    return fresh;
+  })();
+  inflight.set(key, p);
+  try { return await p; } finally { inflight.delete(key); }
 }
 
 async function cacheInvalidate(key) {

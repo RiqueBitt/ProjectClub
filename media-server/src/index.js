@@ -52,6 +52,22 @@ const server = http.createServer((req, res) => {
     signaling.handleControlRequest(req, res, { secretOk });
     return;
   }
+  // Só leitura: "esta pessoa ainda está nesta sala com mídia viva?". O
+  // backend pergunta antes de tirar alguém da lista de participantes quando
+  // o socket PRINCIPAL dela caiu — a mídia (WebSocket daqui) é separada e
+  // pode continuar perfeita; sem isso a pessoa "sumia da lista" estando na
+  // chamada. Não muda nada no estado.
+  if (req.method === 'GET' && url.pathname === '/peer') {
+    if (!secretOk(req.headers['x-media-secret'])) { res.writeHead(401); res.end(); return; }
+    const name = String(url.searchParams.get('room') || '');
+    const uid = String(url.searchParams.get('peerId') || '');
+    const room = rooms.rooms.get(name);
+    const peer = room && !room.closed ? room.peers.get(uid) : null;
+    const alive = !!(peer && peer.socket && peer.socket.readyState === 1 && peer.socket.isAlive !== false);
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(JSON.stringify({ found: !!peer, alive }));
+    return;
+  }
   if (req.method === 'GET' && url.pathname === '/stats') {
     if (!secretOk(req.headers['x-media-secret'])) { res.writeHead(401); res.end(); return; }
     // ?deep=1: estado de cada transporte (ICE/DTLS) e bytes enviados por
